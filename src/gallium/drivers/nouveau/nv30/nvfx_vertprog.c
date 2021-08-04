@@ -22,7 +22,6 @@
  *  1. Indexed consts  + ARL
  *  3. NV_vp11, NV_vp2, NV_vp3 features
  *       - extra arith opcodes
- *       - branching
  *       - texture sampling
  *       - indexed attribs
  *       - indexed results
@@ -32,9 +31,14 @@
 #include "nv30/nv30_vertprog.h"
 #include "nv30/nv40_vertprog.h"
 
+struct nvfx_if_entry {
+   unsigned location;
+   unsigned else_location; /* valid if != location */
+};
+
 struct nvfx_loop_entry {
-   unsigned brk_target;
    unsigned cont_target;
+   struct util_dynarray brk_fixups;
 };
 
 struct nvfx_vpc {
@@ -62,8 +66,9 @@ struct nvfx_vpc {
 
    unsigned is_nv4x;
 
-   struct util_dynarray label_relocs;
+   struct util_dynarray if_stack;
    struct util_dynarray loop_stack;
+   struct util_dynarray end_locations;
 };
 
 static struct nvfx_reg
@@ -683,29 +688,40 @@ nvfx_vertprog_parse_instruction(struct nvfx_vpc *vpc,
       nvfx_vp_emit(vpc, insn);
       break;
    case TGSI_OPCODE_IF:
-      insn = arith(0, VEC, MOV, none.reg, NVFX_VP_MASK_X, src[0], none, none);
-      insn.cc_update = 1;
-      nvfx_vp_emit(vpc, insn);
+      {
+         struct nvfx_if_entry current_if;
 
-      reloc.location = vpc->vp->nr_insns;
-      reloc.target = finst->Label.Label + 1;
-      util_dynarray_append(&vpc->label_relocs, reloc);
+         insn = arith(0, VEC, MOV, none.reg, NVFX_VP_MASK_X, src[0], none, none);
+         insn.cc_update = 1;
+         nvfx_vp_emit(vpc, insn);
 
-      insn = arith(0, SCA, BRA, none.reg, 0, none, none, none);
-      insn.cc_test = NVFX_COND_EQ;
-      insn.cc_swz[0] = insn.cc_swz[1] = insn.cc_swz[2] = insn.cc_swz[3] = 0;
-      nvfx_vp_emit(vpc, insn);
+         current_if.location = vpc->vp->nr_insns;
+         current_if.else_location = vpc->vp->nr_insns;
+         util_dynarray_append(&vpc->if_stack, current_if);
+
+         insn = arith(0, SCA, BRA, none.reg, 0, none, none, none);
+         insn.cc_test = NVFX_COND_EQ;
+         insn.cc_swz[0] = insn.cc_swz[1] = insn.cc_swz[2] = insn.cc_swz[3] = 0;
+         nvfx_vp_emit(vpc, insn);
+      }
       break;
    case TGSI_OPCODE_ELSE:
+      {
+         struct nvfx_if_entry *current_if = util_dynarray_top_ptr(&vpc->if_stack, struct nvfx_if_entry);
+
+         /* Delay emitting relocation until ENDIF when target is known */
+         current_if->else_location = vpc->vp->nr_insns;
+
+         insn = arith(0, SCA, BRA, none.reg, 0, none, none, none);
+         nvfx_vp_emit(vpc, insn);
+      }
+      break;
    case TGSI_OPCODE_CAL:
       reloc.location = vpc->vp->nr_insns;
+      /* TODO: Target fixup should be in nv4x instructions, but Label is counted in TGSI ops. Exercise left for reader to fix */
       reloc.target = finst->Label.Label;
-      util_dynarray_append(&vpc->label_relocs, reloc);
-
-      if(finst->Instruction.Opcode == TGSI_OPCODE_CAL)
-         insn = arith(0, SCA, CAL, none.reg, 0, none, none, none);
-      else
-         insn = arith(0, SCA, BRA, none.reg, 0, none, none, none);
+      util_dynarray_append(&vpc->vp->branch_relocs, reloc);
+      insn = arith(0, SCA, CAL, none.reg, 0, none, none, none);
       nvfx_vp_emit(vpc, insn);
       break;
    case TGSI_OPCODE_RET:
@@ -714,9 +730,9 @@ nvfx_vertprog_parse_instruction(struct nvfx_vpc *vpc,
          tmp.swz[0] = tmp.swz[1] = tmp.swz[2] = tmp.swz[3] = 0;
          nvfx_vp_emit(vpc, arith(0, SCA, RET, none.reg, 0, none, none, tmp));
       } else {
-         reloc.location = vpc->vp->nr_insns;
-         reloc.target = vpc->info->num_instructions;
-         util_dynarray_append(&vpc->label_relocs, reloc);
+         /* Delay emitting relocation until end of program is known */
+         util_dynarray_append(&vpc->end_locations, vpc->vp->nr_insns);
+
          nvfx_vp_emit(vpc, arith(0, SCA, BRA, none.reg, 0, none, none, none));
       }
       break;
@@ -727,11 +743,33 @@ nvfx_vertprog_parse_instruction(struct nvfx_vpc *vpc,
       --sub_depth;
       break;
    case TGSI_OPCODE_ENDIF:
-      /* nothing to do here */
+      {
+         struct nvfx_if_entry current_if = util_dynarray_pop(&vpc->if_stack, struct nvfx_if_entry);
+
+         reloc.location = current_if.location;
+         if (current_if.else_location == current_if.location) {
+            reloc.target = vpc->vp->nr_insns;
+         }
+         else {
+            /* When there is an else the if not condition jump needs to go to
+               the else clause instructions rather than endif, after the else
+               jump instruction. The else jump then terminates the if true
+               condition. */
+            reloc.target = current_if.else_location + 1;
+         }
+
+         util_dynarray_append(&vpc->vp->branch_relocs, reloc);
+
+         if (current_if.else_location != current_if.location) {
+            reloc.location = current_if.else_location;
+            reloc.target = vpc->vp->nr_insns;
+            util_dynarray_append(&vpc->vp->branch_relocs, reloc);
+         }
+      }
       break;
    case TGSI_OPCODE_BGNLOOP:
-      loop.cont_target = idx;
-      loop.brk_target = finst->Label.Label + 1;
+      loop.cont_target = vpc->vp->nr_insns;
+      util_dynarray_init(&loop.brk_fixups, NULL);
       util_dynarray_append(&vpc->loop_stack, loop);
       break;
    case TGSI_OPCODE_ENDLOOP:
@@ -739,7 +777,15 @@ nvfx_vertprog_parse_instruction(struct nvfx_vpc *vpc,
 
       reloc.location = vpc->vp->nr_insns;
       reloc.target = loop.cont_target;
-      util_dynarray_append(&vpc->label_relocs, reloc);
+      util_dynarray_append(&vpc->vp->branch_relocs, reloc);
+
+      /* emit relocations for BRK instructions now that target location is known */
+      util_dynarray_foreach (&loop.brk_fixups, unsigned, fixup) {
+         reloc.location = *fixup;
+         reloc.target = vpc->vp->nr_insns + 1;
+         util_dynarray_append(&vpc->vp->branch_relocs, reloc);
+      }
+      util_dynarray_fini(&loop.brk_fixups);
 
       nvfx_vp_emit(vpc, arith(0, SCA, BRA, none.reg, 0, none, none, none));
       break;
@@ -748,26 +794,26 @@ nvfx_vertprog_parse_instruction(struct nvfx_vpc *vpc,
 
       reloc.location = vpc->vp->nr_insns;
       reloc.target = loop.cont_target;
-      util_dynarray_append(&vpc->label_relocs, reloc);
+      util_dynarray_append(&vpc->vp->branch_relocs, reloc);
 
       nvfx_vp_emit(vpc, arith(0, SCA, BRA, none.reg, 0, none, none, none));
       break;
    case TGSI_OPCODE_BRK:
-      loop = util_dynarray_top(&vpc->loop_stack, struct nvfx_loop_entry);
+      {
+         struct nvfx_loop_entry *loop_ptr = util_dynarray_top_ptr(&vpc->loop_stack, struct nvfx_loop_entry);
 
-      reloc.location = vpc->vp->nr_insns;
-      reloc.target = loop.brk_target;
-      util_dynarray_append(&vpc->label_relocs, reloc);
+         /* Delay emitting fixup until ENDLOOP where target is known */
+         util_dynarray_append(&loop_ptr->brk_fixups, vpc->vp->nr_insns);
 
-      nvfx_vp_emit(vpc, arith(0, SCA, BRA, none.reg, 0, none, none, none));
+         nvfx_vp_emit(vpc, arith(0, SCA, BRA, none.reg, 0, none, none, none));
+      }
       break;
    case TGSI_OPCODE_END:
       assert(!sub_depth);
       if(vpc->vp->enabled_ucps) {
          if(idx != (vpc->info->num_instructions - 1)) {
-            reloc.location = vpc->vp->nr_insns;
-            reloc.target = vpc->info->num_instructions;
-            util_dynarray_append(&vpc->label_relocs, reloc);
+            /* Delay emitting relocation until end of program known */
+            util_dynarray_append(&vpc->end_locations, vpc->vp->nr_insns);
             nvfx_vp_emit(vpc, arith(0, SCA, BRA, none.reg, 0, none, none, none));
          }
       } else {
@@ -951,8 +997,8 @@ _nvfx_vertprog_translate(uint16_t oclass, struct nv30_vertprog *vp, struct util_
    struct tgsi_parse_context parse;
    struct nvfx_vpc *vpc = NULL;
    struct nvfx_src none = nvfx_src(nvfx_reg(NVFXSR_NONE, 0));
-   struct util_dynarray insns;
    int i, ucps;
+   unsigned num_tgsi_insns;
 
    vp->translated = false;
    vp->nr_insns = 0;
@@ -982,9 +1028,10 @@ _nvfx_vertprog_translate(uint16_t oclass, struct nv30_vertprog *vp, struct util_
       vpc->cvtx_idx = vpc->hpos_idx;
    }
 
-   insns = UTIL_DYNARRAY_INIT;
+   num_tgsi_insns = 0;
 
    tgsi_parse_init(&parse, vp->pipe.tokens);
+
    while (!tgsi_parse_end_of_tokens(&parse)) {
       tgsi_parse_token(&parse);
 
@@ -1007,11 +1054,10 @@ _nvfx_vertprog_translate(uint16_t oclass, struct nv30_vertprog *vp, struct util_
       case TGSI_TOKEN_TYPE_INSTRUCTION:
       {
          const struct tgsi_full_instruction *finst;
-         unsigned idx = insns.size >> 2;
-         util_dynarray_append(&insns, vp->nr_insns);
          finst = &parse.FullToken.FullInstruction;
-         if (!nvfx_vertprog_parse_instruction(vpc, idx, finst))
+         if (!nvfx_vertprog_parse_instruction(vpc, num_tgsi_insns, finst))
             goto out;
+         num_tgsi_insns ++;
       }
          break;
       default:
@@ -1019,21 +1065,14 @@ _nvfx_vertprog_translate(uint16_t oclass, struct nv30_vertprog *vp, struct util_
       }
    }
 
-   util_dynarray_append(&insns, vp->nr_insns);
-
-   for(unsigned i = 0; i < vpc->label_relocs.size; i += sizeof(struct nvfx_relocation))
-   {
-      struct nvfx_relocation* label_reloc = (struct nvfx_relocation*)((char*)vpc->label_relocs.data + i);
-      struct nvfx_relocation hw_reloc;
-
-      hw_reloc.location = label_reloc->location;
-      hw_reloc.target = ((unsigned*)insns.data)[label_reloc->target];
-
-      //debug_printf("hw %u -> tgsi %u = hw %u\n", hw_reloc.location, label_reloc->target, hw_reloc.target);
-
-      util_dynarray_append(&vp->branch_relocs, hw_reloc);
+   /* Emit END instruction relocs */
+   util_dynarray_foreach(&vpc->end_locations, unsigned, end_insn) {
+      struct nvfx_relocation reloc;
+      reloc.location = *end_insn;
+      reloc.target = vp->nr_insns;
+      util_dynarray_append(&vp->branch_relocs, reloc);
    }
-   util_dynarray_fini(&insns);
+
    util_dynarray_trim(&vp->branch_relocs);
 
    /* XXX: what if we add a RET before?!  make sure we jump here...*/
@@ -1096,8 +1135,12 @@ _nvfx_vertprog_translate(uint16_t oclass, struct nv30_vertprog *vp, struct util_
 out:
    tgsi_parse_free(&parse);
    if (vpc) {
-      util_dynarray_fini(&vpc->label_relocs);
+      util_dynarray_foreach(&vpc->loop_stack, struct nvfx_loop_entry, entry) {
+         util_dynarray_fini(&entry->brk_fixups);
+      }
+      util_dynarray_fini(&vpc->if_stack);
       util_dynarray_fini(&vpc->loop_stack);
+      util_dynarray_fini(&vpc->end_locations);
       FREE(vpc->r_temp);
       FREE(vpc->r_address);
       FREE(vpc->r_const);

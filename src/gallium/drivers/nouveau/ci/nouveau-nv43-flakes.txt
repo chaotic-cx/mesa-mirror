@@ -12,3 +12,5 @@ dEQP-GLES2.functional.texture.mipmap.2d.basic.linear_nearest_clamp
 dEQP-GLES2.functional.shaders.invariance.highp.loop_0
 
 dEQP-GLES2.functional.texture.filtering.2d.nearest_nearest_mirror_rgba4444_pot
+
+spec@ext_timer_query@timer_query
