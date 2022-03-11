@@ -1158,6 +1158,7 @@ queue_submit_job(struct v3dv_queue *queue,
     * same batch.
     */
    if (!v3dv_job_type_is_gpu(job) && sems_info->wait_sem_count) {
+      queue_submit_noop_job(queue, sems_info, false, true);
       v3dv_QueueWaitIdle(v3dv_queue_to_handle(&job->device->queue));
 #ifdef DEBUG
       /* Loop through wait sems and check they are all signalled */
