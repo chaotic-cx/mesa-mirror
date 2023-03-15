@@ -63,6 +63,15 @@ iris_is_color_fast_clear_compatible(struct iris_context *ice,
    return true;
 }
 
+static inline bool is_partial_clear(struct pipe_resource *p_res,
+                             const struct pipe_box *box,
+                             unsigned level)
+{
+   return box->x > 0 || box->y > 0 ||
+          box->width < u_minify(p_res->width0, level) ||
+          box->height < u_minify(p_res->height0, level);
+}
+
 static bool
 can_fast_clear_color(struct iris_context *ice,
                      struct pipe_resource *p_res,
@@ -80,12 +89,8 @@ can_fast_clear_color(struct iris_context *ice,
    if (!isl_aux_usage_has_fast_clears(res->aux.usage))
       return false;
 
-   /* Check for partial clear */
-   if (box->x > 0 || box->y > 0 ||
-       box->width < u_minify(p_res->width0, level) ||
-       box->height < u_minify(p_res->height0, level)) {
+   if (is_partial_clear(p_res, box, level))
       return false;
-   }
 
    /* Avoid conditional fast clears to maintain correct tracking of the aux
     * state (see iris_resource_finish_write for more info). Note that partial
@@ -389,12 +394,8 @@ can_fast_clear_depth(struct iris_context *ice,
    if (INTEL_DEBUG(DEBUG_NO_FAST_CLEAR))
       return false;
 
-   /* Check for partial clears */
-   if (box->x > 0 || box->y > 0 ||
-       box->width < u_minify(p_res->width0, level) ||
-       box->height < u_minify(p_res->height0, level)) {
+   if (is_partial_clear(p_res, box, level))
       return false;
-   }
 
    /* Avoid conditional fast clears to maintain correct tracking of the aux
     * state (see iris_resource_finish_write for more info). Note that partial
