@@ -704,7 +704,11 @@ parseAppAttr(struct OptConfData *data, const char **attr)
          application_versions = attr[i+1];
       else XML_WARNING("unknown application attribute: %s.", attr[i]);
    }
+#if DETECT_OS_WINDOWS
+   if (exec && stricmp(exec, data->execName)) {
+#else
    if (exec && strcmp(exec, data->execName)) {
+#endif
       data->ignoringApp = data->inApp;
    } else if (exec_regexp) {
       regex_t re;
