@@ -24,10 +24,16 @@
 #define VK_UTIL_H
 
 #include "util/macros.h"
+
 #include <stdlib.h>
 #include <string.h>
 
+#if VK_COMPILER
 #include "vk_util_compiler.h"
+#else
+#include <stdbool.h>
+#endif
+
 #include "vk_struct_type_cast.h"
 
 #ifdef __cplusplus

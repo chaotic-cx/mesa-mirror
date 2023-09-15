@@ -66,7 +66,9 @@ endif
 if with_gallium
   subdir('mapi')
 endif
-subdir('compiler')
+if with_vk_compiler
+  subdir('compiler')
+endif
 if with_tools.contains('drm-shim')
   subdir('drm-shim')
 endif

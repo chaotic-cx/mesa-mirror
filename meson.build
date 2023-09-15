@@ -275,6 +275,9 @@ if with_gallium and system_has_kms_drm
   endif
 endif
 
+with_vk_compiler = not(with_virtio_vk and _vulkan_drivers.length() == 1)
+pre_args += '-DVK_COMPILER=@0@'.format(with_vk_compiler ? '1' : '0')
+
 with_any_broadcom = [
   with_gallium_vc4,
   with_gallium_v3d,

@@ -71,9 +71,16 @@ files_vulkan_util = files(
   'vk_format.c',
   'vk_util.c',
   'vk_util.h',
+)
+
+files_vulkan_util_compiler = files(
   'vk_util_compiler.c',
   'vk_util_compiler.h',
 )
+
+if with_vk_compiler
+  files_vulkan_util += files_vulkan_util_compiler
+endif
 
 vk_dispatch_table = custom_target(
   'vk_dispatch_table',
@@ -120,12 +127,17 @@ vk_extensions = custom_target(
   depend_files : vk_extensions_gen_depend_files,
 )
 
+vulkan_util_deps = [vulkan_wsi_deps, idep_mesautil]
+if with_vk_compiler
+  vulkan_util_deps += [idep_nir_headers]
+endif
+
 libvulkan_util = static_library(
   'vulkan_util',
   [files_vulkan_util, vk_dispatch_table, vk_enum_to_str,
    vk_struct_type_cast, vk_extensions],
   include_directories : [inc_include, inc_src],
-  dependencies : [vulkan_wsi_deps, idep_mesautil, idep_nir_headers],
+  dependencies : [vulkan_util_deps],
   c_args : [c_msvc_compat_args],
   gnu_symbol_visibility : 'hidden',
   build_by_default : false,

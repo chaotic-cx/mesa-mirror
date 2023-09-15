@@ -68,21 +68,8 @@ vulkan_runtime_files = files(
   'vk_instance.h',
   'vk_log.c',
   'vk_log.h',
-  'vk_meta.c',
-  'vk_meta.h',
-  'vk_meta_blit_resolve.c',
-  'vk_meta_draw_rects.c',
-  'vk_meta_clear.c',
-  'vk_nir.c',
-  'vk_nir.h',
-  'vk_nir_convert_ycbcr.c',
-  'vk_nir_convert_ycbcr.h',
   'vk_object.c',
   'vk_object.h',
-  'vk_pipeline.c',
-  'vk_pipeline.h',
-  'vk_pipeline_cache.c',
-  'vk_pipeline_cache.h',
   'vk_physical_device.c',
   'vk_physical_device.h',
   'vk_pipeline_layout.c',
@@ -96,8 +83,6 @@ vulkan_runtime_files = files(
   'vk_sampler.h',
   'vk_semaphore.c',
   'vk_semaphore.h',
-  'vk_shader_module.c',
-  'vk_shader_module.h',
   'vk_standard_sample_locations.c',
   'vk_standard_sample_locations.h',
   'vk_sync.c',
@@ -110,8 +95,6 @@ vulkan_runtime_files = files(
   'vk_sync_timeline.h',
   'vk_synchronization.c',
   'vk_synchronization.h',
-  'vk_texcompress_etc2.c',
-  'vk_texcompress_etc2.h',
   'vk_video.c',
   'vk_video.h',
   'vk_ycbcr_conversion.c',
@@ -121,10 +104,34 @@ vulkan_runtime_files = files(
 vulkan_runtime_deps = [
   vulkan_wsi_deps,
   idep_mesautil,
-  idep_nir,
-  idep_vtn,
   idep_vulkan_util,
 ]
+
+vulkan_nir_files = files(
+  'vk_meta.c',
+  'vk_meta.h',
+  'vk_meta_blit_resolve.c',
+  'vk_meta_draw_rects.c',
+  'vk_meta_clear.c',
+  'vk_nir.c',
+  'vk_nir.h',
+  'vk_nir_convert_ycbcr.c',
+  'vk_nir_convert_ycbcr.h',
+  'vk_pipeline.c',
+  'vk_pipeline.h',
+  'vk_pipeline_cache.c',
+  'vk_pipeline_cache.h',
+  'vk_shader_module.c',
+  'vk_shader_module.h',
+  'vk_texcompress_etc2.c',
+  'vk_texcompress_etc2.h',
+)
+
+if with_vk_compiler
+  vulkan_runtime_deps += idep_vtn
+  vulkan_runtime_deps += idep_nir
+  vulkan_runtime_files += vulkan_nir_files
+endif
 
 if dep_libdrm.found()
   vulkan_runtime_files += files('vk_drm_syncobj.c', 'vk_drm_syncobj.h')
@@ -136,7 +143,7 @@ if with_platform_android
   vulkan_runtime_deps += dep_android
 endif
 
-if prog_glslang.found()
+if prog_glslang.found() and with_vk_compiler
   vulkan_runtime_files += files('vk_texcompress_astc.c', 'vk_texcompress_astc.h')
   vulkan_runtime_files += custom_target(
     'astc_spv.h',
