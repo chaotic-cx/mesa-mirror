@@ -1224,7 +1224,17 @@ static const struct intel_device_info intel_device_info_lnl = {
    .verx10 = 300
 
 #define XE3_URB_MIN_MAX_ENTRIES                                 \
-   XE2_URB_MIN_MAX_ENTRIES
+   XE2_URB_MIN_MAX_ENTRIES,                                     \
+   /* Use URB size for device config with 1 slice. */           \
+   .urb.size = 600,                                             \
+   .urb.max_entries = {                                         \
+      [MESA_SHADER_VERTEX]    = 5888, /* BSpec 47134 */         \
+      [MESA_SHADER_TESS_CTRL] = 1548, /* BSpec 47131 */         \
+      [MESA_SHADER_TESS_EVAL] = 4480, /* BSpec 47129 */         \
+      [MESA_SHADER_GEOMETRY]  = 1952, /* BSpec 47130 */         \
+      [MESA_SHADER_TASK]      = 1548, /* BSpec 56267 */         \
+      [MESA_SHADER_MESH]      = 1952, /* BSpec 56266 */         \
+   }
 
 #define XE3_PLACEHOLDER_THREADS_AND_URB                         \
    XEHP_PLACEHOLDER_THREADS_AND_URB,                            \
