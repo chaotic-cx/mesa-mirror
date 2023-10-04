@@ -357,8 +357,10 @@ can_fast_clear_with_non_zero_color(const struct intel_device_info *devinfo,
     *     - Texture view rendering (including blorp_copy calls)
     *     - Images with multiple levels or array layers
     */
-   if (image->planes[plane].aux_usage == ISL_AUX_USAGE_FCV_CCS_E)
+   if (image->planes[plane].aux_usage == ISL_AUX_USAGE_FCV_CCS_E) {
+      printf("DEBUG: Cannot fast clear resource to non-zero value\n")
       return false;
+   }
 
    /* Non mutable image, we can fast clear with any color supported by HW.
     */
