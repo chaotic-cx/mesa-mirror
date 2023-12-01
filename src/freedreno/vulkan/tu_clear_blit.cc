@@ -3977,6 +3977,7 @@ tu_store_gmem_attachment(struct tu_cmd_buffer *cmd,
          }
       }
    } else {
+      /* A7XX TODO: Fix D24S8 MSAA resolves using the 2D blits */
       if (!cmd->state.pass->has_fdm) {
          r2d_coords(cs, render_area->offset, render_area->offset,
                     render_area->extent);
