@@ -1450,7 +1450,6 @@ r3d_setup(struct tu_cmd_buffer *cmd,
 
       if (CHIP >= A7XX) {
          tu_cs_emit_regs(cs, A7XX_RB_UNKNOWN_8812(0x3ff));
-         tu_cs_emit_regs(cs, A7XX_RB_UNKNOWN_88E5(0x50120004));
          tu_cs_emit_regs(cs, A7XX_RB_UNKNOWN_8E06(0x2080000));
       }
    }
