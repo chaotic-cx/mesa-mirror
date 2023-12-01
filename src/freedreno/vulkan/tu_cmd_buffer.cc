@@ -96,6 +96,7 @@ tu6_lazy_emit_tessfactor_addr(struct tu_cmd_buffer *cmd)
    cmd->state.tessfactor_addr_set = true;
 }
 
+template <chip CHIP>
 static void
 tu6_lazy_emit_vsc(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 {
@@ -133,14 +134,24 @@ tu6_lazy_emit_vsc(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 
    tu_get_scratch_bo(dev, size0 + num_vsc_pipes * 4, &vsc_bo);
 
-   tu_cs_emit_regs(cs,
-                   A6XX_VSC_DRAW_STRM_SIZE_ADDRESS(.bo = vsc_bo, .bo_offset = size0));
-   tu_cs_emit_regs(cs,
-                   A6XX_VSC_PRIM_STRM_ADDRESS(.bo = vsc_bo));
-   tu_cs_emit_regs(
-      cs, A6XX_VSC_DRAW_STRM_ADDRESS(.bo = vsc_bo,
-                                     .bo_offset = cmd->vsc_prim_strm_pitch *
-                                                  num_vsc_pipes));
+   if (CHIP == A6XX) {
+      tu_cs_emit_regs(cs,
+                     A6XX_VSC_DRAW_STRM_SIZE_ADDRESS(.bo = vsc_bo, .bo_offset = size0));
+      tu_cs_emit_regs(cs,
+                     A6XX_VSC_PRIM_STRM_ADDRESS(.bo = vsc_bo));
+      tu_cs_emit_regs(
+         cs, A6XX_VSC_DRAW_STRM_ADDRESS(.bo = vsc_bo,
+                                       .bo_offset = cmd->vsc_prim_strm_pitch *
+                                                   num_vsc_pipes));
+   } else {
+      tu_cs_emit_pkt7(cs, CP_SET_PSEUDO_REG, 3 * 3);
+      tu_cs_emit(cs, A6XX_CP_SET_PSEUDO_REG__0_PSEUDO_REG(DRAW_STRM_ADDRESS));
+      tu_cs_emit_qw(cs, vsc_bo->iova + cmd->vsc_prim_strm_pitch * num_vsc_pipes);
+      tu_cs_emit(cs, A6XX_CP_SET_PSEUDO_REG__0_PSEUDO_REG(DRAW_STRM_SIZE_ADDRESS));
+      tu_cs_emit_qw(cs, vsc_bo->iova + size0);
+      tu_cs_emit(cs, A6XX_CP_SET_PSEUDO_REG__0_PSEUDO_REG(PRIM_STRM_ADDRESS));
+      tu_cs_emit_qw(cs, vsc_bo->iova);
+   }
 
    cmd->vsc_initialized = true;
 }
@@ -808,10 +819,6 @@ use_sysmem_rendering(struct tu_cmd_buffer *cmd,
    if (TU_DEBUG(SYSMEM))
       return true;
 
-   /* A7XX TODO: Add gmem support */
-   if (cmd->device->physical_device->info->chip >= 7)
-      return true;
-
    /* can't fit attachments into gmem */
    if (!cmd->state.tiling->possible)
       return true;
@@ -1392,11 +1399,13 @@ tu6_emit_binning_pass(struct tu_cmd_buffer *cmd, struct tu_cs *cs)
 
    update_vsc_pipe(cmd, cs, phys_dev->info->num_vsc_pipes);
 
-   tu_cs_emit_regs(cs,
-                   A6XX_PC_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
+   if (CHIP == A6XX) {
+      tu_cs_emit_regs(cs,
+                     A6XX_PC_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
 
-   tu_cs_emit_regs(cs,
-                   A6XX_VFD_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
+      tu_cs_emit_regs(cs,
+                     A6XX_VFD_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
+   }
 
    tu_cs_emit_pkt7(cs, CP_EVENT_WRITE, 1);
    tu_cs_emit(cs, UNK_2C);
@@ -1646,7 +1655,7 @@ tu6_sysmem_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
       .lrz_feedback_zmode_mask = 0x0,
    });
 
-   if (CHIP == A7XX) {
+   if (CHIP >= A7XX) {
       tu_cs_emit_regs(cs,
                      A7XX_RB_UNKNOWN_8812(0x3ff)); // all buffers in sysmem
       tu_cs_emit_regs(cs,
@@ -1678,7 +1687,7 @@ tu6_sysmem_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
    tu_cs_emit_pkt7(cs, CP_SET_MODE, 1);
    tu_cs_emit(cs, 0x0);
 
-   tu_autotune_begin_renderpass(cmd, cs, autotune_result);
+   tu_autotune_begin_renderpass<CHIP>(cmd, cs, autotune_result);
 
    tu_cs_sanity_check(cs);
 }
@@ -1688,7 +1697,7 @@ static void
 tu6_sysmem_render_end(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
                       struct tu_renderpass_result *autotune_result)
 {
-   tu_autotune_end_renderpass(cmd, cs, autotune_result);
+   tu_autotune_end_renderpass<CHIP>(cmd, cs, autotune_result);
 
    /* Do any resolves of the last subpass. These are handled in the
     * tile_store_cs in the gmem path.
@@ -1714,14 +1723,29 @@ tu6_tile_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
    const struct tu_tiling_config *tiling = cmd->state.tiling;
    tu_lrz_tiling_begin(cmd, cs);
 
-   tu_cs_emit_pkt7(cs, CP_SKIP_IB2_ENABLE_GLOBAL, 1);
-   tu_cs_emit(cs, 0x0);
+   if (CHIP >= A7XX) {
+      tu_cs_emit_pkt7(cs, CP_THREAD_CONTROL, 1);
+      tu_cs_emit(cs, CP_THREAD_CONTROL_0_THREAD(CP_SET_THREAD_BR) |
+                     CP_THREAD_CONTROL_0_CONCURRENT_BIN_DISABLE);
+
+      tu_cs_emit_regs(cs,
+                     A7XX_RB_UNKNOWN_8812(0x0));
+      tu_cs_emit_regs(cs,
+                   A7XX_RB_UNKNOWN_8E06(0x0));
+
+      tu_cs_emit_regs(cs, A7XX_GRAS_UNKNOWN_8007(0x0));
+      tu_cs_emit_regs(cs, A7XX_GRAS_UNKNOWN_810B(0x0));
+      tu_cs_emit_regs(cs, A7XX_GRAS_UNKNOWN_8113(0x0));
+
+      tu_cs_emit_regs(cs, A6XX_GRAS_UNKNOWN_8110(0x2));
+      tu_cs_emit_regs(cs, A7XX_RB_UNKNOWN_8E09(0x4));
+   }
 
    tu_emit_cache_flush_ccu<CHIP>(cmd, cs, TU_CMD_CCU_GMEM);
 
    if (use_hw_binning(cmd)) {
       if (!cmd->vsc_initialized) {
-         tu6_lazy_emit_vsc(cmd, cs);
+         tu6_lazy_emit_vsc<CHIP>(cmd, cs);
       }
 
       tu6_emit_bin_size<CHIP>(cs, tiling->tile0.width, tiling->tile0.height,
@@ -1746,11 +1770,13 @@ tu6_tile_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
       tu_cs_emit_regs(cs,
                       A6XX_VFD_MODE_CNTL(RENDERING_PASS));
 
-      tu_cs_emit_regs(cs,
-                      A6XX_PC_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
+      if (CHIP == A6XX) {
+         tu_cs_emit_regs(cs,
+                        A6XX_PC_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
 
-      tu_cs_emit_regs(cs,
-                      A6XX_VFD_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
+         tu_cs_emit_regs(cs,
+                        A6XX_VFD_POWER_CNTL(phys_dev->info->a6xx.magic.PC_POWER_CNTL));
+      }
 
       tu_cs_emit_pkt7(cs, CP_SKIP_IB2_ENABLE_GLOBAL, 1);
       tu_cs_emit(cs, 0x1);
@@ -1775,7 +1801,7 @@ tu6_tile_render_begin(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
       }
    }
 
-   tu_autotune_begin_renderpass(cmd, cs, autotune_result);
+   tu_autotune_begin_renderpass<CHIP>(cmd, cs, autotune_result);
 
    tu_cs_sanity_check(cs);
 }
@@ -1828,7 +1854,7 @@ static void
 tu6_tile_render_end(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
                     struct tu_renderpass_result *autotune_result)
 {
-   tu_autotune_end_renderpass(cmd, cs, autotune_result);
+   tu_autotune_end_renderpass<CHIP>(cmd, cs, autotune_result);
 
    tu_cs_emit_call(cs, &cmd->draw_epilogue_cs);
 
