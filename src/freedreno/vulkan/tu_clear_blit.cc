@@ -3425,7 +3425,7 @@ blit_can_resolve(VkFormat format)
     * note: this includes all float formats
     * note2: single channel integer formats seem OK
     */
-   if (desc->channel[0].size > 10)
+   if (desc->channel[0].size > 10 && vk_format_is_color(format))
       return false;
 
    switch (format) {
@@ -3436,8 +3436,6 @@ blit_can_resolve(VkFormat format)
    case VK_FORMAT_R8G8_UINT:
    case VK_FORMAT_R8G8_SINT:
    case VK_FORMAT_R8G8_SRGB:
-   /* TODO: this one should be able to work? */
-   case VK_FORMAT_D24_UNORM_S8_UINT:
       return false;
    default:
       break;
