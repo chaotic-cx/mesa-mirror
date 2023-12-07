@@ -285,6 +285,7 @@ struct pvr_device {
 struct pvr_device_memory {
    struct vk_object_base base;
    struct pvr_winsys_bo *bo;
+   bool is_for_wsi;
 };
 
 struct pvr_mip_level {

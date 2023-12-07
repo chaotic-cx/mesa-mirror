@@ -59,6 +59,7 @@
 #include "pvr_uscgen.h"
 #include "pvr_util.h"
 #include "pvr_winsys.h"
+#include "pvr_winsys_helper.h"
 #include "rogue/rogue.h"
 #include "util/build_id.h"
 #include "util/log.h"
@@ -75,6 +76,12 @@
 #include "vk_physical_device_properties.h"
 #include "vk_sampler.h"
 #include "vk_util.h"
+
+// maybe unneeded?
+//#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+//#include <wayland-client.h>
+//#include "wayland-drm-client-protocol.h"
+//#endif
 
 #define PVR_GLOBAL_FREE_LIST_INITIAL_SIZE (2U * 1024U * 1024U)
 #define PVR_GLOBAL_FREE_LIST_MAX_SIZE (256U * 1024U * 1024U)
@@ -93,7 +100,8 @@
  */
 #define PVR_GLOBAL_FREE_LIST_GROW_THRESHOLD 13U
 
-#if defined(VK_USE_PLATFORM_DISPLAY_KHR)
+#if defined(VK_USE_PLATFORM_DISPLAY_KHR) || \
+    defined(VK_USE_PLATFORM_WAYLAND_KHR)
 #   define PVR_USE_WSI_PLATFORM_DISPLAY true
 #else
 #   define PVR_USE_WSI_PLATFORM_DISPLAY false
@@ -155,6 +163,7 @@ static const struct vk_instance_extension_table pvr_instance_extensions = {
    .KHR_get_physical_device_properties2 = true,
    .KHR_get_surface_capabilities2 = PVR_USE_WSI_PLATFORM,
    .KHR_surface = PVR_USE_WSI_PLATFORM,
+   .KHR_wayland_surface = VK_USE_PLATFORM_WAYLAND_KHR,
    .EXT_debug_report = true,
    .EXT_debug_utils = true,
 };
@@ -188,6 +197,10 @@ static void pvr_physical_device_get_supported_extensions(
       .KHR_shader_float16_int8 = false,
       .KHR_storage_buffer_storage_class = true,
       .KHR_swapchain = PVR_USE_WSI_PLATFORM,
+#ifdef PVR_USE_WSI_PLATFORM // needed?
+      .KHR_swapchain_mutable_format         = true,
+      .KHR_incremental_present              = true,
+#endif
       .KHR_timeline_semaphore = true,
       .KHR_uniform_buffer_standard_layout = true,
       .EXT_external_memory_dma_buf = true,
@@ -772,7 +785,7 @@ static VkResult pvr_physical_device_init(struct pvr_physical_device *pdevice,
       goto err_out;
    }
 
-   if (instance->vk.enabled_extensions.KHR_display) {
+   if (instance->vk.enabled_extensions.KHR_display || instance->vk.enabled_extensions.KHR_wayland_surface) {
       display_path = vk_strdup(&instance->vk.alloc,
                                drm_display_device->nodes[DRM_NODE_PRIMARY],
                                VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
@@ -2152,6 +2165,71 @@ VkResult pvr_EnumerateInstanceLayerProperties(uint32_t *pPropertyCount,
    return vk_error(NULL, VK_ERROR_LAYER_NOT_PRESENT);
 }
 
+static void
+device_free_wsi_dumb(int32_t display_fd, int32_t dumb_handle)
+{
+   assert(display_fd != -1);
+   if (dumb_handle < 0)
+      return;
+
+   struct drm_mode_destroy_dumb destroy_dumb = {
+      .handle = dumb_handle,
+   };
+   if (pvr_ioctl(display_fd, DRM_IOCTL_MODE_DESTROY_DUMB, &destroy_dumb, VK_ERROR_UNKNOWN)) {
+      fprintf(stderr, "destroy dumb object %d: %s\n", dumb_handle, strerror(errno));
+   }
+}
+
+static VkResult
+device_alloc_for_wsi(struct pvr_device *device,
+                     const VkAllocationCallbacks *pAllocator,
+                     struct pvr_device_memory *mem,
+                     VkDeviceSize size)
+{
+   VkResult result;
+//   struct pvr_physical_device *pdevice = device->pdevice;
+
+   struct pvr_winsys *ws = device->ws;
+   int display_fd = ws->display_fd;
+
+   assert(display_fd != -1);
+
+   mem->is_for_wsi = true;
+
+   struct drm_mode_create_dumb create_dumb = {
+      .width = 1024, /* one page */
+      .height = align(size, 4096) / 4096,
+      .bpp = util_format_get_blocksizebits(PIPE_FORMAT_RGBA8888_UNORM),
+   };
+
+   int err;
+   err = pvr_ioctl(display_fd, DRM_IOCTL_MODE_CREATE_DUMB, &create_dumb, VK_ERROR_UNKNOWN);
+   if (err < 0)
+      goto fail_create;
+
+   int fd;
+   err =
+      drmPrimeHandleToFD(display_fd, create_dumb.handle, O_CLOEXEC, &fd);
+   if (err < 0)
+      goto fail_export;
+
+   //result = device_import_bo(device, pAllocator, fd, size, &mem->bo);
+   result = device->ws->ops->buffer_create_from_fd(device->ws, fd, &mem->bo);
+   close(fd);
+   if (result != VK_SUCCESS)
+      goto fail_import;
+
+   mem->bo->dumb_handle = create_dumb.handle;
+   return VK_SUCCESS;
+
+fail_import:
+fail_export:
+   device_free_wsi_dumb(display_fd, create_dumb.handle);
+
+fail_create:
+   return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+}
+
 VkResult pvr_AllocateMemory(VkDevice _device,
                             const VkMemoryAllocateInfo *pAllocateInfo,
                             const VkAllocationCallbacks *pAllocator,
@@ -2173,9 +2251,14 @@ VkResult pvr_AllocateMemory(VkDevice _device,
    if (!mem)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
+   mem->is_for_wsi = false;
+
+   const struct wsi_memory_allocate_info *wsi_info = NULL;
+
    vk_foreach_struct_const (ext, pAllocateInfo->pNext) {
       switch ((unsigned)ext->sType) {
       case VK_STRUCTURE_TYPE_WSI_MEMORY_ALLOCATE_INFO_MESA:
+         wsi_info = (void *)ext;
          type = PVR_WINSYS_BO_TYPE_DISPLAY;
          break;
       case VK_STRUCTURE_TYPE_IMPORT_MEMORY_FD_INFO_KHR:
@@ -2187,7 +2270,11 @@ VkResult pvr_AllocateMemory(VkDevice _device,
       }
    }
 
-   if (fd_info && fd_info->handleType) {
+   const VkDeviceSize alloc_size = align64(pAllocateInfo->allocationSize, 4096);
+
+   if (wsi_info) {
+      result = device_alloc_for_wsi(device, pAllocator, mem, alloc_size);
+   } else if (fd_info && fd_info->handleType) {
       VkDeviceSize aligned_alloc_size =
          ALIGN_POT(pAllocateInfo->allocationSize, device->ws->page_size);
 
@@ -2323,6 +2410,15 @@ void pvr_FreeMemory(VkDevice _device,
       device->ws->ops->buffer_unmap(mem->bo);
 
    device->ws->ops->buffer_destroy(mem->bo);
+
+   /* If this memory allocation was for WSI, then we need to use the
+    * display device to free the allocated dumb BO.
+    */
+   if (mem->is_for_wsi) {
+      struct pvr_winsys *ws = device->ws;
+      int display_fd = ws->display_fd;
+      device_free_wsi_dumb(display_fd, mem->bo->dumb_handle);
+   }
 
    vk_object_free(&device->vk, pAllocator, mem);
 }

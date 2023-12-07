@@ -576,10 +576,12 @@ gbm_bo_create_with_modifiers2(struct gbm_device *gbm,
  *
  * \sa enum gbm_bo_flags for the list of usage flags
  */
+#include <assert.h>
 GBM_EXPORT struct gbm_bo *
 gbm_bo_import(struct gbm_device *gbm,
               uint32_t type, void *buffer, uint32_t flags)
 {
+	assert(gbm->v0.bo_import != 0);
    return gbm->v0.bo_import(gbm, type, buffer, flags);
 }
 

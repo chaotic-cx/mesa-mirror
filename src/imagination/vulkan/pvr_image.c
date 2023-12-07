@@ -39,6 +39,7 @@
 #include "vk_object.h"
 #include "vk_util.h"
 #include "wsi_common.h"
+#include "drm-uapi/drm_fourcc.h"
 
 static void pvr_image_init_memlayout(struct pvr_image *image)
 {
@@ -53,6 +54,7 @@ static void pvr_image_init_memlayout(struct pvr_image *image)
       else
          image->memlayout = PVR_MEMLAYOUT_TWIDDLED;
       break;
+   case VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT:
    case VK_IMAGE_TILING_LINEAR:
       image->memlayout = PVR_MEMLAYOUT_LINEAR;
       break;
@@ -141,12 +143,10 @@ static void pvr_image_setup_mip_levels(struct pvr_image *image)
    image->size = image->layer_size * image->vk.array_layers;
 }
 
-VkResult pvr_CreateImage(VkDevice _device,
-                         const VkImageCreateInfo *pCreateInfo,
-                         const VkAllocationCallbacks *pAllocator,
-                         VkImage *pImage)
+static VkResult
+create_image(struct pvr_device *device, const VkImageCreateInfo *pCreateInfo,
+             const VkAllocationCallbacks *pAllocator, VkImage *pImage)
 {
-   PVR_FROM_HANDLE(pvr_device, device, _device);
    struct pvr_image *image;
 
    image =
@@ -167,6 +167,78 @@ VkResult pvr_CreateImage(VkDevice _device,
    *pImage = pvr_image_to_handle(image);
 
    return VK_SUCCESS;
+}
+
+static struct pvr_image *
+pvr_wsi_get_image_from_swapchain(VkSwapchainKHR swapchain, uint32_t index)
+{
+   VkImage _image = wsi_common_get_image(swapchain, index);
+   PVR_FROM_HANDLE(pvr_image, image, _image);
+   return image;
+}
+
+static VkResult
+create_image_from_swapchain(struct pvr_device *device,
+                            const VkImageCreateInfo *pCreateInfo,
+                            const VkImageSwapchainCreateInfoKHR *swapchain_info,
+                            const VkAllocationCallbacks *pAllocator,
+                            VkImage *pImage)
+{
+   struct pvr_image *swapchain_image =
+      pvr_wsi_get_image_from_swapchain(swapchain_info->swapchain, 0);
+   assert(swapchain_image);
+
+   VkImageCreateInfo local_create_info = *pCreateInfo;
+   local_create_info.pNext = NULL;
+
+   /* Added by wsi code. */
+   local_create_info.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+   /* The spec requires TILING_OPTIMAL as input, but the swapchain image may
+    * privately use a different tiling.  See spec anchor
+    * #swapchain-wsi-image-create-info .
+    */
+   assert(local_create_info.tiling == VK_IMAGE_TILING_OPTIMAL);
+   local_create_info.tiling = swapchain_image->vk.tiling;
+
+   VkImageDrmFormatModifierListCreateInfoEXT local_modifier_info = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
+      .drmFormatModifierCount = 1,
+      .pDrmFormatModifiers = &swapchain_image->vk.drm_format_mod,
+   };
+
+   if (swapchain_image->vk.drm_format_mod != DRM_FORMAT_MOD_INVALID)
+      __vk_append_struct(&local_create_info, &local_modifier_info);
+
+   assert(swapchain_image->vk.image_type == local_create_info.imageType);
+   assert(swapchain_image->vk.format == local_create_info.format);
+   assert(swapchain_image->vk.extent.width == local_create_info.extent.width);
+   assert(swapchain_image->vk.extent.height == local_create_info.extent.height);
+   assert(swapchain_image->vk.extent.depth == local_create_info.extent.depth);
+   assert(swapchain_image->vk.array_layers == local_create_info.arrayLayers);
+   assert(swapchain_image->vk.samples == local_create_info.samples);
+   assert(swapchain_image->vk.tiling == local_create_info.tiling);
+   assert((swapchain_image->vk.usage & local_create_info.usage) ==
+          local_create_info.usage);
+
+   return create_image(device, &local_create_info, pAllocator, pImage);
+}
+
+
+VkResult pvr_CreateImage(VkDevice _device,
+                         const VkImageCreateInfo *pCreateInfo,
+                         const VkAllocationCallbacks *pAllocator,
+                         VkImage *pImage)
+{
+   PVR_FROM_HANDLE(pvr_device, device, _device);
+   const VkImageSwapchainCreateInfoKHR *swapchain_info =
+      vk_find_struct_const(pCreateInfo->pNext, IMAGE_SWAPCHAIN_CREATE_INFO_KHR);
+
+   if (swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE)
+      return create_image_from_swapchain(device, pCreateInfo, swapchain_info,
+                                         pAllocator, pImage);
+
+   return create_image(device, pCreateInfo, pAllocator, pImage);
 }
 
 void pvr_DestroyImage(VkDevice _device,
@@ -531,4 +603,18 @@ void pvr_DestroyBufferView(VkDevice _device,
       return;
 
    vk_buffer_view_destroy(&device->vk, pAllocator, &bview->vk);
+}
+
+VkResult
+pvr_GetImageDrmFormatModifierPropertiesEXT(
+   VkDevice device, VkImage _image,
+   VkImageDrmFormatModifierPropertiesEXT *pProperties)
+{
+//   VK_FROM_HANDLE(pvr_image, image, _image); TODO
+
+   assert(pProperties->sType ==
+          VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT);
+
+   pProperties->drmFormatModifier = DRM_FORMAT_MOD_LINEAR; // TODO image->pimage.layout.modifier; ??
+   return VK_SUCCESS;
 }

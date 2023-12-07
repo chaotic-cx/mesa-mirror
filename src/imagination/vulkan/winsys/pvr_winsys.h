@@ -119,6 +119,12 @@ struct pvr_winsys_bo {
 
    bool is_imported;
 
+   /**
+    * If this BO was allocated for a swapchain on the display device, the
+    * handle of the dumb BO on that device.
+    */
+   int32_t dumb_handle;
+
 #if defined(HAVE_VALGRIND)
    char *vbits;
 #endif /* defined(HAVE_VALGRIND) */
