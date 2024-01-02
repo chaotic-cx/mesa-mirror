@@ -71,6 +71,8 @@ files_vulkan_util = files(
   'vk_format.c',
   'vk_util.c',
   'vk_util.h',
+  'vk_util_compiler.c',
+  'vk_util_compiler.h',
 )
 
 vk_dispatch_table = custom_target(

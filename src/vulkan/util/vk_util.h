@@ -23,12 +23,11 @@
 #ifndef VK_UTIL_H
 #define VK_UTIL_H
 
-#include "util/bitscan.h"
 #include "util/macros.h"
-#include "compiler/shader_enums.h"
 #include <stdlib.h>
 #include <string.h>
 
+#include "vk_util_compiler.h"
 #include "vk_struct_type_cast.h"
 
 #ifdef __cplusplus
@@ -316,19 +315,6 @@ struct vk_pipeline_cache_header {
    memcpy((dest), (src), (count) * sizeof(*(src))); \
 } while (0)
 
-static inline gl_shader_stage
-vk_to_mesa_shader_stage(VkShaderStageFlagBits vk_stage)
-{
-   assert(util_bitcount((uint32_t) vk_stage) == 1);
-   return (gl_shader_stage) (ffs((uint32_t) vk_stage) - 1);
-}
-
-static inline VkShaderStageFlagBits
-mesa_to_vk_shader_stage(gl_shader_stage mesa_stage)
-{
-   return (VkShaderStageFlagBits) (1 << ((uint32_t) mesa_stage));
-}
-
 /* iterate over a sequence of indexed multidraws for VK_EXT_multi_draw extension */
 /* 'i' must be explicitly declared */
 #define vk_foreach_multi_draw_indexed(_draw, _i, _pDrawInfo, _num_draws, _stride) \
@@ -342,13 +328,6 @@ mesa_to_vk_shader_stage(gl_shader_stage mesa_stage)
    for (const VkMultiDrawInfoEXT *_draw = (const VkMultiDrawInfoEXT*)(_pDrawInfo); \
         (_i) < (_num_draws); \
         (_i)++, (_draw) = (const VkMultiDrawInfoEXT*)((const uint8_t*)(_draw) + (_stride)))
-
-
-struct nir_spirv_specialization;
-
-struct nir_spirv_specialization*
-vk_spec_info_to_nir_spirv(const VkSpecializationInfo *spec_info,
-                          uint32_t *out_num_spec_entries);
 
 #define STACK_ARRAY_SIZE 8
 
