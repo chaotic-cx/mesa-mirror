@@ -1298,6 +1298,7 @@ r3d_src_gmem(struct tu_cmd_buffer *cmd,
    r3d_src_common(cmd, cs, desc, 0, 0, VK_FILTER_NEAREST);
 }
 
+template <chip CHIP>
 static void
 r3d_dst(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer,
         enum pipe_format src_format)
@@ -1318,6 +1319,9 @@ r3d_dst(struct tu_cs *cs, const struct fdl6_view *iview, uint32_t layer,
 
    tu_cs_emit_pkt4(cs, REG_A6XX_RB_MRT_FLAG_BUFFER(0), 3);
    tu_cs_image_flag_ref(cs, iview, layer);
+
+   if (CHIP >= A7XX)
+      tu_cs_emit_regs(cs, A7XX_GRAS_LRZ_DEPTH_BUFFER_INFO(0));
 
    /* Use color format from RB_MRT_BUF_INFO. This register is relevant for
     * FMT6_NV12_Y.
@@ -1626,7 +1630,7 @@ static const struct blit_ops r3d_ops = {
    .clear_value = r3d_clear_value,
    .src = r3d_src,
    .src_buffer = r3d_src_buffer<CHIP>,
-   .dst = r3d_dst,
+   .dst = r3d_dst<CHIP>,
    .dst_depth = r3d_dst_depth,
    .dst_stencil = r3d_dst_stencil,
    .dst_buffer = r3d_dst_buffer,
@@ -1983,7 +1987,7 @@ tu_CmdBlitImage2(VkCommandBuffer commandBuffer,
    }
 
    if (dst_image->lrz_height) {
-      tu_disable_lrz(cmd, &cmd->cs, dst_image);
+      tu_disable_lrz<CHIP>(cmd, &cmd->cs, dst_image);
    }
 }
 TU_GENX(tu_CmdBlitImage2);
@@ -2101,7 +2105,7 @@ tu_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
                               pCopyBufferToImageInfo->pRegions + i);
 
    if (dst_image->lrz_height) {
-      tu_disable_lrz(cmd, &cmd->cs, dst_image);
+      tu_disable_lrz<CHIP>(cmd, &cmd->cs, dst_image);
    }
 }
 TU_GENX(tu_CmdCopyBufferToImage2);
@@ -2445,7 +2449,7 @@ tu_CmdCopyImage2(VkCommandBuffer commandBuffer,
    }
 
    if (dst_image->lrz_height) {
-      tu_disable_lrz(cmd, &cmd->cs, dst_image);
+      tu_disable_lrz<CHIP>(cmd, &cmd->cs, dst_image);
    }
 }
 TU_GENX(tu_CmdCopyImage2);
@@ -2808,7 +2812,7 @@ tu_CmdClearDepthStencilImage(VkCommandBuffer commandBuffer,
       clear_image<CHIP>(cmd, image, (const VkClearValue*) pDepthStencil, range, range->aspectMask);
    }
 
-   tu_lrz_clear_depth_image(cmd, image, pDepthStencil, rangeCount, pRanges);
+   tu_lrz_clear_depth_image<CHIP>(cmd, image, pDepthStencil, rangeCount, pRanges);
 }
 TU_GENX(tu_CmdClearDepthStencilImage);
 
@@ -3760,7 +3764,7 @@ store_3d_blit(struct tu_cmd_buffer *cmd,
          r3d_dst_stencil(cs, iview, layer);
       }
    } else {
-      r3d_dst(cs, &iview->view, layer, src_format);
+      r3d_dst<CHIP>(cs, &iview->view, layer, src_format);
    }
 
    r3d_src_gmem<CHIP>(cmd, cs, iview, src_format, dst_format, gmem_offset, cpp);
