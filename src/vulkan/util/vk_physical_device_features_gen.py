@@ -187,6 +187,8 @@ TEMPLATE_H = Template(COPYRIGHT + """
 #ifndef VK_FEATURES_H
 #define VK_FEATURES_H
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
