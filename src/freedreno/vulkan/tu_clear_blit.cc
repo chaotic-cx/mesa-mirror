@@ -3143,6 +3143,8 @@ tu_emit_clear_gmem_attachment(struct tu_cmd_buffer *cmd,
       }
    }
 
+   tu_flush_for_access(&cmd->state.renderpass_cache, TU_ACCESS_BLIT_WRITE_GMEM, TU_ACCESS_NONE);
+
    trace_end_gmem_clear(&cmd->trace, cs);
 }
 
@@ -3428,6 +3430,8 @@ tu_emit_blit(struct tu_cmd_buffer *cmd,
 
       tu_emit_event_write<CHIP>(cmd, cs, FD_BLIT);
    }
+
+   tu_flush_for_access(&cmd->state.cache, TU_ACCESS_BLIT_WRITE_GMEM, TU_ACCESS_NONE);
 }
 
 static bool
