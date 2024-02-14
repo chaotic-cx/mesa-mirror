@@ -248,6 +248,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_external_semaphore                = true,
       .KHR_external_semaphore_fd             = true,
       .KHR_format_feature_flags2             = true,
+      .KHR_fragment_shader_barycentric       = true,
       .KHR_fragment_shading_rate             = device->info.ver >= 11,
       .KHR_get_memory_requirements2          = true,
       .KHR_global_priority                   = device->max_context_priority >=
@@ -896,6 +897,9 @@ get_features(const struct anv_physical_device *pdevice,
 
       /* VK_KHR_shader_expect_assume */
       .shaderExpectAssume = true,
+
+      /* VK_KHR_fragment_shader_barycentric */
+      .fragmentShaderBarycentric = true,
    };
 
    /* The new DOOM and Wolfenstein games require depthBounds without
@@ -1525,6 +1529,11 @@ get_properties(const struct anv_physical_device *pdevice,
        * subpixel precision bits applies to all line rasterization types.
        */
       props->lineSubPixelPrecisionBits = 4;
+   }
+
+   /* VK_KHR_fragment_shader_barycentric */
+   {
+      props->triStripVertexOrderIndependentOfProvokingVertex = false;
    }
 
    /* VK_EXT_mesh_shader */
