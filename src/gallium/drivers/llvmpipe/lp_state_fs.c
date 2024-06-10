@@ -1489,7 +1489,7 @@ generate_fs_loop(struct gallivm_state *gallivm,
  * However in memory pixels are stored in rows
  *  e.g. (0, 0), (1, 0), (2, 0), (3, 0) ; (0, 1) ...
  *
- * @param type            fragment shader type (4x or 8x float)
+ * @param type            fragment shader type (4x or 8x or 16x float)
  * @param num_fs          number of fs_src
  * @param dst_channels    number of output channels
  * @param fs_src          output from fragment shader
@@ -1511,7 +1511,7 @@ generate_fs_twiddle(struct gallivm_state *gallivm,
    unsigned src_channels = dst_channels < 3 ? dst_channels : 4;
    unsigned src_count = num_fs * src_channels;
 
-   assert(pixels == 2 || pixels == 1);
+   assert(pixels == 4 || pixels == 2 || pixels == 1);
    assert(num_fs * src_channels <= ARRAY_SIZE(src));
 
    /*
@@ -3381,7 +3381,7 @@ generate_fragment(struct llvmpipe_context *lp,
    unsigned num_fs = 16 / fs_type.length; /* number of loops per 4x4 stamp */
    /* for 1d resources only run "upper half" of stamp */
    if (key->resource_1d)
-      num_fs /= 2;
+      num_fs = MAX2(num_fs/2, 1);
 
    {
       LLVMValueRef num_loop = lp_build_const_int32(gallivm, num_fs);
