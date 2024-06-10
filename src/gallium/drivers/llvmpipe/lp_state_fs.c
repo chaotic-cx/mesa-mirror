@@ -2536,7 +2536,6 @@ generate_unswizzled_blend(struct gallivm_state *gallivm,
    struct lp_build_mask_context mask_ctx;
 
    unsigned char swizzle[TGSI_NUM_CHANNELS];
-   unsigned src_channels = TGSI_NUM_CHANNELS;
 
    const struct util_format_description *out_format_desc =
       util_format_description(out_format);
@@ -2547,7 +2546,8 @@ generate_unswizzled_blend(struct gallivm_state *gallivm,
       util_blend_state_is_dual(&variant->key.blend, 0);
 
    const bool is_1d = variant->key.resource_1d;
-   const unsigned num_fullblock_fs = is_1d ? 2 * num_fs : num_fs;
+   const unsigned num_fullblock_fs = block_size / fs_type.length;
+   const unsigned num_quads = fs_type.length / 4;
 
    LLVMTypeRef fs_vec_type = lp_build_vec_type(gallivm, fs_type);
 
@@ -2684,22 +2684,12 @@ generate_unswizzled_blend(struct gallivm_state *gallivm,
          fs_src[i][3] = alpha;
       }
 
-      /* We split the row_mask and row_alpha as we want 128bit interleave */
-      if (fs_type.length == 8) {
-         src_mask[i*2 + 0]  = lp_build_extract_range(gallivm, fs_mask[i],
-                                                     0, src_channels);
-         src_mask[i*2 + 1]  = lp_build_extract_range(gallivm, fs_mask[i],
-                                                     src_channels,
-                                                     src_channels);
-
-         src_alpha[i*2 + 0] = lp_build_extract_range(gallivm, alpha,
-                                                     0, src_channels);
-         src_alpha[i*2 + 1] = lp_build_extract_range(gallivm, alpha,
-                                                     src_channels,
-                                                     src_channels);
-      } else {
-         src_mask[i] = fs_mask[i];
-         src_alpha[i] = alpha;
+      /* Mask and alpha twiddling uses one 128-bit vector per quad. */
+      for (unsigned q = 0; q < num_quads; q++) {
+         src_mask[i * num_quads + q] =
+            lp_build_extract_range(gallivm, fs_mask[i], q * 4, 4);
+         src_alpha[i * num_quads + q] =
+            lp_build_extract_range(gallivm, alpha, q * 4, 4);
       }
    }
    if (dual_source_blend) {
@@ -2725,12 +2715,10 @@ generate_unswizzled_blend(struct gallivm_state *gallivm,
          if (dst_channels == 3 && !has_alpha) {
             fs_src1[i][3] = alpha;
          }
-         if (fs_type.length == 8) {
-            src1_alpha[i*2 + 0] = lp_build_extract_range(gallivm, alpha, 0, src_channels);
-            src1_alpha[i*2 + 1] = lp_build_extract_range(gallivm, alpha,
-                                                         src_channels, src_channels);
-         } else {
-            src1_alpha[i] = alpha;
+
+         for (unsigned q = 0; q < num_quads; q++) {
+            src1_alpha[i * num_quads + q] =
+               lp_build_extract_range(gallivm, alpha, q * 4, 4);
          }
       }
    }
@@ -2798,7 +2786,7 @@ generate_unswizzled_blend(struct gallivm_state *gallivm,
       }
    }
 
-   src_channels = dst_channels < 3 ? dst_channels : 4;
+   unsigned src_channels = dst_channels < 3 ? dst_channels : 4;
    if (src_count != num_fullblock_fs * src_channels) {
       unsigned ds = src_count / (num_fullblock_fs * src_channels);
       row_type.length /= ds;
