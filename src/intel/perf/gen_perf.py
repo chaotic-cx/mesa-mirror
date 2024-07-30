@@ -249,6 +249,9 @@ hw_vars["$SkuRevisionId"] = "perf->devinfo->revision"
 hw_vars["$QueryMode"] = "perf->sys_vars.query_mode"
 hw_vars["$ComputeEngineTotalCount"] = "perf->devinfo->engine_class_supported_count[INTEL_ENGINE_CLASS_COMPUTE]"
 hw_vars["$CopyEngineTotalCount"] = "perf->devinfo->engine_class_supported_count[INTEL_ENGINE_CLASS_COPY]"
+hw_vars["$L3BankTotalCount"] = "perf->sys_vars.n_l3_banks"
+hw_vars["$SqidiTotalCount"] = "perf->sys_vars.n_sq_idis"
+hw_vars["$L3NodeTotalCount"] = "perf->sys_vars.n_l3_nodes"
 
 def resolve_variable(name, set, allow_counters):
     if name in hw_vars:
