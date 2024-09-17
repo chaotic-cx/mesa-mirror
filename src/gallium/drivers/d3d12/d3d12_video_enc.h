@@ -398,6 +398,12 @@ struct EncodedBitstreamResolvedMetadata
    std::vector<struct d3d12_fence> pSubregionPipeFences;
    std::vector<UINT64> pSubregionBitstreamsBaseOffsets;
    std::vector<UINT64> ppSubregionFenceValues;
+   /* Slice headers written before each slices */
+   typedef struct SliceNalInfo {
+      uint64_t nal_type;
+      std::vector<uint8_t> buffer;
+   } SliceNalInfo;
+   std::vector<std::vector<SliceNalInfo>> pSliceHeaders;
 
    /* codec specific associated configuration flags */
    union {
@@ -472,7 +478,7 @@ struct d3d12_video_encoder
    std::shared_ptr<d3d12_video_dpb_storage_manager_interface>        m_upDPBStorageManager;
    std::unique_ptr<d3d12_video_bitstream_builder_interface>          m_upBitstreamBuilder;
 
-   pipe_resource* m_nalPrefixTmpBuffer = NULL;
+   pipe_resource* m_SliceHeaderRepackBuffer = NULL;
    std::vector<uint8_t> m_BitstreamHeadersBuffer;
    std::vector<uint8_t> m_StagingHeadersBuffer;
    std::vector<EncodedBitstreamResolvedMetadata> m_spEncodedFrameMetadata;
