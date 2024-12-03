@@ -195,6 +195,7 @@ static const struct intel_device_info intel_device_info_snb_gt1 = {
       .size = 32,
       .min_entries = {
          [MESA_SHADER_VERTEX]   = 24,
+         [MESA_SHADER_GEOMETRY] = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]   = 256,
@@ -224,6 +225,7 @@ static const struct intel_device_info intel_device_info_snb_gt2 = {
       .size = 64,
       .min_entries = {
          [MESA_SHADER_VERTEX]   = 24,
+         [MESA_SHADER_GEOMETRY] = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]   = 256,
@@ -260,7 +262,9 @@ static const struct intel_device_info intel_device_info_ivb_gt1 = {
    .urb = {
       .min_entries = {
          [MESA_SHADER_VERTEX]    = 32,
+         [MESA_SHADER_TESS_CTRL] = 1,
          [MESA_SHADER_TESS_EVAL] = 10,
+         [MESA_SHADER_GEOMETRY]  = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]    = 512,
@@ -289,7 +293,9 @@ static const struct intel_device_info intel_device_info_ivb_gt2 = {
    .urb = {
       .min_entries = {
          [MESA_SHADER_VERTEX]    = 32,
+         [MESA_SHADER_TESS_CTRL] = 1,
          [MESA_SHADER_TESS_EVAL] = 10,
+         [MESA_SHADER_GEOMETRY]  = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]    = 704,
@@ -318,7 +324,9 @@ static const struct intel_device_info intel_device_info_byt = {
    .urb = {
       .min_entries = {
          [MESA_SHADER_VERTEX]    = 32,
+         [MESA_SHADER_TESS_CTRL] = 1,
          [MESA_SHADER_TESS_EVAL] = 10,
+         [MESA_SHADER_GEOMETRY]  = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]    = 512,
@@ -352,7 +360,9 @@ static const struct intel_device_info intel_device_info_hsw_gt1 = {
    .urb = {
       .min_entries = {
          [MESA_SHADER_VERTEX]    = 32,
+         [MESA_SHADER_TESS_CTRL] = 1,
          [MESA_SHADER_TESS_EVAL] = 10,
+         [MESA_SHADER_GEOMETRY]  = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]    = 640,
@@ -380,7 +390,9 @@ static const struct intel_device_info intel_device_info_hsw_gt2 = {
    .urb = {
       .min_entries = {
          [MESA_SHADER_VERTEX]    = 64,
+         [MESA_SHADER_TESS_CTRL] = 1,
          [MESA_SHADER_TESS_EVAL] = 10,
+         [MESA_SHADER_GEOMETRY]  = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]    = 1664,
@@ -408,7 +420,9 @@ static const struct intel_device_info intel_device_info_hsw_gt3 = {
    .urb = {
       .min_entries = {
          [MESA_SHADER_VERTEX]    = 64,
+         [MESA_SHADER_TESS_CTRL] = 1,
          [MESA_SHADER_TESS_EVAL] = 10,
+         [MESA_SHADER_GEOMETRY]  = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]    = 1664,
@@ -520,7 +534,9 @@ static const struct intel_device_info intel_device_info_chv = {
    .urb = {
       .min_entries = {
          [MESA_SHADER_VERTEX]    = 34,
+         [MESA_SHADER_TESS_CTRL] = 1,
          [MESA_SHADER_TESS_EVAL] = 34,
+         [MESA_SHADER_GEOMETRY]  = 2,
       },
       .max_entries = {
          [MESA_SHADER_VERTEX]    = 640,
@@ -595,7 +611,9 @@ static const struct intel_device_info intel_device_info_chv = {
    .urb = {                                        \
       .min_entries = {                             \
          [MESA_SHADER_VERTEX]    = 34,             \
+         [MESA_SHADER_TESS_CTRL] = 1,              \
          [MESA_SHADER_TESS_EVAL] = 34,             \
+         [MESA_SHADER_GEOMETRY] =  2,              \
       },                                           \
       .max_entries = {                             \
          [MESA_SHADER_VERTEX]    = 704,            \
@@ -616,7 +634,9 @@ static const struct intel_device_info intel_device_info_chv = {
    .urb = {                                        \
       .min_entries = {                             \
          [MESA_SHADER_VERTEX]    = 34,             \
+         [MESA_SHADER_TESS_CTRL] = 1,              \
          [MESA_SHADER_TESS_EVAL] = 34,             \
+         [MESA_SHADER_GEOMETRY]  = 2,              \
       },                                           \
       .max_entries = {                             \
          [MESA_SHADER_VERTEX]    = 352,            \
