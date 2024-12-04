@@ -135,7 +135,10 @@ intel_get_urb_config(const struct intel_device_info *devinfo,
     * Round them all up.
     */
    for (int i = MESA_SHADER_VERTEX; i <= MESA_SHADER_GEOMETRY; i++) {
-      min_entries[i] = align(min_entries[i], granularity[i]);
+      if (granularity[i] > 1 && min_entries[i] == 0 && active[i])
+         min_entries[i] = granularity[i];
+      else
+         min_entries[i] = align(min_entries[i], granularity[i]);
    }
 
    unsigned entry_size_bytes[4];
