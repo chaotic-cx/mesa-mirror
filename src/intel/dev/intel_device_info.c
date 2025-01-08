@@ -1270,8 +1270,23 @@ static const struct intel_device_info intel_device_info_nvl_u_h = {
    .verx10 = 350,                                               \
    .has_integer_dword_mul = true
 
+#define XE3P_PAT_ENTRIES                                        \
+   /* BSpec 71582 (r60903) */                                   \
+   .pat = {                                                     \
+      /* CPU: WB, GPU: PAT 1 => WB+transient, 1WAY */           \
+      .cached_coherent = PAT_ENTRY(19, WB),                     \
+      /* CPU: WC, GPU: PAT 6 => WB+display transient */         \
+      .scanout = PAT_ENTRY(6, WC),                              \
+      /* CPU: WC, GPU: PAT 0 => WB+transient */                 \
+      .writecombining = PAT_ENTRY(18, WC),                      \
+      /* CPU: WC, GPU: PAT 11 => XD, compressed */              \
+      .compressed_scanout = PAT_ENTRY(11, INVALID),             \
+      /* CPU: WC, GPU: PAT 9 => WB+compressed */                \
+      .compressed = PAT_ENTRY(9, INVALID)                       \
+   }
+
 #define XE3P_CONFIG(platform_suffix)                            \
-   XE3P_FEATURES, XE2_PAT_ENTRIES,                              \
+   XE3P_FEATURES, XE3P_PAT_ENTRIES,                             \
    XE3P_PLACEHOLDER_THREADS_AND_URB,                            \
    .platform = INTEL_PLATFORM_ ## platform_suffix
 
