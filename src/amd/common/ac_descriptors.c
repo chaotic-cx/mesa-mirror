@@ -362,12 +362,12 @@ ac_build_gfx10_fmask_descriptor(const enum amd_gfx_level gfx_level, const struct
              S_00A004_FORMAT_GFX10(format) |
              S_00A004_WIDTH_LO(state->width - 1);
    desc[2] = S_00A008_WIDTH_HI((state->width - 1) >> 2) |
-             S_00A008_HEIGHT(state->height - 1) |
+             S_00A008_HEIGHT_GFX10(state->height - 1) |
              S_00A008_RESOURCE_LEVEL(1);
-   desc[3] = S_00A00C_DST_SEL_X(V_008F1C_SQ_SEL_X) |
-             S_00A00C_DST_SEL_Y(V_008F1C_SQ_SEL_X) |
-             S_00A00C_DST_SEL_Z(V_008F1C_SQ_SEL_X) |
-             S_00A00C_DST_SEL_W(V_008F1C_SQ_SEL_X) |
+   desc[3] = S_00A00C_DST_SEL_X_GFX10(V_008F1C_SQ_SEL_X) |
+             S_00A00C_DST_SEL_Y_GFX10(V_008F1C_SQ_SEL_X) |
+             S_00A00C_DST_SEL_Z_GFX10(V_008F1C_SQ_SEL_X) |
+             S_00A00C_DST_SEL_W_GFX10(V_008F1C_SQ_SEL_X) |
              S_00A00C_SW_MODE(surf->u.gfx9.color.fmask_swizzle_mode) |
              S_00A00C_TYPE(state->type);
    desc[4] = S_00A010_DEPTH_GFX10(state->last_layer) | S_00A010_BASE_ARRAY(state->first_layer);
@@ -519,12 +519,12 @@ ac_build_gfx10_texture_descriptor(const struct radeon_info *info, const struct a
    desc[1] = S_00A004_FORMAT_GFX10(img_format) |
              S_00A004_WIDTH_LO(state->width - 1);
    desc[2] = S_00A008_WIDTH_HI((state->width - 1) >> 2) |
-             S_00A008_HEIGHT(state->height - 1) |
+             S_00A008_HEIGHT_GFX10(state->height - 1) |
              S_00A008_RESOURCE_LEVEL(info->compiler_info.has_desc_resource_level);
-   desc[3] = S_00A00C_DST_SEL_X(ac_map_swizzle(state->swizzle[0])) |
-             S_00A00C_DST_SEL_Y(ac_map_swizzle(state->swizzle[1])) |
-             S_00A00C_DST_SEL_Z(ac_map_swizzle(state->swizzle[2])) |
-             S_00A00C_DST_SEL_W(ac_map_swizzle(state->swizzle[3])) |
+   desc[3] = S_00A00C_DST_SEL_X_GFX10(ac_map_swizzle(state->swizzle[0])) |
+             S_00A00C_DST_SEL_Y_GFX10(ac_map_swizzle(state->swizzle[1])) |
+             S_00A00C_DST_SEL_Z_GFX10(ac_map_swizzle(state->swizzle[2])) |
+             S_00A00C_DST_SEL_W_GFX10(ac_map_swizzle(state->swizzle[3])) |
              S_00A00C_BASE_LEVEL(num_samples > 1 ? 0 : state->first_level) |
              S_00A00C_LAST_LEVEL_GFX10(field_last_level) |
              S_00A00C_BC_SWIZZLE(ac_border_color_swizzle(fmt_desc)) |
@@ -540,7 +540,7 @@ ac_build_gfx10_texture_descriptor(const struct radeon_info *info, const struct a
     * In SRV mode, BASE_ARRAY is ignored and DEPTH is the last slice of mipmap level 0.
     * In UAV mode, BASE_ARRAY is the first slice and DEPTH is the last slice of the bound level.
     */
-   desc[5] = S_00A014_ARRAY_PITCH(state->gfx10.uav3d) | S_00A014_PERF_MOD(4);
+   desc[5] = S_00A014_ARRAY_PITCH(state->gfx10.uav3d) | S_00A014_PERF_MOD_GFX10(4);
    desc[6] = 0;
    desc[7] = 0;
 
@@ -584,15 +584,15 @@ ac_build_gfx12_texture_descriptor(const struct radeon_info *info, const struct a
    desc[0] = 0;
    desc[1] = S_00A004_MAX_MIP_GFX12(max_mip) |
              S_00A004_FORMAT_GFX12(img_format) |
-             S_00A004_BASE_LEVEL(state->num_samples > 1 ? 0 : state->first_level) |
+             S_00A004_BASE_LEVEL_GFX12(state->num_samples > 1 ? 0 : state->first_level) |
              S_00A004_WIDTH_LO(state->width - 1);
    desc[2] = S_00A008_WIDTH_HI((state->width - 1) >> 2) |
-             S_00A008_HEIGHT(state->height - 1);
-   desc[3] = S_00A00C_DST_SEL_X(ac_map_swizzle(state->swizzle[0])) |
-             S_00A00C_DST_SEL_Y(ac_map_swizzle(state->swizzle[1])) |
-             S_00A00C_DST_SEL_Z(ac_map_swizzle(state->swizzle[2])) |
-             S_00A00C_DST_SEL_W(ac_map_swizzle(state->swizzle[3])) |
-             S_00A00C_NO_EDGE_CLAMP(no_edge_clamp) |
+             S_00A008_HEIGHT_GFX10(state->height - 1);
+   desc[3] = S_00A00C_DST_SEL_X_GFX10(ac_map_swizzle(state->swizzle[0])) |
+             S_00A00C_DST_SEL_Y_GFX10(ac_map_swizzle(state->swizzle[1])) |
+             S_00A00C_DST_SEL_Z_GFX10(ac_map_swizzle(state->swizzle[2])) |
+             S_00A00C_DST_SEL_W_GFX10(ac_map_swizzle(state->swizzle[3])) |
+             S_00A00C_NO_EDGE_CLAMP_GFX12(no_edge_clamp) |
              S_00A00C_LAST_LEVEL_GFX12(field_last_level) |
              S_00A00C_BC_SWIZZLE(ac_border_color_swizzle(fmt_desc)) |
              S_00A00C_TYPE(state->type);
@@ -602,8 +602,8 @@ ac_build_gfx12_texture_descriptor(const struct radeon_info *info, const struct a
     */
    desc[4] = S_00A010_DEPTH_GFX12(state->depth) |
              S_00A010_BASE_ARRAY(state->first_layer);
-   desc[5] = S_00A014_UAV3D(state->gfx10.uav3d) |
-             S_00A014_PERF_MOD(4) |
+   desc[5] = S_00A014_UAV3D_GFX12(state->gfx10.uav3d) |
+             S_00A014_PERF_MOD_GFX10(4) |
              S_00A014_MIN_LOD_LO_GFX12(min_lod_clamped);
    desc[6] = S_00A018_MAX_UNCOMPRESSED_BLOCK_SIZE(1 /*256B*/) |
              S_00A018_MAX_COMPRESSED_BLOCK_SIZE(surf->u.gfx9.color.dcc.max_compressed_block_size) |
@@ -834,12 +834,12 @@ ac_set_buf_desc_word3(const enum amd_gfx_level gfx_level, const struct ac_buffer
        */
       *rsrc_word3 |= (gfx_level >= GFX12 ? S_008F0C_FORMAT_GFX12(fmt->img_format) :
                                            S_008F0C_FORMAT_GFX10(fmt->img_format)) |
-                     S_008F0C_OOB_SELECT(state->gfx10_oob_select) |
+                     S_008F0C_OOB_SELECT_GFX10(state->gfx10_oob_select) |
                      S_008F0C_RESOURCE_LEVEL(state->has_desc_resource_level);
 
       if (gfx_level >= GFX12) {
-         *rsrc_word3 |= S_008F0C_COMPRESSION_EN(state->gfx12.compression_en) |
-                        S_008F0C_WRITE_COMPRESS_ENABLE(state->gfx12.write_compress_enable);
+         *rsrc_word3 |= S_008F0C_COMPRESSION_EN_GFX12(state->gfx12.compression_en) |
+                        S_008F0C_WRITE_COMPRESS_ENABLE_GFX12(state->gfx12.write_compress_enable);
       }
    } else {
       const struct util_format_description * desc =  util_format_description(state->format);
@@ -1606,21 +1606,21 @@ ac_build_gfx12_hiz_descriptor(const struct ac_gfx12_hiz_state *state, uint32_t d
    desc[1] = S_00A004_BASE_ADDRESS_HI(va >> 40) |
              S_00A004_MAX_MIP_GFX12(max_mip) |
              S_00A004_FORMAT_GFX12(V_00A004_GFX11_FORMAT_32_UINT) |
-             S_00A004_BASE_LEVEL(state->num_samples > 1 ? 0 : state->first_level) |
+             S_00A004_BASE_LEVEL_GFX12(state->num_samples > 1 ? 0 : state->first_level) |
              S_00A004_WIDTH_LO(width - 1);
    desc[2] = S_00A008_WIDTH_HI((width - 1) >> 2) |
-             S_00A008_HEIGHT(height - 1);
-   desc[3] = S_00A00C_DST_SEL_X(V_008F0C_SQ_SEL_X) |
-             S_00A00C_DST_SEL_Y(V_008F0C_SQ_SEL_0) |
-             S_00A00C_DST_SEL_Z(V_008F0C_SQ_SEL_0) |
-             S_00A00C_DST_SEL_W(V_008F0C_SQ_SEL_1) |
+             S_00A008_HEIGHT_GFX10(height - 1);
+   desc[3] = S_00A00C_DST_SEL_X_GFX10(V_008F0C_SQ_SEL_X) |
+             S_00A00C_DST_SEL_Y_GFX10(V_008F0C_SQ_SEL_0) |
+             S_00A00C_DST_SEL_Z_GFX10(V_008F0C_SQ_SEL_0) |
+             S_00A00C_DST_SEL_W_GFX10(V_008F0C_SQ_SEL_1) |
              S_00A00C_LAST_LEVEL_GFX12(field_last_level) |
              S_00A00C_BC_SWIZZLE(V_00A00C_BC_SWIZZLE_XYZW) |
              S_00A00C_TYPE(state->type) |
              S_00A00C_SW_MODE(surf->u.gfx9.zs.hiz.swizzle_mode);
    desc[4] = S_00A010_DEPTH_GFX12(state->last_layer) |
              S_00A010_BASE_ARRAY(state->first_layer);
-   desc[5] = S_00A014_PERF_MOD(4);
+   desc[5] = S_00A014_PERF_MOD_GFX10(4);
    desc[6] = S_00A018_MAX_UNCOMPRESSED_BLOCK_SIZE(1 /*256B*/) |
              S_00A018_MAX_COMPRESSED_BLOCK_SIZE(0) |
              S_00A018_COMPRESSION_EN(1) |

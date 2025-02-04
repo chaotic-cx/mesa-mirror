@@ -1990,7 +1990,7 @@ dgc_write_vertex_descriptor(struct dgc_cmdbuf *cs, const struct dgc_vbo_info *vb
    if (pdev->info.gfx_level >= GFX10) {
       nir_def *oob_select = nir_bcsel(b, nir_ieq_imm(b, vbo_info->stride, 0), nir_imm_int(b, V_008F0C_OOB_SELECT_RAW),
                                       nir_imm_int(b, V_008F0C_OOB_SELECT_STRUCTURED));
-      rsrc_word3 = nir_iand_imm(b, rsrc_word3, C_008F0C_OOB_SELECT);
+      rsrc_word3 = nir_iand_imm(b, rsrc_word3, C_008F0C_OOB_SELECT_GFX10);
       rsrc_word3 = nir_ior(b, rsrc_word3, nir_ishl_imm(b, oob_select, 28));
    }
 

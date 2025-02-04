@@ -20,6 +20,7 @@ amd_register_files = [
   '../registers/gfx10-rsrc.json',
   '../registers/gfx11-rsrc.json',
   '../registers/gfx12-rsrc.json',
+  '../registers/gfx13-rsrc.json',
   '../registers/registers-manually-defined.json',
 ]
 

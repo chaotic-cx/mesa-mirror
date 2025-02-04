@@ -380,7 +380,7 @@ get_sampler_desc(nir_builder *b, lower_descriptors_state *state, nir_deref_instr
        * To workaround this, zero OOB_SELECT when needed.
        */
       nir_def *is_image = nir_test_mask(b, rsrc3, (uint32_t)~C_008F0C_TYPE);
-      nir_def *as_buffer = nir_iand_imm(b, rsrc3, C_008F0C_OOB_SELECT);
+      nir_def *as_buffer = nir_iand_imm(b, rsrc3, C_008F0C_OOB_SELECT_GFX10);
       rsrc3 = nir_bcsel(b, is_image, rsrc3, as_buffer);
 
       desc = nir_vector_insert_imm(b, desc, rsrc3, 3);
