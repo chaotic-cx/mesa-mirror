@@ -1863,17 +1863,6 @@ void gfxstream_vk_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
                                               pProperties, true /* do lock */);
     }
 }
-void gfxstream_vk_GetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice,
-                                                     VkFormat format,
-                                                     VkFormatProperties2* pFormatProperties) {
-    MESA_TRACE_SCOPE("vkGetPhysicalDeviceFormatProperties2");
-    VK_FROM_HANDLE(gfxstream_vk_physical_device, gfxstream_physicalDevice, physicalDevice);
-    {
-        auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkEnc->vkGetPhysicalDeviceFormatProperties2(gfxstream_physicalDevice->internal_object,
-                                                    format, pFormatProperties, true /* do lock */);
-    }
-}
 VkResult gfxstream_vk_GetPhysicalDeviceImageFormatProperties2(
     VkPhysicalDevice physicalDevice, const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo,
     VkImageFormatProperties2* pImageFormatProperties) {

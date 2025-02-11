@@ -85,16 +85,30 @@ genrule {
         "--output $(location git_sha1.h)",
 }
 
+cc_defaults {
+    name: "mesa_flagged_defaults",
+    cflags: select(soong_config_variable("gfxstream", "mesa3d_platforms"), {
+        // Android surfaceless build
+        "none": [
+            "-UANDROID",
+            "-U__ANDROID__",
+            "-DLINUX_GUEST_BUILD",
+        ],
+        // The default when variable is not set is Android
+        default: [
+            "-DVK_USE_PLATFORM_ANDROID_KHR",
+        ],
+    }),
+}
+
 cc_library_headers {
     name: "mesa_common_headers",
+    defaults: ["mesa_flagged_defaults"],
     vendor_available: true,
     host_supported: true,
     export_include_dirs: [
         "src",
         "include",
-    ],
-    cflags: [
-        "-DVK_USE_PLATFORM_ANDROID_KHR",
     ],
     visibility: [":__subpackages__"],
 }
@@ -102,7 +116,10 @@ cc_library_headers {
 // This needs to be kept in sync with Android.common.mk
 cc_defaults {
     name: "mesa_common_defaults",
-    defaults: ["mesa_version_defaults"],
+    defaults: [
+        "mesa_version_defaults",
+        "mesa_flagged_defaults",
+    ],
     // uncomment to keep the debug symbols
     // strip: { none: true, },
     header_libs: ["mesa_common_headers"],
@@ -146,7 +163,6 @@ cc_defaults {
         "-DHAVE_LINUX_FUTEX_H",
         "-DHAVE_ENDIAN_H",
         "-DMAJOR_IN_SYSMACROS",
-        "-DVK_USE_PLATFORM_ANDROID_KHR",
         "-DMESA_DEBUG=0",
         "-fvisibility=hidden",
         "-fno-math-errno",
