@@ -275,3 +275,4 @@ if __name__ == '__main__':
 
     generate_format_table(pipe_formats, sys.argv[2], '008F0C', 'gfx10', True)
     generate_format_table(pipe_formats, sys.argv[3], '008F0C', 'gfx11', False)
+    generate_format_table(pipe_formats, sys.argv[4], '008F10', 'gfx13', False)
