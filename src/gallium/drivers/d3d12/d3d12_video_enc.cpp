@@ -422,7 +422,7 @@ d3d12_video_encoder_update_move_rects(struct d3d12_video_encoder *pD3D12Enc,
 static void d3d12_video_encoder_is_gpu_qmap_input_feature_enabled(struct d3d12_video_encoder* pD3D12Enc, BOOL& isEnabled, D3D12_VIDEO_ENCODER_INPUT_MAP_SOURCE &outMapSourceEnabled)
 {
    isEnabled = FALSE;
-
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
    //
    // Prefer GPU QP Map over CPU QP Delta Map if both are enabled
    //
@@ -440,6 +440,7 @@ static void d3d12_video_encoder_is_gpu_qmap_input_feature_enabled(struct d3d12_v
       outMapSourceEnabled = D3D12_VIDEO_ENCODER_INPUT_MAP_SOURCE_GPU_TEXTURE;
       assert(!pD3D12Enc->m_currentEncodeConfig.m_QuantizationMatrixDesc.CPUInput.AppRequested); // When enabling GPU QP Map, CPU QP Delta must be disabled
    }
+#endif // D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
 }
 
 void
@@ -1417,6 +1418,7 @@ d3d12_video_encoder_disable_rc_minmaxqp(struct D3D12EncodeRateControlState & rcS
 
 static bool d3d12_video_encoder_is_move_regions_feature_enabled(struct d3d12_video_encoder* pD3D12Enc, D3D12_VIDEO_ENCODER_INPUT_MAP_SOURCE mapSource)
 {
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
    if (pD3D12Enc->m_currentEncodeConfig.m_MoveRectsDesc.MapSource != mapSource)
    {
       return false;
@@ -1430,11 +1432,13 @@ static bool d3d12_video_encoder_is_move_regions_feature_enabled(struct d3d12_vid
    {
       return pD3D12Enc->m_currentEncodeConfig.m_MoveRectsDesc.MapInfo.NumHintsPerPixel > 0;
    }
+#endif // D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
    return false;
 }
 
 static bool d3d12_video_encoder_is_dirty_regions_feature_enabled(struct d3d12_video_encoder* pD3D12Enc, D3D12_VIDEO_ENCODER_INPUT_MAP_SOURCE mapSource)
 {
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
    if (pD3D12Enc->m_currentEncodeConfig.m_DirtyRectsDesc.MapSource != mapSource)
    {
       return false;
@@ -1451,6 +1455,7 @@ static bool d3d12_video_encoder_is_dirty_regions_feature_enabled(struct d3d12_vi
             (pD3D12Enc->m_currentEncodeConfig.m_DirtyRectsDesc.MapInfo.InputMap != NULL);
    }
    return false;
+#endif // D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
 }
 
 static void
@@ -1793,6 +1798,7 @@ bool d3d12_video_encoder_query_d3d12_driver_caps(struct d3d12_video_encoder *pD3
    pD3D12Enc->m_currentEncodeCapabilities.m_SupportFlags    = capEncoderSupportData1.SupportFlags;
    pD3D12Enc->m_currentEncodeCapabilities.m_ValidationFlags = capEncoderSupportData1.ValidationFlags;
 
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
    if ((capEncoderSupportData1.DirtyRegions.MapSource == D3D12_VIDEO_ENCODER_INPUT_MAP_SOURCE_GPU_TEXTURE) &&
        (capEncoderSupportData1.DirtyRegions.Enabled))
    {
@@ -1906,6 +1912,7 @@ bool d3d12_video_encoder_query_d3d12_driver_caps(struct d3d12_video_encoder *pD3
          return false;
       }
    }
+#endif // D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
 
    return true;
 }
@@ -2070,12 +2077,14 @@ d3d12_video_encoder_update_current_encoder_config_state(struct d3d12_video_encod
       } break;
    }
 
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
    // Set dirty region changes
    if (memcmp(&pD3D12Enc->m_prevFrameEncodeConfig.m_DirtyRectsDesc,
               &pD3D12Enc->m_currentEncodeConfig.m_DirtyRectsDesc,
               sizeof(pD3D12Enc->m_currentEncodeConfig.m_DirtyRectsDesc)) != 0) {
       pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags |= d3d12_video_encoder_config_dirty_flag_dirty_regions;
    }
+#endif // D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
 
    return bCodecUpdatesSuccess;
 }
@@ -2334,6 +2343,7 @@ d3d12_video_encoder_prepare_input_buffers(struct d3d12_video_encoder *pD3D12Enc)
 
    HRESULT hr = S_OK;
    D3D12_HEAP_PROPERTIES Properties = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
    if (d3d12_video_encoder_is_dirty_regions_feature_enabled(pD3D12Enc, D3D12_VIDEO_ENCODER_INPUT_MAP_SOURCE_GPU_TEXTURE))
    {
       bool bNeedsCreation = (pD3D12Enc->m_inflightResourcesPool[d3d12_video_encoder_pool_current_index(pD3D12Enc)].m_spDirtyRectsResolvedOpaqueMap == NULL) ||
@@ -2402,7 +2412,7 @@ d3d12_video_encoder_prepare_input_buffers(struct d3d12_video_encoder *pD3D12Enc)
          }
       }
    }
-
+#endif // D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
    return SUCCEEDED(hr);
 }
 
