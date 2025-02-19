@@ -1236,6 +1236,17 @@ DEFINE_ALIAS_FUNCTION(count_VkCommandBufferInheritanceRenderingInfo,
                       count_VkCommandBufferInheritanceRenderingInfoKHR)
 
 #endif
+#ifdef VK_KHR_multiview
+DEFINE_ALIAS_FUNCTION(count_VkRenderPassMultiviewCreateInfo,
+                      count_VkRenderPassMultiviewCreateInfoKHR)
+
+DEFINE_ALIAS_FUNCTION(count_VkPhysicalDeviceMultiviewFeatures,
+                      count_VkPhysicalDeviceMultiviewFeaturesKHR)
+
+DEFINE_ALIAS_FUNCTION(count_VkPhysicalDeviceMultiviewProperties,
+                      count_VkPhysicalDeviceMultiviewPropertiesKHR)
+
+#endif
 #ifdef VK_KHR_get_physical_device_properties2
 DEFINE_ALIAS_FUNCTION(count_VkPhysicalDeviceFeatures2, count_VkPhysicalDeviceFeatures2KHR)
 
