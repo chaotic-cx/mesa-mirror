@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,13 +14,8 @@
  * limitations under the License.
  */
 
-package {
-    // See: http://go/android-license-faq
-    default_applicable_licenses: ["external_mesa3d_license"],
-}
-
 cc_library_headers {
-    name: "mesa_src_headers",
+    name: "mesa_loader_headers",
     vendor: true,
     host_supported: true,
     export_include_dirs: [
@@ -28,20 +23,28 @@ cc_library_headers {
     ],
 }
 
-cc_library_headers {
-    name: "mesa_gallium_headers",
-    vendor: true,
+cc_library_static {
+    name: "mesa_loader",
     host_supported: true,
-    export_include_dirs: [
-        "gallium/include",
+    defaults: [
+        "mesa_common_defaults",
     ],
-}
-
-cc_library_headers {
-    name: "mesa_llvmpipe_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "gallium/drivers/llvmpipe",
+    generated_headers: [
+        "git_sha1_header",
+        "u_format_gen_header",
+    ],
+    header_libs: [
+        "mesa_util_headers",
+        "mesa_gallium_headers",
+    ],
+    srcs: [
+        "loader.c",
+        "loader_dri_helper.c",
+    ],
+    static_libs: [
+        "mesa_util",
+    ],
+    shared_libs: [
+        "libdrm",
     ],
 }

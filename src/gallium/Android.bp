@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,34 +14,30 @@
  * limitations under the License.
  */
 
-package {
-    // See: http://go/android-license-faq
-    default_applicable_licenses: ["external_mesa3d_license"],
-}
-
 cc_library_headers {
-    name: "mesa_src_headers",
+    name: "mesa_gallium_drivers_headers",
     vendor: true,
     host_supported: true,
     export_include_dirs: [
-        ".",
+        "drivers",
     ],
 }
 
 cc_library_headers {
-    name: "mesa_gallium_headers",
+    name: "mesa_gallium_winsys_headers",
     vendor: true,
     host_supported: true,
     export_include_dirs: [
-        "gallium/include",
+        "winsys",
     ],
 }
 
-cc_library_headers {
-    name: "mesa_llvmpipe_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "gallium/drivers/llvmpipe",
-    ],
+filegroup {
+    name: "mesa_p_defines",
+    srcs: ["include/pipe/p_defines.h"],
+}
+
+filegroup {
+    name: "mesa_p_video_enums",
+    srcs: ["include/pipe/p_video_enums.h"],
 }
