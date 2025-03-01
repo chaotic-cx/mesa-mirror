@@ -2624,6 +2624,26 @@ DEFINE_ALIAS_FUNCTION(unmarshal_VkCommandBufferInheritanceRenderingInfo,
 #define OP_vkCmdBeginRenderingKHR 298092805
 #define OP_vkCmdEndRenderingKHR 200651584
 #endif
+#ifdef VK_KHR_multiview
+DEFINE_ALIAS_FUNCTION(marshal_VkRenderPassMultiviewCreateInfo,
+                      marshal_VkRenderPassMultiviewCreateInfoKHR)
+
+DEFINE_ALIAS_FUNCTION(unmarshal_VkRenderPassMultiviewCreateInfo,
+                      unmarshal_VkRenderPassMultiviewCreateInfoKHR)
+
+DEFINE_ALIAS_FUNCTION(marshal_VkPhysicalDeviceMultiviewFeatures,
+                      marshal_VkPhysicalDeviceMultiviewFeaturesKHR)
+
+DEFINE_ALIAS_FUNCTION(unmarshal_VkPhysicalDeviceMultiviewFeatures,
+                      unmarshal_VkPhysicalDeviceMultiviewFeaturesKHR)
+
+DEFINE_ALIAS_FUNCTION(marshal_VkPhysicalDeviceMultiviewProperties,
+                      marshal_VkPhysicalDeviceMultiviewPropertiesKHR)
+
+DEFINE_ALIAS_FUNCTION(unmarshal_VkPhysicalDeviceMultiviewProperties,
+                      unmarshal_VkPhysicalDeviceMultiviewPropertiesKHR)
+
+#endif
 #ifdef VK_KHR_get_physical_device_properties2
 DEFINE_ALIAS_FUNCTION(marshal_VkPhysicalDeviceFeatures2, marshal_VkPhysicalDeviceFeatures2KHR)
 

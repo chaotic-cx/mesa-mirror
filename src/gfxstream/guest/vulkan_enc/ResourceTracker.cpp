@@ -1794,6 +1794,7 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
 #if DETECT_OS_LINUX && !defined(VK_USE_PLATFORM_ANDROID_KHR)
         "VK_KHR_imageless_framebuffer",
 #endif
+        "VK_KHR_multiview",
         // Vulkan 1.3
         "VK_KHR_synchronization2",
         "VK_EXT_private_data",

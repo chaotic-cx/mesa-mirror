@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2024 The Android Open Source Project
+ * Copyright (C) 2025 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,29 +19,20 @@ package {
     default_applicable_licenses: ["external_mesa3d_license"],
 }
 
-cc_library_headers {
-    name: "mesa_src_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        ".",
+genrule {
+    name: "etc2_rgba_stitch_glsl.h",
+    srcs: [
+        "etc2_rgba_stitch.glsl",
     ],
-}
-
-cc_library_headers {
-    name: "mesa_gallium_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "gallium/include",
+    out: [
+        "src/compiler/glsl/etc2_rgba_stitch_glsl.h",
     ],
-}
-
-cc_library_headers {
-    name: "mesa_llvmpipe_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "gallium/drivers/llvmpipe",
+    tools: [
+        "xxd_gen",
     ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+    cmd: "python3 $(location xxd_gen) $(location etc2_rgba_stitch.glsl) $(location src/compiler/glsl/etc2_rgba_stitch_glsl.h) -n etc2_rgba_stitch_source",
 }

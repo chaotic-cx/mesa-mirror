@@ -19,29 +19,23 @@ package {
     default_applicable_licenses: ["external_mesa3d_license"],
 }
 
-cc_library_headers {
-    name: "mesa_src_headers",
-    vendor: true,
+cc_library_static {
+    name: "mesa_ws_null",
     host_supported: true,
-    export_include_dirs: [
-        ".",
+    defaults: [
+        "mesa_common_defaults",
     ],
-}
-
-cc_library_headers {
-    name: "mesa_gallium_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "gallium/include",
+    generated_headers: [
+        "u_format_gen_header",
     ],
-}
-
-cc_library_headers {
-    name: "mesa_llvmpipe_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "gallium/drivers/llvmpipe",
+    header_libs: [
+        "mesa_gallium_headers",
+        "mesa_gallium_auxiliary_headers",
+    ],
+    srcs: [
+        "null_sw_winsys.c",
+    ],
+    static_libs: [
+        "mesa_util",
     ],
 }

@@ -24,6 +24,30 @@ filegroup {
     srcs: ["00-mesa-defaults.conf"],
 }
 
+filegroup {
+    name: "mesa_u_trace.py",
+    srcs: ["perf/u_trace.py"],
+}
+
+filegroup {
+    name: "xxd.py",
+    srcs: ["xxd.py"],
+}
+
+filegroup {
+    name: "mesa_blend.h",
+    srcs: ["blend.h"],
+}
+
+python_binary_host {
+    name: "xxd_gen",
+    main: "xxd.py",
+    srcs: ["xxd.py"],
+    libs: [
+        "mako",
+    ],
+}
+
 python_binary_host {
     name: "format_srgb_gen",
     main: "format_srgb.py",
@@ -166,4 +190,24 @@ cc_library_static {
             ],
         },
     },
+}
+
+cc_library_static {
+    name: "mesa_xmlconfig",
+    host_supported: true,
+    defaults: [
+        "mesa_common_defaults",
+    ],
+    generated_headers: [
+        "driconf_static_header",
+    ],
+    header_libs: [
+        "mesa_util_headers",
+    ],
+    srcs: [
+        "xmlconfig.c",
+    ],
+    static_libs: [
+        "libexpat",
+    ],
 }

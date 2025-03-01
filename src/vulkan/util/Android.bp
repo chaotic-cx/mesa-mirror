@@ -19,6 +19,22 @@ package {
     default_applicable_licenses: ["external_mesa3d_license"],
 }
 
+filegroup {
+    name: "vk_icd_gen.py",
+    srcs: ["vk_icd_gen.py"],
+}
+
+python_binary_host {
+    name: "vk_icd_gen",
+    main: "vk_icd_gen.py",
+    srcs: [
+        "vk_icd_gen.py",
+    ],
+    libs: [
+        "mako",
+    ],
+}
+
 python_binary_host {
     name: "vk_cmd_queue_gen",
     main: "vk_cmd_queue_gen.py",

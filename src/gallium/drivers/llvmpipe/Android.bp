@@ -1,0 +1,119 @@
+/*
+ * Copyright (C) 2023 The Android Open Source Project
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package {
+    // See: http://go/android-license-faq
+    default_applicable_licenses: ["external_mesa3d_license"],
+}
+
+cc_library_static {
+    name: "mesa_llvmpipe",
+    host_supported: true,
+    defaults: [
+        "mesa_common_defaults",
+    ],
+    generated_headers: [
+        "nir_opcodes_header",
+        "nir_builder_opcodes_header",
+        "nir_intrinsics_header",
+        "nir_intrinsics_indices_header",
+        "ir_expression_operation_header",
+        "u_format_gen_header",
+        "builtin_types_header",
+        "git_sha1_header",
+    ],
+    header_libs: [
+        "mesa_gallium_headers",
+        "mesa_gallium_auxiliary_headers",
+        "mesa_llvmpipe_headers",
+        "mesa_nir_headers",
+        "mesa_compiler_headers",
+    ],
+    srcs: [
+        "lp_context.c",
+        "lp_state_derived.c",
+        "lp_state_rasterizer.c",
+        "lp_fence.c",
+        "lp_linear_fastpath.c",
+        "lp_jit.c",
+        "lp_linear_sampler.c",
+        "lp_state_fs.c",
+        "lp_rast_linear.c",
+        "lp_rast_debug.c",
+        "lp_state_cs.c",
+        "lp_state_setup.c",
+        "lp_setup_analysis.c",
+        "lp_state_gs.c",
+        "lp_rast_rect.c",
+        "lp_clear.c",
+        "lp_tex_sample.c",
+        "lp_memory.c",
+        "lp_state_fs_linear_llvm.c",
+        "lp_setup_vbuf.c",
+        "lp_state_vs.c",
+        "lp_bld_alpha.c",
+        "lp_rast_tri.c",
+        "lp_bld_blend.c",
+        "lp_texture_handle.c",
+        "lp_setup_rect.c",
+        "lp_state_tess.c",
+        "lp_linear.c",
+        "lp_state_fs_analysis.c",
+        "lp_query.c",
+        "lp_flush.c",
+        "lp_perf.c",
+        "lp_state_so.c",
+        "lp_state_blend.c",
+        "lp_state_fs_fastpath.c",
+        "lp_cs_tpool.c",
+        "lp_rast.c",
+        "lp_scene.c",
+        "lp_linear_interp.c",
+        "lp_setup_tri.c",
+        "lp_bld_interp.c",
+        "lp_bld_blend_aos.c",
+        "lp_state_surface.c",
+        "lp_setup_line.c",
+        "lp_state_clip.c",
+        "lp_setup.c",
+        "lp_draw_arrays.c",
+        "lp_bld_depth.c",
+        "lp_scene_queue.c",
+        "lp_surface.c",
+        "lp_bld_blend_logicop.c",
+        "lp_state_sampler.c",
+        "lp_rast_linear_fallback.c",
+        "lp_state_fs_linear.c",
+        "lp_state_vertex.c",
+        "lp_texture.c",
+        "lp_screen.c",
+        "lp_setup_point.c",
+    ],
+    static_libs: [
+        "mesa_util",
+        "libLLVM16_swiftshader",
+    ],
+    shared_libs: [
+        "libdrm",
+    ],
+    target: {
+        android: {
+            shared_libs: [
+                "libsync",
+            ],
+        },
+    },
+}

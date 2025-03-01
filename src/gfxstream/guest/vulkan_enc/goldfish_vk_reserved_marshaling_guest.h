@@ -1370,6 +1370,17 @@ DEFINE_ALIAS_FUNCTION(reservedmarshal_VkCommandBufferInheritanceRenderingInfo,
                       reservedmarshal_VkCommandBufferInheritanceRenderingInfoKHR)
 
 #endif
+#ifdef VK_KHR_multiview
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkRenderPassMultiviewCreateInfo,
+                      reservedmarshal_VkRenderPassMultiviewCreateInfoKHR)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceMultiviewFeatures,
+                      reservedmarshal_VkPhysicalDeviceMultiviewFeaturesKHR)
+
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceMultiviewProperties,
+                      reservedmarshal_VkPhysicalDeviceMultiviewPropertiesKHR)
+
+#endif
 #ifdef VK_KHR_get_physical_device_properties2
 DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceFeatures2,
                       reservedmarshal_VkPhysicalDeviceFeatures2KHR)

@@ -81,7 +81,7 @@ genrule {
     name: "git_sha1_header",
     out: ["git_sha1.h"],
     tools: ["git_sha1_gen"],
-    cmd: "python3 $(location git_sha1_gen) " +
+    cmd: "MESA_GIT_SHA1_OVERRIDE=(git-l33t9876) python3 $(location git_sha1_gen) " +
         "--output $(location git_sha1.h)",
 }
 
@@ -193,8 +193,12 @@ cc_defaults {
         "-Wno-constant-conversion",
         "-DHAVE_TIMESPEC_GET",
         "-DHAVE_STRUCT_TIMESPEC",
+        "-DMESA_LLVM_VERSION_STRING=\"16.0.0\"",
+        "-DDRAW_LLVM_AVAILABLE=1",
+        "-DHAVE_LIBDRM",
     ],
     c_std: "c11",
+    shared_libs: ["libdrm"],
     cppflags: [
         "-D__STDC_CONSTANT_MACROS",
         "-D__STDC_FORMAT_MACROS",
@@ -227,10 +231,13 @@ cc_defaults {
         host: {
             cflags: [
                 "-D_GNU_SOURCE",
-                "-DHAVE_LIBDRM",
                 "-DHAVE_SECURE_GETENV",
             ],
-            shared_libs: ["libdrm"],
+        },
+        android: {
+            cflags: [
+                "-DHAVE_REALLOCARRAY",
+            ],
         },
     },
 }

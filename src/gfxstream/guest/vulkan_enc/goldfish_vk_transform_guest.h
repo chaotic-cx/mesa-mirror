@@ -2100,6 +2100,26 @@ DEFINE_ALIAS_FUNCTION(transform_fromhost_VkCommandBufferInheritanceRenderingInfo
                       transform_fromhost_VkCommandBufferInheritanceRenderingInfoKHR)
 
 #endif
+#ifdef VK_KHR_multiview
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkRenderPassMultiviewCreateInfo,
+                      transform_tohost_VkRenderPassMultiviewCreateInfoKHR)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkRenderPassMultiviewCreateInfo,
+                      transform_fromhost_VkRenderPassMultiviewCreateInfoKHR)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceMultiviewFeatures,
+                      transform_tohost_VkPhysicalDeviceMultiviewFeaturesKHR)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkPhysicalDeviceMultiviewFeatures,
+                      transform_fromhost_VkPhysicalDeviceMultiviewFeaturesKHR)
+
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceMultiviewProperties,
+                      transform_tohost_VkPhysicalDeviceMultiviewPropertiesKHR)
+
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkPhysicalDeviceMultiviewProperties,
+                      transform_fromhost_VkPhysicalDeviceMultiviewPropertiesKHR)
+
+#endif
 #ifdef VK_KHR_get_physical_device_properties2
 DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceFeatures2,
                       transform_tohost_VkPhysicalDeviceFeatures2KHR)
