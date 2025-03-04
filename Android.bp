@@ -196,6 +196,8 @@ cc_defaults {
         "-DMESA_LLVM_VERSION_STRING=\"16.0.0\"",
         "-DDRAW_LLVM_AVAILABLE=1",
         "-DHAVE_LIBDRM",
+        "-DHAVE_COMPRESSION",
+        "-DHAVE_ZSTD",
     ],
     c_std: "c11",
     shared_libs: ["libdrm"],
@@ -235,6 +237,11 @@ cc_defaults {
             ],
         },
         android: {
+            cflags: [
+                "-DHAVE_REALLOCARRAY",
+            ],
+        },
+        linux_musl: {
             cflags: [
                 "-DHAVE_REALLOCARRAY",
             ],

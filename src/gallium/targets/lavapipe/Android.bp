@@ -26,10 +26,16 @@ cc_library_shared {
         "mesa_common_defaults",
     ],
     header_libs: [
-        "mesa_gallium_auxiliary_headers",
         "mesa_gallium_headers",
+        "mesa_gallium_auxiliary_headers",
+        "mesa_gallium_drivers_headers",
+        "mesa_llvmpipe_headers",
+        "mesa_nir_headers",
+        "mesa_compiler_headers",
     ],
     generated_headers: [
+        "vk_cmd_enqueue_entrypoints_header",
+        "git_sha1_header",
         "vk_cmd_queue_header",
         "vk_physical_device_features_header",
         "vk_physical_device_properties_header",
@@ -55,16 +61,16 @@ cc_library_shared {
         "nir_builder_opcodes_header",
         "vk_common_entrypoints_header",
     ],
+    generated_sources: [
+        "mesa_lvp_vk_entrypoints_impl",
+    ],
     srcs: [
+        ":mesa_lavapipe_files",
         "lavapipe_target.c",
     ],
-    static_libs: [
-        "mesa_util_c11",
-        "mesa_vulkan_util",
-        "mesa_vulkan_runtime",
-        "mesa_lavapipe_st",
-        "mesa_pipe_loader_static",
-        "libLLVM16_swiftshader",
+    cflags: [
+        "-DGALLIUM_LLVMPIPE",
+        "-DLVP_USE_WSI_PLATFORM",
     ],
     ldflags: [
         // Mesa always adds Bsymbolic when available (see 'ld_args_bsymbolic' in Meson build). Duplicate that
@@ -73,4 +79,52 @@ cc_library_shared {
         "-Wl,-Bsymbolic",
         "-Wl,--gc-sections",
     ],
+    whole_static_libs: [
+        "mesa_vulkan_util",
+        "mesa_vulkan_runtime",
+        "mesa_vulkan_wsi",
+    ],
+    static_libs: [
+        "mesa_util_c11",
+        "mesa_util",
+        "mesa_nir",
+        "mesa_compiler",
+        "mesa_util_format",
+        "mesa_gallium",
+        "mesa_pipe_loader_static",
+        "mesa_glsl",
+        "mesa_llvmpipe",
+        "mesa_ws_null",
+        "mesa_blake3",
+        "mesa_spirv",
+        "mesa_wsw",
+        "mesa_loader",
+        "libLLVM16_swiftshader",
+    ],
+    shared_libs: [
+        "libzstd",
+    ],
+    target: {
+        android: {
+            srcs: [
+                ":mesa_lvp_android_files",
+            ],
+            static_libs: [
+                "mesa_u_gralloc",
+            ],
+            header_libs: [
+                "hwvulkan_headers",
+                "libnativebase_headers",
+            ],
+            shared_libs: [
+                "libsync",
+                "libhardware",
+                "libnativewindow",
+                "libhidlbase",
+                "libutils",
+                "liblog",
+                "libcutils",
+            ],
+        },
+    },
 }

@@ -42,51 +42,8 @@ genrule {
         "--beta false",
 }
 
-cc_library_static {
-    name: "mesa_lavapipe_st",
-    host_supported: true,
-    defaults: [
-        "mesa_common_defaults",
-    ],
-    header_libs: [
-        "mesa_gallium_headers",
-        "mesa_gallium_auxiliary_headers",
-        "mesa_llvmpipe_headers",
-        "mesa_nir_headers",
-        "mesa_compiler_headers",
-    ],
-    generated_headers: [
-        "vk_cmd_enqueue_entrypoints_header",
-        "git_sha1_header",
-        "vk_cmd_queue_header",
-        "vk_physical_device_features_header",
-        "vk_physical_device_properties_header",
-        "vk_dispatch_trampolines_header",
-        "spirv_info_header",
-        "nir_intrinsics_header",
-        "nir_intrinsics_indices_header",
-        "etc2_rgba_stitch_glsl.h",
-        "vk_cmd_queue_header",
-        "vk_cmd_enqueue_entrypoints_header",
-        "spirv_info_header",
-        "vk_dispatch_table_header",
-        "vk_enum_to_str_header",
-        "nir_opcodes_header",
-        "builtin_types_header",
-        "wsi_common_entrypoints_header",
-        "u_format_gen_header",
-        "mesa_lvp_vk_entrypoints_header",
-        "vk_struct_type_cast_header",
-        "ir_expression_operation_header",
-        "vk_format_info_header",
-        "vk_extensions_header",
-        "nir_builder_opcodes_header",
-        "vk_common_entrypoints_header",
-    ],
-    generated_sources: [
-        "mesa_lvp_vk_entrypoints_impl",
-        "wsi_common_entrypoints_impl",
-    ],
+filegroup {
+    name: "mesa_lavapipe_files",
     srcs: [
         "lvp_inline_uniforms.c",
         "lvp_lower_exec_graph.c",
@@ -111,34 +68,11 @@ cc_library_static {
         "lvp_lower_input_attachments.c",
         "lvp_descriptor_set.c",
     ],
-    static_libs: [
-        "mesa_util_c11",
-        "mesa_util",
-        "mesa_vulkan_util",
-        "mesa_vulkan_runtime",
-        "mesa_vulkan_wsi",
-        "libLLVM16_swiftshader",
+}
+
+filegroup {
+    name: "mesa_lvp_android_files",
+    srcs: [
+        "lvp_android.c",
     ],
-    target: {
-        android: {
-            relative_install_path: "hw",
-            static_libs: [
-                "mesa_u_gralloc",
-            ],
-            header_libs: [
-                "hwvulkan_headers",
-                "libnativebase_headers",
-            ],
-            shared_libs: [
-                "libsync",
-                "libhardware",
-                "libnativewindow",
-                "libhidlbase",
-                "libutils",
-            ],
-            srcs: [
-                "lvp_android.c",
-            ],
-        },
-    },
 }

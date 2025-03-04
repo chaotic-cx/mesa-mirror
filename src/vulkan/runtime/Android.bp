@@ -185,6 +185,26 @@ genrule {
         "$(location vk_format_info.c)",
 }
 
+genrule {
+    name: "vk_physical_device_spirv_caps_impl",
+    srcs: [":mesa_vulkan_xml"],
+    out: ["vk_physical_device_spirv_caps.c"],
+    tools: ["vk_physical_device_spirv_caps_gen"],
+    cmd: "python3 $(location vk_physical_device_spirv_caps_gen) --xml " +
+        "$(location :mesa_vulkan_xml) --out-c $(location vk_physical_device_spirv_caps.c) " +
+        "--beta false",
+}
+
+genrule {
+    name: "vk_synchronization_helpers_impl",
+    srcs: [":mesa_vulkan_xml"],
+    out: ["vk_synchronization_helpers.c"],
+    tools: ["vk_synchronization_helpers_gen"],
+    cmd: "python3 $(location vk_synchronization_helpers_gen) --xml " +
+        "$(location :mesa_vulkan_xml) --out-c $(location vk_synchronization_helpers.c) " +
+        "--beta false",
+}
+
 cc_library_static {
     name: "mesa_vulkan_runtime",
     vendor: true,
@@ -196,6 +216,7 @@ cc_library_static {
         "mesa_common_headers",
         "mesa_nir_headers",
         "mesa_compiler_headers",
+        "mesa_radix_sort_headers",
     ],
     static_libs: [
         "libarect",
@@ -229,10 +250,13 @@ cc_library_static {
         "vk_physical_device_features_impl",
         "vk_physical_device_properties_impl",
         "vk_format_info_impl",
+        "vk_physical_device_spirv_caps_impl",
+        "vk_synchronization_helpers_impl",
     ],
     srcs: [
         "rmv/vk_rmv_common.c",
         "rmv/vk_rmv_exporter.c",
+        "vk_acceleration_structure.c",
         "vk_blend.c",
         "vk_buffer.c",
         "vk_buffer_view.c",
@@ -248,6 +272,7 @@ cc_library_static {
         "vk_descriptor_update_template.c",
         "vk_device.c",
         "vk_device_memory.c",
+        "vk_device_generated_commands.c",
         "vk_fence.c",
         "vk_framebuffer.c",
         "vk_image.c",
@@ -255,14 +280,20 @@ cc_library_static {
         "vk_log.c",
         "vk_object.c",
         "vk_meta.c",
+        "vk_meta_draw_rects.c",
         "vk_meta_object_list.c",
+        "vk_nir.c",
+        "vk_nir_convert_ycbcr.c",
         "vk_physical_device.c",
+        "vk_pipeline.c",
         "vk_pipeline_layout.c",
+        "vk_pipeline_cache.c",
         "vk_query_pool.c",
         "vk_queue.c",
         "vk_render_pass.c",
         "vk_sampler.c",
         "vk_semaphore.c",
+        "vk_shader.c",
         "vk_standard_sample_locations.c",
         "vk_sync.c",
         "vk_sync_binary.c",
@@ -271,6 +302,9 @@ cc_library_static {
         "vk_video.c",
         "vk_ycbcr_conversion.c",
         "vk_graphics_state.c",
+        "vk_synchronization.c",
+        "vk_shader_module.c",
+        ":mesa_radix_sort_impl",
     ],
     export_include_dirs: [
         ".",

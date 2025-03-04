@@ -19,11 +19,6 @@ package {
     default_applicable_licenses: ["external_mesa3d_license"],
 }
 
-filegroup {
-    name: "vk_icd_gen.py",
-    srcs: ["vk_icd_gen.py"],
-}
-
 python_binary_host {
     name: "vk_icd_gen",
     main: "vk_icd_gen.py",
@@ -142,6 +137,31 @@ python_binary_host {
     main: "vk_struct_type_cast_gen.py",
     srcs: [
         "vk_struct_type_cast_gen.py",
+        "vk_extensions.py",
+    ],
+    libs: [
+        "mako",
+    ],
+}
+
+python_binary_host {
+    name: "vk_physical_device_spirv_caps_gen",
+    main: "vk_physical_device_spirv_caps_gen.py",
+    srcs: [
+        "vk_physical_device_spirv_caps_gen.py",
+        "vk_physical_device_features_gen.py",
+        "vk_extensions.py",
+    ],
+    libs: [
+        "mako",
+    ],
+}
+
+python_binary_host {
+    name: "vk_synchronization_helpers_gen",
+    main: "vk_synchronization_helpers_gen.py",
+    srcs: [
+        "vk_synchronization_helpers_gen.py",
         "vk_extensions.py",
     ],
     libs: [
