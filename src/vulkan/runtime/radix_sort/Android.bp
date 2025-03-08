@@ -19,47 +19,25 @@ package {
     default_applicable_licenses: ["external_mesa3d_license"],
 }
 
+filegroup {
+    name: "mesa_radix_sort_impl",
+    srcs: [
+        "common/vk/barrier.c",
+        "common/util.c",
+        "radix_sort_vk.c",
+        "radix_sort_u64.c",
+        "radix_sort_vk.c",
+    ],
+}
+
 cc_library_headers {
-    name: "mesa_src_headers",
+    name: "mesa_radix_sort_headers",
     vendor: true,
     host_supported: true,
     export_include_dirs: [
         ".",
-    ],
-}
-
-cc_library_headers {
-    name: "mesa_gallium_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "gallium/include",
-    ],
-}
-
-cc_library_headers {
-    name: "mesa_llvmpipe_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "gallium/drivers/llvmpipe",
-    ],
-}
-
-cc_library_headers {
-    name: "mesa_mesa_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "mesa",
-    ],
-}
-
-cc_library_headers {
-    name: "mesa_mapi_headers",
-    vendor: true,
-    host_supported: true,
-    export_include_dirs: [
-        "mapi",
+        "common",
+        "shaders",
+        "common/vk",
     ],
 }

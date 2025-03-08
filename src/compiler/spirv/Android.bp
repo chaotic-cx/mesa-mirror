@@ -140,5 +140,8 @@ cc_library_static {
         "vtn_opencl.c",
         "vtn_subgroup.c",
         "vtn_variables.c",
+        "vtn_structured_cfg.c",
+        "vtn_cmat.c",
+        "vtn_debug.c",
     ],
 }

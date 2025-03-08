@@ -106,6 +106,7 @@ cc_library_static {
     shared_libs: [
         "liblog",
         "libcutils",
+        "libzstd",
     ],
     srcs: [
         "anon_file.c",
@@ -151,6 +152,7 @@ cc_library_static {
         "sparse_array.c",
         "string_buffer.c",
         "strtod.c",
+        "thread_sched.c",
         "u_atomic.c",
         "u_call_once.c",
         "u_dl.c",

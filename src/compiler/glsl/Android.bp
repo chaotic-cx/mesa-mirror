@@ -36,3 +36,331 @@ genrule {
     ],
     cmd: "python3 $(location xxd_gen) $(location etc2_rgba_stitch.glsl) $(location src/compiler/glsl/etc2_rgba_stitch_glsl.h) -n etc2_rgba_stitch_source",
 }
+
+genrule {
+    name: "float64_glsl.h",
+    srcs: [
+        "float64.glsl",
+    ],
+    out: [
+        "src/compiler/glsl/float64_glsl.h",
+    ],
+    tools: [
+        "xxd_gen",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+    cmd: "python3 $(location xxd_gen) $(location float64.glsl) $(location src/compiler/glsl/float64_glsl.h) -n float64_source",
+}
+
+genrule {
+    name: "cross_platform_settings_piece_all.h",
+    srcs: [
+        "CrossPlatformSettings_piece_all.glsl",
+    ],
+    out: [
+        "src/compiler/glsl/cross_platform_settings_piece_all.h",
+    ],
+    tools: [
+        "xxd_gen",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+    cmd: "python3 $(location xxd_gen) $(location CrossPlatformSettings_piece_all.glsl) $(location src/compiler/glsl/cross_platform_settings_piece_all.h) -n cross_platform_settings_piece_all_header",
+}
+
+genrule {
+    name: "bc1_glsl.h",
+    srcs: [
+        "bc1.glsl",
+    ],
+    out: [
+        "src/compiler/glsl/bc1_glsl.h",
+    ],
+    tools: [
+        "xxd_gen",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+    cmd: "python3 $(location xxd_gen) $(location bc1.glsl) $(location src/compiler/glsl/bc1_glsl.h) -n bc1_source",
+}
+
+genrule {
+    name: "bc4_glsl.h",
+    srcs: [
+        "bc4.glsl",
+    ],
+    out: [
+        "src/compiler/glsl/bc4_glsl.h",
+    ],
+    tools: [
+        "xxd_gen",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+    cmd: "python3 $(location xxd_gen) $(location bc4.glsl) $(location src/compiler/glsl/bc4_glsl.h) -n bc4_source",
+}
+
+genrule {
+    name: "astc_glsl.h",
+    srcs: [
+        "astc_decoder.glsl",
+    ],
+    out: [
+        "src/compiler/glsl/astc_glsl.h",
+    ],
+    tools: [
+        "xxd_gen",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+    cmd: "python3 $(location xxd_gen) $(location astc_decoder.glsl) $(location src/compiler/glsl/astc_glsl.h) -n astc_source",
+}
+
+genrule {
+    name: "ir_expression_operation_constant.h",
+    out: [
+        "src/compiler/glsl/ir_expression_operation_constant.h",
+    ],
+    tools: [
+        "ir_expression_operation_gen",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+
+    cmd: "python3 $(location ir_expression_operation_gen) constant > $(location src/compiler/glsl/ir_expression_operation_constant.h)",
+}
+
+genrule {
+    name: "ir_expression_operation_strings.h",
+    out: [
+        "src/compiler/glsl/ir_expression_operation_strings.h",
+    ],
+    tools: [
+        "ir_expression_operation_gen",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+    cmd: "python3 $(location ir_expression_operation_gen) strings > $(location src/compiler/glsl/ir_expression_operation_strings.h)",
+}
+
+genrule {
+    name: "glcpp-parse.ch.h",
+    srcs: [
+        "glcpp/glcpp-parse.y",
+    ],
+    out: [
+        "src/compiler/glsl/glcpp/glcpp-parse.c.dummy.h",
+        "src/compiler/glsl/glcpp/glcpp-parse.h",
+    ],
+    tools: [
+        "bison",
+        "m4",
+    ],
+    export_include_dirs: [
+        "src/compiler/glsl/glcpp",
+        "src",
+    ],
+
+    cmd: " M4=$(location m4) $(location bison) -Wno-deprecated -o $(location src/compiler/glsl/glcpp/glcpp-parse.c.dummy.h) -p glcpp_parser_ --defines=$(location src/compiler/glsl/glcpp/glcpp-parse.h) $(location glcpp/glcpp-parse.y); echo '//nothing to see here' > $(location src/compiler/glsl/glcpp/glcpp-parse.c.dummy.h)",
+}
+
+genrule {
+    name: "glcpp-parse.ch.c",
+    srcs: [
+        "glcpp/glcpp-parse.y",
+    ],
+    out: [
+        "src/compiler/glsl/glcpp/glcpp-parse.c",
+        "src/compiler/glsl/glcpp/glcpp-parse.h.dummy.c",
+    ],
+    tools: [
+        "bison",
+        "m4",
+    ],
+    export_include_dirs: [
+        "src/compiler/glsl/glcpp",
+        "src",
+    ],
+    cmd: " M4=$(location m4) $(location bison) -Wno-deprecated -o $(location src/compiler/glsl/glcpp/glcpp-parse.c) -p glcpp_parser_ --defines=$(genDir)/src/compiler/glsl/glcpp/glcpp-parse.h $(location glcpp/glcpp-parse.y); echo '//nothing to see here' > $(location src/compiler/glsl/glcpp/glcpp-parse.h.dummy.c)",
+}
+
+genrule {
+    name: "glcpp-lex.c",
+    srcs: [
+        "glcpp/glcpp-lex.l",
+    ],
+    out: [
+        "src/compiler/glsl/glcpp/glcpp-lex.c",
+    ],
+    tools: [
+        "flex",
+        "m4",
+    ],
+
+    export_include_dirs: [
+        "src/compiler/glsl/glcpp",
+        "src",
+    ],
+
+    cmd: " M4=$(location m4) $(location flex) -o $(location src/compiler/glsl/glcpp/glcpp-lex.c) $(location glcpp/glcpp-lex.l)",
+}
+
+genrule {
+    name: "glsl_parser",
+    srcs: [
+        "glsl_parser.yy",
+    ],
+    out: [
+        "src/compiler/glsl/glsl_parser.h",
+        "src/compiler/glsl/glsl_parser.cpp",
+    ],
+    tools: [
+        "bison",
+        "m4",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+
+    ],
+    cmd: " M4=$(location m4) $(location bison) -Wno-deprecated -o $(location src/compiler/glsl/glsl_parser.cpp) -p _mesa_glsl_ --defines=$(location src/compiler/glsl/glsl_parser.h) $(location glsl_parser.yy)",
+}
+
+genrule {
+    name: "glsl_lexer_cpp",
+    srcs: [
+        "glsl_lexer.ll",
+    ],
+    out: [
+        "src/compiler/glsl/glsl_lexer.cpp",
+    ],
+    tools: [
+        "flex",
+        "m4",
+    ],
+    export_include_dirs: [
+        "src",
+        "src/compiler/glsl",
+    ],
+    cmd: " M4=$(location m4) $(location flex) -o $(location src/compiler/glsl/glsl_lexer.cpp) $(location glsl_lexer.ll)",
+}
+
+cc_library_static {
+    name: "mesa_glsl",
+    host_supported: true,
+    generated_headers: [
+        "etc2_rgba_stitch_glsl.h",
+        "float64_glsl.h",
+        "cross_platform_settings_piece_all.h",
+        "astc_glsl.h",
+        "bc4_glsl.h",
+        "bc1_glsl.h",
+        "u_format_gen_header",
+        "builtin_types_header",
+        "ir_expression_operation_header",
+        "nir_builder_opcodes_header",
+        "nir_opcodes_header",
+        "nir_intrinsics_header",
+        "nir_intrinsics_indices_header",
+        "ir_expression_operation_strings.h",
+        "ir_expression_operation_constant.h",
+        "glsl_parser",
+    ],
+    header_libs: [
+        "mesa_nir_headers",
+        "mesa_compiler_headers",
+        "mesa_mesa_headers",
+        "mesa_mapi_headers",
+        "mesa_gallium_headers",
+    ],
+    defaults: [
+        "mesa_common_defaults",
+    ],
+    srcs: [
+        "opt_if_simplification.cpp",
+        "gl_nir_lower_buffers.c",
+        "ast_to_hir.cpp",
+        "lower_vector_derefs.cpp",
+        "ir_rvalue_visitor.cpp",
+        "opt_tree_grafting.cpp",
+        "gl_nir_opt_dead_builtin_varyings.c",
+        "ast_expr.cpp",
+        "gl_nir_link_xfb.c",
+        "ir_function.cpp",
+        "ir_validate.cpp",
+        "opt_algebraic.cpp",
+        "builtin_types.cpp",
+        "glsl_parser_extras.cpp",
+        "linker_util.cpp",
+        "ast_function.cpp",
+        "gl_nir_lower_blend_equation_advanced.c",
+        "gl_nir_link_uniforms.c",
+        "gl_nir_lower_images.c",
+        "ir_builder.cpp",
+        "lower_builtins.cpp",
+        "gl_nir_lower_atomics.c",
+        "ir_hv_accept.cpp",
+        "lower_vec_index_to_cond_assign.cpp",
+        "serialize.cpp",
+        "opt_minmax.cpp",
+        "ir_expression_flattening.cpp",
+        "hir_field_selection.cpp",
+        "ir_clone.cpp",
+        "gl_nir_lower_discard_flow.c",
+        "glsl_symbol_table.cpp",
+        "ir_basic_block.cpp",
+        "opt_flatten_nested_if_blocks.cpp",
+        "opt_rebalance_tree.cpp",
+        "gl_nir_lower_xfb_varying.c",
+        "opt_flip_matrices.cpp",
+        "builtin_variables.cpp",
+        "gl_nir_lower_samplers.c",
+        "opt_function_inlining.cpp",
+        "lower_subroutine.cpp",
+        "gl_nir_link_uniform_blocks.c",
+        "builtin_functions.cpp",
+        "ast_array_index.cpp",
+        "opt_dead_code.cpp",
+        "lower_jumps.cpp",
+        "propagate_invariance.cpp",
+        "lower_mat_op_to_vec.cpp",
+        "gl_nir_link_uniform_initializers.c",
+        "gl_nir_link_varyings.c",
+        "ir_hierarchical_visitor.cpp",
+        "opt_dead_builtin_variables.cpp",
+        "lower_instructions.cpp",
+        "ir_function_detect_recursion.cpp",
+        "shader_cache.cpp",
+        "gl_nir_lower_named_interface_blocks.c",
+        "gl_nir_link_interface_blocks.c",
+        "gl_nir_lower_samplers_as_deref.c",
+        "gl_nir_linker.c",
+        "lower_precision.cpp",
+        "ir_print_visitor.cpp",
+        "lower_packing_builtins.cpp",
+        "string_to_uint_map.cpp",
+        "gl_nir_link_atomics.c",
+        "glsl_to_nir.cpp",
+        "ir_variable_refcount.cpp",
+        "ir_constant_expression.cpp",
+        "gl_nir_detect_function_recursion.c",
+        "ast_type.cpp",
+        "ir.cpp",
+        "gl_nir_lower_packed_varyings.c",
+    ],
+}

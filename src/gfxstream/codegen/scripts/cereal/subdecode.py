@@ -261,7 +261,7 @@ def emit_dispatch_call(api, cgen):
 
     cgen.vkApiCall(api, customPrefix="vk->", customParameters=customParams,
                     checkForDeviceLost=True, globalStatePrefix=global_state_prefix,
-                    checkForOutOfMemory=True)
+                    checkForOutOfMemory=True, checkDispatcher="CC_LIKELY(vk)")
 
     if api.name in driver_workarounds_global_lock_apis:
         cgen.stmt("unlock()")
@@ -274,7 +274,7 @@ def emit_global_state_wrapped_call(api, cgen, context=False):
         customParams += ["context"];
     cgen.vkApiCall(api, customPrefix=global_state_prefix,
                    customParameters=customParams, checkForDeviceLost=True,
-                   checkForOutOfMemory=True, globalStatePrefix=global_state_prefix)
+                   checkForOutOfMemory=True, globalStatePrefix=global_state_prefix, checkDispatcher="CC_LIKELY(vk)")
 
 
 def emit_default_decoding(typeInfo, api, cgen):
@@ -331,19 +331,23 @@ class VulkanSubDecoder(VulkanWrapperGenerator):
 
         self.module.appendImpl(
             "#define MAX_PACKET_LENGTH %s\n" % MAX_PACKET_LENGTH)
+        self.module.appendImpl(
+            "#define CC_LIKELY(exp)    (__builtin_expect( !!(exp), true ))\n")
+        self.module.appendImpl(
+            "#define CC_UNLIKELY(exp)  (__builtin_expect( !!(exp), false ))\n")
 
         self.module.appendImpl(
-            "size_t subDecode(VulkanMemReadingStream* readStream, VulkanDispatch* vk, void* boxed_dispatchHandle, void* dispatchHandle, VkDeviceSize dataSize, const void* pData, const VkDecoderContext& context)\n")
+            "size_t subDecode(VulkanMemReadingStream* readStream, VulkanDispatch* vk, void* boxed_dispatchHandle, void* dispatchHandle, VkDeviceSize subDecodeDataSize, const void* pSubDecodeData, const VkDecoderContext& context)\n")
 
         self.cgen.beginBlock()  # function body
 
         self.cgen.stmt("auto& metricsLogger = *context.metricsLogger")
         self.cgen.stmt("uint32_t count = 0")
-        self.cgen.stmt("unsigned char *buf = (unsigned char *)pData")
+        self.cgen.stmt("unsigned char *buf = (unsigned char *)pSubDecodeData")
         self.cgen.stmt("android::base::BumpPool* pool = readStream->pool()")
-        self.cgen.stmt("unsigned char *ptr = (unsigned char *)pData")
+        self.cgen.stmt("unsigned char *ptr = (unsigned char *)pSubDecodeData")
         self.cgen.stmt(
-            "const unsigned char* const end = (const unsigned char*)buf + dataSize")
+            "const unsigned char* const end = (const unsigned char*)buf + subDecodeDataSize")
         self.cgen.stmt(
             "VkDecoderGlobalState* globalstate = VkDecoderGlobalState::get()")
 
