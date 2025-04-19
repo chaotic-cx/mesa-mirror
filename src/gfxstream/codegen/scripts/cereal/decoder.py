@@ -575,7 +575,7 @@ def decode_vkFlushMappedMemoryRanges(typeInfo: VulkanTypeInfo, api, cgen):
     cgen.stmt("memcpy(&readStream, *readStreamPtrPtr, sizeof(uint64_t)); *readStreamPtrPtr += sizeof(uint64_t)")
     cgen.stmt("sizeLeft -= sizeof(uint64_t)")
     cgen.stmt("auto hostPtr = m_state->getMappedHostPointer(memory)")
-    cgen.stmt("if (!hostPtr && readStream > 0) GFXSTREAM_ABORT(::emugl::FatalError(::emugl::ABORT_REASON_OTHER))")
+    cgen.stmt("if (!hostPtr && readStream > 0) GFXSTREAM_FATAL(\"Unexpected\")")
     cgen.stmt("if (!hostPtr) continue")
     cgen.beginIf("sizeLeft < readStream")
     cgen.beginIf("m_prevSeqno")
@@ -837,6 +837,11 @@ custom_decodes = {
     # VK_KHR_device_group_creation / VK_VERSION_1_1
     "vkEnumeratePhysicalDeviceGroups" : emit_global_state_wrapped_decoding,
     "vkEnumeratePhysicalDeviceGroupsKHR" : emit_global_state_wrapped_decoding,
+
+    # Sparse binding and formats (Support can be disabled from the host)
+    "vkGetPhysicalDeviceSparseImageFormatProperties" : emit_global_state_wrapped_decoding,
+    "vkGetPhysicalDeviceSparseImageFormatProperties2" : emit_global_state_wrapped_decoding,
+    "vkGetPhysicalDeviceSparseImageFormatProperties2KHR" : emit_global_state_wrapped_decoding,
 }
 
 class VulkanDecoder(VulkanWrapperGenerator):
@@ -882,7 +887,7 @@ size_t VkDecoder::Impl::decode(void* buf, size_t len, IOStream* ioStream,
         self.cgen.line("""
         // packetLen should be at least 8 (op code and packet length) and should not be excessively large
         if (packetLen < 8 || packetLen > MAX_PACKET_LENGTH) {
-            WARN("Bad packet length %d detected, decode may fail", packetLen);
+            GFXSTREAM_WARNING("Bad packet length %d detected, decode may fail", packetLen);
             metricsLogger.logMetricEvent(MetricEventBadPacketLength{ .len = packetLen });
         }
         """)
@@ -919,7 +924,7 @@ size_t VkDecoder::Impl::decode(void* buf, size_t len, IOStream* ioStream,
             memcpy(&seqno, *readStreamPtrPtr, sizeof(uint32_t)); *readStreamPtrPtr += sizeof(uint32_t);
             if (healthMonitor) executionData->insert({{"seqno", std::to_string(seqno)}});
             if (m_prevSeqno  && seqno == m_prevSeqno.value()) {
-                WARN(
+                GFXSTREAM_WARNING(
                     "Seqno %d is the same as previously processed on thread %d. It might be a "
                     "duplicate command.",
                     seqno, getCurrentThreadId());

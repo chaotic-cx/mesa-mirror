@@ -450,8 +450,8 @@ using DlSymFunc = void* (void*, const char*);
 
         extensionStructsInclude = f"""
 {self.hostCommonExtraVulkanHeaders}
+#include "gfxstream/host/logging.h"
 #include "goldfish_vk_private_defs.h"
-#include "host-common/GfxstreamFatalError.h"
 #include "vulkan/vk_enum_string_helper.h"
 """
 
@@ -531,13 +531,10 @@ class BumpPool;
 #include "{self.baseLibDirPrefix}/BumpPool.h"
 #include "{self.baseLibDirPrefix}/system/System.h"
 #include "{self.baseLibDirPrefix}/Metrics.h"
-#include "render-utils/IOStream.h"
 #include "FrameBuffer.h"
 #include "gfxstream/host/Tracing.h"
-#include "host-common/feature_control.h"
-#include "host-common/GfxstreamFatalError.h"
-#include "host-common/logging.h"
-
+#include "gfxstream/host/iostream.h"
+#include "gfxstream/host/logging.h"
 #include "VkDecoderGlobalState.h"
 #include "VkDecoderSnapshot.h"
 
