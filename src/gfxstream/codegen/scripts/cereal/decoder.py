@@ -70,12 +70,12 @@ decoder_impl_preamble ="""
 namespace gfxstream {
 namespace vk {
 
-using android::base::MetricEventBadPacketLength;
-using android::base::MetricEventDuplicateSequenceNum;
+using gfxstream::base::MetricEventBadPacketLength;
+using gfxstream::base::MetricEventDuplicateSequenceNum;
 
 class VkDecoder::Impl {
 public:
-    Impl() : m_logCalls(android::base::getEnvironmentVariable("ANDROID_EMU_VK_LOG_CALLS") == "1"),
+    Impl() : m_logCalls(gfxstream::base::getEnvironmentVariable("ANDROID_EMU_VK_LOG_CALLS") == "1"),
              m_vk(vkDispatch()),
              m_state(VkDecoderGlobalState::get()),
              m_vkStream(nullptr, m_state->getFeatures()),
@@ -104,7 +104,7 @@ private:
     VulkanMemReadingStream m_vkMemReadingStream;
     BoxedHandleCreateMapping m_boxedHandleCreateMapping;
     BoxedHandleUnwrapMapping m_boxedHandleUnwrapMapping;
-    android::base::BumpPool m_pool;
+    gfxstream::base::BumpPool m_pool;
     std::optional<uint32_t> m_prevSeqno;
     bool m_queueSubmitWithCommandsEnabled = false;
     const bool m_snapshotsEnabled = false;
@@ -283,7 +283,7 @@ def emit_call_log(api, cgen):
         paramLogFormat += "0x%llx "
     for p in paramsToRead:
         paramLogArgs.append("(unsigned long long)%s" % (p.paramName))
-    cgen.stmt("fprintf(stderr, \"stream %%p: call %s %s\\n\", ioStream, %s)" % (api.name, paramLogFormat, ", ".join(paramLogArgs)))
+    cgen.stmt("GFXSTREAM_INFO(\"stream %%p: call %s %s\", ioStream, %s)" % (api.name, paramLogFormat, ", ".join(paramLogArgs)))
     cgen.endIf()
 
 def emit_decode_parameters(typeInfo: VulkanTypeInfo, api: VulkanAPI, cgen, globalWrapped=False):
@@ -489,7 +489,7 @@ def emit_seqno_incr(api, cgen):
 
 def emit_snapshot(typeInfo, api, cgen):
     additionalParams = [ \
-        makeVulkanTypeSimple(False, "android::base::BumpPool", 1, "&m_pool"),
+        makeVulkanTypeSimple(False, "gfxstream::base::BumpPool", 1, "&m_pool"),
         makeVulkanTypeSimple(True, "VkSnapshotApiCallInfo", 1, SNAPSHOT_API_CALL_INFO_VARNAME),
         makeVulkanTypeSimple(True, "uint8_t", 1, "packet"),
         makeVulkanTypeSimple(False, "size_t", 0, "packetLen"),

@@ -16,12 +16,11 @@ from dataclasses import dataclass
 
 decoder_snapshot_decl_preamble = """
 
-namespace android {
+namespace gfxstream {
 namespace base {
 class BumpPool;
-class Stream;
 } // namespace base {
-} // namespace android {
+} // namespace gfxstream {
 
 namespace gfxstream {
 namespace vk {
@@ -54,7 +53,6 @@ decoder_snapshot_decl_postamble = """
 decoder_snapshot_impl_preamble ="""
 
 using emugl::GfxApiLogger;
-using emugl::HealthMonitor;
 
 namespace gfxstream {
 namespace vk {
@@ -495,7 +493,7 @@ class VulkanDecoderSnapshot(VulkanWrapperGenerator):
         api = self.typeInfo.apis[name]
 
         additionalParams = [ \
-            makeVulkanTypeSimple(False, "android::base::BumpPool", 1, "pool"),
+            makeVulkanTypeSimple(False, "gfxstream::base::BumpPool", 1, "pool"),
             makeVulkanTypeSimple(False, "VkSnapshotApiCallInfo", 1, "apiCallInfo"),
             makeVulkanTypeSimple(True, "uint8_t", 1, "apiCallPacket"),
             makeVulkanTypeSimple(False, "size_t", 0, "apiCallPacketSize"),
