@@ -1006,7 +1006,7 @@ radv_trap_handler_init(struct radv_device *device)
    struct radeon_winsys *ws = device->ws;
    uint32_t desc[4];
    VkResult result;
-   uint32_t size;
+   uint64_t size;
 
    /* Create the trap handler shader and upload it like other shaders. */
    device->trap_handler_shader = radv_create_trap_handler_shader(device);

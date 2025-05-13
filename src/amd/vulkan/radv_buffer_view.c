@@ -19,7 +19,7 @@
 #include "vk_log.h"
 
 void
-radv_make_texel_buffer_descriptor(struct radv_device *device, uint64_t va, VkFormat vk_format, unsigned range,
+radv_make_texel_buffer_descriptor(struct radv_device *device, uint64_t va, VkFormat vk_format, uint64_t range,
                                   uint32_t *state)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -66,6 +66,8 @@ radv_make_texel_buffer_descriptor(struct radv_device *device, uint64_t va, VkFor
    };
 
    ac_build_buffer_descriptor(pdev->info.gfx_level, &ac_state, state);
+   if (pdev->info.gfx_level >= GFX13)
+      ac_set_buf_desc_word4(pdev->info.gfx_level, &ac_state, state + 4);
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL

@@ -150,7 +150,7 @@ static bool build_gsvs_ring_desc(nir_builder *b, struct lower_abi_state *s)
          /* Limit on the stride field for <= GFX7. */
          assert(stride < (1 << 14));
 
-         unsigned num_records = s->shader->wave_size;
+         uint64_t num_records = s->shader->wave_size;
 
          const struct ac_buffer_state buffer_state = {
             .size = num_records,

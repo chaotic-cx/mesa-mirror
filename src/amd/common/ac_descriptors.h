@@ -463,7 +463,7 @@ ac_set_mutable_tex_desc_fields(const struct radeon_info *info,
 
 struct ac_buffer_state {
    uint64_t va;
-   uint32_t size;
+   uint64_t size;
    enum pipe_format format;
    enum pipe_swizzle swizzle[4];
    uint32_t stride;
@@ -486,6 +486,11 @@ ac_set_buf_desc_word3(const enum amd_gfx_level gfx_level,
                       uint32_t *rsrc_word3);
 
 void
+ac_set_buf_desc_word4(const enum amd_gfx_level gfx_level,
+                      const struct ac_buffer_state *state,
+                      uint32_t *rsrc_word4);
+
+void
 ac_build_buffer_descriptor(const enum amd_gfx_level gfx_level,
                            const struct ac_buffer_state *state,
                            uint32_t desc[4]);
@@ -494,14 +499,14 @@ void
 ac_build_raw_buffer_descriptor(const enum amd_gfx_level gfx_level,
                                bool has_desc_resource_level,
                                uint64_t va,
-                               uint32_t size,
+                               uint64_t size,
                                uint32_t desc[4]);
 
 void
 ac_build_attr_ring_descriptor(const enum amd_gfx_level gfx_level,
                               bool has_desc_resource_level,
                               uint64_t va,
-                              uint32_t size,
+                              uint64_t size,
                               uint32_t stride,
                               uint32_t desc[4]);
 

@@ -3506,7 +3506,7 @@ void si_make_buffer_descriptor(struct si_screen *screen, struct si_resource *buf
 {
    const struct util_format_description *desc;
    unsigned stride;
-   unsigned num_records;
+   uint64_t num_records;
 
    desc = util_format_description(format);
    stride = desc->block.bits / 8;
@@ -3537,7 +3537,7 @@ void si_make_buffer_descriptor(struct si_screen *screen, struct si_resource *buf
     * - For VMEM and inst.IDXEN == 0 or STRIDE == 0, it's in byte units.
     * - For VMEM and inst.IDXEN == 1 and STRIDE != 0, it's in units of STRIDE.
     */
-   if (screen->info.gfx_level == GFX8)
+   if (screen->info.gfx_level == GFX8 || screen->info.gfx_level >= GFX13)
       num_records *= stride;
 
    const struct ac_buffer_state buffer_state = {
@@ -3556,6 +3556,8 @@ void si_make_buffer_descriptor(struct si_screen *screen, struct si_resource *buf
    };
 
    ac_build_buffer_descriptor(screen->info.gfx_level, &buffer_state, &state[0]);
+   if (screen->info.gfx_level >= GFX13)
+      ac_set_buf_desc_word4(screen->info.gfx_level, &buffer_state, &state[4]);
 }
 
 /**
