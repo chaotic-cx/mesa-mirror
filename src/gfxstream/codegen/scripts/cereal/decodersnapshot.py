@@ -56,8 +56,6 @@ decoder_snapshot_decl_postamble = """
 
 decoder_snapshot_impl_preamble ="""
 
-using emugl::GfxApiLogger;
-
 namespace gfxstream {
 namespace vk {
 
@@ -293,12 +291,25 @@ def api_special_implementation_vkCmdCopyBufferToImage(api, cgen):
     cgen.stmt("apiCallInfo->depends.push_back( (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(srcBuffer))")
     cgen.stmt("apiCallInfo->depends.push_back( (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkImage(dstImage))")
 
+def api_special_implementation_vkCmdCopyBuffer(api, cgen):
+    cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
+    cgen.stmt("apiCallInfo->depends.push_back( (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(srcBuffer))")
+    cgen.stmt("apiCallInfo->depends.push_back( (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(dstBuffer))")
+
 def api_special_implementation_vkCmdBindVertexBuffers(api, cgen):
     cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
     cgen.beginFor("uint32_t i = 0", "i < bindingCount", "++i")
     cgen.stmt("apiCallInfo->depends.push_back( (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkBuffer(pBuffers[i]))")
     cgen.endFor()
 
+def api_special_implementation_vkCmdBindPipeline(api, cgen):
+    cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
+    cgen.stmt("apiCallInfo->depends.push_back( (uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkPipeline(pipeline))")
+
+def api_special_implementation_vkResetCommandPool(api, cgen):
+    cgen.line("// Note: special implementation");
+    cgen.stmt("std::lock_guard<std::mutex> lock(mReconstructionMutex)")
+    cgen.stmt("mReconstruction.removeGrandChildren((uint64_t)(uintptr_t)unboxed_to_boxed_non_dispatchable_VkCommandPool(commandPool))")
 
 def api_special_implementation_vkResetCommandBuffer(api, cgen):
     cgen.line("// Note: special implementation");
@@ -339,8 +350,11 @@ apiSpecialImplementation = {
     "vkGetBlobGOOGLE": api_special_implementation_vkMapMemoryIntoAddressSpaceGOOGLE,
     "vkQueueFlushCommandsGOOGLE": api_special_implementation_vkQueueFlushCommandsGOOGLE,
     "vkResetCommandBuffer": api_special_implementation_vkResetCommandBuffer,
+    "vkResetCommandPool": api_special_implementation_vkResetCommandPool,
     "vkCmdBindVertexBuffers": api_special_implementation_vkCmdBindVertexBuffers,
+    "vkCmdBindPipeline": api_special_implementation_vkCmdBindPipeline,
     "vkCmdCopyBufferToImage": api_special_implementation_vkCmdCopyBufferToImage,
+    "vkCmdCopyBuffer": api_special_implementation_vkCmdCopyBuffer,
     "vkCmdPipelineBarrier": api_special_implementation_vkCmdPipelineBarrier,
     "vkCmdBeginRenderPass": api_special_implementation_vkCmdBeginRenderPass,
     "vkCmdBeginRenderPass2": api_special_implementation_vkCmdBeginRenderPass,
