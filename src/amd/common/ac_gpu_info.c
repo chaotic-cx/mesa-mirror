@@ -794,7 +794,9 @@ ac_identify_chip(struct radeon_info *info, const struct drm_amdgpu_info_device *
       return false;
    }
 
-   if (info->ip[AMD_IP_GFX].ver_major == 12 && info->ip[AMD_IP_GFX].ver_minor == 1)
+   if (info->ip[AMD_IP_GFX].ver_major == 13 && info->ip[AMD_IP_GFX].ver_minor == 0)
+      info->gfx_level = GFX13;
+   else if (info->ip[AMD_IP_GFX].ver_major == 12 && info->ip[AMD_IP_GFX].ver_minor == 1)
       info->gfx_level = GFX12_1;
    else if (info->ip[AMD_IP_GFX].ver_major == 12 && info->ip[AMD_IP_GFX].ver_minor == 0)
       info->gfx_level = GFX12;

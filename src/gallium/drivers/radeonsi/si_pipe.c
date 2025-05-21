@@ -218,6 +218,12 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
    sscreen->ws = ws;
    ws->query_info(ws, &sscreen->info);
 
+   if (sscreen->info.gfx_level >= GFX13) {
+      fprintf(stderr, "radeonsi: GFX13 isn't supported yet\n");
+      FREE(sscreen);
+      return NULL;
+   }
+
    sscreen->debug_flags = debug_flags;
 
    if ((sscreen->debug_flags & DBG(TMZ)) &&

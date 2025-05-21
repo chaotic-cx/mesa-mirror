@@ -2583,6 +2583,7 @@ static const uint32_t driconf_device_versions[] = {
    [GFX11_7] = 117,
    [GFX12] = 120,
    [GFX12_1] = 121,
+   [GFX13] = 130,
 };
 // clang-format on
 
