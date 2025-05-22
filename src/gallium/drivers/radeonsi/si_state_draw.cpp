@@ -39,6 +39,8 @@
 #define GFX(name) name##GFX11_7
 #elif (GFX_VER == 12)
 #define GFX(name) name##GFX12
+#elif (GFX_VER == 13)
+#define GFX(name) name##GFX13
 #else
 #error "Unknown gfx level"
 #endif
@@ -461,6 +463,8 @@ bool si_update_shaders_for_mesh(struct si_context *sctx, struct si_shader *old_v
       return si_update_shaders_shared_by_vertex_and_mesh_pipe<GFX11_7, TESS_OFF, GS_OFF, MS_ON, NGG_ON>(sctx, old_vs, new_vs);
    case GFX12:
       return si_update_shaders_shared_by_vertex_and_mesh_pipe<GFX12, TESS_OFF, GS_OFF, MS_ON, NGG_ON>(sctx, old_vs, new_vs);
+   case GFX13:
+      return si_update_shaders_shared_by_vertex_and_mesh_pipe<GFX13, TESS_OFF, GS_OFF, MS_ON, NGG_ON>(sctx, old_vs, new_vs);
    default:
       UNREACHABLE("invalid GFX version for mesh shaders");
    }
@@ -728,6 +732,9 @@ void si_cp_dma_prefetch(struct radeon_cmdbuf *cs,
       break;
    case GFX12:
       si_cp_dma_prefetch_inline<GFX12>(cs, address, size);
+      break;
+   case GFX13:
+      si_cp_dma_prefetch_inline<GFX13>(cs, address, size);
       break;
    default:
       break;
@@ -1135,6 +1142,9 @@ void si_emit_rasterizer_prim_state_for_mesh(struct si_context *sctx)
       break;
    case GFX12:
       si_emit_rasterizer_prim_state<GFX12, GS_OFF, NGG_ON>(sctx);
+      break;
+   case GFX13:
+      si_emit_rasterizer_prim_state<GFX13, GS_OFF, NGG_ON>(sctx);
       break;
    default:
       UNREACHABLE("invalid GFX version for mesh shaders");
@@ -1976,6 +1986,9 @@ void si_set_vertex_buffer_descriptor(struct si_screen *sscreen, struct si_vertex
       break;
    case GFX12:
       si_set_vb_descriptor<GFX12>(velems, vb, element_index, out);
+      break;
+   case GFX13:
+      si_set_vb_descriptor<GFX13>(velems, vb, element_index, out);
       break;
    default:
       UNREACHABLE("unhandled gfx level");

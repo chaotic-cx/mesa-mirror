@@ -232,6 +232,9 @@ bool si_init_gfx_context(struct si_screen *sscreen, struct si_context *sctx, uns
       case GFX12:
          si_init_draw_functions_GFX12(sctx);
          break;
+      case GFX13:
+         si_init_draw_functions_GFX13(sctx);
+         break;
       default:
          UNREACHABLE("unhandled gfx level");
       }

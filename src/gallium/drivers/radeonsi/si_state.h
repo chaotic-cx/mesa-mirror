@@ -535,6 +535,7 @@ void si_init_draw_functions_GFX11(struct si_context *sctx);
 void si_init_draw_functions_GFX11_5(struct si_context *sctx);
 void si_init_draw_functions_GFX11_7(struct si_context *sctx);
 void si_init_draw_functions_GFX12(struct si_context *sctx);
+void si_init_draw_functions_GFX13(struct si_context *sctx);
 
 /* si_state_msaa.c */
 extern unsigned si_msaa_max_distance[5];
