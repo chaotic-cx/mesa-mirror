@@ -2278,9 +2278,10 @@ VkResult gfxstream_vk_CreatePrivateDataSlot(VkDevice device,
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkCreatePrivateDataSlot_VkResult_return =
-            vkEnc->vkCreatePrivateDataSlot(gfxstream_device->internal_object, pCreateInfo,
-                                           pAllocator, pPrivateDataSlot, true /* do lock */);
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        vkCreatePrivateDataSlot_VkResult_return = resources->on_vkCreatePrivateDataSlot(
+            vkEnc, VK_SUCCESS, gfxstream_device->internal_object, pCreateInfo, pAllocator,
+            pPrivateDataSlot);
     }
     return vkCreatePrivateDataSlot_VkResult_return;
 }
@@ -2293,8 +2294,9 @@ void gfxstream_vk_DestroyPrivateDataSlot(VkDevice device, VkPrivateDataSlot priv
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkEnc->vkDestroyPrivateDataSlot(gfxstream_device->internal_object, privateDataSlot,
-                                        pAllocator, true /* do lock */);
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        resources->on_vkDestroyPrivateDataSlot(vkEnc, gfxstream_device->internal_object,
+                                               privateDataSlot, pAllocator);
     }
 }
 VkResult gfxstream_vk_SetPrivateData(VkDevice device, VkObjectType objectType,
@@ -2305,9 +2307,10 @@ VkResult gfxstream_vk_SetPrivateData(VkDevice device, VkObjectType objectType,
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
+        auto resources = gfxstream::vk::ResourceTracker::get();
         vkSetPrivateData_VkResult_return =
-            vkEnc->vkSetPrivateData(gfxstream_device->internal_object, objectType, objectHandle,
-                                    privateDataSlot, data, true /* do lock */);
+            resources->on_vkSetPrivateData(vkEnc, VK_SUCCESS, gfxstream_device->internal_object,
+                                           objectType, objectHandle, privateDataSlot, data);
     }
     return vkSetPrivateData_VkResult_return;
 }
@@ -2317,8 +2320,9 @@ void gfxstream_vk_GetPrivateData(VkDevice device, VkObjectType objectType, uint6
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkEnc->vkGetPrivateData(gfxstream_device->internal_object, objectType, objectHandle,
-                                privateDataSlot, pData, true /* do lock */);
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        resources->on_vkGetPrivateData(vkEnc, gfxstream_device->internal_object, objectType,
+                                       objectHandle, privateDataSlot, pData);
     }
 }
 void gfxstream_vk_CmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent event,
@@ -4578,9 +4582,10 @@ VkResult gfxstream_vk_CreatePrivateDataSlotEXT(VkDevice device,
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkCreatePrivateDataSlotEXT_VkResult_return =
-            vkEnc->vkCreatePrivateDataSlotEXT(gfxstream_device->internal_object, pCreateInfo,
-                                              pAllocator, pPrivateDataSlot, true /* do lock */);
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        vkCreatePrivateDataSlotEXT_VkResult_return = resources->on_vkCreatePrivateDataSlotEXT(
+            vkEnc, VK_SUCCESS, gfxstream_device->internal_object, pCreateInfo, pAllocator,
+            pPrivateDataSlot);
     }
     return vkCreatePrivateDataSlotEXT_VkResult_return;
 }
@@ -4590,8 +4595,9 @@ void gfxstream_vk_DestroyPrivateDataSlotEXT(VkDevice device, VkPrivateDataSlot p
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkEnc->vkDestroyPrivateDataSlotEXT(gfxstream_device->internal_object, privateDataSlot,
-                                           pAllocator, true /* do lock */);
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        resources->on_vkDestroyPrivateDataSlotEXT(vkEnc, gfxstream_device->internal_object,
+                                                  privateDataSlot, pAllocator);
     }
 }
 VkResult gfxstream_vk_SetPrivateDataEXT(VkDevice device, VkObjectType objectType,

@@ -1058,6 +1058,13 @@ void ResourceTracker::unregister_VkSampler(VkSampler sampler) {
     info_VkSampler.erase(sampler);
 }
 
+void ResourceTracker::unregister_VkPrivateDataSlot(VkPrivateDataSlot privateSlot) {
+    if (!privateSlot) return;
+
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+    info_VkPrivateDataSlot.erase(privateSlot);
+}
+
 void ResourceTracker::unregister_VkCommandBuffer(VkCommandBuffer commandBuffer) {
     resetCommandBufferStagingInfo(commandBuffer, true /* also reset primaries */,
                                   true /* also clear pending descriptor sets */);
@@ -1286,8 +1293,7 @@ void ResourceTracker::transformImpl_VkExternalMemoryProperties_fromhost(
     supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_ZIRCON_VMO_BIT_FUCHSIA;
 #endif  // VK_USE_PLATFORM_FUCHSIA
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
-                           VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
+    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
 #endif  // VK_USE_PLATFORM_ANDROID_KHR
     if (supportedHandleType) {
         pProperties->compatibleHandleTypes &= supportedHandleType;
@@ -1576,9 +1582,15 @@ void ResourceTracker::deviceMemoryTransform_tohost(VkDeviceMemory* memory, uint3
 
         for (uint32_t i = 0; i < memoryCount; ++i) {
             VkDeviceMemory mem = memory[i];
+            if (!mem) {
+                return;
+            }
 
             auto it = info_VkDeviceMemory.find(mem);
-            if (it == info_VkDeviceMemory.end()) return;
+            if (it == info_VkDeviceMemory.end()) {
+                mesa_logw("%s cannot find memory %p!", __func__, mem);
+                return;
+            }
 
             const auto& info = it->second;
 
@@ -1593,11 +1605,6 @@ void ResourceTracker::deviceMemoryTransform_tohost(VkDeviceMemory* memory, uint3
             if (size && size[i] == VK_WHOLE_SIZE) {
                 size[i] = info.allocationSize;
             }
-
-            // TODO
-            (void)memory;
-            (void)offset;
-            (void)size;
         }
     }
 }
@@ -1750,11 +1757,7 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_KHR_get_memory_requirements2",
         "VK_KHR_sampler_ycbcr_conversion",
         "VK_KHR_shader_float16_int8",
-    // Timeline semaphores buggy in newer NVIDIA drivers
-    // (vkWaitSemaphoresKHR causes further vkCommandBuffer dispatches to deadlock)
-#ifndef VK_USE_PLATFORM_ANDROID_KHR
         "VK_KHR_timeline_semaphore",
-#endif
         "VK_AMD_gpu_shader_half_float",
         "VK_NV_shader_subgroup_partitioned",
         "VK_KHR_shader_subgroup_extended_types",
@@ -1785,7 +1788,6 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
         "VK_KHR_external_semaphore",
         "VK_KHR_external_semaphore_fd",
-        // "VK_KHR_external_semaphore_win32", not exposed because it's translated to fd
         "VK_KHR_external_memory",
         "VK_KHR_external_fence",
         "VK_KHR_external_fence_fd",
@@ -1795,10 +1797,11 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_KHR_imageless_framebuffer",
 #endif
         "VK_KHR_multiview",
+        "VK_EXT_color_write_enable",
         // Vulkan 1.3
         "VK_KHR_synchronization2",
         "VK_EXT_private_data",
-        "VK_EXT_color_write_enable",
+        "VK_KHR_dynamic_rendering",
     };
 
     VkEncoder* enc = (VkEncoder*)context;
@@ -4985,6 +4988,91 @@ VkResult ResourceTracker::on_vkWaitForFences(void* context, VkResult, VkDevice d
 #endif
 }
 
+VkResult ResourceTracker::on_vkSetPrivateData(void* context, VkResult input_result, VkDevice device,
+                                              VkObjectType objectType, uint64_t objectHandle,
+                                              VkPrivateDataSlot privateDataSlot, uint64_t data) {
+    if (input_result != VK_SUCCESS) return input_result;
+
+    VkPrivateDataSlot_Info::PrivateDataKey key = std::make_pair(objectHandle, objectType);
+
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+    auto it = info_VkPrivateDataSlot.find(privateDataSlot);
+
+    // Do not forward calls with invalid handles to host.
+    if (it == info_VkPrivateDataSlot.end()) {
+        return VK_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    auto& slotInfoTable = it->second.privateDataTable;
+    slotInfoTable[key] = data;
+    return VK_SUCCESS;
+}
+
+VkResult ResourceTracker::on_vkSetPrivateDataEXT(void* context, VkResult input_result,
+                                                 VkDevice device, VkObjectType objectType,
+                                                 uint64_t objectHandle,
+                                                 VkPrivateDataSlot privateDataSlot, uint64_t data) {
+    return on_vkSetPrivateData(context, input_result, device, objectType, objectHandle,
+                               privateDataSlot, data);
+}
+
+void ResourceTracker::on_vkGetPrivateData(void* context, VkDevice device, VkObjectType objectType,
+                                          uint64_t objectHandle, VkPrivateDataSlot privateDataSlot,
+                                          uint64_t* pData) {
+    VkPrivateDataSlot_Info::PrivateDataKey key = std::make_pair(objectHandle, objectType);
+
+    std::lock_guard<std::recursive_mutex> lock(mLock);
+    auto it = info_VkPrivateDataSlot.find(privateDataSlot);
+
+    // Do not forward calls with invalid handles to host.
+    if (it == info_VkPrivateDataSlot.end()) {
+        return;
+    }
+
+    auto& slotInfoTable = it->second.privateDataTable;
+    *pData = slotInfoTable[key];
+}
+
+void ResourceTracker::on_vkGetPrivateDataEXT(void* context, VkDevice device,
+                                             VkObjectType objectType, uint64_t objectHandle,
+                                             VkPrivateDataSlot privateDataSlot, uint64_t* pData) {
+    return on_vkGetPrivateData(context, device, objectType, objectHandle, privateDataSlot, pData);
+}
+
+VkResult ResourceTracker::on_vkCreatePrivateDataSlot(void* context, VkResult input_result,
+                                                     VkDevice device,
+                                                     const VkPrivateDataSlotCreateInfo* pCreateInfo,
+                                                     const VkAllocationCallbacks* pAllocator,
+                                                     VkPrivateDataSlot* pPrivateDataSlot) {
+    if (input_result != VK_SUCCESS) {
+        return input_result;
+    }
+    VkEncoder* enc = (VkEncoder*)context;
+    return enc->vkCreatePrivateDataSlot(device, pCreateInfo, pAllocator, pPrivateDataSlot,
+                                        true /* do lock */);
+}
+VkResult ResourceTracker::on_vkCreatePrivateDataSlotEXT(
+    void* context, VkResult input_result, VkDevice device,
+    const VkPrivateDataSlotCreateInfo* pCreateInfo, const VkAllocationCallbacks* pAllocator,
+    VkPrivateDataSlot* pPrivateDataSlot) {
+    return on_vkCreatePrivateDataSlot(context, input_result, device, pCreateInfo, pAllocator,
+                                      pPrivateDataSlot);
+}
+
+void ResourceTracker::on_vkDestroyPrivateDataSlot(void* context, VkDevice device,
+                                                  VkPrivateDataSlot privateDataSlot,
+                                                  const VkAllocationCallbacks* pAllocator) {
+    if (!privateDataSlot) return;
+
+    VkEncoder* enc = (VkEncoder*)context;
+    enc->vkDestroyPrivateDataSlot(device, privateDataSlot, pAllocator, true /* do lock */);
+}
+void ResourceTracker::on_vkDestroyPrivateDataSlotEXT(void* context, VkDevice device,
+                                                     VkPrivateDataSlot privateDataSlot,
+                                                     const VkAllocationCallbacks* pAllocator) {
+    return on_vkDestroyPrivateDataSlot(context, device, privateDataSlot, pAllocator);
+}
+
 VkResult ResourceTracker::on_vkCreateDescriptorPool(void* context, VkResult, VkDevice device,
                                                     const VkDescriptorPoolCreateInfo* pCreateInfo,
                                                     const VkAllocationCallbacks* pAllocator,
@@ -6721,8 +6809,7 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2_common(
 
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
     VkAndroidHardwareBufferUsageANDROID* output_ahw_usage = vk_find_struct(pImageFormatProperties, ANDROID_HARDWARE_BUFFER_USAGE_ANDROID);
-    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
-                           VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
+    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
 #endif
     const VkPhysicalDeviceExternalImageFormatInfo* ext_img_info =
         vk_find_struct_const(pImageFormatInfo, PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO);
@@ -6863,8 +6950,7 @@ void ResourceTracker::on_vkGetPhysicalDeviceExternalBufferProperties_common(
     supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_ZIRCON_VMO_BIT_FUCHSIA;
 #endif
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
-    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
-                           VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
+    supportedHandleType |= VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
 #endif
     if (supportedHandleType) {
         // 0 is a valid handleType so we can't check against 0
