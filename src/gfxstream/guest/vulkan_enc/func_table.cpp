@@ -1486,8 +1486,9 @@ void gfxstream_vk_CmdClearColorImage(VkCommandBuffer commandBuffer, VkImage imag
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getCommandBufferEncoder(
             gfxstream_commandBuffer->internal_object);
-        vkEnc->vkCmdClearColorImage(gfxstream_commandBuffer->internal_object, image, imageLayout,
-                                    pColor, rangeCount, pRanges, true /* do lock */);
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        resources->on_vkCmdClearColorImage(vkEnc, gfxstream_commandBuffer->internal_object, image,
+                                           imageLayout, pColor, rangeCount, pRanges);
     }
 }
 void gfxstream_vk_CmdClearDepthStencilImage(VkCommandBuffer commandBuffer, VkImage image,
