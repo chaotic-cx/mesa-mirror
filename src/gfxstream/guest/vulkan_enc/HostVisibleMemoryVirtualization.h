@@ -8,7 +8,7 @@
 
 #include "VirtGpu.h"
 #include "goldfish_address_space.h"
-#include "SubAllocator.h"
+#include "util/u_mm.h"
 #include "util/detect_os.h"
 
 constexpr uint64_t kMegaByte = 1048576;
@@ -26,7 +26,6 @@ namespace gfxstream {
 namespace vk {
 
 using GoldfishAddressSpaceBlockPtr = std::shared_ptr<GoldfishAddressSpaceBlock>;
-using SubAllocatorPtr = std::unique_ptr<gfxstream::aemu::SubAllocator>;
 
 class CoherentMemory {
    public:
@@ -54,7 +53,9 @@ class CoherentMemory {
     GoldfishAddressSpaceBlockPtr mBlock;
     VkDevice mDevice;
     VkDeviceMemory mMemory;
-    SubAllocatorPtr mAllocator;
+
+    uint8_t* mBaseAddr = nullptr;
+    struct mem_block* mHeap = nullptr;
 };
 
 using CoherentMemoryPtr = std::shared_ptr<CoherentMemory>;
