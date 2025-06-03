@@ -4678,15 +4678,6 @@ VkResult ResourceTracker::on_vkCreateSampler(void* context, VkResult, VkDevice d
     }
 #endif
 
-    VkSamplerReductionModeCreateInfo localVkSamplerReductionModeCreateInfo;
-    const VkSamplerReductionModeCreateInfo* samplerReductionModeCreateInfo =
-        vk_find_struct_const(pCreateInfo, SAMPLER_REDUCTION_MODE_CREATE_INFO);
-    if (samplerReductionModeCreateInfo) {
-        localVkSamplerReductionModeCreateInfo =
-            vk_make_orphan_copy(*samplerReductionModeCreateInfo);
-        vk_append_struct(&structChainIter, &localVkSamplerReductionModeCreateInfo);
-    }
-
     VkEncoder* enc = (VkEncoder*)context;
     return enc->vkCreateSampler(device, &localCreateInfo, pAllocator, pSampler, true /* do lock */);
 }
