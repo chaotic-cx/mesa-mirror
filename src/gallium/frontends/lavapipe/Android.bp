@@ -19,6 +19,15 @@ package {
     default_applicable_licenses: ["external_mesa3d_license"],
 }
 
+cc_library_headers {
+    name: "mesa_lvp_frontend_headers",
+    host_supported: true,
+    vendor: true,
+    export_include_dirs: [
+        ".",
+    ],
+}
+
 genrule {
     name: "mesa_lvp_vk_entrypoints_header",
     srcs: [":mesa_vulkan_xml"],
@@ -45,27 +54,27 @@ genrule {
 filegroup {
     name: "mesa_lavapipe_files",
     srcs: [
-        "lvp_inline_uniforms.c",
-        "lvp_lower_exec_graph.c",
+        "nir/lvp_nir_lower_exec_graph.c",
+        "nir/lvp_nir_lower_input_attachments.c",
+        "nir/lvp_nir_lower_pipeline_layout.c",
+        "nir/lvp_nir_lower_ray_queries.c",
+        "nir/lvp_nir_lower_sparse_residency.c",
+        "nir/lvp_nir_opt_robustness.c",
+        "nir/lvp_nir_ray_tracing.c",
         "lvp_cmd_buffer.c",
         "lvp_formats.c",
         "lvp_pipeline.c",
         "lvp_device.c",
-        "lvp_nir_lower_sparse_residency.c",
         "lvp_image.c",
-        "lvp_lower_vulkan_resource.c",
         "lvp_ray_tracing_pipeline.c",
-        "lvp_nir_ray_tracing.c",
         "lvp_pipeline_cache.c",
         "lvp_util.c",
-        "lvp_nir_lower_ray_queries.c",
         "lvp_pipe_sync.c",
         "lvp_device_generated_commands.c",
         "lvp_query.c",
         "lvp_wsi.c",
         "lvp_execute.c",
         "lvp_acceleration_structure.c",
-        "lvp_lower_input_attachments.c",
         "lvp_descriptor_set.c",
     ],
 }
