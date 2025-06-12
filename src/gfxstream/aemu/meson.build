@@ -6,7 +6,6 @@ inc_aemu = include_directories('include')
 files_libaemu = files(
   'ring_buffer.cpp',
   'Stream.cpp',
-  'SubAllocator.cpp',
 )
 
 libaemu = static_library(
