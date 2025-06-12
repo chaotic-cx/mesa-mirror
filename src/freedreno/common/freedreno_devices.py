@@ -103,7 +103,7 @@ class GPUInfo(Struct):
                  tile_max_w, tile_max_h, num_vsc_pipes,
                  cs_shared_mem_size, num_sp_cores, wave_granularity, fibers_per_sp,
                  highest_bank_bit = 0, ubwc_swizzle = 0x7, macrotile_mode = 0,
-                 threadsize_base = 64, max_waves = 16):
+                 threadsize_base = 64, max_waves = 16, compute_lb_size = 0):
         self.chip          = chip.value
         self.gmem_align_w  = gmem_align_w
         self.gmem_align_h  = gmem_align_h
@@ -139,9 +139,13 @@ class A6xxGPUInfo(GPUInfo):
         if chip == CHIP.A6XX:
             tile_max_w   = 1024 # max_bitfield_val(5, 0, 5)
             tile_max_h   = max_bitfield_val(14, 8, 4) # 1008
+            compute_lb_size = 0
         else:
             tile_max_w   = 1728
             tile_max_h   = 1728
+            # on a7xx the compute_lb_size is 40KB for all known parts for now.
+            # We have a parameter for it in case some low-end parts cut it down.
+            compute_lb_size = 40 * 1024
 
         super().__init__(chip, gmem_align_w = 16, gmem_align_h = 4,
                          tile_align_w = tile_align_w,
@@ -157,7 +161,8 @@ class A6xxGPUInfo(GPUInfo):
                          ubwc_swizzle = ubwc_swizzle,
                          macrotile_mode = macrotile_mode,
                          threadsize_base    = threadsize_base,
-                         max_waves    = max_waves)
+                         max_waves    = max_waves,
+                         compute_lb_size = compute_lb_size)
 
         self.num_ccu = num_ccu
 
@@ -537,6 +542,7 @@ add_gpus([
 
 add_gpus([
         GPUId(chip_id=0xffff06020100, name="FD621"),
+        GPUId(chip_id=0xffff06020300, name="Adreno623"),
     ], A6xxGPUInfo(
         CHIP.A6XX,
         [a6xx_base, a6xx_gen3, A6XXProps(lrz_track_quirk = False)],
@@ -819,6 +825,51 @@ add_gpus([
         ],
     ))
 
+add_gpus([
+        GPUId(702), # KGSL
+        GPUId(chip_id=0x00b207002000, name="FD702"), # QRB2210 RB1
+        GPUId(chip_id=0xffff07002000, name="FD702"), # Default no-speedbin fallback
+    ], A6xxGPUInfo(
+        CHIP.A6XX, # NOT a mistake!
+        [a6xx_base, a6xx_gen1_low, A6XXProps(
+            has_cp_reg_write = False,
+            has_gmem_fast_clear = True,
+            sysmem_per_ccu_depth_cache_size = 8 * 1024, # ??????
+            sysmem_per_ccu_color_cache_size = 8 * 1024, # ??????
+            gmem_ccu_color_cache_fraction = CCUColorCacheFraction.HALF.value,
+            supports_double_threadsize = True,
+            prim_alloc_threshold = 0x1,
+            storage_16bit = True,
+            is_a702 = True,
+            )
+        ],
+        num_ccu = 1,
+        tile_align_w = 32,
+        tile_align_h = 16,
+        num_vsc_pipes = 16,
+        cs_shared_mem_size = 16 * 1024,
+        wave_granularity = 1,
+        fibers_per_sp = 128 * 16,
+        threadsize_base = 16,
+        max_waves = 16,
+        # has_early_preamble = True,  # for VS/FS but not CS?
+        magic_regs = dict(
+            PC_POWER_CNTL = 0,
+            TPL1_DBG_ECO_CNTL = 0x8000,
+            GRAS_DBG_ECO_CNTL = 0,
+            SP_CHICKEN_BITS = 0x1400,
+            UCHE_CLIENT_PF = 0x84,
+            PC_MODE_CNTL = 0xf,
+            SP_DBG_ECO_CNTL = 0x0,
+            RB_DBG_ECO_CNTL = 0x100000,
+            RB_DBG_ECO_CNTL_blit = 0x100000,
+            HLSQ_DBG_ECO_CNTL = 0,
+            RB_UNKNOWN_8E01 = 0x1,
+            VPC_DBG_ECO_CNTL = 0x0,
+            UCHE_UNKNOWN_0E12 = 0x1,
+        ),
+    ))
+
 # Based on a6xx_base + a6xx_gen4
 a7xx_base = A6XXProps(
         has_gmem_fast_clear = True,
@@ -866,6 +917,7 @@ a7xx_base = A6XXProps(
         prede_nop_quirk = True,
         predtf_nop_quirk = True,
         has_sad = True,
+        has_bin_mask = True,
     )
 
 a7xx_gen1 = A7XXProps(
@@ -887,6 +939,7 @@ a7xx_gen2 = A7XXProps(
         has_64b_ssbo_atomics = True,
         has_primitive_shading_rate = True,
         reading_shading_rate_requires_smask_quirk = True,
+        has_ray_intersection = True,
     )
 
 a7xx_gen3 = A7XXProps(
@@ -908,6 +961,12 @@ a7xx_gen3 = A7XXProps(
         has_persistent_counter = True,
         has_64b_ssbo_atomics = True,
         has_primitive_shading_rate = True,
+        has_ray_intersection = True,
+        has_sw_fuse = True,
+        has_rt_workaround = True,
+        has_alias_rt = True,
+        has_abs_bin_mask = True,
+        new_control_regs = True,
     )
 
 a730_magic_regs = dict(
@@ -1070,6 +1129,7 @@ add_gpus([
     ))
 
 add_gpus([
+        GPUId(chip_id=0xffff43030c00, name="Adreno X1-45"),
         GPUId(chip_id=0x43030B00, name="FD735")
     ], A6xxGPUInfo(
         CHIP.A7XX,
@@ -1148,26 +1208,10 @@ add_gpus([
         GPUId(740), # Deprecated, used for dev kernels.
         GPUId(chip_id=0x43050a01, name="FD740"), # KGSL, no speedbin data
         GPUId(chip_id=0xffff43050a01, name="FD740"), # Default no-speedbin fallback
-    ], A6xxGPUInfo(
-        CHIP.A7XX,
-        [a7xx_base, a7xx_gen2],
-        num_ccu = 6,
-        tile_align_w = 96,
-        tile_align_h = 32,
-        num_vsc_pipes = 32,
-        cs_shared_mem_size = 32 * 1024,
-        wave_granularity = 2,
-        fibers_per_sp = 128 * 2 * 16,
-        highest_bank_bit = 16,
-        magic_regs = a740_magic_regs,
-        raw_magic_regs = a740_raw_magic_regs,
-    ))
-
-add_gpus([
         GPUId(chip_id=0xffff43050c01, name="Adreno X1-85"),
     ], A6xxGPUInfo(
         CHIP.A7XX,
-        [a7xx_base, a7xx_gen2, A7XXProps(compute_constlen_quirk = True)],
+        [a7xx_base, a7xx_gen2],
         num_ccu = 6,
         tile_align_w = 96,
         tile_align_h = 32,

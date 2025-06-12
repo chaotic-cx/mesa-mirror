@@ -67,6 +67,7 @@
 #endif
 
 #if DETECT_OS_LINUX
+#include <sys/auxv.h>
 #include <signal.h>
 #include <fcntl.h>
 #include <elf.h>
@@ -139,7 +140,7 @@ check_os_altivec_support(void)
 #endif
 #if defined(__ALTIVEC__) && defined(__VSX__)
 /* Do nothing */
-#elif DETECT_OS_FREEBSD || (DETECT_OS_OPENBSD && HAVE_ELF_AUX_INFO) /* !__ALTIVEC__ || !__VSX__ */
+#elif DETECT_OS_FREEBSD || (DETECT_OS_OPENBSD && defined(HAVE_ELF_AUX_INFO)) /* !__ALTIVEC__ || !__VSX__ */
    unsigned long hwcap = 0;
 #ifdef HAVE_ELF_AUX_INFO
    elf_aux_info(AT_HWCAP, &hwcap, sizeof(hwcap));
@@ -169,26 +170,11 @@ check_os_altivec_support(void)
       }
    }
 #elif DETECT_OS_LINUX /* !DETECT_OS_APPLE && !DETECT_OS_NETBSD && !DETECT_OS_OPENBSD */
-#if DETECT_ARCH_PPC_64
-    Elf64_auxv_t aux;
-#else
-    Elf32_auxv_t aux;
-#endif
-    int fd = open("/proc/self/auxv", O_RDONLY | O_CLOEXEC);
-    if (fd >= 0) {
-       while (read(fd, &aux, sizeof(aux)) == sizeof(aux)) {
-          if (aux.a_type == AT_HWCAP) {
-             char *env_vsx = getenv("GALLIVM_VSX");
-             uint64_t hwcap = aux.a_un.a_val;
-             util_cpu_caps.has_altivec = (hwcap >> 28) & 1;
-             if (!env_vsx || env_vsx[0] != '0') {
-                util_cpu_caps.has_vsx  = (hwcap >>  7) & 1;
-             }
-             break;
-          }
-       }
-       close(fd);
-    }
+   char *env_vsx = getenv("GALLIVM_VSX");
+   uint64_t hwcap = getauxval(AT_HWCAP);
+   util_cpu_caps.has_altivec = (hwcap >> 28) & 1;
+   if (!env_vsx || env_vsx[0] != '0') {
+      util_cpu_caps.has_vsx  = (hwcap >>  7) & 1;
 #else /* !DETECT_OS_APPLE && !DETECT_OS_BSD && !DETECT_OS_LINUX */
    /* not on Apple/Darwin or Linux, do it the brute-force way */
    /* this is borrowed from the libmpeg2 library */
@@ -421,21 +407,7 @@ check_os_arm_support(void)
          util_cpu_caps.has_neon = 1;
    }
 #elif DETECT_OS_LINUX
-    Elf32_auxv_t aux;
-    int fd;
-
-    fd = open("/proc/self/auxv", O_RDONLY | O_CLOEXEC);
-    if (fd >= 0) {
-       while (read(fd, &aux, sizeof(Elf32_auxv_t)) == sizeof(Elf32_auxv_t)) {
-          if (aux.a_type == AT_HWCAP) {
-             uint32_t hwcap = aux.a_un.a_val;
-
-             util_cpu_caps.has_neon = (hwcap >> 12) & 1;
-             break;
-          }
-       }
-       close (fd);
-    }
+   util_cpu_caps.has_neon = (getauxval(AT_HWCAP) >> 12) & 1;
 #endif /* DETECT_OS_LINUX */
 }
 
@@ -452,21 +424,7 @@ static void
 check_os_mips64_support(void)
 {
 #if DETECT_OS_LINUX
-    Elf64_auxv_t aux;
-    int fd;
-
-    fd = open("/proc/self/auxv", O_RDONLY | O_CLOEXEC);
-    if (fd >= 0) {
-       while (read(fd, &aux, sizeof(Elf64_auxv_t)) == sizeof(Elf64_auxv_t)) {
-          if (aux.a_type == AT_HWCAP) {
-             uint64_t hwcap = aux.a_un.a_val;
-
-             util_cpu_caps.has_msa = (hwcap >> 1) & 1;
-             break;
-          }
-       }
-       close (fd);
-    }
+   util_cpu_caps.has_msa = (getauxval(AT_HWCAP) >> 1) & 1;
 #endif /* DETECT_OS_LINUX */
 }
 #endif /* DETECT_ARCH_MIPS64 */
@@ -476,29 +434,16 @@ static void
 check_os_loongarch64_support(void)
 {
 #if DETECT_OS_LINUX
-    Elf64_auxv_t aux;
-    int fd;
-
-    fd = open("/proc/self/auxv", O_RDONLY | O_CLOEXEC);
-    if (fd >= 0) {
-       while (read(fd, &aux, sizeof(Elf64_auxv_t)) == sizeof(Elf64_auxv_t)) {
-          if (aux.a_type == AT_HWCAP) {
-             uint64_t hwcap = aux.a_un.a_val;
-
-             util_cpu_caps.has_lsx = (hwcap >> 4) & 1;
-             util_cpu_caps.has_lasx = (hwcap >> 5) & 1;
-             break;
-          }
-       }
-       close (fd);
-    }
+   uint64_t hwcap = getauxval(AT_HWCAP);
+   util_cpu_caps.has_lsx = (hwcap >> 4) & 1;
+   util_cpu_caps.has_lasx = (hwcap >> 5) & 1;
 #endif /* DETECT_OS_LINUX */
 }
 #endif /* DETECT_ARCH_LOONGARCH64 */
 
 
 static void
-get_cpu_topology(void)
+get_cpu_topology(bool zen)
 {
    /* Default. This is OK if L3 is not present or there is only one. */
    util_cpu_caps.num_L3_caches = 1;
@@ -541,8 +486,7 @@ get_cpu_topology(void)
 
 #if DETECT_ARCH_X86 || DETECT_ARCH_X86_64
    /* AMD Zen */
-   if (util_cpu_caps.family >= CPU_AMD_ZEN1_ZEN2 &&
-       util_cpu_caps.family < CPU_AMD_LAST) {
+   if (zen) {
       uint32_t regs[4];
 
       uint32_t saved_mask[UTIL_MAX_CPUS / 32] = {0};
@@ -752,6 +696,7 @@ _util_cpu_detect_once(void)
 {
    int available_cpus = 0;
    int total_cpus = 0;
+   bool zen = false;
 
    memset(&util_cpu_caps, 0, sizeof util_cpu_caps);
 
@@ -863,20 +808,8 @@ _util_cpu_detect_once(void)
          if (util_cpu_caps.x86_cpu_type == 0xf)
              util_cpu_caps.x86_cpu_type += ((regs2[0] >> 20) & 0xff);
 
-         switch (util_cpu_caps.x86_cpu_type) {
-         case 0x17:
-            util_cpu_caps.family = CPU_AMD_ZEN1_ZEN2;
-            break;
-         case 0x18:
-            util_cpu_caps.family = CPU_AMD_ZEN_HYGON;
-            break;
-         case 0x19:
-            util_cpu_caps.family = CPU_AMD_ZEN3;
-            break;
-         default:
-            if (util_cpu_caps.x86_cpu_type > 0x19)
-               util_cpu_caps.family = CPU_AMD_ZEN_NEXT;
-         }
+         if (util_cpu_caps.x86_cpu_type >= 0x17)
+            zen = true;
 
          /* general feature flags */
          util_cpu_caps.has_sse    = (regs2[3] >> 25) & 1; /* 0x2000000 */
@@ -953,16 +886,12 @@ _util_cpu_detect_once(void)
    check_os_loongarch64_support();
 #endif /* DETECT_ARCH_LOONGARCH64 */
 
-#if DETECT_ARCH_S390
-   util_cpu_caps.family = CPU_S390X;
-#endif
-
    check_cpu_caps_override();
 
    /* max_vector_bits should be checked after cpu caps override */
    check_max_vector_bits();
 
-   get_cpu_topology();
+   get_cpu_topology(zen);
 
    if (debug_get_option_dump_cpu()) {
       printf("util_cpu_caps.nr_cpus = %u\n", util_cpu_caps.nr_cpus);

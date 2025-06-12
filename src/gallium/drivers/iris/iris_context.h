@@ -30,6 +30,7 @@
 #include "util/slab.h"
 #include "util/u_debug.h"
 #include "util/macros.h"
+#include "util/u_framebuffer.h"
 #include "util/u_threaded_context.h"
 #include "intel/blorp/blorp.h"
 #include "intel/dev/intel_debug.h"
@@ -231,7 +232,8 @@ struct iris_vue_prog_key {
    struct iris_base_prog_key base;
 
    unsigned nr_userclip_plane_consts:4;
-   unsigned padding:28;
+   enum intel_vue_layout layout:2;
+   unsigned padding:26;
 };
 
 struct iris_vs_prog_key {
@@ -284,7 +286,8 @@ struct iris_fs_prog_key {
    bool multisample_fbo:1;
    bool force_dual_color_blend:1;
    bool coherent_fb_fetch:1;
-   uint64_t padding:43;
+   enum intel_vue_layout vue_layout:2;
+   uint64_t padding:41;
 };
 
 struct iris_cs_prog_key {
@@ -590,9 +593,6 @@ struct iris_uncompiled_shader {
    /* Whether shader uses atomic operations. */
    bool uses_atomic_load_store;
 
-   /** Size (in bytes) of the kernel input data */
-   unsigned kernel_input_size;
-
    /** Size (in bytes) of the local (shared) data passed as kernel inputs */
    unsigned kernel_shared_size;
 
@@ -683,9 +683,6 @@ struct iris_compiled_shader {
    /** A list of system values to be uploaded as uniforms. */
    uint32_t *system_values;
    unsigned num_system_values;
-
-   /** Size (in bytes) of the kernel input data */
-   unsigned kernel_input_size;
 
    /** Number of constbufs expected by the shader. */
    unsigned num_cbufs;
@@ -1012,6 +1009,7 @@ struct iris_context {
       struct pipe_viewport_state viewports[IRIS_MAX_VIEWPORTS];
       struct pipe_scissor_state scissors[IRIS_MAX_VIEWPORTS];
       struct pipe_stencil_ref stencil_ref;
+      PIPE_FB_SURFACES; //STOP USING THIS
       struct pipe_framebuffer_state framebuffer;
       struct pipe_clip_state clip_planes;
       /* width and height treated like x2 and y2 */
@@ -1398,7 +1396,6 @@ void iris_finalize_program(struct iris_compiled_shader *shader,
                            uint32_t *streamout,
                            uint32_t *system_values,
                            unsigned num_system_values,
-                           unsigned kernel_input_size,
                            unsigned num_cbufs,
                            const struct iris_binding_table *bt);
 
@@ -1487,7 +1484,7 @@ int iris_get_driver_query_group_info(struct pipe_screen *pscreen,
 void gfx9_toggle_preemption(struct iris_context *ice,
                             struct iris_batch *batch,
                             const struct pipe_draw_info *draw);
-static const bool
+static bool
 iris_execute_indirect_draw_supported(const struct iris_context *ice,
                                      const struct pipe_draw_indirect_info *indirect,
                                      const struct pipe_draw_info *draw)
@@ -1513,9 +1510,11 @@ iris_execute_indirect_draw_supported(const struct iris_context *ice,
 #ifdef genX
 #  include "iris_genx_protos.h"
 #else
-#  define genX(x) gfx8_##x
-#  include "iris_genx_protos.h"
-#  undef genX
+#  ifdef INTEL_USE_ELK
+#    define genX(x) gfx8_##x
+#    include "iris_genx_protos.h"
+#    undef genX
+#  endif
 #  define genX(x) gfx9_##x
 #  include "iris_genx_protos.h"
 #  undef genX

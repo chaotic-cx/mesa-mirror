@@ -98,7 +98,7 @@ compute_ztest_mode(struct fd6_emit *emit, bool lrz_valid) assert_dt
        * that could discard samples that would otherwise only be
        * hidden by a later draw.
        */
-      return lrz_valid ? A6XX_EARLY_LRZ_LATE_Z : A6XX_LATE_Z;
+      return lrz_valid ? A6XX_EARLY_Z_LATE_Z : A6XX_LATE_Z;
    } else {
       return A6XX_EARLY_Z;
    }
@@ -116,7 +116,7 @@ compute_lrz_state(struct fd6_emit *emit) assert_dt
    struct pipe_framebuffer_state *pfb = &ctx->batch->framebuffer;
    struct fd6_lrz_state lrz;
 
-   if (!pfb->zsbuf) {
+   if (!pfb->zsbuf.texture) {
       memset(&lrz, 0, sizeof(lrz));
       lrz.z_mode = compute_ztest_mode(emit, false);
       return lrz;
@@ -124,7 +124,7 @@ compute_lrz_state(struct fd6_emit *emit) assert_dt
 
    struct fd6_blend_stateobj *blend = fd6_blend_stateobj(ctx->blend);
    struct fd6_zsa_stateobj *zsa = fd6_zsa_stateobj(ctx->zsa);
-   struct fd_resource *rsc = fd_resource(pfb->zsbuf->texture);
+   struct fd_resource *rsc = fd_resource(pfb->zsbuf.texture);
    bool reads_dest = blend->reads_dest;
 
    lrz = zsa->lrz;
@@ -237,7 +237,7 @@ build_lrz(struct fd6_emit *emit) assert_dt
             .enable = lrz.enable,
             .lrz_write = lrz.write,
             .greater = lrz.direction == FD_LRZ_GREATER,
-            .z_test_enable = lrz.test,
+            .z_write_enable = lrz.test,
             .z_bounds_enable = lrz.z_bounds_enable,
          )
       );
@@ -254,7 +254,7 @@ build_lrz(struct fd6_emit *emit) assert_dt
             .lrz_write = lrz.write,
             .greater = lrz.direction == FD_LRZ_GREATER,
             .fc_enable = false,
-            .z_test_enable = lrz.test,
+            .z_write_enable = lrz.test,
             .z_bounds_enable = lrz.z_bounds_enable,
             .disable_on_wrong_dir = false,
          )
@@ -329,7 +329,7 @@ build_prog_fb_rast(struct fd6_emit *emit) assert_dt
 
    unsigned mrt_components = 0;
    for (unsigned i = 0; i < pfb->nr_cbufs; i++) {
-      if (!pfb->cbufs[i])
+      if (!pfb->cbufs[i].texture)
          continue;
       mrt_components |= 0xf << (i * 4);
    }
@@ -611,7 +611,7 @@ fd6_emit_3d_state(struct fd_ringbuffer *ring, struct fd6_emit *emit)
       case FD6_GROUP_ZSA:
          state = fd6_zsa_state(
             ctx,
-            util_format_is_pure_integer(pipe_surface_format(pfb->cbufs[0])),
+            util_format_is_pure_integer(pipe_surface_format(&pfb->cbufs[0])),
             fd_depth_clamp_enabled(ctx));
          fd6_state_add_group(&emit->state, state, FD6_GROUP_ZSA);
          break;
@@ -900,7 +900,7 @@ fd6_emit_static_regs(struct fd_context *ctx, struct fd_ringbuffer *ring)
    WRITE(REG_A6XX_SP_FLOAT_CNTL, A6XX_SP_FLOAT_CNTL_F16_NO_INF);
    WRITE(REG_A6XX_SP_DBG_ECO_CNTL, screen->info->a6xx.magic.SP_DBG_ECO_CNTL);
    WRITE(REG_A6XX_SP_PERFCTR_ENABLE, 0x3f);
-   if (CHIP == A6XX)
+   if (CHIP == A6XX && !screen->info->a6xx.is_a702)
       WRITE(REG_A6XX_TPL1_UNKNOWN_B605, 0x44);
    WRITE(REG_A6XX_TPL1_DBG_ECO_CNTL, screen->info->a6xx.magic.TPL1_DBG_ECO_CNTL);
    if (CHIP == A6XX) {
@@ -928,7 +928,7 @@ fd6_emit_static_regs(struct fd_context *ctx, struct fd_ringbuffer *ring)
          .shared_consts_enable = false,
       )
    );
-   WRITE(REG_A6XX_VFD_ADD_OFFSET, A6XX_VFD_ADD_OFFSET_VERTEX);
+   OUT_REG(ring, A6XX_VFD_ADD_OFFSET(.vertex = true, .instance = true));
    WRITE(REG_A6XX_VPC_UNKNOWN_9107, 0);
    WRITE(REG_A6XX_RB_UNKNOWN_8811, 0x00000010);
    WRITE(REG_A6XX_PC_MODE_CNTL, screen->info->a6xx.magic.PC_MODE_CNTL);
@@ -977,8 +977,12 @@ fd6_emit_static_regs(struct fd_context *ctx, struct fd_ringbuffer *ring)
    /* NOTE blob seems to (mostly?) use 0xb2 for SP_TP_MODE_CNTL
     * but this seems to kill texture gather offsets.
     */
-   WRITE(REG_A6XX_SP_TP_MODE_CNTL, 0xa0 |
-         A6XX_SP_TP_MODE_CNTL_ISAMMODE(ISAMMODE_GL));
+   OUT_REG(ring,
+      A6XX_SP_TP_MODE_CNTL(
+         .isammode = ISAMMODE_GL,
+         .texcoordroundmode = COORD_TRUNCATE,
+         .nearestmipsnap = CLAMP_ROUND_TRUNCATE,
+         .destdatatypeoverride = true));
 
    OUT_REG(ring, HLSQ_CONTROL_5_REG(
          CHIP,
@@ -1037,6 +1041,8 @@ fd6_emit_static_regs(struct fd_context *ctx, struct fd_ringbuffer *ring)
 
    OUT_PKT4(ring, REG_A6XX_SP_PS_TP_BORDER_COLOR_BASE_ADDR, 2);
    OUT_RELOC(ring, bcolor_mem, 0, 0, 0);
+
+   OUT_REG(ring, A6XX_PC_DGEN_SU_CONSERVATIVE_RAS_CNTL());
 
    /* These regs are blocked (CP_PROTECT) on a6xx: */
    if (CHIP >= A7XX) {

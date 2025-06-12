@@ -3,7 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include <ctype.h>
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/mman.h>
@@ -37,117 +39,186 @@ enum {
    EXECUTOR_BO_SIZE = 10 * 1024 * 1024,
 };
 
+const char usage_line[] = "usage: executor [-d DEVICE] FILENAME";
+
+static void
+open_manual()
+{
+   FILE *f = NULL;
+
+   /* This fd will be set as stdin for executing man. */
+   int fd = memfd_create("executor.1", 0);
+   if (fd != -1)
+      f = fdopen(fd, "w");
+
+   if (!f) {
+      /* Fallback to just printing the content out. */
+      f = stderr;
+   }
+
+   static const char *contents[] = {
+      ".TH executor 1 2025-03-28",
+      "",
+      ".SH NAME",
+      "",
+      "executor - executes assembly for Intel GPUs",
+      "",
+      ".SH SYNOPSIS",
+      "",
+      "executor [-d DEVICE] FILENAME",
+      "",
+      "executor -d list",
+      "",
+      ".SH DESCRIPTION",
+      "",
+      "Runs a Lua script that can perform data manipulation",
+      "and dispatch execution of compute shaders, written in the same",
+      "assembly format used by the brw_asm assembler or when dumping",
+      "shaders in debug mode.",
+      "",
+      "The goal is to have a tool to experiment directly with certain",
+      "assembly instructions and the shared units without having to",
+      "instrument the drivers.",
+      "",
+      "The program will pick the first available device unless -d is",
+      "passed with either the index or a substring of the device to use.",
+      "Use \"-d list\" to list available devices.",
+      "",
+      ".SH SCRIPTING ENVIRONMENT",
+      "",
+      "In addition to the regular Lua standard library the following variables and",
+      "functions are available",
+      "",
+      "- execute({src=STR, data=ARRAY}) -> ARRAY",
+      "  Takes a table as argument.  The 'src' in the table contains the shader to be",
+      "  executed.  The 'data' argument will be used to fill the data buffer with 32-bit",
+      "  values.  The function returns an ARRAY with the contents of the data buffer",
+      "  after the shader completes.",
+      "",
+      "- dump(ARRAY, COUNT)",
+      "  Pretty print the COUNT first elements of an array of 32-bit values.",
+      "",
+      "- check_ver(V, ...), check_verx10(V, ...)",
+      "  Exit if the Gfx version being executed isn't in the arguments list.",
+      "",
+      "- ver, verx10",
+      "  Variables containing the Gfx version being executed.",
+      "",
+      ".SH ASSEMBLY MACROS",
+      "",
+      "In addition to regular instructions, the follow macros will generate",
+      "assembly code based on the Gfx version being executed.  Unlike in regular",
+      "instructions, REGs don't use regions and can't be immediates.",
+      "",
+      "- @eot",
+      "  Send an EOT message.",
+      "",
+      "- @mov REG IMM",
+      "  Like a regular MOV but accepts numbers in both decimal and",
+      "  floating-point.",
+      "",
+      "- @id REG",
+      "  Write a local invocation index into REG.",
+      "",
+      "- @read DST_REG OFFSET_REG",
+      "  Read 32-bit values from the memory buffer at OFFSET_REG into DST_REG.",
+      "",
+      "- @write OFFSET_REG SRC_REG",
+      "  Write 32-bit values from SRC_REG to the memory buffer at OFFSET_REG.",
+      "",
+      "- @syncnop",
+      "  Produce a coarse grained sync.nop (when applicable) to ensure data from",
+      "  macros above are read/written.",
+      "",
+      ".SH GPU EXECUTION",
+      "",
+      "Compute shaders are dispatched with SIMD8 for Gfx9-125 and SIMD16",
+      "for Xe2+.  Only a single thread is dispatched.  A data buffer is used to",
+      "pipe data into the shader and out of it, it is bound to the graphics",
+      "address 0x30000000.",
+      "",
+      "The Gfx versions have differences in their assembly and shared units, so",
+      "other than very simple examples, scripts for this program will be either",
+      "specific to a version or provide shader variants for multiple versions.",
+      "",
+      ".SH ENVIRONMENT VARIABLES",
+      "",
+      "The following INTEL_DEBUG values (comma separated) are used:",
+      "",
+      " - bat             Dumps the batch buffer.",
+      " - color           Uses colors for the batch buffer dump.",
+      " - cs              Dumps the source after macro processing",
+      "                   the final assembly.",
+      "",
+      ".SH EXAMPLE",
+      "",
+      "The script",
+      "",
+      "  local r = execute {",
+      "    data={ [42] = 0x100 },",
+      "    src=[[",
+      "      @mov     g1      42",
+      "      @read    g2      g1",
+      "",
+      "      @id      g3",
+      "",
+      "      add(8)   g4<1>UD  g2<8,8,1>UD  g3<8,8,1>UD  { align1 @1 1Q };",
+      "",
+      "      @write   g3       g4",
+      "      @eot",
+      "    ]]",
+      "  }",
+      "",
+      "  dump(r, 4)",
+      "",
+      "Will produce the output",
+      "",
+      "   [0x00000000] 0x00000100 0x00000101 0x00000102 0x00000103",
+      "",
+      "More examples can be found in the examples/ directory in the source code.",
+      "",
+   };
+
+   for (int i = 0; i < ARRAY_SIZE(contents); i++) {
+      fputs(contents[i], f);
+      putc('\n', f);
+   }
+
+   fflush(f);
+
+   if (f != stderr) {
+      /* Inject the temporary as stdin for man. */
+      lseek(fd, 0, SEEK_SET);
+      dup2(fd, STDIN_FILENO);
+      fclose(f);
+
+      execlp("man", "man", "-l", "-", (char *)NULL);
+   } else {
+      exit(0);
+   }
+}
+
 static void
 print_help()
 {
    printf(
-      "Executes shaders written for Intel GPUs\n"
-      "usage: executor FILENAME\n"
+      "%s\n"
       "\n"
-      "The input is a Lua script that can perform data manipulation\n"
-      "and dispatch execution of compute shaders, written in Xe assembly,\n"
-      "the same format used by the brw_asm assembler or when dumping\n"
-      "shaders in debug mode.\n"
-      "\n"
-      "The goal is to have a tool to experiment directly with certain\n"
-      "assembly instructions and the shared units without having to\n"
-      "instrument the drivers.\n"
-      "\n"
-      "EXECUTION CONTEXT\n"
-      "\n"
-      "By default compute shaders are used with SIMD8 for Gfx9-125 and SIMD16\n"
-      "for Xe2.  Only a single thread is dispatched.  A data buffer is used to\n"
-      "pipe data into the shader and out of it, it is bound to the graphics\n"
-      "address 0x%08x.\n"
-      "\n"
-      "The Gfx versions have differences in their assembly and shared units, so\n"
-      "other than very simple examples, scripts for this program will be either\n"
-      "specific to a version or provide shader variants for multiple versions.\n"
-      "\n"
-      "ASSEMBLY MACROS\n"
-      "\n"
-      "In addition to regular instructions, the follow macros will generate\n"
-      "assembly code based on the Gfx version being executed.  Unlike in regular\n"
-      "instructions, REGs don't use regions and can't be immediates.\n"
-      "\n"
-      "- @eot\n"
-      "  Send an EOT message.\n"
-      "\n"
-      "- @mov REG IMM\n"
-      "  Like a regular MOV but accepts numbers in both decimal and\n"
-      "  floating-point.\n"
-      "\n"
-      "- @id REG\n"
-      "  Write a local invocation index into REG.\n"
-      "\n"
-      "- @read DST_REG OFFSET_REG\n"
-      "  Read 32-bit values from the memory buffer at OFFSET_REG into DST_REG.\n"
-      "\n"
-      "- @write OFFSET_REG SRC_REG\n"
-      "  Write 32-bit values from SRC_REG to the memory buffer at OFFSET_REG.\n"
-      "\n"
-      "- @syncnop\n"
-      "  Produce a coarse grained sync.nop (when applicable) to ensure data from\n"
-      "  macros above are read/written.\n"
-      "\n"
-      "LUA ENVIRONMENT\n"
-      "\n"
-      "In addition to the regular Lua standard library the following variables and.\n"
-      "functions are available.\n"
-      "\n"
+      "SCRIPTING ENVIRONMENT:\n"
       "- execute({src=STR, data=ARRAY}) -> ARRAY\n"
-      "  Takes a table as argument.  The 'src' in the table contains the shader to be\n"
-      "  executed.  The 'data' argument will be used to fill the data buffer with 32-bit\n"
-      "  values.  The function returns an ARRAY with the contents of the data buffer\n"
-      "  after the shader completes.\n"
-      "\n"
       "- dump(ARRAY, COUNT)\n"
-      "  Pretty print the COUNT first elements of an array of 32-bit values.\n"
+      "- check_ver(V, ...), check_verx10(V, ...), ver, verx10\n"
       "\n"
-      "- check_ver(V, ...), check_verx10(V, ...)\n"
-      "  Exit if the Gfx version being executed isn't in the arguments list.\n"
+      "ASSEMBLY MACROS:\n"
+      "- @eot, @syncnop\n"
+      "- @mov REG IMM\n"
+      "- @id REG\n"
+      "- @read DST_REG OFFSET_REG\n"
+      "- @write OFFSET_REG SRC_REG\n"
       "\n"
-      "- ver, verx10\n"
-      "  Variables containing the Gfx version being executed.\n"
-      "\n"
-      "This program was compiled with %s.\n"
-      "\n"
-      "ENVIRONMENT VARIABLES\n"
-      "\n"
-      "The following INTEL_DEBUG values (comma separated) are used:\n"
-      "\n"
-      " - bat             Dumps the batch buffer.\n"
-      " - color           Uses colors for the batch buffer dump.\n"
-      " - cs              Dumps the source after macro processing\n"
-      "                   the final assembly.\n"
-      "\n"
-      "EXAMPLE\n"
-      "\n"
-      "The following script\n"
-      "\n"
-      "  local r = execute {\n"
-      "    data={ [42] = 0x100 },\n"
-      "    src=[[\n"
-      "      @mov     g1      42\n"
-      "      @read    g2      g1\n"
-      "\n"
-      "      @id      g3\n"
-      "\n"
-      "      add(8)   g4<1>UD  g2<8,8,1>UD  g3<8,8,1>UD  { align1 @1 1Q };\n"
-      "\n"
-      "      @write   g3       g4\n"
-      "      @eot\n"
-      "    ]]\n"
-      "  }\n"
-      "\n"
-      "  dump(r, 4)\n"
-      "\n"
-      "Will produce the following output\n"
-      "\n"
-      "   [0x00000000] 0x00000100 0x00000101 0x00000102 0x00000103\n"
-      "\n"
-      "More examples can be found in the examples/ directory in the source code.\n"
-      "\n", EXECUTOR_BO_DATA_ADDR, LUA_RELEASE);
+      "Use \'executor -d list\' to list available devices.\n"
+      "For more details, use \'executor --help\' to open manual.\n",
+      usage_line);
 }
 
 static struct {
@@ -286,34 +357,91 @@ executor_address_of_ptr(executor_bo *bo, void *ptr)
    return (executor_address){ptr - bo->map + bo->addr};
 }
 
-static int
-get_drm_device(struct intel_device_info *devinfo)
+static bool
+open_intel_render_device(drmDevicePtr dev,
+                         struct intel_device_info *devinfo,
+                         int *fd)
+{
+   if (!(dev->available_nodes & 1 << DRM_NODE_RENDER) ||
+       dev->bustype != DRM_BUS_PCI ||
+       dev->deviceinfo.pci->vendor_id != 0x8086)
+      return false;
+
+   *fd = open(dev->nodes[DRM_NODE_RENDER], O_RDWR | O_CLOEXEC);
+   if (*fd < 0)
+      return false;
+
+   if (!intel_get_device_info_from_fd(*fd, devinfo, -1, -1) ||
+       devinfo->ver < 8) {
+      close(*fd);
+      *fd = -1;
+      return false;
+   }
+
+   return true;
+}
+
+static void
+print_drm_devices()
 {
    drmDevicePtr devices[8];
-   int max_devices = drmGetDevices2(0, devices, 8);
+   int num_devices = drmGetDevices2(0, devices, ARRAY_SIZE(devices));
 
-   int i, fd = -1;
-   for (i = 0; i < max_devices; i++) {
-      if (devices[i]->available_nodes & 1 << DRM_NODE_RENDER &&
-          devices[i]->bustype == DRM_BUS_PCI &&
-          devices[i]->deviceinfo.pci->vendor_id == 0x8086) {
-         fd = open(devices[i]->nodes[DRM_NODE_RENDER], O_RDWR | O_CLOEXEC);
-         if (fd < 0)
-            continue;
+   if (num_devices < 1) {
+      printf("No devices found.\n");
+      return;
+   }
 
-         if (!intel_get_device_info_from_fd(fd, devinfo, -1, -1) ||
-             devinfo->ver < 8) {
-            close(fd);
-            fd = -1;
-            continue;
-         }
+   for (int i = 0; i < num_devices; i++) {
+      struct intel_device_info devinfo = {};
+      int fd = -1;
 
-         /* Found a device! */
-         break;
+      if (open_intel_render_device(devices[i], &devinfo, &fd)) {
+         printf("%d: %s\n", i, devinfo.name);
+         close(fd);
       }
    }
-   drmFreeDevices(devices, max_devices);
 
+   drmFreeDevices(devices, num_devices);
+}
+
+static int
+get_drm_device(struct intel_device_info *devinfo, const char *device_pattern)
+{
+   drmDevicePtr devices[8];
+   int num_devices = drmGetDevices2(0, devices, ARRAY_SIZE(devices));
+   int fd = -1;
+   int index = -1;
+
+   if (!device_pattern)
+      device_pattern = "";
+
+   /* Interpret numbers as picking an index. */
+   if (isdigit(device_pattern[0])) {
+      index = atoi(device_pattern);
+   }
+
+   if (index != -1) {
+      if (index >= num_devices)
+         failf("No device with index %d", index);
+
+      if (!open_intel_render_device(devices[index], devinfo, &fd))
+         failf("Couldn't open device with index %d", index);
+
+   } else {
+      for (int i = 0; i < num_devices; i++) {
+         if (open_intel_render_device(devices[i], devinfo, &fd)) {
+            if (strcasestr(devinfo->name, device_pattern)) {
+               /* Found a device! */
+               break;
+            }
+            close(fd);
+            fd = -1;
+         }
+      }
+   }
+
+   drmFreeDevices(devices, num_devices);
    return fd;
 }
 
@@ -547,10 +675,11 @@ executor_context_dispatch(executor_context *ec)
       struct drm_xe_sync bind_syncs[] = {
          {
             .type   = DRM_XE_SYNC_TYPE_SYNCOBJ,
-            .handle = sync_handles[0],
+            .addr   = 0,
             .flags  = DRM_XE_SYNC_FLAG_SIGNAL,
          },
       };
+      bind_syncs[0].handle = sync_handles[0];
 
       struct drm_xe_vm_bind bind = {
          .vm_id           = ec->xe.vm_id,
@@ -567,14 +696,16 @@ executor_context_dispatch(executor_context *ec)
       struct drm_xe_sync exec_syncs[] = {
          {
             .type   = DRM_XE_SYNC_TYPE_SYNCOBJ,
-            .handle = sync_handles[0],
+            .addr   = 0,
          },
          {
             .type   = DRM_XE_SYNC_TYPE_SYNCOBJ,
-            .handle = sync_handles[1],
+            .addr   = 0,
             .flags  = DRM_XE_SYNC_FLAG_SIGNAL,
          }
       };
+      exec_syncs[0].handle = sync_handles[0];
+      exec_syncs[1].handle = sync_handles[1];
 
       struct drm_xe_exec exec = {
          .exec_queue_id    = ec->xe.queue_id,
@@ -704,7 +835,7 @@ l_execute(lua_State *L)
       uint32_t *data = ec.bo.data.map;
       const int n = ec.bo.data.size / 4;
       lua_createtable(L, n, 0);
-      for (int i = 0; i < 8; i++) {
+      for (int i = 0; i < n; i++) {
          lua_pushinteger(L, data[i]);
          lua_seti(L, -2, i);
       }
@@ -781,24 +912,52 @@ l_check_verx10(lua_State *L)
 int
 main(int argc, char *argv[])
 {
-   if (argc < 2 ||
-       !strcmp(argv[1], "--help") ||
-       !strcmp(argv[1], "-help") ||
-       !strcmp(argv[1], "-h") ||
-       !strcmp(argv[1], "help")) {
-      print_help();
-      return 0;
+   int opt;
+   const char *device_pattern = NULL;
+
+   static const struct option long_options[] = {
+       {"help",   no_argument,       0, 'H'},
+       {"device", required_argument, 0, 'd'},
+       {},
+   };
+
+   while ((opt = getopt_long(argc, argv, "d:h", long_options, NULL)) != -1) {
+      switch (opt) {
+      case 'd':
+         if (!strcmp(optarg, "list")) {
+            print_drm_devices();
+            return 0;
+         }
+         device_pattern = optarg;
+         break;
+      case 'h':
+         print_help();
+         return 0;
+      case 'H':
+         open_manual();
+         return 0;
+      default:
+         fprintf(stderr, "%s\n", usage_line);
+         return 1;
+      }
    }
 
-   if (argc > 2) {
-      /* TODO: Expose extra arguments to the script as a variable. */
-      failf("invalid extra arguments\nusage: executor FILENAME");
+   if (optind >= argc) {
+      fprintf(stderr, "%s\n", usage_line);
+      fprintf(stderr, "expected FILENAME after options\n");
       return 1;
    }
 
+   const char *filename = argv[optind];
+
    process_intel_debug_variable();
 
-   E.fd = get_drm_device(&E.devinfo);
+   E.fd = get_drm_device(&E.devinfo, device_pattern);
+   if (E.fd < 0)
+      failf("Failed to open DRM device");
+
+   fprintf(stderr, "Using device: %s\n", E.devinfo.name);
+
    isl_device_init(&E.isl_dev, &E.devinfo);
    brw_init_isa_info(&E.isa, &E.devinfo);
    assert(E.devinfo.kmd_type == INTEL_KMD_TYPE_I915 ||
@@ -831,7 +990,6 @@ main(int argc, char *argv[])
    lua_pushcfunction(L, l_check_verx10);
    lua_setglobal(L, "check_verx10");
 
-   const char *filename = argv[1];
    int err = luaL_loadfile(L, filename);
    if (err)
       failf("failed to load script: %s", lua_tostring(L, -1));

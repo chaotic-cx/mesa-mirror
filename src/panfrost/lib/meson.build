@@ -2,10 +2,9 @@
 # Copyright © 2019 Collabora
 # SPDX-License-Identifier: MIT
 
-subdir('genxml')
 subdir('kmod')
 
-pixel_format_versions = ['5', '6', '7', '9', '10']
+pixel_format_versions = ['5', '6', '7', '9', '10', '12', '13']
 libpanfrost_pixel_format = []
 
 deps_for_libpanfrost = [dep_libdrm, idep_pan_packers, idep_mesautil]
@@ -14,7 +13,7 @@ foreach ver : pixel_format_versions
   libpanfrost_pixel_format += static_library(
     'pan-format-v' + ver,
     ['pan_format.c', pan_packers],
-    include_directories : [inc_src, inc_include],
+    include_directories : [inc_src, inc_include, inc_panfrost],
     c_args : ['-DPAN_ARCH=' + ver],
     gnu_symbol_visibility : 'hidden',
     dependencies : [deps_for_libpanfrost, dep_valgrind],
@@ -23,27 +22,15 @@ endforeach
 
 libpanfrost_per_arch = []
 
-foreach ver : ['4', '5', '6', '7', '9', '10']
+foreach ver : ['4', '5', '6', '7', '9', '10', '12', '13']
   libpanfrost_per_arch += static_library(
     'pan-arch-v' + ver,
     [
       'pan_blend.c',
       'pan_desc.c',
-      'pan_shader.c',
       'pan_texture.c',
     ],
-    include_directories : [inc_include, inc_src],
-    c_args : ['-DPAN_ARCH=' + ver],
-    gnu_symbol_visibility : 'hidden',
-    dependencies : [deps_for_libpanfrost, idep_nir],
-  )
-endforeach
-
-foreach ver : ['7']
-  libpanfrost_per_arch += static_library(
-    'pan-arch-indirect-v' + ver,
-    'pan_indirect_dispatch.c',
-    include_directories : [inc_include, inc_src],
+    include_directories : [inc_include, inc_src, inc_panfrost],
     c_args : ['-DPAN_ARCH=' + ver],
     gnu_symbol_visibility : 'hidden',
     dependencies : [deps_for_libpanfrost, idep_nir],
@@ -53,13 +40,12 @@ endforeach
 libpanfrost_lib_files = files(
   'pan_encoder.h',
 
-  'pan_afbc.c',
-  'pan_afrc.c',
   'pan_attributes.c',
   'pan_blend.c',
   'pan_clear.c',
   'pan_earlyzs.c',
   'pan_samples.c',
+  'pan_shader.c',
   'pan_tiler.c',
   'pan_layout.c',
   'pan_scratch.c',
@@ -70,7 +56,7 @@ libpanfrost_lib_files = files(
 libpanfrost_lib = static_library(
   'panfrost_lib',
   [libpanfrost_lib_files, pan_packers],
-  include_directories : [inc_include, inc_src],
+  include_directories : [inc_include, inc_src, inc_panfrost],
   c_args : [no_override_init_args],
   gnu_symbol_visibility : 'hidden',
   dependencies: [dep_libdrm, idep_nir, idep_mesautil],
@@ -119,7 +105,7 @@ if with_tests
         'tests/test-earlyzs.cpp',
         'tests/test-layout.cpp',
       ),
-      c_args : [c_msvc_compat_args, no_override_init_args],
+      cpp_args : [cpp_msvc_compat_args, no_override_init_args],
       gnu_symbol_visibility : 'hidden',
       include_directories : [inc_include, inc_src, inc_panfrost],
       dependencies: [idep_gtest, libpanfrost_dep],

@@ -21,7 +21,7 @@
 
 SKIP = set(["lane", "lane_dest", "lanes", "lanes", "replicate", "swz", "widen",
     "swap", "neg", "abs", "not", "sign", "extend", "divzero", "clamp", "sem",
-    "not_result", "skip", "round", "ftz"])
+    "not_result", "skip", "round", "ftz", "z_stencil"])
 
 TEMPLATE = """
 #ifndef _BI_BUILDER_H_
@@ -62,16 +62,9 @@ def nirtypes(opcode):
 
 def condition(opcode, typecheck, sizecheck):
     cond = ''
-    if typecheck == True:
-        cond += '('
-        types = nirtypes(opcode)
-        assert types != None
-        for T in types:
-            cond += "{}type == {}".format(' || ' if cond[-1] != '(' else '', T)
-        cond += ')'
 
     if sizecheck == True:
-        cond += "{}bitsize == {}".format(' && ' if cond != '' else '', typesize(opcode))
+        cond += "bitsize == {}".format(typesize(opcode))
 
     cmpf_mods = ops[opcode]["modifiers"]["cmpf"] if "cmpf" in ops[opcode]["modifiers"] else None
     if "cmpf" in ops[opcode]["modifiers"]:
@@ -80,6 +73,14 @@ def condition(opcode, typecheck, sizecheck):
             if cmpf != 'reserved':
                 cond += "{}cmpf == BI_CMPF_{}".format(' || ' if cond[-1] != '(' else '', cmpf.upper())
         cond += ')'
+
+    if typecheck == True:
+        types = nirtypes(opcode)
+        assert types != None
+        typecheck_cond = ' || '.join(map(lambda T: "type == {}".format(T), types))
+        if cond != '':
+            typecheck_cond = '(' + typecheck_cond + ') && '
+        cond = typecheck_cond + cond
 
     return 'true' if cond == '' else cond
 
@@ -125,6 +126,8 @@ bi_instr * bi_${opcode.replace('.', '_').lower()}${to_suffix(ops[opcode])}(${sig
 % endfor
 % if ops[opcode]["rtz"]:
     I->round = BI_ROUND_RTZ;
+% elif "round" in ops[opcode]["modifiers"] and use_default_round_mode(opcode):
+    I->round = bi_round_mode(b->shader, ${typesize(opcode)});
 % endif
 % for imm in ops[opcode]["immediates"]:
     I->${imm} = ${imm};
@@ -205,6 +208,15 @@ def should_skip(mod, op):
 
     return mod in SKIP or mod[0:-1] in SKIP
 
+# Returns whether the default round mode from the shader float controls should
+# be set on an op that has a round modifier.
+def use_default_round_mode(op):
+    # FMA_RSCALE/FADD_RSCALE round modifiers are not usable in all situations,
+    # and so the instructions are not used when implementing ops that require
+    # correct rounding.
+    return should_skip("round", op) and \
+           not ("FMA_RSCALE" in op or "FADD_RSCALE" in op)
+
 def modifier_signature(op):
     return sorted([m for m in op["modifiers"].keys() if not should_skip(m, op["key"])])
 
@@ -240,4 +252,4 @@ def arguments(op, temp_dest = True):
 
 print(Template(COPYRIGHT + TEMPLATE).render(ops = ir_instructions, modifiers =
     modifier_lists, signature = signature, arguments = arguments, src_count =
-    src_count, typesize = typesize, should_skip = should_skip))
+    src_count, typesize = typesize, should_skip = should_skip, use_default_round_mode = use_default_round_mode))

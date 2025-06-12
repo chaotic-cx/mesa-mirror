@@ -74,7 +74,13 @@ struct anv_accel_struct_header {
 
    uint64_t self_ptr;
 
-   uint32_t padding[42];
+   /* A boolean indicating if the bvh is built with 64b_rt data structures.
+    * This is for INTEL_DEBUG=bvh_* to make the decision how to decode the
+    * dump.
+    */
+   uint32_t enable_64b_rt;
+
+   uint32_t padding[41];
 };
 
 /* Mixed internal node with type per child */
@@ -211,24 +217,46 @@ struct anv_internal_node {
 #define ANV_INSTANCE_ALL_AABB                               0x40
 
 struct instance_leaf_part0 {
-   /* shader index (24-bits) for software instancing
+   /* Xe1/2:
+    * shader index (24-bits) for software instancing
     * geometry mask (8-bits) used for ray masking
+    *
+    * Xe3+:
+    * instanceContribution: 24
+    * geometry mask (8-bits): 8
     */
-   uint32_t shader_index_and_geom_mask;
+   uint32_t DW0;
 
-   /* instance contribution to hit group index (24-bits)
+
+   /* Xe1/2:
+    * instance contribution to hit group index (24-bits)
     * Padding (5-bits)
     * DisableOpacityCull (1-bit)
     * OpaqueGeometry (1-bit)
     * Padding (1-bit)
+    *
+    * Xe3+:
+    * insFlags: 8
+    * ComparisonMode: 1
+    * ComparisonValue: 7
+    * pad0: 8
+    * subType: 4
+    * pad1: 1
+    * DisableOpacityCull: 1
+    * OpaqueGeometry: 1
+    * IgnoreRayMultiplier: 1
     */
-   uint32_t instance_contribution_and_geom_flags;
+   uint32_t DW1;
 
-   /* 48 bit start node of the instanced object
+   /* Xe1/2:
+    * 48 bit start node of the instanced object
     * instFlags (8-bits)
     * Padding (16-bits)
+    *
+    * Xe3+:
+    * 64 bit start node pointer
     */
-   uint64_t start_node_ptr_and_inst_flags;
+   uint64_t QW_startNodePtr;
 
    /* 1st row of Worl2Obj transform */
    float    world2obj_vx_x;
@@ -252,7 +280,12 @@ struct instance_leaf_part0 {
 };
 
 struct instance_leaf_part1 {
-   /* 48-bits pointer to BVH where start node belongs too */
+   /* 48-bits pointer to BVH where start node belongs to.
+    * Note that this software-defined bvh_ptr has to be in canonical form for
+    * copy.comp to dereference, which means we have to preserve the upper 16
+    * bits. For example, sparse buffer's heaps are located high, so its 63:48
+    * are set to 1.
+    */
    uint64_t bvh_ptr;
 
    /* The instanceCustomIndex in VkAccelerationStructureInstanceKHR */

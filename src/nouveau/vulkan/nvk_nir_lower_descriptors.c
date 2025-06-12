@@ -12,6 +12,7 @@
 #include "nir_builder.h"
 #include "nir_deref.h"
 
+#include "clb097.h"
 #include "clc397.h"
 #include "clc597.h"
 
@@ -55,6 +56,7 @@ struct lower_descriptors_ctx {
    const struct nvk_descriptor_set_layout *set_layouts[NVK_MAX_SETS];
 
    bool use_bindless_cbuf;
+   bool use_bindless_cbuf_2;
    bool use_edb_buffer_views;
    bool clamp_desc_array_bounds;
    bool indirect_bind;
@@ -646,7 +648,12 @@ load_descriptor(nir_builder *b, unsigned num_components, unsigned bit_size,
       assert(binding_layout->stride == 1);
       const uint32_t binding_size = binding_layout->array_size;
 
-      if (ctx->use_bindless_cbuf) {
+      if (ctx->use_bindless_cbuf_2) {
+         assert(num_components == 1 && bit_size == 64);
+         const uint32_t size = align(binding_size, 16);
+         return nir_ior_imm(b, nir_ishr_imm(b, base_addr, 6),
+                               ((uint64_t)size >> 4) << 51);
+      } else if (ctx->use_bindless_cbuf) {
          assert(num_components == 1 && bit_size == 64);
          const uint32_t size = align(binding_size, 16);
          return nir_ior_imm(b, nir_ishr_imm(b, base_addr, 4),
@@ -708,29 +715,6 @@ is_idx_intrin(nir_intrinsic_instr *intrin)
    }
 
    return intrin->intrinsic == nir_intrinsic_vulkan_resource_index;
-}
-
-static nir_def *
-buffer_address_to_ldcx_handle(nir_builder *b, nir_def *addr)
-{
-   nir_def *base_addr = nir_pack_64_2x32(b, nir_channels(b, addr, 0x3));
-   nir_def *size = nir_channel(b, addr, 2);
-   nir_def *offset = nir_channel(b, addr, 3);
-
-   nir_def *addr16 = nir_ushr_imm(b, base_addr, 4);
-   nir_def *addr16_lo = nir_unpack_64_2x32_split_x(b, addr16);
-   nir_def *addr16_hi = nir_unpack_64_2x32_split_y(b, addr16);
-
-   /* If we assume the top bis of the address are 0 as well as the bottom two
-    * bits of the size. (We can trust it since it's a descriptor) then
-    *
-    *    ((size >> 4) << 13) | addr
-    *
-    * is just an imad.
-    */
-   nir_def *handle_hi = nir_imad(b, size, nir_imm_int(b, 1 << 9), addr16_hi);
-
-   return nir_vec3(b, addr16_lo, handle_hi, offset);
 }
 
 static nir_def *
@@ -893,6 +877,7 @@ lower_msaa_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
 
    switch (intrin->intrinsic) {
    case nir_intrinsic_bindless_image_load:
+   case nir_intrinsic_bindless_image_sparse_load:
    case nir_intrinsic_bindless_image_store:
    case nir_intrinsic_bindless_image_atomic:
    case nir_intrinsic_bindless_image_atomic_swap: {
@@ -963,8 +948,10 @@ is_edb_buffer_view(nir_deref_instr *deref,
    nir_variable *var = nir_deref_instr_get_variable(deref);
    uint8_t set = var->data.descriptor_set;
 
-   return ctx->set_layouts[set]->flags &
-          VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+   return (ctx->set_layouts[set]->flags &
+           VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) &&
+          !(ctx->set_layouts[set]->flags &
+            VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT);
 }
 
 static nir_def *
@@ -1047,6 +1034,7 @@ lower_edb_buffer_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
 
    switch (intrin->intrinsic) {
    case nir_intrinsic_image_deref_load:
+   case nir_intrinsic_image_deref_sparse_load:
    case nir_intrinsic_image_deref_store:
    case nir_intrinsic_image_deref_atomic:
    case nir_intrinsic_image_deref_atomic_swap: {
@@ -1060,7 +1048,8 @@ lower_edb_buffer_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
       pos = nir_vector_insert_imm(b, pos, new_x, 0);
       nir_src_rewrite(&intrin->src[1], pos);
 
-      if (intrin->intrinsic == nir_intrinsic_image_deref_load) {
+      if (intrin->intrinsic == nir_intrinsic_image_deref_load ||
+          intrin->intrinsic == nir_intrinsic_image_deref_sparse_load) {
          b->cursor = nir_after_instr(&intrin->instr);
          nir_def *res = &intrin->def;
          res = fixup_edb_buffer_view_result(b, desc, in_bounds, res,
@@ -1099,6 +1088,21 @@ lower_image_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
       nir_def *desc = load_resource_deref_desc(b, 1, 32, deref, 0, ctx);
       nir_rewrite_image_intrinsic(intrin, desc, true);
    }
+
+   return true;
+}
+
+static bool
+lower_load_image_info(nir_builder *b, nir_intrinsic_instr *load,
+                      const struct lower_descriptors_ctx *ctx)
+{
+   b->cursor = nir_before_instr(&load->instr);
+   nir_deref_instr *deref = nir_src_as_deref(load->src[0]);
+   unsigned offset = nir_intrinsic_base(load);
+   assert(load->def.bit_size == 32);
+   nir_def *desc = load_resource_deref_desc(b, load->num_components, 32,
+                                            deref, offset, ctx);
+   nir_def_rewrite_uses(&load->def, desc);
 
    return true;
 }
@@ -1180,6 +1184,9 @@ try_lower_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
    case nir_intrinsic_image_deref_samples:
       return lower_image_intrin(b, intrin, ctx);
 
+   case nir_intrinsic_image_deref_load_info_nv:
+      return lower_load_image_info(b, intrin, ctx);
+
    case nir_intrinsic_interp_deref_at_sample:
       return lower_interp_at_sample(b, intrin, ctx);
 
@@ -1216,17 +1223,35 @@ lower_edb_buffer_tex_instr(nir_builder *b, nir_tex_instr *tex,
       nir_def *in_bounds = edb_buffer_view_coord_is_in_bounds(b, desc, coord);
 
       nir_def *index = edb_buffer_view_index(b, desc, in_bounds);
-      nir_src_rewrite(&tex->src[texture_src_idx].src, index);
-      tex->src[texture_src_idx].src_type = nir_tex_src_texture_handle;
-
       nir_def *new_coord = adjust_edb_buffer_view_coord(b, desc, coord);
-      nir_src_rewrite(&tex->src[coord_src_idx].src, new_coord);
+      nir_def *u = nir_undef(b, 1, 32);
 
-      b->cursor = nir_after_instr(&tex->instr);
-      nir_def *res = &tex->def;
+      /* The tricks we play for EDB use very large texel buffer views.  These
+       * don't seem to play nicely with the tld instruction which thinks
+       * buffers are a 1D texture.  However, suld seems fine with it so we'll
+       * rewrite to use that.
+       */
+      nir_def *res = nir_bindless_image_load(b, tex->def.num_components,
+                                             tex->def.bit_size,
+                                             index,
+                                             nir_vec4(b, new_coord, u, u, u),
+                                             u, /* sample_id */
+                                             nir_imm_int(b, 0), /* LOD */
+                                             .image_dim = GLSL_SAMPLER_DIM_BUF,
+                                             .image_array = false,
+                                             .format = PIPE_FORMAT_NONE,
+                                             .access = ACCESS_NON_WRITEABLE |
+                                                       ACCESS_CAN_REORDER,
+                                             .dest_type = tex->dest_type);
+      if (tex->is_sparse) {
+         nir_intrinsic_instr *intr = nir_instr_as_intrinsic(res->parent_instr);
+         intr->intrinsic = nir_intrinsic_bindless_image_sparse_load;
+      }
+
       res = fixup_edb_buffer_view_result(b, desc, in_bounds,
                                          res, tex->dest_type);
-      nir_def_rewrite_uses_after(&tex->def, res, res->parent_instr);
+
+      nir_def_rewrite_uses(&tex->def, res);
       break;
    }
 
@@ -1277,7 +1302,21 @@ lower_tex(nir_builder *b, nir_tex_instr *tex,
          load_resource_deref_desc(b, 1, 32, texture, plane_offset_B, ctx);
 
    nir_def *combined_handle;
-   if (texture == sampler) {
+
+   if (!nir_tex_instr_need_sampler(tex)) {
+      combined_handle = texture_desc;
+
+      /* On Kepler and earlier, TXF takes a sampler but SPIR-V defines it as
+       * not taking one so we can't trust the sampler from the client's image
+       * descriptor.  Instead, mask off the top bits so we get a zero sampler
+       * index which we've conveniently reserved at device cration time for a
+       * special TXF sampler.
+       */
+      if (ctx->dev_info->cls_eng3d < MAXWELL_A) {
+         combined_handle = nir_iand_imm(b, combined_handle,
+                                        NVK_IMAGE_DESCRIPTOR_IMAGE_INDEX_MASK);
+      }
+   } else if (texture == sampler) {
       combined_handle = texture_desc;
    } else {
       combined_handle = nir_iand_imm(b, texture_desc,
@@ -1293,21 +1332,12 @@ lower_tex(nir_builder *b, nir_tex_instr *tex,
       }
    }
 
-   /* TODO: The nv50 back-end assumes it's 64-bit because of GL */
-   combined_handle = nir_u2u64(b, combined_handle);
-
-   /* TODO: The nv50 back-end assumes it gets handles both places, even for
-    * texelFetch.
-    */
    nir_src_rewrite(&tex->src[texture_src_idx].src, combined_handle);
    tex->src[texture_src_idx].src_type = nir_tex_src_texture_handle;
 
-   if (sampler_src_idx < 0) {
-      nir_tex_instr_add_src(tex, nir_tex_src_sampler_handle, combined_handle);
-   } else {
-      nir_src_rewrite(&tex->src[sampler_src_idx].src, combined_handle);
-      tex->src[sampler_src_idx].src_type = nir_tex_src_sampler_handle;
-   }
+   /* NAK doesn't care about the sampler handle at all */
+   if (sampler_src_idx >= 0)
+      nir_tex_instr_remove_src(tex, sampler_src_idx);
 
    /* On pre-Volta hardware, we don't have real null descriptors.  Null
     * descriptors work well enough for sampling but they may not return the
@@ -1561,6 +1591,7 @@ nvk_nir_lower_descriptors(nir_shader *nir,
    struct lower_descriptors_ctx ctx = {
       .dev_info = &pdev->info,
       .use_bindless_cbuf = nvk_use_bindless_cbuf(&pdev->info),
+      .use_bindless_cbuf_2 = nvk_use_bindless_cbuf_2(&pdev->info),
       .use_edb_buffer_views = nvk_use_edb_buffer_views(pdev),
       .clamp_desc_array_bounds =
          rs->storage_buffers != VK_PIPELINE_ROBUSTNESS_BUFFER_BEHAVIOR_DISABLED_EXT ||
@@ -1611,7 +1642,7 @@ nvk_nir_lower_descriptors(nir_shader *nir,
                                    (void *)&ctx);
    bool pass_lower_ssbo =
       nir_shader_instructions_pass(nir, lower_ssbo_descriptor_instr,
-                                   nir_metadata_control_flow,
+                                   nir_metadata_none,
                                    (void *)&ctx);
    return pass_lower_ubo || pass_lower_descriptors || pass_lower_ssbo;
 }

@@ -5,13 +5,13 @@
  */
 
 #include "radv_pipeline_binary.h"
+#include "util/blob.h"
 #include "util/disk_cache.h"
 #include "util/macros.h"
 #include "util/mesa-blake3.h"
 #include "util/mesa-sha1.h"
 #include "util/u_atomic.h"
 #include "util/u_debug.h"
-#include "nir_serialize.h"
 #include "radv_debug.h"
 #include "radv_device.h"
 #include "radv_entrypoints.h"
@@ -220,7 +220,8 @@ radv_create_pipeline_binary_from_rt_shader(struct radv_device *device, const VkA
    };
 
    memcpy(header.stage_sha1, stage_sha1, sizeof(header.stage_sha1));
-   memcpy(&header.stage_info, rt_stage_info, sizeof(header.stage_info));
+   if (rt_stage_info)
+      memcpy(&header.stage_info, rt_stage_info, sizeof(header.stage_info));
 
    blob_init(&blob);
    blob_write_bytes(&blob, &header, sizeof(header));

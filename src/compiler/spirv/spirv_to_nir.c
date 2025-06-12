@@ -32,12 +32,15 @@
 #include "nir/nir_constant_expressions.h"
 #include "nir/nir_deref.h"
 #include "spirv_info.h"
+#include "NonSemanticShaderDebugInfo100.h"
 
 #include "util/format/u_format.h"
 #include "util/u_math.h"
 #include "util/u_string.h"
 #include "util/u_debug.h"
+#include "util/u_printf.h"
 #include "util/mesa-blake3.h"
+#include "util/bfloat.h"
 
 #include <stdio.h>
 
@@ -56,6 +59,9 @@ static const struct spirv_capabilities implemented_capabilities = {
    .AtomicFloat32MinMaxEXT = true,
    .AtomicFloat64MinMaxEXT = true,
    .AtomicStorage = true,
+   .BFloat16CooperativeMatrixKHR = true,
+   .BFloat16DotProductKHR = true,
+   .BFloat16TypeKHR = true,
    .ClipDistance = true,
    .ComputeDerivativeGroupLinearKHR = true,
    .ComputeDerivativeGroupQuadsKHR = true,
@@ -97,6 +103,7 @@ static const struct spirv_capabilities implemented_capabilities = {
    .GroupNonUniformShuffleRelative = true,
    .GroupNonUniformVote = true,
    .Groups = true,
+   .GroupUniformArithmeticKHR = true,
    .Image1D = true,
    .ImageBasic = true,
    .ImageBuffer = true,
@@ -188,6 +195,7 @@ static const struct spirv_capabilities implemented_capabilities = {
    .UniformAndStorageBuffer8BitAccess = true,
    .UniformBufferArrayDynamicIndexing = true,
    .UniformBufferArrayNonUniformIndexingEXT = true,
+   .UniformDecoration = true,
    .UniformTexelBufferArrayDynamicIndexingEXT = true,
    .UniformTexelBufferArrayNonUniformIndexingEXT = true,
    .VariablePointers = true,
@@ -802,6 +810,67 @@ vtn_foreach_instruction(struct vtn_builder *b, const uint32_t *start,
 }
 
 static bool
+vtn_handle_debug_printf(struct vtn_builder *b, SpvOp ext_opcode,
+                        const uint32_t *w, unsigned count)
+{
+   vtn_assert(ext_opcode == 1);
+
+   struct vtn_value *format = vtn_value(b, w[5], vtn_value_type_string);
+
+   b->shader->printf_info_count++;
+   b->shader->printf_info = reralloc(b->shader,
+                                     b->shader->printf_info,
+                                     u_printf_info,
+                                     b->shader->printf_info_count);
+
+   u_printf_info *info =
+      &b->shader->printf_info[b->shader->printf_info_count - 1];
+
+   uint32_t argc = count - 6;
+   *info = (u_printf_info) {
+      .arg_sizes = ralloc_array(b->shader, unsigned, argc),
+      .num_args = argc,
+      .strings = ralloc_strdup(b->shader, format->str),
+      .string_size = strlen(format->str) + 1,
+   };
+
+   uint32_t info_index = b->shader->printf_info_count - 1;
+
+   if (argc) {
+      glsl_struct_field *fields = calloc(argc, sizeof(glsl_struct_field));
+      for (uint32_t i = 0; i < argc; i++) {
+         struct vtn_ssa_value *arg = vtn_ssa_value(b, w[6 + i]);
+
+         fields[i].type = glsl_intN_t_type(arg->def->bit_size);
+         if (arg->def->num_components > 1)
+            fields[i].type = glsl_vector_type(fields[i].type->base_type, arg->def->num_components);
+
+         fields[i].name = "";
+
+         info->arg_sizes[i] = arg->def->bit_size / 8;
+      }
+
+      nir_variable *packed_args = nir_local_variable_create(
+         b->nb.impl, glsl_struct_type(fields, argc, "packed_args", false), "packed_args");
+      nir_deref_instr *var_deref = nir_build_deref_var(&b->nb, packed_args);
+      for (uint32_t i = 0; i < argc; i++) {
+         struct vtn_ssa_value *arg = vtn_ssa_value(b, w[6 + i]);
+         nir_deref_instr *arg_deref = nir_build_deref_struct(&b->nb, var_deref, i);
+         nir_store_deref(&b->nb, arg_deref, arg->def, BITFIELD_MASK(NIR_MAX_VEC_COMPONENTS));
+      }
+
+      nir_printf(&b->nb, &var_deref->def, .fmt_idx = info_index);
+
+      free(fields);
+   } else {
+      nir_printf(&b->nb, nir_undef(&b->nb, 1, 32), .fmt_idx = info_index);
+   }
+
+   /* Do nothing. */
+   return true;
+}
+
+static bool
 vtn_handle_non_semantic_instruction(struct vtn_builder *b, SpvOp ext_opcode,
                                     const uint32_t *w, unsigned count)
 {
@@ -814,6 +883,30 @@ vtn_handle_non_semantic_debug_break_instruction(struct vtn_builder *b, SpvOp ext
                                                 const uint32_t *w, unsigned count)
 {
    nir_debug_break(&b->nb);
+   return true;
+}
+
+static bool
+vtn_handle_non_semantic_debug_info(struct vtn_builder *b, SpvOp ext_opcode,
+                                   const uint32_t *w, unsigned count)
+{
+   enum NonSemanticShaderDebugInfo100Instructions instr = w[4];
+
+   if (instr == NonSemanticShaderDebugInfo100DebugLine) {
+      uint32_t source_id = w[5];
+      uint32_t line = vtn_constant_uint(b, w[6]);
+      uint32_t column = vtn_constant_uint(b, w[8]);
+
+      b->file = vtn_value(b, source_id, vtn_value_type_string)->str;
+      b->line = line;
+      b->col = column;
+   } else if (instr == NonSemanticShaderDebugInfo100DebugSource) {
+      uint32_t result_id = w[2];
+      uint32_t file_id = w[5];
+      vtn_push_value(b, result_id, vtn_value_type_string)->str =
+         vtn_value(b, file_id, vtn_value_type_string)->str;
+   }
+
    return true;
 }
 
@@ -844,6 +937,12 @@ vtn_handle_extension(struct vtn_builder *b, SpvOp opcode,
       } else if ((strcmp(ext, "NonSemantic.DebugBreak") == 0)
                 && (b->options && b->options->emit_debug_break)) {
          val->ext_handler = vtn_handle_non_semantic_debug_break_instruction;
+      } else if ((strcmp(ext, "NonSemantic.Shader.DebugInfo.100") == 0)
+                && (b->options && b->options->debug_info)) {
+         val->ext_handler = vtn_handle_non_semantic_debug_info;
+      } else if (strcmp(ext, "NonSemantic.DebugPrintf") == 0
+                && (b->options && b->options->printf)) {
+         val->ext_handler = vtn_handle_debug_printf;
       } else if (strstr(ext, "NonSemantic.") == ext) {
          val->ext_handler = vtn_handle_non_semantic_instruction;
       } else {
@@ -1739,14 +1838,9 @@ validate_image_type_for_sampled_image(struct vtn_builder *b,
                dim == GLSL_SAMPLER_DIM_SUBPASS_MS,
                "%s must not have a Dim of SubpassData.", operand);
 
-   if (dim == GLSL_SAMPLER_DIM_BUF) {
-      if (b->version >= 0x10600) {
-         vtn_fail("Starting with SPIR-V 1.6, %s "
-                  "must not have a Dim of Buffer.", operand);
-      } else {
-         vtn_warn("%s should not have a Dim of Buffer.", operand);
-      }
-   }
+   vtn_fail_if(dim == GLSL_SAMPLER_DIM_BUF && b->version >= 0x10600,
+               "Starting with SPIR-V 1.6, %s must not have a Dim of Buffer.",
+               operand);
 }
 
 static void
@@ -1792,10 +1886,26 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
    case SpvOpTypeFloat: {
       int bit_size = w[2];
       val->type->base_type = vtn_base_type_scalar;
-      vtn_fail_if(bit_size != 16 && bit_size != 32 && bit_size != 64,
-                  "Invalid float bit size: %u", bit_size);
-      val->type->type = glsl_floatN_t_type(bit_size);
       val->type->length = 1;
+
+      int32_t encoding = count > 3 ? w[3] : -1;
+      switch (encoding) {
+      case -1:
+         /* No encoding specified, it is a regular FP. */
+         vtn_fail_if(bit_size != 16 && bit_size != 32 && bit_size != 64,
+                     "Invalid float bit size: %u", bit_size);
+         val->type->type = glsl_floatN_t_type(bit_size);
+         break;
+
+      case SpvFPEncodingBFloat16KHR:
+         vtn_fail_if(bit_size != 16,
+                     "Invalid Bfloat16 bit size: %u", bit_size);
+         val->type->type = glsl_bfloatN_t_type(bit_size);
+         break;
+
+      default:
+         vtn_fail("Unsupported OpTypeFloat encoding: %d", encoding);
+      }
       break;
    }
 
@@ -2228,6 +2338,7 @@ vtn_null_constant(struct vtn_builder *b, struct vtn_type *type)
    switch (type->base_type) {
    case vtn_base_type_scalar:
    case vtn_base_type_vector:
+   case vtn_base_type_cooperative_matrix:
       c->is_null_constant = true;
       /* Nothing to do here.  It's already initialized to zero */
       break;
@@ -2582,37 +2693,45 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
 
       default: {
          bool swap;
-         nir_alu_type dst_alu_type = nir_get_nir_type_for_glsl_type(val->type->type);
-         nir_alu_type src_alu_type = dst_alu_type;
+
+         const glsl_type *dst_type = val->type->type;
+         const glsl_type *src_type = dst_type;
+
+         const bool bfloat_dst = glsl_type_is_bfloat_16(dst_type);
+         bool bfloat_src = bfloat_dst;
+
+         if (bfloat_dst)
+            dst_type = glsl_float_type();
+
          unsigned num_components = glsl_get_vector_elements(val->type->type);
-         unsigned bit_size;
 
          vtn_assert(count <= 7);
 
          switch (opcode) {
          case SpvOpSConvert:
          case SpvOpFConvert:
-         case SpvOpUConvert:
-            /* We have a source in a conversion */
-            src_alu_type =
-               nir_get_nir_type_for_glsl_type(vtn_get_value_type(b, w[4])->type);
-            /* We use the bitsize of the conversion source to evaluate the opcode later */
-            bit_size = glsl_get_bit_size(vtn_get_value_type(b, w[4])->type);
+         case SpvOpUConvert: {
+            /* We have a different source type in a conversion. */
+            src_type = vtn_get_value_type(b, w[4])->type;
+            bfloat_src = glsl_type_is_bfloat_16(src_type);
+            if (bfloat_src)
+               src_type = glsl_float_type();
             break;
+         }
          default:
-            bit_size = glsl_get_bit_size(val->type->type);
+            break;
          };
 
          bool exact;
          nir_op op = vtn_nir_alu_op_for_spirv_opcode(b, opcode, &swap, &exact,
-                                                     nir_alu_type_get_type_size(src_alu_type),
-                                                     nir_alu_type_get_type_size(dst_alu_type));
+                                                     src_type, dst_type);
 
          /* No SPIR-V opcodes handled through this path should set exact.
           * Since it is ignored, assert on it.
           */
          assert(!exact);
 
+         unsigned bit_size = glsl_get_bit_size(src_type);
          nir_const_value src[3][NIR_MAX_VEC_COMPONENTS];
 
          for (unsigned i = 0; i < count - 4; i++) {
@@ -2630,8 +2749,11 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
                                  num_components;
 
             unsigned j = swap ? 1 - i : i;
-            for (unsigned c = 0; c < src_comps; c++)
+            for (unsigned c = 0; c < src_comps; c++) {
                src[j][c] = src_val->constant->values[c];
+               if (bfloat_src)
+                  src[j][c].f32 = _mesa_bfloat16_bits_to_float(src[j][c].u16);
+            }
          }
 
          /* fix up fixed size sources */
@@ -2660,6 +2782,15 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
          nir_eval_const_opcode(op, val->constant->values,
                                num_components, bit_size, srcs,
                                b->shader->info.float_controls_execution_mode);
+
+         if (bfloat_dst) {
+            for (int i = 0; i < num_components; i++) {
+               const uint16_t b =
+                  _mesa_float_to_bfloat16_bits_rte(val->constant->values[i].f32);
+               val->constant->values[i] = nir_const_value_for_raw_uint(b, 16);
+            }
+         }
+
          break;
       } /* default */
       }
@@ -3289,11 +3420,14 @@ vtn_handle_texture(struct vtn_builder *b, SpvOp opcode,
    case nir_texop_tex_prefetch:
       vtn_fail("unexpected nir_texop_tex_prefetch");
       break;
+   case nir_texop_lod_bias:
+      vtn_fail("unexpected nir_texop_lod_bias");
+      break;
    case nir_texop_descriptor_amd:
    case nir_texop_sampler_descriptor_amd:
       vtn_fail("unexpected nir_texop_*descriptor_amd");
       break;
-   case nir_texop_lod_bias_agx:
+   case nir_texop_image_min_lod_agx:
    case nir_texop_custom_border_color_agx:
    case nir_texop_has_custom_border_color_agx:
       vtn_fail("unexpected nir_texop_*_agx");
@@ -3569,7 +3703,7 @@ vtn_handle_texture(struct vtn_builder *b, SpvOp opcode,
    if (operands & SpvImageOperandsNontemporalMask)
       access |= ACCESS_NON_TEMPORAL;
 
-   if (sampler && b->options->force_tex_non_uniform)
+   if (sampler && b->options->workarounds.force_tex_non_uniform)
       access |= ACCESS_NON_UNIFORM;
 
    if (sampled_val->propagated_non_uniform)
@@ -3596,7 +3730,18 @@ vtn_handle_texture(struct vtn_builder *b, SpvOp opcode,
       dest_type = get_image_type(b, dest_type, operands);
    }
 
-   instr->dest_type = dest_type;
+   unsigned dest_bitsize = nir_alu_type_get_type_size(dest_type);
+
+   /* Not all drivers support smaller tex dest, so if needed promote the dest
+    * type to 32b, and then insert the appropriate conversion.  Drivers that
+    * support 16b dest should be using nir_opt_16bit_tex_image to fold the
+    * conversion back into the tex instruction.
+    */
+   if (dest_bitsize != 32) {
+      instr->dest_type = nir_alu_type_get_base_type(dest_type) | 32;
+   } else {
+      instr->dest_type = dest_type;
+   }
 
    nir_def_init(&instr->instr, &instr->def,
                 nir_tex_instr_dest_size(instr), 32);
@@ -3636,15 +3781,21 @@ vtn_handle_texture(struct vtn_builder *b, SpvOp opcode,
 
    nir_builder_instr_insert(&b->nb, &instr->instr);
 
+   nir_def *def = &instr->def;
+   if (dest_bitsize != 32) {
+      def = nir_type_convert(&b->nb, def, instr->dest_type, dest_type,
+                             nir_rounding_mode_undef);
+   }
+
    if (is_sparse) {
       struct vtn_ssa_value *dest = vtn_create_ssa_value(b, struct_type->type);
       unsigned result_size = glsl_get_vector_elements(ret_type->type);
-      dest->elems[0]->def = nir_channel(&b->nb, &instr->def, result_size);
-      dest->elems[1]->def = nir_trim_vector(&b->nb, &instr->def,
+      dest->elems[0]->def = nir_channel(&b->nb, def, result_size);
+      dest->elems[1]->def = nir_trim_vector(&b->nb, def,
                                               result_size);
       vtn_push_ssa_value(b, w[2], dest);
    } else {
-      vtn_push_nir_ssa(b, w[2], &instr->def);
+      vtn_push_nir_ssa(b, w[2], def);
    }
 }
 
@@ -5041,6 +5192,9 @@ vtn_handle_preamble_instruction(struct vtn_builder *b, SpvOp opcode,
          /* NonSemantic extended instructions are acceptable in preamble. */
          vtn_handle_non_semantic_instruction(b, w[4], w, count);
          return true;
+      } else if (val->ext_handler == vtn_handle_non_semantic_debug_info) {
+         vtn_handle_non_semantic_debug_info(b, w[4], w, count);
+         return true;
       } else {
          return false; /* End of preamble. */
       }
@@ -5657,6 +5811,10 @@ vtn_handle_variable_or_type_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpExtInst:
    case SpvOpExtInstWithForwardRefsKHR: {
       struct vtn_value *val = vtn_value(b, w[3], vtn_value_type_extension);
+
+      if (val->ext_handler == vtn_handle_non_semantic_debug_info)
+         return vtn_handle_non_semantic_debug_info(b, opcode, w, count);
+
       /* NonSemantic extended instructions are acceptable in preamble, others
        * will indicate the end of preamble.
        */
@@ -6119,31 +6277,27 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
                             const uint32_t *w, unsigned count)
 {
    if (b->options->debug_info) {
-      nir_debug_info_instr *instr =
-         nir_debug_info_instr_create(b->shader, nir_debug_info_src_loc, 0);
-      instr->src_loc.spirv_offset = b->spirv_offset;
-      instr->src_loc.source = nir_debug_info_spirv;
+      /* Insert a nop to attach debug info to the cursor of the builder.
+       * This should not affect compilation since the nop will be eliminated
+       * in spirv_to_nir.
+       */
+      nir_intrinsic_instr *nop = nir_nop(&b->nb);
+
+      nir_instr_debug_info *info = nir_instr_get_debug_info(&nop->instr);
+      info->spirv_offset = b->spirv_offset;
 
       if (b->file) {
-         nir_def *filename;
          struct hash_entry *he = _mesa_hash_table_search(b->strings, b->file);
          if (he) {
-            filename = he->data;
+            info->filename = he->data;
          } else {
-            nir_builder _b = nir_builder_at(nir_before_cf_list(&b->nb.impl->body));
-            filename = nir_build_string(&_b, b->file);
-            _mesa_hash_table_insert(b->strings, b->file, filename);
+            info->filename = ralloc_strdup(b->shader, b->file);
+            _mesa_hash_table_insert(b->strings, b->file, info->filename);
          }
 
-         instr->src_loc.filename = nir_src_for_ssa(filename);
-         /* Make sure line is at least 1 since 0 is reserved for spirv_offset-only
-          * source locations.
-          */
-         instr->src_loc.line = MAX2(b->line, 1);
-         instr->src_loc.column = b->col;
+         info->line = b->line;
+         info->column = b->col;
       }
-
-      nir_builder_instr_insert(&b->nb, &instr->instr);
    }
 
    switch (opcode) {
@@ -6493,6 +6647,14 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpGroupFMax:
    case SpvOpGroupUMax:
    case SpvOpGroupSMax:
+   case SpvOpGroupIMulKHR:
+   case SpvOpGroupFMulKHR:
+   case SpvOpGroupBitwiseAndKHR:
+   case SpvOpGroupBitwiseOrKHR:
+   case SpvOpGroupBitwiseXorKHR:
+   case SpvOpGroupLogicalAndKHR:
+   case SpvOpGroupLogicalOrKHR:
+   case SpvOpGroupLogicalXorKHR:
    case SpvOpSubgroupBallotKHR:
    case SpvOpSubgroupFirstInvocationKHR:
    case SpvOpSubgroupReadInvocationKHR:
@@ -6929,6 +7091,7 @@ spirv_to_nir(const uint32_t *words, size_t word_count,
    b->shader->info.subgroup_size = options->subgroup_size;
    b->shader->info.float_controls_execution_mode = options->float_controls_execution_mode;
    b->shader->info.cs.shader_index = options->shader_index;
+   b->shader->has_debug_info = options->debug_info;
    _mesa_blake3_compute(words, word_count * sizeof(uint32_t), b->shader->info.source_blake3);
 
    /* Skip the SPIR-V header, handled at vtn_create_builder */
@@ -7089,26 +7252,6 @@ spirv_to_nir(const uint32_t *words, size_t word_count,
     */
    nir_opt_dce(b->shader);
 
-   /* Per SPV_KHR_workgroup_storage_explicit_layout, if one shared variable is
-    * a Block, all of them will be and Blocks are explicitly laid out.
-    */
-   nir_foreach_variable_with_modes(var, b->shader, nir_var_mem_shared) {
-      if (glsl_type_is_interface(var->type)) {
-         assert(b->supported_capabilities.WorkgroupMemoryExplicitLayoutKHR);
-         b->shader->info.shared_memory_explicit_layout = true;
-         break;
-      }
-   }
-   if (b->shader->info.shared_memory_explicit_layout) {
-      unsigned size = 0;
-      nir_foreach_variable_with_modes(var, b->shader, nir_var_mem_shared) {
-         assert(glsl_type_is_interface(var->type));
-         const bool align_to_stride = false;
-         size = MAX2(size, glsl_get_explicit_size(var->type, align_to_stride));
-      }
-      b->shader->info.shared_size = size;
-   }
-
    if (stage == MESA_SHADER_FRAGMENT) {
       /* From the Vulkan 1.2.199 spec:
        *
@@ -7168,201 +7311,6 @@ spirv_to_nir(const uint32_t *words, size_t word_count,
    ralloc_free(b);
 
    return shader;
-}
-
-static void
-print_func_param(FILE *fp, nir_function *func, unsigned p)
-{
-   if (func->params[p].name) {
-      fputs(func->params[p].name, fp);
-   } else {
-      fprintf(fp, "arg%u\n", p);
-   }
-}
-
-static bool
-func_to_nir_builder(FILE *fp, struct vtn_function *func)
-{
-   nir_function *nir_func = func->nir_func;
-   struct vtn_type *return_type = func->type->return_type;
-   bool returns = return_type->base_type != vtn_base_type_void;
-
-   if (returns && return_type->base_type != vtn_base_type_scalar &&
-                  return_type->base_type != vtn_base_type_vector) {
-      fprintf(stderr, "Unsupported return type for %s", nir_func->name);
-      return false;
-   }
-
-   /* If there is a return type, the first NIR parameter is the return deref,
-    * so offset by that for logical parameter iteration.
-    */
-   unsigned first_param = returns ? 1 : 0;
-
-   /* Generate function signature */
-   fprintf(fp, "static inline %s\n", returns ? "nir_def *": "void");
-   fprintf(fp, "%s(nir_builder *b", nir_func->name);
-
-   for (unsigned i = first_param; i < nir_func->num_params; ++i) {
-      fprintf(fp, ", nir_def *");
-      print_func_param(fp, nir_func, i);
-   }
-
-   fprintf(fp, ")\n{\n");
-
-   /* Validate inputs. nir_validate will do this too, but the
-    * errors/backtraces from these asserts should be nicer.
-    */
-   for (unsigned i = first_param; i < nir_func->num_params; ++i) {
-      nir_parameter *param = &nir_func->params[i];
-
-      fprintf(fp, "   assert(");
-      print_func_param(fp, nir_func, i);
-      fprintf(fp, "->bit_size == %u);\n", param->bit_size);
-
-      fprintf(fp, "   assert(");
-      print_func_param(fp, nir_func, i);
-      fprintf(fp, "->num_components == %u);\n", param->num_components);
-   }
-
-   fprintf(fp, "\n");
-
-   /* Find the function to call. If not found, create a prototype */
-   fprintf(fp, "   nir_function *func = nir_shader_get_function_for_name(b->shader, \"%s\");\n",
-           nir_func->name);
-   fprintf(fp, "\n");
-   fprintf(fp, "   if (!func) {\n");
-   fprintf(fp, "      func = nir_function_create(b->shader, \"%s\");\n",
-           nir_func->name);
-   fprintf(fp, "      func->num_params = %u;\n", nir_func->num_params);
-   fprintf(fp, "      func->params = rzalloc_array(b->shader, nir_parameter, func->num_params);\n");
-
-   for (unsigned i = 0; i < nir_func->num_params; ++i) {
-      nir_parameter param = nir_func->params[i];
-
-      fprintf(fp, "\n");
-      fprintf(fp, "      func->params[%u].bit_size = %u;\n", i, param.bit_size);
-      fprintf(fp, "      func->params[%u].num_components = %u;\n", i,
-              param.num_components);
-
-      if (returns && i == 0) {
-         fprintf(fp, "      func->params[%u].is_return = true;\n", i);
-      }
-
-      if (param.name) {
-         fprintf(fp, "      func->params[%u].name = \"%s\";\n", i, param.name);
-      }
-   }
-
-   fprintf(fp, "   }\n\n");
-
-
-   if (returns) {
-      /* We assume that vec3 variables are lowered to vec4. Mirror that here so
-       * we don't need to lower vec3 to vec4 again at link-time.
-       */
-      assert(glsl_type_is_vector_or_scalar(return_type->type));
-      unsigned elements = return_type->type->vector_elements;
-      if (elements == 3)
-         elements = 4;
-
-      /* Reconstruct the return type. */
-      fprintf(fp, "   const struct glsl_type *ret_type = glsl_vector_type(%u, %u);\n",
-              return_type->type->base_type, elements);
-
-      /* With the type, we can make a variable and get a deref to pass in */
-      fprintf(fp, "   nir_variable *ret = nir_local_variable_create(b->impl, ret_type, \"return\");\n");
-      fprintf(fp, "   nir_deref_instr *deref = nir_build_deref_var(b, ret);\n");
-
-      /* XXX: This is a hack due to ptr size differing between KERNEL and other
-       * shader stages. This needs to be fixed in core NIR.
-       */
-      fprintf(fp, "   deref->def.bit_size = %u;\n", nir_func->params[0].bit_size);
-      fprintf(fp, "\n");
-   }
-
-   /* Call the function */
-   fprintf(fp, "   nir_call(b, func");
-
-   if (returns)
-      fprintf(fp, ", &deref->def");
-
-   for (unsigned i = first_param; i < nir_func->num_params; ++i) {
-      fprintf(fp, ", ");
-      print_func_param(fp, nir_func, i);
-   }
-
-   fprintf(fp, ");\n");
-
-   /* Load the return value if any, undoing the vec3->vec4 lowering. */
-   if (returns) {
-      fprintf(fp, "\n");
-
-      if (return_type->type->vector_elements == 3)
-         fprintf(fp, "   return nir_trim_vector(b, nir_load_deref(b, deref), 3);\n");
-      else
-         fprintf(fp, "   return nir_load_deref(b, deref);\n");
-   }
-
-   fprintf(fp, "}\n\n");
-   return true;
-}
-
-bool
-spirv_library_to_nir_builder(FILE *fp, const uint32_t *words, size_t word_count,
-                             const struct spirv_to_nir_options *options)
-{
-#ifndef NDEBUG
-   mesa_spirv_debug_init();
-#endif
-
-   const uint32_t *word_end = words + word_count;
-
-   struct vtn_builder *b = vtn_create_builder(words, word_count,
-                                              MESA_SHADER_KERNEL, "placeholder name",
-                                              options);
-
-   if (b == NULL)
-      return false;
-
-   /* See also _vtn_fail() */
-   if (vtn_setjmp(b->fail_jump)) {
-      ralloc_free(b);
-      return false;
-   }
-
-   b->shader = nir_shader_create(b, MESA_SHADER_KERNEL,
-                                 &(const nir_shader_compiler_options){0}, NULL);
-
-   /* Skip the SPIR-V header, handled at vtn_create_builder */
-   words+= 5;
-
-   /* Handle all the preamble instructions */
-   words = vtn_foreach_instruction(b, words, word_end,
-                                   vtn_handle_preamble_instruction);
-
-   /* Handle all variable, type, and constant instructions */
-   words = vtn_foreach_instruction(b, words, word_end,
-                                   vtn_handle_variable_or_type_instruction);
-
-   /* Set types on all vtn_values */
-   vtn_foreach_instruction(b, words, word_end, vtn_set_instruction_result_type);
-
-   vtn_build_cfg(b, words, word_end);
-
-   fprintf(fp, "#include \"compiler/nir/nir_builder.h\"\n\n");
-
-   nir_fixup_is_exported(b->shader);
-
-   vtn_foreach_function(func, &b->functions) {
-      if (!func->nir_func->is_exported || func->nir_func->is_entrypoint)
-         continue;
-
-      if (!func_to_nir_builder(fp, func))
-         return false;
-   }
-
-   ralloc_free(b);
-   return true;
 }
 
 static unsigned

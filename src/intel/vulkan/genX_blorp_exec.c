@@ -267,7 +267,10 @@ blorp_pre_emit_urb_config(struct blorp_batch *blorp_batch,
                           struct intel_urb_config *urb_cfg)
 {
    struct anv_cmd_buffer *cmd_buffer = blorp_batch->driver_batch;
-   genX(urb_workaround)(cmd_buffer, urb_cfg);
+   if (genX(need_wa_16014912113)(&cmd_buffer->state.gfx.urb_cfg, urb_cfg)) {
+      genX(batch_emit_wa_16014912113)(&cmd_buffer->batch,
+                                      &cmd_buffer->state.gfx.urb_cfg);
+   }
 
    /* Update urb config. */
    memcpy(&cmd_buffer->state.gfx.urb_cfg, urb_cfg,
@@ -427,7 +430,7 @@ blorp_exec_on_render(struct blorp_batch *batch,
    anv_cmd_dirty_mask_t dirty = ~(ANV_CMD_DIRTY_INDEX_BUFFER |
                                   ANV_CMD_DIRTY_XFB_ENABLE |
                                   ANV_CMD_DIRTY_OCCLUSION_QUERY_ACTIVE |
-                                  ANV_CMD_DIRTY_RESTART_INDEX);
+                                  ANV_CMD_DIRTY_INDEX_TYPE);
 
    cmd_buffer->state.gfx.vb_dirty = ~0;
    cmd_buffer->state.gfx.dirty |= dirty;

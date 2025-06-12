@@ -59,7 +59,7 @@
 #include "util/u_math.h"
 
 #include <xf86drm.h>
-#include "asahi/lib/unstable_asahi_drm.h"
+#include "drm-uapi/asahi_drm.h"
 #include "drm-uapi/amdgpu_drm.h"
 #include "drm-uapi/i915_drm.h"
 #include "drm-uapi/v3d_drm.h"
@@ -76,6 +76,7 @@ static struct v3d_simulator_state {
 
         struct v3d_hw *v3d;
         int ver;
+        int rev;
 
         /* Size of the heap. */
         uint64_t mem_size;
@@ -731,8 +732,17 @@ v3d_rewrite_csd_job_wg_counts_from_indirect(int fd,
 	submit->cfg[0] = wg_counts[0] << V3D_CSD_CFG012_WG_COUNT_SHIFT;
 	submit->cfg[1] = wg_counts[1] << V3D_CSD_CFG012_WG_COUNT_SHIFT;
 	submit->cfg[2] = wg_counts[2] << V3D_CSD_CFG012_WG_COUNT_SHIFT;
-	submit->cfg[4] = DIV_ROUND_UP(indirect_csd->wg_size, 16) *
-			(wg_counts[0] * wg_counts[1] * wg_counts[2]) - 1;
+
+	uint32_t num_batches = DIV_ROUND_UP(indirect_csd->wg_size, 16) *
+	                       (wg_counts[0] * wg_counts[1] * wg_counts[2]);
+
+	/* V3D 7.1.6 and later don't subtract 1 from the number of batches */
+	if (sim_state.ver < 71 || (sim_state.ver == 71 && sim_state.rev < 6)) {
+		submit->cfg[4] = num_batches - 1;
+	} else {
+		submit->cfg[4] = num_batches;
+	}
+	assert(submit->cfg[4] != ~0);
 
 	for (int i = 0; i < 3; i++) {
 		/* 0xffffffff indicates that the uniform rewrite is not needed */
@@ -1175,6 +1185,7 @@ v3d_simulator_init_global()
         v3d_hw_set_mem(sim_state.v3d, b->ofs, 0xd0, 4096);
 
         sim_state.ver = v3d_hw_get_version(sim_state.v3d);
+        sim_state.rev = v3d_hw_get_revision(sim_state.v3d);
 
         simple_mtx_unlock(&sim_state.mutex);
 

@@ -38,19 +38,6 @@ _libnil_deps = [
   idep_nvidia_headers_rs,
 ]
 
-_libnil_rust_args = [
-  '-Aclippy::identity_op',
-  '-Aclippy::len_zero',
-  '-Aclippy::manual_range_contains',
-  # normally this is a good one, but we use it where the "better" code is worse
-  '-Aclippy::needless_range_loop',
-  '-Aclippy::redundant_field_names',
-  '-Aclippy::upper_case_acronyms',
-  '-Aclippy::vec_box',
-  '-Aclippy::write_with_newline',
-  '-Anon_snake_case',
-]
-
 _nil_bindings_rs = rust.bindgen(
   input: ['nil_bindings.h', _nil_format_table],
   output: 'nil_bindings.rs',
@@ -59,9 +46,7 @@ _nil_bindings_rs = rust.bindgen(
   ],
   include_directories : [inc_include, inc_src, include_directories('.')],
   args: [
-    '--raw-line', '#![allow(non_camel_case_types)]',
-    '--raw-line', '#![allow(non_snake_case)]',
-    '--raw-line', '#![allow(non_upper_case_globals)]',
+    bindgen_output_args,
     '--allowlist-function', 'util_format_description',
     '--allowlist-function', 'util_format_get_blocksize',
     '--allowlist-function', 'util_format_is_compressed',
@@ -94,7 +79,7 @@ _libnil = static_library(
   files('lib.rs'),
   gnu_symbol_visibility: 'hidden',
   rust_abi: 'c',
-  rust_args: _libnil_rust_args,
+  rust_args: nouveau_rust_args,
   link_with: [_libnil_format_table, _libnil_rs_bindings],
   dependencies: _libnil_deps,
 )
@@ -109,6 +94,11 @@ _nil_h = custom_target(
     '--', '@INPUT1@',
   ],
   depfile : 'nil.h.d',
+)
+
+idep_nil_h = declare_dependency(
+  include_directories : include_directories('.'),
+  sources : [_nil_h],
 )
 
 idep_nil = declare_dependency(

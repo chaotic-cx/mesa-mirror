@@ -29,6 +29,7 @@
 #include "tgsi/tgsi_parse.h"
 
 #include "compiler/nir/nir_serialize.h"
+#include "compiler/nir/nir.h"
 
 #include "util/blob.h"
 #include "util/hash_table.h"
@@ -90,7 +91,7 @@ util_live_shader_cache_get(struct pipe_context *ctx,
       nir_serialize(&blob, state->ir.nir, true);
       ir_binary = blob.data;
       ir_size = blob.size;
-      stage = pipe_shader_type_from_mesa(((nir_shader*)state->ir.nir)->info.stage);
+      stage = pipe_shader_type_from_mesa(state->ir.nir->info.stage);
    } else {
       assert(0);
       return NULL;
@@ -139,6 +140,9 @@ util_live_shader_cache_get(struct pipe_context *ctx,
     * invocations to run simultaneously.
     */
    shader = (struct util_live_shader*)cache->create_shader(ctx, state);
+   if (!shader)
+      return NULL;
+
    pipe_reference_init(&shader->reference, 1);
    memcpy(shader->sha1, sha1, sizeof(sha1));
 

@@ -560,6 +560,9 @@ emit_shader_state_record(struct v3d_context *v3d,
                 shader.fragment_shader_does_z_writes =
                         v3d->prog.fs->prog_data.fs->writes_z;
 
+                shader.enable_sample_rate_shading =
+                        job->msaa && v3d->prog.fs->prog_data.fs->force_per_sample_msaa;
+
                 /* Set if the EZ test must be disabled (due to shader side
                  * effects and the early_z flag not being present in the
                  * shader).
@@ -932,7 +935,7 @@ v3d_update_job_ez(struct v3d_context *v3d, struct v3d_job *job)
                 job->decided_global_ez_enable = true;
                 job->global_ez_zsa_decision_state = v3d->zsa;
 
-                if (!job->zsbuf) {
+                if (!job->zsbuf.texture) {
                         job->first_ez_state = V3D_EZ_DISABLED;
                         job->ez_state = V3D_EZ_DISABLED;
                         return;
@@ -943,12 +946,12 @@ v3d_update_job_ez(struct v3d_context *v3d, struct v3d_job *job)
                  * buffer is 16-bit and multisampled. Disable early-Z in these
                  * cases.
                  */
-                bool needs_depth_load = v3d->zsa && job->zsbuf &&
+                bool needs_depth_load = v3d->zsa && job->zsbuf.texture &&
                         v3d->zsa->base.depth_enabled &&
                         (PIPE_CLEAR_DEPTH & ~job->clear_tlb);
                 if (needs_depth_load) {
-                        if (job->zsbuf->texture->format == PIPE_FORMAT_Z16_UNORM &&
-                            job->zsbuf->texture->nr_samples > 0) {
+                        if (job->zsbuf.texture->format == PIPE_FORMAT_Z16_UNORM &&
+                            job->zsbuf.texture->nr_samples > 0) {
                                 perf_debug("Loading 16-bit multisampled depth buffer "
                                            "disables early-Z tests\n");
                                 job->first_ez_state = V3D_EZ_DISABLED;
@@ -1063,8 +1066,8 @@ v3d_update_job_tlb_load_store(struct v3d_job *job) {
         uint32_t no_load_mask =
                 job->clear_tlb | job->clear_draw | job->invalidated_load;
 
-        if (v3d->zsa && job->zsbuf && v3d->zsa->base.depth_enabled) {
-                struct v3d_resource *rsc = v3d_resource(job->zsbuf->texture);
+        if (v3d->zsa && job->zsbuf.texture && v3d->zsa->base.depth_enabled) {
+                struct v3d_resource *rsc = v3d_resource(job->zsbuf.texture);
                 v3d_job_add_bo(job, rsc->bo);
                 job->load |= PIPE_CLEAR_DEPTH & ~no_load_mask;
                 if (v3d->zsa->base.depth_writemask)
@@ -1072,8 +1075,9 @@ v3d_update_job_tlb_load_store(struct v3d_job *job) {
                 rsc->initialized_buffers |= PIPE_CLEAR_DEPTH;
         }
 
-        if (v3d->zsa && job->zsbuf && v3d->zsa->base.stencil[0].enabled) {
-                struct v3d_resource *rsc = v3d_resource(job->zsbuf->texture);
+        if (v3d->zsa && job->zsbuf.texture &&
+            v3d->zsa->base.stencil[0].enabled) {
+                struct v3d_resource *rsc = v3d_resource(job->zsbuf.texture);
                 if (rsc->separate_stencil)
                         rsc = rsc->separate_stencil;
 
@@ -1091,16 +1095,11 @@ v3d_update_job_tlb_load_store(struct v3d_job *job) {
                 uint32_t bit = PIPE_CLEAR_COLOR0 << i;
                 int blend_rt = v3d->blend->base.independent_blend_enable ? i : 0;
 
-                if (job->store & bit || !job->cbufs[i])
+                if (job->store & bit || !job->cbufs[i].texture)
                         continue;
-                struct v3d_resource *rsc = v3d_resource(job->cbufs[i]->texture);
+                struct v3d_resource *rsc = v3d_resource(job->cbufs[i].texture);
+                job->load |= bit & ~no_load_mask;
 
-                if (rsc->invalidated) {
-                        job->invalidated_load |= bit;
-                        rsc->invalidated = false;
-                } else {
-                        job->load |= bit & ~no_load_mask;
-                }
                 if (v3d->blend->base.rt[blend_rt].colormask)
                         job->store |= bit;
                 v3d_job_add_bo(job, rsc->bo);
@@ -1401,20 +1400,6 @@ v3d_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
                                 u_stream_outputs_for_vertices(info->mode, draws[0].count);
         }
 
-        if (v3d->zsa && job->zsbuf) {
-                struct v3d_resource *rsc = v3d_resource(job->zsbuf->texture);
-                if (rsc->invalidated) {
-                        /* Currently gallium only applies invalidates if it
-                         * affects both depth and stencil together.
-                         */
-                        job->invalidated_load |=
-                                PIPE_CLEAR_DEPTH | PIPE_CLEAR_STENCIL;
-                        rsc->invalidated = false;
-                        if (rsc->separate_stencil)
-                                rsc->separate_stencil->invalidated = false;
-                }
-        }
-
         v3d_update_job_tlb_load_store(job);
 
         if (indirect && indirect->buffer)
@@ -1422,10 +1407,12 @@ v3d_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
         else
                 update_double_buffer_score(job, draws[0].count * info->instance_count);
 
-        if (job->referenced_size > 768 * 1024 * 1024) {
-                perf_debug("Flushing job with %dkb to try to free up memory\n",
-                        job->referenced_size / 1024);
-                v3d_flush(pctx);
+        if (job->referenced_size > V3D_JOB_MAX_BO_REFERENCED_SIZE ||
+            job->submit.bo_handle_count > V3D_JOB_MAX_BO_HANDLE_COUNT) {
+                perf_debug("Flushing job with %u BOs referencing %dkb to try to free up memory\n",
+                           job->submit.bo_handle_count,
+                           job->referenced_size / 1024);
+                v3d_job_submit(v3d, job);
         }
 
         if (V3D_DBG(ALWAYS_FLUSH))
@@ -1682,6 +1669,7 @@ v3d_tlb_clear(struct v3d_job *job, unsigned buffers,
               double depth, unsigned stencil)
 {
         struct v3d_context *v3d = job->v3d;
+        struct v3d_device_info *devinfo = &job->v3d->screen->devinfo;
 
         if (job->draw_calls_queued) {
                 /* If anything in the CL has drawn using the buffer, then the
@@ -1696,11 +1684,11 @@ v3d_tlb_clear(struct v3d_job *job, unsigned buffers,
          * if it would be possible to need to emit a load of just one after
          * we've set up our TLB clears. This issue is fixed since V3D 4.3.18.
          */
-        if (v3d->screen->devinfo.ver == 42 &&
+        if (devinfo->ver == 42 &&
             buffers & PIPE_CLEAR_DEPTHSTENCIL &&
             (buffers & PIPE_CLEAR_DEPTHSTENCIL) != PIPE_CLEAR_DEPTHSTENCIL &&
-            job->zsbuf &&
-            util_format_is_depth_and_stencil(job->zsbuf->texture->format)) {
+            job->zsbuf.texture &&
+            util_format_is_depth_and_stencil(job->zsbuf.texture->format)) {
                 buffers &= ~PIPE_CLEAR_DEPTHSTENCIL;
         }
 
@@ -1709,12 +1697,17 @@ v3d_tlb_clear(struct v3d_job *job, unsigned buffers,
                 if (!(buffers & bit))
                         continue;
 
-                struct pipe_surface *psurf = v3d->framebuffer.cbufs[i];
-                struct v3d_surface *surf = v3d_surface(psurf);
+                struct pipe_surface *psurf = &v3d->framebuffer.cbufs[i];
                 struct v3d_resource *rsc = v3d_resource(psurf->texture);
 
                 union util_color uc;
-                uint32_t internal_size = 4 << surf->internal_bpp;
+                uint8_t internal_bpp;
+                uint8_t internal_type;
+                v3d_format_get_internal_type_and_bpp(devinfo,
+                                                     psurf->format,
+                                                     &internal_type,
+                                                     &internal_bpp);
+                uint32_t internal_size = 4 << internal_bpp;
 
                 /*  While hardware supports clamping, this is not applied on
                  *  the clear values, so we need to do it manually.
@@ -1737,7 +1730,7 @@ v3d_tlb_clear(struct v3d_job *job, unsigned buffers,
                 if (util_format_is_alpha(psurf->format))
                         clamped_color.f[0] = clamped_color.f[3];
 
-                switch (surf->internal_type) {
+                switch (internal_type) {
                 case V3D_INTERNAL_TYPE_8:
                         util_pack_color(clamped_color.f, PIPE_FORMAT_R8G8B8A8_UNORM,
                                         &uc);
@@ -1775,7 +1768,7 @@ v3d_tlb_clear(struct v3d_job *job, unsigned buffers,
         unsigned zsclear = buffers & PIPE_CLEAR_DEPTHSTENCIL;
         if (zsclear) {
                 struct v3d_resource *rsc =
-                        v3d_resource(v3d->framebuffer.zsbuf->texture);
+                        v3d_resource(v3d->framebuffer.zsbuf.texture);
 
                 if (zsclear & PIPE_CLEAR_DEPTH)
                         job->clear_z = depth;

@@ -3,8 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "brw_fs.h"
-#include "brw_fs_live_variables.h"
+#include "brw_analysis.h"
+#include "brw_shader.h"
 #include "brw_generator.h"
 #include "brw_nir.h"
 #include "brw_cfg.h"
@@ -18,25 +18,27 @@
 
 static uint64_t
 brw_bsr(const struct intel_device_info *devinfo,
-        uint32_t offset, uint8_t simd_size, uint8_t local_arg_offset)
+        uint32_t offset, uint8_t simd_size, uint8_t local_arg_offset,
+        uint8_t grf_used)
 {
    assert(offset % 64 == 0);
    assert(simd_size == 8 || simd_size == 16);
    assert(local_arg_offset % 8 == 0);
 
-   return offset |
+   return ((uint64_t)ptl_register_blocks(grf_used) << 60) |
+          offset |
           SET_BITS(simd_size == 8, 4, 4) |
           SET_BITS(local_arg_offset / 8, 2, 0);
 }
 
 static bool
-run_bs(fs_visitor &s, bool allow_spilling)
+run_bs(brw_shader &s, bool allow_spilling)
 {
    assert(s.stage >= MESA_SHADER_RAYGEN && s.stage <= MESA_SHADER_CALLABLE);
 
-   s.payload_ = new bs_thread_payload(s);
+   s.payload_ = new brw_bs_thread_payload(s);
 
-   nir_to_brw(&s);
+   brw_from_nir(&s);
 
    if (s.failed)
       return false;
@@ -51,7 +53,6 @@ run_bs(fs_visitor &s, bool allow_spilling)
    s.assign_curb_setup();
 
    brw_lower_3src_null_dest(s);
-   brw_workaround_memory_fence_before_eot(s);
    brw_workaround_emit_dummy_mov_instruction(s);
 
    brw_allocate_registers(s, allow_spilling);
@@ -69,11 +70,11 @@ compile_single_bs(const struct brw_compiler *compiler,
                   nir_shader *shader,
                   brw_generator *g,
                   struct brw_compile_stats *stats,
-                  int *prog_offset)
+                  int *prog_offset,
+                  uint64_t *bsr)
 {
-   const bool debug_enabled = brw_should_print_shader(shader, DEBUG_RT);
+   const bool debug_enabled = brw_should_print_shader(shader, DEBUG_RT, params->base.source_hash);
 
-   prog_data->base.stage = shader->info.stage;
    prog_data->max_stack_size = MAX2(prog_data->max_stack_size,
                                     shader->scratch_size);
 
@@ -92,7 +93,7 @@ compile_single_bs(const struct brw_compiler *compiler,
       .required_width = compiler->devinfo->ver >= 20 ? 16u : 8u,
    };
 
-   std::unique_ptr<fs_visitor> v[2];
+   std::unique_ptr<brw_shader> v[2];
 
    for (unsigned simd = 0; simd < ARRAY_SIZE(v); simd++) {
       if (!brw_simd_should_compile(simd_state, simd))
@@ -103,7 +104,7 @@ compile_single_bs(const struct brw_compiler *compiler,
       if (dispatch_width == 8 && compiler->devinfo->ver >= 20)
          continue;
 
-      v[simd] = std::make_unique<fs_visitor>(compiler, &params->base,
+      v[simd] = std::make_unique<brw_shader>(compiler, &params->base,
                                              &key->base,
                                              &prog_data->base, shader,
                                              dispatch_width,
@@ -135,7 +136,7 @@ compile_single_bs(const struct brw_compiler *compiler,
    }
 
    assert(selected_simd < int(ARRAY_SIZE(v)));
-   fs_visitor *selected = v[selected_simd].get();
+   brw_shader *selected = v[selected_simd].get();
    assert(selected);
 
    const unsigned dispatch_width = selected->dispatch_width;
@@ -146,6 +147,13 @@ compile_single_bs(const struct brw_compiler *compiler,
       *prog_offset = offset;
    else
       assert(offset == 0);
+
+   if (bsr)
+      *bsr = brw_bsr(compiler->devinfo, offset, dispatch_width, 0,
+                     selected->grf_used);
+   else
+      prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
+                                      selected->grf_used);
 
    return dispatch_width;
 }
@@ -158,11 +166,9 @@ brw_compile_bs(const struct brw_compiler *compiler,
    struct brw_bs_prog_data *prog_data = params->prog_data;
    unsigned num_resume_shaders = params->num_resume_shaders;
    nir_shader **resume_shaders = params->resume_shaders;
-   const bool debug_enabled = brw_should_print_shader(shader, DEBUG_RT);
+   const bool debug_enabled = brw_should_print_shader(shader, DEBUG_RT, params->base.source_hash);
 
-   prog_data->base.stage = shader->info.stage;
-   prog_data->base.ray_queries = shader->info.ray_queries;
-   prog_data->base.total_scratch = 0;
+   brw_prog_data_init(&prog_data->base, &params->base);
 
    prog_data->max_stack_size = 0;
    prog_data->num_resume_shaders = num_resume_shaders;
@@ -181,7 +187,7 @@ brw_compile_bs(const struct brw_compiler *compiler,
 
    prog_data->simd_size =
       compile_single_bs(compiler, params, params->key, prog_data,
-                        shader, &g, params->base.stats, NULL);
+                        shader, &g, params->base.stats, NULL, NULL);
    if (prog_data->simd_size == 0)
       return NULL;
 
@@ -202,12 +208,12 @@ brw_compile_bs(const struct brw_compiler *compiler,
       int offset = 0;
       uint8_t simd_size =
          compile_single_bs(compiler, params, params->key,
-                           prog_data, resume_shaders[i], &g, NULL, &offset);
+                           prog_data, resume_shaders[i], &g, NULL, &offset,
+                           &resume_sbt[i]);
       if (simd_size == 0)
          return NULL;
 
       assert(offset > 0);
-      resume_sbt[i] = brw_bsr(compiler->devinfo, offset, simd_size, 0);
    }
 
    /* We only have one constant data so we want to make sure they're all the

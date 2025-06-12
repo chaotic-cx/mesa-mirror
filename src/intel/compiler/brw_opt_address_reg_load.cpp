@@ -3,12 +3,12 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "brw_fs.h"
-#include "brw_fs_builder.h"
+#include "brw_shader.h"
+#include "brw_builder.h"
 #include "brw_cfg.h"
 #include "brw_eu.h"
 
-/** @file brw_fs_opt_address_reg_load.cpp
+/** @file
  *
  * Turn this sequence :
  *
@@ -20,18 +20,16 @@
  *    add(1)   a0.4:UD, vgrf63+0.0<0>:UD, 192u
  */
 
-using namespace brw;
-
 static bool
-opt_address_reg_load_local(fs_visitor &s, bblock_t *block, const brw::def_analysis &defs)
+opt_address_reg_load_local(brw_shader &s, bblock_t *block, const brw_def_analysis &defs)
 {
    bool progress = false;
 
-   foreach_inst_in_block_safe(fs_inst, inst, block) {
+   foreach_inst_in_block_safe(brw_inst, inst, block) {
       if (!inst->dst.is_address() || inst->opcode != BRW_OPCODE_MOV)
          continue;
 
-      fs_inst *src_inst = defs.get(inst->src[0]);
+      brw_inst *src_inst = defs.get(inst->src[0]);
       if (src_inst == NULL)
          continue;
 
@@ -39,14 +37,14 @@ opt_address_reg_load_local(fs_visitor &s, bblock_t *block, const brw::def_analys
           src_inst->sources > 2)
          continue;
 
-      fs_builder ubld = fs_builder(&s).at(block, inst).exec_all().group(1, 0);
+      brw_builder ubld = brw_builder(&s).at(block, inst).uniform();
       brw_reg sources[3];
       for (unsigned i = 0; i < src_inst->sources; i++) {
          sources[i] = inst->src[i].file == VGRF ? component(src_inst->src[i], 0) : src_inst->src[i];
       }
       ubld.emit(src_inst->opcode, inst->dst, sources, src_inst->sources);
 
-      inst->remove(block);
+      inst->remove();
 
       progress = true;
    }
@@ -55,20 +53,19 @@ opt_address_reg_load_local(fs_visitor &s, bblock_t *block, const brw::def_analys
 }
 
 bool
-brw_opt_address_reg_load(fs_visitor &s)
+brw_opt_address_reg_load(brw_shader &s)
 {
    bool progress = false;
-   const brw::def_analysis &defs = s.def_analysis.require();
+   const brw_def_analysis &defs = s.def_analysis.require();
 
    foreach_block(block, s.cfg) {
-      foreach_inst_in_block_safe(fs_inst, inst, block) {
+      foreach_inst_in_block_safe(brw_inst, inst, block) {
          progress = opt_address_reg_load_local(s, block, defs) || progress;
       }
    }
 
    if (progress) {
-      s.cfg->adjust_block_ips();
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS);
    }
 
    return progress;

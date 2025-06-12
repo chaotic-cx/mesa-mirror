@@ -110,6 +110,7 @@
 #define MAX_BIND_POINTS 2 /* compute + graphics */
 /* match the latest Qualcomm driver which is also a hw limit on later gens */
 #define MAX_STORAGE_BUFFER_RANGE (1u << 27)
+#define MAX_TEXEL_ELEMENTS (1u << 27)
 /* We use ldc for uniform buffer loads, just like the Qualcomm driver, so
  * expose the same maximum range.
  * TODO: The SIZE bitfield is 15 bits, and in 4-dword units, so the actual
@@ -136,6 +137,18 @@
 #define MIN_FDM_TEXEL_SIZE (1u << MIN_FDM_TEXEL_SIZE_LOG2)
 #define MAX_FDM_TEXEL_SIZE_LOG2 10
 #define MAX_FDM_TEXEL_SIZE (1u << MAX_FDM_TEXEL_SIZE_LOG2)
+
+/* This granularity is arbitrary, but there are two competing concerns here:
+ * 
+ * - The fragment area has to always divide the offset, and we don't want the
+ *   fragment area changing with the offset, so we have to clamp the fragment
+ *   area to this granularity. Therefore larger granularities lead to lower
+ *   minimum resolution.
+ * - The larger the offset granularity, the choppier the motion is.
+ *
+ * Choose 8 as a compromise between the two.
+ */
+#define TU_FDM_OFFSET_GRANULARITY 8
 
 #define TU_GENX(FUNC_NAME) FD_GENX(FUNC_NAME)
 

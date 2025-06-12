@@ -58,15 +58,15 @@ disable_rb_aux_buffer(struct iris_context *ice,
       return false;
 
    for (unsigned i = 0; i < cso_fb->nr_cbufs; i++) {
-      struct iris_surface *surf = (void *) cso_fb->cbufs[i];
+      struct iris_surface *surf = (void *) ice->state.fb_cbufs[i];
       if (!surf)
          continue;
 
       struct iris_resource *rb_res = (void *) surf->base.texture;
 
       if (rb_res->bo == tex_res->bo &&
-          surf->base.u.tex.level >= min_level &&
-          surf->base.u.tex.level < min_level + num_levels) {
+          surf->base.level >= min_level &&
+          surf->base.level < min_level + num_levels) {
          found = draw_aux_buffer_disabled[i] = true;
       }
    }
@@ -204,18 +204,18 @@ iris_predraw_resolve_framebuffer(struct iris_context *ice,
    const nir_shader *nir = ish->nir;
 
    if (ice->state.dirty & IRIS_DIRTY_DEPTH_BUFFER) {
-      struct pipe_surface *zs_surf = cso_fb->zsbuf;
+      struct pipe_surface *zs_surf = &cso_fb->zsbuf;
 
       if (zs_surf) {
          struct iris_resource *z_res, *s_res;
          iris_get_depth_stencil_resources(zs_surf->texture, &z_res, &s_res);
          unsigned num_layers =
-            zs_surf->u.tex.last_layer - zs_surf->u.tex.first_layer + 1;
+            zs_surf->last_layer - zs_surf->first_layer + 1;
 
          if (z_res) {
             iris_resource_prepare_render(ice, z_res, z_res->surf.format,
-                                         zs_surf->u.tex.level,
-                                         zs_surf->u.tex.first_layer,
+                                         zs_surf->level,
+                                         zs_surf->first_layer,
                                          num_layers, ice->state.hiz_usage);
             iris_emit_buffer_barrier_for(batch, z_res->bo,
                                          IRIS_DOMAIN_DEPTH_WRITE);
@@ -230,9 +230,9 @@ iris_predraw_resolve_framebuffer(struct iris_context *ice,
 
    if (devinfo->ver == 8 && nir->info.outputs_read != 0) {
       for (unsigned i = 0; i < cso_fb->nr_cbufs; i++) {
-         if (cso_fb->cbufs[i]) {
-            struct iris_surface *surf = (void *) cso_fb->cbufs[i];
-            struct iris_resource *res = (void *) cso_fb->cbufs[i]->texture;
+         if (cso_fb->cbufs[i].texture) {
+            struct iris_surface *surf = (void *) ice->state.fb_cbufs[i];
+            struct iris_resource *res = (void *) cso_fb->cbufs[i].texture;
 
             iris_resource_prepare_texture(ice, res, surf->view.format,
                                           surf->view.base_level, 1,
@@ -244,7 +244,7 @@ iris_predraw_resolve_framebuffer(struct iris_context *ice,
 
    if (ice->state.stage_dirty & IRIS_STAGE_DIRTY_BINDINGS_FS) {
       for (unsigned i = 0; i < cso_fb->nr_cbufs; i++) {
-         struct iris_surface *surf = (void *) cso_fb->cbufs[i];
+         struct iris_surface *surf = (void *) ice->state.fb_cbufs[i];
          if (!surf)
             continue;
 
@@ -344,25 +344,25 @@ iris_postdraw_update_resolve_tracking(struct iris_context *ice)
       ice->state.dirty & (IRIS_DIRTY_DEPTH_BUFFER |
                           IRIS_DIRTY_WM_DEPTH_STENCIL);
 
-   struct pipe_surface *zs_surf = cso_fb->zsbuf;
+   struct pipe_surface *zs_surf = &cso_fb->zsbuf;
    if (zs_surf) {
       struct iris_resource *z_res, *s_res;
       iris_get_depth_stencil_resources(zs_surf->texture, &z_res, &s_res);
       unsigned num_layers =
-         zs_surf->u.tex.last_layer - zs_surf->u.tex.first_layer + 1;
+         zs_surf->last_layer - zs_surf->first_layer + 1;
 
       if (z_res) {
          if (may_have_resolved_depth && ice->state.depth_writes_enabled) {
-            iris_resource_finish_render(ice, z_res, zs_surf->u.tex.level,
-                                        zs_surf->u.tex.first_layer,
+            iris_resource_finish_render(ice, z_res, zs_surf->level,
+                                        zs_surf->first_layer,
                                         num_layers, ice->state.hiz_usage);
          }
       }
 
       if (s_res) {
          if (may_have_resolved_depth && ice->state.stencil_writes_enabled) {
-            iris_resource_finish_write(ice, s_res, zs_surf->u.tex.level,
-                                       zs_surf->u.tex.first_layer, num_layers,
+            iris_resource_finish_write(ice, s_res, zs_surf->level,
+                                       zs_surf->first_layer, num_layers,
                                        s_res->aux.usage);
          }
       }
@@ -372,7 +372,7 @@ iris_postdraw_update_resolve_tracking(struct iris_context *ice)
       ice->state.stage_dirty & IRIS_STAGE_DIRTY_BINDINGS_FS;
 
    for (unsigned i = 0; i < cso_fb->nr_cbufs; i++) {
-      struct iris_surface *surf = (void *) cso_fb->cbufs[i];
+      struct iris_surface *surf = (void *) ice->state.fb_cbufs[i];
       if (!surf)
          continue;
 
@@ -380,11 +380,10 @@ iris_postdraw_update_resolve_tracking(struct iris_context *ice)
       enum isl_aux_usage aux_usage = ice->state.draw_aux_usage[i];
 
       if (may_have_resolved_color) {
-         union pipe_surface_desc *desc = &surf->base.u;
          unsigned num_layers =
-            desc->tex.last_layer - desc->tex.first_layer + 1;
-         iris_resource_finish_render(ice, res, desc->tex.level,
-                                     desc->tex.first_layer, num_layers,
+            surf->base.last_layer - surf->base.first_layer + 1;
+         iris_resource_finish_render(ice, res, surf->base.level,
+                                     surf->base.first_layer, num_layers,
                                      aux_usage);
       }
    }
@@ -1154,14 +1153,12 @@ iris_resource_prepare_texture(struct iris_context *ice,
    }
 
    /* With indirect clear colors, the sampler reads clear values stored in
-    * pixel form.  The location the sampler reads from is dependent on the
-    * bits-per-channel of the format.  Disable support for clear colors if the
-    * new format points the sampler to an incompatible location.  See
-    * isl_get_sampler_clear_field_offset() for more information.
+    * pixel form. Disable support for clear colors if the new format points
+    * the sampler to an incompatibly formatted location.
     */
-   if (res->aux.clear_color_bo &&
+   if (res->aux.clear_color_bo && res->surf.format != view_format &&
        isl_format_get_layout(res->surf.format)->channels.r.bits != 32 &&
-       isl_format_get_layout(view_format)->channels.r.bits == 32) {
+       isl_get_sampler_clear_field_offset(devinfo, view_format, false) == 0) {
       clear_supported = false;
    }
 
@@ -1309,13 +1306,12 @@ iris_resource_prepare_render(struct iris_context *ice,
     *   blocks generated as a result of the render will be recoverable.
     *
     * - The clear color struct is uninitialized and potentially inconsistent
-    *   with itself. For non-32-bpc formats, the struct consists of different
-    *   fields for rendering and sampling. If rendering can generate
-    *   fast-cleared blocks, we want these to agree so that we can avoid
-    *   partially resolving prior to sampling. Images with modifiers can be
-    *   ignored. Either we will have already initialized their structs to
-    *   zero, or they will have already been consistent at the time of import
-    *   (as defined by drm_fourcc.h)
+    *   with itself. The struct consists of different fields for rendering and
+    *   sampling. If rendering can generate fast-cleared blocks, we want these
+    *   to agree so that we can avoid partially resolving prior to sampling.
+    *   Images with modifiers can be ignored. Either we will have already
+    *   initialized their structs to zero, or they will have already been
+    *   consistent at the time of import (as defined by drm_fourcc.h)
     *
     * The only aux usage which requires this process is FCV_CCS_E. Other aux
     * usages share a subset of these restrictions and benefit from only some
@@ -1327,7 +1323,7 @@ iris_resource_prepare_render(struct iris_context *ice,
                                              res->aux.clear_color,
                                              res->aux.clear_color_unknown) ||
        (res->aux.clear_color_unknown && !res->mod_info &&
-        isl_format_get_layout(render_format)->channels.r.bits != 32)) {
+        aux_usage == ISL_AUX_USAGE_FCV_CCS_E)) {
 
       /* Remove references to the clear color with resolves. */
       iris_resource_prepare_access(ice, res, 0, INTEL_REMAINING_LEVELS, 0,

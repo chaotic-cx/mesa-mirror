@@ -195,16 +195,9 @@ lower_offset(nir_builder *b, nir_tex_instr *tex)
 
    if (tex->is_array) {
       /* The offset is not applied to the array index */
-      if (tex->coord_components == 2) {
-         offset_coord = nir_vec2(b, nir_channel(b, offset_coord, 0),
-                                 nir_channel(b, coord, 1));
-      } else if (tex->coord_components == 3) {
-         offset_coord = nir_vec3(b, nir_channel(b, offset_coord, 0),
-                                 nir_channel(b, offset_coord, 1),
-                                 nir_channel(b, coord, 2));
-      } else {
-         unreachable("Invalid number of components");
-      }
+      unsigned a = tex->coord_components - 1;
+      offset_coord = nir_vector_insert_imm(b, offset_coord,
+                                           nir_channel(b, coord, a), a);
    }
 
    nir_src_rewrite(&tex->src[coord_index].src, offset_coord);
@@ -329,7 +322,7 @@ lower_lod(nir_builder *b, nir_tex_instr *tex, nir_def *lod)
    /* If we have a bias, add it in */
    nir_def *bias = nir_steal_tex_src(tex, nir_tex_src_bias);
    if (bias)
-      lod = nir_fadd(b, lod, bias);
+      lod = nir_fadd(b, lod, nir_f2fN(b, bias, lod->bit_size));
 
    /* If we have a minimum LOD, clamp LOD accordingly */
    nir_def *min_lod = nir_steal_tex_src(tex, nir_tex_src_min_lod);
@@ -1402,6 +1395,7 @@ nir_lower_ms_txf_to_fragment_fetch(nir_builder *b, nir_tex_instr *tex)
    fmask_fetch->sampler_dim = tex->sampler_dim;
    fmask_fetch->is_array = tex->is_array;
    fmask_fetch->texture_non_uniform = tex->texture_non_uniform;
+   fmask_fetch->offset_non_uniform = tex->offset_non_uniform;
    fmask_fetch->dest_type = nir_type_uint32;
    nir_def_init(&fmask_fetch->instr, &fmask_fetch->def, 1, 32);
 
@@ -1477,6 +1471,41 @@ nir_lower_lod_zero_width(nir_builder *b, nir_tex_instr *tex)
    nir_def_rewrite_uses_after(&tex->def, def, def->parent_instr);
 }
 
+static void
+lower_sampler_lod_bias(nir_builder *b, nir_tex_instr *tex)
+{
+   nir_def *bias = nir_build_texture_query(b, tex, nir_texop_lod_bias, 1,
+                                           nir_type_float16, false, false);
+
+   if (tex->op == nir_texop_txd) {
+      /* For txd, the computed level-of-detail is log2(rho) where rho should
+       * scale proportionally to all derivatives. Scale derivatives by
+       * exp2(bias) to get LOD = log2(exp2(bias) * rho) = bias + log2(rho).
+       */
+      nir_def *ddx = nir_f2f32(b, nir_steal_tex_src(tex, nir_tex_src_ddx));
+      nir_def *ddy = nir_f2f32(b, nir_steal_tex_src(tex, nir_tex_src_ddy));
+      nir_def *scale = nir_fexp2(b, nir_f2f32(b, bias));
+
+      nir_tex_instr_add_src(tex, nir_tex_src_ddx, nir_fmul(b, ddx, scale));
+      nir_tex_instr_add_src(tex, nir_tex_src_ddy, nir_fmul(b, ddy, scale));
+   } else if (tex->op == nir_texop_tex) {
+      /* Unbiased textures need their opcode fixed up */
+      tex->op = nir_texop_txb;
+      nir_tex_instr_add_src(tex, nir_tex_src_bias, bias);
+   } else {
+      /* Otherwise, add to the appropriate source (if one exists) */
+      nir_tex_src_type src =
+         tex->op == nir_texop_txl ? nir_tex_src_lod : nir_tex_src_bias;
+
+      nir_def *orig = nir_steal_tex_src(tex, src);
+      if (orig) {
+         bias = nir_fadd(b, bias, nir_f2f16(b, orig));
+      }
+
+      nir_tex_instr_add_src(tex, src, bias);
+   }
+}
+
 static bool
 lower_index_to_offset(nir_builder *b, nir_tex_instr *tex)
 {
@@ -1526,12 +1555,12 @@ nir_lower_tex_block(nir_block *block, nir_builder *b,
       /* mask of src coords to saturate (clamp): */
       unsigned sat_mask = 0;
       /* ignore saturate for txf ops: these don't use samplers and can't GL_CLAMP */
-      if (nir_tex_instr_need_sampler(tex)) {
-         if ((1 << tex->sampler_index) & options->saturate_r)
+      if (nir_tex_instr_need_sampler(tex) && tex->sampler_index < 32) {
+         if ((1u << tex->sampler_index) & options->saturate_r)
             sat_mask |= (1 << 2); /* .z */
-         if ((1 << tex->sampler_index) & options->saturate_t)
+         if ((1u << tex->sampler_index) & options->saturate_t)
             sat_mask |= (1 << 1); /* .y */
-         if ((1 << tex->sampler_index) & options->saturate_s)
+         if ((1u << tex->sampler_index) & options->saturate_s)
             sat_mask |= (1 << 0); /* .x */
       }
 
@@ -1574,14 +1603,15 @@ nir_lower_tex_block(nir_block *block, nir_builder *b,
       }
 
       unsigned texture_index = tex->texture_index;
-      uint32_t texture_mask = 1u << texture_index;
+      uint32_t texture_mask;
       int tex_index = nir_tex_instr_src_index(tex, nir_tex_src_texture_deref);
       if (tex_index >= 0) {
          nir_deref_instr *deref = nir_src_as_deref(tex->src[tex_index].src);
          nir_variable *var = nir_deref_instr_get_variable(deref);
          texture_index = var ? var->data.binding : 0;
          texture_mask = var && texture_index < 32 ? (1u << texture_index) : 0u;
-      }
+      } else
+         texture_mask = texture_index < 32 ? (1u << texture_index) : 0u;
 
       if (texture_mask & options->lower_y_uv_external) {
          lower_y_uv_external(b, tex, options, texture_index);
@@ -1633,17 +1663,17 @@ nir_lower_tex_block(nir_block *block, nir_builder *b,
          progress = true;
       }
 
-      if ((1 << tex->texture_index) & options->lower_yu_yv_external) {
+      if (texture_mask & options->lower_yu_yv_external) {
          lower_yu_yv_external(b, tex, options, texture_index);
          progress = true;
       }
 
-      if ((1 << tex->texture_index) & options->lower_yv_yu_external) {
+      if (texture_mask & options->lower_yv_yu_external) {
          lower_yv_yu_external(b, tex, options, texture_index);
          progress = true;
       }
 
-      if ((1 << tex->texture_index) & options->lower_y41x_external) {
+      if (texture_mask & options->lower_y41x_external) {
          lower_y41x_external(b, tex, options, texture_index);
          progress = true;
       }
@@ -1688,6 +1718,13 @@ nir_lower_tex_block(nir_block *block, nir_builder *b,
           tex->op != nir_texop_query_levels &&
           tex->op != nir_texop_texture_samples) {
          progress |= lower_tex_packing(b, tex, options);
+      }
+
+      /* Although tg4 takes a sampler, it ignores the LOD bias. */
+      if (options->lower_sampler_lod_bias &&
+          nir_tex_instr_need_sampler(tex) && tex->op != nir_texop_tg4) {
+         lower_sampler_lod_bias(b, tex);
+         progress = true;
       }
 
       if (tex->op == nir_texop_txd &&
@@ -1791,7 +1828,7 @@ nir_lower_tex_impl(nir_function_impl *impl,
       progress |= nir_lower_tex_block(block, &builder, options, compiler_options);
    }
 
-   nir_metadata_preserve(impl, nir_metadata_control_flow);
+   nir_progress(true, impl, nir_metadata_control_flow);
    return progress;
 }
 

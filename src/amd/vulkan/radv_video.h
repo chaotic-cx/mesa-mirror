@@ -22,6 +22,7 @@
 struct radv_physical_device;
 struct rvcn_sq_var;
 struct radv_cmd_buffer;
+struct radv_image_create_info;
 
 #define RADV_ENC_MAX_RATE_LAYER 4
 
@@ -42,6 +43,8 @@ struct radv_video_session {
 
    struct radv_vid_mem sessionctx;
    struct radv_vid_mem ctx;
+
+   struct radv_vid_mem intra_only_dpb;
 
    unsigned dbg_frame_cnt;
    rvcn_enc_session_init_t enc_session;
@@ -77,13 +80,15 @@ void radv_vcn_write_event(struct radv_cmd_buffer *cmd_buffer, struct radv_event 
 void radv_init_physical_device_encoder(struct radv_physical_device *pdevice);
 void radv_probe_video_decode(struct radv_physical_device *pdev);
 void radv_probe_video_encode(struct radv_physical_device *pdev);
-void radv_video_enc_begin_coding(struct radv_cmd_buffer *cmd_buffer);
-void radv_video_enc_end_coding(struct radv_cmd_buffer *cmd_buffer);
 void radv_video_enc_control_video_coding(struct radv_cmd_buffer *cmd_buffer,
                                          const VkVideoCodingControlInfoKHR *pCodingControlInfo);
 VkResult radv_video_get_encode_session_memory_requirements(struct radv_device *device, struct radv_video_session *vid,
                                                            uint32_t *pMemoryRequirementsCount,
                                                            VkVideoSessionMemoryRequirementsKHR *pMemoryRequirements);
 void radv_video_patch_encode_session_parameters(struct vk_video_session_parameters *params);
+void radv_video_get_enc_dpb_image(struct radv_device *device,
+                                  const struct VkVideoProfileListInfoKHR *profile_list,
+                                  struct radv_image *image,
+                                  struct radv_image_create_info *create_info);
 
 #endif /* RADV_VIDEO_H */

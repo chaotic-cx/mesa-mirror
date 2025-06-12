@@ -99,8 +99,12 @@ vn_feedback_buffer_create(struct vn_device *dev,
    if (result != VK_SUCCESS)
       goto out_free_memory;
 
-   result = vn_MapMemory(dev_handle, fb_buf->mem_handle, 0, VK_WHOLE_SIZE, 0,
-                         &fb_buf->data);
+   const VkMemoryMapInfo map_info = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_MAP_INFO,
+      .memory = fb_buf->mem_handle,
+      .size = VK_WHOLE_SIZE,
+   };
+   result = vn_MapMemory2(dev_handle, &map_info, &fb_buf->data);
    if (result != VK_SUCCESS)
       goto out_free_memory;
 
@@ -127,7 +131,11 @@ vn_feedback_buffer_destroy(struct vn_device *dev,
 {
    VkDevice dev_handle = vn_device_to_handle(dev);
 
-   vn_UnmapMemory(dev_handle, fb_buf->mem_handle);
+   const VkMemoryUnmapInfo unmap_info = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_UNMAP_INFO,
+      .memory = fb_buf->mem_handle,
+   };
+   vn_UnmapMemory2(dev_handle, &unmap_info);
    vn_FreeMemory(dev_handle, fb_buf->mem_handle, alloc);
    vn_DestroyBuffer(dev_handle, fb_buf->buf_handle, alloc);
    vk_free(alloc, fb_buf);
@@ -513,7 +521,7 @@ struct vn_semaphore_feedback_cmd *
 vn_semaphore_feedback_cmd_alloc(struct vn_device *dev,
                                 struct vn_feedback_slot *dst_slot)
 {
-   const VkAllocationCallbacks *alloc = &dev->base.base.alloc;
+   const VkAllocationCallbacks *alloc = &dev->base.vk.alloc;
    struct vn_semaphore_feedback_cmd *sfb_cmd;
    VkCommandBuffer *cmd_handles;
 
@@ -557,7 +565,7 @@ void
 vn_semaphore_feedback_cmd_free(struct vn_device *dev,
                                struct vn_semaphore_feedback_cmd *sfb_cmd)
 {
-   const VkAllocationCallbacks *alloc = &dev->base.base.alloc;
+   const VkAllocationCallbacks *alloc = &dev->base.vk.alloc;
 
    for (uint32_t i = 0; i < dev->queue_family_count; i++) {
       vn_feedback_cmd_free(vn_device_to_handle(dev), &dev->fb_cmd_pools[i],
@@ -688,7 +696,7 @@ vn_query_feedback_cmd_alloc(VkDevice dev_handle,
       struct vn_command_pool *cmd_pool =
          vn_command_pool_from_handle(fb_cmd_pool->pool_handle);
 
-      qfb_cmd = vk_alloc(&cmd_pool->allocator, sizeof(*qfb_cmd),
+      qfb_cmd = vk_alloc(&cmd_pool->base.vk.alloc, sizeof(*qfb_cmd),
                          VN_DEFAULT_ALIGN, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
       if (!qfb_cmd) {
          result = VK_ERROR_OUT_OF_HOST_MEMORY;
@@ -704,7 +712,7 @@ vn_query_feedback_cmd_alloc(VkDevice dev_handle,
       VkCommandBuffer qfb_cmd_handle;
       result = vn_AllocateCommandBuffers(dev_handle, &info, &qfb_cmd_handle);
       if (result != VK_SUCCESS) {
-         vk_free(&cmd_pool->allocator, qfb_cmd);
+         vk_free(&cmd_pool->base.vk.alloc, qfb_cmd);
          goto out_unlock;
       }
 
@@ -790,7 +798,7 @@ vn_feedback_cmd_free(VkDevice dev_handle,
 VkResult
 vn_feedback_cmd_pools_init(struct vn_device *dev)
 {
-   const VkAllocationCallbacks *alloc = &dev->base.base.alloc;
+   const VkAllocationCallbacks *alloc = &dev->base.vk.alloc;
    VkDevice dev_handle = vn_device_to_handle(dev);
    struct vn_feedback_cmd_pool *fb_cmd_pools;
    VkCommandPoolCreateInfo info = {
@@ -840,7 +848,7 @@ vn_feedback_cmd_pools_init(struct vn_device *dev)
 void
 vn_feedback_cmd_pools_fini(struct vn_device *dev)
 {
-   const VkAllocationCallbacks *alloc = &dev->base.base.alloc;
+   const VkAllocationCallbacks *alloc = &dev->base.vk.alloc;
    VkDevice dev_handle = vn_device_to_handle(dev);
 
    if (!dev->fb_cmd_pools)

@@ -5,7 +5,7 @@
 #ifndef NVK_QUEUE_H
 #define NVK_QUEUE_H 1
 
-#include "nvk_private.h"
+#include "nvk_mem_stream.h"
 
 #include "vk_queue.h"
 #include "nvkmd/nvkmd.h"
@@ -20,12 +20,10 @@ struct nvkmd_ctx;
 
 struct nvk_queue_state {
    struct {
-      struct nvkmd_mem *mem;
       uint32_t alloc_count;
    } images;
 
    struct {
-      struct nvkmd_mem *mem;
       uint32_t alloc_count;
    } samplers;
 
@@ -43,6 +41,11 @@ struct nvk_queue {
 
    struct nvkmd_ctx *bind_ctx;
    struct nvkmd_ctx *exec_ctx;
+
+   /* Memory stream to use for anything we need to push that isn't part of a
+    * command buffer.
+    */
+   struct nvk_mem_stream push_stream;
 
    struct nvk_queue_state state;
 

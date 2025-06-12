@@ -161,8 +161,7 @@ create_frag_shader(struct vl_bicubic_filter *filter, unsigned video_width,
    struct ureg_dst t;
    unsigned i;
 
-   if (screen->get_shader_param(
-      screen, PIPE_SHADER_FRAGMENT, PIPE_SHADER_CAP_MAX_TEMPS) < 23) {
+   if (screen->shader_caps[PIPE_SHADER_FRAGMENT].max_temps < 23) {
 
       return NULL;
    }
@@ -404,8 +403,8 @@ vl_bicubic_filter_render(struct vl_bicubic_filter *filter,
    } else {
       scissor.minx = 0;
       scissor.miny = 0;
-      scissor.maxx = dst->width;
-      scissor.maxy = dst->height;
+      scissor.maxx = pipe_surface_width(dst);
+      scissor.maxy = pipe_surface_height(dst);
    }
 
    clear_color.f[0] = clear_color.f[1] = 0.0f;
@@ -418,8 +417,8 @@ vl_bicubic_filter_render(struct vl_bicubic_filter *filter,
       viewport.translate[0] = dst_area->x0;
       viewport.translate[1] = dst_area->y0;
    } else {
-      viewport.scale[0] = dst->width;
-      viewport.scale[1] = dst->height;
+      viewport.scale[0] = pipe_surface_width(dst);
+      viewport.scale[1] = pipe_surface_height(dst);
    }
    viewport.scale[2] = 1;
    viewport.swizzle_x = PIPE_VIEWPORT_SWIZZLE_POSITIVE_X;
@@ -441,14 +440,15 @@ vl_bicubic_filter_render(struct vl_bicubic_filter *filter,
    u_upload_unmap(filter->pipe->const_uploader);
 
    memset(&fb_state, 0, sizeof(fb_state));
-   fb_state.width = dst->width;
-   fb_state.height = dst->height;
+   fb_state.width = pipe_surface_width(dst);
+   fb_state.height = pipe_surface_height(dst);
    fb_state.nr_cbufs = 1;
-   fb_state.cbufs[0] = dst;
+   fb_state.cbufs[0] = *dst;
 
    filter->pipe->set_scissor_states(filter->pipe, 0, 1, &scissor);
    filter->pipe->clear_render_target(filter->pipe, dst, &clear_color,
-                                     0, 0, dst->width, dst->height, false);
+                                     0, 0, pipe_surface_width(dst),
+                                     pipe_surface_height(dst), false);
    filter->pipe->set_constant_buffer(filter->pipe, PIPE_SHADER_FRAGMENT,
                                      0, false, &cb);
    filter->pipe->bind_rasterizer_state(filter->pipe, filter->rs_state);
@@ -456,7 +456,7 @@ vl_bicubic_filter_render(struct vl_bicubic_filter *filter,
    filter->pipe->bind_sampler_states(filter->pipe, PIPE_SHADER_FRAGMENT,
                                      0, 1, &filter->sampler);
    filter->pipe->set_sampler_views(filter->pipe, PIPE_SHADER_FRAGMENT,
-                                   0, 1, 0, false, &src);
+                                   0, 1, 0, &src);
    filter->pipe->bind_vs_state(filter->pipe, filter->vs);
    filter->pipe->bind_fs_state(filter->pipe, filter->fs);
    filter->pipe->set_framebuffer_state(filter->pipe, &fb_state);

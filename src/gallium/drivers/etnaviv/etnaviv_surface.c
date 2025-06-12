@@ -40,25 +40,15 @@
 
 static struct etna_resource *
 etna_render_handle_incompatible(struct pipe_context *pctx,
-                                struct pipe_resource *prsc,
-                                unsigned int level)
+                                struct pipe_resource *prsc)
 {
    struct etna_context *ctx = etna_context(pctx);
    struct etna_screen *screen = ctx->screen;
    struct etna_resource *res = etna_resource(prsc);
    bool need_multitiled = screen->specs.pixel_pipes > 1 && !screen->specs.single_buffer;
    bool want_supertiled = screen->specs.can_supertile;
-   unsigned int min_tilesize = etna_screen_get_tile_size(screen, TS_MODE_128B,
-                                                         prsc->nr_samples > 1);
 
-   /* Resource is compatible if it is tiled or PE is able to render to linear
-    * and has multi tiling when required.
-    */
-   if ((res->layout != ETNA_LAYOUT_LINEAR ||
-        (VIV_FEATURE(screen, ETNA_FEATURE_LINEAR_PE) &&
-         (!VIV_FEATURE(screen, ETNA_FEATURE_FAST_CLEAR) ||
-          res->levels[level].stride % min_tilesize == 0))) &&
-       (!need_multitiled || (res->layout & ETNA_LAYOUT_BIT_MULTI)))
+   if (etna_resource_is_render_compatible(pctx->screen, res))
       return res;
 
    if (!res->render) {
@@ -85,16 +75,16 @@ etna_create_surface(struct pipe_context *pctx, struct pipe_resource *prsc,
 {
    struct etna_context *ctx = etna_context(pctx);
    struct etna_screen *screen = ctx->screen;
-   unsigned layer = templat->u.tex.first_layer;
-   unsigned level = templat->u.tex.level;
-   struct etna_resource *rsc = etna_render_handle_incompatible(pctx, prsc, level);
+   unsigned layer = templat->first_layer;
+   unsigned level = templat->level;
+   struct etna_resource *rsc = etna_render_handle_incompatible(pctx, prsc);
    struct etna_resource_level *lev = &rsc->levels[level];
    struct etna_surface *surf = CALLOC_STRUCT(etna_surface);
 
    if (!surf)
       return NULL;
 
-   assert(templat->u.tex.first_layer == templat->u.tex.last_layer);
+   assert(templat->first_layer == templat->last_layer);
    assert(layer <= util_max_layer(prsc, level));
 
    surf->base.context = pctx;
@@ -103,29 +93,9 @@ etna_create_surface(struct pipe_context *pctx, struct pipe_resource *prsc,
    pipe_resource_reference(&surf->base.texture, &rsc->base);
    pipe_resource_reference(&surf->prsc, prsc);
 
-   /* Allocate a TS for the resource if there isn't one yet,
-    * and it is allowed by the hw (width is a multiple of 16).
-    * Avoid doing this for GPUs with MC1.0, as kernel sources
-    * indicate the tile status module bypasses the memory
-    * offset and MMU. */
-
-   if (VIV_FEATURE(screen, ETNA_FEATURE_FAST_CLEAR) &&
-       !rsc->ts_bo &&
-       /* needs to be RS/BLT compatible for transfer_map/unmap */
-       (rsc->levels[level].padded_width & ETNA_RS_WIDTH_MASK) == 0 &&
-       (rsc->levels[level].padded_height & ETNA_RS_HEIGHT_MASK) == 0 &&
-       etna_resource_hw_tileable(screen->specs.use_blt, prsc) &&
-       /* Multi-layer resources would need to keep much more state (TS valid and
-        * clear color per layer) and are unlikely to profit from TS usage. */
-       prsc->depth0 == 1 && prsc->array_size == 1) {
-      etna_screen_resource_alloc_ts(pctx->screen, rsc, 0);
-   }
-
    surf->base.format = templat->format;
-   surf->base.width = rsc->levels[level].width;
-   surf->base.height = rsc->levels[level].height;
-   surf->base.writable = templat->writable; /* what is this for anyway */
-   surf->base.u = templat->u;
+   surf->base.first_layer = templat->first_layer;
+   surf->base.last_layer = templat->last_layer;
    surf->level = lev;
 
    /* XXX we don't really need a copy but it's convenient */
@@ -146,13 +116,10 @@ etna_create_surface(struct pipe_context *pctx, struct pipe_resource *prsc,
       surf->reloc[1].offset = surf->offset + lev->stride * lev->padded_height / 2;
 
    if (surf->level->ts_size) {
-      unsigned int layer_offset = layer * lev->ts_layer_stride;
-      assert(layer_offset < surf->level->ts_size);
-
-      surf->ts_offset = surf->level->ts_offset + layer_offset;
+      assert(layer == 0);
 
       surf->ts_reloc.bo = rsc->ts_bo;
-      surf->ts_reloc.offset = surf->ts_offset;
+      surf->ts_reloc.offset = surf->level->ts_offset;
       surf->ts_reloc.flags = 0;
 
       if (!screen->specs.use_blt) {
@@ -164,7 +131,7 @@ etna_create_surface(struct pipe_context *pctx, struct pipe_resource *prsc,
             .source_format = RS_FORMAT_A8R8G8B8,
             .dest_format = RS_FORMAT_A8R8G8B8,
             .dest = ts_bo,
-            .dest_offset = surf->ts_offset,
+            .dest_offset = surf->level->ts_offset,
             .dest_stride = 0x40,
             .dest_tiling = ETNA_LAYOUT_TILED,
             .dither = {0xffffffff, 0xffffffff},

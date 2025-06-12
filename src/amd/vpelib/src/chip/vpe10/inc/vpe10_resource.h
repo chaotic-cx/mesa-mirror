@@ -35,7 +35,7 @@ void vpe10_destroy_resource(struct vpe_priv *vpe_priv, struct resource *res);
 
 enum vpe_status vpe10_set_num_segments(struct vpe_priv *vpe_priv, struct stream_ctx *stream_ctx,
     struct scaler_data *scl_data, struct vpe_rect *src_rect, struct vpe_rect *dst_rect,
-    uint32_t *max_seg_width);
+    uint32_t *max_seg_width, uint32_t recout_width_alignment);
 
 bool vpe10_get_dcc_compression_output_cap(const struct vpe *vpe, const struct vpe_dcc_surface_param *params, struct vpe_surface_dcc_cap *cap);
 
@@ -50,6 +50,8 @@ bool vpe10_check_output_color_space(struct vpe_priv *vpe_priv, enum vpe_surface_
 bool vpe10_check_h_mirror_support(bool *input_mirror, bool *output_mirror);
 
 enum vpe_status vpe10_check_bg_color_support(struct vpe_priv* vpe_priv, struct vpe_color* bg_color);
+
+uint16_t vpe10_get_bg_stream_idx(struct vpe_priv *vpe_priv);
 
 enum vpe_status vpe10_calculate_segments(
     struct vpe_priv *vpe_priv, const struct vpe_build_param *params);
@@ -76,6 +78,9 @@ enum vpe_status vpe10_update_blnd_gamma(struct vpe_priv *vpe_priv,
     const struct vpe_build_param *param, const struct vpe_stream *stream,
     struct transfer_func *blnd_tf);
 
+enum vpe_status vpe10_update_output_gamma(struct vpe_priv *vpe_priv,
+    const struct vpe_build_param *param, struct transfer_func *output_tf, bool geometric_scaling);
+
 struct opp *vpe10_opp_create(struct vpe_priv *vpe_priv, int inst);
 
 struct mpc *vpe10_mpc_create(struct vpe_priv *vpe_priv, int inst);
@@ -84,6 +89,8 @@ struct dpp *vpe10_dpp_create(struct vpe_priv *vpe_priv, int inst);
 
 struct cdc_fe *vpe10_cdc_fe_create(struct vpe_priv *vpe_priv, int inst);
 struct cdc_be *vpe10_cdc_be_create(struct vpe_priv *vpe_priv, int inst);
+
+bool vpe10_validate_cached_param(struct vpe_priv *vpe_priv, const struct vpe_build_param *param);
 
 #ifdef __cplusplus
 }

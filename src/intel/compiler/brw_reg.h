@@ -59,6 +59,7 @@ struct intel_device_info;
 /** Size of general purpose register space in REG_SIZE units */
 #define BRW_MAX_GRF 128
 #define XE2_MAX_GRF 256
+#define XE3_MAX_GRF 512
 
 /**
  * BRW hardware swizzles.
@@ -161,8 +162,8 @@ typedef struct brw_reg {
          unsigned negate:1;             /* source only */
          unsigned abs:1;                /* source only */
          unsigned address_mode:1;       /* relative addressing, hopefully! */
-         unsigned pad0:16;
-         unsigned subnr:5;              /* :1 in align16 */
+         unsigned pad0:15;
+         unsigned subnr:6;              /* :1 in align16 */
       };
       uint32_t bits;
    };
@@ -226,6 +227,7 @@ typedef struct brw_reg {
    bool is_negative_one() const;
    bool is_null() const;
    bool is_accumulator() const;
+   bool is_ip() const;
    bool is_address() const;
 
    unsigned address_slot(unsigned byte_offset) const;
@@ -361,6 +363,7 @@ get_exec_type(const enum brw_reg_type type)
    case BRW_TYPE_UV:
       return BRW_TYPE_UW;
    case BRW_TYPE_VF:
+   case BRW_TYPE_BF:
       return BRW_TYPE_F;
    default:
       return type;
@@ -416,7 +419,7 @@ brw_make_reg(enum brw_reg_file file,
 {
    struct brw_reg reg;
    if (file == FIXED_GRF)
-      assert(nr < XE2_MAX_GRF);
+      assert(nr < XE3_MAX_GRF);
    else if (file == ARF)
       assert(nr <= BRW_ARF_TIMESTAMP);
 

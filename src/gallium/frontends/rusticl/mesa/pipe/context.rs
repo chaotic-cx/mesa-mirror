@@ -8,7 +8,6 @@ use mesa_rust_gen::pipe_fd_type::*;
 use mesa_rust_gen::*;
 use mesa_rust_util::has_required_feature;
 
-use std::mem;
 use std::mem::size_of;
 use std::os::raw::*;
 use std::ptr;
@@ -21,7 +20,6 @@ pub struct PipeContext {
 }
 
 unsafe impl Send for PipeContext {}
-unsafe impl Sync for PipeContext {}
 
 #[derive(Clone, Copy)]
 #[repr(u32)]
@@ -41,7 +39,7 @@ impl PipeContext {
     pub(super) fn new(context: *mut pipe_context, screen: &Arc<PipeScreen>) -> Option<Self> {
         let s = Self {
             pipe: NonNull::new(context)?,
-            screen: screen.clone(),
+            screen: Arc::clone(screen),
         };
 
         if !has_required_cbs(unsafe { s.pipe.as_ref() }) {
@@ -162,7 +160,7 @@ impl PipeContext {
         }
     }
 
-    pub fn resource_copy_region(
+    fn resource_copy_region(
         &self,
         src: &PipeResource,
         dst: &PipeResource,
@@ -182,6 +180,41 @@ impl PipeContext {
                 bx,
             )
         }
+    }
+
+    pub fn resource_copy_buffer(
+        &self,
+        src: &PipeResource,
+        src_offset: i32,
+        dst: &PipeResource,
+        dst_offset: u32,
+        width: i32,
+    ) {
+        debug_assert!(src.is_buffer());
+        debug_assert!(dst.is_buffer());
+
+        let bx = pipe_box {
+            x: src_offset,
+            width: width,
+            height: 1,
+            depth: 1,
+            ..Default::default()
+        };
+
+        self.resource_copy_region(src, dst, &[dst_offset, 0, 0], &bx)
+    }
+
+    pub fn resource_copy_texture(
+        &self,
+        src: &PipeResource,
+        dst: &PipeResource,
+        dst_offset: &[u32; 3],
+        bx: &pipe_box,
+    ) {
+        debug_assert!(!src.is_buffer());
+        debug_assert!(!dst.is_buffer());
+
+        self.resource_copy_region(src, dst, dst_offset, bx)
     }
 
     fn resource_map(
@@ -268,13 +301,15 @@ impl PipeContext {
         let state = pipe_compute_state {
             ir_type: pipe_shader_ir::PIPE_SHADER_IR_NIR,
             prog: nir.dup_for_driver().cast(),
-            req_input_mem: 0,
             static_shared_mem: static_local_mem,
         };
         unsafe { self.pipe.as_ref().create_compute_state.unwrap()(self.pipe.as_ptr(), &state) }
     }
 
-    pub fn bind_compute_state(&self, state: *mut c_void) {
+    /// # Safety
+    ///
+    /// The state pointer needs to point to valid memory until a new one is set.
+    pub unsafe fn bind_compute_state(&self, state: *mut c_void) {
         unsafe { self.pipe.as_ref().bind_compute_state.unwrap()(self.pipe.as_ptr(), state) }
     }
 
@@ -419,12 +454,16 @@ impl PipeContext {
         block: [u32; 3],
         grid: [u32; 3],
         variable_local_mem: u32,
+        globals: &[&PipeResource],
     ) {
+        let mut globals: Vec<*mut pipe_resource> = globals.iter().map(|res| res.pipe()).collect();
         let info = pipe_grid_info {
             variable_shared_mem: variable_local_mem,
             work_dim: work_dim,
             block: block,
             grid: grid,
+            globals: globals.as_mut_ptr(),
+            num_globals: globals.len() as u32,
             ..Default::default()
         };
         unsafe { self.pipe.as_ref().launch_grid.unwrap()(self.pipe.as_ptr(), &info) }
@@ -463,14 +502,9 @@ impl PipeContext {
                 0,
                 views.len() as u32,
                 0,
-                true,
                 PipeSamplerView::as_pipe(views.as_mut_slice()),
-            )
+            );
         }
-
-        // the take_ownership parameter of set_sampler_views is set to true, so we need to forget
-        // about them on our side as ownership has been transferred to the driver.
-        views.into_iter().for_each(mem::forget);
     }
 
     pub fn clear_sampler_views(&self, count: u32) {
@@ -482,7 +516,6 @@ impl PipeContext {
                 0,
                 count,
                 0,
-                true,
                 samplers.as_mut_ptr(),
             )
         }
@@ -591,6 +624,16 @@ impl PipeContext {
             }
         }
     }
+
+    pub fn device_reset_status(&self) -> pipe_reset_status {
+        unsafe {
+            if let Some(get_device_reset_status) = self.pipe.as_ref().get_device_reset_status {
+                get_device_reset_status(self.pipe.as_ptr())
+            } else {
+                pipe_reset_status::PIPE_NO_RESET
+            }
+        }
+    }
 }
 
 impl Drop for PipeContext {
@@ -627,6 +670,7 @@ fn has_required_cbs(context: &pipe_context) -> bool {
         & has_required_feature!(context, set_constant_buffer)
         & has_required_feature!(context, set_global_binding)
         & has_required_feature!(context, set_sampler_views)
+        & has_required_feature!(context, sampler_view_release)
         & has_required_feature!(context, set_shader_images)
         & has_required_feature!(context, texture_map)
         & has_required_feature!(context, texture_subdata)

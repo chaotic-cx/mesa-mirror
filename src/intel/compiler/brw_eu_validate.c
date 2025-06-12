@@ -407,6 +407,7 @@ execution_type_for_type(enum brw_reg_type type)
       return type;
 
    case BRW_TYPE_VF:
+   case BRW_TYPE_BF:
       return BRW_TYPE_F;
 
    case BRW_TYPE_Q:
@@ -424,8 +425,9 @@ execution_type_for_type(enum brw_reg_type type)
    case BRW_TYPE_V:
    case BRW_TYPE_UV:
       return BRW_TYPE_W;
+
    default:
-      unreachable("invalid type");
+      return BRW_TYPE_INVALID;
    }
 }
 
@@ -563,6 +565,43 @@ is_mixed_float(const brw_hw_decoded_inst *inst)
           types_are_mixed_float(src1_type, dst_type);
 }
 
+static bool
+is_pure_bfloat(const brw_hw_decoded_inst *inst)
+{
+   if (inst_is_send(inst))
+      return false;
+
+   if (inst->num_sources == 0 && !inst->has_dst)
+      return false;
+
+   for (int i = 0; i < inst->num_sources; i++) {
+      if (!brw_type_is_bfloat(inst->src[i].type))
+         return false;
+   }
+
+   if (inst->has_dst && !brw_type_is_bfloat(inst->dst.type))
+      return false;
+
+   return true;
+}
+
+static bool
+is_mixed_bfloat(const brw_hw_decoded_inst *inst)
+{
+   if (inst_is_send(inst))
+      return false;
+
+   const int operands = inst->num_sources + inst->has_dst;
+
+   int bfloat = 0;
+   for (int i = 0; i < inst->num_sources; i++)
+      bfloat += brw_type_is_bfloat(inst->src[i].type);
+   if (inst->has_dst)
+      bfloat += brw_type_is_bfloat(inst->dst.type);
+
+   return bfloat > 0 && bfloat != operands;
+}
+
 /**
  * Returns whether an instruction is an explicit or implicit conversion
  * to/from byte.
@@ -623,6 +662,10 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 
    enum brw_reg_type dst_type = inst->dst.type;
 
+   ERROR_IF(brw_type_is_bfloat(dst_type) &&
+            !devinfo->has_bfloat16,
+            "Bfloat destination, but platform does not support it");
+
    ERROR_IF(dst_type == BRW_TYPE_DF &&
             !devinfo->has_64bit_float,
             "64-bit float destination, but platform does not support it");
@@ -634,6 +677,10 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
 
    for (unsigned s = 0; s < inst->num_sources; s++) {
       enum brw_reg_type src_type = inst->src[s].type;
+
+      ERROR_IF(brw_type_is_bfloat(src_type) &&
+               !devinfo->has_bfloat16,
+               "Bfloat source, but platform does not support it");
 
       ERROR_IF(src_type == BRW_TYPE_DF &&
                !devinfo->has_64bit_float,
@@ -841,7 +888,7 @@ general_restrictions_based_on_operand_types(const struct brw_isa_info *isa,
     * override the general rule for the ratio of sizes of the destination type
     * and the execution type. We will add validation for those in a later patch.
     */
-   bool validate_dst_size_and_exec_size_ratio = !is_mixed_float(inst);
+   bool validate_dst_size_and_exec_size_ratio = !is_mixed_float(inst) && !is_mixed_bfloat(inst);
 
    if (validate_dst_size_and_exec_size_ratio &&
        exec_type_size > dst_type_size) {
@@ -1015,6 +1062,21 @@ general_restrictions_on_region_parameters(const struct brw_isa_info *isa,
    return error_msg;
 }
 
+static bool
+is_multiplier_instruction(const brw_hw_decoded_inst *inst)
+{
+   /* TODO: Complete this list. */
+   switch (inst->opcode) {
+   case BRW_OPCODE_MUL:
+   case BRW_OPCODE_MAC:
+   case BRW_OPCODE_MACH:
+   case BRW_OPCODE_MAD:
+      return true;
+   default:
+      return false;
+   }
+}
+
 static struct string
 special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
                                           const brw_hw_decoded_inst *inst)
@@ -1022,6 +1084,64 @@ special_restrictions_for_mixed_float_mode(const struct brw_isa_info *isa,
    const struct intel_device_info *devinfo = isa->devinfo;
 
    struct string error_msg = { .str = NULL, .len = 0 };
+
+   /* See instruction_restrictions() for DPAS operand type validation. */
+   if (inst->opcode == BRW_OPCODE_DPAS)
+      return error_msg;
+
+   ERROR_IF(is_pure_bfloat(inst),
+            "Instructions with pure bfloat16 operands are not supported.");
+
+   if (is_mixed_bfloat(inst)) {
+      ERROR_IF(devinfo->ver < 20 && inst->exec_size > 8,
+               "Execution size must not be greater than 8 in Gfx12.");
+      ERROR_IF(devinfo->ver >= 20 && inst->exec_size > 16,
+               "Execution size must not be greater than 8 in Gfx20+.");
+
+      for (int i = 0; i < inst->num_sources; i++) {
+         ERROR_IF(brw_type_is_bfloat(inst->src[i].type) &&
+                  src_has_scalar_region(inst, i),
+                  "Broadcast of bfloat16 scalar is not supported.");
+      }
+
+      if (is_multiplier_instruction(inst)) {
+         if (inst->num_sources == 2) {
+            ERROR_IF(brw_type_is_bfloat(inst->src[1].type),
+                     "Bfloat16 not allowed in Src1 of 2-source instructions involving multiplier.");
+         } else if (inst->num_sources == 3) {
+            ERROR_IF(brw_type_is_bfloat(inst->src[2].type),
+                     "Bfloat16 not allowed in Src2 of 3-source instructions involving multiplier.");
+         }
+      }
+
+      const unsigned half_offset = REG_SIZE * reg_unit(devinfo) / 2;
+
+      if (inst->has_dst && brw_type_is_bfloat(inst->dst.type)) {
+         unsigned dst_stride = inst->dst.hstride;
+         bool dst_is_packed = is_packed(inst->exec_size * dst_stride, inst->exec_size, dst_stride);
+
+         if (dst_is_packed) {
+            ERROR_IF(inst->dst.subnr != 0 && inst->dst.subnr != half_offset,
+                     "Packed bfloat16 destination must have register offset 0 or half of GRF register.");
+         } else {
+            /* Offset in the restriction text is in terms of elements. */
+            const unsigned elem_size = brw_type_size_bytes(inst->dst.type);
+            ERROR_IF(dst_stride != 2 || (inst->dst.subnr != 0 &&
+                                         inst->dst.subnr != 1 * elem_size),
+                     "Unpacked bfloat16 destination must have stride 2 and register offset 0 or 1.");
+         }
+      }
+
+      for (int i = 0; i < inst->num_sources; i++) {
+         if (brw_type_is_bfloat(inst->src[i].type)) {
+            bool src_is_packed = is_packed(inst->src[i].vstride, inst->src[i].width, inst->src[i].hstride);
+            ERROR_IF(!src_is_packed,
+                     "Bfloat16 source must be packed");
+            ERROR_IF(inst->src[i].subnr != 0 && inst->src[i].subnr != half_offset,
+                     "Bfloat16 source must have register offset 0 or half of GRF register.");
+         }
+      }
+   }
 
    const unsigned opcode = inst->opcode;
    if (inst->num_sources >= 3)
@@ -1612,7 +1732,8 @@ special_requirements_for_handling_double_precision_data_types(
       if (devinfo->verx10 >= 125 &&
           (brw_type_is_float(dst_type) ||
            is_double_precision)) {
-         ERROR_IF(!is_scalar_region &&
+         ERROR_IF(!brw_type_is_bfloat(type) &&
+                  !is_scalar_region &&
                   BRW_ADDRESS_REGISTER_INDIRECT_REGISTER != address_mode &&
                   (!is_linear(vstride, width, hstride) ||
                    src_stride != dst_stride ||
@@ -1639,13 +1760,18 @@ special_requirements_for_handling_double_precision_data_types(
        *
        * "Vx1 and VxH indirect addressing for Float, Half-Float, Double-Float and
        *  Quad-Word data must not be used."
+       *
+       * and
+       *
+       * "Vx1 and VxH indirect addressing for BFloat16 (...) data
+       *  must not be used."
        */
       if (devinfo->verx10 >= 125 &&
-          (brw_type_is_float(type) || brw_type_size_bytes(type) == 8)) {
+          (brw_type_is_float_or_bfloat(type) || brw_type_size_bytes(type) == 8)) {
          ERROR_IF(address_mode == BRW_ADDRESS_REGISTER_INDIRECT_REGISTER &&
                   vstride == BRW_VERTICAL_STRIDE_ONE_DIMENSIONAL,
                   "Vx1 and VxH indirect addressing for Float, Half-Float, "
-                  "Double-Float and Quad-Word data must not be used");
+                  "Double-Float, Quad-Word, and Bfloat16 data must not be used");
       }
    }
 
@@ -1888,7 +2014,7 @@ instruction_restrictions(const struct brw_isa_info *isa,
        *
        * The same text also appears for OR, NOT, and XOR instructions.
        *
-       * Per the comment around nir_op_imod in brw_fs_nir.cpp, we have
+       * Per the comment around nir_op_imod in brw_from_nir.cpp, we have
        * determined this to not be true. The only conditions that seem
        * absolutely sketchy are O, R, and U.  Some OpenGL shaders from Doom
        * 2016 have been observed to generate and.g and operate correctly.
@@ -2070,14 +2196,28 @@ instruction_restrictions(const struct brw_isa_info *isa,
 
       if (brw_eu_inst_dpas_3src_exec_type(devinfo, inst->raw) ==
           BRW_ALIGN1_3SRC_EXEC_TYPE_FLOAT) {
-         ERROR_IF(dst_type != BRW_TYPE_F,
-                  "DPAS destination type must be F.");
-         ERROR_IF(src0_type != BRW_TYPE_F,
-                  "DPAS src0 type must be F.");
-         ERROR_IF(src1_type != BRW_TYPE_HF,
-                  "DPAS src1 type must be HF.");
-         ERROR_IF(src2_type != BRW_TYPE_HF,
-                  "DPAS src2 type must be HF.");
+         ERROR_IF(src1_type != BRW_TYPE_HF &&
+                  src1_type != BRW_TYPE_BF,
+                  "DPAS src1 type must be HF or BF.");
+         ERROR_IF(src2_type != BRW_TYPE_HF &&
+                  src2_type != BRW_TYPE_BF,
+                  "DPAS src2 type must be HF or BF.");
+         ERROR_IF(src1_type != src2_type,
+                  "DPAS src1 and src2 with types must match when using float types.");
+
+         if (devinfo->ver < 20) {
+            ERROR_IF(dst_type != BRW_TYPE_F,
+                     "DPAS destination type must be F in Gfx12.");
+            ERROR_IF(src0_type != BRW_TYPE_F,
+                     "DPAS src0 type must be F in Gfx12.");
+         } else {
+            ERROR_IF(dst_type != BRW_TYPE_F &&
+                     dst_type != src1_type,
+                     "DPAS destination type must be F or match Src1/Src2 in Gfx20+.");
+            ERROR_IF(src0_type != BRW_TYPE_F &&
+                     src0_type != src1_type,
+                     "DPAS src0 type must be F or match Src1/Src2 in Gfx20+.");
+         }
       } else {
          ERROR_IF(dst_type != BRW_TYPE_D &&
                   dst_type != BRW_TYPE_UD,
@@ -2141,9 +2281,9 @@ send_descriptor_restrictions(const struct brw_isa_info *isa,
       if (devinfo->ver < 20)
          break;
       FALLTHROUGH;
-   case GFX12_SFID_TGM:
-   case GFX12_SFID_SLM:
-   case GFX12_SFID_UGM:
+   case BRW_SFID_TGM:
+   case BRW_SFID_SLM:
+   case BRW_SFID_UGM:
       ERROR_IF(!devinfo->has_lsc, "Platform does not support LSC");
 
       ERROR_IF(lsc_opcode_has_transpose(lsc_msg_desc_opcode(devinfo, desc)) &&
@@ -2420,6 +2560,16 @@ scalar_register_restrictions(const struct brw_isa_info *isa,
 }
 
 static unsigned
+DST_STRIDE_3SRC(unsigned hstride)
+{
+   switch (hstride) {
+   case BRW_ALIGN1_3SRC_DST_HORIZONTAL_STRIDE_1: return 1;
+   case BRW_ALIGN1_3SRC_DST_HORIZONTAL_STRIDE_2: return 2;
+   }
+   unreachable("invalid hstride");
+}
+
+static unsigned
 VSTRIDE_3SRC(unsigned vstride)
 {
    switch (vstride) {
@@ -2429,6 +2579,18 @@ VSTRIDE_3SRC(unsigned vstride)
    case BRW_ALIGN1_3SRC_VERTICAL_STRIDE_8: return 8;
    }
    unreachable("invalid vstride");
+}
+
+static inline unsigned
+brw_implied_width_for_3src_a1(unsigned v, unsigned h)
+{
+   /* "Regioning Rules for Align1 Ternary Operations" */
+
+   /* TODO: Add remaining rules and de-duplicate with brw_disasm.c */
+
+   if (v == 0) return 1;
+   if (h == 0) return v;
+   return v/h;
 }
 
 static struct string
@@ -2500,6 +2662,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
    case BRW_OPCODE_CALLA:
    case BRW_OPCODE_CALL:
    case BRW_OPCODE_GOTO:
+   case BRW_OPCODE_JOIN:
       inst->format = FORMAT_BRANCH;
       break;
 
@@ -2606,7 +2769,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
          inst->dst.type = brw_eu_inst_3src_a1_dst_type(devinfo, raw);
          inst->dst.nr = brw_eu_inst_3src_dst_reg_nr(devinfo, raw);
          inst->dst.subnr = brw_eu_inst_3src_a1_dst_subreg_nr(devinfo, raw) * 8;
-         inst->dst.hstride = STRIDE(brw_eu_inst_3src_a1_dst_hstride(devinfo, raw));
+         inst->dst.hstride = DST_STRIDE_3SRC(brw_eu_inst_3src_a1_dst_hstride(devinfo, raw));
 
          inst->src[0].file = brw_eu_inst_3src_a1_src0_reg_file(devinfo, raw);
          inst->src[0].type = brw_eu_inst_3src_a1_src0_type(devinfo, raw);
@@ -2617,6 +2780,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
             inst->src[0].subnr = brw_eu_inst_3src_a1_src0_subreg_nr(devinfo, raw);
             inst->src[0].vstride = VSTRIDE_3SRC(brw_eu_inst_3src_a1_src0_vstride(devinfo, raw));
             inst->src[0].hstride = STRIDE(brw_eu_inst_3src_a1_src0_hstride(devinfo, raw));
+            inst->src[0].width = brw_implied_width_for_3src_a1(inst->src[0].vstride, inst->src[0].hstride);
          }
 
          inst->src[1].file = brw_eu_inst_3src_a1_src1_reg_file(devinfo, raw);
@@ -2627,6 +2791,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
          inst->src[1].subnr = brw_eu_inst_3src_a1_src1_subreg_nr(devinfo, raw);
          inst->src[1].vstride = VSTRIDE_3SRC(brw_eu_inst_3src_a1_src1_vstride(devinfo, raw));
          inst->src[1].hstride = STRIDE(brw_eu_inst_3src_a1_src1_hstride(devinfo, raw));
+         inst->src[1].width = brw_implied_width_for_3src_a1(inst->src[1].vstride, inst->src[1].hstride);
 
          inst->src[2].file = brw_eu_inst_3src_a1_src2_reg_file(devinfo, raw);
          inst->src[2].type = brw_eu_inst_3src_a1_src2_type(devinfo, raw);
@@ -2636,6 +2801,7 @@ brw_hw_decode_inst(const struct brw_isa_info *isa,
             inst->src[2].nr = brw_eu_inst_3src_src2_reg_nr(devinfo, raw);
             inst->src[2].subnr = brw_eu_inst_3src_a1_src2_subreg_nr(devinfo, raw);
             inst->src[2].hstride = STRIDE(brw_eu_inst_3src_a1_src2_hstride(devinfo, raw));
+            inst->src[2].width = brw_implied_width_for_3src_a1(inst->src[2].vstride, inst->src[2].hstride);
          }
 
       } else {

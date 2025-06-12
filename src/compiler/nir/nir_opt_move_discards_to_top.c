@@ -160,20 +160,6 @@ can_move_intrinsic_after_discard(nir_intrinsic_instr *intrin)
       return can_move_after_demote | can_move_after_terminate;
 
    switch (intrin->intrinsic) {
-   case nir_intrinsic_quad_broadcast:
-   case nir_intrinsic_quad_swap_horizontal:
-   case nir_intrinsic_quad_swap_vertical:
-   case nir_intrinsic_quad_swap_diagonal:
-   case nir_intrinsic_quad_vote_all:
-   case nir_intrinsic_quad_vote_any:
-   case nir_intrinsic_quad_swizzle_amd:
-   case nir_intrinsic_ddx:
-   case nir_intrinsic_ddx_fine:
-   case nir_intrinsic_ddx_coarse:
-   case nir_intrinsic_ddy:
-   case nir_intrinsic_ddy_fine:
-   case nir_intrinsic_ddy_coarse:
-      return can_move_after_demote;
    case nir_intrinsic_is_helper_invocation:
    case nir_intrinsic_load_helper_invocation:
       return can_move_after_terminate;
@@ -223,6 +209,9 @@ can_move_intrinsic_after_discard(nir_intrinsic_instr *intrin)
       break;
    }
 
+   if (nir_intrinsic_has_semantic(intrin, NIR_INTRINSIC_QUADGROUP))
+      return can_move_after_demote;
+
    return 0;
 }
 
@@ -248,7 +237,6 @@ opt_move_discards_to_top_impl(nir_function_impl *impl)
          case nir_instr_type_load_const:
          case nir_instr_type_undef:
          case nir_instr_type_phi:
-         case nir_instr_type_debug_info:
             /* These are all safe */
             continue;
 
@@ -273,7 +261,7 @@ opt_move_discards_to_top_impl(nir_function_impl *impl)
                   instr->pass_flags = STOP_PROCESSING_INSTR_FLAG;
                   goto break_all;
                }
-            FALLTHROUGH;
+               FALLTHROUGH;
             case nir_intrinsic_demote_if:
                try_move_discard(intrin, &next_discard_id);
                break;
@@ -356,8 +344,8 @@ break_all:
    return progress;
 }
 
-/* This optimization only operates on discard_if/demoe_if so
- * nir_opt_conditional_discard and nir_lower_discard_or_demote
+/* This optimization only operates on terminate_if/demote_if so
+ * nir_opt_peephole_select and nir_lower_discard_or_demote
  * should have been called before.
  */
 bool
@@ -372,8 +360,7 @@ nir_opt_move_discards_to_top(nir_shader *shader)
 
    nir_foreach_function_impl(impl, shader) {
       if (opt_move_discards_to_top_impl(impl)) {
-         nir_metadata_preserve(impl, nir_metadata_control_flow);
-         progress = true;
+         progress = nir_progress(true, impl, nir_metadata_control_flow);
       }
    }
 

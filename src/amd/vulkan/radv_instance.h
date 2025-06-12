@@ -63,9 +63,7 @@ struct radv_instance {
       bool tex_non_uniform;
       bool ssbo_non_uniform;
       bool flush_before_timestamp_write;
-      bool force_rt_wave64;
-      bool legacy_sparse_binding;
-      bool force_pstate_peak_gfx11_dgpu;
+      bool disable_dedicated_sparse_queue;
       bool clear_lds;
       bool enable_khr_present_wait;
       bool report_llvm9_version_string;
@@ -74,6 +72,10 @@ struct radv_instance {
       bool disable_dcc_mips;
       bool disable_dcc_stores;
       bool lower_terminate_to_discard;
+      bool emulate_rt;
+      bool expose_float16_gfx8;
+      bool force_64k_sparse_alignment;
+      bool disable_hiz_his_gfx12;
       char *app_layer;
       uint8_t override_graphics_shader_version;
       uint8_t override_compute_shader_version;
@@ -81,6 +83,8 @@ struct radv_instance {
       int override_vram_size;
       int override_uniform_offset_alignment;
    } drirc;
+
+   FILE *pso_history_logfile;
 };
 
 VK_DEFINE_HANDLE_CASTS(radv_instance, vk.base, VkInstance, VK_OBJECT_TYPE_INSTANCE)

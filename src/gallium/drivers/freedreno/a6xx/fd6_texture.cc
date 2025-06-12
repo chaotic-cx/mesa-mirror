@@ -22,6 +22,9 @@
 #include "fd6_screen.h"
 #include "fd6_texture.h"
 
+#define XXH_INLINE_ALL
+#include "util/xxhash.h"
+
 static void fd6_texture_state_destroy(struct fd6_texture_state *state);
 
 static void
@@ -289,8 +292,42 @@ fd6_sampler_state_create(struct pipe_context *pctx,
       so->texsamp1 |=
          A6XX_TEX_SAMP_1_COMPARE_FUNC((enum adreno_compare_func)cso->compare_func); /* maps 1:1 */
 
-   if (needs_border)
-      so->texsamp2 = A6XX_TEX_SAMP_2_BCOLOR(get_bcolor_offset(ctx, cso));
+   if (needs_border) {
+      bool fast_border_color_enable = false;
+      enum a6xx_fast_border_color fast_border_color = A6XX_BORDER_COLOR_0_0_0_0;
+      if (cso->border_color.ui[0] == 0 &&
+          cso->border_color.ui[1] == 0 &&
+          cso->border_color.ui[2] == 0 &&
+          cso->border_color.ui[3] == 0) {
+         fast_border_color_enable = true;
+         fast_border_color = A6XX_BORDER_COLOR_0_0_0_0;
+      } else if (cso->border_color.ui[0] == 0 &&
+                 cso->border_color.ui[1] == 0 &&
+                 cso->border_color.ui[2] == 0 &&
+                 cso->border_color.ui[3] == 0x3F800000) {
+         fast_border_color_enable = true;
+         fast_border_color = A6XX_BORDER_COLOR_0_0_0_1;
+      } else if (cso->border_color.ui[0] == 0x3F800000 &&
+                 cso->border_color.ui[1] == 0x3F800000 &&
+                 cso->border_color.ui[2] == 0x3F800000 &&
+                 cso->border_color.ui[3] == 0) {
+         fast_border_color_enable = true;
+         fast_border_color = A6XX_BORDER_COLOR_1_1_1_0;
+      } else if (cso->border_color.ui[0] == 0x3F800000 &&
+                 cso->border_color.ui[1] == 0x3F800000 &&
+                 cso->border_color.ui[2] == 0x3F800000 &&
+                 cso->border_color.ui[3] == 0x3F800000) {
+         fast_border_color_enable = true;
+         fast_border_color = A6XX_BORDER_COLOR_1_1_1_1;
+      }
+
+      if (fast_border_color_enable) {
+         so->texsamp2 = A6XX_TEX_SAMP_2_FASTBORDERCOLOR(fast_border_color) |
+                        A6XX_TEX_SAMP_2_FASTBORDERCOLOREN;
+      } else {
+         so->texsamp2 = A6XX_TEX_SAMP_2_BCOLOR(get_bcolor_offset(ctx, cso));
+      }
+   }
 
    /* We don't know if the format is going to be YUV.  Setting CHROMA_LINEAR
     * unconditionally seems fine.
@@ -475,14 +512,13 @@ static void
 fd6_set_sampler_views(struct pipe_context *pctx, enum pipe_shader_type shader,
                       unsigned start, unsigned nr,
                       unsigned unbind_num_trailing_slots,
-                      bool take_ownership,
                       struct pipe_sampler_view **views)
    in_dt
 {
    struct fd_context *ctx = fd_context(pctx);
 
    fd_set_sampler_views(pctx, shader, start, nr, unbind_num_trailing_slots,
-                        take_ownership, views);
+                        views);
 
    if (!views)
       return;

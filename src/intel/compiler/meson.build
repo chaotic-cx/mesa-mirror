@@ -8,19 +8,24 @@ intel_nir_files = files(
   'intel_nir_blockify_uniform_loads.c',
   'intel_nir_clamp_image_1d_2d_array_sizes.c',
   'intel_nir_clamp_per_vertex_loads.c',
-  'intel_nir_lower_conversions.c',
   'intel_nir_lower_non_uniform_barycentric_at_sample.c',
   'intel_nir_lower_non_uniform_resource_intel.c',
   'intel_nir_lower_printf.c',
   'intel_nir_lower_shading_rate_output.c',
   'intel_nir_lower_sparse.c',
-  'intel_nir_lower_texture.c',
   'intel_nir_opt_peephole_ffma.c',
   'intel_nir_opt_peephole_imul32x16.c',
   'intel_nir_tcs_workarounds.c',
 )
 
 libintel_compiler_brw_files = files(
+  'brw_analysis.h',
+  'brw_analysis.cpp',
+  'brw_analysis_def.cpp',
+  'brw_analysis_liveness.cpp',
+  'brw_analysis_performance.cpp',
+  'brw_builder.cpp',
+  'brw_builder.h',
   'brw_cfg.cpp',
   'brw_cfg.h',
   'brw_compile_bs.cpp',
@@ -34,7 +39,6 @@ libintel_compiler_brw_files = files(
   'brw_compiler.c',
   'brw_compiler.h',
   'brw_debug_recompile.c',
-  'brw_def_analysis.cpp',
   'brw_disasm.c',
   'brw_disasm_info.cpp',
   'brw_disasm_info.h',
@@ -45,24 +49,13 @@ libintel_compiler_brw_files = files(
   'brw_eu_inst.h',
   'brw_eu.h',
   'brw_eu_validate.c',
-  'brw_fs_builder.h',
-  'brw_fs.cpp',
-  'brw_fs.h',
-  'brw_fs_live_variables.cpp',
-  'brw_fs_live_variables.h',
-  'brw_fs_nir.cpp',
-  'brw_fs_reg_allocate.cpp',
-  'brw_fs_thread_payload.cpp',
-  'brw_fs_visitor.cpp',
+  'brw_from_nir.cpp',
   'brw_generator.cpp',
   'brw_generator.h',
-  'brw_ir.h',
-  'brw_ir_allocator.h',
-  'brw_ir_analysis.h',
-  'brw_ir_fs.h',
-  'brw_ir_performance.h',
-  'brw_ir_performance.cpp',
+  'brw_inst.cpp',
+  'brw_inst.h',
   'brw_isa_info.h',
+  'brw_load_reg.cpp',
   'brw_lower.cpp',
   'brw_lower_dpas.cpp',
   'brw_lower_integer_multiplication.cpp',
@@ -78,11 +71,17 @@ libintel_compiler_brw_files = files(
   'brw_nir_lower_cooperative_matrix.c',
   'brw_nir_lower_cs_intrinsics.c',
   'brw_nir_lower_alpha_to_coverage.c',
+  'brw_nir_lower_fs_barycentrics.c',
+  'brw_nir_lower_fs_msaa.c',
   'brw_nir_lower_intersection_shader.c',
   'brw_nir_lower_ray_queries.c',
   'brw_nir_lower_rt_intrinsics.c',
+  'brw_nir_lower_rt_intrinsics_pre_trace.c',
+  'brw_nir_lower_sample_index_in_coord.c',
   'brw_nir_lower_shader_calls.c',
   'brw_nir_lower_storage_image.c',
+  'brw_nir_lower_texel_address.c',
+  'brw_nir_lower_texture.c',
   'brw_nir_opt_fsat.c',
   'brw_nir_rt.h',
   'brw_nir_rt.c',
@@ -106,12 +105,17 @@ libintel_compiler_brw_files = files(
   'brw_private.h',
   'brw_reg.cpp',
   'brw_reg.h',
+  'brw_reg_allocate.cpp',
   'brw_reg_type.c',
   'brw_reg_type.h',
   'brw_rt.h',
   'brw_schedule_instructions.cpp',
   'brw_shader.cpp',
+  'brw_shader.h',
   'brw_simd_selection.cpp',
+  'brw_spirv.c',
+  'brw_thread_payload.cpp',
+  'brw_thread_payload.h',
   'brw_validate.cpp',
   'brw_vue_map.c',
   'brw_workaround.cpp',
@@ -150,48 +154,20 @@ libintel_compiler_brw = static_library(
   [libintel_compiler_brw_files, intel_nir_files, brw_nir_lower_fsign, brw_nir_trig, ir_expression_operation_h, [brw_device_sha1_gen_src]],
   include_directories : [inc_include, inc_src, inc_intel],
   c_args : [no_override_init_args],
+  cpp_args : ['-Werror=vla'],
   gnu_symbol_visibility : 'hidden',
   dependencies : [idep_nir_headers, idep_mesautil, idep_intel_dev],
   build_by_default : false,
 )
 
 idep_intel_compiler_brw = declare_dependency(
-  link_with : [libintel_compiler_brw],
+  link_with : [libintel_compiler_brw, libisl],
   dependencies : [
     idep_nir,
     idep_mesautil,
+    idep_vtn,
   ],
 )
-
-# For now this tool is only going to be used by Anv
-if get_option('intel-clc') == 'system' or get_option('precomp-compiler') == 'system'
-  prog_intel_clc = find_program('intel_clc', native : true)
-  dep_prog_intel_clc = []
-elif with_intel_clc
-  prog_intel_clc = executable(
-    'intel_clc',
-    [
-      'intel_clc.c',
-      'brw_kernel.c',
-
-      # Use just the nir_options part of ELK instead of fully linking.
-      'elk/elk_nir_options.h',
-      'elk/elk_nir_options.c',
-    ],
-    link_with : [libisl],
-    include_directories : [inc_include, inc_src, inc_intel],
-    c_args : [pre_args, no_override_init_args],
-    link_args : [ld_args_build_id],
-    dependencies : [idep_nir, idep_vtn, idep_mesaclc, idep_mesautil, idep_intel_dev,
-                    idep_intel_compiler_brw],
-    # If we can run host binaries directly, just build intel_clc for the host.
-    # Most commonly this happens when doing a cross compile from an x86_64 build
-    # machine to an x86 host
-    native : not meson.can_run_host_binaries(),
-    install : get_option('install-intel-clc') or get_option('install-precomp-compiler'),
-  )
-  dep_prog_intel_clc = [prog_intel_clc]
-endif
 
 if with_tests
   test(
@@ -201,17 +177,23 @@ if with_tests
       files(
         'test_eu_compact.cpp',
         'test_eu_validate.cpp',
+        'test_helpers.cpp',
+        'test_helpers.h',
+        'test_insert_load_reg.cpp',
         'test_lower_scoreboard.cpp',
+        'test_opt_algebraic.cpp',
         'test_opt_cmod_propagation.cpp',
         'test_opt_combine_constants.cpp',
         'test_opt_copy_propagation.cpp',
         'test_opt_cse.cpp',
+        'test_opt_register_coalesce.cpp',
         'test_opt_saturate_propagation.cpp',
         'test_simd_selection.cpp',
         'test_vf_float_conversions.cpp',
       ),
       ir_expression_operation_h,
       include_directories : [inc_include, inc_src, inc_intel],
+      cpp_args : ['-Werror=vla'],
       link_with : libisl,
       dependencies : [idep_gtest, idep_nir, idep_mesautil, idep_intel_dev,
                       idep_intel_compiler_brw],
@@ -319,4 +301,8 @@ brw_disasm_tool = executable(
 
 endif
 
-subdir('elk')
+if with_intel_elk
+  subdir('elk')
+else
+  idep_intel_compiler_elk = null_dep
+endif

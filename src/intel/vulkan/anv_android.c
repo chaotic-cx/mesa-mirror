@@ -174,7 +174,8 @@ get_ahw_buffer_format_properties2(
    p->format = vk_format_from_android(desc.format, desc.usage);
    p->externalFormat = p->format;
 
-   const struct anv_format *anv_format = anv_get_format(p->format);
+   const struct anv_format *anv_format =
+      anv_get_format(device->physical, p->format);
 
    /* Default to OPTIMAL tiling but set to linear in case
     * of AHARDWAREBUFFER_USAGE_GPU_DATA_BUFFER usage.
@@ -186,7 +187,7 @@ get_ahw_buffer_format_properties2(
 
    p->formatFeatures =
       anv_get_image_format_features2(device->physical, p->format, anv_format,
-                                     tiling, NULL);
+                                     tiling, false /* is_sparse */, NULL);
 
    /* "Images can be created with an external format even if the Android hardware
     *  buffer has a format which has an equivalent Vulkan format to enable

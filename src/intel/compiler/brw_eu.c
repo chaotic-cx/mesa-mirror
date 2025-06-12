@@ -31,6 +31,7 @@
 
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <inttypes.h>
 
 #include "brw_disasm.h"
 #include "brw_eu_defines.h"
@@ -341,13 +342,8 @@ void brw_dump_shader_bin(void *assembly, int start_offset, int end_offset,
 }
 
 bool brw_try_override_assembly(struct brw_codegen *p, int start_offset,
-                               const char *identifier)
+                               const char *read_path, const char *identifier)
 {
-   const char *read_path = getenv("INTEL_SHADER_ASM_READ_PATH");
-   if (!read_path) {
-      return false;
-   }
-
    char *name = ralloc_asprintf(NULL, "%s/%s.bin", read_path, identifier);
 
    int fd = open(name, O_RDONLY);
@@ -486,7 +482,7 @@ brw_disassemble_with_labels(const struct brw_isa_info *isa,
    const struct brw_label *root_label =
       brw_label_assembly(isa, assembly, start, end, mem_ctx);
 
-   brw_disassemble(isa, assembly, start, end, root_label, out);
+   brw_disassemble(isa, assembly, start, end, root_label, NULL, out);
 
    ralloc_free(mem_ctx);
 }
@@ -494,7 +490,8 @@ brw_disassemble_with_labels(const struct brw_isa_info *isa,
 void
 brw_disassemble(const struct brw_isa_info *isa,
                 const void *assembly, int start, int end,
-                const struct brw_label *root_label, FILE *out)
+                const struct brw_label *root_label,
+                int64_t *lineno_offset, FILE *out)
 {
    const struct intel_device_info *devinfo = isa->devinfo;
 
@@ -512,8 +509,8 @@ brw_disassemble(const struct brw_isa_info *isa,
       }
 
       bool compacted = brw_eu_inst_cmpt_control(devinfo, insn);
-      if (0)
-         fprintf(out, "0x%08x: ", offset);
+      if (lineno_offset)
+         fprintf(out, "0x%08" PRIx64 ": ", *lineno_offset + offset);
 
       if (compacted) {
          brw_eu_compact_inst *compacted = (brw_eu_compact_inst *)insn;
@@ -617,6 +614,7 @@ static const struct opcode_desc opcode_descs[] = {
    { BRW_OPCODE_CALL,     44,  "call",    0,    0,    GFX_ALL },
    { BRW_OPCODE_RET,      45,  "ret",     0,    0,    GFX_ALL },
    { BRW_OPCODE_GOTO,     46,  "goto",    0,    0,    GFX_ALL },
+   { BRW_OPCODE_JOIN,     47,  "join",    0,    0,    GFX_ALL },
    { BRW_OPCODE_WAIT,     48,  "wait",    0,    1,    GFX_LT(GFX12) },
    { BRW_OPCODE_SEND,     49,  "send",    1,    1,    GFX_LT(GFX12) },
    { BRW_OPCODE_SENDC,    50,  "sendc",   1,    1,    GFX_LT(GFX12) },

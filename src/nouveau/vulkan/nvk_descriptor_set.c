@@ -17,6 +17,8 @@
 
 #include "util/format/u_format.h"
 
+#include "clb097.h"
+
 static inline uint32_t
 align_u32(uint32_t v, uint32_t a)
 {
@@ -37,7 +39,7 @@ desc_ubo_data(struct nvk_descriptor_set *set, uint32_t binding,
    if (size_out != NULL)
       *size_out = set->size - offset;
 
-   return (char *)set->mapped_ptr + offset;
+   return (char *)set->map + offset;
 }
 
 static void
@@ -55,7 +57,9 @@ get_sampled_image_view_desc(VkDescriptorType descriptor_type,
                             const VkDescriptorImageInfo *const info,
                             void *dst, size_t dst_size)
 {
-   struct nvk_sampled_image_descriptor desc[3] = { };
+   struct nvk_sampled_image_descriptor desc[NVK_MAX_IMAGE_PLANES] = { };
+   STATIC_ASSERT(NVK_MAX_SAMPLER_PLANES <= NVK_MAX_IMAGE_PLANES);
+
    uint8_t plane_count = 1;
 
    if (descriptor_type != VK_DESCRIPTOR_TYPE_SAMPLER &&
@@ -115,57 +119,77 @@ write_sampled_image_view_desc(struct nvk_descriptor_set *set,
 }
 
 static void
-get_storage_image_view_desc(const VkDescriptorImageInfo *const info,
+get_storage_image_view_desc(const struct nvk_physical_device *pdev,
+                            const VkDescriptorImageInfo *const info,
                             void *dst, size_t dst_size)
 {
-   struct nvk_storage_image_descriptor desc = { };
+   if (pdev->info.cls_eng3d >= MAXWELL_A) {
+      struct nvk_storage_image_descriptor desc = { };
 
-   if (info && info->imageView != VK_NULL_HANDLE) {
-      VK_FROM_HANDLE(nvk_image_view, view, info->imageView);
+      if (info && info->imageView != VK_NULL_HANDLE) {
+         VK_FROM_HANDLE(nvk_image_view, view, info->imageView);
 
-      /* Storage images are always single plane */
-      assert(view->plane_count == 1);
-      uint8_t plane = 0;
+         /* Storage images are always single plane */
+         assert(view->plane_count == 1);
+         uint8_t plane = 0;
 
-      assert(view->planes[plane].storage_desc_index > 0);
-      assert(view->planes[plane].storage_desc_index < (1 << 20));
+         assert(view->planes[plane].storage_desc_index > 0);
+         assert(view->planes[plane].storage_desc_index < (1 << 20));
 
-      desc.image_index = view->planes[plane].storage_desc_index;
+         desc.image_index = view->planes[plane].storage_desc_index;
 
-      const struct nil_Extent4D_Samples px_extent_sa =
-         nil_px_extent_sa(view->planes[plane].sample_layout);
-      desc.sw_log2 = util_logbase2(px_extent_sa.width);
-      desc.sh_log2 = util_logbase2(px_extent_sa.height);
+         const struct nil_Extent4D_Samples px_extent_sa =
+            nil_px_extent_sa(view->planes[plane].sample_layout);
+         desc.sw_log2 = util_logbase2(px_extent_sa.width);
+         desc.sh_log2 = util_logbase2(px_extent_sa.height);
 
-      const enum nil_sample_layout slayout = view->planes[plane].sample_layout;
-      if (slayout != NIL_SAMPLE_LAYOUT_1X1) {
-         uint32_t samples = nil_sample_layout_samples(slayout);
-         assert(samples <= 16);
-         for (uint32_t s = 0; s < samples; s++) {
-            const struct nil_sample_offset off = nil_sample_offset(slayout, s);
-            assert(off.x < 4 && off.y < 4);
-            uint32_t s_xy = off.y << 2 | off.x;
-            desc.sample_map |= s_xy << (s * 4);
+         const enum nil_sample_layout slayout = view->planes[plane].sample_layout;
+         if (slayout != NIL_SAMPLE_LAYOUT_1X1) {
+            uint32_t samples = nil_sample_layout_samples(slayout);
+            assert(samples <= 16);
+            for (uint32_t s = 0; s < samples; s++) {
+               const struct nil_sample_offset off = nil_sample_offset(slayout, s);
+               assert(off.x < 4 && off.y < 4);
+               uint32_t s_xy = off.y << 2 | off.x;
+               desc.sample_map |= s_xy << (s * 4);
+            }
          }
       }
-   }
 
-   assert(sizeof(desc) <= dst_size);
-   memcpy(dst, &desc, sizeof(desc));
+      assert(sizeof(desc) <= dst_size);
+      memcpy(dst, &desc, sizeof(desc));
+   } else {
+      struct nvk_kepler_storage_image_descriptor desc = { };
+
+      if (info && info->imageView != VK_NULL_HANDLE) {
+         VK_FROM_HANDLE(nvk_image_view, view, info->imageView);
+
+         /* Storage images are always single plane */
+         assert(view->plane_count == 1);
+
+         desc.su_info = view->su_info;
+      } else {
+         desc.su_info = nil_fill_null_su_info(&pdev->info);
+      }
+
+      assert(sizeof(desc) <= dst_size);
+      memcpy(dst, &desc, sizeof(desc));
+   }
 }
 
 static void
-write_storage_image_view_desc(struct nvk_descriptor_set *set,
+write_storage_image_view_desc(const struct nvk_physical_device *pdev,
+                              struct nvk_descriptor_set *set,
                               const VkDescriptorImageInfo *const info,
                               uint32_t binding, uint32_t elem)
 {
    uint32_t dst_size;
    void *dst = desc_ubo_data(set, binding, elem, &dst_size);
-   get_storage_image_view_desc(info, dst, dst_size);
+   get_storage_image_view_desc(pdev, info, dst, dst_size);
 }
 
 static union nvk_buffer_descriptor
-ubo_desc(struct nvk_physical_device *pdev,
+ubo_desc(const struct nvk_physical_device *pdev,
          struct nvk_addr_range addr_range)
 {
    const uint32_t min_cbuf_alignment = nvk_min_cbuf_alignment(&pdev->info);
@@ -173,10 +197,15 @@ ubo_desc(struct nvk_physical_device *pdev,
    assert(addr_range.addr % min_cbuf_alignment == 0);
    assert(addr_range.range <= NVK_MAX_CBUF_SIZE);
 
-   addr_range.addr = align64(addr_range.addr, min_cbuf_alignment);
+   addr_range.addr = ROUND_DOWN_TO(addr_range.addr, min_cbuf_alignment);
    addr_range.range = align(addr_range.range, min_cbuf_alignment);
 
-   if (nvk_use_bindless_cbuf(&pdev->info)) {
+   if (nvk_use_bindless_cbuf_2(&pdev->info)) {
+      return (union nvk_buffer_descriptor) { .cbuf2 = {
+         .base_addr_shift_6 = addr_range.addr >> 6,
+         .size_shift_4 = addr_range.range >> 4,
+      }};
+   } else if (nvk_use_bindless_cbuf(&pdev->info)) {
       return (union nvk_buffer_descriptor) { .cbuf = {
          .base_addr_shift_4 = addr_range.addr >> 4,
          .size_shift_4 = addr_range.range >> 4,
@@ -190,7 +219,7 @@ ubo_desc(struct nvk_physical_device *pdev,
 }
 
 static void
-write_ubo_desc(struct nvk_physical_device *pdev,
+write_ubo_desc(const struct nvk_physical_device *pdev,
                struct nvk_descriptor_set *set,
                const VkDescriptorBufferInfo *const info,
                uint32_t binding, uint32_t elem)
@@ -204,7 +233,7 @@ write_ubo_desc(struct nvk_physical_device *pdev,
 }
 
 static void
-write_dynamic_ubo_desc(struct nvk_physical_device *pdev,
+write_dynamic_ubo_desc(const struct nvk_physical_device *pdev,
                        struct nvk_descriptor_set *set,
                        const VkDescriptorBufferInfo *const info,
                        uint32_t binding, uint32_t elem)
@@ -225,7 +254,7 @@ ssbo_desc(struct nvk_addr_range addr_range)
    assert(addr_range.addr % NVK_MIN_SSBO_ALIGNMENT == 0);
    assert(addr_range.range <= UINT32_MAX);
 
-   addr_range.addr = align64(addr_range.addr, NVK_MIN_SSBO_ALIGNMENT);
+   addr_range.addr = ROUND_DOWN_TO(addr_range.addr, NVK_MIN_SSBO_ALIGNMENT);
    addr_range.range = align(addr_range.range, NVK_SSBO_BOUNDS_CHECK_ALIGNMENT);
 
    return (union nvk_buffer_descriptor) { .addr = {
@@ -279,10 +308,11 @@ get_edb_buffer_view_desc(struct nvk_device *dev,
 }
 
 static void
-write_buffer_view_desc(struct nvk_physical_device *pdev,
+write_buffer_view_desc(const struct nvk_physical_device *pdev,
                        struct nvk_descriptor_set *set,
                        const VkBufferView bufferView,
-                       uint32_t binding, uint32_t elem)
+                       uint32_t binding, uint32_t elem,
+                       VkDescriptorType descType)
 {
    VK_FROM_HANDLE(nvk_buffer_view, view, bufferView);
 
@@ -291,10 +321,21 @@ write_buffer_view_desc(struct nvk_physical_device *pdev,
       if (view != NULL)
          desc = view->edb_desc;
       write_desc(set, binding, elem, &desc, sizeof(desc));
-   } else {
+   } else if (pdev->info.cls_eng3d >= MAXWELL_A ||
+              descType == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER) {
       struct nvk_buffer_view_descriptor desc = { };
       if (view != NULL)
          desc = view->desc;
+      write_desc(set, binding, elem, &desc, sizeof(desc));
+   } else {// Kepler
+      struct nvk_kepler_storage_buffer_view_descriptor desc = { };
+      assert(descType == VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER);
+
+      if (view != NULL)
+         desc.su_info = view->su_info;
+      else
+         desc.su_info = nil_fill_null_su_info(&pdev->info);
+
       write_desc(set, binding, elem, &desc, sizeof(desc));
    }
 }
@@ -316,7 +357,7 @@ nvk_UpdateDescriptorSets(VkDevice device,
                          const VkCopyDescriptorSet *pDescriptorCopies)
 {
    VK_FROM_HANDLE(nvk_device, dev, device);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    for (uint32_t w = 0; w < descriptorWriteCount; w++) {
       const VkWriteDescriptorSet *write = &pDescriptorWrites[w];
@@ -337,7 +378,7 @@ nvk_UpdateDescriptorSets(VkDevice device,
 
       case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
          for (uint32_t j = 0; j < write->descriptorCount; j++) {
-            write_storage_image_view_desc(set, write->pImageInfo + j,
+            write_storage_image_view_desc(pdev, set, write->pImageInfo + j,
                                           write->dstBinding,
                                           write->dstArrayElement + j);
          }
@@ -347,7 +388,8 @@ nvk_UpdateDescriptorSets(VkDevice device,
       case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
          for (uint32_t j = 0; j < write->descriptorCount; j++) {
             write_buffer_view_desc(pdev, set, write->pTexelBufferView[j],
-                                   write->dstBinding, write->dstArrayElement + j);
+                                   write->dstBinding, write->dstArrayElement + j,
+                                   write->descriptorType);
          }
          break;
 
@@ -443,13 +485,13 @@ nvk_push_descriptor_set_update(struct nvk_device *dev,
                                uint32_t write_count,
                                const VkWriteDescriptorSet *writes)
 {
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    assert(layout->non_variable_descriptor_buffer_size < sizeof(push_set->data));
    struct nvk_descriptor_set set = {
       .layout = layout,
       .size = sizeof(push_set->data),
-      .mapped_ptr = push_set->data,
+      .map = push_set->data,
    };
 
    for (uint32_t w = 0; w < write_count; w++) {
@@ -471,7 +513,7 @@ nvk_push_descriptor_set_update(struct nvk_device *dev,
 
       case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
          for (uint32_t j = 0; j < write->descriptorCount; j++) {
-            write_storage_image_view_desc(&set, write->pImageInfo + j,
+            write_storage_image_view_desc(pdev, &set, write->pImageInfo + j,
                                           write->dstBinding,
                                           write->dstArrayElement + j);
          }
@@ -481,7 +523,8 @@ nvk_push_descriptor_set_update(struct nvk_device *dev,
       case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
          for (uint32_t j = 0; j < write->descriptorCount; j++) {
             write_buffer_view_desc(pdev, &set, write->pTexelBufferView[j],
-                                   write->dstBinding, write->dstArrayElement + j);
+                                   write->dstBinding, write->dstArrayElement + j,
+                                   write->descriptorType);
          }
          break;
 
@@ -537,8 +580,13 @@ nvk_destroy_descriptor_pool(struct nvk_device *dev,
    if (pool->mem != NULL)
       nvkmd_mem_unref(pool->mem);
 
+   if (pool->host_mem != NULL)
+      vk_free2(&dev->vk.alloc, pAllocator, pool->host_mem);
+
    vk_object_free(&dev->vk, pAllocator, pool);
 }
+
+#define HOST_ONLY_ADDR 0xc0ffee0000000000ull
 
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_CreateDescriptorPool(VkDevice _device,
@@ -547,7 +595,7 @@ nvk_CreateDescriptorPool(VkDevice _device,
                          VkDescriptorPool *pDescriptorPool)
 {
    VK_FROM_HANDLE(nvk_device, dev, _device);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    struct nvk_descriptor_pool *pool;
    VkResult result;
 
@@ -601,23 +649,38 @@ nvk_CreateDescriptorPool(VkDevice _device,
     */
    mem_size += nvk_min_cbuf_alignment(&pdev->info) * pCreateInfo->maxSets;
 
-   if (mem_size) {
-      result = nvkmd_dev_alloc_mapped_mem(dev->nvkmd, &dev->vk.base,
-                                          mem_size, 0, NVKMD_MEM_LOCAL,
-                                          NVKMD_MEM_MAP_WR, &pool->mem);
-      if (result != VK_SUCCESS) {
-         nvk_destroy_descriptor_pool(dev, pAllocator, pool);
-         return result;
-      }
+   if (mem_size > 0) {
+      if (pCreateInfo->flags & VK_DESCRIPTOR_POOL_CREATE_HOST_ONLY_BIT_EXT) {
+         pool->host_mem = vk_zalloc2(&dev->vk.alloc, pAllocator, mem_size,
+                                     16, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+         if (pool->host_mem == NULL) {
+            nvk_destroy_descriptor_pool(dev, pAllocator, pool);
+            return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
+         }
 
-      /* The BO may be larger thanks to GPU page alignment.  We may as well
-       * make that extra space available to the client.
-       */
-      assert(pool->mem->size_B >= mem_size);
-      util_vma_heap_init(&pool->heap, pool->mem->va->addr, pool->mem->size_B);
+         util_vma_heap_init(&pool->heap, HOST_ONLY_ADDR, mem_size);
+      } else {
+         result = nvkmd_dev_alloc_mapped_mem(dev->nvkmd, &dev->vk.base,
+                                             mem_size, 0, NVKMD_MEM_LOCAL,
+                                             NVKMD_MEM_MAP_WR, &pool->mem);
+         if (result != VK_SUCCESS) {
+            nvk_destroy_descriptor_pool(dev, pAllocator, pool);
+            return result;
+         }
+
+         /* The BO may be larger thanks to GPU page alignment.  We may as well
+          * make that extra space available to the client.
+          */
+         assert(pool->mem->size_B >= mem_size);
+         mem_size = pool->mem->size_B;
+
+         util_vma_heap_init(&pool->heap, pool->mem->va->addr, mem_size);
+      }
    } else {
       util_vma_heap_init(&pool->heap, 0, 0);
    }
+
+   pool->mem_size_B = mem_size;
 
    *pDescriptorPool = nvk_descriptor_pool_to_handle(pool);
    return VK_SUCCESS;
@@ -638,12 +701,22 @@ nvk_descriptor_pool_alloc(struct nvk_descriptor_pool *pool,
    if (addr == 0)
       return VK_ERROR_FRAGMENTED_POOL;
 
-   assert(addr >= pool->mem->va->addr);
-   assert(addr + size <= pool->mem->va->addr + pool->mem->size_B);
-   uint64_t offset = addr - pool->mem->va->addr;
+   if (pool->host_mem != NULL) {
+      /* In this case, the address is a host address */
+      assert(addr >= HOST_ONLY_ADDR);
+      assert(addr + size <= HOST_ONLY_ADDR + pool->mem_size_B);
+      uint64_t offset = addr - HOST_ONLY_ADDR;
 
-   *addr_out = addr;
-   *map_out = pool->mem->map + offset;
+      *addr_out = addr;
+      *map_out = pool->host_mem + offset;
+   } else {
+      assert(addr >= pool->mem->va->addr);
+      assert(addr + size <= pool->mem->va->addr + pool->mem_size_B);
+      uint64_t offset = addr - pool->mem->va->addr;
+
+      *addr_out = addr;
+      *map_out = pool->mem->map + offset;
+   }
 
    return VK_SUCCESS;
 }
@@ -653,8 +726,13 @@ nvk_descriptor_pool_free(struct nvk_descriptor_pool *pool,
                          uint64_t addr, uint64_t size)
 {
    assert(size > 0);
-   assert(addr >= pool->mem->va->addr);
-   assert(addr + size <= pool->mem->va->addr + pool->mem->size_B);
+   if (pool->host_mem != NULL) {
+      assert(addr >= HOST_ONLY_ADDR);
+      assert(addr + size <= HOST_ONLY_ADDR + pool->mem_size_B);
+   } else {
+      assert(addr >= pool->mem->va->addr);
+      assert(addr + size <= pool->mem->va->addr + pool->mem_size_B);
+   }
    util_vma_heap_free(&pool->heap, addr, size);
 }
 
@@ -665,7 +743,7 @@ nvk_descriptor_set_create(struct nvk_device *dev,
                           uint32_t variable_count,
                           struct nvk_descriptor_set **out_set)
 {
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    struct nvk_descriptor_set *set;
    VkResult result;
 
@@ -691,7 +769,7 @@ nvk_descriptor_set_create(struct nvk_device *dev,
 
    if (set->size > 0) {
       result = nvk_descriptor_pool_alloc(pool, set->size, alignment,
-                                         &set->addr, &set->mapped_ptr);
+                                         &set->addr, &set->map);
       if (result != VK_SUCCESS) {
          vk_object_free(&dev->vk, NULL, set);
          return result;
@@ -824,7 +902,7 @@ nvk_descriptor_set_write_template(struct nvk_device *dev,
                                   const struct vk_descriptor_update_template *template,
                                   const void *data)
 {
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    for (uint32_t i = 0; i < template->entry_count; i++) {
       const struct vk_descriptor_template_entry *entry =
@@ -851,7 +929,7 @@ nvk_descriptor_set_write_template(struct nvk_device *dev,
             const VkDescriptorImageInfo *info =
                data + entry->offset + j * entry->stride;
 
-            write_storage_image_view_desc(set, info,
+            write_storage_image_view_desc(pdev, set, info,
                                           entry->binding,
                                           entry->array_element + j);
          }
@@ -865,7 +943,8 @@ nvk_descriptor_set_write_template(struct nvk_device *dev,
 
             write_buffer_view_desc(pdev, set, *bview,
                                    entry->binding,
-                                   entry->array_element + j);
+                                   entry->array_element + j,
+                                   entry->type);
          }
          break;
 
@@ -952,7 +1031,7 @@ nvk_push_descriptor_set_update_template(
    struct nvk_descriptor_set tmp_set = {
       .layout = layout,
       .size = sizeof(push_set->data),
-      .mapped_ptr = push_set->data,
+      .map = push_set->data,
    };
    nvk_descriptor_set_write_template(dev, &tmp_set, template, data);
 }
@@ -963,7 +1042,7 @@ nvk_GetDescriptorEXT(VkDevice _device,
                      size_t dataSize, void *pDescriptor)
 {
    VK_FROM_HANDLE(nvk_device, dev, _device);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    switch (pDescriptorInfo->type) {
    case VK_DESCRIPTOR_TYPE_SAMPLER: {
@@ -988,7 +1067,7 @@ nvk_GetDescriptorEXT(VkDevice _device,
       break;
 
    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-      get_storage_image_view_desc(pDescriptorInfo->data.pStorageImage,
+      get_storage_image_view_desc(pdev, pDescriptorInfo->data.pStorageImage,
                                   pDescriptor, dataSize);
       break;
 

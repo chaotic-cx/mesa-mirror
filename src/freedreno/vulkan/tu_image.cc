@@ -341,6 +341,10 @@ ubwc_possible(struct tu_device *device,
               uint32_t mip_levels,
               bool use_z24uint_s8uint)
 {
+   /* TODO: enable for a702 */
+   if (info->a6xx.is_a702)
+      return false;
+
    /* no UBWC with compressed formats, E5B9G9R9, S8_UINT
     * (S8_UINT because separate stencil doesn't have UBWC-enable bit)
     */
@@ -500,9 +504,11 @@ tu_image_update_layout(struct tu_device *device, struct tu_image *image,
     * but gralloc doesn't know this.  So if we are explicitly told that it is
     * UBWC, then override how the image was created.
     */
+   bool force_ubwc = false;
    if (modifier == DRM_FORMAT_MOD_QCOM_COMPRESSED) {
       assert(!image->force_linear_tile);
       image->ubwc_enabled = true;
+      force_ubwc = true;
    }
 
    /* R8G8 images have a special tiled layout which we don't implement yet in
@@ -548,6 +554,7 @@ tu_image_update_layout(struct tu_device *device, struct tu_image *image,
                        image->vk.array_layers,
                        image->vk.image_type == VK_IMAGE_TYPE_3D,
                        image->is_mutable,
+                       force_ubwc,
                        plane_layouts ? &plane_layout : NULL)) {
          assert(plane_layouts); /* can only fail with explicit layout */
          return vk_error(device, VK_ERROR_INVALID_DRM_FORMAT_MODIFIER_PLANE_LAYOUT_EXT);
@@ -573,51 +580,14 @@ tu_image_update_layout(struct tu_device *device, struct tu_image *image,
 
    const struct util_format_description *desc = util_format_description(image->layout[0].format);
    if (util_format_has_depth(desc) && device->use_lrz) {
-      /* Depth plane is the first one */
-      struct fdl_layout *layout = &image->layout[0];
-      unsigned width = layout->width0;
-      unsigned height = layout->height0;
+      fdl6_lrz_layout_init<CHIP>(&image->lrz_layout, &image->layout[0],
+                                 device->physical_device->info,
+                                 image->total_size, image->vk.array_layers);
 
-      /* LRZ buffer is super-sampled */
-      switch (layout->nr_samples) {
-      case 4:
-         width *= 2;
-         FALLTHROUGH;
-      case 2:
-         height *= 2;
-         break;
-      default:
-         break;
-      }
-
-      unsigned lrz_pitch  = align(DIV_ROUND_UP(width, 8), 32);
-      unsigned lrz_height = align(DIV_ROUND_UP(height, 8), 32);
-
-      image->lrz_height = lrz_height;
-      image->lrz_pitch = lrz_pitch;
-      image->lrz_offset = image->total_size;
-      unsigned lrz_size = lrz_pitch * lrz_height * sizeof(uint16_t);
-
-      unsigned nblocksx = DIV_ROUND_UP(DIV_ROUND_UP(width, 8), 16);
-      unsigned nblocksy = DIV_ROUND_UP(DIV_ROUND_UP(height, 8), 4);
-
-      /* Fast-clear buffer is 1bit/block */
-      unsigned lrz_fc_size = DIV_ROUND_UP(nblocksx * nblocksy, 8);
-
-      /* Fast-clear buffer cannot be larger than 512 bytes on A6XX and 1024 bytes on A7XX (HW limitation) */
-      image->has_lrz_fc =
-         device->physical_device->info->a6xx.enable_lrz_fast_clear &&
-         lrz_fc_size <= fd_lrzfc_layout<CHIP>::FC_SIZE &&
-         !TU_DEBUG(NOLRZFC);
-
-      if (image->has_lrz_fc || device->physical_device->info->a6xx.has_lrz_dir_tracking) {
-         image->lrz_fc_offset = image->total_size + lrz_size;
-         lrz_size += sizeof(fd_lrzfc_layout<CHIP>);
-      }
-
-      image->total_size += lrz_size;
+      image->total_size += image->lrz_layout.lrz_total_size;
    } else {
-      image->lrz_height = 0;
+      image->lrz_layout.lrz_height = 0;
+      image->lrz_layout.lrz_total_size = 0;
    }
 
    return VK_SUCCESS;
@@ -1200,10 +1170,10 @@ tu_DestroyImageView(VkDevice _device,
  */
 void
 tu_fragment_density_map_sample(const struct tu_image_view *fdm,
-                               uint32_t x, uint32_t y,
+                               int32_t x, int32_t y,
                                uint32_t width, uint32_t height,
-                               uint32_t layers,
-                               struct tu_frag_area *areas)
+                               uint32_t layer,
+                               struct tu_frag_area *area)
 {
    assert(fdm->image->layout[0].tile_mode == TILE6_LINEAR);
 
@@ -1213,20 +1183,19 @@ tu_fragment_density_map_sample(const struct tu_image_view *fdm,
    fdm_shift_x = CLAMP(fdm_shift_x, MIN_FDM_TEXEL_SIZE_LOG2, MAX_FDM_TEXEL_SIZE_LOG2);
    fdm_shift_y = CLAMP(fdm_shift_y, MIN_FDM_TEXEL_SIZE_LOG2, MAX_FDM_TEXEL_SIZE_LOG2);
 
-   uint32_t i = x >> fdm_shift_x;
-   uint32_t j = y >> fdm_shift_y;
+   int32_t i = x >> fdm_shift_x;
+   int32_t j = y >> fdm_shift_y;
+
+   i = CLAMP(i, 0, fdm->vk.extent.width - 1);
+   j = CLAMP(j, 0, fdm->vk.extent.height - 1);
 
    unsigned cpp = fdm->image->layout[0].cpp;
    unsigned pitch = fdm->view.pitch;
 
-   void *pixel = (char *)fdm->image->map + fdm->view.offset + cpp * i + pitch * j;
-   for (unsigned i = 0; i < layers; i++) {
-      float density_src[4], density[4];
-      util_format_unpack_rgba(fdm->view.format, density_src, pixel, 1);
-      pipe_swizzle_4f(density, density_src, fdm->swizzle);
-      areas[i].width = 1.0f / density[0];
-      areas[i].height = 1.0f / density[1];
-
-      pixel = (char *)pixel + fdm->view.layer_size;
-   }
+   void *pixel = (char *)fdm->image->map + fdm->view.offset + fdm->view.layer_size * layer + cpp * i + pitch * j;
+   float density_src[4], density[4];
+   util_format_unpack_rgba(fdm->view.format, density_src, pixel, 1);
+   pipe_swizzle_4f(density, density_src, fdm->swizzle);
+   area->width = 1.0f / density[0];
+   area->height = 1.0f / density[1];
 }

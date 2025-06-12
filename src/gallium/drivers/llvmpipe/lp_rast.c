@@ -115,13 +115,13 @@ lp_rast_tile_begin(struct lp_rasterizer_task *task,
    task->thread_data.ps_invocations = 0;
 
    for (unsigned i = 0; i < scene->fb.nr_cbufs; i++) {
-      if (scene->fb.cbufs[i]) {
+      if (scene->fb.cbufs[i].texture) {
          task->color_tiles[i] = scene->cbufs[i].map +
                                 scene->cbufs[i].stride * task->y +
                                 scene->cbufs[i].format_bytes * task->x;
       }
    }
-   if (scene->fb.zsbuf) {
+   if (scene->fb.zsbuf.texture) {
       task->depth_tile = scene->zsbuf.map +
                          scene->zsbuf.stride * task->y +
                          scene->zsbuf.format_bytes * task->x;
@@ -143,9 +143,9 @@ lp_rast_clear_color(struct lp_rasterizer_task *task,
 
    /* we never bin clear commands for non-existing buffers */
    assert(cbuf < scene->fb.nr_cbufs);
-   assert(scene->fb.cbufs[cbuf]);
+   assert(scene->fb.cbufs[cbuf].texture);
 
-   const enum pipe_format format = scene->fb.cbufs[cbuf]->format;
+   const enum pipe_format format = scene->fb.cbufs[cbuf].format;
    union util_color uc = arg.clear_rb->color_val;
 
    /*
@@ -168,7 +168,7 @@ lp_rast_clear_color(struct lp_rasterizer_task *task,
                     0,
                     task->width,
                     task->height,
-                    scene->fb_max_layer + 1,
+                    scene->cbufs[cbuf].layer_count,
                     &uc);
    }
 
@@ -202,12 +202,12 @@ lp_rast_clear_zstencil(struct lp_rasterizer_task *task,
     * Clear the area of the depth/depth buffer matching this tile.
     */
 
-   if (scene->fb.zsbuf) {
+   if (scene->fb.zsbuf.texture) {
       for (unsigned s = 0; s < scene->zsbuf.nr_samples; s++) {
          uint8_t *dst_layer =
             task->depth_tile + (s * scene->zsbuf.sample_stride);
          const unsigned block_size =
-            util_format_get_blocksize(scene->fb.zsbuf->format);
+            util_format_get_blocksize(scene->fb.zsbuf.format);
 
          clear_value &= clear_mask;
 
@@ -317,6 +317,7 @@ lp_rast_shade_tile(struct lp_rasterizer_task *task,
 
    const struct lp_fragment_shader_variant *variant = state->variant;
 
+   unsigned view_index = inputs->view_index;
    /* render the whole 64x64 tile in 4x4 chunks */
    for (unsigned y = 0; y < task->height; y += 4){
       for (unsigned x = 0; x < task->width; x += 4) {
@@ -325,12 +326,12 @@ lp_rast_shade_tile(struct lp_rasterizer_task *task,
          unsigned stride[PIPE_MAX_COLOR_BUFS];
          unsigned sample_stride[PIPE_MAX_COLOR_BUFS];
          for (unsigned i = 0; i < scene->fb.nr_cbufs; i++){
-            if (scene->fb.cbufs[i]) {
+            if (scene->fb.cbufs[i].texture) {
                stride[i] = scene->cbufs[i].stride;
                sample_stride[i] = scene->cbufs[i].sample_stride;
                color[i] = lp_rast_get_color_block_pointer(task, i, tile_x + x,
                                           tile_y + y,
-                                          inputs->layer + inputs->view_index);
+                                          inputs->layer, view_index);
             } else {
                stride[i] = 0;
                sample_stride[i] = 0;
@@ -345,7 +346,7 @@ lp_rast_shade_tile(struct lp_rasterizer_task *task,
          if (scene->zsbuf.map) {
             depth = lp_rast_get_depth_block_pointer(task, tile_x + x,
                                            tile_y + y,
-                                           inputs->layer + inputs->view_index);
+                                           inputs->layer, view_index);
             depth_stride = scene->zsbuf.stride;
             depth_sample_stride = scene->zsbuf.sample_stride;
          }
@@ -432,12 +433,13 @@ lp_rast_shade_quads_mask_sample(struct lp_rasterizer_task *task,
    uint8_t *color[PIPE_MAX_COLOR_BUFS];
    unsigned stride[PIPE_MAX_COLOR_BUFS];
    unsigned sample_stride[PIPE_MAX_COLOR_BUFS];
+   unsigned view_index = inputs->view_index;
    for (unsigned i = 0; i < scene->fb.nr_cbufs; i++) {
-      if (scene->fb.cbufs[i]) {
+      if (scene->fb.cbufs[i].texture) {
          stride[i] = scene->cbufs[i].stride;
          sample_stride[i] = scene->cbufs[i].sample_stride;
          color[i] = lp_rast_get_color_block_pointer(task, i, x, y,
-                                                    inputs->layer + inputs->view_index);
+                                                    inputs->layer, view_index);
       } else {
          stride[i] = 0;
          sample_stride[i] = 0;
@@ -452,7 +454,7 @@ lp_rast_shade_quads_mask_sample(struct lp_rasterizer_task *task,
    if (scene->zsbuf.map) {
       depth_stride = scene->zsbuf.stride;
       depth_sample_stride = scene->zsbuf.sample_stride;
-      depth = lp_rast_get_depth_block_pointer(task, x, y, inputs->layer + inputs->view_index);
+      depth = lp_rast_get_depth_block_pointer(task, x, y, inputs->layer, view_index);
    }
 
    assert(lp_check_alignment(state->jit_context.u8_blend_color, 16));
@@ -514,9 +516,9 @@ lp_rast_blit_tile_to_dest(struct lp_rasterizer_task *task,
    const struct lp_rast_state *state = task->state;
    struct lp_fragment_shader_variant *variant = state->variant;
    const struct lp_jit_texture *texture = &state->jit_resources.textures[0];
-   struct pipe_surface *cbuf = scene->fb.cbufs[0];
-   const unsigned face_slice = cbuf->u.tex.first_layer;
-   const unsigned level = cbuf->u.tex.level;
+   const struct pipe_surface *cbuf = &scene->fb.cbufs[0];
+   const unsigned face_slice = cbuf->first_layer;
+   const unsigned level = cbuf->level;
    struct llvmpipe_resource *lpt = llvmpipe_resource(cbuf->texture);
 
    LP_DBG(DEBUG_RAST, "%s\n", __func__);

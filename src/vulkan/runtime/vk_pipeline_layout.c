@@ -44,16 +44,26 @@ vk_pipeline_layout_init(struct vk_device *device,
    layout->ref_cnt = 1;
    layout->create_flags = pCreateInfo->flags;
    layout->set_count = pCreateInfo->setLayoutCount;
+   layout->push_descriptor_idx = UINT32_MAX;
    layout->destroy = vk_pipeline_layout_destroy;
 
+   uint32_t dynamic_descriptor_count = 0;
    for (uint32_t s = 0; s < pCreateInfo->setLayoutCount; s++) {
       VK_FROM_HANDLE(vk_descriptor_set_layout, set_layout,
                      pCreateInfo->pSetLayouts[s]);
 
-      if (set_layout != NULL)
+      layout->dynamic_descriptor_offset[s] = dynamic_descriptor_count;
+      if (set_layout != NULL) {
          layout->set_layouts[s] = vk_descriptor_set_layout_ref(set_layout);
-      else
+         if (set_layout->flags &
+             VK_DESCRIPTOR_SET_LAYOUT_CREATE_PUSH_DESCRIPTOR_BIT_KHR) {
+            assert(layout->push_descriptor_idx == UINT32_MAX);
+            layout->push_descriptor_idx = s;
+         }
+         dynamic_descriptor_count += set_layout->dynamic_descriptor_count;
+      } else {
          layout->set_layouts[s] = NULL;
+      }
    }
 
    assert(pCreateInfo->pushConstantRangeCount <

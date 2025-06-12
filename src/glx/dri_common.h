@@ -89,7 +89,6 @@ dri_common_create_context(struct glx_screen *base,
                           int renderType);
 
 extern const __DRIbackgroundCallableExtension driBackgroundCallable;
-extern const __DRIuseInvalidateExtension dri2UseInvalidate;
 
 Bool
 dri_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read);
@@ -104,10 +103,10 @@ dri_create_context_attribs(struct glx_screen *base,
                            unsigned num_attribs,
                            const uint32_t *attribs,
                            unsigned *error);
-_X_HIDDEN int
+int
 glx_dri_query_renderer_integer(struct glx_screen *base, int attribute,
                             unsigned int *value);
-_X_HIDDEN int
+int
 glx_dri_query_renderer_string(struct glx_screen *base, int attribute,
                            const char **value);
 char *

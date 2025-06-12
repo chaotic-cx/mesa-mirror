@@ -425,6 +425,8 @@ recompute_phi_divergence_impl(nir_function_impl *impl)
          }
       }
    } while(progress);
+
+   impl->valid_metadata |= nir_metadata_divergence;
 }
 
 static bool
@@ -434,14 +436,13 @@ lower_cf_func(nir_function *func)
       return false;
 
    if (exec_list_is_singular(&func->impl->body)) {
-      nir_metadata_preserve(func->impl, nir_metadata_all);
-      return false;
+      return nir_no_progress(func->impl);
    }
 
    nir_function_impl *old_impl = func->impl;
 
    /* We use this in block_is_merge() */
-   nir_metadata_require(old_impl, nir_metadata_dominance);
+   nir_metadata_require(old_impl, nir_metadata_dominance | nir_metadata_divergence);
 
    /* First, we temporarily get rid of SSA.  This will make all our block
     * motion way easier.
@@ -471,7 +472,7 @@ lower_cf_func(nir_function *func)
    /* Now sort by reverse PDFS and restore SSA
     *
     * Note: Since we created a new nir_function_impl, there is no metadata,
-    * dirty or otherwise, so we have no need to call nir_metadata_preserve().
+    * dirty or otherwise, so we have no need to call nir_progress().
     */
    nir_sort_unstructured_blocks(new_impl);
    nir_repair_ssa_impl(new_impl);

@@ -35,7 +35,13 @@ use_smem_for_load(nir_builder *b, nir_intrinsic_instr *intrin, void *cb_data_)
       return false;
    }
 
-   if (intrin->def.divergent || (cb_data->after_lowering && intrin->def.bit_size < 32))
+   if (intrin->def.divergent)
+      return false;
+
+   /* ACO doesn't support instruction selection for multi-component 8/16-bit SMEM loads. */
+   const bool supports_scalar_subdword = cb_data->gfx_level >= GFX12 && !cb_data->use_llvm;
+   if (cb_data->after_lowering && intrin->def.bit_size < 32 &&
+       (intrin->def.num_components > 1 || !supports_scalar_subdword))
       return false;
 
    enum gl_access_qualifier access = nir_intrinsic_access(intrin);
@@ -61,6 +67,8 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
    if (is_load && bit_size == 8 && combined_align >= 2 && bytes % 2 == 0)
       bit_size = 16;
 
+   bit_size = MIN2(bit_size, combined_align == 4 ? 64 : combined_align * 8ull);
+
    unsigned max_components = 4;
    if (cb_data->use_llvm && access & (ACCESS_COHERENT | ACCESS_VOLATILE) &&
        (intrin == nir_intrinsic_load_global || intrin == nir_intrinsic_store_global))
@@ -69,20 +77,28 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
       max_components = MIN2(512 / bit_size, 16);
 
    nir_mem_access_size_align res;
-   res.num_components = MIN2(bytes / (bit_size / 8), max_components);
+   res.num_components = MIN2(DIV_ROUND_UP(bytes, bit_size / 8), max_components);
    res.bit_size = bit_size;
    res.align = MIN2(bit_size / 8, 4); /* 64-bit access only requires 4 byte alignment. */
    res.shift = nir_mem_access_shift_method_shift64;
 
+   if ((intrin == nir_intrinsic_load_shared || intrin == nir_intrinsic_store_shared)) {
+      /* Split unaligned shared access to create more read2/write2. */
+      if (combined_align < 16 && bytes < 16)
+         res.num_components = MIN2(res.num_components, 64 / bit_size);
+   }
+
    if (!is_load)
       return res;
 
-   /* Lower 8/16-bit loads to 32-bit, unless it's a VMEM scalar load. */
+   /* Lower 8/16-bit loads to 32-bit, unless it's a VMEM (or SMEM on GFX12+) scalar load. */
 
-   const bool support_subdword = res.num_components == 1 && !is_smem &&
-                                 (!cb_data->use_llvm || intrin != nir_intrinsic_load_ubo);
+   const bool supports_scalar_subdword =
+      !is_smem || (cb_data->gfx_level >= GFX12 && intrin != nir_intrinsic_load_push_constant);
+   const bool supported_subdword = res.num_components == 1 && supports_scalar_subdword &&
+                                   (!cb_data->use_llvm || intrin != nir_intrinsic_load_ubo);
 
-   if (res.bit_size >= 32 || support_subdword)
+   if (res.bit_size >= 32 || supported_subdword)
       return res;
 
    const uint32_t max_pad = 4 - MIN2(combined_align, 4);
@@ -97,8 +113,10 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
       }
 
       res.num_components = DIV_ROUND_UP(bytes, 4);
+      res.num_components = nir_round_down_components(res.num_components);
    } else {
       res.num_components = DIV_ROUND_UP(bytes + max_pad, 4);
+      res.num_components = nir_round_up_components(res.num_components);
    }
    res.num_components = MIN2(res.num_components, max_components);
    res.bit_size = 32;

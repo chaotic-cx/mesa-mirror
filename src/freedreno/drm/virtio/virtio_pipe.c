@@ -88,6 +88,8 @@ virtio_pipe_get_param(struct fd_pipe *pipe, enum fd_param_id param,
    case FD_VA_SIZE:
       *value = virtio_dev->vdrm->caps.u.msm.va_size;
       return 0;
+   case FD_UCHE_TRAP_BASE:
+      return query_param(pipe, MSM_PARAM_UCHE_TRAP_BASE, value);
    default:
       ERROR_MSG("invalid param id: %d", param);
       return -1;
@@ -178,10 +180,12 @@ __open_submitqueue(struct fd_pipe *pipe, uint32_t prio, uint32_t flags)
 static int
 open_submitqueue(struct fd_pipe *pipe, uint32_t prio)
 {
+   struct virtio_device *virtio_dev = to_virtio_device(pipe->dev);
    const struct fd_dev_info *info = fd_dev_info_raw(&pipe->dev_id);
    int ret = -1;
 
-   if (info && info->chip >= A7XX)
+   if (info && info->chip >= A7XX &&
+       (virtio_dev->vdrm->caps.u.msm.has_preemption != VIRTGPU_CAP_BOOL_FALSE))
       ret = __open_submitqueue(pipe, prio, MSM_SUBMITQUEUE_ALLOW_PREEMPT);
 
    /* If kernel doesn't support preemption, try again without: */

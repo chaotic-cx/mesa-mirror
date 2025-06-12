@@ -40,11 +40,14 @@
 #include "nir.h"
 
 #include "i915_context.h"
+#include "i915_debug.h"
 #include "i915_fpc.h"
 #include "i915_reg.h"
 #include "i915_resource.h"
 #include "i915_state.h"
 #include "i915_state_inlines.h"
+
+static void i915_delete_fs_state(struct pipe_context *pipe, void *shader);
 
 /* The i915 (and related graphics cores) do not support GL_CLAMP.  The
  * Intel drivers for "other operating systems" implement GL_CLAMP as
@@ -538,6 +541,29 @@ static const struct nir_to_tgsi_options ntt_options = {
    .lower_fabs = true,
 };
 
+static char *
+i915_check_control_flow(nir_shader *s)
+{
+   nir_function_impl *impl = nir_shader_get_entrypoint(s);
+   nir_block *first = nir_start_block(impl);
+   nir_cf_node *next = nir_cf_node_next(&first->cf_node);
+
+   if (next) {
+      switch (next->type) {
+      case nir_cf_node_if:
+         return "if/then statements not supported by i915 fragment shaders, "
+                "should have been flattened by peephole_select.";
+      case nir_cf_node_loop:
+         return "looping not supported i915 fragment shaders, all loops "
+                "must be statically unrollable.";
+      default:
+         return "Unknown control flow type";
+      }
+   }
+
+   return NULL;
+}
+
 static void *
 i915_create_fs_state(struct pipe_context *pipe,
                      const struct pipe_shader_state *templ)
@@ -553,6 +579,21 @@ i915_create_fs_state(struct pipe_context *pipe,
       nir_shader *s = templ->ir.nir;
       ifs->internal = s->info.internal;
 
+      char *msg = i915_check_control_flow(s);
+      if (msg) {
+         if (I915_DBG_ON(DBG_FS) &&
+             (!s->info.internal || NIR_DEBUG(PRINT_INTERNAL))) {
+            mesa_logi("failing shader:");
+            nir_log_shaderi(s);
+         }
+         if (templ->report_compile_error) {
+            ((struct pipe_shader_state *)templ)->error_message = strdup(msg);
+            ralloc_free(s);
+            i915_delete_fs_state(NULL, ifs);
+            return NULL;
+         }
+      }
+
       ifs->state.tokens = nir_to_tgsi_options(s, pipe->screen, &ntt_options);
    } else {
       assert(templ->type == PIPE_SHADER_IR_TGSI);
@@ -567,6 +608,11 @@ i915_create_fs_state(struct pipe_context *pipe,
 
    /* The shader's compiled to i915 instructions here */
    i915_translate_fragment_program(i915, ifs);
+   if (ifs->error && templ->report_compile_error) {
+      ((struct pipe_shader_state *)templ)->error_message = strdup(ifs->error);
+      i915_delete_fs_state(NULL, ifs);
+      return NULL;
+   }
 
    return ifs;
 }
@@ -594,6 +640,7 @@ i915_bind_fs_state(struct pipe_context *pipe, void *shader)
 static void
 i915_delete_fs_state(struct pipe_context *pipe, void *shader)
 {
+   struct i915_context *i915 = i915_context(pipe);
    struct i915_fragment_shader *ifs = (struct i915_fragment_shader *)shader;
 
    ralloc_free(ifs->error);
@@ -602,40 +649,16 @@ i915_delete_fs_state(struct pipe_context *pipe, void *shader)
    FREE((struct tgsi_token *)ifs->state.tokens);
    ifs->state.tokens = NULL;
 
+   if (ifs->draw_data) {
+      if (likely(i915))
+         draw_delete_fragment_shader(i915->draw, ifs->draw_data);
+      else
+         draw_delete_fragment_shader(NULL, ifs->draw_data);
+   }
+
    ifs->program_len = 0;
 
    FREE(ifs);
-}
-
-/* Does a test compile at link time to see if we'll be able to run this shader
- * at runtime.  Return a string to the GLSL compiler for anything we should
- * report as link failure.
- */
-char *
-i915_test_fragment_shader_compile(struct pipe_screen *screen, nir_shader *s)
-{
-   struct i915_fragment_shader *ifs = CALLOC_STRUCT(i915_fragment_shader);
-   if (!ifs)
-      return NULL;
-
-   /* NTT takes ownership of the shader, give it a clone. */
-   s = nir_shader_clone(NULL, s);
-
-   ifs->internal = s->info.internal;
-   ifs->state.tokens = nir_to_tgsi_options(s, screen, &ntt_options);
-   ifs->state.type = PIPE_SHADER_IR_TGSI;
-
-   tgsi_scan_shader(ifs->state.tokens, &ifs->info);
-
-   i915_translate_fragment_program(NULL, ifs);
-
-   char *msg = NULL;
-   if (ifs->error)
-      msg = strdup(ifs->error);
-
-   i915_delete_fs_state(NULL, ifs);
-
-   return msg;
 }
 
 static void *
@@ -643,6 +666,7 @@ i915_create_vs_state(struct pipe_context *pipe,
                      const struct pipe_shader_state *templ)
 {
    struct i915_context *i915 = i915_context(pipe);
+   void *vertex_shader;
 
    struct pipe_shader_state from_nir = {PIPE_SHADER_IR_TGSI};
    if (templ->type == PIPE_SHADER_IR_NIR) {
@@ -659,7 +683,11 @@ i915_create_vs_state(struct pipe_context *pipe,
       templ = &from_nir;
    }
 
-   return draw_create_vertex_shader(i915->draw, templ);
+   vertex_shader = draw_create_vertex_shader(i915->draw, templ);
+
+   FREE((void *)from_nir.tokens);
+
+   return vertex_shader;
 }
 
 static void
@@ -752,7 +780,7 @@ i915_set_constant_buffer(struct pipe_context *pipe,
 static void
 i915_set_sampler_views(struct pipe_context *pipe, enum pipe_shader_type shader,
                        unsigned start, unsigned num,
-                       unsigned unbind_num_trailing_slots, bool take_ownership,
+                       unsigned unbind_num_trailing_slots,
                        struct pipe_sampler_view **views)
 {
    if (shader != PIPE_SHADER_FRAGMENT) {
@@ -772,23 +800,12 @@ i915_set_sampler_views(struct pipe_context *pipe, enum pipe_shader_type shader,
    if (views && num == i915->num_fragment_sampler_views &&
        !memcmp(i915->fragment_sampler_views, views,
                num * sizeof(struct pipe_sampler_view *))) {
-      if (take_ownership) {
-         for (unsigned i = 0; i < num; i++) {
-            struct pipe_sampler_view *view = views[i];
-            pipe_sampler_view_reference(&view, NULL);
-         }
-      }
       return;
    }
 
    for (i = 0; i < num; i++) {
-      if (take_ownership) {
-         pipe_sampler_view_reference(&i915->fragment_sampler_views[i], NULL);
-         i915->fragment_sampler_views[i] = views[i];
-      } else {
-         pipe_sampler_view_reference(&i915->fragment_sampler_views[i],
-                                     views[i]);
-      }
+      pipe_sampler_view_reference(&i915->fragment_sampler_views[i],
+                                    views[i]);
    }
 
    for (i = num; i < i915->num_fragment_sampler_views; i++)
@@ -850,9 +867,10 @@ i915_set_framebuffer_state(struct pipe_context *pipe,
 {
    struct i915_context *i915 = i915_context(pipe);
 
+   util_framebuffer_init(pipe, fb, i915->fb_cbufs, &i915->fb_zsbuf);
    util_copy_framebuffer_state(&i915->framebuffer, fb);
    if (fb->nr_cbufs) {
-      struct i915_surface *surf = i915_surface(i915->framebuffer.cbufs[0]);
+      struct i915_surface *surf = i915_surface(i915->fb_cbufs[0]);
       if (i915->current.fixup_swizzle != surf->oc_swizzle) {
          i915->current.fixup_swizzle = surf->oc_swizzle;
          memcpy(i915->current.color_swizzle, surf->color_swizzle,
@@ -860,8 +878,8 @@ i915_set_framebuffer_state(struct pipe_context *pipe,
          i915->dirty |= I915_NEW_COLOR_SWIZZLE;
       }
    }
-   if (fb->zsbuf)
-      draw_set_zs_format(i915->draw, fb->zsbuf->format);
+   if (fb->zsbuf.texture)
+      draw_set_zs_format(i915->draw, fb->zsbuf.format);
 
    i915->dirty |= I915_NEW_FRAMEBUFFER;
 }
@@ -997,11 +1015,11 @@ i915_set_vertex_buffers(struct pipe_context *pipe, unsigned count,
    struct i915_context *i915 = i915_context(pipe);
    struct draw_context *draw = i915->draw;
 
-   util_set_vertex_buffers_count(i915->vertex_buffers, &i915->nr_vertex_buffers,
-                                 buffers, count, true);
+   assert(count <= PIPE_MAX_ATTRIBS);
 
-   /* pass-through to draw module */
-   draw_set_vertex_buffers(draw, count, buffers);
+   util_set_vertex_buffers_count(draw->pt.vertex_buffer,
+                                 &draw->pt.nr_vertex_buffers, buffers, count,
+                                 true);
 }
 
 static void *
@@ -1090,6 +1108,7 @@ i915_init_state_functions(struct i915_context *i915)
    i915->base.set_sampler_views = i915_set_sampler_views;
    i915->base.create_sampler_view = i915_create_sampler_view;
    i915->base.sampler_view_destroy = i915_sampler_view_destroy;
+   i915->base.sampler_view_release = u_default_sampler_view_release;
    i915->base.set_viewport_states = i915_set_viewport_states;
    i915->base.set_vertex_buffers = i915_set_vertex_buffers;
 }

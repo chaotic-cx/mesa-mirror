@@ -387,7 +387,7 @@ lvp_CreateImageView(VkDevice _device,
 
    view->pformat = lvp_vk_format_to_pipe_format(view->vk.format);
    view->image = image;
-   view->surface = NULL;
+   view->surface.texture = NULL;
 
    if (image->vk.aspects & (VK_IMAGE_ASPECT_DEPTH_BIT |
                             VK_IMAGE_ASPECT_STENCIL_BIT)) {
@@ -457,7 +457,6 @@ lvp_DestroyImageView(VkDevice _device, VkImageView _iview,
    }
    simple_mtx_unlock(&device->queue.lock);
 
-   pipe_surface_reference(&iview->surface, NULL);
    vk_image_view_destroy(&device->vk, pAllocator, &iview->vk);
 }
 
@@ -596,6 +595,8 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateBuffer(
          buffer->map = device->queue.ctx->buffer_map(device->queue.ctx, buffer->bo, 0,
                                                      PIPE_MAP_READ | PIPE_MAP_WRITE | PIPE_MAP_PERSISTENT,
                                                      &(struct pipe_box){ 0 }, &buffer->transfer);
+
+         buffer->vk.device_address = (VkDeviceAddress)(uintptr_t)buffer->map;
       }
    }
    *pBuffer = lvp_buffer_to_handle(buffer);

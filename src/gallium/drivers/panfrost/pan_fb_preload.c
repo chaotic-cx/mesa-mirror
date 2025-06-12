@@ -29,7 +29,8 @@
 #include <stdio.h>
 #include "compiler/nir/nir_builder.h"
 #include "util/u_math.h"
-#include "pan_blend.h"
+#include "pan_afbc.h"
+#include "pan_blend_cso.h"
 #include "pan_desc.h"
 #include "pan_encoder.h"
 #include "pan_fb_preload.h"
@@ -99,19 +100,6 @@ struct pan_preload_shader_data {
    nir_alu_type blend_types[8];
 };
 
-struct pan_preload_blend_shader_key {
-   enum pipe_format format;
-   nir_alu_type type;
-   unsigned rt         : 3;
-   unsigned nr_samples : 5;
-   unsigned pad        : 24;
-};
-
-struct pan_preload_blend_shader_data {
-   struct pan_preload_blend_shader_key key;
-   uint64_t address;
-};
-
 struct pan_preload_rsd_key {
    struct {
       enum pipe_format format;
@@ -165,8 +153,8 @@ pan_preload_emit_blend(unsigned rt,
          nir_alu_type type = preload_shader->key.surfaces[rt].type;
 
          cfg.internal.fixed_function.num_comps = 4;
-         cfg.internal.fixed_function.conversion.memory_format = GENX(
-            panfrost_dithered_format_from_pipe_format)(iview->format, false);
+         cfg.internal.fixed_function.conversion.memory_format =
+            GENX(pan_dithered_format_from_pipe_format)(iview->format, false);
          cfg.internal.fixed_function.conversion.register_format =
             nir_type_to_reg_fmt(type);
 
@@ -259,7 +247,7 @@ pan_preload_emit_rsd(const struct pan_preload_shader_data *preload_shader,
          cfg.properties.pixel_kill_operation = MALI_PIXEL_KILL_FORCE_LATE;
       } else {
          /* Skipping ATEST requires forcing Z/S */
-         cfg.properties.zs_update_operation = MALI_PIXEL_KILL_STRONG_EARLY;
+         cfg.properties.zs_update_operation = MALI_PIXEL_KILL_FORCE_EARLY;
          cfg.properties.pixel_kill_operation = MALI_PIXEL_KILL_FORCE_EARLY;
       }
 
@@ -274,7 +262,7 @@ pan_preload_emit_rsd(const struct pan_preload_shader_data *preload_shader,
 
       uint64_t blend_shader =
          blend_shaders
-            ? panfrost_last_nonnull(blend_shaders, MAX2(views->rt_count, 1))
+            ? pan_last_nonnull(blend_shaders, MAX2(views->rt_count, 1))
             : 0;
 
       cfg.properties.work_register_count = 4;
@@ -332,29 +320,8 @@ pan_preload_get_blend_shaders(struct pan_fb_preload_cache *cache,
    };
 
    for (unsigned i = 0; i < rt_count; i++) {
-      if (!rts[i] || panfrost_blendable_formats_v7[rts[i]->format].internal)
+      if (!rts[i] || pan_blendable_formats_v7[rts[i]->format].internal)
          continue;
-
-      struct pan_preload_blend_shader_key key = {
-         .format = rts[i]->format,
-         .rt = i,
-         .nr_samples = pan_image_view_get_nr_samples(rts[i]),
-         .type = preload_shader->blend_types[i],
-      };
-
-      pthread_mutex_lock(&cache->shaders.lock);
-      struct hash_entry *he =
-         _mesa_hash_table_search(cache->shaders.blend, &key);
-      struct pan_preload_blend_shader_data *blend_shader = he ? he->data : NULL;
-      if (blend_shader) {
-         blend_shaders[i] = blend_shader->address;
-         pthread_mutex_unlock(&cache->shaders.lock);
-         continue;
-      }
-
-      blend_shader =
-         rzalloc(cache->shaders.blend, struct pan_preload_blend_shader_data);
-      blend_shader->key = key;
 
       blend_state.rts[i] = (struct pan_blend_rt_state){
          .format = rts[i]->format,
@@ -367,22 +334,14 @@ pan_preload_get_blend_shaders(struct pan_fb_preload_cache *cache,
       };
 
       pthread_mutex_lock(&cache->blend_shader_cache->lock);
-      struct pan_blend_shader_variant *b = GENX(pan_blend_get_shader_locked)(
+      struct pan_blend_shader *b = GENX(pan_blend_get_shader_locked)(
          cache->blend_shader_cache, &blend_state,
          preload_shader->blend_types[i], nir_type_float32, /* unused */
          i);
 
       assert(b->work_reg_count <= 4);
-      struct panfrost_ptr bin =
-         pan_pool_alloc_aligned(cache->shaders.pool, b->binary.size, 64);
-      memcpy(bin.cpu, b->binary.data, b->binary.size);
-
-      blend_shader->address = bin.gpu | b->first_tag;
+      blend_shaders[i] = b->address;
       pthread_mutex_unlock(&cache->blend_shader_cache->lock);
-      _mesa_hash_table_insert(cache->shaders.blend, &blend_shader->key,
-                              blend_shader);
-      pthread_mutex_unlock(&cache->shaders.lock);
-      blend_shaders[i] = blend_shader->address;
    }
 }
 #endif
@@ -502,7 +461,7 @@ pan_preload_get_shader(struct pan_fb_preload_cache *cache,
    }
 
    nir_builder b = nir_builder_init_simple_shader(
-      MESA_SHADER_FRAGMENT, GENX(pan_shader_get_compiler_options)(),
+      MESA_SHADER_FRAGMENT, pan_shader_get_compiler_options(PAN_ARCH),
       "pan_preload(%s)", sig);
 
    nir_def *barycentric = nir_load_barycentric(
@@ -534,7 +493,6 @@ pan_preload_get_shader(struct pan_fb_preload_cache *cache,
          sampler_dim = GLSL_SAMPLER_DIM_CUBE;
          break;
       }
-
 
       nir_tex_instr *tex = nir_tex_instr_create(b.shader, ms ? 3 : 1);
 
@@ -585,7 +543,7 @@ pan_preload_get_shader(struct pan_fb_preload_cache *cache,
       active_count++;
    }
 
-   struct panfrost_compile_inputs inputs = {
+   struct pan_compile_inputs inputs = {
       .gpu_id = cache->gpu_id,
       .is_blit = true,
       .no_idvs = true,
@@ -608,7 +566,7 @@ pan_preload_get_shader(struct pan_fb_preload_cache *cache,
                lower_sampler_parameters, nir_metadata_control_flow, NULL);
    }
 
-   GENX(pan_shader_compile)(b.shader, &inputs, &binary, &shader->info);
+   pan_shader_compile(b.shader, &inputs, &binary, &shader->info);
 
    shader->key = *key;
    shader->address =
@@ -723,13 +681,13 @@ pan_preload_get_rsd(struct pan_fb_preload_cache *cache,
    rsd->key = rsd_key;
 
 #if PAN_ARCH == 4
-   struct panfrost_ptr rsd_ptr =
+   struct pan_ptr rsd_ptr =
       pan_pool_alloc_desc(cache->rsds.pool, RENDERER_STATE);
 #else
    unsigned bd_count = PAN_ARCH >= 5 ? MAX2(views->rt_count, 1) : 0;
-   struct panfrost_ptr rsd_ptr = pan_pool_alloc_desc_aggregate(
-      cache->rsds.pool, PAN_DESC(RENDERER_STATE),
-      PAN_DESC_ARRAY(bd_count, BLEND));
+   struct pan_ptr rsd_ptr =
+      pan_pool_alloc_desc_aggregate(cache->rsds.pool, PAN_DESC(RENDERER_STATE),
+                                    PAN_DESC_ARRAY(bd_count, BLEND));
 #endif
 
    if (!rsd_ptr.cpu)
@@ -821,7 +779,7 @@ pan_preload_needed(const struct pan_fb_info *fb, bool zs)
 static uint64_t
 pan_preload_emit_varying(struct pan_pool *pool)
 {
-   struct panfrost_ptr varying = pan_pool_alloc_desc(pool, ATTRIBUTE);
+   struct pan_ptr varying = pan_pool_alloc_desc(pool, ATTRIBUTE);
 
    if (!varying.cpu)
       return 0;
@@ -830,7 +788,7 @@ pan_preload_emit_varying(struct pan_pool *pool)
       cfg.buffer_index = 0;
       cfg.offset_enable = PAN_ARCH <= 5;
       cfg.format =
-         GENX(panfrost_format_from_pipe_format)(PIPE_FORMAT_R32G32B32_FLOAT)->hw;
+         GENX(pan_format_from_pipe_format)(PIPE_FORMAT_R32G32B32_FLOAT)->hw;
 
 #if PAN_ARCH >= 9
       cfg.attribute_type = MALI_ATTRIBUTE_TYPE_1D;
@@ -847,7 +805,7 @@ static uint64_t
 pan_preload_emit_varying_buffer(struct pan_pool *pool, uint64_t coordinates)
 {
 #if PAN_ARCH >= 9
-   struct panfrost_ptr varying_buffer = pan_pool_alloc_desc(pool, BUFFER);
+   struct pan_ptr varying_buffer = pan_pool_alloc_desc(pool, BUFFER);
 
    if (!varying_buffer.cpu)
       return 0;
@@ -860,7 +818,7 @@ pan_preload_emit_varying_buffer(struct pan_pool *pool, uint64_t coordinates)
    /* Bifrost needs an empty desc to mark end of prefetching */
    bool padding_buffer = PAN_ARCH >= 6;
 
-   struct panfrost_ptr varying_buffer = pan_pool_alloc_desc_array(
+   struct pan_ptr varying_buffer = pan_pool_alloc_desc_array(
       pool, (padding_buffer ? 2 : 1), ATTRIBUTE_BUFFER);
 
    if (!varying_buffer.cpu)
@@ -885,7 +843,7 @@ pan_preload_emit_varying_buffer(struct pan_pool *pool, uint64_t coordinates)
 static uint64_t
 pan_preload_emit_sampler(struct pan_pool *pool, bool nearest_filter)
 {
-   struct panfrost_ptr sampler = pan_pool_alloc_desc(pool, SAMPLER);
+   struct pan_ptr sampler = pan_pool_alloc_desc(pool, SAMPLER);
 
    if (!sampler.cpu)
       return 0;
@@ -916,7 +874,7 @@ pan_preload_emit_textures(struct pan_pool *pool, const struct pan_fb_info *fb,
          struct pan_image_view *pview = &patched_views[patched_count++];
          *pview = *view;
          /* v7+ doesn't have an _RRRR component order. */
-         GENX(panfrost_texture_swizzle_replicate_x)(pview);
+         GENX(pan_texture_swizzle_replicate_x)(pview);
          view = pview;
 #endif
          views[tex_count++] = view;
@@ -943,7 +901,7 @@ pan_preload_emit_textures(struct pan_pool *pool, const struct pan_fb_info *fb,
          *pview = *view;
          pview->format = fmt;
          /* v7+ doesn't have an _RRRR component order. */
-         GENX(panfrost_texture_swizzle_replicate_x)(pview);
+         GENX(pan_texture_swizzle_replicate_x)(pview);
          view = pview;
 #else
          if (fmt != view->format) {
@@ -961,11 +919,11 @@ pan_preload_emit_textures(struct pan_pool *pool, const struct pan_fb_info *fb,
             const struct pan_image_view *view = fb->rts[i].view;
 #if PAN_ARCH == 7
             /* v7 requires AFBC reswizzle. */
-            if (!panfrost_format_is_yuv(view->format) &&
-                panfrost_format_supports_afbc(PAN_ARCH, view->format)) {
+            if (!pan_format_is_yuv(view->format) &&
+                pan_format_supports_afbc(PAN_ARCH, view->format)) {
                struct pan_image_view *pview = &patched_views[patched_count++];
                *pview = *view;
-               GENX(panfrost_texture_afbc_reswizzle)(pview);
+               GENX(pan_texture_afbc_reswizzle)(pview);
                view = pview;
             }
 #endif
@@ -977,7 +935,7 @@ pan_preload_emit_textures(struct pan_pool *pool, const struct pan_fb_info *fb,
    *tex_count_out = tex_count;
 
 #if PAN_ARCH >= 6
-   struct panfrost_ptr textures =
+   struct pan_ptr textures =
       pan_pool_alloc_desc_array(pool, tex_count, TEXTURE);
 
    if (!textures.cpu)
@@ -986,11 +944,10 @@ pan_preload_emit_textures(struct pan_pool *pool, const struct pan_fb_info *fb,
    for (unsigned i = 0; i < tex_count; i++) {
       void *texture = textures.cpu + (pan_size(TEXTURE) * i);
       size_t payload_size =
-         GENX(panfrost_estimate_texture_payload_size)(views[i]);
-      struct panfrost_ptr surfaces =
-         pan_pool_alloc_aligned(pool, payload_size, 64);
+         GENX(pan_texture_estimate_payload_size)(views[i]);
+      struct pan_ptr surfaces = pan_pool_alloc_aligned(pool, payload_size, 64);
 
-      GENX(panfrost_new_texture)(views[i], texture, &surfaces);
+      GENX(pan_sampled_texture_emit)(views[i], texture, &surfaces);
    }
 
    return textures.gpu;
@@ -999,15 +956,15 @@ pan_preload_emit_textures(struct pan_pool *pool, const struct pan_fb_info *fb,
 
    for (unsigned i = 0; i < tex_count; i++) {
       size_t sz = pan_size(TEXTURE) +
-                  GENX(panfrost_estimate_texture_payload_size)(views[i]);
-      struct panfrost_ptr texture =
+                  GENX(pan_texture_estimate_payload_size)(views[i]);
+      struct pan_ptr texture =
          pan_pool_alloc_aligned(pool, sz, pan_alignment(TEXTURE));
-      struct panfrost_ptr surfaces = {
+      struct pan_ptr surfaces = {
          .cpu = texture.cpu + pan_size(TEXTURE),
          .gpu = texture.gpu + pan_size(TEXTURE),
       };
 
-      GENX(panfrost_new_texture)(views[i], texture.cpu, &surfaces);
+      GENX(pan_sampled_texture_emit)(views[i], texture.cpu, &surfaces);
       textures[i] = texture.gpu;
    }
 
@@ -1021,7 +978,7 @@ pan_preload_emit_textures(struct pan_pool *pool, const struct pan_fb_info *fb,
 static uint64_t
 pan_preload_emit_zs(struct pan_pool *pool, bool z, bool s)
 {
-   struct panfrost_ptr zsd = pan_pool_alloc_desc(pool, DEPTH_STENCIL);
+   struct pan_ptr zsd = pan_pool_alloc_desc(pool, DEPTH_STENCIL);
 
    if (!zsd.cpu)
       return 0;
@@ -1060,7 +1017,7 @@ static uint64_t
 pan_preload_emit_viewport(struct pan_pool *pool, uint16_t minx, uint16_t miny,
                           uint16_t maxx, uint16_t maxy)
 {
-   struct panfrost_ptr vp = pan_pool_alloc_desc(pool, VIEWPORT);
+   struct pan_ptr vp = pan_pool_alloc_desc(pool, VIEWPORT);
 
    if (!vp.cpu)
       return 0;
@@ -1132,7 +1089,7 @@ pan_preload_emit_dcd(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
 #endif
    }
 #else
-   struct panfrost_ptr T;
+   struct pan_ptr T;
    unsigned nr_tables = PAN_BLIT_NUM_RESOURCE_TABLES;
 
    /* Although individual resources need only 16 byte alignment, the
@@ -1141,11 +1098,11 @@ pan_preload_emit_dcd(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
    T = pan_pool_alloc_aligned(pool, nr_tables * pan_size(RESOURCE), 64);
    memset(T.cpu, 0, nr_tables * pan_size(RESOURCE));
 
-   panfrost_make_resource_table(T, PAN_BLIT_TABLE_TEXTURE, textures, tex_count);
-   panfrost_make_resource_table(T, PAN_BLIT_TABLE_SAMPLER, samplers, 1);
-   panfrost_make_resource_table(T, PAN_BLIT_TABLE_ATTRIBUTE, varyings, 1);
-   panfrost_make_resource_table(T, PAN_BLIT_TABLE_ATTRIBUTE_BUFFER,
-                                varying_buffers, 1);
+   pan_make_resource_table(T, PAN_BLIT_TABLE_TEXTURE, textures, tex_count);
+   pan_make_resource_table(T, PAN_BLIT_TABLE_SAMPLER, samplers, 1);
+   pan_make_resource_table(T, PAN_BLIT_TABLE_ATTRIBUTE, varyings, 1);
+   pan_make_resource_table(T, PAN_BLIT_TABLE_ATTRIBUTE_BUFFER, varying_buffers,
+                           1);
 
    struct pan_preload_shader_key key = pan_preload_get_key(&views);
    const struct pan_preload_shader_data *preload_shader =
@@ -1155,7 +1112,7 @@ pan_preload_emit_dcd(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
    bool s = fb->zs.preload.s;
    bool ms = pan_preload_is_ms(&views);
 
-   struct panfrost_ptr spd = pan_pool_alloc_desc(pool, SHADER_PROGRAM);
+   struct pan_ptr spd = pan_pool_alloc_desc(pool, SHADER_PROGRAM);
 
    if (!spd.cpu) {
       mesa_loge("pan_pool_alloc_desc failed");
@@ -1171,7 +1128,7 @@ pan_preload_emit_dcd(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
    }
 
    unsigned bd_count = views.rt_count;
-   struct panfrost_ptr blend = pan_pool_alloc_desc_array(pool, bd_count, BLEND);
+   struct pan_ptr blend = pan_pool_alloc_desc_array(pool, bd_count, BLEND);
 
    if (!blend.cpu) {
       mesa_loge("pan_pool_alloc_desc_array failed");
@@ -1185,30 +1142,37 @@ pan_preload_emit_dcd(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
    pan_pack(out, DRAW, cfg) {
       if (zs) {
          /* ZS_EMIT requires late update/kill */
-         cfg.zs_update_operation = MALI_PIXEL_KILL_FORCE_LATE;
-         cfg.pixel_kill_operation = MALI_PIXEL_KILL_FORCE_LATE;
+         cfg.flags_0.zs_update_operation = MALI_PIXEL_KILL_FORCE_LATE;
+         cfg.flags_0.pixel_kill_operation = MALI_PIXEL_KILL_FORCE_LATE;
          cfg.blend_count = 0;
       } else {
          /* Skipping ATEST requires forcing Z/S */
-         cfg.zs_update_operation = MALI_PIXEL_KILL_STRONG_EARLY;
-         cfg.pixel_kill_operation = MALI_PIXEL_KILL_FORCE_EARLY;
+         cfg.flags_0.zs_update_operation = MALI_PIXEL_KILL_FORCE_EARLY;
+         cfg.flags_0.pixel_kill_operation = MALI_PIXEL_KILL_FORCE_EARLY;
 
          cfg.blend = blend.gpu;
          cfg.blend_count = bd_count;
-         cfg.render_target_mask = 0x1;
+         cfg.flags_1.render_target_mask = 0x1;
       }
 
-      cfg.allow_forward_pixel_to_kill = !zs;
-      cfg.allow_forward_pixel_to_be_killed = true;
+      cfg.flags_0.allow_forward_pixel_to_kill = !zs;
+      cfg.flags_0.allow_forward_pixel_to_be_killed = true;
       cfg.depth_stencil = pan_preload_emit_zs(pool, z, s);
-      cfg.sample_mask = 0xFFFF;
-      cfg.multisample_enable = ms;
-      cfg.evaluate_per_sample = ms;
+      cfg.flags_1.sample_mask = 0xFFFF;
+      cfg.flags_0.multisample_enable = ms;
+      cfg.flags_0.evaluate_per_sample = ms;
+      cfg.flags_0.clean_fragment_write = clean_fragment_write;
+
+#if PAN_ARCH >= 12
+      cfg.fragment_resources = T.gpu | nr_tables;
+      cfg.fragment_shader = spd.gpu;
+      cfg.thread_storage = tsd;
+#else
       cfg.maximum_z = 1.0;
-      cfg.clean_fragment_write = clean_fragment_write;
       cfg.shader.resources = T.gpu | nr_tables;
       cfg.shader.shader = spd.gpu;
       cfg.shader.thread_storage = tsd;
+#endif
    }
 #endif
 }
@@ -1262,9 +1226,17 @@ pan_preload_emit_pre_frame_dcd(struct pan_fb_preload_cache *cache,
                         always_write);
    if (zs) {
       enum pipe_format fmt = fb->zs.view.zs
-                                ? fb->zs.view.zs->planes[0]->layout.format
-                                : fb->zs.view.s->planes[0]->layout.format;
-      bool always = false;
+                                ? fb->zs.view.zs->planes[0].image->props.format
+                                : fb->zs.view.s->planes[0].image->props.format;
+      /* On some GPUs (e.g. G31), we must use SHADER_MODE_ALWAYS rather than
+       * SHADER_MODE_INTERSECT for full screen operations. Since the full
+       * screen rectangle will always intersect, this won't affect
+       * performance. The UNUSED tag is because some PAN_ARCH variants do not
+       * need this test.
+       */
+      UNUSED bool always = !fb->extent.minx && !fb->extent.miny &&
+                           fb->extent.maxx == (fb->width - 1) &&
+                           fb->extent.maxy == (fb->height - 1);
 
       /* If we're dealing with a combined ZS resource and only one
        * component is cleared, we need to reload the whole surface
@@ -1275,19 +1247,38 @@ pan_preload_emit_pre_frame_dcd(struct pan_fb_preload_cache *cache,
           fb->zs.clear.z != fb->zs.clear.s)
          always = true;
 
-      /* We could use INTERSECT on Bifrost v7 too, but
+      /* We could use INTERSECT on Bifrost v7-v12 too, but
        * EARLY_ZS_ALWAYS has the advantage of reloading the ZS tile
        * buffer one or more tiles ahead, making ZS data immediately
        * available for any ZS tests taking place in other shaders.
        * Thing's haven't been benchmarked to determine what's
        * preferable (saving bandwidth vs having ZS preloaded
        * earlier), so let's leave it like that for now.
+       *
+       * On v13+, we don't have EARLY_ZS_ALWAYS instead we use
+       * PREPASS_ALWAYS / PREPASS_INTERSECT.
        */
+#if PAN_ARCH >= 13
       fb->bifrost.pre_post.modes[dcd_idx] =
-         PAN_ARCH > 6
-            ? MALI_PRE_POST_FRAME_SHADER_MODE_EARLY_ZS_ALWAYS
-         : always ? MALI_PRE_POST_FRAME_SHADER_MODE_ALWAYS
-                  : MALI_PRE_POST_FRAME_SHADER_MODE_INTERSECT;
+         always ? MALI_PRE_POST_FRAME_SHADER_MODE_PREPASS_ALWAYS
+                : MALI_PRE_POST_FRAME_SHADER_MODE_PREPASS_INTERSECT;
+#elif PAN_ARCH > 7 && PAN_ARCH <= 12
+      fb->bifrost.pre_post.modes[dcd_idx] =
+         MALI_PRE_POST_FRAME_SHADER_MODE_EARLY_ZS_ALWAYS;
+#else
+      /* EARLY_ZS_ALWAYS was introduced in 7.2, so we have to check the
+       * GPU id to find if it's supported, not just PAN_ARCH.
+       * The PAN_ARCH check is redundant but allows the compiler to optimize
+       * when PAN_ARCH < 7.
+       */
+      if (PAN_ARCH >= 7 && cache->gpu_id >= 0x7200)
+         fb->bifrost.pre_post.modes[dcd_idx] =
+            MALI_PRE_POST_FRAME_SHADER_MODE_EARLY_ZS_ALWAYS;
+      else
+         fb->bifrost.pre_post.modes[dcd_idx] =
+            always ? MALI_PRE_POST_FRAME_SHADER_MODE_ALWAYS
+                   : MALI_PRE_POST_FRAME_SHADER_MODE_INTERSECT;
+#endif
    } else {
       fb->bifrost.pre_post.modes[dcd_idx] =
          always_write ? MALI_PRE_POST_FRAME_SHADER_MODE_ALWAYS
@@ -1295,15 +1286,15 @@ pan_preload_emit_pre_frame_dcd(struct pan_fb_preload_cache *cache,
    }
 }
 #else
-static struct panfrost_ptr
-pan_preload_emit_tiler_job(struct pan_fb_preload_cache *cache, struct pan_pool *desc_pool,
-                           struct pan_fb_info *fb, bool zs, uint64_t coords,
-                           uint64_t tsd)
+static struct pan_ptr
+pan_preload_emit_tiler_job(struct pan_fb_preload_cache *cache,
+                           struct pan_pool *desc_pool, struct pan_fb_info *fb,
+                           bool zs, uint64_t coords, uint64_t tsd)
 {
-   struct panfrost_ptr job = pan_pool_alloc_desc(desc_pool, TILER_JOB);
+   struct pan_ptr job = pan_pool_alloc_desc(desc_pool, TILER_JOB);
 
    if (!job.cpu)
-      return (struct panfrost_ptr){0};
+      return (struct pan_ptr){0};
 
    pan_preload_emit_dcd(cache, desc_pool, fb, zs, coords, tsd,
                         pan_section_ptr(job.cpu, TILER_JOB, DRAW), false);
@@ -1315,22 +1306,22 @@ pan_preload_emit_tiler_job(struct pan_fb_preload_cache *cache, struct pan_pool *
    }
 
    pan_section_pack(job.cpu, TILER_JOB, PRIMITIVE_SIZE, cfg) {
-      cfg.constant = 1.0f;
+      cfg.fixed_sized = 1.0f;
    }
 
    void *invoc = pan_section_ptr(job.cpu, TILER_JOB, INVOCATION);
-   panfrost_pack_work_groups_compute(invoc, 1, 4, 1, 1, 1, 1, true, false);
+   pan_pack_work_groups_compute(invoc, 1, 4, 1, 1, 1, 1, true, false);
 
    return job;
 }
 #endif
 
-static struct panfrost_ptr
+static struct pan_ptr
 pan_preload_fb_part(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
                     struct pan_fb_info *fb, bool zs, uint64_t coords,
                     uint64_t tsd)
 {
-   struct panfrost_ptr job = {0};
+   struct pan_ptr job = {0};
 
 #if PAN_ARCH >= 6
    pan_preload_emit_pre_frame_dcd(cache, pool, fb, zs, coords, tsd);
@@ -1342,8 +1333,7 @@ pan_preload_fb_part(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
 
 unsigned
 GENX(pan_preload_fb)(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
-                     struct pan_fb_info *fb, uint64_t tsd,
-                     struct panfrost_ptr *jobs)
+                     struct pan_fb_info *fb, uint64_t tsd, struct pan_ptr *jobs)
 {
    bool preload_zs = pan_preload_needed(fb, true);
    bool preload_rts = pan_preload_needed(fb, false);
@@ -1363,14 +1353,14 @@ GENX(pan_preload_fb)(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
 
    unsigned njobs = 0;
    if (preload_zs) {
-      struct panfrost_ptr job =
+      struct pan_ptr job =
          pan_preload_fb_part(cache, pool, fb, true, coords, tsd);
       if (jobs && job.cpu)
          jobs[njobs++] = job;
    }
 
    if (preload_rts) {
-      struct panfrost_ptr job =
+      struct pan_ptr job =
          pan_preload_fb_part(cache, pool, fb, false, coords, tsd);
       if (jobs && job.cpu)
          jobs[njobs++] = job;
@@ -1380,7 +1370,6 @@ GENX(pan_preload_fb)(struct pan_fb_preload_cache *cache, struct pan_pool *pool,
 }
 
 DERIVE_HASH_TABLE(pan_preload_shader_key);
-DERIVE_HASH_TABLE(pan_preload_blend_shader_key);
 DERIVE_HASH_TABLE(pan_preload_rsd_key);
 
 static void
@@ -1428,7 +1417,6 @@ GENX(pan_fb_preload_cache_init)(
 {
    cache->gpu_id = gpu_id;
    cache->shaders.preload = pan_preload_shader_key_table_create(NULL);
-   cache->shaders.blend = pan_preload_blend_shader_key_table_create(NULL);
    cache->shaders.pool = bin_pool;
    pthread_mutex_init(&cache->shaders.lock, NULL);
    pan_preload_prefill_preload_shader_cache(cache);
@@ -1443,7 +1431,6 @@ void
 GENX(pan_fb_preload_cache_cleanup)(struct pan_fb_preload_cache *cache)
 {
    _mesa_hash_table_destroy(cache->shaders.preload, NULL);
-   _mesa_hash_table_destroy(cache->shaders.blend, NULL);
    pthread_mutex_destroy(&cache->shaders.lock);
    _mesa_hash_table_destroy(cache->rsds.rsds, NULL);
    pthread_mutex_destroy(&cache->rsds.lock);

@@ -18,6 +18,7 @@
 #include "vk_pipeline_layout.h"
 #include "vk_synchronization.h"
 
+#include "clb097.h"
 #include "nv_push_cl906f.h"
 #include "nv_push_cl90b5.h"
 #include "nv_push_cla097.h"
@@ -48,7 +49,8 @@ nvk_destroy_cmd_buffer(struct vk_command_buffer *vk_cmd_buffer)
    nvk_descriptor_state_fini(cmd, &cmd->state.cs.descriptors);
 
    nvk_cmd_pool_free_mem_list(pool, &cmd->owned_mem);
-   nvk_cmd_pool_free_mem_list(pool, &cmd->owned_gart_mem);
+   nvk_cmd_pool_free_gart_mem_list(pool, &cmd->owned_gart_mem);
+   nvk_cmd_pool_free_qmd_list(pool, &cmd->owned_qmd);
    util_dynarray_fini(&cmd->pushes);
    vk_command_buffer_finish(&cmd->vk);
    vk_free(&pool->vk.alloc, cmd);
@@ -82,6 +84,7 @@ nvk_create_cmd_buffer(struct vk_command_pool *vk_pool,
 
    list_inithead(&cmd->owned_mem);
    list_inithead(&cmd->owned_gart_mem);
+   list_inithead(&cmd->owned_qmd);
    util_dynarray_init(&cmd->pushes, NULL);
 
    *cmd_buffer_out = &cmd->vk;
@@ -104,6 +107,7 @@ nvk_reset_cmd_buffer(struct vk_command_buffer *vk_cmd_buffer,
 
    nvk_cmd_pool_free_mem_list(pool, &cmd->owned_mem);
    nvk_cmd_pool_free_gart_mem_list(pool, &cmd->owned_gart_mem);
+   nvk_cmd_pool_free_qmd_list(pool, &cmd->owned_qmd);
    cmd->upload_mem = NULL;
    cmd->push_mem = NULL;
    cmd->push_mem_limit = NULL;
@@ -141,7 +145,7 @@ nvk_cmd_buffer_alloc_mem(struct nvk_cmd_buffer *cmd, bool force_gart,
 }
 
 static void
-nvk_cmd_buffer_flush_push(struct nvk_cmd_buffer *cmd)
+nvk_cmd_buffer_flush_push(struct nvk_cmd_buffer *cmd, bool incomplete)
 {
    if (likely(cmd->push_mem != NULL)) {
       const uint32_t mem_offset =
@@ -151,6 +155,7 @@ nvk_cmd_buffer_flush_push(struct nvk_cmd_buffer *cmd)
          .map = cmd->push.start,
          .addr = cmd->push_mem->mem->va->addr + mem_offset,
          .range = nv_push_dw_count(&cmd->push) * 4,
+         .incomplete = incomplete,
       };
       util_dynarray_append(&cmd->pushes, struct nvk_cmd_push, push);
    }
@@ -161,10 +166,11 @@ nvk_cmd_buffer_flush_push(struct nvk_cmd_buffer *cmd)
 void
 nvk_cmd_buffer_new_push(struct nvk_cmd_buffer *cmd)
 {
-   nvk_cmd_buffer_flush_push(cmd);
+   nvk_cmd_buffer_flush_push(cmd, false);
 
    VkResult result = nvk_cmd_buffer_alloc_mem(cmd, false, &cmd->push_mem);
    if (unlikely(result != VK_SUCCESS)) {
+      vk_command_buffer_set_error(&cmd->vk, result);
       STATIC_ASSERT(NVK_CMD_BUFFER_MAX_PUSH <= NVK_CMD_MEM_SIZE / 4);
       cmd->push_mem = NULL;
       nv_push_init(&cmd->push, push_runout, 0);
@@ -180,7 +186,7 @@ void
 nvk_cmd_buffer_push_indirect(struct nvk_cmd_buffer *cmd,
                              uint64_t addr, uint32_t range)
 {
-   nvk_cmd_buffer_flush_push(cmd);
+   nvk_cmd_buffer_flush_push(cmd, true);
 
    struct nvk_cmd_push push = {
       .addr = addr,
@@ -289,6 +295,52 @@ nvk_cmd_buffer_cond_render_alloc(struct nvk_cmd_buffer *cmd,
    return VK_SUCCESS;
 }
 
+VkResult
+nvk_cmd_buffer_alloc_qmd(struct nvk_cmd_buffer *cmd,
+                         uint32_t size, uint32_t alignment,
+                         uint64_t *addr, void **ptr)
+{
+   struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
+
+   /* On Maxwell B and later, we have INVALIDATE_SKED_CACHES so we can just
+    * allocate from wherever we want (the upload stream in this case).
+    */
+   if (pdev->info.cls_compute >= MAXWELL_COMPUTE_B)
+      return nvk_cmd_buffer_upload_alloc(cmd, size, alignment, addr, ptr);
+
+   /* The GPU compute scheduler (SKED) has a cache.  Maxwell B added the
+    * INVALIDATE_SKED_CACHES instruction to manage the SKED cache.  We call
+    * that at the top of every command buffer so that we always pick up
+    * whatever QMDs we've written from the CPU fresh.  On Maxwell A and
+    * earlier, the SKED cache still exists in some form but we have no way to
+    * invalidate it.  If a compute shader has been dispatched from a QMD at an
+    * address that's no longer valid, the SKED cache can fault.  To work
+    * around this, we have a QMD heap on the device and we allocate QMDs from
+    * that on Maxwell A and earlier.
+    *
+    * Prior to Maxwell B, the GPU doesn't seem to need any sort of SKED cache
+    * invalidation to pick up new writes from the CPU.  However, we do still
+    * have to worry about faults that may be caused by the SKED cache
+    * containing a stale address.  Just allocating all QMDs from a central
+    * heap which never throws memory away seems to be sufficient for this.
+    */
+   assert(size <= NVK_CMD_QMD_SIZE);
+   assert(alignment <= NVK_CMD_QMD_SIZE);
+
+   struct nvk_cmd_qmd *qmd;
+   VkResult result = nvk_cmd_pool_alloc_qmd(nvk_cmd_buffer_pool(cmd), &qmd);
+   if (unlikely(result != VK_SUCCESS))
+      return result;
+
+   list_addtail(&qmd->link, &cmd->owned_qmd);
+
+   *addr = qmd->addr;
+   *ptr = qmd->map;
+
+   return VK_SUCCESS;
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_BeginCommandBuffer(VkCommandBuffer commandBuffer,
                        const VkCommandBufferBeginInfo *pBeginInfo)
@@ -313,7 +365,7 @@ nvk_EndCommandBuffer(VkCommandBuffer commandBuffer)
 {
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
 
-   nvk_cmd_buffer_flush_push(cmd);
+   nvk_cmd_buffer_flush_push(cmd, false);
 
    return vk_command_buffer_get_record_result(&cmd->vk);
 }
@@ -328,7 +380,7 @@ nvk_CmdExecuteCommands(VkCommandBuffer commandBuffer,
    if (commandBufferCount == 0)
       return;
 
-   nvk_cmd_buffer_flush_push(cmd);
+   nvk_cmd_buffer_flush_push(cmd, false);
 
    for (uint32_t i = 0; i < commandBufferCount; i++) {
       VK_FROM_HANDLE(nvk_cmd_buffer, other, pCommandBuffers[i]);
@@ -519,7 +571,7 @@ nvk_cmd_invalidate_deps(struct nvk_cmd_buffer *cmd,
                         const VkDependencyInfo *deps)
 {
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    enum nvk_barrier barriers = 0;
 
@@ -551,9 +603,20 @@ nvk_cmd_invalidate_deps(struct nvk_cmd_buffer *cmd,
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 10);
 
    if (barriers & NVK_BARRIER_INVALIDATE_TEX_DATA) {
-      P_IMMD(p, NVA097, INVALIDATE_TEXTURE_DATA_CACHE_NO_WFI, {
-         .lines = LINES_ALL,
-      });
+      if (pdev->info.cls_eng3d >= MAXWELL_A) {
+         P_IMMD(p, NVA097, INVALIDATE_TEXTURE_DATA_CACHE_NO_WFI, {
+            .lines = LINES_ALL,
+         });
+      } else {
+         /* On Kepler, the _NO_WFI form doesn't appear to actually work
+          * properly.  It exists in the headers but it doesn't fully
+          * invalidate everything.  Even doing a full WFI before hand isn't
+          * sufficient.
+          */
+         P_IMMD(p, NVA097, INVALIDATE_TEXTURE_DATA_CACHE, {
+            .lines = LINES_ALL,
+         });
+      }
    }
 
    if (barriers & (NVK_BARRIER_INVALIDATE_SHADER_DATA &
@@ -572,7 +635,7 @@ nvk_cmd_invalidate_deps(struct nvk_cmd_buffer *cmd,
    }
 
    if ((barriers & NVK_BARRIER_INVALIDATE_QMD_DATA) &&
-       pdev->info.cls_eng3d >= MAXWELL_COMPUTE_B)
+       pdev->info.cls_compute >= MAXWELL_COMPUTE_B)
       P_IMMD(p, NVB1C0, INVALIDATE_SKED_CACHES, 0);
 }
 
@@ -661,7 +724,7 @@ nvk_bind_descriptor_sets(struct nvk_cmd_buffer *cmd,
 {
    VK_FROM_HANDLE(vk_pipeline_layout, pipeline_layout, info->layout);
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    union nvk_buffer_descriptor dynamic_buffers[NVK_MAX_DYNAMIC_BUFFERS];
    uint8_t set_dynamic_buffer_start[NVK_MAX_SETS];
@@ -726,7 +789,11 @@ nvk_bind_descriptor_sets(struct nvk_cmd_buffer *cmd,
                if (BITSET_TEST(set_layout->dynamic_ubos, j) &&
                    nvk_use_bindless_cbuf(&pdev->info)) {
                   assert((offset & 0xf) == 0);
-                  db.cbuf.base_addr_shift_4 += offset >> 4;
+                  if (nvk_use_bindless_cbuf_2(&pdev->info)) {
+                     db.cbuf2.base_addr_shift_6 += offset >> 6;
+                  } else {
+                     db.cbuf.base_addr_shift_4 += offset >> 4;
+                  }
                } else {
                   db.addr.base_addr += offset;
                }
@@ -976,7 +1043,7 @@ nvk_cmd_buffer_flush_push_descriptors(struct nvk_cmd_buffer *cmd,
                                       struct nvk_descriptor_state *desc)
 {
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    const uint32_t min_cbuf_alignment = nvk_min_cbuf_alignment(&pdev->info);
    VkResult result;
 
@@ -1011,7 +1078,7 @@ nvk_cmd_buffer_get_cbuf_addr(struct nvk_cmd_buffer *cmd,
                              struct nvk_buffer_address *addr_out)
 {
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    switch (cbuf->type) {
    case NVK_CBUF_TYPE_INVALID:
@@ -1089,7 +1156,7 @@ void
 nvk_cmd_buffer_dump(struct nvk_cmd_buffer *cmd, FILE *fp)
 {
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    util_dynarray_foreach(&cmd->pushes, struct nvk_cmd_push, p) {
       if (p->map) {

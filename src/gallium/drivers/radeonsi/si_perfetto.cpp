@@ -50,12 +50,8 @@ static const struct {
    }
 };
 
-struct SIRenderpassIncrementalState {
-   bool was_cleared = true;
-};
-
 struct SIRenderpassTraits : public perfetto::DefaultDataSourceTraits {
-   using IncrementalStateType = SIRenderpassIncrementalState;
+   using IncrementalStateType = MesaRenderpassIncrementalState;
 };
 
 class SIRenderpassDataSource : public MesaRenderpassDataSource<SIRenderpassDataSource, 
@@ -311,6 +307,10 @@ void si_ds_end_submit(struct si_ds_queue *queue, uint64_t start_ts)
       submit->set_duration_ns(end_ts - start_ts);
       submit->set_vk_queue((uintptr_t) queue);
       submit->set_submission_id(submission_id);
+      submit->set_pid(getpid());
+#if defined(__linux__)
+      submit->set_tid(syscall(SYS_gettid));
+#endif
    });
 }
 
@@ -321,7 +321,12 @@ static void si_driver_ds_init_once(void)
 #ifdef HAVE_PERFETTO
    util_perfetto_init();
    perfetto::DataSourceDescriptor dsd;
+#if DETECT_OS_ANDROID
+   // Android tooling expects this data source name
+   dsd.set_name("gpu.renderstages");
+#else
    dsd.set_name("gpu.renderstages.amd");
+#endif
    SIRenderpassDataSource::Register(dsd);
 #endif
 }

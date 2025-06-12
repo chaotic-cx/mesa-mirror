@@ -321,11 +321,20 @@ struct v3dv_pipeline_key {
    bool msaa;
    bool sample_alpha_to_coverage;
    bool sample_alpha_to_one;
+   bool software_blend;
    uint8_t cbufs;
    struct {
       enum pipe_format format;
       uint8_t swizzle[4];
    } color_fmt[V3D_MAX_DRAW_BUFFERS];
+   struct {
+           enum pipe_blend_func rgb_func;
+           enum pipe_blendfactor rgb_src_factor;
+           enum pipe_blendfactor rgb_dst_factor;
+           enum pipe_blend_func alpha_func;
+           enum pipe_blendfactor alpha_src_factor;
+           enum pipe_blendfactor alpha_dst_factor;
+   } blend[V3D_MAX_DRAW_BUFFERS];
    uint8_t f32_color_rb;
    uint32_t va_swap_rb_mask;
    bool has_multiview;
@@ -590,6 +599,11 @@ struct v3dv_device {
    void *device_address_mem_ctx;
    struct util_dynarray device_address_bo_list; /* Array of struct v3dv_bo * */
 };
+
+/* TFU has readhead of 64 bytes. So to avoid the unit reading unmaped memory
+ * it is needed to overallocate buffers that could be read by the TFU
+ */
+#define V3D_TFU_READAHEAD_SIZE 64
 
 struct v3dv_device_memory {
    struct vk_device_memory vk;
@@ -1834,8 +1848,8 @@ void v3dv_cmd_buffer_add_private_obj(struct v3dv_cmd_buffer *cmd_buffer,
                                      uint64_t obj,
                                      v3dv_cmd_buffer_private_obj_destroy_cb destroy_cb);
 
-void v3dv_cmd_buffer_merge_barrier_state(struct v3dv_barrier_state *dst,
-                                         struct v3dv_barrier_state *src);
+void v3dv_merge_barrier_state(struct v3dv_barrier_state *dst,
+                              struct v3dv_barrier_state *src);
 
 void v3dv_cmd_buffer_consume_bcl_sync(struct v3dv_cmd_buffer *cmd_buffer,
                                       struct v3dv_job *job);
@@ -1859,6 +1873,9 @@ bool v3dv_cmd_buffer_copy_image_tfu(struct v3dv_cmd_buffer *cmd_buffer,
                                     struct v3dv_image *dst,
                                     struct v3dv_image *src,
                                     const VkImageCopy2 *region);
+
+bool v3dv_job_apply_barrier_state(struct v3dv_job *job,
+                                  struct v3dv_barrier_state *barrier);
 
 struct v3dv_event {
    struct vk_object_base base;
@@ -2158,7 +2175,7 @@ struct v3dv_descriptor_map {
    /* NOTE: the following is only for sampler, but this is the easier place to
     * put it.
     */
-   uint8_t return_size[DESCRIPTOR_MAP_SIZE];
+   bool sampler_is_32b[DESCRIPTOR_MAP_SIZE];
 };
 
 struct v3dv_sampler {
@@ -2310,7 +2327,12 @@ struct v3dv_pipeline {
 
    /* Blend state */
    struct {
-      /* Per-RT bit mask with blend enables */
+      /* In some cases, such as when dual source blend factors are in use, we
+       * fall back to software blend lowering.
+       */
+      bool use_software;
+
+      /* Per-RT bit mask with blend enables. */
       uint8_t enables;
       /* Per-RT prepacked blend config packets */
       uint8_t cfg[V3D_MAX_DRAW_BUFFERS][V3DV_BLEND_CFG_LENGTH];

@@ -371,26 +371,6 @@ typedef struct {
 } __DRIswrastLoaderExtension;
 
 /**
- * Invalidate loader extension.  The presence of this extension
- * indicates to the DRI driver that the loader will call invalidate in
- * the __DRI2_FLUSH extension, whenever the needs to query for new
- * buffers.  This means that the DRI driver can drop the polling in
- * glViewport().
- *
- * The extension doesn't provide any functionality, it's only use to
- * indicate to the driver that it can use the new semantics.  A DRI
- * driver can use this to switch between the different semantics or
- * just refuse to initialize if this extension isn't present.
- *
- * Advertised by the X server.
- */
-#define __DRI_USE_INVALIDATE "DRI_UseInvalidate"
-
-typedef struct {
-   __DRIextension base;
-} __DRIuseInvalidateExtension;
-
-/**
  * Tokens for struct dri_config attribs.  A number of attributes defined by
  * GLX or EGL standards are not in the table, as they must be provided
  * by the loader.  For example, FBConfig ID or visual ID, drawable type.
@@ -585,6 +565,9 @@ typedef unsigned int
 
 /**
  * DRI2 Loader extension.
+ *
+ * These definitions are shared with xcb/dri2.h.
+ * Changing these definitions would break DRI2.
  */
 #define __DRI_BUFFER_FRONT_LEFT		0
 #define __DRI_BUFFER_BACK_LEFT		1
@@ -592,12 +575,14 @@ typedef unsigned int
 #define __DRI_BUFFER_BACK_RIGHT		3
 #define __DRI_BUFFER_DEPTH		4
 #define __DRI_BUFFER_STENCIL		5
-#define __DRI_BUFFER_FAKE_FRONT_LEFT	6
-#define __DRI_BUFFER_FAKE_FRONT_RIGHT	7
-#define __DRI_BUFFER_DEPTH_STENCIL	8  /**< Only available with DRI2 1.1 */
+#define __DRI_BUFFER_ACCUM		6
+#define __DRI_BUFFER_FAKE_FRONT_LEFT	7
+#define __DRI_BUFFER_FAKE_FRONT_RIGHT	8
+#define __DRI_BUFFER_DEPTH_STENCIL	9  /**< Only available with DRI2 1.1 */
+#define __DRI_BUFFER_HIZ		10
 
 /* Inofficial and for internal use. Increase when adding a new buffer token. */
-#define __DRI_BUFFER_COUNT		9
+#define __DRI_BUFFER_COUNT		11
 
 /* Used by the X server. */
 typedef struct {

@@ -16,6 +16,7 @@
 #include "util/os_time.h"
 
 #include "util/u_blitter.h"
+#include "util/u_framebuffer.h"
 #include "util/list.h"
 
 #include "vm_basic_types.h"
@@ -98,6 +99,7 @@ enum svga_surface_state
 struct draw_vertex_shader;
 struct draw_fragment_shader;
 struct svga_shader_variant;
+struct svga_surface;
 struct SVGACmdMemory;
 struct util_bitmask;
 
@@ -167,7 +169,8 @@ struct svga_depth_stencil_state {
 #define SVGA_PIPELINE_FLAG_LINES    (1<<MESA_PRIM_LINES)
 #define SVGA_PIPELINE_FLAG_TRIS     (1<<MESA_PRIM_TRIANGLES)
 
-#define SVGA_MAX_FRAMEBUFFER_DEFAULT_SAMPLES 4
+// We support non-attachment/UAV rendering with up to 16 samples.
+#define SVGA_MAX_FRAMEBUFFER_DEFAULT_SAMPLES 16
 
 struct svga_rasterizer_state {
    struct pipe_rasterizer_state templ; /* needed for draw module */
@@ -277,6 +280,18 @@ struct svga_raw_buffer {
    int32 srvid;
 };
 
+/*
+ * Subclass of pipe_framebuffer_state which has dynamically allocated
+ * svga_surface objects.
+ */
+struct svga_framebuffer_state
+{
+   struct pipe_framebuffer_state base;
+
+   struct svga_surface *cbufs[PIPE_MAX_COLOR_BUFS];
+   struct svga_surface *zsbuf;
+};
+
 /* Use to calculate differences between state emitted to hardware and
  * current driver-calculated state.
  */
@@ -307,7 +322,8 @@ struct svga_state
    struct pipe_constant_buffer constbufs[PIPE_SHADER_TYPES][SVGA_MAX_CONST_BUFS];
    struct svga_raw_buffer rawbufs[PIPE_SHADER_TYPES][SVGA_MAX_RAW_BUFS];
 
-   struct pipe_framebuffer_state framebuffer;
+   struct svga_framebuffer_state framebuffer;
+
    float depthscale;
 
    /* Hack to limit the number of different render targets between
@@ -375,7 +391,7 @@ struct svga_depthrange {
  */
 struct svga_hw_clear_state
 {
-   struct pipe_framebuffer_state framebuffer;
+   struct svga_framebuffer_state framebuffer;
 
    /* VGPU9 only */
    SVGA3dRect viewport;

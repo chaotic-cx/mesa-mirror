@@ -51,7 +51,7 @@ __asm__(".text\n"
 
 #define STUB_ASM_CODE(slot)                              \
    ENDBR                                                 \
-   "movq _glapi_tls_Dispatch@GOTTPOFF(%rip), %rax\n\t"  \
+   "movq _mesa_glapi_tls_Dispatch@GOTTPOFF(%rip), %rax\n\t"  \
    "movq %fs:(%rax), %r11\n\t"                           \
    "jmp *(8 * " slot ")(%r11)"
 
@@ -59,33 +59,9 @@ __asm__(".text\n"
 
 #define STUB_ASM_CODE(slot)                              \
    ENDBR                                                 \
-   "movq _glapi_tls_Dispatch@GOTTPOFF(%rip), %rax\n\t"  \
+   "movq _mesa_glapi_tls_Dispatch@GOTTPOFF(%rip), %rax\n\t"  \
    "movl %fs:(%rax), %r11d\n\t"                          \
    "movl 4*" slot "(%r11d), %r11d\n\t"                   \
    "jmp *%r11"
 
 #endif
-
-#define MAPI_TMP_STUB_ASM_GCC
-#include "mapi_tmp.h"
-
-#ifndef MAPI_MODE_BRIDGE
-
-#include <string.h>
-
-void
-entry_patch_public(void)
-{
-}
-
-extern char
-x86_64_entry_start[] HIDDEN;
-
-mapi_func
-entry_get_public(int slot)
-{
-   return (mapi_func) (x86_64_entry_start + slot * 32);
-}
-
-
-#endif /* MAPI_MODE_BRIDGE */

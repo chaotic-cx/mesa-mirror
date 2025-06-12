@@ -5,7 +5,10 @@
 
 #pragma once
 
+#ifndef __OPENCL_VERSION__
 #include <stdint.h>
+#include "util/bitscan.h"
+#endif
 
 #include "compiler/shader_enums.h"
 #include "util/enum_operators.h"
@@ -27,6 +30,9 @@ intel_sometimes_invert(enum intel_sometimes x)
    return (enum intel_sometimes)((int)INTEL_ALWAYS - (int)x);
 }
 
+#define INTEL_MSAA_FLAG_PRIMITIVE_ID_INDEX_OFFSET (20)
+#define INTEL_MSAA_FLAG_PRIMITIVE_ID_INDEX_MESH   (32)
+
 enum intel_msaa_flags {
    /** Must be set whenever any dynamic MSAA is used
     *
@@ -47,6 +53,9 @@ enum intel_msaa_flags {
    /** True if this shader has been dispatched with alpha-to-coverage */
    INTEL_MSAA_FLAG_ALPHA_TO_COVERAGE = (1 << 4),
 
+   /** True if provoking vertex is last */
+   INTEL_MSAA_FLAG_PROVOKING_VERTEX_LAST = (1 << 5),
+
    /** True if this shader has been dispatched coarse
     *
     * This is intentionally chose to be bit 15 to correspond to the coarse bit
@@ -60,6 +69,15 @@ enum intel_msaa_flags {
     * in the render target messages.
     */
    INTEL_MSAA_FLAG_COARSE_RT_WRITES = (1 << 18),
+
+   /** Index of the PrimitiveID attribute relative to the first read
+    * attribute.
+    *
+    * This is not a flag but a value that cover bits 20:31. Value 32 means the
+    * PrimitiveID is coming from the PerPrimitive block, written by the Mesh
+    * shader.
+    */
+   INTEL_MSAA_FLAG_PRIMITIVE_ID_INDEX = (1 << INTEL_MSAA_FLAG_PRIMITIVE_ID_INDEX_OFFSET),
 };
 MESA_DEFINE_CPP_ENUM_BITFIELD_OPERATORS(intel_msaa_flags)
 
@@ -119,6 +137,23 @@ enum intel_barycentric_mode {
     (1 << INTEL_BARYCENTRIC_NONPERSPECTIVE_CENTROID) | \
     (1 << INTEL_BARYCENTRIC_NONPERSPECTIVE_SAMPLE))
 
+enum intel_vue_layout {
+   /**
+    * Layout is fixed and shared by producer/consumer, allowing for tigh
+    * packing
+    */
+   INTEL_VUE_LAYOUT_FIXED = 0,
+   /**
+    * Layout is separate, works for ARB_separate_shader_objects but without
+    * Mesh support.
+    */
+   INTEL_VUE_LAYOUT_SEPARATE,
+   /**
+    * Layout is separate and works with Mesh shaders.
+    */
+   INTEL_VUE_LAYOUT_SEPARATE_MESH,
+};
+
 /**
  * Data structure recording the relationship between the gl_varying_slot enum
  * and "slots" within the vertex URB entry (VUE).  A "slot" is defined as a
@@ -139,15 +174,74 @@ struct intel_vue_map {
    uint64_t slots_valid;
 
    /**
-    * Is this VUE map for a separate shader pipeline?
+    * The layout of the VUE
     *
-    * Separable programs (GL_ARB_separate_shader_objects) can be mixed and matched
-    * without the linker having a chance to dead code eliminate unused varyings.
+    * Separable programs (GL_ARB_separate_shader_objects) can be mixed and
+    * matched without the linker having a chance to dead code eliminate unused
+    * varyings.
     *
     * This means that we have to use a fixed slot layout, based on the output's
     * location field, rather than assigning slots in a compact contiguous block.
+    *
+    * When using Mesh, another constraint arises which is the HW limits for
+    * loading per-primitive & per-vertex data, limited to 32 varying in total.
+    * This requires us to be quite inventive with the way we lay things out.
+    * Take a fragment shader loading the following data :
+    *
+    *    float gl_ClipDistance[];
+    *    uint gl_PrimitiveID;
+    *    vec4 someAppValue[29];
+    *
+    * According to the Vulkan spec, someAppValue will occupy 29 slots,
+    * gl_PrimitiveID 1 slot, gl_ClipDistance[] up to 2 slots. If the input is
+    * coming from a VS/DS/GS shader, we can load all of this through a single
+    * block using 3DSTATE_SBE::VertexURBEntryReadLength = 16 (maximum
+    * programmable value) and the layout with
+    * BRW_VUE_MAP_LAYOUT_FIXED/BRW_VUE_MAP_LAYOUT_SEPARATE will be this :
+    *
+    *   -----------------------
+    *   | gl_ClipDistance 0-3 |
+    *   |---------------------|
+    *   | gl_ClipDistance 4-7 |
+    *   |---------------------|
+    *   |   gl_PrimitiveID    |
+    *   |---------------------|
+    *   |   someAppValue[]    |
+    *   |---------------------|
+    *
+    * This works nicely as everything is coming from the same location in the
+    * URB.
+    *
+    * When mesh shaders are involved, gl_PrimitiveID is located in a different
+    * place in the URB (the per-primitive block) and requires programming
+    * 3DSTATE_SBE_MESH::PerPrimitiveURBEntryOutputReadLength to load some
+    * additional data. The HW has a limit such that
+    * 3DSTATE_SBE_MESH::PerPrimitiveURBEntryOutputReadLength +
+    * 3DSTATE_SBE_MESH::PerVertexURBEntryOutputReadLength <= 16. With the
+    * layout above, we would not be able to accomodate that HW limit.
+    *
+    * The solution to this is to lay the built-in varyings out
+    * (gl_ClipDistance omitted since it's part of the VUE header and cannot
+    * live any other place) at the end of the VUE like this :
+    *
+    *   -----------------------
+    *   | gl_ClipDistance 0-3 |
+    *   |---------------------|
+    *   | gl_ClipDistance 4-7 |
+    *   |---------------------|
+    *   |   someAppValue[]    |
+    *   |---------------------|
+    *   |   gl_PrimitiveID    |
+    *   |---------------------|
+    *
+    * This layout adds another challenge because with separate shader
+    * compilations, we cannot tell in the consumer shader how many outputs the
+    * producer has, so we don't know where the gl_PrimitiveID lives. The
+    * solution to this other problem is to read the built-in with a
+    * MOV_INDIRECT and have the offset of the MOV_INDIRECT loaded through a
+    * push constant.
     */
-   bool separate;
+   enum intel_vue_layout layout;
 
    /**
     * Map from gl_varying_slot value to VUE slot.  For gl_varying_slots that are
@@ -199,7 +293,7 @@ struct intel_cs_dispatch_info {
    uint32_t right_mask;
 };
 
-enum PACKED intel_compute_walk_order {
+enum intel_compute_walk_order {
    INTEL_WALK_ORDER_XYZ = 0,
    INTEL_WALK_ORDER_XZY = 1,
    INTEL_WALK_ORDER_YXZ = 2,
@@ -331,12 +425,60 @@ intel_fs_is_coarse(enum intel_sometimes shader_coarse_pixel_dispatch,
 
    assert(pushed_msaa_flags & INTEL_MSAA_FLAG_ENABLE_DYNAMIC);
 
-   if (pushed_msaa_flags & INTEL_MSAA_FLAG_COARSE_RT_WRITES)
-      assert(shader_coarse_pixel_dispatch != INTEL_NEVER);
-   else
-      assert(shader_coarse_pixel_dispatch != INTEL_ALWAYS);
+   assert((pushed_msaa_flags & INTEL_MSAA_FLAG_COARSE_RT_WRITES) ?
+          shader_coarse_pixel_dispatch != INTEL_NEVER :
+          shader_coarse_pixel_dispatch != INTEL_ALWAYS);
 
    return (pushed_msaa_flags & INTEL_MSAA_FLAG_COARSE_RT_WRITES) != 0;
+}
+
+struct intel_fs_params {
+   bool shader_sample_shading;
+   float shader_min_sample_shading;
+   bool state_sample_shading;
+   uint32_t rasterization_samples;
+   bool coarse_pixel;
+   bool alpha_to_coverage;
+   bool provoking_vertex_last;
+   uint32_t primitive_id_index;
+};
+
+static inline enum intel_msaa_flags
+intel_fs_msaa_flags(struct intel_fs_params params)
+{
+   enum intel_msaa_flags fs_msaa_flags = INTEL_MSAA_FLAG_ENABLE_DYNAMIC;
+
+   if (params.rasterization_samples > 1) {
+      fs_msaa_flags |= INTEL_MSAA_FLAG_MULTISAMPLE_FBO;
+
+      if (params.shader_sample_shading)
+         fs_msaa_flags |= INTEL_MSAA_FLAG_PERSAMPLE_DISPATCH;
+
+      if (params.shader_sample_shading ||
+          (params.state_sample_shading &&
+           (params.shader_min_sample_shading *
+            params.rasterization_samples) > 1)) {
+         fs_msaa_flags |= INTEL_MSAA_FLAG_PERSAMPLE_DISPATCH |
+                          INTEL_MSAA_FLAG_PERSAMPLE_INTERP;
+      }
+   }
+
+   if (!(fs_msaa_flags & INTEL_MSAA_FLAG_PERSAMPLE_DISPATCH) &&
+       params.coarse_pixel) {
+      fs_msaa_flags |= INTEL_MSAA_FLAG_COARSE_PI_MSG |
+                       INTEL_MSAA_FLAG_COARSE_RT_WRITES;
+   }
+
+   if (params.alpha_to_coverage)
+      fs_msaa_flags |= INTEL_MSAA_FLAG_ALPHA_TO_COVERAGE;
+
+   fs_msaa_flags |= (enum intel_msaa_flags)(
+      params.primitive_id_index << INTEL_MSAA_FLAG_PRIMITIVE_ID_INDEX_OFFSET);
+
+   if (params.provoking_vertex_last)
+      fs_msaa_flags |= INTEL_MSAA_FLAG_PROVOKING_VERTEX_LAST;
+
+   return fs_msaa_flags;
 }
 
 #ifdef __cplusplus

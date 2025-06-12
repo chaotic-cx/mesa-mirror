@@ -36,19 +36,19 @@ static void svga_flush( struct pipe_context *pipe,
 
    /* Enable to dump BMPs of the color/depth buffers each frame */
    if (0) {
-      struct pipe_framebuffer_state *fb = &svga->curr.framebuffer;
+      struct pipe_framebuffer_state *fb = &svga->curr.framebuffer.base;
       static unsigned frame_no = 1;
       char filename[256];
       unsigned i;
 
       for (i = 0; i < fb->nr_cbufs; i++) {
          snprintf(filename, sizeof(filename), "cbuf%u_%04u.bmp", i, frame_no);
-         debug_dump_surface_bmp(&svga->pipe, filename, fb->cbufs[i]);
+         debug_dump_surface_bmp(&svga->pipe, filename, &fb->cbufs[i]);
       }
 
-      if (0 && fb->zsbuf) {
+      if (0 && fb->zsbuf.texture) {
          snprintf(filename, sizeof(filename), "zsbuf_%04u.bmp", frame_no);
-         debug_dump_surface_bmp(&svga->pipe, filename, fb->zsbuf);
+         debug_dump_surface_bmp(&svga->pipe, filename, &fb->zsbuf);
       }
 
       ++frame_no;

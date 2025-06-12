@@ -219,7 +219,7 @@ u_bit_scan_consecutive_range(unsigned *mask, int *start, int *count)
 static inline void
 u_bit_scan_consecutive_range64(uint64_t *mask, int *start, int *count)
 {
-   if (*mask == ~0ull) {
+   if (*mask == UINT64_MAX) {
       *start = 0;
       *count = 64;
       *mask = 0;
@@ -326,6 +326,8 @@ util_bitcount(unsigned n)
 {
 #if defined(HAVE___BUILTIN_POPCOUNT)
    return __builtin_popcount(n);
+#elif __OPENCL_VERSION__
+   return popcount(n);
 #else
    /* K&R classic bitcount.
     *
@@ -366,6 +368,8 @@ util_bitcount64(uint64_t n)
 {
 #ifdef HAVE___BUILTIN_POPCOUNTLL
    return __builtin_popcountll(n);
+#elif __OPENCL_VERSION__
+   return popcount(n);
 #else
    return util_bitcount((unsigned)n) + util_bitcount((unsigned)(n >> 32));
 #endif

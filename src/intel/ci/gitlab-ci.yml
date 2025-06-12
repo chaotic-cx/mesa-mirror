@@ -1,57 +1,58 @@
 include:
   - local: 'src/intel/ci/gitlab-ci-inc.yml'
 
-anv-jsl:
+anv-jsl-vk:
   extends:
-    - .lava-acer-cb317-1h-c3z6-dedede:x86_64
+    - .lava-x86_64-test-vk
     - .anv-test
+    - .lava-acer-cb317-1h-c3z6-dedede:x86_64
   variables:
     DEQP_SUITE: anv-jsl
     VK_DRIVER: intel
-    # force fixed kernel, since too many flakes and unexpected results seen with 6.13-rc4
-    EXTERNAL_KERNEL_TAG: "v6.11-rc7-mesa-c984"
   parallel: 5
 
-anv-jsl-full:
+anv-jsl-vk-full:
   extends:
-    - anv-jsl
+    - anv-jsl-vk
     - .anv-manual-rules
   variables:
     DEQP_SUITE: anv-jsl-full
   parallel: 4
   timeout: 2h
 
-anv-adl:
+anv-adl-vk:
   extends:
-    - .lava-acer-cbv514-1h-34uz-brya:x86_64
+    - .lava-x86_64-test-vk
     - .anv-test
+    - .lava-acer-cbv514-1h-34uz-brya:x86_64
   variables:
     DEQP_SUITE: anv-adl
     VK_DRIVER: intel
   timeout: 30m
   parallel: 4
 
-anv-adl-full:
+anv-adl-vk-full:
   extends:
-    - anv-adl
+    - anv-adl-vk
     - .anv-manual-rules
   variables:
     DEQP_SUITE: anv-adl-full
   timeout: 1h 40m
-  parallel: 5
+  parallel: 3
 
-anv-tgl:
+anv-tgl-vk:
   extends:
-    - .lava-acer-cp514-2h-1160g7-volteer:x86_64
+    - .lava-x86_64-test-vk
     - .anv-test
+    - .lava-acer-cp514-2h-1160g7-volteer:x86_64
   variables:
     DEQP_SUITE: anv-tgl
     VK_DRIVER: intel
   parallel: 5  # 5 - 5 # -1 for zink, but it's disabled now
 
-anv-tgl-full:
+anv-tgl-vk-full:
   extends:
-    - anv-tgl
+    - anv-tgl-vk
     - .anv-manual-rules
   variables:
     DEQP_SUITE: anv-tgl-full
@@ -80,44 +81,42 @@ hasvk-hsw:
 
 anv-jsl-angle:
   extends:
-    - .lava-acer-cb317-1h-c3z6-dedede:x86_64
     - .anv-angle-test
+    - .lava-acer-cb317-1h-c3z6-dedede:x86_64
   variables:
     DEQP_SUITE: anv-jsl-angle
     GPU_VERSION: angle-anv-jsl
-  parallel: 2
 
 anv-jsl-angle-full:
   extends:
     - anv-jsl-angle
-    - .intel-manual-rules
+    - .anv-manual-rules
   variables:
     DEQP_SUITE: anv-jsl-angle-full
   parallel: 2
 
 anv-adl-angle:
   extends:
-    - .lava-acer-cbv514-1h-34uz-brya:x86_64
-    - .anv-test
     - .anv-angle-test
+    - .lava-acer-chromebox-cxi5-brask:x86_64
   variables:
     DEQP_SUITE: anv-adl-angle
     GPU_VERSION: angle-anv-adl
   timeout: 30m
+  parallel: 4
 
 anv-adl-angle-full:
   extends:
     - anv-adl-angle
-    - .intel-manual-rules
+    - .anv-manual-rules
   variables:
     DEQP_SUITE: anv-adl-angle-full
   timeout: 30m
 
 anv-tgl-angle:
   extends:
-    - .lava-acer-cp514-2h-1130g7-volteer:x86_64
-    - .anv-test
     - .anv-angle-test
+    - .lava-acer-cp514-2h-1130g7-volteer:x86_64
   variables:
     DEQP_SUITE: anv-tgl-angle
     GPU_VERSION: angle-anv-tgl
@@ -126,7 +125,7 @@ anv-tgl-angle:
 anv-tgl-angle-full:
   extends:
     - anv-tgl-angle
-    - .intel-manual-rules
+    - .anv-manual-rules
   variables:
     DEQP_SUITE: anv-tgl-angle-full
   parallel: null
@@ -153,7 +152,6 @@ iris-glk-deqp:
     - .iris-glk-test
   variables:
     DEQP_SUITE: iris-glk
-  parallel: 2
 
 iris-glk-egl:
   extends:
@@ -189,8 +187,8 @@ iris-cml-deqp:
 
 iris-jsl-deqp:
   extends:
-    - .lava-acer-cb317-1h-c3z6-dedede:x86_64
     - .iris-test
+    - .lava-acer-cb317-1h-c3z6-dedede:x86_64
   variables:
     DEQP_SUITE: iris-jsl
     GPU_VERSION: iris-jsl
@@ -209,13 +207,12 @@ iris-amly-egl:
 iris-kbl-piglit:
   extends:
     - .iris-kbl-test
-    - .lava-piglit
+    - .test-piglit
   parallel: 2
   variables:
     HWCI_START_XORG: 1
     PIGLIT_NO_WINDOW: 0
-    PIGLIT_PLATFORM: mixed_glx_egl
-    PIGLIT_PROFILES: gpu
+    DEQP_SUITE: iris-kbl-piglit
 
 iris-apl-traces:
   variables:
@@ -284,23 +281,26 @@ iris-kbl-traces-performance:
 
 intel-adl-cl:
   extends:
-    - .lava-acer-cbv514-1h-34uz-brya:x86_64
     - .intel-adl-test
+    - .lava-acer-n20q11-r856ltn-p1s2-nissa:x86_64
     - .intel-rules
+    - .test-piglit
   rules:
     - !reference [.intel-adl-test, rules]
     - !reference [.intel-rules, rules]
     - !reference [.rusticl-rules, rules]
   variables:
     DEQP_SUITE: intel-adl-cl
+    GPU_VERSION: intel-adl
     VK_DRIVER: intel
     HWCI_START_WESTON: 1
   timeout: 20m
+  parallel: 2
 
 intel-adl-skqp:
   extends:
-    - .lava-acer-cbv514-1h-34uz-brya:x86_64
     - .intel-adl-test
+    - .lava-acer-n20q11-r856ltn-p1s2-nissa:x86_64
   variables:
     DEQP_SUITE: intel-adl-skqp
     VK_DRIVER: intel
@@ -309,8 +309,8 @@ intel-adl-skqp:
 
 intel-tgl-skqp:
   extends:
-    - .lava-acer-cp514-2h-1130g7-volteer:x86_64
     - .intel-tgl-test
+    - .lava-acer-cp514-2h-1130g7-volteer:x86_64
   variables:
     DEQP_SUITE: intel-tgl-skqp
     VK_DRIVER: intel

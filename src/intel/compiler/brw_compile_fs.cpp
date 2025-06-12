@@ -4,9 +4,9 @@
  */
 
 #include "brw_eu.h"
-#include "brw_fs.h"
-#include "brw_fs_builder.h"
-#include "brw_fs_live_variables.h"
+#include "brw_shader.h"
+#include "brw_analysis.h"
+#include "brw_builder.h"
 #include "brw_generator.h"
 #include "brw_nir.h"
 #include "brw_cfg.h"
@@ -18,27 +18,24 @@
 
 #include <memory>
 
-using namespace brw;
-
-static fs_inst *
-brw_emit_single_fb_write(fs_visitor &s, const fs_builder &bld,
+static brw_inst *
+brw_emit_single_fb_write(brw_shader &s, const brw_builder &bld,
                          brw_reg color0, brw_reg color1,
-                         brw_reg src0_alpha, unsigned components,
+                         brw_reg src0_alpha,
+                         unsigned target, unsigned components,
                          bool null_rt)
 {
    assert(s.stage == MESA_SHADER_FRAGMENT);
    struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
 
-   /* Hand over gl_FragDepth or the payload depth. */
-   const brw_reg dst_depth = fetch_payload_reg(bld, s.fs_payload().dest_depth_reg);
-
    brw_reg sources[FB_WRITE_LOGICAL_NUM_SRCS];
    sources[FB_WRITE_LOGICAL_SRC_COLOR0]     = color0;
    sources[FB_WRITE_LOGICAL_SRC_COLOR1]     = color1;
    sources[FB_WRITE_LOGICAL_SRC_SRC0_ALPHA] = src0_alpha;
-   sources[FB_WRITE_LOGICAL_SRC_DST_DEPTH]  = dst_depth;
+   sources[FB_WRITE_LOGICAL_SRC_TARGET]     = brw_imm_ud(target);
    sources[FB_WRITE_LOGICAL_SRC_COMPONENTS] = brw_imm_ud(components);
    sources[FB_WRITE_LOGICAL_SRC_NULL_RT]    = brw_imm_ud(null_rt);
+   sources[FB_WRITE_LOGICAL_SRC_LAST_RT]    = brw_imm_ud(false);
 
    if (prog_data->uses_omask)
       sources[FB_WRITE_LOGICAL_SRC_OMASK] = s.sample_mask;
@@ -47,7 +44,7 @@ brw_emit_single_fb_write(fs_visitor &s, const fs_builder &bld,
    if (s.nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL))
       sources[FB_WRITE_LOGICAL_SRC_SRC_STENCIL] = s.frag_stencil;
 
-   fs_inst *write = bld.emit(FS_OPCODE_FB_WRITE_LOGICAL, brw_reg(),
+   brw_inst *write = bld.emit(FS_OPCODE_FB_WRITE_LOGICAL, brw_reg(),
                              sources, ARRAY_SIZE(sources));
 
    if (prog_data->uses_kill) {
@@ -59,17 +56,17 @@ brw_emit_single_fb_write(fs_visitor &s, const fs_builder &bld,
 }
 
 static void
-brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
+brw_do_emit_fb_writes(brw_shader &s, int nr_color_regions, bool replicate_alpha)
 {
-   const fs_builder bld = fs_builder(&s).at_end();
-   fs_inst *inst = NULL;
+   const brw_builder bld = brw_builder(&s);
+   brw_inst *inst = NULL;
 
    for (int target = 0; target < nr_color_regions; target++) {
       /* Skip over outputs that weren't written. */
       if (s.outputs[target].file == BAD_FILE)
          continue;
 
-      const fs_builder abld = bld.annotate(
+      const brw_builder abld = bld.annotate(
          ralloc_asprintf(s.mem_ctx, "FB write target %d", target));
 
       brw_reg src0_alpha;
@@ -77,9 +74,8 @@ brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
          src0_alpha = offset(s.outputs[0], bld, 3);
 
       inst = brw_emit_single_fb_write(s, abld, s.outputs[target],
-                                      s.dual_src_output, src0_alpha, 4,
+                                      s.dual_src_output, src0_alpha, target, 4,
                                       false);
-      inst->target = target;
    }
 
    if (inst == NULL) {
@@ -106,17 +102,16 @@ brw_do_emit_fb_writes(fs_visitor &s, int nr_color_regions, bool replicate_alpha)
       const brw_reg tmp = bld.vgrf(BRW_TYPE_UD, 4);
       bld.LOAD_PAYLOAD(tmp, srcs, 4, 0);
 
-      inst = brw_emit_single_fb_write(s, bld, tmp, reg_undef, reg_undef, 4,
-                                      use_null_rt);
-      inst->target = 0;
+      inst = brw_emit_single_fb_write(s, bld, tmp, reg_undef, reg_undef,
+                                      0, 4, use_null_rt);
    }
 
-   inst->last_rt = true;
+   inst->src[FB_WRITE_LOGICAL_SRC_LAST_RT] = brw_imm_ud(true);
    inst->eot = true;
 }
 
 static void
-brw_emit_fb_writes(fs_visitor &s)
+brw_emit_fb_writes(brw_shader &s)
 {
    const struct intel_device_info *devinfo = s.devinfo;
    assert(s.stage == MESA_SHADER_FRAGMENT);
@@ -181,18 +176,18 @@ brw_emit_fb_writes(fs_visitor &s)
 
 /** Emits the interpolation for the varying inputs. */
 static void
-brw_emit_interpolation_setup(fs_visitor &s)
+brw_emit_interpolation_setup(brw_shader &s)
 {
    const struct intel_device_info *devinfo = s.devinfo;
-   const fs_builder bld = fs_builder(&s).at_end();
-   fs_builder abld = bld.annotate("compute pixel centers");
+   const brw_builder bld = brw_builder(&s);
+   brw_builder abld = bld.annotate("compute pixel centers");
 
    s.pixel_x = bld.vgrf(BRW_TYPE_F);
    s.pixel_y = bld.vgrf(BRW_TYPE_F);
 
    const struct brw_wm_prog_key *wm_key = (brw_wm_prog_key*) s.key;
    struct brw_wm_prog_data *wm_prog_data = brw_wm_prog_data(s.prog_data);
-   fs_thread_payload &payload = s.fs_payload();
+   brw_fs_thread_payload &payload = s.fs_payload();
 
    brw_reg int_sample_offset_x, int_sample_offset_y; /* Used on Gen12HP+ */
    brw_reg int_sample_offset_xy; /* Used on Gen8+ */
@@ -255,7 +250,7 @@ brw_emit_interpolation_setup(fs_visitor &s)
        */
       struct brw_reg r1_0 = retype(brw_vec1_reg(FIXED_GRF, 1, 0), BRW_TYPE_UB);
 
-      const fs_builder dbld =
+      const brw_builder dbld =
          abld.exec_all().group(MIN2(16, s.dispatch_width) * 2, 0);
 
       if (devinfo->verx10 >= 125) {
@@ -305,11 +300,11 @@ brw_emit_interpolation_setup(fs_visitor &s)
       break;
 
    case INTEL_SOMETIMES: {
-      const fs_builder dbld =
+      const brw_builder dbld =
          abld.exec_all().group(MIN2(16, s.dispatch_width) * 2, 0);
 
-      check_dynamic_msaa_flag(dbld, wm_prog_data,
-                              INTEL_MSAA_FLAG_COARSE_RT_WRITES);
+      brw_check_dynamic_msaa_flag(dbld, wm_prog_data,
+                                  INTEL_MSAA_FLAG_COARSE_RT_WRITES);
 
       int_pixel_offset_x = dbld.vgrf(BRW_TYPE_UW);
       set_predicate(BRW_PREDICATE_NORMAL,
@@ -353,7 +348,7 @@ brw_emit_interpolation_setup(fs_visitor &s)
    }
 
    for (unsigned i = 0; i < DIV_ROUND_UP(s.dispatch_width, 16); i++) {
-      const fs_builder hbld = abld.group(MIN2(16, s.dispatch_width), i);
+      const brw_builder hbld = abld.group(MIN2(16, s.dispatch_width), i);
       /* According to the "PS Thread Payload for Normal Dispatch"
        * pages on the BSpec, subspan X/Y coordinates are stored in
        * R1.2-R1.5/R2.2-R2.5 on gfx6+, and on R0.10-R0.13/R1.10-R1.13
@@ -365,7 +360,7 @@ brw_emit_interpolation_setup(fs_visitor &s)
       const struct brw_reg gi_uw = retype(gi_reg, BRW_TYPE_UW);
 
       if (devinfo->verx10 >= 125) {
-         const fs_builder dbld =
+         const brw_builder dbld =
             abld.exec_all().group(hbld.dispatch_width() * 2, 0);
          const brw_reg int_pixel_x = dbld.vgrf(BRW_TYPE_UW);
          const brw_reg int_pixel_y = dbld.vgrf(BRW_TYPE_UW);
@@ -378,9 +373,9 @@ brw_emit_interpolation_setup(fs_visitor &s)
                   int_pixel_offset_y);
 
          if (wm_prog_data->coarse_pixel_dispatch != INTEL_NEVER) {
-            fs_inst *addx = dbld.ADD(int_pixel_x, int_pixel_x,
+            brw_inst *addx = dbld.ADD(int_pixel_x, int_pixel_x,
                                      horiz_stride(half_int_pixel_offset_x, 0));
-            fs_inst *addy = dbld.ADD(int_pixel_y, int_pixel_y,
+            brw_inst *addy = dbld.ADD(int_pixel_y, int_pixel_y,
                                      horiz_stride(half_int_pixel_offset_y, 0));
             if (wm_prog_data->coarse_pixel_dispatch != INTEL_ALWAYS) {
                addx->predicate = BRW_PREDICATE_NORMAL;
@@ -402,7 +397,7 @@ brw_emit_interpolation_setup(fs_visitor &s)
           * Thus we can do a single add(16) in SIMD8 or an add(32) in SIMD16
           * to compute our pixel centers.
           */
-         const fs_builder dbld =
+         const brw_builder dbld =
             abld.exec_all().group(hbld.dispatch_width() * 2, 0);
          brw_reg int_pixel_xy = dbld.vgrf(BRW_TYPE_UW);
 
@@ -473,7 +468,7 @@ brw_emit_interpolation_setup(fs_visitor &s)
    }
 
    if (wm_prog_data->uses_src_depth)
-      s.pixel_z = fetch_payload_reg(bld, payload.source_depth_reg);
+      s.pixel_z = brw_fetch_payload_reg(bld, payload.source_depth_reg);
 
    if (wm_prog_data->uses_depth_w_coefficients ||
        wm_prog_data->uses_src_depth) {
@@ -503,15 +498,13 @@ brw_emit_interpolation_setup(fs_visitor &s)
 
    if (wm_prog_data->uses_src_w) {
       abld = bld.annotate("compute pos.w");
-      s.pixel_w = fetch_payload_reg(abld, payload.source_w_reg);
+      s.pixel_w = brw_fetch_payload_reg(abld, payload.source_w_reg);
       s.wpos_w = bld.vgrf(BRW_TYPE_F);
       abld.emit(SHADER_OPCODE_RCP, s.wpos_w, s.pixel_w);
    }
 
    if (wm_key->persample_interp == INTEL_SOMETIMES) {
-      assert(!devinfo->needs_unlit_centroid_workaround);
-
-      const fs_builder ubld = bld.exec_all().group(16, 0);
+      const brw_builder ubld = bld.exec_all().group(16, 0);
       bool loaded_flag = false;
 
       for (int i = 0; i < INTEL_BARYCENTRIC_MODE_COUNT; ++i) {
@@ -544,8 +537,8 @@ brw_emit_interpolation_setup(fs_visitor &s)
          assert(barys[0] && sample_barys[0]);
 
          if (!loaded_flag) {
-            check_dynamic_msaa_flag(ubld, wm_prog_data,
-                                    INTEL_MSAA_FLAG_PERSAMPLE_INTERP);
+            brw_check_dynamic_msaa_flag(ubld, wm_prog_data,
+                                        INTEL_MSAA_FLAG_PERSAMPLE_INTERP);
          }
 
          for (unsigned j = 0; j < s.dispatch_width / 8; j++) {
@@ -558,44 +551,8 @@ brw_emit_interpolation_setup(fs_visitor &s)
    }
 
    for (int i = 0; i < INTEL_BARYCENTRIC_MODE_COUNT; ++i) {
-      s.delta_xy[i] = fetch_barycentric_reg(
+      s.delta_xy[i] = brw_fetch_barycentric_reg(
          bld, payload.barycentric_coord_reg[i]);
-   }
-
-   uint32_t centroid_modes = wm_prog_data->barycentric_interp_modes &
-      (1 << INTEL_BARYCENTRIC_PERSPECTIVE_CENTROID |
-       1 << INTEL_BARYCENTRIC_NONPERSPECTIVE_CENTROID);
-
-   if (devinfo->needs_unlit_centroid_workaround && centroid_modes) {
-      /* Get the pixel/sample mask into f0 so that we know which
-       * pixels are lit.  Then, for each channel that is unlit,
-       * replace the centroid data with non-centroid data.
-       */
-      for (unsigned i = 0; i < DIV_ROUND_UP(s.dispatch_width, 16); i++) {
-         bld.exec_all().group(1, 0)
-            .MOV(retype(brw_flag_reg(0, i), BRW_TYPE_UW),
-                 retype(brw_vec1_grf(1 + i, 7), BRW_TYPE_UW));
-      }
-
-      for (int i = 0; i < INTEL_BARYCENTRIC_MODE_COUNT; ++i) {
-         if (!(centroid_modes & (1 << i)))
-            continue;
-
-         const brw_reg centroid_delta_xy = s.delta_xy[i];
-         const brw_reg &pixel_delta_xy = s.delta_xy[i - 1];
-
-         s.delta_xy[i] = bld.vgrf(BRW_TYPE_F, 2);
-
-         for (unsigned c = 0; c < 2; c++) {
-            for (unsigned q = 0; q < s.dispatch_width / 8; q++) {
-               set_predicate(BRW_PREDICATE_NORMAL,
-                  bld.quarter(q).SEL(
-                     quarter(offset(s.delta_xy[i], bld, c), q),
-                     quarter(offset(centroid_delta_xy, bld, c), q),
-                     quarter(offset(pixel_delta_xy, bld, c), q)));
-            }
-         }
-      }
    }
 }
 
@@ -605,10 +562,10 @@ brw_emit_interpolation_setup(fs_visitor &s)
  * instructions to FS_OPCODE_REP_FB_WRITE.
  */
 static void
-brw_emit_repclear_shader(fs_visitor &s)
+brw_emit_repclear_shader(brw_shader &s)
 {
    brw_wm_prog_key *key = (brw_wm_prog_key*) s.key;
-   fs_inst *write = NULL;
+   brw_inst *write = NULL;
 
    assert(s.devinfo->ver < 20);
    assert(s.uniforms == 0);
@@ -623,7 +580,7 @@ brw_emit_repclear_shader(fs_visitor &s)
               BRW_VERTICAL_STRIDE_8, BRW_WIDTH_2, BRW_HORIZONTAL_STRIDE_4,
               BRW_SWIZZLE_XYZW, WRITEMASK_XYZW);
 
-   const fs_builder bld = fs_builder(&s).at_end();
+   const brw_builder bld = brw_builder(&s);
    bld.exec_all().group(4, 0).MOV(color_output, color_input);
 
    if (key->nr_color_regions > 1) {
@@ -634,7 +591,7 @@ brw_emit_repclear_shader(fs_visitor &s)
 
    for (int i = 0; i < key->nr_color_regions; ++i) {
       if (i > 0)
-         bld.exec_all().group(1, 0).MOV(component(header, 2), brw_imm_ud(i));
+         bld.uniform().MOV(component(header, 2), brw_imm_ud(i));
 
       write = bld.emit(SHADER_OPCODE_SEND);
       write->resize_sources(3);
@@ -643,7 +600,7 @@ brw_emit_repclear_shader(fs_visitor &s)
       write->header_size = i == 0 ? 0 : 2;
       write->mlen = 1 + write->header_size;
 
-      write->sfid = GFX6_SFID_DATAPORT_RENDER_CACHE;
+      write->sfid = BRW_SFID_RENDER_CACHE;
       write->src[0] = brw_imm_ud(
          brw_fb_write_desc(
             s.devinfo, i,
@@ -661,7 +618,6 @@ brw_emit_repclear_shader(fs_visitor &s)
       write->mlen = 1 + write->header_size;
    }
    write->eot = true;
-   write->last_rt = true;
 
    brw_calculate_cfg(s);
 
@@ -670,260 +626,142 @@ brw_emit_repclear_shader(fs_visitor &s)
    brw_lower_scoreboard(s);
 }
 
-/**
- * Turn one of the two CENTROID barycentric modes into PIXEL mode.
- */
-static enum intel_barycentric_mode
-centroid_to_pixel(enum intel_barycentric_mode bary)
-{
-   assert(bary == INTEL_BARYCENTRIC_PERSPECTIVE_CENTROID ||
-          bary == INTEL_BARYCENTRIC_NONPERSPECTIVE_CENTROID);
-   return (enum intel_barycentric_mode) ((unsigned) bary - 1);
-}
-
 static void
 calculate_urb_setup(const struct intel_device_info *devinfo,
                     const struct brw_wm_prog_key *key,
                     struct brw_wm_prog_data *prog_data,
-                    const nir_shader *nir,
-                    const struct brw_mue_map *mue_map)
+                    nir_shader *nir,
+                    const struct brw_mue_map *mue_map,
+                    int *per_primitive_offsets)
 {
    memset(prog_data->urb_setup, -1, sizeof(prog_data->urb_setup));
    memset(prog_data->urb_setup_channel, 0, sizeof(prog_data->urb_setup_channel));
 
    int urb_next = 0; /* in vec4s */
 
+   /* Figure out where the PrimitiveID lives, either in the per-vertex block
+    * or in the per-primitive block or both.
+    */
+   const uint64_t per_vert_primitive_id =
+      key->mesh_input == INTEL_ALWAYS ? 0 : VARYING_BIT_PRIMITIVE_ID;
+   const uint64_t per_prim_primitive_id =
+      key->mesh_input == INTEL_NEVER ? 0 : VARYING_BIT_PRIMITIVE_ID;
    const uint64_t inputs_read =
-      nir->info.inputs_read & ~nir->info.per_primitive_inputs;
+      nir->info.inputs_read &
+      (~nir->info.per_primitive_inputs | per_vert_primitive_id);
+   const uint64_t per_primitive_header_bits =
+      VARYING_BIT_PRIMITIVE_SHADING_RATE |
+      VARYING_BIT_LAYER |
+      VARYING_BIT_VIEWPORT |
+      VARYING_BIT_CULL_PRIMITIVE;
+   const uint64_t per_primitive_inputs =
+      nir->info.inputs_read &
+      (nir->info.per_primitive_inputs | per_prim_primitive_id) &
+      ~per_primitive_header_bits;
+   uint64_t unique_fs_attrs =
+      inputs_read & BRW_FS_VARYING_INPUT_MASK;
+   struct intel_vue_map vue_map;
+   uint32_t per_primitive_stride = 0, first_read_offset = UINT32_MAX;
 
-   /* Figure out where each of the incoming setup attributes lands. */
-   if (key->mesh_input != INTEL_NEVER) {
-      /* Per-Primitive Attributes are laid out by Hardware before the regular
-       * attributes, so order them like this to make easy later to map setup
-       * into real HW registers.
+   if (mue_map != NULL) {
+      memcpy(&vue_map, &mue_map->vue_map, sizeof(vue_map));
+
+      memcpy(per_primitive_offsets,
+             mue_map->per_primitive_offsets,
+             sizeof(mue_map->per_primitive_offsets));
+
+      u_foreach_bit64(location, per_primitive_inputs) {
+         assert(per_primitive_offsets[location] != -1);
+
+         first_read_offset = MIN2(first_read_offset,
+                                  (uint32_t)per_primitive_offsets[location]);
+         per_primitive_stride =
+            MAX2((uint32_t)per_primitive_offsets[location] + 16,
+                 per_primitive_stride);
+      }
+   } else {
+      brw_compute_vue_map(devinfo, &vue_map, inputs_read,
+                          key->base.vue_layout,
+                          1 /* pos_slots, TODO */);
+      brw_compute_per_primitive_map(per_primitive_offsets,
+                                    &per_primitive_stride,
+                                    &first_read_offset,
+                                    0, nir, nir_var_shader_in,
+                                    per_primitive_inputs,
+                                    true /* separate_shader */);
+   }
+
+   if (per_primitive_stride > first_read_offset) {
+      first_read_offset = ROUND_DOWN_TO(first_read_offset, 32);
+
+      /* Remove the first few unused registers */
+      for (uint32_t i = 0; i < VARYING_SLOT_MAX; i++) {
+         if (per_primitive_offsets[i] == -1)
+            continue;
+         per_primitive_offsets[i] -= first_read_offset;
+      }
+
+      prog_data->num_per_primitive_inputs =
+         2 * DIV_ROUND_UP(per_primitive_stride - first_read_offset, 32);
+   } else {
+      prog_data->num_per_primitive_inputs = 0;
+   }
+
+   /* Now do the per-vertex stuff (what used to be legacy pipeline) */
+   const uint64_t vue_header_bits = BRW_VUE_HEADER_VARYING_MASK;
+
+   unique_fs_attrs &= ~vue_header_bits;
+
+   /* If Mesh is involved, we cannot do any packing. Documentation doesn't say
+    * anything about this but 3DSTATE_SBE_SWIZ does not appear to work when
+    * using Mesh.
+    */
+   if (util_bitcount64(unique_fs_attrs) <= 16 && key->mesh_input == INTEL_NEVER) {
+      /* When not in Mesh pipeline mode, the SF/SBE pipeline stage can do
+       * arbitrary rearrangement of the first 16 varying inputs, so we can put
+       * them wherever we want. Just put them in order.
+       *
+       * This is useful because it means that (a) inputs not used by the
+       * fragment shader won't take up valuable register space, and (b) we
+       * won't have to recompile the fragment shader if it gets paired with a
+       * different vertex (or geometry) shader.
        */
-      if (nir->info.per_primitive_inputs) {
-         uint64_t per_prim_inputs_read =
-               nir->info.inputs_read & nir->info.per_primitive_inputs;
-
-         /* In Mesh, PRIMITIVE_SHADING_RATE, VIEWPORT and LAYER slots
-          * are always at the beginning, because they come from MUE
-          * Primitive Header, not Per-Primitive Attributes.
-          */
-         const uint64_t primitive_header_bits = VARYING_BIT_VIEWPORT |
-                                                VARYING_BIT_LAYER |
-                                                VARYING_BIT_PRIMITIVE_SHADING_RATE;
-
-         if (mue_map) {
-            unsigned per_prim_start_dw = mue_map->per_primitive_start_dw;
-            unsigned per_prim_size_dw = mue_map->per_primitive_pitch_dw;
-
-            bool reads_header = (per_prim_inputs_read & primitive_header_bits) != 0;
-
-            if (reads_header || mue_map->user_data_in_primitive_header) {
-               /* Primitive Shading Rate, Layer and Viewport live in the same
-                * 4-dwords slot (psr is dword 0, layer is dword 1, and viewport
-                * is dword 2).
-                */
-               if (per_prim_inputs_read & VARYING_BIT_PRIMITIVE_SHADING_RATE)
-                  prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_SHADING_RATE] = 0;
-
-               if (per_prim_inputs_read & VARYING_BIT_LAYER)
-                  prog_data->urb_setup[VARYING_SLOT_LAYER] = 0;
-
-               if (per_prim_inputs_read & VARYING_BIT_VIEWPORT)
-                  prog_data->urb_setup[VARYING_SLOT_VIEWPORT] = 0;
-
-               per_prim_inputs_read &= ~primitive_header_bits;
-            } else {
-               /* If fs doesn't need primitive header, then it won't be made
-                * available through SBE_MESH, so we have to skip them when
-                * calculating offset from start of per-prim data.
-                */
-               per_prim_start_dw += mue_map->per_primitive_header_size_dw;
-               per_prim_size_dw -= mue_map->per_primitive_header_size_dw;
-            }
-
-            u_foreach_bit64(i, per_prim_inputs_read) {
-               int start = mue_map->start_dw[i];
-
-               assert(start >= 0);
-               assert(mue_map->len_dw[i] > 0);
-
-               assert(unsigned(start) >= per_prim_start_dw);
-               unsigned pos_dw = unsigned(start) - per_prim_start_dw;
-
-               prog_data->urb_setup[i] = urb_next + pos_dw / 4;
-               prog_data->urb_setup_channel[i] = pos_dw % 4;
-            }
-
-            urb_next = per_prim_size_dw / 4;
-         } else {
-            /* With no MUE map, we never read the primitive header, and
-             * per-primitive attributes won't be packed either, so just lay
-             * them in varying order.
-             */
-            per_prim_inputs_read &= ~primitive_header_bits;
-
-            for (unsigned i = 0; i < VARYING_SLOT_MAX; i++) {
-               if (per_prim_inputs_read & BITFIELD64_BIT(i)) {
-                  prog_data->urb_setup[i] = urb_next++;
-               }
-            }
-
-            /* The actual setup attributes later must be aligned to a full GRF. */
-            urb_next = ALIGN(urb_next, 2);
-         }
-
-         prog_data->num_per_primitive_inputs = urb_next;
-      }
-
-      const uint64_t clip_dist_bits = VARYING_BIT_CLIP_DIST0 |
-                                      VARYING_BIT_CLIP_DIST1;
-
-      uint64_t unique_fs_attrs = inputs_read & BRW_FS_VARYING_INPUT_MASK;
-
-      if (inputs_read & clip_dist_bits) {
-         assert(!mue_map || mue_map->per_vertex_header_size_dw > 8);
-         unique_fs_attrs &= ~clip_dist_bits;
-      }
-
-      if (mue_map) {
-         unsigned per_vertex_start_dw = mue_map->per_vertex_start_dw;
-         unsigned per_vertex_size_dw = mue_map->per_vertex_pitch_dw;
-
-         /* Per-Vertex header is available to fragment shader only if there's
-          * user data there.
-          */
-         if (!mue_map->user_data_in_vertex_header) {
-            per_vertex_start_dw += 8;
-            per_vertex_size_dw -= 8;
-         }
-
-         /* In Mesh, CLIP_DIST slots are always at the beginning, because
-          * they come from MUE Vertex Header, not Per-Vertex Attributes.
-          */
-         if (inputs_read & clip_dist_bits) {
-            prog_data->urb_setup[VARYING_SLOT_CLIP_DIST0] = urb_next;
-            prog_data->urb_setup[VARYING_SLOT_CLIP_DIST1] = urb_next + 1;
-         } else if (mue_map && mue_map->per_vertex_header_size_dw > 8) {
-            /* Clip distances are in MUE, but we are not reading them in FS. */
-            per_vertex_start_dw += 8;
-            per_vertex_size_dw -= 8;
-         }
-
-         /* Per-Vertex attributes are laid out ordered.  Because we always link
-          * Mesh and Fragment shaders, the which slots are written and read by
-          * each of them will match. */
-         u_foreach_bit64(i, unique_fs_attrs) {
-            int start = mue_map->start_dw[i];
-
-            assert(start >= 0);
-            assert(mue_map->len_dw[i] > 0);
-
-            assert(unsigned(start) >= per_vertex_start_dw);
-            unsigned pos_dw = unsigned(start) - per_vertex_start_dw;
-
-            prog_data->urb_setup[i] = urb_next + pos_dw / 4;
-            prog_data->urb_setup_channel[i] = pos_dw % 4;
-         }
-
-         urb_next += per_vertex_size_dw / 4;
-      } else {
-         /* If we don't have an MUE map, just lay down the inputs the FS reads
-          * in varying order, as we do for the legacy pipeline.
-          */
-         if (inputs_read & clip_dist_bits) {
-            prog_data->urb_setup[VARYING_SLOT_CLIP_DIST0] = urb_next++;
-            prog_data->urb_setup[VARYING_SLOT_CLIP_DIST1] = urb_next++;
-         }
-
-         for (unsigned int i = 0; i < VARYING_SLOT_MAX; i++) {
-            if (unique_fs_attrs & BITFIELD64_BIT(i))
-               prog_data->urb_setup[i] = urb_next++;
+      for (unsigned int i = 0; i < VARYING_SLOT_MAX; i++) {
+         if (inputs_read & BRW_FS_VARYING_INPUT_MASK & ~vue_header_bits &
+             BITFIELD64_BIT(i)) {
+            prog_data->urb_setup[i] = urb_next++;
          }
       }
    } else {
-      assert(!nir->info.per_primitive_inputs);
-
-      uint64_t vue_header_bits =
-         VARYING_BIT_PSIZ | VARYING_BIT_LAYER | VARYING_BIT_VIEWPORT;
-
-      uint64_t unique_fs_attrs = inputs_read & BRW_FS_VARYING_INPUT_MASK;
-
-      /* VUE header fields all live in the same URB slot, so we pass them
-       * as a single FS input attribute.  We want to only count them once.
+      /* We have enough input varyings that the SF/SBE pipeline stage can't
+       * arbitrarily rearrange them to suit our whim; we have to put them in
+       * an order that matches the output of the previous pipeline stage
+       * (geometry or vertex shader).
        */
-      if (inputs_read & vue_header_bits) {
-         unique_fs_attrs &= ~vue_header_bits;
-         unique_fs_attrs |= VARYING_BIT_PSIZ;
+      int first_slot = 0;
+      for (int i = 0; i < vue_map.num_slots; i++) {
+         int varying = vue_map.slot_to_varying[i];
+         if (varying != BRW_VARYING_SLOT_PAD && varying > 0 &&
+             (inputs_read & BITFIELD64_BIT(varying)) != 0) {
+            first_slot = ROUND_DOWN_TO(i, 2);
+            break;
+         }
       }
 
-      if (util_bitcount64(unique_fs_attrs) <= 16) {
-         /* The SF/SBE pipeline stage can do arbitrary rearrangement of the
-          * first 16 varying inputs, so we can put them wherever we want.
-          * Just put them in order.
-          *
-          * This is useful because it means that (a) inputs not used by the
-          * fragment shader won't take up valuable register space, and (b) we
-          * won't have to recompile the fragment shader if it gets paired with
-          * a different vertex (or geometry) shader.
-          *
-          * VUE header fields share the same FS input attribute.
-          */
-         if (inputs_read & vue_header_bits) {
-            if (inputs_read & VARYING_BIT_PSIZ)
-               prog_data->urb_setup[VARYING_SLOT_PSIZ] = urb_next;
-            if (inputs_read & VARYING_BIT_LAYER)
-               prog_data->urb_setup[VARYING_SLOT_LAYER] = urb_next;
-            if (inputs_read & VARYING_BIT_VIEWPORT)
-               prog_data->urb_setup[VARYING_SLOT_VIEWPORT] = urb_next;
-
-            urb_next++;
+      for (int slot = first_slot; slot < vue_map.num_slots; slot++) {
+         int varying = vue_map.slot_to_varying[slot];
+         if (varying != BRW_VARYING_SLOT_PAD &&
+             (inputs_read & BRW_FS_VARYING_INPUT_MASK &
+              BITFIELD64_BIT(varying))) {
+            prog_data->urb_setup[varying] = slot - first_slot;
          }
-
-         for (unsigned int i = 0; i < VARYING_SLOT_MAX; i++) {
-            if (inputs_read & BRW_FS_VARYING_INPUT_MASK & ~vue_header_bits &
-                BITFIELD64_BIT(i)) {
-               prog_data->urb_setup[i] = urb_next++;
-            }
-         }
-      } else {
-         /* We have enough input varyings that the SF/SBE pipeline stage can't
-          * arbitrarily rearrange them to suit our whim; we have to put them
-          * in an order that matches the output of the previous pipeline stage
-          * (geometry or vertex shader).
-          */
-
-         /* Re-compute the VUE map here in the case that the one coming from
-          * geometry has more than one position slot (used for Primitive
-          * Replication).
-          */
-         struct intel_vue_map prev_stage_vue_map;
-         brw_compute_vue_map(devinfo, &prev_stage_vue_map,
-                             key->input_slots_valid,
-                             nir->info.separate_shader, 1);
-
-         int first_slot =
-            brw_compute_first_urb_slot_required(inputs_read,
-                                                &prev_stage_vue_map);
-
-         assert(prev_stage_vue_map.num_slots <= first_slot + 32);
-         for (int slot = first_slot; slot < prev_stage_vue_map.num_slots;
-              slot++) {
-            int varying = prev_stage_vue_map.slot_to_varying[slot];
-            if (varying != BRW_VARYING_SLOT_PAD &&
-                (inputs_read & BRW_FS_VARYING_INPUT_MASK &
-                 BITFIELD64_BIT(varying))) {
-               prog_data->urb_setup[varying] = slot - first_slot;
-            }
-         }
-         urb_next = prev_stage_vue_map.num_slots - first_slot;
       }
+      urb_next = vue_map.num_slots - first_slot;
    }
 
-   prog_data->num_varying_inputs = urb_next - prog_data->num_per_primitive_inputs;
+   prog_data->num_varying_inputs = urb_next;
    prog_data->inputs = inputs_read;
+   prog_data->per_primitive_inputs = per_primitive_inputs;
 
    brw_compute_urb_setup_index(prog_data);
 }
@@ -982,15 +820,10 @@ brw_compute_barycentric_interp_modes(const struct intel_device_info *devinfo,
             if (!is_used_in_not_interp_frag_coord(&intrin->def))
                continue;
 
-            nir_intrinsic_op bary_op = intrin->intrinsic;
             enum intel_barycentric_mode bary =
                brw_barycentric_mode(key, intrin);
 
             barycentric_interp_modes |= 1 << bary;
-
-            if (devinfo->needs_unlit_centroid_workaround &&
-                bary_op == nir_intrinsic_load_barycentric_centroid)
-               barycentric_interp_modes |= 1 << centroid_to_pixel(bary);
          }
       }
    }
@@ -1033,8 +866,6 @@ brw_compute_flat_inputs(struct brw_wm_prog_data *prog_data,
 {
    prog_data->flat_inputs = 0;
 
-   const unsigned per_vertex_start = prog_data->num_per_primitive_inputs;
-
    nir_foreach_shader_in_variable(var, shader) {
       /* flat shading */
       if (var->data.interpolation != INTERP_MODE_FLAT)
@@ -1045,7 +876,7 @@ brw_compute_flat_inputs(struct brw_wm_prog_data *prog_data,
 
       unsigned slots = glsl_count_attribute_slots(var->type, false);
       for (unsigned s = 0; s < slots; s++) {
-         int input_index = prog_data->urb_setup[var->data.location + s] - per_vertex_start;
+         int input_index = prog_data->urb_setup[var->data.location + s];
 
          if (input_index >= 0)
             prog_data->flat_inputs |= 1 << input_index;
@@ -1087,7 +918,8 @@ brw_nir_populate_wm_prog_data(nir_shader *shader,
                               const struct intel_device_info *devinfo,
                               const struct brw_wm_prog_key *key,
                               struct brw_wm_prog_data *prog_data,
-                              const struct brw_mue_map *mue_map)
+                              const struct brw_mue_map *mue_map,
+                              int *per_primitive_offsets)
 {
    prog_data->uses_kill = shader->info.fs.uses_discard;
    prog_data->uses_omask = !key->ignore_sample_mask_out &&
@@ -1117,6 +949,12 @@ brw_nir_populate_wm_prog_data(nir_shader *shader,
     * to definitively tell whether alpha_to_coverage is on or off.
     */
    prog_data->alpha_to_coverage = key->alpha_to_coverage;
+
+   assert(devinfo->verx10 >= 125 || key->mesh_input == INTEL_NEVER);
+   prog_data->mesh_input = key->mesh_input;
+
+   assert(devinfo->verx10 >= 200 || key->provoking_vertex_last == INTEL_NEVER);
+   prog_data->provoking_vertex_last = key->provoking_vertex_last;
 
    prog_data->uses_sample_mask =
       BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_SAMPLE_MASK_IN);
@@ -1160,6 +998,8 @@ brw_nir_populate_wm_prog_data(nir_shader *shader,
    if (devinfo->ver >= 20) {
       const unsigned offset_bary_modes =
          brw_compute_offset_barycentric_interp_modes(key, shader);
+
+      prog_data->vertex_attributes_bypass = brw_needs_vertex_attributes_bypass(shader);
 
       prog_data->uses_npc_bary_coefficients =
          offset_bary_modes & INTEL_BARYCENTRIC_NONPERSPECTIVE_BITS;
@@ -1227,7 +1067,7 @@ brw_nir_populate_wm_prog_data(nir_shader *shader,
     * us to lose out on the eliminate_find_live_channel() optimization.
     */
    prog_data->uses_vmask = devinfo->verx10 < 125 ||
-                           shader->info.fs.needs_quad_helper_invocations ||
+                           shader->info.fs.needs_coarse_quad_helper_invocations ||
                            shader->info.uses_wide_subgroup_intrinsics ||
                            prog_data->coarse_pixel_dispatch != INTEL_NEVER;
 
@@ -1240,7 +1080,7 @@ brw_nir_populate_wm_prog_data(nir_shader *shader,
       (BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FRAG_COORD) &&
        prog_data->coarse_pixel_dispatch != INTEL_NEVER);
 
-   calculate_urb_setup(devinfo, key, prog_data, shader, mue_map);
+   calculate_urb_setup(devinfo, key, prog_data, shader, mue_map, per_primitive_offsets);
    brw_compute_flat_inputs(prog_data, shader);
 }
 
@@ -1272,7 +1112,7 @@ gfx9_ps_header_only_workaround(struct brw_wm_prog_data *wm_prog_data)
 }
 
 static void
-brw_assign_urb_setup(fs_visitor &s)
+brw_assign_urb_setup(brw_shader &s)
 {
    assert(s.stage == MESA_SHADER_FRAGMENT);
 
@@ -1280,11 +1120,23 @@ brw_assign_urb_setup(fs_visitor &s)
    struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
 
    int urb_start = s.payload().num_regs + prog_data->base.curb_read_length;
+   bool read_attribute_payload = false;
 
    /* Offset all the urb_setup[] index by the actual position of the
     * setup regs, now that the location of the constants has been chosen.
     */
-   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
+      if (inst->opcode == FS_OPCODE_READ_ATTRIBUTE_PAYLOAD) {
+         brw_reg offset = inst->src[0];
+         inst->resize_sources(3);
+         inst->opcode = SHADER_OPCODE_MOV_INDIRECT;
+         inst->src[0] = retype(brw_vec8_grf(urb_start, 0), BRW_TYPE_UD);
+         inst->src[1] = offset;
+         inst->src[2] = brw_imm_ud(REG_SIZE * 2 * 32);
+         read_attribute_payload = true;
+         continue;
+      }
+
       for (int i = 0; i < inst->sources; i++) {
          if (inst->src[i].file == ATTR) {
             /* ATTR brw_reg::nr in the FS is in units of logical scalar
@@ -1333,6 +1185,12 @@ brw_assign_urb_setup(fs_visitor &s)
              * to the above, except the parameters are packed in 12B
              * and ordered like "a0, a1-a0, a2-a0" instead of the
              * above vec4 representation with a missing component.
+             *
+             * First documented in the TGL PRMs, Volume 9: Render Engine, PS
+             * Thread Payload for Normal Dispatch.
+             *
+             * Pre Xe2 : BSpec 47024
+             * Xe2+    : BSpec 56480
              */
             const unsigned param_width = (s.max_polygons > 1 ? s.dispatch_width : 1);
 
@@ -1441,11 +1299,18 @@ brw_assign_urb_setup(fs_visitor &s)
       }
    }
 
+   if (read_attribute_payload) {
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS |
+                            BRW_DEPENDENCY_VARIABLES);
+   }
+
    /* Each attribute is 4 setup channels, each of which is half a reg,
     * but they may be replicated multiple times for multipolygon
     * dispatch.
     */
-   s.first_non_payload_grf += prog_data->num_varying_inputs * 2 * s.max_polygons;
+   s.first_non_payload_grf +=
+      (read_attribute_payload ? 32 : prog_data->num_varying_inputs) *
+      2 * s.max_polygons;
 
    /* Unlike regular attributes, per-primitive attributes have all 4 channels
     * in the same slot, so each GRF can store two slots.
@@ -1455,17 +1320,17 @@ brw_assign_urb_setup(fs_visitor &s)
 }
 
 static bool
-run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
+run_fs(brw_shader &s, bool allow_spilling, bool do_rep_send)
 {
    const struct intel_device_info *devinfo = s.devinfo;
    struct brw_wm_prog_data *wm_prog_data = brw_wm_prog_data(s.prog_data);
    brw_wm_prog_key *wm_key = (brw_wm_prog_key *) s.key;
-   const fs_builder bld = fs_builder(&s).at_end();
+   const brw_builder bld = brw_builder(&s);
    const nir_shader *nir = s.nir;
 
    assert(s.stage == MESA_SHADER_FRAGMENT);
 
-   s.payload_ = new fs_thread_payload(s, s.source_depth_to_render_target);
+   s.payload_ = new brw_fs_thread_payload(s, s.source_depth_to_render_target);
 
    if (nir->info.ray_queries > 0)
       s.limit_dispatch_width(16, "SIMD32 not supported with ray queries.\n");
@@ -1494,21 +1359,22 @@ run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
             const brw_reg dispatch_mask =
                devinfo->ver >= 20 ? xe2_vec1_grf(i, 15) :
                                     brw_vec1_grf(i + 1, 7);
-            bld.exec_all().group(1, 0)
-               .MOV(brw_sample_mask_reg(bld.group(lower_width, i)),
-                    retype(dispatch_mask, BRW_TYPE_UW));
+            bld.uniform().MOV(brw_sample_mask_reg(bld.group(lower_width, i)),
+                              retype(dispatch_mask, BRW_TYPE_UW));
          }
       }
 
       if (nir->info.writes_memory)
          wm_prog_data->has_side_effects = true;
 
-      nir_to_brw(&s);
+      brw_from_nir(&s);
 
       if (s.failed)
 	 return false;
 
       brw_emit_fb_writes(s);
+      if (s.failed)
+	 return false;
 
       brw_calculate_cfg(s);
 
@@ -1521,8 +1387,10 @@ run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
 
       brw_assign_urb_setup(s);
 
+      s.debug_optimizer(nir, "urb_setup", 89, 0);
+
+
       brw_lower_3src_null_dest(s);
-      brw_workaround_memory_fence_before_eot(s);
       brw_workaround_emit_dummy_mov_instruction(s);
 
       brw_allocate_registers(s, allow_spilling);
@@ -1531,6 +1399,44 @@ run_fs(fs_visitor &s, bool allow_spilling, bool do_rep_send)
    }
 
    return !s.failed;
+}
+
+static void
+brw_print_fs_urb_setup(FILE *fp, const struct brw_wm_prog_data *prog_data,
+                       int *per_primitive_offsets)
+{
+   fprintf(fp, "FS URB (inputs=0x%016" PRIx64 ", flat_inputs=0x%08x):\n",
+           prog_data->inputs, prog_data->flat_inputs);
+   fprintf(fp, "  URB setup:\n");
+   for (uint32_t i = 0; i < ARRAY_SIZE(prog_data->urb_setup); i++) {
+      if (prog_data->urb_setup[i] >= 0) {
+         fprintf(fp, "   [%02d]: %i channel=%u (%s)\n",
+                 i, prog_data->urb_setup[i], prog_data->urb_setup_channel[i],
+                 gl_varying_slot_name_for_stage((gl_varying_slot)i,
+                                                MESA_SHADER_FRAGMENT));
+      }
+   }
+   fprintf(fp, "  URB setup attributes:\n");
+   for (uint32_t i = 0; i < prog_data->urb_setup_attribs_count; i++) {
+      fprintf(fp, "   [%02d]: %i (%s)\n",
+              i, prog_data->urb_setup_attribs[i],
+              gl_varying_slot_name_for_stage(
+                 (gl_varying_slot)prog_data->urb_setup_attribs[i],
+                 MESA_SHADER_FRAGMENT));
+   }
+   if (per_primitive_offsets) {
+      fprintf(fp, "  Per Primitive URB setup:\n");
+      for (uint32_t i = 0; i < VARYING_SLOT_MAX; i++) {
+         if (per_primitive_offsets[i] == -1 ||
+             i == VARYING_SLOT_PRIMITIVE_COUNT ||
+             i == VARYING_SLOT_PRIMITIVE_INDICES)
+            continue;
+         fprintf(fp, "   [%02d]: %i (%s)\n",
+                 i, per_primitive_offsets[i],
+                 gl_varying_slot_name_for_stage((gl_varying_slot)i,
+                                                MESA_SHADER_FRAGMENT));
+      }
+   }
 }
 
 const unsigned *
@@ -1543,11 +1449,10 @@ brw_compile_fs(const struct brw_compiler *compiler,
    bool allow_spilling = params->allow_spilling;
    const bool debug_enabled =
       brw_should_print_shader(nir, params->base.debug_flag ?
-                                   params->base.debug_flag : DEBUG_WM);
+                                   params->base.debug_flag : DEBUG_WM,
+                                   params->base.source_hash);
 
-   prog_data->base.stage = MESA_SHADER_FRAGMENT;
-   prog_data->base.ray_queries = nir->info.ray_queries;
-   prog_data->base.total_scratch = 0;
+   brw_prog_data_init(&prog_data->base, &params->base);
 
    const struct intel_device_info *devinfo = compiler->devinfo;
    const unsigned max_subgroup_size = 32;
@@ -1566,27 +1471,44 @@ brw_compile_fs(const struct brw_compiler *compiler,
        * emit_alpha_to_coverage pass.
        */
       NIR_PASS(_, nir, nir_opt_constant_folding);
-      NIR_PASS(_, nir, brw_nir_lower_alpha_to_coverage, key, prog_data);
+      NIR_PASS(_, nir, brw_nir_lower_alpha_to_coverage);
    }
 
    NIR_PASS(_, nir, brw_nir_move_interpolation_to_top);
+   NIR_PASS(_, nir, brw_nir_lower_fs_msaa, key);
    brw_postprocess_nir(nir, compiler, debug_enabled,
                        key->base.robust_flags);
 
-   brw_nir_populate_wm_prog_data(nir, compiler->devinfo, key, prog_data,
-                                 params->mue_map);
+   int per_primitive_offsets[VARYING_SLOT_MAX];
+   memset(per_primitive_offsets, -1, sizeof(per_primitive_offsets));
 
-   std::unique_ptr<fs_visitor> v8, v16, v32, vmulti;
+   brw_nir_populate_wm_prog_data(nir, compiler->devinfo, key, prog_data,
+                                 params->mue_map,
+                                 per_primitive_offsets);
+
+   if (unlikely(debug_enabled))
+      brw_print_fs_urb_setup(stderr, prog_data, per_primitive_offsets);
+
+   /* Either an unrestricted or a fixed SIMD16 subgroup size are
+    * allowed -- The latter is needed for fast clear and replicated
+    * data clear shaders.
+    */
+   const unsigned reqd_dispatch_width = brw_required_dispatch_width(&nir->info);
+   assert(reqd_dispatch_width == SUBGROUP_SIZE_VARYING ||
+          reqd_dispatch_width == SUBGROUP_SIZE_REQUIRE_16);
+
+   std::unique_ptr<brw_shader> v8, v16, v32, vmulti;
    cfg_t *simd8_cfg = NULL, *simd16_cfg = NULL, *simd32_cfg = NULL,
       *multi_cfg = NULL;
    float throughput = 0;
    bool has_spilled = false;
 
    if (devinfo->ver < 20) {
-      v8 = std::make_unique<fs_visitor>(compiler, &params->base, key,
+      v8 = std::make_unique<brw_shader>(compiler, &params->base, key,
                                         prog_data, nir, 8, 1,
                                         params->base.stats != NULL,
                                         debug_enabled);
+      v8->import_per_primitive_offsets(per_primitive_offsets);
       if (!run_fs(*v8, allow_spilling, false /* do_rep_send */)) {
          params->base.error_str = ralloc_strdup(params->base.mem_ctx,
                                                 v8->fail_msg);
@@ -1596,161 +1518,298 @@ brw_compile_fs(const struct brw_compiler *compiler,
 
          assert(v8->payload().num_regs % reg_unit(devinfo) == 0);
          prog_data->base.dispatch_grf_start_reg = v8->payload().num_regs / reg_unit(devinfo);
+         prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
+                                         v8->grf_used);
 
-         const performance &perf = v8->performance_analysis.require();
+         const brw_performance &perf = v8->performance_analysis.require();
          throughput = MAX2(throughput, perf.throughput);
          has_spilled = v8->spilled_any_registers;
          allow_spilling = false;
       }
-   }
 
-   if (key->coarse_pixel && devinfo->ver < 20) {
-      if (prog_data->dual_src_blend) {
-         v8->limit_dispatch_width(8, "SIMD16 coarse pixel shading cannot"
-                                  " use SIMD8 messages.\n");
-      }
-      v8->limit_dispatch_width(16, "SIMD32 not supported with coarse"
-                               " pixel shading.\n");
-   }
-
-   if (!has_spilled &&
-       (!v8 || v8->max_dispatch_width >= 16) &&
-       (INTEL_SIMD(FS, 16) || params->use_rep_send)) {
-      /* Try a SIMD16 compile */
-      v16 = std::make_unique<fs_visitor>(compiler, &params->base, key,
-                                         prog_data, nir, 16, 1,
-                                         params->base.stats != NULL,
-                                         debug_enabled);
-      if (v8)
-         v16->import_uniforms(v8.get());
-      if (!run_fs(*v16, allow_spilling, params->use_rep_send)) {
-         brw_shader_perf_log(compiler, params->base.log_data,
-                             "SIMD16 shader failed to compile: %s\n",
-                             v16->fail_msg);
-      } else {
-         simd16_cfg = v16->cfg;
-
-         assert(v16->payload().num_regs % reg_unit(devinfo) == 0);
-         prog_data->dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
-
-         const performance &perf = v16->performance_analysis.require();
-         throughput = MAX2(throughput, perf.throughput);
-         has_spilled = v16->spilled_any_registers;
-         allow_spilling = false;
+      if (key->coarse_pixel) {
+         if (prog_data->dual_src_blend) {
+            v8->limit_dispatch_width(8, "SIMD16 coarse pixel shading cannot"
+                                     " use SIMD8 messages.\n");
+         }
+         v8->limit_dispatch_width(16, "SIMD32 not supported with coarse"
+                                  " pixel shading.\n");
       }
    }
 
-   const bool simd16_failed = v16 && !simd16_cfg;
+   if (devinfo->ver >= 30) {
+      unsigned max_dispatch_width = reqd_dispatch_width ? reqd_dispatch_width : 32;
+      brw_shader *vbase = NULL;
 
-   /* Currently, the compiler only supports SIMD32 on SNB+ */
-   if (!has_spilled &&
-       (!v8 || v8->max_dispatch_width >= 32) &&
-       (!v16 || v16->max_dispatch_width >= 32) && !params->use_rep_send &&
-       !simd16_failed &&
-       INTEL_SIMD(FS, 32)) {
-      /* Try a SIMD32 compile */
-      v32 = std::make_unique<fs_visitor>(compiler, &params->base, key,
-                                         prog_data, nir, 32, 1,
-                                         params->base.stats != NULL,
-                                         debug_enabled);
-      if (v8)
-         v32->import_uniforms(v8.get());
-      else if (v16)
-         v32->import_uniforms(v16.get());
+      if (params->max_polygons >= 2 && !key->coarse_pixel) {
+         if (params->max_polygons >= 4 && max_dispatch_width >= 32 &&
+             4 * prog_data->num_varying_inputs <= MAX_VARYING &&
+             INTEL_SIMD(FS, 4X8)) {
+            /* Try a quad-SIMD8 compile */
+            vmulti = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                                  prog_data, nir, 32, 4,
+                                                  params->base.stats != NULL,
+                                                  debug_enabled);
+            max_dispatch_width = std::min(max_dispatch_width, vmulti->dispatch_width);
 
-      if (!run_fs(*v32, allow_spilling, false)) {
-         brw_shader_perf_log(compiler, params->base.log_data,
-                             "SIMD32 shader failed to compile: %s\n",
-                             v32->fail_msg);
-      } else {
-         const performance &perf = v32->performance_analysis.require();
+            if (!run_fs(*vmulti, false, false)) {
+               brw_shader_perf_log(compiler, params->base.log_data,
+                                   "Quad-SIMD8 shader failed to compile: %s\n",
+                                   vmulti->fail_msg);
+            } else {
+               vbase = vmulti.get();
+               multi_cfg = vmulti->cfg;
+               assert(!vmulti->spilled_any_registers);
+            }
+         }
 
-         if (!INTEL_DEBUG(DEBUG_DO32) && throughput >= perf.throughput) {
+         if (!vbase && max_dispatch_width >= 32 &&
+             2 * prog_data->num_varying_inputs <= MAX_VARYING &&
+             INTEL_SIMD(FS, 2X16)) {
+            /* Try a dual-SIMD16 compile */
+            vmulti = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                                  prog_data, nir, 32, 2,
+                                                  params->base.stats != NULL,
+                                                  debug_enabled);
+            max_dispatch_width = std::min(max_dispatch_width, vmulti->dispatch_width);
+
+            if (!run_fs(*vmulti, false, false)) {
+               brw_shader_perf_log(compiler, params->base.log_data,
+                                   "Dual-SIMD16 shader failed to compile: %s\n",
+                                   vmulti->fail_msg);
+            } else {
+               vbase = vmulti.get();
+               multi_cfg = vmulti->cfg;
+               assert(!vmulti->spilled_any_registers);
+            }
+         }
+
+         if (!vbase && max_dispatch_width >= 16 &&
+             2 * prog_data->num_varying_inputs <= MAX_VARYING &&
+             INTEL_SIMD(FS, 2X8)) {
+            /* Try a dual-SIMD8 compile */
+            vmulti = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                                  prog_data, nir, 16, 2,
+                                                  params->base.stats != NULL,
+                                                  debug_enabled);
+            max_dispatch_width = std::min(max_dispatch_width, vmulti->dispatch_width);
+
+            if (!run_fs(*vmulti, false, false)) {
+               brw_shader_perf_log(compiler, params->base.log_data,
+                                   "Dual-SIMD8 shader failed to compile: %s\n",
+                                   vmulti->fail_msg);
+            } else {
+               vbase = vmulti.get();
+               multi_cfg = vmulti->cfg;
+            }
+         }
+      }
+
+      if ((!vbase || vbase->dispatch_width < 32) &&
+          max_dispatch_width >= 32 &&
+          INTEL_SIMD(FS, 32) &&
+          !prog_data->base.ray_queries) {
+         /* Try a SIMD32 compile */
+         v32 = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                            prog_data, nir, 32, 1,
+                                            params->base.stats != NULL,
+                                            debug_enabled);
+         v32->import_per_primitive_offsets(per_primitive_offsets);
+         if (vbase)
+            v32->import_uniforms(vbase);
+
+         if (!run_fs(*v32, false, false)) {
             brw_shader_perf_log(compiler, params->base.log_data,
-                                "SIMD32 shader inefficient\n");
+                                "SIMD32 shader failed to compile: %s\n",
+                                v32->fail_msg);
          } else {
-            simd32_cfg = v32->cfg;
+            if (!vbase)
+               vbase = v32.get();
 
+            simd32_cfg = v32->cfg;
             assert(v32->payload().num_regs % reg_unit(devinfo) == 0);
             prog_data->dispatch_grf_start_reg_32 = v32->payload().num_regs / reg_unit(devinfo);
+            prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
+                                            v32->grf_used);
+         }
+      }
 
+      if (!vbase && INTEL_SIMD(FS, 16)) {
+         /* Try a SIMD16 compile */
+         v16 = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                            prog_data, nir, 16, 1,
+                                            params->base.stats != NULL,
+                                            debug_enabled);
+         v16->import_per_primitive_offsets(per_primitive_offsets);
+
+         if (!run_fs(*v16, allow_spilling, params->use_rep_send)) {
+            brw_shader_perf_log(compiler, params->base.log_data,
+                                "SIMD16 shader failed to compile: %s\n",
+                                v16->fail_msg);
+         } else {
+            simd16_cfg = v16->cfg;
+
+            assert(v16->payload().num_regs % reg_unit(devinfo) == 0);
+            prog_data->dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
+            prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
+                                            v16->grf_used);
+         }
+      }
+
+   } else {
+      if ((!has_spilled && (!v8 || v8->max_dispatch_width >= 16) &&
+           INTEL_SIMD(FS, 16)) ||
+          reqd_dispatch_width == SUBGROUP_SIZE_REQUIRE_16) {
+         /* Try a SIMD16 compile */
+         v16 = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                            prog_data, nir, 16, 1,
+                                            params->base.stats != NULL,
+                                            debug_enabled);
+         v16->import_per_primitive_offsets(per_primitive_offsets);
+         if (v8)
+            v16->import_uniforms(v8.get());
+         if (!run_fs(*v16, allow_spilling, params->use_rep_send)) {
+            brw_shader_perf_log(compiler, params->base.log_data,
+                                "SIMD16 shader failed to compile: %s\n",
+                                v16->fail_msg);
+         } else {
+            simd16_cfg = v16->cfg;
+
+            assert(v16->payload().num_regs % reg_unit(devinfo) == 0);
+            prog_data->dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
+            prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
+                                            v16->grf_used);
+
+            const brw_performance &perf = v16->performance_analysis.require();
             throughput = MAX2(throughput, perf.throughput);
+            has_spilled = v16->spilled_any_registers;
+            allow_spilling = false;
+         }
+      }
+
+      const bool simd16_failed = v16 && !simd16_cfg;
+
+      /* Currently, the compiler only supports SIMD32 on SNB+ */
+      if (!has_spilled &&
+          (!v8 || v8->max_dispatch_width >= 32) &&
+          (!v16 || v16->max_dispatch_width >= 32) &&
+          reqd_dispatch_width == SUBGROUP_SIZE_VARYING &&
+          !simd16_failed && INTEL_SIMD(FS, 32)) {
+         /* Try a SIMD32 compile */
+         v32 = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                            prog_data, nir, 32, 1,
+                                            params->base.stats != NULL,
+                                            debug_enabled);
+         v32->import_per_primitive_offsets(per_primitive_offsets);
+         if (v8)
+            v32->import_uniforms(v8.get());
+         else if (v16)
+            v32->import_uniforms(v16.get());
+
+         if (!run_fs(*v32, allow_spilling, false)) {
+            brw_shader_perf_log(compiler, params->base.log_data,
+                                "SIMD32 shader failed to compile: %s\n",
+                                v32->fail_msg);
+         } else {
+            const brw_performance &perf = v32->performance_analysis.require();
+
+            if (!INTEL_DEBUG(DEBUG_DO32) && throughput >= perf.throughput) {
+               brw_shader_perf_log(compiler, params->base.log_data,
+                                   "SIMD32 shader inefficient\n");
+            } else {
+               simd32_cfg = v32->cfg;
+
+               assert(v32->payload().num_regs % reg_unit(devinfo) == 0);
+               prog_data->dispatch_grf_start_reg_32 = v32->payload().num_regs / reg_unit(devinfo);
+               prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
+                                               v32->grf_used);
+
+               throughput = MAX2(throughput, perf.throughput);
+            }
+         }
+      }
+
+      if (devinfo->ver >= 12 && !has_spilled &&
+          params->max_polygons >= 2 && !key->coarse_pixel &&
+          reqd_dispatch_width == SUBGROUP_SIZE_VARYING) {
+         brw_shader *vbase = v8 ? v8.get() : v16 ? v16.get() : v32.get();
+         assert(vbase);
+
+         if (devinfo->ver >= 20 &&
+             params->max_polygons >= 4 &&
+             vbase->max_dispatch_width >= 32 &&
+             4 * prog_data->num_varying_inputs <= MAX_VARYING &&
+             INTEL_SIMD(FS, 4X8)) {
+            /* Try a quad-SIMD8 compile */
+            vmulti = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                                  prog_data, nir, 32, 4,
+                                                  params->base.stats != NULL,
+                                                  debug_enabled);
+            vmulti->import_per_primitive_offsets(per_primitive_offsets);
+            vmulti->import_uniforms(vbase);
+            if (!run_fs(*vmulti, false, params->use_rep_send)) {
+               brw_shader_perf_log(compiler, params->base.log_data,
+                                   "Quad-SIMD8 shader failed to compile: %s\n",
+                                   vmulti->fail_msg);
+            } else {
+               multi_cfg = vmulti->cfg;
+               assert(!vmulti->spilled_any_registers);
+            }
+         }
+
+         if (!multi_cfg && devinfo->ver >= 20 &&
+             vbase->max_dispatch_width >= 32 &&
+             2 * prog_data->num_varying_inputs <= MAX_VARYING &&
+             INTEL_SIMD(FS, 2X16)) {
+            /* Try a dual-SIMD16 compile */
+            vmulti = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                                  prog_data, nir, 32, 2,
+                                                  params->base.stats != NULL,
+                                                  debug_enabled);
+            vmulti->import_per_primitive_offsets(per_primitive_offsets);
+            vmulti->import_uniforms(vbase);
+            if (!run_fs(*vmulti, false, params->use_rep_send)) {
+               brw_shader_perf_log(compiler, params->base.log_data,
+                                   "Dual-SIMD16 shader failed to compile: %s\n",
+                                   vmulti->fail_msg);
+            } else {
+               multi_cfg = vmulti->cfg;
+               assert(!vmulti->spilled_any_registers);
+            }
+         }
+
+         if (!multi_cfg && vbase->max_dispatch_width >= 16 &&
+             2 * prog_data->num_varying_inputs <= MAX_VARYING &&
+             INTEL_SIMD(FS, 2X8)) {
+            /* Try a dual-SIMD8 compile */
+            vmulti = std::make_unique<brw_shader>(compiler, &params->base, key,
+                                                  prog_data, nir, 16, 2,
+                                                  params->base.stats != NULL,
+                                                  debug_enabled);
+            vmulti->import_per_primitive_offsets(per_primitive_offsets);
+            vmulti->import_uniforms(vbase);
+            if (!run_fs(*vmulti, allow_spilling, params->use_rep_send)) {
+               brw_shader_perf_log(compiler, params->base.log_data,
+                                   "Dual-SIMD8 shader failed to compile: %s\n",
+                                   vmulti->fail_msg);
+            } else {
+               multi_cfg = vmulti->cfg;
+            }
          }
       }
    }
 
-   if (devinfo->ver >= 12 && !has_spilled &&
-       params->max_polygons >= 2 && !key->coarse_pixel) {
-      fs_visitor *vbase = v8 ? v8.get() : v16 ? v16.get() : v32.get();
-      assert(vbase);
-
-      if (devinfo->ver >= 20 &&
-          params->max_polygons >= 4 &&
-          vbase->max_dispatch_width >= 32 &&
-          4 * prog_data->num_varying_inputs <= MAX_VARYING &&
-          INTEL_SIMD(FS, 4X8)) {
-         /* Try a quad-SIMD8 compile */
-         vmulti = std::make_unique<fs_visitor>(compiler, &params->base, key,
-                                               prog_data, nir, 32, 4,
-                                               params->base.stats != NULL,
-                                               debug_enabled);
-         vmulti->import_uniforms(vbase);
-         if (!run_fs(*vmulti, false, params->use_rep_send)) {
-            brw_shader_perf_log(compiler, params->base.log_data,
-                                "Quad-SIMD8 shader failed to compile: %s\n",
-                                vmulti->fail_msg);
-         } else {
-            multi_cfg = vmulti->cfg;
-            assert(!vmulti->spilled_any_registers);
-         }
-      }
-
-      if (!multi_cfg && devinfo->ver >= 20 &&
-          vbase->max_dispatch_width >= 32 &&
-          2 * prog_data->num_varying_inputs <= MAX_VARYING &&
-          INTEL_SIMD(FS, 2X16)) {
-         /* Try a dual-SIMD16 compile */
-         vmulti = std::make_unique<fs_visitor>(compiler, &params->base, key,
-                                               prog_data, nir, 32, 2,
-                                               params->base.stats != NULL,
-                                               debug_enabled);
-         vmulti->import_uniforms(vbase);
-         if (!run_fs(*vmulti, false, params->use_rep_send)) {
-            brw_shader_perf_log(compiler, params->base.log_data,
-                                "Dual-SIMD16 shader failed to compile: %s\n",
-                                vmulti->fail_msg);
-         } else {
-            multi_cfg = vmulti->cfg;
-            assert(!vmulti->spilled_any_registers);
-         }
-      }
-
-      if (!multi_cfg && vbase->max_dispatch_width >= 16 &&
-          2 * prog_data->num_varying_inputs <= MAX_VARYING &&
-          INTEL_SIMD(FS, 2X8)) {
-         /* Try a dual-SIMD8 compile */
-         vmulti = std::make_unique<fs_visitor>(compiler, &params->base, key,
-                                               prog_data, nir, 16, 2,
-                                               params->base.stats != NULL,
-                                               debug_enabled);
-         vmulti->import_uniforms(vbase);
-         if (!run_fs(*vmulti, allow_spilling, params->use_rep_send)) {
-            brw_shader_perf_log(compiler, params->base.log_data,
-                                "Dual-SIMD8 shader failed to compile: %s\n",
-                                vmulti->fail_msg);
-         } else {
-            multi_cfg = vmulti->cfg;
-         }
-      }
-
-      if (multi_cfg) {
-         assert(vmulti->payload().num_regs % reg_unit(devinfo) == 0);
-         prog_data->base.dispatch_grf_start_reg = vmulti->payload().num_regs / reg_unit(devinfo);
-      }
+   if (multi_cfg) {
+      assert(vmulti->payload().num_regs % reg_unit(devinfo) == 0);
+      prog_data->base.dispatch_grf_start_reg = vmulti->payload().num_regs / reg_unit(devinfo);
+      prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
+                                      vmulti->grf_used);
    }
 
-   /* When the caller requests a repclear shader, they want SIMD16-only */
-   if (params->use_rep_send)
+   /* When the caller compiles a repclear or fast clear shader, they
+    * want SIMD16-only.
+    */
+   if (reqd_dispatch_width == SUBGROUP_SIZE_REQUIRE_16)
       simd8_cfg = NULL;
 
    brw_generator g(compiler, &params->base, &prog_data->base,
@@ -1807,4 +1866,135 @@ brw_compile_fs(const struct brw_compiler *compiler,
 
    g.add_const_data(nir->constant_data, nir->constant_data_size);
    return g.get_assembly();
+}
+
+extern "C" void
+brw_compute_sbe_per_vertex_urb_read(const struct intel_vue_map *prev_stage_vue_map,
+                                    bool mesh,
+                                    const struct brw_wm_prog_data *wm_prog_data,
+                                    uint32_t *out_read_offset,
+                                    uint32_t *out_read_length,
+                                    uint32_t *out_num_varyings,
+                                    uint32_t *out_primitive_id_offset)
+{
+   int first_slot = INT32_MAX, last_slot = -1;
+
+   /* Ignore PrimitiveID in mesh pipelines, this value is coming from the
+    * per-primitive block.
+    */
+   uint64_t inputs_read = wm_prog_data->inputs;
+   if (mesh)
+      inputs_read &= ~VARYING_BIT_PRIMITIVE_ID;
+
+   for (int _i = 0; _i < prev_stage_vue_map->num_slots; _i++) {
+      uint32_t i = prev_stage_vue_map->num_slots - 1 - _i;
+      int varying = prev_stage_vue_map->slot_to_varying[i];
+      if (varying < 0)
+         continue;
+
+      if (varying == BRW_VARYING_SLOT_PAD ||
+          (inputs_read & BITFIELD64_BIT(varying)) == 0)
+         continue;
+
+      last_slot = i;
+      break;
+   }
+
+   for (int i = 0; i < prev_stage_vue_map->num_slots; i++) {
+      int varying = prev_stage_vue_map->slot_to_varying[i];
+      if (varying != BRW_VARYING_SLOT_PAD && varying > 0 &&
+          (inputs_read & BITFIELD64_BIT(varying)) != 0) {
+         first_slot = i;
+         break;
+      }
+   }
+
+   assert((first_slot == INT32_MAX && last_slot == -1) ||
+          (first_slot >= 0 && last_slot >= 0 && last_slot >= first_slot));
+
+   uint32_t num_varyings = wm_prog_data->num_varying_inputs;
+
+   /* When using INTEL_VUE_LAYOUT_SEPARATE_MESH, the location of the
+    * PrimitiveID is unknown at compile time, here we compute the offset
+    * inside the attribute registers which will be read with MOV_INDIRECT in
+    * the shader.
+    */
+   *out_primitive_id_offset = 0;
+   if (prev_stage_vue_map->layout == INTEL_VUE_LAYOUT_SEPARATE_MESH) {
+      if (mesh) {
+         /* When using Mesh, the PrimitiveID is in the per-primitive block. */
+         if (wm_prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_ID] >= 0)
+            num_varyings--;
+         *out_primitive_id_offset = INTEL_MSAA_FLAG_PRIMITIVE_ID_INDEX_MESH;
+      } else if (inputs_read & VARYING_BIT_PRIMITIVE_ID) {
+         int primitive_id_slot;
+         if (prev_stage_vue_map->varying_to_slot[VARYING_SLOT_PRIMITIVE_ID] < 0) {
+            /* If the previous stage doesn't write PrimitiveID, we can have
+             * the HW generate a value (except if GS is enabled but in that
+             * case that's undefined).
+             *
+             * If the FS shader already has a slot of the PrimitiveID value,
+             * use that.
+             */
+            if (wm_prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_ID] >= 0) {
+               if (first_slot == INT32_MAX)
+                  first_slot = 0;
+               primitive_id_slot =
+                  first_slot + wm_prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_ID];
+            } else {
+               primitive_id_slot = ++last_slot;
+            }
+         } else {
+            primitive_id_slot =
+               prev_stage_vue_map->varying_to_slot[VARYING_SLOT_PRIMITIVE_ID];
+         }
+         last_slot = MAX2(primitive_id_slot, last_slot);
+
+         *out_primitive_id_offset = 4 * (primitive_id_slot - first_slot);
+      }
+   }
+
+   /* Compute the read parameters for SBE (those have to be 32B aligned) */
+   if (last_slot == -1) {
+      *out_read_offset = 0;
+      *out_read_length = DIV_ROUND_UP(num_varyings, 2);
+      *out_num_varyings = num_varyings;
+   } else {
+      first_slot = ROUND_DOWN_TO(first_slot, 2);
+      *out_read_offset = first_slot / 2;
+      *out_read_length = DIV_ROUND_UP(last_slot - first_slot + 1, 2);
+      *out_num_varyings = num_varyings;
+   }
+}
+
+extern "C" void
+brw_compute_sbe_per_primitive_urb_read(uint64_t inputs_read,
+                                       uint32_t num_varyings,
+                                       const struct brw_mue_map *mue_map,
+                                       uint32_t *out_read_offset,
+                                       uint32_t *out_read_length)
+{
+   /* The header slots are irrelevant for the URB varying slots. They are
+    * delivered somewhere else in the thread payload.
+    *
+    * For example on DG2:
+    *   - PRIMITIVE_SHADING_RATE : R1.0, ActualCoarsePixelShadingSize.(X|Y)
+    *   - LAYER                  : R1.1, Render Target Array Index
+    *   - VIEWPORT               : R1.1, Viewport Index
+    *   - PSIZ                   : not available in fragment shaders
+    *   - FACE                   : R1.1, Front/Back Facing
+    */
+   inputs_read &= ~(BRW_VUE_HEADER_VARYING_MASK | VARYING_BIT_FACE);
+
+   uint32_t first_read = UINT32_MAX;
+   u_foreach_bit64(varying, inputs_read) {
+      if (mue_map->per_primitive_offsets[varying] < 0)
+         continue;
+
+      first_read = mue_map->per_primitive_offsets[varying];
+      break;
+   }
+
+   *out_read_offset = DIV_ROUND_UP(first_read, 32);
+   *out_read_length = DIV_ROUND_UP(num_varyings, 2);
 }

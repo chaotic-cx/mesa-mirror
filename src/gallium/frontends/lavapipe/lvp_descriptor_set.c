@@ -88,7 +88,7 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
                  num_bindings * sizeof(set_layout->binding[0]) +
                  immutable_sampler_count * sizeof(struct lvp_sampler *);
 
-   set_layout = vk_descriptor_set_layout_zalloc(&device->vk, size);
+   set_layout = vk_descriptor_set_layout_zalloc(&device->vk, size, pCreateInfo);
    if (!set_layout)
       return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
@@ -491,7 +491,7 @@ VKAPI_ATTR void VKAPI_CALL lvp_UpdateDescriptorSets(
                unsigned plane_count = iview->plane_count;
 
                for (unsigned p = 0; p < plane_count; p++) {
-                  lp_jit_texture_from_pipe(&desc[didx + p].texture, iview->planes[p].sv);
+                  lp_jit_bindless_texture_from_pipe(&desc[didx + p].texture, iview->planes[p].sv);
                   desc[didx + p].functions = iview->planes[p].texture_handle->functions;
                }
 
@@ -522,7 +522,7 @@ VKAPI_ATTR void VKAPI_CALL lvp_UpdateDescriptorSets(
                unsigned plane_count = iview->plane_count;
 
                for (unsigned p = 0; p < plane_count; p++) {
-                  lp_jit_texture_from_pipe(&desc[didx + p].texture, iview->planes[p].sv);
+                  lp_jit_bindless_texture_from_pipe(&desc[didx + p].texture, iview->planes[p].sv);
                   desc[didx + p].functions = iview->planes[p].texture_handle->functions;
                }
             } else {
@@ -559,7 +559,7 @@ VKAPI_ATTR void VKAPI_CALL lvp_UpdateDescriptorSets(
                             write->pTexelBufferView[j]);
             assert(bind_layout->stride == 1);
             if (bview) {
-               lp_jit_texture_from_pipe(&desc[j].texture, bview->sv);
+               lp_jit_bindless_texture_from_pipe(&desc[j].texture, bview->sv);
                desc[j].functions = bview->texture_handle->functions;
             } else {
                desc[j].functions = device->null_texture_handle->functions;
@@ -751,30 +751,6 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetDescriptorSetLayoutSupport(VkDevice device,
    pSupport->supported = true;
 }
 
-uint32_t
-lvp_descriptor_update_template_entry_size(VkDescriptorType type)
-{
-   switch (type) {
-   case VK_DESCRIPTOR_TYPE_SAMPLER:
-   case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-   case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-   case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-   case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
-      return sizeof(VkDescriptorImageInfo);
-   case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
-   case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-      return sizeof(VkBufferView);
-   case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
-      return sizeof(VkAccelerationStructureKHR);
-   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
-   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
-   default:
-      return sizeof(VkDescriptorBufferInfo);
-   }
-}
-
 void
 lvp_descriptor_set_update_with_template(VkDevice _device, VkDescriptorSet descriptorSet,
                                         VkDescriptorUpdateTemplate descriptorUpdateTemplate,
@@ -822,7 +798,7 @@ lvp_descriptor_set_update_with_template(VkDevice _device, VkDescriptorSet descri
 
             if (iview) {
                for (unsigned p = 0; p < iview->plane_count; p++) {
-                  lp_jit_texture_from_pipe(&desc[idx + p].texture, iview->planes[p].sv);
+                  lp_jit_bindless_texture_from_pipe(&desc[idx + p].texture, iview->planes[p].sv);
                   desc[idx + p].functions = iview->planes[p].texture_handle->functions;
                }
 
@@ -848,7 +824,7 @@ lvp_descriptor_set_update_with_template(VkDevice _device, VkDescriptorSet descri
 
             if (iview) {
                for (unsigned p = 0; p < iview->plane_count; p++) {
-                  lp_jit_texture_from_pipe(&desc[idx + p].texture, iview->planes[p].sv);
+                  lp_jit_bindless_texture_from_pipe(&desc[idx + p].texture, iview->planes[p].sv);
                   desc[idx + p].functions = iview->planes[p].texture_handle->functions;
                }
             } else {
@@ -880,7 +856,7 @@ lvp_descriptor_set_update_with_template(VkDevice _device, VkDescriptorSet descri
                             *(VkBufferView *)pSrc);
             assert(bind_layout->stride == 1);
             if (bview) {
-               lp_jit_texture_from_pipe(&desc[idx].texture, bview->sv);
+               lp_jit_bindless_texture_from_pipe(&desc[idx].texture, bview->sv);
                desc[idx].functions = bview->texture_handle->functions;
             } else {
                desc[j].functions = device->null_texture_handle->functions;
@@ -1039,7 +1015,7 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetDescriptorEXT(
          unsigned plane_count = iview->plane_count;
 
          for (unsigned p = 0; p < plane_count; p++) {
-            lp_jit_texture_from_pipe(&desc[p].texture, iview->planes[p].sv);
+            lp_jit_bindless_texture_from_pipe(&desc[p].texture, iview->planes[p].sv);
             desc[p].functions = iview->planes[p].texture_handle->functions;
 
             if (info->sampler) {
@@ -1070,7 +1046,7 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetDescriptorEXT(
          unsigned plane_count = iview->plane_count;
 
          for (unsigned p = 0; p < plane_count; p++) {
-            lp_jit_texture_from_pipe(&desc[p].texture, iview->planes[p].sv);
+            lp_jit_bindless_texture_from_pipe(&desc[p].texture, iview->planes[p].sv);
             desc[p].functions = iview->planes[p].texture_handle->functions;
          }
       } else {
@@ -1108,7 +1084,7 @@ VKAPI_ATTR void VKAPI_CALL lvp_GetDescriptorEXT(
       const VkDescriptorAddressInfoEXT *bda = pCreateInfo->data.pUniformTexelBuffer;
       if (bda && bda->address) {
          enum pipe_format pformat = vk_format_to_pipe_format(bda->format);
-         lp_jit_texture_buffer_from_bda(&desc->texture, (void*)(uintptr_t)bda->address, bda->range, pformat);
+         lp_jit_bindless_texture_buffer_from_bda(&desc->texture, (void*)(uintptr_t)bda->address);
          desc->functions = get_texture_handle_bda(device, bda->address, bda->range, pformat).functions;
       } else {
          desc->functions = device->null_texture_handle->functions;

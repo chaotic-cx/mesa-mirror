@@ -34,19 +34,11 @@ check_location(int location)
 }
 
 static bool
-lower_input(nir_shader *shader, nir_variable *var)
-{
-   if (var->data.interpolation == INTERP_MODE_NONE &&
-       check_location(var->data.location))
-      var->data.interpolation = INTERP_MODE_FLAT;
-   return true;
-}
-
-static bool
 lower_input_io(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
    if (intr->intrinsic != nir_intrinsic_load_interpolated_input)
-      return false;;
+      return false;
+   ;
    nir_io_semantics sem = nir_intrinsic_io_semantics(intr);
    if (!check_location(sem.location))
       return false;
@@ -62,21 +54,11 @@ lower_input_io(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    nir_def_replace(&intr->def, load);
    return true;
 }
+
 bool
 nir_lower_flatshade(nir_shader *shader)
 {
-   bool progress = false;
-
-   if (shader->info.io_lowered) {
-      progress = nir_shader_intrinsics_pass(shader, lower_input_io,
-                                            nir_metadata_all, NULL);
-   } else {
-      nir_foreach_shader_in_variable(var, shader) {
-         progress |= lower_input(shader, var);
-      }
-   }
-
-   /* Interpolation doesn't affect any metadata */
-   nir_shader_preserve_all_metadata(shader);
-   return progress;
+   assert(shader->info.io_lowered);
+   return nir_shader_intrinsics_pass(shader, lower_input_io, nir_metadata_all,
+                                     NULL);
 }

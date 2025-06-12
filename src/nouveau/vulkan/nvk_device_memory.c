@@ -65,34 +65,45 @@ nvk_GetMemoryFdPropertiesKHR(VkDevice device,
                              VkMemoryFdPropertiesKHR *pMemoryFdProperties)
 {
    VK_FROM_HANDLE(nvk_device, dev, device);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    struct nvkmd_mem *mem;
    VkResult result;
 
    switch (handleType) {
-   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT:
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT:
       result = nvkmd_dev_import_dma_buf(dev->nvkmd, &dev->vk.base, fd, &mem);
       if (result != VK_SUCCESS)
          return result;
       break;
+   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT:
+      /* From the Vulkan 1.4.315 spec:
+       *
+       *     VUID-vkGetMemoryFdPropertiesKHR-handleType-00674
+       *
+       *     "handleType must not be
+       *     VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT"
+       */
+      return vk_error(dev, VK_ERROR_INVALID_EXTERNAL_HANDLE);
    default:
       return vk_error(dev, VK_ERROR_INVALID_EXTERNAL_HANDLE);
    }
 
    uint32_t type_bits = 0;
-   if (handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) {
-      /* We allow a dma-buf to be imported anywhere because there's no way
-       * for us to actually know where it came from.
+   for (unsigned t = 0; t < ARRAY_SIZE(pdev->mem_types); t++) {
+      const VkMemoryType *type = &pdev->mem_types[t];
+      const enum nvkmd_mem_flags type_flags =
+         nvk_memory_type_flags(type, handleType);
+
+      /* Flags required to be set on mem to be imported as type
+       *
+       * If we're importing into a host-visible heap, we have to be able to
+       * map the memory.
        */
-      type_bits = BITFIELD_MASK(pdev->mem_type_count);
-   } else {
-      for (unsigned t = 0; t < ARRAY_SIZE(pdev->mem_types); t++) {
-         const enum nvkmd_mem_flags flags =
-            nvk_memory_type_flags(&pdev->mem_types[t], handleType);
-         if (!(flags & ~mem->flags))
-            type_bits |= (1 << t);
-      }
+      const enum nvkmd_mem_flags req_flags = type_flags & NVKMD_MEM_CAN_MAP;
+      if (req_flags & ~mem->flags)
+         continue;
+
+      type_bits |= (1 << t);
    }
 
    pMemoryFdProperties->memoryTypeBits = type_bits;
@@ -102,6 +113,12 @@ nvk_GetMemoryFdPropertiesKHR(VkDevice device,
    return VK_SUCCESS;
 }
 
+enum nvk_memory_init {
+   NVK_MEMORY_INIT_NONE,
+   NVK_MEMORY_INIT_ZERO,
+   NVK_MEMORY_INIT_TRASH,
+};
+
 VKAPI_ATTR VkResult VKAPI_CALL
 nvk_AllocateMemory(VkDevice device,
                    const VkMemoryAllocateInfo *pAllocateInfo,
@@ -109,7 +126,7 @@ nvk_AllocateMemory(VkDevice device,
                    VkDeviceMemory *pMem)
 {
    VK_FROM_HANDLE(nvk_device, dev, device);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   struct nvk_physical_device *pdev = nvk_device_physical_mut(dev);
    struct nvk_device_memory *mem;
    VkResult result = VK_SUCCESS;
 
@@ -157,7 +174,8 @@ nvk_AllocateMemory(VkDevice device,
    if (!mem)
       return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-   if (fd_info && fd_info->handleType) {
+   const bool is_import = fd_info && fd_info->handleType;
+   if (is_import) {
       assert(fd_info->handleType ==
                VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT ||
              fd_info->handleType ==
@@ -171,8 +189,7 @@ nvk_AllocateMemory(VkDevice device,
       /* We can't really assert anything for dma-bufs because they could come
        * in from some other device.
        */
-      if (fd_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT)
-         assert(!(flags & ~mem->mem->flags));
+      assert(!(flags & ~mem->mem->flags & ~NVKMD_MEM_PLACEMENT_FLAGS));
    } else if (pte_kind != 0 || tile_mode != 0) {
       result = nvkmd_dev_alloc_tiled_mem(dev->nvkmd, &dev->vk.base,
                                          aligned_size, alignment,
@@ -188,7 +205,30 @@ nvk_AllocateMemory(VkDevice device,
          goto fail_alloc;
    }
 
-   if (pdev->debug_flags & NVK_DEBUG_ZERO_MEMORY) {
+   enum nvk_memory_init init;
+   if (is_import) {
+      /* From the Vulkan 1.4.315 spec:
+       *
+       *    VUID-VkMemoryAllocateFlagsInfo-flags-10760
+       *
+       *    "If the allocation is performing a memory import operation, then
+       *    flags must not contain VK_MEMORY_ALLOCATE_ZERO_INITIALIZE_BIT_EXT"
+       */
+      assert(!(mem->vk.alloc_flags & VK_MEMORY_ALLOCATE_ZERO_INITIALIZE_BIT_EXT));
+      init = NVK_MEMORY_INIT_NONE;
+   } else {
+      if (mem->vk.alloc_flags & VK_MEMORY_ALLOCATE_ZERO_INITIALIZE_BIT_EXT)
+         init = NVK_MEMORY_INIT_ZERO;
+      else if (pdev->debug_flags & NVK_DEBUG_ZERO_MEMORY)
+         init = NVK_MEMORY_INIT_ZERO;
+      else if (pdev->debug_flags & NVK_DEBUG_TRASH_MEMORY)
+         init = NVK_MEMORY_INIT_TRASH;
+      else
+         init = NVK_MEMORY_INIT_NONE;
+   }
+
+   if (init != NVK_MEMORY_INIT_NONE) {
+      bool use_zero = init == NVK_MEMORY_INIT_ZERO;
       if (type->propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
          void *map;
          result = nvkmd_mem_map(mem->mem, &dev->vk.base,
@@ -196,12 +236,13 @@ nvk_AllocateMemory(VkDevice device,
          if (result != VK_SUCCESS)
             goto fail_mem;
 
-         memset(map, 0, mem->mem->size_B);
+         memset(map, use_zero ? 0 : 0xF1, mem->mem->size_B);
          nvkmd_mem_unmap(mem->mem, 0);
       } else {
          result = nvk_upload_queue_fill(dev, &dev->upload,
                                         mem->mem->va->addr,
-                                        0, mem->mem->size_B);
+                                        use_zero ? 0 : 0xCAFEF00D,
+                                        mem->mem->size_B);
          if (result != VK_SUCCESS)
             goto fail_mem;
 
@@ -246,7 +287,7 @@ nvk_FreeMemory(VkDevice device,
 {
    VK_FROM_HANDLE(nvk_device, dev, device);
    VK_FROM_HANDLE(nvk_device_memory, mem, _mem);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   struct nvk_physical_device *pdev = nvk_device_physical_mut(dev);
 
    if (!mem)
       return;

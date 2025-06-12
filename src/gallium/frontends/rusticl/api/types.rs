@@ -6,6 +6,7 @@ use crate::core::memory::MemBase;
 use crate::core::program::Program;
 use crate::core::queue::Queue;
 
+use mesa_rust_util::conversion::*;
 use rusticl_opencl_gen::*;
 
 use std::borrow::Borrow;
@@ -188,17 +189,29 @@ cl_callback!(
 
 impl SVMFreeCb {
     pub fn call(self, queue: &Queue, svm_pointers: &mut [usize]) {
+        // `clEnqueueSVMFree()` takes the length of the `svm_pointers` list as a
+        // `cl_uint`, so this will only occur in cases of implementation error.
+        debug_assert!(
+            svm_pointers.len() <= cl_uint::MAX as usize,
+            "svm_pointers count must not exceed `cl_uint::MAX`"
+        );
+
+        let (num_svm_pointers, svm_pointers) = if !svm_pointers.is_empty() {
+            (
+                svm_pointers.len() as cl_uint,
+                svm_pointers.as_mut_ptr().cast(),
+            )
+        } else {
+            // The specification requires that an empty `svm_pointers` list be
+            // null when passed to enqueue and callbacks may expect it to be
+            // passed back in the same manner.
+            (0, std::ptr::null_mut())
+        };
+
         let cl = cl_command_queue::from_ptr(queue);
         // SAFETY: `cl` must be a valid pointer to an OpenCL queue, which is where we just got it from.
         // All other requirements are covered by this callback's type invariants.
-        unsafe {
-            (self.func)(
-                cl,
-                svm_pointers.len() as u32,
-                svm_pointers.as_mut_ptr().cast(),
-                self.data,
-            )
-        };
+        unsafe { (self.func)(cl, num_svm_pointers, svm_pointers, self.data) };
     }
 }
 
@@ -329,21 +342,24 @@ where
     }
 }
 
-impl<S, T> TryInto<[T; 3]> for CLVec<S>
+impl<S, T> TryFrom<CLVec<S>> for [T; 3]
 where
     S: Copy,
     T: TryFrom<S>,
-    [T; 3]: TryFrom<Vec<T>>,
 {
     type Error = cl_int;
 
-    fn try_into(self) -> Result<[T; 3], cl_int> {
-        let vec: Result<Vec<T>, _> = self
-            .vals
-            .iter()
-            .map(|v| T::try_from(*v).map_err(|_| CL_OUT_OF_HOST_MEMORY))
-            .collect();
-        vec?.try_into().map_err(|_| CL_OUT_OF_HOST_MEMORY)
+    fn try_from(value: CLVec<S>) -> Result<Self, Self::Error> {
+        // This is ugly, but the alternative seems to be collecting to a `Vec`
+        // (which allocates) and then (fallibly) converting that to an array.
+        // Since our array is small, we can do it by hand. Replace with
+        // `<[S; 3]>::try_map()` once stabilized.
+        // See https://github.com/rust-lang/rust/issues/79711
+        Ok([
+            T::try_from_with_err(value.vals[0], CL_OUT_OF_HOST_MEMORY)?,
+            T::try_from_with_err(value.vals[1], CL_OUT_OF_HOST_MEMORY)?,
+            T::try_from_with_err(value.vals[2], CL_OUT_OF_HOST_MEMORY)?,
+        ])
     }
 }
 

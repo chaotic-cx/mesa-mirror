@@ -42,12 +42,12 @@ struct nvkmd_mem;
 struct nvkmd_va;
 
 VkFormatFeatureFlags2
-nvk_get_image_format_features(struct nvk_physical_device *pdevice,
+nvk_get_image_format_features(const struct nvk_physical_device *pdev,
                               VkFormat format, VkImageTiling tiling,
                               uint64_t drm_format_mod);
 
 void
-nvk_get_drm_format_modifier_properties_list(struct nvk_physical_device *pdev,
+nvk_get_drm_format_modifier_properties_list(const struct nvk_physical_device *pdev,
                                             VkFormat vk_format,
                                             VkBaseOutStructure *ext);
 
@@ -80,7 +80,7 @@ struct nvk_image {
    bool disjoint;
 
    uint8_t plane_count;
-   struct nvk_image_plane planes[3];
+   struct nvk_image_plane planes[NVK_MAX_IMAGE_PLANES];
 
    /* In order to support D32_SFLOAT_S8_UINT, a temp area is
     * needed. The stencil plane can't be a copied using the DMA

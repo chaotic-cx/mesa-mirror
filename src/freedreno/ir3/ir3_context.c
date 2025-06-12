@@ -95,31 +95,40 @@ ir3_context_init(struct ir3_compiler *compiler, struct ir3_shader *shader,
 
    /* This must run after the last nir_opt_algebraic or it gets undone. */
    if (compiler->has_branch_and_or)
-      NIR_PASS_V(ctx->s, ir3_nir_opt_branch_and_or_not);
+      NIR_PASS(_, ctx->s, ir3_nir_opt_branch_and_or_not);
 
    if (compiler->has_bitwise_triops) {
       bool triops_progress = false;
       NIR_PASS(triops_progress, ctx->s, ir3_nir_opt_triops_bitwise);
 
       if (triops_progress) {
-         NIR_PASS_V(ctx->s, nir_opt_dce);
+         NIR_PASS(_, ctx->s, nir_opt_dce);
       }
    }
 
    /* Enable the texture pre-fetch feature only a4xx onwards.  But
     * only enable it on generations that have been tested:
     */
-   if ((so->type == MESA_SHADER_FRAGMENT) && compiler->has_fs_tex_prefetch)
-      NIR_PASS_V(ctx->s, ir3_nir_lower_tex_prefetch);
+   if ((so->type == MESA_SHADER_FRAGMENT) && compiler->has_fs_tex_prefetch) {
+      NIR_PASS(_, ctx->s, ir3_nir_lower_tex_prefetch, &so->prefetch_bary_type);
+   }
 
    bool vectorized = false;
    NIR_PASS(vectorized, ctx->s, nir_opt_vectorize, ir3_nir_vectorize_filter,
             NULL);
 
    if (vectorized) {
-      NIR_PASS_V(ctx->s, nir_opt_undef);
-      NIR_PASS_V(ctx->s, nir_copy_prop);
-      NIR_PASS_V(ctx->s, nir_opt_dce);
+      NIR_PASS(_, ctx->s, nir_opt_undef);
+      NIR_PASS(_, ctx->s, nir_copy_prop);
+      NIR_PASS(_, ctx->s, nir_opt_dce);
+
+      /* nir_opt_vectorize could replace swizzled movs with vectorized movs in a
+       * different block. If this happens with swizzled movs in a then block, it
+       * could leave this block empty. ir3 assumes only the else block can be
+       * empty (e.g., when lowering predicates) so make sure ifs are in that
+       * canonical form again.
+       */
+      NIR_PASS(_, ctx->s, nir_opt_if, 0);
    }
 
    NIR_PASS(progress, ctx->s, nir_convert_to_lcssa, true, true);
@@ -127,7 +136,7 @@ ir3_context_init(struct ir3_compiler *compiler, struct ir3_shader *shader,
    /* This has to go at the absolute end to make sure that all SSA defs are
     * correctly marked.
     */
-   NIR_PASS_V(ctx->s, nir_divergence_analysis);
+   nir_divergence_analysis(ctx->s);
 
    /* Super crude heuristic to limit # of tex prefetch in small
     * shaders.  This completely ignores loops.. but that's really
@@ -322,7 +331,19 @@ ir3_create_collect(struct ir3_builder *build,
    if (arrsz == 1)
       return arr[0];
 
-   unsigned flags = dest_flags(arr[0]);
+   int non_undef_src = -1;
+   for (unsigned i = 0; i < arrsz; i++) {
+      if (arr[i]) {
+         non_undef_src = i;
+         break;
+      }
+   }
+
+   /* There should be at least one non-undef source to determine the type of the
+    * destination.
+    */
+   assert(non_undef_src != -1);
+   unsigned flags = dest_flags(arr[non_undef_src]);
 
    collect = ir3_build_instr(build, OPC_META_COLLECT, 1, arrsz);
    __ssa_dst(collect)->flags |= flags;
@@ -353,13 +374,17 @@ ir3_create_collect(struct ir3_builder *build,
        * scalar registers.
        *
        */
-      if (elem->dsts[0]->flags & IR3_REG_ARRAY) {
+      if (elem && elem->dsts[0]->flags & IR3_REG_ARRAY) {
          type_t type = (flags & IR3_REG_HALF) ? TYPE_U16 : TYPE_U32;
          elem = ir3_MOV(build, elem, type);
       }
 
-      assert(dest_flags(elem) == flags);
-      __ssa_src(collect, elem, flags);
+      if (elem) {
+         assert(dest_flags(elem) == flags);
+         __ssa_src(collect, elem, flags);
+      } else {
+         ir3_src_create(collect, INVALID_REG, flags | IR3_REG_SSA);
+      }
    }
 
    collect->dsts[0]->wrmask = MASK(arrsz);
@@ -467,16 +492,6 @@ create_addr0(struct ir3_builder *build, struct ir3_instruction *src, int align)
    return instr;
 }
 
-static struct ir3_instruction *
-create_addr1(struct ir3_builder *build, unsigned const_val)
-{
-   struct ir3_instruction *immed =
-      create_immed_typed(build, const_val, TYPE_U16);
-   struct ir3_instruction *instr = ir3_MOV(build, immed, TYPE_U16);
-   instr->dsts[0]->num = regid(REG_A0, 1);
-   return instr;
-}
-
 /* caches addr values to avoid generating multiple cov/shl/mova
  * sequences for each use of a given NIR level src as address
  */
@@ -500,26 +515,6 @@ ir3_get_addr0(struct ir3_context *ctx, struct ir3_instruction *src, int align)
 
    addr = create_addr0(&ctx->build, src, align);
    _mesa_hash_table_insert(ctx->addr0_ht[idx], src, addr);
-
-   return addr;
-}
-
-/* Similar to ir3_get_addr0, but for a1.x. */
-struct ir3_instruction *
-ir3_get_addr1(struct ir3_context *ctx, unsigned const_val)
-{
-   struct ir3_instruction *addr;
-
-   if (!ctx->addr1_ht) {
-      ctx->addr1_ht = _mesa_hash_table_u64_create(ctx);
-   } else {
-      addr = _mesa_hash_table_u64_search(ctx->addr1_ht, const_val);
-      if (addr)
-         return addr;
-   }
-
-   addr = create_addr1(&ctx->build, const_val);
-   _mesa_hash_table_u64_insert(ctx->addr1_ht, const_val, addr);
 
    return addr;
 }

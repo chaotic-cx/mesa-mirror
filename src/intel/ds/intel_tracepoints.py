@@ -47,7 +47,7 @@ def define_tracepoints(args):
 
     def begin_end_tp(name, tp_args=[], tp_struct=None, tp_print=None,
                      tp_default_enabled=True, end_pipelined=True,
-                     compute=False, maybe_compute=False,
+                     compute=False, repeat_last=False,
                      need_cs_param=False):
         global intel_default_tps
         if tp_default_enabled:
@@ -69,8 +69,8 @@ def define_tracepoints(args):
         if end_pipelined:
             if compute:
                 tp_flags.append('INTEL_DS_TRACEPOINT_FLAG_END_CS')
-            elif maybe_compute:
-                tp_flags.append('INTEL_DS_TRACEPOINT_FLAG_END_CS_OR_NOOP')
+            elif repeat_last:
+                tp_flags.append('INTEL_DS_TRACEPOINT_FLAG_REPEAST_LAST')
             else:
                 tp_flags.append('INTEL_DS_TRACEPOINT_FLAG_END_OF_PIPE')
         Tracepoint('intel_end_{0}'.format(name),
@@ -103,12 +103,14 @@ def define_tracepoints(args):
 
     # Command buffer tracepoints, only for Anv
     begin_end_tp('cmd_buffer',
-                 tp_args=[Arg(type='uint8_t', var='level', c_format='%hhu'),],
+                 tp_args=[Arg(type='uint64_t', var='command_buffer_handle', c_format='%" PRIu64 "',  perfetto_field=True),
+                          Arg(type='uint8_t', var='level', c_format='%hhu'),],
                  end_pipelined=False)
 
     # Annotations for Cmd(Begin|End)DebugUtilsLabelEXT
     begin_end_tp('cmd_buffer_annotation',
-                 tp_args=[Arg(type='unsigned', var='len'),
+                 tp_args=[Arg(type='uint64_t', var='command_buffer_handle', c_format='%" PRIu64 "',  perfetto_field=True),
+                          Arg(type='unsigned', var='len'),
                           Arg(type='str', var='str', c_format='%s', length_arg='len + 1', copy_func='strncpy'),],
                  tp_struct=[Arg(type='uint8_t', name='dummy', var='0'),],
                  end_pipelined=True)
@@ -119,7 +121,8 @@ def define_tracepoints(args):
 
     # Dynamic rendering tracepoints, only for Anv
     begin_end_tp('render_pass',
-                 tp_args=[Arg(type='uint16_t', var='width', c_format='%hu'),
+                 tp_args=[Arg(type='uint64_t', var='command_buffer_handle', c_format='%" PRIu64 "',  perfetto_field=True),
+                          Arg(type='uint16_t', var='width', c_format='%hu'),
                           Arg(type='uint16_t', var='height', c_format='%hu'),
                           Arg(type='uint8_t', var='att_count', c_format='%hhu'),
                           Arg(type='uint8_t', var='msaa', c_format='%hhu'),])
@@ -229,14 +232,18 @@ def define_tracepoints(args):
                  tp_args=[Arg(type='uint32_t', var='count', c_format='%u'),],
                  need_cs_param=True)
 
-    begin_end_tp('as_build')
-    begin_end_tp('as_build_leaves', maybe_compute=True)
-    begin_end_tp('as_morton_generate', maybe_compute=True)
-    begin_end_tp('as_morton_sort', maybe_compute=True)
-    begin_end_tp('as_lbvh_build_internal', maybe_compute=True)
-    begin_end_tp('as_ploc_build_internal', maybe_compute=True)
-    begin_end_tp('as_encode', maybe_compute=True)
-    begin_end_tp('as_copy', maybe_compute=True)
+    begin_end_tp('as_build',
+                 tp_args=[Arg(type='uint32_t', var='n_tlas', c_format='%u'),
+                          Arg(type='uint32_t', var='n_blas', c_format='%u'),])
+    begin_end_tp('as_build_leaves', repeat_last=True)
+    begin_end_tp('as_morton_generate', repeat_last=True)
+    begin_end_tp('as_morton_sort', repeat_last=True)
+    begin_end_tp('as_lbvh_build_internal', repeat_last=True)
+    begin_end_tp('as_ploc_build_internal', repeat_last=True)
+    begin_end_tp('as_encode', repeat_last=True,
+                  tp_args=[Arg(type='uint32_t', var='n_leaves', c_format='%u'),
+                           Arg(type='uint32_t', var='n_ir_leaves', c_format='%u')])
+    begin_end_tp('as_copy', repeat_last=True)
 
     begin_end_tp('rays',
                  tp_args=[Arg(type='uint32_t', var='group_x', c_format='%u'),

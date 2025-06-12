@@ -5,9 +5,11 @@ llvmpipe-piglit-rusticl:
   extends:
     - .llvmpipe-piglit-cl
     - .llvmpipe-rusticl-rules
+    - .test-piglit
   needs:
-    - debian-testing
-    - debian/x86_64_test-gl
+    - job: debian-x86_64
+    - job: debian/x86_64_test-gl
+      optional: true
   variables:
     DEQP_SUITE: llvmpipe-rusticl
     GPU_VERSION: llvmpipe-rusticl
@@ -28,7 +30,9 @@ llvmpipe:
     DEQP_SUITE: llvmpipe
     XVFB_SCRIPT: "install/deqp-runner.sh"
     DEQP_FRACTION: 4
-  extends: .llvmpipe-deqp-test
+  extends:
+    - .llvmpipe-deqp-test
+    - .test-piglit
   script: |
     . "$SCRIPTS_DIR"/setup-test-env.sh
     export LD_LIBRARY_PATH="$CI_PROJECT_DIR/install/lib"
@@ -57,17 +61,19 @@ llvmpipe-deqp-asan:
     # shared runners
     LP_NUM_THREADS: 0
     DEQP_FORCE_ASAN: 1
+    S3_ARTIFACT_NAME: mesa-x86_64-asan-debugoptimized
   extends: .llvmpipe-deqp-test
   needs:
-    - debian/x86_64_test-gl
-    - debian-testing-asan
+    - job: debian/x86_64_test-gl
+      optional: true
+    - job: debian-x86_64-asan
 
 .android-llvmpipe:
   extends:
     - .test-android
     - .llvmpipe-rules
   variables:
-    ANDROID_GPU_MODE: guest_swiftshader
+    ANDROID_GPU_MODE: mesa_swrast
     GPU_VERSION: llvmpipe
     DEQP_SUITE: android-llvmpipe
     # TODO: define DEQP_FRACTION?

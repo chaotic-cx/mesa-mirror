@@ -25,7 +25,7 @@
 #include <dlfcn.h>
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
-#include "gbm/main/gbm.h"
+#include <gbm.h>
 #include "drm-uapi/drm_fourcc.h"
 
 #define EGL_PLATFORM_GBM_MESA             0x31D7
@@ -453,7 +453,9 @@ drilCreateNewScreen(int scrn, int fd,
                     const __DRIconfig ***driver_configs, void *data)
 {
    const __DRIconfig **configs = init_dri2_configs(fd);
-   if (!configs && fd == -1) {
+   if (!configs) {
+      if (fd != -1)
+         return NULL;
       // otherwise set configs to point to our config list
       configs = calloc(ARRAY_SIZE(drilConfigs) * 2 + 1, sizeof(void *));
       int c = 0;

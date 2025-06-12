@@ -31,6 +31,7 @@
 #include "util/simple_mtx.h"
 #include "util/sparse_array.h"
 #include "util/u_atomic.h"
+#include "util/perf/cpu_trace.h"
 
 #include "kmod/panthor_kmod.h"
 
@@ -477,6 +478,12 @@ struct pan_kmod_dev {
    void *user_priv;
 };
 
+#define pan_kmod_ioctl(fd, op, arg)                                          \
+   ({                                                                        \
+      MESA_TRACE_SCOPE("pan_kmod_ioctl op=" #op);                            \
+      drmIoctl(fd, op, arg);                                                 \
+   })
+
 struct pan_kmod_dev *
 pan_kmod_dev_create(int fd, uint32_t flags,
                     const struct pan_kmod_allocator *allocator);
@@ -565,7 +572,8 @@ pan_kmod_bo_export(struct pan_kmod_bo *bo)
 {
    int fd;
 
-   if (drmPrimeHandleToFD(bo->dev->fd, bo->handle, DRM_CLOEXEC, &fd)) {
+   if (drmPrimeHandleToFD(bo->dev->fd, bo->handle, DRM_CLOEXEC | DRM_RDWR,
+                          &fd)) {
       mesa_loge("drmPrimeHandleToFD() failed (err=%d)", errno);
       return -1;
    }

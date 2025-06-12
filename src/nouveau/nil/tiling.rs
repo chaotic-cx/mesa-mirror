@@ -175,10 +175,9 @@ impl Tiling {
         format: Format,
         sample_layout: SampleLayout,
         usage: ImageUsageFlags,
+        max_tile_size_B: u32,
     ) -> Tiling {
-        if (usage & IMAGE_USAGE_LINEAR_BIT) != 0 {
-            return Default::default();
-        }
+        assert!((usage & IMAGE_USAGE_LINEAR_BIT) == 0);
 
         let mut tiling = Tiling {
             gob_type: GOBType::Fermi8,
@@ -191,7 +190,20 @@ impl Tiling {
             tiling.z_log2 = 0;
         }
 
-        tiling.clamp(extent_px.to_B(format, sample_layout))
+        tiling = tiling.clamp(extent_px.to_B(format, sample_layout));
+
+        if max_tile_size_B > 0 {
+            while tiling.size_B() > max_tile_size_B {
+                let extent_B = tiling.extent_B();
+                if tiling.y_log2 > 0 && extent_B.height > extent_B.depth {
+                    tiling.y_log2 -= 1;
+                } else {
+                    tiling.z_log2 -= 1;
+                }
+            }
+        }
+
+        tiling
     }
 
     pub fn is_tiled(&self) -> bool {

@@ -21,6 +21,7 @@
  * IN THE SOFTWARE.
  */
 
+#include "util/u_printf.h"
 #include "nir.h"
 #include "nir_builder.h"
 #include "nir_control_flow.h"
@@ -96,7 +97,7 @@ fixup_cast_deref_mode(nir_deref_instr *deref)
    }
 }
 
-void
+nir_def *
 nir_inline_function_impl(struct nir_builder *b,
                          const nir_function_impl *impl,
                          nir_def **params,
@@ -105,6 +106,11 @@ nir_inline_function_impl(struct nir_builder *b,
    nir_function_impl *copy = nir_function_impl_clone(b->shader, impl);
 
    exec_list_append(&b->impl->locals, &copy->locals);
+
+   /* Normally, NIR function returns are deref based, but for bindgen, we use a
+    * sideband here to let us lower derefs ahead-of-time.
+    */
+   nir_def *ret_val = NULL;
 
    nir_foreach_block(block, copy) {
       nir_foreach_instr_safe(instr, block) {
@@ -152,13 +158,16 @@ nir_inline_function_impl(struct nir_builder *b,
          }
 
          case nir_instr_type_intrinsic: {
-            nir_intrinsic_instr *load = nir_instr_as_intrinsic(instr);
-            if (load->intrinsic != nir_intrinsic_load_param)
-               break;
-
-            unsigned param_idx = nir_intrinsic_param_idx(load);
-            assert(param_idx < impl->function->num_params);
-            nir_def_replace(&load->def, params[param_idx]);
+            nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+            if (intr->intrinsic == nir_intrinsic_bindgen_return) {
+               assert(ret_val == NULL && "expected exactly one return write");
+               ret_val = intr->src[0].ssa;
+               nir_instr_remove(&intr->instr);
+            } else if (intr->intrinsic == nir_intrinsic_load_param) {
+               unsigned param_idx = nir_intrinsic_param_idx(intr);
+               assert(param_idx < impl->function->num_params);
+               nir_def_replace(&intr->def, params[param_idx]);
+            }
             break;
          }
 
@@ -191,20 +200,26 @@ nir_inline_function_impl(struct nir_builder *b,
       nir_cf_reinsert(&body, nir_before_instr(&nop->instr));
       b->cursor = nir_instr_remove(&nop->instr);
    }
+
+   return ret_val;
 }
 
 static bool inline_function_impl(nir_function_impl *impl, struct set *inlined);
 
-static bool inline_functions_pass(nir_builder *b,
-                                  nir_instr *instr,
-                                  void *cb_data)
+static bool
+inline_functions_pass(nir_builder *b,
+                      nir_instr *instr,
+                      void *cb_data)
 {
    struct set *inlined = cb_data;
    if (instr->type != nir_instr_type_call)
       return false;
 
    nir_call_instr *call = nir_instr_as_call(instr);
-   assert(call->callee->impl);
+   if (!call->callee->impl)
+      return false;
+
+   assert(!call->indirect_callee.ssa);
 
    if (b->shader->options->driver_functions &&
        b->shader->info.stage == MESA_SHADER_KERNEL) {
@@ -395,10 +410,7 @@ lower_calls_vars_instr(struct nir_builder *b,
       if (intrin->intrinsic != nir_intrinsic_printf)
          return false;
 
-      b->cursor = nir_before_instr(instr);
-      nir_src_rewrite(&intrin->src[0],
-                      nir_iadd_imm(b, intrin->src[0].ssa,
-                                      state->printf_index_offset));
+      nir_intrinsic_set_fmt_idx(intrin, nir_intrinsic_fmt_idx(intrin) + state->printf_index_offset);
       break;
    }
    default:
@@ -483,9 +495,9 @@ nir_link_shader_functions(nir_shader *shader,
       shader->printf_info = reralloc(shader, shader->printf_info,
                                      u_printf_info,
                                      shader->printf_info_count +
-                                     link_shader->printf_info_count);
+                                        link_shader->printf_info_count);
 
-      for (unsigned i = 0; i < link_shader->printf_info_count; i++){
+      for (unsigned i = 0; i < link_shader->printf_info_count; i++) {
          const u_printf_info *src_info = &link_shader->printf_info[i];
          u_printf_info *dst_info = &shader->printf_info[shader->printf_info_count++];
 
@@ -508,8 +520,9 @@ nir_link_shader_functions(nir_shader *shader,
 static void
 nir_mark_used_functions(struct nir_function *func, struct set *used_funcs);
 
-static bool mark_used_pass_cb(struct nir_builder *b,
-                              nir_instr *instr, void *data)
+static bool
+mark_used_pass_cb(struct nir_builder *b,
+                  nir_instr *instr, void *data)
 {
    struct set *used_funcs = data;
    if (instr->type != nir_instr_type_call)

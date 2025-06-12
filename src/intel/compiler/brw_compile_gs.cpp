@@ -4,15 +4,13 @@
  */
 
 #include "brw_eu.h"
-#include "brw_fs.h"
-#include "brw_fs_builder.h"
+#include "brw_shader.h"
+#include "brw_builder.h"
 #include "brw_generator.h"
 #include "brw_prim.h"
 #include "brw_nir.h"
 #include "brw_private.h"
 #include "dev/intel_debug.h"
-
-using namespace brw;
 
 static const GLuint gl_prim_to_hw_prim[MESA_PRIM_TRIANGLE_STRIP_ADJACENCY+1] = {
    [MESA_PRIM_POINTS] =_3DPRIM_POINTLIST,
@@ -32,18 +30,18 @@ static const GLuint gl_prim_to_hw_prim[MESA_PRIM_TRIANGLE_STRIP_ADJACENCY+1] = {
 };
 
 static void
-brw_emit_gs_thread_end(fs_visitor &s)
+brw_emit_gs_thread_end(brw_shader &s)
 {
    assert(s.stage == MESA_SHADER_GEOMETRY);
 
    struct brw_gs_prog_data *gs_prog_data = brw_gs_prog_data(s.prog_data);
 
-   if (s.gs_compile->control_data_header_size_bits > 0) {
+   if (s.gs.control_data_header_size_bits > 0) {
       s.emit_gs_control_data_bits(s.final_gs_vertex_count);
    }
 
-   const fs_builder abld = fs_builder(&s).at_end().annotate("thread end");
-   fs_inst *inst;
+   const brw_builder abld = brw_builder(&s).annotate("thread end");
+   brw_inst *inst;
 
    if (gs_prog_data->static_vertex_count != -1) {
       /* Try and tag the last URB write with EOT instead of emitting a whole
@@ -70,7 +68,7 @@ brw_emit_gs_thread_end(fs_visitor &s)
 }
 
 static void
-brw_assign_gs_urb_setup(fs_visitor &s)
+brw_assign_gs_urb_setup(brw_shader &s)
 {
    assert(s.stage == MESA_SHADER_GEOMETRY);
 
@@ -79,24 +77,24 @@ brw_assign_gs_urb_setup(fs_visitor &s)
    s.first_non_payload_grf +=
       8 * vue_prog_data->urb_read_length * s.nir->info.gs.vertices_in;
 
-   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
       /* Rewrite all ATTR file references to GRFs. */
       s.convert_attr_sources_to_hw_regs(inst);
    }
 }
 
 static bool
-run_gs(fs_visitor &s)
+run_gs(brw_shader &s)
 {
    assert(s.stage == MESA_SHADER_GEOMETRY);
 
-   s.payload_ = new gs_thread_payload(s);
+   s.payload_ = new brw_gs_thread_payload(s);
 
-   const fs_builder bld = fs_builder(&s).at_end();
+   const brw_builder bld = brw_builder(&s);
 
    s.final_gs_vertex_count = bld.vgrf(BRW_TYPE_UD);
 
-   if (s.gs_compile->control_data_header_size_bits > 0) {
+   if (s.gs.control_data_header_size_bits > 0) {
       /* Create a VGRF to store accumulated control data bits. */
       s.control_data_bits = bld.vgrf(BRW_TYPE_UD);
 
@@ -104,13 +102,13 @@ run_gs(fs_visitor &s)
        * will set control_data_bits to 0 after emitting the first vertex.
        * Otherwise, we need to initialize it to 0 here.
        */
-      if (s.gs_compile->control_data_header_size_bits <= 32) {
-         const fs_builder abld = bld.annotate("initialize control data bits");
+      if (s.gs.control_data_header_size_bits <= 32) {
+         const brw_builder abld = bld.annotate("initialize control data bits");
          abld.MOV(s.control_data_bits, brw_imm_ud(0u));
       }
    }
 
-   nir_to_brw(&s);
+   brw_from_nir(&s);
 
    brw_emit_gs_thread_end(s);
 
@@ -125,7 +123,6 @@ run_gs(fs_visitor &s)
    brw_assign_gs_urb_setup(s);
 
    brw_lower_3src_null_dest(s);
-   brw_workaround_memory_fence_before_eot(s);
    brw_workaround_emit_dummy_mov_instruction(s);
 
    brw_allocate_registers(s, true /* allow_spilling */);
@@ -142,16 +139,16 @@ brw_compile_gs(const struct brw_compiler *compiler,
    nir_shader *nir = params->base.nir;
    const struct brw_gs_prog_key *key = params->key;
    struct brw_gs_prog_data *prog_data = params->prog_data;
+   const unsigned dispatch_width = brw_geometry_stage_dispatch_width(compiler->devinfo);
 
-   struct brw_gs_compile c;
-   memset(&c, 0, sizeof(c));
-   c.key = *key;
+   struct intel_vue_map input_vue_map = {0};
 
-   const bool debug_enabled = brw_should_print_shader(nir, DEBUG_GS);
+   unsigned control_data_bits_per_vertex = 0;
+   unsigned control_data_header_size_bits = 0;
 
-   prog_data->base.base.stage = MESA_SHADER_GEOMETRY;
-   prog_data->base.base.ray_queries = nir->info.ray_queries;
-   prog_data->base.base.total_scratch = 0;
+   const bool debug_enabled = brw_should_print_shader(nir, DEBUG_GS, params->base.source_hash);
+
+   brw_prog_data_init(&prog_data->base.base, &params->base);
 
    /* The GLSL linker will have already matched up GS inputs and the outputs
     * of prior stages.  The driver does extend VS outputs in some cases, but
@@ -163,12 +160,11 @@ brw_compile_gs(const struct brw_compiler *compiler,
     */
    GLbitfield64 inputs_read = nir->info.inputs_read;
    brw_compute_vue_map(compiler->devinfo,
-                       &c.input_vue_map, inputs_read,
-                       nir->info.separate_shader, 1);
+                       &input_vue_map, inputs_read,
+                       key->base.vue_layout, 1);
 
-   brw_nir_apply_key(nir, compiler, &key->base,
-                     brw_geometry_stage_dispatch_width(compiler->devinfo));
-   brw_nir_lower_vue_inputs(nir, &c.input_vue_map);
+   brw_nir_apply_key(nir, compiler, &key->base, dispatch_width);
+   brw_nir_lower_vue_inputs(nir, &input_vue_map);
    brw_nir_lower_vue_outputs(nir);
    brw_postprocess_nir(nir, compiler, debug_enabled,
                        key->base.robust_flags);
@@ -196,9 +192,9 @@ brw_compile_gs(const struct brw_compiler *compiler,
 
       /* We only have to emit control bits if we are using non-zero streams */
       if (nir->info.gs.active_stream_mask != (1 << 0))
-         c.control_data_bits_per_vertex = 2;
+         control_data_bits_per_vertex = 2;
       else
-         c.control_data_bits_per_vertex = 0;
+         control_data_bits_per_vertex = 0;
    } else {
       /* When the output type is triangle_strip or line_strip, EndPrimitive()
        * may be used to terminate the current strip and start a new one
@@ -211,16 +207,16 @@ brw_compile_gs(const struct brw_compiler *compiler,
       /* We only need to output control data if the shader actually calls
        * EndPrimitive().
        */
-      c.control_data_bits_per_vertex =
+      control_data_bits_per_vertex =
          nir->info.gs.uses_end_primitive ? 1 : 0;
    }
 
-   c.control_data_header_size_bits =
-      nir->info.gs.vertices_out * c.control_data_bits_per_vertex;
+   control_data_header_size_bits =
+      nir->info.gs.vertices_out * control_data_bits_per_vertex;
 
    /* 1 HWORD = 32 bytes = 256 bits */
    prog_data->control_data_header_size_hwords =
-      ALIGN(c.control_data_header_size_bits, 256) / 256;
+      ALIGN(control_data_header_size_bits, 256) / 256;
 
    /* Compute the output vertex size.
     *
@@ -338,26 +334,30 @@ brw_compile_gs(const struct brw_compiler *compiler,
    /* GS inputs are read from the VUE 256 bits (2 vec4's) at a time, so we
     * need to program a URB read length of ceiling(num_slots / 2).
     */
-   prog_data->base.urb_read_length = (c.input_vue_map.num_slots + 1) / 2;
+   prog_data->base.urb_read_length = (input_vue_map.num_slots + 1) / 2;
 
    /* Now that prog_data setup is done, we are ready to actually compile the
     * program.
     */
    if (unlikely(debug_enabled)) {
       fprintf(stderr, "GS Input ");
-      brw_print_vue_map(stderr, &c.input_vue_map, MESA_SHADER_GEOMETRY);
+      brw_print_vue_map(stderr, &input_vue_map, MESA_SHADER_GEOMETRY);
       fprintf(stderr, "GS Output ");
       brw_print_vue_map(stderr, &prog_data->base.vue_map, MESA_SHADER_GEOMETRY);
    }
 
-   fs_visitor v(compiler, &params->base, &c, prog_data, nir,
+   brw_shader v(compiler, &params->base, &key->base, &prog_data->base.base,
+                nir, dispatch_width,
                 params->base.stats != NULL, debug_enabled);
+   v.gs.control_data_bits_per_vertex = control_data_bits_per_vertex;
+   v.gs.control_data_header_size_bits = control_data_header_size_bits;
    if (run_gs(v)) {
       prog_data->base.dispatch_mode = INTEL_DISPATCH_MODE_SIMD8;
 
       assert(v.payload().num_regs % reg_unit(compiler->devinfo) == 0);
       prog_data->base.base.dispatch_grf_start_reg =
          v.payload().num_regs / reg_unit(compiler->devinfo);
+      prog_data->base.base.grf_used = v.grf_used;
 
       brw_generator g(compiler, &params->base,
                      &prog_data->base.base, MESA_SHADER_GEOMETRY);
@@ -379,4 +379,3 @@ brw_compile_gs(const struct brw_compiler *compiler,
 
    return NULL;
 }
-

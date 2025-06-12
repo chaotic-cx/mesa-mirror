@@ -92,6 +92,7 @@ query_features_from_kernel(struct etna_gpu *gpu)
 	ETNA_FEATURE(chipFeatures, DXT_TEXTURE_COMPRESSION);
 	ETNA_FEATURE(chipFeatures, ETC1_TEXTURE_COMPRESSION);
 	ETNA_FEATURE(chipFeatures, NO_EARLY_Z);
+	ETNA_FEATURE(chipFeatures, YUV420_TILER);
 
 	ETNA_FEATURE(chipMinorFeatures0, MC20);
 	ETNA_FEATURE(chipMinorFeatures0, RENDERTARGET_8K);
@@ -259,6 +260,14 @@ struct etna_gpu *etna_gpu_new(struct etna_device *dev, unsigned int core)
 	if (!core_info_okay) {
 		query_features_from_kernel(gpu);
 		query_limits_from_kernel(gpu);
+
+		/* GC3000 with the instruction cache feature has a incorrect instruction
+		 * limit encoded in HW (HWDB has the correct number). Fix this up so
+		 * other parts of the stack don't have to worry about this.
+		 */
+		if (etna_core_has_feature(&gpu->info, ETNA_FEATURE_INSTRUCTION_CACHE) &&
+		    gpu->info.gpu.max_instructions < 512)
+			gpu->info.gpu.max_instructions = 512;
 	}
 
 	determine_halti(gpu);

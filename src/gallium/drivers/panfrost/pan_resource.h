@@ -29,7 +29,6 @@
 #include "util/u_range.h"
 #include "pan_minmax_cache.h"
 #include "pan_screen.h"
-#include "pan_texture.h"
 
 #define LAYOUT_CONVERT_THRESHOLD 8
 #define PAN_MAX_BATCHES          32
@@ -53,10 +52,19 @@ struct panfrost_resource {
 
    struct panfrost_resource *separate_stencil;
 
+   /* image created when detiling a resource whose
+      constant modifier we cannot change */
+   struct panfrost_resource *shadow_image;
+
    struct util_range valid_buffer_range;
 
    /* Description of the resource layout */
    struct pan_image image;
+   struct pan_image_plane plane;
+
+   /* In case of emulated modifiers, the image.props.modifier won't match this
+    * modifier. */
+   uint64_t modifier;
 
    struct panfrost_bo *bo;
 
@@ -82,13 +90,25 @@ struct panfrost_resource {
    uint8_t stencil_value;
 
    /* Cached min/max values for index buffers */
-   struct panfrost_minmax_cache *index_cache;
+   struct pan_minmax_cache *index_cache;
 };
 
 static inline struct panfrost_resource *
 pan_resource(struct pipe_resource *p)
 {
    return (struct panfrost_resource *)p;
+}
+
+static inline unsigned
+pan_resource_plane_index(const struct panfrost_resource *rsc)
+{
+   for (unsigned i = 0; i < ARRAY_SIZE(rsc->image.planes); i++) {
+      if (rsc->image.planes[i] == &rsc->plane)
+         return i;
+   }
+
+   assert(!"Invalid image props");
+   return 0;
 }
 
 struct panfrost_transfer {
@@ -134,6 +154,9 @@ enum {
    PAN_RENDER_CLEAR = PAN_SAVE_FRAGMENT_STATE | PAN_SAVE_FRAGMENT_CONSTANT,
 };
 
+/* Callers should ensure that all AFBC/AFRC resources that will be used in the
+ * blit operation are legalized before calling blitter operations, otherwise
+ * we may trigger a recursive blit */
 void panfrost_blitter_save(struct panfrost_context *ctx,
                            const enum panfrost_blitter_op blitter_op);
 
@@ -174,14 +197,14 @@ panfrost_translate_texture_dimension(enum pipe_texture_target t)
    }
 }
 
-struct pipe_resource *
-panfrost_resource_create_with_modifier(struct pipe_screen *screen,
-                                       const struct pipe_resource *template,
-                                       uint64_t modifier);
+void
+panfrost_resource_change_format(struct panfrost_resource *rsrc,
+                                enum pipe_format new_format,
+                                struct panfrost_resource *save);
 
-struct panfrost_bo *panfrost_get_afbc_superblock_sizes(
-   struct panfrost_context *ctx, struct panfrost_resource *rsrc,
-   unsigned first_level, unsigned last_level, unsigned *out_offsets);
+void
+panfrost_resource_restore_format(struct panfrost_resource *rsrc,
+                                 const struct panfrost_resource *saved);
 
 bool panfrost_should_pack_afbc(struct panfrost_device *dev,
                                const struct panfrost_resource *rsrc);

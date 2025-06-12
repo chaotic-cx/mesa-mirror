@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-use std::collections::HashMap;
-
 use crate::ir::*;
+
+use rustc_hash::FxHashMap;
 
 struct PrmtSrcs {
     srcs: [SrcRef; 2],
@@ -17,16 +17,16 @@ struct PrmtSrcs {
 impl PrmtSrcs {
     fn new() -> PrmtSrcs {
         PrmtSrcs {
-            srcs: [SrcRef::Zero; 2],
+            srcs: [SrcRef::Zero, SrcRef::Zero],
             num_srcs: 0,
             imm_src: usize::MAX,
             num_imm_bytes: 0,
         }
     }
 
-    fn try_add_src(&mut self, src: SrcRef) -> Option<usize> {
+    fn try_add_src(&mut self, src: &SrcRef) -> Option<usize> {
         for i in 0..self.num_srcs {
-            if self.srcs[i] == src {
+            if self.srcs[i] == *src {
                 return Some(i);
             }
         }
@@ -34,7 +34,7 @@ impl PrmtSrcs {
         if self.num_srcs < 2 {
             let i = self.num_srcs;
             self.num_srcs += 1;
-            self.srcs[i] = src;
+            self.srcs[i] = src.clone();
             Some(i)
         } else {
             None
@@ -82,18 +82,18 @@ struct PrmtEntry {
 }
 
 struct PrmtPass {
-    ssa_prmt: HashMap<SSAValue, PrmtEntry>,
+    ssa_prmt: FxHashMap<SSAValue, PrmtEntry>,
 }
 
 impl PrmtPass {
     fn new() -> PrmtPass {
         PrmtPass {
-            ssa_prmt: HashMap::new(),
+            ssa_prmt: Default::default(),
         }
     }
 
     fn add_prmt(&mut self, op: &OpPrmt) {
-        let Dst::SSA(dst_ssa) = op.dst else {
+        let Dst::SSA(dst_ssa) = &op.dst else {
             return;
         };
         debug_assert!(dst_ssa.comps() == 1);
@@ -103,9 +103,9 @@ impl PrmtPass {
             return;
         };
 
-        debug_assert!(op.srcs[0].src_mod.is_none());
-        debug_assert!(op.srcs[1].src_mod.is_none());
-        let srcs = [op.srcs[0].src_ref, op.srcs[1].src_ref];
+        debug_assert!(op.srcs[0].is_unmodified());
+        debug_assert!(op.srcs[1].is_unmodified());
+        let srcs = [op.srcs[0].src_ref.clone(), op.srcs[1].src_ref.clone()];
 
         self.ssa_prmt.insert(dst_ssa, PrmtEntry { sel, srcs });
     }
@@ -115,7 +115,7 @@ impl PrmtPass {
     }
 
     fn get_prmt_for_src(&self, src: &Src) -> Option<&PrmtEntry> {
-        debug_assert!(src.src_mod.is_none());
+        debug_assert!(src.is_unmodified());
         if let SrcRef::SSA(vec) = &src.src_ref {
             debug_assert!(vec.comps() == 1);
             self.get_prmt(&vec[0])
@@ -166,7 +166,7 @@ impl PrmtPass {
             // This source is unused
             op.srcs[src_idx] = 0.into();
         } else {
-            op.srcs[src_idx] = src_prmt.srcs[src_prmt_src].into();
+            op.srcs[src_idx] = src_prmt.srcs[src_prmt_src].clone().into();
         }
         true
     }
@@ -200,7 +200,7 @@ impl PrmtPass {
                     new_sel[i] =
                         PrmtSelByte::new(srcs.imm_src, byte_idx, false);
                 } else {
-                    let Some(src_idx) = srcs.try_add_src(*src_prmt_src) else {
+                    let Some(src_idx) = srcs.try_add_src(src_prmt_src) else {
                         return false;
                     };
 
@@ -210,7 +210,7 @@ impl PrmtPass {
                         op_sel_byte.msb() | src_sel_byte.msb(),
                     );
                 }
-            } else if let Some(u) = src.as_u32() {
+            } else if let Some(u) = src.as_u32(SrcType::ALU) {
                 let imm_u8 = op_sel_byte.fold_u32(u);
                 let Some(byte_idx) = srcs.try_add_imm_u8(imm_u8) else {
                     return false;
@@ -218,8 +218,8 @@ impl PrmtPass {
 
                 new_sel[i] = PrmtSelByte::new(srcs.imm_src, byte_idx, false);
             } else {
-                debug_assert!(src.src_mod.is_none());
-                let Some(src_idx) = srcs.try_add_src(src.src_ref) else {
+                debug_assert!(src.is_unmodified());
+                let Some(src_idx) = srcs.try_add_src(&src.src_ref) else {
                     return false;
                 };
 
@@ -240,8 +240,9 @@ impl PrmtPass {
         }
 
         op.sel = new_sel.into();
-        op.srcs[0] = srcs.srcs[0].into();
-        op.srcs[1] = srcs.srcs[1].into();
+        let [srcs0, srcs1] = srcs.srcs;
+        op.srcs[0] = srcs0.into();
+        op.srcs[1] = srcs1.into();
         true
     }
 

@@ -3,11 +3,9 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "brw_fs.h"
-#include "brw_fs_builder.h"
+#include "brw_shader.h"
+#include "brw_builder.h"
 #include "util/half_float.h"
-
-using namespace brw;
 
 static uint64_t
 src_as_uint(const brw_reg &src)
@@ -89,7 +87,7 @@ brw_imm_for_type(uint64_t value, enum brw_reg_type type)
  * Converts a MAD to an ADD by folding the multiplicand sources.
  */
 static void
-fold_multiplicands_of_MAD(fs_inst *inst)
+fold_multiplicands_of_MAD(brw_inst *inst)
 {
    assert(inst->opcode == BRW_OPCODE_MAD);
    assert (inst->src[1].file == IMM &&
@@ -135,9 +133,11 @@ fold_multiplicands_of_MAD(fs_inst *inst)
 }
 
 bool
-brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *inst)
+brw_opt_constant_fold_instruction(const intel_device_info *devinfo, brw_inst *inst)
 {
-   bool progress = false;
+   brw_reg result;
+
+   result.file = BAD_FILE;
 
    switch (inst->opcode) {
    case BRW_OPCODE_ADD:
@@ -148,15 +148,12 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
          const uint64_t src0 = src_as_uint(inst->src[0]);
          const uint64_t src1 = src_as_uint(inst->src[1]);
 
-         inst->src[0] = brw_imm_for_type(src0 + src1, inst->dst.type);
+         result = brw_imm_for_type(src0 + src1, inst->dst.type);
       } else {
          assert(inst->src[0].type == BRW_TYPE_F);
-         inst->src[0].f += inst->src[1].f;
+         result = brw_imm_f(inst->src[0].f + inst->src[1].f);
       }
 
-      inst->opcode = BRW_OPCODE_MOV;
-      inst->resize_sources(1);
-      progress = true;
       break;
 
    case BRW_OPCODE_ADD3:
@@ -167,11 +164,7 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
          const uint64_t src1 = src_as_uint(inst->src[1]);
          const uint64_t src2 = src_as_uint(inst->src[2]);
 
-         inst->opcode = BRW_OPCODE_MOV;
-         inst->src[0] = brw_imm_for_type(src0 + src1 + src2,
-                                         inst->dst.type);
-         inst->resize_sources(1);
-         progress = true;
+         result = brw_imm_for_type(src0 + src1 + src2, inst->dst.type);
       }
 
       break;
@@ -181,10 +174,7 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
          const uint64_t src0 = src_as_uint(inst->src[0]);
          const uint64_t src1 = src_as_uint(inst->src[1]);
 
-         inst->opcode = BRW_OPCODE_MOV;
-         inst->src[0] = brw_imm_for_type(src0 & src1, inst->dst.type);
-         inst->resize_sources(1);
-         progress = true;
+         result = brw_imm_for_type(src0 & src1, inst->dst.type);
          break;
       }
 
@@ -203,8 +193,7 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
          ASSERTED bool folded = brw_opt_constant_fold_instruction(devinfo, inst);
          assert(folded);
 
-         progress = true;
-         break;
+         return true;
       }
 
       break;
@@ -237,10 +226,7 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
          break;
 
       if (inst->src[0].is_zero() || inst->src[1].is_zero()) {
-         inst->opcode = BRW_OPCODE_MOV;
-         inst->src[0] = brw_imm_d(0);
-         inst->resize_sources(1);
-         progress = true;
+         result = brw_imm_d(0);
          break;
       }
 
@@ -248,10 +234,7 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
          const uint64_t src0 = src_as_uint(inst->src[0]);
          const uint64_t src1 = src_as_uint(inst->src[1]);
 
-         inst->opcode = BRW_OPCODE_MOV;
-         inst->src[0] = brw_imm_for_type(src0 * src1, inst->dst.type);
-         inst->resize_sources(1);
-         progress = true;
+         result = brw_imm_for_type(src0 * src1, inst->dst.type);
          break;
       }
       break;
@@ -261,10 +244,7 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
          const uint64_t src0 = src_as_uint(inst->src[0]);
          const uint64_t src1 = src_as_uint(inst->src[1]);
 
-         inst->opcode = BRW_OPCODE_MOV;
-         inst->src[0] = brw_imm_for_type(src0 | src1, inst->dst.type);
-         inst->resize_sources(1);
-         progress = true;
+         result = brw_imm_for_type(src0 | src1, inst->dst.type);
          break;
       }
 
@@ -276,8 +256,6 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
           * folding does not handle it.
           */
          assert(!inst->saturate);
-
-         brw_reg result;
 
          switch (brw_type_size_bytes(inst->src[0].type)) {
          case 2:
@@ -294,38 +272,65 @@ brw_opt_constant_fold_instruction(const intel_device_info *devinfo, fs_inst *ins
             unreachable("Invalid source size.");
          }
 
+         result = retype(result, inst->dst.type);
+      }
+      break;
+
+   case SHADER_OPCODE_BROADCAST:
+      if (inst->src[0].file == IMM) {
          inst->opcode = BRW_OPCODE_MOV;
-         inst->src[0] = retype(result, inst->dst.type);
+         inst->force_writemask_all = true;
          inst->resize_sources(1);
 
-         progress = true;
+         /* The destination of BROADCAST will always be is_scalar, so the
+          * allocation will always be REG_SIZE * reg_unit. Adjust the
+          * exec_size to match.
+          */
+         inst->exec_size = 8 * reg_unit(devinfo);
+         assert(inst->size_written == inst->dst.component_size(inst->exec_size));
+
+         return true;
       }
+      break;
+
+   case SHADER_OPCODE_SHUFFLE:
+      if (inst->src[0].file == IMM)
+         result = inst->src[0];
+
+      break;
+
+   case FS_OPCODE_DDX_COARSE:
+   case FS_OPCODE_DDX_FINE:
+   case FS_OPCODE_DDY_COARSE:
+   case FS_OPCODE_DDY_FINE:
+      if (is_uniform(inst->src[0]) || inst->src[0].is_scalar)
+         result = retype(brw_imm_uq(0), inst->dst.type);
+
       break;
 
    default:
       break;
    }
 
-#ifndef NDEBUG
-   /* The function is only intended to do constant folding, so the result of
-    * progress must be a MOV of an immediate value.
-    */
-   if (progress) {
-      assert(inst->opcode == BRW_OPCODE_MOV);
-      assert(inst->src[0].file == IMM);
-   }
-#endif
+   if (result.file != BAD_FILE) {
+      assert(result.file == IMM);
 
-   return progress;
+      inst->opcode = BRW_OPCODE_MOV;
+      inst->src[0] = result;
+      inst->resize_sources(1);
+      return true;
+   }
+
+   return false;
 }
 
 bool
-brw_opt_algebraic(fs_visitor &s)
+brw_opt_algebraic(brw_shader &s)
 {
    const intel_device_info *devinfo = s.devinfo;
    bool progress = false;
 
-   foreach_block_and_inst_safe(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst_safe(block, brw_inst, inst, s.cfg) {
       if (brw_opt_constant_fold_instruction(devinfo, inst)) {
          progress = true;
          continue;
@@ -421,7 +426,7 @@ brw_opt_algebraic(fs_visitor &s)
             if (inst->dst.type != inst->src[0].type &&
                 inst->dst.type != BRW_TYPE_DF &&
                 inst->src[0].type != BRW_TYPE_F)
-               assert(!"unimplemented: saturate mixed types");
+               unreachable("unimplemented: saturate mixed types");
 
             if (brw_reg_saturate_immediate(&inst->src[0])) {
                inst->saturate = false;
@@ -484,6 +489,29 @@ brw_opt_algebraic(fs_visitor &s)
             }
          }
          break;
+
+      case BRW_OPCODE_NOT:
+         /*    not.nz    null, g17
+          *
+          * becomes
+          *
+          *    mov.z     null, g17
+          *
+          * These are equivalent, but the latter is easier for cmod prop.
+          */
+         if (inst->dst.is_null() &&
+             inst->conditional_mod != BRW_CONDITIONAL_NONE) {
+            assert(!inst->src[0].abs);
+
+            if (!inst->src[0].negate)
+               inst->conditional_mod = brw_negate_cmod(inst->conditional_mod);
+
+            inst->opcode = BRW_OPCODE_MOV;
+            inst->src[0].negate = false;
+            progress = true;
+         }
+         break;
+
       case BRW_OPCODE_OR:
          if (inst->src[0].equals(inst->src[1]) || inst->src[1].is_zero()) {
             /* On Gfx8+, the OR instruction can have a source modifier that
@@ -513,10 +541,20 @@ brw_opt_algebraic(fs_visitor &s)
          }
          break;
       case BRW_OPCODE_SEL:
-         if (inst->src[0].equals(inst->src[1])) {
+         /* Floating point SEL.CMOD may flush denorms to zero. We don't have
+          * enough information at this point in compilation to know whether or
+          * not it is safe to remove that.
+          *
+          * Integer SEL or SEL without a conditional modifier is just a fancy
+          * MOV. Those are always safe to eliminate.
+          */
+         if (inst->src[0].equals(inst->src[1]) &&
+             (!brw_type_is_float(inst->dst.type) ||
+              inst->conditional_mod == BRW_CONDITIONAL_NONE)) {
             inst->opcode = BRW_OPCODE_MOV;
             inst->predicate = BRW_PREDICATE_NONE;
             inst->predicate_inverse = false;
+            inst->conditional_mod = BRW_CONDITIONAL_NONE;
             inst->resize_sources(1);
             progress = true;
          } else if (inst->saturate && inst->src[1].file == IMM) {
@@ -550,6 +588,7 @@ brw_opt_algebraic(fs_visitor &s)
                default:
                   break;
                }
+               break;
             default:
                break;
             }
@@ -666,6 +705,11 @@ brw_opt_algebraic(fs_visitor &s)
          if (is_uniform(inst->src[0])) {
             inst->opcode = BRW_OPCODE_MOV;
             inst->force_writemask_all = true;
+
+            /* The destination of BROADCAST will always be is_scalar, so the
+             * allocation will always be REG_SIZE * reg_unit. Adjust the
+             * exec_size to match.
+             */
             inst->exec_size = 8 * reg_unit(devinfo);
             assert(inst->size_written == inst->dst.component_size(inst->exec_size));
             inst->resize_sources(1);
@@ -725,8 +769,8 @@ brw_opt_algebraic(fs_visitor &s)
    }
 
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTION_DATA_FLOW |
-                            DEPENDENCY_INSTRUCTION_DETAIL);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTION_DATA_FLOW |
+                            BRW_DEPENDENCY_INSTRUCTION_DETAIL);
 
    return progress;
 }

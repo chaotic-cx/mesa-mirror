@@ -8,6 +8,7 @@
 
 #include "pipe/p_state.h"
 #include "util/format/u_format.h"
+#include "util/macros.h"
 #include "util/u_helpers.h"
 #include "util/u_memory.h"
 #include "util/u_string.h"
@@ -256,54 +257,57 @@ emit_textures(struct fd_context *ctx, struct fd_ringbuffer *ring,
 
          /* Remap integer formats as unorm (will be fixed up in shader) */
          if (util_format_is_pure_integer(view->base.format)) {
-            texconst0 &= ~A4XX_TEX_CONST_0_FMT__MASK;
+            enum a4xx_tex_fmt new_tex_fmt;
             switch (fd4_pipe2tex(view->base.format)) {
             case TFMT4_8_8_8_8_UINT:
             case TFMT4_8_8_8_8_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_8_8_8_8_UNORM);
+               new_tex_fmt = TFMT4_8_8_8_8_UNORM;
                break;
             case TFMT4_8_8_UINT:
             case TFMT4_8_8_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_8_8_UNORM);
+               new_tex_fmt = TFMT4_8_8_UNORM;
                break;
             case TFMT4_8_UINT:
             case TFMT4_8_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_8_UNORM);
+               new_tex_fmt = TFMT4_8_UNORM;
                break;
 
             case TFMT4_16_16_16_16_UINT:
             case TFMT4_16_16_16_16_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_16_16_16_16_UNORM);
+               new_tex_fmt = TFMT4_16_16_16_16_UNORM;
                break;
             case TFMT4_16_16_UINT:
             case TFMT4_16_16_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_16_16_UNORM);
+               new_tex_fmt = TFMT4_16_16_UNORM;
                break;
             case TFMT4_16_UINT:
             case TFMT4_16_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_16_UNORM);
+               new_tex_fmt = TFMT4_16_UNORM;
                break;
 
             case TFMT4_32_32_32_32_UINT:
             case TFMT4_32_32_32_32_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_32_32_32_32_FLOAT);
+               new_tex_fmt = TFMT4_32_32_32_32_FLOAT;
                break;
             case TFMT4_32_32_UINT:
             case TFMT4_32_32_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_32_32_FLOAT);
+               new_tex_fmt = TFMT4_32_32_FLOAT;
                break;
             case TFMT4_32_UINT:
             case TFMT4_32_SINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_32_FLOAT);
+               new_tex_fmt = TFMT4_32_FLOAT;
                break;
 
             case TFMT4_10_10_10_2_UINT:
-               texconst0 |= A4XX_TEX_CONST_0_FMT(TFMT4_10_10_10_2_UNORM);
+               new_tex_fmt = TFMT4_10_10_10_2_UNORM;
                break;
 
             default:
-               assert(0);
+               unreachable();
             }
+
+            texconst0 =
+               pkt_field_set(A4XX_TEX_CONST_0_FMT, texconst0, new_tex_fmt);
          }
 
          OUT_RING(ring, texconst0);
@@ -347,7 +351,7 @@ emit_textures(struct fd_context *ctx, struct fd_ringbuffer *ring,
  */
 void
 fd4_emit_gmem_restore_tex(struct fd_ringbuffer *ring, unsigned nr_bufs,
-                          struct pipe_surface **bufs)
+                          struct pipe_surface *bufs)
 {
    unsigned char mrt_comp[A4XX_MAX_RENDER_TARGETS];
    int i;
@@ -382,10 +386,11 @@ fd4_emit_gmem_restore_tex(struct fd_ringbuffer *ring, unsigned nr_bufs,
    OUT_RING(ring, CP_LOAD_STATE4_1_STATE_TYPE(ST4_CONSTANTS) |
                      CP_LOAD_STATE4_1_EXT_SRC_ADDR(0));
    for (i = 0; i < nr_bufs; i++) {
-      if (bufs[i]) {
-         struct fd_resource *rsc = fd_resource(bufs[i]->texture);
-         enum pipe_format format = fd_gmem_restore_format(bufs[i]->format);
-
+      if (bufs[i].texture) {
+         struct fd_resource *rsc = fd_resource(bufs[i].texture);
+         enum pipe_format format = fd_gmem_restore_format(bufs[i].format);
+         uint16_t width, height;
+         pipe_surface_size(&bufs[i], &width, &height);
          /* The restore blit_zs shader expects stencil in sampler 0,
           * and depth in sampler 1
           */
@@ -395,9 +400,9 @@ fd4_emit_gmem_restore_tex(struct fd_ringbuffer *ring, unsigned nr_bufs,
          }
 
          /* note: PIPE_BUFFER disallowed for surfaces */
-         unsigned lvl = bufs[i]->u.tex.level;
+         unsigned lvl = bufs[i].level;
          unsigned offset =
-            fd_resource_offset(rsc, lvl, bufs[i]->u.tex.first_layer);
+            fd_resource_offset(rsc, lvl, bufs[i].first_layer);
 
          /* z32 restore is accomplished using depth write.  If there is
           * no stencil component (ie. PIPE_FORMAT_Z32_FLOAT_S8X24_UINT)
@@ -410,14 +415,14 @@ fd4_emit_gmem_restore_tex(struct fd_ringbuffer *ring, unsigned nr_bufs,
              (format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT))
             mrt_comp[i] = 0;
 
-         assert(bufs[i]->u.tex.first_layer == bufs[i]->u.tex.last_layer);
+         assert(bufs[i].first_layer == bufs[i].last_layer);
 
          OUT_RING(ring, A4XX_TEX_CONST_0_FMT(fd4_pipe2tex(format)) |
                            A4XX_TEX_CONST_0_TYPE(A4XX_TEX_2D) |
                            fd4_tex_swiz(format, PIPE_SWIZZLE_X, PIPE_SWIZZLE_Y,
                                         PIPE_SWIZZLE_Z, PIPE_SWIZZLE_W));
-         OUT_RING(ring, A4XX_TEX_CONST_1_WIDTH(bufs[i]->width) |
-                           A4XX_TEX_CONST_1_HEIGHT(bufs[i]->height));
+         OUT_RING(ring, A4XX_TEX_CONST_1_WIDTH(width) |
+                           A4XX_TEX_CONST_1_HEIGHT(height));
          OUT_RING(ring, A4XX_TEX_CONST_2_PITCH(fd_resource_pitch(rsc, lvl)));
          OUT_RING(ring, 0x00000000);
          OUT_RELOC(ring, rsc->bo, offset, 0, 0);
@@ -648,7 +653,7 @@ fd4_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       unsigned char mrt_comp[A4XX_MAX_RENDER_TARGETS] = {0};
 
       for (unsigned i = 0; i < A4XX_MAX_RENDER_TARGETS; i++) {
-         mrt_comp[i] = ((i < pfb->nr_cbufs) && pfb->cbufs[i]) ? 0xf : 0;
+         mrt_comp[i] = ((i < pfb->nr_cbufs) && pfb->cbufs[i].texture) ? 0xf : 0;
       }
 
       OUT_PKT0(ring, REG_A4XX_RB_RENDER_COMPONENTS, 1);
@@ -667,7 +672,7 @@ fd4_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       struct pipe_framebuffer_state *pfb = &ctx->batch->framebuffer;
       uint32_t rb_alpha_control = zsa->rb_alpha_control;
 
-      if (util_format_is_pure_integer(pipe_surface_format(pfb->cbufs[0])))
+      if (util_format_is_pure_integer(pipe_surface_format(&pfb->cbufs[0])))
          rb_alpha_control &= ~A4XX_RB_ALPHA_CONTROL_ALPHA_TEST;
 
       OUT_PKT0(ring, REG_A4XX_RB_ALPHA_CONTROL, 1);
@@ -799,9 +804,9 @@ fd4_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
        (FD_DIRTY_VIEWPORT | FD_DIRTY_RASTERIZER | FD_DIRTY_FRAMEBUFFER)) {
       float zmin, zmax;
       int depth = 24;
-      if (ctx->batch->framebuffer.zsbuf) {
+      if (ctx->batch->framebuffer.zsbuf.texture) {
          depth = util_format_get_component_bits(
-            pipe_surface_format(ctx->batch->framebuffer.zsbuf),
+            pipe_surface_format(&ctx->batch->framebuffer.zsbuf),
             UTIL_FORMAT_COLORSPACE_ZS, 0);
       }
       util_viewport_zmin_zmax(&ctx->viewport[0], ctx->rasterizer->clip_halfz,
@@ -824,7 +829,7 @@ fd4_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       struct pipe_framebuffer_state *pfb = &ctx->batch->framebuffer;
       unsigned n = pfb->nr_cbufs;
       /* if we have depth/stencil, we need at least on MRT: */
-      if (pfb->zsbuf)
+      if (pfb->zsbuf.texture)
          n = MAX2(1, n);
       fd4_program_emit(ring, emit, n, pfb->cbufs);
    }
@@ -841,7 +846,7 @@ fd4_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
 
       for (i = 0; i < A4XX_MAX_RENDER_TARGETS; i++) {
          enum pipe_format format =
-            pipe_surface_format(ctx->batch->framebuffer.cbufs[i]);
+            pipe_surface_format(&ctx->batch->framebuffer.cbufs[i]);
          bool is_int = util_format_is_pure_integer(format);
          bool has_alpha = util_format_has_alpha(format);
          uint32_t control = blend->rb_mrt[i].control;

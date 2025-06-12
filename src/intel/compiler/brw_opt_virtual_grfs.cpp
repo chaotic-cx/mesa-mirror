@@ -3,10 +3,8 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "brw_fs.h"
-#include "brw_fs_builder.h"
-
-using namespace brw;
+#include "brw_shader.h"
+#include "brw_builder.h"
 
 /**
  * Split large virtual GRFs into separate components if we can.
@@ -22,7 +20,7 @@ using namespace brw;
  * elimination and coalescing.
  */
 bool
-brw_opt_split_virtual_grfs(fs_visitor &s)
+brw_opt_split_virtual_grfs(brw_shader &s)
 {
    /* Compact the register file so we eliminate dead vgrfs.  This
     * only defines split points for live registers, so if we have
@@ -53,7 +51,7 @@ brw_opt_split_virtual_grfs(fs_visitor &s)
     * register size.
     */
    const unsigned reg_inc = reg_unit(s.devinfo);
-   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
       if (inst->dst.file == VGRF) {
          unsigned reg = vgrf_to_reg[inst->dst.nr];
          for (unsigned j = reg_inc; j < s.alloc.sizes[inst->dst.nr]; j += reg_inc)
@@ -69,7 +67,7 @@ brw_opt_split_virtual_grfs(fs_visitor &s)
       }
    }
 
-   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
       /* We fix up undef instructions later */
       if (inst->opcode == SHADER_OPCODE_UNDEF) {
          assert(inst->dst.file == VGRF);
@@ -116,8 +114,7 @@ brw_opt_split_virtual_grfs(fs_visitor &s)
          if (split_points[reg]) {
             has_splits = true;
             vgrf_has_split[i] = true;
-            assert(offset <= MAX_VGRF_SIZE(s.devinfo));
-            unsigned grf = s.alloc.allocate(offset);
+            unsigned grf = brw_allocate_vgrf_units(s, offset).nr;
             for (unsigned k = reg - offset; k < reg; k++)
                new_virtual_grf[k] = grf;
             offset = 0;
@@ -128,7 +125,6 @@ brw_opt_split_virtual_grfs(fs_visitor &s)
       }
 
       /* The last one gets the original register number */
-      assert(offset <= MAX_VGRF_SIZE(s.devinfo));
       s.alloc.sizes[i] = offset;
       for (unsigned k = reg - offset; k < reg; k++)
          new_virtual_grf[k] = i;
@@ -141,17 +137,17 @@ brw_opt_split_virtual_grfs(fs_visitor &s)
       goto cleanup;
    }
 
-   foreach_block_and_inst_safe(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst_safe(block, brw_inst, inst, s.cfg) {
       if (inst->opcode == SHADER_OPCODE_UNDEF) {
          assert(inst->dst.file == VGRF);
          if (vgrf_has_split[inst->dst.nr]) {
-            const fs_builder ibld(&s, block, inst);
+            const brw_builder ibld(inst);
             assert(inst->size_written % REG_SIZE == 0);
             unsigned reg_offset = inst->dst.offset / REG_SIZE;
             unsigned size_written = 0;
             while (size_written < inst->size_written) {
                reg = vgrf_to_reg[inst->dst.nr] + reg_offset + size_written / REG_SIZE;
-               fs_inst *undef =
+               brw_inst *undef =
                   ibld.UNDEF(
                      byte_offset(brw_vgrf(new_virtual_grf[reg], inst->dst.type),
                                  new_reg_offset[reg] * REG_SIZE));
@@ -160,7 +156,7 @@ brw_opt_split_virtual_grfs(fs_visitor &s)
                assert(undef->size_written % REG_SIZE == 0);
                size_written += undef->size_written;
             }
-            inst->remove(block);
+            inst->remove();
          } else {
             reg = vgrf_to_reg[inst->dst.nr];
             assert(new_reg_offset[reg] == 0);
@@ -197,7 +193,8 @@ brw_opt_split_virtual_grfs(fs_visitor &s)
          }
       }
    }
-   s.invalidate_analysis(DEPENDENCY_INSTRUCTION_DETAIL | DEPENDENCY_VARIABLES);
+   s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTION_DETAIL |
+                         BRW_DEPENDENCY_VARIABLES);
 
    progress = true;
 
@@ -221,14 +218,14 @@ cleanup:
  * overhead.
  */
 bool
-brw_opt_compact_virtual_grfs(fs_visitor &s)
+brw_opt_compact_virtual_grfs(brw_shader &s)
 {
    bool progress = false;
    int *remap_table = new int[s.alloc.count];
    memset(remap_table, -1, s.alloc.count * sizeof(int));
 
    /* Mark which virtual GRFs are used. */
-   foreach_block_and_inst(block, const fs_inst, inst, s.cfg) {
+   foreach_block_and_inst(block, const brw_inst, inst, s.cfg) {
       if (inst->dst.file == VGRF)
          remap_table[inst->dst.nr] = 0;
 
@@ -249,7 +246,8 @@ brw_opt_compact_virtual_grfs(fs_visitor &s)
       } else {
          remap_table[i] = new_index;
          s.alloc.sizes[new_index] = s.alloc.sizes[i];
-         s.invalidate_analysis(DEPENDENCY_INSTRUCTION_DETAIL | DEPENDENCY_VARIABLES);
+         s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTION_DETAIL |
+                               BRW_DEPENDENCY_VARIABLES);
          ++new_index;
       }
    }
@@ -257,7 +255,7 @@ brw_opt_compact_virtual_grfs(fs_visitor &s)
    s.alloc.count = new_index;
 
    /* Patch all the instructions to use the newly renumbered registers */
-   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
       if (inst->dst.file == VGRF)
          inst->dst.nr = remap_table[inst->dst.nr];
 

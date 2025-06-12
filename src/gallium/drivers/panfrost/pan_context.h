@@ -28,13 +28,12 @@
 #define _LARGEFILE64_SOURCE 1
 #include <assert.h>
 #include <sys/mman.h>
-#include "pan_afbc_cso.h"
+#include "pan_mod_conv_cso.h"
 #include "pan_blend_cso.h"
 #include "pan_earlyzs.h"
 #include "pan_encoder.h"
 #include "pan_job.h"
 #include "pan_resource.h"
-#include "pan_texture.h"
 
 #include "pipe/p_context.h"
 #include "pipe/p_defines.h"
@@ -46,6 +45,7 @@
 #include "util/hash_table.h"
 #include "util/simple_mtx.h"
 #include "util/u_blitter.h"
+#include "util/u_printf.h"
 
 #include "compiler/shader_enums.h"
 #include "midgard/midgard_compile.h"
@@ -209,7 +209,7 @@ struct panfrost_context {
 
    struct blitter_context *blitter;
 
-   struct pan_afbc_shaders afbc_shaders;
+   struct pan_mod_convert_shaders mod_convert_shaders;
 
    struct panfrost_blend_state *blend;
 
@@ -242,6 +242,11 @@ struct panfrost_context {
    union {
       struct panfrost_csf_context csf;
    };
+
+   struct {
+      struct u_printf_ctx ctx;
+      struct panfrost_bo *bo;
+   } printf;
 };
 
 /* Corresponds to the CSO */
@@ -296,6 +301,7 @@ enum {
    PAN_SYSVAL_BLEND_CONSTANTS = 16,
    PAN_SYSVAL_XFB = 17,
    PAN_SYSVAL_NUM_VERTICES = 18,
+   PAN_SYSVAL_PRINTF_BUFFER = 19,
 };
 
 #define PAN_TXS_SYSVAL_ID(texidx, dim, is_array)                               \
@@ -304,6 +310,9 @@ enum {
 #define PAN_SYSVAL_ID_TO_TXS_TEX_IDX(id)  ((id)&0x7f)
 #define PAN_SYSVAL_ID_TO_TXS_DIM(id)      (((id) >> 7) & 0x3)
 #define PAN_SYSVAL_ID_TO_TXS_IS_ARRAY(id) !!((id) & (1 << 9))
+
+/* Sysvals are always mapped to UBO1 */
+#define PAN_UBO_SYSVALS 1
 
 struct panfrost_sysvals {
    /* The mapping of sysvals to uniforms, the count, and the off-by-one inverse */
@@ -338,9 +347,6 @@ enum panfrost_resource_table {
 struct panfrost_fs_key {
    /* Number of colour buffers if gl_FragColor is written */
    unsigned nr_cbufs_for_fragcolor;
-
-   /* On Valhall, fixed_varying_mask of the linked vertex shader */
-   uint32_t fixed_varying_mask;
 
    /* Midgard shaders that read the tilebuffer must be keyed for
     * non-blendable formats
@@ -420,12 +426,6 @@ struct panfrost_uncompiled_shader {
    /* Compiled transform feedback program, if one is required */
    struct panfrost_compiled_shader *xfb;
 
-   /* On vertex shaders, bit mask of special desktop-only varyings to link
-    * with the fragment shader. Used on Valhall to implement separable
-    * shaders for desktop GL.
-    */
-   uint32_t fixed_varying_mask;
-
    /* On fragments shaders, bit mask of varyings using noprespective
     * interpolation, starting at VARYING_SLOT_VAR0 */
    uint32_t noperspective_varyings;
@@ -469,7 +469,7 @@ bool panfrost_nir_lower_sysvals(nir_shader *s, unsigned arch,
                                 struct panfrost_sysvals *sysvals);
 
 bool panfrost_nir_lower_res_indices(nir_shader *shader,
-                                    struct panfrost_compile_inputs *inputs);
+                                    struct pan_compile_inputs *inputs);
 
 /** (Vertex buffer index, divisor) tuple that will become an Attribute Buffer
  * Descriptor at draw-time on Midgard
@@ -505,8 +505,8 @@ struct pipe_context *panfrost_create_context(struct pipe_screen *screen,
 
 bool panfrost_writes_point_size(struct panfrost_context *ctx);
 
-struct panfrost_ptr panfrost_vertex_tiler_job(struct panfrost_context *ctx,
-                                              bool is_tiler);
+struct pan_ptr panfrost_vertex_tiler_job(struct panfrost_context *ctx,
+                                         bool is_tiler);
 
 void panfrost_flush(struct pipe_context *pipe, struct pipe_fence_handle **fence,
                     unsigned flags);

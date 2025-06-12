@@ -440,7 +440,7 @@ unsigned int radeon_enc_write_pps(struct radeon_encoder *enc, uint8_t nal_byte, 
    radeon_bs_code_ue(&bs, enc->enc_pic.h264.desc->pic_ctrl.num_ref_idx_l0_default_active_minus1);
    radeon_bs_code_ue(&bs, enc->enc_pic.h264.desc->pic_ctrl.num_ref_idx_l1_default_active_minus1);
    radeon_bs_code_fixed_bits(&bs, 0x0, 1); /* weighted_pred_flag */
-   radeon_bs_code_fixed_bits(&bs, 0x0, 2); /* weighted_bipred_idc */
+   radeon_bs_code_fixed_bits(&bs, enc->enc_pic.spec_misc.weighted_bipred_idc, 2);
    radeon_bs_code_se(&bs, 0x0); /* pic_init_qp_minus26 */
    radeon_bs_code_se(&bs, 0x0); /* pic_init_qs_minus26 */
    radeon_bs_code_se(&bs, enc->enc_pic.h264_deblock.cb_qp_offset); /* chroma_qp_index_offset */
@@ -469,7 +469,9 @@ unsigned int radeon_enc_write_pps_hevc(struct radeon_encoder *enc, uint8_t *out)
    radeon_bs_set_emulation_prevention(&bs, true);
    radeon_bs_code_ue(&bs, 0x0); /* pps_pic_parameter_set_id */
    radeon_bs_code_ue(&bs, 0x0); /* pps_seq_parameter_set_id */
-   radeon_bs_code_fixed_bits(&bs, 0x1, 1); /* dependent_slice_segments_enabled_flag */
+   unsigned dependent_slice_segments_enabled_flag =
+      enc->enc_pic.has_dependent_slice_instructions ? pps->dependent_slice_segments_enabled_flag : 0x1;
+   radeon_bs_code_fixed_bits(&bs, dependent_slice_segments_enabled_flag, 1);
    radeon_bs_code_fixed_bits(&bs, pps->output_flag_present_flag, 1);
    radeon_bs_code_fixed_bits(&bs, 0x0, 3); /* num_extra_slice_header_bits */
    radeon_bs_code_fixed_bits(&bs, 0x0, 1); /* sign_data_hiding_enabled_flag */
@@ -668,7 +670,7 @@ static void radeon_enc_slice_header(struct radeon_encoder *enc)
       }
    }
 
-   if (!enc->enc_pic.not_referenced) {
+   if (enc->enc_pic.h264_enc_params.is_reference) {
       if (enc->enc_pic.picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR) {
          radeon_bs_code_fixed_bits(&bs, slice->no_output_of_prior_pics_flag, 1);
          radeon_bs_code_fixed_bits(&bs, slice->long_term_reference_flag, 1);
@@ -781,8 +783,17 @@ static void radeon_enc_slice_header_hevc(struct radeon_encoder *enc)
    bits_copied = bs.bits_output;
    inst_index++;
 
-   instruction[inst_index] = RENCODE_HEVC_HEADER_INSTRUCTION_SLICE_SEGMENT;
-   inst_index++;
+   if (enc->enc_pic.has_dependent_slice_instructions) {
+      if (pps->dependent_slice_segments_enabled_flag) {
+         instruction[inst_index] = RENCODE_HEVC_HEADER_INSTRUCTION_DEPENDENT_SLICE_SEGMENT_FLAG;
+         inst_index++;
+      }
+      instruction[inst_index] = RENCODE_HEVC_HEADER_INSTRUCTION_SLICE_SEGMENT_ADDRESS;
+      inst_index++;
+   } else {
+      instruction[inst_index] = RENCODE_HEVC_HEADER_INSTRUCTION_SLICE_SEGMENT;
+      inst_index++;
+   }
 
    instruction[inst_index] = RENCODE_HEVC_HEADER_INSTRUCTION_DEPENDENT_SLICE_END;
    inst_index++;
@@ -1030,27 +1041,10 @@ static void radeon_enc_rc_per_pic_ex(struct radeon_encoder *enc)
 
 static void radeon_enc_encode_params(struct radeon_encoder *enc)
 {
-   switch (enc->enc_pic.picture_type) {
-   case PIPE_H2645_ENC_PICTURE_TYPE_I:
-   case PIPE_H2645_ENC_PICTURE_TYPE_IDR:
-      enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_I;
-      break;
-   case PIPE_H2645_ENC_PICTURE_TYPE_P:
-      enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_P;
-      break;
-   case PIPE_H2645_ENC_PICTURE_TYPE_SKIP:
-      enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_P_SKIP;
-      break;
-   case PIPE_H2645_ENC_PICTURE_TYPE_B:
-      enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_B;
-      break;
-   default:
-      enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_I;
-   }
-
    if (enc->luma->meta_offset)
       RADEON_ENC_ERR("DCC surfaces not supported.\n");
 
+   enc->enc_pic.enc_params.pic_type = radeon_enc_h2645_picture_type(enc->enc_pic.picture_type);
    enc->enc_pic.enc_params.input_pic_luma_pitch = enc->luma->u.gfx9.surf_pitch;
    enc->enc_pic.enc_params.input_pic_chroma_pitch = enc->chroma ?
       enc->chroma->u.gfx9.surf_pitch : enc->luma->u.gfx9.surf_pitch;

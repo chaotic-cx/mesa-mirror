@@ -11,8 +11,6 @@ spec@arb_framebuffer_object@fbo-blit-scaled-linear,Fail
 spec@arb_bindless_texture@compiler@samplers@arith-bound-sampler-texture2d.frag,Crash
 
 spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-tf-separate,Fail
-spec@arb_program_interface_query@arb_program_interface_query-getprogramresourceindex,Fail
-spec@arb_program_interface_query@arb_program_interface_query-getprogramresourceindex@'vs_input2[1][0]' on GL_PROGRAM_INPUT,Fail
 spec@arb_sample_shading@ignore-centroid-qualifier 2,Fail
 spec@arb_sample_shading@ignore-centroid-qualifier 4,Fail
 spec@arb_sample_shading@ignore-centroid-qualifier 6,Fail
@@ -30,8 +28,6 @@ spec@egl 1.4@eglterminate then unbind context,Fail
 spec@egl_chromium_sync_control@conformance@eglGetSyncValuesCHROMIUM_msc_and_sbc_test,Fail
 spec@egl_khr_gl_image@egl_khr_gl_renderbuffer_image-clear-shared-image gl_depth_component24,Fail
 spec@egl_khr_surfaceless_context@viewport,Fail
-
-spec@ext_packed_float@query-rgba-signed-components,Fail
 
 spec@glsl-1.10@execution@glsl-fs-inline-explosion,Crash
 spec@glsl-1.10@execution@glsl-vs-inline-explosion,Crash
@@ -168,3 +164,233 @@ spec@ext_framebuffer_multisample@interpolation 8 non-centroid-disabled,Fail
 
 # Regression noticed in https://gitlab.freedesktop.org/mesa/mesa/-/pipelines/891104
 spec@arb_viewport_array@display-list,Fail
+
+# https://gitlab.freedesktop.org/mesa/mesa/-/issues/12496
+# ../src/amd/vulkan/radv_shader_info.c:1559: gfx10_get_ngg_info: Assertion `max_esverts >= max_verts_per_prim && max_gsprims >= 1' failed.
+spec@glsl-1.50@gs-max-output,Crash
+
+spec@arb_sample_locations@test,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 0- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 1- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 2- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 1- X: 3- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 0- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 1- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 2- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 2- X: 3- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 0- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 1- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 2- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 4- X: 3- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 0- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 1- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 2- Y: 6- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 0- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 0- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 1- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 1- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 2- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 2- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 3- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 3- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 4- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 4- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 5- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 5- Grid: true,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 6- Grid: false,Fail
+spec@arb_sample_locations@test@MSAA: 8- X: 3- Y: 6- Grid: true,Fail

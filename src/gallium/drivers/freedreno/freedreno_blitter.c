@@ -23,9 +23,9 @@ default_dst_texture(struct pipe_surface *dst_templ, struct pipe_resource *dst,
                     unsigned dstlevel, unsigned dstz)
 {
    memset(dst_templ, 0, sizeof(*dst_templ));
-   dst_templ->u.tex.level = dstlevel;
-   dst_templ->u.tex.first_layer = dstz;
-   dst_templ->u.tex.last_layer = dstz;
+   dst_templ->level = dstlevel;
+   dst_templ->first_layer = dstz;
+   dst_templ->last_layer = dstz;
 }
 
 static void
@@ -327,7 +327,7 @@ fd_blit_stencil_fallback(struct fd_context *ctx, const struct pipe_blit_info *in
       info->src.resource, info->src.level, &info->src.box,
       info->scissor_enable ? &info->scissor : NULL);
 
-   pipe_surface_release(pctx, &dst_view);
+   pipe_surface_unref(pctx, &dst_view);
 }
 
 /**

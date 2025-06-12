@@ -249,7 +249,6 @@ gfx6_init_graphics_preamble_state(const struct ac_preamble_state *state,
       /* CLEAR_STATE doesn't clear these correctly on certain generations.
        * I don't know why. Deduced by trial and error.
        */
-      ac_pm4_set_reg(pm4, R_028B28_VGT_STRMOUT_DRAW_OPAQUE_OFFSET, 0);
       ac_pm4_set_reg(pm4, R_028204_PA_SC_WINDOW_SCISSOR_TL, S_028204_WINDOW_OFFSET_DISABLE(1));
       ac_pm4_set_reg(pm4, R_028030_PA_SC_SCREEN_SCISSOR_TL, 0);
    }
@@ -356,32 +355,46 @@ gfx10_init_graphics_preamble_state(const struct ac_preamble_state *state,
                                   struct ac_pm4_state *pm4)
 {
    const struct radeon_info *info = pm4->info;
-   unsigned meta_write_policy, meta_read_policy, color_write_policy, color_read_policy;
-   unsigned zs_write_policy, zs_read_policy;
+   unsigned dcc_write_policy, dcc_read_policy, color_write_policy, color_read_policy;
+   unsigned htile_write_policy, htile_read_policy, zs_write_policy, zs_read_policy;
    unsigned cache_no_alloc = info->gfx_level >= GFX11 ? V_02807C_CACHE_NOA_GFX11:
                                                         V_02807C_CACHE_NOA_GFX10;
 
-   if (state->gfx10.cache_rb_gl2) {
+   if (state->gfx10.cache_cb_gl2) {
       color_write_policy = V_028410_CACHE_LRU_WR;
       color_read_policy = V_028410_CACHE_LRU_RD;
-      zs_write_policy = V_02807C_CACHE_LRU_WR;
-      zs_read_policy = V_02807C_CACHE_LRU_RD;
-      meta_write_policy = V_02807C_CACHE_LRU_WR;
-      meta_read_policy = V_02807C_CACHE_LRU_RD;
+      dcc_write_policy = V_02807C_CACHE_LRU_WR;
+      dcc_read_policy = V_02807C_CACHE_LRU_RD;
    } else {
       color_write_policy = V_028410_CACHE_STREAM;
       color_read_policy = cache_no_alloc;
+
+      /* Enable CMASK/DCC caching in L2 for small chips. */
+      if (info->max_render_backends <= 4) {
+         dcc_write_policy = V_02807C_CACHE_LRU_WR; /* cache writes */
+         dcc_read_policy = V_02807C_CACHE_LRU_RD;  /* cache reads */
+      } else {
+         dcc_write_policy = V_02807C_CACHE_STREAM; /* write combine */
+         dcc_read_policy = cache_no_alloc; /* don't cache reads that miss */
+      }
+   }
+
+   if (state->gfx10.cache_db_gl2) {
+      /* Enable caching Z/S surfaces in GL2. It improves performance for GpuTest/Plot3D
+       * by 3.2% (no AA) and 3.9% (8x MSAA) on Navi31. This seems to be a good default.
+       */
+      zs_write_policy = V_028410_CACHE_LRU_WR;
+      zs_read_policy = V_028410_CACHE_LRU_RD;
+      htile_write_policy = V_028410_CACHE_LRU_WR;
+      htile_read_policy = V_028410_CACHE_LRU_RD;
+   } else {
+      /* Disable caching Z/S surfaces in GL2. It improves performance for GpuTest/FurMark
+       * by 1.9%, but not much else.
+       */
       zs_write_policy = V_02807C_CACHE_STREAM;
       zs_read_policy = cache_no_alloc;
-
-      /* Enable CMASK/HTILE/DCC caching in L2 for small chips. */
-      if (info->max_render_backends <= 4) {
-         meta_write_policy = V_02807C_CACHE_LRU_WR; /* cache writes */
-         meta_read_policy = V_02807C_CACHE_LRU_RD;  /* cache reads */
-      } else {
-         meta_write_policy = V_02807C_CACHE_STREAM; /* write combine */
-         meta_read_policy = cache_no_alloc; /* don't cache reads that miss */
-      }
+      htile_write_policy = V_02807C_CACHE_STREAM;
+      htile_read_policy = cache_no_alloc;
    }
 
    const unsigned cu_mask_ps = info->gfx_level >= GFX10_3 ? ac_gfx103_get_cu_mask_ps(info) : ~0u;
@@ -440,6 +453,29 @@ gfx10_init_graphics_preamble_state(const struct ac_preamble_state *state,
                   S_00B524_MEM_BASE(info->address32_hi >> 8));
 
    /* Context registers. */
+   if (info->gfx_level >= GFX11) {
+      /* These are set by CLEAR_STATE on gfx10. We don't use CLEAR_STATE on gfx11. */
+      ac_pm4_set_reg(pm4, R_028030_PA_SC_SCREEN_SCISSOR_TL, 0);
+      ac_pm4_set_reg(pm4, R_028240_PA_SC_GENERIC_SCISSOR_TL, S_028240_WINDOW_OFFSET_DISABLE(1));
+      ac_pm4_set_reg(pm4, R_028244_PA_SC_GENERIC_SCISSOR_BR, S_028244_BR_X(16384) | S_028244_BR_Y(16384));
+      ac_pm4_set_reg(pm4, R_02835C_PA_SC_TILE_STEERING_OVERRIDE, info->pa_sc_tile_steering_override);
+      ac_pm4_set_reg(pm4, R_0283E4_PA_SC_VRS_RATE_CACHE_CNTL, 0);
+      ac_pm4_set_reg(pm4, R_028428_CB_COVERAGE_OUT_CONTROL, 0);
+      ac_pm4_set_reg(pm4, R_0286DC_SPI_BARYC_SSAA_CNTL, 0);
+      ac_pm4_set_reg(pm4, R_0287D4_PA_CL_POINT_X_RAD, 0);
+      ac_pm4_set_reg(pm4, R_0287D8_PA_CL_POINT_Y_RAD, 0);
+      ac_pm4_set_reg(pm4, R_0287DC_PA_CL_POINT_SIZE, 0);
+      ac_pm4_set_reg(pm4, R_0287E0_PA_CL_POINT_CULL_RAD, 0);
+      ac_pm4_set_reg(pm4, R_028820_PA_CL_NANINF_CNTL, 0);
+      ac_pm4_set_reg(pm4, R_028824_PA_SU_LINE_STIPPLE_CNTL, 0);
+      ac_pm4_set_reg(pm4, R_02883C_PA_SU_OVER_RASTERIZATION_CNTL, 0);
+      ac_pm4_set_reg(pm4, R_028840_PA_STEREO_CNTL, 0);
+      ac_pm4_set_reg(pm4, R_028A50_VGT_ENHANCE, 0);
+      ac_pm4_set_reg(pm4, R_028A8C_VGT_PRIMITIVEID_RESET, 0);
+      ac_pm4_set_reg(pm4, R_028AB4_VGT_REUSE_OFF, 0);
+      ac_pm4_set_reg(pm4, R_028C40_PA_SC_SHADER_CONTROL, 0);
+   }
+
    if (info->gfx_level < GFX11) {
       ac_pm4_set_reg(pm4, R_028038_DB_DFSM_CONTROL, S_028038_PUNCHOUT_MODE(V_028038_FORCE_OFF));
    }
@@ -447,11 +483,11 @@ gfx10_init_graphics_preamble_state(const struct ac_preamble_state *state,
    ac_pm4_set_reg(pm4, R_02807C_DB_RMI_L2_CACHE_CONTROL,
                   S_02807C_Z_WR_POLICY(zs_write_policy) |
                   S_02807C_S_WR_POLICY(zs_write_policy) |
-                  S_02807C_HTILE_WR_POLICY(meta_write_policy) |
+                  S_02807C_HTILE_WR_POLICY(htile_write_policy) |
                   S_02807C_ZPCPSD_WR_POLICY(V_02807C_CACHE_STREAM) | /* occlusion query writes */
                   S_02807C_Z_RD_POLICY(zs_read_policy) |
                   S_02807C_S_RD_POLICY(zs_read_policy) |
-                  S_02807C_HTILE_RD_POLICY(meta_read_policy));
+                  S_02807C_HTILE_RD_POLICY(htile_read_policy));
    ac_pm4_set_reg(pm4, R_028080_TA_BC_BASE_ADDR, state->border_color_va >> 8);
    ac_pm4_set_reg(pm4, R_028084_TA_BC_BASE_ADDR_HI, S_028084_ADDRESS(state->border_color_va >> 40));
 
@@ -459,17 +495,17 @@ gfx10_init_graphics_preamble_state(const struct ac_preamble_state *state,
                   (info->gfx_level >= GFX11 ?
                       S_028410_COLOR_WR_POLICY_GFX11(color_write_policy) |
                       S_028410_COLOR_RD_POLICY(color_read_policy) |
-                      S_028410_DCC_WR_POLICY_GFX11(meta_write_policy) |
-                      S_028410_DCC_RD_POLICY(meta_read_policy)
+                      S_028410_DCC_WR_POLICY_GFX11(dcc_write_policy) |
+                      S_028410_DCC_RD_POLICY(dcc_read_policy)
                     :
                       S_028410_COLOR_WR_POLICY_GFX10(color_write_policy) |
                       S_028410_COLOR_RD_POLICY(color_read_policy)) |
                       S_028410_FMASK_WR_POLICY(color_write_policy) |
                       S_028410_FMASK_RD_POLICY(color_read_policy) |
-                      S_028410_CMASK_WR_POLICY(meta_write_policy) |
-                      S_028410_CMASK_RD_POLICY(meta_read_policy) |
-                      S_028410_DCC_WR_POLICY_GFX10(meta_write_policy) |
-                      S_028410_DCC_RD_POLICY(meta_read_policy));
+                      S_028410_CMASK_WR_POLICY(dcc_write_policy) |
+                      S_028410_CMASK_RD_POLICY(dcc_read_policy) |
+                      S_028410_DCC_WR_POLICY_GFX10(dcc_write_policy) |
+                      S_028410_DCC_RD_POLICY(dcc_read_policy));
 
    if (info->gfx_level >= GFX10_3)
       ac_pm4_set_reg(pm4, R_028750_SX_PS_DOWNCONVERT_CONTROL, 0xff);
@@ -478,6 +514,8 @@ gfx10_init_graphics_preamble_state(const struct ac_preamble_state *state,
                   S_028830_SMALL_PRIM_FILTER_ENABLE(1));
 
    ac_pm4_set_reg(pm4, R_028A18_VGT_HOS_MAX_TESS_LEVEL, fui(64));
+   if (info->gfx_level >= GFX11) /* cleared by CLEAR_STATE on gfx10 */
+      ac_pm4_set_reg(pm4, R_028A1C_VGT_HOS_MIN_TESS_LEVEL, fui(0));
    ac_pm4_set_reg(pm4, R_028AAC_VGT_ESGS_RING_ITEMSIZE, 1);
    ac_pm4_set_reg(pm4, R_028B50_VGT_TESS_DISTRIBUTION,
                   info->gfx_level >= GFX11 ?
@@ -498,10 +536,10 @@ gfx10_init_graphics_preamble_state(const struct ac_preamble_state *state,
    ac_pm4_set_reg(pm4, R_028C48_PA_SC_BINNER_CNTL_1,
                   S_028C48_MAX_ALLOC_COUNT(info->pbb_max_alloc_count - gfx10_one) |
                   S_028C48_MAX_PRIM_PER_BATCH(1023));
-
-   if (info->gfx_level >= GFX11_5)
+   if (info->gfx_level >= GFX11) {
       ac_pm4_set_reg(pm4, R_028C54_PA_SC_BINNER_CNTL_2,
-                     S_028C54_ENABLE_PING_PONG_BIN_ORDER(1));
+                     S_028C54_ENABLE_PING_PONG_BIN_ORDER(info->gfx_level >= GFX11_5));
+   }
 
    /* Break up a pixel wave if it contains deallocs for more than
     * half the parameter cache.
@@ -556,18 +594,22 @@ gfx12_init_graphics_preamble_state(const struct ac_preamble_state *state,
    enum gfx12_store_temporal_hint color_write_temporal_hint, zs_write_temporal_hint;
    enum gfx12_load_temporal_hint color_read_temporal_hint, zs_read_temporal_hint;
 
-   if (state->gfx10.cache_rb_gl2) {
+   if (state->gfx10.cache_cb_gl2) {
       color_write_policy = V_028410_CACHE_LRU_WR;
       color_read_policy = V_028410_CACHE_LRU_RD;
       color_write_temporal_hint = gfx12_store_regular_temporal;
       color_read_temporal_hint = gfx12_load_regular_temporal;
-      zs_write_temporal_hint = gfx12_store_regular_temporal;
-      zs_read_temporal_hint = gfx12_load_regular_temporal;
    } else {
       color_write_policy = V_028410_CACHE_STREAM;
       color_read_policy = V_02807C_CACHE_NOA_GFX11;
       color_write_temporal_hint = gfx12_store_near_non_temporal_far_regular_temporal;
       color_read_temporal_hint = gfx12_load_near_non_temporal_far_regular_temporal;
+   }
+
+   if (state->gfx10.cache_db_gl2) {
+      zs_write_temporal_hint = gfx12_store_regular_temporal;
+      zs_read_temporal_hint = gfx12_load_regular_temporal;
+   } else {
       zs_write_temporal_hint = gfx12_store_near_non_temporal_far_regular_temporal;
       zs_read_temporal_hint = gfx12_load_near_non_temporal_far_regular_temporal;
    }
@@ -677,7 +719,6 @@ gfx12_init_graphics_preamble_state(const struct ac_preamble_state *state,
    ac_pm4_set_reg(pm4, R_028AA0_VGT_DRAW_PAYLOAD_CNTL, 0);
    ac_pm4_set_reg(pm4, R_028ABC_DB_HTILE_SURFACE, 0);
 
-   ac_pm4_set_reg(pm4, R_028B28_VGT_STRMOUT_DRAW_OPAQUE_OFFSET, 0);
    ac_pm4_set_reg(pm4, R_028B50_VGT_TESS_DISTRIBUTION,
                   S_028B50_ACCUM_ISOLINE(128) |
                   S_028B50_ACCUM_TRI(128) |

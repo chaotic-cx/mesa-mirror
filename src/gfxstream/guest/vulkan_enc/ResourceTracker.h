@@ -81,6 +81,16 @@ typedef uint64_t zx_koid_t;
 #include "gfxstream/guest/goldfish_sync.h"
 #endif
 
+#define vk_filter_struct(__start, __sType) { \
+    auto* curr = reinterpret_cast<VkBaseOutStructure*>(__start); \
+    while (curr != nullptr) { \
+        if (curr->pNext != nullptr && curr->pNext->sType == VK_STRUCTURE_TYPE_##__sType) { \
+            curr->pNext = curr->pNext->pNext; \
+        } \
+        curr = curr->pNext; \
+    } \
+} \
+
 // This should be ABI identical with the variant in ResourceTracker.h
 struct GfxStreamVkFeatureInfo {
     bool hasDirectMem;
@@ -211,9 +221,9 @@ class ResourceTracker {
     void on_vkGetImageMemoryRequirements2KHR(void* context, VkDevice device,
                                              const VkImageMemoryRequirementsInfo2* pInfo,
                                              VkMemoryRequirements2* pMemoryRequirements);
-    void on_vkGetImageSubresourceLayout(void* context, VkDevice device, VkImage image,
-                                        const VkImageSubresource* pSubresource,
-                                        VkSubresourceLayout* pLayout);
+    VkResult on_vkGetImageDrmFormatModifierPropertiesEXT(
+        void* context, VkResult input_result, VkDevice device, VkImage image,
+        VkImageDrmFormatModifierPropertiesEXT* pProperties);
 
     VkResult on_vkBindImageMemory(void* context, VkResult input_result, VkDevice device,
                                   VkImage image, VkDeviceMemory memory, VkDeviceSize memoryOffset);
@@ -474,6 +484,14 @@ class ResourceTracker {
                                               VkDescriptorUpdateTemplate descriptorUpdateTemplate,
                                               const void* pData);
 
+    void on_vkGetPhysicalDeviceFormatProperties2(void* context, VkPhysicalDevice physicalDevice,
+                                                 VkFormat format,
+                                                 VkFormatProperties2* pFormatProperties);
+
+    void on_vkGetPhysicalDeviceFormatProperties2KHR(void* context, VkPhysicalDevice physicalDevice,
+                                                    VkFormat format,
+                                                    VkFormatProperties2* pFormatProperties);
+
     VkResult on_vkGetPhysicalDeviceImageFormatProperties2(
         void* context, VkResult input_result, VkPhysicalDevice physicalDevice,
         const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo,
@@ -583,12 +601,17 @@ class ResourceTracker {
     uint32_t getStreamFeatures() const;
     uint32_t getApiVersionFromInstance(VkInstance instance);
     uint32_t getApiVersionFromDevice(VkDevice device);
-    bool hasInstanceExtension(VkInstance instance, const std::string& name);
-    bool hasDeviceExtension(VkDevice instance, const std::string& name);
     VkDevice getDevice(VkCommandBuffer commandBuffer) const;
     void addToCommandPool(VkCommandPool commandPool, uint32_t commandBufferCount,
                           VkCommandBuffer* pCommandBuffers);
     void resetCommandPoolStagingInfo(VkCommandPool commandPool);
+
+#ifdef LINUX_GUEST_BUILD
+    // TODO: This information is tracked in
+    // gfxstream_vk_physical_device::doImageDrmFormatModifierEmulation, but mesa objects need to be
+    // combined with gfxstream objects
+    bool doImageDrmFormatModifierEmulation(VkPhysicalDevice physicalDevice);
+#endif
 
 #ifdef __GNUC__
 #define ALWAYS_INLINE_GFXSTREAM
@@ -647,7 +670,7 @@ class ResourceTracker {
         const VkPhysicalDeviceExternalBufferInfo* pExternalBufferInfo,
         VkExternalBufferProperties* pExternalBufferProperties);
 
-    template <typename VkSubmitInfoType>
+    template <typename VkSubmitInfoType, typename VkSemaphoreInfoType>
     VkResult on_vkQueueSubmitTemplate(void* context, VkResult input_result, VkQueue queue,
                                       uint32_t submitCount, const VkSubmitInfoType* pSubmits,
                                       VkFence fence);
@@ -664,7 +687,7 @@ class ResourceTracker {
 
     void setDeviceMemoryInfo(VkDevice device, VkDeviceMemory memory, VkDeviceSize allocationSize,
                              uint8_t* ptr, uint32_t memoryTypeIndex, void* ahw, bool imported,
-                             zx_handle_t vmoHandle, VirtGpuResourcePtr blobPtr);
+                             zx_handle_t vmoHandle, VirtGpuResourcePtr blobPtr, int importedFd);
 
     void setImageInfo(VkImage image, VkDevice device, const VkImageCreateInfo* pCreateInfo);
 
@@ -760,7 +783,6 @@ class ResourceTracker {
 
     struct VkInstance_Info {
         uint32_t highestApiVersion;
-        std::set<std::string> enabledExtensions;
         // Fodder for vkEnumeratePhysicalDevices.
         std::vector<VkPhysicalDevice> physicalDevices;
     };
@@ -770,7 +792,6 @@ class ResourceTracker {
         VkPhysicalDeviceProperties props;
         VkPhysicalDeviceMemoryProperties memProps;
         uint32_t apiVersion;
-        std::set<std::string> enabledExtensions;
         std::vector<std::pair<PFN_vkDeviceMemoryReportCallbackEXT, void*>>
             deviceMemoryReportCallbacks;
     };
@@ -798,6 +819,7 @@ class ResourceTracker {
 #endif  // DETECT_OS_ANDROID
         CoherentMemoryPtr coherentMemory = nullptr;
         VirtGpuResourcePtr blobPtr = nullptr;
+        int importedFd = -1;
     };
 
     struct VkCommandBuffer_Info {
@@ -827,10 +849,6 @@ class ResourceTracker {
 #endif
 #ifdef VK_USE_PLATFORM_FUCHSIA
         bool isSysmemBackedMemory = false;
-#endif
-#ifdef LINUX_GUEST_BUILD
-        bool isDmaBufImage = false;
-        VkImage linearPeerImage = VK_NULL_HANDLE;
 #endif
     };
 

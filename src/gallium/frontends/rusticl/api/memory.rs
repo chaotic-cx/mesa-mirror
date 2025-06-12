@@ -19,14 +19,12 @@ use rusticl_opencl_gen::*;
 use rusticl_proc_macros::cl_entrypoint;
 use rusticl_proc_macros::cl_info_entrypoint;
 
-use std::alloc;
-use std::alloc::Layout;
 use std::cmp;
 use std::cmp::Ordering;
-use std::mem::{self, MaybeUninit};
+use std::mem;
+use std::num::NonZeroU64;
 use std::os::raw::c_void;
 use std::ptr;
-use std::slice;
 use std::sync::Arc;
 
 fn validate_mem_flags(flags: cl_mem_flags, images: bool) -> CLResult<()> {
@@ -232,6 +230,21 @@ unsafe impl CLInfo<cl_mem_info> for cl_mem {
                 let ptr = Arc::as_ptr(&mem.context);
                 v.write::<cl_context>(cl_context::from_ptr(ptr))
             }
+            CL_MEM_DEVICE_ADDRESS_EXT => {
+                let buffer = Buffer::ref_from_raw(*self)?;
+                let addresses = buffer
+                    .dev_addresses()
+                    // CL_INVALID_OPERATION is returned for the CL_MEM_DEVICE_ADDRESS_EXT query if
+                    // the cl_ext_buffer_device_address extension is not supported or if the buffer
+                    // was not allocated with CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT.
+                    //
+                    // We don't have to explicitly check here, as we will get None returned if
+                    // either of those conditions are true.
+                    .ok_or(CL_INVALID_OPERATION)?
+                    .map(|(_, address)| address.map(NonZeroU64::get).unwrap_or_default());
+
+                v.write_iter::<cl_mem_device_address_ext>(addresses)
+            }
             CL_MEM_FLAGS => v.write::<cl_mem_flags>(mem.flags),
             // TODO debugging feature
             CL_MEM_MAP_COUNT => v.write::<cl_uint>(0),
@@ -284,13 +297,13 @@ fn create_buffer_with_properties(
 
     // or if CL_MEM_USE_HOST_PTR is set in flags and host_ptr is a pointer returned by clSVMAlloc
     // and size is greater than the size passed to clSVMAlloc.
-    if let Some((svm_ptr, svm_layout)) = c.find_svm_alloc(host_ptr as usize) {
+    if let Some((svm_ptr, alloc_size)) = c.find_svm_alloc(host_ptr as usize) {
         // SAFETY: they are part of the same allocation, and because host_ptr >= svm_ptr we can cast
         // to usize.
         let diff = unsafe { host_ptr.byte_offset_from(svm_ptr) } as usize;
 
         // technically we don't have to account for the offset, but it's almost for free.
-        if size > svm_layout - diff {
+        if size > alloc_size - diff {
             return Err(CL_INVALID_BUFFER_SIZE);
         }
     }
@@ -301,9 +314,18 @@ fn create_buffer_with_properties(
     // CL_INVALID_PROPERTY if a property name in properties is not a supported property name, if
     // the value specified for a supported property name is not valid, or if the same property name
     // is specified more than once.
-    if !props.is_empty() {
-        // we don't support any properties
-        return Err(CL_INVALID_PROPERTY);
+    for (&key, _) in props.iter() {
+        match key as u32 {
+            CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT => {
+                // CL_INVALID_OPERATION If properties includes CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT and
+                // there are no devices in the context that support the cl_ext_buffer_device_address
+                // extension.
+                if c.devs.iter().all(|dev| !dev.bda_supported()) {
+                    return Err(CL_INVALID_OPERATION);
+                }
+            }
+            _ => return Err(CL_INVALID_PROPERTY),
+        }
     }
 
     Ok(MemBase::new_buffer(c, flags, size, host_ptr, props)?.into_cl())
@@ -524,7 +546,7 @@ fn validate_image_desc(
     // host_ptr is not NULL and image_slice_pitch = 0, image_slice_pitch is calculated as
     // image_row_pitch × image_height for a 2D image array or 3D image and image_row_pitch for a 1D
     // image array. If image_slice_pitch is not 0, it must be a multiple of the image_row_pitch.
-    let has_buf_parent = parent.as_ref().map_or(false, |p| p.is_buffer());
+    let has_buf_parent = parent.as_ref().is_some_and(|p| p.is_buffer());
     if host_ptr.is_null() {
         if (desc.image_row_pitch != 0 || desc.image_slice_pitch != 0) && !has_buf_parent {
             return Err(err);
@@ -657,7 +679,7 @@ fn validate_buffer(
                                 let addr_alignment = dev.image_base_address_alignment();
                                 if addr_alignment == 0 {
                                     return Err(CL_INVALID_OPERATION);
-                                } else if !is_alligned(host_ptr, addr_alignment as usize) {
+                                } else if !is_aligned_to(host_ptr, addr_alignment as usize) {
                                     return Err(err);
                                 }
                             }
@@ -917,8 +939,24 @@ fn get_supported_image_formats(
     res.sort();
     res.dedup();
 
-    num_image_formats.write_checked(res.len() as cl_uint);
-    unsafe { image_formats.copy_checked(res.as_ptr(), res.len()) };
+    debug_assert!(
+        res.len() <= cl_uint::MAX as usize,
+        "number of supported formats exceeds `cl_uint::MAX`"
+    );
+
+    // `num_image_formats` should be the full count of supported formats,
+    // regardless of the value of `num_entries`. It may be null, in which case
+    // it is ignored.
+    // SAFETY: Callers are responsible for providing either a null pointer or
+    // one for which a write of `size_of::<cl_uint>()` is valid.
+    unsafe { num_image_formats.write_checked(res.len() as cl_uint) };
+
+    // `image_formats` may be null, in which case it is ignored.
+    let num_entries_to_write = cmp::min(res.len(), num_entries as usize);
+    // SAFETY: Callers are responsible for providing either a null pointer or
+    // one for which a write of `num_entries * size_of::<cl_image_format>()` is
+    // valid. The validity of reading from `res` is guaranteed by the compiler.
+    unsafe { image_formats.copy_from_checked(res.as_ptr(), num_entries_to_write) };
 
     Ok(())
 }
@@ -1005,10 +1043,16 @@ fn create_sampler_with_properties(
     let sampler_properties =
         unsafe { Properties::new(sampler_properties) }.ok_or(CL_INVALID_VALUE)?;
     for (&key, &val) in sampler_properties.iter() {
-        match key as u32 {
-            CL_SAMPLER_ADDRESSING_MODE => addressing_mode = val as u32,
-            CL_SAMPLER_FILTER_MODE => filter_mode = val as u32,
-            CL_SAMPLER_NORMALIZED_COORDS => normalized_coords = val as u32,
+        match u32::try_from(key).or(Err(CL_INVALID_VALUE))? {
+            CL_SAMPLER_ADDRESSING_MODE => {
+                addressing_mode = cl_addressing_mode::try_from(val).or(Err(CL_INVALID_VALUE))?
+            }
+            CL_SAMPLER_FILTER_MODE => {
+                filter_mode = cl_filter_mode::try_from(val).or(Err(CL_INVALID_VALUE))?
+            }
+            CL_SAMPLER_NORMALIZED_COORDS => {
+                normalized_coords = cl_bool::try_from(val).or(Err(CL_INVALID_VALUE))?
+            }
             // CL_INVALID_VALUE if the property name in sampler_properties is not a supported
             // property name
             _ => return Err(CL_INVALID_VALUE),
@@ -1603,8 +1647,12 @@ fn enqueue_fill_buffer(
         return Err(CL_INVALID_CONTEXT);
     }
 
-    // we have to copy memory
-    let pattern = unsafe { slice::from_raw_parts(pattern.cast(), pattern_size).to_vec() };
+    // The caller may free `pattern` once the `clEnqueueFillBuffer()` call
+    // returns, so we need to duplicate its contents to hold onto.
+    // SAFETY: `cl_slice::from_raw_parts()` verifies the testable invariants of
+    // `slice::from_raw_parts()`. The caller is responsible for providing a
+    // pointer to appropriately-sized, initialized memory.
+    let pattern = unsafe { cl_slice::from_raw_parts(pattern.cast(), pattern_size)? }.to_vec();
     create_and_queue(
         q,
         CL_COMMAND_FILL_BUFFER,
@@ -2311,7 +2359,7 @@ pub fn svm_alloc(
     context: cl_context,
     flags: cl_svm_mem_flags,
     size: usize,
-    mut alignment: cl_uint,
+    alignment: cl_uint,
 ) -> CLResult<*mut c_void> {
     // clSVMAlloc will fail if
 
@@ -2328,36 +2376,18 @@ pub fn svm_alloc(
         return Err(CL_INVALID_VALUE);
     }
 
+    // When alignment is 0, the size of the largest supported type is used.
+    // In the case of the full profile, that's `long16`.
+    let alignment = NonZeroU64::new(alignment.into())
+        .unwrap_or(NonZeroU64::new(mem::size_of::<[u64; 16]>() as u64).unwrap());
+
     // size is 0 or > CL_DEVICE_MAX_MEM_ALLOC_SIZE value for any device in context.
-    if size == 0 || checked_compare(size, Ordering::Greater, c.max_mem_alloc()) {
+    let size = NonZeroU64::new(size as u64).ok_or(CL_INVALID_VALUE)?;
+    if size.get() > c.max_mem_alloc() {
         return Err(CL_INVALID_VALUE);
     }
 
-    if alignment == 0 {
-        alignment = mem::size_of::<[u64; 16]>() as cl_uint;
-    }
-
-    // alignment is not a power of two
-    if !alignment.is_power_of_two() {
-        return Err(CL_INVALID_VALUE);
-    }
-
-    let layout;
-    let ptr;
-
-    // SAFETY: we already verify the parameters to from_size_align above and layout is of non zero
-    // size
-    unsafe {
-        layout = Layout::from_size_align_unchecked(size, alignment as usize);
-        ptr = alloc::alloc(layout);
-    }
-
-    if ptr.is_null() {
-        return Err(CL_OUT_OF_HOST_MEMORY);
-    }
-
-    c.add_svm_ptr(ptr as usize, layout);
-    Ok(ptr.cast())
+    c.alloc_svm_ptr(size, alignment)
 
     // Values specified in flags do not follow rules described for supported values in the SVM Memory Flags table.
     // CL_MEM_SVM_FINE_GRAIN_BUFFER or CL_MEM_SVM_ATOMICS is specified in flags and these are not supported by at least one device in context.
@@ -2366,19 +2396,9 @@ pub fn svm_alloc(
     // There was a failure to allocate resources.
 }
 
-fn svm_free_impl(c: &Context, svm_pointer: usize) {
-    if let Some(layout) = c.remove_svm_ptr(svm_pointer) {
-        // SAFETY: we make sure that svm_pointer is a valid allocation and reuse the same layout
-        // from the allocation
-        unsafe {
-            alloc::dealloc(svm_pointer as *mut u8, layout);
-        }
-    }
-}
-
 pub fn svm_free(context: cl_context, svm_pointer: usize) -> CLResult<()> {
     let c = Context::ref_from_raw(context)?;
-    svm_free_impl(c, svm_pointer);
+    c.remove_svm_ptr(svm_pointer);
     Ok(())
 }
 
@@ -2405,15 +2425,25 @@ fn enqueue_svm_free_impl(
     }
 
     // CL_INVALID_OPERATION if the device associated with command queue does not support SVM.
-    if !q.device.svm_supported() {
+    if !q.device.api_svm_supported() {
         return Err(CL_INVALID_OPERATION);
     }
 
     // The application is allowed to reuse or free the memory referenced by `svm_pointers` after this
-    // function returns so we have to make a copy.
-    // SAFETY: num_svm_pointers specifies the amount of elements in svm_pointers
-    let mut svm_pointers =
-        unsafe { slice::from_raw_parts(svm_pointers.cast(), num_svm_pointers as usize) }.to_vec();
+    // function returns, so we have to make a copy.
+    let mut svm_pointers = if !svm_pointers.is_null() {
+        // SAFETY: `cl_slice::from_raw_parts()` verifies that testable
+        // invariants of `slice::from_raw_parts()` are satisfied. Callers are
+        // responsible for providing pointers to appropriately-sized,
+        // initialized memory.
+        unsafe { cl_slice::from_raw_parts(svm_pointers.cast(), num_svm_pointers as usize)? }
+            .to_vec()
+    } else {
+        // A slice must not be created from a raw null pointer, so simply create
+        // an empty vec instead.
+        Vec::new()
+    };
+
     // SAFETY: The requirements on `SVMFreeCb::new` match the requirements
     // imposed by the OpenCL specification. It is the caller's duty to uphold them.
     let cb_opt = unsafe { SVMFreeCb::new(pfn_free_func, user_data) }.ok();
@@ -2429,7 +2459,7 @@ fn enqueue_svm_free_impl(
                 cb.call(q, &mut svm_pointers);
             } else {
                 for ptr in svm_pointers {
-                    svm_free_impl(&q.context, ptr);
+                    q.context.remove_svm_ptr(ptr);
                 }
             }
 
@@ -2502,36 +2532,25 @@ fn enqueue_svm_memcpy_impl(
     let block = check_cl_bool(blocking_copy).ok_or(CL_INVALID_VALUE)?;
 
     // CL_INVALID_OPERATION if the device associated with command queue does not support SVM.
-    if !q.device.svm_supported() {
+    if !q.device.api_svm_supported() {
         return Err(CL_INVALID_OPERATION);
     }
 
+    // CL_INVALID_VALUE if dst_ptr or src_ptr is NULL.
+    if src_ptr.is_null() || dst_ptr.is_null() {
+        return Err(CL_INVALID_VALUE);
+    }
+
+    let src_ptr = src_ptr as usize;
+    let dst_ptr = dst_ptr as usize;
+
     // CL_MEM_COPY_OVERLAP if the values specified for dst_ptr, src_ptr and size result in an
     // overlapping copy.
-    let dst_ptr_addr = dst_ptr as usize;
-    let src_ptr_addr = src_ptr as usize;
-    if (src_ptr_addr <= dst_ptr_addr && dst_ptr_addr < src_ptr_addr + size)
-        || (dst_ptr_addr <= src_ptr_addr && src_ptr_addr < dst_ptr_addr + size)
+    if (src_ptr <= dst_ptr && dst_ptr < src_ptr + size)
+        || (dst_ptr <= src_ptr && src_ptr < dst_ptr + size)
     {
         return Err(CL_MEM_COPY_OVERLAP);
     }
-
-    // CAST: We have no idea about the type or initialization status of these bytes.
-    // MaybeUninit<u8> is the safe bet.
-    let src_ptr = src_ptr.cast::<MaybeUninit<u8>>();
-
-    // CAST: We have no idea about the type or initialization status of these bytes.
-    // MaybeUninit<u8> is the safe bet.
-    let dst_ptr = dst_ptr.cast::<MaybeUninit<u8>>();
-
-    // SAFETY: It is up to the application to ensure the memory is valid to read for `size` bytes
-    // and that it doesn't modify it until the command has completed.
-    let src = unsafe { cl_slice::from_raw_parts(src_ptr, size)? };
-
-    // SAFETY: We've ensured there's no aliasing between src and dst. It is up to the application
-    // to ensure the memory is valid to read and write for `size` bytes and that it doesn't modify
-    // or read from it until the command has completed.
-    let dst = unsafe { cl_slice::from_raw_parts_mut(dst_ptr, size)? };
 
     create_and_queue(
         q,
@@ -2539,10 +2558,7 @@ fn enqueue_svm_memcpy_impl(
         evs,
         event,
         block,
-        Box::new(move |_, _| {
-            dst.copy_from_slice(src);
-            Ok(())
-        }),
+        Box::new(move |q, ctx| q.context.copy_svm(ctx, src_ptr, dst_ptr, size)),
     )
 }
 
@@ -2609,8 +2625,18 @@ fn enqueue_svm_mem_fill_impl(
     let evs = event_list_from_cl(&q, num_events_in_wait_list, event_wait_list)?;
 
     // CL_INVALID_OPERATION if the device associated with command queue does not support SVM.
-    if !q.device.svm_supported() {
+    if !q.device.api_svm_supported() {
         return Err(CL_INVALID_OPERATION);
+    }
+
+    // CL_INVALID_VALUE if svm_ptr is NULL.
+    if svm_ptr.is_null() {
+        return Err(CL_INVALID_VALUE);
+    }
+
+    // CL_INVALID_VALUE if svm_ptr is not aligned to pattern_size bytes.
+    if !is_aligned_to(svm_ptr, pattern_size) {
+        return Err(CL_INVALID_VALUE);
     }
 
     // CL_INVALID_VALUE if pattern is NULL [...]
@@ -2674,35 +2700,9 @@ fn enqueue_svm_mem_fill_impl(
             // `pattern_size` bytes and properly initialized.
             // Creating a bitwise copy can't create memory safety issues, since `Pattern` is `Copy`.
             let pattern = unsafe { pattern_ptr.read_unaligned() };
+            let svm_ptr = svm_ptr as usize;
 
-            // CAST: Same as with `pattern`, we don't know the exact type of `svm_ptr`, but we do
-            // know it's fine if we choose the same type here. The application might reasonably
-            // give us uninitialized memory though, so cast to a `MaybeUninit<Pattern>`, which has
-            // the same layout as `Pattern`.
-            let svm_ptr = svm_ptr.cast::<MaybeUninit<Pattern>>();
-
-            // SAFETY: It is the calling application's responsibility to ensure that `svm_ptr` is
-            // valid for reads and writes up to `size` bytes.
-            // Since `pattern_size == mem::size_of::<Pattern>()` and `MaybeUninit<Pattern>` has the
-            // same layout as `Pattern`, we know that
-            // `size / pattern_size * mem::size_of<MaybeUninit<Pattern>>` equals `size`.
-            //
-            // Since we're creating a `&[MaybeUninit<Pattern>]` the initialization status does not
-            // matter.
-            //
-            // From here on out we only access the referenced memory though this slice. In
-            // particular, since we've made a copy of `pattern`, it doesn't matter if the memory
-            // region referenced by `pattern` aliases the one referenced by this slice. It is up to
-            // the application not to access it at all until this command has been completed.
-            let svm_slice = unsafe { cl_slice::from_raw_parts_mut(svm_ptr, size / pattern_size)? };
-
-            Box::new(move |_, _| {
-                for x in svm_slice {
-                    x.write(pattern);
-                }
-
-                Ok(())
-            })
+            Box::new(move |q, ctx| q.context.clear_svm(ctx, svm_ptr, size, pattern.0))
         }};
     }
 
@@ -2790,7 +2790,7 @@ fn enqueue_svm_map_impl(
     let block = check_cl_bool(blocking_map).ok_or(CL_INVALID_VALUE)?;
 
     // CL_INVALID_OPERATION if the device associated with command queue does not support SVM.
-    if !q.device.svm_supported() {
+    if !q.device.api_svm_supported() {
         return Err(CL_INVALID_OPERATION);
     }
 
@@ -2807,7 +2807,15 @@ fn enqueue_svm_map_impl(
     // ... or if values specified in map_flags are not valid.
     validate_map_flags_common(flags)?;
 
-    create_and_queue(q, cmd_type, evs, event, block, Box::new(|_, _| Ok(())))
+    let svm_ptr = svm_ptr as usize;
+    create_and_queue(
+        q,
+        cmd_type,
+        evs,
+        event,
+        block,
+        Box::new(move |q, ctx| q.context.copy_svm_to_host(ctx, svm_ptr, flags)),
+    )
 }
 
 #[cl_entrypoint(clEnqueueSVMMap)]
@@ -2870,7 +2878,7 @@ fn enqueue_svm_unmap_impl(
     let evs = event_list_from_cl(&q, num_events_in_wait_list, event_wait_list)?;
 
     // CL_INVALID_OPERATION if the device associated with command queue does not support SVM.
-    if !q.device.svm_supported() {
+    if !q.device.api_svm_supported() {
         return Err(CL_INVALID_OPERATION);
     }
 
@@ -2879,7 +2887,15 @@ fn enqueue_svm_unmap_impl(
         return Err(CL_INVALID_VALUE);
     }
 
-    create_and_queue(q, cmd_type, evs, event, false, Box::new(|_, _| Ok(())))
+    create_and_queue(
+        q,
+        cmd_type,
+        evs,
+        event,
+        false,
+        // TODO: we _could_ migrate the content somewhere, but it's really pointless to do
+        Box::new(move |_, _| Ok(())),
+    )
 }
 
 #[cl_entrypoint(clEnqueueSVMUnmap)]
@@ -2933,7 +2949,7 @@ fn enqueue_svm_migrate_mem(
     let evs = event_list_from_cl(&q, num_events_in_wait_list, event_wait_list)?;
 
     // CL_INVALID_OPERATION if the device associated with command queue does not support SVM.
-    if !q.device.svm_supported() {
+    if !q.device.api_svm_supported() {
         return Err(CL_INVALID_OPERATION);
     }
 
@@ -2983,9 +2999,9 @@ fn enqueue_svm_migrate_mem(
         evs,
         event,
         false,
-        Box::new(move |_, ctx| {
-            ctx.svm_migrate(&svm_pointers, &sizes, to_device, content_undefined);
-            Ok(())
+        Box::new(move |q, ctx| {
+            q.context
+                .migrate_svm(ctx, svm_pointers, sizes, to_device, content_undefined)
         }),
     )
 }
@@ -3133,8 +3149,12 @@ fn get_gl_object_info(
 
     match &m.gl_obj {
         Some(gl_obj) => {
-            gl_object_type.write_checked(gl_obj.gl_object_type);
-            gl_object_name.write_checked(gl_obj.gl_object_name);
+            // Either `gl_object_type` or `gl_object_name` may be null, in which
+            // case they are ignored.
+            // SAFETY: Caller is responsible for providing null pointers or ones
+            // which are valid for a write of the appropriate size.
+            unsafe { gl_object_type.write_checked(gl_obj.gl_object_type) };
+            unsafe { gl_object_name.write_checked(gl_obj.gl_object_name) };
         }
         None => {
             // CL_INVALID_GL_OBJECT if there is no GL object associated with memobj.

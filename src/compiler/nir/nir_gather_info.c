@@ -88,7 +88,7 @@ get_deref_info(nir_shader *shader, nir_variable *var, nir_deref_instr *deref,
             *indirect |= !nir_src_is_const((*p)->arr.index);
          } else if ((*p)->deref_type == nir_deref_type_struct) {
             /* Struct indices are always constant. */
-         }  else if ((*p)->deref_type == nir_deref_type_array_wildcard) {
+         } else if ((*p)->deref_type == nir_deref_type_array_wildcard) {
             /* Wilcards ref the whole array dimension and should get lowered
              * to direct deref at a later point.
              */
@@ -163,11 +163,11 @@ set_io_mask(nir_shader *shader, nir_variable *var, int offset, int len,
             if (is_patch_generic) {
                shader->info.patch_outputs_read |= bitfield;
                if (indirect)
-                  shader->info.patch_outputs_accessed_indirectly |= bitfield;
+                  shader->info.patch_outputs_read_indirectly |= bitfield;
             } else {
                shader->info.outputs_read |= bitfield;
                if (indirect)
-                  shader->info.outputs_accessed_indirectly |= bitfield;
+                  shader->info.outputs_written_indirectly |= bitfield;
             }
 
             if (cross_invocation && shader->info.stage == MESA_SHADER_TESS_CTRL)
@@ -176,11 +176,14 @@ set_io_mask(nir_shader *shader, nir_variable *var, int offset, int len,
             if (is_patch_generic) {
                shader->info.patch_outputs_written |= bitfield;
                if (indirect)
-                  shader->info.patch_outputs_accessed_indirectly |= bitfield;
+                  shader->info.patch_outputs_written_indirectly |= bitfield;
             } else if (!var->data.read_only) {
                shader->info.outputs_written |= bitfield;
                if (indirect)
-                  shader->info.outputs_accessed_indirectly |= bitfield;
+                  shader->info.outputs_written_indirectly |= bitfield;
+
+               if (cross_invocation && shader->info.stage == MESA_SHADER_TESS_CTRL)
+                  shader->info.tess.tcs_cross_invocation_outputs_written |= bitfield;
             }
          }
 
@@ -459,7 +462,8 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
             case VARYING_SLOT_TESS_LEVEL_OUTER:
                num_slots = DIV_ROUND_UP(num_slots, 4);
                break;
-            default: break;
+            default:
+               break;
             }
          }
          slot_mask = BITFIELD64_RANGE(semantics.location, num_slots);
@@ -581,13 +585,13 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
           !is_patch_special) {
          shader->info.patch_outputs_read |= slot_mask;
          if (!nir_src_is_const(*nir_get_io_offset_src(instr)))
-            shader->info.patch_outputs_accessed_indirectly |= slot_mask;
+            shader->info.patch_outputs_read_indirectly |= slot_mask;
       } else {
          shader->info.outputs_read |= slot_mask;
          shader->info.outputs_read_16bit |= slot_mask_16bit;
          if (!nir_src_is_const(*nir_get_io_offset_src(instr))) {
-            shader->info.outputs_accessed_indirectly |= slot_mask;
-            shader->info.outputs_accessed_indirectly_16bit |= slot_mask_16bit;
+            shader->info.outputs_read_indirectly |= slot_mask;
+            shader->info.outputs_read_indirectly_16bit |= slot_mask_16bit;
          }
       }
 
@@ -617,15 +621,28 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
           !is_patch_special) {
          shader->info.patch_outputs_written |= slot_mask;
          if (!nir_src_is_const(*nir_get_io_offset_src(instr)))
-            shader->info.patch_outputs_accessed_indirectly |= slot_mask;
+            shader->info.patch_outputs_written_indirectly |= slot_mask;
+         if (!nir_intrinsic_io_semantics(instr).no_varying)
+            shader->info.tess.tcs_patch_outputs_read_by_tes |= slot_mask;
       } else {
          shader->info.outputs_written |= slot_mask;
          shader->info.outputs_written_16bit |= slot_mask_16bit;
          if (instr->intrinsic == nir_intrinsic_store_per_primitive_output)
             shader->info.per_primitive_outputs |= slot_mask;
          if (!nir_src_is_const(*nir_get_io_offset_src(instr))) {
-            shader->info.outputs_accessed_indirectly |= slot_mask;
-            shader->info.outputs_accessed_indirectly_16bit |= slot_mask_16bit;
+            shader->info.outputs_written_indirectly |= slot_mask;
+            shader->info.outputs_written_indirectly_16bit |= slot_mask_16bit;
+         }
+
+         if (shader->info.stage == MESA_SHADER_TESS_CTRL) {
+            if (instr->intrinsic == nir_intrinsic_store_per_vertex_output &&
+                !src_is_invocation_id(nir_get_io_arrayed_index_src(instr)))
+               shader->info.tess.tcs_cross_invocation_outputs_written |= slot_mask;
+
+            if (!nir_intrinsic_io_semantics(instr).no_varying) {
+               shader->info.tess.tcs_outputs_read_by_tes |= slot_mask;
+               shader->info.tess.tcs_outputs_read_by_tes_16bit |= slot_mask_16bit;
+            }
          }
       }
 
@@ -722,6 +739,10 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
                  nir_system_value_from_intrinsic(instr->intrinsic));
       break;
 
+   case nir_intrinsic_is_helper_invocation:
+      BITSET_SET(shader->info.system_values_read, SYSTEM_VALUE_HELPER_INVOCATION);
+      break;
+
    case nir_intrinsic_load_barycentric_pixel:
       if (nir_intrinsic_interp_mode(instr) == INTERP_MODE_SMOOTH ||
           nir_intrinsic_interp_mode(instr) == INTERP_MODE_NONE) {
@@ -770,53 +791,6 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
       }
       break;
 
-   case nir_intrinsic_ddx:
-   case nir_intrinsic_ddx_fine:
-   case nir_intrinsic_ddx_coarse:
-   case nir_intrinsic_ddy:
-   case nir_intrinsic_ddy_fine:
-   case nir_intrinsic_ddy_coarse:
-      if (shader->info.stage == MESA_SHADER_FRAGMENT)
-         shader->info.fs.needs_quad_helper_invocations = true;
-      break;
-
-   case nir_intrinsic_quad_vote_any:
-   case nir_intrinsic_quad_vote_all:
-   case nir_intrinsic_quad_broadcast:
-   case nir_intrinsic_quad_swap_horizontal:
-   case nir_intrinsic_quad_swap_vertical:
-   case nir_intrinsic_quad_swap_diagonal:
-   case nir_intrinsic_quad_swizzle_amd:
-      if (shader->info.stage == MESA_SHADER_FRAGMENT)
-         shader->info.fs.needs_quad_helper_invocations = true;
-      break;
-
-   case nir_intrinsic_vote_any:
-   case nir_intrinsic_vote_all:
-   case nir_intrinsic_vote_feq:
-   case nir_intrinsic_vote_ieq:
-   case nir_intrinsic_ballot:
-   case nir_intrinsic_first_invocation:
-   case nir_intrinsic_last_invocation:
-   case nir_intrinsic_read_invocation:
-   case nir_intrinsic_read_first_invocation:
-   case nir_intrinsic_elect:
-   case nir_intrinsic_reduce:
-   case nir_intrinsic_inclusive_scan:
-   case nir_intrinsic_exclusive_scan:
-   case nir_intrinsic_shuffle:
-   case nir_intrinsic_shuffle_xor:
-   case nir_intrinsic_shuffle_up:
-   case nir_intrinsic_shuffle_down:
-   case nir_intrinsic_rotate:
-   case nir_intrinsic_masked_swizzle_amd:
-      shader->info.uses_wide_subgroup_intrinsics = true;
-
-      if (shader->info.stage == MESA_SHADER_FRAGMENT &&
-          shader->info.fs.require_full_quads)
-         shader->info.fs.needs_quad_helper_invocations = true;
-      break;
-
    case nir_intrinsic_end_primitive:
    case nir_intrinsic_end_primitive_with_counter:
    case nir_intrinsic_end_primitive_nv:
@@ -848,7 +822,7 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
       shader->info.outputs_written |= BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK);
       break;
 
-   case nir_intrinsic_discard_agx:
+   case nir_intrinsic_demote_samples:
       shader->info.fs.uses_discard = true;
       break;
 
@@ -868,6 +842,29 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
       if (nir_intrinsic_writes_external_memory(instr))
          shader->info.writes_memory = true;
 
+      if (nir_intrinsic_has_semantic(instr, NIR_INTRINSIC_QUADGROUP)) {
+         if (shader->info.stage == MESA_SHADER_FRAGMENT) {
+            shader->info.fs.needs_coarse_quad_helper_invocations = true;
+            /* For now assume that plain ddx/ddy are always coarse. This is
+             * true for most backends.
+             * TODO: Switch ddx to ddx_coarse for remaining backends.
+             */
+            if (instr->intrinsic != nir_intrinsic_ddx &&
+                instr->intrinsic != nir_intrinsic_ddy &&
+                instr->intrinsic != nir_intrinsic_ddx_coarse &&
+                instr->intrinsic != nir_intrinsic_ddy_coarse)
+               shader->info.fs.needs_full_quad_helper_invocations = true;
+         }
+      } else if (nir_intrinsic_has_semantic(instr, NIR_INTRINSIC_SUBGROUP)) {
+         shader->info.uses_wide_subgroup_intrinsics = true;
+
+         if (shader->info.stage == MESA_SHADER_FRAGMENT &&
+             shader->info.fs.require_full_quads) {
+            shader->info.fs.needs_coarse_quad_helper_invocations = true;
+            shader->info.fs.needs_full_quad_helper_invocations = true;
+         }
+      }
+
       if (instr->intrinsic == nir_intrinsic_image_levels ||
           instr->intrinsic == nir_intrinsic_image_size ||
           instr->intrinsic == nir_intrinsic_image_samples ||
@@ -885,9 +882,13 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
 static void
 gather_tex_info(nir_tex_instr *instr, nir_shader *shader)
 {
+   /* For now we assume that implicit derivatives use coarse derivatives.
+    * Drivers that need to assume otherwise might have to plumb through a
+    * property.
+    */
    if (shader->info.stage == MESA_SHADER_FRAGMENT &&
        nir_tex_instr_has_implicit_derivative(instr))
-      shader->info.fs.needs_quad_helper_invocations = true;
+      shader->info.fs.needs_coarse_quad_helper_invocations = true;
 
    if (nir_tex_instr_src_index(instr, nir_tex_src_texture_handle) != -1 ||
        nir_tex_instr_src_index(instr, nir_tex_src_sampler_handle) != -1)
@@ -954,8 +955,10 @@ gather_func_info(nir_function_impl *func, nir_shader *shader,
             nir_call_instr *call = nir_instr_as_call(instr);
             nir_function_impl *impl = call->callee->impl;
 
-            assert(impl || !"nir_shader_gather_info only works with linked shaders");
-            gather_func_info(impl, shader, visited_funcs, dead_ctx);
+            if (!call->indirect_callee.ssa)
+               assert(impl || !"nir_shader_gather_info only works with linked shaders");
+            if (impl)
+               gather_func_info(impl, shader, visited_funcs, dead_ctx);
             break;
          }
          default:
@@ -1004,15 +1007,18 @@ nir_shader_gather_info(nir_shader *shader, nir_function_impl *entrypoint)
    shader->info.outputs_written_16bit = 0;
    shader->info.outputs_read_16bit = 0;
    shader->info.inputs_read_indirectly_16bit = 0;
-   shader->info.outputs_accessed_indirectly_16bit = 0;
+   shader->info.outputs_read_indirectly_16bit = 0;
+   shader->info.outputs_written_indirectly_16bit = 0;
    shader->info.patch_outputs_read = 0;
    shader->info.patch_inputs_read = 0;
    shader->info.patch_outputs_written = 0;
    BITSET_ZERO(shader->info.system_values_read);
    shader->info.inputs_read_indirectly = 0;
-   shader->info.outputs_accessed_indirectly = 0;
+   shader->info.outputs_read_indirectly = 0;
+   shader->info.outputs_written_indirectly = 0;
    shader->info.patch_inputs_read_indirectly = 0;
-   shader->info.patch_outputs_accessed_indirectly = 0;
+   shader->info.patch_outputs_read_indirectly = 0;
+   shader->info.patch_outputs_written_indirectly = 0;
    shader->info.per_primitive_inputs = 0;
    shader->info.per_primitive_outputs = 0;
 
@@ -1026,12 +1032,17 @@ nir_shader_gather_info(nir_shader *shader, nir_function_impl *entrypoint)
       shader->info.fs.uses_discard = false;
       shader->info.fs.color_is_dual_source = false;
       shader->info.fs.uses_fbfetch_output = false;
-      shader->info.fs.needs_quad_helper_invocations = false;
+      shader->info.fs.needs_coarse_quad_helper_invocations = false;
+      shader->info.fs.needs_full_quad_helper_invocations = false;
    }
    if (shader->info.stage == MESA_SHADER_TESS_CTRL) {
       shader->info.tess.tcs_same_invocation_inputs_read = 0;
       shader->info.tess.tcs_cross_invocation_inputs_read = 0;
       shader->info.tess.tcs_cross_invocation_outputs_read = 0;
+      shader->info.tess.tcs_cross_invocation_outputs_written = 0;
+      shader->info.tess.tcs_outputs_read_by_tes = 0;
+      shader->info.tess.tcs_patch_outputs_read_by_tes = 0;
+      shader->info.tess.tcs_outputs_read_by_tes_16bit = 0;
    }
    if (shader->info.stage == MESA_SHADER_MESH) {
       shader->info.mesh.ms_cross_invocation_output_access = 0;

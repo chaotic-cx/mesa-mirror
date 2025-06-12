@@ -55,6 +55,25 @@ get_temp_registers(Instruction* instr)
    return demand_after;
 }
 
+RegisterDemand get_temp_reg_changes(Instruction* instr)
+{
+   RegisterDemand available_def_space;
+
+   for (Definition def : instr->definitions) {
+      if (def.isTemp())
+         available_def_space += def.getTemp();
+   }
+
+   for (Operand op : instr->operands) {
+      if (op.isFirstKillBeforeDef() || op.isCopyKill())
+         available_def_space -= op.getTemp();
+      else if (op.isClobbered() && !op.isKill())
+         available_def_space -= op.getTemp();
+   }
+
+   return available_def_space;
+}
+
 namespace {
 
 struct live_ctx {
@@ -194,6 +213,28 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
          }
       }
 
+      /* we need to do this in a separate loop because the next one can
+       * setKill() for several operands at once and we don't want to
+       * overwrite that in a later iteration */
+      bool is_vector_op = false;
+      for (Operand& op : insn->operands) {
+         op.setKill(false);
+         /* Linear vgprs must be late kill: this is to ensure linear VGPR operands and
+          * normal VGPR definitions don't try to use the same register, which is problematic
+          * because of assignment restrictions.
+          */
+         bool lateKill =
+            op.hasRegClass() && op.regClass().is_linear_vgpr() && !op.isUndefined() && has_vgpr_def;
+
+         /* If this Operand is part of a vector which is only partially killed by the instruction,
+          * a definition might not fit into the gaps that get created. Mitigate by using lateKill.
+          */
+         // TODO: is it beneficial to skip that if the vector is fully killed?
+         lateKill |= is_vector_op || op.isVectorAligned();
+         op.setLateKill(lateKill);
+         is_vector_op = op.isVectorAligned();
+      }
+
       if (ctx.program->gfx_level >= GFX10 && insn->isVALU() &&
           insn->definitions.back().regClass() == s2) {
          /* RDNA2 ISA doc, 6.2.4. Wave64 Destination Restrictions:
@@ -226,26 +267,19 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
       }
 
       /* Check if a definition clobbers some operand */
-      int op_idx = get_op_fixed_to_def(insn);
-      if (op_idx != -1)
+      RegisterDemand operand_demand;
+      auto tied_defs = get_tied_defs(insn);
+      for (auto op_idx : tied_defs) {
+         Temp tmp = insn->operands[op_idx].getTemp();
+         if (std::any_of(tied_defs.begin(), tied_defs.end(), [&](uint32_t i)
+                         { return i < op_idx && insn->operands[i].getTemp() == tmp; })) {
+            operand_demand += tmp;
+            insn->operands[op_idx].setCopyKill(true);
+         }
          insn->operands[op_idx].setClobbered(true);
-
-      /* we need to do this in a separate loop because the next one can
-       * setKill() for several operands at once and we don't want to
-       * overwrite that in a later iteration */
-      for (Operand& op : insn->operands) {
-         op.setKill(false);
-         /* Linear vgprs must be late kill: this is to ensure linear VGPR operands and
-          * normal VGPR definitions don't try to use the same register, which is problematic
-          * because of assignment restrictions.
-          */
-         if (op.hasRegClass() && op.regClass().is_linear_vgpr() && !op.isUndefined() &&
-             has_vgpr_def)
-            op.setLateKill(true);
       }
 
       /* GEN */
-      RegisterDemand operand_demand;
       for (unsigned i = 0; i < insn->operands.size(); ++i) {
          Operand& operand = insn->operands[i];
          if (!operand.isTemp())
@@ -275,6 +309,33 @@ process_live_temps_per_block(live_ctx& ctx, Block* block)
                   operand_demand += temp;
                   insn->operands[j].setCopyKill(true);
                }
+            }
+         }
+         /* If this operand is part of a vector, check if the temporary needs to be duplicated. */
+         if (is_vector_op || operand.isVectorAligned()) {
+            /* Set copyKill if any other vector-operand uses the same temporary. If a scalar operand
+             * uses the same temporary, assume that it can share the register. This ignores other
+             * register constraints like tied definitions or precolored registers.
+             */
+            bool other_is_vector_op = false;
+            for (unsigned j = 0; j < i; j++) {
+               if ((other_is_vector_op || insn->operands[j].isVectorAligned()) &&
+                   insn->operands[j].getTemp() == temp) {
+                  operand_demand += temp;
+                  insn->register_demand += temp; /* Because of lateKill */
+                  operand.setCopyKill(true);
+                  break;
+               }
+               other_is_vector_op = insn->operands[j].isVectorAligned();
+            }
+         }
+         is_vector_op = operand.isVectorAligned();
+
+         if (operand.isLateKill()) {
+            /* Make sure that same temporaries have same lateKill flags. */
+            for (Operand& other : insn->operands) {
+               if (other.isTemp() && other.getTemp() == operand.getTemp())
+                  other.setLateKill(true);
             }
          }
 
@@ -428,23 +489,19 @@ round_down(unsigned a, unsigned b)
    return a - (a % b);
 }
 
-uint16_t
-get_addr_sgpr_from_waves(Program* program, uint16_t waves)
+RegisterDemand
+get_addr_regs_from_waves(Program* program, uint16_t waves)
 {
    /* it's not possible to allocate more than 128 SGPRs */
    uint16_t sgprs = std::min(program->dev.physical_sgprs / waves, 128);
-   sgprs = round_down(sgprs, program->dev.sgpr_alloc_granule);
-   sgprs -= get_extra_sgprs(program);
-   return std::min(sgprs, program->dev.sgpr_limit);
-}
+   sgprs = round_down(sgprs, program->dev.sgpr_alloc_granule) - get_extra_sgprs(program);
+   sgprs = std::min(sgprs, program->dev.sgpr_limit);
 
-uint16_t
-get_addr_vgpr_from_waves(Program* program, uint16_t waves)
-{
    uint16_t vgprs = program->dev.physical_vgprs / waves;
    vgprs = vgprs / program->dev.vgpr_alloc_granule * program->dev.vgpr_alloc_granule;
    vgprs -= program->config->num_shared_vgprs / 2;
-   return std::min(vgprs, program->dev.vgpr_limit);
+   vgprs = std::min(vgprs, program->dev.vgpr_limit);
+   return RegisterDemand(vgprs, sgprs);
 }
 
 void
@@ -496,11 +553,10 @@ void
 update_vgpr_sgpr_demand(Program* program, const RegisterDemand new_demand)
 {
    assert(program->min_waves >= 1);
-   uint16_t sgpr_limit = get_addr_sgpr_from_waves(program, program->min_waves);
-   uint16_t vgpr_limit = get_addr_vgpr_from_waves(program, program->min_waves);
+   RegisterDemand limit = get_addr_regs_from_waves(program, program->min_waves);
 
    /* this won't compile, register pressure reduction necessary */
-   if (new_demand.vgpr > vgpr_limit || new_demand.sgpr > sgpr_limit) {
+   if (new_demand.exceeds(limit)) {
       program->num_waves = 0;
       program->max_reg_demand = new_demand;
    } else {
@@ -513,8 +569,7 @@ update_vgpr_sgpr_demand(Program* program, const RegisterDemand new_demand)
 
       /* Adjust for LDS and workgroup multiples and calculate max_reg_demand */
       program->num_waves = max_suitable_waves(program, program->num_waves);
-      program->max_reg_demand.vgpr = get_addr_vgpr_from_waves(program, program->num_waves);
-      program->max_reg_demand.sgpr = get_addr_sgpr_from_waves(program, program->num_waves);
+      program->max_reg_demand = get_addr_regs_from_waves(program, program->num_waves);
    }
 }
 

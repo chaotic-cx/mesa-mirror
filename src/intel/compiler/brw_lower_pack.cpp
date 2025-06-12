@@ -22,18 +22,16 @@
  */
 
 #include "util/half_float.h"
-#include "brw_fs.h"
+#include "brw_shader.h"
 #include "brw_cfg.h"
-#include "brw_fs_builder.h"
-
-using namespace brw;
+#include "brw_builder.h"
 
 bool
-brw_lower_pack(fs_visitor &s)
+brw_lower_pack(brw_shader &s)
 {
    bool progress = false;
 
-   foreach_block_and_inst_safe(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst_safe(block, brw_inst, inst, s.cfg) {
       if (inst->opcode != FS_OPCODE_PACK &&
           inst->opcode != FS_OPCODE_PACK_HALF_2x16_SPLIT)
          continue;
@@ -42,7 +40,7 @@ brw_lower_pack(fs_visitor &s)
       assert(inst->saturate == false);
       brw_reg dst = inst->dst;
 
-      const fs_builder ibld(&s, block, inst);
+      const brw_builder ibld(inst);
       /* The lowering generates 2 instructions for what was previously 1. This
        * can trick the IR to believe we're doing partial writes, but the
        * register is actually fully written. Mark it as undef to help the IR
@@ -74,12 +72,12 @@ brw_lower_pack(fs_visitor &s)
          unreachable("skipped above");
       }
 
-      inst->remove(block);
+      inst->remove();
       progress = true;
    }
 
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS);
 
    return progress;
 }

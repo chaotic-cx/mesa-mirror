@@ -487,6 +487,7 @@ ac_nir_lower_tex(nir_shader *nir, const ac_nir_lower_tex_options *options)
    bool progress = false;
    if (options->fix_derivs_in_divergent_cf) {
       nir_function_impl *impl = nir_shader_get_entrypoint(nir);
+      nir_metadata_require(impl, nir_metadata_divergence);
 
       struct move_tex_coords_state state;
       state.toplevel_b = nir_builder_create(impl);
@@ -494,10 +495,11 @@ ac_nir_lower_tex(nir_shader *nir, const ac_nir_lower_tex_options *options)
       state.num_wqm_vgprs = 0;
 
       bool divergent_discard = false;
-      if (move_coords_from_divergent_cf(&state, impl, &impl->body, &divergent_discard, false))
-         nir_metadata_preserve(impl, nir_metadata_control_flow);
-      else
-         nir_metadata_preserve(impl, nir_metadata_all);
+      bool impl_progress = move_coords_from_divergent_cf(&state, impl,
+                                                         &impl->body,
+                                                         &divergent_discard,
+                                                         false);
+      nir_progress(impl_progress, impl, nir_metadata_control_flow);
    }
 
    progress |= nir_shader_instructions_pass(

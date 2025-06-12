@@ -189,7 +189,7 @@ zink_init_draw_functions(struct zink_context *ctx, struct zink_screen *screen);
 void
 zink_init_grid_functions(struct zink_context *ctx);
 struct zink_context *
-zink_tc_context_unwrap(struct pipe_context *pctx, bool threaded);
+zink_tc_context_unwrap(struct pipe_context *pctx);
 
 void
 zink_update_barriers(struct zink_context *ctx, bool is_compute,
@@ -202,7 +202,7 @@ void
 zink_cmd_debug_marker_end(struct zink_context *ctx, VkCommandBuffer cmdbuf,bool emitted);
 void
 zink_copy_buffer(struct zink_context *ctx, struct zink_resource *dst, struct zink_resource *src,
-                 unsigned dst_offset, unsigned src_offset, unsigned size);
+                 unsigned dst_offset, unsigned src_offset, unsigned size, bool unsync);
 #ifdef __cplusplus
 }
 #endif
@@ -236,7 +236,7 @@ void
 zink_draw_rectangle(struct blitter_context *blitter, void *vertex_elements_cso,
                     blitter_get_vs_func get_vs, int x1, int y1, int x2, int y2,
                     float depth, unsigned num_instances, enum blitter_attrib_type type,
-                    const union blitter_attrib *attrib);
+                    const struct blitter_attrib *attrib);
 
 static inline struct u_rect
 zink_rect_from_box(const struct pipe_box *box)

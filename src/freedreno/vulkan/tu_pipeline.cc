@@ -18,6 +18,7 @@
 #include "spirv/nir_spirv.h"
 #include "util/u_debug.h"
 #include "util/mesa-sha1.h"
+#include "util/shader_stats.h"
 #include "vk_nir.h"
 #include "vk_pipeline.h"
 #include "vk_render_pass.h"
@@ -79,6 +80,7 @@ tu6_load_state_size(struct tu_pipeline *pipeline,
          case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC:
          case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
          case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+         case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
             /* IBO-backed resources only need one packet for all graphics stages */
             if (stage_count)
                count += 1;
@@ -174,7 +176,8 @@ tu6_emit_load_state(struct tu_device *device,
             FALLTHROUGH;
          case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
          case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-         case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER: {
+         case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+         case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR: {
             unsigned mul = binding->size / (A6XX_TEX_CONST_DWORDS * 4);
             /* IBO-backed resources only need one packet for all graphics stages */
             if (stages & ~VK_SHADER_STAGE_COMPUTE_BIT) {
@@ -2048,7 +2051,7 @@ done:
    if (creation_feedback) {
       *creation_feedback->pPipelineCreationFeedback = pipeline_feedback;
 
-      for (uint32_t i = 0; i < builder->create_info->stageCount; i++) {
+      for (uint32_t i = 0; i < creation_feedback->pipelineStageCreationFeedbackCount; i++) {
          gl_shader_stage s =
             vk_to_mesa_shader_stage(builder->create_info->pStages[i].stage);
          creation_feedback->pPipelineStageCreationFeedbacks[i] = stage_feedbacks[s];
@@ -2097,7 +2100,6 @@ tu_pipeline_builder_parse_libraries(struct tu_pipeline_builder *builder,
          pipeline->output = library->base.output;
          pipeline->lrz_blend.reads_dest |= library->base.lrz_blend.reads_dest;
          pipeline->lrz_blend.valid |= library->base.lrz_blend.valid;
-         pipeline->prim_order = library->base.prim_order;
       }
 
       if ((library->state &
@@ -2106,6 +2108,12 @@ tu_pipeline_builder_parse_libraries(struct tu_pipeline_builder *builder,
            VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT)) {
          pipeline->prim_order = library->base.prim_order;
       }
+
+      if (library->base.bandwidth.valid)
+         pipeline->bandwidth = library->base.bandwidth;
+
+      if (library->base.disable_fs.valid)
+         pipeline->disable_fs = library->base.disable_fs;
 
       pipeline->set_state_mask |= library->base.set_state_mask;
 
@@ -2239,6 +2247,9 @@ tu_emit_program_state(struct tu_cs *sub_cs,
           push_consts->type == IR3_PUSH_CONSTS_SHARED_PREAMBLE) {
          prog->shared_consts = *push_consts;
       }
+
+      if (variants[i]->info.uses_ray_intersection)
+         prog->uses_ray_intersection = true;
    }
 
    unsigned dynamic_descriptor_offset = 0;
@@ -2278,6 +2289,8 @@ tu_emit_program_state(struct tu_cs *sub_cs,
    prog->ds_state = draw_states[MESA_SHADER_TESS_EVAL];
    prog->gs_state = draw_states[MESA_SHADER_GEOMETRY];
    prog->gs_binning_state =
+      (safe_variants & (1u << MESA_SHADER_GEOMETRY)) ?
+      shaders[MESA_SHADER_GEOMETRY]->safe_const_binning_state :
       shaders[MESA_SHADER_GEOMETRY]->binning_state;
    prog->fs_state = draw_states[MESA_SHADER_FRAGMENT];
 
@@ -2537,44 +2550,49 @@ struct apply_viewport_state {
    bool share_scale;
 };
 
-/* It's a hardware restriction that the window offset (i.e. bin.offset) must
- * be the same for all views. This means that GMEM coordinates cannot be a
- * simple scaling of framebuffer coordinates, because this would require us to
- * scale the window offset and the scale may be different per view. Instead we
- * have to apply a per-bin offset to the GMEM coordinate transform to make
- * sure that the window offset maps to itself. Specifically we need an offset
- * o to the transform:
+/* It's a hardware restriction that the window offset (i.e. common_bin_offset)
+ * must be the same for all views. This means that GMEM coordinates cannot be
+ * a simple scaling of framebuffer coordinates, because this would require us
+ * to scale the window offset and the scale may be different per view. Instead
+ * we have to apply a per-bin offset to the GMEM coordinate transform to make
+ * sure that the window offset maps to the per-view bin coordinate, which will
+ * be the same if there is no offset. Specifically we need an offset o to the
+ * transform:
  *
  * x' = s * x + o
  *
- * so that when we plug in the bin start b_s:
+ * so that when we plug in the per-view bin start b_s and the common window
+ * offset b_cs:
  * 
- * b_s = s * b_s + o
+ * b_cs = s * b_s + o
  *
  * and we get:
  *
- * o = b_s - s * b_s
+ * o = b_cs - s * b_s
  *
- * We use this form exactly, because we know the bin offset is a multiple of
+ * We use this form exactly, because we know the bin start is a multiple of
  * the frag area so s * b_s is an integer and we can compute an exact result
- * easily.
+ * easily. We also have to make sure that the bin offset is a multiple of the
+ * frag area by restricting the frag area.
  */
 
 VkOffset2D
-tu_fdm_per_bin_offset(VkExtent2D frag_area, VkRect2D bin)
+tu_fdm_per_bin_offset(VkExtent2D frag_area, VkRect2D bin,
+                      VkOffset2D common_bin_offset)
 {
    assert(bin.offset.x % frag_area.width == 0);
    assert(bin.offset.y % frag_area.height == 0);
 
    return (VkOffset2D) {
-      bin.offset.x - bin.offset.x / frag_area.width,
-      bin.offset.y - bin.offset.y / frag_area.height
+      common_bin_offset.x - bin.offset.x / frag_area.width,
+      common_bin_offset.y - bin.offset.y / frag_area.height
    };
 }
 
 static void
 fdm_apply_viewports(struct tu_cmd_buffer *cmd, struct tu_cs *cs, void *data,
-                    VkRect2D bin, unsigned views, VkExtent2D *frag_areas)
+                    VkOffset2D common_bin_offset, unsigned views,
+                    const VkExtent2D *frag_areas, const VkRect2D *bins)
 {
    const struct apply_viewport_state *state =
       (const struct apply_viewport_state *)data;
@@ -2592,9 +2610,12 @@ fdm_apply_viewports(struct tu_cmd_buffer *cmd, struct tu_cs *cs, void *data,
        * replicate it across all viewports.
        */
       VkExtent2D frag_area = state->share_scale ? frag_areas[0] : frag_areas[i];
+      VkRect2D bin = state->share_scale ? bins[0] : bins[i];
       VkViewport viewport =
          state->share_scale ? state->vp.viewports[i] : state->vp.viewports[0];
-      if (frag_area.width == 1 && frag_area.height == 1) {
+      if (frag_area.width == 1 && frag_area.height == 1 &&
+          common_bin_offset.x == bin.offset.x &&
+          common_bin_offset.y == bin.offset.y) {
          vp.viewports[i] = viewport;
          continue;
       }
@@ -2607,7 +2628,8 @@ fdm_apply_viewports(struct tu_cmd_buffer *cmd, struct tu_cs *cs, void *data,
       vp.viewports[i].width = viewport.width * scale_x;
       vp.viewports[i].height = viewport.height * scale_y;
 
-      VkOffset2D offset = tu_fdm_per_bin_offset(frag_area, bin);
+      VkOffset2D offset = tu_fdm_per_bin_offset(frag_area, bin,
+                                                common_bin_offset);
 
       vp.viewports[i].x = scale_x * viewport.x + offset.x;
       vp.viewports[i].y = scale_y * viewport.y + offset.y;
@@ -2631,7 +2653,9 @@ tu6_emit_viewport_fdm(struct tu_cs *cs, struct tu_cmd_buffer *cmd,
       state.vp.viewport_count = num_views;
    unsigned size = TU_CALLX(cmd->device, tu6_viewport_size)(cmd->device, &state.vp, &state.rs);
    tu_cs_begin_sub_stream(&cmd->sub_cs, size, cs);
-   tu_create_fdm_bin_patchpoint(cmd, cs, size, fdm_apply_viewports, state);
+   tu_create_fdm_bin_patchpoint(cmd, cs, size, TU_FDM_NONE,
+                                fdm_apply_viewports, state);
+   cmd->state.rp.shared_viewport |= !cmd->state.per_view_viewport;
 }
 
 static const enum mesa_vk_dynamic_graphics_state tu_scissor_state[] = {
@@ -2681,7 +2705,8 @@ tu6_emit_scissor(struct tu_cs *cs, const struct vk_viewport_state *vp)
 
 static void
 fdm_apply_scissors(struct tu_cmd_buffer *cmd, struct tu_cs *cs, void *data,
-                   VkRect2D bin, unsigned views, VkExtent2D *frag_areas)
+                   VkOffset2D common_bin_offset, unsigned views,
+                   const VkExtent2D *frag_areas, const VkRect2D *bins)
 {
    const struct apply_viewport_state *state =
       (const struct apply_viewport_state *)data;
@@ -2690,12 +2715,9 @@ fdm_apply_scissors(struct tu_cmd_buffer *cmd, struct tu_cs *cs, void *data,
 
    for (unsigned i = 0; i < vp.scissor_count; i++) {
       VkExtent2D frag_area = state->share_scale ? frag_areas[0] : frag_areas[i];
+      VkRect2D bin = state->share_scale ? bins[0] : bins[i];
       VkRect2D scissor =
          state->share_scale ? state->vp.scissors[i] : state->vp.scissors[0];
-      if (frag_area.width == 1 && frag_area.height == 1) {
-         vp.scissors[i] = scissor;
-         continue;
-      }
 
       /* Transform the scissor following the viewport. It's unclear how this
        * is supposed to handle cases where the scissor isn't aligned to the
@@ -2703,7 +2725,8 @@ fdm_apply_scissors(struct tu_cmd_buffer *cmd, struct tu_cs *cs, void *data,
        * fragments if the scissor size equals the framebuffer size and it
        * isn't aligned to the fragment area.
        */
-      VkOffset2D offset = tu_fdm_per_bin_offset(frag_area, bin);
+      VkOffset2D offset = tu_fdm_per_bin_offset(frag_area, bin,
+                                                common_bin_offset);
       VkOffset2D min = {
          scissor.offset.x / frag_area.width + offset.x,
          scissor.offset.y / frag_area.width + offset.y,
@@ -2718,12 +2741,12 @@ fdm_apply_scissors(struct tu_cmd_buffer *cmd, struct tu_cs *cs, void *data,
        */
       uint32_t scaled_width = bin.extent.width / frag_area.width;
       uint32_t scaled_height = bin.extent.height / frag_area.height;
-      vp.scissors[i].offset.x = MAX2(min.x, bin.offset.x);
-      vp.scissors[i].offset.y = MAX2(min.y, bin.offset.y);
+      vp.scissors[i].offset.x = MAX2(min.x, common_bin_offset.x);
+      vp.scissors[i].offset.y = MAX2(min.y, common_bin_offset.y);
       vp.scissors[i].extent.width =
-         MIN2(max.x, bin.offset.x + scaled_width) - vp.scissors[i].offset.x;
+         MIN2(max.x, common_bin_offset.x + scaled_width) - vp.scissors[i].offset.x;
       vp.scissors[i].extent.height =
-         MIN2(max.y, bin.offset.y + scaled_height) - vp.scissors[i].offset.y;
+         MIN2(max.y, common_bin_offset.y + scaled_height) - vp.scissors[i].offset.y;
    }
 
    TU_CALLX(cs->device, tu6_emit_scissor)(cs, &vp);
@@ -2742,7 +2765,8 @@ tu6_emit_scissor_fdm(struct tu_cs *cs, struct tu_cmd_buffer *cmd,
       state.vp.scissor_count = num_views;
    unsigned size = TU_CALLX(cmd->device, tu6_scissor_size)(cmd->device, &state.vp);
    tu_cs_begin_sub_stream(&cmd->sub_cs, size, cs);
-   tu_create_fdm_bin_patchpoint(cmd, cs, size, fdm_apply_scissors, state);
+   tu_create_fdm_bin_patchpoint(cmd, cs, size, TU_FDM_NONE, fdm_apply_scissors,
+                                state);
 }
 
 static const enum mesa_vk_dynamic_graphics_state tu_sample_locations_state[] = {
@@ -2890,6 +2914,54 @@ tu_calc_bandwidth(struct tu_bandwidth *bandwidth,
             vk_format_to_pipe_format(rp->stencil_attachment_format),
             UTIL_FORMAT_COLORSPACE_ZS, 1) / 8;
    }
+
+   bandwidth->valid = true;
+}
+
+static const enum mesa_vk_dynamic_graphics_state tu_disable_fs_state[] = {
+   MESA_VK_DYNAMIC_CB_ATTACHMENT_COUNT,
+   MESA_VK_DYNAMIC_CB_COLOR_WRITE_ENABLES,
+   MESA_VK_DYNAMIC_CB_WRITE_MASKS,
+   MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE,
+};
+
+static bool
+tu_calc_disable_fs(const struct vk_color_blend_state *cb,
+                   const struct vk_render_pass_state *rp,
+                   bool alpha_to_coverage_enable,
+                   const struct tu_shader *fs)
+{
+   if (alpha_to_coverage_enable)
+      return false;
+   if (fs && !fs->variant->writes_only_color)
+      return false;
+
+   bool has_enabled_attachments = false;
+   for (unsigned i = 0; i < cb->attachment_count; i++) {
+      if (rp->color_attachment_formats[i] == VK_FORMAT_UNDEFINED)
+         continue;
+
+      const struct vk_color_blend_attachment_state *att = &cb->attachments[i];
+      if ((cb->color_write_enables & (1u << i)) && att->write_mask != 0) {
+         has_enabled_attachments = true;
+         break;
+      }
+   }
+
+   return !fs || fs->variant->empty ||
+          (fs->variant->writes_only_color && !has_enabled_attachments);
+}
+
+static void
+tu_emit_disable_fs(struct tu_disable_fs *disable_fs,
+                   const struct vk_color_blend_state *cb,
+                   const struct vk_render_pass_state *rp,
+                   bool alpha_to_coverage_enable,
+                   const struct tu_shader *fs)
+{
+   disable_fs->disable_fs =
+      tu_calc_disable_fs(cb, rp, alpha_to_coverage_enable, fs);
+   disable_fs->valid = true;
 }
 
 /* Return true if the blend state reads the color attachments. */
@@ -2899,6 +2971,22 @@ tu6_calc_blend_lrz(const struct vk_color_blend_state *cb,
 {
    if (cb->logic_op_enable && tu_logic_op_reads_dst((VkLogicOp)cb->logic_op))
       return true;
+
+   bool has_enabled_attachments = false;
+   for (unsigned i = 0; i < cb->attachment_count; i++) {
+      if (rp->color_attachment_formats[i] == VK_FORMAT_UNDEFINED)
+         continue;
+
+      const struct vk_color_blend_attachment_state *att = &cb->attachments[i];
+      if ((cb->color_write_enables & (1u << i)) && att->write_mask != 0) {
+         has_enabled_attachments = true;
+         break;
+      }
+   }
+
+   /* There is no partial write if there is no writes at all. */
+   if (!has_enabled_attachments)
+      return false;
 
    for (unsigned i = 0; i < cb->attachment_count; i++) {
       if (rp->color_attachment_formats[i] == VK_FORMAT_UNDEFINED)
@@ -2955,6 +3043,7 @@ static unsigned
 tu6_blend_size(struct tu_device *dev,
                const struct vk_color_blend_state *cb,
                const struct vk_color_attachment_location_state *cal,
+               const struct vk_render_pass_state *rp,
                bool alpha_to_coverage_enable,
                bool alpha_to_one_enable,
                uint32_t sample_mask)
@@ -2969,6 +3058,7 @@ static void
 tu6_emit_blend(struct tu_cs *cs,
                const struct vk_color_blend_state *cb,
                const struct vk_color_attachment_location_state *cal,
+               const struct vk_render_pass_state *rp,
                bool alpha_to_coverage_enable,
                bool alpha_to_one_enable,
                uint32_t sample_mask)
@@ -2983,8 +3073,14 @@ tu6_emit_blend(struct tu_cs *cs,
          continue;
 
       const struct vk_color_blend_attachment_state *att = &cb->attachments[i];
+      VkFormat att_format = rp->color_attachment_formats[i];
+      bool is_float_or_srgb = vk_format_is_float(att_format) || vk_format_is_srgb(att_format);
 
-      if (rop_reads_dst || att->blend_enable) {
+      /* Logic op overrides any blending. Even when logic op is present, blending
+       * should be kept disabled for any ops that don't read dst values or for
+       * attachments of float or sRGB formats.
+       */
+      if ((att->blend_enable && !cb->logic_op_enable) || (rop_reads_dst && !is_float_or_srgb)) {
          blend_enable_mask |= 1u << cal->color_map[i];
       }
    }
@@ -3033,12 +3129,21 @@ tu6_emit_blend(struct tu_cs *cs,
             tu6_blend_factor((VkBlendFactor)att->src_alpha_blend_factor);
          const enum adreno_rb_blend_factor dst_alpha_factor =
             tu6_blend_factor((VkBlendFactor)att->dst_alpha_blend_factor);
+         VkFormat att_format = rp->color_attachment_formats[i];
+         bool is_float_or_srgb = vk_format_is_float(att_format) || vk_format_is_srgb(att_format);
+
+         /* Keep blend and logic op flags tidy. These conditions match the blend-enable
+          * mask construction above, except for the dst-reading rop condition that doesn't
+          * apply here.
+          */
+         bool blend_enable = att->blend_enable && !cb->logic_op_enable;
+         bool logic_op_enable = cb->logic_op_enable && !is_float_or_srgb;
 
          tu_cs_emit_regs(cs,
                          A6XX_RB_MRT_CONTROL(remapped_idx,
-                                             .blend = att->blend_enable,
-                                             .blend2 = att->blend_enable,
-                                             .rop_enable = cb->logic_op_enable,
+                                             .blend = blend_enable,
+                                             .blend2 = blend_enable,
+                                             .rop_enable = logic_op_enable,
                                              .rop_code = rop,
                                              .component_enable = att->write_mask),
                          A6XX_RB_MRT_BLEND_CONTROL(remapped_idx,
@@ -3088,6 +3193,8 @@ static const enum mesa_vk_dynamic_graphics_state tu_rast_state[] = {
    MESA_VK_DYNAMIC_RS_RASTERIZATION_STREAM,
    MESA_VK_DYNAMIC_VP_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE,
    MESA_VK_DYNAMIC_RS_LINE_WIDTH,
+   MESA_VK_DYNAMIC_RS_CONSERVATIVE_MODE,
+   MESA_VK_DYNAMIC_RS_EXTRA_PRIMITIVE_OVERESTIMATION_SIZE,
 };
 
 template <chip CHIP>
@@ -3096,12 +3203,15 @@ tu6_rast_size(struct tu_device *dev,
               const struct vk_rasterization_state *rs,
               const struct vk_viewport_state *vp,
               bool multiview,
-              bool per_view_viewport)
+              bool per_view_viewport,
+              bool disable_fs)
 {
-   if (CHIP == A6XX) {
+   if (CHIP == A6XX && dev->physical_device->info->a6xx.is_a702) {
+      return 17;
+   } else if (CHIP == A6XX) {
       return 15 + (dev->physical_device->info->a6xx.has_legacy_pipeline_shading_rate ? 8 : 0);
    } else {
-      return 17;
+      return 27;
    }
 }
 
@@ -3111,7 +3221,8 @@ tu6_emit_rast(struct tu_cs *cs,
               const struct vk_rasterization_state *rs,
               const struct vk_viewport_state *vp,
               bool multiview,
-              bool per_view_viewport)
+              bool per_view_viewport,
+              bool disable_fs)
 {
    enum a5xx_line_mode line_mode =
       rs->line.mode == VK_LINE_RASTERIZATION_MODE_BRESENHAM_KHR ?
@@ -3147,9 +3258,9 @@ tu6_emit_rast(struct tu_cs *cs,
    tu_cs_emit_regs(cs,
                    PC_POLYGON_MODE(CHIP, polygon_mode));
 
-   if (CHIP == A7XX) {
+   if (CHIP == A7XX || cs->device->physical_device->info->a6xx.is_a702) {
       tu_cs_emit_regs(cs,
-                     A7XX_VPC_POLYGON_MODE2(polygon_mode));
+                     A6XX_VPC_POLYGON_MODE2(polygon_mode));
    }
 
    tu_cs_emit_regs(cs, PC_RASTER_CNTL(CHIP,
@@ -3162,6 +3273,47 @@ tu6_emit_rast(struct tu_cs *cs,
       tu_cs_emit_regs(cs, A7XX_PC_RASTER_CNTL_V2(
          .stream = rs->rasterization_stream,
          .discard = rs->rasterizer_discard_enable));
+
+      bool conservative_ras_en =
+         rs->conservative_mode ==
+         VK_CONSERVATIVE_RASTERIZATION_MODE_OVERESTIMATE_EXT;
+      /* This is important to get D/S only draw calls to bypass invoking
+       * the fragment shader. The public documentation for Adreno states:
+       *  "Hint the driver to engage Fast-Z by using an empty fragment
+       *   shader and disabling frame buffer write masks for renderpasses
+       *   that modify Z values only."
+       *  "The GPU has a special mode that writes Z-only pixels at twice
+       *   the normal rate."
+       */
+      tu_cs_emit_regs(cs, RB_RENDER_CNTL(CHIP,
+            .fs_disable = disable_fs,
+            .raster_mode = TYPE_TILED,
+            .raster_direction = LR_TB,
+            .conservativerasen = conservative_ras_en));
+      tu_cs_emit_regs(cs, A7XX_GRAS_SU_RENDER_CNTL(.fs_disable = disable_fs));
+      tu_cs_emit_regs(cs, A7XX_HLSQ_FS_UNKNOWN_A9AA(.fs_disable = disable_fs));
+
+      tu_cs_emit_regs(cs,
+                      A6XX_PC_DGEN_SU_CONSERVATIVE_RAS_CNTL(conservative_ras_en));
+
+      /* There are only two conservative rasterization modes:
+       * - shift_amount = 0 (NO_SHIFT) - normal rasterization
+       * - shift_amount = 1 (HALF_PIXEL_SHIFT) - overestimate by half a pixel
+       *   plus the rasterization grid size (1/256)
+       * - shift_amount = 2 (FULL_PIXEL_SHIFT) - overestimate by another half
+       *   a pixel
+       *
+       * We expose a max of 0.5 and a granularity of 0.5, so the app should
+       * only give us 0 or 0.5 which correspond to HALF_PIXEL_SHIFT and
+       * FULL_PIXEL_SHIFT respectively. If they give us anything else just
+       * assume they meant 0.5 as the most conservative choice.
+       */
+      enum a6xx_shift_amount shift_amount = conservative_ras_en ?
+         (rs->extra_primitive_overestimation_size != 0. ?
+            FULL_PIXEL_SHIFT : HALF_PIXEL_SHIFT) : NO_SHIFT;
+      tu_cs_emit_regs(cs, A6XX_GRAS_SU_CONSERVATIVE_RAS_CNTL(
+            .conservativerasen = conservative_ras_en,
+            .shiftamount = shift_amount));
    }
 
    /* move to hw ctx init? */
@@ -3203,6 +3355,18 @@ tu6_emit_ds(struct tu_cs *cs,
 {
    bool stencil_test_enable =
       ds->stencil.test_enable && rp->attachments & MESA_VK_RP_ATTACHMENT_STENCIL_BIT;
+
+   /* While the .stencil_read field can be used to avoid having to read stencil
+    * when the func/ops cause it to be unused, there was no change in perf on
+    * the 1/42 games tested that was affected (Transport Fever, 0.0 +/- 0.0%
+    * change).  Besides, in some cases where we could clear stencil_read here,
+    * the packed z/s is going to be read anyway due to depth testing, though
+    * that doesn't apply to this game.
+    *
+    * Given that the condition for avoiding stencil_read is fairly complicated,
+    * we won't bother with the CPU overhead until we can see some win from it.
+    */
+
    tu_cs_emit_regs(cs, A6XX_RB_STENCIL_CONTROL(
       .stencil_enable = stencil_test_enable,
       .stencil_enable_bf = stencil_test_enable,
@@ -3282,8 +3446,9 @@ tu6_emit_rb_depth_cntl(struct tu_cs *cs,
          .zfunc = zfunc,
          /* To support VK_EXT_depth_clamp_zero_one on a7xx+ */
          .z_clamp_enable = rs->depth_clamp_enable || CHIP >= A7XX,
-         /* TODO don't set for ALWAYS/NEVER */
-         .z_read_enable = ds->depth.test_enable || ds->depth.bounds_test.enable,
+         .z_read_enable =
+            (ds->depth.test_enable && (zfunc != FUNC_NEVER && zfunc != FUNC_ALWAYS)) ||
+            ds->depth.bounds_test.enable,
          .z_bounds_enable = ds->depth.bounds_test.enable));
       tu_cs_emit_regs(cs, A6XX_GRAS_SU_DEPTH_CNTL(depth_test));
    } else {
@@ -3545,17 +3710,25 @@ tu_pipeline_builder_emit_state(struct tu_pipeline_builder *builder,
       BITSET_SET(pipeline_set, MESA_VK_DYNAMIC_CB_WRITE_MASKS);
       BITSET_SET(pipeline_set, MESA_VK_DYNAMIC_CB_BLEND_CONSTANTS);
    }
-   DRAW_STATE(blend, TU_DYNAMIC_STATE_BLEND, cb,
-              builder->graphics_state.cal,
-              builder->graphics_state.ms->alpha_to_coverage_enable,
-              builder->graphics_state.ms->alpha_to_one_enable,
-              builder->graphics_state.ms->sample_mask);
+   DRAW_STATE_COND(blend, TU_DYNAMIC_STATE_BLEND, attachments_valid, cb,
+                   builder->graphics_state.cal,
+                   builder->graphics_state.rp,
+                   builder->graphics_state.ms->alpha_to_coverage_enable,
+                   builder->graphics_state.ms->alpha_to_one_enable,
+                   builder->graphics_state.ms->sample_mask);
    if (EMIT_STATE(blend_lrz, attachments_valid))
       tu_emit_blend_lrz(&pipeline->lrz_blend, cb,
                         builder->graphics_state.rp);
    if (EMIT_STATE(bandwidth, attachments_valid))
       tu_calc_bandwidth(&pipeline->bandwidth, cb,
                         builder->graphics_state.rp);
+   if (EMIT_STATE(
+          disable_fs,
+          attachments_valid && pipeline_contains_all_shader_state(pipeline)))
+      tu_emit_disable_fs(&pipeline->disable_fs, cb,
+                         builder->graphics_state.rp,
+                         builder->graphics_state.ms->alpha_to_coverage_enable,
+                         pipeline->shaders[MESA_SHADER_FRAGMENT]);
    DRAW_STATE(blend_constants, TU_DYNAMIC_STATE_BLEND_CONSTANTS, cb);
 
    if (attachments_valid &&
@@ -3574,11 +3747,12 @@ tu_pipeline_builder_emit_state(struct tu_pipeline_builder *builder,
       BITSET_CLEAR(remove, MESA_VK_DYNAMIC_CB_BLEND_CONSTANTS);
    }
    DRAW_STATE_COND(rast, TU_DYNAMIC_STATE_RAST,
-                   pipeline_contains_all_shader_state(pipeline),
-                   builder->graphics_state.rs,
-                   builder->graphics_state.vp,
+                   pipeline_contains_all_shader_state(pipeline) &&
+                      pipeline->disable_fs.valid,
+                   builder->graphics_state.rs, builder->graphics_state.vp,
                    builder->graphics_state.rp->view_mask != 0,
-                   pipeline->program.per_view_viewport);
+                   pipeline->program.per_view_viewport,
+                   pipeline->disable_fs.disable_fs);
    DRAW_STATE_COND(ds, TU_DYNAMIC_STATE_DS,
               attachments_valid,
               builder->graphics_state.ds,
@@ -3774,15 +3948,16 @@ tu_emit_draw_state(struct tu_cmd_buffer *cmd)
               cmd->vk.dynamic_graphics_state.ms.sample_locations);
    DRAW_STATE(depth_bias, TU_DYNAMIC_STATE_DEPTH_BIAS,
               &cmd->vk.dynamic_graphics_state.rs);
-   DRAW_STATE(blend, TU_DYNAMIC_STATE_BLEND,
-              &cmd->vk.dynamic_graphics_state.cb,
-              &cmd->vk.dynamic_graphics_state.cal,
-              cmd->vk.dynamic_graphics_state.ms.alpha_to_coverage_enable,
-              cmd->vk.dynamic_graphics_state.ms.alpha_to_one_enable,
-              cmd->vk.dynamic_graphics_state.ms.sample_mask);
-   if (EMIT_STATE(blend_lrz) ||
-       ((cmd->state.dirty & TU_CMD_DIRTY_SUBPASS) &&
-        !cmd->state.pipeline_blend_lrz)) {
+   DRAW_STATE_COND(blend, TU_DYNAMIC_STATE_BLEND,
+                   cmd->state.dirty & TU_CMD_DIRTY_SUBPASS,
+                   &cmd->vk.dynamic_graphics_state.cb,
+                   &cmd->vk.dynamic_graphics_state.cal,
+                   &cmd->state.vk_rp,
+                   cmd->vk.dynamic_graphics_state.ms.alpha_to_coverage_enable,
+                   cmd->vk.dynamic_graphics_state.ms.alpha_to_one_enable,
+                   cmd->vk.dynamic_graphics_state.ms.sample_mask);
+   if (!cmd->state.pipeline_blend_lrz &&
+       (EMIT_STATE(blend_lrz) || (cmd->state.dirty & TU_CMD_DIRTY_SUBPASS))) {
       bool blend_reads_dest = tu6_calc_blend_lrz(&cmd->vk.dynamic_graphics_state.cb,
                                                  &cmd->state.vk_rp);
       if (blend_reads_dest != cmd->state.blend_reads_dest) {
@@ -3790,11 +3965,25 @@ tu_emit_draw_state(struct tu_cmd_buffer *cmd)
          cmd->state.dirty |= TU_CMD_DIRTY_LRZ;
       }
    }
-   if (EMIT_STATE(bandwidth) ||
-       ((cmd->state.dirty & TU_CMD_DIRTY_SUBPASS) &&
-        !cmd->state.pipeline_bandwidth))
+   if (!cmd->state.pipeline_bandwidth &&
+       (EMIT_STATE(bandwidth) || (cmd->state.dirty & TU_CMD_DIRTY_SUBPASS)))
       tu_calc_bandwidth(&cmd->state.bandwidth, &cmd->vk.dynamic_graphics_state.cb,
                         &cmd->state.vk_rp);
+
+   if (!cmd->state.pipeline_disable_fs &&
+       (EMIT_STATE(disable_fs) ||
+        (cmd->state.dirty & (TU_CMD_DIRTY_SUBPASS | TU_CMD_DIRTY_FS)))) {
+      bool disable_fs = tu_calc_disable_fs(
+         &cmd->vk.dynamic_graphics_state.cb, &cmd->state.vk_rp,
+         cmd->vk.dynamic_graphics_state.ms.alpha_to_coverage_enable,
+         cmd->state.shaders[MESA_SHADER_FRAGMENT]);
+
+      if (disable_fs != cmd->state.disable_fs) {
+         cmd->state.disable_fs = disable_fs;
+         cmd->state.dirty |= TU_CMD_DIRTY_DISABLE_FS;
+      }
+   }
+
    DRAW_STATE(blend_constants, VK_DYNAMIC_STATE_BLEND_CONSTANTS,
               &cmd->vk.dynamic_graphics_state.cb);
 
@@ -3810,11 +3999,13 @@ tu_emit_draw_state(struct tu_cmd_buffer *cmd)
    }
    DRAW_STATE_COND(rast, TU_DYNAMIC_STATE_RAST,
                    cmd->state.dirty & (TU_CMD_DIRTY_SUBPASS |
-                                       TU_CMD_DIRTY_PER_VIEW_VIEWPORT),
+                                       TU_CMD_DIRTY_PER_VIEW_VIEWPORT |
+                                       TU_CMD_DIRTY_DISABLE_FS),
                    &cmd->vk.dynamic_graphics_state.rs,
                    &cmd->vk.dynamic_graphics_state.vp,
                    cmd->state.vk_rp.view_mask != 0,
-                   cmd->state.per_view_viewport);
+                   cmd->state.per_view_viewport,
+                   cmd->state.disable_fs);
    DRAW_STATE_COND(ds, TU_DYNAMIC_STATE_DS,
               cmd->state.dirty & TU_CMD_DIRTY_SUBPASS,
               &cmd->vk.dynamic_graphics_state.ds,
@@ -4504,8 +4695,10 @@ tu_compute_pipeline_create(VkDevice device,
 
    if (creation_feedback) {
       *creation_feedback->pPipelineCreationFeedback = pipeline_feedback;
-      assert(creation_feedback->pipelineStageCreationFeedbackCount == 1);
-      creation_feedback->pPipelineStageCreationFeedbacks[0] = pipeline_feedback;
+      if (creation_feedback->pipelineStageCreationFeedbackCount > 0) {
+         assert(creation_feedback->pipelineStageCreationFeedbackCount == 1);
+         creation_feedback->pPipelineStageCreationFeedbacks[0] = pipeline_feedback;
+      }
    }
 
    pipeline->base.active_desc_sets = shader->active_desc_sets;
@@ -4606,12 +4799,6 @@ tu_DestroyPipeline(VkDevice _device,
    vk_object_free(&dev->vk, pAllocator, pipeline);
 }
 
-#define WRITE_STR(field, ...) ({                                \
-   memset(field, 0, sizeof(field));                             \
-   UNUSED int _i = snprintf(field, sizeof(field), __VA_ARGS__); \
-   assert(_i > 0 && _i < sizeof(field));                        \
-})
-
 static const struct tu_pipeline_executable *
 tu_pipeline_get_executable(struct tu_pipeline *pipeline, uint32_t index)
 {
@@ -4639,11 +4826,11 @@ tu_GetPipelineExecutablePropertiesKHR(
          props->stages = mesa_to_vk_shader_stage(stage);
 
          if (!exe->is_binning)
-            WRITE_STR(props->name, "%s", _mesa_shader_stage_to_abbrev(stage));
+            VK_COPY_STR(props->name, _mesa_shader_stage_to_abbrev(stage));
          else
-            WRITE_STR(props->name, "Binning VS");
+            VK_COPY_STR(props->name, "Binning VS");
 
-         WRITE_STR(props->description, "%s", _mesa_shader_stage_to_string(stage));
+         VK_COPY_STR(props->description, _mesa_shader_stage_to_string(stage));
 
          props->subgroupSize =
             dev->compiler->threadsize_base * (exe->stats.double_threadsize ? 2 : 1);
@@ -4667,171 +4854,31 @@ tu_GetPipelineExecutableStatisticsKHR(
    const struct tu_pipeline_executable *exe =
       tu_pipeline_get_executable(pipeline, pExecutableInfo->executableIndex);
 
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Max Waves Per Core");
-      WRITE_STR(stat->description,
-                "Maximum number of simultaneous waves per core.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.max_waves;
+   struct adreno_stats stats;
+   stats.maxwaves = exe->stats.max_waves;
+   stats.inst = exe->stats.instrs_count;
+   stats.code_size = exe->stats.sizedwords;
+   stats.nops = exe->stats.nops_count;
+   stats.mov = exe->stats.mov_count;
+   stats.cov = exe->stats.cov_count;
+   stats.full = exe->stats.max_reg + 1;
+   stats.half = exe->stats.max_half_reg + 1;
+   stats.last_baryf = exe->stats.last_baryf;
+   stats.last_helper = exe->stats.last_helper;
+   stats.ss = exe->stats.ss;
+   stats.sy = exe->stats.sy;
+   stats.ss_stall = exe->stats.sstall;
+   stats.sy_stall = exe->stats.systall;
+   stats.stps = exe->stats.stp_count;
+   stats.ldps = exe->stats.ldp_count;
+   stats.preamble_inst = exe->stats.preamble_instrs_count;
+   stats.early_preamble = exe->stats.early_preamble;
+
+   for (unsigned i = 0; i < ARRAY_SIZE(exe->stats.instrs_per_cat); ++i) {
+      stats.cat[i] = exe->stats.instrs_per_cat[i];
    }
 
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Instruction Count");
-      WRITE_STR(stat->description,
-                "Total number of IR3 instructions in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.instrs_count;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Code size");
-      WRITE_STR(stat->description,
-                "Total number of dwords in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.sizedwords;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "NOPs Count");
-      WRITE_STR(stat->description,
-                "Number of NOP instructions in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.nops_count;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "MOV Count");
-      WRITE_STR(stat->description,
-                "Number of MOV instructions in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.mov_count;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "COV Count");
-      WRITE_STR(stat->description,
-                "Number of COV instructions in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.cov_count;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Registers used");
-      WRITE_STR(stat->description,
-                "Number of registers used in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.max_reg + 1;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Half-registers used");
-      WRITE_STR(stat->description,
-                "Number of half-registers used in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.max_half_reg + 1;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Last interpolation instruction");
-      WRITE_STR(stat->description,
-                "The instruction where varying storage in Local Memory is released");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.last_baryf;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Last helper instruction");
-      WRITE_STR(stat->description,
-                "The instruction where helper invocations are killed");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.last_helper;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Instructions with SS sync bit");
-      WRITE_STR(stat->description,
-                "SS bit is set for instructions which depend on a result "
-                "of \"long\" instructions to prevent RAW hazard.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.ss;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Instructions with SY sync bit");
-      WRITE_STR(stat->description,
-                "SY bit is set for instructions which depend on a result "
-                "of loads from global memory to prevent RAW hazard.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.sy;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Estimated cycles stalled on SS");
-      WRITE_STR(stat->description,
-                "A better metric to estimate the impact of SS syncs.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.sstall;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Estimated cycles stalled on SY");
-      WRITE_STR(stat->description,
-                "A better metric to estimate the impact of SY syncs.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.systall;
-   }
-
-   for (int i = 0; i < ARRAY_SIZE(exe->stats.instrs_per_cat); i++) {
-      vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-         WRITE_STR(stat->name, "cat%d instructions", i);
-         WRITE_STR(stat->description,
-                  "Number of cat%d instructions.", i);
-         stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-         stat->value.u64 = exe->stats.instrs_per_cat[i];
-      }
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "STP Count");
-      WRITE_STR(stat->description,
-                "Number of STore Private instructions in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.stp_count;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "LDP Count");
-      WRITE_STR(stat->description,
-                "Number of LoaD Private instructions in the final generated "
-                "shader executable.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.ldp_count;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Preamble Instruction Count");
-      WRITE_STR(stat->description,
-                "Total number of IR3 instructions in the preamble.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_UINT64_KHR;
-      stat->value.u64 = exe->stats.preamble_instrs_count;
-   }
-
-   vk_outarray_append_typed(VkPipelineExecutableStatisticKHR, &out, stat) {
-      WRITE_STR(stat->name, "Early preamble");
-      WRITE_STR(stat->description,
-                "Whether the preamble will be executed early.");
-      stat->format = VK_PIPELINE_EXECUTABLE_STATISTIC_FORMAT_BOOL32_KHR;
-      stat->value.b32 = exe->stats.early_preamble;
-   }
-
+   vk_add_adreno_stats(out, &stats);
    return vk_outarray_status(&out);
 }
 
@@ -4873,9 +4920,8 @@ tu_GetPipelineExecutableInternalRepresentationsKHR(
 
    if (exe->nir_from_spirv) {
       vk_outarray_append_typed(VkPipelineExecutableInternalRepresentationKHR, &out, ir) {
-         WRITE_STR(ir->name, "NIR from SPIRV");
-         WRITE_STR(ir->description,
-                   "Initial NIR before any optimizations");
+         VK_COPY_STR(ir->name, "NIR from SPIRV");
+         VK_COPY_STR(ir->description, "Initial NIR before any optimizations");
 
          if (!write_ir_text(ir, exe->nir_from_spirv))
             incomplete_text = true;
@@ -4884,9 +4930,9 @@ tu_GetPipelineExecutableInternalRepresentationsKHR(
 
    if (exe->nir_final) {
       vk_outarray_append_typed(VkPipelineExecutableInternalRepresentationKHR, &out, ir) {
-         WRITE_STR(ir->name, "Final NIR");
-         WRITE_STR(ir->description,
-                   "Final NIR before going into the back-end compiler");
+         VK_COPY_STR(ir->name, "Final NIR");
+         VK_COPY_STR(ir->description,
+                     "Final NIR before going into the back-end compiler");
 
          if (!write_ir_text(ir, exe->nir_final))
             incomplete_text = true;
@@ -4895,9 +4941,9 @@ tu_GetPipelineExecutableInternalRepresentationsKHR(
 
    if (exe->disasm) {
       vk_outarray_append_typed(VkPipelineExecutableInternalRepresentationKHR, &out, ir) {
-         WRITE_STR(ir->name, "IR3 Assembly");
-         WRITE_STR(ir->description,
-                   "Final IR3 assembly for the generated shader binary");
+         VK_COPY_STR(ir->name, "IR3 Assembly");
+         VK_COPY_STR(ir->description,
+                     "Final IR3 assembly for the generated shader binary");
 
          if (!write_ir_text(ir, exe->disasm))
             incomplete_text = true;

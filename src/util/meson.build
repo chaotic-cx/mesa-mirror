@@ -74,11 +74,14 @@ files_mesa_util = files(
   'os_time.c',
   'os_time.h',
   'os_file.c',
+  'os_file_notify.c',
   'os_memory_fd.c',
   'os_misc.c',
   'os_misc.h',
   'os_socket.c',
   'os_socket.h',
+  'pb_slab.c',
+  'pb_slab.h',
   'ptralloc.h',
   'perf/u_trace.h',
   'perf/u_trace.c',
@@ -210,6 +213,13 @@ format_srgb = custom_target(
   capture : true,
 )
 
+files_mesa_util += custom_target(
+  input : ['process_shader_stats.py', 'shader_stats.rnc', 'shader_stats.xml'],
+  output : 'shader_stats.h',
+  command : [prog_python, '@INPUT@'],
+  capture : true,
+)
+
 # subdir format provide files_mesa_format
 subdir('format')
 files_mesa_util += files_mesa_format
@@ -229,6 +239,11 @@ deps_for_libmesa_util = [
   idep_mesautilc11,
   idep_mesautilformat,
 ]
+
+if dep_libdrm.found()
+  files_mesa_util += files('u_sync_provider.c', 'u_sync_provider.h')
+  deps_for_libmesa_util += dep_libdrm
+endif
 
 if with_platform_android
   deps_for_libmesa_util += dep_android
@@ -262,14 +277,23 @@ if with_gpuvis
   )
 endif
 
+if with_sysprof
+  files_mesa_util += files(
+    'perf/u_sysprof.c',
+    'perf/u_sysprof.h',
+  )
+  deps_for_libmesa_util += dep_sysprof
+endif
+
 u_trace_py = files('perf/u_trace.py')
 
-libmesa_util_sse41 = static_library(
-  'mesa_util_sse41',
+libmesa_util_simd = static_library(
+  'mesa_util_simd',
   files('streaming-load-memcpy.c'),
   c_args : [c_msvc_compat_args, sse41_args],
   include_directories : [inc_util],
   gnu_symbol_visibility : 'hidden',
+  build_by_default : false,
 )
 
 _libmesa_util = static_library(
@@ -277,7 +301,7 @@ _libmesa_util = static_library(
   [files_mesa_util, files_debug_stack, format_srgb],
   include_directories : [inc_util, include_directories('format')],
   dependencies : deps_for_libmesa_util,
-  link_with: [libmesa_util_sse41],
+  link_with: [libmesa_util_simd],
   c_args : [c_msvc_compat_args],
   gnu_symbol_visibility : 'hidden',
   build_by_default : false

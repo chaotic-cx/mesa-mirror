@@ -34,6 +34,7 @@ static void init_polaris12(struct radeon_info *info)
    info->has_graphics = true;
    info->tcc_cache_line_size = 64;
    info->max_render_backends = 4;
+   info->num_physical_wave64_vgprs_per_simd = 256;
 
    uint32_t si_tile_mode_array[] = {
       0x00800150, 0x00800950, 0x00801150, 0x00801950, 0x00802950,
@@ -59,6 +60,7 @@ static void init_vega10(struct radeon_info *info)
    info->has_graphics = true;
    info->tcc_cache_line_size = 64;
    info->max_render_backends = 16;
+   info->num_physical_wave64_vgprs_per_simd = 256;
 
    info->gb_addr_config = 0x2a114042;
 }
@@ -74,6 +76,7 @@ static void init_vega20(struct radeon_info *info)
    info->has_graphics = true;
    info->tcc_cache_line_size = 64;
    info->max_render_backends = 16;
+   info->num_physical_wave64_vgprs_per_simd = 256;
 
    info->gb_addr_config = 0x2a114042;
 }
@@ -90,6 +93,7 @@ static void init_raven(struct radeon_info *info)
    info->has_graphics = true;
    info->tcc_cache_line_size = 64;
    info->max_render_backends = 2;
+   info->num_physical_wave64_vgprs_per_simd = 256;
 
    info->gb_addr_config = 0x24000042;
 }
@@ -105,6 +109,7 @@ static void init_raven2(struct radeon_info *info)
    info->has_graphics = true;
    info->tcc_cache_line_size = 64;
    info->max_render_backends = 1;
+   info->num_physical_wave64_vgprs_per_simd = 256;
 
    info->gb_addr_config = 0x26013041;
 }
@@ -119,6 +124,7 @@ static void init_navi10(struct radeon_info *info)
    info->use_display_dcc_with_retile_blit = false;
    info->has_graphics = true;
    info->tcc_cache_line_size = 128;
+   info->num_physical_wave64_vgprs_per_simd = 512;
 
    info->gb_addr_config = 0x00100044;
 }
@@ -133,6 +139,7 @@ static void init_navi14(struct radeon_info *info)
    info->use_display_dcc_with_retile_blit = false;
    info->has_graphics = true;
    info->tcc_cache_line_size = 128;
+   info->num_physical_wave64_vgprs_per_simd = 512;
 
    info->gb_addr_config = 0x00000043;
 }
@@ -149,11 +156,12 @@ static void init_gfx103(struct radeon_info *info)
    info->tcc_cache_line_size = 128;
    info->has_rbplus = true;
    info->rbplus_allowed = true;
+   info->num_physical_wave64_vgprs_per_simd = 512;
 
    info->gb_addr_config = 0x00000040; /* Other fields are set by test cases. */
 }
 
-static void init_gfx11(struct radeon_info *info)
+static void init_navi31(struct radeon_info *info)
 {
    info->family = CHIP_NAVI31;
    info->gfx_level = GFX11;
@@ -165,6 +173,58 @@ static void init_gfx11(struct radeon_info *info)
    info->tcc_cache_line_size = 128;
    info->has_rbplus = true;
    info->rbplus_allowed = true;
+   info->num_physical_wave64_vgprs_per_simd = 768;
+
+   info->gb_addr_config = 0x00000040; /* Other fields are set by test cases. */
+}
+
+static void init_navi32(struct radeon_info *info)
+{
+   info->family = CHIP_NAVI32;
+   info->gfx_level = GFX11;
+   info->family_id = FAMILY_NV3;
+   info->chip_external_rev = 0x20;
+   info->use_display_dcc_unaligned = false;
+   info->use_display_dcc_with_retile_blit = true;
+   info->has_graphics = true;
+   info->tcc_cache_line_size = 128;
+   info->has_rbplus = true;
+   info->rbplus_allowed = true;
+   info->num_physical_wave64_vgprs_per_simd = 768;
+
+   info->gb_addr_config = 0x00000040; /* Other fields are set by test cases. */
+}
+
+static void init_navi33(struct radeon_info *info)
+{
+   info->family = CHIP_NAVI33;
+   info->gfx_level = GFX11;
+   info->family_id = FAMILY_NV3;
+   info->chip_external_rev = 0x10;
+   info->use_display_dcc_unaligned = false;
+   info->use_display_dcc_with_retile_blit = true;
+   info->has_graphics = true;
+   info->tcc_cache_line_size = 128;
+   info->has_rbplus = true;
+   info->rbplus_allowed = true;
+   info->num_physical_wave64_vgprs_per_simd = 512;
+
+   info->gb_addr_config = 0x00000040; /* Other fields are set by test cases. */
+}
+
+static void init_gfx11_apu(struct radeon_info *info)
+{
+   info->family = CHIP_PHOENIX;
+   info->gfx_level = GFX11;
+   info->family_id = FAMILY_PHX;
+   info->chip_external_rev = 0x01;
+   info->use_display_dcc_unaligned = false;
+   info->use_display_dcc_with_retile_blit = true;
+   info->has_graphics = true;
+   info->tcc_cache_line_size = 128;
+   info->has_rbplus = true;
+   info->rbplus_allowed = true;
+   info->num_physical_wave64_vgprs_per_simd = 512;
 
    info->gb_addr_config = 0x00000040; /* Other fields are set by test cases. */
 }
@@ -179,6 +239,7 @@ static void init_gfx12(struct radeon_info *info)
    info->tcc_cache_line_size = 256;
    info->has_rbplus = true;
    info->rbplus_allowed = true;
+   info->num_physical_wave64_vgprs_per_simd = 768;
 
    info->gb_addr_config = 0; /* Other fields are set by test cases. */
 }
@@ -207,21 +268,21 @@ static struct ac_fake_hw ac_fake_hw_db[] = {
    {"navi10_diff_pipe", init_navi10, 0, 3},
    {"navi10_diff_pkr", init_navi10, 1, 4},
    {"navi14", init_navi14, 1, 3},
-   {"gfx103_16pipe", init_gfx103, 4, 4},
-   {"gfx103_16pipe_8pkr", init_gfx103, 3, 4},
-   {"gfx103_8pipe", init_gfx103, 3, 3},
-   {"gfx103_4pipe", init_gfx103, 2, 2},
-   {"gfx103_4pipe_2pkr", init_gfx103, 1, 2},
-   {"gfx103_4pipe_1pkr", init_gfx103, 0, 2},
-   {"gfx103_2pipe_1pkr", init_gfx103, 0, 1},
-   {"gfx11_32pipe", init_gfx11, 5, 5},
-   {"gfx11_16pipe", init_gfx11, 4, 4},
-   {"gfx11_8pipe", init_gfx11, 3, 3},
-   {"gfx11_4pipe", init_gfx11, 2, 2},
-   {"gfx11_4pipe_2pkr", init_gfx11, 1, 2},
-   {"gfx11_4pipe_1pkr", init_gfx11, 0, 2},
-   {"gfx11_2pipe_1pkr", init_gfx11, 0, 1},
-   {"gfx12_16pipe", init_gfx12, 4, 4},
+   {"navi21", init_gfx103, 4, 4},
+   {"navi21_8pkr", init_gfx103, 3, 4},
+   {"navi22", init_gfx103, 3, 3},
+   {"navi24", init_gfx103, 2, 2},
+   {"vangogh", init_gfx103, 1, 2},
+   {"vangogh_1pkr", init_gfx103, 0, 2},
+   {"raphael", init_gfx103, 0, 1},
+   {"navi31", init_navi31, 5, 5},
+   {"navi32", init_navi32, 4, 4},
+   {"navi33", init_navi33, 3, 3},
+   {"phoenix", init_gfx11_apu, 2, 2},
+   {"phoenix_2pkr", init_gfx11_apu, 1, 2},
+   {"phoenix2", init_gfx11_apu, 0, 2},
+   {"phoenix2_2pipe", init_gfx11_apu, 0, 1},
+   {"gfx12", init_gfx12, 4, 4},
 };
 
 static void get_radeon_info(struct radeon_info *info, struct ac_fake_hw *hw)

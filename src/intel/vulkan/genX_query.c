@@ -51,6 +51,12 @@
 
 #include "vk_util.h"
 
+static void *
+query_slot(struct anv_query_pool *pool, uint32_t query)
+{
+   return pool->bo->map + query * pool->stride;
+}
+
 static struct anv_address
 anv_query_address(struct anv_query_pool *pool, uint32_t query)
 {
@@ -69,6 +75,51 @@ emit_query_mi_flush_availability(struct anv_cmd_buffer *cmd_buffer,
       flush.PostSyncOperation = WriteImmediateData;
       flush.Address = addr;
       flush.ImmediateData = available;
+   }
+}
+
+static void
+emit_query_mi_availability(struct mi_builder *b,
+                           struct anv_address addr,
+                           bool available)
+{
+   mi_store(b, mi_mem64(addr), mi_imm(available));
+}
+
+static void
+emit_query_pc_availability(struct anv_cmd_buffer *cmd_buffer,
+                           struct anv_address addr,
+                           bool available)
+{
+   cmd_buffer->state.pending_pipe_bits |= ANV_PIPE_POST_SYNC_BIT;
+   genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
+
+   genx_batch_emit_pipe_control_write
+      (&cmd_buffer->batch, cmd_buffer->device->info,
+       cmd_buffer->state.current_pipeline, WriteImmediateData, addr,
+       available, 0);
+}
+
+/* End of pipe availability */
+static void
+emit_query_eop_availability(struct anv_cmd_buffer *cmd_buffer,
+                            struct anv_address addr,
+                            bool available)
+{
+   switch (cmd_buffer->queue_family->engine_class) {
+   case INTEL_ENGINE_CLASS_RENDER:
+   case INTEL_ENGINE_CLASS_COMPUTE:
+      emit_query_pc_availability(cmd_buffer, addr, available);
+      break;
+
+   case INTEL_ENGINE_CLASS_COPY:
+   case INTEL_ENGINE_CLASS_VIDEO:
+   case INTEL_ENGINE_CLASS_VIDEO_ENHANCE:
+      emit_query_mi_flush_availability(cmd_buffer, addr, available);
+      break;
+
+   default:
+      unreachable("Invalid engine class");
    }
 }
 
@@ -202,7 +253,7 @@ VkResult genX(CreateQueryPool)(
       uint64s_per_slot = 1 + 1; /* availability + length of written bitstream data */
       break;
    default:
-      assert(!"Invalid query type");
+      unreachable("Invalid query type");
    }
 
    if (!vk_multialloc_zalloc2(&ma, &device->vk.alloc, pAllocator,
@@ -256,6 +307,7 @@ VkResult genX(CreateQueryPool)(
                                 ANV_BO_ALLOC_CAPTURE,
                                 0 /* explicit_address */,
                                 &pool->bo);
+   ANV_DMR_BO_ALLOC(&pool->vk.base, pool->bo, result);
    if (result != VK_SUCCESS)
       goto fail;
 
@@ -272,6 +324,13 @@ VkResult genX(CreateQueryPool)(
          mi_store(&b, mi_reg64(ANV_PERF_QUERY_OFFSET_REG),
                       mi_imm(p * (uint64_t)pool->pass_size));
          anv_batch_emit(&batch, GENX(MI_BATCH_BUFFER_END), bbe);
+      }
+   }
+
+   if (pCreateInfo->flags & VK_QUERY_POOL_CREATE_RESET_BIT_KHR) {
+      for (uint32_t q = 0; q < pool->vk.query_count; q++) {
+         uint64_t *slot = query_slot(pool, q);
+         *slot = 0;
       }
    }
 
@@ -299,7 +358,7 @@ void genX(DestroyQueryPool)(
       return;
 
    ANV_RMV(resource_destroy, device, pool);
-
+   ANV_DMR_BO_FREE(&pool->vk.base, pool->bo);
    anv_device_release_bo(device, pool->bo);
    vk_object_free(&device->vk, pAllocator, pool);
 }
@@ -429,12 +488,6 @@ cpu_write_query_result(void *dst_slot, VkQueryResultFlags flags,
       uint32_t *dst32 = dst_slot;
       dst32[value_index] = result;
    }
-}
-
-static void *
-query_slot(struct anv_query_pool *pool, uint32_t query)
-{
-   return pool->bo->map + query * pool->stride;
 }
 
 static bool
@@ -727,28 +780,6 @@ emit_ps_depth_count(struct anv_cmd_buffer *cmd_buffer,
        ANV_PIPE_DEPTH_STALL_BIT | (cs_stall_needed ? ANV_PIPE_CS_STALL_BIT : 0));
 }
 
-static void
-emit_query_mi_availability(struct mi_builder *b,
-                           struct anv_address addr,
-                           bool available)
-{
-   mi_store(b, mi_mem64(addr), mi_imm(available));
-}
-
-static void
-emit_query_pc_availability(struct anv_cmd_buffer *cmd_buffer,
-                           struct anv_address addr,
-                           bool available)
-{
-   cmd_buffer->state.pending_pipe_bits |= ANV_PIPE_POST_SYNC_BIT;
-   genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
-
-   genx_batch_emit_pipe_control_write
-      (&cmd_buffer->batch, cmd_buffer->device->info,
-       cmd_buffer->state.current_pipeline, WriteImmediateData, addr,
-       available, 0);
-}
-
 /**
  * Goes through a series of consecutive query indices in the given pool
  * setting all element values to 0 and emitting them as available.
@@ -771,11 +802,11 @@ emit_zero_queries(struct anv_cmd_buffer *cmd_buffer,
             anv_query_address(pool, first_index + i);
 
          for (uint32_t qword = 1; qword < (pool->stride / 8); qword++) {
-            emit_query_pc_availability(cmd_buffer,
-                                       anv_address_add(slot_addr, qword * 8),
-                                       false);
+            emit_query_eop_availability(cmd_buffer,
+                                        anv_address_add(slot_addr, qword * 8),
+                                        false);
          }
-         emit_query_pc_availability(cmd_buffer, slot_addr, true);
+         emit_query_eop_availability(cmd_buffer, slot_addr, true);
       }
       break;
 
@@ -840,8 +871,7 @@ void genX(CmdResetQueryPool)(
 
       anv_cmd_buffer_fill_area(cmd_buffer,
                                anv_query_address(pool, firstQuery),
-                               queryCount * pool->stride,
-                               0, false);
+                               queryCount * pool->stride, 0);
 
       /* The pending clearing writes are in compute if we're in gpgpu mode on
        * the render engine or on the compute engine.
@@ -878,9 +908,9 @@ void genX(CmdResetQueryPool)(
 
    case VK_QUERY_TYPE_TIMESTAMP: {
       for (uint32_t i = 0; i < queryCount; i++) {
-         emit_query_pc_availability(cmd_buffer,
-                                    anv_query_address(pool, firstQuery + i),
-                                    false);
+         emit_query_eop_availability(cmd_buffer,
+                                     anv_query_address(pool, firstQuery + i),
+                                     false);
       }
 
       /* Add a CS stall here to make sure the PIPE_CONTROL above has
@@ -2017,12 +2047,7 @@ void genX(CmdCopyQueryPoolResults)(
 
 #if GFX_VERx10 >= 125 && ANV_SUPPORT_RT
 
-#if ANV_SUPPORT_RT_GRL
-#include "grl/include/GRLRTASCommon.h"
-#include "grl/grl_metakernel_postbuild_info.h"
-#else
 #include "bvh/anv_bvh.h"
-#endif
 
 void
 genX(CmdWriteAccelerationStructuresPropertiesKHR)(
@@ -2041,66 +2066,19 @@ genX(CmdWriteAccelerationStructuresPropertiesKHR)(
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
    ANV_FROM_HANDLE(anv_query_pool, pool, queryPool);
 
-#if !ANV_SUPPORT_RT_GRL
    anv_add_pending_pipe_bits(cmd_buffer,
                              ANV_PIPE_END_OF_PIPE_SYNC_BIT |
                              ANV_PIPE_DATA_CACHE_FLUSH_BIT,
                              "read BVH data using CS");
-#endif
 
    if (append_query_clear_flush(
           cmd_buffer, pool,
-          "CmdWriteAccelerationStructuresPropertiesKHR flush query clears") ||
-       !ANV_SUPPORT_RT_GRL)
+          "CmdWriteAccelerationStructuresPropertiesKHR flush query clears"))
       genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
 
    struct mi_builder b;
    mi_builder_init(&b, cmd_buffer->device->info, &cmd_buffer->batch);
 
-#if ANV_SUPPORT_RT_GRL
-   for (uint32_t i = 0; i < accelerationStructureCount; i++) {
-      ANV_FROM_HANDLE(vk_acceleration_structure, accel, pAccelerationStructures[i]);
-      struct anv_address query_addr =
-         anv_address_add(anv_query_address(pool, firstQuery + i), 8);
-
-      switch (queryType) {
-      case VK_QUERY_TYPE_ACCELERATION_STRUCTURE_COMPACTED_SIZE_KHR:
-         genX(grl_postbuild_info_compacted_size)(cmd_buffer,
-                                                 vk_acceleration_structure_get_va(accel),
-                                                 anv_address_physical(query_addr));
-         break;
-
-      case VK_QUERY_TYPE_ACCELERATION_STRUCTURE_SIZE_KHR:
-         genX(grl_postbuild_info_current_size)(cmd_buffer,
-                                               vk_acceleration_structure_get_va(accel),
-                                               anv_address_physical(query_addr));
-         break;
-
-      case VK_QUERY_TYPE_ACCELERATION_STRUCTURE_SERIALIZATION_SIZE_KHR:
-      case VK_QUERY_TYPE_ACCELERATION_STRUCTURE_SERIALIZATION_BOTTOM_LEVEL_POINTERS_KHR:
-         genX(grl_postbuild_info_serialized_size)(cmd_buffer,
-                                                  vk_acceleration_structure_get_va(accel),
-                                                  anv_address_physical(query_addr));
-         break;
-
-      default:
-         unreachable("unhandled query type");
-      }
-   }
-
-   /* TODO: Figure out why MTL needs ANV_PIPE_DATA_CACHE_FLUSH_BIT in order
-    * to not lose the availability bit.
-    */
-   anv_add_pending_pipe_bits(cmd_buffer,
-                             ANV_PIPE_END_OF_PIPE_SYNC_BIT |
-                             ANV_PIPE_DATA_CACHE_FLUSH_BIT,
-                             "after write acceleration struct props");
-   genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
-
-   for (uint32_t i = 0; i < accelerationStructureCount; i++)
-      emit_query_mi_availability(&b, anv_query_address(pool, firstQuery + i), true);
-
-#else
    for (uint32_t i = 0; i < accelerationStructureCount; i++) {
       ANV_FROM_HANDLE(vk_acceleration_structure, accel, pAccelerationStructures[i]);
       struct anv_address query_addr =
@@ -2140,6 +2118,5 @@ genX(CmdWriteAccelerationStructuresPropertiesKHR)(
       mi_builder_set_write_check(&b1, (i == (accelerationStructureCount - 1)));
       emit_query_mi_availability(&b1, anv_query_address(pool, firstQuery + i), true);
    }
-#endif /* ANV_SUPPORT_RT_GRL */
 }
 #endif /* GFX_VERx10 >= 125 && ANV_SUPPORT_RT */

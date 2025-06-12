@@ -186,7 +186,7 @@ zink_bind_vertex_elements_state(struct pipe_context *pctx,
    ctx->element_state = cso;
    if (cso) {
       if (state->element_state != &ctx->element_state->hw_state) {
-         ctx->vertex_state_changed = !zink_screen(pctx->screen)->info.have_EXT_vertex_input_dynamic_state;
+         ctx->vertex_state_changed = true;
          ctx->vertex_buffers_dirty = ctx->element_state->hw_state.num_bindings > 0;
       }
       state->element_state = &ctx->element_state->hw_state;
@@ -659,9 +659,7 @@ zink_create_rasterizer_state(struct pipe_context *pctx,
    }
 
    state->offset_fill = util_get_offset(rs_state, rs_state->fill_front);
-   state->offset_units = rs_state->offset_units;
-   if (!rs_state->offset_units_unscaled)
-      state->offset_units *= 2;
+   state->offset_units = rs_state->offset_units * 2;
    state->offset_clamp = rs_state->offset_clamp;
    state->offset_scale = rs_state->offset_scale;
 
@@ -768,6 +766,15 @@ zink_bind_rasterizer_state(struct pipe_context *pctx, void *cso)
 
       if (ctx->rast_state->base.half_pixel_center != half_pixel_center)
          ctx->vp_state_changed = true;
+
+#define FLT_DIFF(a) (fabs(prev_state->a - ctx->rast_state->a) > FLT_EPSILON)
+      if (prev_state)
+         ctx->depth_bias_changed = prev_state->offset_fill != ctx->rast_state->offset_fill ||
+                                   FLT_DIFF(offset_units) ||
+                                   FLT_DIFF(offset_clamp) ||
+                                   FLT_DIFF(offset_scale);
+      else
+         ctx->depth_bias_changed = true;
 
       if (!screen->optimal_keys)
          zink_update_gs_key_rectangular_line(ctx);

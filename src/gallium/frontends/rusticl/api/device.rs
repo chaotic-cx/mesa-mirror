@@ -12,17 +12,21 @@ use rusticl_proc_macros::cl_entrypoint;
 use rusticl_proc_macros::cl_info_entrypoint;
 
 use std::cmp::min;
+use std::ffi::c_char;
 use std::ffi::CStr;
 use std::mem::size_of;
 use std::ptr;
 
-const SPIRV_SUPPORT_STRING: &CStr = c"SPIR-V_1.0 SPIR-V_1.1 SPIR-V_1.2 SPIR-V_1.3 SPIR-V_1.4";
-const SPIRV_SUPPORT: [cl_name_version; 5] = [
+const SPIRV_SUPPORT_STRING: &CStr =
+    c"SPIR-V_1.0 SPIR-V_1.1 SPIR-V_1.2 SPIR-V_1.3 SPIR-V_1.4 SPIR-V_1.5 SPIR-V_1.6";
+const SPIRV_SUPPORT: [cl_name_version; 7] = [
     mk_cl_version_ext(1, 0, 0, "SPIR-V"),
     mk_cl_version_ext(1, 1, 0, "SPIR-V"),
     mk_cl_version_ext(1, 2, 0, "SPIR-V"),
     mk_cl_version_ext(1, 3, 0, "SPIR-V"),
     mk_cl_version_ext(1, 4, 0, "SPIR-V"),
+    mk_cl_version_ext(1, 5, 0, "SPIR-V"),
+    mk_cl_version_ext(1, 6, 0, "SPIR-V"),
 ];
 type ClDevIdpAccelProps = cl_device_integer_dot_product_acceleration_properties_khr;
 
@@ -97,7 +101,7 @@ unsafe impl CLInfo<cl_device_info> for cl_device_id {
             }
             CL_DEVICE_HOST_UNIFIED_MEMORY => v.write::<bool>(dev.unified_memory()),
             CL_DEVICE_IL_VERSION => v.write::<&CStr>(SPIRV_SUPPORT_STRING),
-            CL_DEVICE_ILS_WITH_VERSION => v.write::<Vec<cl_name_version>>(SPIRV_SUPPORT.to_vec()),
+            CL_DEVICE_ILS_WITH_VERSION => v.write::<&[cl_name_version]>(&SPIRV_SUPPORT),
             CL_DEVICE_IMAGE_BASE_ADDRESS_ALIGNMENT => {
                 v.write::<cl_uint>(dev.image_base_address_alignment())
             }
@@ -147,7 +151,13 @@ unsafe impl CLInfo<cl_device_info> for cl_device_id {
                     )
                 })
             }
-
+            CL_DEVICE_KERNEL_CLOCK_CAPABILITIES_KHR if dev.kernel_clock_supported() => {
+                v.write::<cl_device_kernel_clock_capabilities_khr>(
+                    (CL_DEVICE_KERNEL_CLOCK_SCOPE_DEVICE_KHR
+                        | CL_DEVICE_KERNEL_CLOCK_SCOPE_SUB_GROUP_KHR)
+                        .into(),
+                )
+            }
             CL_DEVICE_LATEST_CONFORMANCE_VERSION_PASSED => {
                 v.write::<&CStr>(dev.screen().cl_cts_version())
             }
@@ -186,7 +196,7 @@ unsafe impl CLInfo<cl_device_info> for cl_device_id {
             CL_DEVICE_MAX_SAMPLERS => v.write::<cl_uint>(dev.max_samplers()),
             CL_DEVICE_MAX_WORK_GROUP_SIZE => v.write::<usize>(dev.max_threads_per_block()),
             CL_DEVICE_MAX_WORK_ITEM_DIMENSIONS => v.write::<cl_uint>(dev.max_grid_dimensions()),
-            CL_DEVICE_MAX_WORK_ITEM_SIZES => v.write::<Vec<usize>>(dev.max_block_sizes()),
+            CL_DEVICE_MAX_WORK_ITEM_SIZES => v.write::<&[usize]>(&dev.max_block_sizes()),
             CL_DEVICE_MAX_WRITE_IMAGE_ARGS => v.write::<cl_uint>(dev.caps.max_write_images),
             // TODO proper retrival from devices
             CL_DEVICE_MEM_BASE_ADDR_ALIGN => v.write::<cl_uint>(0x1000),
@@ -243,7 +253,7 @@ unsafe impl CLInfo<cl_device_info> for cl_device_id {
             CL_DEVICE_PREFERRED_VECTOR_WIDTH_LONG => v.write::<cl_uint>(1),
             CL_DEVICE_PREFERRED_VECTOR_WIDTH_SHORT => v.write::<cl_uint>(1),
             CL_DEVICE_PREFERRED_WORK_GROUP_SIZE_MULTIPLE => {
-                v.write::<usize>(dev.subgroup_sizes()[0])
+                v.write::<usize>(dev.subgroup_sizes().next().unwrap())
             }
             CL_DEVICE_PRINTF_BUFFER_SIZE => v.write::<usize>(dev.printf_buffer_size()),
             CL_DEVICE_PROFILE => v.write::<&CStr>(if dev.embedded {
@@ -270,25 +280,37 @@ unsafe impl CLInfo<cl_device_info> for cl_device_id {
             CL_DEVICE_SINGLE_FP_CONFIG => v.write::<cl_device_fp_config>(
                 (CL_FP_ROUND_TO_NEAREST | CL_FP_INF_NAN) as cl_device_fp_config,
             ),
+            CL_DEVICE_SPIRV_CAPABILITIES_KHR => {
+                v.write_iter::<cl_uint>(dev.spirv_caps_vec.iter().map(|&cap| cap as _))
+            }
+            CL_DEVICE_SPIRV_EXTENDED_INSTRUCTION_SETS_KHR => {
+                // use static memory as we hand out pointers to the values here.
+                static instr_sets: [&CStr; 1] = [c"OpenCL.std"];
+                v.write_iter::<*const c_char>(instr_sets.iter().map(|str| str.as_ptr()))
+            }
+            CL_DEVICE_SPIRV_EXTENSIONS_KHR => {
+                v.write_iter::<*const c_char>(dev.spirv_extensions.iter().map(|str| str.as_ptr()))
+            }
             CL_DEVICE_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS => v.write::<bool>(false),
             CL_DEVICE_SUB_GROUP_SIZES_INTEL => {
-                v.write::<Vec<usize>>(if dev.subgroups_supported() {
-                    dev.subgroup_sizes()
+                if dev.subgroups_supported() {
+                    v.write_iter::<usize>(dev.subgroup_sizes())
                 } else {
-                    vec![0; 1]
-                })
+                    v.write::<&[usize]>(&[0; 1])
+                }
             }
             CL_DEVICE_SVM_CAPABILITIES | CL_DEVICE_SVM_CAPABILITIES_ARM => {
-                v.write::<cl_device_svm_capabilities>(
-                    if dev.svm_supported() {
-                        CL_DEVICE_SVM_COARSE_GRAIN_BUFFER
-                            | CL_DEVICE_SVM_FINE_GRAIN_BUFFER
-                            | CL_DEVICE_SVM_FINE_GRAIN_SYSTEM
-                    } else {
-                        0
-                    }
-                    .into(),
-                )
+                let mut caps = 0;
+
+                if dev.api_svm_supported() {
+                    caps |= CL_DEVICE_SVM_COARSE_GRAIN_BUFFER;
+                }
+
+                if dev.system_svm_supported() {
+                    caps |= CL_DEVICE_SVM_FINE_GRAIN_BUFFER | CL_DEVICE_SVM_FINE_GRAIN_SYSTEM;
+                }
+
+                v.write::<cl_device_svm_capabilities>(caps.into())
             }
             CL_DEVICE_TYPE => {
                 // CL_DEVICE_TYPE_DEFAULT ... will never be returned in CL_DEVICE_TYPE for any
@@ -343,9 +365,16 @@ fn get_device_ids(
         return Err(CL_DEVICE_NOT_FOUND);
     }
 
+    debug_assert!(
+        devs.len() <= cl_uint::MAX as usize,
+        "number of available devices exceeds `cl_uint::MAX`"
+    );
+
     // num_devices returns the number of OpenCL devices available that match device_type. If
     // num_devices is NULL, this argument is ignored.
-    num_devices.write_checked(devs.len() as cl_uint);
+    // SAFETY: Caller is responsible for providing a null pointer or one valid
+    // for a write of `size_of::<cl_uint>()`.
+    unsafe { num_devices.write_checked(devs.len() as cl_uint) };
 
     if !devices.is_null() {
         let n = min(num_entries as usize, devs.len());
@@ -426,7 +455,9 @@ fn get_host_timer(device_id: cl_device_id, host_timestamp: *mut cl_ulong) -> CLR
     }
 
     // Currently the best clock we have for the host_timestamp
-    host_timestamp.write_checked(device.screen().get_timestamp());
+    // SAFETY: Caller is responsible for providing a pointer valid for a write
+    // of `size_of::<cl_ulong>()`.
+    unsafe { host_timestamp.write_checked(device.screen().get_timestamp()) };
 
     Ok(())
 }

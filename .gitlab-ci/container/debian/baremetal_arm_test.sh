@@ -3,7 +3,6 @@
 # When changing this file, you need to bump the following
 # .gitlab-ci/image-tags.yml tags:
 # DEBIAN_BASE_TAG
-# KERNEL_ROOTFS_TAG
 
 set -e
 
@@ -15,7 +14,6 @@ set -o xtrace
 DEPS=(
     cpio
     curl
-    fastboot
     netcat-openbsd
     openssh-server
     procps
@@ -42,15 +40,3 @@ curl -L --retry 4 -f --retry-all-errors --retry-delay 60 \
     -o /usr/share/snmp/mibs/SNMPv2-SMI.txt
 
 . .gitlab-ci/container/baremetal_build.sh
-
-mkdir -p /baremetal-files/jetson-nano/boot/
-ln -s \
-    /baremetal-files/Image \
-    /baremetal-files/tegra210-p3450-0000.dtb \
-    /baremetal-files/jetson-nano/boot/
-
-mkdir -p /baremetal-files/jetson-tk1/boot/
-ln -s \
-    /baremetal-files/zImage \
-    /baremetal-files/tegra124-jetson-tk1.dtb \
-    /baremetal-files/jetson-tk1/boot/

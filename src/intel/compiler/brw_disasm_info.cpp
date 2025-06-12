@@ -70,7 +70,7 @@ dump_assembly(void *assembly, int start_offset, int end_offset,
       }
 
       brw_disassemble(isa, assembly, start_offset, end_offset,
-                      root_label, stderr);
+                      root_label, NULL, stderr);
 
       if (group->error) {
          fputs(group->error, stderr);
@@ -116,7 +116,7 @@ disasm_new_inst_group(struct disasm_info *disasm, int next_inst_offset)
 
 void
 disasm_annotate(struct disasm_info *disasm,
-                fs_inst *inst, int offset)
+                brw_inst *inst, int offset)
 {
    const struct cfg_t *cfg = disasm->cfg;
 
@@ -135,7 +135,7 @@ disasm_annotate(struct disasm_info *disasm,
    }
 #endif
 
-   if (bblock_start(cfg->blocks[disasm->cur_block]) == inst) {
+   if (cfg->blocks[disasm->cur_block]->start() == inst) {
       group->block_start = cfg->blocks[disasm->cur_block];
    }
 
@@ -151,7 +151,7 @@ disasm_annotate(struct disasm_info *disasm,
       disasm->use_tail = true;
    }
 
-   if (bblock_end(cfg->blocks[disasm->cur_block]) == inst) {
+   if (cfg->blocks[disasm->cur_block]->end() == inst) {
       group->block_end = cfg->blocks[disasm->cur_block];
       disasm->cur_block++;
    }

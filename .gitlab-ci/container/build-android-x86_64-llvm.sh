@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+# When changing this file, you need to bump the following
+# .gitlab-ci/image-tags.yml and .gitlab-ci/container/gitlab-ci.yml tags:
+# DEBIAN_BUILD_TAG
+# ANDROID_LLVM_ARTIFACT_NAME
+
 set -exu
 
 # If CI vars are not set, assign an empty value, this prevents -u to fail
@@ -7,8 +12,8 @@ set -exu
 : "${CI_PROJECT_PATH:=}"
 
 # Early check for required env variables, relies on `set -u`
+: "$ANDROID_NDK_VERSION"
 : "$ANDROID_SDK_VERSION"
-: "$ANDROID_NDK"
 : "$ANDROID_LLVM_VERSION"
 : "$ANDROID_LLVM_ARTIFACT_NAME"
 : "$S3_JWT_FILE"
@@ -34,15 +39,15 @@ if curl -s -o /dev/null -I -L -f --retry 4 --retry-delay 15 "https://${S3_HOST}/
   exit
 fi
 
-# Install some dependencies needed to build LLVM
+# Ephemeral packages (installed for this script and removed again at the end)
 EPHEMERAL=(
-  ninja-build
   unzip
 )
 
 apt-get update
 apt-get install -y --no-install-recommends --no-remove "${EPHEMERAL[@]}"
 
+ANDROID_NDK="android-ndk-${ANDROID_NDK_VERSION}"
 ANDROID_NDK_ROOT="/${ANDROID_NDK}"
 if [ ! -d "$ANDROID_NDK_ROOT" ];
 then
@@ -112,7 +117,5 @@ if [ -n "$CI" ]; then
   ci-fairy s3cp --token-file "${S3_JWT_FILE}" "${ANDROID_LLVM_ARTIFACT_NAME}.tar.zst" "https://${S3_HOST}/${S3_ANDROID_BUCKET}/${CI_PROJECT_PATH}/${ANDROID_LLVM_ARTIFACT_NAME}.tar.zst"
   rm "${ANDROID_LLVM_ARTIFACT_NAME}.tar.zst"
 fi
-
-rm -rf "$LLVM_INSTALL_PREFIX"
 
 apt-get purge -y "${EPHEMERAL[@]}"

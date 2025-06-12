@@ -424,17 +424,17 @@ vc4_set_framebuffer_state(struct pipe_context *pctx,
          * framebuffer.  Note that if the z/color buffers were mismatched
          * sizes, we wouldn't be able to do this.
          */
-        if (cso->cbufs[0] && cso->cbufs[0]->u.tex.level) {
+        if (cso->cbufs[0].texture && cso->cbufs[0].level) {
                 struct vc4_resource *rsc =
-                        vc4_resource(cso->cbufs[0]->texture);
+                        vc4_resource(cso->cbufs[0].texture);
                 cso->width =
-                        (rsc->slices[cso->cbufs[0]->u.tex.level].stride /
+                        (rsc->slices[cso->cbufs[0].level].stride /
                          rsc->cpp);
-        } else if (cso->zsbuf && cso->zsbuf->u.tex.level){
+        } else if (cso->zsbuf.texture && cso->zsbuf.level){
                 struct vc4_resource *rsc =
-                        vc4_resource(cso->zsbuf->texture);
+                        vc4_resource(cso->zsbuf.texture);
                 cso->width =
-                        (rsc->slices[cso->zsbuf->u.tex.level].stride /
+                        (rsc->slices[cso->zsbuf.level].stride /
                          rsc->cpp);
         }
 
@@ -648,7 +648,6 @@ vc4_set_sampler_views(struct pipe_context *pctx,
                       enum pipe_shader_type shader,
                       unsigned start, unsigned nr,
                       unsigned unbind_num_trailing_slots,
-                      bool take_ownership,
                       struct pipe_sampler_view **views)
 {
         struct vc4_context *vc4 = vc4_context(pctx);
@@ -661,12 +660,7 @@ vc4_set_sampler_views(struct pipe_context *pctx,
         for (i = 0; i < nr; i++) {
                 if (views[i])
                         new_nr = i + 1;
-                if (take_ownership) {
-                        pipe_sampler_view_reference(&stage_tex->textures[i], NULL);
-                        stage_tex->textures[i] = views[i];
-                } else {
-                        pipe_sampler_view_reference(&stage_tex->textures[i], views[i]);
-                }
+                pipe_sampler_view_reference(&stage_tex->textures[i], views[i]);
         }
 
         for (; i < stage_tex->num_textures; i++) {
@@ -713,5 +707,6 @@ vc4_state_init(struct pipe_context *pctx)
 
         pctx->create_sampler_view = vc4_create_sampler_view;
         pctx->sampler_view_destroy = vc4_sampler_view_destroy;
+        pctx->sampler_view_release = u_default_sampler_view_release;
         pctx->set_sampler_views = vc4_set_sampler_views;
 }

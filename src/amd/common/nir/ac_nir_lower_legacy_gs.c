@@ -113,12 +113,21 @@ lower_legacy_gs_emit_vertex_with_counter(nir_builder *b, nir_intrinsic_instr *in
          /* extend 8/16 bit to 32 bit, 64 bit has been lowered */
          nir_def *data = nir_u2uN(b, output, 32);
 
+         unsigned align_mul = 4;
+         unsigned align_offset = 0;
+         if (nir_src_is_const(intrin->src[0])) {
+            unsigned v_const_offset = base + nir_src_as_uint(intrin->src[0]) * 4;
+            align_mul = 16;
+            align_offset = v_const_offset % align_mul;
+         }
+
          nir_store_buffer_amd(b, data, gsvs_ring, voffset, soffset, nir_imm_int(b, 0),
                               .access = ACCESS_COHERENT | ACCESS_NON_TEMPORAL |
                                         ACCESS_IS_SWIZZLED_AMD,
                               .base = base,
                               /* For ACO to not reorder this store around EmitVertex/EndPrimitve */
-                              .memory_modes = nir_var_shader_out);
+                              .memory_modes = nir_var_shader_out,
+                              .align_mul = align_mul, .align_offset = align_offset);
       }
    }
 
@@ -204,14 +213,9 @@ lower_legacy_gs_end_primitive_with_counter(nir_builder *b, nir_intrinsic_instr *
 }
 
 static bool
-lower_legacy_gs_intrinsic(nir_builder *b, nir_instr *instr, void *state)
+lower_legacy_gs_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
 {
    lower_legacy_gs_state *s = (lower_legacy_gs_state *) state;
-
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-
-   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
 
    if (intrin->intrinsic == nir_intrinsic_store_output)
       return lower_legacy_gs_store_output(b, intrin, s);
@@ -225,7 +229,7 @@ lower_legacy_gs_intrinsic(nir_builder *b, nir_instr *instr, void *state)
    return false;
 }
 
-void
+bool
 ac_nir_lower_legacy_gs(nir_shader *nir,
                        bool has_gen_prim_query,
                        bool has_pipeline_stats_query,
@@ -251,8 +255,8 @@ ac_nir_lower_legacy_gs(nir_shader *nir,
       break;
    }
 
-   nir_shader_instructions_pass(nir, lower_legacy_gs_intrinsic,
-                                nir_metadata_control_flow, &s);
+   nir_shader_intrinsics_pass(nir, lower_legacy_gs_intrinsic,
+                              nir_metadata_control_flow, &s);
 
    nir_function_impl *impl = nir_shader_get_entrypoint(nir);
 
@@ -280,6 +284,7 @@ ac_nir_lower_legacy_gs(nir_shader *nir,
    nir_sendmsg_amd(b, nir_load_gs_wave_id_amd(b),
                    .base = AC_SENDMSG_GS_OP_NOP | AC_SENDMSG_GS_DONE);
 
-   if (progress)
-      nir_metadata_preserve(impl, nir_metadata_none);
+   nir_progress(progress, impl, nir_metadata_none);
+
+   return true;
 }

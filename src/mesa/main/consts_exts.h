@@ -178,6 +178,7 @@ struct gl_extensions
    GLboolean EXT_memory_object_win32;
    GLboolean EXT_multisampled_render_to_texture;
    GLboolean EXT_packed_float;
+   GLboolean EXT_protected_textures;
    GLboolean EXT_provoking_vertex;
    GLboolean EXT_render_snorm;
    GLboolean EXT_semaphore;
@@ -186,6 +187,7 @@ struct gl_extensions
    GLboolean EXT_shader_image_load_formatted;
    GLboolean EXT_shader_image_load_store;
    GLboolean EXT_shader_integer_mix;
+   GLboolean EXT_shader_realtime_clock;
    GLboolean EXT_shader_samples_identical;
    GLboolean EXT_sRGB;
    GLboolean EXT_stencil_two_side;
@@ -332,6 +334,7 @@ struct gl_shader_compiler_options
    GLboolean LowerPrecisionInt16;
    GLboolean LowerPrecisionDerivatives;
    GLboolean LowerPrecisionFloat16Uniforms;
+   GLboolean LowerPrecision16BitLoadDst;
 
    /**
     * This enables lowering of 16b constants.  Some drivers may not
@@ -924,6 +927,9 @@ struct gl_constants
 
    /** Override GL_MAP_UNSYNCHRONIZED_BIT */
    bool ForceMapBufferSynchronized;
+
+   /** Override GL_DEPTH_COMPONENT type from unsigned short to unsigned int */
+   bool ForceDepthComponentTypeInt;
 
    /** GL_ARB_get_program_binary */
    GLuint NumProgramBinaryFormats;

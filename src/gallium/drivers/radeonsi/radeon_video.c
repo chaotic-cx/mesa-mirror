@@ -14,22 +14,17 @@
 #include "util/u_video.h"
 #include "vl/vl_defines.h"
 #include "vl/vl_video_buffer.h"
+#include "ac_uvd_dec.h"
 
 #include <unistd.h>
 
 /* generate an stream handle */
 unsigned si_vid_alloc_stream_handle()
 {
-   static unsigned counter = 0;
-   unsigned stream_handle = 0;
-   unsigned pid = getpid();
-   int i;
-
-   for (i = 0; i < 32; ++i)
-      stream_handle |= ((pid >> i) & 1) << (31 - i);
-
-   stream_handle ^= ++counter;
-   return stream_handle;
+   static struct ac_uvd_stream_handle stream_handle;
+   if (!stream_handle.base)
+      ac_uvd_init_stream_handle(&stream_handle);
+   return ac_uvd_alloc_stream_handle(&stream_handle);
 }
 
 /* create a buffer in the winsys */
@@ -67,7 +62,7 @@ void si_vid_destroy_buffer(struct rvid_buffer *buffer)
 }
 
 /* reallocate a buffer, preserving its content */
-bool si_vid_resize_buffer(struct pipe_context *context, struct radeon_cmdbuf *cs,
+bool si_vid_resize_buffer(struct pipe_context *context,
                           struct rvid_buffer *new_buf, unsigned new_size,
                           struct rvid_buf_offset_info *buf_ofst_info)
 {
@@ -82,11 +77,11 @@ bool si_vid_resize_buffer(struct pipe_context *context, struct radeon_cmdbuf *cs
       goto error;
 
    if (old_buf.usage == PIPE_USAGE_STAGING) {
-      src = ws->buffer_map(ws, old_buf.res->buf, cs, PIPE_MAP_READ | RADEON_MAP_TEMPORARY);
+      src = ws->buffer_map(ws, old_buf.res->buf, NULL, PIPE_MAP_READ | RADEON_MAP_TEMPORARY);
       if (!src)
          goto error;
 
-      dst = ws->buffer_map(ws, new_buf->res->buf, cs, PIPE_MAP_WRITE | RADEON_MAP_TEMPORARY);
+      dst = ws->buffer_map(ws, new_buf->res->buf, NULL, PIPE_MAP_WRITE | RADEON_MAP_TEMPORARY);
       if (!dst)
          goto error;
 

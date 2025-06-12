@@ -661,7 +661,7 @@ nv50_sampler_view_destroy(struct pipe_context *pipe,
 
 static inline void
 nv50_stage_set_sampler_views(struct nv50_context *nv50, int s,
-                             unsigned nr, bool take_ownership,
+                             unsigned nr,
                              struct pipe_sampler_view **views)
 {
    unsigned i;
@@ -684,12 +684,7 @@ nv50_stage_set_sampler_views(struct nv50_context *nv50, int s,
          nv50->textures_coherent[s] &= ~(1 << i);
       }
 
-      if (take_ownership) {
-         pipe_sampler_view_reference(&nv50->textures[s][i], NULL);
-         nv50->textures[s][i] = view;
-      } else {
-         pipe_sampler_view_reference(&nv50->textures[s][i], view);
-      }
+      pipe_sampler_view_reference(&nv50->textures[s][i], view);
    }
 
    assert(nv50->num_textures[s] <= PIPE_MAX_SAMPLERS);
@@ -709,14 +704,13 @@ static void
 nv50_set_sampler_views(struct pipe_context *pipe, enum pipe_shader_type shader,
                        unsigned start, unsigned nr,
                        unsigned unbind_num_trailing_slots,
-                       bool take_ownership,
                        struct pipe_sampler_view **views)
 {
    struct nv50_context *nv50 = nv50_context(pipe);
    unsigned s = nv50_context_shader_stage(shader);
 
    assert(start == 0);
-   nv50_stage_set_sampler_views(nv50, s, nr, take_ownership, views);
+   nv50_stage_set_sampler_views(nv50, s, nr, views);
 
    if (unlikely(s == NV50_SHADER_STAGE_COMPUTE)) {
       nouveau_bufctx_reset(nv50->bufctx_cp, NV50_BIND_CP_TEXTURES);
@@ -859,7 +853,6 @@ nv50_cp_state_create(struct pipe_context *pipe,
    }
 
    prog->cp.smem_size = cso->static_shared_mem;
-   prog->parm_size = cso->req_input_mem;
 
    return (void *)prog;
 }
@@ -1013,6 +1006,7 @@ nv50_set_framebuffer_state(struct pipe_context *pipe,
 
    nouveau_bufctx_reset(nv50->bufctx_3d, NV50_BIND_3D_FB);
 
+   util_framebuffer_init(pipe, fb, nv50->fb_cbufs, &nv50->fb_zsbuf);
    util_copy_framebuffer_state(&nv50->framebuffer, fb);
 
    nv50->dirty_3d |= NV50_NEW_3D_FRAMEBUFFER | NV50_NEW_3D_TEXTURES;
@@ -1336,14 +1330,6 @@ nv50_set_shader_images(struct pipe_context *pipe,
    nv50_context(pipe)->dirty_cp |= NV50_NEW_CP_SURFACES;
 }
 
-static void
-nv50_set_compute_resources(struct pipe_context *pipe,
-                           unsigned start, unsigned nr,
-                           struct pipe_surface **resources)
-{
-   /* TODO: bind surfaces */
-}
-
 static bool
 nv50_bind_buffers_range(struct nv50_context *nv50,
                         unsigned start, unsigned nr,
@@ -1488,6 +1474,7 @@ nv50_init_state_functions(struct nv50_context *nv50)
 
    pipe->create_sampler_view = nv50_create_sampler_view;
    pipe->sampler_view_destroy = nv50_sampler_view_destroy;
+   pipe->sampler_view_release = u_default_sampler_view_release;
    pipe->set_sampler_views = nv50_set_sampler_views;
 
    pipe->create_vs_state = nv50_vp_state_create;
@@ -1528,7 +1515,6 @@ nv50_init_state_functions(struct nv50_context *nv50)
    pipe->set_stream_output_targets = nv50_set_stream_output_targets;
 
    pipe->set_global_binding = nv50_set_global_bindings;
-   pipe->set_compute_resources = nv50_set_compute_resources;
    pipe->set_shader_images = nv50_set_shader_images;
    pipe->set_shader_buffers = nv50_set_shader_buffers;
 

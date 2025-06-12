@@ -118,8 +118,6 @@ files_libgallium = files(
   'pipebuffer/pb_bufmgr_slab.c',
   'pipebuffer/pb_cache.c',
   'pipebuffer/pb_cache.h',
-  'pipebuffer/pb_slab.c',
-  'pipebuffer/pb_slab.h',
   'pipebuffer/pb_validate.c',
   'pipebuffer/pb_validate.h',
   'postprocess/filters.h',
@@ -194,10 +192,6 @@ files_libgallium = files(
   'util/u_blend.h',
   'util/u_blitter.c',
   'util/u_blitter.h',
-  'util/u_cache.c',
-  'util/u_cache.h',
-  'util/u_compute.c',
-  'util/u_compute.h',
   'util/u_debug_cb.h',
   'util/u_debug_describe.c',
   'util/u_debug_describe.h',
@@ -408,6 +402,8 @@ files_libgalliumvl = files(
   'vl/vl_defines.h',
   'vl/vl_deint_filter.c',
   'vl/vl_deint_filter.h',
+  'vl/vl_deint_filter_cs.c',
+  'vl/vl_deint_filter_cs.h',
   'vl/vl_idct.c',
   'vl/vl_idct.h',
   'vl/vl_matrix_filter.c',
@@ -427,7 +423,6 @@ files_libgalliumvl = files(
   'vl/vl_video_buffer.h',
   'vl/vl_zscan.c',
   'vl/vl_zscan.h',
-  'vl/vl_probs_table.h',
 )
 
 vlwinsys_deps = []
@@ -565,7 +560,7 @@ libgalliumvl = static_library(
 
 # some drivers export their screen creation function globally, so all frontends have to contain the
 # full libgalliumvl. So we'll handle this here globally for everybody.
-if (with_gallium_va or with_gallium_vdpau or with_dri or with_gallium_radeonsi)
+if (with_gallium_mediafoundation or with_gallium_va or with_gallium_vdpau or with_dri or with_gallium_radeonsi)
   libgalliumvl_stub = libgalliumvl
 else
   libgalliumvl_stub = _libgalliumvl_stub

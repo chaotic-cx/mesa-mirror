@@ -25,16 +25,47 @@
 #include "nv_push_cla097.h"
 #include "nv_push_clb097.h"
 #include "nv_push_clb197.h"
+#include "nv_push_clc197.h"
 #include "nv_push_clc397.h"
 #include "nv_push_clc597.h"
+#include "clcb97.h"
+#include "clcd97.h"
 #include "drf.h"
 
 static inline uint16_t
 nvk_cmd_buffer_3d_cls(struct nvk_cmd_buffer *cmd)
 {
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    return pdev->info.cls_eng3d;
+}
+
+static uint32_t
+get_sm_disp_ctrl_reg(const struct nv_device_info *devinfo)
+{
+   if (devinfo->cls_eng3d >= HOPPER_A)
+      return 0x4243a4;
+   if (devinfo->cls_eng3d >= VOLTA_A)
+      return 0x419ba4;
+   return 0x419f78;
+}
+
+static uint32_t
+get_sms_hww_warp_esp_report_mask_reg(const struct nv_device_info *devinfo)
+{
+   if (devinfo->cls_eng3d >= HOPPER_A)
+      return 0x4246a8;
+   if (devinfo->cls_eng3d >= VOLTA_A)
+      return 0x419ea8;
+   return 0x419e44;
+}
+
+static uint32_t
+get_conservative_raster_reg(const struct nv_device_info *devinfo)
+{
+   if (devinfo->cls_eng3d >= HOPPER_A)
+      return 0x420800;
+   return 0x418800;
 }
 
 static void
@@ -82,7 +113,7 @@ nvk_mme_set_conservative_raster_state(struct mme_builder *b)
    mme_if(b, ine, new_state, old_state) {
       nvk_mme_store_scratch(b, CONSERVATIVE_RASTER_STATE, new_state);
       mme_set_priv_reg(b, new_state, mme_imm(BITFIELD_RANGE(23, 2)),
-                       mme_imm(0x418800));
+                       mme_imm(get_conservative_raster_reg(b->devinfo)));
    }
 }
 
@@ -106,7 +137,7 @@ VkResult
 nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
 {
    struct nvk_device *dev = nvk_queue_device(queue);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    /* 3D state */
    P_MTHD(p, NV9097, SET_OBJECT);
@@ -137,7 +168,7 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
       free(dw);
    }
 
-   if (pdev->info.cls_eng3d >= TURING_A)
+   if (pdev->info.cls_eng3d >= TURING_A && pdev->info.cls_eng3d < BLACKWELL_A)
       P_IMMD(p, NVC597, SET_MME_DATA_FIFO_CONFIG, FIFO_SIZE_SIZE_4KB);
 
    /* Enable FP helper invocation memory loads
@@ -153,7 +184,7 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
     * occasionally fail.
     */
    if (pdev->info.cls_eng3d >= MAXWELL_B) {
-      unsigned reg = pdev->info.cls_eng3d >= VOLTA_A ? 0x419ba4 : 0x419f78;
+      unsigned reg = get_sm_disp_ctrl_reg(&pdev->info);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_PRIV_REG));
       P_INLINE_DATA(p, 0);
       P_INLINE_DATA(p, BITFIELD_BIT(3));
@@ -207,7 +238,7 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
     * This clears bit 14 of gr_gpcs_tpcs_sms_hww_warp_esr_report_mask
     */
    if (pdev->info.cls_eng3d >= MAXWELL_B) {
-      unsigned reg = pdev->info.cls_eng3d >= VOLTA_A ? 0x419ea8 : 0x419e44;
+      unsigned reg = get_sms_hww_warp_esp_report_mask_reg(&pdev->info);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_SET_PRIV_REG));
       P_INLINE_DATA(p, 0);
       P_INLINE_DATA(p, BITFIELD_BIT(14));
@@ -488,6 +519,18 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
       P_NV9097_SET_PROGRAM_REGION_B(p, shader_base_addr);
    }
 
+   /* From nvc0_screen.c:
+    *
+    *    "Reduce likelihood of collision with real buffers by placing the
+    *    hole at the top of the 4G area. This will have to be dealt with
+    *    for real eventually by blocking off that area from the VM."
+    *
+    * Really?!?  TODO: Fix this for realz.  Annoyingly, we only have a
+    * 32-bit pointer for this in 3D rather than a full 48 like we have for
+    * compute.
+    */
+   P_IMMD(p, NV9097, SET_SHADER_LOCAL_MEMORY_WINDOW, 0xff << 24);
+
    for (uint32_t group = 0; group < 5; group++) {
       for (uint32_t slot = 0; slot < 16; slot++) {
          P_IMMD(p, NV9097, BIND_GROUP_CONSTANT_BUFFER(group), {
@@ -515,6 +558,21 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
    P_NV9097_SET_VERTEX_STREAM_SUBSTITUTE_A(p, zero_addr >> 32);
    P_NV9097_SET_VERTEX_STREAM_SUBSTITUTE_B(p, zero_addr);
 
+   if (pdev->info.cls_eng3d >= VOLTA_A) {
+      /* These WATERMARK settings are based on what the blob sets. I'm guessing
+       * these are thresholds for balancing PS vs VS shaders but I'm not sure.
+       * We could do this on older cards if we knew what values to set.
+       */
+      P_IMMD(p, NV9097, SET_PS_WARP_WATERMARKS, {
+         .low = 0x8,
+         .high = pdev->info.max_warps_per_mp * pdev->info.mp_per_tpc,
+      });
+      P_IMMD(p, NV9097, SET_PS_REGISTER_WATERMARKS, {
+         .low = 0x80,
+         .high = 0x1000,
+      });
+   }
+
    P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_VB_ENABLES));
    P_NV9097_SET_MME_SHADOW_SCRATCH(p, NVK_MME_SCRATCH_VB_ENABLES, 0);
    for (uint32_t b = 0; b < 32; b++) {
@@ -530,6 +588,7 @@ nvk_push_draw_state_init(struct nvk_queue *queue, struct nv_push *p)
       P_MTHD(p, NV9097, SET_VAB_MEMORY_AREA_A);
       P_NV9097_SET_VAB_MEMORY_AREA_A(p, vab_addr >> 32);
       P_NV9097_SET_VAB_MEMORY_AREA_B(p, vab_addr);
+      assert(dev->vab_memory->va->size_B == 256 * 1024);
       P_NV9097_SET_VAB_MEMORY_AREA_C(p, SIZE_BYTES_256K);
    }
 
@@ -825,10 +884,21 @@ nvk_cmd_set_sample_layout(struct nvk_cmd_buffer *cmd,
       P_INLINE_DATA(p, 0x003a003a);
       P_INLINE_DATA(p, 0x00c500c5);
       P_MTHD(p, NV9097, SET_MME_SHADOW_SCRATCH(NVK_MME_SCRATCH_SAMPLE_MASKS_4PASS_0));
-      P_INLINE_DATA(p, 0x00120081);
-      P_INLINE_DATA(p, 0x00280044);
-      P_INLINE_DATA(p, 0x00280012);
-      P_INLINE_DATA(p, 0x00810044);
+      if (nvk_cmd_buffer_3d_cls(cmd) >= MAXWELL_B) {
+         P_INLINE_DATA(p, 0x00120081);
+         P_INLINE_DATA(p, 0x00280044);
+         P_INLINE_DATA(p, 0x00280012);
+         P_INLINE_DATA(p, 0x00810044);
+      } else {
+         /* The samples map funny on Maxwell A and earlier.  We're not even
+          * guaranteed that pixld.my_index is any of the samples in the mask
+          * so just go with what we see the hardware kicking out.
+          */
+         P_INLINE_DATA(p, 0x00000012);
+         P_INLINE_DATA(p, 0x00280044);
+         P_INLINE_DATA(p, 0x00000000);
+         P_INLINE_DATA(p, 0x00810000);
+      }
       break;
 
    default:
@@ -849,7 +919,7 @@ nvk_GetRenderingAreaGranularityKHR(
 }
 
 static bool
-nvk_rendering_all_linear(const struct nvk_rendering_state *render)
+nvk_rendering_linear(const struct nvk_rendering_state *render)
 {
    /* Depth and stencil are never linear */
    if (render->depth_att.iview || render->stencil_att.iview)
@@ -862,10 +932,18 @@ nvk_rendering_all_linear(const struct nvk_rendering_state *render)
 
       const struct nvk_image *image = (struct nvk_image *)iview->vk.image;
       const uint8_t ip = iview->planes[0].image_plane;
+      const struct nvk_image_plane *plane = &image->planes[ip];
       const struct nil_image_level *level =
-         &image->planes[ip].nil.levels[iview->vk.base_mip_level];
+         &plane->nil.levels[iview->vk.base_mip_level];
 
       if (level->tiling.gob_type != NIL_GOB_TYPE_LINEAR)
+         return false;
+
+      /* We can't render to a linear image unless the address and row stride
+       * are multiples of 128B.  Fall back to tiled shadows in this case.
+       */
+      uint64_t addr = nvk_image_plane_base_address(plane) + level->offset_B;
+      if (addr % 128 != 0 || level->row_stride_B % 128 != 0)
          return false;
    }
 
@@ -914,7 +992,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       };
    }
 
-   render->all_linear = nvk_rendering_all_linear(render);
+   render->linear = nvk_rendering_linear(render);
 
    const VkRenderingAttachmentLocationInfoKHR ral_info = {
       .sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_LOCATION_INFO_KHR,
@@ -959,7 +1037,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
          const uint8_t ip = iview->planes[0].image_plane;
          const struct nvk_image_plane *plane = &image->planes[ip];
 
-         if (!render->all_linear &&
+         if (!render->linear &&
              plane->nil.levels[0].tiling.gob_type == NIL_GOB_TYPE_LINEAR)
             plane = &image->linear_tiled_shadow;
 
@@ -1028,7 +1106,12 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
             /* NVIDIA doesn't support linear array images */
             assert(iview->vk.base_array_layer == 0 && layer_count == 1);
 
+            /* The render hardware gets grumpy if things aren't 128B-aligned.
+             */
             uint32_t pitch = level->row_stride_B;
+            assert(addr % 128 == 0);
+            assert(pitch % 128 == 0);
+
             const enum pipe_format p_format =
                nvk_format_to_pipe_format(iview->vk.format);
             /* When memory layout is set to LAYOUT_PITCH, the WIDTH field
@@ -1153,7 +1236,9 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       P_IMMD(p, NV9097, SET_ZT_SELECT, 0 /* target_count */);
    }
 
-   if (render->fsr_att.iview) {
+   if (nvk_cmd_buffer_3d_cls(cmd) < TURING_A) {
+      assert(render->fsr_att.iview == NULL);
+   } else if (render->fsr_att.iview != NULL) {
       const struct nvk_image_view *iview = render->fsr_att.iview;
       const struct nvk_image *image = (struct nvk_image *)iview->vk.image;
 
@@ -1249,7 +1334,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 
       const VkAttachmentLoadOp load_op =
          pRenderingInfo->pColorAttachments[i].loadOp;
-      if (!render->all_linear &&
+      if (!render->linear &&
           plane->nil.levels[0].tiling.gob_type == NIL_GOB_TYPE_LINEAR &&
           load_op == VK_ATTACHMENT_LOAD_OP_LOAD)
          nvk_linear_render_copy(cmd, iview, render->area, true);
@@ -1325,7 +1410,7 @@ nvk_CmdEndRendering(VkCommandBuffer commandBuffer)
          struct nvk_image *image = (struct nvk_image *)iview->vk.image;
          const uint8_t ip = iview->planes[0].image_plane;
          const struct nvk_image_plane *plane = &image->planes[ip];
-         if (!render->all_linear &&
+         if (!render->linear &&
              plane->nil.levels[0].tiling.gob_type == NIL_GOB_TYPE_LINEAR &&
              render->color_att[i].store_op == VK_ATTACHMENT_STORE_OP_STORE)
             nvk_linear_render_copy(cmd, iview, render->area, false);
@@ -1650,7 +1735,7 @@ static void
 nvk_flush_vi_state(struct nvk_cmd_buffer *cmd)
 {
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    const struct vk_dynamic_graphics_state *dyn =
       &cmd->vk.dynamic_graphics_state;
 
@@ -1781,7 +1866,8 @@ nvk_flush_ts_state(struct nvk_cmd_buffer *cmd)
 static void
 nvk_flush_vp_state(struct nvk_cmd_buffer *cmd)
 {
-   const struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
+   struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    const struct vk_dynamic_graphics_state *dyn =
       &cmd->vk.dynamic_graphics_state;
@@ -1890,13 +1976,16 @@ nvk_flush_vp_state(struct nvk_cmd_buffer *cmd)
    }
 
    if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_VP_SCISSORS)) {
+      const uint32_t sr_max =
+         nvk_image_max_dimension(&pdev->info, VK_IMAGE_TYPE_2D);
+
       for (unsigned i = 0; i < dyn->vp.scissor_count; i++) {
          const VkRect2D *s = &dyn->vp.scissors[i];
 
-         const uint32_t xmin = MIN2(16384, s->offset.x);
-         const uint32_t xmax = MIN2(16384, s->offset.x + s->extent.width);
-         const uint32_t ymin = MIN2(16384, s->offset.y);
-         const uint32_t ymax = MIN2(16384, s->offset.y + s->extent.height);
+         const uint32_t xmin = MIN2(sr_max, s->offset.x);
+         const uint32_t xmax = MIN2(sr_max, s->offset.x + s->extent.width);
+         const uint32_t ymin = MIN2(sr_max, s->offset.y);
+         const uint32_t ymax = MIN2(sr_max, s->offset.y + s->extent.height);
 
          P_MTHD(p, NV9097, SET_SCISSOR_ENABLE(i));
          P_NV9097_SET_SCISSOR_ENABLE(p, i, V_TRUE);
@@ -3276,13 +3365,23 @@ nvk_mme_bind_cbuf_desc(struct mme_builder *b)
       struct mme_value desc_lo = mme_load(b);
       struct mme_value desc_hi = mme_load(b);
 
-      /* The bottom 45 bits are addr >> 4 */
-      addr_lo = mme_merge(b, mme_zero(), desc_lo, 4, 28, 0);
-      addr_hi = mme_merge(b, mme_zero(), desc_lo, 0, 4, 28);
-      mme_merge_to(b, addr_hi, addr_hi, desc_hi, 4, 13, 0);
+      if (nvk_use_bindless_cbuf_2(b->devinfo)) {
+         /* The bottom 51 bits are addr >> 6 */
+         addr_lo = mme_merge(b, mme_zero(), desc_lo, 6, 26, 0);
+         addr_hi = mme_merge(b, mme_zero(), desc_lo, 0, 6, 26);
+         mme_merge_to(b, addr_hi, addr_hi, desc_hi, 6, 19, 0);
 
-      /* The top 19 bits are size >> 4 */
-      size = mme_merge(b, mme_zero(), desc_hi, 4, 19, 13);
+         /* The top 13 bits are size >> 4 */
+         size = mme_merge(b, mme_zero(), desc_hi, 4, 13, 19);
+      } else {
+         /* The bottom 45 bits are addr >> 4 */
+         addr_lo = mme_merge(b, mme_zero(), desc_lo, 4, 28, 0);
+         addr_hi = mme_merge(b, mme_zero(), desc_lo, 0, 4, 28);
+         mme_merge_to(b, addr_hi, addr_hi, desc_hi, 4, 13, 0);
+
+         /* The top 19 bits are size >> 4 */
+         size = mme_merge(b, mme_zero(), desc_hi, 4, 19, 13);
+      }
 
       mme_free_reg(b, desc_hi);
       mme_free_reg(b, desc_lo);
@@ -3300,7 +3399,7 @@ nvk_mme_bind_cbuf_desc(struct mme_builder *b)
 
    struct mme_value cb = mme_alloc_reg(b);
    mme_if(b, ieq, size, mme_zero()) {
-      /* Bottim bit is the valid bit, 8:4 are shader slot */
+      /* Bottom bit is the valid bit, 8:4 are shader slot */
       mme_merge_to(b, cb, mme_zero(), group_slot, 4, 5, 4);
    }
 
@@ -3340,7 +3439,7 @@ void
 nvk_cmd_flush_gfx_cbufs(struct nvk_cmd_buffer *cmd)
 {
    struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    const uint32_t min_cbuf_alignment = nvk_min_cbuf_alignment(&pdev->info);
    struct nvk_descriptor_state *desc = &cmd->state.gfx.descriptors;
 
@@ -3793,18 +3892,27 @@ nvk_mme_build_draw_loop(struct mme_builder *b,
 {
    struct mme_value begin = nvk_mme_load_scratch(b, DRAW_BEGIN);
 
-   mme_loop(b, instance_count) {
-      mme_mthd(b, NV9097_BEGIN);
-      mme_emit(b, begin);
+   if (b->devinfo->cls_eng3d < PASCAL_B) {
+      mme_start_loop(b, instance_count);
+   } else {
+      mme_mthd(b, NVC197_SET_INSTANCE_COUNT);
+      mme_emit(b, instance_count);
+      mme_set_field_enum(b, begin, NVC197_BEGIN_INSTANCE_ITERATE_ENABLE, TRUE);
+   }
 
-      mme_mthd(b, NV9097_SET_VERTEX_ARRAY_START);
-      mme_emit(b, first_vertex);
-      mme_emit(b, vertex_count);
+   mme_mthd(b, NV9097_BEGIN);
+   mme_emit(b, begin);
 
-      mme_mthd(b, NV9097_END);
-      mme_emit(b, mme_zero());
+   mme_mthd(b, NV9097_SET_VERTEX_ARRAY_START);
+   mme_emit(b, first_vertex);
+   mme_emit(b, vertex_count);
 
+   mme_mthd(b, NV9097_END);
+   mme_emit(b, mme_zero());
+
+   if (b->devinfo->cls_eng3d < PASCAL_B) {
       mme_set_field_enum(b, begin, NV9097_BEGIN_INSTANCE_ID, SUBSEQUENT);
+      mme_end_loop(b);
    }
 
    mme_free_reg(b, begin);
@@ -3929,18 +4037,27 @@ nvk_mme_build_draw_indexed_loop(struct mme_builder *b,
 {
    struct mme_value begin = nvk_mme_load_scratch(b, DRAW_BEGIN);
 
-   mme_loop(b, instance_count) {
-      mme_mthd(b, NV9097_BEGIN);
-      mme_emit(b, begin);
+   if (b->devinfo->cls_eng3d < PASCAL_B) {
+      mme_start_loop(b, instance_count);
+   } else {
+      mme_mthd(b, NVC197_SET_INSTANCE_COUNT);
+      mme_emit(b, instance_count);
+      mme_set_field_enum(b, begin, NVC197_BEGIN_INSTANCE_ITERATE_ENABLE, TRUE);
+   }
 
-      mme_mthd(b, NV9097_SET_INDEX_BUFFER_F);
-      mme_emit(b, first_index);
-      mme_emit(b, index_count);
+   mme_mthd(b, NV9097_BEGIN);
+   mme_emit(b, begin);
 
-      mme_mthd(b, NV9097_END);
-      mme_emit(b, mme_zero());
+   mme_mthd(b, NV9097_SET_INDEX_BUFFER_F);
+   mme_emit(b, first_index);
+   mme_emit(b, index_count);
 
+   mme_mthd(b, NV9097_END);
+   mme_emit(b, mme_zero());
+
+   if (b->devinfo->cls_eng3d < PASCAL_B) {
       mme_set_field_enum(b, begin, NV9097_BEGIN_INSTANCE_ID, SUBSEQUENT);
+      mme_end_loop(b);
    }
 
    mme_free_reg(b, begin);
@@ -4139,7 +4256,7 @@ nvk_CmdDrawIndirect(VkCommandBuffer commandBuffer,
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
       struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDIRECT));
-      uint64_t draw_addr = nvk_buffer_address(buffer, offset);
+      uint64_t draw_addr = vk_buffer_address(&buffer->vk, offset);
       P_INLINE_DATA(p, draw_addr >> 32);
       P_INLINE_DATA(p, draw_addr);
       P_INLINE_DATA(p, drawCount);
@@ -4148,7 +4265,7 @@ nvk_CmdDrawIndirect(VkCommandBuffer commandBuffer,
       const uint32_t max_draws_per_push =
          ((NV_PUSH_MAX_COUNT - 3) * 4) / stride;
 
-      uint64_t draw_addr = nvk_buffer_address(buffer, offset);
+      uint64_t draw_addr = vk_buffer_address(&buffer->vk, offset);
       while (drawCount) {
          const uint32_t count = MIN2(drawCount, max_draws_per_push);
 
@@ -4239,7 +4356,7 @@ nvk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer,
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
       struct nv_push *p = nvk_cmd_buffer_push(cmd, 5);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED_INDIRECT));
-      uint64_t draw_addr = nvk_buffer_address(buffer, offset);
+      uint64_t draw_addr = vk_buffer_address(&buffer->vk, offset);
       P_INLINE_DATA(p, draw_addr >> 32);
       P_INLINE_DATA(p, draw_addr);
       P_INLINE_DATA(p, drawCount);
@@ -4248,7 +4365,7 @@ nvk_CmdDrawIndexedIndirect(VkCommandBuffer commandBuffer,
       const uint32_t max_draws_per_push =
          ((NV_PUSH_MAX_COUNT - 3) * 4) / stride;
 
-      uint64_t draw_addr = nvk_buffer_address(buffer, offset);
+      uint64_t draw_addr = vk_buffer_address(&buffer->vk, offset);
       while (drawCount) {
          const uint32_t count = MIN2(drawCount, max_draws_per_push);
 
@@ -4318,11 +4435,11 @@ nvk_CmdDrawIndirectCount(VkCommandBuffer commandBuffer,
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDIRECT_COUNT));
-   uint64_t draw_addr = nvk_buffer_address(buffer, offset);
+   uint64_t draw_addr = vk_buffer_address(&buffer->vk, offset);
    P_INLINE_DATA(p, draw_addr >> 32);
    P_INLINE_DATA(p, draw_addr);
-   uint64_t draw_count_addr = nvk_buffer_address(count_buffer,
-                                                 countBufferOffset);
+   uint64_t draw_count_addr = vk_buffer_address(&count_buffer->vk,
+                                                countBufferOffset);
    P_INLINE_DATA(p, draw_count_addr >> 32);
    P_INLINE_DATA(p, draw_count_addr);
    P_INLINE_DATA(p, maxDrawCount);
@@ -4380,11 +4497,11 @@ nvk_CmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer,
 
    struct nv_push *p = nvk_cmd_buffer_push(cmd, 7);
    P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DRAW_INDEXED_INDIRECT_COUNT));
-   uint64_t draw_addr = nvk_buffer_address(buffer, offset);
+   uint64_t draw_addr = vk_buffer_address(&buffer->vk, offset);
    P_INLINE_DATA(p, draw_addr >> 32);
    P_INLINE_DATA(p, draw_addr);
-   uint64_t draw_count_addr = nvk_buffer_address(count_buffer,
-                                                 countBufferOffset);
+   uint64_t draw_count_addr = vk_buffer_address(&count_buffer->vk,
+                                                countBufferOffset);
    P_INLINE_DATA(p, draw_count_addr >> 32);
    P_INLINE_DATA(p, draw_count_addr);
    P_INLINE_DATA(p, maxDrawCount);
@@ -4397,6 +4514,10 @@ nvk_mme_xfb_draw_indirect_loop(struct mme_builder *b,
                                struct mme_value counter)
 {
    struct mme_value begin = nvk_mme_load_scratch(b, DRAW_BEGIN);
+
+   /* NVC197_BEGIN_INSTANCE_ITERATE_ENABLE seems to be incompatible with xfb.
+    * Always use an mme loop instead.
+    */
 
    mme_loop(b, instance_count) {
       mme_mthd(b, NV9097_BEGIN);
@@ -4479,8 +4600,8 @@ nvk_CmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer,
 
    nvk_cmd_flush_gfx_state(cmd);
 
-   uint64_t counter_addr = nvk_buffer_address(counter_buffer,
-                                              counterBufferOffset);
+   uint64_t counter_addr = vk_buffer_address(&counter_buffer->vk,
+                                             counterBufferOffset);
 
    if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
       struct nv_push *p = nvk_cmd_buffer_push(cmd, 9);
@@ -4578,14 +4699,14 @@ nvk_CmdBeginTransformFeedbackEXT(VkCommandBuffer commandBuffer,
    }
 
    for (uint32_t i = 0; i < counterBufferCount; ++i) {
-      if (pCounterBuffers[i] == VK_NULL_HANDLE)
+      if (pCounterBuffers == NULL || pCounterBuffers[i] == VK_NULL_HANDLE)
          continue;
 
       VK_FROM_HANDLE(nvk_buffer, buffer, pCounterBuffers[i]);
       // index of counter buffer corresponts to index of transform buffer
       uint32_t cb_idx = firstCounterBuffer + i;
       uint64_t offset = pCounterBufferOffsets ? pCounterBufferOffsets[i] : 0;
-      uint64_t cb_addr = nvk_buffer_address(buffer, offset);
+      uint64_t cb_addr = vk_buffer_address(&buffer->vk, offset);
 
       if (nvk_cmd_buffer_3d_cls(cmd) >= TURING_A) {
          struct nv_push *p = nvk_cmd_buffer_push(cmd, 4);
@@ -4618,14 +4739,14 @@ nvk_CmdEndTransformFeedbackEXT(VkCommandBuffer commandBuffer,
    P_IMMD(p, NV9097, SET_STREAM_OUTPUT, ENABLE_FALSE);
 
    for (uint32_t i = 0; i < counterBufferCount; ++i) {
-      if (pCounterBuffers[i] == VK_NULL_HANDLE)
+      if (pCounterBuffers == NULL || pCounterBuffers[i] == VK_NULL_HANDLE)
          continue;
 
       VK_FROM_HANDLE(nvk_buffer, buffer, pCounterBuffers[i]);
       // index of counter buffer corresponts to index of transform buffer
       uint32_t cb_idx = firstCounterBuffer + i;
       uint64_t offset = pCounterBufferOffsets ? pCounterBufferOffsets[i] : 0;
-      uint64_t cb_addr = nvk_buffer_address(buffer, offset);
+      uint64_t cb_addr = vk_buffer_address(&buffer->vk, offset);
 
       P_MTHD(p, NV9097, SET_REPORT_SEMAPHORE_A);
       P_NV9097_SET_REPORT_SEMAPHORE_A(p, cb_addr >> 32);
@@ -4648,7 +4769,8 @@ nvk_CmdBeginConditionalRenderingEXT(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_buffer, buffer, pConditionalRenderingBegin->buffer);
 
-   uint64_t addr = nvk_buffer_address(buffer, pConditionalRenderingBegin->offset);
+   const uint64_t addr =
+      vk_buffer_address(&buffer->vk, pConditionalRenderingBegin->offset);
    bool inverted = pConditionalRenderingBegin->flags &
       VK_CONDITIONAL_RENDERING_INVERTED_BIT_EXT;
 

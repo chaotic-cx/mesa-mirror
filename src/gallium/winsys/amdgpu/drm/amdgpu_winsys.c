@@ -36,7 +36,7 @@ static bool do_winsys_init(struct amdgpu_winsys *aws,
                            const struct pipe_screen_config *config,
                            int fd)
 {
-   if (!ac_query_gpu_info(fd, aws->dev, &aws->info, false))
+   if (ac_query_gpu_info(fd, aws->dev, &aws->info, false) != AC_QUERY_GPU_INFO_SUCCESS)
       goto fail;
 
    aws->addrlib = ac_addrlib_create(&aws->info, &aws->info.max_alignment);
@@ -56,13 +56,12 @@ static bool do_winsys_init(struct amdgpu_winsys *aws,
                       strstr(debug_get_option("AMD_DEBUG", ""), "sqtt") != NULL;
    aws->zero_all_vram_allocs = strstr(debug_get_option("R600_DEBUG", ""), "zerovram") != NULL ||
                               driQueryOptionb(config->options, "radeonsi_zerovram");
-   aws->info.use_userq = debug_get_bool_option("AMD_USERQ", false);
 
    for (unsigned i = 0; i < ARRAY_SIZE(aws->queues); i++)
       simple_mtx_init(&aws->queues[i].userq.lock, mtx_plain);
 
    /* TODO: Enable this once the kernel handles it efficiently. */
-   if (aws->info.has_dedicated_vram && !aws->info.use_userq)
+   if (!aws->info.userq_ip_mask)
       aws->info.has_local_buffers = false;
 
    return true;
@@ -126,7 +125,8 @@ static void amdgpu_winsys_destroy_locked(struct radeon_winsys *rws, bool locked)
 
    destroy = pipe_reference(&aws->reference, NULL);
    if (destroy && dev_tab) {
-      _mesa_hash_table_remove_key(dev_tab, aws->dev);
+      _mesa_hash_table_remove_key(dev_tab,
+                                  (void *)ac_drm_device_get_cookie(aws->dev));
       if (_mesa_hash_table_num_entries(dev_tab) == 0) {
          _mesa_hash_table_destroy(dev_tab, NULL);
          dev_tab = NULL;
@@ -305,8 +305,8 @@ static bool kms_handle_equals(const void *a, const void *b)
 
 static bool amdgpu_cs_is_secure(struct radeon_cmdbuf *rcs)
 {
-   struct amdgpu_cs *cs = amdgpu_cs(rcs);
-   return cs->csc->secure;
+   struct amdgpu_cs *acs = amdgpu_cs(rcs);
+   return amdgpu_csc_get_current(acs)->secure;
 }
 
 static uint32_t
@@ -331,13 +331,13 @@ radeon_to_amdgpu_pstate(enum radeon_ctx_pstate pstate)
 static bool
 amdgpu_cs_set_pstate(struct radeon_cmdbuf *rcs, enum radeon_ctx_pstate pstate)
 {
-   struct amdgpu_cs *cs = amdgpu_cs(rcs);
+   struct amdgpu_cs *acs = amdgpu_cs(rcs);
 
-   if (!cs->aws->info.has_stable_pstate)
+   if (!acs->aws->info.has_stable_pstate)
       return false;
 
    uint32_t amdgpu_pstate = radeon_to_amdgpu_pstate(pstate);
-   return ac_drm_cs_ctx_stable_pstate(cs->aws->dev, cs->ctx->ctx_handle,
+   return ac_drm_cs_ctx_stable_pstate(acs->aws->dev, acs->ctx->ctx_handle,
       AMDGPU_CTX_OP_SET_STABLE_PSTATE, amdgpu_pstate, NULL) == 0;
 }
 
@@ -403,7 +403,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
    }
 
    /* Lookup a winsys if we have already created one for this device. */
-   aws = util_hash_table_get(dev_tab, dev);
+   aws = util_hash_table_get(dev_tab, (void *)ac_drm_device_get_cookie(dev));
    if (aws) {
       struct amdgpu_screen_winsys *sws_iter;
 
@@ -516,7 +516,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
          return NULL;
       }
 
-      _mesa_hash_table_insert(dev_tab, dev, aws);
+      _mesa_hash_table_insert(dev_tab, (void *)ac_drm_device_get_cookie(dev), aws);
 
       if (aws->reserve_vmid) {
          r = ac_drm_vm_reserve_vmid(aws->dev, 0);

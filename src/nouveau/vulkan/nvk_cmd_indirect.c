@@ -239,6 +239,8 @@ static_assert(sizeof(struct nvk_ies_cs_qmd) % QMD_ALIGN == 0,
               "QMD size is not properly algined");
 static_assert(sizeof(struct nvk_root_descriptor_table) % QMD_ALIGN == 0,
               "Root descriptor table size is not aligned");
+static_assert(NVK_DGC_ALIGN >= QMD_ALIGN,
+              "QMD alignment requirement is a lower bound of DGC alignment");
 
 static void
 copy_repl_global_dw(nir_builder *b, nir_def *dst_addr, nir_def *src_addr,
@@ -258,7 +260,7 @@ static void
 build_process_cs_cmd_seq(nir_builder *b, struct nvk_nir_push *p,
                          nir_def *in_addr, nir_def *seq_idx,
                          struct process_cmd_in *in,
-                         struct nvk_physical_device *pdev,
+                         const struct nvk_physical_device *pdev,
                          const VkIndirectCommandsLayoutCreateInfoEXT *info,
                          uint32_t *qmd_size_per_seq_B_out)
 {
@@ -353,20 +355,37 @@ build_process_cs_cmd_seq(nir_builder *b, struct nvk_nir_push *p,
             const struct nak_qmd_dispatch_size_layout qmd_layout =
                nak_get_qmd_dispatch_size_layout(&pdev->info);
             assert(qmd_layout.x_start % 32 == 0);
+            assert(qmd_layout.x_end == qmd_layout.x_start + 32);
             assert(qmd_layout.y_start == qmd_layout.x_start + 32);
-            assert(qmd_layout.z_start == qmd_layout.x_start + 64);
 
             nir_def *qmd_repl[sizeof(struct nvk_ies_cs_qmd) / 4] = {};
             qmd_repl[qmd_layout.x_start / 32] = disp_size_x;
-            qmd_repl[qmd_layout.y_start / 32] = disp_size_y;
-            qmd_repl[qmd_layout.z_start / 32] = disp_size_z;
 
-            /* TODO: Get these from NAK? */
-            const uint32_t cb0_lo_start = 1024, cb0_hi_start = 1056;
-            qmd_repl[cb0_lo_start / 32] = nir_unpack_64_2x32_split_x(b, root_addr);
-            qmd_repl[cb0_hi_start / 32] =
-               nir_ior(b, load_global_dw(b, shader_qmd_addr, cb0_hi_start / 32),
-                          nir_unpack_64_2x32_split_y(b, root_addr));
+            if (qmd_layout.z_start == qmd_layout.y_start + 32) {
+               qmd_repl[qmd_layout.y_start / 32] = disp_size_y;
+               qmd_repl[qmd_layout.z_start / 32] = disp_size_z;
+            } else {
+               assert(qmd_layout.y_end == qmd_layout.y_start + 16);
+               assert(qmd_layout.z_start == qmd_layout.x_start + 48);
+               assert(qmd_layout.z_end == qmd_layout.z_start + 16);
+               qmd_repl[qmd_layout.y_start / 32] =
+                  nir_pack_32_2x16_split(b, nir_u2u16(b, disp_size_y),
+                                            nir_u2u16(b, disp_size_z));
+            }
+
+            struct nak_qmd_cbuf_desc_layout cb0_layout =
+               nak_get_qmd_cbuf_desc_layout(&pdev->info, 0);
+            assert(cb0_layout.addr_lo_start % 32 == 0);
+            assert(cb0_layout.addr_hi_start == cb0_layout.addr_lo_start + 32);
+            const uint32_t cb0_addr_lo_dw = cb0_layout.addr_lo_start / 32;
+            const uint32_t cb0_addr_hi_dw = cb0_layout.addr_hi_start / 32;
+            nir_def *root_addr_shifted =
+               nir_ushr_imm(b, root_addr, cb0_layout.addr_shift);
+            qmd_repl[cb0_addr_lo_dw] =
+               nir_unpack_64_2x32_split_x(b, root_addr_shifted);
+            qmd_repl[cb0_addr_hi_dw] =
+               nir_ior(b, load_global_dw(b, shader_qmd_addr, cb0_addr_hi_dw),
+                          nir_unpack_64_2x32_split_y(b, root_addr_shifted));
 
             copy_repl_global_dw(b, qmd_addr, shader_qmd_addr,
                                 qmd_repl, ARRAY_SIZE(qmd_repl));
@@ -414,7 +433,7 @@ build_process_cs_cmd_seq(nir_builder *b, struct nvk_nir_push *p,
 static void
 build_gfx_set_exec(nir_builder *b, struct nvk_nir_push *p, nir_def *token_addr,
                    struct process_cmd_in *in,
-                   struct nvk_physical_device *pdev,
+                   const struct nvk_physical_device *pdev,
                    const VkIndirectCommandsExecutionSetTokenEXT *token)
 {
    switch (token->type) {
@@ -620,7 +639,7 @@ static void
 build_process_gfx_cmd_seq(nir_builder *b, struct nvk_nir_push *p,
                           nir_def *in_addr, nir_def *seq_idx,
                           struct process_cmd_in *in,
-                          struct nvk_physical_device *pdev,
+                          const struct nvk_physical_device *pdev,
                           const VkIndirectCommandsLayoutCreateInfoEXT *info)
 {
    for (uint32_t t = 0; t < info->tokenCount; t++) {
@@ -719,7 +738,7 @@ build_process_shader(struct nvk_device *dev,
                      uint32_t *cmd_seq_stride_B_out,
                      uint32_t *qmd_size_per_seq_B_out)
 {
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    nir_builder build =
       nir_builder_init_simple_shader(MESA_SHADER_COMPUTE, NULL,
@@ -910,7 +929,7 @@ nvk_GetGeneratedCommandsMemoryRequirementsEXT(
    VK_FROM_HANDLE(nvk_device, dev, _device);
    VK_FROM_HANDLE(nvk_indirect_commands_layout, layout,
                   pInfo->indirectCommandsLayout);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    uint64_t size = layout->cmd_seq_stride_B * (uint64_t)pInfo->maxSequenceCount;
    if (layout->qmd_size_per_seq_B > 0) {
@@ -945,8 +964,8 @@ nvk_cmd_process_cmds(struct nvk_cmd_buffer *cmd,
    uint64_t qmd_addr = 0;
    if (layout->stages & VK_SHADER_STAGE_COMPUTE_BIT) {
       uint32_t global_size[3] = { 0, 0, 0 };
-      VkResult result = nvk_cmd_flush_cs_qmd(cmd, global_size, &qmd_addr,
-                                             &push.root_addr);
+      VkResult result = nvk_cmd_flush_cs_qmd(cmd, state, global_size,
+                                             &qmd_addr, &push.root_addr);
       if (unlikely(result != VK_SUCCESS)) {
          vk_command_buffer_set_error(&cmd->vk, result);
          return;
@@ -1009,6 +1028,8 @@ nvk_CmdExecuteGeneratedCommandsEXT(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(nvk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(nvk_indirect_commands_layout, layout,
                   info->indirectCommandsLayout);
+   struct nvk_device *dev = nvk_cmd_buffer_device(cmd);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    if (!isPreprocessed) {
       nvk_cmd_flush_process_state(cmd, info);
@@ -1020,7 +1041,8 @@ nvk_CmdExecuteGeneratedCommandsEXT(VkCommandBuffer commandBuffer,
          .constant = CONSTANT_TRUE,
          .flush_data = FLUSH_DATA_TRUE,
       });
-      P_IMMD(p, NVB1C0, INVALIDATE_SKED_CACHES, 0);
+      if (pdev->info.cls_eng3d >= MAXWELL_COMPUTE_B)
+         P_IMMD(p, NVB1C0, INVALIDATE_SKED_CACHES, 0);
       __push_immd(p, SUBC_NV9097, NV906F_SET_REFERENCE, 0);
    }
 

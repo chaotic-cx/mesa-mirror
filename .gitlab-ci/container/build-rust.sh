@@ -5,13 +5,7 @@
 
 set -ex
 
-uncollapsed_section_start rust "Building Rust toolchain"
-
-# cargo (and rustup) wants to store stuff in $HOME/.cargo, and binaries in
-# $HOME/.cargo/bin.  Make bin a link to a public bin directory so the commands
-# are just available to all build jobs.
-mkdir -p "$HOME"/.cargo
-ln -s /usr/local/bin "$HOME"/.cargo/bin
+section_start rust "Building Rust toolchain"
 
 # Pick a specific snapshot from rustup so the compiler doesn't drift on us.
 RUST_VERSION=1.78.0-2024-05-02
@@ -25,11 +19,15 @@ curl -L --retry 4 -f --retry-all-errors --retry-delay 60 \
       --profile minimal \
       -y
 
+# Make rustup tools available in the PATH environment variable
+# shellcheck disable=SC1091
+. "$HOME/.cargo/env"
+
 rustup component add clippy rustfmt
 
 # Set up a config script for cross compiling -- cargo needs your system cc for
 # linking in cross builds, but doesn't know what you want to use for system cc.
-cat > /root/.cargo/config <<EOF
+cat > "$HOME/.cargo/config" <<EOF
 [target.armv7-unknown-linux-gnueabihf]
 linker = "arm-linux-gnueabihf-gcc"
 

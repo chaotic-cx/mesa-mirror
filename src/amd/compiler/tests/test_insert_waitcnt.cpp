@@ -340,6 +340,83 @@ BEGIN_TEST(insert_waitcnt.waw.vmem_types)
    }
 END_TEST
 
+BEGIN_TEST(insert_waitcnt.waw.point_sample_accel)
+   for (radeon_family family : {CHIP_GFX1150, CHIP_GFX1153}) {
+      if (!setup_cs(NULL, GFX11_5, family, family == CHIP_GFX1153 ? "_3" : "_0"))
+         continue;
+
+      Definition def_v4(PhysReg(260), v1);
+      Operand op_v0(PhysReg(256), v1);
+      Operand desc_s4(PhysReg(0), s4);
+      Operand desc_s8(PhysReg(8), s8);
+
+      /* image_sample has point sample acceleration, but image_sample_b does not. Both are VMEM
+       * sample instructions. */
+
+      //>> p_unit_test 0
+      //! v1: %0:v[4] = image_sample %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      //~gfx11_5_0! s_waitcnt vmcnt(0)
+      //! v1: %0:v[4] = image_sample %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(0));
+      bld.mimg(aco_opcode::image_sample, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+      bld.mimg(aco_opcode::image_sample, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+
+      //>> p_unit_test 1
+      //! v1: %0:v[4] = image_sample_b %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      //~gfx11_5_0! s_waitcnt vmcnt(0)
+      //! v1: %0:v[4] = image_sample %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      bld.reset(program->create_and_insert_block());
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(1));
+      bld.mimg(aco_opcode::image_sample_b, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+      bld.mimg(aco_opcode::image_sample, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+
+      //>> p_unit_test 2
+      //! v1: %0:v[4] = image_load %0:s[8-15], s4: undef, v1: undef, %0:v[0] 1d
+      //! s_waitcnt vmcnt(0)
+      //! v1: %0:v[4] = image_sample %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      bld.reset(program->create_and_insert_block());
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(2));
+      bld.mimg(aco_opcode::image_load, def_v4, desc_s8, Operand(s4), Operand(v1), op_v0);
+      bld.mimg(aco_opcode::image_sample, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+
+      //>> p_unit_test 3
+      //! v1: %0:v[4] = image_sample %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      //~gfx11_5_0! s_waitcnt vmcnt(0)
+      //! v1: %0:v[4] = image_sample_b %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      bld.reset(program->create_and_insert_block());
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(3));
+      bld.mimg(aco_opcode::image_sample, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+      bld.mimg(aco_opcode::image_sample_b, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+
+      //>> p_unit_test 4
+      //! v1: %0:v[4] = image_sample %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      //! s_waitcnt vmcnt(0)
+      //! v1: %0:v[4] = image_load %0:s[8-15], s4: undef, v1: undef, %0:v[0] 1d
+      bld.reset(program->create_and_insert_block());
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(4));
+      bld.mimg(aco_opcode::image_sample, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+      bld.mimg(aco_opcode::image_load, def_v4, desc_s8, Operand(s4), Operand(v1), op_v0);
+
+      //>> p_unit_test 5
+      //! v1: %0:v[4] = image_sample_b %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      //! v1: %0:v[4] = image_sample_b %0:s[8-15], %0:s[0-3], v1: undef, %0:v[0] 1d
+      bld.reset(program->create_and_insert_block());
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(5));
+      bld.mimg(aco_opcode::image_sample_b, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+      bld.mimg(aco_opcode::image_sample_b, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+
+      //>> p_unit_test 5
+      //! v1: %0:v[4] = image_load %0:s[8-15], s4: undef, v1: undef, %0:v[0] 1d
+      //! v1: %0:v[4] = image_load %0:s[8-15], s4: undef, v1: undef, %0:v[0] 1d
+      bld.reset(program->create_and_insert_block());
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(5));
+      bld.mimg(aco_opcode::image_load, def_v4, desc_s8, Operand(s4), Operand(v1), op_v0);
+      bld.mimg(aco_opcode::image_load, def_v4, desc_s8, Operand(s4), Operand(v1), op_v0);
+
+      finish_waitcnt_test();
+   }
+END_TEST
+
 BEGIN_TEST(insert_waitcnt.vmem)
    if (!setup_cs(NULL, GFX12))
       return;
@@ -536,4 +613,291 @@ BEGIN_TEST(insert_waitcnt.vmem_ds)
                memory_sync_info(storage_buffer | storage_shared, semantic_acqrel, scope_workgroup));
 
    finish_waitcnt_test();
+END_TEST
+
+BEGIN_TEST(insert_waitcnt.waw.vmem_ds_valu)
+   for (amd_gfx_level gfx : {GFX10_3, GFX11, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      Definition def_v4(PhysReg(260), v1);
+      Operand op_v0(PhysReg(256), v1);
+      Operand desc_s4(PhysReg(0), s4);
+
+      emit_divergent_if_else(
+         program.get(), bld, Operand::c64(1),
+         [&]()
+         {
+            //>> p_unit_test 1
+            //! v1: %0:v[4] = buffer_load_dword %0:s[0-3], %0:v[0], 0
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(1));
+            bld.mubuf(aco_opcode::buffer_load_dword, def_v4, desc_s4, op_v0, Operand::zero(), 0,
+                      false);
+         },
+         [&]()
+         {
+            //>> p_unit_test 2
+            //~gfx11! s_waitcnt vmcnt(0)
+            //~gfx12! s_wait_loadcnt imm:0
+            //! v1: %0:v[4] = v_mov_b32 0
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(2));
+            bld.vop1(aco_opcode::v_mov_b32, def_v4, Operand::zero());
+         });
+      //>> p_unit_test 3
+      //~gfx(10_3|11)! s_waitcnt vmcnt(0)
+      //~gfx12! s_wait_loadcnt imm:0
+      //! p_unit_test %0:v[4]
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(3));
+      bld.pseudo(aco_opcode::p_unit_test, Operand(PhysReg(260), v1));
+
+      emit_divergent_if_else(
+         program.get(), bld, Operand::c64(1),
+         [&]()
+         {
+            //>> p_unit_test 4
+            //! v1: %0:v[4] = ds_read_b32 %0:v[0]
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(4));
+            bld.ds(aco_opcode::ds_read_b32, def_v4, op_v0);
+         },
+         [&]()
+         {
+            //>> p_unit_test 5
+            //~gfx11! s_waitcnt lgkmcnt(0)
+            //~gfx12! s_wait_dscnt imm:0
+            //! v1: %0:v[4] = v_mov_b32 0
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(5));
+            bld.vop1(aco_opcode::v_mov_b32, def_v4, Operand::zero());
+         });
+      //>> p_unit_test 6
+      //~gfx(10_3|11)! s_waitcnt lgkmcnt(0)
+      //~gfx12! s_wait_dscnt imm:0
+      //! p_unit_test %0:v[4]
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(6));
+      bld.pseudo(aco_opcode::p_unit_test, Operand(PhysReg(260), v1));
+
+      finish_waitcnt_test();
+   }
+END_TEST
+
+BEGIN_TEST(insert_waitcnt.waw.vmem_different_halves)
+   if (!setup_cs(NULL, GFX12))
+      return;
+
+   Definition def_v4_lo(PhysReg(260), v2b);
+   Definition def_v4_hi(PhysReg(260).advance(2), v2b);
+   Operand op_v0(PhysReg(256), v1);
+   Operand desc_s4(PhysReg(0), s4);
+   Operand desc_s8(PhysReg(8), s8);
+
+   //>> p_unit_test 0
+   //! v2b: %0:v[4][0:16] = buffer_load_short_d16 %0:s[0-3], %0:v[0], 0
+   //! v2b: %0:v[4][16:32] = buffer_load_short_d16_hi %0:s[0-3], %0:v[0], 0
+   bld.pseudo(aco_opcode::p_unit_test, Operand::zero());
+   bld.mubuf(aco_opcode::buffer_load_short_d16, def_v4_lo, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+   bld.mubuf(aco_opcode::buffer_load_short_d16_hi, def_v4_hi, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+
+   //>> p_unit_test 1
+   //! v2b: %0:v[4][16:32] = buffer_load_short_d16_hi %0:s[0-3], %0:v[0], 0
+   //! v2b: %0:v[4][0:16] = buffer_load_short_d16 %0:s[0-3], %0:v[0], 0
+   bld.reset(program->create_and_insert_block());
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(1));
+   bld.mubuf(aco_opcode::buffer_load_short_d16_hi, def_v4_hi, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+   bld.mubuf(aco_opcode::buffer_load_short_d16, def_v4_lo, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+
+   //>> p_unit_test 2
+   //! v2b: %0:v[4][0:16] = buffer_load_short_d16 %0:s[0-3], %0:v[0], 0
+   //! s_wait_loadcnt imm:0
+   //! v2b: %0:v[4][0:16] = buffer_load_short_d16 %0:s[0-3], %0:v[0], 0
+   bld.reset(program->create_and_insert_block());
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(2));
+   bld.mubuf(aco_opcode::buffer_load_short_d16, def_v4_lo, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+   bld.mubuf(aco_opcode::buffer_load_short_d16, def_v4_lo, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+
+   //>> p_unit_test 3
+   //! v2b: %0:v[4][16:32] = buffer_load_short_d16_hi %0:s[0-3], %0:v[0], 0
+   //! s_wait_loadcnt imm:0
+   //! v2b: %0:v[4][16:32] = buffer_load_short_d16_hi %0:s[0-3], %0:v[0], 0
+   bld.reset(program->create_and_insert_block());
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(3));
+   bld.mubuf(aco_opcode::buffer_load_short_d16_hi, def_v4_hi, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+   bld.mubuf(aco_opcode::buffer_load_short_d16_hi, def_v4_hi, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+
+   //>> p_unit_test 4
+   //! v2b: %0:v[4][0:16] = image_sample %0:s[8-15], %0:s[0-3],  v1: undef, %0:v[0] 1d d16
+   //! s_wait_samplecnt imm:0
+   //! v2b: %0:v[4][16:32] = buffer_load_short_d16_hi %0:s[0-3], %0:v[0], 0
+   bld.reset(program->create_and_insert_block());
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(4));
+   Instruction* instr =
+      bld.mimg(aco_opcode::image_sample, def_v4_lo, desc_s8, desc_s4, Operand(v1), op_v0);
+   instr->mimg().dmask = 0x1;
+   instr->mimg().d16 = true;
+   bld.mubuf(aco_opcode::buffer_load_short_d16_hi, def_v4_hi, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+
+   //>> p_unit_test 5
+   //! v2b: %0:v[4][16:32] = buffer_load_short_d16_hi %0:s[0-3], %0:v[0], 0
+   //! s_wait_loadcnt imm:0
+   //! v2b: %0:v[4][0:16] = image_sample %0:s[8-15], %0:s[0-3],  v1: undef, %0:v[0] 1d d16
+   bld.reset(program->create_and_insert_block());
+   bld.pseudo(aco_opcode::p_unit_test, Operand::c32(5));
+   bld.mubuf(aco_opcode::buffer_load_short_d16_hi, def_v4_hi, desc_s4, op_v0, Operand::zero(), 0,
+             false);
+   instr = bld.mimg(aco_opcode::image_sample, def_v4_lo, desc_s8, desc_s4, Operand(v1), op_v0);
+   instr->mimg().dmask = 0x1;
+   instr->mimg().d16 = true;
+
+   finish_waitcnt_test();
+END_TEST
+
+BEGIN_TEST(insert_waitcnt.waw.vmem_different_lanes)
+   for (amd_gfx_level gfx : {GFX10_3, GFX11, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      Definition def_v4(PhysReg(260), v1);
+      Operand op_v0(PhysReg(256), v1);
+      Operand desc_s4(PhysReg(0), s4);
+      Operand desc_s8(PhysReg(8), s8);
+
+      emit_divergent_if_else(
+         program.get(), bld, Operand::c64(1),
+         [&]()
+         {
+            //>> p_unit_test 1
+            //! v1: %0:v[4] = buffer_load_dword %0:s[0-3], %0:v[0], 0
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(1));
+            bld.mubuf(aco_opcode::buffer_load_dword, def_v4, desc_s4, op_v0, Operand::zero(), 0,
+                      false);
+         },
+         [&]()
+         {
+            //>> p_unit_test 2
+            //! v1: %0:v[4] = buffer_load_dword %0:s[0-3], %0:v[0], 0
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(2));
+            bld.mubuf(aco_opcode::buffer_load_dword, def_v4, desc_s4, op_v0, Operand::zero(), 0,
+                      false);
+         });
+      //>> p_unit_test 3
+      //~gfx(10_3|11)! s_waitcnt vmcnt(0)
+      //~gfx12! s_wait_loadcnt imm:0
+      //! p_unit_test %0:v[4]
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(3));
+      bld.pseudo(aco_opcode::p_unit_test, Operand(PhysReg(260), v1));
+
+      emit_divergent_if_else(
+         program.get(), bld, Operand::c64(1),
+         [&]()
+         {
+            //>> p_unit_test 4
+            //! v1: %0:v[4] = buffer_load_dword %0:s[0-3], %0:v[0], 0
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(4));
+            bld.mubuf(aco_opcode::buffer_load_dword, def_v4, desc_s4, op_v0, Operand::zero(), 0,
+                      false);
+         },
+         [&]()
+         {
+            //>> p_unit_test 5
+            //~gfx12! s_wait_loadcnt imm:0
+            //! v1: %0:v[4] = image_sample %0:s[8-15], %0:s[0-3],  v1: undef, %0:v[0] 1d
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(5));
+            bld.mimg(aco_opcode::image_sample, def_v4, desc_s8, desc_s4, Operand(v1), op_v0);
+         });
+      //>> p_unit_test 6
+      //~gfx(10_3|11)! s_waitcnt vmcnt(0)
+      //~gfx12! s_wait_loadcnt imm:0
+      //~gfx12! s_wait_samplecnt imm:0
+      //! p_unit_test %0:v[4]
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(6));
+      bld.pseudo(aco_opcode::p_unit_test, Operand(PhysReg(260), v1));
+
+      finish_waitcnt_test();
+   }
+END_TEST
+
+BEGIN_TEST(insert_waitcnt.divergent_branch.inc_counter)
+   for (amd_gfx_level gfx : {GFX10_3, GFX11, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      Definition def_v4(PhysReg(260), v1);
+      Definition def_v5(PhysReg(261), v1);
+      Operand op_v0(PhysReg(256), v1);
+      Operand desc_s4(PhysReg(0), s4);
+      Operand desc_s8(PhysReg(8), s8);
+
+      //>> v1: %0:v[4] = buffer_load_dword %0:s[0-3], %0:v[0], 0
+      bld.mubuf(aco_opcode::buffer_load_dword, def_v4, desc_s4, op_v0, Operand::zero(), 0, false);
+
+      emit_divergent_if_else(
+         program.get(), bld, Operand::c64(1),
+         [&]()
+         {
+            //>> p_unit_test 1
+            //! v1: %0:v[5] = buffer_load_dword %0:s[0-3], %0:v[0], 0
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(1));
+            bld.mubuf(aco_opcode::buffer_load_dword, def_v5, desc_s4, op_v0, Operand::zero(), 0,
+                      false);
+         },
+         [&]()
+         {
+            //>> p_unit_test 2
+            //! v1: %0:v[5] = buffer_load_dword %0:s[0-3], %0:v[0], 0
+            bld.pseudo(aco_opcode::p_unit_test, Operand::c32(2));
+            bld.mubuf(aco_opcode::buffer_load_dword, def_v5, desc_s4, op_v0, Operand::zero(), 0,
+                      false);
+         });
+      //>> p_unit_test 3
+      //~gfx(10_3|11)! s_waitcnt vmcnt(1)
+      //~gfx12! s_wait_loadcnt imm:1
+      //! p_unit_test %0:v[4]
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(3));
+      bld.pseudo(aco_opcode::p_unit_test, Operand(PhysReg(260), v1));
+
+      finish_waitcnt_test();
+   }
+END_TEST
+
+BEGIN_TEST(insert_waitcnt.divergent_branch.no_skip)
+   for (amd_gfx_level gfx : {GFX10_3, GFX11, GFX12}) {
+      if (!setup_cs(NULL, gfx))
+         continue;
+
+      Definition def_v4(PhysReg(260), v1);
+      Operand op_v0(PhysReg(256), v1);
+      Operand desc_s4(PhysReg(0), s4);
+      Operand desc_s8(PhysReg(8), s8);
+
+      //>> v1: %0:v[4] = buffer_load_dword %0:s[0-3], %0:v[0], 0
+      bld.mubuf(aco_opcode::buffer_load_dword, def_v4, desc_s4, op_v0, Operand::zero(), 0, false);
+
+      //>> p_unit_test 1
+      //~gfx(10_3|11)! s_waitcnt vmcnt(0)
+      //~gfx12! s_wait_loadcnt imm:0
+      //! p_unit_test %0:v[4]
+      bld.reset(program->create_and_insert_block());
+      program->blocks[1].linear_preds.push_back(0);
+      program->blocks[1].logical_preds.push_back(0);
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(1));
+      bld.pseudo(aco_opcode::p_unit_test, Operand(PhysReg(260), v1));
+
+      //>> p_unit_test 2
+      //! p_unit_test %0:v[4]
+      bld.reset(program->create_and_insert_block());
+      program->blocks[2].linear_preds.push_back(1);
+      program->blocks[2].logical_preds.push_back(1);
+      program->blocks[2].logical_preds.push_back(0);
+      bld.pseudo(aco_opcode::p_unit_test, Operand::c32(2));
+      bld.pseudo(aco_opcode::p_unit_test, Operand(PhysReg(260), v1));
+
+      finish_waitcnt_test();
+   }
 END_TEST

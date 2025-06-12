@@ -61,7 +61,7 @@ class d3d12_video_bitstream_builder_hevc : public d3d12_video_bitstream_builder_
                                  const HevcSeqParameterSet& parentSPS,
                                  uint8_t pic_parameter_set_id,
                                  const D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_HEVC& codecConfig,
-                                 const D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC1& pictureControl,
+                                 const D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_HEVC& pictureControl,
                                  std::vector<BYTE> &headerBitstream,
                                  std::vector<BYTE>::iterator placingPositionStart,
                                  size_t &writtenBytes);
@@ -119,7 +119,7 @@ class d3d12_video_bitstream_builder_hevc : public d3d12_video_bitstream_builder_
    HevcSeqParameterSet m_active_sps = {};
    HevcPicParameterSet m_active_pps = {};
 
-   void init_profile_tier_level(HEVCProfileTierLevel *ptl, uint8_t HEVCProfileIdc, uint32_t HEVCLevelIdc, bool isHighTier);
+   void init_profile_tier_level(HEVCProfileTierLevel *ptl, uint8_t HEVCProfileIdc, uint32_t HEVCLevelIdc, bool isHighTier, uint32_t pix_bits);
 };
 
 #endif

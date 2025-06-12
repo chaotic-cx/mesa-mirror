@@ -76,6 +76,7 @@ elk_type_for_base_type(const struct glsl_type *type)
    case GLSL_TYPE_VOID:
    case GLSL_TYPE_ERROR:
    case GLSL_TYPE_COOPERATIVE_MATRIX:
+   case GLSL_TYPE_BFLOAT16:
       unreachable("not reached");
    }
 
@@ -615,7 +616,7 @@ elk_negate_immediate(enum elk_reg_type type, struct elk_reg *reg)
       unreachable("no UB/B immediates");
    case ELK_REGISTER_TYPE_UV:
    case ELK_REGISTER_TYPE_V:
-      assert(!"unimplemented: negate UV/V immediate");
+      unreachable("unimplemented: negate UV/V immediate");
    case ELK_REGISTER_TYPE_HF:
       reg->ud ^= 0x80008000;
       return true;
@@ -660,9 +661,9 @@ elk_abs_immediate(enum elk_reg_type type, struct elk_reg *reg)
       /* Presumably the absolute value modifier on an unsigned source is a
        * nop, but it would be nice to confirm.
        */
-      assert(!"unimplemented: abs unsigned immediate");
+      unreachable("unimplemented: abs unsigned immediate");
    case ELK_REGISTER_TYPE_V:
-      assert(!"unimplemented: abs V immediate");
+      unreachable("unimplemented: abs V immediate");
    case ELK_REGISTER_TYPE_HF:
       reg->ud &= ~0x80008000;
       return true;
@@ -1275,7 +1276,9 @@ elk_compile_tes(const struct elk_compiler *compiler,
 
    elk_compute_vue_map(devinfo, &prog_data->base.vue_map,
                        nir->info.outputs_written,
-                       nir->info.separate_shader, 1);
+                       nir->info.separate_shader ?
+                       INTEL_VUE_LAYOUT_SEPARATE :
+                       INTEL_VUE_LAYOUT_FIXED, 1);
 
    unsigned output_size_bytes = prog_data->base.vue_map.num_slots * 4 * 4;
 

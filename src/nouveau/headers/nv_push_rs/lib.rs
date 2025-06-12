@@ -59,7 +59,7 @@ impl MthdHeader {
         unsafe { &mut *(bits as *mut u32 as *mut MthdHeader) }
     }
 
-    fn to_bits(self) -> u32 {
+    fn into_bits(self) -> u32 {
         self.0
     }
 
@@ -90,7 +90,7 @@ impl MthdHeader {
     }
 
     fn subc(&self) -> u8 {
-        (self.0 >> 13 & 0x7) as u8
+        ((self.0 >> 13) & 0x7) as u8
     }
 
     fn addr(&self) -> u16 {
@@ -99,7 +99,7 @@ impl MthdHeader {
 
     fn len(&self) -> u16 {
         debug_assert!(!matches!(self.mthd_type(), MthdType::Immd));
-        (self.0 >> 16 & 0x1fff) as u16
+        ((self.0 >> 16) & 0x1fff) as u16
     }
 
     fn set_len(&mut self, len: u16) {
@@ -183,11 +183,11 @@ impl Push {
         if bits <= 0x1fff {
             self.last_inc = usize::MAX;
             let header = MthdHeader::new_immd(bits as u16, subc, addr);
-            self.mem.push(header.to_bits());
+            self.mem.push(header.into_bits());
         } else {
             self.last_inc = self.mem.len();
             let header = MthdHeader::new(MthdType::NInc, subc, addr, 1);
-            self.mem.push(header.to_bits());
+            self.mem.push(header.into_bits());
             self.mem.push(bits);
         }
     }
@@ -210,6 +210,12 @@ impl Push {
             panic!("Inline data must only be placed after a method header");
         }
         self.mem.extend_from_slice(data);
+    }
+}
+
+impl Default for Push {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

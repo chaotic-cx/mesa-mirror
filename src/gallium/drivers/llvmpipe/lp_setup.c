@@ -177,7 +177,7 @@ lp_setup_reset(struct lp_setup_context *setup)
    }
 
    setup->fs.stored = NULL;
-   setup->dirty = ~0;
+   setup->dirty = ~0U;
 
    /* no current bin */
    setup->scene = NULL;
@@ -238,9 +238,9 @@ begin_binning(struct lp_setup_context *setup)
    }
 
    bool need_zsload = false;
-   if (setup->fb.zsbuf &&
+   if (setup->fb.zsbuf.texture &&
        ((setup->clear.flags & PIPE_CLEAR_DEPTHSTENCIL) != PIPE_CLEAR_DEPTHSTENCIL) &&
-        util_format_is_depth_and_stencil(setup->fb.zsbuf->format)) {
+        util_format_is_depth_and_stencil(setup->fb.zsbuf.format)) {
       need_zsload = true;
    }
 
@@ -274,7 +274,7 @@ begin_binning(struct lp_setup_context *setup)
       }
    }
 
-   if (setup->fb.zsbuf) {
+   if (setup->fb.zsbuf.texture) {
       if (setup->clear.flags & PIPE_CLEAR_DEPTHSTENCIL) {
          if (!lp_scene_bin_everywhere(scene,
                                       LP_RAST_OP_CLEAR_ZSTENCIL,
@@ -426,7 +426,7 @@ lp_setup_try_clear_color_buffer(struct lp_setup_context *setup,
 {
    union lp_rast_cmd_arg clearrb_arg;
    union util_color uc;
-   const enum pipe_format format = setup->fb.cbufs[cbuf]->format;
+   const enum pipe_format format = setup->fb.cbufs[cbuf].format;
 
    LP_DBG(DEBUG_SETUP, "%s state %d\n", __func__, setup->state);
 
@@ -483,10 +483,10 @@ lp_setup_try_clear_zs(struct lp_setup_context *setup,
 {
    LP_DBG(DEBUG_SETUP, "%s state %d\n", __func__, setup->state);
 
-   enum pipe_format format = setup->fb.zsbuf->format;
+   enum pipe_format format = setup->fb.zsbuf.format;
 
-   const uint32_t zmask32 = (flags & PIPE_CLEAR_DEPTH) ? ~0 : 0;
-   const uint8_t smask8 = (flags & PIPE_CLEAR_STENCIL) ? ~0 : 0;
+   const uint32_t zmask32 = (flags & PIPE_CLEAR_DEPTH) ? ~0U : 0U;
+   const uint8_t smask8 = (flags & PIPE_CLEAR_STENCIL) ? ~0U : 0U;
 
    uint64_t zsvalue = util_pack64_z_stencil(format, depth, stencil);
    uint64_t zsmask = util_pack64_mask_z_stencil(format, zmask32, smask8);
@@ -499,7 +499,7 @@ lp_setup_try_clear_zs(struct lp_setup_context *setup,
        * Make full mask if there's "X" bits so we can do full
        * clear (without rmw).
        */
-      uint32_t zsmask_full = util_pack_mask_z_stencil(format, ~0, ~0);
+      uint32_t zsmask_full = util_pack_mask_z_stencil(format, ~0U, (uint8_t) ~0U);
       zsmask |= ~zsmask_full;
    }
 
@@ -561,7 +561,7 @@ lp_setup_clear(struct lp_setup_context *setup,
    if (flags & PIPE_CLEAR_COLOR) {
       assert(PIPE_CLEAR_COLOR0 == (1 << 2));
       for (unsigned i = 0; i < setup->fb.nr_cbufs; i++) {
-         if ((flags & (1 << (2 + i))) && setup->fb.cbufs[i]) {
+         if ((flags & (1 << (2 + i))) && setup->fb.cbufs[i].texture) {
             if (!lp_setup_try_clear_color_buffer(setup, color, i)) {
                set_scene_state(setup, SETUP_FLUSHED, __func__);
 
@@ -951,10 +951,10 @@ lp_setup_is_resource_referenced(const struct lp_setup_context *setup,
 {
    /* check the render targets */
    for (unsigned i = 0; i < setup->fb.nr_cbufs; i++) {
-      if (setup->fb.cbufs[i] && setup->fb.cbufs[i]->texture == texture)
+      if (setup->fb.cbufs[i].texture == texture)
          return LP_REFERENCED_FOR_READ | LP_REFERENCED_FOR_WRITE;
    }
-   if (setup->fb.zsbuf && setup->fb.zsbuf->texture == texture) {
+   if (setup->fb.zsbuf.texture == texture) {
       return LP_REFERENCED_FOR_READ | LP_REFERENCED_FOR_WRITE;
    }
 
@@ -1367,7 +1367,7 @@ lp_setup_create(struct pipe_context *pipe,
    setup->line     = first_line;
    setup->point    = first_point;
 
-   setup->dirty = ~0;
+   setup->dirty = ~0U;
 
    /* Initialize empty default fb correctly, so the rect is empty */
    setup->framebuffer.x1 = -1;

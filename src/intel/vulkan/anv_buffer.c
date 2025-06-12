@@ -23,10 +23,13 @@ anv_bind_buffer_memory(struct anv_device *device,
       buffer->address = (struct anv_address) {
          .bo = mem->bo,
          .offset = pBindInfo->memoryOffset,
+         .protected = anv_buffer_is_protected(buffer),
       };
    } else {
       buffer->address = ANV_NULL_ADDRESS;
    }
+
+   buffer->vk.device_address = anv_address_physical(buffer->address);
 
    ANV_RMV(buffer_bind, device, buffer);
 
@@ -242,6 +245,8 @@ VkResult anv_CreateBuffer(
          vk_buffer_destroy(&device->vk, pAllocator, &buffer->vk);
          return result;
       }
+
+      buffer->vk.device_address = anv_address_physical(buffer->address);
    }
 
    ANV_RMV(buffer_create, device, false, buffer);
@@ -333,5 +338,6 @@ anv_fill_buffer_surface_state(struct anv_device *device,
                          .size_B = range,
                          .format = format,
                          .swizzle = swizzle,
-                         .stride_B = stride);
+                         .stride_B = stride,
+                         .usage = usage);
 }

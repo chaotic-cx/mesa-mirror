@@ -70,7 +70,7 @@ struct vpep_direct_config_packet {
 
 /* config writer only help initialize the 1st DWORD,
  * and 'close' the config (i.e. finalize the size) once it is completed.
- * it doesn't help generate the content, which shall be prepared by the caller
+ * it does not help generate the content, which shall be prepared by the caller
  * and then call config_writer_fill()
  */
 struct config_writer {
@@ -91,6 +91,12 @@ struct config_writer {
     void             *callback_ctx;
     config_callback_t callback;
     enum vpe_status   status;
+
+#ifdef VPE_REGISTER_PROFILE
+    uint64_t register_count;
+    uint64_t total_config_count;
+    uint64_t reused_config_count;
+#endif
 };
 
 /** initialize the config writer.

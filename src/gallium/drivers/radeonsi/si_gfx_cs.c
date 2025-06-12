@@ -192,7 +192,9 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
       flags |= RADEON_FLUSH_NOOP;
 
    uint64_t start_ts = 0, submission_id = 0;
-   if (u_trace_perfetto_active(&ctx->ds.trace_context)) {
+   const bool perfetto = ctx->perfetto_enabled;
+
+   if (unlikely(perfetto)) {
       start_ts = si_ds_begin_submit(&ctx->ds_queue);
       submission_id = ctx->ds_queue.submission_id;
    }
@@ -200,9 +202,8 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
    /* Flush the CS. */
    ws->cs_flush(cs, flags, &ctx->last_gfx_fence);
 
-   if (u_trace_perfetto_active(&ctx->ds.trace_context) && start_ts > 0) {
+   if (unlikely(perfetto))
       si_ds_end_submit(&ctx->ds_queue, start_ts);
-   }
 
    tc_driver_internal_flush_notify(ctx->tc);
    if (fence)
@@ -227,7 +228,7 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
    if (ctx->current_saved_cs)
       si_saved_cs_reference(&ctx->current_saved_cs, NULL);
 
-   if (u_trace_perfetto_active(&ctx->ds.trace_context))
+   if (unlikely(perfetto))
       si_utrace_flush(ctx, submission_id);
 
    si_begin_new_gfx_cs(ctx, false);
@@ -309,7 +310,6 @@ void si_set_tracked_regs_to_clear_state(struct si_context *ctx)
 
    ctx->tracked_regs.reg_value[SI_TRACKED_SPI_SHADER_Z_FORMAT] = 0;
    ctx->tracked_regs.reg_value[SI_TRACKED_SPI_SHADER_COL_FORMAT] = 0;
-   ctx->tracked_regs.reg_value[SI_TRACKED_SPI_BARYC_CNTL] = 0;
    ctx->tracked_regs.reg_value[SI_TRACKED_SPI_PS_INPUT_ENA] = 0;
    ctx->tracked_regs.reg_value[SI_TRACKED_SPI_PS_INPUT_ADDR] = 0;
 
@@ -394,13 +394,14 @@ void si_install_draw_wrapper(struct si_context *sctx, pipe_draw_func wrapper,
    }
 }
 
-static void si_tmz_preamble(struct si_context *sctx)
+static int si_tmz_preamble(struct si_context *sctx)
 {
-   bool secure = si_gfx_resources_check_encrypted(sctx);
-   if (secure != sctx->ws->cs_is_secure(&sctx->gfx_cs)) {
+   int secure = si_gfx_resources_check_encrypted(sctx);
+   if ((secure == 1) != sctx->ws->cs_is_secure(&sctx->gfx_cs)) {
       si_flush_gfx_cs(sctx, RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW |
                             RADEON_FLUSH_TOGGLE_SECURE_SUBMISSION, NULL);
    }
+   return secure;
 }
 
 static void si_draw_vbo_tmz_preamble(struct pipe_context *ctx,
@@ -411,8 +412,8 @@ static void si_draw_vbo_tmz_preamble(struct pipe_context *ctx,
                                      unsigned num_draws) {
    struct si_context *sctx = (struct si_context *)ctx;
 
-   si_tmz_preamble(sctx);
-   sctx->real_draw_vbo(ctx, info, drawid_offset, indirect, draws, num_draws);
+   if (si_tmz_preamble(sctx) >= 0)
+      sctx->real_draw_vbo(ctx, info, drawid_offset, indirect, draws, num_draws);
 }
 
 static void si_draw_vstate_tmz_preamble(struct pipe_context *ctx,
@@ -423,8 +424,8 @@ static void si_draw_vstate_tmz_preamble(struct pipe_context *ctx,
                                         unsigned num_draws) {
    struct si_context *sctx = (struct si_context *)ctx;
 
-   si_tmz_preamble(sctx);
-   sctx->real_draw_vertex_state(ctx, state, partial_velem_mask, info, draws, num_draws);
+   if (si_tmz_preamble(sctx) >= 0)
+      sctx->real_draw_vertex_state(ctx, state, partial_velem_mask, info, draws, num_draws);
 }
 
 void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
@@ -434,10 +435,25 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
    if (!first_cs)
       u_trace_fini(&ctx->trace);
 
+   ctx->perfetto_enabled = u_trace_perfetto_active(&ctx->ds.trace_context);
+
    u_trace_init(&ctx->trace, &ctx->ds.trace_context);
 
    if (unlikely(radeon_uses_secure_bos(ctx->ws))) {
       is_secure = ctx->ws->cs_is_secure(&ctx->gfx_cs);
+
+      if (is_secure && !ctx->screen->attribute_pos_prim_ring_tmz) {
+         ctx->screen->attribute_pos_prim_ring_tmz =
+            si_aligned_buffer_create(&ctx->screen->b,
+                                     PIPE_RESOURCE_FLAG_UNMAPPABLE |
+                                     SI_RESOURCE_FLAG_32BIT |
+                                     SI_RESOURCE_FLAG_DRIVER_INTERNAL |
+                                     PIPE_RESOURCE_FLAG_ENCRYPTED |
+                                     SI_RESOURCE_FLAG_DISCARDABLE,
+                                     PIPE_USAGE_DEFAULT,
+                                     ctx->screen->info.total_attribute_pos_prim_ring_size,
+                                     2 * 1024 * 1024);
+      }
 
       si_install_draw_wrapper(ctx, si_draw_vbo_tmz_preamble,
                               si_draw_vstate_tmz_preamble);
@@ -484,8 +500,12 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
    si_mark_atom_dirty(ctx, &ctx->atoms.s.barrier);
    si_mark_atom_dirty(ctx, &ctx->atoms.s.spi_ge_ring_state);
 
-   if (ctx->screen->attribute_pos_prim_ring) {
+   if (ctx->screen->attribute_pos_prim_ring && !is_secure) {
       radeon_add_to_buffer_list(ctx, &ctx->gfx_cs, ctx->screen->attribute_pos_prim_ring,
+                                RADEON_USAGE_READWRITE | RADEON_PRIO_SHADER_RINGS);
+   }
+   if (ctx->screen->attribute_pos_prim_ring_tmz && is_secure) {
+      radeon_add_to_buffer_list(ctx, &ctx->gfx_cs, ctx->screen->attribute_pos_prim_ring_tmz,
                                 RADEON_USAGE_READWRITE | RADEON_PRIO_SHADER_RINGS);
    }
    if (ctx->border_color_buffer) {
@@ -548,11 +568,11 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
    bool has_clear_state = ctx->screen->info.has_clear_state;
    if (has_clear_state) {
       ctx->framebuffer.dirty_cbufs =
-            u_bit_consecutive(0, ctx->framebuffer.state.nr_cbufs);
+            BITFIELD_MASK(ctx->framebuffer.state.nr_cbufs);
       /* CLEAR_STATE disables the zbuffer, so only enable it if it's bound. */
-      ctx->framebuffer.dirty_zsbuf = ctx->framebuffer.state.zsbuf != NULL;
+      ctx->framebuffer.dirty_zsbuf = ctx->framebuffer.state.zsbuf.texture != NULL;
    } else {
-      ctx->framebuffer.dirty_cbufs = u_bit_consecutive(0, 8);
+      ctx->framebuffer.dirty_cbufs = BITFIELD_MASK(8);
       ctx->framebuffer.dirty_zsbuf = true;
    }
 

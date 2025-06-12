@@ -166,7 +166,7 @@ etna_create_sampler_view_desc(struct pipe_context *pctx, struct pipe_resource *p
    if (!sv->res)
       goto error;
 
-   uint32_t *buf = etna_bo_map(etna_resource(sv->res)->bo) + suballoc_offset;
+   uint32_t *buf = etna_bo_map(etna_buffer_resource(sv->res)->bo) + suballoc_offset;
 
    /** GC7000 needs the size of the BASELOD level */
    uint32_t base_width = u_minify(res->base.width0, sv->base.u.tex.first_level);
@@ -223,7 +223,7 @@ etna_create_sampler_view_desc(struct pipe_context *pctx, struct pipe_resource *p
       DESC_SET(LOD_ADDR(lod), etna_bo_gpu_va(res->bo) + res->levels[lod].offset);
 #undef DESC_SET
 
-   sv->DESC_ADDR.bo = etna_resource(sv->res)->bo;
+   sv->DESC_ADDR.bo = etna_buffer_resource(sv->res)->bo;
    sv->DESC_ADDR.offset = suballoc_offset;
    sv->DESC_ADDR.flags = ETNA_RELOC_READ;
 
@@ -364,7 +364,7 @@ etna_texture_desc_init(struct pipe_context *pctx)
    ctx->base.delete_sampler_state = etna_delete_sampler_state_desc;
    ctx->base.create_sampler_view = etna_create_sampler_view_desc;
    ctx->base.sampler_view_destroy = etna_sampler_view_desc_destroy;
+   ctx->base.sampler_view_release = u_default_sampler_view_release;
    ctx->emit_texture_state = etna_emit_texture_desc;
    ctx->ts_for_sampler_view = etna_ts_for_sampler_view_state;
 }
-

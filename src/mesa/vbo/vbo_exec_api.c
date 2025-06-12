@@ -40,7 +40,7 @@ USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include "main/light.h"
 #include "main/api_arrayelt.h"
 #include "main/draw_validate.h"
-#include "main/dispatch.h"
+#include "dispatch.h"
 #include "util/bitscan.h"
 #include "util/u_memory.h"
 #include "api_exec_decl.h"
@@ -863,7 +863,7 @@ _mesa_Begin(GLenum mode)
          ctx->Dispatch.Current = ctx->Dispatch.Exec;
    } else if (ctx->GLApi == ctx->Dispatch.OutsideBeginEnd) {
       ctx->GLApi = ctx->Dispatch.Current = ctx->Dispatch.Exec;
-      _glapi_set_dispatch(ctx->GLApi);
+      _mesa_glapi_set_dispatch(ctx->GLApi);
    } else {
       assert(ctx->GLApi == ctx->Dispatch.Save);
    }
@@ -926,7 +926,7 @@ _mesa_End(void)
    } else if (ctx->GLApi == ctx->Dispatch.BeginEnd ||
               ctx->GLApi == ctx->Dispatch.HWSelectModeBeginEnd) {
       ctx->GLApi = ctx->Dispatch.Current = ctx->Dispatch.Exec;
-      _glapi_set_dispatch(ctx->GLApi);
+      _mesa_glapi_set_dispatch(ctx->GLApi);
    }
 
    if (exec->vtx.prim_count > 0) {
@@ -1127,7 +1127,7 @@ vbo_exec_vtx_init(struct vbo_exec_context *exec)
 
    exec->vtx.bufferobj = _mesa_bufferobj_alloc(ctx, IMM_BUFFER_NAME);
 
-   exec->vtx.enabled = u_bit_consecutive64(0, VBO_ATTRIB_MAX); /* reset all */
+   exec->vtx.enabled = BITFIELD64_MASK(VBO_ATTRIB_MAX); /* reset all */
    vbo_reset_all_attr(ctx);
 
    exec->vtx.info.instance_count = 1;
@@ -1262,7 +1262,7 @@ _es_Materialf(GLenum face, GLenum pname, GLfloat param)
 void
 vbo_init_dispatch_hw_select_begin_end(struct gl_context *ctx)
 {
-   int numEntries = MAX2(_gloffset_COUNT, _glapi_get_dispatch_table_size());
+   int numEntries = MAX2(_gloffset_COUNT, _mesa_glapi_get_dispatch_table_size());
    memcpy(ctx->Dispatch.HWSelectModeBeginEnd, ctx->Dispatch.BeginEnd, numEntries * sizeof(_glapi_proc));
 
 #undef NAME

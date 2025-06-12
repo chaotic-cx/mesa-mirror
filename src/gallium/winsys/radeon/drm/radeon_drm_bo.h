@@ -10,7 +10,7 @@
 
 #include "radeon_drm_winsys.h"
 #include "util/u_thread.h"
-#include "pipebuffer/pb_slab.h"
+#include "util/pb_slab.h"
 
 struct radeon_bo {
    struct pb_buffer_lean base;
@@ -70,7 +70,11 @@ static inline void
 radeon_ws_bo_reference(struct radeon_winsys *rws, struct radeon_bo **dst,
                        struct radeon_bo *src)
 {
-   radeon_bo_reference(rws, (struct pb_buffer_lean**)dst, (struct pb_buffer_lean*)src);
+   struct pb_buffer_lean *p_dst_base = &(*dst)->base;
+
+   radeon_bo_reference(rws, &p_dst_base, (struct pb_buffer_lean*)src);
+
+   *dst = (struct radeon_bo *)p_dst_base;
 }
 
 void *radeon_bo_do_map(struct radeon_bo *bo);

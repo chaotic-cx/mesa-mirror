@@ -18,7 +18,6 @@
 #include "asahi/lib/agx_tilebuffer.h"
 #include "asahi/lib/agx_uvs.h"
 #include "asahi/lib/pool.h"
-#include "asahi/lib/unstable_asahi_drm.h"
 #include "asahi/libagx/geometry.h"
 #include "compiler/shader_enums.h"
 #include "gallium/auxiliary/util/u_blitter.h"
@@ -33,6 +32,7 @@
 #include "util/u_range.h"
 #include "agx_bg_eot.h"
 #include "agx_helpers.h"
+#include "agx_nir_lower_gs.h"
 #include "agx_nir_texture.h"
 
 #ifdef __GLIBC__
@@ -248,11 +248,7 @@ struct agx_compiled_shader {
    struct agx_compiled_shader *gs_count, *pre_gs;
    struct agx_compiled_shader *gs_copy;
 
-   /* Output primitive mode for geometry shaders */
-   enum mesa_prim gs_output_mode;
-
-   /* Number of words per primitive in the count buffer */
-   unsigned gs_count_words;
+   struct agx_gs_info gs;
 
    /* Logical shader stage used for descriptor access. This may differ from the
     * physical shader stage of the compiled shader, for example when executing a
@@ -358,9 +354,13 @@ struct agx_stage {
    uint32_t valid_samplers;
 };
 
-union agx_batch_result {
-   struct drm_asahi_result_render render;
-   struct drm_asahi_result_compute compute;
+struct agx_timestamps {
+   uint64_t vtx_start;
+   uint64_t vtx_end;
+   uint64_t frag_start;
+   uint64_t frag_end;
+   uint64_t comp_start;
+   uint64_t comp_end;
 };
 
 /* This is a firmware limit. It should be possible to raise to 2048 in the
@@ -419,8 +419,8 @@ struct agx_batch {
    uint64_t geom_indirect;
    struct agx_bo *geom_indirect_bo;
 
-   /* Geometry state buffer if geometry/etc shaders are used */
-   uint64_t geometry_state;
+   /* Heap descriptor if dynamic allocation is required */
+   uint64_t heap;
 
    /* Uploaded descriptors */
    uint32_t texture_count[PIPE_SHADER_TYPES];
@@ -457,12 +457,9 @@ struct agx_batch {
    /* Arrays of GPU pointers that should be written with the batch timestamps */
    struct util_dynarray timestamps;
 
-   /* Result buffer where the kernel places command execution information */
-   union agx_batch_result *result;
-   size_t result_off;
-
    /* Actual pointer in a uniform */
-   struct agx_bo *geom_params_bo;
+   struct agx_bo *geom_params_bo, *geom_index_bo;
+   uint64_t geom_index;
 
    /* Whether each stage uses scratch */
    bool vs_scratch;
@@ -648,7 +645,8 @@ struct agx_context {
    uint32_t queue_id;
 
    struct agx_batch *batch;
-   struct agx_bo *result_buf;
+   struct agx_bo *timestamps;
+   uint32_t timestamp_handle;
 
    struct pipe_vertex_buffer vertex_buffers[PIPE_MAX_ATTRIBS];
    uint32_t vb_mask;

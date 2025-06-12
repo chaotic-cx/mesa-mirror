@@ -119,6 +119,8 @@ vlVaDestroySurfaces(VADriverContextP ctx, VASurfaceID *surface_list, int num_sur
       }
       if (surf->buffer)
          surf->buffer->destroy(surf->buffer);
+      if (surf->pipe_fence)
+         drv->pipe->screen->fence_reference(drv->pipe->screen, &surf->pipe_fence, NULL);
       if (surf->ctx) {
          assert(_mesa_set_search(surf->ctx->surfaces, surf));
          _mesa_set_remove_key(surf->ctx->surfaces, surf);
@@ -176,30 +178,30 @@ _vlVaSyncSurface(VADriverContextP ctx, VASurfaceID render_target, uint64_t timeo
       fence = surf->fence;
    }
 
-   /* This is checked before getting the context below as
-    * surf->ctx is only set in begin_frame
-    * and not when the surface is created
-    * Some apps try to sync/map the surface right after creation and
-    * would get VA_STATUS_ERROR_INVALID_CONTEXT
-    */
-   if (!surf->buffer || !fence) {
-      // No outstanding encode/decode operation: nothing to do.
+   if (surf->pipe_fence) {
+      struct pipe_screen *pscreen = drv->pipe->screen;
+      if (!pscreen->fence_finish(pscreen, NULL, surf->pipe_fence, timeout_ns)) {
+         mtx_unlock(&drv->mutex);
+         return VA_STATUS_ERROR_TIMEDOUT;
+      }
+      pscreen->fence_reference(pscreen, &surf->pipe_fence, NULL);
+   }
+
+   /* No outstanding operation: nothing to do. */
+   if (!surf->fence) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_SUCCESS;
    }
 
-   if (!context) {
+   if (!context || !context->decoder) {
       mtx_unlock(&drv->mutex);
       return VA_STATUS_ERROR_INVALID_CONTEXT;
    }
 
-   if (!context->decoder) {
-      mtx_unlock(&drv->mutex);
-      return VA_STATUS_ERROR_UNSUPPORTED_ENTRYPOINT;
-   }
-
-   int ret = context->decoder->fence_wait(context->decoder, fence, timeout_ns);
+   mtx_lock(&context->mutex);
    mtx_unlock(&drv->mutex);
+   int ret = context->decoder->fence_wait(context->decoder, fence, timeout_ns);
+   mtx_unlock(&context->mutex);
    return ret ? VA_STATUS_SUCCESS : VA_STATUS_ERROR_TIMEDOUT;
 }
 
@@ -220,64 +222,14 @@ vlVaSyncSurface2(VADriverContextP ctx, VASurfaceID surface, uint64_t timeout_ns)
 VAStatus
 vlVaQuerySurfaceStatus(VADriverContextP ctx, VASurfaceID render_target, VASurfaceStatus *status)
 {
-   vlVaDriver *drv;
-   vlVaSurface *surf;
-   vlVaContext *context;
-   struct pipe_fence_handle *fence;
+   VAStatus ret = _vlVaSyncSurface(ctx, render_target, 0);
 
-   if (!ctx)
-      return VA_STATUS_ERROR_INVALID_CONTEXT;
-
-   drv = VL_VA_DRIVER(ctx);
-   if (!drv)
-      return VA_STATUS_ERROR_INVALID_CONTEXT;
-
-   mtx_lock(&drv->mutex);
-
-   surf = handle_table_get(drv->htab, render_target);
-   if (!surf) {
-      mtx_unlock(&drv->mutex);
-      return VA_STATUS_ERROR_INVALID_SURFACE;
-   }
-
-   if (surf->coded_buf) {
-      context = surf->coded_buf->ctx;
-      fence = surf->coded_buf->fence;
-   } else {
-      context = surf->ctx;
-      fence = surf->fence;
-   }
-
-   /* This is checked before getting the context below as
-    * surf->ctx is only set in begin_frame
-    * and not when the surface is created
-    * Some apps try to sync/map the surface right after creation and
-    * would get VA_STATUS_ERROR_INVALID_CONTEXT
-    */
-   if (!surf->buffer || !fence) {
-      // No outstanding encode/decode operation: nothing to do.
+   if (ret == VA_STATUS_SUCCESS)
       *status = VASurfaceReady;
-      mtx_unlock(&drv->mutex);
-      return VA_STATUS_SUCCESS;
-   }
-
-   if (!context) {
-      mtx_unlock(&drv->mutex);
-      return VA_STATUS_ERROR_INVALID_CONTEXT;
-   }
-
-   if (!context->decoder) {
-      mtx_unlock(&drv->mutex);
-      return VA_STATUS_ERROR_UNSUPPORTED_ENTRYPOINT;
-   }
-
-   int ret = context->decoder->fence_wait(context->decoder, fence, 0);
-   mtx_unlock(&drv->mutex);
-
-   if (ret)
-      *status = VASurfaceReady;
-   else
+   else if (ret == VA_STATUS_ERROR_TIMEDOUT)
       *status = VASurfaceRendering;
+   else
+      return ret;
 
    return VA_STATUS_SUCCESS;
 }
@@ -409,7 +361,7 @@ vlVaPutSurface(VADriverContextP ctx, VASurfaceID surface_id, void* draw, short s
    vlVaSurface *surf;
    struct pipe_screen *screen;
    struct pipe_resource *tex;
-   struct pipe_surface surf_templ, *surf_draw;
+   struct pipe_surface surf_templ;
    struct vl_screen *vscreen;
    struct u_rect src_rect, *dirty_area;
    struct u_rect dst_rect = {destx, destx + destw, desty, desty + desth};
@@ -440,14 +392,7 @@ vlVaPutSurface(VADriverContextP ctx, VASurfaceID surface_id, void* draw, short s
 
    dirty_area = vscreen->get_dirty_area(vscreen);
 
-   memset(&surf_templ, 0, sizeof(surf_templ));
-   surf_templ.format = tex->format;
-   surf_draw = drv->pipe->create_surface(drv->pipe, tex, &surf_templ);
-   if (!surf_draw) {
-      pipe_resource_reference(&tex, NULL);
-      mtx_unlock(&drv->mutex);
-      return VA_STATUS_ERROR_INVALID_DISPLAY;
-   }
+   u_surface_default_template(&surf_templ, tex);
 
    src_rect.x0 = srcx;
    src_rect.y0 = srcy;
@@ -468,11 +413,7 @@ vlVaPutSurface(VADriverContextP ctx, VASurfaceID surface_id, void* draw, short s
 
    vl_compositor_clear_layers(&drv->cstate);
 
-   if (format == PIPE_FORMAT_B8G8R8A8_UNORM || format == PIPE_FORMAT_B8G8R8X8_UNORM ||
-       format == PIPE_FORMAT_R8G8B8A8_UNORM || format == PIPE_FORMAT_R8G8B8X8_UNORM ||
-       format == PIPE_FORMAT_B10G10R10A2_UNORM || format == PIPE_FORMAT_B10G10R10X2_UNORM ||
-       format == PIPE_FORMAT_R10G10B10A2_UNORM || format == PIPE_FORMAT_R10G10B10X2_UNORM ||
-       format == PIPE_FORMAT_L8_UNORM || format == PIPE_FORMAT_Y8_400_UNORM) {
+   if (!util_format_is_yuv(format)) {
       struct pipe_sampler_view **views;
 
       views = surf->buffer->get_sampler_view_planes(surf->buffer);
@@ -481,9 +422,9 @@ vlVaPutSurface(VADriverContextP ctx, VASurfaceID surface_id, void* draw, short s
       vl_compositor_set_buffer_layer(&drv->cstate, &drv->compositor, 0, surf->buffer, &src_rect, NULL, VL_COMPOSITOR_WEAVE);
 
    vl_compositor_set_layer_dst_area(&drv->cstate, 0, &dst_rect);
-   vl_compositor_render(&drv->cstate, &drv->compositor, surf_draw, dirty_area, true);
+   vl_compositor_render(&drv->cstate, &drv->compositor, &surf_templ, dirty_area, true);
 
-   status = vlVaPutSubpictures(surf, drv, surf_draw, dirty_area, &src_rect, &dst_rect);
+   status = vlVaPutSubpictures(surf, drv, &surf_templ, dirty_area, &src_rect, &dst_rect);
    if (status) {
       mtx_unlock(&drv->mutex);
       return status;
@@ -495,14 +436,13 @@ vlVaPutSurface(VADriverContextP ctx, VASurfaceID surface_id, void* draw, short s
    /* flush before calling flush_frontbuffer so that rendering is flushed
     * to back buffer so the texture can be copied in flush_frontbuffer
     */
-   drv->pipe->flush(drv->pipe, NULL, 0);
+   vlVaSurfaceFlush(drv, surf);
 
    screen->flush_frontbuffer(screen, drv->pipe, tex, 0, 0,
                              vscreen->get_private(vscreen), 0, NULL);
 
 
    pipe_resource_reference(&tex, NULL);
-   pipe_surface_reference(&surf_draw, NULL);
    mtx_unlock(&drv->mutex);
 
    return VA_STATUS_SUCCESS;
@@ -592,48 +532,44 @@ vlVaQuerySurfaceAttributes(VADriverContextP ctx, VAConfigID config_id,
 
    i = 0;
 
-   if (config->rt_format & VA_RT_FORMAT_YUV420) {
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_NV12, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_YV12, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_IYUV, attribs, &i);
-   }
+   /* VA_RT_FORMAT_YUV420 */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_NV12, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_YV12, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_IYUV, attribs, &i);
 
-   if (config->rt_format & VA_RT_FORMAT_YUV420_10) {
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_P010, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_P016, attribs, &i);
-   }
+   /* VA_RT_FORMAT_YUV420_10 */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_P010, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_P016, attribs, &i);
 
-   if (config->rt_format & VA_RT_FORMAT_YUV420_12)
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_P012, attribs, &i);
+   /* VA_RT_FORMAT_YUV420_12 */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_P012, attribs, &i);
 
-   if (config->rt_format & VA_RT_FORMAT_YUV400)
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_Y8_400_UNORM, attribs, &i);
+   /* VA_RT_FORMAT_YUV400 */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_Y8_400_UNORM, attribs, &i);
 
-   if (config->rt_format & VA_RT_FORMAT_YUV422) {
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_UYVY, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_YUYV, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_Y8_U8_V8_440_UNORM, attribs, &i);
-   }
+   /* VA_RT_FORMAT_YUV422 */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_UYVY, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_YUYV, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_Y8_U8_V8_440_UNORM, attribs, &i);
 
-   if (config->rt_format & VA_RT_FORMAT_YUV444)
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_Y8_U8_V8_444_UNORM, attribs, &i);
+   /* VA_RT_FORMAT_YUV444 */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_Y8_U8_V8_444_UNORM, attribs, &i);
 
-   if (config->rt_format & VA_RT_FORMAT_RGBP)
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R8_G8_B8_UNORM, attribs, &i);
+   /* VA_RT_FORMAT_RGBP */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R8_G8_B8_UNORM, attribs, &i);
 
-   if (config->rt_format & VA_RT_FORMAT_RGB32) {
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R8G8B8A8_UNORM, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_B8G8R8A8_UNORM, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R8G8B8X8_UNORM, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_B8G8R8X8_UNORM, attribs, &i);
-   }
+   /* VA_RT_FORMAT_RGB32 */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R8G8B8A8_UNORM, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_B8G8R8A8_UNORM, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R8G8B8X8_UNORM, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_B8G8R8X8_UNORM, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_A8R8G8B8_UNORM, attribs, &i);
 
-   if (config->rt_format & VA_RT_FORMAT_RGB32_10) {
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R10G10B10A2_UNORM, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_B10G10R10A2_UNORM, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R10G10B10X2_UNORM, attribs, &i);
-      vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_B10G10R10X2_UNORM, attribs, &i);
-   }
+   /* VA_RT_FORMAT_RGB32_10 */
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R10G10B10A2_UNORM, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_B10G10R10A2_UNORM, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_R10G10B10X2_UNORM, attribs, &i);
+   vlVaAddSurfaceFormat(pscreen, config, PIPE_FORMAT_B10G10R10X2_UNORM, attribs, &i);
 
    attribs[i].type = VASurfaceAttribMemoryType;
    attribs[i].value.type = VAGenericValueTypeInteger;
@@ -1012,7 +948,7 @@ vlVaHandleSurfaceAllocate(vlVaDriver *drv, vlVaSurface *surface,
                           const uint64_t *modifiers,
                           unsigned int modifiers_count)
 {
-   struct pipe_surface **surfaces;
+   struct pipe_surface *surfaces;
    unsigned i;
 
    if (modifiers_count > 0) {
@@ -1035,22 +971,24 @@ vlVaHandleSurfaceAllocate(vlVaDriver *drv, vlVaSurface *surface,
       return VA_STATUS_SUCCESS;
 
    surfaces = surface->buffer->get_surfaces(surface->buffer);
-   if (surfaces) {
+   if (surfaces[0].texture) {
       for (i = 0; i < VL_MAX_SURFACES; ++i) {
          union pipe_color_union c;
          memset(&c, 0, sizeof(c));
 
-         if (!surfaces[i])
+         if (!surfaces[i].texture)
             continue;
 
          if (i > !!surface->buffer->interlaced)
             c.f[0] = c.f[1] = c.f[2] = c.f[3] = 0.5f;
 
-         drv->pipe->clear_render_target(drv->pipe, surfaces[i], &c, 0, 0,
-                  surfaces[i]->width, surfaces[i]->height,
+         uint16_t width, height;
+         pipe_surface_size(&surfaces[i], &width, &height);
+         drv->pipe->clear_render_target(drv->pipe, &surfaces[i], &c, 0, 0,
+                  width, height,
                   false);
       }
-      drv->pipe->flush(drv->pipe, NULL, 0);
+      vlVaSurfaceFlush(drv, surface);
    }
 
    return VA_STATUS_SUCCESS;
@@ -1065,6 +1003,35 @@ vlVaGetSurfaceBuffer(vlVaDriver *drv, vlVaSurface *surface)
       return surface->buffer;
    vlVaHandleSurfaceAllocate(drv, surface, &surface->templat, NULL, 0);
    return surface->buffer;
+}
+
+void
+vlVaSurfaceFlush(vlVaDriver *drv, vlVaSurface *surf)
+{
+   drv->pipe->flush(drv->pipe, &surf->pipe_fence,
+                    drv->has_external_handles ? 0 : PIPE_FLUSH_ASYNC);
+}
+
+static void
+vlVaSwitchToProtectedContext(vlVaDriver *drv)
+{
+   if (drv->pipe2)
+      return;
+
+   /* For now the context only needs to have graphics */
+   struct pipe_context *ctx = pipe_create_multimedia_context(drv->pipe->screen, false);
+   if (!ctx)
+      return;
+
+   drv->pipe2 = drv->pipe;
+   drv->pipe = ctx;
+
+   if (drv->cstate.pipe) {
+      vl_compositor_cleanup_state(&drv->cstate);
+      vl_compositor_cleanup(&drv->compositor);
+      vl_compositor_init(&drv->compositor, drv->pipe, false);
+      vl_compositor_init_state(&drv->cstate, drv->pipe);
+   }
 }
 
 static int
@@ -1086,7 +1053,7 @@ rt_format_to_fourcc(uint32_t format)
    case VA_RT_FORMAT_RGBP:
       return VA_FOURCC_RGBP;
    case VA_RT_FORMAT_RGB32:
-      return VA_FOURCC_BGRA;
+      return VA_FOURCC_ARGB;
    case VA_RT_FORMAT_RGB32_10:
       return VA_FOURCC_X2R10G10B10;
    default:
@@ -1146,6 +1113,9 @@ vlVaCreateSurfaces2(VADriverContextP ctx, unsigned int format,
 
    protected = format & VA_RT_FORMAT_PROTECTED;
    format &= ~VA_RT_FORMAT_PROTECTED;
+
+   if (protected)
+      vlVaSwitchToProtectedContext(drv);
 
    expected_fourcc = rt_format_to_fourcc(format);
    if (!expected_fourcc)
@@ -1465,25 +1435,26 @@ vlVaQueryVideoProcPipelineCaps(VADriverContextP ctx, VAContextID context,
    pipeline_cap->filter_flags = 0;
    pipeline_cap->num_forward_references = 0;
    pipeline_cap->num_backward_references = 0;
+   pipeline_cap->rotation_flags = VA_ROTATION_NONE;
+   pipeline_cap->mirror_flags = VA_MIRROR_NONE;
 
    struct pipe_screen *pscreen = VL_VA_PSCREEN(ctx);
+   bool media_only = !pscreen->caps.graphics && !pscreen->caps.compute;
    uint32_t pipe_orientation_flags = pscreen->get_video_param(pscreen,
                                                               PIPE_VIDEO_PROFILE_UNKNOWN,
                                                               PIPE_VIDEO_ENTRYPOINT_PROCESSING,
                                                               PIPE_VIDEO_CAP_VPP_ORIENTATION_MODES);
 
-   pipeline_cap->rotation_flags = VA_ROTATION_NONE;
-   if(pipe_orientation_flags & PIPE_VIDEO_VPP_ROTATION_90)
+   if (!media_only || pipe_orientation_flags & PIPE_VIDEO_VPP_ROTATION_90)
       pipeline_cap->rotation_flags |= (1 << VA_ROTATION_90);
-   if(pipe_orientation_flags & PIPE_VIDEO_VPP_ROTATION_180)
+   if (!media_only || pipe_orientation_flags & PIPE_VIDEO_VPP_ROTATION_180)
       pipeline_cap->rotation_flags |= (1 << VA_ROTATION_180);
-   if(pipe_orientation_flags & PIPE_VIDEO_VPP_ROTATION_270)
+   if (!media_only || pipe_orientation_flags & PIPE_VIDEO_VPP_ROTATION_270)
       pipeline_cap->rotation_flags |= (1 << VA_ROTATION_270);
 
-   pipeline_cap->mirror_flags = VA_MIRROR_NONE;
-   if(pipe_orientation_flags & PIPE_VIDEO_VPP_FLIP_HORIZONTAL)
+   if (!media_only || pipe_orientation_flags & PIPE_VIDEO_VPP_FLIP_HORIZONTAL)
       pipeline_cap->mirror_flags |= VA_MIRROR_HORIZONTAL;
-   if(pipe_orientation_flags & PIPE_VIDEO_VPP_FLIP_VERTICAL)
+   if (!media_only || pipe_orientation_flags & PIPE_VIDEO_VPP_FLIP_VERTICAL)
       pipeline_cap->mirror_flags |= VA_MIRROR_VERTICAL;
 
    if (pscreen->get_video_param(pscreen, PIPE_VIDEO_PROFILE_UNKNOWN, PIPE_VIDEO_ENTRYPOINT_PROCESSING,
@@ -1595,6 +1566,8 @@ static uint32_t pipe_format_to_drm_format(enum pipe_format format)
       return DRM_FORMAT_XRGB8888;
    case PIPE_FORMAT_R8G8B8X8_UNORM:
       return DRM_FORMAT_XBGR8888;
+   case PIPE_FORMAT_A8R8G8B8_UNORM:
+      return DRM_FORMAT_BGRA8888;
    case PIPE_FORMAT_B10G10R10A2_UNORM:
       return DRM_FORMAT_ARGB2101010;
    case PIPE_FORMAT_R10G10B10A2_UNORM:
@@ -1628,7 +1601,7 @@ vlVaExportSurfaceHandle(VADriverContextP ctx,
 {
    vlVaDriver *drv;
    vlVaSurface *surf;
-   struct pipe_surface **surfaces;
+   struct pipe_surface *surfaces;
    struct pipe_screen *screen;
    VAStatus ret;
    unsigned int usage;
@@ -1672,7 +1645,7 @@ vlVaExportSurfaceHandle(VADriverContextP ctx,
 #ifdef _WIN32
    struct winsys_handle whandle;
    memset(&whandle, 0, sizeof(struct winsys_handle));
-   struct pipe_resource *resource = surfaces[0]->texture;
+   struct pipe_resource *resource = surfaces[0].texture;
 
    if (mem_type == VA_SURFACE_ATTRIB_MEM_TYPE_NTHANDLE)
       whandle.type = WINSYS_HANDLE_TYPE_FD;
@@ -1704,10 +1677,10 @@ vlVaExportSurfaceHandle(VADriverContextP ctx,
       struct pipe_resource *resource;
       uint32_t drm_format;
 
-      if (!surfaces[p])
+      if (!surfaces[p].texture)
          break;
 
-      resource = surfaces[p]->texture;
+      resource = surfaces[p].texture;
 
       drm_format = pipe_format_to_drm_format(resource->format);
       if (drm_format == DRM_FORMAT_INVALID) {

@@ -92,8 +92,7 @@ create_frag_shader(struct vl_median_filter *filter,
       return NULL;
    }
 
-   if (num_offsets > screen->get_shader_param(
-      screen, PIPE_SHADER_FRAGMENT, PIPE_SHADER_CAP_MAX_TEMPS)) {
+   if (num_offsets > screen->shader_caps[PIPE_SHADER_FRAGMENT].max_temps) {
 
       FREE(t_array);
       return NULL;
@@ -402,8 +401,8 @@ vl_median_filter_render(struct vl_median_filter *filter,
    assert(filter && src && dst);
 
    memset(&viewport, 0, sizeof(viewport));
-   viewport.scale[0] = dst->width;
-   viewport.scale[1] = dst->height;
+   viewport.scale[0] = pipe_surface_width(dst);
+   viewport.scale[1] = pipe_surface_height(dst);
    viewport.scale[2] = 1;
    viewport.swizzle_x = PIPE_VIEWPORT_SWIZZLE_POSITIVE_X;
    viewport.swizzle_y = PIPE_VIEWPORT_SWIZZLE_POSITIVE_Y;
@@ -411,17 +410,17 @@ vl_median_filter_render(struct vl_median_filter *filter,
    viewport.swizzle_w = PIPE_VIEWPORT_SWIZZLE_POSITIVE_W;
 
    memset(&fb_state, 0, sizeof(fb_state));
-   fb_state.width = dst->width;
-   fb_state.height = dst->height;
+   fb_state.width = pipe_surface_width(dst);
+   fb_state.height = pipe_surface_height(dst);
    fb_state.nr_cbufs = 1;
-   fb_state.cbufs[0] = dst;
+   fb_state.cbufs[0] = *dst;
 
    filter->pipe->bind_rasterizer_state(filter->pipe, filter->rs_state);
    filter->pipe->bind_blend_state(filter->pipe, filter->blend);
    filter->pipe->bind_sampler_states(filter->pipe, PIPE_SHADER_FRAGMENT,
                                      0, 1, &filter->sampler);
    filter->pipe->set_sampler_views(filter->pipe, PIPE_SHADER_FRAGMENT,
-                                   0, 1, 0, false, &src);
+                                   0, 1, 0, &src);
    filter->pipe->bind_vs_state(filter->pipe, filter->vs);
    filter->pipe->bind_fs_state(filter->pipe, filter->fs);
    filter->pipe->set_framebuffer_state(filter->pipe, &fb_state);

@@ -32,12 +32,14 @@
 #include "vk_log.h"
 #include "vk_nir.h"
 #include "vk_physical_device.h"
+#include "vk_physical_device_features.h"
 #include "vk_pipeline_layout.h"
 #include "vk_shader.h"
 #include "vk_shader_module.h"
 #include "vk_util.h"
 
 #include "nir_serialize.h"
+#include "nir.h"
 
 #include "util/mesa-sha1.h"
 
@@ -254,6 +256,10 @@ vk_pipeline_hash_shader_stage(VkPipelineCreateFlags2KHR pipeline_flags,
       _mesa_sha1_update(&ctx, &rstate->uniform_buffers, sizeof(rstate->uniform_buffers));
       _mesa_sha1_update(&ctx, &rstate->vertex_inputs, sizeof(rstate->vertex_inputs));
       _mesa_sha1_update(&ctx, &rstate->images, sizeof(rstate->images));
+      _mesa_sha1_update(&ctx, &rstate->null_uniform_buffer_descriptor,
+                        sizeof(rstate->null_uniform_buffer_descriptor));
+      _mesa_sha1_update(&ctx, &rstate->null_storage_buffer_descriptor,
+                        sizeof(rstate->null_storage_buffer_descriptor));
    }
 
    _mesa_sha1_update(&ctx, info->pName, strlen(info->pName));
@@ -345,6 +351,17 @@ vk_pipeline_robustness_state_fill(const struct vk_device *device,
       rs->images = vk_device_default_robust_image_behavior(device);
 }
 
+static void
+vk_pipeline_init(struct vk_pipeline *pipeline,
+                 const struct vk_pipeline_ops *ops,
+                 VkPipelineBindPoint bind_point,
+                 VkPipelineCreateFlags2KHR flags)
+{
+   pipeline->ops = ops;
+   pipeline->bind_point = bind_point;
+   pipeline->flags = flags;
+}
+
 void *
 vk_pipeline_zalloc(struct vk_device *device,
                    const struct vk_pipeline_ops *ops,
@@ -353,15 +370,29 @@ vk_pipeline_zalloc(struct vk_device *device,
                    const VkAllocationCallbacks *alloc,
                    size_t size)
 {
-   struct vk_pipeline *pipeline;
-
-   pipeline = vk_object_zalloc(device, alloc, size, VK_OBJECT_TYPE_PIPELINE);
+   struct vk_pipeline *pipeline =
+      vk_object_zalloc(device, alloc, size, VK_OBJECT_TYPE_PIPELINE);
    if (pipeline == NULL)
       return NULL;
 
-   pipeline->ops = ops;
-   pipeline->bind_point = bind_point;
-   pipeline->flags = flags;
+   vk_pipeline_init(pipeline, ops, bind_point, flags);
+
+   return pipeline;
+}
+
+void *vk_pipeline_multizalloc(struct vk_device *device,
+                              struct vk_multialloc *ma,
+                              const struct vk_pipeline_ops *ops,
+                              VkPipelineBindPoint bind_point,
+                              VkPipelineCreateFlags2KHR flags,
+                              const VkAllocationCallbacks *alloc)
+{
+   struct vk_pipeline *pipeline =
+      vk_object_multizalloc(device, ma, alloc, VK_OBJECT_TYPE_PIPELINE);
+   if (!pipeline)
+      return NULL;
+
+   vk_pipeline_init(pipeline, ops, bind_point, flags);
 
    return pipeline;
 }
@@ -823,7 +854,7 @@ vk_pipeline_precompile_shader(struct vk_device *device,
    const struct vk_device_shader_ops *ops = device->shader_ops;
    VkResult result;
 
-   struct vk_pipeline_robustness_state rs;
+   struct vk_pipeline_robustness_state rs = { 0 };
    vk_pipeline_robustness_state_fill(device, &rs,
                                      pipeline_info_pNext,
                                      info->pNext);
@@ -860,7 +891,7 @@ vk_pipeline_precompile_shader(struct vk_device *device,
       return result;
 
    if (ops->preprocess_nir != NULL)
-      ops->preprocess_nir(device->physical, nir);
+      ops->preprocess_nir(device->physical, nir, &rs);
 
    struct vk_pipeline_precomp_shader *shader =
       vk_pipeline_precomp_shader_create(device, stage_sha1,
@@ -1188,7 +1219,7 @@ vk_graphics_pipeline_compile_shaders(struct vk_device *device,
       /* Don't try to re-compile any fast-link shaders */
       if (!(pipeline->base.flags &
             VK_PIPELINE_CREATE_2_LINK_TIME_OPTIMIZATION_BIT_EXT)) {
-         assert(partition[p + 1] == partition[p] + 1);
+         assert(ops->link_geom_stages || partition[p + 1] == partition[p] + 1);
          if (stages[partition[p]].shader != NULL)
             continue;
       }
@@ -1211,8 +1242,8 @@ vk_graphics_pipeline_compile_shaders(struct vk_device *device,
       }
 
       blake3_hash state_blake3;
-      ops->hash_graphics_state(device->physical, state,
-                               part_stages, state_blake3);
+      ops->hash_state(device->physical, state, &device->enabled_features,
+                      part_stages, state_blake3);
 
       _mesa_blake3_update(&blake3_ctx, state_blake3, sizeof(state_blake3));
       _mesa_blake3_update(&blake3_ctx, layout_blake3, sizeof(layout_blake3));
@@ -1394,7 +1425,7 @@ vk_graphics_pipeline_compile_shaders(struct vk_device *device,
       struct vk_shader *shaders[MESA_VK_MAX_GRAPHICS_PIPELINE_STAGES];
       result = ops->compile(device, partition[p + 1] - partition[p],
                             &infos[partition[p]],
-                            state,
+                            state, &device->enabled_features,
                             &device->alloc,
                             &shaders[partition[p]]);
       if (result != VK_SUCCESS)
@@ -1956,6 +1987,12 @@ vk_pipeline_compile_compute_stage(struct vk_device *device,
 
    _mesa_blake3_update(&blake3_ctx, &shader_flags, sizeof(shader_flags));
 
+   blake3_hash features_blake3;
+   ops->hash_state(device->physical, NULL /* state */,
+                   &device->enabled_features, VK_SHADER_STAGE_COMPUTE_BIT,
+                   features_blake3);
+   _mesa_blake3_update(&blake3_ctx, features_blake3, sizeof(features_blake3));
+
    for (uint32_t i = 0; i < pipeline_layout->set_count; i++) {
       if (pipeline_layout->set_layouts[i] != NULL) {
          _mesa_blake3_update(&blake3_ctx,
@@ -2014,7 +2051,7 @@ vk_pipeline_compile_compute_stage(struct vk_device *device,
 
    struct vk_shader *shader;
    result = ops->compile(device, 1, &compile_info, NULL,
-                         &device->alloc, &shader);
+                         &device->enabled_features, &device->alloc, &shader);
    if (result != VK_SUCCESS)
       return result;
 

@@ -1,25 +1,15 @@
 # Copyright © 2022 Collabora, Ltd.
 # SPDX-License-Identifier: MIT
-nak_rust_args = [
-  '-Aclippy::identity_op',
-  '-Aclippy::len_zero',
-  '-Aclippy::manual_range_contains',
-  # normally this is a good one, but we use it where the "better" code is worse
-  '-Aclippy::needless_range_loop',
-  '-Aclippy::redundant_field_names',
-  '-Aclippy::upper_case_acronyms',
-  '-Aclippy::vec_box',
-  '-Aclippy::write_with_newline',
-  # warns about public function might dereference a raw pointer, but nothing is
-  # actually public here
-  '-Aclippy::not_unsafe_ptr_arg_deref',
-  '-Anon_snake_case',
-]
 
 dep_paste = dependency('paste',
   version : '>= 1.0.14',
   fallback : ['paste', 'dep_paste'],
   required : true,
+)
+
+dep_rustc_hash = dependency('rustc-hash',
+  fallback: ['rustc-hash', 'dep_rustc_hash'],
+  required: true,
 )
 
 libnak_c_files = files(
@@ -28,12 +18,14 @@ libnak_c_files = files(
   'nak_nir_lower_cf.c',
   'nak_nir_lower_fs_inputs.c',
   'nak_nir_lower_gs_intrinsics.c',
+  'nak_nir_lower_image_addrs.c',
   'nak_nir_lower_non_uniform_ldcx.c',
   'nak_nir_lower_scan_reduce.c',
+  'nak_nir_lower_kepler_shared_atomics.c',
   'nak_nir_lower_tex.c',
   'nak_nir_lower_vtg_io.c',
   'nak_nir_mark_lcssa_invariants.c',
-  'nak_nir_split_64bit_conversions.c',
+  'nak_nir_rematerialize_load_const.c',
 )
 
 _libacorn_rs = static_library(
@@ -41,29 +33,18 @@ _libacorn_rs = static_library(
   files('acorn/lib.rs'),
   gnu_symbol_visibility : 'hidden',
   rust_abi : 'rust',
-  rust_args : nak_rust_args,
+  rust_args : nouveau_rust_args,
 )
 
 idep_acorn_rs = declare_dependency(
   link_with : _libacorn_rs,
 )
 
-_libbitview_rs = static_library(
-  'bitview',
-  files('bitview/lib.rs'),
-  gnu_symbol_visibility : 'hidden',
-  rust_abi : 'rust',
-  rust_args : nak_rust_args,
-)
-
-idep_bitview_rs = declare_dependency(
-  link_with : _libbitview_rs,
-)
-
 libnak_deps = [
   idep_mesautil,
   idep_nir_headers,
   idep_nvidia_headers,
+  idep_nil_h,
 ]
 
 _nak_bindings_rs = rust.bindgen(
@@ -73,10 +54,8 @@ _nak_bindings_rs = rust.bindgen(
     pre_args,
   ],
   args : [
+    bindgen_output_args,
     compiler_rs_bindgen_blocklist,
-    '--raw-line', '#![allow(non_camel_case_types)]',
-    '--raw-line', '#![allow(non_snake_case)]',
-    '--raw-line', '#![allow(non_upper_case_globals)]',
     '--raw-line', 'use compiler::bindings::*;',
     '--allowlist-type', 'drm.*',
     '--allowlist-type', 'nak_.*',
@@ -87,6 +66,7 @@ _nak_bindings_rs = rust.bindgen(
     '--allowlist-function', 'nak_.*',
     '--allowlist-function', 'nouveau_ws_.*',
     '--no-prepend-enum-name',
+    '--with-derive-default',
   ],
   dependencies : [
     dep_libdrm,
@@ -117,17 +97,18 @@ _libnak_rs = static_library(
   gnu_symbol_visibility : 'hidden',
   rust_abi : 'c',
   rust_args : [
-    nak_rust_args,
+    nouveau_rust_args,
     # Otherwise, rustc trips up on -pthread
     '-Clink-arg=-Wno-unused-command-line-argument',
   ],
   dependencies : [
     dep_paste,
+    dep_rustc_hash,
+    idep_bitview_rs,
     idep_compiler_rs,
     idep_nvidia_headers_rs,
   ],
   link_with : [
-    _libbitview_rs,
     _libnak_bindings_rs,
     _libnak_ir_proc_rs,
   ],
@@ -141,8 +122,9 @@ if with_tests and get_option('b_sanitize') == 'none'
     'nak',
     _libnak_rs,
     args : [
-      # Don't run HW tests by default
+      # Don't run HW or nvdisasm tests by default
       '--skip', 'hw_tests::',
+      '--skip', 'nvdisasm_tests::',
     ],
     suite : ['nouveau'],
     dependencies : [

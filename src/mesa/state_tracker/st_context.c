@@ -254,7 +254,7 @@ free_zombie_sampler_views(struct st_context *st)
       list_del(&entry->node);  // remove this entry from the list
 
       assert(entry->view->context == st->pipe);
-      pipe_sampler_view_reference(&entry->view, NULL);
+      st->pipe->sampler_view_release(st->pipe, entry->view);
 
       free(entry);
    }
@@ -629,8 +629,7 @@ st_create_context_priv(struct gl_context *ctx, struct pipe_context *pipe,
       screen->caps.call_finalize_nir_in_linker;
 
    st->has_hw_atomics =
-      screen->get_shader_param(screen, PIPE_SHADER_FRAGMENT,
-                               PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTERS)
+      screen->shader_caps[PIPE_SHADER_FRAGMENT].max_hw_atomic_counters
       ? true : false;
 
    st->validate_all_dirty_states =
@@ -899,6 +898,11 @@ st_destroy_context(struct st_context *st)
    if (save_ctx) {
       save_drawbuffer = save_ctx->WinSysDrawBuffer;
       save_readbuffer = save_ctx->WinSysReadBuffer;
+      /* Calling _mesa_glthread_finish is required to avoid having an
+       * unmarshalling thread execute calls while the current thread
+       * flushes the context.
+       */
+      _mesa_glthread_finish(save_ctx);
    } else {
       save_drawbuffer = save_readbuffer = NULL;
    }
@@ -948,7 +952,7 @@ st_destroy_context(struct st_context *st)
 
    _mesa_HashWalk(&ctx->Shared->FrameBuffers, destroy_framebuffer_attachment_sampler_cb, st);
 
-   pipe_sampler_view_reference(&st->pixel_xfer.pixelmap_sampler_view, NULL);
+   st->pipe->sampler_view_release(st->pipe, st->pixel_xfer.pixelmap_sampler_view);
    pipe_resource_reference(&st->pixel_xfer.pixelmap_texture, NULL);
 
    _vbo_DestroyContext(ctx);

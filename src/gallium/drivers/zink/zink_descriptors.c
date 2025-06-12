@@ -264,6 +264,8 @@ zink_descriptor_util_push_layouts_get(struct zink_context *ctx, struct zink_desc
 VkImageLayout
 zink_descriptor_util_image_layout_eval(const struct zink_context *ctx, const struct zink_resource *res, bool is_compute)
 {
+   if (zink_screen(ctx->base.screen)->driver_workarounds.general_layout)
+      return VK_IMAGE_LAYOUT_GENERAL;
    if (res->bindless[0] || res->bindless[1]) {
       /* bindless needs most permissive layout */
       if (res->image_bind_count[0] || res->image_bind_count[1])
@@ -417,7 +419,7 @@ init_program_db(struct zink_screen *screen, struct zink_program *pg, enum zink_d
    VkDeviceSize val;
    VKSCR(GetDescriptorSetLayoutSizeEXT)(screen->dev, dsl, &val);
    pg->dd.db_size[type] = align64(val, screen->info.db_props.descriptorBufferOffsetAlignment);
-   pg->dd.db_offset[type] = rzalloc_array(pg, uint32_t, num_bindings);
+   pg->dd.db_offset[type] = rzalloc_array(pg->ralloc_ctx, uint32_t, num_bindings);
    for (unsigned i = 0; i < num_bindings; i++) {
       VKSCR(GetDescriptorSetLayoutBindingOffsetEXT)(screen->dev, dsl, bindings[i].binding, &val);
       pg->dd.db_offset[type][i] = val;
@@ -503,7 +505,7 @@ zink_descriptor_program_init(struct zink_context *ctx, struct zink_program *pg)
       }
       for (unsigned i = 0; i < ZINK_DESCRIPTOR_BASE_TYPES; i++) {
          if (desc_set_size[i])
-            pg->dd.db_template[i] = rzalloc_array(pg, struct zink_descriptor_template, desc_set_size[i]);
+            pg->dd.db_template[i] = rzalloc_array(pg->ralloc_ctx, struct zink_descriptor_template, desc_set_size[i]);
       }
    }
 
@@ -857,15 +859,9 @@ set_pool(struct zink_batch_state *bs, struct zink_program *pg, struct zink_descr
    assert(type != ZINK_DESCRIPTOR_TYPE_UNIFORMS);
    assert(mpool);
    const struct zink_descriptor_pool_key *pool_key = pg->dd.pool_key[type];
-   size_t size = bs->dd.pools[type].capacity;
    /* ensure the pool array is big enough to have an element for this key */
-   if (!util_dynarray_resize(&bs->dd.pools[type], struct zink_descriptor_pool_multi*, pool_key->id + 1))
+   if (!util_dynarray_resize_zero(&bs->dd.pools[type], struct zink_descriptor_pool_multi*, pool_key->id + 1))
       return false;
-   if (size != bs->dd.pools[type].capacity) {
-      /* when resizing, always zero the new data to avoid garbage */
-      uint8_t *data = bs->dd.pools[type].data;
-      memset(data + size, 0, bs->dd.pools[type].capacity - size);
-   }
    /* dynarray can't track sparse array sizing, so the array size must be manually tracked */
    bs->dd.pool_size[type] = MAX2(bs->dd.pool_size[type], pool_key->id + 1);
    struct zink_descriptor_pool_multi **mppool = util_dynarray_element(&bs->dd.pools[type], struct zink_descriptor_pool_multi*, pool_key->id);

@@ -391,7 +391,7 @@ arithmetic_result_type(ir_rvalue * &value_a, ir_rvalue * &value_b,
    /*    "If the operands are integer types, they must both be signed or
     *    both be unsigned."
     *
-    * From this rule and the preceeding conversion it can be inferred that
+    * From this rule and the preceding conversion it can be inferred that
     * both types must be GLSL_TYPE_FLOAT, or GLSL_TYPE_UINT, or GLSL_TYPE_INT.
     * The is_numeric check above already filtered out the case where either
     * type is not one of these, so now the base types need only be tested for
@@ -1135,6 +1135,7 @@ do_comparison(void *mem_ctx, int operation, ir_rvalue *op0, ir_rvalue *op1)
    switch (op0->type->base_type) {
    case GLSL_TYPE_FLOAT:
    case GLSL_TYPE_FLOAT16:
+   case GLSL_TYPE_BFLOAT16:
    case GLSL_TYPE_UINT:
    case GLSL_TYPE_INT:
    case GLSL_TYPE_BOOL:
@@ -4011,14 +4012,16 @@ apply_layout_qualifier_to_variable(const struct ast_type_qualifier *qual,
    /* Layout qualifiers for gl_FragDepth, which are enabled by extension
     * AMD_conservative_depth.
     */
-   if (qual->flags.q.depth_type
-       && !state->is_version(420, 0)
-       && !state->AMD_conservative_depth_enable
-       && !state->ARB_conservative_depth_enable) {
+   if (qual->flags.q.depth_type &&
+       ((!state->is_version(420, 0) &&
+         !state->AMD_conservative_depth_enable &&
+         !state->ARB_conservative_depth_enable) &&
+       (!state->is_version(0, 300) &&
+        !state->EXT_conservative_depth_enable))) {
        _mesa_glsl_error(loc, state,
                         "extension GL_AMD_conservative_depth or "
-                        "GL_ARB_conservative_depth must be enabled "
-                        "to use depth layout qualifiers");
+                        "GL_ARB_conservative_depth or GL_EXT_conservative_depth"
+                        "must be enabled to use depth layout qualifiers");
    } else if (qual->flags.q.depth_type
               && strcmp(var->name, "gl_FragDepth") != 0) {
        _mesa_glsl_error(loc, state,
@@ -4525,7 +4528,8 @@ get_variable_being_redeclared(ir_variable **var_ptr, YYLTYPE loc,
       /* Layout qualifiers for gl_FragDepth. */
    } else if ((state->is_version(420, 0) ||
                state->AMD_conservative_depth_enable ||
-               state->ARB_conservative_depth_enable)
+               state->ARB_conservative_depth_enable ||
+               state->EXT_conservative_depth_enable)
               && strcmp(var->name, "gl_FragDepth") == 0) {
 
       /** From the AMD_conservative_depth spec:

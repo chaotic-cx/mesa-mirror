@@ -275,24 +275,15 @@ do {                       \
 #endif
 
 /**
- * PUBLIC/USED macros
- *
- * If we build the library with gcc's -fvisibility=hidden flag, we'll
- * use the PUBLIC macro to mark functions that are to be exported.
- *
- * We also need to define a USED attribute, so the optimizer doesn't
- * inline a static function that we later use in an alias. - ajax
+ * This marks symbols that should be visible to dynamic library consumers.
  */
 #ifndef PUBLIC
 #  if defined(_WIN32)
 #    define PUBLIC __declspec(dllexport)
-#    define USED
 #  elif defined(__GNUC__)
 #    define PUBLIC __attribute__((visibility("default")))
-#    define USED __attribute__((used))
 #  else
 #    define PUBLIC
-#    define USED
 #  endif
 #endif
 
@@ -403,10 +394,10 @@ do {                       \
    (BITFIELD_MASK((b) + (count)) & ~BITFIELD_MASK(b))
 
 /** Set a single bit */
-#define BITFIELD64_BIT(b)      (1ull << (b))
+#define BITFIELD64_BIT(b)      (UINT64_C(1) << (b))
 /** Set all bits up to excluding bit b */
 #define BITFIELD64_MASK(b)      \
-   ((b) == 64 ? (~0ull) : BITFIELD64_BIT((b) & 63) - 1)
+   ((b) == 64 ? (~UINT64_C(0)) : BITFIELD64_BIT((b) & 63) - 1)
 /** Set count bits starting from bit b  */
 #define BITFIELD64_RANGE(b, count) \
    (BITFIELD64_MASK((b) + (count)) & ~BITFIELD64_MASK(b))

@@ -20,6 +20,8 @@
 #include <stack>
 #include <vector>
 
+#define R600_GS_VERTEX_INDIRECT_TOTAL 6
+
 struct nir_shader;
 struct nir_cf_node;
 struct nir_if;
@@ -263,6 +265,9 @@ protected:
       es_tess_coord,
       es_primitive_id,
       es_helper_invocation,
+      es_base_instance,
+      es_base_vertex,
+      es_draw_id,
       es_last
    };
 
@@ -311,6 +316,7 @@ private:
    bool emit_local_store(nir_intrinsic_instr *intr);
    bool emit_local_load(nir_intrinsic_instr *instr);
    bool emit_load_tcs_param_base(nir_intrinsic_instr *instr, int offset);
+   bool emit_get_lds_info_uint(nir_intrinsic_instr *instr, int offset);
    bool emit_group_barrier(nir_intrinsic_instr *intr);
    bool emit_shader_clock(nir_intrinsic_instr *instr);
    bool emit_wait_ack();

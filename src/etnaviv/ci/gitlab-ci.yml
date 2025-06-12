@@ -21,7 +21,7 @@
       when: on_success
 
 .etnaviv-manual-rules:
-  stage: etnaviv-postmerge
+  stage: etnaviv-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -31,70 +31,157 @@
         *etnaviv_file_list
       when: manual
 
-# 1 devices (2023-12-16)
+.austriancoder-ci-tron:
+  extends:
+    - .ci-tron-b2c-diskless-v1
+  variables:
+    RUNNER_FARM_LOCATION: austriancoder
+    CI_TRON_TIMEOUT__FIRST_CONSOLE_ACTIVITY__MINUTES: 0.5
+    CI_TRON_TIMEOUT__FIRST_CONSOLE_ACTIVITY__RETRIES: 3
+    CI_TRON_DUT_SETUP_TAGS: "$VIVANTE_MODEL_TAG,$VIVANTE_REVISION_TAG"
+
 .austriancoder-imx6q-cubox-i:arm32:
+  extends:
+    - .austriancoder-ci-tron
   variables:
-    BM_CMDLINE: "ip=dhcp console=ttymxc0,115200n8 root=/dev/nfs rw nfsrootdebug init=/init $BM_KERNELARGS"
-    BM_DTB: imx6q-cubox-i
-    BM_KERNEL: zImage
-    GPU_VERSION: "etnaviv-gc2000"
-  script:
-    - ./install/bare-metal/fastboot.sh
-  tags:
-    - etnaviv-gc2000
+    CI_TRON__B2C_DISKLESS_IMAGESTORE_PLATFORM: linux/arm/v7
+    VIVANTE_MODEL_TAG: "vivante:model:2000"
+    VIVANTE_REVISION_TAG: "vivante:revision:5108"
+    GPU_VERSION: "etnaviv-gc2000-r5108"
 
-# 1 devices (2023-12-16)
+# 1 device (2025-01-30)
+.austriancoder-imx6q-cubox-i-2cores:arm32:
+  extends:
+    - .austriancoder-imx6q-cubox-i:arm32
+  variables:
+    FDO_CI_CONCURRENT: 2
+  tags:
+    - farm:$RUNNER_FARM_LOCATION
+    - cpu:cores:2
+    - $VIVANTE_MODEL_TAG
+    - $VIVANTE_REVISION_TAG
+
+# 4 devices (2025-01-30)
+.austriancoder-imx6q-cubox-i-4cores:arm32:
+  extends:
+    - .austriancoder-imx6q-cubox-i:arm32
+  variables:
+    FDO_CI_CONCURRENT: 4
+  tags:
+    - farm:$RUNNER_FARM_LOCATION
+    - cpu:cores:4
+    - $VIVANTE_MODEL_TAG
+    - $VIVANTE_REVISION_TAG
+
+# 2 devices (2025-02-28)
+.austriancoder-imx6qp-nitrogen6_max:arm32:
+  extends:
+    - .austriancoder-ci-tron
+  variables:
+    FDO_CI_CONCURRENT: 4
+    CI_TRON__B2C_DISKLESS_IMAGESTORE_PLATFORM: linux/arm/v7
+    VIVANTE_MODEL_TAG: "vivante:model:3000"
+    VIVANTE_REVISION_TAG: "vivante:revision:5450"
+    GPU_VERSION: "etnaviv-gc3000-r5450"
+  tags:
+    - farm:$RUNNER_FARM_LOCATION
+    - $VIVANTE_MODEL_TAG
+    - $VIVANTE_REVISION_TAG
+
+# 1 devices (2025-02-26)
 .austriancoder-imx8mq-nitrogen:arm64:
+  extends:
+    - .austriancoder-ci-tron
   variables:
-    BM_CMDLINE: "ip=dhcp console=ttymxc0,115200n8 root=/dev/nfs rw nfsrootdebug init=/init $BM_KERNELARGS"
-    BM_DTB: imx8mq-nitrogen
-    BM_KERNEL: Image
-    GPU_VERSION: "etnaviv-gc7000"
-  script:
-    - ./install/bare-metal/fastboot.sh
+    FDO_CI_CONCURRENT: 4
+    CI_TRON__B2C_DISKLESS_IMAGESTORE_PLATFORM: linux/arm64/v8
+    VIVANTE_MODEL_TAG: "vivante:model:7000"
+    VIVANTE_REVISION_TAG: "vivante:revision:6214"
+    GPU_VERSION: "etnaviv-gc7000-r6214"
   tags:
-    - austriancoder-etnaviv-imx8mq-nitrogen
+    - farm:$RUNNER_FARM_LOCATION
+    - $VIVANTE_MODEL_TAG
+    - $VIVANTE_REVISION_TAG
 
+# 1 devices (2025-02-26)
+# Status: https://lava.pengutronix.de/scheduler/device_type/imx8mp-tqma8mpql-mba8mpxl
+.pengutronix-imx8mp-mba8mpxl:arm64:
+  variables:
+    DEVICE_TYPE: imx8mp-tqma8mpql-mba8mpxl
+    DTB: $DEVICE_TYPE
+    FARM: pengutronix
+    GPU_VERSION: "etnaviv-gc7000-r6204"
+    BOOT_METHOD: barebox
+    RUNNER_TAG: mesa-ci-x86-64-lava-imx8mp-tqma8mpql-mba8mpxl
+    VISIBILITY_GROUP: "mesa-ci"
 
 gc2000-gles2:
   extends:
-    - .baremetal-deqp-test
-    - .baremetal-test-arm32
-    - .austriancoder-imx6q-cubox-i:arm32
+    - .ci-tron-arm32-test-gl
+    - .austriancoder-imx6q-cubox-i-4cores:arm32
     - .etnaviv-manual-rules
   variables:
     DEQP_SUITE: etnaviv-gc2000
-    FLAKES_CHANNEL: "#etnaviv-ci"
+    # Disable reporting, since DUTs don't have internet access
+    FLAKES_CHANNEL: ""
     HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
-  timeout: 20m
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 28
+  timeout: 30m
 
-gc2000-gles2-asan:
+# Disabled until the 168 fails get addressed
+.gc2000-gles2-asan:
   extends:
-    - gc2000-gles2
-    - .baremetal-arm32-asan-test
+    - .ci-tron-arm32-test-asan-gl
+    - .austriancoder-imx6q-cubox-i-2cores:arm32
+    - .etnaviv-manual-rules
   variables:
+    DEQP_SUITE: etnaviv-gc2000
+    FLAKES_CHANNEL: ""
     DEQP_FRACTION: 100
     FDO_CI_CONCURRENT: 1
+    HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 28
+  timeout: 30m
 
 gc2000-piglit:
   extends:
-    - .baremetal-deqp-test
-    - .baremetal-test-arm32
-    - .austriancoder-imx6q-cubox-i:arm32
-    - .etnaviv-manual-rules
+    - gc2000-gles2
+    - .test-piglit
   variables:
     DEQP_SUITE: etnaviv-gc2000-piglit
-    FLAKES_CHANNEL: "#etnaviv-ci"
-  timeout: 40m
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 25
+  parallel: 2
+  timeout: 30m
 
-gc7000-gles2:
+gc3000-gles2:
   extends:
-    - .baremetal-deqp-test
-    - .baremetal-test-arm64
+    - .ci-tron-arm32-test-gl
+    - .austriancoder-imx6qp-nitrogen6_max:arm32
+    - .etnaviv-manual-rules
+  variables:
+    DEQP_SUITE: etnaviv-gc3000
+    FLAKES_CHANNEL: ""
+    HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 28
+  timeout: 30m
+
+gc7000-imx8mq-gles2:
+  extends:
+    - .ci-tron-arm64-test-gl
     - .austriancoder-imx8mq-nitrogen:arm64
     - .etnaviv-manual-rules
   variables:
     DEQP_SUITE: etnaviv-gc7000
-    FLAKES_CHANNEL: "#etnaviv-ci"
+    FLAKES_CHANNEL: ""
     HWCI_TEST_SCRIPT: "/install/deqp-runner.sh"
-  timeout: 20m
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 28
+  timeout: 30m
+
+gc7000-imx8mp-gles2:
+  extends:
+    - .lava-arm64-test-gl
+    - .pengutronix-imx8mp-mba8mpxl:arm64
+    - .etnaviv-manual-rules
+  variables:
+    DEQP_SUITE: etnaviv-gc7000
+  timeout: 30m

@@ -27,15 +27,13 @@
 
 #include "brw_cfg.h"
 #include "util/u_dynarray.h"
-#include "brw_fs.h"
+#include "brw_shader.h"
 
 /** @file
  *
  * Walks the shader instructions generated and creates a set of basic
  * blocks with successor/predecessor edges connecting them.
  */
-
-using namespace brw;
 
 static bblock_t *
 pop_stack(exec_list *list)
@@ -64,7 +62,7 @@ push_stack(exec_list *list, void *mem_ctx, bblock_t *block)
 }
 
 bblock_t::bblock_t(cfg_t *cfg) :
-   cfg(cfg), start_ip(0), end_ip(0), end_ip_delta(0), num(0)
+   cfg(cfg), num_instructions(0), num(0)
 {
    instructions.make_empty();
    parents.make_empty();
@@ -79,118 +77,18 @@ bblock_t::add_successor(void *mem_ctx, bblock_t *successor,
    children.push_tail(::link(mem_ctx, successor, kind));
 }
 
-bool
-bblock_t::is_predecessor_of(const bblock_t *block,
-                            enum bblock_link_kind kind) const
+static void
+append_inst(bblock_t *block, brw_inst *inst)
 {
-   foreach_list_typed_safe (bblock_link, parent, link, &block->parents) {
-      if (parent->block == this && parent->kind <= kind) {
-         return true;
-      }
-   }
-
-   return false;
+   assert(inst->block == NULL);
+   inst->block = block;
+   block->instructions.push_tail(inst);
+   block->num_instructions++;
+   block->cfg->total_instructions++;
 }
 
-bool
-bblock_t::is_successor_of(const bblock_t *block,
-                          enum bblock_link_kind kind) const
-{
-   foreach_list_typed_safe (bblock_link, child, link, &block->children) {
-      if (child->block == this && child->kind <= kind) {
-         return true;
-      }
-   }
-
-   return false;
-}
-
-static bool
-ends_block(const fs_inst *inst)
-{
-   enum opcode op = inst->opcode;
-
-   return op == BRW_OPCODE_IF ||
-          op == BRW_OPCODE_ELSE ||
-          op == BRW_OPCODE_CONTINUE ||
-          op == BRW_OPCODE_BREAK ||
-          op == BRW_OPCODE_DO ||
-          op == BRW_OPCODE_WHILE;
-}
-
-static bool
-starts_block(const fs_inst *inst)
-{
-   enum opcode op = inst->opcode;
-
-   return op == BRW_OPCODE_DO ||
-          op == BRW_OPCODE_ENDIF;
-}
-
-bool
-bblock_t::can_combine_with(const bblock_t *that) const
-{
-   if ((const bblock_t *)this->link.next != that)
-      return false;
-
-   if (ends_block(this->end()) ||
-       starts_block(that->start()))
-      return false;
-
-   return true;
-}
-
-void
-bblock_t::combine_with(bblock_t *that)
-{
-   assert(this->can_combine_with(that));
-   foreach_list_typed (bblock_link, link, link, &that->parents) {
-      assert(link->block == this);
-   }
-
-   this->end_ip = that->end_ip;
-   this->instructions.append_list(&that->instructions);
-
-   this->cfg->remove_block(that);
-}
-
-void
-bblock_t::dump(FILE *file) const
-{
-   const fs_visitor *s = this->cfg->s;
-
-   int ip = this->start_ip;
-   foreach_inst_in_block(fs_inst, inst, this) {
-      fprintf(file, "%5d: ", ip);
-      brw_print_instruction(*s, inst, file);
-      ip++;
-   }
-}
-
-void
-bblock_t::unlink_list(exec_list *list)
-{
-   assert(list == &parents || list == &children);
-   const bool remove_parent = list == &children;
-
-   foreach_list_typed_safe(bblock_link, link, link, list) {
-      /* Also break the links from the other block back to this block. */
-      exec_list *sub_list = remove_parent ? &link->block->parents : &link->block->children;
-
-      foreach_list_typed_safe(bblock_link, sub_link, link, sub_list) {
-         if (sub_link->block == this) {
-            sub_link->link.remove();
-            ralloc_free(sub_link);
-         }
-      }
-
-      link->link.remove();
-      ralloc_free(link);
-   }
-}
-
-cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
-   s(s)
+cfg_t::cfg_t(brw_shader *s, exec_list *instructions) :
+   s(s), total_instructions(0)
 {
    mem_ctx = ralloc_context(NULL);
    block_list.make_empty();
@@ -210,15 +108,22 @@ cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
 
    set_next_block(&cur, entry, ip);
 
-   foreach_in_list_safe(fs_inst, inst, instructions) {
+   foreach_in_list_safe(brw_inst, inst, instructions) {
       /* set_next_block wants the post-incremented ip */
       ip++;
 
       inst->exec_node::remove();
 
       switch (inst->opcode) {
+      case SHADER_OPCODE_FLOW:
+         append_inst(cur, inst);
+         next = new_block();
+         cur->add_successor(mem_ctx, next, bblock_link_logical);
+         set_next_block(&cur, next, ip);
+         break;
+
       case BRW_OPCODE_IF:
-         cur->instructions.push_tail(inst);
+         append_inst(cur, inst);
 
 	 /* Push our information onto a stack so we can recover from
 	  * nested ifs.
@@ -239,7 +144,7 @@ cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
 	 break;
 
       case BRW_OPCODE_ELSE:
-         cur->instructions.push_tail(inst);
+         append_inst(cur, inst);
 
          cur_else = cur;
 
@@ -265,7 +170,7 @@ cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
             set_next_block(&cur, cur_endif, ip - 1);
          }
 
-         cur->instructions.push_tail(inst);
+         append_inst(cur, inst);
 
          if (cur_else) {
             cur_else->add_successor(mem_ctx, cur_endif, bblock_link_logical);
@@ -305,7 +210,7 @@ cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
             set_next_block(&cur, cur_do, ip - 1);
          }
 
-         cur->instructions.push_tail(inst);
+         append_inst(cur, inst);
 
          /* Represent divergent execution of the loop as a pair of alternative
           * edges coming out of the DO instruction: For any physical iteration
@@ -340,7 +245,7 @@ cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
 	 break;
 
       case BRW_OPCODE_CONTINUE:
-         cur->instructions.push_tail(inst);
+         append_inst(cur, inst);
 
          /* A conditional CONTINUE may start a region of divergent control
           * flow until the start of the next loop iteration (*not* until the
@@ -368,7 +273,7 @@ cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
 	 break;
 
       case BRW_OPCODE_BREAK:
-         cur->instructions.push_tail(inst);
+         append_inst(cur, inst);
 
          /* A conditional BREAK instruction may start a region of divergent
           * control flow until the end of the loop if the condition is
@@ -394,7 +299,7 @@ cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
 	 break;
 
       case BRW_OPCODE_WHILE:
-         cur->instructions.push_tail(inst);
+         append_inst(cur, inst);
 
          assert(cur_do != NULL && cur_while != NULL);
 
@@ -421,12 +326,10 @@ cfg_t::cfg_t(const fs_visitor *s, exec_list *instructions) :
 	 break;
 
       default:
-         cur->instructions.push_tail(inst);
+         append_inst(cur, inst);
 	 break;
       }
    }
-
-   cur->end_ip = ip - 1;
 
    make_block_array();
 }
@@ -556,11 +459,6 @@ cfg_t::new_block()
 void
 cfg_t::set_next_block(bblock_t **cur, bblock_t *block, int ip)
 {
-   if (*cur) {
-      (*cur)->end_ip = ip - 1;
-   }
-
-   block->start_ip = ip;
    block->num = num_blocks++;
    block_list.push_tail(&block->link);
    *cur = block;
@@ -578,148 +476,6 @@ cfg_t::make_block_array()
    assert(i == num_blocks);
 }
 
-namespace {
-
-struct link_desc {
-   char kind;
-   int num;
-};
-
-int
-compare_link_desc(const void *a, const void *b)
-{
-   const link_desc *la = (const link_desc *)a;
-   const link_desc *lb = (const link_desc *)b;
-
-   return la->num < lb->num ? -1 :
-          la->num > lb->num ? +1 :
-          la->kind < lb->kind ? -1 :
-          la->kind > lb->kind ? +1 :
-          0;
-}
-
-void
-sort_links(util_dynarray *scratch, exec_list *list)
-{
-   util_dynarray_clear(scratch);
-   foreach_list_typed(bblock_link, link, link, list) {
-      link_desc l;
-      l.kind = link->kind == bblock_link_logical ? '-' : '~';
-      l.num = link->block->num;
-      util_dynarray_append(scratch, link_desc, l);
-   }
-   qsort(scratch->data, util_dynarray_num_elements(scratch, link_desc),
-         sizeof(link_desc), compare_link_desc);
-}
-
-} /* namespace */
-
-void
-cfg_t::dump(FILE *file)
-{
-   const idom_tree *idom = (s ? &s->idom_analysis.require() : NULL);
-
-   /* Temporary storage to sort the lists of blocks.  This normalizes the
-    * output, making it possible to use it for certain tests.
-    */
-   util_dynarray scratch;
-   util_dynarray_init(&scratch, NULL);
-
-   foreach_block (block, this) {
-      if (idom && idom->parent(block))
-         fprintf(file, "START B%d IDOM(B%d)", block->num,
-                 idom->parent(block)->num);
-      else
-         fprintf(file, "START B%d IDOM(none)", block->num);
-
-      sort_links(&scratch, &block->parents);
-      util_dynarray_foreach(&scratch, link_desc, l)
-         fprintf(file, " <%cB%d", l->kind, l->num);
-      fprintf(file, "\n");
-
-      if (s != NULL)
-         block->dump(file);
-      fprintf(file, "END B%d", block->num);
-
-      sort_links(&scratch, &block->children);
-      util_dynarray_foreach(&scratch, link_desc, l)
-         fprintf(file, " %c>B%d", l->kind, l->num);
-      fprintf(file, "\n");
-   }
-
-   util_dynarray_fini(&scratch);
-}
-
-/* Calculates the immediate dominator of each block, according to "A Simple,
- * Fast Dominance Algorithm" by Keith D. Cooper, Timothy J. Harvey, and Ken
- * Kennedy.
- *
- * The authors claim that for control flow graphs of sizes normally encountered
- * (less than 1000 nodes) that this algorithm is significantly faster than
- * others like Lengauer-Tarjan.
- */
-idom_tree::idom_tree(const fs_visitor *s) :
-   num_parents(s->cfg->num_blocks),
-   parents(new bblock_t *[num_parents]())
-{
-   bool changed;
-
-   parents[0] = s->cfg->blocks[0];
-
-   do {
-      changed = false;
-
-      foreach_block(block, s->cfg) {
-         if (block->num == 0)
-            continue;
-
-         bblock_t *new_idom = NULL;
-         foreach_list_typed(bblock_link, parent_link, link, &block->parents) {
-            if (parent(parent_link->block)) {
-               new_idom = (new_idom ? intersect(new_idom, parent_link->block) :
-                           parent_link->block);
-            }
-         }
-
-         if (parent(block) != new_idom) {
-            parents[block->num] = new_idom;
-            changed = true;
-         }
-      }
-   } while (changed);
-}
-
-idom_tree::~idom_tree()
-{
-   delete[] parents;
-}
-
-bblock_t *
-idom_tree::intersect(bblock_t *b1, bblock_t *b2) const
-{
-   /* Note, the comparisons here are the opposite of what the paper says
-    * because we index blocks from beginning -> end (i.e. reverse post-order)
-    * instead of post-order like they assume.
-    */
-   while (b1->num != b2->num) {
-      while (b1->num > b2->num)
-         b1 = parent(b1);
-      while (b2->num > b1->num)
-         b2 = parent(b2);
-   }
-   assert(b1);
-   return b1;
-}
-
-void
-idom_tree::dump(FILE *file) const
-{
-   fprintf(file, "digraph DominanceTree {\n");
-   for (unsigned i = 0; i < num_parents; i++)
-      fprintf(file, "\t%d -> %d\n", parents[i]->num, i);
-   fprintf(file, "}\n");
-}
-
 void
 cfg_t::dump_cfg()
 {
@@ -735,7 +491,7 @@ cfg_t::dump_cfg()
 }
 
 void
-brw_calculate_cfg(fs_visitor &s)
+brw_calculate_cfg(brw_shader &s)
 {
    if (s.cfg)
       return;
@@ -755,6 +511,8 @@ brw_calculate_cfg(fs_visitor &s)
 void
 cfg_t::validate(const char *stage_abbrev)
 {
+   unsigned counted_total_instructions = 0;
+
    foreach_block(block, this) {
       foreach_list_typed(bblock_link, successor, link, &block->children) {
          /* Each successor of a block must have one predecessor link back to
@@ -808,7 +566,18 @@ cfg_t::validate(const char *stage_abbrev)
          }
       }
 
-      fs_inst *first_inst = block->start();
+      cfgv_assert(!block->instructions.is_empty());
+
+      unsigned num_instructions = 0;
+      foreach_inst_in_block(brw_inst, inst, block) {
+         cfgv_assert(block == inst->block);
+         num_instructions++;
+      }
+      cfgv_assert(num_instructions == block->num_instructions);
+
+      counted_total_instructions += num_instructions;
+
+      brw_inst *first_inst = block->start();
       if (first_inst->opcode == BRW_OPCODE_DO) {
          /* DO instructions both begin and end a block, so the DO instruction
           * must be the only instruction in the block.
@@ -835,7 +604,27 @@ cfg_t::validate(const char *stage_abbrev)
 
          cfgv_assert(logical_block != nullptr);
          cfgv_assert(physical_block != nullptr);
+
+         /* A flow block (block ending with SHADER_OPCODE_FLOW) is
+          * used to ensure that the block right after DO is always
+          * present even if it doesn't have actual instructions.
+          *
+          * This way predicated WHILE and CONTINUE don't need to be
+          * repaired when adding instructions right after the DO.
+          * They will point to the flow block whether is empty or not.
+          */
+         cfgv_assert(logical_block->end()->opcode == SHADER_OPCODE_FLOW);
+      }
+
+      brw_inst *last_inst = block->end();
+      if (last_inst->opcode == SHADER_OPCODE_FLOW) {
+         /* A flow block only has one successor -- the instruction disappears
+          * when generating code.
+          */
+         cfgv_assert(block->children.length() == 1);
       }
    }
+
+   cfgv_assert(counted_total_instructions == total_instructions);
 }
 #endif

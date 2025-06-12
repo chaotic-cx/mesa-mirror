@@ -40,14 +40,12 @@
  * mul vgrf5:F, vgrf5:F, vgrf4:F
  */
 
-#include "brw_fs.h"
+#include "brw_analysis.h"
+#include "brw_shader.h"
 #include "brw_cfg.h"
-#include "brw_fs_live_variables.h"
-
-using namespace brw;
 
 static bool
-is_nop_mov(const fs_inst *inst)
+is_nop_mov(const brw_inst *inst)
 {
    if (inst->opcode == SHADER_OPCODE_LOAD_PAYLOAD) {
       brw_reg dst = inst->dst;
@@ -68,7 +66,7 @@ is_nop_mov(const fs_inst *inst)
 }
 
 static bool
-is_coalesce_candidate(const fs_visitor *v, const fs_inst *inst)
+is_coalesce_candidate(const brw_shader *v, const brw_inst *inst)
 {
    if ((inst->opcode != BRW_OPCODE_MOV &&
         inst->opcode != SHADER_OPCODE_LOAD_PAYLOAD) ||
@@ -88,7 +86,7 @@ is_coalesce_candidate(const fs_visitor *v, const fs_inst *inst)
       return false;
 
    if (inst->opcode == SHADER_OPCODE_LOAD_PAYLOAD) {
-      if (!is_coalescing_payload(v->devinfo, v->alloc, inst)) {
+      if (!is_coalescing_payload(*v, inst)) {
          return false;
       }
    }
@@ -98,42 +96,42 @@ is_coalesce_candidate(const fs_visitor *v, const fs_inst *inst)
 
 static bool
 can_coalesce_vars(const intel_device_info *devinfo,
-                  const fs_live_variables &live, const cfg_t *cfg,
-                  const bblock_t *block, const fs_inst *inst,
+                  const brw_live_variables &live,
+                  const brw_ip_ranges &ips,
+                  const cfg_t *cfg,
+                  const brw_inst *inst,
                   int dst_var, int src_var)
 {
    if (!live.vars_interfere(src_var, dst_var))
       return true;
 
-   int dst_start = live.start[dst_var];
-   int dst_end = live.end[dst_var];
-   int src_start = live.start[src_var];
-   int src_end = live.end[src_var];
+   brw_range dst_range = live.vars_range[dst_var];
+   brw_range src_range = live.vars_range[src_var];
 
-   /* Variables interfere and one line range isn't a subset of the other. */
-   if ((dst_end > src_end && src_start < dst_start) ||
-       (src_end > dst_end && dst_start < src_start))
+   /* Variables interfere and one live range isn't a subset of the other. */
+   if (!dst_range.contains(src_range) &&
+       !src_range.contains(dst_range))
       return false;
 
    /* Check for a write to either register in the intersection of their live
     * ranges.
     */
-   int start_ip = MAX2(dst_start, src_start);
-   int end_ip = MIN2(dst_end, src_end);
+   brw_range intersection = intersect(dst_range, src_range);
+   assert(!intersection.is_empty());
 
    foreach_block(scan_block, cfg) {
-      if (scan_block->end_ip < start_ip)
+      if (ips.range(scan_block).last() < intersection.start)
          continue;
 
-      int scan_ip = scan_block->start_ip - 1;
+      int scan_ip = ips.range(scan_block).start - 1;
 
       bool seen_src_write = false;
       bool seen_copy = false;
-      foreach_inst_in_block(fs_inst, scan_inst, scan_block) {
+      foreach_inst_in_block(brw_inst, scan_inst, scan_block) {
          scan_ip++;
 
          /* Ignore anything before the intersection of the live ranges */
-         if (scan_ip < start_ip)
+         if (scan_ip < intersection.start)
             continue;
 
          /* Ignore the copying instruction itself */
@@ -142,7 +140,7 @@ can_coalesce_vars(const intel_device_info *devinfo,
             continue;
          }
 
-         if (scan_ip > end_ip)
+         if (scan_ip > intersection.last())
             return true; /* registers do not interfere */
 
          if (seen_src_write && !seen_copy) {
@@ -178,7 +176,7 @@ can_coalesce_vars(const intel_device_info *devinfo,
          /* See the big comment above */
          if (regions_overlap(scan_inst->dst, scan_inst->size_written,
                              inst->src[0], inst->size_read(devinfo, 0))) {
-            if (seen_copy || scan_block != block ||
+            if (seen_copy || scan_block != inst->block ||
                 (scan_inst->force_writemask_all && !inst->force_writemask_all))
                return false;
             seen_src_write = true;
@@ -194,12 +192,12 @@ can_coalesce_vars(const intel_device_info *devinfo,
  * SEND instruction's payload to more than would fit in g112-g127.
  */
 static bool
-would_violate_eot_restriction(const brw::simple_allocator &alloc,
+would_violate_eot_restriction(brw_shader &s,
                               const cfg_t *cfg,
                               unsigned dst_reg, unsigned src_reg)
 {
-   if (alloc.sizes[dst_reg] > alloc.sizes[src_reg]) {
-      foreach_inst_in_block_reverse(fs_inst, send, cfg->last_block()) {
+   if (s.alloc.sizes[dst_reg] > s.alloc.sizes[src_reg]) {
+      foreach_inst_in_block_reverse(brw_inst, send, cfg->last_block()) {
          if (send->opcode != SHADER_OPCODE_SEND || !send->eot)
             continue;
 
@@ -207,13 +205,13 @@ would_violate_eot_restriction(const brw::simple_allocator &alloc,
              (send->sources >= 4 &&
               send->src[3].file == VGRF && send->src[3].nr == src_reg)) {
             const unsigned s2 =
-               send->src[2].file == VGRF ? alloc.sizes[send->src[2].nr] : 0;
+               send->src[2].file == VGRF ? s.alloc.sizes[send->src[2].nr] : 0;
             const unsigned s3 = send->sources >= 4 &&
                send->src[3].file == VGRF ?
-               alloc.sizes[send->src[3].nr] : 0;
+               s.alloc.sizes[send->src[3].nr] : 0;
 
             const unsigned increase =
-               alloc.sizes[dst_reg] - alloc.sizes[src_reg];
+               s.alloc.sizes[dst_reg] - s.alloc.sizes[src_reg];
 
             if (s2 + s3 + increase > 15)
                return true;
@@ -226,21 +224,23 @@ would_violate_eot_restriction(const brw::simple_allocator &alloc,
 }
 
 bool
-brw_opt_register_coalesce(fs_visitor &s)
+brw_opt_register_coalesce(brw_shader &s)
 {
    const intel_device_info *devinfo = s.devinfo;
 
    bool progress = false;
-   fs_live_variables &live = s.live_analysis.require();
+   brw_live_variables &live = s.live_analysis.require();
+   brw_ip_ranges &ips = s.ip_ranges_analysis.require();
    int src_size = 0;
    int channels_remaining = 0;
    unsigned src_reg = ~0u, dst_reg = ~0u;
-   int *dst_reg_offset = new int[MAX_VGRF_SIZE(devinfo)];
-   fs_inst **mov = new fs_inst *[MAX_VGRF_SIZE(devinfo)];
-   int *dst_var = new int[MAX_VGRF_SIZE(devinfo)];
-   int *src_var = new int[MAX_VGRF_SIZE(devinfo)];
+   int *dst_reg_offset = new int[live.max_vgrf_size];
+   brw_inst **mov = new brw_inst *[live.max_vgrf_size];
+   int *dst_var = new int[live.max_vgrf_size];
+   int *src_var = new int[live.max_vgrf_size];
+   const brw_def_analysis &defs = s.def_analysis.require();
 
-   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
       if (!is_coalesce_candidate(&s, inst))
          continue;
 
@@ -250,14 +250,28 @@ brw_opt_register_coalesce(fs_visitor &s)
          continue;
       }
 
+      /* Do not allow register coalescing of a value that was generated by a
+       * LOAD_REG. Register coalesce works by making the destination of the
+       * original instruction (in this case the LOAD_REG) be the same as the
+       * destination of the MOV.
+       *
+       * If the MOV result is not a def (due to multiple writes or being used
+       * outside the body of a loop), this will cause the LOAD_REG to also not
+       * be a def. That violates the requirement of the LOAD_REG, and it will
+       * fail validation.
+       */
+      const brw_inst *const def = defs.get(inst->src[0]);
+      if (def && def->opcode == SHADER_OPCODE_LOAD_REG)
+         continue;
+
       if (src_reg != inst->src[0].nr) {
          src_reg = inst->src[0].nr;
 
          src_size = s.alloc.sizes[inst->src[0].nr];
-         assert(src_size <= MAX_VGRF_SIZE(devinfo));
+         assert(src_size <= (int) live.max_vgrf_size);
 
          channels_remaining = src_size;
-         memset(mov, 0, sizeof(*mov) * MAX_VGRF_SIZE(devinfo));
+         memset(mov, 0, sizeof(*mov) * live.max_vgrf_size);
 
          dst_reg = inst->dst.nr;
       }
@@ -268,8 +282,8 @@ brw_opt_register_coalesce(fs_visitor &s)
       if (inst->opcode == SHADER_OPCODE_LOAD_PAYLOAD) {
          for (int i = 0; i < src_size; i++) {
             dst_reg_offset[i] = inst->dst.offset / REG_SIZE + i;
+            mov[i] = inst;
          }
-         mov[0] = inst;
          channels_remaining -= regs_written(inst);
       } else {
          const int offset = inst->src[0].offset / REG_SIZE;
@@ -283,9 +297,10 @@ brw_opt_register_coalesce(fs_visitor &s)
             channels_remaining = -1;
             continue;
          }
-         for (unsigned i = 0; i < MAX2(inst->size_written / REG_SIZE, 1); i++)
+         for (unsigned i = 0; i < MAX2(inst->size_written / REG_SIZE, 1); i++) {
             dst_reg_offset[offset + i] = inst->dst.offset / REG_SIZE + i;
-         mov[offset] = inst;
+            mov[offset + i] = inst;
+         }
          channels_remaining -= regs_written(inst);
       }
 
@@ -304,8 +319,8 @@ brw_opt_register_coalesce(fs_visitor &s)
          dst_var[i] = live.var_from_vgrf[dst_reg] + dst_reg_offset[i];
          src_var[i] = live.var_from_vgrf[src_reg] + i;
 
-         if (!can_coalesce_vars(devinfo, live, s.cfg, block, inst, dst_var[i], src_var[i]) ||
-             would_violate_eot_restriction(s.alloc, s.cfg, dst_reg, src_reg)) {
+         if (!can_coalesce_vars(devinfo, live, ips, s.cfg, mov[i], dst_var[i], src_var[i]) ||
+             would_violate_eot_restriction(s, s.cfg, dst_reg, src_reg)) {
             can_coalesce = false;
             src_reg = ~0u;
             break;
@@ -317,7 +332,7 @@ brw_opt_register_coalesce(fs_visitor &s)
 
       progress = true;
 
-      for (int i = 0; i < src_size; i++) {
+      for (int i = 0; i < src_size; i += regs_written(mov[i])) {
          if (!mov[i])
             continue;
 
@@ -341,7 +356,7 @@ brw_opt_register_coalesce(fs_visitor &s)
          }
       }
 
-      foreach_block_and_inst(block, fs_inst, scan_inst, s.cfg) {
+      foreach_block_and_inst(block, brw_inst, scan_inst, s.cfg) {
          if (scan_inst->dst.file == VGRF &&
              scan_inst->dst.nr == src_reg) {
             scan_inst->dst.nr = dst_reg;
@@ -360,24 +375,20 @@ brw_opt_register_coalesce(fs_visitor &s)
       }
 
       for (int i = 0; i < src_size; i++) {
-         live.start[dst_var[i]] = MIN2(live.start[dst_var[i]],
-                                       live.start[src_var[i]]);
-         live.end[dst_var[i]] = MAX2(live.end[dst_var[i]],
-                                     live.end[src_var[i]]);
+         live.vars_range[dst_var[i]] = merge(live.vars_range[dst_var[i]],
+                                             live.vars_range[src_var[i]]);
       }
       src_reg = ~0u;
    }
 
    if (progress) {
-      foreach_block_and_inst_safe (block, fs_inst, inst, s.cfg) {
+      foreach_block_and_inst_safe (block, brw_inst, inst, s.cfg) {
          if (inst->opcode == BRW_OPCODE_NOP) {
-            inst->remove(block, true);
+            inst->remove();
          }
       }
 
-      s.cfg->adjust_block_ips();
-
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS);
    }
 
    delete[] src_var;

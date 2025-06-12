@@ -66,13 +66,11 @@ Linux, FreeBSD, and other operating systems.
    egl
    opengles
    envvars
-   osmesa
    debugging
    perf
    gpu-perf-tracing
    extensions
    application-issues
-   gallium-nine
    viewperf
    xlibdriver
    teflon

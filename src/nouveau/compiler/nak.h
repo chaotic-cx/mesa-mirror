@@ -7,7 +7,7 @@
 #define NAK_H
 
 #include "compiler/shader_enums.h"
-#include "nir.h"
+#include "nir_defines.h"
 
 #include <assert.h>
 #include <stdbool.h>
@@ -20,7 +20,6 @@ extern "C" {
 #define NAK_SUBGROUP_SIZE 32
 
 struct nak_compiler;
-struct nir_shader_compiler_options;
 struct nv_device_info;
 
 struct nak_compiler *nak_compiler_create(const struct nv_device_info *dev);
@@ -32,6 +31,8 @@ const struct nir_shader_compiler_options *
 nak_nir_options(const struct nak_compiler *nak);
 
 void nak_preprocess_nir(nir_shader *nir, const struct nak_compiler *nak);
+
+bool nak_nir_lower_image_addrs(nir_shader *nir, const struct nak_compiler *nak);
 
 struct nak_sample_location {
    uint8_t x_u4 : 4;
@@ -138,8 +139,26 @@ struct nak_shader_info {
 
    uint8_t _pad0;
 
+   /** Maximum number of warps per SM based on static information */
+   uint32_t max_warps_per_sm;
+
    /** Number of instructions used */
    uint32_t num_instrs;
+
+   /** Number of cycles used by fixed-latency instructions */
+   uint32_t num_static_cycles;
+
+   /** Number of spills from GPRs to Memory */
+   uint32_t num_spills_to_mem;
+
+   /** Number of fills from Memory to GPRs */
+   uint32_t num_fills_from_mem;
+
+   /** Number of spills between register files */
+   uint32_t num_spills_to_reg;
+
+   /** Number of fills between register files */
+   uint32_t num_fills_from_reg;
 
    /** Size of shader local (scratch) memory */
    uint32_t slm_size;
@@ -245,6 +264,15 @@ struct nak_qmd_dispatch_size_layout {
 
 struct nak_qmd_dispatch_size_layout
 nak_get_qmd_dispatch_size_layout(const struct nv_device_info *dev);
+
+struct nak_qmd_cbuf_desc_layout {
+   uint16_t addr_shift;
+   uint16_t addr_lo_start, addr_lo_end;
+   uint16_t addr_hi_start, addr_hi_end;
+};
+
+struct nak_qmd_cbuf_desc_layout
+nak_get_qmd_cbuf_desc_layout(const struct nv_device_info *dev, uint8_t idx);
 
 #ifdef __cplusplus
 }

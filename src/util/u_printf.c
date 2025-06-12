@@ -36,6 +36,8 @@
 #include "u_math.h"
 #include "u_printf.h"
 
+#include "util/half_float.h"
+
 #define XXH_INLINE_ALL
 #include "util/xxhash.h"
 
@@ -241,7 +243,11 @@ u_printf_impl(FILE *out, const char *buffer, size_t buffer_size,
                case 2: {
                   uint16_t v;
                   memcpy(&v, &buffer[elmt_buf_pos], elmt_size);
-                  fprintf(out, print_str, v);
+                  if (is_float) {
+                     fprintf(out, print_str, _mesa_half_to_float(v));
+                  } else {
+                     fprintf(out, print_str, v);
+                  }
                   break;
                }
                case 4: {
@@ -335,10 +341,10 @@ u_printf_deserialize_info(void *mem_ctx,
       u_printf_info *info = &printf_info[i];
       info->num_args = blob_read_uint32(blob);
       info->string_size = blob_read_uint32(blob);
-      info->arg_sizes = ralloc_array(mem_ctx, unsigned, info->num_args);
+      info->arg_sizes = ralloc_array(printf_info, unsigned, info->num_args);
       blob_copy_bytes(blob, info->arg_sizes,
                       info->num_args * sizeof(info->arg_sizes[0]));
-      info->strings = ralloc_array(mem_ctx, char, info->string_size);
+      info->strings = ralloc_array(printf_info, char, info->string_size);
       blob_copy_bytes(blob, info->strings, info->string_size);
    }
 

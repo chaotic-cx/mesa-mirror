@@ -163,6 +163,21 @@ zink_debug_mem_print_stats(struct zink_screen *screen)
    simple_mtx_unlock(&screen->debug_mem_lock);
 }
 
+static void
+image_hic_transition(struct zink_screen *screen, struct zink_resource *res, VkImageLayout layout)
+{
+   VkHostImageLayoutTransitionInfoEXT t = {
+      VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO_EXT,
+      NULL,
+      res->obj->image,
+      res->layout,
+      layout,
+      {res->aspect, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
+   };
+   VKSCR(TransitionImageLayoutEXT)(screen->dev, 1, &t);
+   res->layout = layout;
+}
+
 static bool
 equals_ivci(const void *a, const void *b)
 {
@@ -251,6 +266,8 @@ zink_resource_destroy(struct pipe_screen *pscreen,
    /* no need to do anything for the caches, these objects own the resource lifetimes */
 
    free(res->modifiers);
+   struct pipe_resource *pres_transient = res->transient ? &res->transient->base.b : NULL;
+   pipe_resource_reference(&pres_transient, NULL);
    zink_resource_object_reference(screen, &res->obj, NULL);
    threaded_resource_deinit(pres);
    FREE_CL(res);
@@ -1201,15 +1218,8 @@ create_buffer(struct zink_screen *screen, struct zink_resource_object *obj,
      }
    }
 
-   if (modifiers_count) {
-      assert(modifiers_count == 3);
-      /* this is the DGC path because there's no other way to pass mem bits and I don't wanna copy/paste everything around */
-      reqs.size = modifiers[0];
-      reqs.alignment = modifiers[1];
-      reqs.memoryTypeBits = modifiers[2];
-   } else {
-      VKSCR(GetBufferMemoryRequirements)(screen->dev, obj->buffer, &reqs);
-   }
+   assert(!modifiers_count);
+   VKSCR(GetBufferMemoryRequirements)(screen->dev, obj->buffer, &reqs);
 
    if (templ->usage == PIPE_USAGE_STAGING)
       alloc_info->flags = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
@@ -1294,6 +1304,13 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
    if (ici.format == VK_FORMAT_A8_UNORM_KHR && !success) {
       ici.format = zink_get_format(screen, zink_format_get_emulated_alpha(templ->format));
       mod = eval_ici(screen, &ici, templ, templ->bind, ici_modifier_count, ici_modifiers, &success);
+   }
+   /* images with modifiers MUST have a format list if they are mutable */
+   if (modifiers_count && ici.flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) {
+      const VkImageFormatListCreateInfo *format_list = vk_find_struct_const(&ici, IMAGE_FORMAT_LIST_CREATE_INFO);
+      assert(format_list);
+      if (!format_list)
+         return roc_fail_and_free_object;
    }
    if (!success)
       return roc_fail_and_free_object;
@@ -1482,6 +1499,7 @@ resource_object_create(struct zink_screen *screen, const struct pipe_resource *t
    obj->unordered_read = true;
    obj->unordered_write = true;
    obj->unsync_access = true;
+   obj->modifier = DRM_FORMAT_MOD_INVALID;
    obj->last_dt_idx = obj->dt_idx = UINT32_MAX; //TODO: unionize
 
    struct mem_alloc_info alloc_info = {
@@ -1698,6 +1716,11 @@ resource_create(struct pipe_screen *pscreen,
    } else {
       _mesa_hash_table_init(&res->surface_cache, NULL, NULL, equals_ivci);
       simple_mtx_init(&res->surface_mtx, mtx_plain);
+
+      /* immediately switch to GENERAL layout if possible to avoid extra sync */
+      if (res->obj->image && res->queue != VK_QUEUE_FAMILY_FOREIGN_EXT && (res->obj->vkusage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) &&
+          screen->driver_workarounds.general_layout)
+         image_hic_transition(screen, res, VK_IMAGE_LAYOUT_GENERAL);
    }
    if (res->obj->exportable)
       res->base.b.bind |= ZINK_BIND_DMABUF;
@@ -1733,7 +1756,8 @@ add_resource_bind(struct zink_context *ctx, struct zink_resource *res, unsigned 
    assert((res->base.b.bind & bind) == 0);
    res->base.b.bind |= bind;
    struct zink_resource_object *old_obj = res->obj;
-   if (bind & ZINK_BIND_DMABUF && !res->modifiers_count && screen->info.have_EXT_image_drm_format_modifier) {
+   ASSERTED uint64_t mod = DRM_FORMAT_MOD_INVALID;
+   if (bind & ZINK_BIND_DMABUF && !res->modifiers_count && !res->obj->is_buffer && screen->info.have_EXT_image_drm_format_modifier) {
       res->modifiers_count = 1;
       res->modifiers = malloc(res->modifiers_count * sizeof(uint64_t));
       if (!res->modifiers) {
@@ -1741,7 +1765,7 @@ add_resource_bind(struct zink_context *ctx, struct zink_resource *res, unsigned 
          return false;
       }
 
-      res->modifiers[0] = DRM_FORMAT_MOD_LINEAR;
+      mod = res->modifiers[0] = DRM_FORMAT_MOD_LINEAR;
    }
    struct zink_resource_object *new_obj = resource_object_create(screen, &res->base.b, NULL, &res->linear, res->modifiers, res->modifiers_count, NULL, NULL);
    if (!new_obj) {
@@ -1749,6 +1773,7 @@ add_resource_bind(struct zink_context *ctx, struct zink_resource *res, unsigned 
       res->base.b.bind &= ~bind;
       return false;
    }
+   assert(mod == DRM_FORMAT_MOD_INVALID || new_obj->modifier == DRM_FORMAT_MOD_LINEAR);
    struct zink_resource staging = *res;
    staging.obj = old_obj;
    staging.all_binds = 0;
@@ -1988,10 +2013,12 @@ zink_resource_get_handle(struct pipe_screen *pscreen,
       uint64_t value;
       zink_resource_get_param(pscreen, context, tex, 0, 0, 0, PIPE_RESOURCE_PARAM_MODIFIER, 0, &value);
       whandle->modifier = value;
-      zink_resource_get_param(pscreen, context, tex, 0, 0, 0, PIPE_RESOURCE_PARAM_OFFSET, 0, &value);
-      whandle->offset = value;
-      zink_resource_get_param(pscreen, context, tex, 0, 0, 0, PIPE_RESOURCE_PARAM_STRIDE, 0, &value);
-      whandle->stride = value;
+      if (!res->obj->is_buffer) {
+         zink_resource_get_param(pscreen, context, tex, 0, 0, 0, PIPE_RESOURCE_PARAM_OFFSET, 0, &value);
+         whandle->offset = value;
+         zink_resource_get_param(pscreen, context, tex, 0, 0, 0, PIPE_RESOURCE_PARAM_STRIDE, 0, &value);
+         whandle->stride = value;
+      }
 #else
       return false;
 #endif
@@ -2016,14 +2043,18 @@ zink_resource_from_handle(struct pipe_screen *pscreen,
 
    uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
    int modifier_count = 1;
-   if (whandle->modifier != DRM_FORMAT_MOD_INVALID)
-      modifier = whandle->modifier;
-   else {
-      if (!zink_screen(pscreen)->driver_workarounds.can_do_invalid_linear_modifier) {
-         mesa_loge("zink: display server doesn't support DRI3 modifiers and driver can't handle INVALID<->LINEAR!");
-         return NULL;
+   if (templ->target == PIPE_BUFFER) {
+      modifier_count = 0;
+   } else {
+      if (whandle->modifier != DRM_FORMAT_MOD_INVALID)
+         modifier = whandle->modifier;
+      else {
+         if (!zink_screen(pscreen)->driver_workarounds.can_do_invalid_linear_modifier) {
+            mesa_loge("zink: display server doesn't support DRI3 modifiers and driver can't handle INVALID<->LINEAR!");
+            return NULL;
+         }
+         whandle->modifier = modifier;
       }
-      whandle->modifier = modifier;
    }
    templ2.bind |= ZINK_BIND_DMABUF;
    struct pipe_resource *pres = resource_create(pscreen, &templ2, whandle, usage, &modifier, modifier_count, NULL, NULL);
@@ -2130,6 +2161,10 @@ invalidate_buffer(struct zink_context *ctx, struct zink_resource *res)
    assert(res->base.b.target == PIPE_BUFFER);
 
    if (res->base.b.flags & PIPE_RESOURCE_FLAG_SPARSE)
+      return false;
+
+   /* never invalidate a resource with a fixed address */
+   if (res->base.b.flags & PIPE_RESOURCE_FLAG_FIXED_ADDRESS)
       return false;
 
    struct pipe_box box;
@@ -2301,7 +2336,9 @@ zink_buffer_map(struct pipe_context *pctx,
    if (!(usage & (PIPE_MAP_UNSYNCHRONIZED | TC_TRANSFER_MAP_NO_INFER_UNSYNCHRONIZED)) &&
        usage & PIPE_MAP_WRITE && !res->base.is_shared &&
        !util_ranges_intersect(&res->valid_buffer_range, box->x, box->x + box->width) &&
-       !zink_resource_copy_box_intersects(res, 0, box)) {
+       !zink_resource_copy_box_intersects(res, 0, box) &&
+       /* never discard exported buffers */
+       res->obj->modifier == DRM_FORMAT_MOD_INVALID) {
       usage |= PIPE_MAP_UNSYNCHRONIZED;
    }
 
@@ -2336,33 +2373,45 @@ zink_buffer_map(struct pipe_context *pctx,
    }
 
    unsigned map_offset = box->x;
-   if (usage & PIPE_MAP_DISCARD_RANGE &&
-        (!res->obj->host_visible ||
-        !(usage & (PIPE_MAP_UNSYNCHRONIZED | PIPE_MAP_PERSISTENT)))) {
+   /* ideally never ever read or write to non-cached mem */
+   bool is_cached_mem = (screen->info.mem_props.memoryTypes[res->obj->bo->base.base.placement].propertyFlags & VK_STAGING_RAM) == VK_STAGING_RAM;
+   /* but this is only viable with a certain amount of vram since it may fully duplicate lots of large buffers */
+   bool host_mem_type_check = res->obj->host_visible;
+   if (screen->always_cached_upload)
+      host_mem_type_check &= is_cached_mem;
+   if (usage & PIPE_MAP_DISCARD_RANGE && !(usage & PIPE_MAP_PERSISTENT) &&
+       (!host_mem_type_check || !(usage & (PIPE_MAP_UNSYNCHRONIZED)))) {
 
       /* Check if mapping this buffer would cause waiting for the GPU.
        */
 
-      if (!res->obj->host_visible || force_discard_range ||
+      if (!host_mem_type_check || force_discard_range ||
           !zink_resource_usage_check_completion(screen, res, ZINK_RESOURCE_ACCESS_RW)) {
          /* Do a wait-free write-only transfer using a temporary buffer. */
          unsigned offset;
 
-         /* If we are not called from the driver thread, we have
-          * to use the uploader from u_threaded_context, which is
-          * local to the calling thread.
-          */
-         struct u_upload_mgr *mgr;
-         if (usage & TC_TRANSFER_MAP_THREADED_UNSYNC)
-            mgr = ctx->tc->base.stream_uploader;
-         else
-            mgr = ctx->base.stream_uploader;
-         u_upload_alloc(mgr, 0, box->width,
-                     screen->info.props.limits.minMemoryMapAlignment, &offset,
-                     (struct pipe_resource **)&trans->staging_res, (void **)&ptr);
+         if (usage & PIPE_MAP_UNSYNCHRONIZED) {
+            trans->offset = box->x % MAX2(screen->info.props.limits.minMemoryMapAlignment, 1 << MIN_SLAB_ORDER);
+            trans->staging_res = pipe_buffer_create(&screen->base, PIPE_BIND_LINEAR, PIPE_USAGE_STAGING, box->width + trans->offset);
+            trans->unsync_upload = true;
+         } else {
+            /* If we are not called from the driver thread, we have
+            * to use the uploader from u_threaded_context, which is
+            * local to the calling thread.
+            */
+            struct u_upload_mgr *mgr;
+            if (usage & TC_TRANSFER_MAP_THREADED_UNSYNC)
+               mgr = ctx->tc->base.stream_uploader;
+            else
+               mgr = ctx->base.stream_uploader;
+            u_upload_alloc(mgr, 0, box->width,
+                        screen->info.props.limits.minMemoryMapAlignment, &offset,
+                        (struct pipe_resource **)&trans->staging_res, (void **)&ptr);
+            trans->offset = offset;
+         }
          res = zink_resource(trans->staging_res);
-         trans->offset = offset;
          usage |= PIPE_MAP_UNSYNCHRONIZED;
+         map_offset = trans->offset;
          ptr = ((uint8_t *)ptr);
       } else {
          /* At this point, the buffer is always idle (we checked it above). */
@@ -2377,9 +2426,7 @@ zink_buffer_map(struct pipe_context *pctx,
       if (!zink_resource_usage_check_completion(screen, res, ZINK_RESOURCE_ACCESS_WRITE))
          goto success;
       usage |= PIPE_MAP_UNSYNCHRONIZED;
-   } else if (((usage & PIPE_MAP_READ) && !(usage & PIPE_MAP_PERSISTENT) &&
-               ((screen->info.mem_props.memoryTypes[res->obj->bo->base.base.placement].propertyFlags & VK_STAGING_RAM) != VK_STAGING_RAM)) ||
-              !res->obj->host_visible) {
+   } else if ((usage & PIPE_MAP_READ) && !(usage & PIPE_MAP_PERSISTENT) && !host_mem_type_check) {
       /* any read, non-HV write, or unmappable that reaches this point needs staging */
       if ((usage & PIPE_MAP_READ) || !res->obj->host_visible || res->base.b.flags & PIPE_RESOURCE_FLAG_DONT_MAP_DIRECTLY) {
 overwrite:
@@ -2395,7 +2442,7 @@ overwrite:
             ctx = screen->copy_context;
          }
          if (usage & PIPE_MAP_READ)
-            zink_copy_buffer(ctx, staging_res, res, trans->offset, box->x, box->width);
+            zink_copy_buffer(ctx, staging_res, res, trans->offset, box->x, box->width, false);
          res = staging_res;
          usage &= ~PIPE_MAP_UNSYNCHRONIZED;
          map_offset = trans->offset;
@@ -2440,7 +2487,7 @@ overwrite:
       // This is a known limitation of MoltenVK.
       // See https://github.com/KhronosGroup/MoltenVK/blob/master/Docs/MoltenVK_Runtime_UserGuide.md#known-moltenvk-limitations
 
-       || screen->instance_info.have_MVK_moltenvk
+       || screen->instance_info->have_MVK_moltenvk
 #endif
       ) {
       VkDeviceSize size = box->width;
@@ -2500,10 +2547,10 @@ zink_image_map(struct pipe_context *pctx,
    if (!(usage & PIPE_MAP_UNSYNCHRONIZED)) {
       if (usage & PIPE_MAP_WRITE && !(usage & PIPE_MAP_READ))
          /* this is like a blit, so we can potentially dump some clears or maybe we have to  */
-         zink_fb_clears_apply_or_discard(ctx, pres, zink_rect_from_box(box), false);
+         zink_fb_clears_apply_or_discard(ctx, pres, zink_rect_from_box(box), box->z, box->depth, false);
       else if (usage & PIPE_MAP_READ)
          /* if the map region intersects with any clears then we have to apply them */
-         zink_fb_clears_apply_region(ctx, pres, zink_rect_from_box(box));
+         zink_fb_clears_apply_region(ctx, pres, zink_rect_from_box(box),box->z, box->depth);
    }
    if (!res->linear || !res->obj->host_visible) {
       enum pipe_format format = pres->format;
@@ -2623,7 +2670,7 @@ zink_image_subdata(struct pipe_context *pctx,
    /* flush clears to avoid subdata conflict */
    if (!(usage & TC_TRANSFER_MAP_THREADED_UNSYNC) &&
        (res->obj->vkusage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT))
-      zink_fb_clears_apply_or_discard(ctx, pres, zink_rect_from_box(box), false);
+      zink_fb_clears_apply_or_discard(ctx, pres, zink_rect_from_box(box), box->z, box->depth, false);
    /* only use HIC if supported on image and no pending usage */
    while (res->obj->vkusage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT &&
           zink_resource_usage_check_completion(screen, res, ZINK_RESOURCE_ACCESS_RW)) {
@@ -2658,20 +2705,9 @@ zink_image_subdata(struct pipe_context *pctx,
       unsigned vk_layer_stride = util_format_get_2d_size(pres->format, stride, 1) * vk_stride;
       layer_stride /= vk_layer_stride;
 
-      VkHostImageLayoutTransitionInfoEXT t = {
-         VK_STRUCTURE_TYPE_HOST_IMAGE_LAYOUT_TRANSITION_INFO_EXT,
-         NULL,
-         res->obj->image,
-         res->layout,
-         /* GENERAL support is guaranteed */
-         VK_IMAGE_LAYOUT_GENERAL,
-         {res->aspect, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}
-      };
       /* only pre-transition uninit images to avoid thrashing */
-      if (change_layout) {
-         VKSCR(TransitionImageLayoutEXT)(screen->dev, 1, &t);
-         res->layout = VK_IMAGE_LAYOUT_GENERAL;
-      }
+      if (change_layout)
+         image_hic_transition(screen, res, VK_IMAGE_LAYOUT_GENERAL);
       VkMemoryToImageCopyEXT region = {
          VK_STRUCTURE_TYPE_MEMORY_TO_IMAGE_COPY_EXT,
          NULL,
@@ -2692,14 +2728,12 @@ zink_image_subdata(struct pipe_context *pctx,
          &region
       };
       VKSCR(CopyMemoryToImageEXT)(screen->dev, &copy);
-      if (change_layout && screen->can_hic_shader_read && !pres->last_level && !box->x && !box->y && !box->z &&
+      if (change_layout && !screen->driver_workarounds.general_layout && screen->can_hic_shader_read &&
+          !pres->last_level && !box->x && !box->y && !box->z &&
           box->width == pres->width0 && box->height == pres->height0 &&
           ((is_arrayed && box->depth == pres->array_size) || (!is_arrayed && box->depth == pres->depth0))) {
          /* assume full copy single-mip images use shader read access */
-         t.oldLayout = VK_IMAGE_LAYOUT_GENERAL;
-         t.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-         VKSCR(TransitionImageLayoutEXT)(screen->dev, 1, &t);
-         res->layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+         image_hic_transition(screen, res, VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
          /* assume multi-mip where further subdata calls may happen */
       }
       /* make sure image is marked as having data */
@@ -2746,7 +2780,7 @@ zink_transfer_flush_region(struct pipe_context *pctx,
          struct zink_resource *staging_res = zink_resource(trans->staging_res);
 
          if (ptrans->resource->target == PIPE_BUFFER)
-            zink_copy_buffer(ctx, res, staging_res, dst_offset, src_offset, size);
+            zink_copy_buffer(ctx, res, staging_res, dst_offset, src_offset, size, trans->unsync_upload);
          else
             zink_transfer_copy_bufimage(ctx, res, staging_res, trans);
       }
@@ -3067,6 +3101,14 @@ zink_buffer_subdata(struct pipe_context *ctx, struct pipe_resource *buffer,
    zink_buffer_unmap(ctx, transfer);
 }
 
+static uint64_t
+zink_resource_get_address_gallium(struct pipe_screen *pscreen, struct pipe_resource *pres)
+{
+   if (pres->flags & PIPE_RESOURCE_FLAG_FIXED_ADDRESS)
+      return zink_resource_get_address(zink_screen(pres->screen), zink_resource(pres));
+   return 0;
+}
+
 static struct pipe_resource *
 zink_resource_get_separate_stencil(struct pipe_resource *pres)
 {
@@ -3091,7 +3133,7 @@ resource_object_add_bind(struct zink_context *ctx, struct zink_resource *res, un
       return true;
    }
    assert(!res->obj->dt);
-   zink_fb_clears_apply_region(ctx, &res->base.b, (struct u_rect){0, res->base.b.width0, 0, res->base.b.height0});
+   zink_fb_clears_apply(ctx, &res->base.b, 0, INT32_MAX);
    bool ret = add_resource_bind(ctx, res, bind);
    if (ret)
       zink_resource_rebind(ctx, res);
@@ -3129,6 +3171,7 @@ zink_resource_get_address(struct zink_screen *screen, struct zink_resource *res)
 void
 zink_resource_setup_transfer_layouts(struct zink_context *ctx, struct zink_resource *src, struct zink_resource *dst)
 {
+   struct zink_screen *screen = zink_screen(ctx->base.screen);
    if (src == dst) {
       /* The Vulkan 1.1 specification says the following about valid usage
        * of vkCmdBlitImage:
@@ -3146,20 +3189,20 @@ zink_resource_setup_transfer_layouts(struct zink_context *ctx, struct zink_resou
        * VK_IMAGE_LAYOUT_GENERAL. And since this isn't a present-related
        * operation, VK_IMAGE_LAYOUT_GENERAL seems most appropriate.
        */
-      zink_screen(ctx->base.screen)->image_barrier(ctx, src,
-                                  VK_IMAGE_LAYOUT_GENERAL,
-                                  VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
-                                  VK_PIPELINE_STAGE_TRANSFER_BIT);
+      screen->image_barrier(ctx, src,
+                            VK_IMAGE_LAYOUT_GENERAL,
+                            VK_ACCESS_TRANSFER_READ_BIT | VK_ACCESS_TRANSFER_WRITE_BIT,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT);
    } else {
-      zink_screen(ctx->base.screen)->image_barrier(ctx, src,
-                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                  VK_ACCESS_TRANSFER_READ_BIT,
-                                  VK_PIPELINE_STAGE_TRANSFER_BIT);
+      screen->image_barrier(ctx, src,
+                            screen->driver_workarounds.general_layout ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                            VK_ACCESS_TRANSFER_READ_BIT,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT);
 
-      zink_screen(ctx->base.screen)->image_barrier(ctx, dst,
-                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  VK_ACCESS_TRANSFER_WRITE_BIT,
-                                  VK_PIPELINE_STAGE_TRANSFER_BIT);
+      screen->image_barrier(ctx, dst,
+                            screen->driver_workarounds.general_layout ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                            VK_ACCESS_TRANSFER_WRITE_BIT,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT);
    }
 }
 
@@ -3230,11 +3273,13 @@ zink_screen_resource_init(struct pipe_screen *pscreen)
    if (screen->info.have_EXT_external_memory_host) {
       pscreen->resource_from_user_memory = zink_resource_from_user_memory;
    }
-   if (screen->instance_info.have_KHR_external_memory_capabilities) {
+   if (screen->instance_info->have_KHR_external_memory_capabilities) {
       pscreen->memobj_create_from_handle = zink_memobj_create_from_handle;
       pscreen->memobj_destroy = zink_memobj_destroy;
       pscreen->resource_from_memobj = zink_resource_from_memobj;
    }
+   if (screen->info.have_KHR_buffer_device_address)
+      pscreen->resource_get_address = zink_resource_get_address_gallium;
    pscreen->resource_get_param = zink_resource_get_param;
    return true;
 }

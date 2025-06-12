@@ -867,14 +867,14 @@ int virgl_encode_clear_texture(struct virgl_context *ctx,
 int virgl_encoder_set_framebuffer_state(struct virgl_context *ctx,
                                        const struct pipe_framebuffer_state *state)
 {
-   struct virgl_surface *zsurf = virgl_surface(state->zsbuf);
+   struct virgl_surface *zsurf = virgl_surface(ctx->fb_zsbuf);
    int i;
 
    virgl_encoder_write_cmd_dword(ctx, VIRGL_CMD0(VIRGL_CCMD_SET_FRAMEBUFFER_STATE, 0, VIRGL_SET_FRAMEBUFFER_STATE_SIZE(state->nr_cbufs)));
    virgl_encoder_write_dword(ctx->cbuf, state->nr_cbufs);
    virgl_encoder_write_dword(ctx->cbuf, zsurf ? zsurf->handle : 0);
    for (i = 0; i < state->nr_cbufs; i++) {
-      struct virgl_surface *surf = virgl_surface(state->cbufs[i]);
+      struct virgl_surface *surf = virgl_surface(ctx->fb_cbufs[i]);
       virgl_encoder_write_dword(ctx->cbuf, surf ? surf->handle : 0);
    }
 
@@ -1008,8 +1008,8 @@ static int virgl_encoder_create_surface_common(struct virgl_context *ctx,
    virgl_encoder_write_dword(ctx->cbuf, pipe_to_virgl_format(templat->format));
 
    assert(templat->texture->target != PIPE_BUFFER);
-   virgl_encoder_write_dword(ctx->cbuf, templat->u.tex.level);
-   virgl_encoder_write_dword(ctx->cbuf, templat->u.tex.first_layer | (templat->u.tex.last_layer << 16));
+   virgl_encoder_write_dword(ctx->cbuf, templat->level);
+   virgl_encoder_write_dword(ctx->cbuf, templat->first_layer | (templat->last_layer << 16));
 
    return 0;
 }
@@ -1736,9 +1736,9 @@ void virgl_encode_emit_string_marker(struct virgl_context *ctx,
    if (len <= 0)
       return;
 
-   if (len > 4 * 0xffff) {
+   if (len > 4 * 0xffff - 4) {
       debug_printf("VIRGL: host debug flag string too long, will be truncated\n");
-      len = 4 * 0xffff;
+      len = 4 * 0xffff - 4;
    }
 
    uint32_t buf_len = (uint32_t )(len + 3) / 4 + 1;

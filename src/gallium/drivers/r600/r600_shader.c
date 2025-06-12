@@ -171,10 +171,10 @@ int r600_pipe_shader_create(struct pipe_context *ctx,
 			sel->nir = tgsi_to_nir(sel->tokens, ctx->screen, true);
 			/* Lower int64 ops because we have some r600 built-in shaders that use it */
 			if (nir_options->lower_int64_options) {
-				NIR_PASS_V(sel->nir, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-				NIR_PASS_V(sel->nir, nir_lower_int64);
+				NIR_PASS(_, sel->nir, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
+				NIR_PASS(_, sel->nir, nir_lower_int64);
 			}
-			NIR_PASS_V(sel->nir, nir_lower_flrp, ~0, false);
+			NIR_PASS(_, sel->nir, nir_lower_flrp, ~0, false);
 		}
 		nir_tgsi_scan_shader(sel->nir, &sel->info, true);
 
@@ -182,20 +182,8 @@ int r600_pipe_shader_create(struct pipe_context *ctx,
 
 		glsl_type_singleton_decref();
 
-		if (r) {
-			fprintf(stderr, "--Failed shader--------------------------------------------------\n");
-			
-			if (sel->ir_type == PIPE_SHADER_IR_TGSI) {
-				fprintf(stderr, "--TGSI--------------------------------------------------------\n");
-				tgsi_dump(sel->tokens, 0);
-			}
-			
-			fprintf(stderr, "--NIR --------------------------------------------------------\n");
-			nir_print_shader(sel->nir, stderr);
-			
-			R600_ERR("translation from NIR failed !\n");
+		if (r)
 			goto error;
-		}
 	}
 	
 	if (dump) {

@@ -77,6 +77,16 @@ emit_common_so_memcpy(struct anv_memcpy_state *state,
       vfi.InstancingEnable = false;
       vfi.VertexElementIndex = 0;
    }
+   anv_batch_emit(batch, GENX(3DSTATE_VF_STATISTICS), vfs);
+   anv_batch_emit(batch, GENX(3DSTATE_VF), vf) {
+#if GFX_VERx10 >= 125
+      /* Memcpy has no requirement that we need to disable geometry
+       * distribution.
+       */
+      vf.GeometryDistributionEnable =
+         device->physical->instance->enable_vf_distribution;
+#endif
+   }
    anv_batch_emit(batch, GENX(3DSTATE_VF_SGVS), sgvs);
 #if GFX_VER >= 11
    anv_batch_emit(batch, GENX(3DSTATE_VF_SGVS_2), sgvs);
@@ -98,12 +108,6 @@ emit_common_so_memcpy(struct anv_memcpy_state *state,
       anv_batch_emit(batch, GENX(3DSTATE_MESH_CONTROL), mesh);
       anv_batch_emit(batch, GENX(3DSTATE_TASK_CONTROL), task);
    }
-#endif
-
-#if INTEL_WA_16013994831_GFX_VER
-   /* Wa_16013994831 - Disable preemption during streamout. */
-   if (intel_needs_workaround(device->info, 16013994831))
-      genX(batch_set_preemption)(batch, device, _3D, false);
 #endif
 
    anv_batch_emit(batch, GENX(3DSTATE_SBE), sbe) {
@@ -282,6 +286,9 @@ genX(emit_so_memcpy_init)(struct anv_memcpy_state *state,
    state->device = device;
 
    if (state->cmd_buffer) {
+      /* Wa_16013994831 - Disable preemption during streamout. */
+      genX(cmd_buffer_set_preemption)(cmd_buffer, false);
+
       if (!cmd_buffer->state.current_l3_config) {
          genX(cmd_buffer_config_l3)(cmd_buffer,
                                     intel_get_default_l3_config(device->info));
@@ -290,6 +297,12 @@ genX(emit_so_memcpy_init)(struct anv_memcpy_state *state,
                             &state->cmd_buffer->state.gfx.urb_cfg,
                             cmd_buffer->state.current_l3_config);
    } else {
+#if INTEL_WA_16013994831_GFX_VER
+      /* Wa_16013994831 - Disable preemption during streamout. */
+      if (intel_needs_workaround(device->info, 16013994831))
+         genX(batch_set_preemption)(batch, device, _3D, false);
+#endif
+
       const struct intel_l3_config *cfg = intel_get_default_l3_config(device->info);
       genX(emit_l3_config)(batch, device, cfg);
       genX(emit_pipeline_select)(batch, _3D, device);
@@ -346,7 +359,8 @@ genX(emit_so_memcpy_fini)(struct anv_memcpy_state *state)
       }
 
       state->cmd_buffer->state.gfx.dirty |= ~(ANV_CMD_DIRTY_PIPELINE |
-                                              ANV_CMD_DIRTY_INDEX_BUFFER);
+                                              ANV_CMD_DIRTY_INDEX_BUFFER |
+                                              ANV_CMD_DIRTY_INDEX_TYPE);
 
       memcpy(&state->cmd_buffer->state.gfx.urb_cfg, &state->urb_cfg,
              sizeof(struct intel_urb_config));
@@ -356,8 +370,11 @@ genX(emit_so_memcpy_fini)(struct anv_memcpy_state *state)
 void
 genX(emit_so_memcpy_end)(struct anv_memcpy_state *state)
 {
+#if INTEL_WA_16013994831_GFX_VER
+   /* Turn preemption back on when we're done */
    if (intel_needs_workaround(state->device->info, 16013994831))
       genX(batch_set_preemption)(state->batch, state->device, _3D, true);
+#endif
 
    anv_batch_emit(state->batch, GENX(MI_BATCH_BUFFER_END), end);
 

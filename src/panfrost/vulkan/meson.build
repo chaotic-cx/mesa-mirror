@@ -13,6 +13,7 @@ panvk_entrypoints = custom_target(
     '--out-h', '@OUTPUT0@', '--out-c', '@OUTPUT1@', '--prefix', 'panvk',
     '--device-prefix', 'panvk_v6', '--device-prefix', 'panvk_v7',
     '--device-prefix', 'panvk_v9', '--device-prefix', 'panvk_v10',
+    '--device-prefix', 'panvk_v12', '--device-prefix', 'panvk_v13',
     '--beta', with_vulkan_beta.to_string()
   ],
   depend_files : vk_entrypoints_gen_depend_files,
@@ -62,6 +63,10 @@ valhall_archs = [9, 10]
 valhall_inc_dir = ['valhall']
 valhall_files = []
 
+avalon_archs = [12, 13]
+avalon_inc_dir = ['avalon']
+avalon_files = []
+
 jm_archs = [6, 7]
 jm_inc_dir = ['jm']
 jm_files = [
@@ -70,11 +75,13 @@ jm_files = [
   'jm/panvk_vX_cmd_draw.c',
   'jm/panvk_vX_cmd_event.c',
   'jm/panvk_vX_cmd_query.c',
+  'jm/panvk_vX_cmd_precomp.c',
+  'jm/panvk_vX_device.c',
   'jm/panvk_vX_event.c',
   'jm/panvk_vX_queue.c',
 ]
 
-csf_archs = [10]
+csf_archs = [10, 12, 13]
 csf_inc_dir = ['csf']
 csf_files = [
   'csf/panvk_vX_cmd_buffer.c',
@@ -82,6 +89,7 @@ csf_files = [
   'csf/panvk_vX_cmd_draw.c',
   'csf/panvk_vX_cmd_event.c',
   'csf/panvk_vX_cmd_query.c',
+  'csf/panvk_vX_cmd_precomp.c',
   'csf/panvk_vX_device.c',
   'csf/panvk_vX_event.c',
   'csf/panvk_vX_exception_handler.c',
@@ -103,6 +111,7 @@ common_per_arch_files = [
   'panvk_vX_descriptor_set.c',
   'panvk_vX_descriptor_set_layout.c',
   'panvk_vX_device.c',
+  'panvk_vX_precomp_cache.c',
   'panvk_vX_query_pool.c',
   'panvk_vX_image_view.c',
   'panvk_vX_nir_lower_descriptors.c',
@@ -110,7 +119,7 @@ common_per_arch_files = [
   'panvk_vX_shader.c',
 ]
 
-foreach arch : [6, 7, 10]
+foreach arch : [6, 7, 10, 12, 13]
   per_arch_files = common_per_arch_files
   inc_panvk_per_arch = []
 
@@ -120,6 +129,9 @@ foreach arch : [6, 7, 10]
   elif arch in valhall_archs
     inc_panvk_per_arch += valhall_inc_dir
     per_arch_files += valhall_files
+  elif arch in avalon_archs
+    inc_panvk_per_arch += avalon_inc_dir
+    per_arch_files += avalon_files
   endif
 
   if arch in jm_archs
@@ -148,6 +160,7 @@ foreach arch : [6, 7, 10]
       idep_mesautil,
       dep_libdrm,
       dep_valgrind,
+      idep_libpan_per_arch[arch.to_string()],
     ],
     c_args : [no_override_init_args, panvk_flags, '-DPAN_ARCH=@0@'.format(arch)],
   )

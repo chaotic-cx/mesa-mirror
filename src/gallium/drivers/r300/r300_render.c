@@ -24,7 +24,6 @@
 #include "r300_emit.h"
 #include "r300_reg.h"
 #include "r300_vs.h"
-#include "r300_fs.h"
 
 #include <limits.h>
 
@@ -794,13 +793,11 @@ static void r300_draw_vbo(struct pipe_context* pipe,
         return;
     }
 
-    if (r300->sprite_coord_enable != 0 ||
-        r300_fs(r300)->shader->inputs.pcoord != ATTR_UNUSED) {
+    if (r300->sprite_coord_enable != 0)
         if ((info.mode == MESA_PRIM_POINTS) != r300->is_point) {
             r300->is_point = !r300->is_point;
             r300_mark_atom_dirty(r300, &r300->rs_block_state);
         }
-    }
 
     r300_update_derived_state(r300);
 
@@ -883,14 +880,11 @@ static void r300_swtcl_draw_vbo(struct pipe_context* pipe,
                          info->index_size, ~0);
     }
 
-    if (r300->sprite_coord_enable != 0 ||
-        r300_fs(r300)->shader->inputs.pcoord != ATTR_UNUSED) {
+    if (r300->sprite_coord_enable != 0)
         if ((info->mode == MESA_PRIM_POINTS) != r300->is_point) {
             r300->is_point = !r300->is_point;
             r300_mark_atom_dirty(r300, &r300->rs_block_state);
         }
-    }
-
 
     r300_update_derived_state(r300);
 
@@ -1154,18 +1148,16 @@ void r300_blitter_draw_rectangle(struct blitter_context *blitter,
                                  int x1, int y1, int x2, int y2,
                                  float depth, unsigned num_instances,
                                  enum blitter_attrib_type type,
-                                 const union blitter_attrib *attrib)
+                                 const struct blitter_attrib *attrib)
 {
     struct r300_context *r300 = r300_context(util_blitter_get_pipe(blitter));
     unsigned last_sprite_coord_enable = r300->sprite_coord_enable;
     unsigned last_is_point = r300->is_point;
     unsigned width = x2 - x1;
     unsigned height = y2 - y1;
-    unsigned vertex_size =
-            type == UTIL_BLITTER_ATTRIB_COLOR || !r300->draw ? 8 : 4;
+    unsigned vertex_size = !r300->draw ? 8 : 4;
     unsigned dwords = 13 + vertex_size +
                       (type == UTIL_BLITTER_ATTRIB_TEXCOORD_XY ? 7 : 0);
-    static const union blitter_attrib zeros;
     CS_LOCALS(r300);
 
     /* XXX workaround for a lockup in MSAA resolve on SWTCL chipsets, this
@@ -1234,9 +1226,8 @@ void r300_blitter_draw_rectangle(struct blitter_context *blitter,
     OUT_CS_32F(1);
 
     if (vertex_size == 8) {
-        if (!attrib)
-            attrib = &zeros;
-        OUT_CS_TABLE(attrib->color, 4);
+        static const float zeros[4];
+        OUT_CS_TABLE(zeros, 4);
     }
     END_CS;
 

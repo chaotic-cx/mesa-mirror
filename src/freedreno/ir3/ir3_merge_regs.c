@@ -17,20 +17,20 @@
  * The merged registers are used for three purposes:
  *
  * 1. We always use the same pvtmem slot for spilling all SSA defs in each
- * merge set. This prevents us from having to insert memory-to-memory copies
- * in the spiller and makes sure we don't insert unecessary copies.
+ *    merge set. This prevents us from having to insert memory-to-memory copies
+ *    in the spiller and makes sure we don't insert unecessary copies.
  * 2. When two values are live at the same time, part of the same merge
- * set, and they overlap each other in the merge set, they always occupy
- * overlapping physical registers in RA. This reduces register pressure and
- * copies in several important scenarios:
- *	- When sources of a collect are used later by something else, we don't
- *	have to introduce copies.
- *	- We can handle sequences of extracts that "explode" a vector into its
- *	components without any additional copying.
+ *    set, and they overlap each other in the merge set, they always occupy
+ *    overlapping physical registers in RA. This reduces register pressure and
+ *    copies in several important scenarios:
+ *	   - When sources of a collect are used later by something else, we don't
+ *	     have to introduce copies.
+ *	   - We can handle sequences of extracts that "explode" a vector into its
+ *	     components without any additional copying.
  * 3. We use the merge sets for affinities in register allocation: That is, we
- * try to allocate all the definitions in the same merge set to the
- * same/compatible registers. This helps us e.g. allocate sources of a collect
- * to contiguous registers without too much special code in RA.
+ *    try to allocate all the definitions in the same merge set to the
+ *    same/compatible registers. This helps us e.g. allocate sources of a collect
+ *    to contiguous registers without too much special code in RA.
  *
  * In a "normal" register allocator, or when spilling, we'd just merge
  * registers in the same merge set to the same register, but with SSA-based
@@ -377,7 +377,8 @@ aggressive_coalesce_collect(struct ir3_liveness *live,
 {
    for (unsigned i = 0, offset = 0; i < collect->srcs_count;
         offset += reg_elem_size(collect->srcs[i]), i++) {
-      if (!(collect->srcs[i]->flags & IR3_REG_SSA))
+      if (!(collect->srcs[i]->flags & IR3_REG_SSA) ||
+          !collect->srcs[i]->def)
          continue;
       try_merge_defs(live, collect->dsts[0], collect->srcs[i]->def, offset);
    }
@@ -510,13 +511,18 @@ ir3_create_parallel_copies(struct ir3 *ir)
 }
 
 static void
-index_merge_sets(struct ir3_liveness *live, struct ir3 *ir)
+index_merge_sets(struct ir3_liveness *live, struct ir3 *ir, bool update)
 {
-   unsigned offset = 0;
+   unsigned offset = update ? live->interval_offset : 0;
    foreach_block (block, &ir->block_list) {
       foreach_instr (instr, &block->instr_list) {
          for (unsigned i = 0; i < instr->dsts_count; i++) {
             struct ir3_register *dst = instr->dsts[i];
+
+            if (update &&
+                (dst->interval_start != 0 || dst->interval_end != 0)) {
+               continue;
+            }
 
             unsigned dst_offset;
             struct ir3_merge_set *merge_set = dst->merge_set;
@@ -539,6 +545,12 @@ index_merge_sets(struct ir3_liveness *live, struct ir3 *ir)
    }
 
    live->interval_offset = offset;
+}
+
+void
+ir3_update_merge_sets_index(struct ir3_liveness *live, struct ir3 *ir)
+{
+   index_merge_sets(live, ir, true);
 }
 
 #define RESET      "\x1b[0m"
@@ -579,6 +591,25 @@ dump_merge_sets(struct ir3 *ir)
 }
 
 void
+ir3_aggressive_coalesce(struct ir3_liveness *live,
+                        struct ir3_instruction *instr)
+{
+   switch (instr->opc) {
+   case OPC_META_SPLIT:
+      aggressive_coalesce_split(live, instr);
+      break;
+   case OPC_META_COLLECT:
+      aggressive_coalesce_collect(live, instr);
+      break;
+   case OPC_META_PARALLEL_COPY:
+      aggressive_coalesce_parallel_copy(live, instr);
+      break;
+   default:
+      break;
+   }
+}
+
+void
 ir3_merge_regs(struct ir3_liveness *live, struct ir3 *ir)
 {
    /* First pass: coalesce phis, which must be together. */
@@ -594,19 +625,7 @@ ir3_merge_regs(struct ir3_liveness *live, struct ir3 *ir)
    /* Second pass: aggressively coalesce parallelcopy, split, collect */
    foreach_block (block, &ir->block_list) {
       foreach_instr (instr, &block->instr_list) {
-         switch (instr->opc) {
-         case OPC_META_SPLIT:
-            aggressive_coalesce_split(live, instr);
-            break;
-         case OPC_META_COLLECT:
-            aggressive_coalesce_collect(live, instr);
-            break;
-         case OPC_META_PARALLEL_COPY:
-            aggressive_coalesce_parallel_copy(live, instr);
-            break;
-         default:
-            break;
-         }
+         ir3_aggressive_coalesce(live, instr);
       }
    }
 
@@ -616,7 +635,7 @@ ir3_merge_regs(struct ir3_liveness *live, struct ir3 *ir)
       }
    }
 
-   index_merge_sets(live, ir);
+   index_merge_sets(live, ir, false);
 
    if (ir3_shader_debug & IR3_DBG_RAMSGS)
       dump_merge_sets(ir);

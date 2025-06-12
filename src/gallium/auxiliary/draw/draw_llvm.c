@@ -1633,6 +1633,8 @@ draw_llvm_generate(struct draw_llvm *llvm, struct draw_llvm_variant *variant)
       if (LLVMGetTypeKind(arg_types[i]) == LLVMPointerTypeKind)
          lp_add_function_attr(variant_func, i + 1, LP_FUNC_ATTR_NOALIAS);
 
+   lp_function_add_debug_info(gallivm, variant_func, func_type);
+
    if (gallivm->cache && gallivm->cache->data_size) {
       gallivm_stub_func(gallivm, variant_func);
       return;
@@ -1680,6 +1682,11 @@ draw_llvm_generate(struct draw_llvm *llvm, struct draw_llvm_variant *variant)
    block = LLVMAppendBasicBlockInContext(gallivm->context, variant_func, "entry");
    builder = gallivm->builder;
    LLVMPositionBuilderAtEnd(builder, block);
+
+   if (gallivm->di_function) {
+      LLVMSetCurrentDebugLocation2(
+         gallivm->builder, LLVMDIBuilderCreateDebugLocation(gallivm->context, 0, 0, gallivm->di_function, NULL));
+   }
 
    memset(&vs_type, 0, sizeof vs_type);
    vs_type.floating = true; /* floating point values */
@@ -2365,6 +2372,8 @@ draw_gs_llvm_generate(struct draw_llvm *llvm,
       if (LLVMGetTypeKind(arg_types[i]) == LLVMPointerTypeKind)
          lp_add_function_attr(variant_func, i + 1, LP_FUNC_ATTR_NOALIAS);
 
+   lp_function_add_debug_info(gallivm, variant_func, func_type);
+
    if (gallivm->cache && gallivm->cache->data_size) {
       gallivm_stub_func(gallivm, variant_func);
       return;
@@ -2408,6 +2417,11 @@ draw_gs_llvm_generate(struct draw_llvm *llvm,
    block = LLVMAppendBasicBlockInContext(gallivm->context, variant_func, "entry");
    builder = gallivm->builder;
    LLVMPositionBuilderAtEnd(builder, block);
+
+   if (gallivm->di_function) {
+      LLVMSetCurrentDebugLocation2(
+         gallivm->builder, LLVMDIBuilderCreateDebugLocation(gallivm->context, 0, 0, gallivm->di_function, NULL));
+   }
 
    lp_build_context_init(&bld, gallivm, lp_type_int(32));
 
@@ -2958,6 +2972,8 @@ draw_tcs_llvm_generate(struct draw_llvm *llvm,
       }
    }
 
+   lp_function_add_debug_info(gallivm, variant_func, func_type);
+
    if (gallivm->cache && gallivm->cache->data_size) {
       gallivm_stub_func(gallivm, variant_func);
       gallivm_stub_func(gallivm, variant_coro);
@@ -2981,6 +2997,11 @@ draw_tcs_llvm_generate(struct draw_llvm *llvm,
    block = LLVMAppendBasicBlockInContext(gallivm->context, variant_func, "entry");
    builder = gallivm->builder;
    LLVMPositionBuilderAtEnd(builder, block);
+
+   if (gallivm->di_function) {
+      LLVMSetCurrentDebugLocation2(
+         gallivm->builder, LLVMDIBuilderCreateDebugLocation(gallivm->context, 0, 0, gallivm->di_function, NULL));
+   }
 
    lp_build_context_init(&bld, gallivm, lp_type_int(32));
 
@@ -3049,8 +3070,15 @@ draw_tcs_llvm_generate(struct draw_llvm *llvm,
                           NULL, LLVMIntEQ);
    LLVMBuildRet(builder, lp_build_zero(gallivm, lp_type_uint(32)));
 
+   lp_function_add_debug_info(gallivm, variant_coro, coro_func_type);
+
    block = LLVMAppendBasicBlockInContext(gallivm->context, variant_coro, "entry");
    LLVMPositionBuilderAtEnd(builder, block);
+
+   if (gallivm->di_function) {
+      LLVMSetCurrentDebugLocation2(
+         gallivm->builder, LLVMDIBuilderCreateDebugLocation(gallivm->context, 0, 0, gallivm->di_function, NULL));
+   }
 
    resources_ptr = LLVMGetParam(variant_coro, 0);
    input_array = LLVMGetParam(variant_coro, 1);
@@ -3521,6 +3549,8 @@ draw_tes_llvm_generate(struct draw_llvm *llvm,
       if (LLVMGetTypeKind(arg_types[i]) == LLVMPointerTypeKind)
          lp_add_function_attr(variant_func, i + 1, LP_FUNC_ATTR_NOALIAS);
 
+   lp_function_add_debug_info(gallivm, variant_func, func_type);
+
    if (gallivm->cache && gallivm->cache->data_size) {
       gallivm_stub_func(gallivm, variant_func);
       return;
@@ -3558,6 +3588,11 @@ draw_tes_llvm_generate(struct draw_llvm *llvm,
    block = LLVMAppendBasicBlockInContext(gallivm->context, variant_func, "entry");
    builder = gallivm->builder;
    LLVMPositionBuilderAtEnd(builder, block);
+
+   if (gallivm->di_function) {
+      LLVMSetCurrentDebugLocation2(
+         gallivm->builder, LLVMDIBuilderCreateDebugLocation(gallivm->context, 0, 0, gallivm->di_function, NULL));
+   }
 
    lp_build_context_init(&bld, gallivm, lp_type_int(32));
 

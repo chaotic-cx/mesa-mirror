@@ -85,7 +85,7 @@ struct u_log_context;
 #define R600_MAP_BUFFER_ALIGNMENT 64
 #define R600_MAX_VIEWPORTS        16
 
-#define SI_MAX_VARIABLE_THREADS_PER_BLOCK 1024
+#define R600_MAX_VARIABLE_THREADS_PER_BLOCK 1024
 
 enum r600_coherency {
 	R600_COHERENCY_NONE, /* no cache flushes needed */
@@ -446,6 +446,16 @@ struct r600_viewports {
 	struct r600_signed_scissor	as_scissor[R600_MAX_VIEWPORTS];
 };
 
+/* EXT_window_rectangles */
+#define R600_MAX_WINDOW_RECTANGLES 4
+
+struct r600_window_rectangles {
+	unsigned			number;
+	bool				include;
+	struct pipe_scissor_state	states[R600_MAX_WINDOW_RECTANGLES];
+	struct r600_atom		atom;
+};
+
 struct r600_ring {
 	struct radeon_cmdbuf		cs;
 	void (*flush)(void *ctx, unsigned flags,
@@ -493,10 +503,28 @@ struct r600_common_context {
 	struct r600_streamout		streamout;
 	struct r600_scissors		scissors;
 	struct r600_viewports		viewports;
+	struct r600_window_rectangles	window_rectangles;
 	bool				scissor_enabled;
 	bool				clip_halfz;
 	bool				vs_writes_viewport_index;
 	bool				vs_disables_clipping_viewport;
+
+	/* The number of pixels outside the viewport that are not culled by the clipper.
+	 * Normally, the clipper clips everything outside the viewport, however, points and lines
+	 * can have vertices outside the viewport, but their edges can be inside the viewport. Those
+	 * shouldn't be culled. The problem is that the register setting (PA_CL_GB_*_DISC_ADJ) that
+	 * controls the discard distance, which depends on the point size and line width, applies to
+	 * all primitive types, and we would have to set 0 distance for triangles and non-zero for
+	 * points and lines whenever the primitive type changes, which would add overhead and cause
+	 * context rolls.
+	 *
+	 * To reduce that, whenever the discard distance changes for points and lines, we keep it
+	 * at that higher value up to a certain small number for all primitive types including all
+	 * points and lines within a specific size. This is slightly inefficient, but it eliminates
+	 * a lot of guardband state updates and context register changes.
+	 */
+	float min_clip_discard_distance_watermark;
+	float current_clip_discard_distance;
 
 	/* Additional context states. */
 	unsigned flags; /* flush flags */
@@ -594,6 +622,39 @@ struct r600_common_context {
 				enum amd_ip_type ring);
 };
 
+#define R600_ALL_PRIM_LINE_MODES                                                                   \
+	((1 << MESA_PRIM_LINES) | (1 << MESA_PRIM_LINE_LOOP) | (1 << MESA_PRIM_LINE_STRIP) |       \
+	 (1 << MESA_PRIM_LINES_ADJACENCY) | (1 << MESA_PRIM_LINE_STRIP_ADJACENCY))
+
+static inline bool r600_prim_is_lines(unsigned prim)
+{
+	return ((1 << prim) & R600_ALL_PRIM_LINE_MODES) != 0;
+}
+
+static inline void r600_set_clip_discard_distance(struct r600_common_context *rctx,
+						  float distance)
+{
+	/* Determine whether the guardband registers change.
+	 *
+	 * When we see a value greater than min_clip_discard_distance_watermark, we increase it
+	 * up to a certain number to eliminate those state changes next time they happen.
+	 * See the comment at min_clip_discard_distance_watermark.
+	 */
+	if (distance > rctx->min_clip_discard_distance_watermark) {
+		/* The maximum number was determined from Viewperf. The number is in units of half-pixels. */
+		rctx->min_clip_discard_distance_watermark = MIN2(distance, 6);
+
+		float old_distance = rctx->current_clip_discard_distance;
+		float new_distance = MAX2(distance, rctx->min_clip_discard_distance_watermark);
+
+		if (old_distance != new_distance) {
+			rctx->current_clip_discard_distance = new_distance;
+			rctx->scissors.dirty_mask = (1 << R600_MAX_VIEWPORTS) - 1;
+			rctx->set_atom_dirty(rctx, &rctx->scissors.atom, true);
+		}
+	}
+}
+
 /* r600_buffer_common.c */
 bool r600_rings_is_buffer_referenced(struct r600_common_context *ctx,
 				     struct pb_buffer_lean *buf,
@@ -657,7 +718,7 @@ void r600_draw_rectangle(struct blitter_context *blitter,
 			 int x1, int y1, int x2, int y2,
 			 float depth, unsigned num_instances,
 			 enum blitter_attrib_type type,
-			 const union blitter_attrib *attrib);
+			 const struct blitter_attrib *attrib);
 bool r600_common_screen_init(struct r600_common_screen *rscreen,
 			     struct radeon_winsys *ws);
 void r600_destroy_common_screen(struct r600_common_screen *rscreen);
@@ -675,7 +736,6 @@ void r600_screen_clear_buffer(struct r600_common_screen *rscreen, struct pipe_re
 			      uint64_t offset, uint64_t size, unsigned value);
 struct pipe_resource *r600_resource_create_common(struct pipe_screen *screen,
 						  const struct pipe_resource *templ);
-const char *r600_get_llvm_processor_name(enum radeon_family family);
 void r600_need_dma_space(struct r600_common_context *ctx, unsigned num_dw,
 			 struct r600_resource *dst, struct r600_resource *src);
 void radeon_save_cs(struct radeon_winsys *ws, struct radeon_cmdbuf *cs,
@@ -740,14 +800,10 @@ struct pipe_resource *r600_texture_create(struct pipe_screen *screen,
 struct pipe_surface *r600_create_surface_custom(struct pipe_context *pipe,
 						struct pipe_resource *texture,
 						const struct pipe_surface *templ,
-						unsigned width0, unsigned height0,
-						unsigned width, unsigned height);
+						unsigned width0, unsigned height0);
 unsigned r600_translate_colorswap(enum pipe_format format, bool do_endian_swap);
-void evergreen_do_fast_color_clear(struct r600_common_context *rctx,
-				   struct pipe_framebuffer_state *fb,
-				   struct r600_atom *fb_state,
-				   unsigned *buffers, uint8_t *dirty_cbufs,
-				   const union pipe_color_union *color);
+void r600_texture_alloc_cmask_separate(struct r600_common_screen *rscreen,
+					struct r600_texture *rtex);
 void r600_init_screen_texture_functions(struct r600_common_screen *rscreen);
 void r600_init_context_texture_functions(struct r600_common_context *rctx);
 void eg_resource_alloc_immed(struct r600_common_screen *rscreen,
@@ -765,8 +821,6 @@ void r600_texture_transfer_unmap(struct pipe_context *ctx,
 /* r600_viewport.c */
 void evergreen_apply_scissor_bug_workaround(struct r600_common_context *rctx,
 					    struct pipe_scissor_state *scissor);
-void r600_viewport_set_rast_deps(struct r600_common_context *rctx,
-				 bool scissor_enable, bool clip_halfz);
 void r600_update_vs_writes_viewport_index(struct r600_common_context *rctx,
 					  struct tgsi_shader_info *info);
 void r600_init_viewport_functions(struct r600_common_context *rctx);

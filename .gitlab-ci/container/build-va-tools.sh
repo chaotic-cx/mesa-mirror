@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2086 # we want word splitting
+
 # When changing this file, you need to bump the following
 # .gitlab-ci/image-tags.yml tags:
-# KERNEL_ROOTFS_TAG
+# DEBIAN_TEST_VIDEO_TAG
 
 set -uex
 
-uncollapsed_section_start va-tools "Building va-tools"
+section_start va-tools "Building va-tools"
 
 git config --global user.email "mesa@example.com"
 git config --global user.name "Mesa CI"
@@ -19,7 +20,7 @@ git clone \
 
 pushd /va-utils
 # Too old libva in Debian 11. TODO: when this PR gets in, refer to the patch.
-curl -L https://github.com/intel/libva-utils/pull/329.patch | git am
+curl --fail -L https://github.com/intel/libva-utils/pull/329.patch | git am
 
 meson setup build -D tests=true -Dprefix=/va ${EXTRA_MESON_ARGS:-}
 meson install -C build

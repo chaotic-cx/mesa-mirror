@@ -52,7 +52,7 @@ hk_memory_type_flags(const VkMemoryType *type,
 static void
 hk_add_ext_bo_locked(struct hk_device *dev, struct agx_bo *bo)
 {
-   uint32_t id = bo->vbo_res_id;
+   uint32_t id = bo->uapi_handle;
 
    unsigned count = util_dynarray_num_elements(&dev->external_bos.list,
                                                struct asahi_ccmd_submit_res);
@@ -89,7 +89,7 @@ hk_add_ext_bo(struct hk_device *dev, struct agx_bo *bo)
 static void
 hk_remove_ext_bo_locked(struct hk_device *dev, struct agx_bo *bo)
 {
-   uint32_t id = bo->vbo_res_id;
+   uint32_t id = bo->uapi_handle;
    unsigned count = util_dynarray_num_elements(&dev->external_bos.list,
                                                struct asahi_ccmd_submit_res);
 
@@ -219,6 +219,13 @@ hk_AllocateMemory(VkDevice device, const VkMemoryAllocateInfo *pAllocateInfo,
       }
    }
 
+   /* Shadow map in case this is used for a sparse resident buffer */
+   int ret = agx_bo_bind(&dev->dev, mem->bo,
+                         agx_rw_addr_to_ro(&dev->dev, mem->bo->va->addr),
+                         mem->bo->size, 0, DRM_ASAHI_BIND_READ);
+   if (ret)
+      return VK_ERROR_UNKNOWN;
+
    if (mem->bo->flags & (AGX_BO_SHAREABLE | AGX_BO_SHARED))
       hk_add_ext_bo(dev, mem->bo);
 
@@ -290,7 +297,7 @@ hk_MapMemory2KHR(VkDevice device, const VkMemoryMapInfoKHR *pMemoryMapInfo,
    const VkDeviceSize size = vk_device_memory_range(
       &mem->vk, pMemoryMapInfo->offset, pMemoryMapInfo->size);
 
-   UNUSED void *fixed_addr = NULL;
+   void *fixed_addr = NULL;
    if (pMemoryMapInfo->flags & VK_MEMORY_MAP_PLACED_BIT_EXT) {
       const VkMemoryMapPlacedInfoEXT *placed_info = vk_find_struct_const(
          pMemoryMapInfo->pNext, MEMORY_MAP_PLACED_INFO_EXT);
@@ -322,7 +329,8 @@ hk_MapMemory2KHR(VkDevice device, const VkMemoryMapInfoKHR *pMemoryMapInfo,
                        "Memory object already mapped.");
    }
 
-   mem->map = agx_bo_map(mem->bo);
+   mem->map = agx_bo_map_placed(mem->bo, fixed_addr);
+   assert(!fixed_addr || mem->map == fixed_addr);
    *ppData = mem->map + offset;
 
    return VK_SUCCESS;
@@ -338,19 +346,20 @@ hk_UnmapMemory2KHR(VkDevice device,
       return VK_SUCCESS;
 
    if (pMemoryUnmapInfo->flags & VK_MEMORY_UNMAP_RESERVE_BIT_EXT) {
-      unreachable("todo");
-#if 0
       VK_FROM_HANDLE(hk_device, dev, device);
 
-      int err = agx_bo_overmap(mem->bo, mem->map);
-      if (err) {
+      void *err = mmap(mem->bo->_map, mem->bo->size, PROT_NONE,
+                       MAP_PRIVATE | MAP_ANONYMOUS | MAP_FIXED, -1, 0);
+      if (err == MAP_FAILED) {
          return vk_errorf(dev, VK_ERROR_MEMORY_MAP_FAILED,
                           "Failed to map over original mapping");
       }
-#endif
+      mem->bo->_map = NULL;
    } else {
-      /* TODO */
-      //// agx_bo_unmap(mem->bo, mem->map);
+      if (mem->bo->_map) {
+         munmap(mem->bo->_map, mem->bo->size);
+         mem->bo->_map = NULL;
+      }
    }
 
    mem->map = NULL;

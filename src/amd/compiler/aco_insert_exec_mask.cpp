@@ -54,6 +54,7 @@ struct exec_ctx {
    std::vector<block_info> info;
    std::vector<loop_info> loop;
    bool handle_wqm = false;
+   bool had_demote_in_cf = false;
    exec_ctx(Program* program_) : program(program_), info(program->blocks.size()) {}
 };
 
@@ -209,16 +210,13 @@ add_coupling_code(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instruction>>
       loop_info& info = ctx.loop.back();
       assert(ctx.info[idx].exec.size() == info.num_exec_masks);
 
-      /* create ssa names for outer exec masks */
-      if (info.has_discard && preds.size() > 1) {
-         aco_ptr<Instruction> phi;
-         for (int i = 0; i < info.num_exec_masks - 1; i++) {
-            phi.reset(
-               create_instruction(aco_opcode::p_linear_phi, Format::PSEUDO, preds.size(), 1));
-            phi->definitions[0] = bld.def(bld.lm);
-            phi->operands[0] = ctx.info[preds[0]].exec[i].op;
-            ctx.info[idx].exec[i].op = bld.insert(std::move(phi));
-         }
+      /* Create phi for global exact mask in case of demote. */
+      if (info.has_discard && preds.size() > 1 && info.num_exec_masks > 1) {
+         aco_ptr<Instruction> phi(
+            create_instruction(aco_opcode::p_linear_phi, Format::PSEUDO, preds.size(), 1));
+         phi->definitions[0] = bld.def(bld.lm);
+         phi->operands[0] = ctx.info[preds[0]].exec[0].op;
+         ctx.info[idx].exec[0].op = bld.insert(std::move(phi));
       }
 
       ctx.info[idx].exec.back().type |= mask_type_loop;
@@ -246,14 +244,11 @@ add_coupling_code(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instruction>>
       /* fill the loop header phis */
       Block::edge_vec& header_preds = header->linear_preds;
       int instr_idx = 0;
-      if (info.has_discard && header_preds.size() > 1) {
-         while (instr_idx < info.num_exec_masks - 1) {
-            aco_ptr<Instruction>& phi = header->instructions[instr_idx];
-            assert(phi->opcode == aco_opcode::p_linear_phi);
-            for (unsigned i = 1; i < phi->operands.size(); i++)
-               phi->operands[i] = ctx.info[header_preds[i]].exec[instr_idx].op;
-            instr_idx++;
-         }
+      if (info.has_discard && header_preds.size() > 1 && info.num_exec_masks > 1) {
+         aco_ptr<Instruction>& phi = header->instructions[instr_idx++];
+         assert(phi->opcode == aco_opcode::p_linear_phi);
+         for (unsigned i = 1; i < phi->operands.size(); i++)
+            phi->operands[i] = ctx.info[header_preds[i]].exec[0].op;
       }
 
       if (info.has_divergent_continue) {
@@ -300,6 +295,21 @@ add_coupling_code(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instruction>>
 
    } else if (preds.size() == 1) {
       ctx.info[idx].exec = ctx.info[preds[0]].exec;
+
+      /* After continue and break blocks, we implicitly set exec to zero.
+       * This is so that parallelcopies can be inserted before the branch
+       * without being affected by the changed exec mask.
+       */
+      if (ctx.info[idx].exec.back().op.constantEquals(0)) {
+         assert(block->logical_succs.empty());
+         /* Check whether the successor block already restores exec. */
+         uint16_t block_kind = ctx.program->blocks[block->linear_succs[0]].kind;
+         if (!(block_kind & (block_kind_loop_header | block_kind_loop_exit | block_kind_invert |
+                             block_kind_merge))) {
+            /* The successor does not restore exec. */
+            restore_exec = true;
+         }
+      }
    } else {
       assert(preds.size() == 2);
       assert(ctx.info[preds[0]].exec.size() == ctx.info[preds[1]].exec.size());
@@ -347,14 +357,25 @@ add_coupling_code(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instruction>>
    }
 
    if (ctx.handle_wqm) {
-      /* End WQM handling if not needed anymore */
-      if (block->kind & block_kind_top_level && ctx.info[idx].exec.size() == 2) {
+      if (ctx.info[idx].exec.size() == 2) {
+         /* End WQM handling if not needed anymore */
          if (block->instructions[i]->opcode == aco_opcode::p_end_wqm) {
+            assert(block->kind & block_kind_top_level);
             ctx.info[idx].exec.back().type |= mask_type_global;
             transition_to_Exact(ctx, bld, idx);
             ctx.handle_wqm = false;
             restore_exec = false;
             i++;
+         } else if (restore_exec && ctx.info[idx].exec[1].type & mask_type_global &&
+                    ctx.had_demote_in_cf) {
+            /* Use s_wqm to restore exec after demote in divergent CF in order to disable dead
+             * quads.
+             */
+            bld.sop1(Builder::s_wqm, Definition(exec, bld.lm), bld.def(s1, scc),
+                     ctx.info[idx].exec[0].op);
+            ctx.info[idx].exec[1].op = Operand(exec, bld.lm);
+            restore_exec = false;
+            ctx.had_demote_in_cf = false;
          }
       }
    }
@@ -490,55 +511,52 @@ process_instructions(exec_ctx& ctx, Block* block, std::vector<aco_ptr<Instructio
             instr->definitions[1] = bld.def(s1, scc);
          }
       } else if (instr->opcode == aco_opcode::p_demote_to_helper) {
+         assert(!ctx.handle_wqm || state == WQM);
          assert((info.exec[0].type & mask_type_exact) && (info.exec[0].type & mask_type_global));
 
-         const bool nested_cf = !(info.exec.back().type & mask_type_global);
-         if (ctx.handle_wqm && state == Exact && nested_cf) {
-            /* Transition back to WQM without extra instruction. */
-            info.exec.pop_back();
-            state = WQM;
-         } else if (block->instructions[idx + 1]->opcode == aco_opcode::p_end_wqm) {
+         if (block->instructions[idx + 1]->opcode == aco_opcode::p_end_wqm) {
             /* Transition to Exact without extra instruction. */
             info.exec.resize(1);
             state = Exact;
-         } else if (nested_cf) {
-            /* Save curent exec temporarily. */
-            info.exec.back().op = bld.copy(bld.def(bld.lm), Operand(exec, bld.lm));
          } else {
+            /* Make sure to not use some previously stored temporary. */
             info.exec.back().op = Operand(exec, bld.lm);
          }
 
          /* Remove invocations from global exact mask. */
-         Definition def = state == Exact ? Definition(exec, bld.lm) : bld.def(bld.lm);
          Operand src = instr->operands[0].isConstant() ? Operand(exec, bld.lm) : instr->operands[0];
+         Operand exit_cond = Operand(exec, bld.lm);
 
-         bld.sop2(Builder::s_andn2, def, bld.def(s1, scc), info.exec[0].op, src);
-         info.exec[0].op = def.isTemp() ? Operand(def.getTemp()) : Operand(exec, bld.lm);
+         if (state == Exact) {
+            assert(info.exec.size() == 1);
+            bld.sop2(Builder::s_andn2, Definition(exec, bld.lm), bld.def(s1, scc), info.exec[0].op,
+                     src);
+            info.exec[0].op = Operand(exec, bld.lm);
+         } else {
+            Temp cond = bld.tmp(s1);
+            info.exec[0].op = bld.sop2(Builder::s_andn2, bld.def(bld.lm), Definition(cond, scc),
+                                       info.exec[0].op, src);
 
-         /* Update global WQM mask and store in exec. */
-         if (state == WQM) {
-            assert(info.exec.size() > 1);
-            bld.sop1(Builder::s_wqm, Definition(exec, bld.lm), bld.def(s1, scc), def.getTemp());
+            /* Update global WQM mask and store in exec. */
+            if (info.exec.back().type & mask_type_global) {
+               assert(info.exec.size() == 2);
+               bld.sop1(Builder::s_wqm, Definition(exec, bld.lm), bld.def(s1, scc),
+                        info.exec[0].op);
+            } else {
+               /* Conditionally set exec=0. Note, that exec might already be zero, so don't use s_branch_execz. */
+               bld.sop2(Builder::s_cselect, Definition(exec, bld.lm), Operand(exec, bld.lm),
+                        Operand::zero(bld.lm.bytes()), bld.scc(cond));
+               exit_cond = Operand(cond, scc);
+               /* Remember to disable empty quads in top level control flow. */
+               ctx.had_demote_in_cf = true;
+            }
          }
 
          /* End shader if global mask is zero. */
          instr->opcode = aco_opcode::p_exit_early_if_not;
-         instr->operands[0] = Operand(exec, bld.lm);
+         instr->operands[0] = exit_cond;
          bld.insert(std::move(instr));
 
-         /* Update all other exec masks. */
-         if (nested_cf) {
-            const unsigned global_idx = state == WQM ? 1 : 0;
-            for (unsigned i = global_idx + 1; i < info.exec.size() - 1; i++) {
-               info.exec[i].op = bld.sop2(Builder::s_and, bld.def(bld.lm), bld.def(s1, scc),
-                                          info.exec[i].op, Operand(exec, bld.lm));
-            }
-            /* Update current exec and save WQM mask. */
-            info.exec[global_idx].op =
-               bld.sop1(Builder::s_and_saveexec, bld.def(bld.lm), bld.def(s1, scc),
-                        Definition(exec, bld.lm), info.exec.back().op, Operand(exec, bld.lm));
-            info.exec.back().op = Operand(exec, bld.lm);
-         }
          continue;
 
       } else if (instr->opcode == aco_opcode::p_elect) {
@@ -619,24 +637,6 @@ add_branch_code(exec_ctx& ctx, Block* block)
 
       Pseudo_branch_instruction& branch = block->instructions.back()->branch();
       branch.target[0] = block->linear_succs[0];
-   } else if (block->kind & block_kind_continue_or_break) {
-      assert(ctx.program->blocks[ctx.program->blocks[block->linear_succs[1]].linear_succs[0]].kind &
-             block_kind_loop_header);
-      assert(ctx.program->blocks[ctx.program->blocks[block->linear_succs[0]].linear_succs[0]].kind &
-             block_kind_loop_exit);
-      assert(block->instructions.back()->opcode == aco_opcode::p_branch);
-      block->instructions.pop_back();
-
-      bool need_parallelcopy = false;
-      while (!(ctx.info[idx].exec.back().type & mask_type_loop)) {
-         ctx.info[idx].exec.pop_back();
-         need_parallelcopy = true;
-      }
-
-      if (need_parallelcopy)
-         bld.copy(Definition(exec, bld.lm), ctx.info[idx].exec.back().op);
-      bld.branch(aco_opcode::p_cbranch_nz, Operand(exec, bld.lm), block->linear_succs[1],
-                 block->linear_succs[0]);
    } else if (block->kind & block_kind_uniform) {
       Pseudo_branch_instruction& branch = block->instructions.back()->branch();
       if (branch.opcode == aco_opcode::p_branch) {
@@ -703,14 +703,8 @@ add_branch_code(exec_ctx& ctx, Block* block)
             break;
       }
 
-      /* check if the successor is the merge block, otherwise set exec to 0 */
-      // TODO: this could be done better by directly branching to the merge block
-      unsigned succ_idx = ctx.program->blocks[block->linear_succs[1]].linear_succs[0];
-      Block& succ = ctx.program->blocks[succ_idx];
-      if (!(succ.kind & block_kind_invert || succ.kind & block_kind_merge)) {
-         bld.copy(Definition(exec, bld.lm), Operand::zero(bld.lm.bytes()));
-      }
-
+      /* Implicitly set exec to zero and branch. */
+      ctx.info[idx].exec.back().op = Operand::zero(bld.lm.bytes());
       bld.branch(aco_opcode::p_cbranch_nz, bld.scc(cond), block->linear_succs[1],
                  block->linear_succs[0]);
    } else if (block->kind & block_kind_continue) {
@@ -729,14 +723,8 @@ add_branch_code(exec_ctx& ctx, Block* block)
       }
       assert(cond != Temp());
 
-      /* check if the successor is the merge block, otherwise set exec to 0 */
-      // TODO: this could be done better by directly branching to the merge block
-      unsigned succ_idx = ctx.program->blocks[block->linear_succs[1]].linear_succs[0];
-      Block& succ = ctx.program->blocks[succ_idx];
-      if (!(succ.kind & block_kind_invert || succ.kind & block_kind_merge)) {
-         bld.copy(Definition(exec, bld.lm), Operand::zero(bld.lm.bytes()));
-      }
-
+      /* Implicitly set exec to zero and branch. */
+      ctx.info[idx].exec.back().op = Operand::zero(bld.lm.bytes());
       bld.branch(aco_opcode::p_cbranch_nz, bld.scc(cond), block->linear_succs[1],
                  block->linear_succs[0]);
    } else {

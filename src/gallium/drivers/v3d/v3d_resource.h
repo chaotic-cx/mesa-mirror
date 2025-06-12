@@ -48,42 +48,6 @@ struct v3d_resource_slice {
         enum v3d_tiling_mode tiling;
 };
 
-struct v3d_surface {
-        struct pipe_surface base;
-        uint32_t offset;
-        enum v3d_tiling_mode tiling;
-        /**
-         * Output image format for TILE_RENDERING_MODE_CONFIGURATION
-         */
-        uint8_t format;
-
-        /**
-         * Internal format of the tile buffer for
-         * TILE_RENDERING_MODE_CONFIGURATION.
-         */
-        uint8_t internal_type;
-
-        /**
-         * internal bpp value (0=32bpp, 2=128bpp) for color buffers in
-         * TILE_RENDERING_MODE_CONFIGURATION.
-         */
-        uint8_t internal_bpp;
-
-        /**
-         * If the R and B channels should be swapped.  On V3D 3.x, we do it in
-         * the shader and the blend equation.  On V3D 4.1+, we can use the new
-         * TLB load/store flags instead of recompiling.
-         */
-        bool swap_rb;
-
-        uint32_t padded_height_of_output_image_in_uif_blocks;
-
-        /* If the resource being referenced is separate stencil, then this is
-         * the surface to use when reading/writing stencil.
-         */
-        struct pipe_surface *separate_stencil;
-};
-
 struct v3d_resource {
         struct pipe_resource base;
         struct v3d_bo *bo;
@@ -150,12 +114,6 @@ v3d_resource(struct pipe_resource *prsc)
         return (struct v3d_resource *)prsc;
 }
 
-static inline struct v3d_surface *
-v3d_surface(struct pipe_surface *psurf)
-{
-        return (struct v3d_surface *)psurf;
-}
-
 static inline struct v3d_transfer *
 v3d_transfer(struct pipe_transfer *ptrans)
 {
@@ -170,6 +128,5 @@ void v3d_update_shadow_texture(struct pipe_context *pctx,
                                struct pipe_sampler_view *view);
 uint32_t v3d_layer_offset(struct pipe_resource *prsc, uint32_t level,
                           uint32_t layer);
-
 
 #endif /* V3D_RESOURCE_H */

@@ -277,44 +277,42 @@ get_aoa_deref_offset(nir_builder *b,
    return nir_umin(b, offset, nir_imm_int(b, array_size - elem_size));
 }
 
+static bool
+crocus_lower_storage_image_derefs_instr(nir_builder *b,
+                                        nir_intrinsic_instr *intrin,
+                                        UNUSED void *_)
+{
+   switch (intrin->intrinsic) {
+   case nir_intrinsic_image_deref_load:
+   case nir_intrinsic_image_deref_store:
+   case nir_intrinsic_image_deref_atomic:
+   case nir_intrinsic_image_deref_atomic_swap:
+   case nir_intrinsic_image_deref_size:
+   case nir_intrinsic_image_deref_samples:
+   case nir_intrinsic_image_deref_load_raw_intel:
+   case nir_intrinsic_image_deref_store_raw_intel: {
+      nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
+      nir_variable *var = nir_deref_instr_get_variable(deref);
+
+      b->cursor = nir_before_instr(&intrin->instr);
+      nir_def *index =
+         nir_iadd_imm(b, get_aoa_deref_offset(b, deref, 1),
+                      var->data.driver_location);
+      nir_rewrite_image_intrinsic(intrin, index, false);
+      return true;
+   }
+
+   default:
+      return false;
+   }
+}
+
 static void
 crocus_lower_storage_image_derefs(nir_shader *nir)
 {
-   nir_function_impl *impl = nir_shader_get_entrypoint(nir);
-
-   nir_builder b = nir_builder_create(impl);
-
-   nir_foreach_block(block, impl) {
-      nir_foreach_instr_safe(instr, block) {
-         if (instr->type != nir_instr_type_intrinsic)
-            continue;
-
-         nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
-         switch (intrin->intrinsic) {
-         case nir_intrinsic_image_deref_load:
-         case nir_intrinsic_image_deref_store:
-         case nir_intrinsic_image_deref_atomic:
-         case nir_intrinsic_image_deref_atomic_swap:
-         case nir_intrinsic_image_deref_size:
-         case nir_intrinsic_image_deref_samples:
-         case nir_intrinsic_image_deref_load_raw_intel:
-         case nir_intrinsic_image_deref_store_raw_intel: {
-            nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
-            nir_variable *var = nir_deref_instr_get_variable(deref);
-
-            b.cursor = nir_before_instr(&intrin->instr);
-            nir_def *index =
-               nir_iadd_imm(&b, get_aoa_deref_offset(&b, deref, 1),
-                            var->data.driver_location);
-            nir_rewrite_image_intrinsic(intrin, index, false);
-            break;
-         }
-
-         default:
-            break;
-         }
-      }
-   }
+   nir_shader_intrinsics_pass(nir, crocus_lower_storage_image_derefs_instr,
+                              nir_metadata_control_flow,
+                              NULL);
 }
 
 // XXX: need unify_interfaces() at link time...
@@ -343,9 +341,8 @@ crocus_fix_edge_flags(nir_shader *nir)
    nir_fixup_deref_modes(nir);
 
    nir_foreach_function_impl(impl, nir) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow |
-                            nir_metadata_live_defs |
-                            nir_metadata_loop_analysis);
+      nir_progress(true, impl,
+                   nir_metadata_control_flow | nir_metadata_live_defs | nir_metadata_loop_analysis);
    }
 
    return true;
@@ -1207,7 +1204,9 @@ crocus_compile_vs(struct crocus_context *ice,
       crocus_vs_outputs_written(ice, key, nir->info.outputs_written);
    elk_compute_vue_map(devinfo,
                        &vue_prog_data->vue_map, outputs_written,
-                       nir->info.separate_shader, /* pos slots */ 1);
+                       nir->info.separate_shader ?
+                       INTEL_VUE_LAYOUT_SEPARATE :
+                       INTEL_VUE_LAYOUT_FIXED, /* pos slots */ 1);
 
    /* Don't tell the backend about our clip plane constants, we've already
     * lowered them in NIR and we don't want it doing it again.
@@ -1697,7 +1696,9 @@ crocus_compile_gs(struct crocus_context *ice,
 
    elk_compute_vue_map(devinfo,
                        &vue_prog_data->vue_map, nir->info.outputs_written,
-                       nir->info.separate_shader, /* pos slots */ 1);
+                       nir->info.separate_shader ?
+                       INTEL_VUE_LAYOUT_SEPARATE :
+                       INTEL_VUE_LAYOUT_FIXED, /* pos slots */ 1);
 
    if (devinfo->ver == 6)
       gfx6_gs_xfb_setup(&ish->stream_output, gs_prog_data);
@@ -1972,7 +1973,7 @@ update_last_vue_map(struct crocus_context *ice,
          ice->state.stage_dirty_for_nos[CROCUS_NOS_LAST_VUE_MAP];
    }
 
-   if (changed_slots || (old_map && old_map->separate != vue_map->separate)) {
+   if (changed_slots || (old_map && old_map->layout != vue_map->layout)) {
       ice->state.dirty |= CROCUS_DIRTY_GEN7_SBE;
       if (devinfo->ver < 6)
          ice->state.dirty |= CROCUS_DIRTY_GEN4_FF_GS_PROG;
@@ -2136,8 +2137,8 @@ crocus_update_compiled_clip(struct crocus_context *ice)
 
             if (offset_back || offset_front) {
                double mrd = 0.0;
-               if (ice->state.framebuffer.zsbuf)
-                  mrd = util_get_depth_format_mrd(util_format_description(ice->state.framebuffer.zsbuf->format));
+               if (ice->state.framebuffer.zsbuf.texture)
+                  mrd = util_get_depth_format_mrd(util_format_description(ice->state.framebuffer.zsbuf.format));
                key.offset_units = rs_state->offset_units * mrd * 2;
                key.offset_factor = rs_state->offset_scale * mrd;
                key.offset_clamp = rs_state->offset_clamp * mrd;
@@ -2875,7 +2876,7 @@ crocus_create_fs_state(struct pipe_context *ctx,
       if (devinfo->ver < 6) {
          elk_compute_vue_map(devinfo, &vue_map,
                              info->inputs_read | VARYING_BIT_POS,
-                             false, /* pos slots */ 1);
+                             INTEL_VUE_LAYOUT_FIXED, /* pos slots */ 1);
       }
       if (!crocus_disk_cache_retrieve(ice, ish, &key, sizeof(key)))
          crocus_compile_fs(ice, ish, &key, &vue_map);

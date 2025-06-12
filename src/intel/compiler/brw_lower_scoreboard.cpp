@@ -54,11 +54,9 @@
  *  - tdr0 thread dependency register
  */
 
-#include "brw_fs.h"
-#include "brw_fs_builder.h"
+#include "brw_shader.h"
+#include "brw_builder.h"
 #include "brw_cfg.h"
-
-using namespace brw;
 
 namespace {
    /**
@@ -72,7 +70,7 @@ namespace {
     * instruction (e.g. when TGL_PIPE_NONE is specified in tgl_swsb).
     */
    tgl_pipe
-   inferred_sync_pipe(const struct intel_device_info *devinfo, const fs_inst *inst)
+   inferred_sync_pipe(const struct intel_device_info *devinfo, const brw_inst *inst)
    {
       if (devinfo->verx10 >= 125) {
          bool has_int_src = false, has_long_src = false;
@@ -85,7 +83,7 @@ namespace {
             if (inst->src[i].file != BAD_FILE &&
                 !inst->is_control_source(i)) {
                const brw_reg_type t = inst->src[i].type;
-               has_int_src |= !brw_type_is_float(t);
+               has_int_src |= brw_type_is_int(t);
                has_long_src |= brw_type_size_bytes(t) >= 8;
             }
          }
@@ -115,10 +113,10 @@ namespace {
     * RegDist synchronization mechanism.
     */
    tgl_pipe
-   inferred_exec_pipe(const struct intel_device_info *devinfo, const fs_inst *inst)
+   inferred_exec_pipe(const struct intel_device_info *devinfo, const brw_inst *inst)
    {
       const brw_reg_type t = get_exec_type(inst);
-      const bool is_dword_multiply = !brw_type_is_float(t) &&
+      const bool is_dword_multiply = brw_type_is_int(t) &&
          ((inst->opcode == BRW_OPCODE_MUL &&
            MIN2(brw_type_size_bytes(inst->src[0].type),
                 brw_type_size_bytes(inst->src[1].type)) >= 4) ||
@@ -130,7 +128,16 @@ namespace {
          return TGL_PIPE_NONE;
       else if (devinfo->verx10 < 125)
          return TGL_PIPE_FLOAT;
-      else if (inst->is_math() && devinfo->ver >= 20)
+      else if (devinfo->ver >= 30 &&
+               inst->exec_size == 1 &&
+               inst->dst.file == ARF &&
+               inst->dst.nr == BRW_ARF_SCALAR &&
+               inst->src[0].file == IMM) {
+         /* Scalar pipe has a very narrow usage.  See Bspec 56701 (r60146),
+          * in the SWSB description entry.
+          */
+         return TGL_PIPE_SCALAR;
+      } else if (inst->is_math() && devinfo->ver >= 20)
          return TGL_PIPE_MATH;
       else if (inst->opcode == SHADER_OPCODE_MOV_INDIRECT ||
                inst->opcode == SHADER_OPCODE_BROADCAST ||
@@ -149,7 +156,7 @@ namespace {
          assert(devinfo->has_64bit_float || devinfo->has_64bit_int ||
                 devinfo->has_integer_dword_mul);
          return TGL_PIPE_LONG;
-      } else if (brw_type_is_float(inst->dst.type))
+      } else if (brw_type_is_float_or_bfloat(inst->dst.type))
          return TGL_PIPE_FLOAT;
       else
          return TGL_PIPE_INT;
@@ -169,7 +176,7 @@ namespace {
     * instruction.
     */
    unsigned
-   ordered_unit(const struct intel_device_info *devinfo, const fs_inst *inst,
+   ordered_unit(const struct intel_device_info *devinfo, const brw_inst *inst,
                 unsigned p)
    {
       switch (inst->opcode) {
@@ -178,6 +185,7 @@ namespace {
       case SHADER_OPCODE_UNDEF:
       case SHADER_OPCODE_HALT_TARGET:
       case FS_OPCODE_SCHEDULING_FENCE:
+      case SHADER_OPCODE_FLOW:
          return 0;
       default:
          /* Note that the following is inaccurate for virtual instructions
@@ -253,9 +261,9 @@ namespace {
     * Return the number of instructions in the program.
     */
    unsigned
-   num_instructions(const fs_visitor *shader)
+   num_instructions(const brw_shader *shader)
    {
-      return shader->cfg->blocks[shader->cfg->num_blocks - 1]->end_ip + 1;
+      return shader->cfg->total_instructions;
    }
 
    /**
@@ -263,13 +271,13 @@ namespace {
     * instruction of the shader for subsequent constant-time look-up.
     */
    ordered_address *
-   ordered_inst_addresses(const fs_visitor *shader)
+   ordered_inst_addresses(const brw_shader *shader)
    {
       ordered_address *jps = new ordered_address[num_instructions(shader)];
       ordered_address jp(TGL_PIPE_ALL, 0);
       unsigned ip = 0;
 
-      foreach_block_and_inst(block, fs_inst, inst, shader->cfg) {
+      foreach_block_and_inst(block, brw_inst, inst, shader->cfg) {
          jps[ip] = jp;
          for (unsigned p = 0; p < IDX(TGL_PIPE_ALL); p++)
             jp.jp[p] += ordered_unit(shader->devinfo, inst, p);
@@ -639,7 +647,7 @@ namespace {
     */
    dependency
    dependency_for_write(const struct intel_device_info *devinfo,
-                        const fs_inst *inst, dependency dep)
+                        const brw_inst *inst, dependency dep)
    {
       if (!is_unordered(devinfo, inst) &&
           is_single_pipe(dep.jp, inferred_exec_pipe(devinfo, inst)))
@@ -692,6 +700,7 @@ namespace {
 
          sb.addr_dep = merge(eq, sb0.addr_dep, sb1.addr_dep);
          sb.accum_dep = merge(eq, sb0.accum_dep, sb1.accum_dep);
+         sb.scalar_dep = merge(eq, sb0.scalar_dep, sb1.scalar_dep);
 
          return sb;
       }
@@ -710,6 +719,7 @@ namespace {
 
          sb.addr_dep = shadow(sb0.addr_dep, sb1.addr_dep);
          sb.accum_dep = shadow(sb0.accum_dep, sb1.accum_dep);
+         sb.scalar_dep = shadow(sb0.scalar_dep, sb1.scalar_dep);
 
          return sb;
       }
@@ -728,6 +738,7 @@ namespace {
 
          sb.addr_dep = transport(sb0.addr_dep, delta);
          sb.accum_dep = transport(sb0.accum_dep, delta);
+         sb.scalar_dep = transport(sb0.scalar_dep, delta);
 
          return sb;
       }
@@ -746,6 +757,9 @@ namespace {
          if (sb0.accum_dep != sb1.accum_dep)
             return false;
 
+         if (sb0.scalar_dep != sb1.scalar_dep)
+            return false;
+
          return true;
       }
 
@@ -756,9 +770,10 @@ namespace {
       }
 
    private:
-      dependency grf_deps[XE2_MAX_GRF];
+      dependency grf_deps[XE3_MAX_GRF];
       dependency addr_dep;
       dependency accum_dep;
+      dependency scalar_dep;
 
       dependency *
       dep(const brw_reg &r)
@@ -771,6 +786,8 @@ namespace {
                                   reg < BRW_ARF_ACCUMULATOR ? &addr_dep :
                  r.file == ARF && reg >= BRW_ARF_ACCUMULATOR &&
                                   reg < BRW_ARF_FLAG ? &accum_dep :
+                 r.file == ARF && reg >= BRW_ARF_SCALAR &&
+                                  reg < BRW_ARF_STATE ? &scalar_dep :
                  NULL);
       }
    };
@@ -948,7 +965,7 @@ namespace {
     */
    tgl_sbid_mode
    baked_unordered_dependency_mode(const struct intel_device_info *devinfo,
-                                   const fs_inst *inst,
+                                   const brw_inst *inst,
                                    const dependency_list &deps,
                                    const ordered_address &jp)
    {
@@ -979,7 +996,7 @@ namespace {
     */
    bool
    baked_ordered_dependency_mode(const struct intel_device_info *devinfo,
-                                 const fs_inst *inst,
+                                 const brw_inst *inst,
                                  const dependency_list &deps,
                                  const ordered_address &jp)
    {
@@ -1024,8 +1041,8 @@ namespace {
     * instruction \p inst.
     */
    void
-   update_inst_scoreboard(const fs_visitor *shader, const ordered_address *jps,
-                          const fs_inst *inst, unsigned ip, scoreboard &sb)
+   update_inst_scoreboard(const brw_shader *shader, const ordered_address *jps,
+                          const brw_inst *inst, unsigned ip, scoreboard &sb)
    {
       const bool exec_all = inst->force_writemask_all;
       const struct intel_device_info *devinfo = shader->devinfo;
@@ -1082,13 +1099,13 @@ namespace {
     * program.
     */
    scoreboard *
-   gather_block_scoreboards(const fs_visitor *shader,
+   gather_block_scoreboards(const brw_shader *shader,
                             const ordered_address *jps)
    {
       scoreboard *sbs = new scoreboard[shader->cfg->num_blocks];
       unsigned ip = 0;
 
-      foreach_block_and_inst(block, fs_inst, inst, shader->cfg)
+      foreach_block_and_inst(block, brw_inst, inst, shader->cfg)
          update_inst_scoreboard(shader, jps, inst, ip++, sbs[block->num]);
 
       return sbs;
@@ -1102,13 +1119,14 @@ namespace {
     * of each block, and returns it as an array of scoreboard objects.
     */
    scoreboard *
-   propagate_block_scoreboards(const fs_visitor *shader,
+   propagate_block_scoreboards(const brw_shader *shader,
                                const ordered_address *jps,
                                equivalence_relation &eq)
    {
       const scoreboard *delta_sbs = gather_block_scoreboards(shader, jps);
       scoreboard *in_sbs = new scoreboard[shader->cfg->num_blocks];
       scoreboard *out_sbs = new scoreboard[shader->cfg->num_blocks];
+      const brw_ip_ranges &ips = shader->ip_ranges_analysis.require();
 
       for (bool progress = true; progress;) {
          progress = false;
@@ -1124,10 +1142,10 @@ namespace {
                   int delta[IDX(TGL_PIPE_ALL)];
 
                   for (unsigned p = 0; p < IDX(TGL_PIPE_ALL); p++)
-                     delta[p] = jps[child_link->block->start_ip].jp[p]
-                        - jps[block->end_ip].jp[p]
+                     delta[p] = jps[ips.range(child_link->block).start].jp[p]
+                        - jps[ips.range(block).last()].jp[p]
                         - ordered_unit(shader->devinfo,
-                                       static_cast<const fs_inst *>(block->end()), p);
+                                       static_cast<const brw_inst *>(block->end()), p);
 
                   in_sb = merge(eq, in_sb, transport(sb, delta));
                }
@@ -1149,7 +1167,7 @@ namespace {
     * shader based on the result of global dependency analysis.
     */
    dependency_list *
-   gather_inst_dependencies(const fs_visitor *shader,
+   gather_inst_dependencies(const brw_shader *shader,
                             const ordered_address *jps)
    {
       const struct intel_device_info *devinfo = shader->devinfo;
@@ -1159,7 +1177,7 @@ namespace {
       dependency_list *deps = new dependency_list[num_instructions(shader)];
       unsigned ip = 0;
 
-      foreach_block_and_inst(block, fs_inst, inst, shader->cfg) {
+      foreach_block_and_inst(block, brw_inst, inst, shader->cfg) {
          const bool exec_all = inst->force_writemask_all;
          const tgl_pipe p = inferred_exec_pipe(devinfo, inst);
          scoreboard &sb = sbs[block->num];
@@ -1226,15 +1244,15 @@ namespace {
     * instruction of the shader.
     */
    dependency_list *
-   allocate_inst_dependencies(const fs_visitor *shader,
+   allocate_inst_dependencies(const brw_shader *shader,
                               const dependency_list *deps0)
    {
       /* XXX - Use bin-packing algorithm to assign hardware SBIDs optimally in
        *       shaders with a large number of SEND messages.
        *
-       * XXX - Use 32 SBIDs on Xe2+ while in large GRF mode.
+       * XXX - Use 32 SBIDs on Xe2 while in large GRF mode.
        */
-      const unsigned num_sbids = 16;
+      const unsigned num_sbids = (shader->devinfo->ver >= 30 ? 32 : 16);
 
       /* Allocate an unordered dependency ID to hardware SBID translation
        * table with as many entries as instructions there are in the shader,
@@ -1269,15 +1287,16 @@ namespace {
     * inserting additional SYNC instructions for dependencies that can't be
     * represented directly by annotating existing instructions.
     */
-   void
-   emit_inst_dependencies(fs_visitor *shader,
+   bool
+   emit_inst_dependencies(brw_shader *shader,
                           const ordered_address *jps,
                           const dependency_list *deps)
    {
+      bool progress = false;
       const struct intel_device_info *devinfo = shader->devinfo;
       unsigned ip = 0;
 
-      foreach_block_and_inst_safe(block, fs_inst, inst, shader->cfg) {
+      foreach_block_and_inst_safe(block, brw_inst, inst, shader->cfg) {
          const bool exec_all = inst->force_writemask_all;
          const bool ordered_mode =
             baked_ordered_dependency_mode(devinfo, inst, deps[ip], jps[ip]);
@@ -1285,6 +1304,9 @@ namespace {
             baked_unordered_dependency_mode(devinfo, inst, deps[ip], jps[ip]);
          tgl_swsb swsb = !ordered_mode ? tgl_swsb() :
             ordered_dependency_swsb(deps[ip], jps[ip], exec_all);
+
+         if (deps[ip].size())
+            progress = true;
 
          for (unsigned i = 0; i < deps[ip].size(); i++) {
             const dependency &dep = deps[ip][i];
@@ -1304,9 +1326,8 @@ namespace {
                   /* Emit dependency into the SWSB of an extra SYNC
                    * instruction.
                    */
-                  const fs_builder ibld = fs_builder(shader, block, inst)
-                                          .exec_all().group(1, 0);
-                  fs_inst *sync = ibld.SYNC(TGL_SYNC_NOP);
+                  const brw_builder ubld = brw_builder(inst).uniform();
+                  brw_inst *sync = ubld.SYNC(TGL_SYNC_NOP);
                   sync->sched.sbid = dep.id;
                   sync->sched.mode = dep.unordered;
                   assert(!(sync->sched.mode & TGL_SBID_SET));
@@ -1327,9 +1348,8 @@ namespace {
                 * scenario with unordered dependencies should have been
                 * handled above.
                 */
-               const fs_builder ibld = fs_builder(shader, block, inst)
-                                       .exec_all().group(1, 0);
-               fs_inst *sync = ibld.SYNC(TGL_SYNC_NOP);
+               const brw_builder ubld = brw_builder(inst).uniform();
+               brw_inst *sync = ubld.SYNC(TGL_SYNC_NOP);
                sync->sched = ordered_dependency_swsb(deps[ip], jps[ip], true);
                break;
             }
@@ -1340,21 +1360,25 @@ namespace {
          inst->no_dd_check = inst->no_dd_clear = false;
          ip++;
       }
+
+      return progress;
    }
 }
 
 bool
-brw_lower_scoreboard(fs_visitor &s)
+brw_lower_scoreboard(brw_shader &s)
 {
+   bool progress = false;
+
    if (s.devinfo->ver >= 12) {
       const ordered_address *jps = ordered_inst_addresses(&s);
       const dependency_list *deps0 = gather_inst_dependencies(&s, jps);
       const dependency_list *deps1 = allocate_inst_dependencies(&s, deps0);
-      emit_inst_dependencies(&s, jps, deps1);
+      progress = emit_inst_dependencies(&s, jps, deps1);
       delete[] deps1;
       delete[] deps0;
       delete[] jps;
    }
 
-   return true;
+   return progress;
 }

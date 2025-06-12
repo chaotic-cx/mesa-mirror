@@ -107,9 +107,6 @@ destroy_video_buffer_private(void *private)
    for (i = 0; i < VL_NUM_COMPONENTS; ++i)
       pipe_sampler_view_reference(&priv->sampler_view_planes[i], NULL);
 
-   for (i = 0; i < VL_MAX_SURFACES; ++i)
-      pipe_surface_reference(&priv->surfaces[i], NULL);
-
    if (priv->buffer)
       vl_mpeg12_destroy_buffer(priv->buffer);
 
@@ -122,7 +119,7 @@ get_video_buffer_private(struct vl_mpeg12_decoder *dec, struct pipe_video_buffer
    struct pipe_context *pipe = dec->context;
    struct video_buffer_private *priv;
    struct pipe_sampler_view **sv;
-   struct pipe_surface **surf;
+   struct pipe_surface *surf;
    unsigned i;
 
    priv = vl_video_buffer_get_associated_data(buf, &dec->base);
@@ -140,9 +137,7 @@ get_video_buffer_private(struct vl_mpeg12_decoder *dec, struct pipe_video_buffer
          priv->sampler_view_planes[i] = pipe->create_sampler_view(pipe, sv[i]->texture, sv[i]);
 
    surf = buf->get_surfaces(buf);
-   for (i = 0; i < VL_MAX_SURFACES; ++i)
-      if (surf[i])
-         priv->surfaces[i] = pipe->create_surface(pipe, surf[i]->texture, surf[i]);
+   memcpy(priv->surfaces, surf, sizeof(priv->surfaces));
 
    vl_video_buffer_set_associated_data(buf, &dec->base, priv, destroy_video_buffer_private);
 
@@ -166,7 +161,7 @@ init_zscan_buffer(struct vl_mpeg12_decoder *dec, struct vl_mpeg12_buffer *buffer
 {
    struct pipe_resource *res, res_tmpl;
    struct pipe_sampler_view sv_tmpl;
-   struct pipe_surface **destination;
+   struct pipe_surface *destination;
 
    unsigned i;
 
@@ -200,12 +195,9 @@ init_zscan_buffer(struct vl_mpeg12_decoder *dec, struct vl_mpeg12_buffer *buffer
    else
       destination = dec->mc_source->get_surfaces(dec->mc_source);
 
-   if (!destination)
-      goto error_surface;
-
    for (i = 0; i < VL_NUM_COMPONENTS; ++i)
       if (!vl_zscan_init_buffer(i == 0 ? &dec->zscan_y : &dec->zscan_c,
-                                &buffer->zscan[i], buffer->zscan_source, destination[i]))
+                                &buffer->zscan[i], buffer->zscan_source, &destination[i]))
          goto error_plane;
 
    return true;
@@ -214,7 +206,6 @@ error_plane:
    for (; i > 0; --i)
       vl_zscan_cleanup_buffer(&buffer->zscan[i - 1]);
 
-error_surface:
 error_sampler:
    pipe_sampler_view_reference(&buffer->zscan_source, NULL);
 
@@ -831,7 +822,7 @@ vl_mpeg12_end_frame(struct pipe_video_codec *decoder,
             vl_idct_prepare_stage2(i ? &dec->idct_c : &dec->idct_y, &buf->idct[plane]);
          else {
             dec->context->set_sampler_views(dec->context,
-                                            PIPE_SHADER_FRAGMENT, 0, 1, 0, false,
+                                            PIPE_SHADER_FRAGMENT, 0, 1, 0,
                                             &mc_source_sv[plane]);
             dec->context->bind_sampler_states(dec->context,
                                               PIPE_SHADER_FRAGMENT,
@@ -968,10 +959,7 @@ init_idct(struct vl_mpeg12_decoder *dec, const struct format_config* format_conf
 
    nr_of_idct_render_targets = dec->context->screen->caps.max_render_targets;
 
-   max_inst = dec->context->screen->get_shader_param
-   (
-      dec->context->screen, PIPE_SHADER_FRAGMENT, PIPE_SHADER_CAP_MAX_INSTRUCTIONS
-   );
+   max_inst = dec->context->screen->shader_caps[PIPE_SHADER_FRAGMENT].max_instructions;
 
    // Just assume we need 32 inst per render target, not 100% true, but should work in most cases
    if (nr_of_idct_render_targets >= 4 && max_inst >= 32*4)

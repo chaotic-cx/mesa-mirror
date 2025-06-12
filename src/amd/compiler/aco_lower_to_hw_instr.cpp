@@ -1399,15 +1399,18 @@ do_copy(lower_context* ctx, Builder& bld, const copy_operation& copy, bool* pres
 }
 
 void
+swap_bytes_bperm(Builder& bld, Definition def, Operand op)
+{
+   assert(def.physReg().reg() == op.physReg().reg());
+   uint8_t swiz[] = {4, 5, 6, 7};
+   std::swap(swiz[def.physReg().byte()], swiz[op.physReg().byte()]);
+   create_bperm(bld, swiz, def, Operand::zero());
+}
+
+void
 swap_subdword_gfx11(Builder& bld, Definition def, Operand op)
 {
-   if (def.physReg().reg() == op.physReg().reg()) {
-      assert(def.bytes() != 2); /* handled by caller */
-      uint8_t swiz[] = {4, 5, 6, 7};
-      std::swap(swiz[def.physReg().byte()], swiz[op.physReg().byte()]);
-      create_bperm(bld, swiz, def, Operand::zero());
-      return;
-   }
+   assert(def.physReg().reg() != op.physReg().reg()); /* handled by caller */
 
    if (def.bytes() == 2) {
       Operand def_as_op = Operand(def.physReg(), def.regClass());
@@ -1446,7 +1449,7 @@ swap_subdword_gfx11(Builder& bld, Definition def, Operand op)
        * into the same VGPR.
        */
       swap_subdword_gfx11(bld, Definition(def_other_half, v2b), Operand(op_half, v2b));
-      swap_subdword_gfx11(bld, def, Operand(def_other_half.advance(op.physReg().byte() & 1), v1b));
+      swap_bytes_bperm(bld, def, Operand(def_other_half.advance(op.physReg().byte() & 1), v1b));
       swap_subdword_gfx11(bld, Definition(def_other_half, v2b), Operand(op_half, v2b));
    }
 }
@@ -1532,6 +1535,9 @@ do_swap(lower_context* ctx, Builder& bld, const copy_operation& copy, bool prese
       } else if (def.bytes() == 2 && def.physReg().reg() == op.physReg().reg()) {
          bld.vop3(aco_opcode::v_alignbyte_b32, Definition(def.physReg(), v1), def_as_op, op,
                   Operand::c32(2u));
+      } else if (def.bytes() == 1 && def.physReg().reg() == op.physReg().reg() &&
+                 ctx->program->gfx_level >= GFX10) {
+         swap_bytes_bperm(bld, def, op);
       } else {
          assert(def.regClass().is_subdword());
          if (ctx->program->gfx_level >= GFX11) {
@@ -1593,6 +1599,40 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
       else
          bld.vop3(aco_opcode::v_alignbyte_b32, def, hi, lo, Operand::c32(2u));
       return;
+   }
+
+   if (ctx->program->gfx_level >= GFX10 && !lo.constantEquals(0) && !hi.constantEquals(0)) {
+      uint8_t swiz[4];
+      Operand ops[2] = {lo, hi};
+      for (unsigned i = 0; i < 2; i++) {
+         ops[i] =
+            ops[i].isConstant() ? Operand::c32((int32_t)(int16_t)ops[i].constantValue()) : ops[i];
+
+         swiz[i * 2 + 0] = i * 4 + ops[i].physReg().byte();
+         swiz[i * 2 + 1] = i * 4 + ops[i].physReg().byte() + 1;
+
+         if (ops[i].isLiteral()) {
+            Operand b0 = Operand::c32((int32_t)(int8_t)ops[i].constantValue());
+            Operand b1 = Operand::c32((int32_t)(int8_t)(ops[i].constantValue() >> 8));
+            if (!b0.isLiteral() &&
+                (b1.constantValue() == 0x00 || b1.constantValue() == 0xffffffff)) {
+               ops[i] = b0;
+               swiz[i * 2 + 1] = b1.constantValue() ? 13 : 12;
+            } else if (!b1.isLiteral() &&
+                       (b0.constantValue() == 0x00 || b0.constantValue() == 0xffffffff)) {
+               ops[i] = b1;
+               swiz[i * 2 + 0] = b0.constantValue() ? 13 : 12;
+               swiz[i * 2 + 1]--;
+            } else if (b0.constantValue() == b1.constantValue()) {
+               ops[i] = b0;
+               swiz[i * 2 + 1]--;
+            }
+         }
+      }
+      if (!ops[0].isLiteral() && !ops[1].isLiteral()) {
+         create_bperm(bld, swiz, def, ops[0], ops[1]);
+         return;
+      }
    }
 
    Definition def_lo = Definition(def.physReg(), v2b);
@@ -2888,14 +2928,6 @@ lower_to_hw_instr(Program* program)
             ctx.instructions.emplace_back(std::move(instr));
 
             emit_set_mode(bld, block->fp_mode, set_round, false);
-         } else if (instr->opcode == aco_opcode::p_v_cvt_pk_u8_f32) {
-            Definition def = instr->definitions[0];
-            VALU_instruction& valu =
-               bld.vop3(aco_opcode::v_cvt_pk_u8_f32, def, instr->operands[0],
-                        Operand::c32(def.physReg().byte()), Operand(def.physReg(), v1))
-                  ->valu();
-            valu.abs = instr->valu().abs;
-            valu.neg = instr->valu().neg;
          } else if (instr->isMIMG() && instr->mimg().strict_wqm) {
             lower_image_sample(&ctx, instr);
             ctx.instructions.emplace_back(std::move(instr));

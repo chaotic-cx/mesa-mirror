@@ -58,8 +58,6 @@ struct vn_image_create_deferred_info {
 struct vn_image {
    struct vn_image_base base;
 
-   VkSharingMode sharing_mode;
-
    struct vn_image_memory_requirements requirements[4];
 
    /* For VK_ANDROID_external_memory_android_hardware_buffer, real image
@@ -81,12 +79,15 @@ struct vn_image {
 
       struct vn_device_memory *memory;
 
+      /* memory backing the prime blit dst buffer */
+      struct vn_device_memory *blit_mem;
+
       /* For VK_ANDROID_native_buffer, the WSI image owns the memory. */
       bool memory_owned;
    } wsi;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_image,
-                               base.base.base,
+                               base.vk.base,
                                VkImage,
                                VK_OBJECT_TYPE_IMAGE)
 
@@ -96,7 +97,7 @@ struct vn_image_view {
    const struct vn_image *image;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_image_view,
-                               base.base,
+                               base.vk,
                                VkImageView,
                                VK_OBJECT_TYPE_IMAGE_VIEW)
 
@@ -104,7 +105,7 @@ struct vn_sampler {
    struct vn_object_base base;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_sampler,
-                               base.base,
+                               base.vk,
                                VkSampler,
                                VK_OBJECT_TYPE_SAMPLER)
 
@@ -112,7 +113,7 @@ struct vn_sampler_ycbcr_conversion {
    struct vn_object_base base;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_sampler_ycbcr_conversion,
-                               base.base,
+                               base.vk,
                                VkSamplerYcbcrConversion,
                                VK_OBJECT_TYPE_SAMPLER_YCBCR_CONVERSION)
 

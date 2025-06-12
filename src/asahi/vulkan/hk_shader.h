@@ -10,6 +10,7 @@
 #include "asahi/compiler/agx_compile.h"
 #include "util/macros.h"
 #include "agx_linker.h"
+#include "agx_nir_lower_gs.h"
 #include "agx_nir_lower_vbo.h"
 #include "agx_pack.h"
 #include "agx_usc.h"
@@ -23,7 +24,7 @@
 #include "shader_enums.h"
 #include "vk_pipeline_cache.h"
 
-#include "nir.h"
+#include "nir_defines.h"
 
 #include "vk_shader.h"
 
@@ -71,8 +72,7 @@ struct hk_shader_info {
       struct {
          uint32_t attribs_read;
          BITSET_DECLARE(attrib_components_read, AGX_MAX_ATTRIBS * 4);
-         uint8_t cull_distance_array_size;
-         uint8_t _pad[7];
+         uint8_t _pad[8];
       } vs;
 
       struct {
@@ -97,11 +97,7 @@ struct hk_shader_info {
          struct hk_tess_info info;
       } tess;
 
-      struct {
-         unsigned count_words;
-         enum mesa_prim out_prim;
-         uint8_t _pad[27];
-      } gs;
+      struct agx_gs_info gs;
 
       /* Used to initialize the union for other stages */
       uint8_t _pad[32];
@@ -362,14 +358,11 @@ hk_nir_lower_descriptors(nir_shader *nir,
                          const struct vk_pipeline_robustness_state *rs,
                          uint32_t set_layout_count,
                          struct vk_descriptor_set_layout *const *set_layouts);
-void hk_lower_nir(struct hk_device *dev, nir_shader *nir,
-                  const struct vk_pipeline_robustness_state *rs,
-                  bool is_multiview, uint32_t set_layout_count,
-                  struct vk_descriptor_set_layout *const *set_layouts);
 
 VkResult hk_compile_shader(struct hk_device *dev,
                            struct vk_shader_compile_info *info,
                            const struct vk_graphics_pipeline_state *state,
+                           const struct vk_features *features,
                            const VkAllocationCallbacks *pAllocator,
                            struct hk_api_shader **shader_out);
 

@@ -79,12 +79,10 @@ libagx_decompress(constant struct libagx_decompress_images *images,
                   uint16_t metadata_height_tl,
                   uint log2_samples__3 /* 1x, 2x, 4x */)
 {
-   uint3 coord_tl = (uint3)(get_group_id(0), get_group_id(1), get_group_id(2));
-   uint local_id = get_local_id(0);
    uint samples = 1 << log2_samples__3;
 
    /* Index into the metadata buffer */
-   uint index_tl = index_metadata(coord_tl, metadata_width_tl,
+   uint index_tl = index_metadata(cl_group_id, metadata_width_tl,
                                   metadata_height_tl, metadata_layer_stride_tl);
 
    /* If the tile is already uncompressed, there's nothing to do. */
@@ -92,12 +90,12 @@ libagx_decompress(constant struct libagx_decompress_images *images,
       return;
 
    /* Tiles are 16x16 */
-   uint2 coord_sa = (coord_tl.xy * 16);
-   uint layer = coord_tl.z;
+   uint2 coord_sa = (cl_group_id.xy * 16);
+   uint layer = cl_group_id.z;
 
    /* Since we use a 32x1 workgroup, each work-item handles half of a row. */
-   uint offs_y_sa = local_id >> 1;
-   uint offs_x_sa = (local_id & 1) ? 8 : 0;
+   uint offs_y_sa = cl_local_id.x >> 1;
+   uint offs_x_sa = (cl_local_id.x & 1) ? 8 : 0;
 
    int2 img_coord_sa_2d = convert_int2(coord_sa) + (int2)(offs_x_sa, offs_y_sa);
    int4 img_coord_sa = (int4)(img_coord_sa_2d.x, img_coord_sa_2d.y, layer, 0);
@@ -109,12 +107,12 @@ libagx_decompress(constant struct libagx_decompress_images *images,
       if (samples == 1) {
          texels[i] = nir_bindless_image_load(
             HANDLE(compressed), c_sa, 0, 0, GLSL_SAMPLER_DIM_2D, true, 0,
-            ACCESS_IN_BOUNDS_AGX, nir_type_uint32);
+            ACCESS_IN_BOUNDS, nir_type_uint32);
       } else {
          int4 dec_px = decompose_px(c_sa, samples);
          texels[i] = nir_bindless_image_load(
             HANDLE(compressed), dec_px, sample_id(c_sa, samples), 0,
-            GLSL_SAMPLER_DIM_MS, true, 0, ACCESS_IN_BOUNDS_AGX,
+            GLSL_SAMPLER_DIM_MS, true, 0, ACCESS_IN_BOUNDS,
             nir_type_uint32);
       }
    }
@@ -139,7 +137,7 @@ libagx_decompress(constant struct libagx_decompress_images *images,
    }
 
    /* We've replaced the body buffer. Mark the tile as uncompressed. */
-   if (local_id == 0) {
+   if (cl_local_id.x == 0) {
       metadata[index_tl] = tile_uncompressed;
    }
 }

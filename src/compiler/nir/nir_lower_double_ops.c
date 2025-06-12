@@ -545,14 +545,14 @@ lower_doubles_instr_to_soft(nir_builder *b, nir_alu_instr *instr,
    switch (instr->op) {
    case nir_op_f2i64:
       if (instr->src[0].src.ssa->bit_size != 64)
-         return false;
+         return NULL;
       name = "__fp64_to_int64";
       mangled_name = "__fp64_to_int64(u641;";
       return_type = glsl_int64_t_type();
       break;
    case nir_op_f2u64:
       if (instr->src[0].src.ssa->bit_size != 64)
-         return false;
+         return NULL;
       name = "__fp64_to_uint64";
       mangled_name = "__fp64_to_uint64(u641;";
       break;
@@ -675,7 +675,7 @@ lower_doubles_instr_to_soft(nir_builder *b, nir_alu_instr *instr,
       return_type = glsl_bool_type();
       break;
    default:
-      return false;
+      return NULL;
    }
 
    assert(softfp64 != NULL);
@@ -881,17 +881,14 @@ nir_lower_doubles_impl(nir_function_impl *impl,
       /* Indices are completely messed up now */
       nir_index_ssa_defs(impl);
 
-      nir_metadata_preserve(impl, nir_metadata_none);
+      nir_progress(true, impl, nir_metadata_none);
 
       /* And we have deref casts we need to clean up thanks to function
        * inlining.
        */
       nir_opt_deref_impl(impl);
-   } else if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
+   } else
+      nir_progress(progress, impl, nir_metadata_control_flow);
 
    return progress;
 }

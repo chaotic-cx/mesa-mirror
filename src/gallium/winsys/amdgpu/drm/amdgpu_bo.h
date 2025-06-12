@@ -10,7 +10,7 @@
 #define AMDGPU_BO_H
 
 #include "amdgpu_winsys.h"
-#include "pipebuffer/pb_slab.h"
+#include "util/pb_slab.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -109,6 +109,7 @@ struct amdgpu_bo_real {
 
    /* Whether this is a slab buffer and alt_fence was set on one of the slab entries. */
    bool slab_has_busy_alt_fences;
+   bool vm_always_valid;
 };
 
 /* Same as amdgpu_bo_real except this BO isn't destroyed when its reference count drops to 0.
@@ -209,7 +210,7 @@ static inline struct amdgpu_bo_real_reusable_slab *get_real_bo_reusable_slab(str
  */
 static inline struct pipe_fence_handle **
 get_fence_from_ring(struct amdgpu_winsys *aws, struct amdgpu_seq_no_fences *fences,
-                    unsigned queue_index)
+                    enum amdgpu_queue_index queue_index)
 {
    /* The caller should check if the BO has a fence. */
    assert(queue_index < AMDGPU_MAX_QUEUES);
@@ -234,7 +235,8 @@ get_fence_from_ring(struct amdgpu_winsys *aws, struct amdgpu_seq_no_fences *fenc
    return NULL;
 }
 
-static inline uint_seq_no pick_latest_seq_no(struct amdgpu_winsys *aws, unsigned queue_index,
+static inline uint_seq_no pick_latest_seq_no(struct amdgpu_winsys *aws,
+                                             enum amdgpu_queue_index queue_index,
                                              uint_seq_no n1, uint_seq_no n2)
 {
    uint_seq_no latest = aws->queues[queue_index].latest_seq_no;
@@ -250,7 +252,7 @@ static inline uint_seq_no pick_latest_seq_no(struct amdgpu_winsys *aws, unsigned
 }
 
 static inline void add_seq_no_to_list(struct amdgpu_winsys *aws, struct amdgpu_seq_no_fences *fences,
-                                      unsigned queue_index, uint_seq_no seq_no)
+                                      enum amdgpu_queue_index queue_index, uint_seq_no seq_no)
 {
    if (fences->valid_fence_mask & BITFIELD_BIT(queue_index)) {
       fences->seq_no[queue_index] = pick_latest_seq_no(aws, queue_index, seq_no,

@@ -4,29 +4,36 @@
 # source file, output name, defines
 bvh_shaders = [
   [
+    'copy_blas_addrs_gfx12.comp',
+    'copy_blas_addrs_gfx12',
+  ],
+  [
     'copy.comp',
     'copy',
-    [],
+  ],
+  [
+    'encode_gfx12.comp',
+    'encode_gfx12',
   ],
   [
     'encode.comp',
     'encode',
-    ['COMPACT=0'],
-  ],
-  [
-    'encode.comp',
-    'encode_compact',
-    ['COMPACT=1'],
   ],
   [
     'header.comp',
     'header',
-    [],
   ],
   [
     'update.comp',
     'update',
-    [],
+  ],
+  [
+    'update_gfx12.comp',
+    'update_gfx12',
+  ],
+  [
+    'leaf.comp',
+    'radv_leaf',
   ],
 ]
 
@@ -37,6 +44,8 @@ bvh_includes = files(
   'build_helpers.h',
   'build_interface.h',
   'bvh.h',
+  'encode.h',
+  'update.h',
   vk_bvh_include_dir + '/vk_build_helpers.h',
   vk_bvh_include_dir + '/vk_bvh.h',
 )
@@ -47,10 +56,6 @@ foreach s : bvh_shaders
     prog_glslang, '-V', '-I' + bvh_include_dir, '-I' + vk_bvh_include_dir, '--target-env', 'spirv1.5',
     '-x', '-o', '@OUTPUT@', '@INPUT@', glslang_depfile, glslang_quiet,
   ]
-
-  foreach define : s[2]
-    command += '-D' + define
-  endforeach
 
   _bvh_name = '@0@.spv.h'.format(s[1])
   bvh_spv += custom_target(

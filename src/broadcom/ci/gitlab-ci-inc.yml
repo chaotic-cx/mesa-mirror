@@ -29,8 +29,6 @@
 .vc4-rules:
   stage: broadcom
   rules:
-    - if: $EXTERNAL_KERNEL_TAG != null
-      when: never
     - !reference [.test, rules]
     - !reference [.igalia-farm-rules, rules]
     - !reference [.gl-rules, rules]
@@ -43,7 +41,7 @@
       when: on_success
 
 .vc4-manual-rules:
-  stage: broadcom-postmerge
+  stage: broadcom-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -56,8 +54,6 @@
 .v3d-rules:
   stage: broadcom
   rules:
-    - if: $EXTERNAL_KERNEL_TAG != null
-      when: never
     - !reference [.test, rules]
     - !reference [.igalia-farm-rules, rules]
     - !reference [.gl-rules, rules]
@@ -70,7 +66,7 @@
       when: on_success
 
 .v3d-manual-rules:
-  stage: broadcom-postmerge
+  stage: broadcom-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -88,7 +84,7 @@
     - !reference [.rusticl-rules, rules]
 
 .v3d-rusticl-manual-rules:
-  stage: broadcom-postmerge
+  stage: broadcom-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.v3d-manual-rules, rules]
@@ -97,8 +93,6 @@
 .v3dv-rules:
   stage: broadcom
   rules:
-    - if: $EXTERNAL_KERNEL_TAG != null
-      when: never
     - !reference [.test, rules]
     - !reference [.igalia-farm-rules, rules]
     - !reference [.vulkan-rules, rules]
@@ -108,7 +102,7 @@
       when: on_success
 
 .v3dv-manual-rules:
-  stage: broadcom-postmerge
+  stage: broadcom-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -117,6 +111,14 @@
     - !reference [.broadcom-common-manual-rules, rules]
     - changes: *v3dv_file_list
       when: manual
+
+.v3d-v3dv-manual-rules:
+  stage: broadcom-nightly
+  extends: .no-auto-retry
+  rules:
+    - !reference [.test, rules]
+    - !reference [.v3d-manual-rules, rules]
+    - !reference [.v3dv-manual-rules, rules]
 
 # 8 devices (2023-12-18)
 .igalia-bcm2837-rpi-3-b:
@@ -160,32 +162,55 @@
     FARM: igalia
   timeout: 25m
 
-.broadcom-test:arm64:
+.broadcom-test:arm64-gl:
   extends:
     - .broadcom-test
-    - .baremetal-test-arm64
+    - .baremetal-test-arm64-gl
   variables:
     BM_BOOTFS: /boot/raspberrypi_arm64
 
-.broadcom-test-full:arm64:
+.broadcom-test:arm64-vk:
   extends:
-    - .broadcom-test:arm64
+    - .broadcom-test
+    - .baremetal-test-arm64-vk
+  variables:
+    BM_BOOTFS: /boot/raspberrypi_arm64
+
+.broadcom-test-full:arm64-gl:
+  extends:
+    - .broadcom-test:arm64-gl
   variables:
     BM_BOOTFS: /boot/raspberrypi_arm64_full
 
-.broadcom-asan-test:arm64:
+.broadcom-test-full:arm64-vk:
   extends:
-    - .broadcom-test:arm64
-    - .baremetal-arm64-asan-test
+    - .broadcom-test:arm64-vk
+  variables:
+    BM_BOOTFS: /boot/raspberrypi_arm64_full
 
-.broadcom-ubsan-test:arm64:
+.broadcom-asan-test:arm64-gl:
   extends:
-    - .broadcom-test:arm64
-    - .baremetal-arm64-ubsan-test
+    - .broadcom-test:arm64-gl
+    - .baremetal-arm64-asan-test-gl
 
-.broadcom-test:arm32:
+.broadcom-asan-test:arm64-vk:
+  extends:
+    - .broadcom-test:arm64-vk
+    - .baremetal-arm64-asan-test-vk
+
+.broadcom-ubsan-test:arm64-gl:
+  extends:
+    - .broadcom-test:arm64-gl
+    - .baremetal-arm64-ubsan-test-gl
+
+.broadcom-ubsan-test:arm64-vk:
+  extends:
+    - .broadcom-test:arm64-vk
+    - .baremetal-arm64-ubsan-test-vk
+
+.broadcom-test:arm32-gl:
   extends:
     - .broadcom-test
-    - .baremetal-test-arm32
+    - .baremetal-test-arm32-gl
   variables:
     BM_BOOTFS: /boot/raspberrypi_arm32

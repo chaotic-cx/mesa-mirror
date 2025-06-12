@@ -163,7 +163,8 @@ struct nvk_rendering_state {
    struct nvk_attachment stencil_att;
    struct nvk_attachment fsr_att;
 
-   bool all_linear;
+   /* True if all the conditions are met to allow rendering to linear */
+   bool linear;
 };
 
 struct nvk_graphics_state {
@@ -195,6 +196,7 @@ struct nvk_cmd_push {
    void *map;
    uint64_t addr;
    uint32_t range;
+   bool incomplete;
    bool no_prefetch;
 };
 
@@ -215,6 +217,7 @@ struct nvk_cmd_buffer {
     */
    struct list_head owned_mem;
    struct list_head owned_gart_mem;
+   struct list_head owned_qmd;
 
    struct nvk_cmd_mem *upload_mem;
    uint32_t upload_offset;
@@ -341,6 +344,10 @@ VkResult nvk_cmd_buffer_upload_data(struct nvk_cmd_buffer *cmd,
 VkResult nvk_cmd_buffer_cond_render_alloc(struct nvk_cmd_buffer *cmd,
 					  uint64_t *addr);
 
+VkResult nvk_cmd_buffer_alloc_qmd(struct nvk_cmd_buffer *cmd,
+                                  uint32_t size, uint32_t alignment,
+                                  uint64_t *addr, void **ptr);
+
 void nvk_cmd_flush_wait_dep(struct nvk_cmd_buffer *cmd,
                             const VkDependencyInfo *dep,
                             bool wait);
@@ -365,6 +372,7 @@ nvk_cmd_buffer_get_cbuf_descriptor_addr(struct nvk_cmd_buffer *cmd,
                                         const struct nvk_cbuf *cbuf);
 
 VkResult nvk_cmd_flush_cs_qmd(struct nvk_cmd_buffer *cmd,
+                              const struct nvk_cmd_state *state,
                               uint32_t global_size[3],
                               uint64_t *qmd_addr_out,
                               uint64_t *root_desc_addr_out);

@@ -34,7 +34,13 @@ private:
 
    void emit_adj_fix();
 
-   bool emit_load_per_vertex_input(nir_intrinsic_instr *instr);
+   bool emit_indirect_vertex_at_index(nir_intrinsic_instr *instr);
+
+   bool emit_load_per_vertex_input_direct(nir_intrinsic_instr *instr);
+
+   bool emit_load_per_vertex_input_indirect(nir_intrinsic_instr *instr);
+
+   bool load_per_vertex_input_at_addr(nir_intrinsic_instr *instr, PRegister addr);
 
    bool load_input(UNUSED nir_intrinsic_instr *intr) override
    {
@@ -43,7 +49,7 @@ private:
    bool store_output(nir_intrinsic_instr *instr) override;
    bool emit_vertex(nir_intrinsic_instr *instr, bool cut);
 
-   std::array<PRegister, 6> m_per_vertex_offsets{nullptr};
+   std::array<PRegister, R600_GS_VERTEX_INDIRECT_TOTAL> m_per_vertex_offsets{nullptr};
    PRegister m_primitive_id{nullptr};
    PRegister m_invocation_id{nullptr};
    std::array<PRegister, 4> m_export_base{nullptr};
@@ -51,13 +57,9 @@ private:
    unsigned m_ring_item_sizes[4]{0};
 
    bool m_tri_strip_adj_fix{false};
-   bool m_first_vertex_emitted{false};
-   int m_offset{0};
    int m_next_input_ring_offset{0};
    int m_cc_dist_mask{0};
    int m_clip_dist_write{0};
-   int m_cur_ring_output{0};
-   bool m_gs_tri_strip_adj_fix{false};
    uint64_t m_input_mask{0};
    unsigned m_noutputs{0};
    bool m_out_viewport{false};

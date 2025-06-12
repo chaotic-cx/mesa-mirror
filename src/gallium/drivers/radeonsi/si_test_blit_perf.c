@@ -219,6 +219,9 @@ void si_test_blit_perf(struct si_screen *sscreen)
       for (unsigned dim = 1; dim <= 3; dim++) {
          for (unsigned format_index = 0; format_index < ARRAY_SIZE(formats); format_index++) {
             for (unsigned samples = 1; samples <= 8; samples *= 2) {
+               if (!sscreen->info.has_image_opcodes && samples > 1)
+                  break;
+
                for (unsigned layout = 0; layout < NUM_LAYOUTS; layout++) {
                   /* Reject invalid combinations. */
                   if (samples >= 2 && (dim != 2 || layout != LAYOUT_T2T))
@@ -240,6 +243,9 @@ void si_test_blit_perf(struct si_screen *sscreen)
 
                   if (test_flavor == TEST_RESOLVE &&
                       util_format_is_pure_integer(formats[format_index]))
+                     continue;
+
+                  if (!sscreen->info.has_image_opcodes && layout != LAYOUT_L2L)
                      continue;
 
                   /* Create textures. */
@@ -496,15 +502,13 @@ void si_test_blit_perf(struct si_screen *sscreen)
                            }
 
                            for (unsigned method = 0; method < NUM_METHODS; method++) {
-                              struct pipe_surface *dst_surf = NULL;
+                              struct pipe_surface surf_templ;
 
                               /* Create pipe_surface for clears. */
                               if (test_flavor == TEST_FB_CLEAR || test_flavor == TEST_CLEAR) {
-                                 struct pipe_surface surf_templ;
 
                                  u_surface_default_template(&surf_templ, dst[size_factor]);
-                                 surf_templ.u.tex.last_layer = dst[size_factor]->depth0 - 1;
-                                 dst_surf = ctx->create_surface(ctx, dst[size_factor], &surf_templ);
+                                 surf_templ.last_layer = dst[size_factor]->depth0 - 1;
 
                                  /* Bind the colorbuffer for FB clears. */
                                  if (box_flavor == BOX_FULL) {
@@ -514,7 +518,7 @@ void si_test_blit_perf(struct si_screen *sscreen)
                                     fb.layers = dst[size_factor]->depth0;
                                     fb.samples = dst[size_factor]->nr_samples;
                                     fb.nr_cbufs = 1;
-                                    fb.cbufs[0] = dst_surf;
+                                    fb.cbufs[0] = surf_templ;
                                     ctx->set_framebuffer_state(ctx, &fb);
                                     si_emit_barrier_direct(sctx);
                                  }
@@ -539,33 +543,33 @@ void si_test_blit_perf(struct si_screen *sscreen)
                                           ctx->clear(ctx, PIPE_CLEAR_COLOR, NULL, clear_color, 0, 0);
                                           sctx->barrier_flags |= SI_BARRIER_SYNC_AND_INV_CB | SI_BARRIER_INV_L2;
                                        } else {
-                                          ctx->clear_render_target(ctx, dst_surf, clear_color,
+                                          ctx->clear_render_target(ctx, &surf_templ, clear_color,
                                                                    dst_box.x, dst_box.y,
                                                                    dst_box.width, dst_box.height,
                                                                    false);
                                        }
                                        break;
                                     case METHOD_GFX:
-                                       si_gfx_clear_render_target(ctx, dst_surf, clear_color,
+                                       si_gfx_clear_render_target(ctx, &surf_templ, clear_color,
                                                                   dst_box.x, dst_box.y,
                                                                   dst_box.width, dst_box.height,
                                                                   false);
                                        break;
                                     case METHOD_COMPUTE:
                                        success &=
-                                          si_compute_clear_image(sctx, dst_surf->texture,
-                                                                 dst_surf->format, 0, &dst_box,
+                                          si_compute_clear_image(sctx, surf_templ.texture,
+                                                                 surf_templ.format, 0, &dst_box,
                                                                  clear_color, false, false);
                                        break;
                                     case METHOD_SPECIAL:
                                        if (test_flavor == TEST_CLEAR) {
                                           success &=
-                                             si_compute_fast_clear_image(sctx, dst_surf->texture,
-                                                                         dst_surf->format, 0,
+                                             si_compute_fast_clear_image(sctx, surf_templ.texture,
+                                                                         surf_templ.format, 0,
                                                                          &dst_box, clear_color,
                                                                          false, false);
                                        } else {
-                                          ctx->clear_render_target(ctx, dst_surf, clear_color,
+                                          ctx->clear_render_target(ctx, &surf_templ, clear_color,
                                                                    dst_box.x, dst_box.y,
                                                                    dst_box.width, dst_box.height,
                                                                    false);
@@ -640,7 +644,6 @@ void si_test_blit_perf(struct si_screen *sscreen)
                               }
 
                               ctx->end_query(ctx, q);
-                              pipe_surface_reference(&dst_surf, NULL);
 
                               /* Wait for idle after all tests. */
                               sctx->barrier_flags |= SI_BARRIER_SYNC_AND_INV_CB |

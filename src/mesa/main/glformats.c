@@ -1223,6 +1223,10 @@ _mesa_is_stencil_format(GLenum format)
 {
    switch (format) {
       case GL_STENCIL_INDEX:
+      case GL_STENCIL_INDEX1:
+      case GL_STENCIL_INDEX4:
+      case GL_STENCIL_INDEX8:
+      case GL_STENCIL_INDEX16:
          return GL_TRUE;
       default:
          return GL_FALSE;
@@ -1298,6 +1302,29 @@ _mesa_has_depth_float_channel(GLenum internalFormat)
           internalFormat == GL_DEPTH_COMPONENT32F;
 }
 
+GLboolean
+_mesa_is_generic_compressed_format(const struct gl_context *ctx,
+                                   GLenum format)
+{
+   switch (format) {
+   case GL_COMPRESSED_SRGB:
+   case GL_COMPRESSED_SRGB_ALPHA:
+   case GL_COMPRESSED_SLUMINANCE:
+   case GL_COMPRESSED_SLUMINANCE_ALPHA:
+      return _mesa_has_EXT_texture_sRGB(ctx);
+   case GL_COMPRESSED_RG:
+   case GL_COMPRESSED_RED:
+      return _mesa_is_gles(ctx) ?
+             _mesa_has_EXT_texture_rg(ctx) :
+             _mesa_has_ARB_texture_rg(ctx);
+   case GL_COMPRESSED_RGB:
+   case GL_COMPRESSED_RGBA:
+      return true;
+   default:
+      return false;
+   }
+}
+
 /**
  * Test if an image format is a supported compressed format.
  * \param format the internal format token provided by the user.
@@ -1306,7 +1333,7 @@ _mesa_has_depth_float_channel(GLenum internalFormat)
 GLboolean
 _mesa_is_compressed_format(const struct gl_context *ctx, GLenum format)
 {
-   mesa_format m_format = _mesa_glenum_to_compressed_format(format);
+   mesa_format m_format = _mesa_glenum_to_compressed_format(ctx, format);
 
    /* Some formats in this switch have an equivalent mesa_format_layout
     * to the compressed formats in the layout switch below and thus

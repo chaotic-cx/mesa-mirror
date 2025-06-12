@@ -175,22 +175,18 @@ static void virgl_attach_res_framebuffer(struct virgl_context *vctx)
    struct virgl_resource *res;
    unsigned i;
 
-   surf = vctx->framebuffer.zsbuf;
-   if (surf) {
+   surf = &vctx->framebuffer.zsbuf;
+   res = virgl_resource(surf->texture);
+   if (res) {
+      vws->emit_res(vws, vctx->cbuf, res->hw_res, false);
+      virgl_resource_dirty(res, surf->level);
+   }
+   for (i = 0; i < vctx->framebuffer.nr_cbufs; i++) {
+      surf = &vctx->framebuffer.cbufs[i];
       res = virgl_resource(surf->texture);
       if (res) {
          vws->emit_res(vws, vctx->cbuf, res->hw_res, false);
-         virgl_resource_dirty(res, surf->u.tex.level);
-      }
-   }
-   for (i = 0; i < vctx->framebuffer.nr_cbufs; i++) {
-      surf = vctx->framebuffer.cbufs[i];
-      if (surf) {
-         res = virgl_resource(surf->texture);
-         if (res) {
-            vws->emit_res(vws, vctx->cbuf, res->hw_res, false);
-            virgl_resource_dirty(res, surf->u.tex.level);
-         }
+         virgl_resource_dirty(res, surf->level);
       }
    }
 }
@@ -373,11 +369,9 @@ static struct pipe_surface *virgl_create_surface(struct pipe_context *ctx,
    surf->base.context = ctx;
    surf->base.format = templ->format;
 
-   surf->base.width = u_minify(resource->width0, templ->u.tex.level);
-   surf->base.height = u_minify(resource->height0, templ->u.tex.level);
-   surf->base.u.tex.level = templ->u.tex.level;
-   surf->base.u.tex.first_layer = templ->u.tex.first_layer;
-   surf->base.u.tex.last_layer = templ->u.tex.last_layer;
+   surf->base.level = templ->level;
+   surf->base.first_layer = templ->first_layer;
+   surf->base.last_layer = templ->last_layer;
    surf->base.nr_samples = templ->nr_samples;
 
    virgl_encoder_create_surface(vctx, handle, res, &surf->base);
@@ -496,7 +490,8 @@ static void virgl_set_framebuffer_state(struct pipe_context *ctx,
 {
    struct virgl_context *vctx = virgl_context(ctx);
 
-   vctx->framebuffer = *state;
+   util_framebuffer_init(ctx, state, vctx->fb_cbufs, &vctx->fb_zsbuf);
+   util_copy_framebuffer_state(&vctx->framebuffer, state);
    virgl_encoder_set_framebuffer_state(vctx, state);
    virgl_attach_res_framebuffer(vctx);
 }
@@ -721,7 +716,7 @@ static void *virgl_shader_encoder(struct pipe_context *ctx,
             .lower_offset_filter = lower_gles_arrayshadow_offset_filter,
          };
 
-         NIR_PASS_V(shader->ir.nir, nir_lower_tex, &lower_tex_options);
+         NIR_PASS(_, shader->ir.nir, nir_lower_tex, &lower_tex_options);
       }
 
       nir_shader *s = nir_shader_clone(NULL, shader->ir.nir);
@@ -926,7 +921,7 @@ static void virgl_clear_render_target(struct pipe_context *ctx,
     * without going through the corresponding guest side resource, and
     * hence the two will diverge.
     */
-   virgl_resource_dirty(virgl_resource(dst->texture), dst->u.tex.level);
+   virgl_resource_dirty(virgl_resource(dst->texture), dst->level);
 }
 
 static void virgl_clear_depth_stencil(struct pipe_context *ctx,
@@ -951,7 +946,7 @@ static void virgl_clear_depth_stencil(struct pipe_context *ctx,
     * without going through the corresponding guest side resource, and
     * hence the two will diverge.
     */
-   virgl_resource_dirty(virgl_resource(dst->texture), dst->u.tex.level);
+   virgl_resource_dirty(virgl_resource(dst->texture), dst->level);
 }
 
 static void virgl_clear_render_target_stub(struct pipe_context *ctx,
@@ -1142,7 +1137,6 @@ static void virgl_set_sampler_views(struct pipe_context *ctx,
                                    unsigned start_slot,
                                    unsigned num_views,
                                    unsigned unbind_num_trailing_slots,
-                                   bool take_ownership,
                                    struct pipe_sampler_view **views)
 {
    struct virgl_context *vctx = virgl_context(ctx);
@@ -1155,12 +1149,7 @@ static void virgl_set_sampler_views(struct pipe_context *ctx,
          struct virgl_resource *res = virgl_resource(views[i]->texture);
          res->bind_history |= PIPE_BIND_SAMPLER_VIEW;
 
-         if (take_ownership) {
-            pipe_sampler_view_reference(&binding->views[idx], NULL);
-            binding->views[idx] = views[i];
-         } else {
-            pipe_sampler_view_reference(&binding->views[idx], views[i]);
-         }
+         pipe_sampler_view_reference(&binding->views[idx], views[i]);
       } else {
          pipe_sampler_view_reference(&binding->views[idx], NULL);
       }
@@ -1172,7 +1161,7 @@ static void virgl_set_sampler_views(struct pipe_context *ctx,
 
    if (unbind_num_trailing_slots) {
       virgl_set_sampler_views(ctx, shader_type, start_slot + num_views,
-                              unbind_num_trailing_slots, 0, false, NULL);
+                              unbind_num_trailing_slots, 0, NULL);
    }
 }
 
@@ -1585,8 +1574,8 @@ virgl_context_destroy( struct pipe_context *ctx )
    struct virgl_screen *rs = virgl_screen(ctx->screen);
    enum pipe_shader_type shader_type;
 
-   vctx->framebuffer.zsbuf = NULL;
-   vctx->framebuffer.nr_cbufs = 0;
+   util_framebuffer_init(ctx, NULL, vctx->fb_cbufs, &vctx->fb_zsbuf);
+   util_unreference_framebuffer_state(&vctx->framebuffer);
    virgl_encoder_destroy_sub_ctx(vctx, vctx->hw_sub_ctx_id);
    virgl_flush_eq(vctx, vctx, NULL);
 
@@ -1756,6 +1745,7 @@ struct pipe_context *virgl_context_create(struct pipe_screen *pscreen,
    vctx->base.screen = pscreen;
    vctx->base.create_sampler_view = virgl_create_sampler_view;
    vctx->base.sampler_view_destroy = virgl_destroy_sampler_view;
+   vctx->base.sampler_view_release = u_default_sampler_view_release;
    vctx->base.set_sampler_views = virgl_set_sampler_views;
    vctx->base.texture_barrier = virgl_texture_barrier;
 

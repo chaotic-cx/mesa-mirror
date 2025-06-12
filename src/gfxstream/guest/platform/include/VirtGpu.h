@@ -8,25 +8,8 @@
 #include <cstdint>
 #include <memory>
 
-#include "virtgpu_gfxstream_protocol.h"
-
-// See virgl_hw.h and p_defines.h
-#define VIRGL_FORMAT_B8G8R8A8_UNORM 1
-#define VIRGL_FORMAT_B5G6R5_UNORM 7
-#define VIRGL_FORMAT_R10G10B10A2_UNORM 8
-#define VIRGL_FORMAT_R8_UNORM 64
-#define VIRGL_FORMAT_R8G8B8_UNORM 66
-#define VIRGL_FORMAT_R8G8B8A8_UNORM 67
-#define VIRGL_FORMAT_R16G16B16A16_FLOAT 94
-#define VIRGL_FORMAT_YV12 163
-#define VIRGL_FORMAT_YV16 164
-#define VIRGL_FORMAT_IYUV 165
-#define VIRGL_FORMAT_NV12 166
-#define VIRGL_FORMAT_NV21 167
-
-#define VIRGL_BIND_RENDER_TARGET (1 << 1)
-#define VIRGL_BIND_CUSTOM (1 << 17)
-#define VIRGL_BIND_LINEAR (1 << 22)
+#include "virtio/virtio-gpu/virtgpu_gfxstream_protocol.h"
+#include "virtio/virtio-gpu/virgl_hw.h"
 
 #define PIPE_BUFFER 0
 #define PIPE_TEXTURE_2D 2
@@ -130,6 +113,23 @@ struct VirtGpuCaps {
     struct composerCapset composerCapset;
 };
 
+struct VirtGpuDrmInfo {
+    bool hasPrimary;
+    bool hasRender;
+    int64_t primaryMajor;
+    int64_t primaryMinor;
+    int64_t renderMajor;
+    int64_t renderMinor;
+};
+
+// Note: Fields match equivalent structure for Magma
+struct VirtGpuPciBusInfo {
+    uint16_t domain;
+    uint8_t bus;
+    uint8_t device;
+    uint8_t function;
+};
+
 #define INVALID_DESCRIPTOR -1
 
 class VirtGpuResourceMapping;
@@ -182,7 +182,7 @@ class VirtGpuDevice {
    VirtGpuDevice(enum VirtGpuCapset capset) : mCapset(capset) {}
    virtual ~VirtGpuDevice() {}
 
-   enum VirtGpuCapset capset() { return mCapset; }
+   enum VirtGpuCapset getCapset() { return mCapset; }
 
    virtual int64_t getDeviceHandle(void) = 0;
 
@@ -195,6 +195,9 @@ class VirtGpuDevice {
    virtual VirtGpuResourcePtr importBlob(const struct VirtGpuExternalHandle& handle) = 0;
 
    virtual int execBuffer(struct VirtGpuExecBuffer& execbuffer, const VirtGpuResource* blob) = 0;
+
+   virtual bool getDrmInfo(VirtGpuDrmInfo* drmInfo) { return false; }
+   virtual bool getPciBusInfo(VirtGpuPciBusInfo* pciBusInfo) { return false; }
 
   private:
    enum VirtGpuCapset mCapset;

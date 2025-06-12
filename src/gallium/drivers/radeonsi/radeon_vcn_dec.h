@@ -26,7 +26,7 @@
 struct rvcn_dec_dynamic_dpb_t2 {
    struct list_head list;
    uint8_t index;
-   struct pipe_video_buffer *vbuf;
+   struct pipe_resource *buf;
 };
 
 struct jpeg_registers {
@@ -66,7 +66,6 @@ struct jpeg_registers {
 struct radeon_decoder {
    struct pipe_video_codec base;
 
-   unsigned stream_handle;
    unsigned stream_type;
    unsigned frame_number;
    unsigned db_alignment;
@@ -96,6 +95,7 @@ struct radeon_decoder {
    struct rvid_buffer dpb;
    struct rvid_buffer ctx;
    struct rvid_buffer sessionctx;
+   struct rvid_buffer subsample;
 
    unsigned bs_size;
    unsigned cur_buffer;
@@ -117,7 +117,8 @@ struct radeon_decoder {
    enum {
       DPB_MAX_RES = 0,
       DPB_DYNAMIC_TIER_1,
-      DPB_DYNAMIC_TIER_2
+      DPB_DYNAMIC_TIER_2,
+      DPB_DYNAMIC_TIER_3,
    } dpb_type;
 
    struct {
@@ -130,6 +131,10 @@ struct radeon_decoder {
       unsigned ref_size;
       unsigned num_refs;
       uint8_t ref_list[16];
+      struct {
+         uint8_t index;
+         struct pipe_video_buffer *buf;
+      } bufs[16];
    } ref_codec;
 
    struct list_head dpb_ref_list;

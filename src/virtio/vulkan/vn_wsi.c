@@ -10,6 +10,9 @@
 
 #include "vn_wsi.h"
 
+#include <xf86drm.h>
+
+#include "drm-uapi/dma-buf.h"
 #include "vk_enum_to_str.h"
 #include "wsi_common_entrypoints.h"
 
@@ -69,26 +72,36 @@ vn_wsi_proc_addr(VkPhysicalDevice physicalDevice, const char *pName)
    struct vn_physical_device *physical_dev =
       vn_physical_device_from_handle(physicalDevice);
    return vk_instance_get_proc_addr_unchecked(
-      &physical_dev->instance->base.base, pName);
+      &physical_dev->instance->base.vk, pName);
 }
 
 VkResult
 vn_wsi_init(struct vn_physical_device *physical_dev)
 {
+   /* TODO Drop the workaround for NVIDIA_PROPRIETARY once hw prime buffer
+    * blit path works there.
+    */
+   const bool use_sw_device =
+      !physical_dev->base.vk.supported_extensions
+          .EXT_external_memory_dma_buf ||
+      physical_dev->renderer_driver_id == VK_DRIVER_ID_NVIDIA_PROPRIETARY;
+
    const VkAllocationCallbacks *alloc =
-      &physical_dev->instance->base.base.alloc;
+      &physical_dev->instance->base.vk.alloc;
    VkResult result = wsi_device_init(
       &physical_dev->wsi_device, vn_physical_device_to_handle(physical_dev),
       vn_wsi_proc_addr, alloc, -1, &physical_dev->instance->dri_options,
       &(struct wsi_device_options){
-         .sw_device = false,
+         .sw_device = use_sw_device,
          .extra_xwayland_image = true,
       });
    if (result != VK_SUCCESS)
       return result;
 
-   physical_dev->wsi_device.supports_modifiers = true;
-   physical_dev->base.base.wsi_device = &physical_dev->wsi_device;
+   physical_dev->wsi_device.supports_scanout = false;
+   physical_dev->wsi_device.supports_modifiers =
+      physical_dev->base.vk.supported_extensions.EXT_image_drm_format_modifier;
+   physical_dev->base.vk.wsi_device = &physical_dev->wsi_device;
 
    return VK_SUCCESS;
 }
@@ -97,8 +110,8 @@ void
 vn_wsi_fini(struct vn_physical_device *physical_dev)
 {
    const VkAllocationCallbacks *alloc =
-      &physical_dev->instance->base.base.alloc;
-   physical_dev->base.base.wsi_device = NULL;
+      &physical_dev->instance->base.vk.alloc;
+   physical_dev->base.vk.wsi_device = NULL;
    wsi_device_finish(&physical_dev->wsi_device, alloc);
 }
 
@@ -109,57 +122,14 @@ vn_wsi_create_image(struct vn_device *dev,
                     const VkAllocationCallbacks *alloc,
                     struct vn_image **out_img)
 {
-   /* TODO This is the legacy path used by wsi_create_native_image when there
-    * is no modifier support.  Instead of forcing linear tiling, we should ask
-    * wsi to use wsi_create_prime_image instead.
-    *
-    * In fact, this is not enough when the image is truely used for scanout by
-    * the host compositor.  There can be requirements we fail to meet.  We
-    * should require modifier support at some point.
-    */
-   const uint64_t modifier = DRM_FORMAT_MOD_LINEAR;
-   const VkImageDrmFormatModifierListCreateInfoEXT mod_list_info = {
-      .sType =
-         VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
-      .pNext = create_info->pNext,
-      .drmFormatModifierCount = 1,
-      .pDrmFormatModifiers = &modifier,
-   };
-   VkImageCreateInfo local_create_info = *create_info;
-   create_info = &local_create_info;
-   if (wsi_info->scanout) {
-      assert(!vk_find_struct_const(
-         create_info->pNext, IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT));
-
-      local_create_info.pNext = &mod_list_info;
-      local_create_info.tiling = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
-
-      if (VN_DEBUG(WSI)) {
-         vn_log(
-            dev->instance,
-            "forcing scanout image linear (no explicit modifier support)");
-      }
-   } else {
-      if (dev->physical_device->renderer_driver_id ==
-          VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA) {
-         /* See explanation in vn_GetPhysicalDeviceImageFormatProperties2() */
-         local_create_info.flags &= ~VK_IMAGE_CREATE_ALIAS_BIT;
-      }
-
-      if (VN_PERF(NO_TILED_WSI_IMAGE)) {
-         const VkImageDrmFormatModifierListCreateInfoEXT *modifier_info =
-            vk_find_struct_const(
-               create_info->pNext,
-               IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT);
-         assert(modifier_info);
-         assert(modifier_info->drmFormatModifierCount == 1 &&
-                modifier_info->pDrmFormatModifiers[0] ==
-                   DRM_FORMAT_MOD_LINEAR);
-         if (VN_DEBUG(WSI)) {
-            vn_log(dev->instance,
-                   "forcing scanout image linear (given no_tiled_wsi_image)");
-         }
-      }
+   VkImageCreateInfo local_create_info;
+   if (dev->physical_device->renderer_driver_id ==
+          VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA &&
+       (create_info->flags & VK_IMAGE_CREATE_ALIAS_BIT)) {
+      /* See explanation in vn_GetPhysicalDeviceImageFormatProperties2() */
+      local_create_info = *create_info;
+      local_create_info.flags &= ~VK_IMAGE_CREATE_ALIAS_BIT;
+      create_info = &local_create_info;
    }
 
    struct vn_image *img;
@@ -295,7 +265,7 @@ vn_QueuePresentKHR(VkQueue _queue, const VkPresentInfoKHR *pPresentInfo)
 {
    VN_TRACE_FUNC();
    struct vk_queue *queue_vk = vk_queue_from_handle(_queue);
-   struct vn_device *dev = (void *)queue_vk->base.device;
+   struct vn_device *dev = vn_device_from_vk(queue_vk->base.device);
 
    VkResult result = wsi_common_queue_present(
       &dev->physical_device->wsi_device, vn_device_to_handle(dev), _queue,
@@ -311,6 +281,39 @@ vn_QueuePresentKHR(VkQueue _queue, const VkPresentInfoKHR *pPresentInfo)
    }
 
    return vn_result(dev->instance, result);
+}
+
+static int
+vn_wsi_export_sync_file(struct vn_device *dev, struct vn_renderer_bo *bo)
+{
+   /* Don't keep trying an IOCTL that doesn't exist. */
+   static bool no_dma_buf_sync_file = false;
+   if (no_dma_buf_sync_file)
+      return -1;
+
+   /* For simplicity, export dma-buf here and rely on the dma-buf sync file
+    * export api. On legacy kernels without the new uapi, for the record, we
+    * do have the fallback option to track the wsi bo in the sync payload and
+    * do DRM_IOCTL_VIRTGPU_WAIT where we do sync_wait.
+    */
+   int dma_buf_fd = vn_renderer_bo_export_dma_buf(dev->renderer, bo);
+   if (dma_buf_fd < 0)
+      return -1;
+
+   struct dma_buf_export_sync_file export = {
+      .flags = DMA_BUF_SYNC_RW,
+      .fd = -1,
+   };
+   int ret = drmIoctl(dma_buf_fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &export);
+
+   close(dma_buf_fd);
+
+   if (ret && (errno == ENOTTY || errno == EBADF || errno == ENOSYS)) {
+      no_dma_buf_sync_file = true;
+      return -1;
+   }
+
+   return export.fd;
 }
 
 VkResult
@@ -330,17 +333,79 @@ vn_AcquireNextImage2KHR(VkDevice device,
              vk_Result_to_str(result));
    }
 
-   /* XXX this relies on implicit sync */
-   if (result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR) {
-      struct vn_semaphore *sem =
-         vn_semaphore_from_handle(pAcquireInfo->semaphore);
-      if (sem)
-         vn_semaphore_signal_wsi(dev, sem);
+   if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+      return vn_error(dev->instance, result);
 
-      struct vn_fence *fence = vn_fence_from_handle(pAcquireInfo->fence);
-      if (fence)
-         vn_fence_signal_wsi(dev, fence);
+   /* Extract compositor implicit fence and resolve on the driver side upon
+    * the acquire fence being submitted. Since we used to rely on renderer
+    * side drivers being able to handle implicit in-fence, here we only opt-in
+    * the new behavior for those known to be unable to handle it.
+    */
+   int sync_fd = -1;
+   if (dev->physical_device->renderer_driver_id ==
+       VK_DRIVER_ID_NVIDIA_PROPRIETARY) {
+      struct vn_image *wsi_img = vn_image_from_handle(
+         wsi_common_get_image(pAcquireInfo->swapchain, *pImageIndex));
+      assert(wsi_img->wsi.is_wsi);
+
+      struct vn_device_memory *wsi_mem = wsi_img->wsi.is_prime_blit_src
+                                            ? wsi_img->wsi.blit_mem
+                                            : wsi_img->wsi.memory;
+      if (wsi_mem)
+         sync_fd = vn_wsi_export_sync_file(dev, wsi_mem->base_bo);
    }
+
+   int sem_fd = -1, fence_fd = -1;
+   if (sync_fd >= 0) {
+      if (pAcquireInfo->semaphore != VK_NULL_HANDLE &&
+          pAcquireInfo->fence != VK_NULL_HANDLE) {
+         sem_fd = sync_fd;
+         fence_fd = dup(sync_fd);
+         if (fence_fd < 0) {
+            result = errno == EMFILE ? VK_ERROR_TOO_MANY_OBJECTS
+                                     : VK_ERROR_OUT_OF_HOST_MEMORY;
+            close(sync_fd);
+            return vn_error(dev->instance, result);
+         }
+      } else if (pAcquireInfo->semaphore != VK_NULL_HANDLE) {
+         sem_fd = sync_fd;
+      } else {
+         assert(pAcquireInfo->fence != VK_NULL_HANDLE);
+         fence_fd = sync_fd;
+      }
+   }
+
+   if (pAcquireInfo->semaphore != VK_NULL_HANDLE) {
+      /* venus waits on the driver side when this semaphore is submitted */
+      const VkImportSemaphoreFdInfoKHR info = {
+         .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
+         .semaphore = pAcquireInfo->semaphore,
+         .flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
+         .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
+         .fd = sem_fd,
+      };
+      result = vn_ImportSemaphoreFdKHR(device, &info);
+      if (result == VK_SUCCESS)
+         sem_fd = -1;
+   }
+
+   if (result == VK_SUCCESS && pAcquireInfo->fence != VK_NULL_HANDLE) {
+      const VkImportFenceFdInfoKHR info = {
+         .sType = VK_STRUCTURE_TYPE_IMPORT_FENCE_FD_INFO_KHR,
+         .fence = pAcquireInfo->fence,
+         .flags = VK_FENCE_IMPORT_TEMPORARY_BIT,
+         .handleType = VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT,
+         .fd = fence_fd,
+      };
+      result = vn_ImportFenceFdKHR(device, &info);
+      if (result == VK_SUCCESS)
+         fence_fd = -1;
+   }
+
+   if (sem_fd >= 0)
+      close(sem_fd);
+   if (fence_fd >= 0)
+      close(fence_fd);
 
    return vn_result(dev->instance, result);
 }

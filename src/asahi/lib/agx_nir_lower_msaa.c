@@ -27,7 +27,7 @@ lower_to_per_sample(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    case nir_intrinsic_load_local_pixel_agx:
    case nir_intrinsic_store_local_pixel_agx:
    case nir_intrinsic_store_zs_agx:
-   case nir_intrinsic_discard_agx:
+   case nir_intrinsic_demote_samples:
    case nir_intrinsic_sample_mask_agx: {
       /* Fragment I/O inside the loop should only affect active samples. */
       unsigned mask_index =
@@ -106,7 +106,7 @@ agx_nir_wrap_per_sample_loop(nir_shader *shader, uint8_t nr_samples)
    nir_pop_loop(&b, loop);
 
    /* We've mucked about with control flow */
-   nir_metadata_preserve(impl, nir_metadata_none);
+   nir_progress(true, impl, nir_metadata_none);
 
    /* Use the loop variable for the active sampple mask each iteration */
    nir_shader_intrinsics_pass(shader, lower_active_samples,
