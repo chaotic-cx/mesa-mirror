@@ -33,15 +33,10 @@ cc_library_static {
     vendor: true,
     host_supported: true,
     header_libs: [
-        "mesa_common_headers",
         "mesa_gfxstream_aemu_headers",
-    ],
-    shared_libs: [
-        "liblog",
     ],
     srcs: [
         "ring_buffer.cpp",
         "Stream.cpp",
-        "SubAllocator.cpp",
     ],
 }
