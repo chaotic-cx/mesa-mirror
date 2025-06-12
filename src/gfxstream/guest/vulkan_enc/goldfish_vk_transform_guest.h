@@ -3334,17 +3334,17 @@ void transform_fromhost_VkDeviceDeviceMemoryReportCreateInfoEXT(
 
 #endif
 #ifdef VK_EXT_robustness2
-void transform_tohost_VkPhysicalDeviceRobustness2FeaturesEXT(
-    ResourceTracker* resourceTracker, VkPhysicalDeviceRobustness2FeaturesEXT* toTransform);
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceRobustness2FeaturesKHR,
+                      transform_tohost_VkPhysicalDeviceRobustness2FeaturesEXT)
 
-void transform_fromhost_VkPhysicalDeviceRobustness2FeaturesEXT(
-    ResourceTracker* resourceTracker, VkPhysicalDeviceRobustness2FeaturesEXT* toTransform);
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkPhysicalDeviceRobustness2FeaturesKHR,
+                      transform_fromhost_VkPhysicalDeviceRobustness2FeaturesEXT)
 
-void transform_tohost_VkPhysicalDeviceRobustness2PropertiesEXT(
-    ResourceTracker* resourceTracker, VkPhysicalDeviceRobustness2PropertiesEXT* toTransform);
+DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceRobustness2PropertiesKHR,
+                      transform_tohost_VkPhysicalDeviceRobustness2PropertiesEXT)
 
-void transform_fromhost_VkPhysicalDeviceRobustness2PropertiesEXT(
-    ResourceTracker* resourceTracker, VkPhysicalDeviceRobustness2PropertiesEXT* toTransform);
+DEFINE_ALIAS_FUNCTION(transform_fromhost_VkPhysicalDeviceRobustness2PropertiesKHR,
+                      transform_fromhost_VkPhysicalDeviceRobustness2PropertiesEXT)
 
 #endif
 #ifdef VK_EXT_custom_border_color

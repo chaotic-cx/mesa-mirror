@@ -2074,13 +2074,11 @@ void reservedmarshal_VkDeviceDeviceMemoryReportCreateInfoEXT(
 
 #endif
 #ifdef VK_EXT_robustness2
-void reservedmarshal_VkPhysicalDeviceRobustness2FeaturesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2FeaturesEXT* forMarshaling, uint8_t** ptr);
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceRobustness2FeaturesKHR,
+                      reservedmarshal_VkPhysicalDeviceRobustness2FeaturesEXT)
 
-void reservedmarshal_VkPhysicalDeviceRobustness2PropertiesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2PropertiesEXT* forMarshaling, uint8_t** ptr);
+DEFINE_ALIAS_FUNCTION(reservedmarshal_VkPhysicalDeviceRobustness2PropertiesKHR,
+                      reservedmarshal_VkPhysicalDeviceRobustness2PropertiesEXT)
 
 #endif
 #ifdef VK_EXT_custom_border_color

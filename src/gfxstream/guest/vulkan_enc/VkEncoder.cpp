@@ -113,11 +113,11 @@ VkResult VkEncoder::vkCreateInstance(const VkInstanceCreateInfo* pCreateInfo,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateInstance = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateInstance);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateInstance = OP_vkCreateInstance;
     uint32_t seqno;
@@ -192,6 +192,7 @@ void VkEncoder::vkDestroyInstance(VkInstance instance, const VkAllocationCallbac
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -203,7 +204,6 @@ void VkEncoder::vkDestroyInstance(VkInstance instance, const VkAllocationCallbac
     uint32_t packetSize_vkDestroyInstance =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyInstance);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyInstance = OP_vkDestroyInstance;
     uint32_t seqno;
@@ -255,6 +255,7 @@ VkResult VkEncoder::vkEnumeratePhysicalDevices(VkInstance instance, uint32_t* pP
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -272,7 +273,6 @@ VkResult VkEncoder::vkEnumeratePhysicalDevices(VkInstance instance, uint32_t* pP
     uint32_t packetSize_vkEnumeratePhysicalDevices =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEnumeratePhysicalDevices);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEnumeratePhysicalDevices = OP_vkEnumeratePhysicalDevices;
     uint32_t seqno;
@@ -319,6 +319,7 @@ VkResult VkEncoder::vkEnumeratePhysicalDevices(VkInstance instance, uint32_t* pP
     /* is handle, possibly out */;
     // WARNING PTR CHECK
     uint32_t* check_pPhysicalDeviceCount;
+    (void)check_pPhysicalDeviceCount;
     check_pPhysicalDeviceCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPhysicalDeviceCount) {
         if (!(check_pPhysicalDeviceCount)) {
@@ -329,6 +330,7 @@ VkResult VkEncoder::vkEnumeratePhysicalDevices(VkInstance instance, uint32_t* pP
     stream->setHandleMapping(sResourceTracker->createMapping());
     // WARNING PTR CHECK
     VkPhysicalDevice* check_pPhysicalDevices;
+    (void)check_pPhysicalDevices;
     check_pPhysicalDevices = (VkPhysicalDevice*)(uintptr_t)stream->getBe64();
     if (pPhysicalDevices) {
         if (!(check_pPhysicalDevices)) {
@@ -368,6 +370,7 @@ void VkEncoder::vkGetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceFeatures(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkPhysicalDeviceFeatures*)(pFeatures), countPtr);
@@ -375,7 +378,6 @@ void VkEncoder::vkGetPhysicalDeviceFeatures(VkPhysicalDevice physicalDevice,
     uint32_t packetSize_vkGetPhysicalDeviceFeatures =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceFeatures);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceFeatures = OP_vkGetPhysicalDeviceFeatures;
     uint32_t seqno;
@@ -426,6 +428,7 @@ void VkEncoder::vkGetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDev
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFormat);
         count_VkFormatProperties(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -434,7 +437,6 @@ void VkEncoder::vkGetPhysicalDeviceFormatProperties(VkPhysicalDevice physicalDev
     uint32_t packetSize_vkGetPhysicalDeviceFormatProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceFormatProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceFormatProperties = OP_vkGetPhysicalDeviceFormatProperties;
     uint32_t seqno;
@@ -495,6 +497,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceImageFormatProperties(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFormat);
         *countPtr += sizeof(VkImageType);
@@ -507,7 +510,6 @@ VkResult VkEncoder::vkGetPhysicalDeviceImageFormatProperties(
     uint32_t packetSize_vkGetPhysicalDeviceImageFormatProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceImageFormatProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceImageFormatProperties =
         OP_vkGetPhysicalDeviceImageFormatProperties;
@@ -570,6 +572,7 @@ void VkEncoder::vkGetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceProperties(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                          (VkPhysicalDeviceProperties*)(pProperties), countPtr);
@@ -577,7 +580,6 @@ void VkEncoder::vkGetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
     uint32_t packetSize_vkGetPhysicalDeviceProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceProperties = OP_vkGetPhysicalDeviceProperties;
     uint32_t seqno;
@@ -627,6 +629,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -648,7 +651,6 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties(
     uint32_t packetSize_vkGetPhysicalDeviceQueueFamilyProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceQueueFamilyProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceQueueFamilyProperties =
         OP_vkGetPhysicalDeviceQueueFamilyProperties;
@@ -689,6 +691,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties(
     }
     // WARNING PTR CHECK
     uint32_t* check_pQueueFamilyPropertyCount;
+    (void)check_pQueueFamilyPropertyCount;
     check_pQueueFamilyPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pQueueFamilyPropertyCount) {
         if (!(check_pQueueFamilyPropertyCount)) {
@@ -699,6 +702,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties(
     }
     // WARNING PTR CHECK
     VkQueueFamilyProperties* check_pQueueFamilyProperties;
+    (void)check_pQueueFamilyProperties;
     check_pQueueFamilyProperties = (VkQueueFamilyProperties*)(uintptr_t)stream->getBe64();
     if (pQueueFamilyProperties) {
         if (!(check_pQueueFamilyProperties)) {
@@ -743,6 +747,7 @@ void VkEncoder::vkGetPhysicalDeviceMemoryProperties(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceMemoryProperties(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -751,7 +756,6 @@ void VkEncoder::vkGetPhysicalDeviceMemoryProperties(
     uint32_t packetSize_vkGetPhysicalDeviceMemoryProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceMemoryProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceMemoryProperties = OP_vkGetPhysicalDeviceMemoryProperties;
     uint32_t seqno;
@@ -802,13 +806,13 @@ PFN_vkVoidFunction VkEncoder::vkGetInstanceProcAddr(VkInstance instance, const c
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t) + (local_pName ? strlen(local_pName) : 0);
     }
     uint32_t packetSize_vkGetInstanceProcAddr =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetInstanceProcAddr);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetInstanceProcAddr = OP_vkGetInstanceProcAddr;
     uint32_t seqno;
@@ -861,13 +865,13 @@ PFN_vkVoidFunction VkEncoder::vkGetDeviceProcAddr(VkDevice device, const char* p
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t) + (local_pName ? strlen(local_pName) : 0);
     }
     uint32_t packetSize_vkGetDeviceProcAddr =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceProcAddr);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceProcAddr = OP_vkGetDeviceProcAddr;
     uint32_t seqno;
@@ -942,6 +946,7 @@ VkResult VkEncoder::vkCreateDevice(VkPhysicalDevice physicalDevice,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                  (VkDeviceCreateInfo*)(local_pCreateInfo), countPtr);
@@ -952,11 +957,11 @@ VkResult VkEncoder::vkCreateDevice(VkPhysicalDevice physicalDevice,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateDevice = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateDevice);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateDevice = OP_vkCreateDevice;
     uint32_t seqno;
@@ -1036,6 +1041,7 @@ void VkEncoder::vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pA
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -1046,7 +1052,6 @@ void VkEncoder::vkDestroyDevice(VkDevice device, const VkAllocationCallbacks* pA
     }
     uint32_t packetSize_vkDestroyDevice = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyDevice);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyDevice = OP_vkDestroyDevice;
     uint32_t seqno;
@@ -1128,7 +1133,6 @@ VkResult VkEncoder::vkEnumerateInstanceExtensionProperties(const char* pLayerNam
     uint32_t packetSize_vkEnumerateInstanceExtensionProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEnumerateInstanceExtensionProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEnumerateInstanceExtensionProperties =
         OP_vkEnumerateInstanceExtensionProperties;
@@ -1191,6 +1195,7 @@ VkResult VkEncoder::vkEnumerateInstanceExtensionProperties(const char* pLayerNam
     }
     // WARNING PTR CHECK
     uint32_t* check_pPropertyCount;
+    (void)check_pPropertyCount;
     check_pPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPropertyCount) {
         if (!(check_pPropertyCount)) {
@@ -1200,6 +1205,7 @@ VkResult VkEncoder::vkEnumerateInstanceExtensionProperties(const char* pLayerNam
     }
     // WARNING PTR CHECK
     VkExtensionProperties* check_pProperties;
+    (void)check_pProperties;
     check_pProperties = (VkExtensionProperties*)(uintptr_t)stream->getBe64();
     if (pProperties) {
         if (!(check_pProperties)) {
@@ -1251,6 +1257,7 @@ VkResult VkEncoder::vkEnumerateDeviceExtensionProperties(VkPhysicalDevice physic
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         if (sFeatureBits & VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT) {
             // WARNING PTR CHECK
@@ -1281,7 +1288,6 @@ VkResult VkEncoder::vkEnumerateDeviceExtensionProperties(VkPhysicalDevice physic
     uint32_t packetSize_vkEnumerateDeviceExtensionProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEnumerateDeviceExtensionProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEnumerateDeviceExtensionProperties = OP_vkEnumerateDeviceExtensionProperties;
     uint32_t seqno;
@@ -1347,6 +1353,7 @@ VkResult VkEncoder::vkEnumerateDeviceExtensionProperties(VkPhysicalDevice physic
     }
     // WARNING PTR CHECK
     uint32_t* check_pPropertyCount;
+    (void)check_pPropertyCount;
     check_pPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPropertyCount) {
         if (!(check_pPropertyCount)) {
@@ -1356,6 +1363,7 @@ VkResult VkEncoder::vkEnumerateDeviceExtensionProperties(VkPhysicalDevice physic
     }
     // WARNING PTR CHECK
     VkExtensionProperties* check_pProperties;
+    (void)check_pProperties;
     check_pProperties = (VkExtensionProperties*)(uintptr_t)stream->getBe64();
     if (pProperties) {
         if (!(check_pProperties)) {
@@ -1418,7 +1426,6 @@ VkResult VkEncoder::vkEnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
     uint32_t packetSize_vkEnumerateInstanceLayerProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEnumerateInstanceLayerProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEnumerateInstanceLayerProperties = OP_vkEnumerateInstanceLayerProperties;
     uint32_t seqno;
@@ -1453,6 +1460,7 @@ VkResult VkEncoder::vkEnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
     }
     // WARNING PTR CHECK
     uint32_t* check_pPropertyCount;
+    (void)check_pPropertyCount;
     check_pPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPropertyCount) {
         if (!(check_pPropertyCount)) {
@@ -1462,6 +1470,7 @@ VkResult VkEncoder::vkEnumerateInstanceLayerProperties(uint32_t* pPropertyCount,
     }
     // WARNING PTR CHECK
     VkLayerProperties* check_pProperties;
+    (void)check_pProperties;
     check_pProperties = (VkLayerProperties*)(uintptr_t)stream->getBe64();
     if (pProperties) {
         if (!(check_pProperties)) {
@@ -1509,6 +1518,7 @@ VkResult VkEncoder::vkEnumerateDeviceLayerProperties(VkPhysicalDevice physicalDe
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -1529,7 +1539,6 @@ VkResult VkEncoder::vkEnumerateDeviceLayerProperties(VkPhysicalDevice physicalDe
     uint32_t packetSize_vkEnumerateDeviceLayerProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEnumerateDeviceLayerProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEnumerateDeviceLayerProperties = OP_vkEnumerateDeviceLayerProperties;
     uint32_t seqno;
@@ -1568,6 +1577,7 @@ VkResult VkEncoder::vkEnumerateDeviceLayerProperties(VkPhysicalDevice physicalDe
     }
     // WARNING PTR CHECK
     uint32_t* check_pPropertyCount;
+    (void)check_pPropertyCount;
     check_pPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPropertyCount) {
         if (!(check_pPropertyCount)) {
@@ -1577,6 +1587,7 @@ VkResult VkEncoder::vkEnumerateDeviceLayerProperties(VkPhysicalDevice physicalDe
     }
     // WARNING PTR CHECK
     VkLayerProperties* check_pProperties;
+    (void)check_pProperties;
     check_pProperties = (VkLayerProperties*)(uintptr_t)stream->getBe64();
     if (pProperties) {
         if (!(check_pProperties)) {
@@ -1626,15 +1637,16 @@ void VkEncoder::vkGetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uin
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkGetDeviceQueue = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceQueue);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceQueue = OP_vkGetDeviceQueue;
     uint32_t seqno;
@@ -1707,6 +1719,7 @@ VkResult VkEncoder::vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkS
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((submitCount)); ++i) {
@@ -1714,11 +1727,11 @@ VkResult VkEncoder::vkQueueSubmit(VkQueue queue, uint32_t submitCount, const VkS
                                (VkSubmitInfo*)(local_pSubmits + i), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueSubmit = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueSubmit);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueSubmit = OP_vkQueueSubmit;
     uint32_t seqno;
@@ -1769,11 +1782,11 @@ VkResult VkEncoder::vkQueueWaitIdle(VkQueue queue, uint32_t doLock) {
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueWaitIdle = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueWaitIdle);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueWaitIdle = OP_vkQueueWaitIdle;
     uint32_t seqno;
@@ -1814,11 +1827,11 @@ VkResult VkEncoder::vkDeviceWaitIdle(VkDevice device, uint32_t doLock) {
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkDeviceWaitIdle = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDeviceWaitIdle);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDeviceWaitIdle = OP_vkDeviceWaitIdle;
     uint32_t seqno;
@@ -1885,6 +1898,7 @@ VkResult VkEncoder::vkAllocateMemory(VkDevice device, const VkMemoryAllocateInfo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkMemoryAllocateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                    (VkMemoryAllocateInfo*)(local_pAllocateInfo), countPtr);
@@ -1895,11 +1909,11 @@ VkResult VkEncoder::vkAllocateMemory(VkDevice device, const VkMemoryAllocateInfo
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkAllocateMemory = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkAllocateMemory);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkAllocateMemory = OP_vkAllocateMemory;
     uint32_t seqno;
@@ -1979,8 +1993,10 @@ void VkEncoder::vkFreeMemory(VkDevice device, VkDeviceMemory memory,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -1991,7 +2007,6 @@ void VkEncoder::vkFreeMemory(VkDevice device, VkDeviceMemory memory,
     }
     uint32_t packetSize_vkFreeMemory = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkFreeMemory);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkFreeMemory = OP_vkFreeMemory;
     uint32_t seqno;
@@ -2083,6 +2098,7 @@ VkResult VkEncoder::vkFlushMappedMemoryRanges(VkDevice device, uint32_t memoryRa
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((memoryRangeCount)); ++i) {
@@ -2093,7 +2109,6 @@ VkResult VkEncoder::vkFlushMappedMemoryRanges(VkDevice device, uint32_t memoryRa
     uint32_t packetSize_vkFlushMappedMemoryRanges =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkFlushMappedMemoryRanges);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkFlushMappedMemoryRanges = OP_vkFlushMappedMemoryRanges;
     uint32_t seqno;
@@ -2120,9 +2135,9 @@ VkResult VkEncoder::vkFlushMappedMemoryRanges(VkDevice device, uint32_t memoryRa
     if (!sResourceTracker->usingDirectMapping()) {
         for (uint32_t i = 0; i < memoryRangeCount; ++i) {
             auto range = pMemoryRanges[i];
-            auto memory = pMemoryRanges[i].memory;
-            auto size = pMemoryRanges[i].size;
-            auto offset = pMemoryRanges[i].offset;
+            auto memory = range.memory;
+            auto size = range.size;
+            auto offset = range.offset;
             uint64_t streamSize = 0;
             if (!memory) {
                 stream->write(&streamSize, sizeof(uint64_t));
@@ -2188,6 +2203,7 @@ VkResult VkEncoder::vkInvalidateMappedMemoryRanges(VkDevice device, uint32_t mem
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((memoryRangeCount)); ++i) {
@@ -2198,7 +2214,6 @@ VkResult VkEncoder::vkInvalidateMappedMemoryRanges(VkDevice device, uint32_t mem
     uint32_t packetSize_vkInvalidateMappedMemoryRanges =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkInvalidateMappedMemoryRanges);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkInvalidateMappedMemoryRanges = OP_vkInvalidateMappedMemoryRanges;
     uint32_t seqno;
@@ -2227,9 +2242,9 @@ VkResult VkEncoder::vkInvalidateMappedMemoryRanges(VkDevice device, uint32_t mem
     if (!sResourceTracker->usingDirectMapping()) {
         for (uint32_t i = 0; i < memoryRangeCount; ++i) {
             auto range = pMemoryRanges[i];
-            auto memory = pMemoryRanges[i].memory;
-            auto size = pMemoryRanges[i].size;
-            auto offset = pMemoryRanges[i].offset;
+            auto memory = range.memory;
+            auto size = range.size;
+            auto offset = range.offset;
             uint64_t streamSize = 0;
             if (!memory) {
                 stream->read(&streamSize, sizeof(uint64_t));
@@ -2277,15 +2292,16 @@ void VkEncoder::vkGetDeviceMemoryCommitment(VkDevice device, VkDeviceMemory memo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
     }
     uint32_t packetSize_vkGetDeviceMemoryCommitment =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceMemoryCommitment);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceMemoryCommitment = OP_vkGetDeviceMemoryCommitment;
     uint32_t seqno;
@@ -2340,17 +2356,19 @@ VkResult VkEncoder::vkBindBufferMemory(VkDevice device, VkBuffer buffer, VkDevic
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
     }
     uint32_t packetSize_vkBindBufferMemory =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkBindBufferMemory);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkBindBufferMemory = OP_vkBindBufferMemory;
     uint32_t seqno;
@@ -2411,17 +2429,19 @@ VkResult VkEncoder::vkBindImageMemory(VkDevice device, VkImage image, VkDeviceMe
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
     }
     uint32_t packetSize_vkBindImageMemory =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkBindImageMemory);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkBindImageMemory = OP_vkBindImageMemory;
     uint32_t seqno;
@@ -2476,8 +2496,10 @@ void VkEncoder::vkGetBufferMemoryRequirements(VkDevice device, VkBuffer buffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                    (VkMemoryRequirements*)(pMemoryRequirements), countPtr);
@@ -2485,7 +2507,6 @@ void VkEncoder::vkGetBufferMemoryRequirements(VkDevice device, VkBuffer buffer,
     uint32_t packetSize_vkGetBufferMemoryRequirements =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetBufferMemoryRequirements);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetBufferMemoryRequirements = OP_vkGetBufferMemoryRequirements;
     uint32_t seqno;
@@ -2540,8 +2561,10 @@ void VkEncoder::vkGetImageMemoryRequirements(VkDevice device, VkImage image,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                    (VkMemoryRequirements*)(pMemoryRequirements), countPtr);
@@ -2549,7 +2572,6 @@ void VkEncoder::vkGetImageMemoryRequirements(VkDevice device, VkImage image,
     uint32_t packetSize_vkGetImageMemoryRequirements =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageMemoryRequirements);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageMemoryRequirements = OP_vkGetImageMemoryRequirements;
     uint32_t seqno;
@@ -2604,8 +2626,10 @@ void VkEncoder::vkGetImageSparseMemoryRequirements(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -2628,7 +2652,6 @@ void VkEncoder::vkGetImageSparseMemoryRequirements(
     uint32_t packetSize_vkGetImageSparseMemoryRequirements =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageSparseMemoryRequirements);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageSparseMemoryRequirements = OP_vkGetImageSparseMemoryRequirements;
     uint32_t seqno;
@@ -2672,6 +2695,7 @@ void VkEncoder::vkGetImageSparseMemoryRequirements(
     }
     // WARNING PTR CHECK
     uint32_t* check_pSparseMemoryRequirementCount;
+    (void)check_pSparseMemoryRequirementCount;
     check_pSparseMemoryRequirementCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirementCount) {
         if (!(check_pSparseMemoryRequirementCount)) {
@@ -2682,6 +2706,7 @@ void VkEncoder::vkGetImageSparseMemoryRequirements(
     }
     // WARNING PTR CHECK
     VkSparseImageMemoryRequirements* check_pSparseMemoryRequirements;
+    (void)check_pSparseMemoryRequirements;
     check_pSparseMemoryRequirements =
         (VkSparseImageMemoryRequirements*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirements) {
@@ -2740,6 +2765,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFormat);
         *countPtr += sizeof(VkImageType);
@@ -2766,7 +2792,6 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties(
     uint32_t packetSize_vkGetPhysicalDeviceSparseImageFormatProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceSparseImageFormatProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceSparseImageFormatProperties =
         OP_vkGetPhysicalDeviceSparseImageFormatProperties;
@@ -2817,6 +2842,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties(
     }
     // WARNING PTR CHECK
     uint32_t* check_pPropertyCount;
+    (void)check_pPropertyCount;
     check_pPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPropertyCount) {
         if (!(check_pPropertyCount)) {
@@ -2826,6 +2852,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties(
     }
     // WARNING PTR CHECK
     VkSparseImageFormatProperties* check_pProperties;
+    (void)check_pProperties;
     check_pProperties = (VkSparseImageFormatProperties*)(uintptr_t)stream->getBe64();
     if (pProperties) {
         if (!(check_pProperties)) {
@@ -2890,6 +2917,7 @@ VkResult VkEncoder::vkQueueBindSparse(VkQueue queue, uint32_t bindInfoCount,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((bindInfoCount)); ++i) {
@@ -2897,12 +2925,12 @@ VkResult VkEncoder::vkQueueBindSparse(VkQueue queue, uint32_t bindInfoCount,
                                    (VkBindSparseInfo*)(local_pBindInfo + i), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueBindSparse =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueBindSparse);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueBindSparse = OP_vkQueueBindSparse;
     uint32_t seqno;
@@ -2978,6 +3006,7 @@ VkResult VkEncoder::vkCreateFence(VkDevice device, const VkFenceCreateInfo* pCre
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkFenceCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkFenceCreateInfo*)(local_pCreateInfo), countPtr);
@@ -2988,11 +3017,11 @@ VkResult VkEncoder::vkCreateFence(VkDevice device, const VkFenceCreateInfo* pCre
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateFence = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateFence);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateFence = OP_vkCreateFence;
     uint32_t seqno;
@@ -3071,8 +3100,10 @@ void VkEncoder::vkDestroyFence(VkDevice device, VkFence fence,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -3083,7 +3114,6 @@ void VkEncoder::vkDestroyFence(VkDevice device, VkFence fence,
     }
     uint32_t packetSize_vkDestroyFence = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyFence);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyFence = OP_vkDestroyFence;
     uint32_t seqno;
@@ -3143,6 +3173,7 @@ VkResult VkEncoder::vkResetFences(VkDevice device, uint32_t fenceCount, const Vk
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         if (((fenceCount))) {
@@ -3151,7 +3182,6 @@ VkResult VkEncoder::vkResetFences(VkDevice device, uint32_t fenceCount, const Vk
     }
     uint32_t packetSize_vkResetFences = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkResetFences);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkResetFences = OP_vkResetFences;
     uint32_t seqno;
@@ -3204,13 +3234,14 @@ VkResult VkEncoder::vkGetFenceStatus(VkDevice device, VkFence fence, uint32_t do
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkGetFenceStatus = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetFenceStatus);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetFenceStatus = OP_vkGetFenceStatus;
     uint32_t seqno;
@@ -3265,6 +3296,7 @@ VkResult VkEncoder::vkWaitForFences(VkDevice device, uint32_t fenceCount, const 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         if (((fenceCount))) {
@@ -3275,7 +3307,6 @@ VkResult VkEncoder::vkWaitForFences(VkDevice device, uint32_t fenceCount, const 
     }
     uint32_t packetSize_vkWaitForFences = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkWaitForFences);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkWaitForFences = OP_vkWaitForFences;
     uint32_t seqno;
@@ -3356,6 +3387,7 @@ VkResult VkEncoder::vkCreateSemaphore(VkDevice device, const VkSemaphoreCreateIn
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSemaphoreCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                     (VkSemaphoreCreateInfo*)(local_pCreateInfo), countPtr);
@@ -3366,12 +3398,12 @@ VkResult VkEncoder::vkCreateSemaphore(VkDevice device, const VkSemaphoreCreateIn
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateSemaphore =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateSemaphore);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateSemaphore = OP_vkCreateSemaphore;
     uint32_t seqno;
@@ -3451,8 +3483,10 @@ void VkEncoder::vkDestroySemaphore(VkDevice device, VkSemaphore semaphore,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -3464,7 +3498,6 @@ void VkEncoder::vkDestroySemaphore(VkDevice device, VkSemaphore semaphore,
     uint32_t packetSize_vkDestroySemaphore =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroySemaphore);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroySemaphore = OP_vkDestroySemaphore;
     uint32_t seqno;
@@ -3543,6 +3576,7 @@ VkResult VkEncoder::vkCreateEvent(VkDevice device, const VkEventCreateInfo* pCre
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkEventCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkEventCreateInfo*)(local_pCreateInfo), countPtr);
@@ -3553,11 +3587,11 @@ VkResult VkEncoder::vkCreateEvent(VkDevice device, const VkEventCreateInfo* pCre
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateEvent = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateEvent);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateEvent = OP_vkCreateEvent;
     uint32_t seqno;
@@ -3636,8 +3670,10 @@ void VkEncoder::vkDestroyEvent(VkDevice device, VkEvent event,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -3648,7 +3684,6 @@ void VkEncoder::vkDestroyEvent(VkDevice device, VkEvent event,
     }
     uint32_t packetSize_vkDestroyEvent = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyEvent);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyEvent = OP_vkDestroyEvent;
     uint32_t seqno;
@@ -3704,13 +3739,14 @@ VkResult VkEncoder::vkGetEventStatus(VkDevice device, VkEvent event, uint32_t do
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkGetEventStatus = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetEventStatus);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetEventStatus = OP_vkGetEventStatus;
     uint32_t seqno;
@@ -3757,13 +3793,14 @@ VkResult VkEncoder::vkSetEvent(VkDevice device, VkEvent event, uint32_t doLock) 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkSetEvent = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkSetEvent);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkSetEvent = OP_vkSetEvent;
     uint32_t seqno;
@@ -3810,13 +3847,14 @@ VkResult VkEncoder::vkResetEvent(VkDevice device, VkEvent event, uint32_t doLock
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkResetEvent = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkResetEvent);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkResetEvent = OP_vkResetEvent;
     uint32_t seqno;
@@ -3887,6 +3925,7 @@ VkResult VkEncoder::vkCreateQueryPool(VkDevice device, const VkQueryPoolCreateIn
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkQueryPoolCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                     (VkQueryPoolCreateInfo*)(local_pCreateInfo), countPtr);
@@ -3897,12 +3936,12 @@ VkResult VkEncoder::vkCreateQueryPool(VkDevice device, const VkQueryPoolCreateIn
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateQueryPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateQueryPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateQueryPool = OP_vkCreateQueryPool;
     uint32_t seqno;
@@ -3982,8 +4021,10 @@ void VkEncoder::vkDestroyQueryPool(VkDevice device, VkQueryPool queryPool,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -3995,7 +4036,6 @@ void VkEncoder::vkDestroyQueryPool(VkDevice device, VkQueryPool queryPool,
     uint32_t packetSize_vkDestroyQueryPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyQueryPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyQueryPool = OP_vkDestroyQueryPool;
     uint32_t seqno;
@@ -4064,8 +4104,10 @@ VkResult VkEncoder::vkGetQueryPoolResults(VkDevice device, VkQueryPool queryPool
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -4077,7 +4119,6 @@ VkResult VkEncoder::vkGetQueryPoolResults(VkDevice device, VkQueryPool queryPool
     uint32_t packetSize_vkGetQueryPoolResults =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetQueryPoolResults);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetQueryPoolResults = OP_vkGetQueryPoolResults;
     uint32_t seqno;
@@ -4162,6 +4203,7 @@ VkResult VkEncoder::vkCreateBuffer(VkDevice device, const VkBufferCreateInfo* pC
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                  (VkBufferCreateInfo*)(local_pCreateInfo), countPtr);
@@ -4172,11 +4214,11 @@ VkResult VkEncoder::vkCreateBuffer(VkDevice device, const VkBufferCreateInfo* pC
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateBuffer = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateBuffer = OP_vkCreateBuffer;
     uint32_t seqno;
@@ -4255,8 +4297,10 @@ void VkEncoder::vkDestroyBuffer(VkDevice device, VkBuffer buffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -4267,7 +4311,6 @@ void VkEncoder::vkDestroyBuffer(VkDevice device, VkBuffer buffer,
     }
     uint32_t packetSize_vkDestroyBuffer = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyBuffer = OP_vkDestroyBuffer;
     uint32_t seqno;
@@ -4347,6 +4390,7 @@ VkResult VkEncoder::vkCreateBufferView(VkDevice device, const VkBufferViewCreate
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferViewCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                      (VkBufferViewCreateInfo*)(local_pCreateInfo), countPtr);
@@ -4357,12 +4401,12 @@ VkResult VkEncoder::vkCreateBufferView(VkDevice device, const VkBufferViewCreate
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateBufferView =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateBufferView);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateBufferView = OP_vkCreateBufferView;
     uint32_t seqno;
@@ -4442,8 +4486,10 @@ void VkEncoder::vkDestroyBufferView(VkDevice device, VkBufferView bufferView,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -4455,7 +4501,6 @@ void VkEncoder::vkDestroyBufferView(VkDevice device, VkBufferView bufferView,
     uint32_t packetSize_vkDestroyBufferView =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyBufferView);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyBufferView = OP_vkDestroyBufferView;
     uint32_t seqno;
@@ -4536,6 +4581,7 @@ VkResult VkEncoder::vkCreateImage(VkDevice device, const VkImageCreateInfo* pCre
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImageCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkImageCreateInfo*)(local_pCreateInfo), countPtr);
@@ -4546,11 +4592,11 @@ VkResult VkEncoder::vkCreateImage(VkDevice device, const VkImageCreateInfo* pCre
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateImage = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateImage = OP_vkCreateImage;
     uint32_t seqno;
@@ -4629,8 +4675,10 @@ void VkEncoder::vkDestroyImage(VkDevice device, VkImage image,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -4641,7 +4689,6 @@ void VkEncoder::vkDestroyImage(VkDevice device, VkImage image,
     }
     uint32_t packetSize_vkDestroyImage = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyImage = OP_vkDestroyImage;
     uint32_t seqno;
@@ -4710,8 +4757,10 @@ void VkEncoder::vkGetImageSubresourceLayout(VkDevice device, VkImage image,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkImageSubresource(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                  (VkImageSubresource*)(local_pSubresource), countPtr);
@@ -4721,7 +4770,6 @@ void VkEncoder::vkGetImageSubresourceLayout(VkDevice device, VkImage image,
     uint32_t packetSize_vkGetImageSubresourceLayout =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageSubresourceLayout);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageSubresourceLayout = OP_vkGetImageSubresourceLayout;
     uint32_t seqno;
@@ -4798,6 +4846,7 @@ VkResult VkEncoder::vkCreateImageView(VkDevice device, const VkImageViewCreateIn
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImageViewCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                     (VkImageViewCreateInfo*)(local_pCreateInfo), countPtr);
@@ -4808,12 +4857,12 @@ VkResult VkEncoder::vkCreateImageView(VkDevice device, const VkImageViewCreateIn
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateImageView =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateImageView);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateImageView = OP_vkCreateImageView;
     uint32_t seqno;
@@ -4893,8 +4942,10 @@ void VkEncoder::vkDestroyImageView(VkDevice device, VkImageView imageView,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -4906,7 +4957,6 @@ void VkEncoder::vkDestroyImageView(VkDevice device, VkImageView imageView,
     uint32_t packetSize_vkDestroyImageView =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyImageView);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyImageView = OP_vkDestroyImageView;
     uint32_t seqno;
@@ -4987,6 +5037,7 @@ VkResult VkEncoder::vkCreateShaderModule(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkShaderModuleCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkShaderModuleCreateInfo*)(local_pCreateInfo), countPtr);
@@ -4997,12 +5048,12 @@ VkResult VkEncoder::vkCreateShaderModule(VkDevice device,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateShaderModule =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateShaderModule);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateShaderModule = OP_vkCreateShaderModule;
     uint32_t seqno;
@@ -5083,8 +5134,10 @@ void VkEncoder::vkDestroyShaderModule(VkDevice device, VkShaderModule shaderModu
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -5096,7 +5149,6 @@ void VkEncoder::vkDestroyShaderModule(VkDevice device, VkShaderModule shaderModu
     uint32_t packetSize_vkDestroyShaderModule =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyShaderModule);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyShaderModule = OP_vkDestroyShaderModule;
     uint32_t seqno;
@@ -5177,6 +5229,7 @@ VkResult VkEncoder::vkCreatePipelineCache(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPipelineCacheCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                         (VkPipelineCacheCreateInfo*)(local_pCreateInfo), countPtr);
@@ -5187,12 +5240,12 @@ VkResult VkEncoder::vkCreatePipelineCache(VkDevice device,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreatePipelineCache =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreatePipelineCache);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreatePipelineCache = OP_vkCreatePipelineCache;
     uint32_t seqno;
@@ -5273,8 +5326,10 @@ void VkEncoder::vkDestroyPipelineCache(VkDevice device, VkPipelineCache pipeline
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -5286,7 +5341,6 @@ void VkEncoder::vkDestroyPipelineCache(VkDevice device, VkPipelineCache pipeline
     uint32_t packetSize_vkDestroyPipelineCache =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyPipelineCache);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyPipelineCache = OP_vkDestroyPipelineCache;
     uint32_t seqno;
@@ -5344,8 +5398,10 @@ VkResult VkEncoder::vkGetPipelineCacheData(VkDevice device, VkPipelineCache pipe
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -5363,7 +5419,6 @@ VkResult VkEncoder::vkGetPipelineCacheData(VkDevice device, VkPipelineCache pipe
     uint32_t packetSize_vkGetPipelineCacheData =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPipelineCacheData);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPipelineCacheData = OP_vkGetPipelineCacheData;
     uint32_t seqno;
@@ -5406,6 +5461,7 @@ VkResult VkEncoder::vkGetPipelineCacheData(VkDevice device, VkPipelineCache pipe
     }
     // WARNING PTR CHECK
     size_t* check_pDataSize;
+    (void)check_pDataSize;
     check_pDataSize = (size_t*)(uintptr_t)stream->getBe64();
     if (pDataSize) {
         if (!(check_pDataSize)) {
@@ -5415,6 +5471,7 @@ VkResult VkEncoder::vkGetPipelineCacheData(VkDevice device, VkPipelineCache pipe
     }
     // WARNING PTR CHECK
     void* check_pData;
+    (void)check_pData;
     check_pData = (void*)(uintptr_t)stream->getBe64();
     if (pData) {
         if (!(check_pData)) {
@@ -5455,8 +5512,10 @@ VkResult VkEncoder::vkMergePipelineCaches(VkDevice device, VkPipelineCache dstCa
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         if (((srcCacheCount))) {
@@ -5466,7 +5525,6 @@ VkResult VkEncoder::vkMergePipelineCaches(VkDevice device, VkPipelineCache dstCa
     uint32_t packetSize_vkMergePipelineCaches =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkMergePipelineCaches);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkMergePipelineCaches = OP_vkMergePipelineCaches;
     uint32_t seqno;
@@ -5558,8 +5616,10 @@ VkResult VkEncoder::vkCreateGraphicsPipelines(VkDevice device, VkPipelineCache p
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((createInfoCount)); ++i) {
@@ -5580,7 +5640,6 @@ VkResult VkEncoder::vkCreateGraphicsPipelines(VkDevice device, VkPipelineCache p
     uint32_t packetSize_vkCreateGraphicsPipelines =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateGraphicsPipelines);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateGraphicsPipelines = OP_vkCreateGraphicsPipelines;
     uint32_t seqno;
@@ -5698,8 +5757,10 @@ VkResult VkEncoder::vkCreateComputePipelines(VkDevice device, VkPipelineCache pi
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((createInfoCount)); ++i) {
@@ -5720,7 +5781,6 @@ VkResult VkEncoder::vkCreateComputePipelines(VkDevice device, VkPipelineCache pi
     uint32_t packetSize_vkCreateComputePipelines =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateComputePipelines);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateComputePipelines = OP_vkCreateComputePipelines;
     uint32_t seqno;
@@ -5816,8 +5876,10 @@ void VkEncoder::vkDestroyPipeline(VkDevice device, VkPipeline pipeline,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -5829,7 +5891,6 @@ void VkEncoder::vkDestroyPipeline(VkDevice device, VkPipeline pipeline,
     uint32_t packetSize_vkDestroyPipeline =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyPipeline);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyPipeline = OP_vkDestroyPipeline;
     uint32_t seqno;
@@ -5910,6 +5971,7 @@ VkResult VkEncoder::vkCreatePipelineLayout(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPipelineLayoutCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                          (VkPipelineLayoutCreateInfo*)(local_pCreateInfo),
@@ -5921,12 +5983,12 @@ VkResult VkEncoder::vkCreatePipelineLayout(VkDevice device,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreatePipelineLayout =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreatePipelineLayout);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreatePipelineLayout = OP_vkCreatePipelineLayout;
     uint32_t seqno;
@@ -6007,8 +6069,10 @@ void VkEncoder::vkDestroyPipelineLayout(VkDevice device, VkPipelineLayout pipeli
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -6020,7 +6084,6 @@ void VkEncoder::vkDestroyPipelineLayout(VkDevice device, VkPipelineLayout pipeli
     uint32_t packetSize_vkDestroyPipelineLayout =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyPipelineLayout);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyPipelineLayout = OP_vkDestroyPipelineLayout;
     uint32_t seqno;
@@ -6100,6 +6163,7 @@ VkResult VkEncoder::vkCreateSampler(VkDevice device, const VkSamplerCreateInfo* 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSamplerCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkSamplerCreateInfo*)(local_pCreateInfo), countPtr);
@@ -6110,11 +6174,11 @@ VkResult VkEncoder::vkCreateSampler(VkDevice device, const VkSamplerCreateInfo* 
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateSampler = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateSampler);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateSampler = OP_vkCreateSampler;
     uint32_t seqno;
@@ -6193,8 +6257,10 @@ void VkEncoder::vkDestroySampler(VkDevice device, VkSampler sampler,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -6205,7 +6271,6 @@ void VkEncoder::vkDestroySampler(VkDevice device, VkSampler sampler,
     }
     uint32_t packetSize_vkDestroySampler = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroySampler);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroySampler = OP_vkDestroySampler;
     uint32_t seqno;
@@ -6288,6 +6353,7 @@ VkResult VkEncoder::vkCreateDescriptorSetLayout(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDescriptorSetLayoutCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkDescriptorSetLayoutCreateInfo*)(local_pCreateInfo),
@@ -6299,12 +6365,12 @@ VkResult VkEncoder::vkCreateDescriptorSetLayout(VkDevice device,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateDescriptorSetLayout =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateDescriptorSetLayout);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateDescriptorSetLayout = OP_vkCreateDescriptorSetLayout;
     uint32_t seqno;
@@ -6387,8 +6453,10 @@ void VkEncoder::vkDestroyDescriptorSetLayout(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -6400,7 +6468,6 @@ void VkEncoder::vkDestroyDescriptorSetLayout(VkDevice device,
     uint32_t packetSize_vkDestroyDescriptorSetLayout =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyDescriptorSetLayout);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyDescriptorSetLayout = OP_vkDestroyDescriptorSetLayout;
     uint32_t seqno;
@@ -6482,6 +6549,7 @@ VkResult VkEncoder::vkCreateDescriptorPool(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDescriptorPoolCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                          (VkDescriptorPoolCreateInfo*)(local_pCreateInfo),
@@ -6493,12 +6561,12 @@ VkResult VkEncoder::vkCreateDescriptorPool(VkDevice device,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateDescriptorPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateDescriptorPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateDescriptorPool = OP_vkCreateDescriptorPool;
     uint32_t seqno;
@@ -6579,8 +6647,10 @@ void VkEncoder::vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descri
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -6592,7 +6662,6 @@ void VkEncoder::vkDestroyDescriptorPool(VkDevice device, VkDescriptorPool descri
     uint32_t packetSize_vkDestroyDescriptorPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyDescriptorPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyDescriptorPool = OP_vkDestroyDescriptorPool;
     uint32_t seqno;
@@ -6652,15 +6721,16 @@ VkResult VkEncoder::vkResetDescriptorPool(VkDevice device, VkDescriptorPool desc
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDescriptorPoolResetFlags);
     }
     uint32_t packetSize_vkResetDescriptorPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkResetDescriptorPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkResetDescriptorPool = OP_vkResetDescriptorPool;
     uint32_t seqno;
@@ -6722,6 +6792,7 @@ VkResult VkEncoder::vkAllocateDescriptorSets(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDescriptorSetAllocateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                           (VkDescriptorSetAllocateInfo*)(local_pAllocateInfo),
@@ -6733,7 +6804,6 @@ VkResult VkEncoder::vkAllocateDescriptorSets(VkDevice device,
     uint32_t packetSize_vkAllocateDescriptorSets =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkAllocateDescriptorSets);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkAllocateDescriptorSets = OP_vkAllocateDescriptorSets;
     uint32_t seqno;
@@ -6805,8 +6875,10 @@ VkResult VkEncoder::vkFreeDescriptorSets(VkDevice device, VkDescriptorPool descr
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         // WARNING PTR CHECK
@@ -6820,7 +6892,6 @@ VkResult VkEncoder::vkFreeDescriptorSets(VkDevice device, VkDescriptorPool descr
     uint32_t packetSize_vkFreeDescriptorSets =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkFreeDescriptorSets);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkFreeDescriptorSets = OP_vkFreeDescriptorSets;
     uint32_t seqno;
@@ -6926,6 +6997,7 @@ void VkEncoder::vkUpdateDescriptorSets(VkDevice device, uint32_t descriptorWrite
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((descriptorWriteCount)); ++i) {
@@ -6943,7 +7015,6 @@ void VkEncoder::vkUpdateDescriptorSets(VkDevice device, uint32_t descriptorWrite
     uint32_t packetSize_vkUpdateDescriptorSets =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkUpdateDescriptorSets);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkUpdateDescriptorSets = OP_vkUpdateDescriptorSets;
     uint32_t seqno;
@@ -7022,6 +7093,7 @@ VkResult VkEncoder::vkCreateFramebuffer(VkDevice device, const VkFramebufferCrea
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkFramebufferCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkFramebufferCreateInfo*)(local_pCreateInfo), countPtr);
@@ -7032,12 +7104,12 @@ VkResult VkEncoder::vkCreateFramebuffer(VkDevice device, const VkFramebufferCrea
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateFramebuffer =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateFramebuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateFramebuffer = OP_vkCreateFramebuffer;
     uint32_t seqno;
@@ -7118,8 +7190,10 @@ void VkEncoder::vkDestroyFramebuffer(VkDevice device, VkFramebuffer framebuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -7131,7 +7205,6 @@ void VkEncoder::vkDestroyFramebuffer(VkDevice device, VkFramebuffer framebuffer,
     uint32_t packetSize_vkDestroyFramebuffer =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyFramebuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyFramebuffer = OP_vkDestroyFramebuffer;
     uint32_t seqno;
@@ -7211,6 +7284,7 @@ VkResult VkEncoder::vkCreateRenderPass(VkDevice device, const VkRenderPassCreate
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderPassCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                      (VkRenderPassCreateInfo*)(local_pCreateInfo), countPtr);
@@ -7221,12 +7295,12 @@ VkResult VkEncoder::vkCreateRenderPass(VkDevice device, const VkRenderPassCreate
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateRenderPass =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateRenderPass);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateRenderPass = OP_vkCreateRenderPass;
     uint32_t seqno;
@@ -7307,8 +7381,10 @@ void VkEncoder::vkDestroyRenderPass(VkDevice device, VkRenderPass renderPass,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -7320,7 +7396,6 @@ void VkEncoder::vkDestroyRenderPass(VkDevice device, VkRenderPass renderPass,
     uint32_t packetSize_vkDestroyRenderPass =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyRenderPass);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyRenderPass = OP_vkDestroyRenderPass;
     uint32_t seqno;
@@ -7377,8 +7452,10 @@ void VkEncoder::vkGetRenderAreaGranularity(VkDevice device, VkRenderPass renderP
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkExtent2D(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM, (VkExtent2D*)(pGranularity),
                          countPtr);
@@ -7386,7 +7463,6 @@ void VkEncoder::vkGetRenderAreaGranularity(VkDevice device, VkRenderPass renderP
     uint32_t packetSize_vkGetRenderAreaGranularity =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetRenderAreaGranularity);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetRenderAreaGranularity = OP_vkGetRenderAreaGranularity;
     uint32_t seqno;
@@ -7460,6 +7536,7 @@ VkResult VkEncoder::vkCreateCommandPool(VkDevice device, const VkCommandPoolCrea
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCommandPoolCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkCommandPoolCreateInfo*)(local_pCreateInfo), countPtr);
@@ -7470,12 +7547,12 @@ VkResult VkEncoder::vkCreateCommandPool(VkDevice device, const VkCommandPoolCrea
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateCommandPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateCommandPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateCommandPool = OP_vkCreateCommandPool;
     uint32_t seqno;
@@ -7556,8 +7633,10 @@ void VkEncoder::vkDestroyCommandPool(VkDevice device, VkCommandPool commandPool,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -7569,7 +7648,6 @@ void VkEncoder::vkDestroyCommandPool(VkDevice device, VkCommandPool commandPool,
     uint32_t packetSize_vkDestroyCommandPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyCommandPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyCommandPool = OP_vkDestroyCommandPool;
     uint32_t seqno;
@@ -7628,15 +7706,16 @@ VkResult VkEncoder::vkResetCommandPool(VkDevice device, VkCommandPool commandPoo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCommandPoolResetFlags);
     }
     uint32_t packetSize_vkResetCommandPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkResetCommandPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkResetCommandPool = OP_vkResetCommandPool;
     uint32_t seqno;
@@ -7697,6 +7776,7 @@ VkResult VkEncoder::vkAllocateCommandBuffers(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCommandBufferAllocateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                           (VkCommandBufferAllocateInfo*)(local_pAllocateInfo),
@@ -7708,7 +7788,6 @@ VkResult VkEncoder::vkAllocateCommandBuffers(VkDevice device,
     uint32_t packetSize_vkAllocateCommandBuffers =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkAllocateCommandBuffers);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkAllocateCommandBuffers = OP_vkAllocateCommandBuffers;
     uint32_t seqno;
@@ -7780,8 +7859,10 @@ void VkEncoder::vkFreeCommandBuffers(VkDevice device, VkCommandPool commandPool,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         // WARNING PTR CHECK
@@ -7795,7 +7876,6 @@ void VkEncoder::vkFreeCommandBuffers(VkDevice device, VkCommandPool commandPool,
     uint32_t packetSize_vkFreeCommandBuffers =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkFreeCommandBuffers);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkFreeCommandBuffers = OP_vkFreeCommandBuffers;
     uint32_t seqno;
@@ -7873,6 +7953,7 @@ VkResult VkEncoder::vkBeginCommandBuffer(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCommandBufferBeginInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkCommandBufferBeginInfo*)(local_pBeginInfo), countPtr);
@@ -7880,7 +7961,6 @@ VkResult VkEncoder::vkBeginCommandBuffer(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkBeginCommandBuffer = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkBeginCommandBuffer -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkBeginCommandBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkBeginCommandBuffer = OP_vkBeginCommandBuffer;
     memcpy(streamPtr, &opcode_vkBeginCommandBuffer, sizeof(uint32_t));
@@ -7920,12 +8000,12 @@ VkResult VkEncoder::vkEndCommandBuffer(VkCommandBuffer commandBuffer, uint32_t d
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkEndCommandBuffer = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkEndCommandBuffer -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEndCommandBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEndCommandBuffer = OP_vkEndCommandBuffer;
     memcpy(streamPtr, &opcode_vkEndCommandBuffer, sizeof(uint32_t));
@@ -7965,13 +8045,13 @@ VkResult VkEncoder::vkResetCommandBuffer(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCommandBufferResetFlags);
     }
     uint32_t packetSize_vkResetCommandBuffer = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkResetCommandBuffer -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkResetCommandBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkResetCommandBuffer = OP_vkResetCommandBuffer;
     memcpy(streamPtr, &opcode_vkResetCommandBuffer, sizeof(uint32_t));
@@ -8017,15 +8097,16 @@ void VkEncoder::vkCmdBindPipeline(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineBindPoint);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkCmdBindPipeline = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindPipeline -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindPipeline);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindPipeline = OP_vkCmdBindPipeline;
     memcpy(streamPtr, &opcode_vkCmdBindPipeline, sizeof(uint32_t));
@@ -8086,6 +8167,7 @@ void VkEncoder::vkCmdSetViewport(VkCommandBuffer commandBuffer, uint32_t firstVi
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -8097,7 +8179,6 @@ void VkEncoder::vkCmdSetViewport(VkCommandBuffer commandBuffer, uint32_t firstVi
     uint32_t packetSize_vkCmdSetViewport = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetViewport -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetViewport);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetViewport = OP_vkCmdSetViewport;
     memcpy(streamPtr, &opcode_vkCmdSetViewport, sizeof(uint32_t));
@@ -8158,6 +8239,7 @@ void VkEncoder::vkCmdSetScissor(VkCommandBuffer commandBuffer, uint32_t firstSci
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -8169,7 +8251,6 @@ void VkEncoder::vkCmdSetScissor(VkCommandBuffer commandBuffer, uint32_t firstSci
     uint32_t packetSize_vkCmdSetScissor = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetScissor -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetScissor);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetScissor = OP_vkCmdSetScissor;
     memcpy(streamPtr, &opcode_vkCmdSetScissor, sizeof(uint32_t));
@@ -8213,13 +8294,13 @@ void VkEncoder::vkCmdSetLineWidth(VkCommandBuffer commandBuffer, float lineWidth
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(float);
     }
     uint32_t packetSize_vkCmdSetLineWidth = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetLineWidth -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetLineWidth);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetLineWidth = OP_vkCmdSetLineWidth;
     memcpy(streamPtr, &opcode_vkCmdSetLineWidth, sizeof(uint32_t));
@@ -8263,6 +8344,7 @@ void VkEncoder::vkCmdSetDepthBias(VkCommandBuffer commandBuffer, float depthBias
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(float);
         *countPtr += sizeof(float);
@@ -8271,7 +8353,6 @@ void VkEncoder::vkCmdSetDepthBias(VkCommandBuffer commandBuffer, float depthBias
     uint32_t packetSize_vkCmdSetDepthBias = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthBias -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthBias);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthBias = OP_vkCmdSetDepthBias;
     memcpy(streamPtr, &opcode_vkCmdSetDepthBias, sizeof(uint32_t));
@@ -8314,13 +8395,13 @@ void VkEncoder::vkCmdSetBlendConstants(VkCommandBuffer commandBuffer, const floa
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += 4 * sizeof(float);
     }
     uint32_t packetSize_vkCmdSetBlendConstants = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetBlendConstants -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetBlendConstants);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetBlendConstants = OP_vkCmdSetBlendConstants;
     memcpy(streamPtr, &opcode_vkCmdSetBlendConstants, sizeof(uint32_t));
@@ -8361,6 +8442,7 @@ void VkEncoder::vkCmdSetDepthBounds(VkCommandBuffer commandBuffer, float minDept
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(float);
         *countPtr += sizeof(float);
@@ -8368,7 +8450,6 @@ void VkEncoder::vkCmdSetDepthBounds(VkCommandBuffer commandBuffer, float minDept
     uint32_t packetSize_vkCmdSetDepthBounds = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthBounds -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthBounds);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthBounds = OP_vkCmdSetDepthBounds;
     memcpy(streamPtr, &opcode_vkCmdSetDepthBounds, sizeof(uint32_t));
@@ -8412,6 +8493,7 @@ void VkEncoder::vkCmdSetStencilCompareMask(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkStencilFaceFlags);
         *countPtr += sizeof(uint32_t);
@@ -8419,7 +8501,6 @@ void VkEncoder::vkCmdSetStencilCompareMask(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdSetStencilCompareMask = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetStencilCompareMask -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetStencilCompareMask);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetStencilCompareMask = OP_vkCmdSetStencilCompareMask;
     memcpy(streamPtr, &opcode_vkCmdSetStencilCompareMask, sizeof(uint32_t));
@@ -8462,6 +8543,7 @@ void VkEncoder::vkCmdSetStencilWriteMask(VkCommandBuffer commandBuffer, VkStenci
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkStencilFaceFlags);
         *countPtr += sizeof(uint32_t);
@@ -8469,7 +8551,6 @@ void VkEncoder::vkCmdSetStencilWriteMask(VkCommandBuffer commandBuffer, VkStenci
     uint32_t packetSize_vkCmdSetStencilWriteMask = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetStencilWriteMask -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetStencilWriteMask);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetStencilWriteMask = OP_vkCmdSetStencilWriteMask;
     memcpy(streamPtr, &opcode_vkCmdSetStencilWriteMask, sizeof(uint32_t));
@@ -8512,6 +8593,7 @@ void VkEncoder::vkCmdSetStencilReference(VkCommandBuffer commandBuffer, VkStenci
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkStencilFaceFlags);
         *countPtr += sizeof(uint32_t);
@@ -8519,7 +8601,6 @@ void VkEncoder::vkCmdSetStencilReference(VkCommandBuffer commandBuffer, VkStenci
     uint32_t packetSize_vkCmdSetStencilReference = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetStencilReference -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetStencilReference);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetStencilReference = OP_vkCmdSetStencilReference;
     memcpy(streamPtr, &opcode_vkCmdSetStencilReference, sizeof(uint32_t));
@@ -8576,9 +8657,11 @@ void VkEncoder::vkCmdBindDescriptorSets(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineBindPoint);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -8591,7 +8674,6 @@ void VkEncoder::vkCmdBindDescriptorSets(
     uint32_t packetSize_vkCmdBindDescriptorSets = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindDescriptorSets -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindDescriptorSets);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindDescriptorSets = OP_vkCmdBindDescriptorSets;
     memcpy(streamPtr, &opcode_vkCmdBindDescriptorSets, sizeof(uint32_t));
@@ -8656,8 +8738,10 @@ void VkEncoder::vkCmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buf
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(VkIndexType);
@@ -8665,7 +8749,6 @@ void VkEncoder::vkCmdBindIndexBuffer(VkCommandBuffer commandBuffer, VkBuffer buf
     uint32_t packetSize_vkCmdBindIndexBuffer = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindIndexBuffer -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindIndexBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindIndexBuffer = OP_vkCmdBindIndexBuffer;
     memcpy(streamPtr, &opcode_vkCmdBindIndexBuffer, sizeof(uint32_t));
@@ -8719,6 +8802,7 @@ void VkEncoder::vkCmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t f
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -8730,7 +8814,6 @@ void VkEncoder::vkCmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t f
     uint32_t packetSize_vkCmdBindVertexBuffers = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindVertexBuffers -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindVertexBuffers);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindVertexBuffers = OP_vkCmdBindVertexBuffers;
     memcpy(streamPtr, &opcode_vkCmdBindVertexBuffers, sizeof(uint32_t));
@@ -8788,6 +8871,7 @@ void VkEncoder::vkCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -8797,7 +8881,6 @@ void VkEncoder::vkCmdDraw(VkCommandBuffer commandBuffer, uint32_t vertexCount,
     uint32_t packetSize_vkCmdDraw = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDraw -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDraw);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDraw = OP_vkCmdDraw;
     memcpy(streamPtr, &opcode_vkCmdDraw, sizeof(uint32_t));
@@ -8851,6 +8934,7 @@ void VkEncoder::vkCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -8861,7 +8945,6 @@ void VkEncoder::vkCmdDrawIndexed(VkCommandBuffer commandBuffer, uint32_t indexCo
     uint32_t packetSize_vkCmdDrawIndexed = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDrawIndexed -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDrawIndexed);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDrawIndexed = OP_vkCmdDrawIndexed;
     memcpy(streamPtr, &opcode_vkCmdDrawIndexed, sizeof(uint32_t));
@@ -8915,8 +8998,10 @@ void VkEncoder::vkCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(uint32_t);
@@ -8925,7 +9010,6 @@ void VkEncoder::vkCmdDrawIndirect(VkCommandBuffer commandBuffer, VkBuffer buffer
     uint32_t packetSize_vkCmdDrawIndirect = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDrawIndirect -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDrawIndirect);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDrawIndirect = OP_vkCmdDrawIndirect;
     memcpy(streamPtr, &opcode_vkCmdDrawIndirect, sizeof(uint32_t));
@@ -8979,8 +9063,10 @@ void VkEncoder::vkCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(uint32_t);
@@ -8989,7 +9075,6 @@ void VkEncoder::vkCmdDrawIndexedIndirect(VkCommandBuffer commandBuffer, VkBuffer
     uint32_t packetSize_vkCmdDrawIndexedIndirect = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDrawIndexedIndirect -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDrawIndexedIndirect);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDrawIndexedIndirect = OP_vkCmdDrawIndexedIndirect;
     memcpy(streamPtr, &opcode_vkCmdDrawIndexedIndirect, sizeof(uint32_t));
@@ -9040,6 +9125,7 @@ void VkEncoder::vkCmdDispatch(VkCommandBuffer commandBuffer, uint32_t groupCount
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -9048,7 +9134,6 @@ void VkEncoder::vkCmdDispatch(VkCommandBuffer commandBuffer, uint32_t groupCount
     uint32_t packetSize_vkCmdDispatch = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDispatch -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDispatch);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDispatch = OP_vkCmdDispatch;
     memcpy(streamPtr, &opcode_vkCmdDispatch, sizeof(uint32_t));
@@ -9093,15 +9178,16 @@ void VkEncoder::vkCmdDispatchIndirect(VkCommandBuffer commandBuffer, VkBuffer bu
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
     }
     uint32_t packetSize_vkCmdDispatchIndirect = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDispatchIndirect -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDispatchIndirect);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDispatchIndirect = OP_vkCmdDispatchIndirect;
     memcpy(streamPtr, &opcode_vkCmdDispatchIndirect, sizeof(uint32_t));
@@ -9163,10 +9249,13 @@ void VkEncoder::vkCmdCopyBuffer(VkCommandBuffer commandBuffer, VkBuffer srcBuffe
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((regionCount)); ++i) {
@@ -9177,7 +9266,6 @@ void VkEncoder::vkCmdCopyBuffer(VkCommandBuffer commandBuffer, VkBuffer srcBuffe
     uint32_t packetSize_vkCmdCopyBuffer = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyBuffer -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyBuffer = OP_vkCmdCopyBuffer;
     memcpy(streamPtr, &opcode_vkCmdCopyBuffer, sizeof(uint32_t));
@@ -9252,11 +9340,14 @@ void VkEncoder::vkCmdCopyImage(VkCommandBuffer commandBuffer, VkImage srcImage,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         *countPtr += sizeof(uint32_t);
@@ -9268,7 +9359,6 @@ void VkEncoder::vkCmdCopyImage(VkCommandBuffer commandBuffer, VkImage srcImage,
     uint32_t packetSize_vkCmdCopyImage = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyImage -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyImage = OP_vkCmdCopyImage;
     memcpy(streamPtr, &opcode_vkCmdCopyImage, sizeof(uint32_t));
@@ -9349,11 +9439,14 @@ void VkEncoder::vkCmdBlitImage(VkCommandBuffer commandBuffer, VkImage srcImage,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         *countPtr += sizeof(uint32_t);
@@ -9366,7 +9459,6 @@ void VkEncoder::vkCmdBlitImage(VkCommandBuffer commandBuffer, VkImage srcImage,
     uint32_t packetSize_vkCmdBlitImage = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBlitImage -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBlitImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBlitImage = OP_vkCmdBlitImage;
     memcpy(streamPtr, &opcode_vkCmdBlitImage, sizeof(uint32_t));
@@ -9447,10 +9539,13 @@ void VkEncoder::vkCmdCopyBufferToImage(VkCommandBuffer commandBuffer, VkBuffer s
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         *countPtr += sizeof(uint32_t);
@@ -9462,7 +9557,6 @@ void VkEncoder::vkCmdCopyBufferToImage(VkCommandBuffer commandBuffer, VkBuffer s
     uint32_t packetSize_vkCmdCopyBufferToImage = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyBufferToImage -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyBufferToImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyBufferToImage = OP_vkCmdCopyBufferToImage;
     memcpy(streamPtr, &opcode_vkCmdCopyBufferToImage, sizeof(uint32_t));
@@ -9539,11 +9633,14 @@ void VkEncoder::vkCmdCopyImageToBuffer(VkCommandBuffer commandBuffer, VkImage sr
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((regionCount)); ++i) {
@@ -9554,7 +9651,6 @@ void VkEncoder::vkCmdCopyImageToBuffer(VkCommandBuffer commandBuffer, VkImage sr
     uint32_t packetSize_vkCmdCopyImageToBuffer = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyImageToBuffer -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyImageToBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyImageToBuffer = OP_vkCmdCopyImageToBuffer;
     memcpy(streamPtr, &opcode_vkCmdCopyImageToBuffer, sizeof(uint32_t));
@@ -9615,8 +9711,10 @@ void VkEncoder::vkCmdUpdateBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuf
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(VkDeviceSize);
@@ -9625,7 +9723,6 @@ void VkEncoder::vkCmdUpdateBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuf
     uint32_t packetSize_vkCmdUpdateBuffer = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdUpdateBuffer -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdUpdateBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdUpdateBuffer = OP_vkCmdUpdateBuffer;
     memcpy(streamPtr, &opcode_vkCmdUpdateBuffer, sizeof(uint32_t));
@@ -9679,8 +9776,10 @@ void VkEncoder::vkCmdFillBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffe
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(VkDeviceSize);
@@ -9689,7 +9788,6 @@ void VkEncoder::vkCmdFillBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuffe
     uint32_t packetSize_vkCmdFillBuffer = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdFillBuffer -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdFillBuffer);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdFillBuffer = OP_vkCmdFillBuffer;
     memcpy(streamPtr, &opcode_vkCmdFillBuffer, sizeof(uint32_t));
@@ -9768,8 +9866,10 @@ void VkEncoder::vkCmdClearColorImage(VkCommandBuffer commandBuffer, VkImage imag
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         count_VkClearColorValue(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -9783,7 +9883,6 @@ void VkEncoder::vkCmdClearColorImage(VkCommandBuffer commandBuffer, VkImage imag
     uint32_t packetSize_vkCmdClearColorImage = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdClearColorImage -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdClearColorImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdClearColorImage = OP_vkCmdClearColorImage;
     memcpy(streamPtr, &opcode_vkCmdClearColorImage, sizeof(uint32_t));
@@ -9871,8 +9970,10 @@ void VkEncoder::vkCmdClearDepthStencilImage(VkCommandBuffer commandBuffer, VkIma
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         count_VkClearDepthStencilValue(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -9886,7 +9987,6 @@ void VkEncoder::vkCmdClearDepthStencilImage(VkCommandBuffer commandBuffer, VkIma
     uint32_t packetSize_vkCmdClearDepthStencilImage = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdClearDepthStencilImage -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdClearDepthStencilImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdClearDepthStencilImage = OP_vkCmdClearDepthStencilImage;
     memcpy(streamPtr, &opcode_vkCmdClearDepthStencilImage, sizeof(uint32_t));
@@ -9972,6 +10072,7 @@ void VkEncoder::vkCmdClearAttachments(VkCommandBuffer commandBuffer, uint32_t at
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((attachmentCount)); ++i) {
@@ -9987,7 +10088,6 @@ void VkEncoder::vkCmdClearAttachments(VkCommandBuffer commandBuffer, uint32_t at
     uint32_t packetSize_vkCmdClearAttachments = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdClearAttachments -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdClearAttachments);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdClearAttachments = OP_vkCmdClearAttachments;
     memcpy(streamPtr, &opcode_vkCmdClearAttachments, sizeof(uint32_t));
@@ -10063,11 +10163,14 @@ void VkEncoder::vkCmdResolveImage(VkCommandBuffer commandBuffer, VkImage srcImag
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkImageLayout);
         *countPtr += sizeof(uint32_t);
@@ -10079,7 +10182,6 @@ void VkEncoder::vkCmdResolveImage(VkCommandBuffer commandBuffer, VkImage srcImag
     uint32_t packetSize_vkCmdResolveImage = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdResolveImage -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdResolveImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdResolveImage = OP_vkCmdResolveImage;
     memcpy(streamPtr, &opcode_vkCmdResolveImage, sizeof(uint32_t));
@@ -10136,15 +10238,16 @@ void VkEncoder::vkCmdSetEvent(VkCommandBuffer commandBuffer, VkEvent event,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineStageFlags);
     }
     uint32_t packetSize_vkCmdSetEvent = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetEvent -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetEvent);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetEvent = OP_vkCmdSetEvent;
     memcpy(streamPtr, &opcode_vkCmdSetEvent, sizeof(uint32_t));
@@ -10189,15 +10292,16 @@ void VkEncoder::vkCmdResetEvent(VkCommandBuffer commandBuffer, VkEvent event,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineStageFlags);
     }
     uint32_t packetSize_vkCmdResetEvent = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdResetEvent -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdResetEvent);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdResetEvent = OP_vkCmdResetEvent;
     memcpy(streamPtr, &opcode_vkCmdResetEvent, sizeof(uint32_t));
@@ -10309,6 +10413,7 @@ void VkEncoder::vkCmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCou
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         if (((eventCount))) {
@@ -10337,7 +10442,6 @@ void VkEncoder::vkCmdWaitEvents(VkCommandBuffer commandBuffer, uint32_t eventCou
     uint32_t packetSize_vkCmdWaitEvents = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdWaitEvents -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdWaitEvents);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdWaitEvents = OP_vkCmdWaitEvents;
     memcpy(streamPtr, &opcode_vkCmdWaitEvents, sizeof(uint32_t));
@@ -10474,6 +10578,7 @@ void VkEncoder::vkCmdPipelineBarrier(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineStageFlags);
         *countPtr += sizeof(VkPipelineStageFlags);
@@ -10499,7 +10604,6 @@ void VkEncoder::vkCmdPipelineBarrier(
     uint32_t packetSize_vkCmdPipelineBarrier = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPipelineBarrier -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPipelineBarrier);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPipelineBarrier = OP_vkCmdPipelineBarrier;
     memcpy(streamPtr, &opcode_vkCmdPipelineBarrier, sizeof(uint32_t));
@@ -10567,8 +10671,10 @@ void VkEncoder::vkCmdBeginQuery(VkCommandBuffer commandBuffer, VkQueryPool query
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(VkQueryControlFlags);
@@ -10576,7 +10682,6 @@ void VkEncoder::vkCmdBeginQuery(VkCommandBuffer commandBuffer, VkQueryPool query
     uint32_t packetSize_vkCmdBeginQuery = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBeginQuery -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBeginQuery);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBeginQuery = OP_vkCmdBeginQuery;
     memcpy(streamPtr, &opcode_vkCmdBeginQuery, sizeof(uint32_t));
@@ -10623,15 +10728,16 @@ void VkEncoder::vkCmdEndQuery(VkCommandBuffer commandBuffer, VkQueryPool queryPo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
     }
     uint32_t packetSize_vkCmdEndQuery = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdEndQuery -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdEndQuery);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdEndQuery = OP_vkCmdEndQuery;
     memcpy(streamPtr, &opcode_vkCmdEndQuery, sizeof(uint32_t));
@@ -10678,8 +10784,10 @@ void VkEncoder::vkCmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool q
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -10687,7 +10795,6 @@ void VkEncoder::vkCmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool q
     uint32_t packetSize_vkCmdResetQueryPool = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdResetQueryPool -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdResetQueryPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdResetQueryPool = OP_vkCmdResetQueryPool;
     memcpy(streamPtr, &opcode_vkCmdResetQueryPool, sizeof(uint32_t));
@@ -10737,16 +10844,17 @@ void VkEncoder::vkCmdWriteTimestamp(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineStageFlagBits);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
     }
     uint32_t packetSize_vkCmdWriteTimestamp = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdWriteTimestamp -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdWriteTimestamp);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdWriteTimestamp = OP_vkCmdWriteTimestamp;
     memcpy(streamPtr, &opcode_vkCmdWriteTimestamp, sizeof(uint32_t));
@@ -10807,12 +10915,15 @@ void VkEncoder::vkCmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQuery
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(VkDeviceSize);
@@ -10821,7 +10932,6 @@ void VkEncoder::vkCmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQuery
     uint32_t packetSize_vkCmdCopyQueryPoolResults = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyQueryPoolResults -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyQueryPoolResults);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyQueryPoolResults = OP_vkCmdCopyQueryPoolResults;
     memcpy(streamPtr, &opcode_vkCmdCopyQueryPoolResults, sizeof(uint32_t));
@@ -10886,8 +10996,10 @@ void VkEncoder::vkCmdPushConstants(VkCommandBuffer commandBuffer, VkPipelineLayo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkShaderStageFlags);
         *countPtr += sizeof(uint32_t);
@@ -10897,7 +11009,6 @@ void VkEncoder::vkCmdPushConstants(VkCommandBuffer commandBuffer, VkPipelineLayo
     uint32_t packetSize_vkCmdPushConstants = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPushConstants -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPushConstants);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPushConstants = OP_vkCmdPushConstants;
     memcpy(streamPtr, &opcode_vkCmdPushConstants, sizeof(uint32_t));
@@ -10959,6 +11070,7 @@ void VkEncoder::vkCmdBeginRenderPass(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderPassBeginInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                     (VkRenderPassBeginInfo*)(local_pRenderPassBegin), countPtr);
@@ -10967,7 +11079,6 @@ void VkEncoder::vkCmdBeginRenderPass(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdBeginRenderPass = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBeginRenderPass -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBeginRenderPass);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBeginRenderPass = OP_vkCmdBeginRenderPass;
     memcpy(streamPtr, &opcode_vkCmdBeginRenderPass, sizeof(uint32_t));
@@ -11009,13 +11120,13 @@ void VkEncoder::vkCmdNextSubpass(VkCommandBuffer commandBuffer, VkSubpassContent
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkSubpassContents);
     }
     uint32_t packetSize_vkCmdNextSubpass = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdNextSubpass -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdNextSubpass);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdNextSubpass = OP_vkCmdNextSubpass;
     memcpy(streamPtr, &opcode_vkCmdNextSubpass, sizeof(uint32_t));
@@ -11051,12 +11162,12 @@ void VkEncoder::vkCmdEndRenderPass(VkCommandBuffer commandBuffer, uint32_t doLoc
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkCmdEndRenderPass = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdEndRenderPass -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdEndRenderPass);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdEndRenderPass = OP_vkCmdEndRenderPass;
     memcpy(streamPtr, &opcode_vkCmdEndRenderPass, sizeof(uint32_t));
@@ -11096,6 +11207,7 @@ void VkEncoder::vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t com
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         if (((commandBufferCount))) {
@@ -11105,7 +11217,6 @@ void VkEncoder::vkCmdExecuteCommands(VkCommandBuffer commandBuffer, uint32_t com
     uint32_t packetSize_vkCmdExecuteCommands = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdExecuteCommands -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdExecuteCommands);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdExecuteCommands = OP_vkCmdExecuteCommands;
     memcpy(streamPtr, &opcode_vkCmdExecuteCommands, sizeof(uint32_t));
@@ -11153,7 +11264,6 @@ VkResult VkEncoder::vkEnumerateInstanceVersion(uint32_t* pApiVersion, uint32_t d
     uint32_t packetSize_vkEnumerateInstanceVersion =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEnumerateInstanceVersion);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEnumerateInstanceVersion = OP_vkEnumerateInstanceVersion;
     uint32_t seqno;
@@ -11212,6 +11322,7 @@ VkResult VkEncoder::vkBindBufferMemory2(VkDevice device, uint32_t bindInfoCount,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((bindInfoCount)); ++i) {
@@ -11222,7 +11333,6 @@ VkResult VkEncoder::vkBindBufferMemory2(VkDevice device, uint32_t bindInfoCount,
     uint32_t packetSize_vkBindBufferMemory2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkBindBufferMemory2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkBindBufferMemory2 = OP_vkBindBufferMemory2;
     uint32_t seqno;
@@ -11291,6 +11401,7 @@ VkResult VkEncoder::vkBindImageMemory2(VkDevice device, uint32_t bindInfoCount,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((bindInfoCount)); ++i) {
@@ -11301,7 +11412,6 @@ VkResult VkEncoder::vkBindImageMemory2(VkDevice device, uint32_t bindInfoCount,
     uint32_t packetSize_vkBindImageMemory2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkBindImageMemory2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkBindImageMemory2 = OP_vkBindImageMemory2;
     uint32_t seqno;
@@ -11359,6 +11469,7 @@ void VkEncoder::vkGetDeviceGroupPeerMemoryFeatures(VkDevice device, uint32_t hea
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -11368,7 +11479,6 @@ void VkEncoder::vkGetDeviceGroupPeerMemoryFeatures(VkDevice device, uint32_t hea
     uint32_t packetSize_vkGetDeviceGroupPeerMemoryFeatures =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceGroupPeerMemoryFeatures);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceGroupPeerMemoryFeatures = OP_vkGetDeviceGroupPeerMemoryFeatures;
     uint32_t seqno;
@@ -11419,13 +11529,13 @@ void VkEncoder::vkCmdSetDeviceMask(VkCommandBuffer commandBuffer, uint32_t devic
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
     }
     uint32_t packetSize_vkCmdSetDeviceMask = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDeviceMask -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDeviceMask);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDeviceMask = OP_vkCmdSetDeviceMask;
     memcpy(streamPtr, &opcode_vkCmdSetDeviceMask, sizeof(uint32_t));
@@ -11475,6 +11585,7 @@ void VkEncoder::vkCmdDispatchBase(VkCommandBuffer commandBuffer, uint32_t baseGr
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -11486,7 +11597,6 @@ void VkEncoder::vkCmdDispatchBase(VkCommandBuffer commandBuffer, uint32_t baseGr
     uint32_t packetSize_vkCmdDispatchBase = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDispatchBase -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDispatchBase);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDispatchBase = OP_vkCmdDispatchBase;
     memcpy(streamPtr, &opcode_vkCmdDispatchBase, sizeof(uint32_t));
@@ -11534,6 +11644,7 @@ VkResult VkEncoder::vkEnumeratePhysicalDeviceGroups(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -11556,7 +11667,6 @@ VkResult VkEncoder::vkEnumeratePhysicalDeviceGroups(
     uint32_t packetSize_vkEnumeratePhysicalDeviceGroups =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEnumeratePhysicalDeviceGroups);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEnumeratePhysicalDeviceGroups = OP_vkEnumeratePhysicalDeviceGroups;
     uint32_t seqno;
@@ -11597,6 +11707,7 @@ VkResult VkEncoder::vkEnumeratePhysicalDeviceGroups(
     }
     // WARNING PTR CHECK
     uint32_t* check_pPhysicalDeviceGroupCount;
+    (void)check_pPhysicalDeviceGroupCount;
     check_pPhysicalDeviceGroupCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPhysicalDeviceGroupCount) {
         if (!(check_pPhysicalDeviceGroupCount)) {
@@ -11607,6 +11718,7 @@ VkResult VkEncoder::vkEnumeratePhysicalDeviceGroups(
     }
     // WARNING PTR CHECK
     VkPhysicalDeviceGroupProperties* check_pPhysicalDeviceGroupProperties;
+    (void)check_pPhysicalDeviceGroupProperties;
     check_pPhysicalDeviceGroupProperties =
         (VkPhysicalDeviceGroupProperties*)(uintptr_t)stream->getBe64();
     if (pPhysicalDeviceGroupProperties) {
@@ -11670,6 +11782,7 @@ void VkEncoder::vkGetImageMemoryRequirements2(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImageMemoryRequirementsInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                              (VkImageMemoryRequirementsInfo2*)(local_pInfo),
@@ -11680,7 +11793,6 @@ void VkEncoder::vkGetImageMemoryRequirements2(VkDevice device,
     uint32_t packetSize_vkGetImageMemoryRequirements2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageMemoryRequirements2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageMemoryRequirements2 = OP_vkGetImageMemoryRequirements2;
     uint32_t seqno;
@@ -11745,6 +11857,7 @@ void VkEncoder::vkGetBufferMemoryRequirements2(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferMemoryRequirementsInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkBufferMemoryRequirementsInfo2*)(local_pInfo),
@@ -11755,7 +11868,6 @@ void VkEncoder::vkGetBufferMemoryRequirements2(VkDevice device,
     uint32_t packetSize_vkGetBufferMemoryRequirements2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetBufferMemoryRequirements2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetBufferMemoryRequirements2 = OP_vkGetBufferMemoryRequirements2;
     uint32_t seqno;
@@ -11821,6 +11933,7 @@ void VkEncoder::vkGetImageSparseMemoryRequirements2(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImageSparseMemoryRequirementsInfo2(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -11846,7 +11959,6 @@ void VkEncoder::vkGetImageSparseMemoryRequirements2(
     uint32_t packetSize_vkGetImageSparseMemoryRequirements2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageSparseMemoryRequirements2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageSparseMemoryRequirements2 = OP_vkGetImageSparseMemoryRequirements2;
     uint32_t seqno;
@@ -11889,6 +12001,7 @@ void VkEncoder::vkGetImageSparseMemoryRequirements2(
     }
     // WARNING PTR CHECK
     uint32_t* check_pSparseMemoryRequirementCount;
+    (void)check_pSparseMemoryRequirementCount;
     check_pSparseMemoryRequirementCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirementCount) {
         if (!(check_pSparseMemoryRequirementCount)) {
@@ -11899,6 +12012,7 @@ void VkEncoder::vkGetImageSparseMemoryRequirements2(
     }
     // WARNING PTR CHECK
     VkSparseImageMemoryRequirements2* check_pSparseMemoryRequirements;
+    (void)check_pSparseMemoryRequirements;
     check_pSparseMemoryRequirements =
         (VkSparseImageMemoryRequirements2*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirements) {
@@ -11946,6 +12060,7 @@ void VkEncoder::vkGetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceFeatures2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                         (VkPhysicalDeviceFeatures2*)(pFeatures), countPtr);
@@ -11953,7 +12068,6 @@ void VkEncoder::vkGetPhysicalDeviceFeatures2(VkPhysicalDevice physicalDevice,
     uint32_t packetSize_vkGetPhysicalDeviceFeatures2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceFeatures2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceFeatures2 = OP_vkGetPhysicalDeviceFeatures2;
     uint32_t seqno;
@@ -12002,6 +12116,7 @@ void VkEncoder::vkGetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceProperties2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                           (VkPhysicalDeviceProperties2*)(pProperties), countPtr);
@@ -12009,7 +12124,6 @@ void VkEncoder::vkGetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
     uint32_t packetSize_vkGetPhysicalDeviceProperties2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceProperties2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceProperties2 = OP_vkGetPhysicalDeviceProperties2;
     uint32_t seqno;
@@ -12062,6 +12176,7 @@ void VkEncoder::vkGetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDe
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFormat);
         count_VkFormatProperties2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -12070,7 +12185,6 @@ void VkEncoder::vkGetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDe
     uint32_t packetSize_vkGetPhysicalDeviceFormatProperties2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceFormatProperties2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceFormatProperties2 = OP_vkGetPhysicalDeviceFormatProperties2;
     uint32_t seqno;
@@ -12133,6 +12247,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceImageFormatProperties2(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceImageFormatInfo2(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -12144,7 +12259,6 @@ VkResult VkEncoder::vkGetPhysicalDeviceImageFormatProperties2(
     uint32_t packetSize_vkGetPhysicalDeviceImageFormatProperties2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceImageFormatProperties2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceImageFormatProperties2 =
         OP_vkGetPhysicalDeviceImageFormatProperties2;
@@ -12200,6 +12314,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties2(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -12221,7 +12336,6 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties2(
     uint32_t packetSize_vkGetPhysicalDeviceQueueFamilyProperties2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceQueueFamilyProperties2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceQueueFamilyProperties2 =
         OP_vkGetPhysicalDeviceQueueFamilyProperties2;
@@ -12262,6 +12376,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties2(
     }
     // WARNING PTR CHECK
     uint32_t* check_pQueueFamilyPropertyCount;
+    (void)check_pQueueFamilyPropertyCount;
     check_pQueueFamilyPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pQueueFamilyPropertyCount) {
         if (!(check_pQueueFamilyPropertyCount)) {
@@ -12272,6 +12387,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties2(
     }
     // WARNING PTR CHECK
     VkQueueFamilyProperties2* check_pQueueFamilyProperties;
+    (void)check_pQueueFamilyProperties;
     check_pQueueFamilyProperties = (VkQueueFamilyProperties2*)(uintptr_t)stream->getBe64();
     if (pQueueFamilyProperties) {
         if (!(check_pQueueFamilyProperties)) {
@@ -12316,6 +12432,7 @@ void VkEncoder::vkGetPhysicalDeviceMemoryProperties2(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceMemoryProperties2(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -12324,7 +12441,6 @@ void VkEncoder::vkGetPhysicalDeviceMemoryProperties2(
     uint32_t packetSize_vkGetPhysicalDeviceMemoryProperties2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceMemoryProperties2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceMemoryProperties2 = OP_vkGetPhysicalDeviceMemoryProperties2;
     uint32_t seqno;
@@ -12387,6 +12503,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties2(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceSparseImageFormatInfo2(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -12412,7 +12529,6 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties2(
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr =
         stream->reserve(packetSize_vkGetPhysicalDeviceSparseImageFormatProperties2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceSparseImageFormatProperties2 =
         OP_vkGetPhysicalDeviceSparseImageFormatProperties2;
@@ -12457,6 +12573,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties2(
     }
     // WARNING PTR CHECK
     uint32_t* check_pPropertyCount;
+    (void)check_pPropertyCount;
     check_pPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPropertyCount) {
         if (!(check_pPropertyCount)) {
@@ -12466,6 +12583,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties2(
     }
     // WARNING PTR CHECK
     VkSparseImageFormatProperties2* check_pProperties;
+    (void)check_pProperties;
     check_pProperties = (VkSparseImageFormatProperties2*)(uintptr_t)stream->getBe64();
     if (pProperties) {
         if (!(check_pProperties)) {
@@ -12513,15 +12631,16 @@ void VkEncoder::vkTrimCommandPool(VkDevice device, VkCommandPool commandPool,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCommandPoolTrimFlags);
     }
     uint32_t packetSize_vkTrimCommandPool =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkTrimCommandPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkTrimCommandPool = OP_vkTrimCommandPool;
     uint32_t seqno;
@@ -12578,16 +12697,17 @@ void VkEncoder::vkGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2* pQu
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceQueueInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                  (VkDeviceQueueInfo2*)(local_pQueueInfo), countPtr);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkGetDeviceQueue2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceQueue2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceQueue2 = OP_vkGetDeviceQueue2;
     uint32_t seqno;
@@ -12667,6 +12787,7 @@ VkResult VkEncoder::vkCreateSamplerYcbcrConversion(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSamplerYcbcrConversionCreateInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -12678,12 +12799,12 @@ VkResult VkEncoder::vkCreateSamplerYcbcrConversion(
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateSamplerYcbcrConversion =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateSamplerYcbcrConversion);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateSamplerYcbcrConversion = OP_vkCreateSamplerYcbcrConversion;
     uint32_t seqno;
@@ -12766,8 +12887,10 @@ void VkEncoder::vkDestroySamplerYcbcrConversion(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -12779,7 +12902,6 @@ void VkEncoder::vkDestroySamplerYcbcrConversion(VkDevice device,
     uint32_t packetSize_vkDestroySamplerYcbcrConversion =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroySamplerYcbcrConversion);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroySamplerYcbcrConversion = OP_vkDestroySamplerYcbcrConversion;
     uint32_t seqno;
@@ -12862,6 +12984,7 @@ VkResult VkEncoder::vkCreateDescriptorUpdateTemplate(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDescriptorUpdateTemplateCreateInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -12873,12 +12996,12 @@ VkResult VkEncoder::vkCreateDescriptorUpdateTemplate(
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateDescriptorUpdateTemplate =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateDescriptorUpdateTemplate);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateDescriptorUpdateTemplate = OP_vkCreateDescriptorUpdateTemplate;
     uint32_t seqno;
@@ -12963,8 +13086,10 @@ void VkEncoder::vkDestroyDescriptorUpdateTemplate(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -12976,7 +13101,6 @@ void VkEncoder::vkDestroyDescriptorUpdateTemplate(
     uint32_t packetSize_vkDestroyDescriptorUpdateTemplate =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyDescriptorUpdateTemplate);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyDescriptorUpdateTemplate = OP_vkDestroyDescriptorUpdateTemplate;
     uint32_t seqno;
@@ -13040,10 +13164,13 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplate(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -13054,7 +13181,6 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplate(
     uint32_t packetSize_vkUpdateDescriptorSetWithTemplate =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkUpdateDescriptorSetWithTemplate);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkUpdateDescriptorSetWithTemplate = OP_vkUpdateDescriptorSetWithTemplate;
     uint32_t seqno;
@@ -13127,6 +13253,7 @@ void VkEncoder::vkGetPhysicalDeviceExternalBufferProperties(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceExternalBufferInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -13138,7 +13265,6 @@ void VkEncoder::vkGetPhysicalDeviceExternalBufferProperties(
     uint32_t packetSize_vkGetPhysicalDeviceExternalBufferProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceExternalBufferProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceExternalBufferProperties =
         OP_vkGetPhysicalDeviceExternalBufferProperties;
@@ -13206,6 +13332,7 @@ void VkEncoder::vkGetPhysicalDeviceExternalFenceProperties(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceExternalFenceInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -13217,7 +13344,6 @@ void VkEncoder::vkGetPhysicalDeviceExternalFenceProperties(
     uint32_t packetSize_vkGetPhysicalDeviceExternalFenceProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceExternalFenceProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceExternalFenceProperties =
         OP_vkGetPhysicalDeviceExternalFenceProperties;
@@ -13285,6 +13411,7 @@ void VkEncoder::vkGetPhysicalDeviceExternalSemaphoreProperties(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceExternalSemaphoreInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -13296,7 +13423,6 @@ void VkEncoder::vkGetPhysicalDeviceExternalSemaphoreProperties(
     uint32_t packetSize_vkGetPhysicalDeviceExternalSemaphoreProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceExternalSemaphoreProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceExternalSemaphoreProperties =
         OP_vkGetPhysicalDeviceExternalSemaphoreProperties;
@@ -13366,6 +13492,7 @@ void VkEncoder::vkGetDescriptorSetLayoutSupport(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDescriptorSetLayoutCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkDescriptorSetLayoutCreateInfo*)(local_pCreateInfo),
@@ -13376,7 +13503,6 @@ void VkEncoder::vkGetDescriptorSetLayoutSupport(VkDevice device,
     uint32_t packetSize_vkGetDescriptorSetLayoutSupport =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDescriptorSetLayoutSupport);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDescriptorSetLayoutSupport = OP_vkGetDescriptorSetLayoutSupport;
     uint32_t seqno;
@@ -13443,11 +13569,14 @@ void VkEncoder::vkCmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer b
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(uint32_t);
@@ -13456,7 +13585,6 @@ void VkEncoder::vkCmdDrawIndirectCount(VkCommandBuffer commandBuffer, VkBuffer b
     uint32_t packetSize_vkCmdDrawIndirectCount = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDrawIndirectCount -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDrawIndirectCount);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDrawIndirectCount = OP_vkCmdDrawIndirectCount;
     memcpy(streamPtr, &opcode_vkCmdDrawIndirectCount, sizeof(uint32_t));
@@ -13521,11 +13649,14 @@ void VkEncoder::vkCmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkB
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(uint32_t);
@@ -13534,7 +13665,6 @@ void VkEncoder::vkCmdDrawIndexedIndirectCount(VkCommandBuffer commandBuffer, VkB
     uint32_t packetSize_vkCmdDrawIndexedIndirectCount = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDrawIndexedIndirectCount -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDrawIndexedIndirectCount);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDrawIndexedIndirectCount = OP_vkCmdDrawIndexedIndirectCount;
     memcpy(streamPtr, &opcode_vkCmdDrawIndexedIndirectCount, sizeof(uint32_t));
@@ -13610,6 +13740,7 @@ VkResult VkEncoder::vkCreateRenderPass2(VkDevice device, const VkRenderPassCreat
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderPassCreateInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkRenderPassCreateInfo2*)(local_pCreateInfo), countPtr);
@@ -13620,12 +13751,12 @@ VkResult VkEncoder::vkCreateRenderPass2(VkDevice device, const VkRenderPassCreat
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateRenderPass2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateRenderPass2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateRenderPass2 = OP_vkCreateRenderPass2;
     uint32_t seqno;
@@ -13718,6 +13849,7 @@ void VkEncoder::vkCmdBeginRenderPass2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderPassBeginInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                     (VkRenderPassBeginInfo*)(local_pRenderPassBegin), countPtr);
@@ -13727,7 +13859,6 @@ void VkEncoder::vkCmdBeginRenderPass2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdBeginRenderPass2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBeginRenderPass2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBeginRenderPass2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBeginRenderPass2 = OP_vkCmdBeginRenderPass2;
     memcpy(streamPtr, &opcode_vkCmdBeginRenderPass2, sizeof(uint32_t));
@@ -13792,6 +13923,7 @@ void VkEncoder::vkCmdNextSubpass2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSubpassBeginInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                  (VkSubpassBeginInfo*)(local_pSubpassBeginInfo), countPtr);
@@ -13801,7 +13933,6 @@ void VkEncoder::vkCmdNextSubpass2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdNextSubpass2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdNextSubpass2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdNextSubpass2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdNextSubpass2 = OP_vkCmdNextSubpass2;
     memcpy(streamPtr, &opcode_vkCmdNextSubpass2, sizeof(uint32_t));
@@ -13852,6 +13983,7 @@ void VkEncoder::vkCmdEndRenderPass2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSubpassEndInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkSubpassEndInfo*)(local_pSubpassEndInfo), countPtr);
@@ -13859,7 +13991,6 @@ void VkEncoder::vkCmdEndRenderPass2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdEndRenderPass2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdEndRenderPass2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdEndRenderPass2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdEndRenderPass2 = OP_vkCmdEndRenderPass2;
     memcpy(streamPtr, &opcode_vkCmdEndRenderPass2, sizeof(uint32_t));
@@ -13902,15 +14033,16 @@ void VkEncoder::vkResetQueryPool(VkDevice device, VkQueryPool queryPool, uint32_
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
     }
     uint32_t packetSize_vkResetQueryPool = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkResetQueryPool);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkResetQueryPool = OP_vkResetQueryPool;
     uint32_t seqno;
@@ -13960,15 +14092,16 @@ VkResult VkEncoder::vkGetSemaphoreCounterValue(VkDevice device, VkSemaphore sema
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint64_t);
     }
     uint32_t packetSize_vkGetSemaphoreCounterValue =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetSemaphoreCounterValue);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetSemaphoreCounterValue = OP_vkGetSemaphoreCounterValue;
     uint32_t seqno;
@@ -14030,6 +14163,7 @@ VkResult VkEncoder::vkWaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo*
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSemaphoreWaitInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkSemaphoreWaitInfo*)(local_pWaitInfo), countPtr);
@@ -14037,7 +14171,6 @@ VkResult VkEncoder::vkWaitSemaphores(VkDevice device, const VkSemaphoreWaitInfo*
     }
     uint32_t packetSize_vkWaitSemaphores = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkWaitSemaphores);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkWaitSemaphores = OP_vkWaitSemaphores;
     uint32_t seqno;
@@ -14095,6 +14228,7 @@ VkResult VkEncoder::vkSignalSemaphore(VkDevice device, const VkSemaphoreSignalIn
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSemaphoreSignalInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                     (VkSemaphoreSignalInfo*)(local_pSignalInfo), countPtr);
@@ -14102,7 +14236,6 @@ VkResult VkEncoder::vkSignalSemaphore(VkDevice device, const VkSemaphoreSignalIn
     uint32_t packetSize_vkSignalSemaphore =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkSignalSemaphore);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkSignalSemaphore = OP_vkSignalSemaphore;
     uint32_t seqno;
@@ -14160,6 +14293,7 @@ VkDeviceAddress VkEncoder::vkGetBufferDeviceAddress(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferDeviceAddressInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                         (VkBufferDeviceAddressInfo*)(local_pInfo), countPtr);
@@ -14167,7 +14301,6 @@ VkDeviceAddress VkEncoder::vkGetBufferDeviceAddress(VkDevice device,
     uint32_t packetSize_vkGetBufferDeviceAddress =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetBufferDeviceAddress);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetBufferDeviceAddress = OP_vkGetBufferDeviceAddress;
     uint32_t seqno;
@@ -14225,6 +14358,7 @@ uint64_t VkEncoder::vkGetBufferOpaqueCaptureAddress(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferDeviceAddressInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                         (VkBufferDeviceAddressInfo*)(local_pInfo), countPtr);
@@ -14232,7 +14366,6 @@ uint64_t VkEncoder::vkGetBufferOpaqueCaptureAddress(VkDevice device,
     uint32_t packetSize_vkGetBufferOpaqueCaptureAddress =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetBufferOpaqueCaptureAddress);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetBufferOpaqueCaptureAddress = OP_vkGetBufferOpaqueCaptureAddress;
     uint32_t seqno;
@@ -14290,6 +14423,7 @@ uint64_t VkEncoder::vkGetDeviceMemoryOpaqueCaptureAddress(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceMemoryOpaqueCaptureAddressInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -14298,7 +14432,6 @@ uint64_t VkEncoder::vkGetDeviceMemoryOpaqueCaptureAddress(
     uint32_t packetSize_vkGetDeviceMemoryOpaqueCaptureAddress =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceMemoryOpaqueCaptureAddress);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceMemoryOpaqueCaptureAddress =
         OP_vkGetDeviceMemoryOpaqueCaptureAddress;
@@ -14347,6 +14480,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceToolProperties(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -14368,7 +14502,6 @@ VkResult VkEncoder::vkGetPhysicalDeviceToolProperties(
     uint32_t packetSize_vkGetPhysicalDeviceToolProperties =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceToolProperties);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceToolProperties = OP_vkGetPhysicalDeviceToolProperties;
     uint32_t seqno;
@@ -14408,6 +14541,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceToolProperties(
     }
     // WARNING PTR CHECK
     uint32_t* check_pToolCount;
+    (void)check_pToolCount;
     check_pToolCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pToolCount) {
         if (!(check_pToolCount)) {
@@ -14417,6 +14551,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceToolProperties(
     }
     // WARNING PTR CHECK
     VkPhysicalDeviceToolProperties* check_pToolProperties;
+    (void)check_pToolProperties;
     check_pToolProperties = (VkPhysicalDeviceToolProperties*)(uintptr_t)stream->getBe64();
     if (pToolProperties) {
         if (!(check_pToolProperties)) {
@@ -14489,6 +14624,7 @@ VkResult VkEncoder::vkCreatePrivateDataSlot(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPrivateDataSlotCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                           (VkPrivateDataSlotCreateInfo*)(local_pCreateInfo),
@@ -14500,12 +14636,12 @@ VkResult VkEncoder::vkCreatePrivateDataSlot(VkDevice device,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreatePrivateDataSlot =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreatePrivateDataSlot);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreatePrivateDataSlot = OP_vkCreatePrivateDataSlot;
     uint32_t seqno;
@@ -14586,8 +14722,10 @@ void VkEncoder::vkDestroyPrivateDataSlot(VkDevice device, VkPrivateDataSlot priv
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -14599,7 +14737,6 @@ void VkEncoder::vkDestroyPrivateDataSlot(VkDevice device, VkPrivateDataSlot priv
     uint32_t packetSize_vkDestroyPrivateDataSlot =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyPrivateDataSlot);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyPrivateDataSlot = OP_vkDestroyPrivateDataSlot;
     uint32_t seqno;
@@ -14664,16 +14801,17 @@ VkResult VkEncoder::vkSetPrivateData(VkDevice device, VkObjectType objectType,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkObjectType);
         *countPtr += sizeof(uint64_t);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint64_t);
     }
     uint32_t packetSize_vkSetPrivateData = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkSetPrivateData);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkSetPrivateData = OP_vkSetPrivateData;
     uint32_t seqno;
@@ -14732,16 +14870,17 @@ void VkEncoder::vkGetPrivateData(VkDevice device, VkObjectType objectType, uint6
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkObjectType);
         *countPtr += sizeof(uint64_t);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint64_t);
     }
     uint32_t packetSize_vkGetPrivateData = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPrivateData);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPrivateData = OP_vkGetPrivateData;
     uint32_t seqno;
@@ -14804,8 +14943,10 @@ void VkEncoder::vkCmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent event,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkDependencyInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkDependencyInfo*)(local_pDependencyInfo), countPtr);
@@ -14813,7 +14954,6 @@ void VkEncoder::vkCmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent event,
     uint32_t packetSize_vkCmdSetEvent2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetEvent2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetEvent2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetEvent2 = OP_vkCmdSetEvent2;
     memcpy(streamPtr, &opcode_vkCmdSetEvent2, sizeof(uint32_t));
@@ -14858,15 +14998,16 @@ void VkEncoder::vkCmdResetEvent2(VkCommandBuffer commandBuffer, VkEvent event,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineStageFlags2);
     }
     uint32_t packetSize_vkCmdResetEvent2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdResetEvent2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdResetEvent2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdResetEvent2 = OP_vkCmdResetEvent2;
     memcpy(streamPtr, &opcode_vkCmdResetEvent2, sizeof(uint32_t));
@@ -14929,6 +15070,7 @@ void VkEncoder::vkCmdWaitEvents2(VkCommandBuffer commandBuffer, uint32_t eventCo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         if (((eventCount))) {
@@ -14942,7 +15084,6 @@ void VkEncoder::vkCmdWaitEvents2(VkCommandBuffer commandBuffer, uint32_t eventCo
     uint32_t packetSize_vkCmdWaitEvents2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdWaitEvents2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdWaitEvents2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdWaitEvents2 = OP_vkCmdWaitEvents2;
     memcpy(streamPtr, &opcode_vkCmdWaitEvents2, sizeof(uint32_t));
@@ -15003,6 +15144,7 @@ void VkEncoder::vkCmdPipelineBarrier2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDependencyInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkDependencyInfo*)(local_pDependencyInfo), countPtr);
@@ -15010,7 +15152,6 @@ void VkEncoder::vkCmdPipelineBarrier2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdPipelineBarrier2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPipelineBarrier2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPipelineBarrier2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPipelineBarrier2 = OP_vkCmdPipelineBarrier2;
     memcpy(streamPtr, &opcode_vkCmdPipelineBarrier2, sizeof(uint32_t));
@@ -15053,16 +15194,17 @@ void VkEncoder::vkCmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineSt
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineStageFlags2);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
     }
     uint32_t packetSize_vkCmdWriteTimestamp2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdWriteTimestamp2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdWriteTimestamp2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdWriteTimestamp2 = OP_vkCmdWriteTimestamp2;
     memcpy(streamPtr, &opcode_vkCmdWriteTimestamp2, sizeof(uint32_t));
@@ -15123,6 +15265,7 @@ VkResult VkEncoder::vkQueueSubmit2(VkQueue queue, uint32_t submitCount,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((submitCount)); ++i) {
@@ -15130,11 +15273,11 @@ VkResult VkEncoder::vkQueueSubmit2(VkQueue queue, uint32_t submitCount,
                                 (VkSubmitInfo2*)(local_pSubmits + i), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueSubmit2 = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueSubmit2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueSubmit2 = OP_vkQueueSubmit2;
     uint32_t seqno;
@@ -15197,6 +15340,7 @@ void VkEncoder::vkCmdCopyBuffer2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyBufferInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkCopyBufferInfo2*)(local_pCopyBufferInfo), countPtr);
@@ -15204,7 +15348,6 @@ void VkEncoder::vkCmdCopyBuffer2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdCopyBuffer2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyBuffer2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyBuffer2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyBuffer2 = OP_vkCmdCopyBuffer2;
     memcpy(streamPtr, &opcode_vkCmdCopyBuffer2, sizeof(uint32_t));
@@ -15252,6 +15395,7 @@ void VkEncoder::vkCmdCopyImage2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyImageInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkCopyImageInfo2*)(local_pCopyImageInfo), countPtr);
@@ -15259,7 +15403,6 @@ void VkEncoder::vkCmdCopyImage2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdCopyImage2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyImage2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyImage2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyImage2 = OP_vkCmdCopyImage2;
     memcpy(streamPtr, &opcode_vkCmdCopyImage2, sizeof(uint32_t));
@@ -15310,6 +15453,7 @@ void VkEncoder::vkCmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyBufferToImageInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkCopyBufferToImageInfo2*)(local_pCopyBufferToImageInfo),
@@ -15318,7 +15462,6 @@ void VkEncoder::vkCmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdCopyBufferToImage2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyBufferToImage2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyBufferToImage2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyBufferToImage2 = OP_vkCmdCopyBufferToImage2;
     memcpy(streamPtr, &opcode_vkCmdCopyBufferToImage2, sizeof(uint32_t));
@@ -15370,6 +15513,7 @@ void VkEncoder::vkCmdCopyImageToBuffer2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyImageToBufferInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkCopyImageToBufferInfo2*)(local_pCopyImageToBufferInfo),
@@ -15378,7 +15522,6 @@ void VkEncoder::vkCmdCopyImageToBuffer2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdCopyImageToBuffer2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyImageToBuffer2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyImageToBuffer2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyImageToBuffer2 = OP_vkCmdCopyImageToBuffer2;
     memcpy(streamPtr, &opcode_vkCmdCopyImageToBuffer2, sizeof(uint32_t));
@@ -15427,6 +15570,7 @@ void VkEncoder::vkCmdBlitImage2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBlitImageInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkBlitImageInfo2*)(local_pBlitImageInfo), countPtr);
@@ -15434,7 +15578,6 @@ void VkEncoder::vkCmdBlitImage2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdBlitImage2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBlitImage2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBlitImage2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBlitImage2 = OP_vkCmdBlitImage2;
     memcpy(streamPtr, &opcode_vkCmdBlitImage2, sizeof(uint32_t));
@@ -15483,6 +15626,7 @@ void VkEncoder::vkCmdResolveImage2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkResolveImageInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkResolveImageInfo2*)(local_pResolveImageInfo), countPtr);
@@ -15490,7 +15634,6 @@ void VkEncoder::vkCmdResolveImage2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdResolveImage2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdResolveImage2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdResolveImage2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdResolveImage2 = OP_vkCmdResolveImage2;
     memcpy(streamPtr, &opcode_vkCmdResolveImage2, sizeof(uint32_t));
@@ -15539,6 +15682,7 @@ void VkEncoder::vkCmdBeginRendering(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderingInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                               (VkRenderingInfo*)(local_pRenderingInfo), countPtr);
@@ -15546,7 +15690,6 @@ void VkEncoder::vkCmdBeginRendering(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdBeginRendering = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBeginRendering -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBeginRendering);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBeginRendering = OP_vkCmdBeginRendering;
     memcpy(streamPtr, &opcode_vkCmdBeginRendering, sizeof(uint32_t));
@@ -15582,12 +15725,12 @@ void VkEncoder::vkCmdEndRendering(VkCommandBuffer commandBuffer, uint32_t doLock
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkCmdEndRendering = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdEndRendering -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdEndRendering);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdEndRendering = OP_vkCmdEndRendering;
     memcpy(streamPtr, &opcode_vkCmdEndRendering, sizeof(uint32_t));
@@ -15624,13 +15767,13 @@ void VkEncoder::vkCmdSetCullMode(VkCommandBuffer commandBuffer, VkCullModeFlags 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCullModeFlags);
     }
     uint32_t packetSize_vkCmdSetCullMode = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetCullMode -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetCullMode);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetCullMode = OP_vkCmdSetCullMode;
     memcpy(streamPtr, &opcode_vkCmdSetCullMode, sizeof(uint32_t));
@@ -15669,13 +15812,13 @@ void VkEncoder::vkCmdSetFrontFace(VkCommandBuffer commandBuffer, VkFrontFace fro
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFrontFace);
     }
     uint32_t packetSize_vkCmdSetFrontFace = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetFrontFace -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetFrontFace);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetFrontFace = OP_vkCmdSetFrontFace;
     memcpy(streamPtr, &opcode_vkCmdSetFrontFace, sizeof(uint32_t));
@@ -15714,13 +15857,13 @@ void VkEncoder::vkCmdSetPrimitiveTopology(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPrimitiveTopology);
     }
     uint32_t packetSize_vkCmdSetPrimitiveTopology = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetPrimitiveTopology -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetPrimitiveTopology);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetPrimitiveTopology = OP_vkCmdSetPrimitiveTopology;
     memcpy(streamPtr, &opcode_vkCmdSetPrimitiveTopology, sizeof(uint32_t));
@@ -15774,6 +15917,7 @@ void VkEncoder::vkCmdSetViewportWithCount(VkCommandBuffer commandBuffer, uint32_
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((viewportCount)); ++i) {
@@ -15784,7 +15928,6 @@ void VkEncoder::vkCmdSetViewportWithCount(VkCommandBuffer commandBuffer, uint32_
     uint32_t packetSize_vkCmdSetViewportWithCount = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetViewportWithCount -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetViewportWithCount);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetViewportWithCount = OP_vkCmdSetViewportWithCount;
     memcpy(streamPtr, &opcode_vkCmdSetViewportWithCount, sizeof(uint32_t));
@@ -15841,6 +15984,7 @@ void VkEncoder::vkCmdSetScissorWithCount(VkCommandBuffer commandBuffer, uint32_t
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((scissorCount)); ++i) {
@@ -15851,7 +15995,6 @@ void VkEncoder::vkCmdSetScissorWithCount(VkCommandBuffer commandBuffer, uint32_t
     uint32_t packetSize_vkCmdSetScissorWithCount = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetScissorWithCount -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetScissorWithCount);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetScissorWithCount = OP_vkCmdSetScissorWithCount;
     memcpy(streamPtr, &opcode_vkCmdSetScissorWithCount, sizeof(uint32_t));
@@ -15910,6 +16053,7 @@ void VkEncoder::vkCmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -15935,7 +16079,6 @@ void VkEncoder::vkCmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t 
     uint32_t packetSize_vkCmdBindVertexBuffers2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindVertexBuffers2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindVertexBuffers2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindVertexBuffers2 = OP_vkCmdBindVertexBuffers2;
     memcpy(streamPtr, &opcode_vkCmdBindVertexBuffers2, sizeof(uint32_t));
@@ -16012,13 +16155,13 @@ void VkEncoder::vkCmdSetDepthTestEnable(VkCommandBuffer commandBuffer, VkBool32 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetDepthTestEnable = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthTestEnable -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthTestEnable);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthTestEnable = OP_vkCmdSetDepthTestEnable;
     memcpy(streamPtr, &opcode_vkCmdSetDepthTestEnable, sizeof(uint32_t));
@@ -16057,13 +16200,13 @@ void VkEncoder::vkCmdSetDepthWriteEnable(VkCommandBuffer commandBuffer, VkBool32
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetDepthWriteEnable = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthWriteEnable -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthWriteEnable);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthWriteEnable = OP_vkCmdSetDepthWriteEnable;
     memcpy(streamPtr, &opcode_vkCmdSetDepthWriteEnable, sizeof(uint32_t));
@@ -16102,13 +16245,13 @@ void VkEncoder::vkCmdSetDepthCompareOp(VkCommandBuffer commandBuffer, VkCompareO
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCompareOp);
     }
     uint32_t packetSize_vkCmdSetDepthCompareOp = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthCompareOp -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthCompareOp);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthCompareOp = OP_vkCmdSetDepthCompareOp;
     memcpy(streamPtr, &opcode_vkCmdSetDepthCompareOp, sizeof(uint32_t));
@@ -16147,13 +16290,13 @@ void VkEncoder::vkCmdSetDepthBoundsTestEnable(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetDepthBoundsTestEnable = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthBoundsTestEnable -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthBoundsTestEnable);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthBoundsTestEnable = OP_vkCmdSetDepthBoundsTestEnable;
     memcpy(streamPtr, &opcode_vkCmdSetDepthBoundsTestEnable, sizeof(uint32_t));
@@ -16192,13 +16335,13 @@ void VkEncoder::vkCmdSetStencilTestEnable(VkCommandBuffer commandBuffer, VkBool3
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetStencilTestEnable = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetStencilTestEnable -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetStencilTestEnable);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetStencilTestEnable = OP_vkCmdSetStencilTestEnable;
     memcpy(streamPtr, &opcode_vkCmdSetStencilTestEnable, sizeof(uint32_t));
@@ -16246,6 +16389,7 @@ void VkEncoder::vkCmdSetStencilOp(VkCommandBuffer commandBuffer, VkStencilFaceFl
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkStencilFaceFlags);
         *countPtr += sizeof(VkStencilOp);
@@ -16256,7 +16400,6 @@ void VkEncoder::vkCmdSetStencilOp(VkCommandBuffer commandBuffer, VkStencilFaceFl
     uint32_t packetSize_vkCmdSetStencilOp = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetStencilOp -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetStencilOp);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetStencilOp = OP_vkCmdSetStencilOp;
     memcpy(streamPtr, &opcode_vkCmdSetStencilOp, sizeof(uint32_t));
@@ -16303,13 +16446,13 @@ void VkEncoder::vkCmdSetRasterizerDiscardEnable(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetRasterizerDiscardEnable = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetRasterizerDiscardEnable -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetRasterizerDiscardEnable);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetRasterizerDiscardEnable = OP_vkCmdSetRasterizerDiscardEnable;
     memcpy(streamPtr, &opcode_vkCmdSetRasterizerDiscardEnable, sizeof(uint32_t));
@@ -16348,13 +16491,13 @@ void VkEncoder::vkCmdSetDepthBiasEnable(VkCommandBuffer commandBuffer, VkBool32 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetDepthBiasEnable = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthBiasEnable -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthBiasEnable);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthBiasEnable = OP_vkCmdSetDepthBiasEnable;
     memcpy(streamPtr, &opcode_vkCmdSetDepthBiasEnable, sizeof(uint32_t));
@@ -16393,13 +16536,13 @@ void VkEncoder::vkCmdSetPrimitiveRestartEnable(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetPrimitiveRestartEnable = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetPrimitiveRestartEnable -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetPrimitiveRestartEnable);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetPrimitiveRestartEnable = OP_vkCmdSetPrimitiveRestartEnable;
     memcpy(streamPtr, &opcode_vkCmdSetPrimitiveRestartEnable, sizeof(uint32_t));
@@ -16450,6 +16593,7 @@ void VkEncoder::vkGetDeviceBufferMemoryRequirements(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceBufferMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                                (VkDeviceBufferMemoryRequirements*)(local_pInfo),
@@ -16460,7 +16604,6 @@ void VkEncoder::vkGetDeviceBufferMemoryRequirements(VkDevice device,
     uint32_t packetSize_vkGetDeviceBufferMemoryRequirements =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceBufferMemoryRequirements);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceBufferMemoryRequirements = OP_vkGetDeviceBufferMemoryRequirements;
     uint32_t seqno;
@@ -16525,6 +16668,7 @@ void VkEncoder::vkGetDeviceImageMemoryRequirements(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceImageMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkDeviceImageMemoryRequirements*)(local_pInfo),
@@ -16535,7 +16679,6 @@ void VkEncoder::vkGetDeviceImageMemoryRequirements(VkDevice device,
     uint32_t packetSize_vkGetDeviceImageMemoryRequirements =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceImageMemoryRequirements);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceImageMemoryRequirements = OP_vkGetDeviceImageMemoryRequirements;
     uint32_t seqno;
@@ -16600,6 +16743,7 @@ void VkEncoder::vkGetDeviceImageSparseMemoryRequirements(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceImageMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkDeviceImageMemoryRequirements*)(local_pInfo),
@@ -16625,7 +16769,6 @@ void VkEncoder::vkGetDeviceImageSparseMemoryRequirements(
     uint32_t packetSize_vkGetDeviceImageSparseMemoryRequirements =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceImageSparseMemoryRequirements);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceImageSparseMemoryRequirements =
         OP_vkGetDeviceImageSparseMemoryRequirements;
@@ -16669,6 +16812,7 @@ void VkEncoder::vkGetDeviceImageSparseMemoryRequirements(
     }
     // WARNING PTR CHECK
     uint32_t* check_pSparseMemoryRequirementCount;
+    (void)check_pSparseMemoryRequirementCount;
     check_pSparseMemoryRequirementCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirementCount) {
         if (!(check_pSparseMemoryRequirementCount)) {
@@ -16679,6 +16823,7 @@ void VkEncoder::vkGetDeviceImageSparseMemoryRequirements(
     }
     // WARNING PTR CHECK
     VkSparseImageMemoryRequirements2* check_pSparseMemoryRequirements;
+    (void)check_pSparseMemoryRequirements;
     check_pSparseMemoryRequirements =
         (VkSparseImageMemoryRequirements2*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirements) {
@@ -16731,6 +16876,7 @@ void VkEncoder::vkCmdSetLineStipple(VkCommandBuffer commandBuffer, uint32_t line
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint16_t);
@@ -16738,7 +16884,6 @@ void VkEncoder::vkCmdSetLineStipple(VkCommandBuffer commandBuffer, uint32_t line
     uint32_t packetSize_vkCmdSetLineStipple = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetLineStipple -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetLineStipple);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetLineStipple = OP_vkCmdSetLineStipple;
     memcpy(streamPtr, &opcode_vkCmdSetLineStipple, sizeof(uint32_t));
@@ -16788,6 +16933,7 @@ VkResult VkEncoder::vkMapMemory2(VkDevice device, const VkMemoryMapInfo* pMemory
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkMemoryMapInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                               (VkMemoryMapInfo*)(local_pMemoryMapInfo), countPtr);
@@ -16799,7 +16945,6 @@ VkResult VkEncoder::vkMapMemory2(VkDevice device, const VkMemoryMapInfo* pMemory
     }
     uint32_t packetSize_vkMapMemory2 = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkMapMemory2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkMapMemory2 = OP_vkMapMemory2;
     uint32_t seqno;
@@ -16829,6 +16974,7 @@ VkResult VkEncoder::vkMapMemory2(VkDevice device, const VkMemoryMapInfo* pMemory
     }
     // WARNING PTR CHECK
     void** check_ppData;
+    (void)check_ppData;
     check_ppData = (void**)(uintptr_t)stream->getBe64();
     if (ppData) {
         if (!(check_ppData)) {
@@ -16872,13 +17018,13 @@ VkResult VkEncoder::vkUnmapMemory2(VkDevice device, const VkMemoryUnmapInfo* pMe
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkMemoryUnmapInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkMemoryUnmapInfo*)(local_pMemoryUnmapInfo), countPtr);
     }
     uint32_t packetSize_vkUnmapMemory2 = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkUnmapMemory2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkUnmapMemory2 = OP_vkUnmapMemory2;
     uint32_t seqno;
@@ -16931,8 +17077,10 @@ void VkEncoder::vkCmdBindIndexBuffer2(VkCommandBuffer commandBuffer, VkBuffer bu
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(VkDeviceSize);
@@ -16941,7 +17089,6 @@ void VkEncoder::vkCmdBindIndexBuffer2(VkCommandBuffer commandBuffer, VkBuffer bu
     uint32_t packetSize_vkCmdBindIndexBuffer2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindIndexBuffer2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindIndexBuffer2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindIndexBuffer2 = OP_vkCmdBindIndexBuffer2;
     memcpy(streamPtr, &opcode_vkCmdBindIndexBuffer2, sizeof(uint32_t));
@@ -16999,6 +17146,7 @@ void VkEncoder::vkGetRenderingAreaGranularity(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderingAreaInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkRenderingAreaInfo*)(local_pRenderingAreaInfo), countPtr);
@@ -17008,7 +17156,6 @@ void VkEncoder::vkGetRenderingAreaGranularity(VkDevice device,
     uint32_t packetSize_vkGetRenderingAreaGranularity =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetRenderingAreaGranularity);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetRenderingAreaGranularity = OP_vkGetRenderingAreaGranularity;
     uint32_t seqno;
@@ -17069,6 +17216,7 @@ void VkEncoder::vkGetDeviceImageSubresourceLayout(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceImageSubresourceInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                            (VkDeviceImageSubresourceInfo*)(local_pInfo), countPtr);
@@ -17078,7 +17226,6 @@ void VkEncoder::vkGetDeviceImageSubresourceLayout(VkDevice device,
     uint32_t packetSize_vkGetDeviceImageSubresourceLayout =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceImageSubresourceLayout);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceImageSubresourceLayout = OP_vkGetDeviceImageSubresourceLayout;
     uint32_t seqno;
@@ -17141,8 +17288,10 @@ void VkEncoder::vkGetImageSubresourceLayout2(VkDevice device, VkImage image,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkImageSubresource2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkImageSubresource2*)(local_pSubresource), countPtr);
@@ -17152,7 +17301,6 @@ void VkEncoder::vkGetImageSubresourceLayout2(VkDevice device, VkImage image,
     uint32_t packetSize_vkGetImageSubresourceLayout2 =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageSubresourceLayout2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageSubresourceLayout2 = OP_vkGetImageSubresourceLayout2;
     uint32_t seqno;
@@ -17232,9 +17380,11 @@ void VkEncoder::vkCmdPushDescriptorSet(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineBindPoint);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -17247,7 +17397,6 @@ void VkEncoder::vkCmdPushDescriptorSet(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdPushDescriptorSet = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPushDescriptorSet -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPushDescriptorSet);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPushDescriptorSet = OP_vkCmdPushDescriptorSet;
     memcpy(streamPtr, &opcode_vkCmdPushDescriptorSet, sizeof(uint32_t));
@@ -17308,10 +17457,13 @@ void VkEncoder::vkCmdPushDescriptorSetWithTemplate(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         // WARNING PTR CHECK
@@ -17323,7 +17475,6 @@ void VkEncoder::vkCmdPushDescriptorSetWithTemplate(
     uint32_t packetSize_vkCmdPushDescriptorSetWithTemplate = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPushDescriptorSetWithTemplate -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPushDescriptorSetWithTemplate);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPushDescriptorSetWithTemplate = OP_vkCmdPushDescriptorSetWithTemplate;
     memcpy(streamPtr, &opcode_vkCmdPushDescriptorSetWithTemplate, sizeof(uint32_t));
@@ -17391,6 +17542,7 @@ void VkEncoder::vkCmdSetRenderingAttachmentLocations(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderingAttachmentLocationInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -17399,7 +17551,6 @@ void VkEncoder::vkCmdSetRenderingAttachmentLocations(
     uint32_t packetSize_vkCmdSetRenderingAttachmentLocations = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetRenderingAttachmentLocations -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetRenderingAttachmentLocations);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetRenderingAttachmentLocations = OP_vkCmdSetRenderingAttachmentLocations;
     memcpy(streamPtr, &opcode_vkCmdSetRenderingAttachmentLocations, sizeof(uint32_t));
@@ -17452,6 +17603,7 @@ void VkEncoder::vkCmdSetRenderingInputAttachmentIndices(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderingInputAttachmentIndexInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -17460,7 +17612,6 @@ void VkEncoder::vkCmdSetRenderingInputAttachmentIndices(
     uint32_t packetSize_vkCmdSetRenderingInputAttachmentIndices = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetRenderingInputAttachmentIndices -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetRenderingInputAttachmentIndices);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetRenderingInputAttachmentIndices =
         OP_vkCmdSetRenderingInputAttachmentIndices;
@@ -17513,6 +17664,7 @@ void VkEncoder::vkCmdBindDescriptorSets2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBindDescriptorSetsInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkBindDescriptorSetsInfo*)(local_pBindDescriptorSetsInfo),
@@ -17521,7 +17673,6 @@ void VkEncoder::vkCmdBindDescriptorSets2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdBindDescriptorSets2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindDescriptorSets2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindDescriptorSets2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindDescriptorSets2 = OP_vkCmdBindDescriptorSets2;
     memcpy(streamPtr, &opcode_vkCmdBindDescriptorSets2, sizeof(uint32_t));
@@ -17572,6 +17723,7 @@ void VkEncoder::vkCmdPushConstants2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPushConstantsInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkPushConstantsInfo*)(local_pPushConstantsInfo), countPtr);
@@ -17579,7 +17731,6 @@ void VkEncoder::vkCmdPushConstants2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdPushConstants2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPushConstants2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPushConstants2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPushConstants2 = OP_vkCmdPushConstants2;
     memcpy(streamPtr, &opcode_vkCmdPushConstants2, sizeof(uint32_t));
@@ -17630,6 +17781,7 @@ void VkEncoder::vkCmdPushDescriptorSet2(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPushDescriptorSetInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkPushDescriptorSetInfo*)(local_pPushDescriptorSetInfo),
@@ -17638,7 +17790,6 @@ void VkEncoder::vkCmdPushDescriptorSet2(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdPushDescriptorSet2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPushDescriptorSet2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPushDescriptorSet2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPushDescriptorSet2 = OP_vkCmdPushDescriptorSet2;
     memcpy(streamPtr, &opcode_vkCmdPushDescriptorSet2, sizeof(uint32_t));
@@ -17693,6 +17844,7 @@ void VkEncoder::vkCmdPushDescriptorSetWithTemplate2(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPushDescriptorSetWithTemplateInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -17702,7 +17854,6 @@ void VkEncoder::vkCmdPushDescriptorSetWithTemplate2(
     uint32_t packetSize_vkCmdPushDescriptorSetWithTemplate2 = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPushDescriptorSetWithTemplate2 -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPushDescriptorSetWithTemplate2);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPushDescriptorSetWithTemplate2 = OP_vkCmdPushDescriptorSetWithTemplate2;
     memcpy(streamPtr, &opcode_vkCmdPushDescriptorSetWithTemplate2, sizeof(uint32_t));
@@ -17754,6 +17905,7 @@ VkResult VkEncoder::vkCopyMemoryToImage(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyMemoryToImageInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkCopyMemoryToImageInfo*)(local_pCopyMemoryToImageInfo),
@@ -17762,7 +17914,6 @@ VkResult VkEncoder::vkCopyMemoryToImage(VkDevice device,
     uint32_t packetSize_vkCopyMemoryToImage =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCopyMemoryToImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCopyMemoryToImage = OP_vkCopyMemoryToImage;
     uint32_t seqno;
@@ -17820,6 +17971,7 @@ VkResult VkEncoder::vkCopyImageToMemory(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyImageToMemoryInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkCopyImageToMemoryInfo*)(local_pCopyImageToMemoryInfo),
@@ -17828,7 +17980,6 @@ VkResult VkEncoder::vkCopyImageToMemory(VkDevice device,
     uint32_t packetSize_vkCopyImageToMemory =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCopyImageToMemory);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCopyImageToMemory = OP_vkCopyImageToMemory;
     uint32_t seqno;
@@ -17886,6 +18037,7 @@ VkResult VkEncoder::vkCopyImageToImage(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyImageToImageInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                      (VkCopyImageToImageInfo*)(local_pCopyImageToImageInfo),
@@ -17894,7 +18046,6 @@ VkResult VkEncoder::vkCopyImageToImage(VkDevice device,
     uint32_t packetSize_vkCopyImageToImage =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCopyImageToImage);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCopyImageToImage = OP_vkCopyImageToImage;
     uint32_t seqno;
@@ -17959,6 +18110,7 @@ VkResult VkEncoder::vkTransitionImageLayout(VkDevice device, uint32_t transition
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((transitionCount)); ++i) {
@@ -17970,7 +18122,6 @@ VkResult VkEncoder::vkTransitionImageLayout(VkDevice device, uint32_t transition
     uint32_t packetSize_vkTransitionImageLayout =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkTransitionImageLayout);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkTransitionImageLayout = OP_vkTransitionImageLayout;
     uint32_t seqno;
@@ -18032,6 +18183,7 @@ void VkEncoder::vkCmdBeginRenderingKHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderingInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                               (VkRenderingInfo*)(local_pRenderingInfo), countPtr);
@@ -18039,7 +18191,6 @@ void VkEncoder::vkCmdBeginRenderingKHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdBeginRenderingKHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBeginRenderingKHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBeginRenderingKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBeginRenderingKHR = OP_vkCmdBeginRenderingKHR;
     memcpy(streamPtr, &opcode_vkCmdBeginRenderingKHR, sizeof(uint32_t));
@@ -18075,12 +18226,12 @@ void VkEncoder::vkCmdEndRenderingKHR(VkCommandBuffer commandBuffer, uint32_t doL
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkCmdEndRenderingKHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdEndRenderingKHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdEndRenderingKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdEndRenderingKHR = OP_vkCmdEndRenderingKHR;
     memcpy(streamPtr, &opcode_vkCmdEndRenderingKHR, sizeof(uint32_t));
@@ -18118,6 +18269,7 @@ void VkEncoder::vkGetPhysicalDeviceFeatures2KHR(VkPhysicalDevice physicalDevice,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceFeatures2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                         (VkPhysicalDeviceFeatures2*)(pFeatures), countPtr);
@@ -18125,7 +18277,6 @@ void VkEncoder::vkGetPhysicalDeviceFeatures2KHR(VkPhysicalDevice physicalDevice,
     uint32_t packetSize_vkGetPhysicalDeviceFeatures2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceFeatures2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceFeatures2KHR = OP_vkGetPhysicalDeviceFeatures2KHR;
     uint32_t seqno;
@@ -18174,6 +18325,7 @@ void VkEncoder::vkGetPhysicalDeviceProperties2KHR(VkPhysicalDevice physicalDevic
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceProperties2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                           (VkPhysicalDeviceProperties2*)(pProperties), countPtr);
@@ -18181,7 +18333,6 @@ void VkEncoder::vkGetPhysicalDeviceProperties2KHR(VkPhysicalDevice physicalDevic
     uint32_t packetSize_vkGetPhysicalDeviceProperties2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceProperties2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceProperties2KHR = OP_vkGetPhysicalDeviceProperties2KHR;
     uint32_t seqno;
@@ -18234,6 +18385,7 @@ void VkEncoder::vkGetPhysicalDeviceFormatProperties2KHR(VkPhysicalDevice physica
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFormat);
         count_VkFormatProperties2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -18242,7 +18394,6 @@ void VkEncoder::vkGetPhysicalDeviceFormatProperties2KHR(VkPhysicalDevice physica
     uint32_t packetSize_vkGetPhysicalDeviceFormatProperties2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceFormatProperties2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceFormatProperties2KHR =
         OP_vkGetPhysicalDeviceFormatProperties2KHR;
@@ -18306,6 +18457,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceImageFormatProperties2KHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceImageFormatInfo2(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -18317,7 +18469,6 @@ VkResult VkEncoder::vkGetPhysicalDeviceImageFormatProperties2KHR(
     uint32_t packetSize_vkGetPhysicalDeviceImageFormatProperties2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceImageFormatProperties2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceImageFormatProperties2KHR =
         OP_vkGetPhysicalDeviceImageFormatProperties2KHR;
@@ -18373,6 +18524,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties2KHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -18394,7 +18546,6 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties2KHR(
     uint32_t packetSize_vkGetPhysicalDeviceQueueFamilyProperties2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceQueueFamilyProperties2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceQueueFamilyProperties2KHR =
         OP_vkGetPhysicalDeviceQueueFamilyProperties2KHR;
@@ -18435,6 +18586,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties2KHR(
     }
     // WARNING PTR CHECK
     uint32_t* check_pQueueFamilyPropertyCount;
+    (void)check_pQueueFamilyPropertyCount;
     check_pQueueFamilyPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pQueueFamilyPropertyCount) {
         if (!(check_pQueueFamilyPropertyCount)) {
@@ -18445,6 +18597,7 @@ void VkEncoder::vkGetPhysicalDeviceQueueFamilyProperties2KHR(
     }
     // WARNING PTR CHECK
     VkQueueFamilyProperties2* check_pQueueFamilyProperties;
+    (void)check_pQueueFamilyProperties;
     check_pQueueFamilyProperties = (VkQueueFamilyProperties2*)(uintptr_t)stream->getBe64();
     if (pQueueFamilyProperties) {
         if (!(check_pQueueFamilyProperties)) {
@@ -18489,6 +18642,7 @@ void VkEncoder::vkGetPhysicalDeviceMemoryProperties2KHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceMemoryProperties2(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -18497,7 +18651,6 @@ void VkEncoder::vkGetPhysicalDeviceMemoryProperties2KHR(
     uint32_t packetSize_vkGetPhysicalDeviceMemoryProperties2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceMemoryProperties2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceMemoryProperties2KHR =
         OP_vkGetPhysicalDeviceMemoryProperties2KHR;
@@ -18561,6 +18714,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceSparseImageFormatInfo2(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -18586,7 +18740,6 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr =
         stream->reserve(packetSize_vkGetPhysicalDeviceSparseImageFormatProperties2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceSparseImageFormatProperties2KHR =
         OP_vkGetPhysicalDeviceSparseImageFormatProperties2KHR;
@@ -18631,6 +18784,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
     }
     // WARNING PTR CHECK
     uint32_t* check_pPropertyCount;
+    (void)check_pPropertyCount;
     check_pPropertyCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pPropertyCount) {
         if (!(check_pPropertyCount)) {
@@ -18640,6 +18794,7 @@ void VkEncoder::vkGetPhysicalDeviceSparseImageFormatProperties2KHR(
     }
     // WARNING PTR CHECK
     VkSparseImageFormatProperties2* check_pProperties;
+    (void)check_pProperties;
     check_pProperties = (VkSparseImageFormatProperties2*)(uintptr_t)stream->getBe64();
     if (pProperties) {
         if (!(check_pProperties)) {
@@ -18689,15 +18844,16 @@ void VkEncoder::vkTrimCommandPoolKHR(VkDevice device, VkCommandPool commandPool,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCommandPoolTrimFlags);
     }
     uint32_t packetSize_vkTrimCommandPoolKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkTrimCommandPoolKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkTrimCommandPoolKHR = OP_vkTrimCommandPoolKHR;
     uint32_t seqno;
@@ -18761,6 +18917,7 @@ void VkEncoder::vkGetPhysicalDeviceExternalBufferPropertiesKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceExternalBufferInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -18772,7 +18929,6 @@ void VkEncoder::vkGetPhysicalDeviceExternalBufferPropertiesKHR(
     uint32_t packetSize_vkGetPhysicalDeviceExternalBufferPropertiesKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceExternalBufferPropertiesKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceExternalBufferPropertiesKHR =
         OP_vkGetPhysicalDeviceExternalBufferPropertiesKHR;
@@ -18844,6 +19000,7 @@ void VkEncoder::vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceExternalSemaphoreInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -18856,7 +19013,6 @@ void VkEncoder::vkGetPhysicalDeviceExternalSemaphorePropertiesKHR(
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr =
         stream->reserve(packetSize_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR =
         OP_vkGetPhysicalDeviceExternalSemaphorePropertiesKHR;
@@ -18928,6 +19084,7 @@ VkResult VkEncoder::vkImportSemaphoreFdKHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImportSemaphoreFdInfoKHR(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -18936,7 +19093,6 @@ VkResult VkEncoder::vkImportSemaphoreFdKHR(VkDevice device,
     uint32_t packetSize_vkImportSemaphoreFdKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkImportSemaphoreFdKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkImportSemaphoreFdKHR = OP_vkImportSemaphoreFdKHR;
     uint32_t seqno;
@@ -18993,6 +19149,7 @@ VkResult VkEncoder::vkGetSemaphoreFdKHR(VkDevice device, const VkSemaphoreGetFdI
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSemaphoreGetFdInfoKHR(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkSemaphoreGetFdInfoKHR*)(local_pGetFdInfo), countPtr);
@@ -19001,7 +19158,6 @@ VkResult VkEncoder::vkGetSemaphoreFdKHR(VkDevice device, const VkSemaphoreGetFdI
     uint32_t packetSize_vkGetSemaphoreFdKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetSemaphoreFdKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetSemaphoreFdKHR = OP_vkGetSemaphoreFdKHR;
     uint32_t seqno;
@@ -19078,6 +19234,7 @@ VkResult VkEncoder::vkCreateDescriptorUpdateTemplateKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDescriptorUpdateTemplateCreateInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -19089,12 +19246,12 @@ VkResult VkEncoder::vkCreateDescriptorUpdateTemplateKHR(
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateDescriptorUpdateTemplateKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateDescriptorUpdateTemplateKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateDescriptorUpdateTemplateKHR = OP_vkCreateDescriptorUpdateTemplateKHR;
     uint32_t seqno;
@@ -19179,8 +19336,10 @@ void VkEncoder::vkDestroyDescriptorUpdateTemplateKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -19192,7 +19351,6 @@ void VkEncoder::vkDestroyDescriptorUpdateTemplateKHR(
     uint32_t packetSize_vkDestroyDescriptorUpdateTemplateKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyDescriptorUpdateTemplateKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyDescriptorUpdateTemplateKHR = OP_vkDestroyDescriptorUpdateTemplateKHR;
     uint32_t seqno;
@@ -19256,10 +19414,13 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -19270,7 +19431,6 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateKHR(
     uint32_t packetSize_vkUpdateDescriptorSetWithTemplateKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkUpdateDescriptorSetWithTemplateKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkUpdateDescriptorSetWithTemplateKHR = OP_vkUpdateDescriptorSetWithTemplateKHR;
     uint32_t seqno;
@@ -19355,6 +19515,7 @@ VkResult VkEncoder::vkCreateRenderPass2KHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderPassCreateInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkRenderPassCreateInfo2*)(local_pCreateInfo), countPtr);
@@ -19365,12 +19526,12 @@ VkResult VkEncoder::vkCreateRenderPass2KHR(VkDevice device,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateRenderPass2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateRenderPass2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateRenderPass2KHR = OP_vkCreateRenderPass2KHR;
     uint32_t seqno;
@@ -19463,6 +19624,7 @@ void VkEncoder::vkCmdBeginRenderPass2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderPassBeginInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                     (VkRenderPassBeginInfo*)(local_pRenderPassBegin), countPtr);
@@ -19472,7 +19634,6 @@ void VkEncoder::vkCmdBeginRenderPass2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdBeginRenderPass2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBeginRenderPass2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBeginRenderPass2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBeginRenderPass2KHR = OP_vkCmdBeginRenderPass2KHR;
     memcpy(streamPtr, &opcode_vkCmdBeginRenderPass2KHR, sizeof(uint32_t));
@@ -19537,6 +19698,7 @@ void VkEncoder::vkCmdNextSubpass2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSubpassBeginInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                  (VkSubpassBeginInfo*)(local_pSubpassBeginInfo), countPtr);
@@ -19546,7 +19708,6 @@ void VkEncoder::vkCmdNextSubpass2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdNextSubpass2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdNextSubpass2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdNextSubpass2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdNextSubpass2KHR = OP_vkCmdNextSubpass2KHR;
     memcpy(streamPtr, &opcode_vkCmdNextSubpass2KHR, sizeof(uint32_t));
@@ -19597,6 +19758,7 @@ void VkEncoder::vkCmdEndRenderPass2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSubpassEndInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkSubpassEndInfo*)(local_pSubpassEndInfo), countPtr);
@@ -19604,7 +19766,6 @@ void VkEncoder::vkCmdEndRenderPass2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdEndRenderPass2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdEndRenderPass2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdEndRenderPass2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdEndRenderPass2KHR = OP_vkCmdEndRenderPass2KHR;
     memcpy(streamPtr, &opcode_vkCmdEndRenderPass2KHR, sizeof(uint32_t));
@@ -19657,6 +19818,7 @@ void VkEncoder::vkGetPhysicalDeviceExternalFencePropertiesKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPhysicalDeviceExternalFenceInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -19668,7 +19830,6 @@ void VkEncoder::vkGetPhysicalDeviceExternalFencePropertiesKHR(
     uint32_t packetSize_vkGetPhysicalDeviceExternalFencePropertiesKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceExternalFencePropertiesKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceExternalFencePropertiesKHR =
         OP_vkGetPhysicalDeviceExternalFencePropertiesKHR;
@@ -19735,6 +19896,7 @@ VkResult VkEncoder::vkImportFenceFdKHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImportFenceFdInfoKHR(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                      (VkImportFenceFdInfoKHR*)(local_pImportFenceFdInfo), countPtr);
@@ -19742,7 +19904,6 @@ VkResult VkEncoder::vkImportFenceFdKHR(VkDevice device,
     uint32_t packetSize_vkImportFenceFdKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkImportFenceFdKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkImportFenceFdKHR = OP_vkImportFenceFdKHR;
     uint32_t seqno;
@@ -19798,6 +19959,7 @@ VkResult VkEncoder::vkGetFenceFdKHR(VkDevice device, const VkFenceGetFdInfoKHR* 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkFenceGetFdInfoKHR(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkFenceGetFdInfoKHR*)(local_pGetFdInfo), countPtr);
@@ -19805,7 +19967,6 @@ VkResult VkEncoder::vkGetFenceFdKHR(VkDevice device, const VkFenceGetFdInfoKHR* 
     }
     uint32_t packetSize_vkGetFenceFdKHR = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetFenceFdKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetFenceFdKHR = OP_vkGetFenceFdKHR;
     uint32_t seqno;
@@ -19868,6 +20029,7 @@ void VkEncoder::vkGetImageMemoryRequirements2KHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImageMemoryRequirementsInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                              (VkImageMemoryRequirementsInfo2*)(local_pInfo),
@@ -19878,7 +20040,6 @@ void VkEncoder::vkGetImageMemoryRequirements2KHR(VkDevice device,
     uint32_t packetSize_vkGetImageMemoryRequirements2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageMemoryRequirements2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageMemoryRequirements2KHR = OP_vkGetImageMemoryRequirements2KHR;
     uint32_t seqno;
@@ -19943,6 +20104,7 @@ void VkEncoder::vkGetBufferMemoryRequirements2KHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferMemoryRequirementsInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkBufferMemoryRequirementsInfo2*)(local_pInfo),
@@ -19953,7 +20115,6 @@ void VkEncoder::vkGetBufferMemoryRequirements2KHR(VkDevice device,
     uint32_t packetSize_vkGetBufferMemoryRequirements2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetBufferMemoryRequirements2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetBufferMemoryRequirements2KHR = OP_vkGetBufferMemoryRequirements2KHR;
     uint32_t seqno;
@@ -20019,6 +20180,7 @@ void VkEncoder::vkGetImageSparseMemoryRequirements2KHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImageSparseMemoryRequirementsInfo2(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -20044,7 +20206,6 @@ void VkEncoder::vkGetImageSparseMemoryRequirements2KHR(
     uint32_t packetSize_vkGetImageSparseMemoryRequirements2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageSparseMemoryRequirements2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageSparseMemoryRequirements2KHR =
         OP_vkGetImageSparseMemoryRequirements2KHR;
@@ -20088,6 +20249,7 @@ void VkEncoder::vkGetImageSparseMemoryRequirements2KHR(
     }
     // WARNING PTR CHECK
     uint32_t* check_pSparseMemoryRequirementCount;
+    (void)check_pSparseMemoryRequirementCount;
     check_pSparseMemoryRequirementCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirementCount) {
         if (!(check_pSparseMemoryRequirementCount)) {
@@ -20098,6 +20260,7 @@ void VkEncoder::vkGetImageSparseMemoryRequirements2KHR(
     }
     // WARNING PTR CHECK
     VkSparseImageMemoryRequirements2* check_pSparseMemoryRequirements;
+    (void)check_pSparseMemoryRequirements;
     check_pSparseMemoryRequirements =
         (VkSparseImageMemoryRequirements2*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirements) {
@@ -20173,6 +20336,7 @@ VkResult VkEncoder::vkCreateSamplerYcbcrConversionKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkSamplerYcbcrConversionCreateInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -20184,12 +20348,12 @@ VkResult VkEncoder::vkCreateSamplerYcbcrConversionKHR(
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreateSamplerYcbcrConversionKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateSamplerYcbcrConversionKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateSamplerYcbcrConversionKHR = OP_vkCreateSamplerYcbcrConversionKHR;
     uint32_t seqno;
@@ -20272,8 +20436,10 @@ void VkEncoder::vkDestroySamplerYcbcrConversionKHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -20285,7 +20451,6 @@ void VkEncoder::vkDestroySamplerYcbcrConversionKHR(VkDevice device,
     uint32_t packetSize_vkDestroySamplerYcbcrConversionKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroySamplerYcbcrConversionKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroySamplerYcbcrConversionKHR = OP_vkDestroySamplerYcbcrConversionKHR;
     uint32_t seqno;
@@ -20362,6 +20527,7 @@ VkResult VkEncoder::vkBindBufferMemory2KHR(VkDevice device, uint32_t bindInfoCou
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((bindInfoCount)); ++i) {
@@ -20372,7 +20538,6 @@ VkResult VkEncoder::vkBindBufferMemory2KHR(VkDevice device, uint32_t bindInfoCou
     uint32_t packetSize_vkBindBufferMemory2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkBindBufferMemory2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkBindBufferMemory2KHR = OP_vkBindBufferMemory2KHR;
     uint32_t seqno;
@@ -20440,6 +20605,7 @@ VkResult VkEncoder::vkBindImageMemory2KHR(VkDevice device, uint32_t bindInfoCoun
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((bindInfoCount)); ++i) {
@@ -20450,7 +20616,6 @@ VkResult VkEncoder::vkBindImageMemory2KHR(VkDevice device, uint32_t bindInfoCoun
     uint32_t packetSize_vkBindImageMemory2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkBindImageMemory2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkBindImageMemory2KHR = OP_vkBindImageMemory2KHR;
     uint32_t seqno;
@@ -20515,6 +20680,7 @@ void VkEncoder::vkGetDescriptorSetLayoutSupportKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDescriptorSetLayoutCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkDescriptorSetLayoutCreateInfo*)(local_pCreateInfo),
@@ -20525,7 +20691,6 @@ void VkEncoder::vkGetDescriptorSetLayoutSupportKHR(
     uint32_t packetSize_vkGetDescriptorSetLayoutSupportKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDescriptorSetLayoutSupportKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDescriptorSetLayoutSupportKHR = OP_vkGetDescriptorSetLayoutSupportKHR;
     uint32_t seqno;
@@ -20591,6 +20756,7 @@ VkDeviceAddress VkEncoder::vkGetBufferDeviceAddressKHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferDeviceAddressInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                         (VkBufferDeviceAddressInfo*)(local_pInfo), countPtr);
@@ -20598,7 +20764,6 @@ VkDeviceAddress VkEncoder::vkGetBufferDeviceAddressKHR(VkDevice device,
     uint32_t packetSize_vkGetBufferDeviceAddressKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetBufferDeviceAddressKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetBufferDeviceAddressKHR = OP_vkGetBufferDeviceAddressKHR;
     uint32_t seqno;
@@ -20656,6 +20821,7 @@ uint64_t VkEncoder::vkGetBufferOpaqueCaptureAddressKHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferDeviceAddressInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                         (VkBufferDeviceAddressInfo*)(local_pInfo), countPtr);
@@ -20663,7 +20829,6 @@ uint64_t VkEncoder::vkGetBufferOpaqueCaptureAddressKHR(VkDevice device,
     uint32_t packetSize_vkGetBufferOpaqueCaptureAddressKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetBufferOpaqueCaptureAddressKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetBufferOpaqueCaptureAddressKHR = OP_vkGetBufferOpaqueCaptureAddressKHR;
     uint32_t seqno;
@@ -20721,6 +20886,7 @@ uint64_t VkEncoder::vkGetDeviceMemoryOpaqueCaptureAddressKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceMemoryOpaqueCaptureAddressInfo(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -20729,7 +20895,6 @@ uint64_t VkEncoder::vkGetDeviceMemoryOpaqueCaptureAddressKHR(
     uint32_t packetSize_vkGetDeviceMemoryOpaqueCaptureAddressKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceMemoryOpaqueCaptureAddressKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceMemoryOpaqueCaptureAddressKHR =
         OP_vkGetDeviceMemoryOpaqueCaptureAddressKHR;
@@ -20789,6 +20954,7 @@ VkResult VkEncoder::vkGetPipelineExecutablePropertiesKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPipelineInfoKHR(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkPipelineInfoKHR*)(local_pPipelineInfo), countPtr);
@@ -20812,7 +20978,6 @@ VkResult VkEncoder::vkGetPipelineExecutablePropertiesKHR(
     uint32_t packetSize_vkGetPipelineExecutablePropertiesKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPipelineExecutablePropertiesKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPipelineExecutablePropertiesKHR = OP_vkGetPipelineExecutablePropertiesKHR;
     uint32_t seqno;
@@ -20854,6 +21019,7 @@ VkResult VkEncoder::vkGetPipelineExecutablePropertiesKHR(
     }
     // WARNING PTR CHECK
     uint32_t* check_pExecutableCount;
+    (void)check_pExecutableCount;
     check_pExecutableCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pExecutableCount) {
         if (!(check_pExecutableCount)) {
@@ -20863,6 +21029,7 @@ VkResult VkEncoder::vkGetPipelineExecutablePropertiesKHR(
     }
     // WARNING PTR CHECK
     VkPipelineExecutablePropertiesKHR* check_pProperties;
+    (void)check_pProperties;
     check_pProperties = (VkPipelineExecutablePropertiesKHR*)(uintptr_t)stream->getBe64();
     if (pProperties) {
         if (!(check_pProperties)) {
@@ -20922,6 +21089,7 @@ VkResult VkEncoder::vkGetPipelineExecutableStatisticsKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPipelineExecutableInfoKHR(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                           (VkPipelineExecutableInfoKHR*)(local_pExecutableInfo),
@@ -20946,7 +21114,6 @@ VkResult VkEncoder::vkGetPipelineExecutableStatisticsKHR(
     uint32_t packetSize_vkGetPipelineExecutableStatisticsKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPipelineExecutableStatisticsKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPipelineExecutableStatisticsKHR = OP_vkGetPipelineExecutableStatisticsKHR;
     uint32_t seqno;
@@ -20989,6 +21156,7 @@ VkResult VkEncoder::vkGetPipelineExecutableStatisticsKHR(
     }
     // WARNING PTR CHECK
     uint32_t* check_pStatisticCount;
+    (void)check_pStatisticCount;
     check_pStatisticCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pStatisticCount) {
         if (!(check_pStatisticCount)) {
@@ -20998,6 +21166,7 @@ VkResult VkEncoder::vkGetPipelineExecutableStatisticsKHR(
     }
     // WARNING PTR CHECK
     VkPipelineExecutableStatisticKHR* check_pStatistics;
+    (void)check_pStatistics;
     check_pStatistics = (VkPipelineExecutableStatisticKHR*)(uintptr_t)stream->getBe64();
     if (pStatistics) {
         if (!(check_pStatistics)) {
@@ -21058,6 +21227,7 @@ VkResult VkEncoder::vkGetPipelineExecutableInternalRepresentationsKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPipelineExecutableInfoKHR(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                           (VkPipelineExecutableInfoKHR*)(local_pExecutableInfo),
@@ -21085,7 +21255,6 @@ VkResult VkEncoder::vkGetPipelineExecutableInternalRepresentationsKHR(
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr =
         stream->reserve(packetSize_vkGetPipelineExecutableInternalRepresentationsKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPipelineExecutableInternalRepresentationsKHR =
         OP_vkGetPipelineExecutableInternalRepresentationsKHR;
@@ -21131,6 +21300,7 @@ VkResult VkEncoder::vkGetPipelineExecutableInternalRepresentationsKHR(
     }
     // WARNING PTR CHECK
     uint32_t* check_pInternalRepresentationCount;
+    (void)check_pInternalRepresentationCount;
     check_pInternalRepresentationCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pInternalRepresentationCount) {
         if (!(check_pInternalRepresentationCount)) {
@@ -21141,6 +21311,7 @@ VkResult VkEncoder::vkGetPipelineExecutableInternalRepresentationsKHR(
     }
     // WARNING PTR CHECK
     VkPipelineExecutableInternalRepresentationKHR* check_pInternalRepresentations;
+    (void)check_pInternalRepresentations;
     check_pInternalRepresentations =
         (VkPipelineExecutableInternalRepresentationKHR*)(uintptr_t)stream->getBe64();
     if (pInternalRepresentations) {
@@ -21206,8 +21377,10 @@ void VkEncoder::vkCmdSetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkDependencyInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkDependencyInfo*)(local_pDependencyInfo), countPtr);
@@ -21215,7 +21388,6 @@ void VkEncoder::vkCmdSetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event,
     uint32_t packetSize_vkCmdSetEvent2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetEvent2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetEvent2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetEvent2KHR = OP_vkCmdSetEvent2KHR;
     memcpy(streamPtr, &opcode_vkCmdSetEvent2KHR, sizeof(uint32_t));
@@ -21260,15 +21432,16 @@ void VkEncoder::vkCmdResetEvent2KHR(VkCommandBuffer commandBuffer, VkEvent event
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineStageFlags2);
     }
     uint32_t packetSize_vkCmdResetEvent2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdResetEvent2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdResetEvent2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdResetEvent2KHR = OP_vkCmdResetEvent2KHR;
     memcpy(streamPtr, &opcode_vkCmdResetEvent2KHR, sizeof(uint32_t));
@@ -21331,6 +21504,7 @@ void VkEncoder::vkCmdWaitEvents2KHR(VkCommandBuffer commandBuffer, uint32_t even
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         if (((eventCount))) {
@@ -21344,7 +21518,6 @@ void VkEncoder::vkCmdWaitEvents2KHR(VkCommandBuffer commandBuffer, uint32_t even
     uint32_t packetSize_vkCmdWaitEvents2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdWaitEvents2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdWaitEvents2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdWaitEvents2KHR = OP_vkCmdWaitEvents2KHR;
     memcpy(streamPtr, &opcode_vkCmdWaitEvents2KHR, sizeof(uint32_t));
@@ -21405,6 +21578,7 @@ void VkEncoder::vkCmdPipelineBarrier2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDependencyInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkDependencyInfo*)(local_pDependencyInfo), countPtr);
@@ -21412,7 +21586,6 @@ void VkEncoder::vkCmdPipelineBarrier2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdPipelineBarrier2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdPipelineBarrier2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdPipelineBarrier2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdPipelineBarrier2KHR = OP_vkCmdPipelineBarrier2KHR;
     memcpy(streamPtr, &opcode_vkCmdPipelineBarrier2KHR, sizeof(uint32_t));
@@ -21455,16 +21628,17 @@ void VkEncoder::vkCmdWriteTimestamp2KHR(VkCommandBuffer commandBuffer, VkPipelin
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPipelineStageFlags2);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
     }
     uint32_t packetSize_vkCmdWriteTimestamp2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdWriteTimestamp2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdWriteTimestamp2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdWriteTimestamp2KHR = OP_vkCmdWriteTimestamp2KHR;
     memcpy(streamPtr, &opcode_vkCmdWriteTimestamp2KHR, sizeof(uint32_t));
@@ -21526,6 +21700,7 @@ VkResult VkEncoder::vkQueueSubmit2KHR(VkQueue queue, uint32_t submitCount,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((submitCount)); ++i) {
@@ -21533,12 +21708,12 @@ VkResult VkEncoder::vkQueueSubmit2KHR(VkQueue queue, uint32_t submitCount,
                                 (VkSubmitInfo2*)(local_pSubmits + i), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueSubmit2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueSubmit2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueSubmit2KHR = OP_vkQueueSubmit2KHR;
     uint32_t seqno;
@@ -21603,6 +21778,7 @@ void VkEncoder::vkCmdCopyBuffer2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyBufferInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkCopyBufferInfo2*)(local_pCopyBufferInfo), countPtr);
@@ -21610,7 +21786,6 @@ void VkEncoder::vkCmdCopyBuffer2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdCopyBuffer2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyBuffer2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyBuffer2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyBuffer2KHR = OP_vkCmdCopyBuffer2KHR;
     memcpy(streamPtr, &opcode_vkCmdCopyBuffer2KHR, sizeof(uint32_t));
@@ -21658,6 +21833,7 @@ void VkEncoder::vkCmdCopyImage2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyImageInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkCopyImageInfo2*)(local_pCopyImageInfo), countPtr);
@@ -21665,7 +21841,6 @@ void VkEncoder::vkCmdCopyImage2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdCopyImage2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyImage2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyImage2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyImage2KHR = OP_vkCmdCopyImage2KHR;
     memcpy(streamPtr, &opcode_vkCmdCopyImage2KHR, sizeof(uint32_t));
@@ -21716,6 +21891,7 @@ void VkEncoder::vkCmdCopyBufferToImage2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyBufferToImageInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkCopyBufferToImageInfo2*)(local_pCopyBufferToImageInfo),
@@ -21724,7 +21900,6 @@ void VkEncoder::vkCmdCopyBufferToImage2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdCopyBufferToImage2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyBufferToImage2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyBufferToImage2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyBufferToImage2KHR = OP_vkCmdCopyBufferToImage2KHR;
     memcpy(streamPtr, &opcode_vkCmdCopyBufferToImage2KHR, sizeof(uint32_t));
@@ -21776,6 +21951,7 @@ void VkEncoder::vkCmdCopyImageToBuffer2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyImageToBufferInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkCopyImageToBufferInfo2*)(local_pCopyImageToBufferInfo),
@@ -21784,7 +21960,6 @@ void VkEncoder::vkCmdCopyImageToBuffer2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdCopyImageToBuffer2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdCopyImageToBuffer2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdCopyImageToBuffer2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdCopyImageToBuffer2KHR = OP_vkCmdCopyImageToBuffer2KHR;
     memcpy(streamPtr, &opcode_vkCmdCopyImageToBuffer2KHR, sizeof(uint32_t));
@@ -21833,6 +22008,7 @@ void VkEncoder::vkCmdBlitImage2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBlitImageInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                (VkBlitImageInfo2*)(local_pBlitImageInfo), countPtr);
@@ -21840,7 +22016,6 @@ void VkEncoder::vkCmdBlitImage2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdBlitImage2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBlitImage2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBlitImage2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBlitImage2KHR = OP_vkCmdBlitImage2KHR;
     memcpy(streamPtr, &opcode_vkCmdBlitImage2KHR, sizeof(uint32_t));
@@ -21890,6 +22065,7 @@ void VkEncoder::vkCmdResolveImage2KHR(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkResolveImageInfo2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkResolveImageInfo2*)(local_pResolveImageInfo), countPtr);
@@ -21897,7 +22073,6 @@ void VkEncoder::vkCmdResolveImage2KHR(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkCmdResolveImage2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdResolveImage2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdResolveImage2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdResolveImage2KHR = OP_vkCmdResolveImage2KHR;
     memcpy(streamPtr, &opcode_vkCmdResolveImage2KHR, sizeof(uint32_t));
@@ -21950,6 +22125,7 @@ void VkEncoder::vkGetDeviceBufferMemoryRequirementsKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceBufferMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                                (VkDeviceBufferMemoryRequirements*)(local_pInfo),
@@ -21960,7 +22136,6 @@ void VkEncoder::vkGetDeviceBufferMemoryRequirementsKHR(
     uint32_t packetSize_vkGetDeviceBufferMemoryRequirementsKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceBufferMemoryRequirementsKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceBufferMemoryRequirementsKHR =
         OP_vkGetDeviceBufferMemoryRequirementsKHR;
@@ -22026,6 +22201,7 @@ void VkEncoder::vkGetDeviceImageMemoryRequirementsKHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceImageMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkDeviceImageMemoryRequirements*)(local_pInfo),
@@ -22036,7 +22212,6 @@ void VkEncoder::vkGetDeviceImageMemoryRequirementsKHR(VkDevice device,
     uint32_t packetSize_vkGetDeviceImageMemoryRequirementsKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceImageMemoryRequirementsKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceImageMemoryRequirementsKHR =
         OP_vkGetDeviceImageMemoryRequirementsKHR;
@@ -22102,6 +22277,7 @@ void VkEncoder::vkGetDeviceImageSparseMemoryRequirementsKHR(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceImageMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                               (VkDeviceImageMemoryRequirements*)(local_pInfo),
@@ -22127,7 +22303,6 @@ void VkEncoder::vkGetDeviceImageSparseMemoryRequirementsKHR(
     uint32_t packetSize_vkGetDeviceImageSparseMemoryRequirementsKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceImageSparseMemoryRequirementsKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceImageSparseMemoryRequirementsKHR =
         OP_vkGetDeviceImageSparseMemoryRequirementsKHR;
@@ -22171,6 +22346,7 @@ void VkEncoder::vkGetDeviceImageSparseMemoryRequirementsKHR(
     }
     // WARNING PTR CHECK
     uint32_t* check_pSparseMemoryRequirementCount;
+    (void)check_pSparseMemoryRequirementCount;
     check_pSparseMemoryRequirementCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirementCount) {
         if (!(check_pSparseMemoryRequirementCount)) {
@@ -22181,6 +22357,7 @@ void VkEncoder::vkGetDeviceImageSparseMemoryRequirementsKHR(
     }
     // WARNING PTR CHECK
     VkSparseImageMemoryRequirements2* check_pSparseMemoryRequirements;
+    (void)check_pSparseMemoryRequirements;
     check_pSparseMemoryRequirements =
         (VkSparseImageMemoryRequirements2*)(uintptr_t)stream->getBe64();
     if (pSparseMemoryRequirements) {
@@ -22238,8 +22415,10 @@ void VkEncoder::vkCmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer, VkBuffer
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(VkDeviceSize);
@@ -22248,7 +22427,6 @@ void VkEncoder::vkCmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer, VkBuffer
     uint32_t packetSize_vkCmdBindIndexBuffer2KHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindIndexBuffer2KHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindIndexBuffer2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindIndexBuffer2KHR = OP_vkCmdBindIndexBuffer2KHR;
     memcpy(streamPtr, &opcode_vkCmdBindIndexBuffer2KHR, sizeof(uint32_t));
@@ -22306,6 +22484,7 @@ void VkEncoder::vkGetRenderingAreaGranularityKHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkRenderingAreaInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkRenderingAreaInfo*)(local_pRenderingAreaInfo), countPtr);
@@ -22315,7 +22494,6 @@ void VkEncoder::vkGetRenderingAreaGranularityKHR(VkDevice device,
     uint32_t packetSize_vkGetRenderingAreaGranularityKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetRenderingAreaGranularityKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetRenderingAreaGranularityKHR = OP_vkGetRenderingAreaGranularityKHR;
     uint32_t seqno;
@@ -22377,6 +22555,7 @@ void VkEncoder::vkGetDeviceImageSubresourceLayoutKHR(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkDeviceImageSubresourceInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                            (VkDeviceImageSubresourceInfo*)(local_pInfo), countPtr);
@@ -22386,7 +22565,6 @@ void VkEncoder::vkGetDeviceImageSubresourceLayoutKHR(VkDevice device,
     uint32_t packetSize_vkGetDeviceImageSubresourceLayoutKHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetDeviceImageSubresourceLayoutKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetDeviceImageSubresourceLayoutKHR = OP_vkGetDeviceImageSubresourceLayoutKHR;
     uint32_t seqno;
@@ -22449,8 +22627,10 @@ void VkEncoder::vkGetImageSubresourceLayout2KHR(VkDevice device, VkImage image,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkImageSubresource2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkImageSubresource2*)(local_pSubresource), countPtr);
@@ -22460,7 +22640,6 @@ void VkEncoder::vkGetImageSubresourceLayout2KHR(VkDevice device, VkImage image,
     uint32_t packetSize_vkGetImageSubresourceLayout2KHR =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageSubresourceLayout2KHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageSubresourceLayout2KHR = OP_vkGetImageSubresourceLayout2KHR;
     uint32_t seqno;
@@ -22518,6 +22697,7 @@ void VkEncoder::vkCmdSetLineStippleKHR(VkCommandBuffer commandBuffer, uint32_t l
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint16_t);
@@ -22525,7 +22705,6 @@ void VkEncoder::vkCmdSetLineStippleKHR(VkCommandBuffer commandBuffer, uint32_t l
     uint32_t packetSize_vkCmdSetLineStippleKHR = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetLineStippleKHR -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetLineStippleKHR);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetLineStippleKHR = OP_vkCmdSetLineStippleKHR;
     memcpy(streamPtr, &opcode_vkCmdSetLineStippleKHR, sizeof(uint32_t));
@@ -22571,6 +22750,7 @@ VkResult VkEncoder::vkGetSwapchainGrallocUsageANDROID(VkDevice device, VkFormat 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFormat);
         *countPtr += sizeof(VkImageUsageFlags);
@@ -22579,7 +22759,6 @@ VkResult VkEncoder::vkGetSwapchainGrallocUsageANDROID(VkDevice device, VkFormat 
     uint32_t packetSize_vkGetSwapchainGrallocUsageANDROID =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetSwapchainGrallocUsageANDROID);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetSwapchainGrallocUsageANDROID = OP_vkGetSwapchainGrallocUsageANDROID;
     uint32_t seqno;
@@ -22638,19 +22817,22 @@ VkResult VkEncoder::vkAcquireImageANDROID(VkDevice device, VkImage image, int na
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(int);
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         uint64_t cgen_var_3;
+        (void)cgen_var_3;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkAcquireImageANDROID =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkAcquireImageANDROID);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkAcquireImageANDROID = OP_vkAcquireImageANDROID;
     uint32_t seqno;
@@ -22715,6 +22897,7 @@ VkResult VkEncoder::vkQueueSignalReleaseImageANDROID(VkQueue queue, uint32_t wai
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         // WARNING PTR CHECK
@@ -22725,13 +22908,13 @@ VkResult VkEncoder::vkQueueSignalReleaseImageANDROID(VkQueue queue, uint32_t wai
             }
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(int);
     }
     uint32_t packetSize_vkQueueSignalReleaseImageANDROID =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueSignalReleaseImageANDROID);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueSignalReleaseImageANDROID = OP_vkQueueSignalReleaseImageANDROID;
     uint32_t seqno;
@@ -22806,6 +22989,7 @@ VkResult VkEncoder::vkGetSwapchainGrallocUsage2ANDROID(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFormat);
         *countPtr += sizeof(VkImageUsageFlags);
@@ -22816,7 +23000,6 @@ VkResult VkEncoder::vkGetSwapchainGrallocUsage2ANDROID(
     uint32_t packetSize_vkGetSwapchainGrallocUsage2ANDROID =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetSwapchainGrallocUsage2ANDROID);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetSwapchainGrallocUsage2ANDROID = OP_vkGetSwapchainGrallocUsage2ANDROID;
     uint32_t seqno;
@@ -22889,6 +23072,7 @@ void VkEncoder::vkCmdBindTransformFeedbackBuffersEXT(VkCommandBuffer commandBuff
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -22905,7 +23089,6 @@ void VkEncoder::vkCmdBindTransformFeedbackBuffersEXT(VkCommandBuffer commandBuff
     uint32_t packetSize_vkCmdBindTransformFeedbackBuffersEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindTransformFeedbackBuffersEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindTransformFeedbackBuffersEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindTransformFeedbackBuffersEXT = OP_vkCmdBindTransformFeedbackBuffersEXT;
     memcpy(streamPtr, &opcode_vkCmdBindTransformFeedbackBuffersEXT, sizeof(uint32_t));
@@ -22974,6 +23157,7 @@ void VkEncoder::vkCmdBeginTransformFeedbackEXT(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -22993,7 +23177,6 @@ void VkEncoder::vkCmdBeginTransformFeedbackEXT(
     uint32_t packetSize_vkCmdBeginTransformFeedbackEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBeginTransformFeedbackEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBeginTransformFeedbackEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBeginTransformFeedbackEXT = OP_vkCmdBeginTransformFeedbackEXT;
     memcpy(streamPtr, &opcode_vkCmdBeginTransformFeedbackEXT, sizeof(uint32_t));
@@ -23068,6 +23251,7 @@ void VkEncoder::vkCmdEndTransformFeedbackEXT(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -23087,7 +23271,6 @@ void VkEncoder::vkCmdEndTransformFeedbackEXT(
     uint32_t packetSize_vkCmdEndTransformFeedbackEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdEndTransformFeedbackEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdEndTransformFeedbackEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdEndTransformFeedbackEXT = OP_vkCmdEndTransformFeedbackEXT;
     memcpy(streamPtr, &opcode_vkCmdEndTransformFeedbackEXT, sizeof(uint32_t));
@@ -23160,8 +23343,10 @@ void VkEncoder::vkCmdBeginQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQuery
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(VkQueryControlFlags);
@@ -23170,7 +23355,6 @@ void VkEncoder::vkCmdBeginQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQuery
     uint32_t packetSize_vkCmdBeginQueryIndexedEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBeginQueryIndexedEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBeginQueryIndexedEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBeginQueryIndexedEXT = OP_vkCmdBeginQueryIndexedEXT;
     memcpy(streamPtr, &opcode_vkCmdBeginQueryIndexedEXT, sizeof(uint32_t));
@@ -23221,8 +23405,10 @@ void VkEncoder::vkCmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -23230,7 +23416,6 @@ void VkEncoder::vkCmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPo
     uint32_t packetSize_vkCmdEndQueryIndexedEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdEndQueryIndexedEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdEndQueryIndexedEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdEndQueryIndexedEXT = OP_vkCmdEndQueryIndexedEXT;
     memcpy(streamPtr, &opcode_vkCmdEndQueryIndexedEXT, sizeof(uint32_t));
@@ -23288,10 +23473,12 @@ void VkEncoder::vkCmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer, uin
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(uint32_t);
@@ -23300,7 +23487,6 @@ void VkEncoder::vkCmdDrawIndirectByteCountEXT(VkCommandBuffer commandBuffer, uin
     uint32_t packetSize_vkCmdDrawIndirectByteCountEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdDrawIndirectByteCountEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdDrawIndirectByteCountEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdDrawIndirectByteCountEXT = OP_vkCmdDrawIndirectByteCountEXT;
     memcpy(streamPtr, &opcode_vkCmdDrawIndirectByteCountEXT, sizeof(uint32_t));
@@ -23354,8 +23540,10 @@ VkResult VkEncoder::vkGetImageDrmFormatModifierPropertiesEXT(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkImageDrmFormatModifierPropertiesEXT(
             sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
@@ -23364,7 +23552,6 @@ VkResult VkEncoder::vkGetImageDrmFormatModifierPropertiesEXT(
     uint32_t packetSize_vkGetImageDrmFormatModifierPropertiesEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageDrmFormatModifierPropertiesEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageDrmFormatModifierPropertiesEXT =
         OP_vkGetImageDrmFormatModifierPropertiesEXT;
@@ -23423,6 +23610,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceToolPropertiesEXT(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -23444,7 +23632,6 @@ VkResult VkEncoder::vkGetPhysicalDeviceToolPropertiesEXT(
     uint32_t packetSize_vkGetPhysicalDeviceToolPropertiesEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPhysicalDeviceToolPropertiesEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPhysicalDeviceToolPropertiesEXT = OP_vkGetPhysicalDeviceToolPropertiesEXT;
     uint32_t seqno;
@@ -23484,6 +23671,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceToolPropertiesEXT(
     }
     // WARNING PTR CHECK
     uint32_t* check_pToolCount;
+    (void)check_pToolCount;
     check_pToolCount = (uint32_t*)(uintptr_t)stream->getBe64();
     if (pToolCount) {
         if (!(check_pToolCount)) {
@@ -23493,6 +23681,7 @@ VkResult VkEncoder::vkGetPhysicalDeviceToolPropertiesEXT(
     }
     // WARNING PTR CHECK
     VkPhysicalDeviceToolProperties* check_pToolProperties;
+    (void)check_pToolProperties;
     check_pToolProperties = (VkPhysicalDeviceToolProperties*)(uintptr_t)stream->getBe64();
     if (pToolProperties) {
         if (!(check_pToolProperties)) {
@@ -23545,6 +23734,7 @@ void VkEncoder::vkCmdSetLineStippleEXT(VkCommandBuffer commandBuffer, uint32_t l
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint16_t);
@@ -23552,7 +23742,6 @@ void VkEncoder::vkCmdSetLineStippleEXT(VkCommandBuffer commandBuffer, uint32_t l
     uint32_t packetSize_vkCmdSetLineStippleEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetLineStippleEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetLineStippleEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetLineStippleEXT = OP_vkCmdSetLineStippleEXT;
     memcpy(streamPtr, &opcode_vkCmdSetLineStippleEXT, sizeof(uint32_t));
@@ -23595,13 +23784,13 @@ void VkEncoder::vkCmdSetCullModeEXT(VkCommandBuffer commandBuffer, VkCullModeFla
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCullModeFlags);
     }
     uint32_t packetSize_vkCmdSetCullModeEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetCullModeEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetCullModeEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetCullModeEXT = OP_vkCmdSetCullModeEXT;
     memcpy(streamPtr, &opcode_vkCmdSetCullModeEXT, sizeof(uint32_t));
@@ -23640,13 +23829,13 @@ void VkEncoder::vkCmdSetFrontFaceEXT(VkCommandBuffer commandBuffer, VkFrontFace 
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFrontFace);
     }
     uint32_t packetSize_vkCmdSetFrontFaceEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetFrontFaceEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetFrontFaceEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetFrontFaceEXT = OP_vkCmdSetFrontFaceEXT;
     memcpy(streamPtr, &opcode_vkCmdSetFrontFaceEXT, sizeof(uint32_t));
@@ -23686,13 +23875,13 @@ void VkEncoder::vkCmdSetPrimitiveTopologyEXT(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkPrimitiveTopology);
     }
     uint32_t packetSize_vkCmdSetPrimitiveTopologyEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetPrimitiveTopologyEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetPrimitiveTopologyEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetPrimitiveTopologyEXT = OP_vkCmdSetPrimitiveTopologyEXT;
     memcpy(streamPtr, &opcode_vkCmdSetPrimitiveTopologyEXT, sizeof(uint32_t));
@@ -23746,6 +23935,7 @@ void VkEncoder::vkCmdSetViewportWithCountEXT(VkCommandBuffer commandBuffer, uint
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((viewportCount)); ++i) {
@@ -23756,7 +23946,6 @@ void VkEncoder::vkCmdSetViewportWithCountEXT(VkCommandBuffer commandBuffer, uint
     uint32_t packetSize_vkCmdSetViewportWithCountEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetViewportWithCountEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetViewportWithCountEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetViewportWithCountEXT = OP_vkCmdSetViewportWithCountEXT;
     memcpy(streamPtr, &opcode_vkCmdSetViewportWithCountEXT, sizeof(uint32_t));
@@ -23813,6 +24002,7 @@ void VkEncoder::vkCmdSetScissorWithCountEXT(VkCommandBuffer commandBuffer, uint3
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((scissorCount)); ++i) {
@@ -23823,7 +24013,6 @@ void VkEncoder::vkCmdSetScissorWithCountEXT(VkCommandBuffer commandBuffer, uint3
     uint32_t packetSize_vkCmdSetScissorWithCountEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetScissorWithCountEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetScissorWithCountEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetScissorWithCountEXT = OP_vkCmdSetScissorWithCountEXT;
     memcpy(streamPtr, &opcode_vkCmdSetScissorWithCountEXT, sizeof(uint32_t));
@@ -23882,6 +24071,7 @@ void VkEncoder::vkCmdBindVertexBuffers2EXT(VkCommandBuffer commandBuffer, uint32
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -23907,7 +24097,6 @@ void VkEncoder::vkCmdBindVertexBuffers2EXT(VkCommandBuffer commandBuffer, uint32
     uint32_t packetSize_vkCmdBindVertexBuffers2EXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdBindVertexBuffers2EXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdBindVertexBuffers2EXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdBindVertexBuffers2EXT = OP_vkCmdBindVertexBuffers2EXT;
     memcpy(streamPtr, &opcode_vkCmdBindVertexBuffers2EXT, sizeof(uint32_t));
@@ -23984,13 +24173,13 @@ void VkEncoder::vkCmdSetDepthTestEnableEXT(VkCommandBuffer commandBuffer, VkBool
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetDepthTestEnableEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthTestEnableEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthTestEnableEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthTestEnableEXT = OP_vkCmdSetDepthTestEnableEXT;
     memcpy(streamPtr, &opcode_vkCmdSetDepthTestEnableEXT, sizeof(uint32_t));
@@ -24029,13 +24218,13 @@ void VkEncoder::vkCmdSetDepthWriteEnableEXT(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetDepthWriteEnableEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthWriteEnableEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthWriteEnableEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthWriteEnableEXT = OP_vkCmdSetDepthWriteEnableEXT;
     memcpy(streamPtr, &opcode_vkCmdSetDepthWriteEnableEXT, sizeof(uint32_t));
@@ -24074,13 +24263,13 @@ void VkEncoder::vkCmdSetDepthCompareOpEXT(VkCommandBuffer commandBuffer, VkCompa
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCompareOp);
     }
     uint32_t packetSize_vkCmdSetDepthCompareOpEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthCompareOpEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthCompareOpEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthCompareOpEXT = OP_vkCmdSetDepthCompareOpEXT;
     memcpy(streamPtr, &opcode_vkCmdSetDepthCompareOpEXT, sizeof(uint32_t));
@@ -24119,13 +24308,13 @@ void VkEncoder::vkCmdSetDepthBoundsTestEnableEXT(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetDepthBoundsTestEnableEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthBoundsTestEnableEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthBoundsTestEnableEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthBoundsTestEnableEXT = OP_vkCmdSetDepthBoundsTestEnableEXT;
     memcpy(streamPtr, &opcode_vkCmdSetDepthBoundsTestEnableEXT, sizeof(uint32_t));
@@ -24164,13 +24353,13 @@ void VkEncoder::vkCmdSetStencilTestEnableEXT(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetStencilTestEnableEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetStencilTestEnableEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetStencilTestEnableEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetStencilTestEnableEXT = OP_vkCmdSetStencilTestEnableEXT;
     memcpy(streamPtr, &opcode_vkCmdSetStencilTestEnableEXT, sizeof(uint32_t));
@@ -24219,6 +24408,7 @@ void VkEncoder::vkCmdSetStencilOpEXT(VkCommandBuffer commandBuffer, VkStencilFac
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkStencilFaceFlags);
         *countPtr += sizeof(VkStencilOp);
@@ -24229,7 +24419,6 @@ void VkEncoder::vkCmdSetStencilOpEXT(VkCommandBuffer commandBuffer, VkStencilFac
     uint32_t packetSize_vkCmdSetStencilOpEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetStencilOpEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetStencilOpEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetStencilOpEXT = OP_vkCmdSetStencilOpEXT;
     memcpy(streamPtr, &opcode_vkCmdSetStencilOpEXT, sizeof(uint32_t));
@@ -24289,6 +24478,7 @@ VkResult VkEncoder::vkCopyMemoryToImageEXT(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyMemoryToImageInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkCopyMemoryToImageInfo*)(local_pCopyMemoryToImageInfo),
@@ -24297,7 +24487,6 @@ VkResult VkEncoder::vkCopyMemoryToImageEXT(VkDevice device,
     uint32_t packetSize_vkCopyMemoryToImageEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCopyMemoryToImageEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCopyMemoryToImageEXT = OP_vkCopyMemoryToImageEXT;
     uint32_t seqno;
@@ -24355,6 +24544,7 @@ VkResult VkEncoder::vkCopyImageToMemoryEXT(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyImageToMemoryInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                       (VkCopyImageToMemoryInfo*)(local_pCopyImageToMemoryInfo),
@@ -24363,7 +24553,6 @@ VkResult VkEncoder::vkCopyImageToMemoryEXT(VkDevice device,
     uint32_t packetSize_vkCopyImageToMemoryEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCopyImageToMemoryEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCopyImageToMemoryEXT = OP_vkCopyImageToMemoryEXT;
     uint32_t seqno;
@@ -24421,6 +24610,7 @@ VkResult VkEncoder::vkCopyImageToImageEXT(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCopyImageToImageInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                      (VkCopyImageToImageInfo*)(local_pCopyImageToImageInfo),
@@ -24429,7 +24619,6 @@ VkResult VkEncoder::vkCopyImageToImageEXT(VkDevice device,
     uint32_t packetSize_vkCopyImageToImageEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCopyImageToImageEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCopyImageToImageEXT = OP_vkCopyImageToImageEXT;
     uint32_t seqno;
@@ -24494,6 +24683,7 @@ VkResult VkEncoder::vkTransitionImageLayoutEXT(VkDevice device, uint32_t transit
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((transitionCount)); ++i) {
@@ -24505,7 +24695,6 @@ VkResult VkEncoder::vkTransitionImageLayoutEXT(VkDevice device, uint32_t transit
     uint32_t packetSize_vkTransitionImageLayoutEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkTransitionImageLayoutEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkTransitionImageLayoutEXT = OP_vkTransitionImageLayoutEXT;
     uint32_t seqno;
@@ -24568,8 +24757,10 @@ void VkEncoder::vkGetImageSubresourceLayout2EXT(VkDevice device, VkImage image,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         count_VkImageSubresource2(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                   (VkImageSubresource2*)(local_pSubresource), countPtr);
@@ -24579,7 +24770,6 @@ void VkEncoder::vkGetImageSubresourceLayout2EXT(VkDevice device, VkImage image,
     uint32_t packetSize_vkGetImageSubresourceLayout2EXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetImageSubresourceLayout2EXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetImageSubresourceLayout2EXT = OP_vkGetImageSubresourceLayout2EXT;
     uint32_t seqno;
@@ -24660,6 +24850,7 @@ VkResult VkEncoder::vkCreatePrivateDataSlotEXT(VkDevice device,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkPrivateDataSlotCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                           (VkPrivateDataSlotCreateInfo*)(local_pCreateInfo),
@@ -24671,12 +24862,12 @@ VkResult VkEncoder::vkCreatePrivateDataSlotEXT(VkDevice device,
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
     }
     uint32_t packetSize_vkCreatePrivateDataSlotEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreatePrivateDataSlotEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreatePrivateDataSlotEXT = OP_vkCreatePrivateDataSlotEXT;
     uint32_t seqno;
@@ -24756,8 +24947,10 @@ void VkEncoder::vkDestroyPrivateDataSlotEXT(VkDevice device, VkPrivateDataSlot p
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -24769,7 +24962,6 @@ void VkEncoder::vkDestroyPrivateDataSlotEXT(VkDevice device, VkPrivateDataSlot p
     uint32_t packetSize_vkDestroyPrivateDataSlotEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkDestroyPrivateDataSlotEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkDestroyPrivateDataSlotEXT = OP_vkDestroyPrivateDataSlotEXT;
     uint32_t seqno;
@@ -24832,17 +25024,18 @@ VkResult VkEncoder::vkSetPrivateDataEXT(VkDevice device, VkObjectType objectType
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkObjectType);
         *countPtr += sizeof(uint64_t);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint64_t);
     }
     uint32_t packetSize_vkSetPrivateDataEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkSetPrivateDataEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkSetPrivateDataEXT = OP_vkSetPrivateDataEXT;
     uint32_t seqno;
@@ -24901,17 +25094,18 @@ void VkEncoder::vkGetPrivateDataEXT(VkDevice device, VkObjectType objectType, ui
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkObjectType);
         *countPtr += sizeof(uint64_t);
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint64_t);
     }
     uint32_t packetSize_vkGetPrivateDataEXT =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetPrivateDataEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetPrivateDataEXT = OP_vkGetPrivateDataEXT;
     uint32_t seqno;
@@ -24965,13 +25159,13 @@ void VkEncoder::vkCmdSetPatchControlPointsEXT(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
     }
     uint32_t packetSize_vkCmdSetPatchControlPointsEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetPatchControlPointsEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetPatchControlPointsEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetPatchControlPointsEXT = OP_vkCmdSetPatchControlPointsEXT;
     memcpy(streamPtr, &opcode_vkCmdSetPatchControlPointsEXT, sizeof(uint32_t));
@@ -25011,13 +25205,13 @@ void VkEncoder::vkCmdSetRasterizerDiscardEnableEXT(VkCommandBuffer commandBuffer
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetRasterizerDiscardEnableEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetRasterizerDiscardEnableEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetRasterizerDiscardEnableEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetRasterizerDiscardEnableEXT = OP_vkCmdSetRasterizerDiscardEnableEXT;
     memcpy(streamPtr, &opcode_vkCmdSetRasterizerDiscardEnableEXT, sizeof(uint32_t));
@@ -25056,13 +25250,13 @@ void VkEncoder::vkCmdSetDepthBiasEnableEXT(VkCommandBuffer commandBuffer, VkBool
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetDepthBiasEnableEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetDepthBiasEnableEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetDepthBiasEnableEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetDepthBiasEnableEXT = OP_vkCmdSetDepthBiasEnableEXT;
     memcpy(streamPtr, &opcode_vkCmdSetDepthBiasEnableEXT, sizeof(uint32_t));
@@ -25101,13 +25295,13 @@ void VkEncoder::vkCmdSetLogicOpEXT(VkCommandBuffer commandBuffer, VkLogicOp logi
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkLogicOp);
     }
     uint32_t packetSize_vkCmdSetLogicOpEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetLogicOpEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetLogicOpEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetLogicOpEXT = OP_vkCmdSetLogicOpEXT;
     memcpy(streamPtr, &opcode_vkCmdSetLogicOpEXT, sizeof(uint32_t));
@@ -25147,13 +25341,13 @@ void VkEncoder::vkCmdSetPrimitiveRestartEnableEXT(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkBool32);
     }
     uint32_t packetSize_vkCmdSetPrimitiveRestartEnableEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetPrimitiveRestartEnableEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetPrimitiveRestartEnableEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetPrimitiveRestartEnableEXT = OP_vkCmdSetPrimitiveRestartEnableEXT;
     memcpy(streamPtr, &opcode_vkCmdSetPrimitiveRestartEnableEXT, sizeof(uint32_t));
@@ -25197,6 +25391,7 @@ void VkEncoder::vkCmdSetColorWriteEnableEXT(VkCommandBuffer commandBuffer, uint3
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += ((attachmentCount)) * sizeof(VkBool32);
@@ -25204,7 +25399,6 @@ void VkEncoder::vkCmdSetColorWriteEnableEXT(VkCommandBuffer commandBuffer, uint3
     uint32_t packetSize_vkCmdSetColorWriteEnableEXT = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCmdSetColorWriteEnableEXT -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCmdSetColorWriteEnableEXT);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCmdSetColorWriteEnableEXT = OP_vkCmdSetColorWriteEnableEXT;
     memcpy(streamPtr, &opcode_vkCmdSetColorWriteEnableEXT, sizeof(uint32_t));
@@ -25253,8 +25447,10 @@ VkResult VkEncoder::vkMapMemoryIntoAddressSpaceGOOGLE(VkDevice device, VkDeviceM
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -25265,7 +25461,6 @@ VkResult VkEncoder::vkMapMemoryIntoAddressSpaceGOOGLE(VkDevice device, VkDeviceM
     uint32_t packetSize_vkMapMemoryIntoAddressSpaceGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkMapMemoryIntoAddressSpaceGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkMapMemoryIntoAddressSpaceGOOGLE = OP_vkMapMemoryIntoAddressSpaceGOOGLE;
     uint32_t seqno;
@@ -25297,6 +25492,7 @@ VkResult VkEncoder::vkMapMemoryIntoAddressSpaceGOOGLE(VkDevice device, VkDeviceM
     }
     // WARNING PTR CHECK
     uint64_t* check_pAddress;
+    (void)check_pAddress;
     check_pAddress = (uint64_t*)(uintptr_t)stream->getBe64();
     if (pAddress) {
         if (!(check_pAddress)) {
@@ -25390,10 +25586,13 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSizedGOOGLE(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -25442,7 +25641,6 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSizedGOOGLE(
     uint32_t packetSize_vkUpdateDescriptorSetWithTemplateSizedGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkUpdateDescriptorSetWithTemplateSizedGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkUpdateDescriptorSetWithTemplateSizedGOOGLE =
         OP_vkUpdateDescriptorSetWithTemplateSizedGOOGLE;
@@ -25579,6 +25777,7 @@ void VkEncoder::vkBeginCommandBufferAsyncGOOGLE(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkCommandBufferBeginInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                        (VkCommandBufferBeginInfo*)(local_pBeginInfo), countPtr);
@@ -25586,7 +25785,6 @@ void VkEncoder::vkBeginCommandBufferAsyncGOOGLE(VkCommandBuffer commandBuffer,
     uint32_t packetSize_vkBeginCommandBufferAsyncGOOGLE = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkBeginCommandBufferAsyncGOOGLE -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkBeginCommandBufferAsyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkBeginCommandBufferAsyncGOOGLE = OP_vkBeginCommandBufferAsyncGOOGLE;
     memcpy(streamPtr, &opcode_vkBeginCommandBufferAsyncGOOGLE, sizeof(uint32_t));
@@ -25623,12 +25821,12 @@ void VkEncoder::vkEndCommandBufferAsyncGOOGLE(VkCommandBuffer commandBuffer, uin
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkEndCommandBufferAsyncGOOGLE = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkEndCommandBufferAsyncGOOGLE -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkEndCommandBufferAsyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkEndCommandBufferAsyncGOOGLE = OP_vkEndCommandBufferAsyncGOOGLE;
     memcpy(streamPtr, &opcode_vkEndCommandBufferAsyncGOOGLE, sizeof(uint32_t));
@@ -25666,13 +25864,13 @@ void VkEncoder::vkResetCommandBufferAsyncGOOGLE(VkCommandBuffer commandBuffer,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkCommandBufferResetFlags);
     }
     uint32_t packetSize_vkResetCommandBufferAsyncGOOGLE = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkResetCommandBufferAsyncGOOGLE -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkResetCommandBufferAsyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkResetCommandBufferAsyncGOOGLE = OP_vkResetCommandBufferAsyncGOOGLE;
     memcpy(streamPtr, &opcode_vkResetCommandBufferAsyncGOOGLE, sizeof(uint32_t));
@@ -25714,6 +25912,7 @@ void VkEncoder::vkCommandBufferHostSyncGOOGLE(VkCommandBuffer commandBuffer, uin
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -25721,7 +25920,6 @@ void VkEncoder::vkCommandBufferHostSyncGOOGLE(VkCommandBuffer commandBuffer, uin
     uint32_t packetSize_vkCommandBufferHostSyncGOOGLE = 4 + 4 + count;
     if (queueSubmitWithCommandsEnabled) packetSize_vkCommandBufferHostSyncGOOGLE -= 8;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCommandBufferHostSyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCommandBufferHostSyncGOOGLE = OP_vkCommandBufferHostSyncGOOGLE;
     memcpy(streamPtr, &opcode_vkCommandBufferHostSyncGOOGLE, sizeof(uint32_t));
@@ -25786,6 +25984,7 @@ VkResult VkEncoder::vkCreateImageWithRequirementsGOOGLE(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImageCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkImageCreateInfo*)(local_pCreateInfo), countPtr);
@@ -25796,6 +25995,7 @@ VkResult VkEncoder::vkCreateImageWithRequirementsGOOGLE(
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
         count_VkMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                    (VkMemoryRequirements*)(pMemoryRequirements), countPtr);
@@ -25803,7 +26003,6 @@ VkResult VkEncoder::vkCreateImageWithRequirementsGOOGLE(
     uint32_t packetSize_vkCreateImageWithRequirementsGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateImageWithRequirementsGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateImageWithRequirementsGOOGLE = OP_vkCreateImageWithRequirementsGOOGLE;
     uint32_t seqno;
@@ -25901,6 +26100,7 @@ VkResult VkEncoder::vkCreateBufferWithRequirementsGOOGLE(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkBufferCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                  (VkBufferCreateInfo*)(local_pCreateInfo), countPtr);
@@ -25911,6 +26111,7 @@ VkResult VkEncoder::vkCreateBufferWithRequirementsGOOGLE(
                                         (VkAllocationCallbacks*)(local_pAllocator), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 8;
         count_VkMemoryRequirements(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                    (VkMemoryRequirements*)(pMemoryRequirements), countPtr);
@@ -25918,7 +26119,6 @@ VkResult VkEncoder::vkCreateBufferWithRequirementsGOOGLE(
     uint32_t packetSize_vkCreateBufferWithRequirementsGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCreateBufferWithRequirementsGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCreateBufferWithRequirementsGOOGLE = OP_vkCreateBufferWithRequirementsGOOGLE;
     uint32_t seqno;
@@ -25998,8 +26198,10 @@ VkResult VkEncoder::vkGetMemoryHostAddressInfoGOOGLE(VkDevice device, VkDeviceMe
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -26020,7 +26222,6 @@ VkResult VkEncoder::vkGetMemoryHostAddressInfoGOOGLE(VkDevice device, VkDeviceMe
     uint32_t packetSize_vkGetMemoryHostAddressInfoGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetMemoryHostAddressInfoGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetMemoryHostAddressInfoGOOGLE = OP_vkGetMemoryHostAddressInfoGOOGLE;
     uint32_t seqno;
@@ -26070,6 +26271,7 @@ VkResult VkEncoder::vkGetMemoryHostAddressInfoGOOGLE(VkDevice device, VkDeviceMe
     }
     // WARNING PTR CHECK
     uint64_t* check_pAddress;
+    (void)check_pAddress;
     check_pAddress = (uint64_t*)(uintptr_t)stream->getBe64();
     if (pAddress) {
         if (!(check_pAddress)) {
@@ -26079,6 +26281,7 @@ VkResult VkEncoder::vkGetMemoryHostAddressInfoGOOGLE(VkDevice device, VkDeviceMe
     }
     // WARNING PTR CHECK
     uint64_t* check_pSize;
+    (void)check_pSize;
     check_pSize = (uint64_t*)(uintptr_t)stream->getBe64();
     if (pSize) {
         if (!(check_pSize)) {
@@ -26088,6 +26291,7 @@ VkResult VkEncoder::vkGetMemoryHostAddressInfoGOOGLE(VkDevice device, VkDeviceMe
     }
     // WARNING PTR CHECK
     uint64_t* check_pHostmemId;
+    (void)check_pHostmemId;
     check_pHostmemId = (uint64_t*)(uintptr_t)stream->getBe64();
     if (pHostmemId) {
         if (!(check_pHostmemId)) {
@@ -26134,8 +26338,10 @@ VkResult VkEncoder::vkFreeMemorySyncGOOGLE(VkDevice device, VkDeviceMemory memor
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         // WARNING PTR CHECK
         *countPtr += 8;
@@ -26147,7 +26353,6 @@ VkResult VkEncoder::vkFreeMemorySyncGOOGLE(VkDevice device, VkDeviceMemory memor
     uint32_t packetSize_vkFreeMemorySyncGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkFreeMemorySyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkFreeMemorySyncGOOGLE = OP_vkFreeMemorySyncGOOGLE;
     uint32_t seqno;
@@ -26208,6 +26413,7 @@ void VkEncoder::vkQueueHostSyncGOOGLE(VkQueue queue, uint32_t needHostSync, uint
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -26215,7 +26421,6 @@ void VkEncoder::vkQueueHostSyncGOOGLE(VkQueue queue, uint32_t needHostSync, uint
     uint32_t packetSize_vkQueueHostSyncGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueHostSyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueHostSyncGOOGLE = OP_vkQueueHostSyncGOOGLE;
     uint32_t seqno;
@@ -26278,6 +26483,7 @@ void VkEncoder::vkQueueSubmitAsyncGOOGLE(VkQueue queue, uint32_t submitCount,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((submitCount)); ++i) {
@@ -26285,12 +26491,12 @@ void VkEncoder::vkQueueSubmitAsyncGOOGLE(VkQueue queue, uint32_t submitCount,
                                (VkSubmitInfo*)(local_pSubmits + i), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueSubmitAsyncGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueSubmitAsyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueSubmitAsyncGOOGLE = OP_vkQueueSubmitAsyncGOOGLE;
     uint32_t seqno;
@@ -26339,12 +26545,12 @@ void VkEncoder::vkQueueWaitIdleAsyncGOOGLE(VkQueue queue, uint32_t doLock) {
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueWaitIdleAsyncGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueWaitIdleAsyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueWaitIdleAsyncGOOGLE = OP_vkQueueWaitIdleAsyncGOOGLE;
     uint32_t seqno;
@@ -26405,6 +26611,7 @@ void VkEncoder::vkQueueBindSparseAsyncGOOGLE(VkQueue queue, uint32_t bindInfoCou
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((bindInfoCount)); ++i) {
@@ -26412,12 +26619,12 @@ void VkEncoder::vkQueueBindSparseAsyncGOOGLE(VkQueue queue, uint32_t bindInfoCou
                                    (VkBindSparseInfo*)(local_pBindInfo + i), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueBindSparseAsyncGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueBindSparseAsyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueBindSparseAsyncGOOGLE = OP_vkQueueBindSparseAsyncGOOGLE;
     uint32_t seqno;
@@ -26470,6 +26677,7 @@ void VkEncoder::vkGetLinearImageLayoutGOOGLE(VkDevice device, VkFormat format,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkFormat);
         *countPtr += sizeof(VkDeviceSize);
@@ -26478,7 +26686,6 @@ void VkEncoder::vkGetLinearImageLayoutGOOGLE(VkDevice device, VkFormat format,
     uint32_t packetSize_vkGetLinearImageLayoutGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetLinearImageLayoutGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetLinearImageLayoutGOOGLE = OP_vkGetLinearImageLayoutGOOGLE;
     uint32_t seqno;
@@ -26538,6 +26745,7 @@ void VkEncoder::vkGetLinearImageLayout2GOOGLE(VkDevice device, const VkImageCrea
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         count_VkImageCreateInfo(sFeatureBits, VK_STRUCTURE_TYPE_MAX_ENUM,
                                 (VkImageCreateInfo*)(local_pCreateInfo), countPtr);
@@ -26547,7 +26755,6 @@ void VkEncoder::vkGetLinearImageLayout2GOOGLE(VkDevice device, const VkImageCrea
     uint32_t packetSize_vkGetLinearImageLayout2GOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetLinearImageLayout2GOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetLinearImageLayout2GOOGLE = OP_vkGetLinearImageLayout2GOOGLE;
     uint32_t seqno;
@@ -26646,6 +26853,7 @@ void VkEncoder::vkQueueCommitDescriptorSetUpdatesGOOGLE(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         if (((descriptorPoolCount))) {
@@ -26669,7 +26877,6 @@ void VkEncoder::vkQueueCommitDescriptorSetUpdatesGOOGLE(
     uint32_t packetSize_vkQueueCommitDescriptorSetUpdatesGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueCommitDescriptorSetUpdatesGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueCommitDescriptorSetUpdatesGOOGLE =
         OP_vkQueueCommitDescriptorSetUpdatesGOOGLE;
@@ -26752,8 +26959,10 @@ void VkEncoder::vkCollectDescriptorPoolIdsGOOGLE(VkDevice device, VkDescriptorPo
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         // WARNING PTR CHECK
@@ -26767,7 +26976,6 @@ void VkEncoder::vkCollectDescriptorPoolIdsGOOGLE(VkDevice device, VkDescriptorPo
     uint32_t packetSize_vkCollectDescriptorPoolIdsGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkCollectDescriptorPoolIdsGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkCollectDescriptorPoolIdsGOOGLE = OP_vkCollectDescriptorPoolIdsGOOGLE;
     uint32_t seqno;
@@ -26802,6 +27010,7 @@ void VkEncoder::vkCollectDescriptorPoolIdsGOOGLE(VkDevice device, VkDescriptorPo
     stream->read((uint32_t*)pPoolIdCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     uint64_t* check_pPoolIds;
+    (void)check_pPoolIds;
     check_pPoolIds = (uint64_t*)(uintptr_t)stream->getBe64();
     if (pPoolIds) {
         if (!(check_pPoolIds)) {
@@ -26840,6 +27049,7 @@ void VkEncoder::vkQueueSignalReleaseImageANDROIDAsyncGOOGLE(VkQueue queue,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         // WARNING PTR CHECK
@@ -26850,12 +27060,12 @@ void VkEncoder::vkQueueSignalReleaseImageANDROIDAsyncGOOGLE(VkQueue queue,
             }
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueSignalReleaseImageANDROIDAsyncGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueSignalReleaseImageANDROIDAsyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueSignalReleaseImageANDROIDAsyncGOOGLE =
         OP_vkQueueSignalReleaseImageANDROIDAsyncGOOGLE;
@@ -26928,10 +27138,13 @@ void VkEncoder::vkQueueFlushCommandsFromAuxMemoryGOOGLE(VkQueue queue,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(VkDeviceSize);
         *countPtr += sizeof(VkDeviceSize);
@@ -26939,7 +27152,6 @@ void VkEncoder::vkQueueFlushCommandsFromAuxMemoryGOOGLE(VkQueue queue,
     uint32_t packetSize_vkQueueFlushCommandsFromAuxMemoryGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueFlushCommandsFromAuxMemoryGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueFlushCommandsFromAuxMemoryGOOGLE =
         OP_vkQueueFlushCommandsFromAuxMemoryGOOGLE;
@@ -26996,13 +27208,14 @@ VkResult VkEncoder::vkGetBlobGOOGLE(VkDevice device, VkDeviceMemory memory, uint
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkGetBlobGOOGLE = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetBlobGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetBlobGOOGLE = OP_vkGetBlobGOOGLE;
     uint32_t seqno;
@@ -27113,10 +27326,13 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSized2GOOGLE(
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         uint64_t cgen_var_2;
+        (void)cgen_var_2;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         *countPtr += sizeof(uint32_t);
@@ -27171,7 +27387,6 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSized2GOOGLE(
     uint32_t packetSize_vkUpdateDescriptorSetWithTemplateSized2GOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkUpdateDescriptorSetWithTemplateSized2GOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkUpdateDescriptorSetWithTemplateSized2GOOGLE =
         OP_vkUpdateDescriptorSetWithTemplateSized2GOOGLE;
@@ -27326,6 +27541,7 @@ void VkEncoder::vkQueueSubmitAsync2GOOGLE(VkQueue queue, uint32_t submitCount,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint32_t);
         for (uint32_t i = 0; i < (uint32_t)((submitCount)); ++i) {
@@ -27333,12 +27549,12 @@ void VkEncoder::vkQueueSubmitAsync2GOOGLE(VkQueue queue, uint32_t submitCount,
                                 (VkSubmitInfo2*)(local_pSubmits + i), countPtr);
         }
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
     }
     uint32_t packetSize_vkQueueSubmitAsync2GOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkQueueSubmitAsync2GOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkQueueSubmitAsync2GOOGLE = OP_vkQueueSubmitAsync2GOOGLE;
     uint32_t seqno;
@@ -27392,15 +27608,16 @@ VkResult VkEncoder::vkGetSemaphoreGOOGLE(VkDevice device, VkSemaphore semaphore,
     size_t* countPtr = &count;
     {
         uint64_t cgen_var_0;
+        (void)cgen_var_0;
         *countPtr += 1 * 8;
         uint64_t cgen_var_1;
+        (void)cgen_var_1;
         *countPtr += 1 * 8;
         *countPtr += sizeof(uint64_t);
     }
     uint32_t packetSize_vkGetSemaphoreGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkGetSemaphoreGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkGetSemaphoreGOOGLE = OP_vkGetSemaphoreGOOGLE;
     uint32_t seqno;

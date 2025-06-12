@@ -726,9 +726,8 @@ void gfxstream_vk_GetImageSubresourceLayout(VkDevice device, VkImage image,
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        auto resources = gfxstream::vk::ResourceTracker::get();
-        resources->on_vkGetImageSubresourceLayout(vkEnc, gfxstream_device->internal_object, image,
-                                                  pSubresource, pLayout);
+        vkEnc->vkGetImageSubresourceLayout(gfxstream_device->internal_object, image, pSubresource,
+                                           pLayout, true /* do lock */);
     }
 }
 VkResult gfxstream_vk_CreateImageView(VkDevice device, const VkImageViewCreateInfo* pCreateInfo,
@@ -3191,9 +3190,9 @@ void gfxstream_vk_GetPhysicalDeviceFormatProperties2KHR(VkPhysicalDevice physica
     VK_FROM_HANDLE(gfxstream_vk_physical_device, gfxstream_physicalDevice, physicalDevice);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkEnc->vkGetPhysicalDeviceFormatProperties2KHR(gfxstream_physicalDevice->internal_object,
-                                                       format, pFormatProperties,
-                                                       true /* do lock */);
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        resources->on_vkGetPhysicalDeviceFormatProperties2KHR(
+            vkEnc, gfxstream_physicalDevice->internal_object, format, pFormatProperties);
     }
 }
 VkResult gfxstream_vk_GetPhysicalDeviceImageFormatProperties2KHR(
@@ -4331,9 +4330,10 @@ VkResult gfxstream_vk_GetImageDrmFormatModifierPropertiesEXT(
     VK_FROM_HANDLE(gfxstream_vk_device, gfxstream_device, device);
     {
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
+        auto resources = gfxstream::vk::ResourceTracker::get();
         vkGetImageDrmFormatModifierPropertiesEXT_VkResult_return =
-            vkEnc->vkGetImageDrmFormatModifierPropertiesEXT(gfxstream_device->internal_object,
-                                                            image, pProperties, true /* do lock */);
+            resources->on_vkGetImageDrmFormatModifierPropertiesEXT(
+                vkEnc, VK_SUCCESS, gfxstream_device->internal_object, image, pProperties);
     }
     return vkGetImageDrmFormatModifierPropertiesEXT_VkResult_return;
 }

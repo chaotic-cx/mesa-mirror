@@ -389,6 +389,7 @@ void unmarshal_VkAllocationCallbacks(VulkanStreamGuest* vkStream, VkStructureTyp
     (void)rootType;
     // WARNING PTR CHECK
     void* check_pUserData;
+    (void)check_pUserData;
     check_pUserData = (void*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pUserData) {
         if (!(check_pUserData)) {
@@ -449,6 +450,7 @@ void unmarshal_VkApplicationInfo(VulkanStreamGuest* vkStream, VkStructureType ro
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT) {
         // WARNING PTR CHECK
         const char* check_pApplicationName;
+        (void)check_pApplicationName;
         check_pApplicationName = (const char*)(uintptr_t)vkStream->getBe64();
         if (forUnmarshaling->pApplicationName) {
             if (!(check_pApplicationName)) {
@@ -465,6 +467,7 @@ void unmarshal_VkApplicationInfo(VulkanStreamGuest* vkStream, VkStructureType ro
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT) {
         // WARNING PTR CHECK
         const char* check_pEngineName;
+        (void)check_pEngineName;
         check_pEngineName = (const char*)(uintptr_t)vkStream->getBe64();
         if (forUnmarshaling->pEngineName) {
             if (!(check_pEngineName)) {
@@ -557,6 +560,7 @@ void unmarshal_VkInstanceCreateInfo(VulkanStreamGuest* vkStream, VkStructureType
     vkStream->read((VkInstanceCreateFlags*)&forUnmarshaling->flags, sizeof(VkInstanceCreateFlags));
     // WARNING PTR CHECK
     const VkApplicationInfo* check_pApplicationInfo;
+    (void)check_pApplicationInfo;
     check_pApplicationInfo = (const VkApplicationInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pApplicationInfo) {
         if (!(check_pApplicationInfo)) {
@@ -1214,6 +1218,7 @@ void unmarshal_VkDeviceCreateInfo(VulkanStreamGuest* vkStream, VkStructureType r
     vkStream->loadStringArrayInPlace((char***)&forUnmarshaling->ppEnabledExtensionNames);
     // WARNING PTR CHECK
     const VkPhysicalDeviceFeatures* check_pEnabledFeatures;
+    (void)check_pEnabledFeatures;
     check_pEnabledFeatures = (const VkPhysicalDeviceFeatures*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pEnabledFeatures) {
         if (!(check_pEnabledFeatures)) {
@@ -1855,6 +1860,7 @@ void unmarshal_VkBufferCreateInfo(VulkanStreamGuest* vkStream, VkStructureType r
     vkStream->read((uint32_t*)&forUnmarshaling->queueFamilyIndexCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const uint32_t* check_pQueueFamilyIndices;
+    (void)check_pQueueFamilyIndices;
     check_pQueueFamilyIndices = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pQueueFamilyIndices) {
         if (!(check_pQueueFamilyIndices)) {
@@ -1955,6 +1961,7 @@ void unmarshal_VkImageCreateInfo(VulkanStreamGuest* vkStream, VkStructureType ro
     vkStream->read((uint32_t*)&forUnmarshaling->queueFamilyIndexCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const uint32_t* check_pQueueFamilyIndices;
+    (void)check_pQueueFamilyIndices;
     check_pQueueFamilyIndices = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pQueueFamilyIndices) {
         if (!(check_pQueueFamilyIndices)) {
@@ -2203,6 +2210,7 @@ void unmarshal_VkPipelineShaderStageCreateInfo(VulkanStreamGuest* vkStream,
     vkStream->loadStringInPlace((char**)&forUnmarshaling->pName);
     // WARNING PTR CHECK
     const VkSpecializationInfo* check_pSpecializationInfo;
+    (void)check_pSpecializationInfo;
     check_pSpecializationInfo = (const VkSpecializationInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pSpecializationInfo) {
         if (!(check_pSpecializationInfo)) {
@@ -2490,6 +2498,7 @@ void unmarshal_VkPipelineViewportStateCreateInfo(
     vkStream->read((uint32_t*)&forUnmarshaling->viewportCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const VkViewport* check_pViewports;
+    (void)check_pViewports;
     check_pViewports = (const VkViewport*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pViewports) {
         if (!(check_pViewports)) {
@@ -2506,6 +2515,7 @@ void unmarshal_VkPipelineViewportStateCreateInfo(
     vkStream->read((uint32_t*)&forUnmarshaling->scissorCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const VkRect2D* check_pScissors;
+    (void)check_pScissors;
     check_pScissors = (const VkRect2D*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pScissors) {
         if (!(check_pScissors)) {
@@ -2610,6 +2620,7 @@ void unmarshal_VkPipelineMultisampleStateCreateInfo(
     vkStream->read((float*)&forUnmarshaling->minSampleShading, sizeof(float));
     // WARNING PTR CHECK
     const VkSampleMask* check_pSampleMask;
+    (void)check_pSampleMask;
     check_pSampleMask = (const VkSampleMask*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pSampleMask) {
         if (!(check_pSampleMask)) {
@@ -2980,6 +2991,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineVertexInputStateCreateInfo* check_pVertexInputState;
+    (void)check_pVertexInputState;
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
         check_pVertexInputState =
             (const VkPipelineVertexInputStateCreateInfo*)(uintptr_t)vkStream->getBe64();
@@ -2992,6 +3004,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineInputAssemblyStateCreateInfo* check_pInputAssemblyState;
+    (void)check_pInputAssemblyState;
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
         check_pInputAssemblyState =
             (const VkPipelineInputAssemblyStateCreateInfo*)(uintptr_t)vkStream->getBe64();
@@ -3004,6 +3017,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineTessellationStateCreateInfo* check_pTessellationState;
+    (void)check_pTessellationState;
     check_pTessellationState =
         (const VkPipelineTessellationStateCreateInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pTessellationState) {
@@ -3022,6 +3036,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineViewportStateCreateInfo* check_pViewportState;
+    (void)check_pViewportState;
     check_pViewportState = (const VkPipelineViewportStateCreateInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pViewportState) {
         if (!(check_pViewportState)) {
@@ -3038,6 +3053,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineRasterizationStateCreateInfo* check_pRasterizationState;
+    (void)check_pRasterizationState;
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
         check_pRasterizationState =
             (const VkPipelineRasterizationStateCreateInfo*)(uintptr_t)vkStream->getBe64();
@@ -3050,6 +3066,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineMultisampleStateCreateInfo* check_pMultisampleState;
+    (void)check_pMultisampleState;
     check_pMultisampleState =
         (const VkPipelineMultisampleStateCreateInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pMultisampleState) {
@@ -3068,6 +3085,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineDepthStencilStateCreateInfo* check_pDepthStencilState;
+    (void)check_pDepthStencilState;
     check_pDepthStencilState =
         (const VkPipelineDepthStencilStateCreateInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDepthStencilState) {
@@ -3086,6 +3104,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineColorBlendStateCreateInfo* check_pColorBlendState;
+    (void)check_pColorBlendState;
     check_pColorBlendState =
         (const VkPipelineColorBlendStateCreateInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pColorBlendState) {
@@ -3104,6 +3123,7 @@ void unmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream, VkStruc
     }
     // WARNING PTR CHECK
     const VkPipelineDynamicStateCreateInfo* check_pDynamicState;
+    (void)check_pDynamicState;
     check_pDynamicState = (const VkPipelineDynamicStateCreateInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDynamicState) {
         if (!(check_pDynamicState)) {
@@ -3484,6 +3504,7 @@ void unmarshal_VkDescriptorSetLayoutBinding(VulkanStreamGuest* vkStream, VkStruc
     vkStream->read((VkShaderStageFlags*)&forUnmarshaling->stageFlags, sizeof(VkShaderStageFlags));
     // WARNING PTR CHECK
     const VkSampler* check_pImmutableSamplers;
+    (void)check_pImmutableSamplers;
     check_pImmutableSamplers = (const VkSampler*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pImmutableSamplers) {
         if (!(check_pImmutableSamplers)) {
@@ -3632,6 +3653,7 @@ void unmarshal_VkWriteDescriptorSet(VulkanStreamGuest* vkStream, VkStructureType
     vkStream->read((VkDescriptorType*)&forUnmarshaling->descriptorType, sizeof(VkDescriptorType));
     // WARNING PTR CHECK
     const VkDescriptorImageInfo* check_pImageInfo;
+    (void)check_pImageInfo;
     check_pImageInfo = (const VkDescriptorImageInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pImageInfo) {
         if (!(check_pImageInfo)) {
@@ -3657,6 +3679,7 @@ void unmarshal_VkWriteDescriptorSet(VulkanStreamGuest* vkStream, VkStructureType
     }
     // WARNING PTR CHECK
     const VkDescriptorBufferInfo* check_pBufferInfo;
+    (void)check_pBufferInfo;
     check_pBufferInfo = (const VkDescriptorBufferInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pBufferInfo) {
         if (!(check_pBufferInfo)) {
@@ -3681,6 +3704,7 @@ void unmarshal_VkWriteDescriptorSet(VulkanStreamGuest* vkStream, VkStructureType
     }
     // WARNING PTR CHECK
     const VkBufferView* check_pTexelBufferView;
+    (void)check_pTexelBufferView;
     check_pTexelBufferView = (const VkBufferView*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pTexelBufferView) {
         if (!(check_pTexelBufferView)) {
@@ -3889,6 +3913,7 @@ void unmarshal_VkSubpassDescription(VulkanStreamGuest* vkStream, VkStructureType
     }
     // WARNING PTR CHECK
     const VkAttachmentReference* check_pResolveAttachments;
+    (void)check_pResolveAttachments;
     check_pResolveAttachments = (const VkAttachmentReference*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pResolveAttachments) {
         if (!(check_pResolveAttachments)) {
@@ -3906,6 +3931,7 @@ void unmarshal_VkSubpassDescription(VulkanStreamGuest* vkStream, VkStructureType
     }
     // WARNING PTR CHECK
     const VkAttachmentReference* check_pDepthStencilAttachment;
+    (void)check_pDepthStencilAttachment;
     check_pDepthStencilAttachment = (const VkAttachmentReference*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDepthStencilAttachment) {
         if (!(check_pDepthStencilAttachment)) {
@@ -4153,6 +4179,7 @@ void unmarshal_VkCommandBufferBeginInfo(VulkanStreamGuest* vkStream, VkStructure
                    sizeof(VkCommandBufferUsageFlags));
     // WARNING PTR CHECK
     const VkCommandBufferInheritanceInfo* check_pInheritanceInfo;
+    (void)check_pInheritanceInfo;
     check_pInheritanceInfo = (const VkCommandBufferInheritanceInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pInheritanceInfo) {
         if (!(check_pInheritanceInfo)) {
@@ -4423,6 +4450,7 @@ void unmarshal_VkRenderPassBeginInfo(VulkanStreamGuest* vkStream, VkStructureTyp
     vkStream->read((uint32_t*)&forUnmarshaling->clearValueCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const VkClearValue* check_pClearValues;
+    (void)check_pClearValues;
     check_pClearValues = (const VkClearValue*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pClearValues) {
         if (!(check_pClearValues)) {
@@ -7037,6 +7065,7 @@ void unmarshal_VkSubpassDescription2(VulkanStreamGuest* vkStream, VkStructureTyp
     }
     // WARNING PTR CHECK
     const VkAttachmentReference2* check_pResolveAttachments;
+    (void)check_pResolveAttachments;
     check_pResolveAttachments = (const VkAttachmentReference2*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pResolveAttachments) {
         if (!(check_pResolveAttachments)) {
@@ -7054,6 +7083,7 @@ void unmarshal_VkSubpassDescription2(VulkanStreamGuest* vkStream, VkStructureTyp
     }
     // WARNING PTR CHECK
     const VkAttachmentReference2* check_pDepthStencilAttachment;
+    (void)check_pDepthStencilAttachment;
     check_pDepthStencilAttachment = (const VkAttachmentReference2*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDepthStencilAttachment) {
         if (!(check_pDepthStencilAttachment)) {
@@ -7437,6 +7467,7 @@ void unmarshal_VkDescriptorSetLayoutBindingFlagsCreateInfo(
     vkStream->read((uint32_t*)&forUnmarshaling->bindingCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const VkDescriptorBindingFlags* check_pBindingFlags;
+    (void)check_pBindingFlags;
     check_pBindingFlags = (const VkDescriptorBindingFlags*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pBindingFlags) {
         if (!(check_pBindingFlags)) {
@@ -7750,6 +7781,7 @@ void unmarshal_VkSubpassDescriptionDepthStencilResolve(
                    sizeof(VkResolveModeFlagBits));
     // WARNING PTR CHECK
     const VkAttachmentReference2* check_pDepthStencilResolveAttachment;
+    (void)check_pDepthStencilResolveAttachment;
     check_pDepthStencilResolveAttachment =
         (const VkAttachmentReference2*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDepthStencilResolveAttachment) {
@@ -8325,6 +8357,7 @@ void unmarshal_VkTimelineSemaphoreSubmitInfo(VulkanStreamGuest* vkStream, VkStru
     vkStream->read((uint32_t*)&forUnmarshaling->waitSemaphoreValueCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const uint64_t* check_pWaitSemaphoreValues;
+    (void)check_pWaitSemaphoreValues;
     check_pWaitSemaphoreValues = (const uint64_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pWaitSemaphoreValues) {
         if (!(check_pWaitSemaphoreValues)) {
@@ -8338,6 +8371,7 @@ void unmarshal_VkTimelineSemaphoreSubmitInfo(VulkanStreamGuest* vkStream, VkStru
     vkStream->read((uint32_t*)&forUnmarshaling->signalSemaphoreValueCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const uint64_t* check_pSignalSemaphoreValues;
+    (void)check_pSignalSemaphoreValues;
     check_pSignalSemaphoreValues = (const uint64_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pSignalSemaphoreValues) {
         if (!(check_pSignalSemaphoreValues)) {
@@ -10297,6 +10331,7 @@ void unmarshal_VkRenderingInfo(VulkanStreamGuest* vkStream, VkStructureType root
     }
     // WARNING PTR CHECK
     const VkRenderingAttachmentInfo* check_pDepthAttachment;
+    (void)check_pDepthAttachment;
     check_pDepthAttachment = (const VkRenderingAttachmentInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDepthAttachment) {
         if (!(check_pDepthAttachment)) {
@@ -10309,6 +10344,7 @@ void unmarshal_VkRenderingInfo(VulkanStreamGuest* vkStream, VkStructureType root
     }
     // WARNING PTR CHECK
     const VkRenderingAttachmentInfo* check_pStencilAttachment;
+    (void)check_pStencilAttachment;
     check_pStencilAttachment = (const VkRenderingAttachmentInfo*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pStencilAttachment) {
         if (!(check_pStencilAttachment)) {
@@ -10354,6 +10390,7 @@ void unmarshal_VkPipelineRenderingCreateInfo(VulkanStreamGuest* vkStream, VkStru
     vkStream->read((uint32_t*)&forUnmarshaling->colorAttachmentCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const VkFormat* check_pColorAttachmentFormats;
+    (void)check_pColorAttachmentFormats;
     check_pColorAttachmentFormats = (const VkFormat*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pColorAttachmentFormats) {
         if (!(check_pColorAttachmentFormats)) {
@@ -10987,6 +11024,7 @@ void unmarshal_VkPhysicalDeviceVulkan14Properties(
     vkStream->read((uint32_t*)&forUnmarshaling->copySrcLayoutCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     VkImageLayout* check_pCopySrcLayouts;
+    (void)check_pCopySrcLayouts;
     check_pCopySrcLayouts = (VkImageLayout*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pCopySrcLayouts) {
         if (!(check_pCopySrcLayouts)) {
@@ -11000,6 +11038,7 @@ void unmarshal_VkPhysicalDeviceVulkan14Properties(
     vkStream->read((uint32_t*)&forUnmarshaling->copyDstLayoutCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     VkImageLayout* check_pCopyDstLayouts;
+    (void)check_pCopyDstLayouts;
     check_pCopyDstLayouts = (VkImageLayout*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pCopyDstLayouts) {
         if (!(check_pCopyDstLayouts)) {
@@ -11557,6 +11596,7 @@ void unmarshal_VkRenderingAreaInfo(VulkanStreamGuest* vkStream, VkStructureType 
     vkStream->read((uint32_t*)&forUnmarshaling->colorAttachmentCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const VkFormat* check_pColorAttachmentFormats;
+    (void)check_pColorAttachmentFormats;
     check_pColorAttachmentFormats = (const VkFormat*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pColorAttachmentFormats) {
         if (!(check_pColorAttachmentFormats)) {
@@ -11773,6 +11813,7 @@ void unmarshal_VkRenderingAttachmentLocationInfo(
     vkStream->read((uint32_t*)&forUnmarshaling->colorAttachmentCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const uint32_t* check_pColorAttachmentLocations;
+    (void)check_pColorAttachmentLocations;
     check_pColorAttachmentLocations = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pColorAttachmentLocations) {
         if (!(check_pColorAttachmentLocations)) {
@@ -11830,6 +11871,7 @@ void unmarshal_VkRenderingInputAttachmentIndexInfo(
     vkStream->read((uint32_t*)&forUnmarshaling->colorAttachmentCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const uint32_t* check_pColorAttachmentInputIndices;
+    (void)check_pColorAttachmentInputIndices;
     check_pColorAttachmentInputIndices = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pColorAttachmentInputIndices) {
         if (!(check_pColorAttachmentInputIndices)) {
@@ -11842,6 +11884,7 @@ void unmarshal_VkRenderingInputAttachmentIndexInfo(
     }
     // WARNING PTR CHECK
     const uint32_t* check_pDepthInputAttachmentIndex;
+    (void)check_pDepthInputAttachmentIndex;
     check_pDepthInputAttachmentIndex = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDepthInputAttachmentIndex) {
         if (!(check_pDepthInputAttachmentIndex)) {
@@ -11854,6 +11897,7 @@ void unmarshal_VkRenderingInputAttachmentIndexInfo(
     }
     // WARNING PTR CHECK
     const uint32_t* check_pStencilInputAttachmentIndex;
+    (void)check_pStencilInputAttachmentIndex;
     check_pStencilInputAttachmentIndex = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pStencilInputAttachmentIndex) {
         if (!(check_pStencilInputAttachmentIndex)) {
@@ -12004,6 +12048,7 @@ void unmarshal_VkBindDescriptorSetsInfo(VulkanStreamGuest* vkStream, VkStructure
     vkStream->read((uint32_t*)&forUnmarshaling->dynamicOffsetCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const uint32_t* check_pDynamicOffsets;
+    (void)check_pDynamicOffsets;
     check_pDynamicOffsets = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDynamicOffsets) {
         if (!(check_pDynamicOffsets)) {
@@ -12337,6 +12382,7 @@ void unmarshal_VkPhysicalDeviceHostImageCopyProperties(
     vkStream->read((uint32_t*)&forUnmarshaling->copySrcLayoutCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     VkImageLayout* check_pCopySrcLayouts;
+    (void)check_pCopySrcLayouts;
     check_pCopySrcLayouts = (VkImageLayout*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pCopySrcLayouts) {
         if (!(check_pCopySrcLayouts)) {
@@ -12350,6 +12396,7 @@ void unmarshal_VkPhysicalDeviceHostImageCopyProperties(
     vkStream->read((uint32_t*)&forUnmarshaling->copyDstLayoutCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     VkImageLayout* check_pCopyDstLayouts;
+    (void)check_pCopyDstLayouts;
     check_pCopyDstLayouts = (VkImageLayout*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pCopyDstLayouts) {
         if (!(check_pCopyDstLayouts)) {
@@ -12773,6 +12820,7 @@ void unmarshal_VkPresentRegionKHR(VulkanStreamGuest* vkStream, VkStructureType r
     vkStream->read((uint32_t*)&forUnmarshaling->rectangleCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const VkRectLayerKHR* check_pRectangles;
+    (void)check_pRectangles;
     check_pRectangles = (const VkRectLayerKHR*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pRectangles) {
         if (!(check_pRectangles)) {
@@ -12821,6 +12869,7 @@ void unmarshal_VkPresentRegionsKHR(VulkanStreamGuest* vkStream, VkStructureType 
     vkStream->read((uint32_t*)&forUnmarshaling->swapchainCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const VkPresentRegionKHR* check_pRegions;
+    (void)check_pRegions;
     check_pRegions = (const VkPresentRegionKHR*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pRegions) {
         if (!(check_pRegions)) {
@@ -13101,6 +13150,7 @@ void unmarshal_VkPipelineExecutableInternalRepresentationKHR(
     forUnmarshaling->dataSize = (size_t)vkStream->getBe64();
     // WARNING PTR CHECK
     void* check_pData;
+    (void)check_pData;
     check_pData = (void*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pData) {
         if (!(check_pData)) {
@@ -13157,6 +13207,7 @@ void unmarshal_VkNativeBufferANDROID(VulkanStreamGuest* vkStream, VkStructureTyp
     unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
     // WARNING PTR CHECK
     const uint32_t* check_handle;
+    (void)check_handle;
     check_handle = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->handle) {
         if (!(check_handle)) {
@@ -13445,6 +13496,7 @@ void unmarshal_VkDrmFormatModifierPropertiesListEXT(
     vkStream->read((uint32_t*)&forUnmarshaling->drmFormatModifierCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     VkDrmFormatModifierPropertiesEXT* check_pDrmFormatModifierProperties;
+    (void)check_pDrmFormatModifierProperties;
     check_pDrmFormatModifierProperties =
         (VkDrmFormatModifierPropertiesEXT*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDrmFormatModifierProperties) {
@@ -13500,6 +13552,7 @@ void unmarshal_VkPhysicalDeviceImageDrmFormatModifierInfoEXT(
     vkStream->read((uint32_t*)&forUnmarshaling->queueFamilyIndexCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     const uint32_t* check_pQueueFamilyIndices;
+    (void)check_pQueueFamilyIndices;
     check_pQueueFamilyIndices = (const uint32_t*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pQueueFamilyIndices) {
         if (!(check_pQueueFamilyIndices)) {
@@ -13660,6 +13713,7 @@ void unmarshal_VkDrmFormatModifierPropertiesList2EXT(
     vkStream->read((uint32_t*)&forUnmarshaling->drmFormatModifierCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     VkDrmFormatModifierProperties2EXT* check_pDrmFormatModifierProperties;
+    (void)check_pDrmFormatModifierProperties;
     check_pDrmFormatModifierProperties =
         (VkDrmFormatModifierProperties2EXT*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pDrmFormatModifierProperties) {
@@ -14067,66 +14121,6 @@ void unmarshal_VkDeviceDeviceMemoryReportCreateInfoEXT(
 }
 
 #endif
-#ifdef VK_EXT_robustness2
-void marshal_VkPhysicalDeviceRobustness2FeaturesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2FeaturesEXT* forMarshaling) {
-    (void)rootType;
-    vkStream->write((VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
-        rootType = forMarshaling->sType;
-    }
-    marshal_extension_struct(vkStream, rootType, forMarshaling->pNext);
-    vkStream->write((VkBool32*)&forMarshaling->robustBufferAccess2, sizeof(VkBool32));
-    vkStream->write((VkBool32*)&forMarshaling->robustImageAccess2, sizeof(VkBool32));
-    vkStream->write((VkBool32*)&forMarshaling->nullDescriptor, sizeof(VkBool32));
-}
-
-void unmarshal_VkPhysicalDeviceRobustness2FeaturesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    VkPhysicalDeviceRobustness2FeaturesEXT* forUnmarshaling) {
-    (void)rootType;
-    vkStream->read((VkStructureType*)&forUnmarshaling->sType, sizeof(VkStructureType));
-    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
-        rootType = forUnmarshaling->sType;
-    }
-    unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
-    vkStream->read((VkBool32*)&forUnmarshaling->robustBufferAccess2, sizeof(VkBool32));
-    vkStream->read((VkBool32*)&forUnmarshaling->robustImageAccess2, sizeof(VkBool32));
-    vkStream->read((VkBool32*)&forUnmarshaling->nullDescriptor, sizeof(VkBool32));
-}
-
-void marshal_VkPhysicalDeviceRobustness2PropertiesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2PropertiesEXT* forMarshaling) {
-    (void)rootType;
-    vkStream->write((VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
-        rootType = forMarshaling->sType;
-    }
-    marshal_extension_struct(vkStream, rootType, forMarshaling->pNext);
-    vkStream->write((VkDeviceSize*)&forMarshaling->robustStorageBufferAccessSizeAlignment,
-                    sizeof(VkDeviceSize));
-    vkStream->write((VkDeviceSize*)&forMarshaling->robustUniformBufferAccessSizeAlignment,
-                    sizeof(VkDeviceSize));
-}
-
-void unmarshal_VkPhysicalDeviceRobustness2PropertiesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    VkPhysicalDeviceRobustness2PropertiesEXT* forUnmarshaling) {
-    (void)rootType;
-    vkStream->read((VkStructureType*)&forUnmarshaling->sType, sizeof(VkStructureType));
-    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
-        rootType = forUnmarshaling->sType;
-    }
-    unmarshal_extension_struct(vkStream, rootType, (void*)(forUnmarshaling->pNext));
-    vkStream->read((VkDeviceSize*)&forUnmarshaling->robustStorageBufferAccessSizeAlignment,
-                   sizeof(VkDeviceSize));
-    vkStream->read((VkDeviceSize*)&forUnmarshaling->robustUniformBufferAccessSizeAlignment,
-                   sizeof(VkDeviceSize));
-}
-
-#endif
 #ifdef VK_EXT_custom_border_color
 void marshal_VkSamplerCustomBorderColorCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -14376,6 +14370,7 @@ void unmarshal_VkImageCompressionControlEXT(VulkanStreamGuest* vkStream, VkStruc
     vkStream->read((uint32_t*)&forUnmarshaling->compressionControlPlaneCount, sizeof(uint32_t));
     // WARNING PTR CHECK
     VkImageCompressionFixedRateFlagsEXT* check_pFixedRateFlags;
+    (void)check_pFixedRateFlags;
     check_pFixedRateFlags = (VkImageCompressionFixedRateFlagsEXT*)(uintptr_t)vkStream->getBe64();
     if (forUnmarshaling->pFixedRateFlags) {
         if (!(check_pFixedRateFlags)) {
@@ -15860,20 +15855,6 @@ void marshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureType rootT
             break;
         }
 #endif
-#ifdef VK_EXT_robustness2
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT: {
-            marshal_VkPhysicalDeviceRobustness2FeaturesEXT(
-                vkStream, rootType,
-                reinterpret_cast<const VkPhysicalDeviceRobustness2FeaturesEXT*>(structExtension));
-            break;
-        }
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_PROPERTIES_EXT: {
-            marshal_VkPhysicalDeviceRobustness2PropertiesEXT(
-                vkStream, rootType,
-                reinterpret_cast<const VkPhysicalDeviceRobustness2PropertiesEXT*>(structExtension));
-            break;
-        }
-#endif
 #ifdef VK_EXT_custom_border_color
         case VK_STRUCTURE_TYPE_SAMPLER_CUSTOM_BORDER_COLOR_CREATE_INFO_EXT: {
             marshal_VkSamplerCustomBorderColorCreateInfoEXT(
@@ -17201,20 +17182,6 @@ void unmarshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureType roo
             unmarshal_VkDeviceDeviceMemoryReportCreateInfoEXT(
                 vkStream, rootType,
                 reinterpret_cast<VkDeviceDeviceMemoryReportCreateInfoEXT*>(structExtension_out));
-            break;
-        }
-#endif
-#ifdef VK_EXT_robustness2
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT: {
-            unmarshal_VkPhysicalDeviceRobustness2FeaturesEXT(
-                vkStream, rootType,
-                reinterpret_cast<VkPhysicalDeviceRobustness2FeaturesEXT*>(structExtension_out));
-            break;
-        }
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_PROPERTIES_EXT: {
-            unmarshal_VkPhysicalDeviceRobustness2PropertiesEXT(
-                vkStream, rootType,
-                reinterpret_cast<VkPhysicalDeviceRobustness2PropertiesEXT*>(structExtension_out));
             break;
         }
 #endif
