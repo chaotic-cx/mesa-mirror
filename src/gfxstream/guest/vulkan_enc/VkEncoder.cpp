@@ -4106,8 +4106,10 @@ VkResult VkEncoder::vkGetQueryPoolResults(VkDevice device, VkQueryPool queryPool
     memcpy((*streamPtrPtr), &cgen_var_2, 8);
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
-    memcpy(*streamPtrPtr, (void*)pData, ((dataSize)) * sizeof(uint8_t));
-    *streamPtrPtr += ((dataSize)) * sizeof(uint8_t);
+    if (((dataSize)) > 0) {
+        memcpy(*streamPtrPtr, (void*)pData, ((dataSize)) * sizeof(uint8_t));
+        *streamPtrPtr += ((dataSize)) * sizeof(uint8_t);
+    }
     memcpy(*streamPtrPtr, (VkDeviceSize*)&local_stride, sizeof(VkDeviceSize));
     *streamPtrPtr += sizeof(VkDeviceSize);
     memcpy(*streamPtrPtr, (VkQueryResultFlags*)&local_flags, sizeof(VkQueryResultFlags));
@@ -5401,8 +5403,10 @@ VkResult VkEncoder::vkGetPipelineCacheData(VkDevice device, VkPipelineCache pipe
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (pData) {
-        memcpy(*streamPtrPtr, (void*)pData, (*(pDataSize)) * sizeof(uint8_t));
-        *streamPtrPtr += (*(pDataSize)) * sizeof(uint8_t);
+        if ((*(pDataSize)) > 0) {
+            memcpy(*streamPtrPtr, (void*)pData, (*(pDataSize)) * sizeof(uint8_t));
+            *streamPtrPtr += (*(pDataSize)) * sizeof(uint8_t);
+        }
     }
     // WARNING PTR CHECK
     size_t* check_pDataSize;
@@ -8625,9 +8629,11 @@ void VkEncoder::vkCmdBindDescriptorSets(
     }
     memcpy(*streamPtrPtr, (uint32_t*)&local_dynamicOffsetCount, sizeof(uint32_t));
     *streamPtrPtr += sizeof(uint32_t);
-    memcpy(*streamPtrPtr, (uint32_t*)local_pDynamicOffsets,
-           ((dynamicOffsetCount)) * sizeof(uint32_t));
-    *streamPtrPtr += ((dynamicOffsetCount)) * sizeof(uint32_t);
+    if (((dynamicOffsetCount)) > 0) {
+        memcpy(*streamPtrPtr, (uint32_t*)local_pDynamicOffsets,
+               ((dynamicOffsetCount)) * sizeof(uint32_t));
+        *streamPtrPtr += ((dynamicOffsetCount)) * sizeof(uint32_t);
+    }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
         pool->freeAll();
@@ -8755,8 +8761,11 @@ void VkEncoder::vkCmdBindVertexBuffers(VkCommandBuffer commandBuffer, uint32_t f
         }
         *streamPtrPtr += 8 * ((bindingCount));
     }
-    memcpy(*streamPtrPtr, (VkDeviceSize*)local_pOffsets, ((bindingCount)) * sizeof(VkDeviceSize));
-    *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+    if (((bindingCount)) > 0) {
+        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pOffsets,
+               ((bindingCount)) * sizeof(VkDeviceSize));
+        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+    }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
         pool->freeAll();
@@ -9646,8 +9655,10 @@ void VkEncoder::vkCmdUpdateBuffer(VkCommandBuffer commandBuffer, VkBuffer dstBuf
     *streamPtrPtr += sizeof(VkDeviceSize);
     memcpy(*streamPtrPtr, (VkDeviceSize*)&local_dataSize, sizeof(VkDeviceSize));
     *streamPtrPtr += sizeof(VkDeviceSize);
-    memcpy(*streamPtrPtr, (void*)local_pData, ((dataSize)) * sizeof(uint8_t));
-    *streamPtrPtr += ((dataSize)) * sizeof(uint8_t);
+    if (((dataSize)) > 0) {
+        memcpy(*streamPtrPtr, (void*)local_pData, ((dataSize)) * sizeof(uint8_t));
+        *streamPtrPtr += ((dataSize)) * sizeof(uint8_t);
+    }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
         pool->freeAll();
@@ -10920,8 +10931,10 @@ void VkEncoder::vkCmdPushConstants(VkCommandBuffer commandBuffer, VkPipelineLayo
     *streamPtrPtr += sizeof(uint32_t);
     memcpy(*streamPtrPtr, (uint32_t*)&local_size, sizeof(uint32_t));
     *streamPtrPtr += sizeof(uint32_t);
-    memcpy(*streamPtrPtr, (void*)local_pValues, ((size)) * sizeof(uint8_t));
-    *streamPtrPtr += ((size)) * sizeof(uint8_t);
+    if (((size)) > 0) {
+        memcpy(*streamPtrPtr, (void*)local_pValues, ((size)) * sizeof(uint8_t));
+        *streamPtrPtr += ((size)) * sizeof(uint8_t);
+    }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
         pool->freeAll();
@@ -15967,16 +15980,22 @@ void VkEncoder::vkCmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t 
             *streamPtrPtr += 8 * ((bindingCount));
         }
     }
-    memcpy(*streamPtrPtr, (VkDeviceSize*)local_pOffsets, ((bindingCount)) * sizeof(VkDeviceSize));
-    *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+    if (((bindingCount)) > 0) {
+        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pOffsets,
+               ((bindingCount)) * sizeof(VkDeviceSize));
+        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+    }
     // WARNING PTR CHECK
     uint64_t cgen_var_1 = (uint64_t)(uintptr_t)local_pSizes;
     memcpy((*streamPtrPtr), &cgen_var_1, 8);
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pSizes) {
-        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pSizes, ((bindingCount)) * sizeof(VkDeviceSize));
-        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        if (((bindingCount)) > 0) {
+            memcpy(*streamPtrPtr, (VkDeviceSize*)local_pSizes,
+                   ((bindingCount)) * sizeof(VkDeviceSize));
+            *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        }
     }
     // WARNING PTR CHECK
     uint64_t cgen_var_2 = (uint64_t)(uintptr_t)local_pStrides;
@@ -15984,9 +16003,11 @@ void VkEncoder::vkCmdBindVertexBuffers2(VkCommandBuffer commandBuffer, uint32_t 
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pStrides) {
-        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pStrides,
-               ((bindingCount)) * sizeof(VkDeviceSize));
-        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        if (((bindingCount)) > 0) {
+            memcpy(*streamPtrPtr, (VkDeviceSize*)local_pStrides,
+                   ((bindingCount)) * sizeof(VkDeviceSize));
+            *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        }
     }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
@@ -22930,16 +22951,22 @@ void VkEncoder::vkCmdBindTransformFeedbackBuffersEXT(VkCommandBuffer commandBuff
         }
         *streamPtrPtr += 8 * ((bindingCount));
     }
-    memcpy(*streamPtrPtr, (VkDeviceSize*)local_pOffsets, ((bindingCount)) * sizeof(VkDeviceSize));
-    *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+    if (((bindingCount)) > 0) {
+        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pOffsets,
+               ((bindingCount)) * sizeof(VkDeviceSize));
+        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+    }
     // WARNING PTR CHECK
     uint64_t cgen_var_1 = (uint64_t)(uintptr_t)local_pSizes;
     memcpy((*streamPtrPtr), &cgen_var_1, 8);
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pSizes) {
-        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pSizes, ((bindingCount)) * sizeof(VkDeviceSize));
-        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        if (((bindingCount)) > 0) {
+            memcpy(*streamPtrPtr, (VkDeviceSize*)local_pSizes,
+                   ((bindingCount)) * sizeof(VkDeviceSize));
+            *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        }
     }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
@@ -23031,9 +23058,11 @@ void VkEncoder::vkCmdBeginTransformFeedbackEXT(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pCounterBufferOffsets) {
-        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pCounterBufferOffsets,
-               ((counterBufferCount)) * sizeof(VkDeviceSize));
-        *streamPtrPtr += ((counterBufferCount)) * sizeof(VkDeviceSize);
+        if (((counterBufferCount)) > 0) {
+            memcpy(*streamPtrPtr, (VkDeviceSize*)local_pCounterBufferOffsets,
+                   ((counterBufferCount)) * sizeof(VkDeviceSize));
+            *streamPtrPtr += ((counterBufferCount)) * sizeof(VkDeviceSize);
+        }
     }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
@@ -23125,9 +23154,11 @@ void VkEncoder::vkCmdEndTransformFeedbackEXT(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pCounterBufferOffsets) {
-        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pCounterBufferOffsets,
-               ((counterBufferCount)) * sizeof(VkDeviceSize));
-        *streamPtrPtr += ((counterBufferCount)) * sizeof(VkDeviceSize);
+        if (((counterBufferCount)) > 0) {
+            memcpy(*streamPtrPtr, (VkDeviceSize*)local_pCounterBufferOffsets,
+                   ((counterBufferCount)) * sizeof(VkDeviceSize));
+            *streamPtrPtr += ((counterBufferCount)) * sizeof(VkDeviceSize);
+        }
     }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
@@ -23939,16 +23970,22 @@ void VkEncoder::vkCmdBindVertexBuffers2EXT(VkCommandBuffer commandBuffer, uint32
             *streamPtrPtr += 8 * ((bindingCount));
         }
     }
-    memcpy(*streamPtrPtr, (VkDeviceSize*)local_pOffsets, ((bindingCount)) * sizeof(VkDeviceSize));
-    *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+    if (((bindingCount)) > 0) {
+        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pOffsets,
+               ((bindingCount)) * sizeof(VkDeviceSize));
+        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+    }
     // WARNING PTR CHECK
     uint64_t cgen_var_1 = (uint64_t)(uintptr_t)local_pSizes;
     memcpy((*streamPtrPtr), &cgen_var_1, 8);
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pSizes) {
-        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pSizes, ((bindingCount)) * sizeof(VkDeviceSize));
-        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        if (((bindingCount)) > 0) {
+            memcpy(*streamPtrPtr, (VkDeviceSize*)local_pSizes,
+                   ((bindingCount)) * sizeof(VkDeviceSize));
+            *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        }
     }
     // WARNING PTR CHECK
     uint64_t cgen_var_2 = (uint64_t)(uintptr_t)local_pStrides;
@@ -23956,9 +23993,11 @@ void VkEncoder::vkCmdBindVertexBuffers2EXT(VkCommandBuffer commandBuffer, uint32
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pStrides) {
-        memcpy(*streamPtrPtr, (VkDeviceSize*)local_pStrides,
-               ((bindingCount)) * sizeof(VkDeviceSize));
-        *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        if (((bindingCount)) > 0) {
+            memcpy(*streamPtrPtr, (VkDeviceSize*)local_pStrides,
+                   ((bindingCount)) * sizeof(VkDeviceSize));
+            *streamPtrPtr += ((bindingCount)) * sizeof(VkDeviceSize);
+        }
     }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
@@ -25219,9 +25258,11 @@ void VkEncoder::vkCmdSetColorWriteEnableEXT(VkCommandBuffer commandBuffer, uint3
     }
     memcpy(*streamPtrPtr, (uint32_t*)&local_attachmentCount, sizeof(uint32_t));
     *streamPtrPtr += sizeof(uint32_t);
-    memcpy(*streamPtrPtr, (VkBool32*)local_pColorWriteEnables,
-           ((attachmentCount)) * sizeof(VkBool32));
-    *streamPtrPtr += ((attachmentCount)) * sizeof(VkBool32);
+    if (((attachmentCount)) > 0) {
+        memcpy(*streamPtrPtr, (VkBool32*)local_pColorWriteEnables,
+               ((attachmentCount)) * sizeof(VkBool32));
+        *streamPtrPtr += ((attachmentCount)) * sizeof(VkBool32);
+    }
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
         pool->freeAll();
@@ -25480,9 +25521,11 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSizedGOOGLE(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pImageInfoEntryIndices) {
-        memcpy(*streamPtrPtr, (uint32_t*)local_pImageInfoEntryIndices,
-               ((imageInfoCount)) * sizeof(uint32_t));
-        *streamPtrPtr += ((imageInfoCount)) * sizeof(uint32_t);
+        if (((imageInfoCount)) > 0) {
+            memcpy(*streamPtrPtr, (uint32_t*)local_pImageInfoEntryIndices,
+                   ((imageInfoCount)) * sizeof(uint32_t));
+            *streamPtrPtr += ((imageInfoCount)) * sizeof(uint32_t);
+        }
     }
     // WARNING PTR CHECK
     uint64_t cgen_var_4 = (uint64_t)(uintptr_t)local_pBufferInfoEntryIndices;
@@ -25490,9 +25533,11 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSizedGOOGLE(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pBufferInfoEntryIndices) {
-        memcpy(*streamPtrPtr, (uint32_t*)local_pBufferInfoEntryIndices,
-               ((bufferInfoCount)) * sizeof(uint32_t));
-        *streamPtrPtr += ((bufferInfoCount)) * sizeof(uint32_t);
+        if (((bufferInfoCount)) > 0) {
+            memcpy(*streamPtrPtr, (uint32_t*)local_pBufferInfoEntryIndices,
+                   ((bufferInfoCount)) * sizeof(uint32_t));
+            *streamPtrPtr += ((bufferInfoCount)) * sizeof(uint32_t);
+        }
     }
     // WARNING PTR CHECK
     uint64_t cgen_var_5 = (uint64_t)(uintptr_t)local_pBufferViewEntryIndices;
@@ -25500,9 +25545,11 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSizedGOOGLE(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pBufferViewEntryIndices) {
-        memcpy(*streamPtrPtr, (uint32_t*)local_pBufferViewEntryIndices,
-               ((bufferViewCount)) * sizeof(uint32_t));
-        *streamPtrPtr += ((bufferViewCount)) * sizeof(uint32_t);
+        if (((bufferViewCount)) > 0) {
+            memcpy(*streamPtrPtr, (uint32_t*)local_pBufferViewEntryIndices,
+                   ((bufferViewCount)) * sizeof(uint32_t));
+            *streamPtrPtr += ((bufferViewCount)) * sizeof(uint32_t);
+        }
     }
     // WARNING PTR CHECK
     uint64_t cgen_var_6 = (uint64_t)(uintptr_t)local_pImageInfos;
@@ -26707,18 +26754,26 @@ void VkEncoder::vkQueueCommitDescriptorSetUpdatesGOOGLE(
         }
         *streamPtrPtr += 8 * ((descriptorSetCount));
     }
-    memcpy(*streamPtrPtr, (uint64_t*)local_pDescriptorSetPoolIds,
-           ((descriptorSetCount)) * sizeof(uint64_t));
-    *streamPtrPtr += ((descriptorSetCount)) * sizeof(uint64_t);
-    memcpy(*streamPtrPtr, (uint32_t*)local_pDescriptorSetWhichPool,
-           ((descriptorSetCount)) * sizeof(uint32_t));
-    *streamPtrPtr += ((descriptorSetCount)) * sizeof(uint32_t);
-    memcpy(*streamPtrPtr, (uint32_t*)local_pDescriptorSetPendingAllocation,
-           ((descriptorSetCount)) * sizeof(uint32_t));
-    *streamPtrPtr += ((descriptorSetCount)) * sizeof(uint32_t);
-    memcpy(*streamPtrPtr, (uint32_t*)local_pDescriptorWriteStartingIndices,
-           ((descriptorSetCount)) * sizeof(uint32_t));
-    *streamPtrPtr += ((descriptorSetCount)) * sizeof(uint32_t);
+    if (((descriptorSetCount)) > 0) {
+        memcpy(*streamPtrPtr, (uint64_t*)local_pDescriptorSetPoolIds,
+               ((descriptorSetCount)) * sizeof(uint64_t));
+        *streamPtrPtr += ((descriptorSetCount)) * sizeof(uint64_t);
+    }
+    if (((descriptorSetCount)) > 0) {
+        memcpy(*streamPtrPtr, (uint32_t*)local_pDescriptorSetWhichPool,
+               ((descriptorSetCount)) * sizeof(uint32_t));
+        *streamPtrPtr += ((descriptorSetCount)) * sizeof(uint32_t);
+    }
+    if (((descriptorSetCount)) > 0) {
+        memcpy(*streamPtrPtr, (uint32_t*)local_pDescriptorSetPendingAllocation,
+               ((descriptorSetCount)) * sizeof(uint32_t));
+        *streamPtrPtr += ((descriptorSetCount)) * sizeof(uint32_t);
+    }
+    if (((descriptorSetCount)) > 0) {
+        memcpy(*streamPtrPtr, (uint32_t*)local_pDescriptorWriteStartingIndices,
+               ((descriptorSetCount)) * sizeof(uint32_t));
+        *streamPtrPtr += ((descriptorSetCount)) * sizeof(uint32_t);
+    }
     memcpy(*streamPtrPtr, (uint32_t*)&local_pendingDescriptorWriteCount, sizeof(uint32_t));
     *streamPtrPtr += sizeof(uint32_t);
     for (uint32_t i = 0; i < (uint32_t)((pendingDescriptorWriteCount)); ++i) {
@@ -26796,8 +26851,10 @@ void VkEncoder::vkCollectDescriptorPoolIdsGOOGLE(VkDevice device, VkDescriptorPo
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (pPoolIds) {
-        memcpy(*streamPtrPtr, (uint64_t*)pPoolIds, (*(pPoolIdCount)) * sizeof(uint64_t));
-        *streamPtrPtr += (*(pPoolIdCount)) * sizeof(uint64_t);
+        if ((*(pPoolIdCount)) > 0) {
+            memcpy(*streamPtrPtr, (uint64_t*)pPoolIds, (*(pPoolIdCount)) * sizeof(uint64_t));
+            *streamPtrPtr += (*(pPoolIdCount)) * sizeof(uint64_t);
+        }
     }
     stream->read((uint32_t*)pPoolIdCount, sizeof(uint32_t));
     // WARNING PTR CHECK
@@ -27211,9 +27268,11 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSized2GOOGLE(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pImageInfoEntryIndices) {
-        memcpy(*streamPtrPtr, (uint32_t*)local_pImageInfoEntryIndices,
-               ((imageInfoCount)) * sizeof(uint32_t));
-        *streamPtrPtr += ((imageInfoCount)) * sizeof(uint32_t);
+        if (((imageInfoCount)) > 0) {
+            memcpy(*streamPtrPtr, (uint32_t*)local_pImageInfoEntryIndices,
+                   ((imageInfoCount)) * sizeof(uint32_t));
+            *streamPtrPtr += ((imageInfoCount)) * sizeof(uint32_t);
+        }
     }
     // WARNING PTR CHECK
     uint64_t cgen_var_4 = (uint64_t)(uintptr_t)local_pBufferInfoEntryIndices;
@@ -27221,9 +27280,11 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSized2GOOGLE(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pBufferInfoEntryIndices) {
-        memcpy(*streamPtrPtr, (uint32_t*)local_pBufferInfoEntryIndices,
-               ((bufferInfoCount)) * sizeof(uint32_t));
-        *streamPtrPtr += ((bufferInfoCount)) * sizeof(uint32_t);
+        if (((bufferInfoCount)) > 0) {
+            memcpy(*streamPtrPtr, (uint32_t*)local_pBufferInfoEntryIndices,
+                   ((bufferInfoCount)) * sizeof(uint32_t));
+            *streamPtrPtr += ((bufferInfoCount)) * sizeof(uint32_t);
+        }
     }
     // WARNING PTR CHECK
     uint64_t cgen_var_5 = (uint64_t)(uintptr_t)local_pBufferViewEntryIndices;
@@ -27231,9 +27292,11 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSized2GOOGLE(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pBufferViewEntryIndices) {
-        memcpy(*streamPtrPtr, (uint32_t*)local_pBufferViewEntryIndices,
-               ((bufferViewCount)) * sizeof(uint32_t));
-        *streamPtrPtr += ((bufferViewCount)) * sizeof(uint32_t);
+        if (((bufferViewCount)) > 0) {
+            memcpy(*streamPtrPtr, (uint32_t*)local_pBufferViewEntryIndices,
+                   ((bufferViewCount)) * sizeof(uint32_t));
+            *streamPtrPtr += ((bufferViewCount)) * sizeof(uint32_t);
+        }
     }
     // WARNING PTR CHECK
     uint64_t cgen_var_6 = (uint64_t)(uintptr_t)local_pImageInfos;
@@ -27280,9 +27343,11 @@ void VkEncoder::vkUpdateDescriptorSetWithTemplateSized2GOOGLE(
     gfxstream::aemu::Stream::toBe64((uint8_t*)(*streamPtrPtr));
     *streamPtrPtr += 8;
     if (local_pInlineUniformBlockData) {
-        memcpy(*streamPtrPtr, (uint8_t*)local_pInlineUniformBlockData,
-               ((inlineUniformBlockCount)) * sizeof(uint8_t));
-        *streamPtrPtr += ((inlineUniformBlockCount)) * sizeof(uint8_t);
+        if (((inlineUniformBlockCount)) > 0) {
+            memcpy(*streamPtrPtr, (uint8_t*)local_pInlineUniformBlockData,
+                   ((inlineUniformBlockCount)) * sizeof(uint8_t));
+            *streamPtrPtr += ((inlineUniformBlockCount)) * sizeof(uint8_t);
+        }
     }
     stream->flush();
     ++encodeCount;
