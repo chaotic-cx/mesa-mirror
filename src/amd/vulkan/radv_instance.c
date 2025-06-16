@@ -85,6 +85,8 @@ static const struct debug_control radv_debug_options[] = {{"nofastclears", RADV_
                                                           {"nir", RADV_DEBUG_DUMP_NIR},
                                                           {"asm", RADV_DEBUG_DUMP_ASM},
                                                           {"ir", RADV_DEBUG_DUMP_BACKEND_IR},
+                                                          {"pso_history", RADV_DEBUG_PSO_HISTORY},
+                                                          {"bvh4", RADV_DEBUG_BVH4},
                                                           {NULL, 0}};
 
 const char *
@@ -118,10 +120,10 @@ static const struct debug_control radv_perftest_options[] = {{"localbos", RADV_P
                                                              {NULL, 0}};
 
 static const struct debug_control radv_trap_excp_options[] = {
-   {"mem_viol", RADV_PERFTEST_LOCAL_BOS},
-   {"float_div_by_zero", RADV_PERFTEST_DCC_MSAA},
-   {"float_overflow", RADV_PERFTEST_BO_LIST},
-   {"float_underflow", RADV_PERFTEST_CS_WAVE_32},
+   {"mem_viol", RADV_TRAP_EXCP_MEM_VIOL},
+   {"float_div_by_zero", RADV_TRAP_EXCP_FLOAT_DIV_BY_ZERO},
+   {"float_overflow", RADV_TRAP_EXCP_FLOAT_OVERFLOW},
+   {"float_underflow", RADV_TRAP_EXCP_FLOAT_UNDERFLOW},
    {NULL, 0},
 };
 
@@ -163,6 +165,7 @@ static const driOptionDescription radv_dri_options[] = {
 
    DRI_CONF_SECTION_DEBUG
       DRI_CONF_OVERRIDE_VRAM_SIZE()
+      DRI_CONF_VK_LOWER_TERMINATE_TO_DISCARD(false)
       DRI_CONF_VK_WSI_FORCE_BGRA8_UNORM_FIRST(false)
       DRI_CONF_VK_WSI_FORCE_SWAPCHAIN_TO_CURRENT_EXTENT(false)
       DRI_CONF_VK_X11_IGNORE_SUBOPTIMAL(false)
@@ -184,14 +187,16 @@ static const driOptionDescription radv_dri_options[] = {
       DRI_CONF_RADV_TEX_NON_UNIFORM(false)
       DRI_CONF_RADV_FLUSH_BEFORE_TIMESTAMP_WRITE(false)
       DRI_CONF_RADV_RT_WAVE64(false)
-      DRI_CONF_RADV_LEGACY_SPARSE_BINDING(false)
-      DRI_CONF_RADV_FORCE_PSTATE_PEAK_GFX11_DGPU(false)
+      DRI_CONF_RADV_DISABLE_DEDICATED_SPARSE_QUEUE(false)
       DRI_CONF_RADV_OVERRIDE_GRAPHICS_SHADER_VERSION(0)
       DRI_CONF_RADV_OVERRIDE_COMPUTE_SHADER_VERSION(0)
       DRI_CONF_RADV_OVERRIDE_RAY_TRACING_SHADER_VERSION(0)
       DRI_CONF_RADV_SSBO_NON_UNIFORM(false)
-      DRI_CONF_RADV_LOWER_TERMINATE_TO_DISCARD(false)
       DRI_CONF_RADV_APP_LAYER()
+      DRI_CONF_RADV_EMULATE_RT(false)
+      DRI_CONF_RADV_ENABLE_FLOAT16_GFX8(false)
+      DRI_CONF_RADV_FORCE_64K_SPARSE_ALIGNMENT(false)
+      DRI_CONF_RADV_DISABLE_HIZ_HIS_GFX12(false)
    DRI_CONF_SECTION_END
 };
 // clang-format on
@@ -236,6 +241,12 @@ radv_init_dri_options(struct radv_instance *instance)
       driQueryOptionb(&instance->drirc.options, "radv_disable_aniso_single_level");
 
    instance->drirc.disable_trunc_coord = driQueryOptionb(&instance->drirc.options, "radv_disable_trunc_coord");
+   if (instance->vk.app_info.engine_name && !strcmp(instance->vk.app_info.engine_name, "DXVK")) {
+      /* Since 2.3.1+, DXVK uses the application version to notify the driver about D3D9. */
+      const bool is_d3d9 = instance->vk.app_info.app_version & 0x1;
+
+      instance->drirc.disable_trunc_coord &= !is_d3d9;
+   }
 
    instance->drirc.disable_sinking_load_input_fs =
       driQueryOptionb(&instance->drirc.options, "radv_disable_sinking_load_input_fs");
@@ -256,12 +267,10 @@ radv_init_dri_options(struct radv_instance *instance)
    instance->drirc.flush_before_timestamp_write =
       driQueryOptionb(&instance->drirc.options, "radv_flush_before_timestamp_write");
 
-   instance->drirc.force_rt_wave64 = driQueryOptionb(&instance->drirc.options, "radv_rt_wave64");
+   if (driQueryOptionb(&instance->drirc.options, "radv_rt_wave64"))
+      instance->perftest_flags |= RADV_PERFTEST_RT_WAVE_64;
 
-   instance->drirc.legacy_sparse_binding = driQueryOptionb(&instance->drirc.options, "radv_legacy_sparse_binding");
-
-   instance->drirc.force_pstate_peak_gfx11_dgpu =
-      driQueryOptionb(&instance->drirc.options, "radv_force_pstate_peak_gfx11_dgpu");
+   instance->drirc.disable_dedicated_sparse_queue = driQueryOptionb(&instance->drirc.options, "radv_disable_dedicated_sparse_queue");
 
    instance->drirc.override_graphics_shader_version =
       driQueryOptioni(&instance->drirc.options, "radv_override_graphics_shader_version");
@@ -287,7 +296,15 @@ radv_init_dri_options(struct radv_instance *instance)
    instance->drirc.disable_dcc_stores = driQueryOptionb(&instance->drirc.options, "radv_disable_dcc_stores");
 
    instance->drirc.lower_terminate_to_discard =
-      driQueryOptionb(&instance->drirc.options, "radv_lower_terminate_to_discard");
+      driQueryOptionb(&instance->drirc.options, "vk_lower_terminate_to_discard");
+
+   instance->drirc.emulate_rt = driQueryOptionb(&instance->drirc.options, "radv_emulate_rt");
+
+   instance->drirc.expose_float16_gfx8 = driQueryOptionb(&instance->drirc.options, "radv_enable_float16_gfx8");
+
+   instance->drirc.force_64k_sparse_alignment = driQueryOptionb(&instance->drirc.options, "radv_force_64k_sparse_alignment");
+
+   instance->drirc.disable_hiz_his_gfx12 = driQueryOptionb(&instance->drirc.options, "radv_disable_hiz_his_gfx12");
 }
 
 static const struct vk_instance_extension_table radv_instance_extensions_supported = {
@@ -399,6 +416,14 @@ radv_CreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationC
       instance->debug_flags |= shader_stage_flags;
    }
 
+   if (instance->debug_flags & RADV_DEBUG_PSO_HISTORY) {
+      const char *filename = "/tmp/radv_pso_history.log";
+
+      instance->pso_history_logfile = fopen(filename, "w");
+      if (!instance->pso_history_logfile)
+         fprintf(stderr, "radv: Failed to open log file: %s.\n", filename);
+   }
+
    /* When RADV_FORCE_FAMILY is set, the driver creates a null
     * device that allows to test the compiler without having an
     * AMDGPU instance.
@@ -431,6 +456,9 @@ radv_DestroyInstance(VkInstance _instance, const VkAllocationCallbacks *pAllocat
       return;
 
    VG(VALGRIND_DESTROY_MEMPOOL(instance));
+
+   if (instance->pso_history_logfile)
+      fclose(instance->pso_history_logfile);
 
    simple_mtx_destroy(&instance->shader_dump_mtx);
 

@@ -1,3 +1,7 @@
+# When changing this file, you need to bump the following
+# .gitlab-ci/image-tags.yml tags:
+# ALPINE_X86_64_LAVA_TRIGGER_TAG
+
 """
 In a few words: some devices in Mesa CI has problematic serial connection, they
 may hang (become silent) intermittently. Every time it hangs for minutes, the
@@ -68,12 +72,14 @@ EOF
 ping -c 5 -w 60 $(lava-target-ip)
 
 lava_ssh_test_case() {
-    set -x
+    set -ex
     local test_case="${1}"
     shift
     lava-test-case \"${test_case}\" --shell \\
         ssh ${SSH_PTY_ARGS:--T} \\
-        -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \\
+        -o StrictHostKeyChecking=no \\
+        -o UserKnownHostsFile=/dev/null \\
+        -o ConnectTimeout=60 \\
         root@$(lava-target-ip) \"${@}\"
 }""",
 ]
@@ -170,7 +176,7 @@ def generate_docker_test(
         # maintainers with monitoring
         f"lava_ssh_test_case '{args.project_name}_{args.mesa_job_name}' "
         # Changing directory to /, as the HWCI_SCRIPT expects that
-        "'\"cd / && /init-stage2.sh\"'",
+        f"'cd / && {args.project_dir}/install/common/init-stage2.sh'",
     ]
 
     return init_stages_test

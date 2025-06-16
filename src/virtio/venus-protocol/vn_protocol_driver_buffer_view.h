@@ -21,13 +21,13 @@ vn_sizeof_VkBufferViewCreateInfo_pnext(const void *val)
 
     while (pnext) {
         switch ((int32_t)pnext->sType) {
-        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR:
+        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO:
             if (!vn_cs_renderer_protocol_has_extension(471 /* VK_KHR_maintenance5 */))
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
             size += vn_sizeof_VkBufferViewCreateInfo_pnext(pnext->pNext);
-            size += vn_sizeof_VkBufferUsageFlags2CreateInfoKHR_self((const VkBufferUsageFlags2CreateInfoKHR *)pnext);
+            size += vn_sizeof_VkBufferUsageFlags2CreateInfo_self((const VkBufferUsageFlags2CreateInfo *)pnext);
             return size;
         default:
             /* ignore unknown/unsupported struct */
@@ -71,13 +71,13 @@ vn_encode_VkBufferViewCreateInfo_pnext(struct vn_cs_encoder *enc, const void *va
 
     while (pnext) {
         switch ((int32_t)pnext->sType) {
-        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO_KHR:
+        case VK_STRUCTURE_TYPE_BUFFER_USAGE_FLAGS_2_CREATE_INFO:
             if (!vn_cs_renderer_protocol_has_extension(471 /* VK_KHR_maintenance5 */))
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
             vn_encode_VkBufferViewCreateInfo_pnext(enc, pnext->pNext);
-            vn_encode_VkBufferUsageFlags2CreateInfoKHR_self(enc, (const VkBufferUsageFlags2CreateInfoKHR *)pnext);
+            vn_encode_VkBufferUsageFlags2CreateInfo_self(enc, (const VkBufferUsageFlags2CreateInfo *)pnext);
             return;
         default:
             /* ignore unknown/unsupported struct */
@@ -295,19 +295,6 @@ static inline void vn_async_vkCreateBufferView(struct vn_ring *vn_ring, VkDevice
 {
     struct vn_ring_submit_command submit;
     vn_submit_vkCreateBufferView(vn_ring, 0, device, pCreateInfo, pAllocator, pView, &submit);
-}
-
-static inline void vn_call_vkDestroyBufferView(struct vn_ring *vn_ring, VkDevice device, VkBufferView bufferView, const VkAllocationCallbacks* pAllocator)
-{
-    VN_TRACE_FUNC();
-
-    struct vn_ring_submit_command submit;
-    vn_submit_vkDestroyBufferView(vn_ring, VK_COMMAND_GENERATE_REPLY_BIT_EXT, device, bufferView, pAllocator, &submit);
-    struct vn_cs_decoder *dec = vn_ring_get_command_reply(vn_ring, &submit);
-    if (dec) {
-        vn_decode_vkDestroyBufferView_reply(dec, device, bufferView, pAllocator);
-        vn_ring_free_command_reply(vn_ring, &submit);
-    }
 }
 
 static inline void vn_async_vkDestroyBufferView(struct vn_ring *vn_ring, VkDevice device, VkBufferView bufferView, const VkAllocationCallbacks* pAllocator)

@@ -24,7 +24,7 @@
 #include "anv_private.h"
 
 #include "genxml/gen_macros.h"
-#include "genxml/genX_pack.h"
+#include "genxml/genX_video_pack.h"
 
 #include "util/vl_zscan_data.h"
 
@@ -68,9 +68,7 @@ genX(CmdControlVideoCodingKHR)(VkCommandBuffer commandBuffer,
       assert((rate_control_info->rateControlMode == VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DEFAULT_KHR) ||
              (rate_control_info->rateControlMode == VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DISABLED_BIT_KHR));
 
-      cmd_buffer->video.params->rc_mode = rate_control_info->rateControlMode;
-   } else {
-      cmd_buffer->video.params->rc_mode = VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DEFAULT_KHR;
+      cmd_buffer->video.vid->rc_mode = rate_control_info->rateControlMode;
    }
 }
 
@@ -180,10 +178,10 @@ anv_h265_decode_video(struct anv_cmd_buffer *cmd_buffer,
    const struct VkVideoDecodeH265PictureInfoKHR *h265_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_H265_PICTURE_INFO_KHR);
 
-   const StdVideoH265SequenceParameterSet *sps =
-      vk_video_find_h265_dec_std_sps(&params->vk, h265_pic_info->pStdPictureInfo->pps_seq_parameter_set_id);
-   const StdVideoH265PictureParameterSet *pps =
-      vk_video_find_h265_dec_std_pps(&params->vk, h265_pic_info->pStdPictureInfo->pps_pic_parameter_set_id);
+   const StdVideoH265SequenceParameterSet *sps;
+   const StdVideoH265PictureParameterSet *pps;
+
+   vk_video_get_h265_parameters(&vid->vk, params ? &params->vk : NULL, frame_info, h265_pic_info, &sps, &pps);
 
    struct vk_video_h265_reference ref_slots[2][8] = { 0 };
    uint8_t dpb_idx[ANV_VIDEO_H265_MAX_NUM_REF_FRAME] = { 0,};
@@ -473,12 +471,11 @@ anv_h265_decode_video(struct anv_cmd_buffer *cmd_buffer,
 #endif
    }
 
-   if (sps->flags.scaling_list_enabled_flag) {
-      if (pps->flags.pps_scaling_list_data_present_flag) {
-         scaling_list(cmd_buffer, pps->pScalingLists);
-      } else if (sps->flags.sps_scaling_list_data_present_flag) {
-         scaling_list(cmd_buffer, sps->pScalingLists);
-      }
+   const StdVideoH265ScalingLists *scaling_lists = NULL;
+   vk_video_derive_h265_scaling_list(sps, pps, &scaling_lists);
+
+   if (scaling_lists) {
+      scaling_list(cmd_buffer, scaling_lists);
    } else {
       for (uint8_t size = 0; size < 4; size++) {
          for (uint8_t pred = 0; pred < 2; pred++) {
@@ -726,8 +723,10 @@ anv_h265_decode_video(struct anv_cmd_buffer *cmd_buffer,
          slice.SliceCrQPOffset = slice_params[s].slice_cr_qp_offset;
          slice.SliceHeaderDisableDeblockingFilter = pps->flags.deblocking_filter_override_enabled_flag ?
                slice_params[s].disable_deblocking_filter_idc : pps->flags.pps_deblocking_filter_disabled_flag;
-         slice.SliceTCOffsetDiv2 = slice_params[s].tc_offset_div2;
-         slice.SliceBetaOffsetDiv2 = slice_params[s].beta_offset_div2;
+         slice.SliceTCOffsetDiv2 = pps->flags.deblocking_filter_override_enabled_flag ?
+               slice_params[s].tc_offset_div2 : pps->pps_tc_offset_div2;
+         slice.SliceBetaOffsetDiv2 = pps->flags.deblocking_filter_override_enabled_flag ?
+               slice_params[s].beta_offset_div2 : pps->pps_beta_offset_div2;
          slice.SliceLoopFilterEnable = slice_params[s].loop_filter_across_slices_enable;
          slice.SliceSAOChroma = slice_params[s].sao_chroma_flag;
          slice.SliceSAOLuma = slice_params[s].sao_luma_flag;
@@ -888,8 +887,11 @@ anv_h264_decode_video(struct anv_cmd_buffer *cmd_buffer,
    struct anv_video_session_params *params = cmd_buffer->video.params;
    const struct VkVideoDecodeH264PictureInfoKHR *h264_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_H264_PICTURE_INFO_KHR);
-   const StdVideoH264SequenceParameterSet *sps = vk_video_find_h264_dec_std_sps(&params->vk, h264_pic_info->pStdPictureInfo->seq_parameter_set_id);
-   const StdVideoH264PictureParameterSet *pps = vk_video_find_h264_dec_std_pps(&params->vk, h264_pic_info->pStdPictureInfo->pic_parameter_set_id);
+
+   const StdVideoH264SequenceParameterSet *sps;
+   const StdVideoH264PictureParameterSet *pps;
+
+   vk_video_get_h264_parameters(&vid->vk, params ? &params->vk : NULL, frame_info, h264_pic_info, &sps, &pps);
 
    uint8_t dpb_slots[ANV_VIDEO_H264_MAX_DPB_SLOTS] = { 0,};
 
@@ -1310,13 +1312,13 @@ frame_is_key_or_intra(const StdVideoAV1FrameType frame_type)
 
 static int32_t
 get_relative_dist(const VkVideoDecodeAV1PictureInfoKHR *av1_pic_info,
-                  const struct anv_video_session_params *params,
+                  const StdVideoAV1SequenceHeader *seq_hdr,
                   int32_t a, int32_t b)
 {
-   if (!params->vk.av1_dec.seq_hdr.base.flags.enable_order_hint)
+   if (!seq_hdr->flags.enable_order_hint)
       return 0;
 
-   int32_t bits = params->vk.av1_dec.seq_hdr.base.order_hint_bits_minus_1 + 1;
+   int32_t bits = seq_hdr->order_hint_bits_minus_1 + 1;
    int32_t diff = a - b;
    int32_t m = 1 << (bits - 1);
    diff = (diff & (m - 1)) - (diff & m);
@@ -1363,15 +1365,15 @@ find_cdf_index(const struct anv_video_session *vid,
 static void
 anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
                           const VkVideoDecodeInfoKHR *frame_info,
+                          const StdVideoAV1SequenceHeader *seq_hdr,
                           int tile_idx)
 {
    ANV_FROM_HANDLE(anv_buffer, src_buffer, frame_info->srcBuffer);
    struct anv_video_session *vid = cmd_buffer->video.vid;
-   struct anv_video_session_params *params = cmd_buffer->video.params;
    const VkVideoDecodeAV1PictureInfoKHR *av1_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_AV1_PICTURE_INFO_KHR);
    const StdVideoDecodeAV1PictureInfo *std_pic_info = av1_pic_info->pStdPictureInfo;
-   const StdVideoAV1SequenceHeader *seq_hdr = &params->vk.av1_dec.seq_hdr.base;
+
    int cdf_index = 0;
    if (std_pic_info->pQuantization->base_q_idx <= 20)
       cdf_index = 0;
@@ -1971,11 +1973,11 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
    for (enum av1_ref_frame r = AV1_LAST_FRAME; r <= AV1_ALTREF_FRAME; r++) {
       if (seq_hdr->flags.enable_order_hint &&
           !frame_is_key_or_intra(std_pic_info->frame_type)) {
-         if (get_relative_dist(av1_pic_info, params,
+         if (get_relative_dist(av1_pic_info, seq_hdr,
                                ref_info[r].order_hint, ref_info[AV1_INTRA_FRAME].order_hint) > 0)
             ref_frame_sign_bias |= (1 << r);
 
-         if ((get_relative_dist(av1_pic_info, params,
+         if ((get_relative_dist(av1_pic_info, seq_hdr,
                                 ref_info[r].order_hint, ref_info[AV1_INTRA_FRAME].order_hint) > 0) ||
              ref_info[r].order_hint == ref_info[AV1_INTRA_FRAME].order_hint)
             ref_frame_side |= (1 << r);
@@ -2001,14 +2003,14 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
          }
       }
 
-      if (get_relative_dist(av1_pic_info, params,
+      if (get_relative_dist(av1_pic_info, seq_hdr,
                             ref_info[AV1_BWDREF_FRAME].order_hint,
                             ref_info[AV1_INTRA_FRAME].order_hint) > 0 &&
           !frame_is_key_or_intra(ref_info[AV1_BWDREF_FRAME - AV1_LAST_FRAME + 1].frame_type)) {
          mfmv_ref[num_mfmv++] = AV1_BWDREF_FRAME - AV1_LAST_FRAME;
       }
 
-      if (get_relative_dist(av1_pic_info, params,
+      if (get_relative_dist(av1_pic_info, seq_hdr,
                             ref_info[AV1_ALTREF2_FRAME].order_hint,
                             ref_info[AV1_INTRA_FRAME].order_hint) > 0 &&
           !frame_is_key_or_intra(ref_info[AV1_ALTREF2_FRAME - AV1_LAST_FRAME + 1].frame_type)) {
@@ -2016,7 +2018,7 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       }
 
       if (num_mfmv < total &&
-          get_relative_dist(av1_pic_info, params,
+          get_relative_dist(av1_pic_info, seq_hdr,
                             ref_info[AV1_ALTREF_FRAME].order_hint,
                             ref_info[AV1_INTRA_FRAME].order_hint) > 0 &&
           !frame_is_key_or_intra(ref_info[AV1_ALTREF_FRAME - AV1_LAST_FRAME + 1].frame_type)) {
@@ -2098,7 +2100,7 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       pic.AllowScreenContentToolsFlag = std_pic_info->flags.allow_screen_content_tools;
       pic.ForceIntegerMVFlag = std_pic_info->flags.force_integer_mv;
       pic.AllowWarpedMotionFlag = std_pic_info->flags.allow_warped_motion;
-      pic.UseCDEFFilterFlag = seq_hdr->flags.enable_cdef;
+      pic.UseCDEFFilterFlag = !frame_lossless && seq_hdr->flags.enable_cdef && !std_pic_info->flags.allow_intrabc;
       pic.UseSuperResFlag = std_pic_info->flags.use_superres;
       pic.FrameLevelLoopRestorationFilterEnable = frame_restoration_type[0] || frame_restoration_type[1] || frame_restoration_type[2];
       pic.FrameType = std_pic_info->frame_type;
@@ -2113,7 +2115,7 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
       pic.LastActiveSegmentSegmentID = last_active_segid;
       pic.DeltaQPresentFlag = std_pic_info->flags.delta_q_present;
       pic.DeltaQRes = std_pic_info->delta_q_res;
-      pic.FrameCodedLosslessMode = frame_lossless; /* TODO */
+      pic.FrameCodedLosslessMode = frame_lossless;
       pic.SegmentMapisZeroFlag = 0; /* TODO */
       pic.SegmentIDBufferStreamInEnableFlag = 0; /* TODO */
       pic.SegmentIDBufferStreamOutEnableFlag = 0; /* TODO */
@@ -2463,14 +2465,12 @@ anv_av1_decode_video_tile(struct anv_cmd_buffer *cmd_buffer,
 
 static void
 anv_av1_calculate_xstep_qn(struct anv_cmd_buffer *cmd_buffer,
-                           const VkVideoDecodeInfoKHR *frame_info)
+                           const VkVideoDecodeInfoKHR *frame_info,
+                           const StdVideoAV1SequenceHeader *seq_hdr)
 {
    const VkVideoDecodeAV1PictureInfoKHR *av1_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_AV1_PICTURE_INFO_KHR);
-
    const StdVideoDecodeAV1PictureInfo *std_pic_info = av1_pic_info->pStdPictureInfo;
-   struct anv_video_session_params *params = cmd_buffer->video.params;
-   const StdVideoAV1SequenceHeader *seq_hdr = &params->vk.av1_dec.seq_hdr.base;
    VkExtent2D frameExtent = frame_info->dstPictureResource.codedExtent;
    unsigned tile_cols = std_pic_info->pTileInfo->TileCols;
 
@@ -2555,11 +2555,16 @@ anv_av1_decode_video(struct anv_cmd_buffer *cmd_buffer,
 {
    const VkVideoDecodeAV1PictureInfoKHR *av1_pic_info =
       vk_find_struct_const(frame_info->pNext, VIDEO_DECODE_AV1_PICTURE_INFO_KHR);
+   struct anv_video_session *vid = cmd_buffer->video.vid;
+   struct anv_video_session_params *params = cmd_buffer->video.params;
+   const StdVideoAV1SequenceHeader *seq_hdr;
 
-   anv_av1_calculate_xstep_qn(cmd_buffer, frame_info);
+   vk_video_get_av1_parameters(&vid->vk, params ? &params->vk : NULL, frame_info, &seq_hdr);
+
+   anv_av1_calculate_xstep_qn(cmd_buffer, frame_info, seq_hdr);
 
    for (unsigned t = 0; t < av1_pic_info->tileCount; t++)
-      anv_av1_decode_video_tile(cmd_buffer, frame_info, t);
+      anv_av1_decode_video_tile(cmd_buffer, frame_info, seq_hdr, t);
 }
 #endif
 

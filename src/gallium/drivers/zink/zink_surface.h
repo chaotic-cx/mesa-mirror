@@ -57,6 +57,9 @@ zink_get_surface(struct zink_context *ctx,
             const struct pipe_surface *templ,
             VkImageViewCreateInfo *ivci);
 
+struct zink_surface *
+zink_create_transient_surface(struct zink_context *ctx, struct zink_surface *surf, unsigned nr_samples);
+
 /* cube image types are clamped by gallium rules to 2D or 2D_ARRAY viewtypes if not using all layers */
 static inline VkImageViewType
 zink_surface_clamp_viewtype(VkImageViewType viewType, unsigned first_layer, unsigned last_layer, unsigned array_size)
@@ -73,13 +76,6 @@ zink_surface_clamp_viewtype(VkImageViewType viewType, unsigned first_layer, unsi
 
 bool
 zink_rebind_surface(struct zink_context *ctx, struct pipe_surface **psurface);
-
-static inline bool
-zink_rebind_ctx_surface(struct zink_context *ctx, struct pipe_surface **psurface)
-{
-   struct zink_ctx_surface *csurf = (struct zink_ctx_surface*)*psurface;
-   return zink_rebind_surface(ctx, (struct pipe_surface**)&csurf->surf);
-}
 
 struct pipe_surface *
 zink_surface_create_null(struct zink_context *ctx, enum pipe_texture_target target, unsigned width, unsigned height, unsigned samples);

@@ -70,8 +70,6 @@
  *       (e.g. LLVM target machine)
  *     - Only pipe_context's debug callback for shader dumps is guaranteed to
  *       be up to date, because set_debug_callback synchronizes execution.
- * - create_surface
- * - surface_destroy
  * - create_sampler_view
  * - sampler_view_destroy
  * - stream_output_target_destroy
@@ -275,13 +273,6 @@ struct tc_unflushed_batch_token;
  */
 #define TC_MAX_SUBDATA_BYTES        320
 
-enum tc_call_id {
-#define CALL(name) TC_CALL_##name,
-#include "u_threaded_context_calls.h"
-#undef CALL
-   TC_NUM_CALLS,
-};
-
 enum tc_binding_type {
    TC_BINDING_VERTEX_BUFFER,
    TC_BINDING_STREAMOUT_BUFFER,
@@ -310,8 +301,6 @@ enum tc_binding_type {
    TC_BINDING_IMAGE_TES,
    TC_BINDING_IMAGE_CS,
 };
-
-typedef uint16_t (*tc_execute)(struct pipe_context *pipe, void *call);
 
 typedef void (*tc_replace_buffer_storage_func)(struct pipe_context *ctx,
                                                struct pipe_resource *dst,
@@ -363,8 +352,6 @@ struct threaded_resource {
 
    /* internal tag for tc indicating which batch last touched this resource */
    int8_t last_batch_usage;
-   /* for disambiguating last_batch_usage across batch cycles */
-   uint32_t batch_generation;
 
    /* Unique buffer ID. Drivers must set it to non-zero for buffers and it must
     * be unique. Textures must set 0. Low bits are used as a hash of the ID.
@@ -526,10 +513,13 @@ struct tc_batch {
    struct util_queue_fence fence;
    /* whether the first set_framebuffer_state call has been seen by this batch */
    bool first_set_fb;
-   uint8_t batch_idx;
+   int8_t batch_idx;
    struct tc_unflushed_batch_token *token;
    uint64_t slots[TC_SLOTS_PER_BATCH];
    struct util_dynarray renderpass_infos;
+#if !defined(NDEBUG)
+   bool closed;
+#endif
 };
 
 struct tc_buffer_list {
@@ -638,6 +628,7 @@ struct threaded_context {
    bool seen_sampler_buffers[PIPE_SHADER_TYPES];
 
    int8_t last_completed;
+   int8_t batch_generation;
 
    uint8_t num_vertex_buffers;
    unsigned max_const_buffers;
@@ -646,7 +637,7 @@ struct threaded_context {
    unsigned max_samplers;
    unsigned nr_cbufs;
 
-   unsigned last, next, next_buf_list, batch_generation;
+   unsigned last, next, next_buf_list;
 
    /* The list fences that the driver should signal after the next flush.
     * If this is empty, all driver command buffers have been flushed.
@@ -675,9 +666,6 @@ struct threaded_context {
    struct tc_renderpass_info *renderpass_info_recording;
    /* accessed by driver thread */
    struct tc_renderpass_info *renderpass_info;
-
-   /* Callbacks that call pipe_context functions. */
-   tc_execute execute_func[TC_NUM_CALLS];
 };
 
 
@@ -720,6 +708,10 @@ tc_add_draw_single_call(struct pipe_context *_pipe,
                         struct pipe_resource *index_bo);
 struct pipe_vertex_buffer *
 tc_add_set_vertex_buffers_call(struct pipe_context *_pipe, unsigned count);
+
+struct pipe_vertex_buffer *
+tc_add_set_vertex_elements_and_buffers_call(struct pipe_context *_pipe,
+                                            unsigned count);
 
 void
 tc_draw_vbo(struct pipe_context *_pipe, const struct pipe_draw_info *info,
@@ -841,6 +833,19 @@ tc_track_vertex_buffer(struct pipe_context *_pipe, unsigned index,
    } else {
       tc_unbind_buffer(&tc->vertex_buffers[index]);
    }
+}
+
+/**
+ * "buffers" must be a result of tc_add_set_vertex_elements_and_buffers_call.
+ * This sets the vertex elements state for it. It will be bound before vertex
+ * buffers.
+ */
+static inline void
+tc_set_vertex_elements_for_call(struct pipe_vertex_buffer *buffers,
+                                void *state)
+{
+   void **ptr = (void**)buffers;
+   ptr[-1] = state;
 }
 
 #ifdef __cplusplus

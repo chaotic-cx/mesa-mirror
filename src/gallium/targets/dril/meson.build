@@ -51,10 +51,10 @@ dril_dri = shared_library(
   link_depends : dril_link_depends,
   link_with : [
     libgallium,
-    libgbm,
   ],
   dependencies : [
     idep_mesautil,
+    dep_gbm,
   ],
   # Will be deleted during installation, see install_megadrivers.py
   install : true,
@@ -63,6 +63,7 @@ dril_dri = shared_library(
 )
 
 foreach d : [[with_gallium_kmsro, [
+               'apple_dri.so',
                'armada-drm_dri.so',
                'exynos_dri.so',
                'gm12u320_dri.so',

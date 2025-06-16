@@ -229,21 +229,20 @@ nir_lower_memory_model(nir_shader *shader)
 {
    bool progress = false;
 
-   nir_function_impl *impl = nir_shader_get_entrypoint(shader);
-   struct exec_list *cf_list = &impl->body;
+   nir_foreach_function_impl(impl, shader) {
+      bool impl_progress = false;
+      struct exec_list *cf_list = &impl->body;
 
-   uint32_t modes = 0;
-   foreach_list_typed(nir_cf_node, cf_node, node, cf_list)
-      progress |= lower_make_visible(cf_node, &modes);
+      uint32_t modes = 0;
+      foreach_list_typed(nir_cf_node, cf_node, node, cf_list)
+         impl_progress |= lower_make_visible(cf_node, &modes);
 
-   modes = 0;
-   foreach_list_typed_reverse(nir_cf_node, cf_node, node, cf_list)
-      progress |= lower_make_available(cf_node, &modes);
-
-   if (progress)
-      nir_metadata_preserve(impl, nir_metadata_control_flow);
-   else
-      nir_metadata_preserve(impl, nir_metadata_all);
+      modes = 0;
+      foreach_list_typed_reverse(nir_cf_node, cf_node, node, cf_list)
+         impl_progress |= lower_make_available(cf_node, &modes);
+      progress |= nir_progress(impl_progress, impl,
+                               nir_metadata_control_flow);
+   }
 
    return progress;
 }

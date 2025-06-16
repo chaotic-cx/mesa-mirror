@@ -488,8 +488,10 @@ isl_genX(surf_fill_state_s)(const struct isl_device *dev, void *state,
 #endif
 
 #if GFX_VERx10 >= 125
-   /* Setting L1 caching policy to Write-back mode. */
-   s.L1CacheControl = L1CC_WB;
+   /* Setting L1 caching policy to Write-back or Write-through mode. */
+   s.L1CacheControl =
+      (dev->l1_storage_wt && (info->view->usage & ISL_SURF_USAGE_STORAGE_BIT)) ?
+      L1CC_WT : L1CC_WB;
 #endif
 
 #if GFX_VER >= 6
@@ -747,8 +749,7 @@ isl_genX(surf_fill_state_s)(const struct isl_device *dev, void *state,
          case ISL_FORMAT_R16_UNORM:
             break;
          default:
-            assert(!"Incompatible HiZ Sampling format");
-            break;
+            unreachable("Incompatible HiZ Sampling format");
          }
       }
 
@@ -994,11 +995,13 @@ isl_genX(buffer_fill_state_s)(const struct isl_device *dev, void *state,
        *   VUID-VkDescriptorGetInfoEXT-type-09428
        *   VUID-VkBufferViewCreateInfo-range-00930
        *   VUID-VkBufferViewCreateInfo-range-04059
+       *
+       * Regardless, the bit fields we program in our registers on SKL and
+       * newer are enough to fit 32bit num_elements.
        */
       if (num_elements > (1 << 27)) {
          mesa_logw("%s: num_elements is too big: %u (buffer size: %"PRIu64")\n",
                    __func__, num_elements, buffer_size);
-         num_elements = 1 << 27;
       }
    }
 
@@ -1096,8 +1099,10 @@ isl_genX(buffer_fill_state_s)(const struct isl_device *dev, void *state,
 #endif
 
 #if GFX_VERx10 >= 125
-   /* Setting L1 caching policy to Write-back mode. */
-   s.L1CacheControl = L1CC_WB;
+   /* Setting L1 caching policy to Write-back or Write-through mode. */
+   s.L1CacheControl =
+      (dev->l1_storage_wt && (info->usage & ISL_SURF_USAGE_STORAGE_BIT)) ?
+      L1CC_WT : L1CC_WB;
 #endif
 
 #if (GFX_VERx10 >= 75)

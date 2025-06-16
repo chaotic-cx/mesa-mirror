@@ -281,6 +281,7 @@ spirv_builder_emit_vertex(struct spirv_builder *b, uint32_t stream, bool multist
    unsigned words = 1;
    SpvOp op = SpvOpEmitVertex;
    if (multistream) {
+      spirv_builder_emit_cap(b, SpvCapabilityGeometryStreams);
       op = SpvOpEmitStreamVertex;
       words++;
    }
@@ -295,6 +296,10 @@ spirv_builder_end_primitive(struct spirv_builder *b, uint32_t stream, bool multi
 {
    unsigned words = 1;
    SpvOp op = SpvOpEndPrimitive;
+
+   if (multistream)
+      spirv_builder_emit_cap(b, SpvCapabilityGeometryStreams);
+
    if (multistream || stream > 0) {
       op = SpvOpEndStreamPrimitive;
       words++;
@@ -480,6 +485,12 @@ spirv_builder_emit_load_aligned(struct spirv_builder *b, SpvId result_type, SpvI
    }
 }
 
+SpvId
+spirv_builder_emit_load_volatile(struct spirv_builder *b, SpvId result_type, SpvId pointer)
+{
+   return spirv_builder_emit_binop(b, SpvOpLoad, result_type, pointer, SpvMemoryAccessVolatileMask);
+}
+
 void
 spirv_builder_emit_store(struct spirv_builder *b, SpvId pointer, SpvId object)
 {
@@ -596,6 +607,23 @@ spirv_builder_emit_binop(struct spirv_builder *b, SpvOp op, SpvId result_type,
 }
 
 SpvId
+spirv_builder_emit_binop_subgroup(struct spirv_builder *b, SpvOp op, SpvId result_type,
+                                  SpvId operand0, SpvId operand1)
+{
+   struct spirv_buffer *buf = op == SpvOpSpecConstantOp ? &b->types_const_defs : &b->instructions;
+
+   SpvId result = spirv_builder_new_id(b);
+   spirv_buffer_prepare(buf, b->mem_ctx, 6);
+   spirv_buffer_emit_word(buf, op | (6 << 16));
+   spirv_buffer_emit_word(buf, result_type);
+   spirv_buffer_emit_word(buf, result);
+   spirv_buffer_emit_word(buf, spirv_builder_const_uint(b, 32, SpvScopeSubgroup));
+   spirv_buffer_emit_word(buf, operand0);
+   spirv_buffer_emit_word(buf, operand1);
+   return result;
+}
+
+SpvId
 spirv_builder_emit_triop(struct spirv_builder *b, SpvOp op, SpvId result_type,
                          SpvId operand0, SpvId operand1, SpvId operand2)
 {
@@ -606,6 +634,24 @@ spirv_builder_emit_triop(struct spirv_builder *b, SpvOp op, SpvId result_type,
    spirv_buffer_emit_word(buf, op | (6 << 16));
    spirv_buffer_emit_word(buf, result_type);
    spirv_buffer_emit_word(buf, result);
+   spirv_buffer_emit_word(buf, operand0);
+   spirv_buffer_emit_word(buf, operand1);
+   spirv_buffer_emit_word(buf, operand2);
+   return result;
+}
+
+SpvId
+spirv_builder_emit_triop_subgroup(struct spirv_builder *b, SpvOp op, SpvId result_type,
+                         SpvId operand0, SpvId operand1, SpvId operand2)
+{
+   struct spirv_buffer *buf = op == SpvOpSpecConstantOp ? &b->types_const_defs : &b->instructions;
+
+   SpvId result = spirv_builder_new_id(b);
+   spirv_buffer_prepare(buf, b->mem_ctx, 7);
+   spirv_buffer_emit_word(buf, op | (7 << 16));
+   spirv_buffer_emit_word(buf, result_type);
+   spirv_buffer_emit_word(buf, result);
+   spirv_buffer_emit_word(buf, spirv_builder_const_uint(b, 32, SpvScopeSubgroup));
    spirv_buffer_emit_word(buf, operand0);
    spirv_buffer_emit_word(buf, operand1);
    spirv_buffer_emit_word(buf, operand2);

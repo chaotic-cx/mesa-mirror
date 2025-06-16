@@ -43,16 +43,14 @@ d3d12_video_encoder_update_current_rate_control_h264(struct d3d12_video_encoder 
 
    struct D3D12EncodeRateControlState m_prevRCState = pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[picture->pic_ctrl.temporal_id];
    pD3D12Enc->m_currentEncodeConfig.m_activeRateControlIndex = h264Pic->pic_ctrl.temporal_id;
+   bool wasDeltaQPRequested = (pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_Flags & D3D12_VIDEO_ENCODER_RATE_CONTROL_FLAG_ENABLE_DELTA_QP) != 0;
    pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id] = {};
+   if (wasDeltaQPRequested)
+      pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_Flags |= D3D12_VIDEO_ENCODER_RATE_CONTROL_FLAG_ENABLE_DELTA_QP;
    pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_FrameRate.Numerator =
       picture->rate_ctrl[h264Pic->pic_ctrl.temporal_id].frame_rate_num;
    pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_FrameRate.Denominator =
       picture->rate_ctrl[h264Pic->pic_ctrl.temporal_id].frame_rate_den;
-   pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_Flags = D3D12_VIDEO_ENCODER_RATE_CONTROL_FLAG_NONE;
-
-   if (picture->roi.num > 0)
-      pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_Flags |=
-         D3D12_VIDEO_ENCODER_RATE_CONTROL_FLAG_ENABLE_DELTA_QP;
 
    switch (picture->rate_ctrl[h264Pic->pic_ctrl.temporal_id].rate_ctrl_method) {
       case PIPE_H2645_ENC_RATE_CONTROL_METHOD_VARIABLE_SKIP:
@@ -348,7 +346,7 @@ void
 d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video_encoder *pD3D12Enc,
                                                               struct pipe_video_buffer *srcTexture,
                                                               struct pipe_picture_desc *picture,
-                                                              D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA &picParams,
+                                                              D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264* pH264PicData,
                                                               bool &bUsedAsReference)
 {
    struct pipe_h264_enc_picture_desc *h264Pic = (struct pipe_h264_enc_picture_desc *) picture;
@@ -362,24 +360,25 @@ d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video
    if (pD3D12Enc->m_currentEncodeCapabilities.m_encoderCodecSpecificConfigCaps.m_H264CodecCaps.SupportFlags &
        D3D12_VIDEO_ENCODER_CODEC_CONFIGURATION_SUPPORT_H264_FLAG_NUM_REF_IDX_ACTIVE_OVERRIDE_FLAG_SLICE_SUPPORT)
    {
-      picParams.pH264PicData->Flags |= D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_FLAG_REQUEST_NUM_REF_IDX_ACTIVE_OVERRIDE_FLAG_SLICE;
+      pH264PicData->Flags |= D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_FLAG_REQUEST_NUM_REF_IDX_ACTIVE_OVERRIDE_FLAG_SLICE;
    }
 
    //
    // These need to be set here so they're available for SPS/PPS header building (reference manager updates after that, for slice header params)
    //
-   picParams.pH264PicData->TemporalLayerIndex = h264Pic->pic_ctrl.temporal_id;
-   picParams.pH264PicData->pic_parameter_set_id = pH264BitstreamBuilder->get_active_pps().pic_parameter_set_id;
-   picParams.pH264PicData->List0ReferenceFramesCount = 0;
-   picParams.pH264PicData->List1ReferenceFramesCount = 0;
+   pH264PicData->TemporalLayerIndex = h264Pic->pic_ctrl.temporal_id;
+   pH264PicData->pic_parameter_set_id = pH264BitstreamBuilder->get_active_pps().pic_parameter_set_id;
+   pH264PicData->List0ReferenceFramesCount = 0;
+   pH264PicData->List1ReferenceFramesCount = 0;
    if ((h264Pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_P) ||
        (h264Pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_B))
-      picParams.pH264PicData->List0ReferenceFramesCount = h264Pic->num_ref_idx_l0_active_minus1 + 1;
+      pH264PicData->List0ReferenceFramesCount = h264Pic->num_ref_idx_l0_active_minus1 + 1;
 
    if (h264Pic->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_B)
-      picParams.pH264PicData->List1ReferenceFramesCount = h264Pic->num_ref_idx_l1_active_minus1 + 1;
+      pH264PicData->List1ReferenceFramesCount = h264Pic->num_ref_idx_l1_active_minus1 + 1;
 
-   if ((pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_Flags & D3D12_VIDEO_ENCODER_RATE_CONTROL_FLAG_ENABLE_DELTA_QP) != 0)
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
+   if (pD3D12Enc->m_currentEncodeConfig.m_QuantizationMatrixDesc.CPUInput.AppRequested)
    {
       // Use 8 bit qpmap array for H264 picparams (-51, 51 range and int8_t pRateControlQPMap type)
       const int32_t h264_min_delta_qp = -51;
@@ -389,11 +388,15 @@ d3d12_video_encoder_update_current_frame_pic_params_info_h264(struct d3d12_video
          &h264Pic->roi,
          h264_min_delta_qp,
          h264_max_delta_qp,
-         pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_pRateControlQPMap8Bit);
-      picParams.pH264PicData->pRateControlQPMap = pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_pRateControlQPMap8Bit.data();
-      picParams.pH264PicData->QPMapValuesCount = static_cast<UINT>(pD3D12Enc->m_currentEncodeConfig.m_encoderRateControlDesc[h264Pic->pic_ctrl.temporal_id].m_pRateControlQPMap8Bit.size());
+         pD3D12Enc->m_currentEncodeConfig.m_QuantizationMatrixDesc.CPUInput.m_pRateControlQPMap8Bit);
+      pH264PicData->pRateControlQPMap = pD3D12Enc->m_currentEncodeConfig.m_QuantizationMatrixDesc.CPUInput.m_pRateControlQPMap8Bit.data();
+      pH264PicData->QPMapValuesCount = static_cast<UINT>(pD3D12Enc->m_currentEncodeConfig.m_QuantizationMatrixDesc.CPUInput.m_pRateControlQPMap8Bit.size());
    }
+#endif // D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
 
+   D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA picParams = {};
+   picParams.pH264PicData = pH264PicData;
+   picParams.DataSize = sizeof(*pH264PicData);
    pD3D12Enc->m_upDPBManager->begin_frame(picParams, bUsedAsReference, picture);
    pD3D12Enc->m_upDPBManager->get_current_frame_picture_control_data(picParams);
 
@@ -520,7 +523,25 @@ d3d12_video_encoder_negotiate_current_h264_slices_configuration(struct d3d12_vid
                          "D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_BYTES_PER_SUBREGION.\n");
          return false;
       }
-   } else {
+   }
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
+   else if(picture->slice_mode == PIPE_VIDEO_SLICE_MODE_AUTO) {
+      if (d3d12_video_encoder_check_subregion_mode_support(
+         pD3D12Enc,
+         D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_AUTO)) {
+            requestedSlicesMode =
+               D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_AUTO;
+            requestedSlicesConfig = {};
+            debug_printf("[d3d12_video_encoder_h264] Using multi slice encoding mode: "
+                           "D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_AUTO");
+      } else {
+         debug_printf("[d3d12_video_encoder_h264] Requested slice control mode is not supported: No HW support for "
+                         "D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_AUTO.\n");
+         return false;
+      }
+   }
+#endif // D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
+   else {
       requestedSlicesMode = D3D12_VIDEO_ENCODER_FRAME_SUBREGION_LAYOUT_MODE_FULL_FRAME;
       requestedSlicesConfig.NumberOfSlicesPerFrame = 1;
       debug_printf("[d3d12_video_encoder_h264] Requested slice control mode is full frame. m_SlicesPartition_H264.NumberOfSlicesPerFrame = %d - m_encoderSliceConfigMode = %d \n",
@@ -734,7 +755,6 @@ d3d12_video_encoder_update_h264_gop_configuration(struct d3d12_video_encoder *pD
                                                   pipe_h264_enc_picture_desc *picture)
 {
    // Only update GOP when it begins
-   // Only update GOP when it begins
    // This triggers DPB/encoder/heap re-creation, so only check on IDR when a GOP might change
    if ((picture->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_IDR)
       || (picture->picture_type == PIPE_H2645_ENC_PICTURE_TYPE_I)) {
@@ -746,18 +766,6 @@ d3d12_video_encoder_update_h264_gop_configuration(struct d3d12_video_encoder *pD
                          "only supports pic_order_cnt_type = 0 or pic_order_cnt_type = 2\n",
                          picture->seq.pic_order_cnt_type);
          return false;
-      }
-
-      // Workaround: D3D12 needs to use the POC in the DPB to track reference frames
-      // even when there's no frame reordering (picture->seq.pic_order_cnt_type == 2)
-      // So in that case, derive an artificial log2_max_pic_order_cnt_lsb_minus4
-      // to avoid unexpected wrapping
-      if (picture->seq.pic_order_cnt_type == 2u) {
-         if (GOPLength == 0) // Use max frame num to wrap on infinite GOPs
-            GOPLength = 1 << (picture->seq.log2_max_frame_num_minus4 + 4);
-         const uint32_t max_pic_order_cnt_lsb = 2 * GOPLength;
-         picture->seq.log2_max_pic_order_cnt_lsb_minus4 = static_cast<unsigned int>(std::max(0.0, std::ceil(std::log2(max_pic_order_cnt_lsb)) - 4));
-         assert(picture->seq.log2_max_pic_order_cnt_lsb_minus4 < UCHAR_MAX);
       }
 
       assert(picture->seq.pic_order_cnt_type < UCHAR_MAX);
@@ -1052,7 +1060,11 @@ d3d12_video_encoder_update_current_encoder_config_state_h264(struct d3d12_video_
 
    // Will call for d3d12 driver support based on the initial requested features, then
    // try to fallback if any of them is not supported and return the negotiated d3d12 settings
+#if D3D12_VIDEO_USE_NEW_ENCODECMDLIST4_INTERFACE
+   D3D12_FEATURE_DATA_VIDEO_ENCODER_SUPPORT2 capEncoderSupportData1 = {};
+#else
    D3D12_FEATURE_DATA_VIDEO_ENCODER_SUPPORT1 capEncoderSupportData1 = {};
+#endif
    if (!d3d12_video_encoder_negotiate_requested_features_and_d3d12_driver_caps(pD3D12Enc, capEncoderSupportData1)) {
       debug_printf("[d3d12_video_encoder_h264] After negotiating caps, D3D12_FEATURE_VIDEO_ENCODER_SUPPORT1 "
                       "arguments are not supported - "
@@ -1151,7 +1163,7 @@ d3d12_video_encoder_needs_new_pps_h264(struct d3d12_video_encoder *pD3D12Enc,
                                        const H264_PPS &active_pps)
 {
    bool bUseSliceL0L1Override = (pD3D12Enc->m_currentEncodeConfig.m_encoderPicParamsDesc.m_H264PicData.Flags &
-                                 D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_FLAG_REQUEST_NUM_REF_IDX_ACTIVE_OVERRIDE_FLAG_SLICE);
+                                 D3D12_VIDEO_ENCODER_PICTURE_CONTROL_CODEC_DATA_H264_FLAG_REQUEST_NUM_REF_IDX_ACTIVE_OVERRIDE_FLAG_SLICE) != 0;
 
    bool bDifferentL0L1Lists = !bUseSliceL0L1Override &&
          ((tentative_pps.num_ref_idx_l0_active_minus1 != active_pps.num_ref_idx_l0_active_minus1) ||
@@ -1186,7 +1198,7 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
    size_t writtenAUDBytesCount = 0;
    pWrittenCodecUnitsSizes.clear();
 
-   bool forceWriteAUD = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_aud_header);
+   bool forceWriteAUD = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_aud_header) != 0;
    if (forceWriteAUD)
    {
       pH264BitstreamBuilder->write_aud(pD3D12Enc->m_BitstreamHeadersBuffer,
@@ -1196,7 +1208,7 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
    }
 
    bool isFirstFrame = (pD3D12Enc->m_fenceValue == 1);
-   bool forceWriteSPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sequence_header);
+   bool forceWriteSPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sequence_header) != 0;
    bool writeNewSPS = isFirstFrame                                         // on first frame
                       || ((pD3D12Enc->m_currentEncodeConfig.m_seqFlags &   // also on resolution change
                            D3D12_VIDEO_ENCODER_SEQUENCE_CONTROL_FLAG_RESOLUTION_CHANGE) != 0)
@@ -1205,7 +1217,7 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
    uint32_t active_seq_parameter_set_id = pH264BitstreamBuilder->get_active_sps().seq_parameter_set_id;
 
    size_t writtenSEIBytesCount = 0;
-   bool forceWriteSEI = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sei_header);
+   bool forceWriteSEI = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_sei_header) !=0 ;
    // We only support H264_SEI_SCALABILITY_INFO, so check num_temporal_layers > 1
    if (forceWriteSEI &&
       (pD3D12Enc->m_currentEncodeConfig.m_encoderCodecSpecificSequenceStateDescH264.num_temporal_layers > 1))
@@ -1256,7 +1268,7 @@ d3d12_video_encoder_build_codec_headers_h264(struct d3d12_video_encoder *pD3D12E
                                                              writtenPPSBytesCount);
 
    const H264_PPS &active_pps = pH264BitstreamBuilder->get_active_pps();
-   bool forceWritePPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_picture_header);
+   bool forceWritePPS = (pD3D12Enc->m_currentEncodeConfig.m_ConfigDirtyFlags & d3d12_video_encoder_config_dirty_flag_picture_header) != 0;
    if (forceWritePPS || d3d12_video_encoder_needs_new_pps_h264(pD3D12Enc, writeNewSPS, tentative_pps, active_pps)) {
       pH264BitstreamBuilder->set_active_pps(tentative_pps);
       pD3D12Enc->m_BitstreamHeadersBuffer.resize(writtenAUDBytesCount + writtenSEIBytesCount + writtenSPSBytesCount + writtenPPSBytesCount);

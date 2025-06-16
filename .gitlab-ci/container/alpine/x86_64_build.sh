@@ -56,16 +56,16 @@ DEPS=(
     spirv-tools-dev
     spirv-llvm-translator-dev
     util-macros
-    wayland-dev
-    wayland-protocols
 )
 
 apk --no-cache add "${DEPS[@]}" "${EPHEMERAL[@]}"
 
-pip3 install --break-system-packages sphinx===5.1.1 hawkmoth===0.16.0
+pip3 install --break-system-packages sphinx===8.2.3 hawkmoth===0.19.0
 
 . .gitlab-ci/container/container_pre_build.sh
 
+EXTRA_MESON_ARGS='--prefix=/usr' \
+. .gitlab-ci/container/build-wayland.sh
 
 ############### Uninstall the build software
 

@@ -78,6 +78,7 @@ EXTENSIONS = [
     Extension("VK_KHR_maintenance8",
               alias="maint8",
               features=True),
+    Extension("VK_KHR_unified_image_layouts", alias="unified_layouts", features=True),
     Extension("VK_KHR_external_memory"),
     Extension("VK_KHR_external_memory_fd"),
     Extension("VK_KHR_vulkan_memory_model"),
@@ -197,7 +198,8 @@ EXTENSIONS = [
               features=True),
     Extension("VK_KHR_dynamic_rendering",
               alias="dynamic_render",
-              features=True),
+              features=True,
+              required=True),
     Extension("VK_KHR_dynamic_rendering_local_read",
               alias="drlr",
               features=True),
@@ -342,6 +344,7 @@ VERSIONS = [
     Version((1,1,0), (1,1)),
     Version((1,2,0), (1,2)),
     Version((1,3,0), (1,3)),
+    Version((1,4,0), (1,4)),
 ]
 
 # There exists some inconsistencies regarding the enum constants, fix them.
@@ -357,13 +360,13 @@ REPLACEMENTS = {
 #                `ext.extension_name()` if `ext.guard` is True.
 include_template = """
 <%def name="guard_(ext, body)">
-%if ext.guard:
-#ifdef ${ext.extension_name()}
-%endif
-   ${capture(body)|trim}
-%if ext.guard:
-#endif
-%endif
+   %if ext.guard:
+      #ifdef ${ext.extension_name()}
+   %endif
+      ${capture(body)|trim}
+   %if ext.guard:
+      #endif
+   %endif
 </%def>
 
 ## This ugliness is here to prevent mako from adding tons of excessive whitespace
@@ -395,9 +398,9 @@ struct zink_device_info {
    uint32_t device_version;
 
 %for ext in extensions:
-<%helpers:guard ext="${ext}">
-   bool have_${ext.name_with_vendor()};
-</%helpers:guard>
+   <%helpers:guard ext="${ext}">
+      bool have_${ext.name_with_vendor()};
+   </%helpers:guard>
 %endfor
 %for version in versions:
    bool have_vulkan${version.struct()};
@@ -421,14 +424,14 @@ struct zink_device_info {
    VkPhysicalDeviceIDProperties deviceid_props;
 
 %for ext in extensions:
-<%helpers:guard ext="${ext}">
-%if ext.has_features:
-   ${ext.physical_device_struct("Features")} ${ext.field("feats")};
-%endif
-%if ext.has_properties:
-   ${ext.physical_device_struct("Properties")} ${ext.field("props")};
-%endif
-</%helpers:guard>
+   <%helpers:guard ext="${ext}">
+      %if ext.has_features:
+         ${ext.physical_device_struct("Features")} ${ext.field("feats")};
+      %endif
+      %if ext.has_properties:
+         ${ext.physical_device_struct("Properties")} ${ext.field("props")};
+      %endif
+   </%helpers:guard>
 %endfor
 
     const char *extensions[${len(extensions)}];
@@ -445,11 +448,11 @@ zink_verify_device_extensions(struct zink_screen *screen);
  * properly loaded.
  */
 %for ext in extensions:
-%if registry.in_registry(ext.name):
-%for cmd in registry.get_registry_entry(ext.name).device_commands:
-void VKAPI_PTR zink_stub_${cmd.lstrip("vk")}(void);
-%endfor
-%endif
+   %if registry.in_registry(ext.name):
+      %for cmd in registry.get_registry_entry(ext.name).device_commands:
+         void VKAPI_PTR zink_stub_${cmd.name()}(void);
+      %endfor
+   %endif
 %endfor
 
 #endif
@@ -468,9 +471,12 @@ zink_get_physical_device_info(struct zink_screen *screen)
 {
    struct zink_device_info *info = &screen->info;
 %for ext in extensions:
-<%helpers:guard ext="${ext}">
-   bool support_${ext.name_with_vendor()} = false;
-</%helpers:guard>
+   <%helpers:guard ext="${ext}">
+         bool support_${ext.name_with_vendor()} = false;
+      %if ext.is_promoted_to_khr:
+         bool support_${ext.name_with_vendor("KHR")} = false; /* promoted from EXT */
+      %endif
+   </%helpers:guard>
 %endfor
    uint32_t num_extensions = 0;
 
@@ -494,15 +500,25 @@ zink_get_physical_device_info(struct zink_screen *screen)
 
          for (uint32_t i = 0; i < num_extensions; ++i) {
          %for ext in extensions:
-         <%helpers:guard ext="${ext}">
-            if (!strcmp(extensions[i].extensionName, "${ext.name}")) {
-         %if not (ext.has_features or ext.has_properties):
-               info->have_${ext.name_with_vendor()} = true;
-         %else:
-               support_${ext.name_with_vendor()} = true;
-         %endif
-            }
-         </%helpers:guard>
+            <%helpers:guard ext="${ext}">
+               %if ext.is_promoted_to_khr:
+                  bool promoted_${ext.pure_name()} = !strcmp(extensions[i].extensionName, "${ext.with_vendor("KHR")}");
+                  if (!strcmp(extensions[i].extensionName, "${ext.name}") || promoted_${ext.pure_name()}) {
+               %else:
+                  if (!strcmp(extensions[i].extensionName, "${ext.name}")) {
+               %endif
+               %if not (ext.has_features or ext.has_properties):
+                     info->have_${ext.name_with_vendor()} = true;
+               %else:
+                     support_${ext.name_with_vendor()} = true;
+               %endif
+               %if ext.is_promoted_to_khr:
+                     if (promoted_${ext.pure_name()}) {
+                        support_${ext.name_with_vendor("KHR")} = true;
+                     }
+               %endif
+                  }
+            </%helpers:guard>
          %endfor
          }
 
@@ -516,33 +532,33 @@ zink_get_physical_device_info(struct zink_screen *screen)
       info->feats.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
 
 %for version in versions:
-%if version.device_version < (1,2,0):
-      if (VK_MAKE_VERSION(1,2,0) <= screen->vk_version) {
-         /* VkPhysicalDeviceVulkan11Features was added in 1.2, not 1.1 as one would think */
-%else:
-      if (${version.version()} <= screen->vk_version) {
-%endif
-         info->feats${version.struct()}.sType = ${version.stype("FEATURES")};
-         info->feats${version.struct()}.pNext = info->feats.pNext;
-         info->feats.pNext = &info->feats${version.struct()};
-         info->have_vulkan${version.struct()} = true;
-      }
+   %if version.device_version < (1,2,0):
+         if (VK_MAKE_VERSION(1,2,0) <= screen->vk_version) {
+            /* VkPhysicalDeviceVulkan11Features was added in 1.2, not 1.1 as one would think */
+   %else:
+         if (${version.version()} <= screen->vk_version) {
+   %endif
+            info->feats${version.struct()}.sType = ${version.stype("FEATURES")};
+            info->feats${version.struct()}.pNext = info->feats.pNext;
+            info->feats.pNext = &info->feats${version.struct()};
+            info->have_vulkan${version.struct()} = true;
+         }
 %endfor
 
 %for ext in extensions:
-%if ext.has_features:
-<%helpers:guard ext="${ext}">
-%if ext.features_promoted:
-      if (support_${ext.name_with_vendor()} && !info->have_vulkan${ext.core_since.struct()}) {
-%else:
-      if (support_${ext.name_with_vendor()}) {
-%endif
-         info->${ext.field("feats")}.sType = ${ext.stype("FEATURES")};
-         info->${ext.field("feats")}.pNext = info->feats.pNext;
-         info->feats.pNext = &info->${ext.field("feats")};
-      }
-</%helpers:guard>
-%endif
+   %if ext.has_features:
+      <%helpers:guard ext="${ext}">
+         %if ext.features_promoted:
+               if (support_${ext.name_with_vendor()} && !info->have_vulkan${ext.core_since.struct()}) {
+         %else:
+               if (support_${ext.name_with_vendor()}) {
+         %endif
+                  info->${ext.field("feats")}.sType = ${ext.stype("FEATURES")};
+                  info->${ext.field("feats")}.pNext = info->feats.pNext;
+                  info->feats.pNext = &info->${ext.field("feats")};
+               }
+      </%helpers:guard>
+   %endif
 %endfor
 
       screen->vk.GetPhysicalDeviceFeatures2(screen->pdev, &info->feats);
@@ -557,35 +573,35 @@ zink_get_physical_device_info(struct zink_screen *screen)
       props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
 
 %for version in versions:
-%if version.device_version < (1,2,0):
-      if (VK_MAKE_VERSION(1,2,0) <= screen->vk_version) {
-         /* VkPhysicalDeviceVulkan11Properties was added in 1.2, not 1.1 as one would think */
-%else:
-      if (${version.version()} <= screen->vk_version) {
-%endif
-         info->props${version.struct()}.sType = ${version.stype("PROPERTIES")};
-         info->props${version.struct()}.pNext = props.pNext;
-         props.pNext = &info->props${version.struct()};
-      }
+   %if version.device_version < (1,2,0):
+         if (VK_MAKE_VERSION(1,2,0) <= screen->vk_version) {
+            /* VkPhysicalDeviceVulkan11Properties was added in 1.2, not 1.1 as one would think */
+   %else:
+         if (${version.version()} <= screen->vk_version) {
+   %endif
+            info->props${version.struct()}.sType = ${version.stype("PROPERTIES")};
+            info->props${version.struct()}.pNext = props.pNext;
+            props.pNext = &info->props${version.struct()};
+         }
 %endfor
 
 %for ext in extensions:
-%if ext.has_properties:
-<%helpers:guard ext="${ext}">
-%if ext.properties_promoted:
-      if (support_${ext.name_with_vendor()} && !info->have_vulkan${ext.core_since.struct()}) {
-%else:
-      if (support_${ext.name_with_vendor()}) {
-%endif
-         info->${ext.field("props")}.sType = ${ext.stype("PROPERTIES")};
-         info->${ext.field("props")}.pNext = props.pNext;
-         props.pNext = &info->${ext.field("props")};
-      }
-</%helpers:guard>
-%endif
+   %if ext.has_properties:
+      <%helpers:guard ext="${ext}">
+         %if ext.properties_promoted:
+               if (support_${ext.name_with_vendor()} && !info->have_vulkan${ext.core_since.struct()}) {
+         %else:
+               if (support_${ext.name_with_vendor()}) {
+         %endif
+                  info->${ext.field("props")}.sType = ${ext.stype("PROPERTIES")};
+                  info->${ext.field("props")}.pNext = props.pNext;
+                  props.pNext = &info->${ext.field("props")};
+               }
+      </%helpers:guard>
+   %endif
 %endfor
 
-      if (screen->vk_version < VK_MAKE_VERSION(1,2,0) && screen->instance_info.have_KHR_external_memory_capabilities) {
+      if (screen->vk_version < VK_MAKE_VERSION(1,2,0) && screen->instance_info->have_KHR_external_memory_capabilities) {
          info->deviceid_props.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ID_PROPERTIES;
          info->deviceid_props.pNext = props.pNext;
          props.pNext = &info->deviceid_props;
@@ -637,13 +653,13 @@ zink_get_physical_device_info(struct zink_screen *screen)
     * time is prohibited when using vkGetPhysicalDeviceFeatures2.
     */
 %for ext in extensions:
-%if ext.features_promoted:
-   if (info->have_vulkan${ext.core_since.struct()}) {
-    %for field in registry.get_registry_entry(ext.name).features_fields:
-      info->${ext.field("feats")}.${field} = info->feats${ext.core_since.struct()}.${field};
-    %endfor
-   }
-%endif
+   %if ext.features_promoted:
+      if (info->have_vulkan${ext.core_since.struct()}) {
+      %for field in registry.get_registry_entry(ext.name).features_fields:
+         info->${ext.field("feats")}.${field} = info->feats${ext.core_since.struct()}.${field};
+      %endfor
+      }
+   %endif
 %endfor
 
    /* See above, but for VulkanXYProperties.
@@ -652,15 +668,15 @@ zink_get_physical_device_info(struct zink_screen *screen)
     * when we assign an array to another array, therefore we use an memcpy here.
     */
 %for ext in extensions:
-%if ext.properties_promoted:
-   if (info->have_vulkan${ext.core_since.struct()}) {
-    %for field in registry.get_registry_entry(ext.name).properties_fields:
-      memcpy(&info->${ext.field("props")}.${field},
-             &info->props${ext.core_since.struct()}.${field},
-             sizeof(info->${ext.field("props")}.${field}));
-    %endfor
-   }
-%endif
+   %if ext.properties_promoted:
+      if (info->have_vulkan${ext.core_since.struct()}) {
+      %for field in registry.get_registry_entry(ext.name).properties_fields:
+         memcpy(&info->${ext.field("props")}.${field.name},
+               &info->props${ext.core_since.struct()}.${field.name},
+               sizeof(info->${ext.field("props")}.${field.name}));
+      %endfor
+      }
+   %endif
 %endfor
 
    if (copy_layered_props)
@@ -685,20 +701,54 @@ zink_get_physical_device_info(struct zink_screen *screen)
         %endfor
    }
 
+   /* For extensions that require double-loading (first load for getting array
+    * length and malloc-ing, second load for getting array content)
+    */
+   if (screen->vk.GetPhysicalDeviceProperties2) {
+      VkPhysicalDeviceProperties2 second_load_props = {
+         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2
+      };
+
+   %for ext in extensions:
+      %if ext.needs_double_load:
+         if (screen->info.have_${ext.name_with_vendor()}) {
+            screen->info.${ext.field("props")}.pNext = second_load_props.pNext;
+            second_load_props.pNext = &screen->info.${ext.field("props")};
+         %for field in registry.get_registry_entry(ext.name).properties_fields:
+            %if field.len_field():
+            screen->info.${ext.field("props")}.${field.name} =
+               ralloc_array(screen, ${field.type_name}, screen->info.${ext.field("props")}.${field.len_field()});
+            %endif
+         %endfor
+         }
+      %endif
+   %endfor
+
+      if (second_load_props.pNext)
+         screen->vk.GetPhysicalDeviceProperties2(screen->pdev, &second_load_props);
+   }
+
    // generate extension list
    num_extensions = 0;
 
 %for ext in extensions:
-<%helpers:guard ext="${ext}">
-   if (info->have_${ext.name_with_vendor()}) {
-       info->extensions[num_extensions++] = "${ext.name}";
-%if ext.is_required:
-   } else {
-       debug_printf("ZINK: ${ext.name} required!\\n");
-       goto fail;
-%endif
-   }
-</%helpers:guard>
+   <%helpers:guard ext="${ext}">
+         if (info->have_${ext.name_with_vendor()}) {
+      %if ext.is_promoted_to_khr:
+            if (support_${ext.name_with_vendor("KHR")})
+               info->extensions[num_extensions++] = "${ext.with_vendor("KHR")}";
+            else
+               info->extensions[num_extensions++] = "${ext.name}";
+      %else:
+            info->extensions[num_extensions++] = "${ext.name}";
+      %endif
+      %if ext.is_required:
+         } else {
+            debug_printf("ZINK: ${ext.name} required!\\n");
+            goto fail;
+      %endif
+         }
+   </%helpers:guard>
 %endfor
 
    info->num_extensions = num_extensions;
@@ -706,31 +756,31 @@ zink_get_physical_device_info(struct zink_screen *screen)
    info->feats.pNext = NULL;
 
 %for version in versions:
-%if version.device_version < (1,2,0):
-      if (VK_MAKE_VERSION(1,2,0) <= screen->vk_version) {
-         /* VkPhysicalDeviceVulkan11Features was added in 1.2, not 1.1 as one would think */
-%else:
-      if (${version.version()} <= screen->vk_version) {
-%endif
-         info->feats${version.struct()}.pNext = info->feats.pNext;
-         info->feats.pNext = &info->feats${version.struct()};
-      }
+   %if version.device_version < (1,2,0):
+         if (VK_MAKE_VERSION(1,2,0) <= screen->vk_version) {
+            /* VkPhysicalDeviceVulkan11Features was added in 1.2, not 1.1 as one would think */
+   %else:
+         if (${version.version()} <= screen->vk_version) {
+   %endif
+            info->feats${version.struct()}.pNext = info->feats.pNext;
+            info->feats.pNext = &info->feats${version.struct()};
+         }
 %endfor
 
 %for ext in extensions:
-%if ext.has_features:
-<%helpers:guard ext="${ext}">
-%if ext.features_promoted:
-      if (info->have_${ext.name_with_vendor()} && !info->have_vulkan${ext.core_since.struct()}) {
-%else:
-      if (info->have_${ext.name_with_vendor()}) {
-%endif
-         info->${ext.field("feats")}.sType = ${ext.stype("FEATURES")};
-         info->${ext.field("feats")}.pNext = info->feats.pNext;
-         info->feats.pNext = &info->${ext.field("feats")};
-      }
-</%helpers:guard>
-%endif
+   %if ext.has_features:
+      <%helpers:guard ext="${ext}">
+         %if ext.features_promoted:
+               if (info->have_${ext.name_with_vendor()} && !info->have_vulkan${ext.core_since.struct()}) {
+         %else:
+               if (info->have_${ext.name_with_vendor()}) {
+         %endif
+                  info->${ext.field("feats")}.sType = ${ext.stype("FEATURES")};
+                  info->${ext.field("feats")}.pNext = info->feats.pNext;
+                  info->feats.pNext = &info->${ext.field("feats")};
+               }
+      </%helpers:guard>
+   %endif
 %endfor
 
    return true;
@@ -743,27 +793,58 @@ void
 zink_verify_device_extensions(struct zink_screen *screen)
 {
 %for ext in extensions:
-%if registry.in_registry(ext.name):
-<%helpers:guard ext="${ext}">
-   if (screen->info.have_${ext.name_with_vendor()}) {
-%for cmd in registry.get_registry_entry(ext.name).device_commands:
-%if cmd.find("win32"):
-#ifdef _WIN32
-%endif
-      if (!screen->vk.${cmd.lstrip("vk")}) {
-#ifndef NDEBUG
-         screen->vk.${cmd.lstrip("vk")} = (PFN_${cmd})zink_stub_${cmd.lstrip("vk")};
-#else
-         screen->vk.${cmd.lstrip("vk")} = (PFN_${cmd})zink_stub_function_not_loaded;
-#endif
-      }
-%if cmd.find("win32"):
-#endif
-%endif
-%endfor
-   }
-</%helpers:guard>
-%endif
+   %if registry.in_registry(ext.name):
+      <%helpers:guard ext="${ext}">
+            if (screen->info.have_${ext.name_with_vendor()}) {
+         %for cmd in registry.get_registry_entry(ext.name).device_commands:
+            %if cmd.name().find("Win32") != -1:
+            #ifdef _WIN32
+            %endif
+            %if ext.is_promoted_to_khr:
+                  if (!screen->vk.${cmd.name()}) {
+                     screen->vk.${cmd.name()} = (PFN_${cmd.full_name})screen->vk.${cmd.name().replace("EXT", "KHR")}; /* promoted from EXT */
+                  }
+            %endif
+            %if ext.core_since:
+               %if not cmd.not_promoted:
+                     if (!screen->vk.${cmd.name().rstrip(ext.vendor())}) {
+                        screen->vk.${cmd.name().rstrip(ext.vendor())} = screen->vk.${cmd.name()}; /* promoted to core */
+                     }
+               %else:
+                     /* ${cmd.full_name} is not promoted */
+               %endif
+            %endif
+                  if (!screen->vk.${cmd.name()}) {
+            #ifndef NDEBUG
+                     screen->vk.${cmd.name()} = (PFN_${cmd.full_name})zink_stub_${cmd.name()};
+            #else
+                     screen->vk.${cmd.name()} = (PFN_${cmd.full_name})zink_stub_function_not_loaded;
+            #endif
+                  }
+            %if cmd.name().find("Win32") != -1:
+            #endif
+            %endif
+         %endfor
+            }
+         %if ext.core_since:
+               else if (screen->info.have_vulkan${ext.core_since.struct()}) {
+            %for cmd in registry.get_registry_entry(ext.name).device_commands:
+               %if cmd.name().find("Win32") != -1:
+               #ifdef _WIN32
+               %endif
+               %if not cmd.not_promoted:
+                     screen->vk.${cmd.name()} = (PFN_${cmd.full_name})screen->vk.${cmd.name().rstrip(ext.vendor())};
+               %else:
+                     /* ${cmd.full_name} is not promoted */
+               %endif
+               %if cmd.name().find("Win32") != -1:
+               #endif
+               %endif
+            %endfor
+               }
+         %endif
+      </%helpers:guard>
+   %endif
 %endfor
 }
 
@@ -773,25 +854,25 @@ zink_verify_device_extensions(struct zink_screen *screen)
 <% generated_funcs = set() %>
 
 %for ext in extensions:
-%if registry.in_registry(ext.name):
-%for cmd in registry.get_registry_entry(ext.name).device_commands:
-##
-## some functions are added by multiple extensions, which creates duplication
-## and thus redefinition of stubs (eg. vkCmdPushDescriptorSetWithTemplateKHR)
-##
-%if cmd in generated_funcs:
-   <% continue %>
-%else:
-   <% generated_funcs.add(cmd) %>
-%endif
-void VKAPI_PTR
-zink_stub_${cmd.lstrip("vk")}()
-{
-   mesa_loge("ZINK: ${cmd} is not loaded properly!");
-   abort();
-}
-%endfor
-%endif
+   %if registry.in_registry(ext.name):
+      %for cmd in registry.get_registry_entry(ext.name).device_commands:
+      ##
+      ## some functions are added by multiple extensions, which creates duplication
+      ## and thus redefinition of stubs (eg. vkCmdPushDescriptorSetWithTemplateKHR)
+      ##
+      %if cmd.name() in generated_funcs:
+         <% continue %>
+      %else:
+         <% generated_funcs.add(cmd.name()) %>
+      %endif
+      void VKAPI_PTR
+      zink_stub_${cmd.name()}()
+      {
+         mesa_loge("ZINK: ${cmd.full_name} is not loaded properly!");
+         abort();
+      }
+      %endfor
+   %endif
 %endfor
 #endif
 """
@@ -842,6 +923,8 @@ if __name__ == "__main__":
             print("The extension {} is {} extension - expected a device extension.".format(ext.name, entry.ext_type))
             continue
 
+        ext.is_promoted_to_khr = entry.is_promoted_to_khr
+
         if ext.has_features:
             if not (entry.features_struct and ext.physical_device_struct("Features") == entry.features_struct):
                 error_count += 1
@@ -853,6 +936,7 @@ if __name__ == "__main__":
                 error_count += 1
                 print("The extension {} does not provide a properties struct.".format(ext.name))
             ext.properties_promoted = entry.properties_promoted
+            ext.needs_double_load = entry.needs_double_load
 
         if entry.promoted_in and entry.promoted_in <= versions[-1].struct_version:
             ext.core_since = Version((*entry.promoted_in, 0))

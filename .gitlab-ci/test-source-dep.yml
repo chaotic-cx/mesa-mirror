@@ -40,7 +40,7 @@
 .restricted-rules:
   rules:
     # If the triggerer has access to the restricted traces and if it is pre-merge
-    - if: '($GITLAB_USER_LOGIN !~ "/^(robclark|anholt|flto|cwabbott0|Danil|tomeu|okias|gallo|kwg|llanderwelin|zmike|vigneshraman|Valentine)$/") &&
+    - if: '($GITLAB_USER_LOGIN !~ "/^(robclark|anholt|flto|cwabbott0|Danil|tomeu|okias|gallo|kwg|llanderwelin|zmike|vigneshraman|Valentine|daniels)$/") &&
            ($GITLAB_USER_LOGIN != "marge-bot" || $CI_COMMIT_BRANCH)'
       when: never
 
@@ -55,7 +55,7 @@
         - .gitlab-ci/**/*
         - include/**/*
         - meson.build
-        - meson_options.txt
+        - meson.options
         - build-support/**/*
         - subprojects/**/*
         - .gitattributes
@@ -121,27 +121,12 @@
     # Always use the same device
     LAVA_TAGS: "cbg-0"
     # Ensure that we are using the release build artifact
-    LAVA_S3_ARTIFACT_NAME: mesa-${ARCH}-default-release
-    S3_ARTIFACT_NAME: mesa-python-ci-artifacts
+    S3_ARTIFACT_NAME: mesa-${ARCH}-default-release
   # Reset dependencies in performance jobs to enforce the release build artifact
   dependencies: null
   # Don't run in parallel. It is okay to performance jobs to take a little
   # longer to finish, as they don't block marge from merging an MR.
   parallel: null
-
-.piglit-performance:arm64:
-  extends:
-    - .piglit-performance-base
-  needs:
-    - debian/baremetal_arm64_test
-    - debian-arm64-release
-
-.piglit-performance:x86_64:
-  extends:
-    - .piglit-performance-base
-  needs:
-    - kernel+rootfs_x86_64
-    - debian-release
 
 # Mesa source file dependencies that may impact any GL driver test job.
 .gallium-core-rules:
@@ -155,7 +140,6 @@
         - src/gallium/frontends/dri/*
         - src/gallium/frontends/glx/**/*
         - src/gallium/targets/**/*
-        - src/gallium/tests/**/*
         - src/gallium/winsys/*
       when: on_success
 
@@ -214,18 +198,25 @@
   rules:
     - !reference [.never-post-merge-rules, rules]
     - !reference [.no_scheduled_pipelines-rules, rules]
-    - changes:
+    # pre-merge: must succeed if changing Rust, skip if not
+    - if: &is-merge-attempt $GITLAB_USER_LOGIN == "marge-bot" && $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: &rustfmt_files
         - .gitlab-ci.yml
         - .gitlab-ci/**/*
-    # in merge pipeline, formatting checks are not allowed to fail
-    - if: $GITLAB_USER_LOGIN == "marge-bot" && $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: &rust_file_list
         - src/**/*.rs
       when: on_success
       allow_failure: false
-    # in other pipelines, formatting checks are allowed to fail
-    - changes: *rust_file_list
-      when: on_success
+    - if: *is-merge-attempt
+      when: never
+    - if: &is-merge-request $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        *rustfmt_files
+      when: manual
+      allow_failure: false
+    - if: *is-merge-request
+      when: never
+    # non-pre-merge: run but only advisory
+    - when: manual
       allow_failure: true
 
 # Rules for .mr-label-maker.yml

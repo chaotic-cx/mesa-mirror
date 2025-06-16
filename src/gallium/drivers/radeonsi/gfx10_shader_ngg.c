@@ -21,7 +21,8 @@ bool gfx10_ngg_export_prim_early(struct si_shader *shader)
    assert(shader->key.ge.as_ngg && !shader->key.ge.as_es);
 
    return sel->stage != MESA_SHADER_GEOMETRY &&
-          !gfx10_ngg_writes_user_edgeflags(shader);
+          !gfx10_ngg_writes_user_edgeflags(shader) &&
+          sel->screen->info.gfx_level < GFX11;
 }
 
 static void clamp_gsprims_to_esverts(unsigned *max_gsprims, unsigned max_esverts,
@@ -40,7 +41,7 @@ unsigned gfx10_ngg_get_scratch_dw_size(struct si_shader *shader)
    return ac_ngg_get_scratch_lds_size(sel->stage,
                                       si_get_max_workgroup_size(shader),
                                       shader->wave_size,
-                                      si_shader_uses_streamout(shader),
+                                      shader->info.num_streamout_vec4s != 0,
                                       si_shader_culling_enabled(shader),
                                       false) / 4;
 }
@@ -109,24 +110,18 @@ retry_select_mode:
       }
    } else {
       /* VS and TES. */
-
-      bool uses_instance_id = gs_sel->info.uses_instanceid;
       bool uses_primitive_id = gs_sel->info.uses_primid;
-      if (gs_stage == MESA_SHADER_VERTEX) {
-         uses_instance_id |=
-            shader->key.ge.mono.instance_divisor_is_one ||
-            shader->key.ge.mono.instance_divisor_is_fetched;
-      } else {
+
+      if (gs_stage == MESA_SHADER_TESS_EVAL)
          uses_primitive_id |= shader->key.ge.mono.u.vs_export_prim_id;
-      }
 
       esvert_lds_size = ac_ngg_nogs_get_pervertex_lds_size(
          gs_stage, gs_sel->info.num_outputs,
-         si_shader_uses_streamout(shader),
+         shader->info.num_streamout_vec4s != 0,
          shader->key.ge.mono.u.vs_export_prim_id,
          gfx10_ngg_writes_user_edgeflags(shader),
          si_shader_culling_enabled(shader),
-         uses_instance_id,
+         shader->info.uses_instance_id,
          uses_primitive_id) / 4;
    }
 

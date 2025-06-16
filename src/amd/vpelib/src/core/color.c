@@ -43,8 +43,9 @@ static void color_check_output_cm_update(
     struct vpe_priv *vpe_priv, const struct vpe_color_space *vcs, bool geometric_update);
 
 static bool color_update_input_cs(struct vpe_priv *vpe_priv, enum color_space in_cs,
-    const struct vpe_color_adjust *adjustments, struct vpe_csc_matrix *input_cs,
-    struct vpe_color_adjust *stream_clr_adjustments, struct fixed31_32 *matrix_scaling_factor);
+    struct vpe_color_adjust *adjustments, struct vpe_csc_matrix *input_cs,
+    struct vpe_color_adjust *stream_clr_adjustments, struct fixed31_32 *matrix_scaling_factor,
+    const struct vpe_surface_info *surface_info);
 
 static bool is_ycbcr(enum color_space in_cs);
 
@@ -232,8 +233,9 @@ static enum color_space color_get_icsc_cs(enum color_space ics)
 
 // return true is bypass can be done
 static bool color_update_input_cs(struct vpe_priv *vpe_priv, enum color_space in_cs,
-    const struct vpe_color_adjust *adjustments, struct vpe_csc_matrix *input_cs,
-    struct vpe_color_adjust *stream_clr_adjustments, struct fixed31_32 *matrix_scaling_factor)
+    struct vpe_color_adjust *adjustments, struct vpe_csc_matrix *input_cs,
+    struct vpe_color_adjust *stream_clr_adjustments, struct fixed31_32 *matrix_scaling_factor,
+    const struct vpe_surface_info *surface_info)     /**< Color range. Full vs. Studio */
 {
     int  i, j;
     bool use_adjustments = false;
@@ -259,8 +261,9 @@ static bool color_update_input_cs(struct vpe_priv *vpe_priv, enum color_space in
     if (use_adjustments && is_ycbcr(in_cs)) { // shader supports only yuv input for color
                                               // adjustments
         vpe_log("Apply color adjustments (contrast, saturation, hue, brightness)");
+
         if (!vpe_color_calculate_input_cs(
-                vpe_priv, in_cs, adjustments, input_cs, matrix_scaling_factor))
+                vpe_priv, in_cs, adjustments, input_cs, matrix_scaling_factor, surface_info))
             return false;
         *stream_clr_adjustments = *adjustments;
     }
@@ -269,52 +272,6 @@ static bool color_update_input_cs(struct vpe_priv *vpe_priv, enum color_space in
     }
 
     return true;
-}
-
-/* This function generates software points for the ogam gamma programming block.
-   The logic for the blndgam/ogam programming sequence is a function of:
-   1. Output Range (Studio Full)
-   2. 3DLUT usage
-   3. Output format (HDR SDR)
-
-   SDR Out or studio range out
-      TM Case
-         BLNDGAM : NL -> NL*S + B
-         OGAM    : Bypass
-      Non TM Case
-         BLNDGAM : L -> NL*S + B
-         OGAM    : Bypass
-   Full range HDR Out
-      TM Case
-         BLNDGAM : NL -> L
-         OGAM    : L -> NL
-      Non TM Case
-         BLNDGAM : Bypass
-         OGAM    : L -> NL
-
-*/
-static enum vpe_status vpe_update_output_gamma(struct vpe_priv *vpe_priv,
-    const struct vpe_build_param *param, struct transfer_func *output_tf, bool geometric_scaling)
-{
-    bool               can_bypass = false;
-    struct output_ctx *output_ctx = &vpe_priv->output_ctx;
-    bool               is_studio  = (param->dst_surface.cs.range == VPE_COLOR_RANGE_STUDIO);
-    enum vpe_status    status     = VPE_STATUS_OK;
-    struct fixed31_32  y_scale    = vpe_fixpt_one;
-
-    if (vpe_is_fp16(param->dst_surface.format)) {
-        y_scale = vpe_fixpt_mul_int(y_scale, CCCS_NORM);
-    }
-
-    if (!geometric_scaling && vpe_is_HDR(output_ctx->tf) && !is_studio)
-        can_bypass = false; //Blending is done in linear light so ogam needs to handle the regam
-    else
-        can_bypass = true;
-
-    vpe_color_update_regamma_tf(
-        vpe_priv, output_ctx->tf, vpe_fixpt_one, y_scale, vpe_fixpt_zero, can_bypass, output_tf);
-
-    return status;
 }
 
 bool vpe_use_csc_adjust(const struct vpe_color_adjust *adjustments)
@@ -675,7 +632,8 @@ enum vpe_status vpe_color_update_color_space_and_tf(
             if (stream_ctx->dirty_bits.color_space) {
                 if (!color_update_input_cs(vpe_priv, stream_ctx->cs,
                     &stream_ctx->stream.color_adj, stream_ctx->input_cs,
-                    &stream_ctx->color_adjustments, &new_matrix_scaling_factor)) {
+                    &stream_ctx->color_adjustments, &new_matrix_scaling_factor,
+                    &stream_ctx->stream.surface_info)) {
                     vpe_log("err: input cs not being programmed!");
                 }
                 else {
@@ -725,7 +683,8 @@ enum vpe_status vpe_color_update_color_space_and_tf(
         if (status == VPE_STATUS_OK) {
             if (output_ctx->dirty_bits.transfer_function ||
                 output_ctx->dirty_bits.color_space) {
-                vpe_update_output_gamma(vpe_priv, param, output_ctx->output_tf, geometric_scaling);
+                vpe_priv->resource.update_output_gamma(
+                    vpe_priv, param, output_ctx->output_tf, geometric_scaling);
             }
         }
     }
@@ -792,7 +751,7 @@ enum vpe_status vpe_color_update_shaper(const struct vpe_priv *vpe_priv, uint16_
         struct vpe_shaper_setup_in shaper_in;
 
         shaper_in.shaper_in_max      = 1 << 16;
-        shaper_in.use_const_hdr_mult = false; // can't be true. Fix is required.
+        shaper_in.use_const_hdr_mult = false; // can not be true. Fix is required.
 
         ret = vpe_build_shaper(&shaper_in, shaper_func->tf, pq_norm_gain, &shaper_func->pwl);
 
@@ -974,7 +933,7 @@ void vpe_color_get_color_space_and_tf(
             *cs = colorRange == VPE_COLOR_RANGE_FULL ? COLOR_SPACE_2020_RGB_FULLRANGE
                                                      : COLOR_SPACE_2020_RGB_LIMITEDRANGE;
             break;
-        /* VPE doesn't support JFIF format of RGB output, but geometric down scaling will change cs
+        /* VPE does not support JFIF format of RGB output, but geometric down scaling will change cs
          * parameters to JFIF. Therefore, we need to add JFIF format in RGB output to avoid output
          * color check fail.
          */

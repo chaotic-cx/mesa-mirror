@@ -5,24 +5,27 @@ use crate::ir::*;
 use crate::union_find::UnionFind;
 
 use compiler::bitset::BitSet;
+use rustc_hash::{FxBuildHasher, FxHashMap};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 
-struct Phi {
-    idx: u32,
+struct PhiTracker {
+    phi: Phi,
     orig: SSAValue,
     dst: SSAValue,
-    srcs: HashMap<usize, SSAValue>,
+    srcs: FxHashMap<usize, SSAValue>,
 }
 
 struct DefTrackerBlock {
     pred: Vec<usize>,
     succ: Vec<usize>,
-    defs: RefCell<HashMap<SSAValue, SSAValue>>,
-    phis: RefCell<Vec<Phi>>,
+    defs: RefCell<FxHashMap<SSAValue, SSAValue>>,
+    phis: RefCell<Vec<PhiTracker>>,
 }
 
 fn get_ssa_or_phi(
+    worklist: &mut BinaryHeap<Reverse<usize>>,
     ssa_alloc: &mut SSAValueAllocator,
     phi_alloc: &mut PhiAllocator,
     blocks: &[DefTrackerBlock],
@@ -30,54 +33,81 @@ fn get_ssa_or_phi(
     b_idx: usize,
     ssa: SSAValue,
 ) -> SSAValue {
-    let b = &blocks[b_idx];
-    let mut b_defs = b.defs.borrow_mut();
-    if let Some(ssa) = b_defs.get(&ssa) {
-        return *ssa;
-    }
+    // Annoyingly, Rust stack sizes get to be a problem so we don't want to use
+    // actual recursion here.  Instead we use a worklist in the form of a binary
+    // heap.  Using a binary heap ensures that we process the earliest blocks
+    // first.
+    debug_assert!(worklist.is_empty());
+    worklist.push(Reverse(b_idx));
 
-    let mut pred_ssa = None;
-    let mut all_same = true;
-    for p_idx in &b.pred {
-        if *p_idx >= b_idx {
-            // This is a loop back-edge, add a phi just in case.  We'll remove
-            // it later if it's not needed
-            all_same = false;
-        } else {
-            let p_ssa = get_ssa_or_phi(
-                ssa_alloc, phi_alloc, blocks, needs_src, *p_idx, ssa,
-            );
-            if *pred_ssa.get_or_insert(p_ssa) != p_ssa {
-                all_same = false;
-            }
-        }
-    }
+    loop {
+        let b_idx = worklist.peek().unwrap().0;
+        let b = &blocks[b_idx];
 
-    if all_same {
-        let pred_ssa = pred_ssa.expect("Undefined value");
-        b_defs.insert(ssa, pred_ssa);
-        pred_ssa
-    } else {
-        let phi_idx = phi_alloc.alloc();
-        let phi_ssa = ssa_alloc.alloc(ssa.file());
-        let mut phi = Phi {
-            idx: phi_idx,
-            orig: ssa,
-            dst: phi_ssa,
-            srcs: HashMap::new(),
-        };
-        for p_idx in &b.pred {
-            if *p_idx >= b_idx {
-                needs_src.insert(*p_idx);
+        if let Some(&b_ssa) = b.defs.borrow().get(&ssa) {
+            // We already sorted this one out, pop the stack.
+            worklist.pop();
+            if worklist.is_empty() {
+                return b_ssa;
+            } else {
                 continue;
             }
-            // The earlier recursive call ensured this exists
-            let p_ssa = *blocks[*p_idx].defs.borrow().get(&ssa).unwrap();
-            phi.srcs.insert(*p_idx, p_ssa);
         }
-        b.phis.borrow_mut().push(phi);
-        b_defs.insert(ssa, phi_ssa);
-        phi_ssa
+
+        let mut pushed_pred = false;
+        let mut pred_ssa = None;
+        let mut all_same = true;
+        for &p_idx in &b.pred {
+            if p_idx >= b_idx {
+                // This is a loop back-edge, add a phi just in case.  We'll
+                // remove it later if it's not needed
+                all_same = false;
+            } else if let Some(&p_ssa) = blocks[p_idx].defs.borrow().get(&ssa) {
+                if *pred_ssa.get_or_insert(p_ssa) != p_ssa {
+                    all_same = false;
+                }
+            } else {
+                worklist.push(Reverse(p_idx));
+                pushed_pred = true;
+            }
+        }
+
+        // If we pushed any predecessors to the stack, loop again to sort them
+        // out before we try to sort out this block.
+        if pushed_pred {
+            continue;
+        }
+
+        // We now have everything we need to sort out this block
+        let b_ssa = if all_same {
+            pred_ssa.expect("Undefined value")
+        } else {
+            let phi = phi_alloc.alloc();
+            let phi_ssa = ssa_alloc.alloc(ssa.file());
+            let mut pt = PhiTracker {
+                phi,
+                orig: ssa,
+                dst: phi_ssa,
+                srcs: Default::default(),
+            };
+            for &p_idx in &b.pred {
+                if p_idx >= b_idx {
+                    needs_src.insert(p_idx);
+                    continue;
+                }
+                // Earlier iterations of the loop ensured this exists
+                let p_ssa = *blocks[p_idx].defs.borrow().get(&ssa).unwrap();
+                pt.srcs.insert(p_idx, p_ssa);
+            }
+            blocks[b_idx].phis.borrow_mut().push(pt);
+            phi_ssa
+        };
+
+        blocks[b_idx].defs.borrow_mut().insert(ssa, b_ssa);
+        worklist.pop();
+        if worklist.is_empty() {
+            return b_ssa;
+        }
     }
 }
 
@@ -89,7 +119,7 @@ fn get_or_insert_phi_dsts(bb: &mut BasicBlock) -> &mut OpPhiDsts {
         0
     };
     match &mut bb.instrs[ip].op {
-        Op::PhiDsts(phi) => phi,
+        Op::PhiDsts(op) => op,
         _ => panic!("Expected to find the phi we just inserted"),
     }
 }
@@ -105,7 +135,7 @@ fn get_or_insert_phi_srcs(bb: &mut BasicBlock) -> &mut OpPhiSrcs {
         bb.instrs.len() - 1
     };
     match &mut bb.instrs[ip].op {
-        Op::PhiSrcs(phi) => phi,
+        Op::PhiSrcs(op) => op,
         _ => panic!("Expected to find the phi we just inserted"),
     }
 }
@@ -132,7 +162,7 @@ impl Function {
         // us to skip any SSA values which only have a single definition in
         // later passes.
         let mut has_mult_defs = false;
-        let mut num_defs = HashMap::new();
+        let mut num_defs = FxHashMap::default();
         for b in &self.blocks {
             for instr in &b.instrs {
                 instr.for_each_ssa_def(|ssa| {
@@ -157,12 +187,13 @@ impl Function {
 
         let mut blocks = Vec::new();
         let mut needs_src = BitSet::new();
+        let mut ssa_or_phi_worklist = BinaryHeap::new();
         for b_idx in 0..cfg.len() {
             assert!(blocks.len() == b_idx);
             blocks.push(DefTrackerBlock {
                 pred: cfg.pred_indices(b_idx).to_vec(),
                 succ: cfg.succ_indices(b_idx).to_vec(),
-                defs: RefCell::new(HashMap::new()),
+                defs: RefCell::new(Default::default()),
                 phis: RefCell::new(Vec::new()),
             });
 
@@ -170,6 +201,7 @@ impl Function {
                 instr.for_each_ssa_use_mut(|ssa| {
                     if num_defs.get(ssa).cloned().unwrap_or(0) > 1 {
                         *ssa = get_ssa_or_phi(
+                            &mut ssa_or_phi_worklist,
                             ssa_alloc,
                             phi_alloc,
                             &blocks,
@@ -209,6 +241,7 @@ impl Function {
                     for phi in s.phis.borrow_mut().iter_mut() {
                         phi.srcs.entry(b_idx).or_insert_with(|| {
                             get_ssa_or_phi(
+                                &mut ssa_or_phi_worklist,
                                 ssa_alloc,
                                 phi_alloc,
                                 &blocks,
@@ -224,7 +257,7 @@ impl Function {
 
         // For loop back-edges, we inserted a phi whether we need one or not.
         // We want to eliminate any redundant phis.
-        let mut ssa_map = UnionFind::new();
+        let mut ssa_map = UnionFind::<SSAValue, FxBuildHasher>::new();
         if cfg.has_loop() {
             let mut to_do = true;
             while to_do {
@@ -283,8 +316,8 @@ impl Function {
             let b_phis = blocks[b_idx].phis.borrow();
             if !b_phis.is_empty() {
                 let phi_dst = get_or_insert_phi_dsts(bb);
-                for phi in b_phis.iter() {
-                    phi_dst.dsts.push(phi.idx, phi.dst.into());
+                for pt in b_phis.iter() {
+                    phi_dst.dsts.push(pt.phi, pt.dst.into());
                 }
             }
 
@@ -301,10 +334,10 @@ impl Function {
                 let s_phis = blocks[s_idx].phis.borrow();
                 if !s_phis.is_empty() {
                     let phi_src = get_or_insert_phi_srcs(bb);
-                    for phi in s_phis.iter() {
-                        let mut ssa = *phi.srcs.get(&b_idx).unwrap();
+                    for pt in s_phis.iter() {
+                        let mut ssa = *pt.srcs.get(&b_idx).unwrap();
                         ssa = ssa_map.find(ssa);
-                        phi_src.srcs.push(phi.idx, ssa.into());
+                        phi_src.srcs.push(pt.phi, ssa.into());
                     }
                 }
             }

@@ -22,7 +22,7 @@
 
 #define SQTT_FILE_MAGIC_NUMBER  0x50303042
 #define SQTT_FILE_VERSION_MAJOR 1
-#define SQTT_FILE_VERSION_MINOR 5
+#define SQTT_FILE_VERSION_MINOR 6
 
 #define SQTT_GPU_NAME_MAX_SIZE 256
 #define SQTT_MAX_NUM_SE        32
@@ -36,6 +36,7 @@ enum sqtt_version
    SQTT_VERSION_2_3 = 0x6, /* GFX9 */
    SQTT_VERSION_2_4 = 0x7, /* GFX10+ */
    SQTT_VERSION_3_2 = 0xb, /* GFX11+ */
+   SQTT_VERSION_3_3 = 0xc, /* GFX12+ */
 };
 
 /**
@@ -263,6 +264,8 @@ enum sqtt_gfxip_level
    SQTT_GFXIP_LEVEL_GFXIP_10_1 = 0x7,
    SQTT_GFXIP_LEVEL_GFXIP_10_3 = 0x9,
    SQTT_GFXIP_LEVEL_GFXIP_11_0 = 0xc,
+   SQTT_GFXIP_LEVEL_GFXIP_11_5 = 0xd,
+   SQTT_GFXIP_LEVEL_GFXIP_12 = 0x10,
 };
 
 enum sqtt_memory_type
@@ -353,8 +356,11 @@ static enum sqtt_gfxip_level ac_gfx_level_to_sqtt_gfxip_level(enum amd_gfx_level
    case GFX10_3:
       return SQTT_GFXIP_LEVEL_GFXIP_10_3;
    case GFX11:
-   case GFX11_5:
       return SQTT_GFXIP_LEVEL_GFXIP_11_0;
+   case GFX11_5:
+      return SQTT_GFXIP_LEVEL_GFXIP_11_5;
+   case GFX12:
+      return SQTT_GFXIP_LEVEL_GFXIP_12;
    default:
       unreachable("Invalid gfx level");
    }
@@ -703,6 +709,8 @@ static enum sqtt_version ac_gfx_level_to_sqtt_version(enum amd_gfx_level gfx_lev
    case GFX11:
    case GFX11_5:
       return SQTT_VERSION_3_2;
+   case GFX12:
+      return SQTT_VERSION_3_3;
    default:
       unreachable("Invalid gfx level");
    }
@@ -722,7 +730,7 @@ static void ac_sqtt_fill_sqtt_desc(const struct radeon_info *info,
       ac_gfx_level_to_sqtt_version(info->gfx_level);
    chunk->shader_engine_index = shader_engine_index;
    chunk->v1.instrumentation_spec_version = 1;
-   chunk->v1.instrumentation_api_version = 0;
+   chunk->v1.instrumentation_api_version = 5;
    chunk->v1.compute_unit_index = compute_unit_index;
 }
 
@@ -846,6 +854,8 @@ enum elf_gfxip_level
    EF_AMDGPU_MACH_AMDGCN_GFX1010 = 0x033,
    EF_AMDGPU_MACH_AMDGCN_GFX1030 = 0x036,
    EF_AMDGPU_MACH_AMDGCN_GFX1100 = 0x041,
+   EF_AMDGPU_MACH_AMDGCN_GFX1150 = 0x043,
+   EF_AMDGPU_MACH_AMDGCN_GFX1200 = 0x04e,
 };
 
 static enum elf_gfxip_level ac_gfx_level_to_elf_gfxip_level(enum amd_gfx_level gfx_level)
@@ -860,8 +870,11 @@ static enum elf_gfxip_level ac_gfx_level_to_elf_gfxip_level(enum amd_gfx_level g
    case GFX10_3:
       return EF_AMDGPU_MACH_AMDGCN_GFX1030;
    case GFX11:
-   case GFX11_5:
       return EF_AMDGPU_MACH_AMDGCN_GFX1100;
+   case GFX11_5:
+      return EF_AMDGPU_MACH_AMDGCN_GFX1150;
+   case GFX12:
+      return EF_AMDGPU_MACH_AMDGCN_GFX1200;
    default:
       unreachable("Invalid gfx level");
    }

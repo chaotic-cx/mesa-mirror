@@ -107,6 +107,7 @@ enum radeon_family
    CHIP_NAVI10,         /* Radeon 5600, 5700 */
    CHIP_NAVI12,         /* Radeon Pro 5600M */
    CHIP_NAVI14,         /* Radeon 5300, 5500 */
+   CHIP_GFX1013,        /* AMD BC-250 */
    /* GFX10.3 (RDNA 2) */
    CHIP_NAVI21,         /* Radeon 6800, 6900 (formerly "Sienna Cichlid") */
    CHIP_NAVI22,         /* Radeon 6700 (formerly "Navy Flounder") */
@@ -217,6 +218,16 @@ enum vcn_version{
    VCN_5_0_1,
 };
 
+#define VPE_VERSION_VALUE(major, minor, rev) (((major) << 16) | ((minor) << 8) | (rev))
+
+enum vpe_version {
+   VPE_UNKNOWN = 0,
+   VPE_6_1_0   = VPE_VERSION_VALUE(6, 1, 0),
+   VPE_6_1_1   = VPE_VERSION_VALUE(6, 1, 1),
+   VPE_6_1_2   = VPE_VERSION_VALUE(6, 1, 2),
+   VPE_6_1_3   = VPE_VERSION_VALUE(6, 1, 3),
+};
+
 #define SDMA_VERSION_VALUE(major, minor) (((major) << 8) | (minor))
 
 enum sdma_version {
@@ -252,6 +263,24 @@ enum sdma_version {
 
    /* GFX12 */
    SDMA_7_0 = SDMA_VERSION_VALUE(7, 0),
+};
+
+/* The enum values match PAL so they can be written into RRA files. */
+enum rt_version {
+   RT_NONE = 0x0,
+
+   RT_1_0 = 0x1,
+
+   /* GFX10.3 */
+   RT_1_1 = 0x2,
+
+   /* GFX11 */
+   RT_2_0 = 0x3,
+
+   RT_3_0 = 0x4,
+
+   /* GFX12 */
+   RT_3_1 = 0x6,
 };
 
 const char *ac_get_family_name(enum radeon_family family);

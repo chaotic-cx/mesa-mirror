@@ -4,39 +4,155 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "asahi/lib/agx_abi.h"
 #include "compiler/libcl/libcl.h"
 #include "compiler/shader_enums.h"
 
-#ifndef __OPENCL_VERSION__
 #include "util/bitscan.h"
-#define libagx_popcount(x)   util_bitcount64(x)
-#define libagx_sub_sat(x, y) ((x >= y) ? (x - y) : 0)
-#else
-#define libagx_popcount(x)   popcount(x)
-#define libagx_sub_sat(x, y) sub_sat(x, y)
-#endif
+#include "util/u_math.h"
 
-#ifndef LIBAGX_GEOMETRY_H
-#define LIBAGX_GEOMETRY_H
+#pragma once
 
 #define MAX_SO_BUFFERS     4
 #define MAX_VERTEX_STREAMS 4
 
-/* Packed geometry state buffer */
-struct agx_geometry_state {
-   /* Heap to allocate from. */
-   DEVICE(uchar) heap;
-   uint32_t heap_bottom, heap_size;
+enum agx_gs_shape {
+   /* Indexed, where indices are encoded as:
+    *
+    *    round_to_pot(max_indices) * round_to_pot(input_primitives) *
+    *                              * instance_count
+    *
+    * invoked for max_indices * input_primitives * instance_count indices.
+    *
+    * This is used with any dynamic topology. No hardware instancing used.
+    */
+   AGX_GS_SHAPE_DYNAMIC_INDEXED,
+
+   /* Indexed with a static index buffer. Indices ranges up to max_indices.
+    * Hardware instance count = input_primitives * software instance count.
+    */
+   AGX_GS_SHAPE_STATIC_INDEXED,
+
+   /* Non-indexed. Dispatched as:
+    *
+    *    (max_indices, input_primitives * instance count).
+    */
+   AGX_GS_SHAPE_STATIC_PER_PRIM,
+
+   /* Non-indexed. Dispatched as:
+    *
+    *    (max_indices * input_primitives, instance count).
+    */
+   AGX_GS_SHAPE_STATIC_PER_INSTANCE,
+};
+
+static inline unsigned
+agx_gs_rast_vertices(enum agx_gs_shape shape, unsigned max_indices,
+                     unsigned input_primitives, unsigned instance_count)
+{
+   switch (shape) {
+   case AGX_GS_SHAPE_DYNAMIC_INDEXED:
+      return max_indices * input_primitives * instance_count;
+
+   case AGX_GS_SHAPE_STATIC_INDEXED:
+   case AGX_GS_SHAPE_STATIC_PER_PRIM:
+      return max_indices;
+
+   case AGX_GS_SHAPE_STATIC_PER_INSTANCE:
+      return max_indices * input_primitives;
+   }
+
+   unreachable("invalid shape");
+}
+
+static inline unsigned
+agx_gs_rast_instances(enum agx_gs_shape shape, unsigned max_indices,
+                      unsigned input_primitives, unsigned instance_count)
+{
+   switch (shape) {
+   case AGX_GS_SHAPE_DYNAMIC_INDEXED:
+      return 1;
+
+   case AGX_GS_SHAPE_STATIC_INDEXED:
+   case AGX_GS_SHAPE_STATIC_PER_PRIM:
+      return input_primitives * instance_count;
+
+   case AGX_GS_SHAPE_STATIC_PER_INSTANCE:
+      return instance_count;
+   }
+
+   unreachable("invalid shape");
+}
+
+static inline bool
+agx_gs_indexed(enum agx_gs_shape shape)
+{
+   return shape == AGX_GS_SHAPE_DYNAMIC_INDEXED ||
+          shape == AGX_GS_SHAPE_STATIC_INDEXED;
+}
+
+static inline unsigned
+agx_gs_index_size(enum agx_gs_shape shape)
+{
+   switch (shape) {
+   case AGX_GS_SHAPE_DYNAMIC_INDEXED:
+      return 4;
+   case AGX_GS_SHAPE_STATIC_INDEXED:
+      return 1;
+   default:
+      return 0;
+   }
+}
+
+/* Heap to allocate from. */
+struct agx_heap {
+   DEVICE(uchar) base;
+   uint32_t bottom, size;
 } PACKED;
-static_assert(sizeof(struct agx_geometry_state) == 4 * 4);
+static_assert(sizeof(struct agx_heap) == 4 * 4);
 
 #ifdef __OPENCL_VERSION__
-static inline global void *
-agx_heap_alloc_nonatomic(global struct agx_geometry_state *heap, size_t size)
+static inline uint
+_agx_heap_alloc_offs(global struct agx_heap *heap, uint size_B, bool atomic)
 {
-   global void *out = heap->heap + heap->heap_bottom;
-   heap->heap_bottom += size;
-   return out;
+   size_B = align(size_B, 16);
+
+   uint offs;
+   if (atomic) {
+      offs = atomic_fetch_add((volatile atomic_uint *)(&heap->bottom), size_B);
+   } else {
+      offs = heap->bottom;
+      heap->bottom = offs + size_B;
+   }
+
+   /* Use printf+abort because assert is stripped from release builds. */
+   if (heap->bottom >= heap->size) {
+      printf(
+         "FATAL: GPU heap overflow, allocating size %u, at offset %u, heap size %u!",
+         size_B, offs, heap->size);
+
+      abort();
+   }
+
+   return offs;
+}
+
+static inline uint
+agx_heap_alloc_nonatomic_offs(global struct agx_heap *heap, uint size_B)
+{
+   return _agx_heap_alloc_offs(heap, size_B, false);
+}
+
+static inline uint
+agx_heap_alloc_atomic_offs(global struct agx_heap *heap, uint size_B)
+{
+   return _agx_heap_alloc_offs(heap, size_B, true);
+}
+
+static inline global void *
+agx_heap_alloc_nonatomic(global struct agx_heap *heap, uint size_B)
+{
+   return heap->base + agx_heap_alloc_nonatomic_offs(heap, size_B);
 }
 #endif
 
@@ -56,24 +172,21 @@ static_assert(sizeof(struct agx_ia_state) == 4 * 4);
 
 static inline uint64_t
 libagx_index_buffer(uint64_t index_buffer, uint size_el, uint offset_el,
-                    uint elsize_B, uint64_t zero_sink)
+                    uint elsize_B)
 {
    if (offset_el < size_el)
       return index_buffer + (offset_el * elsize_B);
    else
-      return zero_sink;
+      return AGX_ZERO_PAGE_ADDRESS;
 }
 
 static inline uint
 libagx_index_buffer_range_el(uint size_el, uint offset_el)
 {
-   return libagx_sub_sat(size_el, offset_el);
+   return offset_el < size_el ? (size_el - offset_el) : 0;
 }
 
 struct agx_geometry_params {
-   /* Persistent (cross-draw) geometry state */
-   DEVICE(struct agx_geometry_state) state;
-
    /* Address of associated indirect draw buffer */
    DEVICE(uint) indirect_desc;
 
@@ -120,10 +233,13 @@ struct agx_geometry_params {
    uint32_t xfb_prims[MAX_VERTEX_STREAMS];
 
    /* Within an indirect GS draw, the grids used to dispatch the VS/GS written
-    * out by the GS indirect setup kernel or the CPU for a direct draw.
+    * out by the GS indirect setup kernel or the CPU for a direct draw. This is
+    * the "indirect local" format: first 3 is in threads, second 3 is in grid
+    * blocks. This lets us use nontrivial workgroups with indirect draws without
+    * needing any predication.
     */
-   uint32_t vs_grid[3];
-   uint32_t gs_grid[3];
+   uint32_t vs_grid[6];
+   uint32_t gs_grid[6];
 
    /* Number of input primitives across all instances, calculated by the CPU for
     * a direct draw or the GS indirect setup kernel for an indirect draw.
@@ -147,7 +263,7 @@ struct agx_geometry_params {
     */
    uint32_t input_topology;
 } PACKED;
-static_assert(sizeof(struct agx_geometry_params) == 82 * 4);
+static_assert(sizeof(struct agx_geometry_params) == 86 * 4);
 
 /* TCS shared memory layout:
  *
@@ -159,8 +275,8 @@ static inline uint
 libagx_tcs_in_offs_el(uint vtx, gl_varying_slot location,
                       uint64_t crosslane_vs_out_mask)
 {
-   uint base = vtx * libagx_popcount(crosslane_vs_out_mask);
-   uint offs = libagx_popcount(crosslane_vs_out_mask &
+   uint base = vtx * util_bitcount64(crosslane_vs_out_mask);
+   uint offs = util_bitcount64(crosslane_vs_out_mask &
                                (((uint64_t)(1) << location) - 1));
 
    return base + offs;
@@ -176,7 +292,7 @@ libagx_tcs_in_offs(uint vtx, gl_varying_slot location,
 static inline uint
 libagx_tcs_in_size(uint32_t vertices_in_patch, uint64_t crosslane_vs_out_mask)
 {
-   return vertices_in_patch * libagx_popcount(crosslane_vs_out_mask) * 16;
+   return vertices_in_patch * util_bitcount64(crosslane_vs_out_mask) * 16;
 }
 
 /*
@@ -210,9 +326,9 @@ libagx_tcs_out_offs_el(uint vtx_id, gl_varying_slot location, uint nr_patch_out,
 
    /* Anything else is a per-vtx output */
    off += 4 * nr_patch_out;
-   off += 4 * vtx_id * libagx_popcount(vtx_out_mask);
+   off += 4 * vtx_id * util_bitcount64(vtx_out_mask);
 
-   uint idx = libagx_popcount(vtx_out_mask & (((uint64_t)(1) << location) - 1));
+   uint idx = util_bitcount64(vtx_out_mask & (((uint64_t)(1) << location) - 1));
    return off + (4 * idx);
 }
 
@@ -264,4 +380,41 @@ libagx_uncompact_prim(uint packed)
    return (packed >= MESA_PRIM_QUADS) ? (packed + 3) : packed;
 }
 
-#endif
+/*
+ * Translate EndPrimitive for LINE_STRIP or TRIANGLE_STRIP output prims into
+ * writes into the 32-bit output index buffer. We write the sequence (b, b + 1,
+ * b + 2, ..., b + n - 1, -1), where b (base) is the first vertex in the prim, n
+ * (count) is the number of verts in the prims, and -1 is the prim restart index
+ * used to signal the end of the prim.
+ *
+ * For points, we write index buffers without restart, just as a sideband to
+ * pass data into the vertex shader.
+ */
+static inline void
+_libagx_end_primitive(GLOBAL uint32_t *index_buffer, uint32_t total_verts,
+                      uint32_t verts_in_prim, uint32_t total_prims,
+                      uint32_t index_offs, uint32_t geometry_base, bool restart)
+{
+   /* Previous verts/prims are from previous invocations plus earlier
+    * prims in this invocation. For the intra-invocation counts, we
+    * subtract the count for this prim from the inclusive sum NIR gives us.
+    */
+   uint32_t previous_verts_in_invoc = (total_verts - verts_in_prim);
+   uint32_t previous_verts = previous_verts_in_invoc;
+   uint32_t previous_prims = restart ? (total_prims - 1) : 0;
+
+   /* The indices are encoded as: (unrolled ID * output vertices) + vertex. */
+   uint32_t index_base = geometry_base + previous_verts_in_invoc;
+
+   /* Index buffer contains 1 index for each vertex and 1 for each prim */
+   GLOBAL uint32_t *out =
+      &index_buffer[index_offs + previous_verts + previous_prims];
+
+   /* Write out indices for the strip */
+   for (uint32_t i = 0; i < verts_in_prim; ++i) {
+      out[i] = index_base + i;
+   }
+
+   if (restart)
+      out[verts_in_prim] = -1;
+}

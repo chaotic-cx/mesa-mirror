@@ -485,7 +485,7 @@ hud_draw_results(struct hud_context *hud, struct pipe_resource *tex)
    struct cso_context *cso = hud->cso;
    struct pipe_context *pipe = hud->pipe;
    struct pipe_framebuffer_state fb;
-   struct pipe_surface surf_templ, *surf;
+   struct pipe_surface surf_templ;
    struct pipe_viewport_state viewport;
    const struct pipe_sampler_state *sampler_states[] =
          { &hud->font_sampler_state };
@@ -545,12 +545,10 @@ hud_draw_results(struct hud_context *hud, struct pipe_resource *tex)
       if (srgb_format != PIPE_FORMAT_NONE)
          surf_templ.format = srgb_format;
    }
-   surf = pipe->create_surface(pipe, tex, &surf_templ);
 
    memset(&fb, 0, sizeof(fb));
    fb.nr_cbufs = 1;
-   fb.cbufs[0] = surf;
-   fb.zsbuf = NULL;
+   fb.cbufs[0] = surf_templ;
    fb.width = hud->fb_width;
    fb.height = hud->fb_height;
    fb.resolve = NULL;
@@ -579,7 +577,7 @@ hud_draw_results(struct hud_context *hud, struct pipe_resource *tex)
    cso_set_vertex_shader_handle(cso, hud->vs_color);
    cso_set_vertex_elements(cso, &hud->velems);
    cso_set_render_condition(cso, NULL, false, 0);
-   pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 1, 0, false,
+   pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 1, 0,
                            &hud->font_sampler_view);
    cso_set_samplers(cso, PIPE_SHADER_FRAGMENT, 1, sampler_states);
    pipe->set_constant_buffer(pipe, PIPE_SHADER_VERTEX, 0, false, &hud->constbuf);
@@ -664,8 +662,6 @@ done:
                                ST_INVALIDATE_VS_CONSTBUF0 |
                                ST_INVALIDATE_VERTEX_BUFFERS);
    }
-
-   pipe_surface_reference(&surf, NULL);
 }
 
 static void
@@ -1698,7 +1694,7 @@ hud_unset_draw_context(struct hud_context *hud)
    if (!pipe)
       return;
 
-   pipe_sampler_view_reference(&hud->font_sampler_view, NULL);
+   pipe->sampler_view_release(pipe, hud->font_sampler_view);
 
    if (hud->fs_color) {
       pipe->delete_fs_state(pipe, hud->fs_color);

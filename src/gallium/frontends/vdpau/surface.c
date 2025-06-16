@@ -139,6 +139,8 @@ vlVdpVideoSurfaceDestroy(VdpVideoSurface surface)
    mtx_lock(&p_surf->device->mutex);
    if (p_surf->video_buffer)
       p_surf->video_buffer->destroy(p_surf->video_buffer);
+   if (p_surf->ref_buffer)
+      p_surf->ref_buffer->destroy(p_surf->ref_buffer);
    mtx_unlock(&p_surf->device->mutex);
 
    vlRemoveDataHTAB(surface);
@@ -331,7 +333,7 @@ vlVdpVideoSurfacePutBitsYCbCr(VdpVideoSurface surface,
          nformat = screen->get_video_param(screen,
                                            PIPE_VIDEO_PROFILE_UNKNOWN,
                                            PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
-                                           PIPE_VIDEO_CAP_PREFERED_FORMAT);
+                                           PIPE_VIDEO_CAP_PREFERRED_FORMAT);
          if (nformat == PIPE_FORMAT_NONE) {
             mtx_unlock(&p_surf->device->mutex);
             return VDP_STATUS_NO_IMPLEMENTATION;
@@ -432,7 +434,7 @@ void
 vlVdpVideoSurfaceClear(vlVdpSurface *vlsurf)
 {
    struct pipe_context *pipe = vlsurf->device->context;
-   struct pipe_surface **surfaces;
+   struct pipe_surface *surfaces;
    unsigned i;
 
    if (!vlsurf->video_buffer)
@@ -442,14 +444,16 @@ vlVdpVideoSurfaceClear(vlVdpSurface *vlsurf)
    for (i = 0; i < VL_MAX_SURFACES; ++i) {
       union pipe_color_union c = {};
 
-      if (!surfaces[i])
+      if (!surfaces[i].texture)
          continue;
 
       if (i > !!vlsurf->templat.interlaced)
          c.f[0] = c.f[1] = c.f[2] = c.f[3] = 0.5f;
 
-      pipe->clear_render_target(pipe, surfaces[i], &c, 0, 0,
-                                surfaces[i]->width, surfaces[i]->height, false);
+      uint16_t width, height;
+      pipe_surface_size(&surfaces[i], &width, &height);
+      pipe->clear_render_target(pipe, &surfaces[i], &c, 0, 0,
+                                width, height, false);
    }
    pipe->flush(pipe, NULL, 0);
 }
@@ -513,7 +517,7 @@ VdpStatus vlVdpVideoSurfaceDMABuf(VdpVideoSurface surface,
       return VDP_STATUS_NO_IMPLEMENTATION;
    }
 
-   surf = p_surf->video_buffer->get_surfaces(p_surf->video_buffer)[plane];
+   surf = &p_surf->video_buffer->get_surfaces(p_surf->video_buffer)[plane];
    if (!surf) {
       mtx_unlock(&p_surf->device->mutex);
       return VDP_STATUS_RESOURCES;
@@ -521,7 +525,7 @@ VdpStatus vlVdpVideoSurfaceDMABuf(VdpVideoSurface surface,
 
    memset(&whandle, 0, sizeof(struct winsys_handle));
    whandle.type = WINSYS_HANDLE_TYPE_FD;
-   whandle.layer = surf->u.tex.first_layer;
+   whandle.layer = surf->first_layer;
 
    pscreen = surf->texture->screen;
    if (!pscreen->resource_get_handle(pscreen, p_surf->device->context,
@@ -532,10 +536,9 @@ VdpStatus vlVdpVideoSurfaceDMABuf(VdpVideoSurface surface,
    }
 
    mtx_unlock(&p_surf->device->mutex);
-
    result->handle = whandle.handle;
-   result->width = surf->width;
-   result->height = surf->height;
+   result->width = pipe_surface_width(surf);
+   result->height = pipe_surface_height(surf);
    result->offset = whandle.offset;
    result->stride = whandle.stride;
 

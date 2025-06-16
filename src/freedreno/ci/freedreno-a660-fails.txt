@@ -1,19 +1,25 @@
 KHR-GL46.shader_image_load_store.basic-allTargets-store,Fail
 KHR-GL46.shader_subroutine.control_flow_and_returned_subroutine_values_used_as_subroutine_input,Fail
 
-dEQP-GLES31.functional.texture.border_clamp.range_clamp.linear_float_color,Fail
-
 #glcts update
 dEQP-GLES2.functional.texture.mipmap.cube.projected.nearest_linear,Fail
 KHR-GLES3.framebuffer_blit.framebuffer_blit_functionality_multisampled_to_singlesampled_blit,Fail
 KHR-GL46.texture_lod_basic.lod_selection,Fail
 KHR-GL46.texture_lod_bias.texture_lod_bias_all,Fail
 
+# New failures with ES CTS 3.2.12.0
+KHR-GLES3.framebuffer_blit.multisampled_to_singlesampled_blit_depth_config_test,Fail
+KHR-GLES31.core.texture_stencil8.multisample,Fail
+KHR-GL46.texture_stencil8.multisample,Fail
+
 # GL tests above, Vulkan tests below
 
 # New fails in 1.3.10.0, appeared after decreasing the fraction
-dEQP-VK.dynamic_rendering.primary_cmd_buff.local_read.input_attachments_without_mapping,Fail
 dEQP-VK.dynamic_rendering.primary_cmd_buff.local_read.max_input_attachments,Fail
+
+# New fails in 1.4.1.1
+gmem-dEQP-VK.dynamic_rendering.primary_cmd_buff.local_read.input_attachments_without_mapping,Fail
+gmem-dEQP-VK.spirv_assembly.instruction.graphics.16bit_storage.uniform_32struct_to_16struct.uniform_geom,Fail
 
 # OpenCL tests below
 #
@@ -76,3 +82,62 @@ program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float16,
 program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float2,Fail
 program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float4,Fail
 program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float8,Fail
+
+# (file=input,line=0,column=0,index=0): Unresolved external reference to "_Z21convert_char4_sat_rteDv4_i".
+program@execute@vector-conversion,Fail
+
+# Initial ANGLE failures
+angle-KHR-GLES3.clip_distance.coverage,Fail
+angle-KHR-GLES3.cull_distance.functional,Fail
+angle-dEQP-GLES2.functional.shaders.algorithm.rgb_to_hsl_vertex,Fail
+angle-dEQP-GLES2.functional.texture.mipmap.cube.projected.nearest_linear,Fail
+
+# New failures with ES CTS 3.2.12.0
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_lines_max_culldist_0,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_lines_max_culldist_1,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_lines_max_culldist_2,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_lines_max_culldist_3,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_lines_max_culldist_4,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_lines_max_culldist_5,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_lines_max_culldist_6,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_lines_max_culldist_7,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_points_max_culldist_0,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_points_max_culldist_1,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_points_max_culldist_2,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_points_max_culldist_3,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_points_max_culldist_4,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_points_max_culldist_5,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_points_max_culldist_6,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_points_max_culldist_7,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_triangles_max_culldist_0,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_triangles_max_culldist_1,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_triangles_max_culldist_2,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_triangles_max_culldist_3,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_triangles_max_culldist_4,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_triangles_max_culldist_5,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_triangles_max_culldist_6,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_5_primitive_mode_triangles_max_culldist_7,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_lines_max_culldist_0,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_lines_max_culldist_1,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_lines_max_culldist_2,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_lines_max_culldist_3,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_lines_max_culldist_4,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_lines_max_culldist_5,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_lines_max_culldist_6,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_lines_max_culldist_7,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_points_max_culldist_0,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_points_max_culldist_1,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_points_max_culldist_2,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_points_max_culldist_3,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_points_max_culldist_4,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_points_max_culldist_5,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_points_max_culldist_6,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_points_max_culldist_7,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_triangles_max_culldist_0,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_triangles_max_culldist_1,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_triangles_max_culldist_2,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_triangles_max_culldist_3,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_triangles_max_culldist_4,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_triangles_max_culldist_5,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_triangles_max_culldist_6,Fail
+angle-KHR-GLES3.cull_distance.functional_test_item_6_primitive_mode_triangles_max_culldist_7,Fail

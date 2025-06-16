@@ -30,11 +30,13 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "util/macros.h"
+
 struct pan_kmod_dev;
 struct pan_kmod_dev_props;
 
 /** Implementation-defined tiler features */
-struct panfrost_tiler_features {
+struct pan_tiler_features {
    /** Number of bytes per tiler bin */
    unsigned bin_size;
 
@@ -43,7 +45,7 @@ struct panfrost_tiler_features {
    unsigned max_levels;
 };
 
-struct panfrost_model {
+struct pan_model {
    /* GPU ID */
    uint32_t gpu_id;
 
@@ -66,44 +68,46 @@ struct panfrost_model {
    /* Default tilebuffer size in bytes for the model. */
    unsigned tilebuffer_size;
 
+   /* Default tilebuffer depth size in bytes for the model. */
+   unsigned tilebuffer_z_size;
+
    struct {
       /* The GPU lacks the capability for hierarchical tiling, without
        * an "Advanced Tiling Unit", instead requiring a single bin
        * size for the entire framebuffer be selected by the driver
        */
       bool no_hierarchical_tiling;
+      bool max_4x_msaa;
    } quirks;
 };
 
-const struct panfrost_model *panfrost_get_model(uint32_t gpu_id,
-                                                uint32_t gpu_variant);
+const struct pan_model *pan_get_model(uint32_t gpu_id, uint32_t gpu_variant);
 
-unsigned panfrost_query_l2_slices(const struct pan_kmod_dev_props *props);
+unsigned pan_query_l2_slices(const struct pan_kmod_dev_props *props);
 
-struct panfrost_tiler_features
-panfrost_query_tiler_features(const struct pan_kmod_dev_props *props);
+struct pan_tiler_features
+pan_query_tiler_features(const struct pan_kmod_dev_props *props);
 
-unsigned
-panfrost_query_thread_tls_alloc(const struct pan_kmod_dev_props *props);
+unsigned pan_query_thread_tls_alloc(const struct pan_kmod_dev_props *props);
 
-uint32_t
-panfrost_query_compressed_formats(const struct pan_kmod_dev_props *props);
+uint32_t pan_query_compressed_formats(const struct pan_kmod_dev_props *props);
 
-unsigned panfrost_query_core_count(const struct pan_kmod_dev_props *props,
-                                   unsigned *core_id_range);
+unsigned pan_query_core_count(const struct pan_kmod_dev_props *props,
+                              unsigned *core_id_range);
 
-bool panfrost_query_afbc(const struct pan_kmod_dev_props *props);
+bool pan_query_afbc(const struct pan_kmod_dev_props *props);
 
-bool panfrost_query_afrc(const struct pan_kmod_dev_props *props);
+bool pan_query_afrc(const struct pan_kmod_dev_props *props);
 
-unsigned panfrost_query_optimal_tib_size(const struct panfrost_model *model);
+unsigned pan_query_optimal_tib_size(const struct pan_model *model);
 
-uint64_t panfrost_clamp_to_usable_va_range(const struct pan_kmod_dev *dev,
-                                           uint64_t va);
+unsigned pan_query_optimal_z_tib_size(const struct pan_model *model);
 
-unsigned
-panfrost_compute_max_thread_count(const struct pan_kmod_dev_props *props,
-                                  unsigned work_reg_count);
+uint64_t pan_clamp_to_usable_va_range(const struct pan_kmod_dev *dev,
+                                      uint64_t va);
+
+unsigned pan_compute_max_thread_count(const struct pan_kmod_dev_props *props,
+                                      unsigned work_reg_count);
 
 /* Returns the architecture version given a GPU ID, either from a table for
  * old-style Midgard versions or directly for new-style Bifrost/Valhall
@@ -129,12 +133,72 @@ pan_arch(unsigned gpu_id)
 }
 
 static inline unsigned
-panfrost_max_effective_tile_size(unsigned arch)
+pan_max_effective_tile_size(unsigned arch)
 {
+   if (arch >= 12)
+      return 64 * 64;
+
    if (arch >= 10)
       return 32 * 32;
 
    return 16 * 16;
+}
+
+static inline unsigned
+pan_meta_tile_size(unsigned arch)
+{
+   if (arch >= 12)
+      return 64;
+
+   return 32;
+}
+
+/* Returns the maximum usable color tilebuffer-size. This is *usually* twice
+ * the optimal tilebuffer-size, but not always.
+ */
+static inline unsigned
+pan_get_max_tib_size(unsigned arch, const struct pan_model *model)
+{
+   unsigned tib_size = pan_query_optimal_tib_size(model);
+
+   /* On V5, as well as V6 and later, we can disable pipelining to gain some
+    * extra tib memory.
+    */
+   if (arch > 4 && arch != 6)
+      return tib_size * 2;
+
+   return tib_size;
+}
+
+static inline uint32_t
+pan_get_max_cbufs(unsigned arch, unsigned max_tib_size)
+{
+   if (arch < 5)
+      return 1;
+
+   const unsigned min_msaa = 4;            /* Vulkan *requires* at least 4x MSAA support */
+   const unsigned max_cbuf_format = 4 * 4; /* R32G32B32A32 */
+   const unsigned min_tile_size = 4 * 4;
+
+   unsigned max_cbufs =
+      max_tib_size / (min_msaa * max_cbuf_format * min_tile_size);
+
+   return MIN2(max_cbufs, 8);
+}
+
+static inline unsigned
+pan_get_max_msaa(unsigned arch, unsigned max_tib_size, unsigned max_cbuf_atts,
+                 unsigned format_size)
+{
+   if (arch < 5)
+      return 8;
+
+   assert(max_cbuf_atts > 0);
+   assert(format_size > 0);
+   const unsigned min_tile_size = 4 * 4;
+   unsigned max_msaa = max_tib_size / (max_cbuf_atts * format_size *
+                                       min_tile_size);
+   return MIN2(max_msaa, 16);
 }
 
 #endif

@@ -5,8 +5,8 @@
  */
 
 #include "gallium/auxiliary/nir/pipe_nir.h"
-#define AC_SURFACE_INCLUDE_NIR
 #include "ac_surface.h"
+#include "ac_nir_surface.h"
 #include "si_pipe.h"
 #include "si_query.h"
 #include "aco_interface.h"
@@ -132,7 +132,7 @@ void *si_create_clear_buffer_rmw_cs(struct si_context *sctx)
 
    /* address = address * 16; (byte offset, loading one vec4 per thread) */
    address = nir_ishl_imm(&b, address, 4);
-   
+
    nir_def *zero = nir_imm_int(&b, 0);
    nir_def *data = nir_load_ssbo(&b, 4, 32, zero, address, .align_mul = 4);
 
@@ -300,10 +300,6 @@ void *si_get_blitter_vs(struct si_context *sctx, enum blitter_attrib_type type, 
       vs = num_layers > 1 ? &sctx->vs_blit_pos_layered : &sctx->vs_blit_pos;
       vs_blit_property = SI_VS_BLIT_SGPRS_POS;
       break;
-   case UTIL_BLITTER_ATTRIB_COLOR:
-      vs = num_layers > 1 ? &sctx->vs_blit_color_layered : &sctx->vs_blit_color;
-      vs_blit_property = SI_VS_BLIT_SGPRS_POS_COLOR;
-      break;
    case UTIL_BLITTER_ATTRIB_TEXCOORD_XY:
    case UTIL_BLITTER_ATTRIB_TEXCOORD_XYZW:
       assert(num_layers == 1);
@@ -331,29 +327,19 @@ void *si_get_blitter_vs(struct si_context *sctx, enum blitter_attrib_type type, 
    b.shader->info.io_lowered = true;
 
    nir_def *pos = nir_load_input(&b, 4, 32, nir_imm_int(&b, 0),
-                                 .dest_type = nir_type_float32,
-                                 .io_semantics.num_slots = 1,
                                  .io_semantics.location = VERT_ATTRIB_GENERIC0);
    nir_store_output(&b, pos, nir_imm_int(&b, 0),
-                    .src_type = nir_type_float32,
-                    .io_semantics.num_slots = 1,
                     .io_semantics.location = VARYING_SLOT_POS);
 
    if (type != UTIL_BLITTER_ATTRIB_NONE) {
       nir_def *attr = nir_load_input(&b, 4, 32, nir_imm_int(&b, 0),
-                                     .dest_type = nir_type_float32,
-                                     .io_semantics.num_slots = 1,
                                      .io_semantics.location = VERT_ATTRIB_GENERIC1);
       nir_store_output(&b, attr, nir_imm_int(&b, 0),
-                       .src_type = nir_type_float32,
-                       .io_semantics.num_slots = 1,
                        .io_semantics.location = VARYING_SLOT_VAR0);
    }
 
    if (num_layers > 1) {
       nir_store_output(&b, nir_load_instance_id(&b), nir_imm_int(&b, 0),
-                       .src_type = nir_type_float32,
-                       .io_semantics.num_slots = 1,
                        .io_semantics.location = VARYING_SLOT_LAYER);
    }
 

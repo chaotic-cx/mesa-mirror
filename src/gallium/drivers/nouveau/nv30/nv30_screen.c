@@ -48,111 +48,41 @@
 #define CURIE_4497_CHIPSET   0x00005450
 #define CURIE_4497_CHIPSET6X 0x00000088
 
-static int
-nv30_screen_get_shader_param(struct pipe_screen *pscreen,
-                             enum pipe_shader_type shader,
-                             enum pipe_shader_cap param)
+static void
+nv30_init_shader_caps(struct nv30_screen *screen)
 {
-   struct nv30_screen *screen = nv30_screen(pscreen);
    struct nouveau_object *eng3d = screen->eng3d;
 
-   switch (shader) {
-   case PIPE_SHADER_VERTEX:
-      switch (param) {
-      case PIPE_SHADER_CAP_MAX_INSTRUCTIONS:
-      case PIPE_SHADER_CAP_MAX_ALU_INSTRUCTIONS:
-         return (eng3d->oclass >= NV40_3D_CLASS) ? 512 : 256;
-      case PIPE_SHADER_CAP_MAX_TEX_INSTRUCTIONS:
-      case PIPE_SHADER_CAP_MAX_TEX_INDIRECTIONS:
-         return (eng3d->oclass >= NV40_3D_CLASS) ? 512 : 0;
-      case PIPE_SHADER_CAP_MAX_CONTROL_FLOW_DEPTH:
-         return 0;
-      case PIPE_SHADER_CAP_MAX_INPUTS:
-      case PIPE_SHADER_CAP_MAX_OUTPUTS:
-         return 16;
-      case PIPE_SHADER_CAP_MAX_CONST_BUFFER0_SIZE:
-         return ((eng3d->oclass >= NV40_3D_CLASS) ? (468 - 6): (256 - 6)) * sizeof(float[4]);
-      case PIPE_SHADER_CAP_MAX_CONST_BUFFERS:
-         return 1;
-      case PIPE_SHADER_CAP_MAX_TEMPS:
-         return (eng3d->oclass >= NV40_3D_CLASS) ? 32 : 13;
-      case PIPE_SHADER_CAP_MAX_TEXTURE_SAMPLERS:
-      case PIPE_SHADER_CAP_MAX_SAMPLER_VIEWS:
-         return 0;
-      case PIPE_SHADER_CAP_CONT_SUPPORTED:
-      case PIPE_SHADER_CAP_TGSI_SQRT_SUPPORTED:
-      case PIPE_SHADER_CAP_INDIRECT_TEMP_ADDR:
-      case PIPE_SHADER_CAP_INDIRECT_CONST_ADDR:
-      case PIPE_SHADER_CAP_SUBROUTINES:
-      case PIPE_SHADER_CAP_INTEGERS:
-      case PIPE_SHADER_CAP_INT64_ATOMICS:
-      case PIPE_SHADER_CAP_FP16:
-      case PIPE_SHADER_CAP_FP16_DERIVATIVES:
-      case PIPE_SHADER_CAP_FP16_CONST_BUFFERS:
-      case PIPE_SHADER_CAP_INT16:
-      case PIPE_SHADER_CAP_GLSL_16BIT_CONSTS:
-      case PIPE_SHADER_CAP_TGSI_ANY_INOUT_DECL_RANGE:
-      case PIPE_SHADER_CAP_MAX_SHADER_BUFFERS:
-      case PIPE_SHADER_CAP_MAX_SHADER_IMAGES:
-      case PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTERS:
-      case PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTER_BUFFERS:
-         return 0;
-      case PIPE_SHADER_CAP_SUPPORTED_IRS:
-         return (1 << PIPE_SHADER_IR_NIR) | (1 << PIPE_SHADER_IR_TGSI);
-      default:
-         debug_printf("unknown vertex shader param %d\n", param);
-         return 0;
-      }
-      break;
-   case PIPE_SHADER_FRAGMENT:
-      switch (param) {
-      case PIPE_SHADER_CAP_MAX_INSTRUCTIONS:
-      case PIPE_SHADER_CAP_MAX_ALU_INSTRUCTIONS:
-      case PIPE_SHADER_CAP_MAX_TEX_INSTRUCTIONS:
-      case PIPE_SHADER_CAP_MAX_TEX_INDIRECTIONS:
-         return 4096;
-      case PIPE_SHADER_CAP_MAX_CONTROL_FLOW_DEPTH:
-         return 0;
-      case PIPE_SHADER_CAP_MAX_INPUTS:
-         return 8; /* should be possible to do 10 with nv4x */
-      case PIPE_SHADER_CAP_MAX_OUTPUTS:
-         return 4;
-      case PIPE_SHADER_CAP_MAX_CONST_BUFFER0_SIZE:
-         return ((eng3d->oclass >= NV40_3D_CLASS) ? 224 : 32) * sizeof(float[4]);
-      case PIPE_SHADER_CAP_MAX_CONST_BUFFERS:
-         return 1;
-      case PIPE_SHADER_CAP_MAX_TEMPS:
-         return 32;
-      case PIPE_SHADER_CAP_MAX_TEXTURE_SAMPLERS:
-      case PIPE_SHADER_CAP_MAX_SAMPLER_VIEWS:
-         return 16;
-      case PIPE_SHADER_CAP_CONT_SUPPORTED:
-      case PIPE_SHADER_CAP_TGSI_SQRT_SUPPORTED:
-      case PIPE_SHADER_CAP_INDIRECT_TEMP_ADDR:
-      case PIPE_SHADER_CAP_INDIRECT_CONST_ADDR:
-      case PIPE_SHADER_CAP_SUBROUTINES:
-      case PIPE_SHADER_CAP_INTEGERS:
-      case PIPE_SHADER_CAP_FP16:
-      case PIPE_SHADER_CAP_FP16_DERIVATIVES:
-      case PIPE_SHADER_CAP_FP16_CONST_BUFFERS:
-      case PIPE_SHADER_CAP_INT16:
-      case PIPE_SHADER_CAP_GLSL_16BIT_CONSTS:
-      case PIPE_SHADER_CAP_TGSI_ANY_INOUT_DECL_RANGE:
-      case PIPE_SHADER_CAP_MAX_SHADER_BUFFERS:
-      case PIPE_SHADER_CAP_MAX_SHADER_IMAGES:
-      case PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTERS:
-      case PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTER_BUFFERS:
-         return 0;
-      case PIPE_SHADER_CAP_SUPPORTED_IRS:
-         return (1 << PIPE_SHADER_IR_NIR) | (1 << PIPE_SHADER_IR_TGSI);
-      default:
-         debug_printf("unknown fragment shader param %d\n", param);
-         return 0;
-      }
-      break;
-   default:
-      return 0;
-   }
+   struct pipe_shader_caps *caps =
+      (struct pipe_shader_caps *)&screen->base.base.shader_caps[PIPE_SHADER_VERTEX];
+
+   caps->max_instructions =
+   caps->max_alu_instructions = (eng3d->oclass >= NV40_3D_CLASS) ? 512 : 256;
+   caps->max_tex_instructions =
+   caps->max_tex_indirections = (eng3d->oclass >= NV40_3D_CLASS) ? 512 : 0;
+   caps->max_inputs =
+   caps->max_outputs = 16;
+   caps->max_const_buffer0_size =
+      ((eng3d->oclass >= NV40_3D_CLASS) ? (468 - 6): (256 - 6)) * sizeof(float[4]);
+   caps->max_const_buffers = 1;
+   caps->max_temps = (eng3d->oclass >= NV40_3D_CLASS) ? 32 : 13;
+   caps->supported_irs = (1 << PIPE_SHADER_IR_NIR) | (1 << PIPE_SHADER_IR_TGSI);
+
+   caps = (struct pipe_shader_caps *)&screen->base.base.shader_caps[PIPE_SHADER_FRAGMENT];
+
+   caps->max_instructions =
+   caps->max_alu_instructions =
+   caps->max_tex_instructions =
+   caps->max_tex_indirections = 4096;
+   caps->max_inputs = 8; /* should be possible to do 10 with nv4x */
+   caps->max_outputs = 4;
+   caps->max_const_buffer0_size =
+      ((eng3d->oclass >= NV40_3D_CLASS) ? 224 : 32) * sizeof(float[4]);
+   caps->max_const_buffers = 1;
+   caps->max_temps = 32;
+   caps->max_texture_samplers =
+   caps->max_sampler_views = 16;
+   caps->supported_irs = (1 << PIPE_SHADER_IR_NIR) | (1 << PIPE_SHADER_IR_TGSI);
 }
 
 static void
@@ -297,7 +227,6 @@ nv30_init_screen_caps(struct nv30_screen *screen)
    caps->cull_distance = false;
    caps->shader_group_vote = false;
    caps->max_window_rectangles = 0;
-   caps->polygon_offset_units_unscaled = false;
    caps->viewport_subpixel_bits = 0;
    caps->mixed_color_depth_bits = 0;
    caps->shader_array_components = false;
@@ -335,7 +264,6 @@ nv30_init_screen_caps(struct nv30_screen *screen)
    caps->max_conservative_raster_subpixel_precision_bias = false;
    caps->programmable_sample_locations = false;
    caps->image_load_formatted = false;
-   caps->tgsi_div = false;
    caps->image_atomic_inc_wrap = false;
    caps->image_store_formatted = false;
 
@@ -575,7 +503,6 @@ nv30_screen_create(struct nouveau_device *dev)
    if (screen->max_sample_count > 4)
       screen->max_sample_count = 4;
 
-   pscreen->get_shader_param = nv30_screen_get_shader_param;
    pscreen->context_create = nv30_context_create;
    pscreen->is_format_supported = nv30_screen_is_format_supported;
    pscreen->get_compiler_options = nv30_screen_get_compiler_options;
@@ -670,6 +597,7 @@ nv30_screen_create(struct nouveau_device *dev)
    if (ret)
       FAIL_SCREEN_INIT("error allocating 3d object: %d\n", ret);
 
+   nv30_init_shader_caps(screen);
    nv30_init_screen_caps(screen);
 
    BEGIN_NV04(push, NV01_SUBC(3D, OBJECT), 1);

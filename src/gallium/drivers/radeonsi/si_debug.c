@@ -68,7 +68,7 @@ oom:
    memset(saved, 0, sizeof(*saved));
 }
 
-void si_clear_saved_cs(struct radeon_saved_cs *saved)
+static void si_clear_saved_cs(struct radeon_saved_cs *saved)
 {
    FREE(saved->ib);
    FREE(saved->bo_list);
@@ -602,17 +602,17 @@ static void si_dump_framebuffer(struct si_context *sctx, struct u_log_context *l
    int i;
 
    for (i = 0; i < state->nr_cbufs; i++) {
-      if (!state->cbufs[i])
+      if (!state->cbufs[i].texture)
          continue;
 
-      tex = (struct si_texture *)state->cbufs[i]->texture;
+      tex = (struct si_texture *)state->cbufs[i].texture;
       u_log_printf(log, COLOR_YELLOW "Color buffer %i:" COLOR_RESET "\n", i);
       si_print_texture_info(sctx->screen, tex, log);
       u_log_printf(log, "\n");
    }
 
-   if (state->zsbuf) {
-      tex = (struct si_texture *)state->zsbuf->texture;
+   if (state->zsbuf.texture) {
+      tex = (struct si_texture *)state->zsbuf.texture;
       u_log_printf(log, COLOR_YELLOW "Depth-stencil buffer:" COLOR_RESET "\n");
       si_print_texture_info(sctx->screen, tex, log);
       u_log_printf(log, "\n");
@@ -775,10 +775,10 @@ static void si_dump_descriptors(struct si_context *sctx, gl_shader_stage stage,
    unsigned enabled_images;
 
    if (info) {
-      enabled_constbuf = u_bit_consecutive(0, info->base.num_ubos);
-      enabled_shaderbuf = u_bit_consecutive(0, info->base.num_ssbos);
-      enabled_samplers = info->base.textures_used[0];
-      enabled_images = u_bit_consecutive(0, info->base.num_images);
+      enabled_constbuf = BITFIELD_MASK(info->base.num_ubos);
+      enabled_shaderbuf = BITFIELD_MASK(info->base.num_ssbos);
+      enabled_samplers = info->base.textures_used;
+      enabled_images = BITFIELD_MASK(info->base.num_images);
    } else {
       enabled_constbuf =
          sctx->const_and_shader_buffers[stage].enabled_mask >> SI_NUM_SHADER_BUFFERS;

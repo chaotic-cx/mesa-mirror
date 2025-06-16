@@ -16,6 +16,9 @@
 #include "tu_device.h"
 #include "tu_image.h"
 
+#define XXH_INLINE_ALL
+#include "util/xxhash.h"
+
 static void
 tu_render_pass_add_subpass_dep(struct tu_render_pass *pass,
                                const VkSubpassDependency2 *dep)
@@ -45,6 +48,15 @@ tu_render_pass_add_subpass_dep(struct tu_render_pass *pass,
    VkAccessFlags2 src_access_mask = barrier ? barrier->srcAccessMask : dep->srcAccessMask;
    VkPipelineStageFlags2 dst_stage_mask = barrier ? barrier->dstStageMask : dep->dstStageMask;
    VkAccessFlags2 dst_access_mask = barrier ? barrier->dstAccessMask : dep->dstAccessMask;
+   VkAccessFlags3KHR src_access_mask2 = 0, dst_access_mask2 = 0;
+   if (barrier) {
+      const VkMemoryBarrierAccessFlags3KHR *access3 =
+         vk_find_struct_const(dep->pNext, MEMORY_BARRIER_ACCESS_FLAGS_3_KHR);
+      if (access3) {
+         src_access_mask2 = access3->srcAccessMask3;
+         dst_access_mask2 = access3->dstAccessMask3;
+      }
+   }
 
    /* We can conceptually break down the process of rewriting a sysmem
     * renderpass into a gmem one into two parts:
@@ -86,6 +98,8 @@ tu_render_pass_add_subpass_dep(struct tu_render_pass *pass,
    dst_barrier->dst_stage_mask |= dst_stage_mask;
    dst_barrier->src_access_mask |= src_access_mask;
    dst_barrier->dst_access_mask |= dst_access_mask;
+   dst_barrier->src_access_mask2 |= src_access_mask2;
+   dst_barrier->dst_access_mask2 |= dst_access_mask2;
 }
 
 /* We currently only care about undefined layouts, because we have to
@@ -500,7 +514,7 @@ tu_render_pass_calc_views(struct tu_render_pass *pass)
  * sense. Just disable fragment_density_map in this case.
  */
 static bool
-tu_render_pass_disable_fdm(struct tu_render_pass *pass)
+tu_render_pass_disable_fdm(struct tu_device *dev, struct tu_render_pass *pass)
 {
    for (uint32_t i = 0; i < pass->attachment_count; i++) {
       struct tu_render_pass_attachment *att = &pass->attachments[i];
@@ -508,6 +522,8 @@ tu_render_pass_disable_fdm(struct tu_render_pass *pass)
       if (att->samples > 1 &&
           (att->load || att->load_stencil ||
            att->store || att->store_stencil)) {
+         perf_debug(dev, "Disabling fragment density map due to %s of multisample attachment",
+                    (att->load || att->load_stencil) ? "load" : "store");
          return true;
       }
    }
@@ -896,7 +912,7 @@ tu_CreateRenderPass2(VkDevice _device,
    const VkRenderPassFragmentDensityMapCreateInfoEXT *fdm_info =
       vk_find_struct_const(pCreateInfo->pNext,
                            RENDER_PASS_FRAGMENT_DENSITY_MAP_CREATE_INFO_EXT);
-   if (fdm_info && !tu_render_pass_disable_fdm(pass)) {
+   if (fdm_info && !tu_render_pass_disable_fdm(device, pass)) {
       pass->fragment_density_map.attachment =
          fdm_info->fragmentDensityMapAttachment.attachment;
       pass->has_fdm = true;
@@ -904,7 +920,7 @@ tu_CreateRenderPass2(VkDevice _device,
       pass->fragment_density_map.attachment = VK_ATTACHMENT_UNUSED;
    }
 
-   if (TU_DEBUG(FDM) && !tu_render_pass_disable_fdm(pass))
+   if (TU_DEBUG(FDM) && !tu_render_pass_disable_fdm(device, pass))
       pass->has_fdm = true;
 
    p = pass->subpass_attachments;
@@ -1232,7 +1248,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
       vk_find_struct_const(info->pNext,
                            RENDERING_FRAGMENT_DENSITY_MAP_ATTACHMENT_INFO_EXT);
    if (fdm_info && fdm_info->imageView != VK_NULL_HANDLE &&
-       !tu_render_pass_disable_fdm(pass)) {
+       !tu_render_pass_disable_fdm(device, pass)) {
       VK_FROM_HANDLE(tu_image_view, view, fdm_info->imageView);
 
       struct tu_render_pass_attachment *att = &pass->attachments[a];
@@ -1268,7 +1284,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
       subpass->fsr_attachment = VK_ATTACHMENT_UNUSED;
    }
 
-   if (TU_DEBUG(FDM) && !tu_render_pass_disable_fdm(pass))
+   if (TU_DEBUG(FDM) && !tu_render_pass_disable_fdm(device, pass))
       pass->has_fdm = true;
 
    pass->attachment_count = a;

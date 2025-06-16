@@ -97,7 +97,7 @@ lower_discard(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *data)
       killed_samples = nir_bcsel(b, intr->src[0].ssa, all_samples, no_samples);
 
    /* This will get lowered later as needed */
-   nir_discard_agx(b, killed_samples);
+   nir_demote_samples(b, killed_samples);
    nir_instr_remove(&intr->instr);
    return true;
 }
@@ -129,13 +129,7 @@ agx_nir_lower_zs_emit(nir_shader *s)
          progress |= lower_zs_emit(block, s->info.fs.early_fragment_tests);
       }
 
-      if (progress) {
-         nir_metadata_preserve(impl, nir_metadata_control_flow);
-      } else {
-         nir_metadata_preserve(impl, nir_metadata_all);
-      }
-
-      any_progress |= progress;
+      any_progress |= nir_progress(progress, impl, nir_metadata_control_flow);
    }
 
    return any_progress;

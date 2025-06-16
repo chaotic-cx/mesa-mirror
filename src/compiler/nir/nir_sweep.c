@@ -21,6 +21,7 @@
  * IN THE SOFTWARE.
  */
 
+#include "util/u_printf.h"
 #include "nir.h"
 
 /**
@@ -47,17 +48,14 @@ sweep_block(nir_shader *nir, nir_block *block)
 {
    ralloc_steal(nir, block);
 
-   /* sweep_impl will mark all metadata invalid.  We can safely release all of
-    * this here.
-    */
-   ralloc_free(block->live_in);
-   block->live_in = NULL;
-
-   ralloc_free(block->live_out);
-   block->live_out = NULL;
-
    nir_foreach_instr(instr, block) {
-      gc_mark_live(nir->gctx, instr);
+      gc_mark_live(nir->gctx, nir_instr_get_gc_pointer(instr));
+
+      if (instr->has_debug_info) {
+         nir_instr_debug_info *debug_info = nir_instr_get_debug_info(instr);
+         ralloc_steal(nir, debug_info->filename);
+         ralloc_steal(nir, debug_info->variable_name);
+      }
 
       switch (instr->type) {
       case nir_instr_type_tex:
@@ -68,7 +66,7 @@ sweep_block(nir_shader *nir, nir_block *block)
             gc_mark_live(nir->gctx, src);
          break;
       case nir_instr_type_intrinsic:
-         ralloc_steal(nir, (void*)nir_instr_as_intrinsic(instr)->name);
+         ralloc_steal(nir, (void *)nir_instr_as_intrinsic(instr)->name);
          break;
       default:
          break;
@@ -133,7 +131,7 @@ sweep_impl(nir_shader *nir, nir_function_impl *impl)
    sweep_block(nir, impl->end_block);
 
    /* Wipe out all the metadata, if any. */
-   nir_metadata_preserve(impl, nir_metadata_none);
+   nir_progress(true, impl, nir_metadata_none);
 }
 
 static void
@@ -141,6 +139,9 @@ sweep_function(nir_shader *nir, nir_function *f)
 {
    ralloc_steal(nir, f);
    ralloc_steal(nir, f->params);
+
+   for (unsigned i = 0; i < f->num_params; i++)
+      ralloc_steal(nir, (char *)f->params[i].name);
 
    if (f->impl)
       sweep_impl(nir, f->impl);

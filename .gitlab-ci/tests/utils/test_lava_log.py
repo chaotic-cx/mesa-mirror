@@ -8,6 +8,7 @@
 from datetime import UTC, datetime, timedelta
 
 import pytest
+
 from lava.exceptions import MesaCIKnownIssueException, MesaCITimeoutError
 from lava.utils import (
     GitlabSection,
@@ -23,7 +24,6 @@ from lava.utils.constants import (
     A6XX_GPU_RECOVERY_FAILURE_MAX_COUNT,
 )
 from lava.utils.lava_log_hints import LAVALogHints
-
 from ..lava.helpers import (
     create_lava_yaml_msg,
     does_not_raise,
@@ -36,12 +36,14 @@ GITLAB_SECTION_SCENARIOS = {
     "start collapsed": (
         "start",
         True,
-        f"\x1b[0Ksection_start:mock_date:my_first_section[collapsed=true]\r\x1b[0K{GitlabSection.colour}my_header\x1b[0m",
+        f"\x1b[0Ksection_start:mock_date:my_first_section[collapsed=true]\r\x1b[0K"
+        f"{GitlabSection.colour}my_header\x1b[0m",
     ),
     "start non_collapsed": (
         "start",
         False,
-        f"\x1b[0Ksection_start:mock_date:my_first_section\r\x1b[0K{GitlabSection.colour}my_header\x1b[0m",
+        f"\x1b[0Ksection_start:mock_date:my_first_section\r\x1b[0K"
+        f"{GitlabSection.colour}my_header\x1b[0m",
     ),
     "end collapsed": (
         "end",
@@ -55,6 +57,7 @@ GITLAB_SECTION_SCENARIOS = {
     ),
 }
 
+
 @pytest.mark.parametrize(
     "method, collapsed, expectation",
     GITLAB_SECTION_SCENARIOS.values(),
@@ -67,7 +70,7 @@ def test_gitlab_section(method, collapsed, expectation):
         type=LogSectionType.TEST_CASE,
         start_collapsed=collapsed,
     )
-    gs.get_timestamp = lambda x: "mock_date"
+    gs.get_timestamp = lambda mock_date: "mock_date"
     gs.start()
     result = getattr(gs, method)()
     assert result == expectation
@@ -118,19 +121,15 @@ def test_gl_sections():
     section_types = [s.type for s in lf.section_history]
 
     assert "section_start" in parsed_lines[0]
-    assert "collapsed=true" not in parsed_lines[0]
+    assert "collapsed=true" in parsed_lines[0]
     assert "section_end" in parsed_lines[1]
     assert "section_start" in parsed_lines[2]
-    assert "collapsed=true" not in parsed_lines[2]
+    assert "collapsed=true" in parsed_lines[2]
     assert "section_end" in parsed_lines[3]
     assert "section_start" in parsed_lines[4]
-    assert "collapsed=true" not in parsed_lines[4]
-    assert "section_end" in parsed_lines[5]
-    assert "section_start" in parsed_lines[6]
-    assert "collapsed=true" in parsed_lines[6]
+    assert "collapsed=true" in parsed_lines[4]
     assert section_types == [
         # LogSectionType.LAVA_BOOT,  True, if LogFollower started with Boot section
-        LogSectionType.TEST_DUT_SUITE,
         LogSectionType.TEST_SUITE,
         LogSectionType.TEST_CASE,
         LogSectionType.LAVA_POST_PROCESSING,
@@ -196,7 +195,8 @@ def test_hide_sensitive_data(input, expectation, tags):
 
 GITLAB_SECTION_SPLIT_SCENARIOS = {
     "Split section_start at target level": (
-        "\x1b[0Ksection_start:1668454947:test_post_process[collapsed=true]\r\x1b[0Kpost-processing test results",
+        "\x1b[0Ksection_start:1668454947:test_post_process[collapsed=true]\r\x1b[0K"
+        "post-processing test results",
         (
             "\x1b[0Ksection_start:1668454947:test_post_process[collapsed=true]",
             "\x1b[0Kpost-processing test results",
@@ -251,7 +251,8 @@ def test_lava_gitlab_section_log_collabora(expected_message, messages, monkeypat
 CARRIAGE_RETURN_SCENARIOS = {
     "Carriage return at the end of the previous line": (
         (
-            "\x1b[0Ksection_start:1677609903:test_setup[collapsed=true]\r\x1b[0K\x1b[0;36m[303:44] deqp: preparing test setup\x1b[0m",
+            "\x1b[0Ksection_start:1677609903:test_setup[collapsed=true]\r\x1b[0K\x1b[0;36m[303:44] "
+            "deqp: preparing test setup\x1b[0m",
         ),
         (
             "\x1b[0Ksection_start:1677609903:test_setup[collapsed=true]\r",
@@ -397,6 +398,7 @@ def test_detect_failure(messages, expectation):
     with expectation:
         lf.feed(messages)
 
+
 def test_detect_a6xx_gpu_recovery_failure(frozen_time):
     log_follower = LogFollower()
     lava_log_hints = LAVALogHints(log_follower=log_follower)
@@ -411,6 +413,7 @@ def test_detect_a6xx_gpu_recovery_failure(frozen_time):
             # Simulate the passage of time within the watch period
             frozen_time.tick(1)
             failure_message["dt"] = datetime.now(tz=UTC).isoformat()
+
 
 def test_detect_a6xx_gpu_recovery_success(frozen_time):
     log_follower = LogFollower()
@@ -435,5 +438,65 @@ def test_detect_a6xx_gpu_recovery_success(frozen_time):
     }
     with does_not_raise():
         lava_log_hints.detect_a6xx_gpu_recovery_failure(failure_message)
-    assert lava_log_hints.a6xx_gpu_first_fail_time is None, "a6xx_gpu_first_fail_time is not None"
-    assert lava_log_hints.a6xx_gpu_recovery_fail_counter == 0, "a6xx_gpu_recovery_fail_counter is not 0"
+    assert lava_log_hints.a6xx_gpu_first_fail_time is None, (
+        "a6xx_gpu_first_fail_time is not None"
+    )
+    assert lava_log_hints.a6xx_gpu_recovery_fail_counter == 0, (
+        "a6xx_gpu_recovery_fail_counter is not 0"
+    )
+
+
+@pytest.mark.parametrize(
+    "start_offset",
+    [
+        timedelta(hours=0),
+        timedelta(hours=1),
+    ],
+    ids=["equal timestamps", "negative delta"],
+)
+def test_gitlab_section_relative_time_clamping(start_offset):
+    """Test that delta time is clamped to zero if start_time <= timestamp_relative_to."""
+    now = datetime.now(tz=UTC)
+    timestamp_relative_to = now + start_offset
+    gs = GitlabSection(
+        id="clamp_section",
+        header=f"clamp_section header {start_offset}",
+        type=LogSectionType.TEST_CASE,
+        timestamp_relative_to=timestamp_relative_to,
+    )
+    gs.start()
+    output = gs.print_start_section()
+    assert "[00:00]" in output, f"Expected clamped relative time, got: {output}"
+
+
+@pytest.mark.parametrize(
+    "delta_seconds,expected_seconds",
+    [
+        (-5, 0),  # Negative delta should be clamped to 0
+        (0, 0),  # Zero delta should remain 0
+        (5, 5),  # Positive delta should remain unchanged
+    ],
+    ids=["negative delta", "zero delta", "positive delta"],
+)
+def test_gitlab_section_delta_time(frozen_time, delta_seconds, expected_seconds):
+    """Test that delta_time() properly clamps negative deltas to zero."""
+    gs = GitlabSection(
+        id="delta_section",
+        header=f"delta_section header {delta_seconds}",
+        type=LogSectionType.TEST_CASE,
+    )
+
+    with gs:
+        frozen_time.tick(delta_seconds)
+
+    # Test internal _delta_time() returns exact delta
+    internal_delta = gs._delta_time()
+    assert internal_delta == timedelta(seconds=delta_seconds), (
+        f"_delta_time() returned {internal_delta}, expected {timedelta(seconds=delta_seconds)}"
+    )
+
+    # Test public delta_time() returns clamped delta
+    clamped_delta = gs.delta_time()
+    assert clamped_delta == timedelta(seconds=expected_seconds), (
+        f"delta_time() returned {clamped_delta}, expected {timedelta(seconds=expected_seconds)}"
+    )

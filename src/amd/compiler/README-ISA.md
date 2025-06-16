@@ -56,6 +56,13 @@ The correct description of `v_alignbyte_b32` is probably the following:
 D.u = ({S0, S1} >> (8 * S2.u[1:0])) & 0xffffffff
 ```
 
+## `v_cvt_pk_u8_f32`
+
+All versions of the ISA document fail to mention two things:
+- the conversion saturates instead of truncating like the `& 255` implies
+- the conversion uses the single precision rounding mode instead of always rounding
+  towards zero like every other floating point to integer conversion
+
 ## SMEM stores
 
 The Vega ISA references doesn't say this (or doesn't make it clear), but
@@ -376,8 +383,31 @@ A va_vdst=0 wait: `s_waitcnt_deptr 0x0fff`
 ### VALUMaskWriteHazard
 
 Triggered by:
-SALU writing then SALU or VALU reading a SGPR that was previously used as a lane mask for a VALU.
+SALU or VALU writing then SALU or VALU reading a SGPR that was previously used as a lane mask for a
+VALU when using wave64.
 
 Mitigated by:
-A VALU instruction reading a non-exec SGPR before the SALU write, or a sa_sdst=0 wait after the
-SALU write: `s_waitcnt_depctr 0xfffe`
+A VALU instruction reading a non-exec SGPR before the SGPR write, or a wait after the
+write: `s_waitcnt_depctr 0xfffe` for SALU, `s_waitcnt_depctr 0xf1ff` for non-VCC VALU and
+`s_waitcnt_depctr 0xfffd` for VCC VALU.
+
+## RDNA4 / GFX12 hazards
+
+### VcmpxPermlaneHazard
+
+Same as GFX10
+
+### LdsDirectVALUHazard
+### LdsDirectVMEMHazard
+
+Same as GFX11
+
+### VALUReadSGPRHazard
+
+Triggered by:
+VALU reads an SGPR, then written by SALU cannot safely be read by SALU or VALU, or
+VALU reads an SGPR, then written by VALU cannot safely be read by VALU.
+
+Mitigated by:
+After the SALU write a sa_sdst=0 wait. After the VALU write a va_sdst=0 / va_vcc=0 wait.
+It does not reset the first step.

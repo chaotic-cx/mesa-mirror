@@ -8,6 +8,7 @@
 #include "ac_nir.h"
 #include "ac_nir_helpers.h"
 #include "nir_builder.h"
+#include "nir_tcs_info.h"
 #include "util/u_math.h"
 
 /*
@@ -75,28 +76,31 @@
  * ### VRAM layout used by TCS-TES I/O:
  *
  * ```
- * attr 0 of patch 0 vertex 0   <─── "off-chip LDS" offset
+ * attr 0 of patch 0 vertex 0   <─── "off-chip LDS" offset, aligned to >= 4K
  * attr 0 of patch 0 vertex 1
  * attr 0 of patch 0 vertex 2
  * ...
  * attr 0 of patch 1 vertex 0
  * attr 0 of patch 1 vertex 1
- * attr 0 of patch 1 vertex 2   <─── hs_per_vertex_output_vmem_offset (attribute slot = 0, rel_patch_id = 1, vertex index = 1)
+ * attr 0 of patch 1 vertex 2   <─── hs_per_vertex_output_vmem_offset (attribute slot = 0, rel_patch_id = 1, vertex index = 2)
  * ...
  * attr 0 of patch 2 vertex 0
  * attr 0 of patch 2 vertex 1
  * attr 0 of patch 2 vertex 2
  * ...
- * attr 1 of patch 0 vertex 0
+ * [pad to 256B]
+ * attr 1 of patch 0 vertex 0   <─── aligned to 256B
  * attr 1 of patch 0 vertex 1
  * attr 1 of patch 0 vertex 2
  * ...
  * ...
- * per-patch attr 0 of patch 0  <─── hs_out_patch_data_offset_amd
+ * [pad to 256B]
+ * per-patch attr 0 of patch 0  <─── hs_out_patch_data_offset_amd, aligned to 256B
  * per-patch attr 0 of patch 1
  * per-patch attr 0 of patch 2  <─── hs_per_patch_output_vmem_offset (attribute slot = 0, rel_patch_id = 2)
  * ...
- * per-patch attr 1 of patch 0
+ * [pad to 256B]
+ * per-patch attr 1 of patch 0  <─── aligned to 256B
  * per-patch attr 1 of patch 1
  * per-patch attr 1 of patch 2
  * ...
@@ -108,6 +112,7 @@ typedef struct {
    /* Which hardware generation we're dealing with */
    enum amd_gfx_level gfx_level;
    nir_tcs_info tcs_info;
+   ac_nir_tess_io_info io_info;
 
    /* I/O semantic -> real location used by lowering. */
    ac_nir_map_io_driver_location map_io;
@@ -134,22 +139,30 @@ typedef struct {
     */
    uint64_t tcs_inputs_via_lds;
 
-   /* Bit mask of TCS outputs read by TES. */
-   uint64_t tes_inputs_read;
-   uint32_t tes_patch_inputs_read;
-
    /* True if the output patch fits the subgroup, so all TCS outputs are always written in the same
     * subgroup that reads them.
     */
    bool tcs_out_patch_fits_subgroup;
 
-   /* Save TCS tess factor for tess factor writer. */
-   nir_variable *tcs_tess_level_outer;
-   nir_variable *tcs_tess_level_inner;
-   unsigned tcs_tess_level_outer_base;
-   unsigned tcs_tess_level_outer_mask;
-   unsigned tcs_tess_level_inner_base;
-   unsigned tcs_tess_level_inner_mask;
+   /* TCS output values, 8 channels per slot. The last 4 channels are high 16 bits of the first 4 channels.
+    * Output values that are not stored with cross-invocation access and indirect indexing are stored here.
+    * Output values stored with cross-invocation access or indirect indexing are stored in LDS.
+    * All outputs are loaded from LDS or VGPRs and written to memory at the end of the shader.
+    */
+   nir_variable *tcs_per_vertex_outputs[VARYING_SLOT_MAX][8];
+   /* Max. 4 channels, always 32 bits per channel. */
+   uint8_t tcs_per_vertex_output_vmem_chan_mask[VARYING_SLOT_MAX];
+
+   /* Same, but for tess levels. LDS isn't used if only invocation 0 writes and reads tess levels or
+    * if all invocations write tess levels.
+    */
+   nir_variable *tcs_tess_level[2]; /* outer, inner */
+   /* We can't use uint8_t due to a buggy gcc warning. */
+   uint16_t tcs_tess_level_chan_mask[2]; /* outer, inner */
+
+   /* Same, but for per-patch outputs. */
+   nir_variable *tcs_per_patch_outputs[MAX_VARYING][8];
+   uint8_t tcs_per_patch_output_vmem_chan_mask[MAX_VARYING];
 } lower_tess_io_state;
 
 typedef struct {
@@ -159,22 +172,100 @@ typedef struct {
 
 #define TESS_LVL_MASK (VARYING_BIT_TESS_LEVEL_OUTER | VARYING_BIT_TESS_LEVEL_INNER)
 
-static uint64_t
-tcs_vram_per_vtx_out_mask(nir_shader *shader, lower_tess_io_state *st)
+void
+ac_nir_get_tess_io_info(const nir_shader *tcs, const nir_tcs_info *tcs_info, uint64_t tes_inputs_read,
+                        uint32_t tes_patch_inputs_read, ac_nir_map_io_driver_location map_io,
+                        bool remapped_outputs_include_tess_levels, ac_nir_tess_io_info *io_info)
 {
-   return st->tes_inputs_read & ~TESS_LVL_MASK;
-}
+   io_info->vram_output_mask = tcs->info.tess.tcs_outputs_read_by_tes & tes_inputs_read;
+   io_info->vram_patch_output_mask = tcs->info.tess.tcs_patch_outputs_read_by_tes & tes_patch_inputs_read;
 
-static uint32_t
-tcs_vram_tf_out_mask(nir_shader *shader, lower_tess_io_state *st)
-{
-   return st->tes_inputs_read & TESS_LVL_MASK;
-}
+   /* These shouldn't occur in TCS. */
+   io_info->vram_output_mask &= ~(VARYING_BIT_LAYER | VARYING_BIT_VIEWPORT |
+                                  VARYING_BIT_PRIMITIVE_ID | VARYING_BIT_PRIMITIVE_SHADING_RATE);
 
-static uint32_t
-tcs_vram_per_patch_out_mask(nir_shader *shader, lower_tess_io_state *st)
-{
-   return st->tes_patch_inputs_read;
+   /* Convert tess levels from 2-bit masks to 32-bit varying slot masks. */
+   uint32_t tess_levels_defined_by_all_invoc =
+      (uint32_t)tcs_info->tess_levels_defined_by_all_invoc << VARYING_SLOT_TESS_LEVEL_OUTER;
+   uint32_t tess_levels_only_written_by_invoc0 =
+      (uint32_t)tcs_info->tess_levels_only_written_by_invoc0 << VARYING_SLOT_TESS_LEVEL_OUTER;
+   uint32_t tess_levels_only_read_by_invoc0 =
+      (uint32_t)tcs_info->tess_levels_only_read_by_invoc0 << VARYING_SLOT_TESS_LEVEL_OUTER;
+
+   /* Per-patch outputs and tess levels don't need LDS if:
+    * - There is no indirect indexing
+    * AND
+    *    - only written by invocation 0 and never read or only read by invocation 0
+    *      (always true when the number of output patch vertices is 1)
+    *    OR
+    *    - written by all invocations in all execution paths (so that output reads can always
+    *      return values from VGPRs instead of LDS)
+    */
+   uint32_t tess_levels_written = tcs->info.outputs_written & TESS_LVL_MASK;
+   uint32_t tess_levels_dont_need_lds =
+      tess_levels_written & ~tcs->info.outputs_read_indirectly & ~tcs->info.outputs_written_indirectly &
+      ((tess_levels_only_written_by_invoc0 & ~tcs->info.outputs_read) |
+       (tess_levels_only_written_by_invoc0 & tess_levels_only_read_by_invoc0) |
+       tess_levels_defined_by_all_invoc);
+
+   uint32_t patch_outputs_dont_need_lds =
+      tcs->info.patch_outputs_written & ~tcs->info.patch_outputs_read_indirectly &
+      ~tcs->info.patch_outputs_written_indirectly &
+      ((tcs_info->patch_outputs_only_written_by_invoc0 & ~tcs->info.patch_outputs_read) |
+       (tcs_info->patch_outputs_only_written_by_invoc0 & tcs_info->patch_outputs_only_read_by_invoc0) |
+       tcs_info->patch_outputs_defined_by_all_invoc);
+
+   /* Determine which outputs use LDS. */
+   io_info->lds_output_mask = (((tcs->info.outputs_read & tcs->info.outputs_written) |
+                                tcs->info.tess.tcs_cross_invocation_outputs_written |
+                                tcs->info.outputs_written_indirectly) & ~TESS_LVL_MASK) |
+                              (tess_levels_written & ~tess_levels_dont_need_lds);
+   io_info->lds_patch_output_mask = tcs->info.patch_outputs_written & ~patch_outputs_dont_need_lds;
+
+   /* Determine which outputs hold their values in VGPRs. */
+   io_info->vgpr_output_mask = (tcs->info.outputs_written &
+                                ~(tcs->info.tess.tcs_cross_invocation_outputs_written |
+                                  tcs->info.outputs_written_indirectly) & ~TESS_LVL_MASK) |
+                               (tess_levels_written &
+                                (tess_levels_defined_by_all_invoc | tess_levels_only_written_by_invoc0));
+   io_info->vgpr_patch_output_mask = tcs->info.patch_outputs_written &
+                                     ~tcs->info.patch_outputs_written_indirectly &
+                                     (tcs_info->patch_outputs_defined_by_all_invoc |
+                                      tcs_info->patch_outputs_only_written_by_invoc0);
+
+   /* Each output must have at least 1 bit in vgpr_output_mask or lds_output_mask or both. */
+   assert(tcs->info.outputs_written == (io_info->vgpr_output_mask | io_info->lds_output_mask));
+   assert(tcs->info.patch_outputs_written == (io_info->vgpr_patch_output_mask | io_info->lds_patch_output_mask));
+
+   io_info->highest_remapped_vram_output = 0;
+   io_info->highest_remapped_vram_patch_output = 0;
+
+   if (map_io) {
+      u_foreach_bit64(i, io_info->vram_output_mask & ~TESS_LVL_MASK) {
+         unsigned index = map_io(i);
+         io_info->highest_remapped_vram_output = MAX2(io_info->highest_remapped_vram_output, index + 1);
+      }
+
+      u_foreach_bit(i, io_info->vram_patch_output_mask) {
+         unsigned index = map_io(VARYING_SLOT_PATCH0 + i);
+         io_info->highest_remapped_vram_patch_output = MAX2(io_info->highest_remapped_vram_patch_output, index + 1);
+      }
+
+      if (remapped_outputs_include_tess_levels) {
+         u_foreach_bit64(i, io_info->vram_output_mask & TESS_LVL_MASK) {
+            unsigned index = map_io(i);
+            io_info->highest_remapped_vram_patch_output = MAX2(io_info->highest_remapped_vram_patch_output, index + 1);
+         }
+      }
+   } else {
+      io_info->highest_remapped_vram_output = util_bitcount64(io_info->vram_output_mask & ~TESS_LVL_MASK);
+      io_info->highest_remapped_vram_patch_output = util_bitcount(io_info->vram_patch_output_mask);
+
+      if (remapped_outputs_include_tess_levels) {
+         io_info->highest_remapped_vram_patch_output +=
+            util_bitcount64(io_info->vram_output_mask & TESS_LVL_MASK);
+      }
+   }
 }
 
 static bool
@@ -182,40 +273,17 @@ tcs_output_needs_vmem(nir_intrinsic_instr *intrin,
                       nir_shader *shader,
                       lower_tess_io_state *st)
 {
-   /* no_varying indicates that TES doesn't read the output. */
-   if (nir_intrinsic_io_semantics(intrin).no_varying)
-      return false;
-
    const unsigned loc = nir_intrinsic_io_semantics(intrin).location;
    const bool per_vertex = intrin->intrinsic == nir_intrinsic_store_per_vertex_output ||
                            intrin->intrinsic == nir_intrinsic_load_per_vertex_output;
 
    if (per_vertex) {
-      return tcs_vram_per_vtx_out_mask(shader, st) & BITFIELD64_BIT(loc);
+      return st->io_info.vram_output_mask & ~TESS_LVL_MASK & BITFIELD64_BIT(loc);
    } else if (loc == VARYING_SLOT_TESS_LEVEL_OUTER || loc == VARYING_SLOT_TESS_LEVEL_INNER) {
       return false;
    } else {
-      return tcs_vram_per_patch_out_mask(shader, st) & BITFIELD_BIT(loc - VARYING_SLOT_PATCH0);
+      return st->io_info.vram_patch_output_mask & BITFIELD_BIT(loc - VARYING_SLOT_PATCH0);
    }
-}
-
-static uint64_t
-tcs_lds_per_vtx_out_mask(nir_shader *shader)
-{
-   return shader->info.outputs_read & shader->info.outputs_written & ~TESS_LVL_MASK;
-}
-
-static uint64_t
-tcs_lds_tf_out_mask(nir_shader *shader, lower_tess_io_state *st)
-{
-   return st->tcs_info.all_invocations_define_tess_levels ?
-            0ull : (shader->info.outputs_written & TESS_LVL_MASK);
-}
-
-static uint32_t
-tcs_lds_per_patch_out_mask(nir_shader *shader)
-{
-   return shader->info.patch_outputs_read & shader->info.patch_outputs_written;
 }
 
 static bool
@@ -228,11 +296,11 @@ tcs_output_needs_lds(nir_intrinsic_instr *intrin,
                            intrin->intrinsic == nir_intrinsic_load_per_vertex_output;
 
    if (per_vertex) {
-      return tcs_lds_per_vtx_out_mask(shader) & BITFIELD64_BIT(loc);
+      return st->io_info.lds_output_mask & ~TESS_LVL_MASK & BITFIELD64_BIT(loc);
    } else if (loc == VARYING_SLOT_TESS_LEVEL_OUTER || loc == VARYING_SLOT_TESS_LEVEL_INNER) {
-      return tcs_lds_tf_out_mask(shader, st) & BITFIELD64_BIT(loc);
+      return st->io_info.lds_output_mask & TESS_LVL_MASK & BITFIELD64_BIT(loc);
    } else {
-      return tcs_lds_per_patch_out_mask(shader) & BITFIELD_BIT(loc - VARYING_SLOT_PATCH0);
+      return st->io_info.lds_patch_output_mask & BITFIELD_BIT(loc - VARYING_SLOT_PATCH0);
    }
 }
 
@@ -281,14 +349,15 @@ lower_ls_output_store(nir_builder *b,
       nir_def *base_off_var = nir_imul(b, vertex_idx, nir_load_lshs_vertex_stride_amd(b));
 
       unsigned mapped = ac_nir_map_io_location(io_sem.location, st->tcs_inputs_via_lds, st->map_io);
-      nir_def *io_off = ac_nir_calc_io_off(b, intrin, nir_imm_int(b, 16u), 4u, mapped);
+      nir_def *io_off = ac_nir_calc_io_off(b, nir_intrinsic_component(intrin),
+                                           nir_get_io_offset_src(intrin)->ssa,
+                                           nir_imm_int(b, 16u), 4u, mapped);
       unsigned write_mask = nir_intrinsic_write_mask(intrin);
 
       nir_def *off = nir_iadd_nuw(b, base_off_var, io_off);
 
-      /* The first vec4 is reserved for the tf0/1 shader message group vote. */
-      if (st->gfx_level >= GFX11)
-         off = nir_iadd_imm_nuw(b, off, AC_HS_MSG_VOTE_LDS_BYTES);
+      /* The beginning of LDS is reserved for the tess level group vote. */
+      off = nir_iadd_imm_nuw(b, off, AC_TESS_LEVEL_VOTE_LDS_BYTES);
 
       AC_NIR_STORE_IO(b, intrin->src[0].ssa, 0, write_mask, io_sem.high_16bits,
                       nir_store_shared, off, .write_mask = store_write_mask, .base = store_const_offset);
@@ -349,11 +418,13 @@ hs_per_vertex_input_lds_offset(nir_builder *b,
 
    const nir_io_semantics io_sem = nir_intrinsic_io_semantics(instr);
    const unsigned mapped = ac_nir_map_io_location(io_sem.location, st->tcs_inputs_via_lds, st->map_io);
-   nir_def *io_offset = ac_nir_calc_io_off(b, instr, nir_imm_int(b, 16u), 4u, mapped);
+   nir_def *io_offset = ac_nir_calc_io_off(b, nir_intrinsic_component(instr),
+                                           nir_get_io_offset_src(instr)->ssa,
+                                           nir_imm_int(b, 16u), 4u, mapped);
    nir_def *lds_offset = nir_iadd_nuw(b, nir_iadd_nuw(b, tcs_in_current_patch_offset, vertex_index_off), io_offset);
 
-   /* The first LDS vec4 is reserved for the tf0/1 shader message group vote. */
-   return st->gfx_level >= GFX11 ? nir_iadd_imm_nuw(b, lds_offset, AC_HS_MSG_VOTE_LDS_BYTES) : lds_offset;
+   /* The beginning of LDS is reserved for the tess level group vote. */
+   return nir_iadd_imm_nuw(b, lds_offset, AC_TESS_LEVEL_VOTE_LDS_BYTES);
 }
 
 static unsigned
@@ -363,75 +434,80 @@ hs_output_lds_map_io_location(nir_shader *shader,
                               lower_tess_io_state *st)
 {
    if (!per_vertex) {
-      const uint64_t tf_mask = tcs_lds_tf_out_mask(shader, st);
+      const uint64_t tf_mask = st->io_info.lds_output_mask & TESS_LVL_MASK;
       if (loc == VARYING_SLOT_TESS_LEVEL_INNER || loc == VARYING_SLOT_TESS_LEVEL_OUTER) {
          assert(tf_mask & BITFIELD64_BIT(loc));
          return util_bitcount64(tf_mask & BITFIELD64_MASK(loc));
       }
 
-      const uint32_t patch_out_mask = tcs_lds_per_patch_out_mask(shader);
+      const uint32_t patch_out_mask = st->io_info.lds_patch_output_mask;
       assert(patch_out_mask & BITFIELD_BIT(loc - VARYING_SLOT_PATCH0));
       return util_bitcount64(tf_mask) +
              util_bitcount(patch_out_mask & BITFIELD_MASK(loc - VARYING_SLOT_PATCH0));
    } else {
-      const uint64_t per_vertex_mask = tcs_lds_per_vtx_out_mask(shader);
+      const uint64_t per_vertex_mask = st->io_info.lds_output_mask & ~TESS_LVL_MASK;
       assert(per_vertex_mask & BITFIELD64_BIT(loc));
       return util_bitcount64(per_vertex_mask & BITFIELD64_MASK(loc));
    }
 }
 
-static nir_def *
-hs_output_lds_offset(nir_builder *b,
-                     lower_tess_io_state *st,
-                     nir_intrinsic_instr *intrin)
+static unsigned
+get_lds_output_vertex_size(const ac_nir_tess_io_info *io_info)
 {
-   bool per_vertex = intrin &&
-                     (intrin->intrinsic == nir_intrinsic_store_per_vertex_output ||
-                      intrin->intrinsic == nir_intrinsic_load_per_vertex_output);
+   return util_bitcount64(io_info->lds_output_mask & ~TESS_LVL_MASK) * 16;
+}
 
-   const uint64_t per_vertex_mask = tcs_lds_per_vtx_out_mask(b->shader);
-   const uint64_t tf_mask = tcs_lds_tf_out_mask(b->shader, st);
-   const uint32_t patch_out_mask = tcs_lds_per_patch_out_mask(b->shader);
+static unsigned
+get_lds_pervertex_output_patch_size(const ac_nir_tess_io_info *io_info, unsigned tcs_vertices_out)
+{
+   return tcs_vertices_out * get_lds_output_vertex_size(io_info);
+}
 
-   unsigned tcs_num_reserved_outputs = util_bitcount64(per_vertex_mask);
-   unsigned tcs_num_reserved_patch_outputs = util_bitcount64(tf_mask) + util_bitcount(patch_out_mask);
-   unsigned output_vertex_size = tcs_num_reserved_outputs * 16u;
-   unsigned pervertex_output_patch_size = b->shader->info.tess.tcs_vertices_out * output_vertex_size;
-   unsigned output_patch_stride = pervertex_output_patch_size + tcs_num_reserved_patch_outputs * 16u;
+static unsigned
+get_lds_output_patch_stride(const ac_nir_tess_io_info *io_info, unsigned tcs_vertices_out)
+{
+   unsigned lds_perpatch_output_patch_size = (util_bitcount64(io_info->lds_output_mask & TESS_LVL_MASK) +
+                                              util_bitcount(io_info->lds_patch_output_mask)) * 16;
+   /* Add 4 to the output patch size to minimize LDS bank conflicts. */
+   return get_lds_pervertex_output_patch_size(io_info, tcs_vertices_out) +
+          lds_perpatch_output_patch_size + 4;
+}
 
+static nir_def *
+hs_output_lds_offset(nir_builder *b, lower_tess_io_state *st, unsigned location, unsigned component,
+                     nir_def *vertex_index, nir_def *io_offset)
+{
+   unsigned tcs_vertices_out = b->shader->info.tess.tcs_vertices_out;
    nir_def *off = NULL;
 
-   if (intrin) {
-      const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
-      const unsigned mapped = hs_output_lds_map_io_location(b->shader, per_vertex, io_sem.location, st);
-      off = ac_nir_calc_io_off(b, intrin, nir_imm_int(b, 16u), 4, mapped);
+   if (io_offset) {
+      const unsigned mapped = hs_output_lds_map_io_location(b->shader, vertex_index != NULL,
+                                                            location, st);
+      off = ac_nir_calc_io_off(b, component, io_offset,
+                               nir_imm_int(b, 16u), 4, mapped);
    } else {
       off = nir_imm_int(b, 0);
    }
 
    nir_def *rel_patch_id = nir_load_tess_rel_patch_id_amd(b);
-   nir_def *patch_offset = nir_imul_imm(b, rel_patch_id, output_patch_stride);
+   nir_def *patch_offset = nir_imul_imm(b, rel_patch_id,
+                                        get_lds_output_patch_stride(&st->io_info, tcs_vertices_out));
 
    nir_def *tcs_in_vtxcnt = nir_load_patch_vertices_in(b);
    nir_def *tcs_num_patches = nir_load_tcs_num_patches_amd(b);
    nir_def *input_patch_size = nir_imul(b, tcs_in_vtxcnt, nir_load_lshs_vertex_stride_amd(b));
    nir_def *output_patch0_offset = nir_imul(b, input_patch_size, tcs_num_patches);
    nir_def *output_patch_offset = nir_iadd_nuw(b, patch_offset, output_patch0_offset);
-   nir_def *lds_offset;
 
-   if (per_vertex) {
-      nir_def *vertex_index = nir_get_io_arrayed_index_src(intrin)->ssa;
-      nir_def *vertex_index_off = nir_imul_imm(b, vertex_index, output_vertex_size);
+   if (vertex_index)
+      off = nir_iadd_nuw(b, off, nir_imul_imm(b, vertex_index, get_lds_output_vertex_size(&st->io_info)));
+   else
+      off = nir_iadd_imm_nuw(b, off, get_lds_pervertex_output_patch_size(&st->io_info, tcs_vertices_out));
 
-      off = nir_iadd_nuw(b, off, vertex_index_off);
-      lds_offset = nir_iadd_nuw(b, off, output_patch_offset);
-   } else {
-      off = nir_iadd_imm_nuw(b, off, pervertex_output_patch_size);
-      lds_offset = nir_iadd_nuw(b, off, output_patch_offset);
-   }
+   nir_def *lds_offset = nir_iadd_nuw(b, off, output_patch_offset);
 
-   /* The first LDS vec4 is reserved for the tf0/1 shader message group vote. */
-   return st->gfx_level >= GFX11 ? nir_iadd_imm_nuw(b, lds_offset, AC_HS_MSG_VOTE_LDS_BYTES) : lds_offset;
+   /* The beginning of LDS is reserved for the tess level group vote. */
+   return nir_iadd_imm_nuw(b, lds_offset, AC_TESS_LEVEL_VOTE_LDS_BYTES);
 }
 
 static unsigned
@@ -452,69 +528,62 @@ hs_output_vram_map_io_location(nir_shader *shader,
     * Map varyings to a prefix sum of the IO mask to save space in VRAM.
     */
    if (!per_vertex) {
-      const uint64_t tf_mask = tcs_vram_tf_out_mask(shader, st);
+      const uint64_t tf_mask = st->io_info.vram_output_mask & TESS_LVL_MASK;
       if (loc == VARYING_SLOT_TESS_LEVEL_INNER || loc == VARYING_SLOT_TESS_LEVEL_OUTER) {
          assert(tf_mask & BITFIELD64_BIT(loc));
          return util_bitcount64(tf_mask & BITFIELD64_MASK(loc));
       }
 
-      const uint32_t patch_out_mask = tcs_vram_per_patch_out_mask(shader, st);
+      const uint32_t patch_out_mask = st->io_info.vram_patch_output_mask;
       assert(patch_out_mask & BITFIELD_BIT(loc - VARYING_SLOT_PATCH0));
       return util_bitcount64(tf_mask) +
              util_bitcount(patch_out_mask & BITFIELD_MASK(loc - VARYING_SLOT_PATCH0));
    } else {
-      const uint64_t per_vertex_mask = tcs_vram_per_vtx_out_mask(shader, st);
+      const uint64_t per_vertex_mask = st->io_info.vram_output_mask & ~TESS_LVL_MASK;
       assert(per_vertex_mask & BITFIELD64_BIT(loc));
       return util_bitcount64(per_vertex_mask & BITFIELD64_MASK(loc));
    }
 }
 
 static nir_def *
-hs_per_vertex_output_vmem_offset(nir_builder *b,
-                                 lower_tess_io_state *st,
-                                 nir_intrinsic_instr *intrin)
+hs_per_vertex_output_vmem_offset(nir_builder *b, lower_tess_io_state *st, unsigned location,
+                                 unsigned component, nir_def *vertex_index, nir_def *io_offset,
+                                 nir_def *patch_offset)
 {
-   const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
-
    nir_def *out_vertices_per_patch = b->shader->info.stage == MESA_SHADER_TESS_CTRL
                                          ? nir_imm_int(b, b->shader->info.tess.tcs_vertices_out)
                                          : nir_load_patch_vertices_in(b);
+   nir_def *attr_stride = nir_load_tcs_mem_attrib_stride(b);
+   nir_def *off =
+      ac_nir_calc_io_off(b, component, io_offset, attr_stride, 4u,
+                         hs_output_vram_map_io_location(b->shader, true, location, st));
 
-   nir_def *tcs_num_patches = nir_load_tcs_num_patches_amd(b);
-   nir_def *attr_stride = nir_imul(b, tcs_num_patches, nir_imul_imm(b, out_vertices_per_patch, 16u));
-   nir_def *io_offset =
-      ac_nir_calc_io_off(b, intrin, attr_stride, 4u,
-                                   hs_output_vram_map_io_location(b->shader, true, io_sem.location, st));
+   if (!patch_offset) {
+      patch_offset = nir_imul(b, nir_load_tess_rel_patch_id_amd(b),
+                              nir_imul_imm(b, out_vertices_per_patch, 16u));
+   }
 
-   nir_def *rel_patch_id = nir_load_tess_rel_patch_id_amd(b);
-   nir_def *patch_offset = nir_imul(b, rel_patch_id, nir_imul_imm(b, out_vertices_per_patch, 16u));
-
-   nir_def *vertex_index = nir_get_io_arrayed_index_src(intrin)->ssa;
    nir_def *vertex_index_off = nir_imul_imm(b, vertex_index, 16u);
 
-   return nir_iadd_nuw(b, nir_iadd_nuw(b, patch_offset, vertex_index_off), io_offset);
+   return nir_iadd_nuw(b, nir_iadd_nuw(b, patch_offset, vertex_index_off), off);
 }
 
 static nir_def *
-hs_per_patch_output_vmem_offset(nir_builder *b,
-                                lower_tess_io_state *st,
-                                nir_intrinsic_instr *intrin,
-                                unsigned const_base_offset)
+hs_per_patch_output_vmem_offset(nir_builder *b, lower_tess_io_state *st, unsigned location,
+                                unsigned component, nir_def *io_offset, nir_def *patch_offset)
 {
    nir_def *tcs_num_patches = nir_load_tcs_num_patches_amd(b);
    nir_def *per_patch_data_offset = nir_load_hs_out_patch_data_offset_amd(b);
+   /* Align the stride to 256B. */
+   nir_def *attr_stride = nir_align_imm(b, nir_imul_imm(b, tcs_num_patches, 16u), 256);
 
-   nir_def * off =
-      intrin
-      ? ac_nir_calc_io_off(b, intrin, nir_imul_imm(b, tcs_num_patches, 16u), 4u,
-                                     hs_output_vram_map_io_location(b->shader, false, nir_intrinsic_io_semantics(intrin).location, st))
-      : nir_imm_int(b, 0);
+   nir_def *off =
+      ac_nir_calc_io_off(b, component, io_offset, attr_stride, 4u,
+                         hs_output_vram_map_io_location(b->shader, false, location, st));
 
-   if (const_base_offset)
-      off = nir_iadd_nuw(b, off, nir_imul_imm(b, tcs_num_patches, const_base_offset));
+   if (!patch_offset)
+      patch_offset = nir_imul_imm(b, nir_load_tess_rel_patch_id_amd(b), 16u);
 
-   nir_def *rel_patch_id = nir_load_tess_rel_patch_id_amd(b);
-   nir_def *patch_offset = nir_imul_imm(b, rel_patch_id, 16u);
    off = nir_iadd_nuw(b, off, per_patch_data_offset);
    return nir_iadd_nuw(b, off, patch_offset);
 }
@@ -537,6 +606,34 @@ lower_hs_per_vertex_input_load(nir_builder *b,
    return load;
 }
 
+static nir_variable *
+get_or_create_output_variable(nir_builder *b, nir_variable **var, unsigned bit_size)
+{
+   /* Create the local variable if needed. */
+   if (!*var) {
+      *var = nir_local_variable_create(b->impl, bit_size == 16 ? &glsl_type_builtin_float16_t :
+                                                                 &glsl_type_builtin_float, NULL);
+   }
+   return *var;
+}
+
+static void
+store_output_variable(nir_builder *b, nir_def *store_val, unsigned write_mask, unsigned component,
+                      bool high_16bits, nir_variable **slot)
+{
+   u_foreach_bit(i, write_mask << component) {
+      assert(!slot[i] ||
+             glsl_base_type_bit_size(glsl_get_base_type(slot[i]->type)) == store_val->bit_size);
+      assert((store_val->bit_size == 16 &&
+              (!slot[4 + i] ||
+               glsl_base_type_bit_size(glsl_get_base_type(slot[4 + i]->type)) == store_val->bit_size)) ||
+             (store_val->bit_size == 32 && !slot[4 + i]));
+
+      nir_store_var(b, get_or_create_output_variable(b, &slot[i + high_16bits * 4], store_val->bit_size),
+                    nir_channel(b, store_val, i - component), 0x1);
+   }
+}
+
 static nir_def *
 lower_hs_output_store(nir_builder *b,
                       nir_intrinsic_instr *intrin,
@@ -546,54 +643,66 @@ lower_hs_output_store(nir_builder *b,
           intrin->intrinsic == nir_intrinsic_store_output);
 
    nir_io_semantics semantics = nir_intrinsic_io_semantics(intrin);
+   const unsigned component = nir_intrinsic_component(intrin);
    nir_def *store_val = intrin->src[0].ssa;
    const unsigned write_mask = nir_intrinsic_write_mask(intrin);
+   const bool per_vertex = intrin->intrinsic == nir_intrinsic_store_per_vertex_output;
    const bool write_to_vmem = tcs_output_needs_vmem(intrin, b->shader, st);
    const bool write_to_lds =  tcs_output_needs_lds(intrin, b->shader, st);
 
-   if (write_to_vmem) {
-      nir_def *vmem_off = intrin->intrinsic == nir_intrinsic_store_per_vertex_output
-                            ? hs_per_vertex_output_vmem_offset(b, st, intrin)
-                            : hs_per_patch_output_vmem_offset(b, st, intrin, 0);
+   assert(store_val->bit_size & (16 | 32));
 
-      nir_def *hs_ring_tess_offchip = nir_load_ring_tess_offchip_amd(b);
-      nir_def *offchip_offset = nir_load_ring_tess_offchip_offset_amd(b);
-      nir_def *zero = nir_imm_int(b, 0);
-      AC_NIR_STORE_IO(b, store_val, 0, write_mask, semantics.high_16bits,
-                      nir_store_buffer_amd, hs_ring_tess_offchip, vmem_off, offchip_offset, zero,
-                      .write_mask = store_write_mask, .base = store_const_offset,
-                      .memory_modes = nir_var_shader_out, .access = ACCESS_COHERENT);
+   if (write_to_vmem) {
+      if (per_vertex) {
+         for (unsigned slot = 0; slot < semantics.num_slots; slot++)
+            st->tcs_per_vertex_output_vmem_chan_mask[semantics.location + slot] |= write_mask << component;
+      } else {
+         assert(semantics.location >= VARYING_SLOT_PATCH0 && semantics.location <= VARYING_SLOT_PATCH31);
+         unsigned index = semantics.location - VARYING_SLOT_PATCH0;
+
+         for (unsigned slot = 0; slot < semantics.num_slots; slot++)
+            st->tcs_per_patch_output_vmem_chan_mask[index + slot] |= write_mask << component;
+      }
    }
 
    if (write_to_lds) {
-      nir_def *lds_off = hs_output_lds_offset(b, st, intrin);
+      nir_def *vertex_index = per_vertex ? nir_get_io_arrayed_index_src(intrin)->ssa : NULL;
+      nir_def *lds_off = hs_output_lds_offset(b, st, semantics.location, component,
+                                              vertex_index, nir_get_io_offset_src(intrin)->ssa);
       AC_NIR_STORE_IO(b, store_val, 0, write_mask, semantics.high_16bits,
                       nir_store_shared, lds_off, .write_mask = store_write_mask, .base = store_const_offset);
    }
 
-   /* Save tess factor to be used by tess factor writer or reconstruct
-    * store output instruction later.
-    */
+   /* Store per-vertex outputs to temp variables. The outputs will be stored to memory at the end of the shader. */
+   if (write_to_vmem && per_vertex &&
+       st->io_info.vgpr_output_mask & BITFIELD64_BIT(semantics.location)) {
+      assert(semantics.location < ARRAY_SIZE(st->tcs_per_vertex_outputs));
+      assert(semantics.num_slots == 1);
+
+      store_output_variable(b, store_val, write_mask, component, semantics.high_16bits,
+                            st->tcs_per_vertex_outputs[semantics.location]);
+   }
+
+   if (write_to_vmem && !per_vertex) {
+      assert(semantics.location >= VARYING_SLOT_PATCH0 && semantics.location <= VARYING_SLOT_PATCH31);
+      unsigned index = semantics.location - VARYING_SLOT_PATCH0;
+
+      if (st->io_info.vgpr_patch_output_mask & BITFIELD_BIT(index)) {
+         assert(semantics.num_slots == 1);
+         store_output_variable(b, store_val, write_mask, component, semantics.high_16bits,
+                               st->tcs_per_patch_outputs[index]);
+      }
+   }
+
+   /* Save tess levels that don't need to be stored in LDS into local variables. */
    if (semantics.location == VARYING_SLOT_TESS_LEVEL_INNER ||
        semantics.location == VARYING_SLOT_TESS_LEVEL_OUTER) {
-      const unsigned base = nir_intrinsic_base(intrin);
-      const unsigned component = nir_intrinsic_component(intrin);
+      unsigned i = semantics.location - VARYING_SLOT_TESS_LEVEL_OUTER;
 
-      if (semantics.location == VARYING_SLOT_TESS_LEVEL_INNER) {
-         st->tcs_tess_level_inner_base = base;
-         st->tcs_tess_level_inner_mask |= write_mask << component;
+      st->tcs_tess_level_chan_mask[i] |= write_mask << component;
 
-         if (st->tcs_info.all_invocations_define_tess_levels)
-            ac_nir_store_var_components(b, st->tcs_tess_level_inner, store_val,
-                                        component, write_mask);
-      } else {
-         st->tcs_tess_level_outer_base = base;
-         st->tcs_tess_level_outer_mask |= write_mask << component;
-
-         if (st->tcs_info.all_invocations_define_tess_levels)
-            ac_nir_store_var_components(b, st->tcs_tess_level_outer, store_val,
-                                        component, write_mask);
-      }
+      if (st->io_info.vgpr_output_mask & BITFIELD64_BIT(semantics.location))
+         ac_nir_store_var_components(b, st->tcs_tess_level[i], store_val, component, write_mask);
    }
 
    return NIR_LOWER_INSTR_PROGRESS_REPLACE;
@@ -605,27 +714,47 @@ lower_hs_output_load(nir_builder *b,
                      lower_tess_io_state *st)
 {
    const nir_io_semantics io_sem = nir_intrinsic_io_semantics(intrin);
-   const bool is_tess_factor = io_sem.location == VARYING_SLOT_TESS_LEVEL_INNER ||
-                               io_sem.location == VARYING_SLOT_TESS_LEVEL_OUTER;
+   const unsigned component = nir_intrinsic_component(intrin);
 
-   if (is_tess_factor && st->tcs_info.all_invocations_define_tess_levels) {
-      const unsigned component = nir_intrinsic_component(intrin);
+   if ((io_sem.location == VARYING_SLOT_TESS_LEVEL_INNER ||
+        io_sem.location == VARYING_SLOT_TESS_LEVEL_OUTER) &&
+       !tcs_output_needs_lds(intrin, b->shader, st)) {
       const unsigned num_components = intrin->def.num_components;
       const unsigned bit_size = intrin->def.bit_size;
+      unsigned i = io_sem.location - VARYING_SLOT_TESS_LEVEL_OUTER;
 
-      nir_def *var =
-         io_sem.location == VARYING_SLOT_TESS_LEVEL_OUTER
-            ? nir_load_var(b, st->tcs_tess_level_outer)
-            : nir_load_var(b, st->tcs_tess_level_inner);
-
+      nir_def *var = nir_load_var(b, st->tcs_tess_level[i]);
       return nir_extract_bits(b, &var, 1, component * bit_size, num_components, bit_size);
+   }
+
+   if (io_sem.location >= VARYING_SLOT_PATCH0 && io_sem.location <= VARYING_SLOT_PATCH31 &&
+       !tcs_output_needs_lds(intrin, b->shader, st)) {
+      /* Return the per-patch output from local variables. */
+      assert(io_sem.num_slots == 1);
+      unsigned index = io_sem.location - VARYING_SLOT_PATCH0;
+      nir_def *comp[4];
+
+      for (unsigned i = 0; i < intrin->def.num_components; i++) {
+         nir_variable **var = &st->tcs_per_patch_outputs[index][component + io_sem.high_16bits * 4];
+
+         /* If the first use of the variable is a load, which means the variable hasn't been created yet,
+          * it's not always undef because we can be inside a loop that initializes the variable later
+          * in the loop but in an earlier iteration.
+          */
+         comp[i] = nir_load_var(b, get_or_create_output_variable(b, var, intrin->def.bit_size));
+      }
+
+      return nir_vec(b, comp, intrin->def.num_components);
    }
 
    /* If an output is not stored by the shader, replace the output load by undef. */
    if (!tcs_output_needs_lds(intrin, b->shader, st))
       return nir_undef(b, intrin->def.num_components, intrin->def.bit_size);
 
-   nir_def *off = hs_output_lds_offset(b, st, intrin);
+   nir_def *vertex_index = intrin->intrinsic == nir_intrinsic_load_per_vertex_output ?
+                              nir_get_io_arrayed_index_src(intrin)->ssa : NULL;
+   nir_def *off = hs_output_lds_offset(b, st, io_sem.location, component,
+                                       vertex_index, nir_get_io_offset_src(intrin)->ssa);
    nir_def *load = NULL;
 
    AC_NIR_LOAD_IO(load, b, intrin->def.num_components, intrin->def.bit_size, io_sem.high_16bits,
@@ -682,51 +811,41 @@ static tess_levels
 hs_load_tess_levels(nir_builder *b,
                     lower_tess_io_state *st)
 {
-   unsigned outer_comps, inner_comps;
+   unsigned output_comps[2];
    mesa_count_tess_level_components(b->shader->info.tess._primitive_mode,
-                                    &outer_comps, &inner_comps);
+                                    &output_comps[0], &output_comps[1]);
 
-   nir_def *outer = NULL;
-   nir_def *inner = NULL;
+   nir_def *outputs[2] = {0};
+   nir_def *lds_base = NULL;
 
-   if (st->tcs_info.all_invocations_define_tess_levels) {
-      if (st->tcs_tess_level_outer_mask) {
-         outer = nir_load_var(b, st->tcs_tess_level_outer);
-         outer = nir_trim_vector(b, outer, outer_comps);
+   for (unsigned i = 0; i < 2; i++) {
+      if (!output_comps[i] || !st->tcs_tess_level_chan_mask[i]) {
+         /* Set tess levels to zero if the shader doesn't write them. */
+         if (output_comps[i])
+            outputs[i] = nir_imm_zero(b, output_comps[i], 32);
+         continue;
       }
 
-      if (inner_comps && st->tcs_tess_level_inner_mask) {
-         inner = nir_load_var(b, st->tcs_tess_level_inner);
-         inner = nir_trim_vector(b, inner, inner_comps);
+      if (st->io_info.vgpr_output_mask & BITFIELD64_BIT(VARYING_SLOT_TESS_LEVEL_OUTER + i)) {
+         outputs[i] = nir_load_var(b, st->tcs_tess_level[i]);
+         outputs[i] = nir_trim_vector(b, outputs[i], output_comps[i]);
+         continue;
       }
-   } else {
+
       /* Base LDS address of per-patch outputs in the current patch. */
-      nir_def *lds_base = hs_output_lds_offset(b, st, NULL);
+      if (!lds_base)
+         lds_base = hs_output_lds_offset(b, st, 0, 0, NULL, NULL);
 
-      /* Load all tessellation factors (aka. tess levels) from LDS. */
-      if (st->tcs_tess_level_outer_mask) {
-         const unsigned mapped = hs_output_lds_map_io_location(b->shader, false, VARYING_SLOT_TESS_LEVEL_OUTER, st);
-         outer = nir_load_shared(b, outer_comps, 32, lds_base, .base = mapped * 16);
-      }
-
-      if (inner_comps && st->tcs_tess_level_inner_mask) {
-         const unsigned mapped = hs_output_lds_map_io_location(b->shader, false, VARYING_SLOT_TESS_LEVEL_INNER, st);
-         inner = nir_load_shared(b, inner_comps, 32, lds_base, .base = mapped * 16);
-      }
+      /* Load tessellation levels from LDS. */
+      const unsigned mapped = hs_output_lds_map_io_location(b->shader, false,
+                                                            VARYING_SLOT_TESS_LEVEL_OUTER + i, st);
+      outputs[i] = nir_load_shared(b, output_comps[i], 32, lds_base, .base = mapped * 16);
    }
 
-   /* Set tess factor to zero if the shader did not write them. */
-   if (!outer)
-      outer = nir_imm_zero(b, outer_comps, 32);
-   if (inner_comps && !inner)
-      inner = nir_imm_zero(b, inner_comps, 32);
-
-   tess_levels r = {
-      .outer = outer,
-      .inner = inner,
+   return (tess_levels){
+      .outer = outputs[0],
+      .inner = outputs[1],
    };
-
-   return r;
 }
 
 static void
@@ -778,23 +897,14 @@ hs_if_invocation_id_zero(nir_builder *b)
    return invocation_id_zero;
 }
 
-static nir_def *
-tess_level_has_effect(nir_builder *b, nir_def *prim_mode, unsigned comp, bool outer)
-{
-   if (outer && comp <= 1)
-      return nir_imm_true(b);
-   else if ((outer && comp == 2) || (!outer && comp == 0))
-      return nir_ine_imm(b, prim_mode, TESS_PRIMITIVE_ISOLINES);
-   else if ((outer && comp == 3) || (!outer && comp == 1))
-      return nir_ieq_imm(b, prim_mode, TESS_PRIMITIVE_QUADS);
-   else
-      unreachable("invalid comp");
-}
+#define VOTE_RESULT_NORMAL       0  /* execute output stores and tess factor stores */
+#define VOTE_RESULT_ALL_TF_ZERO  1  /* skip output stores, skip tess factor stores on GFX11+ */
+#define VOTE_RESULT_ALL_TF_ONE   2  /* execute output stores, skip tess factor stores on GFX11+ */
 
-/* Return true if memory should be used. If false is returned, the shader message has been used. */
+/* Return VOTE_RESULT_*. This also sends the HS_TESSFACTOR shader message on GFX11+. */
 static nir_def *
-hs_msg_group_vote_use_memory(nir_builder *b, lower_tess_io_state *st,
-                             tess_levels *tessfactors, nir_def *prim_mode)
+hs_tess_level_group_vote(nir_builder *b, lower_tess_io_state *st,
+                         tess_levels *tessfactors, nir_def *prim_mode)
 {
    /* Don't do the group vote and send the message directly if tess level values were determined
     * by nir_gather_tcs_info at compile time.
@@ -804,17 +914,27 @@ hs_msg_group_vote_use_memory(nir_builder *b, lower_tess_io_state *st,
    if (debug_get_bool_option("AMD_FAST_HS_MSG", true) &&
        (st->tcs_info.all_tess_levels_are_effectively_zero ||
         st->tcs_info.all_tess_levels_are_effectively_one)) {
-      nir_if *if_subgroup0 = nir_push_if(b, nir_ieq_imm(b, nir_load_subgroup_id(b), 0));
-      {
-         /* m0[0] == 0 means all TF are 0 in the workgroup.
-          * m0[0] == 1 means all TF are 1 in the workgroup.
-          */
-         nir_def *m0 = nir_imm_int(b, st->tcs_info.all_tess_levels_are_effectively_zero ? 0 : 1);
-         nir_sendmsg_amd(b, m0, .base = AC_SENDMSG_HS_TESSFACTOR);
+      if (st->gfx_level >= GFX11) {
+         nir_if *if_subgroup0 = nir_push_if(b, nir_ieq_imm(b, nir_load_subgroup_id(b), 0));
+         {
+            /* m0[0] == 0 means all TF are 0 in the workgroup.
+             * m0[0] == 1 means all TF are 1 in the workgroup.
+             */
+            nir_def *m0 = nir_imm_int(b, st->tcs_info.all_tess_levels_are_effectively_zero ? 0 : 1);
+            nir_sendmsg_amd(b, m0, .base = AC_SENDMSG_HS_TESSFACTOR);
+         }
+         nir_pop_if(b, if_subgroup0);
       }
-      nir_pop_if(b, if_subgroup0);
-      return nir_imm_false(b);
+
+      return nir_imm_int(b, st->tcs_info.all_tess_levels_are_effectively_zero ?
+                              VOTE_RESULT_ALL_TF_ZERO : VOTE_RESULT_ALL_TF_ONE);
    }
+
+   /* If TCS never discards patches, GFX6-10 don't need the group vote because the vote is only
+    * used to skip output stores there.
+    */
+   if (st->gfx_level < GFX11 && !st->tcs_info.can_discard_patches)
+      return nir_imm_int(b, VOTE_RESULT_NORMAL);
 
    /* Initialize the first LDS dword for the tf0/1 group vote at the beginning of TCS. */
    nir_block *start_block = nir_start_block(nir_shader_get_entrypoint(b->shader));
@@ -831,9 +951,10 @@ hs_msg_group_vote_use_memory(nir_builder *b, lower_tess_io_state *st,
    nir_pop_if(&top_b, thread0);
 
    /* Insert a barrier to wait for initialization above if there hasn't been any other barrier
-    * in the shader.
+    * in the shader. If tcs_out_patch_fits_subgroup=true, then TCS barriers don't have a scope
+    * larger than a subgroup.
     */
-   if (!st->tcs_info.always_executes_barrier) {
+   if (!st->tcs_info.always_executes_barrier || st->tcs_out_patch_fits_subgroup) {
       nir_barrier(b, .execution_scope = SCOPE_WORKGROUP, .memory_scope = SCOPE_WORKGROUP,
                   .memory_semantics = NIR_MEMORY_ACQ_REL, .memory_modes = nir_var_mem_shared);
    }
@@ -867,35 +988,66 @@ hs_msg_group_vote_use_memory(nir_builder *b, lower_tess_io_state *st,
    {
       *tessfactors = hs_load_tess_levels(b, st);
 
-      nir_def *lane_tf_effectively_0 = nir_imm_false(b);
-      for (unsigned i = 0; i < tessfactors->outer->num_components; i++) {
-         nir_def *valid = tess_level_has_effect(b, prim_mode, i, true);
-         /* fgeu returns true for NaN */
-         nir_def *le0 = nir_fgeu(b, nir_imm_float(b, 0), nir_channel(b, tessfactors->outer, i));
-         lane_tf_effectively_0 = nir_ior(b, lane_tf_effectively_0, nir_iand(b, le0, valid));
-      }
+      nir_if *if0 = NULL, *if1 = NULL;
+      nir_def *lane_tf_effectively_0[3] = {0};
+      nir_def *lane_tf_effectively_1[3] = {0};
 
-      /* Use case 1: unknown spacing */
-      nir_def *lane_tf_effectively_1 = nir_imm_true(b);
-      for (unsigned i = 0; i < tessfactors->outer->num_components; i++) {
-         nir_def *valid = tess_level_has_effect(b, prim_mode, i, true);
-         nir_def *le1 = nir_fle_imm(b, nir_channel(b, tessfactors->outer, i), 1);
-         lane_tf_effectively_1 = nir_iand(b, lane_tf_effectively_1, nir_ior(b, le1, nir_inot(b, valid)));
-      }
+      static_assert(TESS_PRIMITIVE_TRIANGLES == 1, "");
+      static_assert(TESS_PRIMITIVE_QUADS == 2, "");
+      static_assert(TESS_PRIMITIVE_ISOLINES == 3, "");
 
-      if (tessfactors->inner) {
-         for (unsigned i = 0; i < tessfactors->inner->num_components; i++) {
-            nir_def *valid = tess_level_has_effect(b, prim_mode, i, false);
+      for (unsigned prim = TESS_PRIMITIVE_TRIANGLES; prim <= TESS_PRIMITIVE_ISOLINES; prim++) {
+         /* Generate:
+          *    if (triangles) ...
+          *    else if (quads) ...
+          *    else // isolines
+          */
+         if (prim == TESS_PRIMITIVE_TRIANGLES) {
+            if0 = nir_push_if(b, nir_ieq_imm(b, prim_mode, prim));
+         } else if (prim == TESS_PRIMITIVE_QUADS) {
+            nir_push_else(b, if0);
+            if1 = nir_push_if(b, nir_ieq_imm(b, prim_mode, prim));
+         } else {
+            nir_push_else(b, if1);
+         }
+
+         unsigned outer_comps, inner_comps;
+         mesa_count_tess_level_components(prim, &outer_comps, &inner_comps);
+         outer_comps = MIN2(outer_comps, tessfactors->outer->num_components);
+         inner_comps = tessfactors->inner ? MIN2(inner_comps, tessfactors->inner->num_components) : 0;
+
+         lane_tf_effectively_0[prim - 1] = nir_imm_false(b);
+         for (unsigned i = 0; i < outer_comps; i++) {
+            /* fgeu returns true for NaN */
+            nir_def *le0 = nir_fgeu(b, nir_imm_float(b, 0), nir_channel(b, tessfactors->outer, i));
+            lane_tf_effectively_0[prim - 1] = nir_ior(b, lane_tf_effectively_0[prim - 1], le0);
+         }
+
+         /* Use case 1: unknown spacing */
+         lane_tf_effectively_1[prim - 1] = nir_imm_true(b);
+         for (unsigned i = 0; i < outer_comps; i++) {
+            nir_def *le1 = nir_fle_imm(b, nir_channel(b, tessfactors->outer, i), 1);
+            lane_tf_effectively_1[prim - 1] = nir_iand(b, lane_tf_effectively_1[prim - 1], le1);
+         }
+
+         for (unsigned i = 0; i < inner_comps; i++) {
             nir_def *le1 = nir_fle_imm(b, nir_channel(b, tessfactors->inner, i), 1);
-            lane_tf_effectively_1 = nir_iand(b, lane_tf_effectively_1, nir_ior(b, le1, nir_inot(b, valid)));
+            lane_tf_effectively_1[prim - 1] = nir_iand(b, lane_tf_effectively_1[prim - 1], le1);
          }
       }
 
-      /* Make them mutually exclusive. */
-      lane_tf_effectively_1 = nir_iand(b, lane_tf_effectively_1, nir_inot(b, lane_tf_effectively_0));
+      nir_pop_if(b, if1);
+      lane_tf_effectively_0[1] = nir_if_phi(b, lane_tf_effectively_0[1], lane_tf_effectively_0[2]);
+      lane_tf_effectively_1[1] = nir_if_phi(b, lane_tf_effectively_1[1], lane_tf_effectively_1[2]);
+      nir_pop_if(b, if0);
+      lane_tf_effectively_0[0] = nir_if_phi(b, lane_tf_effectively_0[0], lane_tf_effectively_0[1]);
+      lane_tf_effectively_1[0] = nir_if_phi(b, lane_tf_effectively_1[0], lane_tf_effectively_1[1]);
 
-      nir_def *subgroup_uses_tf0 = nir_b2i32(b, nir_vote_all(b, 1, lane_tf_effectively_0));
-      nir_def *subgroup_uses_tf1 = nir_b2i32(b, nir_vote_all(b, 1, lane_tf_effectively_1));
+      /* Make them mutually exclusive. */
+      lane_tf_effectively_1[0] = nir_iand(b, lane_tf_effectively_1[0], nir_inot(b, lane_tf_effectively_0[0]));
+
+      nir_def *subgroup_uses_tf0 = nir_b2i32(b, nir_vote_all(b, 1, lane_tf_effectively_0[0]));
+      nir_def *subgroup_uses_tf1 = nir_b2i32(b, nir_vote_all(b, 1, lane_tf_effectively_1[0]));
 
       /* Pack the value for LDS. Encoding:
        *    0 = none of the below
@@ -950,21 +1102,23 @@ hs_msg_group_vote_use_memory(nir_builder *b, lower_tess_io_state *st,
    lds_result = nir_if_phi(b, lds_result, nir_undef(b, 1, 32));
    lds_result = nir_read_invocation(b, lds_result, nir_imm_int(b, 0));
 
-   /* Determine the vote value and send the message. */
-   nir_def *use_memory = nir_ieq_imm(b, lds_result, 0);
+   /* Send the message. */
+   if (st->gfx_level >= GFX11) {
+      nir_def *use_memory = nir_ieq_imm(b, lds_result, 0);
 
-   nir_if *if_subgroup0_sendmsg = nir_push_if(b, nir_iand(b, nir_inot(b, use_memory),
-                                                          nir_ieq_imm(b, nir_load_subgroup_id(b), 0)));
-   {
-      /* m0[0] == 0 means all TF are 0 in the workgroup.
-       * m0[0] == 1 means all TF are 1 in the workgroup.
-       */
-      nir_def *m0 = nir_iadd_imm(b, lds_result, -1);
-      nir_sendmsg_amd(b, m0, .base = AC_SENDMSG_HS_TESSFACTOR);
+      nir_if *if_subgroup0_sendmsg = nir_push_if(b, nir_iand(b, nir_inot(b, use_memory),
+                                                             nir_ieq_imm(b, nir_load_subgroup_id(b), 0)));
+      {
+         /* m0[0] == 0 means all TF are 0 in the workgroup.
+          * m0[0] == 1 means all TF are 1 in the workgroup.
+          */
+         nir_def *m0 = nir_iadd_imm(b, lds_result, -1);
+         nir_sendmsg_amd(b, m0, .base = AC_SENDMSG_HS_TESSFACTOR);
+      }
+      nir_pop_if(b, if_subgroup0_sendmsg);
    }
-   nir_pop_if(b, if_subgroup0_sendmsg);
 
-   return use_memory;
+   return lds_result;
 }
 
 static void
@@ -1018,28 +1172,52 @@ hs_store_tess_factors_for_tes(nir_builder *b, tess_levels tessfactors, lower_tes
    /* For linked shaders, we must only write the tess factors that the TES actually reads,
     * otherwise we would write to a memory location reserved for another per-patch output.
     */
-   const bool tes_reads_outer = st->tes_inputs_read & VARYING_BIT_TESS_LEVEL_OUTER;
-   const bool tes_reads_inner = st->tes_inputs_read & VARYING_BIT_TESS_LEVEL_INNER;
+   for (unsigned i = 0; i < 2; i++) {
+      nir_def *output_value = i ? tessfactors.inner : tessfactors.outer;
 
-   if (st->tcs_tess_level_outer_mask && tes_reads_outer) {
-      const unsigned tf_outer_loc = hs_output_vram_map_io_location(b->shader, false, VARYING_SLOT_TESS_LEVEL_OUTER, st);
-      nir_def *vmem_off_outer = hs_per_patch_output_vmem_offset(b, st, NULL, tf_outer_loc * 16);
+      if (!output_value || !(st->io_info.vram_output_mask & (VARYING_BIT_TESS_LEVEL_OUTER << i)))
+         continue;
 
-      nir_store_buffer_amd(b, tessfactors.outer, hs_ring_tess_offchip,
-                           vmem_off_outer, offchip_offset, zero,
+      nir_def *vmem_off = hs_per_patch_output_vmem_offset(b, st, VARYING_SLOT_TESS_LEVEL_OUTER + i, 0, zero, NULL);
+
+      /* Always store whole vec4s to get cached bandwidth. Non-vec4 stores cause implicit memory loads
+       * to fill the rest of cache lines with this layout.
+       */
+      nir_store_buffer_amd(b, nir_pad_vec4(b, output_value), hs_ring_tess_offchip, vmem_off,
+                           offchip_offset, zero,
                            .memory_modes = nir_var_shader_out,
                            .access = ACCESS_COHERENT);
    }
+}
 
-   if (tessfactors.inner && st->tcs_tess_level_inner_mask && tes_reads_inner) {
-      const unsigned tf_inner_loc = hs_output_vram_map_io_location(b->shader, false, VARYING_SLOT_TESS_LEVEL_INNER, st);
-      nir_def *vmem_off_inner = hs_per_patch_output_vmem_offset(b, st, NULL, tf_inner_loc * 16);
-
-      nir_store_buffer_amd(b, tessfactors.inner, hs_ring_tess_offchip,
-                           vmem_off_inner, offchip_offset, zero,
-                           .memory_modes = nir_var_shader_out,
-                           .access = ACCESS_COHERENT);
+static nir_def *
+make_vec4(nir_builder *b, nir_def *comp[4])
+{
+   for (unsigned i = 0; i < 4; i++) {
+      if (!comp[i])
+         comp[i] = nir_undef(b, 1, 32);
    }
+
+   return nir_vec(b, comp, 4);
+}
+
+static nir_def *
+load_output_channel_from_var(nir_builder *b, nir_variable *vec[8], unsigned chan)
+{
+   nir_def *lo = NULL, *hi = NULL;
+
+   /* It can be one 32-bit value or two 16-bit values. */
+   if (vec[chan])
+      lo = nir_load_var(b, vec[chan]);
+   if (vec[4 + chan])
+      hi = nir_load_var(b, vec[4 + chan]);
+
+   if (lo && hi)
+      return nir_pack_32_2x16_split(b, lo, hi);
+   else if (hi)
+      return nir_ishl_imm(b, nir_u2u32(b, hi), 16);
+   else
+      return nir_u2u32(b, lo);
 }
 
 static void
@@ -1053,8 +1231,9 @@ hs_finale(nir_shader *shader, lower_tess_io_state *st)
    nir_builder builder = nir_builder_at(nir_after_block(last_block));
    nir_builder *b = &builder; /* This is to avoid the & */
 
-   /* If tess factors are loaded from LDS, wait for their LDS stores. */
-   if (!st->tcs_info.all_invocations_define_tess_levels) {
+   /* Insert a barrier to wait for output stores to LDS. */
+   if (shader->info.outputs_written & ~st->io_info.vgpr_output_mask ||
+       shader->info.patch_outputs_written & ~st->io_info.vgpr_patch_output_mask) {
       mesa_scope scope = st->tcs_out_patch_fits_subgroup ? SCOPE_SUBGROUP : SCOPE_WORKGROUP;
       nir_barrier(b, .execution_scope = scope, .memory_scope = scope,
                      .memory_semantics = NIR_MEMORY_ACQ_REL, .memory_modes = nir_var_mem_shared);
@@ -1062,12 +1241,8 @@ hs_finale(nir_shader *shader, lower_tess_io_state *st)
    }
 
    nir_def *prim_mode = nir_load_tcs_primitive_mode_amd(b);
-   nir_def *use_memory = NULL;
    tess_levels tessfactors = {0};
-
-   /* This also loads tess levels for patch invocation 0. */
-   if (st->gfx_level >= GFX11)
-      use_memory = hs_msg_group_vote_use_memory(b, st, &tessfactors, prim_mode);
+   nir_def *vote_result = hs_tess_level_group_vote(b, st, &tessfactors, prim_mode);
 
    /* Only the 1st invocation of each patch needs to access VRAM and/or LDS. */
    nir_if *if_invocation_id_zero = hs_if_invocation_id_zero(b);
@@ -1076,8 +1251,8 @@ hs_finale(nir_shader *shader, lower_tess_io_state *st)
          tessfactors = hs_load_tess_levels(b, st);
 
       nir_if *if_use_memory = NULL;
-      if (use_memory != NULL)
-         if_use_memory = nir_push_if(b, use_memory);
+      if (st->gfx_level >= GFX11)
+         if_use_memory = nir_push_if(b, nir_ieq_imm(b, vote_result, VOTE_RESULT_NORMAL));
 
       if (st->gfx_level <= GFX8)
          hs_store_dynamic_control_word_gfx6(b);
@@ -1100,7 +1275,7 @@ hs_finale(nir_shader *shader, lower_tess_io_state *st)
       }
       nir_pop_if(b, if_triangles);
 
-      if (use_memory != NULL)
+      if (if_use_memory != NULL)
          nir_pop_if(b, if_use_memory);
 
       nir_if *if_tes_reads_tf = nir_push_if(b, nir_load_tcs_tess_levels_to_tes_amd(b));
@@ -1111,7 +1286,192 @@ hs_finale(nir_shader *shader, lower_tess_io_state *st)
    }
    nir_pop_if(b, if_invocation_id_zero);
 
-   nir_metadata_preserve(impl, nir_metadata_none);
+   /* Gather per-vertex output values from local variables and LDS. */
+   nir_def *outputs[VARYING_SLOT_MAX] = {0};
+   nir_def *patch_outputs[MAX_VARYING] = {0};
+   nir_def *invocation_id = nir_load_invocation_id(b);
+   nir_def *zero = nir_imm_int(b, 0);
+
+   /* Don't load per-vertex and per-patch outputs from LDS if all tess factors are 0. */
+   nir_if *if_not_discarded = nir_push_if(b, nir_ine_imm(b, vote_result, VOTE_RESULT_ALL_TF_ZERO));
+   {
+      /* Load per-vertex outputs from LDS or local variables. */
+      u_foreach_bit64(slot, st->io_info.vram_output_mask & ~TESS_LVL_MASK) {
+         if (!st->tcs_per_vertex_output_vmem_chan_mask[slot])
+            continue;
+
+         nir_def *comp[4] = {0};
+
+         /* Gather stored components either from LDS or from local variables.  */
+         if ((shader->info.outputs_written & ~st->io_info.vgpr_output_mask) & BITFIELD64_BIT(slot)) {
+            u_foreach_bit(i, st->tcs_per_vertex_output_vmem_chan_mask[slot]) {
+               nir_def *lds_off = hs_output_lds_offset(b, st, slot, i, invocation_id, zero);
+               comp[i] = nir_load_shared(b, 1, 32, lds_off);
+            }
+         } else {
+            u_foreach_bit(i, st->tcs_per_vertex_output_vmem_chan_mask[slot]) {
+               comp[i] = load_output_channel_from_var(b, st->tcs_per_vertex_outputs[slot], i);
+            }
+         }
+
+         outputs[slot] = make_vec4(b, comp);
+      }
+
+      /* Load per-patch outputs from LDS or local variables. */
+      u_foreach_bit(slot, st->io_info.vram_patch_output_mask) {
+         if (!st->tcs_per_patch_output_vmem_chan_mask[slot])
+            continue;
+
+         nir_def *comp[4] = {0};
+
+         /* Gather stored components either from LDS or from local variables.  */
+         if ((shader->info.patch_outputs_written & ~st->io_info.vgpr_patch_output_mask) & BITFIELD_BIT(slot)) {
+            u_foreach_bit(i, st->tcs_per_patch_output_vmem_chan_mask[slot]) {
+               nir_def *lds_off = hs_output_lds_offset(b, st, VARYING_SLOT_PATCH0 + slot, i,
+                                                       NULL, zero);
+               comp[i] = nir_load_shared(b, 1, 32, lds_off);
+            }
+         } else {
+            u_foreach_bit(i, st->tcs_per_patch_output_vmem_chan_mask[slot]) {
+               comp[i] = load_output_channel_from_var(b, st->tcs_per_patch_outputs[slot], i);
+            }
+         }
+
+         patch_outputs[slot] = make_vec4(b, comp);
+      }
+   }
+   nir_pop_if(b, if_not_discarded);
+   u_foreach_bit64(slot, st->io_info.vram_output_mask & ~TESS_LVL_MASK) {
+      if (outputs[slot])
+         outputs[slot] = nir_if_phi(b, outputs[slot], nir_undef(b, 4, 32));
+   }
+   u_foreach_bit(slot, st->io_info.vram_patch_output_mask) {
+      if (patch_outputs[slot])
+         patch_outputs[slot] = nir_if_phi(b, patch_outputs[slot], nir_undef(b, 4, 32));
+   }
+
+   if (st->gfx_level >= GFX9) {
+      /* Wrap the whole shader in a conditional block, allowing only TCS (HS) invocations to execute
+       * in the LS-HS workgroup.
+       */
+      nir_cf_list *extracted = rzalloc(shader, nir_cf_list);
+      nir_cf_extract(extracted, nir_before_impl(impl), nir_after_impl(impl));
+
+      builder = nir_builder_at(nir_before_impl(impl));
+      nir_if *if_tcs =
+         nir_push_if(b, nir_is_subgroup_invocation_lt_amd(b, nir_load_merged_wave_info_amd(b),
+                                                          .base = 8));
+      {
+         nir_cf_reinsert(extracted, b->cursor);
+      }
+      nir_pop_if(b, if_tcs);
+      vote_result = nir_if_phi(b, vote_result, nir_undef(b, 1, 32)); /* no-op, it should be an SGPR */
+
+      u_foreach_bit64(slot, st->io_info.vram_output_mask & ~TESS_LVL_MASK) {
+         if (outputs[slot])
+            outputs[slot] = nir_if_phi(b, outputs[slot], nir_undef(b, 4, 32));
+      }
+
+      u_foreach_bit(slot, st->io_info.vram_patch_output_mask) {
+         if (patch_outputs[slot])
+            patch_outputs[slot] = nir_if_phi(b, patch_outputs[slot], nir_undef(b, 4, 32));
+      }
+   }
+
+   /* Store per-vertex outputs to memory. */
+   nir_def *is_tcs_thread = nir_imm_true(b);
+   nir_def *is_pervertex_store_thread = nir_imm_true(b);
+
+   /* Align the EXEC mask to 8 lanes to overwrite whole 128B blocks on GFX10+, or 4 lanes to
+    * overwrite whole 64B blocks on GFX9.
+    *
+    * Per-patch outputs get the same treatment if tcs_vertices_out == 1, using the same
+    * aligned EXEC.
+    *
+    * GFX6-8 can't align the EXEC mask because it's not ~0.
+    */
+   if (st->gfx_level >= GFX9) {
+      unsigned align = st->gfx_level >= GFX10 ? 8 : 4;
+      nir_def *num_tcs_threads = nir_ubfe_imm(b, nir_load_merged_wave_info_amd(b), 8, 8);
+      nir_def *aligned_tcs_threads = nir_align_imm(b, num_tcs_threads, align);
+      is_tcs_thread = nir_is_subgroup_invocation_lt_amd(b, num_tcs_threads);
+      is_pervertex_store_thread = nir_is_subgroup_invocation_lt_amd(b, aligned_tcs_threads);
+   }
+
+   nir_def *local_invocation_index = nir_load_local_invocation_index(b);
+   nir_def *hs_ring_tess_offchip = nir_load_ring_tess_offchip_amd(b);
+   nir_def *offchip_offset = nir_load_ring_tess_offchip_offset_amd(b);
+   bool patch_outputs_use_vertex_threads = shader->info.tess.tcs_vertices_out == 1;
+   nir_if *if_perpatch_stores = NULL;
+
+   zero = nir_imm_int(b, 0);
+
+   nir_if *if_pervertex_stores =
+      nir_push_if(b, nir_iand(b, is_pervertex_store_thread,
+                              nir_ine_imm(b, vote_result, VOTE_RESULT_ALL_TF_ZERO)));
+   {
+      u_foreach_bit64(slot, st->io_info.vram_output_mask & ~TESS_LVL_MASK) {
+         if (!outputs[slot])
+            continue;
+
+         nir_def *vmem_off = hs_per_vertex_output_vmem_offset(b, st, slot, 0, local_invocation_index,
+                                                              zero, zero);
+
+         /* Always store whole vec4s to get cached bandwidth. Non-vec4 stores cause implicit memory loads
+          * to fill the rest of cache lines with this layout.
+          */
+         nir_store_buffer_amd(b, outputs[slot], hs_ring_tess_offchip, vmem_off, offchip_offset, zero,
+                              .memory_modes = nir_var_shader_out, .access = ACCESS_COHERENT);
+      }
+   }
+
+   /* If we don't use vertex threads to store per-patch outputs, i.e. tcs_vertices_out != 1,
+    * store per-patch outputs in the first invocation of each patch.
+    */
+   if (!patch_outputs_use_vertex_threads) {
+      nir_pop_if(b, if_pervertex_stores);
+
+      if_perpatch_stores =
+         nir_push_if(b, nir_iand(b, is_tcs_thread,
+                                 nir_iand(b, nir_ieq_imm(b, nir_load_invocation_id(b), 0),
+                                          nir_ine_imm(b, vote_result, VOTE_RESULT_ALL_TF_ZERO))));
+   }
+   {
+      u_foreach_bit(slot, st->io_info.vram_patch_output_mask) {
+         if (!patch_outputs[slot])
+            continue;
+
+         nir_def *vmem_off = hs_per_patch_output_vmem_offset(b, st, VARYING_SLOT_PATCH0 + slot, 0, zero,
+                                                             patch_outputs_use_vertex_threads ?
+                                                                nir_imul_imm(b, local_invocation_index, 16u) :
+                                                                NULL);
+
+         /* Always store whole vec4s to get cached bandwidth. Non-vec4 stores cause implicit memory loads
+          * to fill the rest of cache lines with this layout, as well as when a wave doesn't write whole
+          * 64B (GFX6-9) or 128B (GFX10+) blocks.
+          *
+          * A wave gets cached bandwidth for per-patch output stores only in these cases:
+          * - tcs_vertices_out == 1 and lanes are aligned to 4 (GFX6-9) or 8 (GFX10+) lanes (always done)
+          * - tcs_vertices_out == 2 or 4 except the last 4 (GFX6-9) or 8 (GFX10+) invocation_id==0 lanes
+          *   if not all lanes are enabled in the last group of 4 or 8 in the last wave
+          * - tcs_vertices_out == 8 only with wave64 on GFX10+ except the last 8 invocation_id==0 lanes
+          *   if not all lanes are enabled in the last group of 8 in the last wave
+          * - all full groups of 4 (GFX6-9) or 8 (GFX10+) lanes in the first wave because lane 0 outputs
+          *   of the first wave are always aligned to 256B
+          *
+          * Note that the sparsity of invocation_id==0 lanes doesn't matter as long as the whole wave
+          * covers one or more whole 64B (GFX6-9) or 128B (GFX10+) blocks.
+          */
+         nir_store_buffer_amd(b, patch_outputs[slot], hs_ring_tess_offchip, vmem_off, offchip_offset, zero,
+                              .memory_modes = nir_var_shader_out, .access = ACCESS_COHERENT);
+      }
+   }
+   if (patch_outputs_use_vertex_threads)
+      nir_pop_if(b, if_pervertex_stores);
+   else
+      nir_pop_if(b, if_perpatch_stores);
+
+   nir_progress(true, impl, nir_metadata_none);
 }
 
 static nir_def *
@@ -1126,14 +1486,20 @@ lower_tes_input_load(nir_builder *b,
    nir_def *offchip_ring = nir_load_ring_tess_offchip_amd(b);
    nir_def *offchip_offset = nir_load_ring_tess_offchip_offset_amd(b);
    nir_def *off = intrin->intrinsic == nir_intrinsic_load_per_vertex_input
-                    ? hs_per_vertex_output_vmem_offset(b, st, intrin)
-                    : hs_per_patch_output_vmem_offset(b, st, intrin, 0);
+                    ? hs_per_vertex_output_vmem_offset(b, st, io_sem.location,
+                                                       nir_intrinsic_component(intrin),
+                                                       nir_get_io_arrayed_index_src(intrin)->ssa,
+                                                       nir_get_io_offset_src(intrin)->ssa, NULL)
+                    : hs_per_patch_output_vmem_offset(b, st, io_sem.location,
+                                                      nir_intrinsic_component(intrin),
+                                                      nir_get_io_offset_src(intrin)->ssa, NULL);
 
    nir_def *zero = nir_imm_int(b, 0);
    nir_def *load = NULL;
 
    AC_NIR_LOAD_IO(load, b, intrin->def.num_components, intrin->def.bit_size, io_sem.high_16bits,
-                  nir_load_buffer_amd, offchip_ring, off, offchip_offset, zero, .access = ACCESS_COHERENT);
+                  nir_load_buffer_amd, offchip_ring, off, offchip_offset, zero, .access = ACCESS_COHERENT,
+                  .memory_modes = nir_var_shader_in);
 
    return load;
 }
@@ -1165,7 +1531,7 @@ filter_any_input_access(const nir_instr *instr,
           intrin->intrinsic == nir_intrinsic_load_per_vertex_input;
 }
 
-void
+bool
 ac_nir_lower_ls_outputs_to_mem(nir_shader *shader,
                                ac_nir_map_io_driver_location map,
                                enum amd_gfx_level gfx_level,
@@ -1188,12 +1554,12 @@ ac_nir_lower_ls_outputs_to_mem(nir_shader *shader,
       state.tcs_inputs_via_lds = tcs_inputs_via_lds | tcs_inputs_via_temp;
    }
 
-   nir_shader_intrinsics_pass(shader, lower_ls_output_store,
-                                nir_metadata_control_flow,
-                                &state);
+   return nir_shader_intrinsics_pass(shader, lower_ls_output_store,
+                                     nir_metadata_control_flow,
+                                     &state);
 }
 
-void
+bool
 ac_nir_lower_hs_inputs_to_mem(nir_shader *shader,
                               ac_nir_map_io_driver_location map,
                               enum amd_gfx_level gfx_level,
@@ -1216,37 +1582,34 @@ ac_nir_lower_hs_inputs_to_mem(nir_shader *shader,
       state.tcs_inputs_via_lds = shader->info.inputs_read;
    }
 
-   nir_shader_lower_instructions(shader,
-                                 filter_load_tcs_per_vertex_input,
-                                 lower_hs_per_vertex_input_load,
-                                 &state);
+   return nir_shader_lower_instructions(shader,
+                                        filter_load_tcs_per_vertex_input,
+                                        lower_hs_per_vertex_input_load,
+                                        &state);
 }
 
-void
+bool
 ac_nir_lower_hs_outputs_to_mem(nir_shader *shader, const nir_tcs_info *info,
+                               const ac_nir_tess_io_info *io_info,
                                ac_nir_map_io_driver_location map,
                                enum amd_gfx_level gfx_level,
-                               uint64_t tes_inputs_read,
-                               uint32_t tes_patch_inputs_read,
                                unsigned wave_size)
 {
    assert(shader->info.stage == MESA_SHADER_TESS_CTRL);
 
+   NIR_PASS(_, shader, nir_io_add_const_offset_to_base, nir_var_shader_out);
+
    lower_tess_io_state state = {
       .gfx_level = gfx_level,
       .tcs_info = *info,
-      .tes_inputs_read = tes_inputs_read,
-      .tes_patch_inputs_read = tes_patch_inputs_read,
+      .io_info = *io_info,
       .tcs_out_patch_fits_subgroup = wave_size % shader->info.tess.tcs_vertices_out == 0,
       .map_io = map,
    };
 
-   if (state.tcs_info.all_invocations_define_tess_levels) {
-      nir_function_impl *impl = nir_shader_get_entrypoint(shader);
-      state.tcs_tess_level_outer =
-         nir_local_variable_create(impl, glsl_vec4_type(), "tess outer");
-      state.tcs_tess_level_inner =
-         nir_local_variable_create(impl, glsl_vec4_type(), "tess inner");
+   for (unsigned i = 0; i < 2; i++) {
+      state.tcs_tess_level[i] =
+         nir_local_variable_create(nir_shader_get_entrypoint(shader), glsl_vec4_type(), "tess outer");
    }
 
    nir_shader_lower_instructions(shader,
@@ -1256,70 +1619,59 @@ ac_nir_lower_hs_outputs_to_mem(nir_shader *shader, const nir_tcs_info *info,
 
    hs_finale(shader, &state);
 
-   /* Cleanup the local variable for tess levels. */
-   if (state.tcs_info.all_invocations_define_tess_levels) {
-      NIR_PASS(_, shader, nir_lower_vars_to_ssa);
-      NIR_PASS(_, shader, nir_remove_dead_variables, nir_var_function_temp, NULL);
-      NIR_PASS(_, shader, nir_lower_alu_to_scalar, NULL, NULL);
-      NIR_PASS(_, shader, nir_lower_phis_to_scalar, true);
-   }
+   NIR_PASS(_, shader, nir_lower_vars_to_ssa);
+   NIR_PASS(_, shader, nir_remove_dead_variables, nir_var_function_temp, NULL);
+   NIR_PASS(_, shader, nir_lower_alu_to_scalar, NULL, NULL);
+   NIR_PASS(_, shader, nir_lower_phis_to_scalar, true);
+
+   return true;
 }
 
-void
+bool
 ac_nir_lower_tes_inputs_to_mem(nir_shader *shader,
                                ac_nir_map_io_driver_location map)
 {
    assert(shader->info.stage == MESA_SHADER_TESS_EVAL);
 
    lower_tess_io_state state = {
+      .io_info.vram_output_mask = shader->info.inputs_read,
+      .io_info.vram_patch_output_mask = shader->info.patch_inputs_read,
       .map_io = map,
-      .tes_inputs_read = shader->info.inputs_read,
-      .tes_patch_inputs_read = shader->info.patch_inputs_read,
    };
 
-   nir_shader_lower_instructions(shader,
-                                 filter_any_input_access,
-                                 lower_tes_input_load,
-                                 &state);
+   return nir_shader_lower_instructions(shader,
+                                        filter_any_input_access,
+                                        lower_tes_input_load,
+                                        &state);
 }
 
 void
-ac_nir_compute_tess_wg_info(const struct radeon_info *info, const struct shader_info *tcs_info,
-                            unsigned wave_size, bool tess_uses_primid, bool all_invocations_define_tess_levels,
+ac_nir_compute_tess_wg_info(const struct radeon_info *info, const ac_nir_tess_io_info *io_info,
+                            unsigned tcs_vertices_out, unsigned wave_size, bool tess_uses_primid,
                             unsigned num_tcs_input_cp, unsigned lds_input_vertex_size,
-                            unsigned num_mem_tcs_outputs, unsigned num_mem_tcs_patch_outputs,
-                            unsigned *num_patches_per_wg, unsigned *hw_lds_size)
+                            unsigned num_remapped_tess_level_outputs, unsigned *num_patches_per_wg,
+                            unsigned *hw_lds_size)
 {
-   unsigned num_tcs_output_cp = tcs_info->tess.tcs_vertices_out;
-   unsigned lds_output_vertex_size =
-      util_bitcount64(tcs_info->outputs_read & tcs_info->outputs_written & ~TESS_LVL_MASK) * 16;
-   unsigned lds_perpatch_output_patch_size =
-      (util_bitcount64(all_invocations_define_tess_levels ?
-                          0 : tcs_info->outputs_written & TESS_LVL_MASK) +
-       util_bitcount(tcs_info->patch_outputs_read & tcs_info->patch_outputs_written)) * 16;
-
    unsigned lds_per_patch = num_tcs_input_cp * lds_input_vertex_size +
-                            num_tcs_output_cp * lds_output_vertex_size +
-                            lds_perpatch_output_patch_size;
-   unsigned mem_per_patch = (num_tcs_output_cp * num_mem_tcs_outputs + num_mem_tcs_patch_outputs) * 16;
-   unsigned num_patches = ac_compute_num_tess_patches(info, num_tcs_input_cp, num_tcs_output_cp, mem_per_patch,
+                            get_lds_output_patch_stride(io_info, tcs_vertices_out);
+   unsigned num_patches = ac_compute_num_tess_patches(info, num_tcs_input_cp, tcs_vertices_out,
+                                                      io_info->highest_remapped_vram_output,
+                                                      MAX2(io_info->highest_remapped_vram_patch_output,
+                                                           num_remapped_tess_level_outputs),
                                                       lds_per_patch, wave_size, tess_uses_primid);
-   unsigned lds_size = lds_per_patch * num_patches;
-   unsigned mem_size = mem_per_patch * num_patches;
+   unsigned lds_size = lds_per_patch * num_patches + AC_TESS_LEVEL_VOTE_LDS_BYTES;
 
-   /* The first vec4 is reserved for the tf0/1 shader message group vote. */
-   if (info->gfx_level >= GFX11)
-      lds_size += AC_HS_MSG_VOTE_LDS_BYTES;
-
-   /* SPI_SHADER_PGM_RSRC2_HS.LDS_SIZE specifies the allocation size for both LDS and the HS
-    * offchip ring buffer. LDS is only used for TCS inputs (with cross-invocation or indirect
-    * access only or if TCS in/out vertex counts are different) and for TCS outputs that are read
-    * (including tess level outputs if they need to be re-read in invocation 0), while the HS ring
-    * buffer is only used for TCS outputs consumed by TES.
+   /* SPI_SHADER_PGM_RSRC2_HS.LDS_SIZE specifies the allocation size only for LDS. The HS offchip
+    * ring buffer always uses a fixed allocation size per workgroup determined by
+    * info->hs_offchip_workgroup_dw_size.
+    *
+    * LDS is only used for TCS inputs (with cross-invocation or indirect access only or if TCS in/out
+    * vertex counts are different) and for TCS outputs that are read (including tess level outputs
+    * if they need to be re-read in invocation 0), while the HS ring buffer is only used for TCS
+    * outputs consumed by TES.
     */
-   unsigned merged_size = MAX2(lds_size, mem_size);
-   assert(merged_size <= (info->gfx_level >= GFX9 ? 65536 : 32768));
+   assert(lds_size <= (info->gfx_level >= GFX9 ? 65536 : 32768));
 
    *num_patches_per_wg = num_patches;
-   *hw_lds_size = DIV_ROUND_UP(merged_size, info->lds_encode_granularity);
+   *hw_lds_size = DIV_ROUND_UP(lds_size, info->lds_encode_granularity);
 }

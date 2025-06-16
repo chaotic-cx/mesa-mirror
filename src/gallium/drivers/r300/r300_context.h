@@ -13,6 +13,7 @@
 #include "util/u_blitter.h"
 
 #include "pipe/p_context.h"
+#include "util/u_framebuffer.h"
 #include "util/u_inlines.h"
 #include "util/u_transfer.h"
 
@@ -465,6 +466,8 @@ struct r300_context {
     /* Query list. */
     struct r300_query query_list;
 
+    PIPE_FB_SURFACES; //STOP USING THIS
+
     /* Various CSO state objects. */
 
     /* Each atom is emitted in the order it appears here, which can affect
@@ -679,15 +682,15 @@ static inline void r300_mark_atom_dirty(struct r300_context *r300,
 }
 
 static inline struct pipe_surface *
-r300_get_nonnull_cb(struct pipe_framebuffer_state *fb, unsigned i)
+r300_get_nonnull_cb(struct r300_context *r300, struct pipe_framebuffer_state *fb, unsigned i)
 {
-    if (fb->cbufs[i])
-        return fb->cbufs[i];
+    if (r300->fb_cbufs[i])
+        return r300->fb_cbufs[i];
 
     /* The i-th framebuffer is NULL, return any non-NULL one. */
     for (i = 0; i < fb->nr_cbufs; i++)
-        if (fb->cbufs[i])
-            return fb->cbufs[i];
+        if (r300->fb_cbufs[i])
+            return r300->fb_cbufs[i];
 
     return NULL;
 }
@@ -742,7 +745,7 @@ void r300_blitter_draw_rectangle(struct blitter_context *blitter,
                                  int x1, int y1, int x2, int y2,
                                  float depth, unsigned num_instances,
                                  enum blitter_attrib_type type,
-                                 const union blitter_attrib *attrib);
+                                 const struct blitter_attrib *attrib);
 
 /* r300_state.c */
 enum r300_fb_state_change {

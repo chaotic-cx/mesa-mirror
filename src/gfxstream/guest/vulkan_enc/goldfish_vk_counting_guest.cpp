@@ -137,6 +137,7 @@ void count_VkBufferMemoryBarrier(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
     *count += sizeof(VkDeviceSize);
@@ -210,6 +211,7 @@ void count_VkImageMemoryBarrier(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     count_VkImageSubresourceRange(featureBits, rootType,
                                   (VkImageSubresourceRange*)(&toCount->subresourceRange), count);
@@ -344,8 +346,6 @@ void count_VkInstanceCreateInfo(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     if (toCount) {
         for (uint32_t i = 0; i < toCount->enabledLayerCount; ++i) {
-            size_t l =
-                toCount->ppEnabledLayerNames[i] ? strlen(toCount->ppEnabledLayerNames[i]) : 0;
             *count +=
                 sizeof(uint32_t) +
                 (toCount->ppEnabledLayerNames[i] ? strlen(toCount->ppEnabledLayerNames[i]) : 0);
@@ -355,9 +355,6 @@ void count_VkInstanceCreateInfo(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     if (toCount) {
         for (uint32_t i = 0; i < toCount->enabledExtensionCount; ++i) {
-            size_t l = toCount->ppEnabledExtensionNames[i]
-                           ? strlen(toCount->ppEnabledExtensionNames[i])
-                           : 0;
             *count += sizeof(uint32_t) + (toCount->ppEnabledExtensionNames[i]
                                               ? strlen(toCount->ppEnabledExtensionNames[i])
                                               : 0);
@@ -669,8 +666,6 @@ void count_VkDeviceCreateInfo(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     if (toCount) {
         for (uint32_t i = 0; i < toCount->enabledLayerCount; ++i) {
-            size_t l =
-                toCount->ppEnabledLayerNames[i] ? strlen(toCount->ppEnabledLayerNames[i]) : 0;
             *count +=
                 sizeof(uint32_t) +
                 (toCount->ppEnabledLayerNames[i] ? strlen(toCount->ppEnabledLayerNames[i]) : 0);
@@ -680,9 +675,6 @@ void count_VkDeviceCreateInfo(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     if (toCount) {
         for (uint32_t i = 0; i < toCount->enabledExtensionCount; ++i) {
-            size_t l = toCount->ppEnabledExtensionNames[i]
-                           ? strlen(toCount->ppEnabledExtensionNames[i])
-                           : 0;
             *count += sizeof(uint32_t) + (toCount->ppEnabledExtensionNames[i]
                                               ? strlen(toCount->ppEnabledExtensionNames[i])
                                               : 0);
@@ -759,6 +751,7 @@ void count_VkMappedMemoryRange(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
     *count += sizeof(VkDeviceSize);
@@ -799,6 +792,7 @@ void count_VkSparseMemoryBind(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(VkDeviceSize);
     *count += sizeof(VkDeviceSize);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
     *count += sizeof(VkSparseMemoryBindFlags);
@@ -812,6 +806,7 @@ void count_VkSparseBufferMemoryBindInfo(uint32_t featureBits, VkStructureType ro
     (void)toCount;
     (void)count;
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     if (toCount) {
@@ -830,6 +825,7 @@ void count_VkSparseImageOpaqueMemoryBindInfo(uint32_t featureBits, VkStructureTy
     (void)toCount;
     (void)count;
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     if (toCount) {
@@ -862,6 +858,7 @@ void count_VkSparseImageMemoryBind(uint32_t featureBits, VkStructureType rootTyp
     count_VkOffset3D(featureBits, rootType, (VkOffset3D*)(&toCount->offset), count);
     count_VkExtent3D(featureBits, rootType, (VkExtent3D*)(&toCount->extent), count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
     *count += sizeof(VkSparseMemoryBindFlags);
@@ -874,6 +871,7 @@ void count_VkSparseImageMemoryBindInfo(uint32_t featureBits, VkStructureType roo
     (void)toCount;
     (void)count;
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     if (toCount) {
@@ -1054,6 +1052,7 @@ void count_VkBufferViewCreateInfo(uint32_t featureBits, VkStructureType rootType
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkBufferViewCreateFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkFormat);
     *count += sizeof(VkDeviceSize);
@@ -1130,6 +1129,7 @@ void count_VkImageViewCreateInfo(uint32_t featureBits, VkStructureType rootType,
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkImageViewCreateFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageViewType);
     *count += sizeof(VkFormat);
@@ -1221,6 +1221,7 @@ void count_VkPipelineShaderStageCreateInfo(uint32_t featureBits, VkStructureType
     *count += sizeof(VkPipelineShaderStageCreateFlags);
     *count += sizeof(VkShaderStageFlagBits);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t) + (toCount->pName ? strlen(toCount->pName) : 0);
     // WARNING PTR CHECK
@@ -1247,8 +1248,10 @@ void count_VkComputePipelineCreateInfo(uint32_t featureBits, VkStructureType roo
     count_VkPipelineShaderStageCreateInfo(
         featureBits, rootType, (VkPipelineShaderStageCreateInfo*)(&toCount->stage), count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(int32_t);
 }
@@ -1676,11 +1679,14 @@ void count_VkGraphicsPipelineCreateInfo(uint32_t featureBits, VkStructureType ro
             (const VkPipelineDynamicStateCreateInfo*)(toCount->pDynamicState), count);
     }
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     uint64_t cgen_var_2;
+    (void)cgen_var_2;
     *count += 1 * 8;
     *count += sizeof(int32_t);
 }
@@ -1763,10 +1769,12 @@ void count_VkCopyDescriptorSet(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
@@ -1780,6 +1788,7 @@ void count_VkDescriptorBufferInfo(uint32_t featureBits, VkStructureType rootType
     (void)toCount;
     (void)count;
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
     *count += sizeof(VkDeviceSize);
@@ -1792,8 +1801,10 @@ void count_VkDescriptorImageInfo(uint32_t featureBits, VkStructureType rootType,
     (void)toCount;
     (void)count;
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
 }
@@ -1843,6 +1854,7 @@ void count_VkDescriptorSetAllocateInfo(uint32_t featureBits, VkStructureType roo
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     if (toCount->descriptorSetCount) {
@@ -1905,6 +1917,7 @@ void count_VkWriteDescriptorSet(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
@@ -1998,6 +2011,7 @@ void count_VkFramebufferCreateInfo(uint32_t featureBits, VkStructureType rootTyp
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkFramebufferCreateFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     if ((!(featureBits & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) ||
@@ -2139,6 +2153,7 @@ void count_VkCommandBufferAllocateInfo(uint32_t featureBits, VkStructureType roo
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkCommandBufferLevel);
     *count += sizeof(uint32_t);
@@ -2157,9 +2172,11 @@ void count_VkCommandBufferInheritanceInfo(uint32_t featureBits, VkStructureType 
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkBool32);
     *count += sizeof(VkQueryControlFlags);
@@ -2335,8 +2352,10 @@ void count_VkRenderPassBeginInfo(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     count_VkRect2D(featureBits, rootType, (VkRect2D*)(&toCount->renderArea), count);
     *count += sizeof(uint32_t);
@@ -2384,8 +2403,10 @@ void count_VkBindBufferMemoryInfo(uint32_t featureBits, VkStructureType rootType
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
 }
@@ -2402,8 +2423,10 @@ void count_VkBindImageMemoryInfo(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
 }
@@ -2455,8 +2478,10 @@ void count_VkMemoryDedicatedAllocateInfo(uint32_t featureBits, VkStructureType r
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
 }
 
@@ -2643,6 +2668,7 @@ void count_VkBufferMemoryRequirementsInfo2(uint32_t featureBits, VkStructureType
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
 }
 
@@ -2659,6 +2685,7 @@ void count_VkImageMemoryRequirementsInfo2(uint32_t featureBits, VkStructureType 
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
 }
 
@@ -2675,6 +2702,7 @@ void count_VkImageSparseMemoryRequirementsInfo2(uint32_t featureBits, VkStructur
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
 }
 
@@ -3105,6 +3133,7 @@ void count_VkSamplerYcbcrConversionInfo(uint32_t featureBits, VkStructureType ro
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
 }
 
@@ -3206,9 +3235,11 @@ void count_VkDescriptorUpdateTemplateCreateInfo(uint32_t featureBits, VkStructur
     }
     *count += sizeof(VkDescriptorUpdateTemplateType);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkPipelineBindPoint);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
 }
@@ -4507,6 +4538,7 @@ void count_VkSemaphoreSignalInfo(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint64_t);
 }
@@ -4540,6 +4572,7 @@ void count_VkBufferDeviceAddressInfo(uint32_t featureBits, VkStructureType rootT
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
 }
 
@@ -4586,6 +4619,7 @@ void count_VkDeviceMemoryOpaqueCaptureAddressInfo(
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
 }
 
@@ -4857,6 +4891,7 @@ void count_VkBufferMemoryBarrier2(uint32_t featureBits, VkStructureType rootType
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
     *count += sizeof(VkDeviceSize);
@@ -4882,6 +4917,7 @@ void count_VkImageMemoryBarrier2(uint32_t featureBits, VkStructureType rootType,
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     count_VkImageSubresourceRange(featureBits, rootType,
                                   (VkImageSubresourceRange*)(&toCount->subresourceRange), count);
@@ -4936,6 +4972,7 @@ void count_VkSemaphoreSubmitInfo(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint64_t);
     *count += sizeof(VkPipelineStageFlags2);
@@ -4954,6 +4991,7 @@ void count_VkCommandBufferSubmitInfo(uint32_t featureBits, VkStructureType rootT
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
 }
@@ -5069,8 +5107,10 @@ void count_VkCopyBufferInfo2(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     if (toCount) {
@@ -5113,9 +5153,11 @@ void count_VkCopyImageInfo2(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
@@ -5159,8 +5201,10 @@ void count_VkCopyBufferToImageInfo2(uint32_t featureBits, VkStructureType rootTy
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
@@ -5184,9 +5228,11 @@ void count_VkCopyImageToBufferInfo2(uint32_t featureBits, VkStructureType rootTy
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     if (toCount) {
@@ -5232,9 +5278,11 @@ void count_VkBlitImageInfo2(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
@@ -5279,9 +5327,11 @@ void count_VkResolveImageInfo2(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
@@ -5437,10 +5487,12 @@ void count_VkRenderingAttachmentInfo(uint32_t featureBits, VkStructureType rootT
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(VkResolveModeFlagBits);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(VkAttachmentLoadOp);
@@ -6034,6 +6086,7 @@ void count_VkMemoryMapInfo(uint32_t featureBits, VkStructureType rootType,
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkMemoryMapFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkDeviceSize);
     *count += sizeof(VkDeviceSize);
@@ -6052,6 +6105,7 @@ void count_VkMemoryUnmapInfo(uint32_t featureBits, VkStructureType rootType,
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkMemoryUnmapFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
 }
 
@@ -6335,6 +6389,7 @@ void count_VkBindDescriptorSetsInfo(uint32_t featureBits, VkStructureType rootTy
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkShaderStageFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
@@ -6363,6 +6418,7 @@ void count_VkPushConstantsInfo(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkShaderStageFlags);
     *count += sizeof(uint32_t);
@@ -6385,6 +6441,7 @@ void count_VkPushDescriptorSetInfo(uint32_t featureBits, VkStructureType rootTyp
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkShaderStageFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     *count += sizeof(uint32_t);
@@ -6410,8 +6467,10 @@ void count_VkPushDescriptorSetWithTemplateInfo(uint32_t featureBits, VkStructure
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
     *count += sizeof(const uint8_t);
@@ -6583,6 +6642,7 @@ void count_VkCopyMemoryToImageInfo(uint32_t featureBits, VkStructureType rootTyp
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkHostImageCopyFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
@@ -6607,6 +6667,7 @@ void count_VkCopyImageToMemoryInfo(uint32_t featureBits, VkStructureType rootTyp
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkHostImageCopyFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
@@ -6631,9 +6692,11 @@ void count_VkCopyImageToImageInfo(uint32_t featureBits, VkStructureType rootType
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     *count += sizeof(VkHostImageCopyFlags);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     uint64_t cgen_var_1;
+    (void)cgen_var_1;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(uint32_t);
@@ -6658,6 +6721,7 @@ void count_VkHostImageLayoutTransitionInfo(uint32_t featureBits, VkStructureType
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
     *count += sizeof(VkImageLayout);
@@ -6709,6 +6773,7 @@ void count_VkImportSemaphoreFdInfoKHR(uint32_t featureBits, VkStructureType root
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkSemaphoreImportFlags);
     *count += sizeof(VkExternalSemaphoreHandleTypeFlagBits);
@@ -6727,6 +6792,7 @@ void count_VkSemaphoreGetFdInfoKHR(uint32_t featureBits, VkStructureType rootTyp
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkExternalSemaphoreHandleTypeFlagBits);
 }
@@ -6801,6 +6867,7 @@ void count_VkImportFenceFdInfoKHR(uint32_t featureBits, VkStructureType rootType
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkFenceImportFlags);
     *count += sizeof(VkExternalFenceHandleTypeFlagBits);
@@ -6819,6 +6886,7 @@ void count_VkFenceGetFdInfoKHR(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkExternalFenceHandleTypeFlagBits);
 }
@@ -6852,6 +6920,7 @@ void count_VkPipelineInfoKHR(uint32_t featureBits, VkStructureType rootType,
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
 }
 
@@ -6885,6 +6954,7 @@ void count_VkPipelineExecutableInfoKHR(uint32_t featureBits, VkStructureType roo
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(uint32_t);
 }
@@ -7344,6 +7414,7 @@ void count_VkRenderingFragmentDensityMapAttachmentInfoEXT(
     }
     count_extension_struct(featureBits, rootType, toCount->pNext, count);
     uint64_t cgen_var_0;
+    (void)cgen_var_0;
     *count += 1 * 8;
     *count += sizeof(VkImageLayout);
 }
@@ -7484,41 +7555,6 @@ void count_VkDeviceDeviceMemoryReportCreateInfoEXT(
     *count += sizeof(VkDeviceMemoryReportFlagsEXT);
     *count += 8;
     *count += sizeof(uint8_t);
-}
-
-#endif
-#ifdef VK_EXT_robustness2
-void count_VkPhysicalDeviceRobustness2FeaturesEXT(
-    uint32_t featureBits, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2FeaturesEXT* toCount, size_t* count) {
-    (void)featureBits;
-    (void)rootType;
-    (void)toCount;
-    (void)count;
-    *count += sizeof(VkStructureType);
-    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
-        rootType = toCount->sType;
-    }
-    count_extension_struct(featureBits, rootType, toCount->pNext, count);
-    *count += sizeof(VkBool32);
-    *count += sizeof(VkBool32);
-    *count += sizeof(VkBool32);
-}
-
-void count_VkPhysicalDeviceRobustness2PropertiesEXT(
-    uint32_t featureBits, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2PropertiesEXT* toCount, size_t* count) {
-    (void)featureBits;
-    (void)rootType;
-    (void)toCount;
-    (void)count;
-    *count += sizeof(VkStructureType);
-    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
-        rootType = toCount->sType;
-    }
-    count_extension_struct(featureBits, rootType, toCount->pNext, count);
-    *count += sizeof(VkDeviceSize);
-    *count += sizeof(VkDeviceSize);
 }
 
 #endif
@@ -9158,22 +9194,6 @@ void count_extension_struct(uint32_t featureBits, VkStructureType rootType,
             count_VkDeviceDeviceMemoryReportCreateInfoEXT(
                 featureBits, rootType,
                 reinterpret_cast<const VkDeviceDeviceMemoryReportCreateInfoEXT*>(structExtension),
-                count);
-            break;
-        }
-#endif
-#ifdef VK_EXT_robustness2
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_FEATURES_EXT: {
-            count_VkPhysicalDeviceRobustness2FeaturesEXT(
-                featureBits, rootType,
-                reinterpret_cast<const VkPhysicalDeviceRobustness2FeaturesEXT*>(structExtension),
-                count);
-            break;
-        }
-        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_ROBUSTNESS_2_PROPERTIES_EXT: {
-            count_VkPhysicalDeviceRobustness2PropertiesEXT(
-                featureBits, rootType,
-                reinterpret_cast<const VkPhysicalDeviceRobustness2PropertiesEXT*>(structExtension),
                 count);
             break;
         }

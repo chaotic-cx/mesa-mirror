@@ -4,21 +4,21 @@
 use crate::ir::*;
 
 use compiler::bitset::BitSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::cell::RefCell;
 use std::cmp::{max, Ord, Ordering};
-use std::collections::{hash_set, HashMap, HashSet};
 
 #[derive(Clone)]
 pub struct LiveSet {
     live: PerRegFile<u32>,
-    set: HashSet<SSAValue>,
+    set: FxHashSet<SSAValue>,
 }
 
 impl LiveSet {
     pub fn new() -> LiveSet {
         LiveSet {
             live: Default::default(),
-            set: HashSet::new(),
+            set: Default::default(),
         }
     }
 
@@ -39,7 +39,7 @@ impl LiveSet {
         }
     }
 
-    pub fn iter(&self) -> hash_set::Iter<SSAValue> {
+    pub fn iter(&self) -> impl Iterator<Item = &SSAValue> {
         self.set.iter()
     }
 
@@ -151,7 +151,7 @@ pub trait BlockLiveness {
         let vec_dst_live = live;
 
         // Use a hash set because sources may occur more than once
-        let mut killed = HashSet::new();
+        let mut killed: FxHashSet<_> = Default::default();
         instr.for_each_ssa_use(|ssa| {
             if !self.is_live_after_ip(ssa, ip) {
                 killed.insert(*ssa);
@@ -227,66 +227,59 @@ pub trait Liveness {
     }
 }
 
+#[derive(Default)]
 pub struct SimpleBlockLiveness {
-    defs: BitSet,
-    uses: BitSet,
-    last_use: HashMap<u32, usize>,
-    live_in: BitSet,
-    live_out: BitSet,
+    defs: BitSet<SSAValue>,
+    uses: BitSet<SSAValue>,
+    last_use: FxHashMap<SSAValue, usize>,
+    live_in: BitSet<SSAValue>,
+    live_out: BitSet<SSAValue>,
 }
 
 impl SimpleBlockLiveness {
     fn new() -> Self {
-        Self {
-            defs: BitSet::new(),
-            uses: BitSet::new(),
-            last_use: HashMap::new(),
-            live_in: BitSet::new(),
-            live_out: BitSet::new(),
-        }
+        Default::default()
     }
 
     fn add_def(&mut self, ssa: SSAValue) {
-        self.defs.insert(ssa.idx().try_into().unwrap());
+        self.defs.insert(ssa);
     }
 
     fn add_use(&mut self, ssa: SSAValue, ip: usize) {
-        self.uses.insert(ssa.idx().try_into().unwrap());
-        self.last_use.insert(ssa.idx(), ip);
+        self.uses.insert(ssa);
+        self.last_use.insert(ssa, ip);
     }
 }
 
 impl BlockLiveness for SimpleBlockLiveness {
     fn is_live_after_ip(&self, val: &SSAValue, ip: usize) -> bool {
-        if self.live_out.get(val.idx().try_into().unwrap()) {
+        if self.live_out.contains(*val) {
             true
+        } else if let Some(last_use_ip) = self.last_use.get(val) {
+            *last_use_ip > ip
         } else {
-            if let Some(last_use_ip) = self.last_use.get(&val.idx()) {
-                *last_use_ip > ip
-            } else {
-                false
-            }
+            false
         }
     }
 
     fn is_live_in(&self, val: &SSAValue) -> bool {
-        self.live_in.get(val.idx().try_into().unwrap())
+        self.live_in.contains(*val)
     }
 
     fn is_live_out(&self, val: &SSAValue) -> bool {
-        self.live_out.get(val.idx().try_into().unwrap())
+        self.live_out.contains(*val)
     }
 }
 
 pub struct SimpleLiveness {
-    ssa_block_ip: HashMap<SSAValue, (usize, usize)>,
+    ssa_block_ip: FxHashMap<SSAValue, (usize, usize)>,
     blocks: Vec<SimpleBlockLiveness>,
 }
 
 impl SimpleLiveness {
     pub fn for_function(func: &Function) -> SimpleLiveness {
         let mut l = SimpleLiveness {
-            ssa_block_ip: HashMap::new(),
+            ssa_block_ip: Default::default(),
             blocks: Vec::new(),
         };
         let mut live_in = Vec::new();
@@ -401,14 +394,14 @@ impl SSAUseDef {
 
 pub struct NextUseBlockLiveness {
     num_instrs: usize,
-    ssa_map: HashMap<SSAValue, SSAUseDef>,
+    ssa_map: FxHashMap<SSAValue, SSAUseDef>,
 }
 
 impl NextUseBlockLiveness {
     fn new(num_instrs: usize) -> Self {
         Self {
             num_instrs: num_instrs,
-            ssa_map: HashMap::new(),
+            ssa_map: Default::default(),
         }
     }
 

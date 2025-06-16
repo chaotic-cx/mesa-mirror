@@ -165,13 +165,13 @@ sp_destroy_tile_cache(struct softpipe_tile_cache *tc)
  */
 void
 sp_tile_cache_set_surface(struct softpipe_tile_cache *tc,
-                          struct pipe_surface *ps)
+                          const struct pipe_surface *ps)
 {
    struct pipe_context *pipe = tc->pipe;
    int i;
 
    if (tc->num_maps) {
-      if (ps == tc->surface)
+      if (pipe_surface_equal(ps, &tc->surface))
          return;
 
       for (i = 0; i < tc->num_maps; i++) {
@@ -187,10 +187,10 @@ sp_tile_cache_set_surface(struct softpipe_tile_cache *tc,
       tc->clear_flags_size = 0;
    }
 
-   tc->surface = ps;
+   tc->surface = *ps;
 
-   if (ps) {
-      tc->num_maps = ps->u.tex.last_layer - ps->u.tex.first_layer + 1;
+   if (ps->texture) {
+      tc->num_maps = ps->last_layer - ps->first_layer + 1;
       tc->transfer = CALLOC(tc->num_maps, sizeof(struct pipe_transfer *));
       tc->transfer_map = CALLOC(tc->num_maps, sizeof(void *));
 
@@ -200,10 +200,12 @@ sp_tile_cache_set_surface(struct softpipe_tile_cache *tc,
       if (ps->texture->target != PIPE_BUFFER) {
          for (i = 0; i < tc->num_maps; i++) {
             tc->transfer_map[i] = pipe_texture_map(pipe, ps->texture,
-                                                    ps->u.tex.level, ps->u.tex.first_layer + i,
+                                                    ps->level, ps->first_layer + i,
                                                     PIPE_MAP_READ_WRITE |
                                                     PIPE_MAP_UNSYNCHRONIZED,
-                                                    0, 0, ps->width, ps->height,
+                                                    0, 0,
+                                                    pipe_surface_width(ps),
+                                                    pipe_surface_height(ps),
                                                     &tc->transfer[i]);
          }
       }
@@ -215,17 +217,6 @@ sp_tile_cache_set_surface(struct softpipe_tile_cache *tc,
       tc->depth_stencil = util_format_is_depth_or_stencil(ps->format);
    }
 }
-
-
-/**
- * Return the transfer being cached.
- */
-struct pipe_surface *
-sp_tile_cache_get_surface(struct softpipe_tile_cache *tc)
-{
-   return tc->surface;
-}
-
 
 /**
  * Set pixels in a tile to the given clear color/value, float.
@@ -368,7 +359,7 @@ sp_tile_cache_flush_clear(struct softpipe_tile_cache *tc, int layer)
             else {
                pipe_put_tile_rgba(pt, tc->transfer_map[layer],
                                   x, y, TILE_SIZE, TILE_SIZE,
-                                  tc->surface->format,
+                                  tc->surface.format,
                                   tc->tile->data.color);
             }
             numCleared++;
@@ -399,7 +390,7 @@ sp_flush_tile(struct softpipe_tile_cache* tc, unsigned pos)
                             tc->tile_addrs[pos].bits.x * TILE_SIZE,
                             tc->tile_addrs[pos].bits.y * TILE_SIZE,
                             TILE_SIZE, TILE_SIZE,
-                            tc->surface->format,
+                            tc->surface.format,
                             tc->entries[pos]->data.color);
       }
       tc->tile_addrs[pos].bits.invalid = 1;  /* mark as empty */
@@ -513,7 +504,7 @@ sp_find_cached_tile(struct softpipe_tile_cache *tc,
                                tc->tile_addrs[pos].bits.x * TILE_SIZE,
                                tc->tile_addrs[pos].bits.y * TILE_SIZE,
                                TILE_SIZE, TILE_SIZE,
-                               tc->surface->format,
+                               tc->surface.format,
                                tile->data.color);
          }
       }
@@ -548,7 +539,7 @@ sp_find_cached_tile(struct softpipe_tile_cache *tc,
                                tc->tile_addrs[pos].bits.x * TILE_SIZE,
                                tc->tile_addrs[pos].bits.y * TILE_SIZE,
                                TILE_SIZE, TILE_SIZE,
-                               tc->surface->format,
+                               tc->surface.format,
                                tile->data.color);
          }
       }

@@ -2250,7 +2250,8 @@ update_uip_jip(const struct brw_isa_info *isa, brw_eu_inst *insn,
    brw_eu_inst_set_jip(devinfo, insn, (uint32_t)jip_compacted << shift);
 
    if (brw_eu_inst_opcode(isa, insn) == BRW_OPCODE_ENDIF ||
-       brw_eu_inst_opcode(isa, insn) == BRW_OPCODE_WHILE)
+       brw_eu_inst_opcode(isa, insn) == BRW_OPCODE_WHILE ||
+       brw_eu_inst_opcode(isa, insn) == BRW_OPCODE_JOIN)
       return;
 
    int32_t uip_compacted = brw_eu_inst_uip(devinfo, insn) >> shift;
@@ -2343,14 +2344,14 @@ brw_compact_instructions(struct brw_codegen *p, int start_offset,
    unsigned num_compacted_counts =
       (p->next_insn_offset - start_offset) / sizeof(brw_eu_inst);
    int *compacted_counts =
-      calloc(1, sizeof(*compacted_counts) * num_compacted_counts);
+      calloc(num_compacted_counts, sizeof(*compacted_counts));
 
    /* For an instruction at byte offset 8*i after compaction, this was its IP
     * (in 16-byte units) before compaction.
     */
    unsigned num_old_ip =
       (p->next_insn_offset - start_offset) / sizeof(brw_eu_compact_inst) + 1;
-   int *old_ip = calloc(1, sizeof(*old_ip) * num_old_ip);
+   int *old_ip = calloc(num_old_ip, sizeof(*old_ip));
 
    struct compaction_state c;
    compaction_state_init(&c, p->isa);
@@ -2371,15 +2372,14 @@ brw_compact_instructions(struct brw_codegen *p, int start_offset,
       if (try_compact_instruction(&c, dst, &inst)) {
          compacted_count++;
 
-         if (INTEL_DEBUG(DEBUG_VS | DEBUG_GS | DEBUG_TCS | DEBUG_TASK |
-                         DEBUG_WM | DEBUG_CS | DEBUG_TES | DEBUG_MESH |
-                         DEBUG_RT)) {
-            brw_eu_inst uncompacted;
-            uncompact_instruction(&c, &uncompacted, dst);
-            if (memcmp(&saved, &uncompacted, sizeof(uncompacted))) {
-               brw_debug_compact_uncompact(p->isa, &saved, &uncompacted);
-            }
+#ifndef NDEBUG
+         brw_eu_inst uncompacted;
+         uncompact_instruction(&c, &uncompacted, dst);
+         if (memcmp(&saved, &uncompacted, sizeof(uncompacted))) {
+            brw_debug_compact_uncompact(p->isa, &saved, &uncompacted);
+            assert(false);
          }
+#endif
 
          offset += sizeof(brw_eu_compact_inst);
       } else {
@@ -2402,7 +2402,7 @@ brw_compact_instructions(struct brw_codegen *p, int start_offset,
    /* Fix up control flow offsets. */
    p->next_insn_offset = start_offset + offset;
    for (offset = 0; offset < p->next_insn_offset - start_offset;
-        offset = next_offset(devinfo, store, offset)) {
+        offset = next_offset(p, store, offset)) {
       brw_eu_inst *insn = store + offset;
       int this_old_ip = old_ip[offset / sizeof(brw_eu_compact_inst)];
       int this_compacted_count = compacted_counts[this_old_ip];
@@ -2418,6 +2418,8 @@ brw_compact_instructions(struct brw_codegen *p, int start_offset,
       case BRW_OPCODE_ELSE:
       case BRW_OPCODE_ENDIF:
       case BRW_OPCODE_WHILE:
+      case BRW_OPCODE_GOTO:
+      case BRW_OPCODE_JOIN:
          if (brw_eu_inst_cmpt_control(devinfo, insn)) {
             brw_eu_inst uncompacted;
             uncompact_instruction(&c, &uncompacted,
@@ -2494,12 +2496,10 @@ brw_compact_instructions(struct brw_codegen *p, int start_offset,
                 sizeof(brw_eu_inst) != group->offset) {
             assert(start_offset + old_ip[offset / sizeof(brw_eu_compact_inst)] *
                    sizeof(brw_eu_inst) < group->offset);
-            offset = next_offset(devinfo, store, offset);
+            offset = next_offset(p, store, offset);
          }
 
          group->offset = start_offset + offset;
-
-         offset = next_offset(devinfo, store, offset);
       }
    }
 

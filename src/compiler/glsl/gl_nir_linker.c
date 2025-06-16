@@ -88,7 +88,13 @@ gl_nir_opts(nir_shader *nir)
       NIR_PASS(progress, nir, nir_opt_if, 0);
       NIR_PASS(progress, nir, nir_opt_dead_cf);
       NIR_PASS(progress, nir, nir_opt_cse);
-      NIR_PASS(progress, nir, nir_opt_peephole_select, 8, true, true);
+
+      nir_opt_peephole_select_options peephole_select_options = {
+         .limit = 8,
+         .indirect_load_ok = true,
+         .expensive_alu_ok = true,
+      };
+      NIR_PASS(progress, nir, nir_opt_peephole_select, &peephole_select_options);
 
       NIR_PASS(progress, nir, nir_opt_phi_precision);
       NIR_PASS(progress, nir, nir_opt_algebraic);
@@ -122,7 +128,12 @@ gl_nir_opts(nir_shader *nir)
       }
 
       NIR_PASS(progress, nir, nir_opt_undef);
-      NIR_PASS(progress, nir, nir_opt_conditional_discard);
+
+      peephole_select_options = (nir_opt_peephole_select_options){
+         .limit = 0,
+         .discard_ok = true,
+      };
+      NIR_PASS(progress, nir, nir_opt_peephole_select, &peephole_select_options);
       if (nir->options->max_unroll_iterations ||
             (nir->options->max_unroll_iterations_fp64 &&
                (nir->options->lower_doubles_options & nir_lower_fp64_full_software))) {
@@ -482,47 +493,6 @@ gl_nir_can_add_pointsize_to_program(const struct gl_constants *consts,
    }
 
    return num_components + needed_components <= max_components;
-}
-
-static void
-gl_nir_link_opts(nir_shader *producer, nir_shader *consumer)
-{
-   MESA_TRACE_FUNC();
-
-   if (producer->options->lower_to_scalar) {
-      NIR_PASS(_, producer, nir_lower_io_to_scalar_early, nir_var_shader_out);
-      NIR_PASS(_, consumer, nir_lower_io_to_scalar_early, nir_var_shader_in);
-   }
-
-   nir_lower_io_arrays_to_elements(producer, consumer);
-
-   gl_nir_opts(producer);
-   gl_nir_opts(consumer);
-
-   if (nir_link_opt_varyings(producer, consumer))
-      gl_nir_opts(consumer);
-
-   NIR_PASS(_, producer, nir_remove_dead_variables, nir_var_shader_out, NULL);
-   NIR_PASS(_, consumer, nir_remove_dead_variables, nir_var_shader_in, NULL);
-
-   if (nir_remove_unused_varyings(producer, consumer)) {
-      NIR_PASS(_, producer, nir_lower_global_vars_to_local);
-      NIR_PASS(_, consumer, nir_lower_global_vars_to_local);
-
-      gl_nir_opts(producer);
-      gl_nir_opts(consumer);
-
-      /* Optimizations can cause varyings to become unused.
-       * nir_compact_varyings() depends on all dead varyings being removed so
-       * we need to call nir_remove_dead_variables() again here.
-       */
-      NIR_PASS(_, producer, nir_remove_dead_variables, nir_var_shader_out,
-                 NULL);
-      NIR_PASS(_, consumer, nir_remove_dead_variables, nir_var_shader_in,
-                 NULL);
-   }
-
-   nir_link_varying_precision(producer, consumer);
 }
 
 static bool
@@ -1245,8 +1215,7 @@ gl_nir_add_point_size(nir_shader *nir)
    nir->info.outputs_written |= VARYING_BIT_PSIZ;
 
    /* We always modify the entrypoint */
-   nir_metadata_preserve(impl, nir_metadata_control_flow);
-   return true;
+   return nir_progress(true, impl, nir_metadata_control_flow);
 }
 
 static void
@@ -1281,8 +1250,7 @@ gl_nir_zero_initialize_clip_distance(nir_shader *nir)
    if (clip_dist1)
       zero_array_members(&b, clip_dist1);
 
-   nir_metadata_preserve(impl, nir_metadata_control_flow);
-   return true;
+   return nir_progress(true, impl, nir_metadata_control_flow);
 }
 
 static void
@@ -1322,11 +1290,9 @@ preprocess_shader(const struct gl_constants *consts,
    nir_shader_gather_info(prog->nir, nir_shader_get_entrypoint(prog->nir));
 
    if (prog->info.stage == MESA_SHADER_FRAGMENT && consts->HasFBFetch) {
-
       NIR_PASS(_, prog->nir, gl_nir_lower_blend_equation_advanced,
                  exts->KHR_blend_equation_advanced_coherent);
       nir_lower_global_vars_to_local(prog->nir);
-      NIR_PASS(_, prog->nir, nir_opt_combine_stores, nir_var_shader_out);
    }
 
    /* Set the next shader stage hint for VS and TES. */
@@ -1355,18 +1321,11 @@ preprocess_shader(const struct gl_constants *consts,
        (nir->info.outputs_written & (VARYING_BIT_CLIP_DIST0 | VARYING_BIT_CLIP_DIST1)))
       NIR_PASS(_, nir, gl_nir_zero_initialize_clip_distance);
 
-   if (options->lower_all_io_to_temps ||
-       nir->info.stage == MESA_SHADER_VERTEX ||
-       nir->info.stage == MESA_SHADER_GEOMETRY) {
-      NIR_PASS(_, nir, nir_lower_io_to_temporaries,
-                 nir_shader_get_entrypoint(nir),
-                 true, true);
-   } else if (nir->info.stage == MESA_SHADER_TESS_EVAL ||
-              nir->info.stage == MESA_SHADER_FRAGMENT) {
-      NIR_PASS(_, nir, nir_lower_io_to_temporaries,
-                 nir_shader_get_entrypoint(nir),
-                 true, false);
-   }
+   NIR_PASS(_, nir, nir_lower_io_to_temporaries,
+            nir_shader_get_entrypoint(nir), true,
+            options->lower_all_io_to_temps ||
+            nir->info.stage == MESA_SHADER_VERTEX ||
+            nir->info.stage == MESA_SHADER_GEOMETRY);
 
    NIR_PASS(_, nir, nir_lower_global_vars_to_local);
    NIR_PASS(_, nir, nir_split_var_copies);
@@ -1608,7 +1567,7 @@ gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
        * optimizations and compaction. Do that for all inputs and outputs,
        * including VS inputs because those could have been removed too.
        */
-      NIR_PASS_V(nir, nir_recompute_io_bases,
+      NIR_PASS(_, nir, nir_recompute_io_bases,
                  nir_var_shader_in | nir_var_shader_out);
 
       /* Regenerate transform feedback info because compaction in
@@ -1643,18 +1602,6 @@ gl_nir_link_spirv(const struct gl_constants *consts,
 
    gl_nir_link_assign_xfb_resources(consts, prog);
    gl_nir_lower_optimize_varyings(consts, prog, true);
-
-   if (!linked_shader[0]->Program->nir->info.io_lowered) {
-      /* Linking the stages in the opposite order (from fragment to vertex)
-       * ensures that inter-shader outputs written to in an earlier stage
-       * are eliminated if they are (transitively) not used in a later
-       * stage.
-       */
-      for (int i = num_shaders - 2; i >= 0; i--) {
-         gl_nir_link_opts(linked_shader[i]->Program->nir,
-                          linked_shader[i + 1]->Program->nir);
-      }
-   }
 
    for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
       struct gl_linked_shader *shader = prog->_LinkedShaders[i];
@@ -2722,6 +2669,7 @@ link_intrastage_shaders(void *mem_ctx,
 {
    bool arb_fragment_coord_conventions_enable = false;
    bool KHR_shader_subgroup_basic_enable = false;
+   unsigned view_mask = 0;
 
    /* Check that global variables defined in multiple shaders are consistent.
     */
@@ -2736,6 +2684,17 @@ link_intrastage_shaders(void *mem_ctx,
          arb_fragment_coord_conventions_enable = true;
       if (shader_list[i]->KHR_shader_subgroup_basic_enable)
          KHR_shader_subgroup_basic_enable = true;
+
+      if (shader_list[i]->view_mask != 0) {
+         if (view_mask != 0 && shader_list[i]->view_mask != view_mask) {
+            linker_error(prog, "vertex shader defined with "
+                         "conflicting num_views (%d and %d)\n",
+                         ffs(view_mask) - 1, ffs(shader_list[i]->view_mask) - 1);
+            return NULL;
+         }
+
+         view_mask = shader_list[i]->view_mask;
+      }
    }
 
    if (!prog->data->LinkStatus)
@@ -2833,6 +2792,7 @@ link_intrastage_shaders(void *mem_ctx,
 
    link_layer_viewport_relative_qualifier(prog, gl_prog, shader_list, num_shaders);
 
+   gl_prog->nir->info.view_mask = view_mask;
    gl_prog->nir->info.subgroup_size = KHR_shader_subgroup_basic_enable ?
       SUBGROUP_SIZE_API_CONSTANT : SUBGROUP_SIZE_UNIFORM;
 
@@ -3952,9 +3912,10 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
     * stage and outputs of the last stage included in the program, since there
     * is no cross validation for these.
     */
-   gl_nir_validate_first_and_last_interface_explicit_locations(consts, prog,
-                                                               (gl_shader_stage) first,
-                                                               (gl_shader_stage) last);
+   if (!gl_nir_validate_first_and_last_interface_explicit_locations(consts, prog,
+                                                                    (gl_shader_stage)first,
+                                                                    (gl_shader_stage)last))
+      goto done;
 
    if (prog->SeparateShader)
       disable_varying_optimizations_for_sso(prog);
@@ -4006,18 +3967,6 @@ gl_nir_link_glsl(struct gl_context *ctx, struct gl_shader_program *prog)
 
    if (prog->data->LinkStatus == LINKING_FAILURE)
       goto done;
-
-   if (!linked_shader[0]->Program->nir->info.io_lowered) {
-      /* Linking the stages in the opposite order (from fragment to vertex)
-       * ensures that inter-shader outputs written to in an earlier stage
-       * are eliminated if they are (transitively) not used in a later
-       * stage.
-       */
-      for (int i = num_linked_shaders - 2; i >= 0; i--) {
-         gl_nir_link_opts(linked_shader[i]->Program->nir,
-                          linked_shader[i + 1]->Program->nir);
-      }
-   }
 
    /* Tidy up any left overs from the linking process for single shaders.
     * For example varying arrays that get packed may have dead elements that

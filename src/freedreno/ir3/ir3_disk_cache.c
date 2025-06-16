@@ -36,13 +36,22 @@ ir3_disk_cache_init(struct ir3_compiler *compiler)
    const char *renderer = fd_dev_name(compiler->dev_id);
    const struct build_id_note *note =
       build_id_find_nhdr_for_addr(ir3_disk_cache_init);
-   assert(note && build_id_length(note) == 20); /* sha1 */
+   unsigned build_id_len = build_id_length(note);
+   assert(note && build_id_len == 20); /* sha1 */
 
    const uint8_t *id_sha1 = build_id_data(note);
    assert(id_sha1);
 
+   struct mesa_sha1 ctx;
+   uint8_t sha1[SHA1_DIGEST_LENGTH];
+   _mesa_sha1_init(&ctx);
+   _mesa_sha1_update(&ctx, id_sha1, build_id_len);
+   _mesa_sha1_update(&ctx, &compiler->options.uche_trap_base,
+                     sizeof(compiler->options.uche_trap_base));
+   _mesa_sha1_final(&ctx, sha1);
+
    char timestamp[41];
-   _mesa_sha1_format(timestamp, id_sha1);
+   _mesa_sha1_format(timestamp, sha1);
 
    uint64_t driver_flags = ir3_shader_debug_hash_key();
    compiler->disk_cache = disk_cache_create(renderer, timestamp, driver_flags);
@@ -117,10 +126,14 @@ retrieve_variant(struct blob_reader *blob, struct ir3_shader_variant *v)
 
    if (!v->binning_pass) {
       blob_copy_bytes(blob, v->const_state, sizeof(*v->const_state));
-      unsigned immeds_sz = v->const_state->immediates_size *
-                           sizeof(v->const_state->immediates[0]);
-      v->const_state->immediates = ralloc_size(v->const_state, immeds_sz);
-      blob_copy_bytes(blob, v->const_state->immediates, immeds_sz);
+   }
+
+   if (!v->compiler->load_shader_consts_via_preamble) {
+      v->imm_state.size = blob_read_uint32(blob);
+      v->imm_state.count = v->imm_state.size;
+      uint32_t immeds_sz = v->imm_state.size * sizeof(v->imm_state.values[0]);
+      v->imm_state.values = ralloc_size(v, immeds_sz);
+      blob_copy_bytes(blob, v->imm_state.values, immeds_sz);
    }
 }
 
@@ -139,9 +152,15 @@ store_variant(struct blob *blob, const struct ir3_shader_variant *v)
 
    if (!v->binning_pass) {
       blob_write_bytes(blob, v->const_state, sizeof(*v->const_state));
-      unsigned immeds_sz = v->const_state->immediates_size *
-                           sizeof(v->const_state->immediates[0]);
-      blob_write_bytes(blob, v->const_state->immediates, immeds_sz);
+   }
+
+   /* When load_shader_consts_via_preamble, immediates are loaded in the
+    * preamble and hence part of bin.
+    */
+   if (!v->compiler->load_shader_consts_via_preamble) {
+      blob_write_uint32(blob, v->imm_state.size);
+      uint32_t immeds_sz = v->imm_state.size * sizeof(v->imm_state.values[0]);
+      blob_write_bytes(blob, v->imm_state.values, immeds_sz);
    }
 }
 

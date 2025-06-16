@@ -2063,14 +2063,11 @@ void deepcopy_VkDeviceDeviceMemoryReportCreateInfoEXT(
 
 #endif
 #ifdef VK_EXT_robustness2
-void deepcopy_VkPhysicalDeviceRobustness2FeaturesEXT(
-    Allocator* alloc, VkStructureType rootType, const VkPhysicalDeviceRobustness2FeaturesEXT* from,
-    VkPhysicalDeviceRobustness2FeaturesEXT* to);
+DEFINE_ALIAS_FUNCTION(deepcopy_VkPhysicalDeviceRobustness2FeaturesKHR,
+                      deepcopy_VkPhysicalDeviceRobustness2FeaturesEXT)
 
-void deepcopy_VkPhysicalDeviceRobustness2PropertiesEXT(
-    Allocator* alloc, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2PropertiesEXT* from,
-    VkPhysicalDeviceRobustness2PropertiesEXT* to);
+DEFINE_ALIAS_FUNCTION(deepcopy_VkPhysicalDeviceRobustness2PropertiesKHR,
+                      deepcopy_VkPhysicalDeviceRobustness2PropertiesEXT)
 
 #endif
 #ifdef VK_EXT_custom_border_color

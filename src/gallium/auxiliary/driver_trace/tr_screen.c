@@ -151,57 +151,6 @@ trace_screen_get_disk_shader_cache(struct pipe_screen *_screen)
 
 
 static int
-trace_screen_get_shader_param(struct pipe_screen *_screen,
-                              enum pipe_shader_type shader,
-                              enum pipe_shader_cap param)
-{
-   struct trace_screen *tr_scr = trace_screen(_screen);
-   struct pipe_screen *screen = tr_scr->screen;
-   int result;
-
-   trace_dump_call_begin("pipe_screen", "get_shader_param");
-
-   trace_dump_arg(ptr, screen);
-   trace_dump_arg_enum(pipe_shader_type, shader);
-   trace_dump_arg_enum(pipe_shader_cap, param);
-
-   result = screen->get_shader_param(screen, shader, param);
-
-   trace_dump_ret(int, result);
-
-   trace_dump_call_end();
-
-   return result;
-}
-
-
-static int
-trace_screen_get_compute_param(struct pipe_screen *_screen,
-                               enum pipe_shader_ir ir_type,
-                               enum pipe_compute_cap param,
-                               void *data)
-{
-   struct trace_screen *tr_scr = trace_screen(_screen);
-   struct pipe_screen *screen = tr_scr->screen;
-   int result;
-
-   trace_dump_call_begin("pipe_screen", "get_compute_param");
-
-   trace_dump_arg(ptr, screen);
-   trace_dump_arg_enum(pipe_shader_ir, ir_type);
-   trace_dump_arg_enum(pipe_compute_cap, param);
-   trace_dump_arg(ptr, data);
-
-   result = screen->get_compute_param(screen, ir_type, param, data);
-
-   trace_dump_ret(int, result);
-
-   trace_dump_call_end();
-
-   return result;
-}
-
-static int
 trace_screen_get_video_param(struct pipe_screen *_screen,
                              enum pipe_video_profile profile,
                              enum pipe_video_entrypoint entrypoint,
@@ -906,6 +855,24 @@ trace_screen_resource_get_info(struct pipe_screen *_screen,
    trace_dump_call_end();
 }
 
+static uint64_t
+trace_screen_resource_get_address(struct pipe_screen *_screen,
+                                  struct pipe_resource *resource)
+{
+   struct trace_screen *tr_screen = trace_screen(_screen);
+   struct pipe_screen *screen = tr_screen->screen;
+
+   trace_dump_call_begin("pipe_screen", "resource_get_address");
+   trace_dump_arg(ptr, screen);
+   trace_dump_arg(ptr, resource);
+
+   uint64_t res = screen->resource_get_address(screen, resource);
+
+   trace_dump_ret(uint, res);
+   trace_dump_call_end();
+   return res;
+}
+
 static struct pipe_resource *
 trace_screen_resource_from_memobj(struct pipe_screen *_screen,
                                   const struct pipe_resource *templ,
@@ -1435,6 +1402,61 @@ static void trace_screen_query_compression_modifiers(struct pipe_screen *_screen
    trace_dump_call_end();
 }
 
+static struct pipe_vm_allocation *
+trace_screen_alloc_vm(struct pipe_screen *_screen, uint64_t start,
+                      uint64_t size)
+{
+   struct trace_screen *tr_scr = trace_screen(_screen);
+   struct pipe_screen *screen = tr_scr->screen;
+
+   trace_dump_call_begin("pipe_screen", "alloc_vm");
+   trace_dump_arg(ptr, screen);
+   trace_dump_arg(uint, start);
+   trace_dump_arg(uint, size);
+
+   struct pipe_vm_allocation *res = screen->alloc_vm(screen, start, size);
+
+   trace_dump_ret(vm_allocation, res);
+   trace_dump_call_end();
+
+   return res;
+}
+
+static void
+trace_screen_free_vm(struct pipe_screen *_screen, struct pipe_vm_allocation *alloc)
+{
+   struct trace_screen *tr_scr = trace_screen(_screen);
+   struct pipe_screen *screen = tr_scr->screen;
+
+   trace_dump_call_begin("pipe_screen", "free_vm");
+   trace_dump_arg(ptr, screen);
+   trace_dump_arg(vm_allocation, alloc);
+   trace_dump_call_end();
+
+   screen->free_vm(screen, alloc);
+}
+
+static bool
+trace_screen_resource_assign_vma(struct pipe_screen *_screen,
+                                 struct pipe_resource *resource,
+                                 uint64_t address)
+{
+   struct trace_screen *tr_scr = trace_screen(_screen);
+   struct pipe_screen *screen = tr_scr->screen;
+
+   trace_dump_call_begin("pipe_screen", "resource_assign_vma");
+   trace_dump_arg(ptr, screen);
+   trace_dump_arg(ptr, resource);
+   trace_dump_arg(uint, address);
+
+   bool res = screen->resource_assign_vma(screen, resource, address);
+
+   trace_dump_ret(bool, res);
+   trace_dump_call_end();
+
+   return res;
+}
+
 bool
 trace_enabled(void)
 {
@@ -1500,8 +1522,6 @@ trace_screen_create(struct pipe_screen *screen)
    tr_scr->base.get_device_vendor = trace_screen_get_device_vendor;
    SCR_INIT(get_compiler_options);
    SCR_INIT(get_disk_shader_cache);
-   tr_scr->base.get_shader_param = trace_screen_get_shader_param;
-   tr_scr->base.get_compute_param = trace_screen_get_compute_param;
    SCR_INIT(get_video_param);
    tr_scr->base.is_format_supported = trace_screen_is_format_supported;
    SCR_INIT(is_video_format_supported);
@@ -1528,6 +1548,7 @@ trace_screen_create(struct pipe_screen *screen)
    tr_scr->base.resource_get_handle = trace_screen_resource_get_handle;
    SCR_INIT(resource_get_param);
    SCR_INIT(resource_get_info);
+   SCR_INIT(resource_get_address);
    SCR_INIT(resource_from_memobj);
    SCR_INIT(resource_changed);
    tr_scr->base.resource_destroy = trace_screen_resource_destroy;
@@ -1552,6 +1573,9 @@ trace_screen_create(struct pipe_screen *screen)
    SCR_INIT(driver_thread_add_job);
    SCR_INIT(query_compression_rates);
    SCR_INIT(query_compression_modifiers);
+   SCR_INIT(alloc_vm);
+   SCR_INIT(free_vm);
+   SCR_INIT(resource_assign_vma);
    tr_scr->base.get_driver_pipe_screen = tr_get_driver_pipe_screen;
 
    tr_scr->screen = screen;
@@ -1564,6 +1588,11 @@ trace_screen_create(struct pipe_screen *screen)
    _mesa_hash_table_insert(trace_screens, screen, tr_scr);
 
    tr_scr->trace_tc = debug_get_bool_option("GALLIUM_TRACE_TC", false);
+
+   /* copy all caps */
+   *(struct pipe_caps *)&tr_scr->base.caps = screen->caps;
+   *(struct pipe_compute_caps *)&tr_scr->base.compute_caps = screen->compute_caps;
+   memcpy((void *)tr_scr->base.shader_caps, screen->shader_caps, sizeof(screen->shader_caps));
 
    return &tr_scr->base;
 

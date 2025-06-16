@@ -55,9 +55,14 @@
 #include <clang/Frontend/Utils.h>
 #include <clang/Basic/TargetInfo.h>
 
+#include <spirv-tools/libspirv.h>
 #include <spirv-tools/libspirv.hpp>
 #include <spirv-tools/linker.hpp>
 #include <spirv-tools/optimizer.hpp>
+
+#if LLVM_VERSION_MAJOR >= 16
+#include <llvm/TargetParser/Triple.h>
+#endif
 
 #if LLVM_VERSION_MAJOR >= 20
 #include <llvm/Support/VirtualFileSystem.h>
@@ -82,7 +87,7 @@
 namespace fs = std::filesystem;
 
 /* Use the highest version of SPIRV supported by SPIRV-Tools. */
-constexpr spv_target_env spirv_target = SPV_ENV_UNIVERSAL_1_5;
+constexpr spv_target_env spirv_target = SPV_ENV_UNIVERSAL_1_6;
 
 constexpr SPIRV::VersionNumber invalid_spirv_trans_version = static_cast<SPIRV::VersionNumber>(0);
 
@@ -526,7 +531,7 @@ public:
             literalType = CLC_SPEC_CONSTANT_DOUBLE;
             break;
          case 16:
-            /* Can't be used for a spec constant */
+            literalType = CLC_SPEC_CONSTANT_HALF;
             break;
          default:
             unreachable("Unexpected float bit size");
@@ -799,11 +804,17 @@ clc_compile_to_llvm_module(LLVMContext &llvm_ctx,
       c->addDependencyCollector(dep);
    }
 
+#if LLVM_VERSION_MAJOR >= 21
+   auto diag_opts = c->getDiagnosticOpts();
+#else
+   auto diag_opts = &c->getDiagnosticOpts();
+#endif
+
    clang::DiagnosticsEngine diag {
       new clang::DiagnosticIDs,
-      new clang::DiagnosticOptions,
+      diag_opts,
       new clang::TextDiagnosticPrinter(diag_log_stream,
-                                       &c->getDiagnosticOpts())
+                                       diag_opts)
    };
 
 #if LLVM_VERSION_MAJOR >= 17
@@ -839,7 +850,7 @@ clc_compile_to_llvm_module(LLVMContext &llvm_ctx,
    if (!clang::CompilerInvocation::CreateFromArgs(c->getInvocation(),
                                                   clang_opts,
                                                   diag)) {
-      clc_error(logger, "Couldn't create Clang invocation.\n");
+      clc_error(logger, "Couldn't create Clang invocation.\n%s\n", diag_log_str.c_str());
       return {};
    }
 
@@ -860,10 +871,14 @@ clc_compile_to_llvm_module(LLVMContext &llvm_ctx,
 #endif
                    new clang::TextDiagnosticPrinter(
                            diag_log_stream,
-                           &c->getDiagnosticOpts()));
+                           diag_opts));
 
    c->setTarget(clang::TargetInfo::CreateTargetInfo(
+#if LLVM_VERSION_MAJOR >= 21
+                   c->getDiagnostics(), c->getInvocation().getTargetOpts()));
+#else
                    c->getDiagnostics(), c->getInvocation().TargetOpts));
+#endif
 
    c->getFrontendOpts().ProgramAction = clang::frontend::EmitLLVMOnly;
 
@@ -944,6 +959,9 @@ clc_compile_to_llvm_module(LLVMContext &llvm_ctx,
    c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_khr_global_int32_extended_atomics");
    c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_khr_local_int32_base_atomics");
    c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_khr_local_int32_extended_atomics");
+   if (args->c_compatible) {
+      c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+__cl_clang_bitfields");
+   }
    c->getPreprocessorOpts().addMacroDef("cl_khr_expect_assume=1");
 
    bool needs_opencl_c_h = false;
@@ -992,6 +1010,11 @@ clc_compile_to_llvm_module(LLVMContext &llvm_ctx,
    if (args->features.intel_subgroups) {
       c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_intel_subgroups");
       needs_opencl_c_h = true;
+   }
+   if (args->features.kernel_clock && LLVM_VERSION_MAJOR >= 19) {
+      c->getPreprocessorOpts().addMacroDef("cl_khr_kernel_clock=1");
+      c->getPreprocessorOpts().addMacroDef("__opencl_c_kernel_clock_scope_device=1");
+      c->getPreprocessorOpts().addMacroDef("__opencl_c_kernel_clock_scope_sub_group=1");
    }
    if (args->features.subgroups) {
       c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+__opencl_c_subgroups");
@@ -1126,7 +1149,12 @@ llvm_mod_to_spirv(std::unique_ptr<::llvm::Module> mod,
       auto target = TargetRegistry::lookupTarget(triple, error_msg);
       if (target) {
          auto TM = target->createTargetMachine(
-            triple, "", "", {}, std::nullopt, std::nullopt,
+#if LLVM_VERSION_MAJOR >= 21
+            llvm::Triple(triple),
+#else
+            triple,
+#endif
+            "", "", {}, std::nullopt, std::nullopt,
 #if LLVM_VERSION_MAJOR >= 18
             ::llvm::CodeGenOptLevel::None
 #else
@@ -1266,6 +1294,10 @@ private:
    const struct clc_logger *logger;
 };
 
+const char* clc_spirv_tools_version() {
+   return spvSoftwareVersionString();
+}
+
 int
 clc_link_spirv_binaries(const struct clc_linker_args *args,
                         const struct clc_logger *logger,
@@ -1284,6 +1316,7 @@ clc_link_spirv_binaries(const struct clc_linker_args *args,
    context.SetMessageConsumer(msgconsumer);
    spvtools::LinkerOptions options;
    options.SetAllowPartialLinkage(args->create_library);
+   options.SetUseHighestVersion(true);
    #if defined(HAS_SPIRV_LINK_LLVM_WORKAROUND) && LLVM_VERSION_MAJOR >= 17
       options.SetAllowPtrTypeMismatch(true);
    #endif
@@ -1355,6 +1388,7 @@ clc_spirv_specialize(const struct clc_binary *in_spirv,
       case CLC_SPEC_CONSTANT_INT8:
          words.push_back((uint32_t)(int32_t)consts->specializations[i].value.i8);
          break;
+      case CLC_SPEC_CONSTANT_HALF:
       case CLC_SPEC_CONSTANT_UINT16:
          words.push_back((uint32_t)consts->specializations[i].value.u16);
          break;

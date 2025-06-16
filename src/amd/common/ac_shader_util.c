@@ -605,11 +605,9 @@ enum ac_image_dim ac_get_image_dim(enum amd_gfx_level gfx_level, enum glsl_sampl
    return dim;
 }
 
-unsigned ac_get_fs_input_vgpr_cnt(const struct ac_shader_config *config,
-                                  uint8_t *num_fragcoord_components)
+unsigned ac_get_fs_input_vgpr_cnt(const struct ac_shader_config *config)
 {
    unsigned num_input_vgprs = 0;
-   unsigned fragcoord_components = 0;
 
    if (G_0286CC_PERSP_SAMPLE_ENA(config->spi_ps_input_addr))
       num_input_vgprs += 2;
@@ -627,22 +625,14 @@ unsigned ac_get_fs_input_vgpr_cnt(const struct ac_shader_config *config,
       num_input_vgprs += 2;
    if (G_0286CC_LINE_STIPPLE_TEX_ENA(config->spi_ps_input_addr))
       num_input_vgprs += 1;
-   if (G_0286CC_POS_X_FLOAT_ENA(config->spi_ps_input_addr)) {
+   if (G_0286CC_POS_X_FLOAT_ENA(config->spi_ps_input_addr))
       num_input_vgprs += 1;
-      fragcoord_components++;
-   }
-   if (G_0286CC_POS_Y_FLOAT_ENA(config->spi_ps_input_addr)) {
+   if (G_0286CC_POS_Y_FLOAT_ENA(config->spi_ps_input_addr))
       num_input_vgprs += 1;
-      fragcoord_components++;
-   }
-   if (G_0286CC_POS_Z_FLOAT_ENA(config->spi_ps_input_addr)) {
+   if (G_0286CC_POS_Z_FLOAT_ENA(config->spi_ps_input_addr))
       num_input_vgprs += 1;
-      fragcoord_components++;
-   }
-   if (G_0286CC_POS_W_FLOAT_ENA(config->spi_ps_input_addr)) {
+   if (G_0286CC_POS_W_FLOAT_ENA(config->spi_ps_input_addr))
       num_input_vgprs += 1;
-      fragcoord_components++;
-   }
    if (G_0286CC_FRONT_FACE_ENA(config->spi_ps_input_addr))
       num_input_vgprs += 1;
    if (G_0286CC_ANCILLARY_ENA(config->spi_ps_input_addr))
@@ -651,9 +641,6 @@ unsigned ac_get_fs_input_vgpr_cnt(const struct ac_shader_config *config,
       num_input_vgprs += 1;
    if (G_0286CC_POS_FIXED_PT_ENA(config->spi_ps_input_addr))
       num_input_vgprs += 1;
-
-   if (num_fragcoord_components)
-      *num_fragcoord_components = fragcoord_components;
 
    return num_input_vgprs;
 }
@@ -664,11 +651,10 @@ uint16_t ac_get_ps_iter_mask(unsigned ps_iter_samples)
     * processing.
     */
    switch (ps_iter_samples) {
-   case 1: return 0xffff;
-   case 2: return 0x5555;
-   case 4: return 0x1111;
-   case 8: return 0x0101;
-   case 16: return 0x0001;
+   case 1: return 0xff;
+   case 2: return 0x55;
+   case 4: return 0x11;
+   case 8: return 0x01;
    default:
       unreachable("invalid sample count");
    }
@@ -940,38 +926,45 @@ unsigned ac_compute_ngg_workgroup_size(unsigned es_verts, unsigned gs_inst_prims
    return CLAMP(workgroup_size, 1, 256);
 }
 
-uint32_t ac_compute_num_tess_patches(const struct radeon_info *info, uint32_t num_tcs_input_cp,
-                                     uint32_t num_tcs_output_cp, uint32_t vram_per_patch,
-                                     uint32_t lds_per_patch, uint32_t wave_size,
-                                     bool tess_uses_primid)
+static unsigned get_tcs_wg_output_mem_size(uint32_t num_tcs_output_cp, uint32_t num_mem_tcs_outputs,
+                                           uint32_t num_mem_tcs_patch_outputs, uint32_t num_patches)
 {
-   /* The VGT HS block increments the patch ID unconditionally
-    * within a single threadgroup. This results in incorrect
-    * patch IDs when instanced draws are used.
+   /* Align each per-vertex and per-patch output to 16 vec4 elements = 256B. It's most optimal when
+    * the 16 vec4 elements are written by 16 consecutive lanes.
     *
-    * The intended solution is to restrict threadgroups to
-    * a single instance by setting SWITCH_ON_EOI, which
-    * should cause IA to split instances up. However, this
-    * doesn't work correctly on GFX6 when there is no other
-    * SE to switch to.
+    * 256B is the granularity of interleaving memory channels, which means a single output store
+    * in wave64 will cover 4 channels (1024B). If an output was only aligned to 128B, wave64 could
+    * cover 5 channels (128B .. 1.125K) instead of 4, which could increase VMEM latency.
+    */
+   unsigned mem_one_pervertex_output = align(16 * num_tcs_output_cp * num_patches, 256);
+   unsigned mem_one_perpatch_output = align(16 * num_patches, 256);
+
+   return mem_one_pervertex_output * num_mem_tcs_outputs +
+          mem_one_perpatch_output * num_mem_tcs_patch_outputs;
+}
+
+uint32_t ac_compute_num_tess_patches(const struct radeon_info *info, uint32_t num_tcs_input_cp,
+                                     uint32_t num_tcs_output_cp, uint32_t num_mem_tcs_outputs,
+                                     uint32_t num_mem_tcs_patch_outputs, uint32_t lds_per_patch,
+                                     uint32_t wave_size, bool tess_uses_primid)
+{
+   /* The VGT HS block increments the patch ID unconditionally within a single threadgroup.
+    * This results in incorrect patch IDs when instanced draws are used.
+    *
+    * The intended solution is to restrict threadgroups to a single instance by setting
+    * SWITCH_ON_EOI, which should cause IA to split instances up. However, this doesn't work
+    * correctly on GFX6 when there is no other SE to switch to.
     */
    const bool has_primid_instancing_bug = info->gfx_level == GFX6 && info->max_se == 1;
    if (has_primid_instancing_bug && tess_uses_primid)
       return 1;
 
-   /* Ensure that we only need 4 waves per CU, so that we don't need to check
-    * resource usage (such as whether we have enough VGPRs to fit the whole
-    * threadgroup into the CU). It also ensures that the number of tcs in and out
-    * vertices per threadgroup are at most 256, which is the hw limit.
-    */
-   const unsigned max_verts_per_patch = MAX2(num_tcs_input_cp, num_tcs_output_cp);
-   unsigned num_patches = 256 / max_verts_per_patch;
+   /* 256 threads per workgroup is the hw limit, but 192 performs better. */
+   const unsigned num_threads_per_patch = MAX2(num_tcs_input_cp, num_tcs_output_cp);
+   unsigned num_patches = 192 / num_threads_per_patch;
 
-   /* Not necessary for correctness, but higher numbers are slower.
-    * The hardware can do more, but we prefer fully occupied waves.
-    * eg. 64 triangle patches means 3 fully occupied Wave64 waves.
-    */
-   num_patches = MIN2(num_patches, 64);
+   /* 127 is the maximum value that fits in tcs_offchip_layout. */
+   num_patches = MIN2(num_patches, 127);
 
    /* When distributed tessellation is unsupported, switch between SEs
     * at a higher frequency to manually balance the workload between SEs.
@@ -980,21 +973,36 @@ uint32_t ac_compute_num_tess_patches(const struct radeon_info *info, uint32_t nu
       num_patches = MIN2(num_patches, 16); /* recommended */
 
    /* Make sure the output data fits in the offchip buffer */
-   if (vram_per_patch) {
-      const uint32_t tess_offchip_block_dw_size = info->family == CHIP_HAWAII ? 4096 : 8192;
-      num_patches =
-         MIN2(num_patches, (tess_offchip_block_dw_size * 4) / vram_per_patch);
+   unsigned mem_size = get_tcs_wg_output_mem_size(num_tcs_output_cp, num_mem_tcs_outputs,
+                                                  num_mem_tcs_patch_outputs, num_patches);
+   if (mem_size > info->hs_offchip_workgroup_dw_size * 4) {
+      /* Find the number of patches that fit in memory. Each output is aligned separately,
+       * so this division won't return a precise result.
+       */
+      num_patches = info->hs_offchip_workgroup_dw_size * 4 /
+                    get_tcs_wg_output_mem_size(num_tcs_output_cp, num_mem_tcs_outputs,
+                                               num_mem_tcs_patch_outputs, 1);
+      assert(get_tcs_wg_output_mem_size(num_tcs_output_cp, num_mem_tcs_outputs,
+                                        num_mem_tcs_patch_outputs, num_patches) <=
+             info->hs_offchip_workgroup_dw_size * 4);
+
+      while (get_tcs_wg_output_mem_size(num_tcs_output_cp, num_mem_tcs_outputs,
+                                        num_mem_tcs_patch_outputs, num_patches + 1) <=
+             info->hs_offchip_workgroup_dw_size * 4)
+         num_patches++;
    }
 
    /* Make sure that the data fits in LDS. This assumes the shaders only
     * use LDS for the inputs and outputs.
     */
    if (lds_per_patch) {
-      const unsigned max_lds_size = (info->gfx_level >= GFX9 ? 64 * 1024 : 32 * 1024); /* hw limit */
-      /* Target at least 2 workgroups per CU. */
-      const unsigned target_lds_size = max_lds_size / 2 -
-                                       (info->gfx_level >= GFX11 ? AC_HS_MSG_VOTE_LDS_BYTES : 0);
-      num_patches = MIN2(num_patches, target_lds_size / lds_per_patch);
+      /* LS/HS can only access up to 32K on GFX6-8 and 64K on GFX9+.
+       *
+       * 32K performs the best. We could use 64K on GFX9+, but it doesn't perform well because
+       * 64K prevents GS and PS from running on the same CU.
+       */
+      const unsigned max_lds_size = 32 * 1024 - AC_TESS_LEVEL_VOTE_LDS_BYTES;
+      num_patches = MIN2(num_patches, max_lds_size / lds_per_patch);
       assert(num_patches * lds_per_patch <= max_lds_size);
    }
    num_patches = MAX2(num_patches, 1);
@@ -1002,20 +1010,22 @@ uint32_t ac_compute_num_tess_patches(const struct radeon_info *info, uint32_t nu
    /* Make sure that vector lanes are fully occupied by cutting off the last wave
     * if it's only partially filled.
     */
-   const unsigned temp_verts_per_tg = num_patches * max_verts_per_patch;
+   const unsigned threads_per_tg = num_patches * num_threads_per_patch;
 
-   if (temp_verts_per_tg > wave_size &&
-       (wave_size - temp_verts_per_tg % wave_size >= MAX2(max_verts_per_patch, 8)))
-      num_patches = (temp_verts_per_tg & ~(wave_size - 1)) / max_verts_per_patch;
+   if (threads_per_tg > wave_size &&
+       (wave_size - threads_per_tg % wave_size >= MAX2(num_threads_per_patch, 8)))
+      num_patches = (threads_per_tg & ~(wave_size - 1)) / num_threads_per_patch;
 
    if (info->gfx_level == GFX6) {
       /* GFX6 bug workaround, related to power management. Limit LS-HS
        * threadgroups to only one wave.
        */
-      const unsigned one_wave = wave_size / max_verts_per_patch;
+      const unsigned one_wave = wave_size / num_threads_per_patch;
       num_patches = MIN2(num_patches, one_wave);
    }
 
+   /* This is the maximum number that fits into tcs_offchip_layout. */
+   assert(num_patches <= 127);
    return num_patches;
 }
 
@@ -1044,10 +1054,23 @@ uint32_t ac_apply_cu_en(uint32_t value, uint32_t clear_mask, unsigned value_shif
           (((cu_en & spi_cu_en) << cu_en_shift) & cu_en_mask);
 }
 
-/* Return the register value and tune bytes_per_wave to increase scratch performance. */
-void ac_get_scratch_tmpring_size(const struct radeon_info *info,
-                                 unsigned bytes_per_wave, unsigned *max_seen_bytes_per_wave,
-                                 uint32_t *tmpring_size)
+/* Compute the optimal scratch wavesize. */
+uint32_t
+ac_compute_scratch_wavesize(const struct radeon_info *info, uint32_t bytes_per_wave)
+{
+   /* Add 1 scratch item to make the number of items odd. This should improve
+    * scratch performance by more randomly distributing scratch waves among
+    * memory channels.
+    */
+   if (bytes_per_wave)
+      bytes_per_wave |= info->scratch_wavesize_granularity;
+
+   return bytes_per_wave;
+}
+
+/* Return the scratch register value. */
+void ac_get_scratch_tmpring_size(const struct radeon_info *info, unsigned num_scratch_waves,
+                                 unsigned bytes_per_wave, uint32_t *tmpring_size)
 {
    /* SPI_TMPRING_SIZE and COMPUTE_TMPRING_SIZE are essentially scratch buffer descriptors.
     * WAVES means NUM_RECORDS. WAVESIZE is the size of each element, meaning STRIDE.
@@ -1062,28 +1085,16 @@ void ac_get_scratch_tmpring_size(const struct radeon_info *info,
     *
     * Shaders with SCRATCH_EN=0 don't allocate scratch space.
     */
-   const unsigned size_shift = info->gfx_level >= GFX11 ? 8 : 10;
-   const unsigned min_size_per_wave = BITFIELD_BIT(size_shift);
 
-   /* The LLVM shader backend should be reporting aligned scratch_sizes. */
-   assert((bytes_per_wave & BITFIELD_MASK(size_shift)) == 0 &&
+   /* The compiler shader backend should be reporting aligned scratch_sizes. */
+   assert((bytes_per_wave & BITFIELD_MASK(info->scratch_wavesize_granularity_shift)) == 0 &&
           "scratch size per wave should be aligned");
 
-   /* Add 1 scratch item to make the number of items odd. This should improve scratch
-    * performance by more randomly distributing scratch waves among memory channels.
-    */
-   if (bytes_per_wave)
-      bytes_per_wave |= min_size_per_wave;
-
-   *max_seen_bytes_per_wave = MAX2(*max_seen_bytes_per_wave, bytes_per_wave);
-
-   unsigned max_scratch_waves = info->max_scratch_waves;
    if (info->gfx_level >= GFX11)
-      max_scratch_waves /= info->max_se; /* WAVES is per SE */
+      num_scratch_waves /= info->max_se; /* WAVES is per SE */
 
-   /* TODO: We could decrease WAVES to make the whole buffer fit into the infinity cache. */
-   *tmpring_size = S_0286E8_WAVES(max_scratch_waves) |
-                   S_0286E8_WAVESIZE(*max_seen_bytes_per_wave >> size_shift);
+   *tmpring_size = S_0286E8_WAVES(num_scratch_waves) |
+                   S_0286E8_WAVESIZE(bytes_per_wave >> info->scratch_wavesize_granularity_shift);
 }
 
 /* Convert chip-agnostic memory access flags into hw-specific cache flags.

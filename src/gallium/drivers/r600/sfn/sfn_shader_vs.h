@@ -83,7 +83,6 @@ private:
    ExportInstr *m_last_pos_export{nullptr};
 
    int m_num_clip_dist{0};
-   int m_next_param{0};
    uint8_t m_cc_dist_mask{0};
    uint8_t m_clip_dist_write{0};
    int m_cur_clip_pos{1};
@@ -162,6 +161,7 @@ private:
    PRegister m_instance_id{nullptr};
    PRegister m_rel_vertex_id{nullptr};
    bool m_vs_as_gs_a;
+   bool m_draw_parameters_enabled{false};
 };
 
 } // namespace r600

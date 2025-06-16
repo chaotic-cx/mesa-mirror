@@ -40,17 +40,6 @@ def parse_GL_API(file_name, factory=None, pointer_size=0):
 
     api = factory.create_api(pointer_size)
     api.parse_file(file_name)
-
-    # After the XML has been processed, we need to go back and assign
-    # dispatch offsets to the functions that request that their offsets
-    # be assigned by the scripts.  Typically this means all functions
-    # that are not part of the ABI.
-
-    for func in api.functionIterateByCategory():
-        if func.assign_offset and func.offset < 0:
-            func.offset = api.next_offset;
-            api.next_offset += 1
-
     return api
 
 
@@ -172,65 +161,6 @@ class gl_print_base(object):
         return
 
 
-    def printPure(self):
-        """Conditionally define `PURE' function attribute.
-
-        Conditionally defines a preprocessor macro `PURE' that wraps
-        GCC's `pure' function attribute.  The conditional code can be
-        easilly adapted to other compilers that support a similar
-        feature.
-
-        The name is also added to the file's undef_list.
-        """
-        self.undef_list.append("PURE")
-        print("""#  if defined(__GNUC__) || (defined(__SUNPRO_C) && (__SUNPRO_C >= 0x590))
-#    define PURE __attribute__((pure))
-#  else
-#    define PURE
-#  endif""")
-        return
-
-
-    def printFastcall(self):
-        """Conditionally define `FASTCALL' function attribute.
-
-        Conditionally defines a preprocessor macro `FASTCALL' that
-        wraps GCC's `fastcall' function attribute.  The conditional
-        code can be easilly adapted to other compilers that support a
-        similar feature.
-
-        The name is also added to the file's undef_list.
-        """
-
-        self.undef_list.append("FASTCALL")
-        print("""#  if defined(__i386__) && defined(__GNUC__) && !defined(__CYGWIN__) && !defined(__MINGW32__)
-#    define FASTCALL __attribute__((fastcall))
-#  else
-#    define FASTCALL
-#  endif""")
-        return
-
-
-    def printVisibility(self, S, s):
-        """Conditionally define visibility function attribute.
-
-        Conditionally defines a preprocessor macro name S that wraps
-        GCC's visibility function attribute.  The visibility used is
-        the parameter s.  The conditional code can be easilly adapted
-        to other compilers that support a similar feature.
-
-        The name is also added to the file's undef_list.
-        """
-
-        self.undef_list.append(S)
-        print("""#  if defined(__GNUC__) && !defined(__CYGWIN__) && !defined(__MINGW32__)
-#    define %s  __attribute__((visibility("%s")))
-#  else
-#    define %s
-#  endif""" % (S, s, S))
-        return
-
-
     def printNoinline(self):
         """Conditionally define `NOINLINE' function attribute.
 
@@ -348,10 +278,6 @@ class gl_type( gl_item ):
         return
 
 
-    def get_type_expression(self):
-        return self.type_expr
-
-
 class gl_enum( gl_item ):
     def __init__(self, element, context, category):
         gl_item.__init__(self, element, context, category)
@@ -375,7 +301,7 @@ class gl_enum( gl_item ):
         """Calculate a 'priority' for this enum name.
 
         When an enum is looked up by number, there may be many
-        possible names, but only one is the 'prefered' name.  The
+        possible names, but only one is the 'preferred' name.  The
         priority is used to select which name is the 'best'.
 
         Highest precedence is given to core GL name.  ARB extension
@@ -445,7 +371,6 @@ class gl_parameter(object):
         #	print '/* stack size -> %s = %u (after) */' % (self.name, self.type_expr.get_stack_size())
 
         self.is_client_only = is_attr_true( element, 'client_only' )
-        self.is_counter     = is_attr_true( element, 'counter' )
         self.is_output      = is_attr_true( element, 'output' )
 
 
@@ -638,10 +563,6 @@ class gl_function( gl_item ):
         # Decimal('1.1') }.
         self.api_map = {}
 
-        self.assign_offset = False
-
-        self.static_entry_points = []
-
         # Track the parameter string (for the function prototype)
         # for each entry-point.  This is done because some functions
         # change their prototype slightly when promoted from extension
@@ -670,9 +591,6 @@ class gl_function( gl_item ):
         assert not alias or not element.get('marshal_call_before')
         assert not alias or not element.get('marshal_call_after')
         assert not alias or not element.get('deprecated')
-
-        if name in static_data.functions:
-            self.static_entry_points.append(name)
 
         self.entry_points.append( name )
 
@@ -703,6 +621,8 @@ class gl_function( gl_item ):
 
         if alias:
             true_name = alias
+            if name in static_data.offsets:
+                raise RuntimeError("Aliased entry-point %s shouldn't be in static_data.py." % (name))
         else:
             true_name = name
 
@@ -711,15 +631,10 @@ class gl_function( gl_item ):
             # Only try to set the offset when a non-alias entry-point
             # is being processed.
 
-            if name in static_data.offsets and static_data.offsets[name] <= static_data.MAX_OFFSETS:
+            if name in static_data.offsets:
                 self.offset = static_data.offsets[name]
-            elif name in static_data.offsets and static_data.offsets[name] > static_data.MAX_OFFSETS:
-                self.offset = static_data.offsets[name]
-                self.assign_offset = True
-            else:
-                if self.exec_flavor != "skip":
-                    raise RuntimeError("Entry-point %s is missing offset in static_data.py. Add one at the bottom of the list." % (name))
-                self.assign_offset = False
+            elif self.exec_flavor != "skip":
+                raise RuntimeError("Entry-point %s is missing in static_data.py. Add one into all_functions." % (name))
 
         if not self.name:
             self.name = true_name
@@ -774,29 +689,6 @@ class gl_function( gl_item ):
 
         return
 
-    def filter_entry_points(self, entry_point_list):
-        """Filter out entry points not in entry_point_list."""
-        if not self.initialized:
-            raise RuntimeError('%s is not initialized yet' % self.name)
-
-        entry_points = []
-        for ent in self.entry_points:
-            if ent not in entry_point_list:
-                if ent in self.static_entry_points:
-                    self.static_entry_points.remove(ent)
-                self.entry_point_parameters.pop(ent)
-            else:
-                entry_points.append(ent)
-
-        if not entry_points:
-            raise RuntimeError('%s has no entry point after filtering' % self.name)
-
-        self.entry_points = entry_points
-        if self.name not in entry_points:
-            # use the first remaining entry point
-            self.name = entry_points[0]
-            self.parameters = self.entry_point_parameters[entry_points[0]]
-
     def get_images(self):
         """Return potentially empty list of input images."""
         return self.images
@@ -829,21 +721,8 @@ class gl_function( gl_item ):
 
         return p_string
 
-
-    def is_abi(self):
-        return (self.offset >= 0 and not self.assign_offset)
-
-    def is_static_entry_point(self, name):
-        return name in self.static_entry_points
-
-    def dispatch_name(self):
-        if self.name in self.static_entry_points:
-            return self.name
-        else:
-            return "_dispatch_stub_%u" % (self.offset)
-
     def static_name(self, name):
-        if name in self.static_entry_points:
+        if name in static_data.libgl_public_functions:
             return name
         else:
             return "_dispatch_stub_%u" % (self.offset)
@@ -1005,16 +884,6 @@ class gl_api(object):
         return self.functions_by_name.values()
 
 
-    def enumIterateByName(self):
-        keys = sorted(self.enums_by_name.keys())
-
-        list = []
-        for enum in keys:
-            list.append( self.enums_by_name[ enum ] )
-
-        return iter(list)
-
-
     def categoryIterate(self):
         """Iterate over categories.
 
@@ -1031,17 +900,6 @@ class gl_api(object):
                 list.append(self.categories[cat_type][key])
 
         return iter(list)
-
-
-    def get_category_for_name( self, name ):
-        if name in self.category_dict:
-            return self.category_dict[name]
-        else:
-            return ["<unknown category>", None]
-
-
-    def typeIterate(self):
-        return self.types_by_name.values()
 
 
     def find_type( self, type_name ):

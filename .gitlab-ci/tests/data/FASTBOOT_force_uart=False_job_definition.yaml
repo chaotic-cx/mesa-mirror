@@ -11,11 +11,11 @@ timeouts:
     minutes: 10
   actions:
     depthcharge-retry:
-      minutes: 4
-    depthcharge-start:
-      minutes: 1
+      minutes: 6
     depthcharge-action:
-      minutes: 15
+      minutes: 5
+    uboot-action:
+      seconds: 200
 actions:
 - deploy:
     timeout:
@@ -43,7 +43,8 @@ actions:
         steps:
         - cat Image.gz my_dtb_filename.dtb > Image.gz+dtb
         - mkbootimg --kernel Image.gz+dtb --cmdline "root=/dev/nfs rw nfsroot=$NFS_SERVER_IP:$NFS_ROOTFS,tcp,hard,v3
-          ip=dhcp init=/init rootwait usbcore.quirks=0bda:8153:k" --pagesize 4096 --base 0x80000000 -o boot.img
+          ip=dhcp init=/init rootwait usbcore.quirks=0bda:8153:k" --pagesize 4096
+          --base 0x80000000 -o boot.img
     namespace: dut
 - deploy:
     timeout:
@@ -55,13 +56,13 @@ actions:
       boot:
         url: downloads://boot.img
     namespace: dut
-    failure_retry: 3
+    failure_retry: 2
 - boot:
     timeout:
       minutes: 2
     docker:
       image: registry.gitlab.collabora.com/lava/health-check-docker
-    failure_retry: 3
+    failure_retry: 2
     method: fastboot
     prompts:
     - 'lava-shell:'
@@ -88,6 +89,7 @@ actions:
           steps:
           - |-
             echo test FASTBOOT
+            echo ZWNobyB0ZXN0IEZBU1RCT09U | base64 -d >> /set-job-env-vars.sh
             export CURRENT_SECTION=dut_boot
           - export -p > /dut-env-vars.sh
 - test:
@@ -118,12 +120,14 @@ actions:
             ping -c 5 -w 60 $(lava-target-ip)
 
             lava_ssh_test_case() {
-                set -x
+                set -ex
                 local test_case="${1}"
                 shift
                 lava-test-case "${test_case}" --shell \
                     ssh ${SSH_PTY_ARGS:--T} \
-                    -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+                    -o StrictHostKeyChecking=no \
+                    -o UserKnownHostsFile=/dev/null \
+                    -o ConnectTimeout=60 \
                     root@$(lava-target-ip) "${@}"
             }
           - lava_ssh_test_case 'wait_for_dut_login' << EOF
@@ -137,6 +141,6 @@ actions:
             sed -i '/S3_RESULTS_UPLOAD/d' /set-job-env-vars.sh
             EOF
           - export SSH_PTY_ARGS=-tt
-          - lava_ssh_test_case 'test-project_dut' '"cd / && /init-stage2.sh"'
+          - lava_ssh_test_case 'test-project_dut' 'cd / && /test_dir/install/common/init-stage2.sh'
     docker:
       image:

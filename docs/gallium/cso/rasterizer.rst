@@ -56,7 +56,7 @@ flatshade
       CONSTANT, LINEAR and PERSPECTIVE. The flatshade state is needed at
       clipping time to determine how to set the color of new vertices.
 
-      :ref:`Draw` can implement flat shading by copying the provoking vertex
+      Draw can implement flat shading by copying the provoking vertex
       color to all the other vertices in the primitive.
 
 flatshade_first
@@ -80,7 +80,7 @@ Polygons
 
 light_twoside
    If set, there are per-vertex back-facing colors.  The hardware
-   (perhaps assisted by :ref:`Draw`) should be set up to use this state
+   (perhaps assisted by Draw) should be set up to use this state
    along with the front/back information to set the final vertex colors
    prior to rasterization.
 
@@ -120,12 +120,6 @@ offset_tri
 
 offset_units
     Specifies the polygon offset bias
-offset_units_unscaled
-    Specifies the unit of the polygon offset bias. If false, use the
-    GL/D3D1X behavior. If true, offset_units is a floating point offset
-    which isn't scaled (D3D9). Note that GL/D3D1X behavior has different
-    formula whether the depth buffer is unorm or float, which is not
-    the case for D3D9.
 offset_scale
     Specifies the polygon offset scale
 offset_clamp
@@ -178,7 +172,7 @@ sprite_coord_enable
    always rasterized as quads).  Any mismatch between these states should
    be considered a bug in the gallium frontend.
 
-   This feature is implemented in the :ref:`Draw` module but may also be
+   This feature is implemented in the Draw module but may also be
    implemented natively by GPUs or implemented with a geometry shader.
 
 
@@ -187,7 +181,7 @@ sprite_coord_mode
    point sprites. For PIPE_SPRITE_COORD_LOWER_LEFT, the lower-left vertex will
    have coordinates (0,0,0,1). For PIPE_SPRITE_COORD_UPPER_LEFT, the upper-left
    vertex will have coordinates (0,0,0,1).
-   This state is used by :ref:`Draw` to generate texcoords.
+   This state is used by Draw to generate texcoords.
 
 
 point_quad_rasterization

@@ -30,8 +30,8 @@ extern "C" {
 #define AC_SENDMSG_GS_OP_EMIT     (2 << 4)
 #define AC_SENDMSG_GS_OP_EMIT_CUT (3 << 4)
 
-/* Reserve this size at the beginning of LDS for the tf0/1 shader message group vote. */
-#define AC_HS_MSG_VOTE_LDS_BYTES 16
+/* Reserve this size at the beginning of LDS for the tess level group vote. */
+#define AC_TESS_LEVEL_VOTE_LDS_BYTES 16
 
 /* An extension of gl_access_qualifier describing other aspects of memory operations
  * for code generation.
@@ -269,8 +269,7 @@ enum ac_image_dim ac_get_sampler_dim(enum amd_gfx_level gfx_level, enum glsl_sam
 enum ac_image_dim ac_get_image_dim(enum amd_gfx_level gfx_level, enum glsl_sampler_dim sdim,
                                    bool is_array);
 
-unsigned ac_get_fs_input_vgpr_cnt(const struct ac_shader_config *config,
-                                  uint8_t *num_fragcoord_components);
+unsigned ac_get_fs_input_vgpr_cnt(const struct ac_shader_config *config);
 
 uint16_t ac_get_ps_iter_mask(unsigned ps_iter_samples);
 
@@ -295,16 +294,17 @@ unsigned ac_compute_ngg_workgroup_size(unsigned es_verts, unsigned gs_inst_prims
                                        unsigned max_vtx_out, unsigned prim_amp_factor);
 
 uint32_t ac_compute_num_tess_patches(const struct radeon_info *info, uint32_t num_tcs_input_cp,
-                                     uint32_t num_tcs_output_cp, uint32_t vram_per_patch,
-                                     uint32_t lds_per_patch, uint32_t wave_size,
-                                     bool tess_uses_primid);
+                                     uint32_t num_tcs_output_cp, uint32_t num_mem_tcs_outputs,
+                                     uint32_t num_mem_tcs_patch_outputs, uint32_t lds_per_patch,
+                                     uint32_t wave_size, bool tess_uses_primid);
 
 uint32_t ac_apply_cu_en(uint32_t value, uint32_t clear_mask, unsigned value_shift,
                         const struct radeon_info *info);
 
-void ac_get_scratch_tmpring_size(const struct radeon_info *info,
-                                 unsigned bytes_per_wave, unsigned *max_seen_bytes_per_wave,
-                                 uint32_t *tmpring_size);
+uint32_t ac_compute_scratch_wavesize(const struct radeon_info *info, uint32_t bytes_per_wave);
+
+void ac_get_scratch_tmpring_size(const struct radeon_info *info, unsigned num_scratch_waves,
+                                 unsigned bytes_per_wave, uint32_t *tmpring_size);
 
 unsigned
 ac_ngg_nogs_get_pervertex_lds_size(gl_shader_stage stage,

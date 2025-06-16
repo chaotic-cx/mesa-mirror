@@ -61,7 +61,7 @@ class PrintGlEnums(gl_XML.gl_print_base):
         return
 
     def print_code(self):
-        print("""
+        print(r"""
 typedef int (*cfunc)(const void *, const void *);
 
 /**
@@ -102,7 +102,7 @@ _mesa_enum_to_string(int nr)
    else {
       /* this is not re-entrant safe, no big deal here */
       snprintf(token_tmp, sizeof(token_tmp) - 1, "0x%x", nr);
-      token_tmp[sizeof(token_tmp) - 1] = '\\0';
+      token_tmp[sizeof(token_tmp) - 1] = '\0';
       return token_tmp;
    }
 }
@@ -165,7 +165,7 @@ _mesa_lookup_prim_by_nr(GLuint nr)
         # of characters rather than as a string literal to work-around MSVC's
         # 65535 character limit.
         for enum in sorted_enum_values:
-            (name, pri) = self.enum_table[enum]
+            (name, _) = self.enum_table[enum]
             print("  ", end=' ')
             for ch in name:
                 print("'%c'," % ch, end=' ')
@@ -181,7 +181,7 @@ _mesa_lookup_prim_by_nr(GLuint nr)
         print('static const enum_elt enum_string_table_offsets[%u] =' % (len(self.enum_table)))
         print('{')
         for enum in sorted_enum_values:
-            (name, pri) = self.enum_table[enum]
+            (name, _) = self.enum_table[enum]
             print('   { %5u, 0x%08X }, /* %s */' % (string_offsets[enum], enum, name))
         print('};')
         print('')

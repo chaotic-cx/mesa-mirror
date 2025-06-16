@@ -5,14 +5,13 @@ use crate::{
     api::{GetDebugFlags, DEBUG},
     ir::*,
 };
-
-use std::collections::HashSet;
+use compiler::bitset::BitSet;
 
 struct DeadCodePass {
     any_dead: bool,
     new_live: bool,
-    live_ssa: HashSet<SSAValue>,
-    live_phi: HashSet<u32>,
+    live_ssa: BitSet<SSAValue>,
+    live_phi: BitSet<Phi>,
 }
 
 impl DeadCodePass {
@@ -20,8 +19,8 @@ impl DeadCodePass {
         DeadCodePass {
             any_dead: false,
             new_live: false,
-            live_ssa: HashSet::new(),
-            live_phi: HashSet::new(),
+            live_ssa: Default::default(),
+            live_phi: Default::default(),
         }
     }
 
@@ -35,15 +34,15 @@ impl DeadCodePass {
         }
     }
 
-    fn mark_phi_live(&mut self, id: u32) {
-        self.new_live |= self.live_phi.insert(id);
+    fn mark_phi_live(&mut self, phi: Phi) {
+        self.new_live |= self.live_phi.insert(phi);
     }
 
     fn is_dst_live(&self, dst: &Dst) -> bool {
         match dst {
             Dst::SSA(ssa) => {
                 for val in ssa.iter() {
-                    if self.live_ssa.get(val).is_some() {
+                    if self.live_ssa.contains(*val) {
                         return true;
                     }
                 }
@@ -54,8 +53,8 @@ impl DeadCodePass {
         }
     }
 
-    fn is_phi_live(&self, id: u32) -> bool {
-        self.live_phi.get(&id).is_some()
+    fn is_phi_live(&self, phi: Phi) -> bool {
+        self.live_phi.contains(phi)
     }
 
     fn is_instr_live(&self, instr: &Instr) -> bool {
@@ -80,8 +79,8 @@ impl DeadCodePass {
         match &instr.op {
             Op::PhiSrcs(phi) => {
                 assert!(instr.pred.is_true());
-                for (id, src) in phi.srcs.iter() {
-                    if self.is_phi_live(*id) {
+                for (phi, src) in phi.srcs.iter() {
+                    if self.is_phi_live(*phi) {
                         self.mark_src_live(src);
                     } else {
                         self.any_dead = true;
@@ -90,9 +89,9 @@ impl DeadCodePass {
             }
             Op::PhiDsts(phi) => {
                 assert!(instr.pred.is_true());
-                for (id, dst) in phi.dsts.iter() {
+                for (phi, dst) in phi.dsts.iter() {
                     if self.is_dst_live(dst) {
-                        self.mark_phi_live(*id);
+                        self.mark_phi_live(*phi);
                     } else {
                         self.any_dead = true;
                     }
@@ -127,7 +126,7 @@ impl DeadCodePass {
     fn map_instr(&self, mut instr: Box<Instr>) -> MappedInstrs {
         let is_live = match &mut instr.op {
             Op::PhiSrcs(phi) => {
-                phi.srcs.retain(|id, _| self.is_phi_live(*id));
+                phi.srcs.retain(|phi, _| self.is_phi_live(*phi));
                 !phi.srcs.is_empty()
             }
             Op::PhiDsts(phi) => {

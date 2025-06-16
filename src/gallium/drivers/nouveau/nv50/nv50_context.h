@@ -9,6 +9,7 @@
 #include "util/u_math.h"
 #include "util/u_inlines.h"
 #include "util/u_dynarray.h"
+#include "util/u_framebuffer.h"
 
 #include "nv50/nv50_winsys.h"
 #include "nv50/nv50_stateobj.h"
@@ -194,6 +195,7 @@ struct nv50_context {
     */
    uint32_t so_used[4];
 
+   PIPE_FB_SURFACES; //STOP USING THIS
    struct pipe_framebuffer_state framebuffer;
    struct pipe_blend_color blend_colour;
    struct pipe_stencil_ref stencil_ref;
@@ -405,5 +407,8 @@ nv98_video_buffer_create(struct pipe_context *pipe,
 /* nv50_compute.c */
 void
 nv50_launch_grid(struct pipe_context *, const struct pipe_grid_info *);
+void
+nv50_launch_grid_with_input(struct pipe_context *, const struct pipe_grid_info *,
+                            const void *input, uint32_t input_size);
 
 #endif

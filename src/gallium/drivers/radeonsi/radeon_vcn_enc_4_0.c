@@ -76,6 +76,7 @@ static void radeon_enc_session_init(struct radeon_encoder *enc)
    RADEON_ENC_CS(enc->enc_pic.session_init.slice_output_enabled);
    RADEON_ENC_CS(enc->enc_pic.session_init.display_remote);
    RADEON_ENC_CS(enc->enc_pic.session_init.WA_flags);
+   RADEON_ENC_CS(0);
    RADEON_ENC_END();
 }
 
@@ -620,24 +621,10 @@ static void radeon_enc_obu_instruction(struct radeon_encoder *enc)
 /* av1 encode params */
 static void radeon_enc_av1_encode_params(struct radeon_encoder *enc)
 {
-   switch (enc->enc_pic.frame_type) {
-   case PIPE_AV1_ENC_FRAME_TYPE_KEY:
-      enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_I;
-      break;
-   case PIPE_AV1_ENC_FRAME_TYPE_INTRA_ONLY:
-      enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_I;
-      break;
-   case PIPE_AV1_ENC_FRAME_TYPE_INTER:
-   case PIPE_AV1_ENC_FRAME_TYPE_SWITCH:
-      enc->enc_pic.enc_params.pic_type = RENCODE_PICTURE_TYPE_P;
-      break;
-   default:
-      assert(0); /* never come to this condition */
-   }
-
    if (enc->luma->meta_offset)
       RADEON_ENC_ERR("DCC surfaces not supported.\n");
 
+   enc->enc_pic.enc_params.pic_type = radeon_enc_av1_picture_type(enc->enc_pic.frame_type);
    enc->enc_pic.enc_params.input_pic_luma_pitch = enc->luma->u.gfx9.surf_pitch;
    enc->enc_pic.enc_params.input_pic_chroma_pitch = enc->chroma ?
       enc->chroma->u.gfx9.surf_pitch : enc->luma->u.gfx9.surf_pitch;

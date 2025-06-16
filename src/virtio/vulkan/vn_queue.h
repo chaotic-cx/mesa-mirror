@@ -16,6 +16,9 @@
 struct vn_queue {
    struct vn_queue_base base;
 
+   /* emulated queue shares base queue id and ring_idx with another queue */
+   bool emulated;
+
    /* only used if renderer supports multiple timelines */
    uint32_t ring_idx;
 
@@ -31,7 +34,7 @@ struct vn_queue {
    /* for vn_queue_submission storage */
    struct vn_cached_storage storage;
 };
-VK_DEFINE_HANDLE_CASTS(vn_queue, base.base.base, VkQueue, VK_OBJECT_TYPE_QUEUE)
+VK_DEFINE_HANDLE_CASTS(vn_queue, base.vk.base, VkQueue, VK_OBJECT_TYPE_QUEUE)
 
 enum vn_sync_type {
    /* no payload */
@@ -83,7 +86,7 @@ struct vn_fence {
    struct vn_sync_payload_external external_payload;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_fence,
-                               base.base,
+                               base.vk,
                                VkFence,
                                VK_OBJECT_TYPE_FENCE)
 
@@ -131,7 +134,7 @@ struct vn_semaphore {
    struct vn_sync_payload_external external_payload;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_semaphore,
-                               base.base,
+                               base.vk,
                                VkSemaphore,
                                VK_OBJECT_TYPE_SEMAPHORE)
 
@@ -145,14 +148,8 @@ struct vn_event {
    struct vn_feedback_slot *feedback_slot;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_event,
-                               base.base,
+                               base.vk,
                                VkEvent,
                                VK_OBJECT_TYPE_EVENT)
-
-void
-vn_fence_signal_wsi(struct vn_device *dev, struct vn_fence *fence);
-
-void
-vn_semaphore_signal_wsi(struct vn_device *dev, struct vn_semaphore *sem);
 
 #endif /* VN_QUEUE_H */

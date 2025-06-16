@@ -131,16 +131,13 @@ libagx_tes_in_address(constant struct libagx_tess_args *p, uint raw_id,
 float4
 libagx_tess_level_outer_default(constant struct libagx_tess_args *p)
 {
-   return (
-      float4)(p->tess_level_outer_default[0], p->tess_level_outer_default[1],
-              p->tess_level_outer_default[2], p->tess_level_outer_default[3]);
+   return vload4(0, p->tess_level_outer_default);
 }
 
 float2
 libagx_tess_level_inner_default(constant struct libagx_tess_args *p)
 {
-   return (float2)(p->tess_level_inner_default[0],
-                   p->tess_level_inner_default[1]);
+   return vload2(0, p->tess_level_inner_default);
 }
 
 KERNEL(1)
@@ -181,8 +178,7 @@ libagx_tess_setup_indirect(
    alloc += vb_size;
 
    /* Allocate all patch calculations in one go */
-   global uchar *blob = p->heap->heap + p->heap->heap_bottom;
-   p->heap->heap_bottom += alloc;
+   global uchar *blob = agx_heap_alloc_nonatomic(p->heap, alloc);
 
    p->tcs_buffer = (global float *)(blob + tcs_out_offs);
    p->patches_per_instance = in_patches;
@@ -192,7 +188,9 @@ libagx_tess_setup_indirect(
    *vertex_output_buffer_ptr = (uintptr_t)(blob + vb_offs);
    p->counts = (global uint32_t *)(blob + count_offs);
 
-   ia->verts_per_instance = count;
+   if (ia) {
+      ia->verts_per_instance = count;
+   }
 
    /* If indexing is enabled, the third word is the offset into the index buffer
     * in elements. Apply that offset now that we have it. For a hardware
@@ -204,7 +202,7 @@ libagx_tess_setup_indirect(
    if (in_index_size_B) {
       ia->index_buffer =
          libagx_index_buffer(in_index_buffer, in_index_buffer_range_el,
-                             indirect[2], in_index_size_B, 0);
+                             indirect[2], in_index_size_B);
 
       ia->index_buffer_range_el =
          libagx_index_buffer_range_el(in_index_buffer_range_el, indirect[2]);

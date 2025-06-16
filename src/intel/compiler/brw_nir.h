@@ -37,6 +37,10 @@ extern const struct nir_shader_compiler_options brw_scalar_nir_options;
 int type_size_vec4(const struct glsl_type *type, bool bindless);
 int type_size_dvec4(const struct glsl_type *type, bool bindless);
 
+struct brw_mem_access_cb_data {
+   const struct intel_device_info *devinfo;
+};
+
 static inline int
 type_size_scalar_bytes(const struct glsl_type *type, bool bindless)
 {
@@ -139,8 +143,7 @@ brw_nir_ubo_surface_index_get_bti(nir_src src)
 /* Returns true if a fragment shader needs at least one render target */
 static inline bool
 brw_nir_fs_needs_null_rt(const struct intel_device_info *devinfo,
-                         nir_shader *nir,
-                         bool multisample_fbo, bool alpha_to_coverage)
+                         nir_shader *nir, bool alpha_to_coverage)
 {
    assert(nir->info.stage == MESA_SHADER_FRAGMENT);
 
@@ -150,12 +153,15 @@ brw_nir_fs_needs_null_rt(const struct intel_device_info *devinfo,
    if (devinfo->ver < 11)
       return true;
 
-   uint64_t relevant_outputs = 0;
-   if (multisample_fbo)
-      relevant_outputs |= BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK);
+   /* Depth/Stencil needs a valid render target even if there is no color
+    * output.
+    */
+   if (nir->info.outputs_written & (BITFIELD_BIT(FRAG_RESULT_DEPTH) |
+                                    BITFIELD_BIT(FRAG_RESULT_STENCIL) |
+                                    BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK)))
+      return true;
 
-   return (alpha_to_coverage ||
-           (nir->info.outputs_written & relevant_outputs) != 0);
+   return alpha_to_coverage;
 }
 
 void brw_preprocess_nir(const struct brw_compiler *compiler,
@@ -169,9 +175,12 @@ brw_nir_link_shaders(const struct brw_compiler *compiler,
 bool brw_nir_lower_cs_intrinsics(nir_shader *nir,
                                  const struct intel_device_info *devinfo,
                                  struct brw_cs_prog_data *prog_data);
-bool brw_nir_lower_alpha_to_coverage(nir_shader *shader,
-                                     const struct brw_wm_prog_key *key,
-                                     const struct brw_wm_prog_data *prog_data);
+bool brw_nir_lower_alpha_to_coverage(nir_shader *shader);
+bool brw_needs_vertex_attributes_bypass(const nir_shader *shader);
+void brw_nir_lower_fs_barycentrics(nir_shader *shader);
+bool brw_nir_lower_fs_msaa(nir_shader *shader,
+                           const struct brw_wm_prog_key *key);
+
 void brw_nir_lower_vs_inputs(nir_shader *nir);
 void brw_nir_lower_vue_inputs(nir_shader *nir,
                               const struct intel_vue_map *vue_map);
@@ -187,14 +196,24 @@ void brw_nir_lower_fs_outputs(nir_shader *nir);
 bool brw_nir_lower_cmat(nir_shader *nir, unsigned subgroup_size);
 
 struct brw_nir_lower_storage_image_opts {
-   const struct intel_device_info *devinfo;
-
    bool lower_loads;
    bool lower_stores;
+   bool lower_stores_64bit;
+   bool lower_loads_without_formats;
 };
 
 bool brw_nir_lower_storage_image(nir_shader *nir,
+                                 const struct brw_compiler *compiler,
                                  const struct brw_nir_lower_storage_image_opts *opts);
+
+bool brw_nir_lower_texel_address(nir_shader *shader,
+                                 const struct intel_device_info *devinfo,
+                                 enum isl_tiling tiling);
+
+bool brw_nir_lower_texture(nir_shader *nir,
+                           const struct intel_device_info *devinfo);
+
+bool brw_nir_lower_sample_index_in_coord(nir_shader *nir);
 
 bool brw_nir_lower_mem_access_bit_sizes(nir_shader *shader,
                                         const struct
@@ -228,6 +247,7 @@ unsigned brw_nir_api_subgroup_size(const nir_shader *nir,
 
 enum brw_conditional_mod brw_cmod_for_nir_comparison(nir_op op);
 enum lsc_opcode lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin);
+enum brw_reg_type brw_type_for_base_type(enum glsl_base_type base_type);
 enum brw_reg_type brw_type_for_nir_type(const struct intel_device_info *devinfo,
                                         nir_alu_type type);
 
@@ -293,6 +313,13 @@ brw_nir_no_indirect_mask(const struct brw_compiler *compiler,
 
 bool brw_nir_uses_inline_data(nir_shader *shader);
 
+nir_shader *
+brw_nir_from_spirv(void *mem_ctx, const uint32_t *spirv, size_t spirv_size);
+
+nir_variable *
+brw_nir_find_complete_variable_with_location(nir_shader *shader,
+                                             nir_variable_mode mode,
+                                             int location);
 #ifdef __cplusplus
 }
 #endif

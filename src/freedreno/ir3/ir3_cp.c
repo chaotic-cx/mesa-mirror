@@ -29,6 +29,7 @@ struct ir3_cp_ctx {
    struct ir3 *shader;
    struct ir3_shader_variant *so;
    bool progress;
+   bool lower_imm_to_const;
 };
 
 /* is it a type preserving mov, with ok flags?
@@ -124,7 +125,7 @@ static bool
 lower_immed(struct ir3_cp_ctx *ctx, struct ir3_instruction *instr, unsigned n,
             struct ir3_register *reg, unsigned new_flags)
 {
-   if (ctx->shader->compiler->load_shader_consts_via_preamble)
+   if (!ctx->lower_imm_to_const)
       return false;
 
    if (!(new_flags & IR3_REG_IMMED))
@@ -172,10 +173,6 @@ lower_immed(struct ir3_cp_ctx *ctx, struct ir3_instruction *instr, unsigned n,
    reg->num = ir3_const_find_imm(ctx->so, reg->uim_val);
 
    if (reg->num == INVALID_CONST_REG) {
-      /* Don't modify the const state for the binning variant. */
-      if (ctx->so->binning_pass)
-         return false;
-
       reg->num = ir3_const_add_imm(ctx->so, reg->uim_val);
 
       if (reg->num == INVALID_CONST_REG)
@@ -569,7 +566,8 @@ instr_cp(struct ir3_cp_ctx *ctx, struct ir3_instruction *instr)
     */
    if (is_tex(instr) && (instr->flags & IR3_INSTR_S2EN) &&
        !(instr->flags & IR3_INSTR_B) &&
-       !(ir3_shader_debug & IR3_DBG_FORCES2EN)) {
+       !(ir3_shader_debug & IR3_DBG_FORCES2EN) &&
+       !(instr->srcs[0]->flags & IR3_REG_ALIAS)) {
       /* The first src will be a collect, if both of it's
        * two sources are mov from imm, then we can
        */
@@ -598,11 +596,12 @@ instr_cp(struct ir3_cp_ctx *ctx, struct ir3_instruction *instr)
 }
 
 bool
-ir3_cp(struct ir3 *ir, struct ir3_shader_variant *so)
+ir3_cp(struct ir3 *ir, struct ir3_shader_variant *so, bool lower_imm_to_const)
 {
    struct ir3_cp_ctx ctx = {
       .shader = ir,
       .so = so,
+      .lower_imm_to_const = lower_imm_to_const,
    };
 
    /* This is a bit annoying, and probably wouldn't be necessary if we

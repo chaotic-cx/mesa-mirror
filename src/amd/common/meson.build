@@ -89,8 +89,10 @@ amd_common_files = files(
   'ac_pm4.c',
   'ac_pm4.h',
   'ac_vcn_av1_default.h',
+  'ac_vcn_vp9_default.h',
   'ac_vcn_dec.c',
   'ac_vcn_enc.c',
+  'ac_uvd_dec.c',
   'nir/ac_nir.c',
   'nir/ac_nir.h',
   'nir/ac_nir_helpers.h',
@@ -109,6 +111,7 @@ amd_common_files = files(
   'nir/ac_nir_lower_tess_io_to_mem.c',
   'nir/ac_nir_lower_tex.c',
   'nir/ac_nir_lower_ngg.c',
+  'nir/ac_nir_lower_ngg_gs.c',
   'nir/ac_nir_lower_ngg_mesh.c',
   'nir/ac_nir_lower_ps_early.c',
   'nir/ac_nir_lower_ps_late.c',
@@ -120,6 +123,8 @@ amd_common_files = files(
   'nir/ac_nir_opt_pack_half.c',
   'nir/ac_nir_opt_shared_append.c',
   'nir/ac_nir_prerast_utils.c',
+  'nir/ac_nir_surface.c',
+  'nir/ac_nir_surface.h',
 )
 
 if not with_platform_windows

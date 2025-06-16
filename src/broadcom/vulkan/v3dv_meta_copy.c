@@ -2195,7 +2195,6 @@ get_texel_buffer_copy_pipeline_cache_key(VkFormat format,
 static bool
 create_blit_render_pass(struct v3dv_device *device,
                         VkFormat dst_format,
-                        VkFormat src_format,
                         VkRenderPass *pass_load,
                         VkRenderPass *pass_no_load);
 
@@ -2519,7 +2518,7 @@ get_copy_texel_buffer_pipeline(
       goto fail;
 
    /* The blit render pass is compatible */
-   ok = create_blit_render_pass(device, format, format,
+   ok = create_blit_render_pass(device, format,
                                 &(*pipeline)->pass,
                                 &(*pipeline)->pass_no_load);
    if (!ok)
@@ -2535,8 +2534,9 @@ get_copy_texel_buffer_pipeline(
       goto fail;
 
    if (device->instance->meta_cache_enabled) {
+      memcpy((*pipeline)->key, key, sizeof((*pipeline)->key));
       _mesa_hash_table_insert(device->meta.texel_buffer_copy.cache[image_type],
-                              key, *pipeline);
+                              &(*pipeline)->key, *pipeline);
       mtx_unlock(&device->meta.mtx);
    } else {
       v3dv_cmd_buffer_add_private_obj(
@@ -2631,14 +2631,13 @@ texel_buffer_shader_copy(struct v3dv_cmd_buffer *cmd_buffer,
     *
     * If we are batching (region_count > 1) all our regions have the same
     * image subresource so we can take this from the first region. For 3D
-    * images we require the same depth extent.
+    * images we require the same depth extent and Z offset.
     */
    const VkImageSubresourceLayers *resource = &regions[0].imageSubresource;
    uint32_t num_layers;
    if (image->vk.image_type != VK_IMAGE_TYPE_3D) {
       num_layers = vk_image_subresource_layer_count(&image->vk, resource);
    } else {
-      assert(region_count == 1);
       num_layers = regions[0].imageExtent.depth;
    }
    assert(num_layers > 0);
@@ -2732,7 +2731,7 @@ texel_buffer_shader_copy(struct v3dv_cmd_buffer *cmd_buffer,
          .aspectMask = aspect,
          .baseMipLevel = resource->mipLevel,
          .levelCount = 1,
-         .baseArrayLayer = resource->baseArrayLayer,
+         .baseArrayLayer = resource->baseArrayLayer + regions[0].imageOffset.z,
          .layerCount = num_layers,
       },
    };
@@ -3321,11 +3320,13 @@ v3dv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
          if (memcmp(rsc, rsc_s, sizeof(VkImageSubresourceLayers)) != 0)
             break;
 
-         /* For 3D images we also need to check the depth extent */
+         /* For 3D images we also need to check the depth extent / Z-offset */
          if (image->vk.image_type == VK_IMAGE_TYPE_3D &&
-             info->pRegions[s].imageExtent.depth !=
-             info->pRegions[r].imageExtent.depth) {
-               break;
+             (info->pRegions[s].imageExtent.depth !=
+              info->pRegions[r].imageExtent.depth ||
+              info->pRegions[s].imageOffset.z !=
+              info->pRegions[r].imageOffset.z)) {
+            break;
          }
 
          batch_size++;
@@ -3572,7 +3573,6 @@ get_blit_pipeline_cache_key(VkFormat dst_format,
 static bool
 create_blit_render_pass(struct v3dv_device *device,
                         VkFormat dst_format,
-                        VkFormat src_format,
                         VkRenderPass *pass_load,
                         VkRenderPass *pass_no_load)
 {
@@ -4185,7 +4185,7 @@ get_blit_pipeline(struct v3dv_cmd_buffer *cmd_buffer,
    if (*pipeline == NULL)
       goto fail;
 
-   ok = create_blit_render_pass(device, dst_format, src_format,
+   ok = create_blit_render_pass(device, dst_format,
                                 &(*pipeline)->pass,
                                 &(*pipeline)->pass_no_load);
    if (!ok)

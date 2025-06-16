@@ -41,7 +41,7 @@
 #include "varray.h"
 #include "arrayobj.h"
 #include "get.h"
-#include "main/dispatch.h"
+#include "dispatch.h"
 #include "api_exec_decl.h"
 
 #include "state_tracker/st_atom.h"
@@ -2096,11 +2096,16 @@ _mesa_update_edgeflag_state_explicit(struct gl_context *ctx,
    if (ctx->API != API_OPENGL_COMPAT)
       return;
 
-   /* Edge flags take effect only if the polygon mode is not FILL, and they
-    * determine whether a line or point is drawn with that polygon mode.
+   /* Edge flags take effect only if the polygon mode is not FILL on the side
+    * of the face that isn't culled.
+    *
+    * Edge flags determine whether a line or a point is drawn by polygon mode.
     */
-   bool edgeflags_have_effect = ctx->Polygon.FrontMode != GL_FILL ||
-                                ctx->Polygon.BackMode != GL_FILL;
+   bool edgeflags_have_effect =
+      (ctx->Polygon.FrontMode != GL_FILL &&
+       (!ctx->Polygon.CullFlag || ctx->Polygon.CullFaceMode == GL_BACK)) ||
+      (ctx->Polygon.BackMode != GL_FILL &&
+       (!ctx->Polygon.CullFlag || ctx->Polygon.CullFaceMode == GL_FRONT));
    per_vertex_enable &= edgeflags_have_effect;
 
    if (per_vertex_enable != ctx->Array._PerVertexEdgeFlagsEnabled) {
@@ -3198,7 +3203,7 @@ vertex_array_vertex_buffer(struct gl_context *ctx,
    struct gl_buffer_object *current_buf =
       vao->BufferBinding[VERT_ATTRIB_GENERIC(bindingIndex)].BufferObj;
 
-   if (current_buf && buffer == current_buf->Name) {
+   if (_mesa_is_same_buffer_object(current_buf, buffer)) {
       vbo = current_buf;
    } else if (buffer != 0) {
       vbo = _mesa_lookup_bufferobj(ctx, buffer);
@@ -3459,7 +3464,7 @@ vertex_array_vertex_buffers(struct gl_context *ctx,
 
          if (buffers[i] == 0)
             vbo = NULL;
-         else if (binding->BufferObj && binding->BufferObj->Name == buffers[i])
+         else if (_mesa_is_same_buffer_object(binding->BufferObj, buffers[i]))
             vbo = binding->BufferObj;
          else {
             bool error;
@@ -4169,7 +4174,7 @@ _mesa_init_varray(struct gl_context *ctx)
    _mesa_set_draw_vao(ctx, ctx->Array.VAO);
    ctx->Array.ActiveTexture = 0;   /* GL_ARB_multitexture */
 
-   _mesa_InitHashTable(&ctx->Array.Objects, ctx->Shared->ReuseGLNames);
+   _mesa_InitHashTable(&ctx->Array.Objects);
 }
 
 

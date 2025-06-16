@@ -27,7 +27,7 @@
       when: on_success
 
 .intel-common-manual-rules:
-  stage: intel-postmerge
+  stage: intel-nightly
   rules:
     - changes:
         *intel_common_file_list
@@ -51,7 +51,7 @@
       when: on_success
 
 .i915g-manual-rules:
-  stage: intel-postmerge
+  stage: intel-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -75,7 +75,7 @@
       when: on_success
 
 .crocus-manual-rules:
-  stage: intel-postmerge
+  stage: intel-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -100,7 +100,7 @@
       when: on_success
 
 .iris-manual-rules:
-  stage: intel-postmerge
+  stage: intel-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -128,11 +128,11 @@
   allow_failure: true # see comment in .performance-rules, which we don't inherit this line from.
   variables:
     JOB_PRIORITY: 40
-    LAVA_S3_ARTIFACT_NAME: mesa-x86_64-default-release
-    S3_ARTIFACT_NAME: mesa-python-ci-artifacts
+    S3_ARTIFACT_NAME: mesa-x86_64-default-release
   needs:
-    - kernel+rootfs_x86_64
-    - debian-release
+    - job: debian/x86_64_test-gl
+      optional: true
+    - job: debian-release
 
 .anv-rules:
   stage: intel
@@ -147,7 +147,7 @@
       when: on_success
 
 .anv-manual-rules:
-  stage: intel-postmerge
+  stage: intel-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -170,7 +170,7 @@
       when: on_success
 
 .hasvk-manual-rules:
-  stage: intel-postmerge
+  stage: intel-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -190,7 +190,8 @@
     - !reference [.anv-rules, rules]
 
 .intel-manual-rules:
-  stage: intel-postmerge
+  stage: intel-nightly
+  extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
     - !reference [.iris-manual-rules, rules]
@@ -214,8 +215,34 @@
     FARM: collabora
     FDO_CI_CONCURRENT: 9
     GPU_VERSION: anv-adl
-    HWCI_KERNEL_MODULES: i915
+    HWCI_KERNEL_MODULES: xe
     RUNNER_TAG: mesa-ci-x86-64-lava-acer-cbv514-1h-34uz-brya
+    LAVA_CMDLINE: "i915.force_probe=!46b3 xe.force_probe=46b3"
+    INTEL_XE_IGNORE_EXPERIMENTAL_WARNING: 1
+
+# Status: https://lava.collabora.dev/scheduler/device_type/acer-chromebox-cxi5-brask
+.lava-acer-chromebox-cxi5-brask:x86_64:
+  variables:
+    DEVICE_TYPE: acer-chromebox-cxi5-brask
+    FARM: collabora
+    FDO_CI_CONCURRENT: 6
+    GPU_VERSION: anv-adl
+    HWCI_KERNEL_MODULES: xe
+    RUNNER_TAG: mesa-ci-x86-64-lava-acer-chromebox-cxi5-brask
+    LAVA_CMDLINE: "i915.force_probe=!46b3 xe.force_probe=46b3"
+    INTEL_XE_IGNORE_EXPERIMENTAL_WARNING: 1
+
+# Status: https://lava.collabora.dev/scheduler/device_type/acer-n20q11-r856ltn-p1s2-nissa
+.lava-acer-n20q11-r856ltn-p1s2-nissa:x86_64:
+  variables:
+    DEVICE_TYPE: acer-n20q11-r856ltn-p1s2-nissa
+    FARM: collabora
+    FDO_CI_CONCURRENT: 5
+    GPU_VERSION: anv-adl
+    HWCI_KERNEL_MODULES: xe
+    RUNNER_TAG: mesa-ci-x86-64-lava-acer-n20q11-r856ltn-p1s2-nissa
+    LAVA_CMDLINE: "i915.force_probe=!46d0 xe.force_probe=46d0"
+    INTEL_XE_IGNORE_EXPERIMENTAL_WARNING: 1
 
 # Status: https://lava.collabora.dev/scheduler/device_type/asus-C523NA-A20057-coral
 .lava-asus-C523NA-A20057-coral:x86_64:
@@ -240,7 +267,6 @@
 # Status: https://lava.collabora.dev/scheduler/device_type/acer-cp514-2h-1130g7-volteer
 .lava-acer-cp514-2h-1130g7-volteer:x86_64:
   variables:
-    BOOT_METHOD: depthcharge
     DEVICE_TYPE: acer-cp514-2h-1130g7-volteer
     FARM: collabora
     FDO_CI_CONCURRENT: 9
@@ -251,7 +277,6 @@
 # Status: https://lava.collabora.dev/scheduler/device_type/acer-cp514-2h-1160g7-volteer
 .lava-acer-cp514-2h-1160g7-volteer:x86_64:
   variables:
-    BOOT_METHOD: depthcharge
     DEVICE_TYPE: acer-cp514-2h-1160g7-volteer
     FARM: collabora
     FDO_CI_CONCURRENT: 9
@@ -304,6 +329,7 @@
 .lava-acer-chromebox-cxi4-puff:x86_64:
   variables:
     DEVICE_TYPE: acer-chromebox-cxi4-puff
+    FARM: collabora
     FDO_CI_CONCURRENT: 9
     GPU_VERSION: iris-cml
     HWCI_KERNEL_MODULES: i915
@@ -311,14 +337,13 @@
 
 
 .intel-common-test:
-  extends:
-    - .lava-test-deqp:x86_64
   variables:
     DTB: ""
     BOOT_METHOD: depthcharge
     KERNEL_IMAGE_TYPE: ""
     FLAKES_CHANNEL: "#intel-ci"
     HWCI_FREQ_MAX: "true"
+    LAVA_FIRMWARE: i915
 
 .anv-test:
   extends:
@@ -326,9 +351,11 @@
     - .anv-rules
   variables:
     DRIVER_NAME: anv
+    ANV_DEBUG: "video-decode,video-encode"
 
 .iris-test:
   extends:
+    - .lava-x86_64-test-gl
     - .intel-common-test
     - .iris-rules
   variables:
@@ -342,12 +369,12 @@
 ## ANV only
 .anv-angle-test:
   extends:
-    - .anv-test
+    - .lava-x86_64-test-gl
+    - .intel-common-test
+    - .anv-rules
+    - .test-angle
   variables:
     VK_DRIVER: intel
-    USE_ANGLE: 1
-    # ANGLE requires X11 running for some reason.
-    HWCI_START_XORG: 1
 
 ## Iris only
 .iris-apl-test:
@@ -392,11 +419,9 @@
 
 .iris-traces:
   extends:
-    - .lava-traces-base
+    - .lava-piglit-traces
   variables:
     EGL_PLATFORM: surfaceless
-    PIGLIT_REPLAY_DEVICE_NAME: "gl-${GPU_VERSION}"
-    PIGLIT_RESULTS: "${GPU_VERSION}-${PIGLIT_PROFILES}"
     PIGLIT_TRACES_FILE: traces-iris.yml
 
 .iris-whl-traces:
@@ -425,8 +450,7 @@
     HWCI_FREQ_MAX: "true"
     LAVA_TAGS: "cbg-0"
     # Ensure that we are using the release build artifact
-    LAVA_S3_ARTIFACT_NAME: mesa-x86_64-default-release
-    S3_ARTIFACT_NAME: mesa-python-ci-artifacts
+    S3_ARTIFACT_NAME: mesa-x86_64-default-release
 
 .iris-whl-traces-performance:
   extends:
@@ -445,6 +469,7 @@
 ## Intel (anv + iris)
 .intel-adl-test:
   extends:
+    - .lava-x86_64-test-gl
     - .anv-test
     - .intel-test
   variables:
@@ -452,6 +477,7 @@
 
 .intel-tgl-test:
   extends:
+    - .lava-x86_64-test-gl
     - .anv-test
     - .intel-test
   variables:
@@ -459,6 +485,7 @@
 
 .intel-whl-test:
   extends:
+    - .lava-x86_64-test-gl
     - .iris-whl-test
     - .intel-test
   variables:

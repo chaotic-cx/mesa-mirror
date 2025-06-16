@@ -225,7 +225,7 @@ etna_blit_clear_color_blt(struct pipe_context *pctx, unsigned idx,
                       const union pipe_color_union *color)
 {
    struct etna_context *ctx = etna_context(pctx);
-   struct pipe_surface *dst = ctx->framebuffer_s.cbufs[idx];
+   struct pipe_surface *dst = ctx->fb_cbufs[idx];
    struct etna_surface *surf = etna_surface(dst);
    uint64_t new_clear_value = etna_clear_blit_pack_rgba(surf->base.format, color);
    int msaa_xscale = 1, msaa_yscale = 1;
@@ -245,7 +245,7 @@ etna_blit_clear_color_blt(struct pipe_context *pctx, unsigned idx,
    if (surf->level->ts_size) {
       clr.dest.use_ts = 1;
       clr.dest.ts_addr.bo = res->ts_bo;
-      clr.dest.ts_addr.offset = surf->ts_offset;
+      clr.dest.ts_addr.offset = surf->level->ts_offset;
       clr.dest.ts_addr.flags = ETNA_RELOC_WRITE;
       clr.dest.ts_clear_value[0] = new_clear_value;
       clr.dest.ts_clear_value[1] = new_clear_value >> 32;
@@ -280,6 +280,7 @@ etna_blit_clear_color_blt(struct pipe_context *pctx, unsigned idx,
          surf->level->ts_meta->v0.clear_value = new_clear_value;
 
       etna_resource_level_ts_mark_valid(surf->level);
+      etna_resource_level_mark_unflushed(surf->level);
       ctx->dirty |= ETNA_DIRTY_TS | ETNA_DIRTY_DERIVE_TS;
    }
 
@@ -339,7 +340,7 @@ etna_blit_clear_zs_blt(struct pipe_context *pctx, struct pipe_surface *dst,
    if (surf->level->ts_size) {
       clr.dest.use_ts = 1;
       clr.dest.ts_addr.bo = res->ts_bo;
-      clr.dest.ts_addr.offset = surf->ts_offset;
+      clr.dest.ts_addr.offset = surf->level->ts_offset;
       clr.dest.ts_addr.flags = ETNA_RELOC_WRITE;
       clr.dest.ts_clear_value[0] = surf->level->clear_value;
       clr.dest.ts_clear_value[1] = surf->level->clear_value;
@@ -362,6 +363,7 @@ etna_blit_clear_zs_blt(struct pipe_context *pctx, struct pipe_surface *dst,
    if (surf->level->ts_size) {
       ctx->framebuffer.TS_DEPTH_CLEAR_VALUE = surf->level->clear_value;
       etna_resource_level_ts_mark_valid(surf->level);
+      etna_resource_level_mark_unflushed(surf->level);
       ctx->dirty |= ETNA_DIRTY_TS | ETNA_DIRTY_DERIVE_TS;
    }
 
@@ -383,7 +385,7 @@ etna_clear_blt(struct pipe_context *pctx, unsigned buffers, const struct pipe_sc
 
    if (buffers & PIPE_CLEAR_COLOR) {
       for (int idx = 0; idx < ctx->framebuffer_s.nr_cbufs; ++idx) {
-         struct etna_surface *surf = etna_surface(ctx->framebuffer_s.cbufs[idx]);
+         struct etna_surface *surf = etna_surface(ctx->fb_cbufs[idx]);
 
          if (!surf)
             continue;
@@ -395,8 +397,8 @@ etna_clear_blt(struct pipe_context *pctx, unsigned buffers, const struct pipe_sc
       }
    }
 
-   if ((buffers & PIPE_CLEAR_DEPTHSTENCIL) && ctx->framebuffer_s.zsbuf != NULL)
-      etna_blit_clear_zs_blt(pctx, ctx->framebuffer_s.zsbuf, buffers, depth, stencil);
+   if ((buffers & PIPE_CLEAR_DEPTHSTENCIL) && ctx->framebuffer_s.zsbuf.texture != NULL)
+      etna_blit_clear_zs_blt(pctx, ctx->fb_zsbuf, buffers, depth, stencil);
 
    etna_stall(ctx->stream, SYNC_RECIPIENT_RA, SYNC_RECIPIENT_BLT);
 
@@ -620,6 +622,32 @@ etna_try_blt_blit(struct pipe_context *pctx,
    return true;
 }
 
+static void
+etna_emit_yuv_tiler_state_blt(struct etna_context *ctx, struct etna_yuv_config *config)
+{
+   struct etna_cmd_stream *stream = ctx->stream;
+
+   etna_set_state(stream, VIVS_BLT_ENABLE, 0x00000001);
+   etna_set_state(stream, VIVS_BLT_YUV_CONFIG,
+                  VIVS_BLT_YUV_CONFIG_SOURCE_FORMAT(config->format) | VIVS_BLT_YUV_CONFIG_ENABLE);
+   etna_set_state(stream, VIVS_BLT_YUV_WINDOW_SIZE,
+                  VIVS_BLT_YUV_WINDOW_SIZE_HEIGHT(config->height) |
+                  VIVS_BLT_YUV_WINDOW_SIZE_WIDTH(config->width));
+
+   etna_yuv_emit_plane(ctx, config->planes[0], ETNA_PENDING_READ, VIVS_BLT_YUV_SRC_YADDR, VIVS_BLT_YUV_SRC_YSTRIDE);
+   etna_yuv_emit_plane(ctx, config->planes[1], ETNA_PENDING_READ, VIVS_BLT_YUV_SRC_UADDR, VIVS_BLT_YUV_SRC_USTRIDE);
+   etna_yuv_emit_plane(ctx, config->planes[2], ETNA_PENDING_READ, VIVS_BLT_YUV_SRC_VADDR, VIVS_BLT_YUV_SRC_VSTRIDE);
+   etna_yuv_emit_plane(ctx, config->dst, ETNA_PENDING_WRITE, VIVS_BLT_YUV_DEST_ADDR, VIVS_BLT_YUV_DEST_STRIDE);
+
+   /* trigger resolve */
+   etna_set_state(stream, VIVS_BLT_SET_COMMAND, 0x00000003);
+   etna_set_state(stream, VIVS_BLT_COMMAND, VIVS_BLT_COMMAND_COMMAND_YUV_TILE);
+   etna_set_state(stream, VIVS_BLT_SET_COMMAND, 0x00000003);
+   etna_set_state(stream, VIVS_BLT_ENABLE, 0x00000000);
+
+   etna_stall(stream, SYNC_RECIPIENT_RA, SYNC_RECIPIENT_BLT);
+}
+
 void
 etna_clear_blit_blt_init(struct pipe_context *pctx)
 {
@@ -628,4 +656,5 @@ etna_clear_blit_blt_init(struct pipe_context *pctx)
    DBG("etnaviv: Using BLT blit engine");
    pctx->clear = etna_clear_blt;
    ctx->blit = etna_try_blt_blit;
+   ctx->emit_yuv_tiler_state = etna_emit_yuv_tiler_state_blt;
 }

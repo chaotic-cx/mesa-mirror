@@ -568,7 +568,7 @@ vl_mc_init_buffer(struct vl_mc *renderer, struct vl_mc_buffer *buffer)
    buffer->viewport.swizzle_w = PIPE_VIEWPORT_SWIZZLE_POSITIVE_W;
 
    buffer->fb_state.nr_cbufs = 1;
-   buffer->fb_state.zsbuf = NULL;
+   memset(&buffer->fb_state.zsbuf, 0, sizeof(buffer->fb_state.zsbuf));
 
    return true;
 }
@@ -586,12 +586,12 @@ vl_mc_set_surface(struct vl_mc_buffer *buffer, struct pipe_surface *surface)
 
    buffer->surface_cleared = false;
 
-   buffer->viewport.scale[0] = surface->width;
-   buffer->viewport.scale[1] = surface->height;
+   buffer->viewport.scale[0] = pipe_surface_width(surface);
+   buffer->viewport.scale[1] = pipe_surface_height(surface);
 
-   buffer->fb_state.width = surface->width;
-   buffer->fb_state.height = surface->height;
-   buffer->fb_state.cbufs[0] = surface;
+   buffer->fb_state.width = pipe_surface_width(surface);
+   buffer->fb_state.height = pipe_surface_height(surface);
+   buffer->fb_state.cbufs[0] = *surface;
 }
 
 static void
@@ -621,7 +621,7 @@ vl_mc_render_ref(struct vl_mc *renderer, struct vl_mc_buffer *buffer, struct pip
    renderer->pipe->bind_fs_state(renderer->pipe, renderer->fs_ref);
 
    renderer->pipe->set_sampler_views(renderer->pipe, PIPE_SHADER_FRAGMENT,
-                                     0, 1, 0, false, &ref);
+                                     0, 1, 0, &ref);
    renderer->pipe->bind_sampler_states(renderer->pipe, PIPE_SHADER_FRAGMENT,
                                        0, 1, &renderer->sampler_ref);
 

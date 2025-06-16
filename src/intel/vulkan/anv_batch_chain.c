@@ -261,6 +261,7 @@ anv_batch_bo_create(struct anv_cmd_buffer *cmd_buffer,
 
    result = anv_bo_pool_alloc(&cmd_buffer->device->batch_bo_pool,
                               size, &bbo->bo);
+   ANV_DMR_BO_ALLOC(&cmd_buffer->vk.base, bbo->bo, result);
    if (result != VK_SUCCESS)
       goto fail_alloc;
 
@@ -274,6 +275,7 @@ anv_batch_bo_create(struct anv_cmd_buffer *cmd_buffer,
    return VK_SUCCESS;
 
  fail_bo_alloc:
+   ANV_DMR_BO_FREE(&cmd_buffer->vk.base, bbo->bo);
    anv_bo_pool_free(&cmd_buffer->device->batch_bo_pool, bbo->bo);
  fail_alloc:
    vk_free(&cmd_buffer->vk.pool->alloc, bbo);
@@ -295,6 +297,7 @@ anv_batch_bo_clone(struct anv_cmd_buffer *cmd_buffer,
 
    result = anv_bo_pool_alloc(&cmd_buffer->device->batch_bo_pool,
                               other_bbo->bo->size, &bbo->bo);
+   ANV_DMR_BO_ALLOC(&cmd_buffer->vk.base, bbo->bo, result);
    if (result != VK_SUCCESS)
       goto fail_alloc;
 
@@ -309,7 +312,9 @@ anv_batch_bo_clone(struct anv_cmd_buffer *cmd_buffer,
    return VK_SUCCESS;
 
  fail_bo_alloc:
+   ANV_DMR_BO_FREE(&cmd_buffer->vk.base, bbo->bo);
    anv_bo_pool_free(&cmd_buffer->device->batch_bo_pool, bbo->bo);
+
  fail_alloc:
    vk_free(&cmd_buffer->vk.pool->alloc, bbo);
 
@@ -374,6 +379,7 @@ anv_batch_bo_destroy(struct anv_batch_bo *bbo,
                      struct anv_cmd_buffer *cmd_buffer)
 {
    anv_reloc_list_finish(&bbo->relocs);
+   ANV_DMR_BO_FREE(&cmd_buffer->vk.base, bbo->bo);
    anv_bo_pool_free(&cmd_buffer->device->batch_bo_pool, bbo->bo);
    vk_free(&cmd_buffer->vk.pool->alloc, bbo);
 }
@@ -812,6 +818,7 @@ anv_cmd_buffer_alloc_space(struct anv_cmd_buffer *cmd_buffer,
                         &cmd_buffer->device->batch_bo_pool :
                         &cmd_buffer->device->bvh_bo_pool,
                         align(size, 4096), &bo);
+   ANV_DMR_BO_ALLOC(&cmd_buffer->vk.base, bo, result);
    if (result != VK_SUCCESS) {
       anv_batch_set_error(&cmd_buffer->batch, VK_ERROR_OUT_OF_DEVICE_MEMORY);
       return ANV_EMPTY_ALLOC;
@@ -821,9 +828,11 @@ anv_cmd_buffer_alloc_space(struct anv_cmd_buffer *cmd_buffer,
       u_vector_add(&cmd_buffer->dynamic_bos);
    if (bo_entry == NULL) {
       anv_batch_set_error(&cmd_buffer->batch, VK_ERROR_OUT_OF_HOST_MEMORY);
+      ANV_DMR_BO_FREE(&cmd_buffer->vk.base, bo);
       anv_bo_pool_free(bo->map != NULL ?
                        &cmd_buffer->device->batch_bo_pool :
                        &cmd_buffer->device->bvh_bo_pool, bo);
+
       return ANV_EMPTY_ALLOC;
    }
    *bo_entry = bo;
@@ -952,6 +961,7 @@ anv_cmd_buffer_fini_batch_bo_chain(struct anv_cmd_buffer *cmd_buffer)
    }
 
    if (cmd_buffer->generation.ring_bo) {
+      ANV_DMR_BO_FREE(&cmd_buffer->vk.base, cmd_buffer->generation.ring_bo);
       anv_bo_pool_free(&cmd_buffer->device->batch_bo_pool,
                        cmd_buffer->generation.ring_bo);
    }
@@ -1006,6 +1016,7 @@ anv_cmd_buffer_reset_batch_bo_chain(struct anv_cmd_buffer *cmd_buffer)
    cmd_buffer->generation.batch.next  = NULL;
 
    if (cmd_buffer->generation.ring_bo) {
+      ANV_DMR_BO_FREE(&cmd_buffer->vk.base, cmd_buffer->generation.ring_bo);
       anv_bo_pool_free(&cmd_buffer->device->batch_bo_pool,
                        cmd_buffer->generation.ring_bo);
       cmd_buffer->generation.ring_bo = NULL;
@@ -1056,7 +1067,7 @@ anv_cmd_buffer_end_batch_buffer(struct anv_cmd_buffer *cmd_buffer)
        * actual ExecuteCommands implementation.
        */
       const uint32_t length = cmd_buffer->batch.next - cmd_buffer->batch.start;
-      if (cmd_buffer->device->physical->use_call_secondary) {
+      if (!(cmd_buffer->device->physical->instance->debug & ANV_DEBUG_NO_SECONDARY_CALL)) {
          cmd_buffer->exec_mode = ANV_CMD_BUFFER_EXEC_MODE_CALL_AND_RETURN;
 
          void *jump_addr =
@@ -1189,7 +1200,7 @@ anv_cmd_buffer_add_secondary(struct anv_cmd_buffer *primary,
       break;
    }
    default:
-      assert(!"Invalid execution mode");
+      unreachable("Invalid execution mode");
    }
 
    anv_reloc_list_append(&primary->surface_relocs, &secondary->surface_relocs);
@@ -1253,7 +1264,7 @@ anv_cmd_buffer_exec_batch_debug(struct anv_queue *queue,
                                 struct anv_query_pool *perf_query_pool,
                                 uint32_t perf_query_pass)
 {
-   if (!INTEL_DEBUG(DEBUG_BATCH | DEBUG_BATCH_STATS))
+   if (!INTEL_DEBUG(DEBUG_BATCH) && !INTEL_DEBUG(DEBUG_BATCH_STATS))
       return;
 
    struct anv_device *device = queue->device;
@@ -1601,6 +1612,16 @@ anv_queue_submit(struct vk_queue *vk_queue,
 
    anv_queue_free_initial_submission(queue);
 
+   if (u_trace_should_process(&device->ds.trace_context)) {
+      /* Refresh perfetto's knowledge of any easily accessible, long-lived
+       * object names referenced by this submit -- this helps provide better
+       * information in traces when tracing starts after application launch.
+       */
+      for (int i = 0; i < submit->command_buffer_count; i++)
+         intel_ds_perfetto_refresh_debug_utils_object_name(&device->ds,
+                                                           &submit->command_buffers[i]->base);
+   }
+
    if (queue->device->info->no_hw) {
       for (uint32_t i = 0; i < submit->signal_count; i++) {
          result = vk_sync_signal(&device->vk,
@@ -1671,6 +1692,7 @@ anv_async_submit_extend_batch(struct anv_batch *batch, uint32_t size,
                               void *user_data)
 {
    struct anv_async_submit *submit = user_data;
+   struct anv_queue *queue = submit->queue;
 
    uint32_t alloc_size = 0;
    util_dynarray_foreach(&submit->batch_bos, struct anv_bo *, bo)
@@ -1681,6 +1703,7 @@ anv_async_submit_extend_batch(struct anv_batch *batch, uint32_t size,
    VkResult result = anv_bo_pool_alloc(submit->bo_pool,
                                        align(alloc_size, 4096),
                                        &bo);
+   ANV_DMR_BO_ALLOC(&queue->vk.base, bo, result);
    if (result != VK_SUCCESS)
       return result;
 
@@ -1753,12 +1776,16 @@ void
 anv_async_submit_fini(struct anv_async_submit *submit)
 {
    struct anv_device *device = submit->queue->device;
+   struct anv_queue *queue = submit->queue;
 
    if (submit->owns_sync)
       vk_sync_destroy(&device->vk, submit->signal.sync);
 
-   util_dynarray_foreach(&submit->batch_bos, struct anv_bo *, bo)
+   util_dynarray_foreach(&submit->batch_bos, struct anv_bo *, bo) {
+      ANV_DMR_BO_FREE(&queue->vk.base, *bo);
       anv_bo_pool_free(submit->bo_pool, *bo);
+   }
+
    util_dynarray_fini(&submit->batch_bos);
    anv_reloc_list_finish(&submit->relocs);
 }

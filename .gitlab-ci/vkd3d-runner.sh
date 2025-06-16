@@ -3,7 +3,7 @@
 
 . "${SCRIPTS_DIR}/setup-test-env.sh"
 
-set -e
+set -eu -o pipefail
 
 comma_separated() {
   local IFS=,
@@ -15,13 +15,21 @@ if [[ -z "$VK_DRIVER" ]]; then
     exit 1
 fi
 
+if [ -z "$VKD3D_PROTON_TAG" ]; then
+    echo "VKD3D_PROTON_TAG must be set to the conditional build tag"
+    exit 1
+fi
+
+# Are we using the right vkd3d-proton version?
+ci_tag_test_time_check "VKD3D_PROTON_TAG"
+
 INSTALL=$(realpath -s "$PWD"/install)
 
 # Set up the driver environment.
 # Modifiying here directly LD_LIBRARY_PATH may cause problems when
 # using a command wrapper. Hence, we will just set it when running the
 # command.
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$INSTALL/lib/:/vkd3d-proton-tests/x64/"
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}:$INSTALL/lib/:/vkd3d-proton-tests/lib/"
 
 
 # Set the Vulkan driver to use.
@@ -43,7 +51,7 @@ fi
 # Sanity check to ensure that our environment is sufficient to make our tests
 # run against the Mesa built by CI, rather than any installed distro version.
 MESA_VERSION=$(cat "$INSTALL/VERSION")
-if ! vulkaninfo | grep driverInfo | tee /tmp/version.txt | grep -F "Mesa $MESA_VERSION"; then
+if ! vulkaninfo | grep driverInfo | tee /tmp/version.txt | grep -qF "Mesa $MESA_VERSION"; then
     printf "%s\n" "Found $(cat /tmp/version.txt), expected $MESA_VERSION"
     exit 1
 fi
@@ -51,7 +59,10 @@ fi
 # Gather the list expected failures
 EXPECTATIONFILE="$RESULTS_DIR/$GPU_VERSION-vkd3d-fails.txt"
 if [ -f "$INSTALL/$GPU_VERSION-vkd3d-fails.txt" ]; then
-    grep -vE '^(#|$)' "$INSTALL/$GPU_VERSION-vkd3d-fails.txt" | sort > "$EXPECTATIONFILE"
+    # Ignore the grep "failure" if the file exists but contains only comments
+    # or empty lines; the expectation file used will be empty in this case,
+    # which is not a problem.
+    grep -vE '^(#|$)' "$INSTALL/$GPU_VERSION-vkd3d-fails.txt" | sort > "$EXPECTATIONFILE" || true
 else
     printf "%s\n" "$GPU_VERSION-vkd3d-fails.txt not found, assuming a \"no failures\" baseline."
     touch "$EXPECTATIONFILE"
@@ -89,16 +100,12 @@ fi
 printf "%s\n" "Running vkd3d-proton testsuite..."
 
 LOGFILE="$RESULTS_DIR/vkd3d-proton-log.txt"
-TEST_LOGS="$RESULTS_DIR/test-logs"
-(cd /vkd3d-proton-tests && tests/test-runner.sh x64/bin/d3d12 --jobs "${FDO_CI_CONCURRENT:-4}" --output-dir "$TEST_LOGS" | tee "$LOGFILE")
+TEST_LOGS="/test-logs"
+pushd /vkd3d-proton-tests
+tests/test-runner.sh ./d3d12 --jobs "${FDO_CI_CONCURRENT:-4}" --output-dir "$TEST_LOGS" | tee "$LOGFILE" || true
+popd
 
 printf '\n\n'
-
-# Check if the executable finished (ie. no segfault).
-if ! grep -E "^Finished" "$LOGFILE" > /dev/null; then
-    error "Failed, see ${ARTIFACTS_BASE_URL}/results/vkd3d-proton-log.txt"
-    exit 1
-fi
 
 # Print list of flakes seen this time
 flakes_seen=()
@@ -114,12 +121,17 @@ if [ ${#flakes_seen[@]} -gt 0 ]; then
   printf >&2 '  %s\n' "${flakes_seen[@]}"
 fi
 
-# Collect all the failures
-mapfile -t fails < <(grep -oE "^FAILED .+$" "$LOGFILE" | cut -d' ' -f2 | sort)
+# Collect all the failures; ignore grep "failure" if there are none
+fails_lines=$(grep -oE "^FAILED .+$" "$LOGFILE" | cut -d' ' -f2 | sort) || true
+if [ -n "$fails_lines" ]; then
+  mapfile -t fails < <(echo "$fails_lines")
+else
+  fails=()
+fi
 
 # Save test output for failed tests (before excluding flakes)
 for failed_test in "${fails[@]}"; do
-  cp "$TEST_LOGS/$failed_test.log" "$RESULTS/$failed_test.log"
+  cp "$TEST_LOGS/$failed_test.log" "$RESULTS_DIR/$failed_test.log"
 done
 
 # Ignore flakes when comparing
@@ -129,11 +141,11 @@ for flake in "${flakes[@]}"; do
   done
 done
 
-RESULTSFILE="$RESULTS/$GPU_VERSION.txt"
+RESULTSFILE="$RESULTS_DIR/$GPU_VERSION.txt"
 for failed_test in "${fails[@]}"; do
-  if ! grep -qE "$failed_test end" "$RESULTS/$failed_test.log"; then
+  if ! grep -qE "$failed_test end" "$RESULTS_DIR/$failed_test.log"; then
     test_status=Crash
-  elif grep -qE "Test failed:" "$RESULTS/$failed_test.log"; then
+  elif grep -qE "Test failed:" "$RESULTS_DIR/$failed_test.log"; then
     test_status=Fail
   else
     test_status=Unknown
@@ -147,7 +159,7 @@ for expected_fail_line in "${expected_fail_lines[@]}"; do
   test_name=$(cut -d, -f1 <<< "$expected_fail_line")
   if [ ! -f "$TEST_LOGS/$test_name.log" ]; then
     test_status='UnexpectedImprovement(Skip)'
-  elif [ ! -f "$RESULTS/$test_name.log" ]; then
+  elif [ ! -f "$RESULTS_DIR/$test_name.log" ]; then
     test_status='UnexpectedImprovement(Pass)'
   else
     continue

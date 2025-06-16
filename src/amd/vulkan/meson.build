@@ -62,6 +62,8 @@ libradv_files = files(
   'meta/radv_meta_resolve.c',
   'meta/radv_meta_resolve_cs.c',
   'meta/radv_meta_resolve_fs.c',
+  'nir/radv_meta_nir.c',
+  'nir/radv_meta_nir.h',
   'nir/radv_nir.h',
   'nir/radv_nir_apply_pipeline_layout.c',
   'nir/radv_nir_export_multiview.c',
@@ -72,12 +74,13 @@ libradv_files = files(
   'nir/radv_nir_lower_hit_attrib_derefs.c',
   'nir/radv_nir_lower_intrinsics_early.c',
   'nir/radv_nir_lower_io.c',
-  'nir/radv_nir_lower_poly_line_smooth.c',
   'nir/radv_nir_lower_primitive_shading_rate.c',
+  'nir/radv_nir_lower_printf.c',
   'nir/radv_nir_lower_ray_queries.c',
   'nir/radv_nir_lower_view_index.c',
   'nir/radv_nir_lower_viewport_to_zero.c',
   'nir/radv_nir_lower_vs_inputs.c',
+  'nir/radv_nir_opt_fs_builtins.c',
   'nir/radv_nir_opt_tid_function.c',
   'nir/radv_nir_remap_color_attachment.c',
   'nir/radv_nir_rt_common.c',
@@ -143,6 +146,8 @@ libradv_files = files(
   'radv_radeon_winsys.h',
   'radv_rmv.c',
   'radv_rmv.h',
+  'radv_rra_gfx10_3.c',
+  'radv_rra_gfx12.c',
   'radv_rra.c',
   'radv_rra.h',
   'radv_sampler.c',
@@ -311,7 +316,7 @@ devenv.append('VK_DRIVER_FILES', _dev_icd.full_path())
 # Deprecated: replaced by VK_DRIVER_FILES above
 devenv.append('VK_ICD_FILENAMES', _dev_icd.full_path())
 
-if with_tests
+if with_radv_tests
   test(
     'radv_tests',
     executable(
@@ -319,6 +324,10 @@ if with_tests
       files(
         'nir/radv_nir_lower_hit_attrib_derefs.c',
         'tests/radv_nir_lower_hit_attrib_derefs_tests.cpp',
+        'tests/helpers.cpp',
+        'tests/helpers.h',
+        'tests/drirc.cpp',
+        'tests/misc.cpp',
       ),
       cpp_args : [cpp_msvc_compat_args],
       gnu_symbol_visibility : 'hidden',
@@ -331,7 +340,8 @@ if with_tests
         inc_util,
         include_directories('.'),
       ],
-      dependencies : [dep_thread, idep_gtest, idep_nir, idep_mesautil],
+      link_with  : [ libvulkan_radeon ],
+      dependencies : [dep_thread, idep_gtest, idep_nir, idep_mesautil, idep_vulkan_util_headers],
     ),
     suite : ['compiler', 'nir'],
     protocol : 'gtest',

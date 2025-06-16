@@ -29,7 +29,10 @@ GeometryShader::do_scan_instruction(nir_instr *instr)
    case nir_intrinsic_store_output:
       return process_store_output(ii);
    case nir_intrinsic_load_per_vertex_input:
+   case nir_intrinsic_load_r600_indirect_per_vertex_input:
       return process_load_input(ii);
+   case nir_intrinsic_r600_indirect_vertex_at_index:
+      return true;
    default:
       return false;
    }
@@ -116,12 +119,12 @@ GeometryShader::process_load_input(nir_intrinsic_instr *instr)
 int
 GeometryShader::do_allocate_reserved_registers()
 {
-   const int sel[6] = {0, 0, 0, 1, 1, 1};
-   const int chan[6] = {0, 1, 3, 0, 1, 2};
+   const int sel[R600_GS_VERTEX_INDIRECT_TOTAL] = {0, 0, 0, 1, 1, 1};
+   const int chan[R600_GS_VERTEX_INDIRECT_TOTAL] = {0, 1, 3, 0, 1, 2};
 
    /* Reserve registers used by the shaders (should check how many
     * components are actually used */
-   for (int i = 0; i < 6; ++i) {
+   for (int i = 0; i < R600_GS_VERTEX_INDIRECT_TOTAL; ++i) {
       m_per_vertex_offsets[i] = value_factory().allocate_pinned_register(sel[i], chan[i]);
    }
 
@@ -165,7 +168,11 @@ GeometryShader::process_stage_intrinsic(nir_intrinsic_instr *intr)
    case nir_intrinsic_load_invocation_id:
       return emit_simple_mov(intr->def, 0, m_invocation_id);
    case nir_intrinsic_load_per_vertex_input:
-      return emit_load_per_vertex_input(intr);
+      return emit_load_per_vertex_input_direct(intr);
+   case nir_intrinsic_load_r600_indirect_per_vertex_input:
+      return emit_load_per_vertex_input_indirect(intr);
+   case nir_intrinsic_r600_indirect_vertex_at_index:
+      return emit_indirect_vertex_at_index(intr);
    default:;
    }
    return false;
@@ -294,7 +301,43 @@ GeometryShader::store_output(nir_intrinsic_instr *instr)
 }
 
 bool
-GeometryShader::emit_load_per_vertex_input(nir_intrinsic_instr *instr)
+GeometryShader::emit_indirect_vertex_at_index(nir_intrinsic_instr *instr)
+{
+   auto dest = value_factory().dest(instr->def, 0, pin_free);
+   auto literal_index = nir_src_as_const_value(instr->src[0]);
+
+   assert(literal_index);
+   assert(literal_index->u32 < R600_GS_VERTEX_INDIRECT_TOTAL);
+
+   auto addr = m_per_vertex_offsets[literal_index->u32];
+
+   auto ir = new AluInstr(op1_mov, dest, addr, AluInstr::write);
+   emit_instruction(ir);
+
+   return true;
+}
+
+bool
+GeometryShader::emit_load_per_vertex_input_direct(nir_intrinsic_instr *instr)
+{
+   auto literal_index = nir_src_as_const_value(instr->src[0]);
+   assert(literal_index);
+   assert(literal_index->u32 < R600_GS_VERTEX_INDIRECT_TOTAL);
+   assert(nir_intrinsic_io_semantics(instr).num_slots == 1);
+
+   return load_per_vertex_input_at_addr(instr, m_per_vertex_offsets[literal_index->u32]);
+}
+
+bool
+GeometryShader::emit_load_per_vertex_input_indirect(nir_intrinsic_instr *instr)
+{
+   return load_per_vertex_input_at_addr(
+      instr,
+      value_factory().src(instr->src[0], 0)->as_register());
+}
+
+bool
+GeometryShader::load_per_vertex_input_at_addr(nir_intrinsic_instr *instr, PRegister addr)
 {
    auto dest = value_factory().dest_vec4(instr->def, pin_group);
 
@@ -303,19 +346,9 @@ GeometryShader::emit_load_per_vertex_input(nir_intrinsic_instr *instr)
       dest_swz[i] = i + nir_intrinsic_component(instr);
    }
 
-   auto literal_index = nir_src_as_const_value(instr->src[0]);
-
-   if (!literal_index) {
-      sfn_log << SfnLog::err << "GS: Indirect input addressing not (yet) supported\n";
-      return false;
-   }
-   assert(literal_index->u32 < 6);
-   assert(nir_intrinsic_io_semantics(instr).num_slots == 1);
-
    EVTXDataFormat fmt =
       chip_class() >= ISA_CC_EVERGREEN ? fmt_invalid : fmt_32_32_32_32_float;
 
-   auto addr = m_per_vertex_offsets[literal_index->u32];
    auto fetch = new LoadFromBuffer(dest,
                                    dest_swz,
                                    addr,
@@ -372,16 +405,16 @@ GeometryShader::emit_adj_fix()
                                  value_factory().one_i(),
                                  AluInstr::last_write));
 
-   int reg_indices[6];
-   int rotate_indices[6] = {4, 5, 0, 1, 2, 3};
+   int reg_indices[R600_GS_VERTEX_INDIRECT_TOTAL];
+   int rotate_indices[R600_GS_VERTEX_INDIRECT_TOTAL] = {4, 5, 0, 1, 2, 3};
 
    reg_indices[0] = reg_indices[1] = reg_indices[2] = m_export_base[1]->sel();
    reg_indices[3] = reg_indices[4] = reg_indices[5] = m_export_base[2]->sel();
 
-   std::array<PRegister, 6> adjhelp;
+   std::array<PRegister, R600_GS_VERTEX_INDIRECT_TOTAL> adjhelp;
 
    AluInstr *ir = nullptr;
-   for (int i = 0; i < 6; i++) {
+   for (int i = 0; i < R600_GS_VERTEX_INDIRECT_TOTAL; i++) {
       adjhelp[i] = value_factory().temp_register();
       ir = new AluInstr(op3_cnde_int,
                         adjhelp[i],
@@ -394,7 +427,7 @@ GeometryShader::emit_adj_fix()
    }
    ir->set_alu_flag(alu_last_instr);
 
-   for (int i = 0; i < 6; i++)
+   for (int i = 0; i < R600_GS_VERTEX_INDIRECT_TOTAL; i++)
       m_per_vertex_offsets[i] = adjhelp[i];
 }
 

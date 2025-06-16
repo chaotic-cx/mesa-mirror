@@ -30,6 +30,7 @@
 #include "compiler/nir/nir.h"
 #include "panfrost/util/pan_ir.h"
 #include "util/half_float.h"
+#include "util/shader_stats.h"
 #include "util/u_math.h"
 #include "util/u_worklist.h"
 #include "bi_opcodes.h"
@@ -44,31 +45,78 @@ extern "C" {
  * To express widen, use the correpsonding replicated form, i.e. H01 = identity
  * for widen = none, H00 for widen = h0, B1111 for widen = b1. For lane, also
  * use the replicated form (interpretation is governed by the opcode). For
- * 8-bit lanes with two channels, use replicated forms for replicated forms
- * (TODO: what about others?). For 8-bit lanes with four channels using
- * matching form (TODO: what about others?).
+ * 8-bit lanes with two channels, use replicated forms for replicated forms.
+ * For 8-bit lanes with four channels using matching form.
  */
 
 enum bi_swizzle {
-   /* 16-bit swizzle ordering deliberate for fast compute */
-   BI_SWIZZLE_H00 = 0, /* = B0101 */
-   BI_SWIZZLE_H01 = 1, /* = B0123 = W0 */
-   BI_SWIZZLE_H10 = 2, /* = B2301 */
-   BI_SWIZZLE_H11 = 3, /* = B2323 */
+   /* 16-bit swizzles, ordered sequentially for fast compute */
+   BI_SWIZZLE_H00 = 0,
+   BI_SWIZZLE_H01 = 1,
+   BI_SWIZZLE_H10 = 2,
+   BI_SWIZZLE_H11 = 3,
 
-   /* replication order should be maintained for fast compute */
+   /* 8-bit swizzle equivalents */
+   BI_SWIZZLE_B0101 = BI_SWIZZLE_H00,
+   BI_SWIZZLE_B0123 = BI_SWIZZLE_H01,
+   BI_SWIZZLE_B2301 = BI_SWIZZLE_H10,
+   BI_SWIZZLE_B2323 = BI_SWIZZLE_H11,
+
+   /* 8-bit replication swizzles, ordered sequentially for fast compute */
    BI_SWIZZLE_B0000 = 4, /* single channel (replicate) */
    BI_SWIZZLE_B1111 = 5,
    BI_SWIZZLE_B2222 = 6,
    BI_SWIZZLE_B3333 = 7,
 
-   /* totally special for explicit pattern matching */
+   /* remaining 8-bit swizzles in arbitrary order */
    BI_SWIZZLE_B0011 = 8,  /* +SWZ.v4i8 */
    BI_SWIZZLE_B2233 = 9,  /* +SWZ.v4i8 */
    BI_SWIZZLE_B1032 = 10, /* +SWZ.v4i8 */
    BI_SWIZZLE_B3210 = 11, /* +SWZ.v4i8 */
 
-   BI_SWIZZLE_B0022 = 12, /* for b02 lanes */
+   /* 8-bit swizzles that only exist in HW as 8-bit half swizzles */
+   BI_SWIZZLE_B0022 = 12,
+   BI_SWIZZLE_B1100 = 13,
+   BI_SWIZZLE_B2200 = 14,
+   BI_SWIZZLE_B3300 = 15,
+   BI_SWIZZLE_B2211 = 16,
+   BI_SWIZZLE_B3311 = 17,
+   BI_SWIZZLE_B1122 = 18,
+   BI_SWIZZLE_B3322 = 19,
+   BI_SWIZZLE_B0033 = 20,
+   BI_SWIZZLE_B1133 = 21,
+   BI_SWIZZLE_B1123 = 22,
+
+   /* 16-bit single-lane, values ordered sequentially */
+   BI_SWIZZLE_H0 = BI_SWIZZLE_H00,
+   BI_SWIZZLE_H1 = BI_SWIZZLE_H11,
+
+   /* 8-bit single-lane, values order sequentially */
+   BI_SWIZZLE_B0 = BI_SWIZZLE_B0000,
+   BI_SWIZZLE_B1 = BI_SWIZZLE_B1111,
+   BI_SWIZZLE_B2 = BI_SWIZZLE_B2222,
+   BI_SWIZZLE_B3 = BI_SWIZZLE_B3333,
+
+   /* 8-bit half-swizzle
+    *
+    * Values for replication are sequential. Other half-swizzles have
+    * arbitrary value ordering. */
+   BI_SWIZZLE_B00 = BI_SWIZZLE_B0000,
+   BI_SWIZZLE_B10 = BI_SWIZZLE_B1100,
+   BI_SWIZZLE_B20 = BI_SWIZZLE_B2200,
+   BI_SWIZZLE_B30 = BI_SWIZZLE_B3300,
+   BI_SWIZZLE_B01 = BI_SWIZZLE_B0011,
+   BI_SWIZZLE_B11 = BI_SWIZZLE_B1111,
+   BI_SWIZZLE_B21 = BI_SWIZZLE_B2211,
+   BI_SWIZZLE_B31 = BI_SWIZZLE_B3311,
+   BI_SWIZZLE_B02 = BI_SWIZZLE_B0022,
+   BI_SWIZZLE_B12 = BI_SWIZZLE_B1122,
+   BI_SWIZZLE_B22 = BI_SWIZZLE_B2222,
+   BI_SWIZZLE_B32 = BI_SWIZZLE_B3322,
+   BI_SWIZZLE_B03 = BI_SWIZZLE_B0033,
+   BI_SWIZZLE_B13 = BI_SWIZZLE_B1133,
+   BI_SWIZZLE_B23 = BI_SWIZZLE_B2233,
+   BI_SWIZZLE_B33 = BI_SWIZZLE_B3333,
 };
 
 /* Given a packed i16vec2/i8vec4 constant, apply a swizzle. Useful for constant
@@ -77,41 +125,37 @@ enum bi_swizzle {
 static inline uint32_t
 bi_apply_swizzle(uint32_t value, enum bi_swizzle swz)
 {
-   const uint16_t *h = (const uint16_t *)&value;
    const uint8_t *b = (const uint8_t *)&value;
 
-#define H(h0, h1) (h[h0] | ((uint32_t)h[h1] << 16))
 #define B(b0, b1, b2, b3)                                                      \
-   (b[b0] | ((uint32_t)b[b1] << 8) | ((uint32_t)b[b2] << 16) |                 \
-    ((uint32_t)b[b3] << 24))
+   case BI_SWIZZLE_B##b0##b1##b2##b3:                                          \
+      return (b[b0] | ((uint32_t)b[b1] << 8) | ((uint32_t)b[b2] << 16) |       \
+              ((uint32_t)b[b3] << 24));
 
    switch (swz) {
-   case BI_SWIZZLE_H00:
-      return H(0, 0);
-   case BI_SWIZZLE_H01:
-      return H(0, 1);
-   case BI_SWIZZLE_H10:
-      return H(1, 0);
-   case BI_SWIZZLE_H11:
-      return H(1, 1);
-   case BI_SWIZZLE_B0000:
-      return B(0, 0, 0, 0);
-   case BI_SWIZZLE_B1111:
-      return B(1, 1, 1, 1);
-   case BI_SWIZZLE_B2222:
-      return B(2, 2, 2, 2);
-   case BI_SWIZZLE_B3333:
-      return B(3, 3, 3, 3);
-   case BI_SWIZZLE_B0011:
-      return B(0, 0, 1, 1);
-   case BI_SWIZZLE_B2233:
-      return B(2, 2, 3, 3);
-   case BI_SWIZZLE_B1032:
-      return B(1, 0, 3, 2);
-   case BI_SWIZZLE_B3210:
-      return B(3, 2, 1, 0);
-   case BI_SWIZZLE_B0022:
-      return B(0, 0, 2, 2);
+      B(0, 1, 0, 1);
+      B(0, 1, 2, 3);
+      B(2, 3, 0, 1);
+      B(2, 3, 2, 3);
+      B(0, 0, 0, 0);
+      B(1, 1, 1, 1);
+      B(2, 2, 2, 2);
+      B(3, 3, 3, 3);
+      B(0, 0, 1, 1);
+      B(2, 2, 3, 3);
+      B(1, 0, 3, 2);
+      B(3, 2, 1, 0);
+      B(0, 0, 2, 2);
+      B(1, 1, 0, 0);
+      B(2, 2, 0, 0);
+      B(3, 3, 0, 0);
+      B(2, 2, 1, 1);
+      B(3, 3, 1, 1);
+      B(1, 1, 2, 2);
+      B(3, 3, 2, 2);
+      B(0, 0, 3, 3);
+      B(1, 1, 3, 3);
+      B(1, 1, 2, 3);
    }
 
 #undef H
@@ -145,12 +189,12 @@ typedef struct {
    /* For a source, the swizzle. For a destination, acts a bit like a
     * write mask. Identity for the full 32-bit, H00 for only caring about
     * the lower half, other values unused. */
-   enum bi_swizzle swizzle : 4;
+   enum bi_swizzle swizzle : 5;
    uint32_t offset         : 3;
    enum bi_index_type type : 3;
 
    /* Must be zeroed so we can hash the whole 64-bits at a time */
-   unsigned padding : (32 - 13);
+   unsigned padding : (32 - 14);
 } bi_index;
 
 static inline bi_index
@@ -231,9 +275,9 @@ bi_half(bi_index idx, bool upper)
 static inline bi_index
 bi_byte(bi_index idx, unsigned lane)
 {
-   assert(idx.swizzle == BI_SWIZZLE_H01);
+   assert(idx.swizzle == BI_SWIZZLE_B0123);
    assert(lane < 4);
-   idx.swizzle = (enum bi_swizzle)(BI_SWIZZLE_B0000 + lane);
+   idx.swizzle = (enum bi_swizzle)(BI_SWIZZLE_B0 + lane);
    return idx;
 }
 
@@ -401,6 +445,9 @@ typedef struct {
    /* Flow control associated with a Valhall instruction */
    uint8_t flow;
 
+   /* Valhall-only property to relax waits on read-only resources */
+   bool wait_resource;
+
    /* Slot associated with a message-passing instruction */
    uint8_t slot;
 
@@ -472,6 +519,7 @@ typedef struct {
       bool threads;              /* IMULD, IMOV_FMA */
       bool combine;              /* BRANCHC */
       bool format;               /* LEA_TEX */
+      bool z_stencil;            /* LD_TILE */
 
       struct {
          enum bi_special special;   /* FADD_RSCALE, FMA_RSCALE */
@@ -559,10 +607,30 @@ typedef struct {
    };
 } bi_instr;
 
+/*
+ * Helpers to set opcode and to get properties related to
+ * the opcode. In principle this would allow different
+ * properties to be used based on the architecture. In practice
+ * we've unified the valhall/bifrost descriptions so this
+ * isn't necessary now. We may want it for a future architecture
+ * though.
+ */
+static inline void
+bi_set_opcode(bi_instr *I, enum bi_opcode opc)
+{
+   I->op = opc;
+}
+
+static inline struct bi_op_props *
+bi_get_opcode_props(const bi_instr *I)
+{
+   return &bi_opcode_props[I->op];
+}
+
 static inline bool
 bi_is_staging_src(const bi_instr *I, unsigned s)
 {
-   return (s == 0 || s == 4) && bi_opcode_props[I->op].sr_read;
+   return (s == 0 || s == 4) && bi_get_opcode_props(I)->sr_read;
 }
 
 /*
@@ -812,11 +880,13 @@ bi_block_add_successor(bi_block *block, bi_block *successor)
 
 /* Subset of pan_shader_info needed per-variant, in order to support IDVS */
 struct bi_shader_info {
-   struct panfrost_ubo_push *push;
+   struct pan_ubo_push *push;
    struct bifrost_shader_info *bifrost;
+   struct pan_stats stats;
    unsigned tls_size;
    unsigned work_reg_count;
    unsigned push_offset;
+   bool has_ld_gclk_instr;
 };
 
 /* State of index-driven vertex shading for current shader */
@@ -829,10 +899,13 @@ enum bi_idvs_mode {
 
    /* IDVS in use. Compiling a varying shader */
    BI_IDVS_VARYING = 2,
+
+   /* IDVS2 in use. Compiling a deferred shader (v12+) */
+   BI_IDVS_ALL = 3,
 };
 
 typedef struct {
-   const struct panfrost_compile_inputs *inputs;
+   const struct pan_compile_inputs *inputs;
    nir_shader *nir;
    struct bi_shader_info info;
    gl_shader_stage stage;
@@ -841,6 +914,11 @@ typedef struct {
    unsigned arch;
    enum bi_idvs_mode idvs;
    unsigned num_blocks;
+
+   /* Floating point rounding mode controls */
+   bool rtz_fp16;
+   bool rtz_fp32;
+   bool ftz_fp32;
 
    /* In any graphics shader, whether the "IDVS with memory
     * allocation" flow is used. This affects how varyings are loaded and
@@ -885,6 +963,14 @@ typedef struct {
    unsigned fills;
 } bi_context;
 
+static inline enum bi_round
+bi_round_mode(bi_context *ctx, unsigned bit_size)
+{
+   assert(bit_size == 16 || bit_size == 32);
+   bool rtz = bit_size == 16 ? ctx->rtz_fp16 : ctx->rtz_fp32;
+   return rtz ? BI_ROUND_RTZ : BI_ROUND_NONE;
+}
+
 static inline void
 bi_remove_instruction(bi_instr *ins)
 {
@@ -907,6 +993,9 @@ enum bir_fau {
    BIR_FAU_TLS_PTR = 16,
    BIR_FAU_WLS_PTR = 17,
    BIR_FAU_PROGRAM_COUNTER = 18,
+
+   /* Avalon only */
+   BIR_FAU_SHADER_OUTPUT = (1 << 9),
 
    BIR_FAU_UNIFORM = (1 << 7),
    /* Look up table on Valhall */

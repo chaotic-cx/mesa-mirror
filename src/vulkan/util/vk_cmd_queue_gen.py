@@ -105,6 +105,7 @@ enum vk_cmd_type {
 #endif // ${c.guard}
 % endif
 % endfor
+   VK_CMD_TYPE_COUNT,
 };
 
 extern const char *vk_cmd_queue_type_names[];
@@ -264,10 +265,6 @@ vk_free_${to_underscore(c.name)}(struct vk_cmd_queue *queue,
 ${' ' * len('vk_free_' + to_underscore(c.name) + '(')}\\
 struct vk_cmd_queue_entry *cmd)
 {
-   if (cmd->driver_free_cb)
-      cmd->driver_free_cb(queue, cmd);
-   else
-      vk_free(queue->alloc, cmd->driver_data);
 % for p in c.params[1:]:
 % if p.len:
    vk_free(queue->alloc, (${remove_suffix(p.decl.replace("const", ""), p.name)})cmd->u.${to_struct_field_name(c.name)}.${to_field_name(p.name)});
@@ -275,7 +272,6 @@ struct vk_cmd_queue_entry *cmd)
    ${get_struct_free(c, p, types)}
 % endif
 % endfor
-   vk_free(queue->alloc, cmd);
 }
 
 % if c.name not in manual_commands and c.name not in no_enqueue_commands:
@@ -333,6 +329,10 @@ vk_free_queue(struct vk_cmd_queue *queue)
 {
    struct vk_cmd_queue_entry *tmp, *cmd;
    LIST_FOR_EACH_ENTRY_SAFE(cmd, tmp, &queue->cmds, cmd_link) {
+      if (cmd->driver_free_cb)
+         cmd->driver_free_cb(queue, cmd);
+      else
+         vk_free(queue->alloc, cmd->driver_data);
       switch(cmd->type) {
 % for c in commands:
 % if c.guard is not None:
@@ -345,7 +345,10 @@ vk_free_queue(struct vk_cmd_queue *queue)
 #endif // ${c.guard}
 % endif
 % endfor
+      case VK_CMD_TYPE_COUNT:
+         break;
       }
+      vk_free(queue->alloc, cmd);
    }
 }
 
@@ -474,7 +477,7 @@ def get_array_copy(command, param):
     copy = "memcpy((void*)%s, %s, %s * (%s));" % (field_name, param.name, field_size, param.len)
     return "%s\n   %s" % (allocation, copy)
 
-def get_array_member_copy(struct, src_name, member):
+def get_array_member_copy(struct, src_name, member, level):
     field_name = "%s->%s" % (struct, member.name)
     if member.len == "struct-ptr":
         field_size = "sizeof(*%s)" % (field_name)
@@ -482,7 +485,8 @@ def get_array_member_copy(struct, src_name, member):
         field_size = "sizeof(*%s) * %s->%s" % (field_name, struct, member.len)
     allocation = "%s = vk_zalloc(queue->alloc, %s, 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);\n   if (%s == NULL) goto err;\n" % (field_name, field_size, field_name)
     copy = "memcpy((void*)%s, %s->%s, %s);" % (field_name, src_name, member.name, field_size)
-    return "if (%s->%s) {\n   %s\n   %s\n}\n" % (src_name, member.name, allocation, copy)
+    indent = "   " * (level + 1)
+    return "if (%s->%s) {\n%s%s\n%s%s\n}\n" % (src_name, member.name, indent, allocation, indent, copy)
 
 def get_pnext_member_copy(struct, src_type, member, types, level):
     if not types[src_type].extended_by:
@@ -516,38 +520,42 @@ def get_struct_copy(dst, src_name, src_type, size, types, level=0):
     global tmp_dst_idx
     global tmp_src_idx
 
-    allocation = "%s = vk_zalloc(queue->alloc, %s, 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);\n      if (%s == NULL) goto err;\n" % (dst, size, dst)
+    allocation = "%s = vk_zalloc(queue->alloc, %s, 8, VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);\n%sif (%s == NULL) goto err;\n" % (dst, size, "   " * (level + 1), dst)
     copy = "memcpy((void*)%s, %s, %s);" % (dst, src_name, size)
 
     level += 1
-    tmp_dst = "%s *tmp_dst%d = (void *) %s; (void) tmp_dst%d;" % (src_type, level, dst, level)
-    tmp_src = "%s *tmp_src%d = (void *) %s; (void) tmp_src%d;" % (src_type, level, src_name, level)
-
+    tmp_dst_name = "tmp_dst%d" % level
+    tmp_src_name = "tmp_src%d" % level
+    tmp_dst = "%s *%s = (void *) %s; (void) %s;" % (src_type, tmp_dst_name, dst, tmp_dst_name)
+    tmp_src = "%s *%s = (void *) %s; (void) %s;" % (src_type, tmp_src_name, src_name, tmp_src_name)
     member_copies = ""
+    indent = "\n%s" % ("   " * (level + 1))
+    indent_sameline = "\n%s" % ("   " * level)
     if src_type in types:
         for member in types[src_type].members:
-            if member.len and member.len != 'null-terminated':
-                member_copies += get_array_member_copy("tmp_dst%d" % level, "tmp_src%d" % level, member)
+            if member.len and member.len == 'struct-ptr':
+                member_copies += get_struct_copy("%s->%s" % (tmp_dst_name, member.name), "%s->%s" % (tmp_src_name, member.name), member.type, 'sizeof(%s)' % member.type, types, level + 1)
+            elif member.len and member.len == 'null-terminated':
+                member_copies += "%s%s->%s = strdup(%s->%s);" % (indent_sameline, tmp_dst_name, member.name, tmp_src_name, member.name)
+            elif member.len:
+                member_copies += get_array_member_copy(tmp_dst_name, tmp_src_name, member, level + 1)
             elif member.name == 'pNext':
-                member_copies += get_pnext_member_copy("tmp_dst%d" % level, src_type, member, types, level)
+                member_copies += get_pnext_member_copy(tmp_dst_name, src_type, member, types, level + 1)
 
     null_assignment = "%s = NULL;" % dst
     if_stmt = "if (%s) {" % src_name
-    indent = "   " * level
-    return "%s\n      %s\n      %s\n      %s\n      %s\n      %s\n%s} else {\n      %s\n%s}" % (if_stmt, allocation, copy, tmp_dst, tmp_src, member_copies, indent, null_assignment, indent)
+    return "%s%s%s%s%s%s%s%s%s%s%s%s} else {%s%s%s}" % (if_stmt, indent, allocation, indent, copy, indent, tmp_dst, indent, tmp_src, indent, member_copies, indent_sameline, indent, null_assignment, indent_sameline)
 
 def get_struct_free(command, param, types):
     field_name = "cmd->u.%s.%s" % (to_struct_field_name(command.name), to_field_name(param.name))
-    const_cast = remove_suffix(param.decl.replace("const", ""), param.name)
-    struct_free = "vk_free(queue->alloc, (%s)%s);" % (const_cast, field_name)
+    struct_free = "vk_free(queue->alloc, (void*)%s);" % field_name
     member_frees = ""
     if (param.type in types):
         for member in types[param.type].members:
             if member.len and member.len != 'null-terminated':
                 member_name = "cmd->u.%s.%s->%s" % (to_struct_field_name(command.name), to_field_name(param.name), member.name)
-                const_cast = remove_suffix(member.decl.replace("const", ""), member.name)
-                member_frees += "vk_free(queue->alloc, (%s)%s);\n" % (const_cast, member_name)
-    return "%s      %s\n" % (member_frees, struct_free)
+                member_frees += "vk_free(queue->alloc, (void*)%s);\n" % member_name
+    return "%s   %s\n" % (member_frees, struct_free)
 
 EntrypointType = namedtuple('EntrypointType', 'name enum members extended_by guard')
 

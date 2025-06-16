@@ -1,7 +1,5 @@
 glx@glx-multi-window-single-context,Fail
 glx@glx-swap-pixmap-bad,Fail
-glx@glx_arb_create_context_es2_profile@invalid opengl es version,Fail
-glx@glx_arb_create_context_no_error@no error,Fail
 spec@!opengl 1.0@gl-1.0-user-clip-all-planes,Fail
 spec@!opengl 1.0@rasterpos,Fail
 spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked,Fail
@@ -28,8 +26,6 @@ spec@!opengl 3.2@gl-3.2-adj-prims line cull-front pv-first,Fail
 spec@!opengl 3.2@gl-3.2-adj-prims pv-first,Fail
 spec@arb_es2_compatibility@texwrap formats bordercolor-swizzled,Fail
 spec@arb_es2_compatibility@texwrap formats bordercolor-swizzled@GL_RGB565- swizzled- border color only,Fail
-spec@arb_program_interface_query@arb_program_interface_query-getprogramresourceindex,Fail
-spec@arb_program_interface_query@arb_program_interface_query-getprogramresourceindex@'vs_input2[1][0]' on GL_PROGRAM_INPUT,Fail
 spec@arb_shading_language_packing@execution@built-in-functions@fs-packhalf2x16,Fail
 spec@arb_shading_language_packing@execution@built-in-functions@vs-packhalf2x16,Fail
 spec@arb_texture_compression@texwrap formats bordercolor-swizzled,Fail
@@ -150,3 +146,10 @@ spec@arb_fragment_layer_viewport@layer-gs-writes-out-of-range,Fail
 # glcts update
 KHR-GLES3.clip_distance.coverage,Fail
 KHR-GLES3.cull_distance.functional,Fail
+
+# uprev Piglit in Mesa
+spec@ext_external_objects@vk-ping-pong-multi-sem,Fail
+spec@ext_external_objects@vk-ping-pong-single-sem,Crash
+
+# Since switching to test-gl container based rootfs
+spec@arb_shader_texture_lod@execution@arb_shader_texture_lod-texgradcube,Fail

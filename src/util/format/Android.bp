@@ -86,6 +86,9 @@ cc_library_static {
         "u_format_table_impl",
         "format_srgb_impl",
     ],
+    static_libs: [
+        "libcutils",
+    ],
     srcs: [
         "u_format.c",
         "u_format_bptc.c",

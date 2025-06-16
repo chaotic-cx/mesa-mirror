@@ -51,6 +51,7 @@ devenv.append('VK_DRIVER_FILES', _dev_icd.full_path())
 devenv.append('VK_ICD_FILENAMES', _dev_icd.full_path())
 
 libvn_files = files(
+  'vn_acceleration_structure.c',
   'vn_buffer.c',
   'vn_command_buffer.c',
   'vn_common.c',
@@ -59,6 +60,7 @@ libvn_files = files(
   'vn_device.c',
   'vn_device_memory.c',
   'vn_feedback.c',
+  'vn_host_copy.c',
   'vn_icd.c',
   'vn_image.c',
   'vn_instance.c',
@@ -92,7 +94,8 @@ vn_flags = [
 
 vn_libs = []
 
-if with_platform_wayland or with_platform_x11
+if with_platform_wayland or with_platform_x11 or \
+   (system_has_kms_drm and not with_platform_android)
   libvn_files += files('vn_wsi.c')
   vn_flags += '-DVN_USE_WSI_PLATFORM'
 endif

@@ -11,7 +11,8 @@ _libmesaclc_c_args = []
 _libmesaclc_cpp_args = ['-DLLVM_LIB_DIR="@0@"'.format(llvm_libdir)]
 _libmesaclc_sources = []
 
-if not _shared_llvm
+if not _shared_llvm or \
+    get_option('mesa-clc-bundle-headers') == 'enabled'
   # LLVM 16 moved clang header path from using full version to only major version
   if dep_llvm.version().version_compare('< 16')
     # Prior to LLVM 16, this path used a full version
@@ -90,6 +91,9 @@ has_spirv_link_workaround = cpp.has_member(
   ],
   dependencies : dep_spirv_tools,
 )
+if dep_llvm.version().version_compare('>= 17.0') and not has_spirv_link_workaround
+  error('SPIRV-Tools doesn\'t contain https://github.com/KhronosGroup/SPIRV-Tools/pull/5534\n')
+endif
 
 if has_spirv_link_workaround
   _libmesaclc_c_args += ['-DHAS_SPIRV_LINK_LLVM_WORKAROUND=1']
@@ -117,9 +121,8 @@ idep_mesaclc = declare_dependency(
   link_args : _idep_mesaclc_link_args,
 )
 
-if get_option('mesa-clc') == 'system'
-  prog_mesa_clc = find_program('mesa_clc', native : true)
-else
+if get_option('mesa-clc') != 'system' and (with_driver_using_cl or \
+                                           get_option('install-mesa-clc'))
   prog_mesa_clc = executable(
     'mesa_clc',
     ['mesa_clc.c'],

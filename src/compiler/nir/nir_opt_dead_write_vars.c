@@ -109,6 +109,30 @@ update_unused_writes(struct util_dynarray *unused_writes,
 }
 
 static bool
+ends_program(nir_block *block)
+{
+   /* Avoid back-edges */
+   if (block->cf_node.parent->type == nir_cf_node_loop)
+      return false;
+
+   /* Avoid called functions */
+   if (!nir_cf_node_get_function(&block->cf_node)->function->is_entrypoint)
+      return false;
+
+   if (block->successors[0] == NULL) {
+      /* This is the end block */
+      assert(block->successors[1] == NULL);
+      return true;
+   }
+
+   if (block->successors[1] != NULL)
+      return false;
+
+   return exec_list_is_empty(&block->successors[0]->instr_list) &&
+          ends_program(block->successors[0]);
+}
+
+static bool
 remove_dead_write_vars_local(void *mem_ctx, nir_shader *shader, nir_block *block)
 {
    bool progress = false;
@@ -220,7 +244,19 @@ remove_dead_write_vars_local(void *mem_ctx, nir_shader *shader, nir_block *block
 
    /* All unused writes at the end of the block are kept, since we can't be
     * sure they'll be overwritten or not with local analysis only.
+    *
+    * However, if the next block is the end of the program, then we can
+    * eliminate any shared writes, since no one will ever read it again.
     */
+   if (ends_program(block)) {
+      util_dynarray_foreach_reverse(&unused_writes, struct write_entry, entry) {
+         if (nir_deref_mode_may_be(entry->dst, nir_var_mem_shared) &&
+             nir_deref_mode_is(entry->dst, nir_var_mem_shared)) {
+            nir_instr_remove(&entry->intrin->instr);
+            progress = true;
+         }
+      }
+   }
 
    return progress;
 }
@@ -235,13 +271,7 @@ remove_dead_write_vars_impl(void *mem_ctx, nir_shader *shader, nir_function_impl
    nir_foreach_block(block, impl)
       progress |= remove_dead_write_vars_local(mem_ctx, shader, block);
 
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
-
-   return progress;
+   return nir_progress(progress, impl, nir_metadata_control_flow);
 }
 
 bool

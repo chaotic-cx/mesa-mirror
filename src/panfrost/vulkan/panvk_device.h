@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 
+#include "vk_debug_utils.h"
 #include "vk_device.h"
 #include "vk_meta.h"
 
@@ -23,9 +24,13 @@
 #include "util/pan_ir.h"
 #include "util/perf/u_trace.h"
 
+#include "util/u_printf.h"
 #include "util/vma.h"
 
 #define PANVK_MAX_QUEUE_FAMILIES 1
+
+struct panvk_precomp_cache;
+struct panvk_device_draw_context;
 
 struct panvk_device {
    struct vk_device vk;
@@ -47,7 +52,6 @@ struct panvk_device {
    struct {
       struct panvk_priv_bo *handlers_bo;
       uint32_t handler_stride;
-      uint32_t dump_region_size;
    } tiler_oom;
 
    struct vk_meta_device meta;
@@ -58,10 +62,16 @@ struct panvk_device {
       struct panvk_pool exec;
    } mempools;
 
+   /* For each subqueue, maximum size of the register dump region needed by
+    * exception handlers or functions */
+   uint32_t *dump_region_size;
+
    struct vk_device_dispatch_table cmd_dispatch;
 
    struct panvk_queue *queues[PANVK_MAX_QUEUE_FAMILIES];
    int queue_count[PANVK_MAX_QUEUE_FAMILIES];
+
+   struct panvk_precomp_cache *precomp_cache;
 
    struct {
       struct u_trace_context utctx;
@@ -70,9 +80,29 @@ struct panvk_device {
 #endif
    } utrace;
 
+   struct panvk_device_draw_context* draw_ctx;
+
    struct {
       struct pandecode_context *decode_ctx;
    } debug;
+
+   struct {
+      struct u_printf_ctx ctx;
+      struct panvk_priv_bo *bo;
+   } printf;
+
+   union {
+      struct {
+         struct {
+            uint8_t count;
+            uint8_t iter_count;
+            uint16_t all_mask;
+            uint16_t all_iters_mask;
+         } sb;
+      } csf;
+   };
+
+   int drm_fd;
 };
 
 VK_DEFINE_HANDLE_CASTS(panvk_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)
@@ -106,9 +136,15 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
 void panvk_per_arch(destroy_device)(struct panvk_device *device,
                                     const VkAllocationCallbacks *pAllocator);
 
-#if PAN_ARCH >= 10
+static inline VkResult
+panvk_common_check_status(struct panvk_device *dev)
+{
+   return vk_check_printf_status(&dev->vk, &dev->printf.ctx);
+}
+
 VkResult panvk_per_arch(device_check_status)(struct vk_device *vk_dev);
 
+#if PAN_ARCH >= 10
 VkResult panvk_per_arch(init_tiler_oom)(struct panvk_device *device);
 #endif
 #endif

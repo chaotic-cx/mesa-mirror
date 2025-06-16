@@ -42,6 +42,7 @@
 #include "util/u_surface.h"
 #include "util/u_pack_color.h"
 #include "util/u_memset.h"
+#include "util/log.h"
 
 /**
  * Initialize a pipe_surface object.  'view' is considered to have
@@ -54,6 +55,7 @@ u_surface_default_template(struct pipe_surface *surf,
    memset(surf, 0, sizeof(*surf));
 
    surf->format = texture->format;
+   surf->texture = (void*)texture;
 }
 
 
@@ -294,8 +296,8 @@ util_resource_copy_region(struct pipe_context *pipe,
                                    src_level,
                                    PIPE_MAP_READ,
                                    &src_box, &src_trans);
-      assert(src_map);
       if (!src_map) {
+         mesa_loge("util_resource_copy_region: mapping src-buffer failed");
          goto no_src_map_buf;
       }
 
@@ -305,8 +307,8 @@ util_resource_copy_region(struct pipe_context *pipe,
                                    PIPE_MAP_WRITE |
                                    PIPE_MAP_DISCARD_RANGE, &dst_box,
                                    &dst_trans);
-      assert(dst_map);
       if (!dst_map) {
+         mesa_loge("util_resource_copy_region: mapping dst-buffer failed");
          goto no_dst_map_buf;
       }
 
@@ -325,8 +327,8 @@ util_resource_copy_region(struct pipe_context *pipe,
                                    src_level,
                                    PIPE_MAP_READ,
                                    &src_box, &src_trans);
-      assert(src_map);
       if (!src_map) {
+         mesa_loge("util_resource_copy_region: mapping src-texture failed");
          goto no_src_map;
       }
 
@@ -336,8 +338,8 @@ util_resource_copy_region(struct pipe_context *pipe,
                                    PIPE_MAP_WRITE |
                                    PIPE_MAP_DISCARD_RANGE, &dst_box,
                                    &dst_trans);
-      assert(dst_map);
       if (!dst_map) {
+         mesa_loge("util_resource_copy_region: mapping dst-texture failed");
          goto no_dst_map;
       }
 
@@ -424,40 +426,14 @@ util_clear_render_target(struct pipe_context *pipe,
                          unsigned dstx, unsigned dsty,
                          unsigned width, unsigned height)
 {
-   struct pipe_transfer *dst_trans;
-   uint8_t *dst_map;
-
    assert(dst->texture);
    if (!dst->texture)
       return;
 
-   if (dst->texture->target == PIPE_BUFFER) {
-      /*
-       * The fill naturally works on the surface format, however
-       * the transfer uses resource format which is just bytes for buffers.
-       */
-      unsigned dx, w;
-      unsigned pixstride = util_format_get_blocksize(dst->format);
-      dx = (dst->u.buf.first_element + dstx) * pixstride;
-      w = width * pixstride;
-      dst_map = pipe_texture_map(pipe,
-                                  dst->texture,
-                                  0, 0,
-                                  PIPE_MAP_WRITE,
-                                  dx, 0, w, 1,
-                                  &dst_trans);
-      if (dst_map) {
-         util_clear_color_texture_helper(dst_trans, dst_map, dst->format,
-                                         color, width, height, 1);
-         pipe->texture_unmap(pipe, dst_trans);
-      }
-   }
-   else {
-      unsigned depth = dst->u.tex.last_layer - dst->u.tex.first_layer + 1;
-      util_clear_color_texture(pipe, dst->texture, dst->format, color,
-                               dst->u.tex.level, dstx, dsty,
-                               dst->u.tex.first_layer, width, height, depth);
-   }
+   unsigned depth = dst->last_layer - dst->first_layer + 1;
+   util_clear_color_texture(pipe, dst->texture, dst->format, color,
+                              dst->level, dstx, dsty,
+                              dst->first_layer, width, height, depth);
 }
 
 static void
@@ -620,19 +596,15 @@ util_clear_texture_as_surface(struct pipe_context *pipe,
                               const struct pipe_box *box,
                               const void *data)
 {
-   struct pipe_surface tmpl = {{0}}, *sf;
+   struct pipe_surface tmpl;
 
-   tmpl.format = res->format;
-   tmpl.u.tex.first_layer = box->z;
-   tmpl.u.tex.last_layer = box->z + box->depth - 1;
-   tmpl.u.tex.level = level;
+   u_surface_default_template(&tmpl, res);
+   tmpl.first_layer = box->z;
+   tmpl.last_layer = box->z + box->depth - 1;
+   tmpl.level = level;
 
    if (util_format_is_depth_or_stencil(res->format)) {
       if (!pipe->clear_depth_stencil)
-         return false;
-
-      sf = pipe->create_surface(pipe, res, &tmpl);
-      if (!sf)
          return false;
 
       float depth = 0;
@@ -649,11 +621,9 @@ util_clear_texture_as_surface(struct pipe_context *pipe,
          clear |= PIPE_CLEAR_STENCIL;
          util_format_unpack_s_8uint(tmpl.format, &stencil, data, 1);
       }
-      pipe->clear_depth_stencil(pipe, sf, clear, depth, stencil,
+      pipe->clear_depth_stencil(pipe, &tmpl, clear, depth, stencil,
                                 box->x, box->y, box->width, box->height,
                                 false);
-
-      pipe_surface_reference(&sf, NULL);
    } else {
       if (!pipe->clear_render_target)
          return false;
@@ -672,16 +642,10 @@ util_clear_texture_as_surface(struct pipe_context *pipe,
             return false;
       }
 
-      sf = pipe->create_surface(pipe, res, &tmpl);
-      if (!sf)
-         return false;
-
       union pipe_color_union color;
-      util_format_unpack_rgba(sf->format, color.ui, data, 1);
-      pipe->clear_render_target(pipe, sf, &color, box->x, box->y,
+      util_format_unpack_rgba(tmpl.format, color.ui, data, 1);
+      pipe->clear_render_target(pipe, &tmpl, &color, box->x, box->y,
                               box->width, box->height, false);
-
-      pipe_surface_reference(&sf, NULL);
    }
 
    return true;
@@ -766,10 +730,14 @@ util_clear_texture_sw(struct pipe_context *pipe,
                                        level, box->x, box->y, box->z,
                                        box->width, box->height, box->depth);
    } else {
-      union pipe_color_union color;
-      util_format_unpack_rgba(tex->format, color.ui, data, 1);
+      enum pipe_format format = tex->format;
+      if (util_format_is_int64(desc))
+         format = util_format_get_array(desc->channel[0].type, 32, desc->nr_channels * 2, false, true);
 
-      util_clear_color_texture(pipe, tex, tex->format, &color, level,
+      union pipe_color_union color;
+      util_format_unpack_rgba(format, color.ui, data, 1);
+
+      util_clear_color_texture(pipe, tex, format, &color, level,
                                box->x, box->y, box->z,
                                box->width, box->height, box->depth);
    }
@@ -800,10 +768,10 @@ util_clear_depth_stencil(struct pipe_context *pipe,
       return;
 
    zstencil = util_pack64_z_stencil(dst->format, depth, stencil);
-   max_layer = dst->u.tex.last_layer - dst->u.tex.first_layer;
+   max_layer = dst->last_layer - dst->first_layer;
    util_clear_depth_stencil_texture(pipe, dst->texture, dst->format,
-                                    clear_flags, zstencil, dst->u.tex.level,
-                                    dstx, dsty, dst->u.tex.first_layer,
+                                    clear_flags, zstencil, dst->level,
+                                    dstx, dsty, dst->first_layer,
                                     width, height, max_layer + 1);
 }
 

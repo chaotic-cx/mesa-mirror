@@ -41,6 +41,9 @@
         r300_mark_atom_dirty(r300, &(atom));   \
     }
 
+static void r300_delete_vs_state(struct pipe_context* pipe, void* shader);
+static void r300_delete_fs_state(struct pipe_context* pipe, void* shader);
+
 static bool blend_discard_if_src_alpha_0(unsigned srcRGB, unsigned srcA,
                                          unsigned dstRGB, unsigned dstA)
 {
@@ -563,7 +566,7 @@ static void r300_set_blend_color(struct pipe_context* pipe,
 
     state->state = *color; /* Save it, so that we can reuse it in set_fb_state */
     c = *color;
-    cb = fb->nr_cbufs ? r300_get_nonnull_cb(fb, 0) : NULL;
+    cb = fb->nr_cbufs ? r300_get_nonnull_cb(r300, fb, 0) : NULL;
 
     /* The blend color is dependent on the colorbuffer format. */
     if (cb) {
@@ -813,7 +816,7 @@ static void r300_set_stencil_ref(struct pipe_context* pipe,
     r300_mark_atom_dirty(r300, &r300->dsa_state);
 }
 
-static void r300_print_fb_surf_info(struct pipe_surface *surf, unsigned index,
+static void r300_print_fb_surf_info(const struct pipe_surface *surf, unsigned index,
                                     const char *binding)
 {
     struct pipe_resource *tex = surf->texture;
@@ -826,8 +829,9 @@ static void r300_print_fb_surf_info(struct pipe_surface *surf, unsigned index,
             "r300:     TEX: Macro: %s, Micro: %s, "
             "Dim: %ix%ix%i, LastLevel: %i, Format: %s\n",
 
-            binding, index, surf->width, surf->height,
-            surf->u.tex.first_layer, surf->u.tex.last_layer, surf->u.tex.level,
+            binding, index, pipe_surface_width(surf),
+            pipe_surface_height(surf),
+            surf->first_layer, surf->last_layer, surf->level,
             util_format_short_name(surf->format),
 
             rtex->tex.macrotile[0] ? "YES" : " NO",
@@ -866,7 +870,7 @@ void r300_mark_fb_state_dirty(struct r300_context *r300,
 
     if (r300->cbzb_clear)
         r300->fb_state.size += 10;
-    else if (state->zsbuf) {
+    else if (state->zsbuf.texture) {
         r300->fb_state.size += 10;
         if (r300->hyperz_enabled)
             r300->fb_state.size += 8;
@@ -907,22 +911,22 @@ r300_set_framebuffer_state(struct pipe_context* pipe,
         return;
     }
 
-    if (current_state->zsbuf && r300->zmask_in_use && !r300->locked_zbuffer) {
+    if (current_state->zsbuf.texture && r300->zmask_in_use && !r300->locked_zbuffer) {
         /* There is a zmask in use, what are we gonna do? */
-        if (state->zsbuf) {
-            if (!pipe_surface_equal(current_state->zsbuf, state->zsbuf)) {
+        if (state->zsbuf.texture) {
+            if (!pipe_surface_equal(&current_state->zsbuf, &state->zsbuf)) {
                 /* Decompress the currently bound zbuffer before we bind another one. */
                 r300_decompress_zmask(r300);
                 r300->hiz_in_use = false;
             }
         } else {
             /* We don't bind another zbuffer, so lock the current one. */
-            pipe_surface_reference(&r300->locked_zbuffer, current_state->zsbuf);
+            pipe_surface_reference(&r300->locked_zbuffer, r300->fb_zsbuf);
         }
     } else if (r300->locked_zbuffer) {
         /* We have a locked zbuffer now, what are we gonna do? */
-        if (state->zsbuf) {
-            if (!pipe_surface_equal(r300->locked_zbuffer, state->zsbuf)) {
+        if (state->zsbuf.texture) {
+            if (!pipe_surface_equal(r300->locked_zbuffer, &state->zsbuf)) {
                 /* We are binding some other zbuffer, so decompress the locked one,
                  * it gets unlocked automatically. */
                 r300_decompress_zmask_locked_unsafe(r300);
@@ -933,23 +937,23 @@ r300_set_framebuffer_state(struct pipe_context* pipe,
             }
         }
     }
-    assert(state->zsbuf || (r300->locked_zbuffer && !unlock_zbuffer) || !r300->zmask_in_use);
+    assert(state->zsbuf.texture || (r300->locked_zbuffer && !unlock_zbuffer) || !r300->zmask_in_use);
 
     /* If zsbuf is set from NULL to non-NULL or vice versa.. */
-    if (!!current_state->zsbuf != !!state->zsbuf) {
+    if (!!current_state->zsbuf.texture != !!state->zsbuf.texture) {
         r300_mark_atom_dirty(r300, &r300->dsa_state);
     }
 
+    util_framebuffer_init(pipe, state, r300->fb_cbufs, &r300->fb_zsbuf);
     util_copy_framebuffer_state(r300->fb_state.state, state);
 
     /* Remove trailing NULL colorbuffers. */
-    while (current_state->nr_cbufs && !current_state->cbufs[current_state->nr_cbufs-1])
+    while (current_state->nr_cbufs && !current_state->cbufs[current_state->nr_cbufs-1].texture)
         current_state->nr_cbufs--;
 
     /* Set whether CMASK can be used. */
     r300->cmask_in_use =
-        state->nr_cbufs == 1 && state->cbufs[0] &&
-        r300->screen->cmask_resource == state->cbufs[0]->texture;
+        state->nr_cbufs == 1 && r300->screen->cmask_resource == state->cbufs[0].texture;
 
     /* Need to reset clamping or colormask. */
     r300_mark_atom_dirty(r300, &r300->blend_state);
@@ -963,8 +967,8 @@ r300_set_framebuffer_state(struct pipe_context* pipe,
 
     r300_mark_fb_state_dirty(r300, R300_CHANGED_FB_STATE);
 
-    if (state->zsbuf) {
-        switch (util_format_get_blocksize(state->zsbuf->format)) {
+    if (state->zsbuf.texture) {
+        switch (util_format_get_blocksize(state->zsbuf.format)) {
         case 2:
             zbuffer_bpp = 16;
             break;
@@ -1007,11 +1011,11 @@ r300_set_framebuffer_state(struct pipe_context* pipe,
     if (DBG_ON(r300, DBG_FB)) {
         fprintf(stderr, "r300: set_framebuffer_state:\n");
         for (i = 0; i < state->nr_cbufs; i++) {
-            if (state->cbufs[i])
-                r300_print_fb_surf_info(state->cbufs[i], i, "CB");
+            if (state->cbufs[i].texture)
+                r300_print_fb_surf_info(&state->cbufs[i], i, "CB");
         }
-        if (state->zsbuf) {
-            r300_print_fb_surf_info(state->zsbuf, 0, "ZB");
+        if (state->zsbuf.texture) {
+            r300_print_fb_surf_info(&state->zsbuf, 0, "ZB");
         }
     }
 }
@@ -1029,7 +1033,19 @@ static void* r300_create_fs_state(struct pipe_context* pipe,
     fs->state = *shader;
 
     if (fs->state.type == PIPE_SHADER_IR_NIR) {
-       fs->state.tokens = nir_to_rc(shader->ir.nir, pipe->screen);
+        r300_optimize_nir(shader->ir.nir, r300->screen);
+
+        /* R300/R400 can not do any kind of control flow, so abort early here. */
+        if (!r300->screen->caps.is_r500) {
+            char *msg = r300_check_control_flow(shader->ir.nir);
+            if (msg && shader->report_compile_error) {
+                fprintf(stderr, "r300 FP: Compiler error: %s\n", msg);
+                ((struct pipe_shader_state *)shader)->error_message = strdup(msg);
+                ralloc_free(shader->ir.nir);
+                FREE(fs);
+                return NULL;
+	    }
+        }
     } else {
        assert(fs->state.type == PIPE_SHADER_IR_TGSI);
        /* we need to keep a local copy of the tokens */
@@ -1042,17 +1058,39 @@ static void* r300_create_fs_state(struct pipe_context* pipe,
     struct r300_fragment_program_external_state precompile_state;
     memset(&precompile_state, 0, sizeof(precompile_state));
 
-    struct tgsi_shader_info info;
-    tgsi_scan_shader(fs->state.tokens, &info);
-    for (int i = 0; i < PIPE_MAX_SHADER_SAMPLER_VIEWS; i++) {
-        if (info.sampler_targets[i] == TGSI_TEXTURE_SHADOW1D ||
-            info.sampler_targets[i] == TGSI_TEXTURE_SHADOW2D ||
-            info.sampler_targets[i] == TGSI_TEXTURE_SHADOWRECT) {
-            precompile_state.unit[i].compare_mode_enabled = true;
-            precompile_state.unit[i].texture_compare_func = PIPE_FUNC_LESS;
+    if (fs->state.type == PIPE_SHADER_IR_NIR) {
+        /* Pick something for the shadow samplers so that we have somewhat reliable shader stats later. */
+        nir_foreach_function_impl(impl, shader->ir.nir) {
+            nir_foreach_block_safe(block, impl) {
+                nir_foreach_instr_safe(instr, block) {
+                    if (instr->type != nir_instr_type_tex)
+                        continue;
+                    nir_tex_instr *tex = nir_instr_as_tex(instr);
+
+                    if (tex->is_shadow) {
+                        precompile_state.unit[tex->sampler_index].compare_mode_enabled = true;
+                        precompile_state.unit[tex->sampler_index].texture_compare_func = PIPE_FUNC_LESS;
+                    }
+                    precompile_state.sampler_state_count = MAX2(tex->sampler_index + 1,
+                                                                precompile_state.sampler_state_count);
+                }
+            }
         }
     }
     r300_pick_fragment_shader(r300, fs, &precompile_state);
+
+    if (fs->shader->error) {
+        if (shader->report_compile_error && !DBG_ON(r300, DBG_DUMMYSH)) {
+            fprintf(stderr, "r300 FP: Compiler error: %s\n"
+                    "r300 FP: Use RADEON_DEBUG=dummysh to force dummy shader instead.\n",
+                    fs->shader->error);
+            ((struct pipe_shader_state *)shader)->error_message = strdup(fs->shader->error);
+            r300_delete_fs_state(pipe, fs);
+            return NULL;
+        }
+        fprintf(stderr, "r300 FP: Compiler error: %s\n"
+                "r300 FP: Using a dummy shader instead.\n", fs->shader->error);
+    }
 
     return (void *)fs;
 }
@@ -1108,9 +1146,14 @@ static void r300_delete_fs_state(struct pipe_context* pipe, void* shader)
         ptr = ptr->next;
         rc_constants_destroy(&tmp->code.constants);
         FREE(tmp->cb_code);
+        free(tmp->error);
         FREE(tmp);
     }
-    FREE((void*)fs->state.tokens);
+    if (fs->state.type == PIPE_SHADER_IR_NIR) {
+        ralloc_free(fs->state.ir.nir);
+    } else {
+        FREE((void*)fs->state.tokens);
+    }
     FREE(shader);
 }
 
@@ -1264,15 +1307,17 @@ static void* r300_create_rs_state(struct pipe_context* pipe,
     clip_rule = state->scissor ? 0xAAAA : 0xFFFF;
 
     /* Point sprites coord mode */
-    switch (state->sprite_coord_mode) {
-        case PIPE_SPRITE_COORD_UPPER_LEFT:
-            point_texcoord_top = 0.0f;
-            point_texcoord_bottom = 1.0f;
-            break;
-        case PIPE_SPRITE_COORD_LOWER_LEFT:
-            point_texcoord_top = 1.0f;
-            point_texcoord_bottom = 0.0f;
-            break;
+    if (rs->rs.sprite_coord_enable) {
+        switch (state->sprite_coord_mode) {
+            case PIPE_SPRITE_COORD_UPPER_LEFT:
+                point_texcoord_top = 0.0f;
+                point_texcoord_bottom = 1.0f;
+                break;
+            case PIPE_SPRITE_COORD_LOWER_LEFT:
+                point_texcoord_top = 1.0f;
+                point_texcoord_bottom = 0.0f;
+                break;
+        }
     }
 
     if (r300_screen(pipe->screen)->caps.has_tcl) {
@@ -1531,7 +1576,6 @@ static void r300_set_sampler_views(struct pipe_context* pipe,
                                    enum pipe_shader_type shader,
                                    unsigned start, unsigned count,
                                    unsigned unbind_num_trailing_slots,
-                                   bool take_ownership,
                                    struct pipe_sampler_view** views)
 {
     struct r300_context* r300 = r300_context(pipe);
@@ -1545,12 +1589,6 @@ static void r300_set_sampler_views(struct pipe_context* pipe,
     assert(start == 0);  /* non-zero not handled yet */
 
     if (shader != PIPE_SHADER_FRAGMENT || count > tex_units) {
-       if (take_ownership) {
-          for (unsigned i = 0; i < count; i++) {
-             struct pipe_sampler_view *view = views[i];
-             pipe_sampler_view_reference(&view, NULL);
-          }
-       }
        return;
     }
 
@@ -1561,15 +1599,9 @@ static void r300_set_sampler_views(struct pipe_context* pipe,
     }
 
     for (i = 0; i < count; i++) {
-        if (take_ownership) {
-            pipe_sampler_view_reference(
-                    (struct pipe_sampler_view**)&state->sampler_views[i], NULL);
-            state->sampler_views[i] = (struct r300_sampler_view*)views[i];
-        } else {
-            pipe_sampler_view_reference(
-                    (struct pipe_sampler_view**)&state->sampler_views[i],
-                    views[i]);
-        }
+        pipe_sampler_view_reference(
+                (struct pipe_sampler_view**)&state->sampler_views[i],
+                views[i]);
 
         if (!views[i]) {
             continue;
@@ -1921,7 +1953,22 @@ static void* r300_create_vs_state(struct pipe_context* pipe,
     vs->state = *shader;
 
     if (vs->state.type == PIPE_SHADER_IR_NIR) {
-       vs->state.tokens = nir_to_rc(shader->ir.nir, pipe->screen);
+        r300_optimize_nir(shader->ir.nir, r300->screen);
+
+        /* R300/R400 can not do any kind of control flow, so abort early here. */
+        if (!r300->screen->caps.is_r500 && r300->screen->caps.has_tcl) {
+            char *msg = r300_check_control_flow(shader->ir.nir);
+            if (msg && shader->report_compile_error) {
+                fprintf(stderr, "r300 VP: Compiler error: %s\n", msg);
+                ((struct pipe_shader_state *)shader)->error_message = strdup(msg);
+                ralloc_free(shader->ir.nir);
+                FREE(vs);
+                return NULL;
+            }
+        }
+
+       struct r300_fragment_program_external_state state = {};
+       vs->state.tokens = nir_to_rc(shader->ir.nir, pipe->screen, state);
     } else {
        assert(vs->state.type == PIPE_SHADER_IR_TGSI);
        /* we need to keep a local copy of the tokens */
@@ -1934,6 +1981,19 @@ static void* r300_create_vs_state(struct pipe_context* pipe,
         r300_translate_vertex_shader(r300, vs);
     } else {
         r300_draw_init_vertex_shader(r300, vs);
+    }
+
+    if (r300->screen->caps.has_tcl && vs->shader->error) {
+        if (shader->report_compile_error && !DBG_ON(r300, DBG_DUMMYSH)) {
+            fprintf(stderr, "r300 VP: Compiler error: %s\n"
+                    "r300 VP: Use RADEON_DEBUG=dummysh to silently skip instead.\n",
+                    vs->shader->error);
+            ((struct pipe_shader_state *)shader)->error_message = strdup(vs->shader->error);
+            r300_delete_vs_state(pipe, vs);
+            return NULL;
+        }
+        fprintf(stderr, "r300 VP: Compiler error: %s\n"
+                "r300 VP: Corresponding draws will be skipped.\n", vs->shader->error);
     }
 
     return vs;
@@ -1987,6 +2047,7 @@ static void r300_delete_vs_state(struct pipe_context* pipe, void* shader)
         while (vs->shader) {
             rc_constants_destroy(&vs->shader->code.constants);
             FREE(vs->shader->code.constants_remap_table);
+            free(vs->shader->error);
             vs->shader = vs->shader->next;
             FREE(vs->first);
             vs->first = vs->shader;
@@ -2116,6 +2177,7 @@ void r300_init_state_functions(struct r300_context* r300)
     r300->context.set_sampler_views = r300_set_sampler_views;
     r300->context.create_sampler_view = r300_create_sampler_view;
     r300->context.sampler_view_destroy = r300_sampler_view_destroy;
+    r300->context.sampler_view_release = u_default_sampler_view_release;
 
     r300->context.set_scissor_states = r300_set_scissor_states;
 

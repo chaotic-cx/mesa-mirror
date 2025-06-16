@@ -54,6 +54,8 @@ struct ir3_compiler_options {
 
    /* "dual_color_blend_by_location" workaround is enabled: */
    bool dual_color_blend_by_location;
+
+   uint64_t uche_trap_base;
 };
 
 struct ir3_compiler {
@@ -108,6 +110,9 @@ struct ir3_compiler {
    /* on a650, vertex shader <-> tess control io uses LDL/STL */
    bool tess_use_shared;
 
+   /* Whether full and half regs are merged. */
+   bool mergedregs;
+
    /* The maximum number of constants, in vec4's, across the entire graphics
     * pipeline.
     */
@@ -126,6 +131,9 @@ struct ir3_compiler {
 
    /* The maximum number of constants, in vec4's, for compute shaders. */
    uint16_t max_const_compute;
+
+   /* See freedreno_dev_info::compute_lb_size. */
+   uint32_t compute_lb_size;
 
    /* Number of instructions that the shader's base address and length
     * (instrlen divides instruction count by this) must be aligned to.
@@ -282,7 +290,33 @@ struct ir3_compiler {
    /* True if (rptN) is supported for bary.f. */
    bool has_rpt_bary_f;
 
+   /* True if alias.tex is supported. */
+   bool has_alias_tex;
+
+   /* True if alias.rt is supported. */
+   bool has_alias_rt;
+
    bool reading_shading_rate_requires_smask_quirk;
+
+   struct {
+      /* The number of cycles needed for the result of one ALU operation to be
+       * available to another ALU operation. Only valid when the halfness of the
+       * source and destination match.
+       */
+      unsigned alu_to_alu;
+
+      /* The number of cycles needed for the result of one instruction to be
+       * available to another. Valid for a0.x, a1.x, and p0.c destinations, ALU
+       * to non-ALU dependencies, and ALU to ALU dependencies witch mismatched
+       * halfness.
+       */
+      unsigned non_alu;
+
+      /* The number of cycles from the start of the instruction until a cat3
+       * instruction reads its 3rd src.
+       */
+      unsigned cat3_src2_read;
+   } delay_slots;
 };
 
 void ir3_compiler_destroy(struct ir3_compiler *compiler);
@@ -338,10 +372,13 @@ enum ir3_shader_debug {
    IR3_DBG_NOEARLYPREAMBLE = BITFIELD_BIT(17),
    IR3_DBG_NODESCPREFETCH = BITFIELD_BIT(18),
    IR3_DBG_EXPANDRPT = BITFIELD_BIT(19),
+   IR3_DBG_ASM_ROUNDTRIP = BITFIELD_BIT(20),
 
    /* MESA_DEBUG-only options: */
-   IR3_DBG_SCHEDMSGS = BITFIELD_BIT(20),
-   IR3_DBG_RAMSGS = BITFIELD_BIT(21),
+   IR3_DBG_SCHEDMSGS = BITFIELD_BIT(21),
+   IR3_DBG_RAMSGS = BITFIELD_BIT(22),
+   IR3_DBG_NOALIASTEX = BITFIELD_BIT(23),
+   IR3_DBG_NOALIASRT = BITFIELD_BIT(24),
 };
 
 extern enum ir3_shader_debug ir3_shader_debug;
@@ -399,6 +436,10 @@ ir3_shader_debug_hash_key()
         IR3_DBG_DISASM | IR3_DBG_OPTMSGS | IR3_DBG_NOCACHE |
         IR3_DBG_SHADER_INTERNAL | IR3_DBG_SCHEDMSGS | IR3_DBG_RAMSGS));
 }
+
+/* Returns a pointer to internal static tmp buffer. */
+const char *
+ir3_shader_debug_as_string(void);
 
 ENDC;
 

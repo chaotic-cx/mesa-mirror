@@ -105,7 +105,7 @@ read_xe_data_file(FILE *file,
    struct xe_vm xe_vm;
    char *line = NULL;
    size_t line_size;
-   enum xe_topic xe_topic = XE_TOPIC_INVALID;
+   enum xe_topic xe_topic = XE_TOPIC_UNKNOWN;
 
    error_decode_xe_vm_init(&xe_vm);
 
@@ -219,17 +219,21 @@ read_xe_data_file(FILE *file,
 
          break;
       }
-      case XE_TOPIC_GUC_CT: {
+      case XE_TOPIC_GUC_CT:
+         /*
+          * Workaround bug in the kernel that would put the exec queue dump
+          * in the wrong place, under "GuC CT" topic.
+          */
+      case XE_TOPIC_CONTEXT: {
          enum xe_vm_topic_type type;
          const char *value_ptr;
-         bool is_hw_ctx;
+         char binary_name[64];
 
          /* TODO: what to do with HWSP? */
-         type = error_decode_xe_read_hw_sp_or_ctx_line(line, &value_ptr, &is_hw_ctx);
-         if (type != XE_VM_TOPIC_TYPE_UNKNOWN) {
+         if (error_decode_xe_binary_line(line, binary_name, sizeof(binary_name), &type, &value_ptr)) {
             print_line = false;
 
-            if (!is_hw_ctx)
+            if (strncmp(binary_name, "HWCTX", strlen("HWCTX")) != 0)
                break;
 
             switch (type) {
@@ -242,11 +246,11 @@ read_xe_data_file(FILE *file,
                vm_entry_data = calloc(1, vm_entry_len);
                if (!vm_entry_data) {
                   printf("Out of memory to allocate a buffer to store content of HWCTX\n");
-                  break;
+                  printf("Aborting decode process due to insufficient memory\n");
+                  goto cleanup;
                }
 
-               if (is_hw_ctx)
-                  error_decode_xe_vm_hw_ctx_set(&xe_vm, vm_entry_len, vm_entry_data);
+               error_decode_xe_vm_hw_ctx_set(&xe_vm, vm_entry_len, vm_entry_data);
                break;
             }
             case XE_VM_TOPIC_TYPE_ERROR:
@@ -277,7 +281,8 @@ read_xe_data_file(FILE *file,
             vm_entry_data = calloc(1, vm_entry_len);
             if (!vm_entry_data) {
                printf("Out of memory to allocate a buffer to store content of VMA 0x%" PRIx64 "\n", address);
-               break;
+               printf("Aborting decode process due to insufficient memory\n");
+               goto cleanup;
             }
             if (!error_decode_xe_vm_append(&xe_vm, address, vm_entry_len, vm_entry_data)) {
                printf("xe_vm_append() failed for VMA 0x%" PRIx64 "\n", address);
@@ -293,8 +298,16 @@ read_xe_data_file(FILE *file,
          }
          break;
       }
-      default:
-            break;
+      default: {
+         enum xe_vm_topic_type type;
+         const char *value_ptr;
+         char binary_name[64];
+
+         if (error_decode_xe_binary_line(line, binary_name, sizeof(binary_name), &type, &value_ptr))
+            print_line = false;
+
+         break;
+      }
       }
 
       if (print_line)
@@ -344,6 +357,8 @@ read_xe_data_file(FILE *file,
    }
 
    intel_batch_decode_ctx_finish(&batch_ctx);
+
+cleanup:
    intel_spec_destroy(spec);
    free(batch_buffers.addrs);
    free(line);

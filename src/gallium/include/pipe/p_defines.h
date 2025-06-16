@@ -470,7 +470,7 @@ enum pipe_flush_flags
 #define PIPE_BIND_GLOBAL               (1 << 13) /* set_global_binding */
 #define PIPE_BIND_SHADER_BUFFER        (1 << 14) /* set_shader_buffers */
 #define PIPE_BIND_SHADER_IMAGE         (1 << 15) /* set_shader_images */
-#define PIPE_BIND_COMPUTE_RESOURCE     (1 << 16) /* set_compute_resources */
+/* gap */
 #define PIPE_BIND_COMMAND_ARGS_BUFFER  (1 << 17) /* pipe_draw_info.indirect */
 #define PIPE_BIND_QUERY_BUFFER         (1 << 18) /* get_query_result_resource */
 
@@ -516,7 +516,9 @@ enum pipe_flush_flags
 #define PIPE_RESOURCE_FLAG_DONT_OVER_ALLOCATE    (1 << 6)
 #define PIPE_RESOURCE_FLAG_DONT_MAP_DIRECTLY     (1 << 7) /* for small visible VRAM */
 #define PIPE_RESOURCE_FLAG_UNMAPPABLE            (1 << 8) /* implies staging transfers due to VK interop */
-#define PIPE_RESOURCE_FLAG_DRV_PRIV              (1 << 9) /* driver/winsys private */
+#define PIPE_RESOURCE_FLAG_FIXED_ADDRESS         (1 << 9) /* virtual memory address never changes */
+#define PIPE_RESOURCE_FLAG_FRONTEND_VM           (1 << 10) /* the frontend assigns addresses */
+#define PIPE_RESOURCE_FLAG_DRV_PRIV              (1 << 11) /* driver/winsys private */
 #define PIPE_RESOURCE_FLAG_FRONTEND_PRIV         (1 << 24) /* gallium frontend private */
 
 /**
@@ -736,42 +738,6 @@ enum pipe_endian
 #endif
 };
 
-/** Shader caps not specific to any single stage */
-enum pipe_shader_cap
-{
-   PIPE_SHADER_CAP_MAX_INSTRUCTIONS, /* if 0, it means the stage is unsupported */
-   PIPE_SHADER_CAP_MAX_ALU_INSTRUCTIONS,
-   PIPE_SHADER_CAP_MAX_TEX_INSTRUCTIONS,
-   PIPE_SHADER_CAP_MAX_TEX_INDIRECTIONS,
-   PIPE_SHADER_CAP_MAX_CONTROL_FLOW_DEPTH,
-   PIPE_SHADER_CAP_MAX_INPUTS,
-   PIPE_SHADER_CAP_MAX_OUTPUTS,
-   PIPE_SHADER_CAP_MAX_CONST_BUFFER0_SIZE,
-   PIPE_SHADER_CAP_MAX_CONST_BUFFERS,
-   PIPE_SHADER_CAP_MAX_TEMPS,
-   /* boolean caps */
-   PIPE_SHADER_CAP_CONT_SUPPORTED,
-   PIPE_SHADER_CAP_INDIRECT_TEMP_ADDR,
-   PIPE_SHADER_CAP_INDIRECT_CONST_ADDR,
-   PIPE_SHADER_CAP_SUBROUTINES, /* BGNSUB, ENDSUB, CAL, RET */
-   PIPE_SHADER_CAP_INTEGERS,
-   PIPE_SHADER_CAP_INT64_ATOMICS,
-   PIPE_SHADER_CAP_FP16,
-   PIPE_SHADER_CAP_FP16_DERIVATIVES,
-   PIPE_SHADER_CAP_FP16_CONST_BUFFERS,
-   PIPE_SHADER_CAP_INT16,
-   PIPE_SHADER_CAP_GLSL_16BIT_CONSTS,
-   PIPE_SHADER_CAP_MAX_TEXTURE_SAMPLERS,
-   PIPE_SHADER_CAP_TGSI_SQRT_SUPPORTED,
-   PIPE_SHADER_CAP_MAX_SAMPLER_VIEWS,
-   PIPE_SHADER_CAP_TGSI_ANY_INOUT_DECL_RANGE,
-   PIPE_SHADER_CAP_MAX_SHADER_BUFFERS,
-   PIPE_SHADER_CAP_SUPPORTED_IRS,
-   PIPE_SHADER_CAP_MAX_SHADER_IMAGES,
-   PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTERS,
-   PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTER_BUFFERS,
-};
-
 /**
  * Shader intermediate representation.
  *
@@ -786,33 +752,60 @@ enum pipe_shader_cap
 enum pipe_shader_ir
 {
    PIPE_SHADER_IR_TGSI = 0,
-   PIPE_SHADER_IR_NATIVE,
    PIPE_SHADER_IR_NIR,
 };
 
-/**
- * Compute-specific implementation capability.  They can be queried
- * using pipe_screen::get_compute_param.
- */
-enum pipe_compute_cap
-{
-   PIPE_COMPUTE_CAP_ADDRESS_BITS,
-   PIPE_COMPUTE_CAP_IR_TARGET,
-   PIPE_COMPUTE_CAP_GRID_DIMENSION,
-   PIPE_COMPUTE_CAP_MAX_GRID_SIZE,
-   PIPE_COMPUTE_CAP_MAX_BLOCK_SIZE,
-   PIPE_COMPUTE_CAP_MAX_THREADS_PER_BLOCK,
-   PIPE_COMPUTE_CAP_MAX_GLOBAL_SIZE,
-   PIPE_COMPUTE_CAP_MAX_LOCAL_SIZE,
-   PIPE_COMPUTE_CAP_MAX_PRIVATE_SIZE,
-   PIPE_COMPUTE_CAP_MAX_INPUT_SIZE,
-   PIPE_COMPUTE_CAP_MAX_MEM_ALLOC_SIZE,
-   PIPE_COMPUTE_CAP_MAX_CLOCK_FREQUENCY,
-   PIPE_COMPUTE_CAP_MAX_COMPUTE_UNITS,
-   PIPE_COMPUTE_CAP_MAX_SUBGROUPS,
-   PIPE_COMPUTE_CAP_IMAGES_SUPPORTED,
-   PIPE_COMPUTE_CAP_SUBGROUP_SIZES,
-   PIPE_COMPUTE_CAP_MAX_VARIABLE_THREADS_PER_BLOCK,
+/** Shader caps not specific to any single stage */
+struct pipe_shader_caps {
+   unsigned max_instructions; /* if 0, it means the stage is unsupported */
+   unsigned max_alu_instructions;
+   unsigned max_tex_instructions;
+   unsigned max_tex_indirections;
+   unsigned max_control_flow_depth;
+   unsigned max_inputs;
+   unsigned max_outputs;
+   unsigned max_const_buffer0_size;
+   unsigned max_const_buffers;
+   unsigned max_temps;
+   unsigned max_texture_samplers;
+   unsigned max_sampler_views;
+   unsigned max_shader_buffers;
+   unsigned max_shader_images;
+   unsigned max_hw_atomic_counters;
+   unsigned max_hw_atomic_counter_buffers;
+   unsigned supported_irs;
+
+   bool cont_supported;
+   bool indirect_temp_addr;
+   bool indirect_const_addr;
+   bool subroutines; /* BGNSUB, ENDSUB, CAL, RET */
+   bool integers;
+   bool int64_atomics;
+   bool fp16;
+   bool fp16_derivatives;
+   bool fp16_const_buffers;
+   bool int16;
+   bool glsl_16bit_consts;
+   bool glsl_16bit_load_dst; /* fp16 or int16 is AND'ed with this */
+   bool tgsi_sqrt_supported;
+   bool tgsi_any_inout_decl_range;
+};
+
+/** Compute-specific implementation capability. */
+struct pipe_compute_caps {
+   unsigned address_bits;
+   unsigned grid_dimension;
+   unsigned max_grid_size[3];
+   unsigned max_block_size[3];
+   unsigned max_threads_per_block;
+   unsigned max_local_size;
+   unsigned max_clock_frequency;
+   unsigned max_compute_units;
+   unsigned max_subgroups;
+   unsigned subgroup_sizes;
+   unsigned max_variable_threads_per_block;
+   uint64_t max_mem_alloc_size;
+   uint64_t max_global_size;
 };
 
 struct pipe_caps {
@@ -906,7 +899,6 @@ struct pipe_caps {
    bool robust_buffer_access_behavior;
    bool cull_distance;
    bool shader_group_vote;
-   bool polygon_offset_units_unscaled;
    bool shader_array_components;
    bool stream_output_interleave_buffers;
    bool native_fence_fd;
@@ -917,6 +909,7 @@ struct pipe_caps {
    bool int64;
    bool tgsi_tex_txf_lz;
    bool shader_clock;
+   bool shader_realtime_clock;
    bool polygon_mode_fill_rectangle;
    bool shader_ballot;
    bool tes_layer_viewport;
@@ -954,7 +947,6 @@ struct pipe_caps {
    bool fragment_shader_interlock;
    bool fbfetch_coherent;
    bool atomic_float_minmax;
-   bool tgsi_div;
    bool fragment_shader_texture_lod;
    bool fragment_shader_derivatives;
    bool texture_shadow_lod;
@@ -1095,6 +1087,10 @@ struct pipe_caps {
    unsigned shader_subgroup_supported_stages;
    unsigned shader_subgroup_supported_features;
    unsigned multiview;
+
+   /** for CL SVM */
+   uint64_t min_vma;
+   uint64_t max_vma;
 
    enum pipe_vertex_input_alignment vertex_input_alignment;
    enum pipe_endian endianness;

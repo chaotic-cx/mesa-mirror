@@ -1,9 +1,18 @@
+# When changing this file, you need to bump the following
+# .gitlab-ci/image-tags.yml tags:
+# ALPINE_X86_64_LAVA_TRIGGER_TAG
+
 from io import StringIO
 from typing import TYPE_CHECKING, Any
+import base64
+import shlex
 
 from ruamel.yaml import YAML
 
-from lava.utils.lava_farm import LavaFarm, get_lava_farm
+from os import getenv
+
+from lava.utils.lava_farm import get_lava_farm
+from lava.utils.log_section import LAVA_DEPLOY_TIMEOUT
 from lava.utils.ssh_job_definition import (
     generate_docker_test,
     generate_dut_test,
@@ -23,7 +32,12 @@ from lava.utils.uart_job_definition import (
 if TYPE_CHECKING:
     from lava.lava_job_submitter import LAVAJobSubmitter
 
-from .constants import FORCE_UART, JOB_PRIORITY, NUMBER_OF_ATTEMPTS_LAVA_BOOT
+from .constants import (
+    FORCE_UART,
+    JOB_PRIORITY,
+    NUMBER_OF_ATTEMPTS_LAVA_BOOT,
+    NUMBER_OF_ATTEMPTS_LAVA_DEPLOY,
+)
 
 
 class LAVAJobDefinition:
@@ -38,6 +52,9 @@ class LAVAJobDefinition:
         self.lava_nfs_args: str = "root=/dev/nfs rw nfsroot=$NFS_SERVER_IP:$NFS_ROOTFS,tcp,hard,v3 ip=dhcp"
         # extra_nfsroot_args appends to cmdline
         self.extra_nfsroot_args: str = " init=/init rootwait usbcore.quirks=0bda:8153:k"
+        # Append LAVA_CMDLINE to extra_nfsroot_args
+        if lava_cmdline := getenv('LAVA_CMDLINE'):
+            self.extra_nfsroot_args += f" {lava_cmdline}"
 
     def has_ssh_support(self) -> bool:
         if FORCE_UART:
@@ -47,7 +64,7 @@ class LAVAJobDefinition:
         # which is required to follow the job in a SSH section
         current_farm = get_lava_farm()
 
-        return current_farm == LavaFarm.COLLABORA
+        return current_farm == "collabora"
 
     def generate_lava_yaml_payload(self) -> dict[str, Any]:
         """
@@ -149,18 +166,26 @@ class LAVAJobDefinition:
                 "job": {"minutes": self.job_submitter.job_timeout_min},
                 "actions": {
                     "depthcharge-retry": {
-                        # Could take between 1 and 1.5 min in slower boots
-                        "minutes": 4
-                    },
-                    "depthcharge-start": {
-                        # Should take less than 1 min.
-                        "minutes": 1,
+                        # Setting higher values here, to affect the subactions, namely
+                        # `bootloader-commands` and `login-action`
+                        # So this value can be higher than `depthcharge-action` timeout.
+                        "minutes": 3 * NUMBER_OF_ATTEMPTS_LAVA_DEPLOY
                     },
                     "depthcharge-action": {
                         # This timeout englobes the entire depthcharge timing,
                         # including retries
-                        "minutes": 5
-                        * NUMBER_OF_ATTEMPTS_LAVA_BOOT,
+                        "minutes": LAVA_DEPLOY_TIMEOUT
+                    },
+                    "uboot-action": {
+                        # For rockchip DUTs, U-Boot auto-login action downloads the kernel and
+                        # setup early network. This takes 72 seconds on average.
+                        # The LAVA action that wraps it is `uboot-commands`, but we can't set a
+                        # timeout for it directly, it is overridden by one third of `uboot-action`
+                        # timeout.
+                        # So actually, this timeout is here to enforce that `uboot-action`
+                        # timeout to be 100 seconds (uboot-action timeout /
+                        # NUMBER_OF_ATTEMPTS_LAVA_BOOT), which is more than enough.
+                        "seconds": 100 * NUMBER_OF_ATTEMPTS_LAVA_BOOT
                     },
                 },
             },
@@ -181,13 +206,6 @@ class LAVAJobDefinition:
             deploy_field["dtb"] = {
                 "url": f"{self.job_submitter.kernel_url_prefix}/"
                 f"{self.job_submitter.dtb_filename}.dtb"
-            }
-
-    def attach_external_modules(self, deploy_field):
-        if self.job_submitter.kernel_external:
-            deploy_field["modules"] = {
-                "url": f"{self.job_submitter.kernel_url_prefix}/modules.tar.zst",
-                "compression": "zstd"
             }
 
     def jwt_steps(self):
@@ -218,12 +236,24 @@ class LAVAJobDefinition:
 
         return jwt_steps
 
+    def encode_job_env_vars(self) -> list[str]:
+        steps = []
+        with open(self.job_submitter.env_file, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode()
+            safe_encoded = shlex.quote(encoded)
+
+        steps += [
+            f'echo {safe_encoded} | base64 -d >> /set-job-env-vars.sh',
+        ]
+
+        return steps
+
     def init_stage1_steps(self) -> list[str]:
         run_steps = []
         # job execution script:
         #   - inline .gitlab-ci/common/init-stage1.sh
         #   - fetch and unpack per-pipeline build artifacts from build job
-        #   - fetch and unpack per-job environment from lava-submit.sh
+        #   - fetch, unpack and encode per-job env from lava-submit.sh
         #   - exec .gitlab-ci/common/init-stage2.sh
 
         with open(self.job_submitter.first_stage_init, "r") as init_sh:
@@ -238,10 +268,15 @@ class LAVAJobDefinition:
         # since the license isn't bundled inside the repository
         if self.job_submitter.device_type == "sm8350-hdk":
             run_steps.append(
-                "curl -L --retry 4 -f --retry-all-errors --retry-delay 60 "
+                "mkdir -p /lib/firmware/qcom/sm8350 && "
+                + "curl -L --retry 4 -f --retry-all-errors --retry-delay 60 "
                 + "https://github.com/allahjasif1990/hdk888-firmware/raw/main/a660_zap.mbn "
                 + '-o "/lib/firmware/qcom/sm8350/a660_zap.mbn"'
             )
+
+        # Forward environmental variables to the DUT
+        # base64-encoded to avoid YAML quoting issues
+        run_steps += self.encode_job_env_vars()
 
         run_steps.append("export CURRENT_SECTION=dut_boot")
 

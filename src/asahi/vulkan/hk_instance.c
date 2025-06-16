@@ -94,8 +94,8 @@ static const driOptionDescription hk_dri_options[] = {
    DRI_CONF_SECTION_END
 
    DRI_CONF_SECTION_MISCELLANEOUS
-      DRI_CONF_HK_DISABLE_RGBA4_BORDER_COLOR_WORKAROUND(false)
       DRI_CONF_HK_DISABLE_BORDER_EMULATION(false)
+      DRI_CONF_HK_FAKE_MINMAX(false)
    DRI_CONF_SECTION_END
 };
 /* clang-format on */
@@ -113,11 +113,11 @@ hk_init_dri_options(struct hk_instance *instance)
    instance->force_vk_vendor =
       driQueryOptioni(&instance->dri_options, "force_vk_vendor");
 
-   instance->workaround_rgba4 = !driQueryOptionb(
-      &instance->dri_options, "hk_disable_rgba4_border_color_workaround");
-
    instance->no_border =
       driQueryOptionb(&instance->dri_options, "hk_disable_border_emulation");
+
+   instance->fake_minmax =
+      driQueryOptionb(&instance->dri_options, "hk_fake_minmax");
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL

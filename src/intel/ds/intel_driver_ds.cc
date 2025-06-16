@@ -105,12 +105,8 @@ static const struct {
    },
 };
 
-struct IntelRenderpassIncrementalState {
-   bool was_cleared = true;
-};
-
 struct IntelRenderpassTraits : public perfetto::DefaultDataSourceTraits {
-   using IncrementalStateType = IntelRenderpassIncrementalState;
+   using IncrementalStateType = MesaRenderpassIncrementalState;
 };
 
 class IntelRenderpassDataSource : public MesaRenderpassDataSource<IntelRenderpassDataSource,
@@ -156,9 +152,15 @@ sync_timestamp(IntelRenderpassDataSource::TraceContext &ctx,
 }
 
 static void
-send_descriptors(IntelRenderpassDataSource::TraceContext &ctx,
-                 struct intel_ds_device *device)
+setup_incremental_state(IntelRenderpassDataSource::TraceContext &ctx,
+                        struct intel_ds_device *device)
 {
+   auto state = ctx.GetIncrementalState();
+   if (!state->was_cleared)
+      return;
+
+   state->was_cleared = false;
+
    PERFETTO_LOG("Sending renderstage descriptors");
 
    device->event_id = 0;
@@ -201,7 +203,7 @@ send_descriptors(IntelRenderpassDataSource::TraceContext &ctx,
                 * by intel_ds_queue_stage.
                 */
                char name[100];
-               snprintf(name, sizeof(name), "%.10s-%s-%u-%s",
+               snprintf(name, sizeof(name), "%.10s-%s-%02u-%s",
                         util_get_process_name(),
                         queue->name, s, intel_queue_stage_desc[s].name);
 
@@ -280,10 +282,7 @@ end_event(struct intel_ds_queue *queue, uint64_t ts_ns,
       return;
 
    IntelRenderpassDataSource::Trace([=](IntelRenderpassDataSource::TraceContext tctx) {
-      if (auto state = tctx.GetIncrementalState(); state->was_cleared) {
-         send_descriptors(tctx, queue->device);
-         state->was_cleared = false;
-      }
+      setup_incremental_state(tctx, queue->device);
 
       sync_timestamp(tctx, queue->device);
 
@@ -548,10 +547,7 @@ intel_ds_end_submit(struct intel_ds_queue *queue,
    uint32_t submission_id = queue->submission_id++;
 
    IntelRenderpassDataSource::Trace([=](IntelRenderpassDataSource::TraceContext tctx) {
-      if (auto state = tctx.GetIncrementalState(); state->was_cleared) {
-         send_descriptors(tctx, queue->device);
-         state->was_cleared = false;
-      }
+      setup_incremental_state(tctx, queue->device);
 
       sync_timestamp(tctx, queue->device);
 
@@ -570,6 +566,28 @@ intel_ds_end_submit(struct intel_ds_queue *queue,
    });
 }
 
+void intel_ds_perfetto_set_debug_utils_object_name(struct intel_ds_device *device,
+   const VkDebugUtilsObjectNameInfoEXT *pNameInfo)
+{
+   IntelRenderpassDataSource::Trace([=](auto tctx) {
+      /* Do we need this for SEQ_INCREMENTAL_STATE_CLEARED for the object name to stick? */
+      setup_incremental_state(tctx, device);
+
+      tctx.GetDataSourceLocked()->SetDebugUtilsObjectNameEXT(tctx, pNameInfo);
+   });
+}
+
+void intel_ds_perfetto_refresh_debug_utils_object_name(struct intel_ds_device *device,
+   const struct vk_object_base *object)
+{
+   IntelRenderpassDataSource::Trace([=](auto tctx) {
+      /* Do we need this for SEQ_INCREMENTAL_STATE_CLEARED for the object name to stick? */
+      setup_incremental_state(tctx, device);
+
+      tctx.GetDataSourceLocked()->RefreshSetDebugUtilsObjectNameEXT(tctx, object);
+   });
+}
+
 #endif /* HAVE_PERFETTO */
 
 static void
@@ -578,7 +596,12 @@ intel_driver_ds_init_once(void)
 #ifdef HAVE_PERFETTO
    util_perfetto_init();
    perfetto::DataSourceDescriptor dsd;
+#if DETECT_OS_ANDROID
+   // Android tooling expects this data source name
+   dsd.set_name("gpu.renderstages");
+#else
    dsd.set_name("gpu.renderstages.intel");
+#endif
    IntelRenderpassDataSource::Register(dsd);
 #endif
 }

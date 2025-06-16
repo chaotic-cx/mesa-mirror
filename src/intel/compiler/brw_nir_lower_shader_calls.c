@@ -117,7 +117,7 @@ brw_nir_lower_shader_returns(nir_shader *shader)
       }
    }
 
-   nir_metadata_preserve(impl, nir_metadata_control_flow);
+   nir_progress(true, impl, nir_metadata_control_flow);
 }
 
 static void
@@ -147,7 +147,9 @@ store_resume_addr(nir_builder *b, nir_intrinsic_instr *call)
 static bool
 lower_shader_trace_ray_instr(struct nir_builder *b, nir_instr *instr, void *data)
 {
-   struct brw_bs_prog_key *key = data;
+   const struct brw_nir_lower_shader_calls_state *state = data;
+   const struct intel_device_info *devinfo = state->devinfo;
+   struct brw_bs_prog_key *key = state->key;
 
    if (instr->type != nir_instr_type_intrinsic)
       return false;
@@ -224,9 +226,6 @@ lower_shader_trace_ray_instr(struct nir_builder *b, nir_instr *instr, void *data
        */
       .ray_flags = nir_ior_imm(b, nir_u2u16(b, ray_flags), key->pipeline_ray_flags),
       .ray_mask = cull_mask,
-      .hit_group_sr_base_ptr = hit_sbt_addr,
-      .hit_group_sr_stride = nir_u2u16(b, hit_sbt_stride_B),
-      .miss_sr_ptr = miss_sbt_addr,
       .orig = ray_orig,
       .t_near = ray_t_min,
       .dir = ray_dir,
@@ -240,7 +239,17 @@ lower_shader_trace_ray_instr(struct nir_builder *b, nir_instr *instr, void *data
        */
       .inst_leaf_ptr = nir_u2u64(b, ray_flags),
    };
-   brw_nir_rt_store_mem_ray(b, &ray_defs, BRW_RT_BVH_LEVEL_WORLD);
+
+   if (devinfo->ver >= 30) {
+      ray_defs.hit_group_index = sbt_offset;
+      ray_defs.miss_shader_index = nir_u2u16(b, miss_index);
+   } else {
+      ray_defs.hit_group_sr_base_ptr = hit_sbt_addr;
+      ray_defs.hit_group_sr_stride = nir_u2u16(b, hit_sbt_stride_B);
+      ray_defs.miss_sr_ptr = miss_sbt_addr;
+   }
+
+   brw_nir_rt_store_mem_ray(b, &ray_defs, BRW_RT_BVH_LEVEL_WORLD, devinfo);
 
    nir_trace_ray_intel(b,
                        nir_load_btd_global_arg_addr_intel(b),
@@ -272,12 +281,13 @@ lower_shader_call_instr(struct nir_builder *b, nir_intrinsic_instr *call,
 }
 
 bool
-brw_nir_lower_shader_calls(nir_shader *shader, struct brw_bs_prog_key *key)
+brw_nir_lower_shader_calls(nir_shader *shader,
+                           struct brw_nir_lower_shader_calls_state *state)
 {
    bool a = nir_shader_instructions_pass(shader,
                                          lower_shader_trace_ray_instr,
                                          nir_metadata_none,
-                                         key);
+                                         state);
    bool b = nir_shader_intrinsics_pass(shader, lower_shader_call_instr,
                                          nir_metadata_control_flow,
                                          NULL);
@@ -323,5 +333,55 @@ brw_nir_create_trivial_return_shader(const struct brw_compiler *compiler,
 
    NIR_PASS_V(nir, brw_nir_lower_shader_returns);
 
+   return nir;
+}
+
+/** Creates a null any-hit shader
+ *
+ * By default, our HW has the ability to handle the fact that a shader is not
+ * available and will execute the next following shader in the tracing call.
+ * For instance, a RAYGEN shader traces a ray, the tracing generates a hit,
+ * but there is no ANYHIT shader available. The HW should follow up by
+ * execution the CLOSESTHIT shader.
+ *
+ * This default behavior can be changed through the RT_CTRL register
+ * (privileged access) and when NULL shader checks are disabled, we assign
+ * this null ahs shader as any hit shader in case app did not provide one.
+ *
+ * In order to ensure the call to the CLOSESTHIT shader, this shader needs to
+ * commit the ray and will not proceed with the BTD return.
+ *
+ * "SW must ensure that callstack handler sends a TraceRay message with
+ *  TraceRay_COMMIT for any hit shader invocation so that it matches with HW
+ *  behavior of trivially accepting that hit."
+ *
+ */
+nir_shader *
+brw_nir_create_null_ahs_shader(const struct brw_compiler *compiler,
+                               void *mem_ctx)
+{
+   const nir_shader_compiler_options *nir_options =
+      compiler->nir_options[MESA_SHADER_CALLABLE];
+
+   nir_builder _b = nir_builder_init_simple_shader(MESA_SHADER_CALLABLE,
+                                                   nir_options,
+                                                   "RT Null any-hit shader");
+   nir_builder *b = &_b;
+
+   ralloc_steal(mem_ctx, b->shader);
+   nir_shader *nir = b->shader;
+
+   nir->scratch_size = BRW_BTD_STACK_CALLEE_DATA_SIZE;
+   nir_function_impl *impl = nir_shader_get_entrypoint(nir);
+
+   b->cursor = nir_before_block(nir_start_block(impl));
+
+   struct brw_nir_rt_mem_hit_defs hit_in = {};
+   brw_nir_rt_load_mem_hit(b, &hit_in, false, compiler->devinfo);
+   nir_def *ray_level = hit_in.bvh_level;
+   nir_def *ray_op = nir_imm_int(b, GEN_RT_TRACE_RAY_COMMIT);
+   nir_trace_ray_intel(b,
+                       nir_load_btd_global_arg_addr_intel(b),
+                       ray_level, ray_op);
    return nir;
 }

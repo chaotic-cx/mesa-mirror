@@ -78,7 +78,7 @@ midgard_unpack_varying_params(midgard_load_store_word word)
 }
 
 unsigned
-mir_pack_mod(midgard_instruction *ins, unsigned i, bool scalar)
+mir_pack_mod(const midgard_instruction *ins, unsigned i, bool scalar)
 {
    bool integer = midgard_is_integer_op(ins->op);
    unsigned base_size = max_bitsize_for_alu(ins);
@@ -743,10 +743,10 @@ emit_branch(midgard_instruction *ins, compiler_context *ctx,
       quadword_offset = 0x2;
    } else if (is_tilebuf_wait) {
       quadword_offset = -1;
-   } else if (target_number > block->base.name) {
+   } else if (target_number > block->name) {
       /* Jump forward */
 
-      for (int idx = block->base.name + 1; idx < target_number; ++idx) {
+      for (int idx = block->name + 1; idx < target_number; ++idx) {
          midgard_block *blk = mir_get_block(ctx, idx);
          assert(blk);
 
@@ -755,7 +755,7 @@ emit_branch(midgard_instruction *ins, compiler_context *ctx,
    } else {
       /* Jump backwards */
 
-      for (int idx = block->base.name; idx >= target_number; --idx) {
+      for (int idx = block->name; idx >= target_number; --idx) {
          midgard_block *blk = mir_get_block(ctx, idx);
          assert(blk);
 

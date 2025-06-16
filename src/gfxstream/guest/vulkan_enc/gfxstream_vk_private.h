@@ -62,6 +62,7 @@
 struct gfxstream_vk_instance {
     struct vk_instance vk;
     uint32_t api_version;
+    bool init_failed;
     VkInstance internal_object;
 };
 
@@ -71,6 +72,7 @@ struct gfxstream_vk_physical_device {
     struct wsi_device wsi_device;
     const struct vk_sync_type* sync_types[2];
     struct gfxstream_vk_instance* instance;
+    bool doImageDrmFormatModifierEmulation;
     VkPhysicalDevice internal_object;
 };
 

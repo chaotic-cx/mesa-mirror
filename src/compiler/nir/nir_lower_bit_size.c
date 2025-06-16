@@ -111,6 +111,14 @@ lower_alu_instr(nir_builder *bld, nir_alu_instr *alu, unsigned bit_size)
          assert(op == nir_op_uadd_carry);
          lowered_dst = nir_ushr_imm(bld, lowered_dst, dst_bit_size);
       }
+   } else if (op == nir_op_bitfield_reverse) {
+      lowered_dst = nir_bitfield_reverse(bld, srcs[0]);
+
+      /* We need to shift down to the original bit size, else we would just
+       * always return 0.
+       */
+      assert(bit_size > dst_bit_size);
+      lowered_dst = nir_ushr_imm(bld, lowered_dst, bit_size - dst_bit_size);
    } else {
       lowered_dst = nir_build_alu_src_arr(bld, op, srcs);
    }
@@ -131,6 +139,20 @@ lower_intrinsic_instr(nir_builder *b, nir_intrinsic_instr *intrin,
                       unsigned bit_size)
 {
    switch (intrin->intrinsic) {
+   case nir_intrinsic_ballot:
+   case nir_intrinsic_ballot_relaxed: {
+      b->cursor = nir_before_instr(&intrin->instr);
+
+      nir_alu_type type = nir_type_uint;
+      if (intrin->src[0].ssa->bit_size == 1)
+         type = nir_type_bool;
+
+      nir_def *new_src = nir_convert_to_bit_size(b, intrin->src[0].ssa,
+                                                 type, bit_size);
+      nir_src_rewrite(&intrin->src[0], new_src);
+      break;
+   }
+
    case nir_intrinsic_read_invocation:
    case nir_intrinsic_read_first_invocation:
    case nir_intrinsic_shuffle:
@@ -284,13 +306,7 @@ lower_impl(nir_function_impl *impl,
       }
    }
 
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
-
-   return progress;
+   return nir_progress(progress, impl, nir_metadata_control_flow);
 }
 
 bool

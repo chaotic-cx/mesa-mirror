@@ -18,7 +18,7 @@
 .windows-build-rules:
   rules:
     - !reference [.scheduled_pipeline-rules, rules]
-    - !reference [.test, rules]
+    - !reference [.build-rules, rules]
     - !reference [.microsoft-farm-rules, rules]
     - !reference [.zink-common-rules, rules]
     - !reference [.vulkan-rules, rules]
@@ -73,7 +73,7 @@
       when: on_success
 
 .dozen-manual-rules:
-  stage: layered-backends-postmerge
+  stage: layered-backends-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]

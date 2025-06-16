@@ -8,7 +8,6 @@
 
 #include "radv_meta.h"
 #include "sid.h"
-#include "vk_common_entrypoints.h"
 #include "vk_format.h"
 
 static void
@@ -17,16 +16,20 @@ decode_astc(struct radv_cmd_buffer *cmd_buffer, struct radv_image_view *src_ivie
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    struct radv_meta_state *state = &device->meta_state;
-   struct vk_texcompress_astc_write_descriptor_set write_desc_set;
+   struct vk_texcompress_astc_write_descriptor_buffer desc_buffer;
    VkFormat format = src_iview->image->vk.format;
    int blk_w = vk_format_get_blockwidth(format);
    int blk_h = vk_format_get_blockheight(format);
 
-   vk_texcompress_astc_fill_write_descriptor_sets(state->astc_decode, &write_desc_set,
-                                                  radv_image_view_to_handle(src_iview), layout,
-                                                  radv_image_view_to_handle(dst_iview), format);
-   radv_meta_push_descriptor_set(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, state->astc_decode->p_layout, 0,
-                                 VK_TEXCOMPRESS_ASTC_WRITE_DESC_SET_COUNT, write_desc_set.descriptor_set);
+   vk_texcompress_astc_fill_write_descriptor_buffer(&device->vk, state->astc_decode, &desc_buffer,
+                                                    radv_image_view_to_handle(src_iview), layout,
+                                                    radv_image_view_to_handle(dst_iview), format);
+
+   VK_FROM_HANDLE(radv_buffer, luts_buf, state->astc_decode->luts_buf);
+   radv_cs_add_buffer(device->ws, cmd_buffer->cs, luts_buf->bo);
+
+   radv_meta_bind_descriptors(cmd_buffer, VK_PIPELINE_BIND_POINT_COMPUTE, state->astc_decode->p_layout,
+                              VK_TEXCOMPRESS_ASTC_WRITE_DESC_SET_COUNT, desc_buffer.descriptors);
 
    VkPipeline pipeline =
       vk_texcompress_astc_get_decode_pipeline(&device->vk, &state->alloc, state->astc_decode, state->cache, format);
@@ -38,8 +41,17 @@ decode_astc(struct radv_cmd_buffer *cmd_buffer, struct radv_image_view *src_ivie
    bool is_3Dimage = (src_iview->image->vk.image_type == VK_IMAGE_TYPE_3D) ? true : false;
    int push_constants[5] = {offset->x / blk_w, offset->y / blk_h, extent->width + offset->x, extent->height + offset->y,
                             is_3Dimage};
-   vk_common_CmdPushConstants(radv_cmd_buffer_to_handle(cmd_buffer), device->meta_state.etc_decode.pipeline_layout,
-                              VK_SHADER_STAGE_COMPUTE_BIT, 0, 20, push_constants);
+
+   const VkPushConstantsInfoKHR pc_info = {
+      .sType = VK_STRUCTURE_TYPE_PUSH_CONSTANTS_INFO_KHR,
+      .layout = device->meta_state.astc_decode->p_layout,
+      .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+      .offset = 0,
+      .size = sizeof(push_constants),
+      .pValues = push_constants,
+   };
+
+   radv_CmdPushConstants2(radv_cmd_buffer_to_handle(cmd_buffer), &pc_info);
 
    struct radv_dispatch_info info = {
       .blocks[0] = DIV_ROUND_UP(extent->width, blk_w * 2),
@@ -95,13 +107,11 @@ radv_meta_decode_astc(struct radv_cmd_buffer *cmd_buffer, struct radv_image *ima
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    struct radv_meta_saved_state saved_state;
    radv_meta_save(&saved_state, cmd_buffer,
-                  RADV_META_SAVE_COMPUTE_PIPELINE | RADV_META_SAVE_CONSTANTS | RADV_META_SAVE_DESCRIPTORS |
-                     RADV_META_SUSPEND_PREDICATING);
+                  RADV_META_SAVE_COMPUTE_PIPELINE | RADV_META_SAVE_CONSTANTS | RADV_META_SAVE_DESCRIPTORS);
 
-   uint32_t base_slice = radv_meta_get_iview_layer(image, subresource, &offset);
-   uint32_t slice_count = image->vk.image_type == VK_IMAGE_TYPE_3D
-                             ? extent.depth
-                             : vk_image_subresource_layer_count(&image->vk, subresource);
+   const bool is_3d = image->vk.image_type == VK_IMAGE_TYPE_3D;
+   const uint32_t base_slice = is_3d ? offset.z : subresource->baseArrayLayer;
+   const uint32_t slice_count = is_3d ? extent.depth : vk_image_subresource_layer_count(&image->vk, subresource);
 
    extent = vk_image_sanitize_extent(&image->vk, extent);
    offset = vk_image_sanitize_offset(&image->vk, offset);

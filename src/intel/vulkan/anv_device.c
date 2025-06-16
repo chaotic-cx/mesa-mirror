@@ -31,6 +31,7 @@
 
 #include "anv_private.h"
 #include "anv_measure.h"
+#include "anv_slab_bo.h"
 #include "util/u_debug.h"
 #include "util/os_file.h"
 #include "util/os_misc.h"
@@ -74,12 +75,10 @@ static VkResult
 anv_device_init_trivial_batch(struct anv_device *device)
 {
    VkResult result = anv_device_alloc_bo(device, "trivial-batch", 4096,
-                                         ANV_BO_ALLOC_MAPPED |
-                                         ANV_BO_ALLOC_HOST_COHERENT |
-                                         ANV_BO_ALLOC_INTERNAL |
-                                         ANV_BO_ALLOC_CAPTURE,
+                                         ANV_BO_ALLOC_BATCH_BUFFER_INTERNAL_FLAGS,
                                          0 /* explicit_address */,
                                          &device->trivial_batch_bo);
+   ANV_DMR_BO_ALLOC(&device->vk.base, device->trivial_batch_bo, result);
    if (result != VK_SUCCESS)
       return result;
 
@@ -298,8 +297,11 @@ anv_device_finish_trtt(struct anv_device *device)
    vk_free(&device->vk.alloc, trtt->l3_mirror);
    vk_free(&device->vk.alloc, trtt->l2_mirror);
 
-   for (int i = 0; i < trtt->num_page_table_bos; i++)
+   for (int i = 0; i < trtt->num_page_table_bos; i++) {
+      struct anv_bo *bo = trtt->page_table_bos[i];
+      ANV_DMR_BO_FREE(&device->vk.base, bo);
       anv_device_release_bo(device, trtt->page_table_bos[i]);
+   }
 
    vk_free(&device->vk.alloc, trtt->page_table_bos);
 }
@@ -310,6 +312,7 @@ VkResult anv_CreateDevice(
     const VkAllocationCallbacks*                pAllocator,
     VkDevice*                                   pDevice)
 {
+   anv_wait_for_attach();
    ANV_FROM_HANDLE(anv_physical_device, physical_device, physicalDevice);
    VkResult result;
    struct anv_device *device;
@@ -320,7 +323,6 @@ VkResult anv_CreateDevice(
    /* Check requested queues and fail if we are requested to create any
     * queues with flags we don't support.
     */
-   assert(pCreateInfo->queueCreateInfoCount > 0);
    for (uint32_t i = 0; i < pCreateInfo->queueCreateInfoCount; i++) {
       if (pCreateInfo->pQueueCreateInfos[i].flags & ~VK_DEVICE_QUEUE_CREATE_PROTECTED_BIT)
          return vk_error(physical_device, VK_ERROR_INITIALIZATION_FAILED);
@@ -380,7 +382,7 @@ VkResult anv_CreateDevice(
    if (result != VK_SUCCESS)
       goto fail_alloc;
 
-   if (INTEL_DEBUG(DEBUG_BATCH | DEBUG_BATCH_STATS)) {
+   if (INTEL_DEBUG(DEBUG_BATCH) || INTEL_DEBUG(DEBUG_BATCH_STATS)) {
       for (unsigned i = 0; i < physical_device->queue.family_count; i++) {
          struct intel_batch_decode_ctx *decoder = &device->decoder[i];
 
@@ -481,9 +483,12 @@ VkResult anv_CreateDevice(
    list_inithead(&device->image_private_objects);
    list_inithead(&device->bvh_dumps);
 
+   if (!anv_slab_bo_init(device))
+      goto fail_vmas;
+
    if (pthread_mutex_init(&device->mutex, NULL) != 0) {
       result = vk_error(device, VK_ERROR_INITIALIZATION_FAILED);
-      goto fail_vmas;
+      goto fail_slab;
    }
 
    pthread_condattr_t condattr;
@@ -511,9 +516,7 @@ VkResult anv_CreateDevice(
       goto fail_queue_cond;
 
    anv_bo_pool_init(&device->batch_bo_pool, device, "batch",
-                    ANV_BO_ALLOC_MAPPED |
-                    ANV_BO_ALLOC_HOST_CACHED_COHERENT |
-                    ANV_BO_ALLOC_CAPTURE);
+                    ANV_BO_ALLOC_BATCH_BUFFER_FLAGS);
    if (device->vk.enabled_extensions.KHR_acceleration_structure) {
       anv_bo_pool_init(&device->bvh_bo_pool, device, "bvh build",
                        0 /* alloc_flags */);
@@ -699,6 +702,7 @@ VkResult anv_CreateDevice(
                                 ANV_BO_ALLOC_INTERNAL,
                                 0 /* explicit_address */,
                                 &device->workaround_bo);
+   ANV_DMR_BO_ALLOC(&device->vk.base, device->workaround_bo, result);
    if (result != VK_SUCCESS)
       goto fail_surface_aux_map_pool;
 
@@ -707,6 +711,7 @@ VkResult anv_CreateDevice(
                                    0 /* alloc_flags */,
                                    0 /* explicit_address */,
                                    &device->dummy_aux_bo);
+      ANV_DMR_BO_ALLOC(&device->vk.base, device->dummy_aux_bo, result);
       if (result != VK_SUCCESS)
          goto fail_alloc_device_bo;
 
@@ -724,6 +729,7 @@ VkResult anv_CreateDevice(
       result = anv_device_alloc_bo(device, "mem_fence", 4096,
                                    ANV_BO_ALLOC_NO_LOCAL_MEM, 0,
                                    &device->mem_fence_bo);
+      ANV_DMR_BO_ALLOC(&device->vk.base, device->mem_fence_bo, result);
       if (result != VK_SUCCESS)
          goto fail_alloc_device_bo;
    }
@@ -776,6 +782,7 @@ VkResult anv_CreateDevice(
                                    ANV_BO_ALLOC_INTERNAL,
                                    0 /* explicit_address */,
                                    &device->ray_query_bo[0]);
+      ANV_DMR_BO_ALLOC(&device->vk.base, device->ray_query_bo[0], result);
       if (result != VK_SUCCESS)
          goto fail_alloc_device_bo;
 
@@ -787,6 +794,7 @@ VkResult anv_CreateDevice(
                                       ANV_BO_ALLOC_INTERNAL,
                                       0 /* explicit_address */,
                                       &device->ray_query_bo[1]);
+         ANV_DMR_BO_ALLOC(&device->vk.base, device->ray_query_bo[1], result);
          if (result != VK_SUCCESS)
             goto fail_ray_query_bo;
       }
@@ -865,6 +873,7 @@ VkResult anv_CreateDevice(
                                    ANV_BO_ALLOC_INTERNAL,
                                    0 /* explicit_address */,
                                    &device->btd_fifo_bo);
+      ANV_DMR_BO_ALLOC(&device->vk.base, device->btd_fifo_bo, result);
       if (result != VK_SUCCESS)
          goto fail_trivial_batch_bo_and_scratch_pool;
    }
@@ -894,8 +903,7 @@ VkResult anv_CreateDevice(
    }
 
    /* The device (currently is ICL/TGL) does not have float64 support. */
-   if (!device->info->has_64bit_float &&
-      device->physical->instance->fp64_workaround_enabled)
+   if (!device->info->has_64bit_float)
       anv_load_fp64_shader(device);
 
    if (INTEL_DEBUG(DEBUG_SHADER_PRINT)) {
@@ -1047,23 +1055,33 @@ VkResult anv_CreateDevice(
  fail_default_pipeline_cache:
    vk_pipeline_cache_destroy(device->vk.mem_cache, NULL);
  fail_btd_fifo_bo:
-   if (ANV_SUPPORT_RT && device->info->has_ray_tracing)
+   if (ANV_SUPPORT_RT && device->info->has_ray_tracing) {
+      ANV_DMR_BO_FREE(&device->vk.base, device->btd_fifo_bo);
       anv_device_release_bo(device, device->btd_fifo_bo);
+   }
  fail_trivial_batch_bo_and_scratch_pool:
    anv_scratch_pool_finish(device, &device->scratch_pool);
    anv_scratch_pool_finish(device, &device->protected_scratch_pool);
  fail_trivial_batch:
+   ANV_DMR_BO_FREE(&device->vk.base, device->trivial_batch_bo);
    anv_device_release_bo(device, device->trivial_batch_bo);
  fail_ray_query_bo:
    for (unsigned i = 0; i < ARRAY_SIZE(device->ray_query_bo); i++) {
-      if (device->ray_query_bo[i])
+      if (device->ray_query_bo[i]) {
+         ANV_DMR_BO_FREE(&device->vk.base, device->ray_query_bo[i]);
          anv_device_release_bo(device, device->ray_query_bo[i]);
+      }
    }
  fail_alloc_device_bo:
-   if (device->mem_fence_bo)
+   if (device->mem_fence_bo) {
+      ANV_DMR_BO_FREE(&device->vk.base, device->mem_fence_bo);
       anv_device_release_bo(device, device->mem_fence_bo);
-   if (device->dummy_aux_bo)
+   }
+   if (device->dummy_aux_bo) {
+      ANV_DMR_BO_FREE(&device->vk.base, device->dummy_aux_bo);
       anv_device_release_bo(device, device->dummy_aux_bo);
+   }
+   ANV_DMR_BO_FREE(&device->vk.base, device->workaround_bo);
    anv_device_release_bo(device, device->workaround_bo);
  fail_surface_aux_map_pool:
    if (device->info->has_aux_map) {
@@ -1107,6 +1125,8 @@ VkResult anv_CreateDevice(
    pthread_cond_destroy(&device->queue_submit);
  fail_mutex:
    pthread_mutex_destroy(&device->mutex);
+fail_slab:
+   anv_slab_bo_deinit(device);
  fail_vmas:
    util_vma_heap_finish(&device->vma_trtt);
    util_vma_heap_finish(&device->vma_dynamic_visible);
@@ -1176,8 +1196,10 @@ void anv_DestroyDevice(
 
    anv_device_finish_embedded_samplers(device);
 
-   if (ANV_SUPPORT_RT && device->info->has_ray_tracing)
+   if (ANV_SUPPORT_RT && device->info->has_ray_tracing) {
+      ANV_DMR_BO_FREE(&device->vk.base, device->btd_fifo_bo);
       anv_device_release_bo(device, device->btd_fifo_bo);
+   }
 
    if (device->info->verx10 >= 125) {
       vk_common_DestroyCommandPool(anv_device_to_handle(device),
@@ -1196,8 +1218,11 @@ void anv_DestroyDevice(
 #endif
 
    for (unsigned i = 0; i < ARRAY_SIZE(device->rt_scratch_bos); i++) {
-      if (device->rt_scratch_bos[i] != NULL)
-         anv_device_release_bo(device, device->rt_scratch_bos[i]);
+      if (device->rt_scratch_bos[i] != NULL) {
+         struct anv_bo *bo = device->rt_scratch_bos[i];
+         ANV_DMR_BO_FREE(&device->vk.base, bo);
+         anv_device_release_bo(device, bo);
+      }
    }
 
    anv_scratch_pool_finish(device, &device->scratch_pool);
@@ -1206,18 +1231,28 @@ void anv_DestroyDevice(
    if (device->vk.enabled_extensions.KHR_ray_query) {
       for (unsigned i = 0; i < ARRAY_SIZE(device->ray_query_bo); i++) {
          for (unsigned j = 0; j < ARRAY_SIZE(device->ray_query_shadow_bos[0]); j++) {
-            if (device->ray_query_shadow_bos[i][j] != NULL)
+            if (device->ray_query_shadow_bos[i][j] != NULL) {
+               ANV_DMR_BO_FREE(&device->vk.base, device->ray_query_shadow_bos[i][j]);
                anv_device_release_bo(device, device->ray_query_shadow_bos[i][j]);
+            }
          }
-         if (device->ray_query_bo[i])
+         if (device->ray_query_bo[i]) {
+            ANV_DMR_BO_FREE(&device->vk.base, device->ray_query_bo[i]);
             anv_device_release_bo(device, device->ray_query_bo[i]);
+         }
       }
    }
+   ANV_DMR_BO_FREE(&device->vk.base, device->workaround_bo);
    anv_device_release_bo(device, device->workaround_bo);
-   if (device->dummy_aux_bo)
+   if (device->dummy_aux_bo) {
+      ANV_DMR_BO_FREE(&device->vk.base, device->dummy_aux_bo);
       anv_device_release_bo(device, device->dummy_aux_bo);
-   if (device->mem_fence_bo)
+   }
+   if (device->mem_fence_bo) {
+      ANV_DMR_BO_FREE(&device->vk.base, device->mem_fence_bo);
       anv_device_release_bo(device, device->mem_fence_bo);
+   }
+   ANV_DMR_BO_FREE(&device->vk.base, device->trivial_batch_bo);
    anv_device_release_bo(device, device->trivial_batch_bo);
 
    if (device->info->has_aux_map) {
@@ -1244,6 +1279,7 @@ void anv_DestroyDevice(
       anv_bo_pool_finish(&device->bvh_bo_pool);
    anv_bo_pool_finish(&device->batch_bo_pool);
 
+   anv_slab_bo_deinit(device);
    anv_bo_cache_finish(&device->bo_cache);
 
    util_vma_heap_finish(&device->vma_trtt);
@@ -1262,7 +1298,7 @@ void anv_DestroyDevice(
 
    anv_device_destroy_context_or_vm(device);
 
-   if (INTEL_DEBUG(DEBUG_BATCH | DEBUG_BATCH_STATS)) {
+   if (INTEL_DEBUG(DEBUG_BATCH) || INTEL_DEBUG(DEBUG_BATCH_STATS)) {
       for (unsigned i = 0; i < pdevice->queue.family_count; i++) {
          if (INTEL_DEBUG(DEBUG_BATCH_STATS))
             intel_batch_print_stats(&device->decoder[i]);
@@ -1523,16 +1559,31 @@ VkResult anv_AllocateMemory(
    if (wsi_info)
       alloc_flags |= ANV_BO_ALLOC_SCANOUT;
 
+   struct anv_image *image = dedicated_info ?
+                             anv_image_from_handle(dedicated_info->image) :
+                             NULL;
+
+   if (device->info->ver >= 20 && image &&
+       image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT &&
+       isl_drm_modifier_has_aux(image->vk.drm_format_mod)) {
+      /* ISL should skip compression modifiers when no_ccs is set. */
+      assert(!INTEL_DEBUG(DEBUG_NO_CCS));
+      /* Images created with the Xe2 modifiers should be allocated into
+       * compressed memory, but we won't get such info from the memory type,
+       * refer to anv_image_is_pat_compressible(). We have to check the
+       * modifiers and enable compression if we can here.
+       */
+      alloc_flags |= ANV_BO_ALLOC_COMPRESSED;
+   } else if (mem_type->compressed && !INTEL_DEBUG(DEBUG_NO_CCS)) {
+      alloc_flags |= ANV_BO_ALLOC_COMPRESSED;
+   }
+
    /* Anything imported or exported is EXTERNAL */
    if (mem->vk.export_handle_types || mem->vk.import_handle_type) {
       alloc_flags |= ANV_BO_ALLOC_EXTERNAL;
 
       /* wsi has its own way of synchronizing with the compositor */
-      if (pdevice->instance->external_memory_implicit_sync &&
-          !wsi_info && dedicated_info &&
-          dedicated_info->image != VK_NULL_HANDLE) {
-         ANV_FROM_HANDLE(anv_image, image, dedicated_info->image);
-
+      if (!wsi_info && image) {
          /* Apply implicit sync to be compatible with clients relying on
           * implicit fencing. This matches the behavior in iris i915_batch
           * submit. An example client is VA-API (iHD), so only dedicated
@@ -1544,16 +1595,11 @@ VkResult anv_AllocateMemory(
           * consumer side relying on implicit fencing can have a fence to
           * wait for render complete.
           */
-         if (image->vk.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
+         if (pdevice->instance->external_memory_implicit_sync &&
+             (image->vk.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT))
             alloc_flags |= ANV_BO_ALLOC_IMPLICIT_WRITE;
       }
    }
-
-   /* TODO: Disabling compression on external bos will cause problems once we
-    * have a modifier that supports compression (Xe2+).
-    */
-   if (!(alloc_flags & ANV_BO_ALLOC_EXTERNAL) && mem_type->compressed)
-      alloc_flags |= ANV_BO_ALLOC_COMPRESSED;
 
    if (mem_type->dynamic_visible)
       alloc_flags |= ANV_BO_ALLOC_DYNAMIC_VISIBLE_POOL;
@@ -1575,6 +1621,26 @@ VkResult anv_AllocateMemory(
                VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT ||
              fd_info->handleType ==
                VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
+      if (alloc_flags & ANV_BO_ALLOC_COMPRESSED) {
+         /* First, when importing a compressed buffer on Xe2+, we are sure
+          * about that the buffer is from a resource created with modifiers
+          * supporting compression, even the info of modifier is not available
+          * on the path of allocation. (Buffers created with modifiers not
+          * supporting compression must be uncompressed or resolved first
+          * for sharing.)
+          *
+          * We assume the source of the sharing (a GL driver or this driver)
+          * would create the shared buffer for scanout usage as well by
+          * following the above reasons. As a result, configure the imported
+          * buffer for scanout.
+          *
+          * Such assumption could fit on pre-Xe2 platforms as well but become
+          * more relevant on Xe2+ because the alloc flags will determine bo's
+          * heap and then PAT entry in the later vm_bind stage.
+          */
+         assert(device->info->ver >= 20);
+         alloc_flags |= ANV_BO_ALLOC_SCANOUT;
+      }
 
       result = anv_device_import_bo(device, fd_info->fd, alloc_flags,
                                     client_address, &mem->bo);
@@ -1653,21 +1719,17 @@ VkResult anv_AllocateMemory(
    if (result != VK_SUCCESS)
       goto fail;
 
-   if (dedicated_info && dedicated_info->image != VK_NULL_HANDLE) {
-      ANV_FROM_HANDLE(anv_image, image, dedicated_info->image);
-
+   if (image && image->vk.wsi_legacy_scanout) {
       /* Some legacy (non-modifiers) consumers need the tiling to be set on
        * the BO.  In this case, we have a dedicated allocation.
        */
-      if (image->vk.wsi_legacy_scanout) {
-         const struct isl_surf *surf = &image->planes[0].primary_surface.isl;
-         result = anv_device_set_bo_tiling(device, mem->bo,
-                                           surf->row_pitch_B,
-                                           surf->tiling);
-         if (result != VK_SUCCESS) {
-            anv_device_release_bo(device, mem->bo);
-            goto fail;
-         }
+      const struct isl_surf *surf = &image->planes[0].primary_surface.isl;
+      result = anv_device_set_bo_tiling(device, mem->bo,
+                                        surf->row_pitch_B,
+                                        surf->tiling);
+      if (result != VK_SUCCESS) {
+         anv_device_release_bo(device, mem->bo);
+         goto fail;
       }
    }
 
@@ -1686,12 +1748,16 @@ VkResult anv_AllocateMemory(
    pthread_mutex_unlock(&device->mutex);
 
    ANV_RMV(heap_create, device, mem, false, 0);
+   ANV_DMR_BO_ALLOC_IMPORT(&mem->vk.base, mem->bo, result,
+                           mem->vk.import_handle_type);
 
    *pMem = anv_device_memory_to_handle(mem);
 
    return VK_SUCCESS;
 
  fail:
+   ANV_DMR_BO_ALLOC_IMPORT(&mem->vk.base, mem->bo, result,
+                           mem->vk.import_handle_type);
    vk_device_memory_destroy(&device->vk, pAllocator, &mem->vk);
 
    return result;
@@ -1790,6 +1856,9 @@ void anv_FreeMemory(
    p_atomic_add(&device->physical->memory.heaps[mem->type->heapIndex].used,
                 -mem->bo->size);
 
+   ANV_DMR_BO_FREE_IMPORT(&mem->vk.base, mem->bo,
+                          mem->vk.import_handle_type);
+
    anv_device_release_bo(device, mem->bo);
 
    ANV_RMV(resource_destroy, device, mem);
@@ -1855,7 +1924,7 @@ VkResult anv_MapMemory2KHR(
    }
 
    uint64_t map_offset, map_size;
-   anv_sanitize_map_params(device, offset, size, &map_offset, &map_size);
+   anv_sanitize_map_params(device, mem->bo, offset, size, &map_offset, &map_size);
 
    void *map;
    VkResult result = anv_device_map_bo(device, mem->bo, map_offset,
@@ -2131,8 +2200,16 @@ anv_device_get_pat_entry(struct anv_device *device,
    if (alloc_flags & ANV_BO_ALLOC_IMPORTED)
       return &device->info->pat.cached_coherent;
 
-   if (alloc_flags & ANV_BO_ALLOC_COMPRESSED)
-      return &device->info->pat.compressed;
+   if (alloc_flags & ANV_BO_ALLOC_COMPRESSED) {
+      /* Compressed PAT entries are available on Xe2+. */
+      assert(device->info->ver >= 20);
+      return alloc_flags & ANV_BO_ALLOC_SCANOUT ?
+             &device->info->pat.compressed_scanout :
+             &device->info->pat.compressed;
+   }
+
+   if (alloc_flags & (ANV_BO_ALLOC_EXTERNAL | ANV_BO_ALLOC_SCANOUT))
+      return &device->info->pat.scanout;
 
    /* PAT indexes has no actual effect in DG2 and DG1, smem caches will always
     * be snopped by GPU and lmem will always be WC.
@@ -2147,8 +2224,6 @@ anv_device_get_pat_entry(struct anv_device *device,
    /* Integrated platforms handling only */
    if ((alloc_flags & (ANV_BO_ALLOC_HOST_CACHED_COHERENT)) == ANV_BO_ALLOC_HOST_CACHED_COHERENT)
       return &device->info->pat.cached_coherent;
-   else if (alloc_flags & (ANV_BO_ALLOC_EXTERNAL | ANV_BO_ALLOC_SCANOUT))
-      return &device->info->pat.scanout;
    else if (alloc_flags & ANV_BO_ALLOC_HOST_CACHED)
       return &device->info->pat.writeback_incoherent;
    else

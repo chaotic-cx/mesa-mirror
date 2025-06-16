@@ -3,6 +3,14 @@
 
 set -ue
 
+if [ -z "$CROSVM_TAG" ]; then
+    echo "CROSVM_TAG must be set to the conditional build tag"
+    exit 1
+fi
+
+# Are we using the right crosvm version?
+ci_tag_test_time_check "CROSVM_TAG"
+
 # Instead of starting one dEQP instance per available CPU core, pour our
 # concurrency at llvmpipe threads instead. This is mostly useful for VirGL and
 # Venus, which serialise quite a bit at the host level. So instead of smashing
@@ -76,7 +84,7 @@ set_vsock_context || { echo "Could not generate crosvm vsock CID" >&2; exit 1; }
 # Securely pass the current variables to the crosvm environment
 echo "Variables passed through:"
 SCRIPTS_DIR=$(readlink -en "${0%/*}")
-${SCRIPTS_DIR}/common/generate-env.sh | tee ${VM_TEMP_DIR}/crosvm-env.sh
+filter_env_vars | tee ${VM_TEMP_DIR}/crosvm-env.sh
 cp ${SCRIPTS_DIR}/setup-test-env.sh ${VM_TEMP_DIR}/setup-test-env.sh
 
 # Set the crosvm-script as the arguments of the current script
@@ -112,6 +120,13 @@ then
   set -x
 fi
 
+if [ ! -f "/kernel/${KERNEL_IMAGE_NAME:-bzImage}" ]; then
+  mkdir -p /kernel
+  # shellcheck disable=SC2153
+  curl -L --retry 4 -f --retry-connrefused --retry-delay 30 \
+    -o "/kernel/${KERNEL_IMAGE_NAME:-bzImage}" "${KERNEL_IMAGE_BASE}/${DEBIAN_ARCH:-amd64}/${KERNEL_IMAGE_NAME:-bzImage}"
+fi
+
 # We aren't testing the host driver here, so we don't need to validate NIR on the host
 NIR_DEBUG="novalidate" \
 LIBGL_ALWAYS_SOFTWARE=${CROSVM_LIBGL_ALWAYS_SOFTWARE:-} \
@@ -124,7 +139,7 @@ crosvm --no-syslog run \
     --net "host-ip=192.168.30.1,netmask=255.255.255.0,mac=AA:BB:CC:00:00:12" \
     -s $VM_SOCKET \
     --cid ${VSOCK_CID} -p "${CROSVM_KERN_ARGS}" \
-    /lava-files/${KERNEL_IMAGE_NAME:-bzImage} > ${VM_TEMP_DIR}/crosvm 2>&1
+    /kernel/${KERNEL_IMAGE_NAME:-bzImage} > ${VM_TEMP_DIR}/crosvm 2>&1
 
 CROSVM_RET=$?
 

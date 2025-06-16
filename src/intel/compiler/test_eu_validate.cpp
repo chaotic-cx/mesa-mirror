@@ -105,15 +105,13 @@ INSTANTIATE_TEST_SUITE_P(
 );
 
 static bool
-validate(struct brw_codegen *p)
+validate(struct brw_codegen *p, char **error = nullptr)
 {
    const bool print = getenv("TEST_DEBUG");
    struct disasm_info *disasm = disasm_initialize(p->isa, NULL);
 
-   if (print) {
-      disasm_new_inst_group(disasm, 0);
-      disasm_new_inst_group(disasm, p->next_insn_offset);
-   }
+   struct inst_group *group = disasm_new_inst_group(disasm, 0);
+   disasm_new_inst_group(disasm, p->next_insn_offset);
 
    bool ret = brw_validate_instructions(p->isa, p->store, 0,
                                         p->next_insn_offset, disasm);
@@ -121,6 +119,10 @@ validate(struct brw_codegen *p)
    if (print) {
       dump_assembly(p->store, 0, p->next_insn_offset, disasm, NULL);
    }
+
+   if (error)
+      *error = ralloc_strdup(p, group->error);
+
    ralloc_free(disasm);
 
    return ret;
@@ -443,6 +445,7 @@ TEST_P(validation_test, invalid_type_encoding_3src_a1)
       { BRW_TYPE_UD, E(INT),   true  },
       { BRW_TYPE_W,  E(INT),   true  },
       { BRW_TYPE_UW, E(INT),   true  },
+      { BRW_TYPE_BF, E(FLOAT), devinfo.has_bfloat16 },
 
       /* There are no ternary instructions that can operate on B-type sources
        * on Gfx11-12. Src1/Src2 cannot be B-typed either.
@@ -469,13 +472,17 @@ TEST_P(validation_test, invalid_type_encoding_3src_a1)
          }
 
          struct brw_reg g = retype(g0, test_case[i].type);
-         if (!brw_type_is_int(test_case[i].type)) {
+         if (brw_type_is_bfloat(test_case[i].type)) {
+            /* BF is more restrictive, so ensure the instruction is valid. */
+            brw_MAD(p, retype(g, BRW_TYPE_F), g, g, retype(g, BRW_TYPE_F));
+         } else if (!brw_type_is_int(test_case[i].type)) {
             brw_MAD(p, g, g, g, g);
          } else {
             brw_BFE(p, g, g, g, g);
          }
 
-         EXPECT_TRUE(validate(p));
+         char *error = NULL;
+         EXPECT_TRUE(validate(p, &error)) << "Unexpected validation failure: " << error;
 
          clear_instructions(p);
       }
@@ -2384,7 +2391,9 @@ TEST_P(validation_test, qword_low_power_no_indirect_addressing)
       if (intel_device_info_is_9lp(&devinfo)) {
          EXPECT_EQ(inst[i].expected_result, validate(p));
       } else {
-         EXPECT_TRUE(validate(p));
+         char *error = nullptr;
+         EXPECT_TRUE(validate(p, &error))
+            << "Test index = " << i << " failed to validate: " << error;
       }
 
       clear_instructions(p);
@@ -2975,7 +2984,7 @@ TEST_P(validation_test, add3_immediate_types)
 
 TEST_P(validation_test, dpas_sdepth)
 {
-   if (devinfo.verx10 < 125)
+   if (!devinfo.has_systolic)
       return;
 
    static const enum gfx12_systolic_depth depth[] = {
@@ -3008,7 +3017,7 @@ TEST_P(validation_test, dpas_sdepth)
 
 TEST_P(validation_test, dpas_exec_size)
 {
-   if (devinfo.verx10 < 125)
+   if (!devinfo.has_systolic)
       return;
 
    static const enum brw_execution_size test_vectors[] = {
@@ -3047,7 +3056,7 @@ TEST_P(validation_test, dpas_exec_size)
 
 TEST_P(validation_test, dpas_sub_byte_precision)
 {
-   if (devinfo.verx10 < 125)
+   if (!devinfo.has_systolic)
       return;
 
    static const struct {
@@ -3173,24 +3182,34 @@ TEST_P(validation_test, dpas_sub_byte_precision)
 
 TEST_P(validation_test, dpas_types)
 {
-   if (devinfo.verx10 < 125)
+   if (!devinfo.has_systolic)
       return;
+
+   if (devinfo.ver >= 20)
+      assert(devinfo.has_bfloat16);
 
 #define TV(a, b, c, d, r) \
    { BRW_TYPE_ ## a, BRW_TYPE_ ## b, BRW_TYPE_ ## c, BRW_TYPE_ ## d, r }
 
-   static const struct {
+   const struct {
       brw_reg_type dst_type;
       brw_reg_type src0_type;
       brw_reg_type src1_type;
       brw_reg_type src2_type;
+
       bool expected_result;
    } test_vectors[] = {
       TV( F,  F, HF, HF, true),
-      TV( F, HF, HF, HF, false),
-      TV(HF,  F, HF, HF, false),
+      TV(HF, HF, HF, HF, devinfo.ver >= 20),
+      TV( F, HF, HF, HF, devinfo.ver >= 20),
+      TV(HF,  F, HF, HF, devinfo.ver >= 20),
       TV( F,  F,  F, HF, false),
       TV( F,  F, HF,  F, false),
+
+      TV( F,  F, BF, BF, true),
+      TV(BF, BF, BF, BF, devinfo.ver >= 20),
+      TV(BF,  F, BF, BF, devinfo.ver >= 20),
+      TV( F, BF, BF, BF, devinfo.ver >= 20),
 
       TV(DF, DF, DF, DF, false),
       TV(DF, DF, DF,  F, false),
@@ -3245,16 +3264,41 @@ TEST_P(validation_test, dpas_types)
                                                   : BRW_EXECUTE_8);
 
    for (unsigned i = 0; i < ARRAY_SIZE(test_vectors); i++) {
+      const auto &t = test_vectors[i];
+
+      /* We encode the instruction and then decode to validate.  But our
+       * encode reasonably asserts BF types when unsupported.  So skip those.
+       *
+       * TODO: Promote up the brw_eu_decoded_inst so that validation test can
+       * use those types too instead of encoding/decoding.
+       */
+      if (!devinfo.has_bfloat16 &&
+          (t.dst_type == BRW_TYPE_BF ||
+           t.src0_type == BRW_TYPE_BF ||
+           t.src1_type == BRW_TYPE_BF ||
+           t.src2_type == BRW_TYPE_BF))
+         continue;
+
       brw_DPAS(p,
                BRW_SYSTOLIC_DEPTH_8,
                8,
-               retype(brw_vec8_grf(0, 0), test_vectors[i].dst_type),
-               retype(brw_vec8_grf(16, 0), test_vectors[i].src0_type),
-               retype(brw_vec8_grf(32, 0), test_vectors[i].src1_type),
-               retype(brw_vec8_grf(48, 0), test_vectors[i].src2_type));
+               retype(brw_vec8_grf(0, 0),  t.dst_type),
+               retype(brw_vec8_grf(16, 0), t.src0_type),
+               retype(brw_vec8_grf(32, 0), t.src1_type),
+               retype(brw_vec8_grf(48, 0), t.src2_type));
 
-      EXPECT_EQ(test_vectors[i].expected_result, validate(p)) <<
-         "test vector index = " << i;
+      char *error = nullptr;
+      bool valid = validate(p, &error);
+
+      if (t.expected_result) {
+         EXPECT_TRUE(valid)
+            << "Test vector index = " << i << " expected to succeed "
+            << "but failed validation with error: '" << error << "'.";
+      } else {
+         EXPECT_FALSE(valid)
+            << "Test vector index = " << i << " expected to "
+            << "fail validation but succeeded.";
+      }
 
       clear_instructions(p);
    }
@@ -3262,7 +3306,7 @@ TEST_P(validation_test, dpas_types)
 
 TEST_P(validation_test, dpas_src_subreg_nr)
 {
-   if (devinfo.verx10 < 125)
+   if (!devinfo.has_systolic)
       return;
 
 #define TV(dt, od, t0, o0, t1, o1, o2, r) \
@@ -3713,6 +3757,166 @@ TEST_P(validation_test, scalar_register_restrictions)
 
       EXPECT_EQ(t.expected_result, validate(p)) <<
          "test vector index = " << i;
+
+      clear_instructions(p);
+   }
+}
+
+TEST_P(validation_test, bfloat_restrictions)
+{
+   /* Restrictions from ACM PRM, vol. 9, section "Register Region
+    * Restrictions", sub-section 7.
+    */
+
+   if (!devinfo.has_bfloat16)
+      return;
+
+   struct test {
+      const char *error_pattern;
+      enum opcode opcode;
+      unsigned exec_size;
+      brw_reg dst, src0, src1, src2;
+   };
+
+   const char *PASS = nullptr;
+
+   const struct test tests[] = {
+      { PASS,
+        BRW_OPCODE_MOV, 8, brw_grf(BRW_TYPE_BF, 10, 0, 2,1,2),
+                           brw_grf(BRW_TYPE_F,  20, 0, 1,1,0) },
+
+      { "pure bfloat16 operands are not supported",
+        BRW_OPCODE_MOV, 8, brw_grf(BRW_TYPE_BF, 10, 0, 2,1,2),
+                           brw_grf(BRW_TYPE_BF, 20, 0, 1,1,0) },
+
+      { "Execution size must not be greater than",
+        BRW_OPCODE_MOV, 16 * reg_unit(&devinfo),
+                        brw_grf(BRW_TYPE_BF, 10, 0, 2,1,2),
+                        brw_grf(BRW_TYPE_F,  20, 0, 1,1,0) },
+
+      { PASS,
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 0, 2,1,2),
+                           brw_grf(BRW_TYPE_F,  20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+
+      { "pure bfloat16 operands are not supported",
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 0, 2,1,2),
+                           brw_grf(BRW_TYPE_BF, 20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 30, 0, 1,1,0) },
+
+      { "Broadcast of bfloat16 scalar is not supported",
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 0, 2,1,2),
+                           brw_grf(BRW_TYPE_F,  20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 30, 0, 0,1,0) },
+
+      { PASS,
+        BRW_OPCODE_MUL, 8, brw_grf(BRW_TYPE_BF, 10, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+
+      { "Bfloat16 not allowed in Src1 of 2-source instructions involving multiplier",
+        BRW_OPCODE_MUL, 8, brw_grf(BRW_TYPE_BF, 10, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 30, 0, 1,1,0) },
+
+      { PASS,
+        BRW_OPCODE_MAD, 8, brw_grf(BRW_TYPE_BF, 10, 0, 2,1,2),
+                           brw_grf(BRW_TYPE_BF, 20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 30, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  40, 0, 1,1,0) },
+
+      { "Bfloat16 not allowed in Src2 of 3-source instructions involving multiplier",
+        BRW_OPCODE_MAD, 8, brw_grf(BRW_TYPE_BF, 10, 0, 2,1,2),
+                           brw_grf(BRW_TYPE_BF, 20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 40, 0, 1,1,0) },
+
+      { PASS,
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 1, 2,1,2),
+                           brw_grf(BRW_TYPE_F,  20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+
+      { "Unpacked bfloat16 destination must have stride 2 and register offset 0 or 1",
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 3, 2,1,2),
+                           brw_grf(BRW_TYPE_F,  20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+
+      { PASS,
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 8 * reg_unit(&devinfo), 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+
+      { "Packed bfloat16 destination must have register offset 0 or half of GRF register",
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 1, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 20, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+
+      { "Bfloat16 source must be packed",
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 20, 0, 2,1,2),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+
+      { PASS,
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 20, 8 * reg_unit(&devinfo), 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+
+      { "Bfloat16 source must have register offset 0 or half of GRF register",
+        BRW_OPCODE_ADD, 8, brw_grf(BRW_TYPE_BF, 10, 0, 1,1,0),
+                           brw_grf(BRW_TYPE_BF, 20, 5, 1,1,0),
+                           brw_grf(BRW_TYPE_F,  30, 0, 1,1,0) },
+   };
+
+   for (unsigned i = 0; i < ARRAY_SIZE(tests); i++) {
+      const struct test &t = tests[i];
+
+      switch (tests[i].opcode) {
+      case BRW_OPCODE_MOV:
+         brw_MOV(p, t.dst, t.src0);
+         break;
+      case BRW_OPCODE_ADD:
+         brw_ADD(p, t.dst, t.src0, t.src1);
+         break;
+      case BRW_OPCODE_MUL:
+         brw_MUL(p, t.dst, t.src0, t.src1);
+         break;
+      case BRW_OPCODE_MAD:
+         brw_MAD(p, t.dst, t.src0, t.src1, t.src2);
+         break;
+      default:
+         unreachable("unexpected opcode in tests");
+      }
+
+      if (tests[i].opcode == BRW_OPCODE_MAD) {
+         brw_eu_inst_set_3src_exec_size(&devinfo, last_inst, cvt(t.exec_size) - 1);
+      } else {
+         brw_eu_inst_set_exec_size(&devinfo, last_inst, cvt(t.exec_size) - 1);
+      }
+
+      /* TODO: Expand this test logic to check validation error to other
+       * tests.
+       */
+
+      char *error = nullptr;
+      bool valid = validate(p, &error);
+
+      if (t.error_pattern) {
+         EXPECT_FALSE(valid)
+            << "Test vector index = " << i << " expected to "
+            << "fail validation with error containing: '" << t.error_pattern << "' "
+            << "but succeeded instead.";
+
+         if (error) {
+            EXPECT_TRUE(strstr(error, t.error_pattern))
+               << "Test vector index = " << i << " expected to "
+               << "fail validation with error containing: '" << t.error_pattern << "' "
+               << "but error was: '" << error << "'.";
+         }
+      } else {
+         EXPECT_TRUE(valid)
+            << "Test vector index = " << i << " expected to succeed "
+            << "but failed validation with error: '" << error << "'.";
+      }
 
       clear_instructions(p);
    }

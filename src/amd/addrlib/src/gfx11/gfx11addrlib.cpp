@@ -684,6 +684,9 @@ BOOL_32 Gfx11Lib::HwlInitGlobalParams(
     // And more importantly, SW AddrLib doesn't support sw equation/pattern for PI != 256 case.
     ADDR_ASSERT(m_pipeInterleaveBytes == ADDR_PIPEINTERLEAVE_256B);
 
+    // Gfx10+ chips treat packed 8-bit 422 formats as 32bpe with 2pix/elem.
+    m_configFlags.use32bppFor422Fmt = TRUE;
+
     // These fields are deprecated on GFX11; they do nothing on HW.
     m_maxCompFrag     = 1;
     m_maxCompFragLog2 = 0;
@@ -759,8 +762,6 @@ ChipFamily Gfx11Lib::HwlConvertChipFamily(
             ADDR_ASSERT(!"Unknown chip family");
             break;
     }
-
-    m_configFlags.use32bppFor422Fmt = TRUE;
 
     return family;
 }
@@ -1032,17 +1033,6 @@ UINT_32 Gfx11Lib::GetMetaBlkSize(
                 // For htile surfaces, pad meta block size to 2K * num_pipes
                 metablkSizeLog2 = Max(metablkSizeLog2, 11 + numPipesLog2);
             }
-
-            /* This chunk is not part of upstream addrlib. See !28268 */
-            const INT_32 compFragLog2 = numSamplesLog2;
-
-            if  (IsRtOptSwizzle(swizzleMode) && (compFragLog2 > 1) && (pipeRotateLog2 >= 1))
-            {
-                const INT_32 tmp = 8 + m_pipesLog2 + Max(pipeRotateLog2, compFragLog2 - 1);
-
-                metablkSizeLog2 = Max(metablkSizeLog2, tmp);
-            }
-            /* End of the non-upstream chunk. */
         }
 
         const INT_32 metablkBitsLog2 =
@@ -2030,7 +2020,6 @@ ADDR_E_RETURNCODE Gfx11Lib::HwlComputeNonBlockCompressedView(
 
             if (inTail)
             {
-                // For mipmap level that is in mip tail block, hack a lot of things...
                 // Basically all mipmap levels in tail block will be viewed as a small mipmap chain that all levels
                 // are fit in tail block:
 

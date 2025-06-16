@@ -50,6 +50,7 @@ lima_set_framebuffer_state(struct pipe_context *pctx,
 
    struct lima_context_framebuffer *fb = &ctx->framebuffer;
 
+   util_framebuffer_init(pctx, framebuffer, fb->fb_cbufs, &fb->fb_zsbuf);
    util_copy_framebuffer_state(&fb->base, framebuffer);
 
    ctx->job = NULL;
@@ -382,7 +383,6 @@ lima_set_sampler_views(struct pipe_context *pctx,
                       enum pipe_shader_type shader,
                       unsigned start, unsigned nr,
                        unsigned unbind_num_trailing_slots,
-                       bool take_ownership,
                       struct pipe_sampler_view **views)
 {
    struct lima_context *ctx = lima_context(pctx);
@@ -396,12 +396,7 @@ lima_set_sampler_views(struct pipe_context *pctx,
       if (views[i])
          new_nr = i + 1;
 
-      if (take_ownership) {
-         pipe_sampler_view_reference(&lima_tex->textures[i], NULL);
-         lima_tex->textures[i] = views[i];
-      } else {
-         pipe_sampler_view_reference(&lima_tex->textures[i], views[i]);
-      }
+      pipe_sampler_view_reference(&lima_tex->textures[i], views[i]);
    }
 
    for (; i < lima_tex->num_textures; i++) {
@@ -457,6 +452,7 @@ lima_state_init(struct lima_context *ctx)
 
    ctx->base.create_sampler_view = lima_create_sampler_view;
    ctx->base.sampler_view_destroy = lima_sampler_view_destroy;
+   ctx->base.sampler_view_release = u_default_sampler_view_release;
    ctx->base.set_sampler_views = lima_set_sampler_views;
 
    ctx->base.set_sample_mask = lima_set_sample_mask;

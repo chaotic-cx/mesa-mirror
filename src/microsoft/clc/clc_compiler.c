@@ -33,6 +33,7 @@
 #include "../compiler/nir_to_dxil.h"
 
 #include "util/u_debug.h"
+#include "util/u_printf.h"
 #include <util/u_math.h>
 #include "spirv/nir_spirv.h"
 #include "spirv/spirv_info.h"
@@ -854,7 +855,13 @@ clc_spirv_to_dxil(struct clc_libclc *lib,
          NIR_PASS(progress, nir, nir_opt_if, nir_opt_if_optimize_phi_true_false);
          NIR_PASS(progress, nir, nir_opt_dead_cf);
          NIR_PASS(progress, nir, nir_opt_remove_phis);
-         NIR_PASS(progress, nir, nir_opt_peephole_select, 8, true, true);
+
+         nir_opt_peephole_select_options peephole_select_options = {
+            .limit = 8,
+            .indirect_load_ok = true,
+            .expensive_alu_ok = true,
+         };
+         NIR_PASS(progress, nir, nir_opt_peephole_select, &peephole_select_options);
          NIR_PASS(progress, nir, nir_lower_vec3_to_vec4, nir_var_mem_generic | nir_var_uniform);
          NIR_PASS(progress, nir, nir_opt_memcpy);
       } while (progress);
@@ -1097,7 +1104,7 @@ clc_spirv_to_dxil(struct clc_libclc *lib,
    const struct dxil_nir_lower_loads_stores_options loads_stores_options = {
       .use_16bit_ssbo = false,
    };
-   
+
    /* Now that function-declared local vars have been sized, append args */
    for (unsigned i = 0; i < out_dxil->kernel->num_args; i++) {
       if (out_dxil->kernel->args[i].address_qualifier != CLC_KERNEL_ARG_ADDRESS_LOCAL)

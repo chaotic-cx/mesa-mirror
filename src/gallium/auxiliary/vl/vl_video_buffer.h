@@ -44,7 +44,8 @@ struct vl_video_buffer
    struct pipe_resource     *resources[VL_NUM_COMPONENTS];
    struct pipe_sampler_view *sampler_view_planes[VL_NUM_COMPONENTS];
    struct pipe_sampler_view *sampler_view_components[VL_NUM_COMPONENTS];
-   struct pipe_surface      *surfaces[VL_MAX_SURFACES];
+   unsigned                 num_sampler_view_components;
+   struct pipe_surface      surfaces[VL_MAX_SURFACES];
 };
 
 static inline void

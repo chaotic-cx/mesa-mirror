@@ -42,6 +42,105 @@
 
 #include "brw_compiler.h"
 #include "dev/intel_debug.h"
+#include "brw_nir.h"
+
+static unsigned
+get_var_slots(gl_shader_stage stage, const nir_variable *var)
+{
+   const struct glsl_type *type = var->type;
+
+   if (nir_is_arrayed_io(var, stage)) {
+      assert(glsl_type_is_array(type));
+      type = glsl_get_array_element(type);
+   }
+
+   /* EXT_mesh_shader: PRIMITIVE_INDICES is a flat array, not a proper arrayed
+    * output, as opposed to D3D-style mesh shaders where it's addressed by the
+    * primitive index. Prevent assigning several slots to primitive indices,
+    * to avoid some issues.
+    */
+   if (stage == MESA_SHADER_MESH &&
+       var->data.location == VARYING_SLOT_PRIMITIVE_INDICES &&
+       !nir_is_arrayed_io(var, stage))
+      return 1;
+
+   return glsl_count_vec4_slots(type, false, var->data.bindless);
+}
+
+void
+brw_compute_per_primitive_map(int *out_per_primitive_map,
+                              uint32_t *out_per_primitive_stride,
+                              uint32_t *out_first_offset,
+                              uint32_t base_offset,
+                              nir_shader *nir,
+                              uint32_t variables_mode,
+                              uint64_t slots_valid,
+                              bool separate_shader)
+{
+   memset(out_per_primitive_map, -1, sizeof(*out_per_primitive_map) * VARYING_SLOT_MAX);
+   *out_per_primitive_stride = base_offset;
+   *out_first_offset = UINT32_MAX;
+
+   const uint64_t count_indices_bits =
+      VARYING_BIT_PRIMITIVE_COUNT |
+      VARYING_BIT_PRIMITIVE_INDICES;
+   const uint64_t per_primitive_header_bits =
+      VARYING_BIT_PRIMITIVE_SHADING_RATE |
+      VARYING_BIT_LAYER |
+      VARYING_BIT_VIEWPORT |
+      VARYING_BIT_CULL_PRIMITIVE;
+   const uint64_t per_primitive_outputs_written =
+      slots_valid & ~(count_indices_bits | per_primitive_header_bits);
+
+   *out_first_offset = base_offset;
+
+   /* We put each variable in its own 16B slot. Technically we could do a lot
+    * better by allocating the space needed for the variable since the data is
+    * constant and not interpolated for the fragment shader. Unfortunately the
+    * backend treats those values similarly to vertex attributes and making
+    * that change would require a pretty large change in the backend. Let's do
+    * this later.
+    */
+
+   /* Lay out builtins first */
+   const uint64_t builtins =
+      per_primitive_outputs_written & BITFIELD64_MASK(VARYING_SLOT_VAR0);
+   u_foreach_bit64(location, builtins) {
+      assert(out_per_primitive_map[location] == -1);
+
+      out_per_primitive_map[location] = *out_per_primitive_stride;
+      *out_per_primitive_stride += 16;
+   }
+
+   uint32_t generics_offset = *out_per_primitive_stride;
+
+   /* Lay out generics */
+   const uint64_t generics =
+      per_primitive_outputs_written & ~BITFIELD64_MASK(VARYING_SLOT_VAR0);
+   const int first_generic_output = ffsll(generics) - 1;
+   u_foreach_bit64(location, generics) {
+      assert(out_per_primitive_map[location] == -1);
+      if (!separate_shader) {
+         /* Just append the location at the back */
+         out_per_primitive_map[location] = *out_per_primitive_stride;
+      } else {
+         assert(location >= VARYING_SLOT_VAR0);
+         /* Each location has its fixed spot */
+         out_per_primitive_map[location] = generics_offset +
+            16 * (location - first_generic_output);
+      }
+
+      *out_per_primitive_stride =
+         MAX2(out_per_primitive_map[location] + 16,
+              *out_per_primitive_stride);
+
+      *out_first_offset = MIN2(out_per_primitive_map[location],
+                               *out_first_offset);
+   }
+
+   *out_first_offset = *out_first_offset == UINT32_MAX ? 0 :
+      ROUND_DOWN_TO(*out_first_offset, 32);
+}
 
 static inline void
 assign_vue_slot(struct intel_vue_map *vue_map, int varying, int slot)
@@ -60,10 +159,13 @@ void
 brw_compute_vue_map(const struct intel_device_info *devinfo,
                     struct intel_vue_map *vue_map,
                     uint64_t slots_valid,
-                    bool separate,
+                    enum intel_vue_layout layout,
                     uint32_t pos_slots)
 {
-   if (separate) {
+   vue_map->slots_valid = slots_valid;
+   vue_map->layout = layout;
+
+   if (layout != INTEL_VUE_LAYOUT_FIXED) {
       /* In SSO mode, we don't know whether the adjacent stage will
        * read/write gl_ClipDistance, which has a fixed slot location.
        * We have to assume the worst and reserve a slot for it, or else
@@ -72,18 +174,20 @@ brw_compute_vue_map(const struct intel_device_info *devinfo,
        * Note that we don't have to worry about COL/BFC, as those built-in
        * variables only exist in legacy GL, which only supports VS and FS.
        */
-      slots_valid |= BITFIELD64_BIT(VARYING_SLOT_CLIP_DIST0);
-      slots_valid |= BITFIELD64_BIT(VARYING_SLOT_CLIP_DIST1);
+      slots_valid |= VARYING_BIT_CLIP_DIST0;
+      slots_valid |= VARYING_BIT_CLIP_DIST1;
    }
-
-   vue_map->slots_valid = slots_valid;
-   vue_map->separate = separate;
 
    /* gl_Layer, gl_ViewportIndex & gl_PrimitiveShadingRateEXT don't get their
     * own varying slots -- they are stored in the first VUE slot
     * (VARYING_SLOT_PSIZ).
     */
    slots_valid &= ~(VARYING_BIT_LAYER | VARYING_BIT_VIEWPORT | VARYING_BIT_PRIMITIVE_SHADING_RATE);
+
+   /* gl_FrontFace is provided somewhere else in the FS thread payload, it's
+    * never in the VUE.
+    */
+   slots_valid &= ~VARYING_BIT_FACE;
 
    /* Make sure that the values we store in vue_map->varying_to_slot and
     * vue_map->slot_to_varying won't overflow the signed chars that are used
@@ -126,9 +230,9 @@ brw_compute_vue_map(const struct intel_device_info *devinfo,
       }
    }
 
-   if (slots_valid & BITFIELD64_BIT(VARYING_SLOT_CLIP_DIST0))
+   if (slots_valid & VARYING_BIT_CLIP_DIST0)
       assign_vue_slot(vue_map, VARYING_SLOT_CLIP_DIST0, slot++);
-   if (slots_valid & BITFIELD64_BIT(VARYING_SLOT_CLIP_DIST1))
+   if (slots_valid & VARYING_BIT_CLIP_DIST1)
       assign_vue_slot(vue_map, VARYING_SLOT_CLIP_DIST1, slot++);
 
    /* Vertex URB Formats table says: "Vertex Header shall be padded at the
@@ -140,48 +244,51 @@ brw_compute_vue_map(const struct intel_device_info *devinfo,
     * ATTRIBUTE_SWIZZLE_INPUTATTR_FACING to swizzle them when doing
     * two-sided color.
     */
-   if (slots_valid & BITFIELD64_BIT(VARYING_SLOT_COL0))
+   if (slots_valid & VARYING_BIT_COL0)
       assign_vue_slot(vue_map, VARYING_SLOT_COL0, slot++);
-   if (slots_valid & BITFIELD64_BIT(VARYING_SLOT_BFC0))
+   if (slots_valid & VARYING_BIT_BFC0)
       assign_vue_slot(vue_map, VARYING_SLOT_BFC0, slot++);
-   if (slots_valid & BITFIELD64_BIT(VARYING_SLOT_COL1))
+   if (slots_valid & VARYING_BIT_COL1)
       assign_vue_slot(vue_map, VARYING_SLOT_COL1, slot++);
-   if (slots_valid & BITFIELD64_BIT(VARYING_SLOT_BFC1))
+   if (slots_valid & VARYING_BIT_BFC1)
       assign_vue_slot(vue_map, VARYING_SLOT_BFC1, slot++);
 
    /* The hardware doesn't care about the rest of the vertex outputs, so we
     * can assign them however we like.  For normal programs, we simply assign
     * them contiguously.
     *
-    * For separate shader pipelines, we first assign built-in varyings
-    * contiguous slots.  This works because ARB_separate_shader_objects
-    * requires that all shaders have matching built-in varying interface
-    * blocks.  Next, we assign generic varyings based on their location
-    * (either explicit or linker assigned).  This guarantees a fixed layout.
-    *
     * We generally don't need to assign a slot for VARYING_SLOT_CLIP_VERTEX,
     * since it's encoded as the clip distances by emit_clip_distances().
     * However, it may be output by transform feedback, and we'd rather not
     * recompute state when TF changes, so we just always include it.
     */
-   uint64_t builtins = slots_valid & BITFIELD64_MASK(VARYING_SLOT_VAR0);
-   while (builtins != 0) {
-      const int varying = ffsll(builtins) - 1;
-      if (vue_map->varying_to_slot[varying] == -1) {
+   if (layout != INTEL_VUE_LAYOUT_SEPARATE_MESH) {
+      const uint64_t builtins = slots_valid & BITFIELD64_MASK(VARYING_SLOT_VAR0);
+      u_foreach_bit64(varying, builtins) {
+         /* Already assigned above? */
+         if (vue_map->varying_to_slot[varying] != -1)
+         continue;
          assign_vue_slot(vue_map, varying, slot++);
       }
-      builtins &= ~BITFIELD64_BIT(varying);
    }
 
    const int first_generic_slot = slot;
-   uint64_t generics = slots_valid & ~BITFIELD64_MASK(VARYING_SLOT_VAR0);
-   while (generics != 0) {
-      const int varying = ffsll(generics) - 1;
-      if (separate) {
+   const uint64_t generics = slots_valid & ~BITFIELD64_MASK(VARYING_SLOT_VAR0);
+   u_foreach_bit64(varying, generics) {
+      if (layout != INTEL_VUE_LAYOUT_FIXED) {
          slot = first_generic_slot + varying - VARYING_SLOT_VAR0;
       }
       assign_vue_slot(vue_map, varying, slot++);
-      generics &= ~BITFIELD64_BIT(varying);
+   }
+
+   if (layout == INTEL_VUE_LAYOUT_SEPARATE_MESH) {
+      const uint64_t builtins = slots_valid & BITFIELD64_MASK(VARYING_SLOT_VAR0);
+      u_foreach_bit64(varying, builtins) {
+         /* Already assigned above? */
+         if (vue_map->varying_to_slot[varying] != -1)
+         continue;
+         assign_vue_slot(vue_map, varying, slot++);
+      }
    }
 
    vue_map->num_slots = slot;
@@ -202,8 +309,10 @@ brw_compute_tess_vue_map(struct intel_vue_map *vue_map,
    /* I don't think anything actually uses this... */
    vue_map->slots_valid = vertex_slots;
 
-   /* separate isn't really meaningful, but make sure it's initialized */
-   vue_map->separate = false;
+   /* separate isn't really meaningful, we always compiled tessellation
+    * shaders together, so use a fixed layout.
+    */
+   vue_map->layout = INTEL_VUE_LAYOUT_FIXED;
 
    vertex_slots &= ~(VARYING_BIT_TESS_LEVEL_OUTER |
                      VARYING_BIT_TESS_LEVEL_INNER);
@@ -278,26 +387,31 @@ void
 brw_print_vue_map(FILE *fp, const struct intel_vue_map *vue_map,
                   gl_shader_stage stage)
 {
+   const char *layout_name =
+      vue_map->layout == INTEL_VUE_LAYOUT_FIXED ? "fixed" :
+      vue_map->layout == INTEL_VUE_LAYOUT_SEPARATE ? "separate" :
+      "separate-mesh";
+
    if (vue_map->num_per_vertex_slots > 0 || vue_map->num_per_patch_slots > 0) {
       fprintf(fp, "PUE map (%d slots, %d/patch, %d/vertex, %s)\n",
               vue_map->num_slots,
               vue_map->num_per_patch_slots,
               vue_map->num_per_vertex_slots,
-              vue_map->separate ? "SSO" : "non-SSO");
+              layout_name);
       for (int i = 0; i < vue_map->num_slots; i++) {
          if (vue_map->slot_to_varying[i] >= VARYING_SLOT_PATCH0) {
-            fprintf(fp, "  [%d] VARYING_SLOT_PATCH%d\n", i,
+            fprintf(fp, "  [%02d] VARYING_SLOT_PATCH%d\n", i,
                     vue_map->slot_to_varying[i] - VARYING_SLOT_PATCH0);
          } else {
-            fprintf(fp, "  [%d] %s\n", i,
+            fprintf(fp, "  [%02d] %s\n", i,
                     varying_name(vue_map->slot_to_varying[i], stage));
          }
       }
    } else {
-      fprintf(fp, "VUE map (%d slots, %s)\n",
-              vue_map->num_slots, vue_map->separate ? "SSO" : "non-SSO");
+      fprintf(fp, "%s VUE map (%d slots, %s)\n",
+              gl_shader_stage_name(stage), vue_map->num_slots, layout_name);
       for (int i = 0; i < vue_map->num_slots; i++) {
-         fprintf(fp, "  [%d] %s\n", i,
+         fprintf(fp, "  [%02d] %s\n", i,
                  varying_name(vue_map->slot_to_varying[i], stage));
       }
    }

@@ -151,6 +151,7 @@ impl SPIRVBin {
             features: features,
             use_llvm_spirv_target: false,
             allowed_spirv_extensions: spirv_extensions.as_ptr(),
+            c_compatible: false,
             address_bits: address_bits,
         };
         let mut msgs: Vec<String> = Vec::new();
@@ -276,31 +277,6 @@ impl SPIRVBin {
         }
     }
 
-    fn get_spirv_capabilities() -> spirv_capabilities {
-        spirv_capabilities {
-            Addresses: true,
-            Float16: true,
-            Float16Buffer: true,
-            Float64: true,
-            GenericPointer: true,
-            Groups: true,
-            GroupNonUniformShuffle: true,
-            GroupNonUniformShuffleRelative: true,
-            Int8: true,
-            Int16: true,
-            Int64: true,
-            Kernel: true,
-            ImageBasic: true,
-            ImageReadWrite: true,
-            Linkage: true,
-            LiteralSampler: true,
-            SampledBuffer: true,
-            Sampled1D: true,
-            Vector16: true,
-            ..Default::default()
-        }
-    }
-
     fn get_spirv_options(
         library: bool,
         clc_shader: *const nir_shader,
@@ -347,15 +323,15 @@ impl SPIRVBin {
         &self,
         entry_point: &str,
         nir_options: *const nir_shader_compiler_options,
+        spirv_caps: &spirv_capabilities,
         libclc: &NirShader,
         spec_constants: &mut [nir_spirv_specialization],
         address_bits: u32,
         log: Option<&mut Vec<String>>,
     ) -> Option<NirShader> {
         let c_entry = CString::new(entry_point.as_bytes()).unwrap();
-        let spirv_caps = Self::get_spirv_capabilities();
         let spirv_options =
-            Self::get_spirv_options(false, libclc.get_nir(), address_bits, &spirv_caps, log);
+            Self::get_spirv_options(false, libclc.get_nir(), address_bits, spirv_caps, log);
 
         let nir = unsafe {
             spirv_to_nir(
@@ -373,12 +349,11 @@ impl SPIRVBin {
         NirShader::new(nir)
     }
 
-    pub fn get_lib_clc(screen: &PipeScreen) -> Option<NirShader> {
+    pub fn get_lib_clc(screen: &PipeScreen, spirv_caps: &spirv_capabilities) -> Option<NirShader> {
         let nir_options = screen.nir_shader_compiler_options(pipe_shader_type::PIPE_SHADER_COMPUTE);
-        let address_bits = screen.compute_param(pipe_compute_cap::PIPE_COMPUTE_CAP_ADDRESS_BITS);
-        let spirv_caps = Self::get_spirv_capabilities();
+        let address_bits = screen.compute_caps().address_bits;
         let spirv_options =
-            Self::get_spirv_options(false, ptr::null(), address_bits, &spirv_caps, None);
+            Self::get_spirv_options(false, ptr::null(), address_bits, spirv_caps, None);
         let shader_cache = DiskCacheBorrowed::as_ptr(&screen.shader_cache());
 
         NirShader::new(unsafe {
@@ -515,7 +490,9 @@ impl CLCSpecConstantType for clc_spec_constant_type {
             Self::CLC_SPEC_CONSTANT_INT32
             | Self::CLC_SPEC_CONSTANT_UINT32
             | Self::CLC_SPEC_CONSTANT_FLOAT => 4,
-            Self::CLC_SPEC_CONSTANT_INT16 | Self::CLC_SPEC_CONSTANT_UINT16 => 2,
+            Self::CLC_SPEC_CONSTANT_INT16
+            | Self::CLC_SPEC_CONSTANT_UINT16
+            | Self::CLC_SPEC_CONSTANT_HALF => 2,
             Self::CLC_SPEC_CONSTANT_INT8
             | Self::CLC_SPEC_CONSTANT_UINT8
             | Self::CLC_SPEC_CONSTANT_BOOL => 1,

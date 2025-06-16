@@ -560,11 +560,7 @@ dri2_initialize_drm(_EGLDisplay *disp)
 {
    struct gbm_device *gbm;
    const char *err;
-   struct dri2_egl_display *dri2_dpy = dri2_display_create();
-   if (!dri2_dpy)
-      return EGL_FALSE;
-
-   disp->DriverData = (void *)dri2_dpy;
+   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
    gbm = disp->PlatformDisplay;
    if (gbm == NULL) {
@@ -636,10 +632,7 @@ dri2_initialize_drm(_EGLDisplay *disp)
 
    dri2_dpy->driver_name = strdup(dri2_dpy->gbm_dri->driver_name);
 
-   if (!dri2_load_driver(disp)) {
-      err = "DRI3: failed to load driver";
-      goto cleanup;
-   }
+   dri2_detect_swrast(disp);
 
    dri2_dpy->dri_screen_render_gpu = dri2_dpy->gbm_dri->screen;
    dri2_dpy->driver_configs = dri2_dpy->gbm_dri->driver_configs;
@@ -683,7 +676,6 @@ dri2_initialize_drm(_EGLDisplay *disp)
    return EGL_TRUE;
 
 cleanup:
-   dri2_display_destroy(disp);
    return _eglError(EGL_NOT_INITIALIZED, err);
 }
 

@@ -493,13 +493,6 @@ static void si_emit_barrier_as_atom(struct si_context *sctx, unsigned index)
    sctx->emit_barrier(sctx, &sctx->gfx_cs);
 }
 
-static bool si_is_buffer_idle(struct si_context *sctx, struct si_resource *buf,
-                              unsigned usage)
-{
-   return !si_cs_is_buffer_referenced(sctx, buf->buf, usage) &&
-          sctx->ws->buffer_wait(sctx->ws, buf->buf, 0, usage | RADEON_USAGE_DISALLOW_SLOW_REPLY);
-}
-
 void si_barrier_before_internal_op(struct si_context *sctx, unsigned flags,
                                    unsigned num_buffers,
                                    const struct pipe_shader_buffer *buffers,
@@ -677,6 +670,11 @@ static void si_memory_barrier(struct pipe_context *ctx, unsigned flags)
                 PIPE_BARRIER_IMAGE | PIPE_BARRIER_STREAMOUT_BUFFER | PIPE_BARRIER_GLOBAL_BUFFER))
       sctx->barrier_flags |= SI_BARRIER_INV_VMEM;
 
+   /* Unlike LLVM, ACO may use SMEM for SSBOs and global access. */
+   if (sctx->screen->use_aco &&
+       (flags & (PIPE_BARRIER_SHADER_BUFFER | PIPE_BARRIER_GLOBAL_BUFFER)))
+      sctx->barrier_flags |= SI_BARRIER_INV_SMEM;
+
    if (flags & (PIPE_BARRIER_INDEX_BUFFER | PIPE_BARRIER_INDIRECT_BUFFER))
       sctx->barrier_flags |= SI_BARRIER_PFP_SYNC_ME;
 
@@ -733,7 +731,7 @@ static void si_set_sampler_depth_decompress_mask(struct si_context *sctx, struct
 void si_fb_barrier_before_rendering(struct si_context *sctx)
 {
    /* Wait for all shaders because all image loads must finish before CB/DB can write there. */
-   if (sctx->framebuffer.state.nr_cbufs || sctx->framebuffer.state.zsbuf) {
+   if (sctx->framebuffer.state.nr_cbufs || sctx->framebuffer.state.zsbuf.texture) {
       sctx->barrier_flags |= SI_BARRIER_SYNC_CS | SI_BARRIER_SYNC_PS;
       si_mark_atom_dirty(sctx, &sctx->atoms.s.barrier);
    }
@@ -745,14 +743,14 @@ void si_fb_barrier_after_rendering(struct si_context *sctx, unsigned flags)
       /* Setting dirty_level_mask should ignore SI_FB_BARRIER_SYNC_* because it triggers
        * decompression, which is not syncing.
        */
-      if (sctx->framebuffer.state.zsbuf) {
-         struct pipe_surface *surf = sctx->framebuffer.state.zsbuf;
+      if (sctx->framebuffer.state.zsbuf.texture) {
+         struct pipe_surface *surf = &sctx->framebuffer.state.zsbuf;
          struct si_texture *tex = (struct si_texture *)surf->texture;
 
-         tex->dirty_level_mask |= 1 << surf->u.tex.level;
+         tex->dirty_level_mask |= 1 << surf->level;
 
          if (tex->surface.has_stencil)
-            tex->stencil_dirty_level_mask |= 1 << surf->u.tex.level;
+            tex->stencil_dirty_level_mask |= 1 << surf->level;
 
          si_set_sampler_depth_decompress_mask(sctx, tex);
       }
@@ -760,11 +758,11 @@ void si_fb_barrier_after_rendering(struct si_context *sctx, unsigned flags)
       unsigned compressed_cb_mask = sctx->framebuffer.compressed_cb_mask;
       while (compressed_cb_mask) {
          unsigned i = u_bit_scan(&compressed_cb_mask);
-         struct pipe_surface *surf = sctx->framebuffer.state.cbufs[i];
+         struct pipe_surface *surf = &sctx->framebuffer.state.cbufs[i];
          struct si_texture *tex = (struct si_texture *)surf->texture;
 
          if (tex->surface.fmask_offset) {
-            tex->dirty_level_mask |= 1 << surf->u.tex.level;
+            tex->dirty_level_mask |= 1 << surf->level;
             tex->fmask_is_identity = false;
          }
       }
@@ -782,7 +780,7 @@ void si_fb_barrier_after_rendering(struct si_context *sctx, unsigned flags)
       }
    }
 
-   if (flags & SI_FB_BARRIER_SYNC_DB && sctx->framebuffer.state.zsbuf) {
+   if (flags & SI_FB_BARRIER_SYNC_DB && sctx->framebuffer.state.zsbuf.texture) {
       /* DB caches are flushed on demand (using si_decompress_textures) except the cases below. */
       if (sctx->gfx_level >= GFX12) {
          si_make_DB_shader_coherent(sctx, sctx->framebuffer.nr_samples, true, false);
@@ -794,14 +792,13 @@ void si_fb_barrier_after_rendering(struct si_context *sctx, unsigned flags)
           */
          si_make_DB_shader_coherent(sctx, 1, false, sctx->framebuffer.DB_has_shader_readable_metadata);
       } else if (sctx->screen->info.family == CHIP_NAVI33) {
-         struct si_surface *old_zsurf = (struct si_surface *)sctx->framebuffer.state.zsbuf;
+         struct si_surface *old_zsurf = (struct si_surface *)sctx->framebuffer.fb_zsbuf;
          struct si_texture *old_ztex = (struct si_texture *)old_zsurf->base.texture;
 
          if (old_ztex->upgraded_depth) {
             /* TODO: some failures related to hyperz appeared after 969ed851 on nv33:
              * - piglit tex-miplevel-selection
              * - KHR-GL46.direct_state_access.framebuffers_texture_attachment
-             * - GTF-GL46.gtf30.GL3Tests.blend_minmax.blend_minmax_draw
              * - KHR-GL46.direct_state_access.framebuffers_texture_layer_attachment
              *
              * This seems to fix them:

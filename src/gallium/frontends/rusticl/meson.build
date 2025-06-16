@@ -1,8 +1,6 @@
 # Copyright ©
 # SPDX-License-Identifier: MIT
 
-fs = import('fs')
-
 libmesa_rust_util_files = files(
   'util/lib.rs',
   'util/assert.rs',
@@ -27,6 +25,7 @@ libmesa_rust_files = files(
   'mesa/pipe/transfer.rs',
   'mesa/util.rs',
   'mesa/util/disk_cache.rs',
+  'mesa/util/vm.rs',
 )
 
 rusticl_proc_macros_files = files(
@@ -90,18 +89,8 @@ if with_platform_x11
   ]
 endif
 
-rusticl_gen_args = [
-  # can't do anything about it anyway
-  '-Aclippy::all',
-  '-Aimproper_ctypes',
-  # Some bindgen versions assume `unsafe_op_in_unsafe_fn`
-  '-Aunused_unsafe',
-  '-Anon_camel_case_types',
-  '-Anon_snake_case',
-  '-Anon_upper_case_globals',
-]
-
 rusticl_bindgen_args = [
+  bindgen_output_args,
   '--no-convert-floats',
   '--default-enum-style', 'rust',
   '--with-derive-partialeq',
@@ -177,9 +166,6 @@ rusticl_opencl_gen = static_library(
   rusticl_opencl_bindings_rs,
   gnu_symbol_visibility : 'hidden',
   rust_abi : 'rust',
-  rust_args : [
-    rusticl_gen_args,
-  ],
 )
 
 rusticl_llvm_bindings_rs = rust.bindgen(
@@ -195,8 +181,9 @@ rusticl_llvm_bindings_rs = rust.bindgen(
     dep_llvmspirvlib,
   ],
   args : [
+    bindgen_output_args,
     # we want to limit what to generate bindings for
-    '--generate', 'constructors,functions,types',
+    '--generate', 'constructors,functions,types,vars',
     # and all types will be opaque
     '--opaque-type', '.*',
     # LLVM/Clang/Translator stuff, only used for build-id
@@ -204,6 +191,7 @@ rusticl_llvm_bindings_rs = rust.bindgen(
     '--allowlist-function', 'clang::getClangFullVersion',
     '--allowlist-function', 'llvm::LLVMContext::LLVMContext',
     '--allowlist-function', 'llvm::writeSpirv',
+    '--allowlist-var', 'LLVM_VERSION_.*'
   ],
 )
 
@@ -212,9 +200,6 @@ rusticl_llvm_gen = static_library(
   rusticl_llvm_bindings_rs,
   gnu_symbol_visibility : 'hidden',
   rust_abi : 'rust',
-  rust_args : [
-    rusticl_gen_args,
-  ],
 )
 
 rusticl_libc_bindings_rs = rust.bindgen(
@@ -276,6 +261,8 @@ rusticl_mesa_bindings = rust.bindgen(
     '--allowlist-var',          'SHA1_.*',
     '--allowlist-function',     'u_.*',
     '--allowlist-function',     'util_format_.*',
+    '--allowlist-function',     'util_vma_.*',
+    '--no-copy',                'util_vma_heap', # it's a linked list
 
     # CL API
     '--allowlist-type',         'cl_sampler_.*_mode',
@@ -320,6 +307,12 @@ rusticl_mesa_bindings = rust.bindgen(
     # rusticl C functions
     '--allowlist-function',     'rusticl_.*',
     '--allowlist-function',     'std(err|out)_ptr',
+
+    # libc
+    '--allowlist-function',     'mmap',
+    '--allowlist-function',     'munmap',
+    '--allowlist-var',          'MAP_.*',
+    '--allowlist-var',          'PROT_.*',
 
     # winsys
     '--allowlist-var',          'WINSYS_HANDLE_TYPE_.*',
@@ -374,9 +367,6 @@ libmesa_rust_gen = static_library(
     idep_mesaclc,
   ],
   rust_abi : 'rust',
-  rust_args : [
-    rusticl_gen_args,
-  ],
 )
 
 libc_rust_gen = static_library(
@@ -384,9 +374,6 @@ libc_rust_gen = static_library(
   rusticl_libc_bindings_rs,
   gnu_symbol_visibility : 'hidden',
   rust_abi : 'rust',
-  rust_args : [
-    rusticl_gen_args,
-  ],
 )
 
 libmesa_rust_util = static_library(

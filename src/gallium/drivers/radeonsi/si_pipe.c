@@ -22,7 +22,6 @@
 #include "util/u_tests.h"
 #include "util/u_upload_mgr.h"
 #include "util/xmlconfig.h"
-#include "vl/vl_decoder.h"
 #include "si_utrace.h"
 
 #include "aco_interface.h"
@@ -197,6 +196,7 @@ static void si_destroy_context(struct pipe_context *context)
    context->set_debug_callback(context, NULL);
 
    util_unreference_framebuffer_state(&sctx->framebuffer.state);
+   util_framebuffer_init(context, NULL, sctx->framebuffer.fb_cbufs, &sctx->framebuffer.fb_zsbuf);
    si_release_all_descriptors(sctx);
 
    if (sctx->gfx_level >= GFX10 && sctx->has_graphics)
@@ -215,7 +215,6 @@ static void si_destroy_context(struct pipe_context *context)
    pipe_resource_reference(&sctx->esgs_ring, NULL);
    pipe_resource_reference(&sctx->gsvs_ring, NULL);
    pipe_resource_reference(&sctx->null_const_buf.buffer, NULL);
-   pipe_resource_reference(&sctx->sample_pos_buffer, NULL);
    si_resource_reference(&sctx->border_color_buffer, NULL);
    free(sctx->border_color_table);
    si_resource_reference(&sctx->scratch_buffer, NULL);
@@ -252,10 +251,6 @@ static void si_destroy_context(struct pipe_context *context)
       sctx->b.delete_vs_state(&sctx->b, sctx->vs_blit_pos);
    if (sctx->vs_blit_pos_layered)
       sctx->b.delete_vs_state(&sctx->b, sctx->vs_blit_pos_layered);
-   if (sctx->vs_blit_color)
-      sctx->b.delete_vs_state(&sctx->b, sctx->vs_blit_color);
-   if (sctx->vs_blit_color_layered)
-      sctx->b.delete_vs_state(&sctx->b, sctx->vs_blit_color_layered);
    if (sctx->vs_blit_texcoord)
       sctx->b.delete_vs_state(&sctx->b, sctx->vs_blit_texcoord);
    if (sctx->cs_clear_buffer_rmw)
@@ -510,14 +505,20 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    struct si_context *sctx = CALLOC_STRUCT(si_context);
    struct radeon_winsys *ws = sscreen->ws;
    int shader, i;
-   enum radeon_ctx_priority priority;
 
    if (!sctx) {
       fprintf(stderr, "radeonsi: can't allocate a context\n");
       return NULL;
    }
 
-   sctx->has_graphics = sscreen->info.gfx_level == GFX6 || !(flags & PIPE_CONTEXT_COMPUTE_ONLY);
+   sctx->has_graphics = sscreen->info.gfx_level == GFX6 ||
+                        /* Compute queues hang on Raven and derivatives, see:
+                         * https://gitlab.freedesktop.org/mesa/mesa/-/issues/12310 */
+                        ((sscreen->info.family == CHIP_RAVEN ||
+                          sscreen->info.family == CHIP_RAVEN2) &&
+                         !sscreen->info.has_dedicated_vram) ||
+                        !sscreen->info.ip[AMD_IP_COMPUTE].num_queues ||
+                        !(flags & PIPE_CONTEXT_COMPUTE_ONLY);
 
    if (flags & PIPE_CONTEXT_DEBUG)
       sscreen->record_llvm_ir = true; /* racy but not critical */
@@ -547,27 +548,8 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
       }
    }
 
-   if (flags & PIPE_CONTEXT_HIGH_PRIORITY) {
-      priority = RADEON_CTX_PRIORITY_HIGH;
-   } else if (flags & PIPE_CONTEXT_LOW_PRIORITY) {
-      priority = RADEON_CTX_PRIORITY_LOW;
-   } else {
-      priority = RADEON_CTX_PRIORITY_MEDIUM;
-   }
-
-   bool allow_context_lost = flags & PIPE_CONTEXT_LOSE_CONTEXT_ON_RESET;
-
    /* Initialize the context handle and the command stream. */
-   sctx->ctx = sctx->ws->ctx_create(sctx->ws, priority, allow_context_lost);
-   if (!sctx->ctx && priority != RADEON_CTX_PRIORITY_MEDIUM) {
-      /* Context priority should be treated as a hint. If context creation
-       * fails with the requested priority, for example because the caller
-       * lacks CAP_SYS_NICE capability or other system resource constraints,
-       * fallback to normal priority.
-       */
-      priority = RADEON_CTX_PRIORITY_MEDIUM;
-      sctx->ctx = sctx->ws->ctx_create(sctx->ws, priority, allow_context_lost);
-   }
+   sctx->ctx = sctx->ws->ctx_create(sctx->ws, sctx->context_flags);
    if (!sctx->ctx) {
       fprintf(stderr, "radeonsi: can't create radeon_winsys_ctx\n");
       goto fail;
@@ -641,6 +623,13 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
          goto fail;
       }
    }
+
+#if !AMD_LLVM_AVAILABLE
+   sctx->shader.vs.key.ge.use_aco = 1;
+   sctx->shader.gs.key.ge.use_aco = 1;
+   sctx->shader.tcs.key.ge.use_aco = 1;
+   sctx->shader.tes.key.ge.use_aco = 1;
+#endif
 
    sctx->ngg = sscreen->use_ngg;
    si_shader_change_notify(sctx);
@@ -742,9 +731,6 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
       sctx->b.create_video_buffer = si_video_buffer_create;
       if (screen->resource_create_with_modifiers)
          sctx->b.create_video_buffer_with_modifiers = si_video_buffer_create_with_modifiers;
-   } else {
-      sctx->b.create_video_codec = vl_create_decoder;
-      sctx->b.create_video_buffer = vl_video_buffer_create;
    }
 
    /* GFX7 cannot unbind a constant buffer (S_BUFFER_LOAD doesn't skip loads
@@ -773,7 +759,6 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
       si_set_internal_const_buffer(sctx, SI_VS_CONST_INSTANCE_DIVISORS, &sctx->null_const_buf);
       si_set_internal_const_buffer(sctx, SI_VS_CONST_CLIP_PLANES, &sctx->null_const_buf);
       si_set_internal_const_buffer(sctx, SI_PS_CONST_POLY_STIPPLE, &sctx->null_const_buf);
-      si_set_internal_const_buffer(sctx, SI_PS_CONST_SAMPLE_POSITIONS, &sctx->null_const_buf);
    }
 
    /* Bindless handles. */
@@ -831,10 +816,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    }
 
    if (sctx->gfx_level == GFX7) {
-      /* Clear the NULL constant buffer, because loads should return zeros.
-       * Note that this forces CP DMA to be used, because clover deadlocks
-       * for some reason when the compute codepath is used.
-       */
+      /* Clear the NULL constant buffer, because loads should return zeros. */
       uint32_t clear_value = 0;
       si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, sctx->null_const_buf.buffer, 0,
                              sctx->null_const_buf.buffer->width0, clear_value);
@@ -895,15 +877,34 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
       goto fail;
 
    /* Initialize compute_tmpring_size. */
-   ac_get_scratch_tmpring_size(&sctx->screen->info, 0,
-                               &sctx->max_seen_compute_scratch_bytes_per_wave,
-                               &sctx->compute_tmpring_size);
+   si_get_scratch_tmpring_size(sctx, 0, true, &sctx->compute_tmpring_size);
 
    return &sctx->b;
 fail:
    fprintf(stderr, "radeonsi: Failed to create a context.\n");
    si_destroy_context(&sctx->b);
    return NULL;
+}
+
+void
+si_get_scratch_tmpring_size(struct si_context *sctx, unsigned bytes_per_wave,
+                            bool is_compute, unsigned *spi_tmpring_size)
+{
+   bytes_per_wave = ac_compute_scratch_wavesize(&sctx->screen->info, bytes_per_wave);
+
+   if (is_compute) {
+      sctx->max_seen_compute_scratch_bytes_per_wave =
+         MAX2(sctx->max_seen_compute_scratch_bytes_per_wave, bytes_per_wave);
+   } else {
+      sctx->max_seen_scratch_bytes_per_wave =
+         MAX2(sctx->max_seen_scratch_bytes_per_wave, bytes_per_wave);
+   }
+
+   /* TODO: We could decrease WAVES to make the whole buffer fit into the infinity cache. */
+   ac_get_scratch_tmpring_size(&sctx->screen->info, sctx->screen->info.max_scratch_waves,
+                               is_compute ? sctx->max_seen_compute_scratch_bytes_per_wave
+                                          : sctx->max_seen_scratch_bytes_per_wave,
+                               spi_tmpring_size);
 }
 
 static bool si_is_resource_busy(struct pipe_screen *screen, struct pipe_resource *resource,
@@ -1000,11 +1001,9 @@ void si_destroy_screen(struct pipe_screen *pscreen)
    }
 
    si_resource_reference(&sscreen->attribute_pos_prim_ring, NULL);
+   si_resource_reference(&sscreen->attribute_pos_prim_ring_tmz, NULL);
    pipe_resource_reference(&sscreen->tess_rings, NULL);
    pipe_resource_reference(&sscreen->tess_rings_tmz, NULL);
-
-   util_queue_destroy(&sscreen->shader_compiler_queue);
-   util_queue_destroy(&sscreen->shader_compiler_queue_opt_variants);
 
    for (unsigned i = 0; i < ARRAY_SIZE(sscreen->aux_contexts); i++) {
       if (!sscreen->aux_contexts[i].ctx)
@@ -1022,6 +1021,9 @@ void si_destroy_screen(struct pipe_screen *pscreen)
       mtx_unlock(&sscreen->aux_contexts[i].lock);
       mtx_destroy(&sscreen->aux_contexts[i].lock);
    }
+
+   util_queue_destroy(&sscreen->shader_compiler_queue);
+   util_queue_destroy(&sscreen->shader_compiler_queue_opt_variants);
 
    simple_mtx_destroy(&sscreen->async_compute_context_lock);
    if (sscreen->async_compute_context) {
@@ -1071,6 +1073,7 @@ void si_destroy_screen(struct pipe_screen *pscreen)
    util_vertex_state_cache_deinit(&sscreen->vertex_state_cache);
 
    sscreen->ws->destroy(sscreen->ws);
+   FREE(sscreen->use_aco_shader_blakes);
    FREE(sscreen->nir_options);
    FREE(sscreen);
 }
@@ -1155,6 +1158,79 @@ static bool si_is_parallel_shader_compilation_finished(struct pipe_screen *scree
    return util_queue_fence_is_signalled(&sel->ready);
 }
 
+static void si_setup_force_shader_use_aco(struct si_screen *sscreen, bool support_aco)
+{
+   /* Usage:
+    *   1. shader type: vs|tcs|tes|gs|ps|cs, specify a class of shaders to use aco
+    *   2. shader blake: specify a single shader blake directly to use aco
+    *   3. filename: specify a file which contains shader blakes in lines
+    */
+
+   sscreen->use_aco_shader_type = MESA_SHADER_NONE;
+
+   if (sscreen->use_aco || !support_aco)
+      return;
+
+   const char *option = debug_get_option("AMD_FORCE_SHADER_USE_ACO", NULL);
+   if (!option)
+      return;
+
+   if (!strcmp("vs", option)) {
+      sscreen->use_aco_shader_type = MESA_SHADER_VERTEX;
+      return;
+   } else if (!strcmp("tcs", option)) {
+      sscreen->use_aco_shader_type = MESA_SHADER_TESS_CTRL;
+      return;
+   } else if (!strcmp("tes", option)) {
+      sscreen->use_aco_shader_type = MESA_SHADER_TESS_EVAL;
+      return;
+   } else if (!strcmp("gs", option)) {
+      sscreen->use_aco_shader_type = MESA_SHADER_GEOMETRY;
+      return;
+   } else if (!strcmp("ps", option)) {
+      sscreen->use_aco_shader_type = MESA_SHADER_FRAGMENT;
+      return;
+   } else if (!strcmp("cs", option)) {
+      sscreen->use_aco_shader_type = MESA_SHADER_COMPUTE;
+      return;
+   }
+
+   blake3_hash blake;
+   if (_mesa_blake3_from_printed_string(blake, option)) {
+      sscreen->use_aco_shader_blakes = MALLOC(sizeof(blake));
+      memcpy(sscreen->use_aco_shader_blakes[0], blake, sizeof(blake));
+      sscreen->num_use_aco_shader_blakes = 1;
+      return;
+   }
+
+   FILE *f = fopen(option, "r");
+   if (!f) {
+      fprintf(stderr, "radeonsi: invalid AMD_FORCE_SHADER_USE_ACO value\n");
+      return;
+   }
+
+   unsigned max_size = 16 * sizeof(blake3_hash);
+   sscreen->use_aco_shader_blakes = MALLOC(max_size);
+
+   char line[1024];
+   while (fgets(line, sizeof(line), f)) {
+      if (sscreen->num_use_aco_shader_blakes * sizeof(blake3_hash) >= max_size) {
+         sscreen->use_aco_shader_blakes = REALLOC(
+            sscreen->use_aco_shader_blakes, max_size, max_size * 2);
+         max_size *= 2;
+      }
+
+      if (line[BLAKE3_PRINTED_LEN] == '\n')
+         line[BLAKE3_PRINTED_LEN] = 0;
+
+      if (_mesa_blake3_from_printed_string(
+             sscreen->use_aco_shader_blakes[sscreen->num_use_aco_shader_blakes], line))
+         sscreen->num_use_aco_shader_blakes++;
+   }
+
+   fclose(f);
+}
+
 static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
                                                        const struct pipe_screen_config *config)
 {
@@ -1222,16 +1298,7 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
       return NULL;
    }
 
-   if (!sscreen->use_aco && support_aco) {
-      const char *shader_blake = debug_get_option("AMD_FORCE_SHADER_USE_ACO", NULL);
-      if (shader_blake) {
-         sscreen->force_shader_use_aco =
-            _mesa_blake3_from_printed_string(sscreen->use_aco_shader_blake, shader_blake);
-
-         if (!sscreen->force_shader_use_aco)
-            fprintf(stderr, "radeonsi: invalid AMD_SHADER_FORCE_ACO value\n");
-      }
-   }
+   si_setup_force_shader_use_aco(sscreen, support_aco);
 
    if ((sscreen->debug_flags & DBG(TMZ)) &&
        !sscreen->info.has_tmz_support) {
@@ -1263,13 +1330,26 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
 
    sscreen->nir_options = CALLOC_STRUCT(nir_shader_compiler_options);
 
-   si_init_screen_get_functions(sscreen);
    si_init_screen_buffer_functions(sscreen);
    si_init_screen_fence_functions(sscreen);
    si_init_screen_state_functions(sscreen);
    si_init_screen_texture_functions(sscreen);
    si_init_screen_query_functions(sscreen);
    si_init_screen_live_shader_cache(sscreen);
+
+   if (sscreen->info.gfx_level >= GFX11) {
+      sscreen->use_ngg = true;
+      sscreen->use_ngg_culling = sscreen->info.max_render_backends >= 2 &&
+                                 !(sscreen->debug_flags & DBG(NO_NGG_CULLING));
+   } else {
+      sscreen->use_ngg = !(sscreen->debug_flags & DBG(NO_NGG)) &&
+                         sscreen->info.gfx_level >= GFX10 &&
+                         (sscreen->info.family != CHIP_NAVI14 ||
+                          sscreen->info.is_pro_graphics);
+      sscreen->use_ngg_culling = sscreen->use_ngg &&
+                                 sscreen->info.max_render_backends >= 2 &&
+                                 !(sscreen->debug_flags & DBG(NO_NGG_CULLING));
+   }
 
    sscreen->has_draw_indirect_multi =
       (sscreen->info.family >= CHIP_POLARIS10) ||
@@ -1280,6 +1360,9 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
       (sscreen->info.gfx_level == GFX6 && sscreen->info.pfp_fw_version >= 79 &&
        sscreen->info.me_fw_version >= 142);
 
+   si_init_screen_get_functions(sscreen);
+   si_init_shader_caps(sscreen);
+   si_init_compute_caps(sscreen);
    si_init_screen_caps(sscreen);
 
    if (sscreen->debug_flags & DBG(INFO))
@@ -1381,24 +1464,8 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
    if (!debug_get_bool_option("RADEON_DISABLE_PERFCOUNTERS", false))
       si_init_perfcounters(sscreen);
 
-   ac_get_hs_info(&sscreen->info, &sscreen->hs);
-
    if (sscreen->debug_flags & DBG(NO_OUT_OF_ORDER))
       sscreen->info.has_out_of_order_rast = false;
-
-   if (sscreen->info.gfx_level >= GFX11) {
-      sscreen->use_ngg = true;
-      sscreen->use_ngg_culling = sscreen->info.max_render_backends >= 2 &&
-                                 !(sscreen->debug_flags & DBG(NO_NGG_CULLING));
-   } else {
-      sscreen->use_ngg = !(sscreen->debug_flags & DBG(NO_NGG)) &&
-                         sscreen->info.gfx_level >= GFX10 &&
-                         (sscreen->info.family != CHIP_NAVI14 ||
-                          sscreen->info.is_pro_graphics);
-      sscreen->use_ngg_culling = sscreen->use_ngg &&
-                                 sscreen->info.max_render_backends >= 2 &&
-                                 !(sscreen->debug_flags & DBG(NO_NGG_CULLING));
-   }
 
    /* Only set this for the cases that are known to work, which are:
     * - GFX9 if bpp >= 4 (in bytes)

@@ -16,6 +16,7 @@
 
 #include "drm-uapi/msm_drm.h"
 #include "util/u_debug.h"
+#include "util/u_process.h"
 #include "util/hash_table.h"
 
 #include "tu_cmd_buffer.h"
@@ -77,6 +78,17 @@ tu_drm_get_gmem_base(const struct tu_physical_device *dev, uint64_t *base)
    return tu_drm_get_param(dev->local_fd, MSM_PARAM_GMEM_BASE, base);
 }
 
+static bool
+tu_drm_get_raytracing(const struct tu_physical_device *dev)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(dev->local_fd, MSM_PARAM_RAYTRACING, &value);
+   if (ret)
+      return false;
+
+   return value;
+}
+
 static int
 tu_drm_get_va_prop(const struct tu_physical_device *dev,
                    uint64_t *va_start, uint64_t *va_size)
@@ -113,6 +125,36 @@ tu_drm_has_preemption(const struct tu_physical_device *dev)
    drmCommandWrite(dev->local_fd, DRM_MSM_SUBMITQUEUE_CLOSE, &req.id,
                    sizeof(req.id));
    return true;
+}
+
+static int
+tu_drm_set_param(int fd, uint32_t param, uint64_t value, uint32_t len)
+{
+   struct drm_msm_param param_req = {
+      .pipe = MSM_PIPE_3D0,
+      .param = param,
+      .value = value,
+      .len = len,
+   };
+
+   int ret = drmCommandWriteRead(fd, DRM_MSM_SET_PARAM, &param_req,
+                                 sizeof(param_req));
+   return ret;
+}
+
+static void
+tu_drm_set_debuginfo(int fd)
+{
+   if (!TU_DEBUG(COMM))
+      return;
+
+   const char *comm = util_get_process_name();
+   if (comm)
+      tu_drm_set_param(fd, MSM_PARAM_COMM, (uintptr_t)comm, strlen(comm));
+
+   static char cmdline[0x1000];
+   if (util_get_command_line(cmdline, sizeof(cmdline)))
+      tu_drm_set_param(fd, MSM_PARAM_CMDLINE, (uintptr_t)cmdline, strlen(cmdline));
 }
 
 static uint32_t
@@ -158,6 +200,17 @@ tu_drm_get_ubwc_swizzle(const struct tu_physical_device *dev)
    return value;
 }
 
+static uint64_t
+tu_drm_get_uche_trap_base(const struct tu_physical_device *dev)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(dev->local_fd, MSM_PARAM_UCHE_TRAP_BASE, &value);
+   if (ret)
+      return 0x1fffffffff000ull;
+
+   return value;
+}
+
 static bool
 tu_drm_is_memory_type_supported(int fd, uint32_t flags)
 {
@@ -186,6 +239,8 @@ msm_device_init(struct tu_device *dev)
             dev->physical_device->instance, VK_ERROR_INITIALIZATION_FAILED,
             "failed to open device %s", dev->physical_device->fd_path);
    }
+
+   tu_drm_set_debuginfo(fd);
 
    int ret = tu_drm_get_param(fd, MSM_PARAM_FAULTS, &dev->fault_count);
    if (ret != 0) {
@@ -1039,6 +1094,7 @@ tu_knl_drm_msm_load(struct tu_instance *instance,
 
    device->has_set_iova = !tu_drm_get_va_prop(device, &device->va_start,
                                               &device->va_size);
+   device->has_raytracing = tu_drm_get_raytracing(device);
 
    device->has_preemption = tu_drm_has_preemption(device);
 
@@ -1047,11 +1103,15 @@ tu_knl_drm_msm_load(struct tu_instance *instance,
       (device->msm_minor_version >= 8) &&
       tu_drm_is_memory_type_supported(fd, MSM_BO_CACHED_COHERENT);
 
+   tu_drm_set_debuginfo(fd);
+
    device->submitqueue_priority_count = tu_drm_get_priorities(device);
 
    device->ubwc_config.highest_bank_bit = tu_drm_get_highest_bank_bit(device);
    device->ubwc_config.bank_swizzle_levels = tu_drm_get_ubwc_swizzle(device);
    device->ubwc_config.macrotile_mode = tu_drm_get_macrotile_mode(device);
+
+   device->uche_trap_base = tu_drm_get_uche_trap_base(device);
 
    device->syncobj_type = vk_drm_syncobj_get_type(fd);
    /* we don't support DRM_CAP_SYNCOBJ_TIMELINE, but drm-shim does */

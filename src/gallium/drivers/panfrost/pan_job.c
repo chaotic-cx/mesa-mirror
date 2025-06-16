@@ -32,6 +32,7 @@
 #include "util/rounding.h"
 #include "util/u_framebuffer.h"
 #include "util/u_pack_color.h"
+#include "util/perf/cpu_trace.h"
 #include "pan_bo.h"
 #include "pan_context.h"
 #include "pan_util.h"
@@ -63,7 +64,7 @@ static void
 panfrost_batch_add_surface(struct panfrost_batch *batch,
                            struct pipe_surface *surf)
 {
-   if (surf) {
+   if (surf->texture) {
       struct panfrost_resource *rsrc = pan_resource(surf->texture);
       pan_legalize_format(batch->ctx, rsrc, surf->format, true, false);
       panfrost_batch_write_rsrc(batch, rsrc, PIPE_SHADER_FRAGMENT);
@@ -104,9 +105,9 @@ panfrost_batch_init(struct panfrost_context *ctx,
       return -1;
 
    for (unsigned i = 0; i < batch->key.nr_cbufs; ++i)
-      panfrost_batch_add_surface(batch, batch->key.cbufs[i]);
+      panfrost_batch_add_surface(batch, &batch->key.cbufs[i]);
 
-   panfrost_batch_add_surface(batch, batch->key.zsbuf);
+   panfrost_batch_add_surface(batch, &batch->key.zsbuf);
 
    return screen->vtbl.init_batch(batch);
 }
@@ -381,6 +382,8 @@ panfrost_batch_read_rsrc(struct panfrost_batch *batch,
 
    if (rsrc->separate_stencil)
       panfrost_batch_add_bo_old(batch, rsrc->separate_stencil->bo, access);
+   if (rsrc->shadow_image)
+      panfrost_batch_add_bo_old(batch, rsrc->shadow_image->bo, access);
 
    panfrost_batch_update_access(batch, rsrc, false);
 }
@@ -396,6 +399,8 @@ panfrost_batch_write_rsrc(struct panfrost_batch *batch,
 
    if (rsrc->separate_stencil)
       panfrost_batch_add_bo_old(batch, rsrc->separate_stencil->bo, access);
+   if (rsrc->shadow_image)
+      panfrost_batch_add_bo_old(batch, rsrc->shadow_image->bo, access);
 
    panfrost_batch_update_access(batch, rsrc, true);
 }
@@ -409,15 +414,16 @@ panfrost_batch_create_bo(struct panfrost_batch *batch, size_t size,
 
    bo = panfrost_bo_create(pan_device(batch->ctx->base.screen), size,
                            create_flags, label);
-   assert(bo);
-   panfrost_batch_add_bo(batch, bo, stage);
+   if (bo) {
+      panfrost_batch_add_bo(batch, bo, stage);
 
-   /* panfrost_batch_add_bo() has retained a reference and
-    * panfrost_bo_create() initialize the refcnt to 1, so let's
-    * unreference the BO here so it gets released when the batch is
-    * destroyed (unless it's retained by someone else in the meantime).
-    */
-   panfrost_bo_unreference(bo);
+      /* panfrost_batch_add_bo() has retained a reference and
+       * panfrost_bo_create() initialize the refcnt to 1, so let's
+       * unreference the BO here so it gets released when the batch is
+       * destroyed (unless it's retained by someone else in the meantime).
+       */
+      panfrost_bo_unreference(bo);
+   }
    return bo;
 }
 
@@ -426,8 +432,8 @@ panfrost_batch_get_scratchpad(struct panfrost_batch *batch,
                               unsigned size_per_thread,
                               unsigned thread_tls_alloc, unsigned core_id_range)
 {
-   unsigned size = panfrost_get_total_stack_size(
-      size_per_thread, thread_tls_alloc, core_id_range);
+   unsigned size = pan_get_total_stack_size(size_per_thread, thread_tls_alloc,
+                                            core_id_range);
 
    if (batch->scratchpad) {
       assert(panfrost_bo_size(batch->scratchpad) >= size);
@@ -436,7 +442,8 @@ panfrost_batch_get_scratchpad(struct panfrost_batch *batch,
          panfrost_batch_create_bo(batch, size, PAN_BO_INVISIBLE,
                                   PIPE_SHADER_VERTEX, "Thread local storage");
 
-      panfrost_batch_add_bo(batch, batch->scratchpad, PIPE_SHADER_FRAGMENT);
+      if (batch->scratchpad)
+         panfrost_batch_add_bo(batch, batch->scratchpad, PIPE_SHADER_FRAGMENT);
    }
 
    return batch->scratchpad;
@@ -472,6 +479,7 @@ panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
    memset(s, 0, sizeof(*s));
 
    fb->tile_buf_budget = dev->optimal_tib_size;
+   fb->z_tile_buf_budget = dev->optimal_z_tib_size;
    fb->width = batch->key.width;
    fb->height = batch->key.height;
    fb->extent.minx = batch->minx;
@@ -493,9 +501,9 @@ panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
    };
 
    for (unsigned i = 0; i < fb->rt_count; i++) {
-      struct pipe_surface *surf = batch->key.cbufs[i];
+      const struct pipe_surface *surf = &batch->key.cbufs[i];
 
-      if (!surf)
+      if (!surf->texture)
          continue;
 
       struct panfrost_resource *prsrc = pan_resource(surf->texture);
@@ -524,9 +532,9 @@ panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
 
       rts[i].format = surf->format;
       rts[i].dim = MALI_TEXTURE_DIMENSION_2D;
-      rts[i].last_level = rts[i].first_level = surf->u.tex.level;
-      rts[i].first_layer = surf->u.tex.first_layer;
-      rts[i].last_layer = surf->u.tex.last_layer;
+      rts[i].last_level = rts[i].first_level = surf->level;
+      rts[i].first_layer = surf->first_layer;
+      rts[i].last_layer = surf->last_layer;
       panfrost_set_image_view_planes(&rts[i], surf->texture);
       rts[i].nr_samples =
          surf->nr_samples ?: MAX2(surf->texture->nr_samples, 1);
@@ -545,18 +553,21 @@ panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
    const struct pan_image_view *s_view = NULL, *z_view = NULL;
    struct panfrost_resource *z_rsrc = NULL, *s_rsrc = NULL;
 
-   if (batch->key.zsbuf) {
-      struct pipe_surface *surf = batch->key.zsbuf;
+   if (batch->key.zsbuf.texture) {
+      const struct pipe_surface *surf = &batch->key.zsbuf;
       z_rsrc = pan_resource(surf->texture);
 
       zs->format = surf->format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT
                       ? PIPE_FORMAT_Z32_FLOAT
                       : surf->format;
       zs->dim = MALI_TEXTURE_DIMENSION_2D;
-      zs->last_level = zs->first_level = surf->u.tex.level;
-      zs->first_layer = surf->u.tex.first_layer;
-      zs->last_layer = surf->u.tex.last_layer;
-      zs->planes[0] = &z_rsrc->image;
+      zs->last_level = zs->first_level = surf->level;
+      zs->first_layer = surf->first_layer;
+      zs->last_layer = surf->last_layer;
+      zs->planes[0] = (struct pan_image_plane_ref){
+         .image = &z_rsrc->image,
+         .plane_idx = 0,
+      };
       zs->nr_samples = surf->nr_samples ?: MAX2(surf->texture->nr_samples, 1);
       memcpy(zs->swizzle, id_swz, sizeof(zs->swizzle));
       fb->zs.view.zs = zs;
@@ -570,10 +581,13 @@ panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
          s_rsrc = z_rsrc->separate_stencil;
          s->format = PIPE_FORMAT_S8_UINT;
          s->dim = MALI_TEXTURE_DIMENSION_2D;
-         s->last_level = s->first_level = surf->u.tex.level;
-         s->first_layer = surf->u.tex.first_layer;
-         s->last_layer = surf->u.tex.last_layer;
-         s->planes[0] = &s_rsrc->image;
+         s->last_level = s->first_level = surf->level;
+         s->first_layer = surf->first_layer;
+         s->last_layer = surf->last_layer;
+         s->planes[0] = (struct pan_image_plane_ref){
+            .image = &s_rsrc->image,
+            .plane_idx = 0,
+         };
          s->nr_samples = surf->nr_samples ?: MAX2(surf->texture->nr_samples, 1);
          memcpy(s->swizzle, id_swz, sizeof(s->swizzle));
          fb->zs.view.s = s;
@@ -619,16 +633,23 @@ panfrost_batch_to_fb_info(const struct panfrost_batch *batch,
    }
 
    screen->vtbl.select_tile_size(fb);
+
+#if PAN_ARCH != 6
+   if (fb->cbuf_allocation > fb->tile_buf_budget) {
+      perf_debug(batch->ctx,
+                 "Using too much tile-memory, disabling pipelining");
+   }
+#endif
 }
 
 static void
 panfrost_emit_tile_map(struct panfrost_batch *batch, struct pan_fb_info *fb)
 {
-   if (batch->key.nr_cbufs < 1 || !batch->key.cbufs[0])
+   if (batch->key.nr_cbufs < 1 || !batch->key.cbufs[0].texture)
       return;
 
-   struct pipe_surface *surf = batch->key.cbufs[0];
-   struct panfrost_resource *pres = surf ? pan_resource(surf->texture) : NULL;
+   struct pipe_surface *surf = &batch->key.cbufs[0];
+   struct panfrost_resource *pres = pan_resource(surf->texture);
 
    if (pres && pres->damage.tile_map.enable) {
       fb->tile_map.base =
@@ -642,6 +663,8 @@ static void
 panfrost_batch_submit(struct panfrost_context *ctx,
                       struct panfrost_batch *batch)
 {
+   MESA_TRACE_FUNC();
+
    struct pipe_screen *pscreen = ctx->base.screen;
    struct panfrost_screen *screen = pan_screen(pscreen);
    bool has_frag = panfrost_has_fragment_job(batch);
@@ -651,12 +674,12 @@ panfrost_batch_submit(struct panfrost_context *ctx,
    if (!has_frag && batch->compute_count == 0 && !batch->has_time_query)
       goto out;
 
-   if (batch->key.zsbuf && has_frag) {
-      struct pipe_surface *surf = batch->key.zsbuf;
+   if (batch->key.zsbuf.texture && has_frag) {
+      struct pipe_surface *surf = &batch->key.zsbuf;
       struct panfrost_resource *z_rsrc = pan_resource(surf->texture);
 
       /* if there are multiple levels or layers, we optimize only the first */
-      if (surf->u.tex.level == 0 && surf->u.tex.first_layer == 0) {
+      if (surf->level == 0 && surf->first_layer == 0) {
          /* Shared depth/stencil resources are not supported, and would
           * break this optimisation. */
          assert(!(z_rsrc->base.bind & PAN_BIND_SHARED_MASK));
@@ -694,11 +717,11 @@ panfrost_batch_submit(struct panfrost_context *ctx,
     * it flushed, the easiest solution is to reload everything.
     */
    for (unsigned i = 0; i < batch->key.nr_cbufs; i++) {
-      if (!batch->key.cbufs[i])
+      if (!batch->key.cbufs[i].texture)
          continue;
 
       panfrost_resource_set_damage_region(
-         ctx->base.screen, batch->key.cbufs[i]->texture, 0, NULL);
+         ctx->base.screen, batch->key.cbufs[i].texture, 0, NULL);
    }
 
 out:
@@ -710,8 +733,9 @@ out:
 void
 panfrost_flush_all_batches(struct panfrost_context *ctx, const char *reason)
 {
-   if (reason)
-      perf_debug(ctx, "Flushing everything due to: %s", reason);
+   assert(reason);
+   MESA_TRACE_SCOPE("%s reason=\"%s\"", __func__, reason);
+   perf_debug(ctx, "Flushing everything due to: %s", reason);
 
    struct panfrost_batch *batch = panfrost_get_batch_for_fbo(ctx);
    if (!batch)
@@ -729,6 +753,9 @@ void
 panfrost_flush_writer(struct panfrost_context *ctx,
                       struct panfrost_resource *rsrc, const char *reason)
 {
+   assert(reason);
+   MESA_TRACE_SCOPE("%s reason=\"%s\"", __func__, reason);
+
    struct hash_entry *entry = _mesa_hash_table_search(ctx->writers, rsrc);
 
    if (entry) {
@@ -742,6 +769,9 @@ panfrost_flush_batches_accessing_rsrc(struct panfrost_context *ctx,
                                       struct panfrost_resource *rsrc,
                                       const char *reason)
 {
+   assert(reason);
+   MESA_TRACE_SCOPE("%s reason=\"%s\"", __func__, reason);
+
    unsigned i;
    foreach_batch(ctx, i) {
       struct panfrost_batch *batch = &ctx->batches.slots[i];
@@ -783,11 +813,12 @@ panfrost_batch_adjust_stack_size(struct panfrost_batch *batch)
 
    for (unsigned i = 0; i < PIPE_SHADER_TYPES; ++i) {
       struct panfrost_compiled_shader *ss = ctx->prog[i];
+      struct panfrost_compiled_shader *xfb_ss =
+         ctx->uncompiled[i] ? ctx->uncompiled[i]->xfb : NULL;
 
-      if (!ss)
-         continue;
-
-      batch->stack_size = MAX2(batch->stack_size, ss->info.tls_size);
+      batch->stack_size = MAX3(batch->stack_size,
+                               ss ? ss->info.tls_size : 0,
+                               xfb_ss ? xfb_ss->info.tls_size : 0);
    }
 }
 
@@ -804,7 +835,7 @@ panfrost_batch_clear(struct panfrost_batch *batch, unsigned buffers,
          if (!(buffers & (PIPE_CLEAR_COLOR0 << i)))
             continue;
 
-         enum pipe_format format = ctx->pipe_framebuffer.cbufs[i]->format;
+         enum pipe_format format = ctx->pipe_framebuffer.cbufs[i].format;
          pan_pack_color(dev->blendable_formats, batch->clear_color[i], color,
                         format, false);
       }

@@ -1,10 +1,10 @@
 use mesa_rust_gen::*;
 use mesa_rust_util::bitset;
-use mesa_rust_util::offset_of;
 
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::marker::PhantomData;
+use std::mem::offset_of;
 use std::ops::Not;
 use std::ptr;
 use std::ptr::NonNull;
@@ -259,11 +259,6 @@ impl NirShader {
     }
 
     pub fn inline(&mut self, libclc: &NirShader) {
-        nir_pass!(
-            self,
-            nir_lower_variable_initializers,
-            nir_variable_mode::nir_var_function_temp,
-        );
         nir_pass!(self, nir_lower_returns);
         nir_pass!(self, nir_link_shader_functions, libclc.nir.as_ptr());
         nir_pass!(self, nir_inline_functions);

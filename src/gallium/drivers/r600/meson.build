@@ -18,6 +18,7 @@ files_r600 = files(
   'r600_asm.h',
   'r600_blit.c',
   'r600d.h',
+  'r600_atomics.h',
   'r600_dump.c',
   'r600_dump.h',
   'r600_formats.h',
@@ -144,13 +145,6 @@ egd_tables_h = custom_target(
 )
 
 r600_c_args = []
-if with_gallium_clover
-  if dep_elf.found()
-    r600_c_args += '-DHAVE_OPENCL'
-  else
-    warning('r600 requires libelf to support opencl.')
-  endif
-endif
 
 r600_cpp_args = []
 if cpp.has_type('std::pmr::monotonic_buffer_resource',
@@ -168,7 +162,7 @@ libr600 = static_library(
     inc_src, inc_mapi, inc_mesa, inc_include, inc_gallium, inc_gallium_aux, inc_amd_common,
     inc_gallium_drivers,
   ],
-  dependencies: [dep_elf, dep_llvm, idep_nir, idep_nir_headers, idep_mesautil],
+  dependencies: [dep_llvm, idep_nir, idep_nir_headers, idep_mesautil],
 )
 
 driver_r600 = declare_dependency(

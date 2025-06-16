@@ -31,11 +31,7 @@ struct bblock_t;
 
 #ifdef __cplusplus
 
-#include "brw_ir.h"
-#include "brw_ir_analysis.h"
-#include "brw_ir_fs.h"
-
-struct bblock_t;
+#include "brw_inst.h"
 
 /**
  * CFG edge types.
@@ -73,7 +69,7 @@ struct bblock_link {
    enum bblock_link_kind kind;
 };
 
-struct fs_visitor;
+struct brw_shader;
 struct cfg_t;
 
 struct bblock_t {
@@ -83,57 +79,25 @@ struct bblock_t {
 
    void add_successor(void *mem_ctx, bblock_t *successor,
                       enum bblock_link_kind kind);
-   bool is_predecessor_of(const bblock_t *block,
-                          enum bblock_link_kind kind) const;
-   bool is_successor_of(const bblock_t *block,
-                        enum bblock_link_kind kind) const;
-   bool can_combine_with(const bblock_t *that) const;
-   void combine_with(bblock_t *that);
-   void dump(FILE *file = stderr) const;
 
-   fs_inst *start();
-   const fs_inst *start() const;
-   fs_inst *end();
-   const fs_inst *end() const;
+   brw_inst *start();
+   const brw_inst *start() const;
+   brw_inst *end();
+   const brw_inst *end() const;
 
    bblock_t *next();
    const bblock_t *next() const;
    bblock_t *prev();
    const bblock_t *prev() const;
 
-   bool starts_with_control_flow() const;
    bool ends_with_control_flow() const;
 
-   fs_inst *first_non_control_flow_inst();
-   fs_inst *last_non_control_flow_inst();
-
-private:
-   /**
-    * \sa unlink_parents, unlink_children
-    */
-   void unlink_list(exec_list *);
-
-public:
-   void unlink_parents()
-   {
-      unlink_list(&parents);
-   }
-
-   void unlink_children()
-   {
-      unlink_list(&children);
-   }
+   brw_inst *last_non_control_flow_inst();
 
    struct exec_node link;
    struct cfg_t *cfg;
 
-   int start_ip;
-   int end_ip;
-
-   /**
-    * Change in end_ip since the last time IPs of later blocks were updated.
-    */
-   int end_ip_delta;
+   unsigned num_instructions;
 
    struct exec_list instructions;
    struct exec_list parents;
@@ -141,186 +105,91 @@ public:
    int num;
 };
 
-static inline fs_inst *
-bblock_start(struct bblock_t *block)
-{
-   return (fs_inst *)exec_list_get_head(&block->instructions);
-}
-
-static inline const fs_inst *
-bblock_start_const(const struct bblock_t *block)
-{
-   return (const fs_inst *)exec_list_get_head_const(&block->instructions);
-}
-
-static inline fs_inst *
-bblock_end(struct bblock_t *block)
-{
-   return (fs_inst *)exec_list_get_tail(&block->instructions);
-}
-
-static inline const fs_inst *
-bblock_end_const(const struct bblock_t *block)
-{
-   return (const fs_inst *)exec_list_get_tail_const(&block->instructions);
-}
-
-static inline struct bblock_t *
-bblock_next(struct bblock_t *block)
-{
-   if (exec_node_is_tail_sentinel(block->link.next))
-      return NULL;
-
-   return (struct bblock_t *)block->link.next;
-}
-
-static inline const struct bblock_t *
-bblock_next_const(const struct bblock_t *block)
-{
-   if (exec_node_is_tail_sentinel(block->link.next))
-      return NULL;
-
-   return (const struct bblock_t *)block->link.next;
-}
-
-static inline struct bblock_t *
-bblock_prev(struct bblock_t *block)
-{
-   if (exec_node_is_head_sentinel(block->link.prev))
-      return NULL;
-
-   return (struct bblock_t *)block->link.prev;
-}
-
-static inline const struct bblock_t *
-bblock_prev_const(const struct bblock_t *block)
-{
-   if (exec_node_is_head_sentinel(block->link.prev))
-      return NULL;
-
-   return (const struct bblock_t *)block->link.prev;
-}
-
-static inline bool
-bblock_starts_with_control_flow(const struct bblock_t *block)
-{
-   enum opcode op = bblock_start_const(block)->opcode;
-   return op == BRW_OPCODE_DO || op == BRW_OPCODE_ENDIF;
-}
-
-static inline bool
-bblock_ends_with_control_flow(const struct bblock_t *block)
-{
-   enum opcode op = bblock_end_const(block)->opcode;
-   return op == BRW_OPCODE_IF ||
-          op == BRW_OPCODE_ELSE ||
-          op == BRW_OPCODE_WHILE ||
-          op == BRW_OPCODE_BREAK ||
-          op == BRW_OPCODE_CONTINUE;
-}
-
-static inline fs_inst *
-bblock_first_non_control_flow_inst(struct bblock_t *block)
-{
-   fs_inst *inst = bblock_start(block);
-   if (bblock_starts_with_control_flow(block))
-#ifdef __cplusplus
-      inst = (fs_inst *)inst->next;
-#else
-      inst = (fs_inst *)inst->link.next;
-#endif
-   return inst;
-}
-
-static inline fs_inst *
-bblock_last_non_control_flow_inst(struct bblock_t *block)
-{
-   fs_inst *inst = bblock_end(block);
-   if (bblock_ends_with_control_flow(block))
-#ifdef __cplusplus
-      inst = (fs_inst *)inst->prev;
-#else
-      inst = (fs_inst *)inst->link.prev;
-#endif
-   return inst;
-}
-
-inline fs_inst *
+inline brw_inst *
 bblock_t::start()
 {
-   return bblock_start(this);
+   return (brw_inst *)exec_list_get_head(&instructions);
 }
 
-inline const fs_inst *
+inline const brw_inst *
 bblock_t::start() const
 {
-   return bblock_start_const(this);
+   return (const brw_inst *)exec_list_get_head_const(&instructions);
 }
 
-inline fs_inst *
+inline brw_inst *
 bblock_t::end()
 {
-   return bblock_end(this);
+   return (brw_inst *)exec_list_get_tail(&instructions);
 }
 
-inline const fs_inst *
+inline const brw_inst *
 bblock_t::end() const
 {
-   return bblock_end_const(this);
+   return (const brw_inst *)exec_list_get_tail_const(&instructions);
 }
 
 inline bblock_t *
 bblock_t::next()
 {
-   return bblock_next(this);
+   if (exec_node_is_tail_sentinel(link.next))
+      return NULL;
+
+   return (struct bblock_t *)link.next;
 }
 
 inline const bblock_t *
 bblock_t::next() const
 {
-   return bblock_next_const(this);
+   if (exec_node_is_tail_sentinel(link.next))
+      return NULL;
+
+   return (const struct bblock_t *)link.next;
 }
 
 inline bblock_t *
 bblock_t::prev()
 {
-   return bblock_prev(this);
+   if (exec_node_is_head_sentinel(link.prev))
+      return NULL;
+
+   return (struct bblock_t *)link.prev;
 }
 
 inline const bblock_t *
 bblock_t::prev() const
 {
-   return bblock_prev_const(this);
-}
+   if (exec_node_is_head_sentinel(link.prev))
+      return NULL;
 
-inline bool
-bblock_t::starts_with_control_flow() const
-{
-   return bblock_starts_with_control_flow(this);
+   return (const struct bblock_t *)link.prev;
 }
 
 inline bool
 bblock_t::ends_with_control_flow() const
 {
-   return bblock_ends_with_control_flow(this);
+   enum opcode op = end()->opcode;
+   return op == BRW_OPCODE_IF ||
+          op == BRW_OPCODE_ELSE ||
+          op == BRW_OPCODE_WHILE ||
+          op == BRW_OPCODE_BREAK ||
+          op == BRW_OPCODE_CONTINUE ||
+          op == SHADER_OPCODE_FLOW;
 }
 
-inline fs_inst *
-bblock_t::first_non_control_flow_inst()
-{
-   return bblock_first_non_control_flow_inst(this);
-}
-
-inline fs_inst *
+inline brw_inst *
 bblock_t::last_non_control_flow_inst()
 {
-   return bblock_last_non_control_flow_inst(this);
+   brw_inst *inst = end();
+   if (ends_with_control_flow())
+      inst = (brw_inst *)inst->prev;
+   return inst;
 }
 
 struct cfg_t {
    DECLARE_RALLOC_CXX_OPERATORS(cfg_t)
 
-   cfg_t(const fs_visitor *s, exec_list *instructions);
+   cfg_t(brw_shader *s, exec_list *instructions);
    ~cfg_t();
 
    void remove_block(bblock_t *block);
@@ -334,7 +203,6 @@ struct cfg_t {
    void set_next_block(bblock_t **cur, bblock_t *block, int ip);
    void make_block_array();
 
-   void dump(FILE *file = stderr);
    void dump_cfg();
 
 #ifdef NDEBUG
@@ -343,66 +211,39 @@ struct cfg_t {
    void validate(const char *stage_abbrev);
 #endif
 
-   /**
-    * Propagate bblock_t::end_ip_delta data through the CFG.
-    */
-   inline void adjust_block_ips();
-
-   const struct fs_visitor *s;
+   struct brw_shader *s;
    void *mem_ctx;
 
    /** Ordered list (by ip) of basic blocks */
    struct exec_list block_list;
    struct bblock_t **blocks;
    int num_blocks;
+
+   unsigned total_instructions;
 };
-
-static inline struct bblock_t *
-cfg_first_block(struct cfg_t *cfg)
-{
-   return (struct bblock_t *)exec_list_get_head(&cfg->block_list);
-}
-
-static inline const struct bblock_t *
-cfg_first_block_const(const struct cfg_t *cfg)
-{
-   return (const struct bblock_t *)exec_list_get_head_const(&cfg->block_list);
-}
-
-static inline struct bblock_t *
-cfg_last_block(struct cfg_t *cfg)
-{
-   return (struct bblock_t *)exec_list_get_tail(&cfg->block_list);
-}
-
-static inline const struct bblock_t *
-cfg_last_block_const(const struct cfg_t *cfg)
-{
-   return (const struct bblock_t *)exec_list_get_tail_const(&cfg->block_list);
-}
 
 inline bblock_t *
 cfg_t::first_block()
 {
-   return cfg_first_block(this);
+   return (struct bblock_t *)exec_list_get_head(&block_list);
 }
 
 const inline bblock_t *
 cfg_t::first_block() const
 {
-   return cfg_first_block_const(this);
+   return (const struct bblock_t *)exec_list_get_head_const(&block_list);
 }
 
 inline bblock_t *
 cfg_t::last_block()
 {
-   return cfg_last_block(this);
+   return (struct bblock_t *)exec_list_get_tail(&block_list);
 }
 
 const inline bblock_t *
 cfg_t::last_block() const
 {
-   return cfg_last_block_const(this);
+   return (const struct bblock_t *)exec_list_get_tail_const(&block_list);
 }
 
 /* Note that this is implemented with a double for loop -- break will
@@ -456,81 +297,5 @@ cfg_t::last_block() const
    for (__type *__scan_inst = (__type *)__inst->prev;          \
         !__scan_inst->is_head_sentinel();                      \
         __scan_inst = (__type *)__scan_inst->prev)
-
-inline void
-cfg_t::adjust_block_ips()
-{
-   int delta = 0;
-
-   foreach_block(block, this) {
-      block->start_ip += delta;
-      block->end_ip += delta;
-
-      delta += block->end_ip_delta;
-
-      block->end_ip_delta = 0;
-   }
-}
-
-namespace brw {
-   /**
-    * Immediate dominator tree analysis of a shader.
-    */
-   struct idom_tree {
-      idom_tree(const fs_visitor *s);
-      ~idom_tree();
-
-      bool
-      validate(const fs_visitor *) const
-      {
-         /* FINISHME */
-         return true;
-      }
-
-      analysis_dependency_class
-      dependency_class() const
-      {
-         return DEPENDENCY_BLOCKS;
-      }
-
-      const bblock_t *
-      parent(const bblock_t *b) const
-      {
-         assert(unsigned(b->num) < num_parents);
-         return parents[b->num];
-      }
-
-      bblock_t *
-      parent(bblock_t *b) const
-      {
-         assert(unsigned(b->num) < num_parents);
-         return parents[b->num];
-      }
-
-      bblock_t *
-      intersect(bblock_t *b1, bblock_t *b2) const;
-
-      /**
-       * Returns true if block `a` dominates block `b`.
-       */
-      bool
-      dominates(const bblock_t *a, const bblock_t *b) const
-      {
-         while (a != b) {
-            if (b->num == 0)
-               return false;
-
-            b = parent(b);
-         }
-         return true;
-      }
-
-      void dump(FILE *file = stderr) const;
-
-   private:
-      unsigned num_parents;
-      bblock_t **parents;
-   };
-}
 
 #endif

@@ -27,6 +27,7 @@
 #include "brw_private.h"
 #include "dev/intel_debug.h"
 #include "compiler/nir/nir.h"
+#include "isl/isl.h"
 #include "util/u_debug.h"
 
 const struct nir_shader_compiler_options brw_scalar_nir_options = {
@@ -45,6 +46,8 @@ const struct nir_shader_compiler_options brw_scalar_nir_options = {
    .has_uclz = true,
    .lower_base_vertex = true,
    .lower_bitfield_extract = true,
+   .lower_bitfield_extract8 = true,
+   .lower_bitfield_extract16 = true,
    .lower_bitfield_insert = true,
    .lower_device_index_to_zero = true,
    .lower_fdiv = true,
@@ -62,6 +65,7 @@ const struct nir_shader_compiler_options brw_scalar_nir_options = {
    .lower_pack_snorm_4x8 = true,
    .lower_pack_unorm_2x16 = true,
    .lower_pack_unorm_4x8 = true,
+   .lower_pack_64_4x16 = true,
    .lower_scmp = true,
    .lower_to_scalar = true,
    .lower_uadd_carry = true,
@@ -75,7 +79,6 @@ const struct nir_shader_compiler_options brw_scalar_nir_options = {
    .lower_usub_borrow = true,
    .max_unroll_iterations = 32,
    .support_16bit_alu = true,
-   .vectorize_io = true,
    .vectorize_tess_levels = true,
    .vertex_id_zero_based = true,
    .scalarize_ddx = true,
@@ -95,7 +98,7 @@ brw_compiler_create(void *mem_ctx, const struct intel_device_info *devinfo)
 
    brw_init_isa_info(&compiler->isa, devinfo);
 
-   brw_fs_alloc_reg_sets(compiler);
+   brw_alloc_reg_sets(compiler);
 
    compiler->precise_trig = debug_get_bool_option("INTEL_PRECISE_TRIG", false);
 
@@ -103,11 +106,8 @@ brw_compiler_create(void *mem_ctx, const struct intel_device_info *devinfo)
 
    compiler->indirect_ubos_use_sampler = devinfo->ver < 12;
 
-   compiler->lower_dpas = devinfo->verx10 < 125 ||
-      intel_device_info_is_mtl(devinfo) ||
-      (intel_device_info_is_arl(devinfo) &&
-       devinfo->platform != INTEL_PLATFORM_ARL_H) ||
-      debug_get_bool_option("INTEL_LOWER_DPAS", false);
+   compiler->lower_dpas = !devinfo->has_systolic ||
+                          debug_get_bool_option("INTEL_LOWER_DPAS", false);
 
    nir_lower_int64_options int64_options =
       nir_lower_imul64 |
@@ -117,7 +117,9 @@ brw_compiler_create(void *mem_ctx, const struct intel_device_info *devinfo)
       nir_lower_find_lsb64 |
       nir_lower_ufind_msb64 |
       nir_lower_bit_count64 |
-      nir_lower_iadd3_64;
+      nir_lower_iadd3_64 |
+      nir_lower_bitfield_extract64 |
+      nir_lower_bitfield_reverse64;
    nir_lower_doubles_options fp64_options =
       nir_lower_drcp |
       nir_lower_dsqrt |
@@ -197,10 +199,28 @@ brw_compiler_create(void *mem_ctx, const struct intel_device_info *devinfo)
       compiler->nir_options[i] = nir_options;
    }
 
-   compiler->mesh.mue_header_packing =
-         (unsigned)debug_get_num_option("INTEL_MESH_HEADER_PACKING", 3);
-   compiler->mesh.mue_compaction =
-         debug_get_bool_option("INTEL_MESH_COMPACTION", true);
+   /* Build a list of storage format compatible in component bit size &
+    * isl_base_type. We can apply the same lowering to those.
+    */
+   compiler->num_lowered_storage_formats = 0;
+   for (enum isl_format fmt = 0; fmt < ISL_FORMAT_RAW; fmt++) {
+      if (!isl_is_storage_image_format(devinfo, fmt))
+         continue;
+
+      if (isl_lower_storage_image_format(devinfo, fmt) == fmt)
+         continue;
+
+      compiler->lowered_storage_formats =
+         reralloc(compiler, compiler->lowered_storage_formats,
+                  uint32_t, compiler->num_lowered_storage_formats + 1);
+      compiler->lowered_storage_formats[
+         compiler->num_lowered_storage_formats++] = fmt;
+   }
+   assert((devinfo->verx10 >= 125 &&
+           compiler->num_lowered_storage_formats == 0) ||
+          (devinfo->verx10 >= 110 && devinfo->verx10 <= 120 &&
+           compiler->num_lowered_storage_formats == 3) ||
+          devinfo->verx10 == 90);
 
    return compiler;
 }
@@ -221,16 +241,22 @@ brw_get_compiler_config_value(const struct brw_compiler *compiler)
    bits++;
    insert_u64_bit(&config, compiler->lower_dpas);
    bits++;
-   insert_u64_bit(&config, compiler->mesh.mue_compaction);
-   bits++;
 
-   uint64_t mask = DEBUG_DISK_CACHE_MASK;
-   bits += util_bitcount64(mask);
+   enum intel_debug_flag debug_bits[] = {
+      DEBUG_NO_DUAL_OBJECT_GS,
+      DEBUG_SPILL_FS,
+      DEBUG_SPILL_VEC4,
+      DEBUG_NO_COMPACTION,
+      DEBUG_DO32,
+      DEBUG_SOFT64,
+      DEBUG_NO_SEND_GATHER,
+   };
+   for (uint32_t i = 0; i < ARRAY_SIZE(debug_bits); i++) {
+      insert_u64_bit(&config, INTEL_DEBUG(debug_bits[i]));
+      bits++;
+   }
 
-   u_foreach_bit64(bit, mask)
-      insert_u64_bit(&config, INTEL_DEBUG(1ULL << bit));
-
-   mask = SIMD_DISK_CACHE_MASK;
+   uint64_t mask = SIMD_DISK_CACHE_MASK;
    bits += util_bitcount64(mask);
 
    u_foreach_bit64(bit, mask)
@@ -238,9 +264,6 @@ brw_get_compiler_config_value(const struct brw_compiler *compiler)
 
    mask = 3;
    bits += util_bitcount64(mask);
-
-   u_foreach_bit64(bit, mask)
-      insert_u64_bit(&config, (compiler->mesh.mue_header_packing & (1ULL << bit)) != 0);
 
    assert(bits <= util_bitcount64(UINT64_MAX));
 

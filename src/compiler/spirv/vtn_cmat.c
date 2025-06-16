@@ -198,18 +198,35 @@ vtn_handle_cooperative_alu(struct vtn_builder *b, struct vtn_value *dest_val,
       case SpvOpConvertUToF:
       case SpvOpUConvert:
       case SpvOpSConvert:
-      case SpvOpFConvert:
+      case SpvOpFConvert: {
+         struct vtn_type *dst_type = vtn_get_type(b, w[1]);
+         nir_deref_instr *src = vtn_get_cmat_deref(b, w[3]);
+
+         /* The Convert operations define whether integers are interpreted
+          * as signed or unsigned regardless of their original type.  So take
+          * note of that in the intrinsic.  Reuse nir_cmat_signed for that.
+          */
+         const unsigned signed_mask =
+            (vtn_convert_op_src_type(opcode) == nir_type_int ? NIR_CMAT_A_SIGNED : 0) |
+            (vtn_convert_op_dst_type(opcode) == nir_type_int ? NIR_CMAT_RESULT_SIGNED : 0);
+
+
+         nir_deref_instr *dst = vtn_create_cmat_temporary(b, dst_type->type, "cmat_convert");
+         nir_cmat_convert(&b->nb, &dst->def, &src->def, .cmat_signed_mask = signed_mask);
+         vtn_push_var_ssa(b, w[2], dst->var);
+
+         break;
+      }
+
       case SpvOpFNegate:
       case SpvOpSNegate: {
          struct vtn_type *dst_type = vtn_get_type(b, w[1]);
          nir_deref_instr *src = vtn_get_cmat_deref(b, w[3]);
 
-         unsigned src_bit_size = glsl_get_bit_size(glsl_get_cmat_element(src->type));
-         unsigned dst_bit_size = glsl_get_bit_size(glsl_get_cmat_element(dst_type->type));
-
          bool ignored = false;
          nir_op op = vtn_nir_alu_op_for_spirv_opcode(b, opcode, &ignored, &ignored,
-                                                     src_bit_size, dst_bit_size);
+                                                     glsl_get_cmat_element(src->type),
+                                                     glsl_get_cmat_element(dst_type->type));
 
          nir_deref_instr *dst = vtn_create_cmat_temporary(b, dst_type->type, "cmat_unary");
          nir_cmat_unary_op(&b->nb, &dst->def, &src->def,
@@ -228,11 +245,14 @@ vtn_handle_cooperative_alu(struct vtn_builder *b, struct vtn_value *dest_val,
       case SpvOpSDiv:
       case SpvOpUDiv: {
          bool ignored = false;
-         nir_op op = vtn_nir_alu_op_for_spirv_opcode(b, opcode, &ignored, &ignored, 0, 0);
 
          struct vtn_type *dst_type = vtn_get_type(b, w[1]);
          nir_deref_instr *mat_a = vtn_get_cmat_deref(b, w[3]);
          nir_deref_instr *mat_b = vtn_get_cmat_deref(b, w[4]);
+
+         nir_op op = vtn_nir_alu_op_for_spirv_opcode(b, opcode, &ignored, &ignored,
+                                                     glsl_get_cmat_element(mat_a->type),
+                                                     glsl_get_cmat_element(dst_type->type));
 
          nir_deref_instr *dst = vtn_create_cmat_temporary(b, dst_type->type, "cmat_binary");
          nir_cmat_binary_op(&b->nb, &dst->def, &mat_a->def, &mat_b->def,

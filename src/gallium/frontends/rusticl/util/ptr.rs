@@ -1,10 +1,13 @@
 use std::{
     alloc::Layout,
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{
+        btree_map::{Entry, Values, ValuesMut},
+        BTreeMap,
+    },
     hash::{Hash, Hasher},
     mem,
     ops::{Add, Deref},
-    ptr::{self, NonNull},
+    ptr::NonNull,
 };
 
 /// A wrapper around pointers to C data type which are considered thread safe.
@@ -54,37 +57,49 @@ unsafe impl<T> Send for ThreadSafeCPtr<T> {}
 unsafe impl<T> Sync for ThreadSafeCPtr<T> {}
 
 pub trait CheckedPtr<T> {
+    /// Copies `count * size_of::<T>()` bytes from `src` to `self`. The source
+    /// and destination may overlap.
+    ///
     /// # Safety
     ///
-    /// besides a null check the function can't make sure the pointer is valid
-    /// for the entire size
-    unsafe fn copy_checked(self, val: *const T, size: usize);
-    fn write_checked(self, val: T);
+    /// The nullity of `self` is checked. `self` and `src` must fulfill all
+    /// other invariants of [`std::ptr::copy`].
+    unsafe fn copy_from_checked(self, src: *const T, count: usize);
+
+    /// Overwrites a memory location with the given value without reading or
+    /// dropping the old value.
+    ///
+    /// # Safety
+    ///
+    /// The nullity of `self` is checked. `self` must fulfill all other
+    /// invariants of [`std::ptr::write`].
+    unsafe fn write_checked(self, val: T);
 }
 
 impl<T> CheckedPtr<T> for *mut T {
-    /// # Safety
-    ///
-    /// This function follows the same safety rules as `std::ptr::copy` except that it already
-    /// checks for a NULL pointer.
-    unsafe fn copy_checked(self, val: *const T, size: usize) {
+    unsafe fn copy_from_checked(self, src: *const T, count: usize) {
         if !self.is_null() {
-            // SAFETY: we move the responsibilities up to the caller
+            // SAFETY: Caller is responsible for satisfying all invariants save
+            // pointer nullity.
             unsafe {
-                ptr::copy(val, self, size);
+                self.copy_from(src, count);
             }
         }
     }
 
-    fn write_checked(self, val: T) {
+    unsafe fn write_checked(self, val: T) {
         if !self.is_null() {
+            // SAFETY: Caller is responsible for satisfying all invariants save
+            // pointer nullity.
             unsafe {
-                *self = val;
+                self.write(val);
             }
         }
     }
 }
 
+// While std::mem::offset_of!() is stable from 1.77.0, support for nested fields
+// (required in some rusticl cases) wasn't stabilized until 1.82.0.
 // from https://internals.rust-lang.org/t/discussion-on-offset-of/7440/2
 #[macro_export]
 macro_rules! offset_of {
@@ -105,7 +120,7 @@ macro_rules! offset_of {
     }};
 }
 
-// Adapted from libstd since std::ptr::is_aligned is still unstable
+// Adapted from libstd since std::ptr::is_aligned isn't stable until 1.79.0
 // See https://github.com/rust-lang/rust/issues/96284
 #[must_use]
 #[inline]
@@ -113,11 +128,18 @@ pub fn is_aligned<T>(ptr: *const T) -> bool
 where
     T: Sized,
 {
-    let align = mem::align_of::<T>();
+    is_aligned_to(ptr, mem::align_of::<T>())
+}
+
+// Adapted from libstd since std::ptr::is_aligned_to is still unstable
+// See https://github.com/rust-lang/rust/issues/96284
+#[must_use]
+#[inline]
+pub fn is_aligned_to<T>(ptr: *const T, align: usize) -> bool {
     addr(ptr) & (align - 1) == 0
 }
 
-// Adapted from libstd since std::ptr::addr is still unstable
+// Adapted from libstd since std::ptr::addr isn't stable until 1.84.0
 // See https://github.com/rust-lang/rust/issues/95228
 #[must_use]
 #[inline(always)]
@@ -156,6 +178,14 @@ impl<P, T: AllocSize<P>> TrackedPointers<P, T> {
             ptrs: BTreeMap::new(),
         }
     }
+
+    pub fn values(&self) -> Values<'_, P, T> {
+        self.ptrs.values()
+    }
+
+    pub fn values_mut(&mut self) -> ValuesMut<'_, P, T> {
+        self.ptrs.values_mut()
+    }
 }
 
 impl<P, T: AllocSize<P>> TrackedPointers<P, T>
@@ -172,6 +202,18 @@ where
 
     pub fn find_alloc(&self, ptr: P) -> Option<(P, &T)> {
         if let Some((&base, val)) = self.ptrs.range(..=ptr).next_back() {
+            let size = val.size();
+            // we check if ptr is within [base..base+size)
+            // means we can check if ptr - (base + size) < 0
+            if ptr < (base + size) {
+                return Some((base, val));
+            }
+        }
+        None
+    }
+
+    pub fn find_alloc_mut(&mut self, ptr: P) -> Option<(P, &mut T)> {
+        if let Some((&base, val)) = self.ptrs.range_mut(..=ptr).next_back() {
             let size = val.size();
             // we check if ptr is within [base..base+size)
             // means we can check if ptr - (base + size) < 0

@@ -16,19 +16,17 @@
 #include <sys/mman.h>
 #include <agx_pack.h>
 
+#include "asahi/isa/disasm.h"
 #include "util/u_hexdump.h"
 #include "decode.h"
-#include "unstable_asahi_drm.h"
-#ifdef __APPLE__
-#include "agx_iokit.h"
-#endif
 
 struct libagxdecode_config lib_config;
 
 static void
 agx_disassemble(void *_code, size_t maxlen, FILE *fp)
 {
-   /* stub */
+   bool errors = agx2_disassemble(_code, maxlen, fp);
+   assert(!errors);
 }
 
 FILE *agxdecode_dump_stream;
@@ -71,7 +69,7 @@ agxdecode_find_mapped_gpu_mem_containing(struct agxdecode_ctx *ctx,
 }
 
 static struct agx_bo *
-agxdecode_find_handle(struct agxdecode_ctx *ctx, unsigned handle, unsigned type)
+agxdecode_find_handle(struct agxdecode_ctx *ctx, unsigned handle)
 {
    util_dynarray_foreach(&ctx->mmap_array, struct agx_bo, it) {
       if (it->handle == handle)
@@ -742,64 +740,6 @@ agxdecode_vdm(struct agxdecode_ctx *ctx, const uint8_t *map, uint64_t *link,
    }
 }
 
-#if __APPLE__
-static void
-agxdecode_cs(struct agxdecode_ctx *ctx, uint32_t *cmdbuf, uint64_t encoder,
-             bool verbose, decoder_params *params)
-{
-   agx_unpack(agxdecode_dump_stream, cmdbuf + 16, IOGPU_COMPUTE, cs);
-   DUMP_UNPACKED(IOGPU_COMPUTE, cs, "Compute\n");
-
-   agxdecode_stateful(ctx, encoder, "Encoder", agxdecode_cdm, verbose, params,
-                      NULL);
-
-   fprintf(agxdecode_dump_stream, "Context switch program:\n");
-   uint8_t buf[1024];
-   agx_disassemble(buf,
-                   agxdecode_fetch_gpu_array(
-                      ctx, decode_usc(ctx, cs.context_switch_program), buf),
-                   agxdecode_dump_stream);
-}
-
-static void
-agxdecode_gfx(struct agxdecode_ctx *ctx, uint32_t *cmdbuf, uint64_t encoder,
-              bool verbose, decoder_params *params)
-{
-   agx_unpack(agxdecode_dump_stream, cmdbuf + 16, IOGPU_GRAPHICS, gfx);
-   DUMP_UNPACKED(IOGPU_GRAPHICS, gfx, "Graphics\n");
-
-   agxdecode_stateful(ctx, encoder, "Encoder", agxdecode_vdm, verbose, params,
-                      NULL);
-
-   if (gfx.clear_pipeline_unk) {
-      fprintf(agxdecode_dump_stream, "Unk: %X\n", gfx.clear_pipeline_unk);
-      agxdecode_stateful(ctx, decode_usc(ctx, gfx.clear_pipeline),
-                         "Clear pipeline", agxdecode_usc, verbose, params,
-                         NULL);
-   }
-
-   if (gfx.store_pipeline_unk) {
-      assert(gfx.store_pipeline_unk == 0x4);
-      agxdecode_stateful(ctx, decode_usc(ctx, gfx.store_pipeline),
-                         "Store pipeline", agxdecode_usc, verbose, params,
-                         NULL);
-   }
-
-   assert((gfx.partial_reload_pipeline_unk & 0xF) == 0x4);
-   if (gfx.partial_reload_pipeline) {
-      agxdecode_stateful(ctx, decode_usc(ctx, gfx.partial_reload_pipeline),
-                         "Partial reload pipeline", agxdecode_usc, verbose,
-                         params, NULL);
-   }
-
-   if (gfx.partial_store_pipeline) {
-      agxdecode_stateful(ctx, decode_usc(ctx, gfx.partial_store_pipeline),
-                         "Partial store pipeline", agxdecode_usc, verbose,
-                         params, NULL);
-   }
-}
-#endif
-
 static void
 agxdecode_sampler_heap(struct agxdecode_ctx *ctx, uint64_t heap, unsigned count)
 {
@@ -862,106 +802,119 @@ agxdecode_helper(struct agxdecode_ctx *ctx, const char *prefix, uint64_t helper)
    }
 }
 
-void
+static void
 agxdecode_drm_cmd_render(struct agxdecode_ctx *ctx,
                          struct drm_asahi_params_global *params,
                          struct drm_asahi_cmd_render *c, bool verbose)
 {
-   agxdecode_dump_file_open();
-
-   DUMP_FIELD(c, "%llx", flags);
-   DUMP_FIELD(c, "0x%llx", encoder_ptr);
-   agxdecode_stateful(ctx, c->encoder_ptr, "Encoder", agxdecode_vdm, verbose,
-                      params, NULL);
-   DUMP_FIELD(c, "0x%x", encoder_id);
-   DUMP_FIELD(c, "0x%x", cmd_ta_id);
-   DUMP_FIELD(c, "0x%x", cmd_3d_id);
+   DUMP_FIELD(c, "%x", flags);
+   DUMP_FIELD(c, "0x%llx", vdm_ctrl_stream_base);
+   agxdecode_stateful(ctx, c->vdm_ctrl_stream_base, "Encoder", agxdecode_vdm,
+                      verbose, params, NULL);
    DUMP_FIELD(c, "0x%x", ppp_ctrl);
    DUMP_FIELD(c, "0x%llx", ppp_multisamplectl);
    DUMP_CL(ZLS_CONTROL, &c->zls_ctrl, "ZLS Control");
-   DUMP_FIELD(c, "0x%llx", depth_buffer_load);
-   DUMP_FIELD(c, "0x%llx", depth_buffer_store);
-   DUMP_FIELD(c, "0x%llx", depth_buffer_partial);
-   DUMP_FIELD(c, "0x%llx", stencil_buffer_load);
-   DUMP_FIELD(c, "0x%llx", stencil_buffer_store);
-   DUMP_FIELD(c, "0x%llx", stencil_buffer_partial);
-   DUMP_FIELD(c, "0x%llx", scissor_array);
-   DUMP_FIELD(c, "0x%llx", depth_bias_array);
-   DUMP_FIELD(c, "%d", fb_width);
-   DUMP_FIELD(c, "%d", fb_height);
+   DUMP_FIELD(c, "0x%llx", depth.base);
+   DUMP_FIELD(c, "0x%llx", depth.comp_base);
+   DUMP_FIELD(c, "%u", depth.stride);
+   DUMP_FIELD(c, "%u", depth.comp_stride);
+   DUMP_FIELD(c, "0x%llx", stencil.base);
+   DUMP_FIELD(c, "0x%llx", stencil.comp_base);
+   DUMP_FIELD(c, "%u", stencil.stride);
+   DUMP_FIELD(c, "%u", stencil.comp_stride);
+   DUMP_FIELD(c, "0x%llx", isp_scissor_base);
+   DUMP_FIELD(c, "0x%llx", isp_dbias_base);
+   DUMP_FIELD(c, "%d", width_px);
+   DUMP_FIELD(c, "%d", height_px);
    DUMP_FIELD(c, "%d", layers);
    DUMP_FIELD(c, "%d", samples);
-   DUMP_FIELD(c, "%d", sample_size);
-   DUMP_FIELD(c, "%d", tib_blocks);
-   DUMP_FIELD(c, "%d", utile_width);
-   DUMP_FIELD(c, "%d", utile_height);
-   DUMP_FIELD(c, "0x%x", load_pipeline);
-   DUMP_FIELD(c, "0x%x", load_pipeline_bind);
-   agxdecode_stateful(ctx, decode_usc(ctx, c->load_pipeline & ~0x7),
-                      "Load pipeline", agxdecode_usc, verbose, params, NULL);
-   DUMP_FIELD(c, "0x%x", store_pipeline);
-   DUMP_FIELD(c, "0x%x", store_pipeline_bind);
-   agxdecode_stateful(ctx, decode_usc(ctx, c->store_pipeline & ~0x7),
-                      "Store pipeline", agxdecode_usc, verbose, params, NULL);
-   DUMP_FIELD(c, "0x%x", partial_reload_pipeline);
-   DUMP_FIELD(c, "0x%x", partial_reload_pipeline_bind);
-   agxdecode_stateful(ctx, decode_usc(ctx, c->partial_reload_pipeline & ~0x7),
+   DUMP_FIELD(c, "%d", sample_size_B);
+   DUMP_FIELD(c, "%d", utile_width_px);
+   DUMP_FIELD(c, "%d", utile_height_px);
+   DUMP_FIELD(c, "0x%x", bg.usc);
+   DUMP_FIELD(c, "0x%x", bg.rsrc_spec);
+   agxdecode_stateful(ctx, decode_usc(ctx, c->bg.usc & ~0x7), "Load pipeline",
+                      agxdecode_usc, verbose, params, NULL);
+   DUMP_FIELD(c, "0x%x", eot.usc);
+   DUMP_FIELD(c, "0x%x", eot.rsrc_spec);
+   agxdecode_stateful(ctx, decode_usc(ctx, c->eot.usc & ~0x7), "Store pipeline",
+                      agxdecode_usc, verbose, params, NULL);
+   DUMP_FIELD(c, "0x%x", partial_bg.usc);
+   DUMP_FIELD(c, "0x%x", partial_bg.rsrc_spec);
+   agxdecode_stateful(ctx, decode_usc(ctx, c->partial_bg.usc & ~0x7),
                       "Partial reload pipeline", agxdecode_usc, verbose, params,
                       NULL);
-   DUMP_FIELD(c, "0x%x", partial_store_pipeline);
-   DUMP_FIELD(c, "0x%x", partial_store_pipeline_bind);
-   agxdecode_stateful(ctx, decode_usc(ctx, c->partial_store_pipeline & ~0x7),
+   DUMP_FIELD(c, "0x%x", partial_eot.usc);
+   DUMP_FIELD(c, "0x%x", partial_eot.rsrc_spec);
+   agxdecode_stateful(ctx, decode_usc(ctx, c->partial_eot.usc & ~0x7),
                       "Partial store pipeline", agxdecode_usc, verbose, params,
                       NULL);
 
-   DUMP_FIELD(c, "0x%x", depth_dimensions);
+   DUMP_FIELD(c, "0x%x", isp_zls_pixels);
    DUMP_FIELD(c, "0x%x", isp_bgobjdepth);
    DUMP_FIELD(c, "0x%x", isp_bgobjvals);
 
-   agxdecode_sampler_heap(ctx, c->vertex_sampler_array,
-                          c->vertex_sampler_count);
+   agxdecode_sampler_heap(ctx, c->sampler_heap, c->sampler_count);
 
-   /* Linux driver doesn't use this, at least for now */
-   assert(c->fragment_sampler_array == c->vertex_sampler_array);
-   assert(c->fragment_sampler_count == c->vertex_sampler_count);
-
-   DUMP_FIELD(c, "%d", vertex_attachment_count);
-   struct drm_asahi_attachment *vertex_attachments =
-      (void *)(uintptr_t)c->vertex_attachments;
-   for (unsigned i = 0; i < c->vertex_attachment_count; i++) {
-      DUMP_FIELD((&vertex_attachments[i]), "0x%x", order);
-      DUMP_FIELD((&vertex_attachments[i]), "0x%llx", size);
-      DUMP_FIELD((&vertex_attachments[i]), "0x%llx", pointer);
-   }
-   DUMP_FIELD(c, "%d", fragment_attachment_count);
-   struct drm_asahi_attachment *fragment_attachments =
-      (void *)(uintptr_t)c->fragment_attachments;
-   for (unsigned i = 0; i < c->fragment_attachment_count; i++) {
-      DUMP_FIELD((&fragment_attachments[i]), "0x%x", order);
-      DUMP_FIELD((&fragment_attachments[i]), "0x%llx", size);
-      DUMP_FIELD((&fragment_attachments[i]), "0x%llx", pointer);
-   }
-
-   agxdecode_helper(ctx, "Vertex", c->vertex_helper_program);
-   agxdecode_helper(ctx, "Fragment", c->fragment_helper_program);
+   agxdecode_helper(ctx, "Vertex", c->vertex_helper.binary);
+   agxdecode_helper(ctx, "Fragment", c->fragment_helper.binary);
 }
 
-void
+static void
 agxdecode_drm_cmd_compute(struct agxdecode_ctx *ctx,
                           struct drm_asahi_params_global *params,
                           struct drm_asahi_cmd_compute *c, bool verbose)
 {
+   DUMP_FIELD(c, "%x", flags);
+   DUMP_FIELD(c, "0x%llx", cdm_ctrl_stream_base);
+   agxdecode_stateful(ctx, c->cdm_ctrl_stream_base, "Encoder", agxdecode_cdm,
+                      verbose, params, NULL);
+
+   agxdecode_sampler_heap(ctx, c->sampler_heap, c->sampler_count);
+   agxdecode_helper(ctx, "Compute", c->helper.binary);
+}
+
+static void
+agxdecode_drm_attachments(const char *name, struct drm_asahi_attachment *atts,
+                          size_t size)
+{
+   fprintf(agxdecode_dump_stream, "%s attachments:\n", name);
+   unsigned count = size / sizeof(struct drm_asahi_attachment);
+   for (unsigned i = 0; i < count; i++) {
+      DUMP_FIELD((&atts[i]), "0x%llx", size);
+      DUMP_FIELD((&atts[i]), "0x%llx", pointer);
+   }
+}
+
+void
+agxdecode_drm_cmdbuf(struct agxdecode_ctx *ctx,
+                     struct drm_asahi_params_global *params,
+                     struct util_dynarray *cmdbuf, bool verbose)
+{
    agxdecode_dump_file_open();
 
-   DUMP_FIELD(c, "%llx", flags);
-   DUMP_FIELD(c, "0x%llx", encoder_ptr);
-   agxdecode_stateful(ctx, c->encoder_ptr, "Encoder", agxdecode_cdm, verbose,
-                      params, NULL);
-   DUMP_FIELD(c, "0x%x", encoder_id);
-   DUMP_FIELD(c, "0x%x", cmd_id);
+   for (unsigned offs = 0; offs < cmdbuf->size;) {
+      struct drm_asahi_cmd_header *header =
+         (void *)((uint8_t *)cmdbuf->data) + offs;
+      offs += sizeof(*header);
+      void *data = (void *)((uint8_t *)cmdbuf->data) + offs;
 
-   agxdecode_sampler_heap(ctx, c->sampler_array, c->sampler_count);
-   agxdecode_helper(ctx, "Compute", c->helper_program);
+      if (header->cmd_type == DRM_ASAHI_CMD_RENDER) {
+         agxdecode_drm_cmd_render(ctx, params, data, verbose);
+      } else if (header->cmd_type == DRM_ASAHI_CMD_COMPUTE) {
+         agxdecode_drm_cmd_compute(ctx, params, data, verbose);
+      } else if (header->cmd_type == DRM_ASAHI_SET_VERTEX_ATTACHMENTS) {
+         agxdecode_drm_attachments("Vertex", data, header->size);
+      } else if (header->cmd_type == DRM_ASAHI_SET_FRAGMENT_ATTACHMENTS) {
+         agxdecode_drm_attachments("Fragment", data, header->size);
+      } else if (header->cmd_type == DRM_ASAHI_SET_COMPUTE_ATTACHMENTS) {
+         agxdecode_drm_attachments("Compute", data, header->size);
+      } else {
+         unreachable("Invalid command type");
+      }
+
+      offs += header->size;
+   }
 }
 
 static void
@@ -1004,47 +957,30 @@ chip_id_to_params(decoder_params *params, uint32_t chip_id)
    }
 }
 
-#ifdef __APPLE__
-
 void
 agxdecode_cmdstream(struct agxdecode_ctx *ctx, unsigned cmdbuf_handle,
                     unsigned map_handle, bool verbose)
 {
    agxdecode_dump_file_open();
 
-   struct agx_bo *cmdbuf =
-      agxdecode_find_handle(cmdbuf_handle, AGX_ALLOC_CMDBUF);
-   struct agx_bo *map = agxdecode_find_handle(map_handle, AGX_ALLOC_MEMMAP);
+   struct agx_bo *cmdbuf = agxdecode_find_handle(ctx, cmdbuf_handle);
    assert(cmdbuf != NULL && "nonexistent command buffer");
-   assert(map != NULL && "nonexistent mapping");
-
-   /* Print the IOGPU stuff */
-   agx_unpack(agxdecode_dump_stream, cmdbuf->map, IOGPU_HEADER, cmd);
-   DUMP_UNPACKED(IOGPU_HEADER, cmd, "IOGPU Header\n");
-
-   DUMP_CL(IOGPU_ATTACHMENT_COUNT,
-           ((uint8_t *)cmdbuf->map + cmd.attachment_offset),
-           "Attachment count");
-
-   uint32_t *attachments =
-      (uint32_t *)((uint8_t *)cmdbuf->map + cmd.attachment_offset);
-   unsigned attachment_count = attachments[3];
-   for (unsigned i = 0; i < attachment_count; ++i) {
-      uint32_t *ptr = attachments + 4 + (i * AGX_IOGPU_ATTACHMENT_LENGTH / 4);
-      DUMP_CL(IOGPU_ATTACHMENT, ptr, "Attachment");
-   }
 
    struct drm_asahi_params_global params;
 
    chip_id_to_params(&params, 0x8103);
 
-   if (cmd.unk_5 == 3)
-      agxdecode_cs((uint32_t *)cmdbuf->map, cmd.encoder, verbose, &params);
-   else
-      agxdecode_gfx((uint32_t *)cmdbuf->map, cmd.encoder, verbose, &params);
-}
+   uint32_t *map = cmdbuf->_map;
+   uint64_t encoder = (uint64_t)map[14] | ((uint64_t)(map[15]) << 32);
 
-#endif
+   if (map[13] == 3) {
+      agxdecode_stateful(ctx, encoder, "Encoder", agxdecode_cdm, verbose,
+                         &params, NULL);
+   } else {
+      agxdecode_stateful(ctx, encoder, "Encoder", agxdecode_vdm, verbose,
+                         &params, NULL);
+   }
+}
 
 void
 agxdecode_track_alloc(struct agxdecode_ctx *ctx, struct agx_bo *alloc)
@@ -1131,7 +1067,7 @@ libagxdecode_writer(void *cookie, const char *buffer, size_t size)
    return lib_config.stream_write(buffer, size);
 }
 
-#ifdef _GNU_SOURCE
+#if defined(_GNU_SOURCE) && !DETECT_OS_ANDROID
 static cookie_io_functions_t funcs = {.write = libagxdecode_writer};
 #endif
 
@@ -1140,7 +1076,7 @@ static decoder_params lib_params;
 void
 libagxdecode_init(struct libagxdecode_config *config)
 {
-#ifdef _GNU_SOURCE
+#if defined(_GNU_SOURCE) && !DETECT_OS_ANDROID
    lib_config = *config;
    agxdecode_dump_stream = fopencookie(NULL, "w", funcs);
 

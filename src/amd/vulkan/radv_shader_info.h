@@ -14,12 +14,14 @@
 #include <inttypes.h>
 #include <stdbool.h>
 
-#include "nir.h"
+#include "util/set.h"
+#include "ac_nir.h"
 #include "radv_constants.h"
 #include "radv_shader_args.h"
 
 struct radv_device;
 struct nir_shader;
+typedef struct nir_shader nir_shader;
 struct radv_shader_layout;
 struct radv_shader_stage_key;
 enum radv_pipeline_type;
@@ -51,7 +53,6 @@ struct radv_vs_output_info {
 };
 
 struct radv_streamout_info {
-   uint16_t num_outputs;
    uint16_t strides[MAX_SO_BUFFERS];
    uint32_t enabled_stream_buffers_mask;
 };
@@ -126,6 +127,7 @@ struct radv_shader_info {
       bool use_per_attribute_vb_descs;
       uint32_t vb_desc_usage_mask;
       uint32_t input_slot_usage_mask;
+      uint8_t num_attributes;
       bool has_prolog;
       bool dynamic_inputs;
       bool dynamic_num_verts_per_prim;
@@ -232,21 +234,17 @@ struct radv_shader_info {
       bool has_query; /* Task shader only */
 
       bool regalloc_hang_bug;
+
+      unsigned derivative_group : 2;
    } cs;
    struct {
+      ac_nir_tess_io_info io_info;
       uint64_t tes_inputs_read;
       uint64_t tes_patch_inputs_read;
-      uint64_t tcs_outputs_read;
-      uint64_t tcs_outputs_written;
-      uint32_t tcs_patch_outputs_read;
-      uint32_t tcs_patch_outputs_written;
       unsigned tcs_vertices_out;
       uint32_t num_lds_blocks;
-      uint8_t num_linked_inputs;          /* Number of reserved per-vertex input slots in LDS. */
-      uint8_t num_linked_outputs;         /* Number of reserved per-vertex output slots in VRAM. */
-      uint8_t num_linked_patch_outputs;   /* Number of reserved per-patch output slots in VRAM. */
+      uint8_t num_linked_inputs; /* Number of reserved per-vertex input slots in LDS. */
       bool tes_reads_tess_factors : 1;
-      nir_tcs_info info;
    } tcs;
    struct {
       enum mesa_prim output_prim;
@@ -293,6 +291,7 @@ struct radv_shader_info {
       struct {
          uint32_t spi_shader_gs_meshlet_dim;
          uint32_t spi_shader_gs_meshlet_exp_alloc;
+         uint32_t spi_shader_gs_meshlet_ctrl; /* GFX12+ */
       } ms;
 
       struct {

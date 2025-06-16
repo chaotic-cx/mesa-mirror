@@ -421,14 +421,15 @@ r600_lower_tess_io(nir_shader *shader, enum mesa_prim prim_type)
 
       nir_foreach_block(block, impl)
       {
-         nir_foreach_instr_safe(instr, block)
-         {
+         bool progress_impl = false;
+         nir_foreach_instr_safe (instr, block) {
             if (instr->type != nir_instr_type_intrinsic)
                continue;
 
             if (r600_lower_tess_io_filter(instr, shader->info.stage))
-               progress |= r600_lower_tess_io_impl(&b, instr, prim_type);
+               progress_impl |= r600_lower_tess_io_impl(&b, instr, prim_type);
          }
+         progress |= nir_progress(progress_impl, impl, nir_metadata_control_flow);
       }
    }
    return progress;
@@ -551,7 +552,5 @@ r600_append_tcs_TF_emission(nir_shader *shader, enum mesa_prim prim_type)
 
    nir_pop_if(b, nullptr);
 
-   nir_metadata_preserve(f->impl, nir_metadata_none);
-
-   return true;
+   return nir_progress(true, f->impl, nir_metadata_none);
 }

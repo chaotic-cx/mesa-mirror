@@ -3,10 +3,10 @@
 
 es1_glapi_mapi_tmp_h = custom_target(
   'es1_glapi_mapi_tmp.h',
-  input : [glapi_gen_mapi_py, glapi_gen_gl_xml],
-  output : 'glapi_mapi_tmp.h',
+  input : ['../new/gen_gldispatch_mapi.py', '../glapi/registry/gl.xml'],
+  output : 'es1_glapi_mapi_tmp.h',
   command : [prog_python, '@INPUT0@', 'glesv1', '@INPUT1@'],
-  depend_files : glapi_gen_mapi_deps,
+  depend_files : glapi_xml_py_deps,
   capture : true,
 )
 
@@ -24,19 +24,17 @@ gles1_def = custom_target(
 
 libglesv1_cm = shared_library(
   'GLESv1_CM' + get_option('gles-lib-suffix'),
-  ['../entry.c', es1_glapi_mapi_tmp_h],
+  ['libgles1_public.c', es1_glapi_mapi_tmp_h],
   vs_module_defs : gles1_def,
   c_args : [
     c_msvc_compat_args,
     _es1_c_args,
-    '-DMAPI_MODE_BRIDGE',
-    '-DMAPI_ABI_HEADER="@0@"'.format(es1_glapi_mapi_tmp_h.full_path()),
     gcc_lto_quirk,
   ],
   gnu_symbol_visibility : 'hidden',
   link_args : [ld_args_gc_sections],
   include_directories : [inc_src, inc_include, inc_mapi],
-  link_with : libglapi,
+  link_with : shared_glapi_lib,
   dependencies : [dep_thread, dep_libdrm, dep_m, dep_dl, idep_mesautilc11],
   soversion : host_machine.system() == 'windows' ? '' : '1',
   version : '1.1.0',

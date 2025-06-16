@@ -206,12 +206,6 @@ nouveau_ws_bo_from_dma_buf_locked(struct nouveau_ws_device *dev, int fd)
    bo->flags = flags;
    bo->refcnt = 1;
 
-   uint64_t align = (1ULL << 12);
-   if (info.domain & NOUVEAU_GEM_DOMAIN_VRAM)
-      align = (1ULL << 16);
-
-   assert(bo->size == align64(bo->size, align));
-
    _mesa_hash_table_insert(dev->bos, (void *)(uintptr_t)handle, bo);
 
    return bo;
@@ -309,5 +303,5 @@ nouveau_ws_bo_wait(struct nouveau_ws_bo *bo, enum nouveau_ws_bo_map_flags flags)
 int
 nouveau_ws_bo_dma_buf(struct nouveau_ws_bo *bo, int *fd)
 {
-   return drmPrimeHandleToFD(bo->dev->fd, bo->handle, DRM_CLOEXEC, fd);
+   return drmPrimeHandleToFD(bo->dev->fd, bo->handle, DRM_CLOEXEC | O_RDWR, fd);
 }

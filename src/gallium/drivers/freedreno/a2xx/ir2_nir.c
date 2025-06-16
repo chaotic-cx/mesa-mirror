@@ -65,7 +65,12 @@ ir2_optimize_loop(nir_shader *s)
       progress |= OPT(s, nir_opt_dce);
       progress |= OPT(s, nir_opt_cse);
       /* progress |= OPT(s, nir_opt_gcm, true); */
-      progress |= OPT(s, nir_opt_peephole_select, UINT_MAX, true, true);
+      nir_opt_peephole_select_options peephole_select_options = {
+         .limit = UINT_MAX,
+         .indirect_load_ok = true,
+         .expensive_alu_ok = true,
+      };
+      progress |= OPT(s, nir_opt_peephole_select, &peephole_select_options);
       progress |= OPT(s, nir_opt_intrinsics);
       progress |= OPT(s, nir_opt_algebraic);
       progress |= OPT(s, nir_opt_constant_folding);
@@ -1131,7 +1136,7 @@ ir2_nir_compile(struct ir2_context *ctx, bool binning)
    OPT_V(ctx->nir, nir_opt_algebraic_late);
    OPT_V(ctx->nir, nir_lower_alu_to_scalar, ir2_alu_to_scalar_filter_cb, NULL);
 
-   OPT_V(ctx->nir, nir_convert_from_ssa, true);
+   OPT_V(ctx->nir, nir_convert_from_ssa, true, false);
 
    OPT_V(ctx->nir, nir_move_vec_src_uses_to_dest, false);
    OPT_V(ctx->nir, nir_lower_vec_to_regs, NULL, NULL);

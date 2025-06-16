@@ -62,9 +62,36 @@ load_subgroup_id_lowered(lower_intrinsics_to_args_state *s, nir_builder *b)
           */
          return ac_nir_unpack_arg(b, s->args, s->args->tg_size, 6, 6);
       }
-   } else if (s->hw_stage == AC_HW_HULL_SHADER && s->gfx_level >= GFX11) {
-      assert(s->args->tcs_wave_id.used);
-      return ac_nir_unpack_arg(b, s->args, s->args->tcs_wave_id, 0, 3);
+   } else if (s->hw_stage == AC_HW_HULL_SHADER) {
+      if (s->gfx_level >= GFX11) {
+         assert(s->args->tcs_wave_id.used);
+         return ac_nir_unpack_arg(b, s->args, s->args->tcs_wave_id, 0, 3);
+      } else if (b->shader->info.stage == MESA_SHADER_TESS_CTRL) {
+         /* GFX6-10 don't have the subgroup ID sysval in TCS, so compute it like this:
+          *    subgroup_id = (rel_patch_id * tcs_out_vertices + invocation_id) / wave_size;
+          * Use the values from any invocation because the result should be the same for all.
+          */
+         nir_def *sgpr_rel_ids = nir_read_first_invocation(b, ac_nir_load_arg(b, s->args, s->args->tcs_rel_ids));
+         nir_def *sgpr_rel_patch_id = nir_ubfe_imm(b, sgpr_rel_ids, 0, 8);
+         nir_def *sgpr_local_invocation_index = sgpr_rel_patch_id;
+
+         /* If the number of vertices per patch is a power of two, all invocations of a patch are
+          * always in the same subgroup.
+          */
+         if (b->shader->info.tess.tcs_vertices_out > 1) {
+            nir_def *sgpr_patch_start = nir_imul_imm(b, sgpr_rel_patch_id, b->shader->info.tess.tcs_vertices_out);
+
+            if (util_is_power_of_two_nonzero(b->shader->info.tess.tcs_vertices_out)) {
+               sgpr_local_invocation_index = sgpr_patch_start;
+            } else {
+               nir_def *sgpr_invocation_id = nir_ubfe_imm(b, sgpr_rel_ids, 8, 5);
+               sgpr_local_invocation_index = nir_iadd(b, sgpr_patch_start, sgpr_invocation_id);
+            }
+         }
+         return nir_ushr_imm(b, sgpr_local_invocation_index, util_logbase2(s->wave_size));
+      } else {
+         unreachable("unimplemented for LS");
+      }
    } else if (s->hw_stage == AC_HW_LEGACY_GEOMETRY_SHADER ||
               s->hw_stage == AC_HW_NEXT_GEN_GEOMETRY_SHADER) {
       assert(s->args->merged_wave_info.used);
@@ -75,13 +102,9 @@ load_subgroup_id_lowered(lower_intrinsics_to_args_state *s, nir_builder *b)
 }
 
 static bool
-lower_intrinsic_to_arg(nir_builder *b, nir_instr *instr, void *state)
+lower_intrinsic_to_arg(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
 {
-   if (instr->type != nir_instr_type_intrinsic)
-      return false;
-
    lower_intrinsics_to_args_state *s = (lower_intrinsics_to_args_state *)state;
-   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
    nir_def *replacement = NULL;
    b->cursor = nir_after_instr(&intrin->instr);
 
@@ -303,27 +326,18 @@ lower_intrinsic_to_arg(nir_builder *b, nir_instr *instr, void *state)
          replacement = ac_nir_load_arg(b, s->args, s->args->linear_center);
       else
          replacement = ac_nir_load_arg(b, s->args, s->args->persp_center);
-      nir_intrinsic_set_flags(nir_instr_as_intrinsic(replacement->parent_instr),
-                              AC_VECTOR_ARG_FLAG(AC_VECTOR_ARG_INTERP_MODE,
-                                                 nir_intrinsic_interp_mode(intrin)));
       break;
    case nir_intrinsic_load_barycentric_centroid:
       if (nir_intrinsic_interp_mode(intrin) == INTERP_MODE_NOPERSPECTIVE)
          replacement = ac_nir_load_arg(b, s->args, s->args->linear_centroid);
       else
          replacement = ac_nir_load_arg(b, s->args, s->args->persp_centroid);
-      nir_intrinsic_set_flags(nir_instr_as_intrinsic(replacement->parent_instr),
-                              AC_VECTOR_ARG_FLAG(AC_VECTOR_ARG_INTERP_MODE,
-                                                 nir_intrinsic_interp_mode(intrin)));
       break;
    case nir_intrinsic_load_barycentric_sample:
       if (nir_intrinsic_interp_mode(intrin) == INTERP_MODE_NOPERSPECTIVE)
          replacement = ac_nir_load_arg(b, s->args, s->args->linear_sample);
       else
          replacement = ac_nir_load_arg(b, s->args, s->args->persp_sample);
-      nir_intrinsic_set_flags(nir_instr_as_intrinsic(replacement->parent_instr),
-                              AC_VECTOR_ARG_FLAG(AC_VECTOR_ARG_INTERP_MODE,
-                                                 nir_intrinsic_interp_mode(intrin)));
       break;
    case nir_intrinsic_load_barycentric_model:
       replacement = ac_nir_load_arg(b, s->args, s->args->pull_model);
@@ -358,14 +372,14 @@ lower_intrinsic_to_arg(nir_builder *b, nir_instr *instr, void *state)
    case nir_intrinsic_overwrite_vs_arguments_amd:
       s->vertex_id = intrin->src[0].ssa;
       s->instance_id = intrin->src[1].ssa;
-      nir_instr_remove(instr);
+      nir_instr_remove(&intrin->instr);
       return true;
    case nir_intrinsic_overwrite_tes_arguments_amd:
       s->tes_u = intrin->src[0].ssa;
       s->tes_v = intrin->src[1].ssa;
       s->tes_patch_id = intrin->src[2].ssa;
       s->tes_rel_patch_id = intrin->src[3].ssa;
-      nir_instr_remove(instr);
+      nir_instr_remove(&intrin->instr);
       return true;
    case nir_intrinsic_load_vertex_id_zero_base:
       if (!s->vertex_id)
@@ -430,7 +444,7 @@ lower_intrinsic_to_arg(nir_builder *b, nir_instr *instr, void *state)
    }
    case nir_intrinsic_load_local_invocation_index:
       /* GFX11 HS has subgroup_id, so use it instead of vs_rel_patch_id. */
-      if (s->gfx_level < GFX11 &&
+      if (s->gfx_level < GFX11 && b->shader->info.stage == MESA_SHADER_VERTEX &&
           (s->hw_stage == AC_HW_LOCAL_SHADER || s->hw_stage == AC_HW_HULL_SHADER)) {
          if (!s->vs_rel_patch_id) {
             s->vs_rel_patch_id = preload_arg(s, b->impl, s->args->vs_rel_patch_id,
@@ -486,6 +500,6 @@ ac_nir_lower_intrinsics_to_args(nir_shader *shader, const enum amd_gfx_level gfx
       .args = ac_args,
    };
 
-   return nir_shader_instructions_pass(shader, lower_intrinsic_to_arg,
-                                       nir_metadata_control_flow, &state);
+   return nir_shader_intrinsics_pass(shader, lower_intrinsic_to_arg,
+                                     nir_metadata_control_flow, &state);
 }

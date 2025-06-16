@@ -52,6 +52,12 @@ struct tu_bandwidth
    bool valid;
 };
 
+struct tu_disable_fs
+{
+   bool disable_fs;
+   bool valid;
+};
+
 struct tu_nir_shaders
 {
    struct vk_pipeline_cache_object base;
@@ -105,6 +111,7 @@ struct tu_program_state
       bool writes_shading_rate;
       bool reads_shading_rate;
       bool accesses_smask;
+      bool uses_ray_intersection;
 };
 
 struct tu_pipeline_executable {
@@ -170,6 +177,7 @@ struct tu_pipeline
 
    struct tu_lrz_blend lrz_blend;
    struct tu_bandwidth bandwidth;
+   struct tu_disable_fs disable_fs;
 
    void *executables_mem_ctx;
    /* tu_pipeline_executable */
@@ -235,7 +243,8 @@ TU_DECL_PIPELINE_DOWNCAST(graphics, TU_PIPELINE_GRAPHICS)
 TU_DECL_PIPELINE_DOWNCAST(graphics_lib, TU_PIPELINE_GRAPHICS_LIB)
 TU_DECL_PIPELINE_DOWNCAST(compute, TU_PIPELINE_COMPUTE)
 
-VkOffset2D tu_fdm_per_bin_offset(VkExtent2D frag_area, VkRect2D bin);
+VkOffset2D tu_fdm_per_bin_offset(VkExtent2D frag_area, VkRect2D bin,
+                                 VkOffset2D common_bin_offset);
 
 template <chip CHIP>
 uint32_t tu_emit_draw_state(struct tu_cmd_buffer *cmd);

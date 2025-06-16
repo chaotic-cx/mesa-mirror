@@ -36,15 +36,27 @@ enum etna_ml_tp_type {
    ETNA_ML_TP_PAD,
 };
 
+enum etna_ml_tensor_layout {
+   ETNA_ML_LAYOUT_ANY = 0,
+   ETNA_ML_LAYOUT_NHWC,
+   ETNA_ML_LAYOUT_NCHW,
+};
+
+struct etna_ml_tensor {
+   struct pipe_resource *resource;
+   unsigned offset;
+   unsigned size;
+   enum etna_ml_tensor_layout exp_layout; /* expected */
+   enum etna_ml_tensor_layout act_layout; /* actual */
+};
+
 struct etna_ml_subgraph {
    struct pipe_ml_subgraph base;
 
    struct util_dynarray operations;
 
-   /* The three are indexed by tensor index */
-   struct util_dynarray tensors; /* Contains struct pipe_resource* */
-   struct util_dynarray offsets; /* These are integers */
-   struct util_dynarray sizes; /* These are integers */
+   /* Indexed by tensor index */
+   struct util_dynarray tensors; /* Contains struct etna_ml_tensor */
 };
 
 struct etna_vip_instruction {
@@ -110,6 +122,13 @@ struct etna_operation {
    uint8_t addition_offset;
 
    struct pipe_resource *bias_tensor;
+
+   unsigned pad_before_x;
+   unsigned pad_after_x;
+   unsigned pad_before_y;
+   unsigned pad_after_y;
+   unsigned pad_before_z;
+   unsigned pad_after_z;
 };
 
 #define ML_DBG(fmt, ...)                                  \
@@ -119,7 +138,9 @@ struct etna_operation {
    } while (0)
 
 unsigned etna_ml_allocate_tensor(struct etna_ml_subgraph *subgraph);
-struct pipe_resource *etna_ml_get_tensor(struct etna_ml_subgraph *subgraph, unsigned idx);
+void etna_ml_create_tensor(struct etna_ml_subgraph *subgraph, unsigned idx, unsigned size);
+struct etna_ml_tensor *etna_ml_get_tensor(struct etna_ml_subgraph *subgraph, unsigned idx);
+struct pipe_resource *etna_ml_get_resource(struct etna_ml_subgraph *subgraph, unsigned idx);
 unsigned etna_ml_get_offset(struct etna_ml_subgraph *subgraph, unsigned idx);
 unsigned etna_ml_get_size(struct etna_ml_subgraph *subgraph, unsigned idx);
 

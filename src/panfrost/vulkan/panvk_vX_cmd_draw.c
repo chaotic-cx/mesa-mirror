@@ -11,6 +11,41 @@
 #include "panvk_entrypoints.h"
 
 #include "pan_desc.h"
+#include "pan_util.h"
+
+static void
+att_set_clear_preload(const VkRenderingAttachmentInfo *att, bool *clear, bool *preload)
+{
+   switch (att->loadOp) {
+   case VK_ATTACHMENT_LOAD_OP_CLEAR:
+      *clear = true;
+      break;
+   case VK_ATTACHMENT_LOAD_OP_LOAD:
+      *preload = true;
+      break;
+   case VK_ATTACHMENT_LOAD_OP_NONE:
+      break;
+   case VK_ATTACHMENT_LOAD_OP_DONT_CARE:
+      /* This is a very frustrating corner case. From the spec:
+       *
+       *     VK_ATTACHMENT_STORE_OP_NONE specifies the contents within the
+       *     render area are not accessed by the store operation as long as
+       *     no values are written to the attachment during the render pass.
+       *
+       * With VK_ATTACHMENT_LOAD_OP_DONT_CARE + VK_ATTACHMENT_STORE_OP_NONE,
+       * we need to preserve the contents throughout partial renders. The
+       * easiest way to do that is forcing a preload, so that partial stores
+       * for unused attachments will be no-op'd by writing existing contents.
+       *
+       * TODO: disable preload when we have clean_pixel_write_enable = false
+       * as an optimization
+       */
+      *preload |= att->storeOp == VK_ATTACHMENT_STORE_OP_NONE;
+      break;
+   default:
+      unreachable("Unsupported loadOp");
+   }
+}
 
 static void
 render_state_set_color_attachment(struct panvk_cmd_buffer *cmdbuf,
@@ -36,20 +71,20 @@ render_state_set_color_attachment(struct panvk_cmd_buffer *cmdbuf,
 
    fbinfo->rts[index].view = &iview->pview;
    fbinfo->rts[index].crc_valid = &state->render.fb.crc_valid[index];
-   fbinfo->nr_samples =
-      MAX2(fbinfo->nr_samples, pan_image_view_get_nr_samples(&iview->pview));
+   state->render.fb.nr_samples =
+      MAX2(state->render.fb.nr_samples,
+           pan_image_view_get_nr_samples(&iview->pview));
 
    if (att->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
       enum pipe_format fmt = vk_format_to_pipe_format(iview->vk.format);
       union pipe_color_union *col =
          (union pipe_color_union *)&att->clearValue.color;
-
-      fbinfo->rts[index].clear = true;
       pan_pack_color(phys_dev->formats.blendable,
                      fbinfo->rts[index].clear_value, col, fmt, false);
-   } else if (att->loadOp == VK_ATTACHMENT_LOAD_OP_LOAD) {
-      fbinfo->rts[index].preload = true;
    }
+
+   att_set_clear_preload(att, &fbinfo->rts[index].clear,
+                         &fbinfo->rts[index].preload);
 
    if (att->resolveMode != VK_RESOLVE_MODE_NONE) {
       struct panvk_resolve_attachment *resolve_info =
@@ -87,10 +122,14 @@ render_state_set_z_attachment(struct panvk_cmd_buffer *cmdbuf,
    if (iview->pview.format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT)
       state->render.zs_pview.format = PIPE_FORMAT_Z32_FLOAT;
 
-   state->render.zs_pview.planes[0] = &img->planes[0];
-   state->render.zs_pview.planes[1] = NULL;
-   fbinfo->nr_samples =
-      MAX2(fbinfo->nr_samples, pan_image_view_get_nr_samples(&iview->pview));
+   state->render.zs_pview.planes[0] = (struct pan_image_plane_ref){
+      .image = &img->planes[0].image,
+      .plane_idx = 0,
+   };
+   state->render.zs_pview.planes[1] = (struct pan_image_plane_ref){0};
+   state->render.fb.nr_samples =
+      MAX2(state->render.fb.nr_samples,
+           pan_image_view_get_nr_samples(&iview->pview));
    state->render.z_attachment.iview = iview;
 
    /* D24S8 is a single plane format where the depth/stencil are interleaved.
@@ -106,12 +145,10 @@ render_state_set_z_attachment(struct panvk_cmd_buffer *cmdbuf,
          vk_format_to_pipe_format(vk_format_depth_only(img->vk.format));
    }
 
-   if (att->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
-      fbinfo->zs.clear.z = true;
+   if (att->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR)
       fbinfo->zs.clear_value.depth = att->clearValue.depthStencil.depth;
-   } else if (att->loadOp == VK_ATTACHMENT_LOAD_OP_LOAD) {
-      fbinfo->zs.preload.z = true;
-   }
+
+   att_set_clear_preload(att, &fbinfo->zs.clear.z, &fbinfo->zs.preload.z);
 
    if (att->resolveMode != VK_RESOLVE_MODE_NONE) {
       struct panvk_resolve_attachment *resolve_info =
@@ -150,15 +187,22 @@ render_state_set_s_attachment(struct panvk_cmd_buffer *cmdbuf,
                                      ? PIPE_FORMAT_Z24_UNORM_S8_UINT
                                      : PIPE_FORMAT_S8_UINT;
    if (img->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-      state->render.s_pview.planes[0] = NULL;
-      state->render.s_pview.planes[1] = &img->planes[1];
+      state->render.s_pview.planes[0] = (struct pan_image_plane_ref){0};
+      state->render.s_pview.planes[1] = (struct pan_image_plane_ref){
+         .image = &img->planes[1].image,
+         .plane_idx = 0,
+      };
    } else {
-      state->render.s_pview.planes[0] = &img->planes[0];
-      state->render.s_pview.planes[1] = NULL;
+      state->render.s_pview.planes[0] = (struct pan_image_plane_ref){
+         .image = &img->planes[0].image,
+         .plane_idx = 0,
+      };
+      state->render.s_pview.planes[1] = (struct pan_image_plane_ref){0};
    }
 
-   fbinfo->nr_samples =
-      MAX2(fbinfo->nr_samples, pan_image_view_get_nr_samples(&iview->pview));
+   state->render.fb.nr_samples =
+      MAX2(state->render.fb.nr_samples,
+           pan_image_view_get_nr_samples(&iview->pview));
    state->render.s_attachment.iview = iview;
 
    /* If the depth and stencil attachments point to the same image,
@@ -184,12 +228,10 @@ render_state_set_s_attachment(struct panvk_cmd_buffer *cmdbuf,
       fbinfo->zs.view.s = NULL;
    }
 
-   if (att->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
-      fbinfo->zs.clear.s = true;
+   if (att->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR)
       fbinfo->zs.clear_value.stencil = att->clearValue.depthStencil.stencil;
-   } else if (att->loadOp == VK_ATTACHMENT_LOAD_OP_LOAD) {
-      fbinfo->zs.preload.s = true;
-   }
+
+   att_set_clear_preload(att, &fbinfo->zs.clear.s, &fbinfo->zs.preload.s);
 
    if (att->resolveMode != VK_RESOLVE_MODE_NONE) {
       struct panvk_resolve_attachment *resolve_info =
@@ -220,6 +262,11 @@ panvk_per_arch(cmd_init_render_state)(struct panvk_cmd_buffer *cmdbuf,
    memset(state->render.fb.bos, 0, sizeof(state->render.fb.bos));
 #endif
 
+   state->render.first_provoking_vertex = U_TRISTATE_UNSET;
+#if PAN_ARCH >= 10
+   state->render.maybe_set_tds_provoking_vertex = NULL;
+   state->render.maybe_set_fbds_provoking_vertex = NULL;
+#endif
    memset(state->render.fb.crc_valid, 0, sizeof(state->render.fb.crc_valid));
    memset(&state->render.color_attachments, 0,
           sizeof(state->render.color_attachments));
@@ -232,10 +279,12 @@ panvk_per_arch(cmd_init_render_state)(struct panvk_cmd_buffer *cmdbuf,
       pRenderingInfo->layerCount;
    cmdbuf->state.gfx.render.view_mask = pRenderingInfo->viewMask;
    *fbinfo = (struct pan_fb_info){
-      .tile_buf_budget = panfrost_query_optimal_tib_size(phys_dev->model),
-      .nr_samples = 1,
+      .tile_buf_budget = pan_query_optimal_tib_size(phys_dev->model),
+      .z_tile_buf_budget = pan_query_optimal_z_tib_size(phys_dev->model),
+      .nr_samples = 0,
       .rt_count = pRenderingInfo->colorAttachmentCount,
    };
+   cmdbuf->state.gfx.render.fb.nr_samples = 1;
 
    assert(pRenderingInfo->colorAttachmentCount <= ARRAY_SIZE(fbinfo->rts));
 
@@ -294,8 +343,30 @@ panvk_per_arch(cmd_init_render_state)(struct panvk_cmd_buffer *cmdbuf,
    }
 
    assert(fbinfo->width && fbinfo->height);
+}
 
-   GENX(pan_select_tile_size)(fbinfo);
+void
+panvk_per_arch(cmd_select_tile_size)(struct panvk_cmd_buffer *cmdbuf)
+{
+   struct pan_fb_info *fbinfo = &cmdbuf->state.gfx.render.fb.info;
+
+   /* In case we never emitted tiler/framebuffer descriptors, we emit the
+    * current sample count and compute tile size */
+   if (fbinfo->nr_samples == 0) {
+      fbinfo->nr_samples = cmdbuf->state.gfx.render.fb.nr_samples;
+      GENX(pan_select_tile_size)(fbinfo);
+
+#if PAN_ARCH != 6
+      if (fbinfo->cbuf_allocation > fbinfo->tile_buf_budget) {
+         vk_perf(VK_LOG_OBJS(&cmdbuf->vk.base),
+                 "Using too much tile-memory, disabling pipelining");
+      }
+#endif
+   } else {
+      /* In case we already emitted tiler/framebuffer descriptors, we ensure
+       * that the sample count didn't change (this should never happen) */
+      assert(fbinfo->nr_samples == cmdbuf->state.gfx.render.fb.nr_samples);
+   }
 }
 
 void
@@ -525,18 +596,98 @@ void
 panvk_per_arch(cmd_preload_render_area_border)(
    struct panvk_cmd_buffer *cmdbuf, const VkRenderingInfo *render_info)
 {
+   const unsigned meta_tile_size = pan_meta_tile_size(PAN_ARCH);
    struct panvk_cmd_graphics_state *state = &cmdbuf->state.gfx;
    struct pan_fb_info *fbinfo = &state->render.fb.info;
-   bool render_area_is_32x32_aligned =
-      ((fbinfo->extent.minx | fbinfo->extent.miny) % 32) == 0 &&
-      (fbinfo->extent.maxx + 1 == fbinfo->width ||
-       (fbinfo->extent.maxx % 32) == 31) &&
-      (fbinfo->extent.maxy + 1 == fbinfo->height ||
-       (fbinfo->extent.maxy % 32) == 31);
 
-   /* If the render area is aligned on a 32x32 section, we're good. */
-   if (!render_area_is_32x32_aligned)
+   bool render_area_is_aligned =
+      ((fbinfo->extent.minx | fbinfo->extent.miny) % meta_tile_size) == 0 &&
+      (fbinfo->extent.maxx + 1 == fbinfo->width ||
+       (fbinfo->extent.maxx % meta_tile_size) == (meta_tile_size - 1)) &&
+      (fbinfo->extent.maxy + 1 == fbinfo->height ||
+       (fbinfo->extent.maxy % meta_tile_size) == (meta_tile_size - 1));
+
+   /* If the render area is aligned on the meta tile size, we're good. */
+   if (!render_area_is_aligned)
       panvk_per_arch(cmd_force_fb_preload)(cmdbuf, render_info);
+}
+
+static void
+prepare_iam_sysvals(struct panvk_cmd_buffer *cmdbuf, BITSET_WORD *dirty_sysvals)
+{
+   const struct vk_input_attachment_location_state *ial =
+      &cmdbuf->vk.dynamic_graphics_state.ial;
+   struct panvk_input_attachment_info iam[INPUT_ATTACHMENT_MAP_SIZE];
+   uint32_t catt_count =
+      ial->color_attachment_count == MESA_VK_COLOR_ATTACHMENT_COUNT_UNKNOWN
+         ? MAX_RTS
+         : ial->color_attachment_count;
+
+   memset(iam, ~0, sizeof(iam));
+
+   assert(catt_count <= MAX_RTS);
+
+   for (uint32_t i = 0; i < catt_count; i++) {
+      if (ial->color_map[i] == MESA_VK_ATTACHMENT_UNUSED ||
+          !(cmdbuf->state.gfx.render.bound_attachments &
+            MESA_VK_RP_ATTACHMENT_COLOR_BIT(i)))
+         continue;
+
+      VkFormat fmt = cmdbuf->state.gfx.render.color_attachments.fmts[i];
+      enum pipe_format pfmt = vk_format_to_pipe_format(fmt);
+      struct mali_internal_conversion_packed conv;
+      uint32_t ia_idx = ial->color_map[i] + 1;
+      assert(ia_idx < ARRAY_SIZE(iam));
+
+      iam[ia_idx].target = PANVK_COLOR_ATTACHMENT(i);
+
+      pan_pack(&conv, INTERNAL_CONVERSION, cfg) {
+         cfg.memory_format =
+            GENX(pan_dithered_format_from_pipe_format)(pfmt, false);
+#if PAN_ARCH <= 7
+         cfg.register_format =
+            vk_format_is_uint(fmt)   ? MALI_REGISTER_FILE_FORMAT_U32
+            : vk_format_is_sint(fmt) ? MALI_REGISTER_FILE_FORMAT_I32
+                                     : MALI_REGISTER_FILE_FORMAT_F32;
+#endif
+      }
+
+      iam[ia_idx].conversion = conv.opaque[0];
+   }
+
+   if (ial->depth_att != MESA_VK_ATTACHMENT_UNUSED) {
+      uint32_t ia_idx =
+         ial->depth_att == MESA_VK_ATTACHMENT_NO_INDEX ? 0 : ial->depth_att + 1;
+
+      assert(ia_idx < ARRAY_SIZE(iam));
+      iam[ia_idx].target = PANVK_ZS_ATTACHMENT;
+
+#if PAN_ARCH <= 7
+      /* On v7, we need to pass the depth format around. If we use a conversion
+       * of zero, like we do on v9+, the GPU reports an INVALID_INSTR_ENC. */
+      VkFormat fmt = cmdbuf->state.gfx.render.z_attachment.fmt;
+      enum pipe_format pfmt = vk_format_to_pipe_format(fmt);
+      struct mali_internal_conversion_packed conv;
+
+      pan_pack(&conv, INTERNAL_CONVERSION, cfg) {
+         cfg.register_format = MALI_REGISTER_FILE_FORMAT_F32;
+         cfg.memory_format =
+            GENX(pan_dithered_format_from_pipe_format)(pfmt, false);
+      }
+      iam[ia_idx].conversion = conv.opaque[0];
+#endif
+   }
+
+   if (ial->stencil_att != MESA_VK_ATTACHMENT_UNUSED) {
+      uint32_t ia_idx =
+         ial->stencil_att == MESA_VK_ATTACHMENT_NO_INDEX ? 0 : ial->stencil_att + 1;
+
+      assert(ia_idx < ARRAY_SIZE(iam));
+      iam[ia_idx].target = PANVK_ZS_ATTACHMENT;
+   }
+
+   for (uint32_t i = 0; i < ARRAY_SIZE(iam); i++)
+      set_gfx_sysval(cmdbuf, dirty_sysvals, iam[i], iam[i]);
 }
 
 /* This value has been selected to get
@@ -548,11 +699,14 @@ void
 panvk_per_arch(cmd_prepare_draw_sysvals)(struct panvk_cmd_buffer *cmdbuf,
                                          const struct panvk_draw_info *info)
 {
+   const struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct vk_color_blend_state *cb = &cmdbuf->vk.dynamic_graphics_state.cb;
    const struct panvk_shader *fs = get_fs(cmdbuf);
    uint32_t noperspective_varyings = fs ? fs->info.varyings.noperspective : 0;
    BITSET_DECLARE(dirty_sysvals, MAX_SYSVAL_FAUS) = {0};
 
+   set_gfx_sysval(cmdbuf, dirty_sysvals, printf_buffer_address,
+                  dev->printf.bo->addr.dev);
    set_gfx_sysval(cmdbuf, dirty_sysvals, vs.noperspective_varyings,
                   noperspective_varyings);
    set_gfx_sysval(cmdbuf, dirty_sysvals, vs.first_vertex, info->vertex.base);
@@ -644,6 +798,9 @@ panvk_per_arch(cmd_prepare_draw_sysvals)(struct panvk_cmd_buffer *cmdbuf,
       }
    }
 
+   if (dyn_gfx_state_dirty(cmdbuf, INPUT_ATTACHMENT_MAP))
+      prepare_iam_sysvals(cmdbuf, dirty_sysvals);
+
    const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
 
 #if PAN_ARCH <= 7
@@ -696,23 +853,30 @@ panvk_per_arch(cmd_prepare_draw_sysvals)(struct panvk_cmd_buffer *cmdbuf,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-panvk_per_arch(CmdBindVertexBuffers)(VkCommandBuffer commandBuffer,
-                                     uint32_t firstBinding,
-                                     uint32_t bindingCount,
-                                     const VkBuffer *pBuffers,
-                                     const VkDeviceSize *pOffsets)
+panvk_per_arch(CmdBindVertexBuffers2)(VkCommandBuffer commandBuffer,
+                                      uint32_t firstBinding,
+                                      uint32_t bindingCount,
+                                      const VkBuffer *pBuffers,
+                                      const VkDeviceSize *pOffsets,
+                                      const VkDeviceSize *pSizes,
+                                      const VkDeviceSize *pStrides)
 {
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
 
    assert(firstBinding + bindingCount <= MAX_VBS);
+
+   if (pStrides) {
+      vk_cmd_set_vertex_binding_strides(&cmdbuf->vk, firstBinding,
+                                        bindingCount, pStrides);
+   }
 
    for (uint32_t i = 0; i < bindingCount; i++) {
       VK_FROM_HANDLE(panvk_buffer, buffer, pBuffers[i]);
 
       cmdbuf->state.gfx.vb.bufs[firstBinding + i].address =
          panvk_buffer_gpu_ptr(buffer, pOffsets[i]);
-      cmdbuf->state.gfx.vb.bufs[firstBinding + i].size =
-         panvk_buffer_range(buffer, pOffsets[i], VK_WHOLE_SIZE);
+      cmdbuf->state.gfx.vb.bufs[firstBinding + i].size = panvk_buffer_range(
+         buffer, pOffsets[i], pSizes ? pSizes[i] : VK_WHOLE_SIZE);
    }
 
    cmdbuf->state.gfx.vb.count =
@@ -721,15 +885,20 @@ panvk_per_arch(CmdBindVertexBuffers)(VkCommandBuffer commandBuffer,
 }
 
 VKAPI_ATTR void VKAPI_CALL
-panvk_per_arch(CmdBindIndexBuffer)(VkCommandBuffer commandBuffer,
-                                   VkBuffer buffer, VkDeviceSize offset,
-                                   VkIndexType indexType)
+panvk_per_arch(CmdBindIndexBuffer2)(VkCommandBuffer commandBuffer,
+                                    VkBuffer buffer, VkDeviceSize offset,
+                                    VkDeviceSize size, VkIndexType indexType)
 {
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_buffer, buf, buffer);
 
-   cmdbuf->state.gfx.ib.buffer = buf;
-   cmdbuf->state.gfx.ib.offset = offset;
+   cmdbuf->state.gfx.ib.size = panvk_buffer_range(buf, offset, size);
+   assert(cmdbuf->state.gfx.ib.size <= UINT32_MAX);
+   cmdbuf->state.gfx.ib.dev_addr = panvk_buffer_gpu_ptr(buf, offset);
+#if PAN_ARCH <= 7
+   cmdbuf->state.gfx.ib.host_addr =
+      buf && buf->host_ptr ? buf->host_ptr + offset : NULL;
+#endif
    cmdbuf->state.gfx.ib.index_size = vk_index_type_to_bytes(indexType);
    gfx_state_set_dirty(cmdbuf, IB);
 }

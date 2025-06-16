@@ -12,6 +12,18 @@ libd3d12_compiler_args += cc.get_supported_arguments([
     '/we4838',
     '/we4302',
     '/we4018',
+    '/we4056',
+    '/we4305',
+    '/we4351',
+    '/we4756',
+    '/we4800',
+    '/we4291',
+    '/we4624',
+    '/we4309',
+    '/we5105',
+    '/we4020',
+    '/we4024',
+    '/we4189',
   ])
 
 _with_gallium_d3d12_graphics = get_option('gallium-d3d12-graphics')
@@ -136,12 +148,17 @@ if is_xbox == false
   files_libd3d12 += files('d3d12_dxcore_screen.cpp')
 endif
 
+libd3d12_deps = [dep_dxheaders, idep_mesautil]
+if with_gallium_d3d12_graphics
+  libd3d12_deps += [idep_nir_headers, idep_libdxil_compiler]
+endif
+
 libd3d12 = static_library(
   'd3d12',
   [files_libd3d12, sha1_h],
   gnu_symbol_visibility : 'hidden',
   include_directories : [inc_include, inc_src, inc_mesa, inc_gallium, inc_gallium_aux],
-  dependencies: [idep_nir_headers, idep_libdxil_compiler, dep_dxheaders, idep_mesautil],
+  dependencies: libd3d12_deps,
   c_args: libd3d12_compiler_args,
   cpp_args: libd3d12_compiler_args,
 )

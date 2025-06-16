@@ -64,7 +64,7 @@ try_opt_bcsel_of_shuffle(nir_builder *b, nir_alu_instr *alu,
     * now and subgroup ops in the presence of discard aren't common.
     */
    if (block_has_discard)
-      return false;
+      return NULL;
 
    if (!nir_alu_src_is_trivial_ssa(alu, 0))
       return NULL;
@@ -428,12 +428,9 @@ nir_opt_intrinsics(nir_shader *shader)
    bool progress = false;
 
    nir_foreach_function_impl(impl, shader) {
-      if (opt_intrinsics_impl(impl, shader->options)) {
-         progress = true;
-         nir_metadata_preserve(impl, nir_metadata_control_flow);
-      } else {
-         nir_metadata_preserve(impl, nir_metadata_all);
-      }
+      bool impl_progress = opt_intrinsics_impl(impl, shader->options);
+      progress |= nir_progress(impl_progress, impl,
+                               nir_metadata_control_flow);
    }
 
    return progress;

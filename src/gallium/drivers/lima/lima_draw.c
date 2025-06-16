@@ -128,16 +128,16 @@ lima_update_job_wb(struct lima_context *ctx, unsigned buffers)
    /* add to job when the buffer is dirty and resolve is clear (not added before) */
    if (fb->base.nr_cbufs && (buffers & PIPE_CLEAR_COLOR0) &&
        !(job->resolve & PIPE_CLEAR_COLOR0)) {
-      struct lima_resource *res = lima_resource(fb->base.cbufs[0]->texture);
+      struct lima_resource *res = lima_resource(fb->base.cbufs[0].texture);
       lima_flush_job_accessing_bo(ctx, res->bo, true);
       _mesa_hash_table_insert(ctx->write_jobs, &res->base, job);
       lima_job_add_bo(job, LIMA_PIPE_PP, res->bo, LIMA_SUBMIT_BO_WRITE);
    }
 
    /* add to job when the buffer is dirty and resolve is clear (not added before) */
-   if (fb->base.zsbuf && (buffers & (PIPE_CLEAR_DEPTH | PIPE_CLEAR_STENCIL)) &&
+   if (fb->base.zsbuf.texture && (buffers & (PIPE_CLEAR_DEPTH | PIPE_CLEAR_STENCIL)) &&
        !(job->resolve & (PIPE_CLEAR_DEPTH | PIPE_CLEAR_STENCIL))) {
-      struct lima_resource *res = lima_resource(fb->base.zsbuf->texture);
+      struct lima_resource *res = lima_resource(fb->base.zsbuf.texture);
       lima_flush_job_accessing_bo(ctx, res->bo, true);
       _mesa_hash_table_insert(ctx->write_jobs, &res->base, job);
       lima_job_add_bo(job, LIMA_PIPE_PP, res->bo, LIMA_SUBMIT_BO_WRITE);
@@ -164,7 +164,7 @@ lima_clear(struct pipe_context *pctx, unsigned buffers, const struct pipe_scisso
 
    /* no need to reload if cleared */
    if (ctx->framebuffer.base.nr_cbufs && (buffers & PIPE_CLEAR_COLOR0)) {
-      struct lima_surface *surf = lima_surface(ctx->framebuffer.base.cbufs[0]);
+      struct lima_surface *surf = lima_surface(ctx->framebuffer.fb_cbufs[0]);
       surf->reload &= ~PIPE_CLEAR_COLOR0;
    }
 
@@ -172,20 +172,13 @@ lima_clear(struct pipe_context *pctx, unsigned buffers, const struct pipe_scisso
    clear->buffers = buffers;
 
    if (buffers & PIPE_CLEAR_COLOR0) {
-      clear->color_8pc =
-         ((uint32_t)float_to_ubyte(color->f[3]) << 24) |
-         ((uint32_t)float_to_ubyte(color->f[2]) << 16) |
-         ((uint32_t)float_to_ubyte(color->f[1]) << 8) |
-         float_to_ubyte(color->f[0]);
-
-      clear->color_16pc =
-         ((uint64_t)float_to_ushort(color->f[3]) << 48) |
-         ((uint64_t)float_to_ushort(color->f[2]) << 32) |
-         ((uint64_t)float_to_ushort(color->f[1]) << 16) |
-         float_to_ushort(color->f[0]);
+      clear->color[0] = color->f[0];
+      clear->color[1] = color->f[1];
+      clear->color[2] = color->f[2];
+      clear->color[3] = color->f[3];
    }
 
-   struct lima_surface *zsbuf = lima_surface(ctx->framebuffer.base.zsbuf);
+   struct lima_surface *zsbuf = lima_surface(ctx->framebuffer.fb_zsbuf);
 
    if (buffers & PIPE_CLEAR_DEPTH) {
       clear->depth = util_pack_z(PIPE_FORMAT_Z24X8_UNORM, depth);
@@ -194,7 +187,8 @@ lima_clear(struct pipe_context *pctx, unsigned buffers, const struct pipe_scisso
    }
 
    if (buffers & PIPE_CLEAR_STENCIL) {
-      clear->stencil = stencil;
+      // the provided stencil value seems to be 16 bit, truncate
+      clear->stencil = stencil & 0xFF;
       if (zsbuf)
          zsbuf->reload &= ~PIPE_CLEAR_STENCIL;
    }
@@ -1020,7 +1014,7 @@ lima_draw_vbo_update(struct pipe_context *pctx,
    struct lima_context_framebuffer *fb = &ctx->framebuffer;
    unsigned buffers = 0;
 
-   if (fb->base.zsbuf) {
+   if (fb->base.zsbuf.texture) {
       if (ctx->zsa->base.depth_enabled)
          buffers |= PIPE_CLEAR_DEPTH;
       if (ctx->zsa->base.stencil[0].enabled ||
@@ -1091,15 +1085,17 @@ lima_draw_vbo_indexed(struct pipe_context *pctx,
    else {
       ctx->index_res = lima_resource(info->index.resource);
       ctx->index_offset = 0;
-      needs_indices = !panfrost_minmax_cache_get(ctx->index_res->index_cache, draw->start,
-                                                 draw->count, &ctx->min_index, &ctx->max_index);
+      needs_indices = !pan_minmax_cache_get(ctx->index_res->index_cache, info->index_size,
+                                            draw->start, draw->count,
+                                            &ctx->min_index, &ctx->max_index);
    }
 
    if (needs_indices) {
       u_vbuf_get_minmax_index(pctx, info, draw, &ctx->min_index, &ctx->max_index);
       if (!info->has_user_indices)
-         panfrost_minmax_cache_add(ctx->index_res->index_cache, draw->start, draw->count,
-                                   ctx->min_index, ctx->max_index);
+         pan_minmax_cache_add(ctx->index_res->index_cache, info->index_size,
+                              draw->start, draw->count,
+                              ctx->min_index, ctx->max_index);
    }
 
    lima_job_add_bo(job, LIMA_PIPE_GP, ctx->index_res->bo, LIMA_SUBMIT_BO_READ);

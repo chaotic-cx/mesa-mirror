@@ -12,7 +12,6 @@ glx@glx_arb_create_context@invalid flag,Fail
 
 glx@glx-swap-pixmap-bad,Fail
 glx@glx-visuals-depth,Crash
-glx@glx_arb_create_context_es2_profile@invalid opengl es version,Fail
 glx@glx_arb_create_context_no_error@no error,Fail
 
 glx@glx_ext_import_context@free context,Fail
@@ -127,14 +126,5 @@ spec@ext_transform_feedback@tessellation quads wireframe,Fail
 # Debian 12 CI update, see https://gitlab.freedesktop.org/mesa/mesa/-/issues/9072
 spec@ext_transform_feedback@tessellation quad_strip wireframe,Crash
 spec@!opengl 1.0@gl-1.0-dlist-beginend,Crash
-spec@nv_texture_barrier@blending-in-shader,Crash
 
 spec@arb_viewport_array@display-list,Fail
-
-# passes locally
-KHR-GL46.sparse_buffer_tests.BufferStorageTest_case_b1_tf_type_1_draw_call_indexed,Crash
-KHR-GL46.sparse_buffer_tests.BufferStorageTest_case_b2_tf_type_0_draw_call_instanced_indexed,Crash
-KHR-GL46.sparse_buffer_tests.BufferStorageTest_case_b2_tf_type_0_draw_call_regular_instanced,Crash
-KHR-GL46.sparse_buffer_tests.BufferStorageTest_case_b2_tf_type_1_draw_call_regular_instanced,Crash
-KHR-GL46.sparse_buffer_tests.BufferStorageTest_case_h,Crash
-KHR-GL46.texture_view.coherency,Fail

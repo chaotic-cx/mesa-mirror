@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -49,6 +50,18 @@ struct fd_dev_info {
    uint32_t threadsize_base;
 
    uint32_t max_waves;
+
+   /* Local Memory (i.e. shared memory in GL/Vulkan) and compute shader
+    * const registers, as well as other things not relevant here, share the
+    * same storage space, called the Local Buffer or LB. This is the size of
+    * the part of the LB used for consts and LM. Consts are duplicated
+    * wavesize_granularity times, and the size of duplicated consts + local
+    * memory must not exceed it. If it is left 0, assume that it is
+    * compute constlen + wavesize_granularity * cs_shared_mem_size, which is
+    * enough to hold both the maximum possible compute consts and local
+    * memory at the same time.
+    */
+   uint32_t compute_lb_size;
 
    /* number of CCU is always equal to the number of SP */
    union {
@@ -206,6 +219,9 @@ struct fd_dev_info {
       /* Whether the sad instruction (iadd3) is supported. */
       bool has_sad;
 
+      /* A702 cuts A LOT of things.. */
+      bool is_a702;
+
       struct {
          uint32_t PC_POWER_CNTL;
          uint32_t TPL1_DBG_ECO_CNTL;
@@ -234,6 +250,8 @@ struct fd_dev_info {
 
       float line_width_min;
       float line_width_max;
+
+      bool has_bin_mask;
    } a6xx;
 
    struct {
@@ -320,9 +338,6 @@ struct fd_dev_info {
        */
       bool has_persistent_counter;
 
-      /* Whether only 256 vec4 constants are available for compute */
-      bool compute_constlen_quirk;
-
       bool has_primitive_shading_rate;
 
       /* A7XX gen1 and gen2 seem to require declaring SAMPLEMASK input
@@ -330,6 +345,26 @@ struct fd_dev_info {
        * This workaround was seen in the prop driver v512.762.12.
        */
       bool reading_shading_rate_requires_smask_quirk;
+
+      /* Whether the ray_intersection instruction is present. */
+      bool has_ray_intersection;
+
+      /* Whether features may be fused off by the SW_FUSE. So far, this is
+       * just raytracing.
+       */
+      bool has_sw_fuse;
+
+      /* a750-specific HW bug workaround for ray tracing */
+      bool has_rt_workaround;
+
+      /* Whether alias.rt is supported. */
+      bool has_alias_rt;
+
+      /* Whether CP_SET_BIN_DATA5::ABS_MASK exists */
+      bool has_abs_bin_mask;
+
+      /* On a750 the control register layout is rearranged. */
+      bool new_control_regs;
    } a7xx;
 };
 
@@ -359,6 +394,14 @@ fd_dev_gpu_id(const struct fd_dev_id *id)
 
 /* Unmodified dev info as defined in freedreno_devices.py */
 const struct fd_dev_info *fd_dev_info_raw(const struct fd_dev_id *id);
+
+/* Helper to check if GPU is known before going any further */
+static inline uint8_t
+fd_dev_is_supported(const struct fd_dev_id *id) {
+   assert(id);
+   assert(id->gpu_id || id->chip_id);
+   return fd_dev_info_raw(id) != NULL;
+}
 
 /* Final dev info with dbg options and everything else applied.  */
 const struct fd_dev_info fd_dev_info(const struct fd_dev_id *id);

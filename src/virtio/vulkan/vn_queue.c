@@ -263,7 +263,7 @@ static bool
 vn_has_zink_sync_batch(struct vn_queue_submission *submit)
 {
    struct vn_queue *queue = vn_queue_from_handle(submit->queue_handle);
-   struct vn_device *dev = (void *)queue->base.base.base.device;
+   struct vn_device *dev = vn_device_from_vk(queue->base.vk.base.device);
    struct vn_instance *instance = dev->instance;
    const uint32_t last_batch_index = submit->batch_count - 1;
 
@@ -320,7 +320,7 @@ vn_fix_device_group_cmd_count(struct vn_queue_submission *submit,
                               uint32_t batch_index)
 {
    struct vk_queue *queue_vk = vk_queue_from_handle(submit->queue_handle);
-   struct vn_device *dev = (void *)queue_vk->base.device;
+   struct vn_device *dev = vn_device_from_vk(queue_vk->base.device);
    const VkSubmitInfo *src_batch = &submit->submit_batches[batch_index];
    struct vn_submit_info_pnext_fix *pnext_fix = submit->temp.pnexts;
    VkBaseOutStructure *dst =
@@ -514,10 +514,8 @@ vn_queue_submission_prepare(struct vn_queue_submission *submit)
        submit->batch_type != VK_STRUCTURE_TYPE_BIND_SPARSE_INFO) {
       const struct wsi_memory_signal_submit_info *info = vk_find_struct_const(
          submit->submit_batches[0].pNext, WSI_MEMORY_SIGNAL_SUBMIT_INFO_MESA);
-      if (info) {
+      if (info)
          submit->wsi_mem = vn_device_memory_from_handle(info->memory);
-         assert(submit->wsi_mem->base_bo);
-      }
    }
 
    for (uint32_t i = 0; i < submit->batch_count; i++) {
@@ -651,7 +649,7 @@ vn_queue_submission_add_query_feedback(struct vn_queue_submission *submit,
                                        uint32_t *new_cmd_count)
 {
    struct vk_queue *queue_vk = vk_queue_from_handle(submit->queue_handle);
-   struct vn_device *dev = (void *)queue_vk->base.device;
+   struct vn_device *dev = vn_device_from_vk(queue_vk->base.device);
    VkResult result;
 
    struct vn_feedback_cmd_pool *fb_cmd_pool = NULL;
@@ -724,7 +722,7 @@ vn_queue_submission_add_semaphore_feedback(struct vn_queue_submission *submit,
       return VK_SUCCESS;
 
    VK_FROM_HANDLE(vk_queue, queue_vk, submit->queue_handle);
-   struct vn_device *dev = (void *)queue_vk->base.device;
+   struct vn_device *dev = vn_device_from_vk(queue_vk->base.device);
    struct vn_semaphore_feedback_cmd *sfb_cmd =
       vn_semaphore_get_feedback_cmd(dev, sem);
    if (!sfb_cmd)
@@ -750,7 +748,7 @@ vn_queue_submission_add_fence_feedback(struct vn_queue_submission *submit,
                                        uint32_t *new_cmd_count)
 {
    VK_FROM_HANDLE(vk_queue, queue_vk, submit->queue_handle);
-   struct vn_device *dev = (void *)queue_vk->base.device;
+   struct vn_device *dev = vn_device_from_vk(queue_vk->base.device);
    struct vn_fence *fence = vn_fence_from_handle(submit->fence_handle);
 
    VkCommandBuffer ffb_cmd_handle = VK_NULL_HANDLE;
@@ -986,7 +984,7 @@ static void
 vn_queue_wsi_present(struct vn_queue_submission *submit)
 {
    struct vk_queue *queue_vk = vk_queue_from_handle(submit->queue_handle);
-   struct vn_device *dev = (void *)queue_vk->base.device;
+   struct vn_device *dev = vn_device_from_vk(queue_vk->base.device);
 
    if (!submit->wsi_mem)
       return;
@@ -1031,7 +1029,7 @@ static VkResult
 vn_queue_submit(struct vn_queue_submission *submit)
 {
    struct vn_queue *queue = vn_queue_from_handle(submit->queue_handle);
-   struct vn_device *dev = (void *)queue->base.base.base.device;
+   struct vn_device *dev = vn_device_from_vk(queue->base.vk.base.device);
    struct vn_instance *instance = dev->instance;
    VkResult result;
 
@@ -1161,7 +1159,7 @@ static VkResult
 vn_queue_bind_sparse_submit(struct vn_queue_submission *submit)
 {
    struct vn_queue *queue = vn_queue_from_handle(submit->queue_handle);
-   struct vn_device *dev = (void *)queue->base.base.base.device;
+   struct vn_device *dev = vn_device_from_vk(queue->base.vk.base.device);
    struct vn_instance *instance = dev->instance;
    VkResult result;
 
@@ -1189,7 +1187,7 @@ vn_queue_bind_sparse_submit_batch(struct vn_queue_submission *submit,
                                   uint32_t batch_index)
 {
    struct vn_queue *queue = vn_queue_from_handle(submit->queue_handle);
-   VkDevice dev_handle = vk_device_to_handle(queue->base.base.base.device);
+   VkDevice dev_handle = vk_device_to_handle(queue->base.vk.base.device);
    const VkBindSparseInfo *sparse_info = &submit->sparse_batches[batch_index];
    const VkSemaphore *signal_sem = sparse_info->pSignalSemaphores;
    uint32_t signal_sem_count = sparse_info->signalSemaphoreCount;
@@ -1377,7 +1375,7 @@ vn_QueueWaitIdle(VkQueue _queue)
 {
    VN_TRACE_FUNC();
    struct vn_queue *queue = vn_queue_from_handle(_queue);
-   VkDevice dev_handle = vk_device_to_handle(queue->base.base.base.device);
+   VkDevice dev_handle = vk_device_to_handle(queue->base.vk.base.device);
    struct vn_device *dev = vn_device_from_handle(dev_handle);
    VkResult result;
 
@@ -1427,17 +1425,6 @@ vn_fence_init_payloads(struct vn_device *dev,
    fence->payload = &fence->permanent;
 
    return VK_SUCCESS;
-}
-
-void
-vn_fence_signal_wsi(struct vn_device *dev, struct vn_fence *fence)
-{
-   struct vn_sync_payload *temp = &fence->temporary;
-
-   vn_sync_payload_release(dev, temp);
-   temp->type = VN_SYNC_TYPE_IMPORTED_SYNC_FD;
-   temp->fd = -1;
-   fence->payload = temp;
 }
 
 static VkResult
@@ -1524,7 +1511,7 @@ vn_CreateFence(VkDevice device,
    VN_TRACE_FUNC();
    struct vn_device *dev = vn_device_from_handle(device);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
    const bool signaled = pCreateInfo->flags & VK_FENCE_CREATE_SIGNALED_BIT;
    VkResult result;
 
@@ -1572,7 +1559,7 @@ vn_DestroyFence(VkDevice device,
    struct vn_device *dev = vn_device_from_handle(device);
    struct vn_fence *fence = vn_fence_from_handle(_fence);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
 
    if (!fence)
       return;
@@ -1910,17 +1897,6 @@ vn_semaphore_wait_external(struct vn_device *dev, struct vn_semaphore *sem)
    return true;
 }
 
-void
-vn_semaphore_signal_wsi(struct vn_device *dev, struct vn_semaphore *sem)
-{
-   struct vn_sync_payload *temp = &sem->temporary;
-
-   vn_sync_payload_release(dev, temp);
-   temp->type = VN_SYNC_TYPE_IMPORTED_SYNC_FD;
-   temp->fd = -1;
-   sem->payload = temp;
-}
-
 struct vn_semaphore_feedback_cmd *
 vn_semaphore_get_feedback_cmd(struct vn_device *dev, struct vn_semaphore *sem)
 {
@@ -2010,7 +1986,7 @@ vn_CreateSemaphore(VkDevice device,
    VN_TRACE_FUNC();
    struct vn_device *dev = vn_device_from_handle(device);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
 
    struct vn_semaphore *sem = vk_zalloc(alloc, sizeof(*sem), VN_DEFAULT_ALIGN,
                                         VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
@@ -2070,7 +2046,7 @@ vn_DestroySemaphore(VkDevice device,
    struct vn_device *dev = vn_device_from_handle(device);
    struct vn_semaphore *sem = vn_semaphore_from_handle(semaphore);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
 
    if (!sem)
       return;
@@ -2393,7 +2369,7 @@ vn_CreateEvent(VkDevice device,
    VN_TRACE_FUNC();
    struct vn_device *dev = vn_device_from_handle(device);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
 
    struct vn_event *ev = vk_zalloc(alloc, sizeof(*ev), VN_DEFAULT_ALIGN,
                                    VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
@@ -2427,7 +2403,7 @@ vn_DestroyEvent(VkDevice device,
    struct vn_device *dev = vn_device_from_handle(device);
    struct vn_event *ev = vn_event_from_handle(event);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
 
    if (!ev)
       return;

@@ -41,7 +41,6 @@ panvk_per_arch(CmdResetEvent2)(VkCommandBuffer commandBuffer, VkEvent _event,
                       (i * sizeof(struct panvk_cs_sync32)));
       cs_load32_to(b, seqno, sync_addr,
                    offsetof(struct panvk_cs_sync32, seqno));
-      cs_wait_slot(b, SB_ID(LS), false);
 
       cs_match(b, seqno, cmp_scratch) {
          cs_case(b, 0) {
@@ -83,7 +82,6 @@ panvk_per_arch(CmdSetEvent2)(VkCommandBuffer commandBuffer, VkEvent _event,
                       (i * sizeof(struct panvk_cs_sync32)));
       cs_load32_to(b, seqno, sync_addr,
                    offsetof(struct panvk_cs_sync32, seqno));
-      cs_wait_slot(b, SB_ID(LS), false);
 
       cs_match(b, seqno, cmp_scratch) {
          cs_case(b, 0) {
@@ -91,7 +89,7 @@ panvk_per_arch(CmdSetEvent2)(VkCommandBuffer commandBuffer, VkEvent _event,
 
             if (cache_flush.l2 != MALI_CS_FLUSH_MODE_NONE ||
                 cache_flush.lsc != MALI_CS_FLUSH_MODE_NONE ||
-                cache_flush.others) {
+                cache_flush.others != MALI_CS_OTHER_FLUSH_MODE_NONE) {
                /* We rely on r88 being zero since we're in the if (r88 == 0)
                 * branch. */
                cs_flush_caches(b, cache_flush.l2, cache_flush.lsc,

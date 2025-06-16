@@ -144,7 +144,7 @@ init_pipe_state(struct vl_compositor *c)
    assert(c);
 
    c->fb_state.nr_cbufs = 1;
-   c->fb_state.zsbuf = NULL;
+   memset(&c->fb_state.zsbuf, 0, sizeof(c->fb_state.zsbuf));
 
    memset(&sampler, 0, sizeof(sampler));
    sampler.wrap_s = PIPE_TEX_WRAP_CLAMP_TO_EDGE;
@@ -348,7 +348,7 @@ set_yuv_layer(struct vl_compositor_state *s, struct vl_compositor *c,
    sampler_views = buffer->get_sampler_view_components(buffer);
    for (i = 0; i < 3; ++i) {
       s->layers[layer].samplers[i] = c->sampler_linear;
-      pipe_sampler_view_reference(&s->layers[layer].sampler_views[i], sampler_views[i]);
+      s->layers[layer].sampler_views[i] = sampler_views[i];
    }
 
    calc_src_and_dst(&s->layers[layer], buffer->width, buffer->height,
@@ -433,9 +433,9 @@ set_rgb_to_yuv_layer(struct vl_compositor_state *s, struct vl_compositor *c,
    s->layers[layer].samplers[1] = NULL;
    s->layers[layer].samplers[2] = NULL;
 
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[0], v);
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[1], NULL);
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[2], NULL);
+   s->layers[layer].sampler_views[0] = v;
+   s->layers[layer].sampler_views[1] = NULL;
+   s->layers[layer].sampler_views[2] = NULL;
 
    calc_src_and_dst(&s->layers[layer], v->texture->width0, v->texture->height0,
                     src_rect ? *src_rect : default_rect(&s->layers[layer]),
@@ -489,9 +489,10 @@ vl_compositor_clear_layers(struct vl_compositor_state *s)
       s->layers[i].viewport.swizzle_z = PIPE_VIEWPORT_SWIZZLE_POSITIVE_Z;
       s->layers[i].viewport.swizzle_w = PIPE_VIEWPORT_SWIZZLE_POSITIVE_W;
       s->layers[i].rotate = VL_COMPOSITOR_ROTATE_0;
+      s->layers[i].mirror = VL_COMPOSITOR_MIRROR_NONE;
 
       for ( j = 0; j < 3; j++)
-         pipe_sampler_view_reference(&s->layers[i].sampler_views[j], NULL);
+         s->layers[i].sampler_views[j] = NULL;
       for ( j = 0; j < 4; ++j)
          s->layers[i].colors[j] = v_one;
    }
@@ -588,7 +589,7 @@ vl_compositor_set_buffer_layer(struct vl_compositor_state *s,
    sampler_views = buffer->get_sampler_view_components(buffer);
    for (i = 0; i < 3; ++i) {
       s->layers[layer].samplers[i] = c->sampler_linear;
-      pipe_sampler_view_reference(&s->layers[layer].sampler_views[i], sampler_views[i]);
+      s->layers[layer].sampler_views[i] = sampler_views[i];
    }
 
    calc_src_and_dst(&s->layers[layer], buffer->width, buffer->height,
@@ -661,9 +662,9 @@ vl_compositor_set_palette_layer(struct vl_compositor_state *s,
    s->layers[layer].samplers[0] = c->sampler_linear;
    s->layers[layer].samplers[1] = c->sampler_nearest;
    s->layers[layer].samplers[2] = NULL;
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[0], indexes);
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[1], palette);
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[2], NULL);
+   s->layers[layer].sampler_views[0] = indexes;
+   s->layers[layer].sampler_views[1] = palette;
+   s->layers[layer].sampler_views[2] = NULL;
    calc_src_and_dst(&s->layers[layer], indexes->texture->width0, indexes->texture->height0,
                     src_rect ? *src_rect : default_rect(&s->layers[layer]),
                     dst_rect ? *dst_rect : default_rect(&s->layers[layer]));
@@ -695,9 +696,9 @@ vl_compositor_set_rgba_layer(struct vl_compositor_state *s,
    s->layers[layer].samplers[0] = c->sampler_linear;
    s->layers[layer].samplers[1] = NULL;
    s->layers[layer].samplers[2] = NULL;
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[0], rgba);
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[1], NULL);
-   pipe_sampler_view_reference(&s->layers[layer].sampler_views[2], NULL);
+   s->layers[layer].sampler_views[0] = rgba;
+   s->layers[layer].sampler_views[1] = NULL;
+   s->layers[layer].sampler_views[2] = NULL;
    calc_src_and_dst(&s->layers[layer], rgba->texture->width0, rgba->texture->height0,
                     src_rect ? *src_rect : default_rect(&s->layers[layer]),
                     dst_rect ? *dst_rect : default_rect(&s->layers[layer]));
@@ -718,6 +719,16 @@ vl_compositor_set_layer_rotation(struct vl_compositor_state *s,
 }
 
 void
+vl_compositor_set_layer_mirror(struct vl_compositor_state *s,
+                               unsigned layer,
+                               enum vl_compositor_mirror mirror)
+{
+   assert(s);
+   assert(layer < VL_COMPOSITOR_MAX_LAYERS);
+   s->layers[layer].mirror = mirror;
+}
+
+void
 vl_compositor_yuv_deint_full(struct vl_compositor_state *s,
                              struct vl_compositor *c,
                              struct pipe_video_buffer *src,
@@ -726,33 +737,46 @@ vl_compositor_yuv_deint_full(struct vl_compositor_state *s,
                              struct u_rect *dst_rect,
                              enum vl_compositor_deinterlace deinterlace)
 {
-   struct pipe_surface **dst_surfaces;
+   struct pipe_surface *dst_surfaces;
 
    dst_surfaces = dst->get_surfaces(dst);
-   vl_compositor_clear_layers(s);
 
    set_yuv_layer(s, c, 0, src, src_rect, NULL, VL_COMPOSITOR_PLANE_Y, deinterlace);
    vl_compositor_set_layer_dst_area(s, 0, dst_rect);
-   vl_compositor_render(s, c, dst_surfaces[0], NULL, false);
+   vl_compositor_render(s, c, &dst_surfaces[0], NULL, false);
 
-   if (dst_surfaces[1]) {
+   if (dst_surfaces[1].texture) {
+      bool clear = util_format_get_nr_components(src->buffer_format) == 1;
+      union pipe_color_union clear_color = { .f = {0.5, 0.5} };
       dst_rect->x0 = util_format_get_plane_width(dst->buffer_format, 1, dst_rect->x0);
       dst_rect->x1 = util_format_get_plane_width(dst->buffer_format, 1, dst_rect->x1);
       dst_rect->y0 = util_format_get_plane_height(dst->buffer_format, 1, dst_rect->y0);
       dst_rect->y1 = util_format_get_plane_height(dst->buffer_format, 1, dst_rect->y1);
-      set_yuv_layer(s, c, 0, src, src_rect, NULL, dst_surfaces[2] ? VL_COMPOSITOR_PLANE_U :
+      set_yuv_layer(s, c, 0, src, src_rect, NULL, dst_surfaces[2].texture ? VL_COMPOSITOR_PLANE_U :
                     VL_COMPOSITOR_PLANE_UV, deinterlace);
       vl_compositor_set_layer_dst_area(s, 0, dst_rect);
-      vl_compositor_render(s, c, dst_surfaces[1], NULL, false);
+      if (clear) {
+         struct u_rect clear_rect = *dst_rect;
+         s->used_layers = 0;
+         vl_compositor_set_clear_color(s, &clear_color);
+         vl_compositor_render(s, c, &dst_surfaces[1], &clear_rect, true);
+      } else {
+         vl_compositor_render(s, c, &dst_surfaces[1], NULL, false);
+      }
 
-      if (dst_surfaces[2]) {
+      if (dst_surfaces[2].texture) {
          set_yuv_layer(s, c, 0, src, src_rect, NULL, VL_COMPOSITOR_PLANE_V, deinterlace);
          vl_compositor_set_layer_dst_area(s, 0, dst_rect);
-         vl_compositor_render(s, c, dst_surfaces[2], NULL, false);
+         if (clear) {
+            struct u_rect clear_rect = *dst_rect;
+            s->used_layers = 0;
+            vl_compositor_set_clear_color(s, &clear_color);
+            vl_compositor_render(s, c, &dst_surfaces[2], &clear_rect, true);
+         } else {
+            vl_compositor_render(s, c, &dst_surfaces[2], NULL, false);
+         }
       }
    }
-
-   s->pipe->flush(s->pipe, NULL, 0);
 }
 
 void
@@ -765,7 +789,7 @@ vl_compositor_convert_rgb_to_yuv(struct vl_compositor_state *s,
                                  struct u_rect *dst_rect)
 {
    struct pipe_sampler_view *sv, sv_templ;
-   struct pipe_surface **dst_surfaces;
+   struct pipe_surface *dst_surfaces;
 
    dst_surfaces = dst->get_surfaces(dst);
 
@@ -773,32 +797,28 @@ vl_compositor_convert_rgb_to_yuv(struct vl_compositor_state *s,
    u_sampler_view_default_template(&sv_templ, src_res, src_res->format);
    sv = s->pipe->create_sampler_view(s->pipe, src_res, &sv_templ);
 
-   vl_compositor_clear_layers(s);
-
    set_rgb_to_yuv_layer(s, c, 0, sv, src_rect, NULL, VL_COMPOSITOR_PLANE_Y);
    vl_compositor_set_layer_dst_area(s, 0, dst_rect);
-   vl_compositor_render(s, c, dst_surfaces[0], NULL, false);
+   vl_compositor_render(s, c, &dst_surfaces[0], NULL, false);
 
-   if (dst_surfaces[1]) {
+   if (dst_surfaces[1].texture) {
       dst_rect->x0 = util_format_get_plane_width(dst->buffer_format, 1, dst_rect->x0);
       dst_rect->x1 = util_format_get_plane_width(dst->buffer_format, 1, dst_rect->x1);
       dst_rect->y0 = util_format_get_plane_height(dst->buffer_format, 1, dst_rect->y0);
       dst_rect->y1 = util_format_get_plane_height(dst->buffer_format, 1, dst_rect->y1);
-      set_rgb_to_yuv_layer(s, c, 0, sv, src_rect, NULL, dst_surfaces[2] ? VL_COMPOSITOR_PLANE_U :
+      set_rgb_to_yuv_layer(s, c, 0, sv, src_rect, NULL, dst_surfaces[2].texture ? VL_COMPOSITOR_PLANE_U :
                            VL_COMPOSITOR_PLANE_UV);
       vl_compositor_set_layer_dst_area(s, 0, dst_rect);
-      vl_compositor_render(s, c, dst_surfaces[1], NULL, false);
+      vl_compositor_render(s, c, &dst_surfaces[1], NULL, false);
 
-      if (dst_surfaces[2]) {
+      if (dst_surfaces[2].texture) {
          set_rgb_to_yuv_layer(s, c, 0, sv, src_rect, NULL, VL_COMPOSITOR_PLANE_V);
          vl_compositor_set_layer_dst_area(s, 0, dst_rect);
-         vl_compositor_render(s, c, dst_surfaces[2], NULL, false);
+         vl_compositor_render(s, c, &dst_surfaces[2], NULL, false);
       }
    }
 
-   pipe_sampler_view_reference(&sv, NULL);
-
-   s->pipe->flush(s->pipe, NULL, 0);
+   s->pipe->sampler_view_release(s->pipe, sv);
 }
 
 void
@@ -868,7 +888,7 @@ vl_compositor_init_state(struct vl_compositor_state *s, struct pipe_context *pip
       pipe->screen,
       PIPE_BIND_CONSTANT_BUFFER,
       PIPE_USAGE_DEFAULT,
-      sizeof(csc_matrix) + 16*sizeof(float) + 2*sizeof(int)
+      sizeof(csc_matrix) + 32 * sizeof(float) + 2 * sizeof(int)
    );
 
    if (!s->shader_params)

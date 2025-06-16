@@ -36,6 +36,8 @@
 #include "common/intel_tiled_render.h"
 #include "compiler/brw_prim.h"
 
+#include "genX_mi_builder.h"
+
 static const uint32_t vk_to_intel_blend[] = {
    [VK_BLEND_FACTOR_ZERO]                    = BLENDFACTOR_ZERO,
    [VK_BLEND_FACTOR_ONE]                     = BLENDFACTOR_ONE,
@@ -138,16 +140,59 @@ static const uint32_t vk_to_intel_primitive_type[] = {
    [VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY] = _3DPRIM_TRISTRIP_ADJ,
 };
 
+static uint32_t vk_to_intel_index_type(VkIndexType type)
+{
+   switch (type) {
+   case VK_INDEX_TYPE_UINT8_KHR:
+      return INDEX_BYTE;
+   case VK_INDEX_TYPE_UINT16:
+      return INDEX_WORD;
+   case VK_INDEX_TYPE_UINT32:
+      return INDEX_DWORD;
+   default:
+      unreachable("invalid index type");
+   }
+}
+
+void
+genX(batch_emit_wa_16014912113)(struct anv_batch *batch,
+                                const struct intel_urb_config *urb_cfg)
+{
+#if INTEL_NEEDS_WA_16014912113
+   if (urb_cfg->size[0] == 0)
+      return;
+
+   for (int i = 0; i <= MESA_SHADER_GEOMETRY; i++) {
+#if GFX_VER >= 12
+      anv_batch_emit(batch, GENX(3DSTATE_URB_ALLOC_VS), urb) {
+         urb._3DCommandSubOpcode             += i;
+         urb.VSURBEntryAllocationSize        = urb_cfg->size[i] - 1;
+         urb.VSURBStartingAddressSlice0      = urb_cfg->start[i];
+         urb.VSURBStartingAddressSliceN      = urb_cfg->start[i];
+         urb.VSNumberofURBEntriesSlice0      = i == 0 ? 256 : 0;
+         urb.VSNumberofURBEntriesSliceN      = i == 0 ? 256 : 0;
+      }
+#else
+      anv_batch_emit(batch, GENX(3DSTATE_URB_VS), urb) {
+         urb._3DCommandSubOpcode      += i;
+         urb.VSURBStartingAddress      = urb_cfg->start[i];
+         urb.VSURBEntryAllocationSize  = urb_cfg->size[i] - 1;
+         urb.VSNumberofURBEntries      = i == 0 ? 256 : 0;
+      }
+#endif
+   }
+   anv_batch_emit(batch, GENX(PIPE_CONTROL), pc) {
+      pc.HDCPipelineFlushEnable = true;
+   }
+#endif
+}
+
 static void
 genX(streamout_prologue)(struct anv_cmd_buffer *cmd_buffer)
 {
 #if INTEL_WA_16013994831_GFX_VER
    /* Wa_16013994831 - Disable preemption during streamout, enable back
     * again if XFB not used by the current pipeline.
-    *
-    * Although this workaround applies to Gfx12+, we already disable object
-    * level preemption for another reason in genX_state.c so we can skip this
-    * for Gfx12.
     */
    if (!intel_needs_workaround(cmd_buffer->device->info, 16013994831))
       return;
@@ -166,12 +211,9 @@ genX(streamout_prologue)(struct anv_cmd_buffer *cmd_buffer)
 
 #if GFX_VER >= 12 && GFX_VER < 30
 static uint32_t
-get_cps_state_offset(const struct anv_device *device, bool cps_enabled,
+get_cps_state_offset(const struct anv_device *device,
                      const struct vk_fragment_shading_rate_state *fsr)
 {
-   if (!cps_enabled)
-      return device->cps_states.offset;
-
    uint32_t offset;
    static const uint32_t size_index[] = {
       [1] = 0,
@@ -225,12 +267,24 @@ static const uint32_t vk_to_intel_shading_rate_combiner_op[] = {
 #endif
 
 static bool
-has_ds_feedback_loop(const struct vk_dynamic_graphics_state *dyn)
+has_ds_feedback_loop(const struct anv_pipeline_bind_map *bind_map,
+                     const struct vk_dynamic_graphics_state *dyn)
 {
-   return (dyn->feedback_loops & (VK_IMAGE_ASPECT_DEPTH_BIT |
-                                  VK_IMAGE_ASPECT_STENCIL_BIT)) ||
-      dyn->ial.depth_att != MESA_VK_ATTACHMENT_UNUSED ||
-      dyn->ial.stencil_att != MESA_VK_ATTACHMENT_UNUSED;
+   if (BITSET_IS_EMPTY(bind_map->input_attachments))
+      return false;
+
+   const unsigned depth_att = dyn->ial.depth_att == MESA_VK_ATTACHMENT_NO_INDEX ?
+      MAX_DESCRIPTOR_SET_INPUT_ATTACHMENTS : dyn->ial.depth_att;
+   const unsigned stencil_att = dyn->ial.stencil_att == MESA_VK_ATTACHMENT_NO_INDEX ?
+      MAX_DESCRIPTOR_SET_INPUT_ATTACHMENTS : dyn->ial.stencil_att;
+
+   return
+      (dyn->feedback_loops & (VK_IMAGE_ASPECT_DEPTH_BIT |
+                              VK_IMAGE_ASPECT_STENCIL_BIT)) != 0 ||
+      (dyn->ial.depth_att != MESA_VK_ATTACHMENT_UNUSED &&
+       BITSET_TEST(bind_map->input_attachments, depth_att)) ||
+      (dyn->ial.stencil_att != MESA_VK_ATTACHMENT_UNUSED &&
+       BITSET_TEST(bind_map->input_attachments, stencil_att));
 }
 
 UNUSED static bool
@@ -346,9 +400,10 @@ want_stencil_pma_fix(const struct vk_dynamic_graphics_state *dyn,
     *  3DSTATE_WM_CHROMAKEY::ChromaKeyKillEnable) ||
     * (3DSTATE_PS_EXTRA::Pixel Shader Computed Depth mode != PSCDEPTH_OFF)
     */
+   struct anv_shader_bin *fs_bin = pipeline->base.shaders[MESA_SHADER_FRAGMENT];
+
    return pipeline->kill_pixel ||
-          pipeline->rp_has_ds_self_dep ||
-          has_ds_feedback_loop(dyn) ||
+          has_ds_feedback_loop(&fs_bin->bind_map, dyn) ||
           wm_prog_data->computed_depth_mode != PSCDEPTH_OFF;
 }
 
@@ -697,6 +752,24 @@ calculate_tile_dimensions(const struct anv_device *device,
       unreachable("Invalid provoking vertex mode");                    \
    }                                                                   \
 
+#define SETUP_PROVOKING_VERTEX_FSB(bit, cmd, mode)                  \
+   switch (mode) {                                                  \
+   case VK_PROVOKING_VERTEX_MODE_FIRST_VERTEX_EXT:                  \
+      SET(bit, cmd.TriangleStripListProvokingVertexSelect, 0);      \
+      SET(bit, cmd.LineStripListProvokingVertexSelect,     0);      \
+      SET(bit, cmd.TriangleFanProvokingVertexSelect,       1);      \
+      SET(bit, cmd.TriangleStripOddProvokingVertexSelect,  0);      \
+      break;                                                        \
+   case VK_PROVOKING_VERTEX_MODE_LAST_VERTEX_EXT:                   \
+      SET(bit, cmd.TriangleStripListProvokingVertexSelect, 0);      \
+      SET(bit, cmd.LineStripListProvokingVertexSelect,     0);      \
+      SET(bit, cmd.TriangleFanProvokingVertexSelect,       0);      \
+      SET(bit, cmd.TriangleStripOddProvokingVertexSelect,  1);      \
+      break;                                                        \
+   default:                                                         \
+      unreachable("Invalid provoking vertex mode");                 \
+   }                                                                \
+
 ALWAYS_INLINE static void
 update_fs_msaa_flags(struct anv_gfx_dynamic_state *hw_state,
                      const struct vk_dynamic_graphics_state *dyn,
@@ -710,36 +783,20 @@ update_fs_msaa_flags(struct anv_gfx_dynamic_state *hw_state,
    /* If we have any dynamic bits here, we might need to update the value
     * in the push constant for the shader.
     */
-   if (wm_prog_data->coarse_pixel_dispatch != INTEL_SOMETIMES &&
-       wm_prog_data->persample_dispatch != INTEL_SOMETIMES &&
-       wm_prog_data->alpha_to_coverage != INTEL_SOMETIMES)
+   if (!brw_wm_prog_data_is_dynamic(wm_prog_data))
       return;
 
-   enum intel_msaa_flags fs_msaa_flags = INTEL_MSAA_FLAG_ENABLE_DYNAMIC;
-
-   if (dyn->ms.rasterization_samples > 1) {
-      fs_msaa_flags |= INTEL_MSAA_FLAG_MULTISAMPLE_FBO;
-
-      if (wm_prog_data->sample_shading) {
-         assert(wm_prog_data->persample_dispatch != INTEL_NEVER);
-         fs_msaa_flags |= INTEL_MSAA_FLAG_PERSAMPLE_DISPATCH;
-      }
-      if ((pipeline->sample_shading_enable &&
-           (pipeline->min_sample_shading * dyn->ms.rasterization_samples) > 1) ||
-          wm_prog_data->sample_shading) {
-         fs_msaa_flags |= INTEL_MSAA_FLAG_PERSAMPLE_DISPATCH |
-                          INTEL_MSAA_FLAG_PERSAMPLE_INTERP;
-      }
-   }
-
-   if (wm_prog_data->coarse_pixel_dispatch == INTEL_SOMETIMES &&
-       !(fs_msaa_flags & INTEL_MSAA_FLAG_PERSAMPLE_DISPATCH)) {
-      fs_msaa_flags |= INTEL_MSAA_FLAG_COARSE_PI_MSG |
-                       INTEL_MSAA_FLAG_COARSE_RT_WRITES;
-   }
-
-   if (dyn->ms.alpha_to_coverage_enable)
-      fs_msaa_flags |= INTEL_MSAA_FLAG_ALPHA_TO_COVERAGE;
+   enum intel_msaa_flags fs_msaa_flags =
+      intel_fs_msaa_flags((struct intel_fs_params) {
+            .shader_sample_shading     = wm_prog_data->sample_shading,
+            .shader_min_sample_shading = pipeline->min_sample_shading,
+            .state_sample_shading      = pipeline->sample_shading_enable,
+            .rasterization_samples     = dyn->ms.rasterization_samples,
+            .coarse_pixel              = !vk_fragment_shading_rate_is_disabled(&dyn->fsr),
+            .alpha_to_coverage         = dyn->ms.alpha_to_coverage_enable,
+            .provoking_vertex_last     = dyn->rs.provoking_vertex == VK_PROVOKING_VERTEX_MODE_LAST_VERTEX_EXT,
+            .primitive_id_index        = pipeline->primitive_id_index,
+         });
 
    SET(FS_MSAA_FLAGS, fs_msaa_flags, fs_msaa_flags);
 }
@@ -802,6 +859,7 @@ update_ps(struct anv_gfx_dynamic_state *hw_state,
    SET(PS, ps.Kernel0SIMDWidth,         ps.Kernel0SIMDWidth);
    SET(PS, ps.Kernel1SIMDWidth,         ps.Kernel1SIMDWidth);
    SET(PS, ps.Kernel0PolyPackingPolicy, ps.Kernel0PolyPackingPolicy);
+   SET(PS, ps.Kernel0MaximumPolysperThread, ps.Kernel0MaximumPolysperThread);
 #endif
 
    SET(PS, ps.PositionXYOffsetSelect,
@@ -846,27 +904,16 @@ update_ps_extra_has_uav(struct anv_gfx_dynamic_state *hw_state,
 {
    const struct brw_wm_prog_data *wm_prog_data = get_wm_prog_data(pipeline);
 
-#if GFX_VERx10 >= 125
-   SET_STAGE(PS_EXTRA, ps_extra.PixelShaderHasUAV,
-                       wm_prog_data && wm_prog_data->has_side_effects,
-                       FRAGMENT);
-#else
-   /* Prior to Gfx12.5 the HW seems to avoid spawning fragment shaders even if
-    * 3DSTATE_PS_EXTRA::PixelShaderKillsPixel=true when
-    * 3DSTATE_PS_BLEND::HasWriteableRT=false. This is causing problems with
-    * occlusion queries with 0 attachments. There are no CTS tests exercising
-    * this but zink+anv fails a bunch of tests like piglit
-    * arb_framebuffer_no_attachments-query.
-    *
-    * Here we choose to tweak the PixelShaderHasUAV to make sure the fragment
-    * shaders are run properly.
+   /* Force fragment shader execution if occlusion queries are active to
+    * ensure PS_DEPTH_COUNT is correct. Otherwise a fragment shader with
+    * discard and no render target setup could be increment PS_DEPTH_COUNT if
+    * the HW internally decides to not run the shader because it has already
+    * established that depth-test is passing.
     */
    SET_STAGE(PS_EXTRA, ps_extra.PixelShaderHasUAV,
                        wm_prog_data && (wm_prog_data->has_side_effects ||
-                                        (gfx->color_att_count == 0 &&
-                                         gfx->n_occlusion_queries > 0)),
+                                        gfx->n_occlusion_queries > 0),
                        FRAGMENT);
-#endif
 }
 
 ALWAYS_INLINE static void
@@ -875,12 +922,13 @@ update_ps_extra_kills_pixel(struct anv_gfx_dynamic_state *hw_state,
                             const struct anv_cmd_graphics_state *gfx,
                             const struct anv_graphics_pipeline *pipeline)
 {
+   struct anv_shader_bin *fs_bin = pipeline->base.shaders[MESA_SHADER_FRAGMENT];
    const struct brw_wm_prog_data *wm_prog_data = get_wm_prog_data(pipeline);
 
    SET_STAGE(PS_EXTRA, ps_extra.PixelShaderKillsPixel,
-                       wm_prog_data && (pipeline->rp_has_ds_self_dep ||
-                                        has_ds_feedback_loop(dyn) ||
-                                        wm_prog_data->uses_kill),
+                       wm_prog_data &&
+                       (has_ds_feedback_loop(&fs_bin->bind_map, dyn) ||
+                        wm_prog_data->uses_kill),
                        FRAGMENT);
 }
 
@@ -942,8 +990,32 @@ update_provoking_vertex(struct anv_gfx_dynamic_state *hw_state,
                         const struct vk_dynamic_graphics_state *dyn,
                         const struct anv_graphics_pipeline *pipeline)
 {
+#if GFX_VERx10 >= 200
+   const struct brw_wm_prog_data *wm_prog_data = get_wm_prog_data(pipeline);
+
+   /* In order to respect the table indicated by Vulkan 1.4.312,
+    * 28.9. Barycentric Interpolation, we need to program the provoking
+    * vertex state differently depending on whether we need to set
+    * vertex_attributes_bypass or not.
+    * At this point we only deal with full pipelines, so if we don't have
+    * a wm_prog_data, there is no fragment shader and none of this matters.
+    */
+   if (wm_prog_data && wm_prog_data->vertex_attributes_bypass) {
+      SETUP_PROVOKING_VERTEX_FSB(SF, sf, dyn->rs.provoking_vertex);
+      SETUP_PROVOKING_VERTEX_FSB(CLIP, clip, dyn->rs.provoking_vertex);
+   } else {
+      /* If we are not setting vertex attributes bypass, we can just use
+       * the same macro as older generations. There's one bit missing from
+       * it, but that one is only used for the case above and ignored
+       * otherwise, so we can pretend it doesn't exist here.
+       */
+      SETUP_PROVOKING_VERTEX(SF, sf, dyn->rs.provoking_vertex);
+      SETUP_PROVOKING_VERTEX(CLIP, clip, dyn->rs.provoking_vertex);
+   }
+#else
    SETUP_PROVOKING_VERTEX(SF, sf, dyn->rs.provoking_vertex);
    SETUP_PROVOKING_VERTEX(CLIP, clip, dyn->rs.provoking_vertex);
+#endif
 
    switch (dyn->rs.provoking_vertex) {
    case VK_PROVOKING_VERTEX_MODE_FIRST_VERTEX_EXT:
@@ -981,13 +1053,6 @@ update_cps(struct anv_gfx_dynamic_state *hw_state,
            const struct vk_dynamic_graphics_state *dyn,
            const struct anv_graphics_pipeline *pipeline)
 {
-   const struct brw_wm_prog_data *wm_prog_data = get_wm_prog_data(pipeline);
-   if (!wm_prog_data)
-      return;
-
-   UNUSED const bool cps_enable =
-      brw_wm_prog_data_is_coarse(wm_prog_data, hw_state->fs_msaa_flags);
-
 #if GFX_VER >= 30
    SET(COARSE_PIXEL, coarse_pixel.CPSizeX,
        get_cps_size(dyn->fsr.fragment_size.width));
@@ -999,11 +1064,10 @@ update_cps(struct anv_gfx_dynamic_state *hw_state,
        vk_to_intel_shading_rate_combiner_op[dyn->fsr.combiner_ops[1]]);
 #elif GFX_VER >= 12
    SET(CPS, cps.CoarsePixelShadingStateArrayPointer,
-       get_cps_state_offset(device, cps_enable, &dyn->fsr));
+       get_cps_state_offset(device, &dyn->fsr));
 #else
    STATIC_ASSERT(GFX_VER == 11);
-   SET(CPS, cps.CoarsePixelShadingMode,
-            cps_enable ? CPS_MODE_CONSTANT : CPS_MODE_NONE);
+   SET(CPS, cps.CoarsePixelShadingMode, CPS_MODE_CONSTANT);
    SET(CPS, cps.MinCPSizeX, dyn->fsr.fragment_size.width);
    SET(CPS, cps.MinCPSizeY, dyn->fsr.fragment_size.height);
 #endif
@@ -1172,6 +1236,12 @@ update_clip_raster(struct anv_gfx_dynamic_state *hw_state,
    SET(RASTER, raster.ConservativeRasterizationEnable,
                dyn->rs.conservative_mode !=
                VK_CONSERVATIVE_RASTERIZATION_MODE_DISABLED_EXT);
+
+#if GFX_VERx10 >= 200
+   const struct brw_wm_prog_data *wm_prog_data = get_wm_prog_data(pipeline);
+   SET(RASTER, raster.LegacyBaryAssignmentDisable,
+       wm_prog_data && wm_prog_data->vertex_attributes_bypass);
+#endif
 }
 
 ALWAYS_INLINE static void
@@ -1298,7 +1368,7 @@ update_vf_restart(struct anv_gfx_dynamic_state *hw_state,
                   const struct anv_cmd_graphics_state *gfx)
 {
    SET(VF, vf.IndexedDrawCutIndexEnable, dyn->ia.primitive_restart_enable);
-   SET(VF, vf.CutIndex, gfx->restart_index);
+   SET(VF, vf.CutIndex, vk_index_to_restart(gfx->index_type));
 }
 
 ALWAYS_INLINE static void
@@ -1369,14 +1439,29 @@ update_blend_state(struct anv_gfx_dynamic_state *hw_state,
        *
        *   "Enabling LogicOp and Color Buffer Blending at the same time is
        *   UNDEFINED"
+       *
+       * The Vulkan spec also says:
+       *   "Logical operations are not applied to floating-point or sRGB format
+       *   color attachments."
+       * and
+       *   "Any attachments using color formats for which logical operations
+       *   are not supported simply pass through the color values unmodified."
        */
+      bool ignores_logic_op =
+         vk_format_is_float(gfx->color_att[att].vk_format) ||
+         vk_format_is_srgb(gfx->color_att[att].vk_format);
       SET(BLEND_STATE, blend.rts[rt].LogicOpFunction,
                        vk_to_intel_logic_op[dyn->cb.logic_op]);
-      SET(BLEND_STATE, blend.rts[rt].LogicOpEnable, dyn->cb.logic_op_enable);
+      SET(BLEND_STATE, blend.rts[rt].LogicOpEnable,
+                       dyn->cb.logic_op_enable && !ignores_logic_op);
 
       SET(BLEND_STATE, blend.rts[rt].ColorClampRange, COLORCLAMP_RTFORMAT);
       SET(BLEND_STATE, blend.rts[rt].PreBlendColorClampEnable, true);
       SET(BLEND_STATE, blend.rts[rt].PostBlendColorClampEnable, true);
+
+#if GFX_VER >= 30
+      SET(BLEND_STATE, blend.rts[rt].SimpleFloatBlendEnable, true);
+#endif
 
       /* Setup blend equation. */
       SET(BLEND_STATE, blend.rts[rt].ColorBlendFunction,
@@ -1640,8 +1725,8 @@ update_viewports(struct anv_gfx_dynamic_state *hw_state,
          const bool depth_range_unrestricted =
             device->vk.enabled_extensions.EXT_depth_range_unrestricted;
 
-         float min_depth_limit = depth_range_unrestricted ? -FLT_MAX : 0.0;
-         float max_depth_limit = depth_range_unrestricted ? FLT_MAX : 1.0;
+         float min_depth_limit = depth_range_unrestricted ? -FLT_MAX : 0.0f;
+         float max_depth_limit = depth_range_unrestricted ? FLT_MAX : 1.0f;
 
          float min_depth = dyn->rs.depth_clamp_enable ?
                            MIN2(vp->minDepth, vp->maxDepth) : min_depth_limit;
@@ -1799,6 +1884,7 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
    if ((gfx->dirty & ANV_CMD_DIRTY_PIPELINE) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_MS_ALPHA_TO_COVERAGE_ENABLE) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_MS_RASTERIZATION_SAMPLES) ||
+       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_PROVOKING_VERTEX) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_FSR))
       update_fs_msaa_flags(hw_state, dyn, pipeline);
 
@@ -1826,7 +1912,12 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_RASTERIZATION_STREAM))
       update_streamout(hw_state, dyn, gfx, pipeline);
 
-   if (BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_PROVOKING_VERTEX))
+   if (
+#if GFX_VERx10 >= 200
+      /* Xe2+ might need to update this if the FS changed */
+      (gfx->dirty & ANV_CMD_DIRTY_PIPELINE) ||
+#endif
+       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_PROVOKING_VERTEX))
       update_provoking_vertex(hw_state, dyn, pipeline);
 
    if ((gfx->dirty & ANV_CMD_DIRTY_PIPELINE) ||
@@ -1841,9 +1932,7 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
 
 #if GFX_VER >= 11
    if (device->vk.enabled_extensions.KHR_fragment_shading_rate &&
-       ((gfx->dirty & ANV_CMD_DIRTY_PIPELINE) ||
-        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_FSR) ||
-        BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_FS_MSAA_FLAGS)))
+       BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_FSR))
       update_cps(hw_state, device, dyn, pipeline);
 #endif /* GFX_VER >= 11 */
 
@@ -1909,11 +1998,12 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_LINE_STIPPLE_ENABLE))
       update_line_stipple(hw_state, dyn);
 
-   if ((gfx->dirty & ANV_CMD_DIRTY_RESTART_INDEX) ||
+   if ((gfx->dirty & ANV_CMD_DIRTY_INDEX_TYPE) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_IA_PRIMITIVE_RESTART_ENABLE))
       update_vf_restart(hw_state, dyn, gfx);
 
-   if (gfx->dirty & ANV_CMD_DIRTY_INDEX_BUFFER)
+   if ((gfx->dirty & ANV_CMD_DIRTY_INDEX_BUFFER) ||
+       (gfx->dirty & ANV_CMD_DIRTY_INDEX_TYPE))
       BITSET_SET(hw_state->dirty, ANV_GFX_STATE_INDEX_BUFFER);
 
 #if GFX_VERx10 >= 125
@@ -1980,7 +2070,8 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
     * the pipeline change or the dynamic value change, check the value and
     * reemit if needed.
     */
-   if (pipeline->dynamic_patch_control_points &&
+   const struct brw_tcs_prog_data *tcs_prog_data = get_tcs_prog_data(pipeline);
+   if (tcs_prog_data && tcs_prog_data->input_vertices == 0 &&
        ((gfx->dirty & ANV_CMD_DIRTY_PIPELINE) ||
         BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_TS_PATCH_CONTROL_POINTS)))
       SET(TCS_INPUT_VERTICES, tcs_input_vertices, dyn->ts.patch_control_points);
@@ -2015,12 +2106,16 @@ genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer)
 static void
 emit_wa_18020335297_dummy_draw(struct anv_cmd_buffer *cmd_buffer)
 {
+   /* For Wa_16012775297, ensure VF_STATISTICS is emitted before 3DSTATE_VF
+    */
+   anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_VF_STATISTICS), zero);
 #if GFX_VERx10 >= 125
    anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_VFG), vfg) {
       vfg.DistributionMode = RR_STRICT;
    }
    anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_VF), vf) {
-      vf.GeometryDistributionEnable = true;
+      vf.GeometryDistributionEnable =
+         cmd_buffer->device->physical->instance->enable_vf_distribution;
    }
 #endif
 
@@ -2036,7 +2131,6 @@ emit_wa_18020335297_dummy_draw(struct anv_cmd_buffer *cmd_buffer)
       rr.BackFaceFillMode = FILL_MODE_SOLID;
    }
 
-   anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_VF_STATISTICS), zero);
    anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_VF_SGVS), zero);
 
 #if GFX_VER >= 11
@@ -2108,6 +2202,7 @@ static void
 cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
 {
    struct anv_device *device = cmd_buffer->device;
+   struct anv_instance *instance = device->physical->instance;
    struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
    struct anv_graphics_pipeline *pipeline =
       anv_pipeline_to_graphics(gfx->base.pipeline);
@@ -2118,6 +2213,23 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
    struct anv_gfx_dynamic_state *hw_state = &gfx->dyn_state;
    const bool protected = cmd_buffer->vk.pool->flags &
                           VK_COMMAND_POOL_CREATE_PROTECTED_BIT;
+
+#define DEBUG_SHADER_HASH(stage) do {                                   \
+      if (unlikely(                                                     \
+             (instance->debug & ANV_DEBUG_SHADER_HASH) &&               \
+             anv_pipeline_has_stage(pipeline, stage))) {                \
+         mi_store(&b,                                                   \
+                  mi_mem32(device->workaround_address),                 \
+                  mi_imm(pipeline->base.shaders[stage]->                \
+                         prog_data->source_hash));                      \
+      }                                                                 \
+   } while (0)
+
+   struct mi_builder b;
+   if (unlikely(instance->debug & ANV_DEBUG_SHADER_HASH)) {
+      mi_builder_init(&b, device->info, &cmd_buffer->batch);
+      mi_builder_set_mocs(&b, isl_mocs(&device->isl_dev, 0, false));
+   }
 
 #if INTEL_WA_16011107343_GFX_VER
    /* Will be emitted in front of every draw instead */
@@ -2150,8 +2262,10 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
    }
 
    if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_URB)) {
-      genX(urb_workaround)(cmd_buffer, &pipeline->urb_cfg);
-
+      if (genX(need_wa_16014912113)(&gfx->urb_cfg, &pipeline->urb_cfg)) {
+         genX(batch_emit_wa_16014912113)(&cmd_buffer->batch,
+                                         &gfx->urb_cfg);
+      }
       anv_batch_emit_pipeline_state(&cmd_buffer->batch, pipeline, final.urb);
 
       memcpy(&gfx->urb_cfg, &pipeline->urb_cfg,
@@ -2172,17 +2286,26 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
       anv_batch_emit_pipeline_state(&cmd_buffer->batch, pipeline, final.vf_sgvs_2);
 #endif
 
+   if (device->physical->instance->vf_component_packing &&
+       BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_VF_COMPONENT_PACKING)) {
+      anv_batch_emit_pipeline_state(&cmd_buffer->batch, pipeline,
+                                    final.vf_component_packing);
+   }
+
    if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_VS)) {
+      DEBUG_SHADER_HASH(MESA_SHADER_VERTEX);
       anv_batch_emit_pipeline_state_protected(&cmd_buffer->batch, pipeline,
                                               final.vs, protected);
    }
 
    if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_HS)) {
+      DEBUG_SHADER_HASH(MESA_SHADER_TESS_CTRL);
       anv_batch_emit_pipeline_state_protected(&cmd_buffer->batch, pipeline,
                                               final.hs, protected);
    }
 
    if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_DS)) {
+      DEBUG_SHADER_HASH(MESA_SHADER_TESS_EVAL);
       anv_batch_emit_pipeline_state_protected(&cmd_buffer->batch, pipeline,
                                               final.ds, protected);
    }
@@ -2275,6 +2398,7 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
    /* Now the potentially dynamic instructions */
 
    if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_PS)) {
+      DEBUG_SHADER_HASH(MESA_SHADER_FRAGMENT);
       anv_batch_emit_merge_protected(&cmd_buffer->batch, GENX(3DSTATE_PS),
                                      pipeline, partial.ps, ps, protected) {
          SET(ps, ps, KernelStartPointer0);
@@ -2295,6 +2419,7 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
          SET(ps, ps, Kernel0SIMDWidth);
          SET(ps, ps, Kernel1SIMDWidth);
          SET(ps, ps, Kernel0PolyPackingPolicy);
+         SET(ps, ps, Kernel0MaximumPolysperThread);
 #endif
          SET(ps, ps, PositionXYOffsetSelect);
       }
@@ -2332,6 +2457,9 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
          SET(clip, clip, TriangleStripListProvokingVertexSelect);
          SET(clip, clip, LineStripListProvokingVertexSelect);
          SET(clip, clip, TriangleFanProvokingVertexSelect);
+#if GFX_VERx10 >= 200
+         SET(clip, clip, TriangleStripOddProvokingVertexSelect);
+#endif
          SET(clip, clip, MaximumVPIndex);
       }
    }
@@ -2459,6 +2587,7 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
    }
 
    if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_GS)) {
+      DEBUG_SHADER_HASH(MESA_SHADER_GEOMETRY);
       anv_batch_emit_merge_protected(&cmd_buffer->batch, GENX(3DSTATE_GS),
                                      pipeline, partial.gs, gs, protected) {
          SET(gs, gs, ReorderMode);
@@ -2516,6 +2645,9 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
          SET(sf, sf, TriangleStripListProvokingVertexSelect);
          SET(sf, sf, LineStripListProvokingVertexSelect);
          SET(sf, sf, TriangleFanProvokingVertexSelect);
+#if GFX_VERx10 >= 200
+         SET(sf, sf, TriangleStripOddProvokingVertexSelect);
+#endif
          SET(sf, sf, LegacyGlobalDepthBiasEnable);
       }
    }
@@ -2549,6 +2681,9 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
          SET(raster, raster, ViewportZFarClipTestEnable);
          SET(raster, raster, ViewportZNearClipTestEnable);
          SET(raster, raster, ConservativeRasterizationEnable);
+#if GFX_VERx10 >= 200
+         SET(raster, raster, LegacyBaryAssignmentDisable);
+#endif
       }
    }
 
@@ -2655,28 +2790,27 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
    if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_VF)) {
       anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_VF), vf) {
 #if GFX_VERx10 >= 125
-         vf.GeometryDistributionEnable = true;
+         vf.GeometryDistributionEnable =
+            device->physical->instance->enable_vf_distribution;
 #endif
+         vf.ComponentPackingEnable =
+            device->physical->instance->vf_component_packing;
          SET(vf, vf, IndexedDrawCutIndexEnable);
          SET(vf, vf, CutIndex);
       }
    }
 
    if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_INDEX_BUFFER)) {
-      struct anv_buffer *buffer = gfx->index_buffer;
-      uint32_t offset = gfx->index_offset;
       anv_batch_emit(&cmd_buffer->batch, GENX(3DSTATE_INDEX_BUFFER), ib) {
-         ib.IndexFormat           = gfx->index_type;
-         ib.MOCS                  = anv_mocs(device,
-                                             buffer ? buffer->address.bo : NULL,
-                                             ISL_SURF_USAGE_INDEX_BUFFER_BIT);
+         ib.IndexFormat           = vk_to_intel_index_type(gfx->index_type);
+         ib.MOCS                  = gfx->index_addr == 0 ?
+            anv_mocs(cmd_buffer->device, NULL, ISL_SURF_USAGE_INDEX_BUFFER_BIT) :
+            gfx->index_mocs;
 #if GFX_VER >= 12
          ib.L3BypassDisable       = true;
 #endif
-         if (buffer) {
-            ib.BufferStartingAddress = anv_address_add(buffer->address, offset);
-            ib.BufferSize            = gfx->index_size;
-         }
+         ib.BufferStartingAddress = anv_address_from_u64(gfx->index_addr);
+         ib.BufferSize            = gfx->index_size;
       }
    }
 
@@ -2747,6 +2881,9 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
             INIT(blend.rts[i], LogicOpEnable),
             INIT(blend.rts[i], ColorBufferBlendEnable),
             INIT(blend.rts[i], ColorClampRange),
+#if GFX_VER >= 30
+            INIT(blend.rts[i], SimpleFloatBlendEnable),
+#endif
             INIT(blend.rts[i], PreBlendColorClampEnable),
             INIT(blend.rts[i], PostBlendColorClampEnable),
             INIT(blend.rts[i], SourceBlendFactor),
@@ -2807,6 +2944,7 @@ cmd_buffer_gfx_state_emission(struct anv_cmd_buffer *cmd_buffer)
 
 #undef INIT
 #undef SET
+#undef DEBUG_SHADER_HASH
 
    BITSET_ZERO(hw_state->dirty);
 }
@@ -2833,6 +2971,20 @@ genX(cmd_buffer_flush_gfx_hw_state)(struct anv_cmd_buffer *cmd_buffer)
     * Put potential workarounds here if you need to reemit an instruction
     * because of another one is changing.
     */
+
+   /* Reprogram SF_CLIP & CC_STATE together. This reproduces the programming
+    * done on Windows drivers. Fixes flickering issues with multiple
+    * workloads.
+    *
+    * Since blorp disables 3DSTATE_CLIP::ClipEnable and dirties CC_STATE, this
+    * also takes care of Wa_14016820455 which requires SF_CLIP to be
+    * reprogrammed whenever 3DSTATE_CLIP::ClipEnable is enabled.
+    */
+   if (BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_VIEWPORT_SF_CLIP) ||
+       BITSET_TEST(hw_state->dirty, ANV_GFX_STATE_VIEWPORT_CC_PTR)) {
+      BITSET_SET(hw_state->dirty, ANV_GFX_STATE_VIEWPORT_SF_CLIP);
+      BITSET_SET(hw_state->dirty, ANV_GFX_STATE_VIEWPORT_CC_PTR);
+   }
 
    /* Wa_16012775297 - Emit dummy VF statistics before each 3DSTATE_VF. */
 #if INTEL_WA_16012775297_GFX_VER

@@ -436,30 +436,6 @@ static void dd_context_set_window_rectangles(struct pipe_context *_pipe,
  * views
  */
 
-static struct pipe_surface *
-dd_context_create_surface(struct pipe_context *_pipe,
-                          struct pipe_resource *resource,
-                          const struct pipe_surface *surf_tmpl)
-{
-   struct pipe_context *pipe = dd_context(_pipe)->pipe;
-   struct pipe_surface *view =
-      pipe->create_surface(pipe, resource, surf_tmpl);
-
-   if (!view)
-      return NULL;
-   view->context = _pipe;
-   return view;
-}
-
-static void
-dd_context_surface_destroy(struct pipe_context *_pipe,
-                           struct pipe_surface *surf)
-{
-   struct pipe_context *pipe = dd_context(_pipe)->pipe;
-
-   pipe->surface_destroy(pipe, surf);
-}
-
 static struct pipe_sampler_view *
 dd_context_create_sampler_view(struct pipe_context *_pipe,
                                struct pipe_resource *resource,
@@ -482,6 +458,15 @@ dd_context_sampler_view_destroy(struct pipe_context *_pipe,
    struct pipe_context *pipe = dd_context(_pipe)->pipe;
 
    pipe->sampler_view_destroy(pipe, view);
+}
+
+static void
+dd_context_sampler_view_release(struct pipe_context *_pipe,
+                                struct pipe_sampler_view *view)
+{
+   struct pipe_context *pipe = dd_context(_pipe)->pipe;
+
+   pipe->sampler_view_release(pipe, view);
 }
 
 static struct pipe_stream_output_target *
@@ -520,7 +505,6 @@ dd_context_set_sampler_views(struct pipe_context *_pipe,
                              enum pipe_shader_type shader,
                              unsigned start, unsigned num,
                              unsigned unbind_num_trailing_slots,
-                             bool take_ownership,
                              struct pipe_sampler_view **views)
 {
    struct dd_context *dctx = dd_context(_pipe);
@@ -530,7 +514,7 @@ dd_context_set_sampler_views(struct pipe_context *_pipe,
                sizeof(views[0]) * num);
    safe_memcpy(&dctx->draw_state.sampler_views[shader][start + num], NULL,
                sizeof(views[0]) * unbind_num_trailing_slots);
-   pipe->set_sampler_views(pipe, shader, start, num, take_ownership,
+   pipe->set_sampler_views(pipe, shader, start, num,
                            unbind_num_trailing_slots, views);
 }
 
@@ -698,15 +682,6 @@ dd_context_resource_commit(struct pipe_context *_pipe,
    struct pipe_context *pipe = dd_context(_pipe)->pipe;
 
    return pipe->resource_commit(pipe, resource, level, box, commit);
-}
-
-static void
-dd_context_set_compute_resources(struct pipe_context *_pipe,
-				 unsigned start, unsigned count,
-				 struct pipe_surface **resources)
-{
-   struct pipe_context *pipe = dd_context(_pipe)->pipe;
-   pipe->set_compute_resources(pipe, start, count, resources);
 }
 
 static void
@@ -935,12 +910,10 @@ dd_context_create(struct dd_screen *dscreen, struct pipe_context *pipe)
    CTX_INIT(fence_server_sync);
    CTX_INIT(create_sampler_view);
    CTX_INIT(sampler_view_destroy);
-   CTX_INIT(create_surface);
-   CTX_INIT(surface_destroy);
+   CTX_INIT(sampler_view_release);
    CTX_INIT(texture_barrier);
    CTX_INIT(memory_barrier);
    CTX_INIT(resource_commit);
-   CTX_INIT(set_compute_resources);
    CTX_INIT(set_global_binding);
    /* create_video_codec */
    /* create_video_buffer */

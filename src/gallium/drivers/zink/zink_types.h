@@ -19,7 +19,7 @@
  * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
- * 
+ *
  * Authors:
  *    Mike Blumenkrantz <michael.blumenkrantz@gmail.com>
  */
@@ -29,15 +29,17 @@
 
 #include <vulkan/vulkan_core.h>
 
-#include "compiler/nir/nir.h"
+#include "compiler/nir/nir_defines.h"
+#include "compiler/nir/nir_shader_compiler_options.h"
 
 #include "pipe/p_context.h"
 #include "pipe/p_defines.h"
 #include "pipe/p_state.h"
 
 #include "pipebuffer/pb_cache.h"
-#include "pipebuffer/pb_slab.h"
+#include "util/pb_slab.h"
 
+#include "util/blob.h"
 #include "util/disk_cache.h"
 #include "util/hash_table.h"
 #include "util/list.h"
@@ -100,15 +102,15 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
- 
+
 extern uint32_t zink_debug;
 extern bool zink_tracing;
- 
+
 #ifdef __cplusplus
 }
 #endif
 
- 
+
 /** enums */
 
 /* features for draw/program templates */
@@ -602,7 +604,6 @@ struct zink_batch_state {
    struct util_dynarray tracked_semaphores; //semaphores which are just tracked
    VkSemaphore sparse_semaphore; //current sparse wait semaphore
    struct util_dynarray fences; //zink_tc_fence refs
-   simple_mtx_t ref_lock;
 
    VkSemaphore present;
    struct zink_resource *swapchain;
@@ -632,8 +633,10 @@ struct zink_batch_state {
    struct zink_batch_obj_list real_objs;
    struct zink_batch_obj_list slab_objs;
    struct zink_batch_obj_list sparse_objs;
+   struct zink_batch_obj_list unsync_objs;
    struct zink_resource_object *last_added_obj;
    struct util_dynarray swapchain_obj; //this doesn't have a zink_bo and must be handled differently
+   struct util_dynarray swapchain_obj_unsync; //this doesn't have a zink_bo and must be handled differently
 
    struct util_dynarray unref_resources;
    struct util_dynarray bindless_releases[2];
@@ -918,8 +921,6 @@ struct zink_gfx_pipeline_state {
       } shader_keys_optimal;
    };
    struct zink_blend_state *blend_state;
-   struct zink_render_pass *render_pass;
-   struct zink_render_pass *next_render_pass; //will be used next time rp is begun
    VkFormat rendering_formats[PIPE_MAX_COLOR_BUFS];
    VkPipelineRenderingCreateInfo rendering_info;
    VkPipeline pipeline;
@@ -991,8 +992,9 @@ struct zink_shader_module {
 };
 
 struct zink_program {
-   struct pipe_reference reference;
+   EXCLUSIVE_CACHELINE(struct pipe_reference reference);
    struct zink_context *ctx;
+   void *ralloc_ctx;
    blake3_hash blake3;
    struct util_queue_fence cache_fence;
    struct u_rwlock pipeline_cache_lock;
@@ -1114,11 +1116,11 @@ struct zink_gfx_program {
    /* separable */
    struct zink_gfx_program *full_prog;
 
-   struct hash_table pipelines[2][11]; // [dynamic, renderpass][number of draw modes we support]
+   struct hash_table pipelines[11]; // [number of draw modes we support]
    uint32_t last_variant_hash;
 
-   uint32_t last_finalized_hash[2][4]; //[dynamic, renderpass][primtype idx]
-   struct zink_gfx_pipeline_cache_entry *last_pipeline[2][4]; //[dynamic, renderpass][primtype idx]
+   uint32_t last_finalized_hash[4]; //[primtype idx]
+   struct zink_gfx_pipeline_cache_entry *last_pipeline[4]; //[primtype idx]
 
    struct zink_gfx_lib_cache *libs;
 };
@@ -1164,50 +1166,6 @@ struct zink_rt_attrib {
   bool resolve;
   bool feedback_loop;
 };
-
-struct zink_render_pass_state {
-   union {
-      struct {
-         uint8_t num_cbufs : 5; /* PIPE_MAX_COLOR_BUFS = 8 */
-         uint8_t have_zsbuf : 1;
-         uint8_t samples:1; //for fs samplemask
-         uint32_t num_zsresolves : 1;
-         uint32_t num_cresolves : 24; /* PIPE_MAX_COLOR_BUFS, but this is a struct hole */
-      };
-      uint32_t val; //for comparison
-   };
-   struct zink_rt_attrib rts[PIPE_MAX_COLOR_BUFS + 1];
-   unsigned num_rts;
-   uint32_t clears; //for extra verification and update flagging
-   uint16_t msaa_expand_mask;
-   uint16_t msaa_samples; //used with VK_EXT_multisampled_render_to_single_sampled
-};
-
-struct zink_pipeline_rt {
-   VkFormat format;
-   VkSampleCountFlagBits samples;
-};
-
-struct zink_render_pass_pipeline_state {
-   uint32_t num_attachments:14;
-   uint32_t msaa_samples : 8;
-   uint32_t fbfetch:1;
-   uint32_t color_read:1;
-   uint32_t depth_read:1;
-   uint32_t depth_write:1;
-   uint32_t num_cresolves:4;
-   uint32_t num_zsresolves:1;
-   bool samples:1; //for fs samplemask
-   struct zink_pipeline_rt attachments[PIPE_MAX_COLOR_BUFS + 1];
-   unsigned id;
-};
-
-struct zink_render_pass {
-   VkRenderPass render_pass;
-   struct zink_render_pass_state state;
-   unsigned pipeline_state;
-};
-
 
 /** resource types */
 struct zink_resource_object {
@@ -1289,6 +1247,7 @@ struct zink_resource {
 
    struct zink_resource_object *obj;
    struct pipe_surface *surface; //for swapchain images
+   struct zink_resource *transient; //for msrtt without EXT_multisampled_render_to_single_sampled
    uint32_t queue;
    union {
       struct {
@@ -1367,6 +1326,7 @@ struct zink_transfer {
    struct pipe_resource *staging_res;
    unsigned offset;
    unsigned depthPitch;
+   bool unsync_upload;
 };
 
 
@@ -1454,6 +1414,7 @@ struct zink_screen {
    uint8_t heap_map[ZINK_HEAP_MAX][VK_MAX_MEMORY_TYPES];  // mapping from zink heaps to memory type indices
    uint8_t heap_count[ZINK_HEAP_MAX];  // number of memory types per zink heap
    bool resizable_bar;
+   bool always_cached_upload;
 
    uint64_t total_video_mem;
    uint64_t clamp_video_mem;
@@ -1461,7 +1422,7 @@ struct zink_screen {
    uint64_t mapped_vram;
 
    VkInstance instance;
-   struct zink_instance_info instance_info;
+   const struct zink_instance_info *instance_info;
 
    struct hash_table *debug_mem_sizes;
    simple_mtx_t debug_mem_lock;
@@ -1510,6 +1471,7 @@ struct zink_screen {
    struct vk_uncompacted_dispatch_table vk;
 
    void (*buffer_barrier)(struct zink_context *ctx, struct zink_resource *res, VkAccessFlags flags, VkPipelineStageFlags pipeline);
+   void (*buffer_barrier_unsync)(struct zink_context *ctx, struct zink_resource *res, VkAccessFlags flags, VkPipelineStageFlags pipeline);
    void (*image_barrier)(struct zink_context *ctx, struct zink_resource *res, VkImageLayout new_layout, VkAccessFlags flags, VkPipelineStageFlags pipeline);
    void (*image_barrier_unsync)(struct zink_context *ctx, struct zink_resource *res, VkImageLayout new_layout, VkAccessFlags flags, VkPipelineStageFlags pipeline);
 
@@ -1537,6 +1499,7 @@ struct zink_screen {
       bool needs_sanitised_layer;
       bool io_opt;
       bool broken_const;
+      bool broken_demote;
    } driver_compiler_workarounds;
    struct {
       bool broken_l4a4;
@@ -1557,8 +1520,7 @@ struct zink_screen {
       bool inconsistent_interpolation;
       bool can_2d_view_sparse;
       bool general_depth_layout;
-      unsigned z16_unscaled_bias;
-      unsigned z24_unscaled_bias;
+      bool general_layout;
    } driver_workarounds;
 };
 
@@ -1570,16 +1532,6 @@ zink_screen(struct pipe_screen *pipe)
 
 /** surface types */
 
-/* info for validating/creating imageless framebuffers */
-struct zink_surface_info {
-   VkImageCreateFlags flags;
-   VkImageUsageFlags usage;
-   uint32_t width;
-   uint32_t height;
-   uint32_t layerCount;
-   VkFormat format[2]; //base format, srgb format (for srgb framebuffer)
-};
-
 /* an imageview for a zink_resource:
    - may be a fb attachment, samplerview, or shader image
    - cached on the parent zink_resource_object
@@ -1590,8 +1542,6 @@ struct zink_surface {
    /* all the info for creating a new imageview */
    VkImageViewCreateInfo ivci;
    VkImageViewUsageCreateInfo usage_info;
-   /* for framebuffer use */
-   struct zink_surface_info info;
    bool is_swapchain;
    /* the current imageview */
    VkImageView image_view;
@@ -1603,60 +1553,12 @@ struct zink_surface {
    uint32_t hash; //for surface caching
 };
 
-/* wrapper object that preserves the gallium expectation of having
- * pipe_surface::context match the context used to create the surface
- */
-struct zink_ctx_surface {
-   struct pipe_surface base;
-   struct zink_surface *surf; //the actual surface
-   struct zink_ctx_surface *transient; //for use with EXT_multisample_render_to_texture
-   bool transient_init; //whether the transient surface has data
-   bool needs_mutable;
-};
-
-/* use this cast for framebuffer surfaces */
-static inline struct zink_surface *
-zink_csurface(struct pipe_surface *psurface)
-{
-   return psurface ? ((struct zink_ctx_surface *)psurface)->surf : NULL;
-}
-
-/* use this cast for checking transient framebuffer surfaces */
-static inline struct zink_surface *
-zink_transient_surface(struct pipe_surface *psurface)
-{
-   return psurface ? ((struct zink_ctx_surface *)psurface)->transient ? ((struct zink_ctx_surface *)psurface)->transient->surf : NULL : NULL;
-}
-
 /* use this cast for internal surfaces */
 static inline struct zink_surface *
 zink_surface(struct pipe_surface *psurface)
 {
    return (struct zink_surface *)psurface;
 }
-
-
-/** framebuffer types */
-struct zink_framebuffer_state {
-   uint32_t width;
-   uint16_t height;
-   uint32_t layers:6;
-   uint32_t samples:6;
-   uint32_t num_attachments:4;
-   struct zink_surface_info infos[PIPE_MAX_COLOR_BUFS + 1];
-};
-
-struct zink_framebuffer {
-   struct pipe_reference reference;
-
-   /* current objects */
-   VkFramebuffer fb;
-   struct zink_render_pass *rp;
-
-   struct zink_framebuffer_state state;
-   VkFramebufferAttachmentImageInfo infos[PIPE_MAX_COLOR_BUFS + 1];
-   struct hash_table objects;
-};
 
 
 /** context types */
@@ -1686,6 +1588,7 @@ struct zink_sampler_view {
    /* Optional sampler view returning red (depth) in all channels, for shader rewrites. */
    struct zink_surface *zs_view;
    struct zink_zs_swizzle swizzle;
+   struct zink_resource *import2d;
 };
 
 struct zink_image_view {
@@ -1694,6 +1597,7 @@ struct zink_image_view {
       struct zink_surface *surface;
       struct zink_buffer_view *buffer_view;
    };
+   struct zink_resource *import2d;
 };
 
 static inline struct zink_sampler_view *
@@ -1819,7 +1723,8 @@ struct zink_context {
 
    uint32_t transient_attachments;
    struct pipe_framebuffer_state fb_state;
-   struct hash_table framebuffer_cache;
+   PIPE_FB_SURFACES; //STOP USING THIS
+   struct zink_surface *transients[PIPE_MAX_COLOR_BUFS + 1]; //AND THIS (probably)
 
    struct zink_vertex_elements_state *element_state;
    struct zink_rasterizer_state *rast_state;
@@ -1857,15 +1762,12 @@ struct zink_context {
       VkRenderingAttachmentInfo attachments[PIPE_MAX_COLOR_BUFS + 2]; //+depth, +stencil
       VkRenderingInfo info;
       struct tc_renderpass_info tc_info;
+      VkAttachmentFeedbackLoopInfoEXT fbfetch_att;
    } dynamic_fb;
    uint32_t fb_layer_mismatch; //bitmask
-   unsigned depth_bias_scale_factor;
    struct set rendering_state_cache[6]; //[util_logbase2_ceil(msrtss samplecount)]
-   struct set render_pass_state_cache;
-   struct hash_table *render_pass_cache;
    struct zink_resource *swapchain;
    VkExtent2D swapchain_size;
-   bool fb_changed;
    bool in_rp; //renderpass is currently active
    bool rp_changed; //force renderpass restart
    bool rp_layout_changed; //renderpass changed, maybe restart
@@ -1873,7 +1775,6 @@ struct zink_context {
    bool zsbuf_unused;
    bool zsbuf_readonly;
 
-   struct zink_framebuffer *framebuffer;
    struct zink_framebuffer_clear fb_clears[PIPE_MAX_COLOR_BUFS + 1];
    uint16_t clears_enabled;
    uint16_t rp_clears_enabled;
@@ -1919,6 +1820,7 @@ struct zink_context {
    bool disable_fs;
    bool disable_color_writes;
    bool was_line_loop;
+   bool was_using_depth_bias;
    bool fs_query_active;
    bool occlusion_query_active;
    bool primitives_generated_active;
@@ -2032,6 +1934,7 @@ struct zink_context {
    bool blend_color_changed : 1;
    bool sample_mask_changed : 1;
    bool rast_state_changed : 1;
+   bool depth_bias_changed : 1;
    bool line_width_changed : 1;
    bool dsa_state_changed : 1;
    bool stencil_ref_changed : 1;

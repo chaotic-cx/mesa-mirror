@@ -55,7 +55,7 @@ panvk_cmd_prepare_fragment_job(struct panvk_cmd_buffer *cmdbuf, uint64_t fbd)
 {
    const struct pan_fb_info *fbinfo = &cmdbuf->state.gfx.render.fb.info;
    struct panvk_batch *batch = cmdbuf->cur_batch;
-   struct panfrost_ptr job_ptr = panvk_cmd_alloc_desc(cmdbuf, FRAGMENT_JOB);
+   struct pan_ptr job_ptr = panvk_cmd_alloc_desc(cmdbuf, FRAGMENT_JOB);
 
    if (!job_ptr.gpu)
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
@@ -94,7 +94,7 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
          /* Batch has no jobs but is needed for synchronization, let's add a
           * NULL job so the SUBMIT ioctl doesn't choke on it.
           */
-         struct panfrost_ptr ptr = panvk_cmd_alloc_desc(cmdbuf, JOB_HEADER);
+         struct pan_ptr ptr = panvk_cmd_alloc_desc(cmdbuf, JOB_HEADER);
 
          if (ptr.gpu) {
             util_dynarray_append(&batch->jobs, void *, ptr.cpu);
@@ -116,13 +116,13 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
 
    if (batch->tlsinfo.tls.size) {
       unsigned thread_tls_alloc =
-         panfrost_query_thread_tls_alloc(&phys_dev->kmod.props);
+         pan_query_thread_tls_alloc(&phys_dev->kmod.props);
       unsigned core_id_range;
 
-      panfrost_query_core_count(&phys_dev->kmod.props, &core_id_range);
+      pan_query_core_count(&phys_dev->kmod.props, &core_id_range);
 
-      unsigned size = panfrost_get_total_stack_size(
-         batch->tlsinfo.tls.size, thread_tls_alloc, core_id_range);
+      unsigned size = pan_get_total_stack_size(batch->tlsinfo.tls.size,
+                                               thread_tls_alloc, core_id_range);
       batch->tlsinfo.tls.ptr =
          panvk_cmd_alloc_dev_mem(cmdbuf, tls, size, 4096).gpu;
    }
@@ -137,9 +137,17 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
       GENX(pan_emit_tls)(&batch->tlsinfo, batch->tls.cpu);
 
    if (batch->fb.desc.cpu) {
-      fbinfo->sample_positions = dev->sample_positions->addr.dev +
-                                 panfrost_sample_positions_offset(
-                                    pan_sample_pattern(fbinfo->nr_samples));
+      panvk_per_arch(cmd_select_tile_size)(cmdbuf);
+
+      /* At this point, we should know sample count and the tile size should have
+       * been calculated */
+      assert(fbinfo->nr_samples > 0 && fbinfo->tile_size > 0);
+
+      fbinfo->sample_positions =
+         dev->sample_positions->addr.dev +
+         pan_sample_positions_offset(pan_sample_pattern(fbinfo->nr_samples));
+      fbinfo->first_provoking_vertex =
+         cmdbuf->state.gfx.render.first_provoking_vertex != U_TRISTATE_NO;
 
       if (batch->vtc_jc.first_tiler) {
          VkResult result = panvk_per_arch(cmd_fb_preload)(cmdbuf, fbinfo);
@@ -147,19 +155,26 @@ panvk_per_arch(cmd_close_batch)(struct panvk_cmd_buffer *cmdbuf)
             return;
       }
 
-      for (uint32_t i = 0; i < batch->fb.layer_count; i++) {
+      uint32_t view_mask = cmdbuf->state.gfx.render.view_mask;
+      assert(view_mask == 0 || util_bitcount(view_mask) <= batch->fb.layer_count);
+      uint32_t enabled_layer_count = view_mask ?
+         util_bitcount(view_mask) :
+         batch->fb.layer_count;
+
+      for (uint32_t i = 0; i < enabled_layer_count; i++) {
+         uint32_t layer_id = (view_mask != 0) ? u_bit_scan(&view_mask) : i;
          VkResult result;
 
-         uint64_t fbd = batch->fb.desc.gpu + (batch->fb.desc_stride * i);
+         uint64_t fbd = batch->fb.desc.gpu + (batch->fb.desc_stride * layer_id);
 
-         result = panvk_per_arch(cmd_prepare_tiler_context)(cmdbuf, i);
+         result = panvk_per_arch(cmd_prepare_tiler_context)(cmdbuf, layer_id);
          if (result != VK_SUCCESS)
             break;
 
          fbd |= GENX(pan_emit_fbd)(
-            &cmdbuf->state.gfx.render.fb.info, i, &batch->tlsinfo,
+            &cmdbuf->state.gfx.render.fb.info, layer_id, &batch->tlsinfo,
             &batch->tiler.ctx,
-            batch->fb.desc.cpu + (batch->fb.desc_stride * i));
+            batch->fb.desc.cpu + (batch->fb.desc_stride * layer_id));
 
          result = panvk_cmd_prepare_fragment_job(cmdbuf, fbd);
          if (result != VK_SUCCESS)
@@ -255,8 +270,8 @@ panvk_per_arch(cmd_prepare_tiler_context)(struct panvk_cmd_buffer *cmdbuf,
    }
 
    pan_pack(&batch->tiler.ctx_templ, TILER_CONTEXT, cfg) {
-      cfg.hierarchy_mask =
-         panvk_select_tiler_hierarchy_mask(phys_dev, &cmdbuf->state.gfx);
+      cfg.hierarchy_mask = panvk_select_tiler_hierarchy_mask(
+         phys_dev, &cmdbuf->state.gfx, pan_kmod_bo_size(dev->tiler_heap->bo));
       cfg.fb_width = fbinfo->width;
       cfg.fb_height = fbinfo->height;
       cfg.heap = batch->tiler.heap_desc.gpu;
@@ -321,8 +336,14 @@ panvk_per_arch(CmdPipelineBarrier2)(VkCommandBuffer commandBuffer,
     * barrier flag set to true.
     */
    if (cmdbuf->cur_batch) {
+      bool preload_fb =
+         cmdbuf->cur_batch && cmdbuf->cur_batch->vtc_jc.first_tiler;
+
       panvk_per_arch(cmd_close_batch)(cmdbuf);
-      panvk_per_arch(cmd_preload_fb_after_batch_split)(cmdbuf);
+
+      if (preload_fb)
+         panvk_per_arch(cmd_preload_fb_after_batch_split)(cmdbuf);
+
       panvk_per_arch(cmd_open_batch)(cmdbuf);
    }
 }

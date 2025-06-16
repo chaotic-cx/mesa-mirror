@@ -85,6 +85,7 @@ libintel_compiler_elk_files = files(
   'elk_shader.cpp',
   'elk_shader.h',
   'elk_simd_selection.cpp',
+  'elk_spirv.c',
   'elk_vec4_builder.h',
   'elk_vec4_cmod_propagation.cpp',
   'elk_vec4_copy_propagation.cpp',
@@ -130,6 +131,7 @@ libintel_compiler_elk = static_library(
   [libintel_compiler_elk_files, intel_nir_files, elk_nir_trig, ir_expression_operation_h],
   include_directories : [inc_include, inc_src, inc_intel],
   c_args : [no_override_init_args],
+  cpp_args : ['-Werror=vla'],
   gnu_symbol_visibility : 'hidden',
   dependencies : [idep_nir_headers, idep_mesautil, idep_intel_dev],
   build_by_default : false,
@@ -139,6 +141,7 @@ idep_intel_compiler_elk = declare_dependency(
   link_with : [libintel_compiler_elk],
   dependencies : [
     idep_nir,
+    idep_vtn,
   ],
 )
 
@@ -164,6 +167,7 @@ if with_tests
       ),
       ir_expression_operation_h,
       include_directories : [inc_include, inc_src, inc_intel],
+      cpp_args : ['-Werror=vla'],
       link_with : [
         libintel_common, libisl
       ],
@@ -241,4 +245,3 @@ elk_disasm_tool = executable(
 )
 
 endif
-

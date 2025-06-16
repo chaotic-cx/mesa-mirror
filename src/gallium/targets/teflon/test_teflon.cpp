@@ -5,12 +5,16 @@
 
 #include <cstdio>
 #include <fcntl.h>
+#include <sys/mman.h>
 #include <filesystem>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <xtensor/xrandom.hpp>
 
 #include <iostream>
+#include <sstream>
+#include <string>
+#include <vector>
 #include "tensorflow/lite/c/c_api.h"
 #include "test_executor.h"
 
@@ -18,14 +22,9 @@
 #define TEST_DEPTHWISE        1
 #define TEST_ADD              1
 #define TEST_FULLY_CONNECTED  1
-#define TEST_MOBILENETV1      1
-#define TEST_MOBILEDET        1
-#define TEST_YOLOX            1
+#define TEST_MODELS           1
 
 #define TOLERANCE       2
-#define MODEL_TOLERANCE 8
-#define YOLOX_TOLERANCE 38
-#define QUANT_TOLERANCE 2
 
 std::vector<bool> is_signed{false}; /* TODO: Support INT8? */
 std::vector<bool> padding_same{false, true};
@@ -63,13 +62,35 @@ test_model(void *buf, size_t buf_size, std::string cache_dir, unsigned tolerance
    run_model(model, EXECUTOR_CPU, &input, &num_inputs, &cpu_output, &output_sizes, &output_types, &num_outputs, cache_dir);
    run_model(model, EXECUTOR_NPU, &input, &num_inputs, &npu_output, &output_sizes, &output_types, &num_outputs, cache_dir);
 
+   char *dump_output = getenv("TEFLON_DUMP_OUTPUT");
+   if (dump_output && atoi(dump_output) == 1) {
+      for (unsigned i = 0; i < num_outputs; i++) {
+         char name[250];
+         int fd;
+         unsigned size = output_sizes[i];
+
+         if (output_types[i] == kTfLiteFloat32)
+            size *= 4;
+
+         sprintf(name, "out-%d.bin", i);
+         fd = open(name, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
+         write(fd, npu_output[i], size);
+         close(fd);
+
+         sprintf(name, "cpu-out-%d.bin", i);
+         fd = open(name, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU);
+         write(fd, cpu_output[i], size);
+         close(fd);
+      }
+   }
+
    for (size_t i = 0; i < num_outputs; i++) {
       for (size_t j = 0; j < output_sizes[i]; j++) {
          switch (output_types[i]) {
             case kTfLiteFloat32: {
                float *cpu = ((float**)cpu_output)[i];
                float *npu = ((float**)npu_output)[i];
-               if (abs(cpu[j] - npu[j]) > tolerance) {
+               if (abs(cpu[j] - npu[j]) > tolerance / 33.0) {
                   std::cout << "CPU: ";
                   for (int k = 0; k < std::min(int(output_sizes[i]), 24); k++)
                      std::cout << std::setfill('0') << std::setw(6) << cpu[k] << " ";
@@ -83,7 +104,24 @@ test_model(void *buf, size_t buf_size, std::string cache_dir, unsigned tolerance
                }
                break;
             }
-            default: {
+            case kTfLiteInt8: {
+               int8_t *cpu = ((int8_t**)cpu_output)[i];
+               int8_t *npu = ((int8_t**)npu_output)[i];
+               if (abs(cpu[j] - npu[j]) > tolerance) {
+                  std::cout << "CPU: ";
+                  for (int k = 0; k < std::min(int(output_sizes[i]), 24); k++)
+                     std::cout << std::setfill('0') << std::setw(2) << std::hex << int(cpu[k] & 0xff) << " ";
+                  std::cout << "\n";
+                  std::cout << "NPU: ";
+                  for (int k = 0; k < std::min(int(output_sizes[i]), 24); k++)
+                     std::cout << std::setfill('0') << std::setw(2) << std::hex << int(npu[k] & 0xff) << " ";
+                  std::cout << "\n";
+
+                  FAIL() << "Output at " << j << " from the NPU (" << std::setfill('0') << std::setw(2) << std::hex << int(npu[j] & 0xff) << ") doesn't match that from the CPU (" << std::setfill('0') << std::setw(2) << std::hex << int(cpu[j] & 0xff) << ").";
+               }
+               break;
+            }
+            case kTfLiteUInt8: {
                uint8_t *cpu = ((uint8_t**)cpu_output)[i];
                uint8_t *npu = ((uint8_t**)npu_output)[i];
                if (abs(cpu[j] - npu[j]) > tolerance) {
@@ -100,6 +138,8 @@ test_model(void *buf, size_t buf_size, std::string cache_dir, unsigned tolerance
                }
                break;
             }
+            default:
+               assert(!"Unsupported data type for output tensor");
          }
       }
    }
@@ -127,15 +167,23 @@ test_model_file(std::string file_name, unsigned tolerance, bool use_cache)
 {
    std::ostringstream cache_dir;
 
-   if (use_cache)
-      cache_dir << "/var/cache/teflon_tests/" << std::filesystem::path(file_name).stem().c_str();
+   if (use_cache) {
+      auto path = std::filesystem::path(file_name);
+      cache_dir << "/var/cache/teflon_tests/";
+      cache_dir << path.parent_path().filename().string();
+      cache_dir << "_";
+      cache_dir << path.stem().string();
+   }
 
    set_seed(4);
 
-   std::ifstream model_file(file_name, std::ios::binary);
-   std::vector<uint8_t> buffer((std::istreambuf_iterator<char>(model_file)),
-                               std::istreambuf_iterator<char>());
-   test_model(buffer.data(), buffer.size(), cache_dir.str(), tolerance);
+   struct stat sb;
+   int model_fd = open(file_name.c_str(), O_RDONLY);
+   fstat(model_fd, &sb);
+   void *model_data = mmap(0, sb.st_size, PROT_READ, MAP_PRIVATE, model_fd, 0);
+   test_model(model_data, sb.st_size, cache_dir.str(), tolerance);
+   munmap(model_data, sb.st_size);
+   close(model_fd);
 }
 
 void
@@ -412,7 +460,7 @@ TEST_P(AddQuant, Op)
             false, /* is_signed */
             false, /* depthwise */
             GetParam(),
-            QUANT_TOLERANCE);
+            TOLERANCE);
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -456,138 +504,56 @@ INSTANTIATE_TEST_SUITE_P(
 
 #endif
 
-#if TEST_MOBILENETV1
+#if TEST_MODELS
 
-class MobileNetV1 : public ::testing::Test {};
+class Models : public testing::TestWithParam<std::string> {};
 
-class MobileNetV1Param : public testing::TestWithParam<int> {};
-
-TEST(MobileNetV1, Whole)
+TEST_P(Models, Op)
 {
    std::ostringstream file_path;
+   auto test_name = GetParam();
+   test_name.replace(test_name.find("_"), 1, "/");
    assert(getenv("TEFLON_TEST_DATA"));
-   file_path << getenv("TEFLON_TEST_DATA") << "/mobilenet_v1_1.0_224_quant.tflite";
+   file_path << getenv("TEFLON_TEST_DATA") << "/models/" << test_name << ".tflite";
 
-   test_model_file(file_path.str(), MODEL_TOLERANCE, true);
+   test_model_file(file_path.str(), TOLERANCE, true);
 }
 
-TEST_P(MobileNetV1Param, Op)
+std::vector<std::string>
+get_model_files(void)
 {
-   std::ostringstream file_path;
    assert(getenv("TEFLON_TEST_DATA"));
-   file_path << getenv("TEFLON_TEST_DATA") << "/mb-" << std::setfill('0') << std::setw(3) << GetParam() << ".tflite";
+   std::stringstream dir;
+   dir << getenv("TEFLON_TEST_DATA") << "/models";
 
-   test_model_file(file_path.str(), MODEL_TOLERANCE, true);
+   std::vector<std::string> paths;
+   std::filesystem::recursive_directory_iterator b(dir.str());
+   for (auto const& f : b) {
+      if (f.path().extension() != ".tflite")
+         continue;
+
+      std::stringstream path;
+      path << f.path().parent_path().filename().string();
+      path << "_" << f.path().stem().string();
+      paths.push_back(path.str());
+   }
+
+   std::sort(paths.begin(), paths.end());
+
+   return paths;
 }
 
 static inline std::string
-MobileNetV1TestCaseName(
-   const testing::TestParamInfo<int> &info)
+ModelsTestCaseName(
+   const testing::TestParamInfo<std::string> &info)
 {
-   std::string name = "";
-   std::string param = std::to_string(info.param);
-
-   name += "mb";
-   name += std::string(3 - param.length(), '0');
-   name += param;
-
-   return name;
+   return info.param;
 }
 
 INSTANTIATE_TEST_SUITE_P(
-   , MobileNetV1Param,
-   ::testing::Range(0, 31),
-   MobileNetV1TestCaseName);
-
-#endif
-
-#if TEST_MOBILEDET
-
-class MobileDet : public ::testing::Test {};
-
-class MobileDetParam : public testing::TestWithParam<int> {};
-
-TEST(MobileDet, Whole)
-{
-   std::ostringstream file_path;
-   assert(getenv("TEFLON_TEST_DATA"));
-   file_path << getenv("TEFLON_TEST_DATA") << "/ssdlite_mobiledet_coco_qat_postprocess.tflite";
-
-   test_model_file(file_path.str(), MODEL_TOLERANCE, true);
-}
-
-TEST_P(MobileDetParam, Op)
-{
-   std::ostringstream file_path;
-   assert(getenv("TEFLON_TEST_DATA"));
-   file_path << getenv("TEFLON_TEST_DATA") << "/mobiledet-" << std::setfill('0') << std::setw(3) << GetParam() << ".tflite";
-
-   test_model_file(file_path.str(), MODEL_TOLERANCE, true);
-}
-
-static inline std::string
-MobileDetTestCaseName(
-   const testing::TestParamInfo<int> &info)
-{
-   std::string name = "";
-   std::string param = std::to_string(info.param);
-
-   name += "mobiledet";
-   name += std::string(3 - param.length(), '0');
-   name += param;
-
-   return name;
-}
-
-INSTANTIATE_TEST_SUITE_P(
-   , MobileDetParam,
-   ::testing::Range(0, 124),
-   MobileDetTestCaseName);
-
-#endif
-
-#if TEST_YOLOX
-
-class YoloX : public ::testing::Test {};
-
-class YoloXParam : public testing::TestWithParam<int> {};
-
-TEST(YoloX, Whole)
-{
-   std::ostringstream file_path;
-   assert(getenv("TEFLON_TEST_DATA"));
-   file_path << getenv("TEFLON_TEST_DATA") << "/yolox.tflite";
-
-   test_model_file(file_path.str(), YOLOX_TOLERANCE, true);
-}
-
-TEST_P(YoloXParam, Op)
-{
-   std::ostringstream file_path;
-   assert(getenv("TEFLON_TEST_DATA"));
-   file_path << getenv("TEFLON_TEST_DATA") << "/yolox-" << std::setfill('0') << std::setw(3) << GetParam() << ".tflite";
-
-   test_model_file(file_path.str(), MODEL_TOLERANCE, true);
-}
-
-static inline std::string
-YoloXTestCaseName(
-   const testing::TestParamInfo<int> &info)
-{
-   std::string name = "";
-   std::string param = std::to_string(info.param);
-
-   name += "yolox";
-   name += std::string(3 - param.length(), '0');
-   name += param;
-
-   return name;
-}
-
-INSTANTIATE_TEST_SUITE_P(
-   , YoloXParam,
-   ::testing::Range(0, 128),
-   YoloXTestCaseName);
+   , Models,
+   ::testing::ValuesIn(get_model_files()),
+   ModelsTestCaseName);
 
 #endif
 
@@ -626,7 +592,7 @@ main(int argc, char **argv)
 
       return 0;
    } else if (argc > 1 && !strcmp(argv[1], "run_model")) {
-      test_model_file(std::string(argv[2]), MODEL_TOLERANCE, false);
+      test_model_file(std::string(argv[2]), TOLERANCE, false);
    } else {
       testing::InitGoogleTest(&argc, argv);
       return RUN_ALL_TESTS();

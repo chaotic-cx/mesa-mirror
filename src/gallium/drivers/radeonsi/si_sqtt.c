@@ -29,11 +29,11 @@ static bool si_sqtt_init_bo(struct si_context *sctx)
     * size as early as possible so that we do all the allocation & addressing
     * correctly. */
    sctx->sqtt->buffer_size =
-      align64(sctx->sqtt->buffer_size, 1u << SQTT_BUFFER_ALIGN_SHIFT);
+      align64(sctx->sqtt->buffer_size, 1ull << SQTT_BUFFER_ALIGN_SHIFT);
 
    /* Compute total size of the thread trace BO for all SEs. */
    size = align64(sizeof(struct ac_sqtt_data_info) * max_se,
-                  1 << SQTT_BUFFER_ALIGN_SHIFT);
+                  1ull << SQTT_BUFFER_ALIGN_SHIFT);
    size += sctx->sqtt->buffer_size * (uint64_t)max_se;
 
    sctx->sqtt->bo =
@@ -464,7 +464,7 @@ void si_handle_sqtt(struct si_context *sctx, struct radeon_cmdbuf *rcs)
          /* Force shader update to make sure si_sqtt_describe_pipeline_bind is
           * called for the current "pipeline".
           */
-         sctx->do_update_shaders = true;
+         sctx->dirty_shaders_mask |= SI_SQTT_STATE_DIRTY_BIT;
       }
    } else {
       struct ac_sqtt_trace sqtt_trace = {0};
@@ -530,7 +530,10 @@ si_emit_spi_config_cntl(struct si_context *sctx,
 {
    radeon_begin(cs);
 
-   if (sctx->gfx_level >= GFX9) {
+   if (sctx->gfx_level >= GFX12) {
+      radeon_set_uconfig_reg(R_031120_SPI_SQG_EVENT_CTL,
+                             S_031120_ENABLE_SQG_TOP_EVENTS(enable) | S_031120_ENABLE_SQG_BOP_EVENTS(enable));
+   } else if (sctx->gfx_level >= GFX9) {
       uint32_t spi_config_cntl = S_031100_GPR_WRITE_PRIORITY(0x2c688) |
                                  S_031100_EXP_PRIORITY_ORDER(3) |
                                  S_031100_ENABLE_SQG_TOP_EVENTS(enable) |

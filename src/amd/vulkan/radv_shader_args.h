@@ -27,12 +27,13 @@ enum radv_ud_index {
    AC_UD_NGG_VIEWPORT = 9,
    AC_UD_NGG_LDS_LAYOUT = 10,
    AC_UD_NGG_STATE = 11,
-   AC_UD_VGT_ESGS_RING_ITEMSIZE = 12,
-   AC_UD_FORCE_VRS_RATES = 13,
-   AC_UD_TASK_RING_ENTRY = 14,
-   AC_UD_NEXT_STAGE_PC = 15,
-   AC_UD_EPILOG_PC = 16,
-   AC_UD_SHADER_START = 17,
+   AC_UD_NGG_QUERY_BUF_VA = 12,
+   AC_UD_VGT_ESGS_RING_ITEMSIZE = 13,
+   AC_UD_FORCE_VRS_RATES = 14,
+   AC_UD_TASK_RING_ENTRY = 15,
+   AC_UD_NEXT_STAGE_PC = 16,
+   AC_UD_EPILOG_PC = 17,
+   AC_UD_SHADER_START = 18,
    AC_UD_VS_VERTEX_BUFFERS = AC_UD_SHADER_START,
    AC_UD_VS_BASE_VERTEX_START_INSTANCE,
    AC_UD_VS_PROLOG_INPUTS,
@@ -86,6 +87,7 @@ struct radv_shader_args {
    /* NGG */
    struct ac_arg ngg_state;
    struct ac_arg ngg_lds_layout;
+   struct ac_arg ngg_query_buf_va; /* GFX11+ */
 
    /* NGG GS */
    struct ac_arg ngg_culling_settings;
@@ -103,17 +105,6 @@ struct radv_shader_args {
    struct ac_arg depth;
    struct ac_arg stencil;
    struct ac_arg sample_mask;
-
-   /* TCS */
-   /* # [0:6] = the number of tessellation patches minus one, max = 127
-    * # [7:11] = the number of output patch control points minus one, max = 31
-    * # [12:16] = the number of input patch control points minus one, max = 31
-    * # [17:22] = the number of LS outputs, up to 32
-    * # [23:28] = the number of HS per-vertex outputs, up to 32
-    * # [29:30] = tess_primitive_mode
-    * # [31] = whether TES reads tess factors
-    */
-   struct ac_arg tcs_offchip_layout;
 
    /* GS */
    struct ac_arg vgt_esgs_ring_itemsize;

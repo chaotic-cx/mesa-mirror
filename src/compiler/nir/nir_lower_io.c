@@ -51,7 +51,7 @@ add_variable_name(struct lower_io_state *state, const char *name)
    bool found = false;
    struct set_entry *entry = _mesa_set_search_or_add(&state->variable_names, name, &found);
    if (!found)
-      entry->key = (void*)ralloc_strdup(state->builder.shader, name);
+      entry->key = (void *)ralloc_strdup(state->builder.shader, name);
    return entry->key;
 }
 
@@ -564,7 +564,6 @@ emit_store(struct lower_io_state *state, nir_def *data,
    semantics.gs_streams = gs_streams;
    semantics.medium_precision = is_medium_precision(b->shader, var);
    semantics.per_view = var->data.per_view;
-   semantics.invariant = var->data.invariant;
 
    nir_intrinsic_set_io_semantics(store, semantics);
 
@@ -876,7 +875,7 @@ nir_lower_io_impl(nir_function_impl *impl,
 
    ralloc_free(state.dead_ctx);
 
-   nir_metadata_preserve(impl, nir_metadata_none);
+   nir_progress(true, impl, nir_metadata_none);
 
    return progress;
 }
@@ -2473,13 +2472,7 @@ nir_lower_explicit_io_impl(nir_function_impl *impl, nir_variable_mode modes,
       }
    }
 
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_none);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
-
-   return progress;
+   return nir_progress(progress, impl, nir_metadata_none);
 }
 
 /** Lower explicitly laid out I/O access to byte offset/address intrinsics
@@ -2564,15 +2557,8 @@ nir_lower_vars_to_explicit_types_impl(nir_function_impl *impl,
       }
    }
 
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow |
-                                     nir_metadata_live_defs |
-                                     nir_metadata_loop_analysis);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
-
-   return progress;
+   return nir_progress(progress, impl,
+                       nir_metadata_control_flow | nir_metadata_live_defs | nir_metadata_loop_analysis);
 }
 
 static bool
@@ -2676,6 +2662,65 @@ lower_vars_to_explicit(nir_shader *shader,
    return progress;
 }
 
+static unsigned
+nir_calculate_alignment_from_explicit_layout(const glsl_type *type,
+                                             glsl_type_size_align_func type_info)
+{
+   unsigned size, alignment;
+   glsl_get_explicit_type_for_size_align(type, type_info,
+                                         &size, &alignment);
+   return alignment;
+}
+
+static void
+nir_assign_shared_var_locations(nir_shader *shader, glsl_type_size_align_func type_info)
+{
+   assert(shader->info.shared_memory_explicit_layout);
+
+   /* Calculate region for Aliased shared memory at the beginning. */
+   unsigned aliased_size = 0;
+   unsigned aliased_alignment = 0;
+   nir_foreach_variable_with_modes(var, shader, nir_var_mem_shared) {
+      /* Per SPV_KHR_workgroup_storage_explicit_layout, if one shared variable is
+       * a Block, all of them will be and Blocks are explicitly laid out.
+       */
+      assert(glsl_type_is_interface(var->type));
+
+      if (var->data.aliased_shared_memory) {
+         const bool align_to_stride = false;
+         aliased_size = MAX2(aliased_size, glsl_get_explicit_size(var->type, align_to_stride));
+         aliased_alignment = MAX2(aliased_alignment,
+                                  nir_calculate_alignment_from_explicit_layout(var->type, type_info));
+      }
+   }
+
+   unsigned offset = shader->info.shared_size;
+
+   unsigned aliased_location = UINT_MAX;
+   if (aliased_size) {
+      aliased_location = align(offset, aliased_alignment);
+      offset = aliased_location + aliased_size;
+   }
+
+   /* Allocate Blocks either at the Aliased region or after it. */
+   nir_foreach_variable_with_modes(var, shader, nir_var_mem_shared) {
+      if (var->data.aliased_shared_memory) {
+         assert(aliased_location != UINT_MAX);
+         var->data.driver_location = aliased_location;
+      } else {
+         const bool align_to_stride = false;
+         const unsigned size = glsl_get_explicit_size(var->type, align_to_stride);
+         const unsigned alignment =
+            MAX2(nir_calculate_alignment_from_explicit_layout(var->type, type_info),
+                 var->data.alignment);
+         var->data.driver_location = align(offset, alignment);
+         offset = var->data.driver_location + size;
+      }
+   }
+
+   shader->info.shared_size = offset;
+}
+
 /* If nir_lower_vars_to_explicit_types is called on any shader that contains
  * generic pointers, it must either be used on all of the generic modes or
  * none.
@@ -2706,8 +2751,13 @@ nir_lower_vars_to_explicit_types(nir_shader *shader,
       progress |= lower_vars_to_explicit(shader, &shader->variables, nir_var_mem_global, type_info);
 
    if (modes & nir_var_mem_shared) {
-      assert(!shader->info.shared_memory_explicit_layout);
-      progress |= lower_vars_to_explicit(shader, &shader->variables, nir_var_mem_shared, type_info);
+      if (shader->info.shared_memory_explicit_layout) {
+         nir_assign_shared_var_locations(shader, type_info);
+         /* Types don't change, so no further lowering is needed. */
+         modes &= ~nir_var_mem_shared;
+      } else {
+         progress |= lower_vars_to_explicit(shader, &shader->variables, nir_var_mem_shared, type_info);
+      }
    }
 
    if (modes & nir_var_shader_temp)
@@ -2725,11 +2775,13 @@ nir_lower_vars_to_explicit_types(nir_shader *shader,
    if (modes & nir_var_mem_node_payload_in)
       progress |= lower_vars_to_explicit(shader, &shader->variables, nir_var_mem_node_payload_in, type_info);
 
-   nir_foreach_function_impl(impl, shader) {
-      if (modes & nir_var_function_temp)
-         progress |= lower_vars_to_explicit(shader, &impl->locals, nir_var_function_temp, type_info);
+   if (modes) {
+      nir_foreach_function_impl(impl, shader) {
+         if (modes & nir_var_function_temp)
+            progress |= lower_vars_to_explicit(shader, &impl->locals, nir_var_function_temp, type_info);
 
-      progress |= nir_lower_vars_to_explicit_types_impl(impl, modes, type_info);
+         progress |= nir_lower_vars_to_explicit_types_impl(impl, modes, type_info);
+      }
    }
 
    return progress;
@@ -2883,6 +2935,46 @@ nir_src *
 nir_get_io_offset_src(nir_intrinsic_instr *instr)
 {
    const int idx = nir_get_io_offset_src_number(instr);
+   return idx >= 0 ? &instr->src[idx] : NULL;
+}
+
+/**
+ * Return the index or handle source number for a load/store intrinsic or -1
+ * if there's no index or handle.
+ */
+int
+nir_get_io_index_src_number(const nir_intrinsic_instr *instr)
+{
+   switch (instr->intrinsic) {
+   case nir_intrinsic_load_ubo:
+   case nir_intrinsic_load_ssbo:
+   case nir_intrinsic_load_input_vertex:
+   case nir_intrinsic_load_per_vertex_input:
+   case nir_intrinsic_load_per_vertex_output:
+   case nir_intrinsic_load_per_view_output:
+   case nir_intrinsic_load_per_primitive_output:
+   case nir_intrinsic_load_interpolated_input:
+   case nir_intrinsic_load_smem_amd:
+   case nir_intrinsic_ldc_nv:
+   case nir_intrinsic_ldcx_nv:
+      return 0;
+   case nir_intrinsic_store_ssbo:
+   case nir_intrinsic_store_per_vertex_output:
+   case nir_intrinsic_store_per_view_output:
+   case nir_intrinsic_store_per_primitive_output:
+      return 1;
+   default:
+      return -1;
+   }
+}
+
+/**
+ * Return the offset or handle source for a load/store intrinsic.
+ */
+nir_src *
+nir_get_io_index_src(nir_intrinsic_instr *instr)
+{
+   const int idx = nir_get_io_index_src_number(instr);
    return idx >= 0 ? &instr->src[idx] : NULL;
 }
 
@@ -3060,7 +3152,7 @@ is_dual_slot(nir_intrinsic_instr *intrin)
    }
 
    return intrin->def.bit_size == 64 &&
-   intrin->def.num_components >= 3;
+          intrin->def.num_components >= 3;
 }
 
 /**
@@ -3131,91 +3223,9 @@ nir_io_add_const_offset_to_base(nir_shader *nir, nir_variable_mode modes)
          impl_progress |= add_const_offset_to_base_block(block, &b, modes);
       }
       progress |= impl_progress;
-      if (impl_progress)
-         nir_metadata_preserve(impl, nir_metadata_control_flow);
-      else
-         nir_metadata_preserve(impl, nir_metadata_all);
+      nir_progress(impl_progress, impl, nir_metadata_control_flow);
    }
 
-   return progress;
-}
-
-bool
-nir_lower_color_inputs(nir_shader *nir)
-{
-   nir_function_impl *impl = nir_shader_get_entrypoint(nir);
-   bool progress = false;
-
-   nir_builder b = nir_builder_create(impl);
-
-   nir_foreach_block(block, impl) {
-      nir_foreach_instr_safe(instr, block) {
-         if (instr->type != nir_instr_type_intrinsic)
-            continue;
-
-         nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
-
-         if (intrin->intrinsic != nir_intrinsic_load_input &&
-             intrin->intrinsic != nir_intrinsic_load_interpolated_input)
-            continue;
-
-         nir_io_semantics sem = nir_intrinsic_io_semantics(intrin);
-
-         if (sem.location != VARYING_SLOT_COL0 &&
-             sem.location != VARYING_SLOT_COL1)
-            continue;
-
-         /* Default to FLAT (for load_input) */
-         enum glsl_interp_mode interp = INTERP_MODE_FLAT;
-         bool sample = false;
-         bool centroid = false;
-
-         if (intrin->intrinsic == nir_intrinsic_load_interpolated_input) {
-            nir_intrinsic_instr *baryc =
-               nir_instr_as_intrinsic(intrin->src[0].ssa->parent_instr);
-
-            centroid =
-               baryc->intrinsic == nir_intrinsic_load_barycentric_centroid;
-            sample =
-               baryc->intrinsic == nir_intrinsic_load_barycentric_sample;
-            assert(centroid || sample ||
-                   baryc->intrinsic == nir_intrinsic_load_barycentric_pixel);
-
-            interp = nir_intrinsic_interp_mode(baryc);
-         }
-
-         b.cursor = nir_before_instr(instr);
-         nir_def *load = NULL;
-
-         if (sem.location == VARYING_SLOT_COL0) {
-            load = nir_load_color0(&b);
-            nir->info.fs.color0_interp = interp;
-            nir->info.fs.color0_sample = sample;
-            nir->info.fs.color0_centroid = centroid;
-         } else {
-            assert(sem.location == VARYING_SLOT_COL1);
-            load = nir_load_color1(&b);
-            nir->info.fs.color1_interp = interp;
-            nir->info.fs.color1_sample = sample;
-            nir->info.fs.color1_centroid = centroid;
-         }
-
-         if (intrin->num_components != 4) {
-            unsigned start = nir_intrinsic_component(intrin);
-            unsigned count = intrin->num_components;
-            load = nir_channels(&b, load, BITFIELD_RANGE(start, count));
-         }
-
-         nir_def_replace(&intrin->def, load);
-         progress = true;
-      }
-   }
-
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
    return progress;
 }
 
@@ -3290,7 +3300,7 @@ nir_io_add_intrinsic_xfb_info(nir_shader *nir)
       }
    }
 
-   nir_metadata_preserve(impl, nir_metadata_all);
+   nir_no_progress(impl);
    return progress;
 }
 
@@ -3339,16 +3349,16 @@ nir_lower_io_passes(nir_shader *nir, bool renumber_vs_inputs)
    nir_sort_variables_by_location(nir, varying_var_mask);
 
    if (!has_indirect_inputs || !has_indirect_outputs) {
-      NIR_PASS_V(nir, nir_lower_io_to_temporaries,
-                 nir_shader_get_entrypoint(nir), !has_indirect_outputs,
-                 !has_indirect_inputs);
+      NIR_PASS(_, nir, nir_lower_io_to_temporaries,
+               nir_shader_get_entrypoint(nir), !has_indirect_outputs,
+               !has_indirect_inputs);
 
       /* We need to lower all the copy_deref's introduced by lower_io_to-
        * _temporaries before calling nir_lower_io.
        */
-      NIR_PASS_V(nir, nir_split_var_copies);
-      NIR_PASS_V(nir, nir_lower_var_copies);
-      NIR_PASS_V(nir, nir_lower_global_vars_to_local);
+      NIR_PASS(_, nir, nir_split_var_copies);
+      NIR_PASS(_, nir, nir_lower_var_copies);
+      NIR_PASS(_, nir, nir_lower_global_vars_to_local);
 
       /* This is partially redundant with nir_lower_io_to_temporaries.
        * The problem is that nir_lower_io_to_temporaries doesn't handle TCS.
@@ -3356,7 +3366,8 @@ nir_lower_io_passes(nir_shader *nir, bool renumber_vs_inputs)
       if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
          NIR_PASS(_, nir, nir_lower_indirect_derefs,
                   (!has_indirect_inputs ? nir_var_shader_in : 0) |
-                  (!has_indirect_outputs ? nir_var_shader_out : 0), UINT32_MAX);
+                     (!has_indirect_outputs ? nir_var_shader_out : 0),
+                  UINT32_MAX);
       }
    }
 
@@ -3364,20 +3375,19 @@ nir_lower_io_passes(nir_shader *nir, bool renumber_vs_inputs)
     * on whether the GLSL linker lowers IO or not. Setting the wrong flag
     * would break 64-bit vertex attribs for GLSL.
     */
-   NIR_PASS_V(nir, nir_lower_io, nir_var_shader_out | nir_var_shader_in,
-              type_size_vec4,
-              (renumber_vs_inputs ? nir_lower_io_lower_64bit_to_32_new :
-                                    nir_lower_io_lower_64bit_to_32) |
-              nir_lower_io_use_interpolated_input_intrinsics);
+   NIR_PASS(_, nir, nir_lower_io, nir_var_shader_out | nir_var_shader_in,
+            type_size_vec4,
+            (renumber_vs_inputs ? nir_lower_io_lower_64bit_to_32_new : nir_lower_io_lower_64bit_to_32) |
+               nir_lower_io_use_interpolated_input_intrinsics);
 
    /* nir_io_add_const_offset_to_base needs actual constants. */
-   NIR_PASS_V(nir, nir_opt_constant_folding);
-   NIR_PASS_V(nir, nir_io_add_const_offset_to_base, nir_var_shader_in | nir_var_shader_out);
+   NIR_PASS(_, nir, nir_opt_constant_folding);
+   NIR_PASS(_, nir, nir_io_add_const_offset_to_base, nir_var_shader_in | nir_var_shader_out);
 
    /* Lower and remove dead derefs and variables to clean up the IR. */
-   NIR_PASS_V(nir, nir_lower_vars_to_ssa);
-   NIR_PASS_V(nir, nir_opt_dce);
-   NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
+   NIR_PASS(_, nir, nir_lower_vars_to_ssa);
+   NIR_PASS(_, nir, nir_opt_dce);
+   NIR_PASS(_, nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
 
    /* If IO is lowered before var->data.driver_location is assigned, driver
     * locations are all 0, which means IO bases are all 0. It's not necessary
@@ -3392,12 +3402,11 @@ nir_lower_io_passes(nir_shader *nir, bool renumber_vs_inputs)
     *
     * This must be done after DCE to remove dead load_input intrinsics.
     */
-   NIR_PASS_V(nir, nir_recompute_io_bases,
-              (nir->info.stage != MESA_SHADER_VERTEX || renumber_vs_inputs ?
-               nir_var_shader_in : 0) | nir_var_shader_out);
+   NIR_PASS(_, nir, nir_recompute_io_bases,
+            (nir->info.stage != MESA_SHADER_VERTEX || renumber_vs_inputs ? nir_var_shader_in : 0) | nir_var_shader_out);
 
    if (nir->xfb_info)
-      NIR_PASS_V(nir, nir_io_add_intrinsic_xfb_info);
+      NIR_PASS(_, nir, nir_io_add_intrinsic_xfb_info);
 
    if (nir->options->lower_mediump_io)
       nir->options->lower_mediump_io(nir);

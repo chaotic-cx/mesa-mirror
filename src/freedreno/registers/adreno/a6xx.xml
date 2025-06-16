@@ -155,10 +155,14 @@ by a particular renderpass/blit.
 	<value value="0xb3" name="FMT6_DXT1"/>
 	<value value="0xb4" name="FMT6_DXT3"/>
 	<value value="0xb5" name="FMT6_DXT5"/>
-	<value value="0xb7" name="FMT6_RGTC1_UNORM"/>
+	<value value="0xb6" name="FMT6_RGTC1_UNORM"/>
+	<value value="0xb7" name="FMT6_RGTC1_UNORM_FAST"/>
 	<value value="0xb8" name="FMT6_RGTC1_SNORM"/>
-	<value value="0xbb" name="FMT6_RGTC2_UNORM"/>
+	<value value="0xb9" name="FMT6_RGTC1_SNORM_FAST"/>
+	<value value="0xba" name="FMT6_RGTC2_UNORM"/>
+	<value value="0xbb" name="FMT6_RGTC2_UNORM_FAST"/>
 	<value value="0xbc" name="FMT6_RGTC2_SNORM"/>
+	<value value="0xbd" name="FMT6_RGTC2_SNORM_FAST"/>
 	<value value="0xbe" name="FMT6_BPTC_UFLOAT"/>
 	<value value="0xbf" name="FMT6_BPTC_FLOAT"/>
 	<value value="0xc0" name="FMT6_BPTC"/>
@@ -1166,36 +1170,20 @@ to upconvert to 32b float internally?
 	<doc>Disable early z-test and early-lrz test (if applicable)</doc>
 	<value value="0x1" name="A6XX_LATE_Z"/>
 	<doc>
-		A special mode that allows early-lrz test but disables
-		early-z test.  Which might sound a bit funny, since
-		lrz-test happens before z-test.  But as long as a couple
-		conditions are maintained this allows using lrz-test in
-		cases where fragment shader has kill/discard:
+		A special mode that allows early-lrz (if applicable) or early-z
+		tests, but also does late-z tests at which point it writes depth.
 
-		1) Disable lrz-write in cases where it is uncertain during
-		   binning pass that a fragment will pass.  Ie.  if frag
-		   shader has-kill, writes-z, or alpha/stencil test is
-		   enabled.  (For correctness, lrz-write must be disabled
-		   when blend is enabled.)  This is analogous to how a
-		   z-prepass works.
+		This mode is used when fragment can be killed (via discard or
+		sample mask) after early-z tests and it writes depth. In such case
+		depth can be written only at late-z stage, but it's ok to use
+		early-z to discard fragments.
 
-		2) Disable lrz-write and test if a depth-test direction
-		   reversal is detected.  Due to condition (1), the contents
-		   of the lrz buffer are a conservative estimation of the
-		   depth buffer during the draw pass.  Meaning that geometry
-		   that we know for certain will not be visible will not pass
-		   lrz-test.  But geometry which may be (or contributes to
-		   blend) will pass the lrz-test.
-
-		This allows us to keep early-lrz-test in cases where the frag
-		shader does not write-z (ie. we know the z-value before FS)
-		and does not have side-effects (image/ssbo writes, etc), but
-		does have kill/discard.  Which turns out to be a common
-		enough case that it is useful to keep early-lrz test against
-		the conservative lrz buffer to discard fragments that we
-		know will definitely not be visible.
+		However this mode is not compatible with:
+		- Lack of D/S attachment
+		- Stencil writes on stencil or depth test failures
+		- Per-sample shading
 	</doc>
-	<value value="0x2" name="A6XX_EARLY_LRZ_LATE_Z"/>
+	<value value="0x2" name="A6XX_EARLY_Z_LATE_Z"/>
 	<doc>Not a real hw value, used internally by mesa</doc>
 	<value value="0x3" name="A6XX_INVALID_ZTEST"/>
 </enum>
@@ -2465,6 +2453,7 @@ to upconvert to 32b float internally?
 	<reg32 offset="0x098D" name="CP_AHB_CNTL"/>
 	<reg32 offset="0x0A00" name="CP_APERTURE_CNTL_HOST" variants="A6XX"/>
 	<reg32 offset="0x0A00" name="CP_APERTURE_CNTL_HOST" type="a7xx_aperture_cntl" variants="A7XX-"/>
+	<reg32 offset="0x0A01" name="CP_APERTURE_CNTL_SQE" variants="A6XX"/>
 	<reg32 offset="0x0A03" name="CP_APERTURE_CNTL_CD" variants="A6XX"/>
 	<reg32 offset="0x0A03" name="CP_APERTURE_CNTL_CD" type="a7xx_aperture_cntl" variants="A7XX-"/>
 
@@ -3138,7 +3127,12 @@ to upconvert to 32b float internally?
 
 	<reg32 offset="0x8099" name="GRAS_SU_CONSERVATIVE_RAS_CNTL" usage="cmd">
 		<bitfield name="CONSERVATIVERASEN" pos="0" type="boolean"/>
-		<bitfield name="SHIFTAMOUNT" low="1" high="2"/>
+		<enum name="a6xx_shift_amount">
+			<value value="0" name="NO_SHIFT"/>
+			<value value="1" name="HALF_PIXEL_SHIFT"/>
+			<value value="2" name="FULL_PIXEL_SHIFT"/>
+		</enum>
+		<bitfield name="SHIFTAMOUNT" low="1" high="2" type="a6xx_shift_amount"/>
 		<bitfield name="INNERCONSERVATIVERASEN" pos="3" type="boolean"/>
 		<bitfield name="UNK4" low="4" high="5"/>
 	</reg32>
@@ -3227,9 +3221,9 @@ to upconvert to 32b float internally?
 	<enum name="a6xx_lrz_feedback_mask">
 		<value value="0x0" name="LRZ_FEEDBACK_NONE"/>
 		<value value="0x1" name="LRZ_FEEDBACK_EARLY_Z"/>
-		<value value="0x2" name="LRZ_FEEDBACK_EARLY_LRZ_LATE_Z"/>
+		<value value="0x2" name="LRZ_FEEDBACK_EARLY_Z_LATE_Z"/>
 		<!-- We don't have a flag type and this flags combination is often used -->
-		<value value="0x3" name="LRZ_FEEDBACK_EARLY_Z_OR_EARLY_LRZ_LATE_Z"/>
+		<value value="0x3" name="LRZ_FEEDBACK_EARLY_Z_OR_EARLY_Z_LATE_Z"/>
 		<value value="0x4" name="LRZ_FEEDBACK_LATE_Z"/>
 	</enum>
 
@@ -3350,7 +3344,7 @@ to upconvert to 32b float internally?
 		</doc>
 		<bitfield name="FC_ENABLE" pos="3" type="boolean" variants="A6XX"/>
 		<!-- set when depth-test + depth-write enabled -->
-		<bitfield name="Z_TEST_ENABLE" pos="4" type="boolean"/>
+		<bitfield name="Z_WRITE_ENABLE" pos="4" type="boolean"/>
 		<bitfield name="Z_BOUNDS_ENABLE" pos="5" type="boolean"/>
 		<bitfield name="DIR" low="6" high="7" type="a6xx_lrz_dir_status"/>
 		<doc>
@@ -3381,9 +3375,8 @@ to upconvert to 32b float internally?
 	</reg32>
 	<reg64 offset="0x8103" name="GRAS_LRZ_BUFFER_BASE" align="256" type="waddress" usage="rp_blit"/>
 	<reg32 offset="0x8105" name="GRAS_LRZ_BUFFER_PITCH" usage="rp_blit">
-		<!-- TODO: fix the shr fields -->
 		<bitfield name="PITCH" low="0" high="7" shr="5" type="uint"/>
-		<bitfield name="ARRAY_PITCH" low="10" high="28" shr="4" type="uint"/>
+		<bitfield name="ARRAY_PITCH" low="10" high="28" shr="8" type="uint"/>
 	</reg32>
 
 	<!--
@@ -3538,8 +3531,7 @@ to upconvert to 32b float internally?
 	<reg32 offset="0x8801" name="RB_RENDER_CNTL" variants="A6XX" usage="rp_blit">
 		<bitfield name="CCUSINGLECACHELINESIZE" low="3" high="5"/>
 		<bitfield name="EARLYVIZOUTEN" pos="6" type="boolean"/>
-		<!-- set during binning pass: -->
-		<bitfield name="BINNING" pos="7" type="boolean"/>
+		<bitfield name="FS_DISABLE" pos="7" type="boolean"/>
 		<bitfield name="UNK8" low="8" high="10"/>
 		<bitfield name="RASTER_MODE" pos="8" type="a6xx_raster_mode"/>
 		<bitfield name="RASTER_DIRECTION" low="9" high="10" type="a6xx_raster_direction"/>
@@ -3552,15 +3544,14 @@ to upconvert to 32b float internally?
 	</reg32>
 	<reg32 offset="0x8801" name="RB_RENDER_CNTL" variants="A7XX-" usage="rp_blit">
 		<bitfield name="EARLYVIZOUTEN" pos="6" type="boolean"/>
-		<!-- set during binning pass: -->
-		<bitfield name="BINNING" pos="7" type="boolean"/>
+		<bitfield name="FS_DISABLE" pos="7" type="boolean"/>
 		<bitfield name="RASTER_MODE" pos="8" type="a6xx_raster_mode"/>
 		<bitfield name="RASTER_DIRECTION" low="9" high="10" type="a6xx_raster_direction"/>
 		<bitfield name="CONSERVATIVERASEN" pos="11" type="boolean"/>
 		<bitfield name="INNERCONSERVATIVERASEN" pos="12" type="boolean"/>
 	</reg32>
 	<reg32 offset="0x8116" name="GRAS_SU_RENDER_CNTL" variants="A7XX-" usage="rp_blit">
-		<bitfield name="BINNING" pos="7" type="boolean"/>
+		<bitfield name="FS_DISABLE" pos="7" type="boolean"/>
 	</reg32>
 
 	<reg32 offset="0x8802" name="RB_RAS_MSAA_CNTL" usage="rp_blit">
@@ -4349,7 +4340,7 @@ to upconvert to 32b float internally?
 	<reg32 offset="0x9306" name="VPC_SO_DISABLE" usage="rp_blit">
 		<bitfield name="DISABLE" pos="0" type="boolean"/>
 	</reg32>
-	<reg32 offset="0x9307" name="VPC_POLYGON_MODE2" variants="A7XX-" usage="rp_blit">
+	<reg32 offset="0x9307" name="VPC_POLYGON_MODE2" variants="A6XX-" usage="rp_blit"> <!-- A702 + A7xx -->
 		<bitfield name="MODE" low="0" high="1" type="a6xx_polygon_mode"/>
 	</reg32>
 	<reg32 offset="0x9308" name="VPC_ATTR_BUF_SIZE_GMEM" variants="A7XX-" usage="rp_blit">
@@ -5101,6 +5092,7 @@ to upconvert to 32b float internally?
 	<reg32 offset="0xa9a7" name="SP_FS_TEX_COUNT" low="0" high="7" type="uint" usage="rp_blit"/>
 	<reg32 offset="0xa9a8" name="SP_UNKNOWN_A9A8" low="0" high="16" usage="cmd"/> <!-- always 0x0 ? -->
 	<reg32 offset="0xa9a9" name="SP_FS_PVT_MEM_HW_STACK_OFFSET" type="a6xx_sp_xs_pvt_mem_hw_stack_offset" usage="rp_blit"/>
+	<reg32 offset="0xa9ab" name="SP_FS_UNKNOWN_A9AB" variants="A7XX-" usage="cmd"/>
 
 	<!-- TODO: unknown bool register at 0xa9aa, likely same as 0xa8c0-0xa8c3 but for FS -->
 
@@ -5117,8 +5109,15 @@ to upconvert to 32b float internally?
 		<bitfield name="MERGEDREGS" pos="31" type="boolean"/>
 	</reg32>
 
+	<enum name="a6xx_const_ram_mode">
+		<value value="0x0" name="CONSTLEN_128"/>
+		<value value="0x1" name="CONSTLEN_192"/>
+		<value value="0x2" name="CONSTLEN_256"/>
+		<value value="0x3" name="CONSTLEN_512"/> <!-- a7xx only -->
+	</enum>
+
 	<!-- set for compute shaders -->
-	<reg32 offset="0xa9b1" name="SP_CS_UNKNOWN_A9B1" usage="cmd">
+	<reg32 offset="0xa9b1" name="SP_CS_CTRL_REG1" usage="cmd">
 		<bitfield name="SHARED_SIZE" low="0" high="4" type="uint">
 			<doc>
 				If 0 - all 32k of shared storage is enabled, otherwise
@@ -5129,9 +5128,13 @@ to upconvert to 32b float internally?
 				always return 0)
 			</doc>
 		</bitfield>
-		<bitfield name="UNK5" pos="5" type="boolean"/>
-		<!-- always 1 ? -->
-		<bitfield name="UNK6" pos="6" type="boolean"/>
+		<bitfield name="CONSTANTRAMMODE" low="5" high="6" type="a6xx_const_ram_mode">
+			<doc>
+				This defines the split between consts and local
+				memory in the Local Buffer. The programmed value
+				must be at least the actual CONSTLEN.
+			</doc>
+		</bitfield>
 	</reg32>
 	<reg32 offset="0xa9b2" name="SP_CS_BRANCH_COND" type="hex" usage="cmd"/>
 	<reg32 offset="0xa9b3" name="SP_CS_OBJ_FIRST_EXEC_OFFSET" type="uint" usage="cmd"/>
@@ -5398,9 +5401,22 @@ to upconvert to 32b float internally?
 	<reg32 offset="0xb305" name="SP_TP_SAMPLE_LOCATION_0" type="a6xx_sample_locations" usage="rp_blit"/>
 	<reg32 offset="0xb306" name="SP_TP_SAMPLE_LOCATION_1" type="a6xx_sample_locations" usage="rp_blit"/>
 	<reg32 offset="0xb307" name="SP_TP_WINDOW_OFFSET" type="a6xx_reg_xy" usage="rp_blit"/>
+
+	<enum name="a6xx_coord_round">
+		<value value="0" name="COORD_TRUNCATE"/>
+		<value value="1" name="COORD_ROUND_NEAREST_EVEN"/>
+	</enum>
+
+	<enum name="a6xx_nearest_mode">
+		<value value="0" name="ROUND_CLAMP_TRUNCATE"/>
+		<value value="1" name="CLAMP_ROUND_TRUNCATE"/>
+	</enum>
+
 	<reg32 offset="0xb309" name="SP_TP_MODE_CNTL" usage="cmd">
 		<bitfield name="ISAMMODE" low="0" high="1" type="a6xx_isam_mode"/>
-		<bitfield name="UNK3" low="2" high="7"/>
+		<bitfield name="TEXCOORDROUNDMODE" pos="2" type="a6xx_coord_round"/>
+		<bitfield name="NEARESTMIPSNAP" pos="5" type="a6xx_nearest_mode"/>
+		<bitfield name="DESTDATATYPEOVERRIDE" pos="7" type="boolean"/>
 	</reg32>
 	<reg32 offset="0xb310" name="SP_UNKNOWN_B310" variants="A7XX-" usage="cmd"/>
 
@@ -5519,8 +5535,7 @@ to upconvert to 32b float internally?
 	<reg32 offset="0xa898" name="HLSQ_GS_CNTL" type="a6xx_hlsq_xs_cntl" variants="A7XX-" usage="rp_blit"/>
 
 	<reg32 offset="0xa9aa" name="HLSQ_FS_UNKNOWN_A9AA" variants="A7XX-" usage="rp_blit">
-		<!-- Tentatively named, appears to disable consts being loaded via CP_LOAD_STATE6_FRAG -->
-		<bitfield name="CONSTS_LOAD_DISABLE" pos="0" type="boolean"/>
+		<bitfield name="FS_DISABLE" pos="0" type="boolean"/>
 	</reg32>
 
 	<reg32 offset="0xa9ac" name="SP_DITHER_CNTL" variants="A7XX-" usage="cmd">
@@ -5723,8 +5738,8 @@ to upconvert to 32b float internally?
 		<bitfield name="WGTILEHEIGHT" low="26" high="31"/>
 	</reg32>
 
-	<reg32 offset="0xa9df" name="HLSQ_CS_LOCAL_SIZE" variants="A7XX-" usage="cmd">
-		<!-- localsize is value minus one: -->
+	<reg32 offset="0xa9df" name="HLSQ_CS_LAST_LOCAL_SIZE" variants="A7XX-" usage="cmd">
+		<!-- The size of the last workgroup. localsize is value minus one: -->
 		<bitfield name="LOCALSIZEX" low="2" high="11" type="uint"/>
 		<bitfield name="LOCALSIZEY" low="12" high="21" type="uint"/>
 		<bitfield name="LOCALSIZEZ" low="22" high="31" type="uint"/>
@@ -5742,12 +5757,10 @@ to upconvert to 32b float internally?
 		</reg64>
 	</array>
 
-	<!-- new in a6xx gen4, mirror of SP_CS_UNKNOWN_A9B1? -->
-	<reg32 offset="0xb9d0" name="HLSQ_CS_UNKNOWN_B9D0" variants="A6XX" usage="cmd">
+	<!-- new in a6xx gen4, mirror of SP_CS_CTRL_REG1? -->
+	<reg32 offset="0xb9d0" name="HLSQ_CS_CTRL_REG1" variants="A6XX" usage="cmd">
 		<bitfield name="SHARED_SIZE" low="0" high="4" type="uint"/>
-		<bitfield name="UNK5" pos="5" type="boolean"/>
-		<!-- always 1 ? -->
-		<bitfield name="UNK6" pos="6" type="boolean"/>
+		<bitfield name="CONSTANTRAMMODE" low="5" high="6" type="a6xx_const_ram_mode"/>
 	</reg32>
 
 	<reg32 offset="0xbb00" name="HLSQ_DRAW_CMD" variants="A6XX">
@@ -5938,6 +5951,13 @@ to upconvert to 32b float internally?
 		<value name="A6XX_REDUCTION_MODE_MIN" value="1"/>
 		<value name="A6XX_REDUCTION_MODE_MAX" value="2"/>
 	</enum>
+	<enum name="a6xx_fast_border_color">
+		<!--                           R B G A -->
+		<value name="A6XX_BORDER_COLOR_0_0_0_0" value="0"/>
+		<value name="A6XX_BORDER_COLOR_0_0_0_1" value="1"/>
+		<value name="A6XX_BORDER_COLOR_1_1_1_0" value="2"/>
+		<value name="A6XX_BORDER_COLOR_1_1_1_1" value="3"/>
+	</enum>
 
 	<reg32 offset="0" name="0">
 		<bitfield name="MIPFILTER_LINEAR_NEAR" pos="0" type="boolean"/>
@@ -5966,6 +5986,8 @@ to upconvert to 32b float internally?
 	</reg32>
 	<reg32 offset="2" name="2">
 		<bitfield name="REDUCTION_MODE" low="0" high="1" type="a6xx_reduction_mode"/>
+		<bitfield name="FASTBORDERCOLOR" low="2" high="3" type="a6xx_fast_border_color"/>
+		<bitfield name="FASTBORDERCOLOREN" pos="4" type="boolean"/>
 		<bitfield name="CHROMA_LINEAR" pos="5" type="boolean"/>
 		<bitfield name="BCOLOR" low="7" high="31"/>
 	</reg32>

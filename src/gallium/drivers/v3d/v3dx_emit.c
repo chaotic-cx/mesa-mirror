@@ -270,7 +270,7 @@ v3dX(emit_state)(struct pipe_context *pctx)
                     job->scissor.disabled = true;
                 } else if (!job->scissor.disabled &&
                            (v3d->dirty & V3D_DIRTY_SCISSOR)) {
-                        if (job->scissor.count < MAX_JOB_SCISSORS) {
+                        if (job->scissor.count < V3D_JOB_MAX_SCISSORS) {
                                 job->scissor.rects[job->scissor.count].min_x =
                                         v3d->scissor.minx;
                                 job->scissor.rects[job->scissor.count].min_y =
@@ -324,7 +324,7 @@ v3dX(emit_state)(struct pipe_context *pctx)
                         config.direct3d_provoking_vertex =
                                 v3d->rasterizer->base.flatshade_first;
 
-                        config.blend_enable = v3d->blend->blend_enables;
+                        config.blend_enable = v3d->blend->blend_enables && !v3d->blend->use_software;
 
                         /* Note: EZ state may update based on the compiled FS,
                          * along with ZSA
@@ -391,8 +391,8 @@ v3dX(emit_state)(struct pipe_context *pctx)
         if (v3d->dirty & V3D_DIRTY_RASTERIZER &&
             v3d->rasterizer->base.offset_tri) {
                 if (v3d->screen->devinfo.ver == 42 &&
-                    job->zsbuf &&
-                    job->zsbuf->format == PIPE_FORMAT_Z16_UNORM) {
+                    job->zsbuf.texture &&
+                    job->zsbuf.format == PIPE_FORMAT_Z16_UNORM) {
                         cl_emit_prepacked_sized(&job->bcl,
                                                 v3d->rasterizer->depth_offset_z16,
                                                 cl_packet_length(DEPTH_OFFSET));
@@ -480,7 +480,7 @@ v3dX(emit_state)(struct pipe_context *pctx)
         if (v3d->dirty & V3D_DIRTY_BLEND) {
                 struct v3d_blend_state *blend = v3d->blend;
 
-                if (blend->blend_enables) {
+                if (blend->blend_enables && !blend->use_software) {
                         cl_emit(&job->bcl, BLEND_ENABLES, enables) {
                                 enables.mask = blend->blend_enables;
                         }
@@ -516,6 +516,10 @@ v3dX(emit_state)(struct pipe_context *pctx)
                                               (1 << max_rts) - 1,
                                               v3d->blend_dst_alpha_one);
                         }
+                } else {
+                        cl_emit(&job->bcl, BLEND_ENABLES, enables) {
+                                enables.mask = 0;
+                        }
                 }
         }
 
@@ -535,9 +539,6 @@ v3dX(emit_state)(struct pipe_context *pctx)
                 }
         }
 
-        /* GFXH-1431: On V3D 3.x, writing BLEND_CONFIG resets the constant
-         * color.
-         */
         if (v3d->dirty & V3D_DIRTY_BLEND_COLOR) {
                 cl_emit(&job->bcl, BLEND_CONSTANT_COLOR, color) {
                         color.red_f16 = (v3d->swap_color_rb ?

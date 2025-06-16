@@ -612,6 +612,12 @@ static bool visit_alu(struct ac_nir_context *ctx, const nir_alu_instr *instr)
       else
          result = LLVMBuildSub(ctx->ac.builder, src[0], src[1], "");
       break;
+   case nir_op_imul24_relaxed:
+      result = ac_build_intrinsic(&ctx->ac, "llvm.amdgcn.mul.i24", ctx->ac.i32, src, 2, 0);
+      break;
+   case nir_op_umul24_relaxed:
+      result = ac_build_intrinsic(&ctx->ac, "llvm.amdgcn.mul.u24", ctx->ac.i32, src, 2, 0);
+      break;
    case nir_op_imul:
       if (instr->no_unsigned_wrap)
          result = LLVMBuildNUWMul(ctx->ac.builder, src[0], src[1], "");
@@ -846,20 +852,11 @@ static bool visit_alu(struct ac_nir_context *ctx, const nir_alu_instr *instr)
    case nir_op_ldexp:
       src[0] = ac_to_float(&ctx->ac, src[0]);
       if (ac_get_elem_bits(&ctx->ac, def_type) == 32)
-         result = ac_build_intrinsic(&ctx->ac,
-                                     LLVM_VERSION_MAJOR >= 18 ? "llvm.ldexp.f32.i32"
-                                                              : "llvm.amdgcn.ldexp.f32",
-                                     ctx->ac.f32, src, 2, 0);
+         result = ac_build_intrinsic(&ctx->ac, "llvm.ldexp.f32.i32", ctx->ac.f32, src, 2, 0);
       else if (ac_get_elem_bits(&ctx->ac, def_type) == 16)
-         result = ac_build_intrinsic(&ctx->ac,
-                                     LLVM_VERSION_MAJOR >= 18 ? "llvm.ldexp.f16.i32"
-                                                              : "llvm.amdgcn.ldexp.f16",
-                                     ctx->ac.f16, src, 2, 0);
+         result = ac_build_intrinsic(&ctx->ac, "llvm.ldexp.f16.i32", ctx->ac.f16, src, 2, 0);
       else
-         result = ac_build_intrinsic(&ctx->ac,
-                                     LLVM_VERSION_MAJOR >= 18 ? "llvm.ldexp.f64.i32"
-                                                              : "llvm.amdgcn.ldexp.f64",
-                                     ctx->ac.f64, src, 2, 0);
+         result = ac_build_intrinsic(&ctx->ac, "llvm.ldexp.f64.i32", ctx->ac.f64, src, 2, 0);
       break;
    case nir_op_bfm:
       result = emit_bfm(&ctx->ac, src[0], src[1]);
@@ -1183,7 +1180,7 @@ static bool visit_alu(struct ac_nir_context *ctx, const nir_alu_instr *instr)
    case nir_op_insert_u16: {
       unsigned size = instr->op == nir_op_insert_u8 ? 8 : 16;
       LLVMValueRef offset = LLVMConstInt(LLVMTypeOf(src[0]), nir_src_as_uint(instr->src[1].src) * size, false);
-      LLVMValueRef mask = LLVMConstInt(LLVMTypeOf(src[0]), u_bit_consecutive(0, size), false);
+      LLVMValueRef mask = LLVMConstInt(LLVMTypeOf(src[0]), BITFIELD_MASK(size), false);
       result = LLVMBuildShl(ctx->ac.builder, LLVMBuildAnd(ctx->ac.builder, src[0], mask, ""), offset, "");
       break;
    }
@@ -1226,6 +1223,22 @@ static bool visit_alu(struct ac_nir_context *ctx, const nir_alu_instr *instr)
       src[3] = LLVMConstInt(ctx->ac.i1, instr->op == nir_op_sdot_2x16_iadd_sat ||
                                         instr->op == nir_op_udot_2x16_uadd_sat, false);
       result = ac_build_intrinsic(&ctx->ac, name, def_type, src, 4, 0);
+      break;
+   }
+
+   case nir_op_bfdot2_bfadd: {
+      const char *name = "llvm.amdgcn.fdot2.bf16.bf16";
+      LLVMTypeRef vec2_type = ctx->ac.v2bf16;
+      LLVMTypeRef scalar_type = ctx->ac.bf16;
+#if LLVM_VERSION_MAJOR < 19 || (LLVM_VERSION_MAJOR == 19 && LLVM_VERSION_MINOR == 0)
+      /* Before LLVM 19.1, bf16 fdot used integer operands. */
+      vec2_type = ctx->ac.v2i16;
+      scalar_type = ctx->ac.i16;
+#endif
+      src[0] = LLVMBuildBitCast(ctx->ac.builder, src[0], vec2_type, "");
+      src[1] = LLVMBuildBitCast(ctx->ac.builder, src[1], vec2_type, "");
+      src[2] = LLVMBuildBitCast(ctx->ac.builder, src[2], scalar_type, "");
+      result = ac_build_intrinsic(&ctx->ac, name, scalar_type, src, 3, 0);
       break;
    }
 
@@ -1578,11 +1591,14 @@ static void visit_store_ssbo(struct ac_nir_context *ctx, nir_intrinsic_instr *in
          num_bytes = 16;
       }
 
-      /* check alignment of 16 Bit stores */
-      if (elem_size_bytes == 2 && num_bytes > 2 && (start % 2) == 1) {
-         writemask |= ((1u << (count - 1)) - 1u) << (start + 1);
+      /* check alignment of 8/16 Bit stores */
+      uint32_t align_mul = nir_intrinsic_align_mul(instr);
+      uint32_t align_offset = nir_intrinsic_align_offset(instr) + start * elem_size_bytes;
+      uint32_t align = nir_combined_align(align_mul, align_offset & (align_mul - 1));
+      if (align < MIN2(num_bytes, 4) || (ctx->ac.gfx_level == GFX6 && elem_size_bytes < 4)) {
+         writemask |= BITFIELD_RANGE(start + 1, count - 1);
          count = 1;
-         num_bytes = 2;
+         num_bytes = elem_size_bytes;
       }
 
       /* Due to alignment issues, split stores of 8-bit/16-bit
@@ -1882,10 +1898,17 @@ static LLVMValueRef visit_load_global(struct ac_nir_context *ctx,
 
    val = LLVMBuildLoad2(ctx->ac.builder, result_type, addr, "");
 
-   if (nir_intrinsic_access(instr) & (ACCESS_COHERENT | ACCESS_VOLATILE)) {
+   /* From the LLVM 21.0.0 language reference:
+    * > An alignment value higher than the size of the loaded type implies memory up to the
+    * > alignment value bytes can be safely loaded without trapping in the default address space.
+    * So limit the alignment to the access size, since this isn't true in NIR.
+    */
+   uint32_t align = nir_intrinsic_align(instr);
+   uint32_t size = ac_get_type_size(result_type);
+   LLVMSetAlignment(val, MIN2(align, 1 << (ffs(size) - 1)));
+
+   if (nir_intrinsic_access(instr) & (ACCESS_COHERENT | ACCESS_VOLATILE))
       LLVMSetOrdering(val, LLVMAtomicOrderingMonotonic);
-      LLVMSetAlignment(val, ac_get_type_size(result_type));
-   }
 
    return val;
 }
@@ -1904,10 +1927,12 @@ static void visit_store_global(struct ac_nir_context *ctx,
 
    val = LLVMBuildStore(ctx->ac.builder, data, addr);
 
-   if (nir_intrinsic_access(instr) & (ACCESS_COHERENT | ACCESS_VOLATILE)) {
+   uint32_t align = nir_intrinsic_align(instr);
+   uint32_t size = ac_get_type_size(type);
+   LLVMSetAlignment(val, MIN2(align, 1 << (ffs(size) - 1)));
+
+   if (nir_intrinsic_access(instr) & (ACCESS_COHERENT | ACCESS_VOLATILE))
       LLVMSetOrdering(val, LLVMAtomicOrderingMonotonic);
-      LLVMSetAlignment(val, ac_get_type_size(type));
-   }
 }
 
 static LLVMValueRef visit_global_atomic(struct ac_nir_context *ctx,
@@ -2022,10 +2047,18 @@ static void visit_store_output(struct ac_nir_context *ctx, nir_intrinsic_instr *
          continue;
 
       LLVMValueRef value = ac_llvm_extract_elem(&ctx->ac, src, chan - component);
-      LLVMValueRef output_addr = ctx->abi->outputs[base * 4 + chan];
+      LLVMTypeRef val_type = LLVMTypeOf(value);
+      assert(val_type == ctx->ac.f32 || val_type == ctx->ac.f16);
+      LLVMTypeRef output_type = ctx->stage == MESA_SHADER_FRAGMENT ? val_type : ctx->ac.f32;
+      LLVMValueRef *output_addr = &ctx->abi->outputs[base * 4 + chan];
 
-      if (!ctx->abi->is_16bit[base * 4 + chan] &&
-          LLVMTypeOf(value) == ctx->ac.f16) {
+      /* Allocate the output variable on demand. */
+      if (!*output_addr) {
+         *output_addr = ac_build_alloca_undef(&ctx->ac, output_type, "");
+         ctx->abi->is_16bit[base * 4 + chan] = output_type == ctx->ac.f16;
+      }
+
+      if (val_type == ctx->ac.f16 && output_type == ctx->ac.f32) {
          LLVMValueRef output, index;
 
          /* Insert the 16-bit value into the low or high bits of the 32-bit output
@@ -2033,11 +2066,11 @@ static void visit_store_output(struct ac_nir_context *ctx, nir_intrinsic_instr *
           */
          index = LLVMConstInt(ctx->ac.i32, nir_intrinsic_io_semantics(instr).high_16bits, 0);
 
-         output = LLVMBuildLoad2(ctx->ac.builder, ctx->ac.v2f16, output_addr, "");
+         output = LLVMBuildLoad2(ctx->ac.builder, ctx->ac.v2f16, *output_addr, "");
          output = LLVMBuildInsertElement(ctx->ac.builder, output, value, index, "");
          value = LLVMBuildBitCast(ctx->ac.builder, output, ctx->ac.f32, "");
       }
-      LLVMBuildStore(ctx->ac.builder, value, output_addr);
+      LLVMBuildStore(ctx->ac.builder, value, *output_addr);
    }
 }
 
@@ -3721,16 +3754,7 @@ static void visit_tex(struct ac_nir_context *ctx, nir_tex_instr *instr)
 
    result = build_tex_intrinsic(ctx, instr, &args);
 
-   LLVMValueRef code = NULL;
-   if (instr->is_sparse) {
-      unsigned num_color_components = num_components - 1;
-      code = ac_llvm_extract_elem(&ctx->ac, result, num_color_components);
-      result = ac_trim_vector(&ctx->ac, result, num_color_components);
-   }
-
-   if (is_new_style_shadow)
-      result = LLVMBuildExtractElement(ctx->ac.builder, result, ctx->ac.i32_0, "");
-   else if (instr->op == nir_texop_fragment_mask_fetch_amd) {
+   if (instr->op == nir_texop_fragment_mask_fetch_amd) {
       /* Use 0x76543210 if the image doesn't have FMASK. */
       LLVMValueRef tmp = LLVMBuildBitCast(ctx->ac.builder, args.resource, ctx->ac.v8i32, "");
       tmp = LLVMBuildExtractElement(ctx->ac.builder, tmp, ctx->ac.i32_1, "");
@@ -3739,12 +3763,19 @@ static void visit_tex(struct ac_nir_context *ctx, nir_tex_instr *instr)
                                LLVMBuildExtractElement(ctx->ac.builder, result, ctx->ac.i32_0, ""),
                                LLVMConstInt(ctx->ac.i32, 0x76543210, false), "");
    } else {
-      unsigned num_color_components = num_components - (instr->is_sparse ? 1 : 0);
-      result = ac_trim_vector(&ctx->ac, result, num_color_components);
-   }
+      /* ac_build_image_opcode always returns 4 components plus 1 optional value
+       * containing residency information. Adjust result to match the output expected by
+       * the NIR instruction.
+       */
+      LLVMValueRef code = NULL;
+      if (instr->is_sparse)
+         code = ac_llvm_extract_elem(&ctx->ac, result, 4);
 
-   if (instr->is_sparse)
-      result = ac_build_concat(&ctx->ac, result, code);
+      result = ac_trim_vector(&ctx->ac, result, num_components - (instr->is_sparse ? 1 : 0));
+
+      if (code)
+         result = ac_build_concat(&ctx->ac, result, code);
+   }
 
    if (result) {
       result = ac_to_integer(&ctx->ac, result);

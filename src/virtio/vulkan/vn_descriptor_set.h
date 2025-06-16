@@ -27,6 +27,7 @@ enum vn_descriptor_type {
    VN_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
    VN_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK,
    VN_DESCRIPTOR_TYPE_MUTABLE_EXT,
+   VN_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
 
    /* add new enum types before this line */
    VN_NUM_DESCRIPTOR_TYPES,
@@ -52,7 +53,7 @@ struct vn_descriptor_set_layout {
    struct vn_descriptor_set_layout_binding bindings[];
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_descriptor_set_layout,
-                               base.base,
+                               base.vk,
                                VkDescriptorSetLayout,
                                VK_OBJECT_TYPE_DESCRIPTOR_SET_LAYOUT)
 
@@ -68,21 +69,45 @@ struct vn_descriptor_pool_state_mutable {
    BITSET_DECLARE(types, VN_NUM_DESCRIPTOR_TYPES);
 };
 
+enum vn_async_set_alloc_state {
+   /* Must do synchronous set alloc. It comes from either no_async_set_alloc
+    * perf option or transition from below conditional states.
+    */
+   VN_ASYNC_SET_ALLOC_NONE,
+   /* Can still do async set alloc, but the pool might become fragmented after
+    * freeing up any descriptor set and that will change the state to NONE.
+    */
+   VN_ASYNC_SET_ALLOC_BEFORE_FREE,
+   /* Can still do async set alloc, and the sets allocated are with the same
+    * number of descriptors and types. Allocating a set with different number
+    * of descriptors or types will change the state to BEFORE_FREE.
+    */
+   VN_ASYNC_SET_ALLOC_SAME_ALLOC,
+   /* Will always do async set alloc, since the pool is not created with
+    * VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT.
+    */
+   VN_ASYNC_SET_ALLOC_ALWAYS,
+};
+
 struct vn_descriptor_pool {
    struct vn_object_base base;
 
    VkAllocationCallbacks allocator;
-   bool async_set_allocation;
+   struct list_head descriptor_sets;
+
+   enum vn_async_set_alloc_state initial_state;
+   enum vn_async_set_alloc_state current_state;
+
+   struct vn_descriptor_set_layout *last_layout;
+
    struct vn_descriptor_pool_state max;
    struct vn_descriptor_pool_state used;
-
-   struct list_head descriptor_sets;
 
    uint32_t mutable_states_count;
    struct vn_descriptor_pool_state_mutable *mutable_states;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_descriptor_pool,
-                               base.base,
+                               base.vk,
                                VkDescriptorPool,
                                VK_OBJECT_TYPE_DESCRIPTOR_POOL)
 
@@ -95,7 +120,7 @@ struct vn_descriptor_set {
    struct list_head head;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_descriptor_set,
-                               base.base,
+                               base.vk,
                                VkDescriptorSet,
                                VK_OBJECT_TYPE_DESCRIPTOR_SET)
 
@@ -112,10 +137,11 @@ struct vn_descriptor_update_template {
    uint32_t buf_info_count;
    uint32_t bview_count;
    uint32_t iub_count;
+   uint32_t accel_count;
    VkDescriptorUpdateTemplateEntry entries[];
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_descriptor_update_template,
-                               base.base,
+                               base.vk,
                                VkDescriptorUpdateTemplate,
                                VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE)
 
@@ -131,6 +157,7 @@ struct vn_descriptor_set_update {
    VkDescriptorBufferInfo *buf_infos;
    VkBufferView *bview_handles;
    VkWriteDescriptorSetInlineUniformBlock *iubs;
+   VkWriteDescriptorSetAccelerationStructureKHR *accels;
 };
 
 uint32_t

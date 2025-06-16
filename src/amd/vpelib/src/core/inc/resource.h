@@ -39,8 +39,10 @@ extern "C" {
 #endif
 
 struct vpe_priv;
+struct vpe_cmd_output;
 struct vpe_cmd_info;
 struct segment_ctx;
+enum vpe_stream_type;
 
 #define MIN_VPE_CMD    (1024)
 #define MIN_NUM_CONFIG (16)
@@ -76,13 +78,15 @@ struct resource {
 
     enum vpe_status (*set_num_segments)(struct vpe_priv *vpe_priv, struct stream_ctx *stream_ctx,
         struct scaler_data *scl_data, struct vpe_rect *src_rect, struct vpe_rect *dst_rect,
-        uint32_t *max_seg_width);
+        uint32_t *max_seg_width, uint32_t recout_width_alignment);
 
     bool (*split_bg_gap)(struct vpe_rect *gaps, const struct vpe_rect *target_rect,
         uint32_t max_width, uint16_t max_gaps, uint16_t *num_gaps, uint16_t num_instances);
 
     void (*calculate_dst_viewport_and_active)(
         struct segment_ctx *segment_ctx, uint32_t max_seg_width);
+
+    uint16_t (*get_bg_stream_idx)(struct vpe_priv *vpe_priv);
 
     uint16_t (*find_bg_gaps)(struct vpe_priv *vpe_priv, const struct vpe_rect *target_rect,
         struct vpe_rect *gaps, uint16_t max_gaps);
@@ -106,6 +110,11 @@ struct resource {
         const struct vpe_build_param *param, const struct vpe_stream *stream,
         struct transfer_func *blnd_tf);
 
+    enum vpe_status (*update_output_gamma)(struct vpe_priv *vpe_priv,
+        const struct vpe_build_param *param, struct transfer_func *output_tf,
+        bool geometric_scaling);
+
+    bool (*validate_cached_param)(struct vpe_priv *vpe_priv, const struct vpe_build_param *param);
     // Indicates the nominal range hdr input content should be in during processing.
     int internal_hdr_normalization;
 
@@ -130,7 +139,8 @@ enum vpe_status vpe_construct_resource(
 void vpe_destroy_resource(struct vpe_priv *vpe_priv, struct resource *res);
 
 /** alloc segment ctx*/
-struct segment_ctx *vpe_alloc_segment_ctx(struct vpe_priv *vpe_priv, uint16_t num_segments);
+enum vpe_status vpe_alloc_segment_ctx(
+    struct vpe_priv *vpe_priv, struct stream_ctx *stream_ctx, uint16_t num_segments);
 
 /** stream ctx */
 struct stream_ctx *vpe_alloc_stream_ctx(struct vpe_priv *vpe_priv, uint32_t num_streams);
@@ -153,6 +163,8 @@ void calculate_scaling_ratios(struct scaler_data *scl_data, struct vpe_rect *src
 
 uint16_t vpe_get_num_segments(struct vpe_priv *vpe_priv, const struct vpe_rect *src,
     const struct vpe_rect *dst, const uint32_t max_seg_width);
+
+bool should_generate_cmd_info(enum vpe_stream_type stream_type);
 
 enum vpe_status vpe_resource_build_scaling_params(struct segment_ctx *segment);
 

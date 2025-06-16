@@ -42,18 +42,27 @@
 template <amd_gfx_level GFX_VERSION, si_has_tess HAS_TESS, si_has_gs HAS_GS, si_has_ngg NGG>
 static bool si_update_shaders(struct si_context *sctx)
 {
+   bool is_vs_state_changed =
+      (sctx->dirty_shaders_mask & BITFIELD_BIT(PIPE_SHADER_VERTEX)) != 0;
+   bool is_tess_state_changed =
+      ((sctx->dirty_shaders_mask & (BITFIELD_BIT(PIPE_SHADER_TESS_CTRL) | BITFIELD_BIT(PIPE_SHADER_TESS_EVAL))) != 0);
+   bool is_gs_state_changed =
+      (sctx->dirty_shaders_mask & BITFIELD_BIT(PIPE_SHADER_GEOMETRY)) != 0;
+   bool is_ps_state_changed =
+      (sctx->dirty_shaders_mask & BITFIELD_BIT(PIPE_SHADER_FRAGMENT)) != 0;
+
    struct pipe_context *ctx = (struct pipe_context *)sctx;
    struct si_shader *old_vs = si_get_vs_inline(sctx, HAS_TESS, HAS_GS)->current;
    unsigned old_pa_cl_vs_out_cntl = old_vs ? old_vs->pa_cl_vs_out_cntl : 0;
-   bool old_uses_vs_state_provoking_vertex = old_vs ? old_vs->uses_vs_state_provoking_vertex : false;
-   bool old_uses_gs_state_outprim = old_vs ? old_vs->uses_gs_state_outprim : false;
+   bool old_uses_gs_state_provoking_vertex = old_vs ? old_vs->info.uses_gs_state_provoking_vtx_first : false;
+   bool old_uses_gs_state_outprim = old_vs ? old_vs->info.uses_gs_state_outprim : false;
    struct si_shader *old_ps = sctx->shader.ps.current;
    unsigned old_spi_shader_col_format =
       old_ps ? old_ps->key.ps.part.epilog.spi_shader_col_format : 0;
    int r;
 
    /* Update TCS and TES. */
-   if (HAS_TESS) {
+   if (HAS_TESS && is_tess_state_changed) {
       if (!sctx->has_tessellation) {
          si_init_tess_factor_ring(sctx);
          if (!sctx->has_tessellation)
@@ -85,7 +94,7 @@ static bool si_update_shaders(struct si_context *sctx)
             si_pm4_bind_state(sctx, vs, sctx->shader.tes.current);
          }
       }
-   } else {
+   } else if (!HAS_TESS) {
       /* Reset TCS to clear fixed function shader. */
       if (!sctx->is_user_tcs && sctx->shader.tcs.cso) {
          sctx->shader.tcs.cso = NULL;
@@ -101,7 +110,7 @@ static bool si_update_shaders(struct si_context *sctx)
    }
 
    /* Update GS. */
-   if (HAS_GS) {
+   if (HAS_GS && is_gs_state_changed) {
       r = si_shader_select(ctx, &sctx->shader.gs);
       if (r)
          return false;
@@ -115,7 +124,7 @@ static bool si_update_shaders(struct si_context *sctx)
          si_pm4_bind_state(sctx, vs, NULL);
          sctx->prefetch_L2_mask &= ~SI_PREFETCH_VS;
       }
-   } else {
+   } else if (!HAS_GS) {
       if (!NGG) {
          si_pm4_bind_state(sctx, gs, NULL);
          sctx->prefetch_L2_mask &= ~SI_PREFETCH_GS;
@@ -127,7 +136,7 @@ static bool si_update_shaders(struct si_context *sctx)
    }
 
    /* Update VS. */
-   if ((!HAS_TESS && !HAS_GS) || GFX_VERSION <= GFX8) {
+   if (is_vs_state_changed && ((!HAS_TESS && !HAS_GS) || GFX_VERSION <= GFX8)) {
       r = si_shader_select(ctx, &sctx->shader.vs);
       if (r)
          return false;
@@ -150,12 +159,10 @@ static bool si_update_shaders(struct si_context *sctx)
       }
    }
 
-   if (GFX_VERSION >= GFX9 && HAS_TESS)
-      sctx->vs_uses_base_instance = sctx->queued.named.hs->uses_base_instance;
-   else if (GFX_VERSION >= GFX9 && HAS_GS)
-      sctx->vs_uses_base_instance = sctx->shader.gs.current->uses_base_instance;
-   else
-      sctx->vs_uses_base_instance = sctx->shader.vs.current->uses_base_instance;
+   struct si_shader *api_vs = si_get_api_vs_inline(sctx, GFX_VERSION, HAS_TESS, HAS_GS);
+   sctx->vs_uses_base_instance = api_vs->info.uses_base_instance;
+   sctx->vs_uses_draw_id = api_vs->info.uses_draw_id;
+   sctx->vs_uses_vs_state_indexed = api_vs->info.uses_vs_state_indexed;
 
    /* Update VGT_SHADER_STAGES_EN. */
    uint32_t vgt_stages = 0;
@@ -214,8 +221,8 @@ static bool si_update_shaders(struct si_context *sctx)
             ge_cntl = si_get_vs_inline(sctx, HAS_TESS, HAS_GS)->current->ge_cntl;
          }
       } else {
-         unsigned primgroup_size;
-         unsigned vertgroup_size;
+         unsigned primgroup_size = 128; /* recommended without a GS and tess */
+         unsigned vertgroup_size = 0;
          assert(GFX_VERSION < GFX11);
 
          if (HAS_TESS) {
@@ -225,9 +232,6 @@ static bool si_update_shaders(struct si_context *sctx)
             unsigned vgt_gs_onchip_cntl = sctx->shader.gs.current->gs.vgt_gs_onchip_cntl;
             primgroup_size = G_028A44_GS_PRIMS_PER_SUBGRP(vgt_gs_onchip_cntl);
             vertgroup_size = G_028A44_ES_VERTS_PER_SUBGRP(vgt_gs_onchip_cntl);
-         } else {
-            primgroup_size = 128; /* recommended without a GS and tess */
-            vertgroup_size = 0;
          }
 
          ge_cntl = S_03096C_PRIM_GRP_SIZE_GFX10(primgroup_size) |
@@ -249,34 +253,47 @@ static bool si_update_shaders(struct si_context *sctx)
 
    struct si_shader *hw_vs = si_get_vs_inline(sctx, HAS_TESS, HAS_GS)->current;
 
+   bool fixed_func_face_culling_needed = !NGG || !si_shader_culling_enabled(hw_vs);
+   bool fixed_func_face_culling_has_effect = (!HAS_TESS && !HAS_GS) ||
+                                             hw_vs->selector->rast_prim == MESA_PRIM_TRIANGLES;
+
+   if (sctx->fixed_func_face_culling_needed != fixed_func_face_culling_needed ||
+       sctx->fixed_func_face_culling_has_effect != fixed_func_face_culling_has_effect) {
+      sctx->fixed_func_face_culling_needed = fixed_func_face_culling_needed;
+      sctx->fixed_func_face_culling_has_effect = fixed_func_face_culling_has_effect;
+      sctx->dirty_atoms |= SI_STATE_BIT(rasterizer);
+   }
+
    if (old_pa_cl_vs_out_cntl != hw_vs->pa_cl_vs_out_cntl)
       si_mark_atom_dirty(sctx, &sctx->atoms.s.clip_regs);
 
    /* If we start to use any of these, we need to update the SGPR. */
-   if ((hw_vs->uses_vs_state_provoking_vertex && !old_uses_vs_state_provoking_vertex) ||
-       (hw_vs->uses_gs_state_outprim && !old_uses_gs_state_outprim)) {
+   if ((hw_vs->info.uses_gs_state_provoking_vtx_first && !old_uses_gs_state_provoking_vertex) ||
+       (hw_vs->info.uses_gs_state_outprim && !old_uses_gs_state_outprim)) {
       si_update_ngg_sgpr_state_out_prim(sctx, hw_vs, NGG);
       si_update_ngg_sgpr_state_provoking_vtx(sctx, hw_vs, NGG);
    }
 
-   r = si_shader_select(ctx, &sctx->shader.ps);
-   if (r)
-      return false;
-   si_pm4_bind_state(sctx, ps, sctx->shader.ps.current);
+   if (is_ps_state_changed) {
+      r = si_shader_select(ctx, &sctx->shader.ps);
+      if (r)
+         return false;
+      si_pm4_bind_state(sctx, ps, sctx->shader.ps.current);
 
-   unsigned db_shader_control = sctx->shader.ps.current->ps.db_shader_control;
-   if (sctx->ps_db_shader_control != db_shader_control) {
-      sctx->ps_db_shader_control = db_shader_control;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.db_render_state);
-      if (sctx->screen->dpbb_allowed)
+      unsigned db_shader_control = sctx->shader.ps.current->ps.db_shader_control;
+      if (sctx->ps_db_shader_control != db_shader_control) {
+         sctx->ps_db_shader_control = db_shader_control;
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.db_render_state);
+         if (sctx->screen->dpbb_allowed)
+            si_mark_atom_dirty(sctx, &sctx->atoms.s.dpbb_state);
+      }
+
+      unsigned pa_sc_hisz_control = sctx->shader.ps.current->ps.pa_sc_hisz_control;
+      if (GFX_VERSION >= GFX12 && sctx->screen->dpbb_allowed &&
+         sctx->ps_pa_sc_hisz_control != pa_sc_hisz_control) {
+         sctx->ps_pa_sc_hisz_control = pa_sc_hisz_control;
          si_mark_atom_dirty(sctx, &sctx->atoms.s.dpbb_state);
-   }
-
-   unsigned pa_sc_hisz_control = sctx->shader.ps.current->ps.pa_sc_hisz_control;
-   if (GFX_VERSION >= GFX12 && sctx->screen->dpbb_allowed &&
-       sctx->ps_pa_sc_hisz_control != pa_sc_hisz_control) {
-      sctx->ps_pa_sc_hisz_control = pa_sc_hisz_control;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.dpbb_state);
+      }
    }
 
    if (si_pm4_state_changed(sctx, ps) ||
@@ -286,29 +303,31 @@ static bool si_update_shaders(struct si_context *sctx)
       si_mark_atom_dirty(sctx, &sctx->atoms.s.spi_map);
    }
 
-   if ((GFX_VERSION >= GFX10_3 || (GFX_VERSION >= GFX9 && sctx->screen->info.rbplus_allowed)) &&
-       si_pm4_state_changed(sctx, ps) &&
-       (!old_ps || old_spi_shader_col_format !=
-                      sctx->shader.ps.current->key.ps.part.epilog.spi_shader_col_format))
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.cb_render_state);
+   if (is_ps_state_changed) {
+      if ((GFX_VERSION >= GFX10_3 || (GFX_VERSION >= GFX9 && sctx->screen->info.rbplus_allowed)) &&
+         si_pm4_state_changed(sctx, ps) &&
+         (!old_ps || old_spi_shader_col_format !=
+                        sctx->shader.ps.current->key.ps.part.epilog.spi_shader_col_format))
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.cb_render_state);
 
-   if (sctx->smoothing_enabled !=
-       sctx->shader.ps.current->key.ps.mono.poly_line_smoothing) {
-      sctx->smoothing_enabled = sctx->shader.ps.current->key.ps.mono.poly_line_smoothing;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.msaa_config);
+      if (sctx->smoothing_enabled !=
+         sctx->shader.ps.current->key.ps.mono.poly_line_smoothing) {
+         sctx->smoothing_enabled = sctx->shader.ps.current->key.ps.mono.poly_line_smoothing;
+         si_mark_atom_dirty(sctx, &sctx->atoms.s.msaa_config);
 
-      /* NGG cull state uses smoothing_enabled. */
-      if (GFX_VERSION >= GFX10 && sctx->screen->use_ngg_culling)
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.ngg_cull_state);
+         /* NGG cull state uses smoothing_enabled. */
+         if (GFX_VERSION >= GFX10 && sctx->screen->use_ngg_culling)
+            si_mark_atom_dirty(sctx, &sctx->atoms.s.ngg_cull_state);
 
-      if (GFX_VERSION == GFX11 && sctx->screen->info.has_export_conflict_bug)
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.db_render_state);
+         if (GFX_VERSION == GFX11 && sctx->screen->info.has_export_conflict_bug)
+            si_mark_atom_dirty(sctx, &sctx->atoms.s.db_render_state);
 
-      if (sctx->framebuffer.nr_samples <= 1)
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.sample_locations);
+         if (sctx->framebuffer.nr_samples <= 1)
+            si_mark_atom_dirty(sctx, &sctx->atoms.s.sample_locations);
+      }
    }
 
-   if (HAS_TESS)
+   if (HAS_TESS && (is_vs_state_changed || is_tess_state_changed))
       si_update_tess_io_layout_state(sctx);
 
    if (GFX_VERSION >= GFX9 && unlikely(sctx->sqtt)) {
@@ -477,7 +496,7 @@ static bool si_update_shaders(struct si_context *sctx)
    if (GFX_VERSION >= GFX10 && NGG)
       sctx->ngg_culling = si_get_vs_inline(sctx, HAS_TESS, HAS_GS)->current->key.ge.opt.ngg_culling;
 
-   sctx->do_update_shaders = false;
+   sctx->dirty_shaders_mask = 0u;
    return true;
 }
 
@@ -981,7 +1000,7 @@ static void si_emit_vs_state(struct si_context *sctx, unsigned index_size)
    unsigned vs_state = sctx->current_vs_state; /* all VS bits */
    unsigned gs_state = sctx->current_gs_state; /* only GS and NGG bits; VS bits will be copied here */
 
-   if (sctx->shader.vs.cso->info.uses_base_vertex && index_size)
+   if (sctx->vs_uses_vs_state_indexed && index_size)
       vs_state |= ENCODE_FIELD(VS_STATE_INDEXED, 1);
 
    /* Copy all state bits from vs_state to gs_state. */
@@ -1093,7 +1112,7 @@ static void si_emit_ia_multi_vgt_param(struct si_context *sctx,
 template <amd_gfx_level GFX_VERSION, si_has_tess HAS_TESS, si_has_gs HAS_GS, si_has_ngg NGG,
           si_is_draw_vertex_state IS_DRAW_VERTEX_STATE> ALWAYS_INLINE
 static void si_emit_draw_registers(struct si_context *sctx,
-                                   const struct pipe_draw_indirect_info *indirect,
+                                   const struct pipe_draw_indirect_info *restrict indirect,
                                    enum mesa_prim prim, unsigned index_size,
                                    unsigned instance_count, bool primitive_restart,
                                    unsigned restart_index, unsigned min_vertex_count)
@@ -1146,10 +1165,20 @@ static void si_emit_draw_registers(struct si_context *sctx,
       }
    } else {
       if (primitive_restart != sctx->last_primitive_restart_en) {
-         if (GFX_VERSION >= GFX9)
+         if (GFX_VERSION >= GFX10) {
+            /* GFX10-GFX10.3 (tested on NAVI10, NAVI21 and NAVI24 but likely all) are
+             * affected by a hw bug when primitive restart is updated and no context
+             * registers are written between draws. One workaround is to emit
+             * SQ_NON_EVENT(0) which is a NOP packet that adds a small delay and seems
+             * to fix it reliably.
+             */
+            radeon_event_write(V_028A90_SQ_NON_EVENT);
+            radeon_set_uconfig_reg(R_03092C_GE_MULTI_PRIM_IB_RESET_EN, primitive_restart);
+         } else if (GFX_VERSION >= GFX9) {
             radeon_set_uconfig_reg(R_03092C_VGT_MULTI_PRIM_IB_RESET_EN, primitive_restart);
-         else
+         } else {
             radeon_set_context_reg(R_028A94_VGT_MULTI_PRIM_IB_RESET_EN, primitive_restart);
+         }
          sctx->last_primitive_restart_en = primitive_restart;
       }
       if (si_prim_restart_index_changed<GFX_VERSION>(sctx, index_size, primitive_restart,
@@ -1235,12 +1264,12 @@ void si_emit_buffered_compute_sh_regs(struct si_context *sctx)
 template <amd_gfx_level GFX_VERSION, si_has_tess HAS_TESS, si_has_gs HAS_GS, si_has_ngg NGG,
           si_is_draw_vertex_state IS_DRAW_VERTEX_STATE, si_has_sh_pairs_packed HAS_SH_PAIRS_PACKED,
           si_alt_hiz_logic ALT_HIZ_LOGIC> ALWAYS_INLINE
-static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw_info *info,
+static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw_info *restrict info,
                                  unsigned drawid_base,
-                                 const struct pipe_draw_indirect_info *indirect,
-                                 const struct pipe_draw_start_count_bias *draws,
+                                 const struct pipe_draw_indirect_info *restrict indirect,
+                                 const struct pipe_draw_start_count_bias *restrict draws,
                                  unsigned num_draws,
-                                 struct pipe_resource *indexbuf, unsigned index_size,
+                                 struct pipe_resource *restrict indexbuf, unsigned index_size,
                                  unsigned index_offset, unsigned instance_count)
 {
    struct radeon_cmdbuf *cs = &sctx->gfx_cs;
@@ -1367,14 +1396,10 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
    unsigned sh_base_reg = si_get_user_data_base(GFX_VERSION, HAS_TESS, HAS_GS, NGG,
                                                 PIPE_SHADER_VERTEX);
    bool render_cond_bit = sctx->render_cond_enabled;
-   unsigned tracked_base_vertex_reg;
-
-   if (HAS_TESS)
-      tracked_base_vertex_reg = SI_TRACKED_SPI_SHADER_USER_DATA_LS__BASE_VERTEX;
-   else if (HAS_GS || NGG)
-      tracked_base_vertex_reg = SI_TRACKED_SPI_SHADER_USER_DATA_ES__BASE_VERTEX;
-   else
-      tracked_base_vertex_reg = SI_TRACKED_SPI_SHADER_USER_DATA_VS__BASE_VERTEX;
+   const unsigned tracked_base_vertex_reg =
+      HAS_TESS ? SI_TRACKED_SPI_SHADER_USER_DATA_LS__BASE_VERTEX :
+      HAS_GS || NGG ? SI_TRACKED_SPI_SHADER_USER_DATA_ES__BASE_VERTEX :
+      SI_TRACKED_SPI_SHADER_USER_DATA_VS__BASE_VERTEX;
 
    if (!IS_DRAW_VERTEX_STATE && indirect) {
       assert(num_draws == 1);
@@ -1446,7 +1471,7 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
          radeon_emit((sh_base_reg + SI_SGPR_BASE_VERTEX * 4 - SI_SH_REG_OFFSET) >> 2);
          radeon_emit((sh_base_reg + SI_SGPR_START_INSTANCE * 4 - SI_SH_REG_OFFSET) >> 2);
          radeon_emit(((sh_base_reg + SI_SGPR_DRAWID * 4 - SI_SH_REG_OFFSET) >> 2) |
-                     S_2C3_DRAW_INDEX_ENABLE(sctx->shader.vs.cso->info.uses_drawid) |
+                     S_2C3_DRAW_INDEX_ENABLE(sctx->vs_uses_draw_id) |
                      S_2C3_COUNT_INDIRECT_ENABLE(!!indirect->indirect_draw_count));
          radeon_emit(indirect->draw_count);
          radeon_emit(count_va);
@@ -1652,7 +1677,7 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
             }
          }
       } else {
-         if (GFX_VERSION == GFX12 && !IS_DRAW_VERTEX_STATE &&
+         if ((GFX_VERSION == GFX11_5 || GFX_VERSION == GFX12) && !IS_DRAW_VERTEX_STATE &&
              indirect && indirect->count_from_stream_output) {
             /* DrawTransformFeedback requires 3 SQ_NON_EVENTs after the packet. */
             assert(num_draws == 1);
@@ -1821,6 +1846,7 @@ static bool si_upload_and_prefetch_VB_descriptors(struct si_context *sctx,
 
    if (sctx->vertex_buffers_dirty || IS_DRAW_VERTEX_STATE) {
       assert(count || IS_DRAW_VERTEX_STATE);
+      assert(IS_DRAW_VERTEX_STATE || !sctx->vertex_elements_but_no_buffers);
 
       struct si_vertex_elements *velems = sctx->vertex_elements;
       unsigned alloc_size = IS_DRAW_VERTEX_STATE ?
@@ -2052,12 +2078,12 @@ template <amd_gfx_level GFX_VERSION, si_has_tess HAS_TESS, si_has_gs HAS_GS, si_
           si_is_draw_vertex_state IS_DRAW_VERTEX_STATE, si_has_sh_pairs_packed HAS_SH_PAIRS_PACKED,
           util_popcnt POPCNT, si_alt_hiz_logic ALT_HIZ_LOGIC> ALWAYS_INLINE
 static void si_draw(struct pipe_context *ctx,
-                    const struct pipe_draw_info *info,
+                    const struct pipe_draw_info *restrict info,
                     unsigned drawid_offset,
-                    const struct pipe_draw_indirect_info *indirect,
-                    const struct pipe_draw_start_count_bias *draws,
+                    const struct pipe_draw_indirect_info *restrict indirect,
+                    const struct pipe_draw_start_count_bias *restrict draws,
                     unsigned num_draws,
-                    struct pipe_vertex_state *state,
+                    struct pipe_vertex_state *restrict state,
                     uint32_t partial_velem_mask)
 {
    /* Keep code that uses the least number of local variables as close to the beginning
@@ -2071,14 +2097,16 @@ static void si_draw(struct pipe_context *ctx,
    si_check_dirty_buffers_textures(sctx);
 
    if (GFX_VERSION < GFX11)
-      gfx6_decompress_textures(sctx, u_bit_consecutive(0, SI_NUM_GRAPHICS_SHADERS));
+      gfx6_decompress_textures(sctx, BITFIELD_MASK(SI_NUM_GRAPHICS_SHADERS));
    else if (GFX_VERSION < GFX12)
-      gfx11_decompress_textures(sctx, u_bit_consecutive(0, SI_NUM_GRAPHICS_SHADERS));
+      gfx11_decompress_textures(sctx, BITFIELD_MASK(SI_NUM_GRAPHICS_SHADERS));
 
-   si_need_gfx_cs_space(sctx, num_draws);
+   si_need_gfx_cs_space(sctx, num_draws, ALT_HIZ_LOGIC ? 8 : 0);
 
-   if (u_trace_perfetto_active(&sctx->ds.trace_context))
+#ifdef HAVE_PERFETTO
+   if (unlikely(sctx->perfetto_enabled))
       trace_si_begin_draw(&sctx->trace);
+#endif
 
    unsigned instance_count = info->instance_count;
 
@@ -2093,10 +2121,27 @@ static void si_draw(struct pipe_context *ctx,
 
    struct si_shader_selector *vs = sctx->shader.vs.cso;
    struct si_vertex_state *vstate = (struct si_vertex_state *)state;
-   if (unlikely(!vs ||
-                (!IS_DRAW_VERTEX_STATE && sctx->num_vertex_elements < vs->info.num_vs_inputs) ||
-                (IS_DRAW_VERTEX_STATE && vstate->velems.count < vs->info.num_vs_inputs) ||
-                !sctx->shader.ps.cso || (HAS_TESS != (info->mode == MESA_PRIM_PATCHES)))) {
+   const unsigned num_vertex_elements = IS_DRAW_VERTEX_STATE ? vstate->velems.count
+                                                             : sctx->num_vertex_elements;
+   if (unlikely(!vs || !sctx->shader.ps.cso || (HAS_TESS != (info->mode == MESA_PRIM_PATCHES))) ||
+                num_vertex_elements < vs->info.num_vs_inputs) {
+#ifndef NDEBUG
+      if (!vs)
+         fprintf(stderr, "radeonsi: draw: missing vertex shader\n");
+
+      if (!sctx->shader.ps.cso)
+         fprintf(stderr, "radeonsi: draw: missing fragment shader\n");
+
+      if (HAS_TESS != (info->mode == MESA_PRIM_PATCHES)) {
+         fprintf(stderr, HAS_TESS ? "radeonsi: draw: invalid primitive type (expected PATCHES)\n"
+                                  : "radeonsi: draw: invalid primitive type (not expected PATCHES)\n");
+      }
+
+      if (num_vertex_elements < vs->info.num_vs_inputs) {
+         fprintf(stderr, "radeonsi: draw: not enough vertex elements for a vertex shader "
+                         "(has: %u, need: %u)\n", num_vertex_elements, vs->info.num_vs_inputs);
+      }
+#endif
       assert(0);
       return;
    }
@@ -2114,7 +2159,7 @@ static void si_draw(struct pipe_context *ctx,
 
       if (gs_tri_strip_adj_fix != sctx->shader.gs.key.ge.mono.u.gs_tri_strip_adj_fix) {
          sctx->shader.gs.key.ge.mono.u.gs_tri_strip_adj_fix = gs_tri_strip_adj_fix;
-         sctx->do_update_shaders = true;
+         sctx->dirty_shaders_mask |= BITFIELD_BIT(PIPE_SHADER_GEOMETRY);
       }
    }
 
@@ -2244,7 +2289,7 @@ static void si_draw(struct pipe_context *ctx,
          /* Update shaders to disable VS input lowering. */
          if (sctx->uses_nontrivial_vs_inputs) {
             si_vs_key_update_inputs(sctx);
-            sctx->do_update_shaders = true;
+            sctx->dirty_shaders_mask |= BITFIELD_BIT(PIPE_SHADER_VERTEX);
          }
       }
    } else {
@@ -2254,7 +2299,7 @@ static void si_draw(struct pipe_context *ctx,
          /* Update shaders to possibly enable VS input lowering. */
          if (sctx->uses_nontrivial_vs_inputs) {
             si_vs_key_update_inputs(sctx);
-            sctx->do_update_shaders = true;
+            sctx->dirty_shaders_mask |= BITFIELD_BIT(PIPE_SHADER_VERTEX);
          }
       }
    }
@@ -2263,6 +2308,7 @@ static void si_draw(struct pipe_context *ctx,
    uint16_t old_ngg_culling = sctx->ngg_culling;
    if (GFX_VERSION >= GFX10) {
       struct si_shader_selector *hw_vs = si_get_vs_inline(sctx, HAS_TESS, HAS_GS)->cso;
+      bool needs_shader_update = false;
 
       if (NGG &&
           /* Tessellation and GS set ngg_cull_vert_threshold to UINT_MAX if the prim type
@@ -2295,15 +2341,21 @@ static void si_draw(struct pipe_context *ctx,
          if (ngg_culling != old_ngg_culling) {
             /* If shader compilation is not ready, this setting will be rejected. */
             sctx->ngg_culling = ngg_culling;
-            sctx->do_update_shaders = true;
+            needs_shader_update = true;
          }
       } else if (old_ngg_culling) {
          sctx->ngg_culling = 0;
-         sctx->do_update_shaders = true;
+         needs_shader_update = true;
+      }
+
+      if (needs_shader_update) {
+         sctx->dirty_shaders_mask |=
+            (HAS_GS ? BITFIELD_BIT(PIPE_SHADER_GEOMETRY) :
+               (HAS_TESS ? BITFIELD_BIT(PIPE_SHADER_TESS_EVAL) : BITFIELD_BIT(PIPE_SHADER_VERTEX)));
       }
    }
 
-   if (unlikely(sctx->do_update_shaders)) {
+   if (unlikely(sctx->dirty_shaders_mask)) {
       if (unlikely(!(si_update_shaders<GFX_VERSION, HAS_TESS, HAS_GS, NGG>(sctx)))) {
          DRAW_CLEANUP;
          return;
@@ -2407,15 +2459,17 @@ static void si_draw(struct pipe_context *ctx,
    }
 
    /* On Gfx12, this is only used to detect whether a depth texture is in the cleared state. */
-   if (sctx->framebuffer.state.zsbuf) {
-      struct si_texture *zstex = (struct si_texture *)sctx->framebuffer.state.zsbuf->texture;
-      zstex->depth_cleared_level_mask &= ~BITFIELD_BIT(sctx->framebuffer.state.zsbuf->u.tex.level);
+   if (sctx->framebuffer.state.zsbuf.texture) {
+      struct si_texture *zstex = (struct si_texture *)sctx->framebuffer.state.zsbuf.texture;
+      zstex->depth_cleared_level_mask &= ~BITFIELD_BIT(sctx->framebuffer.state.zsbuf.level);
    }
 
-   if (u_trace_perfetto_active(&sctx->ds.trace_context)) {
+#ifdef HAVE_PERFETTO
+   if (unlikely(sctx->perfetto_enabled)) {
       /* Just use the draw[0] vertex count for perfetto. */
       trace_si_end_draw(&sctx->trace, draws[0].count);
    }
+#endif
 
    DRAW_CLEANUP;
 }
@@ -2423,10 +2477,10 @@ static void si_draw(struct pipe_context *ctx,
 template <amd_gfx_level GFX_VERSION, si_has_tess HAS_TESS, si_has_gs HAS_GS, si_has_ngg NGG,
           si_has_sh_pairs_packed HAS_SH_PAIRS_PACKED, si_alt_hiz_logic ALT_HIZ_LOGIC>
 static void si_draw_vbo(struct pipe_context *ctx,
-                        const struct pipe_draw_info *info,
+                        const struct pipe_draw_info *restrict info,
                         unsigned drawid_offset,
-                        const struct pipe_draw_indirect_info *indirect,
-                        const struct pipe_draw_start_count_bias *draws,
+                        const struct pipe_draw_indirect_info *restrict indirect,
+                        const struct pipe_draw_start_count_bias *restrict draws,
                         unsigned num_draws)
 {
    si_draw<GFX_VERSION, HAS_TESS, HAS_GS, NGG, DRAW_VERTEX_STATE_OFF, HAS_SH_PAIRS_PACKED,
@@ -2441,7 +2495,7 @@ static void si_draw_vertex_state(struct pipe_context *ctx,
                                  struct pipe_vertex_state *vstate,
                                  uint32_t partial_velem_mask,
                                  struct pipe_draw_vertex_state_info info,
-                                 const struct pipe_draw_start_count_bias *draws,
+                                 const struct pipe_draw_start_count_bias *restrict draws,
                                  unsigned num_draws)
 {
    struct si_vertex_state *state = (struct si_vertex_state *)vstate;
@@ -2463,7 +2517,7 @@ static void si_draw_vertex_state(struct pipe_context *ctx,
 static void si_draw_rectangle(struct blitter_context *blitter, void *vertex_elements_cso,
                               blitter_get_vs_func get_vs, int x1, int y1, int x2, int y2,
                               float depth, unsigned num_instances, enum blitter_attrib_type type,
-                              const union blitter_attrib *attrib)
+                              const struct blitter_attrib *attrib)
 {
    struct pipe_context *pipe = util_blitter_get_pipe(blitter);
    struct si_context *sctx = (struct si_context *)pipe;
@@ -2484,10 +2538,6 @@ static void si_draw_rectangle(struct blitter_context *blitter, void *vertex_elem
    sctx->vs_blit_sh_data[2] = fui(depth);
 
    switch (type) {
-   case UTIL_BLITTER_ATTRIB_COLOR:
-      memcpy(&sctx->vs_blit_sh_data[3], attrib->color, sizeof(float) * 4);
-      sctx->vs_blit_sh_data[7] = attribute_ring_address_lo;
-      break;
    case UTIL_BLITTER_ATTRIB_TEXCOORD_XY:
    case UTIL_BLITTER_ATTRIB_TEXCOORD_XYZW:
       memcpy(&sctx->vs_blit_sh_data[3], &attrib->texcoord, sizeof(attrib->texcoord));

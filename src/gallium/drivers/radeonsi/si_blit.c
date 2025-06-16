@@ -141,14 +141,14 @@ static unsigned si_blit_dbcb_copy(struct si_context *sctx, struct si_texture *sr
       max_layer = util_max_layer(&src->buffer.b.b, level);
       checked_last_layer = MIN2(last_layer, max_layer);
 
-      surf_tmpl.u.tex.level = level;
+      surf_tmpl.level = level;
 
       for (layer = first_layer; layer <= checked_last_layer; layer++) {
          struct pipe_surface *zsurf, *cbsurf;
 
          surf_tmpl.format = src->buffer.b.b.format;
-         surf_tmpl.u.tex.first_layer = layer;
-         surf_tmpl.u.tex.last_layer = layer;
+         surf_tmpl.first_layer = layer;
+         surf_tmpl.last_layer = layer;
 
          zsurf = sctx->b.create_surface(&sctx->b, &src->buffer.b.b, &surf_tmpl);
 
@@ -213,7 +213,7 @@ static void si_blit_decompress_zs_planes_in_place(struct si_context *sctx,
    while (level_mask) {
       unsigned level = u_bit_scan(&level_mask);
 
-      surf_tmpl.u.tex.level = level;
+      surf_tmpl.level = level;
 
       /* The smaller the mipmap level, the less layers there are
        * as far as 3D textures are concerned. */
@@ -221,8 +221,8 @@ static void si_blit_decompress_zs_planes_in_place(struct si_context *sctx,
       checked_last_layer = MIN2(last_layer, max_layer);
 
       for (layer = first_layer; layer <= checked_last_layer; layer++) {
-         surf_tmpl.u.tex.first_layer = layer;
-         surf_tmpl.u.tex.last_layer = layer;
+         surf_tmpl.first_layer = layer;
+         surf_tmpl.last_layer = layer;
 
          zsurf = sctx->b.create_surface(&sctx->b, &texture->buffer.b.b, &surf_tmpl);
 
@@ -287,7 +287,7 @@ static void si_decompress_depth(struct si_context *sctx, struct si_texture *tex,
 {
    unsigned inplace_planes = 0;
    unsigned copy_planes = 0;
-   unsigned level_mask = u_bit_consecutive(first_level, last_level - first_level + 1);
+   unsigned level_mask = BITFIELD_RANGE(first_level, last_level - first_level + 1);
    unsigned levels_z = 0;
    unsigned levels_s = 0;
 
@@ -443,7 +443,7 @@ static void si_blit_decompress_color(struct si_context *sctx, struct si_texture 
 {
    void *custom_blend;
    unsigned layer, checked_last_layer, max_layer;
-   unsigned level_mask = u_bit_consecutive(first_level, last_level - first_level + 1);
+   unsigned level_mask = BITFIELD_RANGE(first_level, last_level - first_level + 1);
 
    /* No decompression is ever needed on Gfx12. */
    assert(sctx->gfx_level < GFX12);
@@ -468,7 +468,7 @@ static void si_blit_decompress_color(struct si_context *sctx, struct si_texture 
       /* DCC_DECOMPRESS and ELIMINATE_FAST_CLEAR require MSAA_NUM_SAMPLES=0. */
       if (sctx->gfx_level >= GFX11) {
          sctx->gfx11_force_msaa_num_samples_zero = true;
-         si_mark_atom_dirty(sctx, &sctx->atoms.s.msaa_config);
+         si_update_ps_iter_samples(sctx);
       }
 
       assert(vi_dcc_enabled(tex, first_level));
@@ -500,9 +500,9 @@ static void si_blit_decompress_color(struct si_context *sctx, struct si_texture 
          struct pipe_surface *cbsurf, surf_tmpl;
 
          surf_tmpl.format = tex->buffer.b.b.format;
-         surf_tmpl.u.tex.level = level;
-         surf_tmpl.u.tex.first_layer = layer;
-         surf_tmpl.u.tex.last_layer = layer;
+         surf_tmpl.level = level;
+         surf_tmpl.first_layer = layer;
+         surf_tmpl.last_layer = layer;
          cbsurf = sctx->b.create_surface(&sctx->b, &tex->buffer.b.b, &surf_tmpl);
 
          /* Required before and after FMASK and DCC_DECOMPRESS. */
@@ -555,7 +555,7 @@ static void si_blit_decompress_color(struct si_context *sctx, struct si_texture 
    /* Restore gfx11_force_msaa_num_samples_zero. */
    if (sctx->gfx11_force_msaa_num_samples_zero) {
       sctx->gfx11_force_msaa_num_samples_zero = false;
-      si_mark_atom_dirty(sctx, &sctx->atoms.s.msaa_config);
+      si_update_ps_iter_samples(sctx);
    }
 
 expand_fmask:
@@ -641,16 +641,14 @@ static void si_check_render_feedback_texture(struct si_context *sctx, struct si_
       return;
 
    for (unsigned j = 0; j < sctx->framebuffer.state.nr_cbufs; ++j) {
-      struct si_surface *surf;
+      struct pipe_surface *surf = &sctx->framebuffer.state.cbufs[j];
 
-      if (!sctx->framebuffer.state.cbufs[j])
+      if (!sctx->framebuffer.state.cbufs[j].texture)
          continue;
 
-      surf = (struct si_surface *)sctx->framebuffer.state.cbufs[j];
-
-      if (tex == (struct si_texture *)surf->base.texture && surf->base.u.tex.level >= first_level &&
-          surf->base.u.tex.level <= last_level && surf->base.u.tex.first_layer <= last_layer &&
-          surf->base.u.tex.last_layer >= first_layer) {
+      if (tex == (struct si_texture *)surf->texture && surf->level >= first_level &&
+          surf->level <= last_level && surf->first_layer <= last_layer &&
+          surf->last_layer >= first_layer) {
          render_feedback = true;
          break;
       }
@@ -765,9 +763,9 @@ static void si_check_render_feedback(struct si_context *sctx)
 
       struct si_shader_info *info = &sctx->shaders[i].cso->info;
       si_check_render_feedback_images(sctx, &sctx->images[i],
-                                      u_bit_consecutive(0, info->base.num_images));
+                                      BITFIELD_MASK(info->base.num_images));
       si_check_render_feedback_textures(sctx, &sctx->samplers[i],
-                                        info->base.textures_used[0]);
+                                        info->base.textures_used);
    }
 
    si_check_render_feedback_resident_images(sctx);
@@ -859,7 +857,7 @@ void gfx6_decompress_textures(struct si_context *sctx, unsigned shader_mask)
       sctx->b.flush(&sctx->b, NULL, RADEON_FLUSH_ASYNC_START_NEXT_GFX_IB_NOW);
    }
 
-   if (shader_mask & u_bit_consecutive(0, SI_NUM_GRAPHICS_SHADERS)) {
+   if (shader_mask & BITFIELD_MASK(SI_NUM_GRAPHICS_SHADERS)) {
       if (sctx->uses_bindless_samplers) {
          si_decompress_resident_color_textures(sctx);
          si_decompress_resident_depth_textures(sctx);
@@ -868,9 +866,9 @@ void gfx6_decompress_textures(struct si_context *sctx, unsigned shader_mask)
          si_decompress_resident_images(sctx);
 
       if (sctx->ps_uses_fbfetch) {
-         struct pipe_surface *cb0 = sctx->framebuffer.state.cbufs[0];
+         struct pipe_surface *cb0 = &sctx->framebuffer.state.cbufs[0];
          si_decompress_color_texture(sctx, (struct si_texture *)cb0->texture,
-                                     cb0->u.tex.first_layer, cb0->u.tex.last_layer, false);
+                                     cb0->first_layer, cb0->last_layer, false);
       }
 
       si_check_render_feedback(sctx);
@@ -897,7 +895,7 @@ void gfx11_decompress_textures(struct si_context *sctx, unsigned shader_mask)
    }
 
    /* Decompress bindless depth textures and disable DCC for render feedback. */
-   if (shader_mask & u_bit_consecutive(0, SI_NUM_GRAPHICS_SHADERS)) {
+   if (shader_mask & BITFIELD_MASK(SI_NUM_GRAPHICS_SHADERS)) {
       if (sctx->uses_bindless_samplers)
          si_decompress_resident_depth_textures(sctx);
 
@@ -932,8 +930,8 @@ void si_decompress_subresource(struct pipe_context *ctx, struct pipe_resource *t
        * source, make sure the decompression pass is invoked
        * by dirtying the framebuffer.
        */
-      if (sctx->framebuffer.state.zsbuf && sctx->framebuffer.state.zsbuf->u.tex.level == level &&
-          sctx->framebuffer.state.zsbuf->texture == tex)
+      if (sctx->framebuffer.state.zsbuf.level == level &&
+          sctx->framebuffer.state.zsbuf.texture == tex)
          si_fb_barrier_after_rendering(sctx, SI_FB_BARRIER_SYNC_DB);
 
       si_decompress_depth(sctx, stex, planes, level, level, first_layer, last_layer);
@@ -944,9 +942,8 @@ void si_decompress_subresource(struct pipe_context *ctx, struct pipe_resource *t
        * by dirtying the framebuffer.
        */
       for (unsigned i = 0; i < sctx->framebuffer.state.nr_cbufs; i++) {
-         if (sctx->framebuffer.state.cbufs[i] &&
-             sctx->framebuffer.state.cbufs[i]->u.tex.level == level &&
-             sctx->framebuffer.state.cbufs[i]->texture == tex) {
+         if (sctx->framebuffer.state.cbufs[i].level == level &&
+             sctx->framebuffer.state.cbufs[i].texture == tex) {
             si_fb_barrier_after_rendering(sctx, SI_FB_BARRIER_SYNC_CB);
             break;
          }
@@ -1388,7 +1385,7 @@ static bool si_generate_mipmap(struct pipe_context *ctx, struct pipe_resource *t
 
    /* Clear dirty_level_mask for the levels that will be overwritten. */
    assert(base_level < last_level);
-   stex->dirty_level_mask &= ~u_bit_consecutive(base_level + 1, last_level - base_level);
+   stex->dirty_level_mask &= ~BITFIELD_RANGE(base_level + 1, last_level - base_level);
 
    sctx->generate_mipmap_for_depth = stex->is_depth;
 

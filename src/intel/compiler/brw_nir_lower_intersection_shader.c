@@ -200,10 +200,11 @@ brw_nir_lower_intersection_shader(nir_shader *intersection,
                nir_def *min_t = nir_load_ray_t_min(b);
 
                struct brw_nir_rt_mem_ray_defs ray_def;
-               brw_nir_rt_load_mem_ray(b, &ray_def, BRW_RT_BVH_LEVEL_WORLD);
+               brw_nir_rt_load_mem_ray(b, &ray_def, BRW_RT_BVH_LEVEL_WORLD,
+                                       devinfo);
 
                struct brw_nir_rt_mem_hit_defs hit_in = {};
-               brw_nir_rt_load_mem_hit(b, &hit_in, false);
+               brw_nir_rt_load_mem_hit(b, &hit_in, false, devinfo);
 
                nir_def *max_t = ray_def.t_far;
 
@@ -241,9 +242,37 @@ brw_nir_lower_intersection_shader(nir_shader *intersection,
                         brw_nir_rt_mem_ray_addr(b, brw_nir_rt_stack_addr(b), BRW_RT_BVH_LEVEL_WORLD);
 
                      nir_store_global(b, nir_iadd_imm(b, ray_addr, 16 + 12), 4,  hit_t, 0x1);
-                     nir_store_global(b, t_addr, 4,
-                                      nir_vec2(b, nir_fmin(b, hit_t, hit_in.t), hit_kind),
-                                      0x3);
+                     if (devinfo->ver >= 30) {
+                        /* For Xe3+, the most significant 8 bits of the second
+                         * DW in the potential hit are used to store
+                         * hitGroupIndex0, which will later be used by HW to
+                         * reconstruct the whole hitGroupIndex while issuing a
+                         * TRACE_RAY_COMMIT. So we can't corrupt the data
+                         * stored here. We can still use the lower 24bits to
+                         * store aabb_hit_kind tho.
+                         */
+                        nir_def *potential_hit_dword_1 =
+                           brw_nir_rt_load(b, nir_iadd_imm(b, t_addr, 4), 4, 1, 32);
+                        nir_def *hit_group_index_0 =
+                           nir_iand_imm(b, potential_hit_dword_1, 0xff000000);
+
+                        /* Chop off hit_kind and make it only 24bits. This
+                         * prevents the hit_group_index_0 to be corrupted, but
+                         * also implies the application shouldn't pass a
+                         * gl_HitKindEXT that uses more than 24bits.
+                         */
+                        nir_def *hit_kind_24b = nir_iand_imm(b, hit_kind, 0xffffff);
+                        nir_store_global(b, t_addr, 4,
+                                         nir_vec2(b,
+                                                  nir_fmin(b, hit_t, hit_in.t),
+                                                  nir_ior(b, hit_group_index_0, hit_kind_24b)),
+                                         0x3);
+
+                     } else {
+                        nir_store_global(b, t_addr, 4,
+                                         nir_vec2(b, nir_fmin(b, hit_t, hit_in.t), hit_kind),
+                                         0x3);
+                     }
 
                      /* There may be multiple reportIntersection() calls in
                       * the shader, so if terminateOnFirstHit was requested,
@@ -279,7 +308,7 @@ brw_nir_lower_intersection_shader(nir_shader *intersection,
          }
       }
    }
-   nir_metadata_preserve(impl, nir_metadata_none);
+   nir_progress(true, impl, nir_metadata_none);
 
    /* We did some inlining; have to re-index SSA defs */
    nir_index_ssa_defs(impl);

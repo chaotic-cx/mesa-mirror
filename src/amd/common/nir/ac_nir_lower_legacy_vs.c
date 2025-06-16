@@ -32,7 +32,7 @@ gather_outputs(nir_builder *b, nir_function_impl *impl, ac_nir_prerast_out *out)
    }
 }
 
-void
+bool
 ac_nir_lower_legacy_vs(nir_shader *nir,
                        enum amd_gfx_level gfx_level,
                        uint32_t clip_cull_mask,
@@ -45,7 +45,6 @@ ac_nir_lower_legacy_vs(nir_shader *nir,
                        bool force_vrs)
 {
    nir_function_impl *impl = nir_shader_get_entrypoint(nir);
-   nir_metadata preserved = nir_metadata_control_flow;
 
    nir_builder b = nir_builder_at(nir_after_impl(impl));
 
@@ -65,10 +64,11 @@ ac_nir_lower_legacy_vs(nir_shader *nir,
       nir->info.outputs_written |= BITFIELD64_BIT(VARYING_SLOT_PRIMITIVE_ID);
    }
 
-   if (!disable_streamout && nir->xfb_info) {
+   if (!disable_streamout && nir->xfb_info)
       ac_nir_emit_legacy_streamout(&b, 0, ac_nir_get_sorted_xfb_info(nir), &out);
-      preserved = nir_metadata_none;
-   }
+
+   /* This should be after streamout and before exports. */
+   ac_nir_clamp_vertex_color_outputs(&b, &out);
 
    uint64_t export_outputs = nir->info.outputs_written | VARYING_BIT_POS;
    if (kill_pointsize)
@@ -86,5 +86,5 @@ ac_nir_lower_legacy_vs(nir_shader *nir,
                                &out);
    }
 
-   nir_metadata_preserve(impl, preserved);
+   return nir_progress(true, impl, nir_metadata_none);
 }

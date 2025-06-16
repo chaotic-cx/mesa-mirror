@@ -16,15 +16,16 @@
 #include "util/anon_file.h"
 #include "util/log.h"
 #include "util/macros.h"
-#include "virtgpu_gfxstream_protocol.h"
 #include "vulkan/vulkan_core.h"
 #include "util/detect_os.h"
+#include "virtio/virtio-gpu/virgl_hw.h"
 
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include "vk_format_info.h"
 #include <vndk/hardware_buffer.h>
 #endif
 #include <stdlib.h>
+#include <stdint.h>
 
 #include <algorithm>
 #include <chrono>
@@ -1306,12 +1307,6 @@ void ResourceTracker::setInstanceInfo(VkInstance instance, uint32_t enabledExten
     std::lock_guard<std::recursive_mutex> lock(mLock);
     auto& info = info_VkInstance[instance];
     info.highestApiVersion = apiVersion;
-
-    if (!ppEnabledExtensionNames) return;
-
-    for (uint32_t i = 0; i < enabledExtensionCount; ++i) {
-        info.enabledExtensions.insert(ppEnabledExtensionNames[i]);
-    }
 }
 
 void ResourceTracker::setDeviceInfo(VkDevice device, VkPhysicalDevice physdev,
@@ -1342,18 +1337,13 @@ void ResourceTracker::setDeviceInfo(VkDevice device, VkPhysicalDevice physdev,
         }
         extensionCreateInfo = extensionCreateInfo->pNext;
     }
-
-    if (!ppEnabledExtensionNames) return;
-
-    for (uint32_t i = 0; i < enabledExtensionCount; ++i) {
-        info.enabledExtensions.insert(ppEnabledExtensionNames[i]);
-    }
 }
 
 void ResourceTracker::setDeviceMemoryInfo(VkDevice device, VkDeviceMemory memory,
                                           VkDeviceSize allocationSize, uint8_t* ptr,
                                           uint32_t memoryTypeIndex, void* ahw, bool imported,
-                                          zx_handle_t vmoHandle, VirtGpuResourcePtr blobPtr) {
+                                          zx_handle_t vmoHandle, VirtGpuResourcePtr blobPtr,
+                                          int importedFd) {
     std::lock_guard<std::recursive_mutex> lock(mLock);
     auto& info = info_VkDeviceMemory[memory];
 
@@ -1367,6 +1357,7 @@ void ResourceTracker::setDeviceMemoryInfo(VkDevice device, VkDeviceMemory memory
     info.imported = imported;
     info.vmoHandle = vmoHandle;
     info.blobPtr = blobPtr;
+    info.importedFd = importedFd;
 }
 
 void ResourceTracker::setImageInfo(VkImage image, VkDevice device,
@@ -1705,7 +1696,7 @@ VkResult ResourceTracker::on_vkEnumerateInstanceExtensionProperties(
 
     // Spec:
     //
-    // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkEnumerateInstanceExtensionProperties.html
+    // https://registry.khronos.org/vulkan/specs/latest/man/html/vkEnumerateInstanceExtensionProperties.html
     //
     // If pProperties is NULL, then the number of extensions properties
     // available is returned in pPropertyCount. Otherwise, pPropertyCount
@@ -1792,12 +1783,13 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_KHR_external_fence_fd",
         "VK_EXT_device_memory_report",
 #endif
-#if DETECT_OS_LINUX && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+#ifdef LINUX_GUEST_BUILD
+        // Required by Zink
+        "VK_KHR_imageless_framebuffer",
+        // Passthrough if available on host. Will otherwise be emulated by guest
+        "VK_EXT_image_drm_format_modifier",
         "VK_KHR_external_memory_fd",
 #endif
-        "VK_KHR_multiview",
-        "VK_EXT_color_write_enable",
-
         // Vulkan 1.1
         // "VK_KHR_16bit_storage",
         "VK_KHR_device_group",
@@ -1810,6 +1802,8 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_KHR_shader_draw_parameters",
         "VK_KHR_storage_buffer_storage_class",
         "VK_KHR_variable_pointers",
+        "VK_EXT_color_write_enable",
+        "VK_KHR_multiview",
 
         // Vulkan 1.2
         "VK_KHR_8bit_storage",
@@ -1829,7 +1823,6 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         "VK_EXT_scalar_block_layout",
         "VK_EXT_separate_stencil_usage",
         "VK_EXT_shader_viewport_index_layer",
-
 
         // Vulkan 1.3
         "VK_KHR_synchronization2",
@@ -1948,12 +1941,16 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
         filteredExts.push_back(VkExtensionProperties{"VK_FUCHSIA_external_memory", 1});
         filteredExts.push_back(VkExtensionProperties{"VK_FUCHSIA_buffer_collection", 1});
 #endif
-#if !defined(VK_USE_PLATFORM_ANDROID_KHR) && DETECT_OS_LINUX
-        filteredExts.push_back(VkExtensionProperties{"VK_KHR_external_memory_fd", 1});
-        filteredExts.push_back(VkExtensionProperties{"VK_EXT_external_memory_dma_buf", 1});
-        // In case the host doesn't support format modifiers, they are emulated
-        // on guest side.
-        filteredExts.push_back(VkExtensionProperties{"VK_EXT_image_drm_format_modifier", 1});
+    } else {
+#ifdef LINUX_GUEST_BUILD
+        // Note: Linux gfxstream-vulkan driver automatically assumes some form of external memory
+        // support on the host, and advertises VK_KHR_external_memory_fd and
+        // VK_EXT_external_memory_dma_buf unconditionally.
+        mesa_logw(
+            "%s: Did not recognize any form of external memory support on the host device/driver. "
+            "This may result in some unexpected functionality, "
+            "specifically when using external memory Vulkan extensions.",
+            __func__);
 #endif
     }
 
@@ -1977,14 +1974,14 @@ VkResult ResourceTracker::on_vkEnumerateDeviceExtensionProperties(
 
     // Spec:
     //
-    // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkEnumerateDeviceExtensionProperties.html
+    // https://registry.khronos.org/vulkan/specs/latest/man/html/vkEnumerateDeviceExtensionProperties.html
     //
     // pPropertyCount is a pointer to an integer related to the number of
     // extension properties available or queried, and is treated in the
     // same fashion as the
     // vkEnumerateInstanceExtensionProperties::pPropertyCount parameter.
     //
-    // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkEnumerateInstanceExtensionProperties.html
+    // https://registry.khronos.org/vulkan/specs/latest/man/html/vkEnumerateInstanceExtensionProperties.html
     //
     // If pProperties is NULL, then the number of extensions properties
     // available is returned in pPropertyCount. Otherwise, pPropertyCount
@@ -2039,7 +2036,7 @@ VkResult ResourceTracker::on_vkEnumeratePhysicalDevices(void* context, VkResult,
     // even if the guest did not ask for it
     // - Serve the guest query according to the spec:
     //
-    // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkEnumeratePhysicalDevices.html
+    // https://registry.khronos.org/vulkan/specs/latest/man/html/vkEnumeratePhysicalDevices.html
 
     auto it = info_VkInstance.find(instance);
 
@@ -2082,7 +2079,7 @@ VkResult ResourceTracker::on_vkEnumeratePhysicalDevices(void* context, VkResult,
 
     // Serve the guest query according to the spec.
     //
-    // https://www.khronos.org/registry/vulkan/specs/1.1-extensions/man/html/vkEnumeratePhysicalDevices.html
+    // https://registry.khronos.org/vulkan/specs/latest/man/html/vkEnumeratePhysicalDevices.html
     //
     // If pPhysicalDevices is NULL, then the number of physical devices
     // available is returned in pPhysicalDeviceCount. Otherwise,
@@ -2120,7 +2117,7 @@ VkResult ResourceTracker::on_vkEnumeratePhysicalDevices(void* context, VkResult,
 
 void ResourceTracker::on_vkGetPhysicalDeviceProperties(void*, VkPhysicalDevice,
                                                        VkPhysicalDeviceProperties* pProperties) {
-#if DETECT_OS_LINUX && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+#ifdef LINUX_GUEST_BUILD
     if (pProperties) {
         if (VK_PHYSICAL_DEVICE_TYPE_CPU == pProperties->deviceType) {
             /* For Linux guest: Even if host driver reports DEVICE_TYPE_CPU,
@@ -2155,6 +2152,42 @@ void ResourceTracker::on_vkGetPhysicalDeviceProperties2(void* context,
                                                         VkPhysicalDeviceProperties2* pProperties) {
     if (pProperties) {
         on_vkGetPhysicalDeviceProperties(context, physicalDevice, &pProperties->properties);
+
+        VkPhysicalDeviceDrmPropertiesEXT* drmProps =
+            vk_find_struct(pProperties, PHYSICAL_DEVICE_DRM_PROPERTIES_EXT);
+        if (drmProps) {
+            VirtGpuDrmInfo drmInfo;
+            if (VirtGpuDevice::getInstance()->getDrmInfo(&drmInfo)) {
+                drmProps->hasPrimary = drmInfo.hasPrimary;
+                drmProps->hasRender = drmInfo.hasRender;
+                drmProps->primaryMajor = drmInfo.primaryMajor;
+                drmProps->primaryMinor = drmInfo.primaryMinor;
+                drmProps->renderMajor = drmInfo.renderMajor;
+                drmProps->renderMinor = drmInfo.renderMinor;
+            } else {
+                mesa_logd(
+                    "%s: encountered VkPhysicalDeviceDrmPropertiesEXT in pProperties::pNext chain, "
+                    "but failed to query DrmInfo from the VirtGpuDevice",
+                    __func__);
+            }
+        }
+
+        VkPhysicalDevicePCIBusInfoPropertiesEXT* pciBusInfoProps =
+            vk_find_struct(pProperties, PHYSICAL_DEVICE_PCI_BUS_INFO_PROPERTIES_EXT);
+        if (pciBusInfoProps) {
+            VirtGpuPciBusInfo pciBusInfo;
+            if (VirtGpuDevice::getInstance()->getPciBusInfo(&pciBusInfo)) {
+                pciBusInfoProps->pciDomain = pciBusInfo.domain;
+                pciBusInfoProps->pciBus = pciBusInfo.bus;
+                pciBusInfoProps->pciDevice = pciBusInfo.device;
+                pciBusInfoProps->pciFunction = pciBusInfo.function;
+            } else {
+                mesa_logd(
+                    "%s: encountered VkPhysicalDevicePCIBusInfoPropertiesEXT in pProperties::pNext "
+                    "chain, but failed to query PciBusInfo from the VirtGpuDevice",
+                    __func__);
+            }
+        }
     }
 }
 
@@ -3351,13 +3384,6 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
     void* ahw = nullptr;
 #endif
 
-#if DETECT_OS_LINUX && !defined(VK_USE_PLATFORM_ANDROID_KHR)
-    const VkImportMemoryFdInfoKHR* importFdInfoPtr =
-        vk_find_struct_const(pAllocateInfo, IMPORT_MEMORY_FD_INFO_KHR);
-#else
-    const VkImportMemoryFdInfoKHR* importFdInfoPtr = nullptr;
-#endif
-
 #ifdef VK_USE_PLATFORM_FUCHSIA
     const VkImportMemoryBufferCollectionFUCHSIA* importBufferCollectionInfoPtr =
         vk_find_struct_const(pAllocateInfo, IMPORT_MEMORY_BUFFER_COLLECTION_FUCHSIA);
@@ -3421,8 +3447,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                     VK_EXTERNAL_MEMORY_HANDLE_TYPE_ZIRCON_VMO_BIT_FUCHSIA;
 #endif  // VK_USE_PLATFORM_FUCHSIA
         exportDmabuf =
-            exportAllocateInfoPtr->handleTypes & (VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
-                                                  VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
+            (exportAllocateInfoPtr->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
     } else if (importAhbInfoPtr) {
         importAhb = true;
     } else if (importBufferCollectionInfoPtr) {
@@ -3431,10 +3456,11 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         importVmo = true;
     }
 
+    const VkImportMemoryFdInfoKHR* importFdInfoPtr =
+        vk_find_struct_const(pAllocateInfo, IMPORT_MEMORY_FD_INFO_KHR);
     if (importFdInfoPtr) {
         importDmabuf =
-            (importFdInfoPtr->handleType & (VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT |
-                                            VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT));
+            (importFdInfoPtr->handleType & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
     }
     bool isImport = importAhb || importBufferCollection || importVmo || importDmabuf;
 
@@ -3806,8 +3832,27 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 #endif
 
     VirtGpuResourcePtr bufferBlob = nullptr;
+    int importedFd = -1;
 #if defined(LINUX_GUEST_BUILD)
-    if (exportDmabuf) {
+    // Check for import first; this takes precedence over exportDmabuf in creating the
+    // VirtGpuResource
+    if (importDmabuf) {
+        VirtGpuExternalHandle importHandle = {};
+        // importBlob impl may close the receivedFd after it creates an GEM handle from it. dup()
+        // the FD here for input to that impl, then manage the original FD at the Vulkan level
+        importHandle.osHandle = dup(importFdInfoPtr->fd);
+        importHandle.type = kMemHandleDmabuf;
+
+        auto instance = VirtGpuDevice::getInstance();
+        bufferBlob = instance->importBlob(importHandle);
+        if (!bufferBlob) {
+            mesa_loge("%s: Failed to import colorBuffer resource\n", __func__);
+            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+        }
+        // As per the Vulkan spec, the ownership of this FD has been transferred
+        // to the implementation
+        importedFd = importFdInfoPtr->fd;
+    } else if (exportDmabuf) {
         VirtGpuDevice* instance = VirtGpuDevice::getInstance();
         hasDedicatedImage =
             dedicatedAllocInfoPtr && (dedicatedAllocInfoPtr->image != VK_NULL_HANDLE);
@@ -3816,7 +3861,6 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 
         if (hasDedicatedImage) {
             VkImageCreateInfo imageCreateInfo;
-            bool isDmaBufImage = false;
             {
                 std::lock_guard<std::recursive_mutex> lock(mLock);
 
@@ -3825,96 +3869,91 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
                 const auto& imageInfo = it->second;
 
                 imageCreateInfo = imageInfo.createInfo;
-                isDmaBufImage = imageInfo.isDmaBufImage;
             }
 
-            if (isDmaBufImage) {
-                const VkImageSubresource imageSubresource = {
-                    .aspectMask = exportAllocateInfoPtr->handleTypes &
-                                          VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT
-                                      ? VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT
-                                      : VK_IMAGE_ASPECT_COLOR_BIT,
-                    .mipLevel = 0,
-                    .arrayLayer = 0,
-                };
-                VkSubresourceLayout subResourceLayout;
-                on_vkGetImageSubresourceLayout(context, device, dedicatedAllocInfoPtr->image,
-                                               &imageSubresource, &subResourceLayout);
-                if (!subResourceLayout.rowPitch) {
-                    mesa_loge("Failed to query stride for VirtGpu resource creation.");
-                    return VK_ERROR_INITIALIZATION_FAILED;
+            // Need to query the stride of the underyling image resource
+            // (VkSubresourceLayout::rowPitch) In most cases, the application will have created the
+            // VkImage w/ VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT, in which case the aspectMask to
+            // query is the PLANE_0_BIT resource. Otherwise, query the more generic COLOR_BIT.
+            // Note: For VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT, the image may actually be emulated
+            // with VK_IMAGE_TILING_LINEAR.
+            const VkImageSubresource imageSubresource = {
+                .aspectMask = (imageCreateInfo.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT)
+                                  ? VK_IMAGE_ASPECT_MEMORY_PLANE_0_BIT_EXT
+                                  : VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = 0,
+                .arrayLayer = 0,
+            };
+            VkSubresourceLayout subResourceLayout;
+            enc->vkGetImageSubresourceLayout(device, dedicatedAllocInfoPtr->image,
+                                             &imageSubresource, &subResourceLayout,
+                                             true /* do lock */);
+            if (!subResourceLayout.rowPitch) {
+                mesa_loge("Failed to query stride for VirtGpu resource creation.");
+                return VK_ERROR_INITIALIZATION_FAILED;
+            }
+
+            uint32_t virglFormat = gfxstream::vk::getVirglFormat(imageCreateInfo.format);
+            if (!virglFormat) {
+                mesa_loge("Unsupported VK format for VirtGpu resource, vkFormat: 0x%x",
+                          imageCreateInfo.format);
+                return VK_ERROR_FORMAT_NOT_SUPPORTED;
+            }
+            const uint32_t target = PIPE_TEXTURE_2D;
+            uint32_t bind = VIRGL_BIND_RENDER_TARGET;
+
+            if (mCaps.vulkanCapset.alwaysBlob) {
+                struct gfxstreamResourceCreate3d create3d = {};
+                struct VirtGpuExecBuffer exec = {};
+                struct gfxstreamPlaceholderCommandVk placeholderCmd = {};
+                struct VirtGpuCreateBlob createBlob = {};
+
+                create3d.hdr.opCode = GFXSTREAM_RESOURCE_CREATE_3D;
+                create3d.bind = bind;
+                create3d.target = target;
+                create3d.format = virglFormat;
+                create3d.width = imageCreateInfo.extent.width;
+                create3d.height = imageCreateInfo.extent.height;
+                create3d.blobId = ++mAtomicId;
+
+                createBlob.blobCmd = reinterpret_cast<uint8_t*>(&create3d);
+                createBlob.blobCmdSize = sizeof(create3d);
+                createBlob.blobMem = kBlobMemHost3d;
+                createBlob.flags = kBlobFlagShareable | kBlobFlagCrossDevice;
+                createBlob.blobId = create3d.blobId;
+                createBlob.size = finalAllocInfo.allocationSize;
+
+                bufferBlob = instance->createBlob(createBlob);
+                if (!bufferBlob) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+                placeholderCmd.hdr.opCode = GFXSTREAM_PLACEHOLDER_COMMAND_VK;
+                exec.command = static_cast<void*>(&placeholderCmd);
+                exec.command_size = sizeof(placeholderCmd);
+                exec.flags = kRingIdx;
+                exec.ring_idx = 1;
+                if (instance->execBuffer(exec, bufferBlob.get())) {
+                    mesa_loge("Failed to execbuffer placeholder command.");
+                    return VK_ERROR_OUT_OF_HOST_MEMORY;
                 }
 
-                uint32_t virglFormat = gfxstream::vk::getVirglFormat(imageCreateInfo.format);
-                if (!virglFormat) {
-                    mesa_loge("Unsupported VK format for VirtGpu resource, vkFormat: 0x%x",
-                              imageCreateInfo.format);
-                    return VK_ERROR_FORMAT_NOT_SUPPORTED;
-                }
-                const uint32_t target = PIPE_TEXTURE_2D;
-                uint32_t bind = VIRGL_BIND_RENDER_TARGET;
-                if (VK_IMAGE_TILING_LINEAR == imageCreateInfo.tiling) {
-                    bind |= VIRGL_BIND_LINEAR;
-                }
-
-                if (mCaps.vulkanCapset.alwaysBlob) {
-                    struct gfxstreamResourceCreate3d create3d = {};
-                    struct VirtGpuExecBuffer exec = {};
-                    struct gfxstreamPlaceholderCommandVk placeholderCmd = {};
-                    struct VirtGpuCreateBlob createBlob = {};
-
-                    create3d.hdr.opCode = GFXSTREAM_RESOURCE_CREATE_3D;
-                    create3d.bind = bind;
-                    create3d.target = target;
-                    create3d.format = virglFormat;
-                    create3d.width = imageCreateInfo.extent.width;
-                    create3d.height = imageCreateInfo.extent.height;
-                    create3d.blobId = ++mAtomicId;
-
-                    createBlob.blobCmd = reinterpret_cast<uint8_t*>(&create3d);
-                    createBlob.blobCmdSize = sizeof(create3d);
-                    createBlob.blobMem = kBlobMemHost3d;
-                    createBlob.flags = kBlobFlagShareable | kBlobFlagCrossDevice;
-                    createBlob.blobId = create3d.blobId;
-                    createBlob.size = finalAllocInfo.allocationSize;
-
-                    bufferBlob = instance->createBlob(createBlob);
-                    if (!bufferBlob) return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-
-                    placeholderCmd.hdr.opCode = GFXSTREAM_PLACEHOLDER_COMMAND_VK;
-                    exec.command = static_cast<void*>(&placeholderCmd);
-                    exec.command_size = sizeof(placeholderCmd);
-                    exec.flags = kRingIdx;
-                    exec.ring_idx = 1;
-                    if (instance->execBuffer(exec, bufferBlob.get())) {
-                        mesa_loge("Failed to execbuffer placeholder command.");
-                        return VK_ERROR_OUT_OF_HOST_MEMORY;
-                    }
-
-                    if (bufferBlob->wait()) {
-                        mesa_loge("Failed to wait for blob.");
-                        return VK_ERROR_OUT_OF_HOST_MEMORY;
-                    }
-                } else {
-                    bufferBlob = instance->createResource(
-                        imageCreateInfo.extent.width, imageCreateInfo.extent.height,
-                        subResourceLayout.rowPitch,
-                        subResourceLayout.rowPitch * imageCreateInfo.extent.height, virglFormat,
-                        target, bind);
-                    if (!bufferBlob) {
-                        mesa_loge("Failed to create colorBuffer resource for Image memory");
-                        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-                    }
-                    if (bufferBlob->wait()) {
-                        mesa_loge("Failed to wait for colorBuffer resource for Image memory");
-                        return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-                    }
+                if (bufferBlob->wait()) {
+                    mesa_loge("Failed to wait for blob.");
+                    return VK_ERROR_OUT_OF_HOST_MEMORY;
                 }
             } else {
-                mesa_logw(
-                    "The VkMemoryDedicatedAllocateInfo::image associated with VkDeviceMemory "
-                    "allocation cannot be used to create exportable resource "
-                    "(VkExportMemoryAllocateInfo).\n");
+                bufferBlob = instance->createResource(
+                    imageCreateInfo.extent.width, imageCreateInfo.extent.height,
+                    subResourceLayout.rowPitch,
+                    subResourceLayout.rowPitch * imageCreateInfo.extent.height, virglFormat, target,
+                    bind);
+                if (!bufferBlob) {
+                    mesa_loge("Failed to create colorBuffer resource for Image memory");
+                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                }
+                if (bufferBlob->wait()) {
+                    mesa_loge("Failed to wait for colorBuffer resource for Image memory");
+                    return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+                }
             }
         } else if (hasDedicatedBuffer) {
             uint32_t virglFormat = VIRGL_FORMAT_R8_UNORM;
@@ -3977,19 +4016,6 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         }
     }
 
-    if (importDmabuf) {
-        VirtGpuExternalHandle importHandle = {};
-        importHandle.osHandle = importFdInfoPtr->fd;
-        importHandle.type = kMemHandleDmabuf;
-
-        auto instance = VirtGpuDevice::getInstance();
-        bufferBlob = instance->importBlob(importHandle);
-        if (!bufferBlob) {
-            mesa_loge("%s: Failed to import colorBuffer resource\n", __func__);
-            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
-        }
-    }
-
     if (bufferBlob) {
         if (hasDedicatedBuffer) {
             importBufferInfo.buffer = bufferBlob->getResourceHandle();
@@ -4008,7 +4034,7 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
         if (input_result != VK_SUCCESS) _RETURN_FAILURE_WITH_DEVICE_MEMORY_REPORT(input_result);
 
         setDeviceMemoryInfo(device, *pMemory, 0, nullptr, finalAllocInfo.memoryTypeIndex, ahw,
-                            isImport, vmo_handle, bufferBlob);
+                            isImport, vmo_handle, bufferBlob, importedFd);
 
         uint64_t memoryObjectId = (uint64_t)(void*)*pMemory;
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
@@ -4055,7 +4081,8 @@ VkResult ResourceTracker::on_vkAllocateMemory(void* context, VkResult input_resu
 
         setDeviceMemoryInfo(device, *pMemory, finalAllocInfo.allocationSize,
                             reinterpret_cast<uint8_t*>(addr), finalAllocInfo.memoryTypeIndex,
-                            /*ahw=*/nullptr, isImport, vmo_handle, /*blobPtr=*/nullptr);
+                            /*ahw=*/nullptr, isImport, vmo_handle, /*blobPtr=*/nullptr,
+                            /*importedFd=*/-1);
         return VK_SUCCESS;
     }
 #endif
@@ -4094,6 +4121,10 @@ void ResourceTracker::on_vkFreeMemory(void* context, VkDevice device, VkDeviceMe
         memoryObjectId = getAHardwareBufferId(info.ahw);
     }
 #endif
+    if (info.importedFd >= 0) {
+        close(info.importedFd);
+        info.importedFd = -1;
+    }
 
     emitDeviceMemoryReport(info_VkDevice[device],
                            info.imported ? VK_DEVICE_MEMORY_REPORT_EVENT_TYPE_UNIMPORT_EXT
@@ -4276,10 +4307,10 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
     }
 
 #if defined(LINUX_GUEST_BUILD)
-    bool isDmaBufImage = false;
     VkImageDrmFormatModifierExplicitCreateInfoEXT localDrmFormatModifierInfo;
     VkImageDrmFormatModifierListCreateInfoEXT localDrmFormatModifierList;
 
+    // If the VkImage will be bound to guest-dmabuf memory
     if (extImgCiPtr &&
         (extImgCiPtr->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
         const wsi_image_create_info* wsiImageCi =
@@ -4297,9 +4328,35 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
             vk_find_struct_const(pCreateInfo, IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT);
         const VkImageDrmFormatModifierListCreateInfoEXT* drmFmtModList =
             vk_find_struct_const(pCreateInfo, IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT);
-        if (drmFmtMod || drmFmtModList) {
-            if (getHostDeviceExtensionIndex(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) !=
-                -1) {
+        if ((pCreateInfo->tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) &&
+            (drmFmtMod || drmFmtModList)) {
+            VkPhysicalDevice physicalDevice;
+            {
+                std::lock_guard<std::recursive_mutex> lock(mLock);
+                auto it = info_VkDevice.find(device);
+                if (it == info_VkDevice.end()) return VK_ERROR_UNKNOWN;
+                physicalDevice = it->second.physdev;
+            }
+            if (doImageDrmFormatModifierEmulation(physicalDevice)) {
+                bool canUseLinearModifier =
+                    (drmFmtMod && drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR) ||
+                    std::any_of(
+                        drmFmtModList->pDrmFormatModifiers,
+                        drmFmtModList->pDrmFormatModifiers + drmFmtModList->drmFormatModifierCount,
+                        [](const uint64_t mod) { return mod == DRM_FORMAT_MOD_LINEAR; });
+                // host doesn't support DRM format modifiers, try emulating
+                if (canUseLinearModifier) {
+                    mesa_logd(
+                        "vkCreateImage: emulating DRM_FORMAT_MOD_LINEAR with "
+                        "VK_IMAGE_TILING_LINEAR");
+                    localCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
+                } else {
+                    mesa_loge(
+                        "Host does not support DRM format modifiers; DRM_FORMAT_MOD_LINEAR must be "
+                        "provided, as it is the only format modifier that can be emulated");
+                    return VK_ERROR_FORMAT_NOT_SUPPORTED;
+                }
+            } else {
                 // host supports DRM format modifiers => forward the struct
                 if (drmFmtMod) {
                     localDrmFormatModifierInfo = vk_make_orphan_copy(*drmFmtMod);
@@ -4309,24 +4366,8 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
                     localDrmFormatModifierList = vk_make_orphan_copy(*drmFmtModList);
                     vk_append_struct(&structChainIter, &localDrmFormatModifierList);
                 }
-            } else {
-                bool canUseLinearModifier =
-                    (drmFmtMod && drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR) ||
-                    std::any_of(
-                        drmFmtModList->pDrmFormatModifiers,
-                        drmFmtModList->pDrmFormatModifiers + drmFmtModList->drmFormatModifierCount,
-                        [](const uint64_t mod) { return mod == DRM_FORMAT_MOD_LINEAR; });
-                // host doesn't support DRM format modifiers, try emulating
-                if (canUseLinearModifier) {
-                    mesa_logd("emulating DRM_FORMAT_MOD_LINEAR with VK_IMAGE_TILING_LINEAR");
-                    localCreateInfo.tiling = VK_IMAGE_TILING_LINEAR;
-                } else {
-                    return VK_ERROR_VALIDATION_FAILED_EXT;
-                }
             }
         }
-
-        isDmaBufImage = true;
     }
 #endif
 
@@ -4516,37 +4557,9 @@ VkResult ResourceTracker::on_vkCreateImage(void* context, VkResult, VkDevice dev
     if (mCaps.vulkanCapset.colorBufferMemoryIndex == 0xFFFFFFFF) {
         mCaps.vulkanCapset.colorBufferMemoryIndex = getColorBufferMemoryIndex(context, device);
     }
-    info.isDmaBufImage = isDmaBufImage;
-    if (info.isDmaBufImage) {
+    if (extImgCiPtr &&
+        (extImgCiPtr->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
         updateMemoryTypeBits(&memReqs.memoryTypeBits, mCaps.vulkanCapset.colorBufferMemoryIndex);
-        if (localCreateInfo.tiling == VK_IMAGE_TILING_OPTIMAL) {
-            // Linux WSI calls vkGetImageSubresourceLayout() to query the stride for swapchain
-            // support. Similarly, stride is also queried from vkGetImageSubresourceLayout() to
-            // determine the stride for colorBuffer resource creation (guest-side dmabuf resource).
-            // To satisfy valid usage of this API, must call on the linearPeerImage for the VkImage
-            // in question. As long as these two use cases match, the rowPitch won't actually be
-            // used by WSI.
-            VkImageCreateInfo linearPeerImageCreateInfo = {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-                .pNext = nullptr,
-                .flags = {},
-                .imageType = VK_IMAGE_TYPE_2D,
-                .format = localCreateInfo.format,
-                .extent = localCreateInfo.extent,
-                .mipLevels = 1,
-                .arrayLayers = 1,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .tiling = VK_IMAGE_TILING_LINEAR,
-                .usage = VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-                .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-                .queueFamilyIndexCount = 0,
-                .pQueueFamilyIndices = nullptr,
-                .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            };
-            res = enc->vkCreateImage(device, &linearPeerImageCreateInfo, pAllocator,
-                                     &info.linearPeerImage, true /* do lock */);
-            if (res != VK_SUCCESS) return res;
-        }
     }
 #endif
 
@@ -4965,7 +4978,11 @@ VkResult ResourceTracker::on_vkGetFenceStatus(void* context, VkResult input_resu
 
         auto fenceInfoIt = info_VkFence.find(fence);
         if (fenceInfoIt == info_VkFence.end()) {
+#if VK_USE_64_BIT_PTR_DEFINES
             mesa_loge("Failed to find VkFence:%p", fence);
+#else
+            mesa_loge("Failed to find VkFence:0x%" PRIx64, fence);
+#endif
             return VK_NOT_READY;
         }
         auto& fenceInfo = fenceInfoIt->second;
@@ -5441,15 +5458,6 @@ void ResourceTracker::on_vkDestroyImage(void* context, VkDevice device, VkImage 
     }
 #endif
     VkEncoder* enc = (VkEncoder*)context;
-#if defined(LINUX_GUEST_BUILD)
-    auto imageInfoIt = info_VkImage.find(image);
-    if (imageInfoIt != info_VkImage.end()) {
-        auto& imageInfo = imageInfoIt->second;
-        if (imageInfo.linearPeerImage) {
-            enc->vkDestroyImage(device, imageInfo.linearPeerImage, pAllocator, true /* do lock */);
-        }
-    }
-#endif
     enc->vkDestroyImage(device, image, pAllocator, true /* do lock */);
 }
 
@@ -5497,21 +5505,29 @@ void ResourceTracker::on_vkGetImageMemoryRequirements2KHR(
     transformImageMemoryRequirements2ForGuest(pInfo->image, pMemoryRequirements);
 }
 
-void ResourceTracker::on_vkGetImageSubresourceLayout(void* context, VkDevice device, VkImage image,
-                                                     const VkImageSubresource* pSubresource,
-                                                     VkSubresourceLayout* pLayout) {
-    VkEncoder* enc = (VkEncoder*)context;
-    VkImage targetImage = image;
-#if defined(LINUX_GUEST_BUILD)
-    auto it = info_VkImage.find(image);
-    if (it == info_VkImage.end()) return;
-    const auto& info = it->second;
-    if (info.linearPeerImage) {
-        targetImage = info.linearPeerImage;
+VkResult ResourceTracker::on_vkGetImageDrmFormatModifierPropertiesEXT(
+    void* context, VkResult, VkDevice device, VkImage image,
+    VkImageDrmFormatModifierPropertiesEXT* pProperties) {
+#ifdef LINUX_GUEST_BUILD
+    auto it = info_VkDevice.find(device);
+    if (it == info_VkDevice.end()) return VK_ERROR_UNKNOWN;
+    if (doImageDrmFormatModifierEmulation(it->second.physdev)) {
+        // This is the only format modifier that will be used in emulation
+        pProperties->drmFormatModifier = DRM_FORMAT_MOD_LINEAR;
+        return VK_SUCCESS;
+    } else {
+        // Passthrough to host
+        VkEncoder* enc = (VkEncoder*)context;
+        return enc->vkGetImageDrmFormatModifierPropertiesEXT(device, image, pProperties,
+                                                             true /* do lock */);
     }
+#else
+    (void)context;
+    (void)device;
+    (void)image;
+    (void)pProperties;
+    return VK_ERROR_INCOMPATIBLE_DRIVER;
 #endif
-    enc->vkGetImageSubresourceLayout(device, targetImage, pSubresource, pLayout,
-                                     true /* do lock */);
 }
 
 VkResult ResourceTracker::on_vkBindImageMemory(void* context, VkResult, VkDevice device,
@@ -5864,7 +5880,7 @@ void ResourceTracker::on_vkDestroySemaphore(void* context, VkDevice device, VkSe
     enc->vkDestroySemaphore(device, semaphore, pAllocator, true /* do lock */);
 }
 
-// https://www.khronos.org/registry/vulkan/specs/1.0-extensions/html/vkspec.html#vkGetSemaphoreFdKHR
+// https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#vkGetSemaphoreFdKHR
 // Each call to vkGetSemaphoreFdKHR must create a new file descriptor and transfer ownership
 // of it to the application. To avoid leaking resources, the application must release ownership
 // of the file descriptor when it is no longer needed.
@@ -5978,7 +5994,7 @@ VkResult ResourceTracker::on_vkImportSemaphoreFdKHR(
 VkResult ResourceTracker::on_vkGetMemoryFdPropertiesKHR(
     void* context, VkResult, VkDevice device, VkExternalMemoryHandleTypeFlagBits handleType, int fd,
     VkMemoryFdPropertiesKHR* pMemoryFdProperties) {
-#if DETECT_OS_LINUX && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+#ifdef LINUX_GUEST_BUILD
     if (!(handleType & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT)) {
         mesa_loge("%s: VK_KHR_external_memory_fd behavior not defined for handleType: 0x%x\n",
                   __func__, handleType);
@@ -6013,7 +6029,7 @@ VkResult ResourceTracker::on_vkGetMemoryFdPropertiesKHR(
 
 VkResult ResourceTracker::on_vkGetMemoryFdKHR(void* context, VkResult, VkDevice device,
                                               const VkMemoryGetFdInfoKHR* pGetFdInfo, int* pFd) {
-#if DETECT_OS_LINUX && !defined(VK_USE_PLATFORM_ANDROID_KHR)
+#ifdef LINUX_GUEST_BUILD
     if (!pGetFdInfo) return VK_ERROR_OUT_OF_HOST_MEMORY;
     if (!pGetFdInfo->memory) return VK_ERROR_OUT_OF_HOST_MEMORY;
 
@@ -6205,7 +6221,7 @@ VkResult ResourceTracker::on_vkQueueSubmit(void* context, VkResult input_result,
         }
     }
 
-    return on_vkQueueSubmitTemplate<VkSubmitInfo>(context, input_result, queue, submitCount,
+    return on_vkQueueSubmitTemplate<VkSubmitInfo, VkSemaphore>(context, input_result, queue, submitCount,
                                                   pSubmits, fence);
 }
 
@@ -6213,7 +6229,7 @@ VkResult ResourceTracker::on_vkQueueSubmit2(void* context, VkResult input_result
                                             uint32_t submitCount, const VkSubmitInfo2* pSubmits,
                                             VkFence fence) {
     MESA_TRACE_SCOPE("on_vkQueueSubmit2");
-    return on_vkQueueSubmitTemplate<VkSubmitInfo2>(context, input_result, queue, submitCount,
+    return on_vkQueueSubmitTemplate<VkSubmitInfo2, VkSemaphoreSubmitInfo>(context, input_result, queue, submitCount,
                                                    pSubmits, fence);
 }
 
@@ -6237,24 +6253,144 @@ VkResult ResourceTracker::vkQueueSubmitEnc(VkEncoder* enc, VkQueue queue, uint32
     }
 }
 
-template <typename VkSubmitInfoType>
+static void pruneWaitSemaphores(const std::vector<VkSemaphore> toRemove,
+    VkSubmitInfo& submitInfo,
+    const VkTimelineSemaphoreSubmitInfo* currTssi,
+    std::vector<VkSemaphore>& newSemList,
+    std::vector<VkPipelineStageFlags>& newWaitDstStageMaskList,
+    VkTimelineSemaphoreSubmitInfo& newTssi,
+    std::vector<uint64_t>& newSemValueList)
+{
+    newSemList.clear();
+    newSemValueList.clear();
+    for (uint32_t i = 0; i < submitInfo.waitSemaphoreCount; i++) {
+        auto it = std::find(toRemove.begin(), toRemove.end(), submitInfo.pWaitSemaphores[i]);
+        if (it == toRemove.end()) {
+            newSemList.push_back(submitInfo.pWaitSemaphores[i]);
+            newWaitDstStageMaskList.push_back(submitInfo.pWaitDstStageMask[i]);
+            if (currTssi) {
+                newSemValueList.push_back(currTssi->pWaitSemaphoreValues[i]);
+            }
+        }
+    }
+    submitInfo.waitSemaphoreCount = static_cast<uint32_t>(newSemList.size());
+    submitInfo.pWaitSemaphores = newSemList.data();
+    submitInfo.pWaitDstStageMask = newWaitDstStageMaskList.data();
+    if (newSemValueList.size() > 0) {
+        newTssi.waitSemaphoreValueCount = static_cast<uint32_t>(newSemValueList.size());
+        newTssi.pWaitSemaphoreValues = newSemValueList.data();
+        submitInfo.pNext = &newTssi;
+    }
+}
+
+static void pruneWaitSemaphores(const std::vector<VkSemaphore> toRemove,
+    VkSubmitInfo2& submitInfo,
+    const VkTimelineSemaphoreSubmitInfo* currTssi,
+    std::vector<VkSemaphoreSubmitInfo>& newSemList,
+    std::vector<VkPipelineStageFlags>& newWaitDstStageMaskList,
+    VkTimelineSemaphoreSubmitInfo& newTssi,
+    std::vector<uint64_t>& newSemValueList)
+{
+    // All of this info is contained in VkSubmitInfo2, so goes unused in this implementation
+    // of pruneWaitSemaphores
+    (void)newWaitDstStageMaskList;
+    (void)newTssi;
+    (void)newSemValueList;
+    newSemList.clear();
+    for (uint32_t i = 0; i < submitInfo.waitSemaphoreInfoCount; i++) {
+        auto it = std::find(toRemove.begin(), toRemove.end(), submitInfo.pWaitSemaphoreInfos[i].semaphore);
+        if (it == toRemove.end()) {
+            newSemList.push_back(submitInfo.pWaitSemaphoreInfos[i]);
+        }
+    }
+    submitInfo.waitSemaphoreInfoCount = static_cast<uint32_t>(newSemList.size());
+    submitInfo.pWaitSemaphoreInfos = newSemList.data();
+}
+
+static void pruneSignalSemaphores(const std::vector<VkSemaphore> toRemove,
+    VkSubmitInfo& submitInfo,
+    const VkTimelineSemaphoreSubmitInfo* currTssi,
+    std::vector<VkSemaphore>& newSemList,
+    VkTimelineSemaphoreSubmitInfo& newTssi,
+    std::vector<uint64_t>& newSemValueList)
+{
+    newSemList.clear();
+    newSemValueList.clear();
+    for (uint32_t i = 0; i < submitInfo.signalSemaphoreCount; i++) {
+        auto it = std::find(toRemove.begin(), toRemove.end(), submitInfo.pSignalSemaphores[i]);
+        if (it == toRemove.end()) {
+            newSemList.push_back(submitInfo.pSignalSemaphores[i]);
+            if (currTssi) {
+                newSemValueList.push_back(currTssi->pSignalSemaphoreValues[i]);
+            }
+        }
+    }
+    submitInfo.signalSemaphoreCount = static_cast<uint32_t>(newSemList.size());
+    submitInfo.pSignalSemaphores = newSemList.data();
+    if (newSemValueList.size() > 0) {
+        newTssi.signalSemaphoreValueCount = static_cast<uint32_t>(newSemValueList.size());
+        newTssi.pSignalSemaphoreValues = newSemValueList.data();
+        submitInfo.pNext = &newTssi;
+    }
+}
+
+static void pruneSignalSemaphores(const std::vector<VkSemaphore> toRemove,
+    VkSubmitInfo2& submitInfo,
+    const VkTimelineSemaphoreSubmitInfo* currTssi,
+    std::vector<VkSemaphoreSubmitInfo>& newSemList,
+    VkTimelineSemaphoreSubmitInfo& newTssi,
+    std::vector<uint64_t>& newSemValueList)
+{
+    // All of this info is contained in VkSubmitInfo2, so goes unused in this implementation
+    // of pruneSignalSemaphores
+    (void)newTssi;
+    (void)newSemValueList;
+    newSemList.clear();
+    for (uint32_t i = 0; i < submitInfo.signalSemaphoreInfoCount; i++) {
+        auto it = std::find(toRemove.begin(), toRemove.end(), submitInfo.pSignalSemaphoreInfos[i].semaphore);
+        if (it == toRemove.end()) {
+            newSemList.push_back(submitInfo.pSignalSemaphoreInfos[i]);
+        }
+    }
+    submitInfo.signalSemaphoreInfoCount = static_cast<uint32_t>(newSemList.size());
+    submitInfo.pSignalSemaphoreInfos = newSemList.data();
+}
+
+template <typename VkSubmitInfoType, typename VkSemaphoreInfoType>
 VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input_result,
                                                    VkQueue queue, uint32_t submitCount,
                                                    const VkSubmitInfoType* pSubmits,
                                                    VkFence fence) {
     flushStagingStreams(context, queue, submitCount, pSubmits);
 
+#ifdef VK_USE_PLATFORM_FUCHSIA
     std::vector<VkSemaphore> pre_signal_semaphores;
     std::vector<zx_handle_t> pre_signal_events;
-    std::vector<int> pre_signal_sync_fds;
+#endif
+#if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
+    std::vector<int> preSignalSyncFds;
+#endif
+
     std::vector<std::pair<zx_handle_t, zx_koid_t>> post_wait_events;
     std::vector<int> post_wait_sync_fds;
 
     VkEncoder* enc = (VkEncoder*)context;
 
+    // The scope of all these "pruned" submitInfos, semLists, etc.. must be at the level that
+    // the encoder queue submission will be called, otherwise the vector storage will go out of scope
+    std::vector<VkSubmitInfoType> prunedSubmitInfos(submitCount);
+    std::vector<std::vector<VkSemaphoreInfoType>> prunedWaitSemaphoreLists(submitCount);
+    std::vector<std::vector<VkPipelineStageFlags>> prunedWaitDstStageMaskFlagLists(submitCount);
+    std::vector<std::vector<VkSemaphoreInfoType>> prunedSignalSemaphoreLists(submitCount);
+    std::vector<VkTimelineSemaphoreSubmitInfo> prunedTssis(submitCount);
+    std::vector<std::vector<uint64_t>> prunedWaitSemaphoreValueLists(submitCount);
+    std::vector<std::vector<uint64_t>> prunedSignalSemaphoreValueLists(submitCount);
+
     std::unique_lock<std::recursive_mutex> lock(mLock);
 
     for (uint32_t i = 0; i < submitCount; ++i) {
+        std::vector<VkSemaphore> waitSemsToRemove;
+        std::vector<VkSemaphore> signalSemsToRemove;
         for (uint32_t j = 0; j < getWaitSemaphoreCount(pSubmits[i]); ++j) {
             VkSemaphore semaphore = getWaitSemaphore(pSubmits[i], j);
             auto it = info_VkSemaphore.find(semaphore);
@@ -6268,14 +6404,15 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
 #endif
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
                 if (semInfo.syncFd.has_value()) {
-                    pre_signal_sync_fds.push_back(semInfo.syncFd.value());
-                    pre_signal_semaphores.push_back(semaphore);
+                    preSignalSyncFds.push_back(semInfo.syncFd.value());
+                    waitSemsToRemove.push_back(semaphore);
                 }
 #endif
             }
         }
         for (uint32_t j = 0; j < getSignalSemaphoreCount(pSubmits[i]); ++j) {
-            auto it = info_VkSemaphore.find(getSignalSemaphore(pSubmits[i], j));
+            VkSemaphore semaphore = getSignalSemaphore(pSubmits[i], j);
+            auto it = info_VkSemaphore.find(semaphore);
             if (it != info_VkSemaphore.end()) {
                 auto& semInfo = it->second;
 #ifdef VK_USE_PLATFORM_FUCHSIA
@@ -6295,39 +6432,37 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
 #if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
                 if (semInfo.syncFd.value_or(-1) >= 0) {
                     post_wait_sync_fds.push_back(semInfo.syncFd.value());
+                    signalSemsToRemove.push_back(semaphore);
                 }
 #endif
             }
         }
+
+        // Get the current TSSI from the unorphaned submitInfo, the prune functions may need this.
+        const VkTimelineSemaphoreSubmitInfo* currTssi = vk_find_struct_const(&pSubmits[i], TIMELINE_SEMAPHORE_SUBMIT_INFO);
+        // Start with an orphan copy of the current submitInfo
+        prunedSubmitInfos[i] = vk_make_orphan_copy(pSubmits[i]);
+        // Do initial setup for the new tssi struct; prune functions may or may not actually add to submitInfo.
+        prunedTssis[i] = {
+            .sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO,
+            .pNext = NULL
+        };
+        // Finally, prune the wait/signal semaphores accordingly!
+        pruneWaitSemaphores(waitSemsToRemove, prunedSubmitInfos[i], currTssi, prunedWaitSemaphoreLists[i], prunedWaitDstStageMaskFlagLists[i], prunedTssis[i], prunedWaitSemaphoreValueLists[i]);
+        pruneSignalSemaphores(signalSemsToRemove, prunedSubmitInfos[i], currTssi, prunedSignalSemaphoreLists[i], prunedTssis[i], prunedSignalSemaphoreValueLists[i]);
     }
     lock.unlock();
 
-    if (pre_signal_semaphores.empty()) {
-        input_result = vkQueueSubmitEnc(enc, queue, submitCount, pSubmits, fence);
-        if (input_result != VK_SUCCESS) return input_result;
-    } else {
-        // Schedule waits on the OS external objects and
-        // signal the wait semaphores
-        // in a separate thread.
+    // Schedule waits on the OS external objects and
+    // signal the wait semaphores
+    // in a separate thread.
 #ifdef VK_USE_PLATFORM_FUCHSIA
+    if (!pre_signal_semaphores.empty()) {
         for (auto event : pre_signal_events) {
             preSignalTasks.push_back([event] {
                 zx_object_wait_one(event, ZX_EVENT_SIGNALED, ZX_TIME_INFINITE, nullptr);
             });
         }
-#endif
-#if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
-        for (auto fd : pre_signal_sync_fds) {
-            // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkImportSemaphoreFdInfoKHR.html
-            // fd == -1 is treated as already signaled
-            if (fd != -1) {
-                mSyncHelper->wait(fd, 3000);
-#if GFXSTREAM_SYNC_DEBUG
-                mSyncHelper->debugPrint(fd);
-#endif
-            }
-        }
-#endif
         // Use the old version of VkSubmitInfo
         VkSubmitInfo submit_info = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -6337,9 +6472,25 @@ VkResult ResourceTracker::on_vkQueueSubmitTemplate(void* context, VkResult input
             .signalSemaphoreCount = static_cast<uint32_t>(pre_signal_semaphores.size()),
             .pSignalSemaphores = pre_signal_semaphores.data()};
         vkQueueSubmitEnc(enc, queue, 1, &submit_info, VK_NULL_HANDLE);
-        input_result = vkQueueSubmitEnc(enc, queue, submitCount, pSubmits, fence);
-        if (input_result != VK_SUCCESS) return input_result;
     }
+#endif
+#if defined(VK_USE_PLATFORM_ANDROID_KHR) || DETECT_OS_LINUX
+    for (auto fd : preSignalSyncFds) {
+        // https://registry.khronos.org/vulkan/specs/1.3-extensions/man/html/VkImportSemaphoreFdInfoKHR.html
+        // fd == -1 is treated as already signaled
+        if (fd != -1) {
+            mSyncHelper->wait(fd, 3000);
+#if GFXSTREAM_SYNC_DEBUG
+            mSyncHelper->debugPrint(fd);
+#endif
+        }
+    }
+#endif
+
+    // The main queue submission
+    input_result = vkQueueSubmitEnc(enc, queue, submitCount, prunedSubmitInfos.data(), fence);
+    if (input_result != VK_SUCCESS) return input_result;
+
     lock.lock();
     int externalFenceFdToSignal = -1;
 
@@ -6830,6 +6981,49 @@ void ResourceTracker::on_vkUpdateDescriptorSetWithTemplateKHR(
                                          pData);
 }
 
+#ifdef LINUX_GUEST_BUILD
+static void fillEmulatedDrmFormatModPropsList(
+    const VkFormatProperties* pFormatProperties,
+    VkDrmFormatModifierPropertiesListEXT* emulatedDrmFmtModPropsList) {
+    mesa_logd(
+        "VkDrmFormatModifierPropertiesListEXT: emulating DRM_FORMAT_MOD_LINEAR with linear tiling "
+        "features");
+    emulatedDrmFmtModPropsList->drmFormatModifierCount = 1;
+    if (emulatedDrmFmtModPropsList->pDrmFormatModifierProperties) {
+        emulatedDrmFmtModPropsList->pDrmFormatModifierProperties[0] = {
+            .drmFormatModifier = DRM_FORMAT_MOD_LINEAR,
+            .drmFormatModifierPlaneCount = 1,
+            .drmFormatModifierTilingFeatures = VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT |
+                                               VK_FORMAT_FEATURE_SAMPLED_IMAGE_FILTER_LINEAR_BIT |
+                                               VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BIT,
+        };
+    };
+}
+#endif
+
+void ResourceTracker::on_vkGetPhysicalDeviceFormatProperties2(
+    void* context, VkPhysicalDevice physicalDevice, VkFormat format,
+    VkFormatProperties2* pFormatProperties) {
+    VkEncoder* enc = (VkEncoder*)context;
+    enc->vkGetPhysicalDeviceFormatProperties2(physicalDevice, format, pFormatProperties,
+                                              true /* do lock */);
+
+#ifdef LINUX_GUEST_BUILD
+    VkDrmFormatModifierPropertiesListEXT* emulatedDrmFmtModPropsList =
+        vk_find_struct(pFormatProperties, DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT);
+    if (emulatedDrmFmtModPropsList && doImageDrmFormatModifierEmulation(physicalDevice)) {
+        fillEmulatedDrmFormatModPropsList(&pFormatProperties->formatProperties,
+                                          emulatedDrmFmtModPropsList);
+    }
+#endif
+}
+
+void ResourceTracker::on_vkGetPhysicalDeviceFormatProperties2KHR(
+    void* context, VkPhysicalDevice physicalDevice, VkFormat format,
+    VkFormatProperties2* pFormatProperties) {
+    on_vkGetPhysicalDeviceFormatProperties2(context, physicalDevice, format, pFormatProperties);
+}
+
 VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2_common(
     bool isKhr, void* context, VkResult input_result, VkPhysicalDevice physicalDevice,
     const VkPhysicalDeviceImageFormatInfo2* pImageFormatInfo,
@@ -6884,10 +7078,26 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2_common(
     const VkPhysicalDeviceImageDrmFormatModifierInfoEXT* drmFmtMod =
         vk_find_struct_const(pImageFormatInfo, PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT);
     VkDrmFormatModifierPropertiesListEXT* emulatedDrmFmtModPropsList = nullptr;
-    if (drmFmtMod &&
-        getHostDeviceExtensionIndex(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) == -1) {
-        if (drmFmtMod->drmFormatModifier != DRM_FORMAT_MOD_LINEAR) {
-            return VK_ERROR_FORMAT_NOT_SUPPORTED;
+    if (drmFmtMod) {
+        if (doImageDrmFormatModifierEmulation(physicalDevice)) {
+            emulatedDrmFmtModPropsList =
+                vk_find_struct(pImageFormatProperties, DRM_FORMAT_MODIFIER_PROPERTIES_LIST_EXT);
+
+            if (drmFmtMod->drmFormatModifier == DRM_FORMAT_MOD_LINEAR) {
+                // Remove the drmFmtMod from the localImageFormatInfo
+                vk_filter_struct(&localImageFormatInfo,
+                                 PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT);
+                mesa_logd(
+                    "getPhysicalDeviceImageFormatProperties2: emulating DRM_FORMAT_MOD_LINEAR with "
+                    "VK_IMAGE_TILING_LINEAR");
+                localImageFormatInfo.tiling = VK_IMAGE_TILING_LINEAR;
+                localImageFormatInfo.usage &=
+                    ~(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+            } else {
+                return VK_ERROR_FORMAT_NOT_SUPPORTED;
+            }
+        } else {
+            // Host supports DRM format modifiers => leave the input unchanged.
         }
         mesa_logd("emulating DRM_FORMAT_MOD_LINEAR with VK_IMAGE_TILING_OPTIMAL");
         emulatedDrmFmtModPropsList =
@@ -6918,14 +7128,18 @@ VkResult ResourceTracker::on_vkGetPhysicalDeviceImageFormatProperties2_common(
         VkFormatProperties formatProperties;
         enc->vkGetPhysicalDeviceFormatProperties(physicalDevice, localImageFormatInfo.format,
                                                  &formatProperties, true /* do lock */);
-
-        emulatedDrmFmtModPropsList->drmFormatModifierCount = 1;
-        if (emulatedDrmFmtModPropsList->pDrmFormatModifierProperties) {
-            emulatedDrmFmtModPropsList->pDrmFormatModifierProperties[0] = {
-                .drmFormatModifier = DRM_FORMAT_MOD_LINEAR,
-                .drmFormatModifierPlaneCount = 1,
-                .drmFormatModifierTilingFeatures = formatProperties.linearTilingFeatures,
-            };
+        fillEmulatedDrmFormatModPropsList(&formatProperties, emulatedDrmFmtModPropsList);
+    }
+    if (ext_img_properties) {
+        if (ext_img_info) {
+            if (ext_img_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) {
+                ext_img_properties->externalMemoryProperties = {
+                    .externalMemoryFeatures = VK_EXTERNAL_MEMORY_FEATURE_EXPORTABLE_BIT |
+                                              VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT,
+                    .exportFromImportedHandleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+                    .compatibleHandleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT,
+                };
+            }
         }
     }
     if (ext_img_info &&
@@ -7632,23 +7846,19 @@ uint32_t ResourceTracker::getApiVersionFromDevice(VkDevice device) {
     return api;
 }
 
-bool ResourceTracker::hasInstanceExtension(VkInstance instance, const std::string& name) {
+#ifdef LINUX_GUEST_BUILD
+bool ResourceTracker::doImageDrmFormatModifierEmulation(VkPhysicalDevice physicalDevice) {
     std::lock_guard<std::recursive_mutex> lock(mLock);
 
-    auto it = info_VkInstance.find(instance);
-    if (it == info_VkInstance.end()) return false;
+    bool hostSupportsImageDrmFormatModifiers =
+        getHostDeviceExtensionIndex(VK_EXT_IMAGE_DRM_FORMAT_MODIFIER_EXTENSION_NAME) != -1;
 
-    return it->second.enabledExtensions.find(name) != it->second.enabledExtensions.end();
+    // If the host device supports the extension, then this gets passed through for
+    // all functionality relating to the extension. If it doesn't, then this is emulated
+    // in the guest-side driver
+    return !hostSupportsImageDrmFormatModifiers;
 }
-
-bool ResourceTracker::hasDeviceExtension(VkDevice device, const std::string& name) {
-    std::lock_guard<std::recursive_mutex> lock(mLock);
-
-    auto it = info_VkDevice.find(device);
-    if (it == info_VkDevice.end()) return false;
-
-    return it->second.enabledExtensions.find(name) != it->second.enabledExtensions.end();
-}
+#endif
 
 VkDevice ResourceTracker::getDevice(VkCommandBuffer commandBuffer) const {
     struct goldfish_VkCommandBuffer* cb = as_goldfish_VkCommandBuffer(commandBuffer);

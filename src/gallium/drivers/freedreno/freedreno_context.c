@@ -307,10 +307,26 @@ fd_context_add_private_bo(struct fd_context *ctx, struct fd_bo *bo)
 }
 
 /**
- * Return a reference to the current batch, caller must unref.
+ * Return a reference to the current batch, caller must unref.  For
+ * PIPE_CONTEXT_COMPUTE_ONLY contexts, this returns a nondraw batch,
+ * in order to avoid queries ending up in separate batches.
  */
 struct fd_batch *
 fd_context_batch(struct fd_context *ctx)
+{
+   if (ctx->flags & PIPE_CONTEXT_COMPUTE_ONLY) {
+      return fd_context_batch_nondraw(ctx);
+   } else {
+      return fd_context_batch_draw(ctx);
+   }
+}
+
+/**
+ * Return a reference to the current batch, caller must unref.  This
+ * returns specificall a draw batch.
+ */
+struct fd_batch *
+fd_context_batch_draw(struct fd_context *ctx)
 {
    struct fd_batch *batch = NULL;
 
@@ -400,6 +416,8 @@ fd_context_destroy(struct pipe_context *pctx)
    for (i = 0; i < ARRAY_SIZE(ctx->clear_rs_state); i++)
       if (ctx->clear_rs_state[i])
          pctx->delete_rasterizer_state(pctx, ctx->clear_rs_state[i]);
+
+   util_dynarray_fini(&ctx->global_bindings);
 
    slab_destroy_child(&ctx->transfer_pool);
    slab_destroy_child(&ctx->transfer_pool_unsync);
@@ -499,7 +517,8 @@ fd_trace_record_ts(struct u_trace *ut, void *cs, void *timestamps,
 
 static uint64_t
 fd_trace_read_ts(struct u_trace_context *utctx,
-                 void *timestamps, uint64_t offset_B, void *flush_data)
+                 void *timestamps, uint64_t offset_B,
+                 uint32_t flags, void *flush_data)
 {
    struct fd_context *ctx =
       container_of(utctx, struct fd_context, trace_context);
@@ -676,6 +695,8 @@ fd_context_init(struct fd_context *ctx, struct pipe_screen *pscreen,
 
    slab_create_child(&ctx->transfer_pool, &screen->transfer_pool);
    slab_create_child(&ctx->transfer_pool_unsync, &screen->transfer_pool);
+
+   util_dynarray_init(&ctx->global_bindings, NULL);
 
    fd_draw_init(pctx);
    fd_resource_context_init(pctx);

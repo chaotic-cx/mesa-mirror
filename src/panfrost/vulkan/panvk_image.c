@@ -26,6 +26,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "pan_afbc.h"
 #include "pan_props.h"
 
 #include "panvk_device.h"
@@ -79,8 +80,8 @@ panvk_image_can_use_mod(struct panvk_image *image, uint64_t mod)
           ((image->vk.usage | image->vk.stencil_usage) &
            VK_IMAGE_USAGE_STORAGE_BIT) ||
           image->vk.samples > 1 ||
-          !panfrost_query_afbc(&phys_dev->kmod.props) ||
-          !panfrost_format_supports_afbc(arch, pfmt) ||
+          !pan_query_afbc(&phys_dev->kmod.props) ||
+          !pan_format_supports_afbc(arch, pfmt) ||
           image->vk.tiling == VK_IMAGE_TILING_LINEAR ||
           image->vk.image_type == VK_IMAGE_TYPE_1D ||
           (image->vk.image_type == VK_IMAGE_TYPE_3D && arch < 7) ||
@@ -102,6 +103,15 @@ panvk_image_can_use_mod(struct panvk_image *image, uint64_t mod)
    }
 
    if (mod == DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED) {
+      /* Multiplanar YUV with U-interleaving isn't supported by the HW. We
+       * also need to make sure images that can be aliased to planes of
+       * multi-planar images remain compatible with the aliased images, so
+       * don't allow U-interleaving for those either.
+       */
+      if (vk_format_get_plane_count(image->vk.format) > 1 ||
+          vk_image_can_be_aliased_to_yuv_plane(&image->vk))
+         return false;
+
       /* If we're dealing with a compressed format that requires non-compressed
        * views we can't use U_INTERLEAVED tiling because the tiling is different
        * between compressed and non-compressed formats. If we wanted to support
@@ -139,13 +149,15 @@ static uint64_t
 panvk_image_get_mod_from_list(struct panvk_image *image,
                               const uint64_t *mods, uint32_t mod_count)
 {
-   for (unsigned i = 0; i < PAN_MODIFIER_COUNT; ++i) {
-      if (!panvk_image_can_use_mod(image, pan_best_modifiers[i]))
+   PAN_SUPPORTED_MODIFIERS(supported_mods);
+
+   for (unsigned i = 0; i < ARRAY_SIZE(supported_mods); ++i) {
+      if (!panvk_image_can_use_mod(image, supported_mods[i]))
          continue;
 
       if (!mod_count ||
-          drm_find_modifier(pan_best_modifiers[i], mods, mod_count))
-         return pan_best_modifiers[i];
+          drm_find_modifier(supported_mods[i], mods, mod_count))
+         return supported_mods[i];
    }
 
    /* If we reached that point without finding a proper modifier, there's
@@ -196,6 +208,16 @@ panvk_image_type_to_mali_tex_dim(VkImageType type)
    }
 }
 
+static bool
+is_disjoint(const struct panvk_image *image)
+{
+   assert((image->plane_count > 1 &&
+           image->vk.format != VK_FORMAT_D32_SFLOAT_S8_UINT) ||
+          (image->vk.create_flags & VK_IMAGE_CREATE_ALIAS_BIT) ||
+          !(image->vk.create_flags & VK_IMAGE_CREATE_DISJOINT_BIT));
+   return image->vk.create_flags & VK_IMAGE_CREATE_DISJOINT_BIT;
+}
+
 static void
 panvk_image_init_layouts(struct panvk_image *image,
                          const VkImageCreateInfo *pCreateInfo)
@@ -217,33 +239,48 @@ panvk_image_init_layouts(struct panvk_image *image,
    if (image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT)
       image->plane_count = 2;
 
+   struct pan_image_layout_constraints plane_layout = {
+      .offset_B = 0,
+   };
    for (uint8_t plane = 0; plane < image->plane_count; plane++) {
-      VkFormat format =
-         (image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) ?
-         ((plane == 0) ? VK_FORMAT_D32_SFLOAT : VK_FORMAT_S8_UINT) :
-         image->vk.format;
+      VkFormat format;
 
-      struct pan_image_explicit_layout plane_layout;
-      if (explicit_info)
-         plane_layout = (struct pan_image_explicit_layout){
-            .offset = explicit_info->pPlaneLayouts[plane].offset,
-            .row_stride = explicit_info->pPlaneLayouts[plane].rowPitch,
+      if (image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+         format = plane == 0 ? VK_FORMAT_D32_SFLOAT : VK_FORMAT_S8_UINT;
+      else
+         format = vk_format_get_plane_format(image->vk.format, plane);
+
+      if (explicit_info) {
+         plane_layout = (struct pan_image_layout_constraints){
+            .offset_B = explicit_info->pPlaneLayouts[plane].offset,
+            .wsi_row_pitch_B = explicit_info->pPlaneLayouts[plane].rowPitch,
          };
+      }
 
-      image->planes[plane].layout = (struct pan_image_layout){
-         .format = vk_format_to_pipe_format(format),
-         .dim = panvk_image_type_to_mali_tex_dim(image->vk.image_type),
-         .width = image->vk.extent.width,
-         .height = image->vk.extent.height,
-         .depth = image->vk.extent.depth,
-         .array_size = image->vk.array_layers,
-         .nr_samples = image->vk.samples,
-         .nr_slices = image->vk.mip_levels,
+      image->planes[plane].image = (struct pan_image){
+         .props = {
+            .modifier = image->vk.drm_format_mod,
+            .format = vk_format_to_pipe_format(format),
+            .dim = panvk_image_type_to_mali_tex_dim(image->vk.image_type),
+            .extent_px = {
+               .width = vk_format_get_plane_width(image->vk.format, plane,
+                                                  image->vk.extent.width),
+               .height = vk_format_get_plane_height(image->vk.format, plane,
+                                                    image->vk.extent.height),
+               .depth = image->vk.extent.depth,
+            },
+            .array_size = image->vk.array_layers,
+            .nr_samples = image->vk.samples,
+            .nr_slices = image->vk.mip_levels,
+         },
+         .planes = {&image->planes[plane].plane},
       };
 
-      image->planes[plane].layout.modifier = image->vk.drm_format_mod;
-      pan_image_layout_init(arch, &image->planes[plane].layout,
-                            explicit_info ? &plane_layout : NULL);
+      pan_image_layout_init(arch, &image->planes[plane].image.props, 0,
+                            &plane_layout, &image->planes[plane].plane.layout);
+
+      if (!is_disjoint(image) && !explicit_info)
+         plane_layout.offset_B += image->planes[plane].plane.layout.data_size_B;
    }
 }
 
@@ -251,46 +288,47 @@ static void
 panvk_image_pre_mod_select_meta_adjustments(struct panvk_image *image)
 {
    const VkImageAspectFlags aspects = vk_format_aspects(image->vk.format);
+   const VkImageUsageFlags all_usage =
+      image->vk.usage | image->vk.stencil_usage;
 
    /* We do image blit/resolve with vk_meta, so when an image is flagged as
     * being a potential transfer source, we also need to add the sampled usage.
     */
-   if (image->vk.usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) {
+   if (image->vk.usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
       image->vk.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
-      if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
-         image->vk.stencil_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
-   }
+   if (image->vk.stencil_usage & VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+      image->vk.stencil_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 
+   /* Similarly, image that can be a transfer destination can be attached
+    * as a color or depth-stencil attachment by vk_meta. */
    if (image->vk.usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT) {
-      /* Similarly, image that can be a transfer destination can be attached
-       * as a color or depth-stencil attachment by vk_meta. */
       if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
          image->vk.usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-
-      if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
-         image->vk.stencil_usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
       if (aspects & VK_IMAGE_ASPECT_COLOR_BIT) {
          image->vk.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
          image->vk.usage |= VK_IMAGE_USAGE_STORAGE_BIT;
       }
-
-      /* vk_meta creates 2D array views of 3D images. */
-      if (image->vk.image_type == VK_IMAGE_TYPE_3D)
-         image->vk.create_flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
    }
+
+   if (image->vk.stencil_usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT)
+      image->vk.stencil_usage |= VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+
+   /* vk_meta creates 2D array views of 3D images. */
+   if (all_usage & VK_IMAGE_USAGE_TRANSFER_DST_BIT &&
+       image->vk.image_type == VK_IMAGE_TYPE_3D)
+      image->vk.create_flags |= VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT;
 
    /* Needed for resolve operations. */
    if (image->vk.usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
       image->vk.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 
-   if (image->vk.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT) {
-      if (aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
-         image->vk.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
+   if (image->vk.usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT &&
+       aspects & VK_IMAGE_ASPECT_DEPTH_BIT)
+      image->vk.usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 
-      if (aspects & VK_IMAGE_ASPECT_STENCIL_BIT)
-         image->vk.stencil_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
-   }
+   if (image->vk.stencil_usage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+      image->vk.stencil_usage |= VK_IMAGE_USAGE_SAMPLED_BIT;
 
    if ((image->vk.usage &
         (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT)) &&
@@ -306,22 +344,16 @@ static uint64_t
 panvk_image_get_total_size(const struct panvk_image *image)
 {
    uint64_t size = 0;
-   for (uint8_t plane = 0; plane < image->plane_count; plane++)
-      size += image->planes[plane].layout.data_size;
+   for (uint8_t plane = 0; plane < image->plane_count; plane++) {
+      const struct pan_image_layout *layout =
+         &image->planes[plane].plane.layout;
+      size = MAX2(size, layout->slices[0].offset_B + layout->data_size_B);
+   }
    return size;
 }
 
-static bool
-is_disjoint(struct panvk_image *image)
-{
-   assert((image->plane_count > 1 &&
-           image->vk.format != VK_FORMAT_D32_SFLOAT_S8_UINT) ||
-          !(image->vk.create_flags & VK_IMAGE_CREATE_DISJOINT_BIT));
-   return image->vk.create_flags & VK_IMAGE_CREATE_DISJOINT_BIT;
-}
-
 static void
-panvk_image_init(struct panvk_device *dev, struct panvk_image *image,
+panvk_image_init(struct panvk_image *image,
                  const VkImageCreateInfo *pCreateInfo)
 {
    /* Add any create/usage flags that might be needed for meta operations.
@@ -357,7 +389,7 @@ panvk_CreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo,
    if (!image)
       return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-   panvk_image_init(dev, image, pCreateInfo);
+   panvk_image_init(image, pCreateInfo);
 
    /*
     * From the Vulkan spec:
@@ -384,39 +416,53 @@ panvk_DestroyImage(VkDevice _device, VkImage _image,
    if (!image)
       return;
 
-   if (image->bo)
-      pan_kmod_bo_put(image->bo);
-
    vk_image_destroy(&device->vk, pAllocator, &image->vk);
 }
 
-VKAPI_ATTR void VKAPI_CALL
-panvk_GetImageSubresourceLayout(VkDevice _device, VkImage _image,
-                                const VkImageSubresource *pSubresource,
-                                VkSubresourceLayout *pLayout)
+static void
+get_image_subresource_layout(const struct panvk_image *image,
+                             const VkImageSubresource2 *subres2,
+                             VkSubresourceLayout2 *layout2)
 {
-   VK_FROM_HANDLE(panvk_image, image, _image);
-
-   unsigned plane =
-      panvk_plane_index(image->vk.format, pSubresource->aspectMask);
+   const VkImageSubresource *subres = &subres2->imageSubresource;
+   VkSubresourceLayout *layout = &layout2->subresourceLayout;
+   unsigned plane = panvk_plane_index(image->vk.format, subres->aspectMask);
    assert(plane < PANVK_MAX_PLANES);
 
    const struct pan_image_slice_layout *slice_layout =
-      &image->planes[plane].layout.slices[pSubresource->mipLevel];
+      &image->planes[plane].plane.layout.slices[subres->mipLevel];
 
-   uint64_t base_offset = 0;
-   if (!is_disjoint(image)) {
-      for (uint8_t plane_idx = 0; plane_idx < plane; plane_idx++)
-         base_offset += image->planes[plane_idx].layout.data_size;
-   }
+   layout->offset =
+      slice_layout->offset_B +
+      (subres->arrayLayer * image->planes[plane].plane.layout.array_stride_B);
+   layout->size = slice_layout->size_B;
+   layout->rowPitch = slice_layout->row_stride_B;
+   layout->arrayPitch = image->planes[plane].plane.layout.array_stride_B;
+   layout->depthPitch = slice_layout->surface_stride_B;
+}
 
-   pLayout->offset = base_offset +
-      slice_layout->offset + (pSubresource->arrayLayer *
-                              image->planes[plane].layout.array_stride);
-   pLayout->size = slice_layout->size;
-   pLayout->rowPitch = slice_layout->row_stride;
-   pLayout->arrayPitch = image->planes[plane].layout.array_stride;
-   pLayout->depthPitch = slice_layout->surface_stride;
+VKAPI_ATTR void VKAPI_CALL
+panvk_GetImageSubresourceLayout2(VkDevice device, VkImage image,
+                                 const VkImageSubresource2 *pSubresource,
+                                 VkSubresourceLayout2 *pLayout)
+{
+   VK_FROM_HANDLE(panvk_image, img, image);
+
+   get_image_subresource_layout(img, pSubresource, pLayout);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+panvk_GetDeviceImageSubresourceLayoutKHR(
+   VkDevice device, const VkDeviceImageSubresourceInfoKHR *pInfo,
+   VkSubresourceLayout2KHR *pLayout)
+{
+   VK_FROM_HANDLE(panvk_device, dev, device);
+   struct panvk_image image = {0};
+
+   vk_image_init(&dev->vk, &image.vk, pInfo->pCreateInfo);
+   panvk_image_init(&image, pInfo->pCreateInfo);
+   get_image_subresource_layout(&image, pInfo->pSubresource, pLayout);
+   vk_image_finish(&image.vk);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -431,10 +477,10 @@ panvk_GetImageMemoryRequirements2(VkDevice device,
       vk_find_struct_const(pInfo->pNext, IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO);
    const bool disjoint = is_disjoint(image);
    const VkImageAspectFlags aspects =
-      disjoint ? plane_info->planeAspect : image->vk.aspects;
+      plane_info ? plane_info->planeAspect : image->vk.aspects;
    uint8_t plane = panvk_plane_index(image->vk.format, aspects);
    const uint64_t size =
-      disjoint ? image->planes[plane].layout.data_size :
+      disjoint ? image->planes[plane].plane.layout.data_size_B :
       panvk_image_get_total_size(image);
 
    pMemoryRequirements->memoryRequirements.memoryTypeBits = 1;
@@ -465,13 +511,14 @@ panvk_GetDeviceImageMemoryRequirements(VkDevice device,
 
    struct panvk_image image;
    vk_image_init(&dev->vk, &image.vk, pInfo->pCreateInfo);
-   panvk_image_init(dev, &image, pInfo->pCreateInfo);
+   panvk_image_init(&image, pInfo->pCreateInfo);
 
    VkImageMemoryRequirementsInfo2 info2 = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
       .image = panvk_image_to_handle(&image),
    };
    panvk_GetImageMemoryRequirements2(device, &info2, pMemoryRequirements);
+   vk_image_finish(&image.vk);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -495,28 +542,27 @@ panvk_GetDeviceImageSparseMemoryRequirements(VkDevice device,
 }
 
 static void
-panvk_image_plane_bind(struct pan_image *plane, struct pan_kmod_bo *bo,
+panvk_image_plane_bind(struct panvk_image_plane *plane, struct pan_kmod_bo *bo,
                        uint64_t base, uint64_t offset)
 {
-   plane->data.base = base;
-   plane->data.offset = offset;
+   plane->plane.base = base + offset;
    /* Reset the AFBC headers */
-   if (drm_is_afbc(plane->layout.modifier)) {
+   if (drm_is_afbc(plane->image.props.modifier)) {
       /* Transient CPU mapping */
       void *bo_base = pan_kmod_bo_mmap(bo, 0, pan_kmod_bo_size(bo),
                                        PROT_WRITE, MAP_SHARED, NULL);
 
       assert(bo_base != MAP_FAILED);
 
-      for (unsigned layer = 0; layer < plane->layout.array_size;
+      for (unsigned layer = 0; layer < plane->image.props.array_size;
            layer++) {
-         for (unsigned level = 0; level < plane->layout.nr_slices;
+         for (unsigned level = 0; level < plane->image.props.nr_slices;
               level++) {
-            void *header = bo_base + plane->data.offset +
-                           (layer * plane->layout.array_stride) +
-                           plane->layout.slices[level].offset;
+            void *header = bo_base + offset +
+                           (layer * plane->plane.layout.array_stride_B) +
+                           plane->plane.layout.slices[level].offset_B;
             memset(header, 0,
-                   plane->layout.slices[level].afbc.header_size);
+                   plane->plane.layout.slices[level].afbc.header_size_B);
          }
       }
 
@@ -529,12 +575,11 @@ VKAPI_ATTR VkResult VKAPI_CALL
 panvk_BindImageMemory2(VkDevice device, uint32_t bindInfoCount,
                        const VkBindImageMemoryInfo *pBindInfos)
 {
-   const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
-      vk_find_struct_const(pBindInfos->pNext, BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
-
-   for (uint32_t i = 0; i < bindInfoCount; ++i) {
+   for (uint32_t i = 0; i < bindInfoCount; i++) {
       VK_FROM_HANDLE(panvk_image, image, pBindInfos[i].image);
-      struct pan_kmod_bo *old_bo = image->bo;
+      const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
+         vk_find_struct_const(pBindInfos[i].pNext,
+                              BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
 
       if (swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE) {
          VkImage wsi_vk_image = wsi_common_get_image(swapchain_info->swapchain,
@@ -544,33 +589,29 @@ panvk_BindImageMemory2(VkDevice device, uint32_t bindInfoCount,
          assert(image->plane_count == 1);
          assert(wsi_image->plane_count == 1);
 
-         image->bo = pan_kmod_bo_get(wsi_image->bo);
+         image->bo = wsi_image->bo;
          panvk_image_plane_bind(&image->planes[0], image->bo,
-                                wsi_image->planes[0].data.base,
-                                wsi_image->planes[0].data.offset);
+                                wsi_image->planes[0].plane.base, 0);
       } else {
          VK_FROM_HANDLE(panvk_device_memory, mem, pBindInfos[i].memory);
          assert(mem);
-         image->bo = pan_kmod_bo_get(mem->bo);
-         uint64_t offset = pBindInfos[i].memoryOffset;
+         image->bo = mem->bo;
          if (is_disjoint(image)) {
             const VkBindImagePlaneMemoryInfo *plane_info =
                vk_find_struct_const(pBindInfos[i].pNext,
                                     BIND_IMAGE_PLANE_MEMORY_INFO);
-            uint8_t plane =
+            const uint8_t plane =
                panvk_plane_index(image->vk.format, plane_info->planeAspect);
             panvk_image_plane_bind(&image->planes[plane], image->bo,
-                                   mem->addr.dev, offset);
+                                   mem->addr.dev, pBindInfos[i].memoryOffset);
          } else {
             for (unsigned plane = 0; plane < image->plane_count; plane++) {
                panvk_image_plane_bind(&image->planes[plane], image->bo,
-                                      mem->addr.dev, offset);
-               offset += image->planes[plane].layout.data_size;
+                                      mem->addr.dev,
+                                      pBindInfos[i].memoryOffset);
             }
          }
       }
-
-      pan_kmod_bo_put(old_bo);
    }
 
    return VK_SUCCESS;

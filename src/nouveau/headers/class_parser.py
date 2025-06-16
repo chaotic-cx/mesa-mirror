@@ -75,70 +75,66 @@ TEMPLATE_H = Template("""\
 #include <stdio.h>
 #include "util/u_math.h"
 
-%for mthd in mthddict:
-struct nv_${nvcl.lower()}_${mthd} {
-  %for field_name in mthddict[mthd].field_name_start:
-    uint32_t ${field_name.lower()};
+%for mthd in methods:
+struct nv_${nvcl.lower()}_${mthd.name} {
+  %for field in mthd.fields:
+    uint32_t ${field.name.lower()};
   %endfor
 };
 
 static inline void
-__${nvcl}_${mthd}(uint32_t *val_out, struct nv_${nvcl.lower()}_${mthd} st)
+__${nvcl}_${mthd.name}(uint32_t *val_out, struct nv_${nvcl.lower()}_${mthd.name} st)
 {
     uint32_t val = 0;
-  %for field_name in mthddict[mthd].field_name_start:
-    <%
-        field_start = int(mthddict[mthd].field_name_start[field_name])
-        field_end = int(mthddict[mthd].field_name_end[field_name])
-        field_width = field_end - field_start + 1
-    %>
+  %for field in mthd.fields:
+    <% field_width = field.end - field.start + 1 %>
     %if field_width == 32:
-    val |= st.${field_name.lower()};
+    val |= st.${field.name.lower()};
     %else:
-    assert(st.${field_name.lower()} < (1ULL << ${field_width}));
-    val |= st.${field_name.lower()} << ${field_start};
+    assert(st.${field.name.lower()} < (1ULL << ${field_width}));
+    val |= st.${field.name.lower()} << ${field.start};
     %endif
   %endfor
     *val_out = val;
 }
 
-#define V_${nvcl}_${mthd}(val, args...) { ${bs}
-  %for field_name in mthddict[mthd].field_name_start:
-    %for d in mthddict[mthd].field_defs[field_name]:
-    UNUSED uint32_t ${field_name}_${d} = ${nvcl}_${mthd}_${field_name}_${d}; ${bs}
+#define V_${nvcl}_${mthd.name}(val, args...) { ${bs}
+  %for field in mthd.fields:
+    %for d in field.defs:
+    UNUSED uint32_t ${field.name}_${d} = ${nvcl}_${mthd.name}_${field.name}_${d}; ${bs}
     %endfor
   %endfor
-  %if len(mthddict[mthd].field_name_start) > 1:
-    struct nv_${nvcl.lower()}_${mthd} __data = args; ${bs}
+  %if len(mthd.fields) > 1:
+    struct nv_${nvcl.lower()}_${mthd.name} __data = args; ${bs}
   %else:
-<% field_name = next(iter(mthddict[mthd].field_name_start)).lower() %>\
-    struct nv_${nvcl.lower()}_${mthd} __data = { .${field_name} = (args) }; ${bs}
+<% field_name = mthd.fields[0].name.lower() %>\
+    struct nv_${nvcl.lower()}_${mthd.name} __data = { .${field_name} = (args) }; ${bs}
   %endif
-    __${nvcl}_${mthd}(&val, __data); ${bs}
+    __${nvcl}_${mthd.name}(&val, __data); ${bs}
 }
 
-%if mthddict[mthd].is_array:
-#define VA_${nvcl}_${mthd}(i) V_${nvcl}_${mthd}
+%if mthd.is_array:
+#define VA_${nvcl}_${mthd.name}(i) V_${nvcl}_${mthd.name}
 %else:
-#define VA_${nvcl}_${mthd} V_${nvcl}_${mthd}
+#define VA_${nvcl}_${mthd.name} V_${nvcl}_${mthd.name}
 %endif
 
-%if mthddict[mthd].is_array:
-#define P_${nvcl}_${mthd}(push, idx, args...) do { ${bs}
+%if mthd.is_array:
+#define P_${nvcl}_${mthd.name}(push, idx, args...) do { ${bs}
 %else:
-#define P_${nvcl}_${mthd}(push, args...) do { ${bs}
+#define P_${nvcl}_${mthd.name}(push, args...) do { ${bs}
 %endif
-  %for field_name in mthddict[mthd].field_name_start:
-    %for d in mthddict[mthd].field_defs[field_name]:
-    UNUSED uint32_t ${field_name}_${d} = ${nvcl}_${mthd}_${field_name}_${d}; ${bs}
+  %for field in mthd.fields:
+    %for d in field.defs:
+    UNUSED uint32_t ${field.name}_${d} = ${nvcl}_${mthd.name}_${field.name}_${d}; ${bs}
     %endfor
   %endfor
     uint32_t nvk_p_ret; ${bs}
-    V_${nvcl}_${mthd}(nvk_p_ret, args); ${bs}
-    %if mthddict[mthd].is_array:
-    nv_push_val(push, ${nvcl}_${mthd}(idx), nvk_p_ret); ${bs}
+    V_${nvcl}_${mthd.name}(nvk_p_ret, args); ${bs}
+    %if mthd.is_array:
+    nv_push_val(push, ${nvcl}_${mthd.name}(idx), nvk_p_ret); ${bs}
     %else:
-    nv_push_val(push, ${nvcl}_${mthd}, nvk_p_ret); ${bs}
+    nv_push_val(push, ${nvcl}_${mthd.name}, nvk_p_ret); ${bs}
     %endif
 } while(0)
 
@@ -158,18 +154,18 @@ const char*
 P_PARSE_${nvcl}_MTHD(uint16_t idx)
 {
     switch (idx) {
-%for mthd in mthddict:
-  %if mthddict[mthd].is_array and mthddict[mthd].array_size == 0:
+%for mthd in methods:
+  %if mthd.is_array and mthd.array_size == 0:
     <% continue %>
   %endif
-  %if mthddict[mthd].is_array:
-    %for i in range(mthddict[mthd].array_size):
-    case ${nvcl}_${mthd}(${i}):
-        return "${nvcl}_${mthd}(${i})";
+  %if mthd.is_array:
+    %for i in range(mthd.array_size):
+    case ${nvcl}_${mthd.name}(${i}):
+        return "${nvcl}_${mthd.name}(${i})";
     %endfor
   % else:
-    case ${nvcl}_${mthd}:
-        return "${nvcl}_${mthd}";
+    case ${nvcl}_${mthd.name}:
+        return "${nvcl}_${mthd.name}";
   %endif
 %endfor
     default:
@@ -181,35 +177,31 @@ void
 P_DUMP_${nvcl}_MTHD_DATA(FILE *fp, uint16_t idx, uint32_t data,
                          const char *prefix)
 {
-    uint32_t parsed;
+    UNUSED uint32_t parsed;
     switch (idx) {
-%for mthd in mthddict:
-  %if mthddict[mthd].is_array and mthddict[mthd].array_size == 0:
+%for mthd in methods:
+  %if mthd.is_array and mthd.array_size == 0:
     <% continue %>
   %endif
-  %if mthddict[mthd].is_array:
-    %for i in range(mthddict[mthd].array_size):
-    case ${nvcl}_${mthd}(${i}):
+  %if mthd.is_array:
+    %for i in range(mthd.array_size):
+    case ${nvcl}_${mthd.name}(${i}):
     %endfor
   % else:
-    case ${nvcl}_${mthd}:
+    case ${nvcl}_${mthd.name}:
   %endif
-  %for field_name in mthddict[mthd].field_name_start:
-    <%
-        field_start = int(mthddict[mthd].field_name_start[field_name])
-        field_end = int(mthddict[mthd].field_name_end[field_name])
-        field_width = field_end - field_start + 1
-    %>
+  %for field in mthd.fields:
+    <% field_width = field.end - field.start + 1 %>
     %if field_width == 32:
         parsed = data;
     %else:
-        parsed = (data >> ${field_start}) & ((1u << ${field_width}) - 1);
+        parsed = (data >> ${field.start}) & ((1u << ${field_width}) - 1);
     %endif
-        fprintf(fp, "%s.${field_name} = ", prefix);
-    %if len(mthddict[mthd].field_defs[field_name]):
+        fprintf(fp, "%s.${field.name} = ", prefix);
+    %if len(field.defs):
         switch (parsed) {
-      %for d in mthddict[mthd].field_defs[field_name]:
-        case ${nvcl}_${mthd}_${field_name}_${d}:
+      %for d in field.defs:
+        case ${nvcl}_${mthd.name}_${field.name}_${d}:
             fprintf(fp, "${d}${bs}n");
             break;
       %endfor
@@ -218,7 +210,7 @@ P_DUMP_${nvcl}_MTHD_DATA(FILE *fp, uint16_t idx, uint32_t data,
             break;
         }
     %else:
-      %if mthddict[mthd].is_float:
+      %if mthd.is_float:
         fprintf(fp, "%ff (0x%x)${bs}n", uif(parsed), parsed);
       %else:
         fprintf(fp, "(0x%x)${bs}n", parsed);
@@ -244,44 +236,36 @@ pub const ${version[0]}: u16 = ${version[1]};
 
 TEMPLATE_RS_MTHD = Template("""\
 
+%if prev_mod is not None:
+use crate::classes::${prev_mod}::mthd as ${prev_mod};
+%endif
+
 // parsed class ${nvcl}
 
 ## Write out the methods in Rust
-%for mthd_name, mthd in mthddict.items():
-## Identify the field type.
-<%
-for field_name, field_value in mthd.field_defs.items():
-    if field_name == 'V' and len(field_value) > 0:
-        mthd.field_rs_types[field_name] = to_camel(mthd_name) + 'V'
-        mthd.field_is_rs_enum[field_name] = True
-    elif len(field_value) > 0:
-        assert(field_name != "")
-        mthd.field_rs_types[field_name] = to_camel(mthd_name) + to_camel(field_name)
-        mthd.field_is_rs_enum[field_name] = True
-    elif mthd.is_float:
-        mthd.field_rs_types[field_name] = "f32"
-        mthd.field_is_rs_enum[field_name] = False
-    else:
-        mthd.field_rs_types[field_name] = "u32"
-        mthd.field_is_rs_enum[field_name] = False
+%for mthd in methods:
 
-    # TRUE and FALSE are special cases.
-    if len(field_value) == 2:
-        for enumerant in field_value:
-            if enumerant.lower() == 'true' or enumerant.lower() == 'false':
-                mthd.field_rs_types[field_name] = "bool"
-                mthd.field_is_rs_enum[field_name] = False
-                break
-%>
+## If this method is the same as the one in the previous class header, just
+## pub use everything instead of re-generating it.  This significantly
+## reduces the number of unique Rust types and trait implementations.
+%if prev_methods.get(mthd.name, None) == mthd:
+    %for field in mthd.fields:
+        %if field.is_rs_enum:
+pub use ${prev_mod}::${field.rs_type(mthd)};
+        %endif
+    %endfor
+pub use ${prev_mod}::${to_camel(mthd.name)};
+    <% continue %>
+%endif
 
 ## If there are a range of values for a field, we define an enum.
-%for field_name in mthd.field_defs:
-    %if mthd.field_is_rs_enum[field_name]:
+%for field in mthd.fields:
+    %if field.is_rs_enum:
 #[repr(u16)]
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub enum ${mthd.field_rs_types[field_name]} {
-    %for field_name, field_value in mthd.field_defs[field_name].items():
-    ${to_camel(rs_field_name(field_name))} = ${field_value.lower()},
+pub enum ${field.rs_type(mthd)} {
+    %for def_name, def_value in field.defs.items():
+    ${to_camel(def_name)} = ${def_value.lower()},
     %endfor
 }
     %endif
@@ -289,9 +273,9 @@ pub enum ${mthd.field_rs_types[field_name]} {
 
 ## We also define a struct with the fields for the mthd.
 #[derive(Copy, Clone, Debug, PartialEq)]
-pub struct ${to_camel(mthd_name)} {
-  %for field_name in mthddict[mthd_name].field_name_start:
-    pub ${rs_field_name(field_name.lower())}: ${mthd.field_rs_types[field_name]},
+pub struct ${to_camel(mthd.name)} {
+  %for field in mthd.fields:
+    pub ${field.rs_name}: ${field.rs_type(mthd)},
   %endfor
 }
 
@@ -299,12 +283,12 @@ pub struct ${to_camel(mthd_name)} {
 ## not closed.
 % if not mthd.is_array:
 ## This trait lays out how the conversion to u32 happens
-impl Mthd for ${to_camel(mthd_name)} {
+impl Mthd for ${to_camel(mthd.name)} {
     const ADDR: u16 = ${mthd.addr.replace('(', '').replace(')', '')};
     const CLASS: u16 = ${version[1].lower() if version is not None else nvcl.lower().replace("nv", "0x")};
 
 %else:
-impl ArrayMthd for ${to_camel(mthd_name)} {
+impl ArrayMthd for ${to_camel(mthd.name)} {
     const CLASS: u16 = ${version[1].lower() if version is not None else nvcl.lower().replace("nv", "0x")};
 
     fn addr(i: usize) -> u16 {
@@ -316,22 +300,21 @@ impl ArrayMthd for ${to_camel(mthd_name)} {
     #[inline]
     fn to_bits(self) -> u32 {
         let mut val = 0;
-        %for field_name in mthddict[mthd_name].field_name_start:
-            <%
-                field_start = int(mthd.field_name_start[field_name])
-                field_end = int(mthd.field_name_end[field_name])
-                field_width = field_end - field_start + 1
-                field = rs_field_name(field_name.lower()) if mthd.field_rs_types[field_name] == "u32" else f"{rs_field_name(field_name)} as u32"
-            %>
+        %for field in mthd.fields:
+            <% field_width = field.end - field.start + 1 %>
             %if field_width == 32:
-        val |= self.${field};
-            %else:
-                %if "as u32" in field:
-        assert!((self.${field}) < (1 << ${field_width}));
-        val |= (self.${field}) << ${field_start};
+                %if field.rs_type(mthd) == "u32":
+        val |= self.${field.rs_name};
                 %else:
-        assert!(self.${field} < (1 << ${field_width}));
-        val |= self.${field} << ${field_start};
+        val |= self.${field.rs_name} as u32;
+                %endif
+            %else:
+                %if field.rs_type(mthd) == "u32":
+        assert!(self.${field.rs_name} < (1 << ${field_width}));
+        val |= self.${field.rs_name} << ${field.start};
+                %else:
+        assert!((self.${field.rs_name} as u32) < (1 << ${field_width}));
+        val |= (self.${field.rs_name} as u32) << ${field.start};
                 %endif
             %endif
         %endfor
@@ -349,19 +332,6 @@ def to_camel(snake_str):
     result = ''.join(word.title() for word in snake_str.split('_'))
     return result if not result[0].isdigit() else '_' + result
 
-def rs_field_name(name):
-    name = name.lower()
-
-    # Fix up some Rust keywords
-    if name == 'type':
-        return 'type_'
-    elif name == 'override':
-        return 'override_'
-    elif name[0].isdigit():
-        return '_' + name
-    else:
-        return name
-
 def glob_match(glob, name):
     if glob.endswith('*'):
         return name.startswith(glob[:-1])
@@ -369,7 +339,80 @@ def glob_match(glob, name):
         assert '*' not in glob
         return name == glob
 
-class method(object):
+class Field(object):
+    def __init__(self, name, start, end):
+        self.name = name
+        self.start = int(start)
+        self.end = int(end)
+        self.defs = {}
+
+    def __eq__(self, other):
+        if not isinstance(other, Field):
+            return False
+
+        return self.name == other.name and \
+               self.start == other.start and \
+               self.end == other.end and \
+               self.defs == other.defs
+
+    @property
+    def is_bool(self):
+        if len(self.defs) != 2:
+            return False
+
+        for d in self.defs:
+            if not d.lower() in ['true', 'false']:
+                return False
+
+        return True
+
+    @property
+    def is_rs_enum(self):
+        return not self.is_bool and len(self.defs) > 0
+
+    def rs_type(self, mthd):
+        if self.is_bool:
+            return "bool"
+        elif self.name == 'V' and len(self.defs) > 0:
+            return to_camel(mthd.name) + 'V'
+        elif len(self.defs) > 0:
+            assert(self.name != "")
+            return to_camel(mthd.name) + to_camel(self.name)
+        elif mthd.is_float:
+            return "f32"
+        else:
+            return "u32"
+
+    @property
+    def rs_name(self):
+        name = self.name.lower()
+
+        # Fix up some Rust keywords
+        if name == 'type':
+            return 'type_'
+        elif name == 'override':
+            return 'override_'
+        elif name[0].isdigit():
+            return '_' + name
+        else:
+            return re.sub(r'_+', '_', name)
+
+class Method(object):
+    def __init__(self, name, addr, is_array=False):
+        self.name = name
+        self.addr = addr
+        self.is_array = is_array
+        self.fields = []
+
+    def __eq__(self, other):
+        if not isinstance(other, Method):
+            return False
+
+        return self.name == other.name and \
+               self.addr == other.addr and \
+               self.is_array == other.is_array and \
+               self.fields == other.fields
+
     @property
     def array_size(self):
         for (glob, value) in METHOD_ARRAY_SIZES.items():
@@ -381,7 +424,7 @@ class method(object):
     def is_float(self):
         for glob in METHOD_IS_FLOAT:
             if glob_match(glob, self.name):
-                assert len(self.field_defs) == 1
+                assert len(self.fields) == 1
                 return True
         return False
 
@@ -394,16 +437,15 @@ def parse_header(nvcl, f):
 
     version = None
     state = 0
-    mthddict = {}
-    curmthd = {}
-    for line in f:
+    methods = {}
+    curmthd = None
 
+    for line in f:
         if line.strip() == "":
             state = 0
-            if (curmthd):
-                if not len(curmthd.field_name_start):
-                    del mthddict[curmthd.name]
-            curmthd = {}
+            if curmthd is not None and len(curmthd.fields) == 0:
+                del methods[curmthd.name]
+            curmthd = None
             continue
 
         if line.startswith("#define"):
@@ -421,11 +463,11 @@ def parse_header(nvcl, f):
                 continue
 
             if state == 2:
-                teststr = nvcl + "_" + curmthd.name + "_" + curfield + "_"
+                teststr = nvcl + "_" + curmthd.name + "_" + curfield.name + "_"
                 if ":" in list[2]:
                     state = 1
                 elif teststr in list[1]:
-                    curmthd.field_defs[curfield][list[1].removeprefix(teststr)] = list[2]
+                    curfield.defs[list[1].removeprefix(teststr)] = list[2]
                 else:
                     state = 1
 
@@ -437,21 +479,20 @@ def parse_header(nvcl, f):
                     else:
                         field = list[1].removeprefix(teststr)
                         bitfield = list[2].split(":")
-                        curmthd.field_name_start[field] = bitfield[1]
-                        curmthd.field_name_end[field] = bitfield[0]
-                        curmthd.field_defs[field] = {}
-                        curfield = field
+                        f = Field(field, bitfield[1], bitfield[0])
+                        curmthd.fields.append(f)
+                        curfield = f
                         state = 2
                 else:
-                    if not len(curmthd.field_name_start):
-                        del mthddict[curmthd.name]
-                        curmthd = {}
+                    if len(curmthd.fields) == 0:
+                        del methods[curmthd.name]
+                    curmthd = None
                     state = 0
 
             if state == 0:
-                if (curmthd):
-                    if not len(curmthd.field_name_start):
-                        del mthddict[curmthd.name]
+                if curmthd is not None and len(curmthd.fields) == 0:
+                    del methods[curmthd.name]
+
                 teststr = nvcl + "_"
                 is_array = 0
                 if (':' in list[2]):
@@ -463,80 +504,17 @@ def parse_header(nvcl, f):
                 if name.endswith("(j)"):
                     is_array = 1
                     name = name.removesuffix("(j)")
-                x = method()
-                x.name = name
-                x.addr = list[2]
-                x.is_array = is_array
-                x.field_name_start = {}
-                x.field_name_end = {}
-                x.field_defs = {}
-                x.field_rs_types = {}
-                x.field_is_rs_enum = {}
-                mthddict[x.name] = x
 
-                curmthd = x
+                curmthd = Method(name, list[2], is_array)
+                methods[name] = curmthd
                 state = 1
 
-    return (version, mthddict)
+    return (version, methods)
 
-def convert_to_rust_constants(filename):
-    with open(filename, 'r') as file:
-        lines = file.readlines()
-
-    rust_items = []
-    processed_constants = {}
-    file_prefix = "NV" + os.path.splitext(os.path.basename(filename))[0].upper() + "_"
-    file_prefix = file_prefix.replace('CL', '')
-    for line in lines:
-        match = re.match(r'#define\s+(\w+)\((\w+)\)\s+(.+)', line.strip())
-        if match:
-            name, arg, expr = match.groups()
-            if name in processed_constants:
-                processed_constants[name] += 1
-                name += f"_{processed_constants[name]}"
-            else:
-                processed_constants[name] = 0
-            name = name.replace(file_prefix, '')
-            # convert to snake case
-            name =  re.sub(r'(?<=[a-z])(?=[A-Z])', '_', name).lower()
-            rust_items.append(f"#[inline]\npub fn {name}  ({arg}: u32) -> u32 {{ {expr.replace('(', '').replace(')', '')} }} ")
-        else:
-            match = re.match(r'#define\s+(\w+)\s+(?:MW\()?(\d+):(\d+)\)?', line.strip())
-            if match:
-                name, high, low = match.groups()
-                high = int(high) + 1  # Convert to exclusive range
-                if name in processed_constants:
-                    processed_constants[name] += 1
-                    name += f"_{processed_constants[name]}"
-                else:
-                    processed_constants[name] = 0
-                # name = name.replace('__', '_').replace(file_prefix, '')
-                name = name.replace(file_prefix, '')
-                rust_items.append(f"pub const {name}: Range<u32> = {low}..{high};")
-            else:
-                match = re.match(r'#define\s+(\w+)\s+\(?0x(\w+)\)?', line.strip())
-                if match:
-                    name, value = match.groups()
-                    if name in processed_constants:
-                        processed_constants[name] += 1
-                        name += f"_{processed_constants[name]}"
-                    else:
-                        processed_constants[name] = 0
-                    name = name.replace(file_prefix, '')
-                    rust_items.append(f"pub const {name}: u32 = 0x{value};")
-                else:
-                    match = re.match(r'#define\s+(\w+)\s+\(?(\d+)\)?', line.strip())
-                    if match:
-                        name, value = match.groups()
-                        if name in processed_constants:
-                            processed_constants[name] += 1
-                            name += f"_{processed_constants[name]}"
-                        else:
-                            processed_constants[name] = 0
-                        name = name.replace(file_prefix, '')
-                        rust_items.append(f"pub const {name}: u32 = {value};")
-
-    return '\n'.join(rust_items)
+def nvcl_for_filename(name):
+    name = name.removeprefix("cl")
+    name = name.removesuffix(".h")
+    return "NV" + name.upper()
 
 def main():
     parser = argparse.ArgumentParser()
@@ -548,24 +526,33 @@ def main():
     parser.add_argument('--in-h',
                         help='Input class header file.',
                         required=True)
+    parser.add_argument('--prev-in-h',
+                        help='Previous input class header file.',
+                        required=False)
     args = parser.parse_args()
 
     clheader = os.path.basename(args.in_h)
-    nvcl = clheader
-    nvcl = nvcl.removeprefix("cl")
-    nvcl = nvcl.removesuffix(".h")
-    nvcl = nvcl.upper()
-    nvcl = "NV" + nvcl
+    nvcl = nvcl_for_filename(clheader)
 
     with open(args.in_h, 'r', encoding='utf-8') as f:
-        (version, mthddict) = parse_header(nvcl, f)
+        (version, methods) = parse_header(nvcl, f)
+
+    prev_mod = None
+    prev_methods = {}
+    if args.prev_in_h is not None:
+        prev_clheader = os.path.basename(args.prev_in_h)
+        prev_nvcl = nvcl_for_filename(prev_clheader)
+        prev_mod = prev_clheader.removesuffix(".h")
+        with open(args.prev_in_h, 'r', encoding='utf-8') as f:
+            (prev_version, prev_methods) = parse_header(prev_nvcl, f)
 
     environment = {
         'clheader': clheader,
         'nvcl': nvcl,
         'version': version,
-        'mthddict': mthddict,
-        'rs_field_name': rs_field_name,
+        'methods': list(methods.values()),
+        'prev_mod': prev_mod,
+        'prev_methods': prev_methods,
         'to_camel': to_camel,
         'bs': '\\'
     }
@@ -583,14 +570,8 @@ def main():
                 f.write(TEMPLATE_RS.render(**environment))
         if args.out_rs_mthd is not None:
             with open(args.out_rs_mthd, 'w', encoding='utf-8') as f:
-                f.write("#![allow(non_camel_case_types)]\n")
-                f.write("#![allow(non_snake_case)]\n")
-                f.write("#![allow(non_upper_case_globals)]\n\n")
-                f.write("use std::ops::Range;\n")
                 f.write("use crate::Mthd;\n")
                 f.write("use crate::ArrayMthd;\n")
-                f.write("\n")
-                f.write(convert_to_rust_constants(args.in_h))
                 f.write("\n")
                 f.write(TEMPLATE_RS_MTHD.render(**environment))
 

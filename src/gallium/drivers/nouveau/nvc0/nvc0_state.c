@@ -302,10 +302,8 @@ nvc0_rasterizer_state_create(struct pipe_context *pipe,
     if (cso->offset_point || cso->offset_line || cso->offset_tri) {
         SB_BEGIN_3D(so, POLYGON_OFFSET_FACTOR, 1);
         SB_DATA    (so, fui(cso->offset_scale));
-        if (!cso->offset_units_unscaled) {
-           SB_BEGIN_3D(so, POLYGON_OFFSET_UNITS, 1);
-           SB_DATA    (so, fui(cso->offset_units * 2.0f));
-        }
+        SB_BEGIN_3D(so, POLYGON_OFFSET_UNITS, 1);
+        SB_DATA    (so, fui(cso->offset_units * 2.0f));
         SB_BEGIN_3D(so, POLYGON_OFFSET_CLAMP, 1);
         SB_DATA    (so, fui(cso->offset_clamp));
     }
@@ -516,7 +514,7 @@ nvc0_sampler_view_destroy(struct pipe_context *pipe,
 
 static inline void
 nvc0_stage_set_sampler_views(struct nvc0_context *nvc0, int s,
-                             unsigned nr, bool take_ownership,
+                             unsigned nr,
                              struct pipe_sampler_view **views)
 {
    unsigned i;
@@ -526,8 +524,6 @@ nvc0_stage_set_sampler_views(struct nvc0_context *nvc0, int s,
       struct nv50_tic_entry *old = nv50_tic_entry(nvc0->textures[s][i]);
 
       if (view == nvc0->textures[s][i]) {
-         if (take_ownership)
-            pipe_sampler_view_reference(&view, NULL);
          continue;
       }
       nvc0->textures_dirty[s] |= 1 << i;
@@ -551,12 +547,7 @@ nvc0_stage_set_sampler_views(struct nvc0_context *nvc0, int s,
          nvc0_screen_tic_unlock(nvc0->screen, old);
       }
 
-      if (take_ownership) {
-         pipe_sampler_view_reference(&nvc0->textures[s][i], NULL);
-         nvc0->textures[s][i] = view;
-      } else {
-         pipe_sampler_view_reference(&nvc0->textures[s][i], view);
-      }
+      pipe_sampler_view_reference(&nvc0->textures[s][i], view);
    }
 
    for (i = nr; i < nvc0->num_textures[s]; ++i) {
@@ -578,13 +569,12 @@ static void
 nvc0_set_sampler_views(struct pipe_context *pipe, enum pipe_shader_type shader,
                        unsigned start, unsigned nr,
                        unsigned unbind_num_trailing_slots,
-                       bool take_ownership,
                        struct pipe_sampler_view **views)
 {
    const unsigned s = nvc0_shader_stage(shader);
 
    assert(start == 0);
-   nvc0_stage_set_sampler_views(nvc0_context(pipe), s, nr, take_ownership, views);
+   nvc0_stage_set_sampler_views(nvc0_context(pipe), s, nr, views);
 
    if (s == 5)
       nvc0_context(pipe)->dirty_cp |= NVC0_NEW_CP_TEXTURES;
@@ -737,7 +727,6 @@ nvc0_cp_state_create(struct pipe_context *pipe,
    prog->type = PIPE_SHADER_COMPUTE;
 
    prog->cp.smem_size = cso->static_shared_mem;
-   prog->parm_size = cso->req_input_mem;
 
    switch(cso->ir_type) {
    case PIPE_SHADER_IR_TGSI: {
@@ -921,6 +910,7 @@ nvc0_set_framebuffer_state(struct pipe_context *pipe,
 
     nouveau_bufctx_reset(nvc0->bufctx_3d, NVC0_BIND_3D_FB);
 
+    util_framebuffer_init(pipe, fb, nvc0->fb_cbufs, &nvc0->fb_zsbuf);
     util_copy_framebuffer_state(&nvc0->framebuffer, fb);
 
     nvc0->dirty_3d |= NVC0_NEW_3D_FRAMEBUFFER | NVC0_NEW_3D_SAMPLE_LOCATIONS |
@@ -1216,16 +1206,6 @@ nvc0_bind_surfaces_range(struct nvc0_context *nvc0, const unsigned t,
       nouveau_bufctx_reset(nvc0->bufctx_cp, NVC0_BIND_CP_SUF);
 }
 
-static void
-nvc0_set_compute_resources(struct pipe_context *pipe,
-                           unsigned start, unsigned nr,
-                           struct pipe_surface **resources)
-{
-   nvc0_bind_surfaces_range(nvc0_context(pipe), 1, start, nr, resources);
-
-   nvc0_context(pipe)->dirty_cp |= NVC0_NEW_CP_SURFACES;
-}
-
 static bool
 nvc0_bind_images_range(struct nvc0_context *nvc0, const unsigned s,
                        unsigned start, unsigned nr,
@@ -1482,6 +1462,7 @@ nvc0_init_state_functions(struct nvc0_context *nvc0)
 
    pipe->create_sampler_view = nvc0_create_sampler_view;
    pipe->sampler_view_destroy = nvc0_sampler_view_destroy;
+   pipe->sampler_view_release = u_default_sampler_view_release;
    pipe->set_sampler_views = nvc0_set_sampler_views;
 
    pipe->create_vs_state = nvc0_vp_state_create;
@@ -1531,7 +1512,6 @@ nvc0_init_state_functions(struct nvc0_context *nvc0)
    pipe->set_stream_output_targets = nvc0_set_transform_feedback_targets;
 
    pipe->set_global_binding = nvc0_set_global_bindings;
-   pipe->set_compute_resources = nvc0_set_compute_resources;
    pipe->set_shader_images = nvc0_set_shader_images;
    pipe->set_shader_buffers = nvc0_set_shader_buffers;
 

@@ -424,8 +424,8 @@ vl_zscan_init_buffer(struct vl_zscan *zscan, struct vl_zscan_buffer *buffer,
 
    pipe_sampler_view_reference(&buffer->src, src);
 
-   buffer->viewport.scale[0] = dst->width;
-   buffer->viewport.scale[1] = dst->height;
+   buffer->viewport.scale[0] = pipe_surface_width(dst);
+   buffer->viewport.scale[1] = pipe_surface_height(dst);
    buffer->viewport.scale[2] = 1;
    buffer->viewport.translate[0] = 0;
    buffer->viewport.translate[1] = 0;
@@ -435,10 +435,10 @@ vl_zscan_init_buffer(struct vl_zscan *zscan, struct vl_zscan_buffer *buffer,
    buffer->viewport.swizzle_z = PIPE_VIEWPORT_SWIZZLE_POSITIVE_Z;
    buffer->viewport.swizzle_w = PIPE_VIEWPORT_SWIZZLE_POSITIVE_W;
 
-   buffer->fb_state.width = dst->width;
-   buffer->fb_state.height = dst->height;
+   buffer->fb_state.width = pipe_surface_width(dst);
+   buffer->fb_state.height = pipe_surface_height(dst);
    buffer->fb_state.nr_cbufs = 1;
-   pipe_surface_reference(&buffer->fb_state.cbufs[0], dst);
+   buffer->fb_state.cbufs[0] = *dst;
 
    memset(&res_tmpl, 0, sizeof(res_tmpl));
    res_tmpl.target = PIPE_TEXTURE_3D;
@@ -473,7 +473,7 @@ vl_zscan_cleanup_buffer(struct vl_zscan_buffer *buffer)
    pipe_sampler_view_reference(&buffer->src, NULL);
    pipe_sampler_view_reference(&buffer->layout, NULL);
    pipe_sampler_view_reference(&buffer->quant, NULL);
-   pipe_surface_reference(&buffer->fb_state.cbufs[0], NULL);
+   memset(&buffer->fb_state.cbufs[0], 0, sizeof(struct pipe_surface));
 }
 
 void
@@ -536,7 +536,7 @@ vl_zscan_render(struct vl_zscan *zscan, struct vl_zscan_buffer *buffer, unsigned
    zscan->pipe->set_framebuffer_state(zscan->pipe, &buffer->fb_state);
    zscan->pipe->set_viewport_states(zscan->pipe, 0, 1, &buffer->viewport);
    zscan->pipe->set_sampler_views(zscan->pipe, PIPE_SHADER_FRAGMENT,
-                                  0, 3, 0, false, &buffer->src);
+                                  0, 3, 0, &buffer->src);
    zscan->pipe->bind_vs_state(zscan->pipe, zscan->vs);
    zscan->pipe->bind_fs_state(zscan->pipe, zscan->fs);
    util_draw_arrays_instanced(zscan->pipe, MESA_PRIM_QUADS, 0, 4, 0, num_instances);

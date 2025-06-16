@@ -21,6 +21,7 @@
 layout(local_size_x = 64, local_size_y = 1, local_size_z = 1) in;
 
 #include "build_interface.h"
+#include "update.h"
 
 layout(push_constant) uniform CONSTS {
     update_args args;
@@ -56,10 +57,10 @@ void main() {
     vk_aabb bounds;
     bool is_active;
     if (args.geom_data.geometry_type == VK_GEOMETRY_TYPE_TRIANGLES_KHR) {
-        is_active = build_triangle(bounds, dst_ptr, args.geom_data, gl_GlobalInvocationID.x);
+        is_active = radv_build_triangle(bounds, dst_ptr, args.geom_data, gl_GlobalInvocationID.x, false);
     } else {
         VOID_REF src_ptr = OFFSET(args.geom_data.data, src_offset);
-        is_active = build_aabb(bounds, src_ptr, dst_ptr, args.geom_data.geometry_id, gl_GlobalInvocationID.x);
+        is_active = radv_build_aabb(bounds, src_ptr, dst_ptr, args.geom_data.geometry_id, gl_GlobalInvocationID.x, false);
     }
 
     if (!is_active)
@@ -107,8 +108,10 @@ void main() {
         if (ready_child_count != valid_child_count - 1)
             break;
 
-        for (uint32_t i = 0; i < 4; ++i)
-            DEREF(dst_node).children[i] = children[i];
+        if (!VK_BUILD_FLAG(RADV_BUILD_FLAG_UPDATE_IN_PLACE)) {
+            for (uint32_t i = 0; i < 4; ++i)
+                DEREF(dst_node).children[i] = children[i];
+        }
 
         for (uint32_t i = 0; i < valid_child_count; ++i) {
             uint32_t child_offset = id_to_offset(children[i]);

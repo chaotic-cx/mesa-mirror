@@ -25,7 +25,7 @@ use std::ops::Range;
     % for f in s.fields:
         % if f.stride:
 #[inline]
-pub fn ${s.name}_${f.name}(i: usize) -> Range<usize> {
+pub const fn ${s.name}_${f.name}(i: usize) -> Range<usize> {
     (i * ${f.stride} + ${f.lo})..(i * ${f.stride} + ${f.hi + 1})
 }
         % else:
@@ -57,6 +57,8 @@ STRUCTS = [
     'QMDV02_03',
     'QMDV02_04',
     'QMDV03_00',
+    'QMDV04_00',
+    'QMDV05_00',
 ]
 
 Enum = namedtuple('Enum', ['name', 'value'])

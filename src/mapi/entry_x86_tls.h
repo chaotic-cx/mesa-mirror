@@ -48,7 +48,7 @@ __asm__("x86_current_tls:\n\t"
         "1:\n\t"
         "popl %eax\n\t"
 	"addl $_GLOBAL_OFFSET_TABLE_+[.-1b], %eax\n\t"
-	"movl _glapi_tls_Dispatch@GOTNTPOFF(%eax), %eax\n\t"
+	"movl _mesa_glapi_tls_Dispatch@GOTNTPOFF(%eax), %eax\n\t"
 	"ret");
 
 #ifndef GLX_X86_READONLY_TEXT
@@ -70,75 +70,6 @@ __asm__(".balign 16\n"
    "1:\n\t"                                                 \
    "popl %eax\n\t"                                          \
    "addl $_GLOBAL_OFFSET_TABLE_+[.-1b], %eax\n\t"           \
-   "movl _glapi_tls_Dispatch@GOTNTPOFF(%eax), %eax\n\t" \
+   "movl _mesa_glapi_tls_Dispatch@GOTNTPOFF(%eax), %eax\n\t" \
    "movl %gs:(%eax), %eax\n\t"                              \
    "jmp *(4 * " slot ")(%eax)"
-
-#define MAPI_TMP_STUB_ASM_GCC
-#include "mapi_tmp.h"
-
-#ifndef GLX_X86_READONLY_TEXT
-__asm__(".balign 16\n"
-        "x86_entry_end:");
-__asm__(".text");
-#endif /* GLX_X86_READONLY_TEXT */
-
-#ifndef MAPI_MODE_BRIDGE
-
-extern unsigned long
-x86_current_tls();
-
-extern char x86_entry_start[] HIDDEN;
-extern char x86_entry_end[] HIDDEN;
-
-static inline mapi_func
-entry_generate_or_patch(int, char *, size_t);
-
-void
-entry_patch_public(void)
-{
-#ifndef GLX_X86_READONLY_TEXT
-   char *entry;
-   int slot = 0;
-   for (entry = x86_entry_start; entry < x86_entry_end;
-        entry += X86_ENTRY_SIZE, ++slot)
-      entry_generate_or_patch(slot, entry, X86_ENTRY_SIZE);
-#endif
-}
-
-mapi_func
-entry_get_public(int slot)
-{
-   return (mapi_func) (x86_entry_start + slot * X86_ENTRY_SIZE);
-}
-
-static void
-entry_patch(mapi_func entry, int slot)
-{
-   char *code = (char *) entry;
-   *((unsigned long *) (code + 8)) = slot * sizeof(mapi_func);
-}
-
-static inline mapi_func
-entry_generate_or_patch(int slot, char *code, size_t size)
-{
-   const char code_templ[16] = {
-      0x65, 0xa1, 0x00, 0x00, 0x00, 0x00, /* movl %gs:0x0, %eax */
-      0xff, 0xa0, 0x34, 0x12, 0x00, 0x00, /* jmp *0x1234(%eax) */
-      0x90, 0x90, 0x90, 0x90              /* nop's */
-   };
-   mapi_func entry;
-
-   if (size < sizeof(code_templ))
-      return NULL;
-
-   memcpy(code, code_templ, sizeof(code_templ));
-
-   *((unsigned long *) (code + 2)) = x86_current_tls();
-   entry = (mapi_func) code;
-   entry_patch(entry, slot);
-
-   return entry;
-}
-
-#endif /* MAPI_MODE_BRIDGE */

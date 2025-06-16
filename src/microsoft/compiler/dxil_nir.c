@@ -900,13 +900,7 @@ upcast_phi_impl(nir_function_impl *impl, unsigned min_bit_size)
       }
    }
 
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
-
-   return progress;
+   return nir_progress(progress, impl, nir_metadata_control_flow);
 }
 
 bool
@@ -1174,8 +1168,7 @@ dxil_nir_lower_double_math(nir_shader *shader)
 {
    return nir_shader_instructions_pass(shader,
                                        dxil_nir_lower_double_math_instr,
-                                       nir_metadata_control_flow |
-                                       nir_metadata_loop_analysis,
+                                       nir_metadata_control_flow,
                                        NULL);
 }
 

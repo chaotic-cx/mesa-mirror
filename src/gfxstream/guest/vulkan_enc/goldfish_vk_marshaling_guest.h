@@ -3925,21 +3925,17 @@ void unmarshal_VkDeviceDeviceMemoryReportCreateInfoEXT(
 
 #endif
 #ifdef VK_EXT_robustness2
-void marshal_VkPhysicalDeviceRobustness2FeaturesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2FeaturesEXT* forMarshaling);
+DEFINE_ALIAS_FUNCTION(marshal_VkPhysicalDeviceRobustness2FeaturesKHR,
+                      marshal_VkPhysicalDeviceRobustness2FeaturesEXT)
 
-void unmarshal_VkPhysicalDeviceRobustness2FeaturesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    VkPhysicalDeviceRobustness2FeaturesEXT* forUnmarshaling);
+DEFINE_ALIAS_FUNCTION(unmarshal_VkPhysicalDeviceRobustness2FeaturesKHR,
+                      unmarshal_VkPhysicalDeviceRobustness2FeaturesEXT)
 
-void marshal_VkPhysicalDeviceRobustness2PropertiesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    const VkPhysicalDeviceRobustness2PropertiesEXT* forMarshaling);
+DEFINE_ALIAS_FUNCTION(marshal_VkPhysicalDeviceRobustness2PropertiesKHR,
+                      marshal_VkPhysicalDeviceRobustness2PropertiesEXT)
 
-void unmarshal_VkPhysicalDeviceRobustness2PropertiesEXT(
-    VulkanStreamGuest* vkStream, VkStructureType rootType,
-    VkPhysicalDeviceRobustness2PropertiesEXT* forUnmarshaling);
+DEFINE_ALIAS_FUNCTION(unmarshal_VkPhysicalDeviceRobustness2PropertiesKHR,
+                      unmarshal_VkPhysicalDeviceRobustness2PropertiesEXT)
 
 #endif
 #ifdef VK_EXT_custom_border_color

@@ -135,6 +135,7 @@ cc_library_static {
         "os_memory_fd.c",
         "os_misc.c",
         "os_socket.c",
+        "pb_slab.c",
         "perf/u_trace.c",
         "u_process.c",
         "u_qsort.cpp",

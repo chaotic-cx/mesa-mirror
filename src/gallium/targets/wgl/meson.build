@@ -20,7 +20,7 @@ libgallium_wgl = shared_library(
   ],
   link_whole : [libwgl],
   link_with : [
-    libgallium, libglsl, libmesa, libwsgdi, libglapi_static, libglapi, libgalliumvl_stub,
+    libgallium, libglsl, libmesa, libwsgdi, libglapi_bridge, libglapi, libgalliumvl_stub,
   ],
   dependencies : [
     dep_ws2_32, idep_nir, idep_mesautil, driver_swrast,
@@ -31,3 +31,5 @@ libgallium_wgl = shared_library(
   install : true,
 )
 libgallium_wgl_build_dir = meson.current_build_dir()
+
+shared_glapi_lib = libgallium_wgl

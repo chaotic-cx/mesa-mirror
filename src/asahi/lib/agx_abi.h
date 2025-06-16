@@ -8,9 +8,10 @@
 
 /* See compiler/README.md for the ABI */
 
-#define AGX_ABI_VIN_ATTRIB(i)   (2 * (8 + i))
-#define AGX_ABI_VIN_VERTEX_ID   (2 * 5)
-#define AGX_ABI_VIN_INSTANCE_ID (2 * 6)
+#define AGX_ABI_VIN_ATTRIB(i)           (2 * (8 + i))
+#define AGX_ABI_VIN_VERTEX_ID_ZERO_BASE (2 * 4)
+#define AGX_ABI_VIN_VERTEX_ID           (2 * 5)
+#define AGX_ABI_VIN_INSTANCE_ID         (2 * 6)
 
 #define AGX_ABI_FIN_SAMPLE_MASK (2)
 
@@ -19,3 +20,9 @@
 #define AGX_ABI_FOUT_S             (6)
 #define AGX_ABI_FOUT_WRITE_SAMPLES (7)
 #define AGX_ABI_FOUT_COLOUR(rt)    (2 * (4 + (4 * rt)))
+
+/* This address is in our reservation, and can be
+ * addressed with only small integers in the low/high. That lets us do some
+ * robustness optimization even without soft fault.
+ */
+#define AGX_ZERO_PAGE_ADDRESS (((uint64_t)1) << 32)

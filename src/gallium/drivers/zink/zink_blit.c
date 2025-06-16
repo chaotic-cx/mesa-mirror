@@ -19,9 +19,9 @@ apply_dst_clears(struct zink_context *ctx, const struct pipe_blit_info *info, bo
    if (info->scissor_enable) {
       struct u_rect rect = { info->scissor.minx, info->scissor.maxx,
                              info->scissor.miny, info->scissor.maxy };
-      zink_fb_clears_apply_or_discard(ctx, info->dst.resource, rect, discard_only);
+      zink_fb_clears_apply_or_discard(ctx, info->dst.resource, rect, info->dst.box.z, info->dst.box.depth, discard_only);
    } else
-      zink_fb_clears_apply_or_discard(ctx, info->dst.resource, zink_rect_from_box(&info->dst.box), discard_only);
+      zink_fb_clears_apply_or_discard(ctx, info->dst.resource, zink_rect_from_box(&info->dst.box), info->dst.box.z, info->dst.box.depth, discard_only);
 }
 
 static bool
@@ -66,7 +66,7 @@ blit_resolve(struct zink_context *ctx, const struct pipe_blit_info *info, bool *
 
 
    apply_dst_clears(ctx, info, false);
-   zink_fb_clears_apply_region(ctx, info->src.resource, zink_rect_from_box(&info->src.box));
+   zink_fb_clears_apply_region(ctx, info->src.resource, zink_rect_from_box(&info->src.box), info->src.box.z, info->src.box.depth);
 
    if (src->obj->dt)
       *needs_present_readback = zink_kopper_acquire_readback(ctx, src, &use_src);
@@ -271,7 +271,7 @@ blit_native(struct zink_context *ctx, const struct pipe_blit_info *info, bool *n
    assert(region.dstOffsets[0].z != region.dstOffsets[1].z);
 
    apply_dst_clears(ctx, info, false);
-   zink_fb_clears_apply_region(ctx, info->src.resource, zink_rect_from_box(&info->src.box));
+   zink_fb_clears_apply_region(ctx, info->src.resource, zink_rect_from_box(&info->src.box), info->src.box.z, info->src.box.depth);
 
    if (src->obj->dt)
       *needs_present_readback = zink_kopper_acquire_readback(ctx, src, &use_src);
@@ -382,7 +382,7 @@ zink_blit(struct pipe_context *pctx,
    }
 
    if (src->obj->dt) {
-      zink_fb_clears_apply_region(ctx, info->src.resource, zink_rect_from_box(&info->src.box));
+      zink_fb_clears_apply_region(ctx, info->src.resource, zink_rect_from_box(&info->src.box), info->src.box.z, info->src.box.depth);
       needs_present_readback = zink_kopper_acquire_readback(ctx, src, &use_src);
    }
 
@@ -390,7 +390,7 @@ zink_blit(struct pipe_context *pctx,
     * flush all pending clears anyway
     */
    apply_dst_clears(ctx, info, true);
-   zink_fb_clears_apply_region(ctx, info->src.resource, zink_rect_from_box(&info->src.box));
+   zink_fb_clears_apply_region(ctx, info->src.resource, zink_rect_from_box(&info->src.box), info->src.box.z, info->src.box.depth);
    unsigned rp_clears_enabled = ctx->rp_clears_enabled;
    unsigned clears_enabled = ctx->clears_enabled;
    if (!dst->fb_bind_count) {
@@ -416,7 +416,6 @@ zink_blit(struct pipe_context *pctx,
       pctx->invalidate_resource(pctx, info->dst.resource);
 
    ctx->unordered_blitting = !(info->render_condition_enable && ctx->render_condition_active) &&
-                             zink_screen(ctx->base.screen)->info.have_KHR_dynamic_rendering &&
                              !needs_present_readback &&
                              zink_get_cmdbuf(ctx, src, dst) == ctx->bs->reordered_cmdbuf;
    VkCommandBuffer cmdbuf = ctx->bs->cmdbuf;
@@ -424,7 +423,7 @@ zink_blit(struct pipe_context *pctx,
    bool in_rp = ctx->in_rp;
    uint64_t tc_data = ctx->dynamic_fb.tc_info.data;
    bool queries_disabled = ctx->queries_disabled;
-   bool rp_changed = ctx->rp_changed || (!ctx->fb_state.zsbuf && util_format_is_depth_or_stencil(info->dst.format));
+   bool rp_changed = ctx->rp_changed || (!ctx->fb_state.zsbuf.texture && util_format_is_depth_or_stencil(info->dst.format));
    unsigned ds3_states = ctx->ds3_states;
    bool rp_tc_info_updated = ctx->rp_tc_info_updated;
    if (ctx->unordered_blitting) {
@@ -448,11 +447,10 @@ zink_blit(struct pipe_context *pctx,
    ctx->blit_nearest = info->filter == PIPE_TEX_FILTER_NEAREST;
 
    if (stencil_blit) {
-      struct pipe_surface *dst_view, dst_templ;
+      struct pipe_surface dst_templ;
       util_blitter_default_dst_texture(&dst_templ, info->dst.resource, info->dst.level, info->dst.box.z);
-      dst_view = pctx->create_surface(pctx, info->dst.resource, &dst_templ);
 
-      util_blitter_clear_depth_stencil(ctx->blitter, dst_view, PIPE_CLEAR_STENCIL,
+      util_blitter_clear_depth_stencil(ctx->blitter, &dst_templ, PIPE_CLEAR_STENCIL,
                                        0, 0, info->dst.box.x, info->dst.box.y,
                                        info->dst.box.width, info->dst.box.height);
       zink_blit_begin(ctx, ZINK_BLIT_SAVE_FB | ZINK_BLIT_SAVE_FS | ZINK_BLIT_SAVE_TEXTURES | ZINK_BLIT_SAVE_FS_CONST_BUF);
@@ -464,8 +462,6 @@ zink_blit(struct pipe_context *pctx,
                                     info->src.level,
                                     &info->src.box,
                                     info->scissor_enable ? &info->scissor : NULL);
-
-      pipe_surface_release(pctx, &dst_view);
    } else {
       struct pipe_blit_info new_info = *info;
       new_info.src.resource = &use_src->base.b;
@@ -570,14 +566,14 @@ zink_blit_barriers(struct zink_context *ctx, struct zink_resource *src, struct z
       pipeline = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
    }
    if (src == dst) {
-      VkImageLayout layout = zink_screen(ctx->base.screen)->info.have_EXT_attachment_feedback_loop_layout ?
+      VkImageLayout layout = !screen->driver_workarounds.general_layout && screen->info.have_EXT_attachment_feedback_loop_layout ?
                              VK_IMAGE_LAYOUT_ATTACHMENT_FEEDBACK_LOOP_OPTIMAL_EXT :
                              VK_IMAGE_LAYOUT_GENERAL;
       screen->image_barrier(ctx, src, layout, VK_ACCESS_SHADER_READ_BIT | flags, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT | pipeline);
    } else {
       if (src) {
-         VkImageLayout layout = util_format_is_depth_or_stencil(src->base.b.format) &&
-                                src->obj->vkusage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ?
+         VkImageLayout layout = screen->driver_workarounds.general_layout ? VK_IMAGE_LAYOUT_GENERAL :
+                                util_format_is_depth_or_stencil(src->base.b.format) && src->obj->vkusage & VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ?
                                 VK_IMAGE_LAYOUT_DEPTH_STENCIL_READ_ONLY_OPTIMAL :
                                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
          screen->image_barrier(ctx, src, layout,
@@ -585,9 +581,10 @@ zink_blit_barriers(struct zink_context *ctx, struct zink_resource *src, struct z
          if (!ctx->unordered_blitting)
             src->obj->unordered_read = false;
       }
-      VkImageLayout layout = util_format_is_depth_or_stencil(dst->base.b.format) ?
-                           VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
-                           VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+      VkImageLayout layout = screen->driver_workarounds.general_layout ? VK_IMAGE_LAYOUT_GENERAL :
+                             util_format_is_depth_or_stencil(dst->base.b.format) ?
+                             VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL :
+                             VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
       screen->image_barrier(ctx, dst, layout, flags, pipeline);
    }
    if (!ctx->unordered_blitting)
@@ -645,11 +642,11 @@ void
 zink_draw_rectangle(struct blitter_context *blitter, void *vertex_elements_cso,
                     blitter_get_vs_func get_vs, int x1, int y1, int x2, int y2,
                     float depth, unsigned num_instances, enum blitter_attrib_type type,
-                    const union blitter_attrib *attrib)
+                    const struct blitter_attrib *attrib)
 {
    struct zink_context *ctx = zink_context(blitter->pipe);
 
-   union blitter_attrib new_attrib = *attrib;
+   struct blitter_attrib new_attrib = *attrib;
 
    /* Avoid inconsistencies in rounding between both triangles which can show with
     * nearest filtering by expanding the rect so only one triangle is effectively drawn.

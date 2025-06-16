@@ -74,6 +74,8 @@
 #include "util/u_vector.h"
 #include "egl_dri2.h"
 #include "egldefines.h"
+#include "mapi/glapi/glapi.h"
+#include "dispatch.h"
 
 #define NUM_ATTRIBS 16
 
@@ -97,27 +99,9 @@ dri_set_background_context(void *loaderPrivate)
 }
 
 static void
-dri2_gl_flush_get(_glapi_proc *glFlush)
-{
-   *glFlush = _glapi_get_proc_address("glFlush");
-}
-
-static void
 dri2_gl_flush()
 {
-   static void (*glFlush)(void);
-   static util_once_flag once = UTIL_ONCE_FLAG_INIT;
-
-   util_call_once_data(&once, (util_call_once_data_func)dri2_gl_flush_get,
-                       &glFlush);
-
-   /* if glFlush is not available things are horribly broken */
-   if (!glFlush) {
-      _eglLog(_EGL_WARNING, "DRI2: failed to find glFlush entry point");
-      return;
-   }
-
-   glFlush();
+   CALL_Flush(GET_DISPATCH(), ());
 }
 
 static GLboolean
@@ -155,10 +139,6 @@ const __DRIbackgroundCallableExtension background_callable_extension = {
 
    .setBackgroundContext = dri_set_background_context,
    .isThreadSafe = dri_is_thread_safe,
-};
-
-const __DRIuseInvalidateExtension use_invalidate = {
-   .base = {__DRI_USE_INVALIDATE, 1},
 };
 
 static void
@@ -585,18 +565,14 @@ const __DRIimageLookupExtension image_lookup_extension = {
    .lookupEGLImageValidated = dri2_lookup_egl_image_validated,
 };
 
-EGLBoolean
-dri2_load_driver(_EGLDisplay *disp)
+void
+dri2_detect_swrast(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
-   dri2_dpy->kopper = disp->Options.Zink && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
-   dri2_dpy->kopper_without_modifiers = dri2_dpy->kopper && debug_get_bool_option("LIBGL_KOPPER_DRI2", false);
-   dri2_dpy->swrast = (disp->Options.ForceSoftware && !dri2_dpy->kopper) ||
+   dri2_dpy->swrast = (disp->Options.ForceSoftware && !dri2_dpy->kopper && strcmp(dri2_dpy->driver_name, "vmwgfx")) ||
                       !dri2_dpy->driver_name || strstr(dri2_dpy->driver_name, "swrast");
    dri2_dpy->swrast_not_kms = dri2_dpy->swrast && (!dri2_dpy->driver_name || strcmp(dri2_dpy->driver_name, "kms_swrast"));
-
-   return EGL_TRUE;
 }
 
 static const char *
@@ -612,7 +588,7 @@ dri2_query_driver_config(_EGLDisplay *disp)
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    char *ret;
 
-   ret = pipe_loader_get_driinfo_xml(dri2_dpy->driver_name);
+   ret = driGetDriInfoXML(dri2_dpy->driver_name);
 
    mtx_unlock(&dri2_dpy->lock);
 
@@ -629,11 +605,8 @@ dri2_setup_screen(_EGLDisplay *disp)
 
 #ifdef HAVE_LIBDRM
    unsigned caps = pscreen->caps.dmabuf;
-   /* set if both import and export are suported */
-   if (dri2_dpy->multibuffers_available) {
-      dri2_dpy->has_dmabuf_import = (caps & DRM_PRIME_CAP_IMPORT) > 0;
-      dri2_dpy->has_dmabuf_export = (caps & DRM_PRIME_CAP_EXPORT) > 0;
-   }
+   dri2_dpy->has_dmabuf_import = (caps & DRM_PRIME_CAP_IMPORT) > 0;
+   dri2_dpy->has_dmabuf_export = (caps & DRM_PRIME_CAP_EXPORT) > 0;
 #endif
 #ifdef HAVE_ANDROID_PLATFORM
    dri2_dpy->has_native_fence_fd = pscreen->caps.native_fence_fd;
@@ -897,9 +870,13 @@ dri2_initialize(_EGLDisplay *disp)
       p_atomic_inc(&dri2_dpy->ref_count);
       return EGL_TRUE;
    }
+   dri2_dpy = dri2_display_create(disp);
+   if (!dri2_dpy)
+      return EGL_FALSE;
 
    loader_set_logger(_eglLog);
 
+   bool allow_dri2 = false;
    switch (disp->Platform) {
    case _EGL_PLATFORM_SURFACELESS:
       ret = dri2_initialize_surfaceless(disp);
@@ -909,7 +886,17 @@ dri2_initialize(_EGLDisplay *disp)
       break;
    case _EGL_PLATFORM_X11:
    case _EGL_PLATFORM_XCB:
-      ret = dri2_initialize_x11(disp);
+      ret = dri2_initialize_x11(disp, &allow_dri2);
+      /* platform_x11 detects dri2 availability */
+      if (!ret && allow_dri2) {
+         /* this is a fallthrough using the same dri2_dpy from dri3,
+         * so the existing one must be destroyed and a new one created
+         * the caller will switch to the new display automatically
+         */
+         dri2_display_destroy(disp);
+         dri2_display_create(disp);
+         ret = dri2_initialize_x11_dri2(disp);
+      }
       break;
    case _EGL_PLATFORM_DRM:
       ret = dri2_initialize_drm(disp);
@@ -925,8 +912,10 @@ dri2_initialize(_EGLDisplay *disp)
       return EGL_FALSE;
    }
 
-   if (!ret)
+   if (!ret) {
+      dri2_display_destroy(disp);
       return EGL_FALSE;
+   }
 
    if (_eglGetArraySize(disp->Configs) == 0) {
       _eglError(EGL_NOT_INITIALIZED, "failed to add any EGLConfigs");
@@ -1030,7 +1019,7 @@ dri2_display_destroy(_EGLDisplay *disp)
 }
 
 struct dri2_egl_display *
-dri2_display_create(void)
+dri2_display_create(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = calloc(1, sizeof *dri2_dpy);
    if (!dri2_dpy) {
@@ -1041,6 +1030,9 @@ dri2_display_create(void)
    dri2_dpy->fd_render_gpu = -1;
    dri2_dpy->fd_display_gpu = -1;
    dri2_dpy->multibuffers_available = true;
+   dri2_dpy->kopper = disp->Options.Zink && !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
+   dri2_dpy->kopper_without_modifiers = dri2_dpy->kopper && debug_get_bool_option("LIBGL_KOPPER_DRI2", false);
+   disp->DriverData = (void *)dri2_dpy;
 
    return dri2_dpy;
 }
@@ -1690,27 +1682,6 @@ dri2_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *surf,
 }
 
 static EGLBoolean
-dri2_swap_buffers_region(_EGLDisplay *disp, _EGLSurface *surf, EGLint numRects,
-                         const EGLint *rects)
-{
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   struct dri_drawable *dri_drawable = dri2_dpy->vtbl->get_dri_drawable(surf);
-   EGLBoolean ret;
-
-   if (!dri2_dpy->vtbl->swap_buffers_region)
-      return EGL_FALSE;
-   ret = dri2_dpy->vtbl->swap_buffers_region(disp, surf, numRects, rects);
-
-   /* SwapBuffers marks the end of the frame; reset the damage region for
-    * use again next time.
-    */
-   if (ret && disp->Extensions.KHR_partial_update)
-      dri_set_damage_region(dri_drawable, 0, NULL);
-
-   return ret;
-}
-
-static EGLBoolean
 dri2_set_damage_region(_EGLDisplay *disp, _EGLSurface *surf, EGLint *rects,
                        EGLint n_rects)
 {
@@ -1725,21 +1696,6 @@ dri2_set_damage_region(_EGLDisplay *disp, _EGLSurface *surf, EGLint *rects,
    dri_set_damage_region(drawable, n_rects, rects);
    mtx_unlock(&dri2_dpy->lock);
    return EGL_TRUE;
-}
-
-static EGLBoolean
-dri2_post_sub_buffer(_EGLDisplay *disp, _EGLSurface *surf, EGLint x, EGLint y,
-                     EGLint width, EGLint height)
-{
-   struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
-   EGLBoolean ret = EGL_FALSE;
-
-   if (dri2_dpy->vtbl->post_sub_buffer)
-      ret = dri2_dpy->vtbl->post_sub_buffer(disp, surf, x, y, width, height);
-
-   mtx_unlock(&dri2_dpy->lock);
-
-   return ret;
 }
 
 static EGLBoolean
@@ -3373,9 +3329,7 @@ const _EGLDriver _eglDriver = {
    .SwapInterval = dri2_swap_interval,
    .SwapBuffers = dri2_swap_buffers,
    .SwapBuffersWithDamageEXT = dri2_swap_buffers_with_damage,
-   .SwapBuffersRegionNOK = dri2_swap_buffers_region,
    .SetDamageRegion = dri2_set_damage_region,
-   .PostSubBufferNV = dri2_post_sub_buffer,
    .CopyBuffers = dri2_copy_buffers,
    .QueryBufferAge = dri2_query_buffer_age,
    .CreateImageKHR = dri2_create_image,

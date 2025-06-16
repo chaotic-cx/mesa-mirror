@@ -31,13 +31,14 @@
 
 #include "c11/threads.h"
 #include "common/intel_bind_timeline.h"
+#include "util/format/u_formats.h"
 #include "util/macros.h"
 #include "util/u_atomic.h"
 #include "util/u_dynarray.h"
 #include "util/list.h"
 #include "util/simple_mtx.h"
 #include "pipe/p_defines.h"
-#include "pipebuffer/pb_slab.h"
+#include "util/pb_slab.h"
 #include "intel/dev/intel_device_info.h"
 
 struct intel_device_info;
@@ -182,12 +183,24 @@ enum iris_heap {
    /** IRIS_HEAP_SYSTEM_MEMORY_UNCACHED + compressed, only supported in Xe2 */
    IRIS_HEAP_SYSTEM_MEMORY_UNCACHED_COMPRESSED,
 
+   /** Only supported in Xe2, this heap has a different compression-enabled
+    * PAT entry for buffers to display, compared to the
+    * IRIS_HEAP_SYSTEM_MEMORY_UNCACHED_COMPRESSED
+    */
+   IRIS_HEAP_SYSTEM_MEMORY_UNCACHED_COMPRESSED_SCANOUT,
+
    /** Device-local memory (VRAM).  Cannot be placed in system memory! */
    IRIS_HEAP_DEVICE_LOCAL,
    IRIS_HEAP_MAX_NO_VRAM = IRIS_HEAP_DEVICE_LOCAL,
 
    /** Device-local compressed memory, only supported in Xe2 */
    IRIS_HEAP_DEVICE_LOCAL_COMPRESSED,
+
+   /** Only supported in Xe2, this heap has a different compression-enabled
+    * PAT entry for buffers to display, compared to the
+    * IRIS_HEAP_DEVICE_LOCAL_COMPRESSED
+    */
+   IRIS_HEAP_DEVICE_LOCAL_COMPRESSED_SCANOUT,
 
    /** Device-local memory that may be evicted to system memory if needed. */
    IRIS_HEAP_DEVICE_LOCAL_PREFERRED,
@@ -212,7 +225,17 @@ iris_heap_is_device_local(enum iris_heap heap)
    return heap == IRIS_HEAP_DEVICE_LOCAL ||
           heap == IRIS_HEAP_DEVICE_LOCAL_PREFERRED ||
           heap == IRIS_HEAP_DEVICE_LOCAL_CPU_VISIBLE_SMALL_BAR ||
-          heap == IRIS_HEAP_DEVICE_LOCAL_COMPRESSED;
+          heap == IRIS_HEAP_DEVICE_LOCAL_COMPRESSED ||
+          heap == IRIS_HEAP_DEVICE_LOCAL_COMPRESSED_SCANOUT;
+}
+
+static inline bool
+iris_heap_is_compressed(enum iris_heap heap)
+{
+   return heap == IRIS_HEAP_SYSTEM_MEMORY_UNCACHED_COMPRESSED ||
+          heap == IRIS_HEAP_SYSTEM_MEMORY_UNCACHED_COMPRESSED_SCANOUT ||
+          heap == IRIS_HEAP_DEVICE_LOCAL_COMPRESSED ||
+          heap == IRIS_HEAP_DEVICE_LOCAL_COMPRESSED_SCANOUT;
 }
 
 #define IRIS_BATCH_COUNT 3
@@ -349,6 +372,9 @@ struct iris_bo {
           * this set before batch_submit().
           */
          bool capture;
+
+         /** Boolean of whether this buffer can be scanout to display */
+         bool scanout;
       } real;
       struct {
          struct pb_slab_entry entry;
@@ -357,33 +383,37 @@ struct iris_bo {
    };
 };
 
-/* No special attributes. */
-#define BO_ALLOC_PLAIN           0
-/* Content is set to 0, only done in cache and slabs code paths. */
-#define BO_ALLOC_ZEROED          (1<<0)
-/* Allocate a cached and coherent BO, this has a performance cost in
- * integrated platforms without LLC.
- * Should only be used in BOs that will be written and read from CPU often.
- */
-#define BO_ALLOC_CACHED_COHERENT (1<<1)
-/* Place BO only on smem. */
-#define BO_ALLOC_SMEM            (1<<2)
-/* BO can be sent to display. */
-#define BO_ALLOC_SCANOUT         (1<<3)
-/* No sub-allocation(slabs). */
-#define BO_ALLOC_NO_SUBALLOC     (1<<4)
-/* Place BO only on lmem. */
-#define BO_ALLOC_LMEM            (1<<5)
-/* Content is protected, can't be mapped and needs special handling.  */
-#define BO_ALLOC_PROTECTED       (1<<6)
-/* BO can be exported to other applications. */
-#define BO_ALLOC_SHARED          (1<<7)
-/* BO will be captured in the KMD error dump. */
-#define BO_ALLOC_CAPTURE         (1<<8)
-/* Can be mapped. */
-#define BO_ALLOC_CPU_VISIBLE     (1<<9)
-/* BO content is compressed. */
-#define BO_ALLOC_COMPRESSED      (1<<10)
+enum bo_alloc_flags {
+   /* No special attributes. */
+   BO_ALLOC_PLAIN = 0,
+   /* Content is set to 0, only done in cache and slabs code paths. */
+   BO_ALLOC_ZEROED = (1<<0),
+   /* Allocate a cached and coherent BO, this has a performance cost in
+    * integrated platforms without LLC.
+    * Should only be used in BOs that will be written and read from CPU often.
+    */
+   BO_ALLOC_CACHED_COHERENT = (1<<1),
+   /* Place BO only on smem. */
+   BO_ALLOC_SMEM = (1<<2),
+   /* BO can be sent to display. */
+   BO_ALLOC_SCANOUT = (1<<3),
+   /* No sub-allocation(slabs). */
+   BO_ALLOC_NO_SUBALLOC = (1<<4),
+   /* Place BO only on lmem. */
+   BO_ALLOC_LMEM = (1<<5),
+   /* Content is protected, can't be mapped and needs special handling.  */
+   BO_ALLOC_PROTECTED = (1<<6),
+   /* BO can be exported to other applications. */
+   BO_ALLOC_SHARED = (1<<7),
+   /* BO will be captured in the KMD error dump. */
+   BO_ALLOC_CAPTURE = (1<<8),
+   /* Can be mapped. */
+   BO_ALLOC_CPU_VISIBLE = (1<<9),
+   /* BO content is compressed. */
+   BO_ALLOC_COMPRESSED = (1<<10),
+   /* Do not allocate or bind a vma */
+   BO_ALLOC_NO_VMA = (1<<11),
+};
 
 /**
  * Allocate a buffer object.
@@ -397,11 +427,11 @@ struct iris_bo *iris_bo_alloc(struct iris_bufmgr *bufmgr,
                               uint64_t size,
                               uint32_t alignment,
                               enum iris_memory_zone memzone,
-                              unsigned flags);
+                              enum bo_alloc_flags flags);
 
 struct iris_bo *
 iris_bo_create_userptr(struct iris_bufmgr *bufmgr, const char *name,
-                       void *ptr, size_t size,
+                       void *ptr, size_t size, unsigned flags,
                        enum iris_memory_zone memzone);
 
 /** Takes a reference on a buffer object */
@@ -557,7 +587,8 @@ int iris_bufmgr_get_fd(struct iris_bufmgr *bufmgr);
 
 struct iris_bo *iris_bo_gem_create_from_name(struct iris_bufmgr *bufmgr,
                                              const char *name,
-                                             unsigned handle);
+                                             unsigned handle,
+                                             unsigned flags);
 
 void* iris_bufmgr_get_aux_map_context(struct iris_bufmgr *bufmgr);
 
@@ -566,7 +597,7 @@ int iris_gem_set_tiling(struct iris_bo *bo, const struct isl_surf *surf);
 
 int iris_bo_export_dmabuf(struct iris_bo *bo, int *prime_fd);
 struct iris_bo *iris_bo_import_dmabuf(struct iris_bufmgr *bufmgr, int prime_fd,
-                                      const uint64_t modifier);
+                                      const uint64_t modifier, unsigned flags);
 
 /**
  * Exports a bo as a GEM handle into a given DRM file descriptor
@@ -620,7 +651,7 @@ iris_bo_bump_seqno(struct iris_bo *bo, uint64_t seqno,
  */
 const struct intel_device_info_pat_entry *
 iris_heap_to_pat_entry(const struct intel_device_info *devinfo,
-                       enum iris_heap heap);
+                       enum iris_heap heap, bool scanout);
 
 enum iris_memory_zone iris_memzone_for_address(uint64_t address);
 
@@ -666,6 +697,10 @@ struct intel_bind_timeline *iris_bufmgr_get_bind_timeline(struct iris_bufmgr *bu
 bool iris_bufmgr_compute_engine_supported(struct iris_bufmgr *bufmgr);
 uint64_t iris_bufmgr_get_dummy_aux_address(struct iris_bufmgr *bufmgr);
 struct iris_bo *iris_bufmgr_get_mem_fence_bo(struct iris_bufmgr *bufmgr);
+
+bool iris_bufmgr_alloc_heap(struct iris_bufmgr *bufmgr, uint64_t start, uint64_t size);
+void iris_bufmgr_free_heap(struct iris_bufmgr *bufmgr, uint64_t start, uint64_t size);
+bool iris_bufmgr_assign_vma(struct iris_bufmgr *bufmgr, struct iris_bo *bo, uint64_t address);
 
 enum iris_madvice {
    IRIS_MADVICE_WILL_NEED = 0,

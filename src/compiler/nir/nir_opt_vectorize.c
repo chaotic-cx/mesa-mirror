@@ -37,6 +37,9 @@
 #include "nir_builder.h"
 #include "nir_vla.h"
 
+#define XXH_INLINE_ALL
+#include "util/xxhash.h"
+
 #define HASH(hash, data) XXH32(&data, sizeof(data), hash)
 
 static uint32_t
@@ -593,11 +596,7 @@ nir_opt_vectorize_impl(nir_function_impl *impl,
       }
    }
 
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
+   nir_progress(progress, impl, nir_metadata_control_flow);
 
    vec_instr_set_destroy(instr_set);
    return progress;

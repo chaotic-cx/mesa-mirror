@@ -2,27 +2,21 @@
 # shellcheck disable=SC2086 # we want word splitting
 # shellcheck disable=SC1091 # paths only become valid at runtime
 
-# If we run in the fork (not from mesa or Marge-bot), reuse mainline kernel and rootfs, if exist.
-_check_artifact_path() {
-	_url="https://${1}/${2}"
-	if curl -s -o /dev/null -I -L -f --retry 4 --retry-delay 15 "${_url}"; then
-		echo -n "${_url}"
-	fi
-}
+# When changing this file, you need to bump the following
+# .gitlab-ci/image-tags.yml tags:
+# ALPINE_X86_64_LAVA_TRIGGER_TAG
 
-get_path_to_artifact() {
-	_mainline_artifact="$(_check_artifact_path ${BASE_SYSTEM_MAINLINE_HOST_PATH} ${1})"
-	if [ -n "${_mainline_artifact}" ]; then
-		echo -n "${_mainline_artifact}"
-		return
-	fi
-	_fork_artifact="$(_check_artifact_path ${BASE_SYSTEM_FORK_HOST_PATH} ${1})"
-	if [ -n "${_fork_artifact}" ]; then
-		echo -n "${_fork_artifact}"
-		return
-	fi
+. "${SCRIPTS_DIR}/setup-test-env.sh"
+
+section_start prepare_rootfs "Preparing root filesystem"
+
+set -ex
+
+# If we run in the fork (not from mesa or Marge-bot), reuse mainline kernel and rootfs, if exist.
+ROOTFS_URL="$(find_s3_project_artifact "$LAVA_ROOTFS_PATH")" ||
+{
 	set +x
-	error "Sorry, I couldn't find a viable built path for ${1} in either mainline or a fork." >&2
+	error "Sorry, I couldn't find a viable built path for ${LAVA_ROOTFS_PATH} in either mainline or a fork." >&2
 	echo "" >&2
 	echo "If you're working on CI, this probably means that you're missing a dependency:" >&2
 	echo "this job ran ahead of the job which was supposed to upload that artifact." >&2
@@ -34,35 +28,59 @@ get_path_to_artifact() {
 	exit 1
 }
 
-. "${SCRIPTS_DIR}/setup-test-env.sh"
-
-section_start prepare_rootfs "Preparing root filesystem"
-
-set -ex
-
-section_switch rootfs "Assembling root filesystem"
-ROOTFS_URL="$(get_path_to_artifact lava-rootfs.tar.zst)"
-[ $? != 1 ] || exit 1
-
 rm -rf results
-mkdir -p results/job-rootfs-overlay/
+mkdir results
 
-artifacts/ci-common/generate-env.sh > results/job-rootfs-overlay/set-job-env-vars.sh
-cp artifacts/ci-common/init-*.sh results/job-rootfs-overlay/
-cp "$SCRIPTS_DIR"/setup-test-env.sh results/job-rootfs-overlay/
-
-tar zcf job-rootfs-overlay.tar.gz -C results/job-rootfs-overlay/ .
-ci-fairy s3cp --token-file "${S3_JWT_FILE}" job-rootfs-overlay.tar.gz "https://${JOB_ROOTFS_OVERLAY_PATH}"
+filter_env_vars > dut-env-vars.sh
+# Set SCRIPTS_DIR to point to the Mesa install we download for the DUT
+echo "export SCRIPTS_DIR='$CI_PROJECT_DIR/install'" >> dut-env-vars.sh
 
 # Prepare env vars for upload.
 section_switch variables "Environment variables passed through to device:"
-cat results/job-rootfs-overlay/set-job-env-vars.sh
+cat dut-env-vars.sh
 
 section_switch lava_submit "Submitting job for scheduling"
 
 touch results/lava.log
 tail -f results/lava.log &
-PYTHONPATH=artifacts/ artifacts/lava/lava_job_submitter.py \
+# Ensure that we are printing the commands that are being executed,
+# making it easier to debug the job in case it fails.
+set -x
+
+# List of optional overlays
+LAVA_EXTRA_OVERLAYS=()
+if [ -n "${LAVA_FIRMWARE:-}" ]; then
+    for fw in $LAVA_FIRMWARE; do
+        LAVA_EXTRA_OVERLAYS+=(
+            - append-overlay
+              --name=linux-firmware
+              --url="https://${S3_BASE_PATH}/${FIRMWARE_REPO}/${fw}-${FIRMWARE_TAG}.tar"
+              --path="/"
+              --format=tar
+        )
+    done
+fi
+if [ -n "${HWCI_KERNEL_MODULES:-}" ]; then
+	LAVA_EXTRA_OVERLAYS+=(
+		- append-overlay
+		  --name=kernel-modules
+		  --url="${KERNEL_IMAGE_BASE}/${DEBIAN_ARCH}/modules.tar"
+		  --path="/"
+		  --format=tar
+	)
+fi
+if [ -n "${VKD3D_PROTON_TAG:-}" ]; then
+	LAVA_EXTRA_OVERLAYS+=(
+		- append-overlay
+		  --name=vkd3d-proton
+		  --url="$(find_s3_project_artifact "${DATA_STORAGE_PATH}/vkd3d-proton/${VKD3D_PROTON_TAG}/${MESA_IMAGE_PATH}/vkd3d-proton.tar.zst")"
+		  --path="/"
+		  --format=tar
+		  --compression=zstd
+	)
+fi
+
+PYTHONPATH=/ /lava/lava_job_submitter.py \
 	--farm "${FARM}" \
 	--device-type "${DEVICE_TYPE}" \
 	--boot-method "${BOOT_METHOD}" \
@@ -71,9 +89,9 @@ PYTHONPATH=artifacts/ artifacts/lava/lava_job_submitter.py \
 	--pipeline-info "$CI_JOB_NAME: $CI_PIPELINE_URL on $CI_COMMIT_REF_NAME ${CI_NODE_INDEX}/${CI_NODE_TOTAL}" \
 	--rootfs-url "${ROOTFS_URL}" \
 	--kernel-url-prefix "${KERNEL_IMAGE_BASE}/${DEBIAN_ARCH}" \
-	--kernel-external "${EXTERNAL_KERNEL_TAG}" \
-	--first-stage-init artifacts/ci-common/init-stage1.sh \
 	--dtb-filename "${DTB}" \
+	--first-stage-init /lava/init-stage1.sh \
+	--env-file dut-env-vars.sh \
 	--jwt-file "${S3_JWT_FILE}" \
 	--kernel-image-name "${KERNEL_IMAGE_NAME}" \
 	--kernel-image-type "${KERNEL_IMAGE_TYPE}" \
@@ -82,20 +100,16 @@ PYTHONPATH=artifacts/ artifacts/lava/lava_job_submitter.py \
 	--mesa-job-name "$CI_JOB_NAME" \
 	--structured-log-file "results/lava_job_detail.json" \
 	--ssh-client-image "${LAVA_SSH_CLIENT_IMAGE}" \
+	--project-dir "${CI_PROJECT_DIR}" \
 	--project-name "${CI_PROJECT_NAME}" \
 	--starting-section "${CURRENT_SECTION}" \
 	--job-submitted-at "${CI_JOB_STARTED_AT}" \
 	- append-overlay \
 		--name=mesa-build \
-		--url="https://${PIPELINE_ARTIFACTS_BASE}/${LAVA_S3_ARTIFACT_NAME:?}.tar.zst" \
+		--url="https://${PIPELINE_ARTIFACTS_BASE}/${S3_ARTIFACT_NAME:?}.tar.zst" \
 		--compression=zstd \
 		--path="${CI_PROJECT_DIR}" \
 		--format=tar \
-	- append-overlay \
-		--name=job-overlay \
-		--url="https://${JOB_ROOTFS_OVERLAY_PATH}" \
-		--compression=gz \
-		--path="/" \
-		--format=tar \
+	"${LAVA_EXTRA_OVERLAYS[@]}" \
 	- submit \
 	>> results/lava.log

@@ -41,7 +41,7 @@ brw_set_dest(struct brw_codegen *p, brw_eu_inst *inst, struct brw_reg dest)
    const struct intel_device_info *devinfo = p->devinfo;
 
    if (dest.file == FIXED_GRF)
-      assert(dest.nr < XE2_MAX_GRF);
+      assert(dest.nr < XE3_MAX_GRF);
 
    /* The hardware has a restriction where a destination of size Byte with
     * a stride of 1 is only allowed for a packed byte MOV. For any other
@@ -135,7 +135,7 @@ brw_set_src0(struct brw_codegen *p, brw_eu_inst *inst, struct brw_reg reg)
    const struct intel_device_info *devinfo = p->devinfo;
 
    if (reg.file == FIXED_GRF)
-      assert(reg.nr < XE2_MAX_GRF);
+      assert(reg.nr < XE3_MAX_GRF);
 
    if (brw_eu_inst_opcode(p->isa, inst) == BRW_OPCODE_SEND  ||
        brw_eu_inst_opcode(p->isa, inst) == BRW_OPCODE_SENDC ||
@@ -260,7 +260,7 @@ brw_set_src1(struct brw_codegen *p, brw_eu_inst *inst, struct brw_reg reg)
    const struct intel_device_info *devinfo = p->devinfo;
 
    if (reg.file == FIXED_GRF)
-      assert(reg.nr < XE2_MAX_GRF);
+      assert(reg.nr < XE3_MAX_GRF);
 
    if (brw_eu_inst_opcode(p->isa, inst) == BRW_OPCODE_SENDS ||
        brw_eu_inst_opcode(p->isa, inst) == BRW_OPCODE_SENDSC ||
@@ -353,9 +353,10 @@ brw_set_src1(struct brw_codegen *p, brw_eu_inst *inst, struct brw_reg reg)
  */
 void
 brw_set_desc_ex(struct brw_codegen *p, brw_eu_inst *inst,
-                unsigned desc, unsigned ex_desc)
+                unsigned desc, unsigned ex_desc, bool gather)
 {
    const struct intel_device_info *devinfo = p->devinfo;
+   assert(!gather || devinfo->ver >= 30);
    assert(brw_eu_inst_opcode(p->isa, inst) == BRW_OPCODE_SEND ||
           brw_eu_inst_opcode(p->isa, inst) == BRW_OPCODE_SENDC);
    if (devinfo->ver < 12)
@@ -363,7 +364,7 @@ brw_set_desc_ex(struct brw_codegen *p, brw_eu_inst *inst,
                                   IMM, BRW_TYPE_UD);
    brw_eu_inst_set_send_desc(devinfo, inst, desc);
    if (devinfo->ver >= 9)
-      brw_eu_inst_set_send_ex_desc(devinfo, inst, ex_desc, false);
+      brw_eu_inst_set_send_ex_desc(devinfo, inst, ex_desc, gather);
 }
 
 static void
@@ -507,7 +508,7 @@ brw_alu2(struct brw_codegen *p, unsigned opcode,
    return insn;
 }
 
-static enum gfx10_align1_3src_vertical_stride
+static enum brw_align1_3src_vertical_stride
 to_3src_align1_vstride(const struct intel_device_info *devinfo,
                        enum brw_vertical_stride vstride)
 {
@@ -530,8 +531,20 @@ to_3src_align1_vstride(const struct intel_device_info *devinfo,
    }
 }
 
+static enum brw_align1_3src_dst_horizontal_stride
+to_3src_align1_dst_hstride(enum brw_horizontal_stride hstride)
+{
+   switch (hstride) {
+   case BRW_HORIZONTAL_STRIDE_1:
+      return BRW_ALIGN1_3SRC_DST_HORIZONTAL_STRIDE_1;
+   case BRW_HORIZONTAL_STRIDE_2:
+      return BRW_ALIGN1_3SRC_DST_HORIZONTAL_STRIDE_2;
+   default:
+      unreachable("invalid hstride");
+   }
+}
 
-static enum gfx10_align1_3src_src_horizontal_stride
+static enum brw_align1_3src_src_horizontal_stride
 to_3src_align1_hstride(enum brw_horizontal_stride hstride)
 {
    switch (hstride) {
@@ -555,7 +568,7 @@ brw_alu3(struct brw_codegen *p, unsigned opcode, struct brw_reg dest,
    const struct intel_device_info *devinfo = p->devinfo;
    brw_eu_inst *inst = next_insn(p, opcode);
 
-   assert(dest.nr < XE2_MAX_GRF);
+   assert(dest.nr < XE3_MAX_GRF);
 
    if (devinfo->ver <= 9) {
       assert(src0.file != IMM && src2.file != IMM);
@@ -579,9 +592,9 @@ brw_alu3(struct brw_codegen *p, unsigned opcode, struct brw_reg dest,
    assert(opcode != BRW_OPCODE_BFI2 ||
           (src0.file != IMM && src2.file != IMM));
 
-   assert(src0.file == IMM || src0.nr < XE2_MAX_GRF);
-   assert(src1.file != IMM && src1.nr < XE2_MAX_GRF);
-   assert(src2.file == IMM || src2.nr < XE2_MAX_GRF);
+   assert(src0.file == IMM || src0.nr < XE3_MAX_GRF);
+   assert(src1.file != IMM && src1.nr < XE3_MAX_GRF);
+   assert(src2.file == IMM || src2.nr < XE3_MAX_GRF);
    assert(dest.address_mode == BRW_ADDRESS_DIRECT);
    assert(src0.address_mode == BRW_ADDRESS_DIRECT);
    assert(src1.address_mode == BRW_ADDRESS_DIRECT);
@@ -595,9 +608,10 @@ brw_alu3(struct brw_codegen *p, unsigned opcode, struct brw_reg dest,
       brw_eu_inst_set_3src_a1_dst_reg_file(devinfo, inst, phys_file(dest));
       brw_eu_inst_set_3src_dst_reg_nr(devinfo, inst, phys_nr(devinfo, dest));
       brw_eu_inst_set_3src_a1_dst_subreg_nr(devinfo, inst, phys_subnr(devinfo, dest) / 8);
-      brw_eu_inst_set_3src_a1_dst_hstride(devinfo, inst, BRW_ALIGN1_3SRC_DST_HORIZONTAL_STRIDE_1);
+      brw_eu_inst_set_3src_a1_dst_hstride(devinfo, inst,
+                                          to_3src_align1_dst_hstride(dest.hstride));
 
-      if (brw_type_is_float(dest.type)) {
+      if (brw_type_is_float_or_bfloat(dest.type)) {
          brw_eu_inst_set_3src_a1_exec_type(devinfo, inst,
                                         BRW_ALIGN1_3SRC_EXEC_TYPE_FLOAT);
       } else {
@@ -757,7 +771,7 @@ brw_dpas_three_src(struct brw_codegen *p, enum opcode opcode,
    brw_eu_inst_set_dpas_3src_dst_reg_nr(devinfo, inst, phys_nr(devinfo, dest));
    brw_eu_inst_set_dpas_3src_dst_subreg_nr(devinfo, inst, phys_subnr(devinfo, dest));
 
-   if (brw_type_is_float(dest.type)) {
+   if (brw_type_is_float_or_bfloat(dest.type)) {
       brw_eu_inst_set_dpas_3src_exec_type(devinfo, inst,
                                        BRW_ALIGN1_3SRC_EXEC_TYPE_FLOAT);
    } else {
@@ -1438,7 +1452,8 @@ brw_send_indirect_message(struct brw_codegen *p,
                           struct brw_reg dst,
                           struct brw_reg payload,
                           struct brw_reg desc,
-                          bool eot)
+                          bool eot,
+                          bool gather)
 {
    const struct intel_device_info *devinfo = p->devinfo;
    struct brw_eu_inst *send;
@@ -1450,7 +1465,7 @@ brw_send_indirect_message(struct brw_codegen *p,
    if (desc.file == IMM) {
       send = next_insn(p, BRW_OPCODE_SEND);
       brw_set_src0(p, send, retype(payload, BRW_TYPE_UD));
-      brw_set_desc(p, send, desc.ud);
+      brw_set_desc(p, send, desc.ud, gather);
    } else {
       assert(desc.file == ADDRESS);
       assert(desc.subnr == 0);
@@ -1477,7 +1492,8 @@ brw_send_indirect_split_message(struct brw_codegen *p,
                                 struct brw_reg ex_desc,
                                 unsigned ex_mlen,
                                 bool ex_bso,
-                                bool eot)
+                                bool eot,
+                                bool gather)
 {
    const struct intel_device_info *devinfo = p->devinfo;
    struct brw_eu_inst *send;
@@ -1502,14 +1518,14 @@ brw_send_indirect_split_message(struct brw_codegen *p,
 
    if (ex_desc.file == IMM) {
       brw_eu_inst_set_send_sel_reg32_ex_desc(devinfo, send, 0);
-      brw_eu_inst_set_sends_ex_desc(devinfo, send, ex_desc.ud, false);
+      brw_eu_inst_set_sends_ex_desc(devinfo, send, ex_desc.ud, gather);
    } else {
       assert(ex_desc.file == ADDRESS);
       assert((ex_desc.subnr & 0x3) == 0);
       brw_eu_inst_set_send_sel_reg32_ex_desc(devinfo, send, 1);
       brw_eu_inst_set_send_ex_desc_ia_subreg_nr(devinfo, send, phys_subnr(devinfo, ex_desc) >> 2);
 
-      if (devinfo->ver >= 20 && sfid == GFX12_SFID_UGM)
+      if (devinfo->ver >= 20 && sfid == BRW_SFID_UGM)
          brw_eu_inst_set_bits(send, 103, 99, ex_mlen / reg_unit(devinfo));
    }
 
@@ -1519,7 +1535,7 @@ brw_send_indirect_split_message(struct brw_codegen *p,
        *
        * BSpec 56890
        */
-      if (devinfo->ver < 20 || sfid != GFX12_SFID_UGM)
+      if (devinfo->ver < 20 || sfid != BRW_SFID_UGM)
          brw_eu_inst_set_send_ex_bso(devinfo, send, true);
       brw_eu_inst_set_send_src1_len(devinfo, send, ex_mlen / reg_unit(devinfo));
    }
@@ -1547,9 +1563,9 @@ brw_find_next_block_end(struct brw_codegen *p, int start_offset)
 
    int depth = 0;
 
-   for (offset = next_offset(devinfo, store, start_offset);
+   for (offset = next_offset(p, store, start_offset);
         offset < p->next_insn_offset;
-        offset = next_offset(devinfo, store, offset)) {
+        offset = next_offset(p, store, offset)) {
       brw_eu_inst *insn = store + offset;
 
       switch (brw_eu_inst_opcode(p->isa, insn)) {
@@ -1595,9 +1611,9 @@ brw_find_loop_end(struct brw_codegen *p, int start_offset)
    /* Always start after the instruction (such as a WHILE) we're trying to fix
     * up.
     */
-   for (offset = next_offset(devinfo, store, start_offset);
+   for (offset = next_offset(p, store, start_offset);
         offset < p->next_insn_offset;
-        offset = next_offset(devinfo, store, offset)) {
+        offset = next_offset(p, store, offset)) {
       brw_eu_inst *insn = store + offset;
 
       if (brw_eu_inst_opcode(p->isa, insn) == BRW_OPCODE_WHILE) {
@@ -1605,8 +1621,7 @@ brw_find_loop_end(struct brw_codegen *p, int start_offset)
 	    return offset;
       }
    }
-   assert(!"not reached");
-   return start_offset;
+   unreachable("not reached");
 }
 
 /* After program generation, go back and update the UIP and JIP of
@@ -1685,120 +1700,6 @@ brw_set_uip_jip(struct brw_codegen *p, int start_offset)
    }
 }
 
-static void
-brw_set_memory_fence_message(struct brw_codegen *p,
-                             struct brw_eu_inst *insn,
-                             enum brw_message_target sfid,
-                             bool commit_enable,
-                             unsigned bti)
-{
-   const struct intel_device_info *devinfo = p->devinfo;
-
-   brw_set_desc(p, insn, brw_message_desc(
-                   devinfo, 1, (commit_enable ? 1 : 0), true));
-
-   brw_eu_inst_set_sfid(devinfo, insn, sfid);
-
-   switch (sfid) {
-   case GFX6_SFID_DATAPORT_RENDER_CACHE:
-      brw_eu_inst_set_dp_msg_type(devinfo, insn, GFX7_DATAPORT_RC_MEMORY_FENCE);
-      break;
-   case GFX7_SFID_DATAPORT_DATA_CACHE:
-      brw_eu_inst_set_dp_msg_type(devinfo, insn, GFX7_DATAPORT_DC_MEMORY_FENCE);
-      break;
-   default:
-      unreachable("Not reached");
-   }
-
-   if (commit_enable)
-      brw_eu_inst_set_dp_msg_control(devinfo, insn, 1 << 5);
-
-   assert(devinfo->ver >= 11 || bti == 0);
-   brw_eu_inst_set_binding_table_index(devinfo, insn, bti);
-}
-
-static void
-gfx12_set_memory_fence_message(struct brw_codegen *p,
-                               struct brw_eu_inst *insn,
-                               enum brw_message_target sfid,
-                               uint32_t desc)
-{
-   const unsigned mlen = 1 * reg_unit(p->devinfo); /* g0 header */
-    /* Completion signaled by write to register. No data returned. */
-   const unsigned rlen = 1 * reg_unit(p->devinfo);
-
-   brw_eu_inst_set_sfid(p->devinfo, insn, sfid);
-
-   /* On Gfx12.5 URB is not listed as port usable for fences with the LSC (see
-    * BSpec 53578 for Gfx12.5, BSpec 57330 for Gfx20), so we completely ignore
-    * the descriptor value and rebuild a legacy URB fence descriptor.
-    */
-   if (sfid == BRW_SFID_URB && p->devinfo->ver < 20) {
-      brw_set_desc(p, insn, brw_urb_fence_desc(p->devinfo) |
-                            brw_message_desc(p->devinfo, mlen, rlen, true));
-   } else {
-      enum lsc_fence_scope scope = lsc_fence_msg_desc_scope(p->devinfo, desc);
-      enum lsc_flush_type flush_type = lsc_fence_msg_desc_flush_type(p->devinfo, desc);
-
-      if (sfid == GFX12_SFID_TGM) {
-         scope = LSC_FENCE_TILE;
-         flush_type = LSC_FLUSH_TYPE_EVICT;
-      }
-
-      /* Wa_14012437816:
-       *
-       *   "For any fence greater than local scope, always set flush type to
-       *    at least invalidate so that fence goes on properly."
-       *
-       *   "The bug is if flush_type is 'None', the scope is always downgraded
-       *    to 'local'."
-       *
-       * Here set scope to NONE_6 instead of NONE, which has the same effect
-       * as NONE but avoids the downgrade to scope LOCAL.
-       */
-      if (intel_needs_workaround(p->devinfo, 14012437816) &&
-          scope > LSC_FENCE_LOCAL &&
-          flush_type == LSC_FLUSH_TYPE_NONE) {
-         flush_type = LSC_FLUSH_TYPE_NONE_6;
-      }
-
-      brw_set_desc(p, insn, lsc_fence_msg_desc(p->devinfo, scope,
-                                               flush_type, false) |
-                            brw_message_desc(p->devinfo, mlen, rlen, false));
-   }
-}
-
-void
-brw_memory_fence(struct brw_codegen *p,
-                 struct brw_reg dst,
-                 struct brw_reg src,
-                 enum opcode send_op,
-                 enum brw_message_target sfid,
-                 uint32_t desc,
-                 bool commit_enable,
-                 unsigned bti)
-{
-   const struct intel_device_info *devinfo = p->devinfo;
-
-   dst = retype(vec1(dst), BRW_TYPE_UW);
-   src = retype(vec1(src), BRW_TYPE_UD);
-
-   /* Set dst as destination for dependency tracking, the MEMORY_FENCE
-    * message doesn't write anything back.
-    */
-   struct brw_eu_inst *insn = next_insn(p, send_op);
-   brw_eu_inst_set_mask_control(devinfo, insn, BRW_MASK_DISABLE);
-   brw_eu_inst_set_exec_size(devinfo, insn, BRW_EXECUTE_1);
-   brw_set_dest(p, insn, dst);
-   brw_set_src0(p, insn, src);
-
-   /* All DG2 hardware requires LSC for fence messages, even A-step */
-   if (devinfo->has_lsc)
-      gfx12_set_memory_fence_message(p, insn, sfid, desc);
-   else
-      brw_set_memory_fence_message(p, insn, sfid, commit_enable, bti);
-}
-
 void
 brw_broadcast(struct brw_codegen *p,
               struct brw_reg dst,
@@ -1815,18 +1716,8 @@ brw_broadcast(struct brw_codegen *p,
    assert(src.file == FIXED_GRF &&
           src.address_mode == BRW_ADDRESS_DIRECT);
    assert(!src.abs && !src.negate);
-
-   /* Gen12.5 adds the following region restriction:
-    *
-    *    "Vx1 and VxH indirect addressing for Float, Half-Float, Double-Float
-    *    and Quad-Word data must not be used."
-    *
-    * We require the source and destination types to match so stomp to an
-    * unsigned integer type.
-    */
+   assert(brw_type_is_uint(src.type));
    assert(src.type == dst.type);
-   src.type = dst.type =
-      brw_type_with_size(BRW_TYPE_UD, brw_type_size_bits(src.type));
 
    if ((src.vstride == 0 && src.hstride == 0) ||
        idx.file == IMM) {
@@ -1942,7 +1833,7 @@ brw_barrier(struct brw_codegen *p, struct brw_reg src)
    brw_set_src0(p, inst, src);
    brw_set_src1(p, inst, brw_null_reg());
    brw_set_desc(p, inst, brw_message_desc(devinfo,
-                                          1 * reg_unit(devinfo), 0, false));
+                                          1 * reg_unit(devinfo), 0, false), false);
 
    brw_eu_inst_set_sfid(devinfo, inst, BRW_SFID_MESSAGE_GATEWAY);
    brw_eu_inst_set_gateway_subfuncid(devinfo, inst,

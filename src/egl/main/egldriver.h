@@ -144,10 +144,6 @@ struct _egl_driver {
    /* for EGL_ANDROID_native_fence_sync */
    EGLint (*DupNativeFenceFDANDROID)(_EGLDisplay *disp, _EGLSync *sync);
 
-   /* for EGL_NOK_swap_region */
-   EGLBoolean (*SwapBuffersRegionNOK)(_EGLDisplay *disp, _EGLSurface *surf,
-                                      EGLint numRects, const EGLint *rects);
-
    /* for EGL_MESA_drm_image */
    _EGLImage *(*CreateDRMImageMESA)(_EGLDisplay *disp, const EGLint *attr_list);
    EGLBoolean (*ExportDRMImageMESA)(_EGLDisplay *disp, _EGLImage *img,
@@ -171,11 +167,6 @@ struct _egl_driver {
    EGLBoolean (*SwapBuffersWithDamageEXT)(_EGLDisplay *disp,
                                           _EGLSurface *surface,
                                           const EGLint *rects, EGLint n_rects);
-
-   /* for EGL_NV_post_sub_buffer */
-   EGLBoolean (*PostSubBufferNV)(_EGLDisplay *disp, _EGLSurface *surface,
-                                 EGLint x, EGLint y, EGLint width,
-                                 EGLint height);
 
    /* for EGL_EXT_buffer_age/EGL_KHR_partial_update */
    EGLint (*QueryBufferAge)(_EGLDisplay *disp, _EGLSurface *surface);

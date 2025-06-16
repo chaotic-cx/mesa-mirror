@@ -84,7 +84,7 @@ r600_nir_lower_int_tg4_impl(nir_function_impl *impl)
          }
       }
    }
-   return progress;
+   return nir_progress(progress, impl, nir_metadata_control_flow);
 }
 
 /*
@@ -197,7 +197,7 @@ r600_nir_lower_txl_txf_array_or_cube_impl(nir_function_impl *impl)
          }
       }
    }
-   return progress;
+   return nir_progress(progress, impl, nir_metadata_control_flow);
 }
 
 bool

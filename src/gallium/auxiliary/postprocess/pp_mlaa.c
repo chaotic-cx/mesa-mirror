@@ -134,7 +134,7 @@ pp_jimenezmlaa_run(struct pp_queue_t *ppq, struct pipe_resource *in,
       const struct pipe_sampler_state *samplers[] = {&p->sampler_point};
       cso_set_samplers(p->cso, PIPE_SHADER_FRAGMENT, 1, samplers);
    }
-   pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 1, 0, false, &p->view);
+   pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 1, 0, &p->view);
 
    cso_set_vertex_shader_handle(p->cso, ppq->shaders[n][1]);    /* offsetvs */
    cso_set_fragment_shader_handle(p->cso, ppq->shaders[n][2]);
@@ -166,14 +166,13 @@ pp_jimenezmlaa_run(struct pp_queue_t *ppq, struct pipe_resource *in,
    }
 
    arr[0] = p->view;
-   pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 3, 0, false, arr);
+   pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 3, 0, arr);
 
    cso_set_vertex_shader_handle(p->cso, ppq->shaders[n][0]);    /* passvs */
    cso_set_fragment_shader_handle(p->cso, ppq->shaders[n][3]);
 
    pp_filter_draw(p);
    pp_filter_end_pass(p);
-   pipe_sampler_view_reference(&arr[1], NULL);
 
 
    /* Third pass: smoothed edges */
@@ -185,7 +184,7 @@ pp_jimenezmlaa_run(struct pp_queue_t *ppq, struct pipe_resource *in,
 
    /* Blit the input to the output */
    pp_blit(p->pipe, in, 0, 0,
-           w, h, 0, p->framebuffer.cbufs[0],
+           w, h, 0, &p->framebuffer.cbufs[0],
            0, 0, w, h);
 
    u_sampler_view_default_template(&v_tmp, in, in->format);
@@ -198,7 +197,7 @@ pp_jimenezmlaa_run(struct pp_queue_t *ppq, struct pipe_resource *in,
    }
 
    arr[1] = p->view;
-   pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 2, 0, false, arr);
+   pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 2, 0, arr);
 
    cso_set_vertex_shader_handle(p->cso, ppq->shaders[n][1]);    /* offsetvs */
    cso_set_fragment_shader_handle(p->cso, ppq->shaders[n][4]);
@@ -208,10 +207,11 @@ pp_jimenezmlaa_run(struct pp_queue_t *ppq, struct pipe_resource *in,
 
    pp_filter_draw(p);
    pp_filter_end_pass(p);
-   pipe_sampler_view_reference(&arr[0], NULL);
+   pipe->sampler_view_release(pipe, arr[0]);
+   pipe->sampler_view_release(pipe, arr[1]);
 
    p->blend.rt[0].blend_enable = 0;
-   p->framebuffer.zsbuf = NULL;
+   memset(&p->framebuffer.zsbuf, 0, sizeof(p->framebuffer.zsbuf));
 }
 
 /** The init function of the MLAA filter. */
@@ -338,4 +338,3 @@ pp_jimenezmlaa_free(struct pp_queue_t *ppq, unsigned int n)
 {
    pipe_resource_reference(&ppq->areamaptex, NULL);
 }
-

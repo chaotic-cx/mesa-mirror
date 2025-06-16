@@ -62,7 +62,7 @@ create_vert_shader(struct vl_compositor *c)
 
    shader = ureg_create(PIPE_SHADER_VERTEX);
    if (!shader)
-      return false;
+      return NULL;
 
    vpos = ureg_DECL_vs_input(shader, 0);
    vtex = ureg_DECL_vs_input(shader, 1);
@@ -270,7 +270,7 @@ create_frag_shader_video_buffer(struct vl_compositor *c)
 
    shader = ureg_create(PIPE_SHADER_FRAGMENT);
    if (!shader)
-      return false;
+      return NULL;
 
    texel = ureg_DECL_temporary(shader);
    fragment = ureg_DECL_output(shader, TGSI_SEMANTIC_COLOR, 0);
@@ -292,7 +292,7 @@ create_frag_shader_weave_rgb(struct vl_compositor *c)
 
    shader = ureg_create(PIPE_SHADER_FRAGMENT);
    if (!shader)
-      return false;
+      return NULL;
 
    texel = ureg_DECL_temporary(shader);
    fragment = ureg_DECL_output(shader, TGSI_SEMANTIC_COLOR, 0);
@@ -315,7 +315,7 @@ create_frag_shader_deint_yuv(struct vl_compositor *c, bool y, bool w)
 
    shader = ureg_create(PIPE_SHADER_FRAGMENT);
    if (!shader)
-      return false;
+      return NULL;
 
    texel = ureg_DECL_temporary(shader);
    fragment = ureg_DECL_output(shader, TGSI_SEMANTIC_COLOR, 0);
@@ -353,7 +353,7 @@ create_frag_shader_palette(struct vl_compositor *c, bool include_cc)
 
    shader = ureg_create(PIPE_SHADER_FRAGMENT);
    if (!shader)
-      return false;
+      return NULL;
 
    for (i = 0; include_cc && i < 3; ++i)
       csc[i] = ureg_DECL_constant(shader, i);
@@ -407,7 +407,7 @@ create_frag_shader_rgba(struct vl_compositor *c)
 
    shader = ureg_create(PIPE_SHADER_FRAGMENT);
    if (!shader)
-      return false;
+      return NULL;
 
    tc = ureg_DECL_fs_input(shader, TGSI_SEMANTIC_GENERIC, VS_O_VTEX, TGSI_INTERPOLATE_LINEAR);
    color = ureg_DECL_fs_input(shader, TGSI_SEMANTIC_COLOR, VS_O_COLOR, TGSI_INTERPOLATE_LINEAR);
@@ -442,7 +442,7 @@ create_frag_shader_rgb_yuv(struct vl_compositor *c, bool y)
 
    shader = ureg_create(PIPE_SHADER_FRAGMENT);
    if (!shader)
-      return false;
+      return NULL;
 
    for (i = 0; i < 3; ++i)
       csc[i] = ureg_DECL_constant(shader, i);
@@ -686,7 +686,7 @@ draw_layers(struct vl_compositor *c, struct vl_compositor_state *s, struct u_rec
          c->pipe->bind_sampler_states(c->pipe, PIPE_SHADER_FRAGMENT, 0,
                                       num_sampler_views, layer->samplers);
          c->pipe->set_sampler_views(c->pipe, PIPE_SHADER_FRAGMENT, 0,
-                                    num_sampler_views, 0, false, samplers);
+                                    num_sampler_views, 0, samplers);
 
          util_draw_arrays(c->pipe, MESA_PRIM_QUADS, vb_index * 4, 4);
          vb_index++;
@@ -713,15 +713,14 @@ vl_compositor_gfx_render(struct vl_compositor_state *s,
    assert(c);
    assert(dst_surface);
 
-   c->fb_state.width = dst_surface->width;
-   c->fb_state.height = dst_surface->height;
-   c->fb_state.cbufs[0] = dst_surface;
+   pipe_surface_size(dst_surface, &c->fb_state.width, &c->fb_state.height);
+   c->fb_state.cbufs[0] = *dst_surface;
 
    if (!s->scissor_valid) {
       s->scissor.minx = 0;
       s->scissor.miny = 0;
-      s->scissor.maxx = dst_surface->width;
-      s->scissor.maxy = dst_surface->height;
+      s->scissor.maxx = c->fb_state.width;
+      s->scissor.maxy = c->fb_state.height;
    }
    c->pipe->set_scissor_states(c->pipe, 0, 1, &s->scissor);
 
@@ -732,7 +731,7 @@ vl_compositor_gfx_render(struct vl_compositor_state *s,
        (dirty_area->x0 < dirty_area->x1 || dirty_area->y0 < dirty_area->y1)) {
 
       c->pipe->clear_render_target(c->pipe, dst_surface, &s->clear_color,
-                                   0, 0, dst_surface->width, dst_surface->height, false);
+                                   0, 0, c->fb_state.width, c->fb_state.height, false);
       dirty_area->x0 = dirty_area->y0 = VL_COMPOSITOR_MAX_DIRTY;
       dirty_area->x1 = dirty_area->y1 = VL_COMPOSITOR_MIN_DIRTY;
    }

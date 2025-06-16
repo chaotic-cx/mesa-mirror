@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2086 # we want word splitting
 
+# When changing this file, you need to bump the following
+# .gitlab-ci/image-tags.yml tags:
+# DEBIAN_BUILD_TAG
+
 set -e
 
 . .gitlab-ci/setup-test-env.sh
 
 set -o xtrace
 
-export LLVM_VERSION="${LLVM_VERSION:=15}"
+: "${LLVM_VERSION:?llvm version not set}"
 
-apt-get -y install ca-certificates
+apt-get -y install ca-certificates curl gnupg2
 sed -i -e 's/http:\/\/deb/https:\/\/deb/g' /etc/apt/sources.list.d/*
 echo "deb [trusted=yes] https://gitlab.freedesktop.org/gfx-ci/ci-deb-repo/-/raw/${PKG_REPO_REV}/ ${FDO_DISTRIBUTION_VERSION%-*} main" | tee /etc/apt/sources.list.d/gfx-ci_.list
-apt-get update
+
+. .gitlab-ci/container/debian/maybe-add-llvm-repo.sh
 
 # Ephemeral packages (installed for this script and removed again at the end)
 EPHEMERAL=(
@@ -75,15 +80,23 @@ DEPS=(
     python3-pycparser
     python3-requests
     python3-setuptools
+    python3-venv
+    shellcheck
     u-boot-tools
     xz-utils
+    yamllint
     zlib1g-dev
     zstd
 )
 
+apt-get update
+
 apt-get -y install "${DEPS[@]}" "${EPHEMERAL[@]}"
 
-pip3 install --break-system-packages git+http://gitlab.freedesktop.org/freedesktop/ci-templates@ffe4d1b10aab7534489f0c4bbc4c5899df17d3f2
+# Needed for ci-fairy s3cp
+pip3 install --break-system-packages "ci-fairy[s3] @ git+https://gitlab.freedesktop.org/freedesktop/ci-templates@$MESA_TEMPLATES_COMMIT"
+
+pip3 install --break-system-packages -r bin/ci/test/requirements.txt
 
 arch=armhf
 . .gitlab-ci/container/cross_build.sh

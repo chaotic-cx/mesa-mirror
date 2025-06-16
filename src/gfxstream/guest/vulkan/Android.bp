@@ -113,6 +113,9 @@ cc_library_shared {
             cflags: [
                 "-DEND2END_TESTS",
             ],
+            static_libs: [
+                "mesa_vulkan_mapper",
+            ],
         },
     },
 }

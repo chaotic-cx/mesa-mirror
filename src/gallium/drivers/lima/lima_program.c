@@ -69,16 +69,15 @@ static const nir_shader_compiler_options vs_nir_options = {
 };
 
 static const nir_shader_compiler_options fs_nir_options = {
-   .lower_ffma16 = true,
-   .lower_ffma32 = true,
-   .lower_ffma64 = true,
+   .fuse_ffma16 = true,
+   .fuse_ffma32 = true,
+   .fuse_ffma64 = true,
    .lower_fpow = true,
    .lower_fdiv = true,
    .lower_fmod = true,
    .lower_flrp32 = true,
    .lower_flrp64 = true,
    .lower_fsign = true,
-   .lower_fdot = true,
    .lower_fdph = true,
    .lower_insert_byte = true,
    .lower_insert_word = true,
@@ -136,7 +135,13 @@ lima_program_optimize_vs_nir(struct nir_shader *s)
       NIR_PASS(progress, s, nir_opt_dce);
       NIR_PASS(progress, s, nir_opt_dead_cf);
       NIR_PASS(progress, s, nir_opt_cse);
-      NIR_PASS(progress, s, nir_opt_peephole_select, 8, true, true);
+
+      nir_opt_peephole_select_options peephole_select_options = {
+         .limit = 8,
+         .indirect_load_ok = true,
+         .expensive_alu_ok = true,
+      };
+      NIR_PASS(progress, s, nir_opt_peephole_select, &peephole_select_options);
       NIR_PASS(progress, s, nir_opt_algebraic);
       NIR_PASS(progress, s, lima_nir_lower_ftrunc);
       NIR_PASS(progress, s, nir_opt_constant_folding);
@@ -154,7 +159,7 @@ lima_program_optimize_vs_nir(struct nir_shader *s)
    NIR_PASS_V(s, nir_copy_prop);
    NIR_PASS_V(s, nir_opt_dce);
    NIR_PASS_V(s, lima_nir_split_loads);
-   NIR_PASS_V(s, nir_convert_from_ssa, true);
+   NIR_PASS_V(s, nir_convert_from_ssa, true, false);
    NIR_PASS_V(s, nir_opt_dce);
    NIR_PASS_V(s, nir_remove_dead_variables, nir_var_function_temp, NULL);
    nir_sweep(s);
@@ -246,8 +251,15 @@ lima_program_optimize_fs_nir(struct nir_shader *s,
       NIR_PASS(progress, s, nir_opt_dce);
       NIR_PASS(progress, s, nir_opt_dead_cf);
       NIR_PASS(progress, s, nir_opt_cse);
-      NIR_PASS(progress, s, nir_opt_peephole_select, 8, true, true);
+
+      nir_opt_peephole_select_options peephole_select_options = {
+         .limit = 8,
+         .indirect_load_ok = true,
+         .expensive_alu_ok = true,
+      };
+      NIR_PASS(progress, s, nir_opt_peephole_select, &peephole_select_options);
       NIR_PASS(progress, s, nir_opt_algebraic);
+      NIR_PASS(progress, s, lima_nir_lower_fdot);
       NIR_PASS(progress, s, nir_opt_constant_folding);
       NIR_PASS(progress, s, nir_opt_undef);
       NIR_PASS(progress, s, nir_opt_loop_unroll);
@@ -266,12 +278,13 @@ lima_program_optimize_fs_nir(struct nir_shader *s,
 
    /* Must be run after optimization loop */
    NIR_PASS_V(s, lima_nir_scale_trig);
+   NIR_PASS_V(s, nir_opt_algebraic_late);
    NIR_PASS_V(s, lima_nir_ppir_algebraic_late);
 
    NIR_PASS_V(s, nir_copy_prop);
    NIR_PASS_V(s, nir_opt_dce);
 
-   NIR_PASS_V(s, nir_convert_from_ssa, true);
+   NIR_PASS_V(s, nir_convert_from_ssa, true, false);
    NIR_PASS_V(s, nir_remove_dead_variables, nir_var_function_temp, NULL);
 
    NIR_PASS_V(s, nir_move_vec_src_uses_to_dest, false);
@@ -279,6 +292,7 @@ lima_program_optimize_fs_nir(struct nir_shader *s,
 
    NIR_PASS_V(s, nir_opt_dce); /* clean up any new dead code from vec to movs */
 
+   NIR_PASS_V(s, lima_nir_duplicate_modifiers);
    NIR_PASS_V(s, lima_nir_duplicate_load_uniforms);
    NIR_PASS_V(s, lima_nir_duplicate_load_inputs);
    NIR_PASS_V(s, lima_nir_duplicate_load_consts);

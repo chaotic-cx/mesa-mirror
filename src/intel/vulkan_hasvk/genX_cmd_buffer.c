@@ -928,6 +928,16 @@ transition_color_buffer(struct anv_cmd_buffer *cmd_buffer,
       ? isl_drm_modifier_get_info(image->vk.drm_format_mod)
       : NULL;
 
+   /**
+    * Vulkan 1.4.313, 7.7.4. Queue Family Ownership Transfer:
+    *
+    *    If the values of srcQueueFamilyIndex and dstQueueFamilyIndex are equal,
+    *    no ownership transfer is performed, and the barrier operates as if they
+    *    were both set to VK_QUEUE_FAMILY_IGNORED.
+    */
+   if (src_queue_family == dst_queue_family)
+      src_queue_family = dst_queue_family = VK_QUEUE_FAMILY_IGNORED;
+
    const bool src_queue_external =
       src_queue_family == VK_QUEUE_FAMILY_FOREIGN_EXT ||
       src_queue_family == VK_QUEUE_FAMILY_EXTERNAL;
@@ -1502,7 +1512,9 @@ genX(EndCommandBuffer)(
 
    emit_isp_disable(cmd_buffer);
 
-   trace_intel_end_cmd_buffer(&cmd_buffer->trace, cmd_buffer->vk.level);
+   trace_intel_end_cmd_buffer(&cmd_buffer->trace,
+                              (uintptr_t)(vk_command_buffer_to_handle(&cmd_buffer->vk)),
+                              cmd_buffer->vk.level);
 
    anv_cmd_buffer_end_batch_buffer(cmd_buffer);
 
@@ -2385,8 +2397,7 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
             break;
 
          default:
-            assert(!"Invalid descriptor type");
-            continue;
+            unreachable("Invalid descriptor type");
          }
          assert(surface_state.map);
          bt_map[s] = surface_state.offset + state_offset;
@@ -5900,10 +5911,11 @@ static uint32_t vk_to_intel_index_type(VkIndexType type)
    }
 }
 
-void genX(CmdBindIndexBuffer)(
+void genX(CmdBindIndexBuffer2KHR)(
     VkCommandBuffer                             commandBuffer,
     VkBuffer                                    _buffer,
     VkDeviceSize                                offset,
+	 VkDeviceSize                                size,
     VkIndexType                                 indexType)
 {
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
@@ -5913,7 +5925,7 @@ void genX(CmdBindIndexBuffer)(
    cmd_buffer->state.gfx.index_buffer = buffer;
    cmd_buffer->state.gfx.index_type = vk_to_intel_index_type(indexType);
    cmd_buffer->state.gfx.index_offset = offset;
-
+   cmd_buffer->state.gfx.index_size = vk_buffer_range(&buffer->vk, offset, size);
    cmd_buffer->state.gfx.dirty |= ANV_CMD_DIRTY_INDEX_BUFFER;
 }
 

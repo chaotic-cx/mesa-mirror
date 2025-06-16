@@ -33,8 +33,7 @@ struct radv_image_plane {
 struct radv_image_binding {
    /* Set when bound */
    struct radeon_winsys_bo *bo;
-   VkDeviceSize offset;
-   uint64_t bo_va;
+   uint64_t addr;
    uint64_t range;
 };
 
@@ -46,7 +45,6 @@ struct radv_image {
 
    unsigned queue_family_mask;
    bool exclusive;
-   bool shareable;
    bool dcc_sign_reinterpret;
    bool support_comp_to_single;
 
@@ -74,12 +72,6 @@ struct radv_image {
 };
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(radv_image, vk.base, VkImage, VK_OBJECT_TYPE_IMAGE)
-
-static inline uint64_t
-radv_image_get_va(const struct radv_image *image, uint32_t bind_idx)
-{
-   return radv_buffer_get_va(image->bindings[bind_idx].bo) + image->bindings[bind_idx].offset;
-}
 
 static inline bool
 radv_image_extent_compare(const struct radv_image *image, const VkExtent3D *extent)
@@ -186,6 +178,15 @@ radv_image_is_tc_compat_htile(const struct radv_image *image)
 }
 
 /**
+ * Return whether the image is TC-compatible HTILE for a level.
+ */
+static inline bool
+radv_tc_compat_htile_enabled(const struct radv_image *image, unsigned level)
+{
+   return radv_htile_enabled(image, level) && (image->planes[0].surface.flags & RADEON_SURF_TC_COMPATIBLE_HTILE);
+}
+
+/**
  * Return whether the entire HTILE buffer can be used for depth in order to
  * improve HiZ Z-Range precision.
  */
@@ -215,7 +216,7 @@ radv_image_get_fast_clear_va(const struct radv_image *image, uint32_t base_level
 {
    assert(radv_image_has_clear_value(image));
 
-   uint64_t va = radv_image_get_va(image, 0);
+   uint64_t va = image->bindings[0].addr;
    va += image->clear_value_offset + base_level * 8;
    return va;
 }
@@ -225,7 +226,7 @@ radv_image_get_fce_pred_va(const struct radv_image *image, uint32_t base_level)
 {
    assert(image->fce_pred_offset != 0);
 
-   uint64_t va = radv_image_get_va(image, 0);
+   uint64_t va = image->bindings[0].addr;
    va += image->fce_pred_offset + base_level * 8;
    return va;
 }
@@ -235,7 +236,7 @@ radv_image_get_dcc_pred_va(const struct radv_image *image, uint32_t base_level)
 {
    assert(image->dcc_pred_offset != 0);
 
-   uint64_t va = radv_image_get_va(image, 0);
+   uint64_t va = image->bindings[0].addr;
    va += image->dcc_pred_offset + base_level * 8;
    return va;
 }
@@ -245,7 +246,7 @@ radv_get_tc_compat_zrange_va(const struct radv_image *image, uint32_t base_level
 {
    assert(image->tc_compat_zrange_offset != 0);
 
-   uint64_t va = radv_image_get_va(image, 0);
+   uint64_t va = image->bindings[0].addr;
    va += image->tc_compat_zrange_offset + base_level * 4;
    return va;
 }
@@ -255,7 +256,7 @@ radv_get_ds_clear_value_va(const struct radv_image *image, uint32_t base_level)
 {
    assert(radv_image_has_clear_value(image));
 
-   uint64_t va = radv_image_get_va(image, 0);
+   uint64_t va = image->bindings[0].addr;
    va += image->clear_value_offset + base_level * 8;
    return va;
 }
@@ -318,7 +319,7 @@ bool radv_image_use_dcc_predication(const struct radv_device *device, const stru
 void radv_compose_swizzle(const struct util_format_description *desc, const VkComponentMapping *mapping,
                           enum pipe_swizzle swizzle[4]);
 
-void radv_init_metadata(struct radv_device *device, struct radv_image *image, struct radeon_bo_metadata *metadata);
+void radv_image_bo_set_metadata(struct radv_device *device, struct radv_image *image, struct radeon_winsys_bo *bo);
 
 void radv_image_override_offset_stride(struct radv_device *device, struct radv_image *image, uint64_t offset,
                                        uint32_t stride);
@@ -352,7 +353,7 @@ VkFormat radv_get_aspect_format(struct radv_image *image, VkImageAspectFlags mas
  * If this is false reads that don't use the htile should be able to return
  * correct results.
  */
-bool radv_layout_is_htile_compressed(const struct radv_device *device, const struct radv_image *image,
+bool radv_layout_is_htile_compressed(const struct radv_device *device, const struct radv_image *image, unsigned level,
                                      VkImageLayout layout, unsigned queue_mask);
 
 bool radv_layout_can_fast_clear(const struct radv_device *device, const struct radv_image *image, unsigned level,
