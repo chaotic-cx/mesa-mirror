@@ -41,7 +41,6 @@
 #include "etnaviv_screen.h"
 #include "etnaviv_shader.h"
 #include "etnaviv_state.h"
-#include "etnaviv_surface.h"
 #include "etnaviv_texture.h"
 #include "etnaviv_transfer.h"
 #include "etnaviv_translate.h"
@@ -114,7 +113,6 @@ etna_context_destroy(struct pipe_context *pctx)
    if (ctx->flush_resources)
       _mesa_set_destroy(ctx->flush_resources, NULL);
 
-   util_framebuffer_init(pctx, NULL, ctx->fb_cbufs, &ctx->fb_zsbuf);
    util_copy_framebuffer_state(&ctx->framebuffer_s, NULL);
 
    if (ctx->blitter)
@@ -444,12 +442,21 @@ etna_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       pctx->flush(pctx, NULL, 0);
 
    for (i = 0; i < pfb->nr_cbufs; i++) {
-      if (ctx->fb_cbufs[i])
-         etna_resource_level_mark_changed(etna_surface(ctx->fb_cbufs[i])->level);
+      if (pfb->cbufs[i].texture) {
+         struct etna_resource *res = etna_resource_get_render_compatible(pctx, pfb->cbufs[i].texture);
+         struct etna_resource_level *level = &res->levels[pfb->cbufs[i].level];
+
+         etna_resource_level_mark_changed(level);
+      }
    }
 
-   if (ctx->fb_zsbuf)
-      etna_resource_level_mark_changed(etna_surface(ctx->fb_zsbuf)->level);
+   if (pfb->zsbuf.texture) {
+      struct etna_resource *res = etna_resource_get_render_compatible(pctx, pfb->zsbuf.texture);
+      struct etna_resource_level *level = &res->levels[pfb->zsbuf.level];
+
+      etna_resource_level_mark_changed(level);
+   }
+
    if (info->index_size && indexbuf != info->index.resource)
       pipe_resource_reference(&indexbuf, NULL);
 }
@@ -714,7 +721,6 @@ etna_context_create(struct pipe_screen *pscreen, void *priv, unsigned flags)
    etna_clear_blit_init(pctx);
    etna_query_context_init(pctx);
    etna_state_init(pctx);
-   etna_surface_init(pctx);
    etna_shader_init(pctx);
    etna_texture_init(pctx);
    etna_transfer_init(pctx);

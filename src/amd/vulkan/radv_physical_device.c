@@ -552,6 +552,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_maintenance6 = true,
       .KHR_maintenance7 = true,
       .KHR_maintenance8 = true,
+      .KHR_maintenance9 = true,
       .KHR_map_memory2 = true,
       .KHR_multiview = true,
       .KHR_performance_query = radv_perf_query_supported(pdev),
@@ -565,8 +566,10 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
        * we can also expose the extension that way. */
       .KHR_present_id =
          instance->drirc.enable_khr_present_wait || wsi_common_vk_instance_supports_present_wait(&instance->vk),
+      .KHR_present_id2 = true,
       .KHR_present_wait =
          instance->drirc.enable_khr_present_wait || wsi_common_vk_instance_supports_present_wait(&instance->vk),
+      .KHR_present_wait2 = true,
       .KHR_push_descriptor = true,
       .KHR_ray_query = radv_enable_rt(pdev),
       .KHR_ray_tracing_maintenance1 = radv_enable_rt(pdev),
@@ -602,6 +605,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
 #endif
       .KHR_synchronization2 = true,
       .KHR_timeline_semaphore = true,
+      .KHR_unified_image_layouts = pdev->info.gfx_level >= GFX11,
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
       .KHR_vertex_attribute_divisor = true,
@@ -613,7 +617,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_video_decode_queue = pdev->video_decode_enabled,
       .KHR_video_decode_h264 = VIDEO_CODEC_H264DEC && pdev->video_decode_enabled,
       .KHR_video_decode_h265 = VIDEO_CODEC_H265DEC && pdev->video_decode_enabled,
-      .KHR_video_decode_vp9 = (pdev->info.vcn_ip_version >= VCN_2_0_0 &&
+      .KHR_video_decode_vp9 = (radv_video_decode_vp9_supported(pdev) &&
                                VIDEO_CODEC_VP9DEC && pdev->video_decode_enabled),
       .KHR_video_encode_h264 = VIDEO_CODEC_H264ENC && pdev->video_encode_enabled,
       .KHR_video_encode_h265 = VIDEO_CODEC_H265ENC && pdev->video_encode_enabled,
@@ -840,8 +844,8 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
       .storagePushConstant8 = true,
       .shaderBufferInt64Atomics = true,
       .shaderSharedInt64Atomics = true,
-      .shaderFloat16 = pdev->info.has_packed_math_16bit ||
-                       (pdev->info.gfx_level == GFX8 && instance->drirc.expose_float16_gfx8),
+      .shaderFloat16 =
+         pdev->info.has_packed_math_16bit || (pdev->info.gfx_level == GFX8 && instance->drirc.expose_float16_gfx8),
       .shaderInt8 = true,
 
       .descriptorIndexing = true,
@@ -995,9 +999,9 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
       .shaderSharedFloat64Atomics = true,
       .shaderSharedFloat64AtomicAdd = false,
       .shaderImageFloat32Atomics = true,
-      .shaderImageFloat32AtomicAdd = false,
+      .shaderImageFloat32AtomicAdd = pdev->info.gfx_level >= GFX12 && !pdev->use_llvm,
       .sparseImageFloat32Atomics = true,
-      .sparseImageFloat32AtomicAdd = false,
+      .sparseImageFloat32AtomicAdd = pdev->info.gfx_level >= GFX12 && !pdev->use_llvm,
 
       /* VK_EXT_4444_formats */
       .formatA4R4G4B4 = true,
@@ -1319,6 +1323,13 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
 
       /* VK_KHR_video_decode_vp9 */
       .videoDecodeVP9 = true,
+
+      /* VK_KHR_maintenance9 */
+      .maintenance9 = true,
+
+      /* VK_KHR_unified_layouts */
+      .unifiedImageLayouts = true,
+      .unifiedImageLayoutsVideo = true,
    };
 }
 
@@ -1876,20 +1887,20 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
       .imageViewCaptureReplayDescriptorDataSize = 1,
       .samplerCaptureReplayDescriptorDataSize = 1,
       .accelerationStructureCaptureReplayDescriptorDataSize = 1,
-      .samplerDescriptorSize = 16,
-      .combinedImageSamplerDescriptorSize = 96,
+      .samplerDescriptorSize = RADV_SAMPLER_DESC_SIZE,
+      .combinedImageSamplerDescriptorSize = RADV_COMBINED_IMAGE_SAMPLER_DESC_SIZE,
       .sampledImageDescriptorSize = radv_get_sampled_image_desc_size(pdev),
-      .storageImageDescriptorSize = 32,
-      .uniformTexelBufferDescriptorSize = 16,
-      .robustUniformTexelBufferDescriptorSize = 16,
-      .storageTexelBufferDescriptorSize = 16,
-      .robustStorageTexelBufferDescriptorSize = 16,
-      .uniformBufferDescriptorSize = 16,
-      .robustUniformBufferDescriptorSize = 16,
-      .storageBufferDescriptorSize = 16,
-      .robustStorageBufferDescriptorSize = 16,
+      .storageImageDescriptorSize = RADV_STORAGE_IMAGE_DESC_SIZE,
+      .uniformTexelBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
+      .robustUniformTexelBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
+      .storageTexelBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
+      .robustStorageTexelBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
+      .uniformBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
+      .robustUniformBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
+      .storageBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
+      .robustStorageBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
       .inputAttachmentDescriptorSize = radv_get_sampled_image_desc_size(pdev),
-      .accelerationStructureDescriptorSize = 16,
+      .accelerationStructureDescriptorSize = RADV_ACCEL_STRUCT_DESC_SIZE,
       .maxSamplerDescriptorBufferRange = UINT32_MAX,
       .maxResourceDescriptorBufferRange = UINT32_MAX,
       .samplerDescriptorBufferAddressSpaceSize = RADV_MAX_MEMORY_ALLOCATION_SIZE,
@@ -1955,6 +1966,10 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
       .supportedIndirectCommandsShaderStagesShaderBinding = VK_SHADER_STAGE_COMPUTE_BIT,
       .deviceGeneratedCommandsTransformFeedback = true,
       .deviceGeneratedCommandsMultiDrawIndirectCount = true,
+
+      /* VK_KHR_maintenance9 */
+      .image2DViewOf3DSparse = pdev->info.gfx_level >= GFX8,
+      .defaultVertexAttributeValue = VK_DEFAULT_VERTEX_ATTRIBUTE_VALUE_ZERO_ZERO_ZERO_ZERO_KHR,
    };
 
    struct vk_properties *p = &pdev->vk.properties;
@@ -2577,6 +2592,11 @@ radv_GetPhysicalDeviceQueueFamilyProperties2(VkPhysicalDevice physicalDevice, ui
                if (VIDEO_CODEC_H265ENC)
                   prop->videoCodecOperations |= VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR;
             }
+            break;
+         }
+         case VK_STRUCTURE_TYPE_QUEUE_FAMILY_OWNERSHIP_TRANSFER_PROPERTIES_KHR: {
+            VkQueueFamilyOwnershipTransferPropertiesKHR *prop = (VkQueueFamilyOwnershipTransferPropertiesKHR *)ext;
+            prop->optimalImageTransferToQueueFamilies = ~0;
             break;
          }
          default:

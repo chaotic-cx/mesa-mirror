@@ -535,8 +535,8 @@ panvk_draw_emit_attrib_buf(const struct panvk_draw_data *draw,
       }
    } else {
       unsigned divisor_r = 0, divisor_e = 0;
-      unsigned divisor_num =
-         pan_compute_magic_divisor(divisor, &divisor_r, &divisor_e);
+      unsigned divisor_d =
+         pan_compute_npot_divisor(divisor, &divisor_r, &divisor_e);
       pan_pack(desc, ATTRIBUTE_BUFFER, cfg) {
          cfg.type = MALI_ATTRIBUTE_TYPE_1D_NPOT_DIVISOR;
          cfg.stride = stride;
@@ -547,7 +547,7 @@ panvk_draw_emit_attrib_buf(const struct panvk_draw_data *draw,
       }
 
       pan_cast_and_pack(buf_ext, ATTRIBUTE_BUFFER_CONTINUATION_NPOT, cfg) {
-         cfg.divisor_numerator = divisor_num;
+         cfg.divisor_numerator = divisor_d;
          cfg.divisor = buf_info->divisor;
       }
 
@@ -673,11 +673,11 @@ panvk_emit_viewport(struct panvk_cmd_buffer *cmdbuf,
    if (vp->viewport_count < 1)
       return;
 
-   struct panvk_graphics_sysvals *sysvals = &cmdbuf->state.gfx.sysvals;
    const VkViewport *viewport = &vp->viewports[0];
    const VkRect2D *scissor = &vp->scissors[0];
-   float minz = sysvals->viewport.offset.z;
-   float maxz = minz + sysvals->viewport.scale.z;
+   float minz, maxz;
+   panvk_depth_range(&cmdbuf->state.gfx, &cmdbuf->vk.dynamic_graphics_state.vp,
+                     &minz, &maxz);
 
    /* The spec says "width must be greater than 0.0" */
    assert(viewport->width >= 0);
@@ -709,8 +709,8 @@ panvk_emit_viewport(struct panvk_cmd_buffer *cmdbuf,
       cfg.scissor_minimum_y = miny;
       cfg.scissor_maximum_x = maxx;
       cfg.scissor_maximum_y = maxy;
-      cfg.minimum_z = MIN2(minz, maxz);
-      cfg.maximum_z = MAX2(minz, maxz);
+      cfg.minimum_z = minz;
+      cfg.maximum_z = maxz;
    }
 }
 
@@ -723,6 +723,7 @@ panvk_draw_prepare_viewport(struct panvk_cmd_buffer *cmdbuf,
     * As a result, we define an empty one.
     */
    if (!cmdbuf->state.gfx.vpd || dyn_gfx_state_dirty(cmdbuf, VP_VIEWPORTS) ||
+       dyn_gfx_state_dirty(cmdbuf, VP_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE) ||
        dyn_gfx_state_dirty(cmdbuf, VP_SCISSORS) ||
        dyn_gfx_state_dirty(cmdbuf, RS_DEPTH_CLIP_ENABLE) ||
        dyn_gfx_state_dirty(cmdbuf, RS_DEPTH_CLAMP_ENABLE)) {

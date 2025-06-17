@@ -148,7 +148,7 @@ panvk_lower_sysvals(nir_builder *b, nir_instr *instr, void *data)
       const struct vk_input_attachment_location_state *ial =
          ctx->state ? ctx->state->ial : NULL;
 
-      if (ial) {
+      if (ial && nir_src_is_const(intr->src[0])) {
          uint32_t index = nir_src_as_uint(intr->src[0]);
          uint32_t depth_idx = ial->depth_att == MESA_VK_ATTACHMENT_NO_INDEX
                                  ? 0
@@ -409,6 +409,9 @@ panvk_preprocess_nir(UNUSED struct vk_physical_device *vk_pdev,
    NIR_PASS(_, nir, nir_opt_combine_stores, nir_var_all);
    NIR_PASS(_, nir, nir_opt_loop);
 
+   NIR_PASS(_, nir, nir_opt_barrier_modes);
+   NIR_PASS(_, nir, nir_opt_acquire_release_barriers, SCOPE_DEVICE);
+
    /* Do texture lowering here.  Yes, it's a duplication of the texture
     * lowering in bifrost_compile.  However, we need to lower texture stuff
     * now, before we call panvk_per_arch(nir_lower_descriptors)() because some
@@ -568,9 +571,6 @@ collect_push_constant(struct nir_builder *b, nir_intrinsic_instr *intr,
    bool is_sysval = base >= SYSVALS_PUSH_CONST_BASE;
    uint32_t offset, size;
 
-   /* Sysvals should have a constant offset. */
-   assert(!is_sysval || nir_src_is_const(intr->src[0]));
-
    if (is_sysval)
       base -= SYSVALS_PUSH_CONST_BASE;
 
@@ -580,11 +580,12 @@ collect_push_constant(struct nir_builder *b, nir_intrinsic_instr *intr,
       offset = base;
       size = nir_intrinsic_range(intr);
 
-      /* Flag the push_consts sysval as needed if we have an indirect offset. */
+      /* Flag the push_uniforms sysval as needed if we have an indirect offset.
+       */
       if (b->shader->info.stage == MESA_SHADER_COMPUTE)
-         shader_use_sysval(shader, compute, push_consts);
+         shader_use_sysval(shader, compute, push_uniforms);
       else
-         shader_use_sysval(shader, graphics, push_consts);
+         shader_use_sysval(shader, graphics, push_uniforms);
    } else {
       offset = base + nir_src_as_uint(intr->src[0]);
       size = (intr->def.bit_size / 8) * intr->def.num_components;
@@ -611,9 +612,6 @@ move_push_constant(struct nir_builder *b, nir_intrinsic_instr *intr, void *data)
    if (is_sysval)
       base -= SYSVALS_PUSH_CONST_BASE;
 
-   /* Sysvals should have a constant offset. */
-   assert(!is_sysval || nir_src_is_const(intr->src[0]));
-
    b->cursor = nir_before_instr(&intr->instr);
 
    if (nir_src_is_const(intr->src[0])) {
@@ -639,12 +637,13 @@ move_push_constant(struct nir_builder *b, nir_intrinsic_instr *intr, void *data)
        * zero in this pass. */
       unsigned push_const_buf_offset = shader_remapped_sysval_offset(
          shader, b->shader->info.stage == MESA_SHADER_COMPUTE
-                    ? sysval_offset(compute, push_consts)
-                    : sysval_offset(graphics, push_consts));
+                    ? sysval_offset(compute, push_uniforms)
+                    : sysval_offset(graphics, push_uniforms));
       nir_def *push_const_buf = nir_load_push_constant(
          b, 1, 64, nir_imm_int(b, push_const_buf_offset));
-      unsigned push_const_offset =
-         shader_remapped_fau_offset(shader, push_consts, base);
+      unsigned push_const_offset = is_sysval ?
+         shader_remapped_sysval_offset(shader, base) :
+         shader_remapped_push_const_offset(shader, base);
       nir_def *offset = nir_iadd_imm(b, intr->src[0].ssa, push_const_offset);
       unsigned align = nir_combined_align(nir_intrinsic_align_mul(intr),
                                           nir_intrinsic_align_offset(intr));
@@ -822,6 +821,31 @@ panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
             nir_address_format_32bit_offset);
    NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_mem_global,
             nir_address_format_64bit_global);
+
+   /* nir_lower_non_uniform_access needs to run after lowering UBO and SSBO
+    * IO. This means we run it after nir_lower_descriptors, which reads the
+    * array indices, but it's okay because lower_descriptors treats all
+    * dynamic indices the same. */
+   enum nir_lower_non_uniform_access_type lower_non_uniform_access_types =
+      nir_lower_non_uniform_ubo_access |
+      nir_lower_non_uniform_ssbo_access |
+      nir_lower_non_uniform_texture_access |
+      nir_lower_non_uniform_image_access |
+      nir_lower_non_uniform_get_ssbo_size;
+#if PAN_ARCH <= 7
+   lower_non_uniform_access_types |=
+      nir_lower_non_uniform_texture_offset_access;
+#endif
+
+   /* In practice, most shaders do not have non-uniform-qualified accesses
+    * thus a cheaper and likely to fail check is run first. */
+   if (nir_has_non_uniform_access(nir, lower_non_uniform_access_types)) {
+      NIR_PASS(_, nir, nir_opt_non_uniform_access);
+      struct nir_lower_non_uniform_access_options opts = {
+         .types = lower_non_uniform_access_types,
+      };
+      NIR_PASS(_, nir, nir_lower_non_uniform_access, &opts);
+   }
 
 #if PAN_ARCH >= 9
    NIR_PASS(_, nir, nir_shader_intrinsics_pass, valhall_lower_get_ssbo_size,

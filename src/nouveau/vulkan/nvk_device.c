@@ -179,18 +179,18 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
    nvkmd_mem_unmap(dev->zero_page, 0);
 
    result = nvk_descriptor_table_init(dev, &dev->images,
-                                      8 * 4 /* tic entry size */,
+                                      sizeof(struct nil_descriptor),
                                       1024, 1024 * 1024);
    if (result != VK_SUCCESS)
       goto fail_zero_page;
 
    /* Reserve the descriptor at offset 0 to be the null descriptor */
-   uint32_t null_tic[8] = { 0, };
-   nil_fill_null_tic(&pdev->info, dev->zero_page->va->addr, &null_tic);
+   const struct nil_descriptor null_desc =
+      nil_null_descriptor(&pdev->info, dev->zero_page->va->addr);
 
    ASSERTED uint32_t null_image_index;
    result = nvk_descriptor_table_add(dev, &dev->images,
-                                     null_tic, sizeof(null_tic),
+                                     &null_desc, sizeof(null_desc),
                                      &null_image_index);
    assert(result == VK_SUCCESS);
    assert(null_image_index == 0);
@@ -207,12 +207,11 @@ nvk_CreateDevice(VkPhysicalDevice physicalDevice,
     * the compiler lowering code (similar to null descriptors).
     */
    if (pdev->info.cls_eng3d < MAXWELL_A) {
-      uint32_t txf_sampler[8] = {};
-      nvk_fill_txf_sampler_header(pdev, txf_sampler);
+      const struct nvk_sampler_header txf_sampler = nvk_txf_sampler_header(pdev);
 
       ASSERTED uint32_t txf_sampler_index;
       result = nvk_descriptor_table_add(dev, &dev->samplers,
-                                        txf_sampler, sizeof(txf_sampler),
+                                        &txf_sampler, sizeof(txf_sampler),
                                         &txf_sampler_index);
       assert(result == VK_SUCCESS);
       assert(txf_sampler_index == 0);

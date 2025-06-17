@@ -1850,23 +1850,56 @@ get_alu_uub(struct analysis_state *state, struct uub_query q, uint32_t *result, 
    case nir_op_umax:
       *result = src[0] > src[1] ? src[0] : src[1];
       break;
-   case nir_op_iand:
-      *result = bitmask(util_last_bit64(src[0])) & bitmask(util_last_bit64(src[1]));
+   case nir_op_iand: {
+      nir_scalar src0_scalar = nir_scalar_chase_alu_src(q.scalar, 0);
+      nir_scalar src1_scalar = nir_scalar_chase_alu_src(q.scalar, 1);
+      if (nir_scalar_is_const(src0_scalar))
+         *result = bitmask(util_last_bit64(src[1])) & nir_scalar_as_uint(src0_scalar);
+      else if (nir_scalar_is_const(src1_scalar))
+         *result = bitmask(util_last_bit64(src[0])) & nir_scalar_as_uint(src1_scalar);
+      else
+         *result = bitmask(util_last_bit64(src[0])) & bitmask(util_last_bit64(src[1]));
       break;
+   }
    case nir_op_ior:
-   case nir_op_ixor:
-      *result = bitmask(util_last_bit64(src[0])) | bitmask(util_last_bit64(src[1]));
+   case nir_op_ixor: {
+      nir_scalar src0_scalar = nir_scalar_chase_alu_src(q.scalar, 0);
+      nir_scalar src1_scalar = nir_scalar_chase_alu_src(q.scalar, 1);
+      if (nir_scalar_is_const(src0_scalar))
+         *result = bitmask(util_last_bit64(src[1])) | nir_scalar_as_uint(src0_scalar);
+      else if (nir_scalar_is_const(src1_scalar))
+         *result = bitmask(util_last_bit64(src[0])) | nir_scalar_as_uint(src1_scalar);
+      else
+         *result = bitmask(util_last_bit64(src[0])) | bitmask(util_last_bit64(src[1]));
       break;
+   }
    case nir_op_ishl: {
       uint32_t src1 = MIN2(src[1], q.scalar.def->bit_size - 1u);
       if (util_last_bit64(src[0]) + src1 <= q.scalar.def->bit_size) /* check overflow */
          *result = src[0] << src1;
+
+      nir_scalar src1_scalar = nir_scalar_chase_alu_src(q.scalar, 1);
+      if (nir_scalar_is_const(src1_scalar)) {
+         uint32_t const_val = 1u << (nir_scalar_as_uint(src1_scalar) & (q.scalar.def->bit_size - 1u));
+         *result = MIN2(*result, max / const_val * const_val);
+      }
       break;
    }
-   case nir_op_imul:
+   case nir_op_imul: {
       if (src[0] == 0 || (src[0] * src[1]) / src[0] == src[1]) /* check overflow */
          *result = src[0] * src[1];
+
+      nir_scalar src0_scalar = nir_scalar_chase_alu_src(q.scalar, 0);
+      nir_scalar src1_scalar = nir_scalar_chase_alu_src(q.scalar, 1);
+      if (nir_scalar_is_const(src0_scalar)) {
+         uint32_t const_val = nir_scalar_as_uint(src0_scalar);
+         *result = MIN2(*result, max / const_val * const_val);
+      } else if (nir_scalar_is_const(src1_scalar)) {
+         uint32_t const_val = nir_scalar_as_uint(src1_scalar);
+         *result = MIN2(*result, max / const_val * const_val);
+      }
       break;
+   }
    case nir_op_ushr: {
       nir_scalar src1_scalar = nir_scalar_chase_alu_src(q.scalar, 1);
       uint32_t mask = q.scalar.def->bit_size - 1u;
@@ -2060,40 +2093,6 @@ nir_addition_might_overflow(nir_shader *shader, struct hash_table *range_ht,
                             nir_scalar ssa, unsigned const_val,
                             const nir_unsigned_upper_bound_config *config)
 {
-   if (nir_scalar_is_alu(ssa)) {
-      nir_op alu_op = nir_scalar_alu_op(ssa);
-
-      /* iadd(imul(a, #b), #c) */
-      if (alu_op == nir_op_imul || alu_op == nir_op_ishl) {
-         nir_scalar mul_src0 = nir_scalar_chase_alu_src(ssa, 0);
-         nir_scalar mul_src1 = nir_scalar_chase_alu_src(ssa, 1);
-         uint32_t stride = 1;
-         if (nir_scalar_is_const(mul_src0))
-            stride = nir_scalar_as_uint(mul_src0);
-         else if (nir_scalar_is_const(mul_src1))
-            stride = nir_scalar_as_uint(mul_src1);
-
-         if (alu_op == nir_op_ishl)
-            stride = 1u << (stride % 32u);
-
-         if (!stride || const_val <= UINT32_MAX - (UINT32_MAX / stride * stride))
-            return false;
-      }
-
-      /* iadd(iand(a, #b), #c) */
-      if (alu_op == nir_op_iand) {
-         nir_scalar and_src0 = nir_scalar_chase_alu_src(ssa, 0);
-         nir_scalar and_src1 = nir_scalar_chase_alu_src(ssa, 1);
-         uint32_t mask = 0xffffffff;
-         if (nir_scalar_is_const(and_src0))
-            mask = nir_scalar_as_uint(and_src0);
-         else if (nir_scalar_is_const(and_src1))
-            mask = nir_scalar_as_uint(and_src1);
-         if (mask == 0 || const_val < (1u << (ffs(mask) - 1)))
-            return false;
-      }
-   }
-
    uint32_t ub = nir_unsigned_upper_bound(shader, range_ht, ssa, config);
    return const_val + ub < const_val;
 }

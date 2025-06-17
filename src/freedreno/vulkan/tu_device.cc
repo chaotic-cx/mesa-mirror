@@ -224,8 +224,10 @@ get_device_extensions(const struct tu_physical_device *device,
        * we can also expose the extension that way. */
       .KHR_present_id = (driQueryOptionb(&device->instance->dri_options, "vk_khr_present_wait") ||
                          wsi_common_vk_instance_supports_present_wait(&device->instance->vk)),
+      .KHR_present_id2 = true,
       .KHR_present_wait = (driQueryOptionb(&device->instance->dri_options, "vk_khr_present_wait") ||
                            wsi_common_vk_instance_supports_present_wait(&device->instance->vk)),
+      .KHR_present_wait2 = true,
 #endif
       .KHR_push_descriptor = true,
       .KHR_ray_query = has_raytracing,
@@ -256,6 +258,7 @@ get_device_extensions(const struct tu_physical_device *device,
 #endif
       .KHR_synchronization2 = true,
       .KHR_timeline_semaphore = true,
+      .KHR_unified_image_layouts = true,
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
       .KHR_vertex_attribute_divisor = true,
@@ -771,6 +774,10 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* VK_EXT_fragment_density_map_offset */
    features->fragmentDensityMapOffset = true;
+
+   /* VK_KHR_unified_layouts */
+   features->unifiedImageLayouts = true;
+   features->unifiedImageLayoutsVideo = false;
 }
 
 static void
@@ -1780,6 +1787,10 @@ tu_DestroyInstance(VkInstance _instance,
    vk_free(&instance->vk.alloc, instance);
 }
 
+/* Note if we introduce more queues in a family that we may need to reduce the max
+ * scope in our nir_opt_acquire_release_barriers() call.  See
+ * https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/33504#note_2807879
+ */
 static const VkQueueFamilyProperties tu_queue_family_properties = {
    .queueFlags =
       VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT,
@@ -2116,10 +2127,10 @@ tu_cmd_begin_iterator(struct tu_cmd_buffer *cmdbuf)
 {
    switch (cmdbuf->state.suspend_resume) {
    case SR_IN_PRE_CHAIN:
-      return cmdbuf->trace_renderpass_end;
+      return cmdbuf->trace_rp_drawcalls_end;
    case SR_AFTER_PRE_CHAIN:
    case SR_IN_CHAIN_AFTER_PRE_CHAIN:
-      return cmdbuf->pre_chain.trace_renderpass_end;
+      return cmdbuf->pre_chain.trace_rp_drawcalls_end;
    default:
       return u_trace_begin_iterator(&cmdbuf->trace);
    }
@@ -2130,10 +2141,10 @@ tu_cmd_end_iterator(struct tu_cmd_buffer *cmdbuf)
 {
    switch (cmdbuf->state.suspend_resume) {
    case SR_IN_PRE_CHAIN:
-      return cmdbuf->trace_renderpass_end;
+      return cmdbuf->trace_rp_drawcalls_end;
    case SR_IN_CHAIN:
    case SR_IN_CHAIN_AFTER_PRE_CHAIN:
-      return cmdbuf->trace_renderpass_start;
+      return cmdbuf->trace_rp_drawcalls_start;
    default:
       return u_trace_end_iterator(&cmdbuf->trace);
    }

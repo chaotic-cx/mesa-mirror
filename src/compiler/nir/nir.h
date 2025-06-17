@@ -4817,7 +4817,7 @@ typedef enum {
    nir_group_same_resource_only,
 } nir_load_grouping;
 
-void nir_group_loads(nir_shader *shader, nir_load_grouping grouping,
+bool nir_group_loads(nir_shader *shader, nir_load_grouping grouping,
                      unsigned max_distance);
 
 bool nir_shrink_vec_array_vars(nir_shader *shader, nir_variable_mode modes);
@@ -4840,7 +4840,7 @@ bool nir_link_shader_functions(nir_shader *shader,
 bool nir_lower_calls_to_builtins(nir_shader *s);
 
 void nir_find_inlinable_uniforms(nir_shader *shader);
-void nir_inline_uniforms(nir_shader *shader, unsigned num_uniforms,
+bool nir_inline_uniforms(nir_shader *shader, unsigned num_uniforms,
                          const uint32_t *uniform_values,
                          const uint16_t *uniform_dw_offsets);
 bool nir_collect_src_uniforms(const nir_src *src, int component,
@@ -5844,6 +5844,7 @@ bool nir_recompute_io_bases(nir_shader *nir, nir_variable_mode modes);
 bool nir_lower_mediump_vars(nir_shader *nir, nir_variable_mode modes);
 bool nir_lower_mediump_io(nir_shader *nir, nir_variable_mode modes,
                           uint64_t varying_mask, bool use_16bit_slots);
+bool nir_clear_mediump_io_flag(nir_shader *nir);
 bool nir_force_mediump_io(nir_shader *nir, nir_variable_mode modes,
                           nir_alu_type types);
 bool nir_unpack_16bit_varying_slots(nir_shader *nir, nir_variable_mode modes);

@@ -41,3 +41,13 @@ GL_ARB_shader_clock on panfrost/v6+
 VK_EXT_texture_compression_astc_hdr on panvk
 MSAA with 8 and 16 sample counts on panfrost
 cl_khr_spirv_queries
+VK_EXT_depth_clamp_zero_one on panvk
+VK_KHR_depth_clamp_zero_one on panvk
+VK_EXT_depth_clip_control on panvk
+VK_KHR_maintenance9 on RADV
+VK_KHR_unified_image_layouts on RADV (RDNA3+) and tu
+VK_KHR_vulkan_memory_model on panvk
+VK_KHR_present_wait2
+VK_EXT_descriptor_indexing on panvk/v10+
+cl_khr_priority_hints
+VK_KHR_maintenance6 on panvk/v10+

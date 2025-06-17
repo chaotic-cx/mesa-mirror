@@ -63,7 +63,6 @@ struct radv_instance {
       bool tex_non_uniform;
       bool ssbo_non_uniform;
       bool flush_before_timestamp_write;
-      bool disable_dedicated_sparse_queue;
       bool clear_lds;
       bool enable_khr_present_wait;
       bool report_llvm9_version_string;
@@ -74,7 +73,6 @@ struct radv_instance {
       bool lower_terminate_to_discard;
       bool emulate_rt;
       bool expose_float16_gfx8;
-      bool force_64k_sparse_alignment;
       bool disable_hiz_his_gfx12;
       char *app_layer;
       uint8_t override_graphics_shader_version;

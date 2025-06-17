@@ -2760,7 +2760,7 @@ static void
 init_driver_workarounds(struct zink_screen *screen)
 {
    /* enable implicit sync for all non-mesa drivers */
-   screen->driver_workarounds.implicit_sync = screen->info.driver_props.driverID != VK_DRIVER_ID_MESA_VENUS;
+   screen->driver_workarounds.implicit_sync = !zink_driver_is_venus(screen);
    switch (zink_driverid(screen)) {
    case VK_DRIVER_ID_MESA_RADV:
    case VK_DRIVER_ID_INTEL_OPEN_SOURCE_MESA:
@@ -2977,6 +2977,8 @@ init_driver_workarounds(struct zink_screen *screen)
    default:
       break;
    }
+   if (zink_driver_is_venus(screen))
+      screen->driver_workarounds.can_do_invalid_linear_modifier = true;
 
    /* these drivers have no difference between unoptimized and optimized shader compilation */
    switch (zink_driverid(screen)) {
@@ -3279,12 +3281,13 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
    if (++instance_refcount == 1) {
       instance_info.loader_version = zink_get_loader_version(screen);
       instance = zink_create_instance(screen, &instance_info);
-      if (!instance) {
-         simple_mtx_unlock(&instance_lock);
-         goto fail;
-      }
-   } else {
-      assert(instance);
+   }
+   if (!instance) {
+      /* We don't decrement instance_refcount here. This prevents us from trying
+       * to create another instance on subsequent calls.
+       */
+      simple_mtx_unlock(&instance_lock);
+      goto fail;
    }
    screen->instance = instance;
    screen->instance_info = &instance_info;

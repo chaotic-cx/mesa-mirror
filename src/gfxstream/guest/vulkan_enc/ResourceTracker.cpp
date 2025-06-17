@@ -1503,7 +1503,7 @@ void ResourceTracker::setupFeatures(const struct GfxStreamVkFeatureInfo* feature
 void ResourceTracker::setupPlatformHelpers() {
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     VirtGpuDevice* instance = VirtGpuDevice::getInstance(kCapsetGfxStreamVulkan);
-    auto deviceHandle = (instance) ? instance->getDeviceHandle() : INVALID_DESCRIPTOR;
+    auto deviceHandle = instance ? instance->getDeviceHandle() : INVALID_DESCRIPTOR;
     if (mGralloc == nullptr) {
         mGralloc.reset(gfxstream::createPlatformGralloc(deviceHandle));
     }

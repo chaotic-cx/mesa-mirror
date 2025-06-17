@@ -52,7 +52,6 @@
 #include "dev/intel_device_info.h"
 #include "blorp/blorp.h"
 #include "compiler/brw_compiler.h"
-#include "compiler/brw_kernel.h"
 #include "compiler/brw_rt.h"
 #include "ds/intel_driver_ds.h"
 #include "util/bitset.h"
@@ -1277,9 +1276,6 @@ struct anv_physical_device {
     uint8_t                                     driver_uuid[VK_UUID_SIZE];
     uint8_t                                     device_uuid[VK_UUID_SIZE];
     uint8_t                                     rt_uuid[VK_UUID_SIZE];
-
-    /* Maximum amount of scratch space used by all the GRL kernels */
-    uint32_t                                    max_grl_scratch_size;
 
     struct vk_sync_type                         sync_syncobj_type;
     struct vk_sync_timeline_type                sync_timeline_type;
@@ -4768,14 +4764,11 @@ struct anv_pipeline_bind_map {
    uint32_t surface_count;
    uint32_t sampler_count;
    uint32_t embedded_sampler_count;
-   uint16_t kernel_args_size;
-   uint16_t kernel_arg_count;
 
    struct anv_pipeline_binding *                surface_to_descriptor;
    struct anv_pipeline_binding *                sampler_to_descriptor;
    struct anv_pipeline_embedded_sampler_binding* embedded_sampler_to_binding;
    BITSET_DECLARE(input_attachments, MAX_DESCRIPTOR_SET_INPUT_ATTACHMENTS + 1);
-   struct brw_kernel_arg_desc *                 kernel_args;
 
    struct anv_push_range                        push_ranges[4];
 };
@@ -5293,24 +5286,6 @@ anv_device_init_rt_shaders(struct anv_device *device);
 void
 anv_device_finish_rt_shaders(struct anv_device *device);
 
-struct anv_kernel_arg {
-   bool is_ptr;
-   uint16_t size;
-
-   union {
-      uint64_t u64;
-      void *ptr;
-   };
-};
-
-struct anv_kernel {
-#ifndef NDEBUG
-   const char *name;
-#endif
-   struct anv_shader_bin *bin;
-   const struct intel_l3_config *l3_config;
-};
-
 struct anv_format_plane {
    /* Main format */
    enum isl_format isl_format:16;
@@ -5330,6 +5305,10 @@ enum anv_format_flag {
    ANV_FORMAT_FLAG_CAN_VIDEO = BITFIELD_BIT(1),
    /* Format works if custom border colors without format is disabled */
    ANV_FORMAT_FLAG_NO_CBCWF  = BITFIELD_BIT(2),
+   /* The isl_format associated with this format is only for storage (64bit
+    * emulated through 2x32bit, does not allow read/write without format)
+    */
+   ANV_FORMAT_FLAG_STORAGE_FORMAT_EMULATED = BITFIELD_BIT(3),
 };
 
 struct anv_format {
@@ -5460,8 +5439,13 @@ anv_is_compressed_format_emulated(const struct anv_physical_device *pdevice,
 }
 
 static inline bool
-anv_is_storage_format_emulated(VkFormat format)
+anv_is_storage_format_atomics_emulated(const struct intel_device_info *devinfo,
+                                       VkFormat format)
 {
+   /* No emulation required on Xe2+ */
+   if (devinfo->ver >= 20)
+      return false;
+
    return format == VK_FORMAT_R64_SINT ||
           format == VK_FORMAT_R64_UINT;
 }
@@ -6318,7 +6302,8 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
                                VkFormat vk_format,
                                const struct anv_format *anv_format,
                                VkImageTiling vk_tiling,
-                               bool is_sparse,
+                               VkImageUsageFlags usage,
+                               VkImageCreateFlags create_flags,
                                const struct isl_drm_modifier_info *isl_mod_info);
 
 void anv_fill_buffer_surface_state(struct anv_device *device,
@@ -6413,6 +6398,8 @@ struct anv_vid_mem {
 #define ANV_VIDEO_H265_MAX_NUM_REF_FRAME 16
 #define ANV_VIDEO_H265_HCP_NUM_REF_FRAME 8
 #define ANV_MAX_H265_CTB_SIZE 64
+#define ANV_MAX_VP9_CTB_SIZE 64
+#define ANV_VP9_SCALE_FACTOR_SHIFT 14
 
 enum anv_vid_mem_h264_types {
    ANV_VID_MEM_H264_INTRA_ROW_STORE,
@@ -6435,6 +6422,25 @@ enum anv_vid_mem_h265_types {
    ANV_VID_MEM_H265_DEC_MAX,
    ANV_VID_MEM_H265_SSE_SRC_PIX_ROW_STORE = ANV_VID_MEM_H265_DEC_MAX,
    ANV_VID_MEM_H265_ENC_MAX,
+};
+
+enum anv_vid_mem_vp9_types {
+   ANV_VID_MEM_VP9_DEBLOCK_FILTER_ROW_STORE_LINE,
+   ANV_VID_MEM_VP9_DEBLOCK_FILTER_ROW_STORE_TILE_LINE,
+   ANV_VID_MEM_VP9_DEBLOCK_FILTER_ROW_STORE_TILE_COLUMN,
+   ANV_VID_MEM_VP9_METADATA_LINE,
+   ANV_VID_MEM_VP9_METADATA_TILE_LINE,
+   ANV_VID_MEM_VP9_METADATA_TILE_COLUMN,
+   ANV_VID_MEM_VP9_PROBABILITY_0,
+   ANV_VID_MEM_VP9_PROBABILITY_1,
+   ANV_VID_MEM_VP9_PROBABILITY_2,
+   ANV_VID_MEM_VP9_PROBABILITY_3,
+   ANV_VID_MEM_VP9_SEGMENT_ID,
+   ANV_VID_MEM_VP9_HVD_LINE_ROW_STORE,
+   ANV_VID_MEM_VP9_HVD_TILE_ROW_STORE,
+   ANV_VID_MEM_VP9_MV_1,
+   ANV_VID_MEM_VP9_MV_2,
+   ANV_VID_MEM_VP9_DEC_MAX,
 };
 
 enum anv_vid_mem_av1_types {
@@ -6482,14 +6488,49 @@ struct anv_av1_video_refs_info {
    uint8_t default_cdf_index;
 };
 
+struct anv_vp9_last_frame_info {
+   uint32_t width;
+   uint32_t height;
+   StdVideoVP9FrameType frame_type;
+   bool key_frame;
+   bool show_frame;
+   bool mv_in_turn;
+};
+
 struct anv_video_session {
    struct vk_video_session vk;
 
    bool cdf_initialized;
    VkVideoEncodeRateControlModeFlagBitsKHR rc_mode;
+
    /* the decoder needs some private memory allocations */
    struct anv_vid_mem vid_mem[ANV_VID_MEM_AV1_MAX];
    struct anv_av1_video_refs_info prev_refs[STD_VIDEO_AV1_NUM_REF_FRAMES];
+
+   /* For VP9 decoding from here */
+   struct anv_vp9_last_frame_info vp9_last_frame;
+   /* Indicate if there's pending partial reset for prob 0 */
+   bool pending_frame_partial_reset;
+   /* Indicate if inter probs saved for prob 0 */
+   bool saved_inter_probs;
+
+   /*
+    * The prob_tbl_set can have the following:
+    *
+    * 0: Reset all
+    * 1: Reset partially from INTER_MODE_PROBS_OFFSET to SEG_PROBS_OFFSET
+    * 2: Copy seg prob
+    * 3: Copy seg prob default
+    * 4: Save inter probs
+    * 5: Restore inter probs
+    */
+   BITSET_DECLARE(prob_tbl_set, 6);
+
+   /* Mask for resetting all each frame context */
+   BITSET_DECLARE(frame_ctx_reset_mask, 4);
+
+   /* Mask for copying seg probs each frame context */
+   BITSET_DECLARE(copy_seg_probs, 4);
 };
 
 struct anv_video_session_params {
@@ -6498,6 +6539,19 @@ struct anv_video_session_params {
 
 void anv_init_av1_cdf_tables(struct anv_cmd_buffer *cmd,
                              struct anv_video_session *vid);
+
+void anv_update_vp9_tables(struct anv_cmd_buffer *cmd,
+                           struct anv_video_session *video,
+                           uint32_t prob_id,
+                           bool key_frame,
+                           const StdVideoVP9Segmentation *seg);
+
+void anv_calculate_qmul(const struct VkVideoDecodeVP9PictureInfoKHR *vp9_pic,
+                        uint32_t seg_id,
+                        int16_t *ptr);
+
+void anv_vp9_reset_segment_id(struct anv_cmd_buffer *cmd,
+                              struct anv_video_session *vid);
 
 uint32_t anv_video_get_image_mv_size(struct anv_device *device,
                                      struct anv_image *image,

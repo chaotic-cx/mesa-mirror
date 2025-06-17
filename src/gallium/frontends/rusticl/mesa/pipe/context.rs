@@ -14,9 +14,24 @@ use std::ptr;
 use std::ptr::*;
 use std::sync::Arc;
 
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum PipeContextPrio {
+    Low = PIPE_CONTEXT_LOW_PRIORITY,
+    Med = 0,
+    High = PIPE_CONTEXT_HIGH_PRIORITY,
+}
+
+impl From<PipeContextPrio> for u32 {
+    fn from(value: PipeContextPrio) -> Self {
+        value as _
+    }
+}
+
 pub struct PipeContext {
     pipe: NonNull<pipe_context>,
     screen: Arc<PipeScreen>,
+    pub prio: PipeContextPrio,
 }
 
 unsafe impl Send for PipeContext {}
@@ -36,10 +51,15 @@ impl From<RWFlags> for pipe_map_flags {
 }
 
 impl PipeContext {
-    pub(super) fn new(context: *mut pipe_context, screen: &Arc<PipeScreen>) -> Option<Self> {
+    pub(super) fn new(
+        context: *mut pipe_context,
+        prio: PipeContextPrio,
+        screen: &Arc<PipeScreen>,
+    ) -> Option<Self> {
         let s = Self {
             pipe: NonNull::new(context)?,
             screen: Arc::clone(screen),
+            prio: prio,
         };
 
         if !has_required_cbs(unsafe { s.pipe.as_ref() }) {
@@ -115,7 +135,7 @@ impl PipeContext {
         &self,
         res: &PipeResource,
         pattern: &[u32],
-        origin: &[usize; 3],
+        offset_bytes: u32,
         region: &[usize; 3],
         strides: (usize, usize),
         pixel_size: usize,
@@ -124,16 +144,14 @@ impl PipeContext {
         for z in 0..region[2] {
             for y in 0..region[1] {
                 let pitch = [pixel_size, row_pitch, slice_pitch];
-                // Convoluted way of doing (origin + [0, y, z]) * pitch
-                let offset = (0..3)
-                    .map(|i| ((origin[i] + [0, y, z][i]) * pitch[i]) as u32)
-                    .sum();
+                // Convoluted way of doing [0, y, z] * pitch
+                let offset: u32 = (0..3).map(|i| ([0, y, z][i] * pitch[i]) as u32).sum();
 
                 unsafe {
                     self.pipe.as_ref().clear_buffer.unwrap()(
                         self.pipe.as_ptr(),
                         res.pipe(),
-                        offset,
+                        offset + offset_bytes,
                         (region[0] * pixel_size) as u32,
                         pattern.as_ptr().cast(),
                         pixel_size as i32,
