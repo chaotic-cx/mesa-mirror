@@ -50,12 +50,6 @@ static void r300_shader_read_vs_outputs(
                 vs_outputs->bcolor[index] = i;
                 break;
 
-            case TGSI_SEMANTIC_TEXCOORD:
-                assert(index < ATTR_TEXCOORD_COUNT);
-                vs_outputs->texcoord[index] = i;
-                vs_outputs->num_texcoord++;
-                break;
-
             case TGSI_SEMANTIC_GENERIC:
                 assert(index < ATTR_GENERIC_COUNT);
                 vs_outputs->generic[index] = i;
@@ -141,17 +135,10 @@ static void set_vertex_inputs_outputs(struct r300_vertex_program_compiler * c)
         }
     }
 
-    /* Generics. */
+    /* Texture coordinates. */
     for (i = 0; i < ATTR_GENERIC_COUNT; i++) {
         if (outputs->generic[i] != ATTR_UNUSED) {
             c->code->outputs[outputs->generic[i]] = reg++;
-        }
-    }
-
-    /* Texture coordinates. */
-    for (i = 0; i < ATTR_TEXCOORD_COUNT; i++) {
-        if (outputs->texcoord[i] != ATTR_UNUSED) {
-            c->code->outputs[outputs->texcoord[i]] = reg++;
         }
     }
 
@@ -223,8 +210,7 @@ void r300_translate_vertex_shader(struct r300_context *r300,
     r300_tgsi_to_rc(&ttr, shader->state.tokens);
 
     if (ttr.error) {
-        fprintf(stderr, "r300 VP: Cannot translate a shader. "
-                "Corresponding draws will be skipped.\n");
+        vs->error = strdup("Cannot translate shader from TGSI");
         vs->dummy = true;
         return;
     }
@@ -243,9 +229,7 @@ void r300_translate_vertex_shader(struct r300_context *r300,
     /* Invoke the compiler */
     r3xx_compile_vertex_program(&compiler);
     if (compiler.Base.Error) {
-        fprintf(stderr, "r300 VP: Compiler error:\n%sCorresponding draws will be"
-                " skipped.\n", compiler.Base.ErrorMsg);
-
+        vs->error = strdup(compiler.Base.ErrorMsg);
         rc_destroy(&compiler.Base);
         vs->dummy = true;
         return;

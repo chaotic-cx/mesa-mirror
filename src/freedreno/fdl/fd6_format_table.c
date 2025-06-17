@@ -11,6 +11,8 @@
 
 #include "fd6_format_table.h"
 
+#include "freedreno_dev_info.h"
+
 /* Specifies the table of all the formats and their features. Also supplies
  * the helpers that look up various data in those tables.
  */
@@ -312,14 +314,14 @@ static const struct fd6_format formats[PIPE_FORMAT_COUNT] = {
    _T_(BPTC_RGB_FLOAT,  BPTC_FLOAT,             WZYX),
    _T_(BPTC_RGB_UFLOAT, BPTC_UFLOAT,            WZYX),
 
-   _T_(RGTC1_UNORM, RGTC1_UNORM,                WZYX),
-   _T_(RGTC1_SNORM, RGTC1_SNORM,                WZYX),
-   _T_(RGTC2_UNORM, RGTC2_UNORM,                WZYX),
-   _T_(RGTC2_SNORM, RGTC2_SNORM,                WZYX),
-   _T_(LATC1_UNORM, RGTC1_UNORM,                WZYX),
-   _T_(LATC1_SNORM, RGTC1_SNORM,                WZYX),
-   _T_(LATC2_UNORM, RGTC2_UNORM,                WZYX),
-   _T_(LATC2_SNORM, RGTC2_SNORM,                WZYX),
+   _T_(RGTC1_UNORM, RGTC1_UNORM_FAST,           WZYX),
+   _T_(RGTC1_SNORM, RGTC1_SNORM_FAST,           WZYX),
+   _T_(RGTC2_UNORM, RGTC2_UNORM_FAST,           WZYX),
+   _T_(RGTC2_SNORM, RGTC2_SNORM_FAST,           WZYX),
+   _T_(LATC1_UNORM, RGTC1_UNORM_FAST,           WZYX),
+   _T_(LATC1_SNORM, RGTC1_SNORM_FAST,           WZYX),
+   _T_(LATC2_UNORM, RGTC2_UNORM_FAST,           WZYX),
+   _T_(LATC2_SNORM, RGTC2_SNORM_FAST,           WZYX),
 
    _T_(ASTC_4x4,   ASTC_4x4,                    WZYX),
    _T_(ASTC_5x4,   ASTC_5x4,                    WZYX),
@@ -419,6 +421,25 @@ fd6_texture_format(enum pipe_format format, enum a6xx_tile_mode tile_mode,
    }
 
    return formats[format].tex;
+}
+
+bool
+fd6_texture_format_supported(const struct fd_dev_info *info, enum pipe_format format,
+                             enum a6xx_tile_mode tile_mode, bool is_mutable)
+{
+   if (info->a6xx.is_a702) {
+      /* BPTC is removed */
+      switch (format) {
+      case PIPE_FORMAT_BPTC_RGBA_UNORM:
+      case PIPE_FORMAT_BPTC_SRGBA:
+      case PIPE_FORMAT_BPTC_RGB_FLOAT:
+      case PIPE_FORMAT_BPTC_RGB_UFLOAT:
+         return false;
+      default:
+         break;
+      }
+   }
+   return fd6_texture_format(format, tile_mode, is_mutable) != FMT6_NONE;
 }
 
 enum a3xx_color_swap

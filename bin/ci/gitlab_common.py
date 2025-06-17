@@ -16,9 +16,11 @@ from functools import cache
 from pathlib import Path
 
 GITLAB_URL = "https://gitlab.freedesktop.org"
-TOKEN_DIR = Path(os.getenv("XDG_CONFIG_HOME") or Path.home() / ".config")
+TOKEN_DIR = Path(os.environ.get("XDG_CONFIG_HOME", "")
+                 if os.environ.get("XDG_CONFIG_HOME", None)
+                 else Path.home() / ".config")
 
-# Known GitLab token prefixes: https://docs.gitlab.com/ee/security/token_overview.html#token-prefixes
+# Known GitLab token prefixes: https://docs.gitlab.com/security/tokens/#token-prefixes
 TOKEN_PREFIXES: dict[str, str] = {
     "Personal access token": "glpat-",
     "OAuth Application Secret": "gloas-",

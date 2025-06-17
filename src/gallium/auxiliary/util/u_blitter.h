@@ -40,14 +40,11 @@ struct pipe_context;
 
 enum blitter_attrib_type {
    UTIL_BLITTER_ATTRIB_NONE,
-   UTIL_BLITTER_ATTRIB_COLOR,
    UTIL_BLITTER_ATTRIB_TEXCOORD_XY,
    UTIL_BLITTER_ATTRIB_TEXCOORD_XYZW,
 };
 
-union blitter_attrib {
-   float color[4];
-
+struct blitter_attrib {
    struct {
       float x1, y1, x2, y2, z, w;
    } texcoord;
@@ -95,7 +92,7 @@ struct blitter_context
                           int x1, int y1, int x2, int y2,
                           float depth, unsigned num_instances,
                           enum blitter_attrib_type type,
-                          const union blitter_attrib *attrib);
+                          const struct blitter_attrib *attrib);
 
    /* Whether the blitter is running. */
    bool running;
@@ -184,7 +181,7 @@ void util_blitter_draw_rectangle(struct blitter_context *blitter,
                                  int x1, int y1, int x2, int y2,
                                  float depth, unsigned num_instances,
                                  enum blitter_attrib_type type,
-                                 const union blitter_attrib *attrib);
+                                 const struct blitter_attrib *attrib);
 
 
 /*
@@ -392,6 +389,7 @@ void util_blitter_custom_resolve_color(struct blitter_context *blitter,
 /* Used by vc4 for 8/16-bit linear-to-tiled blits */
 void util_blitter_custom_shader(struct blitter_context *blitter,
                                 struct pipe_surface *dstsurf,
+                                uint16_t width, uint16_t height,
                                 void *custom_vs, void *custom_fs);
 
 /* Used by D3D12 for non-MSAA -> MSAA stencil blits */

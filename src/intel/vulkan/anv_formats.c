@@ -51,7 +51,47 @@
 #define swiz_fmt1(__vk_fmt, __hw_fmt, __swizzle) \
    [VK_ENUM_OFFSET(__vk_fmt)] = { \
       .planes = { \
+         { .isl_format = __hw_fmt, \
+           .vbo_format = __hw_fmt, \
+           .swizzle = __swizzle, \
+           .aspect = VK_IMAGE_ASPECT_COLOR_BIT, \
+         }, \
+      }, \
+      .vk_format = __vk_fmt, \
+      .n_planes = 1, \
+   }
+
+#define fmtvb(__vk_fmt, __hw_fmt) \
+   [VK_ENUM_OFFSET(__vk_fmt)] = { \
+      .planes = { \
+         { .isl_format = ISL_FORMAT_UNSUPPORTED, \
+           .vbo_format = __hw_fmt, \
+           .swizzle = RGBA, \
+           .aspect = VK_IMAGE_ASPECT_COLOR_BIT, \
+         }, \
+      }, \
+      .vk_format = __vk_fmt, \
+      .n_planes = 1, \
+   }
+
+#define swiz_fmt1_flags(__vk_fmt, __hw_fmt, __swizzle, __flags) \
+   [VK_ENUM_OFFSET(__vk_fmt)] = { \
+      .planes = { \
          { .isl_format = __hw_fmt, .swizzle = __swizzle, \
+           .aspect = VK_IMAGE_ASPECT_COLOR_BIT, \
+         }, \
+      }, \
+      .vk_format = __vk_fmt, \
+      .n_planes = 1, \
+      .flags = __flags, \
+   }
+
+#define fmtvbi(__vk_fmt, __hw_vbo_fmt, __hw_img_fmt) \
+   [VK_ENUM_OFFSET(__vk_fmt)] = { \
+      .planes = { \
+         { .isl_format = __hw_img_fmt, \
+           .vbo_format = __hw_vbo_fmt, \
+           .swizzle = RGBA, \
            .aspect = VK_IMAGE_ASPECT_COLOR_BIT, \
          }, \
       }, \
@@ -65,7 +105,9 @@
 #define d_fmt(__vk_fmt, __hw_fmt) \
    [VK_ENUM_OFFSET(__vk_fmt)] = { \
       .planes = { \
-         { .isl_format = __hw_fmt, .swizzle = RGBA, \
+         { .isl_format = __hw_fmt, \
+           .vbo_format = __hw_fmt, \
+           .swizzle = RGBA, \
            .aspect = VK_IMAGE_ASPECT_DEPTH_BIT, \
          }, \
       }, \
@@ -76,7 +118,9 @@
 #define s_fmt(__vk_fmt, __hw_fmt) \
    [VK_ENUM_OFFSET(__vk_fmt)] = { \
       .planes = { \
-         { .isl_format = __hw_fmt, .swizzle = RGBA, \
+         { .isl_format = __hw_fmt, \
+           .vbo_format = __hw_fmt, \
+           .swizzle = RGBA, \
            .aspect = VK_IMAGE_ASPECT_STENCIL_BIT, \
          }, \
       }, \
@@ -87,7 +131,9 @@
 #define ds_fmt2(__vk_fmt, __fmt1, __fmt2) \
    [VK_ENUM_OFFSET(__vk_fmt)] = { \
       .planes = { \
-         { .isl_format = __fmt1, .swizzle = RGBA, \
+         { .isl_format = __fmt1, \
+           .vbo_format = __fmt1, \
+           .swizzle = RGBA, \
            .aspect = VK_IMAGE_ASPECT_DEPTH_BIT, \
          }, \
          { .isl_format = __fmt2, .swizzle = RGBA, \
@@ -101,13 +147,17 @@
 #define fmt_unsupported(__vk_fmt) \
    [VK_ENUM_OFFSET(__vk_fmt)] = { \
       .planes = { \
-         { .isl_format = ISL_FORMAT_UNSUPPORTED, }, \
+         { \
+            .isl_format = ISL_FORMAT_UNSUPPORTED, \
+            .vbo_format = ISL_FORMAT_UNSUPPORTED, \
+         }, \
       }, \
       .vk_format = VK_FORMAT_UNDEFINED, \
    }
 
 #define ycbcr_plane(__plane, __hw_fmt, __swizzle) \
    { .isl_format = __hw_fmt, \
+     .vbo_format = __hw_fmt, \
      .swizzle = __swizzle, \
      .aspect = VK_IMAGE_ASPECT_PLANE_ ## __plane ## _BIT, \
    }
@@ -119,8 +169,8 @@
       }, \
       .vk_format = __vk_fmt, \
       .n_planes = __n_planes, \
-      .can_ycbcr = __can_ycbcr, \
-      .can_video = __can_video, \
+      .flags = (__can_ycbcr ? ANV_FORMAT_FLAG_CAN_YCBCR : 0) | \
+               (__can_video ? ANV_FORMAT_FLAG_CAN_VIDEO : 0), \
    }
 
 /* HINT: For array formats, the ISL name should match the VK name.  For
@@ -226,18 +276,18 @@ static const struct anv_format main_formats[] = {
    fmt1(VK_FORMAT_R32G32B32A32_UINT,                 ISL_FORMAT_R32G32B32A32_UINT),
    fmt1(VK_FORMAT_R32G32B32A32_SINT,                 ISL_FORMAT_R32G32B32A32_SINT),
    fmt1(VK_FORMAT_R32G32B32A32_SFLOAT,               ISL_FORMAT_R32G32B32A32_FLOAT),
-   fmt1(VK_FORMAT_R64_UINT,                          ISL_FORMAT_R64_PASSTHRU),
-   fmt1(VK_FORMAT_R64_SINT,                          ISL_FORMAT_R64_PASSTHRU),
-   fmt1(VK_FORMAT_R64_SFLOAT,                        ISL_FORMAT_R64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64_UINT,                       ISL_FORMAT_R64G64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64_SINT,                       ISL_FORMAT_R64G64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64_SFLOAT,                     ISL_FORMAT_R64G64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64B64_UINT,                    ISL_FORMAT_R64G64B64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64B64_SINT,                    ISL_FORMAT_R64G64B64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64B64_SFLOAT,                  ISL_FORMAT_R64G64B64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64B64A64_UINT,                 ISL_FORMAT_R64G64B64A64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64B64A64_SINT,                 ISL_FORMAT_R64G64B64A64_PASSTHRU),
-   fmt1(VK_FORMAT_R64G64B64A64_SFLOAT,               ISL_FORMAT_R64G64B64A64_PASSTHRU),
+   fmtvbi(VK_FORMAT_R64_UINT,                        ISL_FORMAT_R64_PASSTHRU, ISL_FORMAT_R32G32_UINT),
+   fmtvbi(VK_FORMAT_R64_SINT,                        ISL_FORMAT_R64_PASSTHRU, ISL_FORMAT_R32G32_UINT),
+   fmtvb(VK_FORMAT_R64_SFLOAT,                       ISL_FORMAT_R64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64_UINT,                      ISL_FORMAT_R64G64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64_SINT,                      ISL_FORMAT_R64G64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64_SFLOAT,                    ISL_FORMAT_R64G64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64B64_UINT,                   ISL_FORMAT_R64G64B64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64B64_SINT,                   ISL_FORMAT_R64G64B64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64B64_SFLOAT,                 ISL_FORMAT_R64G64B64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64B64A64_UINT,                ISL_FORMAT_R64G64B64A64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64B64A64_SINT,                ISL_FORMAT_R64G64B64A64_PASSTHRU),
+   fmtvb(VK_FORMAT_R64G64B64A64_SFLOAT,              ISL_FORMAT_R64G64B64A64_PASSTHRU),
    fmt1(VK_FORMAT_B10G11R11_UFLOAT_PACK32,           ISL_FORMAT_R11G11B10_FLOAT),
    fmt1(VK_FORMAT_E5B9G9R9_UFLOAT_PACK32,            ISL_FORMAT_R9G9B9E5_SHAREDEXP),
 
@@ -320,8 +370,9 @@ static const struct anv_format main_formats[] = {
 };
 
 static const struct anv_format _4444_formats[] = {
-   fmt1(VK_FORMAT_A4R4G4B4_UNORM_PACK16, ISL_FORMAT_B4G4R4A4_UNORM),
-   fmt_unsupported(VK_FORMAT_A4B4G4R4_UNORM_PACK16),
+   fmt1(VK_FORMAT_A4R4G4B4_UNORM_PACK16,            ISL_FORMAT_B4G4R4A4_UNORM),
+   swiz_fmt1_flags(VK_FORMAT_A4B4G4R4_UNORM_PACK16, ISL_FORMAT_B4G4R4A4_UNORM, BGRA,
+                                                    ANV_FORMAT_FLAG_NO_CBCWF),
 };
 
 static const struct anv_format _2plane_444_formats[] = {
@@ -434,7 +485,7 @@ static const struct {
 };
 
 const struct anv_format *
-anv_get_format(VkFormat vk_format)
+anv_get_format(const struct anv_physical_device *device, VkFormat vk_format)
 {
    uint32_t enum_offset = VK_ENUM_OFFSET(vk_format);
    uint32_t ext_number = VK_ENUM_EXTENSION(vk_format);
@@ -446,6 +497,13 @@ anv_get_format(VkFormat vk_format)
    const struct anv_format *format =
       &anv_formats[ext_number].formats[enum_offset];
    if (format->planes[0].isl_format == ISL_FORMAT_UNSUPPORTED)
+      return NULL;
+
+   /* This format is only available if custom border colors without format is
+    * disabled.
+    */
+   if ((format->flags & ANV_FORMAT_FLAG_NO_CBCWF) &&
+       device->instance->custom_border_colors_without_format)
       return NULL;
 
    return format;
@@ -476,11 +534,11 @@ anv_format_has_npot_plane(const struct anv_format *anv_format) {
  * _cannot_ check for compatibility).
  */
 struct anv_format_plane
-anv_get_format_plane(const struct intel_device_info *devinfo,
+anv_get_format_plane(const struct anv_physical_device *device,
                      VkFormat vk_format, uint32_t plane,
                      VkImageTiling tiling)
 {
-   const struct anv_format *format = anv_get_format(vk_format);
+   const struct anv_format *format = anv_get_format(device, vk_format);
    const struct anv_format_plane unsupported = {
       .isl_format = ISL_FORMAT_UNSUPPORTED,
    };
@@ -511,7 +569,7 @@ anv_get_format_plane(const struct intel_device_info *devinfo,
        */
       enum isl_format rgbx = isl_format_rgb_to_rgbx(plane_format.isl_format);
       if (rgbx != ISL_FORMAT_UNSUPPORTED &&
-          isl_format_supports_rendering(devinfo, rgbx)) {
+          isl_format_supports_rendering(&device->info, rgbx)) {
          plane_format.isl_format = rgbx;
       } else {
          plane_format.isl_format =
@@ -524,13 +582,13 @@ anv_get_format_plane(const struct intel_device_info *devinfo,
 }
 
 struct anv_format_plane
-anv_get_format_aspect(const struct intel_device_info *devinfo,
+anv_get_format_aspect(const struct anv_physical_device *device,
                       VkFormat vk_format,
                       VkImageAspectFlagBits aspect, VkImageTiling tiling)
 {
    const uint32_t plane =
       anv_aspect_to_plane(vk_format_aspects(vk_format), aspect);
-   return anv_get_format_plane(devinfo, vk_format, plane, tiling);
+   return anv_get_format_plane(device, vk_format, plane, tiling);
 }
 
 // Format capabilities
@@ -540,6 +598,7 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
                                VkFormat vk_format,
                                const struct anv_format *anv_format,
                                VkImageTiling vk_tiling,
+                               bool is_sparse,
                                const struct isl_drm_modifier_info *isl_mod_info)
 {
    const struct intel_device_info *devinfo = &physical_device->info;
@@ -551,7 +610,7 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
    assert((isl_mod_info != NULL) ==
           (vk_tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT));
 
-   if (anv_is_format_emulated(physical_device, vk_format)) {
+   if (anv_is_compressed_format_emulated(physical_device, vk_format)) {
       assert(isl_format_is_compressed(anv_format->planes[0].isl_format));
 
       /* require optimal tiling so that we can decompress on upload */
@@ -566,6 +625,34 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
                VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
 
       return flags;
+   }
+
+   if (anv_is_storage_format_emulated(vk_format)) {
+      /* Somehow the block shape is not right */
+      if (is_sparse)
+         return 0;
+
+      if (isl_mod_info) {
+         /* The emulation shader code doesn't work with any kind of
+          * compression or fast clear.
+          */
+         if (isl_mod_info->supports_render_compression ||
+             isl_mod_info->supports_media_compression ||
+             isl_mod_info->supports_clear_color)
+            return 0;
+
+         /* If it's not linear or the select tiling format for emulation we
+          * can't support it.
+          */
+         if (isl_mod_info->tiling != ISL_TILING_LINEAR ||
+             isl_mod_info->tiling != physical_device->isl_dev.shader_tiling)
+            return 0;
+      }
+
+      return VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT |
+             VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT |
+             VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT |
+             VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
    }
 
    const VkImageAspectFlags aspects = vk_format_aspects(vk_format);
@@ -594,25 +681,25 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
 
    assert(aspects & VK_IMAGE_ASPECT_ANY_COLOR_BIT_ANV);
 
-   if (anv_format->can_video) {
-      flags |= physical_device->video_decode_enabled ?
+   if (anv_format->flags & ANV_FORMAT_FLAG_CAN_VIDEO) {
+      flags |= (physical_device->instance->debug & ANV_DEBUG_VIDEO_DECODE) ?
                   VK_FORMAT_FEATURE_2_VIDEO_DECODE_OUTPUT_BIT_KHR |
                   VK_FORMAT_FEATURE_2_VIDEO_DECODE_DPB_BIT_KHR : 0;
 
-      flags |= physical_device->video_encode_enabled ?
+      flags |= (physical_device->instance->debug & ANV_DEBUG_VIDEO_ENCODE) ?
                   VK_FORMAT_FEATURE_2_VIDEO_ENCODE_INPUT_BIT_KHR |
                   VK_FORMAT_FEATURE_2_VIDEO_ENCODE_DPB_BIT_KHR : 0;
    }
 
    const struct anv_format_plane plane_format =
-      anv_get_format_plane(devinfo, vk_format, 0, vk_tiling);
+      anv_get_format_plane(physical_device, vk_format, 0, vk_tiling);
 
    if (plane_format.isl_format == ISL_FORMAT_UNSUPPORTED)
       return 0;
 
    struct anv_format_plane base_plane_format = plane_format;
    if (vk_tiling != VK_IMAGE_TILING_LINEAR) {
-      base_plane_format = anv_get_format_plane(devinfo, vk_format, 0,
+      base_plane_format = anv_get_format_plane(physical_device, vk_format, 0,
                                                VK_IMAGE_TILING_LINEAR);
    }
 
@@ -662,8 +749,14 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
 
    /* Load/store is determined based on base format.  This prevents RGB
     * formats from showing up as load/store capable.
+    *
+    * Typed writes match with storage write without format. For storage read
+    * without format, either HW can do it (isl_format_supports_typed_reads) or
+    * do in-shader conversion for isl_is_storage_image_format format.
     */
-   if (isl_format_supports_typed_reads(devinfo, base_isl_format))
+   if (isl_format_supports_typed_reads(devinfo, base_isl_format) ||
+       (physical_device->instance->emulate_read_without_format &&
+        isl_is_storage_image_format(devinfo, plane_format.isl_format)))
       flags |= VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT;
    if (isl_format_supports_typed_writes(devinfo, base_isl_format))
       flags |= VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
@@ -673,11 +766,14 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
     * it for the list of shader storage extended formats [1]. Before that,
     * this applies to all VkFormats.
     *
-    * [1] : https://www.khronos.org/registry/vulkan/specs/1.2-extensions/html/vkspec.html#features-shaderStorageImageExtendedFormats
+    * [1] : https://registry.khronos.org/vulkan/specs/latest/html/vkspec.html#features-shaderStorageImageExtendedFormats
     */
    if (flags & VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT)
       flags |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT;
 
+   /* We only support single component 32bit formats for image atomics. We
+    * also emulate for some formats using software detiling & untyped atomics.
+    */
    if (base_isl_format == ISL_FORMAT_R32_SINT ||
        base_isl_format == ISL_FORMAT_R32_UINT ||
        base_isl_format == ISL_FORMAT_R32_FLOAT)
@@ -715,7 +811,7 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
       VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BLEND_BIT |
       VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT;
 
-   if (anv_format->can_ycbcr) {
+   if (anv_format->flags & ANV_FORMAT_FLAG_CAN_YCBCR) {
       /* The sampler doesn't have support for mid point when it handles YUV on
        * its own.
        */
@@ -749,7 +845,7 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
          flags |= VK_FORMAT_FEATURE_2_DISJOINT_BIT;
 
       flags &= ~disallowed_ycbcr_image_features;
-   } else if (anv_format->can_video) {
+   } else if (anv_format->flags & ANV_FORMAT_FLAG_CAN_VIDEO) {
       /* This format is for video decoding. */
       flags &= ~disallowed_ycbcr_image_features;
    }
@@ -774,7 +870,8 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
           * has no type suffix) or sfloat (if it has suffix F). No format
           * contains mixed types. (as of 2021-06-14)
           */
-         if (isl_layout->uniform_channel_type != ISL_UNORM &&
+         if (isl_mod_info->modifier != DRM_FORMAT_MOD_LINEAR &&
+             isl_layout->uniform_channel_type != ISL_UNORM &&
              isl_layout->uniform_channel_type != ISL_SFLOAT)
             return 0;
          break;
@@ -825,7 +922,8 @@ anv_get_image_format_features2(const struct anv_physical_device *physical_device
       }
 
       if (isl_drm_modifier_has_aux(isl_mod_info->modifier) &&
-          !anv_format_supports_ccs_e(devinfo, plane_format.isl_format)) {
+          !anv_format_supports_ccs_e(physical_device,
+                                     plane_format.isl_format)) {
          return 0;
       }
 
@@ -886,62 +984,53 @@ get_buffer_format_features2(const struct intel_device_info *devinfo,
    if (anv_format == NULL)
       return 0;
 
-   const enum isl_format isl_format = anv_format->planes[0].isl_format;
-
-   if (isl_format == ISL_FORMAT_UNSUPPORTED)
-      return 0;
-
    if (anv_format->n_planes > 1)
       return 0;
 
-   if (anv_format->can_ycbcr || anv_format->can_video)
+   if ((anv_format->flags & ANV_FORMAT_FLAG_CAN_YCBCR) ||
+       (anv_format->flags & ANV_FORMAT_FLAG_CAN_VIDEO))
       return 0;
 
    if (vk_format_is_depth_or_stencil(vk_format))
       return 0;
 
-   if (isl_format_supports_sampling(devinfo, isl_format) &&
-       !isl_format_is_compressed(isl_format))
-      flags |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
+   const enum isl_format img_format = anv_format->planes[0].isl_format;
+   const enum isl_format vbo_format = anv_format->planes[0].vbo_format;
 
-   if (isl_format_supports_vertex_fetch(devinfo, isl_format))
-      flags |= VK_FORMAT_FEATURE_2_VERTEX_BUFFER_BIT;
+   if (img_format != ISL_FORMAT_UNSUPPORTED) {
+      if (anv_is_storage_format_emulated(vk_format)) {
+         /* Emulation through shader detiling does not allow
+          * STORAGE_(READ|WRITE)_WITHOUT_FORMAT_BIT
+          */
+         flags = VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT |
+                 VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_BIT |
+                 VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
+      } else {
+         if (isl_format_supports_sampling(devinfo, img_format) &&
+             !isl_format_is_compressed(img_format))
+            flags |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
 
-   if (isl_is_storage_image_format(devinfo, isl_format))
-      flags |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_BIT;
+         if (isl_is_storage_image_format(devinfo, img_format))
+            flags |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_BIT;
 
-   if (isl_format == ISL_FORMAT_R32_SINT || isl_format == ISL_FORMAT_R32_UINT)
-      flags |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
+         if (img_format == ISL_FORMAT_R32_SINT || img_format == ISL_FORMAT_R32_UINT)
+            flags |= VK_FORMAT_FEATURE_2_STORAGE_TEXEL_BUFFER_ATOMIC_BIT;
 
-   if (isl_format_supports_typed_reads(devinfo, isl_format))
-      flags |= VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT;
-   if (isl_format_supports_typed_writes(devinfo, isl_format))
-      flags |= VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
+         if (isl_format_supports_typed_reads(devinfo, img_format))
+            flags |= VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT;
+         if (isl_format_supports_typed_writes(devinfo, img_format))
+            flags |= VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
 
-   if (devinfo->has_ray_tracing) {
-#if ANV_SUPPORT_RT_GRL
-      switch (vk_format) {
-      case VK_FORMAT_R32G32_SFLOAT:
-      case VK_FORMAT_R32G32B32_SFLOAT:
-      case VK_FORMAT_R16G16_SFLOAT:
-      case VK_FORMAT_R16G16B16A16_SFLOAT:
-      case VK_FORMAT_R16G16_SNORM:
-      case VK_FORMAT_R16G16B16A16_SNORM:
-      case VK_FORMAT_R16G16B16A16_UNORM:
-      case VK_FORMAT_R16G16_UNORM:
-      case VK_FORMAT_R8G8B8A8_UNORM:
-      case VK_FORMAT_R8G8_UNORM:
-      case VK_FORMAT_R8G8B8A8_SNORM:
-      case VK_FORMAT_R8G8_SNORM:
-         flags |= VK_FORMAT_FEATURE_ACCELERATION_STRUCTURE_VERTEX_BUFFER_BIT_KHR;
-         break;
-      default:
-         break;
+         if (devinfo->has_ray_tracing) {
+            if (vk_acceleration_struct_vtx_format_supported(vk_format))
+               flags |= VK_FORMAT_FEATURE_ACCELERATION_STRUCTURE_VERTEX_BUFFER_BIT_KHR;
+         }
       }
-#else
-      if (vk_acceleration_struct_vtx_format_supported(vk_format))
-         flags |= VK_FORMAT_FEATURE_ACCELERATION_STRUCTURE_VERTEX_BUFFER_BIT_KHR;
-#endif
+   }
+
+   if (vbo_format != ISL_FORMAT_UNSUPPORTED) {
+      if (isl_format_supports_vertex_fetch(devinfo, vbo_format))
+         flags |= VK_FORMAT_FEATURE_2_VERTEX_BUFFER_BIT;
    }
 
    return flags;
@@ -952,7 +1041,7 @@ get_drm_format_modifier_properties_list(const struct anv_physical_device *physic
                                         VkFormat vk_format,
                                         VkDrmFormatModifierPropertiesListEXT *list)
 {
-   const struct anv_format *anv_format = anv_get_format(vk_format);
+   const struct anv_format *anv_format = anv_get_format(physical_device, vk_format);
 
    VK_OUTARRAY_MAKE_TYPED(VkDrmFormatModifierPropertiesEXT, out,
                           list->pDrmFormatModifierProperties,
@@ -962,6 +1051,7 @@ get_drm_format_modifier_properties_list(const struct anv_physical_device *physic
       VkFormatFeatureFlags2 features2 =
          anv_get_image_format_features2(physical_device, vk_format, anv_format,
                                         VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT,
+                                        false /* is_sparse */,
                                         isl_mod_info);
       VkFormatFeatureFlags features = vk_format_features2_to_features(features2);
       if (!features)
@@ -987,7 +1077,7 @@ get_drm_format_modifier_properties_list_2(const struct anv_physical_device *phys
                                           VkFormat vk_format,
                                           VkDrmFormatModifierPropertiesList2EXT *list)
 {
-   const struct anv_format *anv_format = anv_get_format(vk_format);
+   const struct anv_format *anv_format = anv_get_format(physical_device, vk_format);
 
    VK_OUTARRAY_MAKE_TYPED(VkDrmFormatModifierProperties2EXT, out,
                           list->pDrmFormatModifierProperties,
@@ -997,6 +1087,7 @@ get_drm_format_modifier_properties_list_2(const struct anv_physical_device *phys
       VkFormatFeatureFlags2 features2 =
          anv_get_image_format_features2(physical_device, vk_format, anv_format,
                                         VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT,
+                                        false /* is_sparse */,
                                         isl_mod_info);
       if (!features2)
          continue;
@@ -1023,17 +1114,17 @@ void anv_GetPhysicalDeviceFormatProperties2(
 {
    ANV_FROM_HANDLE(anv_physical_device, physical_device, physicalDevice);
    const struct intel_device_info *devinfo = &physical_device->info;
-   const struct anv_format *anv_format = anv_get_format(vk_format);
+   const struct anv_format *anv_format = anv_get_format(physical_device, vk_format);
 
    assert(pFormatProperties->sType == VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2);
 
    VkFormatFeatureFlags2 linear2, optimal2, buffer2;
    linear2 = anv_get_image_format_features2(physical_device, vk_format,
-                                            anv_format,
-                                            VK_IMAGE_TILING_LINEAR, NULL);
+                                            anv_format, VK_IMAGE_TILING_LINEAR,
+                                            false /* is_sparse */, NULL);
    optimal2 = anv_get_image_format_features2(physical_device, vk_format,
-                                             anv_format,
-                                             VK_IMAGE_TILING_OPTIMAL, NULL);
+                                             anv_format, VK_IMAGE_TILING_OPTIMAL,
+                                             false /* is_sparse */, NULL);
    buffer2 = get_buffer_format_features2(devinfo, vk_format, anv_format);
 
    pFormatProperties->formatProperties = (VkFormatProperties) {
@@ -1137,9 +1228,9 @@ anv_format_supports_usage(
 
 static bool
 anv_formats_are_compatible(
+   const struct anv_physical_device *physical_device,
    const struct anv_format *img_fmt, const struct anv_format *img_view_fmt,
-   const struct intel_device_info *devinfo, VkImageTiling tiling,
-   bool allow_texel_compatible)
+   VkImageTiling tiling, bool allow_texel_compatible)
 {
    if (img_view_fmt->vk_format == VK_FORMAT_UNDEFINED)
       return false;
@@ -1154,9 +1245,11 @@ anv_formats_are_compatible(
       return false;
 
    const enum isl_format img_isl_fmt =
-      anv_get_format_plane(devinfo, img_fmt->vk_format, 0, tiling).isl_format;
+      anv_get_format_plane(physical_device,
+                           img_fmt->vk_format, 0, tiling).isl_format;
    const enum isl_format img_view_isl_fmt =
-      anv_get_format_plane(devinfo, img_view_fmt->vk_format, 0, tiling).isl_format;
+      anv_get_format_plane(physical_device,
+                           img_view_fmt->vk_format, 0, tiling).isl_format;
    if (img_isl_fmt == ISL_FORMAT_UNSUPPORTED ||
        img_view_isl_fmt == ISL_FORMAT_UNSUPPORTED)
       return false;
@@ -1215,7 +1308,6 @@ anv_formats_gather_format_features(
    const VkImageFormatListCreateInfo *format_list_info,
    bool allow_texel_compatible)
 {
-   const struct intel_device_info *devinfo = &physical_device->info;
    VkFormatFeatureFlags2 all_formats_feature_flags = 0;
 
    /* We need to check that each of the usage bits are allowed for at least
@@ -1235,13 +1327,14 @@ anv_formats_gather_format_features(
             const struct anv_format *possible_anv_format =
                &(anv_formats[fmt_arr_ind].formats[fmt_ind]);
 
-            if (anv_formats_are_compatible(format, possible_anv_format,
-                                           devinfo, tiling,
-                                           allow_texel_compatible)) {
+            if (anv_formats_are_compatible(physical_device,
+                                           format, possible_anv_format,
+                                           tiling, allow_texel_compatible)) {
                VkFormatFeatureFlags2 view_format_features =
                   anv_get_image_format_features2(physical_device,
                                                  possible_anv_format->vk_format,
                                                  possible_anv_format, tiling,
+                                                 false /* is_sparse */,
                                                  isl_mod_info);
                all_formats_feature_flags |= view_format_features;
             }
@@ -1256,11 +1349,12 @@ anv_formats_gather_format_features(
             continue;
 
          const struct anv_format *anv_view_format =
-            anv_get_format(vk_view_format);
+            anv_get_format(physical_device, vk_view_format);
          VkFormatFeatureFlags2 view_format_features =
             anv_get_image_format_features2(physical_device,
                                            vk_view_format, anv_view_format,
-                                           tiling, isl_mod_info);
+                                           tiling, false /* is_sparse */,
+                                           isl_mod_info);
          all_formats_feature_flags |= view_format_features;
       }
    }
@@ -1323,6 +1417,7 @@ static VkResult
 anv_get_image_format_properties(
    struct anv_physical_device *physical_device,
    const VkPhysicalDeviceImageFormatInfo2 *info,
+   bool is_sparse,
    VkImageFormatProperties2 *props)
 {
    VkFormatFeatureFlags2 format_feature_flags;
@@ -1331,7 +1426,7 @@ anv_get_image_format_properties(
    uint32_t maxArraySize;
    VkSampleCountFlags sampleCounts;
    const struct intel_device_info *devinfo = &physical_device->info;
-   const struct anv_format *format = anv_get_format(info->format);
+   const struct anv_format *format = anv_get_format(physical_device, info->format);
    const struct isl_drm_modifier_info *isl_mod_info = NULL;
    const VkPhysicalDeviceImageDrmFormatModifierInfoEXT *modifier_info = NULL;
    const VkImageFormatListCreateInfo *format_list_info = NULL;
@@ -1462,7 +1557,7 @@ anv_get_image_format_properties(
        format_list_info != NULL) {
       for (uint32_t i = 0; i < format_list_info->viewFormatCount; i++) {
          const struct anv_format *view_format =
-            anv_get_format(format_list_info->pViewFormats[i]);
+            anv_get_format(physical_device, format_list_info->pViewFormats[i]);
          if (view_format == NULL)
             goto unsupported;
       }
@@ -1487,6 +1582,7 @@ anv_get_image_format_properties(
    format_feature_flags = anv_get_image_format_features2(physical_device,
                                                          info->format, format,
                                                          info->tiling,
+                                                         is_sparse,
                                                          isl_mod_info);
 
    if (!anv_format_supports_usage(format_feature_flags, info->usage)) {
@@ -1500,7 +1596,7 @@ anv_get_image_format_properties(
       /* We don't want emulated formats to gain unexpected usage (storage in
        * particular) from its compatible view formats.
        */
-      if (anv_is_format_emulated(physical_device, info->format))
+      if (anv_is_compressed_format_emulated(physical_device, info->format))
          goto unsupported;
 
       /* From the Vulkan 1.3.224 spec "43.1.6. Format Compatibility Classes":
@@ -1529,14 +1625,15 @@ anv_get_image_format_properties(
       /* We support modifiers only for "simple" (that is, non-array
        * non-mipmapped single-sample) 2D images.
        */
-      if (info->type != VK_IMAGE_TYPE_2D) {
+      if (info->type != VK_IMAGE_TYPE_2D && isl_mod_info->modifier != DRM_FORMAT_MOD_LINEAR) {
          vk_errorf(physical_device, VK_ERROR_FORMAT_NOT_SUPPORTED,
-                   "VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT "
+                   "non-linear VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT "
                    "requires VK_IMAGE_TYPE_2D");
          goto unsupported;
       }
 
-      maxArraySize = 1;
+      if (isl_mod_info->modifier != DRM_FORMAT_MOD_LINEAR)
+         maxArraySize = 1;
       maxMipLevels = 1;
       sampleCounts = VK_SAMPLE_COUNT_1_BIT;
 
@@ -1550,7 +1647,7 @@ anv_get_image_format_properties(
       }
 
       if (isl_drm_modifier_has_aux(isl_mod_info->modifier) &&
-          !anv_formats_ccs_e_compatible(devinfo, info->flags, info->format,
+          !anv_formats_ccs_e_compatible(physical_device, info->flags, info->format,
                                         info->tiling, info->usage,
                                         format_list_info)) {
          goto unsupported;
@@ -1827,7 +1924,7 @@ anv_get_image_format_properties(
    const bool aux_supported =
       vk_format_has_depth(info->format) ||
       isl_format_supports_ccs_d(devinfo, format->planes[0].isl_format) ||
-      anv_formats_ccs_e_compatible(devinfo, info->flags, info->format,
+      anv_formats_ccs_e_compatible(physical_device, info->flags, info->format,
                                    info->tiling, info->usage,
                                    format_list_info);
 
@@ -1896,6 +1993,7 @@ VkResult anv_GetPhysicalDeviceImageFormatProperties2(
 
    return anv_get_image_format_properties(physical_device,
                                           pImageFormatInfo,
+                                          false /* is_sparse */,
                                           pImageFormatProperties);
 }
 
@@ -1906,7 +2004,6 @@ void anv_GetPhysicalDeviceSparseImageFormatProperties2(
     VkSparseImageFormatProperties2*             pProperties)
 {
    ANV_FROM_HANDLE(anv_physical_device, physical_device, physicalDevice);
-   const struct intel_device_info *devinfo = &physical_device->info;
    VkImageAspectFlags aspects = vk_format_aspects(pFormatInfo->format);
    VK_OUTARRAY_MAKE_TYPED(VkSparseImageFormatProperties2, props,
                           pProperties, pPropertyCount);
@@ -1933,7 +2030,8 @@ void anv_GetPhysicalDeviceSparseImageFormatProperties2(
    };
    VkImageFormatProperties2 img_props = {};
    if (anv_get_image_format_properties(physical_device,
-                                       &img_info, &img_props) != VK_SUCCESS)
+                                       &img_info, true /* is_sparse */,
+                                       &img_props) != VK_SUCCESS)
       return;
 
    if ((pFormatInfo->samples &
@@ -1959,7 +2057,7 @@ void anv_GetPhysicalDeviceSparseImageFormatProperties2(
       const uint32_t plane =
          anv_aspect_to_plane(vk_format_aspects(pFormatInfo->format), aspect);
       struct anv_format_plane anv_format_plane =
-         anv_get_format_plane(devinfo, pFormatInfo->format, plane,
+         anv_get_format_plane(physical_device, pFormatInfo->format, plane,
                               pFormatInfo->tiling);
       enum isl_format isl_format = anv_format_plane.isl_format;
       assert(isl_format != ISL_FORMAT_UNSUPPORTED);
@@ -1970,6 +2068,7 @@ void anv_GetPhysicalDeviceSparseImageFormatProperties2(
 
       isl_surf_usage_flags_t isl_usage =
          anv_image_choose_isl_surf_usage(physical_device,
+                                         pFormatInfo->format,
                                          vk_create_flags, pFormatInfo->usage,
                                          0, aspect,
                                          VK_IMAGE_COMPRESSION_DEFAULT_EXT);

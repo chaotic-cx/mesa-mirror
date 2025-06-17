@@ -30,8 +30,8 @@
 extern "C" {
 #endif
 
-/* brw_fs_reg_allocate.cpp */
-void brw_fs_alloc_reg_sets(struct brw_compiler *compiler);
+/* brw_reg_allocate.cpp */
+void brw_alloc_reg_sets(struct brw_compiler *compiler);
 
 /* brw_disasm.c */
 extern const char *const conditional_modifier[16];
@@ -89,6 +89,6 @@ int brw_simd_select_for_workgroup_size(const struct intel_device_info *devinfo,
                                        const struct brw_cs_prog_data *prog_data,
                                        const unsigned *sizes);
 
-bool brw_should_print_shader(const nir_shader *shader, uint64_t debug_flag);
+bool brw_should_print_shader(const nir_shader *shader, uint64_t debug_flag, uint32_t source_hash);
 
 #endif // __cplusplus

@@ -93,7 +93,7 @@ panvk_cmd_reset_occlusion_queries(struct panvk_cmd_buffer *cmd,
    /* Wait on deferred sync to ensure all prior query operations have
     * completed
     */
-   cs_wait_slot(b, SB_ID(DEFERRED_SYNC), false);
+   cs_wait_slot(b, SB_ID(DEFERRED_SYNC));
 
    struct cs_index addr = cs_scratch_reg64(b, 16);
    struct cs_index zero_regs = cs_scratch_reg_tuple(b, 0, 16);
@@ -113,15 +113,15 @@ panvk_cmd_reset_occlusion_queries(struct panvk_cmd_buffer *cmd,
 
    /* reset_oq_batch() only does the stores, we need to flush those explicitly
     * here. */
-   cs_wait_slot(b, SB_ID(LS), false);
+   cs_flush_stores(b);
 
    /* We flush the caches to make the new value visible to the CPU. */
    struct cs_index flush_id = cs_scratch_reg32(b, 0);
 
-   cs_flush_caches(b, MALI_CS_FLUSH_MODE_CLEAN, MALI_CS_FLUSH_MODE_CLEAN, false,
-                   flush_id,
+   cs_flush_caches(b, MALI_CS_FLUSH_MODE_CLEAN, MALI_CS_FLUSH_MODE_CLEAN,
+                   MALI_CS_OTHER_FLUSH_MODE_NONE, flush_id,
                    cs_defer(SB_IMM_MASK, SB_ID(IMM_FLUSH)));
-   cs_wait_slot(b, SB_ID(IMM_FLUSH), false);
+   cs_wait_slot(b, SB_ID(IMM_FLUSH));
 }
 
 static void
@@ -152,7 +152,7 @@ panvk_cmd_begin_occlusion_query(struct panvk_cmd_buffer *cmd,
    cs_move64_to(b, report_addr_gpu, report_addr);
    cs_move64_to(b, clear_value, 0);
    cs_store64(b, clear_value, report_addr_gpu, 0);
-   cs_wait_slot(b, SB_ID(LS), false);
+   cs_flush_stores(b);
 }
 
 static void
@@ -160,6 +160,7 @@ panvk_cmd_end_occlusion_query(struct panvk_cmd_buffer *cmd,
                               struct panvk_query_pool *pool, uint32_t query)
 {
    uint64_t syncobj_addr = panvk_query_available_dev_addr(pool, query);
+   struct panvk_device *dev = to_panvk_device(cmd->vk.base.device);
 
    cmd->state.gfx.occlusion_query.ptr = 0;
    cmd->state.gfx.occlusion_query.syncobj = 0;
@@ -179,8 +180,10 @@ panvk_cmd_end_occlusion_query(struct panvk_cmd_buffer *cmd,
     * Wait for the accumulation and flush the caches.
     */
    cs_move32_to(b, val, 0);
-   cs_flush_caches(b, MALI_CS_FLUSH_MODE_CLEAN, MALI_CS_FLUSH_MODE_CLEAN, false,
-                   val, cs_defer(SB_ALL_ITERS_MASK, SB_ID(DEFERRED_FLUSH)));
+   cs_flush_caches(
+      b, MALI_CS_FLUSH_MODE_CLEAN, MALI_CS_FLUSH_MODE_CLEAN,
+      MALI_CS_OTHER_FLUSH_MODE_NONE, val,
+      cs_defer(dev->csf.sb.all_iters_mask, SB_ID(DEFERRED_FLUSH)));
 
    /* Signal the query syncobj after the flush is effective. */
    cs_move32_to(b, val, 1);
@@ -217,9 +220,6 @@ copy_oq_result_batch(struct cs_builder *b,
          cs_load32_to(b, avail, avail_addr, i * sizeof(struct panvk_cs_sync32));
    }
 
-   /* Flush the loads. */
-   cs_wait_slot(b, SB_ID(LS), false);
-
    for (uint32_t i = 0; i < query_count; i++) {
       struct cs_index store_src =
          cs_reg_tuple(b, scratch_regs.reg + (i * regs_per_copy), regs_per_copy);
@@ -229,7 +229,7 @@ copy_oq_result_batch(struct cs_builder *b,
    }
 
    /* Flush the stores. */
-   cs_wait_slot(b, SB_ID(LS), false);
+   cs_flush_stores(b);
 }
 
 static void
@@ -244,7 +244,7 @@ panvk_copy_occlusion_query_results(struct panvk_cmd_buffer *cmd,
 
    /* Wait for occlusion query syncobjs to be signalled. */
    if (flags & VK_QUERY_RESULT_WAIT_BIT)
-      cs_wait_slot(b, SB_ID(DEFERRED_SYNC), false);
+      cs_wait_slot(b, SB_ID(DEFERRED_SYNC));
 
    uint32_t res_size = (flags & VK_QUERY_RESULT_64_BIT) ? 2 : 1;
    uint32_t regs_per_copy =
@@ -257,9 +257,11 @@ panvk_copy_occlusion_query_results(struct panvk_cmd_buffer *cmd,
    struct cs_index scratch_regs = cs_scratch_reg_tuple(b, 0, 11);
    uint32_t queries_per_batch = scratch_regs.size / regs_per_copy;
 
-   /* Store offset is a 16-bit signed integer, so we might be limited by the
-    * stride here. */
-   queries_per_batch = MIN2(((1u << 15) / stride) + 1, queries_per_batch);
+   if (stride > 0) {
+      /* Store offset is a 16-bit signed integer, so we might be limited by the
+       * stride here. */
+      queries_per_batch = MIN2(((1u << 15) / stride) + 1, queries_per_batch);
+   }
 
    /* Stop unrolling the loop when it takes more than 2 steps to copy the
     * queries. */

@@ -74,8 +74,9 @@ enum tu_cmd_dirty_bits
    TU_CMD_DIRTY_FEEDBACK_LOOPS = BIT(13),
    TU_CMD_DIRTY_FS = BIT(14),
    TU_CMD_DIRTY_SHADING_RATE = BIT(15),
+   TU_CMD_DIRTY_DISABLE_FS = BIT(16),
    /* all draw states were disabled and need to be re-enabled: */
-   TU_CMD_DIRTY_DRAW_STATE = BIT(16)
+   TU_CMD_DIRTY_DRAW_STATE = BIT(17)
 };
 
 /* There are only three cache domains we have to care about: the CCU, or
@@ -148,6 +149,8 @@ enum tu_cmd_access_mask {
     */
    TU_ACCESS_CCHE_READ = 1 << 16,
 
+   TU_ACCESS_RTU_READ = 1 << 17,
+
    TU_ACCESS_READ =
       TU_ACCESS_UCHE_READ |
       TU_ACCESS_CCU_COLOR_READ |
@@ -212,6 +215,7 @@ enum tu_cmd_flush_bits {
     * as it isn't necessary. Therefore, it's not included in ALL_FLUSH.
     */
    TU_CMD_FLAG_BLIT_CACHE_CLEAN = 1 << 11,
+   TU_CMD_FLAG_RTU_INVALIDATE = 1 << 12,
 
    TU_CMD_FLAG_ALL_CLEAN =
       TU_CMD_FLAG_CCU_CLEAN_DEPTH |
@@ -234,7 +238,8 @@ enum tu_cmd_flush_bits {
        * in case there was another command before the current command buffer
        * that it needs to wait for.
        */
-      TU_CMD_FLAG_WAIT_FOR_ME,
+      TU_CMD_FLAG_WAIT_FOR_ME |
+      TU_CMD_FLAG_RTU_INVALIDATE,
 };
 
 /* Changing the CCU from sysmem mode to gmem mode or vice-versa is pretty
@@ -262,6 +267,7 @@ struct tu_vs_params {
    uint32_t vertex_offset;
    uint32_t first_instance;
    uint32_t draw_id;
+   bool empty;
 };
 
 struct tu_tess_params {
@@ -315,6 +321,10 @@ struct tu_render_pass_state
    uint32_t drawcall_bandwidth_per_sample_sum;
 
    const char *lrz_disable_reason;
+   uint32_t lrz_disabled_at_draw;
+   uint32_t lrz_write_disabled_at_draw;
+
+   const char *gmem_disable_reason;
 };
 
 /* These are the states of the suspend/resume state machine. In addition to
@@ -502,12 +512,16 @@ struct tu_cmd_state
       struct tu_lrz_state lrz;
    } suspended_pass;
 
+   bool fdm_enabled;
+
    bool tessfactor_addr_set;
    bool predication_active;
    bool msaa_disable;
    bool blend_reads_dest;
+   bool disable_fs;
    bool stencil_front_write;
    bool stencil_back_write;
+   bool stencil_written_on_depth_fail;
    bool pipeline_sysmem_single_prim_mode;
    bool pipeline_has_tess;
    bool pipeline_disable_gmem;
@@ -519,7 +533,7 @@ struct tu_cmd_state
    bool pipeline_reads_shading_rate;
    bool pipeline_accesses_smask;
 
-   bool pipeline_blend_lrz, pipeline_bandwidth;
+   bool pipeline_blend_lrz, pipeline_bandwidth, pipeline_disable_fs;
    uint32_t pipeline_draw_states;
 
    /* VK_QUERY_PIPELINE_STATISTIC_CLIPPING_INVOCATIONS_BIT and
@@ -529,6 +543,8 @@ struct tu_cmd_state
    uint32_t prim_counters_running;
 
    bool prim_generated_query_running_before_rp;
+
+   bool occlusion_query_may_be_running;
 
    enum tu_suspend_resume_state suspend_resume;
 
@@ -544,6 +560,9 @@ struct tu_cmd_state
    struct tu_tess_params tess_params;
 
    uint64_t descriptor_buffer_iova[MAX_SETS];
+
+   uint32_t total_renderpasses;
+   uint32_t total_dispatches;
 };
 
 struct tu_cmd_buffer
@@ -568,6 +587,9 @@ struct tu_cmd_buffer
 
    struct tu_cmd_state state;
    uint32_t queue_family_index;
+
+   /* For TU_DEBUG_ENV(CHECK_CMD_BUFFER_STATUS) functionality. */
+   struct tu_bo *status_bo;
 
    uint32_t push_constants[MAX_PUSH_CONSTANTS_SIZE / 4];
    VkShaderStageFlags push_constant_stages;
@@ -604,6 +626,9 @@ struct tu_cmd_buffer
    struct {
       struct tu_cs draw_cs;
       struct tu_cs draw_epilogue_cs;
+
+      bool fdm_offset;
+      VkOffset2D fdm_offsets[MAX_VIEWS];
 
       struct u_trace_iterator trace_renderpass_start, trace_renderpass_end;
 
@@ -643,7 +668,8 @@ tu_attachment_gmem_offset_stencil(struct tu_cmd_buffer *cmd,
 {
    assert(cmd->state.gmem_layout < TU_GMEM_LAYOUT_COUNT);
    return att->gmem_offset_stencil[cmd->state.gmem_layout] +
-      layer * cmd->state.tiling->tile0.width * cmd->state.tiling->tile0.height;
+      layer * cmd->state.tiling->tile0.width * cmd->state.tiling->tile0.height *
+      att->samples;
 }
 
 void tu_render_pass_state_merge(struct tu_render_pass_state *dst,
@@ -681,7 +707,19 @@ tu_restore_suspended_pass(struct tu_cmd_buffer *cmd,
                           struct tu_cmd_buffer *suspended);
 
 template <chip CHIP>
-void tu_cmd_render(struct tu_cmd_buffer *cmd);
+void tu_cmd_render(struct tu_cmd_buffer *cmd, const VkOffset2D *fdm_offsets);
+
+void tu_dispatch_unaligned(VkCommandBuffer commandBuffer,
+                           uint32_t x, uint32_t y, uint32_t z);
+
+void tu_dispatch_unaligned_indirect(VkCommandBuffer commandBuffer,
+                                    VkDeviceAddress size_addr);
+
+void tu_write_buffer_cp(VkCommandBuffer commandBuffer,
+                        VkDeviceAddress addr,
+                        void *data, uint32_t size);
+
+void tu_flush_buffer_write_cp(VkCommandBuffer commandBuffer);
 
 enum fd_gpu_event : uint32_t;
 
@@ -722,16 +760,27 @@ void tu_disable_draw_states(struct tu_cmd_buffer *cmd, struct tu_cs *cs);
 void tu6_apply_depth_bounds_workaround(struct tu_device *device,
                                        uint32_t *rb_depth_cntl);
 
+bool tu_enable_fdm_offset(struct tu_cmd_buffer *cmd);
+
 typedef void (*tu_fdm_bin_apply_t)(struct tu_cmd_buffer *cmd,
                                    struct tu_cs *cs,
                                    void *data,
-                                   VkRect2D bin,
+                                   VkOffset2D common_bin_offset,
                                    unsigned views,
-                                   VkExtent2D *frag_areas);
+                                   const VkExtent2D *frag_areas,
+                                   const VkRect2D *bins);
+
+enum tu_fdm_flags {
+   TU_FDM_NONE = 0,
+
+   /* Skip applying this patchpoint when binning */
+   TU_FDM_SKIP_BINNING = 1,
+};
 
 struct tu_fdm_bin_patchpoint {
    uint64_t iova;
    uint32_t size;
+   enum tu_fdm_flags flags;
    void *data;
    tu_fdm_bin_apply_t apply;
 };
@@ -751,6 +800,7 @@ static inline void
 _tu_create_fdm_bin_patchpoint(struct tu_cmd_buffer *cmd,
                               struct tu_cs *cs,
                               unsigned size,
+                              enum tu_fdm_flags flags,
                               tu_fdm_bin_apply_t apply,
                               void *state,
                               unsigned state_size)
@@ -762,6 +812,7 @@ _tu_create_fdm_bin_patchpoint(struct tu_cmd_buffer *cmd,
    struct tu_fdm_bin_patchpoint patch = {
       .iova = tu_cs_get_cur_iova(cs),
       .size = size,
+      .flags = flags,
       .data = data,
       .apply = apply,
    };
@@ -771,13 +822,15 @@ _tu_create_fdm_bin_patchpoint(struct tu_cmd_buffer *cmd,
     */
    unsigned num_views = MAX2(cmd->state.pass->num_views, 1);
    VkExtent2D unscaled_frag_areas[num_views];
+   VkRect2D bins[num_views];
    for (unsigned i = 0; i < num_views; i++) {
       unscaled_frag_areas[i] = (VkExtent2D) { 1, 1 };
-   }
-   apply(cmd, cs, state, (VkRect2D) {
+      bins[i] = (VkRect2D) {
          { 0, 0 },
          { MAX_VIEWPORT_SIZE, MAX_VIEWPORT_SIZE },
-        }, num_views, unscaled_frag_areas);
+      };
+   }
+   apply(cmd, cs, state, (VkOffset2D) {0, 0}, num_views, unscaled_frag_areas, bins);
    assert(tu_cs_get_cur_iova(cs) == patch.iova + patch.size * sizeof(uint32_t));
 
    util_dynarray_append(&cmd->fdm_bin_patchpoints,
@@ -785,8 +838,8 @@ _tu_create_fdm_bin_patchpoint(struct tu_cmd_buffer *cmd,
                         patch);
 }
 
-#define tu_create_fdm_bin_patchpoint(cmd, cs, size, apply, state) \
-   _tu_create_fdm_bin_patchpoint(cmd, cs, size, apply, &state, sizeof(state))
+#define tu_create_fdm_bin_patchpoint(cmd, cs, size, flags, apply, state) \
+   _tu_create_fdm_bin_patchpoint(cmd, cs, size, flags, apply, &state, sizeof(state))
 
 VkResult tu_init_bin_preamble(struct tu_device *device);
 

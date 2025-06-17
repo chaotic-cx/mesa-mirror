@@ -48,6 +48,7 @@
 #include "util/ralloc.h"
 #include "i915/iris_bufmgr.h"
 #include "iris_batch.h"
+#include "iris_bufmgr.h"
 #include "iris_context.h"
 #include "iris_resource.h"
 #include "iris_screen.h"
@@ -69,6 +70,8 @@ enum modifier_priority {
    MODIFIER_PRIORITY_4_DG2_RC_CCS_CC,
    MODIFIER_PRIORITY_4_MTL_RC_CCS,
    MODIFIER_PRIORITY_4_MTL_RC_CCS_CC,
+   MODIFIER_PRIORITY_4_LNL_CCS,
+   MODIFIER_PRIORITY_4_BMG_CCS,
 };
 
 static const uint64_t priority_to_modifier[] = {
@@ -84,6 +87,8 @@ static const uint64_t priority_to_modifier[] = {
    [MODIFIER_PRIORITY_4_DG2_RC_CCS_CC] = I915_FORMAT_MOD_4_TILED_DG2_RC_CCS_CC,
    [MODIFIER_PRIORITY_4_MTL_RC_CCS] = I915_FORMAT_MOD_4_TILED_MTL_RC_CCS,
    [MODIFIER_PRIORITY_4_MTL_RC_CCS_CC] = I915_FORMAT_MOD_4_TILED_MTL_RC_CCS_CC,
+   [MODIFIER_PRIORITY_4_LNL_CCS] = I915_FORMAT_MOD_4_TILED_LNL_CCS,
+   [MODIFIER_PRIORITY_4_BMG_CCS] = I915_FORMAT_MOD_4_TILED_BMG_CCS,
 };
 
 static bool
@@ -128,6 +133,14 @@ modifier_is_supported(const struct intel_device_info *devinfo,
       if (!intel_device_info_is_mtl_or_arl(devinfo))
          return false;
       break;
+   case I915_FORMAT_MOD_4_TILED_LNL_CCS:
+      if (devinfo->platform != INTEL_PLATFORM_LNL)
+         return false;
+      break;
+   case I915_FORMAT_MOD_4_TILED_BMG_CCS:
+      if (devinfo->platform != INTEL_PLATFORM_BMG)
+         return false;
+      break;
    case DRM_FORMAT_MOD_INVALID:
    default:
       return false;
@@ -156,6 +169,8 @@ modifier_is_supported(const struct intel_device_info *devinfo,
          return false;
       }
       break;
+   case I915_FORMAT_MOD_4_TILED_LNL_CCS:
+   case I915_FORMAT_MOD_4_TILED_BMG_CCS:
    case I915_FORMAT_MOD_4_TILED_MTL_RC_CCS:
    case I915_FORMAT_MOD_4_TILED_MTL_RC_CCS_CC:
    case I915_FORMAT_MOD_4_TILED_DG2_RC_CCS_CC:
@@ -166,6 +181,7 @@ modifier_is_supported(const struct intel_device_info *devinfo,
       if (no_ccs)
          return false;
 
+      /* TODO: Do we still face these restrictions on Xe2+? */
       enum isl_format rt_format =
          iris_format_for_usage(devinfo, pfmt,
                                ISL_SURF_USAGE_RENDER_TARGET_BIT).fmt;
@@ -196,6 +212,12 @@ select_best_modifier(const struct intel_device_info *devinfo,
          continue;
 
       switch (modifiers[i]) {
+      case I915_FORMAT_MOD_4_TILED_BMG_CCS:
+         prio = MAX2(prio, MODIFIER_PRIORITY_4_BMG_CCS);
+         break;
+      case I915_FORMAT_MOD_4_TILED_LNL_CCS:
+         prio = MAX2(prio, MODIFIER_PRIORITY_4_LNL_CCS);
+         break;
       case I915_FORMAT_MOD_4_TILED_MTL_RC_CCS_CC:
          prio = MAX2(prio, MODIFIER_PRIORITY_4_MTL_RC_CCS_CC);
          break;
@@ -272,6 +294,8 @@ iris_query_dmabuf_modifiers(struct pipe_screen *pscreen,
       I915_FORMAT_MOD_4_TILED_MTL_RC_CCS,
       I915_FORMAT_MOD_4_TILED_MTL_RC_CCS_CC,
       I915_FORMAT_MOD_4_TILED_MTL_MC_CCS,
+      I915_FORMAT_MOD_4_TILED_LNL_CCS,
+      I915_FORMAT_MOD_4_TILED_BMG_CCS,
       I915_FORMAT_MOD_Y_TILED,
       I915_FORMAT_MOD_Y_TILED_CCS,
       I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS,
@@ -336,6 +360,8 @@ iris_get_dmabuf_modifier_planes(struct pipe_screen *pscreen, uint64_t modifier,
    case I915_FORMAT_MOD_Y_TILED_GEN12_RC_CCS:
    case I915_FORMAT_MOD_Y_TILED_CCS:
       return 2 * planes;
+   case I915_FORMAT_MOD_4_TILED_LNL_CCS:
+   case I915_FORMAT_MOD_4_TILED_BMG_CCS:
    case I915_FORMAT_MOD_4_TILED_DG2_RC_CCS:
    case I915_FORMAT_MOD_4_TILED_DG2_MC_CCS:
    default:
@@ -381,8 +407,9 @@ iris_memobj_create_from_handle(struct pipe_screen *pscreen,
 
    assert(whandle->type == WINSYS_HANDLE_TYPE_FD);
    assert(whandle->modifier == DRM_FORMAT_MOD_INVALID);
+   /* There is no information if memobj is protected or not */
    struct iris_bo *bo = iris_bo_import_dmabuf(screen->bufmgr, whandle->handle,
-                                              DRM_FORMAT_MOD_INVALID);
+                                              DRM_FORMAT_MOD_INVALID, 0);
    if (!bo) {
       free(memobj);
       return NULL;
@@ -461,7 +488,7 @@ iris_resource_disable_aux(struct iris_resource *res)
    res->aux.state = NULL;
 }
 
-static unsigned
+static enum bo_alloc_flags
 iris_resource_alloc_flags(const struct iris_screen *screen,
                           const struct pipe_resource *templ,
                           struct iris_resource *res)
@@ -487,6 +514,9 @@ iris_resource_alloc_flags(const struct iris_screen *screen,
 
    if (templ->bind & PIPE_BIND_SCANOUT)
       flags |= BO_ALLOC_SCANOUT;
+
+   if (templ->flags & PIPE_RESOURCE_FLAG_FRONTEND_VM)
+      flags |= BO_ALLOC_NO_SUBALLOC | BO_ALLOC_NO_VMA;
 
    if (templ->flags & (PIPE_RESOURCE_FLAG_MAP_COHERENT |
                        PIPE_RESOURCE_FLAG_MAP_PERSISTENT))
@@ -531,6 +561,9 @@ iris_resource_destroy(struct pipe_screen *screen,
 
    if (p_res->target == PIPE_BUFFER)
       util_range_destroy(&res->valid_buffer_range);
+
+   if (p_res->flags & PIPE_RESOURCE_FLAG_FRONTEND_VM)
+      assert(res->bo->address == 0);
 
    iris_resource_disable_aux(res);
 
@@ -1026,7 +1059,7 @@ static bool
 iris_resource_image_is_pat_compressible(const struct iris_screen *screen,
                                         const struct pipe_resource *templ,
                                         struct iris_resource *res,
-                                        unsigned flags)
+                                        enum bo_alloc_flags flags)
 {
    assert(templ->target != PIPE_BUFFER);
 
@@ -1045,11 +1078,8 @@ iris_resource_image_is_pat_compressible(const struct iris_screen *screen,
    if ((iris_bufmgr_vram_size(bufmgr) > 0) && (flags & BO_ALLOC_SMEM))
       return false;
 
-   /* We don't have modifiers with compression enabled on Xe2 so far. */
-   if (res->mod_info) {
-      assert(!isl_drm_modifier_has_aux(res->mod_info->modifier));
+   if (res->mod_info && !isl_drm_modifier_has_aux(res->mod_info->modifier))
       return false;
-   }
 
    /* Bspec 58797 (r58646):
     *
@@ -1125,7 +1155,7 @@ iris_resource_create_for_image(struct pipe_screen *pscreen,
    const char *name = "miptree";
    enum iris_memory_zone memzone = IRIS_MEMZONE_OTHER;
 
-   unsigned flags = iris_resource_alloc_flags(screen, templ, res);
+   enum bo_alloc_flags flags = iris_resource_alloc_flags(screen, templ, res);
 
    if (iris_resource_image_is_pat_compressible(screen, templ, res, flags))
       flags |= BO_ALLOC_COMPRESSED;
@@ -1240,6 +1270,7 @@ iris_resource_from_user_memory(struct pipe_screen *pscreen,
    struct iris_screen *screen = (struct iris_screen *)pscreen;
    struct iris_bufmgr *bufmgr = screen->bufmgr;
    struct iris_resource *res = iris_alloc_resource(pscreen, templ);
+   unsigned flags = 0;
    if (!res)
       return NULL;
 
@@ -1271,10 +1302,13 @@ iris_resource_from_user_memory(struct pipe_screen *pscreen,
    size_t mem_size = offset + res_size;
    mem_size = ALIGN_NPOT(mem_size, page_size);
 
+   if (templ->flags & PIPE_RESOURCE_FLAG_FRONTEND_VM)
+      flags |= BO_ALLOC_NO_VMA;
+
    res->internal_format = templ->format;
    res->base.is_user_ptr = true;
    res->bo = iris_bo_create_userptr(bufmgr, "user", mem_start, mem_size,
-                                    IRIS_MEMZONE_OTHER);
+                                    flags, IRIS_MEMZONE_OTHER);
    res->offset = offset;
    if (!res->bo) {
       iris_resource_destroy(pscreen, &res->base.b);
@@ -1324,6 +1358,7 @@ iris_resource_from_handle(struct pipe_screen *pscreen,
    struct iris_screen *screen = (struct iris_screen *)pscreen;
    const struct intel_device_info *devinfo = screen->devinfo;
    struct iris_bufmgr *bufmgr = screen->bufmgr;
+   unsigned flags = 0;
 
    /* The gallium dri layer creates a pipe resource for each plane specified
     * by the format and modifier. Once all planes are present, we will merge
@@ -1334,14 +1369,17 @@ iris_resource_from_handle(struct pipe_screen *pscreen,
    if (!res)
       return NULL;
 
+   if (templ->bind & PIPE_BIND_PROTECTED)
+      flags |= BO_ALLOC_PROTECTED;
+
    switch (whandle->type) {
    case WINSYS_HANDLE_TYPE_FD:
       res->bo = iris_bo_import_dmabuf(bufmgr, whandle->handle,
-                                      whandle->modifier);
+                                      whandle->modifier, flags);
       break;
    case WINSYS_HANDLE_TYPE_SHARED:
       res->bo = iris_bo_gem_create_from_name(bufmgr, "winsys image",
-                                             whandle->handle);
+                                             whandle->handle, flags);
       break;
    default:
       unreachable("invalid winsys handle type");
@@ -1634,18 +1672,22 @@ iris_flush_resource(struct pipe_context *ctx, struct pipe_resource *resource)
    struct iris_context *ice = (struct iris_context *)ctx;
    struct iris_resource *res = (void *) resource;
    const struct isl_drm_modifier_info *mod = res->mod_info;
-   bool newly_external = false;
-
    /* flush_resource() may be used to prepare an image for sharing externally
     * with other clients (e.g. via eglCreateImage).  To account for this, we
     * make sure to eliminate suballocation and any compression that a consumer
     * wouldn't know how to handle.
+    *
+    * On Xe2+ platforms, when an image wasn't created with a modifier that
+    * supports compression, we need to resolve by copying the image to an
+    * uncompressed bo.
     */
-   if (!iris_bo_is_real(res->bo)) {
+   bool need_pat_resolve = iris_heap_is_compressed(res->bo->real.heap) &&
+                           !(res->base.b.bind & PIPE_BIND_SHARED);
+   bool need_reallocate = !iris_bo_is_real(res->bo) || need_pat_resolve;
+   if (need_reallocate) {
       assert(!(res->base.b.bind & PIPE_BIND_SHARED));
       iris_reallocate_resource_inplace(ice, res, PIPE_BIND_SHARED);
       assert(res->base.b.bind & PIPE_BIND_SHARED);
-      newly_external = true;
    }
 
    iris_resource_prepare_access(ice, res,
@@ -1656,7 +1698,7 @@ iris_flush_resource(struct pipe_context *ctx, struct pipe_resource *resource)
 
    bool disable_aux = !res->mod_info && res->aux.usage != ISL_AUX_USAGE_NONE;
 
-   if (newly_external || disable_aux) {
+   if (need_reallocate || disable_aux) {
       iris_foreach_batch(ice, batch) {
          if (iris_batch_references(batch, res->bo))
             iris_batch_flush(batch);
@@ -1964,7 +2006,9 @@ iris_invalidate_buffer(struct iris_context *ice, struct iris_resource *res)
 {
    struct iris_screen *screen = (void *) ice->ctx.screen;
 
-   if (res->base.b.target != PIPE_BUFFER)
+   if (res->base.b.target != PIPE_BUFFER ||
+       res->base.b.flags & PIPE_RESOURCE_FLAG_FIXED_ADDRESS ||
+       res->base.b.flags & PIPE_RESOURCE_FLAG_FRONTEND_VM)
       return false;
 
    /* If it's already invalidated, don't bother doing anything.
@@ -1994,7 +2038,7 @@ iris_invalidate_buffer(struct iris_context *ice, struct iris_resource *res)
       return false;
 
    struct iris_bo *old_bo = res->bo;
-   unsigned flags = old_bo->real.protected ? BO_ALLOC_PROTECTED : BO_ALLOC_PLAIN;
+   enum bo_alloc_flags flags = old_bo->real.protected ? BO_ALLOC_PROTECTED : BO_ALLOC_PLAIN;
    struct iris_bo *new_bo =
       iris_bo_alloc(screen->bufmgr, res->bo->name, res->base.b.width0,
                     iris_buffer_alignment(res->base.b.width0),
@@ -2724,6 +2768,52 @@ static const struct u_transfer_vtbl transfer_vtbl = {
    .get_stencil           = iris_resource_get_separate_stencil,
 };
 
+static struct pipe_vm_allocation *
+iris_alloc_vm(struct pipe_screen *pscreen, uint64_t start, uint64_t size)
+{
+   struct iris_screen *screen = (struct iris_screen *)pscreen;
+   if (!iris_bufmgr_alloc_heap(screen->bufmgr, start, size))
+      return NULL;
+
+   struct pipe_vm_allocation *res = CALLOC_STRUCT(pipe_vm_allocation);
+   if (!res) {
+      iris_bufmgr_free_heap(screen->bufmgr, start, size);
+      return NULL;
+   }
+
+   res->start = start;
+   res->size = size;
+   return res;
+}
+
+static void
+iris_free_vm(struct pipe_screen *pscreen, struct pipe_vm_allocation *alloc)
+{
+   struct iris_screen *screen = (struct iris_screen *)pscreen;
+   iris_bufmgr_free_heap(screen->bufmgr, alloc->start, alloc->size);
+   FREE(alloc);
+}
+
+static bool
+iris_resource_assign_vma(struct pipe_screen *pscreen,
+                         struct pipe_resource *presource, uint64_t address)
+{
+   struct iris_screen *screen = (struct iris_screen *)pscreen;
+   struct iris_resource *res = (struct iris_resource *)presource;
+
+   assert(presource->flags & PIPE_RESOURCE_FLAG_FRONTEND_VM);
+   return iris_bufmgr_assign_vma(screen->bufmgr, res->bo, address);
+}
+
+static uint64_t
+iris_resource_get_address(struct pipe_screen *pscreen,
+                          struct pipe_resource *presrouce)
+{
+   struct iris_resource *res = (struct iris_resource *)presrouce;
+   assert(presrouce->flags & PIPE_RESOURCE_FLAG_FIXED_ADDRESS);
+   return res->bo->address + res->offset;
+}
+
 void
 iris_init_screen_resource_functions(struct pipe_screen *pscreen)
 {
@@ -2741,6 +2831,10 @@ iris_init_screen_resource_functions(struct pipe_screen *pscreen)
    pscreen->resource_destroy = u_transfer_helper_resource_destroy;
    pscreen->memobj_create_from_handle = iris_memobj_create_from_handle;
    pscreen->memobj_destroy = iris_memobj_destroy;
+   pscreen->alloc_vm = iris_alloc_vm;
+   pscreen->free_vm = iris_free_vm;
+   pscreen->resource_assign_vma = iris_resource_assign_vma;
+   pscreen->resource_get_address = iris_resource_get_address;
    pscreen->transfer_helper =
       u_transfer_helper_create(&transfer_vtbl,
                                U_TRANSFER_HELPER_SEPARATE_Z32S8 |

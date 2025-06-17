@@ -32,6 +32,9 @@ vn_buffer_get_cache_index(const VkBufferCreateInfo *create_info,
     *
     * Btw, we assume VkBufferCreateFlagBits won't exhaust all 32bits, at least
     * no earlier than VkBufferUsageFlagBits.
+    *
+    * TODO: extend cache to cover VkBufferUsageFlags2CreateInfo (introduced in
+    * VK_KHR_maintenance5 and promoted to 1.4).
     */
    assert(!(create_info->flags & 0x80000000));
 
@@ -61,8 +64,8 @@ vn_buffer_get_max_buffer_size(struct vn_physical_device *physical_dev)
     * - mali: UINT32_MAX
     */
    static const uint64_t safe_max_buffer_size = 1ULL << 30;
-   return physical_dev->base.base.supported_features.maintenance4
-             ? physical_dev->base.base.properties.maxBufferSize
+   return physical_dev->base.vk.supported_features.maintenance4
+             ? physical_dev->base.vk.properties.maxBufferSize
              : safe_max_buffer_size;
 }
 
@@ -314,6 +317,7 @@ struct vn_buffer_create_info {
    VkBufferCreateInfo create;
    VkExternalMemoryBufferCreateInfo external;
    VkBufferOpaqueCaptureAddressCreateInfo capture;
+   VkBufferDeviceAddressCreateInfoEXT address;
 };
 
 static const VkBufferCreateInfo *
@@ -336,6 +340,10 @@ vn_buffer_fix_create_info(
       case VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO:
          memcpy(&local_info->capture, src, sizeof(local_info->capture));
          next = &local_info->capture;
+         break;
+      case VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_CREATE_INFO_EXT:
+         memcpy(&local_info->address, src, sizeof(local_info->address));
+         next = &local_info->address;
          break;
       default:
          break;
@@ -360,7 +368,7 @@ vn_CreateBuffer(VkDevice device,
 {
    struct vn_device *dev = vn_device_from_handle(device);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
    const VkExternalMemoryHandleTypeFlagBits renderer_handle_type =
       dev->physical_device->external_memory.renderer_handle_type;
 
@@ -405,7 +413,7 @@ vn_DestroyBuffer(VkDevice device,
    struct vn_device *dev = vn_device_from_handle(device);
    struct vn_buffer *buf = vn_buffer_from_handle(buffer);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
 
    if (!buf)
       return;
@@ -455,6 +463,13 @@ vn_BindBufferMemory2(VkDevice device,
    vn_async_vkBindBufferMemory2(dev->primary_ring, device, bindInfoCount,
                                 pBindInfos);
 
+   for (uint32_t i = 0; i < bindInfoCount; i++) {
+      const VkBindMemoryStatus *bind_status =
+         vk_find_struct((void *)pBindInfos[i].pNext, BIND_MEMORY_STATUS);
+      if (bind_status)
+         *bind_status->pResult = VK_SUCCESS;
+   }
+
    return VK_SUCCESS;
 }
 
@@ -468,7 +483,7 @@ vn_CreateBufferView(VkDevice device,
 {
    struct vn_device *dev = vn_device_from_handle(device);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
 
    struct vn_buffer_view *view =
       vk_zalloc(alloc, sizeof(*view), VN_DEFAULT_ALIGN,
@@ -495,7 +510,7 @@ vn_DestroyBufferView(VkDevice device,
    struct vn_device *dev = vn_device_from_handle(device);
    struct vn_buffer_view *view = vn_buffer_view_from_handle(bufferView);
    const VkAllocationCallbacks *alloc =
-      pAllocator ? pAllocator : &dev->base.base.alloc;
+      pAllocator ? pAllocator : &dev->base.vk.alloc;
 
    if (!view)
       return;

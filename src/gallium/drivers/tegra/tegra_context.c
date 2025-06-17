@@ -496,22 +496,6 @@ tegra_set_framebuffer_state(struct pipe_context *pcontext,
                             const struct pipe_framebuffer_state *fb)
 {
    struct tegra_context *context = to_tegra_context(pcontext);
-   struct pipe_framebuffer_state state;
-   unsigned i;
-
-   if (fb) {
-      memcpy(&state, fb, sizeof(state));
-
-      for (i = 0; i < fb->nr_cbufs; i++)
-         state.cbufs[i] = tegra_surface_unwrap(fb->cbufs[i]);
-
-      while (i < PIPE_MAX_COLOR_BUFS)
-         state.cbufs[i++] = NULL;
-
-      state.zsbuf = tegra_surface_unwrap(fb->zsbuf);
-
-      fb = &state;
-   }
 
    context->gpu->set_framebuffer_state(context->gpu, fb);
 }
@@ -562,7 +546,6 @@ static void
 tegra_set_sampler_views(struct pipe_context *pcontext, enum pipe_shader_type shader,
                         unsigned start_slot, unsigned num_views,
                         unsigned unbind_num_trailing_slots,
-                        bool take_ownership,
                         struct pipe_sampler_view **pviews)
 {
    struct pipe_sampler_view *views[PIPE_MAX_SHADER_SAMPLER_VIEWS];
@@ -586,7 +569,7 @@ tegra_set_sampler_views(struct pipe_context *pcontext, enum pipe_shader_type sha
 
    context->gpu->set_sampler_views(context->gpu, shader, start_slot,
                                    num_views, unbind_num_trailing_slots,
-                                   take_ownership, views);
+                                   views);
 }
 
 static void
@@ -1070,18 +1053,6 @@ tegra_delete_compute_state(struct pipe_context *pcontext, void *so)
 }
 
 static void
-tegra_set_compute_resources(struct pipe_context *pcontext,
-                            unsigned int start, unsigned int count,
-                            struct pipe_surface **resources)
-{
-   struct tegra_context *context = to_tegra_context(pcontext);
-
-   /* XXX unwrap resources */
-
-   context->gpu->set_compute_resources(context->gpu, start, count, resources);
-}
-
-static void
 tegra_set_global_binding(struct pipe_context *pcontext, unsigned int first,
                          unsigned int count, struct pipe_resource **resources,
                          uint32_t **handles)
@@ -1381,6 +1352,7 @@ tegra_screen_context_create(struct pipe_screen *pscreen, void *priv,
 
    context->base.create_sampler_view = tegra_create_sampler_view;
    context->base.sampler_view_destroy = tegra_sampler_view_destroy;
+   context->base.sampler_view_release = u_default_sampler_view_release;
 
    context->base.create_surface = tegra_create_surface;
    context->base.surface_destroy = tegra_surface_destroy;
@@ -1402,7 +1374,6 @@ tegra_screen_context_create(struct pipe_screen *pscreen, void *priv,
    context->base.create_compute_state = tegra_create_compute_state;
    context->base.bind_compute_state = tegra_bind_compute_state;
    context->base.delete_compute_state = tegra_delete_compute_state;
-   context->base.set_compute_resources = tegra_set_compute_resources;
    context->base.set_global_binding = tegra_set_global_binding;
    context->base.launch_grid = tegra_launch_grid;
    context->base.get_sample_position = tegra_get_sample_position;

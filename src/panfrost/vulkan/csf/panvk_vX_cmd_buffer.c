@@ -26,6 +26,8 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
+#include "drm-uapi/panthor_drm.h"
+
 #include "genxml/gen_macros.h"
 
 #include "panvk_buffer.h"
@@ -59,13 +61,13 @@ emit_tls(struct panvk_cmd_buffer *cmdbuf)
    struct panvk_physical_device *phys_dev =
       to_panvk_physical_device(dev->vk.physical);
    unsigned core_id_range;
-   panfrost_query_core_count(&phys_dev->kmod.props, &core_id_range);
+   pan_query_core_count(&phys_dev->kmod.props, &core_id_range);
 
    if (cmdbuf->state.tls.info.tls.size) {
       unsigned thread_tls_alloc =
-         panfrost_query_thread_tls_alloc(&phys_dev->kmod.props);
-      unsigned size = panfrost_get_total_stack_size(
-         cmdbuf->state.tls.info.tls.size, thread_tls_alloc, core_id_range);
+         pan_query_thread_tls_alloc(&phys_dev->kmod.props);
+      unsigned size = pan_get_total_stack_size(cmdbuf->state.tls.info.tls.size,
+                                               thread_tls_alloc, core_id_range);
 
       cmdbuf->state.tls.info.tls.ptr =
          panvk_cmd_alloc_dev_mem(cmdbuf, tls, size, 4096).gpu;
@@ -126,10 +128,11 @@ finish_cs(struct panvk_cmd_buffer *cmdbuf, uint32_t subqueue)
    struct cs_index flush_id = cs_scratch_reg32(b, 0);
 
    cs_move32_to(b, flush_id, 0);
-   cs_wait_slots(b, SB_ALL_MASK, false);
+   cs_wait_slots(b, dev->csf.sb.all_mask);
    cs_flush_caches(b, MALI_CS_FLUSH_MODE_CLEAN, MALI_CS_FLUSH_MODE_CLEAN,
-                   false, flush_id, cs_defer(SB_IMM_MASK, SB_ID(IMM_FLUSH)));
-   cs_wait_slot(b, SB_ID(IMM_FLUSH), false);
+                   MALI_CS_OTHER_FLUSH_MODE_NONE, flush_id,
+                   cs_defer(SB_IMM_MASK, SB_ID(IMM_FLUSH)));
+   cs_wait_slot(b, SB_ID(IMM_FLUSH));
 
    /* If we're in sync/trace more, we signal the debug object. */
    if (instance->debug_flags & (PANVK_DEBUG_SYNC | PANVK_DEBUG_TRACE)) {
@@ -141,12 +144,11 @@ finish_cs(struct panvk_cmd_buffer *cmdbuf, uint32_t subqueue)
       cs_move32_to(b, one, 1);
       cs_load64_to(b, debug_sync_addr, cs_subqueue_ctx_reg(b),
                    offsetof(struct panvk_cs_subqueue_context, debug.syncobjs));
-      cs_wait_slot(b, SB_ID(LS), false);
       cs_add64(b, debug_sync_addr, debug_sync_addr,
                sizeof(struct panvk_cs_sync32) * subqueue);
       cs_load32_to(b, error, debug_sync_addr,
                    offsetof(struct panvk_cs_sync32, error));
-      cs_wait_slots(b, SB_ALL_MASK, false);
+      cs_wait_slots(b, dev->csf.sb.all_mask);
       if (cmdbuf->vk.level == VK_COMMAND_BUFFER_LEVEL_PRIMARY)
          cs_sync32_add(b, true, MALI_CS_SYNC_SCOPE_CSG, one,
                        debug_sync_addr, cs_now());
@@ -159,7 +161,7 @@ finish_cs(struct panvk_cmd_buffer *cmdbuf, uint32_t subqueue)
             /* Overwrite the sync error with the first error we encountered. */
             cs_store32(b, error, debug_sync_addr,
                        offsetof(struct panvk_cs_sync32, error));
-            cs_wait_slot(b, SB_ID(LS), false);
+            cs_flush_stores(b);
          }
       }
    }
@@ -171,7 +173,7 @@ finish_cs(struct panvk_cmd_buffer *cmdbuf, uint32_t subqueue)
     * simple with this all-or-nothing approach. */
    if ((instance->debug_flags & PANVK_DEBUG_CS) &&
        cmdbuf->vk.level != VK_COMMAND_BUFFER_LEVEL_SECONDARY &&
-       !(cmdbuf->state.gfx.render.flags & VK_RENDERING_SUSPENDING_BIT)) {
+       !cmdbuf->state.gfx.render.suspended) {
       cs_update_cmdbuf_regs(b) {
          /* Poison all cmdbuf registers to make sure we don't inherit state from
           * a previously executed cmdbuf. */
@@ -189,7 +191,6 @@ VKAPI_ATTR VkResult VKAPI_CALL
 panvk_per_arch(EndCommandBuffer)(VkCommandBuffer commandBuffer)
 {
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
-   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
 
    emit_tls(cmdbuf);
    flush_sync_points(cmdbuf);
@@ -204,8 +205,6 @@ panvk_per_arch(EndCommandBuffer)(VkCommandBuffer commandBuffer)
          finish_cs(cmdbuf, i);
       }
    }
-
-   cmdbuf->flush_id = panthor_kmod_get_flush_id(dev->kmod.dev);
 
    return vk_command_buffer_end(&cmdbuf->vk);
 }
@@ -331,13 +330,13 @@ add_memory_dependency(struct panvk_cache_flush_info *cache_flush,
 
    /* visibility op */
    if (dst_access & ro_l1_access)
-      cache_flush->others |= true;
+      cache_flush->others |= MALI_CS_OTHER_FLUSH_MODE_INVALIDATE;
 
    /* host-to-device domain op */
    if (src_access & VK_ACCESS_2_HOST_WRITE_BIT) {
       cache_flush->l2 |= MALI_CS_FLUSH_MODE_CLEAN_AND_INVALIDATE;
       cache_flush->lsc |= MALI_CS_FLUSH_MODE_CLEAN_AND_INVALIDATE;
-      cache_flush->others |= true;
+      cache_flush->others |= MALI_CS_OTHER_FLUSH_MODE_INVALIDATE;
    }
 
    /* device-to-host domain op */
@@ -400,11 +399,13 @@ collect_cs_deps(struct panvk_cmd_buffer *cmdbuf,
                 VkPipelineStageFlags2 dst_stages, VkAccessFlags2 src_access,
                 VkAccessFlags2 dst_access, struct panvk_cs_deps *deps)
 {
+   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
+
    uint32_t wait_masks[PANVK_SUBQUEUE_COUNT] = {0};
    add_execution_dependency(wait_masks, src_stages, dst_stages);
 
    /* within a render pass */
-   if (cmdbuf->state.gfx.render.tiler) {
+   if (cmdbuf->state.gfx.render.tiler || inherits_render_ctx(cmdbuf)) {
       if (should_split_render_pass(wait_masks, src_access, dst_access)) {
          deps->needs_draw_flush = true;
       } else {
@@ -428,7 +429,7 @@ collect_cs_deps(struct panvk_cmd_buffer *cmdbuf,
           * the iterator scoreboard is a moving target, we just wait for the
           * whole dynamic scoreboard range.
           */
-         deps->src[i].wait_sb_mask |= SB_ALL_ITERS_MASK;
+         deps->src[i].wait_sb_mask |= dev->csf.sb.all_iters_mask;
       }
 
       collect_cache_flush_info(i, &deps->src[i].cache_flush, src_access,
@@ -444,36 +445,39 @@ normalize_dependency(VkPipelineStageFlags2 *src_stages,
                      VkAccessFlags2 *src_access, VkAccessFlags2 *dst_access,
                      uint32_t src_qfi, uint32_t dst_qfi)
 {
-   /* queue family acquire operation */
-   switch (src_qfi) {
-   case VK_QUEUE_FAMILY_EXTERNAL:
-      /* no execution dependency and no availability operation */
-      *src_stages = VK_PIPELINE_STAGE_2_NONE;
-      *src_access = VK_ACCESS_2_NONE;
-      break;
-   case VK_QUEUE_FAMILY_FOREIGN_EXT:
-      /* treat the foreign queue as the host */
-      *src_stages = VK_PIPELINE_STAGE_2_HOST_BIT;
-      *src_access = VK_ACCESS_2_HOST_WRITE_BIT;
-      break;
-   default:
-      break;
-   }
+   /* Perform queue family ownership transfer if src and dst are unequal. */
+   if (src_qfi != dst_qfi) {
+      /* queue family acquire operation */
+      switch (src_qfi) {
+      case VK_QUEUE_FAMILY_EXTERNAL:
+         /* no execution dependency and no availability operation */
+         *src_stages = VK_PIPELINE_STAGE_2_NONE;
+         *src_access = VK_ACCESS_2_NONE;
+         break;
+      case VK_QUEUE_FAMILY_FOREIGN_EXT:
+         /* treat the foreign queue as the host */
+         *src_stages = VK_PIPELINE_STAGE_2_HOST_BIT;
+         *src_access = VK_ACCESS_2_HOST_WRITE_BIT;
+         break;
+      default:
+         break;
+      }
 
-   /* queue family release operation */
-   switch (dst_qfi) {
-   case VK_QUEUE_FAMILY_EXTERNAL:
-      /* no execution dependency and no visibility operation */
-      *dst_stages = VK_PIPELINE_STAGE_2_NONE;
-      *dst_access = VK_ACCESS_2_NONE;
-      break;
-   case VK_QUEUE_FAMILY_FOREIGN_EXT:
-      /* treat the foreign queue as the host */
-      *dst_stages = VK_PIPELINE_STAGE_2_HOST_BIT;
-      *dst_access = VK_ACCESS_2_HOST_WRITE_BIT;
-      break;
-   default:
-      break;
+      /* queue family release operation */
+      switch (dst_qfi) {
+      case VK_QUEUE_FAMILY_EXTERNAL:
+         /* no execution dependency and no visibility operation */
+         *dst_stages = VK_PIPELINE_STAGE_2_NONE;
+         *dst_access = VK_ACCESS_2_NONE;
+         break;
+      case VK_QUEUE_FAMILY_FOREIGN_EXT:
+         /* treat the foreign queue as the host */
+         *dst_stages = VK_PIPELINE_STAGE_2_HOST_BIT;
+         *dst_access = VK_ACCESS_2_HOST_WRITE_BIT;
+         break;
+      default:
+         break;
+      }
    }
 
    *src_stages = vk_expand_src_stage_flags2(*src_stages);
@@ -539,6 +543,12 @@ panvk_per_arch(CmdPipelineBarrier2)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    struct panvk_cs_deps deps;
 
+   /* Intra render pass barriers can be skipped iff we're inside a render
+    * pass. */
+   if ((cmdbuf->state.gfx.render.tiler || inherits_render_ctx(cmdbuf)) &&
+       (pDependencyInfo->dependencyFlags & VK_DEPENDENCY_BY_REGION_BIT))
+      return;
+
    panvk_per_arch(get_cs_deps)(cmdbuf, pDependencyInfo, &deps);
 
    if (deps.needs_draw_flush)
@@ -560,17 +570,18 @@ panvk_per_arch(CmdPipelineBarrier2)(VkCommandBuffer commandBuffer,
       struct panvk_cs_state *cs_state = &cmdbuf->state.cs[i];
 
       if (deps.src[i].wait_sb_mask)
-         cs_wait_slots(b, deps.src[i].wait_sb_mask, false);
+         cs_wait_slots(b, deps.src[i].wait_sb_mask);
 
       struct panvk_cache_flush_info cache_flush = deps.src[i].cache_flush;
       if (cache_flush.l2 != MALI_CS_FLUSH_MODE_NONE ||
-          cache_flush.lsc != MALI_CS_FLUSH_MODE_NONE || cache_flush.others) {
+          cache_flush.lsc != MALI_CS_FLUSH_MODE_NONE ||
+          cache_flush.others != MALI_CS_OTHER_FLUSH_MODE_NONE) {
          struct cs_index flush_id = cs_scratch_reg32(b, 0);
 
          cs_move32_to(b, flush_id, 0);
          cs_flush_caches(b, cache_flush.l2, cache_flush.lsc, cache_flush.others,
                          flush_id, cs_defer(SB_IMM_MASK, SB_ID(IMM_FLUSH)));
-         cs_wait_slot(b, SB_ID(IMM_FLUSH), false);
+         cs_wait_slot(b, SB_ID(IMM_FLUSH));
       }
 
       /* If no one waits on us, there's no point signaling the sync object. */
@@ -582,7 +593,6 @@ panvk_per_arch(CmdPipelineBarrier2)(VkCommandBuffer commandBuffer,
 
          cs_load64_to(b, sync_addr, cs_subqueue_ctx_reg(b),
                       offsetof(struct panvk_cs_subqueue_context, syncobjs));
-         cs_wait_slot(b, SB_ID(LS), false);
          cs_add64(b, sync_addr, sync_addr, sizeof(struct panvk_cs_sync64) * i);
          cs_move64_to(b, add_val, 1);
          cs_sync64_add(b, false, MALI_CS_SYNC_SCOPE_CSG, add_val, sync_addr,
@@ -600,7 +610,6 @@ panvk_per_arch(CmdPipelineBarrier2)(VkCommandBuffer commandBuffer,
 
          cs_load64_to(b, sync_addr, cs_subqueue_ctx_reg(b),
                       offsetof(struct panvk_cs_subqueue_context, syncobjs));
-         cs_wait_slot(b, SB_ID(LS), false);
          cs_add64(b, sync_addr, sync_addr, sizeof(struct panvk_cs_sync64) * j);
 
          cs_add64(b, wait_val, cs_progress_seqno_reg(b, j),
@@ -611,24 +620,52 @@ panvk_per_arch(CmdPipelineBarrier2)(VkCommandBuffer commandBuffer,
    }
 }
 
+#if PAN_ARCH >= 11
 void
-panvk_per_arch(cs_pick_iter_sb)(struct panvk_cmd_buffer *cmdbuf,
-                                enum panvk_subqueue_id subqueue)
+panvk_per_arch(cs_next_iter_sb)(struct panvk_cmd_buffer *cmdbuf,
+                                enum panvk_subqueue_id subqueue,
+                                struct cs_index scratch_regs)
 {
    struct cs_builder *b = panvk_get_cs_builder(cmdbuf, subqueue);
-   struct cs_index iter_sb = cs_scratch_reg32(b, 0);
-   struct cs_index cmp_scratch = cs_scratch_reg32(b, 1);
+   struct cs_index iter_sb = cs_extract32(b, scratch_regs, 0);
+   struct cs_index sb_wait_mask = cs_extract32(b, scratch_regs, 1);
+
+   /* Wait for scoreboard to be available and select the next scoreboard entry */
+   cs_next_sb_entry(b, iter_sb, MALI_CS_SCOREBOARD_TYPE_ENDPOINT,
+                    MALI_CS_NEXT_SB_ENTRY_FORMAT_INDEX);
+
+   /* Setup indirect scoreboard wait mask now for indirect defer */
+   cs_move32_to(b, sb_wait_mask, 0);
+   cs_bit_set32(b, sb_wait_mask, sb_wait_mask, iter_sb);
+   cs_set_state(b, MALI_CS_SET_STATE_TYPE_SB_MASK_WAIT, sb_wait_mask);
+}
+#else
+void
+panvk_per_arch(cs_next_iter_sb)(struct panvk_cmd_buffer *cmdbuf,
+                                enum panvk_subqueue_id subqueue,
+                                struct cs_index scratch_regs)
+{
+   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
+   struct cs_builder *b = panvk_get_cs_builder(cmdbuf, subqueue);
+   struct cs_index iter_sb = cs_extract32(b, scratch_regs, 0);
+   struct cs_index cmp_scratch = cs_extract32(b, scratch_regs, 1);
 
    cs_load32_to(b, iter_sb, cs_subqueue_ctx_reg(b),
                 offsetof(struct panvk_cs_subqueue_context, iter_sb));
-   cs_wait_slot(b, SB_ID(LS), false);
+
+   /* Select next scoreboard entry and wrap around if we get past the limit */
+   cs_add32(b, iter_sb, iter_sb, 1);
+   cs_add32(b, cmp_scratch, iter_sb, -SB_ITER(dev->csf.sb.iter_count));
+   cs_if(b, MALI_CS_CONDITION_GEQUAL, cmp_scratch) {
+      cs_move32_to(b, iter_sb, SB_ITER(0));
+   }
 
    cs_match(b, iter_sb, cmp_scratch) {
 #define CASE(x)                                                                \
-      cs_case(b, x) {                                                          \
-         cs_wait_slot(b, SB_ITER(x), false);                                   \
-         cs_set_scoreboard_entry(b, SB_ITER(x), SB_ID(LS));                    \
-      }
+   cs_case(b, SB_ITER(x)) {                                                    \
+      cs_wait_slot(b, SB_ITER(x));                                             \
+      cs_select_sb_entries_for_async_ops(b, SB_ITER(x));                       \
+   }
 
       CASE(0)
       CASE(1)
@@ -637,7 +674,12 @@ panvk_per_arch(cs_pick_iter_sb)(struct panvk_cmd_buffer *cmdbuf,
       CASE(4)
 #undef CASE
    }
+
+   cs_store32(b, iter_sb, cs_subqueue_ctx_reg(b),
+              offsetof(struct panvk_cs_subqueue_context, iter_sb));
+   cs_flush_stores(b);
 }
+#endif
 
 static struct cs_buffer
 alloc_cs_buffer(void *cookie)
@@ -645,8 +687,7 @@ alloc_cs_buffer(void *cookie)
    struct panvk_cmd_buffer *cmdbuf = cookie;
    const unsigned capacity = 64 * 1024 / sizeof(uint64_t);
 
-   struct panfrost_ptr ptr =
-      panvk_cmd_alloc_dev_mem(cmdbuf, cs, capacity * 8, 64);
+   struct pan_ptr ptr = panvk_cmd_alloc_dev_mem(cmdbuf, cs, capacity * 8, 64);
 
    return (struct cs_buffer){
       .cpu = ptr.cpu,
@@ -683,25 +724,23 @@ init_cs_builders(struct panvk_cmd_buffer *cmdbuf)
       [PANVK_SUBQUEUE_COMPUTE] = panvk_cs_compute_reg_perm,
    };
 
+   const struct drm_panthor_csif_info *csif_info =
+      panthor_kmod_get_csif_props(dev->kmod.dev);
+
    for (uint32_t i = 0; i < ARRAY_SIZE(cmdbuf->state.cs); i++) {
       struct cs_builder *b = &cmdbuf->state.cs[i].builder;
       /* Lazy allocation of the root CS. */
       struct cs_buffer root_cs = {0};
 
       struct cs_builder_conf conf = {
-         .nr_registers = 96,
-         .nr_kernel_registers = 4,
+         .nr_registers = csif_info->cs_reg_count,
+         .nr_kernel_registers = MAX2(csif_info->unpreserved_cs_reg_count, 4),
          .alloc_buffer = alloc_cs_buffer,
          .cookie = cmdbuf,
+         .ls_sb_slot = SB_ID(LS),
       };
 
       if (instance->debug_flags & PANVK_DEBUG_CS) {
-         cmdbuf->state.cs[i].ls_tracker = (struct cs_load_store_tracker){
-            .sb_slot = SB_ID(LS),
-         };
-
-         conf.ls_tracker = &cmdbuf->state.cs[i].ls_tracker;
-
          cmdbuf->state.cs[i].reg_access.upd_ctx_stack = NULL;
          cmdbuf->state.cs[i].reg_access.base_perm = base_reg_perms[i];
          conf.reg_perm = cs_reg_perm;
@@ -715,7 +754,6 @@ init_cs_builders(struct panvk_cmd_buffer *cmdbuf)
             .ctx_reg = cs_subqueue_ctx_reg(b),
             .tracebuf_addr_offset =
                offsetof(struct panvk_cs_subqueue_context, debug.tracebuf.cs),
-            .ls_sb_slot = SB_ID(LS),
          };
       }
    }
@@ -934,8 +972,8 @@ panvk_per_arch(CmdExecuteCommands)(VkCommandBuffer commandBuffer,
       /* We need to propagate the suspending state of the secondary command
        * buffer if we want to avoid poisoning the reg file when the secondary
        * command buffer suspended the render pass. */
-      if (secondary->state.gfx.render.flags & VK_RENDERING_SUSPENDING_BIT)
-         primary->state.gfx.render.flags = secondary->state.gfx.render.flags;
+      primary->state.gfx.render.suspended =
+         secondary->state.gfx.render.suspended;
 
       /* If the render context we passed to the secondary command buffer got
        * invalidated, reset the FB/tiler descs and treat things as if we

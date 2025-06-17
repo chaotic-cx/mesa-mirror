@@ -538,7 +538,6 @@ struct pipe_context {
                              enum pipe_shader_type shader,
                              unsigned start_slot, unsigned num_views,
                              unsigned unbind_num_trailing_slots,
-                             bool take_ownership,
                              struct pipe_sampler_view **views);
 
    void (*set_tess_state)(struct pipe_context *,
@@ -840,6 +839,19 @@ struct pipe_context {
    void (*sampler_view_destroy)(struct pipe_context *ctx,
                                 struct pipe_sampler_view *view);
 
+   /**
+    * Signal the driver that the frontend has released a view on a texture.
+    *
+    * \param ctx the current context
+    * \param view the view to be released
+    *
+    * \note The current context may not be the context in which the view was
+    *       created (view->context). Following this call, the driver has full
+    *       ownership of the view.
+    */
+   void (*sampler_view_release)(struct pipe_context *ctx,
+                                struct pipe_sampler_view *view);
+
 
    /**
     * Get a surface which is a "view" into a resource, used by
@@ -963,22 +975,6 @@ struct pipe_context {
 
    uint32_t (*get_compute_state_subgroup_size)(struct pipe_context *, void *,
                                                const uint32_t block[3]);
-
-   /**
-    * Bind an array of shader resources that will be used by the
-    * compute program.  Any resources that were previously bound to
-    * the specified range will be unbound after this call.
-    *
-    * \param start      first resource to bind.
-    * \param count      number of consecutive resources to bind.
-    * \param resources  array of pointers to the resources to bind, it
-    *                   should contain at least \a count elements
-    *                   unless it's NULL, in which case no new
-    *                   resources will be bound.
-    */
-   void (*set_compute_resources)(struct pipe_context *,
-                                 unsigned start, unsigned count,
-                                 struct pipe_surface **resources);
 
    /**
     * Bind an array of buffers to be mapped into the address space of

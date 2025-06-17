@@ -31,6 +31,9 @@
 #define HIDDEN
 #endif
 
+#define _U_STRINGIFY(x) #x
+#define U_STRINGIFY(x) _U_STRINGIFY(x)
+
 // NOTE: These must be powers of two:
 #define PPC64LE_ENTRY_SIZE 64
 #define PPC64LE_PAGE_ALIGN 65536
@@ -55,33 +58,10 @@ __asm__(".text\n"
    "  .localentry  " func ", .-" func "\n\t"
 
 #define STUB_ASM_CODE(slot)                                     \
-   "  addis  11, 2, _glapi_tls_Dispatch@got@tprel@ha\n\t"   \
-   "  ld     11, _glapi_tls_Dispatch@got@tprel@l(11)\n\t"   \
-   "  add    11, 11,_glapi_tls_Dispatch@tls\n\t"            \
+   "  addis  11, 2, _mesa_glapi_tls_Dispatch@got@tprel@ha\n\t"   \
+   "  ld     11, _mesa_glapi_tls_Dispatch@got@tprel@l(11)\n\t"   \
+   "  add    11, 11,_mesa_glapi_tls_Dispatch@tls\n\t"            \
    "  ld     11, 0(11)\n\t"                                     \
    "  ld     12, " slot "*8(11)\n\t"                            \
    "  mtctr  12\n\t"                                            \
    "  bctr\n"                                                   \
-
-#define MAPI_TMP_STUB_ASM_GCC
-#include "mapi_tmp.h"
-
-#ifndef MAPI_MODE_BRIDGE
-
-#include <string.h>
-
-void
-entry_patch_public(void)
-{
-}
-
-extern char
-ppc64le_entry_start[] HIDDEN;
-
-mapi_func
-entry_get_public(int slot)
-{
-   return (mapi_func) (ppc64le_entry_start + slot * PPC64LE_ENTRY_SIZE);
-}
-
-#endif /* MAPI_MODE_BRIDGE */

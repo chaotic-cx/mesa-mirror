@@ -132,18 +132,14 @@ each directory.
       -  **frontends** - These implement various libraries using the
          device drivers
 
-         -  **clover** - OpenCL frontend
          -  **d3d10umd** - D3D10 frontend for Windows only. It's similar to Microsoft WARP, but using LLVMpipe/Softpipe.
          -  **dri** - Meta frontend for DRI drivers, see mesa/state_tracker
          -  **glx** - Meta frontend for GLX
          -  **hgl** - Haiku OpenGL
          -  **lavapipe** - Vulkan frontend, software Vulkan rasterizer using LLVMpipe.
-         -  **nine** - D3D9 frontend, see targets/d3dadapter9
-         -  **osmesa** - Off-screen OpenGL rendering library
          -  **va** - VA-API frontend
          -  **vdpau** - VDPAU frontend
          -  **wgl** - Windows WGL frontend
-         -  **xa** - XA frontend
 
       -  **winsys** - The device drivers are platform-independent, the
          winsys connects them to various platforms. There is usually one winsys

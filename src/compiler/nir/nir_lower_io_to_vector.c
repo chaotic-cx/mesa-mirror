@@ -389,24 +389,6 @@ build_array_deref_of_new_var_flat(nir_shader *shader,
                                 build_array_index(b, leader, nir_imm_int(b, base), vs_in, per_vertex));
 }
 
-ASSERTED static bool
-nir_shader_can_read_output(const shader_info *info)
-{
-   switch (info->stage) {
-   case MESA_SHADER_TESS_CTRL:
-   case MESA_SHADER_FRAGMENT:
-      return true;
-
-   case MESA_SHADER_TASK:
-   case MESA_SHADER_MESH:
-      /* TODO(mesh): This will not be allowed on EXT. */
-      return true;
-
-   default:
-      return false;
-   }
-}
-
 static bool
 nir_lower_io_to_vector_impl(nir_function_impl *impl, nir_variable_mode modes)
 {
@@ -473,9 +455,6 @@ nir_lower_io_to_vector_impl(nir_function_impl *impl, nir_variable_mode modes)
             nir_deref_instr *old_deref = nir_src_as_deref(intrin->src[0]);
             if (!nir_deref_mode_is_one_of(old_deref, modes))
                break;
-
-            if (nir_deref_mode_is(old_deref, nir_var_shader_out))
-               assert(nir_shader_can_read_output(&b.shader->info));
 
             nir_variable *old_var = nir_deref_instr_get_variable(old_deref);
 
@@ -564,11 +543,11 @@ nir_lower_io_to_vector_impl(nir_function_impl *impl, nir_variable_mode modes)
                if (new_frac + c >= old_frac &&
                    (old_wrmask & 1 << (new_frac + c - old_frac))) {
                   comps[c] = nir_get_scalar(old_value,
-                                                new_frac + c - old_frac);
+                                            new_frac + c - old_frac);
                } else {
                   comps[c] = nir_get_scalar(nir_undef(&b, old_value->num_components,
-                                                          old_value->bit_size),
-                                                0);
+                                                      old_value->bit_size),
+                                            0);
                }
             }
             nir_def *new_value = nir_vec_scalars(&b, comps, intrin->num_components);
@@ -596,11 +575,7 @@ nir_lower_io_to_vector_impl(nir_function_impl *impl, nir_variable_mode modes)
    nir_fixup_deref_modes(b.shader);
    util_dynarray_fini(&demote_vars);
 
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow);
-   }
-
-   return progress;
+   return nir_progress(progress, impl, nir_metadata_control_flow);
 }
 
 bool
@@ -619,7 +594,7 @@ static bool
 is_tess_level_variable(nir_variable *var)
 {
    return var->data.location == VARYING_SLOT_TESS_LEVEL_OUTER ||
-      var->data.location == VARYING_SLOT_TESS_LEVEL_INNER;
+          var->data.location == VARYING_SLOT_TESS_LEVEL_INNER;
 }
 
 /* Make the tess factor variables vectors instead of compact arrays, so accesses
@@ -650,9 +625,9 @@ nir_vectorize_tess_levels(nir_shader *shader)
 
       nir_lower_array_deref_of_vec(shader, mode, is_tess_level_variable,
                                    nir_lower_direct_array_deref_of_vec_load |
-                                   nir_lower_indirect_array_deref_of_vec_load |
-                                   nir_lower_direct_array_deref_of_vec_store |
-                                   nir_lower_indirect_array_deref_of_vec_store);
+                                      nir_lower_indirect_array_deref_of_vec_load |
+                                      nir_lower_direct_array_deref_of_vec_store |
+                                      nir_lower_indirect_array_deref_of_vec_store);
 
       /* Remove dead array deref instructions to avoid nir_validate() complain
        * array_deref on vector variable.

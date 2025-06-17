@@ -177,18 +177,18 @@ struct vpe_plane_size {
 };
 
 /** @struct vpe_plane_dcc_param
- *  @brief Not used
+ *  @brief dcc params
  */
 struct vpe_plane_dcc_param {
-    bool enable;
+    bool enable;                     /**< Enable DCC */
 
-    uint32_t meta_pitch;
-    bool     independent_64b_blks;
-    uint8_t  dcc_ind_blk;
+    uint32_t meta_pitch;             /**< DCC meta surface pitch in bytes */
+    bool     independent_64b_blks;   /**< DCC independent 64 byte blocks */
+    uint8_t  dcc_ind_blk;            /**< DCC independent block size */
 
-    uint32_t meta_pitch_c;
-    bool     independent_64b_blks_c;
-    uint8_t  dcc_ind_blk_c;
+    uint32_t meta_pitch_c;           /**< DCC meta surface pitch for chroma plane in bytes */
+    bool     independent_64b_blks_c; /**< DCC independent 64 byte blocks for chroma plane */
+    uint8_t  dcc_ind_blk_c;          /**< DCC independent block size for chroma plane */
 };
 
 /** @enum vpe_surface_pixel_format
@@ -250,7 +250,6 @@ enum vpe_surface_pixel_format {
     VPE_SURFACE_PIXEL_FORMAT_GRPH_RGB111110_FLOAT,
     VPE_SURFACE_PIXEL_FORMAT_GRPH_BGR101111_FLOAT,
     VPE_SURFACE_PIXEL_FORMAT_GRPH_RGBE,
-    VPE_SURFACE_PIXEL_FORMAT_GRPH_RGBE_ALPHA,
     VPE_SURFACE_PIXEL_FORMAT_VIDEO_BEGIN,
     VPE_SURFACE_PIXEL_FORMAT_VIDEO_420_YCbCr = VPE_SURFACE_PIXEL_FORMAT_VIDEO_BEGIN,
     VPE_SURFACE_PIXEL_FORMAT_VIDEO_420_YCrCb,

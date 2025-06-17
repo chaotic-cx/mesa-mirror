@@ -210,20 +210,18 @@ enum ir3_const_alloc_type {
     * for images that have image_{load,store,size,atomic*} intrinsics.
     */
    IR3_CONST_ALLOC_IMAGE_DIMS = 8,
-   /* OpenCL */
-   IR3_CONST_ALLOC_KERNEL_PARAMS = 9,
    /* OpenGL, TFBO addresses only for vs on a3xx/a4xx */
-   IR3_CONST_ALLOC_TFBO = 10,
+   IR3_CONST_ALLOC_TFBO = 9,
    /* Common, stage-dependent primitive params:
     *  vs, gs: uvec4(primitive_stride, vertex_stride, 0, 0)
     *  hs, ds: uvec4(primitive_stride, vertex_stride,
     *                patch_stride, patch_vertices_in)
     *          uvec4(tess_param_base, tess_factor_base)
     */
-   IR3_CONST_ALLOC_PRIMITIVE_PARAM = 11,
+   IR3_CONST_ALLOC_PRIMITIVE_PARAM = 10,
    /* Common, mapping from varying location to offset. */
-   IR3_CONST_ALLOC_PRIMITIVE_MAP = 12,
-   IR3_CONST_ALLOC_MAX = 13,
+   IR3_CONST_ALLOC_PRIMITIVE_MAP = 11,
+   IR3_CONST_ALLOC_MAX = 12,
 };
 
 struct ir3_const_allocation {
@@ -260,6 +258,12 @@ struct ir3_const_image_dims {
    uint32_t off[IR3_MAX_SHADER_IMAGES];
 };
 
+struct ir3_imm_const_state {
+   unsigned size;
+   unsigned count;
+   uint32_t *values;
+};
+
 /**
  * Describes the layout of shader consts in the const register file
  * and additional info about individual allocations.
@@ -288,10 +292,6 @@ struct ir3_const_state {
    struct ir3_const_allocations allocs;
 
    struct ir3_const_image_dims image_dims;
-
-   unsigned immediates_count;
-   unsigned immediates_size;
-   uint32_t *immediates;
 
    /* State of ubo access lowered to push consts: */
    struct ir3_ubo_analysis_state ubo_state;
@@ -606,6 +606,20 @@ struct ir3_shader_options {
    struct ir3_const_allocations const_allocs;
 
    struct ir3_shader_nir_options nir_options;
+
+   /* Whether FRAG_RESULT_DATAi slots may be dynamically remapped by the driver.
+    * If true, ir3 will assume it cannot statically use the value of such slots
+    * anywhere (e.g., as the target of alias.rt).
+    */
+   bool fragdata_dynamic_remap;
+};
+
+struct ir3_shader_output {
+   uint8_t slot;
+   uint8_t regid;
+   uint8_t view;
+   uint8_t aliased_components : 4;
+   bool half : 1;
 };
 
 /**
@@ -659,6 +673,13 @@ struct ir3_shader_variant {
    uint32_t *bin;
 
    struct ir3_const_state *const_state;
+
+   /* Immediate values that will be lowered to const registers. Before a7xx,
+    * this will be uploaded together with the const_state. From a7xx on (where
+    * load_shader_consts_via_preamble is true), this will be lowered to const
+    * stores in the preamble.
+    */
+   struct ir3_imm_const_state imm_state;
 
    /*
     * The following macros are used by the shader disk cache save/
@@ -731,12 +752,7 @@ struct ir3_shader_variant {
 
    /* varyings/outputs: */
    unsigned outputs_count;
-   struct {
-      uint8_t slot;
-      uint8_t regid;
-      uint8_t view;
-      bool half : 1;
-   } outputs[32 + 2]; /* +POSITION +PSIZE */
+   struct ir3_shader_output outputs[32 + 2]; /* +POSITION +PSIZE */
    bool writes_pos, writes_smask, writes_psize, writes_viewport, writes_stencilref;
    bool writes_shading_rate;
 
@@ -835,6 +851,10 @@ struct ir3_shader_variant {
 
    bool post_depth_coverage;
 
+   bool empty;
+   /* Doesn't have side-effects, no kill, no D/S write, etc. */
+   bool writes_only_color;
+
    /* Are we using split or merged register file? */
    bool mergedregs;
 
@@ -859,6 +879,7 @@ struct ir3_shader_variant {
    /* texture sampler pre-dispatches */
    uint32_t num_sampler_prefetch;
    struct ir3_sampler_prefetch sampler_prefetch[IR3_MAX_SAMPLER_PREFETCH];
+   enum ir3_bary prefetch_bary_type;
 
    /* If true, the last use of helper invocations is the texture prefetch and
     * they should be disabled for the actual shader. Equivalent to adding
@@ -908,9 +929,9 @@ struct ir3_shader_variant {
          bool color_is_dual_source : 1;
          bool uses_fbfetch_output  : 1;
          bool fbfetch_coherent     : 1;
+         enum gl_frag_depth_layout depth_layout;
       } fs;
       struct {
-         unsigned req_input_mem;
          unsigned req_local_mem;
          bool force_linear_dispatch;
          uint32_t local_invocation_id;
@@ -987,7 +1008,6 @@ struct ir3_shader {
    union {
       /* for compute shaders: */
       struct {
-         unsigned req_input_mem;    /* in dwords */
          unsigned req_local_mem;
          bool force_linear_dispatch;
       } cs;
@@ -1034,8 +1054,47 @@ ir3_const_state_mut(const struct ir3_shader_variant *v)
 }
 
 static inline unsigned
+ir3_max_const_compute(const struct ir3_shader_variant *v,
+                      const struct ir3_compiler *compiler)
+{
+   unsigned lm_size = v->local_size_variable ? compiler->local_mem_size :
+      v->cs.req_local_mem;
+
+   /* The LB is divided between consts and local memory. LB is split into
+    * wave_granularity banks, to make it possible for different ALUs to access
+    * it at the same time, and consts are duplicated into each bank so that they
+    * always take constant time to access while LM is spread across the banks.
+    *
+    * We cannot arbitrarily divide LB. Instead only certain configurations, as
+    * defined by the CONSTANTRAMMODE register field, are allowed. Not sticking
+    * with the right configuration can result in hangs when multiple compute
+    * shaders are in flight. We have to limit the constlen so that we can pick a
+    * configuration where there is enough space for LM.
+    */
+   unsigned lb_const_size =
+      ((compiler->compute_lb_size - lm_size) / compiler->wave_granularity) /
+      16 /* bytes per vec4 */;
+   if (lb_const_size < compiler->max_const_compute) {
+      const uint32_t lb_const_sizes[] = { 128, 192, 256, 512 };
+
+      assert(lb_const_size >= lb_const_sizes[0]);
+      for (unsigned i = 0; i < ARRAY_SIZE(lb_const_sizes) - 1; i++) {
+         if (lb_const_size < lb_const_sizes[i + 1])
+            return lb_const_sizes[i];
+      }
+      return lb_const_sizes[ARRAY_SIZE(lb_const_sizes) - 1];
+   } else {
+      return compiler->max_const_compute;
+   }
+}
+
+static inline unsigned
 _ir3_max_const(const struct ir3_shader_variant *v, bool safe_constlen)
 {
+   if (v->binning_pass) {
+      return v->nonbinning->constlen;
+   }
+
    const struct ir3_compiler *compiler = v->compiler;
    bool shared_consts_enable =
       ir3_const_state(v)->push_consts_type == IR3_PUSH_CONSTS_SHARED;
@@ -1056,7 +1115,7 @@ _ir3_max_const(const struct ir3_shader_variant *v, bool safe_constlen)
 
    if ((v->type == MESA_SHADER_COMPUTE) ||
        (v->type == MESA_SHADER_KERNEL)) {
-      return compiler->max_const_compute - shared_consts_size;
+      return ir3_max_const_compute(v, compiler) - shared_consts_size;
    } else if (safe_constlen) {
       return compiler->max_const_safe - safe_shared_consts_size;
    } else if (v->type == MESA_SHADER_FRAGMENT) {
@@ -1074,6 +1133,9 @@ ir3_max_const(const struct ir3_shader_variant *v)
    return _ir3_max_const(v, v->key.safe_constlen);
 }
 
+bool ir3_const_ensure_imm_size(struct ir3_shader_variant *v, unsigned size);
+uint16_t ir3_const_imm_index_to_reg(const struct ir3_const_state *const_state,
+                                    unsigned i);
 uint16_t ir3_const_find_imm(struct ir3_shader_variant *v, uint32_t imm);
 uint16_t ir3_const_add_imm(struct ir3_shader_variant *v, uint32_t imm);
 
@@ -1318,16 +1380,21 @@ ir3_link_shaders(struct ir3_shader_linkage *l,
 }
 
 static inline uint32_t
+ir3_get_output_regid(const struct ir3_shader_output *output)
+{
+   return output->regid | (output->half ? HALF_REG_ID : 0);
+}
+
+static inline uint32_t
 ir3_find_output_regid(const struct ir3_shader_variant *so, unsigned slot)
 {
-   for (unsigned j = 0; j < so->outputs_count; j++)
-      if (so->outputs[j].slot == slot) {
-         uint32_t regid = so->outputs[j].regid;
-         if (so->outputs[j].half)
-            regid |= HALF_REG_ID;
-         return regid;
-      }
-   return regid(63, 0);
+   int output_idx = ir3_find_output(so, (gl_varying_slot)slot);
+
+   if (output_idx < 0) {
+      return INVALID_REG;
+   }
+
+   return ir3_get_output_regid(&so->outputs[output_idx]);
 }
 
 void print_raw(FILE *out, const BITSET_WORD *data, size_t size);

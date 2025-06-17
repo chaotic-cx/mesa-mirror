@@ -71,6 +71,9 @@ zink_batch_reference_resource(struct zink_context *ctx, struct zink_resource *re
 bool
 zink_batch_reference_resource_move(struct zink_context *ctx, struct zink_resource *res);
 
+bool
+zink_batch_reference_resource_move_unsync(struct zink_context *ctx, struct zink_resource *res);
+
 void
 zink_batch_reference_program(struct zink_context *ctx,
                              struct zink_program *pg);
@@ -119,10 +122,10 @@ bool
 zink_batch_usage_check_completion(struct zink_context *ctx, const struct zink_batch_usage *u);
 
 void
-zink_batch_usage_wait(struct zink_context *ctx, struct zink_batch_usage *u);
+zink_batch_usage_wait(struct zink_context *ctx, struct zink_batch_usage *u, unsigned submit_count);
 
 void
-zink_batch_usage_try_wait(struct zink_context *ctx, struct zink_batch_usage *u);
+zink_batch_usage_try_wait(struct zink_context *ctx, struct zink_batch_usage *u, unsigned submit_count);
 
 #ifdef __cplusplus
 }

@@ -9,7 +9,7 @@
 #define AMDGPU_WINSYS_H
 
 #include "pipebuffer/pb_cache.h"
-#include "pipebuffer/pb_slab.h"
+#include "util/pb_slab.h"
 #include "winsys/radeon_winsys.h"
 #include "util/simple_mtx.h"
 #include "util/u_queue.h"
@@ -116,15 +116,26 @@ struct amdgpu_screen_winsys {
  */
 #define AMDGPU_FENCE_RING_SIZE 32
 
-/* The maximum number of queues that can be present. */
-#define AMDGPU_MAX_QUEUES 6
+/* Queues using the fence ring. */
+enum amdgpu_queue_index {
+   AMDGPU_QUEUE_GFX,
+   AMDGPU_QUEUE_GFX_HIGH_PRIO,
+   AMDGPU_QUEUE_COMPUTE,
+   AMDGPU_QUEUE_SDMA,
+   AMDGPU_MAX_QUEUES,
+
+   AMDGPU_QUEUE_USES_ALT_FENCE = INT_MAX,
+};
 
 /* This can use any integer type because the logic handles integer wraparounds robustly, but
  * uint8_t wraps around so quickly that some BOs might never become idle because we don't
  * remove idle fences from BOs, so they become "busy" again after a queue sequence number wraps
  * around and they may stay "busy" in pb_cache long enough that we run out of memory.
+ *
+ * High FPS applications also wrap around uint16_t so quickly that 32-bit address space allocations
+ * aren't deallocated soon enough and we run out.
  */
-typedef uint16_t uint_seq_no;
+typedef uint32_t uint_seq_no;
 
 struct amdgpu_queue {
    /* Ring buffer of fences.

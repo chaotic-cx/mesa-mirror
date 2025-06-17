@@ -336,9 +336,7 @@ intel_device_info_i915_query_regions(struct intel_device_info *devinfo, int fd, 
       /* If the memory region uAPI query is not available, try to generate some
        * numbers out of os_* utils for sram only.
        */
-      bool ret = intel_device_info_compute_system_memory(devinfo, false);
-      devinfo->mem.sram.mappable.size /= 2;
-      return ret;
+      return intel_device_info_compute_system_memory(devinfo, false);
    }
 
    for (int i = 0; i < meminfo->num_regions; i++) {
@@ -348,14 +346,11 @@ intel_device_info_i915_query_regions(struct intel_device_info *devinfo, int fd, 
          if (!update) {
             devinfo->mem.sram.mem.klass = mem->region.memory_class;
             devinfo->mem.sram.mem.instance = mem->region.memory_instance;
-            /* i915 reports the whole RAM as SRAM size but Xe KMD only reports
-             * half, so adjusting i915 to follow Xe KMD.
-             */
-            devinfo->mem.sram.mappable.size = mem->probed_size / 2;
+            devinfo->mem.sram.mappable.size = mem->probed_size;
          } else {
             assert(devinfo->mem.sram.mem.klass == mem->region.memory_class);
             assert(devinfo->mem.sram.mem.instance == mem->region.memory_instance);
-            assert(devinfo->mem.sram.mappable.size == mem->probed_size / 2);
+            assert(devinfo->mem.sram.mappable.size == mem->probed_size);
          }
          /* if running without elevated privileges i915 reports
           * unallocated_size == probed_size
@@ -579,8 +574,7 @@ bool intel_device_info_i915_get_info_from_fd(int fd, struct intel_device_info *d
 
    hwconfig_blob = intel_device_info_i915_query_hwconfig(fd, &len);
    if (hwconfig_blob) {
-      if (intel_hwconfig_process_table(devinfo, hwconfig_blob, len))
-         intel_device_info_update_after_hwconfig(devinfo);
+      intel_hwconfig_process_table(devinfo, hwconfig_blob, len);
 
       free(hwconfig_blob);
    }
@@ -611,8 +605,10 @@ bool intel_device_info_i915_get_info_from_fd(int fd, struct intel_device_info *d
    if (devinfo->ver > 12 || intel_device_info_is_mtl_or_arl(devinfo))
       devinfo->has_set_pat_uapi = true;
 
-   if (getparam(fd, I915_PARAM_MMAP_GTT_VERSION, &val))
+   if (getparam(fd, I915_PARAM_MMAP_GTT_VERSION, &val)) {
       devinfo->has_mmap_offset = val >= 4;
+      devinfo->has_partial_mmap_offset = val >= 5;
+   }
    if (getparam(fd, I915_PARAM_HAS_USERPTR_PROBE, &val))
       devinfo->has_userptr_probe = val;
    if (getparam(fd, I915_PARAM_HAS_CONTEXT_ISOLATION, &val))

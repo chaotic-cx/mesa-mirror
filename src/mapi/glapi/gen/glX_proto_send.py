@@ -30,6 +30,7 @@ import argparse
 
 import gl_XML, glX_XML, glX_proto_common, license
 import copy
+import static_data
 
 def convertStringForXCB(str):
     tmp = ""
@@ -58,7 +59,7 @@ def hash_pixel_function(func):
     hash_suf = ""
     for param in func.parameterIterateGlxSend():
         if param.is_image():
-            [dim, junk, junk, junk, junk] = param.get_dimensions()
+            [dim, _, _, _, _] = param.get_dimensions()
 
             d = (dim + 1) & ~1
             hash_pre = "%uD%uD_" % (d - 1, d)
@@ -139,7 +140,6 @@ class glx_pixel_function_stub(glX_XML.glx_function):
         self.dimensions_in_reply = func.dimensions_in_reply
         self.img_reset = None
 
-        self.server_handcode = 0
         self.client_handcode = 0
         self.ignore = 0
 
@@ -156,7 +156,6 @@ class PrintGlxProtoStubs(glX_proto_common.glx_print_proto):
         self.license = license.bsd_license_template % ( "(C) Copyright IBM Corporation 2004, 2005", "IBM")
 
 
-        self.last_category = ""
         self.generic_sizes = [3, 4, 6, 8, 12, 16, 24, 32]
         self.pixel_stubs = {}
         self.debug = 0
@@ -176,7 +175,6 @@ class PrintGlxProtoStubs(glX_proto_common.glx_print_proto):
         print('#include <limits.h>')
 
         print('')
-        self.printFastcall()
         self.printNoinline()
         print('')
 
@@ -283,7 +281,7 @@ __glXReadPixelReply( Display *dpy, struct glx_context * gc, unsigned max_dim,
 
 #define X_GLXSingle 0
 
-NOINLINE FASTCALL GLubyte *
+NOINLINE GLubyte *
 __glXSetupSingleRequest( struct glx_context * gc, GLint sop, GLint cmdlen )
 {
     xGLXSingleReq * req;
@@ -298,7 +296,7 @@ __glXSetupSingleRequest( struct glx_context * gc, GLint sop, GLint cmdlen )
     return (GLubyte *)(req) + sz_xGLXSingleReq;
 }
 
-NOINLINE FASTCALL GLubyte *
+NOINLINE GLubyte *
 __glXSetupVendorRequest( struct glx_context * gc, GLint code, GLint vop, GLint cmdlen )
 {
     xGLXVendorPrivateReq * req;
@@ -425,7 +423,7 @@ const GLuint __glXDefaultPixelStore[9] = { 0, 0, 0, 0, 0, 0, 0, 0, 1 };
 
     def print_generic_function(self, n):
         size = (n + 3) & ~3
-        print("""static FASTCALL NOINLINE void
+        print("""static NOINLINE void
 generic_%u_byte( GLint rop, const void * ptr )
 {
     struct glx_context * const gc = __glXGetCurrentContext();
@@ -661,7 +659,7 @@ generic_%u_byte( GLint rop, const void * ptr )
                 print('        %s_reply_t *reply = %s_reply(c, %s, NULL);' % (xcb_name, xcb_name, xcb_request))
                 if output:
                     if output.is_image():
-                        [dim, w, h, d, junk] = output.get_dimensions()
+                        [dim, w, h, d, _] = output.get_dimensions()
                         if f.dimensions_in_reply:
                             w = "reply->width"
                             h = "reply->height"
@@ -733,7 +731,7 @@ generic_%u_byte( GLint rop, const void * ptr )
 
             for p in f.parameterIterateOutputs():
                 if p.is_image():
-                    [dim, w, h, d, junk] = p.get_dimensions()
+                    [dim, w, h, d, _] = p.get_dimensions()
                     if f.dimensions_in_reply:
                         print("        __glXReadPixelReply(dpy, gc, %u, 0, 0, 0, %s, %s, %s, GL_TRUE);" % (dim, p.img_format, p.img_type, p.name))
                     else:
@@ -802,7 +800,7 @@ generic_%u_byte( GLint rop, const void * ptr )
                 p_string += ", " + param.name
 
                 if param.is_image():
-                    [dim, junk, junk, junk, junk] = param.get_dimensions()
+                    [dim, _, _, _, _] = param.get_dimensions()
 
                 if f.pad_after(param):
                     p_string += ", 1"
@@ -948,9 +946,8 @@ struct _glapi_table * __glXNewIndirectAPI( void )
     _glapi_proc *table;
     unsigned entries;
     unsigned i;
-    int o;
 
-    entries = _glapi_get_dispatch_table_size();
+    entries = _mesa_glapi_get_dispatch_table_size();
     table = malloc(entries * sizeof(_glapi_proc));
     if (table == NULL)
         return NULL;
@@ -985,13 +982,7 @@ struct _glapi_table * __glXNewIndirectAPI( void )
                         print(preamble)
                         preamble = None
 
-                    if func.is_abi():
-                        print('    table[{offset}] = (_glapi_proc) __indirect_gl{name};'.format(name = func.name, offset = func.offset))
-                    else:
-                        print('    o = _glapi_get_proc_offset("gl{0}");'.format(func.name))
-                        print('    assert(o > 0);')
-                        print('    table[o] = (_glapi_proc) __indirect_gl{0};'.format(func.name))
-
+                    print('    table[{offset}] = (_glapi_proc) __indirect_gl{name};'.format(name = func.name, offset = func.offset))
         return
 
 
@@ -1004,8 +995,6 @@ class PrintGlxProtoInit_h(gl_XML.gl_print_base):
 """Copyright 1998-1999 Precision Insight, Inc., Cedar Park, Texas.
 (C) Copyright IBM Corporation 2004""", "PRECISION INSIGHT, IBM")
         self.header_tag = "_INDIRECT_H_"
-
-        self.last_category = ""
         return
 
 
@@ -1018,25 +1007,24 @@ class PrintGlxProtoInit_h(gl_XML.gl_print_base):
  * \\author Ian Romanick <idr@us.ibm.com>
  */
 """)
-        self.printFastcall()
         self.printNoinline()
 
         print("""
 #include <X11/Xfuncproto.h>
 #include "glxclient.h"
 
-extern _X_HIDDEN NOINLINE CARD32 __glXReadReply( Display *dpy, size_t size,
+extern NOINLINE CARD32 __glXReadReply( Display *dpy, size_t size,
     void * dest, GLboolean reply_is_always_array );
 
-extern _X_HIDDEN NOINLINE void __glXReadPixelReply( Display *dpy,
+extern NOINLINE void __glXReadPixelReply( Display *dpy,
     struct glx_context * gc, unsigned max_dim, GLint width, GLint height,
     GLint depth, GLenum format, GLenum type, void * dest,
     GLboolean dimensions_in_reply );
 
-extern _X_HIDDEN NOINLINE FASTCALL GLubyte * __glXSetupSingleRequest(
+extern NOINLINE GLubyte * __glXSetupSingleRequest(
     struct glx_context * gc, GLint sop, GLint cmdlen );
 
-extern _X_HIDDEN NOINLINE FASTCALL GLubyte * __glXSetupVendorRequest(
+extern NOINLINE GLubyte * __glXSetupVendorRequest(
     struct glx_context * gc, GLint code, GLint vop, GLint cmdlen );
 """)
 
@@ -1045,13 +1033,13 @@ extern _X_HIDDEN NOINLINE FASTCALL GLubyte * __glXSetupVendorRequest(
         for func in api.functionIterateGlx():
             params = func.get_parameter_string()
 
-            print('extern _X_HIDDEN %s __indirect_gl%s(%s);' % (func.return_type, func.name, params))
+            print('extern %s __indirect_gl%s(%s);' % (func.return_type, func.name, params))
 
             for n in func.entry_points:
                 if func.has_different_protocol(n):
                     asdf = func.static_glx_name(n)
-                    if asdf not in func.static_entry_points:
-                        print('extern _X_HIDDEN %s gl%s(%s);' % (func.return_type, asdf, params))
+                    if asdf not in static_data.libgl_public_functions:
+                        print('extern %s gl%s(%s);' % (func.return_type, asdf, params))
                         # give it a easy-to-remember name
                         if func.client_handcode:
                             print('#define gl_dispatch_stub_%s gl%s' % (n, asdf))
@@ -1062,7 +1050,7 @@ extern _X_HIDDEN NOINLINE FASTCALL GLubyte * __glXSetupVendorRequest(
 
         print('')
         print('#ifdef GLX_INDIRECT_RENDERING')
-        print('extern _X_HIDDEN void (*__indirect_get_proc_address(const char *name))(void);')
+        print('extern void (*__indirect_get_proc_address(const char *name))(void);')
         print('#endif')
 
 

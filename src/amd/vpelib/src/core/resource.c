@@ -136,16 +136,28 @@ void vpe_destroy_resource(struct vpe_priv *vpe_priv, struct resource *res)
     }
 }
 
-struct segment_ctx *vpe_alloc_segment_ctx(struct vpe_priv *vpe_priv, uint16_t num_segments)
+enum vpe_status vpe_alloc_segment_ctx(
+    struct vpe_priv *vpe_priv, struct stream_ctx *stream_ctx, uint16_t num_segments)
 {
-    struct segment_ctx *segment_ctx_base;
+    // If segment_ctx is already allocated, check if re-allocation needed
+    if (stream_ctx->segment_ctx) {
+        if (num_segments != stream_ctx->num_segments) {
+            // Need to re-allocate segment_ctx. Free it first
+            vpe_free(stream_ctx->segment_ctx);
+            stream_ctx->segment_ctx = NULL;
+        } else {
+            // No need for re-allocation. Return
+            return VPE_STATUS_OK;
+        }
+    }
 
-    segment_ctx_base = (struct segment_ctx *)vpe_zalloc(sizeof(struct segment_ctx) * num_segments);
+    stream_ctx->segment_ctx =
+        (struct segment_ctx *)vpe_zalloc(sizeof(struct segment_ctx) * num_segments);
+    if (!stream_ctx->segment_ctx) {
+        return VPE_STATUS_NO_MEMORY;
+    }
 
-    if (!segment_ctx_base)
-        return NULL;
-
-    return segment_ctx_base;
+    return VPE_STATUS_OK;
 }
 
 static enum vpe_status create_input_config_vector(struct stream_ctx *stream_ctx)
@@ -327,17 +339,18 @@ void vpe_pipe_reset(struct vpe_priv *vpe_priv)
 
 void vpe_pipe_reclaim(struct vpe_priv *vpe_priv, struct vpe_cmd_info *cmd_info)
 {
-    int              i, j;
+    int              pipe_idx, input_idx;
     struct pipe_ctx *pipe_ctx;
 
-    for (i = 0; i < vpe_priv->num_pipe; i++) {
-        pipe_ctx = &vpe_priv->pipe_ctx[i];
+    for (pipe_idx = 0; pipe_idx < vpe_priv->num_pipe; pipe_idx++) {
+        pipe_ctx = &vpe_priv->pipe_ctx[pipe_idx];
         if (pipe_ctx->owner != PIPE_CTX_NO_OWNER) {
-            for (j = 0; j < cmd_info->num_inputs; j++)
-                if (pipe_ctx->owner == cmd_info->inputs[j].stream_idx)
+            for (input_idx = 0; input_idx < cmd_info->num_inputs; input_idx++)
+                if ((pipe_ctx->owner == cmd_info->inputs[input_idx].stream_idx) &&
+                    (pipe_idx == input_idx)) // Check if stream is being used again in same pipe
                     break;
 
-            if (j == cmd_info->num_inputs) {
+            if (input_idx == cmd_info->num_inputs) {
                 // that stream no longer exists
                 pipe_ctx->is_top_pipe  = true;
                 pipe_ctx->owner        = PIPE_CTX_NO_OWNER;
@@ -598,6 +611,19 @@ uint16_t vpe_get_num_segments(struct vpe_priv *vpe_priv, const struct vpe_rect *
     int num_seg_src = (int)(ceil((double)src->width / max_seg_width));
     int num_seg_dst = (int)(ceil((double)dst->width / max_seg_width));
     return (uint16_t)(max(max(num_seg_src, num_seg_dst), 1));
+}
+
+bool should_generate_cmd_info(enum vpe_stream_type stream_type)
+{
+    switch (stream_type) {
+    case VPE_STREAM_TYPE_INPUT:
+    case VPE_STREAM_TYPE_BG_GEN:
+        return true;
+    default:
+        /* destination-as-input virtual stream does not need a new cmd_info,
+           it is used as one of the inputs in blending normal input stream only */
+        return false;
+    }
 }
 
 void vpe_clip_stream(

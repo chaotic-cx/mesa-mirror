@@ -48,11 +48,8 @@ get_vertex_index(nir_builder *b, int input_index, struct lower_vs_inputs_state *
 
    if (divisor_is_one || divisor_is_fetched) {
       nir_def *instance_id = nir_load_instance_id(b);
-
-      /* This is used to determine vs vgpr count in si_get_vs_vgpr_comp_cnt(). */
-      s->shader->info.uses_instanceid = true;
-
       nir_def *index = NULL;
+
       if (divisor_is_one) {
          index = instance_id;
       } else {
@@ -132,22 +129,17 @@ load_vs_input_from_blit_sgpr(nir_builder *b, unsigned input_index,
       assert(input_index == 1);
 
       unsigned vs_blit_property = b->shader->info.vs.blit_sgprs_amd;
-      if (vs_blit_property == SI_VS_BLIT_SGPRS_POS_COLOR + has_attribute_ring_address) {
-         for (int i = 0; i < 4; i++)
-            out[i] = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 3 + i);
-      } else {
-         assert(vs_blit_property == SI_VS_BLIT_SGPRS_POS_TEXCOORD + has_attribute_ring_address);
+      assert(vs_blit_property == SI_VS_BLIT_SGPRS_POS_TEXCOORD + has_attribute_ring_address);
 
-         nir_def *x1 = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 3);
-         nir_def *y1 = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 4);
-         nir_def *x2 = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 5);
-         nir_def *y2 = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 6);
+      nir_def *x1 = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 3);
+      nir_def *y1 = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 4);
+      nir_def *x2 = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 5);
+      nir_def *y2 = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 6);
 
-         out[0] = nir_bcsel(b, sel_x1, x1, x2);
-         out[1] = nir_bcsel(b, sel_y1, y1, y2);
-         out[2] = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 7);
-         out[3] = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 8);
-      }
+      out[0] = nir_bcsel(b, sel_x1, x1, x2);
+      out[1] = nir_bcsel(b, sel_y1, y1, y2);
+      out[2] = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 7);
+      out[3] = ac_nir_load_arg_at_offset(b, &s->args->ac, s->args->vs_blit_inputs, 8);
    }
 }
 

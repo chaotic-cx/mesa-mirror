@@ -25,8 +25,48 @@
 
 #include "disasm.h"
 
-static uint16_t
-const_imm_index_to_reg(const struct ir3_const_state *const_state, unsigned i)
+bool
+ir3_const_ensure_imm_size(struct ir3_shader_variant *v, unsigned size)
+{
+   struct ir3_imm_const_state *imm_state = &v->imm_state;
+
+   if (size <= imm_state->size) {
+      return true;
+   }
+
+   /* Immediates are uploaded in units of vec4 so make sure our buffer is large
+    * enough.
+    */
+   size = ALIGN(size, 4);
+
+   /* Pre-a7xx, the immediates that get lowered to const registers are
+    * emitted as part of the const state so the total size of immediates
+    * should be the same for the binning and non-binning variants. Make sure
+    * we don't increase the size beyond that of the non-binning variant.
+    */
+   if (v->binning_pass && !v->compiler->load_shader_consts_via_preamble &&
+       size > v->nonbinning->imm_state.size) {
+      return false;
+   }
+
+   imm_state->values =
+      rerzalloc(v, imm_state->values, __typeof__(imm_state->values[0]),
+                imm_state->size, size);
+   imm_state->size = size;
+
+   /* Note that ir3 printing relies on having groups of 4 dwords, so we fill the
+    * unused slots with a dummy value.
+    */
+   for (int i = imm_state->count; i < imm_state->size; i++) {
+      imm_state->values[i] = 0xd0d0d0d0;
+   }
+
+   return true;
+}
+
+uint16_t
+ir3_const_imm_index_to_reg(const struct ir3_const_state *const_state,
+                           unsigned i)
 {
    return i + (4 * const_state->allocs.max_const_offset_vec4);
 }
@@ -35,10 +75,11 @@ uint16_t
 ir3_const_find_imm(struct ir3_shader_variant *v, uint32_t imm)
 {
    const struct ir3_const_state *const_state = ir3_const_state(v);
+   const struct ir3_imm_const_state *imm_state = &v->imm_state;
 
-   for (unsigned i = 0; i < const_state->immediates_count; i++) {
-      if (const_state->immediates[i] == imm)
-         return const_imm_index_to_reg(const_state, i);
+   for (unsigned i = 0; i < imm_state->count; i++) {
+      if (imm_state->values[i] == imm)
+         return ir3_const_imm_index_to_reg(const_state, i);
    }
 
    return INVALID_CONST_REG;
@@ -47,36 +88,26 @@ ir3_const_find_imm(struct ir3_shader_variant *v, uint32_t imm)
 uint16_t
 ir3_const_add_imm(struct ir3_shader_variant *v, uint32_t imm)
 {
-   struct ir3_const_state *const_state = ir3_const_state_mut(v);
+   const struct ir3_const_state *const_state = ir3_const_state(v);
+   struct ir3_imm_const_state *imm_state = &v->imm_state;
 
-   /* Reallocate for 4 more elements whenever it's necessary.  Note that ir3
-    * printing relies on having groups of 4 dwords, so we fill the unused
-    * slots with a dummy value.
-    */
-   if (const_state->immediates_count == const_state->immediates_size) {
-      const_state->immediates = rerzalloc(
-         const_state, const_state->immediates,
-         __typeof__(const_state->immediates[0]), const_state->immediates_size,
-         const_state->immediates_size + 4);
-      const_state->immediates_size += 4;
-
-      for (int i = const_state->immediates_count;
-           i < const_state->immediates_size; i++) {
-         const_state->immediates[i] = 0xd0d0d0d0;
+   /* Reallocate for 4 more elements whenever it's necessary. */
+   if (imm_state->count == imm_state->size) {
+      if (!ir3_const_ensure_imm_size(v, imm_state->size + 4)) {
+         return INVALID_CONST_REG;
       }
    }
 
    /* Add on a new immediate to be pushed, if we have space left in the
     * constbuf.
     */
-   if (const_state->allocs.max_const_offset_vec4 +
-          const_state->immediates_count / 4 >=
+   if (const_state->allocs.max_const_offset_vec4 + imm_state->count / 4 >=
        ir3_max_const(v)) {
       return INVALID_CONST_REG;
    }
 
-   const_state->immediates[const_state->immediates_count] = imm;
-   return const_imm_index_to_reg(const_state, const_state->immediates_count++);
+   imm_state->values[imm_state->count] = imm;
+   return ir3_const_imm_index_to_reg(const_state, imm_state->count++);
 }
 
 int
@@ -121,8 +152,6 @@ ir3_shader_assemble(struct ir3_shader_variant *v)
    if (v->constant_data_size)
       memcpy(&bin[info->constant_data_offset / 4], v->constant_data,
              v->constant_data_size);
-   ralloc_free(v->constant_data);
-   v->constant_data = NULL;
 
    /* NOTE: if relative addressing is used, we set constlen in
     * the compiler (to worst-case value) since we don't know in
@@ -191,6 +220,174 @@ try_override_shader_variant(struct ir3_shader_variant *v,
    return true;
 }
 
+struct disasm_context {
+   FILE *stream;
+   uint8_t *mismatch_array;
+};
+
+static void
+disasm_pre_instr_cb(void *cbdata, unsigned n, void *instr)
+{
+   struct disasm_context *context = (struct disasm_context *)cbdata;
+   bool mismatch = context->mismatch_array && context->mismatch_array[n];
+   uint32_t *dwords = (uint32_t *)instr;
+   fprintf(context->stream, " %s [%03d] [%08x_%08x] ",
+      mismatch ? "!!" : "  ", n, dwords[1], dwords[0]);
+}
+
+static void
+disasm_no_match_cb(FILE *stream, const BITSET_WORD *dwords, size_t size)
+{
+   fprintf(stream, " XX [000] raw 0x%X%X\n", dwords[0], dwords[1]);
+}
+
+static char *
+disasm_collect(struct ir3_shader_variant *v, uint8_t *mismatch_array,
+               uint32_t *binary_data, uint32_t binary_size)
+{
+   char *stream_data = NULL;
+   size_t stream_size = 0;
+   FILE *stream = open_memstream(&stream_data, &stream_size);
+
+   struct disasm_context context = {
+      .stream = stream,
+      .mismatch_array = mismatch_array,
+   };
+
+   struct isa_decode_options decode_options = {
+      .gpu_id = v->ir->compiler->gen * 100,
+      .show_errors = true,
+      .branch_labels = true,
+      .cbdata = &context,
+      .pre_instr_cb = disasm_pre_instr_cb,
+      .no_match_cb = disasm_no_match_cb,
+   };
+
+   ir3_isa_disasm(binary_data, binary_size, stream, &decode_options);
+
+   fclose(stream);
+   return stream_data;
+}
+
+static uint16_t
+variant_unpadded_binary_size(struct ir3_shader_variant *v)
+{
+   /* This helper returns the size (in dwords) of variant's binary after
+    * the padding nops at the end are ignored.
+    */
+   uint16_t size = v->info.sizedwords;
+
+   for (uint16_t i = 0; i < v->info.sizedwords; i += 2) {
+      uint32_t *dword = &v->bin[v->info.sizedwords - 2 - i];
+      if (!!dword[0] || !!dword[1])
+         break;
+
+      size -= 2;
+   }
+
+   return size;
+}
+
+static void
+validate_print_disasm(struct ir3_shader_variant *v, uint8_t *mismatch_array)
+{
+   char *disasm = disasm_collect(v, mismatch_array,
+                                 v->bin, variant_unpadded_binary_size(v) * 4);
+   mesa_loge("\n%s", disasm);
+   free(disasm);
+}
+
+static bool
+validate_roundtrip_variant_binary(struct ir3_shader_variant *rt_v, struct ir3_shader_variant *v)
+{
+   /* Ignoring padding nops in both variants, compare the binary data.
+    * If there's a mismatch, print both disassemblies with highlighted
+    * points of difference.
+    */
+   uint16_t v_sizedwords = variant_unpadded_binary_size(v);
+   uint16_t rt_v_sizedwords = variant_unpadded_binary_size(rt_v);
+   if (v_sizedwords == rt_v_sizedwords &&
+       !memcmp(v->bin, rt_v->bin, v_sizedwords * 4))
+      return true;
+
+   mesa_loge("validate_roundtrip_variant_binary: mismatch between initial and reassembled binary\n");
+
+   uint32_t max_sizedwords = MAX2(v_sizedwords, rt_v_sizedwords);
+   uint8_t *mismatch_array = calloc(max_sizedwords / 2, sizeof(uint8_t));
+
+   for (uint32_t i = 0; i < max_sizedwords; i += 2) {
+      if (i >= v_sizedwords || i >= rt_v_sizedwords) {
+         mismatch_array[i / 2] = 0xff;
+         continue;
+      }
+
+      uint32_t *v_dword = &v->bin[i];
+      uint32_t *rt_v_dword = &rt_v->bin[i];
+      if (v_dword[0] != rt_v_dword[0] || v_dword[1] != rt_v_dword[1])
+         mismatch_array[i / 2] = 0xff;
+   }
+
+   mesa_loge("  disassembly of initial binary:");
+   validate_print_disasm(v, mismatch_array);
+
+   mesa_loge("  disassembly of reassembled binary:");
+   validate_print_disasm(rt_v, mismatch_array);
+
+   free(mismatch_array);
+   return false;
+}
+
+static struct ir3_shader_variant *
+alloc_variant(struct ir3_shader *shader, const struct ir3_shader_key *key,
+              struct ir3_shader_variant *nonbinning, void *mem_ctx);
+
+static struct ir3_shader_variant *
+create_roundtrip_variant(struct ir3_shader *shader, struct ir3_shader_variant *v)
+{
+   struct ir3_shader_variant *rt_v = alloc_variant(shader, &v->key, NULL, NULL);
+   if (!rt_v)
+      return NULL;
+
+   /* Dump variant's disassembly into a memory stream, then read and
+    * parse from that stream to assemble the roundtrip variant.
+    */
+   char *disasm_data = NULL;
+   size_t disasm_size = 0;
+   FILE *disasm_stream = open_memstream(&disasm_data, &disasm_size);
+   ir3_shader_disasm(v, v->bin, disasm_stream);
+   fflush(disasm_stream);
+
+   struct ir3_kernel_info info;
+   memset(&info, 0, sizeof(info));
+   info.numwg = INVALID_REG;
+
+   fseek(disasm_stream, 0, SEEK_SET);
+   rt_v->ir = ir3_parse(rt_v, &info, disasm_stream);
+
+   fclose(disasm_stream);
+   free(disasm_data);
+
+   if (!rt_v->ir) {
+      mesa_loge("create_roundtrip_variant: failed to parse initial disassembly");
+      goto fail;
+   }
+
+   rt_v->bin = ir3_shader_assemble(rt_v);
+   if (!rt_v->bin) {
+      mesa_loge("create_roundtrip_variant: failed to assemble parsed initial disassembly");
+      goto fail;
+   }
+
+   if (!validate_roundtrip_variant_binary(rt_v, v))
+      goto fail;
+
+   return rt_v;
+
+fail:
+   ralloc_free(rt_v);
+   return NULL;
+}
+
 static void
 assemble_variant(struct ir3_shader_variant *v, bool internal)
 {
@@ -244,10 +441,6 @@ assemble_variant(struct ir3_shader_variant *v, bool internal)
          free(stream_data);
       }
    }
-
-   /* no need to keep the ir around beyond this point: */
-   ir3_destroy(v->ir);
-   v->ir = NULL;
 }
 
 static bool
@@ -266,6 +459,26 @@ compile_variant(struct ir3_shader *shader, struct ir3_shader_variant *v)
                 shader->nir->info.label);
       return false;
    }
+
+   if (ir3_shader_debug & IR3_DBG_ASM_ROUNDTRIP) {
+      struct ir3_shader_variant *rt_v = create_roundtrip_variant(shader, v);
+      if (!rt_v)
+         return false;
+
+      /* TODO: the roundtrip variant could replace the initial variant
+       * to also test the gathered variant information that's then emitted
+       * into shader state. Some known problems:
+       * - parsing from assembly will lack constant data that's filled
+       *   in ir3_nir_lower_load_constant during compilation
+       * - parsing from assembly will also lack metadata (e.g. writemasks)
+       *   that's used to determine register footprint
+       */
+      ralloc_free(rt_v);
+   }
+
+   /* no need to keep the ir around beyond this point: */
+   ir3_destroy(v->ir);
+   v->ir = NULL;
 
    return true;
 }
@@ -296,7 +509,7 @@ alloc_variant(struct ir3_shader *shader, const struct ir3_shader_key *key,
    v->key = *key;
    v->type = shader->type;
    v->compiler = shader->compiler;
-   v->mergedregs = shader->compiler->gen >= 6;
+   v->mergedregs = shader->compiler->mergedregs;
    v->stream_output = shader->stream_output;
 
    v->name = ralloc_strdup(v, shader->nir->info.name);
@@ -328,7 +541,6 @@ alloc_variant(struct ir3_shader *shader, const struct ir3_shader_key *key,
 
    case MESA_SHADER_COMPUTE:
    case MESA_SHADER_KERNEL:
-      v->cs.req_input_mem = shader->cs.req_input_mem;
       v->cs.req_local_mem = shader->cs.req_local_mem;
       break;
 
@@ -497,7 +709,7 @@ ir3_shader_passthrough_tcs(struct ir3_shader *vs, unsigned patch_vertices)
                                   &tcs->num_outputs,
                                   tcs->info.stage);
 
-      NIR_PASS_V(tcs, nir_lower_system_values);
+      NIR_PASS(_, tcs, nir_lower_system_values);
 
       nir_shader_gather_info(tcs, nir_shader_get_entrypoint(tcs));
 
@@ -779,8 +991,6 @@ ir3_const_alloc_type_to_string(enum ir3_const_alloc_type type)
       return "ubo_ptrs";
    case IR3_CONST_ALLOC_IMAGE_DIMS:
       return "image_dims";
-   case IR3_CONST_ALLOC_KERNEL_PARAMS:
-      return "kernel_params";
    case IR3_CONST_ALLOC_TFBO:
       return "tfbo";
    case IR3_CONST_ALLOC_PRIMITIVE_PARAM:
@@ -893,9 +1103,7 @@ ir3_shader_disasm(struct ir3_shader_variant *so, uint32_t *bin, FILE *out)
       fprintf(out, "@in(%sr%d.%c)\tin%d",
               (reg->flags & IR3_REG_HALF) ? "h" : "", (regid >> 2),
               "xyzw"[regid & 0x3], i);
-
-      if (reg->wrmask > 0x1)
-         fprintf(out, " (wrmask=0x%x)", reg->wrmask);
+      fprintf(out, " (wrmask=0x%x)", reg->wrmask);
       fprintf(out, "\n");
    }
 
@@ -912,14 +1120,15 @@ ir3_shader_disasm(struct ir3_shader_variant *so, uint32_t *bin, FILE *out)
    }
 
    const struct ir3_const_state *const_state = ir3_const_state(so);
-   for (i = 0; i < DIV_ROUND_UP(const_state->immediates_count, 4); i++) {
+   const struct ir3_imm_const_state *imm_state = &so->imm_state;
+   for (i = 0; i < DIV_ROUND_UP(imm_state->count, 4); i++) {
       fprintf(out, "@const(c%d.x)\t",
               const_state->allocs.max_const_offset_vec4 + i);
       fprintf(out, "0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
-              const_state->immediates[i * 4 + 0],
-              const_state->immediates[i * 4 + 1],
-              const_state->immediates[i * 4 + 2],
-              const_state->immediates[i * 4 + 3]);
+              imm_state->values[i * 4 + 0],
+              imm_state->values[i * 4 + 1],
+              imm_state->values[i * 4 + 2],
+              imm_state->values[i * 4 + 3]);
    }
 
    ir3_isa_disasm(bin, so->info.sizedwords * 4, out,
@@ -980,7 +1189,7 @@ ir3_shader_disasm(struct ir3_shader_variant *so, uint32_t *bin, FILE *out)
 
    if (so->info.preamble_instrs_count) {
       fprintf(
-         out, "; %u preamble instr, %d early-preamble\n",
+         out, "; %u preamble-instr, %d early-preamble\n",
          so->info.preamble_instrs_count, so->info.early_preamble);
    }
 

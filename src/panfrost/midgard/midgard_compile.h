@@ -32,7 +32,7 @@
 void midgard_preprocess_nir(nir_shader *nir, unsigned gpu_id);
 
 void midgard_compile_shader_nir(nir_shader *nir,
-                                const struct panfrost_compile_inputs *inputs,
+                                const struct pan_compile_inputs *inputs,
                                 struct util_dynarray *binary,
                                 struct pan_shader_info *info);
 
@@ -96,7 +96,6 @@ static const nir_shader_compiler_options midgard_nir_options = {
    .lower_uniforms_to_ubo = true,
    .has_fsub = true,
    .has_isub = true,
-   .vectorize_io = true,
 
    .has_cs_global_id = true,
    .lower_cs_local_index_to_id = true,

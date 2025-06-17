@@ -37,43 +37,49 @@
 #define HAS_ANISO (0)
 
 #define MODEL(gpu_id_, gpu_variant_, shortname, counters_,                     \
-              min_rev_anisotropic_, tib_size_, quirks_)                        \
+              min_rev_anisotropic_, tib_size_, tib_z_size_, ...)               \
    {                                                                           \
       .gpu_id = gpu_id_, .gpu_variant = gpu_variant_,                          \
-      .name = "Mali-" shortname " (Panfrost)",                                 \
+      .name = "Mali-" shortname,                                               \
       .performance_counters = counters_,                                       \
       .min_rev_anisotropic = min_rev_anisotropic_,                             \
-      .tilebuffer_size = tib_size_, .quirks = quirks_,                         \
+      .tilebuffer_size = tib_size_,                                            \
+      .tilebuffer_z_size = tib_z_size_,                                        \
+      .quirks = { __VA_ARGS__ },                                               \
    }
 
 /* Table of supported Mali GPUs */
 /* clang-format off */
-const struct panfrost_model panfrost_model_list[] = {
-        MODEL(0x600, 0, "T600",    "T60x", NO_ANISO,          8192, {}),
-        MODEL(0x620, 0, "T620",    "T62x", NO_ANISO,          8192, {}),
-        MODEL(0x720, 0, "T720",    "T72x", NO_ANISO,          8192, { .no_hierarchical_tiling = true }),
-        MODEL(0x750, 0, "T760",    "T76x", NO_ANISO,          8192, {}),
-        MODEL(0x820, 0, "T820",    "T82x", NO_ANISO,          8192, { .no_hierarchical_tiling = true }),
-        MODEL(0x830, 0, "T830",    "T83x", NO_ANISO,          8192, { .no_hierarchical_tiling = true }),
-        MODEL(0x860, 0, "T860",    "T86x", NO_ANISO,          8192, {}),
-        MODEL(0x880, 0, "T880",    "T88x", NO_ANISO,          8192, {}),
+const struct pan_model pan_model_list[] = {
+        MODEL(0x600, 0, "T600",    "T60x", NO_ANISO,           8192,  8192, .max_4x_msaa = true),
+        MODEL(0x620, 0, "T620",    "T62x", NO_ANISO,           8192,  8192),
+        MODEL(0x720, 0, "T720",    "T72x", NO_ANISO,           8192,  8192, .no_hierarchical_tiling = true, .max_4x_msaa = true),
+        MODEL(0x750, 0, "T760",    "T76x", NO_ANISO,           8192,  8192),
+        MODEL(0x820, 0, "T820",    "T82x", NO_ANISO,           8192,  8192, .no_hierarchical_tiling = true, .max_4x_msaa = true),
+        MODEL(0x830, 0, "T830",    "T83x", NO_ANISO,           8192,  8192, .no_hierarchical_tiling = true, .max_4x_msaa = true),
+        MODEL(0x860, 0, "T860",    "T86x", NO_ANISO,           8192,  8192),
+        MODEL(0x880, 0, "T880",    "T88x", NO_ANISO,           8192,  8192),
 
-        MODEL(0x6000, 0, "G71",    "TMIx", NO_ANISO,          8192, {}),
-        MODEL(0x6221, 0, "G72",    "THEx", 0x0030 /* r0p3 */, 16384, {}),
-        MODEL(0x7090, 0, "G51",    "TSIx", 0x1010 /* r1p1 */, 16384, {}),
-        MODEL(0x7093, 0, "G31",    "TDVx", HAS_ANISO,         16384, {}),
-        MODEL(0x7211, 0, "G76",    "TNOx", HAS_ANISO,         16384, {}),
-        MODEL(0x7212, 0, "G52",    "TGOx", HAS_ANISO,         16384, {}),
-        MODEL(0x7402, 0, "G52 r1", "TGOx", HAS_ANISO,         16384, {}),
-        MODEL(0x9091, 0, "G57",    "TNAx", HAS_ANISO,         16384, {}),
-        MODEL(0x9093, 0, "G57",    "TNAx", HAS_ANISO,         16384, {}),
+        MODEL(0x6000, 0, "G71",    "TMIx", NO_ANISO,           8192,  8192),
+        MODEL(0x6221, 0, "G72",    "THEx", 0x0030 /* r0p3 */, 16384,  8192),
+        MODEL(0x7090, 0, "G51",    "TSIx", 0x1010 /* r1p1 */,  8192,  8192),
+        MODEL(0x7093, 0, "G31",    "TDVx", HAS_ANISO,          8192,  8192),
+        MODEL(0x7211, 0, "G76",    "TNOx", HAS_ANISO,         16384,  8192),
+        MODEL(0x7212, 0, "G52",    "TGOx", HAS_ANISO,         16384,  8192),
+        MODEL(0x7402, 0, "G52 r1", "TGOx", HAS_ANISO,          8192,  8192),
+        MODEL(0x9091, 0, "G57",    "TNAx", HAS_ANISO,         16384,  8192),
+        MODEL(0x9093, 0, "G57",    "TNAx", HAS_ANISO,         16384,  8192),
 
-        MODEL(0xa867, 0, "G610",   "TVIx", HAS_ANISO,         32768, {}),
-        MODEL(0xac74, 0, "G310",   "TVAx", HAS_ANISO,         16384, {}),
-        MODEL(0xac74, 1, "G310",   "TVAx", HAS_ANISO,         16384, {}),
-        MODEL(0xac74, 2, "G310",   "TVAx", HAS_ANISO,         16384, {}),
-        MODEL(0xac74, 3, "G310",   "TVAx", HAS_ANISO,         32768, {}),
-        MODEL(0xac74, 4, "G310",   "TVAx", HAS_ANISO,         32768, {}),
+        MODEL(0xa867, 0, "G610",   "TVIx", HAS_ANISO,         32768, 16384),
+        MODEL(0xac74, 0, "G310",   "TVAx", HAS_ANISO,         16384,  8192),
+        MODEL(0xac74, 1, "G310",   "TVAx", HAS_ANISO,         16384,  8192),
+        MODEL(0xac74, 2, "G310",   "TVAx", HAS_ANISO,         16384,  8192),
+        MODEL(0xac74, 3, "G310",   "TVAx", HAS_ANISO,         32768, 16384),
+        MODEL(0xac74, 4, "G310",   "TVAx", HAS_ANISO,         32768, 16384),
+
+        MODEL(0xc870, 4, "G720",   "TTIx", HAS_ANISO,         65536, 32768),
+
+        MODEL(0xd830, 4, "G725",   "TKRx", HAS_ANISO,         65536, 65536),
 };
 /* clang-format on */
 
@@ -85,41 +91,41 @@ const struct panfrost_model panfrost_model_list[] = {
  * Look up a supported model by its GPU ID, or return NULL if the model is not
  * supported at this time.
  */
-const struct panfrost_model *
-panfrost_get_model(uint32_t gpu_id, uint32_t gpu_variant)
+const struct pan_model *
+pan_get_model(uint32_t gpu_id, uint32_t gpu_variant)
 {
-   for (unsigned i = 0; i < ARRAY_SIZE(panfrost_model_list); ++i) {
-      if (panfrost_model_list[i].gpu_id == gpu_id &&
-          panfrost_model_list[i].gpu_variant == gpu_variant)
-         return &panfrost_model_list[i];
+   for (unsigned i = 0; i < ARRAY_SIZE(pan_model_list); ++i) {
+      if (pan_model_list[i].gpu_id == gpu_id &&
+          pan_model_list[i].gpu_variant == gpu_variant)
+         return &pan_model_list[i];
    }
 
    return NULL;
 }
 
 unsigned
-panfrost_query_l2_slices(const struct pan_kmod_dev_props *props)
+pan_query_l2_slices(const struct pan_kmod_dev_props *props)
 {
    /* L2_SLICES is MEM_FEATURES[11:8] minus(1) */
    return ((props->mem_features >> 8) & 0xF) + 1;
 }
 
-struct panfrost_tiler_features
-panfrost_query_tiler_features(const struct pan_kmod_dev_props *props)
+struct pan_tiler_features
+pan_query_tiler_features(const struct pan_kmod_dev_props *props)
 {
    /* Default value (2^9 bytes and 8 levels) to match old behaviour */
    uint32_t raw = props->tiler_features;
 
    /* Bin size is log2 in the first byte, max levels in the second byte */
-   return (struct panfrost_tiler_features){
+   return (struct pan_tiler_features){
       .bin_size = (1 << (raw & BITFIELD_MASK(5))),
       .max_levels = (raw >> 8) & BITFIELD_MASK(4),
    };
 }
 
 unsigned
-panfrost_query_core_count(const struct pan_kmod_dev_props *props,
-                          unsigned *core_id_range)
+pan_query_core_count(const struct pan_kmod_dev_props *props,
+                     unsigned *core_id_range)
 {
    /* On older kernels, worst-case to 16 cores */
 
@@ -136,14 +142,14 @@ panfrost_query_core_count(const struct pan_kmod_dev_props *props,
 }
 
 unsigned
-panfrost_query_thread_tls_alloc(const struct pan_kmod_dev_props *props)
+pan_query_thread_tls_alloc(const struct pan_kmod_dev_props *props)
 {
    return props->max_tls_instance_per_core ?: props->max_threads_per_core;
 }
 
 unsigned
-panfrost_compute_max_thread_count(const struct pan_kmod_dev_props *props,
-                                  unsigned work_reg_count)
+pan_compute_max_thread_count(const struct pan_kmod_dev_props *props,
+                             unsigned work_reg_count)
 {
    unsigned aligned_reg_count;
 
@@ -162,7 +168,7 @@ panfrost_compute_max_thread_count(const struct pan_kmod_dev_props *props,
 }
 
 uint32_t
-panfrost_query_compressed_formats(const struct pan_kmod_dev_props *props)
+pan_query_compressed_formats(const struct pan_kmod_dev_props *props)
 {
    return props->texture_features[0];
 }
@@ -171,7 +177,7 @@ panfrost_query_compressed_formats(const struct pan_kmod_dev_props *props)
  * may omit it, signaled as a nonzero value in the AFBC_FEATURES property. */
 
 bool
-panfrost_query_afbc(const struct pan_kmod_dev_props *props)
+pan_query_afbc(const struct pan_kmod_dev_props *props)
 {
    unsigned reg = props->afbc_features;
 
@@ -182,7 +188,7 @@ panfrost_query_afbc(const struct pan_kmod_dev_props *props)
  * may omit it, signaled in bit 25 of TEXTURE_FEATURES_0 property. */
 
 bool
-panfrost_query_afrc(const struct pan_kmod_dev_props *props)
+pan_query_afrc(const struct pan_kmod_dev_props *props)
 {
    return (pan_arch(props->gpu_prod_id) >= 10) &&
           (props->texture_features[0] & (1 << 25));
@@ -196,7 +202,7 @@ panfrost_query_afrc(const struct pan_kmod_dev_props *props)
  * size for the particular variant. The CORE_FEATURES register might help.
  */
 unsigned
-panfrost_query_optimal_tib_size(const struct panfrost_model *model)
+pan_query_optimal_tib_size(const struct pan_model *model)
 {
    /* Preconditions ensure the returned value is a multiple of 1 KiB, the
     * granularity of the colour buffer allocation field.
@@ -207,8 +213,20 @@ panfrost_query_optimal_tib_size(const struct panfrost_model *model)
    return model->tilebuffer_size / 2;
 }
 
+unsigned
+pan_query_optimal_z_tib_size(const struct pan_model *model)
+{
+   /* Preconditions ensure the returned value is a multiple of 1 KiB, the
+    * granularity of the colour buffer allocation field.
+    */
+   assert(model->tilebuffer_z_size >= 1024);
+   assert(util_is_power_of_two_nonzero(model->tilebuffer_z_size));
+
+   return model->tilebuffer_z_size / 2;
+}
+
 uint64_t
-panfrost_clamp_to_usable_va_range(const struct pan_kmod_dev *dev, uint64_t va)
+pan_clamp_to_usable_va_range(const struct pan_kmod_dev *dev, uint64_t va)
 {
    struct pan_kmod_va_range user_va_range =
       pan_kmod_dev_query_user_va_range(dev);

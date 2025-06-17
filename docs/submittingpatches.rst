@@ -136,7 +136,9 @@ following example::
 
     Backport-to: 21.0
 
-Multiple ``Backport-to:`` lines are allowed.
+This will backport the commit to the 21.0 branch, as well as any more recent
+stable branch. Multiple ``Backport-to:`` lines are allowed, but only the
+lowest number mentioned actually matters, so for clarity, please only use one.
 
 The last option is deprecated and mostly here for historical reasons
 dating back to when patch submission was done via emails: using a ``Cc:``
@@ -411,7 +413,7 @@ Our documentation is written as `reStructuredText`_ files in the
 
 .. code-block:: sh
 
-   # Install dependencies (adapt for your distro)
+   # Install dependencies (adapt for your distribution)
    apk add coreutils graphviz py3-clang clang-dev musl-dev linux-headers
    pip3 install sphinx===5.1.1 mako===1.2.3 hawkmoth===0.16.0
 

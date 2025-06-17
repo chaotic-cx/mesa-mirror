@@ -573,18 +573,18 @@ Shader::scan_uniforms(nir_variable *uniform)
 
       r600_shader_atomic atom = {0};
 
-      atom.buffer_id = uniform->data.binding;
+      atom.resource_id = uniform->data.binding;
       atom.hw_idx = m_atomic_base + m_next_hwatomic_loc;
 
       atom.start = uniform->data.offset >> 2;
-      atom.end = atom.start + natomics - 1;
+      atom.count = natomics;
 
       if (m_atomic_base_map.find(uniform->data.binding) == m_atomic_base_map.end())
          m_atomic_base_map[uniform->data.binding] = m_next_hwatomic_loc;
 
       m_next_hwatomic_loc += natomics;
 
-      m_atomic_file_count += atom.end - atom.start + 1;
+      m_atomic_file_count += atom.count;
 
       sfn_log << SfnLog::io << "HW_ATOMIC file count: " << m_atomic_file_count << "\n";
 
@@ -905,6 +905,21 @@ Shader::process_intrinsic(nir_intrinsic_instr *intr)
       return emit_load_tcs_param_base(intr, 0);
    case nir_intrinsic_load_tcs_out_param_base_r600:
       return emit_load_tcs_param_base(intr, 16);
+   case nir_intrinsic_load_first_vertex:
+      return emit_get_lds_info_uint(intr,
+                                    offsetof(struct r600_lds_constant_buffer,
+                                             vertexid_base));
+   case nir_intrinsic_load_base_vertex:
+      return emit_get_lds_info_uint(intr,
+                                    offsetof(struct r600_lds_constant_buffer,
+                                             vertex_base));
+   case nir_intrinsic_load_base_instance:
+      return emit_get_lds_info_uint(intr,
+                                    offsetof(struct r600_lds_constant_buffer,
+                                             instance_base));
+   case nir_intrinsic_load_draw_id:
+      return emit_get_lds_info_uint(intr,
+                                    offsetof(struct r600_lds_constant_buffer, draw_id));
    case nir_intrinsic_barrier:
       return emit_barrier(intr);
    case nir_intrinsic_shared_atomic:
@@ -1488,6 +1503,26 @@ Shader::emit_load_tcs_param_base(nir_intrinsic_instr *instr, int offset)
                                    fmt_32_32_32_32);
 
    fetch->set_fetch_flag(LoadFromBuffer::srf_mode);
+   emit_instruction(fetch);
+
+   return true;
+}
+
+bool
+Shader::emit_get_lds_info_uint(nir_intrinsic_instr *instr, int offset)
+{
+   auto src = value_factory().temp_register();
+   emit_instruction(
+      new AluInstr(op1_mov, src, value_factory().zero(), AluInstr::last_write));
+
+   auto dest = value_factory().dest_vec4(instr->def, pin_group);
+   auto fetch = new LoadFromBuffer(dest,
+                                   {0, 7, 7, 7},
+                                   src,
+                                   offset,
+                                   R600_LDS_INFO_CONST_BUFFER,
+                                   nullptr,
+                                   fmt_32_float);
    emit_instruction(fetch);
 
    return true;

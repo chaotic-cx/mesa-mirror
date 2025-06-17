@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 1998-2024 Broadcom. All Rights Reserved.
+ * Copyright (c) 1998-2025 Broadcom. All Rights Reserved.
  * The term “Broadcom” refers to Broadcom Inc.
  * and/or its subsidiaries.
  * SPDX-License-Identifier: MIT
@@ -6369,7 +6369,7 @@ emit_image_declarations(struct svga_shader_emitter_v10 *emit)
       return_type.component0 =
          return_type.component1 =
          return_type.component2 =
-         return_type.component3 = emit->key.images[unit].return_type + 1;
+         return_type.component3 = emit->key.images[unit].return_type;
 
       assert(emit->key.images[unit].uav_index != SVGA3D_INVALID_ID);
       begin_emit_instruction(emit);
@@ -9292,7 +9292,16 @@ opcode_has_dbl_dst(unsigned opcode)
    case TGSI_OPCODE_I2D:
    case TGSI_OPCODE_U2D:
    case TGSI_OPCODE_DFMA:
-      // XXX more TBD
+   case TGSI_OPCODE_DTRUNC:
+   case TGSI_OPCODE_DCEIL:
+   case TGSI_OPCODE_DROUND:
+   case TGSI_OPCODE_DSSG:
+   case TGSI_OPCODE_DLDEXP:
+   case TGSI_OPCODE_DMAD:
+   case TGSI_OPCODE_DDIV:
+   case TGSI_OPCODE_DRCP:
+   case TGSI_OPCODE_DSQRT:
+   case TGSI_OPCODE_DRSQ:
       return true;
    default:
       return false;
@@ -9332,6 +9341,7 @@ opcode_has_dbl_src(unsigned opcode)
    case TGSI_OPCODE_DFLR:
    case TGSI_OPCODE_DROUND:
    case TGSI_OPCODE_DSSG:
+   case TGSI_OPCODE_DDIV:
       return true;
    default:
       return false;
@@ -10782,6 +10792,17 @@ emit_atomic(struct svga_shader_emitter_v10 *emit,
    unsigned resourceIndex = inst->Src[0].Register.Index;
 
    emit->cur_atomic_opcode = opcode;
+
+   /* Float types are only supported for image atomic exchange instruction,
+    * if this check fails then don't emit any intruction.
+    */
+   if (resourceType == TGSI_FILE_IMAGE &&
+      emit->key.images[resourceIndex].return_type == VGPU10_RETURN_TYPE_FLOAT &&
+      opcode != VGPU10_OPCODE_IMM_ATOMIC_EXCH) {
+      debug_printf("Unexpected atomic TGSI opcode %s with float type image.",
+                   tgsi_get_opcode_name(inst->Instruction.Opcode));
+      return true;
+   }
 
    /* If the resource register has indirect index, we will need
     * to expand it since SM5 device does not support indirect indexing

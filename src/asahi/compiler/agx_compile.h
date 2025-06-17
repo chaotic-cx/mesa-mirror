@@ -6,6 +6,7 @@
 #pragma once
 
 #include "compiler/nir/nir.h"
+#include "util/shader_stats.h"
 #include "util/u_dynarray.h"
 #include "util/u_tristate.h"
 #include "shader_enums.h"
@@ -154,6 +155,8 @@ struct agx_shader_info {
     * registers as specified hre.
     */
    struct agx_rodata rodata;
+
+   struct agx2_stats stats;
 };
 
 struct agx_precompiled_kernel_info {
@@ -194,6 +197,15 @@ struct agx_shader_part {
    struct agx_shader_info info;
    void *binary;
 };
+
+static inline bool
+agx_is_shader_empty(struct agx_shader_part *s)
+{
+   /* Last instruction is a stop, so if there's one instruction, there is
+    * nothing but a stop. The shader is thus empty.
+    */
+   return (s->info.stats.instrs == 1);
+}
 
 #define AGX_MAX_RTS (8)
 
@@ -258,9 +270,6 @@ struct agx_shader_key {
    /* Number of reserved preamble slots at the start */
    unsigned reserved_preamble;
 
-   /* Library routines to link against */
-   const nir_shader *libagx;
-
    /* Whether scratch memory is available in the given shader stage */
    bool has_scratch;
 
@@ -294,8 +303,7 @@ struct agx_shader_key {
 struct agx_interp_info agx_gather_interp_info(nir_shader *nir);
 uint64_t agx_gather_texcoords(nir_shader *nir);
 
-void agx_link_libagx(nir_shader *nir, const nir_shader *libagx);
-void agx_preprocess_nir(nir_shader *nir, const nir_shader *libagx);
+void agx_preprocess_nir(nir_shader *nir);
 bool agx_nir_lower_discard_zs_emit(nir_shader *s);
 bool agx_nir_lower_sample_mask(nir_shader *s);
 bool agx_nir_lower_interpolation(nir_shader *s);
@@ -309,7 +317,6 @@ bool agx_mem_vectorize_cb(unsigned align_mul, unsigned align_offset,
                           nir_intrinsic_instr *high, void *data);
 
 void agx_compile_shader_nir(nir_shader *nir, struct agx_shader_key *key,
-                            struct util_debug_callback *debug,
                             struct agx_shader_part *out);
 
 struct agx_occupancy {
@@ -359,7 +366,6 @@ static const nir_shader_compiler_options agx_nir_options = {
    .has_cs_global_id = true,
    .lower_device_index_to_zero = true,
    .lower_hadd = true,
-   .vectorize_io = true,
    .has_amul = true,
    .has_isub = true,
    .support_16bit_alu = true,

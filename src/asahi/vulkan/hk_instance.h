@@ -20,8 +20,8 @@ struct hk_instance {
    uint8_t driver_build_sha[20];
    uint32_t force_vk_vendor;
 
-   bool workaround_rgba4;
    bool no_border;
+   bool fake_minmax;
 };
 
 VK_DEFINE_HANDLE_CASTS(hk_instance, vk.base, VkInstance,

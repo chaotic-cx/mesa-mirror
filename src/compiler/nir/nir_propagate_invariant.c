@@ -126,7 +126,6 @@ propagate_invariant_instr(nir_instr *instr, struct set *invariants)
    case nir_instr_type_jump:
    case nir_instr_type_undef:
    case nir_instr_type_load_const:
-   case nir_instr_type_debug_info:
       break; /* Nothing to do */
 
    case nir_instr_type_phi: {
@@ -172,14 +171,8 @@ propagate_invariant_impl(nir_function_impl *impl, struct set *invariants)
       }
    }
 
-   if (progress) {
-      nir_metadata_preserve(impl, nir_metadata_control_flow |
-                                     nir_metadata_live_defs);
-   } else {
-      nir_metadata_preserve(impl, nir_metadata_all);
-   }
-
-   return progress;
+   return nir_progress(progress, impl,
+                       nir_metadata_control_flow | nir_metadata_live_defs);
 }
 
 /* If invariant_prim=true, this pass considers all geometry-affecting

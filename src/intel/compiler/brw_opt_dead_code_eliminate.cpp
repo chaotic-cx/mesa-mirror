@@ -21,8 +21,8 @@
  * IN THE SOFTWARE.
  */
 
-#include "brw_fs.h"
-#include "brw_fs_live_variables.h"
+#include "brw_shader.h"
+#include "brw_analysis.h"
 #include "brw_cfg.h"
 
 /** @file
@@ -34,13 +34,11 @@
  * yet in the tail end of this block.
  */
 
-using namespace brw;
-
 /**
  * Is it safe to eliminate the instruction?
  */
 static bool
-can_eliminate(const intel_device_info *devinfo, const fs_inst *inst,
+can_eliminate(const intel_device_info *devinfo, const brw_inst *inst,
               BITSET_WORD *flag_live)
 {
     return !inst->is_control_flow() &&
@@ -53,7 +51,7 @@ can_eliminate(const intel_device_info *devinfo, const fs_inst *inst,
  * Is it safe to omit the write, making the destination ARF null?
  */
 static bool
-can_omit_write(const fs_inst *inst)
+can_omit_write(const brw_inst *inst)
 {
    switch (inst->opcode) {
    case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
@@ -72,7 +70,7 @@ can_omit_write(const fs_inst *inst)
 
 static bool
 can_eliminate_conditional_mod(const intel_device_info *devinfo,
-                              const fs_inst *inst, BITSET_WORD *flag_live)
+                              const brw_inst *inst, BITSET_WORD *flag_live)
 {
    /* CMP, CMPN, and CSEL must have a conditional modifier because the
     * modifier determines what the instruction does. SEL with a conditional
@@ -97,13 +95,13 @@ can_eliminate_conditional_mod(const intel_device_info *devinfo,
 }
 
 bool
-brw_opt_dead_code_eliminate(fs_visitor &s)
+brw_opt_dead_code_eliminate(brw_shader &s)
 {
    const intel_device_info *devinfo = s.devinfo;
 
    bool progress = false;
 
-   const fs_live_variables &live_vars = s.live_analysis.require();
+   const brw_live_variables &live_vars = s.live_analysis.require();
    int num_vars = live_vars.num_vars;
    BITSET_WORD *live = rzalloc_array(NULL, BITSET_WORD, BITSET_WORDS(num_vars));
    BITSET_WORD *flag_live = rzalloc_array(NULL, BITSET_WORD, 1);
@@ -114,7 +112,7 @@ brw_opt_dead_code_eliminate(fs_visitor &s)
       memcpy(flag_live, live_vars.block_data[block->num].flag_liveout,
              sizeof(BITSET_WORD));
 
-      foreach_inst_in_block_reverse_safe(fs_inst, inst, block) {
+      foreach_inst_in_block_reverse_safe(brw_inst, inst, block) {
          if (inst->dst.file == VGRF) {
             const unsigned var = live_vars.var_from_reg(inst->dst);
             bool result_live = false;
@@ -153,7 +151,7 @@ brw_opt_dead_code_eliminate(fs_visitor &s)
             flag_live[0] &= ~inst->flags_written(devinfo);
 
          if (inst->opcode == BRW_OPCODE_NOP) {
-            inst->remove(block, true);
+            inst->remove();
             continue;
          }
 
@@ -171,13 +169,11 @@ brw_opt_dead_code_eliminate(fs_visitor &s)
       }
    }
 
-   s.cfg->adjust_block_ips();
-
    ralloc_free(live);
    ralloc_free(flag_live);
 
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS);
 
    return progress;
 }

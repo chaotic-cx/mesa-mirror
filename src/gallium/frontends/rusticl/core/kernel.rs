@@ -10,6 +10,7 @@ use crate::impl_cl_type_trait;
 use mesa_rust::compiler::clc::*;
 use mesa_rust::compiler::nir::*;
 use mesa_rust::nir_pass;
+use mesa_rust::pipe::context::PipeContext;
 use mesa_rust::pipe::context::RWFlags;
 use mesa_rust::pipe::resource::*;
 use mesa_rust::pipe::screen::ResourceType;
@@ -21,10 +22,12 @@ use spirv::SpirvKernelInfo;
 
 use std::cmp;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::convert::TryInto;
 use std::ffi::CStr;
 use std::fmt::Debug;
 use std::fmt::Display;
+use std::ops::Deref;
 use std::ops::Index;
 use std::ops::Not;
 use std::os::raw::c_void;
@@ -48,6 +51,9 @@ use std::sync::Weak;
 #[derive(Clone)]
 pub enum KernelArgValue {
     None,
+    /// cl_ext_buffer_device_address
+    BDA(u64),
+    SVM(usize),
     Buffer(Weak<Buffer>),
     Constant(Vec<u8>),
     Image(Weak<Image>),
@@ -121,7 +127,7 @@ impl KernelArgType {
 
 #[derive(Hash, PartialEq, Eq, Clone)]
 enum CompiledKernelArgType {
-    APIArg(u32),
+    APIArg(usize),
     ConstantBuffer,
     GlobalWorkOffsets,
     GlobalWorkSize,
@@ -234,7 +240,7 @@ struct CompiledKernelArg {
     kind: CompiledKernelArgType,
     /// The binding for image/sampler args, the offset into the input buffer
     /// for anything else.
-    offset: u32,
+    offset: usize,
     dead: bool,
 }
 
@@ -253,7 +259,7 @@ impl CompiledKernelArg {
                 var.data.binding
             } else {
                 var.data.driver_location
-            };
+            } as usize;
         }
     }
 
@@ -261,7 +267,7 @@ impl CompiledKernelArg {
         unsafe {
             blob_write_uint16(blob, args.len() as u16);
             for arg in args {
-                blob_write_uint32(blob, arg.offset);
+                blob_write_uint32(blob, arg.offset as u32);
                 blob_write_uint8(blob, arg.dead.into());
                 match arg.kind {
                     CompiledKernelArgType::ConstantBuffer => blob_write_uint8(blob, 0),
@@ -281,7 +287,7 @@ impl CompiledKernelArg {
                     CompiledKernelArgType::GlobalWorkSize => blob_write_uint8(blob, 9),
                     CompiledKernelArgType::APIArg(idx) => {
                         blob_write_uint8(blob, 10);
-                        blob_write_uint32(blob, idx)
+                        blob_write_uint32(blob, idx as u32)
                     }
                 };
             }
@@ -294,7 +300,7 @@ impl CompiledKernelArg {
             let mut res = Vec::with_capacity(len);
 
             for _ in 0..len {
-                let offset = blob_read_uint32(blob);
+                let offset = blob_read_uint32(blob) as usize;
                 let dead = blob_read_uint8(blob) != 0;
 
                 let kind = match blob_read_uint8(blob) {
@@ -314,7 +320,7 @@ impl CompiledKernelArg {
                     8 => CompiledKernelArgType::NumWorkgroups,
                     9 => CompiledKernelArgType::GlobalWorkSize,
                     10 => {
-                        let idx = blob_read_uint32(blob);
+                        let idx = blob_read_uint32(blob) as usize;
                         CompiledKernelArgType::APIArg(idx)
                     }
                     _ => return None,
@@ -342,13 +348,18 @@ pub struct KernelInfo {
     num_subgroups: usize,
 }
 
-struct CSOWrapper {
+/// Wraps around a compute state object which is safe to share between pipe_contexts.
+pub struct SharedCSOWrapper {
     cso_ptr: *mut c_void,
     dev: &'static Device,
 }
 
-impl CSOWrapper {
-    fn new(dev: &'static Device, nir: &NirShader) -> Self {
+impl SharedCSOWrapper {
+    /// # Safety
+    ///
+    /// The returned value is only safe to be executed on a pipe_context when the device supports
+    /// shareable shaders.
+    unsafe fn new(dev: &'static Device, nir: &NirShader) -> Self {
         let cso_ptr = dev
             .helper_ctx()
             .create_compute_state(nir, nir.shared_size());
@@ -359,24 +370,34 @@ impl CSOWrapper {
         }
     }
 
+    /// # Safety
+    ///
+    /// `self` needs to live until another CSOWrapper is bound to `ctx`
+    pub unsafe fn bind_to_ctx(&self, ctx: &PipeContext) {
+        // SAFETY: We make it the callers responsibility to uphold the safety requirements.
+        unsafe {
+            ctx.bind_compute_state(self.cso_ptr);
+        }
+    }
+
     fn get_cso_info(&self) -> pipe_compute_state_object_info {
         self.dev.helper_ctx().compute_state_info(self.cso_ptr)
     }
 }
 
-impl Drop for CSOWrapper {
+impl Drop for SharedCSOWrapper {
     fn drop(&mut self) {
         self.dev.helper_ctx().delete_compute_state(self.cso_ptr);
     }
 }
 
-enum KernelDevStateVariant {
-    Cso(CSOWrapper),
+pub enum KernelDevStateVariant {
+    Cso(SharedCSOWrapper),
     Nir(NirShader),
 }
 
-#[derive(Debug, PartialEq)]
-enum NirKernelVariant {
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum NirKernelVariant {
     /// Can be used under any circumstance.
     Default,
 
@@ -431,7 +452,7 @@ impl NirKernelBuilds {
     }
 }
 
-struct NirKernelBuild {
+pub struct NirKernelBuild {
     nir_or_cso: KernelDevStateVariant,
     constant_buffer: Option<Arc<PipeResource>>,
     info: pipe_compute_state_object_info,
@@ -447,7 +468,9 @@ unsafe impl Sync for NirKernelBuild {}
 
 impl NirKernelBuild {
     fn new(dev: &'static Device, mut out: CompilationResult) -> Self {
-        let cso = CSOWrapper::new(dev, &out.nir);
+        // SAFETY: we only use the cso when dev supports shareable shaders, otherwise we just
+        //         extract some info and throw it away, which is safe.
+        let cso = unsafe { SharedCSOWrapper::new(dev, &out.nir) };
         let info = cso.get_cso_info();
         let cb = Self::create_nir_constant_buffer(dev, &out.nir);
         let shared_size = out.nir.shared_size() as u64;
@@ -477,7 +500,7 @@ impl NirKernelBuild {
             // TODO bind as constant buffer
             let res = dev
                 .screen()
-                .resource_create_buffer(len, ResourceType::Normal, PIPE_BIND_GLOBAL)
+                .resource_create_buffer(len, ResourceType::Normal, PIPE_BIND_GLOBAL, 0)
                 .unwrap();
 
             dev.helper_ctx()
@@ -489,6 +512,10 @@ impl NirKernelBuild {
             None
         }
     }
+
+    pub fn nir_or_cso(&self) -> &KernelDevStateVariant {
+        &self.nir_or_cso
+    }
 }
 
 pub struct Kernel {
@@ -496,6 +523,8 @@ pub struct Kernel {
     pub prog: Arc<Program>,
     pub name: String,
     values: Mutex<Vec<Option<KernelArgValue>>>,
+    pub bdas: Mutex<Vec<cl_mem_device_address_ext>>,
+    pub svms: Mutex<HashSet<usize>>,
     builds: HashMap<&'static Device, Arc<NirKernelBuilds>>,
     pub kernel_info: Arc<KernelInfo>,
 }
@@ -505,11 +534,10 @@ impl_cl_type_trait!(cl_kernel, Kernel, CL_INVALID_KERNEL);
 fn create_kernel_arr<T>(vals: &[usize], val: T) -> CLResult<[T; 3]>
 where
     T: std::convert::TryFrom<usize> + Copy,
-    <T as std::convert::TryFrom<usize>>::Error: std::fmt::Debug,
 {
     let mut res = [val; 3];
     for (i, v) in vals.iter().enumerate() {
-        res[i] = (*v).try_into().ok().ok_or(CL_OUT_OF_RESOURCES)?;
+        res[i] = (*v).try_into().or(Err(CL_OUT_OF_RESOURCES))?;
     }
 
     Ok(res)
@@ -580,6 +608,7 @@ fn opt_nir(nir: &mut NirShader, dev: &Device, has_explicit_types: bool) {
         nir_pass!(nir, nir_lower_alu);
         progress |= nir_pass!(nir, nir_opt_phi_precision);
         progress |= nir_pass!(nir, nir_opt_algebraic);
+        progress |= nir_pass!(nir, nir_opt_algebraic_integer_promotion);
         progress |= nir_pass!(
             nir,
             nir_opt_if,
@@ -588,7 +617,13 @@ fn opt_nir(nir: &mut NirShader, dev: &Device, has_explicit_types: bool) {
         progress |= nir_pass!(nir, nir_opt_dead_cf);
         progress |= nir_pass!(nir, nir_opt_remove_phis);
         // we don't want to be too aggressive here, but it kills a bit of CFG
-        progress |= nir_pass!(nir, nir_opt_peephole_select, 8, true, true);
+        let peephole_select_options = nir_opt_peephole_select_options {
+            limit: 8,
+            indirect_load_ok: true,
+            expensive_alu_ok: true,
+            discard_ok: false,
+        };
+        progress |= nir_pass!(nir, nir_opt_peephole_select, &peephole_select_options);
         progress |= nir_pass!(
             nir,
             nir_lower_vec3_to_vec4,
@@ -639,6 +674,12 @@ fn compile_nir_to_args(
     nir_pass!(nir, nir_scale_fdiv);
     nir.set_workgroup_size_variable_if_zero();
     nir.structurize();
+    nir_pass!(
+        nir,
+        nir_lower_variable_initializers,
+        nir_variable_mode::nir_var_function_temp
+    );
+
     while {
         let mut progress = false;
         nir_pass!(nir, nir_split_var_copies);
@@ -663,7 +704,6 @@ fn compile_nir_to_args(
 
     let printf_opts = nir_lower_printf_options {
         ptr_bit_size: 0,
-        use_printf_base_identifier: false,
         hash_format_strings: false,
         max_buffer_size: dev.printf_buffer_size() as u32,
     };
@@ -976,7 +1016,7 @@ fn compile_nir_variant(
     /* update the has_variable_shared_mem info as we might have DCEed all of them */
     nir.set_has_variable_shared_mem(compiled_args.iter().any(|arg| {
         if let CompiledKernelArgType::APIArg(idx) = arg.kind {
-            args[idx as usize].kind == KernelArgType::MemLocal && !arg.dead
+            args[idx].kind == KernelArgType::MemLocal && !arg.dead
         } else {
             false
         }
@@ -1009,7 +1049,7 @@ fn compile_nir_remaining(
     // add all API kernel args
     let mut compiled_args: Vec<_> = (0..args.len())
         .map(|idx| CompiledKernelArg {
-            kind: CompiledKernelArgType::APIArg(idx as u32),
+            kind: CompiledKernelArgType::APIArg(idx),
             offset: 0,
             dead: true,
         })
@@ -1163,7 +1203,7 @@ pub(super) fn convert_spirv_to_nir(
 
                 for arg in &build.compiled_args {
                     if let CompiledKernelArgType::APIArg(idx) = arg.kind {
-                        args[idx as usize].dead &= arg.dead;
+                        args[idx].dead &= arg.dead;
                     }
                 }
             }
@@ -1197,7 +1237,7 @@ impl Kernel {
         let builds = prog_build
             .builds
             .iter()
-            .filter_map(|(&dev, b)| b.kernels.get(&name).map(|k| (dev, k.clone())))
+            .filter_map(|(&dev, b)| b.kernels.get(&name).map(|k| (dev, Arc::clone(k))))
             .collect();
 
         let values = vec![None; kernel_info.args.len()];
@@ -1206,6 +1246,8 @@ impl Kernel {
             prog: prog,
             name: name,
             values: Mutex::new(values),
+            bdas: Mutex::new(Vec::new()),
+            svms: Mutex::new(HashSet::new()),
             builds: builds,
             kernel_info: kernel_info,
         })
@@ -1282,6 +1324,8 @@ impl Kernel {
         let kernel_info = Arc::clone(&self.kernel_info);
         let arg_values = self.arg_values().clone();
         let nir_kernel_builds = Arc::clone(&self.builds[q.device]);
+        let mut bdas = self.bdas.lock().unwrap().clone();
+        let svms = self.svms.lock().unwrap().clone();
 
         let mut buffer_arcs = HashMap::new();
         let mut image_arcs = HashMap::new();
@@ -1318,14 +1362,7 @@ impl Kernel {
         self.optimize_local_size(q.device, &mut grid, &mut block);
 
         Ok(Box::new(move |q, ctx| {
-            let hw_max_grid: Vec<usize> = q
-                .device
-                .max_grid_size()
-                .into_iter()
-                .map(|val| val.try_into().unwrap_or(usize::MAX))
-                // clamped as pipe_launch_grid::grid is only u32
-                .map(|val| cmp::min(val, u32::MAX as usize))
-                .collect();
+            let hw_max_grid = q.device.max_grid_size();
 
             let variant = if offsets == [0; 3]
                 && grid[0] <= hw_max_grid[0]
@@ -1365,6 +1402,16 @@ impl Kernel {
             };
 
             let mut resource_info = Vec::new();
+            fn add_pointer(q: &Queue, input: &mut Vec<u8>, address: u64) {
+                if q.device.address_bits() == 64 {
+                    let address: u64 = address;
+                    input.extend_from_slice(&address.to_ne_bytes());
+                } else {
+                    let address: u32 = address as u32;
+                    input.extend_from_slice(&address.to_ne_bytes());
+                }
+            }
+
             fn add_global<'a>(
                 q: &Queue,
                 input: &mut Vec<u8>,
@@ -1373,13 +1420,7 @@ impl Kernel {
                 offset: usize,
             ) {
                 resource_info.push((res, input.len()));
-                if q.device.address_bits() == 64 {
-                    let offset: u64 = offset as u64;
-                    input.extend_from_slice(&offset.to_ne_bytes());
-                } else {
-                    let offset: u32 = offset as u32;
-                    input.extend_from_slice(&offset.to_ne_bytes());
-                }
+                add_pointer(q, input, offset as u64);
             }
 
             fn add_sysval(q: &Queue, input: &mut Vec<u8>, vals: &[usize; 3]) {
@@ -1395,7 +1436,7 @@ impl Kernel {
                 let buf = q
                     .device
                     .screen
-                    .resource_create_buffer(printf_size, ResourceType::Staging, PIPE_BIND_GLOBAL)
+                    .resource_create_buffer(printf_size, ResourceType::Staging, PIPE_BIND_GLOBAL, 0)
                     .unwrap();
 
                 let init_data: [u8; 1] = [4];
@@ -1404,30 +1445,38 @@ impl Kernel {
                 printf_buf = Some(buf);
             }
 
+            // translate SVM pointers to their base first
+            let mut svms: HashSet<_> = svms
+                .into_iter()
+                .filter_map(|svm_pointer| Some(q.context.find_svm_alloc(svm_pointer)?.0 as usize))
+                .collect();
+
             for arg in &nir_kernel_build.compiled_args {
                 let is_opaque = if let CompiledKernelArgType::APIArg(idx) = arg.kind {
-                    kernel_info.args[idx as usize].kind.is_opaque()
+                    kernel_info.args[idx].kind.is_opaque()
                 } else {
                     false
                 };
 
-                if !is_opaque && arg.offset as usize > input.len() {
-                    input.resize(arg.offset as usize, 0);
+                if !is_opaque && arg.offset > input.len() {
+                    input.resize(arg.offset, 0);
                 }
 
                 match arg.kind {
                     CompiledKernelArgType::APIArg(idx) => {
-                        let api_arg = &kernel_info.args[idx as usize];
-                        if api_arg.dead {
-                            continue;
-                        }
-
-                        let Some(value) = &arg_values[idx as usize] else {
+                        let api_arg = &kernel_info.args[idx];
+                        let Some(value) = &arg_values[idx] else {
                             continue;
                         };
 
                         match value {
                             KernelArgValue::Constant(c) => input.extend_from_slice(c),
+                            KernelArgValue::BDA(address) => {
+                                bdas.push(*address);
+                                if !api_arg.dead {
+                                    add_pointer(q, &mut input, *address);
+                                }
+                            }
                             KernelArgValue::Buffer(buffer) => {
                                 let buffer = &buffer_arcs[&(buffer.as_ptr() as usize)];
                                 let rw = if api_arg.spirv.address_qualifier
@@ -1438,8 +1487,37 @@ impl Kernel {
                                     RWFlags::RW
                                 };
 
-                                let res = buffer.get_res_for_access(ctx, rw)?;
-                                add_global(q, &mut input, &mut resource_info, res, buffer.offset());
+                                // if the argument is dead, based on what kind of memory it is, we
+                                // might need to migrate and make it available to the invocation
+                                // regardless.
+                                if api_arg.dead {
+                                    if let Some(address) = buffer.dev_address(ctx.dev) {
+                                        let _ = buffer.get_res_for_access(ctx, rw)?;
+                                        bdas.push(address.get());
+                                    } else if buffer.is_svm() {
+                                        let _ = buffer.get_res_for_access(ctx, rw)?;
+                                        svms.insert(buffer.host_ptr() as usize);
+                                    }
+                                } else {
+                                    let res = buffer.get_res_for_access(ctx, rw)?;
+                                    add_global(
+                                        q,
+                                        &mut input,
+                                        &mut resource_info,
+                                        res,
+                                        buffer.offset(),
+                                    );
+                                }
+                            }
+                            &KernelArgValue::SVM(handle) => {
+                                // get the base address so we deduplicate properly
+                                if let Some((base, _)) = q.context.find_svm_alloc(handle) {
+                                    svms.insert(base as usize);
+                                }
+
+                                if !api_arg.dead {
+                                    add_pointer(q, &mut input, handle as u64);
+                                }
                             }
                             KernelArgValue::Image(image) => {
                                 let image = &image_arcs[&(image.as_ptr() as usize)];
@@ -1454,11 +1532,10 @@ impl Kernel {
                                     (&mut tex_formats, &mut tex_orders)
                                 };
 
-                                let binding = arg.offset as usize;
-                                assert!(binding >= formats.len());
+                                assert!(arg.offset >= formats.len());
 
-                                formats.resize(binding, 0);
-                                orders.resize(binding, 0);
+                                formats.resize(arg.offset, 0);
+                                orders.resize(arg.offset, 0);
 
                                 formats.push(image.image_format.image_channel_data_type as u16);
                                 orders.push(image.image_format.image_channel_order as u16);
@@ -1483,11 +1560,14 @@ impl Kernel {
                                 samplers.push(sampler.pipe());
                             }
                             KernelArgValue::None => {
-                                assert!(
-                                    api_arg.kind == KernelArgType::MemGlobal
-                                        || api_arg.kind == KernelArgType::MemConstant
-                                );
-                                input.extend_from_slice(null_ptr);
+                                if !arg.dead
+                                    && matches!(
+                                        api_arg.kind,
+                                        KernelArgType::MemGlobal | KernelArgType::MemConstant
+                                    )
+                                {
+                                    input.extend_from_slice(null_ptr);
+                                }
                             }
                         }
                     }
@@ -1532,6 +1612,29 @@ impl Kernel {
                 }
             }
 
+            // dedup with a HashSet
+            let bdas = bdas
+                .into_iter()
+                // Ignore invalid pointers as they are legal to be passed in, but illegal to
+                // dereference.
+                .filter_map(|address| q.context.find_bda_alloc(q.device, address))
+                .collect::<HashSet<_>>();
+
+            let mut bdas: Vec<_> = bdas
+                .iter()
+                .map(|buffer| Ok(buffer.get_res_for_access(ctx, RWFlags::RW)?.deref()))
+                .collect::<CLResult<_>>()?;
+
+            let svms_new = svms
+                .into_iter()
+                .filter_map(|svm| q.context.copy_svm_to_dev(ctx, svm).transpose())
+                .collect::<CLResult<Vec<_>>>()?;
+
+            // uhhh
+            for svm in &svms_new {
+                bdas.push(svm);
+            }
+
             // subtract the shader local_size as we only request something on top of that.
             variable_local_size -= static_local_size;
 
@@ -1547,17 +1650,8 @@ impl Kernel {
                 globals.push(unsafe { input.as_mut_ptr().byte_add(offset) }.cast());
             }
 
-            let temp_cso;
-            let cso = match &nir_kernel_build.nir_or_cso {
-                KernelDevStateVariant::Cso(cso) => cso,
-                KernelDevStateVariant::Nir(nir) => {
-                    temp_cso = CSOWrapper::new(q.device, nir);
-                    &temp_cso
-                }
-            };
-
             let sviews_len = sviews.len();
-            ctx.bind_compute_state(cso.cso_ptr);
+            ctx.bind_kernel(&nir_kernel_builds, variant)?;
             ctx.bind_sampler_states(&samplers);
             ctx.set_sampler_views(sviews);
             ctx.set_shader_images(&iviews);
@@ -1588,7 +1682,13 @@ impl Kernel {
                         ];
 
                         ctx.update_cb0(&input)?;
-                        ctx.launch_grid(work_dim, block, this_grid, variable_local_size as u32);
+                        ctx.launch_grid(
+                            work_dim,
+                            block,
+                            this_grid,
+                            variable_local_size as u32,
+                            &bdas,
+                        );
 
                         if Platform::dbg().sync_every_event {
                             ctx.flush().wait();
@@ -1598,11 +1698,8 @@ impl Kernel {
             }
 
             ctx.clear_global_binding(globals.len() as u32);
-            ctx.clear_shader_images(iviews.len() as u32);
             ctx.clear_sampler_views(sviews_len as u32);
             ctx.clear_sampler_states(samplers.len() as u32);
-
-            ctx.bind_compute_state(ptr::null_mut());
 
             ctx.memory_barrier(PIPE_BARRIER_GLOBAL_BUFFER);
 
@@ -1641,8 +1738,8 @@ impl Kernel {
         Ok(())
     }
 
-    pub fn access_qualifier(&self, idx: cl_uint) -> cl_kernel_arg_access_qualifier {
-        let aq = self.kernel_info.args[idx as usize].spirv.access_qualifier;
+    pub fn access_qualifier(&self, idx: usize) -> cl_kernel_arg_access_qualifier {
+        let aq = self.kernel_info.args[idx].spirv.access_qualifier;
 
         if aq
             == clc_kernel_arg_access_qualifier::CLC_KERNEL_ARG_ACCESS_READ
@@ -1658,8 +1755,8 @@ impl Kernel {
         }
     }
 
-    pub fn address_qualifier(&self, idx: cl_uint) -> cl_kernel_arg_address_qualifier {
-        match self.kernel_info.args[idx as usize].spirv.address_qualifier {
+    pub fn address_qualifier(&self, idx: usize) -> cl_kernel_arg_address_qualifier {
+        match self.kernel_info.args[idx].spirv.address_qualifier {
             clc_kernel_arg_address_qualifier::CLC_KERNEL_ARG_ADDRESS_PRIVATE => {
                 CL_KERNEL_ARG_ADDRESS_PRIVATE
             }
@@ -1675,8 +1772,8 @@ impl Kernel {
         }
     }
 
-    pub fn type_qualifier(&self, idx: cl_uint) -> cl_kernel_arg_type_qualifier {
-        let tq = self.kernel_info.args[idx as usize].spirv.type_qualifier;
+    pub fn type_qualifier(&self, idx: usize) -> cl_kernel_arg_type_qualifier {
+        let tq = self.kernel_info.args[idx].spirv.type_qualifier;
         let zero = clc_kernel_arg_type_qualifier(0);
         let mut res = CL_KERNEL_ARG_TYPE_NONE;
 
@@ -1707,13 +1804,13 @@ impl Kernel {
         self.kernel_info.subgroup_size
     }
 
-    pub fn arg_name(&self, idx: cl_uint) -> Option<&CStr> {
-        let name = &self.kernel_info.args[idx as usize].spirv.name;
+    pub fn arg_name(&self, idx: usize) -> Option<&CStr> {
+        let name = &self.kernel_info.args[idx].spirv.name;
         name.is_empty().not().then_some(name)
     }
 
-    pub fn arg_type_name(&self, idx: cl_uint) -> Option<&CStr> {
-        let type_name = &self.kernel_info.args[idx as usize].spirv.type_name;
+    pub fn arg_type_name(&self, idx: usize) -> Option<&CStr> {
+        let type_name = &self.kernel_info.args[idx].spirv.type_name;
         type_name.is_empty().not().then_some(type_name)
     }
 
@@ -1749,13 +1846,11 @@ impl Kernel {
     }
 
     pub fn has_svm_devs(&self) -> bool {
-        self.prog.devs.iter().any(|dev| dev.svm_supported())
+        self.prog.devs.iter().any(|dev| dev.api_svm_supported())
     }
 
-    pub fn subgroup_sizes(&self, dev: &Device) -> Vec<usize> {
-        SetBitIndices::from_msb(self.builds.get(dev).unwrap().info.simd_sizes)
-            .map(|bit| 1 << bit)
-            .collect()
+    pub fn subgroup_sizes(&self, dev: &Device) -> impl ExactSizeIterator<Item = usize> {
+        SetBitIndices::from_msb(self.builds.get(dev).unwrap().info.simd_sizes).map(|bit| 1 << bit)
     }
 
     pub fn subgroups_for_block(&self, dev: &Device, block: &[usize]) -> usize {
@@ -1769,13 +1864,16 @@ impl Kernel {
     }
 
     pub fn subgroup_size_for_block(&self, dev: &Device, block: &[usize]) -> usize {
-        let subgroup_sizes = self.subgroup_sizes(dev);
-        if subgroup_sizes.is_empty() {
+        let mut subgroup_sizes = self.subgroup_sizes(dev);
+
+        // Replace with `ExactSizeIterator::is_empty()` when stable.
+        // See https://github.com/rust-lang/rust/issues/35428
+        if subgroup_sizes.len() == 0 {
             return 0;
         }
 
         if subgroup_sizes.len() == 1 {
-            return subgroup_sizes[0];
+            return subgroup_sizes.next().unwrap();
         }
 
         let block = [
@@ -1801,11 +1899,13 @@ impl Clone for Kernel {
     fn clone(&self) -> Self {
         Self {
             base: CLObjectBase::new(RusticlTypes::Kernel),
-            prog: self.prog.clone(),
+            prog: Arc::clone(&self.prog),
             name: self.name.clone(),
             values: Mutex::new(self.arg_values().clone()),
+            bdas: Mutex::new(self.bdas.lock().unwrap().clone()),
+            svms: Mutex::new(self.svms.lock().unwrap().clone()),
             builds: self.builds.clone(),
-            kernel_info: self.kernel_info.clone(),
+            kernel_info: Arc::clone(&self.kernel_info),
         }
     }
 }

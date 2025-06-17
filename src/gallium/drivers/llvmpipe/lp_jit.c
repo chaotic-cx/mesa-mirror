@@ -270,15 +270,11 @@ lp_jit_create_cs_types(struct lp_compute_shader_variant *lp)
       LLVMTypeRef elem_types[LP_JIT_CS_CTX_COUNT];
       LLVMTypeRef cs_context_type;
 
-      elem_types[LP_JIT_CS_CTX_KERNEL_ARGS] = LLVMPointerType(LLVMInt8TypeInContext(lc), 0);
       elem_types[LP_JIT_CS_CTX_SHARED_SIZE] = LLVMInt32TypeInContext(lc);
 
       cs_context_type = LLVMStructTypeInContext(lc, elem_types,
                                              ARRAY_SIZE(elem_types), 0);
 
-      LP_CHECK_MEMBER_OFFSET(struct lp_jit_cs_context, kernel_args,
-                             gallivm->target, cs_context_type,
-                             LP_JIT_CS_CTX_KERNEL_ARGS);
       LP_CHECK_MEMBER_OFFSET(struct lp_jit_cs_context, shared_size,
                              gallivm->target, cs_context_type,
                              LP_JIT_CS_CTX_SHARED_SIZE);
@@ -504,6 +500,39 @@ lp_jit_texture_from_pipe(struct lp_jit_texture *jit, const struct pipe_sampler_v
 }
 
 void
+lp_jit_bindless_texture_from_pipe(struct lp_jit_bindless_texture *jit, const struct pipe_sampler_view *view)
+{
+   struct pipe_resource *res = view->texture;
+   struct llvmpipe_resource *lp_tex = llvmpipe_resource(res);
+   assert(!lp_tex->dt);
+
+   if (llvmpipe_resource_is_texture(res)) {
+      jit->base = lp_tex->tex_data;
+
+      if (res->flags & PIPE_RESOURCE_FLAG_SPARSE)
+         jit->residency = lp_tex->residency;
+   } else {
+      jit->base = lp_tex->data;
+
+      /*
+       * For tex2d_from_buf, adjust width and height with application
+       * values. If is_tex2d_from_buf is false (1D images),
+       * adjust using size value (stored as width).
+       */
+      unsigned view_blocksize = util_format_get_blocksize(view->format);
+
+      /* If it's not a 2D texture view of a buffer, adjust using size. */
+      if (!view->is_tex2d_from_buf) {
+         /* Adjust base pointer with offset. */
+         jit->base = (uint8_t *)jit->base + view->u.buf.offset;
+      } else {
+         jit->base = (uint8_t *)jit->base +
+            view->u.tex2d_from_buf.offset * view_blocksize;
+      }
+   }
+}
+
+void
 lp_jit_texture_buffer_from_bda(struct lp_jit_texture *jit, void *mem, size_t size, enum pipe_format format)
 {
    jit->base = mem;
@@ -538,6 +567,12 @@ lp_jit_texture_buffer_from_bda(struct lp_jit_texture *jit, void *mem, size_t siz
       /* everything specified in number of elements here. */
       jit->width = size / view_blocksize;
    }
+}
+
+void
+lp_jit_bindless_texture_buffer_from_bda(struct lp_jit_bindless_texture *jit, void *mem)
+{
+   jit->base = mem;
 }
 
 void

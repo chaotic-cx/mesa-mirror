@@ -288,6 +288,8 @@ nir_calc_use_dominance_impl(nir_function_impl *impl, bool post_dominance)
       }
    }
 
+   nir_progress(true, impl, nir_metadata_all & ~nir_metadata_instr_index);
+
    return state;
 }
 

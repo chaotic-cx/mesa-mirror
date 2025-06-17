@@ -14,6 +14,7 @@
 #include "hk_entrypoints.h"
 #include "hk_shader.h"
 
+#include "libagx_dgc.h"
 #include "libagx_shaders.h"
 #include "vk_common_entrypoints.h"
 
@@ -23,6 +24,7 @@
 #include "compiler/nir/nir.h"
 #include "compiler/nir/nir_builder.h"
 
+#include "drm-uapi/asahi_drm.h"
 #include "util/os_time.h"
 #include "util/u_dynarray.h"
 #include "vulkan/vulkan_core.h"
@@ -64,14 +66,12 @@ hk_reports_per_query(struct hk_query_pool *pool)
 static void
 hk_flush_if_timestamp(struct hk_cmd_buffer *cmd, struct hk_query_pool *pool)
 {
-   struct hk_device *dev = hk_cmd_buffer_device(cmd);
-
    /* There might not be a barrier between the timestamp write and the copy
     * otherwise but we need one to give the CPU a chance to write the timestamp.
     * This could maybe optimized.
     */
    if (pool->vk.query_type == VK_QUERY_TYPE_TIMESTAMP) {
-      perf_debug(dev, "Flushing for timestamp copy");
+      perf_debug(cmd, "Flushing for timestamp copy");
       hk_cmd_buffer_end_graphics(cmd);
       hk_cmd_buffer_end_compute(cmd);
    }
@@ -88,10 +88,6 @@ hk_CreateQueryPool(VkDevice device, const VkQueryPoolCreateInfo *pCreateInfo,
    bool occlusion = pCreateInfo->queryType == VK_QUERY_TYPE_OCCLUSION;
    bool timestamp = pCreateInfo->queryType == VK_QUERY_TYPE_TIMESTAMP;
    unsigned occlusion_queries = occlusion ? pCreateInfo->queryCount : 0;
-
-   /* Workaround for DXVK on old kernels */
-   if (!agx_supports_timestamps(&dev->dev))
-      timestamp = false;
 
    pool =
       vk_query_pool_create(&dev->vk, pCreateInfo, pAllocator, sizeof(*pool));
@@ -132,10 +128,7 @@ hk_CreateQueryPool(VkDevice device, const VkQueryPoolCreateInfo *pCreateInfo,
        * them.
        */
       if (timestamp) {
-         int ret = dev->dev.ops.bo_bind_object(
-            &dev->dev, pool->bo, &pool->handle, pool->bo->size, 0,
-            ASAHI_BIND_OBJECT_USAGE_TIMESTAMPS);
-
+         int ret = agx_bind_timestamps(&dev->dev, pool->bo, &pool->handle);
          if (ret) {
             hk_DestroyQueryPool(device, hk_query_pool_to_handle(pool),
                                 pAllocator);
@@ -187,7 +180,7 @@ hk_DestroyQueryPool(VkDevice device, VkQueryPool queryPool,
    }
 
    if (pool->handle)
-      dev->dev.ops.bo_unbind_object(&dev->dev, pool->handle, 0);
+      dev->dev.ops.bo_unbind_object(&dev->dev, pool->handle);
 
    agx_bo_unreference(&dev->dev, pool->bo);
    vk_query_pool_destroy(&dev->vk, pAllocator, &pool->vk);
@@ -247,8 +240,6 @@ hk_query_report_map(struct hk_device *dev, struct hk_query_pool *pool,
 void
 hk_dispatch_imm_writes(struct hk_cmd_buffer *cmd, struct hk_cs *cs)
 {
-   hk_ensure_cs_has_space(cmd, cs, 0x2000 /* TODO */);
-
    /* As soon as we mark a query available, it needs to be available system
     * wide, otherwise a CPU-side get result can query. As such, we cache flush
     * before and then let coherency works its magic. Without this barrier, we
@@ -259,7 +250,7 @@ hk_dispatch_imm_writes(struct hk_cmd_buffer *cmd, struct hk_cs *cs)
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
    hk_cdm_cache_flush(dev, cs);
 
-   perf_debug(dev, "Queued writes");
+   perf_debug(cmd, "Queued writes");
 
    uint64_t params =
       hk_pool_upload(cmd, cs->imm_writes.data, cs->imm_writes.size, 16);
@@ -268,7 +259,7 @@ hk_dispatch_imm_writes(struct hk_cmd_buffer *cmd, struct hk_cs *cs)
       util_dynarray_num_elements(&cs->imm_writes, struct libagx_imm_write);
    assert(count > 0);
 
-   libagx_write_u32s(cs, agx_1d(count), AGX_BARRIER_ALL, params);
+   libagx_write_u32s(cmd, agx_1d(count), AGX_BARRIER_ALL | AGX_POSTGFX, params);
 }
 
 void
@@ -292,8 +283,6 @@ hk_queue_write(struct hk_cmd_buffer *cmd, uint64_t address, uint32_t value,
       return;
    }
 
-   hk_ensure_cs_has_space(cmd, cs, 0x2000 /* TODO */);
-
    /* As soon as we mark a query available, it needs to be available system
     * wide, otherwise a CPU-side get result can query. As such, we cache flush
     * before and then let coherency works its magic. Without this barrier, we
@@ -304,8 +293,8 @@ hk_queue_write(struct hk_cmd_buffer *cmd, uint64_t address, uint32_t value,
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
    hk_cdm_cache_flush(dev, cs);
 
-   perf_debug(dev, "Queued write");
-   libagx_write_u32(cs, agx_1d(1), AGX_BARRIER_ALL, address, value);
+   perf_debug(cmd, "Queued write");
+   libagx_write_u32(cmd, agx_1d(1), AGX_BARRIER_ALL, address, value);
 }
 
 /**
@@ -379,11 +368,10 @@ hk_CmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(hk_query_pool, pool, queryPool);
-   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
    hk_flush_if_timestamp(cmd, pool);
 
-   perf_debug(dev, "Reset query pool");
+   perf_debug(cmd, "Reset query pool");
    emit_zero_queries(cmd, pool, firstQuery, queryCount, false);
 }
 
@@ -396,12 +384,7 @@ hk_CmdWriteTimestamp2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(hk_query_pool, pool, queryPool);
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
-   /* Workaround for DXVK on old kernels */
-   if (!agx_supports_timestamps(&dev->dev))
-      return;
-
    uint64_t report_addr = hk_query_report_addr(dev, pool, query);
-
    bool after_gfx = cmd->current_cs.gfx != NULL;
 
    /* When writing timestamps for compute, we split the control stream at each
@@ -416,7 +399,7 @@ hk_CmdWriteTimestamp2(VkCommandBuffer commandBuffer,
    if (!after_gfx && cmd->current_cs.cs &&
        cmd->current_cs.cs->timestamp.end.addr) {
 
-      perf_debug(dev, "Splitting for compute timestamp");
+      perf_debug(cmd, "Splitting for compute timestamp");
       hk_cmd_buffer_end_compute(cmd);
    }
 
@@ -428,13 +411,8 @@ hk_CmdWriteTimestamp2(VkCommandBuffer commandBuffer,
    if (cs->timestamp.end.addr) {
       assert(after_gfx && "compute is handled above");
 
-      struct hk_cs *after =
-         hk_cmd_buffer_get_cs_general(cmd, &cmd->current_cs.post_gfx, true);
-      if (!after)
-         return;
-
-      libagx_copy_timestamp(after, agx_1d(1), AGX_BARRIER_ALL, report_addr,
-                            cs->timestamp.end.addr);
+      libagx_copy_timestamp(cmd, agx_1d(1), AGX_BARRIER_ALL | AGX_POSTGFX,
+                            report_addr, cs->timestamp.end.addr);
    } else {
       cs->timestamp.end = (struct agx_timestamp_req){
          .addr = report_addr,
@@ -521,7 +499,7 @@ hk_cmd_begin_end_query(struct hk_cmd_buffer *cmd, struct hk_query_pool *pool,
 
    /* We need to set available=1 after the graphics work finishes. */
    if (end) {
-      perf_debug(dev, "Query ending, type %u", pool->vk.query_type);
+      perf_debug(cmd, "Query ending, type %u", pool->vk.query_type);
       hk_queue_write(cmd, hk_query_available_addr(pool, query), 1, graphics);
    }
 }
@@ -543,7 +521,6 @@ hk_CmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
 {
    VK_FROM_HANDLE(hk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(hk_query_pool, pool, queryPool);
-   struct hk_device *dev = hk_cmd_buffer_device(cmd);
 
    hk_cmd_begin_end_query(cmd, pool, query, index, 0, true);
 
@@ -563,7 +540,7 @@ hk_CmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
       const uint32_t num_queries =
          util_bitcount(cmd->state.gfx.render.view_mask);
       if (num_queries > 1) {
-         perf_debug(dev, "Multiview query zeroing");
+         perf_debug(cmd, "Multiview query zeroing");
          emit_zero_queries(cmd, pool, query + 1, num_queries - 1, true);
       }
    }
@@ -679,12 +656,7 @@ hk_CmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
    struct hk_device *dev = hk_cmd_buffer_device(cmd);
    hk_flush_if_timestamp(cmd, pool);
 
-   struct hk_cs *cs = hk_cmd_buffer_get_cs(cmd, true);
-   if (!cs)
-      return;
-
-   perf_debug(dev, "Query pool copy");
-   hk_ensure_cs_has_space(cmd, cs, 0x2000 /* TODO */);
+   perf_debug(cmd, "Query pool copy");
 
    struct libagx_copy_query_args info = {
       .availability = hk_has_available(pool) ? pool->bo->va->addr : 0,
@@ -693,14 +665,11 @@ hk_CmdCopyQueryPoolResults(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
       .oq_index = pool->oq_queries ? pool->bo->va->addr + pool->query_start : 0,
 
       .first_query = firstQuery,
-      .dst_addr = hk_buffer_address(dst_buffer, dstOffset),
+      .dst_addr = hk_buffer_address_rw(dst_buffer, dstOffset),
       .dst_stride = stride,
       .reports_per_query = hk_reports_per_query(pool),
-
-      .partial = flags & VK_QUERY_RESULT_WITH_AVAILABILITY_BIT,
-      ._64 = flags & VK_QUERY_RESULT_64_BIT,
-      .with_availability = flags & VK_QUERY_RESULT_WITH_AVAILABILITY_BIT,
+      .flags = flags,
    };
 
-   libagx_copy_query_struct(cs, agx_1d(queryCount), AGX_BARRIER_ALL, info);
+   libagx_copy_query_struct(cmd, agx_1d(queryCount), AGX_BARRIER_ALL, info);
 }

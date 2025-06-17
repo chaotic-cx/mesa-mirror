@@ -51,6 +51,8 @@
 #include "loader.h"
 #include "loader_dri_helper.h"
 #include "dri_util.h"
+#include "mapi/glapi/glapi.h"
+#include "dispatch.h"
 
 #undef DRI2_MINOR
 #define DRI2_MINOR 1
@@ -285,7 +287,7 @@ dri2Flush(struct dri2_screen *psc,
       dri_flush(ctx, draw->base.dri_drawable, flags, throttle_reason);
    } else {
       if (flags & __DRI2_FLUSH_CONTEXT)
-         glFlush();
+         CALL_Flush(GET_DISPATCH(), ());
 
       dri_flush_drawable(draw->base.dri_drawable);
 
@@ -619,7 +621,7 @@ static const __DRIdri2LoaderExtension dri2LoaderExtension = {
    .getBuffersWithFormat    = dri2GetBuffersWithFormat,
 };
 
-_X_HIDDEN void
+void
 dri2InvalidateBuffers(Display *dpy, XID drawable)
 {
    __GLXDRIdrawable *pdraw =
@@ -641,7 +643,6 @@ static const struct glx_context_vtable dri2_context_vtable = {
 
 static const __DRIextension *loader_extensions[] = {
    &dri2LoaderExtension.base,
-   &dri2UseInvalidate.base,
    &driBackgroundCallable.base,
    NULL
 };
@@ -750,7 +751,7 @@ handle_error:
    return NULL;
 }
 
-_X_HIDDEN __GLXDRIdrawable *
+__GLXDRIdrawable *
 dri2GetGlxDrawableFromXDrawableId(Display *dpy, XID id)
 {
    struct glx_display *d = __glXInitialize(dpy);

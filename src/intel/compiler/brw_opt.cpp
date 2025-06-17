@@ -4,13 +4,13 @@
  */
 
 #include "brw_eu.h"
-#include "brw_fs.h"
-#include "brw_fs_builder.h"
+#include "brw_shader.h"
+#include "brw_builder.h"
 
-using namespace brw;
+#include "dev/intel_debug.h"
 
 void
-brw_optimize(fs_visitor &s)
+brw_optimize(brw_shader &s)
 {
    const nir_shader *nir = s.nir;
 
@@ -18,13 +18,6 @@ brw_optimize(fs_visitor &s)
 
    /* Start by validating the shader we currently have. */
    brw_validate(s);
-
-   /* Track how much non-SSA at this point. */
-   {
-      const brw::def_analysis &defs = s.def_analysis.require();
-      s.shader_stats.non_ssa_registers_after_nir =
-         defs.count() - defs.ssa_count();
-   }
 
    bool progress = false;
    int iteration = 0;
@@ -60,6 +53,21 @@ brw_optimize(fs_visitor &s)
 
    OPT(brw_opt_eliminate_find_live_channel);
 
+   /* Add load_reg instructions before the main optimization loop to get more
+    * defs available in those passes. Do it after the preceeding few pre-loop
+    * passes so that it hopefully has less work to do. Having it here versus
+    * before the call to opt_dce made some difference, but it was mostly
+    * noise.
+    */
+   OPT(brw_insert_load_reg);
+
+   /* Track how much non-SSA at this point. */
+   {
+      const brw_def_analysis &defs = s.def_analysis.require();
+      s.shader_stats.non_ssa_registers_after_nir =
+         defs.count() - defs.ssa_count();
+   }
+
    do {
       progress = false;
       pass_num = 0;
@@ -67,8 +75,7 @@ brw_optimize(fs_visitor &s)
 
       OPT(brw_opt_algebraic);
       OPT(brw_opt_cse_defs);
-      if (!OPT(brw_opt_copy_propagation_defs))
-         OPT(brw_opt_copy_propagation);
+      OPT(brw_opt_copy_propagation_defs);
       OPT(brw_opt_cmod_propagation);
       OPT(brw_opt_dead_code_eliminate);
       OPT(brw_opt_saturate_propagation);
@@ -84,6 +91,12 @@ brw_optimize(fs_visitor &s)
 
    if (OPT(brw_opt_combine_convergent_txf))
       OPT(brw_opt_copy_propagation_defs);
+
+   if (OPT(brw_lower_load_reg)) {
+      OPT(brw_opt_copy_propagation);
+      OPT(brw_opt_register_coalesce);
+      OPT(brw_opt_dead_code_eliminate);
+   }
 
    if (OPT(brw_lower_pack)) {
       OPT(brw_opt_register_coalesce);
@@ -112,6 +125,9 @@ brw_optimize(fs_visitor &s)
          OPT(brw_opt_copy_propagation);
       }
    }
+
+   if (s.devinfo->ver >= 30)
+      OPT(brw_opt_send_to_send_gather);
 
    OPT(brw_opt_split_sends);
    OPT(brw_workaround_nomask_control_flow);
@@ -145,8 +161,6 @@ brw_optimize(fs_visitor &s)
 
    brw_shader_phase_update(s, BRW_SHADER_PHASE_AFTER_MIDDLE_LOWERING);
 
-   OPT(brw_lower_alu_restrictions);
-
    OPT(brw_opt_combine_constants);
    if (OPT(brw_lower_integer_multiplication)) {
       /* If lower_integer_multiplication made progress, it may have produced
@@ -175,14 +189,20 @@ brw_optimize(fs_visitor &s)
    if (progress)
       OPT(brw_lower_simd_width);
 
+   if (s.devinfo->ver >= 30)
+      OPT(brw_opt_send_gather_to_send);
+
    OPT(brw_lower_uniform_pull_constant_loads);
+
+   /* Do this before brw_lower_send_descriptors. */
+   OPT(brw_workaround_memory_fence_before_eot);
 
    if (OPT(brw_lower_send_descriptors)) {
       /* No need for standard copy_propagation since
-       * brw_fs_opt_address_reg_load will only optimize defs.
+       * brw_opt_address_reg_load will only optimize defs.
        */
-      if (OPT(brw_opt_copy_propagation_defs))
-         OPT(brw_opt_algebraic);
+      OPT(brw_opt_copy_propagation_defs);
+      OPT(brw_opt_algebraic);
       OPT(brw_opt_address_reg_load);
       OPT(brw_opt_dead_code_eliminate);
    }
@@ -190,6 +210,8 @@ brw_optimize(fs_visitor &s)
    OPT(brw_lower_sends_overlapping_payload);
 
    OPT(brw_lower_indirect_mov);
+
+   OPT(brw_lower_alu_restrictions);
 
    OPT(brw_lower_find_live_channel);
 
@@ -199,7 +221,7 @@ brw_optimize(fs_visitor &s)
 }
 
 static unsigned
-load_payload_sources_read_for_size(fs_inst *lp, unsigned size_read)
+load_payload_sources_read_for_size(brw_inst *lp, unsigned size_read)
 {
    assert(lp->opcode == SHADER_OPCODE_LOAD_PAYLOAD);
    assert(size_read >= lp->header_size * REG_SIZE);
@@ -224,11 +246,11 @@ load_payload_sources_read_for_size(fs_inst *lp, unsigned size_read)
  */
 
 bool
-brw_opt_zero_samples(fs_visitor &s)
+brw_opt_zero_samples(brw_shader &s)
 {
    bool progress = false;
 
-   foreach_block_and_inst(block, fs_inst, send, s.cfg) {
+   foreach_block_and_inst(block, brw_inst, send, s.cfg) {
       if (send->opcode != SHADER_OPCODE_SEND ||
           send->sfid != BRW_SFID_SAMPLER)
          continue;
@@ -245,7 +267,7 @@ brw_opt_zero_samples(fs_visitor &s)
       if (send->ex_mlen > 0)
          continue;
 
-      fs_inst *lp = (fs_inst *) send->prev;
+      brw_inst *lp = (brw_inst *) send->prev;
 
       if (lp->is_head_sentinel() || lp->opcode != SHADER_OPCODE_LOAD_PAYLOAD)
          continue;
@@ -279,7 +301,7 @@ brw_opt_zero_samples(fs_visitor &s)
    }
 
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTION_DETAIL);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTION_DETAIL);
 
    return progress;
 }
@@ -301,18 +323,18 @@ brw_opt_zero_samples(fs_visitor &s)
  * payload concatenation altogether.
  */
 bool
-brw_opt_split_sends(fs_visitor &s)
+brw_opt_split_sends(brw_shader &s)
 {
    bool progress = false;
 
-   foreach_block_and_inst(block, fs_inst, send, s.cfg) {
+   foreach_block_and_inst(block, brw_inst, send, s.cfg) {
       if (send->opcode != SHADER_OPCODE_SEND ||
           send->mlen <= reg_unit(s.devinfo) || send->ex_mlen > 0 ||
           send->src[2].file != VGRF)
          continue;
 
       /* Currently don't split sends that reuse a previously used payload. */
-      fs_inst *lp = (fs_inst *) send->prev;
+      brw_inst *lp = (brw_inst *) send->prev;
 
       if (lp->is_head_sentinel() || lp->opcode != SHADER_OPCODE_LOAD_PAYLOAD)
          continue;
@@ -345,16 +367,16 @@ brw_opt_split_sends(fs_visitor &s)
       if (end <= mid)
          continue;
 
-      const fs_builder ibld(&s, block, lp);
-      fs_inst *lp1 = ibld.LOAD_PAYLOAD(lp->dst, &lp->src[0], mid, lp->header_size);
-      fs_inst *lp2 = ibld.LOAD_PAYLOAD(lp->dst, &lp->src[mid], end - mid, 0);
+      const brw_builder ibld(lp);
+      brw_inst *lp1 = ibld.LOAD_PAYLOAD(lp->dst, &lp->src[0], mid, lp->header_size);
+      brw_inst *lp2 = ibld.LOAD_PAYLOAD(lp->dst, &lp->src[mid], end - mid, 0);
 
       assert(lp1->size_written % REG_SIZE == 0);
       assert(lp2->size_written % REG_SIZE == 0);
       assert((lp1->size_written + lp2->size_written) / REG_SIZE == send->mlen);
 
-      lp1->dst = brw_vgrf(s.alloc.allocate(lp1->size_written / REG_SIZE), lp1->dst.type);
-      lp2->dst = brw_vgrf(s.alloc.allocate(lp2->size_written / REG_SIZE), lp2->dst.type);
+      lp1->dst = retype(brw_allocate_vgrf_units(s, lp1->size_written / REG_SIZE), lp1->dst.type);
+      lp2->dst = retype(brw_allocate_vgrf_units(s, lp2->size_written / REG_SIZE), lp2->dst.type);
 
       send->resize_sources(4);
       send->src[2] = lp1->dst;
@@ -366,7 +388,8 @@ brw_opt_split_sends(fs_visitor &s)
    }
 
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS | DEPENDENCY_VARIABLES);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS |
+                            BRW_DEPENDENCY_VARIABLES);
 
    return progress;
 }
@@ -381,20 +404,18 @@ brw_opt_split_sends(fs_visitor &s)
  * halt-target
  */
 bool
-brw_opt_remove_redundant_halts(fs_visitor &s)
+brw_opt_remove_redundant_halts(brw_shader &s)
 {
    bool progress = false;
 
    unsigned halt_count = 0;
-   fs_inst *halt_target = NULL;
-   bblock_t *halt_target_block = NULL;
-   foreach_block_and_inst(block, fs_inst, inst, s.cfg) {
+   brw_inst *halt_target = NULL;
+   foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
       if (inst->opcode == BRW_OPCODE_HALT)
          halt_count++;
 
       if (inst->opcode == SHADER_OPCODE_HALT_TARGET) {
          halt_target = inst;
-         halt_target_block = block;
          break;
       }
    }
@@ -405,21 +426,21 @@ brw_opt_remove_redundant_halts(fs_visitor &s)
    }
 
    /* Delete any HALTs immediately before the halt target. */
-   for (fs_inst *prev = (fs_inst *) halt_target->prev;
+   for (brw_inst *prev = (brw_inst *) halt_target->prev;
         !prev->is_head_sentinel() && prev->opcode == BRW_OPCODE_HALT;
-        prev = (fs_inst *) halt_target->prev) {
-      prev->remove(halt_target_block);
+        prev = (brw_inst *) halt_target->prev) {
+      prev->remove();
       halt_count--;
       progress = true;
    }
 
    if (halt_count == 0) {
-      halt_target->remove(halt_target_block);
+      halt_target->remove();
       progress = true;
    }
 
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS);
 
    return progress;
 }
@@ -430,7 +451,7 @@ brw_opt_remove_redundant_halts(fs_visitor &s)
  * analysis.
  */
 bool
-brw_opt_eliminate_find_live_channel(fs_visitor &s)
+brw_opt_eliminate_find_live_channel(brw_shader &s)
 {
    bool progress = false;
    unsigned depth = 0;
@@ -444,7 +465,7 @@ brw_opt_eliminate_find_live_channel(fs_visitor &s)
       return false;
    }
 
-   foreach_block_and_inst_safe(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst_safe(block, brw_inst, inst, s.cfg) {
       switch (inst->opcode) {
       case BRW_OPCODE_IF:
       case BRW_OPCODE_DO:
@@ -483,7 +504,7 @@ brw_opt_eliminate_find_live_channel(fs_visitor &s)
              * and opt_algebraic by trivially cleaning up both together.
              */
             assert(!inst->next->is_tail_sentinel());
-            fs_inst *bcast = (fs_inst *) inst->next;
+            brw_inst *bcast = (brw_inst *) inst->next;
 
             /* Ignore stride when comparing */
             if (bcast->opcode == SHADER_OPCODE_BROADCAST &&
@@ -510,7 +531,8 @@ brw_opt_eliminate_find_live_channel(fs_visitor &s)
 
 out:
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTION_DETAIL);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTION_DATA_FLOW |
+                            BRW_DEPENDENCY_INSTRUCTION_DETAIL);
 
    return progress;
 }
@@ -524,7 +546,7 @@ out:
  * mode once is enough for the full vector/matrix
  */
 bool
-brw_opt_remove_extra_rounding_modes(fs_visitor &s)
+brw_opt_remove_extra_rounding_modes(brw_shader &s)
 {
    bool progress = false;
    unsigned execution_mode = s.nir->info.float_controls_execution_mode;
@@ -544,12 +566,12 @@ brw_opt_remove_extra_rounding_modes(fs_visitor &s)
    foreach_block (block, s.cfg) {
       brw_rnd_mode prev_mode = base_mode;
 
-      foreach_inst_in_block_safe (fs_inst, inst, block) {
+      foreach_inst_in_block_safe (brw_inst, inst, block) {
          if (inst->opcode == SHADER_OPCODE_RND_MODE) {
             assert(inst->src[0].file == IMM);
             const brw_rnd_mode mode = (brw_rnd_mode) inst->src[0].d;
             if (mode == prev_mode) {
-               inst->remove(block);
+               inst->remove();
                progress = true;
             } else {
                prev_mode = mode;
@@ -559,7 +581,186 @@ brw_opt_remove_extra_rounding_modes(fs_visitor &s)
    }
 
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS);
+
+   return progress;
+}
+
+bool
+brw_opt_send_to_send_gather(brw_shader &s)
+{
+   const intel_device_info *devinfo = s.devinfo;
+   bool progress = false;
+
+   assert(devinfo->ver >= 30);
+
+   const unsigned unit = reg_unit(devinfo);
+   assert(unit == 2);
+
+   unsigned count = 0;
+
+   foreach_block_and_inst_safe(block, brw_inst, inst, s.cfg) {
+      if (inst->opcode != SHADER_OPCODE_SEND)
+         continue;
+
+      /* For 1-2 registers, send-gather offers no benefits over split-send. */
+      if (inst->mlen + inst->ex_mlen <= 2 * unit)
+         continue;
+
+      assert(inst->mlen % unit == 0);
+      assert(inst->ex_mlen % unit == 0);
+
+      struct {
+         brw_reg src;
+         unsigned phys_len;
+      } payload[2] = {
+         { inst->src[2], inst->mlen / unit },
+         { inst->src[3], inst->ex_mlen / unit },
+      };
+
+      const unsigned num_payload_sources = payload[0].phys_len + payload[1].phys_len;
+
+      /* Limited by Src0.Length in the SEND instruction. */
+      if (num_payload_sources > 15)
+         continue;
+
+      if (INTEL_DEBUG(DEBUG_NO_SEND_GATHER)) {
+         count++;
+         continue;
+      }
+
+      inst->resize_sources(3 + num_payload_sources);
+      /* Sources 0 and 1 remain the same.  Source 2 will be filled
+       * after register allocation.
+       */
+      inst->src[2] = {};
+
+      int idx = 3;
+      for (unsigned p = 0; p < ARRAY_SIZE(payload); p++) {
+         for (unsigned i = 0; i < payload[p].phys_len; i++) {
+            inst->src[idx++] = byte_offset(payload[p].src,
+                                           i * reg_unit(devinfo) * REG_SIZE);
+         }
+      }
+      assert(idx == inst->sources);
+
+      inst->opcode = SHADER_OPCODE_SEND_GATHER;
+      inst->mlen = 0;
+      inst->ex_mlen = 0;
+
+      progress = true;
+   }
+
+   if (INTEL_DEBUG(DEBUG_NO_SEND_GATHER)) {
+      fprintf(stderr, "Ignored %u opportunities to try SEND_GATHER in %s shader.\n",
+              count, _mesa_shader_stage_to_string(s.stage));
+   }
+
+   if (progress)
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTION_DETAIL |
+                            BRW_DEPENDENCY_INSTRUCTION_DATA_FLOW);
+
+   return progress;
+}
+
+/* If after optimizations, the sources are *still* contiguous in a
+ * SEND_GATHER, prefer to use the regular SEND, which would save
+ * having to write the ARF scalar register.
+ */
+bool
+brw_opt_send_gather_to_send(brw_shader &s)
+{
+   const intel_device_info *devinfo = s.devinfo;
+   bool progress = false;
+
+   assert(devinfo->ver >= 30);
+
+   const unsigned unit = reg_unit(devinfo);
+   assert(unit == 2);
+
+   foreach_block_and_inst_safe(block, brw_inst, inst, s.cfg) {
+      if (inst->opcode != SHADER_OPCODE_SEND_GATHER)
+         continue;
+
+      assert(inst->sources > 2);
+      assert(inst->src[2].file == BAD_FILE);
+
+      const int num_payload_sources = inst->sources - 3;
+      assert(num_payload_sources > 0);
+
+      /* Limited by Src0.Length in the SEND instruction. */
+      assert(num_payload_sources < 16);
+
+      /* Determine whether the sources are still spread in either one or two
+       * spans.  In those cases the regular SEND instruction can be used
+       * and there's no need to use SEND_GATHER (which would set ARF scalar register
+       * adding an extra instruction).
+       */
+      const brw_reg *payload = &inst->src[3];
+      brw_reg payload1       = payload[0];
+      brw_reg payload2       = {};
+      int payload1_len       = 0;
+      int payload2_len       = 0;
+
+      for (int i = 0; i < num_payload_sources; i++) {
+         if (payload[i].file == VGRF &&
+             payload[i].nr == payload1.nr &&
+             payload[i].offset == payload1_len * REG_SIZE * unit)
+            payload1_len++;
+         else {
+            payload2 = payload[i];
+            break;
+         }
+      }
+
+      if (payload2.file == VGRF) {
+         for (int i = payload1_len; i < num_payload_sources; i++) {
+            if (payload[i].file == VGRF &&
+                payload[i].nr == payload2.nr &&
+                payload[i].offset == payload2_len * REG_SIZE * unit)
+               payload2_len++;
+            else
+               break;
+         }
+      } else {
+         payload2 = brw_null_reg();
+      }
+
+      if (payload1_len + payload2_len != num_payload_sources)
+         continue;
+
+      /* Bspec 57058 (r64705) says
+       *
+       *    When a source data payload is used in dataport message, that payload
+       *    must be specified as Source 1 portion of a Split Send message.
+       *
+       * But at this point the split point is not guaranteed to respect that.
+       *
+       * TODO: Pass LSC address length or infer it so valid splits can work.
+       */
+      if (payload2_len && (inst->sfid == BRW_SFID_UGM ||
+                           inst->sfid == BRW_SFID_TGM ||
+                           inst->sfid == BRW_SFID_SLM ||
+                           inst->sfid == BRW_SFID_URB)) {
+         enum lsc_opcode lsc_op = lsc_msg_desc_opcode(devinfo, inst->desc);
+         if (lsc_op_num_data_values(lsc_op) > 0)
+            continue;
+      }
+
+      inst->resize_sources(4);
+      inst->opcode  = SHADER_OPCODE_SEND;
+      inst->src[2]  = payload1;
+      inst->src[3]  = payload2;
+      inst->mlen    = payload1_len * unit;
+      inst->ex_mlen = payload2_len * unit;
+
+      progress = true;
+   }
+
+   if (progress) {
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTION_DETAIL |
+                            BRW_DEPENDENCY_INSTRUCTION_DATA_FLOW);
+   }
 
    return progress;
 }

@@ -115,32 +115,34 @@ html_copy_source = False
 html_static_path = []
 
 html_extra_path = [
-  '_extra/',
-  'release-maintainers-keys.asc',
-  'features.txt',
-  'libGL.txt',
-  'README.UVD',
-  'README.VCE',
+    '_extra/',
+    'release-maintainers-keys.asc',
+    'features.txt',
+    'libGL.txt',
+    'README.UVD',
+    'README.VCE',
 ]
 
 html_redirects = [
-  ('webmaster', 'https://www.mesa3d.org/website/'),
-  ('developers', 'https://www.mesa3d.org/developers/'),
-  ('thanks', 'https://gitlab.freedesktop.org/mesa/mesa/-/blob/amber/docs/thanks.rst'),
+    ('webmaster', 'https://www.mesa3d.org/website/'),
+    ('developers', 'https://www.mesa3d.org/developers/'),
+    ('thanks', 'https://gitlab.freedesktop.org/mesa/mesa/-/blob/amber/docs/thanks.rst'),
 ]
 
 
 # -- Options for linkcheck ------------------------------------------------
 
 linkcheck_ignore = [
-  r'specs/.*\.spec', # gets copied during the build process
-  r'news:.*', # seems linkcheck doesn't like the news: URI-scheme...
-  r'http://mesa-ci-results.jf.intel.com', # only available for Intel employees
-  r'https://gitlab.com/.*#.*', # needs JS eval
-  r'https://gitlab.freedesktop.org/.*#.*', # needs JS eval
-  r'https://github.com/.*#.*', # needs JS eval
-  r'https://www.intel.com/.*', # intel.com is blocking the linkcheck user-agent; maybe it can be customized to look like a browser?
-  r'https://cgit.freedesktop.org/.*', # cgit is no more
+    r'specs/.*\.spec',  # gets copied during the build process
+    r'news:.*',  # seems linkcheck doesn't like the news: URI-scheme...
+    r'http://mesa-ci-results.jf.intel.com',  # only available for Intel employees
+    r'https://gitlab.com/.*#.*',  # needs JS eval
+    r'https://gitlab.freedesktop.org/.*#.*',  # needs JS eval
+    r'https://github.com/.*#.*',  # needs JS eval
+    r'https://www.intel.com/.*',  # intel.com is blocking the linkcheck user-agent; maybe it can be customized to look like a browser?
+    r'https://sourceforge.net/.*',  # blocking the linkcheck user-agent
+    r'https://stackoverflow.com/.*',  # blocking the linkcheck user-agent
+    r'https://cgit.freedesktop.org/.*',  # cgit is no more
 ]
 linkcheck_exclude_documents = [r'relnotes/.*']
 
@@ -155,6 +157,7 @@ linkcheck_allowed_redirects = {
     # Pages that requires authentication
     'https://gitlab.freedesktop.org/admin/runners': 'https://gitlab.freedesktop.org/users/sign_in',
     'https://gitlab.freedesktop.org/profile/personal_access_tokens': 'https://gitlab.freedesktop.org/users/sign_in',
+    'https://support.broadcom.com/group/ecx/free-downloads': 'https://support.broadcom.com/c/portal/login',
 }
 
 
@@ -223,15 +226,15 @@ graphviz_output_format = 'svg'
 hawkmoth_root = os.path.abspath(os.pardir)
 mesa_root = os.path.join(os.path.dirname(__file__), os.pardir)
 hawkmoth_clang = [
-  '-I{}/docs/header-stubs/'.format(mesa_root),
-  '-I{}/include/'.format(mesa_root),
-  '-I{}/src/'.format(mesa_root),
-  '-I{}/src/gallium/include/'.format(mesa_root),
-  '-I{}/src/intel/'.format(mesa_root),
-  '-I{}/src/mesa/'.format(mesa_root),
-  '-DHAVE_STRUCT_TIMESPEC',
-  '-DHAVE_PTHREAD',
-  '-DHAVE_ENDIAN_H',
+    '-I{}/docs/header-stubs/'.format(mesa_root),
+    '-I{}/include/'.format(mesa_root),
+    '-I{}/src/'.format(mesa_root),
+    '-I{}/src/gallium/include/'.format(mesa_root),
+    '-I{}/src/intel/'.format(mesa_root),
+    '-I{}/src/mesa/'.format(mesa_root),
+    '-DHAVE_STRUCT_TIMESPEC',
+    '-DHAVE_PTHREAD',
+    '-DHAVE_ENDIAN_H',
 ]
 hawkmoth_clang.extend(compiler.get_include_args())
 

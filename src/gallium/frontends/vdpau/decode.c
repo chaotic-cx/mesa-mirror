@@ -41,6 +41,7 @@
 #define AV1_PRIMARY_REF_NONE    AV1_REFS_PER_FRAME
 #define AV1_SUPERRES_DENOM_MIN  9
 #define AV1_SUPERRES_NUM        8
+#define H264_CHROMA_FORMAT_IDC_420 1
 
 /**
  * Create a VdpDecoder.
@@ -214,7 +215,7 @@ vlVdpGetReferenceFrame(VdpVideoSurface handle, struct pipe_video_buffer **ref_fr
    if (!surface)
       return VDP_STATUS_INVALID_HANDLE;
 
-   *ref_frame = surface->video_buffer;
+   *ref_frame = surface->ref_buffer ? surface->ref_buffer : surface->video_buffer;
    if (!*ref_frame)
          return VDP_STATUS_INVALID_HANDLE;
 
@@ -362,6 +363,7 @@ vlVdpDecoderRenderH264(struct pipe_h264_picture_desc *picture,
 
    VDPAU_MSG(VDPAU_TRACE, "[VDPAU] Decoding H264\n");
 
+   picture->pps->sps->chroma_format_idc = H264_CHROMA_FORMAT_IDC_420;
    picture->pps->sps->mb_adaptive_frame_field_flag = picture_info->mb_adaptive_frame_field_flag;
    picture->pps->sps->frame_mbs_only_flag = picture_info->frame_mbs_only_flag;
    picture->pps->sps->log2_max_frame_num_minus4 = picture_info->log2_max_frame_num_minus4;
@@ -525,8 +527,6 @@ vlVdpDecoderRenderH265(struct pipe_h265_picture_desc *picture,
    memcpy(picture->RefPicSetStCurrBefore, picture_info->RefPicSetStCurrBefore, 8);
    memcpy(picture->RefPicSetStCurrAfter, picture_info->RefPicSetStCurrAfter, 8);
    memcpy(picture->RefPicSetLtCurr, picture_info->RefPicSetLtCurr, 8);
-   picture->UseRefPicList = false;
-   picture->UseStRpsBits = false;
 
    return VDP_STATUS_OK;
 }
@@ -617,12 +617,9 @@ copyAV1TileInfo(struct pipe_av1_picture_desc *picture,
 
 static VdpStatus
 vlVdpDecoderRenderAV1(struct pipe_av1_picture_desc *picture,
-                      VdpVideoSurface target,
                       const VdpPictureInfoAV1 *picture_info)
 {
    unsigned i, j;
-
-   picture->film_grain_target = NULL;
 
    picture->picture_parameter.profile = picture_info->profile;
    picture->picture_parameter.order_hint_bits_minus_1 = picture_info->order_hint_bits_minus1;
@@ -658,11 +655,8 @@ vlVdpDecoderRenderAV1(struct pipe_av1_picture_desc *picture,
    picture->picture_parameter.seq_info_fields.subsampling_y =
       picture_info->subsampling_y;
 
-   picture->picture_parameter.current_frame_id = target;
    picture->picture_parameter.frame_width = picture_info->width;
    picture->picture_parameter.frame_height = picture_info->height;
-   picture->picture_parameter.max_width = picture_info->width;
-   picture->picture_parameter.max_height = picture_info->height;
 
    for (i = 0; i < AV1_NUM_REF_FRAMES; ++i) {
       if (picture_info->frame_type == AV1_KEY_FRAME && picture_info->show_frame) {
@@ -990,16 +984,6 @@ vlVdpDecoderFixVC1Startcode(uint32_t *num_buffers, const void *buffers[], unsign
    sizes[0] = 4;
 }
 
-static bool
-vlVdpQueryInterlacedH264(struct pipe_h264_picture_desc *h264)
-{
-   if (h264->pps->sps->frame_mbs_only_flag)
-      return false;
-
-   return h264->field_pic_flag || /* PAFF */
-      h264->pps->sps->mb_adaptive_frame_field_flag; /* MBAFF */
-}
-
 /**
  * Decode a compressed field/frame and render the result into a VdpVideoSurface.
  */
@@ -1032,7 +1016,7 @@ vlVdpDecoderRender(VdpDecoder decoder,
       struct pipe_h265_picture_desc h265;
       struct pipe_av1_picture_desc av1;
    } desc;
-   bool picture_interlaced = false;
+   struct pipe_video_buffer *target_buf;
 
    if (!(picture_info && bitstream_buffers))
       return VDP_STATUS_INVALID_POINTER;
@@ -1054,6 +1038,42 @@ vlVdpDecoderRender(VdpDecoder decoder,
        pipe_format_to_chroma_format(vlsurf->video_buffer->buffer_format) != dec->chroma_format)
       // TODO: Recreate decoder with correct chroma
       return VDP_STATUS_INVALID_CHROMA_TYPE;
+
+   buffer_support[0] = screen->get_video_param(screen, dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
+                                               PIPE_VIDEO_CAP_SUPPORTS_PROGRESSIVE);
+   buffer_support[1] = screen->get_video_param(screen, dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
+                                               PIPE_VIDEO_CAP_SUPPORTS_INTERLACED);
+
+   if (vlsurf->video_buffer == NULL ||
+       !screen->is_video_format_supported(screen, vlsurf->video_buffer->buffer_format,
+                                          dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM) ||
+       !buffer_support[vlsurf->video_buffer->interlaced]) {
+
+      mtx_lock(&vlsurf->device->mutex);
+
+      /* destroy the old one */
+      if (vlsurf->video_buffer)
+         vlsurf->video_buffer->destroy(vlsurf->video_buffer);
+
+      /* set the buffer format to the prefered one */
+      vlsurf->templat.buffer_format = screen->get_video_param(screen, dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
+                                                              PIPE_VIDEO_CAP_PREFERRED_FORMAT);
+
+      /* also set interlacing to decoders preferences */
+      vlsurf->templat.interlaced = screen->get_video_param(screen, dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
+                                                           PIPE_VIDEO_CAP_PREFERS_INTERLACED);
+
+      /* and recreate the video buffer */
+      vlsurf->video_buffer = dec->context->create_video_buffer(dec->context, &vlsurf->templat);
+
+      /* still no luck? get me out of here... */
+      if (!vlsurf->video_buffer) {
+         mtx_unlock(&vlsurf->device->mutex);
+         return VDP_STATUS_NO_IMPLEMENTATION;
+      }
+      vlVdpVideoSurfaceClear(vlsurf);
+      mtx_unlock(&vlsurf->device->mutex);
+   }
 
    for (i = 0; i < bitstream_buffer_count; ++i) {
       buffers[i] = bitstream_buffers[i].bitstream;
@@ -1077,14 +1097,13 @@ vlVdpDecoderRender(VdpDecoder decoder,
    case PIPE_VIDEO_FORMAT_MPEG4_AVC:
       desc.h264.pps = &pps_h264;
       ret = vlVdpDecoderRenderH264(&desc.h264, (VdpPictureInfoH264 *)picture_info, dec->level);
-      picture_interlaced = vlVdpQueryInterlacedH264(&desc.h264);
       break;
    case PIPE_VIDEO_FORMAT_HEVC:
       desc.h265.pps = &pps_h265;
       ret = vlVdpDecoderRenderH265(&desc.h265, (VdpPictureInfoHEVC *)picture_info);
       break;
    case PIPE_VIDEO_FORMAT_AV1:
-      ret = vlVdpDecoderRenderAV1(&desc.av1, target, (VdpPictureInfoAV1 *)picture_info);
+      ret = vlVdpDecoderRenderAV1(&desc.av1, (VdpPictureInfoAV1 *)picture_info);
       break;
    default:
       return VDP_STATUS_INVALID_DECODER_PROFILE;
@@ -1093,47 +1112,34 @@ vlVdpDecoderRender(VdpDecoder decoder,
    if (ret != VDP_STATUS_OK)
       return ret;
 
-   buffer_support[0] = screen->get_video_param(screen, dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
-                                               PIPE_VIDEO_CAP_SUPPORTS_PROGRESSIVE);
-   buffer_support[1] = screen->get_video_param(screen, dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
-                                               PIPE_VIDEO_CAP_SUPPORTS_INTERLACED);
+   target_buf = vlsurf->video_buffer;
 
-   if (vlsurf->video_buffer == NULL ||
-       !screen->is_video_format_supported(screen, vlsurf->video_buffer->buffer_format,
-                                          dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM) ||
-       !buffer_support[vlsurf->video_buffer->interlaced] ||
-       (picture_interlaced && !vlsurf->video_buffer->interlaced && buffer_support[1])) {
-
-      mtx_lock(&vlsurf->device->mutex);
-
-      /* destroy the old one */
-      if (vlsurf->video_buffer)
-         vlsurf->video_buffer->destroy(vlsurf->video_buffer);
-
-      /* set the buffer format to the prefered one */
-      vlsurf->templat.buffer_format = screen->get_video_param(screen, dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
-                                                              PIPE_VIDEO_CAP_PREFERED_FORMAT);
-
-      /* also set interlacing to decoders preferences */
-      vlsurf->templat.interlaced = screen->get_video_param(screen, dec->profile, PIPE_VIDEO_ENTRYPOINT_BITSTREAM,
-                                                           PIPE_VIDEO_CAP_PREFERS_INTERLACED) || picture_interlaced;
-
-      /* and recreate the video buffer */
-      vlsurf->video_buffer = dec->context->create_video_buffer(dec->context, &vlsurf->templat);
-
-      /* still no luck? get me out of here... */
-      if (!vlsurf->video_buffer) {
+   if (u_reduce_video_profile(dec->profile) == PIPE_VIDEO_FORMAT_AV1) {
+      desc.av1.film_grain_target = NULL;
+      if (desc.av1.picture_parameter.film_grain_info.film_grain_info_fields.apply_grain) {
+         if (!vlsurf->ref_buffer) {
+            mtx_lock(&vlsurf->device->mutex);
+            vlsurf->ref_buffer = dec->context->create_video_buffer(dec->context, &vlsurf->templat);
+            mtx_unlock(&vlsurf->device->mutex);
+            if (!vlsurf->ref_buffer)
+               return VDP_STATUS_RESOURCES;
+         }
+         desc.av1.film_grain_target = target_buf;
+         target_buf = vlsurf->ref_buffer;
+      } else if (vlsurf->ref_buffer) {
+         mtx_lock(&vlsurf->device->mutex);
+         vlsurf->ref_buffer->destroy(vlsurf->ref_buffer);
+         vlsurf->ref_buffer = NULL;
          mtx_unlock(&vlsurf->device->mutex);
-         return VDP_STATUS_NO_IMPLEMENTATION;
       }
-      vlVdpVideoSurfaceClear(vlsurf);
-      mtx_unlock(&vlsurf->device->mutex);
+      desc.av1.picture_parameter.max_width = vlsurf->templat.width;
+      desc.av1.picture_parameter.max_height = vlsurf->templat.height;
    }
 
    mtx_lock(&vldecoder->mutex);
-   dec->begin_frame(dec, vlsurf->video_buffer, &desc.base);
-   dec->decode_bitstream(dec, vlsurf->video_buffer, &desc.base, bitstream_buffer_count, buffers, sizes);
-   dec->end_frame(dec, vlsurf->video_buffer, &desc.base);
+   dec->begin_frame(dec, target_buf, &desc.base);
+   dec->decode_bitstream(dec, target_buf, &desc.base, bitstream_buffer_count, buffers, sizes);
+   dec->end_frame(dec, target_buf, &desc.base);
    mtx_unlock(&vldecoder->mutex);
    return ret;
 }

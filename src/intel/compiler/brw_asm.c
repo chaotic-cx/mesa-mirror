@@ -6,85 +6,100 @@
 #include "brw_asm.h"
 #include "brw_asm_internal.h"
 #include "brw_disasm_info.h"
+#include "util/hash_table.h"
+#include "util/u_dynarray.h"
 
 /* TODO: Check if we can use bison/flex without globals. */
 
 extern FILE *yyin;
-struct list_head instr_labels;
-struct list_head target_labels;
 
 struct brw_codegen *p;
 const char *input_filename;
 int errors;
+bool compaction_warning_given;
+
+/*
+ * Label tracking.
+ */
+static struct hash_table *brw_asm_labels;
+
+typedef struct {
+   char *name;
+   int offset; /* -1 for unset */
+   struct util_dynarray jip_uses;
+   struct util_dynarray uip_uses;
+} brw_asm_label;
+
+static brw_asm_label *
+brw_asm_label_lookup(const char *name)
+{
+   uint32_t h = _mesa_hash_string(name);
+   struct hash_entry *entry =
+      _mesa_hash_table_search_pre_hashed(brw_asm_labels, h, name);
+   if (!entry) {
+      void *mem_ctx = brw_asm_labels;
+      brw_asm_label *label = rzalloc(mem_ctx, brw_asm_label);
+      label->name = ralloc_strdup(mem_ctx, name);
+      label->offset = -1;
+      util_dynarray_init(&label->jip_uses, mem_ctx);
+      util_dynarray_init(&label->uip_uses, mem_ctx);
+      entry = _mesa_hash_table_insert_pre_hashed(brw_asm_labels,
+                                                 h, name, label);
+   }
+   assert(entry);
+   return entry->data;
+}
+
+void
+brw_asm_label_set(const char *name)
+{
+   brw_asm_label *label = brw_asm_label_lookup(name);
+   label->offset = p->next_insn_offset;
+}
+
+void
+brw_asm_label_use_jip(const char *name)
+{
+   brw_asm_label *label = brw_asm_label_lookup(name);
+   int offset = p->next_insn_offset - sizeof(brw_eu_inst);
+   util_dynarray_append(&label->jip_uses, int, offset);
+}
+
+void
+brw_asm_label_use_uip(const char *name)
+{
+   brw_asm_label *label = brw_asm_label_lookup(name);
+   int offset = p->next_insn_offset - sizeof(brw_eu_inst);
+   util_dynarray_append(&label->uip_uses, int, offset);
+}
 
 static bool
-i965_postprocess_labels()
+brw_postprocess_labels()
 {
+   unsigned unknown = 0;
    void *store = p->store;
 
-   struct target_label *tlabel;
-   struct instr_label *ilabel, *s;
+   hash_table_foreach(brw_asm_labels, entry) {
+      brw_asm_label *label = entry->data;
 
-   const unsigned to_bytes_scale = brw_jump_scale(p->devinfo);
+      if (label->offset == -1) {
+         fprintf(stderr, "Unknown label '%s'\n", label->name);
+         unknown++;
+         continue;
+      }
 
-   LIST_FOR_EACH_ENTRY(tlabel, &target_labels, link) {
-      LIST_FOR_EACH_ENTRY_SAFE(ilabel, s, &instr_labels, link) {
-         if (!strcmp(tlabel->name, ilabel->name)) {
-            brw_eu_inst *inst = store + ilabel->offset;
+      util_dynarray_foreach(&label->jip_uses, int, use_offset) {
+         brw_eu_inst *inst = store + *use_offset;
+         brw_eu_inst_set_jip(p->devinfo, inst, label->offset - *use_offset);
+      }
 
-            int relative_offset = (tlabel->offset - ilabel->offset) / sizeof(brw_eu_inst);
-            relative_offset *= to_bytes_scale;
-
-            unsigned opcode = brw_eu_inst_opcode(p->isa, inst);
-
-            if (ilabel->type == INSTR_LABEL_JIP) {
-               switch (opcode) {
-               case BRW_OPCODE_IF:
-               case BRW_OPCODE_ELSE:
-               case BRW_OPCODE_ENDIF:
-               case BRW_OPCODE_WHILE:
-                  brw_eu_inst_set_jip(p->devinfo, inst, relative_offset);
-                  break;
-               case BRW_OPCODE_BREAK:
-               case BRW_OPCODE_HALT:
-               case BRW_OPCODE_CONTINUE:
-                  brw_eu_inst_set_jip(p->devinfo, inst, relative_offset);
-                  break;
-               default:
-                  fprintf(stderr, "Unknown opcode %d with JIP label\n", opcode);
-                  return false;
-               }
-            } else {
-               switch (opcode) {
-               case BRW_OPCODE_IF:
-               case BRW_OPCODE_ELSE:
-                  brw_eu_inst_set_uip(p->devinfo, inst, relative_offset);
-                  break;
-               case BRW_OPCODE_WHILE:
-               case BRW_OPCODE_ENDIF:
-                  fprintf(stderr, "WHILE/ENDIF cannot have UIP offset\n");
-                  return false;
-               case BRW_OPCODE_BREAK:
-               case BRW_OPCODE_CONTINUE:
-               case BRW_OPCODE_HALT:
-                  brw_eu_inst_set_uip(p->devinfo, inst, relative_offset);
-                  break;
-               default:
-                  fprintf(stderr, "Unknown opcode %d with UIP label\n", opcode);
-                  return false;
-               }
-            }
-
-            list_del(&ilabel->link);
-         }
+      util_dynarray_foreach(&label->uip_uses, int, use_offset) {
+         brw_eu_inst *inst = store + *use_offset;
+         brw_eu_inst_set_uip(p->devinfo, inst, label->offset - *use_offset);
       }
    }
 
-   LIST_FOR_EACH_ENTRY(ilabel, &instr_labels, link) {
-      fprintf(stderr, "Unknown label '%s'\n", ilabel->name);
-   }
-
-   return list_is_empty(&instr_labels);
+   return unknown == 0;
 }
 
 /* TODO: Would be nice to make this operate on string instead on a FILE. */
@@ -95,8 +110,8 @@ brw_assemble(void *mem_ctx, const struct intel_device_info *devinfo,
 {
    brw_assemble_result result = {0};
 
-   list_inithead(&instr_labels);
-   list_inithead(&target_labels);
+   void *tmp_ctx = ralloc_context(mem_ctx);
+   brw_asm_labels = _mesa_string_hash_table_create(tmp_ctx);
 
    struct brw_isa_info isa;
    brw_init_isa_info(&isa, devinfo);
@@ -107,11 +122,12 @@ brw_assemble(void *mem_ctx, const struct intel_device_info *devinfo,
    yyin = f;
    input_filename = filename;
 
+   compaction_warning_given = false;
    int err = yyparse();
    if (err || errors)
       goto end;
 
-   if (!i965_postprocess_labels())
+   if (!brw_postprocess_labels())
       goto end;
 
    struct disasm_info *disasm_info = disasm_initialize(p->isa, NULL);
@@ -133,22 +149,11 @@ brw_assemble(void *mem_ctx, const struct intel_device_info *devinfo,
       goto end;
    }
 
-   result.bin = p->store;
-   result.bin_size = p->next_insn_offset;
-   result.inst_count = p->next_insn_offset / 16;
-
-   if ((flags & BRW_ASSEMBLE_COMPACT) != 0) {
+   if ((flags & BRW_ASSEMBLE_COMPACT) != 0)
       brw_compact_instructions(p, 0, disasm_info);
 
-      /* Adjust bin size to account for compacted instructions. */
-      int compacted = 0;
-      for (int i = 0; i < result.inst_count; i++) {
-         const brw_eu_inst *inst = result.bin + i;
-         if (brw_eu_inst_cmpt_control(devinfo, inst))
-            compacted++;
-      }
-      result.bin_size -= compacted * 8;
-   }
+   result.bin = p->store;
+   result.bin_size = p->next_insn_offset;
 
    if ((flags & BRW_ASSEMBLE_DUMP) != 0)
       dump_assembly(p->store, 0, p->next_insn_offset, disasm_info, NULL);
@@ -160,8 +165,9 @@ end:
    yyin = NULL;
    input_filename = NULL;
    p = NULL;
-   list_inithead(&instr_labels);
-   list_inithead(&target_labels);
+   brw_asm_labels = NULL;
+
+   ralloc_free(tmp_ctx);
 
    return result;
 }

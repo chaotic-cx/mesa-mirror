@@ -517,6 +517,9 @@ extern "C" fn clGetExtensionFunctionAddress(
         "clSVMAllocARM" => cl_ext_func!(clSVMAlloc: clSVMAllocARM_fn),
         "clSVMFreeARM" => cl_ext_func!(clSVMFree: clSVMFreeARM_fn),
 
+        // cl_ext_buffer_device_address
+        "clSetKernelArgDevicePointerEXT" => cl_ext_func!(clSetKernelArgDevicePointerEXT: clSetKernelArgDevicePointerEXT_fn),
+
         // DPCPP bug https://github.com/intel/llvm/issues/9964
         "clSetProgramSpecializationConstant" => cl_ext_func!(clSetProgramSpecializationConstant: clSetProgramSpecializationConstant_fn),
 
@@ -549,7 +552,12 @@ extern "C" fn clLinkProgram(
         Err(e) => (ptr::null_mut(), e),
     };
 
-    errcode_ret.write_checked(err);
+    // Correct behavior when `errcode_ret` is null is unspecified, but by
+    // analogy, we fail silently in that case.
+    // SAFETY: Caller is responsible for providing a pointer valid for a write
+    // of `size_of::<cl_int>()`.
+    unsafe { errcode_ret.write_checked(err) };
+
     ptr
 }
 

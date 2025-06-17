@@ -43,7 +43,7 @@
 
 #include "mesa_interface.h"
 #include "gbm_driint.h"
-#include "gbmint.h"
+#include <gbm_backend_abi.h>
 #include "loader_dri_helper.h"
 #include "kopper_interface.h"
 #include "loader.h"
@@ -194,10 +194,6 @@ swrast_get_image(struct dri_drawable *driDrawable,
                          data, surf->dri_private);
 }
 
-static const __DRIuseInvalidateExtension use_invalidate = {
-   .base = { __DRI_USE_INVALIDATE, 1 }
-};
-
 static const __DRIimageLookupExtension image_lookup_extension = {
    .base = { __DRI_IMAGE_LOOKUP, 2 },
 
@@ -230,7 +226,6 @@ static const __DRIkopperLoaderExtension kopper_loader_extension = {
 
 static const __DRIextension *gbm_dri_screen_extensions[] = {
    &image_lookup_extension.base,
-   &use_invalidate.base,
    &image_loader_extension.base,
    &swrast_loader_extension.base,
    &kopper_loader_extension.base,
@@ -273,15 +268,23 @@ fail:
 }
 
 static int
-dri_screen_create(struct gbm_dri_device *dri, bool driver_name_is_inferred)
+dri_screen_create(struct gbm_dri_device *dri)
 {
    char *driver_name;
+   int ret;
 
    driver_name = loader_get_driver_for_fd(dri->base.v0.fd);
    if (!driver_name)
       return -1;
 
-   return dri_screen_create_for_driver(dri, driver_name, driver_name_is_inferred);
+   ret = dri_screen_create_for_driver(dri, driver_name, /*driver_name_is_inferred=*/false);
+   if (ret) {
+      /* Note: driver_name freed by called function */
+      driver_name = strdup("zink");
+      ret = dri_screen_create_for_driver(dri, driver_name, /*driver_name_is_inferred=*/true);
+   }
+
+   return ret;
 }
 
 static int
@@ -1078,10 +1081,16 @@ gbm_dri_surface_create(struct gbm_device *gbm,
 		       uint32_t format, uint32_t flags,
                        const uint64_t *modifiers, const unsigned count)
 {
+   struct gbm_dri_device *dri = gbm_dri_device(gbm);
    struct gbm_dri_surface *surf;
 
    if (count)
       assert(modifiers);
+
+   if (count > 0 && !dri->screen->base.screen->resource_create_with_modifiers) {
+      errno = ENOSYS;
+      return NULL;
+   }
 
    /* It's acceptable to create an image with INVALID modifier in the list,
     * but it cannot be on the only modifier (since it will certainly fail
@@ -1196,7 +1205,7 @@ dri_device_create(int fd, uint32_t gbm_backend_version)
 
    force_sw = debug_get_bool_option("GBM_ALWAYS_SOFTWARE", false);
    if (!force_sw) {
-      ret = dri_screen_create(dri, false);
+      ret = dri_screen_create(dri);
       if (ret)
          ret = dri_screen_create_sw(dri, true);
    } else {

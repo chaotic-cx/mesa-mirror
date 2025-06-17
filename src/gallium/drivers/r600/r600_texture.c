@@ -692,8 +692,8 @@ static void r600_texture_allocate_cmask(struct r600_common_screen *rscreen,
 	rtex->cb_color_info |= EG_S_028C70_FAST_CLEAR(1);
 }
 
-static void r600_texture_alloc_cmask_separate(struct r600_common_screen *rscreen,
-					      struct r600_texture *rtex)
+void r600_texture_alloc_cmask_separate(struct r600_common_screen *rscreen,
+					struct r600_texture *rtex)
 {
 	if (rtex->cmask_buffer)
                 return;
@@ -1020,13 +1020,6 @@ r600_choose_tiling(struct r600_common_screen *rscreen,
 	/* Transfer resources should be linear. */
 	if (templ->flags & R600_RESOURCE_FLAG_TRANSFER)
 		return RADEON_SURF_MODE_LINEAR_ALIGNED;
-
-	/* r600g: force tiling on TEXTURE_2D and TEXTURE_3D compute resources. */
-	if (rscreen->gfx_level >= R600 && rscreen->gfx_level <= CAYMAN &&
-	    (templ->bind & PIPE_BIND_COMPUTE_RESOURCE) &&
-	    (templ->target == PIPE_TEXTURE_2D ||
-	     templ->target == PIPE_TEXTURE_3D))
-		force_tiling = true;
 
 	/* Handle common candidates for the linear mode.
 	 * Compressed textures and DB surfaces must always be tiled.
@@ -1497,24 +1490,23 @@ void r600_texture_transfer_unmap(struct pipe_context *ctx,
 struct pipe_surface *r600_create_surface_custom(struct pipe_context *pipe,
 						struct pipe_resource *texture,
 						const struct pipe_surface *templ,
-						unsigned width0, unsigned height0,
-						unsigned width, unsigned height)
+						unsigned width0, unsigned height0)
 {
 	struct r600_surface *surface = CALLOC_STRUCT(r600_surface);
 
 	if (!surface)
 		return NULL;
 
-	assert(templ->u.tex.first_layer <= util_max_layer(texture, templ->u.tex.level));
-	assert(templ->u.tex.last_layer <= util_max_layer(texture, templ->u.tex.level));
+	assert(templ->first_layer <= util_max_layer(texture, templ->level));
+	assert(templ->last_layer <= util_max_layer(texture, templ->level));
 
 	pipe_reference_init(&surface->base.reference, 1);
 	pipe_resource_reference(&surface->base.texture, texture);
 	surface->base.context = pipe;
 	surface->base.format = templ->format;
-	surface->base.width = width;
-	surface->base.height = height;
-	surface->base.u = templ->u;
+	surface->base.level = templ->level;
+	surface->base.first_layer = templ->first_layer;
+	surface->base.last_layer = templ->last_layer;
 
 	surface->width0 = width0;
 	surface->height0 = height0;
@@ -1526,9 +1518,6 @@ static struct pipe_surface *r600_create_surface(struct pipe_context *pipe,
 						struct pipe_resource *tex,
 						const struct pipe_surface *templ)
 {
-	unsigned level = templ->u.tex.level;
-	unsigned width = u_minify(tex->width0, level);
-	unsigned height = u_minify(tex->height0, level);
 	unsigned width0 = tex->width0;
 	unsigned height0 = tex->height0;
 
@@ -1544,20 +1533,13 @@ static struct pipe_surface *r600_create_surface(struct pipe_context *pipe,
 		 * height is changed. */
 		if (tex_desc->block.width != templ_desc->block.width ||
 		    tex_desc->block.height != templ_desc->block.height) {
-			unsigned nblks_x = util_format_get_nblocksx(tex->format, width);
-			unsigned nblks_y = util_format_get_nblocksy(tex->format, height);
-
-			width = nblks_x * templ_desc->block.width;
-			height = nblks_y * templ_desc->block.height;
-
 			width0 = util_format_get_nblocksx(tex->format, width0);
 			height0 = util_format_get_nblocksy(tex->format, height0);
 		}
 	}
 
 	return r600_create_surface_custom(pipe, tex, templ,
-					  width0, height0,
-					  width, height);
+					  width0, height0);
 }
 
 static void r600_surface_destroy(struct pipe_context *pipe,
@@ -1628,129 +1610,6 @@ unsigned r600_translate_colorswap(enum pipe_format format, bool do_endian_swap)
 		break;
 	}
 	return ~0U;
-}
-
-/* FAST COLOR CLEAR */
-
-static void evergreen_set_clear_color(struct r600_texture *rtex,
-				      enum pipe_format surface_format,
-				      const union pipe_color_union *color)
-{
-	union util_color uc;
-
-	memset(&uc, 0, sizeof(uc));
-
-	if (rtex->surface.bpe == 16) {
-		/* DCC fast clear only:
-		 *   CLEAR_WORD0 = R = G = B
-		 *   CLEAR_WORD1 = A
-		 */
-		assert(color->ui[0] == color->ui[1] &&
-		       color->ui[0] == color->ui[2]);
-		uc.ui[0] = color->ui[0];
-		uc.ui[1] = color->ui[3];
-	} else {
-		util_pack_color_union(surface_format, &uc, color);
-	}
-
-	memcpy(rtex->color_clear_value, &uc, 2 * sizeof(uint32_t));
-}
-
-void evergreen_do_fast_color_clear(struct r600_common_context *rctx,
-				   struct pipe_framebuffer_state *fb,
-				   struct r600_atom *fb_state,
-				   unsigned *buffers, uint8_t *dirty_cbufs,
-				   const union pipe_color_union *color)
-{
-	int i;
-
-	/* This function is broken in BE, so just disable this path for now */
-#if UTIL_ARCH_BIG_ENDIAN
-	return;
-#endif
-
-	if (rctx->render_cond)
-		return;
-
-	for (i = 0; i < fb->nr_cbufs; i++) {
-		struct r600_texture *tex;
-		unsigned clear_bit = PIPE_CLEAR_COLOR0 << i;
-
-		if (!fb->cbufs[i])
-			continue;
-
-		/* if this colorbuffer is not being cleared */
-		if (!(*buffers & clear_bit))
-			continue;
-
-		tex = (struct r600_texture *)fb->cbufs[i]->texture;
-
-		/* the clear is allowed if all layers are bound */
-		if (fb->cbufs[i]->u.tex.first_layer != 0 ||
-		    fb->cbufs[i]->u.tex.last_layer != util_max_layer(&tex->resource.b.b, 0)) {
-			continue;
-		}
-
-		/* cannot clear mipmapped textures */
-		if (fb->cbufs[i]->texture->last_level != 0) {
-			continue;
-		}
-
-		/* only supported on tiled surfaces */
-		if (tex->surface.is_linear) {
-			continue;
-		}
-
-		/* shared textures can't use fast clear without an explicit flush,
-		 * because there is no way to communicate the clear color among
-		 * all clients
-		 */
-		if (tex->resource.b.is_shared &&
-		    !(tex->resource.external_usage & PIPE_HANDLE_USAGE_EXPLICIT_FLUSH))
-			continue;
-
-		/* Use a slow clear for small surfaces where the cost of
-		 * the eliminate pass can be higher than the benefit of fast
-		 * clear. AMDGPU-pro does this, but the numbers may differ.
-		 *
-		 * This helps on both dGPUs and APUs, even small ones.
-		 */
-		if (tex->resource.b.b.nr_samples <= 1 &&
-		    tex->resource.b.b.width0 * tex->resource.b.b.height0 <= 300 * 300)
-			continue;
-
-		{
-			/* 128-bit formats are unusupported */
-			if (tex->surface.bpe > 8) {
-				continue;
-			}
-
-			/* ensure CMASK is enabled */
-			r600_texture_alloc_cmask_separate(rctx->screen, tex);
-			if (tex->cmask.size == 0) {
-				continue;
-			}
-
-			/* Do the fast clear. */
-			rctx->clear_buffer(&rctx->b, &tex->cmask_buffer->b.b,
-					   tex->cmask.offset, tex->cmask.size, 0,
-					   R600_COHERENCY_CB_META);
-
-			bool need_compressed_update = !tex->dirty_level_mask;
-
-			tex->dirty_level_mask |= 1 << fb->cbufs[i]->u.tex.level;
-
-			if (need_compressed_update)
-				p_atomic_inc(&rctx->screen->compressed_colortex_counter);
-		}
-
-		evergreen_set_clear_color(tex, fb->cbufs[i]->format, color);
-
-		if (dirty_cbufs)
-			*dirty_cbufs |= 1 << i;
-		rctx->set_atom_dirty(rctx, fb_state, true);
-		*buffers &= ~clear_bit;
-	}
 }
 
 static struct pipe_memory_object *

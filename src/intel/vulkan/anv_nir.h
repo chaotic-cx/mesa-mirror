@@ -42,13 +42,17 @@ extern "C" {
                           nir_imm_int(b, 0),                            \
                           .base = anv_drv_const_offset(field),          \
                           .range = components * anv_drv_const_size(field))
+/* Use load_uniform for indexed values since load_push_constant requires that
+ * the offset source is dynamically uniform in the subgroup which we cannot
+ * guarantee.
+ */
 #define anv_load_driver_uniform_indexed(b, components, field, idx)      \
-   nir_load_push_constant(b, components,                                \
-                          anv_drv_const_size(field[0]) * 8,             \
-                          nir_imul_imm(b, idx,                          \
-                                       anv_drv_const_size(field[0])),   \
-                          .base = anv_drv_const_offset(field),          \
-                          .range = anv_drv_const_size(field))
+   nir_load_uniform(b, components,                                      \
+                    anv_drv_const_size(field[0]) * 8,                   \
+                    nir_imul_imm(b, idx,                                \
+                                 anv_drv_const_size(field[0])),         \
+                    .base = anv_drv_const_offset(field),                \
+                    .range = anv_drv_const_size(field))
 
 
 
@@ -68,8 +72,6 @@ bool anv_check_for_primitive_replication(struct anv_device *device,
                                          VkShaderStageFlags stages,
                                          nir_shader **shaders,
                                          uint32_t view_mask);
-
-bool anv_nir_lower_load_patch_vertices_in(nir_shader *shader);
 
 bool anv_nir_lower_multiview(nir_shader *shader, uint32_t view_mask,
                              bool use_primitive_replication);
@@ -112,6 +114,7 @@ void anv_nir_compute_push_layout(nir_shader *nir,
                                  const struct anv_physical_device *pdevice,
                                  enum brw_robustness_flags robust_flags,
                                  bool fragment_dynamic,
+                                 bool mesh_dynamic,
                                  struct brw_stage_prog_data *prog_data,
                                  struct anv_pipeline_bind_map *map,
                                  const struct anv_pipeline_push_map *push_map,

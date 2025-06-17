@@ -33,6 +33,7 @@
 #include "util/u_atomic.h" /* for p_atomic_cmpxchg */
 #include "util/ralloc.h"
 #include "util/disk_cache.h"
+#include "util/log.h"
 #include "util/mesa-blake3.h"
 #include "ast.h"
 #include "glsl_parser_extras.h"
@@ -813,6 +814,7 @@ static const _mesa_glsl_extension _mesa_glsl_supported_extensions[] = {
    EXT(EXT_draw_buffers),
    EXT(EXT_draw_instanced),
    EXT(EXT_clip_cull_distance),
+   EXT(EXT_conservative_depth),
    EXT(EXT_geometry_point_size),
    EXT_AEP(EXT_geometry_shader),
    EXT(EXT_gpu_shader4),
@@ -827,6 +829,7 @@ static const _mesa_glsl_extension _mesa_glsl_supported_extensions[] = {
    EXT(EXT_shader_implicit_conversions),
    EXT(EXT_shader_integer_mix),
    EXT_AEP(EXT_shader_io_blocks),
+   EXT(EXT_shader_realtime_clock),
    EXT(EXT_shader_samples_identical),
    EXT(EXT_shadow_samplers),
    EXT(EXT_tessellation_point_size),
@@ -2095,6 +2098,7 @@ set_shader_inout_layout(struct gl_shader *shader,
       break;
    }
 
+   shader->view_mask = state->view_mask;
    shader->bindless_sampler = state->bindless_sampler_specified;
    shader->bindless_image = state->bindless_image_specified;
    shader->bound_sampler = state->bound_sampler_specified;

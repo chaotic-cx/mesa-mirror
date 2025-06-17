@@ -34,6 +34,12 @@ radv_format_to_pipe_format(VkFormat vkformat)
    }
 }
 
+static inline const struct util_format_description *
+radv_format_description(VkFormat format)
+{
+   return util_format_description(radv_format_to_pipe_format(format));
+}
+
 /**
  * Return the index of the first non-void channel
  * -1 if no non-void channels
@@ -77,6 +83,13 @@ static inline bool
 vk_format_is_subsampled(VkFormat format)
 {
    return util_format_is_subsampled_422(radv_format_to_pipe_format(format));
+}
+
+static inline bool
+vk_format_is_96bit(VkFormat format)
+{
+   return format == VK_FORMAT_R32G32B32_UINT || format == VK_FORMAT_R32G32B32_SINT ||
+          format == VK_FORMAT_R32G32B32_SFLOAT;
 }
 
 static inline VkFormat

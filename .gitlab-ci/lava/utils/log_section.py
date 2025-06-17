@@ -1,3 +1,7 @@
+# When changing this file, you need to bump the following
+# .gitlab-ci/image-tags.yml tags:
+# ALPINE_X86_64_LAVA_TRIGGER_TAG
+
 import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -12,11 +16,12 @@ class LogSectionType(Enum):
     UNKNOWN = auto()
     LAVA_SUBMIT = auto()
     LAVA_QUEUE = auto()
+    LAVA_DEPLOY = auto()
     LAVA_BOOT = auto()
-    TEST_DUT_SUITE = auto()
     TEST_SUITE = auto()
     TEST_CASE = auto()
     LAVA_POST_PROCESSING = auto()
+
 
 # How long to wait whilst we try to submit a job; make it fairly short,
 # since the job will be retried.
@@ -27,29 +32,37 @@ LAVA_SUBMIT_TIMEOUT = int(getenv("LAVA_SUBMIT_TIMEOUT", 5))
 # aggressively for pre-merge.
 LAVA_QUEUE_TIMEOUT = int(getenv("LAVA_QUEUE_TIMEOUT", 60))
 
-# Empirically, successful device boot in LAVA time takes less than 3
-# minutes.
-# LAVA itself is configured to attempt thrice to boot the device,
-# summing up to 9 minutes.
+# How long should we wait for a device to be deployed?
+# The deploy involves downloading and decompressing the kernel, modules, dtb and the overlays.
+# We should retry, to overcome network issues.
+LAVA_DEPLOY_TIMEOUT = int(getenv("LAVA_DEPLOY_TIMEOUT", 5))
+
+# Empirically, successful device deploy+boot in LAVA time takes less than 3 minutes.
+# LAVA itself is configured to attempt `failure_retry` times (NUMBER_OF_ATTEMPTS_LAVA_BOOT) to boot
+# the device.
 # It is better to retry the boot than cancel the job and re-submit to avoid
 # the enqueue delay.
-LAVA_BOOT_TIMEOUT = int(getenv("LAVA_BOOT_TIMEOUT", 9))
+LAVA_BOOT_TIMEOUT = int(getenv("LAVA_BOOT_TIMEOUT", 5))
 
 # Estimated overhead in minutes for a job from GitLab to reach the test phase,
 # including LAVA scheduling and boot duration
-LAVA_TEST_OVERHEAD_MIN = 5
+LAVA_TEST_OVERHEAD_MIN = int(getenv("LAVA_TEST_OVERHEAD_MIN", 5))
 
-# Test DUT suite phase is where the initialization happens in DUT, not on docker.
-# The device will be listening to SSH session until the end of the job.
-LAVA_TEST_DUT_SUITE_TIMEOUT = int(getenv("CI_JOB_TIMEOUT")) // 60 - LAVA_TEST_OVERHEAD_MIN
+# CI_JOB_TIMEOUT in full minutes, no reason to use seconds here
+CI_JOB_TIMEOUT_MIN = int(getenv("CI_JOB_TIMEOUT")) // 60
+# Sanity check: we need more job time than the LAVA estimated overhead
+assert CI_JOB_TIMEOUT_MIN > LAVA_TEST_OVERHEAD_MIN, (
+    f"CI_JOB_TIMEOUT in full minutes ({CI_JOB_TIMEOUT_MIN}) must be greater than LAVA_TEST_OVERHEAD ({LAVA_TEST_OVERHEAD_MIN})"
+)
 
-# Test suite phase is where the initialization happens on docker.
-LAVA_TEST_SUITE_TIMEOUT = int(getenv("LAVA_TEST_SUITE_TIMEOUT", 5))
+# Test suite phase is where initialization occurs on both the DUT and the Docker container.
+# The device will be listening to the SSH session until the end of the job.
+LAVA_TEST_SUITE_TIMEOUT = CI_JOB_TIMEOUT_MIN - LAVA_TEST_OVERHEAD_MIN
 
 # Test cases may take a long time, this script has no right to interrupt
 # them. But if the test case takes almost 1h, it will never succeed due to
 # Gitlab job timeout.
-LAVA_TEST_CASE_TIMEOUT = int(getenv("CI_JOB_TIMEOUT")) // 60 - LAVA_TEST_OVERHEAD_MIN
+LAVA_TEST_CASE_TIMEOUT = CI_JOB_TIMEOUT_MIN - LAVA_TEST_OVERHEAD_MIN
 
 # LAVA post processing may refer to a test suite teardown, or the
 # adjustments to start the next test_case
@@ -59,8 +72,8 @@ FALLBACK_GITLAB_SECTION_TIMEOUT = timedelta(minutes=10)
 DEFAULT_GITLAB_SECTION_TIMEOUTS = {
     LogSectionType.LAVA_SUBMIT: timedelta(minutes=LAVA_SUBMIT_TIMEOUT),
     LogSectionType.LAVA_QUEUE: timedelta(minutes=LAVA_QUEUE_TIMEOUT),
+    LogSectionType.LAVA_DEPLOY: timedelta(minutes=LAVA_DEPLOY_TIMEOUT),
     LogSectionType.LAVA_BOOT: timedelta(minutes=LAVA_BOOT_TIMEOUT),
-    LogSectionType.TEST_DUT_SUITE: timedelta(minutes=LAVA_TEST_DUT_SUITE_TIMEOUT),
     LogSectionType.TEST_SUITE: timedelta(minutes=LAVA_TEST_SUITE_TIMEOUT),
     LogSectionType.TEST_CASE: timedelta(minutes=LAVA_TEST_CASE_TIMEOUT),
     LogSectionType.LAVA_POST_PROCESSING: timedelta(
@@ -89,10 +102,9 @@ class LogSection:
             section_id = self.section_id.format(*match.groups())
             section_header = self.section_header.format(*match.groups())
             is_main_test_case = section_id == main_test_case
-            timeout = DEFAULT_GITLAB_SECTION_TIMEOUTS[self.section_type]
             return GitlabSection(
                 id=section_id,
-                header=f"{section_header} - Timeout: {timeout}",
+                header=section_header,
                 type=self.section_type,
                 start_collapsed=self.collapsed,
                 suppress_start=is_main_test_case,
@@ -103,32 +115,35 @@ class LogSection:
 
 LOG_SECTIONS = (
     LogSection(
+        regex=re.compile(r"start: 2 (\S+) \(timeout ([^)]+)\).*"),
+        levels=("info"),
+        section_id="{}",
+        section_header="Booting via {}",
+        section_type=LogSectionType.LAVA_BOOT,
+        collapsed=True,
+    ),
+    LogSection(
         regex=re.compile(r"<?STARTTC>? ([^>]*)"),
         levels=("target", "debug"),
         section_id="{}",
         section_header="test_case {}",
         section_type=LogSectionType.TEST_CASE,
+        collapsed=True,
     ),
     LogSection(
         regex=re.compile(r"<?STARTRUN>? ([^>]*ssh.*server.*)"),
         levels=("debug"),
         section_id="{}",
-        section_header="[dut] test_suite {}",
-        section_type=LogSectionType.TEST_DUT_SUITE,
-    ),
-    LogSection(
-        regex=re.compile(r"<?STARTRUN>? ([^>]*)"),
-        levels=("debug"),
-        section_id="{}",
-        section_header="[docker] test_suite {}",
+        section_header="Setting up hardware device for remote control",
         section_type=LogSectionType.TEST_SUITE,
+        collapsed=True,
     ),
     LogSection(
         regex=re.compile(r"ENDTC>? ([^>]+)"),
         levels=("target", "debug"),
         section_id="post-{}",
         section_header="Post test_case {}",
-        collapsed=True,
         section_type=LogSectionType.LAVA_POST_PROCESSING,
+        collapsed=True,
     ),
 )

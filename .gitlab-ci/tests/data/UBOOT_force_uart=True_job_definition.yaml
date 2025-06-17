@@ -11,11 +11,11 @@ timeouts:
     minutes: 10
   actions:
     depthcharge-retry:
-      minutes: 4
-    depthcharge-start:
-      minutes: 1
+      minutes: 6
     depthcharge-action:
-      minutes: 15
+      minutes: 5
+    uboot-action:
+      seconds: 200
 actions:
 - deploy:
     timeout:
@@ -32,7 +32,7 @@ actions:
     dtb:
       url: None/my_dtb_filename.dtb
 - boot:
-    failure_retry: 3
+    failure_retry: 2
     method: u-boot
     prompts:
     - 'lava-shell:'
@@ -58,9 +58,10 @@ actions:
         run:
           steps:
           - echo test UBOOT
+          - echo ZWNobyB0ZXN0IFVCT09U | base64 -d >> /set-job-env-vars.sh
           - export CURRENT_SECTION=dut_boot
           - set -e
           - echo Could not find jwt file, disabling S3 requests...
           - sed -i '/S3_RESULTS_UPLOAD/d' /set-job-env-vars.sh
           - sleep 1
-          - lava-test-case 'test-project_dut' --shell /init-stage2.sh
+          - lava-test-case 'test-project_dut' --shell /test_dir/install/common/init-stage2.sh

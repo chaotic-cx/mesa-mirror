@@ -8,13 +8,13 @@ use mesa_rust_gen::*;
 use mesa_rust_util::has_required_feature;
 use mesa_rust_util::ptr::ThreadSafeCPtr;
 
-use std::convert::TryInto;
 use std::ffi::CStr;
-use std::mem::size_of;
+use std::num::NonZeroU64;
 use std::os::raw::c_schar;
 use std::os::raw::c_uchar;
 use std::os::raw::c_void;
 use std::ptr;
+use std::ptr::NonNull;
 use std::sync::Arc;
 
 #[derive(PartialEq)]
@@ -25,49 +25,6 @@ pub struct PipeScreen {
 
 pub const UUID_SIZE: usize = PIPE_UUID_SIZE as usize;
 const LUID_SIZE: usize = PIPE_LUID_SIZE as usize;
-
-// until we have a better solution
-pub trait ComputeParam<T> {
-    fn compute_param(&self, cap: pipe_compute_cap) -> T;
-}
-
-macro_rules! compute_param_impl {
-    ($ty:ty) => {
-        impl ComputeParam<$ty> for PipeScreen {
-            fn compute_param(&self, cap: pipe_compute_cap) -> $ty {
-                let size = self.compute_param_wrapped(cap, ptr::null_mut());
-                let mut d = [0; size_of::<$ty>()];
-                if size == 0 {
-                    return Default::default();
-                }
-                assert_eq!(size as usize, d.len());
-                self.compute_param_wrapped(cap, d.as_mut_ptr().cast());
-                <$ty>::from_ne_bytes(d)
-            }
-        }
-    };
-}
-
-compute_param_impl!(u32);
-compute_param_impl!(u64);
-
-impl ComputeParam<Vec<u64>> for PipeScreen {
-    fn compute_param(&self, cap: pipe_compute_cap) -> Vec<u64> {
-        let size = self.compute_param_wrapped(cap, ptr::null_mut());
-        let elems = (size / 8) as usize;
-
-        let mut res: Vec<u64> = Vec::new();
-        let mut d: Vec<u8> = vec![0; size as usize];
-
-        self.compute_param_wrapped(cap, d.as_mut_ptr().cast());
-        for i in 0..elems {
-            let offset = i * 8;
-            let slice = &d[offset..offset + 8];
-            res.push(u64::from_ne_bytes(slice.try_into().expect("")));
-        }
-        res
-    }
-}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum ResourceType {
@@ -84,6 +41,21 @@ impl ResourceType {
                 tmpl.bind |= PIPE_BIND_LINEAR;
             }
             Self::Normal => {}
+        }
+    }
+}
+
+pub struct ScreenVMAllocation<'a> {
+    screen: &'a PipeScreen,
+    alloc: NonNull<pipe_vm_allocation>,
+}
+
+impl Drop for ScreenVMAllocation<'_> {
+    fn drop(&mut self) {
+        if let Some(free_vm) = self.screen.screen().free_vm {
+            unsafe {
+                free_vm(self.screen.screen.as_ptr(), self.alloc.as_ptr());
+            }
         }
     }
 }
@@ -124,6 +96,31 @@ impl PipeScreen {
         )
     }
 
+    pub fn alloc_vm(&self, start: NonZeroU64, size: NonZeroU64) -> Option<ScreenVMAllocation> {
+        let alloc =
+            unsafe { self.screen().alloc_vm?(self.screen.as_ptr(), start.get(), size.get()) };
+        Some(ScreenVMAllocation {
+            screen: self,
+            alloc: NonNull::new(alloc)?,
+        })
+    }
+
+    pub fn resource_assign_vma(&self, res: &PipeResource, address: u64) -> bool {
+        if let Some(resource_assign_vma) = self.screen().resource_assign_vma {
+            // Validate that we already acquired the vm range
+            if cfg!(debug_assertions) {
+                if let Some(address) = NonZeroU64::new(address) {
+                    debug_assert!(self
+                        .alloc_vm(address, NonZeroU64::new(1).unwrap())
+                        .is_none());
+                }
+            }
+            unsafe { resource_assign_vma(self.screen.as_ptr(), res.pipe(), address) }
+        } else {
+            false
+        }
+    }
+
     fn resource_create(&self, tmpl: &pipe_resource) -> Option<PipeResource> {
         PipeResource::new(
             unsafe { self.screen().resource_create.unwrap()(self.screen.as_ptr(), tmpl) },
@@ -147,6 +144,7 @@ impl PipeScreen {
         size: u32,
         res_type: ResourceType,
         pipe_bind: u32,
+        pipe_flags: u32,
     ) -> Option<PipeResource> {
         let mut tmpl = pipe_resource::default();
 
@@ -156,6 +154,7 @@ impl PipeScreen {
         tmpl.depth0 = 1;
         tmpl.array_size = 1;
         tmpl.bind = pipe_bind;
+        tmpl.flags = pipe_flags;
 
         res_type.apply(&mut tmpl);
 
@@ -167,6 +166,7 @@ impl PipeScreen {
         size: u32,
         mem: *mut c_void,
         pipe_bind: u32,
+        pipe_flags: u32,
     ) -> Option<PipeResource> {
         let mut tmpl = pipe_resource::default();
 
@@ -176,6 +176,7 @@ impl PipeScreen {
         tmpl.depth0 = 1;
         tmpl.array_size = 1;
         tmpl.bind = pipe_bind;
+        tmpl.flags = pipe_flags;
 
         self.resource_create_from_user(&tmpl, mem)
     }
@@ -249,6 +250,7 @@ impl PipeScreen {
         height: u16,
         depth: u16,
         array_size: u16,
+        support_image: bool,
     ) -> Option<PipeResource> {
         let mut tmpl = pipe_resource::default();
         let mut handle = winsys_handle {
@@ -267,6 +269,15 @@ impl PipeScreen {
         tmpl.depth0 = depth;
         tmpl.array_size = array_size;
 
+        if target == pipe_texture_target::PIPE_BUFFER {
+            tmpl.bind = PIPE_BIND_GLOBAL
+        } else {
+            tmpl.bind = PIPE_BIND_SAMPLER_VIEW;
+            if support_image {
+                tmpl.bind |= PIPE_BIND_SHADER_IMAGE;
+            }
+        }
+
         unsafe {
             PipeResource::new(
                 self.screen().resource_from_handle.unwrap()(
@@ -280,19 +291,12 @@ impl PipeScreen {
         }
     }
 
-    pub fn shader_param(&self, t: pipe_shader_type, cap: pipe_shader_cap) -> i32 {
-        unsafe { self.screen().get_shader_param.unwrap()(self.screen.as_ptr(), t, cap) }
+    pub fn shader_caps(&self, t: pipe_shader_type) -> &pipe_shader_caps {
+        &self.screen().shader_caps[t as usize]
     }
 
-    fn compute_param_wrapped(&self, cap: pipe_compute_cap, ptr: *mut c_void) -> i32 {
-        unsafe {
-            self.screen().get_compute_param.unwrap()(
-                self.screen.as_ptr(),
-                pipe_shader_ir::PIPE_SHADER_IR_NIR,
-                cap,
-                ptr,
-            )
-        }
+    pub fn compute_caps(&self) -> &pipe_compute_caps {
+        &self.screen().compute_caps
     }
 
     pub fn driver_name(&self) -> &CStr {
@@ -394,6 +398,16 @@ impl PipeScreen {
         self.screen().resource_from_handle.is_some() && self.screen().resource_get_handle.is_some()
     }
 
+    pub fn is_fixed_address_supported(&self) -> bool {
+        self.screen().resource_get_address.is_some()
+    }
+
+    pub fn is_vm_supported(&self) -> bool {
+        self.screen().resource_assign_vma.is_some()
+            && self.screen().alloc_vm.is_some()
+            && self.screen().free_vm.is_some()
+    }
+
     pub fn nir_shader_compiler_options(
         &self,
         shader: pipe_shader_type,
@@ -471,9 +485,7 @@ fn has_required_cbs(screen: *mut pipe_screen) -> bool {
         & has_required_feature!(screen, fence_finish)
         & has_required_feature!(screen, fence_reference)
         & has_required_feature!(screen, get_compiler_options)
-        & has_required_feature!(screen, get_compute_param)
         & has_required_feature!(screen, get_name)
-        & has_required_feature!(screen, get_shader_param)
         & has_required_feature!(screen, is_format_supported)
         & has_required_feature!(screen, resource_create)
 }

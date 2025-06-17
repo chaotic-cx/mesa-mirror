@@ -73,7 +73,6 @@ struct dri_screen
         * fields will not be valid or initializaed in that case. */
        const __DRIdri2LoaderExtension *loader;
        const __DRIimageLookupExtension *image;
-       const __DRIuseInvalidateExtension *useInvalidate;
        const __DRIbackgroundCallableExtension *backgroundCallable;
    } dri2;
 
@@ -92,6 +91,7 @@ struct dri_screen
 
    bool throttle;
    bool dmabuf_import;
+   bool has_multibuffer;
 
    struct st_config_options options;
 

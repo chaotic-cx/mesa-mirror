@@ -19,9 +19,9 @@
 
 #include "lib/kmod/pan_kmod.h"
 
-struct panfrost_model;
+struct pan_model;
 struct pan_blendable_format;
-struct panfrost_format;
+struct pan_format;
 struct panvk_instance;
 
 struct panvk_physical_device {
@@ -32,7 +32,17 @@ struct panvk_physical_device {
       struct pan_kmod_dev_props props;
    } kmod;
 
-   const struct panfrost_model *model;
+   const struct pan_model *model;
+
+   union {
+      struct {
+         struct {
+            uint32_t chunk_size;
+            uint32_t initial_chunks;
+            uint32_t max_chunks;
+         } tiler;
+      } csf;
+   };
 
    struct {
       dev_t primary_rdev;
@@ -41,7 +51,7 @@ struct panvk_physical_device {
 
    struct {
       const struct pan_blendable_format *blendable;
-      const struct panfrost_format *all;
+      const struct pan_format *all;
    } formats;
 
    char name[VK_MAX_PHYSICAL_DEVICE_NAME_SIZE];
@@ -52,6 +62,9 @@ struct panvk_physical_device {
    const struct vk_sync_type *sync_types[3];
 
    struct wsi_device wsi_device;
+
+   uint64_t compute_core_mask;
+   uint64_t fragment_core_mask;
 };
 
 VK_DEFINE_HANDLE_CASTS(panvk_physical_device, vk.base, VkPhysicalDevice,

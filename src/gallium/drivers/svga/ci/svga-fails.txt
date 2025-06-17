@@ -4,7 +4,6 @@ glx@glx-swap-pixmap-bad,Fail
 glx@glx-visuals-depth,Fail
 glx@glx-visuals-depth -pixmap,Fail
 glx@glx-visuals-stencil -pixmap,Fail
-glx@glx_arb_create_context_es2_profile@invalid opengl es version,Fail
 glx@glx_arb_create_context_no_error@no error,Fail
 glx@glx_arb_sync_control@waitformsc,Fail
 shaders@glsl-max-varyings >max_varying_components,Fail
@@ -255,11 +254,7 @@ spec@arb_sample_shading@samplemask 2 all@1.000000 mask_in_one,Fail
 spec@arb_sample_shading@samplemask 2 all@noms mask_in_one,Fail
 spec@arb_sample_shading@samplemask 2 all@noms partition,Fail
 spec@arb_sample_shading@samplemask 2 all@sample mask_in_one,Fail
-spec@arb_sample_shading@samplemask 2@0.500000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 2@1.000000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 2@noms mask_in_one,Fail
 spec@arb_sample_shading@samplemask 2@noms partition,Fail
-spec@arb_sample_shading@samplemask 2@sample mask_in_one,Fail
 spec@arb_sample_shading@samplemask 4,Fail
 spec@arb_sample_shading@samplemask 4 all,Fail
 spec@arb_sample_shading@samplemask 4 all@0.250000 mask_in_one,Fail
@@ -268,12 +263,7 @@ spec@arb_sample_shading@samplemask 4 all@1.000000 mask_in_one,Fail
 spec@arb_sample_shading@samplemask 4 all@noms mask_in_one,Fail
 spec@arb_sample_shading@samplemask 4 all@noms partition,Fail
 spec@arb_sample_shading@samplemask 4 all@sample mask_in_one,Fail
-spec@arb_sample_shading@samplemask 4@0.250000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 4@0.500000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 4@1.000000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 4@noms mask_in_one,Fail
 spec@arb_sample_shading@samplemask 4@noms partition,Fail
-spec@arb_sample_shading@samplemask 4@sample mask_in_one,Fail
 spec@arb_sample_shading@samplemask 6,Fail
 spec@arb_sample_shading@samplemask 6 all,Fail
 spec@arb_sample_shading@samplemask 6 all@0.125000 mask_in_one,Fail
@@ -292,13 +282,7 @@ spec@arb_sample_shading@samplemask 6@noms partition,Fail
 spec@arb_sample_shading@samplemask 6@sample mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8,Fail
 spec@arb_sample_shading@samplemask 8 all,Fail
-spec@arb_sample_shading@samplemask 8 all@0.125000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 8 all@0.250000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 8 all@0.500000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 8 all@1.000000 mask_in_one,Fail
-spec@arb_sample_shading@samplemask 8 all@noms mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8 all@noms partition,Fail
-spec@arb_sample_shading@samplemask 8 all@sample mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8@0.125000 mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8@0.250000 mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8@0.500000 mask_in_one,Fail
@@ -419,7 +403,6 @@ spec@arb_tessellation_shader@execution@barrier-patch,Fail
 spec@arb_tessellation_shader@execution@invocation-counting-even,Fail
 spec@arb_tessellation_shader@execution@invocation-counting-odd,Fail
 spec@arb_tessellation_shader@execution@tcs-primitiveid,Fail
-spec@arb_tessellation_shader@execution@tcs-tes-max-in-out-patch-components,Fail
 spec@arb_tessellation_shader@execution@tesslevels-indirect,Fail
 spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-float-index-rd-after-barrier,Fail
 spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-float-index-wr,Fail
@@ -747,7 +730,6 @@ spec@ext_packed_depth_stencil@texwrap formats bordercolor-swizzled,Fail
 spec@ext_packed_depth_stencil@texwrap formats bordercolor-swizzled@GL_DEPTH24_STENCIL8- swizzled- border color only,Fail
 spec@ext_packed_float@fbo-generatemipmap-formats,Fail
 spec@ext_packed_float@fbo-generatemipmap-formats@GL_R11F_G11F_B10F NPOT,Fail
-spec@ext_packed_float@query-rgba-signed-components,Fail
 spec@ext_packed_float@texwrap formats bordercolor,Fail
 spec@ext_packed_float@texwrap formats bordercolor@GL_R11F_G11F_B10F- border color only,Fail
 spec@ext_packed_float@texwrap formats bordercolor-swizzled,Fail
@@ -1075,6 +1057,7 @@ spec@arb_copy_image@arb_copy_image-formats --samples=4@Source: GL_RGB32I/Destina
 spec@arb_copy_image@arb_copy_image-formats --samples=4@Source: GL_RGB32I/Destination: GL_RGB32UI,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=4@Source: GL_RGB32UI/Destination: GL_RGB32I,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=4@Source: GL_RGB32UI/Destination: GL_RGB32UI,Fail
+spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_R32F/Destination: GL_RG16,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_RGB32F/Destination: GL_RGB32I,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_RGB32F/Destination: GL_RGB32UI,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_RGB32I/Destination: GL_RGB32I,Fail
@@ -1082,5 +1065,23 @@ spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_RGB32I/Destina
 spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_RGB32UI/Destination: GL_RGB32I,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_RGB32UI/Destination: GL_RGB32UI,Fail
 spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one,Fail
+spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one_write-z,Fail
+spec@arb_sample_shading@samplemask 2@0.500000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 2@1.000000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 2@noms mask_in_one,Fail
+spec@arb_sample_shading@samplemask 2@sample mask_in_one,Fail
+spec@arb_sample_shading@samplemask 4@0.250000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 4@0.500000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 4@1.000000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 4@noms mask_in_one,Fail
+spec@arb_sample_shading@samplemask 4@sample mask_in_one,Fail
+spec@arb_sample_shading@samplemask 8 all@0.125000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 8 all@0.250000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 8 all@0.500000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 8 all@1.000000 mask_in_one,Fail
+spec@arb_sample_shading@samplemask 8 all@noms mask_in_one,Fail
+spec@arb_sample_shading@samplemask 8 all@sample mask_in_one,Fail
 spec@egl_chromium_sync_control@conformance,Fail
 spec@egl_chromium_sync_control@conformance@eglGetSyncValuesCHROMIUM_msc_and_sbc_test,Fail
+spec@ext_texture_integer@fbo-integer-attachments,Fail
+

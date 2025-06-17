@@ -20,6 +20,7 @@
    SOFTWARE.
 */
 
+#include "util/u_math.h"
 #include "geometry.h"
 #include "tessellator.h"
 
@@ -116,14 +117,6 @@ tess_factors(constant struct libagx_tess_args *p, uint patch)
    return p->tcs_buffer + (patch * p->tcs_stride_el);
 }
 
-static inline uint
-libagx_heap_alloc(global struct agx_geometry_state *heap, uint size_B)
-{
-   // TODO: drop align to 4 I think
-   return atomic_fetch_add((volatile atomic_uint *)(&heap->heap_bottom),
-                           align(size_B, 8));
-}
-
 /*
  * Generate an indexed draw for a patch with the computed number of indices.
  * This allocates heap memory for the index buffer, returning the allocated
@@ -195,11 +188,11 @@ libagx_heap_alloc_points(constant struct libagx_tess_args *p, uint patch,
    }
 
    uint32_t elsize_B = sizeof(struct libagx_tess_point);
-   uint32_t alloc_B = libagx_heap_alloc(p->heap, elsize_B * count);
+   uint32_t alloc_B = agx_heap_alloc_atomic_offs(p->heap, elsize_B * count);
    uint32_t alloc_el = alloc_B / elsize_B;
 
    p->coord_allocs[patch] = alloc_el;
-   return (global struct libagx_tess_point *)(((uintptr_t)p->heap->heap) +
+   return (global struct libagx_tess_point *)(((uintptr_t)p->heap->base) +
                                               alloc_B);
 }
 
@@ -728,7 +721,7 @@ libagx_tess_isoline(constant struct libagx_tess_args *p,
                     enum libagx_tess_mode mode__2)
 {
    enum libagx_tess_mode mode = mode__2;
-   uint patch = get_global_id(0);
+   uint patch = cl_global_id.x;
    enum libagx_tess_partitioning partitioning = p->partitioning;
 
    bool lineDensityOdd;
@@ -830,7 +823,7 @@ libagx_tess_tri(constant struct libagx_tess_args *p,
                 enum libagx_tess_mode mode__2)
 {
    enum libagx_tess_mode mode = mode__2;
-   uint patch = get_global_id(0);
+   uint patch = cl_global_id.x;
    enum libagx_tess_partitioning partitioning = p->partitioning;
 
    global float *factors = tess_factors(p, patch);
@@ -1158,7 +1151,7 @@ libagx_tess_quad(constant struct libagx_tess_args *p,
                  enum libagx_tess_mode mode__2)
 {
    enum libagx_tess_mode mode = mode__2;
-   uint patch = get_global_id(0);
+   uint patch = cl_global_id.x;
    enum libagx_tess_partitioning partitioning = p->partitioning;
    global float *factors = tess_factors(p, patch);
 

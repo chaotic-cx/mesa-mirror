@@ -23,7 +23,6 @@
 #include "util/simple_mtx.h"
 #include "vulkan/vulkan_core.h"
 #include "vulkan/wsi/wsi_common.h"
-#include "unstable_asahi_drm.h"
 #include "vk_drm_syncobj.h"
 #include "vk_shader_module.h"
 
@@ -53,7 +52,7 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .KHR_16bit_storage = true,
       .KHR_bind_memory2 = true,
       .KHR_buffer_device_address = true,
-      .KHR_calibrated_timestamps = false,
+      .KHR_calibrated_timestamps = true,
       .KHR_copy_commands2 = true,
       .KHR_create_renderpass2 = true,
       .KHR_dedicated_allocation = true,
@@ -68,11 +67,8 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .KHR_external_fence_fd = true,
       .KHR_external_memory = true,
       .KHR_external_memory_fd = true,
-      /* XXX: External timeline semaphores maybe broken in kernel, see
-       * dEQP-VK.synchronization.signal_order.shared_timeline_semaphore.write_copy_buffer_to_image_read_image_compute.image_128_r32_uint_opaque_fd
-       */
-      .KHR_external_semaphore = false,
-      .KHR_external_semaphore_fd = false,
+      .KHR_external_semaphore = true,
+      .KHR_external_semaphore_fd = true,
       .KHR_format_feature_flags2 = true,
       .KHR_fragment_shader_barycentric = false,
       .KHR_get_memory_requirements2 = true,
@@ -91,6 +87,8 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .KHR_maintenance4 = true,
       .KHR_maintenance5 = true,
       .KHR_maintenance6 = true,
+      .KHR_maintenance7 = true,
+      .KHR_maintenance8 = true,
       .KHR_map_memory2 = true,
       .KHR_multiview = true,
       .KHR_pipeline_executable_properties = true,
@@ -105,12 +103,12 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .KHR_shader_draw_parameters = true,
       .KHR_shader_expect_assume = true,
       .KHR_shader_float_controls = true,
-      // TODO: wait for nvk
       .KHR_shader_float_controls2 = true,
       .KHR_shader_float16_int8 = true,
       .KHR_shader_integer_dot_product = true,
       .KHR_shader_maximal_reconvergence = true,
       .KHR_shader_non_semantic_info = true,
+      .KHR_shader_quad_control = true,
       .KHR_shader_relaxed_extended_instruction = true,
       .KHR_shader_subgroup_extended_types = true,
       .KHR_shader_subgroup_rotate = true,
@@ -134,7 +132,7 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .EXT_attachment_feedback_loop_layout = true,
       .EXT_border_color_swizzle = true,
       .EXT_buffer_device_address = true,
-      .EXT_calibrated_timestamps = false,
+      .EXT_calibrated_timestamps = true,
       .EXT_conditional_rendering = false,
       .EXT_color_write_enable = true,
       .EXT_custom_border_color = true,
@@ -153,18 +151,19 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .EXT_global_priority = true,
       .EXT_global_priority_query = true,
       .EXT_graphics_pipeline_library = true,
+      .EXT_hdr_metadata = true,
       .EXT_host_query_reset = true,
       .EXT_host_image_copy = true,
       .EXT_image_2d_view_of_3d = true,
       .EXT_image_drm_format_modifier = true,
       .EXT_image_robustness = true,
       .EXT_image_sliced_view_of_3d = false,
-      .EXT_image_view_min_lod = false,
+      .EXT_image_view_min_lod = true,
       .EXT_index_type_uint8 = true,
       .EXT_inline_uniform_block = true,
       .EXT_line_rasterization = true,
       .EXT_load_store_op_none = true,
-      .EXT_map_memory_placed = false,
+      .EXT_map_memory_placed = true,
       .EXT_memory_budget = false,
       .EXT_multi_draw = true,
       .EXT_mutable_descriptor_type = true,
@@ -178,6 +177,7 @@ hk_get_device_extensions(const struct hk_instance *instance,
       .EXT_private_data = true,
       .EXT_primitives_generated_query = false,
       .EXT_provoking_vertex = true,
+      .EXT_queue_family_foreign = true,
       .EXT_robustness2 = true,
       .EXT_sample_locations = true,
       .EXT_sampler_filter_minmax = false,
@@ -212,6 +212,7 @@ hk_get_device_extensions(const struct hk_instance *instance,
 
 static void
 hk_get_device_features(
+   const struct agx_device *dev, const struct hk_instance *instance,
    const struct vk_device_extension_table *supported_extensions,
    struct vk_features *features)
 {
@@ -237,9 +238,9 @@ hk_get_device_features(
       .alphaToOne = true,
       .multiViewport = true,
       .samplerAnisotropy = true,
-      .textureCompressionETC2 = false,
+      .textureCompressionETC2 = true,
       .textureCompressionBC = true,
-      .textureCompressionASTC_LDR = false,
+      .textureCompressionASTC_LDR = true,
       .occlusionQueryPrecise = true,
       .pipelineStatisticsQuery = true,
       .vertexPipelineStoresAndAtomics = true,
@@ -260,15 +261,21 @@ hk_get_device_features(
       .shaderFloat64 = false,
       .shaderInt64 = true,
       .shaderInt16 = true,
-      .shaderResourceResidency = false,
+      .shaderResourceResidency = true,
       .shaderResourceMinLod = true,
-      .sparseBinding = false,
+      .sparseBinding = true,
+
+      /* We probably could advertise multisampled sparse but we don't have a use
+       * case yet and it isn't trivial.
+       */
       .sparseResidency2Samples = false,
       .sparseResidency4Samples = false,
       .sparseResidency8Samples = false,
-      .sparseResidencyAliased = false,
-      .sparseResidencyBuffer = false,
-      .sparseResidencyImage2D = false,
+      .sparseResidencyAliased = true,
+      .sparseResidencyImage2D = true,
+      .sparseResidencyBuffer = true,
+
+      /* This needs investigation. */
       .sparseResidencyImage3D = false,
       .variableMultisampleRate = false,
       .inheritedQueries = true,
@@ -317,7 +324,7 @@ hk_get_device_features(
       .descriptorBindingPartiallyBound = true,
       .descriptorBindingVariableDescriptorCount = true,
       .runtimeDescriptorArray = true,
-      .samplerFilterMinmax = false,
+      .samplerFilterMinmax = instance->fake_minmax,
       .scalarBlockLayout = true,
       .imagelessFramebuffer = true,
       .uniformBufferStandardLayout = true,
@@ -326,7 +333,7 @@ hk_get_device_features(
       .hostQueryReset = true,
       .timelineSemaphore = true,
       .bufferDeviceAddress = true,
-      .bufferDeviceAddressCaptureReplay = false,
+      .bufferDeviceAddressCaptureReplay = true,
       .bufferDeviceAddressMultiDevice = false,
       .vulkanMemoryModel = true,
       .vulkanMemoryModelDeviceScope = true,
@@ -380,6 +387,12 @@ hk_get_device_features(
       /* VK_KHR_maintenance6 */
       .maintenance6 = true,
 
+      /* VK_KHR_maintenance7 */
+      .maintenance7 = true,
+
+      /* VK_KHR_maintenance8 */
+      .maintenance8 = true,
+
       /* VK_KHR_pipeline_executable_properties */
       .pipelineExecutableInfo = true,
 
@@ -401,6 +414,9 @@ hk_get_device_features(
 
       /* VK_KHR_shader_maximal_reconvergence */
       .shaderMaximalReconvergence = true,
+
+      /* VK_KHR_shader_quad_control */
+      .shaderQuadControl = true,
 
       /* VK_KHR_shader_subgroup_rotate */
       .shaderSubgroupRotate = true,
@@ -428,7 +444,7 @@ hk_get_device_features(
       .borderColorSwizzleFromImage = false,
 
       /* VK_EXT_buffer_device_address */
-      .bufferDeviceAddressCaptureReplayEXT = false,
+      .bufferDeviceAddressCaptureReplayEXT = true,
 
       /* VK_EXT_color_write_enable */
       .colorWriteEnable = true,
@@ -516,12 +532,12 @@ hk_get_device_features(
 #endif
 
       /* VK_EXT_image_view_min_lod */
-      .minLod = false,
+      .minLod = true,
 
       /* VK_EXT_map_memory_placed */
-      .memoryMapPlaced = false,
+      .memoryMapPlaced = true,
       .memoryMapRangePlaced = false,
-      .memoryUnmapReserve = false,
+      .memoryUnmapReserve = true,
 
       /* VK_EXT_multi_draw */
       .multiDraw = true,
@@ -604,6 +620,14 @@ hk_get_device_properties(const struct agx_device *dev,
    uint64_t os_page_size = 16384;
    os_get_page_size(&os_page_size);
 
+   /* The hardware limit is 128. However, we need to set a lower limit to
+    * account for duplicated system values: clip/cull and viewport targets.
+    * There are up to 8 combined clip/cull planes and only 1 viewport target,
+    * giving a theoretical limit of 119. We round down to 116 to give a sensible
+    * limit in vec4s.
+    */
+   unsigned max_vgt_output_components = 116;
+
    *properties = (struct vk_properties){
       .apiVersion = hk_get_vk_version(),
       .driverVersion = vk_get_driver_version(),
@@ -655,13 +679,10 @@ hk_get_device_properties(const struct agx_device *dev,
       .maxVertexInputAttributeOffset = 65535,
       .maxVertexInputBindingStride = 2048,
 
-      /* Hardware limit is 128 but we need to reserve some for internal purposes
-       * (like cull distance emulation). Set 96 to be safe.
-       */
-      .maxVertexOutputComponents = 96,
+      .maxVertexOutputComponents = max_vgt_output_components,
       .maxGeometryShaderInvocations = 32,
       .maxGeometryInputComponents = 128,
-      .maxGeometryOutputComponents = 128,
+      .maxGeometryOutputComponents = max_vgt_output_components,
       .maxGeometryOutputVertices = 1024,
       .maxGeometryTotalOutputComponents = 1024,
       .maxTessellationGenerationLevel = 64,
@@ -671,10 +692,10 @@ hk_get_device_properties(const struct agx_device *dev,
       .maxTessellationControlPerPatchOutputComponents = 120,
       .maxTessellationControlTotalOutputComponents = 4216,
       .maxTessellationEvaluationInputComponents = 128,
-      .maxTessellationEvaluationOutputComponents = 128,
+      .maxTessellationEvaluationOutputComponents = max_vgt_output_components,
 
       /* Set to match maxVertexOutputComponents, hardware limit is higher. */
-      .maxFragmentInputComponents = 96,
+      .maxFragmentInputComponents = max_vgt_output_components,
       .maxFragmentOutputAttachments = HK_MAX_RTS,
       .maxFragmentDualSrcAttachments = 1,
       .maxFragmentCombinedOutputResources = 16,
@@ -718,7 +739,7 @@ hk_get_device_properties(const struct agx_device *dev,
       .sampledImageStencilSampleCounts = sample_counts,
       .storageImageSampleCounts = sample_counts,
       .maxSampleMaskWords = 1,
-      .timestampComputeAndGraphics = agx_supports_timestamps(dev),
+      .timestampComputeAndGraphics = true,
       /* FIXME: Is timestamp period actually 1? */
       .timestampPeriod = 1.0f,
       .maxClipDistances = 8,
@@ -736,10 +757,18 @@ hk_get_device_properties(const struct agx_device *dev,
       .nonCoherentAtomSize = 64,
 
       /* Vulkan 1.0 sparse properties */
-      .sparseResidencyNonResidentStrict = false,
+      .sparseResidencyNonResidentStrict = true,
       .sparseResidencyAlignedMipSize = false,
-      .sparseResidencyStandard2DBlockShape = false,
+      .sparseResidencyStandard2DBlockShape = true,
+
+      /* We can implement the standard block size for MSAA 4x but maybe not MSAA
+       * 2x?
+       */
       .sparseResidencyStandard2DMultisampleBlockShape = false,
+
+      /* As far as I can tell, there is no way to implement this on G13. This
+       * is a shame because D3D12 requires it for FL12.2.
+       */
       .sparseResidencyStandard3DBlockShape = false,
 
       /* Vulkan 1.1 properties */
@@ -816,7 +845,7 @@ hk_get_device_properties(const struct agx_device *dev,
       .maxDescriptorSetUpdateAfterBindSampledImages = HK_MAX_DESCRIPTORS,
       .maxDescriptorSetUpdateAfterBindStorageImages = HK_MAX_DESCRIPTORS,
       .maxDescriptorSetUpdateAfterBindInputAttachments = HK_MAX_DESCRIPTORS,
-      .filterMinmaxSingleComponentFormats = false,
+      .filterMinmaxSingleComponentFormats = instance->fake_minmax,
       .filterMinmaxImageComponentMapping = false,
       .maxTimelineSemaphoreValueDifference = UINT64_MAX,
       .framebufferIntegerColorSampleCounts = sample_counts,
@@ -875,6 +904,19 @@ hk_get_device_properties(const struct agx_device *dev,
       .blockTexelViewCompatibleMultipleLayers = false,
       .maxCombinedImageSamplerDescriptorCount = 3,
       .fragmentShadingRateClampCombinerInputs = false,
+
+      /* VK_KHR_maintenance7 */
+      .robustFragmentShadingRateAttachmentAccess = false,
+      .separateDepthStencilAttachmentAccess = false, /* TODO */
+      .maxDescriptorSetTotalUniformBuffersDynamic = HK_MAX_DYNAMIC_BUFFERS / 2,
+      .maxDescriptorSetTotalStorageBuffersDynamic = HK_MAX_DYNAMIC_BUFFERS / 2,
+      .maxDescriptorSetTotalBuffersDynamic = HK_MAX_DYNAMIC_BUFFERS,
+      .maxDescriptorSetUpdateAfterBindTotalUniformBuffersDynamic =
+         HK_MAX_DYNAMIC_BUFFERS / 2,
+      .maxDescriptorSetUpdateAfterBindTotalStorageBuffersDynamic =
+         HK_MAX_DYNAMIC_BUFFERS / 2,
+      .maxDescriptorSetUpdateAfterBindTotalBuffersDynamic =
+         HK_MAX_DYNAMIC_BUFFERS,
 
       /* VK_EXT_map_memory_placed */
       .minPlacedMemoryMapAlignment = os_page_size,
@@ -1095,9 +1137,6 @@ hk_create_drm_physical_device(struct vk_instance *_instance,
    struct hk_instance *instance = (struct hk_instance *)_instance;
    VkResult result;
 
-   /* Blanket refusal to probe due to unstable UAPI. */
-   return VK_ERROR_INCOMPATIBLE_DRIVER;
-
    if (!(drm_device->available_nodes & (1 << DRM_NODE_RENDER)) ||
        drm_device->bustype != DRM_BUS_PLATFORM)
       return VK_ERROR_INCOMPATIBLE_DRIVER;
@@ -1166,7 +1205,8 @@ hk_create_drm_physical_device(struct vk_instance *_instance,
    hk_get_device_extensions(instance, &supported_extensions);
 
    struct vk_features supported_features;
-   hk_get_device_features(&supported_extensions, &supported_features);
+   hk_get_device_features(&pdev->dev, instance, &supported_extensions,
+                          &supported_features);
 
    struct vk_properties properties;
    hk_get_device_properties(&pdev->dev, instance, &properties);
@@ -1216,10 +1256,9 @@ hk_create_drm_physical_device(struct vk_instance *_instance,
    assert(pdev->mem_heap_count <= ARRAY_SIZE(pdev->mem_heaps));
    assert(pdev->mem_type_count <= ARRAY_SIZE(pdev->mem_types));
 
-   /* TODO: VK_QUEUE_SPARSE_BINDING_BIT*/
    pdev->queue_families[pdev->queue_family_count++] = (struct hk_queue_family){
-      .queue_flags =
-         VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT | VK_QUEUE_TRANSFER_BIT,
+      .queue_flags = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT |
+                     VK_QUEUE_TRANSFER_BIT | VK_QUEUE_SPARSE_BINDING_BIT,
 
       .queue_count = 1,
    };
@@ -1387,8 +1426,7 @@ hk_GetPhysicalDeviceQueueFamilyProperties2(
       {
          p->queueFamilyProperties.queueFlags = queue_family->queue_flags;
          p->queueFamilyProperties.queueCount = queue_family->queue_count;
-         p->queueFamilyProperties.timestampValidBits =
-            agx_supports_timestamps(&pdev->dev) ? 64 : 0;
+         p->queueFamilyProperties.timestampValidBits = 64;
          p->queueFamilyProperties.minImageTransferGranularity =
             (VkExtent3D){1, 1, 1};
 

@@ -66,7 +66,7 @@ tu_rmv_fill_device_info(struct tu_device *device,
     */
    snprintf(info->device_name, sizeof(info->device_name), "%s (0x%" PRIx64 ")",
       physical_device->name, physical_device->dev_id.chip_id);
-   info->pcie_family_id = info->pcie_revision_id = info->pcie_device_id = 0;
+   info->pcie_family_id = info->pcie_revision_id = info->pcie_device_id = ~0;
 
    /* TODO: provide relevant information here. */
    info->vram_type = VK_RMV_MEMORY_TYPE_LPDDR5;
@@ -279,7 +279,7 @@ tu_rmv_log_buffer_bind(struct tu_device *device, struct tu_buffer *buffer)
 
    tu_rmv_emit_resource_bind_locked(device,
                                     tu_rmv_get_resource_id_locked(device, buffer),
-                                    buffer->bo ? buffer->iova : 0,
+                                    buffer->bo ? buffer->vk.device_address : 0,
                                     buffer->vk.size);
 
    simple_mtx_unlock(&device->vk.memory_trace_data.token_mtx);
@@ -514,10 +514,8 @@ tu_rmv_log_event_create(struct tu_device *device,
    vk_rmv_emit_token(&device->vk.memory_trace_data,
                      VK_RMV_TOKEN_TYPE_RESOURCE_CREATE, &token);
 
-   if (event->bo) {
-      tu_rmv_emit_resource_bind_locked(device, token.resource_id,
-                                       event->bo->iova, event->bo->size);
-   }
+   tu_rmv_emit_resource_bind_locked(device, token.resource_id,
+                                    event->bo.iova, event->bo.size);
 
    simple_mtx_unlock(&device->vk.memory_trace_data.token_mtx);
 }

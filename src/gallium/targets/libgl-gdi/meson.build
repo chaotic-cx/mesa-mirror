@@ -18,7 +18,7 @@ libopengl32 = shared_library(
     inc_include, inc_wgl, inc_src, inc_gallium,
   ],
   link_with : [
-    libgallium_wgl, libglapi_bridge, libglapi
+    libgallium_wgl, libglapi_bridge
   ],
   dependencies : [
     idep_mesautil
@@ -50,9 +50,7 @@ if with_tests
 
   wgl_test_env = environment()
   wgl_test_env.append('PATH', libgallium_wgl_build_dir)
-  if with_shared_glapi
-    wgl_test_env.append('PATH', libglapi_build_dir)
-  endif
+  wgl_test_env.append('PATH', libglapi_build_dir)
 
   test(
     'wgl',

@@ -1,0 +1,2 @@
+# uprev Piglit in Mesa
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-refcount-multithread,Crash

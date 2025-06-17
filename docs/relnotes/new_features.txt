@@ -1,35 +1,43 @@
-cl_khr_depth_images in rusticl
-Vulkan 1.4 on radv/gfx8+
-VK_KHR_dedicated_allocation on panvk
-VK_KHR_global_priority on panvk
-VK_KHR_index_type_uint8 on panvk
-VK_KHR_map_memory2 on panvk
-VK_KHR_multiview on panvk/v10+
-VK_KHR_shader_non_semantic_info on panvk
-VK_KHR_shader_relaxed_extended_instruction on panvk
-VK_KHR_vertex_attribute_divisor on panvk
-VK_KHR_zero_initialize_workgroup_memory on panvk
-VK_KHR_shader_draw_parameters on panvk
-VK_KHR_shader_float16_int8 on panvk
-VK_KHR_8bit_storage on panvk
-VK_EXT_4444_formats on panvk
-VK_EXT_global_priority on panvk
-VK_EXT_global_priority_query on panvk
-VK_EXT_host_query_reset on panvk
-VK_EXT_image_robustness on panvk
-VK_EXT_pipeline_robustness on panvk
-VK_EXT_provoking_vertex on panvk
-VK_EXT_queue_family_foreign on panvk
-VK_EXT_sampler_filter_minmax on panvk
-VK_EXT_scalar_block_layout on panvk
-VK_EXT_tooling_info on panvk
-depthClamp on panvk
-depthBiasClamp on panvk
-drawIndirectFirstInstance on panvk
-fragmentStoresAndAtomics on panvk/v10+
-sampleRateShading on panvk
-occlusionQueryPrecise on panvk
-shaderInt16 on panvk
-shaderInt64 on panvk
-imageCubeArray on panvk
-VK_KHR_depth_clamp_zero_one on RADV
+removed clover frontend
+VK_EXT_vertex_input_dynamic_state/vertexInputDynamicState on panvk
+pushDescriptor on panvk
+VK_EXT_vertex_input_dynamic_state on panvk
+VK_EXT_vertex_attribute_divisor on panvk
+supportsNonZeroFirstInstance on panvk
+GL_ARB_blend_func_extended on v3d
+dualSrcBlend on v3dv
+VK_KHR_maintenance4 on panvk/v10+
+VK_KHR_maintenance5 on panvk/v10+
+VK_EXT_direct_mode_display on panvk
+VK_EXT_extended_dynamic_state[2] on panvk
+Vulkan 1.2 on panvk/v10+
+VK_KHR_shader_quad_control on panvk/v10+
+multiDrawIndirect on panvk/v10+
+VK_KHR_draw_indirect_count on panvk/v10+
+VK_KHR_shader_integer_dot_product on panvk
+VK_KHR_shader_terminate_invocation on panvk
+VK_EXT_shader_demote_to_helper_invocation on panvk
+VK_EXT_shader_replicated_composites on panvk
+VK_EXT_depth_bias_control on panvk
+VK_KHR_shader_bfloat16 on anv/gfx125+ and radv/gfx12+
+VK_KHR_robustness2 on RADV
+VK_EXT_zero_initialize_device_memory on RADV and NVK
+VK_EXT_primitive_topology_list_restart on panvk
+VK_EXT_image_2d_view_of_3d on panvk
+VK_EXT_texel_buffer_alignment on panvk
+cl_khr_kernel_clock on freedreno, iris, llvmpipe, nvc0, panfrost, radeonsi and zink with llvm-19 or newer
+GL_KHR_texture_compression_astc_hdr on panfrost and asahi
+cl_ext_buffer_device_address on iris, llvmpipe and zink
+Completed OpenCL 2.0 coarse grain buffer SVM support for iris
+VK_EXT_shader_subgroup_ballot on panvk
+VK_EXT_shader_subgroup_vote on panvk
+Vulkan video support on GFX12 (RDNA4) for RADV
+VK_KHR_load_store_op_none on panvk
+VK_EXT_load_store_op_none on panvk
+VK_EXT_scalar_block_layout on radv/gfx6
+VK_EXT_inline_uniform_block on panvk
+cl_khr_fp16 on asahi, freedreno, llvmpipe, panfrost, radeonsi and zink
+GL_ARB_shader_clock on panfrost/v6+
+VK_EXT_texture_compression_astc_hdr on panvk
+MSAA with 8 and 16 sample counts on panfrost
+cl_khr_spirv_queries

@@ -66,7 +66,7 @@ Check/install the respective development package as prompted by the
 configure error message.
 
 Here are some common ways to retrieve most/all of the dependencies based
-on the packaging tool used by your distro.
+on the packaging tool used by your distribution.
 
 .. code-block:: sh
 
@@ -138,7 +138,7 @@ like this:
 .. code-block:: sh
 
    meson setup builddir/ -Dprefix="$MESA_INSTALLDIR" \
-      -Dgallium-drivers=swrast -Dvulkan-drivers=swrast
+      -Dgallium-drivers=llvmpipe -Dvulkan-drivers=swrast
    meson install -C builddir/
 
 Once Mesa has built and installed to ``$MESA_INSTALLDIR``, you can run any app
@@ -217,12 +217,8 @@ this:
    lrwxrwxrwx    1 brian    users          10 Mar 26 07:53 libGL.so -> libGL.so.1*
    lrwxrwxrwx    1 brian    users          19 Mar 26 07:53 libGL.so.1 -> libGL.so.1.5.060100*
    -rwxr-xr-x    1 brian    users     3375861 Mar 26 07:53 libGL.so.1.5.060100*
-   lrwxrwxrwx    1 brian    users          14 Mar 26 07:53 libOSMesa.so -> libOSMesa.so.6*
-   lrwxrwxrwx    1 brian    users          23 Mar 26 07:53 libOSMesa.so.6 -> libOSMesa.so.6.1.060100*
-   -rwxr-xr-x    1 brian    users       23871 Mar 26 07:53 libOSMesa.so.6.1.060100*
 
-**libGL** is the main OpenGL library (i.e. Mesa), while **libOSMesa** is
-the OSMesa (Off-Screen) interface library.
+**libGL** is the main OpenGL library (i.e. Mesa).
 
 If you built the DRI hardware drivers, you'll also see the DRI drivers:
 

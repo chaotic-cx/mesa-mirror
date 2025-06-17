@@ -6,6 +6,7 @@
  * Copyright 2014, 2015 Red Hat.
  */
 
+#include "virtio/virtio-gpu/venus_hw.h"
 #include <errno.h>
 #include <netinet/in.h>
 #include <poll.h>
@@ -15,12 +16,11 @@
 #include <sys/un.h>
 #include <unistd.h>
 
+#include "drm-uapi/virtgpu_drm.h"
 #include "util/os_file.h"
 #include "util/os_misc.h"
 #include "util/sparse_array.h"
 #include "util/u_process.h"
-#define VIRGL_RENDERER_UNSTABLE_APIS
-#include "virtio-gpu/virglrenderer_hw.h"
 #include "vtest/vtest_protocol.h"
 
 #include "vn_renderer_internal.h"
@@ -58,7 +58,7 @@ struct vtest {
    uint32_t max_timeline_count;
 
    struct {
-      enum virgl_renderer_capset id;
+      uint32_t id;
       uint32_t version;
       struct virgl_renderer_capset_venus data;
    } capset;
@@ -256,7 +256,7 @@ vtest_vcmd_get_param(struct vtest *vtest, enum vcmd_param param)
 
 static bool
 vtest_vcmd_get_capset(struct vtest *vtest,
-                      enum virgl_renderer_capset id,
+                      uint32_t id,
                       uint32_t version,
                       void *capset,
                       size_t capset_size)
@@ -299,8 +299,7 @@ vtest_vcmd_get_capset(struct vtest *vtest,
 }
 
 static void
-vtest_vcmd_context_init(struct vtest *vtest,
-                        enum virgl_renderer_capset capset_id)
+vtest_vcmd_context_init(struct vtest *vtest, uint32_t capset_id)
 {
    uint32_t vtest_hdr[VTEST_HDR_SIZE];
    uint32_t vcmd_context_init[VCMD_CONTEXT_INIT_SIZE];
@@ -976,7 +975,7 @@ vtest_destroy(struct vn_renderer *renderer,
 static VkResult
 vtest_init_capset(struct vtest *vtest)
 {
-   vtest->capset.id = VIRGL_RENDERER_CAPSET_VENUS;
+   vtest->capset.id = VIRTGPU_DRM_CAPSET_VENUS;
    vtest->capset.version = 0;
 
    if (!vtest_vcmd_get_capset(vtest, vtest->capset.id, vtest->capset.version,

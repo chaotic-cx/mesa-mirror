@@ -68,7 +68,7 @@ dump_shader_info(struct ir3_shader_variant *v,
       "%u dwords, %u last-baryf, %u last-helper, %u half, %u full, %u constlen, "
       "%u cat0, %u cat1, %u cat2, %u cat3, %u cat4, %u cat5, %u cat6, %u cat7, "
       "%u stp, %u ldp, %u sstall, %u (ss), %u systall, %u (sy), %d waves, "
-      "%d loops, %u preamble inst, %d early-preamble\n",
+      "%d loops, %u preamble-inst, %d early-preamble\n",
       ir3_shader_stage(v), v->info.instrs_count, v->info.nops_count,
       v->info.instrs_count - v->info.nops_count, v->info.mov_count,
       v->info.cov_count, v->info.sizedwords, v->info.last_baryf,
@@ -265,17 +265,6 @@ ir3_shader_compute_state_create(struct pipe_context *pctx,
 {
    struct fd_context *ctx = fd_context(pctx);
 
-   /* req_input_mem will only be non-zero for cl kernels (ie. clover).
-    * This isn't a perfect test because I guess it is possible (but
-    * uncommon) for none for the kernel parameters to be a global,
-    * but ctx->set_global_bindings() can't fail, so this is the next
-    * best place to fail if we need a newer version of kernel driver:
-    */
-   if ((cso->req_input_mem > 0) &&
-       fd_device_version(ctx->dev) < FD_VERSION_BO_IOVA) {
-      return NULL;
-   }
-
    enum ir3_wavesize_option api_wavesize = IR3_SINGLE_OR_DOUBLE;
    enum ir3_wavesize_option real_wavesize = IR3_SINGLE_OR_DOUBLE;
 
@@ -311,7 +300,6 @@ ir3_shader_compute_state_create(struct pipe_context *pctx,
 
    struct ir3_shader *shader =
       ir3_shader_from_nir(compiler, nir, &ir3_options, NULL);
-   shader->cs.req_input_mem = align(cso->req_input_mem, 4) / 4;     /* byte->dword */
    shader->cs.req_local_mem = cso->static_shared_mem;
 
    struct ir3_shader_state *hwcso = calloc(1, sizeof(*hwcso));
@@ -560,6 +548,7 @@ ir3_screen_init(struct pipe_screen *pscreen)
       .bindless_fb_read_slot = IR3_BINDLESS_IMAGE_OFFSET +
                                IR3_BINDLESS_IMAGE_COUNT - 1 - screen->max_rts,
       .dual_color_blend_by_location = screen->driconf.dual_color_blend_by_location,
+      .uche_trap_base = screen->uche_trap_base,
    };
 
    if (screen->gen >= 6) {

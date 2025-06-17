@@ -3,8 +3,6 @@
 # Copyright 2017 Intel Corporation
 # SPDX-License-Identifier: MIT
 
-dep_iokit = dependency('IOKit', required : false)
-
 libasahi_lib_files = files(
   'agx_bo.c',
   'agx_border.c',
@@ -13,7 +11,6 @@ libasahi_lib_files = files(
   'agx_linker.c',
   'agx_bg_eot.c',
   'agx_tilebuffer.c',
-  'agx_nir_lower_alpha.c',
   'agx_nir_lower_gs.c',
   'agx_nir_lower_ia.c',
   'agx_nir_lower_msaa.c',
@@ -39,6 +36,7 @@ libasahi_decode = static_library(
   dependencies : [dep_valgrind, idep_mesautil],
   c_args : [no_override_init_args, '-Wno-c2x-extensions'],
   gnu_symbol_visibility : 'hidden',
+  link_with : [libagx2_disasm],
   build_by_default : false,
 )
 
@@ -48,15 +46,13 @@ libasahi_decode_shared = shared_library(
   dependencies : [dep_valgrind, idep_mesautil],
   c_args : [no_override_init_args, '-Wno-c2x-extensions'],
   build_by_default : with_tools.contains('asahi'),
+  link_with : [libagx2_disasm],
 )
 
 libagx_shaders = custom_target(
-  'libagx_shaders',
   input : libagx_spv,
   output : ['libagx_shaders.h', 'libagx_shaders.c'],
   command : [prog_asahi_clc, libagx_spv, '@OUTPUT0@', '@OUTPUT1@'],
-  env: ['MESA_SHADER_CACHE_DISABLE=true'],
-  depends : [prog_asahi_clc],
 )
 
 idep_libagx_shaders_h = declare_dependency(

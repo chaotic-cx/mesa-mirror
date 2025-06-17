@@ -2,7 +2,10 @@
 # Strip the image to a small minimal system.
 # When changing this file, you need to bump the following
 # .gitlab-ci/image-tags.yml tags:
-# KERNEL_ROOTFS_TAG
+# DEBIAN_TEST_ANDROID_TAG
+# DEBIAN_TEST_GL_TAG
+# DEBIAN_TEST_VIDEO_TAG
+# DEBIAN_TEST_VK_TAG
 set -ex
 
 section_start strip-rootfs "Stripping rootfs"
@@ -35,7 +38,6 @@ UNNEEDED_PACKAGES=(
   udev
   init-system-helpers
   cpio
-  passwd
   libsemanage1 libsemanage-common
   libsepol1
   gpgv

@@ -27,7 +27,7 @@
  * pass only validates that GRF's uses are sane.  More can be added later.
  */
 
-#include "brw_fs.h"
+#include "brw_shader.h"
 #include "brw_cfg.h"
 #include "brw_eu.h"
 
@@ -44,15 +44,15 @@
 
 #define fsv_assert_eq(A, B)                                             \
    {                                                                    \
-      unsigned a = (A);                                                 \
-      unsigned b = (B);                                                 \
+      uintptr_t a = uintptr_t(A);                                       \
+      uintptr_t b = uintptr_t(B);                                       \
       if (a != b) {                                                     \
          fprintf(stderr, "ASSERT: Scalar %s validation failed!\n",      \
                  _mesa_shader_stage_to_abbrev(s.stage));                \
          brw_print_instruction(s, inst, stderr);                        \
          fprintf(stderr, "%s:%d: A == B failed\n", __FILE__, __LINE__); \
-         fprintf(stderr, "  A = %s = %u\n", #A, a);                     \
-         fprintf(stderr, "  B = %s = %u\n", #B, b);                     \
+         fprintf(stderr, "  A = %s = %" PRIuPTR "\n", #A, a);           \
+         fprintf(stderr, "  B = %s = %" PRIuPTR "\n", #B, b);           \
          abort();                                                       \
       }                                                                 \
    }
@@ -95,7 +95,7 @@ is_ud_imm(const brw_reg &reg)
 }
 
 static void
-validate_memory_logical(const fs_visitor &s, const fs_inst *inst)
+validate_memory_logical(const brw_shader &s, const brw_inst *inst)
 {
    const intel_device_info *devinfo = s.devinfo;
 
@@ -159,7 +159,8 @@ validate_memory_logical(const fs_visitor &s, const fs_inst *inst)
 
    switch (inst->opcode) {
    case SHADER_OPCODE_MEMORY_LOAD_LOGICAL:
-      fsv_assert(op == LSC_OP_LOAD || op == LSC_OP_LOAD_CMASK);
+      fsv_assert(op == LSC_OP_LOAD || op == LSC_OP_LOAD_CMASK ||
+                 op == LSC_OP_LOAD_CMASK_MSRT);
       fsv_assert(inst->src[MEMORY_LOGICAL_DATA0].file == BAD_FILE);
       fsv_assert(inst->src[MEMORY_LOGICAL_DATA1].file == BAD_FILE);
       break;
@@ -200,7 +201,7 @@ brw_shader_phase_to_string(enum brw_shader_phase phase)
 }
 
 static void
-brw_validate_instruction_phase(const fs_visitor &s, fs_inst *inst)
+brw_validate_instruction_phase(const brw_shader &s, brw_inst *inst)
 {
    enum brw_shader_phase invalid_from = BRW_SHADER_PHASE_INVALID;
 
@@ -249,6 +250,7 @@ brw_validate_instruction_phase(const fs_visitor &s, fs_inst *inst)
    case SHADER_OPCODE_QUAD_SWAP:
    case SHADER_OPCODE_READ_FROM_LIVE_CHANNEL:
    case SHADER_OPCODE_READ_FROM_CHANNEL:
+   case SHADER_OPCODE_LOAD_REG:
       invalid_from = BRW_SHADER_PHASE_AFTER_EARLY_LOWERING;
       break;
 
@@ -271,14 +273,15 @@ brw_validate_instruction_phase(const fs_visitor &s, fs_inst *inst)
 }
 
 void
-brw_validate(const fs_visitor &s)
+brw_validate(const brw_shader &s)
 {
    const intel_device_info *devinfo = s.devinfo;
 
+   if (s.cfg)
+      s.cfg->validate(_mesa_shader_stage_to_abbrev(s.stage));
+
    if (s.phase <= BRW_SHADER_PHASE_AFTER_NIR)
       return;
-
-   s.cfg->validate(_mesa_shader_stage_to_abbrev(s.stage));
 
    foreach_block(block, s.cfg) {
       /* Track the last used address register. Usage of the address register
@@ -291,12 +294,17 @@ brw_validate(const fs_visitor &s)
        */
       uint32_t last_used_address_register[16] = {};
 
-      foreach_inst_in_block (fs_inst, inst, block) {
+      foreach_inst_in_block (brw_inst, inst, block) {
          brw_validate_instruction_phase(s, inst);
 
          switch (inst->opcode) {
          case SHADER_OPCODE_SEND:
             fsv_assert(is_uniform(inst->src[0]) && is_uniform(inst->src[1]));
+            break;
+
+         case SHADER_OPCODE_SEND_GATHER:
+            fsv_assert(is_uniform(inst->src[0]) && is_uniform(inst->src[1]));
+            fsv_assert(devinfo->ver >= 30);
             break;
 
          case BRW_OPCODE_MOV:
@@ -308,6 +316,32 @@ brw_validate(const fs_visitor &s)
          case SHADER_OPCODE_MEMORY_ATOMIC_LOGICAL:
             validate_memory_logical(s, inst);
             break;
+
+         case SHADER_OPCODE_MEMORY_FENCE:
+         case SHADER_OPCODE_INTERLOCK:
+            fsv_assert(inst->exec_size == 1);
+            fsv_assert(inst->force_writemask_all);
+            fsv_assert(inst->sources == 2);
+            fsv_assert(is_ud_imm(inst->src[1])); /* commit enable */
+            break;
+
+         case SHADER_OPCODE_LOAD_REG: {
+            fsv_assert_eq(inst->sources, 1);
+            fsv_assert_eq(s.alloc.sizes[inst->dst.nr] * REG_SIZE, inst->size_written);
+            fsv_assert(!inst->is_partial_write());
+            fsv_assert_lte(inst->src[0].stride, 1);
+
+            /* For example, if file == UNIFORM, stride will be zero and offset
+             * may be non-zero.
+             */
+            if (inst->src[0].stride != 0)
+               fsv_assert_eq(inst->src[0].offset, 0);
+
+            const brw_def_analysis &defs = s.def_analysis.require();
+            fsv_assert_eq(inst, defs.get(inst->dst));
+
+            break;
+         }
 
          default:
             break;
@@ -330,9 +364,9 @@ brw_validate(const fs_visitor &s)
                brw_type_is_int(inst->src[1].type) +
                brw_type_is_int(inst->src[2].type);
             const unsigned float_sources =
-               brw_type_is_float(inst->src[0].type) +
-               brw_type_is_float(inst->src[1].type) +
-               brw_type_is_float(inst->src[2].type);
+               brw_type_is_float_or_bfloat(inst->src[0].type) +
+               brw_type_is_float_or_bfloat(inst->src[1].type) +
+               brw_type_is_float_or_bfloat(inst->src[2].type);
 
             fsv_assert((integer_sources == 3 && float_sources == 0) ||
                        (integer_sources == 0 && float_sources == 3));

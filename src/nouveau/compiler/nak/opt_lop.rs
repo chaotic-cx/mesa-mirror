@@ -3,7 +3,7 @@
 
 use crate::ir::*;
 
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
 use std::slice;
 
 struct LopEntry {
@@ -13,12 +13,12 @@ struct LopEntry {
 }
 
 struct LopPass {
-    use_counts: HashMap<SSAValue, u32>,
-    ssa_lop: HashMap<SSAValue, LopEntry>,
+    use_counts: FxHashMap<SSAValue, u32>,
+    ssa_lop: FxHashMap<SSAValue, LopEntry>,
 }
 
 fn src_as_bool(src: &Src) -> Option<bool> {
-    assert!(src.src_mod.is_none());
+    assert!(src.is_unmodified());
     match src.src_ref {
         SrcRef::Zero | SrcRef::False | SrcRef::Imm32(0) => Some(false),
         SrcRef::True | SrcRef::Imm32(u32::MAX) => Some(true),
@@ -28,7 +28,7 @@ fn src_as_bool(src: &Src) -> Option<bool> {
 
 impl LopPass {
     fn new(f: &Function) -> LopPass {
-        let mut use_counts = HashMap::new();
+        let mut use_counts = FxHashMap::default();
         for b in &f.blocks {
             for instr in &b.instrs {
                 if let PredRef::SSA(ssa) = instr.pred.pred_ref {
@@ -36,7 +36,7 @@ impl LopPass {
                 }
 
                 for src in instr.srcs() {
-                    if let SrcRef::SSA(vec) = src.src_ref {
+                    if let SrcRef::SSA(vec) = &src.src_ref {
                         for ssa in vec.iter() {
                             use_counts
                                 .entry(*ssa)
@@ -49,7 +49,7 @@ impl LopPass {
         }
         LopPass {
             use_counts: use_counts,
-            ssa_lop: HashMap::new(),
+            ssa_lop: Default::default(),
         }
     }
 
@@ -104,8 +104,8 @@ impl LopPass {
         src_idx: usize,
     ) {
         loop {
-            assert!(srcs[src_idx].src_mod.is_none());
-            let ssa = match srcs[src_idx].src_ref {
+            assert!(srcs[src_idx].is_unmodified());
+            let ssa = match &srcs[src_idx].src_ref {
                 SrcRef::SSA(vec) => {
                     assert!(vec.comps() == 1);
                     vec[0]
@@ -173,7 +173,7 @@ impl LopPass {
 
             for i in 0..3 {
                 if entry_srcs[i] != usize::MAX {
-                    srcs[entry_srcs[i]] = entry.srcs[i];
+                    srcs[entry_srcs[i]] = entry.srcs[i].clone();
                 }
             }
             for op in ops.iter_mut() {
@@ -197,7 +197,7 @@ impl LopPass {
         self.dedup_srcs(&mut op.op, &op.srcs);
 
         for (i, src) in op.srcs.iter_mut().enumerate() {
-            assert!(src.src_mod.is_none());
+            assert!(src.is_unmodified());
 
             if let Some(b) = src_as_bool(src) {
                 op.op.fix_src(i, b);
@@ -213,9 +213,9 @@ impl LopPass {
             self.try_prop_to_src(slice::from_mut(&mut op.op), &mut op.srcs, i);
         }
 
-        if let Dst::SSA(ssa) = op.dst {
+        if let Dst::SSA(ssa) = &op.dst {
             assert!(ssa.comps() == 1);
-            self.add_lop(ssa[0], op.op, op.srcs);
+            self.add_lop(ssa[0], op.op, op.srcs.clone());
         }
     }
 
@@ -246,9 +246,9 @@ impl LopPass {
         }
 
         for i in 0..2 {
-            if let Dst::SSA(ssa) = op.dsts[i] {
+            if let Dst::SSA(ssa) = &op.dsts[i] {
                 assert!(ssa.comps() == 1);
-                self.add_lop(ssa[0], op.ops[i], op.srcs);
+                self.add_lop(ssa[0], op.ops[i], op.srcs.clone());
             }
         }
     }

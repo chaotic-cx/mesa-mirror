@@ -20,12 +20,8 @@
 #include "panvk_tracepoints_perfetto.h"
 #include "panvk_utrace.h"
 
-struct PanVKRenderpassIncrementalState {
-   bool was_cleared = true;
-};
-
 struct PanVKRenderpassTraits : public perfetto::DefaultDataSourceTraits {
-   using IncrementalStateType = PanVKRenderpassIncrementalState;
+   using IncrementalStateType = MesaRenderpassIncrementalState;
 };
 
 class PanVKRenderpassDataSource
@@ -255,7 +251,12 @@ static void
 register_data_source(void)
 {
    perfetto::DataSourceDescriptor dsd;
+#if DETECT_OS_ANDROID
+   // Android tooling expects this data source name
+   dsd.set_name("gpu.renderstages");
+#else
    dsd.set_name("gpu.renderstages.panfrost");
+#endif
    PanVKRenderpassDataSource::Register(dsd);
 }
 

@@ -48,24 +48,6 @@
     <value name=".xyz" value="2" />
     <value name=".xyzw" value="3" />
   </enum>
-  <enum name="COMPONENT_ENABLES" prefix="CE">
-    <value name="NONE" value="0" />
-    <value name="X" value="1" />
-    <value name="Y" value="2" />
-    <value name="XY" value="3" />
-    <value name="Z" value="4" />
-    <value name="XZ" value="5" />
-    <value name="YZ" value="6" />
-    <value name="XYZ" value="7" />
-    <value name="W" value="8" />
-    <value name="XW" value="9" />
-    <value name="YW" value="10" />
-    <value name="XYW" value="11" />
-    <value name="ZW" value="12" />
-    <value name="XZW" value="13" />
-    <value name="YZW" value="14" />
-    <value name="XYZW" value="15" />
-  </enum>
   <struct name="COLOR_CALC_STATE" length="6">
     <field name="Alpha Test Format" start="0" end="0" type="uint">
       <value name="ALPHATEST_UNORM8" value="0" />
@@ -78,14 +60,6 @@
     <field name="Blend Constant Color Green" start="96" end="127" type="float" />
     <field name="Blend Constant Color Blue" start="128" end="159" type="float" />
     <field name="Blend Constant Color Alpha" start="160" end="191" type="float" />
-  </struct>
-  <struct name="EXECUTION_UNIT_EXTENDED_MESSAGE_DESCRIPTOR" length="1">
-    <field name="Target Function ID" start="0" end="3" type="uint" />
-    <field name="End Of Thread" start="5" end="5" type="uint">
-      <value name="No Termination" value="0" />
-      <value name="EOT" value="1" />
-    </field>
-    <field name="Extended Message Length" start="6" end="9" type="uint" />
   </struct>
   <struct name="FRAMEDELTAQP" length="2">
     <group count="8" start="0" size="8">
@@ -1415,38 +1389,12 @@
     <field name="3D Command Opcode" start="24" end="26" type="uint" default="0" />
     <field name="Command SubType" start="27" end="28" type="uint" default="3" />
     <field name="Command Type" start="29" end="31" type="uint" default="3" />
-    <field name="Vertex Element 00 Enables" start="32" end="35" type="uint" />
-    <field name="Vertex Element 01 Enables" start="36" end="39" type="uint" />
-    <field name="Vertex Element 02 Enables" start="40" end="43" type="uint" />
-    <field name="Vertex Element 03 Enables" start="44" end="47" type="uint" />
-    <field name="Vertex Element 04 Enables" start="48" end="51" type="uint" />
-    <field name="Vertex Element 05 Enables" start="52" end="55" type="uint" />
-    <field name="Vertex Element 06 Enables" start="56" end="59" type="uint" />
-    <field name="Vertex Element 07 Enables" start="60" end="63" type="uint" />
-    <field name="Vertex Element 08 Enables" start="64" end="67" type="uint" />
-    <field name="Vertex Element 09 Enables" start="68" end="71" type="uint" />
-    <field name="Vertex Element 10 Enables" start="72" end="75" type="uint" />
-    <field name="Vertex Element 11 Enables" start="76" end="79" type="uint" />
-    <field name="Vertex Element 12 Enables" start="80" end="83" type="uint" />
-    <field name="Vertex Element 13 Enables" start="84" end="87" type="uint" />
-    <field name="Vertex Element 14 Enables" start="88" end="91" type="uint" />
-    <field name="Vertex Element 15 Enables" start="92" end="95" type="uint" />
-    <field name="Vertex Element 16 Enables" start="96" end="99" type="uint" />
-    <field name="Vertex Element 17 Enables" start="100" end="103" type="uint" />
-    <field name="Vertex Element 18 Enables" start="104" end="107" type="uint" />
-    <field name="Vertex Element 19 Enables" start="108" end="111" type="uint" />
-    <field name="Vertex Element 20 Enables" start="112" end="115" type="uint" />
-    <field name="Vertex Element 21 Enables" start="116" end="119" type="uint" />
-    <field name="Vertex Element 22 Enables" start="120" end="123" type="uint" />
-    <field name="Vertex Element 23 Enables" start="124" end="127" type="uint" />
-    <field name="Vertex Element 24 Enables" start="128" end="131" type="uint" />
-    <field name="Vertex Element 25 Enables" start="132" end="135" type="uint" />
-    <field name="Vertex Element 26 Enables" start="136" end="139" type="uint" />
-    <field name="Vertex Element 27 Enables" start="140" end="143" type="uint" />
-    <field name="Vertex Element 28 Enables" start="144" end="147" type="uint" />
-    <field name="Vertex Element 29 Enables" start="148" end="151" type="uint" />
-    <field name="Vertex Element 30 Enables" start="152" end="155" type="uint" />
-    <field name="Vertex Element 31 Enables" start="156" end="159" type="uint" />
+    <group count="32" start="32" size="4">
+      <field name="Vertex Element Enables" start="0" end="3" type="uint" />
+    </group>
+    <group count="4" start="32" size="32">
+      <field name="Vertex Element Enables DW" start="0" end="31" type="uint" />
+    </group>
   </instruction>
   <instruction name="3DSTATE_WM_DEPTH_STENCIL" bias="2" length="4" engine="render">
     <field name="DWord Length" start="0" end="7" type="uint" default="2" />
@@ -3469,12 +3417,16 @@
     <field name="Display Buffer Base Address" start="76" end="95" type="address" />
     <field name="Left Eye Display Buffer Base Address" start="108" end="127" type="address" />
   </instruction>
-  <instruction name="MI_FLUSH_DW" bias="2" length="5" engine="video">
+  <instruction name="MI_FLUSH_DW" bias="2" length="5" engine="blitter|video">
     <field name="DWord Length" start="0" end="5" type="uint" default="3" />
     <field name="Video Pipeline Cache Invalidate" start="7" end="7" type="bool" />
     <field name="Notify Enable" start="8" end="8" type="bool" />
     <field name="Flush LLC" start="9" end="9" type="bool" />
-    <field name="Post-Sync Operation" start="14" end="15" type="uint" />
+    <field name="Post-Sync Operation" start="14" end="15" type="uint">
+      <value name="No Write" value="0" />
+      <value name="Write Immediate Data" value="1" />
+      <value name="Write Timestamp" value="3" />
+    </field>
     <field name="TLB Invalidate" start="18" end="18" type="bool" />
     <field name="Store Data Index" start="21" end="21" type="uint" />
     <field name="MI Command Opcode" start="23" end="28" type="uint" default="38" />
@@ -3706,7 +3658,7 @@
     <field name="SFC Input Chroma Sub-Sampling" start="36" end="39" type="uint">
       <value name="4:0:0" value="0" />
       <value name="4:2:0" value="1" />
-      <value name="4:2:2 Horizonatal" value="2" />
+      <value name="4:2:2 Horizontal" value="2" />
       <value name="4:4:4 Progressive/Interleaved" value="4" />
     </field>
     <field name="VD/VE Input Ordering Mode" start="40" end="42" type="uint" />

@@ -592,6 +592,7 @@ EXTRA_EXT(ARB_spirv_extensions);
 EXTRA_EXT(NV_viewport_swizzle);
 EXTRA_EXT(ARB_sparse_texture);
 EXTRA_EXT(KHR_shader_subgroup);
+EXTRA_EXT(OVR_multiview);
 
 static const int extra_ARB_gl_spirv_or_es2_compat[] = {
    EXT(ARB_gl_spirv),
@@ -1028,6 +1029,12 @@ find_custom_value(struct gl_context *ctx, const struct value_desc *d, union valu
             GLint i_bits =
                _mesa_get_format_bits(rb->Format, GL_TEXTURE_INTENSITY_SIZE);
 
+            /* Fix the case where some drivers may implement signed luminance
+             * as signed RGBA, which leads to reporting signed alpha.
+             */
+            if (rb->_BaseFormat == GL_LUMINANCE)
+               a_bits = 0;
+
             v->value_int_4[0] = r_bits + l_bits + i_bits > 0;
             v->value_int_4[1] = g_bits + l_bits + i_bits > 0;
             v->value_int_4[2] = b_bits + l_bits + i_bits > 0;
@@ -1259,7 +1266,7 @@ find_custom_value(struct gl_context *ctx, const struct value_desc *d, union valu
       break;
    /* GL_EXT_textrue_integer */
    case GL_RGBA_INTEGER_MODE_EXT:
-      v->value_int = (ctx->DrawBuffer->_IntegerBuffers != 0);
+      v->value_int = (ctx->DrawBuffer->_IntegerDrawBuffers != 0);
       break;
    /* GL_ATI_meminfo & GL_NVX_gpu_memory_info */
    case GL_VBO_FREE_MEMORY_ATI:

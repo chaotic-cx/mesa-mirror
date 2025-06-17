@@ -111,153 +111,75 @@ nvc0_screen_is_format_supported(struct pipe_screen *pscreen,
             nvc0_vertex_format[format].usage) & bindings) == bindings;
 }
 
-static int
-nvc0_screen_get_shader_param(struct pipe_screen *pscreen,
-                             enum pipe_shader_type shader,
-                             enum pipe_shader_cap param)
+static void
+nvc0_init_shader_caps(struct nvc0_screen *screen)
 {
-   const struct nouveau_screen *screen = nouveau_screen(pscreen);
-   const uint16_t class_3d = screen->class_3d;
+   const uint16_t class_3d = screen->base.class_3d;
 
-   switch (shader) {
-   case PIPE_SHADER_VERTEX:
-   case PIPE_SHADER_GEOMETRY:
-   case PIPE_SHADER_FRAGMENT:
-   case PIPE_SHADER_COMPUTE:
-   case PIPE_SHADER_TESS_CTRL:
-   case PIPE_SHADER_TESS_EVAL:
-      break;
-   default:
-      return 0;
-   }
+   for (unsigned i = 0; i <= PIPE_SHADER_COMPUTE; i++) {
+      struct pipe_shader_caps *caps =
+         (struct pipe_shader_caps *)&screen->base.base.shader_caps[i];
 
-   switch (param) {
-   case PIPE_SHADER_CAP_SUPPORTED_IRS:
-      return 1 << PIPE_SHADER_IR_NIR;
-   case PIPE_SHADER_CAP_MAX_INSTRUCTIONS:
-   case PIPE_SHADER_CAP_MAX_ALU_INSTRUCTIONS:
-   case PIPE_SHADER_CAP_MAX_TEX_INSTRUCTIONS:
-   case PIPE_SHADER_CAP_MAX_TEX_INDIRECTIONS:
-      return 16384;
-   case PIPE_SHADER_CAP_MAX_CONTROL_FLOW_DEPTH:
-      return 16;
-   case PIPE_SHADER_CAP_MAX_INPUTS:
-      return 0x200 / 16;
-   case PIPE_SHADER_CAP_MAX_OUTPUTS:
-      return 32;
-   case PIPE_SHADER_CAP_MAX_CONST_BUFFER0_SIZE:
-      return NVC0_MAX_CONSTBUF_SIZE;
-   case PIPE_SHADER_CAP_MAX_CONST_BUFFERS:
-      return NVC0_MAX_PIPE_CONSTBUFS;
-   case PIPE_SHADER_CAP_INDIRECT_TEMP_ADDR:
-   case PIPE_SHADER_CAP_INDIRECT_CONST_ADDR:
-      return 1;
-   case PIPE_SHADER_CAP_MAX_TEMPS:
-      return NVC0_CAP_MAX_PROGRAM_TEMPS;
-   case PIPE_SHADER_CAP_CONT_SUPPORTED:
-      return 1;
-   case PIPE_SHADER_CAP_TGSI_SQRT_SUPPORTED:
-      return 1;
-   case PIPE_SHADER_CAP_SUBROUTINES:
-      return 1;
-   case PIPE_SHADER_CAP_INTEGERS:
-      return 1;
-   case PIPE_SHADER_CAP_TGSI_ANY_INOUT_DECL_RANGE:
-   case PIPE_SHADER_CAP_INT64_ATOMICS:
-   case PIPE_SHADER_CAP_FP16:
-   case PIPE_SHADER_CAP_FP16_DERIVATIVES:
-   case PIPE_SHADER_CAP_FP16_CONST_BUFFERS:
-   case PIPE_SHADER_CAP_INT16:
-   case PIPE_SHADER_CAP_GLSL_16BIT_CONSTS:
-   case PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTERS:
-   case PIPE_SHADER_CAP_MAX_HW_ATOMIC_COUNTER_BUFFERS:
-      return 0;
-   case PIPE_SHADER_CAP_MAX_SHADER_BUFFERS:
-      return NVC0_MAX_BUFFERS;
-   case PIPE_SHADER_CAP_MAX_TEXTURE_SAMPLERS:
-      return (class_3d >= NVE4_3D_CLASS) ? 32 : 16;
-   case PIPE_SHADER_CAP_MAX_SAMPLER_VIEWS:
-      return (class_3d >= NVE4_3D_CLASS) ? 32 : 16;
-   case PIPE_SHADER_CAP_MAX_SHADER_IMAGES:
-      if (class_3d >= NVE4_3D_CLASS)
-         return NVC0_MAX_IMAGES;
-      if (shader == PIPE_SHADER_FRAGMENT || shader == PIPE_SHADER_COMPUTE)
-         return NVC0_MAX_IMAGES;
-      return 0;
-   default:
-      NOUVEAU_ERR("unknown PIPE_SHADER_CAP %d\n", param);
-      return 0;
+      caps->supported_irs = 1 << PIPE_SHADER_IR_NIR;
+      caps->max_instructions =
+      caps->max_alu_instructions =
+      caps->max_tex_instructions =
+      caps->max_tex_indirections = 16384;
+      caps->max_control_flow_depth = 16;
+      caps->max_inputs = 0x200 / 16;
+      caps->max_outputs = 32;
+      caps->max_const_buffer0_size = NVC0_MAX_CONSTBUF_SIZE;
+      caps->max_const_buffers = NVC0_MAX_PIPE_CONSTBUFS;
+      caps->indirect_temp_addr = true;
+      caps->indirect_const_addr = true;
+      caps->max_temps = NVC0_CAP_MAX_PROGRAM_TEMPS;
+      caps->cont_supported = true;
+      caps->tgsi_sqrt_supported = true;
+      caps->subroutines = true;
+      caps->integers = true;
+      caps->max_shader_buffers = NVC0_MAX_BUFFERS;
+      caps->max_texture_samplers = (class_3d >= NVE4_3D_CLASS) ? 32 : 16;
+      caps->max_sampler_views = (class_3d >= NVE4_3D_CLASS) ? 32 : 16;
+      caps->max_shader_images =
+         class_3d >= NVE4_3D_CLASS ||
+         i == PIPE_SHADER_FRAGMENT ||
+         i == PIPE_SHADER_COMPUTE ? NVC0_MAX_IMAGES : 0;
    }
 }
 
-static int
-nvc0_screen_get_compute_param(struct pipe_screen *pscreen,
-                              enum pipe_shader_ir ir_type,
-                              enum pipe_compute_cap param, void *data)
+static void
+nvc0_init_compute_caps(struct nvc0_screen *screen)
 {
-   struct nvc0_screen *screen = nvc0_screen(pscreen);
    struct nouveau_device *dev = screen->base.device;
    const uint16_t obj_class = screen->compute->oclass;
 
-#define RET(x) do {                  \
-   if (data)                         \
-      memcpy(data, x, sizeof(x));    \
-   return sizeof(x);                 \
-} while (0)
+   struct pipe_compute_caps *caps =
+      (struct pipe_compute_caps *)&screen->base.base.compute_caps;
 
-   switch (param) {
-   case PIPE_COMPUTE_CAP_GRID_DIMENSION:
-      RET((uint64_t []) { 3 });
-   case PIPE_COMPUTE_CAP_MAX_GRID_SIZE:
-      if (obj_class >= NVE4_COMPUTE_CLASS) {
-         RET(((uint64_t []) { 0x7fffffff, 65535, 65535 }));
-      } else {
-         RET(((uint64_t []) { 65535, 65535, 65535 }));
-      }
-   case PIPE_COMPUTE_CAP_MAX_BLOCK_SIZE:
-      RET(((uint64_t []) { 1024, 1024, 64 }));
-   case PIPE_COMPUTE_CAP_MAX_THREADS_PER_BLOCK:
-      RET((uint64_t []) { 1024 });
-   case PIPE_COMPUTE_CAP_MAX_VARIABLE_THREADS_PER_BLOCK:
-      if (obj_class >= NVE4_COMPUTE_CLASS) {
-         RET((uint64_t []) { 1024 });
-      } else {
-         RET((uint64_t []) { 512 });
-      }
-   case PIPE_COMPUTE_CAP_MAX_GLOBAL_SIZE: /* g[] */
-      RET((uint64_t []) { nouveau_device_get_global_mem_size(dev) });
-   case PIPE_COMPUTE_CAP_MAX_LOCAL_SIZE: /* s[] */
-      switch (obj_class) {
-      case GM200_COMPUTE_CLASS:
-         RET((uint64_t []) { 96 << 10 });
-      case GM107_COMPUTE_CLASS:
-         RET((uint64_t []) { 64 << 10 });
-      default:
-         RET((uint64_t []) { 48 << 10 });
-      }
-   case PIPE_COMPUTE_CAP_MAX_PRIVATE_SIZE: /* l[] */
-      RET((uint64_t []) { 512 << 10 });
-   case PIPE_COMPUTE_CAP_MAX_INPUT_SIZE: /* c[], arbitrary limit */
-      RET((uint64_t []) { 4096 });
-   case PIPE_COMPUTE_CAP_SUBGROUP_SIZES:
-      RET((uint32_t []) { 32 });
-   case PIPE_COMPUTE_CAP_MAX_SUBGROUPS:
-      RET((uint32_t []) { 0 });
-   case PIPE_COMPUTE_CAP_MAX_MEM_ALLOC_SIZE:
-      RET((uint64_t []) { nouveau_device_get_global_mem_size(dev) });
-   case PIPE_COMPUTE_CAP_IMAGES_SUPPORTED:
-      RET((uint32_t []) { NVC0_MAX_IMAGES });
-   case PIPE_COMPUTE_CAP_MAX_COMPUTE_UNITS:
-      RET((uint32_t []) { screen->mp_count_compute });
-   case PIPE_COMPUTE_CAP_MAX_CLOCK_FREQUENCY:
-      RET((uint32_t []) { 512 }); /* FIXME: arbitrary limit */
-   case PIPE_COMPUTE_CAP_ADDRESS_BITS:
-      RET((uint32_t []) { 64 });
-   default:
-      return 0;
-   }
+   caps->grid_dimension = 3;
 
-#undef RET
+   caps->max_grid_size[0] = obj_class >= NVE4_COMPUTE_CLASS ? 0x7fffffff : 65535;
+   caps->max_grid_size[1] = 65535;
+   caps->max_grid_size[2] = 65535;
+
+   caps->max_block_size[0] = 1024;
+   caps->max_block_size[1] = 1024;
+   caps->max_block_size[2] = 64;
+
+   caps->max_threads_per_block = 1024;
+
+   caps->max_variable_threads_per_block = obj_class >= NVE4_COMPUTE_CLASS ? 1024 : 512;
+   caps->max_mem_alloc_size =
+   caps->max_global_size = nouveau_device_get_global_mem_size(dev); /* g[] */
+
+   caps->max_local_size = /* s[] */
+      obj_class == GM200_COMPUTE_CLASS ? 96 << 10 :
+      (obj_class == GM107_COMPUTE_CLASS ? 64 << 10 : 48 << 10);
+
+   caps->subgroup_sizes = 32;
+   caps->max_compute_units = screen->mp_count_compute;
+   caps->max_clock_frequency = 512; /* FIXME: arbitrary limit */
+   caps->address_bits = 64;
 }
 
 static void
@@ -393,7 +315,6 @@ nvc0_init_screen_caps(struct nvc0_screen *screen)
    caps->cull_distance = true;
    caps->robust_buffer_access_behavior = true;
    caps->shader_group_vote = true;
-   caps->polygon_offset_units_unscaled = true;
    caps->shader_array_components = true;
    caps->legacy_math_rules = true;
    caps->doubles = true;
@@ -403,7 +324,6 @@ nvc0_init_screen_caps(struct nvc0_screen *screen)
    caps->compute = true;
    caps->can_bind_const_buffer_as_vertex = true;
    caps->query_so_overflow = true;
-   caps->tgsi_div = true;
    caps->image_atomic_inc_wrap = true;
    caps->demote_to_helper_invocation = true;
    caps->device_reset_status_query = true;
@@ -706,8 +626,6 @@ nvc0_screen_init_compute(struct nvc0_screen *screen)
    struct nouveau_object *chan = screen->base.channel;
    int ret;
 
-   screen->base.base.get_compute_param = nvc0_screen_get_compute_param;
-
    ret = nouveau_object_mclass(chan, computes);
    if (ret < 0) {
       NOUVEAU_ERR("No supported compute class: %d\n", ret);
@@ -922,7 +840,6 @@ nvc0_screen_create(struct nouveau_device *dev)
 
    pscreen->context_create = nvc0_create;
    pscreen->is_format_supported = nvc0_screen_is_format_supported;
-   pscreen->get_shader_param = nvc0_screen_get_shader_param;
    pscreen->get_sample_pixel_grid = nvc0_screen_get_sample_pixel_grid;
    pscreen->get_driver_query_info = nvc0_screen_get_driver_query_info;
    pscreen->get_driver_query_group_info = nvc0_screen_get_driver_query_group_info;
@@ -1053,8 +970,6 @@ nvc0_screen_create(struct nouveau_device *dev)
    if (ret)
       FAIL_SCREEN_INIT("Error allocating PGRAPH context for 3D: %d\n", ret);
    screen->base.class_3d = screen->eng3d->oclass;
-
-   nvc0_init_screen_caps(screen);
 
    BEGIN_NVC0(push, SUBC_3D(NV01_SUBCHAN_OBJECT), 1);
    PUSH_DATA (push, screen->eng3d->oclass);
@@ -1389,6 +1304,11 @@ nvc0_screen_create(struct nouveau_device *dev)
                                         screen->compute->oclass,
                                         screen->m2mf->oclass,
                                         screen->copy ? screen->copy->oclass : 0);
+
+   nvc0_init_shader_caps(screen);
+   nvc0_init_compute_caps(screen);
+   nvc0_init_screen_caps(screen);
+
    return &screen->base;
 
 fail:

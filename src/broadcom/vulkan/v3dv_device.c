@@ -258,7 +258,7 @@ get_features(const struct v3dv_physical_device *physical_device,
       .geometryShader = true,
       .tessellationShader = false,
       .sampleRateShading = true,
-      .dualSrcBlend = false,
+      .dualSrcBlend = true,
       .logicOp = true,
       .multiDrawIndirect = false,
       .drawIndirectFirstInstance = true,
@@ -967,7 +967,7 @@ get_device_properties(const struct v3dv_physical_device *device,
       /* Fragment limits */
       .maxFragmentInputComponents               = max_varying_components,
       .maxFragmentOutputAttachments             = 4,
-      .maxFragmentDualSrcAttachments            = 0,
+      .maxFragmentDualSrcAttachments            = 1,
       .maxFragmentCombinedOutputResources       = max_rts +
                                                   MAX_STORAGE_BUFFERS +
                                                   MAX_STORAGE_IMAGES,
@@ -1045,7 +1045,7 @@ get_device_properties(const struct v3dv_physical_device *device,
       .subgroupSize = V3D_CHANNELS,
       .subgroupSupportedStages = VK_SHADER_STAGE_COMPUTE_BIT |
                                  VK_SHADER_STAGE_FRAGMENT_BIT,
-      .subgroupSupportedOperations = VK_SUBGROUP_FEATURE_BASIC_BIT,
+      .subgroupSupportedOperations = subgroup_ops,
       .subgroupQuadOperationsInAllStages = false,
       .pointClippingBehavior = VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES,
       .maxMultiviewViewCount = MAX_MULTIVIEW_VIEW_COUNT,
@@ -1229,8 +1229,6 @@ get_device_properties(const struct v3dv_physical_device *device,
       .maxSubgroupSize = V3D_CHANNELS,
       .maxComputeWorkgroupSubgroups = 16, /* 256 / 16 */
       .requiredSubgroupSizeStages = VK_SHADER_STAGE_COMPUTE_BIT,
-
-      .subgroupSupportedOperations = subgroup_ops,
 
       /* VK_KHR_maintenance5 */
       .earlyFragmentMultisampleCoverageAfterSampleCounting = true,
@@ -1481,8 +1479,6 @@ static void
 try_display_device(struct v3dv_instance *instance, const char *path,
                    int32_t *fd)
 {
-   bool khr_display = instance->vk.enabled_extensions.KHR_display ||
-      instance->vk.enabled_extensions.EXT_acquire_drm_display;
    *fd = open(path, O_RDWR | O_CLOEXEC);
    if (*fd < 0) {
       mesa_loge("Opening %s failed: %s\n", path, strerror(errno));
@@ -1493,13 +1489,10 @@ try_display_device(struct v3dv_instance *instance, const char *path,
    if (!drmIsKMS(*fd))
       goto fail;
 
-   /* If using VK_KHR_display, we require the fd to have a connected output.
-    * We need to use this strategy because Raspberry Pi 5 can load different
-    * drivers for different types of connectors and the one with a connected
-    * output may not be vc4, which unlike Raspberry Pi 4, doesn't drive the
-    * DSI output for example.
+   /* Note that VK_EXT_acquire_drm_display requires KHR_display so there is
+    * no need to check for it explicitly here.
     */
-   if (!khr_display) {
+   if (!instance->vk.enabled_extensions.KHR_display) {
       if (instance->vk.enabled_extensions.KHR_xcb_surface ||
           instance->vk.enabled_extensions.KHR_xlib_surface ||
           instance->vk.enabled_extensions.KHR_wayland_surface)
@@ -1508,10 +1501,19 @@ try_display_device(struct v3dv_instance *instance, const char *path,
          goto fail;
    }
 
-   /* If the display device isn't the DRM master, we can't get its resources */
-   if (!drmIsMaster(*fd))
-      goto fail;
+   /* When using VK_EXT_acquire_drm_display, the user is expected to get
+    * the master fd and provide it to the driver through vkAcquireDrmDisplayEXT.
+    * Therefore, the fd we open here won't be master.
+    */
+   if (instance->vk.enabled_extensions.EXT_acquire_drm_display)
+      return;
 
+   /* If using VK_KHR_display, we require the fd to have a connected output.
+    * We need to use this strategy because Raspberry Pi 5 can load different
+    * drivers for different types of connectors and the one with a connected
+    * output may not be vc4, which unlike Raspberry Pi 4, doesn't drive the
+    * DSI output for example.
+    */
    drmModeResPtr mode_res = drmModeGetResources(*fd);
    if (!mode_res) {
       mesa_loge("Failed to get DRM mode resources: %s\n", strerror(errno));
@@ -1587,10 +1589,12 @@ enumerate_devices(struct vk_instance *vk_instance)
       if (devices[i]->bustype != DRM_BUS_PLATFORM)
          continue;
 
-      if ((devices[i]->available_nodes & 1 << DRM_NODE_RENDER))
+      if ((devices[i]->available_nodes & 1 << DRM_NODE_RENDER)) {
          try_device(devices[i]->nodes[DRM_NODE_RENDER], &render_fd, "v3d");
-      if ((devices[i]->available_nodes & 1 << DRM_NODE_PRIMARY))
+      } else if (primary_fd == -1 &&
+                 (devices[i]->available_nodes & 1 << DRM_NODE_PRIMARY)) {
          try_display_device(instance, devices[i]->nodes[DRM_NODE_PRIMARY], &primary_fd);
+      }
 #endif
 
       if (render_fd >= 0 && primary_fd >= 0)
@@ -2204,9 +2208,13 @@ v3dv_AllocateMemory(VkDevice _device,
    assert(pAllocateInfo->sType == VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO);
 
    /* We always allocate device memory in multiples of a page, so round up
-    * requested size to that.
+    * requested size to that. We need to add a V3D_TFU_READHAEAD padding to
+    * avoid invalid reads done by the TFU unit after the end of the last page
+    * allocated.
     */
-   const VkDeviceSize alloc_size = align64(pAllocateInfo->allocationSize, 4096);
+
+   const VkDeviceSize alloc_size = align64(pAllocateInfo->allocationSize +
+                                           V3D_TFU_READAHEAD_SIZE, 4096);
 
    if (unlikely(alloc_size > MAX_MEMORY_ALLOCATION_SIZE))
       return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);

@@ -16,18 +16,6 @@
 #include "shader_enums.h"
 
 static nir_def *
-tcs_patch_id(nir_builder *b)
-{
-   return nir_channel(b, nir_load_workgroup_id(b), 0);
-}
-
-static nir_def *
-tcs_instance_id(nir_builder *b)
-{
-   return nir_channel(b, nir_load_workgroup_id(b), 1);
-}
-
-static nir_def *
 tcs_unrolled_id(nir_builder *b)
 {
    return libagx_tcs_unrolled_id(b, nir_load_tess_param_buffer_agx(b),
@@ -111,10 +99,10 @@ lower_tcs_impl(nir_builder *b, nir_intrinsic_instr *intr)
       return NIR_LOWER_INSTR_PROGRESS_REPLACE;
 
    case nir_intrinsic_load_primitive_id:
-      return tcs_patch_id(b);
+      return nir_channel(b, nir_load_workgroup_id(b), 0);
 
    case nir_intrinsic_load_instance_id:
-      return tcs_instance_id(b);
+      return nir_channel(b, nir_load_workgroup_id(b), 1);
 
    case nir_intrinsic_load_invocation_id:
       if (b->shader->info.tess.tcs_vertices_out == 1)
@@ -186,31 +174,11 @@ lower_tcs(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    return true;
 }
 
-static void
-link_libagx(nir_shader *nir, const nir_shader *libagx)
-{
-   nir_link_shader_functions(nir, libagx);
-   NIR_PASS(_, nir, nir_inline_functions);
-   nir_remove_non_entrypoints(nir);
-   NIR_PASS(_, nir, nir_lower_indirect_derefs, nir_var_function_temp, 64);
-   NIR_PASS(_, nir, nir_opt_dce);
-   NIR_PASS(_, nir, nir_lower_vars_to_explicit_types, nir_var_function_temp,
-            glsl_get_cl_type_size_align);
-   NIR_PASS(_, nir, nir_opt_deref);
-   NIR_PASS(_, nir, nir_lower_vars_to_ssa);
-   NIR_PASS(_, nir, nir_lower_explicit_io,
-            nir_var_shader_temp | nir_var_function_temp | nir_var_mem_shared |
-               nir_var_mem_global,
-            nir_address_format_62bit_generic);
-}
-
 bool
-agx_nir_lower_tcs(nir_shader *tcs, const struct nir_shader *libagx)
+agx_nir_lower_tcs(nir_shader *tcs)
 {
-   nir_shader_intrinsics_pass(tcs, lower_tcs, nir_metadata_control_flow, NULL);
-
-   link_libagx(tcs, libagx);
-   return true;
+   return nir_shader_intrinsics_pass(tcs, lower_tcs, nir_metadata_control_flow,
+                                     NULL);
 }
 
 static nir_def *
@@ -256,9 +224,6 @@ lower_tes(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 static bool
 lower_tes_indexing(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
-   if (intr->intrinsic == nir_intrinsic_load_instance_id)
-      unreachable("todo");
-
    if (intr->intrinsic != nir_intrinsic_load_vertex_id)
       return false;
 
@@ -270,7 +235,7 @@ lower_tes_indexing(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 }
 
 bool
-agx_nir_lower_tes(nir_shader *tes, const nir_shader *libagx, bool to_hw_vs)
+agx_nir_lower_tes(nir_shader *tes, bool to_hw_vs)
 {
    nir_lower_tess_coord_z(
       tes, tes->info.tess._primitive_mode == TESS_PRIMITIVE_TRIANGLES);
@@ -278,18 +243,8 @@ agx_nir_lower_tes(nir_shader *tes, const nir_shader *libagx, bool to_hw_vs)
    nir_shader_intrinsics_pass(tes, lower_tes, nir_metadata_control_flow, NULL);
 
    /* Points mode renders as points, make sure we write point size for the HW */
-   if (tes->info.tess.point_mode &&
-       !(tes->info.outputs_written & VARYING_BIT_PSIZ) && to_hw_vs) {
-
-      nir_function_impl *impl = nir_shader_get_entrypoint(tes);
-      nir_builder b = nir_builder_at(nir_after_impl(impl));
-
-      nir_store_output(&b, nir_imm_float(&b, 1.0), nir_imm_int(&b, 0),
-                       .io_semantics.location = VARYING_SLOT_PSIZ,
-                       .write_mask = nir_component_mask(1), .range = 1,
-                       .src_type = nir_type_float32);
-
-      tes->info.outputs_written |= VARYING_BIT_PSIZ;
+   if (tes->info.tess.point_mode && to_hw_vs) {
+      nir_lower_default_point_size(tes);
    }
 
    if (to_hw_vs) {
@@ -308,8 +263,6 @@ agx_nir_lower_tes(nir_shader *tes, const nir_shader *libagx, bool to_hw_vs)
                                  nir_metadata_control_flow, NULL);
    }
 
-   link_libagx(tes, libagx);
    nir_lower_idiv(tes, &(nir_lower_idiv_options){.allow_fp16 = true});
-   nir_metadata_preserve(nir_shader_get_entrypoint(tes), nir_metadata_none);
-   return true;
+   return nir_progress(true, nir_shader_get_entrypoint(tes), nir_metadata_none);
 }

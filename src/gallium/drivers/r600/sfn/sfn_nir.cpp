@@ -549,7 +549,7 @@ r600_lower_shared_io_impl(nir_function_impl *impl)
          progress = true;
       }
    }
-   return progress;
+   return nir_progress(progress, impl, nir_metadata_control_flow);
 }
 
 static bool
@@ -638,9 +638,19 @@ optimize_once(nir_shader *shader)
    NIR_PASS(progress, shader, nir_opt_if, nir_opt_if_optimize_phi_true_false);
    NIR_PASS(progress, shader, nir_opt_dead_cf);
    NIR_PASS(progress, shader, nir_opt_cse);
-   NIR_PASS(progress, shader, nir_opt_peephole_select, 200, true, true);
 
-   NIR_PASS(progress, shader, nir_opt_conditional_discard);
+   nir_opt_peephole_select_options peephole_select_options = {
+      .limit = 200,
+      .indirect_load_ok = true,
+      .expensive_alu_ok = true,
+   };
+   NIR_PASS(progress, shader, nir_opt_peephole_select, &peephole_select_options);
+
+   nir_opt_peephole_select_options peephole_discard_options = {
+      .limit = 0,
+      .discard_ok = true,
+   };
+   NIR_PASS(progress, shader, nir_opt_peephole_select, &peephole_discard_options);
    NIR_PASS(progress, shader, nir_opt_dce);
    NIR_PASS(progress, shader, nir_opt_undef);
    NIR_PASS(progress, shader, nir_opt_loop_unroll);
@@ -687,19 +697,172 @@ r600_lower_to_scalar_instr_filter(const nir_instr *instr, const void *)
    }
 }
 
+struct indirect_per_vertex {
+   nir_deref_instr *array_indirect_deref;
+   uint32_t mask;
+   nir_instr *saved_for_removal[R600_GS_VERTEX_INDIRECT_TOTAL][4];
+   unsigned obsolete_deref_count;
+   nir_instr *obsolete_deref[32];
+};
+
+static bool
+r600_nir_gs_load_deref_io_to_indirect_per_vertex_input(nir_builder *b,
+                                                       nir_intrinsic_instr *intrin,
+                                                       void *cb_data)
+{
+   struct indirect_per_vertex *indirect_per_vertex =
+      (struct indirect_per_vertex *)cb_data;
+   unsigned j;
+
+   if (intrin->intrinsic != nir_intrinsic_load_deref)
+      return false;
+
+   nir_deref_instr *deref = nir_src_as_deref(intrin->src[0]);
+
+   if (!nir_deref_mode_is_one_of(deref, nir_var_shader_in))
+      return false;
+
+   nir_variable *var = nir_deref_instr_get_variable(deref);
+   const bool is_arrayed = nir_is_arrayed_io(var, b->shader->info.stage);
+
+   if (!is_arrayed || var->data.location != VARYING_SLOT_POS)
+      return false;
+
+   nir_def *array_index = deref->arr.index.ssa;
+
+   if (!array_index)
+      return false;
+
+   assert(intrin->def.num_components == 4);
+
+   nir_deref_instr *original_array = nir_instr_as_deref(
+      nir_instr_as_deref(intrin->src[0].ssa->parent_instr)->parent.ssa->parent_instr);
+
+   if (!original_array || original_array->deref_type != nir_deref_type_var ||
+       !glsl_type_is_array(original_array->type))
+      return false;
+
+   auto element_type = glsl_without_array(original_array->type);
+
+   if (element_type != &glsl_type_builtin_vec4)
+      return false;
+
+   const unsigned array_length = glsl_get_length(original_array->type);
+
+   assert(array_length <= R600_GS_VERTEX_INDIRECT_TOTAL);
+
+   for (j = 0; j < indirect_per_vertex->obsolete_deref_count &&
+               j < ARRAY_SIZE(indirect_per_vertex->obsolete_deref);
+        j++)
+      if (intrin->src[0].ssa->parent_instr == indirect_per_vertex->obsolete_deref[j])
+         break;
+
+   if (j == indirect_per_vertex->obsolete_deref_count &&
+       j != ARRAY_SIZE(indirect_per_vertex->obsolete_deref)) {
+      indirect_per_vertex->obsolete_deref[j] = intrin->src[0].ssa->parent_instr;
+      indirect_per_vertex->obsolete_deref_count++;
+   }
+
+   /* The next block generates a global array which is required
+    * for the indirect access. This array is located at the
+    * beginning. All the possible elements are generated. At the
+    * end, the elements which are not referenced are removed. */
+   if (!indirect_per_vertex->array_indirect_deref) {
+      static const char array_indirect_name[] = "r600_indirect_vertex_at_index";
+
+      b->cursor = nir_before_block(nir_start_block(b->impl));
+
+      nir_variable *array_indirect_var = nir_local_variable_create(
+         b->impl,
+         glsl_array_type(glsl_int_type(), R600_GS_VERTEX_INDIRECT_TOTAL, 0),
+         array_indirect_name);
+      indirect_per_vertex->array_indirect_deref =
+         nir_build_deref_var(b, array_indirect_var);
+
+      for (unsigned k = 0; k < R600_GS_VERTEX_INDIRECT_TOTAL; k++) {
+         nir_def *build_count = nir_imm_int(b, k);
+         nir_deref_instr *build_array =
+            nir_build_deref_array(b,
+                                  indirect_per_vertex->array_indirect_deref,
+                                  build_count);
+         nir_def *build_store =
+            nir_r600_indirect_vertex_at_index(b, intrin->def.bit_size, build_count);
+         nir_store_deref(b, build_array, build_store, 1);
+         indirect_per_vertex->saved_for_removal[k][0] = build_count->parent_instr;
+         indirect_per_vertex->saved_for_removal[k][1] = &build_array->instr;
+         indirect_per_vertex->saved_for_removal[k][2] = build_store->parent_instr;
+         indirect_per_vertex->saved_for_removal[k][3] =
+            nir_instr_next(build_store->parent_instr); // nir_store_deref
+      }
+   }
+
+   b->cursor = nir_before_instr(&intrin->instr);
+
+   for (unsigned k = 0; k < array_length; k++)
+      indirect_per_vertex->mask |= (1 << k);
+
+   nir_def *zero = nir_imm_int(b, 0);
+   nir_def *array_indirect_def = nir_load_deref(
+      b,
+      nir_build_deref_array(b, indirect_per_vertex->array_indirect_deref, array_index));
+   nir_def *load = nir_load_r600_indirect_per_vertex_input(b,
+                                                           intrin->def.num_components,
+                                                           intrin->def.bit_size,
+                                                           array_indirect_def,
+                                                           zero);
+
+   nir_intrinsic_set_base(nir_instr_as_intrinsic(load->parent_instr),
+                          var->data.driver_location);
+
+   nir_def_rewrite_uses(&intrin->def, load);
+   nir_instr_remove(&intrin->instr);
+
+   return true;
+}
+
+static bool
+r600_gs_load_deref_io_to_indirect_per_vertex_input(nir_shader *shader)
+{
+   struct indirect_per_vertex indirect_per_vertex = {nullptr};
+   bool ret =
+      nir_shader_intrinsics_pass(shader,
+                                 r600_nir_gs_load_deref_io_to_indirect_per_vertex_input,
+                                 nir_metadata_control_flow,
+                                 &indirect_per_vertex);
+
+   if (indirect_per_vertex.array_indirect_deref) {
+      for (unsigned k = 0; k < R600_GS_VERTEX_INDIRECT_TOTAL; k++)
+         if ((indirect_per_vertex.mask & (1 << k)) == 0) {
+            nir_instr_remove(indirect_per_vertex.saved_for_removal[k][3]);
+            nir_instr_remove(indirect_per_vertex.saved_for_removal[k][2]);
+            nir_instr_remove(indirect_per_vertex.saved_for_removal[k][1]);
+            nir_instr_remove(indirect_per_vertex.saved_for_removal[k][0]);
+         }
+
+      for (unsigned k = 0; k < indirect_per_vertex.obsolete_deref_count; k++)
+         nir_instr_remove(indirect_per_vertex.obsolete_deref[k]);
+   }
+
+   return ret;
+}
+
 void
 r600_finalize_nir_common(nir_shader *nir, enum amd_gfx_level gfx_level)
 {
    const int nir_lower_flrp_mask = 16 | 32 | 64;
 
-   NIR_PASS_V(nir, nir_lower_flrp, nir_lower_flrp_mask, false);
+   if (nir->info.stage == MESA_SHADER_GEOMETRY) {
+      NIR_PASS(_, nir, r600_gs_load_deref_io_to_indirect_per_vertex_input);
+   }
+
+   NIR_PASS(_, nir, nir_lower_flrp, nir_lower_flrp_mask, false);
 
    nir_lower_idiv_options idiv_options = {0};
-   NIR_PASS_V(nir, nir_lower_idiv, &idiv_options);
+   NIR_PASS(_, nir, nir_lower_idiv, &idiv_options);
 
-   NIR_PASS_V(nir, r600_nir_lower_trigen, gfx_level);
-   NIR_PASS_V(nir, nir_lower_phis_to_scalar, false);
-   NIR_PASS_V(nir, nir_lower_undef_to_zero);
+   NIR_PASS(_, nir, r600_nir_lower_trigen, gfx_level);
+   NIR_PASS(_, nir, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, nir, nir_lower_undef_to_zero);
 
    struct nir_lower_tex_options lower_tex_options = {0};
    lower_tex_options.lower_txp = ~0u;
@@ -707,17 +870,29 @@ r600_finalize_nir_common(nir_shader *nir, enum amd_gfx_level gfx_level)
    lower_tex_options.lower_invalid_implicit_lod = true;
    lower_tex_options.lower_tg4_offsets = true;
 
-   NIR_PASS_V(nir, nir_lower_tex, &lower_tex_options);
-   NIR_PASS_V(nir, r600_nir_lower_txl_txf_array_or_cube);
-   NIR_PASS_V(nir, r600_nir_lower_cube_to_2darray);
+   NIR_PASS(_, nir, nir_lower_tex, &lower_tex_options);
+   NIR_PASS(_, nir, r600_nir_lower_txl_txf_array_or_cube);
+   NIR_PASS(_, nir, r600_nir_lower_cube_to_2darray);
 
-   NIR_PASS_V(nir, r600_nir_lower_pack_unpack_2x16);
+   NIR_PASS(_, nir, r600_nir_lower_pack_unpack_2x16);
 
-   NIR_PASS_V(nir, r600_lower_shared_io);
-   NIR_PASS_V(nir, r600_nir_lower_atomics);
+   NIR_PASS(_, nir, r600_lower_shared_io);
+   NIR_PASS(_, nir, r600_nir_lower_atomics);
+
+   static const nir_lower_subgroups_options r600_nir_subgroups_options = {
+      .ballot_bit_size = 32,
+      .ballot_components = 1,
+      .lower_vote_trivial = true,
+      .lower_relative_shuffle = true,
+      .lower_quad_broadcast_dynamic = true,
+      .lower_elect = true,
+      .lower_inverse_ballot = true,
+   };
+
+   NIR_PASS(_, nir, nir_lower_subgroups, &r600_nir_subgroups_options);
 
    if (gfx_level == CAYMAN)
-      NIR_PASS_V(nir, r600_legalize_image_load_store);
+      NIR_PASS(_, nir, r600_legalize_image_load_store);
 
    while (optimize_once(nir))
       ;
@@ -732,60 +907,64 @@ r600_lower_and_optimize_nir(nir_shader *sh,
                             enum amd_gfx_level gfx_level,
                             struct pipe_stream_output_info *so_info)
 {
-   bool lower_64bit =
-      gfx_level < CAYMAN &&
-      (sh->options->lower_int64_options || sh->options->lower_doubles_options) &&
-      ((sh->info.bit_sizes_float | sh->info.bit_sizes_int) & 64);
 
    r600::sort_uniforms(sh);
-   NIR_PASS_V(sh, r600_nir_fix_kcache_indirect_access);
+   NIR_PASS(_, sh, r600_nir_fix_kcache_indirect_access);
 
    while (optimize_once(sh))
       ;
 
 
    if (sh->info.stage == MESA_SHADER_VERTEX)
-      NIR_PASS_V(sh, r600_vectorize_vs_inputs);
+      NIR_PASS(_, sh, r600_vectorize_vs_inputs);
 
    if (sh->info.stage == MESA_SHADER_FRAGMENT) {
-      NIR_PASS_V(sh, nir_lower_fragcoord_wtrans);
-      NIR_PASS_V(sh, r600_lower_fs_out_to_vector);
-      NIR_PASS_V(sh, nir_opt_dce);
-      NIR_PASS_V(sh, nir_remove_dead_variables, nir_var_shader_out, 0);
+      NIR_PASS(_, sh, nir_lower_fragcoord_wtrans);
+      NIR_PASS(_, sh, r600_lower_fs_out_to_vector);
+      NIR_PASS(_, sh, nir_opt_dce);
+      NIR_PASS(_, sh, nir_remove_dead_variables, nir_var_shader_out, 0);
       r600::sort_fsoutput(sh);
    }
    nir_variable_mode io_modes = nir_var_uniform | nir_var_shader_in | nir_var_shader_out;
 
-   NIR_PASS_V(sh, nir_opt_combine_stores, nir_var_shader_out);
-   NIR_PASS_V(sh,
-              nir_lower_io,
-              io_modes,
-              r600_glsl_type_size,
-              (nir_lower_io_options)
-              (nir_lower_io_lower_64bit_to_32 |
-               nir_lower_io_use_interpolated_input_intrinsics));
+   NIR_PASS(_, sh, nir_opt_combine_stores, nir_var_shader_out);
+   NIR_PASS(_,
+            sh,
+            nir_lower_io,
+            io_modes,
+            r600_glsl_type_size,
+            (nir_lower_io_options)(nir_lower_io_lower_64bit_to_32 |
+                                   nir_lower_io_use_interpolated_input_intrinsics));
 
+   if (sh->info.stage == MESA_SHADER_VERTEX || sh->info.stage == MESA_SHADER_TESS_EVAL)
+      NIR_PASS(_, sh, nir_move_output_stores_to_end);
+
+   nir_shader_gather_info(sh, nir_shader_get_entrypoint(sh));
+
+   bool lower_64bit_io_to_vec2 = (sh->info.bit_sizes_float | sh->info.bit_sizes_int) & 64;
+   bool lower_64bit =
+      gfx_level < CAYMAN &&
+      (sh->options->lower_int64_options || sh->options->lower_doubles_options) &&
+      lower_64bit_io_to_vec2;
    if (sh->info.stage == MESA_SHADER_FRAGMENT)
-      NIR_PASS_V(sh, r600_lower_fs_pos_input);
+      NIR_PASS(_, sh, r600_lower_fs_pos_input);
 
    /**/
    if (lower_64bit)
-      NIR_PASS_V(sh, nir_lower_indirect_derefs, nir_var_function_temp, 10);
+      NIR_PASS(_, sh, nir_lower_indirect_derefs, nir_var_function_temp, 10);
 
-   NIR_PASS_V(sh, nir_opt_constant_folding);
-   NIR_PASS_V(sh, nir_io_add_const_offset_to_base, io_modes);
+   NIR_PASS(_, sh, nir_opt_constant_folding);
+   NIR_PASS(_, sh, nir_io_add_const_offset_to_base, io_modes);
 
-   NIR_PASS_V(sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-   NIR_PASS_V(sh, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
+   NIR_PASS(_, sh, nir_lower_phis_to_scalar, false);
    if (lower_64bit)
-      NIR_PASS_V(sh, r600::r600_nir_split_64bit_io);
-   NIR_PASS_V(sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-   NIR_PASS_V(sh, nir_lower_phis_to_scalar, false);
-   NIR_PASS_V(sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-   NIR_PASS_V(sh, nir_copy_prop);
-   NIR_PASS_V(sh, nir_opt_dce);
-
-
+      NIR_PASS(_, sh, r600::r600_nir_split_64bit_io);
+   NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
+   NIR_PASS(_, sh, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
+   NIR_PASS(_, sh, nir_copy_prop);
+   NIR_PASS(_, sh, nir_opt_dce);
 
    if (r600_is_last_vertex_stage(sh, *key))
       r600_lower_clipvertex_to_clipdist(sh, *so_info);
@@ -796,61 +975,64 @@ r600_lower_and_optimize_nir(nir_shader *sh,
       auto prim_type = sh->info.stage == MESA_SHADER_TESS_EVAL
                           ? u_tess_prim_from_shader(sh->info.tess._primitive_mode)
                           : (mesa_prim)key->tcs.prim_mode;
-      NIR_PASS_V(sh, r600_lower_tess_io, static_cast<mesa_prim>(prim_type));
+      NIR_PASS(_, sh, r600_lower_tess_io, static_cast<mesa_prim>(prim_type));
    }
 
    if (sh->info.stage == MESA_SHADER_TESS_CTRL)
-      NIR_PASS_V(sh, r600_append_tcs_TF_emission, (mesa_prim)key->tcs.prim_mode);
+      NIR_PASS(_, sh, r600_append_tcs_TF_emission, (mesa_prim)key->tcs.prim_mode);
 
    if (sh->info.stage == MESA_SHADER_TESS_EVAL) {
-      NIR_PASS_V(sh, nir_lower_tess_coord_z,
-                 sh->info.tess._primitive_mode == TESS_PRIMITIVE_TRIANGLES);
+      NIR_PASS(_,
+               sh,
+               nir_lower_tess_coord_z,
+               sh->info.tess._primitive_mode == TESS_PRIMITIVE_TRIANGLES);
    }
 
-   NIR_PASS_V(sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-   NIR_PASS_V(sh, nir_lower_phis_to_scalar, false);
-   NIR_PASS_V(sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-   NIR_PASS_V(sh, r600_nir_lower_int_tg4);
-   NIR_PASS_V(sh, r600::r600_nir_lower_tex_to_backend, gfx_level);
+   NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
+   NIR_PASS(_, sh, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
+   NIR_PASS(_, sh, r600_nir_lower_int_tg4);
+   NIR_PASS(_, sh, r600::r600_nir_lower_tex_to_backend, gfx_level);
 
-   if ((sh->info.bit_sizes_float | sh->info.bit_sizes_int) & 64) {
-      NIR_PASS_V(sh, r600::r600_nir_split_64bit_io);
-      NIR_PASS_V(sh, r600::r600_split_64bit_alu_and_phi);
-      NIR_PASS_V(sh, nir_split_64bit_vec3_and_vec4);
-      NIR_PASS_V(sh, nir_lower_int64);
+   if (lower_64bit_io_to_vec2) {
+      NIR_PASS(_, sh, r600::r600_nir_split_64bit_io);
+      NIR_PASS(_, sh, r600::r600_split_64bit_alu_and_phi);
+      NIR_PASS(_, sh, nir_split_64bit_vec3_and_vec4);
+      NIR_PASS(_, sh, nir_lower_int64);
    }
 
-   NIR_PASS_V(sh, nir_lower_ubo_vec4);
-   NIR_PASS_V(sh, r600_opt_indirect_fbo_loads);
+   NIR_PASS(_, sh, nir_lower_ubo_vec4);
+   NIR_PASS(_, sh, r600_opt_indirect_fbo_loads);
 
    if (lower_64bit)
-      NIR_PASS_V(sh, r600::r600_nir_64_to_vec2);
+      NIR_PASS(_, sh, r600::r600_nir_64_to_vec2);
 
-   if ((sh->info.bit_sizes_float | sh->info.bit_sizes_int) & 64)
-      NIR_PASS_V(sh, r600::r600_split_64bit_uniforms_and_ubo);
+   if (lower_64bit_io_to_vec2)
+      NIR_PASS(_, sh, r600::r600_split_64bit_uniforms_and_ubo);
 
    /* Lower to scalar to let some optimization work out better */
    while (optimize_once(sh))
       ;
 
    if (lower_64bit)
-      NIR_PASS_V(sh, r600::r600_merge_vec2_stores);
+      NIR_PASS(_, sh, r600::r600_merge_vec2_stores);
 
-   NIR_PASS_V(sh, nir_remove_dead_variables, nir_var_shader_in, NULL);
-   NIR_PASS_V(sh, nir_remove_dead_variables, nir_var_shader_out, NULL);
+   NIR_PASS(_, sh, nir_remove_dead_variables, nir_var_shader_in, NULL);
+   NIR_PASS(_, sh, nir_remove_dead_variables, nir_var_shader_out, NULL);
 
-   NIR_PASS_V(sh,
-              nir_lower_vars_to_scratch,
-              nir_var_function_temp,
-              40,
-              r600_get_natural_size_align_bytes,
-              r600_get_natural_size_align_bytes);
+   NIR_PASS(_,
+            sh,
+            nir_lower_vars_to_scratch,
+            nir_var_function_temp,
+            40,
+            r600_get_natural_size_align_bytes,
+            r600_get_natural_size_align_bytes);
 
    while (optimize_once(sh))
       ;
 
    if ((sh->info.bit_sizes_float | sh->info.bit_sizes_int) & 64)
-      NIR_PASS_V(sh, r600::r600_split_64bit_alu_and_phi);
+      NIR_PASS(_, sh, r600::r600_split_64bit_alu_and_phi);
 
    bool late_algebraic_progress;
    do {
@@ -862,11 +1044,11 @@ r600_lower_and_optimize_nir(nir_shader *sh,
       NIR_PASS(late_algebraic_progress, sh, nir_opt_cse);
    } while (late_algebraic_progress);
 
-   NIR_PASS_V(sh, nir_lower_bool_to_int32);
+   NIR_PASS(_, sh, nir_lower_bool_to_int32);
 
-   NIR_PASS_V(sh, nir_lower_locals_to_regs, 32);
-   NIR_PASS_V(sh, nir_convert_from_ssa, true);
-   NIR_PASS_V(sh, nir_opt_dce);
+   NIR_PASS(_, sh, nir_lower_locals_to_regs, 32);
+   NIR_PASS(_, sh, nir_convert_from_ssa, true, false);
+   NIR_PASS(_, sh, nir_opt_dce);
 }
 
 void

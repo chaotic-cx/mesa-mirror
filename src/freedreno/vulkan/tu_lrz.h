@@ -33,12 +33,20 @@ struct tu_lrz_state
    VkClearValue depth_clear_value;
    /* If LRZ is in invalid state we cannot use it until depth is cleared */
    bool valid : 1;
+   /* Being invalid at the very start means ew could e.g. skip the clearing. */
+   bool valid_at_start: 1;
+
+   /* Sticky for the RP duration */
+   bool disable_write_for_rp : 1;
+
    /* Allows to temporary disable LRZ */
    bool enabled : 1;
    bool fast_clear : 1;
    bool gpu_dir_tracking : 1;
+   bool force_late_z : 1;
    /* Continue using old LRZ state (LOAD_OP_LOAD of depth) */
    bool reuse_previous_state : 1;
+   bool gpu_dir_set : 1;
    enum tu_lrz_direction prev_direction;
 };
 
@@ -96,6 +104,12 @@ tu_lrz_sysmem_end(struct tu_cmd_buffer *cmd, struct tu_cs *cs);
 
 template <chip CHIP>
 void
-tu_lrz_disable_during_renderpass(struct tu_cmd_buffer *cmd);
+tu_lrz_disable_during_renderpass(struct tu_cmd_buffer *cmd,
+                                 const char *reason);
+
+template <chip CHIP>
+void
+tu_lrz_flush_valid_during_renderpass(struct tu_cmd_buffer *cmd,
+                                     struct tu_cs *cs);
 
 #endif /* TU_LRZ_H */

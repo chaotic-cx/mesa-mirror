@@ -157,9 +157,12 @@ can_fast_clear_color(struct iris_context *ice,
       return false;
    }
 
-   /* Wa_16021232440: Disable fast clear when height is 16k */
+   /* Wa_16021232440, HSD_16023071695: Disable fast clear when height
+    * or width is 16k.
+    */
    if (intel_needs_workaround(devinfo, 16021232440) &&
-       res->surf.logical_level0_px.h == 16 * 1024) {
+       (res->surf.logical_level0_px.h == 16 * 1024 ||
+        res->surf.logical_level0_px.w == 16 * 1024)) {
       return false;
    }
 
@@ -571,7 +574,8 @@ fast_clear_depth(struct iris_context *ice,
          isl_color_value_pack(&clear_value, res->surf.format, packed_depth);
 
          const uint64_t clear_pixel_offset = res->aux.clear_color_offset +
-            isl_get_sampler_clear_field_offset(devinfo, res->surf.format);
+            isl_get_sampler_clear_field_offset(devinfo, res->surf.format,
+                                               true);
 
          iris_emit_pipe_control_write(batch, "update fast clear value (Z)",
                                       PIPE_CONTROL_WRITE_IMMEDIATE,
@@ -649,7 +653,7 @@ clear_depth_stencil(struct iris_context *ice,
       fast_clear_depth(ice, z_res, level, box, depth);
       iris_dirty_for_history(ice, res);
       clear_depth = false;
-      z_res = false;
+      z_res = NULL;
    }
 
    /* At this point, we might have fast cleared the depth buffer. So if there's
@@ -740,11 +744,11 @@ iris_clear(struct pipe_context *ctx,
    }
 
    if (buffers & PIPE_CLEAR_DEPTHSTENCIL) {
-      struct pipe_surface *psurf = cso_fb->zsbuf;
+      struct pipe_surface *psurf = &cso_fb->zsbuf;
 
-      box.depth = psurf->u.tex.last_layer - psurf->u.tex.first_layer + 1;
-      box.z = psurf->u.tex.first_layer,
-      clear_depth_stencil(ice, psurf->texture, psurf->u.tex.level, &box, true,
+      box.depth = psurf->last_layer - psurf->first_layer + 1;
+      box.z = psurf->first_layer,
+      clear_depth_stencil(ice, psurf->texture, psurf->level, &box, true,
                           buffers & PIPE_CLEAR_DEPTH,
                           buffers & PIPE_CLEAR_STENCIL,
                           depth, stencil);
@@ -753,12 +757,12 @@ iris_clear(struct pipe_context *ctx,
    if (buffers & PIPE_CLEAR_COLOR) {
       for (unsigned i = 0; i < cso_fb->nr_cbufs; i++) {
          if (buffers & (PIPE_CLEAR_COLOR0 << i)) {
-            struct pipe_surface *psurf = cso_fb->cbufs[i];
+            struct pipe_surface *psurf = ice->state.fb_cbufs[i];
             struct iris_surface *isurf = (void *) psurf;
-            box.depth = psurf->u.tex.last_layer - psurf->u.tex.first_layer + 1,
-            box.z = psurf->u.tex.first_layer,
+            box.depth = psurf->last_layer - psurf->first_layer + 1,
+            box.z = psurf->first_layer,
 
-            clear_color(ice, psurf->texture, psurf->u.tex.level, &box,
+            clear_color(ice, psurf->texture, psurf->level, &box,
                         true, isurf->view.format, isurf->view.swizzle,
                         convert_clear_color(psurf->format, p_color));
          }
@@ -848,13 +852,13 @@ iris_clear_render_target(struct pipe_context *ctx,
    struct pipe_box box = {
       .x = dst_x,
       .y = dst_y,
-      .z = psurf->u.tex.first_layer,
+      .z = psurf->first_layer,
       .width = width,
       .height = height,
-      .depth = psurf->u.tex.last_layer - psurf->u.tex.first_layer + 1
+      .depth = psurf->last_layer - psurf->first_layer + 1
    };
 
-   clear_color(ice, psurf->texture, psurf->u.tex.level, &box,
+   clear_color(ice, psurf->texture, psurf->level, &box,
                render_condition_enabled,
                isurf->view.format, isurf->view.swizzle,
                convert_clear_color(psurf->format, p_color));
@@ -879,15 +883,15 @@ iris_clear_depth_stencil(struct pipe_context *ctx,
    struct pipe_box box = {
       .x = dst_x,
       .y = dst_y,
-      .z = psurf->u.tex.first_layer,
+      .z = psurf->first_layer,
       .width = width,
       .height = height,
-      .depth = psurf->u.tex.last_layer - psurf->u.tex.first_layer + 1
+      .depth = psurf->last_layer - psurf->first_layer + 1
    };
 
    assert(util_format_is_depth_or_stencil(psurf->texture->format));
 
-   clear_depth_stencil(ice, psurf->texture, psurf->u.tex.level, &box,
+   clear_depth_stencil(ice, psurf->texture, psurf->level, &box,
                        render_condition_enabled,
                        flags & PIPE_CLEAR_DEPTH, flags & PIPE_CLEAR_STENCIL,
                        depth, stencil);

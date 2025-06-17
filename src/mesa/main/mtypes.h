@@ -889,6 +889,8 @@ struct gl_sampler_object
 
    uint8_t glclamp_mask; /**< mask of GL_CLAMP wraps active */
 
+   bool DeletePending; /**< true if sampler object is removed from the hash */
+
    /** GL_ARB_bindless_texture */
    bool HandleAllocated;
    struct util_dynarray Handles;
@@ -932,6 +934,7 @@ struct gl_texture_object
    GLboolean _IsFloat;         /**< GL_OES_float_texture */
    GLboolean _IsHalfFloat;     /**< GL_OES_half_float_texture */
    bool HandleAllocated;       /**< GL_ARB_bindless_texture */
+   bool DeletePending;         /**< true if texture object is removed from the hash */
 
    /* This should not be restored by glPopAttrib: */
    bool StencilSampling;       /**< Should we sample stencil instead of depth? */
@@ -1058,6 +1061,8 @@ struct gl_texture_object
      * the pipe_resource *pt above.
      */
     bool needs_validation;
+
+    GLboolean IsProtected;
 };
 
 
@@ -2392,9 +2397,6 @@ struct gl_shared_state
    GLint RefCount;			   /**< Reference count */
    bool DisplayListsAffectGLThread;
 
-   /* Whether the next glGen returns the lowest unused GL ID. */
-   bool ReuseGLNames;
-
    struct _mesa_HashTable DisplayList;	   /**< Display lists hash table */
    struct _mesa_HashTable TexObjects;	   /**< Texture objects hash table */
 
@@ -2546,12 +2548,9 @@ struct gl_renderbuffer
                              GLuint width, GLuint height);
 
    struct pipe_resource *texture;
-   /* This points to either "surface_linear" or "surface_srgb".
-    * It doesn't hold the pipe_surface reference. The other two do.
-    */
-   struct pipe_surface *surface;
-   struct pipe_surface *surface_linear;
-   struct pipe_surface *surface_srgb;
+   enum pipe_format format_linear;
+   enum pipe_format format_srgb;
+   struct pipe_surface surface;
    GLboolean defined;        /**< defined contents? */
 
    struct pipe_transfer *transfer; /**< only used when mapping the resource */
@@ -2686,10 +2685,14 @@ struct gl_framebuffer
     */
    bool _HasAttachments;
 
-   GLbitfield _IntegerBuffers;  /**< Which color buffers are integer valued */
-   GLbitfield _BlendForceAlphaToOne;  /**< Which color buffers need blend factor adjustment */
-   GLbitfield _IsRGB;  /**< Which color buffers have an RGB base format? */
-   GLbitfield _FP32Buffers; /**< Which color buffers are FP32 */
+   GLbitfield _IntegerBuffers;  /**< Which color buffer attachments are integer valued */
+   GLbitfield _IntegerDrawBuffers;  /**< Which color draw buffers are integer valued */
+   GLbitfield _BlendForceAlphaToOne;  /**< Which color attachments need blend factor adjustment */
+   GLbitfield _BlendForceAlphaToOneDraw;  /**< Which color buffers need blend factor adjustment */
+   GLbitfield _IsRGB;  /**< Which color attachments have an RGB base format? */
+   GLbitfield _IsRGBDraw;  /**< Which color buffers have an RGB base format? */
+   GLbitfield _FP32Buffers; /**< Which color attachments are FP32 */
+   GLbitfield _FP32DrawBuffers; /**< Which color buffers are FP32 */
 
    /* ARB_color_buffer_float */
    GLboolean _AllColorBuffersFixedPoint; /* no integer, no float */

@@ -57,10 +57,12 @@ void ac_nir_set_options(struct radeon_info *info, bool use_llvm,
    options->lower_unpack_unorm_4x8 = true;
    options->lower_unpack_half_2x16 = true;
    options->lower_fpow = true;
+   options->lower_mul_high16 = true;
    options->lower_mul_2x32_64 = true;
    options->lower_iadd_sat = info->gfx_level <= GFX8;
    options->lower_hadd = true;
    options->lower_mul_32x16 = true;
+   options->lower_bfloat16_conversions = true,
    options->has_bfe = true;
    options->has_bfm = true;
    options->has_bitfield_select = true;
@@ -75,6 +77,7 @@ void ac_nir_set_options(struct radeon_info *info, bool use_llvm,
    options->has_sudot_4x8_sat = info->has_accelerated_dot_product && info->gfx_level >= GFX11;
    options->has_udot_4x8_sat = info->has_accelerated_dot_product;
    options->has_dot_2x16 = info->has_accelerated_dot_product && info->gfx_level < GFX11;
+   options->has_bfdot2_bfadd = info->gfx_level >= GFX12;
    options->has_find_msb_rev = true;
    options->has_pack_32_4x8 = true;
    options->has_pack_half_2x16_rtz = true;
@@ -82,8 +85,10 @@ void ac_nir_set_options(struct radeon_info *info, bool use_llvm,
    options->has_fmulz = true;
    options->has_msad = true;
    options->has_shfr32 = true;
+   options->has_mul24_relaxed = true;
    options->lower_int64_options = nir_lower_imul64 | nir_lower_imul_high64 | nir_lower_imul_2x32_64 | nir_lower_divmod64 |
-                                  nir_lower_minmax64 | nir_lower_iabs64 | nir_lower_iadd_sat64 | nir_lower_conv64;
+                                  nir_lower_minmax64 | nir_lower_iabs64 | nir_lower_iadd_sat64 | nir_lower_conv64 |
+                                  nir_lower_bitfield_extract64;
    options->divergence_analysis_options = nir_divergence_view_index_uniform;
    options->optimize_quad_vote_to_reduce = !use_llvm;
    options->lower_fisnormal = true;
@@ -333,18 +338,14 @@ ac_nir_optimize_uniform_atomics(nir_shader *nir)
 {
    bool progress = false;
    NIR_PASS(progress, nir, ac_nir_opt_shared_append);
-
-   nir_divergence_analysis(nir);
    NIR_PASS(progress, nir, nir_opt_uniform_atomics, false);
 
    return progress;
 }
 
-unsigned
-ac_nir_lower_bit_size_callback(const nir_instr *instr, void *data)
+static unsigned
+lower_bit_size_callback(const nir_instr *instr, enum amd_gfx_level chip, bool divergence_known)
 {
-   enum amd_gfx_level chip = *(enum amd_gfx_level *)data;
-
    if (instr->type != nir_instr_type_alu)
       return 0;
    nir_alu_instr *alu = nir_instr_as_alu(instr);
@@ -374,10 +375,10 @@ ac_nir_lower_bit_size_callback(const nir_instr *instr, void *data)
       case nir_op_isign:
       case nir_op_uadd_sat:
       case nir_op_usub_sat:
-         return (bit_size == 8 || !(chip >= GFX8 && alu->def.divergent)) ? 32 : 0;
+         return (!divergence_known || bit_size == 8 || !(chip >= GFX8 && alu->def.divergent)) ? 32 : 0;
       case nir_op_iadd_sat:
       case nir_op_isub_sat:
-         return bit_size == 8 || !alu->def.divergent ? 32 : 0;
+         return !divergence_known || bit_size == 8 || !alu->def.divergent ? 32 : 0;
 
       default:
          return 0;
@@ -399,13 +400,35 @@ ac_nir_lower_bit_size_callback(const nir_instr *instr, void *data)
       case nir_op_uge:
       case nir_op_bitz:
       case nir_op_bitnz:
-         return (bit_size == 8 || !(chip >= GFX8 && alu->def.divergent)) ? 32 : 0;
+         return (!divergence_known || bit_size == 8 || !(chip >= GFX8 && alu->def.divergent)) ? 32 : 0;
       default:
          return 0;
       }
    }
 
    return 0;
+}
+
+unsigned
+ac_nir_lower_bit_size_callback(const nir_instr *instr, void *data)
+{
+   enum amd_gfx_level chip = *(enum amd_gfx_level *)data;
+   return lower_bit_size_callback(instr, chip, true);
+}
+
+bool
+ac_nir_might_lower_bit_size(const nir_shader *shader)
+{
+   nir_foreach_function_impl(impl, shader) {
+      nir_foreach_block(block, impl) {
+         nir_foreach_instr(instr, block) {
+            if (lower_bit_size_callback(instr, CLASS_UNKNOWN, false))
+               return true;
+         }
+      }
+   }
+
+   return false;
 }
 
 static unsigned
@@ -442,14 +465,17 @@ ac_nir_mem_vectorize_callback(unsigned align_mul, unsigned align_offset, unsigne
                     low->intrinsic == nir_intrinsic_load_smem_amd ||
                     low->intrinsic == nir_intrinsic_load_push_constant;
    bool is_store = !nir_intrinsic_infos[low->intrinsic].has_dest;
-   bool is_scratch = low->intrinsic == nir_intrinsic_load_stack ||
-                     low->intrinsic == nir_intrinsic_store_stack ||
-                     low->intrinsic == nir_intrinsic_load_scratch ||
-                     low->intrinsic == nir_intrinsic_store_scratch;
+   bool swizzled = low->intrinsic == nir_intrinsic_load_stack ||
+                    low->intrinsic == nir_intrinsic_store_stack ||
+                    low->intrinsic == nir_intrinsic_load_scratch ||
+                    low->intrinsic == nir_intrinsic_store_scratch ||
+                    (nir_intrinsic_has_access(low) &&
+                     nir_intrinsic_access(low) & ACCESS_IS_SWIZZLED_AMD);
    bool is_shared = low->intrinsic == nir_intrinsic_load_shared ||
                     low->intrinsic == nir_intrinsic_store_shared ||
                     low->intrinsic == nir_intrinsic_load_deref ||
                     low->intrinsic == nir_intrinsic_store_deref;
+   unsigned swizzle_element_size = config->gfx_level <= GFX8 ? 4 : 16;
 
    assert(!is_store || hole_size <= 0);
 
@@ -480,6 +506,8 @@ ac_nir_mem_vectorize_callback(unsigned align_mul, unsigned align_offset, unsigne
    case nir_intrinsic_store_deref:
    case nir_intrinsic_load_shared:
    case nir_intrinsic_store_shared:
+   case nir_intrinsic_load_buffer_amd:
+   case nir_intrinsic_store_buffer_amd:
       break;
    default:
       return false;
@@ -501,7 +529,7 @@ ac_nir_mem_vectorize_callback(unsigned align_mul, unsigned align_offset, unsigne
          return false;
 
       /* GFX6-8 only support 32-bit scratch loads/stores. */
-      if (config->gfx_level <= GFX8 && is_scratch && aligned_new_size > 32)
+      if (swizzled && aligned_new_size > (swizzle_element_size * 8))
          return false;
    }
 
@@ -550,13 +578,14 @@ ac_nir_mem_vectorize_callback(unsigned align_mul, unsigned align_offset, unsigne
       if (config->uses_aco && uses_smem && aligned_new_size >= 128)
          overfetch_size = 32;
 
+      /* Allow overfetching from 8/16 bits to 32 bits. */
       int64_t aligned_unvectorized_size =
-         align_load_store_size(config->gfx_level, low->num_components * low->def.bit_size,
-                               uses_smem, is_shared) +
-         align_load_store_size(config->gfx_level, high->num_components * high->def.bit_size,
-                               uses_smem, is_shared);
+         ALIGN_POT(align_load_store_size(config->gfx_level, low->num_components * low->def.bit_size,
+                                         uses_smem, is_shared), 32) +
+         ALIGN_POT(align_load_store_size(config->gfx_level, high->num_components * high->def.bit_size,
+                                         uses_smem, is_shared), 32);
 
-      if (aligned_new_size > aligned_unvectorized_size + overfetch_size)
+      if (ALIGN_POT(aligned_new_size, 32) > aligned_unvectorized_size + overfetch_size)
          return false;
    }
 
@@ -566,34 +595,27 @@ ac_nir_mem_vectorize_callback(unsigned align_mul, unsigned align_offset, unsigne
    else
       align = align_mul;
 
+   /* Don't cross swizzle elements. stack/scratch intrinsics use scratch_* instructions, which
+    * seem to work fine.
+    */
+   if ((low->intrinsic == nir_intrinsic_load_buffer_amd ||
+        low->intrinsic == nir_intrinsic_store_buffer_amd) && swizzled &&
+       (align_offset % swizzle_element_size + unaligned_new_size / 8u) > MIN2(align_mul, swizzle_element_size)) {
+      return false;
+   }
+
    /* Validate the alignment and number of components. */
    if (!is_shared) {
-      unsigned max_components;
-      if (align % 4 == 0)
-         max_components = NIR_MAX_VEC_COMPONENTS;
-      else if (align % 2 == 0)
-         max_components = 16u / bit_size;
-      else
-         max_components = 8u / bit_size;
-      return (align % (bit_size / 8u)) == 0 && num_components <= max_components;
+      return (align % (bit_size / 8u)) == 0 && num_components <= NIR_MAX_VEC_COMPONENTS;
    } else {
-      if (bit_size * num_components == 96) { /* 96 bit loads require 128 bit alignment and are split otherwise */
-         return align % 16 == 0;
-      } else if (bit_size == 16 && (align % 4)) {
-         /* AMD hardware can't do 2-byte aligned f16vec2 loads, but they are useful for ALU
-          * vectorization, because our vectorizer requires the scalar IR to already contain vectors.
-          */
-         return (align % 2 == 0) && num_components <= 2;
-      } else {
-         if (num_components == 3) {
-            /* AMD hardware can't do 3-component loads except for 96-bit loads, handled above. */
-            return false;
-         }
-         unsigned req = bit_size * num_components;
-         if (req == 64 || req == 128) /* 64-bit and 128-bit loads can use ds_read2_b{32,64} */
-            req /= 2u;
-         return align % (req / 8u) == 0;
+      if (bit_size >= 32 && num_components == 3) {
+         /* AMD hardware can't do 3-component loads except for 96-bit loads. */
+         return bit_size == 32 && align % 16 == 0;
       }
+      unsigned req = bit_size >= 32 ? bit_size * num_components : bit_size;
+      if (req == 64 || req == 128) /* 64-bit and 128-bit loads can use ds_read2_b{32,64} */
+         req /= 2u;
+      return align % (req / 8u) == 0;
    }
    return false;
 }
@@ -661,4 +683,196 @@ enum gl_access_qualifier ac_nir_get_mem_access_flags(const nir_intrinsic_instr *
    }
 
    return access;
+}
+
+/**
+ * Computes a horizontal sum of 8-bit packed values loaded from LDS.
+ *
+ * Each lane N will sum packed bytes 0 to N.
+ * We only care about the results from up to wave_id lanes.
+ * (Other lanes are not deactivated but their calculation is not used.)
+ */
+static nir_def *
+summarize_repack(nir_builder *b, nir_def *packed_counts, bool mask_lane_id, unsigned num_lds_dwords)
+{
+   /* We'll use shift to filter out the bytes not needed by the current lane.
+    *
+    * For each row:
+    * Need to shift by: `num_lds_dwords * 4 - 1 - lane_id_in_row` (in bytes)
+    * in order to implement an inclusive scan.
+    *
+    * When v_dot4_u32_u8 is available, we right-shift a series of 0x01 bytes.
+    * This will yield 0x01 at wanted byte positions and 0x00 at unwanted positions,
+    * therefore v_dot can get rid of the unneeded values.
+    *
+    * If the v_dot instruction can't be used, we left-shift the packed bytes
+    * in order to shift out the unneeded bytes and shift in zeroes instead,
+    * then we sum them using v_msad_u8.
+    */
+
+   nir_def *lane_id = nir_load_subgroup_invocation(b);
+
+   /* Mask lane ID so that lanes 16...31 also have the ID 0...15,
+    * in order to perform a second horizontal sum in parallel when needed.
+    */
+   if (mask_lane_id)
+      lane_id = nir_iand_imm(b, lane_id, 0xf);
+
+   nir_def *shift = nir_iadd_imm(b, nir_imul_imm(b, lane_id, -8u), num_lds_dwords * 32 - 8);
+   assert(b->shader->options->has_msad || b->shader->options->has_udot_4x8);
+   bool use_dot = b->shader->options->has_udot_4x8;
+
+   if (num_lds_dwords == 1) {
+      /* Broadcast the packed data we read from LDS
+       * (to the first 16 lanes of the row, but we only care up to num_waves).
+       */
+      nir_def *packed = nir_lane_permute_16_amd(b, packed_counts, nir_imm_int(b, 0), nir_imm_int(b, 0));
+
+      /* Horizontally add the packed bytes. */
+      if (use_dot) {
+         nir_def *dot_op = nir_ushr(b, nir_imm_int(b, 0x01010101), shift);
+         return nir_udot_4x8_uadd(b, packed, dot_op, nir_imm_int(b, 0));
+      } else {
+         nir_def *sad_op = nir_ishl(b, packed, shift);
+         return nir_msad_4x8(b, sad_op, nir_imm_int(b, 0), nir_imm_int(b, 0));
+      }
+   } else if (num_lds_dwords == 2) {
+      /* Broadcast the packed data we read from LDS
+       * (to the first 16 lanes of the row, but we only care up to num_waves).
+       */
+      nir_def *packed_dw0 = nir_lane_permute_16_amd(b, nir_unpack_64_2x32_split_x(b, packed_counts), nir_imm_int(b, 0), nir_imm_int(b, 0));
+      nir_def *packed_dw1 = nir_lane_permute_16_amd(b, nir_unpack_64_2x32_split_y(b, packed_counts), nir_imm_int(b, 0), nir_imm_int(b, 0));
+
+      /* Horizontally add the packed bytes. */
+      if (use_dot) {
+         nir_def *dot_op = nir_ushr(b, nir_imm_int64(b, 0x0101010101010101), shift);
+         nir_def *sum = nir_udot_4x8_uadd(b, packed_dw0, nir_unpack_64_2x32_split_x(b, dot_op), nir_imm_int(b, 0));
+         return nir_udot_4x8_uadd(b, packed_dw1, nir_unpack_64_2x32_split_y(b, dot_op), sum);
+      } else {
+         nir_def *sad_op = nir_ishl(b, nir_pack_64_2x32_split(b, packed_dw0, packed_dw1), shift);
+         nir_def *sum = nir_msad_4x8(b, nir_unpack_64_2x32_split_x(b, sad_op), nir_imm_int(b, 0), nir_imm_int(b, 0));
+         return nir_msad_4x8(b, nir_unpack_64_2x32_split_y(b, sad_op), nir_imm_int(b, 0), sum);
+      }
+   } else {
+      unreachable("Unimplemented NGG wave count");
+   }
+}
+
+/**
+ * Repacks invocations in the current workgroup to eliminate gaps between them.
+ *
+ * Uses 1 dword of LDS per 4 waves (1 byte of LDS per wave) for each repack.
+ * Assumes that all invocations in the workgroup are active (exec = -1).
+ */
+void
+ac_nir_repack_invocations_in_workgroup(nir_builder *b, nir_def **input_bool,
+                                       ac_nir_wg_repack_result *results, const unsigned num_repacks,
+                                       nir_def *lds_addr_base, unsigned max_num_waves,
+                                       unsigned wave_size)
+{
+   /* We can currently only do up to 2 repacks at a time. */
+   assert(num_repacks <= 2);
+
+   /* STEP 1. Count surviving invocations in the current wave.
+    *
+    * Implemented by a scalar instruction that simply counts the number of bits set in a 32/64-bit mask.
+    */
+
+   nir_def *input_mask[2];
+   nir_def *surviving_invocations_in_current_wave[2];
+
+   for (unsigned i = 0; i < num_repacks; ++i) {
+      /* Input should be boolean: 1 if the current invocation should survive the repack. */
+      assert(input_bool[i]->bit_size == 1);
+
+      input_mask[i] = nir_ballot(b, 1, wave_size, input_bool[i]);
+      surviving_invocations_in_current_wave[i] = nir_bit_count(b, input_mask[i]);
+   }
+
+   /* If we know at compile time that the workgroup has only 1 wave, no further steps are necessary. */
+   if (max_num_waves == 1) {
+      for (unsigned i = 0; i < num_repacks; ++i) {
+         results[i].num_repacked_invocations = surviving_invocations_in_current_wave[i];
+         results[i].repacked_invocation_index = nir_mbcnt_amd(b, input_mask[i], nir_imm_int(b, 0));
+      }
+      return;
+   }
+
+   /* STEP 2. Waves tell each other their number of surviving invocations.
+    *
+    * Row 0 (lanes 0-15) performs the first repack, and Row 1 (lanes 16-31) the second in parallel.
+    * Each wave activates only its first lane per row, which stores the number of surviving
+    * invocations in that wave into the LDS for that repack, then reads the numbers from every wave.
+    *
+    * The workgroup size of NGG shaders is at most 256, which means
+    * the maximum number of waves is 4 in Wave64 mode and 8 in Wave32 mode.
+    * For each repack:
+    * Each wave writes 1 byte, so it's up to 8 bytes, so at most 2 dwords are necessary.
+    * (The maximum is 4 dwords for 2 repacks in Wave32 mode.)
+    */
+
+   const unsigned num_lds_dwords = DIV_ROUND_UP(max_num_waves, 4);
+   assert(num_lds_dwords <= 2);
+
+   /* The first lane of each row (per repack) needs to access the LDS. */
+   const unsigned ballot = num_repacks == 1 ? 1 : 0x10001;
+
+   nir_def *wave_id = nir_load_subgroup_id(b);
+   nir_def *dont_care = nir_undef(b, 1, num_lds_dwords * 32);
+   nir_def *packed_counts = NULL;
+
+   nir_if *if_use_lds = nir_push_if(b, nir_inverse_ballot(b, 1, nir_imm_intN_t(b, ballot, wave_size)));
+   {
+      nir_def *store_val = surviving_invocations_in_current_wave[0];
+
+      if (num_repacks == 2) {
+         nir_def *lane_id_0 = nir_inverse_ballot(b, 1, nir_imm_intN_t(b, 1, wave_size));
+         nir_def *off = nir_bcsel(b, lane_id_0, nir_imm_int(b, 0), nir_imm_int(b, num_lds_dwords * 4));
+         lds_addr_base = nir_iadd_nuw(b, lds_addr_base, off);
+         store_val = nir_bcsel(b, lane_id_0, store_val, surviving_invocations_in_current_wave[1]);
+      }
+
+      nir_def *store_byte = nir_u2u8(b, store_val);
+      nir_def *lds_offset = nir_iadd(b, lds_addr_base, wave_id);
+      nir_store_shared(b, store_byte, lds_offset);
+
+      nir_barrier(b, .execution_scope = SCOPE_WORKGROUP, .memory_scope = SCOPE_WORKGROUP,
+                     .memory_semantics = NIR_MEMORY_ACQ_REL, .memory_modes = nir_var_mem_shared);
+
+      packed_counts = nir_load_shared(b, 1, num_lds_dwords * 32, lds_addr_base, .align_mul = 8u);
+   }
+   nir_pop_if(b, if_use_lds);
+
+   packed_counts = nir_if_phi(b, packed_counts, dont_care);
+
+   /* STEP 3. Compute the repacked invocation index and the total number of surviving invocations.
+    *
+    * By now, every wave knows the number of surviving invocations in all waves.
+    * Each number is 1 byte, and they are packed into up to 2 dwords.
+    *
+    * For each row (of 16 lanes):
+    * Each lane N (in the row) will sum the number of surviving invocations inclusively from waves 0 to N.
+    * If the workgroup has M waves, then each row will use only its first M lanes for this.
+    * (Other lanes are not deactivated but their calculation is not used.)
+    *
+    * - We read the sum from the lane whose id  (in the row) is the current wave's id,
+    *   and subtract the number of its own surviving invocations.
+    *   Add the masked bitcount to this, and we get the repacked invocation index.
+    * - We read the sum from the lane whose id (in the row) is the number of waves in the workgroup minus 1.
+    *   This is the total number of surviving invocations in the workgroup.
+    */
+
+   nir_def *num_waves = nir_load_num_subgroups(b);
+   nir_def *sum = summarize_repack(b, packed_counts, num_repacks == 2, num_lds_dwords);
+
+   for (unsigned i = 0; i < num_repacks; ++i) {
+      nir_def *index_base_lane = nir_iadd_imm_nuw(b, wave_id, i * 16);
+      nir_def *num_invocartions_lane = nir_iadd_imm(b, num_waves, i * 16 - 1);
+      nir_def *wg_repacked_index_base =
+         nir_isub(b, nir_read_invocation(b, sum, index_base_lane), surviving_invocations_in_current_wave[i]);
+      results[i].num_repacked_invocations =
+         nir_read_invocation(b, sum, num_invocartions_lane);
+      results[i].repacked_invocation_index =
+         nir_mbcnt_amd(b, input_mask[i], wg_repacked_index_base);
+   }
 }

@@ -16,6 +16,8 @@
 #include "ac_rgp.h"
 #include "amd_family.h"
 
+#define SQTT_BUFFER_ALIGN_SHIFT 12
+
 struct radeon_cmdbuf;
 struct radeon_info;
 
@@ -56,8 +58,6 @@ struct ac_sqtt {
 
    struct hash_table_u64 *pipeline_bos;
 };
-
-#define SQTT_BUFFER_ALIGN_SHIFT 12
 
 struct ac_sqtt_data_info {
    uint32_t cur_offset;

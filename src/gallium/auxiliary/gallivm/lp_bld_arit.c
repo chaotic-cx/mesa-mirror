@@ -1672,6 +1672,26 @@ lp_build_clamp(struct lp_build_context *bld,
 
 
 /**
+ * Generate clamp(a, min, max)
+ * A NaN will get converted to min.
+ */
+LLVMValueRef
+lp_build_clamp_nanmin(struct lp_build_context *bld,
+                      LLVMValueRef a,
+                      LLVMValueRef min,
+                      LLVMValueRef max)
+{
+   assert(lp_check_value(bld->type, a));
+   assert(lp_check_value(bld->type, min));
+   assert(lp_check_value(bld->type, max));
+
+   a = lp_build_max_ext(bld, a, min, GALLIVM_NAN_RETURN_OTHER_SECOND_NONNAN);
+   a = lp_build_min(bld, a, max);
+   return a;
+}
+
+
+/**
  * Generate clamp(a, 0, 1)
  * A NaN will get converted to zero.
  */
@@ -1871,7 +1891,7 @@ arch_rounding_available(const struct lp_type type)
       return true;
    else if (util_get_cpu_caps()->has_neon)
       return true;
-   else if (util_get_cpu_caps()->family == CPU_S390X)
+   else if (DETECT_ARCH_S390 == true)
       return true;
 
    return false;
@@ -1983,7 +2003,7 @@ lp_build_round_arch(struct lp_build_context *bld,
                     enum lp_build_round_mode mode)
 {
    if (util_get_cpu_caps()->has_sse4_1 || util_get_cpu_caps()->has_neon ||
-       util_get_cpu_caps()->family == CPU_S390X) {
+       DETECT_ARCH_S390 == true) {
       LLVMBuilderRef builder = bld->gallivm->builder;
       const struct lp_type type = bld->type;
       const char *intrinsic_root;
@@ -2100,7 +2120,7 @@ lp_build_round(struct lp_build_context *bld,
 
    if (type.width == 16) {
       char intrinsic[64];
-      lp_format_intrinsic(intrinsic, 64, "llvm.round", bld->vec_type);
+      lp_format_intrinsic(intrinsic, 64, "llvm.roundeven", bld->vec_type);
       return lp_build_intrinsic_unary(builder, intrinsic, bld->vec_type, a);
    }
 

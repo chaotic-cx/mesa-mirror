@@ -107,7 +107,7 @@ _legal_parameters(struct gl_context *ctx, GLenum target, GLenum internalformat,
        * ARB_internalformat_query implementation like an error.
        */
       if (!query2 &&
-          !(_mesa_has_ARB_texture_multisample(ctx) || _mesa_is_gles31(ctx))) {
+          !_mesa_has_texture_multisample(ctx)) {
          _mesa_error(ctx, GL_INVALID_ENUM,
                      "glGetInternalformativ(target=%s)",
                      _mesa_enum_to_string(target));
@@ -484,9 +484,12 @@ _is_target_supported(struct gl_context *ctx, GLenum target)
       break;
 
    case GL_TEXTURE_2D_MULTISAMPLE:
+      if (!_mesa_has_texture_multisample(ctx))
+         return false;
+      break;
+
    case GL_TEXTURE_2D_MULTISAMPLE_ARRAY:
-      if (!_mesa_has_ARB_texture_multisample(ctx) &&
-          !_mesa_is_gles31(ctx))
+      if (!_mesa_has_texture_multisample_array(ctx))
          return false;
       break;
 
@@ -885,29 +888,6 @@ _get_min_dimensions(GLenum pname)
    }
 }
 
-static bool
-_is_generic_compressed_format(const struct gl_context *ctx,
-                              GLenum intFormat)
-{
-   switch (intFormat) {
-   case GL_COMPRESSED_SRGB:
-   case GL_COMPRESSED_SRGB_ALPHA:
-   case GL_COMPRESSED_SLUMINANCE:
-   case GL_COMPRESSED_SLUMINANCE_ALPHA:
-      return _mesa_has_EXT_texture_sRGB(ctx);
-   case GL_COMPRESSED_RG:
-   case GL_COMPRESSED_RED:
-      return _mesa_is_gles(ctx) ?
-             _mesa_has_EXT_texture_rg(ctx) :
-             _mesa_has_ARB_texture_rg(ctx);
-   case GL_COMPRESSED_RGB:
-   case GL_COMPRESSED_RGBA:
-      return true;
-   default:
-      return false;
-   }
-}
-
 /*
  * Similar to teximage.c:check_multisample_target, but independent of the
  * dimensions.
@@ -929,7 +909,7 @@ void GLAPIENTRY
 _mesa_GetInternalformativ(GLenum target, GLenum internalformat, GLenum pname,
                           GLsizei bufSize, GLint *params)
 {
-   GLint buffer[16];
+   GLint buffer[MAX_SAMPLES];
    GET_CURRENT_CONTEXT(ctx);
 
    ASSERT_OUTSIDE_BEGIN_END(ctx);
@@ -945,7 +925,7 @@ _mesa_GetInternalformativ(GLenum target, GLenum internalformat, GLenum pname,
       return;
 
    /* initialize the contents of the temporary buffer */
-   memcpy(buffer, params, MIN2(bufSize, 16) * sizeof(GLint));
+   memcpy(buffer, params, MIN2(bufSize, MAX_SAMPLES) * sizeof(GLint));
 
    /* Use the 'unsupported' response defined by the spec for every pname
     * as the default answer.
@@ -1597,7 +1577,7 @@ _mesa_GetInternalformativ(GLenum target, GLenum internalformat, GLenum pname,
       mesa_format mesaformat;
       GLint block_size;
 
-      mesaformat = _mesa_glenum_to_compressed_format(internalformat);
+      mesaformat = _mesa_glenum_to_compressed_format(ctx, internalformat);
       if (mesaformat == MESA_FORMAT_NONE)
          goto end;
 
@@ -1634,7 +1614,7 @@ _mesa_GetInternalformativ(GLenum target, GLenum internalformat, GLenum pname,
          goto end;
 
       if (_mesa_is_compressed_format(ctx, internalformat) ||
-          _is_generic_compressed_format(ctx, internalformat))
+          _mesa_is_generic_compressed_format(ctx, internalformat))
          goto end;
 
       st_QueryInternalFormat(ctx, target, internalformat, pname,

@@ -40,8 +40,8 @@ exec_flavor_map = {
     }
 
 
-header = """/**
- * \\file api_exec_init.c
+header = r"""/**
+ * \file api_exec_init.c
  * Initialize dispatch table.
  */
 
@@ -49,7 +49,7 @@ header = """/**
 #include "api_exec_decl.h"
 #include "glapi/glapi.h"
 #include "main/context.h"
-#include "main/dispatch.h"
+#include "dispatch.h"
 
 
 /**

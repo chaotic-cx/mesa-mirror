@@ -229,6 +229,9 @@ iris_destroy_context(struct pipe_context *ctx)
 
    screen->vtbl.destroy_state(ice);
 
+   util_framebuffer_init(ctx, NULL, ice->state.fb_cbufs, &ice->state.fb_zsbuf);
+   util_unreference_framebuffer_state(&ice->state.framebuffer);
+
    for (unsigned i = 0; i < ARRAY_SIZE(ice->shaders.scratch_surfs); i++)
       pipe_resource_reference(&ice->shaders.scratch_surfs[i].res, NULL);
 
@@ -284,6 +287,12 @@ iris_destroy_context(struct pipe_context *ctx)
    default:                                       \
       unreachable("Unknown hardware generation"); \
    }
+
+#ifndef INTEL_USE_ELK
+static inline void gfx8_init_state(struct iris_context *ice) { unreachable("no elk support"); }
+static inline void gfx8_init_blorp(struct iris_context *ice) { unreachable("no elk support"); }
+static inline void gfx8_init_query(struct iris_context *ice) { unreachable("no elk support"); }
+#endif
 
 /**
  * Create a context.

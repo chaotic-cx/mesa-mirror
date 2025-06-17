@@ -35,7 +35,7 @@
 #include "program/prog_parameter.h"
 #include "util/bitset.h"
 
-#include "nir.h"
+#include "nir_defines.h"
 
 struct gl_shader_program;
 struct gl_shader_stage;
@@ -227,7 +227,7 @@ bool
 gl_assign_attribute_or_color_locations(const struct gl_constants *consts,
                                        struct gl_shader_program *prog);
 
-void
+bool
 gl_nir_validate_first_and_last_interface_explicit_locations(const struct gl_constants *consts,
                                                             struct gl_shader_program *prog,
                                                             gl_shader_stage first_stage,

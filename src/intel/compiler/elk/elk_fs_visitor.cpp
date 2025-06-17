@@ -31,6 +31,7 @@
 #include "elk_fs.h"
 #include "elk_fs_builder.h"
 #include "elk_nir.h"
+#include "elk_private.h"
 #include "compiler/glsl_types.h"
 
 using namespace elk;
@@ -289,7 +290,7 @@ elk_fs_visitor::emit_interpolation_setup_gfx6()
    }
 
    if (wm_key->persample_interp == ELK_SOMETIMES) {
-      assert(!devinfo->needs_unlit_centroid_workaround);
+      assert(!elk_needs_unlit_centroid_workaround(devinfo));
 
       const fs_builder ubld = bld.exec_all().group(16, 0);
       bool loaded_flag = false;
@@ -346,7 +347,7 @@ elk_fs_visitor::emit_interpolation_setup_gfx6()
       (1 << ELK_BARYCENTRIC_PERSPECTIVE_CENTROID |
        1 << ELK_BARYCENTRIC_NONPERSPECTIVE_CENTROID);
 
-   if (devinfo->needs_unlit_centroid_workaround && centroid_modes) {
+   if (elk_needs_unlit_centroid_workaround(devinfo) && centroid_modes) {
       /* Get the pixel/sample mask into f0 so that we know which
        * pixels are lit.  Then, for each channel that is unlit,
        * replace the centroid data with non-centroid data.
@@ -562,8 +563,6 @@ elk_fs_visitor::emit_urb_writes(const elk_fs_reg &gs_vertex_count)
       elk_vue_prog_data(this->prog_data);
    const struct elk_vs_prog_key *vs_key =
       (const struct elk_vs_prog_key *) this->key;
-   const GLbitfield64 psiz_mask =
-      VARYING_BIT_LAYER | VARYING_BIT_VIEWPORT | VARYING_BIT_PSIZ | VARYING_BIT_PRIMITIVE_SHADING_RATE;
    const struct intel_vue_map *vue_map = &vue_prog_data->vue_map;
    bool flush;
    elk_fs_reg sources[8];
@@ -633,15 +632,40 @@ elk_fs_visitor::emit_urb_writes(const elk_fs_reg &gs_vertex_count)
       switch (varying) {
       case VARYING_SLOT_PSIZ: {
          /* The point size varying slot is the vue header and is always in the
-          * vue map.  But often none of the special varyings that live there
-          * are written and in that case we can skip writing to the vue
-          * header, provided the corresponding state properly clamps the
-          * values further down the pipeline. */
-         if ((vue_map->slots_valid & psiz_mask) == 0) {
-            assert(length == 0);
-            urb_offset++;
-            break;
-         }
+          * vue map. If anything in the header is going to be read back by HW,
+          * we need to initialize it, in particular the viewport & layer
+          * values.
+          *
+          * SKL PRMs, Volume 7: 3D-Media-GPGPU, Vertex URB Entry (VUE)
+          * Formats:
+          *
+          *    "VUEs are written in two ways:
+          *
+          *       - At the top of the 3D Geometry pipeline, the VF's
+          *         InputAssembly function creates VUEs and initializes them
+          *         from data extracted from Vertex Buffers as well as
+          *         internally generated data.
+          *
+          *       - VS, GS, HS and DS threads can compute, format, and write
+          *         new VUEs as thread output."
+          *
+          *    "Software must ensure that any VUEs subject to readback by the
+          *     3D pipeline start with a valid Vertex Header. This extends to
+          *     all VUEs with the following exceptions:
+          *
+          *       - If the VS function is enabled, the VF-written VUEs are not
+          *         required to have Vertex Headers, as the VS-incoming
+          *         vertices are guaranteed to be consumed by the VS (i.e.,
+          *         the VS thread is responsible for overwriting the input
+          *         vertex data).
+          *
+          *       - If the GS FF is enabled, neither VF-written VUEs nor VS
+          *         thread-generated VUEs are required to have Vertex Headers,
+          *         as the GS will consume all incoming vertices.
+          *
+          *       - If Rendering is disabled, VertexHeaders are not required
+          *         anywhere."
+          */
 
          elk_fs_reg zero(VGRF, alloc.allocate(dispatch_width / 8),
                      ELK_REGISTER_TYPE_UD);

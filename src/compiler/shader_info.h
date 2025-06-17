@@ -101,7 +101,8 @@ typedef struct shader_info {
    uint16_t outputs_written_16bit;
    uint16_t outputs_read_16bit;
    uint16_t inputs_read_indirectly_16bit;
-   uint16_t outputs_accessed_indirectly_16bit;
+   uint16_t outputs_read_indirectly_16bit;
+   uint16_t outputs_written_indirectly_16bit;
 
    /* Which patch inputs are actually read */
    uint32_t patch_inputs_read;
@@ -113,11 +114,13 @@ typedef struct shader_info {
    /* Which inputs are read indirectly (subset of inputs_read) */
    uint64_t inputs_read_indirectly;
    /* Which outputs are read or written indirectly */
-   uint64_t outputs_accessed_indirectly;
+   uint64_t outputs_read_indirectly;
+   uint64_t outputs_written_indirectly;
    /* Which patch inputs are read indirectly (subset of patch_inputs_read) */
-   uint64_t patch_inputs_read_indirectly;
+   uint32_t patch_inputs_read_indirectly;
    /* Which patch outputs are read or written indirectly */
-   uint64_t patch_outputs_accessed_indirectly;
+   uint32_t patch_outputs_read_indirectly;
+   uint32_t patch_outputs_written_indirectly;
 
    /** Bitfield of which textures are used */
    BITSET_DECLARE(textures_used, 128);
@@ -184,9 +187,6 @@ typedef struct shader_info {
 
    /* Whether texture size, levels, or samples is queried. */
    bool uses_resource_info_query:1;
-
-   /** Has divergence analysis ever been run? */
-   bool divergence_analysis_run:1;
 
    /* Bitmask of bit-sizes used with ALU instructions. */
    uint8_t bit_sizes_float;
@@ -255,6 +255,14 @@ typedef struct shader_info {
 
    /* Use ACO instead of LLVM on AMD. */
    bool use_aco_amd:1;
+
+   /**
+    * Whether image intrinsics have been lowered to global intrinsics
+    *
+    * This is potentially useful on some implementation that need to know that
+    * an image barrier needs to include global barriers due to the lowering.
+    */
+   bool use_lowered_image_to_global:1;
 
    /**
      * Set if this shader uses legacy (DX9 or ARB assembly) math rules.
@@ -338,7 +346,11 @@ typedef struct shader_info {
          bool color_is_dual_source:1;
 
          /**
-          * True if this fragment shader requires full quad invocations.
+          * True if this fragment shader requires full quad invocations. This
+          * forces the shader to always behave as-if quad groups start with
+          * four active invocations, even if there are no derivatives or quad
+          * operations. Because helper invocations cannot have side effects,
+          * this mainly impacts subgroup operations such as ballot().
           */
          bool require_full_quads:1;
 
@@ -348,12 +360,22 @@ typedef struct shader_info {
          bool quad_derivatives:1;
 
          /**
-          * True if this fragment shader requires helper invocations.  This
-          * can be caused by the use of ALU derivative ops, texture
-          * instructions which do implicit derivatives, the use of quad
-          * subgroup operations or if the shader requires full quads.
+          * True if this fragment shader requires helper invocations used by
+          * coarse derivatives. This can be caused by the use of ALU
+          * derivative ops, texture instructions which do implicit
+          * derivatives, the use of quad subgroup operations or if the shader
+          * requires full quads.
           */
-         bool needs_quad_helper_invocations:1;
+         bool needs_coarse_quad_helper_invocations:1;
+
+         /**
+          * True if this fragment shader requires helper invocations for all
+          * four fragments in the quad. This can be caused by all the same
+          * things as needs_coarse_quad_helper_invocations, except that coarse
+          * derivatives don't count as they usually only use 3 out of the 4
+          * fragments in a quad.
+          */
+         bool needs_full_quad_helper_invocations:1;
 
          /**
           * Whether any inputs are declared with the "sample" qualifier.
@@ -500,15 +522,31 @@ typedef struct shader_info {
           */
          uint64_t tcs_same_invocation_inputs_read;
 
-         /* Bit mask of TCS per-vertex inputs (VS outputs) that are used
+         /* Bit mask of TCS per-vertex inputs (VS outputs) that are read
           * with a vertex index that is NOT the invocation id
           */
          uint64_t tcs_cross_invocation_inputs_read;
 
-         /* Bit mask of TCS per-vertex outputs that are used
+         /* Bit mask of TCS per-vertex outputs that are read
           * with a vertex index that is NOT the invocation id
           */
          uint64_t tcs_cross_invocation_outputs_read;
+
+         /* Bit mask of TCS per-vertex outputs that are written
+          * with a vertex index that is NOT the invocation id
+          */
+         uint64_t tcs_cross_invocation_outputs_written;
+
+         /* Bit mask of TCS per-vertex outputs that are read by TES. */
+         uint64_t tcs_outputs_read_by_tes;
+
+         /* Bit mask of TCS per-patch outputs that are read by TES. */
+         uint32_t tcs_patch_outputs_read_by_tes;
+
+         /* Bit mask of TCS per-vertex 16-bit outputs that are read by TES.
+          * (VARYING_SLOT_VAR0_16BIT + 0..15)
+          */
+         uint16_t tcs_outputs_read_by_tes_16bit;
       } tess;
 
       /* Applies to MESH and TASK. */

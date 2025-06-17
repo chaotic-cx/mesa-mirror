@@ -43,6 +43,8 @@
 #include "kopper_interface.h"
 #include "loader_dri_helper.h"
 #include "dri_util.h"
+#include "mapi/glapi/glapi.h"
+#include "dispatch.h"
 
 static int xshm_error = 0;
 static int xshm_opcode = -1;
@@ -410,7 +412,6 @@ static const __DRIextension *loader_extensions_noshm[] = {
 static const __DRIextension *kopper_extensions_noshm[] = {
    &swrastLoaderExtension.base,
    &kopperLoaderExtension.base,
-   &dri2UseInvalidate.base,
    &driBackgroundCallable.base,
    NULL
 };
@@ -423,7 +424,7 @@ static const __DRIextension *kopper_extensions_noshm[] = {
 static void
 drisw_wait_gl(struct glx_context *context)
 {
-   glFinish();
+   CALL_Finish(GET_DISPATCH(), ());
 }
 
 static void
@@ -541,7 +542,7 @@ driswSwapBuffers(__GLXDRIdrawable * pdraw,
    (void) remainder;
 
    if (flush) {
-      glFlush();
+      CALL_Flush(GET_DISPATCH(), ());
    }
 
    if (psc->kopper)
@@ -557,7 +558,7 @@ drisw_copy_sub_buffer(__GLXDRIdrawable * pdraw,
                       int x, int y, int width, int height, Bool flush)
 {
    if (flush) {
-      glFlush();
+      CALL_Flush(GET_DISPATCH(), ());
    }
 
    driswCopySubBuffer(pdraw->dri_drawable, x, y, width, height);
@@ -572,16 +573,21 @@ check_xshm(Display *dpy)
    int ret = True;
    xcb_query_extension_cookie_t shm_cookie;
    xcb_query_extension_reply_t *shm_reply;
-   bool has_mit_shm;
 
    shm_cookie = xcb_query_extension(c, 7, "MIT-SHM");
    shm_reply = xcb_query_extension_reply(c, shm_cookie, NULL);
-   xshm_opcode = shm_reply->major_opcode;
 
-   has_mit_shm = shm_reply->present;
-   free(shm_reply);
-   if (!has_mit_shm)
-      return False;
+   if (shm_reply) {
+      bool has_mit_shm = shm_reply->present;
+
+      if (has_mit_shm)
+         xshm_opcode = shm_reply->major_opcode;
+
+      free(shm_reply);
+
+      if (!has_mit_shm)
+         return False;
+   }
 
    cookie = xcb_shm_detach_checked(c, 0);
    if ((error = xcb_request_check(c, cookie))) {
@@ -618,6 +624,21 @@ kopperGetSwapInterval(__GLXDRIdrawable *pdraw)
 
    return pdp->swapInterval;
 }
+
+static int
+kopperWaitForMSC(__GLXDRIdrawable *pdraw, int64_t target_msc, int64_t divisor,
+                 int64_t remainder, int64_t *ust, int64_t *msc, int64_t *sbc)
+{
+   return kopperGetSyncValues(pdraw->dri_drawable, target_msc, divisor, remainder, ust, msc, sbc);
+}
+
+static int
+kopperGetDrawableMSC(struct glx_screen *psc, __GLXDRIdrawable *pdraw,
+                     int64_t *ust, int64_t *msc, int64_t *sbc)
+{
+   return kopperGetSyncValues(pdraw->dri_drawable, 0, 0, 0, ust, msc, sbc);
+}
+
 
 struct glx_screen *
 driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driver, bool driver_name_is_inferred)
@@ -670,6 +691,8 @@ driswCreateScreen(int screen, struct glx_display *priv, enum glx_driver glx_driv
       psp->setSwapInterval = driswKopperSetSwapInterval;
       psp->getSwapInterval = kopperGetSwapInterval;
       psp->maxSwapInterval = 1;
+      psp->getDrawableMSC = kopperGetDrawableMSC;
+      psp->waitForMSC = kopperWaitForMSC;
    }
 
    return &psc->base;

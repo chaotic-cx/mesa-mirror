@@ -44,7 +44,6 @@ dEQP-GLES2.functional.texture.mipmap.cube.projected.linear_nearest,Fail
 
 wayland-dEQP-EGL.functional.create_context.no_config,Fail
 wayland-dEQP-EGL.functional.image.modify.renderbuffer_depth16_renderbuffer_clear_depth,Fail
-wayland-dEQP-EGL.functional.wide_color.window_fp16_default_colorspace,Fail
 wayland-dEQP-EGL.functional.wide_color.window_8888_colorspace_srgb,Fail
 wayland-dEQP-EGL.functional.wide_color.window_888_colorspace_srgb,Fail
 
@@ -402,7 +401,6 @@ spec@glsl-1.20@execution@built-in-functions@fs-op-div-mat2x4-mat2x4,Fail
 spec@glsl-1.20@execution@built-in-functions@fs-op-div-mat3x2-mat3x2,Fail
 spec@glsl-1.20@execution@built-in-functions@fs-op-div-mat3x4-mat3x4,Fail
 spec@glsl-1.20@execution@built-in-functions@fs-op-div-mat4x3-mat4x3,Fail
-spec@glsl-1.20@execution@built-in-functions@fs-op-mult-mat4x3-mat3x4,Fail
 spec@glsl-1.20@execution@clipping@fixed-clip-enables,Fail
 spec@glsl-1.20@execution@clipping@vs-clip-vertex-const-reject,Fail
 spec@glsl-1.20@execution@clipping@vs-clip-vertex-different-from-position,Fail
@@ -1077,5 +1075,3 @@ spec@glsl-1.10@execution@variable-indexing@vs-temp-array-mat4-index-col-row-wr,C
 
 # With linux kernel 6.13-rc4 uprev
 dEQP-GLES2.functional.shaders.operator.selection.bool_fragment,Fail
-dEQP-GLES2.functional.shaders.operator.selection.bvec2_fragment,Fail
-dEQP-GLES2.functional.shaders.operator.selection.bvec3_fragment,Fail

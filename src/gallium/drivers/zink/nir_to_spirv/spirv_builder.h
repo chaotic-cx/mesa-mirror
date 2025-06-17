@@ -207,6 +207,10 @@ spirv_builder_emit_load(struct spirv_builder *b, SpvId result_type,
 
 SpvId
 spirv_builder_emit_load_aligned(struct spirv_builder *b, SpvId result_type, SpvId pointer, unsigned alignment, bool coherent);
+
+SpvId
+spirv_builder_emit_load_volatile(struct spirv_builder *b, SpvId result_type, SpvId pointer);
+
 void
 spirv_builder_emit_atomic_store(struct spirv_builder *b, SpvId pointer, SpvScope scope,
                                 SpvMemorySemanticsMask semantics, SpvId object);
@@ -236,8 +240,16 @@ spirv_builder_emit_binop(struct spirv_builder *b, SpvOp op, SpvId result_type,
                          SpvId operand0, SpvId operand1);
 
 SpvId
+spirv_builder_emit_binop_subgroup(struct spirv_builder *b, SpvOp op, SpvId result_type,
+                                  SpvId operand0, SpvId operand1);
+
+SpvId
 spirv_builder_emit_triop(struct spirv_builder *b, SpvOp op, SpvId result_type,
                          SpvId operand0, SpvId operand1, SpvId operand2);
+
+SpvId
+spirv_builder_emit_triop_subgroup(struct spirv_builder *b, SpvOp op, SpvId result_type,
+                                  SpvId operand0, SpvId operand1, SpvId operand2);
 
 SpvId
 spirv_builder_emit_quadop(struct spirv_builder *b, SpvOp op, SpvId result_type,

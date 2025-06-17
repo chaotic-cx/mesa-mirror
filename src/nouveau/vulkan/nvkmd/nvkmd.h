@@ -55,6 +55,9 @@ enum nvkmd_mem_flags {
    NVKMD_MEM_SHARED     = 1 << 4,
 };
 
+#define NVKMD_MEM_PLACEMENT_FLAGS \
+   (NVKMD_MEM_LOCAL | NVKMD_MEM_GART | NVKMD_MEM_VRAM)
+
 enum nvkmd_mem_map_flags {
    NVKMD_MEM_MAP_RD     = 1 << 0,
    NVKMD_MEM_MAP_WR     = 1 << 1,
@@ -284,6 +287,11 @@ struct nvkmd_va {
 struct nvkmd_ctx_exec {
    uint64_t addr;
    uint32_t size_B;
+   /* True if this push ends in an incomplete method and requires the next
+    * push to provide the method data.  In this case, this push and the next
+    * one must be in the same submit ioctl.
+    */
+   bool incomplete;
    bool no_prefetch;
 };
 

@@ -41,12 +41,11 @@
 #include "aubinator_error_decode_lib.h"
 #include "aubinator_error_decode_xe.h"
 #include "common/intel_debug_identifier.h"
-#include "compiler/brw_compiler.h"
-#include "compiler/elk/elk_compiler.h"
 #include "decoder/intel_decoder.h"
 #include "dev/intel_debug.h"
 #include "error_decode_lib.h"
 #include "util/macros.h"
+#include "intel_tools.h"
 
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -262,82 +261,6 @@ struct section {
 static unsigned num_sections;
 static struct section sections[MAX_SECTIONS];
 
-static int zlib_inflate(uint32_t **ptr, int len)
-{
-   struct z_stream_s zstream;
-   void *out;
-   const uint32_t out_size = 128*4096;  /* approximate obj size */
-
-   memset(&zstream, 0, sizeof(zstream));
-
-   zstream.next_in = (unsigned char *)*ptr;
-   zstream.avail_in = 4*len;
-
-   if (inflateInit(&zstream) != Z_OK)
-      return 0;
-
-   out = malloc(out_size);
-   zstream.next_out = out;
-   zstream.avail_out = out_size;
-
-   do {
-      switch (inflate(&zstream, Z_SYNC_FLUSH)) {
-      case Z_STREAM_END:
-         goto end;
-      case Z_OK:
-         break;
-      default:
-         inflateEnd(&zstream);
-         return 0;
-      }
-
-      if (zstream.avail_out)
-         break;
-
-      out = realloc(out, 2*zstream.total_out);
-      if (out == NULL) {
-         inflateEnd(&zstream);
-         return 0;
-      }
-
-      zstream.next_out = (unsigned char *)out + zstream.total_out;
-      zstream.avail_out = zstream.total_out;
-   } while (1);
- end:
-   inflateEnd(&zstream);
-   free(*ptr);
-   *ptr = out;
-   return zstream.total_out / 4;
-}
-
-static int ascii85_decode(const char *in, uint32_t **out, bool inflate)
-{
-   int len = 0, size = 1024;
-
-   *out = realloc(*out, sizeof(uint32_t)*size);
-   if (*out == NULL)
-      return 0;
-
-   while (*in >= '!' && *in <= 'z') {
-      uint32_t v = 0;
-
-      if (len == size) {
-         size *= 2;
-         *out = realloc(*out, sizeof(uint32_t)*size);
-         if (*out == NULL)
-            return 0;
-      }
-
-      in = ascii85_decode_char(in, &v);
-      (*out)[len++] = v;
-   }
-
-   if (!inflate)
-      return len;
-
-   return zlib_inflate(out, len);
-}
-
 static int qsort_hw_context_first(const void *a, const void *b)
 {
    const struct section *sa = a, *sb = b;
@@ -379,8 +302,6 @@ read_i915_data_file(FILE *file, enum intel_batch_decode_flags batch_flags)
    bool ring_wraps = false;
    char *ring_name = NULL;
    struct intel_device_info devinfo;
-   struct brw_isa_info brw;
-   struct elk_isa_info elk;
    uint64_t acthd = 0;
 
    while (getline(&line, &line_size, file) > 0) {
@@ -472,11 +393,6 @@ read_i915_data_file(FILE *file, enum intel_batch_decode_flags batch_flags)
             }
 
             printf("Detected GEN%i chipset\n", devinfo.ver);
-
-            if (devinfo.ver >= 9)
-               brw_init_isa_info(&brw, &devinfo);
-            else
-               elk_init_isa_info(&elk, &devinfo);
 
             if (xml_path == NULL)
                spec = intel_spec_load(&devinfo);
@@ -669,15 +585,10 @@ read_i915_data_file(FILE *file, enum intel_batch_decode_flags batch_flags)
    }
 
    struct intel_batch_decode_ctx batch_ctx;
-   if (devinfo.ver >= 9) {
-      intel_batch_decode_ctx_init_brw(&batch_ctx, &brw, &devinfo, stdout,
-                                      batch_flags, xml_path, get_intel_batch_bo,
-                                      NULL, NULL);
-   } else {
-      intel_batch_decode_ctx_init_elk(&batch_ctx, &elk, &devinfo, stdout,
-                                      batch_flags, xml_path, get_intel_batch_bo,
-                                      NULL, NULL);
-   }
+   struct intel_isa_info isa_info = {};
+   intel_decoder_init(&batch_ctx, &isa_info, &devinfo, stdout,
+                      batch_flags, xml_path, get_intel_batch_bo,
+                      NULL, NULL);
    batch_ctx.acthd = acthd;
 
    if (option_dump_kernels)

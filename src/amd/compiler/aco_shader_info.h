@@ -65,7 +65,7 @@ struct aco_ps_epilog_info {
    uint16_t color_types;
    bool clamp_color;
    bool skip_null_export;
-   unsigned broadcast_last_cbuf;
+   bool writes_all_cbufs;
    enum compare_func alpha_func;
    /* Depth/stencil/samplemask are always passed via VGPRs, and the epilog key can choose
     * not to export them using these flags, which can be dynamic states.
@@ -92,6 +92,9 @@ struct aco_ps_prolog_info {
    bool force_linear_center_interp;
 
    unsigned samplemask_log_ps_iter;
+   bool get_frag_coord_from_pixel_coord;
+   bool pixel_center_integer;
+   bool force_samplemask_to_helper_invocation;
    unsigned num_interp_inputs;
    unsigned colors_read;
    int color_interp_vgpr_index[2];
@@ -105,8 +108,7 @@ struct aco_ps_prolog_info {
 struct aco_shader_info {
    enum ac_hw_stage hw_stage;
    uint8_t wave_size;
-   bool has_ngg_culling;
-   bool has_ngg_early_prim_export;
+   bool schedule_ngg_pos_exports; /* Whether we should schedule position exports up or not. */
    bool image_2d_view_of_3d;
    unsigned workgroup_size;
    bool merged_shader_compiled_separately; /* GFX9+ */
@@ -118,8 +120,6 @@ struct aco_shader_info {
       bool has_prolog;
    } vs;
    struct {
-      struct ac_arg tcs_offchip_layout;
-
       /* Vulkan only */
       uint32_t num_lds_blocks;
    } tcs;
@@ -209,14 +209,32 @@ struct aco_trap_handler_layout {
    uint32_t ttmp0;
    uint32_t ttmp1;
 
-   struct {
-      uint32_t status;
-      uint32_t mode;
-      uint32_t trap_sts;
-      uint32_t hw_id1;
-      uint32_t gpr_alloc;
-      uint32_t lds_alloc;
-      uint32_t ib_sts;
+   union {
+      struct {
+         uint32_t state_priv;
+         uint32_t mode;
+         uint32_t status;
+         uint32_t gpr_alloc;
+         uint32_t lds_alloc;
+         uint32_t ib_sts;
+         uint32_t excp_flag_priv;
+         uint32_t excp_flag_user;
+         uint32_t trap_ctrl;
+         uint32_t hw_id1;
+      } gfx12;
+
+      struct {
+         uint32_t status;
+         uint32_t mode;
+         uint32_t trap_sts;
+         uint32_t hw_id1;
+         uint32_t gpr_alloc;
+         uint32_t lds_alloc;
+         uint32_t ib_sts;
+         uint32_t reserved0;
+         uint32_t reserved1;
+         uint32_t reserved2;
+      } gfx8;
    } sq_wave_regs;
 
    uint32_t m0;

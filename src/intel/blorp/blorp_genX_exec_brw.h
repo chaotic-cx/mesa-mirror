@@ -593,6 +593,18 @@ blorp_emit_vertex_elements(struct blorp_batch *batch,
       }
    }
 
+   if (batch->flags & BLORP_BATCH_EMIT_3DSTATE_VF) {
+      blorp_emit(batch, GENX(3DSTATE_VF), vf) {
+#if GFX_VERx10 >= 125
+         /* Blorp shaders have no requirements that we need to disable geometry
+          * distribution.
+          */
+         vf.GeometryDistributionEnable =
+            (batch->flags & BLORP_BATCH_DISABLE_VF_DISTRIBUTION) ? false : true;
+#endif
+      }
+   }
+
    blorp_emit(batch, GENX(3DSTATE_VF_TOPOLOGY), topo) {
       topo.PrimitiveTopologyType = _3DPRIM_RECTLIST;
    }
@@ -612,9 +624,9 @@ blorp_emit_cc_viewport(struct blorp_batch *batch)
    } else {
       blorp_emit_dynamic(batch, GENX(CC_VIEWPORT), vp, 32, &cc_vp_offset) {
          vp.MinimumDepth = batch->blorp->config.use_unrestricted_depth_range ?
-                           -FLT_MAX : 0.0;
+                           -FLT_MAX : 0.0f;
          vp.MaximumDepth = batch->blorp->config.use_unrestricted_depth_range ?
-                           FLT_MAX : 1.0;
+                           FLT_MAX : 1.0f;
       }
    }
 
@@ -677,6 +689,8 @@ blorp_emit_vs_config(struct blorp_batch *batch,
 
    blorp_emit(batch, GENX(3DSTATE_VS), vs) {
       if (vs_prog_data) {
+         assert(vs_prog_data->base.base.total_scratch == 0);
+
          vs.Enable = true;
 
          vs.KernelStartPointer = params->vs_prog_kernel;
@@ -693,6 +707,10 @@ blorp_emit_vs_config(struct blorp_batch *batch,
          assert(vs_prog_data->base.dispatch_mode == INTEL_DISPATCH_MODE_SIMD8);
 #if GFX_VER < 20
          vs.SIMD8DispatchEnable = true;
+#endif
+
+#if GFX_VER >= 30
+         vs.RegistersPerThread = ptl_register_blocks(vs_prog_data->base.base.grf_used);
 #endif
       }
    }
@@ -869,6 +887,8 @@ blorp_emit_ps_config(struct blorp_batch *batch,
 #endif
 
       if (prog_data) {
+         assert(prog_data->base.total_scratch == 0);
+
          intel_set_ps_dispatch_state(&ps, devinfo, prog_data,
                                      params->num_samples,
                                      0 /* msaa_flags */);
@@ -889,6 +909,10 @@ blorp_emit_ps_config(struct blorp_batch *batch,
 #if GFX_VER < 20
          ps.KernelStartPointer2 = params->wm_prog_kernel +
                                   brw_wm_prog_data_prog_offset(prog_data, ps, 2);
+#endif
+
+#if GFX_VER >= 30
+         ps.RegistersPerThread = ptl_register_blocks(prog_data->base.grf_used);
 #endif
       }
    }
@@ -967,6 +991,9 @@ blorp_emit_blend_state(struct blorp_batch *batch,
             .WriteDisableGreen = params->color_write_disable & 2,
             .WriteDisableBlue = params->color_write_disable & 4,
             .WriteDisableAlpha = params->color_write_disable & 8,
+#if GFX_VER >= 30
+            .SimpleFloatBlendEnable = true,
+#endif
          };
          GENX(BLEND_STATE_ENTRY_pack)(NULL, pos, &entry);
          pos += GENX(BLEND_STATE_ENTRY_length);
@@ -1467,6 +1494,18 @@ blorp_emit_gfx8_hiz_op(struct blorp_batch *batch,
    if (params->depth.enabled && params->hiz_op == ISL_AUX_OP_FAST_CLEAR)
       blorp_emit_cc_viewport(batch);
 
+   /* Make sure to disable fragment shader, a previous draw might have enabled
+    * a SIMD32 shader and we could be dispatching threads here with MSAA 16x
+    * which does not support SIMD32.
+    *
+    * dEQP-VK.pipeline.monolithic.multisample.misc.clear_attachments.
+    * r8g8b8a8_unorm_r16g16b16a16_sfloat_r32g32b32a32_uint_d16_unorm.
+    * 16x.ds_resolve_sample_zero.sub_framebuffer
+    * exercises this case.
+    */
+   blorp_emit(batch, GENX(3DSTATE_PS), ps);
+   blorp_emit(batch, GENX(3DSTATE_PS_EXTRA), psx);
+
    /* According to the SKL PRM formula for WM_INT::ThreadDispatchEnable, the
     * 3DSTATE_WM::ForceThreadDispatchEnable field can force WM thread dispatch
     * even when WM_HZ_OP is active.  However, WM thread dispatch is normally
@@ -1728,6 +1767,9 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
                                                          dispatch.group_size,
                                                          dispatch.simd_size),
          .NumberOfBarriers = cs_prog_data->uses_barrier,
+#if GFX_VER >= 30
+         .RegistersPerThread = ptl_register_blocks(prog_data->grf_used),
+#endif
       },
    };
 
@@ -1988,7 +2030,12 @@ blorp_xy_block_copy_blt(struct blorp_batch *batch,
       blt.ColorDepth = xy_color_depth(fmtl);
 
       blt.DestinationPitch = (dst_surf->row_pitch_B / dst_pitch_unit) - 1;
+#if GFX_VERx10 >= 200
+      blt.DestinationMOCSindex = MOCS_GET_INDEX(params->dst.addr.mocs);
+      blt.DestinationEncryptEn = MOCS_GET_ENCRYPT_EN(params->dst.addr.mocs);
+#else
       blt.DestinationMOCS = params->dst.addr.mocs;
+#endif
       blt.DestinationTiling = xy_bcb_tiling(dst_surf);
       blt.DestinationX1 = dst_x0;
       blt.DestinationY1 = dst_y0;
@@ -2033,7 +2080,12 @@ blorp_xy_block_copy_blt(struct blorp_batch *batch,
       blt.SourceX1 = src_x0;
       blt.SourceY1 = src_y0;
       blt.SourcePitch = (src_surf->row_pitch_B / src_pitch_unit) - 1;
+#if GFX_VERx10 >= 200
+      blt.SourceMOCSindex = MOCS_GET_INDEX(params->src.addr.mocs);
+      blt.SourceEncryptEn = MOCS_GET_ENCRYPT_EN(params->src.addr.mocs);
+#else
       blt.SourceMOCS = params->src.addr.mocs;
+#endif
       blt.SourceTiling = xy_bcb_tiling(src_surf);
       blt.SourceBaseAddress = params->src.addr;
       blt.SourceXOffset = params->src.tile_x_sa;
@@ -2115,6 +2167,12 @@ blorp_xy_fast_color_blit(struct blorp_batch *batch,
 
       blt.DestinationPitch = (dst_surf->row_pitch_B / dst_pitch_unit) - 1;
       blt.DestinationTiling = xy_bcb_tiling(dst_surf);
+#if GFX_VERx10 >= 200
+      blt.DestinationMOCSindex = MOCS_GET_INDEX(params->dst.addr.mocs);
+      blt.DestinationEncryptEn = MOCS_GET_ENCRYPT_EN(params->dst.addr.mocs);
+#else
+      blt.DestinationMOCS = params->dst.addr.mocs;
+#endif
       blt.DestinationX1 = params->x0;
       blt.DestinationY1 = params->y0;
       blt.DestinationX2 = params->x1;
@@ -2155,8 +2213,6 @@ blorp_xy_fast_color_blit(struct blorp_batch *batch,
          blt.DestinationCompressionFormat =
             isl_get_render_compression_format(dst_surf->format);
       }
-
-      blt.DestinationMOCS = params->dst.addr.mocs;
 #endif
    }
 #endif
@@ -2227,9 +2283,9 @@ blorp_init_dynamic_states(struct blorp_context *context)
    blorp_context_upload_dynamic(context, GENX(CC_VIEWPORT), vp, 32,
                                 BLORP_DYNAMIC_STATE_CC_VIEWPORT) {
       vp.MinimumDepth = context->config.use_unrestricted_depth_range ?
-                        -FLT_MAX : 0.0;
+                        -FLT_MAX : 0.0f;
       vp.MaximumDepth = context->config.use_unrestricted_depth_range ?
-                        FLT_MAX : 1.0;
+                        FLT_MAX : 1.0f;
    }
 
    blorp_context_upload_dynamic(context, GENX(COLOR_CALC_STATE), cc, 64,

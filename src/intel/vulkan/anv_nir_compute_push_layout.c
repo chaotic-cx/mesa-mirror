@@ -31,6 +31,7 @@ anv_nir_compute_push_layout(nir_shader *nir,
                             const struct anv_physical_device *pdevice,
                             enum brw_robustness_flags robust_flags,
                             bool fragment_dynamic,
+                            bool mesh_dynamic,
                             struct brw_stage_prog_data *prog_data,
                             struct anv_pipeline_bind_map *map,
                             const struct anv_pipeline_push_map *push_map,
@@ -57,6 +58,7 @@ anv_nir_compute_push_layout(nir_shader *nir,
                   has_const_ubo = true;
                break;
 
+            case nir_intrinsic_load_uniform:
             case nir_intrinsic_load_push_constant: {
                unsigned base = nir_intrinsic_base(intrin);
                unsigned range = nir_intrinsic_range(intrin);
@@ -96,9 +98,10 @@ anv_nir_compute_push_layout(nir_shader *nir,
        * the shader.
        */
       const uint32_t push_reg_mask_start =
-         anv_drv_const_offset(push_reg_mask[nir->info.stage]);
-      const uint32_t push_reg_mask_end = push_reg_mask_start +
-                                         anv_drv_const_size(push_reg_mask[nir->info.stage]);
+         anv_drv_const_offset(gfx.push_reg_mask[nir->info.stage]);
+      const uint32_t push_reg_mask_end =
+         push_reg_mask_start +
+         anv_drv_const_size(gfx.push_reg_mask[nir->info.stage]);
       push_start = MIN2(push_start, push_reg_mask_start);
       push_end = MAX2(push_end, push_reg_mask_end);
    }
@@ -124,8 +127,31 @@ anv_nir_compute_push_layout(nir_shader *nir,
       push_end = anv_drv_const_offset(cs.subgroup_id);
    }
 
-   /* Align push_start down to a 32B boundary and make it no larger than
-    * push_end (no push constants is indicated by push_start = UINT_MAX).
+   /* Align push_start down to a 32B (for 3DSTATE_CONSTANT) and make it no
+    * larger than push_end (no push constants is indicated by push_start =
+    * UINT_MAX).
+    *
+    * If we were to use
+    * 3DSTATE_(MESH|TASK)_SHADER_DATA::IndirectDataStartAddress we would need
+    * to align things to 64B.
+    *
+    * SKL PRMs, Volume 2d: Command Reference: Structures,
+    * 3DSTATE_CONSTANT::Constant Buffer 0 Read Length:
+    *
+    *    "This field specifies the length of the constant data to be loaded
+    *     from memory in 256-bit units."
+    *
+    * ATS-M PRMs, Volume 2d: Command Reference: Structures,
+    * 3DSTATE_MESH_SHADER_DATA_BODY::Indirect Data Start Address:
+    *
+    *    "This pointer is relative to the General State Base Address. It is
+    *     the 64-byte aligned address of the indirect data."
+    *
+    * COMPUTE_WALKER::Indirect Data Start Address has the same requirements as
+    * 3DSTATE_MESH_SHADER_DATA_BODY::Indirect Data Start Address but the push
+    * constant allocation for compute shader is not shared with other stages
+    * (unlike all Gfx stages) and so we can bound+align the allocation there
+    * (see anv_cmd_buffer_cs_push_constants).
     */
    push_start = MIN2(push_start, push_end);
    push_start = ROUND_DOWN_TO(push_start, 32);
@@ -151,6 +177,7 @@ anv_nir_compute_push_layout(nir_shader *nir,
 
                nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
                switch (intrin->intrinsic) {
+               case nir_intrinsic_load_uniform:
                case nir_intrinsic_load_push_constant: {
                   /* With bindless shaders we load uniforms with SEND
                    * messages. All the push constants are located after the
@@ -159,8 +186,7 @@ anv_nir_compute_push_layout(nir_shader *nir,
                    * brw_nir_lower_rt_intrinsics.c).
                    */
                   unsigned base_offset =
-                     brw_shader_stage_requires_bindless_resources(nir->info.stage) ? 0 : push_start;
-                  intrin->intrinsic = nir_intrinsic_load_uniform;
+                     brw_shader_stage_is_bindless(nir->info.stage) ? 0 : push_start;
                   nir_intrinsic_set_base(intrin,
                                          nir_intrinsic_base(intrin) -
                                          base_offset);
@@ -174,6 +200,34 @@ anv_nir_compute_push_layout(nir_shader *nir,
          }
       }
    }
+
+   /* When platforms support Mesh and the fragment shader is not fully linked
+    * to the previous shader, payload format can change if the preceding
+    * shader is mesh or not, this is an issue in particular for PrimitiveID
+    * value (in legacy it's delivered as a VUE slot, in mesh it's delivered as
+    * in the per-primitive block).
+    *
+    * Here is the difference in payload format :
+    *
+    *       Legacy                 Mesh
+    * -------------------   -------------------
+    * |      ...        |   |      ...        |
+    * |-----------------|   |-----------------|
+    * |  Constant data  |   |  Constant data  |
+    * |-----------------|   |-----------------|
+    * | VUE attributes  |   | Per Primive data|
+    * -------------------   |-----------------|
+    *                       | VUE attributes  |
+    *                       -------------------
+    *
+    * To solve that issue we push an additional dummy push constant buffer in
+    * legacy pipelines to align everything. The compiler then adds a SEL
+    * instruction to source the PrimitiveID from the right location based on a
+    * dynamic bit in fs_msaa_intel.
+    */
+   const bool needs_padding_per_primitive =
+      mesh_dynamic &&
+      (nir->info.inputs_read & VARYING_BIT_PRIMITIVE_ID);
 
    unsigned n_push_ranges = 0;
    if (push_ubo_ranges) {
@@ -194,12 +248,13 @@ anv_nir_compute_push_layout(nir_shader *nir,
 
       if (robust_flags & BRW_ROBUSTNESS_UBO) {
          const uint32_t push_reg_mask_offset =
-            anv_drv_const_offset(push_reg_mask[nir->info.stage]);
+            anv_drv_const_offset(gfx.push_reg_mask[nir->info.stage]);
          assert(push_reg_mask_offset >= push_start);
          prog_data->push_reg_mask_param =
             (push_reg_mask_offset - push_start) / 4;
       }
 
+      const unsigned max_push_buffers = needs_padding_per_primitive ? 3 : 4;
       unsigned range_start_reg = push_constant_range.length;
 
       for (int i = 0; i < 4; i++) {
@@ -207,7 +262,7 @@ anv_nir_compute_push_layout(nir_shader *nir,
          if (ubo_range->length == 0)
             continue;
 
-         if (n_push_ranges >= 4) {
+         if (n_push_ranges >= max_push_buffers) {
             memset(ubo_range, 0, sizeof(*ubo_range));
             continue;
          }
@@ -264,6 +319,17 @@ anv_nir_compute_push_layout(nir_shader *nir,
       prog_data->nr_params = 32 / 4;
    }
 
+   if (needs_padding_per_primitive) {
+      struct anv_push_range push_constant_range = {
+         .set = ANV_DESCRIPTOR_SET_PER_PRIM_PADDING,
+         .start = 0,
+         .length = 1,
+      };
+      map->push_ranges[n_push_ranges++] = push_constant_range;
+   }
+
+   assert(n_push_ranges <= 4);
+
    if (nir->info.stage == MESA_SHADER_FRAGMENT && fragment_dynamic) {
       struct brw_wm_prog_data *wm_prog_data =
          container_of(prog_data, struct brw_wm_prog_data, base);
@@ -306,8 +372,12 @@ anv_nir_validate_push_layout(const struct anv_physical_device *pdevice,
       prog_data_push_size += prog_data->ubo_ranges[i].length;
 
    unsigned bind_map_push_size = 0;
-   for (unsigned i = 0; i < 4; i++)
+   for (unsigned i = 0; i < 4; i++) {
+      /* This is dynamic and doesn't count against prog_data->ubo_ranges[] */
+      if (map->push_ranges[i].set == ANV_DESCRIPTOR_SET_PER_PRIM_PADDING)
+         continue;
       bind_map_push_size += map->push_ranges[i].length;
+   }
 
    /* We could go through everything again but it should be enough to assert
     * that they push the same number of registers.  This should alert us if

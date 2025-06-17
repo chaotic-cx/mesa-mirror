@@ -6,6 +6,7 @@
 
 #include "ac_nir.h"
 #include "ac_nir_helpers.h"
+#include "ac_gpu_info.h"
 
 #include "nir_builder.h"
 
@@ -72,8 +73,8 @@ typedef struct
       ms_out_part prm_attr;
    } scratch_ring;
 
-   /* VRAM attributes ring (GFX11 only) for all non-position outputs.
-    * GFX11 doesn't have to reload attributes from this ring at the end of the shader.
+   /* VRAM attributes ring (supported GPUs only) for all non-position outputs.
+    * We don't have to reload attributes from this ring at the end of the shader.
     */
    struct {
       ms_out_part vtx_attr;
@@ -89,7 +90,7 @@ typedef struct
 
 typedef struct
 {
-   enum amd_gfx_level gfx_level;
+   const struct radeon_info *hw_info;
    bool fast_launch_2;
    bool vert_multirow_export;
    bool prim_multirow_export;
@@ -122,11 +123,6 @@ typedef struct
    /* True if the lowering needs to insert shader query. */
    bool has_query;
 } lower_ngg_ms_state;
-
-static bool must_wait_attr_ring(enum amd_gfx_level gfx_level, bool has_param_exports)
-{
-   return (gfx_level == GFX11 || gfx_level == GFX11_5) && has_param_exports;
-}
 
 static void
 ms_store_prim_indices(nir_builder *b,
@@ -299,7 +295,7 @@ ms_store_arrayed_output(nir_builder *b,
    bool hi_16b = io_sem.high_16bits;
    bool lo_16b = !hi_16b && store_val->bit_size == 16;
 
-   unsigned mapped_location = util_bitcount64(out->mask & u_bit_consecutive64(0, io_sem.location));
+   unsigned mapped_location = util_bitcount64(out->mask & BITFIELD64_MASK(io_sem.location));
    unsigned num_outputs = util_bitcount64(out->mask);
    unsigned const_off = out->addr + component_offset * 4 + (hi_16b ? 2 : 0);
 
@@ -322,8 +318,7 @@ ms_store_arrayed_output(nir_builder *b,
                            .memory_modes = nir_var_shader_out,
                            .access = ACCESS_COHERENT);
    } else if (out_mode == ms_out_mode_attr_ring) {
-      /* GFX11+: Store params straight to the attribute ring.
-       *
+      /* Store params straight to the attribute ring.
        * Even though the access pattern may not be the most optimal,
        * this is still much better than reserving LDS and losing waves.
        * (Also much better than storing and reloading from the scratch ring.)
@@ -335,7 +330,8 @@ ms_store_arrayed_output(nir_builder *b,
                            .base = const_off + param_offset * 16,
                            .write_mask = write_mask,
                            .memory_modes = nir_var_shader_out,
-                           .access = ACCESS_COHERENT | ACCESS_IS_SWIZZLED_AMD);
+                           .access = ACCESS_COHERENT | ACCESS_IS_SWIZZLED_AMD,
+                           .align_mul = 16, .align_offset = const_off % 16u);
    } else if (out_mode == ms_out_mode_var) {
       unsigned write_mask_32 = write_mask;
       if (store_val->bit_size > 32) {
@@ -418,7 +414,7 @@ ms_load_arrayed_output(nir_builder *b,
    unsigned const_off = out->addr + component_offset * 4;
 
    /* Use compacted location instead of the original semantic location. */
-   unsigned mapped_location = util_bitcount64(out->mask & u_bit_consecutive64(0, location));
+   unsigned mapped_location = util_bitcount64(out->mask & BITFIELD64_MASK(location));
 
    nir_def *base_addr = ms_arrayed_output_base_addr(b, arr_index, mapped_location, num_outputs);
    nir_def *base_addr_off = nir_imul_imm(b, base_offset, 16);
@@ -668,8 +664,7 @@ set_ms_final_output_counts(nir_builder *b,
 
    if (s->hw_workgroup_size <= s->wave_size) {
       /* Single-wave mesh shader workgroup. */
-      nir_def *m0 = nir_ior(b, nir_ishl_imm(b, num_prm, 12), num_vtx);
-      nir_sendmsg_amd(b, m0, .base = AC_SENDMSG_GS_ALLOC_REQ);
+      ac_nir_ngg_alloc_vertices_and_primitives(b, num_vtx, num_prm, false);
 
       *out_num_prm = num_prm;
       *out_num_vtx = num_vtx;
@@ -701,8 +696,7 @@ set_ms_final_output_counts(nir_builder *b,
                             .memory_semantics = NIR_MEMORY_ACQ_REL,
                             .memory_modes = nir_var_mem_shared);
 
-      nir_def *m0 = nir_ior(b, nir_ishl_imm(b, num_prm, 12), num_vtx);
-      nir_sendmsg_amd(b, m0, .base = AC_SENDMSG_GS_ALLOC_REQ);
+      ac_nir_ngg_alloc_vertices_and_primitives(b, num_vtx, num_prm, false);
    }
    nir_push_else(b, if_wave_0);
    {
@@ -761,7 +755,8 @@ ms_emit_attribute_ring_output_stores(nir_builder *b, const uint64_t outputs_mask
       store_val = nir_trim_vector(b, store_val, store_val_components);
       nir_store_buffer_amd(b, store_val, ring, zero, soffset, idx,
                            .memory_modes = nir_var_shader_out,
-                           .access = ACCESS_COHERENT | ACCESS_IS_SWIZZLED_AMD);
+                           .access = ACCESS_COHERENT | ACCESS_IS_SWIZZLED_AMD,
+                           .align_mul = 16, .align_offset = 0);
    }
 }
 
@@ -801,7 +796,7 @@ ms_prim_exp_arg_ch1(nir_builder *b, nir_def *invocation_index, nir_def *num_vtx,
       indices[i] = nir_umin(b, indices[i], max_vtx_idx);
    }
 
-   return ac_nir_pack_ngg_prim_exp_arg(b, s->vertices_per_prim, indices, cull_flag, s->gfx_level);
+   return ac_nir_pack_ngg_prim_exp_arg(b, s->vertices_per_prim, indices, cull_flag, s->hw_info->gfx_level);
 }
 
 static nir_def *
@@ -828,7 +823,7 @@ ms_prim_exp_arg_ch2(nir_builder *b, uint64_t outputs_mask, lower_ngg_ms_state *s
 
       if (outputs_mask & VARYING_BIT_LAYER) {
          nir_def *layer =
-            nir_ishl_imm(b, s->out.outputs[VARYING_SLOT_LAYER][0], s->gfx_level >= GFX11 ? 0 : 17);
+            nir_ishl_imm(b, s->out.outputs[VARYING_SLOT_LAYER][0], s->hw_info->gfx_level >= GFX11 ? 0 : 17);
          prim_exp_arg_ch2 = nir_ior(b, prim_exp_arg_ch2, layer);
       }
 
@@ -892,21 +887,19 @@ emit_ms_vertex(nir_builder *b, nir_def *index, nir_def *row, bool exports, bool 
    ms_emit_arrayed_outputs(b, index, per_vertex_outputs, s);
 
    if (exports) {
-      ac_nir_export_position(b, s->gfx_level, s->clipdist_enable_mask,
+      ac_nir_export_position(b, s->hw_info->gfx_level, s->clipdist_enable_mask,
                              !s->has_param_exports, false, true,
                              s->per_vertex_outputs | VARYING_BIT_POS, &s->out, row);
    }
 
    if (parameters) {
-      /* Export generic attributes on GFX10.3
-       * (On GFX11 they are already stored in the attribute ring.)
-       */
-      if (s->has_param_exports && s->gfx_level == GFX10_3) {
+      /* Export generic attributes when there is no attribute ring. */
+      if (s->has_param_exports && !s->hw_info->has_attr_ring) {
          ac_nir_export_parameters(b, s->vs_output_param_offset, per_vertex_outputs, 0, &s->out);
       }
 
-      /* GFX11+: also store special outputs to the attribute ring so PS can load them. */
-      if (s->gfx_level >= GFX11 && (per_vertex_outputs & MS_VERT_ARG_EXP_MASK))
+      /* Also store special outputs to the attribute ring so PS can load them. */
+      if (s->hw_info->has_attr_ring && (per_vertex_outputs & MS_VERT_ARG_EXP_MASK))
          ms_emit_attribute_ring_output_stores(b, per_vertex_outputs & MS_VERT_ARG_EXP_MASK, index, s);
    }
 }
@@ -936,15 +929,13 @@ emit_ms_primitive(nir_builder *b, nir_def *index, nir_def *row, bool exports, bo
    }
 
    if (parameters) {
-      /* Export generic attributes on GFX10.3
-       * (On GFX11 they are already stored in the attribute ring.)
-       */
-      if (s->has_param_exports && s->gfx_level == GFX10_3) {
+      /* Export generic attributes when there is no attribute ring. */
+      if (s->has_param_exports && !s->hw_info->has_attr_ring) {
          ac_nir_export_parameters(b, s->vs_output_param_offset, per_primitive_outputs, 0, &s->out);
       }
 
-      /* GFX11+: also store special outputs to the attribute ring so PS can load them. */
-      if (s->gfx_level >= GFX11)
+      /* Also store special outputs to the attribute ring so PS can load them. */
+      if (s->hw_info->has_attr_ring)
          ms_emit_attribute_ring_output_stores(b, per_primitive_outputs & MS_PRIM_ARG_EXP_MASK, index, s);
    }
 }
@@ -1046,8 +1037,7 @@ emit_ms_finale(nir_builder *b, lower_ngg_ms_state *s)
    const bool has_special_param_exports =
       (per_vertex_outputs & MS_VERT_ARG_EXP_MASK) ||
       (per_primitive_outputs & MS_PRIM_ARG_EXP_MASK);
-
-   const bool wait_attr_ring = must_wait_attr_ring(s->gfx_level, has_special_param_exports);
+   const bool wait_attr_ring = has_special_param_exports && s->hw_info->has_attr_ring_wait_bug;
 
    /* Export vertices. */
    if ((per_vertex_outputs & ~VARYING_BIT_POS) || !wait_attr_ring) {
@@ -1254,7 +1244,7 @@ ms_calculate_arrayed_output_layout(ms_out_mem_layout *l,
 }
 
 static ms_out_mem_layout
-ms_calculate_output_layout(enum amd_gfx_level gfx_level, unsigned api_shared_size,
+ms_calculate_output_layout(const struct radeon_info *hw_info, unsigned api_shared_size,
                            uint64_t per_vertex_output_mask, uint64_t per_primitive_output_mask,
                            uint64_t cross_invocation_output_access, unsigned max_vertices,
                            unsigned max_primitives, unsigned vertices_per_prim)
@@ -1267,7 +1257,7 @@ ms_calculate_output_layout(enum amd_gfx_level gfx_level, unsigned api_shared_siz
       BITFIELD64_BIT(VARYING_SLOT_PRIMITIVE_COUNT) |
       BITFIELD64_BIT(VARYING_SLOT_PRIMITIVE_INDICES) | BITFIELD64_BIT(VARYING_SLOT_CULL_PRIMITIVE);
 
-   const bool use_attr_ring = gfx_level >= GFX11;
+   const bool use_attr_ring = hw_info->has_attr_ring;
    const uint64_t attr_ring_per_vertex_output_mask =
       use_attr_ring ? per_vertex_output_mask & ~always_export_mask : 0;
    const uint64_t attr_ring_per_primitive_output_mask =
@@ -1288,7 +1278,7 @@ ms_calculate_output_layout(enum amd_gfx_level gfx_level, unsigned api_shared_siz
    /* Shared memory used by the API shader. */
    ms_out_mem_layout l = { .lds = { .total_size = api_shared_size } };
 
-   /* GFX11+: use attribute ring for all generic attributes. */
+   /* Use attribute ring for all generic attributes (on GPUs with an attribute ring). */
    l.attr_ring.vtx_attr.mask = attr_ring_per_vertex_output_mask;
    l.attr_ring.prm_attr.mask = attr_ring_per_primitive_output_mask;
 
@@ -1350,18 +1340,18 @@ ms_calculate_output_layout(enum amd_gfx_level gfx_level, unsigned api_shared_siz
    return l;
 }
 
-void
+bool
 ac_nir_lower_ngg_mesh(nir_shader *shader,
-                    enum amd_gfx_level gfx_level,
-                    uint32_t clipdist_enable_mask,
-                    const uint8_t *vs_output_param_offset,
-                    bool has_param_exports,
-                    bool *out_needs_scratch_ring,
-                    unsigned wave_size,
-                    unsigned hw_workgroup_size,
-                    bool multiview,
-                    bool has_query,
-                    bool fast_launch_2)
+                      const struct radeon_info *hw_info,
+                      uint32_t clipdist_enable_mask,
+                      const uint8_t *vs_output_param_offset,
+                      bool has_param_exports,
+                      bool *out_needs_scratch_ring,
+                      unsigned wave_size,
+                      unsigned hw_workgroup_size,
+                      bool multiview,
+                      bool has_query,
+                      bool fast_launch_2)
 {
    unsigned vertices_per_prim =
       mesa_vertices_per_prim(shader->info.mesh.primitive_type);
@@ -1375,13 +1365,14 @@ ac_nir_lower_ngg_mesh(nir_shader *shader,
    bool uses_cull = shader->info.outputs_written & BITFIELD64_BIT(VARYING_SLOT_CULL_PRIMITIVE);
    /* Can't handle indirect register addressing, pretend as if they were cross-invocation. */
    uint64_t cross_invocation_access = shader->info.mesh.ms_cross_invocation_output_access |
-                                      shader->info.outputs_accessed_indirectly;
+                                      (shader->info.outputs_read_indirectly |
+                                       shader->info.outputs_written_indirectly);
 
    unsigned max_vertices = shader->info.mesh.max_vertices_out;
    unsigned max_primitives = shader->info.mesh.max_primitives_out;
 
    ms_out_mem_layout layout = ms_calculate_output_layout(
-      gfx_level, shader->info.shared_size, per_vertex_outputs, per_primitive_outputs,
+      hw_info, shader->info.shared_size, per_vertex_outputs, per_primitive_outputs,
       cross_invocation_access, max_vertices, max_primitives, vertices_per_prim);
 
    shader->info.shared_size = layout.lds.total_size;
@@ -1408,7 +1399,7 @@ ac_nir_lower_ngg_mesh(nir_shader *shader,
       .hw_workgroup_size = hw_workgroup_size,
       .insert_layer_output = multiview && !(shader->info.outputs_written & VARYING_BIT_LAYER),
       .uses_cull_flags = uses_cull,
-      .gfx_level = gfx_level,
+      .hw_info = hw_info,
       .fast_launch_2 = fast_launch_2,
       .vert_multirow_export = fast_launch_2 && max_vertices > hw_workgroup_size,
       .prim_multirow_export = fast_launch_2 && max_primitives > hw_workgroup_size,
@@ -1433,12 +1424,14 @@ ac_nir_lower_ngg_mesh(nir_shader *shader,
    if (!fast_launch_2)
       ms_emit_legacy_workgroup_index(b, &state);
    ms_create_same_invocation_vars(b, &state);
-   nir_metadata_preserve(impl, nir_metadata_none);
 
    lower_ms_intrinsics(shader, &state);
 
    emit_ms_finale(b, &state);
-   nir_metadata_preserve(impl, nir_metadata_none);
+
+   /* Take care of metadata and validation before calling other passes */
+   nir_progress(true, impl, nir_metadata_none);
+   nir_validate_shader(shader, "after emitting NGG MS");
 
    /* Cleanup */
    nir_lower_vars_to_ssa(shader);
@@ -1459,5 +1452,6 @@ ac_nir_lower_ngg_mesh(nir_shader *shader,
       nir_lower_compute_system_values(shader, &csv_options);
    }
 
-   nir_validate_shader(shader, "after emitting NGG MS");
+
+   return true;
 }

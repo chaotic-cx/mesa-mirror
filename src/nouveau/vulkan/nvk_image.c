@@ -21,11 +21,11 @@
 
 #include "clb097.h"
 #include "clb197.h"
-#include "clc097.h"
+#include "clc197.h"
 #include "clc597.h"
 
 static VkFormatFeatureFlags2
-nvk_get_image_plane_format_features(struct nvk_physical_device *pdev,
+nvk_get_image_plane_format_features(const struct nvk_physical_device *pdev,
                                     VkFormat vk_format, VkImageTiling tiling,
                                     uint64_t drm_format_mod)
 {
@@ -76,14 +76,14 @@ nvk_get_image_plane_format_features(struct nvk_physical_device *pdev,
       features |= VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT;
    }
 
-   if (nil_format_supports_storage(&pdev->info, p_format)) {
+   if (nvk_format_supports_storage(pdev, p_format)) {
       features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT |
                   VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
       if (pdev->info.cls_eng3d >= MAXWELL_A)
          features |= VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT;
    }
 
-   if (nvk_format_supports_atomics(&pdev->info, p_format))
+   if (nvk_format_supports_atomics(pdev, p_format))
       features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
 
    if (p_format == PIPE_FORMAT_R8_UINT && tiling == VK_IMAGE_TILING_OPTIMAL)
@@ -100,7 +100,7 @@ nvk_get_image_plane_format_features(struct nvk_physical_device *pdev,
 }
 
 VkFormatFeatureFlags2
-nvk_get_image_format_features(struct nvk_physical_device *pdev,
+nvk_get_image_format_features(const struct nvk_physical_device *pdev,
                               VkFormat vk_format, VkImageTiling tiling,
                               uint64_t drm_format_mod)
 {
@@ -164,7 +164,7 @@ nvk_get_image_format_features(struct nvk_physical_device *pdev,
 }
 
 void
-nvk_get_drm_format_modifier_properties_list(struct nvk_physical_device *pdev,
+nvk_get_drm_format_modifier_properties_list(const struct nvk_physical_device *pdev,
                                             VkFormat vk_format,
                                             VkBaseOutStructure *ext)
 {
@@ -291,7 +291,12 @@ nvk_image_max_dimension(const struct nv_device_info *info,
    switch (image_type) {
    case VK_IMAGE_TYPE_1D:
    case VK_IMAGE_TYPE_2D:
-      return info->cls_eng3d >= PASCAL_A ? 0x8000 : 0x4000;
+      /* The render and texture units can support up to 16K all the way back
+       * to Kepler but the copy engine can't.  We can work around this by
+       * doing offset shenanigans in the copy code but that not currently
+       * implemented.
+       */
+      return info->cls_eng3d >= PASCAL_B ? 0x8000 : 0x4000;
    case VK_IMAGE_TYPE_3D:
       return 0x4000;
    default:
@@ -412,6 +417,33 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
        pImageFormatInfo->type != VK_IMAGE_TYPE_2D)
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
+   if ((pImageFormatInfo->usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR)) &&
+       (pImageFormatInfo->flags & (VK_IMAGE_CREATE_SPARSE_ALIASED_BIT |
+                                   VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT)))
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+
+   /* With disjoint, the client is allowed to create another image with a format
+    * equal to the plane format and alias them. That only works if creating a
+    * single plane image is equivalent to the given YCbCr plane. However, due
+    * to video engine limitations, we have to create video YCbCr planes with
+    * knowledge of all planes for block size calculations, so this won't work
+    * since it wouldn't know the other planes.
+    * See comment in nvk_image_init() below for more details.
+    */
+   if ((pImageFormatInfo->usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+                                   VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR)) &&
+       (pImageFormatInfo->flags & VK_IMAGE_CREATE_DISJOINT_BIT))
+      return VK_ERROR_FORMAT_NOT_SUPPORTED;
+
    const uint32_t max_dim =
       nvk_image_max_dimension(&pdev->info, VK_IMAGE_TYPE_1D);
    VkExtent3D maxExtent;
@@ -511,12 +543,12 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
          break;
 
       case VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT:
-         if (!tiling_has_explicit_layout) {
-            return vk_errorf(pdev, VK_ERROR_FORMAT_NOT_SUPPORTED,
-                             "VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT "
-                             "requires VK_IMAGE_TILING_LINEAR or "
-                             "VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT");
-         }
+         /* VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT requires
+          * VK_IMAGE_TILING_LINEAR or VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT
+          */
+         if (!tiling_has_explicit_layout)
+            return VK_ERROR_FORMAT_NOT_SUPPORTED;
+
          ext_mem_props = &nvk_dma_buf_mem_props;
          break;
 
@@ -713,7 +745,7 @@ nvk_image_init(struct nvk_device *dev,
                struct nvk_image *image,
                const VkImageCreateInfo *pCreateInfo)
 {
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
 
    vk_image_init(&dev->vk, &image->vk, pCreateInfo);
 
@@ -730,11 +762,11 @@ nvk_image_init(struct nvk_device *dev,
       image->vk.usage |= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 
    nil_image_usage_flags usage = 0;
-   if (pCreateInfo->tiling == VK_IMAGE_TILING_LINEAR)
+   if (image->vk.tiling == VK_IMAGE_TILING_LINEAR)
       usage |= NIL_IMAGE_USAGE_LINEAR_BIT;
-   if (pCreateInfo->flags & VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT)
+   if (image->vk.create_flags & VK_IMAGE_CREATE_2D_ARRAY_COMPATIBLE_BIT)
       usage |= NIL_IMAGE_USAGE_2D_VIEW_BIT;
-   if (pCreateInfo->flags & VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT)
+   if (image->vk.create_flags & VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT)
       usage |= NIL_IMAGE_USAGE_2D_VIEW_BIT;
 
    /* In order to be able to clear 3D depth/stencil images, we need to bind
@@ -742,18 +774,26 @@ nvk_image_init(struct nvk_device *dev,
     */
    if ((image->vk.aspects & (VK_IMAGE_ASPECT_DEPTH_BIT |
                              VK_IMAGE_ASPECT_STENCIL_BIT)) &&
-       pCreateInfo->imageType == VK_IMAGE_TYPE_3D)
+       image->vk.image_type == VK_IMAGE_TYPE_3D)
       usage |= NIL_IMAGE_USAGE_2D_VIEW_BIT;
 
-   image->plane_count = vk_format_get_plane_count(pCreateInfo->format);
+   image->plane_count = vk_format_get_plane_count(image->vk.format);
    image->disjoint = image->plane_count > 1 &&
-                     (pCreateInfo->flags & VK_IMAGE_CREATE_DISJOINT_BIT);
+                     (image->vk.create_flags & VK_IMAGE_CREATE_DISJOINT_BIT);
 
    if (image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT) {
       /* Sparse multiplane is not supported */
       assert(image->plane_count == 1);
       usage |= NIL_IMAGE_USAGE_SPARSE_RESIDENCY_BIT;
    }
+
+   if (image->vk.usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
+                          VK_IMAGE_USAGE_VIDEO_DECODE_SRC_BIT_KHR |
+                          VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
+                          VK_IMAGE_USAGE_VIDEO_ENCODE_DST_BIT_KHR |
+                          VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+                          VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR))
+      usage |= NIL_IMAGE_USAGE_VIDEO_BIT;
 
    uint32_t explicit_row_stride_B = 0;
 
@@ -768,6 +808,15 @@ nvk_image_init(struct nvk_device *dev,
 
       image->vk.drm_format_mod = eci.drmFormatModifier;
       explicit_row_stride_B = eci.pPlaneLayouts[0].rowPitch;
+   }
+
+   uint32_t max_alignment_B = 0;
+   const VkImageAlignmentControlCreateInfoMESA *alignment =
+      vk_find_struct_const(pCreateInfo->pNext,
+                           IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA);
+   if (alignment && alignment->maximumRequestedAlignment) {
+      assert(util_is_power_of_two_or_zero(alignment->maximumRequestedAlignment));
+      max_alignment_B = alignment->maximumRequestedAlignment;
    }
 
    if (image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
@@ -791,7 +840,7 @@ nvk_image_init(struct nvk_device *dev,
                                  IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT);
 
          enum pipe_format p_format =
-            nvk_format_to_pipe_format(pCreateInfo->format);
+            nvk_format_to_pipe_format(image->vk.format);
          image->vk.drm_format_mod =
             nil_select_best_drm_format_mod(&pdev->info, nil_format(p_format),
                                            mod_list_info->drmFormatModifierCount,
@@ -804,72 +853,106 @@ nvk_image_init(struct nvk_device *dev,
          assert(image->plane_count == 1);
 
          struct nil_image_init_info tiled_shadow_nil_info = {
-            .dim = vk_image_type_to_nil_dim(pCreateInfo->imageType),
+            .dim = vk_image_type_to_nil_dim(image->vk.image_type),
             .format = nil_format(nvk_format_to_pipe_format(image->vk.format)),
             .modifier = DRM_FORMAT_MOD_INVALID,
             .extent_px = {
-               .width = pCreateInfo->extent.width,
-               .height = pCreateInfo->extent.height,
-               .depth = pCreateInfo->extent.depth,
-               .array_len = pCreateInfo->arrayLayers,
+               .width = image->vk.extent.width,
+               .height = image->vk.extent.height,
+               .depth = image->vk.extent.depth,
+               .array_len = image->vk.array_layers,
             },
-            .levels = pCreateInfo->mipLevels,
-            .samples = pCreateInfo->samples,
+            .levels = image->vk.mip_levels,
+            .samples = image->vk.samples,
             .usage = usage & ~NIL_IMAGE_USAGE_LINEAR_BIT,
-            .explicit_row_stride_B = 0,
          };
-         image->linear_tiled_shadow.nil =
-            nil_image_new(&pdev->info, &tiled_shadow_nil_info);
+         bool ok = nil_image_init(&pdev->info,
+                                  &image->linear_tiled_shadow.nil,
+                                  &tiled_shadow_nil_info);
+         if (!ok)
+            return vk_errorf(dev, VK_ERROR_UNKNOWN,
+                             "Invalid image creation parameters");
       }
    }
 
+   /* The video decode engine needs the block size to be the same across chroma
+    * and luma planes, so in order to work around this limitation we gather all
+    * the info for NIL early, which would give it enough information to get and
+    * use the smallest block size for all planes.
+    */
    const struct vk_format_ycbcr_info *ycbcr_info =
-      vk_format_get_ycbcr_info(pCreateInfo->format);
+      vk_format_get_ycbcr_info(image->vk.format);
+   struct nil_image_init_info nil_info[NVK_MAX_IMAGE_PLANES];
    for (uint8_t plane = 0; plane < image->plane_count; plane++) {
       VkFormat format = ycbcr_info ?
-         ycbcr_info->planes[plane].format : pCreateInfo->format;
+         ycbcr_info->planes[plane].format : image->vk.format;
       const uint8_t width_scale = ycbcr_info ?
          ycbcr_info->planes[plane].denominator_scales[0] : 1;
       const uint8_t height_scale = ycbcr_info ?
          ycbcr_info->planes[plane].denominator_scales[1] : 1;
-      struct nil_image_init_info nil_info = {
-         .dim = vk_image_type_to_nil_dim(pCreateInfo->imageType),
+
+      nil_info[plane] = (struct nil_image_init_info) {
+         .dim = vk_image_type_to_nil_dim(image->vk.image_type),
          .format = nil_format(nvk_format_to_pipe_format(format)),
          .modifier = image->vk.drm_format_mod,
          .extent_px = {
-            .width = pCreateInfo->extent.width / width_scale,
-            .height = pCreateInfo->extent.height / height_scale,
-            .depth = pCreateInfo->extent.depth,
-            .array_len = pCreateInfo->arrayLayers,
+            .width = image->vk.extent.width / width_scale,
+            .height = image->vk.extent.height / height_scale,
+            .depth = image->vk.extent.depth,
+            .array_len = image->vk.array_layers,
          },
-         .levels = pCreateInfo->mipLevels,
-         .samples = pCreateInfo->samples,
+         .levels = image->vk.mip_levels,
+         .samples = image->vk.samples,
          .usage = usage,
          .explicit_row_stride_B = explicit_row_stride_B,
+         .max_alignment_B = max_alignment_B,
       };
+   }
 
-      image->planes[plane].nil = nil_image_new(&pdev->info, &nil_info);
+   if (usage & NIL_IMAGE_USAGE_VIDEO_BIT) {
+      assert(!image->disjoint);
+      for (uint8_t plane = 0; plane < image->plane_count; plane++) {
+         bool ok = nil_image_init_planar(&pdev->info,
+                                         &image->planes[plane].nil,
+                                         nil_info, plane,
+                                         image->plane_count);
+         if (!ok)
+            return vk_errorf(dev, VK_ERROR_UNKNOWN,
+                             "Invalid image creation parameters");
+      }
+   } else {
+      for (uint8_t plane = 0; plane < image->plane_count; plane++) {
+         bool ok = nil_image_init(&pdev->info,
+                                  &image->planes[plane].nil,
+                                  &nil_info[plane]);
+         if (!ok)
+            return vk_errorf(dev, VK_ERROR_UNKNOWN,
+                             "Invalid image creation parameters");
+      }
    }
 
    if (image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
       struct nil_image_init_info stencil_nil_info = {
-         .dim = vk_image_type_to_nil_dim(pCreateInfo->imageType),
+         .dim = vk_image_type_to_nil_dim(image->vk.image_type),
          .format = nil_format(PIPE_FORMAT_R32_UINT),
          .modifier = DRM_FORMAT_MOD_INVALID,
          .extent_px = {
-            .width = pCreateInfo->extent.width,
-            .height = pCreateInfo->extent.height,
-            .depth = pCreateInfo->extent.depth,
-            .array_len = pCreateInfo->arrayLayers,
+            .width = image->vk.extent.width,
+            .height = image->vk.extent.height,
+            .depth = image->vk.extent.depth,
+            .array_len = image->vk.array_layers,
          },
-         .levels = pCreateInfo->mipLevels,
-         .samples = pCreateInfo->samples,
+         .levels = image->vk.mip_levels,
+         .samples = image->vk.samples,
          .usage = usage,
-         .explicit_row_stride_B = 0,
       };
 
-      image->stencil_copy_temp.nil =
-         nil_image_new(&pdev->info, &stencil_nil_info);
+      bool ok = nil_image_init(&pdev->info,
+                               &image->stencil_copy_temp.nil,
+                               &stencil_nil_info);
+      if (!ok)
+         return vk_errorf(dev, VK_ERROR_UNKNOWN,
+                          "Invalid image creation parameters");
    }
 
    return VK_SUCCESS;
@@ -881,7 +964,7 @@ nvk_image_plane_size_align_B(struct nvk_device *dev,
                              const struct nvk_image_plane *plane,
                              uint64_t *size_B_out, uint64_t *align_B_out)
 {
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    const bool sparse_bound =
       image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT;
 
@@ -966,7 +1049,7 @@ nvk_CreateImage(VkDevice _device,
                 VkImage *pImage)
 {
    VK_FROM_HANDLE(nvk_device, dev, _device);
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    struct nvk_image *image;
    VkResult result;
 
@@ -1082,14 +1165,13 @@ nvk_get_image_memory_requirements(struct nvk_device *dev,
                                   VkImageAspectFlags aspects,
                                   VkMemoryRequirements2 *pMemoryRequirements)
 {
-   struct nvk_physical_device *pdev = nvk_device_physical(dev);
+   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
    uint32_t memory_types = (1 << pdev->mem_type_count) - 1;
 
    /* Remove non host visible heaps from the types for host image copy in case
     * of potential issues. This should be removed when we get ReBAR.
     */
    if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
-      struct nvk_physical_device *pdev = nvk_device_physical(dev);
       for (uint32_t i = 0; i < pdev->mem_type_count; i++) {
          if (!(pdev->mem_types[i].propertyFlags &
              VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))

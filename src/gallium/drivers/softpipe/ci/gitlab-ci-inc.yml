@@ -2,8 +2,6 @@
   stage: software-renderer
   rules:
     - !reference [.test, rules]
-    - if: $EXTERNAL_KERNEL_TAG != null
-      when: never
     - !reference [.gl-rules, rules]
     - changes: &softpipe_file_list
       - src/gallium/drivers/softpipe/**/*
@@ -11,6 +9,8 @@
       when: on_success
 
 .softpipe-test:
+  tags:
+    - $FDO_RUNNER_JOB_PRIORITY_TAG_X86_64
   variables:
     GPU_VERSION: softpipe
     LIBGL_ALWAYS_SOFTWARE: "true"

@@ -362,7 +362,6 @@ void
 finish_isel_test(enum ac_hw_stage hw_stage, unsigned wave_size)
 {
    nir_validate_shader(nb->shader, "in finish_isel_test");
-   nir_validate_ssa_dominance(nb->shader, "in finish_isel_test");
 
    program.reset(new Program);
    program->debug.func = nullptr;
@@ -647,7 +646,7 @@ get_vk_device(enum amd_gfx_level gfx_level)
    case GFX10: family = CHIP_NAVI10; break;
    case GFX10_3: family = CHIP_NAVI21; break;
    case GFX11: family = CHIP_NAVI31; break;
-   case GFX12: family = CHIP_GFX1200; break;
+   case GFX12: family = CHIP_GFX1201; break;
    default: family = CHIP_UNKNOWN; break;
    }
    return get_vk_device(family);

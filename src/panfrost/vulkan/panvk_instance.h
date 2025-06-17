@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 #include "vk_instance.h"
+#include "util/xmlconfig.h"
 
 #include "lib/kmod/pan_kmod.h"
 
@@ -29,7 +30,8 @@ enum panvk_debug_flags {
 
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR) || \
     defined(VK_USE_PLATFORM_XCB_KHR) || \
-    defined(VK_USE_PLATFORM_XLIB_KHR)
+    defined(VK_USE_PLATFORM_XLIB_KHR) || \
+    defined(VK_USE_PLATFORM_DISPLAY_KHR)
 #define PANVK_USE_WSI_PLATFORM
 #endif
 
@@ -40,7 +42,13 @@ struct panvk_instance {
 
    enum panvk_debug_flags debug_flags;
 
+   struct driOptionCache dri_options;
+   struct driOptionCache available_dri_options;
+
    uint8_t driver_build_sha[20];
+   uint32_t force_vk_vendor;
+
+   bool enable_vertex_pipeline_stores_atomics;
 
    struct {
       struct pan_kmod_allocator allocator;

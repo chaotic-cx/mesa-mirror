@@ -300,7 +300,7 @@ ir3_emit_immediates(const struct ir3_shader_variant *v,
 {
    const struct ir3_const_state *const_state = ir3_const_state(v);
    uint32_t base = const_state->allocs.max_const_offset_vec4;
-   int size = DIV_ROUND_UP(const_state->immediates_count, 4);
+   int size = DIV_ROUND_UP(v->imm_state.count, 4);
 
    /* truncate size to avoid writing constants that shader
     * does not use:
@@ -312,7 +312,7 @@ ir3_emit_immediates(const struct ir3_shader_variant *v,
    size *= 4;
 
    if (size > 0)
-      emit_const_user(ring, v, base, size, const_state->immediates);
+      emit_const_user(ring, v, base, size, v->imm_state.values);
 
    /* NIR constant data has the same lifetime as immediates, so upload it
     * now, too.
@@ -423,24 +423,6 @@ emit_common_consts(const struct ir3_shader_variant *v,
       struct fd_shaderimg_stateobj *si = &ctx->shaderimg[t];
       ring_wfi(ctx->batch, ring);
       ir3_emit_image_dims(ctx->screen, v, ring, si);
-   }
-}
-
-/* emit kernel params */
-static inline void
-emit_kernel_params(struct fd_context *ctx, const struct ir3_shader_variant *v,
-                   struct fd_ringbuffer *ring, const struct pipe_grid_info *info)
-   assert_dt
-{
-   const struct ir3_const_state *const_state = ir3_const_state(v);
-   uint32_t offset =
-      const_state->allocs.consts[IR3_CONST_ALLOC_KERNEL_PARAMS].offset_vec4;
-   if (ir3_const_can_upload(&const_state->allocs, IR3_CONST_ALLOC_KERNEL_PARAMS,
-                            v->constlen)) {
-      ring_wfi(ctx->batch, ring);
-      emit_const_user(ring, v, offset * 4,
-                      align(v->cs.req_input_mem, 4),
-                      (uint32_t *)info->input);
    }
 }
 
@@ -634,8 +616,6 @@ ir3_emit_cs_driver_params(const struct ir3_shader_variant *v,
                           const struct pipe_grid_info *info)
    assert_dt
 {
-   emit_kernel_params(ctx, v, ring, info);
-
    /* a3xx/a4xx can inject these directly */
    if (ctx->screen->gen <= 4)
       return;

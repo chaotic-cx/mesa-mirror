@@ -22,6 +22,7 @@
 
 #include "xe/anv_device.h"
 #include "anv_private.h"
+#include "vk_debug_utils.h"
 
 #include "drm-uapi/gpu_scheduler.h"
 #include "drm-uapi/xe_drm.h"
@@ -55,6 +56,8 @@ VkResult anv_xe_device_setup_vm(struct anv_device *device)
       return vk_errorf(device, VK_ERROR_INITIALIZATION_FAILED,
                        "intel_bind_timeline_init failed");
    }
+
+   device->protected_session_id = DRM_XE_PXP_HWDRM_DEFAULT_SESSION;
 
    return VK_SUCCESS;
 }
@@ -98,7 +101,7 @@ VkResult
 anv_xe_physical_device_init_memory_types(struct anv_physical_device *device)
 {
    if (anv_physical_device_has_vram(device)) {
-      if (device->info.ver >= 20 && !INTEL_DEBUG(DEBUG_NO_CCS)) {
+      if (device->info.ver >= 20) {
          device->memory.types[device->memory.type_count++] = (struct anv_memory_type) {
             .propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             .heapIndex = 0,
@@ -148,13 +151,11 @@ anv_xe_physical_device_init_memory_types(struct anv_physical_device *device)
          .heapIndex = 0,
       };
    } else {
-      if (device->info.ver >= 20 && !INTEL_DEBUG(DEBUG_NO_CCS)) {
-         device->memory.types[device->memory.type_count++] = (struct anv_memory_type) {
-            .propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            .heapIndex = 0,
-            .compressed = true,
-         };
-      }
+      device->memory.types[device->memory.type_count++] = (struct anv_memory_type) {
+         .propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+         .heapIndex = 0,
+         .compressed = true,
+      };
       device->memory.types[device->memory.type_count++] = (struct anv_memory_type) {
          .propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
@@ -207,6 +208,12 @@ anv_xe_device_check_status(struct vk_device *vk_device)
             return result;
       }
    }
+
+   if (result != VK_SUCCESS)
+      return result;
+
+   if (INTEL_DEBUG(DEBUG_SHADER_PRINT))
+      result = vk_check_printf_status(vk_device, &device->printf);
 
    return result;
 }

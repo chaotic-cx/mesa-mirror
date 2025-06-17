@@ -196,8 +196,8 @@ struct st_config_options
    bool ignore_map_unsynchronized;
    bool ignore_discard_framebuffer;
    bool force_integer_tex_nearest;
-   int reuse_gl_names;
    bool force_gl_map_buffer_synchronized;
+   bool force_gl_depth_component_type_int;
    bool transcode_etc;
    bool transcode_astc;
    bool allow_compressed_fallback;

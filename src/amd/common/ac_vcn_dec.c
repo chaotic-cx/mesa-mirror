@@ -12,6 +12,35 @@
 #include "ac_vcn_dec.h"
 #include "ac_vcn_av1_default.h"
 
+#include "ac_vcn_vp9_default.h"
+
+void ac_vcn_vp9_fill_probs_table(void *ptr)
+{
+   rvcn_dec_vp9_probs_t *probs = (rvcn_dec_vp9_probs_t *)ptr;
+
+   memcpy(&probs->coef_probs[0], default_coef_probs_4x4, sizeof(default_coef_probs_4x4));
+   memcpy(&probs->coef_probs[1], default_coef_probs_8x8, sizeof(default_coef_probs_8x8));
+   memcpy(&probs->coef_probs[2], default_coef_probs_16x16, sizeof(default_coef_probs_16x16));
+   memcpy(&probs->coef_probs[3], default_coef_probs_32x32, sizeof(default_coef_probs_32x32));
+   memcpy(probs->y_mode_prob, default_if_y_probs, sizeof(default_if_y_probs));
+   memcpy(probs->uv_mode_prob, default_if_uv_probs, sizeof(default_if_uv_probs));
+   memcpy(probs->single_ref_prob, default_single_ref_p, sizeof(default_single_ref_p));
+   memcpy(probs->switchable_interp_prob, default_switchable_interp_prob,
+          sizeof(default_switchable_interp_prob));
+   memcpy(probs->partition_prob, default_partition_probs, sizeof(default_partition_probs));
+   memcpy(probs->inter_mode_probs, default_inter_mode_probs, sizeof(default_inter_mode_probs));
+   memcpy(probs->mbskip_probs, default_skip_probs, sizeof(default_skip_probs));
+   memcpy(probs->intra_inter_prob, default_intra_inter_p, sizeof(default_intra_inter_p));
+   memcpy(probs->comp_inter_prob, default_comp_inter_p, sizeof(default_comp_inter_p));
+   memcpy(probs->comp_ref_prob, default_comp_ref_p, sizeof(default_comp_ref_p));
+   memcpy(probs->tx_probs_32x32, default_tx_probs_32x32, sizeof(default_tx_probs_32x32));
+   memcpy(probs->tx_probs_16x16, default_tx_probs_16x16, sizeof(default_tx_probs_16x16));
+   memcpy(probs->tx_probs_8x8, default_tx_probs_8x8, sizeof(default_tx_probs_8x8));
+   memcpy(probs->mv_joints, default_nmv_joints, sizeof(default_nmv_joints));
+   memcpy(&probs->mv_comps[0], default_nmv_components, sizeof(default_nmv_components));
+   memset(&probs->nmvc_mask, 0, sizeof(rvcn_dec_vp9_nmv_ctx_mask_t));
+}
+
 static unsigned
 ac_vcn_dec_frame_ctx_size_av1(unsigned av1_version)
 {
@@ -412,7 +441,7 @@ radv_vcn_av1_film_grain_init_scaling(uint8_t scaling_points[][2], uint8_t num, s
 }
 
 void
-ac_vcn_av1_init_film_grain_buffer(rvcn_dec_film_grain_params_t *fg_params, rvcn_dec_av1_fg_init_buf_t *fg_buf)
+ac_vcn_av1_init_film_grain_buffer(unsigned av1_version, rvcn_dec_film_grain_params_t *fg_params, rvcn_dec_av1_fg_init_buf_t *fg_buf)
 {
    const int32_t luma_block_size_y = LUMA_BLOCK_SIZE_Y;
    const int32_t luma_block_size_x = LUMA_BLOCK_SIZE_X;
@@ -542,24 +571,38 @@ ac_vcn_av1_init_film_grain_buffer(rvcn_dec_film_grain_params_t *fg_params, rvcn_
       }
 
    align_ptr = &fg_buf->luma_grain_block[0][0];
-   for (i = 0; i < 64; i++) {
-      for (j = 0; j < 80; j++)
-         *align_ptr++ = luma_grain_block_tmp[i][j];
-
-      if (((i + 1) % 4) == 0)
-         align_ptr += 64;
-   }
-
    align_ptr0 = &fg_buf->cb_grain_block[0][0];
    align_ptr1 = &fg_buf->cr_grain_block[0][0];
-   for (i = 0; i < 32; i++) {
-      for (j = 0; j < 40; j++) {
-         *align_ptr0++ = cb_grain_block_tmp[i][j];
-         *align_ptr1++ = cr_grain_block_tmp[i][j];
+
+   if (av1_version == RDECODE_AV1_VER_2) {
+      for (i = 0; i < 64; i++)
+         for (j = 0; j < 64; j++)
+            *align_ptr++ = luma_grain_block_tmp[i][j];
+
+      for (i = 0; i < 32; i++) {
+         for (j = 0; j < 32; j++) {
+            *align_ptr0++ = cb_grain_block_tmp[i][j];
+            *align_ptr1++ = cr_grain_block_tmp[i][j];
+         }
       }
-      if (((i + 1) % 8) == 0) {
-         align_ptr0 += 64;
-         align_ptr1 += 64;
+   } else {
+      for (i = 0; i < 64; i++) {
+         for (j = 0; j < 80; j++)
+            *align_ptr++ = luma_grain_block_tmp[i][j];
+
+         if (((i + 1) % 4) == 0)
+            align_ptr += 64;
+      }
+
+      for (i = 0; i < 32; i++) {
+         for (j = 0; j < 40; j++) {
+            *align_ptr0++ = cb_grain_block_tmp[i][j];
+            *align_ptr1++ = cr_grain_block_tmp[i][j];
+         }
+         if (((i + 1) % 8) == 0) {
+            align_ptr0 += 64;
+            align_ptr1 += 64;
+         }
       }
    }
 

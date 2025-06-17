@@ -190,9 +190,9 @@ realloc_bo(struct fd_resource *rsc, uint32_t size)
    struct pipe_resource *prsc = &rsc->b.b;
    struct fd_screen *screen = fd_screen(rsc->b.b.screen);
    uint32_t flags =
-      (prsc->target == PIPE_BUFFER) ? FD_BO_HINT_BUFFER : FD_BO_HINT_IMAGE |
+      ((prsc->target == PIPE_BUFFER) ? FD_BO_HINT_BUFFER : FD_BO_HINT_IMAGE) |
       COND(rsc->layout.tile_mode, FD_BO_NOMAP) |
-      COND((prsc->usage & PIPE_USAGE_STAGING) &&
+      COND((prsc->usage == PIPE_USAGE_STAGING) &&
            (prsc->flags & PIPE_RESOURCE_FLAG_MAP_COHERENT),
            FD_BO_CACHED_COHERENT) |
       COND(prsc->bind & PIPE_BIND_SHARED, FD_BO_SHARED) |
@@ -1302,7 +1302,7 @@ get_best_layout(struct fd_screen *screen,
       return LINEAR;
    }
 
-   bool ubwc_ok = is_a6xx(screen);
+   bool ubwc_ok = is_a6xx(screen) && !screen->info->a6xx.is_a702;
    if (FD_DBG(NOUBWC))
       ubwc_ok = false;
 
@@ -1615,13 +1615,13 @@ fd_invalidate_resource(struct pipe_context *pctx,
       struct fd_batch *batch = rsc->track->write_batch;
       struct pipe_framebuffer_state *pfb = &batch->framebuffer;
 
-      if (pfb->zsbuf && pfb->zsbuf->texture == prsc) {
+      if (pfb->zsbuf.texture == prsc) {
          batch->resolve &= ~(FD_BUFFER_DEPTH | FD_BUFFER_STENCIL);
          fd_dirty_resource(ctx, prsc, FD_DIRTY_ZSA, true);
       }
 
       for (unsigned i = 0; i < pfb->nr_cbufs; i++) {
-         if (pfb->cbufs[i] && pfb->cbufs[i]->texture == prsc) {
+         if (pfb->cbufs[i].texture == prsc) {
             batch->resolve &= ~(PIPE_CLEAR_COLOR0 << i);
             fd_dirty_resource(ctx, prsc, FD_DIRTY_FRAMEBUFFER, true);
          }

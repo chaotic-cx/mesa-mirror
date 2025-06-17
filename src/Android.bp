@@ -21,7 +21,7 @@ package {
 
 cc_library_headers {
     name: "mesa_src_headers",
-    vendor: true,
+    vendor_available: true,
     host_supported: true,
     export_include_dirs: [
         ".",

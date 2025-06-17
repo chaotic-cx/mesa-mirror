@@ -9,6 +9,7 @@
 #define LVP_ACCELERATION_STRUCTURE_H
 
 #include "lvp_private.h"
+#include "bvh/vk_bvh.h"
 
 #define LVP_GEOMETRY_OPAQUE (1u << 31)
 
@@ -22,21 +23,7 @@
 #define lvp_bvh_node_instance 2
 #define lvp_bvh_node_aabb     3
 
-typedef struct {
-   float values[3][4];
-} lvp_mat3x4;
-
-typedef struct {
-   float x;
-   float y;
-   float z;
-} lvp_vec3;
-
-typedef struct lvp_aabb {
-   lvp_vec3 min;
-   lvp_vec3 max;
-} lvp_aabb;
-
+/* 48 bytes */
 struct lvp_bvh_triangle_node {
    float coords[3][3];
 
@@ -47,14 +34,16 @@ struct lvp_bvh_triangle_node {
    uint32_t geometry_id_and_flags;
 };
 
+/* 32 bytes */
 struct lvp_bvh_aabb_node {
-   lvp_aabb bounds;
+   vk_aabb bounds;
 
    uint32_t primitive_id;
    /* flags in upper 4 bits */
    uint32_t geometry_id_and_flags;
 };
 
+/* 120 bytes */
 struct lvp_bvh_instance_node {
    uint64_t bvh_ptr;
 
@@ -63,22 +52,25 @@ struct lvp_bvh_instance_node {
    /* lower 24 bits are the sbt offset, upper 8 bits are VkGeometryInstanceFlagsKHR */
    uint32_t sbt_offset_and_flags;
 
-   lvp_mat3x4 wto_matrix;
+   mat3x4 wto_matrix;
    uint32_t padding;
 
    uint32_t instance_id;
 
    /* Object to world matrix transposed from the initial transform. */
-   lvp_mat3x4 otw_matrix;
+   mat3x4 otw_matrix;
 };
 
+/* 56 bytes */
 struct lvp_bvh_box_node {
-   lvp_aabb bounds[2];
+   vk_aabb bounds[2];
    uint32_t children[2];
 };
 
+#define LVP_BVH_NODE_PREFETCH_SIZE 56
+
 struct lvp_bvh_header {
-   lvp_aabb bounds;
+   vk_aabb bounds;
 
    uint32_t serialization_size;
    uint32_t instance_count;
@@ -101,8 +93,10 @@ struct lvp_accel_struct_serialization_header {
 #define LVP_BVH_ROOT_NODE        (LVP_BVH_ROOT_NODE_OFFSET | lvp_bvh_node_internal)
 #define LVP_BVH_INVALID_NODE     0xFFFFFFFF
 
+VkResult
+lvp_device_init_accel_struct_state(struct lvp_device *device);
+
 void
-lvp_build_acceleration_structure(VkAccelerationStructureBuildGeometryInfoKHR *info,
-                                 const VkAccelerationStructureBuildRangeInfoKHR *ranges);
+lvp_device_finish_accel_struct_state(struct lvp_device *device);
 
 #endif

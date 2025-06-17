@@ -55,7 +55,7 @@ cs_program_emit_local_size(struct fd_context *ctx, struct fd_ringbuffer *ring,
       );
 
       OUT_REG(ring,
-         A7XX_HLSQ_CS_LOCAL_SIZE(
+         A7XX_HLSQ_CS_LAST_LOCAL_SIZE(
             .localsizex = local_size[0] - 1,
             .localsizey = local_size[1] - 1,
             .localsizez = local_size[2] - 1,
@@ -212,7 +212,7 @@ fd6_launch_grid(struct fd_context *ctx, const struct pipe_grid_info *info) in_dt
    if (ctx->gen_dirty & BIT(FD6_GROUP_CONST))
       fd6_emit_cs_user_consts<CHIP>(ctx, ring, cs);
 
-   if (cs->v->need_driver_params || info->input)
+   if (cs->v->need_driver_params)
       fd6_emit_cs_driver_params<CHIP>(ctx, ring, cs, info);
 
    OUT_PKT7(ring, CP_SET_MARKER, 1);
@@ -220,14 +220,18 @@ fd6_launch_grid(struct fd_context *ctx, const struct pipe_grid_info *info) in_dt
 
    uint32_t shared_size =
       MAX2(((int)(cs->v->cs.req_local_mem + info->variable_shared_mem) - 1) / 1024, 1);
-   OUT_PKT4(ring, REG_A6XX_SP_CS_UNKNOWN_A9B1, 1);
-   OUT_RING(ring, A6XX_SP_CS_UNKNOWN_A9B1_SHARED_SIZE(shared_size) |
-                     A6XX_SP_CS_UNKNOWN_A9B1_UNK6);
+   enum a6xx_const_ram_mode mode =
+      cs->v->constlen > 256 ? CONSTLEN_512 :
+      (cs->v->constlen > 192 ? CONSTLEN_256 :
+      (cs->v->constlen > 128 ? CONSTLEN_192 : CONSTLEN_128));
+   OUT_PKT4(ring, REG_A6XX_SP_CS_CTRL_REG1, 1);
+   OUT_RING(ring, A6XX_SP_CS_CTRL_REG1_SHARED_SIZE(shared_size) |
+                     A6XX_SP_CS_CTRL_REG1_CONSTANTRAMMODE(mode));
 
    if (CHIP == A6XX && ctx->screen->info->a6xx.has_lpac) {
-      OUT_PKT4(ring, REG_A6XX_HLSQ_CS_UNKNOWN_B9D0, 1);
-      OUT_RING(ring, A6XX_HLSQ_CS_UNKNOWN_B9D0_SHARED_SIZE(shared_size) |
-                        A6XX_HLSQ_CS_UNKNOWN_B9D0_UNK6);
+      OUT_PKT4(ring, REG_A6XX_HLSQ_CS_CTRL_REG1, 1);
+      OUT_RING(ring, A6XX_HLSQ_CS_CTRL_REG1_SHARED_SIZE(shared_size) |
+                        A6XX_HLSQ_CS_CTRL_REG1_CONSTANTRAMMODE(mode));
    }
 
    const unsigned *local_size =

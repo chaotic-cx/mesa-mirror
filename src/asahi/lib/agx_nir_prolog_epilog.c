@@ -53,8 +53,7 @@ agx_nir_lower_poly_stipple(nir_shader *s)
    nir_demote_if(b, nir_ieq_imm(b, bit, 0));
    s->info.fs.uses_discard = true;
 
-   nir_metadata_preserve(b->impl, nir_metadata_control_flow);
-   return true;
+   return nir_progress(true, b->impl, nir_metadata_control_flow);
 }
 
 static bool
@@ -192,6 +191,11 @@ agx_nir_vs_prolog(nir_builder *b, const void *key_)
       }
 
       nir_export_agx(b, nir_channel(b, vec, c), .base = AGX_ABI_VIN_ATTRIB(i));
+   }
+
+   if (!key->hw) {
+      nir_export_agx(b, nir_channel(b, nir_load_global_invocation_id(b, 32), 0),
+                     .base = AGX_ABI_VIN_VERTEX_ID_ZERO_BASE);
    }
 
    nir_export_agx(b, nir_load_vertex_id(b), .base = AGX_ABI_VIN_VERTEX_ID);
@@ -393,7 +397,7 @@ agx_nir_fs_epilog(nir_builder *b, const void *key_)
    bool force_translucent = false;
    nir_lower_blend_options opts = {
       .scalar_blend_const = true,
-      .logicop_enable = key->blend.logicop_func != PIPE_LOGICOP_COPY,
+      .logicop_enable = key->blend.logicop_enable,
       .logicop_func = key->blend.logicop_func,
    };
 
@@ -448,7 +452,8 @@ agx_nir_fs_epilog(nir_builder *b, const void *key_)
 
    /* Alpha-to-coverage must be lowered before alpha-to-one */
    if (key->blend.alpha_to_coverage)
-      NIR_PASS(_, b->shader, agx_nir_lower_alpha_to_coverage, tib.nr_samples);
+      NIR_PASS(_, b->shader, nir_lower_alpha_to_coverage, tib.nr_samples,
+               false);
 
    /* Depth/stencil writes must be deferred until after all discards,
     * particularly alpha-to-coverage.
@@ -469,7 +474,7 @@ agx_nir_fs_epilog(nir_builder *b, const void *key_)
 
    /* Alpha-to-one must be lowered before blending */
    if (key->blend.alpha_to_one)
-      NIR_PASS(_, b->shader, agx_nir_lower_alpha_to_one);
+      NIR_PASS(_, b->shader, nir_lower_alpha_to_one);
 
    NIR_PASS(_, b->shader, nir_lower_blend, &opts);
 
@@ -551,7 +556,7 @@ lower_output_to_epilog(nir_builder *b, nir_intrinsic_instr *intr, void *data)
       return true;
    }
 
-   if (intr->intrinsic == nir_intrinsic_discard_agx &&
+   if (intr->intrinsic == nir_intrinsic_demote_samples &&
        b->shader->info.fs.early_fragment_tests) {
 
       if (!ctx->masked_samples) {
@@ -685,8 +690,7 @@ agx_nir_lower_stats_fs(nir_shader *s)
    nir_global_atomic(b, 32, addr, samples, .atomic_op = nir_atomic_op_iadd);
 
    nir_pop_if(b, NULL);
-   nir_metadata_preserve(b->impl, nir_metadata_control_flow);
-   return true;
+   return nir_progress(true, b->impl, nir_metadata_control_flow);
 }
 
 void
@@ -699,7 +703,7 @@ agx_nir_fs_prolog(nir_builder *b, const void *key_)
    /* First, insert code for any emulated features */
    if (key->api_sample_mask != 0xff) {
       /* Kill samples that are NOT covered by the mask */
-      nir_discard_agx(b, nir_imm_intN_t(b, key->api_sample_mask ^ 0xff, 16));
+      nir_demote_samples(b, nir_imm_intN_t(b, key->api_sample_mask ^ 0xff, 16));
       b->shader->info.fs.uses_discard = true;
    }
 
@@ -713,7 +717,7 @@ agx_nir_fs_prolog(nir_builder *b, const void *key_)
    }
 
    if (key->polygon_stipple) {
-      NIR_PASS_V(b->shader, agx_nir_lower_poly_stipple);
+      NIR_PASS(_, b->shader, agx_nir_lower_poly_stipple);
    }
 
    /* Then, lower the prolog */

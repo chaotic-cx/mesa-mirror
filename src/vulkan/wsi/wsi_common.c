@@ -205,6 +205,7 @@ wsi_device_init(struct wsi_device *wsi,
    WSI_GET_CB(GetSemaphoreFdKHR);
    WSI_GET_CB(ResetFences);
    WSI_GET_CB(QueueSubmit);
+   WSI_GET_CB(SetDebugUtilsObjectNameEXT);
    WSI_GET_CB(WaitForFences);
    WSI_GET_CB(MapMemory);
    WSI_GET_CB(UnmapMemory);
@@ -442,6 +443,7 @@ wsi_swapchain_init(const struct wsi_device *wsi,
 
    vk_object_base_init(device, &chain->base, VK_OBJECT_TYPE_SWAPCHAIN_KHR);
 
+   chain->create_flags = pCreateInfo->flags;
    chain->wsi = wsi;
    chain->device = _device;
    chain->alloc = *pAllocator;
@@ -459,6 +461,9 @@ wsi_swapchain_init(const struct wsi_device *wsi,
    if (!chain->cmd_pools)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
+   const VkCommandPoolCreateFlags cmd_pool_flags =
+      (pCreateInfo->flags & VK_SWAPCHAIN_CREATE_PROTECTED_BIT_KHR) ?
+      VK_COMMAND_POOL_CREATE_PROTECTED_BIT : 0;
    for (uint32_t i = 0; i < cmd_pools_count; i++) {
       int queue_family_index = i;
 
@@ -476,7 +481,7 @@ wsi_swapchain_init(const struct wsi_device *wsi,
       const VkCommandPoolCreateInfo cmd_pool_info = {
          .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
          .pNext = NULL,
-         .flags = 0,
+         .flags = cmd_pool_flags,
          .queueFamilyIndex = queue_family_index,
       };
       result = wsi->CreateCommandPool(_device, &cmd_pool_info, &chain->alloc,
@@ -613,9 +618,13 @@ wsi_configure_image(const struct wsi_swapchain *chain,
       for (uint32_t i = 0; i < pCreateInfo->queueFamilyIndexCount; i++)
          queue_family_indices[i] = pCreateInfo->pQueueFamilyIndices[i];
 
+   const VkImageCreateFlags protected_flag =
+      (pCreateInfo->flags & VK_SWAPCHAIN_CREATE_PROTECTED_BIT_KHR) ?
+      VK_IMAGE_CREATE_PROTECTED_BIT : 0;
+
    info->create = (VkImageCreateInfo) {
       .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-      .flags = VK_IMAGE_CREATE_ALIAS_BIT,
+      .flags = VK_IMAGE_CREATE_ALIAS_BIT | protected_flag,
       .imageType = VK_IMAGE_TYPE_2D,
       .format = pCreateInfo->imageFormat,
       .extent = {
@@ -1527,7 +1536,8 @@ wsi_common_queue_present(const struct wsi_device *wsi,
             has_signal_dma_buf = false;
             mem_signal = (struct wsi_memory_signal_submit_info) {
                .sType = VK_STRUCTURE_TYPE_WSI_MEMORY_SIGNAL_SUBMIT_INFO_MESA,
-               .memory = image->memory,
+               .memory = swapchain->blit.type == WSI_SWAPCHAIN_NO_BLIT ?
+                         image->memory : image->blit.memory,
             };
             __vk_append_struct(&submit_info, &mem_signal);
          }
@@ -1555,8 +1565,7 @@ wsi_common_queue_present(const struct wsi_device *wsi,
       }
 
       if (wsi->sw)
-	      wsi->WaitForFences(device, 1, &swapchain->fences[image_index],
-				 true, ~0ull);
+         wsi->WaitForFences(device, 1, &swapchain->fences[image_index], true, ~0ull);
 
       const VkPresentRegionKHR *region = NULL;
       if (regions && regions->pRegions)
@@ -1636,14 +1645,15 @@ wsi_GetDeviceGroupSurfacePresentModesKHR(VkDevice device,
 bool
 wsi_common_vk_instance_supports_present_wait(const struct vk_instance *instance)
 {
+#if DETECT_OS_ANDROID
+   /* Android's Vulkan loader does not provide KHR_present_wait or
+    * KHR_present_id for KHR_android_surface. */
+   return false;
+#else
    /* We can only expose KHR_present_wait and KHR_present_id
     * if we are guaranteed support on all potential VkSurfaceKHR objects. */
-   if (instance->enabled_extensions.KHR_win32_surface ||
-       instance->enabled_extensions.KHR_android_surface) {
-      return false;
-   }
-
-   return true;
+   return !instance->enabled_extensions.KHR_win32_surface;
+#endif
 }
 
 VkResult
@@ -1760,6 +1770,12 @@ wsi_select_memory_type(const struct wsi_device *wsi,
       return wsi_select_memory_type(wsi, req_props, deny_props, type_bits);
    }
 
+   if (req_props & VK_MEMORY_PROPERTY_HOST_CACHED_BIT) {
+      req_props &= ~VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+      // fallback to coherent if cached-coherent is requested but not found
+      return wsi_select_memory_type(wsi, req_props, deny_props, type_bits);
+   }
+
    unreachable("No memory type found");
 }
 
@@ -1775,8 +1791,12 @@ static uint32_t
 wsi_select_host_memory_type(const struct wsi_device *wsi,
                             uint32_t type_bits)
 {
-   return wsi_select_memory_type(wsi, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                 0 /* deny_props */, type_bits);
+   VkMemoryPropertyFlags req_props = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+   if (wsi->sw)
+      req_props |= VK_MEMORY_PROPERTY_HOST_CACHED_BIT;
+
+   return wsi_select_memory_type(wsi, req_props, 0 /* deny_props */, type_bits);
 }
 
 VkResult
@@ -1790,6 +1810,9 @@ wsi_create_buffer_blit_context(const struct wsi_swapchain *chain,
    const struct wsi_device *wsi = chain->wsi;
    VkResult result;
 
+   const VkBufferUsageFlags create_flags =
+      (chain->create_flags & VK_SWAPCHAIN_CREATE_PROTECTED_BIT_KHR) ?
+      VK_BUFFER_CREATE_PROTECTED_BIT : 0;
    const VkExternalMemoryBufferCreateInfo buffer_external_info = {
       .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO,
       .pNext = NULL,
@@ -1798,6 +1821,7 @@ wsi_create_buffer_blit_context(const struct wsi_swapchain *chain,
    const VkBufferCreateInfo buffer_info = {
       .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
       .pNext = &buffer_external_info,
+      .flags = create_flags,
       .size = info->linear_size,
       .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
@@ -1891,6 +1915,183 @@ wsi_create_buffer_blit_context(const struct wsi_swapchain *chain,
    return VK_SUCCESS;
 }
 
+static void
+wsi_label_cmd_buffer(const struct wsi_device *wsi, VkDevice device, VkCommandBuffer cmd_buffer, const char *name)
+{
+   VkDebugUtilsObjectNameInfoEXT name_info = {
+      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+      .pNext = NULL,
+      .objectType = VK_OBJECT_TYPE_COMMAND_BUFFER,
+      .objectHandle = (uintptr_t)cmd_buffer,
+      .pObjectName = name,
+   };
+
+   wsi->SetDebugUtilsObjectNameEXT(device, &name_info);
+}
+
+static void
+wsi_cmd_blit_image_to_buffer(VkCommandBuffer cmd_buffer,
+                             const struct wsi_device *wsi,
+                             const struct wsi_image_info *info,
+                             struct wsi_image *image)
+{
+   assert(info->image_type == WSI_IMAGE_TYPE_CPU ||
+          info->image_type == WSI_IMAGE_TYPE_DRM);
+
+   VkImageMemoryBarrier img_mem_barrier = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+      .pNext = NULL,
+      .srcAccessMask = 0,
+      .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+      .oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+      .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+      .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+      .image = image->image,
+      .subresourceRange = {
+         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+         .baseMipLevel = 0,
+         .levelCount = 1,
+         .baseArrayLayer = 0,
+         .layerCount = 1,
+      },
+   };
+   wsi->CmdPipelineBarrier(cmd_buffer,
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           0,
+                           0, NULL,
+                           0, NULL,
+                           1, &img_mem_barrier);
+
+   struct VkBufferImageCopy buffer_image_copy = {
+      .bufferOffset = 0,
+      .bufferRowLength = info->linear_stride /
+                         vk_format_get_blocksize(info->create.format),
+      .bufferImageHeight = 0,
+      .imageSubresource = {
+         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+         .mipLevel = 0,
+         .baseArrayLayer = 0,
+         .layerCount = 1,
+      },
+      .imageOffset = { .x = 0, .y = 0, .z = 0 },
+      .imageExtent = info->create.extent,
+   };
+   wsi->CmdCopyImageToBuffer(cmd_buffer,
+                             image->image,
+                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                             image->blit.buffer,
+                             1, &buffer_image_copy);
+
+   img_mem_barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+   img_mem_barrier.dstAccessMask = 0;
+   img_mem_barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+   img_mem_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+   wsi->CmdPipelineBarrier(cmd_buffer,
+                           VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                           0,
+                           0, NULL,
+                           0, NULL,
+                           1, &img_mem_barrier);
+}
+
+static void
+wsi_cmd_blit_image_to_image(VkCommandBuffer cmd_buffer,
+                            const struct wsi_device *wsi,
+                            const struct wsi_image_info *info,
+                            struct wsi_image *image)
+{
+   assert(info->image_type == WSI_IMAGE_TYPE_DXGI);
+
+   VkImageMemoryBarrier img_mem_barriers[2] = {
+      {
+         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+         .pNext = NULL,
+         .srcAccessMask = 0,
+         .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+         .oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+         .image = image->image,
+         .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+         },
+      },
+      {
+         .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+         .pNext = NULL,
+         .srcAccessMask = 0,
+         .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+         .oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+         .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+         .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+         .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+         .image = image->blit.image,
+         .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+         },
+      },
+   };
+   wsi->CmdPipelineBarrier(cmd_buffer,
+                           VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                           VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           0,
+                           0, NULL,
+                           0, NULL,
+                           2, img_mem_barriers);
+
+   const struct VkImageCopy image_copy = {
+      .srcSubresource = {
+         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+         .mipLevel = 0,
+         .baseArrayLayer = 0,
+         .layerCount = 1,
+      },
+      .srcOffset = { .x = 0, .y = 0, .z = 0 },
+      .dstSubresource = {
+         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+         .mipLevel = 0,
+         .baseArrayLayer = 0,
+         .layerCount = 1,
+      },
+      .dstOffset = { .x = 0, .y = 0, .z = 0 },
+      .extent = info->create.extent,
+   };
+   wsi->CmdCopyImage(cmd_buffer,
+                     image->image,
+                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                     image->blit.image,
+                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                     1, &image_copy);
+
+   img_mem_barriers[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+   img_mem_barriers[0].dstAccessMask = 0;
+   img_mem_barriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+   img_mem_barriers[0].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+   img_mem_barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+   img_mem_barriers[1].dstAccessMask = 0;
+   img_mem_barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+   img_mem_barriers[1].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+   wsi->CmdPipelineBarrier(cmd_buffer,
+                           VK_PIPELINE_STAGE_TRANSFER_BIT,
+                           VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                           0,
+                           0, NULL,
+                           0, NULL,
+                           2, img_mem_barriers);
+}
+
 VkResult
 wsi_finish_create_blit_context(const struct wsi_swapchain *chain,
                                const struct wsi_image_info *info,
@@ -1919,128 +2120,33 @@ wsi_finish_create_blit_context(const struct wsi_swapchain *chain,
          .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
          .commandBufferCount = 1,
       };
+      VkCommandBuffer cmd_buffer;
       result = wsi->AllocateCommandBuffers(chain->device, &cmd_buffer_info,
-                                           &image->blit.cmd_buffers[i]);
+                                           &cmd_buffer);
       if (result != VK_SUCCESS)
          return result;
+
+      image->blit.cmd_buffers[i] = cmd_buffer;
+
+      wsi_label_cmd_buffer(wsi, chain->device, cmd_buffer, "wsi blit");
 
       const VkCommandBufferBeginInfo begin_info = {
          .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
       };
-      wsi->BeginCommandBuffer(image->blit.cmd_buffers[i], &begin_info);
+      wsi->BeginCommandBuffer(cmd_buffer, &begin_info);
 
-      VkImageMemoryBarrier img_mem_barriers[] = {
-         {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .pNext = NULL,
-            .srcAccessMask = 0,
-            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = image->image,
-            .subresourceRange = {
-               .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-               .baseMipLevel = 0,
-               .levelCount = 1,
-               .baseArrayLayer = 0,
-               .layerCount = 1,
-            },
-         },
-         {
-            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .pNext = NULL,
-            .srcAccessMask = 0,
-            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image = image->blit.image,
-            .subresourceRange = {
-               .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-               .baseMipLevel = 0,
-               .levelCount = 1,
-               .baseArrayLayer = 0,
-               .layerCount = 1,
-            },
-         },
-      };
-      uint32_t img_mem_barrier_count =
-         chain->blit.type == WSI_SWAPCHAIN_BUFFER_BLIT ? 1 : 2;
-      wsi->CmdPipelineBarrier(image->blit.cmd_buffers[i],
-                              VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                              VK_PIPELINE_STAGE_TRANSFER_BIT,
-                              0,
-                              0, NULL,
-                              0, NULL,
-                              1, img_mem_barriers);
-
-      if (chain->blit.type == WSI_SWAPCHAIN_BUFFER_BLIT) {
-         struct VkBufferImageCopy buffer_image_copy = {
-            .bufferOffset = 0,
-            .bufferRowLength = info->linear_stride /
-                               vk_format_get_blocksize(info->create.format),
-            .bufferImageHeight = 0,
-            .imageSubresource = {
-               .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-               .mipLevel = 0,
-               .baseArrayLayer = 0,
-               .layerCount = 1,
-            },
-            .imageOffset = { .x = 0, .y = 0, .z = 0 },
-            .imageExtent = info->create.extent,
-         };
-         wsi->CmdCopyImageToBuffer(image->blit.cmd_buffers[i],
-                                   image->image,
-                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                   image->blit.buffer,
-                                   1, &buffer_image_copy);
-      } else {
-         struct VkImageCopy image_copy = {
-            .srcSubresource = {
-               .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-               .mipLevel = 0,
-               .baseArrayLayer = 0,
-               .layerCount = 1,
-            },
-            .srcOffset = { .x = 0, .y = 0, .z = 0 },
-            .dstSubresource = {
-               .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-               .mipLevel = 0,
-               .baseArrayLayer = 0,
-               .layerCount = 1,
-            },
-            .dstOffset = { .x = 0, .y = 0, .z = 0 },
-            .extent = info->create.extent,
-         };
-
-         wsi->CmdCopyImage(image->blit.cmd_buffers[i],
-                           image->image,
-                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           image->blit.image,
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           1, &image_copy);
+      switch (chain->blit.type) {
+      case WSI_SWAPCHAIN_BUFFER_BLIT:
+         wsi_cmd_blit_image_to_buffer(cmd_buffer, wsi, info, image);
+         break;
+      case WSI_SWAPCHAIN_IMAGE_BLIT:
+         wsi_cmd_blit_image_to_image(cmd_buffer, wsi, info, image);
+         break;
+      default:
+         unreachable("Invalid wsi_swapchain_blit_type");
       }
 
-      img_mem_barriers[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-      img_mem_barriers[0].dstAccessMask = 0;
-      img_mem_barriers[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-      img_mem_barriers[0].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-      img_mem_barriers[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-      img_mem_barriers[1].dstAccessMask = 0;
-      img_mem_barriers[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-      img_mem_barriers[1].newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-      wsi->CmdPipelineBarrier(image->blit.cmd_buffers[i],
-                              VK_PIPELINE_STAGE_TRANSFER_BIT,
-                              VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
-                              0,
-                              0, NULL,
-                              0, NULL,
-                              img_mem_barrier_count, img_mem_barriers);
-
-      result = wsi->EndCommandBuffer(image->blit.cmd_buffers[i]);
+      result = wsi->EndCommandBuffer(cmd_buffer);
       if (result != VK_SUCCESS)
          return result;
    }
@@ -2252,4 +2358,16 @@ wsi_device_supports_explicit_sync(struct wsi_device *device)
    return !device->sw && device->has_timeline_semaphore &&
       (device->timeline_semaphore_export_handle_types &
        VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_OPAQUE_FD_BIT);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+wsi_SetHdrMetadataEXT(VkDevice device, uint32_t swapchainCount,
+                      const VkSwapchainKHR* pSwapchains,
+                      const VkHdrMetadataEXT* pMetadata)
+{
+   for (uint32_t i = 0; i < swapchainCount; i++) {
+      VK_FROM_HANDLE(wsi_swapchain, swapchain, pSwapchains[i]);
+      if (swapchain->set_hdr_metadata)
+         swapchain->set_hdr_metadata(swapchain, pMetadata);
+   }
 }

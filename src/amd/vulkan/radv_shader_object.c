@@ -13,6 +13,7 @@
 #include "radv_pipeline_compute.h"
 #include "radv_pipeline_graphics.h"
 #include "radv_shader_object.h"
+#include "util/blob.h"
 
 static void
 radv_shader_object_destroy_variant(struct radv_device *device, VkShaderCodeTypeEXT code_type,
@@ -126,7 +127,7 @@ radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct r
    struct radv_shader_stage stages[MESA_VULKAN_SHADER_STAGES];
 
    for (unsigned i = 0; i < MESA_VULKAN_SHADER_STAGES; i++) {
-      stages[i].entrypoint = NULL;
+      stages[i].stage = MESA_SHADER_NONE;
       stages[i].nir = NULL;
       stages[i].spirv.size = 0;
       stages[i].next_stage = MESA_SHADER_NONE;
@@ -174,8 +175,7 @@ radv_shader_object_init_graphics(struct radv_shader_object *shader_obj, struct r
       if (stage == MESA_SHADER_VERTEX || stage == MESA_SHADER_TESS_EVAL || stage == MESA_SHADER_GEOMETRY)
          next_stages |= VK_SHADER_STAGE_FRAGMENT_BIT;
 
-      radv_foreach_stage(next_stage, next_stages)
-      {
+      radv_foreach_stage (next_stage, next_stages) {
          struct radv_shader *shaders[MESA_VULKAN_SHADER_STAGES] = {NULL};
          struct radv_shader_binary *binaries[MESA_VULKAN_SHADER_STAGES] = {NULL};
 
@@ -413,7 +413,7 @@ radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, con
    struct radv_shader_stage stages[MESA_VULKAN_SHADER_STAGES];
 
    for (unsigned i = 0; i < MESA_VULKAN_SHADER_STAGES; i++) {
-      stages[i].entrypoint = NULL;
+      stages[i].stage = MESA_SHADER_NONE;
       stages[i].nir = NULL;
       stages[i].spirv.size = 0;
       stages[i].next_stage = MESA_SHADER_NONE;
@@ -441,16 +441,16 @@ radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, con
 
    /* Determine next stage. */
    for (unsigned i = 0; i < MESA_VULKAN_SHADER_STAGES; i++) {
-      if (!stages[i].entrypoint)
+      if (stages[i].stage == MESA_SHADER_NONE)
          continue;
 
       switch (stages[i].stage) {
       case MESA_SHADER_VERTEX:
-         if (stages[MESA_SHADER_TESS_CTRL].entrypoint) {
+         if (stages[MESA_SHADER_TESS_CTRL].stage != MESA_SHADER_NONE) {
             stages[i].next_stage = MESA_SHADER_TESS_CTRL;
-         } else if (stages[MESA_SHADER_GEOMETRY].entrypoint) {
+         } else if (stages[MESA_SHADER_GEOMETRY].stage != MESA_SHADER_NONE) {
             stages[i].next_stage = MESA_SHADER_GEOMETRY;
-         } else if (stages[MESA_SHADER_FRAGMENT].entrypoint) {
+         } else if (stages[MESA_SHADER_FRAGMENT].stage != MESA_SHADER_NONE) {
             stages[i].next_stage = MESA_SHADER_FRAGMENT;
          }
          break;
@@ -458,15 +458,15 @@ radv_shader_object_create_linked(VkDevice _device, uint32_t createInfoCount, con
          stages[i].next_stage = MESA_SHADER_TESS_EVAL;
          break;
       case MESA_SHADER_TESS_EVAL:
-         if (stages[MESA_SHADER_GEOMETRY].entrypoint) {
+         if (stages[MESA_SHADER_GEOMETRY].stage != MESA_SHADER_NONE) {
             stages[i].next_stage = MESA_SHADER_GEOMETRY;
-         } else if (stages[MESA_SHADER_FRAGMENT].entrypoint) {
+         } else if (stages[MESA_SHADER_FRAGMENT].stage != MESA_SHADER_NONE) {
             stages[i].next_stage = MESA_SHADER_FRAGMENT;
          }
          break;
       case MESA_SHADER_GEOMETRY:
       case MESA_SHADER_MESH:
-         if (stages[MESA_SHADER_FRAGMENT].entrypoint) {
+         if (stages[MESA_SHADER_FRAGMENT].stage != MESA_SHADER_NONE) {
             stages[i].next_stage = MESA_SHADER_FRAGMENT;
          }
          break;

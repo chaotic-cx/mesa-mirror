@@ -30,9 +30,23 @@
 #include "vk_device.h"
 #include "vk_nir.h"
 #include "vk_physical_device.h"
+#include "vk_physical_device_features.h"
 #include "vk_pipeline.h"
 
 #include "util/mesa-sha1.h"
+
+#include "nir.h"
+
+static void
+vk_shader_init(struct vk_shader *shader,
+               struct vk_device *device,
+               const struct vk_shader_ops *ops,
+               gl_shader_stage stage)
+{
+   vk_object_base_init(device, &shader->base, VK_OBJECT_TYPE_SHADER_EXT);
+   shader->ops = ops;
+   shader->stage = stage;
+}
 
 void *
 vk_shader_zalloc(struct vk_device *device,
@@ -56,9 +70,25 @@ vk_shader_zalloc(struct vk_device *device,
    if (shader == NULL)
       return NULL;
 
-   vk_object_base_init(device, &shader->base, VK_OBJECT_TYPE_SHADER_EXT);
-   shader->ops = ops;
-   shader->stage = stage;
+   vk_shader_init(shader, device, ops, stage);
+
+   return shader;
+}
+
+void *
+vk_shader_multizalloc(struct vk_device *device,
+                      struct vk_multialloc *ma,
+                      const struct vk_shader_ops *ops,
+                      gl_shader_stage stage,
+                      const VkAllocationCallbacks *alloc)
+{
+   struct vk_shader *shader =
+      vk_multialloc_zalloc2(ma, &device->alloc, alloc,
+                            VK_SYSTEM_ALLOCATION_SCOPE_DEVICE);
+   if (!shader)
+      return NULL;
+
+   vk_shader_init(shader, device, ops, stage);
 
    return shader;
 }
@@ -133,7 +163,7 @@ vk_shader_to_nir(struct vk_device *device,
       return NULL;
 
    if (ops->preprocess_nir != NULL)
-      ops->preprocess_nir(device->physical, nir);
+      ops->preprocess_nir(device->physical, nir, rs);
 
    return nir;
 }
@@ -478,7 +508,7 @@ vk_common_CreateShadersEXT(VkDevice _device,
 
             struct vk_shader *shader;
             result = ops->compile(device, 1, &info, NULL /* state */,
-                                  pAllocator, &shader);
+                                  NULL /* features */, pAllocator, &shader);
             if (result != VK_SUCCESS)
                break;
 
@@ -525,7 +555,7 @@ vk_common_CreateShadersEXT(VkDevice _device,
          struct vk_shader *shaders[VK_MAX_LINKED_SHADER_STAGES];
 
          result = ops->compile(device, linked_count, infos, NULL /* state */,
-                               pAllocator, shaders);
+                               NULL /* features */, pAllocator, shaders);
          if (result == VK_SUCCESS) {
             for (uint32_t l = 0; l < linked_count; l++)
                pShaders[linked[l].idx] = vk_shader_to_handle(shaders[l]);

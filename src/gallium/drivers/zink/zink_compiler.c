@@ -1362,7 +1362,8 @@ zink_screen_init_compiler(struct zink_screen *screen)
        zink_driverid(screen) == VK_DRIVER_ID_AMD_PROPRIETARY)
       screen->nir_options.lower_doubles_options = nir_lower_dmod;
 
-   if (screen->info.have_EXT_shader_demote_to_helper_invocation)
+   if (screen->info.have_EXT_shader_demote_to_helper_invocation &&
+       !screen->driver_compiler_workarounds.broken_demote)
       screen->nir_options.discard_is_demote = true;
 
    screen->nir_options.support_indirect_inputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES);
@@ -1576,7 +1577,13 @@ optimize_nir(struct nir_shader *s, struct zink_shader *zs, bool can_shrink)
       NIR_PASS(progress, s, nir_opt_dead_cf);
       NIR_PASS(progress, s, nir_lower_phis_to_scalar, false);
       NIR_PASS(progress, s, nir_opt_cse);
-      NIR_PASS(progress, s, nir_opt_peephole_select, 8, true, true);
+
+      nir_opt_peephole_select_options peephole_select_options = {
+         .limit = 8,
+         .indirect_load_ok = true,
+         .expensive_alu_ok = true,
+      };
+      NIR_PASS(progress, s, nir_opt_peephole_select, &peephole_select_options);
       NIR_PASS(progress, s, nir_opt_algebraic);
       NIR_PASS(progress, s, nir_opt_constant_folding);
       NIR_PASS(progress, s, nir_opt_undef);
@@ -1660,15 +1667,12 @@ lower_fbfetch(nir_shader *shader, nir_variable **fbfetch, bool ms)
  * -    res = (0, 0, 0, 1)
  */
 static bool
-lower_txf_lod_robustness_instr(nir_builder *b, nir_instr *in, void *data)
+lower_txf_lod_robustness_instr(nir_builder *b, nir_tex_instr *txf, void *data)
 {
-   if (in->type != nir_instr_type_tex)
-      return false;
-   nir_tex_instr *txf = nir_instr_as_tex(in);
    if (txf->op != nir_texop_txf)
       return false;
 
-   b->cursor = nir_before_instr(in);
+   b->cursor = nir_before_instr(&txf->instr);
    int lod_idx = nir_tex_instr_src_index(txf, nir_tex_src_lod);
    assert(lod_idx >= 0);
    nir_src lod_src = txf->src[lod_idx].src;
@@ -1702,7 +1706,7 @@ lower_txf_lod_robustness_instr(nir_builder *b, nir_instr *in, void *data)
    nir_builder_instr_insert(b, &levels->instr);
 
    nir_if *lod_oob_if = nir_push_if(b, nir_ilt(b, lod, &levels->def));
-   nir_tex_instr *new_txf = nir_instr_as_tex(nir_instr_clone(b->shader, in));
+   nir_tex_instr *new_txf = nir_instr_as_tex(nir_instr_clone(b->shader, &txf->instr));
    nir_builder_instr_insert(b, &new_txf->instr);
 
    nir_if *lod_oob_else = nir_push_else(b, lod_oob_if);
@@ -1716,7 +1720,7 @@ lower_txf_lod_robustness_instr(nir_builder *b, nir_instr *in, void *data)
    nir_def *robust_txf = nir_if_phi(b, &new_txf->def, oob_val);
 
    nir_def_rewrite_uses(&txf->def, robust_txf);
-   nir_instr_remove_v(in);
+   nir_instr_remove_v(&txf->instr);
    return true;
 }
 
@@ -1726,7 +1730,8 @@ lower_txf_lod_robustness_instr(nir_builder *b, nir_instr *in, void *data)
 static bool
 lower_txf_lod_robustness(nir_shader *shader)
 {
-   return nir_shader_instructions_pass(shader, lower_txf_lod_robustness_instr, nir_metadata_none, NULL);
+   return nir_shader_tex_pass(shader, lower_txf_lod_robustness_instr,
+                              nir_metadata_none, NULL);
 }
 
 /* check for a genuine gl_PointSize output vs one from nir_lower_point_size_mov */
@@ -2567,7 +2572,7 @@ clamp_layer_output(nir_shader *vs, nir_shader *fs, unsigned *next_location)
       b = nir_builder_at(nir_after_impl(impl));
       assert(impl->end_block->predecessors->entries == 1);
       clamp_layer_output_emit(&b, &state);
-      nir_metadata_preserve(impl, nir_metadata_dominance);
+      nir_progress(true, impl, nir_metadata_dominance);
    }
    optimize_nir(vs, NULL, true);
    NIR_PASS_V(vs, nir_remove_dead_variables, nir_var_shader_temp, NULL);
@@ -3247,8 +3252,7 @@ lower_64bit_vars_function(nir_shader *shader, nir_function_impl *impl, nir_varia
          }
       }
    }
-   if (func_progress)
-      nir_metadata_preserve(impl, nir_metadata_none);
+   nir_progress(func_progress, impl, nir_metadata_none);
    /* derefs must be queued for deletion to avoid deleting the same deref repeatedly */
    set_foreach_remove(deletes, he)
       nir_instr_remove((void*)he->key);
@@ -3884,15 +3888,7 @@ compile_module(struct zink_screen *screen, struct zink_shader *zs, nir_shader *n
    struct zink_shader_info *sinfo = &zs->sinfo;
    prune_io(nir);
 
-   switch (nir->info.stage) {
-   case MESA_SHADER_VERTEX:
-   case MESA_SHADER_TESS_EVAL:
-   case MESA_SHADER_GEOMETRY:
-      NIR_PASS_V(nir, nir_divergence_analysis);
-      break;
-   default: break;
-   }
-   NIR_PASS_V(nir, nir_convert_from_ssa, true);
+   NIR_PASS_V(nir, nir_convert_from_ssa, true, false);
 
    if (zink_debug & (ZINK_DEBUG_NIR | ZINK_DEBUG_SPIRV))
       nir_index_ssa_defs(nir_shader_get_entrypoint(nir));
@@ -4030,7 +4026,7 @@ zink_shader_compile(struct zink_screen *screen, bool can_shobj, struct zink_shad
 
          if (zink_fs_key(key)->lower_point_smooth) {
             NIR_PASS_V(nir, nir_lower_point_smooth, false);
-            NIR_PASS_V(nir, nir_lower_discard_if, nir_lower_discard_if_to_cf);
+            NIR_PASS_V(nir, nir_lower_discard_if, nir_lower_demote_if_to_cf | nir_lower_terminate_if_to_cf);
             nir->info.fs.uses_discard = true;
             need_optimize = true;
          }
@@ -4786,11 +4782,9 @@ scan_nir(struct zink_screen *screen, nir_shader *shader, struct zink_shader *zs)
 }
 
 static bool
-match_tex_dests_instr(nir_builder *b, nir_instr *in, void *data, bool pre)
+match_tex_dests_instr(nir_builder *b, nir_tex_instr *tex, void *data,
+                      bool pre)
 {
-   if (in->type != nir_instr_type_tex)
-      return false;
-   nir_tex_instr *tex = nir_instr_as_tex(in);
    if (tex->op == nir_texop_txs || tex->op == nir_texop_lod)
       return false;
    int handle = nir_tex_instr_src_index(tex, nir_tex_src_texture_handle);
@@ -4810,13 +4804,13 @@ match_tex_dests_instr(nir_builder *b, nir_instr *in, void *data, bool pre)
 }
 
 static bool
-match_tex_dests_instr_pre(nir_builder *b, nir_instr *in, void *data)
+match_tex_dests_instr_pre(nir_builder *b, nir_tex_instr *in, void *data)
 {
    return match_tex_dests_instr(b, in, data, true);
 }
 
 static bool
-match_tex_dests_instr_post(nir_builder *b, nir_instr *in, void *data)
+match_tex_dests_instr_post(nir_builder *b, nir_tex_instr *in, void *data)
 {
    return match_tex_dests_instr(b, in, data, false);
 }
@@ -4824,7 +4818,7 @@ match_tex_dests_instr_post(nir_builder *b, nir_instr *in, void *data)
 static bool
 match_tex_dests(nir_shader *shader, struct zink_shader *zs, bool pre_mangle)
 {
-   return nir_shader_instructions_pass(shader, pre_mangle ? match_tex_dests_instr_pre : match_tex_dests_instr_post, nir_metadata_dominance, zs);
+   return nir_shader_tex_pass(shader, pre_mangle ? match_tex_dests_instr_pre : match_tex_dests_instr_post, nir_metadata_dominance, zs);
 }
 
 static bool
@@ -5478,7 +5472,8 @@ rework_io_vars(nir_shader *nir, nir_variable_mode mode, struct zink_shader *zs)
    uint64_t inputs_read = nir->info.inputs_read;
    uint64_t inputs_read_indirectly = nir->info.inputs_read_indirectly;
    uint64_t outputs_accessed = nir->info.outputs_written | nir->info.outputs_read;
-   uint64_t outputs_accessed_indirectly = nir->info.outputs_accessed_indirectly;
+   uint64_t outputs_accessed_indirectly = nir->info.outputs_read_indirectly |
+                                          nir->info.outputs_written_indirectly;
 
    /* fragment outputs are special: handle separately */
    if (mode == nir_var_shader_out && nir->info.stage == MESA_SHADER_FRAGMENT) {
@@ -5626,7 +5621,10 @@ rework_io_vars(nir_shader *nir, nir_variable_mode mode, struct zink_shader *zs)
    if ((nir->info.stage == MESA_SHADER_TESS_CTRL && mode == nir_var_shader_out) ||
        (nir->info.stage == MESA_SHADER_TESS_EVAL && mode == nir_var_shader_in)) {
       uint64_t patch_outputs_accessed = nir->info.patch_outputs_read | nir->info.patch_outputs_written;
-      uint64_t indirect_patch_mask = mode == nir_var_shader_in ? nir->info.patch_inputs_read_indirectly : nir->info.patch_outputs_accessed_indirectly;
+      uint64_t indirect_patch_mask =
+         mode == nir_var_shader_in ? nir->info.patch_inputs_read_indirectly
+                                   : (nir->info.patch_outputs_read_indirectly |
+                                      nir->info.patch_outputs_written_indirectly);
       uint64_t patch_mask = mode == nir_var_shader_in ? nir->info.patch_inputs_read : patch_outputs_accessed;
 
       loop_io_var_mask(nir, mode, true, true, indirect_patch_mask);
@@ -6263,9 +6261,7 @@ zink_shader_init(struct zink_screen *screen, struct zink_shader *zs)
 
    optimize_nir(nir, NULL, true);
    NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
-   NIR_PASS_V(nir, nir_lower_discard_if, (nir_lower_discard_if_to_cf |
-                                          nir_lower_demote_if_to_cf |
-                                          nir_lower_terminate_if_to_cf));
+   NIR_PASS_V(nir, nir_lower_discard_if, nir_lower_demote_if_to_cf | nir_lower_terminate_if_to_cf);
 
    bool needs_size = analyze_io(zs, nir);
    NIR_PASS_V(nir, unbreak_bos, zs, needs_size);
@@ -6465,13 +6461,11 @@ gfx_shader_prune(struct zink_screen *screen, struct zink_shader *shader)
       prog->base.removed = true;
       simple_mtx_unlock(&prog->base.ctx->program_lock[idx]);
 
-      for (unsigned r = 0; r < ARRAY_SIZE(prog->pipelines); r++) {
-         for (int i = 0; i < ARRAY_SIZE(prog->pipelines[0]); ++i) {
-            hash_table_foreach(&prog->pipelines[r][i], table_entry) {
-               struct zink_gfx_pipeline_cache_entry *pc_entry = table_entry->data;
+      for (int i = 0; i < ARRAY_SIZE(prog->pipelines); ++i) {
+         hash_table_foreach(&prog->pipelines[i], table_entry) {
+            struct zink_gfx_pipeline_cache_entry *pc_entry = table_entry->data;
 
-               util_queue_fence_wait(&pc_entry->fence);
-            }
+            util_queue_fence_wait(&pc_entry->fence);
          }
       }
    }
@@ -6629,7 +6623,7 @@ zink_shader_tcs_init(struct zink_screen *screen, struct zink_shader *zs, nir_sha
 
    optimize_nir(nir, NULL, true);
    NIR_PASS_V(nir, nir_remove_dead_variables, nir_var_function_temp, NULL);
-   NIR_PASS_V(nir, nir_convert_from_ssa, true);
+   NIR_PASS_V(nir, nir_convert_from_ssa, true, false);
 
    *nir_ret = nir;
    zink_shader_serialize_blob(nir, &zs->blob);

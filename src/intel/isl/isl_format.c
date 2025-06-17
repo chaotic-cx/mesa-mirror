@@ -600,6 +600,9 @@ isl_format_for_pipe_format(enum pipe_format pf)
       [PIPE_FORMAT_R32G32B32_SINT]          = ISL_FORMAT_R32G32B32_SINT,
       [PIPE_FORMAT_R32G32B32A32_SINT]       = ISL_FORMAT_R32G32B32A32_SINT,
 
+      [PIPE_FORMAT_R64_UINT]                = ISL_FORMAT_R64_PASSTHRU,
+      [PIPE_FORMAT_R64_SINT]                = ISL_FORMAT_R64_PASSTHRU,
+
       [PIPE_FORMAT_B10G10R10A2_UINT]        = ISL_FORMAT_B10G10R10A2_UINT,
 
       [PIPE_FORMAT_ETC1_RGB8]               = ISL_FORMAT_ETC1_RGB8,
@@ -1084,8 +1087,7 @@ isl_format_has_color_component(enum isl_format fmt, int component)
    case 3:
       return (fmtl->channels.a.bits + intensity) > 0;
    default:
-      assert(!"Invalid color component: must be 0..3");
-      return false;
+      unreachable("Invalid color component: must be 0..3");
    }
 }
 
@@ -1209,8 +1211,7 @@ isl_format_rgbx_to_rgba(enum isl_format rgbx)
    case ISL_FORMAT_B5G5R5X1_UNORM_SRGB:
       return ISL_FORMAT_B5G5R5A1_UNORM_SRGB;
    default:
-      assert(!"Invalid RGBX format");
-      return rgbx;
+      unreachable("Invalid RGBX format");
    }
 }
 

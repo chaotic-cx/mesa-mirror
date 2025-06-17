@@ -527,6 +527,43 @@ get_fp_key(struct analysis_query *q)
    return ptr | type_encoding;
 }
 
+static inline bool
+fmul_is_a_number(const struct ssa_result_range left, const struct ssa_result_range right, bool mulz)
+{
+   if (mulz) {
+      /* nir_op_fmulz: unlike nir_op_fmul, 0 * ±Inf is a number. */
+      return left.is_a_number && right.is_a_number;
+   } else {
+      /* Mulitpliation produces NaN for X * NaN and for 0 * ±Inf.  If both
+       * operands are numbers and either both are finite or one is finite and
+       * the other cannot be zero, then the result must be a number.
+       */
+      return  (left.is_a_number && right.is_a_number) &&
+               ((left.is_finite && right.is_finite) ||
+                (!is_not_zero(left.range) && right.is_finite) ||
+                (left.is_finite && !is_not_zero(right.range)));
+   }
+}
+
+static inline bool
+fadd_is_a_number(const struct ssa_result_range left, const struct ssa_result_range right)
+{
+   /* X + Y is NaN if either operand is NaN or if one operand is +Inf and
+    * the other is -Inf.  If neither operand is NaN and at least one of the
+    * operands is finite, then the result cannot be NaN.
+    * If the combined range doesn't contain both postive and negative values
+    * (including Infs) then the result cannot be NaN either.
+    */
+   enum ssa_ranges combined_range = union_ranges(left.range, right.range);
+   return left.is_a_number && right.is_a_number &&
+          (left.is_finite || right.is_finite ||
+           combined_range == eq_zero ||
+           combined_range == gt_zero ||
+           combined_range == ge_zero ||
+           combined_range == lt_zero ||
+           combined_range == le_zero);
+}
+
 /**
  * Analyze an expression to determine the range of its result
  *
@@ -594,12 +631,15 @@ process_fp_query(struct analysis_state *state, struct analysis_query *aq, uint32
       case nir_op_fabs:
       case nir_op_fexp2:
       case nir_op_frcp:
+      case nir_op_fsqrt:
+      case nir_op_frsq:
       case nir_op_fneg:
       case nir_op_fsat:
       case nir_op_fsign:
       case nir_op_ffloor:
       case nir_op_fceil:
       case nir_op_ftrunc:
+      case nir_op_ffract:
       case nir_op_fdot2:
       case nir_op_fdot3:
       case nir_op_fdot4:
@@ -622,6 +662,7 @@ process_fp_query(struct analysis_state *state, struct analysis_query *aq, uint32
          push_fp_query(state, alu, 1, nir_type_invalid);
          return;
       case nir_op_ffma:
+      case nir_op_ffmaz:
       case nir_op_flrp:
          push_fp_query(state, alu, 0, nir_type_invalid);
          push_fp_query(state, alu, 1, nir_type_invalid);
@@ -810,13 +851,7 @@ process_fp_query(struct analysis_state *state, struct analysis_query *aq, uint32
 
       r.is_integral = left.is_integral && right.is_integral;
       r.range = fadd_table[left.range][right.range];
-
-      /* X + Y is NaN if either operand is NaN or if one operand is +Inf and
-       * the other is -Inf.  If neither operand is NaN and at least one of the
-       * operands is finite, then the result cannot be NaN.
-       */
-      r.is_a_number = left.is_a_number && right.is_a_number &&
-                      (left.is_finite || right.is_finite);
+      r.is_a_number = fadd_is_a_number(left, right);
       break;
    }
 
@@ -1028,34 +1063,34 @@ process_fp_query(struct analysis_state *state, struct analysis_query *aq, uint32
       } else if (left.range != eq_zero && nir_alu_srcs_negative_equal(alu, alu, 0, 1)) {
          /* -x * x => le_zero. */
          r.range = le_zero;
-      } else
-         r.range = fmul_table[left.range][right.range];
-
-      if (alu->op == nir_op_fmul) {
-         /* Mulitpliation produces NaN for X * NaN and for 0 * ±Inf.  If both
-          * operands are numbers and either both are finite or one is finite and
-          * the other cannot be zero, then the result must be a number.
-          */
-         r.is_a_number = (left.is_a_number && right.is_a_number) &&
-                         ((left.is_finite && right.is_finite) ||
-                          (!is_not_zero(left.range) && right.is_finite) ||
-                          (left.is_finite && !is_not_zero(right.range)));
       } else {
-         /* nir_op_fmulz: unlike nir_op_fmul, 0 * ±Inf is a number. */
-         r.is_a_number = left.is_a_number && right.is_a_number;
+         r.range = fmul_table[left.range][right.range];
       }
+
+      r.is_a_number = fmul_is_a_number(left, right, alu->op == nir_op_fmulz);
 
       break;
    }
 
-   case nir_op_frcp:
-      r = (struct ssa_result_range){
-         unpack_data(src_res[0]).range,
-         false,
-         false, /* Various cases can result in NaN, so assume the worst. */
-         false  /*    "      "    "     "    "  "    "    "    "    "    */
-      };
+   case nir_op_frcp: {
+      const struct ssa_result_range left = unpack_data(src_res[0]);
+
+      /* Only rcp(NaN) is NaN. */
+      r.is_a_number = left.is_a_number;
+
+      /* rcp can be zero for large values if denorms are flushed, or for Inf.
+       * Also, rcp(-0) is -Inf and rcp(+0) is Inf.
+       */
+      if (left.range == gt_zero)
+         r.range = ge_zero;
+      else if (left.range == lt_zero)
+         r.range = le_zero;
+
+      if (left.range == gt_zero || left.range == lt_zero || left.range == ne_zero)
+         r.is_finite = left.is_a_number;
+
       break;
+   }
 
    case nir_op_mov:
       r = unpack_data(src_res[0]);
@@ -1109,10 +1144,42 @@ process_fp_query(struct analysis_state *state, struct analysis_query *aq, uint32
       };
       break;
 
-   case nir_op_fsqrt:
-   case nir_op_frsq:
-      r = (struct ssa_result_range){ ge_zero, false, false, false };
+   case nir_op_fsqrt: {
+      const struct ssa_result_range left = unpack_data(src_res[0]);
+
+      /* sqrt(NaN) and sqrt(< 0) is NaN. */
+      if (left.range == eq_zero || left.range == ge_zero || left.range == gt_zero) {
+         r.is_a_number = left.is_a_number;
+         /* Only sqrt(Inf) is Inf. */
+         r.is_finite = left.is_finite;
+      }
+
+      if (left.range == gt_zero || left.range == ne_zero)
+         r.range = gt_zero;
+      else
+         r.range = ge_zero;
+
       break;
+   }
+
+   case nir_op_frsq: {
+      const struct ssa_result_range left = unpack_data(src_res[0]);
+
+      /* rsq(NaN) and rsq(< 0) is NaN. */
+      if (left.range == eq_zero || left.range == ge_zero || left.range == gt_zero)
+         r.is_a_number = left.is_a_number;
+
+      /* rsq(-0) is -Inf and rsq(+0) is +Inf */
+      if (left.range == gt_zero || left.range == ne_zero) {
+         if (left.is_finite)
+            r.range = gt_zero;
+         else
+            r.range = ge_zero;
+         r.is_finite = r.is_a_number;
+      }
+
+      break;
+   }
 
    case nir_op_ffloor: {
       const struct ssa_result_range left = unpack_data(src_res[0]);
@@ -1175,6 +1242,22 @@ process_fp_query(struct analysis_state *state, struct analysis_query *aq, uint32
          r.range = le_zero;
       else if (left.range == ne_zero)
          r.range = unknown;
+
+      break;
+   }
+
+   case nir_op_ffract: {
+      const struct ssa_result_range left = unpack_data(src_res[0]);
+
+      /* fract(±Inf) is NaN */
+      r.is_a_number = left.is_a_number && left.is_finite;
+      r.is_integral = left.is_integral;
+      r.is_finite = r.is_a_number;
+
+      if (left.is_integral || left.range == eq_zero)
+         r.range = eq_zero;
+      else
+         r.range = ge_zero;
 
       break;
    }
@@ -1290,31 +1373,31 @@ process_fp_query(struct analysis_state *state, struct analysis_query *aq, uint32
       break;
    }
 
-   case nir_op_ffma: {
+   case nir_op_ffma:
+   case nir_op_ffmaz: {
       const struct ssa_result_range first = unpack_data(src_res[0]);
       const struct ssa_result_range second = unpack_data(src_res[1]);
       const struct ssa_result_range third = unpack_data(src_res[2]);
 
-      r.is_integral = first.is_integral && second.is_integral &&
-                      third.is_integral;
-
-      /* Various cases can result in NaN, so assume the worst. */
-      r.is_a_number = false;
-
-      enum ssa_ranges fmul_range;
+      struct ssa_result_range fmul_result;
+      fmul_result.is_integral = first.is_integral && second.is_integral;
+      fmul_result.is_finite = false;
+      fmul_result.is_a_number = fmul_is_a_number(first, third, alu->op == nir_op_ffmaz);
 
       if (first.range != eq_zero && nir_alu_srcs_equal(alu, alu, 0, 1)) {
          /* See handling of nir_op_fmul for explanation of why ge_zero is the
           * range.
           */
-         fmul_range = ge_zero;
+         fmul_result.range = ge_zero;
       } else if (first.range != eq_zero && nir_alu_srcs_negative_equal(alu, alu, 0, 1)) {
          /* -x * x => le_zero */
-         fmul_range = le_zero;
+         fmul_result.range = le_zero;
       } else
-         fmul_range = fmul_table[first.range][second.range];
+         fmul_result.range = fmul_table[first.range][second.range];
 
-      r.range = fadd_table[fmul_range][third.range];
+      r.range = fadd_table[fmul_result.range][third.range];
+      r.is_integral = fmul_result.is_integral && third.is_integral;
+      r.is_a_number = fadd_is_a_number(fmul_result, third);
       break;
    }
 
@@ -2062,36 +2145,47 @@ ssa_def_bits_used(const nir_def *def, int recur)
          switch (use_alu->op) {
          case nir_op_u2u8:
          case nir_op_i2i8:
-            bits_used |= 0xff;
-            break;
-
          case nir_op_u2u16:
          case nir_op_i2i16:
-            bits_used |= all_bits & 0xffff;
-            break;
-
          case nir_op_u2u32:
          case nir_op_i2i32:
-            bits_used |= all_bits & 0xffffffff;
+         case nir_op_u2u64:
+         case nir_op_i2i64: {
+            uint64_t def_bits_used = ssa_def_bits_used(&use_alu->def, recur);
+
+            /* If one of the sign-extended bits is used, set the last src bit
+             * as used.
+             */
+            if ((use_alu->op == nir_op_i2i8 || use_alu->op == nir_op_i2i16 ||
+                 use_alu->op == nir_op_i2i32 || use_alu->op == nir_op_i2i64) &&
+                def_bits_used & ~all_bits)
+               def_bits_used |= BITFIELD64_BIT(def->bit_size - 1);
+
+            bits_used |= def_bits_used & all_bits;
             break;
+         }
 
          case nir_op_extract_u8:
          case nir_op_extract_i8:
-            if (src_idx == 0 && nir_src_is_const(use_alu->src[1].src)) {
-               unsigned chunk = nir_src_comp_as_uint(use_alu->src[1].src,
-                                                     use_alu->src[1].swizzle[0]);
-               bits_used |= 0xffull << (chunk * 8);
-               break;
-            } else {
-               return all_bits;
-            }
-
          case nir_op_extract_u16:
          case nir_op_extract_i16:
             if (src_idx == 0 && nir_src_is_const(use_alu->src[1].src)) {
-               unsigned chunk = nir_src_comp_as_uint(use_alu->src[1].src,
-                                                     use_alu->src[1].swizzle[0]);
-               bits_used |= 0xffffull << (chunk * 16);
+               unsigned chunk = nir_alu_src_as_uint(use_alu->src[1]);
+               uint64_t defs_bits_used = ssa_def_bits_used(&use_alu->def, recur);
+               unsigned field_bits = use_alu->op == nir_op_extract_u8 ||
+                                     use_alu->op == nir_op_extract_i8 ? 8 : 16;
+               uint64_t field_bitmask = BITFIELD64_MASK(field_bits);
+
+               /* If one of the sign-extended bits is used, set the last src bit
+                * as used.
+                */
+               if ((use_alu->op == nir_op_extract_i8 ||
+                    use_alu->op == nir_op_extract_i16) &&
+                   defs_bits_used & ~field_bitmask)
+                  defs_bits_used |= BITFIELD64_BIT(field_bits - 1);
+
+               bits_used |= (field_bitmask & defs_bits_used) <<
+                            (chunk * field_bits);
                break;
             } else {
                return all_bits;
@@ -2100,34 +2194,93 @@ ssa_def_bits_used(const nir_def *def, int recur)
          case nir_op_ishl:
          case nir_op_ishr:
          case nir_op_ushr:
-            if (src_idx == 1) {
-               bits_used |= (nir_src_bit_size(use_alu->src[0].src) - 1);
+            if (src_idx == 0 && nir_src_is_const(use_alu->src[1].src)) {
+               unsigned bit_size = def->bit_size;
+               unsigned shift = nir_alu_src_as_uint(use_alu->src[1]) & (bit_size - 1);
+               uint64_t def_bits_used = ssa_def_bits_used(&use_alu->def, recur);
+
+               /* If one of the sign-extended bits is used, set the "last src
+                * bit before shifting" as used.
+                */
+               if (use_alu->op == nir_op_ishr &&
+                   def_bits_used & ~(all_bits >> shift))
+                  def_bits_used |= BITFIELD64_BIT(bit_size - 1 - shift);
+
+               /* Reverse the shift to get the bits before shifting. */
+               if (use_alu->op == nir_op_ushr || use_alu->op == nir_op_ishr)
+                  bits_used |= (def_bits_used << shift) & all_bits;
+               else
+                  bits_used |= def_bits_used >> shift;
+               break;
+            } else if (src_idx == 1) {
+               bits_used |= use_alu->def.bit_size - 1;
                break;
             } else {
                return all_bits;
             }
 
          case nir_op_iand:
+         case nir_op_ior:
             assert(src_idx < 2);
             if (nir_src_is_const(use_alu->src[1 - src_idx].src)) {
-               uint64_t u64 = nir_src_comp_as_uint(use_alu->src[1 - src_idx].src,
-                                                   use_alu->src[1 - src_idx].swizzle[0]);
-               bits_used |= u64;
+               uint64_t other_src = nir_alu_src_as_uint(use_alu->src[1 - src_idx]);
+               if (use_alu->op == nir_op_iand)
+                  bits_used |= ssa_def_bits_used(&use_alu->def, recur) & other_src;
+               else
+                  bits_used |= ssa_def_bits_used(&use_alu->def, recur) & ~other_src;
                break;
             } else {
                return all_bits;
             }
 
-         case nir_op_ior:
-            assert(src_idx < 2);
-            if (nir_src_is_const(use_alu->src[1 - src_idx].src)) {
-               uint64_t u64 = nir_src_comp_as_uint(use_alu->src[1 - src_idx].src,
-                                                   use_alu->src[1 - src_idx].swizzle[0]);
-               bits_used |= all_bits & ~u64;
+         case nir_op_ibfe:
+         case nir_op_ubfe:
+            if (src_idx == 0 && nir_src_is_const(use_alu->src[1].src)) {
+               uint64_t def_bits_used = ssa_def_bits_used(&use_alu->def, recur);
+               unsigned bit_size = use_alu->def.bit_size;
+               unsigned offset = nir_alu_src_as_uint(use_alu->src[1]) & (bit_size - 1);
+               unsigned bits = nir_src_is_const(use_alu->src[2].src) ?
+                                  nir_alu_src_as_uint(use_alu->src[2]) & (bit_size - 1) :
+                                  /* Worst case if bits is not constant. */
+                                  (bit_size - offset);
+               uint64_t field_bitmask = BITFIELD64_MASK(bits);
+
+               /* If one of the sign-extended bits is used, set the last src
+                * bit as used.
+                * If bits is not constant, all bits can be the last one.
+                */
+               if (use_alu->op == nir_op_ibfe &&
+                   (def_bits_used >> offset) & ~field_bitmask) {
+                  if (nir_alu_src_as_uint(use_alu->src[2]))
+                     def_bits_used |= BITFIELD64_BIT(bits - 1);
+                  else
+                     def_bits_used |= field_bitmask;
+               }
+
+               bits_used |= (field_bitmask & def_bits_used) << offset;
+               break;
+            } else if (src_idx == 1 || src_idx == 2) {
+               bits_used |= use_alu->src[0].src.ssa->bit_size - 1;
                break;
             } else {
                return all_bits;
             }
+
+         case nir_op_imul24:
+         case nir_op_umul24:
+            bits_used |= all_bits & 0xffffff;
+            break;
+
+         case nir_op_mov:
+            bits_used |= ssa_def_bits_used(&use_alu->def, recur);
+            break;
+
+         case nir_op_bcsel:
+            if (src_idx == 0)
+               bits_used |= 0x1;
+            else
+               bits_used |= ssa_def_bits_used(&use_alu->def, recur);
+            break;
 
          default:
             /* We don't know what this op does */

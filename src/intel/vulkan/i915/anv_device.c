@@ -22,6 +22,7 @@
 
 #include "i915/anv_device.h"
 #include "anv_private.h"
+#include "vk_debug_utils.h"
 
 #include "common/i915/intel_defines.h"
 #include "common/i915/intel_gem.h"
@@ -206,18 +207,6 @@ anv_i915_physical_device_init_memory_types(struct anv_physical_device *device)
       };
    }
 
-   if (device->has_protected_contexts) {
-      /* Add a memory type for protected buffers, local and not host
-       * visible.
-       */
-      device->memory.types[device->memory.type_count++] =
-         (struct anv_memory_type) {
-            .propertyFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
-                             VK_MEMORY_PROPERTY_PROTECTED_BIT,
-            .heapIndex = 0,
-      };
-   }
-
    return VK_SUCCESS;
 }
 
@@ -373,6 +362,12 @@ anv_i915_device_check_status(struct vk_device *vk_device)
    } else {
       result = anv_gem_context_get_reset_stats(device, device->context_id);
    }
+
+   if (result != VK_SUCCESS)
+      return result;
+
+   if (INTEL_DEBUG(DEBUG_SHADER_PRINT))
+      result = vk_check_printf_status(vk_device, &device->printf);
 
    return result;
 }

@@ -50,7 +50,6 @@ files_libglx = files(
   'render2.c',
   'renderpix.c',
   'single2.c',
-  'singlepix.c',
   'vertarr.c',
   'xfont.c',
 )
@@ -104,7 +103,7 @@ else
   )
 endif
 
-glx_gallium_link = [libpipe_loader_dynamic]
+glx_gallium_link = []
 if with_dri
   glx_gallium_link += libgallium_dri
 endif
@@ -113,12 +112,9 @@ if with_platform_windows
 endif
 libglx = static_library(
   'glx',
-  [files_libglx, glx_generated],
+  [files_libglx, glx_generated, main_dispatch_h],
   include_directories : [inc_include, inc_src, inc_glapi, inc_loader, inc_loader_x11,
                          inc_gallium, inc_mesa, inc_st_dri, inc_gallium_aux],
-  c_args : [
-    '-DGL_LIB_NAME="lib@0@.so.@1@"'.format(gl_lib_name, gl_lib_version.split('.')[0]),
-  ],
   gnu_symbol_visibility : 'hidden',
   link_with : [
     libloader, libloader_x11,
@@ -130,11 +126,14 @@ libglx = static_library(
   ],
 )
 
+# libglapi_bridge contains GL functions that we need to export from libGL.so.
+# Other than that, we don't need it.
+libgl_link = with_glvnd ? [] : [libglapi_bridge]
+
 libgl = shared_library(
   gl_lib_name,
   [],
-  link_with : [libglapi_static, libglapi],
-  link_whole : libglx,
+  link_whole : [libglx, libgl_link],
   link_args : [ld_args_bsymbolic, ld_args_gc_sections, extra_ld_args_libgl],
   dependencies : [
     dep_libdrm, dep_dl, dep_m, dep_thread, dep_x11, dep_xcb_glx, dep_xcb,
@@ -145,3 +144,18 @@ libgl = shared_library(
   darwin_versions : '4.0.0',
   install : true,
 )
+
+if with_symbols_check
+  libgl_symbols_file = with_glvnd ? 'glvnd-symbols.txt' : 'libgl-symbols.txt'
+
+  test(
+    'libGL-ABI-check',
+    symbols_check,
+    args : [
+      '--lib', libgl,
+      '--symbols-file', files(libgl_symbols_file),
+      symbols_check_args,
+    ],
+    suite : ['glx'],
+  )
+endif

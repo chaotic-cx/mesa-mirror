@@ -560,6 +560,30 @@ util_format_is_etc(enum pipe_format format)
 }
 
 static inline bool
+util_format_is_astc_hdr(enum pipe_format format)
+{
+   switch (format) {
+   case PIPE_FORMAT_ASTC_4x4_FLOAT:
+   case PIPE_FORMAT_ASTC_5x4_FLOAT:
+   case PIPE_FORMAT_ASTC_5x5_FLOAT:
+   case PIPE_FORMAT_ASTC_6x5_FLOAT:
+   case PIPE_FORMAT_ASTC_6x6_FLOAT:
+   case PIPE_FORMAT_ASTC_8x5_FLOAT:
+   case PIPE_FORMAT_ASTC_8x6_FLOAT:
+   case PIPE_FORMAT_ASTC_8x8_FLOAT:
+   case PIPE_FORMAT_ASTC_10x5_FLOAT:
+   case PIPE_FORMAT_ASTC_10x6_FLOAT:
+   case PIPE_FORMAT_ASTC_10x8_FLOAT:
+   case PIPE_FORMAT_ASTC_10x10_FLOAT:
+   case PIPE_FORMAT_ASTC_12x10_FLOAT:
+   case PIPE_FORMAT_ASTC_12x12_FLOAT:
+      return true;
+   default:
+      return false;;
+   }
+}
+
+static inline bool
 util_format_is_srgb(enum pipe_format format)
 {
    const struct util_format_description *desc = util_format_description(format);
@@ -1288,8 +1312,12 @@ util_format_get_plane_format(enum pipe_format format, unsigned plane)
       return PIPE_FORMAT_R8_UNORM;
    case PIPE_FORMAT_NV12:
    case PIPE_FORMAT_NV16:
+   case PIPE_FORMAT_R8_G8B8_420_UNORM:
+   case PIPE_FORMAT_R8_G8B8_422_UNORM:
       return !plane ? PIPE_FORMAT_R8_UNORM : PIPE_FORMAT_RG88_UNORM;
    case PIPE_FORMAT_NV21:
+   case PIPE_FORMAT_R8_B8G8_420_UNORM:
+   case PIPE_FORMAT_R8_B8G8_422_UNORM:
       return !plane ? PIPE_FORMAT_R8_UNORM : PIPE_FORMAT_GR88_UNORM;
    case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
    case PIPE_FORMAT_Y16_U16_V16_422_UNORM:
@@ -1325,6 +1353,19 @@ util_format_get_plane_width(enum pipe_format format, unsigned plane,
    case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
    case PIPE_FORMAT_Y16_U16_V16_422_UNORM:
    case PIPE_FORMAT_Y16_U16V16_422_UNORM:
+   case PIPE_FORMAT_R8_G8B8_420_UNORM:
+   case PIPE_FORMAT_R8_B8G8_420_UNORM:
+   case PIPE_FORMAT_G8_B8R8_420_UNORM:
+   case PIPE_FORMAT_R8_G8B8_422_UNORM:
+   case PIPE_FORMAT_R8_B8G8_422_UNORM:
+   case PIPE_FORMAT_G8_B8R8_422_UNORM:
+   case PIPE_FORMAT_R8_G8_B8_420_UNORM:
+   case PIPE_FORMAT_R8_B8_G8_420_UNORM:
+   case PIPE_FORMAT_G8_B8_R8_420_UNORM:
+   case PIPE_FORMAT_R10_G10B10_420_UNORM:
+   case PIPE_FORMAT_R10_G10B10_422_UNORM:
+   case PIPE_FORMAT_X6G10_X6B10X6R10_420_UNORM:
+   case PIPE_FORMAT_X4G12_X4B12X4R12_420_UNORM:
       return !plane ? width : (width + 1) / 2;
    default:
       return width;
@@ -1346,6 +1387,15 @@ util_format_get_plane_height(enum pipe_format format, unsigned plane,
    case PIPE_FORMAT_P030:
    case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
    case PIPE_FORMAT_Y8_U8_V8_440_UNORM:
+   case PIPE_FORMAT_R8_G8B8_420_UNORM:
+   case PIPE_FORMAT_R8_B8G8_420_UNORM:
+   case PIPE_FORMAT_G8_B8R8_420_UNORM:
+   case PIPE_FORMAT_R8_G8_B8_420_UNORM:
+   case PIPE_FORMAT_R8_B8_G8_420_UNORM:
+   case PIPE_FORMAT_G8_B8_R8_420_UNORM:
+   case PIPE_FORMAT_R10_G10B10_420_UNORM:
+   case PIPE_FORMAT_X6G10_X6B10X6R10_420_UNORM:
+   case PIPE_FORMAT_X4G12_X4B12X4R12_420_UNORM:
       return !plane ? height : (height + 1) / 2;
    case PIPE_FORMAT_YV16:
    default:
@@ -1397,6 +1447,13 @@ util_format_is_unorm8(const struct util_format_description *desc)
       return false;
 
    return desc->is_unorm && desc->is_array && desc->channel[c].size == 8;
+}
+
+static inline bool
+util_format_is_int64(const struct util_format_description *desc)
+{
+   int c = util_format_get_first_non_void_channel(desc->format);
+   return c >= 0 && desc->channel[c].pure_integer && desc->channel[c].size == 64;
 }
 
 static inline void

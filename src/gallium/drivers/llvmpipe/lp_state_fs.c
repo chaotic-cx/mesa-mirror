@@ -181,6 +181,7 @@ lp_mem_type_from_format_desc(const struct util_format_description *format_desc,
    }
 
    int chan = util_format_get_first_non_void_channel(format_desc->format);
+   assert(chan >= 0);
 
    memset(type, 0, sizeof(struct lp_type));
    type->floating = format_desc->channel[chan].type == UTIL_FORMAT_TYPE_FLOAT;
@@ -723,9 +724,6 @@ generate_fs_loop(struct gallivm_state *gallivm,
    system_values.front_facing =
       LLVMBuildTrunc(gallivm->builder, facing,
                      LLVMInt1TypeInContext(gallivm->context), "");
-   system_values.front_facing =
-      LLVMBuildSExt(gallivm->builder, system_values.front_facing,
-                    LLVMInt32TypeInContext(gallivm->context), "");
    system_values.view_index =
       lp_jit_thread_data_raster_state_view_index(gallivm,
                                                  thread_data_type,
@@ -1153,6 +1151,7 @@ generate_fs_loop(struct gallivm_state *gallivm,
          if (!key->multisample) {
             lp_build_alpha_to_coverage(gallivm, type,
                                        &mask, alpha,
+                                       key->blend.alpha_to_coverage_dither,
                                        (depth_mode & LATE_DEPTH_TEST) != 0);
          } else {
             lp_build_sample_alpha_to_coverage(gallivm, type, key->coverage_samples, num_loop,
@@ -1785,7 +1784,8 @@ lp_blend_type_from_format_desc(const struct util_format_description *format_desc
       return;
    }
 
-   const int chan = util_format_get_first_non_void_channel(format_desc->format);
+   int chan = util_format_get_first_non_void_channel(format_desc->format);
+   assert(chan >= 0);
 
    memset(type, 0, sizeof(struct lp_type));
    type->floating = format_desc->channel[chan].type == UTIL_FORMAT_TYPE_FLOAT;
@@ -3273,6 +3273,8 @@ generate_fragment(struct llvmpipe_context *lp,
       if (LLVMGetTypeKind(arg_types[i]) == LLVMPointerTypeKind)
          lp_add_function_attr(function, i + 1, LP_FUNC_ATTR_NOALIAS);
 
+   lp_function_add_debug_info(gallivm, function, func_type);
+
    if (variant->gallivm->cache->data_size) {
       gallivm_stub_func(gallivm, function);
       return;
@@ -3319,6 +3321,11 @@ generate_fragment(struct llvmpipe_context *lp,
    builder = gallivm->builder;
    assert(builder);
    LLVMPositionBuilderAtEnd(builder, block);
+
+   if (gallivm->di_function) {
+      LLVMSetCurrentDebugLocation2(
+         gallivm->builder, LLVMDIBuilderCreateDebugLocation(gallivm->context, 0, 0, gallivm->di_function, NULL));
+   }
 
    /* code generated texture sampling */
    struct lp_build_sampler_soa *sampler =
@@ -4425,8 +4432,8 @@ make_variant_key(struct llvmpipe_context *lp,
 
    memset(key, 0, sizeof(*key));
 
-   if (lp->framebuffer.zsbuf) {
-      const enum pipe_format zsbuf_format = lp->framebuffer.zsbuf->format;
+   if (lp->framebuffer.zsbuf.texture) {
+      const enum pipe_format zsbuf_format = lp->framebuffer.zsbuf.format;
       const struct util_format_description *zsbuf_desc =
          util_format_description(zsbuf_format);
 
@@ -4443,11 +4450,11 @@ make_variant_key(struct llvmpipe_context *lp,
          memcpy(&key->stencil, &lp->depth_stencil->stencil,
                 sizeof key->stencil);
       }
-      if (llvmpipe_resource_is_1d(lp->framebuffer.zsbuf->texture)) {
+      if (llvmpipe_resource_is_1d(lp->framebuffer.zsbuf.texture)) {
          key->resource_1d = true;
       }
       key->zsbuf_nr_samples =
-         util_res_sample_count(lp->framebuffer.zsbuf->texture);
+         util_res_sample_count(lp->framebuffer.zsbuf.texture);
 
       /*
        * Restrict depth values if the API is clamped (GL, VK with ext)
@@ -4467,8 +4474,8 @@ make_variant_key(struct llvmpipe_context *lp,
     * (or does not exist)
     */
    if (!lp->framebuffer.nr_cbufs ||
-       !lp->framebuffer.cbufs[0] ||
-       !util_format_is_pure_integer(lp->framebuffer.cbufs[0]->format)) {
+       !lp->framebuffer.cbufs[0].texture ||
+       !util_format_is_pure_integer(lp->framebuffer.cbufs[0].format)) {
       key->alpha.enabled = lp->depth_stencil->alpha_enabled;
    }
    if (key->alpha.enabled) {
@@ -4531,19 +4538,19 @@ make_variant_key(struct llvmpipe_context *lp,
    for (unsigned i = 0; i < lp->framebuffer.nr_cbufs; i++) {
       struct pipe_rt_blend_state *blend_rt = &key->blend.rt[i];
 
-      if (lp->framebuffer.cbufs[i]) {
-         const enum pipe_format format = lp->framebuffer.cbufs[i]->format;
+      if (lp->framebuffer.cbufs[i].texture) {
+         const enum pipe_format format = lp->framebuffer.cbufs[i].format;
 
          key->cbuf_format[i] = format;
          key->cbuf_nr_samples[i] =
-            util_res_sample_count(lp->framebuffer.cbufs[i]->texture);
+            util_res_sample_count(lp->framebuffer.cbufs[i].texture);
 
          /*
           * Figure out if this is a 1d resource. Note that OpenGL allows crazy
           * mixing of 2d textures with height 1 and 1d textures, so make sure
           * we pick 1d if any cbuf or zsbuf is 1d.
           */
-         if (llvmpipe_resource_is_1d(lp->framebuffer.cbufs[i]->texture)) {
+         if (llvmpipe_resource_is_1d(lp->framebuffer.cbufs[i].texture)) {
             key->resource_1d = true;
          }
 
@@ -4723,7 +4730,7 @@ llvmpipe_update_fs(struct llvmpipe_context *lp)
                          "\t%u instrs,\t%u instrs/variant\n",
                          shader->variants_cached,
                          lp->nr_fs_variants, lp->nr_fs_instrs,
-                         lp->nr_fs_instrs / lp->nr_fs_variants);
+                         lp->nr_fs_variants ? lp->nr_fs_instrs / lp->nr_fs_variants : 0);
          }
 
          /*

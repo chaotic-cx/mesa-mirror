@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: MIT
  */
 
+#include "compiler/libcl/libcl_vk.h"
+#include "util/u_math.h"
 #include "geometry.h"
 #include "libagx_intrinsics.h"
 #include "query.h"
@@ -330,16 +332,30 @@ increment_counters(global uint32_t *a, global uint32_t *b, global uint32_t *c,
    }
 }
 
+static unsigned
+decomposed_prims_for_vertices_with_tess(enum mesa_prim prim, int vertices,
+                                        unsigned verts_per_patch)
+{
+   if (prim >= MESA_PRIM_PATCHES) {
+      return vertices / verts_per_patch;
+   } else {
+      return u_decomposed_prims_for_vertices(prim, vertices);
+   }
+}
+
 KERNEL(1)
 libagx_increment_ia(global uint32_t *ia_vertices,
                     global uint32_t *ia_primitives,
                     global uint32_t *vs_invocations, global uint32_t *c_prims,
                     global uint32_t *c_invs, constant uint32_t *draw,
-                    enum mesa_prim prim)
+                    enum mesa_prim prim, unsigned verts_per_patch)
 {
    increment_counters(ia_vertices, vs_invocations, NULL, draw[0] * draw[1]);
 
-   uint prims = u_decomposed_prims_for_vertices(prim, draw[0]) * draw[1];
+   uint prims =
+      decomposed_prims_for_vertices_with_tess(prim, draw[0], verts_per_patch) *
+      draw[1];
+
    increment_counters(ia_primitives, c_prims, c_invs, prims);
 }
 
@@ -351,9 +367,9 @@ libagx_increment_ia_restart(global uint32_t *ia_vertices,
                             constant uint32_t *draw, uint64_t index_buffer,
                             uint32_t index_buffer_range_el,
                             uint32_t restart_index, uint32_t index_size_B,
-                            enum mesa_prim prim)
+                            enum mesa_prim prim, unsigned verts_per_patch)
 {
-   uint tid = get_global_id(0);
+   uint tid = cl_global_id.x;
    unsigned count = draw[0];
    local uint scratch;
 
@@ -389,15 +405,15 @@ libagx_increment_ia_restart(global uint32_t *ia_vertices,
                                  index_size_B);
 
          if (index == restart_index) {
-            accum +=
-               u_decomposed_prims_for_vertices(prim, i - last_restart - 1);
+            accum += decomposed_prims_for_vertices_with_tess(
+               prim, i - last_restart - 1, verts_per_patch);
             last_restart = i;
          }
       }
 
       {
-         accum +=
-            u_decomposed_prims_for_vertices(prim, count - last_restart - 1);
+         accum += decomposed_prims_for_vertices_with_tess(
+            prim, count - last_restart - 1, verts_per_patch);
       }
 
       increment_counters(ia_primitives, c_prims, c_invs, accum * draw[1]);
@@ -427,9 +443,8 @@ first_true_thread_in_workgroup(bool cond, local uint *scratch)
  * sets up most of the new draw descriptor.
  */
 static global void *
-setup_unroll_for_draw(global struct agx_geometry_state *heap,
-                      constant uint *in_draw, global uint *out,
-                      enum mesa_prim mode, uint index_size_B)
+setup_unroll_for_draw(global struct agx_heap *heap, constant uint *in_draw,
+                      global uint *out, enum mesa_prim mode, uint index_size_B)
 {
    /* Determine an upper bound on the memory required for the index buffer.
     * Restarts only decrease the unrolled index buffer size, so the maximum size
@@ -444,8 +459,7 @@ setup_unroll_for_draw(global struct agx_geometry_state *heap,
     * TODO: For multidraw, should be atomic. But multidraw+unroll isn't
     * currently wired up in any driver.
     */
-   uint old_heap_bottom_B = heap->heap_bottom;
-   heap->heap_bottom += align(alloc_size, 8);
+   uint old_heap_bottom_B = agx_heap_alloc_nonatomic_offs(heap, alloc_size);
 
    /* Setup most of the descriptor. Count will be determined after unroll. */
    out[1] = in_draw[1];                       /* instance count */
@@ -454,21 +468,19 @@ setup_unroll_for_draw(global struct agx_geometry_state *heap,
    out[4] = in_draw[4];                       /* base instance */
 
    /* Return the index buffer we allocated */
-   return (global uchar *)heap->heap + old_heap_bottom_B;
+   return (global uchar *)heap->base + old_heap_bottom_B;
 }
 
 KERNEL(1024)
-libagx_unroll_restart(global struct agx_geometry_state *heap,
-                      uint64_t index_buffer, constant uint *in_draw,
-                      global uint32_t *out_draw, uint64_t zero_sink,
+libagx_unroll_restart(global struct agx_heap *heap, uint64_t index_buffer,
+                      constant uint *in_draw, global uint32_t *out_draw,
                       uint32_t max_draws, uint32_t restart_index,
-                      uint32_t index_buffer_size_el,
-                      uint32_t index_size_log2__3, uint32_t flatshade_first,
-                      uint mode__11)
+                      uint32_t index_buffer_size_el, uint32_t index_size_log2,
+                      uint32_t flatshade_first, uint mode__11)
 {
-   uint32_t index_size_B = 1 << index_size_log2__3;
+   uint32_t index_size_B = 1 << index_size_log2;
    enum mesa_prim mode = libagx_uncompact_prim(mode__11);
-   uint tid = get_local_id(0);
+   uint tid = cl_local_id.x;
    uint count = in_draw[0];
 
    local uintptr_t out_ptr;
@@ -480,7 +492,7 @@ libagx_unroll_restart(global struct agx_geometry_state *heap,
    barrier(CLK_LOCAL_MEM_FENCE);
 
    uintptr_t in_ptr = (uintptr_t)(libagx_index_buffer(
-      index_buffer, index_buffer_size_el, in_draw[2], index_size_B, zero_sink));
+      index_buffer, index_buffer_size_el, in_draw[2], index_size_B));
 
    local uint scratch[32];
 
@@ -541,70 +553,21 @@ libagx_setup_xfb_buffer(global struct agx_geometry_params *p, uint i)
    return off;
 }
 
-/*
- * Translate EndPrimitive for LINE_STRIP or TRIANGLE_STRIP output prims into
- * writes into the 32-bit output index buffer. We write the sequence (b, b + 1,
- * b + 2, ..., b + n - 1, -1), where b (base) is the first vertex in the prim, n
- * (count) is the number of verts in the prims, and -1 is the prim restart index
- * used to signal the end of the prim.
- *
- * For points, we write index buffers without restart, just as a sideband to
- * pass data into the vertex shader.
- */
 void
-libagx_end_primitive(global int *index_buffer, uint total_verts,
-                     uint verts_in_prim, uint total_prims,
-                     uint invocation_vertex_base, uint invocation_prim_base,
+libagx_end_primitive(global uint32_t *index_buffer, uint total_verts,
+                     uint verts_in_prim, uint total_prims, uint index_offs,
                      uint geometry_base, bool restart)
 {
-   /* Previous verts/prims are from previous invocations plus earlier
-    * prims in this invocation. For the intra-invocation counts, we
-    * subtract the count for this prim from the inclusive sum NIR gives us.
-    */
-   uint previous_verts_in_invoc = (total_verts - verts_in_prim);
-   uint previous_verts = invocation_vertex_base + previous_verts_in_invoc;
-   uint previous_prims = restart ? invocation_prim_base + (total_prims - 1) : 0;
-
-   /* The indices are encoded as: (unrolled ID * output vertices) + vertex. */
-   uint index_base = geometry_base + previous_verts_in_invoc;
-
-   /* Index buffer contains 1 index for each vertex and 1 for each prim */
-   global int *out = &index_buffer[previous_verts + previous_prims];
-
-   /* Write out indices for the strip */
-   for (uint i = 0; i < verts_in_prim; ++i) {
-      out[i] = index_base + i;
-   }
-
-   if (restart)
-      out[verts_in_prim] = -1;
+   _libagx_end_primitive(index_buffer, total_verts, verts_in_prim, total_prims,
+                         index_offs, geometry_base, restart);
 }
 
 void
-libagx_build_gs_draw(global struct agx_geometry_params *p, uint vertices,
-                     uint primitives)
+libagx_pad_index_gs(global int *index_buffer, uint total_verts,
+                    uint total_prims, uint id, uint alloc)
 {
-   global uint *descriptor = p->indirect_desc;
-   global struct agx_geometry_state *state = p->state;
-
-   /* Setup the indirect draw descriptor */
-   uint indices = vertices + primitives; /* includes restart indices */
-
-   /* Allocate the index buffer */
-   uint index_buffer_offset_B = state->heap_bottom;
-   p->output_index_buffer =
-      (global uint *)(state->heap + index_buffer_offset_B);
-   state->heap_bottom += (indices * 4);
-
-   descriptor[0] = indices;                   /* count */
-   descriptor[1] = 1;                         /* instance count */
-   descriptor[2] = index_buffer_offset_B / 4; /* start */
-   descriptor[3] = 0;                         /* index bias */
-   descriptor[4] = 0;                         /* start instance */
-
-   if (state->heap_bottom > state->heap_size) {
-      global uint *foo = (global uint *)(uintptr_t)0xdeadbeef;
-      *foo = 0x1234;
+   for (uint i = total_verts + total_prims; i < alloc; ++i) {
+      index_buffer[(id * alloc) + i] = -1;
    }
 }
 
@@ -613,11 +576,13 @@ libagx_gs_setup_indirect(
    uint64_t index_buffer, constant uint *draw,
    global uintptr_t *vertex_buffer /* output */,
    global struct agx_ia_state *ia /* output */,
-   global struct agx_geometry_params *p /* output */, uint64_t zero_sink,
+   global struct agx_geometry_params *p /* output */,
+   global struct agx_heap *heap,
    uint64_t vs_outputs /* Vertex (TES) output mask */,
    uint32_t index_size_B /* 0 if no index bffer */,
    uint32_t index_buffer_range_el,
-   uint32_t prim /* Input primitive type, enum mesa_prim */)
+   uint32_t prim /* Input primitive type, enum mesa_prim */,
+   int is_prefix_summing, uint max_indices, enum agx_gs_shape shape)
 {
    /* Determine the (primitives, instances) grid size. */
    uint vertex_count = draw[0];
@@ -645,31 +610,43 @@ libagx_gs_setup_indirect(
     */
    if (index_size_B) {
       ia->index_buffer = libagx_index_buffer(
-         index_buffer, index_buffer_range_el, draw[2], index_size_B, zero_sink);
+         index_buffer, index_buffer_range_el, draw[2], index_size_B);
 
       ia->index_buffer_range_el =
          libagx_index_buffer_range_el(index_buffer_range_el, draw[2]);
    }
 
    /* We need to allocate VS and GS count buffers, do so now */
-   global struct agx_geometry_state *state = p->state;
-
    uint vertex_buffer_size =
       libagx_tcs_in_size(vertex_count * instance_count, vs_outputs);
 
-   p->count_buffer = (global uint *)(state->heap + state->heap_bottom);
-   state->heap_bottom +=
-      align(p->input_primitives * p->count_buffer_stride, 16);
+   if (is_prefix_summing) {
+      p->count_buffer = agx_heap_alloc_nonatomic(
+         heap, p->input_primitives * p->count_buffer_stride);
+   }
 
-   p->input_buffer = (uintptr_t)(state->heap + state->heap_bottom);
+   p->input_buffer =
+      (uintptr_t)agx_heap_alloc_nonatomic(heap, vertex_buffer_size);
    *vertex_buffer = p->input_buffer;
-   state->heap_bottom += align(vertex_buffer_size, 4);
 
    p->input_mask = vs_outputs;
 
-   if (state->heap_bottom > state->heap_size) {
-      global uint *foo = (global uint *)(uintptr_t)0x1deadbeef;
-      *foo = 0x1234;
+   /* Allocate the index buffer and write the draw consuming it */
+   global VkDrawIndexedIndirectCommand *cmd = (global void *)p->indirect_desc;
+
+   *cmd = (VkDrawIndexedIndirectCommand){
+      .indexCount = agx_gs_rast_vertices(shape, max_indices, prim_per_instance,
+                                         instance_count),
+      .instanceCount = agx_gs_rast_instances(shape, max_indices,
+                                             prim_per_instance, instance_count),
+   };
+
+   if (shape == AGX_GS_SHAPE_DYNAMIC_INDEXED) {
+      cmd->firstIndex =
+         agx_heap_alloc_nonatomic_offs(heap, cmd->indexCount * 4) / 4;
+
+      p->output_index_buffer =
+         (global uint *)(heap->base + (cmd->firstIndex * 4));
    }
 }
 
@@ -716,7 +693,7 @@ KERNEL(1024)
 _libagx_prefix_sum(global uint *buffer, uint len, uint words, uint word)
 {
    local uint scratch[32];
-   uint tid = get_local_id(0);
+   uint tid = cl_local_id.x;
 
    /* Main loop: complete workgroups processing 1024 values at once */
    uint i, count = 0;
@@ -748,11 +725,12 @@ KERNEL(1024)
 libagx_prefix_sum_geom(constant struct agx_geometry_params *p)
 {
    _libagx_prefix_sum(p->count_buffer, p->input_primitives,
-                      p->count_buffer_stride / 4, get_group_id(0));
+                      p->count_buffer_stride / 4, cl_group_id.x);
 }
 
 KERNEL(1024)
-libagx_prefix_sum_tess(global struct libagx_tess_args *p)
+libagx_prefix_sum_tess(global struct libagx_tess_args *p, global uint *c_prims,
+                       global uint *c_invs, uint increment_stats__2)
 {
    _libagx_prefix_sum(p->counts, p->nr_patches, 1 /* words */, 0 /* word */);
 
@@ -760,20 +738,17 @@ libagx_prefix_sum_tess(global struct libagx_tess_args *p)
     * index buffer now. Elect a thread for the allocation.
     */
    barrier(CLK_LOCAL_MEM_FENCE);
-   if (get_local_id(0) != 0)
+   if (cl_local_id.x != 0)
       return;
 
    /* The last element of an inclusive prefix sum is the total sum */
-   uint total = p->counts[p->nr_patches - 1];
+   uint total = p->nr_patches > 0 ? p->counts[p->nr_patches - 1] : 0;
 
    /* Allocate 4-byte indices */
    uint32_t elsize_B = sizeof(uint32_t);
    uint32_t size_B = total * elsize_B;
-   uint alloc_B = p->heap->heap_bottom;
-   p->heap->heap_bottom += size_B;
-   p->heap->heap_bottom = align(p->heap->heap_bottom, 8);
-
-   p->index_buffer = (global uint32_t *)(((uintptr_t)p->heap->heap) + alloc_B);
+   uint alloc_B = agx_heap_alloc_nonatomic_offs(p->heap, size_B);
+   p->index_buffer = (global uint32_t *)(((uintptr_t)p->heap->base) + alloc_B);
 
    /* ...and now we can generate the API indexed draw */
    global uint32_t *desc = p->out_draws;
@@ -783,6 +758,19 @@ libagx_prefix_sum_tess(global struct libagx_tess_args *p)
    desc[2] = alloc_B / elsize_B; /* start */
    desc[3] = 0;                  /* index_bias */
    desc[4] = 0;                  /* start_instance */
+
+   /* If necessary, increment clipper statistics too. This is only used when
+    * there's no geometry shader following us. See agx_nir_lower_gs.c for more
+    * info on the emulation. We just need to calculate the # of primitives
+    * tessellated.
+    */
+   if (increment_stats__2) {
+      uint prims = p->points_mode ? total
+                   : p->isolines  ? (total / 2)
+                                  : (total / 3);
+
+      increment_counters(c_prims, c_invs, NULL, prims);
+   }
 }
 
 uintptr_t

@@ -19,6 +19,15 @@ package {
     default_applicable_licenses: ["external_mesa3d_license"],
 }
 
+cc_library_headers {
+    name: "mesa_gfxstream_virtgpu",
+    host_supported: true,
+    vendor: true,
+    export_include_dirs: [
+        "include",
+    ],
+}
+
 cc_library_static {
     name: "mesa_platform_virtgpu",
     defaults: [
@@ -29,15 +38,13 @@ cc_library_static {
     ],
     header_libs: [
         "mesa_common_headers",
+        "mesa_gfxstream_virtgpu",
     ],
     static_libs: [
         "mesa_util",
     ],
     shared_libs: [
         "libdrm",
-    ],
-    export_include_dirs: [
-        "include",
     ],
     export_shared_lib_headers: [
         "libdrm",
@@ -46,9 +53,7 @@ cc_library_static {
         "-Wno-missing-field-initializers",
         "-fvisibility=default",
         "-fstrict-aliasing",
-    ],
-    local_include_dirs: [
-        "include",
+        "-DMAJOR_IN_SYSMACROS",
     ],
     target: {
         android: {
@@ -66,6 +71,11 @@ cc_library_static {
         host: {
             header_libs: [
                 "virtgpu_kumquat_ffi_headers",
+                "mesa_vulkan_mapper_headers",
+            ],
+            generated_headers: [
+                "vk_dispatch_table_header",
+                "vk_extensions_header",
             ],
             srcs: [
                 "linux/LinuxVirtGpuBlob.cpp",
@@ -80,6 +90,9 @@ cc_library_static {
             shared_libs: [
                 "libvirtgpu_kumquat_ffi",
             ],
+            static_libs: [
+                "mesa_vulkan_mapper",
+            ],
         },
     },
 }
@@ -91,10 +104,20 @@ cc_defaults {
         "mesa_util",
         "mesa_util_c11",
     ],
+    header_libs: [
+        "mesa_src_headers",
+        "mesa_gfxstream_virtgpu",
+    ],
     target: {
         host: {
+            static_libs: [
+                "mesa_util",
+                "mesa_vulkan_util",
+                "mesa_vulkan_mapper",
+            ],
             shared_libs: [
                 "libvirtgpu_kumquat_ffi",
+                "libcutils",
             ],
         },
     },

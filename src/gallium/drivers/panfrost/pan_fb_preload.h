@@ -28,7 +28,6 @@
 #include "util/format/u_format.h"
 #include "pan_desc.h"
 #include "pan_pool.h"
-#include "pan_texture.h"
 #include "pan_util.h"
 
 struct pan_blend_shader_cache;
@@ -41,7 +40,6 @@ struct pan_fb_preload_cache {
    struct {
       struct pan_pool *pool;
       struct hash_table *preload;
-      struct hash_table *blend;
       pthread_mutex_t lock;
    } shaders;
    struct {
@@ -63,7 +61,7 @@ void GENX(pan_fb_preload_cache_cleanup)(struct pan_fb_preload_cache *cache);
 unsigned GENX(pan_preload_fb)(struct pan_fb_preload_cache *cache,
                               struct pan_pool *desc_pool,
                               struct pan_fb_info *fb, uint64_t tsd,
-                              struct panfrost_ptr *jobs);
+                              struct pan_ptr *jobs);
 #endif
 
 #endif

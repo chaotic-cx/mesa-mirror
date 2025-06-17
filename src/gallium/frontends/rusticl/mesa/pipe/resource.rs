@@ -3,12 +3,13 @@ use mesa_rust_gen::*;
 use std::{
     marker::PhantomData,
     mem,
+    num::NonZeroU64,
     ptr::{self, NonNull},
 };
 
 use super::context::PipeContext;
 
-#[derive(PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct PipeResource {
     pipe: NonNull<pipe_resource>,
@@ -124,7 +125,15 @@ impl PipeResource {
         self.as_ref().flags & PIPE_RESOURCE_FLAG_RUSTICL_IS_USER != 0
     }
 
-    pub fn pipe_image_view(&self, read_write: bool, host_access: u16) -> PipeImageView {
+    pub fn resource_get_address(&self) -> Option<NonZeroU64> {
+        let screen_ptr = self.as_ref().screen;
+        // SAFETY: it's a valid pointer and everything.
+        let screen = unsafe { screen_ptr.as_ref().unwrap_unchecked() };
+
+        NonZeroU64::new(unsafe { screen.resource_get_address?(screen_ptr, self.pipe()) })
+    }
+
+    pub fn pipe_image_view(&self, read_write: bool) -> PipeImageView {
         debug_assert!(!self.is_buffer());
 
         let pipe = self.as_ref();
@@ -146,7 +155,7 @@ impl PipeResource {
         PipeImageView::new(pipe_image_view {
             resource: self.pipe(),
             format: pipe.format(),
-            access: host_access,
+            access: shader_access,
             shader_access: shader_access,
             u: pipe_image_view__bindgen_ty_1 { tex: tex },
         })
@@ -156,7 +165,6 @@ impl PipeResource {
         &self,
         format: pipe_format,
         read_write: bool,
-        host_access: u16,
         size: u32,
     ) -> PipeImageView {
         debug_assert!(self.is_buffer());
@@ -170,7 +178,7 @@ impl PipeResource {
         PipeImageView::new(pipe_image_view {
             resource: self.pipe(),
             format: format,
-            access: host_access,
+            access: shader_access,
             shader_access: shader_access,
             u: pipe_image_view__bindgen_ty_1 {
                 buf: pipe_image_view__bindgen_ty_1__bindgen_ty_2 {
@@ -185,7 +193,6 @@ impl PipeResource {
         &self,
         format: pipe_format,
         read_write: bool,
-        host_access: u16,
         app_img_info: &AppImgInfo,
     ) -> PipeImageView {
         debug_assert!(self.is_buffer());
@@ -199,10 +206,10 @@ impl PipeResource {
         PipeImageView::new(pipe_image_view {
             resource: self.pipe(),
             format: format,
-            access: PIPE_IMAGE_ACCESS_TEX2D_FROM_BUFFER as u16 | host_access,
+            access: PIPE_IMAGE_ACCESS_TEX2D_FROM_BUFFER as u16 | shader_access,
             shader_access: shader_access,
             u: pipe_image_view__bindgen_ty_1 {
-                tex2d_from_buf: pipe_image_view__bindgen_ty_1__bindgen_ty_3 {
+                tex2d_from_buf: pipe_tex2d_from_buf {
                     offset: 0,
                     row_stride: app_img_info.row_stride as u16,
                     width: app_img_info.width as u16,
@@ -237,7 +244,7 @@ impl PipeResource {
 
         // write the entire union field because u_sampler_view_default_template might have left it
         // in an undefined state.
-        res.u.buf = pipe_sampler_view__bindgen_ty_2__bindgen_ty_2 {
+        res.u.buf = pipe_sampler_view__bindgen_ty_1__bindgen_ty_2 {
             offset: 0,
             size: size,
         };
@@ -259,7 +266,7 @@ impl PipeResource {
 
         // write the entire union field because u_sampler_view_default_template might have left it
         // in an undefined state.
-        res.u.tex2d_from_buf = pipe_sampler_view__bindgen_ty_2__bindgen_ty_3 {
+        res.u.tex2d_from_buf = pipe_tex2d_from_buf {
             offset: 0,
             row_stride: app_img_info.row_stride as u16,
             width: app_img_info.width as u16,
@@ -273,7 +280,18 @@ impl PipeResource {
 
 impl Drop for PipeResource {
     fn drop(&mut self) {
-        unsafe { pipe_resource_reference(&mut self.pipe.as_ptr(), ptr::null_mut()) }
+        unsafe {
+            let pipe = self.pipe.as_ref();
+            let screen = pipe.screen.as_ref().unwrap();
+
+            if pipe.flags & PIPE_RESOURCE_FLAG_FRONTEND_VM != 0 {
+                if let Some(resource_assign_vma) = screen.resource_assign_vma {
+                    resource_assign_vma(pipe.screen, self.pipe(), 0);
+                }
+            }
+
+            pipe_resource_reference(&mut self.pipe.as_ptr(), ptr::null_mut());
+        }
     }
 }
 
@@ -324,7 +342,8 @@ impl<'c, 'r> PipeSamplerView<'c, 'r> {
 impl Drop for PipeSamplerView<'_, '_> {
     fn drop(&mut self) {
         unsafe {
-            pipe_sampler_view_reference(&mut ptr::null_mut(), self.view.as_ptr());
+            let ctx = self.view.as_ref().context;
+            (*ctx).sampler_view_release.unwrap()(ctx, self.view.as_ptr())
         }
     }
 }

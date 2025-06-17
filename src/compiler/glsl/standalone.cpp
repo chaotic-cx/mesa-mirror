@@ -41,6 +41,7 @@
 #include "linker_util.h"
 #include "main/mtypes.h"
 #include "program/program.h"
+#include "nir_shader_compiler_options.h"
 
 static const struct standalone_options *options;
 
@@ -370,6 +371,7 @@ standalone_compile_shader(const struct standalone_options *_options,
          options->LowerPrecisionDerivatives = true;
          options->LowerPrecisionConstants = true;
          options->LowerPrecisionFloat16Uniforms = true;
+         options->LowerPrecision16BitLoadDst = true;
       }
    }
 

@@ -1,4 +1,5 @@
 .docs-base:
+  timeout: 10m
   extends:
     - .build-linux
     - .use-alpine/x86_64_build
@@ -13,13 +14,16 @@
       -D werror=true
     - meson compile -C _build
     - meson install -C _build
+    - echo "Documentation website preview is available at $ARTIFACTS_BASE_URL/public/index.html"
 
-pages:
+deploy-docs:
   extends: .docs-base
   stage: deploy
+  pages: true
   rules:
     - !reference [.common-rules, rules]
     - !reference [.no_scheduled_pipelines-rules, rules]
+    # post-merge pipeline
     - if: '$CI_PROJECT_NAMESPACE == "mesa" && $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH && $CI_COMMIT_BRANCH'
       changes: &docs-or-ci
         - docs/**/*
@@ -39,14 +43,18 @@ test-docs:
   stage: deploy
   rules:
     - !reference [.common-rules, rules]
-    # pre-merge or merge pipeline
-    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    # merge pipeline
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $GITLAB_USER_LOGIN == "marge-bot"'
       changes: *docs-or-ci
       when: on_success
+    # pre-merge pipeline
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+      changes: *docs-or-ci
+      when: manual
     # fork pipeline
     - if: '$CI_COMMIT_BRANCH && $CI_PROJECT_NAMESPACE != "mesa"'
       changes: *docs-or-ci
-      when: on_success
+      when: manual
     # Other cases default to never
 
 linkcheck-docs:
@@ -57,6 +65,16 @@ linkcheck-docs:
   rules:
     - !reference [.common-rules, rules]
     - !reference [.scheduled_pipeline-rules, rules]
+    # pre-merge pipeline
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $GITLAB_USER_LOGIN != "marge-bot"'
+      changes: *docs-or-ci
+      when: manual
   allow_failure: true
   script:
-    - sphinx-build -W -b linkcheck docs public
+    - |
+      if ! sphinx-build -W -b linkcheck docs public
+      then
+        echo "Summary:"
+        cat public/output.txt
+        exit 1
+      fi

@@ -3,6 +3,9 @@ glx@glx_arb_sync_control@timing.*
 glx@glx-multithread-texture
 glx@glx-visuals-stencil -pixmap
 
+# These either consistently pass or consistently fail depending on the X server version, DDX, etc.
+glx@glx_ext_import_context@*
+
 # This one will be Crash or Fail depending on the shader cache state
 spec@!opengl 1.0@rasterpos
 spec@!opengl 1.0@rasterpos@glsl_vs_gs_linked
@@ -16,8 +19,6 @@ spec@arb_bindless_texture@compiler@samplers@arith-bound-sampler-texture2d.frag
 
 # Random
 # Mostly reported by "Some new flakes found:" and most of them never appear in the failures
-GTF-GL46.gtf30.GL3Tests.blend_minmax.blend_minmax_clamping
-GTF-GL46.gtf30.GL3Tests.blend_minmax.blend_minmax_draw
 KHR-GL46.geometry_shader.primitive_counter.triangles_to_line_strip_rp
 
 KHR-GLES31.core.geometry_shader.primitive_counter.lines_to_line_strip
@@ -133,3 +134,6 @@ dEQP-GLES3.functional.occlusion_query.stencil_write
 dEQP-GLES3.functional.occlusion_query.stencil_write_stencil_clear
 
 dEQP-GLES31.functional.tessellation.invariance.primitive_set.triangles_equal_spacing_cw_point_mode
+dEQP-GLES31.functional.tessellation.invariance.primitive_set.triangles_fractional_even_spacing_ccw_point_mode
+dEQP-GLES31.functional.tessellation.invariance.primitive_set.triangles_fractional_even_spacing_cw_point_mode
+dEQP-GLES31.functional.tessellation.invariance.primitive_set.triangles_fractional_odd_spacing_ccw_point_mode

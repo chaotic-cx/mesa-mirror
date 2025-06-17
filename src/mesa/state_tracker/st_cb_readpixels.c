@@ -32,6 +32,7 @@
 #include "main/readpix.h"
 #include "main/enums.h"
 #include "main/framebuffer.h"
+#include "main/renderbuffer.h"
 #include "util/u_inlines.h"
 #include "util/format/u_format.h"
 #include "cso_cache/cso_context.h"
@@ -103,7 +104,7 @@ try_pbo_readpixels(struct st_context *st, struct gl_renderbuffer *rb,
    struct pipe_context *pipe = st->pipe;
    struct pipe_screen *screen = st->screen;
    struct cso_context *cso = st->cso_context;
-   struct pipe_surface *surface = rb->surface;
+   struct pipe_surface *surface = &rb->surface;
    struct pipe_resource *texture = rb->texture;
    const struct util_format_description *desc;
    struct st_pbo_addresses addr;
@@ -174,14 +175,14 @@ try_pbo_readpixels(struct st_context *st, struct gl_renderbuffer *rb,
       }
 
       templ.target = view_target;
-      templ.u.tex.first_level = surface->u.tex.level;
+      templ.u.tex.first_level = surface->level;
       templ.u.tex.last_level = templ.u.tex.first_level;
 
       if (view_target != PIPE_TEXTURE_3D) {
-         templ.u.tex.first_layer = surface->u.tex.first_layer;
+         templ.u.tex.first_layer = surface->first_layer;
          templ.u.tex.last_layer = templ.u.tex.first_layer;
       } else {
-         addr.constants.layer_offset = surface->u.tex.first_layer;
+         addr.constants.layer_offset = surface->first_layer;
       }
 
       sampler_view = pipe->create_sampler_view(pipe, texture, &templ);
@@ -189,11 +190,11 @@ try_pbo_readpixels(struct st_context *st, struct gl_renderbuffer *rb,
          goto fail;
 
       pipe->set_sampler_views(pipe, PIPE_SHADER_FRAGMENT, 0, 1, 0,
-                              false, &sampler_view);
+                              &sampler_view);
       st->state.num_sampler_views[PIPE_SHADER_FRAGMENT] =
          MAX2(st->state.num_sampler_views[PIPE_SHADER_FRAGMENT], 1);
 
-      pipe_sampler_view_reference(&sampler_view, NULL);
+      pipe_sampler_view_release(sampler_view);
 
       cso_set_samplers(cso, PIPE_SHADER_FRAGMENT, 1, samplers);
    }
@@ -216,8 +217,7 @@ try_pbo_readpixels(struct st_context *st, struct gl_renderbuffer *rb,
 
    /* Set up no-attachment framebuffer */
    memset(&fb, 0, sizeof(fb));
-   fb.width = surface->width;
-   fb.height = surface->height;
+   pipe_surface_size(surface, &fb.width, &fb.height);
    fb.samples = 1;
    fb.layers = addr.depth;
    cso_set_framebuffer(cso, &fb);
@@ -310,7 +310,7 @@ blit_to_staging(struct st_context *st, struct gl_renderbuffer *rb,
 
    memset(&blit, 0, sizeof(blit));
    blit.src.resource = rb->texture;
-   blit.src.level = rb->surface->u.tex.level;
+   blit.src.level = rb->surface.level;
    blit.src.format = src_format;
    blit.dst.resource = dst;
    blit.dst.level = 0;
@@ -319,7 +319,7 @@ blit_to_staging(struct st_context *st, struct gl_renderbuffer *rb,
    blit.dst.box.x = 0;
    blit.src.box.y = y;
    blit.dst.box.y = 0;
-   blit.src.box.z = rb->surface->u.tex.first_layer;
+   blit.src.box.z = rb->surface.first_layer;
    blit.dst.box.z = 0;
    blit.src.box.width = blit.dst.box.width = width;
    blit.src.box.height = blit.dst.box.height = height;
@@ -348,6 +348,7 @@ try_cached_readpixels(struct st_context *st, struct gl_renderbuffer *rb,
 {
    struct pipe_resource *src = rb->texture;
    struct pipe_resource *dst = NULL;
+   const struct pipe_surface *surface = &rb->surface;
 
    if (ST_DEBUG & DEBUG_NOREADPIXCACHE)
       return NULL;
@@ -355,13 +356,13 @@ try_cached_readpixels(struct st_context *st, struct gl_renderbuffer *rb,
    /* Reset cache after invalidation or switch of parameters. */
    if (st->readpix_cache.src != src ||
        st->readpix_cache.dst_format != dst_format ||
-       st->readpix_cache.level != rb->surface->u.tex.level ||
-       st->readpix_cache.layer != rb->surface->u.tex.first_layer) {
+       st->readpix_cache.level != surface->level ||
+       st->readpix_cache.layer != surface->first_layer) {
       pipe_resource_reference(&st->readpix_cache.src, src);
       pipe_resource_reference(&st->readpix_cache.cache, NULL);
       st->readpix_cache.dst_format = dst_format;
-      st->readpix_cache.level = rb->surface->u.tex.level;
-      st->readpix_cache.layer = rb->surface->u.tex.first_layer;
+      st->readpix_cache.level = surface->level;
+      st->readpix_cache.layer = surface->first_layer;
       st->readpix_cache.hits = 0;
    }
 

@@ -225,7 +225,6 @@ glx@glx-swap-singlebuffer
 glx@glx-visuals-depth -pixmap
 glx@glx-visuals-stencil -pixmap
 spec@arb_timer_query@timestamp-get
-spec@glsl-4.00@execution@built-in-functions@fs-op-mult-dmat4x3-dmat4
 stale-regs-dEQP-VK.clipping.clip_volume.clipped.large_points
 stale-regs-dEQP-VK.draw.dynamic_rendering.complete_secondary_cmd_buff.simple_draw.simple_draw_instanced_triangle_list
 stale-regs-dEQP-VK.draw.dynamic_rendering.primary_cmd_buff.multi_draw.mosaic.indexed_mixed.max_draws.standard_stride.2_instances_base_3.tess_geom.single_view.offset_6
@@ -280,16 +279,6 @@ stale-regs-dEQP-VK.transform_feedback.simple.query_omit_write_line_strip_with_ad
 KHR-GL46.compute_shader.atomic-case2
 KHR-GL46.shading_language_420pack.qualifier_order
 KHR-GL46.copy_image.integer_tex
-spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-op-div-dmat4-dmat4
-spec@glsl-4.00@execution@built-in-functions@fs-inverse-dmat4
-spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-op-div-dmat3x4-dmat3x4
-spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-op-mult-dmat3x4-dmat4x3
-spec@glsl-4.00@execution@built-in-functions@fs-op-mult-dmat3x4-dmat4x3
-spec@arb_gpu_shader_fp64@execution@vs-isnan-dvec
-spec@glsl-3.30@execution@built-in-functions@fs-floatbitstoint-neg_abs
-spec@glsl-4.00@execution@built-in-functions@fs-op-div-double-dmat3x4
-spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-op-div-double-dmat4
-spec@glsl-4.00@execution@built-in-functions@fs-op-div-dmat3x4-dmat3x4
 dEQP-VK.spirv_assembly.instruction.graphics.opspecconstantop.shiftrightarithmetic_frag
 dEQP-VK.synchronization2.op.single_queue.fence.write_image_compute_read_image_vertex.image_128x128_r8_unorm
 dEQP-VK.synchronization.timeline_semaphore.wait_before_signal.write_blit_image_read_image_vertex.image_128x128_r8g8b8a8_unorm
@@ -322,10 +311,6 @@ dEQP-VK.draw.renderpass.shader_layer.tessellation_shader_6
 dEQP-VK.synchronization.timeline_semaphore.one_to_n.write_copy_image_read_image_geometry.image_128_r32_uint
 dEQP-VK.spirv_assembly.instruction.graphics.image_sampler.imagesample.combined_image_sampler_separate_variables.optypeimage_mismatch.rgba16i.depth_property.depth.shader_geom
 dEQP-VK.api.copy_and_blit.core.image_to_image.all_formats.color.2d_to_1d.a8b8g8r8_snorm_pack32.r32_uint.general_optimal
-
-# uprev Piglit in Mesa
-spec@glsl-4.20@execution@conversion@frag-conversion-implicit-mat4-dmat4-zero-sign
-
 # Random flakes, unkown when they started appearing
 dEQP-EGL.functional.color_clears.multi_thread.gles2.rgb888_pbuffer
 wayland-dEQP-EGL.functional.fence_sync.valid.egl_fence_persistent_buffer
@@ -368,7 +353,29 @@ KHR-GL46.shader_multisample_interpolation.render.interpolate_at_centroid_check.r
 KHR-GL46.tessellation_shader.tessellation_control_to_tessellation_evaluation.gl_MaxPatchVertices_Position_PointSize_primitive_mode_quads_vertex_ordering__vertex_spacing__point_mode_disabled
 KHR-GL46.tessellation_shader.tessellation_control_to_tessellation_evaluation.gl_MaxPatchVertices_Position_PointSize_primitive_mode_quads_vertex_ordering__vertex_spacing_fractional_even_spacing_point_mode_enabled
 gmem-dEQP-VK.spirv_assembly.type.vec4.u32.bit_field_insert_offset64_count32_geom
-spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-op-div-dmat3-dmat3
-spec@arb_gpu_shader_fp64@execution@built-in-functions@fs-op-div-dmat4x2-dmat4x2
 wayland-dEQP-EGL.functional.buffer_age.no_preserve.resize_after_swap.odd_clear_even_clear
 wayland-dEQP-EGL.functional.image.modify.tex_rgb5_a1_renderbuffer_clear_color
+
+# New flakes with GL CTS 4.6.6.0 & ES CTS 3.2.12.0
+dEQP-EGL.functional.color_clears.multi_context.gles2.rgb888_pbuffer
+dEQP-EGL.functional.color_clears.multi_context.gles2.rgba8888_pbuffer
+dEQP-EGL.functional.color_clears.single_context.gles2.rgba8888_pbuffer
+dEQP-EGL.functional.color_clears.single_context.gles3.rgba8888_pbuffer
+dEQP-EGL.functional.preserve_swap.preserve.read_before_swap.pre_render
+dEQP-EGL.functional.render.multi_context.gles2.rgb888_pbuffer
+dEQP-EGL.functional.render.multi_context.gles2_gles3.rgb888_pbuffer
+dEQP-EGL.functional.render.multi_thread.gles3.rgba8888_pbuffer
+dEQP-GLES31.functional.copy_image.mixed.viewclass_64_bits_mixed.rg32ui_r11_eac.renderbuffer_to_cubemap
+KHR-GLES31.core.pixelstoragemodes.teximage3d.rgba32i.16_0_0
+KHR-GL46.direct_state_access.framebuffers_texture_layer_attachment
+KHR-GL46.direct_state_access.textures_storage_2d_rgba16ui
+KHR-GL46.direct_state_access.textures_storage_3d_rgba8ui_unorm
+KHR-GL46.direct_state_access.textures_storage_multisample_3d_r32f
+KHR-GL46.sample_variables.mask.rgba8.samples_2.mask_0
+KHR-GL46.sample_variables.mask.rgba8i.samples_1.mask_4
+KHR-GL46.shader_image_size.advanced-changeSize
+KHR-GL46.shaders44.preprocessor.line_continuation.preprocessing_token_vertex
+KHR-GL46.tessellation_shader.tessellation_control_to_tessellation_evaluation.gl_MaxPatchVertices_Position_PointSize_primitive_mode_isolines_vertex_ordering_ccw_vertex_spacing_fractional_even_spacing_point_mode_enabled
+KHR-GL46.tessellation_shader.tessellation_control_to_tessellation_evaluation.gl_MaxPatchVertices_Position_PointSize_primitive_mode_quads_vertex_ordering_ccw_vertex_spacing__point_mode_enabled
+KHR-GL46.tessellation_shader.tessellation_control_to_tessellation_evaluation.gl_MaxPatchVertices_Position_PointSize_primitive_mode_triangles_vertex_ordering_cw_vertex_spacing_fractional_odd_spacing_point_mode_disabled
+wayland-dEQP-EGL.functional.fence_sync.valid.egl_fence_persistent_buffer

@@ -16,11 +16,7 @@
 #include "vn_cs.h"
 
 struct vn_command_pool {
-   struct vn_object_base base;
-
-   VkAllocationCallbacks allocator;
-   struct vn_device *device;
-   uint32_t queue_family_index;
+   struct vn_command_pool_base base;
 
    struct list_head command_buffers;
 
@@ -45,16 +41,9 @@ struct vn_command_pool {
    struct vn_cached_storage storage;
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_command_pool,
-                               base.base,
+                               base.vk.base,
                                VkCommandPool,
                                VK_OBJECT_TYPE_COMMAND_POOL)
-
-enum vn_command_buffer_state {
-   VN_COMMAND_BUFFER_STATE_INITIAL,
-   VN_COMMAND_BUFFER_STATE_RECORDING,
-   VN_COMMAND_BUFFER_STATE_EXECUTABLE,
-   VN_COMMAND_BUFFER_STATE_INVALID,
-};
 
 /* command buffer builder to:
  * - fix wsi image ownership and layout transitions
@@ -81,23 +70,30 @@ struct vn_command_buffer_builder {
 struct vn_query_feedback_cmd;
 
 struct vn_command_buffer {
-   struct vn_object_base base;
+   struct vn_command_buffer_base base;
 
-   struct vn_command_pool *pool;
-   VkCommandBufferLevel level;
-   enum vn_command_buffer_state state;
    struct vn_cs_encoder cs;
 
    struct vn_command_buffer_builder builder;
 
    struct vn_query_feedback_cmd *linked_qfb_cmd;
-
-   struct list_head head;
 };
 VK_DEFINE_HANDLE_CASTS(vn_command_buffer,
-                       base.base,
+                       base.vk.base,
                        VkCommandBuffer,
                        VK_OBJECT_TYPE_COMMAND_BUFFER)
+
+static inline struct vn_command_pool *
+vn_cmd_pool(struct vn_command_buffer *cmd)
+{
+   return container_of(cmd->base.vk.pool, struct vn_command_pool, base.vk);
+}
+
+static inline struct vn_command_buffer *
+vn_cmd_from_vk(struct vk_command_buffer *cmd_vk)
+{
+   return container_of(cmd_vk, struct vn_command_buffer, base.vk);
+}
 
 /* Queries recorded to support qfb.
  * - query_count is the actual queries used with multiview considered

@@ -31,6 +31,7 @@ renaming_overrides_prefixing = true
 "Offset4D" = "nil_offset4d"
 "SampleLayout" = "nil_sample_layout"
 "SampleOffset" = "nil_sample_offset"
+"SuInfo" = "nil_su_info"
 "Tiling" = "nil_tiling"
 "View" = "nil_view"
 "ViewType" = "nil_view_type"
@@ -40,6 +41,7 @@ renaming_overrides_prefixing = true
 "IMAGE_USAGE_2D_VIEW_BIT" = "NIL_IMAGE_USAGE_2D_VIEW_BIT"
 "IMAGE_USAGE_LINEAR_BIT" = "NIL_IMAGE_USAGE_LINEAR_BIT"
 "IMAGE_USAGE_SPARSE_RESIDENCY_BIT" = "NIL_IMAGE_USAGE_SPARSE_RESIDENCY_BIT"
+"IMAGE_USAGE_VIDEO_BIT" = "NIL_IMAGE_USAGE_VIDEO_BIT"
 
 [macro_expansion]
 bitflags = true # We need this for the bitflags crate

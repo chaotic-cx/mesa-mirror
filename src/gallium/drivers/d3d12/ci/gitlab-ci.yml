@@ -6,8 +6,9 @@
   dependencies:
     - windows-msvc
   needs:
-    - windows-msvc
-    - windows_test_msvc
+    - job: windows-msvc
+    - job: windows_test_msvc
+      optional: true
     - !reference [.required-for-hardware-jobs, needs]
   variables:
     GIT_STRATEGY: none # testing doesn't build anything from source
@@ -19,11 +20,21 @@
 .d3d12-test-piglit:
   extends:
     - .d3d12-test
+    - .test-piglit
   script:
     - . _install/piglit_run.ps1
+  # temporarily restrict to GSt runners until we discover why GL testing is
+  # so slow on the Microsoft runners
+  tags:
+    - windows
+    - docker
+    - "2022"
+    - mesa
+    - gstreamer-windows
+  timeout: 12m
   artifacts:
     when: on_failure
-    name: "mesa_${CI_JOB_NAME}"
+    name: "${CI_PROJECT_NAME}_${CI_JOB_NAME}"
     paths:
       - logs/
   variables:

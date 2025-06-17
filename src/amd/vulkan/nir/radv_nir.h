@@ -10,7 +10,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include "amd_family.h"
-#include "nir.h"
+#include "nir_defines.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,10 +26,10 @@ struct radv_shader_layout;
 struct radv_device;
 struct radv_graphics_state_key;
 
-void radv_nir_apply_pipeline_layout(nir_shader *shader, struct radv_device *device,
+bool radv_nir_apply_pipeline_layout(nir_shader *shader, struct radv_device *device,
                                     const struct radv_shader_stage *stage);
 
-void radv_nir_lower_abi(nir_shader *shader, enum amd_gfx_level gfx_level, const struct radv_shader_stage *stage,
+bool radv_nir_lower_abi(nir_shader *shader, enum amd_gfx_level gfx_level, const struct radv_shader_stage *stage,
                         const struct radv_graphics_state_key *gfx_state, uint32_t address32_hi);
 
 bool radv_nir_lower_hit_attrib_derefs(nir_shader *shader);
@@ -69,13 +69,15 @@ void radv_nir_lower_io(struct radv_device *device, nir_shader *nir);
 
 bool radv_nir_lower_io_to_mem(struct radv_device *device, struct radv_shader_stage *stage);
 
-void radv_nir_lower_poly_line_smooth(nir_shader *nir, const struct radv_graphics_state_key *gfx_state);
+bool radv_nir_lower_cooperative_matrix(nir_shader *shader, enum amd_gfx_level gfx_level, unsigned wave_size);
 
-bool radv_nir_lower_cooperative_matrix(nir_shader *shader, unsigned wave_size);
+bool radv_nir_opt_cooperative_matrix(nir_shader *shader, enum amd_gfx_level gfx_level);
 
 bool radv_nir_lower_draw_id_to_zero(nir_shader *shader);
 
 bool radv_nir_remap_color_attachment(nir_shader *shader, const struct radv_graphics_state_key *gfx_state);
+
+bool radv_nir_lower_printf(nir_shader *shader);
 
 typedef struct radv_nir_opt_tid_function_options {
    bool use_masked_swizzle_amd : 1;
@@ -91,6 +93,8 @@ typedef struct radv_nir_opt_tid_function_options {
 } radv_nir_opt_tid_function_options;
 
 bool radv_nir_opt_tid_function(nir_shader *shader, const radv_nir_opt_tid_function_options *options);
+
+bool radv_nir_opt_fs_builtins(nir_shader *shader, const struct radv_graphics_state_key *gfx_state);
 
 #ifdef __cplusplus
 }

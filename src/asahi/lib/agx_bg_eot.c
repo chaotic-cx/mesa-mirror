@@ -38,23 +38,21 @@ agx_compile_bg_eot_shader(struct agx_bg_eot_cache *cache, nir_shader *shader,
                           struct agx_tilebuffer_layout *tib)
 {
    agx_nir_lower_texture(shader);
-   agx_preprocess_nir(shader, cache->dev->libagx);
+   agx_preprocess_nir(shader);
    if (tib) {
       unsigned bindless_base = 0;
-      agx_nir_lower_tilebuffer(shader, tib, NULL, &bindless_base, NULL, NULL);
-      agx_nir_lower_monolithic_msaa(shader, tib->nr_samples);
-      agx_nir_lower_multisampled_image_store(shader);
-      agx_nir_lower_texture(shader);
-
-      nir_shader_intrinsics_pass(shader, lower_tex_handle_to_u0,
-                                 nir_metadata_control_flow, NULL);
+      NIR_PASS(_, shader, agx_nir_lower_tilebuffer, tib, NULL, &bindless_base,
+               NULL, NULL);
+      NIR_PASS(_, shader, agx_nir_lower_monolithic_msaa, tib->nr_samples);
+      NIR_PASS(_, shader, agx_nir_lower_multisampled_image_store);
+      NIR_PASS(_, shader, agx_nir_lower_texture);
+      NIR_PASS(_, shader, nir_shader_intrinsics_pass, lower_tex_handle_to_u0,
+               nir_metadata_control_flow, NULL);
    }
-
-   key->libagx = cache->dev->libagx;
 
    struct agx_bg_eot_shader *res = rzalloc(cache->ht, struct agx_bg_eot_shader);
    struct agx_shader_part bin;
-   agx_compile_shader_nir(shader, key, NULL, &bin);
+   agx_compile_shader_nir(shader, key, &bin);
 
    res->info = bin.info;
    res->ptr = agx_pool_upload_aligned_with_bo(

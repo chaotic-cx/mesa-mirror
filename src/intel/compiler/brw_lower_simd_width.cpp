@@ -3,13 +3,11 @@
  * SPDX-License-Identifier: MIT
  */
 
-#include "brw_fs.h"
-#include "brw_fs_builder.h"
-
-using namespace brw;
+#include "brw_shader.h"
+#include "brw_builder.h"
 
 static bool
-is_mixed_float_with_fp32_dst(const fs_inst *inst)
+is_mixed_float_with_fp32_dst(const brw_inst *inst)
 {
    if (inst->dst.type != BRW_TYPE_F)
       return false;
@@ -23,7 +21,7 @@ is_mixed_float_with_fp32_dst(const fs_inst *inst)
 }
 
 static bool
-is_mixed_float_with_packed_fp16_dst(const fs_inst *inst)
+is_mixed_float_with_packed_fp16_dst(const brw_inst *inst)
 {
    if (inst->dst.type != BRW_TYPE_HF || inst->dst.stride != 1)
       return false;
@@ -51,8 +49,8 @@ is_mixed_float_with_packed_fp16_dst(const fs_inst *inst)
  * excessively restrictive.
  */
 static unsigned
-get_fpu_lowered_simd_width(const fs_visitor *shader,
-                           const fs_inst *inst)
+get_fpu_lowered_simd_width(const brw_shader *shader,
+                           const brw_inst *inst)
 {
    const struct brw_compiler *compiler = shader->compiler;
    const struct intel_device_info *devinfo = compiler->devinfo;
@@ -112,6 +110,9 @@ get_fpu_lowered_simd_width(const fs_visitor *shader,
    if (inst->is_3src(compiler) && !devinfo->supports_simd16_3src)
       max_width = MIN2(max_width, inst->exec_size / reg_count);
 
+   if (has_bfloat_operands(inst))
+      max_width = MIN2(max_width, devinfo->ver < 20 ? 8 : 16);
+
    if (inst->opcode != BRW_OPCODE_MOV) {
       /* From the SKL PRM, Special Restrictions for Handling Mixed Mode
        * Float Operations:
@@ -159,7 +160,7 @@ get_fpu_lowered_simd_width(const fs_visitor *shader,
  */
 static unsigned
 get_sampler_lowered_simd_width(const struct intel_device_info *devinfo,
-                               const fs_inst *inst)
+                               const brw_inst *inst)
 {
    /* If we have a min_lod parameter on anything other than a simple sample
     * message, it will push it over 5 arguments and we have to fall back to
@@ -222,7 +223,7 @@ get_sampler_lowered_simd_width(const struct intel_device_info *devinfo,
 }
 
 static bool
-is_half_float_src_dst(const fs_inst *inst)
+is_half_float_src_dst(const brw_inst *inst)
 {
    if (inst->dst.type == BRW_TYPE_HF)
       return true;
@@ -238,11 +239,11 @@ is_half_float_src_dst(const fs_inst *inst)
 /**
  * Get the closest native SIMD width supported by the hardware for instruction
  * \p inst.  The instruction will be left untouched by
- * fs_visitor::lower_simd_width() if the returned value is equal to the
+ * brw_shader::lower_simd_width() if the returned value is equal to the
  * original execution size.
  */
 unsigned
-brw_get_lowered_simd_width(const fs_visitor *shader, const fs_inst *inst)
+brw_get_lowered_simd_width(const brw_shader *shader, const brw_inst *inst)
 {
    const struct brw_compiler *compiler = shader->compiler;
    const struct intel_device_info *devinfo = compiler->devinfo;
@@ -422,7 +423,8 @@ brw_get_lowered_simd_width(const fs_visitor *shader, const fs_inst *inst)
               swiz == BRW_SWIZZLE_XYXY || swiz == BRW_SWIZZLE_ZWZW ? 4 :
               get_fpu_lowered_simd_width(shader, inst));
    }
-   case SHADER_OPCODE_MOV_INDIRECT: {
+   case SHADER_OPCODE_MOV_INDIRECT:
+   case FS_OPCODE_READ_ATTRIBUTE_PAYLOAD: {
       /* From IVB and HSW PRMs:
        *
        * "2.When the destination requires two registers and the sources are
@@ -470,7 +472,7 @@ brw_get_lowered_simd_width(const fs_visitor *shader, const fs_inst *inst)
  * of the lowered instruction.
  */
 static inline bool
-needs_src_copy(const fs_builder &lbld, const fs_inst *inst, unsigned i)
+needs_src_copy(const brw_builder &lbld, const brw_inst *inst, unsigned i)
 {
    /* The indirectly indexed register stays the same even if we split the
     * instruction.
@@ -483,7 +485,7 @@ needs_src_copy(const fs_builder &lbld, const fs_inst *inst, unsigned i)
              (inst->components_read(i) == 1 &&
               lbld.dispatch_width() <= inst->exec_size)) ||
            (inst->flags_written(lbld.shader->devinfo) &
-            brw_fs_flag_mask(inst->src[i], brw_type_size_bytes(inst->src[i].type))));
+            brw_flag_mask(inst->src[i], brw_type_size_bytes(inst->src[i].type))));
 }
 
 /**
@@ -492,7 +494,7 @@ needs_src_copy(const fs_builder &lbld, const fs_inst *inst, unsigned i)
  * it as result in packed form.
  */
 static brw_reg
-emit_unzip(const fs_builder &lbld, fs_inst *inst, unsigned i)
+emit_unzip(const brw_builder &lbld, brw_inst *inst, unsigned i)
 {
    assert(lbld.group() >= inst->group);
 
@@ -537,7 +539,7 @@ emit_unzip(const fs_builder &lbld, fs_inst *inst, unsigned i)
  * destination region.
  */
 static inline bool
-needs_dst_copy(const fs_builder &lbld, const fs_inst *inst)
+needs_dst_copy(const brw_builder &lbld, const brw_inst *inst)
 {
    if (inst->dst.is_null())
       return false;
@@ -580,8 +582,8 @@ needs_dst_copy(const fs_builder &lbld, const fs_inst *inst)
  * zipping up the destination of \p inst will be inserted using \p lbld_after.
  */
 static brw_reg
-emit_zip(const fs_builder &lbld_before, const fs_builder &lbld_after,
-         fs_inst *inst)
+emit_zip(const brw_builder &lbld_before, const brw_builder &lbld_after,
+         brw_inst *inst)
 {
    assert(lbld_before.dispatch_width() == lbld_after.dispatch_width());
    assert(lbld_before.group() == lbld_after.group());
@@ -632,7 +634,7 @@ emit_zip(const fs_builder &lbld_before, const fs_builder &lbld_after,
        * have to build a single 32bit value for the SIMD32 message out of 2
        * SIMD16 16 bit values.
        */
-      const fs_builder rbld = lbld_after.exec_all().group(1, 0);
+      const brw_builder rbld = lbld_after.uniform();
       brw_reg local_res_reg = component(
          retype(offset(tmp, lbld_before, dst_size), BRW_TYPE_UW), 0);
       brw_reg final_res_reg =
@@ -646,11 +648,11 @@ emit_zip(const fs_builder &lbld_before, const fs_builder &lbld_after,
 }
 
 bool
-brw_lower_simd_width(fs_visitor &s)
+brw_lower_simd_width(brw_shader &s)
 {
    bool progress = false;
 
-   foreach_block_and_inst_safe(block, fs_inst, inst, s.cfg) {
+   foreach_block_and_inst_safe(block, brw_inst, inst, s.cfg) {
       const unsigned lower_width = brw_get_lowered_simd_width(&s, inst);
 
       /* No splitting required */
@@ -660,8 +662,8 @@ brw_lower_simd_width(fs_visitor &s)
       assert(lower_width < inst->exec_size);
 
       /* Builder matching the original instruction. */
-      const fs_builder bld = fs_builder(&s).at_end();
-      const fs_builder ibld =
+      const brw_builder bld = brw_builder(&s);
+      const brw_builder ibld =
          bld.at(block, inst).exec_all(inst->force_writemask_all)
             .group(inst->exec_size, inst->group / inst->exec_size);
 
@@ -729,7 +731,7 @@ brw_lower_simd_width(fs_visitor &s)
           * If the EOT flag was set throw it away except for the last
           * instruction to avoid killing the thread prematurely.
           */
-         fs_inst split_inst = *inst;
+         brw_inst split_inst = *inst;
          split_inst.exec_size = lower_width;
          split_inst.eot = inst->eot && i == int(n - 1);
 
@@ -737,7 +739,7 @@ brw_lower_simd_width(fs_visitor &s)
           * transform the sources and destination and emit the lowered
           * instruction.
           */
-         const fs_builder lbld = ibld.group(lower_width, i);
+         const brw_builder lbld = ibld.group(lower_width, i);
 
          for (unsigned j = 0; j < inst->sources; j++)
             split_inst.src[j] = emit_unzip(lbld.at(block, inst), inst, j);
@@ -751,12 +753,13 @@ brw_lower_simd_width(fs_visitor &s)
          lbld.at(block, inst->next).emit(split_inst);
       }
 
-      inst->remove(block);
+      inst->remove();
       progress = true;
    }
 
    if (progress)
-      s.invalidate_analysis(DEPENDENCY_INSTRUCTIONS | DEPENDENCY_VARIABLES);
+      s.invalidate_analysis(BRW_DEPENDENCY_INSTRUCTIONS |
+                            BRW_DEPENDENCY_VARIABLES);
 
    return progress;
 }

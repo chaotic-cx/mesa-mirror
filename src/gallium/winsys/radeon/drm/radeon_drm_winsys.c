@@ -420,7 +420,7 @@ static bool do_winsys_init(struct radeon_drm_winsys *ws)
          ws->info.r600_gb_backend_map_valid = true;
 
       /* Default value. */
-      ws->info.enabled_rb_mask = u_bit_consecutive(0, ws->info.max_render_backends);
+      ws->info.enabled_rb_mask = BITFIELD_MASK(ws->info.max_render_backends);
       /*
        * This fails (silently) on non-GCN or older kernels, overwriting the
        * default enabled_rb_mask with the result of the last query.
@@ -840,12 +840,12 @@ static void radeon_pin_threads_to_L3_cache(struct radeon_winsys *ws,
    }
 }
 
-static bool radeon_cs_is_secure(struct radeon_cmdbuf* cs)
+static bool radeon_cs_is_secure(struct radeon_cmdbuf* rcs)
 {
     return false;
 }
 
-static bool radeon_cs_set_pstate(struct radeon_cmdbuf* cs, enum radeon_ctx_pstate state)
+static bool radeon_cs_set_pstate(struct radeon_cmdbuf* rcs, enum radeon_ctx_pstate state)
 {
     return false;
 }

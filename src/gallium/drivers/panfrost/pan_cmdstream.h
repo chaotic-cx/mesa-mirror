@@ -40,7 +40,7 @@
 
 #include "util/u_prim.h"
 
-#define PAN_GPU_SUPPORTS_DISPATCH_INDIRECT (PAN_ARCH == 7 || PAN_ARCH >= 10)
+#define PAN_GPU_SUPPORTS_DISPATCH_INDIRECT (PAN_ARCH >= 6)
 #define PAN_GPU_SUPPORTS_DRAW_INDIRECT     (PAN_ARCH >= 10)
 
 struct panfrost_rasterizer {
@@ -146,7 +146,7 @@ panfrost_overdraw_alpha(const struct panfrost_context *ctx, bool zero)
    for (unsigned i = 0; i < ctx->pipe_framebuffer.nr_cbufs; ++i) {
       const struct pan_blend_info info = so->info[i];
 
-      bool enabled = ctx->pipe_framebuffer.cbufs[i] && !info.enabled;
+      bool enabled = ctx->pipe_framebuffer.cbufs[i].texture && !info.enabled;
       bool flag = zero ? info.alpha_zero_nop : info.alpha_one_store;
 
       if (enabled && !flag)
@@ -157,6 +157,7 @@ panfrost_overdraw_alpha(const struct panfrost_context *ctx, bool zero)
 }
 #endif
 
+#if PAN_ARCH < 13
 static inline void
 panfrost_emit_primitive_size(struct panfrost_context *ctx, bool points,
                              uint64_t size_array,
@@ -168,10 +169,11 @@ panfrost_emit_primitive_size(struct panfrost_context *ctx, bool points,
       if (panfrost_writes_point_size(ctx)) {
          cfg.size_array = size_array;
       } else {
-         cfg.constant = points ? rast->base.point_size : rast->base.line_width;
+         cfg.fixed_sized = points ? rast->base.point_size : rast->base.line_width;
       }
    }
 }
+#endif
 
 static inline uint8_t
 pan_draw_mode(enum mesa_prim mode)
@@ -232,7 +234,7 @@ panfrost_fs_required(struct panfrost_compiled_shader *fs,
 
    /* If colour is written we need to execute */
    for (unsigned i = 0; i < state->nr_cbufs; ++i) {
-      if (state->cbufs[i] && blend->info[i].enabled)
+      if (state->cbufs[i].texture && blend->info[i].enabled)
          return true;
    }
 
@@ -256,11 +258,13 @@ panfrost_get_position_shader(struct panfrost_batch *batch,
    return vs_ptr;
 }
 
+#if PAN_ARCH < 12
 static inline uint64_t
 panfrost_get_varying_shader(struct panfrost_batch *batch)
 {
    return batch->rsd[PIPE_SHADER_VERTEX] + (2 * pan_size(SHADER_PROGRAM));
 }
+#endif
 
 static inline unsigned
 panfrost_vertex_attribute_stride(struct panfrost_compiled_shader *vs,
@@ -269,7 +273,7 @@ panfrost_vertex_attribute_stride(struct panfrost_compiled_shader *vs,
    unsigned v = vs->info.varyings.output_count;
    unsigned f = fs->info.varyings.input_count;
    unsigned slots = MAX2(v, f);
-   slots += util_bitcount(fs->key.fs.fixed_varying_mask);
+   slots += util_bitcount(vs->info.varyings.fixed_varyings);
 
    /* Assumes 16 byte slots. We could do better. */
    return slots * 16;
@@ -280,7 +284,7 @@ panfrost_emit_resources(struct panfrost_batch *batch,
                         enum pipe_shader_type stage)
 {
    struct panfrost_context *ctx = batch->ctx;
-   struct panfrost_ptr T;
+   struct pan_ptr T;
    unsigned nr_tables = PAN_NUM_RESOURCE_TABLES;
 
    /* Although individual resources need only 16 byte alignment, the
@@ -293,31 +297,33 @@ panfrost_emit_resources(struct panfrost_batch *batch,
 
    memset(T.cpu, 0, nr_tables * pan_size(RESOURCE));
 
-   panfrost_make_resource_table(T, PAN_TABLE_UBO, batch->uniform_buffers[stage],
-                                batch->nr_uniform_buffers[stage]);
+   pan_make_resource_table(T, PAN_TABLE_UBO, batch->uniform_buffers[stage],
+                           batch->nr_uniform_buffers[stage]);
 
-   panfrost_make_resource_table(T, PAN_TABLE_TEXTURE, batch->textures[stage],
-                                ctx->sampler_view_count[stage]);
+   pan_make_resource_table(T, PAN_TABLE_TEXTURE, batch->textures[stage],
+                           ctx->sampler_view_count[stage]);
 
    /* We always need at least 1 sampler for txf to work */
-   panfrost_make_resource_table(T, PAN_TABLE_SAMPLER, batch->samplers[stage],
-                                MAX2(ctx->sampler_count[stage], 1));
+   pan_make_resource_table(T, PAN_TABLE_SAMPLER, batch->samplers[stage],
+                           MAX2(ctx->sampler_count[stage], 1));
 
-   panfrost_make_resource_table(T, PAN_TABLE_IMAGE, batch->images[stage],
-                                util_last_bit(ctx->image_mask[stage]));
+   pan_make_resource_table(T, PAN_TABLE_IMAGE, batch->images[stage],
+                           util_last_bit(ctx->image_mask[stage]));
 
-   if (stage == PIPE_SHADER_VERTEX) {
-      panfrost_make_resource_table(T, PAN_TABLE_ATTRIBUTE,
-                                   batch->attribs[stage],
-                                   ctx->vertex->num_elements);
+   if (stage == PIPE_SHADER_FRAGMENT) {
+      pan_make_resource_table(T, PAN_TABLE_ATTRIBUTE, batch->attribs[stage],
+                              batch->nr_varying_attribs[PIPE_SHADER_FRAGMENT]);
+   } else if (stage == PIPE_SHADER_VERTEX) {
+      pan_make_resource_table(T, PAN_TABLE_ATTRIBUTE, batch->attribs[stage],
+                              ctx->vertex->num_elements);
 
-      panfrost_make_resource_table(T, PAN_TABLE_ATTRIBUTE_BUFFER,
-                                   batch->attrib_bufs[stage],
-                                   util_last_bit(ctx->vb_mask));
+      pan_make_resource_table(T, PAN_TABLE_ATTRIBUTE_BUFFER,
+                              batch->attrib_bufs[stage],
+                              util_last_bit(ctx->vb_mask));
    }
 
-   panfrost_make_resource_table(T, PAN_TABLE_SSBO, batch->ssbos[stage],
-                                util_last_bit(ctx->ssbo_mask[stage]));
+   pan_make_resource_table(T, PAN_TABLE_SSBO, batch->ssbos[stage],
+                           util_last_bit(ctx->ssbo_mask[stage]));
 
    return T.gpu | nr_tables;
 }

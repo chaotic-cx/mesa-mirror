@@ -19,18 +19,20 @@
 
 struct vn_format_properties_entry {
    atomic_bool valid;
-   VkFormatProperties properties;
-   atomic_bool props3_valid;
-   VkFormatProperties3 properties3;
+   VkFormatProperties props;
+   VkFormatProperties3 props3;
+   VkBool32 srpq;
 };
 
 struct vn_image_format_properties {
-   struct VkImageFormatProperties2 format;
+   VkImageFormatProperties2 format;
    VkResult cached_result;
 
    VkExternalImageFormatProperties ext_image;
+   VkHostImageCopyDevicePerformanceQuery host_copy;
    VkImageCompressionPropertiesEXT compression;
    VkSamplerYcbcrConversionImageFormatProperties ycbcr_conversion;
+   VkFilterCubicImageViewImageFormatPropertiesEXT filter_cubic;
 };
 
 struct vn_image_format_cache_entry {
@@ -51,6 +53,13 @@ struct vn_image_format_properties_cache {
    } debug;
 };
 
+struct vn_layered_api_properties {
+   VkPhysicalDeviceLayeredApiPropertiesKHR api;
+   VkPhysicalDeviceLayeredApiVulkanPropertiesKHR vk;
+   VkPhysicalDeviceDriverProperties driver;
+   VkPhysicalDeviceIDProperties id;
+};
+
 struct vn_physical_device {
    struct vn_physical_device_base base;
 
@@ -64,6 +73,9 @@ struct vn_physical_device {
     */
    uint32_t renderer_version;
 
+   /* For maintenance7 layered api properties. */
+   struct vn_layered_api_properties layered_properties;
+
    /* Between the driver and the app, base.base.supported_extensions is what
     * we advertise.
     *
@@ -73,6 +85,9 @@ struct vn_physical_device {
    struct vk_device_extension_table renderer_extensions;
    uint32_t *extension_spec_versions;
 
+   /* passthrough ray tracing support */
+   bool ray_tracing;
+
    /* Venus feedback encounters cacheline overflush issue on Intel JSL, and
     * has to workaround by further aligning up the feedback buffer alignment.
     */
@@ -80,9 +95,19 @@ struct vn_physical_device {
 
    VkDriverId renderer_driver_id;
 
+   /* Static storage so that host copy properties query can be done once. */
+   VkImageLayout copy_src_layouts[64];
+   VkImageLayout copy_dst_layouts[64];
+
    VkQueueFamilyProperties2 *queue_family_properties;
+   VkQueueFamilyGlobalPriorityProperties *global_priority_properties;
    uint32_t queue_family_count;
    bool sparse_binding_disabled;
+   /* Track the queue family index to emulate a second queue. -1 means no
+    * emulation is needed. To be noted that the emulation is a workaround for
+    * Android 14+ UI framework and it does not handle wait-before-signal.
+    */
+   int emulate_second_queue;
 
    VkPhysicalDeviceMemoryProperties memory_properties;
 
@@ -109,7 +134,7 @@ struct vn_physical_device {
    struct vn_image_format_properties_cache image_format_cache;
 };
 VK_DEFINE_HANDLE_CASTS(vn_physical_device,
-                       base.base.base,
+                       base.vk.base,
                        VkPhysicalDevice,
                        VK_OBJECT_TYPE_PHYSICAL_DEVICE)
 

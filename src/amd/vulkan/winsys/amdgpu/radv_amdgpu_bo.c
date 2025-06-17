@@ -135,8 +135,8 @@ radv_amdgpu_winsys_bo_virtual_bind(struct radeon_winsys *_ws, struct radeon_wins
    VkResult result;
    int r;
 
-   assert(parent->is_virtual);
-   assert(!bo || !bo->is_virtual);
+   assert(parent->base.is_virtual);
+   assert(!bo || !bo->base.is_virtual);
 
    /* When the BO is NULL, AMDGPU will reset the PTE VA range to the initial state. Otherwise, it
     * will first unmap all existing VA that overlap the requested range and then map.
@@ -283,7 +283,7 @@ radv_amdgpu_log_bo(struct radv_amdgpu_winsys *ws, struct radv_amdgpu_winsys_bo *
    bo_log->va = bo->base.va;
    bo_log->size = bo->base.size;
    bo_log->timestamp = os_time_get_nano();
-   bo_log->is_virtual = bo->is_virtual;
+   bo_log->is_virtual = bo->base.is_virtual;
    bo_log->destroyed = destroyed;
 
    u_rwlock_wrlock(&ws->log_bo_list_lock);
@@ -336,7 +336,7 @@ radv_amdgpu_winsys_bo_destroy(struct radeon_winsys *_ws, struct radeon_winsys_bo
 
    radv_amdgpu_log_bo(ws, bo, true);
 
-   if (bo->is_virtual) {
+   if (bo->base.is_virtual) {
       int r;
 
       /* Clear mappings of this PRT VA region. */
@@ -415,7 +415,7 @@ radv_amdgpu_winsys_bo_create(struct radeon_winsys *_ws, uint64_t size, unsigned 
    bo->base.va = va;
    bo->base.size = size;
    bo->va_handle = va_handle;
-   bo->is_virtual = !!(flags & RADEON_FLAG_VIRTUAL);
+   bo->base.is_virtual = !!(flags & RADEON_FLAG_VIRTUAL);
 
    if (flags & RADEON_FLAG_VIRTUAL) {
       ranges = realloc(NULL, sizeof(struct radv_amdgpu_map_range));
@@ -512,6 +512,13 @@ radv_amdgpu_winsys_bo_create(struct radeon_winsys *_ws, uint64_t size, unsigned 
    if (flags & RADEON_FLAG_DISCARDABLE && ws->info.drm_minor >= 47)
       request.flags |= AMDGPU_GEM_CREATE_DISCARDABLE;
 
+   if (flags & RADEON_FLAG_GFX12_ALLOW_DCC && ws->info.drm_minor >= 58) {
+      assert(ws->info.gfx_level >= GFX12 && (initial_domain & RADEON_DOMAIN_VRAM) &&
+             (flags & RADEON_FLAG_NO_CPU_ACCESS));
+      bo->base.gfx12_allow_dcc = true;
+      request.flags |= AMDGPU_GEM_CREATE_GFX12_DCC;
+   }
+
    r = ac_drm_bo_alloc(ws->dev, &request, &buf_handle);
    if (r) {
       fprintf(stderr, "radv/amdgpu: Failed to allocate a buffer:\n");
@@ -538,6 +545,7 @@ radv_amdgpu_winsys_bo_create(struct radeon_winsys *_ws, uint64_t size, unsigned 
    bo->base.use_global_list = false;
    bo->priority = priority;
    bo->cpu_map = NULL;
+   bo->base.obj_id = (uintptr_t)(buf_handle.abo);
 
    if (initial_domain & RADEON_DOMAIN_VRAM) {
       /* Buffers allocated in VRAM with the NO_CPU_ACCESS flag
@@ -729,6 +737,7 @@ radv_amdgpu_winsys_bo_from_ptr(struct radeon_winsys *_ws, void *pointer, uint64_
    bo->base.use_global_list = false;
    bo->priority = priority;
    bo->cpu_map = NULL;
+   bo->base.obj_id = (uintptr_t)(buf_handle.abo);
 
    p_atomic_add(&ws->allocated_gtt, align64(bo->base.size, ws->info.gart_page_size));
 
@@ -820,6 +829,7 @@ radv_amdgpu_winsys_bo_from_fd(struct radeon_winsys *_ws, int fd, unsigned priori
    bo->base.size = result.alloc_size;
    bo->priority = priority;
    bo->cpu_map = NULL;
+   bo->base.obj_id = (uintptr_t)(result.bo.abo);
 
    if (bo->base.initial_domain & RADEON_DOMAIN_VRAM)
       p_atomic_add(&ws->allocated_vram, align64(bo->base.size, ws->info.gart_page_size));
@@ -905,6 +915,8 @@ radv_amdgpu_bo_get_flags_from_fd(struct radeon_winsys *_ws, int fd, enum radeon_
       *flags |= RADEON_FLAG_NO_INTERPROCESS_SHARING | RADEON_FLAG_PREFER_LOCAL_BO;
    if (info.alloc_flags & AMDGPU_GEM_CREATE_VRAM_CLEARED)
       *flags |= RADEON_FLAG_ZERO_VRAM;
+   if (info.alloc_flags & AMDGPU_GEM_CREATE_GFX12_DCC)
+      *flags |= RADEON_FLAG_GFX12_ALLOW_DCC;
    return true;
 }
 
@@ -972,7 +984,14 @@ radv_amdgpu_winsys_bo_set_metadata(struct radeon_winsys *_ws, struct radeon_wins
    struct amdgpu_bo_metadata metadata = {0};
    uint64_t tiling_flags = 0;
 
-   if (ws->info.gfx_level >= GFX9) {
+   if (ws->info.gfx_level >= GFX12) {
+      tiling_flags |= AMDGPU_TILING_SET(GFX12_SWIZZLE_MODE, md->u.gfx12.swizzle_mode);
+      tiling_flags |= AMDGPU_TILING_SET(GFX12_DCC_MAX_COMPRESSED_BLOCK, md->u.gfx12.dcc_max_compressed_block);
+      tiling_flags |= AMDGPU_TILING_SET(GFX12_DCC_NUMBER_TYPE, md->u.gfx12.dcc_number_type);
+      tiling_flags |= AMDGPU_TILING_SET(GFX12_DCC_DATA_FORMAT, md->u.gfx12.dcc_data_format);
+      tiling_flags |= AMDGPU_TILING_SET(GFX12_DCC_WRITE_COMPRESS_DISABLE, md->u.gfx12.dcc_write_compress_disable);
+      tiling_flags |= AMDGPU_TILING_SET(GFX12_SCANOUT, md->u.gfx12.scanout);
+   } else if (ws->info.gfx_level >= GFX9) {
       tiling_flags |= AMDGPU_TILING_SET(SWIZZLE_MODE, md->u.gfx9.swizzle_mode);
       tiling_flags |= AMDGPU_TILING_SET(DCC_OFFSET_256B, md->u.gfx9.dcc_offset_256b);
       tiling_flags |= AMDGPU_TILING_SET(DCC_PITCH_MAX, md->u.gfx9.dcc_pitch_max);
@@ -1023,7 +1042,14 @@ radv_amdgpu_winsys_bo_get_metadata(struct radeon_winsys *_ws, struct radeon_wins
 
    uint64_t tiling_flags = info.metadata.tiling_info;
 
-   if (ws->info.gfx_level >= GFX9) {
+   if (ws->info.gfx_level >= GFX12) {
+      md->u.gfx12.swizzle_mode = AMDGPU_TILING_GET(tiling_flags, GFX12_SWIZZLE_MODE);
+      md->u.gfx12.dcc_max_compressed_block = AMDGPU_TILING_GET(tiling_flags, GFX12_DCC_MAX_COMPRESSED_BLOCK);
+      md->u.gfx12.dcc_data_format = AMDGPU_TILING_GET(tiling_flags, GFX12_DCC_DATA_FORMAT);
+      md->u.gfx12.dcc_number_type = AMDGPU_TILING_GET(tiling_flags, GFX12_DCC_NUMBER_TYPE);
+      md->u.gfx12.dcc_write_compress_disable = AMDGPU_TILING_GET(tiling_flags, GFX12_DCC_WRITE_COMPRESS_DISABLE);
+      md->u.gfx12.scanout = AMDGPU_TILING_GET(tiling_flags, GFX12_SCANOUT);
+   } else if (ws->info.gfx_level >= GFX9) {
       md->u.gfx9.swizzle_mode = AMDGPU_TILING_GET(tiling_flags, SWIZZLE_MODE);
       md->u.gfx9.scanout = AMDGPU_TILING_GET(tiling_flags, SCANOUT);
    } else {

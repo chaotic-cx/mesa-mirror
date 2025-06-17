@@ -102,7 +102,7 @@ endif
 if with_gfxstream_vk
   subdir('gfxstream')
 endif
-if with_gallium_asahi or with_tools.contains('asahi')
+if with_gallium_asahi or with_asahi_vk or with_tools.contains('asahi')
   subdir('asahi')
 endif
 if with_gallium
@@ -111,22 +111,33 @@ endif
 if with_gallium_or_lvp
   subdir('gallium')
 endif
-if with_gallium and with_tests
-  # This has to be here since it requires libgallium, and subdir cannot
-  # contain ..
-  subdir('mesa/main/tests')
-  if with_shared_glapi
+# These require libgallium (shared_glapi_lib)
+if with_gallium and (with_glx != 'disabled' or with_egl)
+  if with_gles1 and not with_glvnd
+    subdir('mapi/es1api')
+  endif
+  if with_gles2 and not with_glvnd
+    subdir('mapi/es2api')
+  endif
+  if with_tests
+    subdir('mesa/main/tests')
     subdir('mesa/state_tracker/tests')
   endif
 endif
 if with_glx == 'dri'
   subdir('glx')
 endif
+
 if with_gbm
-  subdir('gbm')
+  if get_option('libgbm-external')
+    dep_gbm = dependency('gbm')
+  else
+    subdir('gbm')
+  endif
 else
-  inc_gbm = []
+  dep_gbm = null_dep
 endif
+
 if with_egl
   subdir('egl')
 endif
@@ -134,6 +145,10 @@ if with_gallium and with_gbm
   if with_glx == 'dri' or with_platform_x11 or with_platform_xcb
     subdir('gallium/targets/dril')
   endif
+endif
+
+if with_gbm and with_dri2
+  subdir('gbm/backends/dri')
 endif
 
 # This must be after at least mesa, glx, and gallium, since libgl will be

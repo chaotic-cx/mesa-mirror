@@ -92,7 +92,7 @@ extern bool
 _mesa_initialize_dispatch_tables(struct gl_context *ctx);
 
 extern struct _glapi_table *
-_mesa_new_nop_table(unsigned numEntries, bool glthread);
+_mesa_new_nop_table(bool glthread);
 
 extern void
 _mesa_free_context_data(struct gl_context *ctx, bool destroy_debug_output);
@@ -109,6 +109,9 @@ _mesa_share_state(struct gl_context *ctx, struct gl_context *ctxToShare);
 
 extern struct gl_context *
 _mesa_get_current_context(void);
+
+extern void
+_mesa_noop_entrypoint(const char *name);
 
 /*@}*/
 
@@ -488,6 +491,20 @@ _mesa_has_texture_view(const struct gl_context *ctx)
 }
 
 static inline bool
+_mesa_has_texture_multisample(const struct gl_context *ctx)
+{
+   return _mesa_has_ARB_texture_multisample(ctx) ||
+          _mesa_is_gles31(ctx);
+}
+
+static inline bool
+_mesa_has_texture_multisample_array(const struct gl_context *ctx)
+{
+   return _mesa_has_ARB_texture_multisample(ctx) ||
+          _mesa_has_OES_texture_storage_multisample_2d_array(ctx);
+}
+
+static inline bool
 _mesa_hw_select_enabled(const struct gl_context *ctx)
 {
    return ctx->RenderMode == GL_SELECT &&
@@ -515,6 +532,13 @@ _mesa_has_pipeline_statistics(const struct gl_context *ctx)
 {
    return _mesa_has_ARB_pipeline_statistics_query(ctx) ||
           (_mesa_is_desktop_gl(ctx) && ctx->Version >= 46);
+}
+
+static inline bool
+_mesa_has_internalformat_query(const struct gl_context *ctx)
+{
+   return _mesa_has_ARB_internalformat_query(ctx) ||
+          _mesa_is_gles3(ctx);
 }
 
 #ifdef __cplusplus

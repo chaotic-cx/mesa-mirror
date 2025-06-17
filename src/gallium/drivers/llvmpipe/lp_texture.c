@@ -42,6 +42,7 @@
 #include "util/format/u_format.h"
 #include "util/u_math.h"
 #include "util/u_memory.h"
+#include "util/u_resource.h"
 #include "util/u_transfer.h"
 
 #if DETECT_OS_POSIX
@@ -441,6 +442,15 @@ llvmpipe_resource_create_unbacked(struct pipe_screen *_screen,
    return pt;
 }
 
+static uint64_t
+llvmpipe_resource_get_address(struct pipe_screen *_screen,
+                              struct pipe_resource *resource)
+{
+   struct llvmpipe_resource *lp_res = llvmpipe_resource(resource);
+   assert(resource->target == PIPE_BUFFER);
+   return (uint64_t)(uintptr_t)lp_res->data;
+}
+
 
 static struct pipe_memory_object *
 llvmpipe_memobj_create_from_handle(struct pipe_screen *pscreen,
@@ -714,10 +724,6 @@ llvmpipe_resource_from_handle(struct pipe_screen *_screen,
    /* no miplevels */
    assert(template->last_level == 0);
 
-   /* Multiplanar surfaces are not supported */
-   if (whandle->plane > 0)
-      return NULL;
-
    lpr = CALLOC_STRUCT(llvmpipe_resource);
    if (!lpr) {
       goto no_lpr;
@@ -757,7 +763,7 @@ llvmpipe_resource_from_handle(struct pipe_screen *_screen,
           _screen->import_memory_fd(_screen, whandle->handle,
                                     (struct pipe_memory_allocation**)&alloc,
                                     &size, true)) {
-         void *data = alloc->cpu_addr;
+         void *data = (char*)alloc->cpu_addr + whandle->offset;
          lpr->dt = winsys->displaytarget_create_mapped(winsys, template->bind,
                                                        template->format, template->width0, template->height0,
                                                        whandle->stride, data);
@@ -1382,7 +1388,7 @@ llvmpipe_resource_alloc_udmabuf(struct llvmpipe_screen *screen,
 
       size = align(size, alignment);
 
-      int mem_fd = memfd_create("lp_dma_buf", MFD_ALLOW_SEALING);
+      mem_fd = memfd_create("lp_dma_buf", MFD_ALLOW_SEALING);
       if (mem_fd == -1)
          goto fail;
 
@@ -1403,7 +1409,7 @@ llvmpipe_resource_alloc_udmabuf(struct llvmpipe_screen *screen,
          .size = size
       };
 
-      int dmabuf_fd = ioctl(screen->udmabuf_fd, UDMABUF_CREATE, &create);
+      dmabuf_fd = ioctl(screen->udmabuf_fd, UDMABUF_CREATE, &create);
       if (dmabuf_fd < 0)
          goto fail;
 
@@ -1420,10 +1426,10 @@ llvmpipe_resource_alloc_udmabuf(struct llvmpipe_screen *screen,
    }
 
 fail:
+   if (dmabuf_fd >= 0)
+      close(dmabuf_fd);
    if (mem_fd != -1)
       close(mem_fd);
-   if (dmabuf_fd != -1)
-      close(dmabuf_fd);
    /* If we don't have access to the udmabuf device
     * or something else fails we return NULL */
    return NULL;
@@ -1485,6 +1491,12 @@ llvmpipe_import_memory_fd(struct pipe_screen *screen,
 #if defined(HAVE_LIBDRM) && defined(HAVE_LINUX_UDMABUF_H)
    if (dmabuf) {
       off_t mmap_size = lseek(fd, 0, SEEK_END);
+      if (mmap_size < 0) {
+         free(alloc);
+         *ptr = NULL;
+         return false;
+      }
+
       lseek(fd, 0, SEEK_SET);
       void *cpu_addr = mmap(0, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
       if (cpu_addr == MAP_FAILED) {
@@ -1697,12 +1709,13 @@ llvmpipe_resource_get_param(struct pipe_screen *screen,
                             unsigned handle_usage,
                             uint64_t *value)
 {
-   struct llvmpipe_resource *lpr = llvmpipe_resource(resource);
+   struct pipe_resource *plane_res = util_resource_at_index(resource, plane);
+   struct llvmpipe_resource *lpr = llvmpipe_resource(plane_res);
    struct winsys_handle whandle;
 
    switch (param) {
    case PIPE_RESOURCE_PARAM_NPLANES:
-      *value = lpr->dmabuf ? util_format_get_num_planes(lpr->dt_format) : 1;
+      *value = util_format_get_num_planes(resource->format);
       return true;
    case PIPE_RESOURCE_PARAM_STRIDE:
       *value = lpr->row_stride[level];
@@ -1752,8 +1765,12 @@ llvmpipe_query_dmabuf_modifiers(struct pipe_screen *pscreen, enum pipe_format fo
 {
    *count = 1;
 
-   if (max)
-      *modifiers = DRM_FORMAT_MOD_LINEAR;
+   if (max < 1)
+      return;
+
+   *modifiers = DRM_FORMAT_MOD_LINEAR;
+   if (external_only)
+      *external_only = util_format_is_yuv(format);
 }
 
 static bool
@@ -1765,7 +1782,7 @@ llvmpipe_is_dmabuf_modifier_supported(struct pipe_screen *pscreen, uint64_t modi
 static unsigned
 llvmpipe_get_dmabuf_modifier_planes(struct pipe_screen *pscreen, uint64_t modifier, enum pipe_format format)
 {
-   return modifier == DRM_FORMAT_MOD_LINEAR;
+   return modifier == DRM_FORMAT_MOD_LINEAR ? util_format_get_num_planes(format) : 0;
 }
 #endif
 
@@ -1790,6 +1807,7 @@ llvmpipe_init_screen_resource_funcs(struct pipe_screen *screen)
    screen->resource_from_handle = llvmpipe_resource_from_handle;
    screen->resource_from_memobj = llvmpipe_resource_from_memobj;
    screen->resource_get_handle = llvmpipe_resource_get_handle;
+   screen->resource_get_address = llvmpipe_resource_get_address;
    screen->can_create_resource = llvmpipe_can_create_resource;
 
    screen->resource_create_unbacked = llvmpipe_resource_create_unbacked;

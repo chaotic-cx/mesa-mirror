@@ -114,6 +114,7 @@ etna_context_destroy(struct pipe_context *pctx)
    if (ctx->flush_resources)
       _mesa_set_destroy(ctx->flush_resources, NULL);
 
+   util_framebuffer_init(pctx, NULL, ctx->fb_cbufs, &ctx->fb_zsbuf);
    util_copy_framebuffer_state(&ctx->framebuffer_s, NULL);
 
    if (ctx->blitter)
@@ -279,7 +280,7 @@ etna_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       /* Add start to index offset, when rendering indexed */
       index_offset += draws[0].start * info->index_size;
 
-      ctx->index_buffer.FE_INDEX_STREAM_BASE_ADDR.bo = etna_resource(indexbuf)->bo;
+      ctx->index_buffer.FE_INDEX_STREAM_BASE_ADDR.bo = etna_buffer_resource(indexbuf)->bo;
       ctx->index_buffer.FE_INDEX_STREAM_BASE_ADDR.offset = index_offset;
       ctx->index_buffer.FE_INDEX_STREAM_BASE_ADDR.flags = ETNA_RELOC_READ;
       ctx->index_buffer.FE_INDEX_STREAM_CONTROL = translate_index_size(info->index_size);
@@ -306,8 +307,8 @@ etna_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       key.flatshade = ctx->rasterizer->flatshade;
 
     for (i = 0; i < pfb->nr_cbufs; i++) {
-       if (pfb->cbufs[i])
-         key.frag_rb_swap |= !!translate_pe_format_rb_swap(pfb->cbufs[i]->format) << i;
+       if (pfb->cbufs[i].texture)
+         key.frag_rb_swap |= !!translate_pe_format_rb_swap(pfb->cbufs[i].format) << i;
     }
 
    if (!etna_get_vs(ctx, &key) || !etna_get_fs(ctx, &key)) {
@@ -324,20 +325,20 @@ etna_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
     */
    if (ctx->dirty & ETNA_DIRTY_ZSA) {
       if (etna_depth_enabled(ctx))
-         resource_written(ctx, pfb->zsbuf->texture);
+         resource_written(ctx, pfb->zsbuf.texture);
 
       if (etna_stencil_enabled(ctx))
-         resource_written(ctx, pfb->zsbuf->texture);
+         resource_written(ctx, pfb->zsbuf.texture);
    }
 
    if (ctx->dirty & ETNA_DIRTY_FRAMEBUFFER) {
       for (i = 0; i < pfb->nr_cbufs; i++) {
          struct pipe_resource *surf;
 
-         if (!pfb->cbufs[i])
+         if (!pfb->cbufs[i].texture)
             continue;
 
-         surf = pfb->cbufs[i]->texture;
+         surf = pfb->cbufs[i].texture;
          resource_written(ctx, surf);
       }
    }
@@ -387,7 +388,7 @@ etna_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
        *
        * This isn't implemented right now, so we don't support GPU written indirect buffers for now.
        */
-      assert(!(etna_resource_status(ctx, etna_resource(indirect->buffer)) & ETNA_PENDING_WRITE));
+      assert(!(etna_resource_status(ctx, indirect->buffer) & ETNA_PENDING_WRITE));
       resource_read(ctx, indirect->buffer);
    }
 
@@ -443,12 +444,12 @@ etna_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       pctx->flush(pctx, NULL, 0);
 
    for (i = 0; i < pfb->nr_cbufs; i++) {
-      if (pfb->cbufs[i])
-         etna_resource_level_mark_changed(etna_surface(pfb->cbufs[i])->level);
+      if (ctx->fb_cbufs[i])
+         etna_resource_level_mark_changed(etna_surface(ctx->fb_cbufs[i])->level);
    }
 
-   if (ctx->framebuffer_s.zsbuf)
-      etna_resource_level_mark_changed(etna_surface(ctx->framebuffer_s.zsbuf)->level);
+   if (ctx->fb_zsbuf)
+      etna_resource_level_mark_changed(etna_surface(ctx->fb_zsbuf)->level);
    if (info->index_size && indexbuf != info->index.resource)
       pipe_resource_reference(&indexbuf, NULL);
 }
@@ -557,6 +558,8 @@ etna_flush(struct pipe_context *pctx, struct pipe_fence_handle **fence,
 {
    struct etna_context *ctx = etna_context(pctx);
    int out_fence_fd = -1;
+
+   ctx->stats.flushes++;
 
    list_for_each_entry(struct etna_acc_query, aq, &ctx->active_acc_queries, node)
       etna_acc_query_suspend(aq, ctx);

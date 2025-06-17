@@ -52,8 +52,6 @@ VkResult genX(init_device_state)(struct anv_device *device);
 
 void genX(init_cps_device_state)(struct anv_device *device);
 
-nir_shader *genX(load_libanv_shader)(struct anv_device *device, void *mem_ctx);
-
 uint32_t genX(call_internal_shader)(nir_builder *b,
                                     enum anv_internal_kernel_name shader_name);
 
@@ -140,6 +138,23 @@ genX(cmd_buffer_ensure_wa_14018283232)(struct anv_cmd_buffer *cmd_buffer,
 #endif
 
 static inline bool
+genX(need_wa_16014912113)(const struct intel_urb_config *prev_urb_cfg,
+                          const struct intel_urb_config *next_urb_cfg)
+{
+#if INTEL_NEEDS_WA_16014912113
+   /* When the config change and there was at a previous config. */
+   return intel_urb_setup_changed(prev_urb_cfg, next_urb_cfg,
+                                  MESA_SHADER_TESS_EVAL) &&
+          prev_urb_cfg->size[0] != 0;
+#else
+   return false;
+#endif
+}
+
+void genX(batch_emit_wa_16014912113)(struct anv_batch *batch,
+                                     const struct intel_urb_config *urb_cfg);
+
+static inline bool
 genX(cmd_buffer_set_coarse_pixel_active)(struct anv_cmd_buffer *cmd_buffer,
                                          enum anv_coarse_pixel_state state)
 {
@@ -193,6 +208,10 @@ void genX(cmd_buffer_flush_gfx_hw_state)(struct anv_cmd_buffer *cmd_buffer);
 void genX(cmd_buffer_flush_gfx_runtime_state)(struct anv_cmd_buffer *cmd_buffer);
 
 void genX(cmd_buffer_flush_gfx_hw_state)(struct anv_cmd_buffer *cmd_buffer);
+
+void genX(cmd_buffer_flush_gfx_state)(struct anv_cmd_buffer *cmd_buffer);
+
+void genX(cmd_buffer_flush_compute_state)(struct anv_cmd_buffer *cmd_buffer);
 
 void genX(cmd_buffer_enable_pma_fix)(struct anv_cmd_buffer *cmd_buffer,
                                      bool enable);
@@ -276,6 +295,37 @@ genX(compute_pipeline_emit)(struct anv_compute_pipeline *pipeline);
 void
 genX(ray_tracing_pipeline_emit)(struct anv_ray_tracing_pipeline *pipeline);
 
+#if GFX_VERx10 >= 300
+#define anv_shader_bin_get_handler(bin, local_arg_offset) ({         \
+   assert((local_arg_offset) % 8 == 0);                              \
+   const struct brw_bs_prog_data *prog_data =                        \
+      brw_bs_prog_data_const(bin->prog_data);                        \
+   assert(prog_data->simd_size == 16);                               \
+                                                                     \
+   (struct GENX(CALL_STACK_HANDLER)) {                               \
+      .OffsetToLocalArguments = (local_arg_offset) / 8,              \
+      .BindlessShaderDispatchMode = RT_SIMD16,                       \
+      .KernelStartPointer = bin->kernel.offset,                      \
+      .RegistersPerThread = ptl_register_blocks(prog_data->base.grf_used), \
+   };                                                                \
+})
+#endif
+
+#if GFX_VERx10 >= 300
+#define anv_shader_bin_get_bsr(bin, local_arg_offset) ({             \
+   assert((local_arg_offset) % 8 == 0);                              \
+   const struct brw_bs_prog_data *prog_data =                        \
+      brw_bs_prog_data_const(bin->prog_data);                        \
+   assert(prog_data->simd_size == 16);                               \
+                                                                     \
+   (struct GENX(BINDLESS_SHADER_RECORD)) {                           \
+      .OffsetToLocalArguments = (local_arg_offset) / 8,              \
+      .BindlessShaderDispatchMode = RT_SIMD16,                       \
+      .KernelStartPointer = bin->kernel.offset,                      \
+      .RegistersPerThread = ptl_register_blocks(prog_data->base.grf_used), \
+   };                                                                \
+})
+#else
 #define anv_shader_bin_get_bsr(bin, local_arg_offset) ({             \
    assert((local_arg_offset) % 8 == 0);                              \
    const struct brw_bs_prog_data *prog_data =                        \
@@ -289,6 +339,7 @@ genX(ray_tracing_pipeline_emit)(struct anv_ray_tracing_pipeline *pipeline);
       .KernelStartPointer = bin->kernel.offset,                      \
    };                                                                \
 })
+#endif
 
 void
 genX(batch_set_preemption)(struct anv_batch *batch,

@@ -52,8 +52,7 @@ static void radeon_fence_reference(struct radeon_winsys *ws,
                                    struct pipe_fence_handle *src);
 
 static struct radeon_winsys_ctx *radeon_drm_ctx_create(struct radeon_winsys *ws,
-                                                       enum radeon_ctx_priority priority,
-                                                       bool allow_context_lost)
+                                                       unsigned flags)
 {
    struct radeon_ctx *ctx = CALLOC_STRUCT(radeon_ctx);
    if (!ctx)
@@ -831,7 +830,7 @@ static struct pipe_fence_handle *radeon_drm_cs_get_next_fence(struct radeon_cmdb
 }
 
 static void
-radeon_drm_cs_add_fence_dependency(struct radeon_cmdbuf *cs,
+radeon_drm_cs_add_fence_dependency(struct radeon_cmdbuf *rcs,
                                    struct pipe_fence_handle *fence)
 {
    /* TODO: Handle the following unlikely multi-threaded scenario:

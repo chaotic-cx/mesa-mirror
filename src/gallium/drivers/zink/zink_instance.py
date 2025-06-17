@@ -97,8 +97,8 @@ struct zink_instance_info {
 %endfor
 };
 
-bool
-zink_create_instance(struct zink_screen *screen);
+VkInstance
+zink_create_instance(struct zink_screen *screen, struct zink_instance_info *instance_info);
 
 void
 zink_verify_instance_extensions(struct zink_screen *screen);
@@ -107,14 +107,14 @@ zink_verify_instance_extensions(struct zink_screen *screen);
  * properly loaded.
  */
 %for ext in extensions:
-%if registry.in_registry(ext.name):
-%for cmd in registry.get_registry_entry(ext.name).instance_commands:
-void VKAPI_PTR zink_stub_${cmd.lstrip("vk")}(void);
-%endfor
-%for cmd in registry.get_registry_entry(ext.name).pdevice_commands:
-void VKAPI_PTR zink_stub_${cmd.lstrip("vk")}(void);
-%endfor
-%endif
+   %if registry.in_registry(ext.name):
+      %for cmd in registry.get_registry_entry(ext.name).instance_commands:
+         void VKAPI_PTR zink_stub_${cmd.name()}(void);
+      %endfor
+      %for cmd in registry.get_registry_entry(ext.name).pdevice_commands:
+         void VKAPI_PTR zink_stub_${cmd.name()}(void);
+      %endfor
+   %endif
 %endfor
 
 struct pipe_screen;
@@ -128,11 +128,9 @@ impl_code = """
 #include "zink_instance.h"
 #include "zink_screen.h"
 
-bool
-zink_create_instance(struct zink_screen *screen)
+VkInstance
+zink_create_instance(struct zink_screen *screen, struct zink_instance_info *instance_info)
 {
-   struct zink_instance_info *instance_info = &screen->instance_info;
-
    /* reserve one slot for MoltenVK */
    const char *layers[${len(layers) + 1}] = {0};
    uint32_t num_layers = 0;
@@ -266,48 +264,50 @@ zink_create_instance(struct zink_screen *screen)
    GET_PROC_ADDR_INSTANCE_LOCAL(screen, NULL, CreateInstance);
    assert(vk_CreateInstance);
 
-   VkResult err = vk_CreateInstance(&ici, NULL, &screen->instance);
+   VkInstance instance;
+   VkResult err = vk_CreateInstance(&ici, NULL, &instance);
    if (err != VK_SUCCESS) {
       if (!screen->driver_name_is_inferred)
           mesa_loge("ZINK: vkCreateInstance failed (%s)", vk_Result_to_str(err));
-      return false;
-   }
 
-   return true;
+      return NULL;
+   } else {
+      return instance;
+   }
 }
 
 void
 zink_verify_instance_extensions(struct zink_screen *screen)
 {
 %for ext in extensions:
-%if registry.in_registry(ext.name):
-%if ext.platform_guard:
-#ifdef ${ext.platform_guard}
-%endif
-   if (screen->instance_info.have_${ext.name_with_vendor()}) {
-%for cmd in registry.get_registry_entry(ext.name).instance_commands:
-      if (!screen->vk.${cmd.lstrip("vk")}) {
-#ifndef NDEBUG
-         screen->vk.${cmd.lstrip("vk")} = (PFN_${cmd})zink_stub_${cmd.lstrip("vk")};
-#else
-         screen->vk.${cmd.lstrip("vk")} = (PFN_${cmd})zink_stub_function_not_loaded;
-#endif
-      }
-%endfor
-%for cmd in registry.get_registry_entry(ext.name).pdevice_commands:
-      if (!screen->vk.${cmd.lstrip("vk")}) {
-#ifndef NDEBUG
-         screen->vk.${cmd.lstrip("vk")} = (PFN_${cmd})zink_stub_${cmd.lstrip("vk")};
-#else
-         screen->vk.${cmd.lstrip("vk")} = (PFN_${cmd})zink_stub_function_not_loaded;
-#endif
-      }
-%endfor
-   }
-%endif
-%if ext.platform_guard:
-#endif
-%endif
+   %if registry.in_registry(ext.name):
+      %if ext.platform_guard:
+      #ifdef ${ext.platform_guard}
+      %endif
+         if (screen->instance_info->have_${ext.name_with_vendor()}) {
+      %for cmd in registry.get_registry_entry(ext.name).instance_commands:
+            if (!screen->vk.${cmd.name()}) {
+      #ifndef NDEBUG
+               screen->vk.${cmd.name()} = (PFN_${cmd.full_name})zink_stub_${cmd.name()};
+      #else
+               screen->vk.${cmd.name()} = (PFN_${cmd.full_name})zink_stub_function_not_loaded;
+      #endif
+            }
+      %endfor
+      %for cmd in registry.get_registry_entry(ext.name).pdevice_commands:
+            if (!screen->vk.${cmd.name()}) {
+      #ifndef NDEBUG
+               screen->vk.${cmd.name()} = (PFN_${cmd.full_name})zink_stub_${cmd.name()};
+      #else
+               screen->vk.${cmd.name()} = (PFN_${cmd.full_name})zink_stub_function_not_loaded;
+      #endif
+            }
+      %endfor
+         }
+      %if ext.platform_guard:
+         #endif
+      %endif
+   %endif
 %endfor
 }
 
@@ -317,27 +317,27 @@ zink_verify_instance_extensions(struct zink_screen *screen)
 <% generated_funcs = set() %>
 
 %for ext in extensions:
-%if registry.in_registry(ext.name):
-%for cmd in registry.get_registry_entry(ext.name).instance_commands + registry.get_registry_entry(ext.name).pdevice_commands:
-%if cmd in generated_funcs:
-   <% continue %>
-%else:
-   <% generated_funcs.add(cmd) %>
-%endif
-%if ext.platform_guard:
-#ifdef ${ext.platform_guard}
-%endif
-void VKAPI_PTR
-zink_stub_${cmd.lstrip("vk")}()
-{
-   mesa_loge("ZINK: ${cmd} is not loaded properly!");
-   abort();
-}
-%if ext.platform_guard:
-#endif
-%endif
-%endfor
-%endif
+   %if registry.in_registry(ext.name):
+      %for cmd in registry.get_registry_entry(ext.name).instance_commands + registry.get_registry_entry(ext.name).pdevice_commands:
+         %if cmd.name in generated_funcs:
+            <% continue %>
+         %else:
+            <% generated_funcs.add(cmd.full_name) %>
+         %endif
+         %if ext.platform_guard:
+         #ifdef ${ext.platform_guard}
+         %endif
+            void VKAPI_PTR
+            zink_stub_${cmd.name()}()
+            {
+               mesa_loge("ZINK: ${cmd.full_name} is not loaded properly!");
+               abort();
+            }
+         %if ext.platform_guard:
+         #endif
+         %endif
+      %endfor
+   %endif
 %endfor
 
 #endif

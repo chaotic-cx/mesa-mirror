@@ -868,9 +868,7 @@ The compute program has access to four special resources:
 
 These resources use a byte-based addressing scheme, and they can be
 accessed from the compute program by means of the LOAD/STORE TGSI
-opcodes.  Additional resources to be accessed using the same opcodes
-may be specified by the user with the ``set_compute_resources``
-method.
+opcodes.
 
 In addition, normal texture sampling is allowed from the compute
 program: ``bind_sampler_states`` may be used to set up texture
@@ -895,7 +893,7 @@ get_compute_state_subgroup_size
 
 This function returns the choosen subgroup size when ``launch_grid`` is
 called with the given block size. This doesn't need to be implemented when
-only one size is reported through ``PIPE_COMPUTE_CAP_SUBGROUP_SIZES`` or
+only one size is reported through ``pipe_compute_caps.subgroup_sizes`` or
 ``pipe_compute_state_object_info::simd_sizes``.
 
 Mipmap generation

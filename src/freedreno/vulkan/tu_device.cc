@@ -30,6 +30,7 @@
 #include "freedreno/common/freedreno_uuid.h"
 #include "freedreno/common/freedreno_stompable_regs.h"
 
+#include "tu_acceleration_structure.h"
 #include "tu_clear_blit.h"
 #include "tu_cmd_buffer.h"
 #include "tu_cs.h"
@@ -60,7 +61,7 @@ tu_device_get_cache_uuid(struct tu_physical_device *device, void *uuid)
     * shader hash instead, since the compiler is only created with the logical
     * device.
     */
-   uint64_t driver_flags = tu_env.debug & TU_DEBUG_NOMULTIPOS;
+   uint64_t driver_flags = TU_DEBUG(NOMULTIPOS);
    uint16_t family = fd_dev_gpu_id(&device->dev_id);
 
    memset(uuid, 0, VK_UUID_SIZE);
@@ -71,6 +72,7 @@ tu_device_get_cache_uuid(struct tu_physical_device *device, void *uuid)
 
    _mesa_sha1_update(&ctx, &family, sizeof(family));
    _mesa_sha1_update(&ctx, &driver_flags, sizeof(driver_flags));
+   _mesa_sha1_update(&ctx, &device->uche_trap_base, sizeof(device->uche_trap_base));
    _mesa_sha1_final(&ctx, sha1);
 
    memcpy(uuid, sha1, VK_UUID_SIZE);
@@ -139,20 +141,43 @@ is_kgsl(struct tu_instance *instance)
    return strcmp(instance->knl->name, "kgsl") == 0;
 }
 
+static bool tu_has_multiview(const struct tu_physical_device *device)
+{
+   return device->info->a6xx.has_hw_multiview || TU_DEBUG(NOCONFORM);
+}
+
+/* We are generally VK 1.1 except A702, which has no multiview */
+static bool tu_is_vk_1_1(const struct tu_physical_device *device)
+{
+   return tu_has_multiview(device);
+}
+
 static void
 get_device_extensions(const struct tu_physical_device *device,
                       struct vk_device_extension_table *ext)
 {
+   /* device->has_raytracing contains the value of the SW fuse. If the
+    * device doesn't have a fuse (i.e. a740), we have to ignore it because
+    * kgsl returns false. If it does have a fuse, enable raytracing if the
+    * fuse is set and we have ray_intersection.
+    */
+   bool has_raytracing =
+      device->info->a7xx.has_ray_intersection &&
+      (!device->info->a7xx.has_sw_fuse || device->has_raytracing);
+
    *ext = (struct vk_device_extension_table) { .table = {
       .KHR_8bit_storage = device->info->a7xx.storage_8bit,
       .KHR_16bit_storage = device->info->a6xx.storage_16bit,
+      .KHR_acceleration_structure = has_raytracing,
       .KHR_bind_memory2 = true,
       .KHR_buffer_device_address = true,
       .KHR_calibrated_timestamps = device->info->a7xx.has_persistent_counter,
       .KHR_compute_shader_derivatives = device->info->chip >= 7,
       .KHR_copy_commands2 = true,
-      .KHR_create_renderpass2 = true,
+      // TODO workaround for https://github.com/KhronosGroup/VK-GL-CTS/issues/525
+      .KHR_create_renderpass2 = true, // tu_has_multiview(device),
       .KHR_dedicated_allocation = true,
+      .KHR_deferred_host_operations = true,
       .KHR_depth_stencil_resolve = true,
       .KHR_descriptor_update_template = true,
       .KHR_device_group = true,
@@ -169,24 +194,26 @@ get_device_extensions(const struct tu_physical_device *device,
       .KHR_format_feature_flags2 = true,
       .KHR_fragment_shading_rate = device->info->a6xx.has_attachment_shading_rate,
       .KHR_get_memory_requirements2 = true,
-      .KHR_global_priority = true,
+      .KHR_global_priority = tu_is_vk_1_1(device),
       .KHR_image_format_list = true,
       .KHR_imageless_framebuffer = true,
 #ifdef TU_USE_WSI_PLATFORM
       .KHR_incremental_present = true,
 #endif
       .KHR_index_type_uint8 = true,
-      .KHR_line_rasterization = true,
+      .KHR_line_rasterization = !device->info->a6xx.is_a702,
       .KHR_load_store_op_none = true,
       .KHR_maintenance1 = true,
       .KHR_maintenance2 = true,
       .KHR_maintenance3 = true,
-      .KHR_maintenance4 = true,
-      .KHR_maintenance5 = true,
-      .KHR_maintenance6 = true,
+      .KHR_maintenance4 = tu_is_vk_1_1(device),
+      .KHR_maintenance5 = tu_is_vk_1_1(device),
+      .KHR_maintenance6 = tu_is_vk_1_1(device),
+      .KHR_maintenance7 = tu_is_vk_1_1(device),
+      .KHR_maintenance8 = tu_is_vk_1_1(device),
       .KHR_map_memory2 = true,
-      .KHR_multiview = TU_DEBUG(NOCONFORM) ? true : device->info->a6xx.has_hw_multiview,
-      .KHR_performance_query = TU_DEBUG(PERFC),
+      .KHR_multiview = tu_has_multiview(device),
+      .KHR_performance_query = TU_DEBUG(PERFC) || TU_DEBUG(PERFCRAW),
       .KHR_pipeline_executable_properties = true,
       .KHR_pipeline_library = true,
 #ifdef TU_USE_WSI_PLATFORM
@@ -201,24 +228,27 @@ get_device_extensions(const struct tu_physical_device *device,
                            wsi_common_vk_instance_supports_present_wait(&device->instance->vk)),
 #endif
       .KHR_push_descriptor = true,
+      .KHR_ray_query = has_raytracing,
+      .KHR_ray_tracing_maintenance1 = has_raytracing,
       .KHR_relaxed_block_layout = true,
       .KHR_sampler_mirror_clamp_to_edge = true,
       .KHR_sampler_ycbcr_conversion = true,
       .KHR_separate_depth_stencil_layouts = true,
       .KHR_shader_atomic_int64 = device->info->a7xx.has_64b_ssbo_atomics,
+      .KHR_shader_clock = true,
       .KHR_shader_draw_parameters = true,
       .KHR_shader_expect_assume = true,
       .KHR_shader_float16_int8 = true,
       .KHR_shader_float_controls = true,
-      .KHR_shader_float_controls2 = true,
+      .KHR_shader_float_controls2 = tu_is_vk_1_1(device),
       .KHR_shader_integer_dot_product = true,
       .KHR_shader_non_semantic_info = true,
       .KHR_shader_relaxed_extended_instruction = true,
-      .KHR_shader_subgroup_extended_types = true,
+      .KHR_shader_subgroup_extended_types = tu_is_vk_1_1(device),
       .KHR_shader_subgroup_rotate = true,
-      .KHR_shader_subgroup_uniform_control_flow = true,
+      .KHR_shader_subgroup_uniform_control_flow = tu_is_vk_1_1(device),
       .KHR_shader_terminate_invocation = true,
-      .KHR_spirv_1_4 = true,
+      .KHR_spirv_1_4 = tu_is_vk_1_1(device),
       .KHR_storage_buffer_storage_class = true,
 #ifdef TU_USE_WSI_PLATFORM
       .KHR_swapchain = true,
@@ -240,6 +270,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .EXT_calibrated_timestamps = device->info->a7xx.has_persistent_counter,
       .EXT_color_write_enable = true,
       .EXT_conditional_rendering = true,
+      .EXT_conservative_rasterization = device->info->chip >= 7,
       .EXT_custom_border_color = true,
       .EXT_depth_clamp_zero_one = true,
       .EXT_depth_clip_control = true,
@@ -256,9 +287,11 @@ get_device_extensions(const struct tu_physical_device *device,
       .EXT_external_memory_dma_buf = true,
       .EXT_filter_cubic = device->info->a6xx.has_tex_filter_cubic,
       .EXT_fragment_density_map = true,
-      .EXT_global_priority = true,
-      .EXT_global_priority_query = true,
+      .EXT_fragment_density_map_offset = true,
+      .EXT_global_priority = tu_is_vk_1_1(device),
+      .EXT_global_priority_query = tu_is_vk_1_1(device),
       .EXT_graphics_pipeline_library = true,
+      .EXT_hdr_metadata = true,
       .EXT_host_image_copy = true,
       .EXT_host_query_reset = true,
       .EXT_image_2d_view_of_3d = true,
@@ -296,8 +329,8 @@ get_device_extensions(const struct tu_physical_device *device,
       .EXT_shader_module_identifier = true,
       .EXT_shader_replicated_composites = true,
       .EXT_shader_stencil_export = true,
-      .EXT_shader_viewport_index_layer = TU_DEBUG(NOCONFORM) ? true : device->info->a6xx.has_hw_multiview,
-      .EXT_subgroup_size_control = true,
+      .EXT_shader_viewport_index_layer = tu_has_multiview(device),
+      .EXT_subgroup_size_control = tu_is_vk_1_1(device),
 #ifdef TU_USE_WSI_PLATFORM
       .EXT_swapchain_maintenance1 = true,
 #endif
@@ -315,6 +348,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .GOOGLE_user_type = true,
       .IMG_filter_cubic = device->info->a6xx.has_tex_filter_cubic,
       .NV_compute_shader_derivatives = device->info->chip >= 7,
+      .QCOM_fragment_density_map_offset = true,
       .VALVE_mutable_descriptor_type = true,
    } };
 
@@ -337,30 +371,31 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->fullDrawIndexUint32 = true;
    features->imageCubeArray = true;
    features->independentBlend = true;
-   features->geometryShader = true;
-   features->tessellationShader = true;
+   features->geometryShader = !pdevice->info->a6xx.is_a702;
+   features->tessellationShader = !pdevice->info->a6xx.is_a702;
    features->sampleRateShading = true;
    features->dualSrcBlend = true;
    features->logicOp = true;
    features->multiDrawIndirect = true;
    features->drawIndirectFirstInstance = true;
    features->depthClamp = true;
-   features->depthBiasClamp = true;
+   features->depthBiasClamp = !pdevice->info->a6xx.is_a702;
    features->fillModeNonSolid = true;
    features->depthBounds = true;
    features->wideLines = pdevice->info->a6xx.line_width_max > 1.0;
    features->largePoints = true;
    features->alphaToOne = true;
-   features->multiViewport = true;
+   features->multiViewport = tu_has_multiview(pdevice);
    features->samplerAnisotropy = true;
    features->textureCompressionETC2 = true;
    features->textureCompressionASTC_LDR = true;
-   features->textureCompressionBC = true;
+   /* no BC6H & BC7 support on A702 */
+   features->textureCompressionBC = !pdevice->info->a6xx.is_a702;
    features->occlusionQueryPrecise = true;
    features->pipelineStatisticsQuery = true;
    features->vertexPipelineStoresAndAtomics = true;
    features->fragmentStoresAndAtomics = true;
-   features->shaderTessellationAndGeometryPointSize = true;
+   features->shaderTessellationAndGeometryPointSize = !pdevice->info->a6xx.is_a702;
    features->shaderImageGatherExtended = true;
    features->shaderStorageImageExtendedFormats = true;
    features->shaderStorageImageMultisample = false;
@@ -466,6 +501,11 @@ tu_get_features(struct tu_physical_device *pdevice,
    /* Vulkan 1.4 */
    features->pushDescriptor = true;
 
+   /* VK_KHR_acceleration_structure */
+   features->accelerationStructure = true;
+   features->accelerationStructureCaptureReplay = pdevice->has_set_iova;
+   features->descriptorBindingAccelerationStructureUpdateAfterBind = true;
+
    /* VK_KHR_compute_shader_derivatives */
    features->computeDerivativeGroupQuads = pdevice->info->chip >= 7;
    features->computeDerivativeGroupLinear = pdevice->info->chip >= 7;
@@ -482,7 +522,7 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->indexTypeUint8 = true;
 
    /* VK_KHR_line_rasterization */
-   features->rectangularLines = true;
+   features->rectangularLines = !pdevice->info->a6xx.is_a702;
    features->bresenhamLines = true;
    features->smoothLines = false;
    features->stippledRectangularLines = false;
@@ -494,6 +534,12 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* VK_KHR_maintenance6 */
    features->maintenance6 = true;
+
+   /* VK_KHR_maintenance7 */
+   features->maintenance7 = true;
+
+   /* VK_KHR_maintenance8 */
+   features->maintenance8 = true;
 
    /* VK_KHR_performance_query */
    features->performanceCounterQueryPools = true;
@@ -507,6 +553,10 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* VK_KHR_present_wait */
    features->presentWait = pdevice->vk.supported_extensions.KHR_present_wait;
+
+   /* VK_KHR_shader_clock */
+   features->shaderSubgroupClock = true;
+   features->shaderDeviceClock = true;
 
    /* VK_KHR_shader_expect_assume */
    features->shaderExpectAssume = true;
@@ -580,7 +630,7 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* VK_EXT_extended_dynamic_state3 */
    features->extendedDynamicState3PolygonMode = true;
-   features->extendedDynamicState3TessellationDomainOrigin = true;
+   features->extendedDynamicState3TessellationDomainOrigin = !pdevice->info->a6xx.is_a702;
    features->extendedDynamicState3DepthClampEnable = true;
    features->extendedDynamicState3DepthClipEnable = true;
    features->extendedDynamicState3LogicOpEnable = true;
@@ -589,9 +639,11 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->extendedDynamicState3AlphaToCoverageEnable = true;
    features->extendedDynamicState3AlphaToOneEnable = true;
    features->extendedDynamicState3DepthClipNegativeOneToOne = true;
-   features->extendedDynamicState3RasterizationStream = true;
-   features->extendedDynamicState3ConservativeRasterizationMode = false;
-   features->extendedDynamicState3ExtraPrimitiveOverestimationSize = false;
+   features->extendedDynamicState3RasterizationStream = !pdevice->info->a6xx.is_a702;
+   features->extendedDynamicState3ConservativeRasterizationMode =
+      pdevice->vk.supported_extensions.EXT_conservative_rasterization;
+   features->extendedDynamicState3ExtraPrimitiveOverestimationSize =
+      pdevice->vk.supported_extensions.EXT_conservative_rasterization;
    features->extendedDynamicState3LineRasterizationMode = true;
    features->extendedDynamicState3LineStippleEnable = false;
    features->extendedDynamicState3ProvokingVertexMode = true;
@@ -678,6 +730,12 @@ tu_get_features(struct tu_physical_device *pdevice,
    features->rasterizationOrderDepthAttachmentAccess = true;
    features->rasterizationOrderStencilAttachmentAccess = true;
 
+   /* VK_KHR_ray_query */
+   features->rayQuery = true;
+
+   /* VK_KHR_ray_tracing_maintenance1 */
+   features->rayTracingMaintenance1 = true;
+
    /* VK_EXT_robustness2 */
    features->robustBufferAccess2 = true;
    features->robustImageAccess2 = true;
@@ -699,7 +757,7 @@ tu_get_features(struct tu_physical_device *pdevice,
 
    /* VK_EXT_transform_feedback */
    features->transformFeedback = true;
-   features->geometryStreams = true;
+   features->geometryStreams = !pdevice->info->a6xx.is_a702;
 
    /* VK_EXT_vertex_input_dynamic_state */
    features->vertexInputDynamicState = true;
@@ -710,6 +768,9 @@ tu_get_features(struct tu_physical_device *pdevice,
    /* VK_KHR_subgroup_rotate */
    features->shaderSubgroupRotate = true;
    features->shaderSubgroupRotateClustered = true;
+
+   /* VK_EXT_fragment_density_map_offset */
+   features->fragmentDensityMapOffset = true;
 }
 
 static void
@@ -743,7 +804,7 @@ tu_get_physical_device_properties_1_1(struct tu_physical_device *pdevice,
 
    p->pointClippingBehavior = VK_POINT_CLIPPING_BEHAVIOR_ALL_CLIP_PLANES;
    p->maxMultiviewViewCount =
-      (pdevice->info->a6xx.has_hw_multiview || TU_DEBUG(NOCONFORM)) ? MAX_VIEWPORTS : 1;
+      tu_has_multiview(pdevice) ? MAX_VIEWPORTS : 1;
    p->maxMultiviewInstanceIndex = INT_MAX;
    p->protectedNoFault = false;
    /* Our largest descriptors are 2 texture descriptors, or a texture and
@@ -927,8 +988,8 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->maxImageDimension2D = (1 << 14);
    props->maxImageDimension3D = (1 << 11);
    props->maxImageDimensionCube = (1 << 14);
-   props->maxImageArrayLayers = (1 << 11);
-   props->maxTexelBufferElements = 128 * 1024 * 1024;
+   props->maxImageArrayLayers = (1 << (pdevice->info->a6xx.is_a702 ? 8 : 11));
+   props->maxTexelBufferElements = MAX_TEXEL_ELEMENTS;
    props->maxUniformBufferRange = MAX_UNIFORM_BUFFER_RANGE;
    props->maxStorageBufferRange = MAX_STORAGE_BUFFER_RANGE;
    props->maxPushConstantsSize = MAX_PUSH_CONSTANTS_SIZE;
@@ -956,21 +1017,25 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->maxVertexInputBindings = pdevice->info->a6xx.vs_max_inputs_count;
    props->maxVertexInputAttributeOffset = 4095;
    props->maxVertexInputBindingStride = 2048;
-   props->maxVertexOutputComponents = 128;
-   props->maxTessellationGenerationLevel = 64;
-   props->maxTessellationPatchSize = 32;
-   props->maxTessellationControlPerVertexInputComponents = 128;
-   props->maxTessellationControlPerVertexOutputComponents = 128;
-   props->maxTessellationControlPerPatchOutputComponents = 120;
-   props->maxTessellationControlTotalOutputComponents = 4096;
-   props->maxTessellationEvaluationInputComponents = 128;
-   props->maxTessellationEvaluationOutputComponents = 128;
-   props->maxGeometryShaderInvocations = 32;
-   props->maxGeometryInputComponents = 64;
-   props->maxGeometryOutputComponents = 128;
-   props->maxGeometryOutputVertices = 256;
-   props->maxGeometryTotalOutputComponents = 1024;
-   props->maxFragmentInputComponents = 124;
+   props->maxVertexOutputComponents = pdevice->info->a6xx.is_a702 ? 64 : 128;
+   if (!pdevice->info->a6xx.is_a702) {
+      props->maxTessellationGenerationLevel = 64;
+      props->maxTessellationPatchSize = 32;
+      props->maxTessellationControlPerVertexInputComponents = 128;
+      props->maxTessellationControlPerVertexOutputComponents = 128;
+      props->maxTessellationControlPerPatchOutputComponents = 120;
+      props->maxTessellationControlTotalOutputComponents = 4096;
+      props->maxTessellationEvaluationInputComponents = 128;
+      props->maxTessellationEvaluationOutputComponents = 128;
+      props->maxGeometryShaderInvocations = 32;
+      props->maxGeometryInputComponents = 64;
+      props->maxGeometryOutputComponents = 128;
+      props->maxGeometryOutputVertices = 256;
+      props->maxGeometryTotalOutputComponents = 1024;
+   }
+   // probably should be props->maxVertexOutputComponents - 4 but that is
+   // below the limit on a702
+   props->maxFragmentInputComponents = pdevice->info->a6xx.is_a702 ? 112 : 124;
    props->maxFragmentOutputAttachments = 8;
    props->maxFragmentDualSrcAttachments = 1;
    props->maxFragmentCombinedOutputResources = MAX_RTS + max_descriptor_set_size * 2;
@@ -981,9 +1046,15 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->maxComputeWorkGroupInvocations = pdevice->info->a6xx.supports_double_threadsize ?
       pdevice->info->threadsize_base * 2 * pdevice->info->max_waves :
       pdevice->info->threadsize_base * pdevice->info->max_waves;
-   props->maxComputeWorkGroupSize[0] =
-      props->maxComputeWorkGroupSize[1] =
-      props->maxComputeWorkGroupSize[2] = 1024;
+   if (pdevice->info->a6xx.is_a702) {
+      props->maxComputeWorkGroupSize[0] =
+         props->maxComputeWorkGroupSize[1] = 512;
+      props->maxComputeWorkGroupSize[2] = 64;
+   } else {
+      props->maxComputeWorkGroupSize[0] =
+         props->maxComputeWorkGroupSize[1] =
+         props->maxComputeWorkGroupSize[2] = 1024;
+   }
    props->subPixelPrecisionBits = 8;
    props->subTexelPrecisionBits = 8;
    props->mipmapPrecisionBits = 8;
@@ -992,7 +1063,7 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->maxSamplerLodBias = 4095.0 / 256.0; /* [-16, 15.99609375] */
    props->maxSamplerAnisotropy = 16;
    props->maxViewports =
-         (pdevice->info->a6xx.has_hw_multiview || TU_DEBUG(NOCONFORM)) ? MAX_VIEWPORTS : 1;
+         tu_has_multiview(pdevice) ? MAX_VIEWPORTS : 1;
    props->maxViewportDimensions[0] =
       props->maxViewportDimensions[1] = MAX_VIEWPORT_SIZE;
    props->viewportBoundsRange[0] = INT16_MIN;
@@ -1011,7 +1082,7 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->subPixelInterpolationOffsetBits = 4;
    props->maxFramebufferWidth = (1 << 14);
    props->maxFramebufferHeight = (1 << 14);
-   props->maxFramebufferLayers = (1 << 10);
+   props->maxFramebufferLayers = (1 << (pdevice->info->a6xx.is_a702 ? 8 : 10));
    props->framebufferColorSampleCounts = sample_counts;
    props->framebufferDepthSampleCounts = sample_counts;
    props->framebufferStencilSampleCounts = sample_counts;
@@ -1036,14 +1107,14 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->pointSizeGranularity = 	0.0625;
    props->lineWidthGranularity =
       pdevice->info->a6xx.line_width_max == 1.0 ? 0.0 : 0.5;
-   props->strictLines = true;
+   props->strictLines = !pdevice->info->a6xx.is_a702;
    props->standardSampleLocations = true;
    props->optimalBufferCopyOffsetAlignment = 128;
    props->optimalBufferCopyRowPitchAlignment = 128;
    props->nonCoherentAtomSize = 64;
 
    props->apiVersion =
-      (pdevice->info->a6xx.has_hw_multiview || TU_DEBUG(NOCONFORM)) ?
+      tu_has_multiview(pdevice) ?
          ((pdevice->info->chip >= 7) ? TU_API_VERSION :
             VK_MAKE_VERSION(1, 3, VK_HEADER_VERSION))
          : VK_MAKE_VERSION(1, 0, VK_HEADER_VERSION);
@@ -1097,7 +1168,7 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->fragmentShadingRateWithSampleMask = true;
    /* Has wrong gl_SampleMaskIn[0] values with VK_EXT_post_depth_coverage used. */
    props->fragmentShadingRateWithShaderSampleMask = false;
-   props->fragmentShadingRateWithConservativeRasterization = false;
+   props->fragmentShadingRateWithConservativeRasterization = true;
    props->fragmentShadingRateWithFragmentShaderInterlock = false;
    props->fragmentShadingRateWithCustomSampleLocations = true;
    props->fragmentShadingRateStrictMultiplyCombiner = true;
@@ -1106,7 +1177,12 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->maxPushDescriptors = MAX_PUSH_DESCRIPTORS;
 
    /* VK_EXT_transform_feedback */
-   props->maxTransformFeedbackStreams = IR3_MAX_SO_STREAMS;
+   if (pdevice->info->a6xx.is_a702) {
+       /* a702 only 32 streamout ram entries.. 1 stream, 64 components */
+      props->maxTransformFeedbackStreams = 1;
+   } else {
+      props->maxTransformFeedbackStreams = IR3_MAX_SO_STREAMS;
+   }
    props->maxTransformFeedbackBuffers = IR3_MAX_SO_BUFFERS;
    props->maxTransformFeedbackBufferSize = UINT32_MAX;
    props->maxTransformFeedbackStreamDataSize = 512;
@@ -1219,6 +1295,7 @@ tu_get_properties(struct tu_physical_device *pdevice,
       COND(pdevice->info->a7xx.storage_8bit, 1));
    props->robustStorageBufferDescriptorSize =
       props->storageBufferDescriptorSize;
+   props->accelerationStructureDescriptorSize = 4 * A6XX_TEX_CONST_DWORDS;
    props->inputAttachmentDescriptorSize = A6XX_TEX_CONST_DWORDS * 4;
    props->maxSamplerDescriptorBufferRange = ~0ull;
    props->maxResourceDescriptorBufferRange = ~0ull;
@@ -1247,6 +1324,28 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->blockTexelViewCompatibleMultipleLayers = true;
    props->maxCombinedImageSamplerDescriptorCount = 1;
    props->fragmentShadingRateClampCombinerInputs = true;
+
+   /* VK_KHR_maintenance7 */
+   props->robustFragmentShadingRateAttachmentAccess = true;
+   /* For D24S8, storing depth or stencil forces a load and store of the other
+    * component.
+    */
+   props->separateDepthStencilAttachmentAccess = false;
+   /* Uniform and storage buffers are different sizes, so we can't allow the
+    * user to freely mix them and count both against a shared limit. We have
+    * to force the user to use at most MAX_DYNAMIC_UNIFORM_BUFFERS uniform
+    * buffers and MAX_DYNAMIC_STORAGE_BUFFERS storage buffers and set the
+    * combined limit to the sum (which makes it redundant since the user will
+    * always hit the other limits first).
+    */
+   props->maxDescriptorSetTotalUniformBuffersDynamic = MAX_DYNAMIC_UNIFORM_BUFFERS;
+   props->maxDescriptorSetTotalStorageBuffersDynamic = MAX_DYNAMIC_STORAGE_BUFFERS;
+   props->maxDescriptorSetTotalBuffersDynamic =
+      MAX_DYNAMIC_UNIFORM_BUFFERS + MAX_DYNAMIC_STORAGE_BUFFERS;
+   props->maxDescriptorSetUpdateAfterBindTotalUniformBuffersDynamic = MAX_DYNAMIC_UNIFORM_BUFFERS;
+   props->maxDescriptorSetUpdateAfterBindTotalStorageBuffersDynamic = MAX_DYNAMIC_STORAGE_BUFFERS;
+   props->maxDescriptorSetUpdateAfterBindTotalBuffersDynamic =
+      MAX_DYNAMIC_UNIFORM_BUFFERS + MAX_DYNAMIC_STORAGE_BUFFERS;
 
    /* VK_EXT_host_image_copy */
 
@@ -1304,6 +1403,32 @@ tu_get_properties(struct tu_physical_device *pdevice,
 
       memcpy(props->optimalTilingLayoutUUID, sha1, VK_UUID_SIZE);
    }
+
+   /* VK_KHR_acceleration_structure */
+   props->maxGeometryCount = (1 << 24) - 1;
+   props->maxInstanceCount = (1 << 24) - 1;
+   props->maxPrimitiveCount = (1 << 29) - 1;
+   props->maxPerStageDescriptorAccelerationStructures = max_descriptor_set_size;
+   props->maxPerStageDescriptorUpdateAfterBindAccelerationStructures = max_descriptor_set_size;
+   props->maxDescriptorSetAccelerationStructures = max_descriptor_set_size;
+   props->maxDescriptorSetUpdateAfterBindAccelerationStructures = max_descriptor_set_size;
+   props->minAccelerationStructureScratchOffsetAlignment = 128;
+
+   /* VK_EXT_conservative_rasterization */
+   props->primitiveOverestimationSize = 0.5 + 1 / 256.;
+   props->maxExtraPrimitiveOverestimationSize = 0.5;
+   props->extraPrimitiveOverestimationSizeGranularity = 0.5;
+   props->primitiveUnderestimation = false;
+   props->conservativePointAndLineRasterization = false;
+   props->degenerateTrianglesRasterized = true;
+   props->degenerateLinesRasterized = false;
+   props->fullyCoveredFragmentShaderInputVariable = false;
+   props->conservativeRasterizationPostDepthCoverage = false;
+
+   /* VK_QCOM_fragment_density_map_offset */
+   props->fragmentDensityOffsetGranularity = (VkExtent2D) { 
+      TU_FDM_OFFSET_GRANULARITY, TU_FDM_OFFSET_GRANULARITY
+   };
 }
 
 static const struct vk_pipeline_cache_object_ops *const cache_import_ops[] = {
@@ -1326,13 +1451,25 @@ tu_physical_device_init(struct tu_physical_device *device,
                                device->dev_id.chip_id, device->dev_id.gpu_id);
    }
 
+   const struct fd_dev_info info = fd_dev_info(&device->dev_id);
+   assert(info.chip);
+
+   /* Print a suffix if raytracing is disabled by the SW fuse, in an attempt
+    * to avoid confusion when apps don't work.
+    */
+   bool raytracing_disabled = info.a7xx.has_sw_fuse &&
+      !device->has_raytracing;
+   const char *rt_suffix = raytracing_disabled ? " (raytracing disabled)" : "";
+
    if (strncmp(fd_name, "FD", 2) == 0) {
       device->name = vk_asprintf(&instance->vk.alloc,
                                  VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE,
-                                 "Turnip Adreno (TM) %s", &fd_name[2]);
+                                 "Turnip Adreno (TM) %s%s", &fd_name[2],
+                                 rt_suffix);
    } else {
-      device->name = vk_strdup(&instance->vk.alloc, fd_name,
-                               VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE);
+      device->name = vk_asprintf(&instance->vk.alloc,
+                                 VK_SYSTEM_ALLOCATION_SCOPE_INSTANCE,
+                                 "%s%s", fd_name, rt_suffix);
 
    }
    if (!device->name) {
@@ -1340,12 +1477,6 @@ tu_physical_device_init(struct tu_physical_device *device,
                                "device name alloc fail");
    }
 
-   const struct fd_dev_info info = fd_dev_info(&device->dev_id);
-   if (!info.chip) {
-      result = vk_startup_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
-                                 "device %s is unsupported", device->name);
-      goto fail_free_name;
-   }
    switch (fd_dev_gen(&device->dev_id)) {
    case 6:
    case 7: {
@@ -1539,6 +1670,8 @@ static const driOptionDescription tu_dri_options[] = {
       DRI_CONF_TU_DONT_RESERVE_DESCRIPTOR_SET(false)
       DRI_CONF_TU_ALLOW_OOB_INDIRECT_UBO_LOADS(false)
       DRI_CONF_TU_DISABLE_D24S8_BORDER_COLOR_WORKAROUND(false)
+      DRI_CONF_TU_USE_TEX_COORD_ROUND_NEAREST_EVEN_MODE(false)
+      DRI_CONF_TU_IGNORE_FRAG_DEPTH_DIRECTION(false)
    DRI_CONF_SECTION_END
 };
 
@@ -1561,6 +1694,10 @@ tu_init_dri_options(struct tu_instance *instance)
          driQueryOptionb(&instance->dri_options, "tu_allow_oob_indirect_ubo_loads");
    instance->disable_d24s8_border_color_workaround =
          driQueryOptionb(&instance->dri_options, "tu_disable_d24s8_border_color_workaround");
+   instance->use_tex_coord_round_nearest_even_mode =
+         driQueryOptionb(&instance->dri_options, "tu_use_tex_coord_round_nearest_even_mode");
+   instance->ignore_frag_depth_direction =
+         driQueryOptionb(&instance->dri_options, "tu_ignore_frag_depth_direction");
 }
 
 static uint32_t instance_count = 0;
@@ -1891,7 +2028,8 @@ tu_trace_record_ts(struct u_trace *ut, void *cs, void *timestamps,
 
 static uint64_t
 tu_trace_read_ts(struct u_trace_context *utctx,
-                 void *timestamps, uint64_t offset_B, void *flush_data)
+                 void *timestamps, uint64_t offset_B,
+                 uint32_t flags, void *flush_data)
 {
    struct tu_device *device =
       container_of(utctx, struct tu_device, trace_context);
@@ -2267,7 +2405,7 @@ tu_init_cmdbuf_start_a725_quirk(struct tu_device *device)
             .threadmode = MULTI,
             .threadsize = THREAD128,
             .mergedregs = true));
-   tu_cs_emit_regs(&sub_cs, A6XX_SP_CS_UNKNOWN_A9B1(.shared_size = 1));
+   tu_cs_emit_regs(&sub_cs, A6XX_SP_CS_CTRL_REG1(.shared_size = 1));
    tu_cs_emit_regs(&sub_cs, HLSQ_CS_KERNEL_GROUP_X(A7XX, 1),
                      HLSQ_CS_KERNEL_GROUP_Y(A7XX, 1),
                      HLSQ_CS_KERNEL_GROUP_Z(A7XX, 1));
@@ -2302,7 +2440,7 @@ tu_init_cmdbuf_start_a725_quirk(struct tu_device *device)
                   HLSQ_CS_NDRANGE_4(A7XX, .globaloff_y = 0),
                   HLSQ_CS_NDRANGE_5(A7XX, .globalsize_z = 1),
                   HLSQ_CS_NDRANGE_6(A7XX, .globaloff_z = 0));
-   tu_cs_emit_regs(&sub_cs, A7XX_HLSQ_CS_LOCAL_SIZE(
+   tu_cs_emit_regs(&sub_cs, A7XX_HLSQ_CS_LAST_LOCAL_SIZE(
             .localsizex = 255,
             .localsizey = 0,
             .localsizez = 0));
@@ -2410,6 +2548,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    }
 
    device->vk.command_buffer_ops = &tu_cmd_buffer_ops;
+   device->vk.as_build_ops = &tu_as_build_ops;
    device->vk.check_status = tu_device_check_status;
    device->vk.get_timestamp = tu_device_get_timestamp;
 
@@ -2417,6 +2556,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    mtx_init(&device->pipeline_mutex, mtx_plain);
    mtx_init(&device->autotune_mutex, mtx_plain);
    mtx_init(&device->kgsl_profiling_mutex, mtx_plain);
+   mtx_init(&device->event_mutex, mtx_plain);
    u_rwlock_init(&device->dma_bo_lock);
    pthread_mutex_init(&device->submit_mutex, NULL);
 
@@ -2433,7 +2573,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       tu_memory_trace_init(device);
 
    /* kgsl is not a drm device: */
-   if (!is_kgsl(physical_device->instance))
+   if (!is_kgsl(physical_device->instance) && (device->fd >= 0))
       vk_device_set_drm_fd(&device->vk, device->fd);
 
    struct tu6_global *global = NULL;
@@ -2469,6 +2609,14 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       }
    }
 
+   result = vk_meta_device_init(&device->vk, &device->meta);
+   if (result != VK_SUCCESS)
+      goto fail_queues;
+
+   util_sparse_array_init(&device->accel_struct_ranges, sizeof(VkDeviceSize), 256);
+
+   mtx_init(&device->radix_sort_mutex, mtx_plain);
+
    {
       struct ir3_compiler_options ir3_options = {
          .push_ubo_with_preamble = true,
@@ -2478,6 +2626,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
          .storage_16bit = physical_device->info->a6xx.storage_16bit,
          .storage_8bit = physical_device->info->a7xx.storage_8bit,
          .shared_push_consts = !TU_DEBUG(PUSH_CONSTS_PER_STAGE),
+         .uche_trap_base = physical_device->uche_trap_base,
       };
       device->compiler = ir3_compiler_create(
          NULL, &physical_device->dev_id, physical_device->info, &ir3_options);
@@ -2486,7 +2635,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       result = vk_startup_errorf(physical_device->instance,
                                  VK_ERROR_INITIALIZATION_FAILED,
                                  "failed to initialize ir3 compiler");
-      goto fail_queues;
+      goto fail_compiler;
    }
 
    /* Initialize sparse array for refcounting imported BOs */
@@ -2525,6 +2674,10 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
                               "kgsl_profiling_suballoc");
    }
 
+   tu_bo_suballocator_init(&device->event_suballoc, device,
+      getpagesize(), TU_BO_ALLOC_INTERNAL_RESOURCE,
+      "event_suballoc");
+
    result = tu_bo_init_new(
       device, NULL, &device->global_bo, global_size,
       (enum tu_bo_alloc_flags) (TU_BO_ALLOC_ALLOW_DUMP |
@@ -2545,6 +2698,15 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    device->global_bo_map = global;
    tu_init_clear_blit_shaders(device);
 
+   if (device->vk.enabled_features.accelerationStructure &&
+       device->vk.enabled_features.nullDescriptor) {
+      result = tu_init_null_accel_struct(device);
+      if (result != VK_SUCCESS) {
+         vk_startup_errorf(device->instance, result, "null acceleration struct");
+         goto fail_null_accel_struct;
+      }
+   }
+
    result = tu_init_empty_shaders(device);
    if (result != VK_SUCCESS) {
       vk_startup_errorf(device->instance, result, "empty shaders");
@@ -2558,11 +2720,6 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
    global->dbg_gmem_taken_loads = 0;
    global->dbg_gmem_total_stores = 0;
    global->dbg_gmem_taken_stores = 0;
-   for (int i = 0; i < TU_BORDER_COLOR_BUILTIN; i++) {
-      VkClearColorValue border_color = vk_border_color_value((VkBorderColor) i);
-      tu6_pack_border_color(&global->bcolor_builtin[i], &border_color,
-                            vk_border_color_is_int((VkBorderColor) i));
-   }
 
    /* initialize to ones so ffs can be used to find unused slots */
    BITSET_ONES(device->custom_border_color);
@@ -2668,7 +2825,7 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       physical_device->info->a6xx.has_z24uint_s8uint &&
       (!border_color_without_format ||
        physical_device->instance->disable_d24s8_border_color_workaround);
-   device->use_lrz = !TU_DEBUG(NOLRZ);
+   device->use_lrz = !TU_DEBUG_ENV(NOLRZ);
 
    tu_gpu_tracepoint_config_variable();
 
@@ -2707,6 +2864,11 @@ tu_CreateDevice(VkPhysicalDevice physicalDevice,
       fd_rd_output_init(&device->rd_output, output_name);
    }
 
+   device->vk.cmd_dispatch_unaligned = tu_dispatch_unaligned;
+   device->vk.write_buffer_cp = tu_write_buffer_cp;
+   device->vk.flush_buffer_write_cp = tu_flush_buffer_write_cp;
+   device->vk.cmd_fill_buffer_addr = tu_cmd_fill_buffer_addr;
+
    *pDevice = tu_device_to_handle(device);
    return VK_SUCCESS;
 
@@ -2723,6 +2885,9 @@ fail_pipeline_cache:
 fail_dynamic_rendering:
    tu_destroy_empty_shaders(device);
 fail_empty_shaders:
+   if (device->null_accel_struct_bo)
+      tu_bo_finish(device, device->null_accel_struct_bo);
+fail_null_accel_struct:
    tu_destroy_clear_blit_shaders(device);
 fail_global_bo_map:
    TU_RMV(resource_destroy, device, device->global_bo);
@@ -2730,12 +2895,15 @@ fail_global_bo_map:
    vk_free(&device->vk.alloc, device->submit_bo_list);
    util_dynarray_fini(&device->dump_bo_list);
 fail_global_bo:
-   ir3_compiler_destroy(device->compiler);
-   util_sparse_array_finish(&device->bo_map);
    if (physical_device->has_set_iova)
       util_vma_heap_finish(&device->vma);
 fail_free_zombie_vma:
+   util_sparse_array_finish(&device->bo_map);
    u_vector_finish(&device->zombie_vmas);
+   ir3_compiler_destroy(device->compiler);
+fail_compiler:
+   util_sparse_array_finish(&device->accel_struct_ranges);
+   vk_meta_device_finish(&device->vk, &device->meta);
 fail_queues:
    for (unsigned i = 0; i < TU_MAX_QUEUE_FAMILIES; i++) {
       for (unsigned q = 0; q < device->queue_count[i]; q++)
@@ -2785,6 +2953,10 @@ tu_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
 
    tu_destroy_dynamic_rendering(device);
 
+   vk_meta_device_finish(&device->vk, &device->meta);
+
+   util_sparse_array_finish(&device->accel_struct_ranges);
+
    ir3_compiler_destroy(device->compiler);
 
    vk_pipeline_cache_destroy(device->mem_cache, &device->vk.alloc);
@@ -2810,8 +2982,12 @@ tu_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    tu_bo_suballocator_finish(&device->pipeline_suballoc);
    tu_bo_suballocator_finish(&device->autotune_suballoc);
    tu_bo_suballocator_finish(&device->kgsl_profiling_suballoc);
+   tu_bo_suballocator_finish(&device->event_suballoc);
 
    tu_bo_finish(device, device->global_bo);
+
+   if (device->null_accel_struct_bo)
+      tu_bo_finish(device, device->null_accel_struct_bo);
 
    for (unsigned i = 0; i < TU_MAX_QUEUE_FAMILIES; i++) {
       for (unsigned q = 0; q < device->queue_count[i]; q++)
@@ -3227,7 +3403,8 @@ tu_setup_dynamic_framebuffer(struct tu_cmd_buffer *cmd_buffer,
       pRenderingInfo->renderArea.extent.width;
    framebuffer->height = pRenderingInfo->renderArea.offset.y +
       pRenderingInfo->renderArea.extent.height;
-   framebuffer->layers = pRenderingInfo->layerCount;
+   framebuffer->layers =
+      pRenderingInfo->viewMask != 0 ? 1 : pRenderingInfo->layerCount;
 
    tu_framebuffer_tiling_config(framebuffer, cmd_buffer->device, pass);
 }
@@ -3495,10 +3672,10 @@ tu_CmdBeginDebugUtilsLabelEXT(VkCommandBuffer _commandBuffer,
    const char *label = pLabelInfo->pLabelName;
    if (cmd_buffer->state.pass) {
       trace_start_cmd_buffer_annotation_rp(
-         &cmd_buffer->trace, &cmd_buffer->draw_cs, strlen(label), label);
+         &cmd_buffer->trace, &cmd_buffer->draw_cs, cmd_buffer, strlen(label), label);
    } else {
       trace_start_cmd_buffer_annotation(&cmd_buffer->trace, &cmd_buffer->cs,
-                                        strlen(label), label);
+                                        cmd_buffer, strlen(label), label);
    }
 }
 
@@ -3517,4 +3694,19 @@ tu_CmdEndDebugUtilsLabelEXT(VkCommandBuffer _commandBuffer)
    }
 
    vk_common_CmdEndDebugUtilsLabelEXT(_commandBuffer);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+tu_SetDebugUtilsObjectNameEXT(
+   VkDevice device,
+   const VkDebugUtilsObjectNameInfoEXT *pNameInfo)
+{
+   VkResult result = vk_common_SetDebugUtilsObjectNameEXT(device, pNameInfo);
+
+#ifdef HAVE_PERFETTO
+   if (result == VK_SUCCESS)
+      tu_perfetto_set_debug_utils_object_name(pNameInfo);
+#endif
+
+   return result;
 }

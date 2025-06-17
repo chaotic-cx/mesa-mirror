@@ -1424,7 +1424,9 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
          struct intel_vue_map prev_stage_vue_map;
          elk_compute_vue_map(devinfo, &prev_stage_vue_map,
                              key->input_slots_valid,
-                             nir->info.separate_shader, 1);
+                             nir->info.separate_shader ?
+                             INTEL_VUE_LAYOUT_SEPARATE :
+                             INTEL_VUE_LAYOUT_FIXED, 1);
 
          int first_slot =
             elk_compute_first_urb_slot_required(inputs_read,
@@ -2228,7 +2230,7 @@ elk_fs_visitor::opt_algebraic()
             if (inst->dst.type != inst->src[0].type &&
                 inst->dst.type != ELK_REGISTER_TYPE_DF &&
                 inst->src[0].type != ELK_REGISTER_TYPE_F)
-               assert(!"unimplemented: saturate mixed types");
+               unreachable("unimplemented: saturate mixed types");
 
             if (elk_saturate_immediate(inst->src[0].type,
                                        &inst->src[0].as_elk_reg())) {
@@ -2397,12 +2399,15 @@ elk_fs_visitor::opt_algebraic()
             inst->remove(block);
             progress = true;
          }
-         if (inst->src[0].equals(inst->src[1])) {
+         if (inst->src[0].equals(inst->src[1]) &&
+             (!elk_reg_type_is_floating_point(inst->dst.type) ||
+              inst->conditional_mod == ELK_CONDITIONAL_NONE)) {
             inst->opcode = ELK_OPCODE_MOV;
             inst->sources = 1;
             inst->src[1] = reg_undef;
             inst->predicate = ELK_PREDICATE_NONE;
             inst->predicate_inverse = false;
+            inst->conditional_mod = ELK_CONDITIONAL_NONE;
             progress = true;
          } else if (inst->saturate && inst->src[1].file == IMM) {
             switch (inst->conditional_mod) {
@@ -2437,6 +2442,7 @@ elk_fs_visitor::opt_algebraic()
                default:
                   break;
                }
+               break;
             default:
                break;
             }
@@ -3408,6 +3414,12 @@ elk_fs_visitor::workaround_source_arf_before_eot()
    return progress;
 }
 
+static bool
+has_compr4(const struct intel_device_info *devinfo)
+{
+   return devinfo->verx10 > 40 && devinfo->verx10 < 60;
+}
+
 bool
 elk_fs_visitor::lower_load_payload()
 {
@@ -3467,7 +3479,7 @@ elk_fs_visitor::lower_load_payload()
          assert(inst->header_size + 4 <= inst->sources);
          for (uint8_t i = inst->header_size; i < inst->header_size + 4; i++) {
             if (inst->src[i].file != BAD_FILE) {
-               if (devinfo->has_compr4) {
+               if (has_compr4(devinfo)) {
                   elk_fs_reg compr4_dst = retype(dst, inst->src[i].type);
                   compr4_dst.nr |= ELK_MRF_COMPR4;
                   ibld.MOV(compr4_dst, inst->src[i]);
@@ -6409,7 +6421,7 @@ elk_compute_barycentric_interp_modes(const struct intel_device_info *devinfo,
 
             barycentric_interp_modes |= 1 << bary;
 
-            if (devinfo->needs_unlit_centroid_workaround &&
+            if (elk_needs_unlit_centroid_workaround(devinfo) &&
                 bary_op == nir_intrinsic_load_barycentric_centroid)
                barycentric_interp_modes |= 1 << centroid_to_pixel(bary);
          }
@@ -6532,10 +6544,7 @@ elk_nir_move_interpolation_to_top(nir_shader *nir)
          }
       }
 
-      progress = progress || impl_progress;
-
-      nir_metadata_preserve(impl, impl_progress ? nir_metadata_control_flow
-                                                : nir_metadata_all);
+      progress |= nir_progress(impl_progress, impl, nir_metadata_control_flow);
    }
 
    return progress;

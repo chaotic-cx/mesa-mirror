@@ -1,7 +1,6 @@
 #include "zink_batch.h"
 #include "zink_context.h"
 #include "zink_descriptors.h"
-#include "zink_framebuffer.h"
 #include "zink_kopper.h"
 #include "zink_program.h"
 #include "zink_query.h"
@@ -97,6 +96,11 @@ zink_reset_batch_state(struct zink_context *ctx, struct zink_batch_state *bs)
    reset_obj_list(screen, bs, &bs->real_objs);
    reset_obj_list(screen, bs, &bs->slab_objs);
    reset_obj_list(screen, bs, &bs->sparse_objs);
+   reset_obj_list(screen, bs, &bs->unsync_objs);
+   while (util_dynarray_contains(&bs->swapchain_obj_unsync, struct zink_resource_object*)) {
+      struct zink_resource_object *obj = util_dynarray_pop(&bs->swapchain_obj_unsync, struct zink_resource_object*);
+      reset_obj(screen, bs, obj);
+   }
    while (util_dynarray_contains(&bs->swapchain_obj, struct zink_resource_object*)) {
       struct zink_resource_object *obj = util_dynarray_pop(&bs->swapchain_obj, struct zink_resource_object*);
       reset_obj(screen, bs, obj);
@@ -147,15 +151,14 @@ zink_reset_batch_state(struct zink_context *ctx, struct zink_batch_state *bs)
    bs->signal_semaphore = VK_NULL_HANDLE;
    bs->sparse_semaphore = VK_NULL_HANDLE;
    util_dynarray_clear(&bs->wait_semaphore_stages);
+   util_dynarray_clear(&bs->wait_semaphores);
 
    bs->present = VK_NULL_HANDLE;
    /* check the arrays first to avoid locking unnecessarily */
-   if (util_dynarray_contains(&bs->acquires, VkSemaphore) || util_dynarray_contains(&bs->wait_semaphores, VkSemaphore) || util_dynarray_contains(&bs->tracked_semaphores, VkSemaphore)) {
+   if (util_dynarray_contains(&bs->acquires, VkSemaphore) || util_dynarray_contains(&bs->tracked_semaphores, VkSemaphore)) {
       simple_mtx_lock(&screen->semaphores_lock);
       util_dynarray_append_dynarray(&screen->semaphores, &bs->acquires);
       util_dynarray_clear(&bs->acquires);
-      util_dynarray_append_dynarray(&screen->semaphores, &bs->wait_semaphores);
-      util_dynarray_clear(&bs->wait_semaphores);
       util_dynarray_append_dynarray(&screen->semaphores, &bs->tracked_semaphores);
       util_dynarray_clear(&bs->tracked_semaphores);
       simple_mtx_unlock(&screen->semaphores_lock);
@@ -296,10 +299,12 @@ zink_batch_state_destroy(struct zink_screen *screen, struct zink_batch_state *bs
       VKSCR(DestroyCommandPool)(screen->dev, bs->unsynchronized_cmdpool, NULL);
    free(bs->real_objs.objs);
    free(bs->slab_objs.objs);
+   free(bs->unsync_objs.objs);
    free(bs->sparse_objs.objs);
    util_dynarray_fini(&bs->freed_sparse_backing_bos);
    util_dynarray_fini(&bs->dead_querypools);
    util_dynarray_fini(&bs->swapchain_obj);
+   util_dynarray_fini(&bs->swapchain_obj_unsync);
    util_dynarray_fini(&bs->zombie_samplers);
    util_dynarray_fini(&bs->unref_resources);
    util_dynarray_fini(&bs->bindless_releases[0]);
@@ -320,6 +325,22 @@ zink_batch_state_destroy(struct zink_screen *screen, struct zink_batch_state *bs
    util_dynarray_fini(&bs->fence.mfences);
    zink_batch_descriptor_deinit(screen, bs);
    ralloc_free(bs);
+}
+
+static void
+zink_label_cmd_buffer(struct zink_context *ctx, VkDevice device, VkCommandBuffer cmd_buffer, const char *name)
+{
+   struct zink_screen *screen = zink_screen(ctx->base.screen);
+
+   VkDebugUtilsObjectNameInfoEXT name_info = {
+      .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT,
+      .pNext = NULL,
+      .objectType = VK_OBJECT_TYPE_COMMAND_BUFFER,
+      .objectHandle = (uintptr_t)cmd_buffer,
+      .pObjectName = name,
+   };
+
+   VKSCR(SetDebugUtilsObjectNameEXT)(device, &name_info);
 }
 
 /* batch states are created:
@@ -379,6 +400,9 @@ create_batch_state(struct zink_context *ctx)
       }
    );
 
+   zink_label_cmd_buffer(ctx, screen->dev, cmdbufs[0], "zink cmdbuf");
+   zink_label_cmd_buffer(ctx, screen->dev, cmdbufs[1], "zink barrier cmdbuf");
+
 #define SET_CREATE_OR_FAIL(ptr) \
    if (!_mesa_set_init(ptr, bs, _mesa_hash_pointer, _mesa_key_pointer_equal)) \
       goto fail
@@ -404,11 +428,11 @@ create_batch_state(struct zink_context *ctx)
    util_dynarray_init(&bs->bindless_releases[0], NULL);
    util_dynarray_init(&bs->bindless_releases[1], NULL);
    util_dynarray_init(&bs->swapchain_obj, NULL);
+   util_dynarray_init(&bs->swapchain_obj_unsync, NULL);
    util_dynarray_init(&bs->fence.mfences, NULL);
 
    cnd_init(&bs->usage.flush);
    mtx_init(&bs->usage.mtx, mtx_plain);
-   simple_mtx_init(&bs->ref_lock, mtx_plain);
    simple_mtx_init(&bs->exportable_lock, mtx_plain);
    memset(&bs->buffer_indices_hashlist, -1, sizeof(bs->buffer_indices_hashlist));
 
@@ -619,6 +643,8 @@ typedef enum {
    ZINK_SUBMIT_MAX
 } zink_submit;
 
+#define ZINK_MAX_SIGNALS 3
+
 static void
 submit_queue(void *data, void *gdata, int thread_index)
 {
@@ -685,12 +711,12 @@ submit_queue(void *data, void *gdata, int thread_index)
    si[ZINK_SUBMIT_CMDBUF].pSignalSemaphores = bs->signal_semaphores.data;
 
    /* then the signal submit with the timeline (fence) semaphore */
-   VkSemaphore signals[3];
+   VkSemaphore signals[ZINK_MAX_SIGNALS];
    si[ZINK_SUBMIT_SIGNAL].signalSemaphoreCount = !!bs->signal_semaphore;
    signals[0] = bs->signal_semaphore;
    si[ZINK_SUBMIT_SIGNAL].pSignalSemaphores = signals;
    VkTimelineSemaphoreSubmitInfo tsi = {0};
-   uint64_t signal_values[2] = {0};
+   uint64_t signal_values[ZINK_MAX_SIGNALS] = {0};
    tsi.sType = VK_STRUCTURE_TYPE_TIMELINE_SEMAPHORE_SUBMIT_INFO;
    si[ZINK_SUBMIT_SIGNAL].pNext = &tsi;
    tsi.pSignalSemaphoreValues = signal_values;
@@ -702,6 +728,8 @@ submit_queue(void *data, void *gdata, int thread_index)
       signals[si[ZINK_SUBMIT_SIGNAL].signalSemaphoreCount++] = bs->present;
    tsi.signalSemaphoreValueCount = si[ZINK_SUBMIT_SIGNAL].signalSemaphoreCount;
 
+   assert(si[ZINK_SUBMIT_SIGNAL].signalSemaphoreCount <= ZINK_MAX_SIGNALS);
+   assert(tsi.signalSemaphoreValueCount <= ZINK_MAX_SIGNALS);
 
    VkResult result;
    if (bs->has_work) {
@@ -881,6 +909,15 @@ zink_end_batch(struct zink_context *ctx)
       }
       res->queue = VK_QUEUE_FAMILY_FOREIGN_EXT;
 
+      /* We just transitioned to VK_QUEUE_FAMILY_FOREIGN_EXT.  We'll need a
+       * barrier to transition back to our queue before we can use this
+       * resource again.  Set need_barriers if bound.
+       */
+      for (unsigned i = 0; i < ARRAY_SIZE(ctx->need_barriers); i++) {
+         if (res->bind_count[i])
+            _mesa_set_add(ctx->need_barriers[i], res);
+      }
+
       for (; res; res = zink_resource(res->base.b.next)) {
          VkSemaphore sem = zink_create_exportable_semaphore(screen);
          if (sem)
@@ -888,6 +925,9 @@ zink_end_batch(struct zink_context *ctx)
       }
       bs->has_work = true;
    }
+
+   util_dynarray_foreach(&bs->fences, struct zink_tc_fence*, mfence)
+      (*mfence)->deferred_ctx = NULL;
 
    if (screen->threaded_submit) {
       util_queue_add_job(&screen->flush_queue, bs, &bs->flush_completed,
@@ -897,7 +937,8 @@ zink_end_batch(struct zink_context *ctx)
       post_submit(bs, NULL, 0);
    }
 
-   if (!(ctx->flags & ZINK_CONTEXT_COPY_ONLY) && screen->renderdoc_capturing && p_atomic_read(&screen->renderdoc_frame) > screen->renderdoc_capture_end) {
+   if (!(ctx->flags & ZINK_CONTEXT_COPY_ONLY) && screen->renderdoc_capturing && !screen->renderdoc_capture_all &&
+       p_atomic_read(&screen->renderdoc_frame) > screen->renderdoc_capture_end) {
       screen->renderdoc_api->EndFrameCapture(RENDERDOC_DEVICEPOINTER_FROM_VKINSTANCE(screen->instance), NULL);
       screen->renderdoc_capturing = false;
    }
@@ -980,49 +1021,12 @@ zink_batch_reference_resource(struct zink_context *ctx, struct zink_resource *re
 }
 
 /* this adds batch usage */
-bool
-zink_batch_reference_resource_move(struct zink_context *ctx, struct zink_resource *res)
+ALWAYS_INLINE static bool
+batch_reference_resource_move_internal(struct zink_batch_state *bs, struct zink_batch_obj_list *list, struct zink_resource *res)
 {
-   struct zink_batch_state *bs = ctx->bs;
-
-   simple_mtx_lock(&bs->ref_lock);
-   /* swapchains are special */
-   if (zink_is_swapchain(res)) {
-      struct zink_resource_object **swapchains = bs->swapchain_obj.data;
-      unsigned count = util_dynarray_num_elements(&bs->swapchain_obj, struct zink_resource_object*);
-      for (unsigned i = 0; i < count; i++) {
-         if (swapchains[i] == res->obj) {
-            simple_mtx_unlock(&bs->ref_lock);
-            return true;
-         }
-      }
-      util_dynarray_append(&bs->swapchain_obj, struct zink_resource_object*, res->obj);
-      simple_mtx_unlock(&bs->ref_lock);
-      return false;
-   }
-   /* Fast exit for no-op calls.
-    * This is very effective with suballocators and linear uploaders that
-    * are outside of the winsys.
-    */
-   if (res->obj == bs->last_added_obj) {
-      simple_mtx_unlock(&bs->ref_lock);
-      return true;
-   }
-
    struct zink_bo *bo = res->obj->bo;
-   struct zink_batch_obj_list *list;
-   if (!(res->base.b.flags & PIPE_RESOURCE_FLAG_SPARSE)) {
-      if (!bo->mem) {
-         list = &bs->slab_objs;
-      } else {
-         list = &bs->real_objs;
-      }
-   } else {
-      list = &bs->sparse_objs;
-   }
    int idx = batch_find_resource(bs, res->obj, list);
    if (idx >= 0) {
-      simple_mtx_unlock(&bs->ref_lock);
       return true;
    }
 
@@ -1057,8 +1061,68 @@ zink_batch_reference_resource_move(struct zink_context *ctx, struct zink_resourc
        */
    }
    check_oom_flush(bs->ctx);
-   simple_mtx_unlock(&bs->ref_lock);
    return false;
+}
+
+bool
+zink_batch_reference_resource_move(struct zink_context *ctx, struct zink_resource *res)
+{
+   struct zink_batch_state *bs = ctx->bs;
+
+   /* swapchains are special */
+   if (zink_is_swapchain(res)) {
+      struct zink_resource_object **swapchains = bs->swapchain_obj.data;
+      unsigned count = util_dynarray_num_elements(&bs->swapchain_obj, struct zink_resource_object*);
+      for (unsigned i = 0; i < count; i++) {
+         if (swapchains[i] == res->obj) {
+            return true;
+         }
+      }
+      util_dynarray_append(&bs->swapchain_obj, struct zink_resource_object*, res->obj);
+      return false;
+   }
+   /* Fast exit for no-op calls.
+    * This is very effective with suballocators and linear uploaders that
+    * are outside of the winsys.
+    */
+   if (res->obj == bs->last_added_obj) {
+      return true;
+   }
+
+   struct zink_bo *bo = res->obj->bo;
+   struct zink_batch_obj_list *list;
+   if (!(res->base.b.flags & PIPE_RESOURCE_FLAG_SPARSE)) {
+      if (!bo->mem) {
+         list = &bs->slab_objs;
+      } else {
+         list = &bs->real_objs;
+      }
+   } else {
+      list = &bs->sparse_objs;
+   }
+   return batch_reference_resource_move_internal(bs, list, res);
+}
+
+bool
+zink_batch_reference_resource_move_unsync(struct zink_context *ctx, struct zink_resource *res)
+{
+   struct zink_batch_state *bs = ctx->bs;
+
+   /* swapchains are special */
+   if (zink_is_swapchain(res)) {
+      struct zink_resource_object **swapchains = bs->swapchain_obj_unsync.data;
+      unsigned count = util_dynarray_num_elements(&bs->swapchain_obj_unsync, struct zink_resource_object*);
+      for (unsigned i = 0; i < count; i++) {
+         if (swapchains[i] == res->obj) {
+            return true;
+         }
+      }
+      util_dynarray_append(&bs->swapchain_obj_unsync, struct zink_resource_object*, res->obj);
+      return false;
+   }
+
+   /* unsync is not as common, skip LRU */
+   return batch_reference_resource_move_internal(bs, &bs->unsync_objs, res);
 }
 
 /* this is how programs achieve deferred deletion */
@@ -1110,9 +1174,12 @@ zink_batch_usage_check_completion(struct zink_context *ctx, const struct zink_ba
 }
 
 static void
-batch_usage_wait(struct zink_context *ctx, struct zink_batch_usage *u, bool trywait)
+batch_usage_wait(struct zink_context *ctx, struct zink_batch_usage *u, unsigned submit_count, bool trywait)
 {
    if (!zink_batch_usage_exists(u))
+      return;
+   /* this batch state was already completed and reset */
+   if (u->submit_count - submit_count > 1)
       return;
    if (zink_batch_usage_is_unflushed(u)) {
       if (likely(u == &ctx->bs->usage))
@@ -1131,13 +1198,13 @@ batch_usage_wait(struct zink_context *ctx, struct zink_batch_usage *u, bool tryw
 }
 
 void
-zink_batch_usage_wait(struct zink_context *ctx, struct zink_batch_usage *u)
+zink_batch_usage_wait(struct zink_context *ctx, struct zink_batch_usage *u, unsigned submit_count)
 {
-   batch_usage_wait(ctx, u, false);
+   batch_usage_wait(ctx, u, submit_count, false);
 }
 
 void
-zink_batch_usage_try_wait(struct zink_context *ctx, struct zink_batch_usage *u)
+zink_batch_usage_try_wait(struct zink_context *ctx, struct zink_batch_usage *u, unsigned submit_count)
 {
-   batch_usage_wait(ctx, u, true);
+   batch_usage_wait(ctx, u, submit_count, true);
 }

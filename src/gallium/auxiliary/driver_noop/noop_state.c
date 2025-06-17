@@ -99,41 +99,12 @@ static struct pipe_sampler_view *noop_create_sampler_view(struct pipe_context *c
    return sampler_view;
 }
 
-static struct pipe_surface *noop_create_surface(struct pipe_context *ctx,
-                                                struct pipe_resource *texture,
-                                                const struct pipe_surface *surf_tmpl)
-{
-   struct pipe_surface *surface = CALLOC_STRUCT(pipe_surface);
-
-   if (!surface)
-      return NULL;
-   pipe_reference_init(&surface->reference, 1);
-   pipe_resource_reference(&surface->texture, texture);
-   surface->context = ctx;
-   surface->format = surf_tmpl->format;
-   surface->width = texture->width0;
-   surface->height = texture->height0;
-   surface->texture = texture;
-   surface->u.tex.first_layer = surf_tmpl->u.tex.first_layer;
-   surface->u.tex.last_layer = surf_tmpl->u.tex.last_layer;
-   surface->u.tex.level = surf_tmpl->u.tex.level;
-
-   return surface;
-}
-
 static void noop_set_sampler_views(struct pipe_context *ctx,
                                    enum pipe_shader_type shader,
                                    unsigned start, unsigned count,
                                    unsigned unbind_num_trailing_slots,
-                                   bool take_ownership,
                                    struct pipe_sampler_view **views)
 {
-   if (take_ownership && views) {
-      for (unsigned i = 0; i < count; i++) {
-         struct pipe_sampler_view *view = views[i];
-         pipe_sampler_view_reference(&view, NULL);
-      }
-   }
 }
 
 static void noop_bind_sampler_states(struct pipe_context *ctx,
@@ -207,12 +178,12 @@ static void noop_sampler_view_destroy(struct pipe_context *ctx,
 }
 
 
-static void noop_surface_destroy(struct pipe_context *ctx,
-                                 struct pipe_surface *surface)
+static void noop_sampler_view_release(struct pipe_context *ctx,
+                                      struct pipe_sampler_view *state)
 {
-   pipe_resource_reference(&surface->texture, NULL);
-   FREE(surface);
+   noop_sampler_view_destroy(ctx, state);
 }
+
 
 static void noop_bind_state(struct pipe_context *ctx, void *state)
 {
@@ -436,7 +407,6 @@ void noop_init_state_functions(struct pipe_context *ctx)
    ctx->create_rasterizer_state = noop_create_rs_state;
    ctx->create_sampler_state = noop_create_sampler_state;
    ctx->create_sampler_view = noop_create_sampler_view;
-   ctx->create_surface = noop_create_surface;
    ctx->create_vertex_elements_state = noop_create_vertex_elements;
    ctx->create_compute_state = noop_create_compute_state;
    ctx->create_tcs_state = noop_create_shader_state;
@@ -481,7 +451,7 @@ void noop_init_state_functions(struct pipe_context *ctx)
    ctx->set_viewport_states = noop_set_viewport_states;
    ctx->set_window_rectangles = noop_set_window_rectangles;
    ctx->sampler_view_destroy = noop_sampler_view_destroy;
-   ctx->surface_destroy = noop_surface_destroy;
+   ctx->sampler_view_release = noop_sampler_view_release;
    ctx->draw_vbo = noop_draw_vbo;
    ctx->draw_vertex_state = noop_draw_vertex_state;
    ctx->launch_grid = noop_launch_grid;

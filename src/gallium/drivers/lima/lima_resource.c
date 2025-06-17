@@ -246,7 +246,7 @@ _lima_resource_create_with_modifiers(struct pipe_screen *pscreen,
       res->tiled = should_tile;
 
       if (templat->bind & PIPE_BIND_INDEX_BUFFER)
-         res->index_cache = CALLOC_STRUCT(panfrost_minmax_cache);
+         res->index_cache = CALLOC_STRUCT(pan_minmax_cache);
 
       debug_printf("%s: pres=%p width=%u height=%u depth=%u target=%d "
                    "bind=%x usage=%d tile=%d last_level=%d\n", __func__,
@@ -570,25 +570,23 @@ lima_surface_create(struct pipe_context *pctx,
    if (!surf)
       return NULL;
 
-   assert(surf_tmpl->u.tex.first_layer == surf_tmpl->u.tex.last_layer);
+   assert(surf_tmpl->first_layer == surf_tmpl->last_layer);
 
    struct pipe_surface *psurf = &surf->base;
-   unsigned level = surf_tmpl->u.tex.level;
+   unsigned level = surf_tmpl->level;
 
    pipe_reference_init(&psurf->reference, 1);
    pipe_resource_reference(&psurf->texture, pres);
 
    psurf->context = pctx;
    psurf->format = surf_tmpl->format;
-   psurf->width = u_minify(pres->width0, level);
-   psurf->height = u_minify(pres->height0, level);
    psurf->nr_samples = surf_tmpl->nr_samples;
-   psurf->u.tex.level = level;
-   psurf->u.tex.first_layer = surf_tmpl->u.tex.first_layer;
-   psurf->u.tex.last_layer = surf_tmpl->u.tex.last_layer;
+   psurf->level = level;
+   psurf->first_layer = surf_tmpl->first_layer;
+   psurf->last_layer = surf_tmpl->last_layer;
 
-   surf->tiled_w = align(psurf->width, 16) >> 4;
-   surf->tiled_h = align(psurf->height, 16) >> 4;
+   surf->tiled_w = align(u_minify(pres->width0, level), 16) >> 4;
+   surf->tiled_h = align(u_minify(pres->height0, level), 16) >> 4;
 
    surf->reload = 0;
    if (util_format_has_stencil(util_format_description(psurf->format)))
@@ -689,7 +687,7 @@ lima_transfer_map(struct pipe_context *pctx,
 
          unsigned i;
          for (i = 0; i < ptrans->box.depth; i++)
-            panfrost_load_tiled_image(
+            pan_load_tiled_image(
                trans->staging + i * ptrans->stride * ptrans->box.height,
                bo->map + res->levels[level].offset + (i + box->z) * res->levels[level].layer_stride,
                ptrans->box.x, ptrans->box.y,
@@ -710,7 +708,9 @@ lima_transfer_map(struct pipe_context *pctx,
       ptrans->layer_stride = res->levels[level].layer_stride;
 
       if ((usage & PIPE_MAP_WRITE) && (usage & PIPE_MAP_DIRECTLY))
-         panfrost_minmax_cache_invalidate(res->index_cache, ptrans->box.x, ptrans->box.width);
+         pan_minmax_cache_invalidate(res->index_cache,
+                                     util_format_get_blocksize(pres->format),
+                                     ptrans->box.x, ptrans->box.width);
 
       return bo->map + res->levels[level].offset +
          box->z * res->levels[level].layer_stride +
@@ -792,7 +792,7 @@ lima_transfer_flush_region(struct pipe_context *pctx,
             unsigned row_stride = line_stride * row_height;
 
             for (i = 0; i < trans->base.box.depth; i++)
-               panfrost_store_tiled_image(
+               pan_store_tiled_image(
                   bo->map + res->levels[trans->base.level].offset + (i + trans->base.box.z) * res->levels[trans->base.level].layer_stride,
                   trans->staging + i * ptrans->stride * ptrans->box.height,
                   ptrans->box.x, ptrans->box.y,
@@ -819,7 +819,9 @@ lima_transfer_unmap(struct pipe_context *pctx,
    if (trans->staging)
       free(trans->staging);
    if (ptrans->usage & PIPE_MAP_WRITE) {
-      panfrost_minmax_cache_invalidate(res->index_cache, ptrans->box.x, ptrans->box.width);
+      pan_minmax_cache_invalidate(res->index_cache,
+                                  util_format_get_blocksize(res->base.format),
+                                  ptrans->box.x, ptrans->box.width);
    }
 
    pipe_resource_reference(&ptrans->resource, NULL);
@@ -859,12 +861,17 @@ lima_blit(struct pipe_context *pctx, const struct pipe_blit_info *blit_info)
    struct lima_context *ctx = lima_context(pctx);
    struct pipe_blit_info info = *blit_info;
 
+   /* For a discussion about flushes here see
+    * https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/34054#note_2867478
+    */
+   lima_flush(ctx);
+
    if (lima_do_blit(pctx, blit_info)) {
-       return;
+      goto done;
    }
 
    if (util_try_blit_via_copy_region(pctx, &info, false)) {
-      return; /* done */
+      goto done;
    }
 
    if (info.mask & PIPE_MASK_S) {
@@ -882,6 +889,9 @@ lima_blit(struct pipe_context *pctx, const struct pipe_blit_info *blit_info)
    lima_util_blitter_save_states(ctx);
 
    util_blitter_blit(ctx->blitter, &info, NULL);
+
+done:
+   lima_flush(ctx);
 }
 
 static void

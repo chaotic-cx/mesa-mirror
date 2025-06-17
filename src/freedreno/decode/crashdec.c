@@ -102,6 +102,7 @@ popline(void)
    /* Handle section name typo's from earlier kernels: */
    r = replacestr(r, "CP_MEMPOOOL", "CP_MEMPOOL");
    r = replacestr(r, "CP_SEQ_STAT", "CP_SQE_STAT");
+   r = replacestr(r, "CP_BV_SQE_STAT_ADDR", "CP_BV_SQE_STAT");
 
    lastline = r;
    return r;
@@ -361,6 +362,7 @@ dump_cmdstream(void)
    options.ibs[2].base = regval64("CP_IB2_BASE");
    if (have_rem_info())
       options.ibs[2].rem = regval("CP_IB2_REM_SIZE");
+   uint32_t rb_rptr = regval("CP_RB_RPTR");
 
    /* Adjust remaining size to account for cmdstream slurped into ROQ
     * but not yet consumed by SQE
@@ -371,9 +373,11 @@ dump_cmdstream(void)
     * TODO it would be nice to be able to extract out register bitfields
     * by name rather than hard-coding this.
     */
+   uint32_t rb_rem = 0;
    if (have_rem_info()) {
       uint32_t ib1_rem = regval("CP_ROQ_AVAIL_IB1") >> 16;
       uint32_t ib2_rem = regval("CP_ROQ_AVAIL_IB2") >> 16;
+      rb_rem = regval("CP_ROQ_AVAIL_RB") >> 16;
       options.ibs[1].rem += ib1_rem ? ib1_rem - 1 : 0;
       options.ibs[2].rem += ib2_rem ? ib2_rem - 1 : 0;
    }
@@ -409,14 +413,21 @@ dump_cmdstream(void)
 /* helper macro to deal with modulo size math: */
 #define mod_add(b, v) ((ringszdw + (int)(b) + (int)(v)) % ringszdw)
 
+      /* On a7xx, the RPTR seems to be the point the SQE is reading, and on
+       * a6xx it is the point the ROQ is reading. We really care about where
+       * the SQE is reading, so back it up on a6xx.
+       */
+      if (is_a6xx())
+         rb_rptr = mod_add(rb_rptr, -rb_rem);
+
       /* The rptr will (most likely) have moved past the IB to
        * userspace cmdstream, so back up a bit, and then advance
        * until we find a valid start of a packet.. this is going
        * to be less reliable on a4xx and before (pkt0/pkt3),
        * compared to pkt4/pkt7 with parity bits
        */
-      const int lookback = 12;
-      unsigned rptr = mod_add(ringbuffers[id].rptr, -lookback);
+      const int lookback = 20;
+      unsigned rptr = mod_add(rb_rptr, -lookback);
 
       for (int idx = 0; idx < lookback; idx++) {
          if (valid_header(ringbuffers[id].buf[rptr]))
@@ -433,6 +444,10 @@ dump_cmdstream(void)
          int p = mod_add(rptr, idx);
          buf[idx] = ringbuffers[id].buf[p];
       }
+
+      options.rb_host_base = buf;
+      options.ibs[0].rem = mod_add(ringbuffers[id].wptr, -rb_rptr);
+      options.ibs[0].size = cmdszdw;
 
       handle_prefetch(buf, cmdszdw);
       dump_commands(buf, cmdszdw, 0);
@@ -620,6 +635,31 @@ dump_cp_sqe_stat(uint32_t *stat)
 }
 
 static void
+dump_scratch_control_regs(uint32_t *regs)
+{
+   if (!rnn_control)
+      return;
+
+   struct regacc r = regacc(rnn_control);
+
+   /* Control regs 0x100-0x17f are a scratch space to be used by the firmware
+    * however it wants, unlike lower regs which involve some fixed-function
+    * units. Therefore only these registers get dumped directly. On a7xx this
+    * is doubled to 0x100-0x1ff, and on a7xx gen3 this is shuffled to
+    * 0x400-0x4ff to make space for expanded shared regs.
+    */
+   uint32_t scratch_size = is_a7xx() ? 0x100 : 0x80;
+   uint32_t scratch_base = has_a7xx_gen3_control_regs() ? 0x400 : 0x100;
+
+   for (uint32_t i = 0; i < scratch_size; i++) {
+      if (regacc_push(&r, i + scratch_base, regs[i])) {
+         printf("\t%08"PRIx64"\t", r.value);
+         dump_register(&r);
+      }
+   }
+}
+
+static void
 dump_control_regs(uint32_t *regs)
 {
    if (!rnn_control)
@@ -627,13 +667,8 @@ dump_control_regs(uint32_t *regs)
 
    struct regacc r = regacc(rnn_control);
 
-   /* Control regs 0x100-0x17f are a scratch space to be used by the
-    * firmware however it wants, unlike lower regs which involve some
-    * fixed-function units. Therefore only these registers get dumped
-    * directly.
-    */
-   for (uint32_t i = 0; i < 0x80; i++) {
-      if (regacc_push(&r, i + 0x100, regs[i])) {
+   for (uint32_t i = 0; i < 0x400; i++) {
+      if (regacc_push(&r, i, regs[i])) {
          printf("\t%08"PRIx64"\t", r.value);
          dump_register(&r);
       }
@@ -649,7 +684,7 @@ dump_cp_ucode_dbg(uint32_t *dbg)
     * mirrors of the actual data.
     */
 
-   for (int section = 0; section < 6; section++, dbg += 0x1000) {
+   for (int section = 0; section < (has_a7xx_gen3_control_regs() ? 8 : 6); section++, dbg += 0x1000) {
       switch (section) {
       case 0:
          /* Contains scattered data from a630_sqe.fw: */
@@ -677,6 +712,11 @@ dump_cp_ucode_dbg(uint32_t *dbg)
          break;
       case 5:
          printf("\tSQE scratch control regs:\n");
+         dump_scratch_control_regs(dbg);
+         break;
+      /* TODO check if this exists prior to a750 */
+      case 7:
+         printf("\tSQE control regs:\n");
          dump_control_regs(dbg);
          break;
       }
@@ -709,7 +749,8 @@ decode_indexed_registers(void)
          if (!strcmp(name, "CP_SQE_STAT") || !strcmp(name, "CP_BV_SQE_STAT"))
             dump_cp_sqe_stat(buf);
 
-         if (!strcmp(name, "CP_UCODE_DBG_DATA"))
+         if (!strcmp(name, "CP_UCODE_DBG_DATA") ||
+             !strcmp(name, "CP_BV_SQE_UCODE_DBG_ADDR"))
             dump_cp_ucode_dbg(buf);
 
          if (!strcmp(name, "CP_MEMPOOL"))
@@ -847,8 +888,13 @@ decode(void)
             rnn_gmu = rnn_new(!options.color);
             rnn_load_file(rnn_gmu, "adreno/a6xx_gmu.xml", "A6XX");
             rnn_control = rnn_new(!options.color);
-            rnn_load_file(rnn_control, "adreno/adreno_control_regs.xml",
-                          "A7XX_CONTROL_REG");
+            if (has_a7xx_gen3_control_regs()) {
+               rnn_load_file(rnn_control, "adreno/adreno_control_regs.xml",
+                             "A7XX_GEN3_CONTROL_REG");
+            } else {
+               rnn_load_file(rnn_control, "adreno/adreno_control_regs.xml",
+                             "A7XX_CONTROL_REG");
+            }
             rnn_pipe = rnn_new(!options.color);
             rnn_load_file(rnn_pipe, "adreno/adreno_pipe_regs.xml",
                           "A7XX_PIPE_REG");

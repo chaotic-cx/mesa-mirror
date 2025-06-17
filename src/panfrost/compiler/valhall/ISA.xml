@@ -95,7 +95,7 @@
     <value name="Wait on slots 0, 1, 2, 6, 7">wait</value>
     <value name="Perform branch reconverge">reconverge</value>
     <reserved/>
-    <reserved/>
+    <value name="Wait for resource read">wait_resource</value>
     <value name="Terminate discarded threads">discard</value>
     <reserved/>
     <value name="Return from shader">end</value>
@@ -165,7 +165,7 @@
     <value desc="Lane ID">lane_id</value>
     <reserved/>
     <value desc="Core ID">core_id</value>
-    <reserved/>
+    <value desc="Shader Output">shader_output</value>
     <reserved/>
     <reserved/>
     <reserved/>
@@ -181,7 +181,8 @@
 
   <enum name="Swizzles (8-bit)">
     <value default="true">b0123</value>
-    <value>b3210</value>
+    <!-- b3210 until v11 -->
+    <reserved/>
     <value>b0101</value>
     <value>b2323</value>
     <value>b0000</value>
@@ -200,7 +201,7 @@
 
   <enum name="Lanes (8-bit)">
     <desc>Used to select the 2 bytes for shifts of 16-bit vectors</desc>
-    <value>b02</value>
+    <reserved/>
     <reserved/>
     <reserved/>
     <reserved/>
@@ -210,8 +211,8 @@
     <value>b33</value>
     <reserved/>
     <reserved/>
-    <value>b01</value>
-    <value>b23</value>
+    <reserved/>
+    <reserved/>
     <reserved/>
     <reserved/>
     <reserved/>
@@ -732,6 +733,20 @@
     <value desc="Retrieve previous state">retrieve</value>
   </enum>
 
+  <enum name="Source">
+    <desc>
+      Clock source for LD_GCLK instruction.
+    </desc>
+    <reserved/>
+    <reserved/>
+    <reserved/>
+    <reserved/>
+    <reserved/>
+    <reserved/>
+    <value desc="Cycle counter">cycle_counter</value>
+    <value desc="System timestamp">system_timestamp</value>
+  </enum>
+
   <enum name="Source format">
     <desc>
       In-memory format of varyings.
@@ -1015,6 +1030,13 @@
     <src>Vertex ID</src>
     <src>Instance ID</src>
     <src>Index and table</src>
+  </ins>
+
+  <ins name="LD_GCLK_U64" title="Global clock load" opcode="0x44" unused="true" unit="LS">
+    <desc>Load the 64-bit global clock, either a cycle counter or the system clock.</desc>
+    <sr write="true"/>
+    <sr_count count="2"/>
+    <slot/>
   </ins>
 
   <ins name="LD_TEX_IMM" title="Load immediate texture" opcode="0x66" opcode2="1" message="attribute" unit="LS">
@@ -1522,10 +1544,12 @@
       is specified where it makes sense.
     </desc>
 
+    <!-- Removed on v11 -->
     <ins name="V2S16_TO_V2F16" opcode2="0x7"/>
 
     <ins name="S32_TO_F32" opcode2="0x9"/>
 
+    <!-- Removed on v11 -->
     <ins name="V2U16_TO_V2F16" opcode2="0x17"/>
 
     <ins name="U32_TO_F32" opcode2="0x19"/>
@@ -1540,8 +1564,12 @@
     </desc>
 
     <ins name="S16_TO_S32" opcode2="0x4"/>
+    <!-- Removed on v11 -->
     <ins name="S16_TO_F32" opcode2="0x5"/>
+
     <ins name="U16_TO_U32" opcode2="0x14"/>
+
+    <!-- Removed on v11 -->
     <ins name="U16_TO_F32" opcode2="0x15"/>
 
     <src swizzle="true" size="16">Value to convert</src>
@@ -1557,9 +1585,13 @@
 
   <group name="CONVERT" title="Float-to-int data conversions" dests="1" opcode="0x90" unused="true" unit="CVT">
     <desc>Performs the given data conversion.</desc>
+    <!-- Removed on v11 -->
     <ins name="V2F16_TO_V2S16" opcode2="0xE"/>
+    <!-- Removed on v11 -->
     <ins name="V2F16_TO_V2U16" opcode2="0x1E"/>
+    <!-- Removed on v11 -->
     <ins name="F16_TO_S32" opcode2="0xA"/>
+    <!-- Removed on v11 -->
     <ins name="F16_TO_U32" opcode2="0x1A"/>
     <roundmode/>
     <src swizzle="true" absneg="true" size="16">Value to convert</src>
@@ -1577,9 +1609,13 @@
     </desc>
 
     <ins name="S8_TO_S32" opcode2="0x0"/>
+
+    <!-- Removed on v11 -->
     <ins name="S8_TO_F32" opcode2="0x1"/>
 
     <ins name="U8_TO_U32" opcode2="0x10"/>
+
+    <!-- Removed on v11 -->
     <ins name="U8_TO_F32" opcode2="0x11"/>
 
     <src lane="28" size="8">Value to convert</src>
@@ -1591,9 +1627,12 @@
     </desc>
 
     <ins name="V2S8_TO_V2S16" opcode2="0x2"/>
+    <!-- Removed on v11 -->
     <ins name="V2S8_TO_V2F16" opcode2="0x3"/>
 
     <ins name="V2U8_TO_V2U16" opcode2="0x12"/>
+
+    <!-- Removed on v11 -->
     <ins name="V2U8_TO_V2F16" opcode2="0x13"/>
 
     <src halfswizzle="true" size="8">Value to convert</src>
@@ -1605,6 +1644,8 @@
     </desc>
 
     <ins name="FROUND.f32" opcode2="0xD"/>
+
+    <!-- Removed on v11 -->
     <ins name="FROUND.v2f16" opcode2="0xF"/>
 
     <roundmode/>
@@ -1650,6 +1691,7 @@
     <src widen="true"/>
   </ins>
 
+  <!-- Removed on v11 -->
   <ins name="IABS.v4s8" title="Absolute value" dests="1" opcode="0x91" opcode2="0xa" unused="true" unit="CVT">
     <src/>
   </ins>
@@ -1718,8 +1760,10 @@
 
   <group name="FREXP" title="Fraction/exponent extract" dests="1" opcode="0x99" unused="true" unit="CVT">
     <ins name="FREXPM.f32" opcode2="0"/>
+    <!-- Removed on v11 -->
     <ins name="FREXPM.v2f16" opcode2="1"/>
     <ins name="FREXPE.f32" opcode2="2"/>
+    <!-- Removed on v11 -->
     <ins name="FREXPE.v2f16" opcode2="3"/>
     <desc>
       Breaks up the floating-point input into its fractional (mantissa) and
@@ -1772,7 +1816,9 @@
     <ins name="FADD.f32" opcode="0xA4"/>
     <ins name="FADD.v2f16" opcode="0xA5"/>
     <desc>$A + B$</desc>
+    <roundmode/>
     <clamp/>
+    <roundmode/>
     <src absneg="true" swizzle="true">A</src>
     <src absneg="true" swizzle="true">B</src>
   </group>
@@ -1795,6 +1841,7 @@
     <src absneg="true" swizzle="true">B</src>
   </group>
 
+  <!-- Removed on v11 -->
   <group name="V2F32_TO_V2F16" title="Vectorized floating-point conversion" dests="1" opcode2="4" unused="true" unit="CVT">
     <ins name="V2F32_TO_V2F16" opcode="0xA5"/>
     <desc>
@@ -1816,7 +1863,7 @@
       handling differs from an actual floating-point multiply, so this should
       not be used outside fixed instruction sequences.
     </desc>
-    <src absneg="true" swizzle="true">A</src>
+    <src absneg="true">A</src>
     <src/>
     <roundmode/> <!-- Also has rtna -->
     <!-- Also has infinity handling for arctan -->
@@ -1862,9 +1909,11 @@
     </desc>
     <ins name="IADD.u32" opcode="0xA0"/>
     <ins name="IADD.v2u16" opcode="0xA1"/>
+    <!-- Removed on v11 -->
     <ins name="IADD.v4u8" opcode="0xA2"/>
     <ins name="IADD.s32" opcode="0xA8"/>
     <ins name="IADD.v2s16" opcode="0xA9"/>
+    <!-- Removed on v11 -->
     <ins name="IADD.v4s8" opcode="0xAA"/>
     <ins name="IADD.u64" opcode="0x1A3"/>
     <ins name="IADD.s64" opcode="0x1AB"/>
@@ -1876,8 +1925,8 @@
 
   <ins name="MKVEC.v2i16" title="Make 16-bit vector" dests="1" opcode="0xA1" opcode2="0x5" unused="true" unit="CVT">
     <desc>Calculates $A | (B \ll 16)$. Used to implement `(ushort2)(A, B)`</desc>
-    <src swizzle="true">A</src>
-    <src swizzle="true">B</src>
+    <src lane="28">A</src>
+    <src lane="26">B</src>
   </ins>
 
   <group name="ISUB" title="Integer subtract" dests="1" opcode2="1" unused="true" unit="CVT">
@@ -1886,6 +1935,7 @@
     <ins name="ISUB.v4u8" opcode="0xA2"/>
     <ins name="ISUB.s32" opcode="0xA8"/>
     <ins name="ISUB.v2s16" opcode="0xA9"/>
+    <!-- Removed on v11 -->
     <ins name="ISUB.v4s8" opcode="0xAA"/>
     <ins name="ISUB.u64" opcode="0x1A3"/>
     <ins name="ISUB.s64" opcode="0x1AB"/>
@@ -1944,6 +1994,7 @@
     <saturate/>
   </group>
 
+  <!-- Removed on v11 -->
   <group name="HADD" title="Integer half-add" dests="1" opcode2="0x0B" unused="true" unit="CVT">
     <ins name="HADD.u32" opcode="0xA0"/>
     <ins name="HADD.v2u16" opcode="0xA1"/>
@@ -1977,7 +2028,7 @@
       derivatives in fragment shaders.
     </desc>
     <src>A</src>
-    <src widen="true">B</src>
+    <src lanes="true" size="8">B</src>
     <subgroup/>
     <lane_op/>
     <inactive_result/>
@@ -1988,6 +2039,7 @@
     <ins name="FMA.v2f16" opcode="0xB3"/>
     <desc>$A \cdot B + C$</desc>
     <clamp/>
+    <roundmode/>
     <src absneg="true" swizzle="true">A</src>
     <src absneg="true" swizzle="true">B</src>
     <src absneg="true" swizzle="true">C</src>
@@ -2183,21 +2235,20 @@
     <src absneg="true">Z coordinate as 32-bit floating point</src>
   </ins>
 
-  <group name="IDP" title="8-bit dot product" dests="1" opcode="0xC2" unused="true" unit="FMA">
+  <group name="IDPADD" title="8-bit dot product and accumulate" dests="1" opcode="0xC2" unit="FMA">
     <desc>
       8-bit integer dot product between 4 channel vectors, intended for machine
       learning. Available in both unsigned and signed variants, controlling
       sign-extension/zero-extension behaviour to the final 32-bit destination.
       Saturation is available. Corresponds to the `cl_arm_integer_dot_product_*`
-      family of OpenCL extensions. Not for actual use, just for completeness.
-      Instead, use your platform's neural accelerator.
+      family of OpenCL extensions.
 
       For $A, B \in \{ 0, \ldots, 255 \}^4$ and $\text{Accumulator} \in
       \mathbb{Z}$, calculates $(A \cdot B) + \text{Accumulator}$ and optionally
       saturates.
     </desc>
-    <ins name="IDP.v4s8" opcode2="0"/>
-    <ins name="IDP.v4u8" opcode2="1"/>
+    <ins name="IDPADD.v4s8" opcode2="0"/>
+    <ins name="IDPADD.v4u8" opcode2="1"/>
     <src>A</src>
     <src>B</src>
     <src>Accumulator</src>
@@ -2214,6 +2265,7 @@
     </desc>
     <ins name="ICMP_OR.u32" opcode="0xF0"/>
     <ins name="ICMP_OR.v2u16" opcode="0xF1"/>
+    <!-- Removed on v11 -->
     <ins name="ICMP_OR.v4u8" opcode="0xF2"/>
     <cmp int_only="true"/>
     <result_type/>

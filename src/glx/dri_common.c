@@ -209,7 +209,7 @@ createDriMode(struct glx_config *config, const struct dri_config **driConfigs)
    return &driConfig->base;
 }
 
-_X_HIDDEN struct glx_config *
+struct glx_config *
 driConvertConfigs(struct glx_config *configs, const struct dri_config **driConfigs)
 {
    struct glx_config head, *tail, *m;
@@ -230,7 +230,7 @@ driConvertConfigs(struct glx_config *configs, const struct dri_config **driConfi
    return head.next;
 }
 
-_X_HIDDEN void
+void
 driDestroyConfigs(const struct dri_config **configs)
 {
    int i;
@@ -273,7 +273,7 @@ driInferDrawableConfig(struct glx_screen *psc, GLXDrawable draw)
    return NULL;
 }
 
-_X_HIDDEN __GLXDRIdrawable *
+__GLXDRIdrawable *
 driFetchDrawable(struct glx_context *gc, GLXDrawable glxDrawable)
 {
    Display *dpy = gc->psc->dpy;
@@ -424,7 +424,7 @@ releaseDrawable(const struct glx_display *priv, GLXDrawable drawable)
    }
 }
 
-_X_HIDDEN void
+void
 driReleaseDrawables(struct glx_context *gc)
 {
    const struct glx_display *priv = gc->psc->display;
@@ -437,7 +437,7 @@ driReleaseDrawables(struct glx_context *gc)
 
 }
 
-_X_HIDDEN int
+int
 dri_convert_glx_attribs(unsigned num_attribs, const uint32_t *attribs,
                         struct dri_ctx_attribs *dca)
 {
@@ -524,14 +524,14 @@ dri_convert_glx_attribs(unsigned num_attribs, const uint32_t *attribs,
       dca->api = __DRI_API_OPENGL;
       break;
    case GLX_CONTEXT_ES_PROFILE_BIT_EXT:
-      if (dca->major_ver >= 3)
+      if (dca->major_ver == 3  && dca->minor_ver <= 2)
          dca->api = __DRI_API_GLES3;
       else if (dca->major_ver == 2 && dca->minor_ver == 0)
          dca->api = __DRI_API_GLES2;
       else if (dca->major_ver == 1 && dca->minor_ver < 2)
          dca->api = __DRI_API_GLES;
       else {
-         return BadValue;
+         return GLXBadProfileARB;
       }
       break;
    default:
@@ -715,7 +715,7 @@ glXGetDriverConfig(const char *driverName)
    if (!e)
       goto out;
 
-   e->config = pipe_loader_get_driinfo_xml(driverName);
+   e->config = driGetDriInfoXML(driverName);
    e->driverName = strdup(driverName);
    if (!e->config || !e->driverName) {
       free(e->config);
@@ -760,10 +760,6 @@ const __DRIbackgroundCallableExtension driBackgroundCallable = {
 
    .setBackgroundContext    = driSetBackgroundContext,
    .isThreadSafe            = driIsThreadSafe,
-};
-
-const __DRIuseInvalidateExtension dri2UseInvalidate = {
-   .base = { __DRI_USE_INVALIDATE, 1 }
 };
 
 Bool

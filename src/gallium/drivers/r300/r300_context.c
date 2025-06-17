@@ -31,6 +31,7 @@ static void r300_release_referenced_objects(struct r300_context *r300)
     unsigned i;
 
     /* Framebuffer state. */
+    util_framebuffer_init(&r300->context, NULL, r300->fb_cbufs, &r300->fb_zsbuf);
     util_unreference_framebuffer_state(fb);
 
     /* Textures. */
@@ -381,7 +382,7 @@ struct pipe_context* r300_create_context(struct pipe_screen* screen,
 
     slab_create_child(&r300->pool_transfers, &r300screen->pool_transfers);
 
-    r300->ctx = rws->ctx_create(rws, RADEON_CTX_PRIORITY_MEDIUM, false);
+    r300->ctx = rws->ctx_create(rws, flags);
     if (!r300->ctx)
         goto fail;
 

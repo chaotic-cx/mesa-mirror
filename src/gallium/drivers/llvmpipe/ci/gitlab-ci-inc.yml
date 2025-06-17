@@ -1,9 +1,8 @@
 .llvmpipe-rules:
   stage: software-renderer
+  timeout: 12m
   rules:
     - !reference [.test, rules]
-    - if: $EXTERNAL_KERNEL_TAG != null
-      when: never
     - !reference [.gl-rules, rules]
     - changes: &llvmpipe_file_list
         - src/gallium/drivers/llvmpipe/*
@@ -22,7 +21,7 @@
       when: on_success
 
 .llvmpipe-manual-rules:
-  stage: software-renderer-postmerge
+  stage: software-renderer-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -36,7 +35,7 @@
     - !reference [.test, rules]
     - !reference [.no_scheduled_pipelines-rules, rules]
     # Old copy of .core-rules, missing:
-    #   - meson_options.txt
+    #   - meson.options
     #   - build-support/**/*
     #   - subprojects/**/*
     #   - src/*
@@ -71,6 +70,8 @@
 .llvmpipe-test:
   extends:
     - .llvmpipe-rules
+  tags:
+    - $FDO_RUNNER_JOB_PRIORITY_TAG_X86_64
   variables:
     LIBGL_ALWAYS_SOFTWARE: "true"
     GALLIUM_DRIVER: "llvmpipe"
@@ -84,7 +85,6 @@
     - .llvmpipe-test
   variables:
     LP_NUM_THREADS: 1
-    PIGLIT_PROFILES: cl
 
 .llvmpipe-deqp-test:
   variables:

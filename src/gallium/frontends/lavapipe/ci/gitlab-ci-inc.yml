@@ -1,9 +1,8 @@
 .lavapipe-rules:
   stage: software-renderer
+  timeout: 15m
   rules:
     - !reference [.test, rules]
-    - if: $EXTERNAL_KERNEL_TAG != null
-      when: never
     - !reference [.vulkan-rules, rules]
     - !reference [.gallium-core-rules, rules]
     - changes: &lavapipe_file_list
@@ -25,7 +24,7 @@
       when: on_success
 
 .lavapipe-manual-rules:
-  stage: software-renderer-postmerge
+  stage: software-renderer-nightly
   extends: .no-auto-retry
   rules:
     - !reference [.test, rules]
@@ -39,6 +38,8 @@
   extends:
     - .test-vk
     - .lavapipe-rules
+  tags:
+    - $FDO_RUNNER_JOB_PRIORITY_TAG_X86_64
   variables:
     VK_DRIVER: lvp
     LVP_POISON_MEMORY: "1"

@@ -21,6 +21,7 @@ static struct blorp_program
 blorp_compile_fs_brw(struct blorp_context *blorp, void *mem_ctx,
                      struct nir_shader *nir,
                      bool multisample_fbo,
+                     bool is_fast_clear,
                      bool use_repclear)
 {
    const struct brw_compiler *compiler = blorp->compiler->brw;
@@ -29,10 +30,14 @@ blorp_compile_fs_brw(struct blorp_context *blorp, void *mem_ctx,
    wm_prog_data->base.nr_params = 0;
    wm_prog_data->base.param = NULL;
 
-   struct brw_nir_compiler_opts opts = {};
+   struct brw_nir_compiler_opts opts = {
+      .softfp64 = blorp->get_fp64_nir ? blorp->get_fp64_nir(blorp) : NULL,
+   };
    brw_preprocess_nir(compiler, nir, &opts);
    nir_remove_dead_variables(nir, nir_var_shader_in, NULL);
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
+   if (is_fast_clear || use_repclear)
+      nir->info.subgroup_size = SUBGROUP_SIZE_REQUIRE_16;
 
    struct brw_wm_prog_key wm_key;
    memset(&wm_key, 0, sizeof(wm_key));
@@ -68,7 +73,9 @@ blorp_compile_vs_brw(struct blorp_context *blorp, void *mem_ctx,
 {
    const struct brw_compiler *compiler = blorp->compiler->brw;
 
-   struct brw_nir_compiler_opts opts = {};
+   struct brw_nir_compiler_opts opts = {
+      .softfp64 = blorp->get_fp64_nir ? blorp->get_fp64_nir(blorp) : NULL,
+   };
    brw_preprocess_nir(compiler, nir, &opts);
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 
@@ -121,7 +128,9 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
 {
    const struct brw_compiler *compiler = blorp->compiler->brw;
 
-   struct brw_nir_compiler_opts opts = {};
+   struct brw_nir_compiler_opts opts = {
+      .softfp64 = blorp->get_fp64_nir ? blorp->get_fp64_nir(blorp) : NULL,
+   };
    brw_preprocess_nir(compiler, nir, &opts);
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 

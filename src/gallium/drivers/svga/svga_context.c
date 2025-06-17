@@ -257,6 +257,7 @@ svga_context_create(struct pipe_screen *screen, void *priv, unsigned flags)
    /* Avoid shortcircuiting state with initial value of zero.
     */
    memset(&svga->state.hw_clear, 0xcd, sizeof(svga->state.hw_clear));
+   // but some fields have to be zero/null:
    memset(&svga->state.hw_clear.framebuffer, 0x0,
           sizeof(svga->state.hw_clear.framebuffer));
    memset(&svga->state.hw_clear.rtv, 0, sizeof(svga->state.hw_clear.rtv));

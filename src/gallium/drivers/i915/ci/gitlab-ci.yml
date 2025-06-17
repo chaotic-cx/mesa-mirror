@@ -4,19 +4,19 @@ include:
 # Manual test rules for using g33 in ondracka r300 farm.
 .ondracka-g33-test:
   extends:
-    - .b2c-x86_64-test-gl
+    - .ci-tron-x86_64-test-gl-manual  # use debian-build-x86_64 rather than debian-x86_64
     - .i915g-manual-rules
-  tags:
-    - intelgpu:codename:G33
   variables:
     FDO_CI_CONCURRENT: 2
     GPU_VERSION: i915-g33
-    B2C_KERNEL_URL: https://gitlab.freedesktop.org/gfx-ci/boot2container/-/releases/v0.9.12.3/downloads/linux-x86_64
+    RUNNER_FARM_LOCATION: ondracka
+    CI_TRON_KERNEL__URL: https://gitlab.freedesktop.org/gfx-ci/boot2container/-/releases/v0.9.12.3/downloads/linux-x86_64
+    CI_TRON_DUT_SETUP_TAGS: intelgpu:codename:G33
 
 i915-g33:
   extends:
     - .ondracka-g33-test
-    - .b2c-deqp-test
+    - .test-piglit
   variables:
     DEQP_SUITE: i915g
     PIGLIT_PLATFORM: gbm

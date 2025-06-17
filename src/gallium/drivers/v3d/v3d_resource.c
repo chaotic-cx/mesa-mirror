@@ -1072,95 +1072,6 @@ v3d_update_shadow_texture(struct pipe_context *pctx,
         shadow->writes = orig->writes;
 }
 
-static struct pipe_surface *
-v3d_create_surface(struct pipe_context *pctx,
-                   struct pipe_resource *ptex,
-                   const struct pipe_surface *surf_tmpl)
-{
-        struct v3d_context *v3d = v3d_context(pctx);
-        struct v3d_screen *screen = v3d->screen;
-        struct v3d_device_info *devinfo = &screen->devinfo;
-        struct v3d_surface *surface = CALLOC_STRUCT(v3d_surface);
-        struct v3d_resource *rsc = v3d_resource(ptex);
-
-        if (!surface)
-                return NULL;
-
-        struct pipe_surface *psurf = &surface->base;
-        unsigned level = surf_tmpl->u.tex.level;
-        struct v3d_resource_slice *slice = &rsc->slices[level];
-
-        pipe_reference_init(&psurf->reference, 1);
-        pipe_resource_reference(&psurf->texture, ptex);
-
-        psurf->context = pctx;
-        psurf->format = surf_tmpl->format;
-        psurf->width = u_minify(ptex->width0, level);
-        psurf->height = u_minify(ptex->height0, level);
-        psurf->u.tex.level = level;
-        psurf->u.tex.first_layer = surf_tmpl->u.tex.first_layer;
-        psurf->u.tex.last_layer = surf_tmpl->u.tex.last_layer;
-
-        surface->offset = v3d_layer_offset(ptex, level,
-                                           psurf->u.tex.first_layer);
-        surface->tiling = slice->tiling;
-
-        surface->format = v3d_get_rt_format(devinfo, psurf->format);
-
-        const struct util_format_description *desc =
-                util_format_description(psurf->format);
-
-        surface->swap_rb = (desc->swizzle[0] == PIPE_SWIZZLE_Z &&
-                            psurf->format != PIPE_FORMAT_B5G6R5_UNORM);
-
-        if (util_format_is_depth_or_stencil(psurf->format)) {
-                switch (psurf->format) {
-                case PIPE_FORMAT_Z16_UNORM:
-                        surface->internal_type = V3D_INTERNAL_TYPE_DEPTH_16;
-                        break;
-                case PIPE_FORMAT_Z32_FLOAT:
-                case PIPE_FORMAT_Z32_FLOAT_S8X24_UINT:
-                        surface->internal_type = V3D_INTERNAL_TYPE_DEPTH_32F;
-                        break;
-                default:
-                        surface->internal_type = V3D_INTERNAL_TYPE_DEPTH_24;
-                }
-        } else {
-                uint32_t bpp, type;
-                v3d_X(devinfo, get_internal_type_bpp_for_output_format)
-                   (surface->format, &type, &bpp);
-                surface->internal_type = type;
-                surface->internal_bpp = bpp;
-        }
-
-        if (surface->tiling == V3D_TILING_UIF_NO_XOR ||
-            surface->tiling == V3D_TILING_UIF_XOR) {
-                surface->padded_height_of_output_image_in_uif_blocks =
-                        (slice->padded_height /
-                         (2 * v3d_utile_height(rsc->cpp)));
-        }
-
-        if (rsc->separate_stencil) {
-                surface->separate_stencil =
-                        v3d_create_surface(pctx, &rsc->separate_stencil->base,
-                                           surf_tmpl);
-        }
-
-        return &surface->base;
-}
-
-static void
-v3d_surface_destroy(struct pipe_context *pctx, struct pipe_surface *psurf)
-{
-        struct v3d_surface *surf = v3d_surface(psurf);
-
-        if (surf->separate_stencil)
-                pipe_surface_reference(&surf->separate_stencil, NULL);
-
-        pipe_resource_reference(&psurf->texture, NULL);
-        FREE(psurf);
-}
-
 static void
 v3d_flush_resource(struct pipe_context *pctx, struct pipe_resource *prsc)
 {
@@ -1214,8 +1125,7 @@ v3d_flush_resource(struct pipe_context *pctx, struct pipe_resource *prsc)
                 rsc->size = new_rsc->size;
                 rsc->tiled = new_rsc->tiled;
 
-                struct pipe_resource *new_prsc = (struct pipe_resource *)&new_rsc;
-                pipe_resource_reference(&new_prsc, NULL);
+                pipe_resource_reference((struct pipe_resource **)&new_rsc, NULL);
         }
 }
 
@@ -1276,8 +1186,6 @@ v3d_resource_context_init(struct pipe_context *pctx)
         pctx->texture_unmap = u_transfer_helper_transfer_unmap;
         pctx->buffer_subdata = u_default_buffer_subdata;
         pctx->texture_subdata = v3d_texture_subdata;
-        pctx->create_surface = v3d_create_surface;
-        pctx->surface_destroy = v3d_surface_destroy;
         pctx->resource_copy_region = util_resource_copy_region;
         pctx->blit = v3d_blit;
         pctx->generate_mipmap = v3d_generate_mipmap;

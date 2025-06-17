@@ -542,6 +542,24 @@ is_used_by_non_fsat(const nir_alu_instr *instr)
 }
 
 static inline bool
+is_used_by_non_ldc_nv(const nir_alu_instr *instr)
+{
+   nir_foreach_use(src, &instr->def) {
+      const nir_instr *const user_instr = nir_src_parent_instr(src);
+
+      if (user_instr->type != nir_instr_type_intrinsic)
+         return true;
+
+      const nir_intrinsic_instr *const user_intrin = nir_instr_as_intrinsic(user_instr);
+
+      if (user_intrin->intrinsic != nir_intrinsic_ldc_nv)
+         return true;
+   }
+
+   return false;
+}
+
+static inline bool
 is_only_used_as_float_impl(const nir_alu_instr *instr, unsigned depth)
 {
    nir_foreach_use(src, &instr->def) {
@@ -560,6 +578,18 @@ is_only_used_as_float_impl(const nir_alu_instr *instr, unsigned depth)
             default:
                break;
             }
+         } else if (user_instr->type == nir_instr_type_tex) {
+            const nir_tex_instr *tex = nir_instr_as_tex(user_instr);
+            const nir_tex_src *tex_src = container_of(src, nir_tex_src, src);
+
+            /* These have unknown type. */
+            if (tex_src->src_type == nir_tex_src_backend1 ||
+                tex_src->src_type == nir_tex_src_backend2)
+               return false;
+
+            unsigned idx = tex_src - tex->src;
+            if (nir_tex_instr_src_type(tex, idx) == nir_type_float)
+               continue;
          }
          return false;
       }
@@ -577,7 +607,9 @@ is_only_used_as_float_impl(const nir_alu_instr *instr, unsigned depth)
        * in SSA. However, we limit the search depth regardless to avoid stack
        * overflows in patholgical shaders and to reduce the worst-case time.
        */
-      if (user_alu->op == nir_op_bcsel && index != 0 && depth < 8) {
+      bool is_mov = (user_alu->op == nir_op_bcsel && index != 0) ||
+                    nir_op_is_vec_or_mov(user_alu->op);
+      if (is_mov && depth < 8) {
          if (is_only_used_as_float_impl(user_alu, depth + 1))
             continue;
       }
@@ -706,7 +738,7 @@ is_lower_half_zero(UNUSED struct hash_table *ht, const nir_alu_instr *instr,
       return false;
 
    for (unsigned i = 0; i < num_components; i++) {
-      uint64_t low_bits = u_bit_consecutive64(0, nir_src_bit_size(instr->src[src].src) / 2);
+      uint64_t low_bits = BITFIELD64_MASK(nir_src_bit_size(instr->src[src].src) / 2);
       if ((nir_src_comp_as_uint(instr->src[src].src, swizzle[i]) & low_bits) != 0)
          return false;
    }
@@ -744,7 +776,7 @@ is_lower_half_negative_one(UNUSED struct hash_table *ht, const nir_alu_instr *in
       return false;
 
    for (unsigned i = 0; i < num_components; i++) {
-      uint64_t low_bits = u_bit_consecutive64(0, nir_src_bit_size(instr->src[src].src) / 2);
+      uint64_t low_bits = BITFIELD64_MASK(nir_src_bit_size(instr->src[src].src) / 2);
       if ((nir_src_comp_as_uint(instr->src[src].src, swizzle[i]) & low_bits) != low_bits)
          return false;
    }
@@ -771,6 +803,30 @@ is_const_bitmask(UNUSED struct hash_table *ht, const nir_alu_instr *instr,
       const uint64_t c = nir_src_comp_as_uint(instr->src[src].src, swizzle[i]);
       const unsigned num_bits = util_bitcount64(c);
       if (c != BITFIELD64_MASK(num_bits) || num_bits == bit_size)
+         return false;
+   }
+
+   return true;
+}
+
+/**
+ * Returns whether an operand is a non zero constant
+ * that can be created by nir_op_bfm.
+ */
+static inline bool
+is_const_bfm(UNUSED struct hash_table *ht, const nir_alu_instr *instr,
+                 unsigned src, unsigned num_components,
+                 const uint8_t *swizzle)
+{
+   if (nir_src_as_const_value(instr->src[src].src) == NULL)
+      return false;
+
+   for (unsigned i = 0; i < num_components; i++) {
+      const unsigned bit_size = instr->src[src].src.ssa->bit_size;
+      const uint64_t c = nir_src_comp_as_uint(instr->src[src].src, swizzle[i]);
+      const unsigned num_bits = util_bitcount64(c);
+      const unsigned offset = ffsll(c) - 1;
+      if (c == 0 || c != (BITFIELD64_MASK(num_bits) << offset)  || num_bits == bit_size)
          return false;
    }
 

@@ -16,7 +16,7 @@
 static void *
 map_resource(struct pipe_resource *resource)
 {
-   return etna_bo_map(etna_resource(resource)->bo);
+   return etna_bo_map(etna_buffer_resource(resource)->bo);
 }
 
 #define FIELD(field, bits) uint32_t field : bits;
@@ -152,24 +152,6 @@ etna_ml_calculate_tiling_v8(struct etna_context *ctx, const struct etna_operatio
       *tile_height_out = tile_height;
 
    return superblocks;
-}
-
-static void
-reorder_for_hw_depthwise(struct etna_ml_subgraph *subgraph, struct etna_operation *operation)
-{
-   struct pipe_context *context = subgraph->base.context;
-   uint8_t *input = map_resource(operation->weight_tensor);
-   struct pipe_resource *output_res = etna_ml_create_resource(context, pipe_buffer_size(operation->weight_tensor));
-   uint8_t (*output)[operation->weight_width * operation->weight_height] = (void *)map_resource(output_res);
-
-   for (int i = 0; i < operation->weight_height * operation->weight_width * operation->output_channels; i++) {
-      unsigned out_channel = i % operation->output_channels;
-
-      output[out_channel][i / operation->output_channels] = input[i];
-   }
-
-   pipe_resource_reference(&operation->weight_tensor, NULL);
-   operation->weight_tensor = output_res;
 }
 
 struct bitstream {

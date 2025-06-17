@@ -11,11 +11,11 @@ timeouts:
     minutes: 10
   actions:
     depthcharge-retry:
-      minutes: 4
-    depthcharge-start:
-      minutes: 1
+      minutes: 6
     depthcharge-action:
-      minutes: 15
+      minutes: 5
+    uboot-action:
+      seconds: 200
 actions:
 - deploy:
     timeout:
@@ -42,7 +42,8 @@ actions:
         steps:
         - cat Image.gz my_dtb_filename.dtb > Image.gz+dtb
         - mkbootimg --kernel Image.gz+dtb --cmdline "root=/dev/nfs rw nfsroot=$NFS_SERVER_IP:$NFS_ROOTFS,tcp,hard,v3
-          ip=dhcp init=/init rootwait usbcore.quirks=0bda:8153:k" --pagesize 4096 --base 0x80000000 -o boot.img
+          ip=dhcp init=/init rootwait usbcore.quirks=0bda:8153:k" --pagesize 4096
+          --base 0x80000000 -o boot.img
 - deploy:
     timeout:
       minutes: 2
@@ -57,7 +58,7 @@ actions:
       minutes: 2
     docker:
       image: registry.gitlab.collabora.com/lava/health-check-docker
-    failure_retry: 3
+    failure_retry: 2
     method: fastboot
     prompts:
     - 'lava-shell:'
@@ -84,9 +85,10 @@ actions:
         run:
           steps:
           - echo test FASTBOOT
+          - echo ZWNobyB0ZXN0IEZBU1RCT09U | base64 -d >> /set-job-env-vars.sh
           - export CURRENT_SECTION=dut_boot
           - set -e
           - echo Could not find jwt file, disabling S3 requests...
           - sed -i '/S3_RESULTS_UPLOAD/d' /set-job-env-vars.sh
           - sleep 1
-          - lava-test-case 'test-project_dut' --shell /init-stage2.sh
+          - lava-test-case 'test-project_dut' --shell /test_dir/install/common/init-stage2.sh

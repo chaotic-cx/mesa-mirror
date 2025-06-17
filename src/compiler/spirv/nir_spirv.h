@@ -25,7 +25,7 @@
 #define _NIR_SPIRV_H_
 
 #include "util/disk_cache.h"
-#include "compiler/nir/nir.h"
+#include "compiler/nir/nir_defines.h"
 #include "compiler/shader_info.h"
 
 #ifdef __cplusplus
@@ -131,15 +131,17 @@ struct spirv_to_nir_options {
    /* Whether debug_break instructions should be emitted. */
    bool emit_debug_break;
 
-   /* Force texture sampling to be non-uniform. */
-   bool force_tex_non_uniform;
-   /* Force SSBO accesses to be non-uniform. */
-   bool force_ssbo_non_uniform;
+   struct {
+      /* Force texture sampling to be non-uniform. */
+      bool force_tex_non_uniform;
+      /* Force SSBO accesses to be non-uniform. */
+      bool force_ssbo_non_uniform;
 
-   /* Whether OpTerminateInvocation should be lowered to OpKill to workaround
-    * game bugs.
-    */
-   bool lower_terminate_to_discard;
+      /* Whether OpTerminateInvocation should be lowered to OpKill to workaround
+       * game bugs.
+       */
+      bool lower_terminate_to_discard;
+   } workarounds;
 
    /* In Debug Builds, instead of emitting an OS break on failure, just return NULL from
     * spirv_to_nir().  This is useful for the unit tests that want to report a test failed
@@ -149,6 +151,7 @@ struct spirv_to_nir_options {
 
    /* Shader index provided by VkPipelineShaderStageNodeCreateInfoAMDX */
    uint32_t shader_index;
+
 };
 
 enum spirv_verify_result {
@@ -169,10 +172,6 @@ nir_shader *spirv_to_nir(const uint32_t *words, size_t word_count,
                          gl_shader_stage stage, const char *entry_point_name,
                          const struct spirv_to_nir_options *options,
                          const nir_shader_compiler_options *nir_options);
-
-bool
-spirv_library_to_nir_builder(FILE *fp, const uint32_t *words, size_t word_count,
-                             const struct spirv_to_nir_options *options);
 
 void spirv_print_asm(FILE *fp, const uint32_t *words, size_t word_count);
 

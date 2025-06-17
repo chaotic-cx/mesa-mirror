@@ -9,17 +9,17 @@
 #include "compiler/nir/nir_serialize.h"
 
 #if GFX_VERx10 == 90
-# include "intel_gfx9_shaders_code.h"
+# include "intel_gfx90_shaders_binding.h"
 #elif GFX_VERx10 == 110
-# include "intel_gfx11_shaders_code.h"
+# include "intel_gfx110_shaders_binding.h"
 #elif GFX_VERx10 == 120
-# include "intel_gfx12_shaders_code.h"
+# include "intel_gfx120_shaders_binding.h"
 #elif GFX_VERx10 == 125
-# include "intel_gfx125_shaders_code.h"
+# include "intel_gfx125_shaders_binding.h"
 #elif GFX_VERx10 == 200
-# include "intel_gfx20_shaders_code.h"
+# include "intel_gfx200_shaders_binding.h"
 #elif GFX_VERx10 == 300
-# include "intel_gfx30_shaders_code.h"
+# include "intel_gfx300_shaders_binding.h"
 #else
 # error "Unsupported generation"
 #endif
@@ -44,18 +44,6 @@ static nir_def *
 load_compute_index(nir_builder *b)
 {
    return nir_channel(b, nir_load_global_invocation_id(b, 32), 0);
-}
-
-nir_shader *
-genX(load_libanv_shader)(struct anv_device *device, void *mem_ctx)
-{
-   const nir_shader_compiler_options *nir_options =
-      device->physical->compiler->nir_options[MESA_SHADER_KERNEL];
-
-   struct blob_reader blob;
-   blob_reader_init(&blob, (void *)genX(intel_shaders_nir),
-                    sizeof(genX(intel_shaders_nir)));
-   return nir_deserialize(mem_ctx, nir_options, &blob);
 }
 
 uint32_t

@@ -6,13 +6,13 @@
 
 #pragma once
 
+#include "asahi/isa/agx_minifloat.h"
 #include "compiler/nir/nir.h"
 #include "util/half_float.h"
 #include "util/u_dynarray.h"
 #include "util/u_math.h"
 #include "util/u_worklist.h"
 #include "agx_compile.h"
-#include "agx_minifloat.h"
 #include "agx_opcodes.h"
 
 #ifdef __cplusplus
@@ -400,6 +400,7 @@ typedef struct {
    bool offset            : 1;
    bool shadow            : 1;
    bool query_lod         : 1;
+   bool sparse            : 1;
    enum agx_gather gather : 3;
 
    /* TODO: Handle tilebuffer ops more efficient */

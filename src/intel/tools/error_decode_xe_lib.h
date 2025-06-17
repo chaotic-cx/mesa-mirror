@@ -14,7 +14,8 @@ enum xe_topic {
    XE_TOPIC_JOB,
    XE_TOPIC_HW_ENGINES,
    XE_TOPIC_VM,
-   XE_TOPIC_INVALID,
+   XE_TOPIC_CONTEXT,
+   XE_TOPIC_UNKNOWN,
 };
 
 enum xe_vm_topic_type {
@@ -47,7 +48,7 @@ bool error_decode_xe_read_engine_name(const char *line, char *ring_name);
 bool error_decode_xe_decode_topic(const char *line, enum xe_topic *new_topic);
 
 enum xe_vm_topic_type error_decode_xe_read_vm_line(const char *line, uint64_t *address, const char **value_ptr);
-enum xe_vm_topic_type error_decode_xe_read_hw_sp_or_ctx_line(const char *line, const char **value_ptr, bool *is_hw_ctx);
+bool error_decode_xe_binary_line(const char *line, char *name, int name_len, enum xe_vm_topic_type *type, const char **value_ptr);
 
 void error_decode_xe_vm_init(struct xe_vm *xe_vm);
 void error_decode_xe_vm_fini(struct xe_vm *xe_vm);

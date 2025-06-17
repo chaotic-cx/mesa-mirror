@@ -32,6 +32,7 @@
 #include "util/list.h"
 #include "util/simple_mtx.h"
 #include "util/u_atomic.h"
+#include "util/u_sync_provider.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -90,6 +91,11 @@ enum vk_queue_submit_mode {
     * `VK_QUEUE_SUBMIT_MODE_THREADED`.
     */
    VK_QUEUE_SUBMIT_MODE_THREADED_ON_DEMAND,
+};
+
+struct vk_device_memory_report {
+   PFN_vkDeviceMemoryReportCallbackEXT callback;
+   void *data;
 };
 
 /** Base struct for VkDevice */
@@ -236,7 +242,7 @@ struct vk_device {
                                       struct vk_sync **sync_out);
 
    /* Set by vk_device_set_drm_fd() */
-   int drm_fd;
+   struct util_sync_provider *sync;
 
    /** Implicit pipeline cache, or NULL */
    struct vk_pipeline_cache *mem_cache;
@@ -313,6 +319,9 @@ struct vk_device {
 
    /* For VK_KHR_pipeline_binary */
    bool disable_internal_cache;
+
+   struct vk_device_memory_report *memory_reports;
+   uint32_t memory_report_count;
 };
 
 VK_DEFINE_HANDLE_CASTS(vk_device, base, VkDevice,
@@ -347,7 +356,7 @@ vk_device_init(struct vk_device *device,
 static inline void
 vk_device_set_drm_fd(struct vk_device *device, int drm_fd)
 {
-   device->drm_fd = drm_fd;
+   device->sync = util_sync_provider_drm(drm_fd);
 }
 
 /** Tears down a vk_device
@@ -446,24 +455,24 @@ vk_time_max_deviation(uint64_t begin, uint64_t end, uint64_t max_clock_period)
      * period and that the application is sampling GPU and monotonic:
      *
      *                               s                 e
-     *			 w x y z 0 1 2 3 4 5 6 7 8 9 a b c d e f
-     *	Raw              -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+     *                  w x y z 0 1 2 3 4 5 6 7 8 9 a b c d e f
+     * Raw              -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
      *
      *                               g
-     *		  0         1         2         3
-     *	GPU       -----_____-----_____-----_____-----_____
+     *           0         1         2         3
+     * GPU       -----_____-----_____-----_____-----_____
      *
      *                                                m
-     *					    x y z 0 1 2 3 4 5 6 7 8 9 a b c
-     *	Monotonic                           -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
+     *                                     x y z 0 1 2 3 4 5 6 7 8 9 a b c
+     * Monotonic                           -_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-
      *
-     *	Interval                     <----------------->
-     *	Deviation           <-------------------------->
+     * Interval                     <----------------->
+     * Deviation           <-------------------------->
      *
-     *		s  = read(raw)       2
-     *		g  = read(GPU)       1
-     *		m  = read(monotonic) 2
-     *		e  = read(raw)       b
+     *         s  = read(raw)       2
+     *         g  = read(GPU)       1
+     *         m  = read(monotonic) 2
+     *         e  = read(raw)       b
      *
      * We round the sample interval up by one tick to cover sampling error
      * in the interval clock

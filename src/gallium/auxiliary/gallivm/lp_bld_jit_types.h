@@ -203,7 +203,13 @@ LLVMTypeRef lp_build_size_function_type(struct gallivm_state *gallivm,
                                         const struct lp_sampler_size_query_params *params);
 
 LLVMTypeRef lp_build_image_function_type(struct gallivm_state *gallivm,
-                                         const struct lp_img_params *params, bool ms);
+                                         const struct lp_img_params *params, bool ms,
+                                         bool is64);
+
+struct lp_texture_handle_state {
+   struct lp_static_texture_state static_state;
+   struct lp_jit_texture dynamic_state;
+};
 
 struct lp_texture_functions {
    void ***sample_functions;
@@ -216,7 +222,7 @@ struct lp_texture_functions {
 
    void **image_functions;
 
-   struct lp_static_texture_state state;
+   struct lp_texture_handle_state state;
 
    bool sampled;
    bool storage;
@@ -229,10 +235,17 @@ struct lp_texture_handle {
    uint32_t sampler_index;
 };
 
+struct lp_jit_bindless_texture
+{
+   const void *base;
+   const void *residency;
+   uint32_t sampler_index;
+};
+
 struct lp_descriptor {
    union {
       struct {
-         struct lp_jit_texture texture;
+         struct lp_jit_bindless_texture texture;
          struct lp_jit_sampler sampler;
       };
       struct {

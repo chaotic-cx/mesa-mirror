@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC2038 # TODO: rewrite the find
 # shellcheck disable=SC2086 # we want word splitting
 # shellcheck disable=SC1091 # paths only become valid at runtime
 
@@ -32,7 +31,8 @@ fi
 
 # Test runs don't pull down the git tree, so put the dEQP helper
 # script and associated bits there.
-echo "$(cat VERSION) (git-$(git rev-parse HEAD | cut -b -10))" > install/VERSION
+git_sha=$(git rev-parse --short=10 HEAD)
+echo "$(cat VERSION) (git-$git_sha)" > install/VERSION
 cp -Rp .gitlab-ci/bare-metal install/
 cp -Rp .gitlab-ci/common install/
 cp -Rp .gitlab-ci/piglit install/
@@ -70,20 +70,11 @@ find src/ -path '*/ci/*' \
   \) \
   -exec cp -p {} install/ \;
 
-# Tar up the install dir so that symlinks and hardlinks aren't each
-# packed separately in the zip file.
-mkdir -p artifacts/
-tar -cf artifacts/install.tar install
-cp -Rp .gitlab-ci/common artifacts/ci-common
-cp -Rp .gitlab-ci/lava artifacts/
-cp -Rp .gitlab-ci/b2c artifacts/
-cp bin/ci/structured_logger.py artifacts/
-
 if [ -n "$S3_ARTIFACT_NAME" ]; then
     # Pass needed files to the test stage
-    S3_ARTIFACT_NAME="$S3_ARTIFACT_NAME.tar.zst"
-    zstd --quiet --threads ${FDO_CI_CONCURRENT:-0} artifacts/install.tar -o ${S3_ARTIFACT_NAME}
-    ci-fairy s3cp --token-file "${S3_JWT_FILE}" ${S3_ARTIFACT_NAME} https://${PIPELINE_ARTIFACTS_BASE}/${S3_ARTIFACT_NAME}
+    S3_ARTIFACT_TAR="$S3_ARTIFACT_NAME.tar.zst"
+    tar -c install | zstd --quiet --threads ${FDO_CI_CONCURRENT:-0} -o ${S3_ARTIFACT_TAR}
+    ci-fairy s3cp --token-file "${S3_JWT_FILE}" ${S3_ARTIFACT_TAR} https://${PIPELINE_ARTIFACTS_BASE}/${S3_ARTIFACT_TAR}
 fi
 
 section_end prepare-artifacts

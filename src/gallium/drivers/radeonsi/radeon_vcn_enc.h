@@ -107,9 +107,9 @@ struct radeon_enc_pic {
    unsigned total_coloc_bytes;
    rvcn_enc_quality_modes_t quality_modes;
 
-   bool not_referenced;
    bool use_rc_per_pic_ex;
    bool av1_tile_splitting_legacy_flag;
+   bool has_dependent_slice_instructions;
 
    struct {
       union {
@@ -220,8 +220,6 @@ struct radeon_encoder {
    void (*mq_begin)(struct radeon_encoder *enc);
    void (*mq_encode)(struct radeon_encoder *enc);
    void (*mq_destroy)(struct radeon_encoder *enc);
-
-   unsigned stream_handle;
 
    struct pipe_screen *screen;
    struct radeon_winsys *ws;
@@ -342,6 +340,10 @@ void radeon_enc_av1_tile_group(struct radeon_encoder *enc, struct radeon_bitstre
 unsigned int radeon_enc_value_bits(unsigned int value);
 
 unsigned int radeon_enc_av1_tile_log2(unsigned int blk_size, unsigned int max);
+
+unsigned int radeon_enc_h2645_picture_type(enum pipe_h2645_enc_picture_type type);
+
+unsigned int radeon_enc_av1_picture_type(enum pipe_av1_enc_frame_type type);
 
 bool radeon_enc_is_av1_uniform_tile (uint32_t nb_sb, uint32_t nb_tiles,
                                      uint32_t min_nb_sb, struct tile_1d_layout *p);

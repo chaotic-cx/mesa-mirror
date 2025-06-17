@@ -23,16 +23,10 @@ struct radv_buffer {
 
    /* Set when bound */
    struct radeon_winsys_bo *bo;
-   VkDeviceSize offset;
-   uint64_t bo_va;
    uint64_t range;
 };
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(radv_buffer, vk.base, VkBuffer, VK_OBJECT_TYPE_BUFFER)
-
-void radv_buffer_init(struct radv_buffer *buffer, struct radv_device *device, struct radeon_winsys_bo *bo,
-                      uint64_t size, uint64_t offset);
-void radv_buffer_finish(struct radv_buffer *buffer);
 
 VkResult radv_create_buffer(struct radv_device *device, const VkBufferCreateInfo *pCreateInfo,
                             const VkAllocationCallbacks *pAllocator, VkBuffer *pBuffer, bool is_internal);

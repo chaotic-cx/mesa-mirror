@@ -30,10 +30,8 @@
 #include "tu_knl_drm.h"
 #include "tu_queue.h"
 
-#include "virglrenderer_hw.h"
-#include "msm_proto.h"
-
 #include "vdrm.h"
+#include "msm_proto.h"
 
 struct tu_userspace_fence_cmd {
    uint32_t pkt[4];    /* first 4 dwords of packet */
@@ -141,23 +139,10 @@ static void
 set_debuginfo(struct tu_device *dev)
 {
    const char *comm = util_get_process_name();
-   static char cmdline[0x1000+1];
-   int fd = open("/proc/self/cmdline", O_RDONLY);
-   if (fd < 0)
+   static char cmdline[0x1000];
+
+   if (!comm || !util_get_command_line(cmdline, sizeof(cmdline)))
       return;
-
-   int n = read(fd, cmdline, sizeof(cmdline) - 1);
-   if (n < 0)
-      return;
-
-   /* arguments are separated by NULL, convert to spaces: */
-   for (int i = 0; i < n; i++) {
-      if (cmdline[i] == '\0') {
-         cmdline[i] = ' ';
-      }
-   }
-
-   cmdline[n] = '\0';
 
    unsigned comm_len = strlen(comm) + 1;
    unsigned cmdline_len = strlen(cmdline) + 1;
@@ -186,10 +171,14 @@ virtio_device_init(struct tu_device *dev)
    struct tu_instance *instance = dev->physical_device->instance;
    int fd;
 
-   fd = open(dev->physical_device->fd_path, O_RDWR | O_CLOEXEC);
-   if (fd < 0) {
-      return vk_startup_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
-                               "failed to open device %s", dev->physical_device->fd_path);
+   if (strlen(dev->physical_device->fd_path) == 0) {
+      fd = -1;
+   } else {
+      fd = open(dev->physical_device->fd_path, O_RDWR | O_CLOEXEC);
+      if (fd < 0) {
+         return vk_startup_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
+                                 "failed to open device %s", dev->physical_device->fd_path);
+      }
    }
 
    struct tu_virtio_device *vdev = (struct tu_virtio_device *)
@@ -214,6 +203,9 @@ virtio_device_init(struct tu_device *dev)
 
    set_debuginfo(dev);
 
+   if (fd < 0)
+      dev->vk.sync = vdrm_vpipe_get_sync(vdev->vdrm);
+
    return VK_SUCCESS;
 }
 
@@ -236,6 +228,8 @@ virtio_device_finish(struct tu_device *dev)
 static int
 tu_drm_get_param(struct vdrm_device *vdrm, uint32_t param, uint64_t *value)
 {
+   MESA_TRACE_FUNC();
+
    /* Technically this requires a pipe, but the kernel only supports one pipe
     * anyway at the time of writing and most of these are clearly pipe
     * independent. */
@@ -267,6 +261,8 @@ tu_drm_get_highest_bank_bit(struct vdrm_device *vdrm)
 static enum fdl_macrotile_mode
 tu_drm_get_macrotile_mode(struct vdrm_device *vdrm)
 {
+   if (vdrm->caps.u.msm.macrotile_mode)
+      return (enum fdl_macrotile_mode)vdrm->caps.u.msm.macrotile_mode;
    uint64_t value;
    int ret = tu_drm_get_param(vdrm, MSM_PARAM_MACROTILE_MODE, &value);
    if (ret)
@@ -278,6 +274,8 @@ tu_drm_get_macrotile_mode(struct vdrm_device *vdrm)
 static uint32_t
 tu_drm_get_ubwc_swizzle(struct vdrm_device *vdrm)
 {
+   if (vdrm->caps.u.msm.ubwc_swizzle)
+      return (uint32_t)vdrm->caps.u.msm.ubwc_swizzle;
    uint64_t value;
    int ret = tu_drm_get_param(vdrm, MSM_PARAM_UBWC_SWIZZLE, &value);
    if (ret)
@@ -286,9 +284,21 @@ tu_drm_get_ubwc_swizzle(struct vdrm_device *vdrm)
    return value;
 }
 
+static uint64_t
+tu_drm_get_uche_trap_base(struct vdrm_device *vdrm)
+{
+   uint64_t value;
+   int ret = tu_drm_get_param(vdrm, MSM_PARAM_UCHE_TRAP_BASE, &value);
+   if (ret)
+      return 0x1fffffffff000ull;
+
+   return value;
+}
+
 static int
 virtio_device_get_gpu_timestamp(struct tu_device *dev, uint64_t *ts)
 {
+   MESA_TRACE_FUNC();
    return tu_drm_get_param(dev->vdev->vdrm, MSM_PARAM_TIMESTAMP, ts);
 }
 
@@ -298,6 +308,28 @@ virtio_device_get_suspend_count(struct tu_device *dev, uint64_t *suspend_count)
    int ret = tu_drm_get_param(dev->vdev->vdrm, MSM_PARAM_SUSPENDS, suspend_count);
    return ret;
 }
+
+static bool
+opt_cap_bool(uint32_t val)
+{
+   if (val == VIRTGPU_CAP_BOOL_TRUE)  return true;
+   if (val == VIRTGPU_CAP_BOOL_FALSE) return false;
+   unreachable("invalid val");
+}
+
+static bool
+tu_drm_get_raytracing(struct vdrm_device *vdrm)
+{
+   if (vdrm->caps.u.msm.has_raytracing)
+      return opt_cap_bool(vdrm->caps.u.msm.has_raytracing);
+   uint64_t value;
+   int ret = tu_drm_get_param(vdrm, MSM_PARAM_RAYTRACING, &value);
+   if (ret)
+      return false;
+
+   return value;
+}
+
 
 static VkResult
 virtio_device_check_status(struct tu_device *device)
@@ -317,6 +349,8 @@ virtio_submitqueue_new(struct tu_device *dev,
                        int priority,
                        uint32_t *queue_id)
 {
+   MESA_TRACE_FUNC();
+
    assert(priority >= 0 &&
           priority < dev->physical_device->submitqueue_priority_count);
 
@@ -338,12 +372,15 @@ virtio_submitqueue_new(struct tu_device *dev,
 static void
 virtio_submitqueue_close(struct tu_device *dev, uint32_t queue_id)
 {
+   MESA_TRACE_FUNC();
    virtio_simple_ioctl(dev->vdev->vdrm, DRM_IOCTL_MSM_SUBMITQUEUE_CLOSE, &queue_id);
 }
 
 static bool
 virtio_has_preemption(struct vdrm_device *vdrm)
 {
+   if (vdrm->caps.u.msm.has_preemption)
+      return opt_cap_bool(vdrm->caps.u.msm.has_preemption);
    struct drm_msm_submitqueue req = {
       .flags = MSM_SUBMITQUEUE_ALLOW_PREEMPT,
       .prio = vdrm->caps.u.msm.priorities / 2,
@@ -364,6 +401,7 @@ tu_wait_fence(struct tu_device *dev,
               uint64_t timeout_ns)
 {
    struct vdrm_device *vdrm = dev->vdev->vdrm;
+   MESA_TRACE_FUNC();
 
    if (!fence_before(dev->global_bo_map->userspace_fence, fence))
       return VK_SUCCESS;
@@ -406,6 +444,7 @@ VkResult
 virtio_queue_wait_fence(struct tu_queue *queue, uint32_t fence,
                         uint64_t timeout_ns)
 {
+   MESA_TRACE_FUNC();
    return tu_wait_fence(queue->device, queue->msm_queue_id, fence,
                         timeout_ns);
 }
@@ -414,6 +453,7 @@ static VkResult
 tu_free_zombie_vma_locked(struct tu_device *dev, bool wait)
 {
    struct tu_virtio_device *vdev = dev->vdev;
+   MESA_TRACE_FUNC();
 
    if (!u_vector_length(&dev->zombie_vmas))
       return VK_SUCCESS;
@@ -476,6 +516,7 @@ tu_restore_from_zombie_vma_locked(struct tu_device *dev,
                                   uint32_t gem_handle,
                                   uint64_t *iova)
 {
+   MESA_TRACE_FUNC();
    struct tu_zombie_vma *vma;
    u_vector_foreach (vma, &dev->zombie_vmas) {
       if (vma->gem_handle == gem_handle) {
@@ -499,6 +540,7 @@ virtio_allocate_userspace_iova_locked(struct tu_device *dev,
                                       uint64_t *iova)
 {
    VkResult result;
+   MESA_TRACE_FUNC();
 
    *iova = 0;
 
@@ -536,8 +578,7 @@ tu_bo_init(struct tu_device *dev,
            const char *name)
 {
    assert(dev->physical_device->has_set_iova);
-
-   set_iova(dev, bo->res_id, iova);
+   MESA_TRACE_FUNC();
 
    name = tu_debug_bos_add(dev, size, name);
 
@@ -597,6 +638,7 @@ tu_bo_init(struct tu_device *dev,
 static void
 tu_bo_set_kernel_name(struct tu_device *dev, struct tu_bo *bo, const char *name)
 {
+   MESA_TRACE_FUNC();
    bool kernel_bo_names = dev->bo_sizes != NULL;
 #if MESA_DEBUG
    kernel_bo_names = true;
@@ -630,6 +672,7 @@ virtio_bo_init(struct tu_device *dev,
                enum tu_bo_alloc_flags flags,
                const char *name)
 {
+   MESA_TRACE_FUNC();
    struct tu_virtio_device *vdev = dev->vdev;
    struct msm_ccmd_gem_new_req req = {
          .hdr = MSM_CCMD(GEM_NEW, sizeof(req)),
@@ -732,6 +775,7 @@ virtio_bo_init_dmabuf(struct tu_device *dev,
                    uint64_t size,
                    int prime_fd)
 {
+   MESA_TRACE_FUNC();
    struct vdrm_device *vdrm = dev->vdev->vdrm;
    VkResult result;
    struct tu_bo* bo = NULL;
@@ -798,15 +842,25 @@ virtio_bo_init_dmabuf(struct tu_device *dev,
       *out_bo = bo;
    }
 
+   set_iova(dev, bo->res_id, iova);
+
 out_unlock:
    mtx_unlock(&dev->vma_mutex);
    u_rwlock_wrunlock(&dev->dma_bo_lock);
    return result;
 }
 
+static int
+virtio_bo_export_dmabuf(struct tu_device *dev, struct tu_bo *bo)
+{
+   MESA_TRACE_FUNC();
+   return vdrm_bo_export_dmabuf(dev->vdev->vdrm, bo->gem_handle);
+}
+
 static VkResult
 virtio_bo_map(struct tu_device *dev, struct tu_bo *bo, void *placed_addr)
 {
+   MESA_TRACE_FUNC();
    bo->map = vdrm_bo_map(dev->vdev->vdrm, bo->gem_handle, bo->size, placed_addr);
    if (bo->map == MAP_FAILED)
       return vk_error(dev, VK_ERROR_MEMORY_MAP_FAILED);
@@ -825,6 +879,7 @@ virtio_bo_allow_dump(struct tu_device *dev, struct tu_bo *bo)
 static VkResult
 setup_fence_cmds(struct tu_device *dev)
 {
+   MESA_TRACE_FUNC();
    struct tu_virtio_device *vdev = dev->vdev;
    VkResult result;
 
@@ -870,6 +925,7 @@ virtio_queue_submit(struct tu_queue *queue, void *_submit,
                     struct vk_sync_signal *signals, uint32_t signal_count,
                     struct tu_u_trace_submission_data *u_trace_submission_data)
 {
+   MESA_TRACE_FUNC();
    VkResult result = VK_SUCCESS;
    int ret;
    struct tu_msm_queue_submit *submit =
@@ -900,6 +956,7 @@ virtio_queue_submit(struct tu_queue *queue, void *_submit,
       queue->fence = 0;
    uint32_t fence = ++queue->fence;
    int idx = fence % ARRAY_SIZE(fcmds->cmds);
+   fcmds->cmds[idx].fence = fence;
    struct tu_cs_entry fence_cs = {
       .bo = vdev->fence_cmds_mem,
       .size = 5 * 4,
@@ -1085,7 +1142,7 @@ static const struct tu_knl virtio_knl_funcs = {
       .submitqueue_close = virtio_submitqueue_close,
       .bo_init = virtio_bo_init,
       .bo_init_dmabuf = virtio_bo_init_dmabuf,
-      .bo_export_dmabuf = tu_drm_export_dmabuf,
+      .bo_export_dmabuf = virtio_bo_export_dmabuf,
       .bo_map = virtio_bo_map,
       .bo_allow_dump = virtio_bo_allow_dump,
       .bo_finish = tu_drm_bo_finish,
@@ -1110,7 +1167,11 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
    if (debug_get_bool_option("TU_NO_VIRTIO", false))
       return VK_ERROR_INCOMPATIBLE_DRIVER;
 
-   if (drmGetCap(fd, DRM_CAP_SYNCOBJ, &val) || !val) {
+   /* Note: in vtest case, where we don't open a device fd directly, we
+    * can't do drm ioctls directly.  But we can assume that the server
+    * side supports syncobjs.
+    */
+   if ((fd >= 0) && (drmGetCap(fd, DRM_CAP_SYNCOBJ, &val) || !val)) {
       return vk_startup_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
                                "kernel driver for device %s does not support DRM_CAP_SYNC_OBJ",
                                version->name);
@@ -1132,9 +1193,6 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
 
    caps = vdrm->caps;
 
-   /* TODO add something to virgl_renderer_capset_drm to avoid round-trip to
-    * host if virglrenderer is new enough.
-    */
    bool has_preemption = virtio_has_preemption(vdrm);
 
    /* If virglrenderer is too old, we may need another round-trip to get this.
@@ -1142,9 +1200,20 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
    if (caps.u.msm.highest_bank_bit == 0)
       caps.u.msm.highest_bank_bit = tu_drm_get_highest_bank_bit(vdrm);
 
-   /* TODO add these to the caps struct */
    uint32_t bank_swizzle_levels = tu_drm_get_ubwc_swizzle(vdrm);
    enum fdl_macrotile_mode macrotile_mode = tu_drm_get_macrotile_mode(vdrm);
+   uint64_t uche_trap_base = tu_drm_get_uche_trap_base(vdrm);
+
+   /* If using vtest, vtest provides it's own sync provider.  Otherwise this
+    * returns NULL and we fall back to using the syncobj ioctls directly:
+    */
+   struct util_sync_provider *sync = vdrm_vpipe_get_sync(vdrm);
+   if (!sync)
+      sync = util_sync_provider_drm(fd);
+   struct vk_sync_type syncobj_type = vk_drm_syncobj_get_type_from_provider(sync);
+   sync->finalize(sync);
+
+   bool has_raytracing = tu_drm_get_raytracing(vdrm);
 
    vdrm_device_close(vdrm);
 
@@ -1161,6 +1230,11 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
    mesa_logd("chip_id:             0x%0" PRIx64, caps.u.msm.chip_id);
    mesa_logd("max_freq:            %u", caps.u.msm.max_freq);
    mesa_logd("highest_bank_bit:    %u", caps.u.msm.highest_bank_bit);
+   mesa_logd("ubwc_swizzle:        0x%" PRIx64, caps.u.msm.ubwc_swizzle);
+   mesa_logd("macrotile_mode:      %" PRIu64, caps.u.msm.macrotile_mode);
+   mesa_logd("has_raytracing:      %x", caps.u.msm.has_raytracing);
+   mesa_logd("has_preemption:      %d", caps.u.msm.has_preemption);
+   mesa_logd("uche_trap_base:      0x%" PRIx64, caps.u.msm.uche_trap_base);
 
    if (caps.wire_format_version != 2) {
       return vk_startup_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
@@ -1204,6 +1278,7 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
    device->ubwc_config.highest_bank_bit = caps.u.msm.highest_bank_bit;
    device->has_set_iova   = true;
    device->has_preemption = has_preemption;
+   device->uche_trap_base = uche_trap_base;
 
    device->ubwc_config.bank_swizzle_levels = bank_swizzle_levels;
    device->ubwc_config.macrotile_mode = macrotile_mode;
@@ -1214,7 +1289,10 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
 
    device->submitqueue_priority_count = caps.u.msm.priorities;
 
-   device->syncobj_type = vk_drm_syncobj_get_type(fd);
+   device->has_raytracing = has_raytracing;
+
+   device->syncobj_type = syncobj_type;
+
    /* we don't support DRM_CAP_SYNCOBJ_TIMELINE, but drm-shim does */
    if (!(device->syncobj_type.features & VK_SYNC_FEATURE_TIMELINE))
       device->timeline_type = vk_sync_timeline_get_type(&tu_timeline_sync_type);

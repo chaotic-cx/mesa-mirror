@@ -102,6 +102,21 @@ struct radv_winsys_sem_info {
 };
 
 static void
+radeon_emit(struct radeon_cmdbuf *cs, uint32_t value)
+{
+   assert(cs->cdw < cs->reserved_dw);
+   cs->buf[cs->cdw++] = value;
+}
+
+static void
+radeon_emit_array(struct radeon_cmdbuf *cs, const uint32_t *values, unsigned count)
+{
+   assert(cs->cdw + count <= cs->reserved_dw);
+   memcpy(cs->buf + cs->cdw, values, count * 4);
+   cs->cdw += count;
+}
+
+static void
 radeon_emit_unchecked(struct radeon_cmdbuf *cs, uint32_t value)
 {
    cs->buf[cs->cdw++] = value;
@@ -699,7 +714,7 @@ radv_amdgpu_cs_add_buffer(struct radeon_cmdbuf *_cs, struct radeon_winsys_bo *_b
    if (cs->status != VK_SUCCESS)
       return;
 
-   if (bo->is_virtual) {
+   if (bo->base.is_virtual) {
       radv_amdgpu_cs_add_virtual_buffer(_cs, _bo);
       return;
    }

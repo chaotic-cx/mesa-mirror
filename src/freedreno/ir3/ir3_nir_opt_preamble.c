@@ -212,6 +212,8 @@ instr_cost(nir_instr *instr, const void *data)
 static float
 rewrite_cost(nir_def *def, const void *data)
 {
+   const struct ir3_shader_variant *v = data;
+
    /* We always have to expand booleans */
    if (def->bit_size == 1)
       return def->num_components;
@@ -219,10 +221,7 @@ rewrite_cost(nir_def *def, const void *data)
    bool mov_needed = false;
    nir_foreach_use (use, def) {
       nir_instr *parent_instr = nir_src_parent_instr(use);
-      if (parent_instr->type != nir_instr_type_alu) {
-         mov_needed = true;
-         break;
-      } else {
+      if (parent_instr->type == nir_instr_type_alu) {
          nir_alu_instr *alu = nir_instr_as_alu(parent_instr);
          if (alu->op == nir_op_vec2 ||
              alu->op == nir_op_vec3 ||
@@ -233,6 +232,23 @@ rewrite_cost(nir_def *def, const void *data)
          } else {
             /* Assume for non-moves that the const is folded into the src */
          }
+      } else if (parent_instr->type == nir_instr_type_intrinsic) {
+         nir_intrinsic_instr *parent_intrin =
+            nir_instr_as_intrinsic(parent_instr);
+
+         if (v->compiler->has_alias_rt && v->type == MESA_SHADER_FRAGMENT &&
+             parent_intrin->intrinsic == nir_intrinsic_store_output &&
+             def->bit_size == 32) {
+            /* For FS outputs, alias.rt can use const registers without a mov.
+             * This only works for full regs though.
+             */
+         } else {
+            mov_needed = true;
+            break;
+         }
+      } else {
+         mov_needed = true;
+         break;
       }
    }
 
@@ -307,6 +323,7 @@ ir3_nir_opt_preamble(nir_shader *nir, struct ir3_shader_variant *v)
       .instr_cost_cb = instr_cost,
       .avoid_instr_cb = avoid_instr,
       .rewrite_cost_cb = rewrite_cost,
+      .cb_data = v,
    };
 
    unsigned size = 0;
@@ -367,6 +384,53 @@ ir3_def_is_rematerializable_for_preamble(nir_def *def,
    }
 }
 
+struct find_insert_block_state {
+   nir_block *insert_block;
+};
+
+static bool
+find_dominated_src(nir_src *src, void *data)
+{
+   struct find_insert_block_state *state = data;
+   nir_block *src_block = src->ssa->parent_instr->block;
+
+   if (!state->insert_block) {
+      state->insert_block = src_block;
+      return true;
+   } else if (nir_block_dominates(state->insert_block, src_block)) {
+      state->insert_block = src_block;
+      return true;
+   } else if (nir_block_dominates(src_block, state->insert_block)) {
+      return true;
+   } else {
+      state->insert_block = NULL;
+      return false;
+   }
+}
+
+/* Find the block where instr can be inserted. This is the block that is
+ * dominated by all its sources. If instr doesn't have any sources, return dflt.
+ */
+static nir_block *
+find_insert_block(nir_instr *instr, nir_block *dflt)
+{
+   struct find_insert_block_state state = {
+      .insert_block = NULL,
+   };
+
+   if (nir_foreach_src(instr, find_dominated_src, &state)) {
+      return state.insert_block ? state.insert_block : dflt;
+   }
+
+   return NULL;
+}
+
+static bool
+dominates(const nir_instr *old_instr, const nir_instr *new_instr)
+{
+   return nir_block_dominates(old_instr->block, new_instr->block);
+}
+
 static nir_def *
 _rematerialize_def(nir_builder *b, struct hash_table *remap_ht,
                    struct set *instr_set, nir_def **preamble_defs,
@@ -405,17 +469,29 @@ _rematerialize_def(nir_builder *b, struct hash_table *remap_ht,
 
    nir_instr *instr = nir_instr_clone_deep(b->shader, def->parent_instr,
                                            remap_ht);
+
+   /* Find a legal place to insert the new instruction. We cannot simply put it
+    * at the end of the preamble since the original instruction and its sources
+    * may be defined inside control flow.
+    */
+   nir_metadata_require(b->impl, nir_metadata_dominance);
+   nir_block *insert_block =
+      find_insert_block(instr, nir_cursor_current_block(b->cursor));
+
+   /* Since the preamble control flow was reconstructed from the original one,
+    * we must be able to find a legal place to insert the instruction.
+    */
+   assert(insert_block);
+   b->cursor = nir_after_block(insert_block);
+   nir_builder_instr_insert(b, instr);
+
    if (instr_set) {
       nir_instr *other_instr =
-         nir_instr_set_add_or_rewrite(instr_set, instr, NULL);
+         nir_instr_set_add_or_rewrite(instr_set, instr, dominates);
       if (other_instr) {
          instr = other_instr;
          _mesa_hash_table_insert(remap_ht, def, nir_instr_def(other_instr));
-      } else {
-         nir_builder_instr_insert(b, instr);
       }
-   } else {
-      nir_builder_instr_insert(b, instr);
    }
 
    return nir_instr_def(instr);
@@ -693,6 +769,8 @@ ir3_nir_opt_prefetch_descriptors(nir_shader *nir, struct ir3_shader_variant *v)
                                                   preamble_defs);
          }
 
+         /* ir3_rematerialize_def_for_preamble may have moved the cursor. */
+         b.cursor = nir_after_impl(preamble);
          progress |= emit_descriptor_prefetch(&b, instr, preamble_descs, &state);
 
          if (state.sampler.num_prefetches == MAX_PREFETCHES &&
@@ -702,12 +780,13 @@ ir3_nir_opt_prefetch_descriptors(nir_shader *nir, struct ir3_shader_variant *v)
    }
 
 finished:
-   nir_metadata_preserve(main, nir_metadata_all);
+   nir_no_progress(main);
+
    if (preamble) {
-      nir_metadata_preserve(preamble,
-                            nir_metadata_block_index |
-                            nir_metadata_dominance);
+      nir_progress(true, preamble,
+                   nir_metadata_block_index | nir_metadata_dominance);
    }
+
    nir_instr_set_destroy(instr_set);
    free(preamble_defs);
    return progress;
@@ -836,6 +915,5 @@ ir3_nir_lower_preamble(nir_shader *nir, struct ir3_shader_variant *v)
    exec_node_remove(&main->preamble->node);
    main->preamble = NULL;
 
-   nir_metadata_preserve(main, nir_metadata_none);
-   return true;
+   return nir_progress(true, main, nir_metadata_none);
 }

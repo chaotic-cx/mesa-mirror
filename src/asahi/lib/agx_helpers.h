@@ -8,6 +8,7 @@
 #include <stdbool.h>
 #include "asahi/compiler/agx_compile.h"
 #include "asahi/layout/layout.h"
+#include "agx_abi.h"
 #include "agx_pack.h"
 #include "agx_ppp.h"
 #include "libagx_shaders.h"
@@ -81,14 +82,63 @@ static inline enum agx_layout
 agx_translate_layout(enum ail_tiling tiling)
 {
    switch (tiling) {
+   case AIL_TILING_GPU:
+      return AGX_LAYOUT_GPU;
    case AIL_TILING_TWIDDLED:
-   case AIL_TILING_TWIDDLED_COMPRESSED:
       return AGX_LAYOUT_TWIDDLED;
    case AIL_TILING_LINEAR:
       return AGX_LAYOUT_LINEAR;
    }
 
    unreachable("Invalid tiling");
+}
+
+static inline enum agx_zls_tiling
+agx_translate_zls_tiling(enum ail_tiling tiling)
+{
+   switch (tiling) {
+   case AIL_TILING_GPU:
+      return AGX_ZLS_TILING_GPU;
+   case AIL_TILING_TWIDDLED:
+      return AGX_ZLS_TILING_TWIDDLED;
+   default:
+      unreachable("Invalid ZLS tiling");
+   }
+}
+
+struct agx_zls {
+   bool z_load, z_store;
+   bool s_load, s_store;
+};
+
+static inline void
+agx_pack_zls_control(struct agx_zls_control_packed *packed,
+                     const struct ail_layout *z, const struct ail_layout *s,
+                     struct agx_zls *args)
+{
+   agx_pack(packed, ZLS_CONTROL, cfg) {
+      if (z) {
+         cfg.z_store = args->z_store;
+         cfg.z_load = args->z_load;
+         cfg.z_load_compress = cfg.z_store_compress = z->compressed;
+         cfg.z_load_tiling = cfg.z_store_tiling =
+            agx_translate_zls_tiling(z->tiling);
+
+         if (z->format == PIPE_FORMAT_Z16_UNORM) {
+            cfg.z_format = AGX_ZLS_FORMAT_16;
+         } else {
+            cfg.z_format = AGX_ZLS_FORMAT_32F;
+         }
+      }
+
+      if (s) {
+         cfg.s_load = args->s_load;
+         cfg.s_store = args->s_store;
+         cfg.s_load_compress = cfg.s_store_compress = s->compressed;
+         cfg.s_load_tiling = cfg.s_store_tiling =
+            agx_translate_zls_tiling(s->tiling);
+      }
+   }
 }
 
 static enum agx_sample_count
@@ -168,18 +218,17 @@ agx_pack_line_width(float line_width)
  * the texture descriptor itself.
  */
 static void
-agx_set_null_texture(struct agx_texture_packed *tex, uint64_t valid_address)
+agx_set_null_texture(struct agx_texture_packed *tex)
 {
    agx_pack(tex, TEXTURE, cfg) {
-      cfg.layout = AGX_LAYOUT_NULL;
+      cfg.layout = AGX_LAYOUT_TWIDDLED;
       cfg.channels = AGX_CHANNELS_R8;
       cfg.type = AGX_TEXTURE_TYPE_UNORM /* don't care */;
       cfg.swizzle_r = AGX_CHANNEL_0;
       cfg.swizzle_g = AGX_CHANNEL_0;
       cfg.swizzle_b = AGX_CHANNEL_0;
       cfg.swizzle_a = AGX_CHANNEL_0;
-      cfg.address = valid_address;
-      cfg.null = true;
+      cfg.address = AGX_ZERO_PAGE_ADDRESS;
    }
 }
 
@@ -190,7 +239,7 @@ agx_set_null_pbe(struct agx_pbe_packed *pbe, uint64_t sink)
       cfg.width = 1;
       cfg.height = 1;
       cfg.levels = 1;
-      cfg.layout = AGX_LAYOUT_NULL;
+      cfg.layout = AGX_LAYOUT_TWIDDLED;
       cfg.channels = AGX_CHANNELS_R8;
       cfg.type = AGX_TEXTURE_TYPE_UNORM /* don't care */;
       cfg.swizzle_r = AGX_CHANNEL_R;
@@ -219,8 +268,8 @@ agx_set_null_pbe(struct agx_pbe_packed *pbe, uint64_t sink)
  *    i <= floor((size - src_offset - elsize_B) / stride)
  */
 static inline uint32_t
-agx_calculate_vbo_clamp(uint64_t vbuf, uint64_t sink, enum pipe_format format,
-                        uint32_t size_B, uint32_t stride_B, uint32_t offset_B,
+agx_calculate_vbo_clamp(uint64_t vbuf, enum pipe_format format, uint32_t size_B,
+                        uint32_t stride_B, uint32_t offset_B,
                         uint64_t *vbuf_out)
 {
    unsigned elsize_B = util_format_get_blocksize(format);
@@ -238,7 +287,7 @@ agx_calculate_vbo_clamp(uint64_t vbuf, uint64_t sink, enum pipe_format format,
       else
          return UINT32_MAX;
    } else {
-      *vbuf_out = sink;
+      *vbuf_out = AGX_ZERO_PAGE_ADDRESS;
       return 0;
    }
 }

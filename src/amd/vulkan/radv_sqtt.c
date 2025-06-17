@@ -20,8 +20,6 @@
 #include "vk_command_pool.h"
 #include "vk_common_entrypoints.h"
 
-#define SQTT_BUFFER_ALIGN_SHIFT 12
-
 bool
 radv_is_instruction_timing_enabled(void)
 {
@@ -78,7 +76,7 @@ radv_emit_sqtt_start(const struct radv_device *device, struct radeon_cmdbuf *cs,
    ac_pm4_finalize(pm4);
 
    radeon_check_space(device->ws, cs, pm4->ndw);
-   radeon_emit_array(cs, pm4->pm4, pm4->ndw);
+   radv_emit_pm4_commands(cs, pm4);
 
    ac_pm4_free_state(pm4);
 }
@@ -98,7 +96,7 @@ radv_emit_sqtt_stop(const struct radv_device *device, struct radeon_cmdbuf *cs, 
    ac_pm4_finalize(pm4);
 
    radeon_check_space(device->ws, cs, pm4->ndw);
-   radeon_emit_array(cs, pm4->pm4, pm4->ndw);
+   radv_emit_pm4_commands(cs, pm4);
 
    ac_pm4_clear_state(pm4, &pdev->info, false, is_compute_queue);
 
@@ -111,7 +109,7 @@ radv_emit_sqtt_stop(const struct radv_device *device, struct radeon_cmdbuf *cs, 
    ac_pm4_finalize(pm4);
 
    radeon_check_space(device->ws, cs, pm4->ndw);
-   radeon_emit_array(cs, pm4->pm4, pm4->ndw);
+   radv_emit_pm4_commands(cs, pm4);
 
    ac_pm4_free_state(pm4);
 }
@@ -122,7 +120,7 @@ radv_emit_sqtt_userdata(const struct radv_cmd_buffer *cmd_buffer, const void *da
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const enum amd_gfx_level gfx_level = pdev->info.gfx_level;
-   const enum radv_queue_family qf = cmd_buffer->qf;
+   const enum amd_ip_type ring = radv_queue_family_to_ring(pdev, cmd_buffer->qf);
    struct radeon_cmdbuf *cs = cmd_buffer->cs;
    const uint32_t *dwords = (uint32_t *)data;
 
@@ -134,14 +132,17 @@ radv_emit_sqtt_userdata(const struct radv_cmd_buffer *cmd_buffer, const void *da
       uint32_t count = MIN2(num_dwords, 2);
 
       radeon_check_space(device->ws, cs, 2 + count);
+      radeon_begin(cs);
 
       /* Without the perfctr bit the CP might not always pass the
        * write on correctly. */
       if (pdev->info.gfx_level >= GFX10)
-         radeon_set_uconfig_perfctr_reg_seq(gfx_level, qf, cs, R_030D08_SQ_THREAD_TRACE_USERDATA_2, count);
+         radeon_set_uconfig_perfctr_reg_seq(gfx_level, ring, R_030D08_SQ_THREAD_TRACE_USERDATA_2, count);
       else
-         radeon_set_uconfig_reg_seq(cs, R_030D08_SQ_THREAD_TRACE_USERDATA_2, count);
-      radeon_emit_array(cs, dwords, count);
+         radeon_set_uconfig_reg_seq(R_030D08_SQ_THREAD_TRACE_USERDATA_2, count);
+      radeon_emit_array(dwords, count);
+
+      radeon_end();
 
       dwords += count;
       num_dwords -= count;
@@ -153,19 +154,26 @@ radv_emit_spi_config_cntl(const struct radv_device *device, struct radeon_cmdbuf
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   if (pdev->info.gfx_level >= GFX9) {
+   radeon_begin(cs);
+
+   if (pdev->info.gfx_level >= GFX12) {
+      radeon_set_uconfig_reg(R_031120_SPI_SQG_EVENT_CTL,
+                             S_031120_ENABLE_SQG_TOP_EVENTS(enable) | S_031120_ENABLE_SQG_BOP_EVENTS(enable));
+   } else if (pdev->info.gfx_level >= GFX9) {
       uint32_t spi_config_cntl = S_031100_GPR_WRITE_PRIORITY(0x2c688) | S_031100_EXP_PRIORITY_ORDER(3) |
                                  S_031100_ENABLE_SQG_TOP_EVENTS(enable) | S_031100_ENABLE_SQG_BOP_EVENTS(enable);
 
       if (pdev->info.gfx_level >= GFX10)
          spi_config_cntl |= S_031100_PS_PKR_PRIORITY_CNTL(3);
 
-      radeon_set_uconfig_reg(cs, R_031100_SPI_CONFIG_CNTL, spi_config_cntl);
+      radeon_set_uconfig_reg(R_031100_SPI_CONFIG_CNTL, spi_config_cntl);
    } else {
       /* SPI_CONFIG_CNTL is a protected register on GFX6-GFX8. */
-      radeon_set_privileged_config_reg(cs, R_009100_SPI_CONFIG_CNTL,
+      radeon_set_privileged_config_reg(R_009100_SPI_CONFIG_CNTL,
                                        S_009100_ENABLE_SQG_TOP_EVENTS(enable) | S_009100_ENABLE_SQG_BOP_EVENTS(enable));
    }
+
+   radeon_end();
 }
 
 void
@@ -176,11 +184,15 @@ radv_emit_inhibit_clockgating(const struct radv_device *device, struct radeon_cm
    if (pdev->info.gfx_level >= GFX11)
       return; /* not needed */
 
+   radeon_begin(cs);
+
    if (pdev->info.gfx_level >= GFX10) {
-      radeon_set_uconfig_reg(cs, R_037390_RLC_PERFMON_CLK_CNTL, S_037390_PERFMON_CLOCK_STATE(inhibit));
+      radeon_set_uconfig_reg(R_037390_RLC_PERFMON_CLK_CNTL, S_037390_PERFMON_CLOCK_STATE(inhibit));
    } else if (pdev->info.gfx_level >= GFX8) {
-      radeon_set_uconfig_reg(cs, R_0372FC_RLC_PERFMON_CLK_CNTL, S_0372FC_PERFMON_CLOCK_STATE(inhibit));
+      radeon_set_uconfig_reg(R_0372FC_RLC_PERFMON_CLK_CNTL, S_0372FC_PERFMON_CLOCK_STATE(inhibit));
    }
+
+   radeon_end();
 }
 
 VkResult
@@ -263,7 +275,6 @@ static bool
 radv_sqtt_init_queue_event(struct radv_device *device)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const struct radv_instance *instance = radv_physical_device_instance(pdev);
    VkCommandPool cmd_pool;
    VkResult result;
 
@@ -278,7 +289,7 @@ radv_sqtt_init_queue_event(struct radv_device *device)
 
    device->sqtt_command_pool[0] = vk_command_pool_from_handle(cmd_pool);
 
-   if (!(instance->debug_flags & RADV_DEBUG_NO_COMPUTE_QUEUE)) {
+   if (radv_compute_queue_enabled(pdev)) {
       const VkCommandPoolCreateInfo create_comp_info = {
          .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
          .queueFamilyIndex = RADV_QUEUE_COMPUTE,
@@ -326,10 +337,10 @@ radv_sqtt_init_bo(struct radv_device *device)
    /* The buffer size and address need to be aligned in HW regs. Align the
     * size as early as possible so that we do all the allocation & addressing
     * correctly. */
-   device->sqtt.buffer_size = align64(device->sqtt.buffer_size, 1u << SQTT_BUFFER_ALIGN_SHIFT);
+   device->sqtt.buffer_size = align64(device->sqtt.buffer_size, 1ull << SQTT_BUFFER_ALIGN_SHIFT);
 
    /* Compute total size of the thread trace BO for all SEs. */
-   size = align64(sizeof(struct ac_sqtt_data_info) * max_se, 1 << SQTT_BUFFER_ALIGN_SHIFT);
+   size = align64(sizeof(struct ac_sqtt_data_info) * max_se, 1ull << SQTT_BUFFER_ALIGN_SHIFT);
    size += device->sqtt.buffer_size * (uint64_t)max_se;
 
    struct radeon_winsys_bo *bo = NULL;
@@ -520,20 +531,24 @@ radv_begin_sqtt(struct radv_queue *queue)
 
    radeon_check_space(ws, cs, 512);
 
+   radeon_begin(cs);
+
    switch (family) {
    case RADV_QUEUE_GENERAL:
-      radeon_emit(cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
-      radeon_emit(cs, CC0_UPDATE_LOAD_ENABLES(1));
-      radeon_emit(cs, CC1_UPDATE_SHADOW_ENABLES(1));
+      radeon_emit(PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
+      radeon_emit(CC0_UPDATE_LOAD_ENABLES(1));
+      radeon_emit(CC1_UPDATE_SHADOW_ENABLES(1));
       break;
    case RADV_QUEUE_COMPUTE:
-      radeon_emit(cs, PKT3(PKT3_NOP, 0, 0));
-      radeon_emit(cs, 0);
+      radeon_emit(PKT3(PKT3_NOP, 0, 0));
+      radeon_emit(0);
       break;
    default:
       unreachable("Incorrect queue family");
       break;
    }
+
+   radeon_end();
 
    /* Make sure to wait-for-idle before starting SQTT. */
    radv_emit_wait_for_idle(device, cs, family);
@@ -544,7 +559,7 @@ radv_begin_sqtt(struct radv_queue *queue)
    /* Enable SQG events that collects thread trace data. */
    radv_emit_spi_config_cntl(device, cs, true);
 
-   radv_perfcounter_emit_spm_reset(cs);
+   radv_perfcounter_emit_reset(cs, true);
 
    if (device->spm.bo) {
       /* Enable all shader stages by default. */
@@ -593,20 +608,24 @@ radv_end_sqtt(struct radv_queue *queue)
 
    radeon_check_space(ws, cs, 512);
 
+   radeon_begin(cs);
+
    switch (family) {
    case RADV_QUEUE_GENERAL:
-      radeon_emit(cs, PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
-      radeon_emit(cs, CC0_UPDATE_LOAD_ENABLES(1));
-      radeon_emit(cs, CC1_UPDATE_SHADOW_ENABLES(1));
+      radeon_emit(PKT3(PKT3_CONTEXT_CONTROL, 1, 0));
+      radeon_emit(CC0_UPDATE_LOAD_ENABLES(1));
+      radeon_emit(CC1_UPDATE_SHADOW_ENABLES(1));
       break;
    case RADV_QUEUE_COMPUTE:
-      radeon_emit(cs, PKT3(PKT3_NOP, 0, 0));
-      radeon_emit(cs, 0);
+      radeon_emit(PKT3(PKT3_NOP, 0, 0));
+      radeon_emit(0);
       break;
    default:
       unreachable("Incorrect queue family");
       break;
    }
+
+   radeon_end();
 
    /* Make sure to wait-for-idle before stopping SQTT. */
    radv_emit_wait_for_idle(device, cs, family);
@@ -619,7 +638,7 @@ radv_end_sqtt(struct radv_queue *queue)
    /* Stop SQTT. */
    radv_emit_sqtt_stop(device, cs, family);
 
-   radv_perfcounter_emit_spm_reset(cs);
+   radv_perfcounter_emit_reset(cs, true);
 
    /* Restore previous state by disabling SQG events. */
    radv_emit_spi_config_cntl(device, cs, false);
@@ -737,7 +756,6 @@ radv_reset_sqtt_trace(struct radv_device *device)
    /* Clear timed cmdbufs. */
    simple_mtx_lock(&device->sqtt_command_pool_mtx);
    for (unsigned i = 0; i < ARRAY_SIZE(device->sqtt_command_pool); i++) {
-      /* If RADV_DEBUG_NO_COMPUTE_QUEUE is used, there's no compute sqtt command pool */
       if (device->sqtt_command_pool[i])
          vk_common_TrimCommandPool(radv_device_to_handle(device), vk_command_pool_to_handle(device->sqtt_command_pool[i]),
                                 0);

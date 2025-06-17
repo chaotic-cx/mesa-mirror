@@ -30,6 +30,7 @@ cc_library_shared {
         "mesa_gallium_auxiliary_headers",
         "mesa_gallium_drivers_headers",
         "mesa_llvmpipe_headers",
+        "mesa_lvp_frontend_headers",
         "mesa_nir_headers",
         "mesa_compiler_headers",
     ],
