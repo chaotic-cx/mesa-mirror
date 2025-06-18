@@ -597,6 +597,11 @@ size_t goldfish_vk_extension_struct_size(VkStructureType rootType, const void* s
             return sizeof(VkRenderingFragmentDensityMapAttachmentInfoEXT);
         }
 #endif
+#ifdef VK_EXT_memory_budget
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
+            return sizeof(VkPhysicalDeviceMemoryBudgetPropertiesEXT);
+        }
+#endif
 #ifdef VK_EXT_provoking_vertex
         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT: {
             return sizeof(VkPhysicalDeviceProvokingVertexFeaturesEXT);
@@ -1272,6 +1277,11 @@ size_t goldfish_vk_extension_struct_size_with_stream_features(uint32_t streamFea
         }
         case VK_STRUCTURE_TYPE_RENDERING_FRAGMENT_DENSITY_MAP_ATTACHMENT_INFO_EXT: {
             return sizeof(VkRenderingFragmentDensityMapAttachmentInfoEXT);
+        }
+#endif
+#ifdef VK_EXT_memory_budget
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
+            return sizeof(VkPhysicalDeviceMemoryBudgetPropertiesEXT);
         }
 #endif
 #ifdef VK_EXT_provoking_vertex

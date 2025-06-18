@@ -7420,6 +7420,24 @@ void count_VkRenderingFragmentDensityMapAttachmentInfoEXT(
 }
 
 #endif
+#ifdef VK_EXT_memory_budget
+void count_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    uint32_t featureBits, VkStructureType rootType,
+    const VkPhysicalDeviceMemoryBudgetPropertiesEXT* toCount, size_t* count) {
+    (void)featureBits;
+    (void)rootType;
+    (void)toCount;
+    (void)count;
+    *count += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = toCount->sType;
+    }
+    count_extension_struct(featureBits, rootType, toCount->pNext, count);
+    *count += VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize);
+    *count += VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize);
+}
+
+#endif
 #ifdef VK_EXT_provoking_vertex
 void count_VkPhysicalDeviceProvokingVertexFeaturesEXT(
     uint32_t featureBits, VkStructureType rootType,
@@ -9131,6 +9149,15 @@ void count_extension_struct(uint32_t featureBits, VkStructureType rootType,
                 featureBits, rootType,
                 reinterpret_cast<const VkRenderingFragmentDensityMapAttachmentInfoEXT*>(
                     structExtension),
+                count);
+            break;
+        }
+#endif
+#ifdef VK_EXT_memory_budget
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
+            count_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+                featureBits, rootType,
+                reinterpret_cast<const VkPhysicalDeviceMemoryBudgetPropertiesEXT*>(structExtension),
                 count);
             break;
         }
