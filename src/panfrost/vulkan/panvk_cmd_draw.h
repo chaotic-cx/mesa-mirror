@@ -11,6 +11,7 @@
 #endif
 
 #include "panvk_blend.h"
+#include "panvk_cmd_desc_state.h"
 #include "panvk_cmd_oq.h"
 #include "panvk_entrypoints.h"
 #include "panvk_image.h"
@@ -225,6 +226,19 @@ struct panvk_device_draw_context {
    uint64_t fn_set_fbds_provoking_vertex_stride;
 };
 #endif
+
+static inline void
+panvk_depth_range(const struct panvk_cmd_graphics_state *state,
+                  const struct vk_viewport_state *vp,
+                  float *z_min, float *z_max)
+{
+   float a = vp->depth_clip_negative_one_to_one ?
+      state->sysvals.viewport.offset.z - state->sysvals.viewport.scale.z :
+      state->sysvals.viewport.offset.z;
+   float b = state->sysvals.viewport.offset.z + state->sysvals.viewport.scale.z;
+   *z_min = MIN2(a, b);
+   *z_max = MAX2(a, b);
+}
 
 static inline uint32_t
 panvk_select_tiler_hierarchy_mask(const struct panvk_physical_device *phys_dev,

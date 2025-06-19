@@ -28,6 +28,35 @@ extern const struct vk_device_shader_ops panvk_per_arch(device_shader_ops);
 
 #define MAX_VS_ATTRIBS 16
 
+#if PAN_ARCH <= 7
+
+/* We could theoretically use the MAX_PER_SET values here (except for UBOs
+ * where we're really limited to 256 on the shader side), but on Bifrost we
+ * have to copy some tables around, which comes at an extra memory/processing
+ * cost, so let's pick something smaller. */
+#define MAX_PER_STAGE_SAMPLED_IMAGES 256
+#define MAX_PER_STAGE_SAMPLERS 128
+#define MAX_PER_STAGE_UNIFORM_BUFFERS MAX_PER_SET_UNIFORM_BUFFERS
+#define MAX_PER_STAGE_STORAGE_BUFFERS 64
+#define MAX_PER_STAGE_STORAGE_IMAGES 32
+#define MAX_PER_STAGE_INPUT_ATTACHMENTS MAX_PER_SET_INPUT_ATTACHMENTS
+
+#else
+
+#define MAX_PER_STAGE_SAMPLED_IMAGES MAX_PER_SET_SAMPLED_IMAGES
+#define MAX_PER_STAGE_SAMPLERS MAX_PER_SET_SAMPLERS
+#define MAX_PER_STAGE_UNIFORM_BUFFERS MAX_PER_SET_UNIFORM_BUFFERS
+#define MAX_PER_STAGE_STORAGE_BUFFERS MAX_PER_SET_STORAGE_BUFFERS
+#define MAX_PER_STAGE_STORAGE_IMAGES MAX_PER_SET_STORAGE_IMAGES
+#define MAX_PER_STAGE_INPUT_ATTACHMENTS MAX_PER_SET_INPUT_ATTACHMENTS
+
+#endif
+
+#define MAX_PER_STAGE_RESOURCES (                                              \
+   MAX_PER_STAGE_SAMPLED_IMAGES + MAX_PER_STAGE_SAMPLERS +                     \
+   MAX_PER_STAGE_UNIFORM_BUFFERS + MAX_PER_STAGE_STORAGE_BUFFERS +             \
+   MAX_PER_STAGE_STORAGE_IMAGES + MAX_PER_STAGE_INPUT_ATTACHMENTS)
+
 struct nir_shader;
 struct pan_blend_state;
 struct panvk_device;
@@ -88,7 +117,8 @@ struct panvk_graphics_sysvals {
       uint32_t noperspective_varyings;
    } vs;
 
-   aligned_u64 push_consts;
+   /* Address of sysval/push constant buffer used for indirect loads */
+   aligned_u64 push_uniforms;
    aligned_u64 printf_buffer_address;
 
    struct panvk_input_attachment_info iam[INPUT_ATTACHMENT_MAP_SIZE];
@@ -107,9 +137,9 @@ struct panvk_graphics_sysvals {
 
 static_assert((sizeof(struct panvk_graphics_sysvals) % FAU_WORD_SIZE) == 0,
               "struct panvk_graphics_sysvals must be 8-byte aligned");
-static_assert((offsetof(struct panvk_graphics_sysvals, push_consts) %
+static_assert((offsetof(struct panvk_graphics_sysvals, push_uniforms) %
                FAU_WORD_SIZE) == 0,
-              "panvk_graphics_sysvals::push_consts must be 8-byte aligned");
+              "panvk_graphics_sysvals::push_uniforms must be 8-byte aligned");
 #if PAN_ARCH <= 7
 static_assert((offsetof(struct panvk_graphics_sysvals, desc) % FAU_WORD_SIZE) ==
                  0,
@@ -127,7 +157,8 @@ struct panvk_compute_sysvals {
       uint32_t x, y, z;
    } local_group_size;
 
-   aligned_u64 push_consts;
+   /* Address of sysval/push constant buffer used for indirect loads */
+   aligned_u64 push_uniforms;
    aligned_u64 printf_buffer_address;
 
 #if PAN_ARCH <= 7
@@ -139,9 +170,9 @@ struct panvk_compute_sysvals {
 
 static_assert((sizeof(struct panvk_compute_sysvals) % FAU_WORD_SIZE) == 0,
               "struct panvk_compute_sysvals must be 8-byte aligned");
-static_assert((offsetof(struct panvk_compute_sysvals, push_consts) %
+static_assert((offsetof(struct panvk_compute_sysvals, push_uniforms) %
                FAU_WORD_SIZE) == 0,
-              "panvk_compute_sysvals::push_consts must be 8-byte aligned");
+              "panvk_compute_sysvals::push_uniforms must be 8-byte aligned");
 #if PAN_ARCH <= 7
 static_assert((offsetof(struct panvk_compute_sysvals, desc) % FAU_WORD_SIZE) ==
                  0,
@@ -225,11 +256,9 @@ static_assert((offsetof(struct panvk_compute_sysvals, desc) % FAU_WORD_SIZE) ==
 #define load_sysval_entry(__b, __ptype, __bitsz, __name, __dyn_idx)            \
    nir_load_push_constant(                                                     \
       __b, sysval_entry_size(__ptype, __name) / ((__bitsz) / 8), __bitsz,      \
-      nir_iadd_imm(                                                            \
-         __b,                                                                  \
-         nir_imul_imm(__b, __dyn_idx, sysval_entry_size(__ptype, __name)),     \
-         sysval_offset(__ptype, __name)),                                      \
-      .base = SYSVALS_PUSH_CONST_BASE)
+      nir_imul_imm(__b, __dyn_idx, sysval_entry_size(__ptype, __name)),        \
+      .base = SYSVALS_PUSH_CONST_BASE + sysval_offset(__ptype, __name),        \
+      .range = sysval_size(__ptype, __name))
 
 #if PAN_ARCH <= 7
 enum panvk_bifrost_desc_table_type {

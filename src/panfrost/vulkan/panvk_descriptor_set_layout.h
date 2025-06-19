@@ -27,10 +27,54 @@
    (MAX_DYNAMIC_UNIFORM_BUFFERS + MAX_DYNAMIC_STORAGE_BUFFERS)
 
 #if PAN_ARCH <= 7
+
+/* On Bifrost, this is a software limit. We pick the minimum required by
+ * Vulkan, because Bifrost GPUs don't have unified descriptor tables,
+ * which forces us to aggregate all descriptors from all sets and dispatch
+ * them to per-type descriptor tables emitted at draw/dispatch time. The
+ * more sets we support the more copies we are likely to have to do at
+ * draw time. */
 #define MAX_SETS 4
+
+/* MALI_RENDERER_STATE::sampler_count is 16-bit. */
+#define MAX_PER_SET_SAMPLERS UINT16_MAX
+/* MALI_RENDERER_STATE::sampler_count is 16-bit. */
+#define MAX_PER_SET_SAMPLED_IMAGES UINT16_MAX
+/* MALI_RENDERER_STATE::uniform_buffer_count is 8-bit. We reserve 32 slots for
+ * our internal UBOs. */
+#define MAX_PER_SET_UNIFORM_BUFFERS (UINT8_MAX - 32)
+/* SSBOs are limited by the size of a uniform buffer which contains our
+ * panvk_ssbo_addr objects. panvk_ssbo_addr is 16-byte, and each uniform entry
+ * in the Mali UBO is 16-byte too. The number of entries is encoded in a
+ * 12-bit field, with a minus(1) modifier, which gives a maximum of 2^12 SSBO
+ * descriptors. */
+#define MAX_PER_SET_STORAGE_BUFFERS (1 << 12)
+/* MALI_ATTRIBUTE::buffer_index is 9-bit, and each image takes two
+ * MALI_ATTRIBUTE_BUFFER slots, which gives a maximum of (1 << 8) images. */
+#define MAX_PER_SET_STORAGE_IMAGES (1 << 8)
+
 #else
+
+/* Valhall has native support for descriptor sets, and allows a maximum
+ * of 16 sets, but we reserve one for our internal use, so we have 15
+ * left. */
 #define MAX_SETS 15
+
+/* Hardware limit is 2^24 each of buffer, texture, and sampler descriptors. We
+ * use the same hardware descriptors for multiple kinds of vulkan descriptors,
+ * and may want to reorganize these in the future, so advertise a lower limit
+ * of 2^20. */
+#define MAX_DESCRIPTORS (1 << 20)
+#define MAX_PER_SET_SAMPLERS MAX_DESCRIPTORS
+#define MAX_PER_SET_SAMPLED_IMAGES MAX_DESCRIPTORS
+#define MAX_PER_SET_UNIFORM_BUFFERS MAX_DESCRIPTORS
+#define MAX_PER_SET_STORAGE_BUFFERS MAX_DESCRIPTORS
+#define MAX_PER_SET_STORAGE_IMAGES MAX_DESCRIPTORS
+
 #endif
+
+/* A maximum of 8 color render targets, and one depth-stencil render target. */
+#define MAX_PER_SET_INPUT_ATTACHMENTS (MAX_RTS + 1)
 
 struct panvk_descriptor_set_binding_layout {
    VkDescriptorType type;

@@ -242,7 +242,7 @@ emit_vs_attrib(struct panvk_cmd_buffer *cmdbuf,
          /* Per-instance, NPOT divisor */
          cfg.attribute_type = MALI_ATTRIBUTE_TYPE_1D_NPOT_DIVISOR;
          cfg.frequency = MALI_ATTRIBUTE_FREQUENCY_INSTANCE;
-         cfg.divisor_d = pan_compute_magic_divisor(
+         cfg.divisor_d = pan_compute_npot_divisor(
             buf_info->divisor, &cfg.divisor_r, &cfg.divisor_e);
       }
    }
@@ -695,6 +695,7 @@ prepare_vp(struct panvk_cmd_buffer *cmdbuf)
    }
 
    if (dyn_gfx_state_dirty(cmdbuf, VP_VIEWPORTS) ||
+       dyn_gfx_state_dirty(cmdbuf, VP_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE) ||
        dyn_gfx_state_dirty(cmdbuf, RS_DEPTH_CLIP_ENABLE) ||
        dyn_gfx_state_dirty(cmdbuf, RS_DEPTH_CLAMP_ENABLE)) {
       struct mali_viewport_packed mali_viewport;
@@ -720,9 +721,9 @@ prepare_vp(struct panvk_cmd_buffer *cmdbuf)
          cfg.max_x = CLAMP(maxx, 0, UINT16_MAX);
          cfg.max_y = CLAMP(maxy, 0, UINT16_MAX);
 
-         struct panvk_graphics_sysvals *sysvals = &cmdbuf->state.gfx.sysvals;
-         float z_min = sysvals->viewport.offset.z;
-         float z_max = z_min + sysvals->viewport.scale.z;
+         float z_min, z_max;
+         panvk_depth_range(&cmdbuf->state.gfx,
+                           &cmdbuf->vk.dynamic_graphics_state.vp, &z_min, &z_max);
          cfg.min_depth = CLAMP(z_min, 0.0f, 1.0f);
          cfg.max_depth = CLAMP(z_max, 0.0f, 1.0f);
       }
@@ -783,16 +784,14 @@ prepare_vp(struct panvk_cmd_buffer *cmdbuf)
    }
 
    if (dyn_gfx_state_dirty(cmdbuf, VP_VIEWPORTS) ||
+       dyn_gfx_state_dirty(cmdbuf, VP_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE) ||
        dyn_gfx_state_dirty(cmdbuf, RS_DEPTH_CLIP_ENABLE) ||
        dyn_gfx_state_dirty(cmdbuf, RS_DEPTH_CLAMP_ENABLE)) {
-      struct panvk_graphics_sysvals *sysvals = &cmdbuf->state.gfx.sysvals;
-
-      float z_min = sysvals->viewport.offset.z;
-      float z_max = z_min + sysvals->viewport.scale.z;
-      cs_move32_to(b, cs_sr_reg32(b, IDVS, LOW_DEPTH_CLAMP),
-                   fui(MIN2(z_min, z_max)));
-      cs_move32_to(b, cs_sr_reg32(b, IDVS, HIGH_DEPTH_CLAMP),
-                   fui(MAX2(z_min, z_max)));
+      float z_min, z_max;
+      panvk_depth_range(&cmdbuf->state.gfx,
+                        &cmdbuf->vk.dynamic_graphics_state.vp, &z_min, &z_max);
+      cs_move32_to(b, cs_sr_reg32(b, IDVS, LOW_DEPTH_CLAMP), fui(z_min));
+      cs_move32_to(b, cs_sr_reg32(b, IDVS, HIGH_DEPTH_CLAMP), fui(z_max));
    }
 }
 #endif
@@ -2656,7 +2655,7 @@ panvk_per_arch(CmdDrawIndexedIndirect)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_buffer, buffer, _buffer);
 
-   if (drawCount == 0)
+   if (drawCount == 0 || cmdbuf->state.gfx.ib.size == 0)
       return;
 
    struct panvk_draw_info draw = {
@@ -2709,7 +2708,7 @@ panvk_per_arch(CmdDrawIndexedIndirectCount)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_buffer, buffer, _buffer);
    VK_FROM_HANDLE(panvk_buffer, count_buffer, countBuffer);
 
-   if (maxDrawCount == 0)
+   if (maxDrawCount == 0 || cmdbuf->state.gfx.ib.size == 0)
       return;
 
    struct panvk_draw_info draw = {

@@ -188,6 +188,12 @@ ir3_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
       return false;
    }
 
+   if ((low->intrinsic == nir_intrinsic_load_ssbo && low->def.bit_size == 8) ||
+       (low->intrinsic == nir_intrinsic_store_ssbo &&
+        low->src[0].ssa->bit_size == 8)) {
+      return false;
+   }
+
    if (low->intrinsic != nir_intrinsic_load_ubo) {
       return bit_size <= 32 && align_mul >= byte_size &&
          align_offset % byte_size == 0 &&
@@ -635,6 +641,7 @@ ir3_finalize_nir(struct ir3_compiler *compiler,
    }
 
    OPT(s, nir_lower_is_helper_invocation);
+   OPT(s, nir_opt_combine_barriers, NULL, NULL);
 
    ir3_optimize_loop(compiler, options, s);
 
@@ -1156,11 +1163,6 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so,
    progress |= OPT(s, ir3_nir_lower_64b_intrinsics);
    progress |= OPT(s, nir_lower_64bit_phis);
 
-   /* Cleanup code leftover from lowering passes before opt_preamble */
-   if (progress) {
-      progress |= OPT(s, nir_opt_constant_folding);
-   }
-
    progress |= OPT(s, ir3_nir_opt_subgroups, so);
 
    if (so->compiler->load_shader_consts_via_preamble)
@@ -1168,6 +1170,16 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so,
 
    if (!so->binning_pass) {
       ir3_setup_const_state(s, so, ir3_const_state_mut(so));
+   }
+
+   /* Cleanup code leftover from lowering passes before opt_preamble */
+   if (progress) {
+      ir3_optimize_loop(so->compiler, options, s);
+
+      /* No need to run the optimize loop again if there's no progress after
+       * this point.
+       */
+      progress = false;
    }
 
    /* Do the preamble before analysing UBO ranges, because it's usually

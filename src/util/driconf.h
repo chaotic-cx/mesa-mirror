@@ -751,10 +751,6 @@
    DRI_CONF_OPT_B(radv_rt_wave64, def, \
                   "Force wave64 in RT shaders")
 
-#define DRI_CONF_RADV_DISABLE_DEDICATED_SPARSE_QUEUE(def) \
-   DRI_CONF_OPT_B(radv_disable_dedicated_sparse_queue, def, \
-                  "Disables the dedicated sparse queue. This replaces radv_legacy_sparse_binding as a compatible drirc workaround for games that might not expect a separate SPARSE queue")
-
 /**
  * Overrides for forcing re-compilation of pipelines when RADV_BUILD_ID_OVERRIDE is enabled.
  * These need to be bumped every time a compiler bugfix is backported (up to 8 shader
@@ -787,10 +783,6 @@
 #define DRI_CONF_RADV_ENABLE_FLOAT16_GFX8(def) \
    DRI_CONF_OPT_B(radv_enable_float16_gfx8, def, \
                   "Expose float16 on GFX8, where it's supported but usually not beneficial.")
-
-#define DRI_CONF_RADV_FORCE_64K_SPARSE_ALIGNMENT(def) \
-   DRI_CONF_OPT_B(radv_force_64k_sparse_alignment, def, \
-                  "Force the alignment of sparse buffers to 64KiB")
 
 #define DRI_CONF_RADV_DISABLE_HIZ_HIS_GFX12(def) \
    DRI_CONF_OPT_B(radv_disable_hiz_his_gfx12, def, \
