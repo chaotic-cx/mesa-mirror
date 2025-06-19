@@ -7889,6 +7889,26 @@ void transform_fromhost_VkRenderingFragmentDensityMapAttachmentInfoEXT(
 }
 
 #endif
+#ifdef VK_EXT_memory_budget
+void transform_tohost_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    ResourceTracker* resourceTracker, VkPhysicalDeviceMemoryBudgetPropertiesEXT* toTransform) {
+    (void)resourceTracker;
+    (void)toTransform;
+    if (toTransform->pNext) {
+        transform_tohost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
+    }
+}
+
+void transform_fromhost_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    ResourceTracker* resourceTracker, VkPhysicalDeviceMemoryBudgetPropertiesEXT* toTransform) {
+    (void)resourceTracker;
+    (void)toTransform;
+    if (toTransform->pNext) {
+        transform_fromhost_extension_struct(resourceTracker, (void*)(toTransform->pNext));
+    }
+}
+
+#endif
 #ifdef VK_EXT_provoking_vertex
 void transform_tohost_VkPhysicalDeviceProvokingVertexFeaturesEXT(
     ResourceTracker* resourceTracker, VkPhysicalDeviceProvokingVertexFeaturesEXT* toTransform) {
@@ -9436,6 +9456,14 @@ void transform_tohost_extension_struct(ResourceTracker* resourceTracker,
             break;
         }
 #endif
+#ifdef VK_EXT_memory_budget
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
+            transform_tohost_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+                resourceTracker,
+                reinterpret_cast<VkPhysicalDeviceMemoryBudgetPropertiesEXT*>(structExtension_out));
+            break;
+        }
+#endif
 #ifdef VK_EXT_provoking_vertex
         case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROVOKING_VERTEX_FEATURES_EXT: {
             transform_tohost_VkPhysicalDeviceProvokingVertexFeaturesEXT(
@@ -10637,6 +10665,14 @@ void transform_fromhost_extension_struct(ResourceTracker* resourceTracker,
             transform_fromhost_VkRenderingFragmentDensityMapAttachmentInfoEXT(
                 resourceTracker, reinterpret_cast<VkRenderingFragmentDensityMapAttachmentInfoEXT*>(
                                      structExtension_out));
+            break;
+        }
+#endif
+#ifdef VK_EXT_memory_budget
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
+            transform_fromhost_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+                resourceTracker,
+                reinterpret_cast<VkPhysicalDeviceMemoryBudgetPropertiesEXT*>(structExtension_out));
             break;
         }
 #endif

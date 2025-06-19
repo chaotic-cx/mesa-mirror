@@ -3724,6 +3724,16 @@ DEFINE_ALIAS_FUNCTION(unmarshal_VkPipelineShaderStageRequiredSubgroupSizeCreateI
                       unmarshal_VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT)
 
 #endif
+#ifdef VK_EXT_memory_budget
+void marshal_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    VulkanStreamGuest* vkStream, VkStructureType rootType,
+    const VkPhysicalDeviceMemoryBudgetPropertiesEXT* forMarshaling);
+
+void unmarshal_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    VulkanStreamGuest* vkStream, VkStructureType rootType,
+    VkPhysicalDeviceMemoryBudgetPropertiesEXT* forUnmarshaling);
+
+#endif
 #ifdef VK_EXT_tooling_info
 DEFINE_ALIAS_FUNCTION(marshal_VkPhysicalDeviceToolProperties,
                       marshal_VkPhysicalDeviceToolPropertiesEXT)

@@ -1789,6 +1789,12 @@ DEFINE_ALIAS_FUNCTION(count_VkPipelineShaderStageRequiredSubgroupSizeCreateInfo,
                       count_VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT)
 
 #endif
+#ifdef VK_EXT_memory_budget
+void count_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    uint32_t featureBits, VkStructureType rootType,
+    const VkPhysicalDeviceMemoryBudgetPropertiesEXT* toCount, size_t* count);
+
+#endif
 #ifdef VK_EXT_tooling_info
 DEFINE_ALIAS_FUNCTION(count_VkPhysicalDeviceToolProperties, count_VkPhysicalDeviceToolPropertiesEXT)
 

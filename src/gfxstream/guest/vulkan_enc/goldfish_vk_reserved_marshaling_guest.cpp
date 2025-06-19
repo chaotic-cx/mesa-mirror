@@ -9291,6 +9291,27 @@ void reservedmarshal_VkRenderingFragmentDensityMapAttachmentInfoEXT(
 }
 
 #endif
+#ifdef VK_EXT_memory_budget
+void reservedmarshal_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    VulkanStreamGuest* vkStream, VkStructureType rootType,
+    const VkPhysicalDeviceMemoryBudgetPropertiesEXT* forMarshaling, uint8_t** ptr) {
+    (void)vkStream;
+    (void)rootType;
+    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
+    *ptr += sizeof(VkStructureType);
+    if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
+        rootType = forMarshaling->sType;
+    }
+    reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
+    memcpy(*ptr, (VkDeviceSize*)forMarshaling->heapBudget,
+           VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize));
+    *ptr += VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize);
+    memcpy(*ptr, (VkDeviceSize*)forMarshaling->heapUsage,
+           VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize));
+    *ptr += VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize);
+}
+
+#endif
 #ifdef VK_EXT_provoking_vertex
 void reservedmarshal_VkPhysicalDeviceProvokingVertexFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -11042,6 +11063,15 @@ void reservedmarshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureTy
                 vkStream, rootType,
                 reinterpret_cast<const VkRenderingFragmentDensityMapAttachmentInfoEXT*>(
                     structExtension),
+                ptr);
+            break;
+        }
+#endif
+#ifdef VK_EXT_memory_budget
+        case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MEMORY_BUDGET_PROPERTIES_EXT: {
+            reservedmarshal_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+                vkStream, rootType,
+                reinterpret_cast<const VkPhysicalDeviceMemoryBudgetPropertiesEXT*>(structExtension),
                 ptr);
             break;
         }

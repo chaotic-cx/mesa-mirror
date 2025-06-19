@@ -3154,6 +3154,14 @@ DEFINE_ALIAS_FUNCTION(transform_fromhost_VkPipelineShaderStageRequiredSubgroupSi
                       transform_fromhost_VkPipelineShaderStageRequiredSubgroupSizeCreateInfoEXT)
 
 #endif
+#ifdef VK_EXT_memory_budget
+void transform_tohost_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    ResourceTracker* resourceTracker, VkPhysicalDeviceMemoryBudgetPropertiesEXT* toTransform);
+
+void transform_fromhost_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
+    ResourceTracker* resourceTracker, VkPhysicalDeviceMemoryBudgetPropertiesEXT* toTransform);
+
+#endif
 #ifdef VK_EXT_tooling_info
 DEFINE_ALIAS_FUNCTION(transform_tohost_VkPhysicalDeviceToolProperties,
                       transform_tohost_VkPhysicalDeviceToolPropertiesEXT)
