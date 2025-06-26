@@ -23,6 +23,7 @@ cc_library_headers {
     name: "mesa_vulkan_mapper_headers",
     export_include_dirs: ["."],
     host_supported: true,
+    vendor: true,
 }
 
 cc_library_static {
