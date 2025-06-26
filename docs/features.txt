@@ -225,18 +225,18 @@ GL 4.5, GLSL 4.50 -- all DONE: freedreno/a6xx, nvc0, r600, radeonsi, llvmpipe, v
   GL_KHR_robustness                                     DONE (freedreno)
   GL_EXT_shader_integer_mix                             DONE (all drivers that support GLSL)
 
-GL 4.6, GLSL 4.60 -- all DONE: radeonsi, virgl, zink, iris, crocus/gen7+, d3d12, asahi
+GL 4.6, GLSL 4.60 -- all DONE: radeonsi, virgl, zink, iris, crocus/gen7+, d3d12, asahi, r600/evergreen+
 
-  GL_ARB_gl_spirv                                       DONE (freedreno, llvmpipe)
+  GL_ARB_gl_spirv                                       DONE (freedreno, llvmpipe, r600)
   GL_ARB_indirect_parameters                            DONE (freedreno/a6xx+, nvc0, llvmpipe, virgl, r600/evergreen+)
   GL_ARB_pipeline_statistics_query                      DONE (freedreno/a6xx+, nvc0, r600, llvmpipe, softpipe, crocus/gen6+)
   GL_ARB_polygon_offset_clamp                           DONE (freedreno, nv50, nvc0, r600, llvmpipe, v3d, panfrost, crocus)
   GL_ARB_shader_atomic_counter_ops                      DONE (freedreno/a5xx+, nvc0, r600, llvmpipe, softpipe, v3d, panfrost)
   GL_ARB_shader_draw_parameters                         DONE (freedreno/a6xx+, llvmpipe, nvc0, crocus/gen6+, r600/evergreen+)
   GL_ARB_shader_group_vote                              DONE (freedreno/a6xx, nvc0, llvmpipe, crocus, r600)
-  GL_ARB_spirv_extensions                               DONE (freedreno, llvmpipe)
+  GL_ARB_spirv_extensions                               DONE (freedreno, llvmpipe, r600)
   GL_ARB_texture_filter_anisotropic                     DONE (etnaviv/HALTI0, freedreno, nv50, nvc0, r600, softpipe, llvmpipe, v3d, panfrost/v6+, crocus)
-  GL_ARB_transform_feedback_overflow_query              DONE (freedreno/a6xx+, nvc0, llvmpipe, softpipe, crocus/gen6+)
+  GL_ARB_transform_feedback_overflow_query              DONE (freedreno/a6xx+, nvc0, llvmpipe, softpipe, crocus/gen6+, r600/evergreen+)
   GL_KHR_no_error                                       DONE (all drivers)
 
 These are the extensions cherry-picked to make GLES 3.1
@@ -332,8 +332,9 @@ Khronos, ARB, and OES extensions that are not part of any OpenGL or OpenGL ES ve
   GL_EXT_semaphore                                      DONE (radeonsi, zink, d3d12, iris, crocus)
   GL_EXT_semaphore_fd                                   DONE (radeonsi, zink, iris, crocus)
   GL_EXT_semaphore_win32                                DONE (zink, d3d12)
+  GL_EXT_shader_clock                                   DONE (all drivers that support GL_ARB_shader_clock)
   GL_EXT_shader_group_vote                              DONE (all drivers that support GL_ARB_shader_group_vote)
-  GL_EXT_shader_realtime_clock                          DONE (core only)
+  GL_EXT_shader_realtime_clock                          DONE (panfrost/v6+)
   GL_EXT_sRGB_write_control                             DONE (all drivers that support GLES 3.0+)
   GL_EXT_texture_compression_astc_decode_mode           DONE (panfrost)
   GL_EXT_texture_norm16                                 DONE (freedreno, r600, radeonsi, nvc0i, softpipe, zink, iris, crocus)
@@ -563,7 +564,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_KHR_ray_tracing_pipeline                           DONE (anv/gfx12.5+, lvp, radv/gfx10.3+, vn)
   VK_KHR_ray_tracing_position_fetch                     DONE (anv, radv/gfx10.3+, vn)
   VK_KHR_shader_bfloat16                                DONE (anv/gfx12.5+, radv/gfx12+)
-  VK_KHR_shader_clock                                   DONE (anv, hasvk, lvp, nvk, radv, tu, vn)
+  VK_KHR_shader_clock                                   DONE (anv, hasvk, lvp, nvk, panvk, radv, tu, vn)
   VK_KHR_shader_maximal_reconvergence                   DONE (anv, hk, lvp, nvk, panvk/v10+, radv, vn)
   VK_KHR_shader_relaxed_extended_instruction            DONE (anv, hasvk, hk, nvk, panvk, radv, tu, v3dv, vn)
   VK_KHR_shader_subgroup_uniform_control_flow           DONE (anv, hasvk, hk, nvk, panvk/v10+, radv, tu, vn)
@@ -651,6 +652,7 @@ Khronos extensions that are not part of any Vulkan version:
   VK_EXT_sample_locations                               DONE (anv, hasvk, hk, nvk, radv, tu/a650+, vn)
   VK_EXT_shader_atomic_float                            DONE (anv, hasvk, lvp, radv, vn)
   VK_EXT_shader_atomic_float2                           DONE (anv, lvp, radv, vn)
+  VK_EXT_shader_float8                                  DONE (radv/gfx12+)
   VK_EXT_shader_image_atomic_int64                      DONE (anv, nvk, radv, vn)
   VK_EXT_shader_object                                  DONE (lvp, hk, nvk, radv)
   VK_EXT_shader_replicated_composites                   DONE (anv, dzn, hasvk, lvp, nvk, panvk, radv, tu, vn)
@@ -760,7 +762,7 @@ Rusticl OpenCL 1.2 -- all DONE:
 
 Rusticl OpenCL 2.0 -- all DONE:
 
-  Shared virtual memory                                 DONE (iris, nvc0, llvmpipe)
+  Shared virtual memory                                 DONE (iris, nvc0, llvmpipe, radeonsi)
   Device queues                                         not started
   - cl_khr_create_command_queue                         DONE
   - Additional queries for clGetDeviceInfo              DONE
@@ -769,7 +771,7 @@ Rusticl OpenCL 2.0 -- all DONE:
   - CL_ABGR                                             DONE
   - cl_khr_image2d_from_buffer                          DONE (freedreno, iris, llvmpipe)
   - cl_khr_depth_images                                 DONE
-  - from sRGB images                                    in progress
+  - from sRGB images                                    DONE
   clCreateSamplerWithProperties                         DONE
   Non-uniform work-group sizes                          not started
   cl_khr_3d_image_writes                                DONE (freedreno, iris, llvmpipe, nvc0, panfrost, radeonsi, zink)
@@ -822,7 +824,7 @@ Rusticl extensions that are not part of any OpenCL version:
   cl_khr_egl_image                                      not started
   cl_khr_expect_assume                                  in progress (hints are ignored)
   cl_khr_extended_async_copies                          not started
-  cl_khr_extended_bit_ops                               in progress
+  cl_khr_extended_bit_ops                               DONE
   cl_khr_fp16                                           DONE (asahi, freedreno, llvmpipe, panfrost, radeonsi, zink)
   cl_khr_gl_depth_images                                not started
   cl_khr_gl_msaa_sharing                                not started
@@ -854,7 +856,7 @@ Rusticl extensions that are not part of any OpenCL version:
   cl_khr_terminate_context                              not started
   cl_khr_throttle_hints                                 not started
   cl_khr_work_group_uniform_arithmetic                  not started
-  cl_ext_buffer_device_address                          DONE (iris, llvmpipe, zink)
+  cl_ext_buffer_device_address                          DONE (iris, llvmpipe, radeonsi, zink)
   cl_arm_non_uniform_work_group_size                    not started
   cl_arm_shared_virtual_memory                          in progress (nvc0)
   cl_intel_required_subgroup_size                       in progress (available with RUSTICL_FEATURES=intel)

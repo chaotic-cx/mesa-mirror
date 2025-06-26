@@ -1806,8 +1806,7 @@ handle_operands(std::map<PhysReg, copy_operation>& copy_map, lower_context* ctx,
    bool skip_partial_copies = true;
    for (auto it = copy_map.begin();;) {
       if (copy_map.empty()) {
-         ctx->program->statistics[aco_statistic_copies] +=
-            ctx->instructions.size() - num_instructions_before;
+         ctx->program->statistics.copies += ctx->instructions.size() - num_instructions_before;
          return;
       }
       if (it == copy_map.end()) {
@@ -2085,8 +2084,7 @@ handle_operands(std::map<PhysReg, copy_operation>& copy_map, lower_context* ctx,
             break;
       }
    }
-   ctx->program->statistics[aco_statistic_copies] +=
-      ctx->instructions.size() - num_instructions_before;
+   ctx->program->statistics.copies += ctx->instructions.size() - num_instructions_before;
 }
 
 void
@@ -2122,7 +2120,7 @@ handle_operands_linear_vgpr(std::map<PhysReg, copy_operation>& copy_map, lower_c
       pi->scratch_sgpr = scratch_sgpr;
    }
 
-   ctx->program->statistics[aco_statistic_copies] += scratch_sgpr == scc ? 2 : 4;
+   ctx->program->statistics.copies += scratch_sgpr == scc ? 2 : 4;
 }
 
 void
@@ -2887,6 +2885,21 @@ lower_to_hw_instr(Program* program)
                         ((32 - 1) << 11) | shader_cycles_hi);
                break;
             }
+            case aco_opcode::p_callee_stack_ptr: {
+               unsigned caller_stack_size =
+                  ctx.program->config->scratch_bytes_per_wave / ctx.program->wave_size;
+               unsigned scratch_param_size = instr->operands[0].constantValue();
+               unsigned callee_stack_start = caller_stack_size + scratch_param_size;
+               if (ctx.program->gfx_level < GFX9)
+                  callee_stack_start *= ctx.program->wave_size;
+               if (instr->operands.size() < 2)
+                  bld.sop1(aco_opcode::s_mov_b32, instr->definitions[0],
+                           Operand::c32(callee_stack_start));
+               else
+                  bld.sop2(aco_opcode::s_add_u32, instr->definitions[0], Definition(scc, s1),
+                           instr->operands[1], Operand::c32(callee_stack_start));
+               break;
+            }
             default: break;
             }
          } else if (instr->isReduction()) {
@@ -2928,6 +2941,20 @@ lower_to_hw_instr(Program* program)
             ctx.instructions.emplace_back(std::move(instr));
 
             emit_set_mode(bld, block->fp_mode, set_round, false);
+         } else if (instr->opcode == aco_opcode::p_v_cvt_pk_fp8_f32_ovfl) {
+            /* FP8/BF8 uses FP16_OVFL(1) to clamp to max finite result. Temporarily set it for the
+             * instruction.
+             * "((size - 1) << 11 | (offset << 6) | register" (MODE is encoded as register 1, we
+             * want to set a single bit at offset 23)
+             */
+            bld.sopk(aco_opcode::s_setreg_imm32_b32, Operand::literal32(1),
+                     (0 << 11) | (23 << 6) | 1);
+
+            instr->opcode = aco_opcode::v_cvt_pk_fp8_f32;
+            ctx.instructions.emplace_back(std::move(instr));
+
+            bld.sopk(aco_opcode::s_setreg_imm32_b32, Operand::literal32(0),
+                     (0 << 11) | (23 << 6) | 1);
          } else if (instr->isMIMG() && instr->mimg().strict_wqm) {
             lower_image_sample(&ctx, instr);
             ctx.instructions.emplace_back(std::move(instr));

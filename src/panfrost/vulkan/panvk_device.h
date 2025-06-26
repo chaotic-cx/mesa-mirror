@@ -27,10 +27,18 @@
 #include "util/u_printf.h"
 #include "util/vma.h"
 
-#define PANVK_MAX_QUEUE_FAMILIES 1
-
 struct panvk_precomp_cache;
 struct panvk_device_draw_context;
+
+enum panvk_queue_family {
+   PANVK_QUEUE_FAMILY_GPU,
+   PANVK_QUEUE_FAMILY_COUNT,
+};
+
+struct panvk_device_queue_family {
+   struct vk_queue **queues;
+   int queue_count;
+};
 
 struct panvk_device {
    struct vk_device vk;
@@ -68,8 +76,7 @@ struct panvk_device {
 
    struct vk_device_dispatch_table cmd_dispatch;
 
-   struct panvk_queue *queues[PANVK_MAX_QUEUE_FAMILIES];
-   int queue_count[PANVK_MAX_QUEUE_FAMILIES];
+   struct panvk_device_queue_family queue_families[PANVK_QUEUE_FAMILY_COUNT];
 
    struct panvk_precomp_cache *precomp_cache;
 
@@ -124,6 +131,23 @@ panvk_device_adjust_bo_flags(const struct panvk_device *device,
       bo_flags &= ~PAN_KMOD_BO_FLAG_NO_MMAP;
 
    return bo_flags;
+}
+
+static inline uint64_t
+panvk_as_alloc(struct panvk_device *device, uint64_t size, uint64_t alignment)
+{
+   simple_mtx_lock(&device->as.lock);
+   uint64_t address = util_vma_heap_alloc(&device->as.heap, size, alignment);
+   simple_mtx_unlock(&device->as.lock);
+   return address;
+}
+
+static inline void
+panvk_as_free(struct panvk_device *device, uint64_t address, uint64_t size)
+{
+   simple_mtx_lock(&device->as.lock);
+   util_vma_heap_free(&device->as.heap, address, size);
+   simple_mtx_unlock(&device->as.lock);
 }
 
 #if PAN_ARCH

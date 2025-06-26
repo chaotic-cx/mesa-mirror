@@ -336,7 +336,8 @@ ail_metadata_height_tl(struct ail_layout *layout, unsigned level)
  * pointless. This queries this case.
  */
 static inline bool
-ail_is_level_compressed(const struct ail_layout *layout, unsigned level)
+ail_is_level_allocated_compressed(const struct ail_layout *layout,
+                                  unsigned level)
 {
    unsigned width_sa = ALIGN(
       ail_effective_width_sa(layout->width_px, layout->sample_count_sa), 16);
@@ -349,11 +350,25 @@ ail_is_level_compressed(const struct ail_layout *layout, unsigned level)
 }
 
 static inline bool
+ail_is_level_logically_compressed(const struct ail_layout *layout,
+                                  unsigned level)
+{
+   unsigned width_sa =
+      ail_effective_width_sa(layout->width_px, layout->sample_count_sa);
+
+   unsigned height_sa =
+      ail_effective_height_sa(layout->height_px, layout->sample_count_sa);
+
+   return layout->compressed &&
+          u_minify(MIN2(width_sa, height_sa), level) >= 16;
+}
+
+static inline bool
 ail_is_level_twiddled_uncompressed(const struct ail_layout *layout,
                                    unsigned level)
 {
    if (layout->compressed) {
-      return !ail_is_level_compressed(layout, level);
+      return !ail_is_level_logically_compressed(layout, level);
    } else {
       return layout->tiling != AIL_TILING_LINEAR;
    }
@@ -445,9 +460,6 @@ ail_can_compress(enum pipe_format format, unsigned w_px, unsigned h_px,
           ail_effective_height_sa(h_px, sample_count_sa) >= 16;
 }
 
-/* AGX compression mode for a solid colour for the subtile */
-#define AIL_COMP_SOLID 0x3
-
 /* AGX compression mode for an uncompessed subtile. Frustratingly, this seems to
  * depend on the format. It is possible that modes are actual 8-bit structures
  * with multiple fields rather than plain enumerations.
@@ -456,6 +468,12 @@ ail_can_compress(enum pipe_format format, unsigned w_px, unsigned h_px,
 #define AIL_COMP_UNCOMPRESSED_2    0x3f
 #define AIL_COMP_UNCOMPRESSED_4    0x7f
 #define AIL_COMP_UNCOMPRESSED_8_16 0xff
+
+/* AGX compression mode for a solid colour for the subtile. */
+#define AIL_COMP_SOLID_1    0x60
+#define AIL_COMP_SOLID_2    0x01
+#define AIL_COMP_SOLID_4    0x03
+#define AIL_COMP_SOLID_8_16 0x07
 
 static inline uint8_t
 ail_subtile_uncompressed_mode(enum pipe_format format)
@@ -467,6 +485,21 @@ ail_subtile_uncompressed_mode(enum pipe_format format)
    case  4: return AIL_COMP_UNCOMPRESSED_4;
    case  8:
    case 16: return AIL_COMP_UNCOMPRESSED_8_16;
+   default: unreachable("invalid block size");
+   }
+   /* clang-format on */
+}
+
+static inline uint8_t
+ail_subtile_solid_mode(enum pipe_format format)
+{
+   /* clang-format off */
+   switch (util_format_get_blocksize(format)) {
+   case  1: return AIL_COMP_SOLID_1;
+   case  2: return AIL_COMP_SOLID_2;
+   case  4: return AIL_COMP_SOLID_4;
+   case  8:
+   case 16: return AIL_COMP_SOLID_8_16;
    default: unreachable("invalid block size");
    }
    /* clang-format on */
@@ -490,6 +523,12 @@ static inline uint64_t
 ail_tile_mode_uncompressed(enum pipe_format format)
 {
    return ail_tile_mode_replicated(ail_subtile_uncompressed_mode(format));
+}
+
+static inline uint64_t
+ail_tile_mode_solid(enum pipe_format format)
+{
+   return ail_tile_mode_replicated(ail_subtile_solid_mode(format));
 }
 
 /*

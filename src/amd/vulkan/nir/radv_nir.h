@@ -48,6 +48,8 @@ bool radv_nir_lower_primitive_shading_rate(nir_shader *nir, enum amd_gfx_level g
 bool radv_nir_lower_fs_intrinsics(nir_shader *nir, const struct radv_shader_stage *fs_stage,
                                   const struct radv_graphics_state_key *gfx_state);
 
+bool radv_nir_lower_fs_input_attachment(nir_shader *nir);
+
 bool radv_nir_lower_fs_barycentric(nir_shader *shader, const struct radv_graphics_state_key *gfx_state,
                                    unsigned rast_prim);
 
@@ -59,7 +61,7 @@ bool radv_nir_lower_viewport_to_zero(nir_shader *nir);
 
 bool radv_nir_export_multiview(nir_shader *nir);
 
-void radv_nir_lower_io_to_scalar_early(nir_shader *nir, nir_variable_mode mask);
+void radv_nir_lower_io_vars_to_scalar(nir_shader *nir, nir_variable_mode mask);
 
 unsigned radv_map_io_driver_location(unsigned semantic);
 

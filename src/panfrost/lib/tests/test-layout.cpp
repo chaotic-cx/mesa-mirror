@@ -26,21 +26,38 @@
 #include "pan_format.h"
 #include "pan_image.h"
 #include "pan_layout.h"
+#include "pan_mod.h"
 
 #include <gtest/gtest.h>
 
-TEST(BlockSize, Linear)
+TEST(Align, UTiledLinear)
 {
-   enum pipe_format format[] = {PIPE_FORMAT_R32G32B32_FLOAT,
-                                PIPE_FORMAT_R8G8B8_UNORM, PIPE_FORMAT_ETC2_RGB8,
-                                PIPE_FORMAT_ASTC_5x5};
+   struct {
+      unsigned arch;
+      enum pipe_format format;
+      unsigned plane_idx;
+      unsigned alignment;
+   } cases[] = {
+      { 6, PIPE_FORMAT_ETC2_RGB8, 0, 8 },
+      { 6, PIPE_FORMAT_R32G32B32_FLOAT, 0, 4 },
+      { 6, PIPE_FORMAT_R8G8B8A8_UNORM, 0, 1 },
+      { 6, PIPE_FORMAT_R5G6B5_UNORM, 0, 2 },
+      { 6, PIPE_FORMAT_R8_G8B8_420_UNORM, 0, 1 },
+      { 6, PIPE_FORMAT_R8_G8B8_420_UNORM, 1, 2 },
+      { 7, PIPE_FORMAT_ETC2_RGB8, 0, 64 },
+      { 7, PIPE_FORMAT_R32G32B32_FLOAT, 0, 64 },
+      { 7, PIPE_FORMAT_R8G8B8A8_UNORM, 0, 64 },
+      { 7, PIPE_FORMAT_R5G6B5_UNORM, 0, 64 },
+      { 7, PIPE_FORMAT_R8_G8B8_420_UNORM, 0, 16 },
+      { 7, PIPE_FORMAT_R8_G8B8_420_UNORM, 1, 16 },
+      { 7, PIPE_FORMAT_R10_G10B10_420_UNORM, 0, 1 },
+      { 7, PIPE_FORMAT_R10_G10B10_420_UNORM, 1, 1 },
+   };
+   for (unsigned i = 0; i < ARRAY_SIZE(cases); ++i) {
+      unsigned align = pan_linear_or_tiled_row_align_req(
+         cases[i].arch, cases[i].format, cases[i].plane_idx);
 
-   for (unsigned i = 0; i < ARRAY_SIZE(format); ++i) {
-      struct pan_image_block_size blk =
-         pan_image_block_size_el(DRM_FORMAT_MOD_LINEAR, format[i], 0);
-
-      EXPECT_EQ(blk.width, 1);
-      EXPECT_EQ(blk.height, 1);
+      EXPECT_EQ(align, cases[i].alignment);
    }
 }
 
@@ -52,8 +69,8 @@ TEST(BlockSize, UInterleavedRegular)
    };
 
    for (unsigned i = 0; i < ARRAY_SIZE(format); ++i) {
-      struct pan_image_block_size blk = pan_image_block_size_el(
-         DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED, format[i], 0);
+      struct pan_image_block_size blk =
+         pan_u_interleaved_tile_size_el(format[i]);
 
       EXPECT_EQ(blk.width, 16);
       EXPECT_EQ(blk.height, 16);
@@ -65,8 +82,8 @@ TEST(BlockSize, UInterleavedBlockCompressed)
    enum pipe_format format[] = {PIPE_FORMAT_ETC2_RGB8, PIPE_FORMAT_ASTC_5x5};
 
    for (unsigned i = 0; i < ARRAY_SIZE(format); ++i) {
-      struct pan_image_block_size blk = pan_image_block_size_el(
-         DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED, format[i], 0);
+      struct pan_image_block_size blk =
+         pan_u_interleaved_tile_size_el(format[i]);
 
       EXPECT_EQ(blk.width, 4);
       EXPECT_EQ(blk.height, 4);
@@ -84,7 +101,7 @@ TEST(BlockSize, AFBCFormatInvariant16x16)
 
    for (unsigned i = 0; i < ARRAY_SIZE(format); ++i) {
       struct pan_image_block_size blk =
-         pan_image_block_size_el(modifier, format[i], 0);
+         pan_afbc_superblock_size_el(format[i], modifier);
 
       EXPECT_EQ(blk.width, 16);
       EXPECT_EQ(blk.height, 16);
@@ -102,7 +119,7 @@ TEST(BlockSize, AFBCFormatInvariant32x8)
 
    for (unsigned i = 0; i < ARRAY_SIZE(format); ++i) {
       struct pan_image_block_size blk =
-         pan_image_block_size_el(modifier, format[i], 0);
+         pan_afbc_superblock_size_el(format[i], modifier);
 
       EXPECT_EQ(blk.width, 32);
       EXPECT_EQ(blk.height, 8);
@@ -224,6 +241,32 @@ TEST(AFBCStride, Tiled)
    }
 }
 
+static bool
+layout_init(unsigned arch, const struct pan_image_props *props,
+            unsigned plane_idx,
+            const struct pan_image_layout_constraints *layout_constraints,
+            struct pan_image_layout *layout)
+{
+   /* Pick the first supported arch if it's zero. */
+   if (!arch)
+      arch = 4;
+
+   struct pan_image_plane plane = {
+   };
+   struct pan_image img = {
+      .props = *props,
+      .mod_handler = pan_mod_get_handler(arch, props->modifier),
+   };
+
+   img.planes[plane_idx] = &plane;
+
+   if (!pan_image_layout_init(arch, &img, plane_idx, layout_constraints))
+      return false;
+
+   *layout = plane.layout;
+   return true;
+}
+
 /* dEQP-GLES3.functional.texture.format.compressed.etc1_2d_pot */
 TEST(Layout, ImplicitLayoutInterleavedETC2)
 {
@@ -244,7 +287,7 @@ TEST(Layout, ImplicitLayoutInterleavedETC2)
    unsigned offsets[9] = {0,     8192,  10240, 10752, 10880,
                           11008, 11136, 11264, 11392};
 
-   ASSERT_TRUE(pan_image_layout_init(0, &p, 0, NULL, &l));
+   ASSERT_TRUE(layout_init(0, &p, 0, NULL, &l));
 
    for (unsigned i = 0; i < 8; ++i) {
       unsigned size = (offsets[i + 1] - offsets[i]);
@@ -273,7 +316,7 @@ TEST(Layout, ImplicitLayoutInterleavedASTC5x5)
    };
    struct pan_image_layout l = {};
 
-   ASSERT_TRUE(pan_image_layout_init(0, &p, 0, NULL, &l));
+   ASSERT_TRUE(layout_init(0, &p, 0, NULL, &l));
 
    /* The image is 50x50 pixels, with 5x5 blocks. So it is a 10x10 grid of ASTC
     * blocks. 4x4 tiles of ASTC blocks are u-interleaved, so we have to round up
@@ -282,8 +325,8 @@ TEST(Layout, ImplicitLayoutInterleavedASTC5x5)
     * 16 * 4 = 192 bytes.
     */
    EXPECT_EQ(l.slices[0].offset_B, 0);
-   EXPECT_EQ(l.slices[0].row_stride_B, 768);
-   EXPECT_EQ(l.slices[0].surface_stride_B, 2304);
+   EXPECT_EQ(l.slices[0].tiled_or_linear.row_stride_B, 768);
+   EXPECT_EQ(l.slices[0].tiled_or_linear.surface_stride_B, 2304);
    EXPECT_EQ(l.slices[0].size_B, 2304);
 }
 
@@ -303,7 +346,7 @@ TEST(Layout, ImplicitLayoutLinearASTC5x5)
    };
    struct pan_image_layout l = {};
 
-   ASSERT_TRUE(pan_image_layout_init(0, &p, 0, NULL, &l));
+   ASSERT_TRUE(layout_init(0, &p, 0, NULL, &l));
 
    /* The image is 50x50 pixels, with 5x5 blocks. So it is a 10x10 grid of ASTC
     * blocks. Each ASTC block is 16 bytes, so the row stride is 160 bytes,
@@ -311,8 +354,8 @@ TEST(Layout, ImplicitLayoutLinearASTC5x5)
     * 1920 bytes total.
     */
    EXPECT_EQ(l.slices[0].offset_B, 0);
-   EXPECT_EQ(l.slices[0].row_stride_B, 192);
-   EXPECT_EQ(l.slices[0].surface_stride_B, 1920);
+   EXPECT_EQ(l.slices[0].tiled_or_linear.row_stride_B, 192);
+   EXPECT_EQ(l.slices[0].tiled_or_linear.surface_stride_B, 1920);
    EXPECT_EQ(l.slices[0].size_B, 1920);
 }
 
@@ -336,7 +379,7 @@ TEST(AFBCLayout, Linear3D)
    };
    struct pan_image_layout l = {};
 
-   ASSERT_TRUE(pan_image_layout_init(0, &p, 0, NULL, &l));
+   ASSERT_TRUE(layout_init(0, &p, 0, NULL, &l));
 
    /* AFBC Surface stride is bytes between consecutive surface headers, which is
     * the header size since this is a 3D texture. At superblock size 16x16, the
@@ -352,12 +395,12 @@ TEST(AFBCLayout, Linear3D)
     * 16 superblocks in the image, so body size is 32768.
     */
    EXPECT_EQ(l.slices[0].offset_B, 0);
-   EXPECT_EQ(l.slices[0].row_stride_B, 16);
-   EXPECT_EQ(l.slices[0].afbc.header_size_B, 1024);
-   EXPECT_EQ(l.slices[0].afbc.body_size_B, 32768);
-   EXPECT_EQ(l.slices[0].afbc.surface_stride_B, 64);
-   EXPECT_EQ(l.slices[0].surface_stride_B, 2048); /* XXX: Not meaningful? */
-   EXPECT_EQ(l.slices[0].size_B, 32768); /* XXX: Not used by anything and wrong */
+   EXPECT_EQ(l.slices[0].afbc.header.row_stride_B, 16);
+   EXPECT_EQ(l.slices[0].afbc.header.surface_stride_B, 64);
+   EXPECT_EQ(l.slices[0].afbc.header.size_B, 64 * 16);
+   EXPECT_EQ(l.slices[0].afbc.body.surface_stride_B, 2048);
+   EXPECT_EQ(l.slices[0].afbc.body.size_B, 2048 * 16);
+   EXPECT_EQ(l.slices[0].size_B, 2048 * 16 + 64 * 16);
 }
 
 TEST(AFBCLayout, Tiled16x16)
@@ -380,7 +423,7 @@ TEST(AFBCLayout, Tiled16x16)
    };
    struct pan_image_layout l = {};
 
-   ASSERT_TRUE(pan_image_layout_init(0, &p, 0, NULL, &l));
+   ASSERT_TRUE(layout_init(0, &p, 0, NULL, &l));
 
    /* The image is 917x417. Superblocks are 16x16, so there are 58x27
     * superblocks. Superblocks are grouped into 8x8 tiles, so there are 8x4
@@ -395,10 +438,11 @@ TEST(AFBCLayout, Tiled16x16)
     * In total, the AFBC surface is 32768 + 2097152 = 2129920 bytes.
     */
    EXPECT_EQ(l.slices[0].offset_B, 0);
-   EXPECT_EQ(l.slices[0].row_stride_B, 8192);
-   EXPECT_EQ(l.slices[0].afbc.header_size_B, 32768);
-   EXPECT_EQ(l.slices[0].afbc.body_size_B, 2097152);
-   EXPECT_EQ(l.slices[0].surface_stride_B, 2129920);
+   EXPECT_EQ(l.slices[0].afbc.header.row_stride_B, 8192);
+   EXPECT_EQ(l.slices[0].afbc.header.surface_stride_B, 32768);
+   EXPECT_EQ(l.slices[0].afbc.header.size_B, 32768);
+   EXPECT_EQ(l.slices[0].afbc.body.surface_stride_B, 2097152);
+   EXPECT_EQ(l.slices[0].afbc.body.size_B, 2097152);
    EXPECT_EQ(l.slices[0].size_B, 2129920);
 }
 
@@ -421,14 +465,15 @@ TEST(AFBCLayout, Linear16x16Minimal)
    };
    struct pan_image_layout l = {};
 
-   ASSERT_TRUE(pan_image_layout_init(0, &p, 0, NULL, &l));
+   ASSERT_TRUE(layout_init(0, &p, 0, NULL, &l));
 
    /* Image is 1x1 to test for correct alignment everywhere. */
    EXPECT_EQ(l.slices[0].offset_B, 0);
-   EXPECT_EQ(l.slices[0].row_stride_B, 16);
-   EXPECT_EQ(l.slices[0].afbc.header_size_B, 64);
-   EXPECT_EQ(l.slices[0].afbc.body_size_B, 32 * 8);
-   EXPECT_EQ(l.slices[0].surface_stride_B, 64 + (32 * 8));
+   EXPECT_EQ(l.slices[0].afbc.header.row_stride_B, 16);
+   EXPECT_EQ(l.slices[0].afbc.header.surface_stride_B, 64);
+   EXPECT_EQ(l.slices[0].afbc.header.size_B, 64);
+   EXPECT_EQ(l.slices[0].afbc.body.surface_stride_B, 32 * 8);
+   EXPECT_EQ(l.slices[0].afbc.body.size_B, 32 * 8);
    EXPECT_EQ(l.slices[0].size_B, 64 + (32 * 8));
 }
 
@@ -451,14 +496,15 @@ TEST(AFBCLayout, Linear16x16Minimalv6)
    };
    struct pan_image_layout l = {};
 
-   ASSERT_TRUE(pan_image_layout_init(6, &p, 0, NULL, &l));
+   ASSERT_TRUE(layout_init(6, &p, 0, NULL, &l));
 
    /* Image is 1x1 to test for correct alignment everywhere. */
    EXPECT_EQ(l.slices[0].offset_B, 0);
-   EXPECT_EQ(l.slices[0].row_stride_B, 16);
-   EXPECT_EQ(l.slices[0].afbc.header_size_B, 128);
-   EXPECT_EQ(l.slices[0].afbc.body_size_B, 32 * 8);
-   EXPECT_EQ(l.slices[0].surface_stride_B, 128 + (32 * 8));
+   EXPECT_EQ(l.slices[0].afbc.header.row_stride_B, 16);
+   EXPECT_EQ(l.slices[0].afbc.header.surface_stride_B, 128);
+   EXPECT_EQ(l.slices[0].afbc.header.size_B, 128);
+   EXPECT_EQ(l.slices[0].afbc.body.surface_stride_B, 32 * 8);
+   EXPECT_EQ(l.slices[0].afbc.body.size_B, 32 * 8);
    EXPECT_EQ(l.slices[0].size_B, 128 + (32 * 8));
 }
 
@@ -482,14 +528,15 @@ TEST(AFBCLayout, Tiled16x16Minimal)
    };
    struct pan_image_layout l = {};
 
-   ASSERT_TRUE(pan_image_layout_init(0, &p, 0, NULL, &l));
+   ASSERT_TRUE(layout_init(0, &p, 0, NULL, &l));
 
    /* Image is 1x1 to test for correct alignment everywhere. */
    EXPECT_EQ(l.slices[0].offset_B, 0);
-   EXPECT_EQ(l.slices[0].row_stride_B, 16 * 8 * 8);
-   EXPECT_EQ(l.slices[0].afbc.header_size_B, 4096);
-   EXPECT_EQ(l.slices[0].afbc.body_size_B, 32 * 8 * 8 * 8);
-   EXPECT_EQ(l.slices[0].surface_stride_B, 4096 + (32 * 8 * 8 * 8));
+   EXPECT_EQ(l.slices[0].afbc.header.row_stride_B, 16 * 8 * 8);
+   EXPECT_EQ(l.slices[0].afbc.header.surface_stride_B, 4096);
+   EXPECT_EQ(l.slices[0].afbc.header.size_B, 4096);
+   EXPECT_EQ(l.slices[0].afbc.body.surface_stride_B, 32 * 8 * 8 * 8);
+   EXPECT_EQ(l.slices[0].afbc.body.size_B, 32 * 8 * 8 * 8);
    EXPECT_EQ(l.slices[0].size_B, 4096 + (32 * 8 * 8 * 8));
 }
 
@@ -504,8 +551,8 @@ static unsigned archs[] = {4, 5, 6, 7, 9, 12, 13};
 #define EXPECT_IMPORT_SUCCESS(__arch, __iprops, __plane, __wsi_layout,         \
                               __out_layout, __test_desc)                       \
    do {                                                                        \
-      bool __result = pan_image_layout_init(__arch, __iprops, __plane,         \
-                                            __wsi_layout, __out_layout);       \
+      bool __result =                                                          \
+         layout_init(__arch, __iprops, __plane, __wsi_layout, __out_layout);   \
       EXPECT_TRUE(__result)                                                    \
          << __test_desc                                                        \
          << " for <format=" << util_format_name((__iprops)->format)            \
@@ -516,9 +563,17 @@ static unsigned archs[] = {4, 5, 6, 7, 9, 12, 13};
       if (!__result)                                                           \
          break;                                                                \
                                                                                \
+      struct pan_image_plane img_plane = {                                     \
+         .layout = *(__out_layout),                                            \
+      };                                                                       \
+      struct pan_image img = {                                                 \
+         .props = *(__iprops),                                                 \
+         .mod_handler = pan_mod_get_handler(__arch, (__iprops)->modifier),     \
+      };                                                                       \
+      img.planes[__plane] = &img_plane;                                        \
       unsigned __export_row_pitch_B =                                          \
-         pan_image_get_wsi_row_pitch(&iprops, __plane, &layout, 0);            \
-      unsigned __export_offset_B = pan_image_get_wsi_offset(&layout, 0);       \
+         pan_image_get_wsi_row_pitch(&img, __plane, 0);                        \
+      unsigned __export_offset_B = pan_image_get_wsi_offset(&img, __plane, 0); \
       EXPECT_TRUE(__export_row_pitch_B == (__wsi_layout)->wsi_row_pitch_B &&   \
                   __export_offset_B == (__wsi_layout)->offset_B)               \
          << " mismatch between import and export for <format="                 \
@@ -529,8 +584,8 @@ static unsigned archs[] = {4, 5, 6, 7, 9, 12, 13};
 
 #define EXPECT_IMPORT_FAIL(__arch, __iprops, __plane, __wsi_layout,            \
                            __out_layout, __test_desc)                          \
-   EXPECT_FALSE(pan_image_layout_init(__arch, __iprops, __plane, __wsi_layout, \
-                                      __out_layout))                           \
+   EXPECT_FALSE(                                                               \
+      layout_init(__arch, __iprops, __plane, __wsi_layout, __out_layout))      \
       << __test_desc                                                           \
       << " for <format=" << util_format_name((__iprops)->format)               \
       << ",plane=" << __plane << ",mod=" << std::hex << (__iprops)->modifier   \
@@ -543,38 +598,20 @@ format_can_do_mod(unsigned arch, enum pipe_format format, unsigned plane_idx,
    if (drm_is_afbc(modifier)) {
       return pan_afbc_format(arch, format, plane_idx) != PAN_AFBC_MODE_INVALID;
    } else if (drm_is_afrc(modifier)) {
-      return arch >= 10 && pan_format_supports_afrc(format);
+      return arch >= 10 && pan_afrc_supports_format(format);
    } else {
       assert(modifier == DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED ||
              modifier == DRM_FORMAT_MOD_LINEAR);
 
-      return true;
-   }
-}
+      switch (format) {
+      case PIPE_FORMAT_R8G8B8_420_UNORM_PACKED:
+      case PIPE_FORMAT_R10G10B10_420_UNORM_PACKED:
+         /* Those are only supported with AFBC. */
+         return false;
 
-static unsigned
-get_plane_blocksize(enum pipe_format format, unsigned plane_idx)
-{
-   switch (format) {
-   case PIPE_FORMAT_R8G8_R8B8_UNORM:
-   case PIPE_FORMAT_G8R8_B8R8_UNORM:
-   case PIPE_FORMAT_R8B8_R8G8_UNORM:
-   case PIPE_FORMAT_B8R8_G8R8_UNORM:
-      return 2;
-   case PIPE_FORMAT_R8_G8B8_420_UNORM:
-   case PIPE_FORMAT_R8_B8G8_420_UNORM:
-   case PIPE_FORMAT_R8_G8B8_422_UNORM:
-   case PIPE_FORMAT_R8_B8G8_422_UNORM:
-      return plane_idx ? 2 : 1;
-   case PIPE_FORMAT_R10_G10B10_420_UNORM:
-   case PIPE_FORMAT_R10_G10B10_422_UNORM:
-      return plane_idx ? 10 : 5;
-   case PIPE_FORMAT_R8_G8_B8_420_UNORM:
-   case PIPE_FORMAT_R8_B8_G8_420_UNORM:
-      return 1;
-   default:
-      assert(util_format_get_num_planes(format) == 1);
-      return util_format_get_blocksize(format);
+      default:
+         return true;
+      }
    }
 }
 
@@ -593,26 +630,7 @@ offset_align_for_mod(unsigned arch, const struct pan_image_props *iprops,
       assert(modifier == DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED ||
              modifier == DRM_FORMAT_MOD_LINEAR);
 
-      if (arch < 7)
-         return 64;
-
-      switch (format) {
-      /* For v7+, NV12/NV21/I420 have a looser alignment requirement of 16 bytes
-       */
-      case PIPE_FORMAT_R8_G8B8_420_UNORM:
-      case PIPE_FORMAT_G8_B8R8_420_UNORM:
-      case PIPE_FORMAT_R8_G8_B8_420_UNORM:
-      case PIPE_FORMAT_R8_B8_G8_420_UNORM:
-      case PIPE_FORMAT_R8_G8B8_422_UNORM:
-      case PIPE_FORMAT_R8_B8G8_422_UNORM:
-         return 16;
-      /* the 10 bit formats have even looser alignment */
-      case PIPE_FORMAT_R10_G10B10_420_UNORM:
-      case PIPE_FORMAT_R10_G10B10_422_UNORM:
-         return 1;
-      default:
-         return 64;
-      }
+      return pan_linear_or_tiled_row_align_req(arch, format, plane_idx);
    }
 }
 
@@ -633,7 +651,8 @@ row_align_for_mod(unsigned arch, const struct pan_image_props *iprops,
       assert(pan_afbc_superblock_width(modifier) %
                 util_format_get_blockwidth(format) ==
              0);
-      return ntiles * sb_width_el * get_plane_blocksize(format, plane_idx);
+      return ntiles * sb_width_el *
+             pan_format_get_plane_blocksize(format, plane_idx);
    } else if (drm_is_afrc(modifier)) {
       unsigned row_align = pan_afrc_buffer_alignment_from_modifier(modifier);
       struct pan_image_block_size tile_size_px =
@@ -660,7 +679,7 @@ default_wsi_row_pitch(unsigned arch, const struct pan_image_props *iprops,
 {
    uint64_t modifier = iprops->modifier;
    enum pipe_format format = iprops->format;
-   unsigned fmt_blksz_B = get_plane_blocksize(format, plane_idx);
+   unsigned fmt_blksz_B = pan_format_get_plane_blocksize(format, plane_idx);
    unsigned width_px =
       util_format_get_plane_width(format, plane_idx, iprops->extent_px.width);
 
@@ -744,6 +763,7 @@ TEST(WSI, Import)
                .extent_px = {
                   .width = IMAGE_WIDTH,
                   .height = IMAGE_HEIGHT,
+                  .depth = 1,
                },
                .nr_samples = 1,
                .dim = MALI_TEXTURE_DIMENSION_2D,

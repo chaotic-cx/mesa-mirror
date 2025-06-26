@@ -88,6 +88,8 @@ static const nir_shader_compiler_options ir3_base_options = {
    .lower_helper_invocation = true,
    .lower_bitfield_insert = true,
    .lower_bitfield_extract = true,
+   .lower_bitfield_extract8 = true,
+   .lower_bitfield_extract16 = true,
    .lower_pack_half_2x16 = true,
    .lower_pack_snorm_4x8 = true,
    .lower_pack_snorm_2x16 = true,
@@ -214,6 +216,8 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
       compiler->tess_use_shared = dev_info->a6xx.tess_use_shared;
 
       compiler->has_getfiberid = dev_info->a6xx.has_getfiberid;
+      compiler->mov_half_shared_quirk = dev_info->a6xx.mov_half_shared_quirk;
+      compiler->has_movs = dev_info->a6xx.has_movs;
 
       compiler->has_dp2acc = dev_info->a6xx.has_dp2acc;
       compiler->has_dp4acc = dev_info->a6xx.has_dp4acc;

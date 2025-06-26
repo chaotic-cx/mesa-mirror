@@ -581,6 +581,84 @@ tu_render_pass_cond_config(struct tu_device *device,
    }
 }
 
+/**
+ * Checks if the pass should allow IB2 skipping.
+ *
+ * If any stores or resolves would be emitted in a non-final subpass, then we
+ * need to turn off IB2 skipping to make sure that we don't early-return before
+ * they happen.
+ */
+static void
+tu_render_pass_check_ib2_skip(struct tu_render_pass *pass)
+{
+   pass->allow_ib2_skipping = true;
+   for (int i = 0; i < pass->attachment_count; i++) {
+      struct tu_render_pass_attachment *att = &pass->attachments[i];
+      if ((att->store || att->store_stencil) &&
+          att->last_subpass_idx != pass->subpass_count - 1) {
+         pass->allow_ib2_skipping = false;
+         return;
+      }
+   }
+
+   for (int i = 0; i < pass->subpass_count - 1; i++) {
+      struct tu_subpass *subpass = &pass->subpasses[i];
+      for (int j = 0; j < subpass->resolve_count; j++) {
+         if (subpass->resolve_attachments[j].attachment != VK_ATTACHMENT_UNUSED) {
+            pass->allow_ib2_skipping = false;
+            return;
+         }
+      }
+   }
+}
+
+struct tu_gmem_alloc {
+   uint32_t gmem_offset;
+   uint32_t cpp;
+   uint32_t first_subpass;
+   uint32_t last_subpass;
+};
+
+static struct tu_gmem_alloc *
+tu_gmem_alloc(struct tu_gmem_alloc *allocs,
+              uint32_t *num_allocs,
+              uint32_t cpp,
+              uint32_t first_subpass,
+              uint32_t last_subpass)
+{
+   struct tu_gmem_alloc *alloc = NULL;
+
+   /* Find an allocation that is free during our subpass range, with the
+    * closet usable cpp.
+    */
+   for (int i = 0; i < *num_allocs; i++) {
+      if (!(allocs[i].first_subpass > last_subpass ||
+            allocs[i].last_subpass < first_subpass)) {
+         continue;
+      }
+
+      if (allocs[i].cpp == cpp) {
+         alloc = &allocs[i];
+         break;
+      }
+      if (allocs[i].cpp > cpp && (!alloc || alloc->cpp > allocs[i].cpp))
+         alloc = &allocs[i];
+   }
+   if (alloc) {
+      /* Expand the range of the existing allocation */
+      alloc->first_subpass = MIN2(alloc->first_subpass, first_subpass);
+      alloc->last_subpass = MAX2(alloc->last_subpass, last_subpass);
+   } else {
+      /* Make a new gmem allocation for this cpp. */
+      alloc = &allocs[(*num_allocs)++];
+      alloc->cpp = cpp;
+      alloc->first_subpass = first_subpass;
+      alloc->last_subpass = last_subpass;
+   }
+
+   return alloc;
+}
+
 static void
 tu_render_pass_gmem_config(struct tu_render_pass *pass,
                            const struct tu_physical_device *phys_dev)
@@ -591,24 +669,31 @@ tu_render_pass_gmem_config(struct tu_render_pass *pass,
       /* log2(gmem_align/(tile_align_w*tile_align_h)) */
       uint32_t block_align_shift = 3;
       uint32_t tile_align_w = phys_dev->info->tile_align_w;
-      uint32_t gmem_align = (1 << block_align_shift) * tile_align_w *
-                            phys_dev->info->tile_align_h;
+      uint32_t gmem_align = (1 << block_align_shift) * tile_align_w * phys_dev->info->tile_align_h;
 
-      /* calculate total bytes per pixel */
-      uint32_t cpp_total = 0;
-      uint32_t min_cpp = UINT32_MAX;
+      /* gmem allocations to make, possibly shared between attachments. Each
+       * attachment may have 2 allocations, to handle separate stencil.
+       */
+      struct tu_gmem_alloc gmem_alloc[2 * pass->attachment_count];
+      uint32_t num_gmem_alloc = 0;
+      struct tu_gmem_alloc *att_gmem_alloc[2 * pass->attachment_count];
+      for (int i = 0; i < ARRAY_SIZE(att_gmem_alloc); i++)
+         att_gmem_alloc[i] = NULL;
+
       for (uint32_t i = 0; i < pass->attachment_count; i++) {
          struct tu_render_pass_attachment *att = &pass->attachments[i];
          bool cpp1 = (att->cpp == 1);
          if (att->gmem) {
-            cpp_total += att->cpp;
-            min_cpp = MIN2(min_cpp, att->cpp);
+            att_gmem_alloc[i * 2] =
+               tu_gmem_alloc(gmem_alloc, &num_gmem_alloc, att->cpp,
+                           att->first_subpass_idx, att->last_subpass_idx);
 
             /* take into account the separate stencil: */
             if (att->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-               min_cpp = MIN2(min_cpp, att->samples);
                cpp1 = (att->samples == 1);
-               cpp_total += att->samples;
+               att_gmem_alloc[i * 2 + 1] =
+                  tu_gmem_alloc(gmem_alloc, &num_gmem_alloc, att->samples,
+                              att->first_subpass_idx, att->last_subpass_idx);
             }
 
             /* texture pitch must be aligned to 64, use a tile_align_w that is
@@ -622,16 +707,22 @@ tu_render_pass_gmem_config(struct tu_render_pass *pass,
          }
       }
 
+      uint32_t cpp_total = 0;
+      uint32_t min_cpp = UINT32_MAX;
+      for (int i = 0; i < num_gmem_alloc; i++) {
+         cpp_total += gmem_alloc[i].cpp;
+         min_cpp = MIN2(min_cpp, gmem_alloc[i].cpp);
+      }
+
       pass->tile_align_w = tile_align_w;
       pass->min_cpp = min_cpp;
 
       /* no gmem attachments */
       if (cpp_total == 0) {
-         /* any value non-zero value so tiling config works with no
-          * attachments
-          */
-         pass->gmem_pixels[layout] = 1024 * 1024;
-         continue;
+         /* any non-zero value so tiling config works with no attachments */
+         for (int i = 0; i < ARRAY_SIZE(pass->gmem_pixels); i++)
+            pass->gmem_pixels[i] = 1024*1024;
+         return;
       }
 
       /* TODO: this algorithm isn't optimal
@@ -644,44 +735,36 @@ tu_render_pass_gmem_config(struct tu_render_pass *pass,
                               : phys_dev->ccu_offset_gmem;
       uint32_t gmem_blocks = gmem_size / gmem_align;
       uint32_t offset = 0, pixels = ~0u, i;
+      for (i = 0; i < num_gmem_alloc; i++) {
+         struct tu_gmem_alloc *alloc = &gmem_alloc[i];
+
+         uint32_t align = MAX2(1, alloc->cpp >> block_align_shift);
+         uint32_t nblocks = MAX2((gmem_blocks * alloc->cpp / cpp_total) & ~(align - 1), align);
+
+         if (nblocks > gmem_blocks) {
+            /* gmem layout impossible */
+            pass->gmem_pixels[layout] = 0;
+            continue;
+         }
+
+         gmem_blocks -= nblocks;
+         cpp_total -= alloc->cpp;
+         alloc->gmem_offset = offset;
+         offset += nblocks * gmem_align;
+         pixels = MIN2(pixels, nblocks * gmem_align / alloc->cpp);
+      }
+
+      pass->gmem_pixels[layout] = pixels;
+
       for (i = 0; i < pass->attachment_count; i++) {
          struct tu_render_pass_attachment *att = &pass->attachments[i];
          if (!att->gmem)
             continue;
 
-         att->gmem_offset[layout] = offset;
-
-         uint32_t align = MAX2(1, att->cpp >> block_align_shift);
-         uint32_t nblocks =
-            MAX2((gmem_blocks * att->cpp / cpp_total) & ~(align - 1), align);
-
-         if (nblocks > gmem_blocks)
-            break;
-
-         gmem_blocks -= nblocks;
-         cpp_total -= att->cpp;
-         offset += nblocks * gmem_align;
-         pixels = MIN2(pixels, nblocks * gmem_align / att->cpp);
-
-         /* repeat the same for separate stencil */
-         if (att->format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-            att->gmem_offset_stencil[layout] = offset;
-
-            /* note: for s8_uint, block align is always 1 */
-            uint32_t nblocks = gmem_blocks * att->samples / cpp_total;
-            if (nblocks > gmem_blocks)
-               break;
-
-            gmem_blocks -= nblocks;
-            cpp_total -= att->samples;
-            offset += nblocks * gmem_align;
-            pixels = MIN2(pixels, nblocks * gmem_align / att->samples);
-         }
+         att->gmem_offset[layout] = att_gmem_alloc[2 * i]->gmem_offset;
+         if (att->format == VK_FORMAT_D32_SFLOAT_S8_UINT)
+            att->gmem_offset_stencil[layout] = att_gmem_alloc[2 * i + 1]->gmem_offset;
       }
-
-      /* if the loop didn't complete then the gmem config is impossible */
-      if (i == pass->attachment_count)
-         pass->gmem_pixels[layout] = pixels;
    }
 }
 
@@ -803,11 +886,8 @@ tu_subpass_use_attachment(struct tu_render_pass *pass, int i, uint32_t a, const 
    /* Loads and clears are emitted at the start of the subpass that needs them. */
    att->first_subpass_idx = MIN2(i, att->first_subpass_idx);
 
-   /* Stores are emitted at vkEndRenderPass() time. */
-   if (att->store || att->store_stencil)
-      att->last_subpass_idx = pass->subpass_count - 1;
-   else
-      att->last_subpass_idx = MAX2(i, att->last_subpass_idx);
+   /* Stores are emitted after the last subpass using them. */
+   att->last_subpass_idx = MAX2(i, att->last_subpass_idx);
 }
 
 static void
@@ -1044,6 +1124,7 @@ tu_CreateRenderPass2(VkDevice _device,
       }
    }
 
+   tu_render_pass_check_ib2_skip(pass);
    tu_render_pass_cond_config(device, pass);
    tu_render_pass_gmem_config(pass, device->physical_device);
    tu_render_pass_bandwidth_config(pass);
@@ -1289,6 +1370,7 @@ tu_setup_dynamic_render_pass(struct tu_cmd_buffer *cmd_buffer,
 
    pass->attachment_count = a;
 
+   tu_render_pass_check_ib2_skip(pass);
    tu_render_pass_cond_config(device, pass);
    tu_render_pass_gmem_config(pass, device->physical_device);
    tu_render_pass_bandwidth_config(pass);

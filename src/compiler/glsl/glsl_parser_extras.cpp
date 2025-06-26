@@ -821,6 +821,7 @@ static const _mesa_glsl_extension _mesa_glsl_supported_extensions[] = {
    EXT_AEP(EXT_gpu_shader5),
    EXT_AEP(EXT_primitive_bounding_box),
    EXT(EXT_separate_shader_objects),
+   EXT(EXT_shader_clock),
    EXT(EXT_shader_framebuffer_fetch),
    EXT(EXT_shader_framebuffer_fetch_non_coherent),
    EXT(EXT_shader_group_vote),
@@ -2506,9 +2507,6 @@ do_common_optimization(exec_list *ir, bool linked,
    OPT(propagate_invariance, ir);
    OPT(do_if_simplification, ir);
    OPT(opt_flatten_nested_if_blocks, ir);
-
-   if (options->OptimizeForAOS && !linked)
-      OPT(opt_flip_matrices, ir);
 
    OPT(do_dead_code_unlinked, ir);
    OPT(do_tree_grafting, ir);

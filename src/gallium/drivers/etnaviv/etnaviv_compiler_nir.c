@@ -556,6 +556,7 @@ emit_tex(struct etna_compile *c, nir_tex_instr * tex)
          break;
       case nir_tex_src_comparator:
       case nir_tex_src_ddy:
+         assert(!src2);
          src2 = &tex->src[i].src;
          break;
       default:
@@ -565,7 +566,7 @@ emit_tex(struct etna_compile *c, nir_tex_instr * tex)
       }
    }
 
-   etna_emit_tex(c, tex->op, tex->sampler_index, dst_swiz, dst, get_src(c, coord),
+   etna_emit_tex(c, tex, dst_swiz, dst, get_src(c, coord),
                  src1 ? get_src(c, src1) : SRC_DISABLE,
                  src2 ? get_src(c, src2) : SRC_DISABLE);
 }
@@ -1246,7 +1247,7 @@ etna_compile_shader(struct etna_shader_variant *v)
 
    NIR_PASS(_, s, nir_lower_vars_to_ssa);
    NIR_PASS(_, s, nir_lower_indirect_derefs, nir_var_all, UINT32_MAX);
-   NIR_PASS(_, s, etna_nir_lower_texture, &v->key);
+   NIR_PASS(_, s, etna_nir_lower_texture, &v->key, v->shader->info);
    NIR_PASS(_, s, nir_lower_alu_width, NULL, NULL);
 
    NIR_PASS(_, s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, c->info);

@@ -193,7 +193,8 @@ static void si_destroy_context(struct pipe_context *context)
 {
    struct si_context *sctx = (struct si_context *)context;
 
-   context->set_debug_callback(context, NULL);
+   if (context->set_debug_callback)
+      context->set_debug_callback(context, NULL);
 
    util_unreference_framebuffer_state(&sctx->framebuffer.state);
    util_framebuffer_init(context, NULL, sctx->framebuffer.fb_cbufs, &sctx->framebuffer.fb_zsbuf);
@@ -498,7 +499,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    /* Don't create a context if it's not compute-only and hw is compute-only. */
    if (!sscreen->info.has_graphics && !(flags & PIPE_CONTEXT_COMPUTE_ONLY)) {
-      fprintf(stderr, "radeonsi: can't create a graphics context on a compute chip\n");
+      mesa_loge("radeonsi: can't create a graphics context on a compute chip\n");
       return NULL;
    }
 
@@ -507,7 +508,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    int shader, i;
 
    if (!sctx) {
-      fprintf(stderr, "radeonsi: can't allocate a context\n");
+      mesa_loge("radeonsi: can't allocate a context\n");
       return NULL;
    }
 
@@ -543,7 +544,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
          &sscreen->b, PIPE_RESOURCE_FLAG_UNMAPPABLE | SI_RESOURCE_FLAG_DRIVER_INTERNAL,
          PIPE_USAGE_DEFAULT, 16 * sscreen->info.max_render_backends, 256);
       if (!sctx->eop_bug_scratch) {
-         fprintf(stderr, "radeonsi: can't create eop_bug_scratch\n");
+         mesa_loge("radeonsi: can't create eop_bug_scratch\n");
          goto fail;
       }
    }
@@ -551,13 +552,13 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    /* Initialize the context handle and the command stream. */
    sctx->ctx = sctx->ws->ctx_create(sctx->ws, sctx->context_flags);
    if (!sctx->ctx) {
-      fprintf(stderr, "radeonsi: can't create radeon_winsys_ctx\n");
+      mesa_loge("radeonsi: can't create radeon_winsys_ctx\n");
       goto fail;
    }
 
    if (!ws->cs_create(&sctx->gfx_cs, sctx->ctx, sctx->has_graphics ? AMD_IP_GFX : AMD_IP_COMPUTE,
                       (void *)si_flush_gfx_cs, sctx)) {
-      fprintf(stderr, "radeonsi: can't create gfx_cs\n");
+      mesa_loge("radeonsi: can't create gfx_cs\n");
       sctx->gfx_cs.priv = NULL;
       goto fail;
    }
@@ -570,7 +571,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    sctx->cached_gtt_allocator = u_upload_create(&sctx->b, 16 * 1024, 0, PIPE_USAGE_STAGING, 0);
    if (!sctx->cached_gtt_allocator) {
-      fprintf(stderr, "radeonsi: can't create cached_gtt_allocator\n");
+      mesa_loge("radeonsi: can't create cached_gtt_allocator\n");
       goto fail;
    }
 
@@ -585,7 +586,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
                                                                : PIPE_USAGE_STREAM,
                       SI_RESOURCE_FLAG_32BIT); /* same flags as const_uploader */
    if (!sctx->b.stream_uploader) {
-      fprintf(stderr, "radeonsi: can't create stream_uploader\n");
+      mesa_loge("radeonsi: can't create stream_uploader\n");
       goto fail;
    }
 
@@ -596,7 +597,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
          u_upload_create(&sctx->b, 256 * 1024, 0, PIPE_USAGE_DEFAULT,
                          SI_RESOURCE_FLAG_32BIT);
       if (!sctx->b.const_uploader) {
-         fprintf(stderr, "radeonsi: can't create const_uploader\n");
+         mesa_loge("radeonsi: can't create const_uploader\n");
          goto fail;
       }
    }
@@ -605,21 +606,21 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    if (sscreen->info.has_3d_cube_border_color_mipmap) {
       sctx->border_color_table = malloc(SI_MAX_BORDER_COLORS * sizeof(*sctx->border_color_table));
       if (!sctx->border_color_table) {
-         fprintf(stderr, "radeonsi: can't create border_color_table\n");
+         mesa_loge("radeonsi: can't create border_color_table\n");
          goto fail;
       }
 
       sctx->border_color_buffer = si_resource(pipe_buffer_create(
          screen, 0, PIPE_USAGE_DEFAULT, SI_MAX_BORDER_COLORS * sizeof(*sctx->border_color_table)));
       if (!sctx->border_color_buffer) {
-         fprintf(stderr, "radeonsi: can't create border_color_buffer\n");
+         mesa_loge("radeonsi: can't create border_color_buffer\n");
          goto fail;
       }
 
       sctx->border_color_map =
          ws->buffer_map(ws, sctx->border_color_buffer->buf, NULL, PIPE_MAP_WRITE);
       if (!sctx->border_color_map) {
-         fprintf(stderr, "radeonsi: can't map border_color_buffer\n");
+         mesa_loge("radeonsi: can't map border_color_buffer\n");
          goto fail;
       }
    }
@@ -667,7 +668,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
       sctx->blitter = util_blitter_create(&sctx->b);
       if (sctx->blitter == NULL) {
-         fprintf(stderr, "radeonsi: can't create blitter\n");
+         mesa_loge("radeonsi: can't create blitter\n");
          goto fail;
       }
       sctx->blitter->skip_viewport_restore = true;
@@ -743,7 +744,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
                                     PIPE_USAGE_DEFAULT, 16,
                                     sctx->screen->info.tcc_cache_line_size);
       if (!sctx->null_const_buf.buffer) {
-         fprintf(stderr, "radeonsi: can't create null_const_buf\n");
+         mesa_loge("radeonsi: can't create null_const_buf\n");
          goto fail;
       }
       sctx->null_const_buf.buffer_size = sctx->null_const_buf.buffer->width0;
@@ -773,7 +774,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    sctx->dirty_implicit_resources = _mesa_pointer_hash_table_create(NULL);
    if (!sctx->dirty_implicit_resources) {
-      fprintf(stderr, "radeonsi: can't create dirty_implicit_resources\n");
+      mesa_loge("radeonsi: can't create dirty_implicit_resources\n");
       goto fail;
    }
 
@@ -807,7 +808,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
                                     PIPE_USAGE_DEFAULT, 4,
                                     sscreen->info.tcc_cache_line_size);
       if (!sctx->wait_mem_scratch) {
-         fprintf(stderr, "radeonsi: can't create wait_mem_scratch\n");
+         mesa_loge("radeonsi: can't create wait_mem_scratch\n");
          goto fail;
       }
 
@@ -881,7 +882,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    return &sctx->b;
 fail:
-   fprintf(stderr, "radeonsi: Failed to create a context.\n");
+   mesa_loge("radeonsi: Failed to create a context.\n");
    si_destroy_context(&sctx->b);
    return NULL;
 }
@@ -1108,6 +1109,18 @@ static void si_test_vmfault(struct si_screen *sscreen, uint64_t test_flags)
    exit(0);
 }
 
+static void
+parse_hex(char *out, const char *in, unsigned length)
+{
+   for (unsigned i = 0; i < length; ++i)
+      out[i] = 0;
+
+   for (unsigned i = 0; i < 2 * length; ++i) {
+      unsigned v = in[i] <= '9' ? in[i] - '0' : (in[i] >= 'a' ? (in[i] - 'a' + 10) : (in[i] - 'A' + 10));
+      out[i / 2] |= v << (4 * (1 - i % 2));
+   }
+}
+
 static void si_disk_cache_create(struct si_screen *sscreen)
 {
    /* Don't use the cache if shader dumping is enabled. */
@@ -1120,8 +1133,17 @@ static void si_disk_cache_create(struct si_screen *sscreen)
 
    _mesa_sha1_init(&ctx);
 
+#ifdef RADEONSI_BUILD_ID_OVERRIDE
+   {
+      unsigned size = strlen(RADEONSI_BUILD_ID_OVERRIDE) / 2;
+      char *data = alloca(size);
+      parse_hex(data, RADEONSI_BUILD_ID_OVERRIDE, size);
+      _mesa_sha1_update(&ctx, data, size);
+   }
+#else
    if (!disk_cache_get_function_identifier(si_disk_cache_create, &ctx))
       return;
+#endif
 
 #if AMD_LLVM_AVAILABLE
    if (!disk_cache_get_function_identifier(LLVMInitializeAMDGPUTargetInfo, &ctx))

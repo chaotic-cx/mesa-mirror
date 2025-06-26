@@ -82,6 +82,19 @@ vectorize_vec2_16bit(const nir_instr *instr, const void *_)
       return 0;
 
    const nir_alu_instr *alu = nir_instr_as_alu(instr);
+   switch (alu->op) {
+   case nir_op_f2e4m3fn:
+   case nir_op_f2e4m3fn_sat:
+   case nir_op_f2e4m3fn_satfn:
+   case nir_op_f2e5m2:
+   case nir_op_f2e5m2_sat:
+   case nir_op_e4m3fn2f:
+   case nir_op_e5m22f:
+      return 2;
+   default:
+      break;
+   }
+
    const unsigned bit_size = alu->def.bit_size;
    if (bit_size == 16)
       return 2;
@@ -213,6 +226,8 @@ radv_optimize_nir(struct nir_shader *shader, bool optimize_conservatively)
       NIR_PASS(progress, shader, nir_opt_move_discards_to_top);
 
    NIR_PASS(progress, shader, nir_opt_move, nir_move_load_ubo);
+
+   nir_shader_gather_info(shader, nir_shader_get_entrypoint(shader));
 }
 
 void
@@ -450,12 +465,11 @@ radv_shader_spirv_to_nir(struct radv_device *device, const struct radv_shader_st
       NIR_PASS(_, nir, nir_split_per_member_structs);
 
       if (nir->info.stage == MESA_SHADER_FRAGMENT)
-         NIR_PASS(_, nir, nir_lower_io_to_vector, nir_var_shader_out);
+         NIR_PASS(_, nir, nir_opt_vectorize_io_vars, nir_var_shader_out);
       if (nir->info.stage == MESA_SHADER_FRAGMENT)
          NIR_PASS(_, nir, nir_lower_input_attachments,
                   &(nir_input_attachment_options){
-                     .use_fragcoord_sysval = true,
-                     .use_layer_id_sysval = true,
+                     .use_ia_coord_intrin = true,
                   });
 
       nir_remove_dead_variables_options dead_vars_opts = {
@@ -473,7 +487,7 @@ radv_shader_spirv_to_nir(struct radv_device *device, const struct radv_shader_st
 
       NIR_PASS(_, nir, nir_propagate_invariant, pdev->cache_key.invariant_geom);
 
-      NIR_PASS(_, nir, nir_lower_clip_cull_distance_arrays);
+      NIR_PASS(_, nir, nir_lower_clip_cull_distance_array_vars);
 
       if (nir->info.stage == MESA_SHADER_VERTEX || nir->info.stage == MESA_SHADER_TESS_EVAL ||
           nir->info.stage == MESA_SHADER_GEOMETRY)
@@ -551,9 +565,9 @@ radv_shader_spirv_to_nir(struct radv_device *device, const struct radv_shader_st
 
    if (nir->info.stage == MESA_SHADER_VERTEX || nir->info.stage == MESA_SHADER_GEOMETRY ||
        nir->info.stage == MESA_SHADER_FRAGMENT) {
-      NIR_PASS(_, nir, nir_lower_io_to_temporaries, nir_shader_get_entrypoint(nir), true, true);
+      NIR_PASS(_, nir, nir_lower_io_vars_to_temporaries, nir_shader_get_entrypoint(nir), true, true);
    } else if (nir->info.stage == MESA_SHADER_TESS_EVAL) {
-      NIR_PASS(_, nir, nir_lower_io_to_temporaries, nir_shader_get_entrypoint(nir), true, false);
+      NIR_PASS(_, nir, nir_lower_io_vars_to_temporaries, nir_shader_get_entrypoint(nir), true, false);
    }
 
    NIR_PASS(_, nir, nir_split_var_copies);
@@ -2985,14 +2999,15 @@ radv_dump_nir_shaders(const struct radv_instance *instance, struct nir_shader *c
 
 static void
 radv_aco_build_shader_binary(void **bin, const struct ac_shader_config *config, const char *llvm_ir_str,
-                             unsigned llvm_ir_size, const char *disasm_str, unsigned disasm_size, uint32_t *statistics,
-                             uint32_t stats_size, uint32_t exec_size, const uint32_t *code, uint32_t code_dw,
+                             unsigned llvm_ir_size, const char *disasm_str, unsigned disasm_size,
+                             struct amd_stats *statistics, uint32_t exec_size, const uint32_t *code, uint32_t code_dw,
                              const struct aco_symbol *symbols, unsigned num_symbols,
                              const struct ac_shader_debug_info *debug_info, unsigned debug_info_count)
 {
    struct radv_shader_binary **binary = (struct radv_shader_binary **)bin;
 
    uint32_t debug_info_size = debug_info_count * sizeof(struct ac_shader_debug_info);
+   uint32_t stats_size = statistics ? sizeof(struct amd_stats) : 0;
 
    size_t size = llvm_ir_size;
 
@@ -3020,7 +3035,7 @@ radv_aco_build_shader_binary(void **bin, const struct ac_shader_config *config, 
    struct radv_shader_binary_layout layout = radv_shader_binary_get_layout(legacy_binary);
 
    if (stats_size)
-      memcpy(layout.stats, statistics, stats_size);
+      amd_stats_serialize(layout.stats, statistics);
 
    memcpy(layout.code, code, code_dw * sizeof(uint32_t));
 

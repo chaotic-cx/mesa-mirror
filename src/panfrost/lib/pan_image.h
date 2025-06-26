@@ -16,12 +16,15 @@
 #include "util/format/u_format.h"
 #include "pan_format.h"
 #include "pan_layout.h"
+#include "pan_mod.h"
 
 #include "util/log.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+struct pan_mod_handler;
 
 struct pan_image_plane {
    struct pan_image_layout layout;
@@ -30,22 +33,13 @@ struct pan_image_plane {
 
 struct pan_image {
    struct pan_image_props props;
+   const struct pan_mod_handler *mod_handler;
    struct pan_image_plane *planes[MAX_IMAGE_PLANES];
 };
 
 struct pan_image_plane_ref {
    struct pan_image *image;
    uint32_t plane_idx;
-};
-
-struct pan_image_surface {
-   union {
-      uint64_t data;
-      struct {
-         uint64_t header;
-         uint64_t body;
-      } afbc;
-   };
 };
 
 struct pan_image_view {
@@ -169,61 +163,6 @@ pan_image_view_get_zs_plane(const struct pan_image_view *iview)
 }
 
 static inline void
-pan_iview_get_surface(const struct pan_image_view *iview, unsigned level,
-                      unsigned layer, unsigned sample,
-                      struct pan_image_surface *surf)
-{
-   const struct util_format_description *fdesc =
-      util_format_description(iview->format);
-
-   /* In case of multiplanar depth/stencil, the stencil is always on
-    * plane 1. Combined depth/stencil only has one plane, so depth
-    * will be on plane 0 in either case.
-    */
-   const struct pan_image_plane_ref pref =
-      util_format_has_stencil(fdesc) ? pan_image_view_get_s_plane(iview)
-                                     : pan_image_view_get_plane(iview, 0);
-   const struct pan_image *image = pref.image;
-
-   level += iview->first_level;
-   assert(level < image->props.nr_slices);
-
-   layer += iview->first_layer;
-
-   bool is_3d = image->props.dim == MALI_TEXTURE_DIMENSION_3D;
-   const struct pan_image_plane *plane = image->planes[pref.plane_idx];
-   const struct pan_image_slice_layout *slice = &plane->layout.slices[level];
-   uint64_t base = plane->base;
-
-   memset(surf, 0, sizeof(*surf));
-
-   if (drm_is_afbc(image->props.modifier)) {
-      assert(!sample);
-
-      if (is_3d) {
-         ASSERTED unsigned depth =
-            u_minify(image->props.extent_px.depth, level);
-         assert(layer < depth);
-         surf->afbc.header =
-            base + slice->offset_B + (layer * slice->afbc.surface_stride_B);
-         surf->afbc.body = base + slice->offset_B + slice->afbc.header_size_B +
-                           (slice->surface_stride_B * layer);
-      } else {
-         assert(layer < image->props.array_size);
-         surf->afbc.header =
-            base + pan_image_surface_offset(&plane->layout, level, layer, 0);
-         surf->afbc.body = surf->afbc.header + slice->afbc.header_size_B;
-      }
-   } else {
-      unsigned array_idx = is_3d ? 0 : layer;
-      unsigned surface_idx = is_3d ? layer : sample;
-
-      surf->data = base + pan_image_surface_offset(&plane->layout, level,
-                                                   array_idx, surface_idx);
-   }
-}
-
-static inline void
 pan_image_view_check(const struct pan_image_view *iview)
 {
 #ifndef NDEBUG
@@ -260,6 +199,55 @@ pan_image_view_check(const struct pan_image_view *iview)
    }
 #endif
 }
+
+static inline uint64_t
+pan_image_mip_level_size(const struct pan_image *image, unsigned plane_idx,
+                         unsigned mip_level)
+{
+   assert(plane_idx < ARRAY_SIZE(image->planes) &&
+          plane_idx < util_format_get_num_planes(image->props.format));
+   assert(mip_level < image->props.nr_slices);
+   assert(image->planes[plane_idx]);
+
+   uint64_t size = image->planes[plane_idx]->layout.slices[mip_level].size_B;
+
+   /* If this is an array, we need to cover the whole array. */
+   if (image->props.array_size > 1) {
+      size += image->planes[plane_idx]->layout.array_stride_B *
+              (image->props.array_size - 1);
+   }
+
+   return size;
+}
+
+static inline uint32_t
+pan_image_get_wsi_row_pitch(const struct pan_image *image, unsigned plane_idx,
+                            unsigned mip_level)
+{
+   assert(image->mod_handler);
+   assert(image->mod_handler->get_wsi_row_pitch);
+   assert(plane_idx < ARRAY_SIZE(image->planes) &&
+          plane_idx < util_format_get_num_planes(image->props.format));
+   assert(image->planes[plane_idx]);
+
+   return image->mod_handler->get_wsi_row_pitch(image, plane_idx, mip_level);
+}
+
+static inline uint64_t
+pan_image_get_wsi_offset(const struct pan_image *image, unsigned plane_idx,
+                         unsigned mip_level)
+{
+   assert(plane_idx < ARRAY_SIZE(image->planes) &&
+          plane_idx < util_format_get_num_planes(image->props.format));
+   assert(mip_level < image->props.nr_slices);
+   assert(image->planes[plane_idx]);
+
+   return image->planes[plane_idx]->layout.slices[mip_level].offset_B;
+}
+
+bool pan_image_layout_init(
+   unsigned arch, struct pan_image *image, unsigned plane_idx,
+   const struct pan_image_layout_constraints *explicit_layout_constraints);
 
 #ifdef __cplusplus
 } /* extern C */

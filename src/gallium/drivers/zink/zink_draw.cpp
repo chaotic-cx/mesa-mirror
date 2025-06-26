@@ -8,7 +8,6 @@
 #include "zink_resource.h"
 #include "zink_screen.h"
 #include "zink_state.h"
-#include "zink_surface.h"
 #include "zink_inlines.h"
 
 #include "util/hash_table.h"
@@ -129,7 +128,7 @@ zink_bind_vertex_buffers(struct zink_context *ctx)
          buffers[i] = res->obj->buffer;
          buffer_offsets[i] = vb->buffer_offset;
       } else {
-         buffers[i] = zink_resource(ctx->dummy_vertex_buffer)->obj->buffer;
+         buffers[i] = VK_NULL_HANDLE;
          buffer_offsets[i] = 0;
       }
    }

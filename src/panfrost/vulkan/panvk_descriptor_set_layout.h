@@ -19,14 +19,15 @@
 
 #include "genxml/gen_macros.h"
 
-#define PANVK_DESCRIPTOR_SIZE       32
-#define MAX_DYNAMIC_UNIFORM_BUFFERS 16
-#define MAX_DYNAMIC_STORAGE_BUFFERS 8
-#define MAX_PUSH_DESCS              32
+#define PANVK_DESCRIPTOR_SIZE         32
+#define MAX_DYNAMIC_UNIFORM_BUFFERS   16
+#define MAX_DYNAMIC_STORAGE_BUFFERS   8
+#define MAX_PUSH_DESCS                32
+#define MAX_INLINE_UNIFORM_BLOCK_SIZE (1 << 16)
 #define MAX_DYNAMIC_BUFFERS                                                    \
    (MAX_DYNAMIC_UNIFORM_BUFFERS + MAX_DYNAMIC_STORAGE_BUFFERS)
 
-#if PAN_ARCH <= 7
+#if PAN_ARCH < 9
 
 /* On Bifrost, this is a software limit. We pick the minimum required by
  * Vulkan, because Bifrost GPUs don't have unified descriptor tables,
@@ -124,6 +125,22 @@ panvk_get_desc_stride(const struct panvk_descriptor_set_binding_layout *layout)
    /* One descriptor for each sampler plane, and one for each texture. */
    return layout->type == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
       ? layout->textures_per_desc + layout->samplers_per_desc : 1;
+}
+
+static inline const uint32_t
+panvk_get_iub_desc_count(uint32_t size)
+{
+   /* Each inline uniform block contains an internal buffer descriptor, in
+    * addition to as many descriptors as needed to contain the requested size
+    * in bytes. */
+   return DIV_ROUND_UP(size, PANVK_DESCRIPTOR_SIZE) + 1;
+}
+
+static inline const uint32_t
+panvk_get_iub_size(uint32_t desc_count)
+{
+   assert(desc_count >= 1);
+   return (desc_count - 1) * PANVK_DESCRIPTOR_SIZE;
 }
 
 struct panvk_subdesc_info {

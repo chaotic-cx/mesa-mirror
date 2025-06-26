@@ -438,6 +438,7 @@ static void r600_init_screen_caps(struct r600_screen *rscreen)
 	caps->copy_between_compressed_and_plain_formats = true;
 	caps->invalidate_buffer = true;
 	caps->surface_reinterpret_blocks = true;
+	caps->compressed_surface_reinterpret_blocks_layered = true;
 	caps->query_memory_info = true;
 	caps->query_so_overflow = family >= CHIP_CEDAR;
 	caps->framebuffer_no_attachment = true;
@@ -472,7 +473,7 @@ static void r600_init_screen_caps(struct r600_screen *rscreen)
 	caps->fake_sw_msaa = false;
 
 	caps->max_texel_buffer_elements =
-		MIN2(rscreen->b.info.max_heap_size_kb * 1024ull / 4, INT_MAX);
+		MIN2(rscreen->b.info.max_heap_size_kb * 1024ull / 4, UINT32_MAX / 16);
 
 	caps->min_map_buffer_alignment = R600_MAP_BUFFER_ALIGNMENT;
 
@@ -564,6 +565,8 @@ static void r600_init_screen_caps(struct r600_screen *rscreen)
 	caps->max_viewports = R600_MAX_VIEWPORTS;
 	caps->viewport_subpixel_bits =
 	caps->rasterizer_subpixel_bits = 8;
+
+	caps->framebuffer_msaa_constraints = 2;
 
 	/* Timer queries, present when the clock frequency is non zero. */
 	caps->query_time_elapsed =

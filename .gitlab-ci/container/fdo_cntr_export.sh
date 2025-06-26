@@ -15,6 +15,7 @@
 
 # When changing this file, you need to bump the following
 # .gitlab-ci/image-tags.yml tags:
+# DEBIAN_TEST_ANDROID_TAG
 # DEBIAN_TEST_GL_TAG
 # DEBIAN_TEST_VIDEO_TAG
 # DEBIAN_TEST_VK_TAG
@@ -46,6 +47,8 @@ buildah_export() {
 
     # These components will be provided via LAVA overlays,
     # so remove them from the core rootfs
+    rm -rf "${mountpoint}/android-cts"
+    rm -rf "${mountpoint}/cuttlefish"
     rm -rf "${mountpoint}/vkd3d-proton-tests"
     rm -rf "${mountpoint}/vkd3d-proton-wine64"
 

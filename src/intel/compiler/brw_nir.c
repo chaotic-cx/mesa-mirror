@@ -43,6 +43,8 @@ type_size_xvec4(const struct glsl_type *type, bool as_vec4, bool bindless)
    case GLSL_TYPE_FLOAT:
    case GLSL_TYPE_FLOAT16:
    case GLSL_TYPE_BFLOAT16:
+   case GLSL_TYPE_FLOAT_E4M3FN:
+   case GLSL_TYPE_FLOAT_E5M2:
    case GLSL_TYPE_BOOL:
    case GLSL_TYPE_DOUBLE:
    case GLSL_TYPE_UINT16:
@@ -1483,12 +1485,12 @@ brw_nir_link_shaders(const struct brw_compiler *compiler,
          NIR_PASS(_, consumer, brw_nir_zero_inputs, &zero_inputs);
    }
 
-   nir_lower_io_arrays_to_elements(producer, consumer);
+   nir_lower_io_array_vars_to_elements(producer, consumer);
    nir_validate_shader(producer, "after nir_lower_io_arrays_to_elements");
    nir_validate_shader(consumer, "after nir_lower_io_arrays_to_elements");
 
-   NIR_PASS(_, producer, nir_lower_io_to_scalar_early, nir_var_shader_out);
-   NIR_PASS(_, consumer, nir_lower_io_to_scalar_early, nir_var_shader_in);
+   NIR_PASS(_, producer, nir_lower_io_vars_to_scalar, nir_var_shader_out);
+   NIR_PASS(_, consumer, nir_lower_io_vars_to_scalar, nir_var_shader_in);
    brw_nir_optimize(producer, devinfo);
    brw_nir_optimize(consumer, devinfo);
 
@@ -1520,21 +1522,21 @@ brw_nir_link_shaders(const struct brw_compiler *compiler,
       }
    }
 
-   NIR_PASS(_, producer, nir_lower_io_to_vector, nir_var_shader_out);
+   NIR_PASS(_, producer, nir_opt_vectorize_io_vars, nir_var_shader_out);
 
    if (producer->info.stage == MESA_SHADER_TESS_CTRL &&
        producer->options->vectorize_tess_levels)
-   NIR_PASS_V(producer, nir_vectorize_tess_levels);
+   NIR_PASS_V(producer, nir_lower_tess_level_array_vars_to_vec);
 
    NIR_PASS(_, producer, nir_opt_combine_stores, nir_var_shader_out);
-   NIR_PASS(_, consumer, nir_lower_io_to_vector, nir_var_shader_in);
+   NIR_PASS(_, consumer, nir_opt_vectorize_io_vars, nir_var_shader_in);
 
    if (producer->info.stage != MESA_SHADER_TESS_CTRL &&
        producer->info.stage != MESA_SHADER_MESH &&
        producer->info.stage != MESA_SHADER_TASK) {
       /* Calling lower_io_to_vector creates output variable writes with
        * write-masks.  On non-TCS outputs, the back-end can't handle it and we
-       * need to call nir_lower_io_to_temporaries to get rid of them.  This,
+       * need to call nir_lower_io_vars_to_temporaries to get rid of them.  This,
        * in turn, creates temporary variables and extra copy_deref intrinsics
        * that we need to clean up.
        *
@@ -1542,7 +1544,7 @@ brw_nir_link_shaders(const struct brw_compiler *compiler,
        * between whole workgroup, possibly using multiple HW threads). For
        * those write-mask in output is handled by I/O lowering.
        */
-      NIR_PASS_V(producer, nir_lower_io_to_temporaries,
+      NIR_PASS_V(producer, nir_lower_io_vars_to_temporaries,
                  nir_shader_get_entrypoint(producer), true, false);
       NIR_PASS(_, producer, nir_lower_global_vars_to_local);
       NIR_PASS(_, producer, nir_split_var_copies);
@@ -1756,6 +1758,58 @@ get_mem_access_size_align(nir_intrinsic_op intrin, uint8_t bytes,
    }
 }
 
+static bool
+brw_nir_ssbo_intel_instr(nir_builder *b,
+                         nir_intrinsic_instr *intrin,
+                         void *cb_data)
+{
+   switch (intrin->intrinsic) {
+   case nir_intrinsic_load_ssbo: {
+      b->cursor = nir_before_instr(&intrin->instr);
+      nir_def *value = nir_load_ssbo_intel(
+         b,
+         intrin->def.num_components,
+         intrin->def.bit_size,
+         intrin->src[0].ssa,
+         intrin->src[1].ssa,
+         .access = nir_intrinsic_access(intrin),
+         .align_mul = nir_intrinsic_align_mul(intrin),
+         .align_offset = nir_intrinsic_align_offset(intrin),
+         .base = 0);
+      value->loop_invariant = intrin->def.loop_invariant;
+      value->divergent = intrin->def.divergent;
+      nir_def_replace(&intrin->def, value);
+      return true;
+   }
+
+   case nir_intrinsic_store_ssbo: {
+      b->cursor = nir_instr_remove(&intrin->instr);
+      nir_store_ssbo_intel(
+         b,
+         intrin->src[0].ssa,
+         intrin->src[1].ssa,
+         intrin->src[2].ssa,
+         .access = nir_intrinsic_access(intrin),
+         .align_mul = nir_intrinsic_align_mul(intrin),
+         .align_offset = nir_intrinsic_align_offset(intrin),
+         .base = 0);
+      return true;
+   }
+
+   default:
+      return false;
+   }
+}
+
+static bool
+brw_nir_ssbo_intel(nir_shader *shader)
+{
+   return nir_shader_intrinsics_pass(shader,
+                                     brw_nir_ssbo_intel_instr,
+                                     nir_metadata_control_flow,
+                                     NULL);
+}
+
 static void
 brw_vectorize_lower_mem_access(nir_shader *nir,
                                const struct brw_compiler *compiler,
@@ -1808,7 +1862,6 @@ brw_vectorize_lower_mem_access(nir_shader *nir,
       }
    }
 
-
    struct brw_mem_access_cb_data cb_data = {
       .devinfo = compiler->devinfo,
    };
@@ -1835,6 +1888,23 @@ brw_vectorize_lower_mem_access(nir_shader *nir,
       OPT(nir_opt_cse);
       OPT(nir_opt_algebraic);
       OPT(nir_opt_constant_folding);
+   }
+
+   /* Do this after the vectorization & brw_nir_rebase_const_offset_ubo_loads
+    * so that we maximize the offset put into the messages.
+    */
+   if (compiler->devinfo->ver >= 20) {
+      OPT(brw_nir_ssbo_intel);
+
+      const nir_opt_offsets_options offset_options = {
+         .buffer_max        = UINT32_MAX,
+         .shared_max        = UINT32_MAX,
+         .shared_atomic_max = UINT32_MAX,
+         .uniform_max       = UINT32_MAX,
+      };
+      OPT(nir_opt_offsets, &offset_options);
+
+      OPT(brw_nir_lower_immediate_offsets);
    }
 }
 
@@ -2268,6 +2338,7 @@ lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin)
 {
    switch (intrin->intrinsic) {
    case nir_intrinsic_load_ssbo:
+   case nir_intrinsic_load_ssbo_intel:
    case nir_intrinsic_load_shared:
    case nir_intrinsic_load_global:
    case nir_intrinsic_load_global_block_intel:
@@ -2282,6 +2353,7 @@ lsc_op_for_nir_intrinsic(const nir_intrinsic_instr *intrin)
       return LSC_OP_LOAD;
 
    case nir_intrinsic_store_ssbo:
+   case nir_intrinsic_store_ssbo_intel:
    case nir_intrinsic_store_shared:
    case nir_intrinsic_store_global:
    case nir_intrinsic_store_global_block_intel:

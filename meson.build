@@ -6,7 +6,7 @@ project(
   ['c', 'cpp'],
   version : files('VERSION'),
   license : 'MIT',
-  meson_version : '>= 1.3.0',
+  meson_version : '>= 1.4.0',
   default_options : [
     'buildtype=debugoptimized',
     'b_ndebug=if-release',
@@ -57,6 +57,7 @@ cl_args = [
 
   # Declare supported clang builtins since we don't autodetect for OpenCL
   '-DHAVE___BUILTIN_FFS',
+  '-DHAVE___BUILTIN_CLZ',
 ]
 
 if with_mesa_ndebug
@@ -268,10 +269,6 @@ with_asahi_vk = _vulkan_drivers.contains('asahi')
 with_gfxstream_vk = _vulkan_drivers.contains('gfxstream')
 with_any_vk = _vulkan_drivers.length() != 0
 
-if with_any_vk and host_machine.system() == 'windows' and meson.version().version_compare('< 1.3')
-  error('Vulkan drivers on Windows require meson 1.3 or newer')
-endif
-
 with_any_llvmpipe = with_gallium_llvmpipe or with_swrast_vk
 with_gallium_or_lvp = with_gallium or with_swrast_vk
 
@@ -289,6 +286,15 @@ if freedreno_kmds.length() != 0 and freedreno_kmds != [ 'msm' ] and with_freedre
     system_has_kms_drm = false
   endif
 endif
+
+with_vdrm = [
+  with_gallium_virgl,
+  with_virtio_vk,
+  with_amdgpu_virtio,
+  freedreno_kmds.contains('virtio'),
+  with_gallium_asahi,
+  with_asahi_vk,
+].contains(true)
 
 with_dri = false
 if with_gallium and system_has_kms_drm
@@ -736,17 +742,11 @@ if with_gallium_rusticl
   endif
 endif
 
-if with_gallium_rusticl or with_nouveau_vk or with_tools.contains('etnaviv')
-  if with_gallium_rusticl
-    # uses rust.bindgen.output_inline_wrapper needing 1.4.0
-    if meson.version().version_compare('< 1.4.0')
-      error('Rusticl requires meson 1.4.0 or newer')
-    endif
-  else
-    # see https://github.com/mesonbuild/meson/issues/12758 (backported to 1.3.2)
-    if meson.version().version_compare('< 1.3.2')
-      error('Mesa Rust support requires meson 1.3.2 or newer')
-    endif
+with_virtgpu_kumquat = get_option('virtgpu_kumquat') and with_gfxstream_vk
+if with_gallium_rusticl or with_nouveau_vk or with_tools.contains('etnaviv') or with_virtgpu_kumquat
+  # rust.bindgen() does not pass `--rust-target` to bindgen until 1.7.0.
+  if meson.version().version_compare('< 1.7.0')
+    error('Mesa Rust support requires Meson 1.7.0 or newer')
   endif
 
   add_languages('rust', required: true)
@@ -757,15 +757,11 @@ if with_gallium_rusticl or with_nouveau_vk or with_tools.contains('etnaviv')
     error('Mesa requires Rust 1.78.0 or newer')
   endif
 
+  # bindgen 0.71 is the first version that knows about `editions`
   bindgen_version = find_program('bindgen').version()
-  if bindgen_version == 'unknown'
-    error('Failed to detect bindgen version. If you are using bindgen 0.69.0, ' +
-          'please either update to 0.69.1 or downgrade to 0.68.1. ' +
-          'You can install the latest version for your user with `cargo install bindgen-cli`.')
-  endif
-
-  if bindgen_version.version_compare('< 0.65')
-    error('Mesa requires bindgen 0.65 or newer. ' +
+  # unknown covers buggy 0.69.0, 0.71.0
+  if bindgen_version == 'unknown' or bindgen_version.version_compare('< 0.71.1')
+    error('Mesa requires bindgen 0.71.1 or newer. ' +
           'If your distribution does not ship a recent enough version, ' +
           'you can install the latest version for your user with `cargo install bindgen-cli`.')
   endif
@@ -1917,11 +1913,8 @@ endif
 
 # ThreadSanitizer can't deal with futexes, and reports races for cases we don't care about
 # so add a define to work silence these issues.
-if get_option('b_sanitize') == 'thread'
+if get_option('b_sanitize').contains('thread')
   pre_args += '-DTHREAD_SANITIZER=1'
-  # meson versions prior to 1.4 will warn "Consider using the built-in option for sanitizers ..."
-  # later on because it only checks whether the option starts with "-fsanitize",
-  # but there is no built-in option for adding a blacklist
   tsan_blacklist = '-fsanitize-blacklist=@0@'.format(join_paths(meson.project_source_root(), 'build-support', 'tsan-blacklist.txt'))
   if cc.has_argument(tsan_blacklist)
     pre_args += tsan_blacklist

@@ -47,6 +47,7 @@
 #include "libagx_shaders.h"
 #include "nir.h"
 #include "nir_builder.h"
+#include "nir_intrinsics.h"
 #include "nir_lower_blend.h"
 #include "nir_xfb_info.h"
 #include "pool.h"
@@ -820,7 +821,9 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
             uint8_t image_plane = view->planes[plane].image_plane;
             struct ail_layout *layout = &image->planes[image_plane].layout;
 
-            if (ail_is_level_compressed(layout, view->vk.base_mip_level)) {
+            if (ail_is_level_logically_compressed(layout,
+                                                  view->vk.base_mip_level)) {
+
                perf_debug(cmd, "Decompressing in-place");
 
                unsigned level = view->vk.base_mip_level;
@@ -861,6 +864,13 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
          .clearValue = att_info->clearValue,
       };
 
+      render->color_att[i].clear = true;
+
+      static_assert(sizeof(render->color_att[i].clear_colour) ==
+                    sizeof(att_info->clearValue));
+      memcpy(render->color_att[i].clear_colour, &att_info->clearValue,
+             sizeof(att_info->clearValue));
+
       resolved_clear |= is_attachment_stored(att_info);
    }
 
@@ -874,6 +884,10 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
       clear_att[clear_count].clearValue.depthStencil.depth =
          attach_z->clearValue.depthStencil.depth;
 
+      render->depth_att.clear = true;
+      render->depth_att.clear_colour[0] =
+         fui(attach_z->clearValue.depthStencil.depth);
+
       resolved_clear |= is_attachment_stored(attach_z);
    }
 
@@ -881,6 +895,10 @@ hk_CmdBeginRendering(VkCommandBuffer commandBuffer,
        attach_s->loadOp == VK_ATTACHMENT_LOAD_OP_CLEAR) {
       clear_att[clear_count].aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
       clear_att[clear_count].clearValue.depthStencil.stencil =
+         attach_s->clearValue.depthStencil.stencil;
+
+      render->stencil_att.clear = true;
+      render->stencil_att.clear_colour[1] =
          attach_s->clearValue.depthStencil.stencil;
 
       resolved_clear |= is_attachment_stored(attach_s);
@@ -1806,6 +1824,18 @@ hk_get_fast_linked_locked_vs(struct hk_device *dev, struct hk_shader *shader,
    return linked;
 }
 
+static bool
+lower_fs_root(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *data)
+{
+   if (intr->intrinsic != nir_intrinsic_load_root_agx)
+      return false;
+
+   b->cursor = nir_before_instr(&intr->instr);
+   nir_def_replace(&intr->def,
+                   nir_load_preamble(b, 1, 64, .base = AGX_ABI_FUNI_ROOT));
+   return true;
+}
+
 static void
 build_fs_prolog(nir_builder *b, const void *key)
 {
@@ -1813,6 +1843,8 @@ build_fs_prolog(nir_builder *b, const void *key)
 
    /* Lower load_stat_query_address_agx, needed for FS statistics */
    NIR_PASS(_, b->shader, hk_lower_uvs_index, 0);
+   NIR_PASS(_, b->shader, nir_shader_intrinsics_pass, lower_fs_root,
+            nir_metadata_control_flow, NULL);
 }
 
 static struct hk_linked_shader *
@@ -2519,6 +2551,36 @@ hk_depth_bias_factor(VkFormat format, bool exact, bool force_unorm)
    }
 }
 
+static bool
+uses_blend_constant(const struct vk_color_blend_state *cb)
+{
+   static_assert(VK_BLEND_FACTOR_CONSTANT_COLOR + 1 ==
+                 VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR);
+
+   static_assert(VK_BLEND_FACTOR_CONSTANT_COLOR + 2 ==
+                 VK_BLEND_FACTOR_CONSTANT_ALPHA);
+
+   static_assert(VK_BLEND_FACTOR_CONSTANT_COLOR + 3 ==
+                 VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA);
+
+   for (unsigned i = 0; i < cb->attachment_count; ++i) {
+      unsigned factors[] = {
+         cb->attachments[i].src_color_blend_factor,
+         cb->attachments[i].src_alpha_blend_factor,
+         cb->attachments[i].dst_color_blend_factor,
+         cb->attachments[i].dst_alpha_blend_factor,
+      };
+
+      for (unsigned j = 0; j < ARRAY_SIZE(factors); ++j) {
+         if (factors[j] >= VK_BLEND_FACTOR_CONSTANT_COLOR &&
+             factors[j] <= VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA)
+            return true;
+      }
+   }
+
+   return false;
+}
+
 static void
 hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
                        uint32_t draw_id, struct agx_draw draw)
@@ -2559,6 +2621,10 @@ hk_flush_dynamic_state(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
       memcpy(desc->root.draw.blend_constant, dyn->cb.blend_constants,
              sizeof(dyn->cb.blend_constants));
       desc->root_dirty = true;
+   }
+
+   if (IS_DIRTY(CB_BLEND_EQUATIONS) || IS_DIRTY(CB_BLEND_ENABLES)) {
+      gfx->uses_blend_constant = uses_blend_constant(&dyn->cb);
    }
 
    if (IS_DIRTY(MS_SAMPLE_MASK)) {

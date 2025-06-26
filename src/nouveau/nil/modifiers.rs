@@ -6,7 +6,6 @@ use crate::image::Image;
 use crate::tiling::{GOBType, Tiling};
 
 use bitview::*;
-use nvidia_headers::classes::{cl9097, clc597};
 
 pub const MAX_DRM_FORMAT_MODS: usize = 7;
 
@@ -31,18 +30,6 @@ impl TryFrom<u64> for GOBKindVersion {
     }
 }
 
-impl GOBKindVersion {
-    pub fn for_dev(dev: &nil_rs_bindings::nv_device_info) -> GOBKindVersion {
-        if dev.cls_eng3d >= clc597::TURING_A {
-            GOBKindVersion::Turing
-        } else if dev.cls_eng3d >= cl9097::FERMI_A {
-            GOBKindVersion::Fermi
-        } else {
-            GOBKindVersion::G80
-        }
-    }
-}
-
 #[repr(u8)]
 #[derive(Clone, Copy, Eq, PartialEq)]
 pub enum SectorLayout {
@@ -62,9 +49,32 @@ impl TryFrom<u64> for SectorLayout {
     }
 }
 
-impl SectorLayout {
+impl GOBType {
+    fn supports_modifiers(&self) -> bool {
+        matches!(
+            self,
+            GOBType::Linear | GOBType::FermiColor | GOBType::TuringColor2D
+        )
+    }
+
+    fn kind_version(&self) -> GOBKindVersion {
+        match self {
+            GOBType::Linear => {
+                panic!("Linear modifierss are handled elsewhere");
+            }
+            GOBType::FermiZS => {
+                panic!("Modifiers are not supported for Z/S images");
+            }
+            GOBType::FermiColor => GOBKindVersion::Fermi,
+            GOBType::TuringColor2D => GOBKindVersion::Turing,
+            GOBType::Blackwell8Bit | GOBType::Blackwell16Bit => {
+                todo!("We need new modifiers for Blackwell+")
+            }
+        }
+    }
+
     // For now, this always returns desktop, but will be different for Tegra
-    pub fn for_dev(_dev: &nil_rs_bindings::nv_device_info) -> SectorLayout {
+    fn sector_layout(&self) -> SectorLayout {
         SectorLayout::Desktop
     }
 }
@@ -169,10 +179,18 @@ impl BlockLinearModifier {
         bv.get_bit_range_u64(23..26).try_into().unwrap()
     }
 
+    pub fn gob_type(&self) -> GOBType {
+        assert!(self.sector_layout() == SectorLayout::Desktop);
+        match self.gob_kind_version() {
+            GOBKindVersion::Fermi => GOBType::FermiColor,
+            GOBKindVersion::G80 => todo!("Unsupported GOB kind"),
+            GOBKindVersion::Turing => GOBType::TuringColor2D,
+        }
+    }
+
     pub fn tiling(&self) -> Tiling {
-        assert!(self.gob_kind_version() != GOBKindVersion::G80);
         Tiling {
-            gob_type: GOBType::Fermi8,
+            gob_type: self.gob_type(),
             x_log2: 0,
             y_log2: self.height_log2(),
             z_log2: 0,
@@ -216,8 +234,11 @@ pub fn drm_format_mods_for_format(
     }
 
     let compression_type = CompressionType::None;
-    let sector_layout = SectorLayout::for_dev(dev);
-    let gob_kind_version = GOBKindVersion::for_dev(dev);
+    let gob_type = GOBType::choose(dev, format);
+    if !gob_type.supports_modifiers() {
+        return;
+    }
+
     let pte_kind = Image::choose_pte_kind(dev, format, 1, false);
 
     // We assume bigger tiling is better
@@ -226,8 +247,8 @@ pub fn drm_format_mods_for_format(
 
         let bl_mod = BlockLinearModifier::block_linear_2d(
             compression_type,
-            sector_layout,
-            gob_kind_version,
+            gob_type.sector_layout(),
+            gob_type.kind_version(),
             pte_kind,
             height_log2,
         );
@@ -259,11 +280,16 @@ pub fn drm_format_mod_is_supported(
         return false;
     }
 
-    if bl_mod.gob_kind_version() != GOBKindVersion::for_dev(dev) {
+    let gob_type = GOBType::choose(dev, format);
+    if !gob_type.supports_modifiers() {
         return false;
     }
 
-    if bl_mod.sector_layout() != SectorLayout::for_dev(dev) {
+    if bl_mod.gob_kind_version() != gob_type.kind_version() {
+        return false;
+    }
+
+    if bl_mod.sector_layout() != gob_type.sector_layout() {
         return false;
     }
 

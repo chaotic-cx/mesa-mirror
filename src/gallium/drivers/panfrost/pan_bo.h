@@ -110,7 +110,10 @@ struct panfrost_bo {
     */
    uint32_t gpu_access;
 
-   /* Human readable description of the BO for debugging. */
+   /* Driver-provided human-readable description of the BO for debugging.
+    * Consists of a BO name and optional additional information, like
+    * pixel format or buffer modifiers.
+    */
    const char *label;
 };
 
@@ -139,5 +142,13 @@ int panfrost_bo_mmap(struct panfrost_bo *bo);
 struct panfrost_bo *panfrost_bo_import(struct panfrost_device *dev, int fd);
 int panfrost_bo_export(struct panfrost_bo *bo);
 void panfrost_bo_cache_evict_all(struct panfrost_device *dev);
+
+const char *panfrost_bo_replace_label(struct panfrost_bo *bo, const char *label,
+                                      bool set_kernel_label);
+static inline const char *
+panfrost_bo_set_label(struct panfrost_bo *bo, const char *label)
+{
+   return panfrost_bo_replace_label(bo, label, true);
+}
 
 #endif /* __PAN_BO_H__ */

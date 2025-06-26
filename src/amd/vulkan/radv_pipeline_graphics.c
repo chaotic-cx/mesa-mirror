@@ -1192,12 +1192,12 @@ radv_link_shaders(const struct radv_device *device, struct radv_shader_stage *pr
    NIR_PASS(_, producer, nir_lower_array_deref_of_vec, nir_var_shader_out, NULL, array_deref_of_vec_options);
    NIR_PASS(_, consumer, nir_lower_array_deref_of_vec, nir_var_shader_in, NULL, array_deref_of_vec_options);
 
-   nir_lower_io_arrays_to_elements(producer, consumer);
+   nir_lower_io_array_vars_to_elements(producer, consumer);
    nir_validate_shader(producer, "after nir_lower_io_arrays_to_elements");
    nir_validate_shader(consumer, "after nir_lower_io_arrays_to_elements");
 
-   radv_nir_lower_io_to_scalar_early(producer, nir_var_shader_out);
-   radv_nir_lower_io_to_scalar_early(consumer, nir_var_shader_in);
+   radv_nir_lower_io_vars_to_scalar(producer, nir_var_shader_out);
+   radv_nir_lower_io_vars_to_scalar(consumer, nir_var_shader_in);
 
    /* Remove PSIZ from shaders when it's not needed.
     * This is typically produced by translation layers like Zink or D9VK.
@@ -1236,17 +1236,17 @@ radv_link_shaders(const struct radv_device *device, struct radv_shader_stage *pr
    if (producer->info.stage == MESA_SHADER_TESS_CTRL || producer->info.stage == MESA_SHADER_MESH ||
        (producer->info.stage == MESA_SHADER_VERTEX && has_geom_or_tess) ||
        (producer->info.stage == MESA_SHADER_TESS_EVAL && merged_gs)) {
-      NIR_PASS(_, producer, nir_lower_io_to_vector, nir_var_shader_out);
+      NIR_PASS(_, producer, nir_opt_vectorize_io_vars, nir_var_shader_out);
 
       if (producer->info.stage == MESA_SHADER_TESS_CTRL)
-         NIR_PASS(_, producer, nir_vectorize_tess_levels);
+         NIR_PASS(_, producer, nir_lower_tess_level_array_vars_to_vec);
 
       NIR_PASS(_, producer, nir_opt_combine_stores, nir_var_shader_out);
    }
 
    if (consumer->info.stage == MESA_SHADER_GEOMETRY || consumer->info.stage == MESA_SHADER_TESS_CTRL ||
        consumer->info.stage == MESA_SHADER_TESS_EVAL) {
-      NIR_PASS(_, consumer, nir_lower_io_to_vector, nir_var_shader_in);
+      NIR_PASS(_, consumer, nir_opt_vectorize_io_vars, nir_var_shader_in);
    }
 }
 
@@ -2313,12 +2313,13 @@ radv_create_gs_copy_shader(struct radv_device *device, struct vk_pipeline_cache 
    if (dump_shader)
       simple_mtx_lock(&instance->shader_dump_mtx);
 
+   *gs_copy_binary = radv_shader_nir_to_asm(device, &gs_copy_stage, &nir, 1, &key.gfx_state, keep_executable_info,
+                                            keep_statistic_info);
+
    char *nir_string = NULL;
    if (keep_executable_info || dump_shader)
       nir_string = radv_dump_nir_shaders(instance, &nir, 1);
 
-   *gs_copy_binary = radv_shader_nir_to_asm(device, &gs_copy_stage, &nir, 1, &key.gfx_state, keep_executable_info,
-                                            keep_statistic_info);
    struct radv_shader *copy_shader =
       radv_shader_create(device, cache, *gs_copy_binary, skip_shaders_cache || dump_shader);
 
@@ -2386,12 +2387,14 @@ radv_graphics_shaders_nir_to_asm(struct radv_device *device, struct vk_pipeline_
          }
       }
 
+      binaries[s] = radv_shader_nir_to_asm(device, &stages[s], nir_shaders, shader_count, gfx_state,
+                                           keep_executable_info, keep_statistic_info);
+
+      /* Dump NIR after nir_to_asm, because ACO modifies it. */
       char *nir_string = NULL;
       if (keep_executable_info || dump_shader)
          nir_string = radv_dump_nir_shaders(instance, nir_shaders, shader_count);
 
-      binaries[s] = radv_shader_nir_to_asm(device, &stages[s], nir_shaders, shader_count, gfx_state,
-                                           keep_executable_info, keep_statistic_info);
       shaders[s] = radv_shader_create(device, cache, binaries[s], skip_shaders_cache || dump_shader);
 
       shaders[s]->nir_string = nir_string;
@@ -2744,8 +2747,6 @@ radv_graphics_shaders_compile(struct radv_device *device, struct vk_pipeline_cac
 
       radv_optimize_nir(stages[i].nir, stages[i].key.optimisations_disabled);
 
-      /* Gather info again, information such as outputs_read can be out-of-date. */
-      nir_shader_gather_info(stages[i].nir, nir_shader_get_entrypoint(stages[i].nir));
       radv_nir_lower_io(device, stages[i].nir);
 
       stages[i].feedback.duration += os_time_get_nano() - stage_start;
@@ -2759,6 +2760,8 @@ radv_graphics_shaders_compile(struct radv_device *device, struct vk_pipeline_cac
 
       if (!gfx_state->ps.has_epilog)
          radv_nir_remap_color_attachment(stages[MESA_SHADER_FRAGMENT].nir, gfx_state);
+
+      NIR_PASS(update_info, stages[MESA_SHADER_FRAGMENT].nir, radv_nir_lower_fs_input_attachment);
 
       NIR_PASS(update_info, stages[MESA_SHADER_FRAGMENT].nir, nir_opt_frag_coord_to_pixel_coord);
       if (update_info)

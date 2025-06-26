@@ -76,9 +76,8 @@ jm_files = [
   'jm/panvk_vX_cmd_event.c',
   'jm/panvk_vX_cmd_query.c',
   'jm/panvk_vX_cmd_precomp.c',
-  'jm/panvk_vX_device.c',
   'jm/panvk_vX_event.c',
-  'jm/panvk_vX_queue.c',
+  'jm/panvk_vX_gpu_queue.c',
 ]
 
 csf_archs = [10, 12, 13]
@@ -90,10 +89,9 @@ csf_files = [
   'csf/panvk_vX_cmd_event.c',
   'csf/panvk_vX_cmd_query.c',
   'csf/panvk_vX_cmd_precomp.c',
-  'csf/panvk_vX_device.c',
   'csf/panvk_vX_event.c',
   'csf/panvk_vX_exception_handler.c',
-  'csf/panvk_vX_queue.c',
+  'csf/panvk_vX_gpu_queue.c',
   'csf/panvk_vX_utrace.c',
 ]
 
@@ -177,12 +175,6 @@ if with_platform_wayland
   libpanvk_files += [wayland_drm_client_protocol_h, wayland_drm_protocol_c]
 endif
 
-if with_platform_android
-  panvk_deps += [dep_android]
-  panvk_flags += '-DVK_USE_PLATFORM_ANDROID_KHR'
-  libpanvk_files += files('panvk_android.c')
-endif
-
 libvulkan_panfrost = shared_library(
   'vulkan_panfrost',
   [libpanvk_files, panvk_entrypoints, panvk_tracepoints],
@@ -227,6 +219,7 @@ panfrost_icd = custom_target(
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.4', '--xml', '@INPUT1@',
+    '--sizeof-pointer', sizeof_pointer,
     '--lib-path', join_paths(get_option('prefix'), get_option('libdir'),
                              'libvulkan_panfrost.so'),
     '--out', '@OUTPUT@',
@@ -245,6 +238,7 @@ _dev_icd = custom_target(
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.4', '--xml', '@INPUT1@',
+    '--sizeof-pointer', sizeof_pointer,
     '--lib-path', meson.current_build_dir() / 'libvulkan_panfrost.so',
     '--out', '@OUTPUT@',
   ],

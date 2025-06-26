@@ -81,7 +81,7 @@ panvk_image_can_use_mod(struct panvk_image *image, uint64_t mod)
            VK_IMAGE_USAGE_STORAGE_BIT) ||
           image->vk.samples > 1 ||
           !pan_query_afbc(&phys_dev->kmod.props) ||
-          !pan_format_supports_afbc(arch, pfmt) ||
+          !pan_afbc_supports_format(arch, pfmt) ||
           image->vk.tiling == VK_IMAGE_TILING_LINEAR ||
           image->vk.image_type == VK_IMAGE_TYPE_1D ||
           (image->vk.image_type == VK_IMAGE_TYPE_3D && arch < 7) ||
@@ -97,10 +97,22 @@ panvk_image_can_use_mod(struct panvk_image *image, uint64_t mod)
       if ((mod & AFBC_FORMAT_MOD_YTR) && (!is_rgb || fdesc->nr_channels >= 3))
          return false;
 
+      /* AFBC headers point to their tile with a 32-bit offset, so we can't
+       * have a body size that's bigger than UINT32_MAX. */
+      uint64_t body_size = (uint64_t)image->vk.extent.width *
+                           image->vk.extent.height * image->vk.extent.depth *
+                           util_format_get_blocksize(pfmt);
+      if (body_size > UINT32_MAX)
+         return false;
+
       /* We assume all other unsupported AFBC modes have been filtered out
        * through pan_best_modifiers[]. */
       return true;
    }
+
+   /* Some formats can only be used with AFBC. */
+   if (!pan_u_tiled_or_linear_supports_format(pfmt))
+      return false;
 
    if (mod == DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED) {
       /* Multiplanar YUV with U-interleaving isn't supported by the HW. We
@@ -218,7 +230,7 @@ is_disjoint(const struct panvk_image *image)
    return image->vk.create_flags & VK_IMAGE_CREATE_DISJOINT_BIT;
 }
 
-static void
+static VkResult
 panvk_image_init_layouts(struct panvk_image *image,
                          const VkImageCreateInfo *pCreateInfo)
 {
@@ -239,6 +251,8 @@ panvk_image_init_layouts(struct panvk_image *image,
    if (image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT)
       image->plane_count = 2;
 
+   const struct pan_mod_handler *mod_handler =
+      pan_mod_get_handler(arch, image->vk.drm_format_mod);
    struct pan_image_layout_constraints plane_layout = {
       .offset_B = 0,
    };
@@ -273,15 +287,21 @@ panvk_image_init_layouts(struct panvk_image *image,
             .nr_samples = image->vk.samples,
             .nr_slices = image->vk.mip_levels,
          },
+         .mod_handler = mod_handler,
          .planes = {&image->planes[plane].plane},
       };
 
-      pan_image_layout_init(arch, &image->planes[plane].image.props, 0,
-                            &plane_layout, &image->planes[plane].plane.layout);
+      if (!pan_image_layout_init(arch, &image->planes[plane].image, 0,
+                                 &plane_layout)) {
+         return panvk_error(image->vk.base.device,
+                            VK_ERROR_INITIALIZATION_FAILED);
+      }
 
       if (!is_disjoint(image) && !explicit_info)
          plane_layout.offset_B += image->planes[plane].plane.layout.data_size_B;
    }
+
+   return VK_SUCCESS;
 }
 
 static void
@@ -352,7 +372,7 @@ panvk_image_get_total_size(const struct panvk_image *image)
    return size;
 }
 
-static void
+static VkResult
 panvk_image_init(struct panvk_image *image,
                  const VkImageCreateInfo *pCreateInfo)
 {
@@ -364,7 +384,42 @@ panvk_image_init(struct panvk_image *image,
    /* Now that we've patched the create/usage flags, we can proceed with the
     * modifier selection. */
    image->vk.drm_format_mod = panvk_image_get_mod(image, pCreateInfo);
-   panvk_image_init_layouts(image, pCreateInfo);
+   return panvk_image_init_layouts(image, pCreateInfo);
+}
+
+static VkResult
+panvk_image_plane_bind(struct panvk_device *dev,
+                       struct panvk_image_plane *plane, struct pan_kmod_bo *bo,
+                       uint64_t base, uint64_t offset)
+{
+   plane->plane.base = base + offset;
+   /* Reset the AFBC headers */
+   if (drm_is_afbc(plane->image.props.modifier)) {
+      /* Transient CPU mapping */
+      void *bo_base = pan_kmod_bo_mmap(bo, 0, pan_kmod_bo_size(bo),
+                                       PROT_WRITE, MAP_SHARED, NULL);
+
+      if (bo_base == MAP_FAILED)
+         return panvk_errorf(dev, VK_ERROR_OUT_OF_HOST_MEMORY,
+                             "Failed to CPU map AFBC image plane");
+
+      for (unsigned layer = 0; layer < plane->image.props.array_size;
+           layer++) {
+         for (unsigned level = 0; level < plane->image.props.nr_slices;
+              level++) {
+            void *header = bo_base + offset +
+                           (layer * plane->plane.layout.array_stride_B) +
+                           plane->plane.layout.slices[level].offset_B;
+            memset(header, 0,
+                   plane->plane.layout.slices[level].afbc.header.size_B);
+         }
+      }
+
+      ASSERTED int ret = os_munmap(bo_base, pan_kmod_bo_size(bo));
+      assert(!ret);
+   }
+
+   return VK_SUCCESS;
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL
@@ -389,7 +444,11 @@ panvk_CreateImage(VkDevice device, const VkImageCreateInfo *pCreateInfo,
    if (!image)
       return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
 
-   panvk_image_init(image, pCreateInfo);
+   VkResult result = panvk_image_init(image, pCreateInfo);
+   if (result != VK_SUCCESS) {
+      vk_image_destroy(&dev->vk, pAllocator, &image->vk);
+      return result;
+   }
 
    /*
     * From the Vulkan spec:
@@ -436,9 +495,18 @@ get_image_subresource_layout(const struct panvk_image *image,
       slice_layout->offset_B +
       (subres->arrayLayer * image->planes[plane].plane.layout.array_stride_B);
    layout->size = slice_layout->size_B;
-   layout->rowPitch = slice_layout->row_stride_B;
    layout->arrayPitch = image->planes[plane].plane.layout.array_stride_B;
-   layout->depthPitch = slice_layout->surface_stride_B;
+
+   if (drm_is_afbc(image->vk.drm_format_mod)) {
+      /* row/depth pitch expressed in AFBC superblocks. */
+      layout->rowPitch = pan_afbc_stride_blocks(
+         image->vk.drm_format_mod, slice_layout->afbc.header.row_stride_B);
+      layout->depthPitch = pan_afbc_stride_blocks(
+         image->vk.drm_format_mod, slice_layout->afbc.header.surface_stride_B);
+   } else {
+      layout->rowPitch = slice_layout->tiled_or_linear.row_stride_B;
+      layout->depthPitch = slice_layout->tiled_or_linear.surface_stride_B;
+   }
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -539,41 +607,6 @@ panvk_GetDeviceImageSparseMemoryRequirements(VkDevice device,
 {
    /* Sparse images are not yet supported. */
    *pSparseMemoryRequirementCount = 0;
-}
-
-static VkResult
-panvk_image_plane_bind(struct panvk_device *dev,
-                       struct panvk_image_plane *plane, struct pan_kmod_bo *bo,
-                       uint64_t base, uint64_t offset)
-{
-   plane->plane.base = base + offset;
-   /* Reset the AFBC headers */
-   if (drm_is_afbc(plane->image.props.modifier)) {
-      /* Transient CPU mapping */
-      void *bo_base = pan_kmod_bo_mmap(bo, 0, pan_kmod_bo_size(bo),
-                                       PROT_WRITE, MAP_SHARED, NULL);
-
-      if (bo_base == MAP_FAILED)
-         return panvk_errorf(dev, VK_ERROR_OUT_OF_HOST_MEMORY,
-                             "Failed to CPU map AFBC image plane");
-
-      for (unsigned layer = 0; layer < plane->image.props.array_size;
-           layer++) {
-         for (unsigned level = 0; level < plane->image.props.nr_slices;
-              level++) {
-            void *header = bo_base + offset +
-                           (layer * plane->plane.layout.array_stride_B) +
-                           plane->plane.layout.slices[level].offset_B;
-            memset(header, 0,
-                   plane->plane.layout.slices[level].afbc.header_size_B);
-         }
-      }
-
-      ASSERTED int ret = os_munmap(bo_base, pan_kmod_bo_size(bo));
-      assert(!ret);
-   }
-
-   return VK_SUCCESS;
 }
 
 static VkResult

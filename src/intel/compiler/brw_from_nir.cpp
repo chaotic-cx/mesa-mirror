@@ -1508,30 +1508,6 @@ brw_from_nir_emit_alu(nir_to_brw_state &ntb, nir_alu_instr *instr,
       bld.RNDE(result, op[0]);
       break;
 
-   case nir_op_fquantize2f16: {
-      brw_reg tmp16 = bld.vgrf(BRW_TYPE_D);
-      brw_reg tmp32 = bld.vgrf(BRW_TYPE_F);
-
-      /* The destination stride must be at least as big as the source stride. */
-      tmp16 = subscript(tmp16, BRW_TYPE_HF, 0);
-
-      /* Check for denormal */
-      brw_reg abs_src0 = op[0];
-      abs_src0.abs = true;
-      bld.CMP(bld.null_reg_f(), abs_src0, brw_imm_f(ldexpf(1.0, -14)),
-              BRW_CONDITIONAL_L);
-      /* Get the appropriately signed zero */
-      brw_reg zero = retype(bld.AND(retype(op[0], BRW_TYPE_UD),
-                                   brw_imm_ud(0x80000000)), BRW_TYPE_F);
-      /* Do the actual F32 -> F16 -> F32 conversion */
-      bld.MOV(tmp16, op[0]);
-      bld.MOV(tmp32, tmp16);
-      /* Select that or zero based on normal status */
-      inst = bld.SEL(result, zero, tmp32);
-      inst->predicate = BRW_PREDICATE_NORMAL;
-      break;
-   }
-
    case nir_op_imin:
    case nir_op_umin:
    case nir_op_fmin:
@@ -4622,6 +4598,61 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
    }
 }
 
+static bool
+can_use_instruction_offset(enum lsc_addr_surface_type binding_type, int32_t offset)
+{
+   const unsigned max_bits = brw_max_immediate_offset_bits(binding_type);
+   return offset >= u_intN_min(max_bits) && offset <= u_intN_max(max_bits);
+}
+
+static void
+set_memory_address(nir_to_brw_state &ntb,
+                   const brw_builder &bld,
+                   nir_intrinsic_instr *instr,
+                   bool is_store,
+                   brw_reg *srcs)
+{
+   const intel_device_info *devinfo = ntb.devinfo;
+   const nir_src *nir_src_offset = nir_get_io_offset_src(instr);
+   const brw_reg src_offset = get_nir_src_imm(ntb, *nir_src_offset);
+   const enum lsc_addr_surface_type binding_type =
+      (enum lsc_addr_surface_type) srcs[MEMORY_LOGICAL_BINDING_TYPE].ud;
+   const brw_builder ubld = src_offset.is_scalar ? bld.scalar_group() : bld;
+
+   if (devinfo->ver < 20 ||
+       (!nir_intrinsic_has_base(instr) && !nir_src_is_const(*nir_src_offset))) {
+      srcs[MEMORY_LOGICAL_ADDRESS] =
+         nir_intrinsic_has_base(instr) ?
+         ubld.ADD(src_offset,
+                  brw_imm_int(src_offset.type, nir_intrinsic_base(instr))) :
+         src_offset;
+      srcs[MEMORY_LOGICAL_ADDRESS_OFFSET] = brw_imm_d(0);
+   } else if (!nir_intrinsic_has_base(instr) && nir_src_is_const(*nir_src_offset)) {
+      const int32_t offset = nir_src_as_int(*nir_src_offset);
+      if (can_use_instruction_offset(binding_type, offset)) {
+         srcs[MEMORY_LOGICAL_ADDRESS] = brw_imm_ud(0);
+         srcs[MEMORY_LOGICAL_ADDRESS_OFFSET] = brw_imm_d(offset);
+      } else {
+         srcs[MEMORY_LOGICAL_ADDRESS] = src_offset;
+         srcs[MEMORY_LOGICAL_ADDRESS_OFFSET] = brw_imm_d(0);
+      }
+   } else {
+      assert(nir_intrinsic_has_base(instr));
+      const int32_t offset = nir_intrinsic_base(instr);
+      assert(can_use_instruction_offset(binding_type, offset));
+      srcs[MEMORY_LOGICAL_ADDRESS] = src_offset;
+      srcs[MEMORY_LOGICAL_ADDRESS_OFFSET] = brw_imm_d(offset);
+   }
+
+   /* If nir_src is_scalar, the MEMORY_LOGICAL_ADDRESS will be allocated at
+    * scalar_group() size and will have every component the same value. This
+    * is the definition of is_scalar. Much more importantly, setting is_scalar
+    * properly also ensures that emit_uniformize (below) will handle the value
+    * as scalar_group() size instead of full dispatch width.
+    */
+   srcs[MEMORY_LOGICAL_ADDRESS].is_scalar = src_offset.is_scalar;
+}
+
 static unsigned
 brw_workgroup_size(brw_shader &s)
 {
@@ -4725,6 +4756,7 @@ brw_from_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
       srcs[MEMORY_LOGICAL_DATA_SIZE] = brw_imm_ud(LSC_DATA_SIZE_D32);
       srcs[MEMORY_LOGICAL_COMPONENTS] = brw_imm_ud(3);
       srcs[MEMORY_LOGICAL_FLAGS] = brw_imm_ud(0);
+      srcs[MEMORY_LOGICAL_ADDRESS_OFFSET] = brw_imm_d(0);
 
       brw_inst *inst =
          bld.emit(SHADER_OPCODE_MEMORY_LOAD_LOGICAL,
@@ -4917,6 +4949,7 @@ get_nir_buffer_intrinsic_index(nir_to_brw_state &ntb, const brw_builder &bld,
    /* SSBO stores are weird in that their index is in src[1] */
    const bool is_store =
       instr->intrinsic == nir_intrinsic_store_ssbo ||
+      instr->intrinsic == nir_intrinsic_store_ssbo_intel ||
       instr->intrinsic == nir_intrinsic_store_ssbo_block_intel;
    nir_src src = is_store ? instr->src[1] : instr->src[0];
 
@@ -5024,9 +5057,7 @@ increment_a64_address(const brw_builder &_bld, brw_reg address, uint32_t v, bool
    const brw_builder bld = use_no_mask ? _bld.exec_all().group(8, 0) : _bld;
 
    if (bld.shader->devinfo->has_64bit_int) {
-      struct brw_reg imm = brw_imm_reg(address.type);
-      imm.u64 = v;
-      return bld.ADD(address, imm);
+      return bld.ADD(address, brw_imm_int(address.type, v));
    } else {
       brw_reg dst = bld.vgrf(BRW_TYPE_UQ);
       brw_reg dst_low = subscript(dst, BRW_TYPE_UD, 0);
@@ -5883,7 +5914,9 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
    case nir_intrinsic_shared_atomic:
    case nir_intrinsic_shared_atomic_swap:
    case nir_intrinsic_load_ssbo:
+   case nir_intrinsic_load_ssbo_intel:
    case nir_intrinsic_store_ssbo:
+   case nir_intrinsic_store_ssbo_intel:
    case nir_intrinsic_ssbo_atomic:
    case nir_intrinsic_ssbo_atomic_swap:
    case nir_intrinsic_load_global:
@@ -6298,6 +6331,11 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
              */
             brw_reg base_offset = retype(get_nir_src(ntb, instr->src[1], 0),
                                         BRW_TYPE_UD);
+            if (nir_intrinsic_has_base(instr)) {
+               struct brw_reg imm = brw_imm_int(base_offset.type,
+                                                nir_intrinsic_base(instr));
+               base_offset = bld.ADD(base_offset, imm);
+            }
 
             const unsigned comps_per_load = brw_type_size_bytes(dest.type) == 8 ? 2 : 4;
 
@@ -6327,7 +6365,8 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
           */
          const unsigned type_size = brw_type_size_bytes(dest.type);
          const unsigned load_offset =
-            nir_src_as_uint(instr->src[1]) + first_component * type_size;
+            nir_src_as_uint(instr->src[1]) + first_component * type_size +
+            (nir_intrinsic_has_base(instr) ? nir_intrinsic_base(instr) : 0);
          const unsigned end_offset = load_offset + num_components * type_size;
          const unsigned ubo_block =
             brw_nir_ubo_surface_index_get_push_block(instr->src[0]);
@@ -6995,6 +7034,9 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
       brw_imm_ud(include_helpers ? MEMORY_FLAG_INCLUDE_HELPERS : 0);
    /* DATA0 and DATA1 are handled below */
 
+   /* Set the default address offset to 0 */
+   srcs[MEMORY_LOGICAL_ADDRESS_OFFSET] = brw_imm_d(0);
+
    switch (instr->intrinsic) {
    case nir_intrinsic_bindless_image_load:
    case nir_intrinsic_bindless_image_store:
@@ -7040,7 +7082,9 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
       srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_CONSTANT);
       FALLTHROUGH;
    case nir_intrinsic_load_ssbo:
+   case nir_intrinsic_load_ssbo_intel:
    case nir_intrinsic_store_ssbo:
+   case nir_intrinsic_store_ssbo_intel:
    case nir_intrinsic_ssbo_atomic:
    case nir_intrinsic_ssbo_atomic_swap:
    case nir_intrinsic_load_ssbo_block_intel:
@@ -7053,9 +7097,7 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
                     LSC_ADDR_SURFTYPE_BSS : LSC_ADDR_SURFTYPE_BTI);
       srcs[MEMORY_LOGICAL_BINDING] =
          get_nir_buffer_intrinsic_index(ntb, bld, instr, &no_mask_handle);
-      srcs[MEMORY_LOGICAL_ADDRESS] =
-         get_nir_src_imm(ntb, instr->src[is_store ? 2 : 1]);
-
+      set_memory_address(ntb, bld, instr, is_store, srcs);
       data_src = is_atomic ? 2 : 0;
       break;
    case nir_intrinsic_load_shared:
@@ -7067,26 +7109,7 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
    case nir_intrinsic_load_shared_uniform_block_intel: {
       srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_SHARED_LOCAL);
       srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_FLAT);
-
-      const brw_reg nir_src = get_nir_src(ntb, instr->src[is_store ? 1 : 0], 0);
-      const brw_builder ubld = nir_src.is_scalar ? bld.scalar_group() : bld;
-
-      /* If the logical address is not uniform, a call to emit_uniformize
-       * below will fix it up.
-       */
-      srcs[MEMORY_LOGICAL_ADDRESS] =
-         ubld.ADD(retype(nir_src, BRW_TYPE_UD),
-                  brw_imm_ud(nir_intrinsic_base(instr)));
-
-      /* If nir_src is_scalar, the MEMORY_LOGICAL_ADDRESS will be allocated at
-       * scalar_group() size and will have every component the same
-       * value. This is the definition of is_scalar. Much more importantly,
-       * setting is_scalar properly also ensures that emit_uniformize (below)
-       * will handle the value as scalar_group() size instead of full dispatch
-       * width.
-       */
-      srcs[MEMORY_LOGICAL_ADDRESS].is_scalar = nir_src.is_scalar;
-
+      set_memory_address(ntb, bld, instr, is_store, srcs);
       data_src = is_atomic ? 1 : 0;
       no_mask_handle = true;
       break;
@@ -7145,11 +7168,9 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
    case nir_intrinsic_store_global_block_intel:
       srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_UNTYPED);
       srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_FLAT);
-      srcs[MEMORY_LOGICAL_ADDRESS] =
-         get_nir_src(ntb, instr->src[is_store ? 1 : 0], 0);
-      no_mask_handle = srcs[MEMORY_LOGICAL_ADDRESS].is_scalar;
-
+      set_memory_address(ntb, bld, instr, is_store, srcs);
       data_src = is_atomic ? 1 : 0;
+      no_mask_handle = srcs[MEMORY_LOGICAL_ADDRESS].is_scalar;
       break;
 
    default:

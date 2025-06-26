@@ -13,6 +13,7 @@ inc_gallium = include_directories('gallium/include')
 inc_gallium_aux = include_directories('gallium/auxiliary')
 inc_amd_common = include_directories('amd/common', 'amd/common/nir')
 inc_tool = include_directories('tool')
+inc_virtio = include_directories('virtio')
 inc_virtio_gpu = include_directories('virtio/virtio-gpu')
 inc_frontends = include_directories('gallium/frontends')
 pps_datasources = []
@@ -69,8 +70,11 @@ endif
 if with_any_intel
   subdir('intel')
 endif
-if system_has_kms_drm or with_gallium_virgl
-  subdir('virtio')
+if with_virtio_vk
+  subdir('virtio/vulkan')
+endif
+if with_vdrm
+  subdir('virtio/vdrm')
 endif
 if with_gallium_radeonsi or with_amd_vk or with_gallium_r300 or with_gallium_r600
   subdir('amd')
@@ -90,9 +94,6 @@ endif
 if with_gallium_panfrost or with_gallium_lima or with_panfrost_vk or with_tools.contains('panfrost')
   subdir('panfrost')
 endif
-#if with_gallium_virgl or with_virtio_vk
-#  subdir('virtio')
-#endif
 if with_microsoft_clc or with_gallium_d3d12 or with_spirv_to_dxil or with_microsoft_vk
   subdir('microsoft')
 endif
@@ -100,6 +101,13 @@ if with_any_nouveau
   subdir('nouveau')
 endif
 if with_gfxstream_vk
+  dep_virtgpu_kumquat_ffi = null_dep
+  if with_virtgpu_kumquat
+    subdir('util/rust')
+    subdir('virtio/protocols')
+    subdir('virtio/virtgpu_kumquat')
+    subdir('virtio/virtgpu_kumquat_ffi')
+  endif
   subdir('gfxstream')
 endif
 if with_gallium_asahi or with_asahi_vk or with_tools.contains('asahi')

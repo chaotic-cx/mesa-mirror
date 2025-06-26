@@ -158,9 +158,8 @@ panvk_per_arch(CreateDescriptorSetLayout)(
       }
 
       if (binding_layout->type & VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK) {
-         /* One extra descriptor at the start to use as a buffer descriptor. */
          binding_layout->desc_count =
-            DIV_ROUND_UP(binding->descriptorCount, PANVK_DESCRIPTOR_SIZE) + 1;
+            panvk_get_iub_desc_count(binding->descriptorCount);
       } else {
          binding_layout->desc_count = binding->descriptorCount;
       }
@@ -254,6 +253,7 @@ panvk_per_arch(GetDescriptorSetLayoutSupport)(
 
    unsigned desc_count = 0, dyn_buf_count = 0, non_variable_count = 0,
             variable_stride = 0;
+   VkDescriptorType variable_type = {0};
    for (unsigned i = 0; i < pCreateInfo->bindingCount; i++) {
       const VkDescriptorSetLayoutBinding *binding = &pCreateInfo->pBindings[i];
       VkDescriptorType type = binding->descriptorType;
@@ -291,11 +291,49 @@ panvk_per_arch(GetDescriptorSetLayoutSupport)(
       };
 
       unsigned stride = panvk_get_desc_stride(&layout);
-      unsigned count = stride * binding->descriptorCount;
-      desc_count += count;
-      if (flags & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT)
+      unsigned binding_desc_count = binding->descriptorCount;
+      bool has_variable_count =
+         flags & VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT;
+
+      if (has_variable_count) {
+         /* From the Vulkan 1.4.318 spec for
+          * VkDescriptorSetLayoutBindingFlagsCreateInfo:
+          *
+          *    "If an element of pBindingFlags includes
+          *    VK_DESCRIPTOR_BINDING_VARIABLE_DESCRIPTOR_COUNT_BIT, then it
+          *    must be the element with the highest binding number"
+          *
+          * Which implies only a single binding can have a variable count.
+          */
+         assert(!variable_stride);
+
+         if (binding_desc_count == 0) {
+            /* From the Vulkan 1.4.318 spec for
+             * VkDescriptorSetVariableDescriptorCountLayoutSupport:
+             *
+             *    "For the purposes of this command, a variable-sized
+             *    descriptor binding with a descriptorCount of zero is treated
+             *    as having a descriptorCount of four if descriptorType is
+             *    VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK, or one otherwise,
+             *    and thus the binding is not ignored and the maximum
+             *    descriptor count will be returned."
+             */
+            binding_desc_count =
+               type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK ? 4 : 1;
+         }
+
+         variable_type = type;
          variable_stride = stride;
-      else
+         assert(variable_stride);
+      }
+
+      unsigned count = type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK
+                          ? panvk_get_iub_desc_count(binding_desc_count)
+                          : stride * binding_desc_count;
+
+      desc_count += count;
+
+      if (!has_variable_count)
          non_variable_count += count;
    }
 
@@ -304,7 +342,24 @@ panvk_per_arch(GetDescriptorSetLayoutSupport)(
       return;
 
    pSupport->supported = true;
-   if (var_desc_count)
-      var_desc_count->maxVariableDescriptorCount = variable_stride != 0 ?
-         (PANVK_MAX_DESCS_PER_SET - non_variable_count) / variable_stride : 0;
+
+   if (!var_desc_count)
+      return;
+
+   var_desc_count->maxVariableDescriptorCount = 0;
+
+   if (!variable_stride)
+      return;
+
+   if (variable_type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK) {
+      /* Maximum byte size for inline uniform block */
+      unsigned available_size =
+         panvk_get_iub_size(PANVK_MAX_DESCS_PER_SET - non_variable_count);
+      var_desc_count->maxVariableDescriptorCount =
+         MIN2(available_size, MAX_INLINE_UNIFORM_BLOCK_SIZE);
+   } else {
+      /* Maximum descriptor count for any other descriptor type */
+      var_desc_count->maxVariableDescriptorCount =
+         (PANVK_MAX_DESCS_PER_SET - non_variable_count) / variable_stride;
+   }
 }

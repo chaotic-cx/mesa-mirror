@@ -210,8 +210,6 @@ sync_update(struct ir3_legalize_state *state, struct ir3_compiler *compiler,
    if (is_barrier(n)) {
       state->force_ss = true;
       state->force_sy = true;
-   } else if (n->opc == OPC_PREDT) {
-      state->force_ss = true;
    } else {
       state->force_ss = false;
       state->force_sy = false;
@@ -369,6 +367,8 @@ ir3_merge_pred_legalize_states(struct ir3_legalize_state *state,
       regmask_or(&state->needs_sy, &state->needs_sy, &pstate->needs_sy);
       state->needs_ss_for_const |= pstate->needs_ss_for_const;
       state->needs_sy_for_const |= pstate->needs_sy_for_const;
+      state->force_ss |= pstate->force_ss;
+      state->force_sy |= pstate->force_sy;
 
       /* Our nop state is the max of the predecessor blocks. The predecessor nop
        * state contains the cycle offset from the start of its block when each
@@ -422,6 +422,15 @@ ir3_merge_pred_legalize_states(struct ir3_legalize_state *state,
       regmask_or_shared(&state->needs_ss_or_sy_scalar_war,
                         &state->needs_ss_or_sy_scalar_war,
                         &pstate->needs_ss_or_sy_scalar_war);
+   }
+
+   gl_shader_stage stage = block->shader->type;
+
+   if (stage == MESA_SHADER_TESS_CTRL || stage == MESA_SHADER_GEOMETRY) {
+      if (block == ir3_start_block(block->shader)) {
+         state->force_ss = true;
+         state->force_sy = true;
+      }
    }
 }
 

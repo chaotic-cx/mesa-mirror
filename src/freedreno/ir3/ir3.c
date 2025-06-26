@@ -1031,6 +1031,168 @@ ir3_create_addr1(struct ir3_builder *build, unsigned const_val)
    return instr;
 }
 
+static unsigned
+dest_flags(struct ir3_instruction *instr)
+{
+   return instr->dsts[0]->flags & (IR3_REG_HALF | IR3_REG_SHARED);
+}
+
+struct ir3_instruction *
+ir3_create_collect(struct ir3_builder *build,
+                   struct ir3_instruction *const *arr, unsigned arrsz)
+{
+   struct ir3_instruction *collect;
+
+   if (arrsz == 0)
+      return NULL;
+
+   if (arrsz == 1)
+      return arr[0];
+
+   int non_undef_src = -1;
+   for (unsigned i = 0; i < arrsz; i++) {
+      if (arr[i]) {
+         non_undef_src = i;
+         break;
+      }
+   }
+
+   /* There should be at least one non-undef source to determine the type of the
+    * destination.
+    */
+   assert(non_undef_src != -1);
+   unsigned flags = dest_flags(arr[non_undef_src]);
+
+   /* If any of the sources are themselves collects, flatten their sources into
+    * the new collect. This is mainly useful for collects used for 64b values,
+    * as we can treat them just like non-64b values when collecting them.
+    */
+   unsigned srcs_count = 0;
+
+   for (unsigned i = 0; i < arrsz; i++) {
+      if (arr[i] && arr[i]->opc == OPC_META_COLLECT) {
+         srcs_count += arr[i]->srcs_count;
+      } else {
+         srcs_count++;
+      }
+   }
+
+   struct ir3_instruction *srcs[srcs_count];
+
+   for (unsigned i = 0, s = 0; i < arrsz; i++) {
+      if (arr[i] && arr[i]->opc == OPC_META_COLLECT) {
+         foreach_src (collect_src, arr[i]) {
+            srcs[s++] = collect_src->def->instr;
+         }
+      } else {
+         srcs[s++] = arr[i];
+      }
+   }
+
+   collect = ir3_build_instr(build, OPC_META_COLLECT, 1, srcs_count);
+   __ssa_dst(collect)->flags |= flags;
+   for (unsigned i = 0; i < srcs_count; i++) {
+      struct ir3_instruction *elem = srcs[i];
+
+      /* Since arrays are pre-colored in RA, we can't assume that
+       * things will end up in the right place.  (Ie. if a collect
+       * joins elements from two different arrays.)  So insert an
+       * extra mov.
+       *
+       * We could possibly skip this if all the collected elements
+       * are contiguous elements in a single array.. not sure how
+       * likely that is to happen.
+       *
+       * Fixes a problem with glamor shaders, that in effect do
+       * something like:
+       *
+       *   if (foo)
+       *     texcoord = ..
+       *   else
+       *     texcoord = ..
+       *   color = texture2D(tex, texcoord);
+       *
+       * In this case, texcoord will end up as nir registers (which
+       * translate to ir3 array's of length 1.  And we can't assume
+       * the two (or more) arrays will get allocated in consecutive
+       * scalar registers.
+       *
+       */
+      if (elem && elem->dsts[0]->flags & IR3_REG_ARRAY) {
+         type_t type = (flags & IR3_REG_HALF) ? TYPE_U16 : TYPE_U32;
+         elem = ir3_MOV(build, elem, type);
+      }
+
+      if (elem) {
+         assert(dest_flags(elem) == flags);
+         __ssa_src(collect, elem, flags);
+      } else {
+         ir3_src_create(collect, INVALID_REG, flags | IR3_REG_SSA);
+      }
+   }
+
+   collect->dsts[0]->wrmask = MASK(srcs_count);
+
+   return collect;
+}
+
+/* helper for instructions that produce multiple consecutive scalar
+ * outputs which need to have a split meta instruction inserted
+ */
+void
+ir3_split_dest(struct ir3_builder *build, struct ir3_instruction **dst,
+               struct ir3_instruction *src, unsigned base, unsigned n)
+{
+   if ((n == 1) && (src->dsts[0]->wrmask == 0x1) &&
+       /* setup_input needs ir3_split_dest to generate a SPLIT instruction */
+       src->opc != OPC_META_INPUT) {
+      dst[0] = src;
+      return;
+   }
+
+   if (src->opc == OPC_META_COLLECT) {
+      assert((base + n) <= src->srcs_count);
+
+      for (int i = 0; i < n; i++) {
+         dst[i] = ssa(src->srcs[i + base]);
+      }
+
+      return;
+   }
+
+   unsigned flags = dest_flags(src);
+
+   for (int i = 0, j = 0; i < n; i++) {
+      struct ir3_instruction *split =
+         ir3_build_instr(build, OPC_META_SPLIT, 1, 1);
+      __ssa_dst(split)->flags |= flags;
+      __ssa_src(split, src, flags);
+      split->split.off = i + base;
+
+      if (src->dsts[0]->wrmask & (1 << (i + base)))
+         dst[j++] = split;
+   }
+}
+
+/* Split off the first 1 (bit_size < 64) or 2 (bit_size == 64) components from
+ * src and create a new 32b or 64b value.
+ */
+struct ir3_instruction *
+ir3_split_off_scalar(struct ir3_builder *build, struct ir3_instruction *src,
+                     unsigned bit_size)
+{
+   unsigned num_comps = bit_size == 64 ? 2 : 1;
+   assert((src->dsts[0]->wrmask & MASK(num_comps)) == MASK(num_comps));
+
+   if (num_comps == 1 && src->dsts[0]->wrmask == 0x1) {
+      return src;
+   }
+
+   struct ir3_instruction *comps[num_comps];
+   ir3_split_dest(build, comps, src, 0, num_comps);
+   return bit_size == 64 ? ir3_64b(build, comps[0], comps[1]) : comps[0];
+}
+
 struct ir3_instruction *
 ir3_store_const(struct ir3_shader_variant *so, struct ir3_builder *build,
                 struct ir3_instruction *src, unsigned dst)
@@ -1084,6 +1246,7 @@ is_scalar_alu(struct ir3_instruction *instr,
    return instr->opc != OPC_MOVMSK &&
       instr->opc != OPC_SCAN_CLUSTERS_MACRO &&
       instr->opc != OPC_SCAN_MACRO &&
+      instr->opc != OPC_MOVS &&
       is_alu(instr) && (instr->dsts[0]->flags & IR3_REG_SHARED) &&
       /* scalar->scalar mov instructions (but NOT cov) were supported before the
        * scalar ALU was supported, but they still required (ss) whereas on GPUs
@@ -1414,6 +1577,13 @@ ir3_valid_flags(struct ir3_instruction *instr, unsigned n, unsigned flags)
             return flags == IR3_REG_SHARED;
          else
             return flags == 0;
+         break;
+      case OPC_MOVS:
+         if (n == 0) {
+            valid_flags = IR3_REG_SHARED;
+         } else {
+            valid_flags = IR3_REG_IMMED;
+         }
          break;
       default: {
          valid_flags =

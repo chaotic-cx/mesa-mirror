@@ -1861,6 +1861,9 @@ ir3_output_conv_type(struct ir3_instruction *instr, bool *can_fold)
    case OPC_MAD_S24:
       return TYPE_S32;
 
+   case OPC_MOVS:
+      return full_type(instr->cat1.src_type);
+
    /* We assume that any move->move folding that could be done was done by
     * NIR.
     */
@@ -2310,7 +2313,7 @@ struct ir3_shader_variant;
 bool ir3_dce(struct ir3 *ir, struct ir3_shader_variant *so);
 
 /* fp16 conversion folding */
-bool ir3_cf(struct ir3 *ir);
+bool ir3_cf(struct ir3 *ir, struct ir3_shader_variant *so);
 
 /* shared mov folding */
 bool ir3_shared_fold(struct ir3 *ir);
@@ -2658,6 +2661,29 @@ ir3_COV_rpt(struct ir3_builder *build, unsigned nrpt,
 }
 
 static inline struct ir3_instruction *
+ir3_MOVS(struct ir3_builder *build, struct ir3_instruction *src,
+         struct ir3_instruction *invocation, type_t type)
+{
+   bool use_a0 = writes_addr0(invocation);
+   struct ir3_instruction *instr =
+      ir3_build_instr(build, OPC_MOVS, 1, use_a0 ? 1 : 2);
+   ir3_register_flags flags = type_flags(type);
+
+   __ssa_dst(instr)->flags |= flags | IR3_REG_SHARED;
+   __ssa_src(instr, src, 0);
+
+   if (use_a0) {
+      ir3_instr_set_address(instr, invocation);
+   } else {
+      __ssa_src(instr, invocation, 0);
+   }
+
+   instr->cat1.src_type = type;
+   instr->cat1.dst_type = type;
+   return instr;
+}
+
+static inline struct ir3_instruction *
 ir3_MOVMSK(struct ir3_builder *build, unsigned components)
 {
    struct ir3_instruction *instr = ir3_build_instr(build, OPC_MOVMSK, 1, 0);
@@ -2683,6 +2709,52 @@ ir3_BALLOT_MACRO(struct ir3_builder *build, struct ir3_instruction *src,
    __ssa_src(instr, src, 0);
 
    return instr;
+}
+
+struct ir3_instruction *ir3_create_collect(struct ir3_builder *build,
+                                           struct ir3_instruction *const *arr,
+                                           unsigned arrsz);
+
+#define ir3_collect(build, ...)                                                \
+   ({                                                                          \
+      struct ir3_instruction *__arr[] = {__VA_ARGS__};                         \
+      ir3_create_collect(build, __arr, ARRAY_SIZE(__arr));                     \
+   })
+
+void ir3_split_dest(struct ir3_builder *build, struct ir3_instruction **dst,
+                    struct ir3_instruction *src, unsigned base, unsigned n);
+struct ir3_instruction *ir3_split_off_scalar(struct ir3_builder *build,
+                                             struct ir3_instruction *src,
+                                             unsigned bit_size);
+
+static inline struct ir3_instruction *
+ir3_64b(struct ir3_builder *build, struct ir3_instruction *lo,
+        struct ir3_instruction *hi)
+{
+   assert((lo->dsts[0]->flags & IR3_REG_SHARED) ==
+          (hi->dsts[0]->flags & IR3_REG_SHARED));
+   return ir3_collect(build, lo, hi);
+}
+
+static inline struct ir3_instruction *
+ir3_64b_immed(struct ir3_builder *build, uint64_t val)
+{
+   return ir3_64b(build, create_immed(build, (uint32_t)val),
+                  create_immed(build, val >> 32));
+}
+
+static inline struct ir3_instruction *
+ir3_64b_get_lo(struct ir3_instruction *instr)
+{
+   assert(instr->opc == OPC_META_COLLECT && instr->srcs_count == 2);
+   return instr->srcs[0]->def->instr;
+}
+
+static inline struct ir3_instruction *
+ir3_64b_get_hi(struct ir3_instruction *instr)
+{
+   assert(instr->opc == OPC_META_COLLECT && instr->srcs_count == 2);
+   return instr->srcs[1]->def->instr;
 }
 
 struct ir3_instruction *ir3_store_const(struct ir3_shader_variant *so,

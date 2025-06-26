@@ -1,3 +1,4 @@
+KHR-GL46.es_31_compatibility.shader_storage_buffer_object.basic-operations-case2-vs
 KHR-GL46.explicit_uniform_location.subroutine-index-all-stages
 KHR-GL46.explicit_uniform_location.subroutine-index-mix-implicit
 KHR-GL46.explicit_uniform_location.subroutine-index-non-continuous
@@ -20,8 +21,11 @@ KHR-GL46.shader_atomic_counter_ops_tests.ShaderAtomicCounterOpsAdditionSubstract
 KHR-GL46.shader_atomic_counter_ops_tests.ShaderAtomicCounterOpsBitwiseTestCase
 KHR-GL46.shader_storage_buffer_object.advanced-switchPrograms-cs
 KHR-GL46.sparse_buffer_tests.BufferStorageTest
+KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_2d_array_rg8i
 KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_2d_array_rgba16
+KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_2d_r16ui
 KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_2d_rgba8ui
+KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_cube_map_array_rgb10_a2
 KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_cube_map_r8i
 KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_rectangle_rg16i
 KHR-GL46.spirv_extensions.spirv_extensions_queries
@@ -89,6 +93,7 @@ spec@arb_texture_multisample@arb_texture_multisample-dsa-texelfetch
 spec@arb_texture_multisample@arb_texture_multisample-dsa-texelfetch@Texture type: GL_RGB9_E5
 spec@arb_timer_query@timestamp-get
 spec@ext_framebuffer_object@fbo-depth-sample-compare
+spec@ext_texture_array@texsubimage array
 spec@ext_texture_lod_bias@lodbias
 spec@ext_texture_srgb@texwrap formats
 spec@ext_texture_srgb@texwrap formats bordercolor
@@ -139,3 +144,15 @@ dEQP-GLES31.functional.synchronization.inter_call.with_memory_barrier.image_over
 
 # glcts: ../src/vulkan/runtime/vk_pipeline_cache.c:666: vk_pipeline_cache_destroy: Assertion `cache->object_cache->entries == 0' failed.
 dEQP-GLES31.functional.copy_image.mixed.viewclass_64_bits_mixed.rg32f_r11_eac.texture3d_to_cubemap
+KHR-GL46.gpu_shader5_gl.function_overloading
+KHR-GL46.packed_pixels.rectangle.r8_format_rgb
+KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_rectangle_rgba32f
+KHR-GL46.texture_lod_bias.texture_lod_bias_all
+KHR-GL46.transform_feedback_overflow_query_ARB.multiple-streams-one-buffer-per-stream
+KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_2d_r16i
+KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_2d_rgba16f
+KHR-GL46.sparse_texture_tests.SparseTextureAllocation_texture_2d_array_r16f
+spec@arb_gpu_shader5@texturegather@vs-rgba-3-unorm-2d
+KHR-GL46.sparse_texture_tests.SparseTextureCommitment_texture_cube_map_r8_snorm
+KHR-GL46.packed_pixels.varied_rectangle.rgb8_format_rgb
+shaders@glsl-fs-loop

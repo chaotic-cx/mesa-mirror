@@ -23,6 +23,7 @@ intel_hasvk_icd = custom_target(
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.3', '--xml', '@INPUT1@',
+    '--sizeof-pointer', sizeof_pointer,
     '--lib-path', join_paths(get_option('prefix'), get_option('libdir'),
                              'libvulkan_intel_hasvk.so'),
     '--out', '@OUTPUT@',
@@ -41,6 +42,7 @@ _dev_icd = custom_target(
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.3', '--xml', '@INPUT1@',
+    '--sizeof-pointer', sizeof_pointer,
     '--lib-path', meson.current_build_dir() / 'libvulkan_intel_hasvk.so',
     '--out', '@OUTPUT@',
   ],
@@ -206,7 +208,8 @@ if with_symbols_check
   )
 endif
 
-if with_tests
+# HasVK and its tests can only run on x86
+if with_tests and host_machine.cpu_family().startswith('x86')
   libvulkan_intel_hasvk_test = static_library(
     'vulkan_intel_hasvk_test',
     [files('anv_gem_stubs.c'), anv_hasvk_entrypoints[0]],

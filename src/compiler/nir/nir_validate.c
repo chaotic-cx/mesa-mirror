@@ -580,7 +580,7 @@ validate_intrinsic_instr(nir_intrinsic_instr *instr, validate_state *state)
        * good to validate here that no new copy derefs were added. Right now
        * we can't as there are some specific cases where copies are added even
        * after the lowering. One example is the Intel compiler, that calls
-       * nir_lower_io_to_temporaries when linking some shader stages.
+       * nir_lower_io_vars_to_temporaries when linking some shader stages.
        */
       break;
    }
@@ -2148,6 +2148,7 @@ dump_errors(validate_state *state, const char *when)
          fprintf(stderr, "%s\n", (char *)entry->data);
       }
    }
+   fflush(stderr);
 
    simple_mtx_unlock(&fail_dump_mutex);
 

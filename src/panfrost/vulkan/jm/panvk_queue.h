@@ -16,24 +16,20 @@
 
 #include "vk_queue.h"
 
-struct panvk_queue {
+struct panvk_gpu_queue {
    struct vk_queue vk;
    uint32_t sync;
 };
 
-VK_DEFINE_HANDLE_CASTS(panvk_queue, vk.base, VkQueue, VK_OBJECT_TYPE_QUEUE)
+VK_DEFINE_HANDLE_CASTS(panvk_gpu_queue, vk.base, VkQueue, VK_OBJECT_TYPE_QUEUE)
 
-static inline void
-panvk_per_arch(queue_finish)(struct panvk_queue *queue)
-{
-   struct panvk_device *dev = to_panvk_device(queue->vk.base.device);
-
-   vk_queue_finish(&queue->vk);
-   drmSyncobjDestroy(dev->drm_fd, queue->sync);
-}
-
-VkResult panvk_per_arch(queue_init)(struct panvk_device *device,
-                                    struct panvk_queue *queue, int idx,
-                                    const VkDeviceQueueCreateInfo *create_info);
+VkResult panvk_per_arch(create_gpu_queue)(
+   struct panvk_device *device, const VkDeviceQueueCreateInfo *create_info,
+   uint32_t queue_idx, struct vk_queue **out_queue);
+void panvk_per_arch(destroy_gpu_queue)(struct vk_queue *vk_queue);
+VkResult panvk_per_arch(gpu_queue_submit)(struct vk_queue *vk_queue,
+                                      struct vk_queue_submit *vk_submit);
+VkResult panvk_per_arch(gpu_queue_check_status)(
+   struct vk_queue *vk_queue);
 
 #endif

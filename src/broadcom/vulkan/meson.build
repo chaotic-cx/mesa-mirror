@@ -76,12 +76,6 @@ if with_platform_wayland
   libv3dv_files += [wayland_drm_client_protocol_h, wayland_drm_protocol_c]
 endif
 
-if with_platform_android
-  v3dv_deps += [dep_android, idep_u_gralloc]
-  v3dv_flags += '-DVK_USE_PLATFORM_ANDROID_KHR'
-  libv3dv_files += files('v3dv_android.c')
-endif
-
 per_version_libs = []
 foreach ver : v3d_versions
   per_version_libs += static_library(
@@ -136,6 +130,7 @@ broadcom_icd = custom_target(
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.3', '--xml', '@INPUT1@',
+    '--sizeof-pointer', sizeof_pointer,
     '--lib-path', join_paths(get_option('prefix'), get_option('libdir'),
     		  	     'libvulkan_broadcom.so'),
     '--out', '@OUTPUT@',
@@ -154,6 +149,7 @@ _dev_icd = custom_target(
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.3', '--xml', '@INPUT1@',
+    '--sizeof-pointer', sizeof_pointer,
     '--lib-path', meson.current_build_dir() / 'libvulkan_broadcom.so',
     '--out', '@OUTPUT@',
   ],

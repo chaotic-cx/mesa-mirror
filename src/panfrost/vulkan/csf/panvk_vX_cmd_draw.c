@@ -311,7 +311,9 @@ prepare_vs_driver_set(struct panvk_cmd_buffer *cmdbuf,
             emit_vs_attrib(cmdbuf, i, vb_offset,
                            (struct mali_attribute_packed *)(&descs[i]));
          } else {
-            memset(&descs[i], 0, sizeof(descs[0]));
+            /* Write a NullDescriptor and rely on OOB behavior */
+            pan_cast_and_pack(&descs[i], NULL_DESCRIPTOR, cfg)
+               ;
          }
       }
 
@@ -326,15 +328,17 @@ prepare_vs_driver_set(struct panvk_cmd_buffer *cmdbuf,
 
       for (uint32_t i = 0; i < vb_count; i++) {
          const struct panvk_attrib_buf *vb = &cmdbuf->state.gfx.vb.bufs[i];
+         const bool nulldesc = (vb->address == 0 && vb->size == 0);
 
-         pan_cast_and_pack(&descs[vb_offset + i], BUFFER, cfg) {
-            if (vi->bindings_valid & BITFIELD_BIT(i)) {
+         if ((vi->bindings_valid & BITFIELD_BIT(i)) && !nulldesc) {
+            pan_cast_and_pack(&descs[vb_offset + i], BUFFER, cfg) {
                cfg.address = vb->address;
                cfg.size = vb->size;
-            } else {
-               cfg.address = 0;
-               cfg.size = 0;
             }
+         } else {
+            /* Write a NullDescriptor and rely on OOB behavior */
+            pan_cast_and_pack(&descs[vb_offset + i], NULL_DESCRIPTOR, cfg)
+               ;
          }
       }
 
@@ -1793,7 +1797,6 @@ wrap_prev_oq(struct panvk_cmd_buffer *cmdbuf)
    if (!last_syncobj)
       return VK_SUCCESS;
 
-   uint64_t prev_oq_node = cmdbuf->state.gfx.render.oq.chain;
    struct pan_ptr new_oq_node = panvk_cmd_alloc_dev_mem(
       cmdbuf, desc, sizeof(struct panvk_cs_occlusion_query), 8);
 
@@ -1805,39 +1808,19 @@ wrap_prev_oq(struct panvk_cmd_buffer *cmdbuf)
    struct panvk_cs_occlusion_query *oq = new_oq_node.cpu;
 
    *oq = (struct panvk_cs_occlusion_query){
+      .node = {.next = 0},
       .syncobj = last_syncobj,
-      .next = prev_oq_node,
    };
 
-   /* If we already had an OQ in the chain, we don't need to initialize the
-    * oq_chain field in the subqueue ctx. */
-   if (prev_oq_node)
-      return VK_SUCCESS;
-
-   /* If we're a secondary cmdbuf inside a render pass, we let the primary
-    * cmdbuf link the OQ chain. */
-   if (cmdbuf->flags & VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT)
-      return VK_SUCCESS;
-
    struct cs_builder *b = panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_FRAGMENT);
-   struct cs_index oq_node_reg = cs_scratch_reg64(b, 0);
+   struct cs_index new_node_ptr = cs_scratch_reg64(b, 0);
+   cs_move64_to(b, new_node_ptr, new_oq_node.gpu);
+   cs_single_link_list_add_tail(
+      b, cs_subqueue_ctx_reg(b),
+      offsetof(struct panvk_cs_subqueue_context, render.oq_chain), new_node_ptr,
+      offsetof(struct panvk_cs_occlusion_query, node),
+      cs_scratch_reg_tuple(b, 10, 4));
 
-   cs_move64_to(b, oq_node_reg, new_oq_node.gpu);
-
-   /* If we're resuming, we need to link with the previous oq_chain, if any. */
-   if (cmdbuf->state.gfx.render.flags & VK_RENDERING_RESUMING_BIT) {
-      struct cs_index prev_oq_node_reg = cs_scratch_reg64(b, 2);
-
-      cs_load64_to(
-         b, prev_oq_node_reg, cs_subqueue_ctx_reg(b),
-         offsetof(struct panvk_cs_subqueue_context, render.oq_chain));
-      cs_store64(b, prev_oq_node_reg, oq_node_reg,
-                 offsetof(struct panvk_cs_occlusion_query, next));
-   }
-
-   cs_store64(b, oq_node_reg, cs_subqueue_ctx_reg(b),
-              offsetof(struct panvk_cs_subqueue_context, render.oq_chain));
-   cs_flush_stores(b);
    return VK_SUCCESS;
 }
 
@@ -2476,7 +2459,7 @@ panvk_cmd_draw_indirect(struct panvk_cmd_buffer *cmdbuf,
    uint32_t patch_attribs =
       cmdbuf->state.gfx.vi.attribs_changing_on_base_instance;
    uint32_t vs_res_table_size =
-      (util_last_bit(vs->desc_info.used_set_mask) + 1) * pan_size(RESOURCE);
+      panvk_shader_res_table_count(&cmdbuf->state.gfx.vs.desc);
    bool patch_faus = shader_uses_sysval(vs, graphics, vs.first_vertex) ||
                      shader_uses_sysval(vs, graphics, vs.base_instance);
    struct cs_index draw_params_addr = cs_scratch_reg64(b, 0);
@@ -2655,7 +2638,7 @@ panvk_per_arch(CmdDrawIndexedIndirect)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_buffer, buffer, _buffer);
 
-   if (drawCount == 0 || cmdbuf->state.gfx.ib.size == 0)
+   if (drawCount == 0)
       return;
 
    struct panvk_draw_info draw = {
@@ -2708,7 +2691,7 @@ panvk_per_arch(CmdDrawIndexedIndirectCount)(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(panvk_buffer, buffer, _buffer);
    VK_FROM_HANDLE(panvk_buffer, count_buffer, countBuffer);
 
-   if (maxDrawCount == 0 || cmdbuf->state.gfx.ib.size == 0)
+   if (maxDrawCount == 0)
       return;
 
    struct panvk_draw_info draw = {
@@ -3110,7 +3093,6 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
    struct cs_index tiler_count = cs_reg32(b, 47);
    struct cs_index oq_chain = cs_scratch_reg64(b, 10);
    struct cs_index oq_chain_lo = cs_scratch_reg32(b, 10);
-   struct cs_index oq_chain_hi = cs_scratch_reg32(b, 11);
    struct cs_index oq_syncobj = cs_scratch_reg64(b, 12);
 
    cs_move64_to(b, add_val, 1);
@@ -3177,18 +3159,12 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
       cs_store64(b, oq_syncobj, cs_subqueue_ctx_reg(b),
                  offsetof(struct panvk_cs_subqueue_context, render.oq_chain));
 
-      cs_while(b, MALI_CS_CONDITION_ALWAYS, cs_undef()) {
+      cs_single_link_list_for_each_from(b, oq_chain,
+                                        struct panvk_cs_occlusion_query, node) {
          cs_load64_to(b, oq_syncobj, oq_chain,
                       offsetof(struct panvk_cs_occlusion_query, syncobj));
-         cs_load64_to(b, oq_chain, oq_chain,
-                      offsetof(struct panvk_cs_occlusion_query, next));
          cs_sync32_set(b, true, MALI_CS_SYNC_SCOPE_CSG, add_val_lo, oq_syncobj,
                        cs_defer(SB_MASK(DEFERRED_FLUSH), SB_ID(DEFERRED_SYNC)));
-         cs_if(b, MALI_CS_CONDITION_NEQUAL, oq_chain_lo)
-            cs_continue(b);
-         cs_if(b, MALI_CS_CONDITION_NEQUAL, oq_chain_hi)
-            cs_continue(b);
-         cs_break(b);
       }
    }
 
@@ -3244,19 +3220,13 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
          cs_store64(                                                           \
             b, oq_syncobj, cs_subqueue_ctx_reg(b),                             \
             offsetof(struct panvk_cs_subqueue_context, render.oq_chain));      \
-         cs_while(b, MALI_CS_CONDITION_ALWAYS, cs_undef()) {                   \
+         cs_single_link_list_for_each_from(                                    \
+            b, oq_chain, struct panvk_cs_occlusion_query, node) {              \
             cs_load64_to(b, oq_syncobj, oq_chain,                              \
                          offsetof(struct panvk_cs_occlusion_query, syncobj));  \
-            cs_load64_to(b, oq_chain, oq_chain,                                \
-                         offsetof(struct panvk_cs_occlusion_query, next));     \
             cs_sync32_set(                                                     \
                b, true, MALI_CS_SYNC_SCOPE_CSG, add_val_lo, oq_syncobj,        \
                cs_defer(SB_MASK(DEFERRED_FLUSH), SB_ID(DEFERRED_SYNC)));       \
-            cs_if(b, MALI_CS_CONDITION_NEQUAL, oq_chain_lo)                    \
-               cs_continue(b);                                                 \
-            cs_if(b, MALI_CS_CONDITION_NEQUAL, oq_chain_hi)                    \
-               cs_continue(b);                                                 \
-            cs_break(b);                                                       \
          }                                                                     \
       }                                                                        \
       cs_sync64_add(b, true, MALI_CS_SYNC_SCOPE_CSG, add_val, sync_addr,       \

@@ -11,9 +11,7 @@
 #include "vn_android.h"
 
 #include <dlfcn.h>
-#include <hardware/hwvulkan.h>
 #include <vndk/hardware_buffer.h>
-#include <vulkan/vk_icd.h>
 
 #include "util/os_file.h"
 #include "util/u_gralloc/u_gralloc.h"
@@ -26,65 +24,6 @@
 #include "vn_instance.h"
 #include "vn_physical_device.h"
 #include "vn_queue.h"
-
-struct vn_android_gralloc {
-   struct u_gralloc *gralloc;
-   uint64_t front_rendering_usage;
-};
-
-static struct vn_android_gralloc _vn_android_gralloc;
-
-static int
-vn_android_gralloc_init()
-{
-   assert(!_vn_android_gralloc.gralloc);
-
-   struct u_gralloc *gralloc = u_gralloc_create(U_GRALLOC_TYPE_AUTO);
-   if (!gralloc) {
-      vn_log(NULL, "u_gralloc failed to create a gralloc module instance");
-      return -1;
-   }
-
-   const int gralloc_type = u_gralloc_get_type(gralloc);
-   if (gralloc_type != U_GRALLOC_TYPE_CROS &&
-       gralloc_type != U_GRALLOC_TYPE_GRALLOC4) {
-      u_gralloc_destroy(&gralloc);
-      vn_log(NULL, "only CrOS and IMapper v4 grallocs are supported for "
-                   "Venus Vulkan HAL");
-      return -1;
-   }
-
-   _vn_android_gralloc.gralloc = gralloc;
-
-   return 0;
-}
-
-static inline void
-vn_android_gralloc_fini()
-{
-   u_gralloc_destroy(&_vn_android_gralloc.gralloc);
-}
-
-static void
-vn_android_gralloc_shared_present_usage_init_once()
-{
-   assert(_vn_android_gralloc.gralloc);
-
-   int ret = u_gralloc_get_front_rendering_usage(
-      _vn_android_gralloc.gralloc,
-      &_vn_android_gralloc.front_rendering_usage);
-
-   if (ret == 0)
-      assert(_vn_android_gralloc.front_rendering_usage);
-}
-
-uint64_t
-vn_android_gralloc_get_shared_present_usage()
-{
-   static once_flag once = ONCE_FLAG_INIT;
-   call_once(&once, vn_android_gralloc_shared_present_usage_init_once);
-   return _vn_android_gralloc.front_rendering_usage;
-}
 
 struct vn_android_gralloc_buffer_properties {
    uint32_t drm_fourcc;
@@ -101,7 +40,7 @@ vn_android_gralloc_get_buffer_properties(
    buffer_handle_t handle,
    struct vn_android_gralloc_buffer_properties *out_props)
 {
-   struct u_gralloc *gralloc = _vn_android_gralloc.gralloc;
+   struct u_gralloc *gralloc = vk_android_get_ugralloc();
    struct u_gralloc_buffer_basic_info info;
 
    /*
@@ -177,65 +116,6 @@ vn_android_gralloc_get_dma_buf_fd(const native_handle_t *handle)
    }
 
    return handle->data[0];
-}
-
-static int
-vn_hal_open(const struct hw_module_t *mod,
-            const char *id,
-            struct hw_device_t **dev);
-
-static_assert(HWVULKAN_DISPATCH_MAGIC == ICD_LOADER_MAGIC, "");
-
-PUBLIC struct hwvulkan_module_t HAL_MODULE_INFO_SYM = {
-   .common = {
-      .tag = HARDWARE_MODULE_TAG,
-      .module_api_version = HWVULKAN_MODULE_API_VERSION_0_1,
-      .hal_api_version = HARDWARE_HAL_API_VERSION,
-      .id = HWVULKAN_HARDWARE_MODULE_ID,
-      .name = "Venus Vulkan HAL",
-      .author = "Google LLC",
-      .methods = &(hw_module_methods_t) {
-         .open = vn_hal_open,
-      },
-   },
-};
-
-static int
-vn_hal_close(UNUSED struct hw_device_t *dev)
-{
-   vn_android_gralloc_fini();
-   return 0;
-}
-
-static hwvulkan_device_t vn_hal_dev = {
-  .common = {
-     .tag = HARDWARE_DEVICE_TAG,
-     .version = HWVULKAN_DEVICE_API_VERSION_0_1,
-     .module = &HAL_MODULE_INFO_SYM.common,
-     .close = vn_hal_close,
-  },
- .EnumerateInstanceExtensionProperties = vn_EnumerateInstanceExtensionProperties,
- .CreateInstance = vn_CreateInstance,
- .GetInstanceProcAddr = vn_GetInstanceProcAddr,
-};
-
-static int
-vn_hal_open(const struct hw_module_t *mod,
-            const char *id,
-            struct hw_device_t **dev)
-{
-   int ret;
-
-   assert(mod == &HAL_MODULE_INFO_SYM.common);
-   assert(strcmp(id, HWVULKAN_DEVICE_0) == 0);
-
-   ret = vn_android_gralloc_init();
-   if (ret)
-      return ret;
-
-   *dev = &vn_hal_dev.common;
-
-   return 0;
 }
 
 const VkFormat *
@@ -340,9 +220,7 @@ vn_GetSwapchainGrallocUsage2ANDROID(
       *grallocProducerUsage |= AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
 
    if (swapchainImageUsage & VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID)
-      *grallocProducerUsage |= vn_android_gralloc_get_shared_present_usage();
-
-   vn_tls_set_async_pipeline_create();
+      *grallocProducerUsage |= vk_android_get_front_buffer_usage();
 
    return VK_SUCCESS;
 }

@@ -43,7 +43,7 @@ texel_fetch(nir_builder *b, VkImageViewType view_type,
    if (sample_id)
       tex->src[2] = nir_tex_src_for_ssa(nir_tex_src_ms_index, sample_id);
 
-#if PAN_ARCH <= 7
+#if PAN_ARCH < 9
    tex->sampler_index = 0;
    tex->texture_index = tex_idx;
 #else
@@ -82,7 +82,7 @@ color_output_var(nir_builder *b, VkImageViewType view_type,
 static nir_def *
 get_layer_id(nir_builder *b)
 {
-#if PAN_ARCH <= 7
+#if PAN_ARCH < 9
    return nir_load_push_constant(b, 1, 32, nir_imm_int(b, 0));
 #else
    return nir_load_layer_id(b);
@@ -217,7 +217,7 @@ alloc_pre_post_dcds(struct panvk_cmd_buffer *cmdbuf, struct pan_fb_info *fbinfo)
       return VK_SUCCESS;
 
    uint32_t dcd_count =
-      3 * (PAN_ARCH <= 7 ? cmdbuf->state.gfx.render.layer_count : 1);
+      3 * (PAN_ARCH < 9 ? cmdbuf->state.gfx.render.layer_count : 1);
 
    fbinfo->bifrost.pre_post.dcds = panvk_cmd_alloc_desc_array(cmdbuf, dcd_count, DRAW);
    if (!fbinfo->bifrost.pre_post.dcds.cpu)
@@ -315,7 +315,7 @@ fill_bds(struct pan_fb_info *fbinfo,
          cfg.internal.fixed_function.conversion.memory_format =
             GENX(pan_dithered_format_from_pipe_format)(pview->format, false);
          cfg.internal.fixed_function.rt = i;
-#if PAN_ARCH <= 7
+#if PAN_ARCH < 9
          cfg.internal.fixed_function.conversion.register_format =
             get_reg_fmt(key->color[i].type);
 #endif
@@ -323,7 +323,7 @@ fill_bds(struct pan_fb_info *fbinfo,
    }
 }
 
-#if PAN_ARCH <= 7
+#if PAN_ARCH < 9
 static VkResult
 cmd_emit_dcd(struct panvk_cmd_buffer *cmdbuf, struct pan_fb_info *fbinfo,
              const struct panvk_fb_preload_shader_key *key)
@@ -588,9 +588,15 @@ cmd_emit_dcd(struct panvk_cmd_buffer *cmdbuf, struct pan_fb_info *fbinfo,
    if (key->aspects == VK_IMAGE_ASPECT_COLOR_BIT)
       fill_bds(fbinfo, key, bds.cpu);
 
-   struct pan_ptr res_table = panvk_cmd_alloc_desc(cmdbuf, RESOURCE);
+   /* Resource table sizes need to be multiples of 4. We use only one
+    * element here though.
+    */
+   const uint32_t res_table_size = MALI_RESOURCE_TABLE_SIZE_ALIGNMENT;
+   struct pan_ptr res_table =
+      panvk_cmd_alloc_desc_array(cmdbuf, res_table_size, RESOURCE);
    if (!res_table.cpu)
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+   memset(res_table.cpu, 0, pan_size(RESOURCE) * res_table_size);
 
    pan_cast_and_pack(res_table.cpu, RESOURCE, cfg) {
       cfg.address = descs.gpu;
@@ -668,12 +674,12 @@ cmd_emit_dcd(struct panvk_cmd_buffer *cmdbuf, struct pan_fb_info *fbinfo,
       cfg.flags_0.clean_fragment_write = true;
 
 #if PAN_ARCH >= 12
-      cfg.fragment_resources = res_table.gpu | 1;
+      cfg.fragment_resources = res_table.gpu | res_table_size;
       cfg.fragment_shader = panvk_priv_mem_dev_addr(shader->spd);
       cfg.thread_storage = cmdbuf->state.gfx.tsd;
 #else
       cfg.maximum_z = 1.0;
-      cfg.shader.resources = res_table.gpu | 1;
+      cfg.shader.resources = res_table.gpu | res_table_size;
       cfg.shader.shader = panvk_priv_mem_dev_addr(shader->spd);
       cfg.shader.thread_storage = cmdbuf->state.gfx.tsd;
 #endif

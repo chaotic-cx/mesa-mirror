@@ -502,6 +502,11 @@ init_render_queue_state(struct anv_queue *queue, bool is_companion_rcs_batch)
    anv_batch_write_reg(batch, GENX(CS_CHICKEN1), cc1) {
       cc1.ReplayMode = MidcmdbufferPreemption;
       cc1.ReplayModeMask = true;
+
+#if GFX_VERx10 == 120
+      cc1.DisablePreemptionandHighPriorityPausingdueto3DPRIMITIVECommand = true;
+      cc1.DisablePreemptionandHighPriorityPausingdueto3DPRIMITIVECommandMask = true;
+#endif
    }
 
 #if INTEL_NEEDS_WA_1806527549
@@ -1119,11 +1124,11 @@ genX(emit_sample_pattern)(struct anv_batch *batch,
       for (uint32_t i = 1; i <= 16; i *= 2) {
          switch (i) {
          case VK_SAMPLE_COUNT_1_BIT:
-            if (sl && sl->per_pixel == i) {
-               INTEL_SAMPLE_POS_1X_ARRAY(sp._1xSample, sl->locations);
-            } else {
-               INTEL_SAMPLE_POS_1X(sp._1xSample);
-            }
+            /* We don't do 1x MSAA, and we can't support custom sample
+             * positions without MSAA, so always program the default for this
+             * case.
+             */
+            INTEL_SAMPLE_POS_1X(sp._1xSample);
             break;
          case VK_SAMPLE_COUNT_2_BIT:
             if (sl && sl->per_pixel == i) {

@@ -63,7 +63,7 @@ panvk_per_arch(CreateBufferView)(VkDevice _device,
       };
 
 #if PAN_ARCH >= 9
-      view->mem = panvk_pool_alloc_desc(&device->mempools.rw, PLANE);
+      view->mem = panvk_pool_alloc_desc(&device->mempools.rw, NULL_PLANE);
 #else
       view->mem =
          panvk_pool_alloc_desc(&device->mempools.rw, SURFACE_WITH_STRIDE);
@@ -77,7 +77,7 @@ panvk_per_arch(CreateBufferView)(VkDevice _device,
       GENX(pan_buffer_texture_emit)(&bview, &view->descs.tex, &ptr);
    }
 
-#if PAN_ARCH <= 7
+#if PAN_ARCH < 9
    if (buffer->vk.usage & VK_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT) {
       unsigned blksz = vk_format_get_blocksize(pCreateInfo->format);
 

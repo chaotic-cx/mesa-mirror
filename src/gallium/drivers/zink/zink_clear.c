@@ -27,6 +27,7 @@
 #include "zink_format.h"
 #include "zink_inlines.h"
 #include "zink_query.h"
+#include "zink_surface.h"
 
 #include "util/u_blitter.h"
 #include "util/format/u_format.h"
@@ -410,6 +411,7 @@ create_clear_surface(struct pipe_context *pctx, struct pipe_resource *pres, unsi
    tmpl.first_layer = box->z;
    tmpl.last_layer = box->z + box->depth - 1;
    tmpl.level = level;
+   tmpl.texture = pres;
    return tmpl;
 }
 
@@ -448,11 +450,11 @@ zink_clear_texture_dynamic(struct pipe_context *pctx,
                      0 <= box->z && u_minify(pres->target == PIPE_TEXTURE_3D ? pres->depth0 : pres->array_size, level) >= box->z + box->depth;
 
    struct pipe_surface psurf = create_clear_surface(pctx, pres, level, box);
-   struct pipe_surface *surf = pctx->create_surface(pctx, pres, &psurf);
+   struct zink_surface *surf = zink_create_fb_surface(pctx, &psurf);
 
    VkRenderingAttachmentInfo att = {0};
    att.sType = VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO;
-   att.imageView = zink_surface(surf)->image_view;
+   att.imageView = surf->image_view;
    att.imageLayout = res->aspect & VK_IMAGE_ASPECT_COLOR_BIT ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL : VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
    att.loadOp = full_clear ? VK_ATTACHMENT_LOAD_OP_CLEAR : VK_ATTACHMENT_LOAD_OP_LOAD;
    att.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
@@ -470,7 +472,7 @@ zink_clear_texture_dynamic(struct pipe_context *pctx,
    uint8_t stencil = 0;
    if (res->aspect & VK_IMAGE_ASPECT_COLOR_BIT) {
       util_format_unpack_rgba(pres->format, tmp.ui, data, 1);
-      zink_convert_color(screen, surf->format, &color, &tmp);
+      zink_convert_color(screen, psurf.format, &color, &tmp);
    } else {
       if (res->aspect & VK_IMAGE_ASPECT_DEPTH_BIT)
          util_format_unpack_z_float(pres->format, &depth, data, 1);
@@ -512,7 +514,6 @@ zink_clear_texture_dynamic(struct pipe_context *pctx,
    }
    VKCTX(CmdEndRendering)(cmdbuf);
    zink_batch_reference_resource_rw(ctx, res, true);
-   pctx->surface_destroy(pctx, surf);
 }
 
 void
@@ -600,7 +601,7 @@ zink_clear_depth_stencil(struct pipe_context *pctx, struct pipe_surface *dst,
       zink_stop_conditional_render(ctx);
       ctx->render_condition_active = false;
    }
-   bool cur_attachment = ctx->fb_zsbuf == dst;
+   bool cur_attachment = pipe_surface_equal(&ctx->fb_state.zsbuf, dst);
    if (dstx > ctx->fb_state.width || dsty > ctx->fb_state.height ||
        dstx + width > ctx->fb_state.width ||
        dsty + height > ctx->fb_state.height)

@@ -155,7 +155,7 @@ option(
 option(
   'gallium-rusticl-enable-drivers',
   type : 'array',
-  value : ['auto', 'asahi', 'radeonsi'],
+  value : ['auto', 'asahi', 'freedreno', 'radeonsi'],
   description : 'List of gallium drivers for which rusticl will be enabled ' +
                 'by default',
 )
@@ -534,14 +534,6 @@ option(
 )
 
 option(
-  'osmesa',
-  type : 'boolean',
-  value : false,
-  deprecated : true,
-  description : 'Does nothing, left here for a while to avoid build breakages.',
-)
-
-option(
   'tools',
   type : 'array',
   value : [],
@@ -759,6 +751,14 @@ option(
 )
 
 option(
+  'radeonsi-build-id',
+  type : 'string',
+  value : '',
+  description : 'Override build id for shader cache keys (hex string). ' +
+                'Can be extracted with readelf -x .note.gnu.build-id'
+)
+
+option(
   'min-windows-version',
   type : 'integer',
   min : 7,
@@ -780,10 +780,10 @@ option(
 option(
   'legacy-x11',
   type : 'array',
-  value : ['none'],
+  value : [],
   description : 'Build legacy X11 support features.',
   choices : [
-    'none', 'dri2'
+    'dri2'
   ],
 )
 
@@ -839,4 +839,11 @@ option(
     'libdrm',
   ],
   description : 'Allows the fallback mechanism if the dependency is not available on the system, or too old.'
+)
+
+option(
+  'virtgpu_kumquat',
+  type : 'boolean',
+  value : false,
+  description : 'Build virtgpu_kumquat (only useful with gfxstream currently)'
 )

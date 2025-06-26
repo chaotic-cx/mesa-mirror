@@ -74,6 +74,7 @@
 #include "util/xmlconfig.h"
 #include "vk_acceleration_structure.h"
 #include "vk_alloc.h"
+#include "vk_android.h"
 #include "vk_buffer.h"
 #include "vk_buffer_view.h"
 #include "vk_command_buffer.h"
@@ -2136,9 +2137,6 @@ struct anv_device {
 
     uint32_t                                    draw_call_count;
     struct anv_state                            breakpoint;
-#if DETECT_OS_ANDROID
-    struct u_gralloc                            *u_gralloc;
-#endif
 
     /** Precompute all dirty graphics bits
      *
@@ -4161,6 +4159,10 @@ struct anv_cmd_compute_state {
    bool pipeline_dirty;
 
    uint32_t scratch_size;
+
+   uint8_t pixel_async_compute_thread_limit;
+   uint8_t z_pass_async_compute_thread_limit;
+   uint8_t np_z_async_throttle_settings;
 };
 
 struct anv_cmd_ray_tracing_state {
@@ -6106,6 +6108,7 @@ anv_can_hiz_clear_image(struct anv_cmd_buffer *cmd_buffer,
 bool
 anv_can_fast_clear_color(const struct anv_cmd_buffer *cmd_buffer,
                          const struct anv_image *image,
+                         VkImageAspectFlags clear_aspect,
                          unsigned level,
                          const struct VkClearRect *clear_rect,
                          VkImageLayout layout,
@@ -6678,7 +6681,7 @@ anv_device_utrace_emit_gfx_copy_buffer(struct u_trace_context *utctx,
 static bool
 anv_has_cooperative_matrix(const struct anv_physical_device *device)
 {
-   return device->has_cooperative_matrix;
+   return device->has_cooperative_matrix && (device->info.has_systolic || debug_get_bool_option("INTEL_LOWER_DPAS", false));
 }
 
 #define ANV_FROM_HANDLE(__anv_type, __name, __handle) \

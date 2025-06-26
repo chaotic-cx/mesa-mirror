@@ -78,6 +78,9 @@ EXTENSIONS = [
     Extension("VK_KHR_maintenance8",
               alias="maint8",
               features=True),
+    Extension("VK_KHR_maintenance9",
+              alias="maint9",
+              features=True, properties=True),
     Extension("VK_KHR_unified_image_layouts", alias="unified_layouts", features=True),
     Extension("VK_KHR_external_memory"),
     Extension("VK_KHR_external_memory_fd"),
@@ -712,6 +715,7 @@ zink_get_physical_device_info(struct zink_screen *screen)
    %for ext in extensions:
       %if ext.needs_double_load:
          if (screen->info.have_${ext.name_with_vendor()}) {
+            screen->info.${ext.field("props")}.sType = ${ext.stype("PROPERTIES")};
             screen->info.${ext.field("props")}.pNext = second_load_props.pNext;
             second_load_props.pNext = &screen->info.${ext.field("props")};
          %for field in registry.get_registry_entry(ext.name).properties_fields:

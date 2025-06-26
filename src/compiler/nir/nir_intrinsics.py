@@ -884,7 +884,6 @@ intrinsic("task_payload_atomic",  src_comp=[1, 1], dest_comp=1, indices=[BASE, A
 intrinsic("global_atomic",  src_comp=[1, 1], dest_comp=1, indices=[ATOMIC_OP])
 intrinsic("global_atomic_2x32",  src_comp=[2, 1], dest_comp=1, indices=[ATOMIC_OP])
 intrinsic("global_atomic_amd",  src_comp=[1, 1, 1], dest_comp=1, indices=[BASE, ATOMIC_OP])
-intrinsic("global_atomic_ir3",  src_comp=[2, 1], dest_comp=1, indices=[BASE, ATOMIC_OP])
 intrinsic("global_atomic_agx",  src_comp=[1, 1, 1], dest_comp=1, indices=[ATOMIC_OP, SIGN_EXTEND])
 
 intrinsic("deref_atomic_swap",  src_comp=[-1, 1, 1], dest_comp=1, indices=[ACCESS, ATOMIC_OP])
@@ -894,7 +893,6 @@ intrinsic("task_payload_atomic_swap",  src_comp=[1, 1, 1], dest_comp=1, indices=
 intrinsic("global_atomic_swap",  src_comp=[1, 1, 1], dest_comp=1, indices=[ATOMIC_OP])
 intrinsic("global_atomic_swap_2x32",  src_comp=[2, 1, 1], dest_comp=1, indices=[ATOMIC_OP])
 intrinsic("global_atomic_swap_amd",  src_comp=[1, 1, 1, 1], dest_comp=1, indices=[BASE, ATOMIC_OP])
-intrinsic("global_atomic_swap_ir3",  src_comp=[2, 1, 1], dest_comp=1, indices=[BASE, ATOMIC_OP])
 intrinsic("global_atomic_swap_agx",  src_comp=[1, 1, 1, 1], dest_comp=1, indices=[ATOMIC_OP, SIGN_EXTEND])
 
 def system_value(name, dest_comp, indices=[], bit_sizes=[32], can_reorder=True):
@@ -906,10 +904,11 @@ def system_value(name, dest_comp, indices=[], bit_sizes=[32], can_reorder=True):
 system_value("frag_coord", 4)
 # 16-bit integer vec2 of the pixel X/Y in the framebuffer.
 system_value("pixel_coord", 2, bit_sizes=[16])
-# Scalar load of frag_coord Z/W components (component=2 for Z, component=3 for
-# W). Backends can lower frag_coord to pixel_coord + frag_coord_zw, in case
-# X/Y is available as an integer but Z/W requires interpolation.
-system_value("frag_coord_zw", 1, indices=[COMPONENT])
+# Scalar load of frag_coord Z/W component. Backends can lower frag_coord to
+# pixel_coord + frag_coord_z/w, in case X/Y is available as an integer but Z/W
+# requires interpolation.
+system_value("frag_coord_z", 1)
+system_value("frag_coord_w", 1)
 system_value("point_coord", 2)
 system_value("line_coord", 1)
 system_value("front_face", 1, bit_sizes=[1, 32])
@@ -1126,6 +1125,13 @@ barycentric("coord_at_offset", 3, [2])
 intrinsic("load_sample_pos_from_id", src_comp=[1], dest_comp=2,
           flags=[CAN_ELIMINATE, CAN_REORDER])
 
+# Load input attachment coordinate:
+#
+# Takes an input attachment index and returns an ivec with the position in
+# input attachment space in .xy and the input attachment array index in .z.
+intrinsic("load_input_attachment_coord", src_comp=[1], dest_comp=3,
+          bit_sizes=[32], flags=[CAN_ELIMINATE, CAN_REORDER])
+
 # Demote a subset of samples given by a specified sample mask. This acts like a
 # per-sample demote, or an inverted accumulating gl_SampleMask write.
 intrinsic("demote_samples", src_comp=[1])
@@ -1233,6 +1239,9 @@ load("constant", [1], [BASE, RANGE, ACCESS, ALIGN_MUL, ALIGN_OFFSET],
      [CAN_ELIMINATE, CAN_REORDER])
 # src[] = { address }.
 load("global", [1], [ACCESS, ALIGN_MUL, ALIGN_OFFSET], [CAN_ELIMINATE])
+# src[] = { base_address, offset, bound }.
+load("global_bounded", [1, 1, 1], [ACCESS, ALIGN_MUL, ALIGN_OFFSET],
+     [CAN_ELIMINATE])
 # src[] = { address }.
 load("global_2x32", [2], [ACCESS, ALIGN_MUL, ALIGN_OFFSET], [CAN_ELIMINATE])
 # src[] = { address }.
@@ -1352,7 +1361,7 @@ intrinsic("cmat_load", src_comp=[-1, -1, 1], indices=[MATRIX_LAYOUT])
 intrinsic("cmat_store", src_comp=[-1, -1, 1], indices=[MATRIX_LAYOUT])
 intrinsic("cmat_length", src_comp=[], dest_comp=1, indices=[CMAT_DESC], bit_sizes=[32])
 intrinsic("cmat_muladd", src_comp=[-1, -1, -1, -1], indices=[SATURATE, CMAT_SIGNED_MASK])
-intrinsic("cmat_convert", src_comp=[-1, -1], indices=[CMAT_SIGNED_MASK])
+intrinsic("cmat_convert", src_comp=[-1, -1], indices=[SATURATE, CMAT_SIGNED_MASK])
 intrinsic("cmat_unary_op", src_comp=[-1, -1], indices=[ALU_OP])
 intrinsic("cmat_binary_op", src_comp=[-1, -1, -1], indices=[ALU_OP])
 intrinsic("cmat_scalar_op", src_comp=[-1, -1, -1], indices=[ALU_OP])
@@ -1360,6 +1369,7 @@ intrinsic("cmat_bitcast", src_comp=[-1, -1])
 intrinsic("cmat_extract", src_comp=[-1, 1], dest_comp=1)
 intrinsic("cmat_insert", src_comp=[-1, 1, -1, 1])
 intrinsic("cmat_copy", src_comp=[-1, -1])
+intrinsic("cmat_transpose", src_comp=[-1, -1])
 
 # IR3-specific version of most SSBO intrinsics. The only different
 # compare to the originals is that they add an extra source to hold
@@ -1435,11 +1445,11 @@ load("shared_ir3", [1], [BASE, ALIGN_MUL, ALIGN_OFFSET], [CAN_ELIMINATE])
 
 # src[] = { value, address(vec2 of hi+lo uint32_t), offset }.
 # const_index[] = { write_mask, align_mul, align_offset }
-store("global_ir3", [2, 1], indices=[ACCESS, ALIGN_MUL, ALIGN_OFFSET])
+store("global_ir3", [1, 1], indices=[ACCESS, ALIGN_MUL, ALIGN_OFFSET])
 # src[] = { address(vec2 of hi+lo uint32_t), offset }.
 # const_index[] = { access, align_mul, align_offset }
 # the alignment applies to the base address
-load("global_ir3", [2, 1], indices=[ACCESS, ALIGN_MUL, ALIGN_OFFSET, RANGE_BASE, RANGE], flags=[CAN_ELIMINATE])
+load("global_ir3", [1, 1], indices=[ACCESS, ALIGN_MUL, ALIGN_OFFSET, RANGE_BASE, RANGE], flags=[CAN_ELIMINATE])
 
 # Etnaviv-specific load/glboal intrinsics. They take a 32-bit base address and
 # a 32-bit offset, which doesn't need to be an immediate.
@@ -1489,7 +1499,7 @@ intrinsic("copy_ubo_to_uniform_ir3", [1, 1], indices=[BASE, RANGE])
 # IR3-specific intrinsic for ldg.k.
 # base is an offset to apply to the address in bytes, range_base is the
 # const file base in components, range is the amount to copy in vec4's.
-intrinsic("copy_global_to_uniform_ir3", [2], indices=[BASE, RANGE_BASE, RANGE])
+intrinsic("copy_global_to_uniform_ir3", [1], indices=[BASE, RANGE_BASE, RANGE])
 
 # IR3-specific intrinsic for stsc. Loads from push consts to constant file
 # Should be used in the shader preamble.
@@ -2062,6 +2072,9 @@ system_value("is_first_fan_agx", 1, bit_sizes=[1])
 # mesa_prim for the input topology (in a geometry shader)
 system_value("input_topology_agx", 1)
 
+# Root descriptor address
+system_value("root_agx", 1, bit_sizes=[64])
+
 # Load a bindless sampler handle mapping a binding table sampler.
 intrinsic("load_sampler_handle_agx", [1], 1, [],
           flags=[CAN_ELIMINATE, CAN_REORDER],
@@ -2347,6 +2360,14 @@ intrinsic("load_deref_block_intel", dest_comp=0, src_comp=[-1],
           indices=[ACCESS], flags=[CAN_ELIMINATE])
 intrinsic("store_deref_block_intel", src_comp=[-1, 0], indices=[WRITE_MASK, ACCESS])
 
+# Special load_ssbo intrinsic with an additional BASE value for Xe2+ offsets
+# src[] = { buffer_index, offset }.
+load("ssbo_intel", [-1, 1], [ACCESS, BASE, ALIGN_MUL, ALIGN_OFFSET], [CAN_ELIMINATE])
+
+# Special store_ssbo intrinsic with an additional BASE value for Xe2+ offsets
+# src[] = { value, buffer_index, offset }
+store("ssbo_intel", [-1, 1], [WRITE_MASK, ACCESS, BASE, ALIGN_MUL, ALIGN_OFFSET])
+
 # src[] = { address }.
 load("global_block_intel", [1], [ACCESS, ALIGN_MUL, ALIGN_OFFSET], [CAN_ELIMINATE])
 
@@ -2373,12 +2394,12 @@ load("global_constant_uniform_block_intel", [1],
 # offset should be uniform
 # src[] = { buffer_index, offset }.
 load("ubo_uniform_block_intel", [-1, 1],
-     [ACCESS, ALIGN_MUL, ALIGN_OFFSET, RANGE_BASE, RANGE], [CAN_ELIMINATE, CAN_REORDER])
+     [ACCESS, ALIGN_MUL, ALIGN_OFFSET, BASE, RANGE], [CAN_ELIMINATE, CAN_REORDER])
 
 # Similar to load_global_const_block_intel but for SSBOs
 # offset should be uniform
 # src[] = { buffer_index, offset }.
-load("ssbo_uniform_block_intel", [-1, 1], [ACCESS, ALIGN_MUL, ALIGN_OFFSET], [CAN_ELIMINATE])
+load("ssbo_uniform_block_intel", [-1, 1], [ACCESS, ALIGN_MUL, ALIGN_OFFSET, BASE], [CAN_ELIMINATE])
 
 # Similar to load_global_const_block_intel but for shared memory
 # src[] = { offset }.

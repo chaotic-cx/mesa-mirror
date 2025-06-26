@@ -40,10 +40,11 @@ hk_get_image_plane_format_features(struct hk_physical_device *pdev,
 {
    VkFormatFeatureFlags2 features = 0;
 
-   /* A8 with opaque black needs custom borders, so hide for performance. We
-    * might specially enable this for Proton / behind a driconf.
+   /* These optional formats need custom borders for opaque black, so hide for
+    * performance. We might specially enable this for Proton / behind a driconf.
     */
-   if (vk_format == VK_FORMAT_A8_UNORM_KHR)
+   if (vk_format == VK_FORMAT_A8_UNORM_KHR ||
+       vk_format == VK_FORMAT_B4G4R4A4_UNORM_PACK16)
       return 0;
 
    enum pipe_format p_format = hk_format_to_pipe_format(vk_format);
@@ -77,17 +78,10 @@ hk_get_image_plane_format_features(struct hk_physical_device *pdev,
    }
 
    if (ail_pixel_format[p_format].renderable) {
-      /* For now, disable snorm rendering due to nir_lower_blend bugs.
-       *
-       * TODO: revisit.
-       */
-      if (!util_format_is_snorm(p_format)) {
-         features |= VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT;
-         features |= VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BLEND_BIT;
-      }
-
-      features |= VK_FORMAT_FEATURE_2_BLIT_DST_BIT;
-      features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT |
+      features |= VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BIT |
+                  VK_FORMAT_FEATURE_2_COLOR_ATTACHMENT_BLEND_BIT |
+                  VK_FORMAT_FEATURE_2_BLIT_DST_BIT |
+                  VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT |
                   VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT |
                   VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT;
    }

@@ -39,14 +39,6 @@ radeonsi-stoney-glcts-piglit:
   variables:
     DEQP_SUITE: radeonsi-stoney
     HWCI_START_WESTON: 1
-    DEQP_FRACTION: 2
-
-radeonsi-stoney-glcts-piglit-full:
-  extends:
-    - radeonsi-stoney-glcts-piglit
-    - .radeonsi-manual-rules
-  variables:
-    DEQP_FRACTION: 1
 
 radeonsi-stoney-traces:
   extends:
@@ -114,7 +106,7 @@ radeonsi-raven-piglit:
     - .lava-lenovo-TPad-C13-Yoga-zork:x86_64
   parallel: 2
   rules:
-    - !reference [.radeonsi-rules, rules]
+    - !reference [.radeonsi-collabora-rules, rules]
     - !reference [.rusticl-rules, rules]
   variables:
     DEQP_SUITE: radeonsi-raven
@@ -157,6 +149,17 @@ radeonsi-raven-vaapi-fluster:
   variables:
     FLUSTER_CODECS: VP9 H.264 H.265
 
+radeonsi-mendocino-glcts-piglit:
+  extends:
+    - .lava-x86_64-test-gl
+    - .lava-dell-latitude-3445-7520c-skyrim:x86_64
+    - .test-piglit
+    - .radeonsi-collabora-rules
+  parallel: 8
+  variables:
+    DEQP_SUITE: radeonsi-mendocino
+    GPU_VERSION: radeonsi-mendocino
+    HWCI_START_WESTON: 1
 
 ############### VKCTS tests ###############
 
@@ -291,10 +294,10 @@ radeonsi-vangogh-glcts:
   extends:
     - radeonsi-vangogh-glcts-full
     - .radeonsi-valve-rules
-  timeout: 30m
+  timeout: 20m
   variables:
-    DEQP_FRACTION: 4
-    CI_TRON_TIMEOUT__OVERALL__MINUTES: 29
+    DEQP_FRACTION: 6
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 19
 
 radv-raphael-vkcts:
   extends:
