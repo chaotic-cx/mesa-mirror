@@ -40,8 +40,9 @@ struct AHardwareBuffer;
 
 #if DETECT_OS_ANDROID
 struct u_gralloc *vk_android_get_ugralloc(void);
-struct u_gralloc *vk_android_init_ugralloc(void);
-void vk_android_destroy_ugralloc(void);
+
+uint64_t vk_android_get_front_buffer_usage(void);
+
 VkResult vk_android_import_anb(struct vk_device *device,
                                const VkImageCreateInfo *pCreateInfo,
                                const VkAllocationCallbacks *alloc,
@@ -61,15 +62,10 @@ vk_android_get_ugralloc(void)
    return NULL;
 }
 
-static inline struct u_gralloc *
-vk_android_init_ugralloc(void)
+static inline uint64_t
+vk_android_get_front_buffer_usage(void)
 {
-   return NULL;
-}
-
-static inline void
-vk_android_destroy_ugralloc(void)
-{
+   return 0;
 }
 
 static inline VkResult

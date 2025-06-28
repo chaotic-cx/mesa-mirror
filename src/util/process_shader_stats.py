@@ -67,14 +67,14 @@ def safe_name(name):
     return name
 
 TYPE_MAP = {
-    'i8': ('uint8_t', 'i64', 'd'),
-    'u8': ('int8_t', 'u64', 'u'),
-    'i16': ('uint16_t', 'i64', 'd'),
-    'u16': ('int16_t', 'u64', 'u'),
-    'i32': ('uint32_t', 'i64', 'd'),
-    'u32': ('int32_t', 'u64', 'u'),
-    'i64': ('uint64_t', 'i64', 'd'),
-    'u64': ('int64_t', 'u64', 'u'),
+    'i8': ('int8_t', 'i64', '" PRId8 "'),
+    'u8': ('uint8_t', 'u64', '" PRIu8 "'),
+    'i16': ('int16_t', 'i64', '" PRId16 "'),
+    'u16': ('uint16_t', 'u64', '" PRIu16 "'),
+    'i32': ('int32_t', 'i64', '" PRId32 "'),
+    'u32': ('uint32_t', 'u64', '" PRIu32 "'),
+    'i64': ('int64_t', 'i64', '" PRId64 "'),
+    'u64': ('uint64_t', 'u64', '" PRIu64 "'),
     'float': ('float', 'f64', 'f'),
     'bool': ('bool', 'bool', 'u')
 }
@@ -107,7 +107,7 @@ class ISA:
         # format. report.py has a weird special case for spills/fills, which we
         # need to fix up here.
         fmt = ', '.join([x for stat in self.stats for x in stat.format_strings])
-        self.format_string = fmt.replace('%u spills, %u fills', '%u:%u spills:fills')
+        self.format_string = fmt.replace('%" PRIu32 " spills, %" PRIu32 " fills', '%" PRIu32 ":%" PRIu32 " spills:fills')
         self.format_args = ', '.join([x for stat in self.stats for x in stat.format_args])
 
 class Family:
@@ -142,8 +142,11 @@ families, isas = parse_file(root)
 template = Template("""\
 #ifndef __SHADER_STATS_H
 #define __SHADER_STATS_H
+#include <inttypes.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
 #include "util/u_debug.h"
 
 % for isa in isas:
@@ -180,6 +183,21 @@ ${isa.c_name}_stats_util_debug(struct util_debug_callback *debug, const char *pr
 % endfor
 % endfor
 } while(0)
+
+static inline void
+${isa.c_name}_stats_serialize(uint8_t *dest, const ${isa.c_struct_name} *stats)
+{
+    memset(dest, 0, sizeof(*stats)); /* zero initialize any padding */
+% for stat in isa.stats:
+% for i in range(stat.count):
+% if stat.count > 1:
+    memcpy(dest + offsetof(${isa.c_struct_name}, ${stat.c_name}) + ${i} * sizeof(${stat.c_type}), &stats->${stat.c_name}[${i}], sizeof(${stat.c_type}));
+% else:
+    memcpy(dest + offsetof(${isa.c_struct_name}, ${stat.c_name}), &stats->${stat.c_name}, sizeof(${stat.c_type}));
+% endif
+% endfor
+% endfor
+}
 
 %endfor
 
@@ -221,6 +239,15 @@ ${family.c_name}_stats_util_debug(struct util_debug_callback *debug, const char 
 % for isa in family.isas:
     if (stats->isa == ${family.isa_tag(isa)})
        ${isa.c_name}_stats_util_debug(debug, prefix, &stats->${isa.name.lower()});
+% endfor
+}
+
+static inline void
+${family.c_name}_stats_serialize(uint8_t *dest, const ${family.c_struct_name} *stats)
+{
+% for isa in family.isas:
+    if (stats->isa == ${family.isa_tag(isa)})
+       ${isa.c_name}_stats_serialize(dest, &stats->${isa.name.lower()});
 % endfor
 }
 

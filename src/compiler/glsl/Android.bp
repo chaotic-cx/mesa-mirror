@@ -327,7 +327,6 @@ cc_library_static {
         "opt_flatten_nested_if_blocks.cpp",
         "opt_rebalance_tree.cpp",
         "gl_nir_lower_xfb_varying.c",
-        "opt_flip_matrices.cpp",
         "builtin_variables.cpp",
         "gl_nir_lower_samplers.c",
         "opt_function_inlining.cpp",

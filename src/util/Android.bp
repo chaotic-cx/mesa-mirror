@@ -122,6 +122,7 @@ cc_library_static {
         "disk_cache_os.c",
         "fast_idiv_by_const.c",
         "fossilize_db.c",
+        "float8.c",
         "futex.c",
         "half_float.c",
         "hash_table.c",

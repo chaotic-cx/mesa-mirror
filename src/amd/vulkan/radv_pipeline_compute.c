@@ -102,9 +102,6 @@ radv_compile_cs(struct radv_device *device, struct vk_pipeline_cache *cache, str
 
    radv_optimize_nir(cs_stage->nir, cs_stage->key.optimisations_disabled);
 
-   /* Gather info again, information such as outputs_read can be out-of-date. */
-   nir_shader_gather_info(cs_stage->nir, nir_shader_get_entrypoint(cs_stage->nir));
-
    /* Run the shader info pass. */
    radv_nir_shader_info_init(cs_stage->stage, MESA_SHADER_NONE, &cs_stage->info);
    radv_nir_shader_info_pass(device, cs_stage->nir, &cs_stage->layout, &cs_stage->key, NULL, RADV_PIPELINE_COMPUTE,
@@ -129,13 +126,14 @@ radv_compile_cs(struct radv_device *device, struct vk_pipeline_cache *cache, str
       }
    }
 
-   char *nir_string = NULL;
-   if (keep_executable_info || dump_shader)
-      nir_string = radv_dump_nir_shaders(instance, &cs_stage->nir, 1);
-
    /* Compile NIR shader to AMD assembly. */
    *cs_binary =
       radv_shader_nir_to_asm(device, cs_stage, &cs_stage->nir, 1, NULL, keep_executable_info, keep_statistic_info);
+
+   /* Dump NIR after nir_to_asm, because ACO modifies it. */
+   char *nir_string = NULL;
+   if (keep_executable_info || dump_shader)
+      nir_string = radv_dump_nir_shaders(instance, &cs_stage->nir, 1);
 
    cs_shader = radv_shader_create(device, cache, *cs_binary, skip_shaders_cache || dump_shader);
 

@@ -348,6 +348,9 @@ Capability about the features and limits of the driver/GPU.
   non-compressed surface whose texels are the same number of bits as the
   compressed blocks, and vice versa. The width and height of the surface is
   adjusted appropriately.
+* ``pipe_caps.compressed_surface_reinterpret_blocks_layered``: Same as
+  ``pipe_caps.surface_reinterpret_blocks`` but for supporting multiple layers
+  of a compressed texture.
 * ``pipe_caps.query_buffer_object``: Driver supports
   context::get_query_result_resource callback.
 * ``pipe_caps.pci_group``: Return the PCI segment group number.
@@ -590,7 +593,11 @@ Capability about the features and limits of the driver/GPU.
     that back-facing primitives should use the back-side color as the FS input
     color.  If unset, mesa/st will lower it to gl_FrontFacing reads in the
     fragment shader.
-* ``pipe_caps.clip_planes``: Driver supports user-defined clip-planes. 0 denotes none, 1 denotes MAX_CLIP_PLANES. > 1 overrides MAX. When is 0, pipe_rasterizer_state::clip_plane_enable is unused.
+* ``pipe_caps.clip_planes``: Driver supports user-defined clip-planes. 0 denotes
+    none, 1 denotes MAX_CLIP_PLANES. > 1 overrides MAX. When is 0,
+    ``set_clip_state()`` will never be called.  Instead, user clip planes are
+    lowered to clip distance writes to CLIP_DIST[] corresponding to
+    pipe_rasterizer_state::clip_plane_enable bits.
 * ``pipe_caps.max_vertex_buffers``: Number of supported vertex buffers.
 * ``pipe_caps.opencl_integer_functions``: Driver supports extended OpenCL-style integer functions.  This includes average, saturating addition, saturating subtraction, absolute difference, count leading zeros, and count trailing zeros.
 * ``pipe_caps.integer_multiply_32x16``: Driver supports integer multiplication between a 32-bit integer and a 16-bit integer.  If the second operand is 32-bits, the upper 16-bits are ignored, and the low 16-bits are possibly sign extended as necessary.

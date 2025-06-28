@@ -98,14 +98,14 @@ elk_fs_visitor::emit_interpolation_setup_gfx4()
    struct elk_reg g1_uw = retype(elk_vec1_grf(1, 0), ELK_REGISTER_TYPE_UW);
 
    fs_builder abld = fs_builder(this).at_end().annotate("compute pixel centers");
-   this->pixel_x = vgrf(glsl_uint_type());
-   this->pixel_y = vgrf(glsl_uint_type());
-   this->pixel_x.type = ELK_REGISTER_TYPE_UW;
-   this->pixel_y.type = ELK_REGISTER_TYPE_UW;
-   abld.ADD(this->pixel_x,
+   this->uw_pixel_x = vgrf(glsl_uint_type());
+   this->uw_pixel_y = vgrf(glsl_uint_type());
+   this->uw_pixel_x.type = ELK_REGISTER_TYPE_UW;
+   this->uw_pixel_y.type = ELK_REGISTER_TYPE_UW;
+   abld.ADD(this->uw_pixel_x,
             elk_fs_reg(stride(suboffset(g1_uw, 4), 2, 4, 0)),
             elk_fs_reg(elk_imm_v(0x10101010)));
-   abld.ADD(this->pixel_y,
+   abld.ADD(this->uw_pixel_y,
             elk_fs_reg(stride(suboffset(g1_uw, 5), 2, 4, 0)),
             elk_fs_reg(elk_imm_v(0x11001100)));
 
@@ -121,13 +121,13 @@ elk_fs_visitor::emit_interpolation_setup_gfx4()
    if (devinfo->has_pln) {
       for (unsigned i = 0; i < dispatch_width / 8; i++) {
          abld.quarter(i).ADD(quarter(offset(delta_xy, abld, 0), i),
-                             quarter(this->pixel_x, i), xstart);
+                             quarter(this->uw_pixel_x, i), xstart);
          abld.quarter(i).ADD(quarter(offset(delta_xy, abld, 1), i),
-                             quarter(this->pixel_y, i), ystart);
+                             quarter(this->uw_pixel_y, i), ystart);
       }
    } else {
-      abld.ADD(offset(delta_xy, abld, 0), this->pixel_x, xstart);
-      abld.ADD(offset(delta_xy, abld, 1), this->pixel_y, ystart);
+      abld.ADD(offset(delta_xy, abld, 0), this->uw_pixel_x, xstart);
+      abld.ADD(offset(delta_xy, abld, 1), this->uw_pixel_y, ystart);
    }
 
    this->pixel_z = fetch_payload_reg(bld, fs_payload().source_depth_reg);
@@ -140,15 +140,6 @@ elk_fs_visitor::emit_interpolation_setup_gfx4()
       this->delta_xy[ELK_BARYCENTRIC_PERSPECTIVE_PIXEL];
 
    abld = bld.annotate("compute pos.w and 1/pos.w");
-   /* Compute wpos.w.  It's always in our setup, since it's needed to
-    * interpolate the other attributes.
-    */
-   this->wpos_w = vgrf(glsl_float_type());
-   abld.emit(ELK_FS_OPCODE_LINTERP, wpos_w, delta_xy,
-             interp_reg(abld, VARYING_SLOT_POS, 3, 0));
-   /* Compute the pixel 1/W value from wpos.w. */
-   this->pixel_w = vgrf(glsl_float_type());
-   abld.emit(ELK_SHADER_OPCODE_RCP, this->pixel_w, wpos_w);
 }
 
 /** Emits the interpolation for the varying inputs. */
@@ -157,9 +148,6 @@ elk_fs_visitor::emit_interpolation_setup_gfx6()
 {
    const fs_builder bld = fs_builder(this).at_end();
    fs_builder abld = bld.annotate("compute pixel centers");
-
-   this->pixel_x = vgrf(glsl_float_type());
-   this->pixel_y = vgrf(glsl_float_type());
 
    const struct elk_wm_prog_key *wm_key = (elk_wm_prog_key*) this->key;
    struct elk_wm_prog_data *wm_prog_data = elk_wm_prog_data(prog_data);
@@ -216,8 +204,15 @@ elk_fs_visitor::emit_interpolation_setup_gfx6()
    elk_fs_reg half_int_pixel_offset_x = half_int_sample_offset_x;
    elk_fs_reg half_int_pixel_offset_y = half_int_sample_offset_y;
 
+   uw_pixel_x = abld.vgrf(ELK_REGISTER_TYPE_UW);
+   uw_pixel_y = abld.vgrf(ELK_REGISTER_TYPE_UW);
+
    for (unsigned i = 0; i < DIV_ROUND_UP(dispatch_width, 16); i++) {
       const fs_builder hbld = abld.group(MIN2(16, dispatch_width), i);
+
+      elk_fs_reg int_pixel_x = offset(uw_pixel_x, hbld, i);
+      elk_fs_reg int_pixel_y = offset(uw_pixel_y, hbld, i);
+
       /* According to the "PS Thread Payload for Normal Dispatch"
        * pages on the BSpec, subspan X/Y coordinates are stored in
        * R1.2-R1.5/R2.2-R2.5 on gfx6+, and on R0.10-R0.13/R1.10-R1.13
@@ -246,9 +241,9 @@ elk_fs_visitor::emit_interpolation_setup_gfx6()
                   elk_fs_reg(stride(suboffset(gi_uw, 4), 1, 4, 0)),
                   int_pixel_offset_xy);
 
-         hbld.emit(ELK_FS_OPCODE_PIXEL_X, offset(pixel_x, hbld, i), int_pixel_xy,
+         hbld.emit(ELK_FS_OPCODE_PIXEL_X, int_pixel_x, int_pixel_xy,
                                       horiz_stride(half_int_pixel_offset_x, 0));
-         hbld.emit(ELK_FS_OPCODE_PIXEL_Y, offset(pixel_y, hbld, i), int_pixel_xy,
+         hbld.emit(ELK_FS_OPCODE_PIXEL_Y, int_pixel_y, int_pixel_xy,
                                       horiz_stride(half_int_pixel_offset_y, 0));
       } else {
          /* The "Register Region Restrictions" page says for SNB, IVB, HSW:
@@ -259,35 +254,18 @@ elk_fs_visitor::emit_interpolation_setup_gfx6()
           * Since the GRF source of the ADD will only read a single register,
           * we must do two separate ADDs in SIMD16.
           */
-         const elk_fs_reg int_pixel_x = hbld.vgrf(ELK_REGISTER_TYPE_UW);
-         const elk_fs_reg int_pixel_y = hbld.vgrf(ELK_REGISTER_TYPE_UW);
-
          hbld.ADD(int_pixel_x,
                   elk_fs_reg(stride(suboffset(gi_uw, 4), 2, 4, 0)),
                   elk_fs_reg(elk_imm_v(0x10101010)));
          hbld.ADD(int_pixel_y,
                   elk_fs_reg(stride(suboffset(gi_uw, 5), 2, 4, 0)),
                   elk_fs_reg(elk_imm_v(0x11001100)));
-
-         /* As of gfx6, we can no longer mix float and int sources.  We have
-          * to turn the integer pixel centers into floats for their actual
-          * use.
-          */
-         hbld.MOV(offset(pixel_x, hbld, i), int_pixel_x);
-         hbld.MOV(offset(pixel_y, hbld, i), int_pixel_y);
       }
    }
 
    abld = bld.annotate("compute pos.z");
    if (wm_prog_data->uses_src_depth)
       this->pixel_z = fetch_payload_reg(bld, fs_payload().source_depth_reg);
-
-   if (wm_prog_data->uses_src_w) {
-      abld = bld.annotate("compute pos.w");
-      this->pixel_w = fetch_payload_reg(abld, fs_payload().source_w_reg);
-      this->wpos_w = vgrf(glsl_float_type());
-      abld.emit(ELK_SHADER_OPCODE_RCP, this->wpos_w, this->pixel_w);
-   }
 
    if (wm_key->persample_interp == ELK_SOMETIMES) {
       assert(!elk_needs_unlit_centroid_workaround(devinfo));

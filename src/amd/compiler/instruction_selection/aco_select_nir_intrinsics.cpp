@@ -3235,43 +3235,6 @@ visit_access_shared2_amd(isel_context* ctx, nir_intrinsic_instr* instr)
    }
 }
 
-Temp
-get_scratch_resource(isel_context* ctx)
-{
-   Builder bld(ctx->program, ctx->block);
-   Temp scratch_addr;
-   if (!ctx->program->private_segment_buffers.empty())
-      scratch_addr = ctx->program->private_segment_buffers.back();
-   if (!scratch_addr.bytes()) {
-      Temp addr_lo =
-         bld.sop1(aco_opcode::p_load_symbol, bld.def(s1), Operand::c32(aco_symbol_scratch_addr_lo));
-      Temp addr_hi =
-         bld.sop1(aco_opcode::p_load_symbol, bld.def(s1), Operand::c32(aco_symbol_scratch_addr_hi));
-      scratch_addr = bld.pseudo(aco_opcode::p_create_vector, bld.def(s2), addr_lo, addr_hi);
-   } else if (ctx->stage.hw != AC_HW_COMPUTE_SHADER) {
-      scratch_addr =
-         bld.smem(aco_opcode::s_load_dwordx2, bld.def(s2), scratch_addr, Operand::zero());
-   }
-
-   struct ac_buffer_state ac_state = {0};
-   uint32_t desc[4];
-
-   ac_state.size = 0xffffffff;
-   ac_state.format = PIPE_FORMAT_R32_FLOAT;
-   for (int i = 0; i < 4; i++)
-      ac_state.swizzle[i] = PIPE_SWIZZLE_0;
-   /* older generations need element size = 4 bytes. element size removed in GFX9 */
-   ac_state.element_size = ctx->program->gfx_level <= GFX8 ? 1u : 0u;
-   ac_state.index_stride = ctx->program->wave_size == 64 ? 3u : 2u;
-   ac_state.add_tid = true;
-   ac_state.gfx10_oob_select = V_008F0C_OOB_SELECT_RAW;
-
-   ac_build_buffer_descriptor(ctx->program->gfx_level, &ac_state, desc);
-
-   return bld.pseudo(aco_opcode::p_create_vector, bld.def(s4), scratch_addr, Operand::c32(desc[2]),
-                     Operand::c32(desc[3]));
-}
-
 void
 visit_load_scratch(isel_context* ctx, nir_intrinsic_instr* instr)
 {
@@ -3286,20 +3249,31 @@ visit_load_scratch(isel_context* ctx, nir_intrinsic_instr* instr)
    info.sync = memory_sync_info(storage_scratch, semantic_private);
    if (ctx->program->gfx_level >= GFX9) {
       if (nir_src_is_const(instr->src[0])) {
-         uint32_t max = ctx->program->dev.scratch_global_offset_max + 1;
-         info.offset =
-            bld.copy(bld.def(s1), Operand::c32(ROUND_DOWN_TO(nir_src_as_uint(instr->src[0]), max)));
-         info.const_offset = nir_src_as_uint(instr->src[0]) % max;
+         info.const_offset = nir_src_as_uint(instr->src[0]);
+         if (ctx->program->stack_ptr.id())
+            info.offset = Operand(ctx->program->stack_ptr);
+         else
+            info.offset = Operand::zero(4);
       } else {
          info.offset = Operand(get_ssa_temp(ctx, instr->src[0].ssa));
+         if (ctx->program->stack_ptr.id()) {
+            if (info.offset.regClass().type() == RegType::sgpr) {
+               info.offset = bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.def(s1, scc),
+                                      ctx->program->stack_ptr, info.offset);
+            } else {
+               info.offset = bld.vadd32(bld.def(v1), ctx->program->stack_ptr, info.offset);
+            }
+         }
       }
       EmitLoadParameters params = scratch_flat_load_params;
       params.max_const_offset = ctx->program->dev.scratch_global_offset_max;
       emit_load(ctx, bld, info, params);
    } else {
-      info.resource = get_scratch_resource(ctx);
+      info.resource = load_scratch_resource(
+         ctx->program, bld, ctx->program->private_segment_buffers.size() - 1, false);
       info.offset = Operand(as_vgpr(ctx, get_ssa_temp(ctx, instr->src[0].ssa)));
-      info.soffset = ctx->program->scratch_offsets.back();
+      if (!ctx->program->scratch_offsets.empty())
+         info.soffset = ctx->program->scratch_offsets.back();
       emit_load(ctx, bld, info, scratch_mubuf_load_params);
    }
 }
@@ -3327,6 +3301,16 @@ visit_store_scratch(isel_context* ctx, nir_intrinsic_instr* instr)
       uint32_t base_const_offset =
          nir_src_is_const(instr->src[1]) ? nir_src_as_uint(instr->src[1]) : 0;
 
+      if (ctx->program->stack_ptr.id()) {
+         if (offset.id() == 0)
+            offset = ctx->program->stack_ptr;
+         else if (offset.type() == RegType::sgpr)
+            offset = bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.def(s1, scc),
+                              Operand(ctx->program->stack_ptr), Operand(offset));
+         else
+            offset = bld.vadd32(bld.def(v1), Operand(ctx->program->stack_ptr), Operand(offset));
+      }
+
       for (unsigned i = 0; i < write_count; i++) {
          aco_opcode op;
          switch (write_datas[i].bytes()) {
@@ -3340,18 +3324,24 @@ visit_store_scratch(isel_context* ctx, nir_intrinsic_instr* instr)
          }
 
          uint32_t const_offset = base_const_offset + offsets[i];
-         assert(const_offset < max || offset.id() == 0);
 
          Operand addr = offset.regClass() == s1 ? Operand(v1) : Operand(offset);
          Operand saddr = offset.regClass() == s1 ? Operand(offset) : Operand(s1);
-         if (offset.id() == 0)
+         if (offset.id() && const_offset >= max) {
+            assert(offset == ctx->program->stack_ptr);
+            saddr =
+               bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.def(s1, scc),
+                        ctx->program->stack_ptr, Operand::c32(ROUND_DOWN_TO(const_offset, max)));
+         } else if (offset.id() == 0) {
             saddr = bld.copy(bld.def(s1), Operand::c32(ROUND_DOWN_TO(const_offset, max)));
+         }
 
          bld.scratch(op, addr, saddr, write_datas[i], const_offset % max,
                      memory_sync_info(storage_scratch, semantic_private));
       }
    } else {
-      Temp rsrc = get_scratch_resource(ctx);
+      Temp rsrc = load_scratch_resource(ctx->program, bld,
+                                        ctx->program->private_segment_buffers.size() - 1, false);
       offset = as_vgpr(ctx, offset);
       for (unsigned i = 0; i < write_count; i++) {
          aco_opcode op = get_buffer_store_op(write_datas[i].bytes());
@@ -3761,6 +3751,20 @@ visit_cmat_muladd(isel_context* ctx, nir_intrinsic_instr* instr)
       opcode = aco_opcode::v_wmma_i32_16x16x16_iu8;
       neg_lo[0] = type_a == GLSL_TYPE_INT8;
       neg_lo[1] = type_b == GLSL_TYPE_INT8;
+      break;
+   case GLSL_TYPE_FLOAT_E4M3FN:
+      switch (type_b) {
+      case GLSL_TYPE_FLOAT_E4M3FN: opcode = aco_opcode::v_wmma_f32_16x16x16_fp8_fp8; break;
+      case GLSL_TYPE_FLOAT_E5M2: opcode = aco_opcode::v_wmma_f32_16x16x16_fp8_bf8; break;
+      default: unreachable("invalid cmat_muladd_amd type");
+      }
+      break;
+   case GLSL_TYPE_FLOAT_E5M2:
+      switch (type_b) {
+      case GLSL_TYPE_FLOAT_E4M3FN: opcode = aco_opcode::v_wmma_f32_16x16x16_bf8_fp8; break;
+      case GLSL_TYPE_FLOAT_E5M2: opcode = aco_opcode::v_wmma_f32_16x16x16_bf8_bf8; break;
+      default: unreachable("invalid cmat_muladd_amd type");
+      }
       break;
    }
    default: unreachable("invalid cmat_muladd_amd type");

@@ -31,8 +31,7 @@
 /* We reserve one ubo for push constant, one for sysvals and one per-set for the
  * descriptor metadata  */
 #define RESERVED_UBO_COUNT                   6
-#define MAX_INLINE_UNIFORM_BLOCK_DESCRIPTORS 32 - RESERVED_UBO_COUNT
-#define MAX_INLINE_UNIFORM_BLOCK_SIZE        (1 << 16)
+#define MAX_INLINE_UNIFORM_BLOCK_DESCRIPTORS (32 - RESERVED_UBO_COUNT)
 
 void
 panvk_per_arch(get_physical_device_extensions)(
@@ -87,6 +86,7 @@ panvk_per_arch(get_physical_device_extensions)(
       .KHR_sampler_mirror_clamp_to_edge = true,
       .KHR_sampler_ycbcr_conversion = PAN_ARCH >= 10,
       .KHR_separate_depth_stencil_layouts = true,
+      .KHR_shader_clock = true,
       .KHR_shader_draw_parameters = true,
       .KHR_shader_expect_assume = true,
       .KHR_shader_float_controls = true,
@@ -150,6 +150,7 @@ panvk_per_arch(get_physical_device_extensions)(
       .EXT_primitive_topology_list_restart = true,
       .EXT_provoking_vertex = true,
       .EXT_queue_family_foreign = true,
+      .EXT_robustness2 = PAN_ARCH >= 10,
       .EXT_sampler_filter_minmax = PAN_ARCH >= 10,
       .EXT_scalar_block_layout = true,
       .EXT_separate_stencil_usage = true,
@@ -425,6 +426,15 @@ panvk_per_arch(get_physical_device_features)(
       /* VK_EXT_pipeline_robustness */
       .pipelineRobustness = true,
 
+      /* VK_EXT_robustness2 */
+      .robustBufferAccess2 = false,
+      .robustImageAccess2 = false,
+      .nullDescriptor = PAN_ARCH >= 10,
+
+      /* VK_KHR_shader_clock */
+      .shaderSubgroupClock = device->kmod.props.gpu_can_query_timestamp,
+      .shaderDeviceClock = device->kmod.props.gpu_can_query_timestamp,
+
       /* VK_KHR_shader_float_controls2 */
       .shaderFloatControls2 = true,
 
@@ -529,11 +539,22 @@ panvk_per_arch(get_physical_device_properties)(
       .deviceType = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU,
 
       /* Vulkan 1.0 limits */
-      /* Maximum texture dimension is 2^16. */
+      /* Maximum texture dimension is 2^16, but we're limited by the
+       * size/surface-stride fields. The size/surface_stride field is 32-bit
+       * on v10-, so let's take that as a reference for now.
+       * The following limits are chosen so we don't overflow these
+       * size/surface_stride fields. We choose them so they are a power-of-two,
+       * except for 2D/Cube dimensions where taking a power-of-two would be
+       * too limiting, so we pick power-of-two-minus-one, which makes things
+       * fit exactly in our 32-bit budget.
+       *
+       * TODO: increase the limit on v11+ once we have all the necessary bits
+       * patched to handle the size/stride field extension.
+       */
       .maxImageDimension1D = (1 << 16),
-      .maxImageDimension2D = (1 << 16),
-      .maxImageDimension3D = (1 << 16),
-      .maxImageDimensionCube = (1 << 16),
+      .maxImageDimension2D = (1 << 14) - 1,
+      .maxImageDimension3D = (1 << 9),
+      .maxImageDimensionCube = (1 << 14) - 1,
       .maxImageArrayLayers = (1 << 16),
       /* Currently limited by the 1D texture size, which is 2^16.
        * TODO: If we expose buffer views as 2D textures, we can increase the
@@ -854,6 +875,10 @@ panvk_per_arch(get_physical_device_properties)(
       .storageTexelBufferOffsetSingleTexelAlignment = false,
       .uniformTexelBufferOffsetAlignmentBytes = 64,
       .uniformTexelBufferOffsetSingleTexelAlignment = false,
+
+      /* VK_EXT_robustness2 */
+      .robustStorageBufferAccessSizeAlignment = 1,
+      .robustUniformBufferAccessSizeAlignment = 1,
 
       /* VK_KHR_maintenance4 */
       .maxBufferSize = 1 << 30,

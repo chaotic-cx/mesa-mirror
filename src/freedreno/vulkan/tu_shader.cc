@@ -742,7 +742,8 @@ lower_inline_ubo(nir_builder *b, nir_intrinsic_instr *intrin, void *cb_data)
       }
       val = nir_load_global_ir3(b, intrin->num_components,
                                 intrin->def.bit_size,
-                                base_addr, nir_ishr_imm(b, offset, 2),
+                                nir_pack_64_2x32(b, base_addr),
+                                nir_ishr_imm(b, offset, 2),
                                 .access =
                                  (enum gl_access_qualifier)(
                                     (enum gl_access_qualifier)(ACCESS_NON_WRITEABLE | ACCESS_CAN_REORDER) |
@@ -1337,8 +1338,10 @@ tu6_emit_xs(struct tu_cs *cs,
                .threadsize = thrsz,
                .varying = xs->total_in != 0,
                .lodpixmask = xs->need_full_quad,
-               /* unknown bit, seems unnecessary */
-               .unk24 = true,
+               /* inoutregoverlap had no effect on perf in anholt's testing:
+                * https://gitlab.freedesktop.org/anholt/mesa/-/commits/tu-inout-reg
+                */
+               .inoutregoverlap = true,
                .pixlodenable = xs->need_pixlod,
                .earlypreamble = xs->early_preamble,
                .mergedregs = xs->mergedregs,
@@ -2581,7 +2584,7 @@ tu_shader_create(struct tu_device *dev,
     * store at the end instead of having to rewrite every store specified by
     * the user.
     */
-   ir3_nir_lower_io_to_temporaries(nir);
+   ir3_nir_lower_io_vars_to_temporaries(nir);
 
    if (nir->info.stage == MESA_SHADER_VERTEX && key->multiview_mask) {
       tu_nir_lower_multiview(nir, key->multiview_mask, dev);
@@ -2783,7 +2786,7 @@ static void
 lower_io_to_scalar_early(nir_shader *nir, nir_variable_mode mask)
 {
    bool progress = false;
-   NIR_PASS(progress, nir, nir_lower_io_to_scalar_early, mask);
+   NIR_PASS(progress, nir, nir_lower_io_vars_to_scalar, mask);
 
    if (progress) {
       /* Optimize the new vector code and then remove dead vars. */
@@ -2864,8 +2867,8 @@ tu_link_shaders(nir_shader **shaders, unsigned shaders_count)
          nir_lower_global_vars_to_local(consumer);
       }
 
-      NIR_PASS(_, producer, nir_lower_io_to_vector, nir_var_shader_out);
-      NIR_PASS(_, consumer, nir_lower_io_to_vector, nir_var_shader_in);
+      NIR_PASS(_, producer, nir_opt_vectorize_io_vars, nir_var_shader_out);
+      NIR_PASS(_, consumer, nir_opt_vectorize_io_vars, nir_var_shader_in);
       consumer = producer;
    }
 

@@ -27,35 +27,13 @@
 #include <hardware/gralloc1.h>
 #endif
 
-#include <hardware/hardware.h>
-#include <hardware/hwvulkan.h>
 #include <vulkan/vk_android_native_buffer.h>
-#include <vulkan/vk_icd.h>
 #include <sync/sync.h>
 
 #include "anv_private.h"
 #include "vk_android.h"
 #include "vk_common_entrypoints.h"
 #include "vk_util.h"
-
-static int anv_hal_open(const struct hw_module_t* mod, const char* id, struct hw_device_t** dev);
-static int anv_hal_close(struct hw_device_t *dev);
-
-static_assert(HWVULKAN_DISPATCH_MAGIC == ICD_LOADER_MAGIC, "");
-
-PUBLIC struct hwvulkan_module_t HAL_MODULE_INFO_SYM = {
-   .common = {
-      .tag = HARDWARE_MODULE_TAG,
-      .module_api_version = HWVULKAN_MODULE_API_VERSION_0_1,
-      .hal_api_version = HARDWARE_MAKE_API_VERSION(1, 0),
-      .id = HWVULKAN_HARDWARE_MODULE_ID,
-      .name = "Intel Vulkan HAL",
-      .author = "Intel",
-      .methods = &(hw_module_methods_t) {
-         .open = anv_hal_open,
-      },
-   },
-};
 
 /* If any bits in test_mask are set, then unset them and return true. */
 static inline bool
@@ -64,40 +42,6 @@ unmask32(uint32_t *inout_mask, uint32_t test_mask)
    uint32_t orig_mask = *inout_mask;
    *inout_mask &= ~test_mask;
    return *inout_mask != orig_mask;
-}
-
-static int
-anv_hal_open(const struct hw_module_t* mod, const char* id,
-             struct hw_device_t** dev)
-{
-   assert(mod == &HAL_MODULE_INFO_SYM.common);
-   assert(strcmp(id, HWVULKAN_DEVICE_0) == 0);
-
-   hwvulkan_device_t *hal_dev = malloc(sizeof(*hal_dev));
-   if (!hal_dev)
-      return -1;
-
-   *hal_dev = (hwvulkan_device_t) {
-      .common = {
-         .tag = HARDWARE_DEVICE_TAG,
-         .version = HWVULKAN_DEVICE_API_VERSION_0_1,
-         .module = &HAL_MODULE_INFO_SYM.common,
-         .close = anv_hal_close,
-      },
-     .EnumerateInstanceExtensionProperties = anv_EnumerateInstanceExtensionProperties,
-     .CreateInstance = anv_CreateInstance,
-     .GetInstanceProcAddr = anv_GetInstanceProcAddr,
-   };
-
-   *dev = &hal_dev->common;
-   return 0;
-}
-
-static int
-anv_hal_close(struct hw_device_t *dev)
-{
-   /* hwvulkan.h claims that hw_device_t::close() is never called. */
-   return -1;
 }
 
 #if ANDROID_API_LEVEL >= 26
@@ -216,7 +160,7 @@ get_ahw_buffer_format_properties2(
    p->samplerYcbcrConversionComponents.a = VK_COMPONENT_SWIZZLE_IDENTITY;
 
    p->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601;
-   p->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
+   p->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_NARROW;
 
    p->suggestedXChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;
    p->suggestedYChromaOffset = VK_CHROMA_LOCATION_MIDPOINT;

@@ -480,7 +480,7 @@ typedef struct nir_variable {
       /**
        * Can this variable be coalesced with another?
        *
-       * This is set by nir_lower_io_to_temporaries to say that any
+       * This is set by nir_lower_io_vars_to_temporaries to say that any
        * copies involving this variable should stay put. Propagating it can
        * duplicate the resulting load/store, which is not wanted, and may
        * result in a load/store of the variable with an indirect offset which
@@ -2562,6 +2562,55 @@ void nir_tex_instr_add_src(nir_tex_instr *tex,
 
 /** Removes a source from a texture instruction */
 void nir_tex_instr_remove_src(nir_tex_instr *tex, unsigned src_idx);
+
+static inline nir_def *
+nir_get_tex_src(nir_tex_instr *tex, nir_tex_src_type type_)
+{
+   int idx = nir_tex_instr_src_index(tex, type_);
+   if (idx < 0)
+      return NULL;
+
+   return tex->src[idx].src.ssa;
+}
+
+static inline nir_deref_instr *
+nir_get_tex_deref(nir_tex_instr *tex, nir_tex_src_type type_)
+{
+   int idx = nir_tex_instr_src_index(tex, type_);
+   if (idx < 0)
+      return NULL;
+
+   return nir_src_as_deref(tex->src[idx].src);
+}
+
+/*
+ * Find a texture source, remove it, and return its nir_def. If the texture
+ * source does not exist, return NULL. This is useful for texture lowering pass
+ * that consume their input sources and produce a new lowered source.
+ */
+static inline nir_def *
+nir_steal_tex_src(nir_tex_instr *tex, nir_tex_src_type type_)
+{
+   int idx = nir_tex_instr_src_index(tex, type_);
+   if (idx < 0)
+      return NULL;
+
+   nir_def *ssa = tex->src[idx].src.ssa;
+   nir_tex_instr_remove_src(tex, idx);
+   return ssa;
+}
+
+static inline nir_deref_instr *
+nir_steal_tex_deref(nir_tex_instr *tex, nir_tex_src_type type_)
+{
+   int idx = nir_tex_instr_src_index(tex, type_);
+   if (idx < 0)
+      return NULL;
+
+   nir_deref_instr *deref = nir_src_as_deref(tex->src[idx].src);
+   nir_tex_instr_remove_src(tex, idx);
+   return deref;
+}
 
 bool nir_tex_instr_has_explicit_tg4_offsets(nir_tex_instr *tex);
 
@@ -4885,9 +4934,9 @@ bool nir_lower_indirect_var_derefs(nir_shader *shader,
 
 bool nir_lower_locals_to_regs(nir_shader *shader, uint8_t bool_bitsize);
 
-bool nir_lower_io_to_temporaries(nir_shader *shader,
-                                 nir_function_impl *entrypoint,
-                                 bool outputs, bool inputs);
+bool nir_lower_io_vars_to_temporaries(nir_shader *shader,
+                                      nir_function_impl *entrypoint,
+                                      bool outputs, bool inputs);
 
 bool nir_lower_vars_to_scratch(nir_shader *shader,
                                nir_variable_mode modes,
@@ -4904,10 +4953,6 @@ void nir_shader_gather_info(nir_shader *shader, nir_function_impl *entrypoint);
 void nir_gather_types(nir_function_impl *impl,
                       BITSET_WORD *float_types,
                       BITSET_WORD *int_types);
-
-void nir_assign_var_locations(nir_shader *shader, nir_variable_mode mode,
-                              unsigned *size,
-                              int (*type_size)(const struct glsl_type *, bool));
 
 /* Some helpers to do very simple linking */
 bool nir_remove_unused_varyings(nir_shader *producer, nir_shader *consumer);
@@ -5259,13 +5304,13 @@ bool nir_lower_int_to_float(nir_shader *shader);
 bool nir_lower_load_const_to_scalar(nir_shader *shader);
 bool nir_lower_read_invocation_to_scalar(nir_shader *shader);
 bool nir_lower_phis_to_scalar(nir_shader *shader, bool lower_all);
-void nir_lower_io_arrays_to_elements(nir_shader *producer, nir_shader *consumer);
-bool nir_lower_io_arrays_to_elements_no_indirects(nir_shader *shader,
-                                                  bool outputs_only);
+void nir_lower_io_array_vars_to_elements(nir_shader *producer, nir_shader *consumer);
+bool nir_lower_io_array_vars_to_elements_no_indirects(nir_shader *shader,
+                                                      bool outputs_only);
 bool nir_lower_io_to_scalar(nir_shader *shader, nir_variable_mode mask, nir_instr_filter_cb filter, void *filter_data);
-bool nir_lower_io_to_scalar_early(nir_shader *shader, nir_variable_mode mask);
-bool nir_lower_io_to_vector(nir_shader *shader, nir_variable_mode mask);
-bool nir_vectorize_tess_levels(nir_shader *shader);
+bool nir_lower_io_vars_to_scalar(nir_shader *shader, nir_variable_mode mask);
+bool nir_opt_vectorize_io_vars(nir_shader *shader, nir_variable_mode mask);
+bool nir_lower_tess_level_array_vars_to_vec(nir_shader *shader);
 nir_shader *nir_create_passthrough_tcs_impl(const nir_shader_compiler_options *options,
                                             unsigned *locations, unsigned num_locations,
                                             uint8_t patch_vertices);
@@ -5711,6 +5756,7 @@ typedef struct nir_lower_idiv_options {
 bool nir_lower_idiv(nir_shader *shader, const nir_lower_idiv_options *options);
 
 typedef struct nir_input_attachment_options {
+   bool use_ia_coord_intrin;
    bool use_fragcoord_sysval;
    bool use_layer_id_sysval;
    bool use_view_id_for_layer;
@@ -5732,7 +5778,7 @@ bool nir_lower_clip_fs(nir_shader *shader, unsigned ucp_enables,
                        bool use_clipdist_array, bool use_load_interp);
 
 bool nir_lower_clip_cull_distance_to_vec4s(nir_shader *shader);
-bool nir_lower_clip_cull_distance_arrays(nir_shader *nir);
+bool nir_lower_clip_cull_distance_array_vars(nir_shader *nir);
 bool nir_lower_clip_disable(nir_shader *shader, unsigned clip_plane_enable);
 
 bool nir_lower_point_size_mov(nir_shader *shader,
@@ -5802,6 +5848,8 @@ typedef enum {
 
 bool nir_lower_gs_intrinsics(nir_shader *shader, nir_lower_gs_intrinsics_flags options);
 
+bool nir_lower_halt_to_return(nir_shader *nir);
+
 bool nir_lower_tess_coord_z(nir_shader *shader, bool triangles);
 
 typedef struct nir_lower_task_shader_options {
@@ -5840,14 +5888,13 @@ bool nir_lower_doubles(nir_shader *shader, const nir_shader *softfp64,
                        nir_lower_doubles_options options);
 bool nir_lower_pack(nir_shader *shader);
 
+nir_intrinsic_instr *nir_get_io_intrinsic(nir_instr *instr, nir_variable_mode modes,
+                                          nir_variable_mode *out_mode);
 bool nir_recompute_io_bases(nir_shader *nir, nir_variable_mode modes);
 bool nir_lower_mediump_vars(nir_shader *nir, nir_variable_mode modes);
 bool nir_lower_mediump_io(nir_shader *nir, nir_variable_mode modes,
                           uint64_t varying_mask, bool use_16bit_slots);
 bool nir_clear_mediump_io_flag(nir_shader *nir);
-bool nir_force_mediump_io(nir_shader *nir, nir_variable_mode modes,
-                          nir_alu_type types);
-bool nir_unpack_16bit_varying_slots(nir_shader *nir, nir_variable_mode modes);
 
 typedef struct nir_opt_tex_srcs_options {
    unsigned sampler_dims;
@@ -6022,6 +6069,7 @@ bool nir_opt_algebraic_before_lower_int64(nir_shader *shader);
 bool nir_opt_algebraic_late(nir_shader *shader);
 bool nir_opt_algebraic_distribute_src_mods(nir_shader *shader);
 bool nir_opt_algebraic_integer_promotion(nir_shader *shader);
+bool nir_opt_reassociate_matrix_mul(nir_shader *shader);
 bool nir_opt_constant_folding(nir_shader *shader);
 
 /* Try to combine a and b into a.  Return true if combination was possible,
@@ -6097,6 +6145,7 @@ typedef enum {
    nir_move_load_ssbo = (1 << 5),
    nir_move_load_uniform = (1 << 6),
    nir_move_alu = (1 << 7),
+   nir_dont_move_byte_word_vecs = (1 << 8),
 } nir_move_options;
 
 bool nir_can_move_instr(nir_instr *instr, nir_move_options options);

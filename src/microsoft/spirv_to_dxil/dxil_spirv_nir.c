@@ -890,7 +890,7 @@ dxil_spirv_nir_passes(nir_shader *nir,
 {
    glsl_type_singleton_init_or_ref();
 
-   NIR_PASS_V(nir, nir_lower_io_to_vector,
+   NIR_PASS_V(nir, nir_opt_vectorize_io_vars,
               nir_var_shader_out |
               (nir->info.stage != MESA_SHADER_VERTEX ? nir_var_shader_in : 0));
    NIR_PASS_V(nir, nir_opt_combine_stores, nir_var_shader_out);
@@ -1020,12 +1020,12 @@ dxil_spirv_nir_passes(nir_shader *nir,
 
    NIR_PASS_V(nir, dxil_nir_lower_int_cubemaps, false);
 
-   NIR_PASS_V(nir, nir_lower_clip_cull_distance_arrays);
-   NIR_PASS_V(nir, nir_lower_io_to_temporaries, nir_shader_get_entrypoint(nir), true, true);
+   NIR_PASS_V(nir, nir_lower_clip_cull_distance_array_vars);
+   NIR_PASS_V(nir, nir_lower_io_vars_to_temporaries, nir_shader_get_entrypoint(nir), true, true);
    NIR_PASS_V(nir, nir_lower_global_vars_to_local);
    NIR_PASS_V(nir, nir_split_var_copies);
    NIR_PASS_V(nir, nir_lower_var_copies);
-   NIR_PASS_V(nir, nir_lower_io_arrays_to_elements_no_indirects, false);
+   NIR_PASS_V(nir, nir_lower_io_array_vars_to_elements_no_indirects, false);
 
 
    if (conf->yz_flip.mode != DXIL_SPIRV_YZ_FLIP_NONE) {

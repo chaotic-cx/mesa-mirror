@@ -3711,7 +3711,7 @@ to upconvert to 32b float internally?
 	</reg32>
 	<reg32 offset="0x8865" name="RB_BLEND_CNTL" usage="rp_blit">
 		<!-- per-mrt enable bit -->
-		<bitfield name="ENABLE_BLEND" low="0" high="7"/>
+		<bitfield name="BLEND_READS_DEST" low="0" high="7"/>
 		<bitfield name="INDEPENDENT_BLEND" pos="8" type="boolean"/>
 		<bitfield name="DUAL_COLOR_IN_ENABLE" pos="9" type="boolean"/>
 		<bitfield name="ALPHA_TO_COVERAGE" pos="10" type="boolean"/>
@@ -4964,8 +4964,7 @@ to upconvert to 32b float internally?
 				fine derivatives and quad subgroup ops.
 			</doc>
 		</bitfield>
-		<!-- note: vk blob uses bit24 -->
-		<bitfield name="UNK24" pos="24" type="boolean"/>
+		<bitfield name="INOUTREGOVERLAP" pos="24" type="boolean"/>
 		<bitfield name="UNK25" pos="25" type="boolean"/>
 		<bitfield name="PIXLODENABLE" pos="26" type="boolean">
 			<doc>

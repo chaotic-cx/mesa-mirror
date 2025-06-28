@@ -257,6 +257,8 @@ ir3_lower_bit_size(const nir_instr *instr, UNUSED void *data)
       case nir_op_umin:
       case nir_op_ushr:
          return alu->def.bit_size == 8 ? 16 : 0;
+      case nir_op_bitfield_reverse:
+         return alu->def.bit_size < 32 ? 32 : 0;
       case nir_op_ieq:
       case nir_op_ige:
       case nir_op_ilt:
@@ -463,7 +465,7 @@ ir3_nir_lower_ssbo_size(nir_shader *s, uint8_t ssbo_size_to_bytes_shift)
 }
 
 void
-ir3_nir_lower_io_to_temporaries(nir_shader *s)
+ir3_nir_lower_io_vars_to_temporaries(nir_shader *s)
 {
    /* Outputs consumed by the VPC, VS inputs, and FS outputs are all handled
     * by the hardware pre-loading registers at the beginning and then reading
@@ -472,7 +474,7 @@ ir3_nir_lower_io_to_temporaries(nir_shader *s)
     * indirect accesses on those. Other i/o is lowered in ir3_nir_lower_tess,
     * and indirects work just fine for those. GS outputs may be consumed by
     * VPC, but have their own lowering in ir3_nir_lower_gs() which does
-    * something similar to nir_lower_io_to_temporaries so we shouldn't need
+    * something similar to nir_lower_io_vars_to_temporaries so we shouldn't need
     * to lower them.
     *
     * Note: this might be a little inefficient for VS or TES outputs which are
@@ -490,10 +492,10 @@ ir3_nir_lower_io_to_temporaries(nir_shader *s)
    bool lower_output = s->info.stage != MESA_SHADER_TESS_CTRL &&
                        s->info.stage != MESA_SHADER_GEOMETRY;
    if (lower_input || lower_output) {
-      NIR_PASS(_, s, nir_lower_io_to_temporaries, nir_shader_get_entrypoint(s),
+      NIR_PASS(_, s, nir_lower_io_vars_to_temporaries, nir_shader_get_entrypoint(s),
                lower_output, lower_input);
 
-      /* nir_lower_io_to_temporaries() creates global variables and copy
+      /* nir_lower_io_vars_to_temporaries() creates global variables and copy
        * instructions which need to be cleaned up.
        */
       NIR_PASS(_, s, nir_split_var_copies);
@@ -509,7 +511,7 @@ ir3_nir_lower_io_to_temporaries(nir_shader *s)
     * in 0 modes.
     *
     * Using temporaries would be slightly better but
-    * nir_lower_io_to_temporaries currently doesn't support TCS i/o.
+    * nir_lower_io_vars_to_temporaries currently doesn't support TCS i/o.
     */
    NIR_PASS(_, s, nir_lower_indirect_derefs, 0, UINT32_MAX);
 }
@@ -567,8 +569,7 @@ lower_shader_clock(struct nir_builder *b, nir_intrinsic_instr *instr, void *data
    nir_push_if(b, nir_elect(b, 1));
    {
       /* ALWAYSON counter is mapped to this address. */
-      nir_def *base_addr =
-         nir_unpack_64_2x32(b, nir_imm_int64(b, uche_trap_base));
+      nir_def *base_addr = nir_imm_int64(b, uche_trap_base);
       /* Reading _LO first presumably latches _HI making the read atomic. */
       nir_def *clock_lo =
          nir_load_global_ir3(b, 1, 32, base_addr, nir_imm_int(b, 0));
@@ -908,6 +909,7 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
          options.lower_vote_trivial = true;
       }
 
+      OPT(s, nir_opt_uniform_subgroup, &options);
       OPT(s, nir_lower_subgroups, &options);
       OPT(s, ir3_nir_lower_shuffle, shader);
    }
@@ -1194,6 +1196,12 @@ ir3_nir_lower_variant(struct ir3_shader_variant *so,
 
    if (so->compiler->load_shader_consts_via_preamble)
       progress |= OPT(s, ir3_nir_lower_driver_params_to_ubo, so);
+
+   /* Do matrix reassociate after preamble, because we want uniform matrix
+    * multiplies to get hoisted to preamble, which would get scattered with
+    * non-uniform calculations post reassociation.
+    */
+   progress |= OPT(s, nir_opt_reassociate_matrix_mul);
 
    /* TODO: ldg.k might also work on a6xx */
    if (so->compiler->gen >= 7)

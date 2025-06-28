@@ -105,9 +105,6 @@ cc_library_shared {
                 "libhidlbase",
                 "libutils",
             ],
-            srcs: [
-                "gfxstream_vk_android.cpp",
-            ],
         },
         host: {
             cflags: [

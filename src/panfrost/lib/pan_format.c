@@ -84,6 +84,7 @@ const struct pan_blendable_format
       BFMT_SRGB(R8, R8),
       BFMT_SRGB(R8G8, R8G8),
       BFMT_SRGB(R8G8B8, R8G8B8),
+      BFMT_SRGB(B8G8R8, R8G8B8),
 
       BFMT_SRGB(B8G8R8A8, R8G8B8A8),
       BFMT_SRGB(B8G8R8X8, R8G8B8A8),
@@ -154,7 +155,7 @@ const struct pan_blendable_format
    }
 #endif
 
-#if PAN_ARCH <= 7
+#if PAN_ARCH < 9
 #define FMTC(pipe, texfeat, interchange, swizzle, srgb)                        \
    [PIPE_FORMAT_##pipe] = {                                                    \
       .hw = MALI_PACK_FMT(texfeat, swizzle, srgb),                             \
@@ -193,6 +194,9 @@ const struct pan_format GENX(pan_pipe_format)[PIPE_FORMAT_COUNT] = {
 
    FMT_YUV(R10_G10B10_420_UNORM, Y10_UV10_420, YUVA, NO_SWAP, CENTER, _T___),
    FMT_YUV(R10_G10B10_422_UNORM, Y10_UV10_422, YUVA, NO_SWAP, CENTER_422, _T___),
+   /* special internal formats */
+   FMT_YUV(R8G8B8_420_UNORM_PACKED, Y8_UV8_420, YUVA, NO_SWAP, CENTER, _T___),
+   FMT_YUV(R10G10B10_420_UNORM_PACKED, Y10_UV10_420, YUVA, NO_SWAP, CENTER, _T___),
 #endif
 
    FMTC(ETC1_RGB8,               ETC2_RGB8,       RGBA8_UNORM, RGB1, L),
@@ -420,7 +424,8 @@ const struct pan_format GENX(pan_pipe_format)[PIPE_FORMAT_COUNT] = {
    FMT(R16_UNORM,               R16_UNORM,       R001, L, VTR_I),
    FMT(R8G8_UNORM,              RG8_UNORM,       RG01, L, VTR_I),
    FMT(R16G16_UNORM,            RG16_UNORM,      RG01, L, VTR_I),
-   FMT(R8G8B8_UNORM,            RGB8_UNORM,      RGB1, L, V____),
+   FMT(R8G8B8_UNORM,            RGB8_UNORM,      RGB1, L, VTR_I),
+   FMT(B8G8R8_UNORM,            RGB8_UNORM,      BGR1, L, VTR_I),
 
    /* 32-bit NORM is not texturable in v7 onwards. It's renderable
     * everywhere, but rendering without texturing is not useful.
@@ -483,8 +488,8 @@ const struct pan_format GENX(pan_pipe_format)[PIPE_FORMAT_COUNT] = {
    FMT(L8_SRGB,                 R8_UNORM,        RRR1, S, VTR_I),
    FMT(R8_SRGB,                 R8_UNORM,        R001, S, VTR_I),
    FMT(R8G8_SRGB,               RG8_UNORM,       RG01, S, VTR_I),
-   FMT(R8G8B8_SRGB,             RGB8_UNORM,      RGB1, S, V____),
-   FMT(B8G8R8_SRGB,             RGB8_UNORM,      BGR1, S, V____),
+   FMT(R8G8B8_SRGB,             RGB8_UNORM,      RGB1, S, VTR_I),
+   FMT(B8G8R8_SRGB,             RGB8_UNORM,      BGR1, S, VTR_I),
    FMT(R8G8B8A8_SRGB,           RGBA8_UNORM,     RGBA, S, VTR_I),
    FMT(A8B8G8R8_SRGB,           RGBA8_UNORM,     ABGR, S, VTR_I),
    FMT(X8B8G8R8_SRGB,           RGBA8_UNORM,     ABG1, S, VTR_I),

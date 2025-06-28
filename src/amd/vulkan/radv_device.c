@@ -1273,7 +1273,7 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
 
    device->dispatch_initiator = S_00B800_COMPUTE_SHADER_EN(1);
 
-   if (pdev->info.gfx_level >= GFX7) {
+   if (pdev->info.gfx_level >= GFX7 && (pdev->info.family < CHIP_GFX940 || pdev->info.has_graphics)) {
       /* If the KMD allows it (there is a KMD hw register for it),
        * allow launching waves out-of-order.
        */
@@ -1356,7 +1356,7 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
       }
    }
 
-   if (!(instance->debug_flags & RADV_DEBUG_NO_IBS))
+   if (pdev->info.has_graphics && !(instance->debug_flags & RADV_DEBUG_NO_IBS))
       radv_create_gfx_preamble(device);
 
    if (!device->vk.disable_internal_cache) {

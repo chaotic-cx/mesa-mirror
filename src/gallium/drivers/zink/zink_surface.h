@@ -26,24 +26,11 @@
 
 #include "zink_types.h"
 
-void
-zink_destroy_surface(struct zink_screen *screen, struct pipe_surface *psurface);
-
-static inline void
-zink_surface_reference(struct zink_screen *screen, struct zink_surface **dst, struct zink_surface *src)
+static inline bool
+equals_surface_key(const void *a, const void *b)
 {
-   struct zink_surface *old_dst = *dst;
-
-   if (pipe_reference_described(old_dst ? &old_dst->base.reference : NULL,
-                                src ? &src->base.reference : NULL,
-                                (debug_reference_descriptor)
-                                debug_describe_surface))
-      zink_destroy_surface(screen, &old_dst->base);
-   *dst = src;
+   return memcmp(a, b, sizeof(struct zink_surface_key)) == 0;
 }
-
-void
-zink_context_surface_init(struct pipe_context *context);
 
 VkImageViewCreateInfo
 create_ivci(struct zink_screen *screen,
@@ -53,12 +40,15 @@ create_ivci(struct zink_screen *screen,
 
 struct zink_surface *
 zink_get_surface(struct zink_context *ctx,
-            struct pipe_resource *pres,
             const struct pipe_surface *templ,
             VkImageViewCreateInfo *ivci);
 
 struct zink_surface *
-zink_create_transient_surface(struct zink_context *ctx, struct zink_surface *surf, unsigned nr_samples);
+zink_create_fb_surface(struct pipe_context *pctx,
+                       const struct pipe_surface *templ);
+
+struct zink_surface *
+zink_create_transient_surface(struct zink_context *ctx, const struct pipe_surface *psurf, unsigned nr_samples);
 
 /* cube image types are clamped by gallium rules to 2D or 2D_ARRAY viewtypes if not using all layers */
 static inline VkImageViewType
@@ -74,12 +64,4 @@ zink_surface_clamp_viewtype(VkImageViewType viewType, unsigned first_layer, unsi
    return viewType;
 }
 
-bool
-zink_rebind_surface(struct zink_context *ctx, struct pipe_surface **psurface);
-
-struct pipe_surface *
-zink_surface_create_null(struct zink_context *ctx, enum pipe_texture_target target, unsigned width, unsigned height, unsigned samples);
-
-void
-zink_surface_swapchain_update(struct zink_context *ctx, struct zink_surface *surface);
 #endif

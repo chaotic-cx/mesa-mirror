@@ -66,6 +66,7 @@ submit_add_entries(struct tu_device *dev, void *submit,
 static VkResult
 queue_submit(struct vk_queue *_queue, struct vk_queue_submit *vk_submit)
 {
+   MESA_TRACE_FUNC();
    struct tu_queue *queue = list_entry(_queue, struct tu_queue, vk);
    struct tu_device *device = queue->device;
    bool u_trace_enabled = u_trace_should_process(&queue->device->trace_context);
@@ -124,11 +125,10 @@ queue_submit(struct vk_queue *_queue, struct vk_queue_submit *vk_submit)
                          cs->entry_count);
 
       if (u_trace_submission_data &&
-          u_trace_submission_data->cmd_trace_data[i].timestamp_copy_cs) {
-         struct tu_cs_entry *trace_cs_entry =
-            &u_trace_submission_data->cmd_trace_data[i]
-                .timestamp_copy_cs->entries[0];
-         submit_add_entries(device, submit, &dump_cmds, trace_cs_entry, 1);
+          u_trace_submission_data->timestamp_copy_data) {
+         struct tu_cs *cs = &u_trace_submission_data->timestamp_copy_data->cs;
+         submit_add_entries(device, submit, &dump_cmds, cs->entries,
+                            cs->entry_count);
       }
    }
 
@@ -209,15 +209,15 @@ queue_submit(struct vk_queue *_queue, struct vk_queue_submit *vk_submit)
 
       for (uint32_t i = 0; i < u_trace_submission_data->cmd_buffer_count; i++) {
          bool free_data = i == u_trace_submission_data->last_buffer_with_tracepoints;
-         if (u_trace_submission_data->cmd_trace_data[i].trace)
-            u_trace_flush(u_trace_submission_data->cmd_trace_data[i].trace,
+         if (u_trace_submission_data->trace_per_cmd_buffer[i])
+            u_trace_flush(u_trace_submission_data->trace_per_cmd_buffer[i],
                           u_trace_submission_data, queue->device->vk.current_frame,
                           free_data);
-
-         if (!u_trace_submission_data->cmd_trace_data[i].timestamp_copy_cs) {
-            /* u_trace is owned by cmd_buffer */
-            u_trace_submission_data->cmd_trace_data[i].trace = NULL;
-         }
+      }
+      if (u_trace_submission_data->timestamp_copy_data) {
+         u_trace_flush(&u_trace_submission_data->timestamp_copy_data->trace,
+                       u_trace_submission_data, queue->device->vk.current_frame,
+                       true);
       }
    }
 

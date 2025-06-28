@@ -70,14 +70,19 @@ can_sink_instr(nir_instr *instr, nir_move_options options, bool *can_mov_out_of_
    case nir_instr_type_alu: {
       nir_alu_instr *alu = nir_instr_as_alu(instr);
 
-      if (nir_op_is_vec_or_mov(alu->op) || alu->op == nir_op_b2i32)
+      if (nir_op_is_vec_or_mov(alu->op) || alu->op == nir_op_b2i32) {
+         if (nir_op_is_vec(alu->op) && alu->def.bit_size < 32 &&
+             (options & nir_dont_move_byte_word_vecs)) {
+            return false;
+         }
          return options & nir_move_copies;
+      }
       if (nir_alu_instr_is_comparison(alu))
          return options & nir_move_comparisons;
 
       /* Assuming that constants do not contribute to register pressure, it is
        * beneficial to sink ALU instructions where all non constant sources
-       * are the same.
+       * are the same and the source bit size is not larger than the destination.
        */
       if (!(options & nir_move_alu))
          return false;
@@ -94,6 +99,13 @@ can_sink_instr(nir_instr *instr, nir_move_options options, bool *can_mov_out_of_
             return false;
       }
 
+      if (non_const >= 0) {
+         unsigned src_bits = nir_ssa_alu_instr_src_components(alu, non_const) *
+                             alu->src[non_const].src.ssa->bit_size;
+         unsigned dest_bits = alu->def.num_components * alu->def.bit_size;
+         return src_bits <= dest_bits;
+      }
+
       return true;
    }
    case nir_instr_type_intrinsic: {
@@ -103,15 +115,22 @@ can_sink_instr(nir_instr *instr, nir_move_options options, bool *can_mov_out_of_
       case nir_intrinsic_load_ubo_vec4:
          *can_mov_out_of_loop = false;
          return options & nir_move_load_ubo;
+      case nir_intrinsic_load_global_constant_offset:
+      case nir_intrinsic_load_global_constant_bounded:
+         return options & nir_move_load_ubo;
       case nir_intrinsic_load_ssbo:
+      case nir_intrinsic_load_ssbo_intel:
          *can_mov_out_of_loop = false;
+         return (options & nir_move_load_ssbo) && nir_intrinsic_can_reorder(intrin);
+      case nir_intrinsic_load_global_bounded:
          return (options & nir_move_load_ssbo) && nir_intrinsic_can_reorder(intrin);
       case nir_intrinsic_load_input:
       case nir_intrinsic_load_per_primitive_input:
       case nir_intrinsic_load_interpolated_input:
       case nir_intrinsic_load_per_vertex_input:
       case nir_intrinsic_load_frag_coord:
-      case nir_intrinsic_load_frag_coord_zw:
+      case nir_intrinsic_load_frag_coord_z:
+      case nir_intrinsic_load_frag_coord_w:
       case nir_intrinsic_load_frag_coord_zw_pan:
       case nir_intrinsic_load_pixel_coord:
       case nir_intrinsic_load_attribute_pan:
@@ -125,6 +144,7 @@ can_sink_instr(nir_instr *instr, nir_move_options options, bool *can_mov_out_of_
          return options & nir_move_copies;
       case nir_intrinsic_load_constant_agx:
       case nir_intrinsic_load_local_pixel_agx:
+      case nir_intrinsic_load_back_face_agx:
       case nir_intrinsic_load_shader_output_pan:
          return true;
       default:

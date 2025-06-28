@@ -107,7 +107,20 @@ asahi_fill_vdm_command(struct hk_device *dev, struct hk_cs *cs,
    memset(c, 0, sizeof(*c));
 
    c->vdm_ctrl_stream_base = cs->addr;
-   c->ppp_ctrl = 0x202;
+
+   agx_pack(&c->ppp_ctrl, CR_PPP_CONTROL, cfg) {
+      /* If largePoints is not enabled, we optimize out point size writes so
+       * need to force points to have size 1.0 with this bit.
+       *
+       * If largePoints is enabled, we can't set this bit since our point size
+       * writes will get ignored.
+       *
+       * Yes, the hardware engineers messed this up. Dates back to IMG days.
+       */
+      cfg.default_point_size = !dev->vk.enabled_features.largePoints;
+      cfg.enable_w_clamp = true;
+      cfg.fixed_point_format = 1;
+   }
 
    c->width_px = cs->cr.width;
    c->height_px = cs->cr.height;
@@ -825,8 +838,9 @@ queue_submit(struct hk_device *dev, struct hk_queue *queue,
          if (cs->type == HK_CS_CDM) {
             perf_debug(
                cmdbuf,
-               "%u: Submitting CDM with %u API calls, %u dispatches, %u flushes",
-               i, cs->stats.calls, cs->stats.cmds, cs->stats.flushes);
+               "%u: Submitting CDM with %u API calls, %u dispatches, %u flushes, %u merged",
+               i, cs->stats.calls, cs->stats.cmds, cs->stats.flushes,
+               cs->stats.merged);
 
             assert(cs->stats.cmds > 0 || cs->stats.flushes > 0 ||
                    cs->timestamp.end.handle);

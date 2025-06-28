@@ -81,6 +81,8 @@ struct vk_video_session {
    struct vk_object_base base;
    VkVideoSessionCreateFlagsKHR flags;
    VkVideoCodecOperationFlagsKHR op;
+   VkVideoComponentBitDepthFlagsKHR luma_bit_depth;
+   VkVideoComponentBitDepthFlagsKHR chroma_bit_depth;
    VkExtent2D max_coded;
    VkFormat picture_format;
    VkFormat ref_format;
@@ -112,6 +114,8 @@ struct vk_video_session {
 struct vk_video_session_parameters {
    struct vk_object_base base;
    VkVideoCodecOperationFlagsKHR op;
+   VkVideoComponentBitDepthFlagsKHR luma_bit_depth;
+   VkVideoComponentBitDepthFlagsKHR chroma_bit_depth;
    union {
       struct {
          uint32_t max_h264_sps_count;
@@ -163,6 +167,13 @@ struct vk_video_session_parameters {
          uint32_t h265_pps_count;
          struct vk_video_h265_pps *h265_pps;
       } h265_enc;
+
+      struct {
+         struct vk_video_av1_seq_hdr seq_hdr;
+         StdVideoEncodeAV1DecoderModelInfo decoder_model;
+         uint32_t num_op_points;
+         const StdVideoEncodeAV1OperatingPointInfo* op_points;
+      } av1_enc;
    };
 };
 
@@ -348,6 +359,11 @@ vk_video_encode_h265_pps(const StdVideoH265PictureParameterSet *pps,
                          size_t *data_size,
                          void *data_ptr);
 
+VkResult
+vk_video_encode_av1_seq_hdr(const struct vk_video_session_parameters *params,
+                            size_t size_limit,
+                            size_t *data_size_ptr,
+                            void *data_ptr);
 #ifdef __cplusplus
 }
 #endif

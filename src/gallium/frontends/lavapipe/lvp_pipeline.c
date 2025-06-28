@@ -162,27 +162,6 @@ remove_barriers(nir_shader *nir, bool is_compute)
 }
 
 static bool
-lower_demote_impl(nir_builder *b, nir_intrinsic_instr *intr, void *data)
-{
-   if (intr->intrinsic == nir_intrinsic_demote) {
-      intr->intrinsic = nir_intrinsic_terminate;
-      return true;
-   }
-   if (intr->intrinsic == nir_intrinsic_demote_if) {
-      intr->intrinsic = nir_intrinsic_terminate_if;
-      return true;
-   }
-   return false;
-}
-
-static bool
-lower_demote(nir_shader *nir)
-{
-   return nir_shader_intrinsics_pass(nir, lower_demote_impl,
-                                     nir_metadata_dominance, NULL);
-}
-
-static bool
 find_tex(const nir_instr *instr, const void *data_cb)
 {
    if (instr->type == nir_instr_type_tex)
@@ -370,7 +349,6 @@ lvp_shader_lower(struct lvp_device *pdevice, nir_shader *nir, struct lvp_pipelin
       lvp_lower_input_attachments(nir, false);
    NIR_PASS_V(nir, nir_lower_system_values);
    NIR_PASS_V(nir, nir_lower_is_helper_invocation);
-   NIR_PASS_V(nir, lower_demote);
 
    const struct nir_lower_compute_system_values_options compute_system_values = {0};
    NIR_PASS_V(nir, nir_lower_compute_system_values, &compute_system_values);
@@ -381,7 +359,7 @@ lvp_shader_lower(struct lvp_device *pdevice, nir_shader *nir, struct lvp_pipelin
    optimize(nir);
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 
-   NIR_PASS_V(nir, nir_lower_io_to_temporaries, nir_shader_get_entrypoint(nir), true, true);
+   NIR_PASS_V(nir, nir_lower_io_vars_to_temporaries, nir_shader_get_entrypoint(nir), true, true);
    NIR_PASS_V(nir, nir_split_var_copies);
    NIR_PASS_V(nir, nir_lower_global_vars_to_local);
 
@@ -424,9 +402,9 @@ lvp_shader_lower(struct lvp_device *pdevice, nir_shader *nir, struct lvp_pipelin
 
    if (nir->info.stage == MESA_SHADER_VERTEX ||
        nir->info.stage == MESA_SHADER_GEOMETRY) {
-      NIR_PASS_V(nir, nir_lower_io_arrays_to_elements_no_indirects, false);
+      NIR_PASS_V(nir, nir_lower_io_array_vars_to_elements_no_indirects, false);
    } else if (nir->info.stage == MESA_SHADER_FRAGMENT) {
-      NIR_PASS_V(nir, nir_lower_io_arrays_to_elements_no_indirects, true);
+      NIR_PASS_V(nir, nir_lower_io_array_vars_to_elements_no_indirects, true);
    }
 
    // TODO: also optimize the tex srcs. see radeonSI for reference */

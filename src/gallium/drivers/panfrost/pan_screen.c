@@ -278,6 +278,8 @@ panfrost_lower_yuv_format(struct panfrost_device *dev,
    SINGLE_RES(NV20, R10_G10B10_422_UNORM)
    SINGLE_RES(IYUV, R8_G8_B8_420_UNORM)
    SINGLE_RES(YV12, R8_B8_G8_420_UNORM)
+   SINGLE_RES(Y8U8V8_420_UNORM_PACKED, R8G8B8_420_UNORM_PACKED)
+   SINGLE_RES(Y10U10V10_420_UNORM_PACKED, R10G10B10_420_UNORM_PACKED)
 
 #undef SINGLE_RES
 
@@ -335,12 +337,12 @@ panfrost_walk_dmabuf_modifiers(struct pipe_screen *screen,
       for (unsigned i = 0; i < yuv_lowering.nres; i++) {
          enum pipe_format plane_format = yuv_lowering.res_formats[i];
 
-         afbc &= pan_format_supports_afbc(dev->arch, plane_format);
+         afbc &= pan_afbc_supports_format(dev->arch, plane_format);
       }
    } else {
-      afbc &= pan_format_supports_afbc(dev->arch, format);
+      afbc &= pan_afbc_supports_format(dev->arch, format);
       ytr &= pan_afbc_can_ytr(format);
-      afrc &= !is_yuv && pan_format_supports_afrc(format);
+      afrc &= !is_yuv && pan_afrc_supports_format(format);
    }
 
    PANFROST_EMULATED_MODIFIERS(emulated_mods);
@@ -388,6 +390,12 @@ panfrost_walk_dmabuf_modifiers(struct pipe_screen *screen,
        * involve plane aliasing which we can't do with U_TILED. */
       if (util_format_is_yuv(format) &&
           native_mods[i] == DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED)
+         continue;
+
+      /* Some formats only work with AFBC. */
+      if ((native_mods[i] == DRM_FORMAT_MOD_LINEAR ||
+           native_mods[i] == DRM_FORMAT_MOD_ARM_16X16_BLOCK_U_INTERLEAVED) &&
+          !pan_u_tiled_or_linear_supports_format(format))
          continue;
 
       if (test_modifier != DRM_FORMAT_MOD_INVALID &&
@@ -653,6 +661,8 @@ panfrost_init_screen_caps(struct panfrost_screen *screen)
 
    /* Compile side is TODO for Midgard. */
    caps->shader_clock = dev->arch >= 6 &&
+      dev->kmod.props.gpu_can_query_timestamp;
+   caps->shader_realtime_clock = dev->arch >= 6 &&
       dev->kmod.props.gpu_can_query_timestamp;
 
    caps->vs_instanceid = true;

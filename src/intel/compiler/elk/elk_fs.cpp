@@ -1451,17 +1451,17 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
          if (i == VARYING_SLOT_PSIZ)
             continue;
 
-	 if (key->input_slots_valid & BITFIELD64_BIT(i)) {
-	    /* The back color slot is skipped when the front color is
-	     * also written to.  In addition, some slots can be
-	     * written in the vertex shader and not read in the
-	     * fragment shader.  So the register number must always be
-	     * incremented, mapped or not.
-	     */
-	    if (_mesa_varying_slot_in_fs((gl_varying_slot) i))
-	       prog_data->urb_setup[i] = urb_next;
+         if (key->input_slots_valid & BITFIELD64_BIT(i)) {
+            /* The back color slot is skipped when the front color is
+             * also written to.  In addition, some slots can be
+             * written in the vertex shader and not read in the
+             * fragment shader.  So the register number must always be
+             * incremented, mapped or not.
+             */
+            if (_mesa_varying_slot_in_fs((gl_varying_slot) i))
+               prog_data->urb_setup[i] = urb_next;
             urb_next++;
-	 }
+         }
       }
 
       /*
@@ -6265,7 +6265,9 @@ elk_fs_visitor::run_fs(bool allow_spilling, bool do_rep_send)
       emit_repclear_shader();
    } else {
       if (nir->info.inputs_read > 0 ||
-          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_FRAG_COORD) ||
+          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_PIXEL_COORD) ||
+          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_FRAG_COORD_Z) ||
+          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_FRAG_COORD_W) ||
           (nir->info.outputs_read > 0 && !wm_key->coherent_fb_fetch)) {
          if (devinfo->ver < 6)
             emit_interpolation_setup_gfx4();
@@ -6361,24 +6363,6 @@ elk_fs_visitor::run_cs(bool allow_spilling)
    return !failed;
 }
 
-static bool
-is_used_in_not_interp_frag_coord(nir_def *def)
-{
-   nir_foreach_use_including_if(src, def) {
-      if (nir_src_is_if(src))
-         return true;
-
-      if (nir_src_parent_instr(src)->type != nir_instr_type_intrinsic)
-         return true;
-
-      nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(nir_src_parent_instr(src));
-      if (intrin->intrinsic != nir_intrinsic_load_frag_coord)
-         return true;
-   }
-
-   return false;
-}
-
 /**
  * Return a bitfield where bit n is set if barycentric interpolation mode n
  * (see enum elk_barycentric_mode) is needed by the fragment shader.
@@ -6410,10 +6394,6 @@ elk_compute_barycentric_interp_modes(const struct intel_device_info *devinfo,
             default:
                continue;
             }
-
-            /* Ignore WPOS; it doesn't require interpolation. */
-            if (!is_used_in_not_interp_frag_coord(&intrin->def))
-               continue;
 
             nir_intrinsic_op bary_op = intrin->intrinsic;
             enum elk_barycentric_mode bary =
@@ -6670,9 +6650,9 @@ elk_nir_populate_wm_prog_data(nir_shader *shader,
    prog_data->uses_vmask = true;
 
    prog_data->uses_src_w =
-      BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FRAG_COORD);
+      BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FRAG_COORD_W);
    prog_data->uses_src_depth =
-      BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FRAG_COORD);
+      BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FRAG_COORD_Z);
 
    calculate_urb_setup(devinfo, key, prog_data, shader);
    elk_compute_flat_inputs(prog_data, shader);

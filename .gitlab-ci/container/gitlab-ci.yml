@@ -69,7 +69,7 @@
     FDO_DISTRIBUTION_EXEC: 'bash .gitlab-ci/container/container_job_trampoline.sh "${CI_JOB_NAME}"'
     # no need to pull the whole repo to build the container image
     GIT_STRATEGY: none
-    CI_BUILD_COMPONENTS: "$CI_BUILD_COMPONENTS_ANGLE $CI_BUILD_COMPONENTS_CROSVM $CI_BUILD_COMPONENTS_FLUSTER $CI_BUILD_COMPONENTS_PIGLIT $CI_BUILD_COMPONENTS_VKD3D_PROTON"
+    CI_BUILD_COMPONENTS: "$CI_BUILD_COMPONENTS_ANDROID_CTS $CI_BUILD_COMPONENTS_ANGLE $CI_BUILD_COMPONENTS_CROSVM $CI_BUILD_COMPONENTS_FLUSTER $CI_BUILD_COMPONENTS_PIGLIT $CI_BUILD_COMPONENTS_VKD3D_PROTON"
 
 .container-builds-angle:
   variables:
@@ -96,8 +96,14 @@
     VKD3D_PROTON_TAG: "${CONDITIONAL_BUILD_VKD3D_PROTON_TAG}"
     CI_BUILD_COMPONENTS_VKD3D_PROTON: vkd3d-proton
 
+.container-builds-android-cts:
+  variables:
+    ANDROID_CTS_TAG: "${CONDITIONAL_BUILD_ANDROID_CTS_TAG}"
+    CI_BUILD_COMPONENTS_ANDROID_CTS: android-cts
+
 .container-builds-android:
   extends:
+    - .container-builds-android-cts
     - .container-builds-angle
 
 .container-builds-arm32:
@@ -260,6 +266,12 @@ debian/s390x_build:
     # used (LLVM 19 in our Debian system), but ANDROID_LLVM_VERSION refers to
     # the cross-compiling LLVM toolchain used to build for the Android system.
     LLVM_VERSION: &debian-android-llvm 19
+    CUTTLEFISH_PROJECT_PATH: ao2/aosp-manifest
+    CUTTLEFISH_BUILD_VERSION_TAGS: mesa-venus
+    CUTTLEFISH_BUILD_NUMBER: 20250506.001
+    AOSP_KERNEL_PROJECT_PATH: ao2/aosp-kernel-manifest
+    AOSP_KERNEL_BUILD_VERSION_TAGS: common-android14-6.1-venus
+    AOSP_KERNEL_BUILD_NUMBER: 20241107.001
 
 debian/android_build:
   extends:
@@ -511,6 +523,7 @@ debian/x86_64_test-android:
     - .android-variables
     - .use-debian/x86_64_test-base
     - .container-builds-android
+    - .export-container
   variables:
     MESA_IMAGE_TAG: &debian-x86_64_test-android ${DEBIAN_TEST_ANDROID_TAG}
 

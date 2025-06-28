@@ -240,7 +240,8 @@ get_device_extensions(const struct v3dv_physical_device *device,
       .EXT_vertex_attribute_divisor         = true,
    };
 #if DETECT_OS_ANDROID
-   if (vk_android_get_ugralloc() != NULL) {
+   struct u_gralloc *gralloc = vk_android_get_ugralloc();
+   if (gralloc && u_gralloc_get_type(gralloc) != U_GRALLOC_TYPE_FALLBACK) {
       ext->ANDROID_external_memory_android_hardware_buffer = true;
       ext->ANDROID_native_buffer = true;
    }
@@ -614,16 +615,6 @@ v3dv_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
 
    VG(VALGRIND_CREATE_MEMPOOL(instance, 0, false));
 
-#if DETECT_OS_ANDROID
-   struct u_gralloc *u_gralloc = vk_android_init_ugralloc();
-
-   if (u_gralloc && u_gralloc_get_type(u_gralloc) == U_GRALLOC_TYPE_FALLBACK) {
-      mesa_logw(
-         "v3dv: Gralloc is not supported. Android extensions are disabled.");
-      vk_android_destroy_ugralloc();
-   }
-#endif
-
    *pInstance = v3dv_instance_to_handle(instance);
 
    return VK_SUCCESS;
@@ -681,10 +672,6 @@ v3dv_DestroyInstance(VkInstance _instance,
 
    if (!instance)
       return;
-
-#if DETECT_OS_ANDROID
-   vk_android_destroy_ugralloc();
-#endif
 
    VG(VALGRIND_DESTROY_MEMPOOL(instance));
 
@@ -882,19 +869,6 @@ get_device_properties(const struct v3dv_physical_device *device,
                       VK_SUBGROUP_FEATURE_VOTE_BIT |
                       VK_SUBGROUP_FEATURE_QUAD_BIT;
    }
-
-#if DETECT_OS_ANDROID
-   /* Used to determine the sharedImage prop in
-    * VkPhysicalDevicePresentationPropertiesANDROID
-    */
-   uint64_t front_rendering_usage = 0;
-   struct u_gralloc *gralloc = u_gralloc_create(U_GRALLOC_TYPE_AUTO);
-   if (gralloc != NULL) {
-      u_gralloc_get_front_rendering_usage(gralloc, &front_rendering_usage);
-      u_gralloc_destroy(&gralloc);
-   }
-   VkBool32 shared_image = front_rendering_usage ? VK_TRUE : VK_FALSE;
-#endif
 
    /* FIXME: this will probably require an in-depth review */
    *properties = (struct vk_properties) {
@@ -1195,7 +1169,7 @@ get_device_properties(const struct v3dv_physical_device *device,
 
 #if DETECT_OS_ANDROID
       /* VkPhysicalDevicePresentationPropertiesANDROID */
-      .sharedImage = shared_image,
+      .sharedImage = !!vk_android_get_front_buffer_usage(),
 #endif
 
       /* VkPhysicalDeviceDrmPropertiesEXT */

@@ -117,6 +117,7 @@ zink_debug_options[] = {
    { "quiet", ZINK_DEBUG_QUIET, "Suppress warnings" },
    { "ioopt", ZINK_DEBUG_IOOPT, "Optimize IO" },
    { "nopc", ZINK_DEBUG_NOPC, "No precompilation" },
+   { "msaaopt", ZINK_DEBUG_MSAAOPT, "Optimize out loads/stores of MSAA attachments" },
    DEBUG_NAMED_VALUE_END
 };
 
@@ -741,6 +742,8 @@ zink_init_screen_caps(struct zink_screen *screen)
 
    caps->surface_reinterpret_blocks =
       screen->info.have_vulkan11 || screen->info.have_KHR_maintenance2;
+   caps->compressed_surface_reinterpret_blocks_layered = caps->surface_reinterpret_blocks &&
+                                                         screen->info.maint6_props.blockTexelViewCompatibleMultipleLayers;
 
    caps->validate_all_dirty_states = true;
    caps->allow_mapped_buffers_during_execution = true;
@@ -3341,6 +3344,11 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
       goto fail;
    }
 
+   if (!screen->info.rb2_feats.nullDescriptor) {
+      mesa_loge("Zink requires the nullDescriptor feature of KHR/EXT robustness2.");
+      goto fail;
+   }
+
    if (zink_set_driver_strings(screen)) {
       mesa_loge("ZINK: failed to set driver strings\n");
       goto fail;
@@ -3584,14 +3592,6 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
          if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
             if (!screen->driver_name_is_inferred)
                mesa_loge("Cannot use db descriptor mode without EXT_non_seamless_cube_map");
-            goto fail;
-         }
-         can_db = false;
-      }
-      if (!screen->info.rb2_feats.nullDescriptor) {
-         if (zink_descriptor_mode == ZINK_DESCRIPTOR_MODE_DB) {
-            if (!screen->driver_name_is_inferred)
-               mesa_loge("Cannot use db descriptor mode without robustness2.nullDescriptor");
             goto fail;
          }
          can_db = false;

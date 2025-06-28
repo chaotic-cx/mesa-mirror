@@ -196,20 +196,13 @@ static void
 record_tex_descriptor_cbuf_use(nir_tex_instr *tex,
                                struct lower_descriptors_ctx *ctx)
 {
-   const int texture_src_idx =
-      nir_tex_instr_src_index(tex, nir_tex_src_texture_deref);
-   const int sampler_src_idx =
-      nir_tex_instr_src_index(tex, nir_tex_src_sampler_deref);
+   nir_deref_instr *texture = nir_get_tex_deref(tex, nir_tex_src_texture_deref);
+   if (texture != NULL)
+      record_deref_descriptor_cbuf_use(texture, ctx);
 
-   if (texture_src_idx >= 0) {
-      nir_deref_instr *deref = nir_src_as_deref(tex->src[texture_src_idx].src);
-      record_deref_descriptor_cbuf_use(deref, ctx);
-   }
-
-   if (sampler_src_idx >= 0) {
-      nir_deref_instr *deref = nir_src_as_deref(tex->src[sampler_src_idx].src);
-      record_deref_descriptor_cbuf_use(deref, ctx);
-   }
+   nir_deref_instr *sampler = nir_get_tex_deref(tex, nir_tex_src_sampler_deref);
+   if (sampler != NULL)
+      record_deref_descriptor_cbuf_use(sampler, ctx);
 }
 
 static struct nvk_cbuf
@@ -772,6 +765,23 @@ try_lower_load_vulkan_descriptor(nir_builder *b, nir_intrinsic_instr *intrin,
    return true;
 }
 
+static nir_def *
+_load_root_table(nir_builder *b,
+                 unsigned num_components, unsigned bit_size,
+                 uint32_t root_table_offset,
+                 const struct lower_descriptors_ctx *ctx)
+{
+   unsigned align_mul = bit_size / 8;
+   return nir_ldc_nv(b, num_components, bit_size,
+                     nir_imm_int(b, 0), /* Root table */
+                     nir_imm_int(b, root_table_offset),
+                     .align_mul = align_mul,
+                     .align_offset = 0);
+}
+
+#define load_root_table(b, nc, bs, member, ctx) \
+   _load_root_table(b, nc, bs, nvk_root_descriptor_offset(member), ctx)
+
 static bool
 _lower_sysval_to_root_table(nir_builder *b, nir_intrinsic_instr *intrin,
                             uint32_t root_table_offset,
@@ -779,12 +789,9 @@ _lower_sysval_to_root_table(nir_builder *b, nir_intrinsic_instr *intrin,
 {
    b->cursor = nir_instr_remove(&intrin->instr);
 
-   nir_def *val = nir_ldc_nv(b, intrin->def.num_components,
-                             intrin->def.bit_size,
-                             nir_imm_int(b, 0), /* Root table */
-                             nir_imm_int(b, root_table_offset),
-                             .align_mul = 4,
-                             .align_offset = 0);
+   nir_def *val = _load_root_table(b, intrin->def.num_components,
+                                   intrin->def.bit_size,
+                                   root_table_offset, ctx);
 
    nir_def_rewrite_uses(&intrin->def, val);
 
@@ -816,6 +823,26 @@ lower_load_push_constant(nir_builder *b, nir_intrinsic_instr *load,
                  .align_offset = 0);
 
    nir_def_rewrite_uses(&load->def, val);
+
+   return true;
+}
+
+static bool
+lower_load_input_attachment_coord(nir_builder *b, nir_intrinsic_instr *load,
+                                  const struct lower_descriptors_ctx *ctx)
+{
+   b->cursor = nir_before_instr(&load->instr);
+
+   nir_def *pos = nir_f2i32(b, nir_load_frag_coord(b));
+
+   nir_def *layer = nir_load_layer_id(b);
+   nir_def *view = load_root_table(b, 1, 32, draw.view_index, ctx);
+
+   nir_def *coord = nir_vec3(b, nir_channel(b, pos, 0),
+                                nir_channel(b, pos, 1),
+                                nir_iadd(b, layer, view));
+
+   nir_def_replace(&load->def, coord);
 
    return true;
 }
@@ -1111,18 +1138,11 @@ static bool
 lower_interp_at_sample(nir_builder *b, nir_intrinsic_instr *interp,
                        const struct lower_descriptors_ctx *ctx)
 {
-   const uint32_t root_table_offset =
-      nvk_root_descriptor_offset(draw.sample_locations);
-
    nir_def *sample = interp->src[1].ssa;
 
    b->cursor = nir_before_instr(&interp->instr);
 
-   nir_def *loc = nir_ldc_nv(b, 1, 64,
-                             nir_imm_int(b, 0), /* Root table */
-                             nir_imm_int(b, root_table_offset),
-                             .align_mul = 8,
-                             .align_offset = 0);
+   nir_def *loc = load_root_table(b, 1, 64, draw.sample_locations, ctx);
 
    /* Yay little endian */
    loc = nir_ushr(b, loc, nir_imul_imm(b, sample, 8));
@@ -1175,6 +1195,9 @@ try_lower_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
    case nir_intrinsic_load_view_index:
       return lower_sysval_to_root_table(b, intrin, draw.view_index, ctx);
 
+   case nir_intrinsic_load_input_attachment_coord:
+      return lower_load_input_attachment_coord(b, intrin, ctx);
+
    case nir_intrinsic_image_deref_load:
    case nir_intrinsic_image_deref_sparse_load:
    case nir_intrinsic_image_deref_store:
@@ -1197,20 +1220,12 @@ try_lower_intrin(nir_builder *b, nir_intrinsic_instr *intrin,
 
 static void
 lower_edb_buffer_tex_instr(nir_builder *b, nir_tex_instr *tex,
+                           nir_deref_instr *texture,
                            const struct lower_descriptors_ctx *ctx)
 {
    assert(tex->sampler_dim == GLSL_SAMPLER_DIM_BUF);
 
    b->cursor = nir_before_instr(&tex->instr);
-
-   const int texture_src_idx =
-      nir_tex_instr_src_index(tex, nir_tex_src_texture_deref);
-   nir_deref_instr *texture = nir_src_as_deref(tex->src[texture_src_idx].src);
-
-   nir_def *plane_ssa = nir_steal_tex_src(tex, nir_tex_src_plane);
-   ASSERTED const uint32_t plane =
-      plane_ssa ? nir_src_as_uint(nir_src_for_ssa(plane_ssa)) : 0;
-   assert(plane == 0);
 
    nir_def *desc = load_resource_deref_desc(b, 4, 32, texture, 0, ctx);
 
@@ -1271,30 +1286,27 @@ static bool
 lower_tex(nir_builder *b, nir_tex_instr *tex,
           const struct lower_descriptors_ctx *ctx)
 {
-   const int texture_src_idx =
-      nir_tex_instr_src_index(tex, nir_tex_src_texture_deref);
-   const int sampler_src_idx =
-      nir_tex_instr_src_index(tex, nir_tex_src_sampler_deref);
-   if (texture_src_idx < 0) {
-      assert(sampler_src_idx < 0);
+   nir_deref_instr *texture =
+      nir_steal_tex_deref(tex, nir_tex_src_texture_deref);
+   nir_deref_instr *sampler =
+      nir_steal_tex_deref(tex, nir_tex_src_sampler_deref);
+   if (texture == NULL) {
+      assert(sampler == NULL);
       return false;
    }
 
-   nir_deref_instr *texture = nir_src_as_deref(tex->src[texture_src_idx].src);
-   nir_deref_instr *sampler = sampler_src_idx < 0 ? NULL :
-                              nir_src_as_deref(tex->src[sampler_src_idx].src);
-   assert(texture);
+   nir_def *plane_ssa = nir_steal_tex_src(tex, nir_tex_src_plane);
+   const uint32_t plane =
+      plane_ssa ? nir_src_as_uint(nir_src_for_ssa(plane_ssa)) : 0;
 
    if (is_edb_buffer_view(texture, ctx)) {
-      lower_edb_buffer_tex_instr(b, tex, ctx);
+      assert(plane == 0);
+      lower_edb_buffer_tex_instr(b, tex, texture, ctx);
       return true;
    }
 
    b->cursor = nir_before_instr(&tex->instr);
 
-   nir_def *plane_ssa = nir_steal_tex_src(tex, nir_tex_src_plane);
-   const uint32_t plane =
-      plane_ssa ? nir_src_as_uint(nir_src_for_ssa(plane_ssa)) : 0;
    const uint64_t plane_offset_B =
       plane * sizeof(struct nvk_sampled_image_descriptor);
 
@@ -1332,12 +1344,7 @@ lower_tex(nir_builder *b, nir_tex_instr *tex,
       }
    }
 
-   nir_src_rewrite(&tex->src[texture_src_idx].src, combined_handle);
-   tex->src[texture_src_idx].src_type = nir_tex_src_texture_handle;
-
-   /* NAK doesn't care about the sampler handle at all */
-   if (sampler_src_idx >= 0)
-      nir_tex_instr_remove_src(tex, sampler_src_idx);
+   nir_tex_instr_add_src(tex, nir_tex_src_texture_handle, combined_handle);
 
    /* On pre-Volta hardware, we don't have real null descriptors.  Null
     * descriptors work well enough for sampling but they may not return the

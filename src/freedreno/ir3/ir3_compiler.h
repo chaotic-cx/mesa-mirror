@@ -207,6 +207,12 @@ struct ir3_compiler {
     */
    bool has_getfiberid;
 
+   /* Whether half register shared->non-shared moves are broken. */
+   bool mov_half_shared_quirk;
+
+   /* Whether movs is supported for subgroupBroadcast. */
+   bool has_movs;
+
    /* True if the shfl instruction is supported. Needed for subgroup rotate and
     * (more efficient) shuffle.
     */

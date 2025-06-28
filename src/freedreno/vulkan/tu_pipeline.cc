@@ -3102,8 +3102,13 @@ tu6_emit_blend(struct tu_cs *cs,
                                              dual_src_blend,
                                           .alpha_to_coverage =
                                              alpha_to_coverage_enable));
-   /* set A6XX_RB_BLEND_CNTL_INDEPENDENT_BLEND only when enabled? */
-   tu_cs_emit_regs(cs, A6XX_RB_BLEND_CNTL(.enable_blend = blend_enable_mask,
+   /* TODO: set A6XX_RB_BLEND_CNTL_INDEPENDENT_BLEND only when enabled?
+    *
+    * We could also set blend_reads_dest more conservatively, but it didn't show
+    * performance wins in anholt's testing:
+    * https://gitlab.freedesktop.org/anholt/mesa/-/commits/tu-color-reads
+    */
+   tu_cs_emit_regs(cs, A6XX_RB_BLEND_CNTL(.blend_reads_dest = blend_enable_mask,
                                           .independent_blend = true,
                                           .dual_color_in_enable =
                                              dual_src_blend,
@@ -3365,6 +3370,8 @@ tu6_emit_ds(struct tu_cs *cs,
     *
     * Given that the condition for avoiding stencil_read is fairly complicated,
     * we won't bother with the CPU overhead until we can see some win from it.
+    *
+    * https://gitlab.freedesktop.org/anholt/mesa/-/commits/tu-s-reads
     */
 
    tu_cs_emit_regs(cs, A6XX_RB_STENCIL_CONTROL(
@@ -3891,9 +3898,11 @@ tu_emit_draw_state(struct tu_cmd_buffer *cmd)
       dirty_draw_states |= (1u << id);                                        \
    }
 #define DRAW_STATE_FDM(name, id, ...)                                         \
-   if ((EMIT_STATE(name) || (cmd->state.dirty & TU_CMD_DIRTY_FDM)) &&         \
+   if ((EMIT_STATE(name) || (cmd->state.dirty &                               \
+                             (TU_CMD_DIRTY_FDM |                              \
+                              TU_CMD_DIRTY_PER_VIEW_VIEWPORT))) &&            \
        !(cmd->state.pipeline_draw_states & (1u << id))) {                     \
-      if (cmd->state.shaders[MESA_SHADER_FRAGMENT]->fs.has_fdm) {             \
+      if (cmd->state.has_fdm) {                                               \
          tu_cs_set_writeable(&cmd->sub_cs, true);                             \
          tu6_emit_##name##_fdm(&cs, cmd, __VA_ARGS__);                        \
          cmd->state.dynamic_state[id] =                                       \

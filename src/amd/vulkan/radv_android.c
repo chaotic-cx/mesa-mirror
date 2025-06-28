@@ -15,10 +15,7 @@
 #if DETECT_OS_ANDROID
 #include <libsync.h>
 #include <hardware/gralloc.h>
-#include <hardware/hardware.h>
-#include <hardware/hwvulkan.h>
 #include <vulkan/vk_android_native_buffer.h>
-#include <vulkan/vk_icd.h>
 
 #if ANDROID_API_LEVEL >= 26
 #include <hardware/gralloc1.h>
@@ -33,27 +30,6 @@
 
 #if DETECT_OS_ANDROID
 
-static int radv_hal_open(const struct hw_module_t *mod, const char *id, struct hw_device_t **dev);
-static int radv_hal_close(struct hw_device_t *dev);
-
-static_assert(HWVULKAN_DISPATCH_MAGIC == ICD_LOADER_MAGIC, "");
-
-PUBLIC struct hwvulkan_module_t HAL_MODULE_INFO_SYM = {
-   .common =
-      {
-         .tag = HARDWARE_MODULE_TAG,
-         .module_api_version = HWVULKAN_MODULE_API_VERSION_0_1,
-         .hal_api_version = HARDWARE_MAKE_API_VERSION(1, 0),
-         .id = HWVULKAN_HARDWARE_MODULE_ID,
-         .name = "AMD Vulkan HAL",
-         .author = "Google",
-         .methods =
-            &(hw_module_methods_t){
-               .open = radv_hal_open,
-            },
-      },
-};
-
 /* If any bits in test_mask are set, then unset them and return true. */
 static inline bool
 unmask32(uint32_t *inout_mask, uint32_t test_mask)
@@ -61,40 +37,6 @@ unmask32(uint32_t *inout_mask, uint32_t test_mask)
    uint32_t orig_mask = *inout_mask;
    *inout_mask &= ~test_mask;
    return *inout_mask != orig_mask;
-}
-
-static int
-radv_hal_open(const struct hw_module_t *mod, const char *id, struct hw_device_t **dev)
-{
-   assert(mod == &HAL_MODULE_INFO_SYM.common);
-   assert(strcmp(id, HWVULKAN_DEVICE_0) == 0);
-
-   hwvulkan_device_t *hal_dev = malloc(sizeof(*hal_dev));
-   if (!hal_dev)
-      return -1;
-
-   *hal_dev = (hwvulkan_device_t){
-      .common =
-         {
-            .tag = HARDWARE_DEVICE_TAG,
-            .version = HWVULKAN_DEVICE_API_VERSION_0_1,
-            .module = &HAL_MODULE_INFO_SYM.common,
-            .close = radv_hal_close,
-         },
-      .EnumerateInstanceExtensionProperties = radv_EnumerateInstanceExtensionProperties,
-      .CreateInstance = radv_CreateInstance,
-      .GetInstanceProcAddr = radv_GetInstanceProcAddr,
-   };
-
-   *dev = &hal_dev->common;
-   return 0;
-}
-
-static int
-radv_hal_close(struct hw_device_t *dev)
-{
-   /* hwvulkan.h claims that hw_device_t::close() is never called. */
-   return -1;
 }
 
 VkResult
@@ -109,10 +51,10 @@ radv_image_from_gralloc(VkDevice device_h, const VkImageCreateInfo *base_info,
    struct radv_image *image = NULL;
    VkResult result;
 
-   if (gralloc_info->handle->numFds != 1) {
+   if (gralloc_info->handle->numFds < 1) {
       return vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
                        "VkNativeBufferANDROID::handle::numFds is %d, "
-                       "expected 1",
+                       "expected >= 1",
                        gralloc_info->handle->numFds);
    }
 

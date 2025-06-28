@@ -11,15 +11,16 @@
 #include "vk_shader_module.h"
 
 #include "nir/radv_nir.h"
+#include "ac_nir.h"
 #include "radv_debug.h"
 #include "radv_descriptor_set.h"
 #include "radv_entrypoints.h"
 #include "radv_pipeline_binary.h"
 #include "radv_pipeline_cache.h"
+#include "radv_pipeline_layout.h"
 #include "radv_pipeline_rt.h"
 #include "radv_rmv.h"
 #include "radv_shader.h"
-#include "ac_nir.h"
 
 struct rt_handle_hash_entry {
    uint32_t key;
@@ -452,13 +453,15 @@ radv_rt_nir_to_asm(struct radv_device *device, struct vk_pipeline_cache *cache,
       }
    }
 
+   /* Compile NIR shader to AMD assembly. */
+   binary =
+      radv_shader_nir_to_asm(device, stage, shaders, num_shaders, NULL, keep_executable_info, keep_statistic_info);
+
+   /* Dump NIR after nir_to_asm, because ACO modifies it. */
    char *nir_string = NULL;
    if (keep_executable_info || dump_shader)
       nir_string = radv_dump_nir_shaders(instance, shaders, num_shaders);
 
-   /* Compile NIR shader to AMD assembly. */
-   binary =
-      radv_shader_nir_to_asm(device, stage, shaders, num_shaders, NULL, keep_executable_info, keep_statistic_info);
    struct radv_shader *shader;
    if (replay_block || replayable) {
       VkResult result = radv_shader_create_uncached(device, binary, replayable, replay_block, &shader);

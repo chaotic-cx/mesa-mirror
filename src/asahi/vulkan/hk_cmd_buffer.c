@@ -6,6 +6,7 @@
  */
 #include "hk_cmd_buffer.h"
 
+#include "agx_abi.h"
 #include "agx_bo.h"
 #include "agx_device.h"
 #include "agx_linker.h"
@@ -18,6 +19,7 @@
 #include "hk_device.h"
 #include "hk_device_memory.h"
 #include "hk_entrypoints.h"
+#include "hk_image.h"
 #include "hk_image_view.h"
 #include "hk_physical_device.h"
 #include "hk_shader.h"
@@ -257,6 +259,32 @@ hk_BeginCommandBuffer(VkCommandBuffer commandBuffer,
    return VK_SUCCESS;
 }
 
+/*
+ * Merge adjacent compute control streams. Except for reading timestamps, there
+ * is no reason to submit two CDM streams back-to-back in the same command
+ * buffer. However, it is challenging to avoid constructing such sequences due
+ * to the gymnastics required to reorder compute around graphics. Merging at
+ * EndCommandBuffer is cheap O(# of control streams) and lets us get away with
+ * the sloppiness.
+ */
+static void
+merge_control_streams(struct hk_cmd_buffer *cmd)
+{
+   struct hk_cs *last = NULL;
+
+   list_for_each_entry_safe(struct hk_cs, cs, &cmd->control_streams, node) {
+      if (cs->type == HK_CS_CDM && last && last->type == HK_CS_CDM &&
+          !last->timestamp.end.handle) {
+
+         hk_cs_merge_cdm(last, cs);
+         list_del(&cs->node);
+         hk_cs_destroy(cs);
+      } else {
+         last = cs;
+      }
+   }
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 hk_EndCommandBuffer(VkCommandBuffer commandBuffer)
 {
@@ -269,16 +297,18 @@ hk_EndCommandBuffer(VkCommandBuffer commandBuffer)
    hk_cmd_buffer_end_compute(cmd);
    hk_cmd_buffer_end_compute_internal(cmd, &cmd->current_cs.post_gfx);
 
-   /* With rasterizer discard, we might end up with empty VDM batches.
-    * It is difficult to avoid creating these empty batches, but it's easy to
-    * optimize them out at record-time. Do so now.
-    */
-   list_for_each_entry_safe(struct hk_cs, cs, &cmd->control_streams, node) {
-      if (cs->type == HK_CS_VDM && cs->stats.cmds == 0 &&
-          !cs->cr.process_empty_tiles) {
+   struct hk_device *dev = hk_cmd_buffer_device(cmd);
+   if (likely(!(dev->dev.debug & AGX_DBG_NOMERGE))) {
+      merge_control_streams(cmd);
+   }
 
-         list_del(&cs->node);
-         hk_cs_destroy(cs);
+   /* We cannot terminate CDM control streams until after merging, since merging
+    * needs to append stream links late. Now that we've merged, insert all the
+    * missing stream terminates.
+    */
+   list_for_each_entry(struct hk_cs, cs, &cmd->control_streams, node) {
+      if (cs->type == HK_CS_CDM) {
+         cs->current = agx_cdm_terminate(cs->current);
       }
    }
 
@@ -657,40 +687,48 @@ hk_upload_usc_words(struct hk_cmd_buffer *cmd, struct hk_shader *s,
    static_assert(offsetof(struct hk_root_descriptor_table, root_desc_addr) == 0,
                  "self-reflective");
 
-   agx_usc_uniform(&b, HK_ROOT_UNIFORM, 4, root_ptr);
-
+   unsigned root_unif = 0;
    if (sw_stage == MESA_SHADER_VERTEX) {
       unsigned count =
          DIV_ROUND_UP(BITSET_LAST_BIT(s->info.vs.attrib_components_read), 4);
 
       if (count) {
          agx_usc_uniform(
-            &b, 0, 4 * count,
+            &b, AGX_ABI_VUNI_VBO_BASE(0), 4 * count,
             root_ptr + hk_root_descriptor_offset(draw.attrib_base));
 
          agx_usc_uniform(
-            &b, 4 * count, 2 * count,
+            &b, AGX_ABI_VUNI_VBO_CLAMP(count, 0), 2 * count,
             root_ptr + hk_root_descriptor_offset(draw.attrib_clamps));
       }
 
-      if (cmd->state.gfx.draw_params)
-         agx_usc_uniform(&b, 6 * count, 4, cmd->state.gfx.draw_params);
+      if (cmd->state.gfx.draw_params) {
+         agx_usc_uniform(&b, AGX_ABI_VUNI_FIRST_VERTEX(count), 4,
+                         cmd->state.gfx.draw_params);
+      }
 
-      if (cmd->state.gfx.draw_id_ptr)
-         agx_usc_uniform(&b, (6 * count) + 4, 1, cmd->state.gfx.draw_id_ptr);
+      if (cmd->state.gfx.draw_id_ptr) {
+         agx_usc_uniform(&b, AGX_ABI_VUNI_DRAW_ID(count), 1,
+                         cmd->state.gfx.draw_id_ptr);
+      }
 
       if (linked->sw_indexing) {
          agx_usc_uniform(
-            &b, (6 * count) + 8, 4,
+            &b, AGX_ABI_VUNI_INPUT_ASSEMBLY(count), 4,
             root_ptr + hk_root_descriptor_offset(draw.input_assembly));
       }
+
+      root_unif = AGX_ABI_VUNI_COUNT_VK(count);
    } else if (sw_stage == MESA_SHADER_FRAGMENT) {
       if (agx_tilebuffer_spills(&cmd->state.gfx.render.tilebuffer)) {
          hk_usc_upload_spilled_rt_descs(&b, cmd);
       }
 
-      agx_usc_uniform(
-         &b, 4, 8, root_ptr + hk_root_descriptor_offset(draw.blend_constant));
+      if (cmd->state.gfx.uses_blend_constant) {
+         agx_usc_uniform(
+            &b, 4, 8,
+            root_ptr + hk_root_descriptor_offset(draw.blend_constant));
+      }
 
       /* The SHARED state is baked into linked->usc for non-fragment shaders. We
        * don't pass around the information to bake the tilebuffer layout.
@@ -698,7 +736,10 @@ hk_upload_usc_words(struct hk_cmd_buffer *cmd, struct hk_shader *s,
        * TODO: We probably could with some refactor.
        */
       agx_usc_push_packed(&b, SHARED, &cmd->state.gfx.render.tilebuffer.usc);
+      root_unif = AGX_ABI_FUNI_ROOT;
    }
+
+   agx_usc_uniform(&b, root_unif, 4, root_ptr);
 
    agx_usc_push_blob(&b, linked->usc.data, linked->usc.size);
    return agx_usc_addr(&dev->dev, t.gpu);
@@ -824,4 +865,62 @@ hk_ensure_cs_has_space(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
    cs->end = cs->current + size;
    cs->chunk = T;
    cs->stream_linked = true;
+}
+
+static void
+clear_attachment_as_image(struct hk_cmd_buffer *cmd,
+                          struct hk_rendering_state *render,
+                          struct hk_attachment *att, unsigned aspect)
+{
+   struct hk_image_view *view = att->iview;
+   if (!att->clear || !view || !(view->vk.aspects & aspect))
+      return;
+
+   const uint32_t layer_count = render->view_mask
+                                   ? util_last_bit(render->view_mask)
+                                   : render->layer_count;
+
+   const VkImageSubresourceRange range = {
+      .layerCount = layer_count,
+      .levelCount = 1,
+      .baseArrayLayer = view->vk.base_array_layer,
+      .baseMipLevel = view->vk.base_mip_level,
+      .aspectMask = view->vk.aspects & aspect,
+   };
+
+   assert(util_bitcount(range.aspectMask) == 1);
+   VkFormat format = att->vk_format;
+
+   if (aspect == VK_IMAGE_ASPECT_DEPTH_BIT) {
+      format = vk_format_depth_only(format);
+   } else if (aspect == VK_IMAGE_ASPECT_STENCIL_BIT) {
+      format = vk_format_stencil_only(format);
+   }
+
+   struct hk_image *image = container_of(view->vk.image, struct hk_image, vk);
+   hk_clear_image(cmd, image, vk_format_to_pipe_format(format),
+                  att->clear_colour, &range, false /* partially clear 3D */);
+}
+
+void
+hk_optimize_empty_vdm(struct hk_cmd_buffer *cmd)
+{
+   struct hk_cs *cs = cmd->current_cs.gfx;
+   struct hk_rendering_state *render = &cmd->state.gfx.render;
+
+   for (unsigned i = 0; i < render->color_att_count; ++i) {
+      clear_attachment_as_image(cmd, render, &render->color_att[i], ~0);
+   }
+
+   clear_attachment_as_image(cmd, render, &render->depth_att,
+                             VK_IMAGE_ASPECT_DEPTH_BIT);
+
+   clear_attachment_as_image(cmd, render, &render->stencil_att,
+                             VK_IMAGE_ASPECT_STENCIL_BIT);
+
+   /* Remove the VDM control stream from the command buffer, now that it is
+    * replaced by equivalent other operations.
+    */
+   list_del(&cs->node);
+   hk_cs_destroy(cs);
 }

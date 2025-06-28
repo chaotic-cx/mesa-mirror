@@ -369,6 +369,7 @@ v3d_init_screen_caps(struct v3d_screen *screen)
 
         caps->native_fence_fd = true;
 
+        caps->clip_planes = 0;
         caps->depth_clip_disable = screen->devinfo.ver >= 71;
 
         caps->min_line_width =
@@ -552,6 +553,8 @@ v3d_screen_get_compiler_options(struct pipe_screen *pscreen,
                 .lower_insert_word = true,
                 .lower_bitfield_insert = true,
                 .lower_bitfield_extract = true,
+                .lower_bitfield_extract16 = true,
+                .lower_bitfield_extract8 = true,
                 .lower_bitfield_reverse = true,
                 .lower_bit_count = true,
                 .lower_cs_local_id_to_index = true,

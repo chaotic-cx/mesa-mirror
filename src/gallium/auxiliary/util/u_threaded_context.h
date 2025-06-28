@@ -217,6 +217,13 @@ struct tc_unflushed_batch_token;
 /* 0 = disabled, 1 = assertions, 2 = printfs, 3 = logging */
 #define TC_DEBUG 0
 
+/* disabling this (nonzero to enable) is technically out of spec, but:
+ * - it's conformant
+ * - doesn't cause any known issues
+ * - massively improves performance
+ */
+#define TC_RESOLVE_STRICT 0
+
 /* This is an internal flag not sent to the driver. */
 #define TC_TRANSFER_MAP_UPLOAD_CPU_STORAGE   (1u << 28)
 /* These are map flags sent to drivers. */
@@ -418,6 +425,9 @@ struct tc_unflushed_batch_token {
    struct threaded_context *tc;
 };
 
+/* to determine whether a draw/clear/invalidate/resolve has been triggered */
+#define TC_RENDERPASS_INFO_HAS_WORK(data32) (data32 & BITFIELD_MASK(30))
+
 struct tc_renderpass_info {
    union {
       struct {
@@ -437,11 +447,12 @@ struct tc_renderpass_info {
          bool zsbuf_invalidate : 1;
          /* whether a draw occurs */
          bool has_draw : 1;
-         /* whether a framebuffer resolve occurs on cbuf[0] */
+         /* whether a framebuffer resolve occurs on cbuf[0] or zsbuf */
          bool has_resolve : 1;
          /* whether queries are ended during this renderpass */
          bool has_query_ends : 1;
-         uint8_t pad : 1;
+         /* internal tc use; this renderpass has explicitly ended */
+         bool ended : 1;
          /* 32 bits offset */
          /* bitmask of color buffers using fbfetch */
          uint8_t cbuf_fbfetch;
@@ -461,9 +472,11 @@ struct tc_renderpass_info {
       uint32_t data32[2];
       /* cso info is in data16[2] */
       uint16_t data16[4];
-      /* zsbuf fb info is in data8[3] */
+      /* zsbuf fb info is in data8[3] & BITFIELD_MASK(4) */
       uint8_t data8[8];
    };
+   /* only valid if has_resolve is true and the resolve member of pipe_framebuffer_state is NULL */
+   struct pipe_resource *resolve;
 };
 
 static inline bool
@@ -511,8 +524,8 @@ struct tc_batch {
    struct tc_call_base *last_mergeable_call;
 
    struct util_queue_fence fence;
-   /* whether the first set_framebuffer_state call has been seen by this batch */
-   bool first_set_fb;
+   /* whether the first set_framebuffer_state call will increment the rp info in batch_execute */
+   bool increment_rp_info_on_fb;
    int8_t batch_idx;
    struct tc_unflushed_batch_token *token;
    uint64_t slots[TC_SLOTS_PER_BATCH];
@@ -636,6 +649,12 @@ struct threaded_context {
    unsigned max_images;
    unsigned max_samplers;
    unsigned nr_cbufs;
+   unsigned fb_layers;
+
+#if TC_RESOLVE_STRICT
+   uint16_t fb_width;
+   uint16_t fb_height;
+#endif
 
    unsigned last, next, next_buf_list;
 

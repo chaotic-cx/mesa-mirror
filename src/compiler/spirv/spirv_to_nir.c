@@ -41,6 +41,7 @@
 #include "util/u_printf.h"
 #include "util/mesa-blake3.h"
 #include "util/bfloat.h"
+#include "util/float8.h"
 
 #include <stdio.h>
 
@@ -62,10 +63,12 @@ static const struct spirv_capabilities implemented_capabilities = {
    .BFloat16CooperativeMatrixKHR = true,
    .BFloat16DotProductKHR = true,
    .BFloat16TypeKHR = true,
+   .BitInstructions = true,
    .ClipDistance = true,
    .ComputeDerivativeGroupLinearKHR = true,
    .ComputeDerivativeGroupQuadsKHR = true,
    .CooperativeMatrixKHR = true,
+   .CooperativeMatrixConversionsNV = true,
    .CullDistance = true,
    .DemoteToHelperInvocation = true,
    .DenormFlushToZero = true,
@@ -78,6 +81,8 @@ static const struct spirv_capabilities implemented_capabilities = {
    .DotProductInputAll = true,
    .DrawParameters = true,
    .ExpectAssumeKHR = true,
+   .Float8EXT = true,
+   .Float8CooperativeMatrixEXT = true,
    .Float16 = true,
    .Float16Buffer = true,
    .Float64 = true,
@@ -1023,6 +1028,35 @@ vtn_foreach_decoration(struct vtn_builder *b, struct vtn_value *value,
    _foreach_decoration_helper(b, value, -1, value, cb, data);
 }
 
+struct has_decoration_data {
+   SpvDecoration decoration;
+   bool result;
+};
+
+static void
+has_decoration_cb(struct vtn_builder *b, UNUSED struct vtn_value *val,
+                  UNUSED int member, const struct vtn_decoration *dec,
+                  void *_data)
+{
+   struct has_decoration_data *data = (struct has_decoration_data *)_data;
+   if (dec->decoration == data->decoration)
+      data->result = true;
+}
+
+bool
+vtn_has_decoration(struct vtn_builder *b, struct vtn_value *value,
+                   SpvDecoration decoration)
+{
+   struct has_decoration_data data = {
+      .decoration = decoration,
+      .result = false,
+   };
+
+   vtn_foreach_decoration(b, value, has_decoration_cb, &data);
+
+   return data.result;
+}
+
 void
 vtn_foreach_execution_mode(struct vtn_builder *b, struct vtn_value *value,
                            vtn_execution_mode_foreach_cb cb, void *data)
@@ -1903,6 +1937,18 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
          val->type->type = glsl_bfloatN_t_type(bit_size);
          break;
 
+      case SpvFPEncodingFloat8E4M3EXT:
+         vtn_fail_if(bit_size != 8,
+                     "Invalid E4M3 bit size: %u", bit_size);
+         val->type->type = glsl_e4m3fn_t_type();
+         break;
+
+      case SpvFPEncodingFloat8E5M2EXT:
+         vtn_fail_if(bit_size != 8,
+                     "Invalid E5M2 bit size: %u", bit_size);
+         val->type->type = glsl_e5m2_t_type();
+         break;
+
       default:
          vtn_fail("Unsupported OpTypeFloat encoding: %d", encoding);
       }
@@ -2694,15 +2740,10 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
       default: {
          bool swap;
 
-         const glsl_type *dst_type = val->type->type;
-         const glsl_type *src_type = dst_type;
+         const glsl_type *org_dst_type = val->type->type;
+         const glsl_type *org_src_type = org_dst_type;
 
-         const bool bfloat_dst = glsl_type_is_bfloat_16(dst_type);
-         bool bfloat_src = bfloat_dst;
-
-         if (bfloat_dst)
-            dst_type = glsl_float_type();
-
+         const bool saturate = vtn_has_decoration(b, val, SpvDecorationSaturatedToLargestFloat8NormalConversionEXT);
          unsigned num_components = glsl_get_vector_elements(val->type->type);
 
          vtn_assert(count <= 7);
@@ -2710,17 +2751,21 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
          switch (opcode) {
          case SpvOpSConvert:
          case SpvOpFConvert:
-         case SpvOpUConvert: {
+         case SpvOpUConvert:
             /* We have a different source type in a conversion. */
-            src_type = vtn_get_value_type(b, w[4])->type;
-            bfloat_src = glsl_type_is_bfloat_16(src_type);
-            if (bfloat_src)
-               src_type = glsl_float_type();
+            org_src_type = vtn_get_value_type(b, w[4])->type;
             break;
-         }
          default:
             break;
          };
+
+         const glsl_type *dst_type = org_dst_type;
+         if (glsl_type_is_bfloat_16(dst_type) || glsl_type_is_e4m3fn(dst_type) || glsl_type_is_e5m2(dst_type))
+            dst_type = glsl_float_type();
+
+         const glsl_type *src_type = org_src_type;
+         if (glsl_type_is_bfloat_16(src_type) || glsl_type_is_e4m3fn(src_type) || glsl_type_is_e5m2(src_type))
+            src_type = glsl_float_type();
 
          bool exact;
          nir_op op = vtn_nir_alu_op_for_spirv_opcode(b, opcode, &swap, &exact,
@@ -2731,7 +2776,7 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
           */
          assert(!exact);
 
-         unsigned bit_size = glsl_get_bit_size(src_type);
+         unsigned bit_size = glsl_get_bit_size(dst_type);
          nir_const_value src[3][NIR_MAX_VEC_COMPONENTS];
 
          for (unsigned i = 0; i < count - 4; i++) {
@@ -2741,8 +2786,15 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
             /* If this is an unsized source, pull the bit size from the
              * source; otherwise, we'll use the bit size from the destination.
              */
-            if (!nir_alu_type_get_type_size(nir_op_infos[op].input_types[i]))
-               bit_size = glsl_get_bit_size(src_val->type->type);
+            if (!nir_alu_type_get_type_size(nir_op_infos[op].input_types[i])) {
+               if (org_src_type != src_type) {
+                  /* Small float conversion. */
+                  assert(i == 0);
+                  bit_size = glsl_get_bit_size(src_type);
+               } else {
+                  bit_size = glsl_get_bit_size(src_val->type->type);
+               }
+            }
 
             unsigned src_comps = nir_op_infos[op].input_sizes[i] ?
                                  nir_op_infos[op].input_sizes[i] :
@@ -2751,8 +2803,12 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
             unsigned j = swap ? 1 - i : i;
             for (unsigned c = 0; c < src_comps; c++) {
                src[j][c] = src_val->constant->values[c];
-               if (bfloat_src)
+               if (glsl_type_is_bfloat_16(org_src_type))
                   src[j][c].f32 = _mesa_bfloat16_bits_to_float(src[j][c].u16);
+               else if (glsl_type_is_e4m3fn(org_src_type))
+                  src[j][c].f32 = _mesa_e4m3fn_to_float(src[j][c].u8);
+               else if (glsl_type_is_e5m2(org_src_type))
+                  src[j][c].f32 = _mesa_e5m2_to_float(src[j][c].u8);
             }
          }
 
@@ -2783,12 +2839,25 @@ vtn_handle_constant(struct vtn_builder *b, SpvOp opcode,
                                num_components, bit_size, srcs,
                                b->shader->info.float_controls_execution_mode);
 
-         if (bfloat_dst) {
-            for (int i = 0; i < num_components; i++) {
-               const uint16_t b =
-                  _mesa_float_to_bfloat16_bits_rte(val->constant->values[i].f32);
-               val->constant->values[i] = nir_const_value_for_raw_uint(b, 16);
+         for (int i = 0; i < num_components; i++) {
+            uint16_t conv;
+            if (glsl_type_is_bfloat_16(org_dst_type)) {
+               conv = _mesa_float_to_bfloat16_bits_rte(val->constant->values[i].f32);
+            } else if (glsl_type_is_e4m3fn(org_dst_type)) {
+               if (saturate)
+                  conv = _mesa_float_to_e4m3fn_sat(val->constant->values[i].f32);
+               else
+                  conv = _mesa_float_to_e4m3fn(val->constant->values[i].f32);
+            } else if (glsl_type_is_e5m2(org_dst_type)) {
+               if (saturate)
+                  conv = _mesa_float_to_e5m2_sat(val->constant->values[i].f32);
+               else
+                  conv = _mesa_float_to_e5m2(val->constant->values[i].f32);
+            } else {
+               continue;
             }
+
+            val->constant->values[i] = nir_const_value_for_raw_uint(conv, glsl_get_bit_size(org_dst_type));
          }
 
          break;
@@ -6794,6 +6863,8 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpCooperativeMatrixStoreKHR:
    case SpvOpCooperativeMatrixLengthKHR:
    case SpvOpCooperativeMatrixMulAddKHR:
+   case SpvOpCooperativeMatrixConvertNV:
+   case SpvOpCooperativeMatrixTransposeNV:
       vtn_handle_cooperative_instruction(b, opcode, w, count);
       break;
 
@@ -7207,6 +7278,18 @@ spirv_to_nir(const uint32_t *words, size_t word_count,
    /* structurize the CFG */
    nir_lower_goto_ifs(b->shader);
 
+   /* Work around applications that declare shader_call_data variables inside
+    * ray generation shaders or multiple shader_call_data variables in callable
+    * shaders. This needs to happen before validation.
+    *
+    * https://gitlab.freedesktop.org/mesa/mesa/-/issues/5326
+    * https://gitlab.freedesktop.org/mesa/mesa/-/issues/11585
+    */
+   if (gl_shader_stage_is_rt(b->shader->info.stage)) {
+      NIR_PASS(_, b->shader, nir_remove_dead_variables, nir_var_shader_call_data,
+               NULL);
+   }
+
    nir_validate_shader(b->shader, "after spirv cfg");
 
    nir_lower_continue_constructs(b->shader);
@@ -7292,17 +7375,6 @@ spirv_to_nir(const uint32_t *words, size_t word_count,
          }
       }
    }
-
-   /* Work around applications that declare shader_call_data variables inside
-    * ray generation shaders or multiple shader_call_data variables in callable
-    * shaders.
-    *
-    * https://gitlab.freedesktop.org/mesa/mesa/-/issues/5326
-    * https://gitlab.freedesktop.org/mesa/mesa/-/issues/11585
-    */
-   if (gl_shader_stage_is_rt(b->shader->info.stage))
-      NIR_PASS(_, b->shader, nir_remove_dead_variables, nir_var_shader_call_data,
-               NULL);
 
    /* Unparent the shader from the vtn_builder before we delete the builder */
    ralloc_steal(NULL, b->shader);

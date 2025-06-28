@@ -34,6 +34,7 @@
 
 #include "vk_enum_defines.h"
 
+#include "c11/threads.h"
 #include "drm-uapi/drm_fourcc.h"
 #include "util/libsync.h"
 #include "util/os_file.h"
@@ -41,33 +42,108 @@
 #include "util/log.h"
 
 #include <hardware/gralloc.h>
-
 #if ANDROID_API_LEVEL >= 26
 #include <hardware/gralloc1.h>
 #endif
+#include <hardware/hardware.h>
+#include <hardware/hwvulkan.h>
 
 #include <unistd.h>
 
-static struct u_gralloc *u_gralloc;
+static struct u_gralloc *_gralloc;
+
+static void
+vk_android_init_ugralloc_once(void)
+{
+   _gralloc = u_gralloc_create(U_GRALLOC_TYPE_AUTO);
+}
 
 struct u_gralloc *
 vk_android_get_ugralloc(void)
 {
-   return u_gralloc;
+   static once_flag once = ONCE_FLAG_INIT;
+   call_once(&once, vk_android_init_ugralloc_once);
+   return _gralloc;
 }
 
-struct u_gralloc *
-vk_android_init_ugralloc(void)
-{
-   u_gralloc = u_gralloc_create(U_GRALLOC_TYPE_AUTO);
+static int vk_android_hal_open(const struct hw_module_t *mod, const char *id,
+                               struct hw_device_t **dev);
 
-   return u_gralloc;
+static_assert(HWVULKAN_DISPATCH_MAGIC == ICD_LOADER_MAGIC, "");
+
+PUBLIC struct hwvulkan_module_t HAL_MODULE_INFO_SYM = {
+   .common =
+      {
+         .tag = HARDWARE_MODULE_TAG,
+         .module_api_version = HWVULKAN_MODULE_API_VERSION_0_1,
+         .hal_api_version = HARDWARE_MAKE_API_VERSION(1, 0),
+         .id = HWVULKAN_HARDWARE_MODULE_ID,
+         .name = "Mesa 3D Vulkan HAL",
+         .author = "Mesa 3D",
+         .methods =
+            &(hw_module_methods_t){
+               .open = vk_android_hal_open,
+            },
+      },
+};
+
+static int
+vk_android_hal_close(struct hw_device_t *dev)
+{
+   /* the hw_device_t::close() function is called upon driver unloading */
+   assert(dev->version == HWVULKAN_DEVICE_API_VERSION_0_1);
+   assert(dev->module == &HAL_MODULE_INFO_SYM.common);
+
+   hwvulkan_device_t *hal_dev = container_of(dev, hwvulkan_device_t, common);
+   free(hal_dev);
+   return 0;
 }
 
-void
-vk_android_destroy_ugralloc(void)
+static int
+vk_android_hal_open(const struct hw_module_t *mod, const char *id,
+                    struct hw_device_t **dev)
 {
-   u_gralloc_destroy(&u_gralloc);
+   assert(mod == &HAL_MODULE_INFO_SYM.common);
+   assert(strcmp(id, HWVULKAN_DEVICE_0) == 0);
+
+   hwvulkan_device_t *hal_dev = malloc(sizeof(*hal_dev));
+   if (!hal_dev)
+      return -1;
+
+   *hal_dev = (hwvulkan_device_t){
+      .common =
+         {
+            .tag = HARDWARE_DEVICE_TAG,
+            .version = HWVULKAN_DEVICE_API_VERSION_0_1,
+            .module = &HAL_MODULE_INFO_SYM.common,
+            .close = vk_android_hal_close,
+         },
+      .EnumerateInstanceExtensionProperties =
+         (PFN_vkEnumerateInstanceExtensionProperties)vk_icdGetInstanceProcAddr(
+            NULL, "vkEnumerateInstanceExtensionProperties"),
+      .CreateInstance =
+         (PFN_vkCreateInstance)vk_icdGetInstanceProcAddr(
+            NULL, "vkCreateInstance"),
+      .GetInstanceProcAddr =
+         (PFN_vkGetInstanceProcAddr)vk_icdGetInstanceProcAddr(
+            NULL, "vkGetInstanceProcAddr"),
+   };
+
+   *dev = &hal_dev->common;
+   return 0;
+}
+
+uint64_t
+vk_android_get_front_buffer_usage(void)
+{
+   struct u_gralloc *gralloc = vk_android_get_ugralloc();
+   if (gralloc) {
+      uint64_t usage = 0;
+      int ret = u_gralloc_get_front_rendering_usage(gralloc, &usage);
+      if (!ret)
+         return usage;
+   }
+   return 0;
 }
 
 /* If any bits in test_mask are set, then unset them and return true. */
@@ -194,13 +270,8 @@ vk_common_GetSwapchainGrallocUsage2ANDROID(
       *grallocConsumerUsage |= GRALLOC1_CONSUMER_USAGE_HWCOMPOSER;
    }
 
-   if ((swapchainImageUsage & VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID) &&
-       vk_android_get_ugralloc() != NULL) {
-      uint64_t front_rendering_usage = 0;
-      u_gralloc_get_front_rendering_usage(vk_android_get_ugralloc(),
-                                          &front_rendering_usage);
-      *grallocProducerUsage |= front_rendering_usage;
-   }
+   if (swapchainImageUsage & VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID)
+      *grallocProducerUsage |= vk_android_get_front_buffer_usage();
 
    return VK_SUCCESS;
 }
@@ -635,9 +706,11 @@ get_ahb_buffer_format_properties2(
    };
 
    struct u_gralloc_buffer_basic_info info;
-
-   if (u_gralloc_get_buffer_basic_info(vk_android_get_ugralloc(), &gr_handle, &info) != 0)
+   if (u_gralloc_get_buffer_basic_info(vk_android_get_ugralloc(), &gr_handle,
+                                       &info) != 0) {
+      mesa_loge("Failed to get u_gralloc_buffer_basic_info");
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
+   }
 
    switch (info.drm_fourcc) {
    case DRM_FORMAT_YVU420:
@@ -647,37 +720,43 @@ get_ahb_buffer_format_properties2(
    case DRM_FORMAT_NV12:
       external_format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
       break;
-   default:;
+   default:
       mesa_loge("Unsupported external DRM format: %d", info.drm_fourcc);
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
    }
 
    struct u_gralloc_buffer_color_info color_info;
-   if (u_gralloc_get_buffer_color_info(vk_android_get_ugralloc(), &gr_handle, &color_info) == 0) {
-      switch (color_info.yuv_color_space) {
-      case __DRI_YUV_COLOR_SPACE_ITU_REC601:
-         p->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601;
-         break;
-      case __DRI_YUV_COLOR_SPACE_ITU_REC709:
-         p->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
-         break;
-      case __DRI_YUV_COLOR_SPACE_ITU_REC2020:
-         p->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_2020;
-         break;
-      default:
-         break;
-      }
-
-      p->suggestedYcbcrRange = (color_info.sample_range == __DRI_YUV_NARROW_RANGE) ?
-         VK_SAMPLER_YCBCR_RANGE_ITU_NARROW : VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
-      p->suggestedXChromaOffset = (color_info.horizontal_siting == __DRI_YUV_CHROMA_SITING_0_5) ?
-         VK_CHROMA_LOCATION_MIDPOINT : VK_CHROMA_LOCATION_COSITED_EVEN;
-      p->suggestedYChromaOffset = (color_info.vertical_siting == __DRI_YUV_CHROMA_SITING_0_5) ?
-         VK_CHROMA_LOCATION_MIDPOINT : VK_CHROMA_LOCATION_COSITED_EVEN;
-   } else {
-      p->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601;
-      p->suggestedYcbcrRange = VK_SAMPLER_YCBCR_RANGE_ITU_NARROW;
+   if (u_gralloc_get_buffer_color_info(vk_android_get_ugralloc(), &gr_handle,
+                                       &color_info) != 0) {
+      mesa_loge("Failed to get u_gralloc_buffer_color_info");
+      return VK_ERROR_INVALID_EXTERNAL_HANDLE;
    }
+
+   switch (color_info.yuv_color_space) {
+   case __DRI_YUV_COLOR_SPACE_ITU_REC601:
+      p->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_601;
+      break;
+   case __DRI_YUV_COLOR_SPACE_ITU_REC709:
+      p->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_709;
+      break;
+   case __DRI_YUV_COLOR_SPACE_ITU_REC2020:
+      p->suggestedYcbcrModel = VK_SAMPLER_YCBCR_MODEL_CONVERSION_YCBCR_2020;
+      break;
+   default:
+      break;
+   }
+
+   p->suggestedYcbcrRange = (color_info.sample_range == __DRI_YUV_NARROW_RANGE)
+                               ? VK_SAMPLER_YCBCR_RANGE_ITU_NARROW
+                               : VK_SAMPLER_YCBCR_RANGE_ITU_FULL;
+   p->suggestedXChromaOffset =
+      (color_info.horizontal_siting == __DRI_YUV_CHROMA_SITING_0_5)
+         ? VK_CHROMA_LOCATION_MIDPOINT
+         : VK_CHROMA_LOCATION_COSITED_EVEN;
+   p->suggestedYChromaOffset =
+      (color_info.vertical_siting == __DRI_YUV_CHROMA_SITING_0_5)
+         ? VK_CHROMA_LOCATION_MIDPOINT
+         : VK_CHROMA_LOCATION_COSITED_EVEN;
 
 finish:
 

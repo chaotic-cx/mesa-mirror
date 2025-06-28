@@ -61,7 +61,7 @@ libtu_includes = [
 
 tu_link_with = []
 tu_deps = []
-tu_flags = []
+tu_flags = [sse2_args]
 
 tu_wsi = false
 
@@ -81,11 +81,6 @@ endif
 
 if tu_wsi
   libtu_files += 'tu_wsi.cc'
-endif
-
-if with_platform_android
-  libtu_files += files('tu_android.cc')
-  tu_deps += [dep_android]
 endif
 
 if with_xlib_lease
@@ -206,6 +201,7 @@ freedreno_icd = custom_target(
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.4', '--xml', '@INPUT1@',
+    '--sizeof-pointer', sizeof_pointer,
     '--lib-path', join_paths(get_option('prefix'), get_option('libdir'),
                              'libvulkan_freedreno.so'),
     '--out', '@OUTPUT@',
@@ -224,6 +220,7 @@ _dev_icd = custom_target(
   command : [
     prog_python, '@INPUT0@',
     '--api-version', '1.4', '--xml', '@INPUT1@',
+    '--sizeof-pointer', sizeof_pointer,
     '--lib-path', meson.current_build_dir() / 'libvulkan_freedreno.so',
     '--out', '@OUTPUT@',
   ],

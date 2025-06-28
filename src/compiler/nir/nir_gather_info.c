@@ -356,8 +356,6 @@ nir_intrinsic_writes_external_memory(const nir_intrinsic_instr *instr)
    case nir_intrinsic_bindless_image_store_raw_intel:
    case nir_intrinsic_global_atomic:
    case nir_intrinsic_global_atomic_swap:
-   case nir_intrinsic_global_atomic_ir3:
-   case nir_intrinsic_global_atomic_swap_ir3:
    case nir_intrinsic_image_atomic:
    case nir_intrinsic_image_atomic_swap:
    case nir_intrinsic_image_deref_atomic:
@@ -682,6 +680,8 @@ gather_intrinsic_info(nir_intrinsic_instr *instr, nir_shader *shader,
    case nir_intrinsic_load_invocation_id:
    case nir_intrinsic_load_frag_coord:
    case nir_intrinsic_load_pixel_coord:
+   case nir_intrinsic_load_frag_coord_z:
+   case nir_intrinsic_load_frag_coord_w:
    case nir_intrinsic_load_frag_shading_rate:
    case nir_intrinsic_load_fully_covered:
    case nir_intrinsic_load_point_coord:

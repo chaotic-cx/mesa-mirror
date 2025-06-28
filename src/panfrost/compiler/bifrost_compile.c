@@ -1278,7 +1278,7 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
 
    /* Only look at the total components needed. In effect, we fill in all
     * the intermediate "holes" in the write mask, since we can't mask off
-    * stores. Since nir_lower_io_to_temporaries ensures each varying is
+    * stores. Since nir_lower_io_vars_to_temporaries ensures each varying is
     * written at most once, anything that's masked out is undefined, so it
     * doesn't matter what we write there. So we may as well do the
     * simplest thing possible. */
@@ -2978,11 +2978,14 @@ bi_emit_alu(bi_builder *b, nir_alu_instr *instr)
       bi_index idx = bi_src_index(&instr->src[0].src);
       unsigned factor = src_sz / 8;
       unsigned chan[4] = {0};
+      bi_index idxs[4];
 
-      for (unsigned i = 0; i < comps; ++i)
+      for (unsigned i = 0; i < comps; ++i) {
+         idxs[i] = idx;
          chan[i] = instr->src[0].swizzle[i] * factor;
+      }
 
-      bi_make_vec_to(b, dst, &idx, chan, comps, 8);
+      bi_make_vec_to(b, dst, idxs, chan, comps, 8);
       return;
    }
 
@@ -5080,7 +5083,7 @@ glsl_type_size(const struct glsl_type *type, bool bindless)
 }
 
 /* Split stores to memory. We don't split stores to vertex outputs, since
- * nir_lower_io_to_temporaries will ensure there's only a single write.
+ * nir_lower_io_vars_to_temporaries will ensure there's only a single write.
  */
 
 static bool
@@ -5752,21 +5755,6 @@ bifrost_nir_lower_load_output(nir_shader *nir)
       nir_metadata_control_flow, NULL);
 }
 
-static bool
-bi_lower_halt_to_return(nir_builder *b, nir_instr *instr, UNUSED void *_data)
-{
-   if (instr->type != nir_instr_type_jump)
-      return false;
-
-   nir_jump_instr *jump = nir_instr_as_jump(instr);
-   if (jump->type != nir_jump_halt)
-      return false;
-
-   assert(b->impl == nir_shader_get_entrypoint(b->shader));
-   jump->type = nir_jump_return;
-   return true;
-}
-
 /* Bifrost LDEXP.v2f16 takes i16 exponent, while nir_op_ldexp takes i32. Lower
  * to nir_op_ldexp16_pan. */
 static bool
@@ -5828,8 +5816,7 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
       NIR_PASS(_, nir, nir_lower_terminate_to_demote);
 
    /* Ensure that halt are translated to returns and get ride of them */
-   NIR_PASS(_, nir, nir_shader_instructions_pass, bi_lower_halt_to_return,
-            nir_metadata_all, NULL);
+   NIR_PASS(_, nir, nir_lower_halt_to_return);
    NIR_PASS(_, nir, nir_lower_returns);
 
    /* Lower gl_Position pre-optimisation, but after lowering vars to ssa
