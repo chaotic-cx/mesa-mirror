@@ -885,7 +885,7 @@ static const struct {
       .internal_format =        GL_RGB5_A1,
    },
    {
-      .image_format    = __DRI_IMAGE_FORMAT_XRGB8888,
+      .image_format    = __DRI_IMAGE_FORMAT_B8G8R8X8,
       .internal_format =        GL_RGB8,
    },
    {
@@ -921,15 +921,15 @@ static const struct {
       .internal_format =        GL_RGB10,
    },
    {
-      .image_format    = __DRI_IMAGE_FORMAT_ARGB8888,
+      .image_format    = __DRI_IMAGE_FORMAT_B8G8R8A8,
       .internal_format =        GL_RGBA8,
    },
    {
-      .image_format    = __DRI_IMAGE_FORMAT_ABGR8888,
+      .image_format    = __DRI_IMAGE_FORMAT_R8G8B8A8,
       .internal_format =        GL_RGBA8,
    },
    {
-      .image_format    = __DRI_IMAGE_FORMAT_XBGR8888,
+      .image_format    = __DRI_IMAGE_FORMAT_R8G8B8X8,
       .internal_format =        GL_RGB8,
    },
    {
@@ -940,16 +940,10 @@ static const struct {
       .image_format    = __DRI_IMAGE_FORMAT_R8,
       .internal_format =        GL_R8,
    },
-#if UTIL_ARCH_LITTLE_ENDIAN
    {
-      .image_format    = __DRI_IMAGE_FORMAT_GR88,
+      .image_format    = __DRI_IMAGE_FORMAT_R8G8,
       .internal_format =        GL_RG8,
    },
-   {
-      .image_format    = __DRI_IMAGE_FORMAT_GR88,
-      .internal_format =        GL_RG8,
-   },
-#endif
    {
       .image_format    = __DRI_IMAGE_FORMAT_SABGR8,
       .internal_format =        GL_SRGB8_ALPHA8,
@@ -970,16 +964,10 @@ static const struct {
       .image_format    = __DRI_IMAGE_FORMAT_R16,
       .internal_format =        GL_R16,
    },
-#if UTIL_ARCH_LITTLE_ENDIAN
    {
-      .image_format    = __DRI_IMAGE_FORMAT_GR1616,
+      .image_format    = __DRI_IMAGE_FORMAT_R16G16,
       .internal_format =        GL_RG16,
    },
-   {
-      .image_format    = __DRI_IMAGE_FORMAT_GR1616,
-      .internal_format =        GL_RG16,
-   },
-#endif
    {
       .image_format    = __DRI_IMAGE_FORMAT_ARGB4444,
       .internal_format =        GL_RGBA4,
