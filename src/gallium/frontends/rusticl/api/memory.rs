@@ -18,7 +18,10 @@ use crate::core::platform::Platform;
 use crate::core::queue::*;
 use crate::rusticl_warn_once;
 
+use mesa_rust::pipe::fence::FenceFd;
 use mesa_rust_gen::pipe_fd_type;
+use mesa_rust_util::conversion::TryFromWithErr;
+use mesa_rust_util::conversion::TryIntoWithErr;
 use mesa_rust_util::properties::MultiValProperties;
 use mesa_rust_util::properties::Properties;
 use mesa_rust_util::ptr::*;
@@ -34,10 +37,15 @@ use std::os::raw::c_void;
 use std::ptr;
 use std::sync::Arc;
 
+pub const SUPPORTED_EXTERNAL_MEMORY_TYPES: &[cl_external_memory_handle_type_khr] = &[
+    CL_EXTERNAL_MEMORY_HANDLE_DMA_BUF_KHR,
+    CL_EXTERNAL_MEMORY_HANDLE_OPAQUE_FD_KHR,
+];
+
 unsafe fn new_multi_var_property(
     props: *const cl_mem_properties,
 ) -> Option<MultiValProperties<cl_mem_properties>> {
-    unsafe { MultiValProperties::new(props, &[]) }
+    unsafe { MultiValProperties::new(props, &[CL_MEM_DEVICE_HANDLE_LIST_KHR.into()]) }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -355,6 +363,92 @@ unsafe impl CLInfo<cl_mem_info> for cl_mem {
     }
 }
 
+fn parse_mem_properties(
+    properties: *const cl_mem_properties,
+    c: &Context,
+    host_ptr: *mut c_void,
+    flags: cl_mem_flags,
+    image: bool,
+) -> CLResult<(MultiValProperties<cl_mem_properties>, Option<FenceFd>)> {
+    // CL_INVALID_PROPERTY [...] if the same property name is specified more than once.
+    let props = unsafe { new_multi_var_property(properties) }.ok_or(CL_INVALID_PROPERTY)?;
+
+    // CL_INVALID_PROPERTY if a property name in properties is not a supported property name, if
+    // the value specified for a supported property name is not valid, or if the same property name
+    // is specified more than once.
+    let mut handle: Option<FenceFd> = None;
+    let mut devs: Option<Vec<&Device>> = None;
+    for (key, vals) in props.iter() {
+        match u32::try_from_with_err(key, CL_INVALID_PROPERTY)? {
+            CL_EXTERNAL_MEMORY_HANDLE_DMA_BUF_KHR | CL_EXTERNAL_MEMORY_HANDLE_OPAQUE_FD_KHR => {
+                // CL_INVALID_PROPERTY [..] if properties includes more than one external memory
+                // handle.
+                if handle.is_some() {
+                    return Err(CL_INVALID_PROPERTY);
+                }
+
+                // CL_INVALID_HOST_PTR if properties includes a supported external memory handle and
+                // host_ptr is not NULL.
+                if !host_ptr.is_null() {
+                    return Err(CL_INVALID_HOST_PTR);
+                }
+
+                // CL_INVALID_VALUE if properties includes a supported external memory handle and
+                // flags includes CL_MEM_USE_HOST_PTR, CL_MEM_ALLOC_HOST_PTR, or
+                // CL_MEM_COPY_HOST_PTR.
+                if flags.are_any_bits_set(
+                    CL_MEM_USE_HOST_PTR | CL_MEM_ALLOC_HOST_PTR | CL_MEM_COPY_HOST_PTR,
+                ) {
+                    return Err(CL_INVALID_VALUE);
+                }
+
+                handle = Some(FenceFd {
+                    fd: vals[0].try_into_with_err(CL_INVALID_VALUE)?,
+                });
+            }
+            CL_MEM_DEVICE_HANDLE_LIST_KHR => {
+                devs = Some(
+                    vals.iter()
+                        .map(|&handle| Device::ref_from_raw(handle as *mut _))
+                        .collect::<CLResult<_>>()?,
+                );
+            }
+            CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT if !image => {
+                // CL_INVALID_OPERATION If properties includes CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT and
+                // there are no devices in the context that support the cl_ext_buffer_device_address
+                // extension.
+                if c.devs.iter().all(|dev| !dev.bda_supported()) {
+                    return Err(CL_INVALID_OPERATION);
+                }
+            }
+            _ => return Err(CL_INVALID_PROPERTY),
+        }
+    }
+
+    if handle.is_some() {
+        if let Some(devs) = devs {
+            for dev in &devs {
+                // CL_INVALID_DEVICE if a device identified by the property
+                // CL_MEM_DEVICE_HANDLE_LIST_KHR [..] is not associated with context, or if a device
+                // identified by property CL_MEM_DEVICE_HANDLE_LIST_KHR cannot import the requested
+                // external memory object type
+                if !c.devs.contains(dev) || !dev.memory_sharing_supported() {
+                    return Err(CL_INVALID_DEVICE);
+                }
+            }
+        } else {
+            // CL_INVALID_DEVICE [..] if CL_MEM_DEVICE_HANDLE_LIST_KHR is not specified as part of
+            // properties and one or more devices in context cannot import the requested external
+            // memory object type.
+            if c.devs.iter().any(|dev| !dev.memory_sharing_supported()) {
+                return Err(CL_INVALID_DEVICE);
+            }
+        }
+    }
+
+    Ok((props, handle))
+}
+
 #[cl_entrypoint(clCreateBufferWithProperties)]
 fn create_buffer_with_properties(
     context: cl_context,
@@ -393,27 +487,8 @@ fn create_buffer_with_properties(
         }
     }
 
-    // CL_INVALID_PROPERTY [...] if the same property name is specified more than once.
-    let props = unsafe { new_multi_var_property(properties) }.ok_or(CL_INVALID_PROPERTY)?;
-
-    // CL_INVALID_PROPERTY if a property name in properties is not a supported property name, if
-    // the value specified for a supported property name is not valid, or if the same property name
-    // is specified more than once.
-    for (key, _) in props.iter() {
-        match key as u32 {
-            CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT => {
-                // CL_INVALID_OPERATION If properties includes CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT and
-                // there are no devices in the context that support the cl_ext_buffer_device_address
-                // extension.
-                if c.devs.iter().all(|dev| !dev.bda_supported()) {
-                    return Err(CL_INVALID_OPERATION);
-                }
-            }
-            _ => return Err(CL_INVALID_PROPERTY),
-        }
-    }
-
-    Ok(MemBase::new_buffer(c, flags, size, host_ptr, props)?.into_cl())
+    let (props, handle) = parse_mem_properties(properties, &c, host_ptr, flags, false)?;
+    Ok(MemBase::new_buffer(c, flags, size, host_ptr, props, handle)?.into_cl())
 }
 
 #[cl_entrypoint(clCreateBuffer)]
@@ -539,6 +614,7 @@ fn validate_image_desc(
     elem_size: usize,
     flags: cl_mem_flags,
     devs: &[&Device],
+    imported: bool,
 ) -> CLResult<(cl_image_desc, Option<Mem>)> {
     // CL_INVALID_IMAGE_DESCRIPTOR if values specified in image_desc are not valid
     const err: cl_int = CL_INVALID_IMAGE_DESCRIPTOR;
@@ -634,25 +710,41 @@ fn validate_image_desc(
         None
     };
 
-    // image_row_pitch is the scan-line pitch in bytes. This must be 0 if host_ptr is NULL and can
-    // be either 0 or ≥ image_width × size of element in bytes if host_ptr is not NULL. If host_ptr
-    // is not NULL and image_row_pitch = 0, image_row_pitch is calculated as image_width × size of
-    // element in bytes. If image_row_pitch is not 0, it must be a multiple of the image element
-    // size in bytes. For a 2D image created from a buffer, the pitch specified (or computed if
-    // pitch specified is 0) must be a multiple of the maximum of the
-    // CL_DEVICE_IMAGE_PITCH_ALIGNMENT value for all devices in the context associated with the
-    // buffer specified by mem_object that support images.
+    // image_row_pitch is the scan-line pitch in bytes. The image_row_pitch must be zero if host_ptr
+    // is NULL, the image is not an image created from an external memory handle, and the image is
+    // not a 2D image created from a buffer, If image_row_pitch is zero and host_ptr is not NULL,
+    // then the image row pitch is calculated as image_width × the size of an image element in
+    // bytes. If image_row_pitch is zero and the image is created from an external memory handle,
+    // then the image row pitch is implementation-defined. The image row pitch must be ≥ image_width
+    // × the size of an image element in bytes, and must be a multiple of the size of an image
+    // element in bytes. For an image created from a buffer, the image row pitch must also
     //
-    // image_slice_pitch is the size in bytes of each 2D slice in the 3D image or the size in bytes
-    // of each image in a 1D or 2D image array. This must be 0 if host_ptr is NULL. If host_ptr is
-    // not NULL, image_slice_pitch can be either 0 or ≥ image_row_pitch × image_height for a 2D
-    // image array or 3D image and can be either 0 or ≥ image_row_pitch for a 1D image array. If
-    // host_ptr is not NULL and image_slice_pitch = 0, image_slice_pitch is calculated as
-    // image_row_pitch × image_height for a 2D image array or 3D image and image_row_pitch for a 1D
-    // image array. If image_slice_pitch is not 0, it must be a multiple of the image_row_pitch.
+    //   Be a multiple of the CL_IMAGE_REQUIREMENTS_ROW_PITCH_ALIGNMENT_EXT value for the
+    //   image_format, image_type and flags used to create the image, if the
+    //   cl_ext_image_requirements_info extension is supported, or
+    //
+    //   Be a multiple of the maximum of the CL_DEVICE_IMAGE_PITCH_ALIGNMENT value for all devices
+    //   in the context that support images, otherwise.
+    //
+    //
+    // image_slice_pitch is the size in bytes of each 2D slice in a 3D image, or the size in bytes
+    // of each image in a 1D or 2D image array. The image_slice_pitch must be zero if host_ptr is
+    // NULL and the image is not an image created from an external memory handle, If
+    // image_slice_pitch is zero and host_ptr is not NULL then the image slice pitch is calculated
+    // as the image row pitch × image_height for a 2D image array or a 3D image, and as the image
+    // row pitch for a 1D image array. If image_slice_pitch is zero and the image is created from an
+    // external memory handle, then the image slice pitch is implementation-defined. The image slice
+    // pitch must be ≥ the image row pitch × image_height for a 2D image array or a 3D image, must
+    // be ≥ the image row pitch for a 1D image array, and must be a multiple of the image row pitch.
+    // For an image created from a buffer, the image slice pitch must be a multiple of the
+    // CL_IMAGE_REQUIREMENTS_SLICE_PITCH_ALIGNMENT_EXT value for the image_format, image_type and
+    // flags used to create the image, if the cl_ext_image_from_buffer extension is supported.
     let has_buf_parent = parent.as_ref().is_some_and(|p| p.is_buffer());
     if host_ptr.is_null() {
-        if (desc.image_row_pitch != 0 || desc.image_slice_pitch != 0) && !has_buf_parent {
+        if (desc.image_row_pitch != 0 || desc.image_slice_pitch != 0)
+            && !has_buf_parent
+            && !imported
+        {
             return Err(err);
         }
 
@@ -901,13 +993,20 @@ fn create_image_with_properties(
         .find(|d| d.caps.has_images)
         .ok_or(CL_INVALID_OPERATION)?;
 
+    // CL_INVALID_PROPERTY [...] if the same property name is specified more than once.
+    let (props, handle) = parse_mem_properties(properties, &c, host_ptr, flags, true)?;
     let (format, elem_size) = validate_image_format(image_format)?;
-    let (desc, parent) =
-        validate_image_desc(image_desc, host_ptr, elem_size.into(), flags, &c.devs)?;
+    let (desc, parent) = validate_image_desc(
+        image_desc,
+        host_ptr,
+        elem_size.into(),
+        flags,
+        &c.devs,
+        handle.is_some(),
+    )?;
 
     // validate host_ptr before merging flags
     validate_host_ptr(host_ptr, flags)?;
-
     flags = validate_buffer(&desc, flags, format, host_ptr, elem_size.into())?;
 
     // For all image types except CL_MEM_OBJECT_IMAGE1D_BUFFER, if the value specified for flags is 0, the
@@ -934,18 +1033,10 @@ fn create_image_with_properties(
         .find(|f| *f & filtered_flags == filtered_flags)
         .ok_or(CL_IMAGE_FORMAT_NOT_SUPPORTED)?;
 
-    // CL_INVALID_PROPERTY [...] if the same property name is specified more than once.
-    let props = unsafe { new_multi_var_property(properties) }.ok_or(CL_INVALID_PROPERTY)?;
-
-    // CL_INVALID_PROPERTY if a property name in properties is not a supported property name, if
-    // the value specified for a supported property name is not valid, or if the same property name
-    // is specified more than once.
-    if !props.is_empty() {
-        // we don't support any properties
-        return Err(CL_INVALID_PROPERTY);
-    }
-
-    Ok(MemBase::new_image(c, parent, flags, format, desc, elem_size, host_ptr, props)?.into_cl())
+    Ok(MemBase::new_image(
+        c, parent, flags, format, desc, elem_size, host_ptr, props, handle,
+    )?
+    .into_cl())
 }
 
 #[cl_entrypoint(clCreateImage)]
@@ -3424,24 +3515,58 @@ fn enqueue_release_gl_objects(
 
 #[cl_entrypoint(clEnqueueAcquireExternalMemObjectsKHR)]
 fn enqueue_acquire_external_mem_objects(
-    _command_queue: cl_command_queue,
-    _num_mem_objects: cl_uint,
-    _mem_objects: *const cl_mem,
-    _num_events_in_wait_list: cl_uint,
-    _event_wait_list: *const cl_event,
-    _event: *mut cl_event,
+    command_queue: cl_command_queue,
+    num_mem_objects: cl_uint,
+    mem_objects: *const cl_mem,
+    num_events_in_wait_list: cl_uint,
+    event_wait_list: *const cl_event,
+    event: *mut cl_event,
 ) -> CLResult<()> {
-    Err(CL_INVALID_OPERATION)
+    let q = Queue::arc_from_raw(command_queue)?;
+    let evs = event_list_from_cl(&q, num_events_in_wait_list, event_wait_list)?;
+    let mem_objects = MemBase::refs_from_arr(mem_objects, num_mem_objects)?;
+
+    // CL_INVALID_MEM_OBJECT if any of the memory objects in mem_objects is not a valid OpenCL
+    // memory object created using an external memory handle.
+    if mem_objects.into_iter().any(|mem| !mem.imported) {
+        return Err(CL_INVALID_MEM_OBJECT);
+    }
+
+    create_and_queue(
+        q,
+        CL_COMMAND_ACQUIRE_EXTERNAL_MEM_OBJECTS_KHR,
+        evs,
+        event,
+        false,
+        None,
+    )
 }
 
 #[cl_entrypoint(clEnqueueReleaseExternalMemObjectsKHR)]
 fn enqueue_release_external_mem_objects(
-    _command_queue: cl_command_queue,
-    _num_mem_objects: cl_uint,
-    _mem_objects: *const cl_mem,
-    _num_events_in_wait_list: cl_uint,
-    _event_wait_list: *const cl_event,
-    _event: *mut cl_event,
+    command_queue: cl_command_queue,
+    num_mem_objects: cl_uint,
+    mem_objects: *const cl_mem,
+    num_events_in_wait_list: cl_uint,
+    event_wait_list: *const cl_event,
+    event: *mut cl_event,
 ) -> CLResult<()> {
-    Err(CL_INVALID_OPERATION)
+    let q = Queue::arc_from_raw(command_queue)?;
+    let evs = event_list_from_cl(&q, num_events_in_wait_list, event_wait_list)?;
+    let mem_objects = MemBase::refs_from_arr(mem_objects, num_mem_objects)?;
+
+    // CL_INVALID_MEM_OBJECT if any of the memory objects in mem_objects is not a valid OpenCL
+    // memory object created using an external memory handle.
+    if mem_objects.into_iter().any(|mem| !mem.imported) {
+        return Err(CL_INVALID_MEM_OBJECT);
+    }
+
+    create_and_queue(
+        q,
+        CL_COMMAND_RELEASE_EXTERNAL_MEM_OBJECTS_KHR,
+        evs,
+        event,
+        false,
+        None,
+    )
 }

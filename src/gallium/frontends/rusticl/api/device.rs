@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::api::icd::*;
+use crate::api::memory::*;
 use crate::api::types::IdpAccelProps;
 use crate::api::util::*;
 use crate::core::device::*;
@@ -92,6 +93,14 @@ unsafe impl CLInfo<cl_device_info> for cl_device_id {
             }
             CL_DEVICE_EXTENSIONS => v.write::<&str>(&dev.extension_string),
             CL_DEVICE_EXTENSIONS_WITH_VERSION => v.write::<&[cl_name_version]>(&dev.extensions),
+            CL_DEVICE_EXTERNAL_MEMORY_IMPORT_ASSUME_LINEAR_IMAGES_HANDLE_TYPES_KHR
+                if dev.memory_sharing_supported() =>
+            {
+                v.write::<&[cl_external_memory_handle_type_khr]>(SUPPORTED_EXTERNAL_MEMORY_TYPES)
+            }
+            CL_DEVICE_EXTERNAL_MEMORY_IMPORT_HANDLE_TYPES_KHR if dev.memory_sharing_supported() => {
+                v.write::<&[cl_external_memory_handle_type_khr]>(SUPPORTED_EXTERNAL_MEMORY_TYPES)
+            }
             CL_DEVICE_GENERIC_ADDRESS_SPACE_SUPPORT => v.write::<bool>(false),
             CL_DEVICE_GLOBAL_MEM_CACHE_TYPE => v.write::<cl_device_mem_cache_type>(CL_NONE),
             CL_DEVICE_GLOBAL_MEM_CACHE_SIZE => v.write::<cl_ulong>(0),

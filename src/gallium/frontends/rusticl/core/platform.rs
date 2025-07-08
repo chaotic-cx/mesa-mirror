@@ -303,6 +303,10 @@ impl Platform {
             .iter()
             .all(|dev| dev.are_external_semaphores_supported())
     }
+
+    pub fn all_devs_have_memory_sharing(&self) -> bool {
+        self.devs.iter().all(|dev| dev.memory_sharing_supported())
+    }
 }
 
 impl Drop for Platform {

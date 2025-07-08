@@ -359,7 +359,7 @@ impl PipeScreen {
         modifier: u64,
         target: pipe_texture_target,
         format: pipe_format,
-        stride: u32,
+        strides: (u32, u32),
         width: u32,
         height: u32,
         depth: u16,
@@ -372,9 +372,15 @@ impl PipeScreen {
             handle: handle,
             modifier: modifier,
             format: format as u64,
-            stride: stride,
+            stride: strides.0,
             ..Default::default()
         };
+
+        if array_size > 1 {
+            handle.array_stride = strides.1;
+        } else {
+            handle.image_stride = strides.1;
+        }
 
         tmpl.set_target(target);
         tmpl.set_format(format);

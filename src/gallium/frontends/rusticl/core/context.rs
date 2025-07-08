@@ -663,7 +663,7 @@ impl Context {
                     modifier,
                     target,
                     pipe_format,
-                    gl_props.stride,
+                    (gl_props.stride, 0),
                     gl_props.width,
                     gl_props.height,
                     gl_props.depth,
@@ -685,6 +685,83 @@ impl Context {
 
     fn svm_devs(&self) -> impl Iterator<Item = &'static Device> + use<'_> {
         self.devs.iter().filter(|dev| dev.svm_supported()).copied()
+    }
+
+    pub fn import_dma_buf_buffer(
+        &self,
+        fd: FenceFd,
+        size: usize,
+    ) -> CLResult<HashMap<&'static Device, PipeResourceOwned>> {
+        let adj_size: u32 = size.try_into_with_err(CL_OUT_OF_HOST_MEMORY)?;
+        let mut res = HashMap::new();
+        for dev in &self.devs {
+            let resource = dev
+                .screen()
+                .resource_import_dmabuf(
+                    fd.fd as u32,
+                    0,
+                    pipe_texture_target::PIPE_BUFFER,
+                    pipe_format::PIPE_FORMAT_NONE,
+                    (0, 0),
+                    adj_size,
+                    1,
+                    1,
+                    1,
+                    false,
+                )
+                .ok_or(CL_OUT_OF_RESOURCES)?;
+
+            res.insert(*dev, resource);
+        }
+
+        Ok(res)
+    }
+
+    pub fn import_dma_buf_image(
+        &self,
+        fd: FenceFd,
+        desc: &cl_image_desc,
+        format: &cl_image_format,
+    ) -> CLResult<HashMap<&'static Device, PipeResourceOwned>> {
+        let pipe_format = format.to_pipe_format().unwrap();
+        let target = cl_mem_type_to_texture_target(desc.image_type);
+        let row_stride = desc
+            .image_row_pitch
+            .try_into_with_err(CL_OUT_OF_HOST_MEMORY)?;
+        let slice_stride = desc
+            .image_slice_pitch
+            .try_into_with_err(CL_OUT_OF_HOST_MEMORY)?;
+        let width = desc.image_width.try_into_with_err(CL_OUT_OF_HOST_MEMORY)?;
+        let height = desc.image_height.try_into_with_err(CL_OUT_OF_HOST_MEMORY)?;
+        let depth = desc.image_depth.try_into_with_err(CL_OUT_OF_HOST_MEMORY)?;
+        let array_size = desc
+            .image_array_size
+            .try_into_with_err(CL_OUT_OF_HOST_MEMORY)?;
+
+        let mut res = HashMap::new();
+        for dev in &self.devs {
+            let enable_bind_as_image =
+                dev.formats[format][&desc.image_type] as u32 & CL_MEM_WRITE_ONLY != 0;
+            let resource = dev
+                .screen()
+                .resource_import_dmabuf(
+                    fd.fd as u32,
+                    0,
+                    target,
+                    pipe_format,
+                    (row_stride, slice_stride),
+                    width,
+                    height,
+                    depth,
+                    array_size,
+                    enable_bind_as_image,
+                )
+                .ok_or(CL_OUT_OF_RESOURCES)?;
+
+            res.insert(*dev, resource);
+        }
+
+        Ok(res)
     }
 }
 

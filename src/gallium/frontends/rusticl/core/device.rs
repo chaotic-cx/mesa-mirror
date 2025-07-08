@@ -832,6 +832,13 @@ impl DeviceBase {
                 add_ext(1, 0, 1, "cl_khr_external_semaphore_sync_fd");
             }
             add_ext(1, 0, 1, "cl_khr_semaphore");
+            // Technically we could support this without semaphores, but all the testing requires
+            // them so to be safe we just require both.
+            if self.memory_sharing_supported() {
+                add_ext(1, 0, 1, "cl_khr_external_memory");
+                add_ext(1, 0, 0, "cl_khr_external_memory_dma_buf");
+                add_ext(1, 0, 0, "cl_khr_external_memory_opaque_fd");
+            }
         }
 
         if self.has_atomic_float() {
@@ -960,13 +967,20 @@ impl DeviceBase {
         Platform::features().intel && self.subgroups_supported()
     }
 
-    pub fn is_gl_sharing_supported(&self) -> bool {
+    fn can_import_memory(&self) -> bool {
         self.screen.caps().cl_gl_sharing
             && self.screen.caps().dmabuf != 0
             && !self.is_device_software()
             && self.screen.is_res_handle_supported()
-            && self.screen.device_uuid().is_some()
             && self.caps.has_create_fence_fd
+    }
+
+    pub fn memory_sharing_supported(&self) -> bool {
+        self.can_import_memory()
+    }
+
+    pub fn is_gl_sharing_supported(&self) -> bool {
+        self.can_import_memory() && self.screen.device_uuid().is_some()
     }
 
     pub fn is_device_software(&self) -> bool {

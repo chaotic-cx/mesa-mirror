@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use crate::api::icd::CLResult;
+use crate::api::memory::SUPPORTED_EXTERNAL_MEMORY_TYPES;
 use crate::api::util::*;
 use crate::core::platform::*;
 use crate::core::version::*;
@@ -21,6 +22,15 @@ unsafe impl CLInfo<cl_platform_info> for cl_platform_id {
             CL_PLATFORM_EXTENSIONS => v.write::<&str>(&Platform::get().extension_string),
             CL_PLATFORM_EXTENSIONS_WITH_VERSION => {
                 v.write::<&[cl_name_version]>(&Platform::get().extensions)
+            }
+            CL_PLATFORM_EXTERNAL_MEMORY_IMPORT_HANDLE_TYPES_KHR => {
+                v.write::<&[cl_external_memory_handle_type_khr]>(
+                    if Platform::get().all_devs_have_memory_sharing() {
+                        SUPPORTED_EXTERNAL_MEMORY_TYPES
+                    } else {
+                        &[]
+                    },
+                )
             }
             CL_PLATFORM_HOST_TIMER_RESOLUTION => v.write::<cl_ulong>(1),
             CL_PLATFORM_ICD_SUFFIX_KHR => v.write::<&CStr>(c"MESA"),

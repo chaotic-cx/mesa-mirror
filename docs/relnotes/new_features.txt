@@ -18,3 +18,6 @@ VK_{KHR,EXT}_load_store_op_none on pvr
 GL_NV_alpha_to_coverage_dither_control on all r600 devices
 VK_{ARM,EXT}_rasterization_order_attachment_access on v3dv
 VK_KHR_maintenance12 on RADV
+cl_khr_external_memory on iris, radeonsi, zink
+cl_khr_external_memory_dma_buf on iris, radeonsi, zink
+cl_khr_external_memory_opaque_fd on iris, radeonsi, zink
