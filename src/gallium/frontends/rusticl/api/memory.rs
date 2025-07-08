@@ -19,6 +19,7 @@ use crate::core::queue::*;
 use crate::rusticl_warn_once;
 
 use mesa_rust_gen::pipe_fd_type;
+use mesa_rust_util::properties::MultiValProperties;
 use mesa_rust_util::properties::Properties;
 use mesa_rust_util::ptr::*;
 use mesa_rust_util::static_assert;
@@ -32,6 +33,12 @@ use std::num::NonZeroU64;
 use std::os::raw::c_void;
 use std::ptr;
 use std::sync::Arc;
+
+unsafe fn new_multi_var_property(
+    props: *const cl_mem_properties,
+) -> Option<MultiValProperties<cl_mem_properties>> {
+    unsafe { MultiValProperties::new(props, &[]) }
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum MemFlagValidationType {
@@ -329,7 +336,7 @@ unsafe impl CLInfo<cl_mem_info> for cl_mem {
             } else {
                 0
             }),
-            CL_MEM_PROPERTIES => v.write::<&Properties<cl_mem_properties>>(&mem.props),
+            CL_MEM_PROPERTIES => v.write::<&MultiValProperties<cl_mem_properties>>(&mem.props),
             CL_MEM_REFERENCE_COUNT => v.write::<cl_uint>(if mem.is_buffer() {
                 Buffer::refcnt(*self)?
             } else {
@@ -387,12 +394,12 @@ fn create_buffer_with_properties(
     }
 
     // CL_INVALID_PROPERTY [...] if the same property name is specified more than once.
-    let props = unsafe { Properties::new(properties) }.ok_or(CL_INVALID_PROPERTY)?;
+    let props = unsafe { new_multi_var_property(properties) }.ok_or(CL_INVALID_PROPERTY)?;
 
     // CL_INVALID_PROPERTY if a property name in properties is not a supported property name, if
     // the value specified for a supported property name is not valid, or if the same property name
     // is specified more than once.
-    for (&key, _) in props.iter() {
+    for (key, _) in props.iter() {
         match key as u32 {
             CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT => {
                 // CL_INVALID_OPERATION If properties includes CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT and
@@ -928,7 +935,7 @@ fn create_image_with_properties(
         .ok_or(CL_IMAGE_FORMAT_NOT_SUPPORTED)?;
 
     // CL_INVALID_PROPERTY [...] if the same property name is specified more than once.
-    let props = unsafe { Properties::new(properties) }.ok_or(CL_INVALID_PROPERTY)?;
+    let props = unsafe { new_multi_var_property(properties) }.ok_or(CL_INVALID_PROPERTY)?;
 
     // CL_INVALID_PROPERTY if a property name in properties is not a supported property name, if
     // the value specified for a supported property name is not valid, or if the same property name

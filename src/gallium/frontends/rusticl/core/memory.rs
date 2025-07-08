@@ -22,6 +22,7 @@ use mesa_rust::pipe::screen::ResourceType;
 use mesa_rust::pipe::transfer::*;
 use mesa_rust_gen::*;
 use mesa_rust_util::conversion::*;
+use mesa_rust_util::properties::MultiValProperties;
 use mesa_rust_util::properties::Properties;
 use mesa_rust_util::ptr::AllocSize;
 use mesa_rust_util::ptr::TrackedPointers;
@@ -629,7 +630,7 @@ pub struct MemBase {
     pub mem_type: cl_mem_object_type,
     pub flags: cl_mem_flags,
     pub size: usize,
-    pub props: Properties<cl_mem_properties>,
+    pub props: MultiValProperties<cl_mem_properties>,
     pub cbs: Mutex<Vec<MemCB>>,
     pub gl_obj: Option<GLObject>,
     alloc: Allocation,
@@ -816,12 +817,9 @@ impl MemBase {
         flags: cl_mem_flags,
         size: usize,
         mut host_ptr: *mut c_void,
-        props: Properties<cl_mem_properties>,
+        props: MultiValProperties<cl_mem_properties>,
     ) -> CLResult<Arc<Buffer>> {
-        let bda = props
-            .get(&CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT.into())
-            .copied()
-            == Some(CL_TRUE.into());
+        let bda = props.get(CL_MEM_DEVICE_PRIVATE_ADDRESS_EXT.into()) == Some(&[CL_TRUE.into()]);
 
         // if it's a SVM host ptr, we just use the already allocated resource if it exists, because
         // this is actually mandated by the spec. The size requirement will be checked inside the
@@ -935,7 +933,7 @@ impl MemBase {
                 mem_type: CL_MEM_OBJECT_BUFFER,
                 flags: flags,
                 size: size,
-                props: Properties::default(),
+                props: MultiValProperties::default(),
                 gl_obj: None,
                 cbs: Mutex::new(Vec::new()),
                 alloc: Allocation::new_sub(Mem::Buffer(parent), offset),
@@ -953,7 +951,7 @@ impl MemBase {
         mut image_desc: cl_image_desc,
         image_elem_size: u8,
         mut host_ptr: *mut c_void,
-        props: Properties<cl_mem_properties>,
+        props: MultiValProperties<cl_mem_properties>,
     ) -> CLResult<Arc<Image>> {
         // we have to sanitize the image_desc a little for internal use
         let api_image_desc = image_desc;
@@ -1116,7 +1114,7 @@ impl MemBase {
             mem_type: mem_type,
             flags: flags,
             size: gl_mem_props.size(),
-            props: Properties::default(),
+            props: MultiValProperties::default(),
             gl_obj: Some(GLObject {
                 props: export_in,
                 shadow_map: shadow_map,
