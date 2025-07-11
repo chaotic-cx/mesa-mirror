@@ -36,4 +36,5 @@ rust_library {
         "libzerocopy",
     ],
     proc_macros: ["libremain"],
+    apex_available: ["com.android.virt"],
 }
