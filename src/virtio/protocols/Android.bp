@@ -22,6 +22,7 @@ package {
 rust_library {
     name: "libmesa3d_protocols",
     host_supported: true,
+    vendor_available: true,
     crate_name: "mesa3d_protocols",
     cargo_env_compat: true,
     cargo_pkg_version: "0.1.6",
