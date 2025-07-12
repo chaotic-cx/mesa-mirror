@@ -70,7 +70,7 @@ cc_library_static {
         },
         host: {
             header_libs: [
-                "virtgpu_kumquat_ffi_headers",
+                "virtgpu_kumquat_ffi_headers_mesa3d",
                 "mesa_vulkan_mapper_headers",
             ],
             generated_headers: [
@@ -88,7 +88,7 @@ cc_library_static {
                 "kumquat/VirtGpuKumquatSync.cpp",
             ],
             shared_libs: [
-                "libvirtgpu_kumquat_ffi",
+                "libvirtgpu_kumquat_ffi_mesa3d",
             ],
             static_libs: [
                 "mesa_vulkan_mapper",
@@ -116,7 +116,7 @@ cc_defaults {
                 "mesa_vulkan_mapper",
             ],
             shared_libs: [
-                "libvirtgpu_kumquat_ffi",
+                "libvirtgpu_kumquat_ffi_mesa3d",
                 "libcutils",
             ],
         },
