@@ -6,9 +6,10 @@ traces-db:
 traces:
   0ad/0ad-v2.trace:
     gl-zink-anv-adl:
-      checksum: 90483dd55b41141664c2fcf6fa055500
+      label: [no-perf]
+      checksum: 0d04e54fa259d407433a7925c739900a
     gl-zink-anv-tgl:
-      checksum: 90483dd55b41141664c2fcf6fa055500
+      checksum: 0d04e54fa259d407433a7925c739900a
 
   behdad-glyphy/glyphy-v2.trace:
     gl-zink-anv-adl:
@@ -45,6 +46,7 @@ traces:
 
   gputest/furmark-v2.trace:
     gl-zink-anv-adl:
+      label: [no-perf]
       checksum: 30649dc37efcf5dadc7b761769de51d7
     gl-zink-anv-tgl:
       checksum: 30649dc37efcf5dadc7b761769de51d7
@@ -67,18 +69,19 @@ traces:
 
   gputest/pixmark-julia-fp32-v2.trace:
     gl-zink-anv-adl:
-      checksum: fbf5e44a6f46684b84e5bb5ad6d36c67
+      checksum: 83a21aa3f856af2d38e8be8391f58611
     gl-zink-anv-tgl:
-      checksum: fbf5e44a6f46684b84e5bb5ad6d36c67
+      checksum: 83a21aa3f856af2d38e8be8391f58611
 
   gputest/pixmark-julia-fp64-v2.trace:
     gl-zink-anv-adl:
-      checksum: 1760aea00af985b8cd902128235b08f6
+      checksum: 0f1ba3336186d0f24144903ff7a428c3
     gl-zink-anv-tgl:
-      checksum: 1760aea00af985b8cd902128235b08f6
+      checksum: 0f1ba3336186d0f24144903ff7a428c3
 
   gputest/pixmark-volplosion-v2.trace:
     gl-zink-anv-adl:
+      label: [no-perf]
       checksum: 7e49248ad9dc4c052c04b11246c4bd33
       text: Different rendering from iris, but still looks correct (common result with this trace)
     gl-zink-anv-tgl:
@@ -93,6 +96,7 @@ traces:
 
   gputest/tessmark-v2.trace:
     gl-zink-anv-adl:
+      label: [no-perf]
       checksum: 04a5a9b7cbc88d8a66c33b5f1c08294d
     gl-zink-anv-tgl:
       checksum: 04a5a9b7cbc88d8a66c33b5f1c08294d
@@ -135,6 +139,7 @@ traces:
 
   humus/VolumetricFogging2-v2.trace:
     gl-zink-anv-adl:
+      label: [no-perf]
       checksum: 354a0046d81981a5227691fd8401d8ef
     gl-zink-anv-tgl:
       checksum: 354a0046d81981a5227691fd8401d8ef
@@ -189,6 +194,7 @@ traces:
 
   ror/ror-default.trace:
     gl-zink-anv-adl:
+      label: [no-perf]
       checksum: d7b07cb1f6fdc6949bdaf84d2173e24b
     gl-zink-anv-tgl:
       checksum: d7b07cb1f6fdc6949bdaf84d2173e24b
@@ -261,9 +267,10 @@ traces:
 
   valve/half-life-2-v2.trace:
     gl-zink-anv-adl:
-      checksum: 8deac48993e4515589a7165e8bd14f25
+      label: [no-perf]
+      checksum: 01392d862e0535e317e8744b5f9fe7a2
     gl-zink-anv-tgl:
-      checksum: 8deac48993e4515589a7165e8bd14f25
+      checksum: 01392d862e0535e317e8744b5f9fe7a2
 
   valve/portal-2-v2.trace:
     gl-zink-anv-adl:

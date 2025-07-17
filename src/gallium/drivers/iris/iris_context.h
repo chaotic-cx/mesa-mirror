@@ -1106,7 +1106,7 @@ struct iris_context {
        * Query BO with a MI_PREDICATE_RESULT snapshot calculated on the
        * render context that needs to be uploaded to the compute context.
        */
-      struct iris_bo *compute_predicate;
+      struct iris_address compute_predicate;
 
       /** Is a PIPE_QUERY_PRIMITIVES_GENERATED query active? */
       bool prims_generated_query_active;
@@ -1362,9 +1362,9 @@ iris_fs_barycentric_modes(const struct iris_compiled_shader *shader,
                           enum intel_msaa_flags pushed_msaa_flags);
 bool iris_use_tcs_multi_patch(struct iris_screen *screen);
 bool iris_indirect_ubos_use_sampler(struct iris_screen *screen);
-const void *iris_get_compiler_options(struct pipe_screen *pscreen,
-                                      enum pipe_shader_ir ir,
-                                      enum pipe_shader_type pstage);
+const struct nir_shader_compiler_options *
+iris_get_compiler_options(struct pipe_screen *pscreen,
+                          enum pipe_shader_type pstage);
 
 /* iris_disk_cache.c */
 

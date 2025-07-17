@@ -199,12 +199,6 @@ surfaceless_get_capability(void *loaderPrivate, enum dri_loader_cap cap)
    }
 }
 
-static const __DRIkopperLoaderExtension kopper_loader_extension = {
-   .base = {__DRI_KOPPER_LOADER, 1},
-
-   .SetSurfaceCreateInfo = NULL,
-};
-
 static const __DRIimageLoaderExtension image_loader_extension = {
    .base = {__DRI_IMAGE_LOADER, 2},
    .getBuffers = surfaceless_image_get_buffers,
@@ -214,14 +208,16 @@ static const __DRIimageLoaderExtension image_loader_extension = {
 
 static const __DRIextension *image_loader_extensions[] = {
    &image_loader_extension.base,  &image_lookup_extension.base,
-   &background_callable_extension.base,
-   &kopper_loader_extension.base, NULL,
 };
 
 static const __DRIextension *swrast_loader_extensions[] = {
    &swrast_pbuffer_loader_extension.base, &image_loader_extension.base,
-   &image_lookup_extension.base,
-   &kopper_loader_extension.base,         NULL,
+   &image_lookup_extension.base, NULL,
+};
+
+static const __DRIextension *kopper_loader_extensions[] = {
+   &kopper_pbuffer_loader_extension.base, &image_lookup_extension.base,
+   &image_lookup_extension.base, NULL,
 };
 
 static bool
@@ -291,8 +287,10 @@ surfaceless_probe_device(_EGLDisplay *disp, bool swrast, bool zink)
       }
 
       if (dri2_dpy->driver_name) {
-         dri2_detect_swrast(disp);
-         if (swrast || zink)
+         dri2_detect_swrast_kopper(disp);
+         if (dri2_dpy->kopper)
+            dri2_dpy->loader_extensions = kopper_loader_extensions;
+         else if (swrast)
             dri2_dpy->loader_extensions = swrast_loader_extensions;
          else
             dri2_dpy->loader_extensions = image_loader_extensions;
@@ -360,9 +358,12 @@ surfaceless_probe_device_sw(_EGLDisplay *disp)
    if (!dri2_dpy->driver_name)
       return false;
 
-   dri2_detect_swrast(disp);
+   dri2_detect_swrast_kopper(disp);
 
-   dri2_dpy->loader_extensions = swrast_loader_extensions;
+   if (dri2_dpy->kopper)
+      dri2_dpy->loader_extensions = kopper_loader_extensions;
+   else
+      dri2_dpy->loader_extensions = swrast_loader_extensions;
 
    dri2_dpy->fd_display_gpu = dri2_dpy->fd_render_gpu;
 

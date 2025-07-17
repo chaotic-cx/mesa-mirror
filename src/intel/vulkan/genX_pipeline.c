@@ -28,6 +28,7 @@
 #include "genxml/genX_rt_pack.h"
 
 #include "common/intel_compute_slm.h"
+#include "common/intel_common.h"
 #include "common/intel_genX_state_brw.h"
 #include "common/intel_l3_config.h"
 #include "common/intel_sample_positions.h"
@@ -655,6 +656,8 @@ static void
 emit_3dstate_sbe(struct anv_graphics_pipeline *pipeline)
 {
    const struct brw_wm_prog_data *wm_prog_data = get_wm_prog_data(pipeline);
+   const struct brw_mesh_prog_data *mesh_prog_data =
+      get_mesh_prog_data(pipeline);
    UNUSED const struct anv_device *device = pipeline->base.base.device;
 
    if (!anv_pipeline_has_stage(pipeline, MESA_SHADER_FRAGMENT)) {
@@ -675,16 +678,20 @@ emit_3dstate_sbe(struct anv_graphics_pipeline *pipeline)
    anv_pipeline_emit(pipeline, final.sbe, GENX(3DSTATE_SBE), sbe) {
    anv_pipeline_emit(pipeline, final.sbe_swiz, GENX(3DSTATE_SBE_SWIZ), swiz) {
       int max_source_attr = 0;
-      uint32_t vertex_read_offset, vertex_read_length, vertex_varyings;
+      uint32_t vertex_read_offset, vertex_read_length, vertex_varyings, flat_inputs;
       brw_compute_sbe_per_vertex_urb_read(
-         vue_map, anv_pipeline_is_mesh(pipeline), wm_prog_data,
+         vue_map, mesh_prog_data != NULL,
+         mesh_prog_data ? mesh_prog_data->map.wa_18019110168_active : false,
+         wm_prog_data,
          &vertex_read_offset, &vertex_read_length, &vertex_varyings,
-         &pipeline->primitive_id_index);
+         &pipeline->primitive_id_index,
+         &flat_inputs);
+
+      pipeline->first_vue_slot = vertex_read_offset * 2;
 
       sbe.AttributeSwizzleEnable = anv_pipeline_is_primitive(pipeline);
       sbe.PointSpriteTextureCoordinateOrigin = UPPERLEFT;
-      sbe.ConstantInterpolationEnable = wm_prog_data->flat_inputs &
-                                        ((1u << vertex_varyings) - 1);
+      sbe.ConstantInterpolationEnable = flat_inputs;
       sbe.NumberofSFOutputAttributes = vertex_varyings;
 #if GFX_VERx10 >= 200
       sbe.VertexAttributesBypass = wm_prog_data->vertex_attributes_bypass;
@@ -766,11 +773,8 @@ emit_3dstate_sbe(struct anv_graphics_pipeline *pipeline)
       if (device->vk.enabled_extensions.EXT_mesh_shader) {
          anv_pipeline_emit(pipeline, final.sbe_mesh,
                            GENX(3DSTATE_SBE_MESH), sbe_mesh) {
-            if (!anv_pipeline_is_mesh(pipeline))
+            if (mesh_prog_data == NULL)
                continue;
-
-            const struct brw_mesh_prog_data *mesh_prog_data =
-               get_mesh_prog_data(pipeline);
 
             sbe_mesh.PerVertexURBEntryOutputReadOffset = vertex_read_offset;
             sbe_mesh.PerVertexURBEntryOutputReadLength = vertex_read_length;
@@ -2077,6 +2081,8 @@ genX(compute_pipeline_emit)(struct anv_compute_pipeline *pipeline)
             .BindingTableEntryCount            = devinfo->verx10 == 125 ?
             0 : 1 + MIN2(shader->bind_map.surface_count, 30),
             .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
+            .ThreadGroupDispatchSize =
+               intel_compute_threads_group_dispatch_size(dispatch.threads),
             .SharedLocalMemorySize             =
             intel_compute_slm_encode_size(GFX_VER, prog_data->base.total_shared),
             .PreferredSLMAllocationSize        =

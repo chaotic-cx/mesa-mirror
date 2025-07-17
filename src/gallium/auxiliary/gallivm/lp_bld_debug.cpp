@@ -46,6 +46,7 @@
 #include "util/detect_os.h"
 #include "util/u_math.h"
 #include "util/u_debug.h"
+#include "util/os_file.h"
 
 #include "lp_bld_debug.h"
 #include "lp_bld_intr.h"
@@ -57,9 +58,6 @@
 
 #include <llvm/BinaryFormat/Dwarf.h>
 
-#if !DETECT_OS_ANDROID
-#include <filesystem>
-#endif
 
 /**
  * Check alignment.
@@ -379,11 +377,7 @@ lp_function_add_debug_info(gallivm_state *gallivm, LLVMValueRef func, LLVMTypeRe
    if (!gallivm->file) {
       uint32_t shader_index = p_atomic_add_return(&global_shader_index, 1);
 
-#if !DETECT_OS_ANDROID
-      std::filesystem::create_directory(LP_NIR_SHADER_DUMP_DIR);
-#else
-      mkdir(LP_NIR_SHADER_DUMP_DIR, 0755);
-#endif
+      os_mkdir(LP_NIR_SHADER_DUMP_DIR, 0755);
 
       asprintf(&gallivm->file_name, "%s/%u.nir", LP_NIR_SHADER_DUMP_DIR, shader_index);
 

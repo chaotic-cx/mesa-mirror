@@ -693,19 +693,22 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
 
    if (mue_map != NULL) {
       memcpy(&vue_map, &mue_map->vue_map, sizeof(vue_map));
-
       memcpy(per_primitive_offsets,
              mue_map->per_primitive_offsets,
              sizeof(mue_map->per_primitive_offsets));
 
-      u_foreach_bit64(location, per_primitive_inputs) {
-         assert(per_primitive_offsets[location] != -1);
+      if (!mue_map->wa_18019110168_active) {
+         u_foreach_bit64(location, per_primitive_inputs) {
+            assert(per_primitive_offsets[location] != -1);
 
-         first_read_offset = MIN2(first_read_offset,
-                                  (uint32_t)per_primitive_offsets[location]);
-         per_primitive_stride =
-            MAX2((uint32_t)per_primitive_offsets[location] + 16,
-                 per_primitive_stride);
+            first_read_offset = MIN2(first_read_offset,
+                                     (uint32_t)per_primitive_offsets[location]);
+            per_primitive_stride =
+               MAX2((uint32_t)per_primitive_offsets[location] + 16,
+                    per_primitive_stride);
+         }
+      } else {
+         first_read_offset = per_primitive_stride = 0;
       }
    } else {
       brw_compute_vue_map(devinfo, &vue_map, inputs_read,
@@ -1118,12 +1121,168 @@ gfx9_ps_header_only_workaround(struct brw_wm_prog_data *wm_prog_data)
    brw_compute_urb_setup_index(wm_prog_data);
 }
 
+static brw_reg
+remap_attr_reg(brw_shader &s,
+               struct brw_wm_prog_data *prog_data,
+               const brw_reg &src,
+               unsigned urb_start,
+               unsigned exec_size)
+{
+   /* ATTR brw_reg::nr in the FS is in units of logical scalar inputs each of
+    * which consumes 16B on Gfx4-Gfx12. In single polygon mode this leads to
+    * the following layout of the vertex setup plane parameters in the ATTR
+    * register file:
+    *
+    *  brw_reg::nr   Input   Comp0  Comp1  Comp2  Comp3
+    *      0       Attr0.x  a1-a0  a2-a0   N/A    a0
+    *      1       Attr0.y  a1-a0  a2-a0   N/A    a0
+    *      2       Attr0.z  a1-a0  a2-a0   N/A    a0
+    *      3       Attr0.w  a1-a0  a2-a0   N/A    a0
+    *      4       Attr1.x  a1-a0  a2-a0   N/A    a0
+    *     ...
+    *
+    * In multipolygon mode that no longer works since different channels may
+    * be processing polygons with different plane parameters, so each
+    * parameter above is represented as a dispatch_width-wide vector:
+    *
+    *  brw_reg::nr     brw_reg::offset    Input      Comp0     ...    CompN
+    *      0                 0          Attr0.x  a1[0]-a0[0] ... a1[N]-a0[N]
+    *      0        4 * dispatch_width  Attr0.x  a2[0]-a0[0] ... a2[N]-a0[N]
+    *      0        8 * dispatch_width  Attr0.x     N/A      ...     N/A
+    *      0       12 * dispatch_width  Attr0.x    a0[0]     ...    a0[N]
+    *      1                 0          Attr0.y  a1[0]-a0[0] ... a1[N]-a0[N]
+    *     ...
+    *
+    * Note that many of the components on a single row above are likely to be
+    * replicated multiple times (if, say, a single SIMD thread is only
+    * processing 2 different polygons), so plane parameters aren't actually
+    * stored in GRF memory with that layout to avoid wasting space. Instead we
+    * compose ATTR register regions with a 2D region that walks through the
+    * parameters of each polygon with the correct stride, reading the
+    * parameter corresponding to each channel directly from the PS thread
+    * payload.
+    *
+    * The latter layout corresponds to a param_width equal to dispatch_width,
+    * while the former (scalar parameter) layout has a param_width of 1.
+    *
+    * Gfx20+ represent plane parameters in a format similar to the above,
+    * except the parameters are packed in 12B and ordered like "a0, a1-a0,
+    * a2-a0" instead of the above vec4 representation with a missing
+    * component.
+    *
+    * First documented in the TGL PRMs, Volume 9: Render Engine, PS Thread
+    * Payload for Normal Dispatch.
+    *
+    * Pre Xe2 : BSpec 47024
+    * Xe2+    : BSpec 56480
+    */
+   const unsigned param_width = (s.max_polygons > 1 ? s.dispatch_width : 1);
+
+   /* Size of a single scalar component of a plane parameter
+    * in bytes.
+    */
+   const unsigned chan_sz = 4;
+   struct brw_reg reg;
+   assert(s.max_polygons > 0);
+
+   /* Calculate the base register on the thread payload of
+    * either the block of vertex setup data or the block of
+    * per-primitive constant data depending on whether we're
+    * accessing a primitive or vertex input.  Also calculate
+    * the index of the input within that block.
+    */
+   const bool per_prim = src.nr < prog_data->num_per_primitive_inputs;
+   const unsigned base = urb_start +
+      (per_prim ? 0 :
+       ALIGN(prog_data->num_per_primitive_inputs / 2,
+             reg_unit(s.devinfo)) * s.max_polygons);
+   const unsigned idx = per_prim ? src.nr :
+      src.nr - prog_data->num_per_primitive_inputs;
+
+   /* Translate the offset within the param_width-wide
+    * representation described above into an offset and a
+    * grf, which contains the plane parameters for the first
+    * polygon processed by the thread.
+    */
+   if (s.devinfo->ver >= 20 && !per_prim) {
+      /* Gfx20+ is able to pack 5 logical input components
+       * per 64B register for vertex setup data.
+       */
+      const unsigned grf = base + idx / 5 * 2 * s.max_polygons;
+      assert(src.offset / param_width < 12);
+      const unsigned delta = idx % 5 * 12 +
+         src.offset / (param_width * chan_sz) * chan_sz +
+         src.offset % chan_sz;
+      reg = byte_offset(retype(brw_vec8_grf(grf, 0), src.type), delta);
+   } else {
+      /* Earlier platforms and per-primitive block pack 2 logical
+       * input components per 32B register.
+       */
+      const unsigned grf = base + idx / 2 * s.max_polygons;
+      assert(reg.offset / param_width < REG_SIZE / 2);
+      const unsigned delta = (idx % 2) * (REG_SIZE / 2) +
+         src.offset / (param_width * chan_sz) * chan_sz +
+         src.offset % chan_sz;
+      reg = byte_offset(retype(brw_vec8_grf(grf, 0), src.type), delta);
+   }
+
+   if (s.max_polygons > 1) {
+      assert(s.devinfo->ver >= 12);
+      /* Misaligned channel strides that would lead to
+       * cross-channel access in the representation above are
+       * disallowed.
+       */
+      assert(src.stride * brw_type_size_bytes(src.type) == chan_sz);
+
+      /* Number of channels processing the same polygon. */
+      const unsigned poly_width = s.dispatch_width / s.max_polygons;
+      assert(s.dispatch_width % s.max_polygons == 0);
+
+      /* Accessing a subset of channels of a parameter vector
+       * starting from "chan" is necessary to handle
+       * SIMD-lowered instructions though.
+       */
+      const unsigned chan = src.offset %
+         (param_width * chan_sz) / chan_sz;
+      assert(chan < s.dispatch_width);
+      assert(chan % poly_width == 0);
+      const unsigned reg_size = reg_unit(s.devinfo) * REG_SIZE;
+      reg = byte_offset(reg, chan / poly_width * reg_size);
+
+      if (exec_size > poly_width) {
+         /* Accessing the parameters for multiple polygons.
+          * Corresponding parameters for different polygons
+          * are stored a GRF apart on the thread payload, so
+          * use that as vertical stride.
+          */
+         const unsigned vstride = reg_size / brw_type_size_bytes(src.type);
+         assert(vstride <= 32);
+         assert(chan % poly_width == 0);
+         reg = stride(reg, vstride, poly_width, 0);
+      } else {
+         /* Accessing one parameter for a single polygon --
+          * Translate to a scalar region.
+          */
+         assert(chan % poly_width + exec_size <= poly_width);
+         reg = stride(reg, 0, 1, 0);
+      }
+
+   } else {
+      const unsigned width = src.stride == 0 ? 1 : MIN2(exec_size, 8);
+      reg = stride(reg, width * src.stride, width, src.stride);
+   }
+
+   reg.abs = src.abs;
+   reg.negate = src.negate;
+
+   return reg;
+}
+
 static void
 brw_assign_urb_setup(brw_shader &s)
 {
    assert(s.stage == MESA_SHADER_FRAGMENT);
 
-   const struct intel_device_info *devinfo = s.devinfo;
    struct brw_wm_prog_data *prog_data = brw_wm_prog_data(s.prog_data);
 
    int urb_start = s.payload().num_regs + prog_data->base.curb_read_length;
@@ -1144,164 +1303,16 @@ brw_assign_urb_setup(brw_shader &s)
          continue;
       }
 
+      if (inst->dst.file == ATTR) {
+         inst->dst = remap_attr_reg(s, prog_data, inst->dst,
+                                    urb_start, inst->exec_size);
+         continue;
+      }
+
       for (int i = 0; i < inst->sources; i++) {
          if (inst->src[i].file == ATTR) {
-            /* ATTR brw_reg::nr in the FS is in units of logical scalar
-             * inputs each of which consumes 16B on Gfx4-Gfx12.  In
-             * single polygon mode this leads to the following layout
-             * of the vertex setup plane parameters in the ATTR
-             * register file:
-             *
-             *  brw_reg::nr   Input   Comp0  Comp1  Comp2  Comp3
-             *      0       Attr0.x  a1-a0  a2-a0   N/A    a0
-             *      1       Attr0.y  a1-a0  a2-a0   N/A    a0
-             *      2       Attr0.z  a1-a0  a2-a0   N/A    a0
-             *      3       Attr0.w  a1-a0  a2-a0   N/A    a0
-             *      4       Attr1.x  a1-a0  a2-a0   N/A    a0
-             *     ...
-             *
-             * In multipolygon mode that no longer works since
-             * different channels may be processing polygons with
-             * different plane parameters, so each parameter above is
-             * represented as a dispatch_width-wide vector:
-             *
-             *  brw_reg::nr     brw_reg::offset    Input      Comp0     ...    CompN
-             *      0                 0          Attr0.x  a1[0]-a0[0] ... a1[N]-a0[N]
-             *      0        4 * dispatch_width  Attr0.x  a2[0]-a0[0] ... a2[N]-a0[N]
-             *      0        8 * dispatch_width  Attr0.x     N/A      ...     N/A
-             *      0       12 * dispatch_width  Attr0.x    a0[0]     ...    a0[N]
-             *      1                 0          Attr0.y  a1[0]-a0[0] ... a1[N]-a0[N]
-             *     ...
-             *
-             * Note that many of the components on a single row above
-             * are likely to be replicated multiple times (if, say, a
-             * single SIMD thread is only processing 2 different
-             * polygons), so plane parameters aren't actually stored
-             * in GRF memory with that layout to avoid wasting space.
-             * Instead we compose ATTR register regions with a 2D
-             * region that walks through the parameters of each
-             * polygon with the correct stride, reading the parameter
-             * corresponding to each channel directly from the PS
-             * thread payload.
-             *
-             * The latter layout corresponds to a param_width equal to
-             * dispatch_width, while the former (scalar parameter)
-             * layout has a param_width of 1.
-             *
-             * Gfx20+ represent plane parameters in a format similar
-             * to the above, except the parameters are packed in 12B
-             * and ordered like "a0, a1-a0, a2-a0" instead of the
-             * above vec4 representation with a missing component.
-             *
-             * First documented in the TGL PRMs, Volume 9: Render Engine, PS
-             * Thread Payload for Normal Dispatch.
-             *
-             * Pre Xe2 : BSpec 47024
-             * Xe2+    : BSpec 56480
-             */
-            const unsigned param_width = (s.max_polygons > 1 ? s.dispatch_width : 1);
-
-            /* Size of a single scalar component of a plane parameter
-             * in bytes.
-             */
-            const unsigned chan_sz = 4;
-            struct brw_reg reg;
-            assert(s.max_polygons > 0);
-
-            /* Calculate the base register on the thread payload of
-             * either the block of vertex setup data or the block of
-             * per-primitive constant data depending on whether we're
-             * accessing a primitive or vertex input.  Also calculate
-             * the index of the input within that block.
-             */
-            const bool per_prim = inst->src[i].nr < prog_data->num_per_primitive_inputs;
-            const unsigned base = urb_start +
-               (per_prim ? 0 :
-                ALIGN(prog_data->num_per_primitive_inputs / 2,
-                      reg_unit(devinfo)) * s.max_polygons);
-            const unsigned idx = per_prim ? inst->src[i].nr :
-               inst->src[i].nr - prog_data->num_per_primitive_inputs;
-
-            /* Translate the offset within the param_width-wide
-             * representation described above into an offset and a
-             * grf, which contains the plane parameters for the first
-             * polygon processed by the thread.
-             */
-            if (devinfo->ver >= 20 && !per_prim) {
-               /* Gfx20+ is able to pack 5 logical input components
-                * per 64B register for vertex setup data.
-                */
-               const unsigned grf = base + idx / 5 * 2 * s.max_polygons;
-               assert(inst->src[i].offset / param_width < 12);
-               const unsigned delta = idx % 5 * 12 +
-                  inst->src[i].offset / (param_width * chan_sz) * chan_sz +
-                  inst->src[i].offset % chan_sz;
-               reg = byte_offset(retype(brw_vec8_grf(grf, 0), inst->src[i].type),
-                                 delta);
-            } else {
-               /* Earlier platforms and per-primitive block pack 2 logical
-                * input components per 32B register.
-                */
-               const unsigned grf = base + idx / 2 * s.max_polygons;
-               assert(inst->src[i].offset / param_width < REG_SIZE / 2);
-               const unsigned delta = (idx % 2) * (REG_SIZE / 2) +
-                  inst->src[i].offset / (param_width * chan_sz) * chan_sz +
-                  inst->src[i].offset % chan_sz;
-               reg = byte_offset(retype(brw_vec8_grf(grf, 0), inst->src[i].type),
-                                 delta);
-            }
-
-            if (s.max_polygons > 1) {
-               assert(devinfo->ver >= 12);
-               /* Misaligned channel strides that would lead to
-                * cross-channel access in the representation above are
-                * disallowed.
-                */
-               assert(inst->src[i].stride * brw_type_size_bytes(inst->src[i].type) == chan_sz);
-
-               /* Number of channels processing the same polygon. */
-               const unsigned poly_width = s.dispatch_width / s.max_polygons;
-               assert(s.dispatch_width % s.max_polygons == 0);
-
-               /* Accessing a subset of channels of a parameter vector
-                * starting from "chan" is necessary to handle
-                * SIMD-lowered instructions though.
-                */
-               const unsigned chan = inst->src[i].offset %
-                  (param_width * chan_sz) / chan_sz;
-               assert(chan < s.dispatch_width);
-               assert(chan % poly_width == 0);
-               const unsigned reg_size = reg_unit(devinfo) * REG_SIZE;
-               reg = byte_offset(reg, chan / poly_width * reg_size);
-
-               if (inst->exec_size > poly_width) {
-                  /* Accessing the parameters for multiple polygons.
-                   * Corresponding parameters for different polygons
-                   * are stored a GRF apart on the thread payload, so
-                   * use that as vertical stride.
-                   */
-                  const unsigned vstride = reg_size / brw_type_size_bytes(inst->src[i].type);
-                  assert(vstride <= 32);
-                  assert(chan % poly_width == 0);
-                  reg = stride(reg, vstride, poly_width, 0);
-               } else {
-                  /* Accessing one parameter for a single polygon --
-                   * Translate to a scalar region.
-                   */
-                  assert(chan % poly_width + inst->exec_size <= poly_width);
-                  reg = stride(reg, 0, 1, 0);
-               }
-
-            } else {
-               const unsigned width = inst->src[i].stride == 0 ?
-                  1 : MIN2(inst->exec_size, 8);
-               reg = stride(reg, width * inst->src[i].stride,
-                            width, inst->src[i].stride);
-            }
-
-            reg.abs = inst->src[i].abs;
-            reg.negate = inst->src[i].negate;
-            inst->src[i] = reg;
+            inst->src[i] = remap_attr_reg(s, prog_data, inst->src[i],
+                                          urb_start, inst->exec_size);
          }
       }
    }
@@ -1463,8 +1474,24 @@ brw_compile_fs(const struct brw_compiler *compiler,
 
    const struct intel_device_info *devinfo = compiler->devinfo;
    const unsigned max_subgroup_size = 32;
+   unsigned max_polygons = MAX2(1, params->max_polygons);
 
    brw_nir_apply_key(nir, compiler, &key->base, max_subgroup_size);
+
+   if (brw_nir_fragment_shader_needs_wa_18019110168(devinfo, key->mesh_input, nir)) {
+      if (params->mue_map && params->mue_map->wa_18019110168_active) {
+         brw_nir_frag_convert_attrs_prim_to_vert(
+            nir, params->mue_map->per_primitive_offsets);
+      } else {
+         NIR_PASS(_, nir, brw_nir_frag_convert_attrs_prim_to_vert_indirect,
+                  devinfo, params);
+      }
+      /* Remapping per-primitive inputs into unused per-vertex inputs cannot
+       * work with multipolygon.
+       */
+      max_polygons = 1;
+   }
+
    brw_nir_lower_fs_inputs(nir, devinfo, key);
    brw_nir_lower_fs_outputs(nir);
 
@@ -1548,8 +1575,8 @@ brw_compile_fs(const struct brw_compiler *compiler,
       unsigned max_dispatch_width = reqd_dispatch_width ? reqd_dispatch_width : 32;
       brw_shader *vbase = NULL;
 
-      if (params->max_polygons >= 2 && !key->coarse_pixel) {
-         if (params->max_polygons >= 4 && max_dispatch_width >= 32 &&
+      if (max_polygons >= 2 && !key->coarse_pixel) {
+         if (max_polygons >= 4 && max_dispatch_width >= 32 &&
              4 * prog_data->num_varying_inputs <= MAX_VARYING &&
              INTEL_SIMD(FS, 4X8)) {
             /* Try a quad-SIMD8 compile */
@@ -1737,13 +1764,12 @@ brw_compile_fs(const struct brw_compiler *compiler,
       }
 
       if (devinfo->ver >= 12 && !has_spilled &&
-          params->max_polygons >= 2 && !key->coarse_pixel &&
+          max_polygons >= 2 && !key->coarse_pixel &&
           reqd_dispatch_width == SUBGROUP_SIZE_VARYING) {
          brw_shader *vbase = v8 ? v8.get() : v16 ? v16.get() : v32.get();
          assert(vbase);
 
-         if (devinfo->ver >= 20 &&
-             params->max_polygons >= 4 &&
+         if (devinfo->ver >= 20 && max_polygons >= 4 &&
              vbase->max_dispatch_width >= 32 &&
              4 * prog_data->num_varying_inputs <= MAX_VARYING &&
              INTEL_SIMD(FS, 4X8)) {
@@ -1878,11 +1904,13 @@ brw_compile_fs(const struct brw_compiler *compiler,
 extern "C" void
 brw_compute_sbe_per_vertex_urb_read(const struct intel_vue_map *prev_stage_vue_map,
                                     bool mesh,
+                                    bool per_primitive_remapping,
                                     const struct brw_wm_prog_data *wm_prog_data,
                                     uint32_t *out_read_offset,
                                     uint32_t *out_read_length,
                                     uint32_t *out_num_varyings,
-                                    uint32_t *out_primitive_id_offset)
+                                    uint32_t *out_primitive_id_offset,
+                                    uint32_t *out_flat_inputs)
 {
    int first_slot = INT32_MAX, last_slot = -1;
 
@@ -1920,6 +1948,7 @@ brw_compute_sbe_per_vertex_urb_read(const struct intel_vue_map *prev_stage_vue_m
           (first_slot >= 0 && last_slot >= 0 && last_slot >= first_slot));
 
    uint32_t num_varyings = wm_prog_data->num_varying_inputs;
+   uint32_t remapped_flat_inputs = 0;
 
    /* When using INTEL_VUE_LAYOUT_SEPARATE_MESH, the location of the
     * PrimitiveID is unknown at compile time, here we compute the offset
@@ -1928,7 +1957,19 @@ brw_compute_sbe_per_vertex_urb_read(const struct intel_vue_map *prev_stage_vue_m
     */
    *out_primitive_id_offset = 0;
    if (prev_stage_vue_map->layout == INTEL_VUE_LAYOUT_SEPARATE_MESH) {
-      if (mesh) {
+      if (per_primitive_remapping && wm_prog_data->per_primitive_inputs != 0) {
+         /* When the mesh shader remaps per-primitive slots to per-vertex
+          * ones, read the entire set of slots.
+          */
+         assert(mesh);
+         remapped_flat_inputs =
+            ((1u << prev_stage_vue_map->num_slots) - 1) &
+            ~((1u << last_slot) - 1);
+         *out_flat_inputs |= remapped_flat_inputs;
+         last_slot = prev_stage_vue_map->num_slots - 1;
+         *out_primitive_id_offset = INTEL_MSAA_FLAG_PRIMITIVE_ID_INDEX_MESH;
+         num_varyings = prev_stage_vue_map->num_slots - first_slot;
+      } else if (mesh) {
          /* When using Mesh, the PrimitiveID is in the per-primitive block. */
          if (wm_prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_ID] >= 0)
             num_varyings--;
@@ -1944,10 +1985,16 @@ brw_compute_sbe_per_vertex_urb_read(const struct intel_vue_map *prev_stage_vue_m
              * use that.
              */
             if (wm_prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_ID] >= 0) {
-               if (first_slot == INT32_MAX)
-                  first_slot = 0;
-               primitive_id_slot =
-                  first_slot + wm_prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_ID];
+               if (first_slot == INT32_MAX) {
+                  first_slot =
+                     wm_prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_ID];
+               }
+               /* urb_setup[VARYING_SLOT_PRIMITIVE_ID] is relative to the
+                * first read slot, so bring primitive_id_slot back into the
+                * absolute indexing of the VUE.
+                */
+               primitive_id_slot = first_slot +
+                  wm_prog_data->urb_setup[VARYING_SLOT_PRIMITIVE_ID];
             } else {
                primitive_id_slot = ++last_slot;
             }
@@ -1955,9 +2002,12 @@ brw_compute_sbe_per_vertex_urb_read(const struct intel_vue_map *prev_stage_vue_m
             primitive_id_slot =
                prev_stage_vue_map->varying_to_slot[VARYING_SLOT_PRIMITIVE_ID];
          }
+         first_slot = MIN2(primitive_id_slot, first_slot);
          last_slot = MAX2(primitive_id_slot, last_slot);
 
-         *out_primitive_id_offset = 4 * (primitive_id_slot - first_slot);
+         *out_primitive_id_offset = primitive_id_slot - first_slot;
+         /* Make sure to have constant interpolation on PrimitiveID */
+         remapped_flat_inputs |= BITFIELD_BIT(*out_primitive_id_offset);
       }
    }
 
@@ -1972,6 +2022,8 @@ brw_compute_sbe_per_vertex_urb_read(const struct intel_vue_map *prev_stage_vue_m
       *out_read_length = DIV_ROUND_UP(last_slot - first_slot + 1, 2);
       *out_num_varyings = num_varyings;
    }
+
+   *out_flat_inputs = wm_prog_data->flat_inputs | remapped_flat_inputs;
 }
 
 extern "C" void
@@ -2002,6 +2054,13 @@ brw_compute_sbe_per_primitive_urb_read(uint64_t inputs_read,
       break;
    }
 
-   *out_read_offset = DIV_ROUND_UP(first_read, 32);
-   *out_read_length = DIV_ROUND_UP(num_varyings, 2);
+   /* Not loading any per-primitive data in this case, the push constants
+    * should be adjusted though.
+    */
+   if (mue_map->wa_18019110168_active) {
+      *out_read_offset = *out_read_length = 0;
+   } else {
+      *out_read_offset = DIV_ROUND_UP(first_read, 32);
+      *out_read_length = DIV_ROUND_UP(num_varyings, 2);
+   }
 }

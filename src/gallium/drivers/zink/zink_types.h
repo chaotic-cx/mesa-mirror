@@ -241,9 +241,8 @@ enum zink_debug {
    ZINK_DEBUG_NOBGC = (1<<16),
    ZINK_DEBUG_MEM = (1<<17),
    ZINK_DEBUG_QUIET = (1<<18),
-   ZINK_DEBUG_IOOPT = (1<<19),
-   ZINK_DEBUG_NOPC = (1<<20),
-   ZINK_DEBUG_MSAAOPT = (1<<21),
+   ZINK_DEBUG_NOPC = (1<<19),
+   ZINK_DEBUG_MSAAOPT = (1<<20),
 };
 
 enum zink_pv_emulation_primitive {
@@ -567,7 +566,11 @@ struct zink_batch_descriptor_data {
  */
 struct zink_batch_usage {
    uint32_t usage;
-    /* this is a monotonic int used to disambiguate internal fences from their tc fence references */
+    /* this is a monotonic int used to disambiguate internal fences from their tc fence references AND
+     * to disambiguate zink_bo usage when batches are reused
+     *
+     * it increments on batch submit and batch reset, meaning that a diff<=1 means matching usage
+     */
    uint32_t submit_count;
    cnd_t flush;
    mtx_t mtx;
@@ -597,9 +600,12 @@ struct zink_batch_state {
    VkCommandPool unsynchronized_cmdpool;
    VkCommandBuffer unsynchronized_cmdbuf;
    VkSemaphore signal_semaphore; //external signal semaphore
-   struct util_dynarray signal_semaphores; //external signal semaphores
+   struct util_dynarray signal_semaphores; //internal signal semaphores
+   struct util_dynarray user_signal_semaphores; //api signal semaphores
+   struct util_dynarray user_signal_semaphore_values; //api signal semaphores
    struct util_dynarray wait_semaphores; //external wait semaphores
    struct util_dynarray wait_semaphore_stages; //external wait semaphores
+   struct util_dynarray wait_semaphore_values; //external wait semaphores
    struct util_dynarray fd_wait_semaphores; //dmabuf wait semaphores
    struct util_dynarray fd_wait_semaphore_stages; //dmabuf wait semaphores
    struct util_dynarray tracked_semaphores; //semaphores which are just tracked
@@ -1290,6 +1296,8 @@ struct zink_resource {
    VkPipelineStageFlagBits gfx_barrier;
    VkAccessFlagBits barrier_access[2]; //gfx, compute
 
+   unsigned rebind_count;
+
    VkRect2D damage;
    bool use_damage;
 
@@ -1485,7 +1493,6 @@ struct zink_screen {
       bool lower_robustImageAccess2;
       bool needs_zs_shader_swizzle;
       bool needs_sanitised_layer;
-      bool io_opt;
       bool broken_const;
       bool broken_demote;
    } driver_compiler_workarounds;
@@ -1572,7 +1579,7 @@ struct zink_buffer_view {
 struct zink_sampler_view {
    struct pipe_sampler_view base;
    VkImageViewCreateInfo ivci;
-   struct zink_resource_object *obj;
+   unsigned rebind_count;
    union {
       struct zink_surface *image_view;
       struct zink_buffer_view *buffer_view;
@@ -1587,7 +1594,7 @@ struct zink_sampler_view {
 
 struct zink_image_view {
    struct pipe_image_view base;
-   struct zink_resource_object *obj;
+   unsigned rebind_count;
    union {
       struct zink_surface *surface;
       struct zink_buffer_view *buffer_view;
@@ -1759,7 +1766,7 @@ struct zink_context {
       VkRenderingAttachmentInfo attachments[PIPE_MAX_COLOR_BUFS + 2]; //+depth, +stencil
       VkRenderingInfo info;
       struct tc_renderpass_info tc_info;
-      VkAttachmentFeedbackLoopInfoEXT fbfetch_att;
+      VkAttachmentFeedbackLoopInfoEXT fbfetch_att[PIPE_MAX_COLOR_BUFS + 2]; //+depth, +stencil
    } dynamic_fb;
    uint32_t fb_layer_mismatch; //bitmask
    struct set rendering_state_cache[6]; //[util_logbase2_ceil(msrtss samplecount)]

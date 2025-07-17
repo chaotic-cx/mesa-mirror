@@ -251,11 +251,7 @@ build_occlusion_query_shader(struct radv_device *device)
             nir_def *load = nir_build_load_global(&b, 1, 32, nir_iadd(&b, src_va, nir_u2u64(&b, load_offset)),
                                                   .align_mul = 4, .access = ACCESS_COHERENT);
 
-            nir_push_if(&b, nir_ige_imm(&b, load, 0x80000000));
-            {
-               nir_jump(&b, nir_jump_break);
-            }
-            nir_pop_if(&b, NULL);
+            nir_break_if(&b, nir_ige_imm(&b, load, 0x80000000));
          }
          nir_pop_loop(&b, NULL);
       }
@@ -2746,8 +2742,7 @@ radv_CmdWriteTimestamp2(VkCommandBuffer commandBuffer, VkPipelineStageFlags2 sta
 
    radv_cs_add_buffer(device->ws, cs, pool->bo);
 
-   assert(cmd_buffer->qf != RADV_QUEUE_VIDEO_DEC &&
-          cmd_buffer->qf != RADV_QUEUE_VIDEO_ENC);
+   assert(cmd_buffer->qf != RADV_QUEUE_VIDEO_DEC && cmd_buffer->qf != RADV_QUEUE_VIDEO_ENC);
 
    if (cmd_buffer->qf == RADV_QUEUE_TRANSFER) {
       if (instance->drirc.flush_before_timestamp_write) {

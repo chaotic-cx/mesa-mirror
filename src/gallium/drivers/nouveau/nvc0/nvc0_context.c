@@ -195,7 +195,7 @@ nvc0_context_unreference_resources(struct nvc0_context *nvc0)
    nouveau_bufctx_del(&nvc0->bufctx);
    nouveau_bufctx_del(&nvc0->bufctx_cp);
 
-   util_framebuffer_init(&nvc0->base.pipe, NULL, nvc0->fb_cbufs, &nvc0->fb_zsbuf);
+   nvc0_framebuffer_init(&nvc0->base.pipe, NULL, nvc0->fb_cbufs, &nvc0->fb_zsbuf);
    util_unreference_framebuffer_state(&nvc0->framebuffer);
 
    for (i = 0; i < nvc0->num_vtxbufs; ++i)
@@ -217,11 +217,6 @@ nvc0_context_unreference_resources(struct nvc0_context *nvc0)
          if (nvc0->screen->base.class_3d >= GM107_3D_CLASS)
             pipe_sampler_view_reference(&nvc0->images_tic[s][i], NULL);
       }
-   }
-
-   for (s = 0; s < 2; ++s) {
-      for (i = 0; i < NVC0_MAX_SURFACE_SLOTS; ++i)
-         pipe_surface_reference(&nvc0->surfaces[s][i], NULL);
    }
 
    for (i = 0; i < nvc0->num_tfbbufs; ++i)

@@ -9,6 +9,7 @@ use crate::image::{
 };
 use crate::ILog2Ceil;
 
+use nil_rs_bindings::*;
 use nvidia_headers::classes::{cl9097, clc597, clcd97};
 
 #[repr(u8)]
@@ -92,6 +93,9 @@ pub enum GOBType {
     /// `CopyGOBBlackwell2D2BPP` implements CPU copies for 16-bit Blackwell
     /// color 2D GOBs.
     Blackwell16Bit,
+
+    /// The Blackwell+ GOB format for 24-bit depth images
+    BlackwellZ24,
 }
 
 impl GOBType {
@@ -99,22 +103,34 @@ impl GOBType {
         dev: &nil_rs_bindings::nv_device_info,
         format: Format,
     ) -> GOBType {
-        if format.is_depth_or_stencil() {
-            GOBType::FermiZS
-        } else {
-            if dev.cls_eng3d >= clcd97::BLACKWELL_A {
-                match format.el_size_B() {
+        if dev.cls_eng3d >= clcd97::BLACKWELL_A {
+            match pipe_format::from(format) {
+                PIPE_FORMAT_Z24X8_UNORM
+                | PIPE_FORMAT_X8Z24_UNORM
+                | PIPE_FORMAT_Z24_UNORM_S8_UINT
+                | PIPE_FORMAT_S8_UINT_Z24_UNORM
+                | PIPE_FORMAT_X24S8_UINT
+                | PIPE_FORMAT_S8X24_UINT => GOBType::BlackwellZ24,
+                _ => match format.el_size_B() {
                     1 => GOBType::Blackwell8Bit,
                     2 => GOBType::Blackwell16Bit,
                     _ => GOBType::TuringColor2D,
-                }
-            } else if dev.cls_eng3d >= clc597::TURING_A {
-                GOBType::TuringColor2D
-            } else if dev.cls_eng3d >= cl9097::FERMI_A {
-                GOBType::FermiColor
-            } else {
-                panic!("Unsupported 3d engine class")
+                },
             }
+        } else if dev.cls_eng3d >= clc597::TURING_A {
+            if format.is_depth_or_stencil() {
+                GOBType::FermiZS
+            } else {
+                GOBType::TuringColor2D
+            }
+        } else if dev.cls_eng3d >= cl9097::FERMI_A {
+            if format.is_depth_or_stencil() {
+                GOBType::FermiZS
+            } else {
+                GOBType::FermiColor
+            }
+        } else {
+            panic!("Unsupported 3d engine class")
         }
     }
 
@@ -125,7 +141,8 @@ impl GOBType {
             | GOBType::FermiColor
             | GOBType::TuringColor2D
             | GOBType::Blackwell8Bit
-            | GOBType::Blackwell16Bit => Extent4D::new(64, 8, 1, 1),
+            | GOBType::Blackwell16Bit
+            | GOBType::BlackwellZ24 => Extent4D::new(64, 8, 1, 1),
         }
     }
 

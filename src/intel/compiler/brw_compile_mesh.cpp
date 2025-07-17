@@ -520,7 +520,8 @@ static void
 brw_compute_mue_map(const struct brw_compiler *compiler,
                     nir_shader *nir, struct brw_mue_map *map,
                     enum brw_mesh_index_format index_format,
-                    enum intel_vue_layout vue_layout)
+                    enum intel_vue_layout vue_layout,
+                    int *wa_18019110168_mapping)
 {
    memset(map, 0, sizeof(*map));
 
@@ -584,6 +585,23 @@ brw_compute_mue_map(const struct brw_compiler *compiler,
       map->per_primitive_offsets[VARYING_SLOT_LAYER] = 4;
       map->per_primitive_offsets[VARYING_SLOT_VIEWPORT] = 8;
       map->per_primitive_offsets[VARYING_SLOT_CULL_PRIMITIVE] = 12;
+   }
+
+   /* If Wa_18019110168 is active, store the remapping in the
+    * per_primitive_offsets array.
+    */
+   if (wa_18019110168_mapping) {
+      map->wa_18019110168_active = true;
+      for (uint32_t i = 0; i < ARRAY_SIZE(map->per_primitive_offsets); i++) {
+         if (i == VARYING_SLOT_PRIMITIVE_COUNT ||
+             i == VARYING_SLOT_PRIMITIVE_INDICES ||
+             i == VARYING_SLOT_PRIMITIVE_SHADING_RATE ||
+             i == VARYING_SLOT_LAYER ||
+             i == VARYING_SLOT_VIEWPORT ||
+             i == VARYING_SLOT_CULL_PRIMITIVE)
+            continue;
+         map->per_primitive_offsets[i] = wa_18019110168_mapping[i];
+      }
    }
 
    map->per_primitive_stride = align(map->per_primitive_stride, 32);
@@ -666,7 +684,8 @@ remap_io_to_dwords(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
       return false;
 
    nir_intrinsic_set_base(intrin, nir_intrinsic_base(intrin) * 4);
-   nir_intrinsic_set_range(intrin, nir_intrinsic_range(intrin) * 4);
+   if (nir_intrinsic_has_range(intrin))
+      nir_intrinsic_set_range(intrin, nir_intrinsic_range(intrin) * 4);
 
    b->cursor = nir_before_instr(&intrin->instr);
 
@@ -753,7 +772,7 @@ brw_nir_lower_mue_outputs(nir_shader *nir, const struct brw_mue_map *map)
             remap_io_to_dwords, nir_metadata_control_flow, NULL);
 }
 
-static void
+static bool
 brw_nir_initialize_mue(nir_shader *nir,
                        const struct brw_mue_map *map,
                        unsigned dispatch_width)
@@ -833,6 +852,7 @@ brw_nir_initialize_mue(nir_shader *nir,
    } else {
       nir_progress(true, entrypoint, nir_metadata_control_flow);
    }
+   return true;
 }
 
 static void
@@ -1157,6 +1177,19 @@ brw_compile_mesh(const struct brw_compiler *compiler,
           nir->info.clip_distance_array_size;
    prog_data->primitive_type = nir->info.mesh.primitive_type;
 
+   /* Apply this workaround before trying to pack indices because this can
+    * increase the number of vertices and therefore change the decision about
+    * packing.
+    */
+   const bool apply_wa_18019110168 =
+      brw_nir_mesh_shader_needs_wa_18019110168(devinfo, nir);
+   int wa_18019110168_mapping[VARYING_SLOT_MAX];
+   memset(wa_18019110168_mapping, -1, sizeof(wa_18019110168_mapping));
+   if (apply_wa_18019110168) {
+      brw_nir_mesh_convert_attrs_prim_to_vert(nir, params,
+                                              wa_18019110168_mapping);
+   }
+
    struct index_packing_state index_packing_state = {};
    if (brw_can_pack_primitive_indices(nir, &index_packing_state)) {
       if (index_packing_state.original_prim_indices)
@@ -1169,15 +1202,16 @@ brw_compile_mesh(const struct brw_compiler *compiler,
    prog_data->uses_drawid =
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID);
 
+   brw_nir_lower_tue_inputs(nir, params->tue_map);
+
    NIR_PASS(_, nir, brw_nir_lower_mesh_primitive_count);
    NIR_PASS(_, nir, nir_opt_dce);
    NIR_PASS(_, nir, nir_remove_dead_variables, nir_var_shader_out, NULL);
 
-   brw_nir_lower_tue_inputs(nir, params->tue_map);
-
    brw_compute_mue_map(compiler, nir, &prog_data->map,
                        prog_data->index_format,
-                       key->base.vue_layout);
+                       key->base.vue_layout,
+                       apply_wa_18019110168 ? wa_18019110168_mapping : NULL);
    brw_nir_lower_mue_outputs(nir, &prog_data->map);
 
    prog_data->autostrip_enable = brw_mesh_autostrip_enable(compiler, nir, &prog_data->map);
@@ -1208,7 +1242,7 @@ brw_compile_mesh(const struct brw_compiler *compiler,
        * fields, so let's initialize everything.
        */
       if (prog_data->map.has_per_primitive_header)
-         NIR_PASS_V(shader, brw_nir_initialize_mue, &prog_data->map, dispatch_width);
+         NIR_PASS(_, shader, brw_nir_initialize_mue, &prog_data->map, dispatch_width);
 
       brw_nir_apply_key(shader, compiler, &key->base, dispatch_width);
 
@@ -1282,6 +1316,24 @@ brw_compile_mesh(const struct brw_compiler *compiler,
 
    g.generate_code(selected->cfg, selected->dispatch_width, selected->shader_stats,
                    selected->performance_analysis.require(), params->base.stats);
-   g.add_const_data(nir->constant_data, nir->constant_data_size);
+   if (prog_data->map.wa_18019110168_active) {
+      int8_t remap_table[VARYING_SLOT_TESS_MAX];
+      memset(remap_table, -1, sizeof(remap_table));
+      for (uint32_t i = 0; i < ARRAY_SIZE(wa_18019110168_mapping); i++) {
+         if (wa_18019110168_mapping[i] != -1)
+            remap_table[i] = prog_data->map.vue_map.varying_to_slot[wa_18019110168_mapping[i]];
+      }
+      uint8_t *const_data =
+         (uint8_t *) rzalloc_size(params->base.mem_ctx,
+                                  nir->constant_data_size + sizeof(remap_table));
+      memcpy(const_data, nir->constant_data, nir->constant_data_size);
+      memcpy(const_data + nir->constant_data_size, remap_table, sizeof(remap_table));
+      g.add_const_data(const_data, nir->constant_data_size + sizeof(remap_table));
+      prog_data->wa_18019110168_mapping_offset =
+         prog_data->base.base.const_data_offset + nir->constant_data_size;
+   } else {
+      g.add_const_data(nir->constant_data, nir->constant_data_size);
+   }
+
    return g.get_assembly();
 }

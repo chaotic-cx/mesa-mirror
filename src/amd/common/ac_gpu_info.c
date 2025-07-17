@@ -10,6 +10,7 @@
 #include "ac_surface.h"
 #include "ac_fake_hw_db.h"
 #include "ac_linux_drm.h"
+#include "util/u_sync_provider.h"
 
 #include "addrlib/src/amdgpu_asic_addr.h"
 #include "sid.h"
@@ -213,6 +214,7 @@ struct drm_amdgpu_info_hw_ip {
    uint32_t ib_size_alignment;
    uint32_t available_rings;
    uint32_t ip_discovery_version;
+   uint32_t userq_num_slots;
 };
 
 struct drm_amdgpu_info_uq_fw_areas_gfx {
@@ -300,14 +302,6 @@ drmGetFormatModifierName(uint64_t modifier)
 #endif
 
 #define CIK_TILE_MODE_COLOR_2D 14
-
-static bool has_timeline_syncobj(int fd)
-{
-   uint64_t value;
-   if (drmGetCap(fd, DRM_CAP_SYNCOBJ_TIMELINE, &value))
-      return false;
-   return value ? true : false;
-}
 
 static bool has_modifiers(int fd)
 {
@@ -471,27 +465,6 @@ static void set_custom_cu_en_mask(struct radeon_info *info)
    }
 }
 
-static bool ac_query_pci_bus_info(int fd, struct radeon_info *info)
-{
-   drmDevicePtr devinfo;
-
-   /* Get PCI info. */
-   int r = drmGetDevice2(fd, 0, &devinfo);
-   if (r) {
-      fprintf(stderr, "amdgpu: drmGetDevice2 failed.\n");
-      info->pci.valid = false;
-      return false;
-   }
-   info->pci.domain = devinfo->businfo.pci->domain;
-   info->pci.bus = devinfo->businfo.pci->bus;
-   info->pci.dev = devinfo->businfo.pci->dev;
-   info->pci.func = devinfo->businfo.pci->func;
-   info->pci.valid = true;
-
-   drmFreeDevice(&devinfo);
-   return true;
-}
-
 static void handle_env_var_force_family(struct radeon_info *info)
 {
    const char *family = debug_get_option("AMD_FORCE_FAMILY", NULL);
@@ -537,10 +510,9 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
 
    handle_env_var_force_family(info);
 
-   if (!ac_query_pci_bus_info(fd, info)) {
-      if (require_pci_bus_info)
-         return AC_QUERY_GPU_INFO_FAIL;
-   }
+   info->pci.valid = ac_drm_query_pci_bus_info(dev, info) == 0;
+   if (require_pci_bus_info && !info->pci.valid)
+      return AC_QUERY_GPU_INFO_FAIL;
 
    assert(info->drm_major == 3);
    info->is_amdgpu = true;
@@ -552,9 +524,7 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
       return AC_QUERY_GPU_INFO_FAIL;
    }
 
-   uint64_t cap;
-   r = drmGetCap(fd, DRM_CAP_SYNCOBJ, &cap);
-   if (r != 0 || cap == 0) {
+   if (ac_drm_device_get_sync_provider(dev)->wait == NULL) {
       fprintf(stderr, "amdgpu: syncobj support is missing but is required.\n");
       return AC_QUERY_GPU_INFO_FAIL;
    }
@@ -588,6 +558,8 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
          info->ip[ip_type].num_queues = 1;
       } else if (ip_info.available_rings) {
          info->ip[ip_type].num_queues = util_bitcount(ip_info.available_rings);
+      } else if (ip_info.userq_num_slots) {
+         info->ip[ip_type].num_queue_slots = ip_info.userq_num_slots;
       } else {
          continue;
       }
@@ -1003,9 +975,9 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
 
    info->has_userptr = !info->is_virtio;
    info->has_syncobj = true;
-   info->has_timeline_syncobj = !info->is_virtio && has_timeline_syncobj(fd);
+   info->has_timeline_syncobj = ac_drm_device_get_sync_provider(dev)->timeline_wait != NULL;
    info->has_fence_to_handle = true;
-   info->has_local_buffers = !info->is_virtio;
+   info->has_vm_always_valid = !info->is_virtio;
    info->has_bo_metadata = true;
    info->has_eqaa_surface_allocator = info->gfx_level < GFX11;
    /* Disable sparse mappings on GFX6 due to VM faults in CP DMA. Enable them once
@@ -1015,7 +987,7 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
    info->has_gang_submit = info->drm_minor >= 49;
    info->has_gpuvm_fault_query = info->drm_minor >= 55;
    info->has_tmz_support = device_info.ids_flags & AMDGPU_IDS_FLAGS_TMZ;
-   info->kernel_has_modifiers = has_modifiers(fd);
+   info->kernel_has_modifiers = has_modifiers(fd) || (info->is_virtio && fd < 0);
    info->uses_kernel_cu_mask = false; /* Not implemented in the kernel. */
    info->has_graphics = info->ip[AMD_IP_GFX].num_queues > 0;
 
@@ -1734,8 +1706,9 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
    }
 
    /* WARNING: Register shadowing decreases performance by up to 50% on GFX11 with current FW. */
-   info->register_shadowing_required = device_info.ids_flags & AMDGPU_IDS_FLAGS_PREEMPTION &&
-                                       info->gfx_level < GFX11;
+   info->has_kernelq_reg_shadowing = device_info.ids_flags & AMDGPU_IDS_FLAGS_PREEMPTION &&
+                                     info->gfx_level < GFX11 &&
+                                     !(info->userq_ip_mask & (1 << AMD_IP_GFX));
 
    if (info->gfx_level >= GFX12) {
       info->has_set_context_pairs = true;
@@ -1743,7 +1716,7 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
       info->has_set_uconfig_pairs = true;
    } else if (info->gfx_level >= GFX11 && info->has_dedicated_vram) {
       info->has_set_context_pairs_packed = true;
-      info->has_set_sh_pairs_packed = info->register_shadowing_required;
+      info->has_set_sh_pairs_packed = info->has_kernelq_reg_shadowing;
    }
 
    /* This is the size of all TCS outputs in memory per workgroup.
@@ -1831,6 +1804,8 @@ ac_query_gpu_info(int fd, void *dev_p, struct radeon_info *info,
       info->rt_ip_version = RT_1_1;
 
    set_custom_cu_en_mask(info);
+
+   info->mesh_fast_launch_2 = info->gfx_level >= GFX11;
 
    const char *ib_filename = debug_get_option("AMD_PARSE_IB", NULL);
    if (ib_filename) {
@@ -1941,11 +1916,11 @@ void ac_print_gpu_info(const struct radeon_info *info, FILE *f)
    fprintf(f, "    clock_crystal_freq = %i KHz\n", info->clock_crystal_freq);
 
    for (unsigned i = 0; i < AMD_NUM_IP_TYPES; i++) {
-      if (info->ip[i].num_queues) {
-         fprintf(f, "    IP %-7s %2u.%u \tqueues:%u \talign:%u \tpad_dw:0x%x\n",
+      if (info->ip[i].num_queues || info->ip[i].num_queue_slots) {
+         fprintf(f, "    IP %-7s %2u.%u \tqueues:%u \tqueue_slots:%u \talign:%u \tpad_dw:0x%x\n",
                  ac_get_ip_type_string(info, i),
                  info->ip[i].ver_major, info->ip[i].ver_minor, info->ip[i].num_queues,
-                 info->ip[i].ib_alignment, info->ip[i].ib_pad_dw_mask);
+                 info->ip[i].num_queue_slots,info->ip[i].ib_alignment, info->ip[i].ib_pad_dw_mask);
       }
    }
 
@@ -1995,6 +1970,7 @@ void ac_print_gpu_info(const struct radeon_info *info, FILE *f)
    fprintf(f, "    has_set_sh_pairs_packed = %i\n", info->has_set_sh_pairs_packed);
    fprintf(f, "    has_set_uconfig_pairs = %i\n", info->has_set_uconfig_pairs);
    fprintf(f, "    conformant_trunc_coord = %i\n", info->conformant_trunc_coord);
+   fprintf(f, "    mesh_fast_launch_2 = %i\n", info->mesh_fast_launch_2);
 
    if (info->gfx_level < GFX12) {
       fprintf(f, "Display features:\n");
@@ -2091,14 +2067,14 @@ void ac_print_gpu_info(const struct radeon_info *info, FILE *f)
    fprintf(f, "    drm = %i.%i.%i\n", info->drm_major, info->drm_minor, info->drm_patchlevel);
    fprintf(f, "    has_userptr = %i\n", info->has_userptr);
    fprintf(f, "    has_timeline_syncobj = %u\n", info->has_timeline_syncobj);
-   fprintf(f, "    has_local_buffers = %u\n", info->has_local_buffers);
+   fprintf(f, "    has_vm_always_valid = %u\n", info->has_vm_always_valid);
    fprintf(f, "    has_bo_metadata = %u\n", info->has_bo_metadata);
    fprintf(f, "    has_eqaa_surface_allocator = %u\n", info->has_eqaa_surface_allocator);
    fprintf(f, "    has_sparse_vm_mappings = %u\n", info->has_sparse_vm_mappings);
    fprintf(f, "    has_stable_pstate = %u\n", info->has_stable_pstate);
    fprintf(f, "    has_gang_submit = %u\n", info->has_gang_submit);
    fprintf(f, "    has_gpuvm_fault_query = %u\n", info->has_gpuvm_fault_query);
-   fprintf(f, "    register_shadowing_required = %u\n", info->register_shadowing_required);
+   fprintf(f, "    has_kernelq_reg_shadowing = %u\n", info->has_kernelq_reg_shadowing);
    fprintf(f, "    has_fw_based_shadowing = %u\n", info->has_fw_based_shadowing);
    if (info->has_fw_based_shadowing) {
       fprintf(f, "        * shadow size: %u (alignment: %u)\n",

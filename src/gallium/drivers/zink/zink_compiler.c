@@ -707,9 +707,7 @@ lower_line_stipple_fs(nir_shader *shader)
       nir_def *index_mask = nir_ishl(&b, nir_imm_int(&b, 1), index);
       nir_def *new_value = nir_ixor(&b, value, index_mask);
       nir_store_var(&b, v, new_value,  1);
-      nir_push_if(&b, nir_ieq_imm(&b, value, 0));
-      nir_jump(&b, nir_jump_break);
-      nir_pop_if(&b, NULL);
+      nir_break_if(&b, nir_ieq_imm(&b, value, 0));
 
       nir_def *stipple_pos =
          nir_interp_deref_at_sample(&b, 1, 32,
@@ -1312,8 +1310,6 @@ zink_screen_init_compiler(struct zink_screen *screen)
       .has_isub = true,
       .lower_mul_2x32_64 = true,
       .support_16bit_alu = true, /* not quite what it sounds like */
-      .support_indirect_inputs = (uint8_t)BITFIELD_MASK(MESA_SHADER_COMPUTE),
-      .support_indirect_outputs = (uint8_t)BITFIELD_MASK(MESA_SHADER_COMPUTE),
       .max_unroll_iterations = 0,
    };
 
@@ -1332,20 +1328,8 @@ zink_screen_init_compiler(struct zink_screen *screen)
       screen->nir_options.max_unroll_iterations_fp64 = 32;
    }
 
-   if (screen->driver_compiler_workarounds.io_opt) {
-      switch (zink_driverid(screen)) {
-      case VK_DRIVER_ID_MESA_RADV:
-      case VK_DRIVER_ID_AMD_OPEN_SOURCE:
-      case VK_DRIVER_ID_AMD_PROPRIETARY:
-         screen->nir_options.varying_expression_max_cost = amd_varying_expression_max_cost;
-         break;
-      default:
-         mesa_logw("zink: instruction costs not implemented for this implementation!");
-         screen->nir_options.varying_expression_max_cost = amd_varying_expression_max_cost;
-      }
-   } else {
-      screen->nir_options.io_options |= nir_io_dont_optimize;
-   }
+   /* XXX: do any drivers need different estimates? */
+   screen->nir_options.varying_expression_max_cost = amd_varying_expression_max_cost;
 
    /*
        The OpFRem and OpFMod instructions use cheap approximations of remainder,
@@ -1373,16 +1357,16 @@ zink_screen_init_compiler(struct zink_screen *screen)
          nir_lower_bitfield_reverse64 | nir_lower_bitfield_extract64;
    }
 
-   screen->nir_options.support_indirect_inputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES);
+   screen->nir_options.support_indirect_inputs = BITFIELD_BIT(MESA_SHADER_TESS_CTRL) |
+                                                 BITFIELD_BIT(MESA_SHADER_TESS_EVAL) |
+                                                 BITFIELD_BIT(MESA_SHADER_FRAGMENT);
    screen->nir_options.support_indirect_outputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES);
 }
 
-const void *
+const struct nir_shader_compiler_options *
 zink_get_compiler_options(struct pipe_screen *pscreen,
-                          enum pipe_shader_ir ir,
                           gl_shader_stage shader)
 {
-   assert(ir == PIPE_SHADER_IR_NIR);
    return &zink_screen(pscreen)->nir_options;
 }
 
@@ -1582,7 +1566,7 @@ optimize_nir(struct nir_shader *s, struct zink_shader *zs, bool can_shrink)
       }
       NIR_PASS(progress, s, nir_opt_dce);
       NIR_PASS(progress, s, nir_opt_dead_cf);
-      NIR_PASS(progress, s, nir_lower_phis_to_scalar, false);
+      NIR_PASS(progress, s, nir_lower_phis_to_scalar, NULL, NULL);
       NIR_PASS(progress, s, nir_opt_cse);
 
       nir_opt_peephole_select_options peephole_select_options = {
@@ -3298,7 +3282,7 @@ lower_64bit_vars(nir_shader *shader, bool doubles_only)
    ralloc_free(derefs);
    if (progress) {
       nir_lower_alu_to_scalar(shader, filter_64_bit_instr, NULL);
-      nir_lower_phis_to_scalar(shader, false);
+      nir_lower_phis_to_scalar(shader, NULL, NULL);
       optimize_nir(shader, NULL, true);
    }
    return progress;
@@ -3367,7 +3351,7 @@ zink_shader_spirv_compile(struct zink_screen *screen, struct zink_shader *zs, st
       sci.setLayoutCount = pg->num_dsl;
       sci.pSetLayouts = pg->dsl;
    } else {
-      sci.setLayoutCount = zs->info.stage + 1;
+      sci.setLayoutCount = zs->info.stage == MESA_SHADER_COMPUTE ? 1 : ZINK_GFX_SHADER_COUNT;
       dsl[zs->info.stage] = zs->precompile.dsl;;
       sci.pSetLayouts = dsl;
    }
@@ -5438,16 +5422,17 @@ loop_io_var_mask(nir_shader *nir, nir_variable_mode mode, bool indirect, bool pa
 {
    ASSERTED bool is_vertex_input = nir->info.stage == MESA_SHADER_VERTEX && mode == nir_var_shader_in;
    u_foreach_bit64(slot, mask) {
+      unsigned location = slot;
       if (patch)
-         slot += VARYING_SLOT_PATCH0;
+         location += VARYING_SLOT_PATCH0;
 
       /* this should've been handled explicitly */
-      assert(is_vertex_input || !is_clipcull_dist(slot));
+      assert(is_vertex_input || !is_clipcull_dist(location));
 
       unsigned remaining = 0;
       do {
          /* scan the slot for usage */
-         struct rework_io_state ris = scan_io_var_slot(nir, mode, slot, indirect);
+         struct rework_io_state ris = scan_io_var_slot(nir, mode, location, indirect);
          /* one of these must be true or things have gone very wrong */
          assert(indirect || ris.component_mask || find_rework_var(nir, &ris) || remaining);
          /* release builds only */

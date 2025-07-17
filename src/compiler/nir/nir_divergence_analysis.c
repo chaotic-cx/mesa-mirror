@@ -209,6 +209,8 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_subgroup_id:
    case nir_intrinsic_shared_append_amd:
    case nir_intrinsic_shared_consume_amd:
+   case nir_intrinsic_load_sm_id_nv:
+   case nir_intrinsic_load_warp_id_nv:
       /* VS/TES/GS invocations of the same primitive can be in different
        * subgroups, so subgroup ops are always divergent between vertices of
        * the same primitive.
@@ -254,6 +256,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_line_width:
    case nir_intrinsic_load_aa_line_width:
    case nir_intrinsic_load_xfb_address:
+   case nir_intrinsic_load_rasterization_stream:
    case nir_intrinsic_load_num_vertices:
    case nir_intrinsic_load_fb_layers_v3d:
    case nir_intrinsic_load_fep_w_v3d:
@@ -320,7 +323,6 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_ordered_id_amd:
    case nir_intrinsic_load_gs_wave_id_amd:
    case nir_intrinsic_load_provoking_vtx_in_prim_amd:
-   case nir_intrinsic_load_lds_ngg_scratch_base_amd:
    case nir_intrinsic_load_lds_ngg_gs_out_vertex_base_amd:
    case nir_intrinsic_load_btd_shader_type_intel:
    case nir_intrinsic_load_base_global_invocation_id:
@@ -355,12 +357,15 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_samples_log2_agx:
    case nir_intrinsic_load_active_subgroup_count_agx:
    case nir_intrinsic_load_root_agx:
+   case nir_intrinsic_load_sm_count_nv:
+   case nir_intrinsic_load_warps_per_sm_nv:
    case nir_intrinsic_load_fs_msaa_intel:
    case nir_intrinsic_load_constant_base_ptr:
    case nir_intrinsic_load_const_buf_base_addr_lvp:
    case nir_intrinsic_load_max_polygon_intel:
    case nir_intrinsic_load_ray_base_mem_addr_intel:
    case nir_intrinsic_load_ray_hw_stack_size_intel:
+   case nir_intrinsic_load_per_primitive_remap_intel:
       is_divergent = false;
       break;
 
@@ -372,6 +377,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
       break;
 
    case nir_intrinsic_decl_reg:
+   case nir_intrinsic_load_sysval_nv:
       is_divergent = nir_intrinsic_divergent(instr);
       break;
 
@@ -722,6 +728,8 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_reg:
    case nir_intrinsic_load_constant_agx:
    case nir_intrinsic_load_texture_handle_agx:
+   case nir_intrinsic_bindless_image_agx:
+   case nir_intrinsic_bindless_sampler_agx:
    case nir_intrinsic_load_reg_indirect:
    case nir_intrinsic_load_const_ir3:
    case nir_intrinsic_load_frag_size_ir3:
@@ -911,7 +919,6 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_ray_hit_kind:
    case nir_intrinsic_load_ray_flags:
    case nir_intrinsic_load_cull_mask:
-   case nir_intrinsic_load_sysval_nv:
    case nir_intrinsic_emit_vertex_nv:
    case nir_intrinsic_end_primitive_nv:
    case nir_intrinsic_report_ray_intersection:
@@ -921,6 +928,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_cmat_extract:
    case nir_intrinsic_cmat_muladd_amd:
    case nir_intrinsic_dpas_intel:
+   case nir_intrinsic_convert_cmat_intel:
    case nir_intrinsic_isberd_nv:
    case nir_intrinsic_vild_nv:
    case nir_intrinsic_al2p_nv:
@@ -933,6 +941,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_sustga_nv:
    case nir_intrinsic_ipa_nv:
    case nir_intrinsic_ldtram_nv:
+   case nir_intrinsic_cmat_muladd_nv:
    case nir_intrinsic_printf:
    case nir_intrinsic_load_gs_header_ir3:
    case nir_intrinsic_load_tcs_header_ir3:
@@ -952,6 +961,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_agx:
    case nir_intrinsic_load_shared_lock_nv:
    case nir_intrinsic_store_shared_unlock_nv:
+   case nir_intrinsic_bvh_stack_rtn_amd:
       is_divergent = true;
       break;
 

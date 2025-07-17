@@ -206,7 +206,7 @@ void st_init_limits(struct pipe_screen *screen,
       struct gl_program_constants *pc = &c->Program[stage];
 
       if (screen->get_compiler_options)
-         options->NirOptions = screen->get_compiler_options(screen, PIPE_SHADER_IR_NIR, sh);
+         options->NirOptions = screen->get_compiler_options(screen, sh);
 
       if (!options->NirOptions) {
          options->NirOptions =
@@ -1053,6 +1053,7 @@ void st_init_extensions(struct pipe_screen *screen,
    EXT_CAP(ARB_sample_locations,             programmable_sample_locations);
    EXT_CAP(ARB_seamless_cube_map,            seamless_cube_map);
    EXT_CAP(ARB_shader_ballot,                shader_ballot);
+   EXT_CAP(ARB_shader_clock,                 shader_clock);
    EXT_CAP(ARB_shader_draw_parameters,       draw_parameters);
    EXT_CAP(ARB_shader_group_vote,            shader_group_vote);
    EXT_CAP(EXT_shader_image_load_formatted,  image_load_formatted);
@@ -1311,6 +1312,11 @@ void st_init_extensions(struct pipe_screen *screen,
       consts->GLSLZeroInit = 1;
    } else {
       consts->GLSLZeroInit = screen->caps.glsl_zero_init;
+   }
+
+   if (extensions->EXT_semaphore) {
+      consts->MaxTimelineSemaphoreValueDifference = screen->caps.max_timeline_semaphore_difference;
+      extensions->NV_timeline_semaphore = consts->MaxTimelineSemaphoreValueDifference > 0;
    }
 
    consts->ForceIntegerTexNearest = options->force_integer_tex_nearest;

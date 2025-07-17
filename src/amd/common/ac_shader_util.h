@@ -287,9 +287,6 @@ unsigned ac_compute_lshs_workgroup_size(enum amd_gfx_level gfx_level, gl_shader_
                                         unsigned tess_patch_in_vtx,
                                         unsigned tess_patch_out_vtx);
 
-unsigned ac_compute_esgs_workgroup_size(enum amd_gfx_level gfx_level, unsigned wave_size,
-                                        unsigned es_verts, unsigned gs_inst_prims);
-
 unsigned ac_compute_ngg_workgroup_size(unsigned es_verts, unsigned gs_inst_prims,
                                        unsigned max_vtx_out, unsigned prim_amp_factor);
 
@@ -307,16 +304,6 @@ void ac_get_scratch_tmpring_size(const struct radeon_info *info, unsigned num_sc
                                  unsigned bytes_per_wave, uint32_t *tmpring_size);
 
 unsigned
-ac_ngg_nogs_get_pervertex_lds_size(gl_shader_stage stage,
-                                   unsigned shader_num_outputs,
-                                   bool streamout_enabled,
-                                   bool export_prim_id,
-                                   bool has_user_edgeflags,
-                                   bool can_cull,
-                                   bool uses_instance_id,
-                                   bool uses_primitive_id);
-
-unsigned
 ac_ngg_get_scratch_lds_size(gl_shader_stage stage,
                             unsigned workgroup_size,
                             unsigned wave_size,
@@ -330,6 +317,34 @@ union ac_hw_cache_flags ac_get_hw_cache_flags(enum amd_gfx_level gfx_level,
 unsigned ac_get_all_edge_flag_bits(enum amd_gfx_level gfx_level);
 
 unsigned ac_shader_io_get_unique_index_patch(unsigned semantic);
+
+typedef struct {
+   uint16_t es_verts_per_subgroup;
+   uint16_t gs_prims_per_subgroup;
+   uint16_t gs_inst_prims_in_subgroup;
+   uint16_t max_prims_per_subgroup;
+   uint16_t esgs_lds_size;    /* in dwords */
+} ac_legacy_gs_subgroup_info;
+
+void
+ac_legacy_gs_compute_subgroup_info(enum mesa_prim input_prim, unsigned gs_vertices_out, unsigned gs_invocations,
+                                   unsigned esgs_vertex_stride, ac_legacy_gs_subgroup_info *out);
+
+typedef struct {
+   uint16_t esgs_lds_size;    /* in dwords */
+   uint16_t ngg_out_lds_size; /* in dwords */
+   uint16_t hw_max_esverts;
+   uint16_t max_gsprims;
+   uint16_t max_out_verts;
+   bool max_vert_out_per_gs_instance;
+} ac_ngg_subgroup_info;
+
+bool
+ac_ngg_compute_subgroup_info(enum amd_gfx_level gfx_level, gl_shader_stage es_stage, bool is_gs,
+                             enum mesa_prim input_prim, unsigned gs_vertices_out, unsigned gs_invocations,
+                             unsigned max_workgroup_size, unsigned wave_size, unsigned esgs_vertex_stride,
+                             unsigned ngg_lds_vertex_size, unsigned ngg_lds_scratch_size, bool tess_turns_off_ngg,
+                             unsigned max_esgs_lds_padding, ac_ngg_subgroup_info *out);
 
 #ifdef __cplusplus
 }

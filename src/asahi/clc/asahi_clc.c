@@ -55,7 +55,7 @@ optimize(nir_shader *nir)
 
       NIR_PASS(progress, nir, nir_copy_prop);
       NIR_PASS(progress, nir, nir_opt_remove_phis);
-      NIR_PASS(progress, nir, nir_lower_phis_to_scalar, true);
+      NIR_PASS(progress, nir, nir_lower_all_phis_to_scalar);
       NIR_PASS(progress, nir, nir_opt_dce);
       NIR_PASS(progress, nir, nir_opt_dead_cf);
       NIR_PASS(progress, nir, nir_opt_cse);
@@ -293,7 +293,8 @@ main(int argc, char **argv)
 
       for (unsigned v = 0; v < nr_vars; ++v) {
          nir_shader *s = nir_precompiled_build_variant(
-            libfunc, v, &agx_nir_options, &opt, load_kernel_input);
+            libfunc, MESA_SHADER_COMPUTE, v, &agx_nir_options, &opt,
+            load_kernel_input);
 
          nir_link_shader_functions(s, nir);
          NIR_PASS(_, s, nir_inline_functions);
@@ -346,6 +347,13 @@ main(int argc, char **argv)
             bool is_helper = !strcmp(libfunc->name, "libagx_helper");
             struct agx_shader_key key = {
                .promote_constants = !is_helper,
+
+               /* Most of the internal programs don't use textures at all, but
+                * the few that do are exclusively bindless, so we want to
+                * promote their access.
+                */
+               .promote_textures = true,
+
                .reserved_preamble = layout.size_B / 2,
                .is_helper = is_helper,
             };

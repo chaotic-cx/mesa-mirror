@@ -783,6 +783,22 @@ agx_emit_store(agx_builder *b, nir_intrinsic_instr *instr)
                     shift, nir_is_coherent(instr));
 }
 
+/*
+ * Hardware bindless texture sources are specified as a 64-bit uniform base
+ * address summed with a 32-bit register index. We model in NIR with the
+ * bindless_image_agx intrinsic.
+ */
+static agx_index
+agx_translate_bindless_handle(agx_builder *b, nir_src *handle, agx_index *base)
+{
+   nir_intrinsic_instr *intr = nir_src_as_intrinsic(*handle);
+   assert(intr->intrinsic == nir_intrinsic_bindless_image_agx ||
+          intr->intrinsic == nir_intrinsic_bindless_sampler_agx);
+
+   *base = agx_uniform(nir_intrinsic_desc_set(intr), AGX_SIZE_64);
+   return agx_src_index(&intr->src[0]);
+}
+
 /* Preambles write directly to uniform registers, so move from uniform to GPR */
 static agx_instr *
 agx_emit_load_preamble(agx_builder *b, agx_index dst,
@@ -804,8 +820,23 @@ agx_emit_load_preamble(agx_builder *b, agx_index dst,
 static agx_instr *
 agx_emit_store_preamble(agx_builder *b, nir_intrinsic_instr *instr)
 {
-   agx_index vec = agx_src_index(&instr->src[0]);
+   nir_preamble_class cls = nir_intrinsic_preamble_class(instr);
    unsigned base = nir_intrinsic_base(instr);
+
+   if (cls != nir_preamble_class_general) {
+      agx_index heap, offset;
+      offset = agx_translate_bindless_handle(b, &instr->src[0], &heap);
+
+      /* base is 32-bit units for images but 16-bit for samplers, hence the
+       * division difference to convert into texture/sampler state units.
+       */
+      if (cls == nir_preamble_class_image)
+         return agx_tex_state_store(b, heap, offset, base / 2);
+      else
+         return agx_sampler_state_store(b, heap, offset, base);
+   }
+
+   agx_index vec = agx_src_index(&instr->src[0]);
    unsigned stride = agx_size_align_16(vec.size);
    unsigned nr = nir_src_num_components(instr->src[0]);
 
@@ -852,24 +883,6 @@ agx_tex_dim(enum glsl_sampler_dim dim, bool array)
    default:
       unreachable("Invalid sampler dim\n");
    }
-}
-
-/*
- * In the hardware, bindless texture sources are specified as a 64-bit uniform
- * base address summed with a 32-bit register index. In NIR, we model this as a
- * vec2, where the first source is the (constant) uniform register number and
- * the second source is the (dynamic) byte offset.
- */
-static agx_index
-agx_translate_bindless_handle(agx_builder *b, nir_src *handle, agx_index *base)
-{
-   nir_scalar base_scalar = nir_scalar_resolved(handle->ssa, 0);
-   assert(nir_scalar_is_const(base_scalar) && "base must be constant");
-
-   unsigned base_uint = nir_scalar_as_uint(base_scalar);
-   *base = agx_uniform(base_uint, AGX_SIZE_64);
-
-   return agx_emit_extract(b, agx_src_index(handle), 1);
 }
 
 static agx_instr *
@@ -1106,7 +1119,8 @@ agx_emit_image_load(agx_builder *b, agx_index dst, nir_intrinsic_instr *intr)
    agx_index ms_index = agx_src_index(&intr->src[2]);
    agx_index lod = agx_src_index(&intr->src[3]);
    enum agx_lod_mode lod_mode = AGX_LOD_MODE_LOD_MIN;
-   bool sparse = intr->intrinsic == nir_intrinsic_bindless_image_sparse_load;
+   bool sparse = intr->intrinsic == nir_intrinsic_image_sparse_load ||
+                 intr->intrinsic == nir_intrinsic_bindless_image_sparse_load;
 
    agx_index bindless = agx_immediate(0), texture;
    if (intr->intrinsic == nir_intrinsic_bindless_image_load ||
@@ -1176,6 +1190,8 @@ agx_emit_image_load(agx_builder *b, agx_index dst, nir_intrinsic_instr *intr)
    I->mask = agx_expand_tex_to(b, &intr->def, tmp, !sparse);
 
    b->shader->out->uses_txf = true;
+   b->shader->out->sampler_state_count =
+      MAX2(b->shader->out->sampler_state_count, 1);
    return NULL;
 }
 
@@ -1462,6 +1478,7 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
       return agx_emit_store_preamble(b, instr);
 
    case nir_intrinsic_image_load:
+   case nir_intrinsic_image_sparse_load:
    case nir_intrinsic_bindless_image_load:
    case nir_intrinsic_bindless_image_sparse_load:
       return agx_emit_image_load(b, dst, instr);
@@ -1729,6 +1746,11 @@ agx_emit_intrinsic(agx_builder *b, nir_intrinsic_instr *instr)
 
    case nir_intrinsic_export_agx:
       return agx_emit_export(b, nir_intrinsic_base(instr), instr->src[0]);
+
+   case nir_intrinsic_bindless_image_agx:
+   case nir_intrinsic_bindless_sampler_agx:
+      /* These must always be chased */
+      return NULL;
 
    case nir_intrinsic_load_barycentric_sample:
    case nir_intrinsic_load_sample_id:
@@ -2204,8 +2226,14 @@ agx_emit_tex(agx_builder *b, nir_tex_instr *instr)
 {
    agx_index coords = agx_null(), bindless = agx_immediate(0),
              texture = agx_immediate(instr->texture_index),
-             sampler = agx_immediate(0), lod = agx_immediate(0),
-             compare = agx_null(), packed_offset = agx_null();
+             sampler = agx_immediate(instr->sampler_index),
+             lod = agx_immediate(0), compare = agx_null(),
+             packed_offset = agx_null();
+
+   /* Default to the txf sampler at ss0 */
+   if (!nir_tex_instr_need_sampler(instr)) {
+      sampler = agx_immediate(0);
+   }
 
    bool lod_is_zero = true;
 
@@ -2242,6 +2270,7 @@ agx_emit_tex(agx_builder *b, nir_tex_instr *instr)
          texture = index;
          break;
       case nir_tex_src_sampler_handle:
+         b->shader->out->uses_sampler_heap = true;
          sampler = index;
          break;
 
@@ -2336,6 +2365,8 @@ agx_emit_tex(agx_builder *b, nir_tex_instr *instr)
    if (instr->op == nir_texop_txf || instr->op == nir_texop_txf_ms) {
       I->op = AGX_OPCODE_TEXTURE_LOAD;
       b->shader->out->uses_txf = true;
+      b->shader->out->sampler_state_count =
+         MAX2(b->shader->out->sampler_state_count, 1);
    }
 
    /* Destination masking doesn't seem to work properly for gathers (because
@@ -2769,6 +2800,7 @@ static void
 agx_calc_stats(agx_context *ctx, unsigned size, struct agx2_stats *stats)
 {
    struct agx_cycle_estimate cycles = agx_estimate_cycles(ctx);
+   uint32_t old_preamble_inst = stats->preamble_inst;
 
    *stats = (struct agx2_stats){
       .alu = cycles.alu,
@@ -2780,6 +2812,7 @@ agx_calc_stats(agx_context *ctx, unsigned size, struct agx2_stats *stats)
       .scratch = ctx->scratch_size_B,
       .threads = agx_occupancy_for_register_count(ctx->max_reg).max_threads,
       .loops = ctx->loop_count,
+      .preamble_inst = old_preamble_inst,
    };
 
    /* Count instructions */
@@ -2979,8 +3012,8 @@ optimize_bounds(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 
    /* Now start rewriting. Grab some common variables */
    b->cursor = nir_before_instr(&intr->instr);
-   nir_def *offset = nir_channel(b, srcs[0].def, srcs[0].comp);
-   nir_def *bounds = nir_channel(b, srcs[1].def, srcs[1].comp);
+   nir_def *offset = nir_mov_scalar(b, srcs[0]);
+   nir_def *bounds = nir_mov_scalar(b, srcs[1]);
 
    nir_def *in_bounds = nir_uge(b, bounds, offset);
    nir_def *zero = nir_imm_int(b, 0);
@@ -3029,7 +3062,8 @@ optimize_bounds(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 }
 
 static void
-agx_optimize_nir(nir_shader *nir, bool soft_fault, uint16_t *preamble_size)
+agx_optimize_nir(nir_shader *nir, bool soft_fault, uint16_t *preamble_size,
+                 uint8_t *ts_count, uint8_t *ss_count)
 {
    /* This runs only once up front since other optimizations don't affect it */
    NIR_PASS(_, nir, nir_opt_shrink_stores, true);
@@ -3133,9 +3167,26 @@ agx_optimize_nir(nir_shader *nir, bool soft_fault, uint16_t *preamble_size)
    NIR_PASS(_, nir, agx_nir_lower_fminmax);
 
    if (preamble_size && (!(agx_compiler_debug & AGX_DBG_NOPREAMBLE))) {
-      unsigned temp = *preamble_size;
-      NIR_PASS(_, nir, agx_nir_opt_preamble, &temp);
-      *preamble_size = temp;
+      unsigned sizes[] = {
+         *preamble_size,
+         ts_count ? *ts_count : 1000 /* large finite */,
+         ss_count ? *ss_count : 1000 /* large finite */,
+      };
+
+      /* Don't clobber txf sampler */
+      if (sizes[2] == 0)
+         sizes[2]++;
+
+      NIR_PASS(_, nir, agx_nir_opt_preamble, sizes);
+
+      *preamble_size = sizes[0];
+
+      if (ts_count)
+         *ts_count = sizes[1];
+
+      /* if something other than the txf sampler is written... */
+      if (ss_count && sizes[2] > 1)
+         *ss_count = sizes[2];
    }
 
    /* Forming preambles may dramatically reduce the instruction count
@@ -3205,7 +3256,7 @@ agx_optimize_nir(nir_shader *nir, bool soft_fault, uint16_t *preamble_size)
 
    NIR_PASS(_, nir, nir_opt_sink, move_all);
    NIR_PASS(_, nir, nir_opt_move, move_all);
-   NIR_PASS(_, nir, nir_lower_phis_to_scalar, true);
+   NIR_PASS(_, nir, nir_lower_all_phis_to_scalar);
 }
 
 /*
@@ -3373,15 +3424,11 @@ lower_load_from_texture_handle(nir_builder *b, nir_intrinsic_instr *intr,
    if (intr->intrinsic != nir_intrinsic_load_from_texture_handle_agx)
       return false;
 
-   /* Bindless handles are a vec2, where the first source is the (constant)
-    * uniform register number and the second source is the byte offset.
-    */
-   nir_scalar uniform = nir_scalar_resolved(intr->src[0].ssa, 0);
-   unsigned uniform_idx = nir_scalar_as_uint(uniform);
+   nir_intrinsic_instr *handle = nir_src_as_intrinsic(intr->src[0]);
 
    b->cursor = nir_instr_remove(&intr->instr);
-   nir_def *base = nir_load_preamble(b, 1, 64, uniform_idx);
-   nir_def *offset = nir_u2u64(b, nir_channel(b, intr->src[0].ssa, 1));
+   nir_def *base = nir_load_preamble(b, 1, 64, nir_intrinsic_desc_set(handle));
+   nir_def *offset = nir_u2u64(b, handle->src[0].ssa);
 
    nir_def_rewrite_uses(&intr->def, nir_iadd(b, base, offset));
    return true;
@@ -3653,15 +3700,15 @@ agx_compile_function_nir(nir_shader *nir, nir_function_impl *impl,
    else
       out->nr_gprs = nr_gprs;
 
-   /* Don't dump statistics for preambles, since they're not worth optimizing */
-   if (!impl->function->is_preamble) {
-      agx_calc_stats(ctx, binary->size, &ctx->out->stats);
-
-      if (agx_should_dump(nir, AGX_DBG_SHADERDB)) {
-         agx2_stats_fprintf(stderr,
-                            _mesa_shader_stage_to_abbrev(nir->info.stage),
-                            &ctx->out->stats);
+   if (impl->function->is_preamble) {
+      uint32_t instrs = 0;
+      agx_foreach_instr_global(ctx, I) {
+         instrs++;
       }
+
+      ctx->out->stats.preamble_inst = instrs;
+   } else {
+      agx_calc_stats(ctx, binary->size, &ctx->out->stats);
    }
 
    /*
@@ -3773,26 +3820,16 @@ agx_preprocess_nir(nir_shader *nir)
    /* Clean up deref gunk after lowering I/O */
    NIR_PASS(_, nir, nir_opt_dce);
 
-   /* Runs before we lower away idiv, to work at all. But runs after lowering
-    * textures, since the cube map array lowering generates division by 6.
-    */
-   NIR_PASS(_, nir, nir_opt_idiv_const, 16);
-
-   nir_lower_idiv_options idiv_options = {
-      .allow_fp16 = true,
-   };
-
-   NIR_PASS(_, nir, nir_lower_idiv, &idiv_options);
+   NIR_PASS(_, nir, nir_lower_alu_to_scalar, NULL, NULL);
    NIR_PASS(_, nir, nir_lower_frexp);
    NIR_PASS(_, nir, nir_lower_alu);
-   NIR_PASS(_, nir, nir_lower_alu_to_scalar, NULL, NULL);
    NIR_PASS(_, nir, nir_lower_load_const_to_scalar);
    NIR_PASS(_, nir, nir_lower_flrp, 16 | 32 | 64, false);
    NIR_PASS(_, nir, agx_lower_sincos);
    NIR_PASS(_, nir, nir_shader_intrinsics_pass, agx_lower_front_face,
             nir_metadata_control_flow, NULL);
    NIR_PASS(_, nir, agx_nir_lower_subgroups);
-   NIR_PASS(_, nir, nir_lower_phis_to_scalar, true);
+   NIR_PASS(_, nir, nir_lower_all_phis_to_scalar);
    NIR_PASS(_, nir, nir_shader_alu_pass, agx_nir_lower_fdiv,
             nir_metadata_control_flow, NULL);
 
@@ -3802,6 +3839,16 @@ agx_preprocess_nir(nir_shader *nir)
     */
    agx_optimize_loop_nir(nir);
 
+   /* Lower idiv after an optimization loop so we can constant fold more before
+    * nir_opt_idiv_const.
+    */
+   NIR_PASS(_, nir, nir_opt_idiv_const, 16);
+
+   nir_lower_idiv_options idiv_options = {
+      .allow_fp16 = true,
+   };
+
+   NIR_PASS(_, nir, nir_lower_idiv, &idiv_options);
    NIR_PASS(_, nir, nir_opt_deref);
    NIR_PASS(_, nir, nir_lower_vars_to_ssa);
 
@@ -3886,8 +3933,12 @@ agx_compile_shader_nir(nir_shader *nir, struct agx_shader_key *key,
             nir_metadata_control_flow, NULL);
 
    info->push_count = key->reserved_preamble;
-   agx_optimize_nir(nir, key->dev.soft_fault,
-                    key->secondary ? NULL : &info->push_count);
+   agx_optimize_nir(
+      nir, key->dev.soft_fault, key->secondary ? NULL : &info->push_count,
+      (key->secondary || !key->promote_textures) ? NULL
+                                                 : &info->texture_state_count,
+      (key->secondary || !key->promote_textures) ? NULL
+                                                 : &info->sampler_state_count);
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       info->varyings.fs.nr_cf = key->fs.cf_base;
@@ -3912,6 +3963,11 @@ agx_compile_shader_nir(nir_shader *nir, struct agx_shader_key *key,
       } else {
          unreachable("General functions not yet supported");
       }
+   }
+
+   if (agx_should_dump(nir, AGX_DBG_SHADERDB)) {
+      agx2_stats_fprintf(stderr, _mesa_shader_stage_to_abbrev(nir->info.stage),
+                         &out->info.stats);
    }
 
    info->stage = nir->info.stage;

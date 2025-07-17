@@ -7,14 +7,17 @@
  */
 
 #include "fd2_resource.h"
+#include "freedreno_screen.h"
 
 uint32_t
-fd2_setup_slices(struct fd_resource *rsc)
+fd2_layout_resource(struct fd_resource *rsc, enum fd_layout_type type)
 {
    struct pipe_resource *prsc = &rsc->b.b;
    enum pipe_format format = prsc->format;
    uint32_t height0 = util_format_get_nblocksy(format, prsc->height0);
    uint32_t level, size = 0;
+
+   fd_resource_layout_init(prsc);
 
    /* 32 pixel alignment */
    fdl_set_pitchalign(&rsc->layout, fdl_cpp_shift(&rsc->layout) + 5);

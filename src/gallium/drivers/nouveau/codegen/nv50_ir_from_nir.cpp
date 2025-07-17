@@ -3443,7 +3443,7 @@ Converter::run()
 
    NIR_PASS(_, nir, nir_lower_load_const_to_scalar);
    NIR_PASS(_, nir, nir_lower_alu_to_scalar, NULL, NULL);
-   NIR_PASS(_, nir, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, nir, nir_lower_phis_to_scalar, NULL, NULL);
 
    NIR_PASS(_, nir, nir_lower_frexp);
 
@@ -3614,7 +3614,6 @@ nvir_nir_shader_compiler_options(int chipset, uint8_t shader_type)
    op.lower_extract_word = (chipset < NVISA_GM107_CHIPSET);
    op.lower_insert_byte = true;
    op.lower_insert_word = true;
-   op.lower_all_io_to_temps = false;
    op.vertex_id_zero_based = false;
    op.lower_base_vertex = false;
    op.lower_helper_invocation = false;

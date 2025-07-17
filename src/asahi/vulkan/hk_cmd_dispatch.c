@@ -75,8 +75,9 @@ hk_dispatch_with_usc(struct hk_device *dev, struct hk_cs *cs,
 {
    struct agx_cdm_launch_word_0_packed launch;
    agx_pack(&launch, CDM_LAUNCH_WORD_0, cfg) {
-      cfg.texture_state_register_count = 0;
-      cfg.sampler_state_register_count = 1;
+      cfg.texture_state_register_count = info->texture_state_count;
+      cfg.sampler_state_register_count =
+         agx_translate_sampler_state_count(info->sampler_state_count, false);
       cfg.uniform_register_count = info->push_count;
       cfg.preshader_register_count = info->nr_preamble_gprs;
    }
@@ -102,7 +103,7 @@ dispatch(struct hk_cmd_buffer *cmd, struct agx_grid grid)
    uint64_t stat = hk_pipeline_stat_addr(
       cmd, VK_QUERY_PIPELINE_STATISTIC_COMPUTE_SHADER_INVOCATIONS_BIT);
 
-   if (stat) {
+   if (hk_stat_enabled(stat)) {
       perf_debug(cmd, "CS invocation statistic");
       uint64_t grid = cmd->state.cs.descriptors.root.cs.group_count_addr;
 

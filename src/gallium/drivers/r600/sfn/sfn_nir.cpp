@@ -69,53 +69,6 @@ AssemblyFromShader::lower(const Shader& ir)
 }
 
 static void
-r600_nir_lower_scratch_address_impl(nir_builder *b, nir_intrinsic_instr *instr)
-{
-   b->cursor = nir_before_instr(&instr->instr);
-
-   int address_index = 0;
-   int align;
-
-   if (instr->intrinsic == nir_intrinsic_store_scratch) {
-      align = instr->src[0].ssa->num_components;
-      address_index = 1;
-   } else {
-      align = instr->def.num_components;
-   }
-
-   nir_def *address = instr->src[address_index].ssa;
-   nir_def *new_address = nir_ishr_imm(b, address, 4 * align);
-
-   nir_src_rewrite(&instr->src[address_index], new_address);
-}
-
-bool
-r600_lower_scratch_addresses(nir_shader *shader)
-{
-   bool progress = false;
-   nir_foreach_function_impl(impl, shader)
-   {
-      nir_builder build = nir_builder_create(impl);
-
-      nir_foreach_block(block, impl)
-      {
-         nir_foreach_instr(instr, block)
-         {
-            if (instr->type != nir_instr_type_intrinsic)
-               continue;
-            nir_intrinsic_instr *op = nir_instr_as_intrinsic(instr);
-            if (op->intrinsic != nir_intrinsic_load_scratch &&
-                op->intrinsic != nir_intrinsic_store_scratch)
-               continue;
-            r600_nir_lower_scratch_address_impl(&build, op);
-            progress = true;
-         }
-      }
-   }
-   return progress;
-}
-
-static void
 insert_uniform_sorted(struct exec_list *var_list, nir_variable *new_var)
 {
    nir_foreach_variable_in_list(var, var_list)
@@ -447,7 +400,6 @@ r600_nir_lower_atomics(nir_shader *shader)
                                      nir_metadata_control_flow, NULL);
 }
 using r600::r600_lower_fs_out_to_vector;
-using r600::r600_lower_scratch_addresses;
 using r600::r600_lower_ubo_to_align16;
 
 int
@@ -457,19 +409,12 @@ r600_glsl_type_size(const struct glsl_type *type, bool is_bindless)
 }
 
 void
-r600_get_natural_size_align_bytes(const struct glsl_type *type,
-                                  unsigned *size,
-                                  unsigned *align)
+r600_get_scratch_size_align(const struct glsl_type *type,
+                            unsigned *size,
+                            unsigned *align)
 {
-   if (type->base_type != GLSL_TYPE_ARRAY) {
-      *align = 1;
-      *size = 1;
-   } else {
-      unsigned elem_size, elem_align;
-      glsl_get_natural_size_align_bytes(type->fields.array, &elem_size, &elem_align);
-      *align = 1;
-      *size = type->length;
-   }
+   *size = glsl_count_vec4_slots(type, false, false);
+   *align = 1;
 }
 
 static bool
@@ -853,6 +798,11 @@ r600_finalize_nir_common(nir_shader *nir, enum amd_gfx_level gfx_level)
 
    if (nir->info.stage == MESA_SHADER_GEOMETRY) {
       NIR_PASS(_, nir, r600_gs_load_deref_io_to_indirect_per_vertex_input);
+      NIR_PASS(_,
+               nir,
+               nir_lower_indirect_derefs,
+               nir_var_shader_in,
+               R600_GS_VERTEX_INDIRECT_TOTAL);
    }
 
    NIR_PASS(_, nir, nir_lower_flrp, nir_lower_flrp_mask, false);
@@ -861,7 +811,7 @@ r600_finalize_nir_common(nir_shader *nir, enum amd_gfx_level gfx_level)
    NIR_PASS(_, nir, nir_lower_idiv, &idiv_options);
 
    NIR_PASS(_, nir, r600_nir_lower_trigen, gfx_level);
-   NIR_PASS(_, nir, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, nir, nir_lower_phis_to_scalar, NULL, NULL);
    NIR_PASS(_, nir, nir_lower_undef_to_zero);
 
    struct nir_lower_tex_options lower_tex_options = {0};
@@ -957,11 +907,11 @@ r600_lower_and_optimize_nir(nir_shader *sh,
    NIR_PASS(_, sh, nir_io_add_const_offset_to_base, io_modes);
 
    NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-   NIR_PASS(_, sh, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, sh, nir_lower_phis_to_scalar, NULL, NULL);
    if (lower_64bit)
       NIR_PASS(_, sh, r600::r600_nir_split_64bit_io);
    NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-   NIR_PASS(_, sh, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, sh, nir_lower_phis_to_scalar, NULL, NULL);
    NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
    NIR_PASS(_, sh, nir_copy_prop);
    NIR_PASS(_, sh, nir_opt_dce);
@@ -989,7 +939,7 @@ r600_lower_and_optimize_nir(nir_shader *sh,
    }
 
    NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
-   NIR_PASS(_, sh, nir_lower_phis_to_scalar, false);
+   NIR_PASS(_, sh, nir_lower_phis_to_scalar, NULL, NULL);
    NIR_PASS(_, sh, nir_lower_alu_to_scalar, r600_lower_to_scalar_instr_filter, NULL);
    NIR_PASS(_, sh, r600_nir_lower_int_tg4);
    NIR_PASS(_, sh, r600::r600_nir_lower_tex_to_backend, gfx_level);
@@ -1025,8 +975,8 @@ r600_lower_and_optimize_nir(nir_shader *sh,
             nir_lower_vars_to_scratch,
             nir_var_function_temp,
             40,
-            r600_get_natural_size_align_bytes,
-            r600_get_natural_size_align_bytes);
+            r600_get_scratch_size_align,
+            r600_get_scratch_size_align);
 
    while (optimize_once(sh))
       ;

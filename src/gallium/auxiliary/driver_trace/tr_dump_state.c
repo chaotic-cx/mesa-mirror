@@ -941,6 +941,17 @@ void trace_dump_draw_start_count(const struct pipe_draw_start_count_bias *state)
    trace_dump_struct_begin("pipe_draw_start_count_bias");
    trace_dump_member(uint, state, start);
    trace_dump_member(uint, state, count);
+   trace_dump_struct_end();
+}
+
+void trace_dump_draw_start_count_indexed(const struct pipe_draw_start_count_bias *state)
+{
+   if (!trace_dumping_enabled_locked())
+      return;
+
+   trace_dump_struct_begin("pipe_draw_start_count_bias");
+   trace_dump_member(uint, state, start);
+   trace_dump_member(uint, state, count);
    trace_dump_member(int,  state, index_bias);
    trace_dump_struct_end();
 }
@@ -1242,7 +1253,9 @@ void trace_dump_pipe_picture_desc(const struct pipe_picture_desc *picture)
    trace_dump_member(format, picture, input_format);
    trace_dump_member(bool, picture, input_full_range);
    trace_dump_member(format, picture, output_format);
-   trace_dump_member(ptr, picture, fence);
+   trace_dump_member(ptr, picture, in_fence);
+   trace_dump_member(uint, picture, in_fence_value);
+   trace_dump_member(ptr, picture, out_fence);
    trace_dump_struct_end();
 }
 
@@ -1278,7 +1291,6 @@ void trace_dump_pipe_vpp_desc(const struct pipe_vpp_desc *process_properties)
    trace_dump_member_struct(u_rect, process_properties, dst_region);
    trace_dump_member_enum(pipe_video_vpp_orientation, process_properties, orientation);
    trace_dump_member_struct(pipe_vpp_blend, process_properties, blend);
-   trace_dump_member(ptr, process_properties, src_surface_fence);
    trace_dump_struct_end();
 }
 

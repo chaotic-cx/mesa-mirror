@@ -1413,7 +1413,7 @@ iris_init_render_context(struct iris_batch *batch)
 #if GFX_VER >= 30
    iris_emit_cmd(batch, GENX(STATE_COMPUTE_MODE), cm) {
       cm.EnableVariableRegisterSizeAllocationMask = 1;
-      cm.EnableVariableRegisterSizeAllocation = true;
+      cm.EnableVariableRegisterSizeAllocation = !INTEL_DEBUG(DEBUG_NO_VRT);
    }
 #endif
 
@@ -1549,7 +1549,7 @@ iris_init_compute_context(struct iris_batch *batch)
    iris_emit_cmd(batch, GENX(STATE_COMPUTE_MODE), cm) {
 #if GFX_VER >= 30
       cm.EnableVariableRegisterSizeAllocationMask = 1;
-      cm.EnableVariableRegisterSizeAllocation = true;
+      cm.EnableVariableRegisterSizeAllocation = !INTEL_DEBUG(DEBUG_NO_VRT);
 #endif
 #if GFX_VER >= 20
       cm.AsyncComputeThreadLimit = pixel_async_compute_thread_limit;
@@ -4692,12 +4692,13 @@ iris_compute_first_urb_slot_required(struct iris_compiled_shader *fs_shader,
                                      const struct intel_vue_map *prev_stage_vue_map)
 {
 #if GFX_VER >= 9
-   uint32_t read_offset, read_length, num_varyings, primid_offset;
+   uint32_t read_offset, read_length, num_varyings, primid_offset, flat_inputs;
    brw_compute_sbe_per_vertex_urb_read(prev_stage_vue_map,
                                        false /* mesh*/,
+                                       false /* per_primitive_remapping */,
                                        brw_wm_prog_data(fs_shader->brw_prog_data),
                                        &read_offset, &read_length, &num_varyings,
-                                       &primid_offset);
+                                       &primid_offset, &flat_inputs);
    return 2 * read_offset;
 #else
    const struct iris_fs_data *fs_data = iris_fs_data(fs_shader);
@@ -6247,19 +6248,14 @@ iris_viewport_zmin_zmax(const struct pipe_viewport_state *vp, bool halfz,
 static inline void
 batch_emit_fast_color_dummy_blit(struct iris_batch *batch)
 {
-#if GFX_VERx10 >= 125
+#if INTEL_WA_16018063123_GFX_VER
    iris_emit_cmd(batch, GENX(XY_FAST_COLOR_BLT), blt) {
       uint32_t mocs = iris_mocs(batch->screen->workaround_address.bo,
                                 &batch->screen->isl_dev,
                                 ISL_SURF_USAGE_BLITTER_DST_BIT);
 
       blt.DestinationBaseAddress = batch->screen->workaround_address;
-#if GFX_VERx10 >= 200
-      blt.DestinationMOCSindex = MOCS_GET_INDEX(mocs);
-      blt.DestinationEncryptEn = MOCS_GET_ENCRYPT_EN(mocs);
-#else
       blt.DestinationMOCS = mocs;
-#endif
       blt.DestinationPitch = 63;
       blt.DestinationX2 = 1;
       blt.DestinationY2 = 4;
@@ -6269,6 +6265,8 @@ batch_emit_fast_color_dummy_blit(struct iris_batch *batch)
       blt.DestinationSurfaceQPitch = 4;
       blt.DestinationTiling = XY_TILE_LINEAR;
    }
+#else
+   unreachable("Not implemented");
 #endif
 }
 
@@ -6326,7 +6324,7 @@ invalidate_aux_map_state_per_engine(struct iris_batch *batch)
    case IRIS_BATCH_BLITTER: {
 #if GFX_VERx10 >= 125
       /* Wa_16018063123 - emit fast color dummy blit before MI_FLUSH_DW. */
-      if (intel_needs_workaround(batch->screen->devinfo, 16018063123))
+      if (INTEL_WA_16018063123_GFX_VER)
          batch_emit_fast_color_dummy_blit(batch);
 
       /*
@@ -9100,7 +9098,7 @@ static void iris_emit_execute_indirect_dispatch(struct iris_context *ice,
       ind.PredicateEnable            =
          ice->state.predicate == IRIS_PREDICATE_STATE_USE_BIT;
       ind.MaxCount                   = 1;
-      ind.COMPUTE_WALKER_BODY        = body;
+      ind.body                       = body;
       ind.ArgumentBufferStartAddress = indirect_bo;
       ind.MOCS                       =
          iris_mocs(indirect_bo.bo, &screen->isl_dev, 0);
@@ -9182,6 +9180,8 @@ iris_upload_compute_walker(struct iris_context *ice,
    idd.KernelStartPointer =
       KSP(shader) + iris_cs_data_prog_offset(cs_data, dispatch.simd_size);
    idd.NumberofThreadsinGPGPUThreadGroup = dispatch.threads;
+   idd.ThreadGroupDispatchSize =
+      intel_compute_threads_group_dispatch_size(dispatch.threads);
    idd.SharedLocalMemorySize =
       intel_compute_slm_encode_size(GFX_VER, total_shared);
    idd.PreferredSLMAllocationSize =
@@ -9232,6 +9232,11 @@ iris_upload_compute_walker(struct iris_context *ice,
          .WalkOrder       = cs_data->walk_order,
          .TileLayout = cs_data->walk_order == INTEL_WALK_ORDER_YXZ ?
                        TileY32bpe : Linear,
+#endif
+#if GFX_VER >= 30
+         /* HSD 14016252163 */
+         .DispatchWalkOrder = cs_data->uses_sampler ? MortonWalk : LinearWalk,
+         .ThreadGroupBatchSize = cs_data->uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
 #endif
       };
 
@@ -9312,6 +9317,7 @@ iris_upload_gpgpu_walker(struct iris_context *ice,
 
    /* TODO: Combine subgroup-id with cbuf0 so we can push regular uniforms */
    if ((stage_dirty & IRIS_STAGE_DIRTY_CS) ||
+       (GFX_VER == 12 && !batch->contains_draw) ||
        cs_data->local_size[0] == 0 /* Variable local group size */) {
       uint32_t curbe_data_offset = 0;
       assert(cs_data->push.cross_thread.dwords == 0 &&
@@ -9849,7 +9855,7 @@ iris_emit_raw_pipe_control(struct iris_batch *batch,
       assert(!(flags & PIPE_CONTROL_WRITE_DEPTH_COUNT));
 
       /* Wa_16018063123 - emit fast color dummy blit before MI_FLUSH_DW. */
-      if (intel_needs_workaround(batch->screen->devinfo, 16018063123))
+      if (INTEL_WA_16018063123_GFX_VER)
          batch_emit_fast_color_dummy_blit(batch);
 
       /* The blitter doesn't actually use PIPE_CONTROL; rather it uses the

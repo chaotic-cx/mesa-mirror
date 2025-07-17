@@ -964,6 +964,8 @@ nvc0_blit_set_dst(struct nvc0_blitctx *ctx,
    struct pipe_context *pipe = &nvc0->base.pipe;
    struct pipe_surface templ;
 
+   /* We are going to reset this, so no point in refcounting */
+   templ.texture = res;
    if (util_format_is_depth_or_stencil(format))
       templ.format = nv50_blit_zeta_to_colour_format(format);
    else
@@ -1163,7 +1165,7 @@ nvc0_blitctx_post_blit(struct nvc0_blitctx *blit)
    struct nvc0_context *nvc0 = blit->nvc0;
    int s;
 
-   pipe_surface_reference(&nvc0->fb_cbufs[0], NULL);
+   nv50_surface_destroy(&nvc0->base.pipe, nvc0->fb_cbufs[0]);
 
    nvc0->framebuffer.width = blit->saved.fb.width;
    nvc0->framebuffer.height = blit->saved.fb.height;

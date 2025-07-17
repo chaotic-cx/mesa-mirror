@@ -6,6 +6,10 @@ use crate::legalize::{
     src_is_reg, swap_srcs_if_not_reg, LegalizeBuildHelpers, LegalizeBuilder,
     PadValue,
 };
+use crate::sm30_instr_latencies::{
+    encode_kepler_shader, instr_exec_latency, instr_latency,
+    KeplerInstructionEncoder,
+};
 use bitview::{
     BitMutView, BitMutViewable, BitView, BitViewable, SetBit, SetField,
 };
@@ -60,34 +64,17 @@ impl ShaderModel for ShaderModel32 {
     }
 
     fn exec_latency(&self, op: &Op) -> u32 {
-        // TODO
-        match op {
-            Op::CCtl(_)
-            | Op::MemBar(_)
-            | Op::Bra(_)
-            | Op::SSy(_)
-            | Op::Sync(_)
-            | Op::Brk(_)
-            | Op::PBk(_)
-            | Op::Cont(_)
-            | Op::PCnt(_)
-            | Op::Exit(_)
-            | Op::Bar(_)
-            | Op::Kill(_)
-            | Op::OutFinal(_) => 13,
-            _ => 1,
-        }
+        instr_exec_latency(self.sm, op)
     }
 
     fn raw_latency(
         &self,
-        _write: &Op,
-        _dst_idx: usize,
+        write: &Op,
+        dst_idx: usize,
         _read: &Op,
         _src_idx: usize,
     ) -> u32 {
-        // TODO
-        13
+        instr_latency(self.sm, write, dst_idx)
     }
 
     fn war_latency(
@@ -97,7 +84,6 @@ impl ShaderModel for ShaderModel32 {
         _write: &Op,
         _dst_idx: usize,
     ) -> u32 {
-        // TODO
         // We assume the source gets read in the first 4 cycles.  We don't know
         // how quickly the write will happen.  This is all a guess.
         4
@@ -105,27 +91,27 @@ impl ShaderModel for ShaderModel32 {
 
     fn waw_latency(
         &self,
-        _a: &Op,
-        _a_dst_idx: usize,
+        a: &Op,
+        a_dst_idx: usize,
         _a_has_pred: bool,
         _b: &Op,
         _b_dst_idx: usize,
     ) -> u32 {
         // We know our latencies are wrong so assume the wrote could happen
         // anywhere between 0 and instr_latency(a) cycles
-
-        // TODO
-        13
+        instr_latency(self.sm, a, a_dst_idx)
     }
 
     fn paw_latency(&self, _write: &Op, _dst_idx: usize) -> u32 {
-        // TODO
         13
     }
 
-    fn worst_latency(&self, _write: &Op, _dst_idx: usize) -> u32 {
-        // TODO
-        15
+    fn worst_latency(&self, write: &Op, dst_idx: usize) -> u32 {
+        instr_latency(self.sm, write, dst_idx)
+    }
+
+    fn max_instr_delay(&self) -> u8 {
+        32
     }
 
     fn legalize_op(&self, b: &mut LegalizeBuilder, op: &mut Op) {
@@ -157,7 +143,6 @@ struct SM32Encoder<'a> {
     ip: usize,
     labels: &'a FxHashMap<Label, usize>,
     inst: [u32; 2],
-    sched: u8,
 }
 
 impl BitViewable for SM32Encoder<'_> {
@@ -318,23 +303,6 @@ impl SM32Encoder<'_> {
                 FRndMode::Zero => 3_u8,
             },
         );
-    }
-
-    fn set_instr_dependency(&mut self, _deps: &InstrDeps) {
-        // TODO: schedulng
-        //let mut sched = BitMutView::new(&mut self.sched);
-        //sched.set_field(0..5, deps.delay);
-        self.sched = 0x00;
-        // 0x00: wait for 32 cycles
-        // 0x04: dual-issue with next instruction
-        // 0xc2 if TEXBAR
-        // 0x40 if EXPORT
-        // 0x20 otherwise(?)
-
-        // 0x80: global memory bit
-        // 0x40: EXPORT(?)
-        // 0x20: suspend for N cycles (N = bitmask 0x1f)
-        // 0x10: shared memory?
     }
 }
 
@@ -896,7 +864,7 @@ impl SM32Op for OpFSwz {
             },
         );
 
-        e.set_bit(41, false); // .NDV
+        e.set_tex_ndv(41, self.deriv_mode);
         e.set_bit(47, self.ftz); // .FTZ
         e.set_bit(50, false); // .CC
     }
@@ -1939,6 +1907,15 @@ impl SM32Encoder<'_> {
             },
         );
     }
+
+    fn set_tex_ndv(&mut self, bit: usize, deriv_mode: TexDerivMode) {
+        let ndv = match deriv_mode {
+            TexDerivMode::Auto => false,
+            TexDerivMode::NonDivergent => true,
+            _ => panic!("{deriv_mode} is not supported"),
+        };
+        self.set_bit(bit, ndv);
+    }
 }
 
 /// Helper to legalize texture instructions
@@ -1986,7 +1963,7 @@ impl SM32Op for OpTex {
 
         e.set_field(34..38, self.channel_mask.to_bits());
         e.set_tex_dim(38..41, self.dim);
-        e.set_bit(41, false); // ToDo: NDV
+        e.set_tex_ndv(41, self.deriv_mode);
         e.set_bit(42, self.z_cmpr);
         e.set_bit(43, self.offset_mode == TexOffsetMode::AddOffI);
         e.set_tex_lod_mode(44..47, self.lod_mode);
@@ -2113,6 +2090,7 @@ impl SM32Op for OpTmml {
 
         e.set_field(34..38, self.channel_mask.to_bits());
         e.set_tex_dim(38..41, self.dim);
+        e.set_tex_ndv(41, self.deriv_mode);
     }
 }
 
@@ -2149,7 +2127,6 @@ impl SM32Op for OpTxd {
 
         e.set_field(34..38, self.channel_mask.to_bits());
         e.set_tex_dim(38..41, self.dim);
-        e.set_bit(41, false); // ToDo: NDV
         e.set_bit(54, self.offset_mode == TexOffsetMode::AddOffI);
     }
 }
@@ -3396,80 +3373,36 @@ fn as_sm32_op_mut(op: &mut Op) -> &mut dyn SM32Op {
     as_sm50_op_match!(op)
 }
 
-fn encode_instr(
-    instr: Option<&Box<Instr>>,
-    sm: &ShaderModel32,
-    labels: &FxHashMap<Label, usize>,
-    encoded: &mut Vec<u32>,
-) -> u8 {
-    let mut e = SM32Encoder {
-        sm: sm,
-        ip: encoded.len() * 4,
-        labels,
-        inst: [0_u32; 2],
-        sched: 0,
-    };
-
-    if let Some(instr) = instr {
+impl KeplerInstructionEncoder for ShaderModel32 {
+    fn encode_instr(
+        &self,
+        instr: &Instr,
+        labels: &FxHashMap<Label, usize>,
+        encoded: &mut Vec<u32>,
+    ) {
+        let mut e = SM32Encoder {
+            sm: self,
+            ip: encoded.len() * 4,
+            labels,
+            inst: [0_u32; 2],
+        };
         as_sm32_op(&instr.op).encode(&mut e);
         e.set_pred(&instr.pred);
-        e.set_instr_dependency(&instr.deps);
-    } else {
-        let nop = OpNop { label: None };
-        nop.encode(&mut e);
-        e.set_pred(&true.into());
-        e.set_instr_dependency(&InstrDeps::new());
+        encoded.extend(&e.inst[..]);
     }
 
-    encoded.extend(&e.inst[..]);
+    fn prepare_sched_instr<'a>(
+        &self,
+        sched_instr: &'a mut [u32; 2],
+    ) -> impl BitMutViewable + 'a {
+        let mut bv = BitMutView::new(sched_instr);
+        bv.set_field(0..2, 0b00);
+        bv.set_field(58..64, 0b000010); // 0x08
 
-    e.sched
+        BitMutView::new_subset(sched_instr, 2..58)
+    }
 }
 
 fn encode_sm32_shader(sm: &ShaderModel32, s: &Shader<'_>) -> Vec<u32> {
-    assert!(s.functions.len() == 1);
-    let func = &s.functions[0];
-
-    let mut ip = 0_usize;
-    let mut labels = FxHashMap::default();
-    for b in &func.blocks {
-        // We ensure blocks will have groups of 7 instructions with a
-        // schedule instruction before each groups.  As we should never jump
-        // to a schedule instruction, we account for that here.
-        labels.insert(b.label, ip + 8);
-
-        let block_num_instrs = b.instrs.len().next_multiple_of(7);
-
-        // Every 7 instructions, we have a new schedule instruction so we
-        // need to account for that.
-        ip += (block_num_instrs + (block_num_instrs / 7)) * 8;
-    }
-
-    let mut encoded = Vec::new();
-    for b in &func.blocks {
-        for sched_chunk in b.instrs.chunks(7) {
-            let sched_i = encoded.len();
-            let mut sched_instr = [0u32; 2];
-            encoded.extend(&sched_instr[..]); // Push now, will edit later
-            let mut bv = BitMutView::new(&mut sched_instr);
-            bv.set_field(0..2, 0b00);
-            bv.set_field(58..64, 0b000010); // 0x80
-            let mut bv = bv.subset_mut(2..58);
-
-            for (i, instr) in sched_chunk.iter().enumerate() {
-                let sched =
-                    encode_instr(Some(instr), sm, &labels, &mut encoded);
-
-                bv.set_field(i * 8..(i + 1) * 8, sched);
-            }
-            // Encode remaining ops in chunk as NOPs
-            for _ in sched_chunk.len()..7 {
-                encode_instr(None, sm, &labels, &mut encoded);
-            }
-            encoded[sched_i] = sched_instr[0];
-            encoded[sched_i + 1] = sched_instr[1];
-        }
-    }
-
-    encoded
+    encode_kepler_shader(sm, s)
 }

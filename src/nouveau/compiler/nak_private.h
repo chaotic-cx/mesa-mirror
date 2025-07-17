@@ -132,6 +132,9 @@ enum ENUM_PACKED nak_sv {
 
 bool nak_nir_workgroup_has_one_subgroup(const nir_shader *nir);
 
+nir_def *nak_nir_load_sysval(nir_builder *b, enum nak_sv idx,
+                             enum gl_access_qualifier access);
+
 struct nak_xfb_info
 nak_xfb_from_nir(const struct nak_compiler *nak,
                  const struct nir_xfb_info *nir_xfb);
@@ -287,6 +290,32 @@ struct nak_nir_ipa_flags {
    uint32_t pad:26;
 };
 
+enum nak_cmat_type {
+   NAK_CMAT_TYPE_M8N8K16_INT,
+   NAK_CMAT_TYPE_M16N8K16_INT,
+   NAK_CMAT_TYPE_M16N8K32_INT,
+
+   NAK_CMAT_TYPE_M16N8K8_FLOAT,
+   NAK_CMAT_TYPE_M16N8K16_FLOAT,
+
+   /* Software emulated cmat layouts
+    *
+    * Those aren't supported as a single native *MMA invocation on any hardware,
+    * so in order to support those we execute multiple *MMA instructions with a
+    * register layout defined by us.
+    */
+   NAK_CMAT_TYPE_M16N16K32_INT_SW,
+   NAK_CMAT_TYPE_M16N16K16_FLOAT_SW,
+};
+
+struct nak_nir_cmat_mul_add_flags {
+   enum nak_cmat_type cmat_type:3;
+   enum glsl_base_type a_type:5;
+   enum glsl_base_type b_type:5;
+   bool sat:1;
+   uint32_t pad:18;
+};
+
 bool nak_nir_lower_fs_inputs(nir_shader *nir,
                              const struct nak_compiler *nak,
                              const struct nak_fs_key *fs_key);
@@ -311,6 +340,7 @@ bool nak_nir_mark_lcssa_invariants(nir_shader *nir);
 bool nak_nir_lower_non_uniform_ldcx(nir_shader *nir, const struct nak_compiler *nak);
 bool nak_nir_add_barriers(nir_shader *nir, const struct nak_compiler *nak);
 bool nak_nir_lower_cf(nir_shader *nir);
+bool nak_nir_lower_cmat(nir_shader *shader, const struct nak_compiler *nak);
 
 void nak_optimize_nir(nir_shader *nir, const struct nak_compiler *nak);
 

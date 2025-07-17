@@ -28,11 +28,13 @@
 #include "glxextensions.h"
 
 #include "util/u_debug.h"
+
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
 #include "dri_common.h"
 #endif
 
-#include "loader_x11.h"
+#include "x11_dri3.h"
+#include "x11_display.h"
 #ifdef HAVE_LIBDRM
 #include "loader_dri3_helper.h"
 #endif
@@ -885,13 +887,6 @@ AllocAndFetchScreenConfigs(Display * dpy, struct glx_display * priv, enum glx_dr
             driver_name_is_inferred = false;
          }
       }
-#if defined(HAVE_X11_DRI2)
-      if (psc == NULL && glx_driver & GLX_DRIVER_DRI2 && dri2CheckSupport(dpy)) {
-	      psc = dri2CreateScreen(i, priv, driver_name_is_inferred);
-         if (psc)
-            priv->dri2Hash = __glxHashCreate();
-      }
-#endif
 #endif /* GLX_USE_DRM */
 
 #ifdef GLX_USE_WINDOWSGL
@@ -947,6 +942,9 @@ __glXInitialize(Display * dpy)
    struct glx_display *dpyPriv, *d;
    int i, majorVersion = 0;
 
+   if (!x11_xlib_display_is_thread_safe(dpy))
+      return NULL;
+
    _XLockMutex(_Xglobal_lock);
 
    for (dpyPriv = glx_displays; dpyPriv; dpyPriv = dpyPriv->next) {
@@ -997,7 +995,6 @@ __glXInitialize(Display * dpy)
 #if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
    Bool glx_direct = !debug_get_bool_option("LIBGL_ALWAYS_INDIRECT", false);
    Bool glx_accel = !debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false);
-   Bool dri3 = !debug_get_bool_option("LIBGL_DRI3_DISABLE", false);
    Bool kopper = !debug_get_bool_option("LIBGL_KOPPER_DISABLE", false);
 
    if (env && !strcmp(env, "zink"))
@@ -1016,26 +1013,17 @@ __glXInitialize(Display * dpy)
     ** (e.g., those called in AllocAndFetchScreenConfigs).
     */
 #if defined(GLX_USE_DRM)
-   bool dri3_err = false;
-   if (glx_direct && glx_accel && dri3)
+   if (glx_direct && glx_accel)
       dpyPriv->has_multibuffer = x11_dri3_has_multibuffer(XGetXCBConnection(dpy));
    if (glx_direct && glx_accel &&
        (!(glx_driver & GLX_DRIVER_ZINK_YES) || !kopper)) {
-      if (dri3) {
-         /* dri3 is tried as long as this doesn't error; whether modifiers work is not relevant */
-         if (!dri3_err) {
-            glx_driver |= GLX_DRIVER_DRI3;
-            /* nouveau wants to fallback to zink so if we get a screen enable try_zink */
-            if (!debug_get_bool_option("LIBGL_KOPPER_DISABLE", false))
-               glx_driver |= GLX_DRIVER_ZINK_INFER;
-         }
-      }
-#if defined(HAVE_X11_DRI2)
-      if (!debug_get_bool_option("LIBGL_DRI2_DISABLE", false))
-         glx_driver |= GLX_DRIVER_DRI2;
-#endif
+      /* dri3 is tried as long as this doesn't error; whether modifiers work is not relevant */
+      glx_driver |= GLX_DRIVER_DRI3;
+      /* nouveau wants to fallback to zink so if we get a screen enable try_zink */
+      if (!debug_get_bool_option("LIBGL_KOPPER_DISABLE", false))
+         glx_driver |= GLX_DRIVER_ZINK_INFER;
 #if defined(HAVE_ZINK)
-      if (!(glx_driver & (GLX_DRIVER_DRI2 | GLX_DRIVER_DRI3)))
+      if (!(glx_driver & GLX_DRIVER_DRI3))
          if (kopper && !getenv("GALLIUM_DRIVER"))
             glx_driver |= GLX_DRIVER_ZINK_INFER;
 #endif /* HAVE_ZINK */
@@ -1049,8 +1037,7 @@ __glXInitialize(Display * dpy)
       if (glx_driver & GLX_DRIVER_ZINK_YES) {
          /* only print error if zink was explicitly requested */
          CriticalErrorMessageF("DRI3 not available\n");
-         free(dpyPriv);
-         return NULL;
+         goto init_fail;
       }
       /* if no dri3 and not using dri2, disable zink */
       glx_driver &= ~GLX_DRIVER_ZINK_INFER;
@@ -1068,10 +1055,8 @@ __glXInitialize(Display * dpy)
 #endif
 
 #if defined(GLX_USE_APPLEGL) && !defined(GLX_USE_APPLE)
-   if (!applegl_create_display(dpyPriv)) {
-      free(dpyPriv);
-      return NULL;
-   }
+   if (!applegl_create_display(dpyPriv))
+      goto init_fail;
 #endif
 
    if (!AllocAndFetchScreenConfigs(dpy, dpyPriv, glx_driver, !env)) {
@@ -1081,10 +1066,8 @@ __glXInitialize(Display * dpy)
          fail = !AllocAndFetchScreenConfigs(dpy, dpyPriv, GLX_DRIVER_SW, true);
       }
 #endif
-      if (fail) {
-         free(dpyPriv);
-         return NULL;
-      }
+      if (fail)
+         goto init_fail;
    }
 
    glxSendClientInfo(dpyPriv, -1);
@@ -1107,6 +1090,14 @@ __glXInitialize(Display * dpy)
    _XUnlockMutex(_Xglobal_lock);
 
    return dpyPriv;
+init_fail:
+#if defined(GLX_DIRECT_RENDERING) && (!defined(GLX_USE_APPLEGL) || defined(GLX_USE_APPLE))
+   _mesa_set_destroy(dpyPriv->zombieGLXDrawable, free_zombie_glx_drawable);
+   __glxHashDestroy(dpyPriv->drawHash);
+#endif
+   __glxHashDestroy(dpyPriv->glXDrawHash);
+   free(dpyPriv);
+   return NULL;
 }
 
 /*

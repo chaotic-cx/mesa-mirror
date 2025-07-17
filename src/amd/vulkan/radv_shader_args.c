@@ -248,7 +248,7 @@ declare_ms_input_vgprs(const struct radv_device *device, struct radv_shader_args
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   if (pdev->mesh_fast_launch_2) {
+   if (pdev->info.mesh_fast_launch_2) {
       ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.local_invocation_ids_packed);
    } else {
       ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.vertex_id);
@@ -285,6 +285,8 @@ declare_ps_input_vgprs(const struct radv_shader_info *info, struct radv_shader_a
 static void
 declare_ngg_sgprs(const struct radv_shader_info *info, struct radv_shader_args *args, bool ngg_needs_state_sgpr)
 {
+   add_ud_arg(args, 1, AC_ARG_INT, &args->ngg_lds_layout, AC_UD_NGG_LDS_LAYOUT);
+
    if (ngg_needs_state_sgpr)
       add_ud_arg(args, 1, AC_ARG_INT, &args->ngg_state, AC_UD_NGG_STATE);
 
@@ -794,7 +796,7 @@ declare_shader_args(const struct radv_device *device, const struct radv_graphics
                   add_ud_arg(args, 1, AC_ARG_INT, &args->ngg_query_buf_va, AC_UD_NGG_QUERY_BUF_VA);
             }
 
-            if (previous_stage != MESA_SHADER_MESH || !pdev->mesh_fast_launch_2) {
+            if (previous_stage != MESA_SHADER_MESH || !pdev->info.mesh_fast_launch_2) {
                if (gfx_level >= GFX12) {
                   ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.gs_vtx_offset[0]);
                   ac_add_arg(&args->ac, AC_ARG_VGPR, 1, AC_ARG_INT, &args->ac.gs_prim_id);

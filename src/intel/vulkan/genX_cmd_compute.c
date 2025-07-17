@@ -367,6 +367,7 @@ get_interface_descriptor_data(struct anv_cmd_buffer *cmd_buffer,
       .BindingTableEntryCount = devinfo->verx10 == 125 ?
          0 : MIN2(shader->bind_map.surface_count, 30),
       .NumberofThreadsinGPGPUThreadGroup = dispatch->threads,
+      .ThreadGroupDispatchSize = intel_compute_threads_group_dispatch_size(dispatch->threads),
       .SharedLocalMemorySize = intel_compute_slm_encode_size(GFX_VER, prog_data->base.total_shared),
       .PreferredSLMAllocationSize =
          intel_compute_preferred_slm_calc_encode_size(devinfo,
@@ -498,7 +499,7 @@ emit_indirect_compute_walker(struct anv_cmd_buffer *cmd_buffer,
          GENX(EXECUTE_INDIRECT_DISPATCH),
          .PredicateEnable            = predicate,
          .MaxCount                   = 1,
-         .COMPUTE_WALKER_BODY        = body,
+         .body                       = body,
          .ArgumentBufferStartAddress = indirect_addr,
          .MOCS                       = anv_mocs(cmd_buffer->device,
                                                 indirect_addr.bo, 0),
@@ -563,7 +564,12 @@ emit_compute_walker(struct anv_cmd_buffer *cmd_buffer,
          [ANV_INLINE_PARAM_NUM_WORKGROUPS_OFFSET / 4 + 0] = num_workgroup_data[0],
          [ANV_INLINE_PARAM_NUM_WORKGROUPS_OFFSET / 4 + 1] = num_workgroup_data[1],
          [ANV_INLINE_PARAM_NUM_WORKGROUPS_OFFSET / 4 + 2] = num_workgroup_data[2],
-      }
+      },
+#if GFX_VER >= 30
+         /* HSD 14016252163 */
+      .DispatchWalkOrder = prog_data->uses_sampler ? MortonWalk : LinearWalk,
+      .ThreadGroupBatchSize = prog_data->uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
+#endif
    };
 
    cmd_buffer->state.last_compute_walker =
@@ -698,10 +704,14 @@ void genX(CmdDispatchBase)(
    if (cmd_buffer->state.conditional_render_enabled)
       genX(cmd_emit_conditional_render_predicate)(cmd_buffer);
 
+   genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, true);
+
    emit_cs_walker(cmd_buffer, pipeline, prog_data, dispatch,
                   ANV_NULL_ADDRESS /* no indirect data */,
                   groupCountX, groupCountY, groupCountZ,
                   false);
+
+   genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, false);
 
    trace_intel_end_compute(&cmd_buffer->trace,
                            groupCountX, groupCountY, groupCountZ,
@@ -861,8 +871,12 @@ genX(cmd_buffer_dispatch_indirect)(struct anv_cmd_buffer *cmd_buffer,
    if (cmd_buffer->state.conditional_render_enabled)
       genX(cmd_emit_conditional_render_predicate)(cmd_buffer);
 
+   genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, true);
+
    emit_cs_walker(cmd_buffer, pipeline, prog_data, dispatch, indirect_addr, 0,
                   0, 0, is_unaligned_size_x);
+
+   genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, false);
 
    trace_intel_end_compute_indirect(&cmd_buffer->trace,
                                     anv_address_utrace(indirect_addr),
@@ -1366,6 +1380,11 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
       .ExecutionMask                  = 0xff,
       .EmitInlineParameter            = true,
       .PostSync.MOCS                  = anv_mocs(pipeline->base.device, NULL, 0),
+#if GFX_VER >= 30
+         /* HSD 14016252163 */
+      .DispatchWalkOrder = cs_prog_data->uses_sampler ? MortonWalk : LinearWalk,
+      .ThreadGroupBatchSize = cs_prog_data->uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
+#endif
 
       .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
          .KernelStartPointer = device->rt_trampoline->kernel.offset,
@@ -1374,6 +1393,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
          .SamplerCount = 0,
          .BindingTablePointer = surfaces->offset,
          .NumberofThreadsinGPGPUThreadGroup = 1,
+         .ThreadGroupDispatchSize =
+            intel_compute_threads_group_dispatch_size(dispatch.threads),
          .BTDMode = true,
 #if INTEL_NEEDS_WA_14017794102 || INTEL_NEEDS_WA_14023061436
          .ThreadPreemption = false,

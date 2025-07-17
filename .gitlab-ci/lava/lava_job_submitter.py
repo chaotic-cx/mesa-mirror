@@ -404,6 +404,7 @@ class LAVAJobSubmitter(PathResolver):
     device_type: str
     farm: str
     job_timeout_min: int  # The job timeout in minutes
+    shell_prompt: str = "lava-shell:"
     dtb_filename: str = None
     dump_yaml: bool = False  # Whether to dump the YAML payload to stdout
     first_stage_init: str = None
@@ -609,7 +610,7 @@ class StructuredLoggerWrapper:
         return context
 
 
-if __name__ == "__main__":
+def main():
     # given that we proxy from DUT -> LAVA dispatcher -> LAVA primary -> us ->
     # GitLab runner -> GitLab primary -> user, safe to say we don't need any
     # more buffering
@@ -617,3 +618,6 @@ if __name__ == "__main__":
     sys.stderr.reconfigure(line_buffering=True)
 
     fire.Fire(LAVAJobSubmitter)
+
+if __name__ == "__main__":
+    main()

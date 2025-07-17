@@ -225,6 +225,17 @@ typedef enum {
 } nir_resource_data_intel;
 
 /**
+ * Register class for registers managed by nir_opt_preamble. General can handle
+ * anything, the others are driver-specific but with common names for nir_print.
+ */
+typedef enum {
+   nir_preamble_class_general,
+   nir_preamble_class_image,
+   nir_preamble_class_sampler,
+   nir_preamble_num_classes,
+} nir_preamble_class;
+
+/**
  * Which components to interpret as signed in cmat_muladd.
  * See 'Cooperative Matrix Operands' in SPV_KHR_cooperative_matrix.
  */
@@ -4984,7 +4995,8 @@ typedef enum {
 
 nir_opt_varyings_progress
 nir_opt_varyings(nir_shader *producer, nir_shader *consumer, bool spirv,
-                 unsigned max_uniform_components, unsigned max_ubos_per_stage);
+                 unsigned max_uniform_components, unsigned max_ubos_per_stage,
+                 bool debug_no_algebraic);
 
 bool nir_slot_is_sysval_output(gl_varying_slot slot,
                                gl_shader_stage next_shader);
@@ -5053,6 +5065,7 @@ bool nir_lower_io(nir_shader *shader,
 bool nir_io_add_const_offset_to_base(nir_shader *nir, nir_variable_mode modes);
 void nir_lower_io_passes(nir_shader *nir, bool renumber_vs_inputs);
 bool nir_io_add_intrinsic_xfb_info(nir_shader *nir);
+bool nir_lower_io_indirect_loads(nir_shader *nir, nir_variable_mode modes);
 
 bool
 nir_lower_vars_to_explicit_types(nir_shader *shader,
@@ -5240,6 +5253,7 @@ nir_src *nir_get_io_index_src(nir_intrinsic_instr *instr);
 nir_src *nir_get_io_arrayed_index_src(nir_intrinsic_instr *instr);
 nir_src *nir_get_shader_call_payload_src(nir_intrinsic_instr *call);
 
+bool nir_is_output_load(nir_intrinsic_instr *intr);
 bool nir_is_arrayed_io(const nir_variable *var, gl_shader_stage stage);
 
 bool nir_lower_reg_intrinsics_to_ssa_impl(nir_function_impl *impl);
@@ -5265,6 +5279,31 @@ bool nir_zero_initialize_shared_memory(nir_shader *shader,
 bool nir_clear_shared_memory(nir_shader *shader,
                              const unsigned shared_size,
                              const unsigned chunk_size);
+
+typedef enum {
+   /* If the instructions to move are in the function entry block, do nothing,
+    * else move them at the end (not the beginning) of the entry block.
+    *
+    * If this is not set, all selected instructions are always moved
+    * to the beginning of the entry block.
+    *
+    * This has the following advantages:
+    * - not moving all the way to the beginning reduces register usage within
+    *   the entry block
+    * - CSE within the entry block is still maximally effective
+    *   (nir_opt_varyings recommends that each input component is loaded only
+    *    once, and this option + CSE guarantees that)
+    * - the pass does nothing if all affected instructions are already
+    *   in the entry block.
+    */
+   nir_move_to_entry_block_only = BITFIELD_BIT(0),
+
+   /* Instruction options. */
+   nir_move_to_top_input_loads = BITFIELD_BIT(1),
+   nir_move_to_top_load_smem_amd = BITFIELD_BIT(2),
+} nir_opt_move_to_top_options;
+
+bool nir_opt_move_to_top(nir_shader *nir, nir_opt_move_to_top_options options);
 
 bool nir_move_vec_src_uses_to_dest(nir_shader *shader, bool skip_const_srcs);
 bool nir_move_output_stores_to_end(nir_shader *nir);
@@ -5303,7 +5342,8 @@ bool nir_lower_alu_conversion_to_intrinsic(nir_shader *shader);
 bool nir_lower_int_to_float(nir_shader *shader);
 bool nir_lower_load_const_to_scalar(nir_shader *shader);
 bool nir_lower_read_invocation_to_scalar(nir_shader *shader);
-bool nir_lower_phis_to_scalar(nir_shader *shader, bool lower_all);
+bool nir_lower_phis_to_scalar(nir_shader *shader, nir_vectorize_cb cb, const void *data);
+bool nir_lower_all_phis_to_scalar(nir_shader *shader);
 void nir_lower_io_array_vars_to_elements(nir_shader *producer, nir_shader *consumer);
 bool nir_lower_io_array_vars_to_elements_no_indirects(nir_shader *shader,
                                                       bool outputs_only);
@@ -5356,7 +5396,8 @@ typedef struct nir_lower_subgroups_options {
    uint8_t ballot_components;
    bool lower_to_scalar : 1;
    bool lower_vote_trivial : 1;
-   bool lower_vote_eq : 1;
+   bool lower_vote_feq : 1;
+   bool lower_vote_ieq : 1;
    bool lower_vote_bool_eq : 1;
    bool lower_first_invocation_to_ballot : 1;
    bool lower_read_first_invocation : 1;
@@ -5491,6 +5532,8 @@ typedef struct nir_lower_tex_options {
    unsigned lower_yu_yv_external;
    unsigned lower_yv_yu_external;
    unsigned lower_y41x_external;
+   unsigned lower_sx10_external;
+   unsigned lower_sx12_external;
    unsigned bt709_external;
    unsigned bt2020_external;
    unsigned yuv_full_range_external;
@@ -5842,8 +5885,6 @@ typedef enum {
    nir_lower_gs_intrinsics_count_primitives = 1 << 1,
    nir_lower_gs_intrinsics_count_vertices_per_primitive = 1 << 2,
    nir_lower_gs_intrinsics_overwrite_incomplete = 1 << 3,
-   nir_lower_gs_intrinsics_always_end_primitive = 1 << 4,
-   nir_lower_gs_intrinsics_count_decomposed_primitives = 1 << 5,
 } nir_lower_gs_intrinsics_flags;
 
 bool nir_lower_gs_intrinsics(nir_shader *shader, nir_lower_gs_intrinsics_flags options);
@@ -6224,7 +6265,8 @@ bool nir_opt_uniform_subgroup(nir_shader *shader,
 
 bool nir_opt_vectorize(nir_shader *shader, nir_vectorize_cb filter,
                        void *data);
-bool nir_opt_vectorize_io(nir_shader *shader, nir_variable_mode modes);
+bool nir_opt_vectorize_io(nir_shader *shader, nir_variable_mode modes,
+                          bool allow_holes);
 
 bool nir_opt_move_discards_to_top(nir_shader *shader);
 
@@ -6314,13 +6356,20 @@ typedef struct nir_opt_preamble_options {
    /* True if load_workgroup_size is supported in the preamble. */
    bool load_workgroup_size_allowed;
 
-   /* size/align for load/store_preamble. */
-   void (*def_size)(nir_def *def, unsigned *size, unsigned *align);
+   /* size/align/class for load/store_preamble.
+    *
+    * Defs with class "general" will always be allocated as general. Other
+    * classes will attempt to allocate as the specialized class but may fallback
+    * to general. This mechanism enables "tiered" classes in a single
+    * nir_opt_preamble call with proper global behaviour.
+    */
+   void (*def_size)(nir_def *def, unsigned *size, unsigned *align,
+                    nir_preamble_class *class_);
 
-   /* Total available size for load/store_preamble storage, in units
+   /* Total available size per class for load/store_preamble storage, in units
     * determined by def_size.
     */
-   unsigned preamble_storage_size;
+   unsigned preamble_storage_size[nir_preamble_num_classes];
 
    /* Give the cost for an instruction. nir_opt_preamble will prioritize
     * instructions with higher costs. Instructions with cost 0 may still be

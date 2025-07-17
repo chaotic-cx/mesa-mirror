@@ -57,12 +57,12 @@ unsigned si_determine_wave_size(struct si_screen *sscreen, struct si_shader *sha
       return 32;
 
    /* AMD_DEBUG wave flags override everything else. */
-   if (sscreen->debug_flags &
+   if (sscreen->shader_debug_flags &
        (stage == MESA_SHADER_COMPUTE ? DBG(W32_CS) :
         stage == MESA_SHADER_FRAGMENT ? DBG(W32_PS) : DBG(W32_GE)))
       return 32;
 
-   if (sscreen->debug_flags &
+   if (sscreen->shader_debug_flags &
        (stage == MESA_SHADER_COMPUTE ? DBG(W64_CS) :
         stage == MESA_SHADER_FRAGMENT ? DBG(W64_PS) : DBG(W64_GE)))
       return 64;
@@ -294,7 +294,7 @@ static bool si_load_shader_binary(struct si_shader *shader, void *binary)
 
    uint32_t *ptr = (uint32_t *)binary + sizeof(*head) / 4;
    if (util_hash_crc32(ptr, head->size - sizeof(*head)) != head->crc32) {
-      fprintf(stderr, "radeonsi: binary shader has invalid CRC32\n");
+      mesa_loge("binary shader has invalid CRC32");
       return false;
    }
 
@@ -838,98 +838,6 @@ static void si_shader_es(struct si_screen *sscreen, struct si_shader *shader)
    ac_pm4_finalize(&pm4->base);
 }
 
-void gfx9_get_gs_info(struct si_shader_selector *es, struct si_shader_selector *gs,
-                      struct gfx9_gs_info *out)
-{
-   unsigned gs_num_invocations = MAX2(gs->info.base.gs.invocations, 1);
-   unsigned input_prim = gs->info.base.gs.input_primitive;
-   bool uses_adjacency = mesa_prim_has_adjacency((enum mesa_prim)input_prim);
-
-   /* All these are in dwords: */
-   /* We can't allow using the whole LDS, because GS waves compete with
-    * other shader stages for LDS space. */
-   const unsigned max_lds_size = 8 * 1024;
-   const unsigned esgs_itemsize = es->info.esgs_vertex_stride / 4;
-   unsigned esgs_lds_size;
-
-   /* All these are per subgroup: */
-   const unsigned max_out_prims = 32 * 1024;
-   const unsigned max_es_verts = 255;
-   const unsigned ideal_gs_prims = 64;
-   unsigned max_gs_prims, gs_prims;
-   unsigned min_es_verts, es_verts, worst_case_es_verts;
-
-   if (uses_adjacency || gs_num_invocations > 1)
-      max_gs_prims = 127 / gs_num_invocations;
-   else
-      max_gs_prims = 255;
-
-   /* MAX_PRIMS_PER_SUBGROUP = gs_prims * max_vert_out * gs_invocations.
-    * Make sure we don't go over the maximum value.
-    */
-   if (gs->info.base.gs.vertices_out > 0) {
-      max_gs_prims =
-         MIN2(max_gs_prims, max_out_prims / (gs->info.base.gs.vertices_out * gs_num_invocations));
-   }
-   assert(max_gs_prims > 0);
-
-   /* If the primitive has adjacency, halve the number of vertices
-    * that will be reused in multiple primitives.
-    */
-   min_es_verts = gs->info.gs_input_verts_per_prim / (uses_adjacency ? 2 : 1);
-
-   gs_prims = MIN2(ideal_gs_prims, max_gs_prims);
-   worst_case_es_verts = MIN2(min_es_verts * gs_prims, max_es_verts);
-
-   /* Compute ESGS LDS size based on the worst case number of ES vertices
-    * needed to create the target number of GS prims per subgroup.
-    */
-   esgs_lds_size = esgs_itemsize * worst_case_es_verts;
-
-   /* If total LDS usage is too big, refactor partitions based on ratio
-    * of ESGS item sizes.
-    */
-   if (esgs_lds_size > max_lds_size) {
-      /* Our target GS Prims Per Subgroup was too large. Calculate
-       * the maximum number of GS Prims Per Subgroup that will fit
-       * into LDS, capped by the maximum that the hardware can support.
-       */
-      gs_prims = MIN2((max_lds_size / (esgs_itemsize * min_es_verts)), max_gs_prims);
-      assert(gs_prims > 0);
-      worst_case_es_verts = MIN2(min_es_verts * gs_prims, max_es_verts);
-
-      esgs_lds_size = esgs_itemsize * worst_case_es_verts;
-      assert(esgs_lds_size <= max_lds_size);
-   }
-
-   /* Now calculate remaining ESGS information. */
-   if (esgs_lds_size)
-      es_verts = MIN2(esgs_lds_size / esgs_itemsize, max_es_verts);
-   else
-      es_verts = max_es_verts;
-
-   /* Vertices for adjacency primitives are not always reused, so restore
-    * it for ES_VERTS_PER_SUBGRP.
-    */
-   min_es_verts = gs->info.gs_input_verts_per_prim;
-
-   /* For normal primitives, the VGT only checks if they are past the ES
-    * verts per subgroup after allocating a full GS primitive and if they
-    * are, kick off a new subgroup.  But if those additional ES verts are
-    * unique (e.g. not reused) we need to make sure there is enough LDS
-    * space to account for those ES verts beyond ES_VERTS_PER_SUBGRP.
-    */
-   es_verts -= min_es_verts - 1;
-
-   out->es_verts_per_subgroup = es_verts;
-   out->gs_prims_per_subgroup = gs_prims;
-   out->gs_inst_prims_in_subgroup = gs_prims * gs_num_invocations;
-   out->max_prims_per_subgroup = out->gs_inst_prims_in_subgroup * gs->info.base.gs.vertices_out;
-   out->esgs_ring_size = esgs_lds_size;
-
-   assert(out->max_prims_per_subgroup <= max_out_prims);
-}
-
 static void gfx9_set_gs_sgpr_num_es_outputs(struct si_context *sctx, unsigned esgs_vertex_stride)
 {
    /* The stride must always be odd (e.g. a multiple of 4 + 1) to reduce LDS bank conflicts. */
@@ -1030,11 +938,13 @@ static void si_emit_shader_gs(struct si_context *sctx, unsigned index)
 static void si_shader_gs(struct si_screen *sscreen, struct si_shader *shader)
 {
    struct si_shader_selector *sel = shader->selector;
-   const uint8_t *num_components = sel->info.num_gs_stream_components;
+   const uint8_t *num_components = shader->info.legacy_gs.num_components_per_stream;
    unsigned gs_num_invocations = sel->info.base.gs.invocations;
    struct si_pm4_state *pm4;
    uint64_t va;
-   unsigned max_stream = util_last_bit(sel->info.base.gs.active_stream_mask);
+   unsigned max_stream = num_components[3] ? 4 :
+                         num_components[2] ? 3 :
+                         num_components[1] ? 2 : 1;
    unsigned offset;
 
    assert(sscreen->info.gfx_level < GFX11); /* gfx11 doesn't have the legacy pipeline */
@@ -1043,19 +953,19 @@ static void si_shader_gs(struct si_screen *sscreen, struct si_shader *shader)
    if (!pm4)
       return;
 
-   offset = num_components[0] * sel->info.base.gs.vertices_out;
+   offset = (uint32_t)num_components[0] * sel->info.base.gs.vertices_out;
    shader->gs.vgt_gsvs_ring_offset_1 = offset;
 
    if (max_stream >= 2)
-      offset += num_components[1] * sel->info.base.gs.vertices_out;
+      offset += (uint32_t)num_components[1] * sel->info.base.gs.vertices_out;
    shader->gs.vgt_gsvs_ring_offset_2 = offset;
 
    if (max_stream >= 3)
-      offset += num_components[2] * sel->info.base.gs.vertices_out;
+      offset += (uint32_t)num_components[2] * sel->info.base.gs.vertices_out;
    shader->gs.vgt_gsvs_ring_offset_3 = offset;
 
    if (max_stream >= 4)
-      offset += num_components[3] * sel->info.base.gs.vertices_out;
+      offset += (uint32_t)num_components[3] * sel->info.base.gs.vertices_out;
    shader->gs.vgt_gsvs_ring_itemsize = offset;
 
    /* The GSVS_RING_ITEMSIZE register takes 15 bits */
@@ -1294,10 +1204,10 @@ static void gfx11_dgpu_emit_shader_ngg(struct si_context *sctx, unsigned index)
    if (sctx->screen->info.has_set_sh_pairs_packed) {
       gfx11_opt_push_gfx_sh_reg(R_00B21C_SPI_SHADER_PGM_RSRC3_GS,
                                 SI_TRACKED_SPI_SHADER_PGM_RSRC3_GS,
-                                shader->gs.spi_shader_pgm_rsrc3_gs);
+                                shader->ngg.spi_shader_pgm_rsrc3_gs);
       gfx11_opt_push_gfx_sh_reg(R_00B204_SPI_SHADER_PGM_RSRC4_GS,
                                 SI_TRACKED_SPI_SHADER_PGM_RSRC4_GS,
-                                shader->gs.spi_shader_pgm_rsrc4_gs);
+                                shader->ngg.spi_shader_pgm_rsrc4_gs);
    } else {
       if (sctx->screen->info.uses_kernel_cu_mask) {
          radeon_opt_set_sh_reg_idx(R_00B21C_SPI_SHADER_PGM_RSRC3_GS,
@@ -1439,17 +1349,15 @@ unsigned si_get_num_vertices_per_output_prim(struct si_shader *shader)
 static unsigned si_get_vs_out_cntl(const struct si_shader_selector *sel,
                                    const struct si_shader *shader, bool ngg)
 {
-   /* Clip distances can be killed, but cull distances can't. */
-   unsigned clipcull_mask = (sel->info.clipdist_mask & ~shader->key.ge.opt.kill_clip_distances) |
-                            sel->info.culldist_mask;
+   unsigned num_clip_distances = util_bitcount(shader->info.clipdist_mask | shader->info.culldist_mask);
    bool writes_psize = sel->info.writes_psize && !shader->key.ge.opt.kill_pointsize;
    bool writes_layer = sel->info.writes_layer && !shader->key.ge.opt.kill_layer;
    bool misc_vec_ena = writes_psize || (sel->info.writes_edgeflag && !ngg) ||
                        writes_layer || sel->info.writes_viewport_index ||
                        sel->screen->options.vrs2x2;
 
-   return S_02881C_VS_OUT_CCDIST0_VEC_ENA((clipcull_mask & 0x0F) != 0) |
-          S_02881C_VS_OUT_CCDIST1_VEC_ENA((clipcull_mask & 0xF0) != 0) |
+   return S_02881C_VS_OUT_CCDIST0_VEC_ENA(num_clip_distances > 0) |
+          S_02881C_VS_OUT_CCDIST1_VEC_ENA(num_clip_distances > 4) |
           S_02881C_USE_VTX_POINT_SIZE(writes_psize) |
           S_02881C_USE_VTX_EDGE_FLAG(sel->info.writes_edgeflag && !ngg) |
           S_02881C_USE_VTX_VRS_RATE(sel->screen->options.vrs2x2) |
@@ -1503,6 +1411,8 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
    unsigned gs_num_invocations = gs_sel->stage == MESA_SHADER_GEOMETRY ?
                                     CLAMP(gs_info->base.gs.invocations, 1, 32) : 0;
    unsigned input_prim = si_get_input_prim(gs_sel, &shader->key, false);
+   unsigned gs_input_verts_per_prim = gs_sel->stage == MESA_SHADER_GEOMETRY ?
+                                         mesa_vertices_per_prim(gs_sel->info.base.gs.input_primitive) : 0;
 
    struct si_pm4_state *pm4 = si_get_shader_pm4_state(shader, NULL);
    if (!pm4)
@@ -1543,10 +1453,10 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
    }
 
    /* Primitives with adjancency can only occur without tessellation. */
-   assert(gs_info->gs_input_verts_per_prim <= 3 || es_stage == MESA_SHADER_VERTEX);
+   assert(gs_input_verts_per_prim <= 3 || es_stage == MESA_SHADER_VERTEX);
 
    if (sscreen->info.gfx_level >= GFX12) {
-      if (gs_info->gs_input_verts_per_prim >= 4)
+      if (gs_input_verts_per_prim >= 4)
          gs_vgpr_comp_cnt = 2; /* VGPR2 contains offsets 3-5 */
       else if ((gs_stage == MESA_SHADER_GEOMETRY && gs_info->uses_primid) ||
                (gs_stage == MESA_SHADER_VERTEX && shader->key.ge.mono.u.vs_export_prim_id))
@@ -1603,11 +1513,11 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
                                                                   : V_02870C_SPI_SHADER_NONE) |
       S_02870C_POS3_EXPORT_FORMAT(shader->info.nr_pos_exports > 3 ? V_02870C_SPI_SHADER_4COMP
                                                                   : V_02870C_SPI_SHADER_NONE);
-   shader->ngg.ge_max_output_per_subgroup = S_0287FC_MAX_VERTS_PER_SUBGROUP(shader->ngg.max_out_verts);
+   shader->ngg.ge_max_output_per_subgroup = S_0287FC_MAX_VERTS_PER_SUBGROUP(shader->ngg.info.max_out_verts);
    shader->ngg.vgt_gs_instance_cnt =
       S_028B90_ENABLE(gs_num_invocations > 1) |
       S_028B90_CNT(gs_num_invocations) |
-      S_028B90_EN_MAX_VERT_OUT_PER_GS_INSTANCE(shader->ngg.max_vert_out_per_gs_instance);
+      S_028B90_EN_MAX_VERT_OUT_PER_GS_INSTANCE(shader->ngg.info.max_vert_out_per_gs_instance);
    shader->pa_cl_vs_out_cntl = si_get_vs_out_cntl(shader->selector, shader, true);
 
    if (gs_stage == MESA_SHADER_GEOMETRY) {
@@ -1710,19 +1620,19 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
       unsigned prim_amp_factor = gs_stage == MESA_SHADER_GEOMETRY ?
                                     gs_sel->info.base.gs.vertices_out : 1;
 
-      shader->ge_cntl = S_03096C_PRIMS_PER_SUBGRP(shader->ngg.max_gsprims) |
-                        S_03096C_VERTS_PER_SUBGRP(shader->ngg.hw_max_esverts) |
+      shader->ge_cntl = S_03096C_PRIMS_PER_SUBGRP(shader->ngg.info.max_gsprims) |
+                        S_03096C_VERTS_PER_SUBGRP(shader->ngg.info.hw_max_esverts) |
                         S_03096C_PRIM_GRP_SIZE_GFX11(
                            CLAMP(max_prim_grp_size / MAX2(prim_amp_factor, 1), 1, 256)) |
                         S_03096C_DIS_PG_SIZE_ADJUST_FOR_STRIP(sscreen->info.gfx_level >= GFX12);
    } else {
-      shader->ge_cntl = S_03096C_PRIM_GRP_SIZE_GFX10(shader->ngg.max_gsprims) |
-                        S_03096C_VERT_GRP_SIZE(shader->ngg.hw_max_esverts);
+      shader->ge_cntl = S_03096C_PRIM_GRP_SIZE_GFX10(shader->ngg.info.max_gsprims) |
+                        S_03096C_VERT_GRP_SIZE(shader->ngg.info.hw_max_esverts);
 
       shader->ngg.vgt_gs_onchip_cntl =
-         S_028A44_ES_VERTS_PER_SUBGRP(shader->ngg.hw_max_esverts) |
-         S_028A44_GS_PRIMS_PER_SUBGRP(shader->ngg.max_gsprims) |
-         S_028A44_GS_INST_PRIMS_IN_SUBGRP(shader->ngg.max_gsprims * gs_num_invocations);
+         S_028A44_ES_VERTS_PER_SUBGRP(shader->ngg.info.hw_max_esverts) |
+         S_028A44_GS_PRIMS_PER_SUBGRP(shader->ngg.info.max_gsprims) |
+         S_028A44_GS_INST_PRIMS_IN_SUBGRP(shader->ngg.info.max_gsprims * gs_num_invocations);
 
       /* On gfx10, the GE only checks against the maximum number of ES verts after
        * allocating a full GS primitive. So we need to ensure that whenever
@@ -1734,13 +1644,13 @@ static void gfx10_shader_ngg(struct si_screen *sscreen, struct si_shader *shader
        */
       if ((sscreen->info.gfx_level == GFX10) &&
           (es_stage == MESA_SHADER_VERTEX || gs_stage == MESA_SHADER_VERTEX) && /* = no tess */
-          shader->ngg.hw_max_esverts != 256 &&
-          shader->ngg.hw_max_esverts > 5) {
+          shader->ngg.info.hw_max_esverts != 256 &&
+          shader->ngg.info.hw_max_esverts > 5) {
          /* This could be based on the input primitive type. 5 is the worst case
           * for primitive types with adjacency.
           */
          shader->ge_cntl &= C_03096C_VERT_GRP_SIZE;
-         shader->ge_cntl |= S_03096C_VERT_GRP_SIZE(shader->ngg.hw_max_esverts - 5);
+         shader->ge_cntl |= S_03096C_VERT_GRP_SIZE(shader->ngg.info.hw_max_esverts - 5);
       }
    }
 
@@ -2565,6 +2475,16 @@ static void si_get_vs_key_outputs(struct si_context *sctx, struct si_shader_sele
 
    if (sctx->gfx_level >= GFX12)
       key->ge.mono.remove_streamout = key->ge.opt.remove_streamout;
+
+   /* The fixed-func hw only supports 6 clip planes, while gl_ClipVertex supports 8. */
+   if (!vs->info.has_clip_outputs &&
+       sctx->queued.named.rasterizer->clip_plane_enable & BITFIELD_RANGE(6, 2)) {
+      key->ge.mono.write_pos_to_clipvertex = 1;
+      key->ge.opt.kill_clip_distances = SI_USER_CLIP_PLANE_MASK &
+                                        ~sctx->queued.named.rasterizer->clip_plane_enable;
+   } else {
+      key->ge.mono.write_pos_to_clipvertex = 0;
+   }
 }
 
 static void si_clear_vs_key_outputs(struct si_context *sctx, struct si_shader_selector *vs,
@@ -2577,6 +2497,7 @@ static void si_clear_vs_key_outputs(struct si_context *sctx, struct si_shader_se
    key->ge.opt.ngg_vs_streamout_num_verts_per_prim = 0;
    key->ge.mono.u.vs_export_prim_id = 0;
    key->ge.mono.remove_streamout = 0;
+   key->ge.mono.write_pos_to_clipvertex = 0;
 }
 
 void si_ps_key_update_framebuffer(struct si_context *sctx)
@@ -3086,7 +3007,7 @@ static int si_shader_select_with_key(struct si_context *sctx, struct si_shader_c
     */
    SHADER_KEY_TYPE local_key;
 
-   if (unlikely(sscreen->debug_flags & DBG(NO_OPT_VARIANT))) {
+   if (unlikely(sscreen->shader_debug_flags & DBG(NO_OPT_VARIANT))) {
       /* Disable shader variant optimizations. */
       key = use_local_key_copy<SHADER_KEY_TYPE>(key, &local_key, key_size);
       memset(&local_key.opt, 0, key_opt_size);
@@ -3365,13 +3286,14 @@ static void si_parse_next_shader_property(nir_shader *nir, union si_shader_key *
           * assume that it's a HW LS. (the next shader is TCS)
           * This heuristic is needed for separate shader objects.
           */
-         if (!writes_position && !nir->xfb_info)
+         if (next_shader == MESA_SHADER_NONE && !writes_position && !nir->xfb_info)
             key->ge.as_ls = 1;
       }
       break;
 
    case MESA_SHADER_TESS_EVAL:
-      if (next_shader == MESA_SHADER_GEOMETRY || !writes_position)
+      if (next_shader == MESA_SHADER_GEOMETRY ||
+          (next_shader == MESA_SHADER_NONE && !writes_position))
          key->ge.as_es = 1;
       break;
 
@@ -3426,7 +3348,7 @@ static void si_init_shader_selector_async(void *job, void *gdata, int thread_ind
       unsigned char ir_sha1_cache_key[20];
 
       if (!shader) {
-         fprintf(stderr, "radeonsi: can't allocate a main shader part\n");
+         mesa_loge("can't allocate a main shader part");
          return;
       }
 
@@ -3468,11 +3390,10 @@ static void si_init_shader_selector_async(void *job, void *gdata, int thread_ind
 
          /* Compile the shader if it hasn't been loaded from the cache. */
          if (!si_compile_shader(sscreen, *compiler, shader, debug)) {
-            fprintf(stderr,
-               "radeonsi: can't compile a main shader part (type: %s).\n"
-               "This is probably a driver bug, please report "
-               "it to https://gitlab.freedesktop.org/mesa/mesa/-/issues.\n",
-               gl_shader_stage_name(shader->selector->stage));
+            mesa_loge("can't compile a main shader part (type: %s).\n"
+                      "This is probably a driver bug, please report "
+                      "it to https://gitlab.freedesktop.org/mesa/mesa/-/issues.",
+                      gl_shader_stage_name(shader->selector->stage));
             FREE(shader);
             return;
          }
@@ -3634,7 +3555,7 @@ static void *si_create_shader_selector(struct pipe_context *ctx,
       !sel->nir->info.writes_memory &&
       /* NGG GS supports culling with streamout because it culls after streamout. */
       (sel->stage == MESA_SHADER_GEOMETRY || !sel->info.enabled_streamout_buffer_mask) &&
-      (sel->stage != MESA_SHADER_GEOMETRY || sel->info.num_gs_stream_components[0]) &&
+      (sel->stage != MESA_SHADER_GEOMETRY || sel->info.gs_writes_stream0) &&
       (sel->stage != MESA_SHADER_VERTEX ||
        (!sel->nir->info.vs.blit_sgprs_amd &&
         !sel->nir->info.vs.window_space_position));
@@ -3715,9 +3636,10 @@ static void si_update_clip_regs(struct si_context *sctx, struct si_shader_select
        (!old_hw_vs ||
         (old_hw_vs->stage == MESA_SHADER_VERTEX && old_hw_vs->info.base.vs.window_space_position) !=
         (next_hw_vs->stage == MESA_SHADER_VERTEX && next_hw_vs->info.base.vs.window_space_position) ||
-        old_hw_vs->info.clipdist_mask != next_hw_vs->info.clipdist_mask ||
-        old_hw_vs->info.culldist_mask != next_hw_vs->info.culldist_mask || !old_hw_vs_variant ||
-        !next_hw_vs_variant ||
+        old_hw_vs->info.has_clip_outputs != next_hw_vs->info.has_clip_outputs ||
+        !old_hw_vs_variant || !next_hw_vs_variant ||
+        old_hw_vs_variant->info.clipdist_mask != next_hw_vs_variant->info.clipdist_mask ||
+        old_hw_vs_variant->info.culldist_mask != next_hw_vs_variant->info.culldist_mask ||
         old_hw_vs_variant->pa_cl_vs_out_cntl != next_hw_vs_variant->pa_cl_vs_out_cntl))
       si_mark_atom_dirty(sctx, &sctx->atoms.s.clip_regs);
 }
@@ -3740,21 +3662,20 @@ static void si_update_rasterized_prim(struct si_context *sctx)
    si_update_ngg_sgpr_state_out_prim(sctx, hw_vs, sctx->ngg);
 }
 
-static void si_update_common_shader_state(struct si_context *sctx, struct si_shader_selector *sel,
-                                          enum pipe_shader_type type)
+void si_update_common_shader_state(struct si_context *sctx, struct si_shader_selector *sel,
+                                   enum pipe_shader_type type)
 {
    si_set_active_descriptors_for_shader(sctx, sel);
 
-   sctx->uses_bindless_samplers = si_shader_uses_bindless_samplers(sctx->shader.vs.cso) ||
-                                  si_shader_uses_bindless_samplers(sctx->shader.gs.cso) ||
-                                  si_shader_uses_bindless_samplers(sctx->shader.ps.cso) ||
-                                  si_shader_uses_bindless_samplers(sctx->shader.tcs.cso) ||
-                                  si_shader_uses_bindless_samplers(sctx->shader.tes.cso);
-   sctx->uses_bindless_images = si_shader_uses_bindless_images(sctx->shader.vs.cso) ||
-                                si_shader_uses_bindless_images(sctx->shader.gs.cso) ||
-                                si_shader_uses_bindless_images(sctx->shader.ps.cso) ||
-                                si_shader_uses_bindless_images(sctx->shader.tcs.cso) ||
-                                si_shader_uses_bindless_images(sctx->shader.tes.cso);
+   if (si_shader_uses_bindless_samplers(sel))
+      sctx->uses_bindless_samplers |= BITFIELD_BIT(type);
+   else
+      sctx->uses_bindless_samplers &= ~BITFIELD_BIT(type);
+
+   if (si_shader_uses_bindless_images(sel))
+      sctx->uses_bindless_images |= BITFIELD_BIT(type);
+   else
+      sctx->uses_bindless_images &= ~BITFIELD_BIT(type);
 
    if (type == PIPE_SHADER_VERTEX || type == PIPE_SHADER_TESS_EVAL || type == PIPE_SHADER_GEOMETRY)
       sctx->ngg_culling = 0; /* this will be enabled on the first draw if needed */
@@ -4158,7 +4079,7 @@ static void si_cs_preamble_add_vgt_flush(struct si_context *sctx, bool tmz)
                                &sctx->cs_preamble_has_vgt_flush;
 
    /* We shouldn't get here if registers are shadowed. */
-   assert(!sctx->shadowing.registers);
+   assert(!sctx->uses_kernelq_reg_shadowing);
 
    if (*has_vgt_flush)
       return;
@@ -4214,10 +4135,17 @@ bool si_update_gs_ring_buffers(struct si_context *sctx)
    /* Calculate the minimum size. */
    unsigned min_esgs_ring_size = align(es->info.esgs_vertex_stride * gs_vertex_reuse * wave_size, alignment);
 
+   unsigned gsvs_emit_size = 0;
+   for (unsigned stream = 0; stream < 4; stream++) {
+      gsvs_emit_size += (uint32_t)sctx->shader.gs.current->info.legacy_gs.num_components_per_stream[stream] *
+                        4 * gs->info.base.gs.vertices_out;
+   }
+
    /* These are recommended sizes, not minimum sizes. */
+   unsigned gs_input_verts_per_prim = mesa_vertices_per_prim(gs->info.base.gs.input_primitive);
    unsigned esgs_ring_size =
-      max_gs_waves * 2 * wave_size * es->info.esgs_vertex_stride * gs->info.gs_input_verts_per_prim;
-   unsigned gsvs_ring_size = max_gs_waves * 2 * wave_size * gs->info.max_gsvs_emit_size;
+      max_gs_waves * 2 * wave_size * es->info.esgs_vertex_stride * gs_input_verts_per_prim;
+   unsigned gsvs_ring_size = max_gs_waves * 2 * wave_size * gsvs_emit_size;
 
    min_esgs_ring_size = align(min_esgs_ring_size, alignment);
    esgs_ring_size = align(esgs_ring_size, alignment);
@@ -4274,7 +4202,7 @@ bool si_update_gs_ring_buffers(struct si_context *sctx)
                          false, 0, 0, 0);
    }
 
-   if (sctx->shadowing.registers) {
+   if (sctx->uses_kernelq_reg_shadowing) {
       /* These registers will be shadowed, so set them only once. */
       struct radeon_cmdbuf *cs = &sctx->gfx_cs;
 

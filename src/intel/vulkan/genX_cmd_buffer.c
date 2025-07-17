@@ -1607,12 +1607,6 @@ genX(invalidate_aux_map)(struct anv_batch *batch,
          lri.DataDWord = 1;
       }
 
-      /* Wa_16018063123 - emit fast color dummy blit before MI_FLUSH_DW. */
-      if (intel_needs_workaround(device->info, 16018063123) &&
-          engine_class == INTEL_ENGINE_CLASS_COPY) {
-         genX(batch_emit_fast_color_dummy_blit)(batch, device);
-      }
-
       /* HSD 22012751911: SW Programming sequence when issuing aux invalidation:
        *
        *    "Poll Aux Invalidation bit once the invalidation is set
@@ -1846,10 +1840,7 @@ genX(emit_apply_pipe_flushes)(struct anv_batch *batch,
       genx_batch_emit_pipe_control_write(batch, device->info, current_pipeline,
                                          sync_op, addr, 0, bits);
 
-      enum intel_engine_class engine_class =
-         current_pipeline == GPGPU ? INTEL_ENGINE_CLASS_COMPUTE :
-                                     INTEL_ENGINE_CLASS_RENDER;
-      genX(invalidate_aux_map)(batch, device, engine_class, bits);
+      genX(invalidate_aux_map)(batch, device, batch->engine_class, bits);
 
       bits &= ~ANV_PIPE_INVALIDATE_BITS;
    }
@@ -1889,8 +1880,19 @@ genX(cmd_buffer_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer)
    if (anv_cmd_buffer_is_blitter_queue(cmd_buffer) ||
        anv_cmd_buffer_is_video_queue(cmd_buffer)) {
       if (bits & ANV_PIPE_INVALIDATE_BITS) {
-         genX(invalidate_aux_map)(&cmd_buffer->batch, cmd_buffer->device,
-                                  cmd_buffer->queue_family->engine_class, bits);
+         if (bits & ANV_PIPE_AUX_TABLE_INVALIDATE_BIT) {
+            if (anv_cmd_buffer_is_video_queue(cmd_buffer) || GFX_VERx10 == 125) {
+               /* Wa_16018063123 - emit fast color dummy blit before MI_FLUSH_DW. */
+               if (INTEL_WA_16018063123_GFX_VER &&
+                   anv_cmd_buffer_is_blitter_queue(cmd_buffer))
+                  genX(batch_emit_fast_color_dummy_blit)(&cmd_buffer->batch, cmd_buffer->device);
+
+               anv_batch_emit(&cmd_buffer->batch, GENX(MI_FLUSH_DW), mi_flush);
+            }
+
+            genX(invalidate_aux_map)(&cmd_buffer->batch, cmd_buffer->device,
+                                     cmd_buffer->queue_family->engine_class, bits);
+         }
          bits &= ~ANV_PIPE_INVALIDATE_BITS;
       }
       cmd_buffer->state.pending_pipe_bits = bits;
@@ -4255,7 +4257,7 @@ cmd_buffer_barrier_blitter(struct anv_cmd_buffer *cmd_buffer,
 
    if (flush_ccs || flush_llc) {
       /* Wa_16018063123 - emit fast color dummy blit before MI_FLUSH_DW. */
-      if (intel_needs_workaround(cmd_buffer->device->info, 16018063123)) {
+      if (INTEL_WA_16018063123_GFX_VER) {
          genX(batch_emit_fast_color_dummy_blit)(&cmd_buffer->batch,
                                                 cmd_buffer->device);
       }
@@ -4705,27 +4707,42 @@ void genX(CmdPipelineBarrier2)(
 void
 genX(batch_emit_breakpoint)(struct anv_batch *batch,
                             struct anv_device *device,
-                            bool emit_before_draw)
+                            bool emit_before_draw_or_dispatch)
 {
-   /* Update draw call count once */
-   uint32_t draw_count = emit_before_draw ?
-                         p_atomic_inc_return(&device->draw_call_count) :
-                         p_atomic_read(&device->draw_call_count);
+   uint32_t before_count = 0, after_count = 0;
+   uint32_t *counter = NULL;
 
-   if (((draw_count == intel_debug_bkp_before_draw_count &&
-        emit_before_draw) ||
-       (draw_count == intel_debug_bkp_after_draw_count &&
-        !emit_before_draw))) {
-      struct anv_address wait_addr =
-         anv_state_pool_state_address(&device->dynamic_state_pool,
-                                      device->breakpoint);
+   if (INTEL_DEBUG(DEBUG_DRAW_BKP)) {
+      counter = &device->draw_call_count;
+      before_count = intel_debug_bkp_before_draw_count;
+      after_count = intel_debug_bkp_after_draw_count;
+   } else if (INTEL_DEBUG(DEBUG_DISPATCH_BKP)) {
+      counter = &device->dispatch_call_count;
+      before_count = intel_debug_bkp_before_dispatch_count;
+      after_count = intel_debug_bkp_after_dispatch_count;
+   }
 
-      anv_batch_emit(batch, GENX(MI_SEMAPHORE_WAIT), sem) {
-         sem.WaitMode            = PollingMode;
-         sem.CompareOperation    = COMPARE_SAD_EQUAL_SDD;
-         sem.SemaphoreDataDword  = 0x1;
-         sem.SemaphoreAddress    = wait_addr;
-      };
+   if (counter) {
+      uint32_t count = emit_before_draw_or_dispatch ?
+         p_atomic_inc_return(counter) :
+         p_atomic_read(counter);
+
+      bool should_emit =
+         (emit_before_draw_or_dispatch && count == before_count) ||
+         (!emit_before_draw_or_dispatch && count == after_count);
+
+      if (should_emit) {
+         struct anv_address wait_addr =
+            anv_state_pool_state_address(&device->dynamic_state_pool,
+                                         device->breakpoint);
+
+         anv_batch_emit(batch, GENX(MI_SEMAPHORE_WAIT), sem) {
+            sem.WaitMode            = PollingMode;
+            sem.CompareOperation    = COMPARE_SAD_EQUAL_SDD;
+            sem.SemaphoreDataDword  = 0x1;
+            sem.SemaphoreAddress    = wait_addr;
+         }
+      }
    }
 }
 
@@ -6330,7 +6347,8 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
       if ((batch->engine_class == INTEL_ENGINE_CLASS_COPY) ||
           (batch->engine_class == INTEL_ENGINE_CLASS_VIDEO)) {
          /* Wa_16018063123 - emit fast color dummy blit before MI_FLUSH_DW. */
-         if (intel_needs_workaround(device->info, 16018063123))
+         if (INTEL_WA_16018063123_GFX_VER &&
+             batch->engine_class == INTEL_ENGINE_CLASS_COPY)
             genX(batch_emit_fast_color_dummy_blit)(batch, device);
          anv_batch_emit(batch, GENX(MI_FLUSH_DW), fd) {
             fd.PostSyncOperation = WriteTimestamp;
@@ -6376,7 +6394,7 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
       GENX(EXECUTE_INDIRECT_DISPATCH_pack)
       (batch, dwords, &(struct GENX(EXECUTE_INDIRECT_DISPATCH)) {
             .MOCS = anv_mocs(device, NULL, 0),
-            .COMPUTE_WALKER_BODY = {
+            .body = {
                .PostSync = (struct GENX(POSTSYNC_DATA)) {
                   .Operation = WriteTimestamp,
                   .DestinationAddress = addr,
@@ -6473,15 +6491,10 @@ ALWAYS_INLINE void
 genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
                                       struct anv_device *device)
 {
-#if GFX_VERx10 >= 125
+#if INTEL_WA_16018063123_GFX_VER
    anv_batch_emit(batch, GENX(XY_FAST_COLOR_BLT), blt) {
       blt.DestinationBaseAddress = device->workaround_address;
-#if GFX_VERx10 >= 200
-      blt.DestinationMOCSindex = MOCS_GET_INDEX(device->isl_dev.mocs.blitter_dst);
-      blt.DestinationEncryptEn = MOCS_GET_ENCRYPT_EN(device->isl_dev.mocs.blitter_dst);
-#else
       blt.DestinationMOCS = device->isl_dev.mocs.blitter_dst;
-#endif
       blt.DestinationPitch = 63;
       blt.DestinationX2 = 1;
       blt.DestinationY2 = 4;
@@ -6491,6 +6504,8 @@ genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
       blt.DestinationSurfaceQPitch = 4;
       blt.DestinationTiling = XY_TILE_LINEAR;
    }
+#else
+   unreachable("Not implemented");
 #endif
 }
 
@@ -6526,7 +6541,7 @@ genX(cmd_buffer_begin_companion_rcs_syncpoint)(
       genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
    } else if (anv_cmd_buffer_is_blitter_queue(cmd_buffer)) {
       /* Wa_16018063123 - emit fast color dummy blit before MI_FLUSH_DW. */
-      if (intel_needs_workaround(cmd_buffer->device->info, 16018063123)) {
+      if (INTEL_WA_16018063123_GFX_VER) {
          genX(batch_emit_fast_color_dummy_blit)(&cmd_buffer->batch,
                                                 cmd_buffer->device);
       }

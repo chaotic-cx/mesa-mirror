@@ -83,7 +83,7 @@ enum pan_preload_resource_table {
 struct pan_preload_surface {
    gl_frag_result loc              : 4;
    nir_alu_type type               : 8;
-   enum mali_texture_dimension dim : 2;
+   enum mali_texture_dimension dim : 3;
    bool array                      : 1;
    unsigned samples                : 5;
 };
@@ -105,7 +105,7 @@ struct pan_preload_rsd_key {
       enum pipe_format format;
       nir_alu_type type               : 8;
       unsigned samples                : 5;
-      enum mali_texture_dimension dim : 2;
+      enum mali_texture_dimension dim : 3;
       bool array                      : 1;
    } rts[8], z, s;
 };
@@ -348,7 +348,7 @@ pan_preload_get_blend_shaders(struct pan_fb_preload_cache *cache,
 
 /*
  * Early Mali GPUs did not respect sampler LOD clamps or bias, so the Midgard
- * compiler inserts lowering code with a load_sampler_lod_parameters_pan sysval
+ * compiler inserts lowering code with a load_sampler_lod_parameters sysval
  * that we need to lower. Our samplers do not use LOD clamps or bias, so we
  * lower to the identity settings and let constant folding get rid of the
  * unnecessary lowering.
@@ -357,7 +357,7 @@ static bool
 lower_sampler_parameters(nir_builder *b, nir_intrinsic_instr *intr,
                          UNUSED void *data)
 {
-   if (intr->intrinsic != nir_intrinsic_load_sampler_lod_parameters_pan)
+   if (intr->intrinsic != nir_intrinsic_load_sampler_lod_parameters)
       return false;
 
    const nir_const_value constants[4] = {
@@ -492,6 +492,8 @@ pan_preload_get_shader(struct pan_fb_preload_cache *cache,
       case MALI_TEXTURE_DIMENSION_CUBE:
          sampler_dim = GLSL_SAMPLER_DIM_CUBE;
          break;
+      default:
+         unreachable("Invalid dimension");
       }
 
       nir_tex_instr *tex = nir_tex_instr_create(b.shader, ms ? 3 : 1);
@@ -1272,7 +1274,7 @@ pan_preload_emit_pre_frame_dcd(struct pan_fb_preload_cache *cache,
        * The PAN_ARCH check is redundant but allows the compiler to optimize
        * when PAN_ARCH < 7.
        */
-      if (PAN_ARCH >= 7 && cache->gpu_id >= 0x7200)
+      if (PAN_ARCH >= 7 && (cache->gpu_id >> 16) >= 0x7200)
          fb->bifrost.pre_post.modes[dcd_idx] =
             MALI_PRE_POST_FRAME_SHADER_MODE_EARLY_ZS_ALWAYS;
       else

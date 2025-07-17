@@ -29,10 +29,6 @@
 struct hk_physical_device;
 struct vk_pipeline_cache;
 
-/* Fixed offsets for reserved null image descriptors */
-#define HK_NULL_TEX_OFFSET (0)
-#define HK_NULL_PBE_OFFSET (24)
-
 typedef void (*hk_internal_builder_t)(struct nir_builder *b, const void *key);
 
 struct hk_internal_key {
@@ -70,7 +66,6 @@ struct hk_device {
    struct agx_device dev;
    struct agxdecode_ctx *decode_ctx;
 
-   struct hk_descriptor_table images;
    struct hk_descriptor_table occlusion_queries;
    struct hk_sampler_heap samplers;
 
@@ -83,18 +78,8 @@ struct hk_device {
 
    struct {
       struct agx_bo *bo;
-      uint64_t image_heap_ptr;
-      uint64_t null_sink;
       uint64_t heap;
    } rodata;
-
-   /* Pages for backing sparse resources */
-   struct {
-      /* Undefined content, should not be read (except for atomics where the
-       * result is already undefined).
-       */
-      struct agx_bo *write;
-   } sparse;
 
    struct hk_internal_shaders prolog_epilog;
    struct hk_internal_shaders kernels;

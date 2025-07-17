@@ -39,6 +39,7 @@ libpanvk_files = files(
   'panvk_buffer.c',
   'panvk_cmd_pool.c',
   'panvk_device_memory.c',
+  'panvk_host_copy.c',
   'panvk_image.c',
   'panvk_instance.c',
   'panvk_mempool.c',
@@ -172,7 +173,6 @@ endif
 
 if with_platform_wayland
   panvk_deps += dep_wayland_client
-  libpanvk_files += [wayland_drm_client_protocol_h, wayland_drm_protocol_c]
 endif
 
 libvulkan_panfrost = shared_library(

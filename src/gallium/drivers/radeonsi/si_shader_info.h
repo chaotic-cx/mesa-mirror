@@ -64,7 +64,6 @@ struct si_shader_info {
             enum mesa_prim input_primitive;
             uint16_t vertices_out;
             uint8_t invocations;
-            uint8_t active_stream_mask:4;
          } gs;
 
          struct {
@@ -92,13 +91,9 @@ struct si_shader_info {
    uint8_t num_outputs;
    struct si_vs_tcs_input_info input[PIPE_MAX_SHADER_INPUTS];
    uint8_t output_semantic[PIPE_MAX_SHADER_OUTPUTS];
-   uint8_t output_usagemask[PIPE_MAX_SHADER_OUTPUTS];
-   uint8_t output_streams[PIPE_MAX_SHADER_OUTPUTS];
-   uint8_t output_type[PIPE_MAX_SHADER_OUTPUTS]; /* enum nir_alu_type */
 
    uint8_t num_vs_inputs;
    uint8_t num_vbos_in_user_sgprs;
-   uint8_t num_gs_stream_components[4];
    uint16_t enabled_streamout_buffer_mask;
 
    uint64_t inputs_read; /* "get_unique_index" bits */
@@ -111,12 +106,10 @@ struct si_shader_info {
    uint8_t num_tess_level_vram_outputs; /* max "get_unique_index_patch" + 1*/
 
    uint8_t clipdist_mask;
-   uint8_t culldist_mask;
+   bool has_clip_outputs;
+   bool gs_writes_stream0;
 
    uint16_t esgs_vertex_stride;
-   uint16_t gsvs_vertex_size;
-   uint8_t gs_input_verts_per_prim;
-   unsigned max_gsvs_emit_size;
 
    /* Set 0xf or 0x0 (4 bits) per each written output.
     * ANDed with spi_shader_col_format.
@@ -162,7 +155,6 @@ struct si_shader_info {
    bool uses_tg_size;
    bool uses_atomic_ordered_add;
    bool writes_psize;
-   bool writes_clipvertex;
    bool writes_primid;
    bool writes_viewport_index;
    bool writes_layer;
@@ -190,17 +182,6 @@ struct si_shader_info {
  * finished.
  */
 struct si_temp_shader_variant_info {
-   /* Legacy GS output info. */
-   uint8_t gs_streams[64];
-   uint8_t gs_streams_16bit_lo[16];
-   uint8_t gs_streams_16bit_hi[16];
-
-   uint8_t gs_out_usage_mask[64];
-   uint8_t gs_out_usage_mask_16bit_lo[16];
-   uint8_t gs_out_usage_mask_16bit_hi[16];
-
-   ac_nir_gs_output_info gs_out_info;
-
    uint8_t vs_output_param_offset[NUM_TOTAL_VARYING_SLOTS];
    bool has_non_uniform_tex_access : 1;
    bool has_shadow_comparison : 1;
@@ -237,9 +218,14 @@ struct si_shader_variant_info {
    bool uses_discard : 1;
    uint8_t nr_pos_exports;
    uint8_t nr_param_exports;
+   uint8_t clipdist_mask;
+   uint8_t culldist_mask;
    uint8_t num_streamout_vec4s;
-   unsigned private_mem_vgprs;
-   unsigned max_simd_waves;
+   uint8_t max_simd_waves;
+   uint8_t ngg_lds_scratch_size;
+   uint16_t private_mem_vgprs;
+   uint32_t ngg_lds_vertex_size; /* VS,TES: Cull+XFB, GS: GSVS size */
+   ac_nir_legacy_gs_info legacy_gs;
 };
 
 #endif

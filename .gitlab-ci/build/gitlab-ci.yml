@@ -1,92 +1,29 @@
-# Shared between windows and Linux
-.build-common:
-  extends: .build-rules
-  # Cancel job if a newer commit is pushed to the same branch
-  interruptible: true
-  variables:
-    # Build jobs are typically taking between 5-12 minutes, depending on how
-    # much they build and how many new Rust compilers we have to build twice.
-    # Allow 25 minutes as a reasonable margin: beyond this point, something
-    # has gone badly wrong, and we should try again to see if we can get
-    # something from it.
-    #
-    # Some jobs not in the critical path use a higher timeout, particularly
-    # when building with ASan or UBSan.
-    BUILD_JOB_TIMEOUT: 12m
-    RUN_MESON_TESTS: "true"
-  timeout: 16m
-  # We don't want to download any previous job's artifacts
-  dependencies: []
-  artifacts:
-    name: "${CI_PROJECT_NAME}_${CI_JOB_NAME}"
-    when: always
-    paths:
-      - _build/meson-logs/*.txt
-      - _build/meson-logs/strace
-      - _build/.ninja_log
-      - artifacts
+include:
+  - local: '.gitlab-ci/build/gitlab-ci-inc.yml'
 
-.build-run-long:
-  variables:
-    BUILD_JOB_TIMEOUT: 18m
-  timeout: 25m
+# Git archive
 
-
-# Just Linux
-.build-linux:
-  extends: .build-common
-  variables:
-    C_ARGS: >
-      -Wno-error=deprecated-declarations
-    CCACHE_COMPILERCHECK: "content"
-    CCACHE_COMPRESS: "true"
-    CCACHE_DIR: /cache/mesa/ccache
-  # Use ccache transparently, and print stats before/after
-  before_script:
-    - !reference [default, before_script]
-    - |
-      export PATH="/usr/lib/ccache:$PATH"
-      export CCACHE_BASEDIR="$PWD"
-      if test -x /usr/bin/ccache; then
-        section_start ccache_before "ccache stats before build"
-        ccache --show-stats
-        section_end ccache_before
-      fi
-  after_script:
-    - if test -x /usr/bin/ccache; then ccache --show-stats | grep "Hits:"; fi
-    - !reference [default, after_script]
-
-.build-windows:
+make-git-archive:
   extends:
-    - .build-common
-    - .windows-docker-tags
-  cache:
-    key: ${CI_JOB_NAME}
-    paths:
-      - subprojects/packagecache
-
-.meson-build-for-tests:
-  extends:
-    - .build-linux
-  stage: build-for-tests
+    - .fdo.ci-fairy
+  stage: git-archive
+  rules:
+    - !reference [.scheduled_pipeline-rules, rules]
   script:
-    - &meson-build timeout --verbose ${BUILD_JOB_TIMEOUT_OVERRIDE:-$BUILD_JOB_TIMEOUT} bash --login .gitlab-ci/meson/build.sh
-    - .gitlab-ci/prepare-artifacts.sh
+    # Compactify the .git directory
+    - git gc --aggressive
+    # Download & cache the perfetto subproject as well.
+    - rm -rf subprojects/perfetto ; mkdir -p subprojects/perfetto && curl --fail https://android.googlesource.com/platform/external/perfetto/+archive/$(grep 'revision =' subprojects/perfetto.wrap | cut -d ' ' -f3).tar.gz | tar zxf - -C subprojects/perfetto
+    # compress the current folder
+    - tar -cvzf ../$CI_PROJECT_NAME.tar.gz .
 
-.meson-build-only:
-  extends:
-    - .meson-build-for-tests
-    - .build-only-delayed-rules
-  stage: build-only
-  script:
-    - *meson-build
-
+    - ci-fairy s3cp --token-file "${S3_JWT_FILE}" ../$CI_PROJECT_NAME.tar.gz https://$S3_HOST/git-cache/$CI_PROJECT_NAMESPACE/$CI_PROJECT_NAME/$CI_PROJECT_NAME.tar.gz
 
 debian-x86_64:
   extends:
     - .meson-build-for-tests
     - .use-debian/x86_64_build
-    - .build-run-long # but it really shouldn't! tracked in mesa#12544
+    - .build-run-long  # but it really shouldn't! tracked in mesa#12544
     - .ci-deqp-artifacts
   variables:
     UNWIND: "enabled"
@@ -108,7 +45,7 @@ debian-x86_64:
       -D tools=drm-shim
       -D valgrind=disabled
     S3_ARTIFACT_NAME: mesa-x86_64-default-${BUILDTYPE}
-    RUN_MESON_TESTS: "false" # debian-build-x86_64 already runs these
+    RUN_MESON_TESTS: "false"  # debian-build-x86_64 already runs these
   artifacts:
     reports:
       junit: artifacts/ci_scripts_report.xml
@@ -133,7 +70,7 @@ debian-x86_64-asan:
       -D valgrind=disabled
     S3_ARTIFACT_NAME: mesa-x86_64-asan-${BUILDTYPE}
     ARTIFACTS_DEBUG_SYMBOLS: 1
-    RUN_MESON_TESTS: "false" # just too slow
+    RUN_MESON_TESTS: "false"  # just too slow
     # Do a host build for mesa-clc (asan complains not being loaded as
     # the first library)
     HOST_BUILD_OPTIONS: >
@@ -184,7 +121,7 @@ debian-x86_64-msan:
       -Wno-error=unused-private-field
       -Wno-error=vla-cxx-extension
       -Wno-error=deprecated-declarations
-    RUN_MESON_TESTS: "false" # just too slow
+    RUN_MESON_TESTS: "false"  # just too slow
     # Do a host build for mesa-clc and precomp-compiler (msan complains about uninitialized
     # values in the LLVM libs)
     HOST_BUILD_OPTIONS: >
@@ -222,7 +159,7 @@ debian-x86_64-ubsan:
       -D gallium-va=false
     S3_ARTIFACT_NAME: ""
     ARTIFACTS_DEBUG_SYMBOLS: 1
-    RUN_MESON_TESTS: "false" # just too slow
+    RUN_MESON_TESTS: "false"  # just too slow
     HOST_BUILD_OPTIONS: >
       -D build-tests=false
       -D enable-glcpp-tests=false
@@ -251,12 +188,12 @@ debian-build-x86_64:
       -D egl=enabled
       -D glvnd=disabled
       -D platforms=x11,wayland
-      -D legacy-x11=dri2
     GALLIUM_ST: >
       -D gallium-extra-hud=true
       -D gallium-vdpau=enabled
       -D gallium-va=enabled
       -D gallium-rusticl=false
+      -D legacy-wayland=bind-wayland-display
     GALLIUM_DRIVERS: "i915,iris,nouveau,r300,r600,freedreno,llvmpipe,softpipe,svga,v3d,vc4,virgl,etnaviv,panfrost,lima,zink,d3d12,asahi,crocus"
     VULKAN_DRIVERS: "intel_hasvk,imagination-experimental,microsoft-experimental,nouveau,swrast"
     BUILDTYPE: "debugoptimized"
@@ -302,7 +239,7 @@ debian-release:
     BUILDTYPE: "release"
     S3_ARTIFACT_NAME: "mesa-x86_64-default-${BUILDTYPE}"
   script:
-    - *meson-build
+    - !reference [.meson-build-only, script]
     - 'if [ -n "$MESA_CI_PERFORMANCE_ENABLED" ]; then .gitlab-ci/prepare-artifacts.sh; fi'
 
 alpine-build-testing:
@@ -451,8 +388,7 @@ debian-android:
     - export GALLIUM_DRIVERS=iris,radeonsi,softpipe,virgl,zink
     - export VULKAN_DRIVERS=amd,intel,swrast,virtio
     - .gitlab-ci/create-llvm-meson-wrap-file.sh
-    - *meson-build
-    - .gitlab-ci/prepare-artifacts.sh
+    - !reference [.meson-build-for-tests, script]
     # remove all the files created by the previous build before the next build
     - git clean -dxf .
     # aarch64 build:
@@ -462,7 +398,7 @@ debian-android:
     - export CROSS=aarch64-linux-android
     - export GALLIUM_DRIVERS=etnaviv,freedreno,lima,panfrost,vc4,v3d
     - export VULKAN_DRIVERS=freedreno,broadcom,virtio
-    - *meson-build
+    - !reference [.meson-build-only, script]
 
 .meson-cross:
   extends:
@@ -541,7 +477,7 @@ debian-arm32-asan:
       -D tools=dlclose-skip
       -D gallium-rusticl=false
     ARTIFACTS_DEBUG_SYMBOLS: 1
-    RUN_MESON_TESTS: "false" # just too slow
+    RUN_MESON_TESTS: "false"  # just too slow
     S3_ARTIFACT_NAME: mesa-arm32-asan-${BUILDTYPE}
 
 debian-arm64:
@@ -565,7 +501,7 @@ debian-arm64:
       -D teflon=true
     GALLIUM_ST:
       -D gallium-rusticl=true
-    RUN_MESON_TESTS: "false" # run by debian-arm64-build-testing
+    RUN_MESON_TESTS: "false"  # run by debian-arm64-build-testing
     S3_ARTIFACT_NAME: mesa-arm64-default-${BUILDTYPE}
 
 debian-arm64-asan:
@@ -586,7 +522,7 @@ debian-arm64-asan:
       -D tools=dlclose-skip
       -D gallium-rusticl=false
     ARTIFACTS_DEBUG_SYMBOLS: 1
-    RUN_MESON_TESTS: "false" # just too slow
+    RUN_MESON_TESTS: "false"  # just too slow
     S3_ARTIFACT_NAME: mesa-arm64-asan-${BUILDTYPE}
 
 debian-arm64-ubsan:
@@ -611,7 +547,7 @@ debian-arm64-ubsan:
       -D b_sanitize=undefined
       -D gallium-rusticl=false
     ARTIFACTS_DEBUG_SYMBOLS: 1
-    RUN_MESON_TESTS: "false" # just too slow
+    RUN_MESON_TESTS: "false"  # just too slow
     S3_ARTIFACT_NAME: mesa-arm64-ubsan-${BUILDTYPE}
 
 debian-arm64-build-test:
@@ -639,7 +575,7 @@ debian-arm64-release:
       -Wno-error=stringop-overread
       -Wno-error=deprecated-declarations
   script:
-    - *meson-build
+    - !reference [.meson-build-only, script]
     - 'if [ -n "$MESA_CI_PERFORMANCE_ENABLED" ]; then .gitlab-ci/prepare-artifacts.sh; fi'
 
 debian-no-libdrm:
@@ -796,7 +732,7 @@ debian-x86_32:
     - .meson-cross
     - .use-debian/x86_32_build
     - .meson-build-only
-    - .build-run-long # it's not clear why this runs long, but it also doesn't matter much
+    - .build-run-long  # it's not clear why this runs long, but it also doesn't matter much
   variables:
     BUILDTYPE: debug
     CROSS: i386

@@ -139,8 +139,6 @@ static void scan_io_usage(const nir_shader *nir, struct si_shader_info *info,
       }
    } else {
       /* Outputs. */
-      assert(driver_location + num_slots <= ARRAY_SIZE(info->output_usagemask));
-
       for (unsigned i = 0; i < num_slots; i++) {
          unsigned loc = driver_location + i;
          unsigned slot_semantic = semantic + i;
@@ -165,26 +163,15 @@ static void scan_io_usage(const nir_shader *nir, struct si_shader_info *info,
             /* Output stores. */
             unsigned gs_streams = (uint32_t)nir_intrinsic_io_semantics(intr).gs_streams <<
                                   (nir_intrinsic_component(intr) * 2);
-            unsigned new_mask = mask & ~info->output_usagemask[loc];
+            bool writes_stream0 = false;
 
             /* Iterate over all components. */
-            for (unsigned i = 0; i < 4; i++) {
+            u_foreach_bit(i, mask) {
                unsigned stream = (gs_streams >> (i * 2)) & 0x3;
-
-               if (new_mask & (1 << i)) {
-                  info->output_streams[loc] |= stream << (i * 2);
-                  info->num_gs_stream_components[stream]++;
-               }
+               writes_stream0 |= stream == 0;
             }
 
-            if (nir_intrinsic_has_src_type(intr))
-               info->output_type[loc] = nir_intrinsic_src_type(intr);
-            else if (nir_intrinsic_has_dest_type(intr))
-               info->output_type[loc] = nir_intrinsic_dest_type(intr);
-            else
-               info->output_type[loc] = nir_type_float32;
-
-            info->output_usagemask[loc] |= mask;
+            info->gs_writes_stream0 |= writes_stream0;
             info->num_outputs = MAX2(info->num_outputs, loc + 1);
 
             if (nir->info.stage == MESA_SHADER_VERTEX ||
@@ -207,13 +194,30 @@ static void scan_io_usage(const nir_shader *nir, struct si_shader_info *info,
                   if (slot_semantic != VARYING_SLOT_POS &&
                       slot_semantic != VARYING_SLOT_PSIZ &&
                       slot_semantic != VARYING_SLOT_CLIP_VERTEX &&
-                      slot_semantic != VARYING_SLOT_LAYER)
+                      slot_semantic != VARYING_SLOT_LAYER &&
+                      writes_stream0)
                      info->outputs_written_before_ps |= bit;
 
                   /* LAYER and VIEWPORT have no effect if they don't feed the rasterizer. */
                   if (slot_semantic != VARYING_SLOT_LAYER &&
                       slot_semantic != VARYING_SLOT_VIEWPORT)
                      info->ls_es_outputs_written |= bit;
+
+                  /* Clip distances must be gathered manually because nir_opt_clip_cull_const
+                   * can reduce their number.
+                   */
+                  if ((slot_semantic == VARYING_SLOT_CLIP_DIST0 ||
+                       slot_semantic == VARYING_SLOT_CLIP_DIST1) &&
+                      !nir_intrinsic_io_semantics(intr).no_sysval_output) {
+                     assert(!indirect);
+                     assert(intr->src[0].ssa->num_components == 1);
+                     assert(num_slots == 1);
+                     unsigned index = (slot_semantic - VARYING_SLOT_CLIP_DIST0) * 4 +
+                                      nir_intrinsic_component(intr);
+
+                     if (index < nir->info.clip_distance_array_size)
+                        info->clipdist_mask |= BITFIELD_BIT(index);
+                  }
                }
             }
 
@@ -437,7 +441,6 @@ void si_nir_scan_shader(struct si_screen *sscreen, struct nir_shader *nir,
       info->base.gs.input_primitive = nir->info.gs.input_primitive;
       info->base.gs.vertices_out = nir->info.gs.vertices_out;
       info->base.gs.invocations = nir->info.gs.invocations;
-      info->base.gs.active_stream_mask = nir->info.gs.active_stream_mask;
       break;
 
    case MESA_SHADER_FRAGMENT:
@@ -542,7 +545,6 @@ void si_nir_scan_shader(struct si_screen *sscreen, struct nir_shader *nir,
       info->writes_viewport_index = nir->info.outputs_written & VARYING_BIT_VIEWPORT;
       info->writes_layer = nir->info.outputs_written & VARYING_BIT_LAYER;
       info->writes_psize = nir->info.outputs_written & VARYING_BIT_PSIZ;
-      info->writes_clipvertex = nir->info.outputs_written & VARYING_BIT_CLIP_VERTEX;
       info->writes_edgeflag = nir->info.outputs_written & VARYING_BIT_EDGE;
 
       if (nir->xfb_info) {
@@ -565,8 +567,6 @@ void si_nir_scan_shader(struct si_screen *sscreen, struct nir_shader *nir,
        * and si_emit_spi_map uses this unconditionally when such a pixel shader is used.
        */
       info->output_semantic[info->num_outputs] = VARYING_SLOT_PRIMITIVE_ID;
-      info->output_type[info->num_outputs] = nir_type_uint32;
-      info->output_usagemask[info->num_outputs] = 0x1;
    }
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
@@ -636,17 +636,16 @@ void si_nir_scan_shader(struct si_screen *sscreen, struct nir_shader *nir,
                                   nir->info.inputs_read_indirectly);
    }
 
-   if (nir->info.stage == MESA_SHADER_GEOMETRY) {
-      info->gsvs_vertex_size = info->num_outputs * 16;
-      info->max_gsvs_emit_size = info->gsvs_vertex_size * nir->info.gs.vertices_out;
-      info->gs_input_verts_per_prim =
-         mesa_vertices_per_prim(nir->info.gs.input_primitive);
-   }
+   /* clipdist_mask cannot be determined here from nir->info.clip_distance_array_size because
+    * nir_opt_clip_cull_const can reduce their number. It has to be determined by scanning
+    * the shader instructions.
+    */
+   if (nir->info.outputs_written & VARYING_BIT_CLIP_VERTEX)
+      info->clipdist_mask = SI_USER_CLIP_PLANE_MASK;
 
-   info->clipdist_mask = info->writes_clipvertex ? SI_USER_CLIP_PLANE_MASK :
-                         u_bit_consecutive(0, nir->info.clip_distance_array_size);
-   info->culldist_mask = u_bit_consecutive(0, nir->info.cull_distance_array_size) <<
-                         nir->info.clip_distance_array_size;
+   info->has_clip_outputs = nir->info.outputs_written & VARYING_BIT_CLIP_VERTEX ||
+                            nir->info.clip_distance_array_size ||
+                            nir->info.cull_distance_array_size;
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       for (unsigned i = 0; i < info->num_inputs; i++) {

@@ -50,7 +50,6 @@ etna_compiler_create(const char *renderer, const struct etna_core_info *info)
       .lower_ldexp = true,
       .lower_mul_high = true,
       .lower_bitops = true,
-      .lower_all_io_to_temps = true,
       .lower_flrp32 = true,
       .lower_fmod = true,
       .lower_vector_cmp = true,
@@ -84,8 +83,6 @@ etna_compiler_create(const char *renderer, const struct etna_core_info *info)
       .lower_ufind_msb = true,
       .has_uclz = true,
       .no_integers = info->halti < 2,
-      .support_indirect_inputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES),
-      .support_indirect_outputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES),
    };
 
    compiler->regs = etna_ra_setup(compiler);

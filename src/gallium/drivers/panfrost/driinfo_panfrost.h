@@ -1,6 +1,16 @@
 /* panfrost specific driconf options */
 DRI_CONF_SECTION_PERFORMANCE
-   DRI_CONF_OPT_B(pan_force_afbc_packing, false, "Use AFBC-P for textures")
+   /* AFBC options. */
+   DRI_CONF_OPT_B(pan_afbc_tiled, true, "Use AFBC tiled layout whenever "
+                  "possible")
+
+   /* AFBC packing options. */
+   DRI_CONF_OPT_B(pan_force_afbc_packing, false, "Pack AFBC textures "
+                  "progressively in the background")
+   DRI_CONF_OPT_I(pan_afbcp_reads_threshold, 10, 1, 255, "Consecutive reads "
+                  "theshold after which an AFBC texture is packed")
+   DRI_CONF_OPT_B(pan_afbcp_gpu_payload_sizes, false, "Compute AFBC-P "
+                  "payload sizes on GPU")
 
    /* 2M chunks. */
    DRI_CONF_OPT_I(pan_csf_chunk_size, 2 * 1024 * 1024, 256 * 1024, 8 * 1024 * 1024, "CSF Tiler Chunk Size")
@@ -15,4 +25,5 @@ DRI_CONF_SECTION_MISCELLANEOUS
    DRI_CONF_PAN_COMPUTE_CORE_MASK(~0ull)
    DRI_CONF_PAN_FRAGMENT_CORE_MASK(~0ull)
    DRI_CONF_OPT_B(pan_allow_128bit_rts_v4, false, "Allow using 128 bit render-targets on V4")
+   DRI_CONF_OPT_B(pan_relax_afbc_yuv_imports, false, "Use relaxed import rules for AFBC(YUV)")
 DRI_CONF_SECTION_END

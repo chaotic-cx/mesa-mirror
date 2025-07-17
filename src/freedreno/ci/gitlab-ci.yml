@@ -53,9 +53,6 @@ a306-traces:
     - .a306-test
   rules:
     - when: never # Google nginx needs updating
-  variables:
-    PIGLIT_REPLAY_DEVICE_NAME: "freedreno-a306"
-    PIGLIT_RESULTS: "freedreno-a306-replay"
 
 a530-gl:
   extends:
@@ -73,9 +70,6 @@ a530-traces:
     - .a530-test
   rules:
     - when: never # Google nginx needs updating
-  variables:
-    PIGLIT_REPLAY_DEVICE_NAME: "freedreno-a530"
-    PIGLIT_RESULTS: "freedreno-a530-replay"
 
 a530-piglit:
   extends:
@@ -102,12 +96,11 @@ a618-vk:
     - .lava-arm64-test-vk
     - .lava-sc7180-trogdor-kingoftown:arm64
     - .collabora-turnip-rules
-  parallel: 9
+  parallel: 8
   variables:
     DEQP_SUITE: freedreno-a618-vk
     FLAKES_CHANNEL: "#freedreno-ci"
     MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
-    DEQP_FRACTION: 2
 
 a618-vk-full:
   extends:
@@ -118,12 +111,32 @@ a618-vk-full:
   timeout: 2h
   parallel: 3
   variables:
-    # ran into OOM with VK-GL-CTS 1.2.8.0 at 6
-    FDO_CI_CONCURRENT: 4
     DEQP_SUITE: freedreno-a618-vk-full
-    DEQP_FRACTION: 1
 
-.a618-gl:
+a618-vk-asan:
+  extends:
+    - .lava-arm64-test-asan-vk
+    - .lava-sc7180-trogdor-kingoftown:arm64
+    - .collabora-turnip-manual-rules
+  timeout: 2h
+  variables:
+    DEQP_SUITE: freedreno-a618-vk-asan
+    FLAKES_CHANNEL: "#freedreno-ci"
+    FDO_CI_CONCURRENT: 2 # We get OOMkills if we go too wide with asan enabled
+
+a618-gles-asan:
+  extends:
+    - .lava-arm64-test-asan-gl
+    - .lava-sc7180-trogdor-kingoftown:arm64
+    - .collabora-turnip-manual-rules
+  variables:
+    DEQP_SUITE: freedreno-a618-gles-asan
+    FLAKES_CHANNEL: "#freedreno-ci"
+    FDO_CI_CONCURRENT: 2 # We get OOMkills if we go too wide with asan enabled
+
+# Run dEQP EGL window system tests with the window systems available.
+# X11 takes over the screen, wayland is run headless.
+a618-gl:
   extends:
     - .lava-arm64-test-gl
     - .lava-sc7180-trogdor-lazor-limozeen:arm64
@@ -131,28 +144,18 @@ a618-vk-full:
   variables:
     DEQP_SUITE: freedreno-a618
     FLAKES_CHANNEL: "#freedreno-ci"
+    HWCI_START_XORG: 1
+    HWCI_START_WESTON: 1
     DEQP_FRACTION: 4
 
 a618-gl-full:
   extends:
-    - .a618-gl
+    - a618-gl
     - .collabora-freedreno-manual-rules
   timeout: 65m
   variables:
+    FDO_CI_CONCURRENT: 6  # More causes issues and slows the job down
     DEQP_FRACTION: 1
-
-# Run dEQP EGL window system tests separately with the window systems available.
-# X11 takes over the screen, wayland is run headless.
-.a618-egl:
-  extends:
-    - .lava-arm64-test-gl
-    - .lava-sc7180-trogdor-lazor-limozeen:arm64
-    - .collabora-freedreno-rules
-  variables:
-    FLAKES_CHANNEL: "#freedreno-ci"
-    HWCI_START_XORG: 1
-    HWCI_START_WESTON: 1
-    DEQP_SUITE: freedreno-a618-egl
 
 a618-skqp:
   extends:
@@ -173,11 +176,14 @@ a618-piglit:
     - .test-piglit
     # Note that piglit has GL+VK integration testing.
     - .collabora-freedreno-turnip-rules
+  rules:
+    - !reference [.collabora-freedreno-turnip-rules, rules]
+    - !reference [.rusticl-rules, rules]
   variables:
     DEQP_SUITE: freedreno-a618-piglit
+    FDO_CI_CONCURRENT: 6  # More causes issues and isn't much faster anyway
     FLAKES_CHANNEL: "#freedreno-ci"
     HWCI_START_WESTON: 1
-    DEQP_FRACTION: 2
 
 a618-piglit-full:
   extends:
@@ -189,20 +195,6 @@ a618-piglit-full:
   timeout: 60m
   variables:
     DEQP_SUITE: freedreno-a618-piglit-full
-    FLAKES_CHANNEL: "#freedreno-ci"
-    HWCI_START_WESTON: 1
-
-a618-piglit-cl:
-  extends:
-    - .lava-arm64-test-gl
-    - .lava-sc7180-trogdor-lazor-limozeen:arm64
-    - .test-piglit
-    - .collabora-freedreno-rules
-  rules:
-    - !reference [.collabora-freedreno-rules, rules]
-    - !reference [.rusticl-rules, rules]
-  variables:
-    DEQP_SUITE: freedreno-a618-piglit-cl
     FLAKES_CHANNEL: "#freedreno-ci"
     HWCI_START_WESTON: 1
 
@@ -228,6 +220,10 @@ a618-traces-performance:
   extends:
     - a618-traces
     - .collabora-freedreno-rules-performance
+    - .piglit-performance-base
+  rules:
+    - !reference [.piglit-performance-base, rules]
+    - !reference [.collabora-freedreno-rules-performance, rules]
   variables:
     # Always use the same device
     # a618 tag starts with cbg-1 (not cbg-0) for some reason
@@ -242,7 +238,7 @@ a660-angle:
   variables:
     DEQP_SUITE: tu-angle
 
-a660-piglit-cl:
+a660-gl-cl:
   extends:
     - .lava-arm64-test-gl
     - .lava-sm8350-hdk:arm64
@@ -251,34 +247,17 @@ a660-piglit-cl:
   rules:
     - !reference [.collabora-freedreno-rules, rules]
     - !reference [.rusticl-rules, rules]
-  variables:
-    DEQP_SUITE: freedreno-a660-piglit-cl
-    HWCI_START_WESTON: 1
-
-a660-gl:
-  extends:
-    - .lava-arm64-test-gl
-    - .collabora-freedreno-rules
-    - .lava-sm8350-hdk:arm64
-  parallel: 2
+  parallel: 3
   variables:
     DEQP_SUITE: freedreno-a660
-    DEQP_FRACTION: 2
-
-a660-gl-full:
-  extends:
-    - a660-gl
-    - .collabora-freedreno-manual-rules
-  parallel: null
-  variables:
-    DEQP_FRACTION: 1
+    HWCI_START_WESTON: 1
 
 a660-vk:
   extends:
     - .lava-arm64-test-vk
     - .collabora-turnip-rules
     - .lava-sm8350-hdk:arm64
-  parallel: 5
+  parallel: 3
   variables:
     DEQP_SUITE: freedreno-a660-vk
     FLAKES_CHANNEL: "#freedreno-ci"
@@ -414,8 +393,6 @@ a630-traces:
   rules:
     - when: never  # Cheza DUTs are retired and no longer active
   variables:
-    PIGLIT_REPLAY_DEVICE_NAME: "freedreno-a630"
-    PIGLIT_RESULTS: "freedreno-a630-replay"
     # This lets us run several more traces which don't use any features we're
     # missing.
     MESA_GLSL_VERSION_OVERRIDE: "460"
@@ -465,18 +442,7 @@ a750-angle:
     DEQP_SUITE: tu-angle
     HWCI_TEST_SCRIPT: ./install/deqp-runner.sh
 
-a750-gl:
-  extends:
-    - .ci-tron-arm64-test-gl
-    - .a750-mupuf
-    - .valve-freedreno-manual-rules
-  timeout: 30m  # base runtime 11min total, 8min of testing
-  variables:
-    CI_TRON_TIMEOUT__OVERALL__MINUTES: 25
-    HWCI_TEST_SCRIPT: install/deqp-runner.sh
-    DEQP_SUITE: freedreno-a750
-
-a750-piglit-cl:
+a750-gl-cl:
   extends:
     - .ci-tron-arm64-test-gl
     - .test-piglit
@@ -484,12 +450,13 @@ a750-piglit-cl:
     - .valve-freedreno-manual-rules
   rules:
     - !reference [.valve-freedreno-manual-rules, rules]
-    - !reference [.rusticl-rules, rules]
+    - !reference [.rusticl-manual-rules, rules]
+  timeout: 30m  # base runtime 11min total, 8min of testing
   variables:
-    DEQP_SUITE: freedreno-a750-piglit-cl
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 25
     HWCI_START_WESTON: 1
-    HWCI_TEST_SCRIPT: ./install/deqp-runner.sh
-    VK_DRIVER: freedreno
+    HWCI_TEST_SCRIPT: install/deqp-runner.sh
+    DEQP_SUITE: freedreno-a750
 
 a750-vk:
   extends:

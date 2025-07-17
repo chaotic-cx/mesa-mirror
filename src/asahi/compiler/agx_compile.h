@@ -140,6 +140,12 @@ struct agx_shader_info {
    /* Uses txf and hence needs a txf sampler mapped */
    bool uses_txf;
 
+   /* Potentially uses the sampler heap (conservative) */
+   bool uses_sampler_heap;
+
+   /* Number of texture/sampler state registers pushed by the preamble. */
+   uint8_t texture_state_count, sampler_state_count;
+
    /* Number of 16-bit registers used by the main shader and preamble
     * respectively.
     */
@@ -175,6 +181,7 @@ static inline struct agx_precompiled_kernel_info
 agx_compact_kernel_info(struct agx_shader_info *info)
 {
    assert(info->has_preamble == (info->nr_preamble_gprs > 0));
+   assert(info->texture_state_count <= 8 && "static maximum, no need to plumb");
 
    return (struct agx_precompiled_kernel_info){
       .preamble_offset = info->preamble_offset,
@@ -283,6 +290,13 @@ struct agx_shader_key {
     */
    bool promote_constants;
 
+   /* Similarly whether the driver supports promoting bindless
+    * textures/samplers.  Currently this works only if non-bindless
+    * textures/samplers are not used, but none of our drivers mix bindless /
+    * non-bindless usage.
+    */
+   bool promote_textures;
+
    /* Set if this is a non-monolithic shader that must be linked with additional
     * shader parts before the program can be used. This suppresses omission of
     * `stop` instructions, which the linker must insert instead.
@@ -378,7 +392,9 @@ static const nir_shader_compiler_options agx_nir_options = {
    .lower_int64_options =
       (nir_lower_int64_options) ~(nir_lower_iadd64 | nir_lower_imul_2x32_64),
    .lower_doubles_options = (nir_lower_doubles_options)(~0),
-   .support_indirect_inputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES),
+   .support_indirect_inputs = BITFIELD_BIT(MESA_SHADER_TESS_CTRL) |
+                              BITFIELD_BIT(MESA_SHADER_TESS_EVAL) |
+                              BITFIELD_BIT(MESA_SHADER_FRAGMENT),
    .support_indirect_outputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES),
    .lower_fquantize2f16 = true,
    .compact_arrays = true,

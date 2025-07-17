@@ -56,7 +56,7 @@
 #include "gbm_backend_abi.h"
 
 /* For importing wl_buffer */
-#if HAVE_WAYLAND_PLATFORM
+#if HAVE_BIND_WL_DISPLAY
 #include "wayland-drm.h"
 #endif
 
@@ -194,6 +194,18 @@ swrast_get_image(struct dri_drawable *driDrawable,
                          data, surf->dri_private);
 }
 
+static void
+kopper_get_drawable_info(struct dri_drawable *driDrawable,
+                         int           *width,
+                         int           *height,
+                         void          *loaderPrivate)
+{
+   struct gbm_dri_surface *surf = loaderPrivate;
+
+   *width = surf->base.v0.width;
+   *height = surf->base.v0.height;
+}
+
 static const __DRIimageLookupExtension image_lookup_extension = {
    .base = { __DRI_IMAGE_LOOKUP, 2 },
 
@@ -222,6 +234,7 @@ static const __DRIkopperLoaderExtension kopper_loader_extension = {
     .base = { __DRI_KOPPER_LOADER, 1 },
 
     .SetSurfaceCreateInfo   = NULL,
+    .GetDrawableInfo        = kopper_get_drawable_info,
 };
 
 static const __DRIextension *gbm_dri_screen_extensions[] = {
@@ -332,6 +345,14 @@ static const struct gbm_dri_visual gbm_dri_visuals_table[] = {
    { GBM_FORMAT_ABGR16161616, PIPE_FORMAT_R16G16B16A16_UNORM },
    { GBM_FORMAT_XBGR16161616F, PIPE_FORMAT_R16G16B16X16_FLOAT },
    { GBM_FORMAT_ABGR16161616F, PIPE_FORMAT_R16G16B16A16_FLOAT },
+   { DRM_FORMAT_R16F,          PIPE_FORMAT_R16_FLOAT },
+   { DRM_FORMAT_R32F,          PIPE_FORMAT_R32_FLOAT },
+   { DRM_FORMAT_GR1616F,       PIPE_FORMAT_R16G16_FLOAT },
+   { DRM_FORMAT_GR3232F,       PIPE_FORMAT_R32G32_FLOAT },
+   { DRM_FORMAT_BGR161616,     PIPE_FORMAT_R16G16B16_UNORM },
+   { DRM_FORMAT_BGR161616F,    PIPE_FORMAT_R16G16B16_FLOAT },
+   { DRM_FORMAT_BGR323232F,    PIPE_FORMAT_R32G32B32_FLOAT },
+   { DRM_FORMAT_ABGR32323232F, PIPE_FORMAT_R32G32B32A32_FLOAT },
 };
 
 static int
@@ -659,7 +680,7 @@ gbm_dri_bo_import(struct gbm_device *gbm,
    }
 
    switch (type) {
-#if HAVE_WAYLAND_PLATFORM
+#if HAVE_BIND_WL_DISPLAY
    case GBM_BO_IMPORT_WL_BUFFER:
    {
       struct wl_drm_buffer *wb;

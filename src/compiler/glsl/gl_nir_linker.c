@@ -69,7 +69,7 @@ gl_nir_opts(nir_shader *nir)
       if (nir->options->lower_to_scalar) {
          NIR_PASS(_, nir, nir_lower_alu_to_scalar,
                     nir->options->lower_to_scalar_filter, NULL);
-         NIR_PASS(_, nir, nir_lower_phis_to_scalar, false);
+         NIR_PASS(_, nir, nir_lower_phis_to_scalar, NULL, NULL);
       }
 
       NIR_PASS(_, nir, nir_lower_alu);
@@ -1292,7 +1292,6 @@ preprocess_shader(const struct gl_constants *consts,
    if (prog->info.stage == MESA_SHADER_FRAGMENT && consts->HasFBFetch) {
       NIR_PASS(_, prog->nir, gl_nir_lower_blend_equation_advanced,
                  exts->KHR_blend_equation_advanced_coherent);
-      nir_lower_global_vars_to_local(prog->nir);
    }
 
    /* Set the next shader stage hint for VS and TES. */
@@ -1326,14 +1325,7 @@ preprocess_shader(const struct gl_constants *consts,
        (nir->info.outputs_written & (VARYING_BIT_CLIP_DIST0 | VARYING_BIT_CLIP_DIST1)))
       NIR_PASS(_, nir, gl_nir_zero_initialize_clip_distance);
 
-   NIR_PASS(_, nir, nir_lower_io_vars_to_temporaries,
-            nir_shader_get_entrypoint(nir), true,
-            options->lower_all_io_to_temps ||
-            nir->info.stage == MESA_SHADER_VERTEX ||
-            nir->info.stage == MESA_SHADER_GEOMETRY);
-
    NIR_PASS(_, nir, nir_lower_global_vars_to_local);
-   NIR_PASS(_, nir, nir_split_var_copies);
    NIR_PASS(_, nir, nir_lower_var_copies);
 
    if (gl_options->LowerPrecisionFloat16 && gl_options->LowerPrecisionInt16) {
@@ -1455,7 +1447,7 @@ optimize_varyings(nir_shader *producer, nir_shader *consumer, bool spirv,
 {
    nir_opt_varyings_progress progress =
       nir_opt_varyings(producer, consumer, spirv, max_uniform_comps,
-                       max_ubos);
+                       max_ubos, false);
 
    if (progress & nir_progress_producer)
       gl_nir_opts(producer);
@@ -1478,7 +1470,6 @@ gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
    unsigned num_shaders = 0;
    unsigned max_ubos = UINT_MAX;
    unsigned max_uniform_comps = UINT_MAX;
-   bool optimize_io = !debug_get_bool_option("MESA_GLSL_DISABLE_IO_OPT", false);
 
    for (unsigned i = 0; i < MESA_SHADER_STAGES; i++) {
       struct gl_linked_shader *shader = prog->_LinkedShaders[i];
@@ -1496,14 +1487,13 @@ gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
                                consts->Program[i].MaxUniformComponents);
       max_ubos = MIN2(max_ubos, consts->Program[i].MaxUniformBlocks);
       num_shaders++;
-      optimize_io &= !(nir->options->io_options & nir_io_dont_optimize);
    }
 
    /* Lower IO derefs to load and store intrinsics. */
    for (unsigned i = 0; i < num_shaders; i++)
       nir_lower_io_passes(shaders[i], true);
 
-   if (!optimize_io)
+   if (debug_get_bool_option("MESA_GLSL_DISABLE_IO_OPT", false))
       return;
 
    /* There is nothing to optimize for only 1 shader. */
@@ -1515,12 +1505,25 @@ gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
        */
       NIR_PASS(_, nir, nir_lower_io_to_scalar, get_varying_nir_var_mask(nir),
                NULL, NULL);
-      NIR_PASS(_, nir, nir_opt_vectorize_io, get_varying_nir_var_mask(nir));
+      NIR_PASS(_, nir, nir_opt_vectorize_io, get_varying_nir_var_mask(nir), false);
       return;
    }
 
    for (unsigned i = 0; i < num_shaders; i++) {
       nir_shader *nir = shaders[i];
+
+      /* Inter-shader code motion in nir_opt_varyings requires that each input
+       * load is loaded only once when possible, so move all input loads
+       * to the entry block, so that CSE can deduplicate them.
+       *
+       * We only do that for FS. Moving input loads to the beginning could
+       * increase register usage for other shaders too much.
+       */
+      if (nir->info.stage == MESA_SHADER_FRAGMENT) {
+         NIR_PASS(_, nir, nir_opt_move_to_top,
+                  nir_move_to_entry_block_only |
+                  nir_move_to_top_input_loads);
+      }
 
       /* nir_opt_varyings requires scalar IO. Scalarize all varyings (not just
        * the ones we optimize) because we want to re-vectorize everything to
@@ -1566,7 +1569,7 @@ gl_nir_lower_optimize_varyings(const struct gl_constants *consts,
       nir_shader *nir = shaders[i];
 
       /* Re-vectorize IO. */
-      NIR_PASS(_, nir, nir_opt_vectorize_io, get_varying_nir_var_mask(nir));
+      NIR_PASS(_, nir, nir_opt_vectorize_io, get_varying_nir_var_mask(nir), false);
 
       /* Recompute intrinsic bases, which are totally random after
        * optimizations and compaction. Do that for all inputs and outputs,

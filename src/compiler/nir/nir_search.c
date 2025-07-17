@@ -386,7 +386,7 @@ match_expression(const nir_algebraic_table *table, const nir_search_expression *
        instr->def.bit_size != expr->value.bit_size)
       return false;
 
-   state->inexact_match = expr->inexact || state->inexact_match;
+   state->inexact_match = expr->inexact || expr->contract || state->inexact_match;
    state->has_exact_alu = (instr->exact && !expr->ignore_exact) || state->has_exact_alu;
    if (state->inexact_match && state->has_exact_alu)
       return false;
@@ -606,8 +606,12 @@ dump_value(const nir_algebraic_table *table, const nir_search_value *val)
          CASE(b2f)
          CASE(b2i)
          CASE(i2i)
+         CASE(u2u)
+         CASE(f2f)
          CASE(f2i)
+         CASE(f2u)
          CASE(i2f)
+         CASE(u2f)
 #undef CASE
       default:
          fprintf(stderr, "%s", nir_op_infos[expr->opcode].name);

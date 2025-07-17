@@ -78,7 +78,7 @@ static const struct debug_named_value panfrost_debug_options[] = {
    {"overflow",   PAN_DBG_OVERFLOW,   "Check for buffer overflows in pool uploads"},
 #endif
    {"yuv",        PAN_DBG_YUV,        "Tint YUV textures with blue for 1-plane and green for 2-plane"},
-   {"forcepack",  PAN_DBG_FORCE_PACK, "Force packing of AFBC textures on upload"},
+   {"forcepack",  PAN_DBG_FORCE_PACK, "Pack AFBC textures progressively in the background"},
    {"cs",         PAN_DBG_CS,         "Enable extra checks in command stream"},
    DEBUG_NAMED_VALUE_END
 };
@@ -151,8 +151,15 @@ get_max_msaa(struct panfrost_device *dev, enum pipe_format format)
                                         max_cbuf_atts, format_size);
    assert(format_size > 16 || max_msaa >= 4);
 
+   /* t760 (GPU ID 0x750 - not a typo) has a HW issue in versions before
+    * the r1p0 version, which prevents 16x MSAA from working properly.
+    */
+   if (panfrost_device_gpu_prod_id(dev) == 0x750 &&
+       panfrost_device_gpu_rev(dev) < 0x1000)
+      max_msaa = MIN2(max_msaa, 8);
+
    if (dev->model->quirks.max_4x_msaa)
-      max_msaa = 4;
+      max_msaa = MIN2(max_msaa, 4);
 
    return max_msaa;
 }
@@ -632,7 +639,7 @@ panfrost_init_screen_caps(struct panfrost_screen *screen)
    caps->depth_clip_disable = true;
    caps->mixed_framebuffer_sizes = true;
    caps->frontend_noop = true;
-   caps->sample_shading = true;
+   caps->sample_shading = dev->arch >= 6;
    caps->fragment_shader_derivatives = true;
    caps->framebuffer_no_attachment = true;
    caps->quads_follow_provoking_vertex_convention = true;
@@ -883,9 +890,8 @@ panfrost_destroy_screen(struct pipe_screen *pscreen)
    ralloc_free(pscreen);
 }
 
-static const void *
+static const struct nir_shader_compiler_options *
 panfrost_screen_get_compiler_options(struct pipe_screen *pscreen,
-                                     enum pipe_shader_ir ir,
                                      enum pipe_shader_type shader)
 {
    return pan_shader_get_compiler_options(pan_screen(pscreen)->dev.arch);
@@ -977,10 +983,13 @@ panfrost_create_screen(int fd, const struct pipe_screen_config *config,
    if (dev->debug & PAN_DBG_NO_AFBC)
       dev->has_afbc = false;
 
+   dev->relaxed_afbc_yuv_imports =
+      driQueryOptionb(config->options, "pan_relax_afbc_yuv_imports");
+
    /* Bail early on unsupported hardware */
    if (dev->model == NULL) {
       debug_printf("panfrost: Unsupported model %X",
-                   panfrost_device_gpu_id(dev));
+                   panfrost_device_gpu_prod_id(dev));
       panfrost_destroy_screen(&(screen->base));
       return NULL;
    }
@@ -988,10 +997,16 @@ panfrost_create_screen(int fd, const struct pipe_screen_config *config,
    snprintf(screen->renderer_string, sizeof(screen->renderer_string),
             "%s (Panfrost)", dev->model->name);
 
+   screen->afbc_tiled = driQueryOptionb(config->options, "pan_afbc_tiled");
+
    screen->force_afbc_packing = dev->debug & PAN_DBG_FORCE_PACK;
    if (!screen->force_afbc_packing)
       screen->force_afbc_packing = driQueryOptionb(config->options,
                                                    "pan_force_afbc_packing");
+   screen->afbcp_reads_threshold = driQueryOptioni(config->options,
+                                                   "pan_afbcp_reads_threshold");
+   screen->afbcp_gpu_payload_sizes = driQueryOptionb(config->options,
+                                                     "pan_afbcp_gpu_payload_sizes");
 
    const char *option = debug_get_option("PAN_AFRC_RATE", NULL);
    if (!option) {

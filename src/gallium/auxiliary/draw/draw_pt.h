@@ -120,8 +120,8 @@ struct draw_pt_middle_end {
                               unsigned fetch_start,
                               unsigned fetch_count,
                               const uint16_t *draw_elts,
-                              unsigned draw_count,
-                              unsigned prim_flags);
+                              unsigned draw_start,
+                              unsigned draw_count);
 
    int (*get_max_vertex_count)(struct draw_pt_middle_end *);
 

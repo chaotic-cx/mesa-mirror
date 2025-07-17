@@ -135,10 +135,6 @@ llvmpipe_init_shader_caps(struct pipe_screen *screen)
          break;
       case PIPE_SHADER_TESS_CTRL:
       case PIPE_SHADER_TESS_EVAL:
-         /* Tessellation shader needs llvm coroutines support */
-         if (!GALLIVM_COROUTINES)
-            continue;
-         FALLTHROUGH;
       case PIPE_SHADER_VERTEX:
       case PIPE_SHADER_GEOMETRY:
          draw_init_shader_caps(caps);
@@ -273,7 +269,7 @@ llvmpipe_init_screen_caps(struct pipe_screen *screen)
    caps->vertex_color_clamped = true;
    caps->glsl_feature_level_compatibility =
    caps->glsl_feature_level = 450;
-   caps->compute = GALLIVM_COROUTINES;
+   caps->compute = true;
    caps->user_vertex_buffers = true;
    caps->tgsi_texcoord = true;
    caps->draw_indirect = true;
@@ -486,12 +482,10 @@ llvmpipe_finalize_nir(struct pipe_screen *screen,
 }
 
 
-static inline const void *
+static inline const struct nir_shader_compiler_options *
 llvmpipe_get_compiler_options(struct pipe_screen *screen,
-                              enum pipe_shader_ir ir,
                               enum pipe_shader_type shader)
 {
-   assert(ir == PIPE_SHADER_IR_NIR);
    return &gallivm_nir_options;
 }
 

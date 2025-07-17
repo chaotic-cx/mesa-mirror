@@ -13,6 +13,7 @@
 #include "radv_cp_dma.h"
 #include "radv_cs.h"
 #include "radv_debug.h"
+#include "radv_descriptor_update_template.h"
 #include "radv_dgc.h"
 #include "radv_event.h"
 #include "radv_pipeline_layout.h"
@@ -643,11 +644,9 @@ radv_cmd_buffer_annotate(struct radv_cmd_buffer *cmd_buffer, const char *annotat
    device->ws->cs_annotate(cmd_buffer->cs, annotation);
 }
 
-#define RADV_TASK_SHADER_SENSITIVE_STAGES (\
-      VK_PIPELINE_STAGE_2_TASK_SHADER_BIT_EXT |\
-      VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT |\
-      VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT |\
-      VK_PIPELINE_STAGE_2_PRE_RASTERIZATION_SHADERS_BIT)
+#define RADV_TASK_SHADER_SENSITIVE_STAGES                                                                              \
+   (VK_PIPELINE_STAGE_2_TASK_SHADER_BIT_EXT | VK_PIPELINE_STAGE_2_ALL_GRAPHICS_BIT |                                   \
+    VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT | VK_PIPELINE_STAGE_2_PRE_RASTERIZATION_SHADERS_BIT)
 
 static void
 radv_gang_barrier(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags2 src_stage_mask,
@@ -1870,11 +1869,6 @@ radv_emit_rbplus_state(struct radv_cmd_buffer *cmd_buffer)
          has_alpha = false;
       }
 
-      /* The HW doesn't quite blend correctly with rgb9e5 if we disable the alpha
-       * optimization, even though it has no alpha. */
-      if (has_rgb && format == V_028C70_COLOR_5_9_9_9)
-         has_alpha = true;
-
       /* Disable value checking for disabled channels. */
       if (!has_rgb)
          sx_blend_opt_control |= S_02875C_MRT0_COLOR_OPT_DISABLE(1) << (i * 4);
@@ -1948,8 +1942,20 @@ radv_emit_rbplus_state(struct radv_cmd_buffer *cmd_buffer)
          }
          break;
       case V_028C70_COLOR_5_9_9_9:
-         if (spi_format == V_028714_SPI_SHADER_FP16_ABGR)
-            sx_ps_downconvert |= V_028754_SX_RT_EXPORT_9_9_9_E5 << (i * 4);
+         if (spi_format == V_028714_SPI_SHADER_FP16_ABGR) {
+            if (pdev->info.gfx_level >= GFX12) {
+               sx_ps_downconvert |= V_028754_SX_RT_EXPORT_9_9_9_E5 << (i * 4);
+            } else if (pdev->info.gfx_level >= GFX10_3) {
+               if (colormask == 0xf) {
+                  sx_ps_downconvert |= V_028754_SX_RT_EXPORT_9_9_9_E5 << (i * 4);
+               } else {
+                  /* On GFX10_3+, RB+ with E5B9G9R9 seems broken in the hardware when not all
+                   * channels are written. Disable RB+ to workaround it.
+                   */
+                  sx_ps_downconvert |= V_028754_SX_RT_EXPORT_NO_CONVERSION << (i * 4);
+               }
+            }
+         }
          break;
       }
    }
@@ -2259,6 +2265,12 @@ radv_emit_hw_ngg(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *e
       radeon_set_uconfig_reg(R_030980_GE_PC_ALLOC, shader->info.regs.ge_pc_alloc);
    }
 
+   const uint32_t ngg_lds_layout_offset = radv_get_user_sgpr_loc(shader, AC_UD_NGG_LDS_LAYOUT);
+   assert(ngg_lds_layout_offset);
+   assert(!(shader->info.ngg_info.esgs_ring_size & 0xffff0000));
+
+   radeon_set_sh_reg(ngg_lds_layout_offset,
+                     SET_SGPR_FIELD(NGG_LDS_LAYOUT_GS_OUT_VERTEX_BASE, shader->info.ngg_info.esgs_ring_size));
    radeon_end();
 }
 
@@ -2497,22 +2509,9 @@ radv_emit_geometry_shader(struct radv_cmd_buffer *cmd_buffer)
 
    if (gs->info.merged_shader_compiled_separately) {
       const uint32_t vgt_esgs_ring_itemsize_offset = radv_get_user_sgpr_loc(gs, AC_UD_VGT_ESGS_RING_ITEMSIZE);
-      const uint32_t ngg_lds_layout_offset = radv_get_user_sgpr_loc(gs, AC_UD_NGG_LDS_LAYOUT);
-      uint32_t ngg_lds_layout = 0;
-
-      if (gs->info.is_ngg) {
-         assert(ngg_lds_layout_offset);
-         assert(!(gs->info.ngg_info.esgs_ring_size & 0xffff0000) && !(gs->info.ngg_info.scratch_lds_base & 0xffff0000));
-
-         ngg_lds_layout = SET_SGPR_FIELD(NGG_LDS_LAYOUT_GS_OUT_VERTEX_BASE, gs->info.ngg_info.esgs_ring_size) |
-                          SET_SGPR_FIELD(NGG_LDS_LAYOUT_SCRATCH_BASE, gs->info.ngg_info.scratch_lds_base);
-      }
-
       assert(vgt_esgs_ring_itemsize_offset);
 
       radeon_set_sh_reg(vgt_esgs_ring_itemsize_offset, es->info.esgs_itemsize / 4);
-      if (ngg_lds_layout)
-         radeon_set_sh_reg(ngg_lds_layout_offset, ngg_lds_layout);
    }
 
    radeon_end();
@@ -2574,7 +2573,7 @@ radv_emit_mesh_shader(struct radv_cmd_buffer *cmd_buffer)
    radeon_set_uconfig_reg_idx(&pdev->info, R_030908_VGT_PRIMITIVE_TYPE, 1, V_008958_DI_PT_POINTLIST);
    radeon_end();
 
-   if (pdev->mesh_fast_launch_2)
+   if (pdev->info.mesh_fast_launch_2)
       radv_gfx11_emit_meshlet(cmd_buffer, ms);
 
    radv_emit_vgt_gs_out(cmd_buffer, gs_out);
@@ -2867,7 +2866,7 @@ radv_emit_vgt_shader_config_gfx6(struct radv_cmd_buffer *cmd_buffer, const struc
       stages |= S_028B54_ES_EN(V_028B54_ES_STAGE_REAL) | S_028B54_GS_EN(1);
    } else if (key->mesh) {
       assert(!key->ngg_passthrough);
-      unsigned gs_fast_launch = pdev->mesh_fast_launch_2 ? 2 : 1;
+      unsigned gs_fast_launch = pdev->info.mesh_fast_launch_2 ? 2 : 1;
       stages |=
          S_028B54_GS_EN(1) | S_028B54_GS_FAST_LAUNCH(gs_fast_launch) | S_028B54_NGG_WAVE_ID_EN(key->mesh_scratch_ring);
    } else if (key->ngg) {
@@ -5031,7 +5030,8 @@ lookup_vs_prolog(struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *v
 
    /* try to use a pre-compiled prolog first */
    struct radv_shader_part *prolog = NULL;
-   if (cmd_buffer->state.can_use_simple_vertex_input && !as_ls && !misaligned_mask && !vi_state->alpha_adjust_lo && !vi_state->alpha_adjust_hi) {
+   if (cmd_buffer->state.can_use_simple_vertex_input && !as_ls && !misaligned_mask && !vi_state->alpha_adjust_lo &&
+       !vi_state->alpha_adjust_hi) {
       if (!instance_rate_inputs) {
          prolog = device->simple_vs_prologs[num_attributes - 1];
       } else if (num_attributes <= 16 && !*nontrivial_divisors && !zero_divisors &&
@@ -5524,8 +5524,8 @@ radv_cmd_buffer_flush_dynamic_state(struct radv_cmd_buffer *cmd_buffer, const ui
                  RADV_DYNAMIC_ALPHA_TO_COVERAGE_ENABLE | RADV_DYNAMIC_LOGIC_OP_ENABLE))
       radv_emit_color_blend(cmd_buffer);
 
-   if (states & (RADV_DYNAMIC_RASTERIZATION_SAMPLES | RADV_DYNAMIC_LINE_RASTERIZATION_MODE |
-                 RADV_DYNAMIC_POLYGON_MODE | RADV_DYNAMIC_SAMPLE_LOCATIONS_ENABLE))
+   if (states & (RADV_DYNAMIC_RASTERIZATION_SAMPLES | RADV_DYNAMIC_LINE_RASTERIZATION_MODE | RADV_DYNAMIC_POLYGON_MODE |
+                 RADV_DYNAMIC_SAMPLE_LOCATIONS_ENABLE))
       radv_emit_rasterization_samples(cmd_buffer);
 
    /* RADV_DYNAMIC_ATTACHMENT_FEEDBACK_LOOP_ENABLE is handled by radv_emit_db_shader_control. */
@@ -5769,7 +5769,8 @@ radv_get_vbo_info(const struct radv_cmd_buffer *cmd_buffer, uint32_t idx, struct
 }
 
 ALWAYS_INLINE static void
-radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, const unsigned i, const bool uses_dynamic_inputs, uint32_t *desc)
+radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, const unsigned i,
+                             const bool uses_dynamic_inputs, uint32_t *desc)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -5778,9 +5779,9 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
 
    if (uses_dynamic_inputs && !(vi_state->attribute_mask & BITFIELD_BIT(i))) {
       /* No vertex attribute description given: assume that the shader doesn't use this
-         * location (vb_desc_usage_mask can be larger than attribute usage) and use a null
-         * descriptor to avoid hangs (prologs load all attributes, even if there are holes).
-         */
+       * location (vb_desc_usage_mask can be larger than attribute usage) and use a null
+       * descriptor to avoid hangs (prologs load all attributes, even if there are holes).
+       */
       memset(desc, 0, 4 * 4);
       return;
    }
@@ -5794,7 +5795,7 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
       rsrc_word3 = vbo_info.non_trivial_format;
    } else {
       rsrc_word3 = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) | S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
-                     S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
+                   S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
 
       if (pdev->info.gfx_level >= GFX10) {
          rsrc_word3 |= S_008F0C_FORMAT_GFX10(V_008F0C_GFX10_FORMAT_32_UINT);
@@ -5807,9 +5808,9 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
    if (!vbo_info.va) {
       if (uses_dynamic_inputs) {
          /* Stride needs to be non-zero on GFX9, or else bounds checking is disabled. We need
-            * to include the format/word3 so that the alpha channel is 1 for formats without an
-            * alpha channel.
-            */
+          * to include the format/word3 so that the alpha channel is 1 for formats without an
+          * alpha channel.
+          */
          desc[0] = 0;
          desc[1] = S_008F04_STRIDE(16);
          desc[2] = 0;
@@ -5834,22 +5835,22 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
       } else {
          num_records = (num_records - attrib_end) / stride + 1;
          /* If attrib_offset>stride, then the compiler will increase the vertex index by
-            * attrib_offset/stride and decrease the offset by attrib_offset%stride. This is
-            * only allowed with static strides.
-            */
+          * attrib_offset/stride and decrease the offset by attrib_offset%stride. This is
+          * only allowed with static strides.
+          */
          num_records += vbo_info.attrib_index_offset;
       }
 
       /* GFX10 uses OOB_SELECT_RAW if stride==0, so convert num_records from elements into
-         * into bytes in that case. GFX8 always uses bytes.
-         */
+       * into bytes in that case. GFX8 always uses bytes.
+       */
       if (num_records && (chip == GFX8 || (chip != GFX9 && !stride))) {
          num_records = (num_records - 1) * stride + attrib_end;
       } else if (!num_records) {
          /* On GFX9, it seems bounds checking is disabled if both
-            * num_records and stride are zero. This doesn't seem necessary on GFX8, GFX10 and
-            * GFX10.3 but it doesn't hurt.
-            */
+          * num_records and stride are zero. This doesn't seem necessary on GFX8, GFX10 and
+          * GFX10.3 but it doesn't hurt.
+          */
          if (uses_dynamic_inputs) {
             desc[0] = 0;
             desc[1] = S_008F04_STRIDE(16);
@@ -5868,9 +5869,9 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
 
    if (chip >= GFX10) {
       /* OOB_SELECT chooses the out-of-bounds check:
-         * - 1: index >= NUM_RECORDS (Structured)
-         * - 3: offset >= NUM_RECORDS (Raw)
-         */
+       * - 1: index >= NUM_RECORDS (Structured)
+       * - 3: offset >= NUM_RECORDS (Raw)
+       */
       int oob_select = stride ? V_008F0C_OOB_SELECT_STRUCTURED : V_008F0C_OOB_SELECT_RAW;
       rsrc_word3 |= S_008F0C_OOB_SELECT(oob_select) | S_008F0C_RESOURCE_LEVEL(chip < GFX11);
    }
@@ -5886,7 +5887,8 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
 }
 
 ALWAYS_INLINE static void
-radv_write_vertex_descriptors_dynamic(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, void *vb_ptr)
+radv_write_vertex_descriptors_dynamic(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
+                                      void *vb_ptr)
 {
    unsigned desc_index = 0;
    for (unsigned i = 0; i < vs->info.vs.num_attributes; i++) {
@@ -5899,7 +5901,7 @@ ALWAYS_INLINE static void
 radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, void *vb_ptr)
 {
    unsigned desc_index = 0;
-   u_foreach_bit(i, vs->info.vs.vb_desc_usage_mask) {
+   u_foreach_bit (i, vs->info.vs.vb_desc_usage_mask) {
       uint32_t *desc = &((uint32_t *)vb_ptr)[desc_index++ * 4];
       radv_write_vertex_descriptor(cmd_buffer, vs, i, false, desc);
    }
@@ -5918,7 +5920,8 @@ radv_flush_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
    /* Mesh shaders don't have vertex descriptors. */
    assert(!cmd_buffer->state.mesh_shading);
 
-   unsigned vb_desc_alloc_size = (uses_dynamic_inputs ? vs->info.vs.num_attributes : util_bitcount(vs->info.vs.vb_desc_usage_mask)) * 16;
+   unsigned vb_desc_alloc_size =
+      (uses_dynamic_inputs ? vs->info.vs.num_attributes : util_bitcount(vs->info.vs.vb_desc_usage_mask)) * 16;
    unsigned vb_offset;
    void *vb_ptr;
    uint64_t va;
@@ -8198,8 +8201,7 @@ radv_CmdSetPrimitiveTopology(VkCommandBuffer commandBuffer, VkPrimitiveTopology 
       state->dirty |= RADV_CMD_DIRTY_GUARDBAND;
 
    /* for line stipple/mode */
-   if (radv_prim_is_lines(state->dynamic.vk.ia.primitive_topology) !=
-       radv_prim_is_lines(primitive_topology))
+   if (radv_prim_is_lines(state->dynamic.vk.ia.primitive_topology) != radv_prim_is_lines(primitive_topology))
       state->dirty |= RADV_DYNAMIC_RASTERIZATION_SAMPLES;
 
    state->dynamic.vk.ia.primitive_topology = primitive_topology;
@@ -8793,9 +8795,17 @@ radv_CmdSetRenderingAttachmentLocations(VkCommandBuffer commandBuffer,
 
    assume(pLocationInfo->colorAttachmentCount <= MESA_VK_MAX_COLOR_ATTACHMENTS);
    for (uint32_t i = 0; i < pLocationInfo->colorAttachmentCount; i++) {
-      state->dynamic.vk.cal.color_map[i] = pLocationInfo->pColorAttachmentLocations[i] == VK_ATTACHMENT_UNUSED
-                                              ? MESA_VK_ATTACHMENT_UNUSED
-                                              : pLocationInfo->pColorAttachmentLocations[i];
+      uint8_t val;
+
+      if (!pLocationInfo->pColorAttachmentLocations) {
+         val = i;
+      } else if (pLocationInfo->pColorAttachmentLocations[i] == VK_ATTACHMENT_UNUSED) {
+         val = MESA_VK_ATTACHMENT_UNUSED;
+      } else {
+         val = pLocationInfo->pColorAttachmentLocations[i];
+      }
+
+      state->dynamic.vk.cal.color_map[i] = val;
    }
 
    state->dirty_dynamic |= RADV_DYNAMIC_COLOR_ATTACHMENT_MAP;
@@ -9584,7 +9594,7 @@ radv_gfx12_emit_hiz_his_wa(const struct radv_device *device, const struct radv_c
     * - disable HiZ/HiS completely which is the safest workaround but this is known to decrease performance
     * - emit a dummy BOTTOM_OF_PIPE_TS after every draw which should workaround the hang and maintain performance
     */
-   if (pdev->info.gfx_level == GFX12 && render->has_hiz_his) {
+   if (pdev->use_gfx12_hiz_his_event_wa && render->has_hiz_his) {
       radeon_begin(cs);
       radeon_emit(PKT3(PKT3_RELEASE_MEM, 6, 0));
       radeon_emit(S_490_EVENT_TYPE(V_028A90_BOTTOM_OF_PIPE_TS) | S_490_EVENT_INDEX(5));
@@ -9718,7 +9728,7 @@ radv_cs_emit_indirect_mesh_draw_packet(struct radv_cmd_buffer *cmd_buffer, uint3
    uint32_t draw_id_enable = !!cmd_buffer->state.uses_drawid;
    uint32_t draw_id_reg = !draw_id_enable ? 0 : (base_reg + (xyz_dim_enable ? 12 : 0) - SI_SH_REG_OFFSET) >> 2;
 
-   uint32_t mode1_enable = !pdev->mesh_fast_launch_2;
+   uint32_t mode1_enable = !pdev->info.mesh_fast_launch_2;
 
    radeon_begin(cs);
    radeon_emit(PKT3(PKT3_DISPATCH_MESH_INDIRECT_MULTI, 7, predicating) | PKT3_RESET_FILTER_CAM_S(1));
@@ -9805,7 +9815,7 @@ radv_cs_emit_dispatch_taskmesh_gfx_packet(const struct radv_device *device, cons
 
    uint32_t xyz_dim_en = mesh_shader->info.cs.uses_grid_size;
    uint32_t xyz_dim_reg = !xyz_dim_en ? 0 : (cmd_state->vtx_base_sgpr - SI_SH_REG_OFFSET) >> 2;
-   uint32_t mode1_en = !pdev->mesh_fast_launch_2;
+   uint32_t mode1_en = !pdev->info.mesh_fast_launch_2;
    uint32_t linear_dispatch_en = cmd_state->shaders[MESA_SHADER_TASK]->info.cs.linear_taskmesh_dispatch;
    const bool sqtt_en = !!device->sqtt.bo;
 
@@ -10134,7 +10144,7 @@ radv_emit_direct_mesh_draw_packet(struct radv_cmd_buffer *cmd_buffer, uint32_t x
 
    radv_emit_userdata_mesh(cmd_buffer, x, y, z);
 
-   if (pdev->mesh_fast_launch_2) {
+   if (pdev->info.mesh_fast_launch_2) {
       if (!view_mask) {
          radv_cs_emit_mesh_dispatch_packet(cmd_buffer, x, y, z);
       } else {
@@ -11521,6 +11531,7 @@ radv_bind_graphics_shaders(struct radv_cmd_buffer *cmd_buffer)
                                   : cmd_buffer->state.shaders[MESA_SHADER_VERTEX];
       struct radv_shader *gs = cmd_buffer->state.shaders[MESA_SHADER_GEOMETRY];
 
+      gfx10_ngg_set_esgs_ring_itemsize(device, &es->info, &gs->info, &gs->info.ngg_info);
       gfx10_get_ngg_info(device, &es->info, &gs->info, &gs->info.ngg_info);
       radv_precompute_registers_hw_ngg(device, &gs->config, &gs->info);
    }
@@ -13527,16 +13538,15 @@ radv_barrier(struct radv_cmd_buffer *cmd_buffer, uint32_t dep_count, const VkDep
           *   VK_QUEUE_FAMILY_EXTERNAL, VK_QUEUE_FAMILY_FOREIGN_EXT, or a valid
           *   queue family
           */
-         if (src_qf_index == dst_qf_index)
-         {
+         if (src_qf_index == dst_qf_index) {
             src_qf_index = VK_QUEUE_FAMILY_IGNORED;
             dst_qf_index = VK_QUEUE_FAMILY_IGNORED;
          }
 
-         radv_handle_image_transition(
-            cmd_buffer, image, dep_info->pImageMemoryBarriers[i].oldLayout, dep_info->pImageMemoryBarriers[i].newLayout,
-            src_qf_index, dst_qf_index, &dep_info->pImageMemoryBarriers[i].subresourceRange,
-            sample_locs_info ? &sample_locations : NULL);
+         radv_handle_image_transition(cmd_buffer, image, dep_info->pImageMemoryBarriers[i].oldLayout,
+                                      dep_info->pImageMemoryBarriers[i].newLayout, src_qf_index, dst_qf_index,
+                                      &dep_info->pImageMemoryBarriers[i].subresourceRange,
+                                      sample_locs_info ? &sample_locations : NULL);
       }
    }
 

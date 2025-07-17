@@ -84,6 +84,19 @@ impl PipeResource {
         Some(Self { pipe: res })
     }
 
+    /// Creates a new reference to the underlying GPU resource
+    pub fn new_ref(&self) -> Self {
+        let mut ptr = ptr::null_mut();
+        // SAFETY: pipe_resource_reference will copy the ptr from src to dest, therefore ptr can't
+        //         be NULL.
+        unsafe {
+            pipe_resource_reference(&mut ptr, self.pipe.as_ptr());
+            Self {
+                pipe: NonNull::new_unchecked(ptr),
+            }
+        }
+    }
+
     pub(super) fn pipe(&self) -> *mut pipe_resource {
         self.pipe.as_ptr()
     }
@@ -285,15 +298,6 @@ impl PipeResource {
 impl Drop for PipeResource {
     fn drop(&mut self) {
         unsafe {
-            let pipe = self.pipe.as_ref();
-            let screen = pipe.screen.as_ref().unwrap();
-
-            if pipe.flags & PIPE_RESOURCE_FLAG_FRONTEND_VM != 0 {
-                if let Some(resource_assign_vma) = screen.resource_assign_vma {
-                    resource_assign_vma(pipe.screen, self.pipe(), 0);
-                }
-            }
-
             pipe_resource_reference(&mut self.pipe.as_ptr(), ptr::null_mut());
         }
     }

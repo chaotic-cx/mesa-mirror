@@ -74,6 +74,7 @@ enum radeon_micro_mode
 #define RADEON_SURF_PREFER_4K_ALIGNMENT   (1ull << 36)
 #define RADEON_SURF_PREFER_64K_ALIGNMENT  (1ull << 37)
 #define RADEON_SURF_VIDEO_REFERENCE       (1ull << 38)
+#define RADEON_SURF_HOST_TRANSFER         (1ull << 39)
 
 struct legacy_surf_level {
    uint32_t offset_256B;   /* divided by 256, the hw can only do 40-bit addresses */
@@ -502,6 +503,38 @@ void ac_surface_compute_nbc_view(struct ac_addrlib *addrlib, const struct radeon
                                  const struct radeon_surf *surf,
                                  const struct ac_surf_info *surf_info, unsigned level,
                                  unsigned layer, struct ac_surf_nbc_view *out);
+
+struct ac_surface_copy_region {
+   const void *surf_ptr;
+   const void *host_ptr;
+
+   struct {
+      uint32_t x;
+      uint32_t y;
+      uint32_t z;
+   } offset;
+
+   struct {
+      uint32_t width;
+      uint32_t height;
+      uint32_t depth;
+   } extent;
+
+   uint32_t level;
+   uint32_t base_layer;
+   uint32_t num_layers;
+
+   uint64_t mem_row_pitch;
+   uint64_t mem_slice_pitch;
+};
+
+bool ac_surface_copy_mem_to_surface(struct ac_addrlib *addrlib, const struct radeon_info *info,
+                                    const struct radeon_surf *surf, const struct ac_surf_info *surf_info,
+                                    const struct ac_surface_copy_region *surf_copy_region);
+
+bool ac_surface_copy_surface_to_mem(struct ac_addrlib *addrlib, const struct radeon_info *info,
+                                    const struct radeon_surf *surf, const struct ac_surf_info *surf_info,
+                                    const struct ac_surface_copy_region *surf_copy_region);
 
 void ac_surface_print_info(FILE *out, const struct radeon_info *info,
                            const struct radeon_surf *surf);

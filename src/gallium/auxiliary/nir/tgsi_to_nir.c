@@ -2247,7 +2247,7 @@ ttn_compile_init(const void *tgsi_tokens,
 
    if (!options) {
       options =
-         screen->get_compiler_options(screen, PIPE_SHADER_IR_NIR, scan.processor);
+         screen->get_compiler_options(screen, scan.processor);
    }
 
    c->build = nir_builder_init_simple_shader(tgsi_processor_to_shader_stage(scan.processor),
@@ -2400,7 +2400,7 @@ ttn_optimize_nir(nir_shader *nir)
       if (nir->options->lower_to_scalar) {
          NIR_PASS(progress, nir, nir_lower_alu_to_scalar,
                     nir->options->lower_to_scalar_filter, NULL);
-         NIR_PASS(progress, nir, nir_lower_phis_to_scalar, false);
+         NIR_PASS(progress, nir, nir_lower_phis_to_scalar, NULL, NULL);
       }
 
       NIR_PASS(progress, nir, nir_lower_alu);
@@ -2551,7 +2551,7 @@ ttn_finalize_nir(struct ttn_compile *c, struct pipe_screen *screen)
 
    /* driver needs clipdistance as array<float> */
    if ((nir->info.outputs_written &
-        (BITFIELD64_BIT(VARYING_SLOT_CLIP_DIST0) | BITFIELD64_BIT(VARYING_SLOT_CLIP_DIST1))) &&
+        (VARYING_BIT_CLIP_DIST0 | VARYING_BIT_CLIP_DIST1)) &&
         nir->options->compact_arrays) {
       NIR_PASS(_, nir, lower_clipdistance_to_array);
    }
@@ -2609,7 +2609,7 @@ load_nir_from_disk_cache(struct disk_cache *cache,
                          unsigned processor)
 {
    const nir_shader_compiler_options *options =
-      screen->get_compiler_options(screen, PIPE_SHADER_IR_NIR, processor);
+      screen->get_compiler_options(screen, processor);
    struct blob_reader blob_reader;
    size_t size;
    nir_shader *s;

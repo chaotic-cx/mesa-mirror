@@ -56,7 +56,7 @@
    }
 
 #define SIVPE_ERR(fmt, args...)                                                                     \
-   fprintf(stderr, "SIVPE ERROR %s:%d %s " fmt, __FILE__, __LINE__, __func__, ##args)
+   mesa_loge("SIVPE: %s:%d %s " fmt, __FILE__, __LINE__, __func__, ##args)
 
 #define SIVPE_PRINT(fmt, args...)                                                                   \
    printf("SIVPE %s: " fmt, __func__, ##args);
@@ -1551,7 +1551,7 @@ si_vpe_processor_end_frame(struct pipe_video_codec *codec,
    struct vpe_video_processor *vpeproc = (struct vpe_video_processor *)codec;
    assert(codec);
 
-   vpeproc->ws->cs_flush(&vpeproc->cs, picture->flush_flags, picture->fence);
+   vpeproc->ws->cs_flush(&vpeproc->cs, picture->flush_flags, picture->out_fence);
    next_buffer(vpeproc);
 
    return 0;

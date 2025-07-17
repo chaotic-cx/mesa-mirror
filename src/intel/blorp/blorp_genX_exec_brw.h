@@ -1785,6 +1785,11 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
       .TileLayout = cs_prog_data->walk_order == INTEL_WALK_ORDER_YXZ ?
                     TileY32bpe : Linear,
 #endif
+#if GFX_VER >= 30
+      /* HSD 14016252163 */
+      .DispatchWalkOrder = cs_prog_data->uses_sampler ? MortonWalk : LinearWalk,
+      .ThreadGroupBatchSize = cs_prog_data->uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
+#endif
 
       .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
          .KernelStartPointer = params->cs_prog_kernel,
@@ -1793,6 +1798,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          .BindingTableEntryCount = params->src.enabled ? 2 : 1,
          .BindingTablePointer = surfaces_offset,
          .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
+         .ThreadGroupDispatchSize =
+            intel_compute_threads_group_dispatch_size(dispatch.threads),
          .SharedLocalMemorySize =
             intel_compute_slm_encode_size(GFX_VER, prog_data->total_shared),
          .PreferredSLMAllocationSize =

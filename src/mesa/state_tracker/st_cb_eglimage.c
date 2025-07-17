@@ -48,6 +48,13 @@ is_format_supported(struct pipe_screen *screen, enum pipe_format format,
    bool supported = screen->is_format_supported(screen, format, PIPE_TEXTURE_2D,
                                                 nr_samples, nr_storage_samples,
                                                 usage);
+
+   if (!supported && (usage & PIPE_BIND_SAMPLER_VIEW)) {
+      supported = screen->is_format_supported(screen, format, PIPE_TEXTURE_2D,
+                                              nr_samples, nr_storage_samples,
+                                              usage | PIPE_BIND_SAMPLER_VIEW_SUBOPTIMAL);
+   }
+
    *native_supported = supported;
 
    /* for sampling, some formats can be emulated.. it doesn't matter that
@@ -80,6 +87,19 @@ is_format_supported(struct pipe_screen *screen, enum pipe_format format,
                                                  PIPE_TEXTURE_2D, nr_samples,
                                                  nr_storage_samples, usage) &&
                      screen->is_format_supported(screen, PIPE_FORMAT_R16G16_UNORM,
+                                                 PIPE_TEXTURE_2D, nr_samples,
+                                                 nr_storage_samples, usage);
+         break;
+      case PIPE_FORMAT_Y10X6_U10X6_V10X6_420_UNORM:
+      case PIPE_FORMAT_Y10X6_U10X6_V10X6_422_UNORM:
+      case PIPE_FORMAT_Y10X6_U10X6_V10X6_444_UNORM:
+      case PIPE_FORMAT_Y12X4_U12X4_V12X4_420_UNORM:
+      case PIPE_FORMAT_Y12X4_U12X4_V12X4_422_UNORM:
+      case PIPE_FORMAT_Y12X4_U12X4_V12X4_444_UNORM:
+      case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
+      case PIPE_FORMAT_Y16_U16_V16_422_UNORM:
+      case PIPE_FORMAT_Y16_U16_V16_444_UNORM:
+         supported = screen->is_format_supported(screen, PIPE_FORMAT_R16_UNORM,
                                                  PIPE_TEXTURE_2D, nr_samples,
                                                  nr_storage_samples, usage);
          break;
@@ -522,6 +542,18 @@ st_bind_egl_image(struct gl_context *ctx,
             texFormat = MESA_FORMAT_R_UNORM8;
             texObj->RequiredTextureImageUnits = 3;
          }
+         break;
+      case PIPE_FORMAT_Y10X6_U10X6_V10X6_420_UNORM:
+      case PIPE_FORMAT_Y10X6_U10X6_V10X6_422_UNORM:
+      case PIPE_FORMAT_Y10X6_U10X6_V10X6_444_UNORM:
+      case PIPE_FORMAT_Y12X4_U12X4_V12X4_420_UNORM:
+      case PIPE_FORMAT_Y12X4_U12X4_V12X4_422_UNORM:
+      case PIPE_FORMAT_Y12X4_U12X4_V12X4_444_UNORM:
+      case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
+      case PIPE_FORMAT_Y16_U16_V16_422_UNORM:
+      case PIPE_FORMAT_Y16_U16_V16_444_UNORM:
+         texFormat = MESA_FORMAT_R_UNORM16;
+         texObj->RequiredTextureImageUnits = 3;
          break;
       case PIPE_FORMAT_YUYV:
       case PIPE_FORMAT_YVYU:

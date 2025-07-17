@@ -737,31 +737,6 @@ out:
    return e ? e->config : NULL;
 }
 
-static void
-driSetBackgroundContext(void *loaderPrivate)
-{
-   __glXSetCurrentContext(loaderPrivate);
-}
-
-static GLboolean
-driIsThreadSafe(void *loaderPrivate)
-{
-   struct glx_context *pcp = (struct glx_context *) loaderPrivate;
-   /* Check Xlib is running in thread safe mode
-    *
-    * 'lock_fns' is the XLockDisplay function pointer of the X11 display 'dpy'.
-    * It will be NULL if XInitThreads wasn't called.
-    */
-   return pcp->psc->dpy->lock_fns != NULL;
-}
-
-const __DRIbackgroundCallableExtension driBackgroundCallable = {
-   .base = { __DRI_BACKGROUND_CALLABLE, 2 },
-
-   .setBackgroundContext    = driSetBackgroundContext,
-   .isThreadSafe            = driIsThreadSafe,
-};
-
 Bool
 dri_bind_context(struct glx_context *context, GLXDrawable draw, GLXDrawable read)
 {
@@ -975,7 +950,6 @@ dri_screen_init(struct glx_screen *psc, struct glx_display *priv, int screen, in
    enum dri_screen_type type;
    switch (psc->display->driver) {
    case GLX_DRIVER_DRI3:
-   case GLX_DRIVER_DRI2:
       type = DRI_SCREEN_DRI3;
       break;
    case GLX_DRIVER_ZINK_YES:

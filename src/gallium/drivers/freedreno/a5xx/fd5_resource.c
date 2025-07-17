@@ -7,6 +7,7 @@
  */
 
 #include "fd5_resource.h"
+#include "fd5_blitter.h"
 
 static void
 setup_lrz(struct fd_resource *rsc)
@@ -19,16 +20,23 @@ setup_lrz(struct fd_resource *rsc)
 }
 
 uint32_t
-fd5_setup_slices(struct fd_resource *rsc)
+fd5_layout_resource(struct fd_resource *rsc, enum fd_layout_type type)
 {
    struct pipe_resource *prsc = &rsc->b.b;
+   bool ubwc = false;
+   unsigned tile_mode = 0;
 
    if (FD_DBG(LRZ) && has_depth(prsc->format) && !is_z32(prsc->format))
       setup_lrz(rsc);
 
-   fdl5_layout(&rsc->layout, prsc->format, fd_resource_nr_samples(prsc),
-               prsc->width0, prsc->height0, prsc->depth0, prsc->last_level + 1,
-               prsc->array_size, prsc->target == PIPE_TEXTURE_3D);
+   if (type >= FD_LAYOUT_TILED)
+      tile_mode = fd5_tile_mode(prsc);
+   if (type == FD_LAYOUT_UBWC)
+      ubwc = true;
+
+   struct fdl_image_params params = fd_image_params(prsc, ubwc, tile_mode);
+
+   fdl5_layout_image(&rsc->layout, &params);
 
    return rsc->layout.size;
 }

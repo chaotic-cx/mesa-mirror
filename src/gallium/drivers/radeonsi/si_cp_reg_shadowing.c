@@ -9,10 +9,16 @@
 #include "ac_shadowed_regs.h"
 #include "util/u_memory.h"
 
-void si_init_cp_reg_shadowing(struct si_context *sctx)
+bool si_init_cp_reg_shadowing(struct si_context *sctx)
 {
-   if (sctx->has_graphics &&
-       sctx->screen->info.register_shadowing_required) {
+   if (!si_init_gfx_preamble_state(sctx))
+      return false;
+
+   if (sctx->uses_userq_reg_shadowing) {
+      sctx->ws->userq_submit_cs_preamble_ib_once(&sctx->gfx_cs, &sctx->cs_preamble_state->base);
+      si_pm4_free_state(sctx, sctx->cs_preamble_state, ~0);
+      sctx->cs_preamble_state = NULL;
+   } else if (sctx->uses_kernelq_reg_shadowing) {
       if (sctx->screen->info.has_fw_based_shadowing) {
          sctx->shadowing.registers =
                si_aligned_buffer_create(sctx->b.screen,
@@ -26,12 +32,14 @@ void si_init_cp_reg_shadowing(struct si_context *sctx)
                                         PIPE_USAGE_DEFAULT,
                                         sctx->screen->info.fw_based_mcbp.csa_size,
                                         sctx->screen->info.fw_based_mcbp.csa_alignment);
-         if (!sctx->shadowing.registers || !sctx->shadowing.csa)
-            fprintf(stderr, "radeonsi: cannot create register shadowing buffer(s)\n");
-         else
+         if (!sctx->shadowing.registers || !sctx->shadowing.csa) {
+            mesa_loge("cannot create register shadowing buffer(s)");
+            return false;
+         } else {
             sctx->ws->cs_set_mcbp_reg_shadowing_va(&sctx->gfx_cs,
                                                    sctx->shadowing.registers->gpu_address,
                                                    sctx->shadowing.csa->gpu_address);
+         }
       } else {
          sctx->shadowing.registers =
                si_aligned_buffer_create(sctx->b.screen,
@@ -39,14 +47,12 @@ void si_init_cp_reg_shadowing(struct si_context *sctx)
                                         PIPE_USAGE_DEFAULT,
                                         SI_SHADOWED_REG_BUFFER_SIZE,
                                         4096);
-         if (!sctx->shadowing.registers)
-            fprintf(stderr, "radeonsi: cannot create a shadowed_regs buffer\n");
+         if (!sctx->shadowing.registers) {
+            mesa_loge("cannot create a shadowed_regs buffer");
+            return false;
+         }
       }
-   }
 
-   si_init_gfx_preamble_state(sctx);
-
-   if (sctx->shadowing.registers) {
       /* We need to clear the shadowed reg buffer. */
       si_cp_dma_clear_buffer(sctx, &sctx->gfx_cs, &sctx->shadowing.registers->b.b,
                              0, sctx->shadowing.registers->bo_size, 0);
@@ -58,6 +64,11 @@ void si_init_cp_reg_shadowing(struct si_context *sctx)
                                          sctx->shadowing.registers->gpu_address,
                                          sctx->screen->dpbb_allowed);
 
+      if (!shadowing_preamble) {
+         mesa_loge("failed to create shadowing_preamble");
+         return false;
+      }
+
       /* Initialize shadowed registers as follows. */
       radeon_add_to_buffer_list(sctx, &sctx->gfx_cs, sctx->shadowing.registers,
                                 RADEON_USAGE_READWRITE | RADEON_PRIO_DESCRIPTORS);
@@ -68,6 +79,11 @@ void si_init_cp_reg_shadowing(struct si_context *sctx)
 
       if (sctx->gfx_level < GFX11) {
          struct ac_pm4_state *clear_state = ac_emulate_clear_state(&sctx->screen->info);
+         if (!clear_state) {
+            ac_pm4_free_state(shadowing_preamble);
+            mesa_loge("failed to create clear_state");
+            return false;
+         }
          si_pm4_emit_commands(sctx, clear_state);
          ac_pm4_free_state(clear_state);
       }
@@ -92,4 +108,6 @@ void si_init_cp_reg_shadowing(struct si_context *sctx)
                                     shadowing_preamble->ndw);
       ac_pm4_free_state(shadowing_preamble);
    }
+
+   return true;
 }

@@ -196,21 +196,13 @@ typedef enum {
    nir_io_has_intrinsics = BITFIELD_BIT(16),
 
    /**
-    * Don't run nir_opt_varyings and nir_opt_vectorize_io.
-    *
-    * This option is deprecated and is a hack. DO NOT USE.
-    * Use MESA_GLSL_DISABLE_IO_OPT=1 instead.
-    */
-   nir_io_dont_optimize = BITFIELD_BIT(17),
-
-   /**
     * Whether clip and cull distance arrays should be separate. If this is not
     * set, cull distances will be moved into VARYING_SLOT_CLIP_DISTn after clip
     * distances, and shader_info::clip_distance_array_size will be the index
     * of the first cull distance. nir_lower_clip_cull_distance_array_vars does
     * that.
     */
-   nir_io_separate_clip_cull_distance_arrays = BITFIELD_BIT(18),
+   nir_io_separate_clip_cull_distance_arrays = BITFIELD_BIT(17),
 } nir_io_options;
 
 typedef enum {
@@ -354,9 +346,6 @@ typedef struct nir_shader_compiler_options {
    bool lower_extract_word;
    bool lower_insert_byte;
    bool lower_insert_word;
-
-   /* TODO: this flag is potentially useless, remove? */
-   bool lower_all_io_to_temps;
 
    /* Indicates that the driver only has zero-based vertex id */
    bool vertex_id_zero_based;

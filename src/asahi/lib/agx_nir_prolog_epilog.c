@@ -90,7 +90,7 @@ map_vs_part_uniform(nir_intrinsic_instr *intr, unsigned nr_attribs)
    case nir_intrinsic_load_base_instance:
       return AGX_ABI_VUNI_BASE_INSTANCE(nr_attribs);
 
-   case nir_intrinsic_load_input_assembly_buffer_agx:
+   case nir_intrinsic_load_input_assembly_buffer_poly:
       return AGX_ABI_VUNI_INPUT_ASSEMBLY(nr_attribs);
 
    default:
@@ -140,7 +140,8 @@ lower_non_monolithic_uniforms(nir_builder *b, nir_intrinsic_instr *intr,
       b->cursor = nir_instr_remove(&intr->instr);
       nir_def *offs =
          nir_imul_imm(b, nir_u2u32(b, intr->src[0].ssa), AGX_TEXTURE_LENGTH);
-      nir_def_rewrite_uses(&intr->def, nir_vec2(b, nir_imm_int(b, 0), offs));
+      nir_def_rewrite_uses(&intr->def,
+                           nir_bindless_image_agx(b, offs, .desc_set = 0));
       return true;
    } else {
       return false;

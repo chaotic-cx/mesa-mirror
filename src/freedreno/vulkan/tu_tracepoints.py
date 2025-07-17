@@ -26,6 +26,7 @@ from u_trace import utrace_generate_perfetto_utils
 
 Header('vk_enum_to_str.h', scope=HeaderScope.SOURCE|HeaderScope.PERFETTO)
 Header('vk_format.h')
+Header('util/sha1/sha1.h')
 Header('tu_cmd_buffer.h', scope=HeaderScope.SOURCE)
 Header('tu_device.h', scope=HeaderScope.SOURCE)
 Header('common/freedreno_lrz.h')
@@ -37,6 +38,7 @@ ForwardDecl('struct tu_cmd_buffer')
 ForwardDecl('struct tu_device')
 ForwardDecl('struct tu_framebuffer')
 ForwardDecl('struct tu_tiling_config')
+ForwardDecl('typedef char tu_sha1_str[SHA1_DIGEST_STRING_LENGTH]')
 
 # List of the default tracepoints enabled. By default tracepoints are enabled,
 # set tp_default_enabled=False to disable them by default.
@@ -118,6 +120,19 @@ begin_end_tp('render_pass',
               Arg(type='int32_t',                               var='lrzWriteDisabledAtDraw',                               c_format='%d'),
               Arg(type='uint32_t',                              var='lrzStatus', c_format='%s', to_prim_type='(fd_lrz_gpu_dir_to_str((enum fd_lrz_gpu_dir)({} & 0xff)))', is_indirect=True),])
 
+begin_end_tp('draw',
+             [Arg(type='uint32_t', var='count', c_format='%u'),
+              Arg(type='tu_sha1_str', var='vs_sha1',  c_format='%s',
+                  copy_func='strcpy'),
+              Arg(type='tu_sha1_str', var='tcs_sha1',  c_format='%s',
+                  copy_func='strcpy'),
+              Arg(type='tu_sha1_str', var='tes_sha1',  c_format='%s',
+                  copy_func='strcpy'),
+              Arg(type='tu_sha1_str', var='gs_sha1',  c_format='%s',
+                  copy_func='strcpy'),
+              Arg(type='tu_sha1_str', var='fs_sha1',  c_format='%s',
+                  copy_func='strcpy'),
+              ], tp_default_enabled=False)
 
 begin_end_tp('binning_ib')
 begin_end_tp('draw_ib_sysmem')
@@ -168,10 +183,16 @@ begin_end_tp('compute',
           Arg(type='uint16_t', var='local_size_z',   c_format='%u'),
           Arg(type='uint16_t', var='num_groups_x',   c_format='%u'),
           Arg(type='uint16_t', var='num_groups_y',   c_format='%u'),
-          Arg(type='uint16_t', var='num_groups_z',   c_format='%u')])
+          Arg(type='uint16_t', var='num_groups_z',   c_format='%u'),
+          Arg(type='tu_sha1_str', var='cs_sha1',
+              c_format='%s', copy_func='strcpy'),
+          ])
 
 begin_end_tp('compute_indirect',
-             args=[Arg(type='uint8_t', var='unaligned', c_format='%u')],
+             args=[Arg(type='uint8_t', var='unaligned', c_format='%u'),
+                   Arg(type='tu_sha1_str', var='cs_sha1',
+                       c_format='%s', copy_func='strcpy'),
+                   ],
              end_args=[ArgStruct(type='VkDispatchIndirectCommand', var='size',
                                       is_indirect=True, c_format="%ux%ux%u",
                                       fields=['x', 'y', 'z'])])

@@ -17,6 +17,7 @@
 #include "util/u_threaded_context.h"
 #include "util/u_vertex_state_cache.h"
 #include "util/perf/u_trace.h"
+#include "util/log.h"
 #include "ac_descriptors.h"
 #include "ac_sqtt.h"
 #include "ac_spm.h"
@@ -25,6 +26,9 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#undef  MESA_LOG_TAG
+#define MESA_LOG_TAG "radeonsi"
 
 struct ac_llvm_compiler;
 
@@ -163,35 +167,6 @@ enum si_occlusion_query_mode {
 /* Debug flags. */
 enum
 {
-   /* Shader logging options: */
-   DBG_VS = MESA_SHADER_VERTEX,
-   DBG_TCS = MESA_SHADER_TESS_CTRL,
-   DBG_TES = MESA_SHADER_TESS_EVAL,
-   DBG_GS = MESA_SHADER_GEOMETRY,
-   DBG_PS = MESA_SHADER_FRAGMENT,
-   DBG_CS = MESA_SHADER_COMPUTE,
-   DBG_INIT_NIR,
-   DBG_NIR,
-   DBG_INIT_LLVM,
-   DBG_LLVM,
-   DBG_INIT_ACO,
-   DBG_ACO,
-   DBG_ASM,
-   DBG_STATS,
-
-   /* Shader compiler options the shader cache should be aware of: */
-   DBG_W32_GE,
-   DBG_W32_PS,
-   DBG_W32_CS,
-   DBG_W64_GE,
-   DBG_W64_PS,
-   DBG_W64_CS,
-
-   /* Shader compiler options (with no effect on the shader cache): */
-   DBG_CHECK_IR,
-   DBG_MONOLITHIC_SHADERS,
-   DBG_NO_OPT_VARIANT,
-
    /* Information logging options: */
    DBG_INFO,
    DBG_TEX,
@@ -207,6 +182,7 @@ enum
    DBG_CHECK_VM,
    DBG_RESERVE_VMID,
    DBG_SHADOW_REGS,
+   DBG_USERQ_NO_SHADOW_REGS,
    DBG_NO_FAST_DISPLAY_LIST,
    DBG_NO_DMA_SHADERS,
 
@@ -244,6 +220,39 @@ enum
    DBG_USE_LLVM,
 
    DBG_COUNT
+};
+
+/* Debug options for shaders. */
+enum
+{
+   /* Shader logging options: */
+   DBG_VS = MESA_SHADER_VERTEX,
+   DBG_TCS = MESA_SHADER_TESS_CTRL,
+   DBG_TES = MESA_SHADER_TESS_EVAL,
+   DBG_GS = MESA_SHADER_GEOMETRY,
+   DBG_PS = MESA_SHADER_FRAGMENT,
+   DBG_CS = MESA_SHADER_COMPUTE,
+   DBG_INIT_NIR,
+   DBG_NIR,
+   DBG_INIT_LLVM,
+   DBG_LLVM,
+   DBG_INIT_ACO,
+   DBG_ACO,
+   DBG_ASM,
+   DBG_STATS,
+
+   /* Shader compiler options the shader cache should be aware of: */
+   DBG_W32_GE,
+   DBG_W32_PS,
+   DBG_W32_CS,
+   DBG_W64_GE,
+   DBG_W64_PS,
+   DBG_W64_CS,
+
+   /* Shader compiler options (with no effect on the shader cache): */
+   DBG_CHECK_IR,
+   DBG_MONOLITHIC_SHADERS,
+   DBG_NO_OPT_VARIANT,
 };
 
 enum
@@ -515,6 +524,7 @@ struct si_screen {
    struct radeon_info info;
    struct nir_shader_compiler_options *nir_options;
    uint64_t debug_flags;
+   uint64_t shader_debug_flags;
    char renderer_string[183];
 
    unsigned pa_sc_raster_config;
@@ -991,7 +1001,9 @@ struct si_context {
    bool blitter_running:1;
    bool suppress_update_ps_colorbuf0_slot:1;
    bool is_noop:1;
-   bool has_graphics:1;
+   bool is_gfx_queue:1;
+   bool uses_kernelq_reg_shadowing:1;
+   bool uses_userq_reg_shadowing:1;
    bool gfx_flush_in_progress : 1;
    bool gfx_last_ib_is_busy : 1;
    bool compute_is_busy : 1;
@@ -1268,8 +1280,8 @@ struct si_context {
    struct util_dynarray resident_tex_needs_depth_decompress;
 
    /* Bindless state */
-   bool uses_bindless_samplers;
-   bool uses_bindless_images;
+   uint8_t uses_bindless_samplers;
+   uint8_t uses_bindless_images;
 
    /* Misc stats. */
    unsigned num_draw_calls;
@@ -1550,7 +1562,7 @@ void si_cp_copy_data(struct si_context *sctx, struct radeon_cmdbuf *cs, unsigned
                      struct si_resource *src, unsigned src_offset);
 
 /* si_cp_reg_shadowing.c */
-void si_init_cp_reg_shadowing(struct si_context *sctx);
+bool si_init_cp_reg_shadowing(struct si_context *sctx);
 
 /* si_cp_utils.c */
 void si_cp_release_mem_pws(struct si_context *sctx, struct radeon_cmdbuf *cs,
@@ -2248,7 +2260,7 @@ static inline bool si_vs_uses_vbos(struct si_shader_selector *sel)
 }
 
 #define PRINT_ERR(fmt, args...)                                                                    \
-   fprintf(stderr, "EE %s:%d %s - " fmt, __FILE__, __LINE__, __func__, ##args)
+   mesa_loge("%s:%d %s - " fmt, __FILE__, __LINE__, __func__, ##args)
 
 #ifdef __cplusplus
 }

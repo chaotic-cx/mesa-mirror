@@ -488,7 +488,7 @@ bool si_texture_disable_dcc(struct si_context *sctx, struct si_texture *tex)
 {
    struct si_screen *sscreen = sctx->screen;
 
-   if (!sctx->has_graphics)
+   if (!sctx->is_gfx_queue)
       return si_texture_discard_dcc(sscreen, tex);
 
    if (!si_can_disable_dcc(tex))
@@ -1545,7 +1545,7 @@ bool si_texture_commit(struct si_context *ctx, struct si_resource *res, unsigned
    for (int i = 0; i < d; i++) {
       uint64_t base = commit_base + i * depth_pitch;
       for (int j = 0; j < h; j++) {
-         uint64_t offset = base + j * row_pitch;
+         uint64_t offset = base + j * (uint64_t)row_pitch;
          if (!ctx->ws->buffer_commit(ctx->ws, res->buf, offset, size, commit))
             return false;
       }
@@ -1744,8 +1744,8 @@ static struct pipe_resource *si_texture_from_winsys_buffer(struct si_screen *ssc
           modifier == DRM_FORMAT_MOD_INVALID &&
           md_version >= 3 &&
           md_flags & (1u << AC_SURF_METADATA_FLAG_FAMILY_OVERRIDEN_BIT)) {
-         fprintf(stderr, "si_texture_from_winsys_buffer: fail texture import due to "
-                         "AC_SURF_METADATA_FLAG_FAMILY_OVERRIDEN_BIT being set.\n");
+         mesa_loge("si_texture_from_winsys_buffer: fail texture import due to "
+                   "AC_SURF_METADATA_FLAG_FAMILY_OVERRIDEN_BIT being set.");
          return NULL;
       }
    } else {

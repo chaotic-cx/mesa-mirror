@@ -149,11 +149,8 @@ struct pan_kmod_bo {
 
 /* List of GPU properties needed by the UMD. */
 struct pan_kmod_dev_props {
-   /* GPU product ID. */
-   uint32_t gpu_prod_id;
-
-   /* GPU revision. */
-   uint32_t gpu_revision;
+   /* GPU ID. */
+   uint32_t gpu_id;
 
    /* GPU variant. */
    uint32_t gpu_variant;
@@ -628,11 +625,9 @@ pan_kmod_bo_mmap(struct pan_kmod_bo *bo, off_t bo_offset, size_t size, int prot,
 
    host_addr = os_mmap(host_addr, size, prot, flags, bo->dev->fd,
                        mmap_offset + bo_offset);
-   if (host_addr == MAP_FAILED) {
+   if (host_addr == MAP_FAILED)
       mesa_loge("mmap(..., size=%zu, prot=%d, flags=0x%x) failed: %s",
                 size, prot, flags, strerror(errno));
-      return NULL;
-   }
 
    return host_addr;
 }

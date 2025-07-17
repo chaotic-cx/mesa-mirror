@@ -17,7 +17,7 @@
 #include "common/freedreno_lrz.h"
 #include "common/freedreno_ubwc.h"
 
-#include "a6xx.xml.h"
+#include "fd6_hw.h"
 
 /* A subset of the valid tiled formats can be compressed.  We do
  * already require tiled in order to be compressed, but just because
@@ -252,17 +252,24 @@ setup_lrz(struct fd_resource *rsc)
 
 template <chip CHIP>
 static uint32_t
-fd6_setup_slices(struct fd_resource *rsc)
+fd6_layout_resource(struct fd_resource *rsc, enum fd_layout_type type)
 {
    struct pipe_resource *prsc = &rsc->b.b;
    struct fd_screen *screen = fd_screen(prsc->screen);
+   bool ubwc = false;
+   unsigned tile_mode = TILE6_LINEAR;
 
-   if (rsc->layout.ubwc && !ok_ubwc_format(prsc->screen, prsc->format, prsc->nr_samples))
-      rsc->layout.ubwc = false;
+   if (type >= FD_LAYOUT_TILED)
+      tile_mode = fd6_tile_mode(prsc);
+   if (type == FD_LAYOUT_UBWC)
+      ubwc = true;
 
-   fdl6_layout(&rsc->layout, screen->info, prsc->format, fd_resource_nr_samples(prsc),
-               prsc->width0, prsc->height0, prsc->depth0, prsc->last_level + 1,
-               prsc->array_size, prsc->target == PIPE_TEXTURE_3D, false, false, NULL);
+   if (ubwc && !ok_ubwc_format(prsc->screen, prsc->format, prsc->nr_samples))
+      ubwc = false;
+
+   struct fdl_image_params params = fd_image_params(prsc, ubwc, tile_mode);
+
+   fdl6_layout_image(&rsc->layout, screen->info, &params, NULL);
 
    if (!FD_DBG(NOLRZ) && has_depth(prsc->format) && !is_z32(prsc->format))
       setup_lrz<CHIP>(rsc);
@@ -270,61 +277,58 @@ fd6_setup_slices(struct fd_resource *rsc)
    return rsc->layout.size;
 }
 
-static int
-fill_ubwc_buffer_sizes(struct fd_resource *rsc)
+static bool
+layout_resource_for_handle(struct fd_resource *rsc, struct winsys_handle *handle,
+                           bool ubwc, unsigned tile_mode)
 {
    struct pipe_resource *prsc = &rsc->b.b;
    struct fd_screen *screen = fd_screen(prsc->screen);
    struct fdl_explicit_layout l = {
-      .offset = rsc->layout.slices[0].offset,
-      .pitch = rsc->layout.pitch0,
+      .offset = handle->offset,
+      .pitch = handle->stride,
    };
 
-   if (!can_do_ubwc(prsc))
-      return -1;
+   if (ubwc && !can_do_ubwc(prsc))
+      return false;
 
-   rsc->layout.ubwc = true;
-   rsc->layout.tile_mode = TILE6_3;
+   struct fdl_image_params params = fd_image_params(prsc, ubwc, tile_mode);
 
-   if (!fdl6_layout(&rsc->layout, screen->info, prsc->format, fd_resource_nr_samples(prsc),
-                    prsc->width0, prsc->height0, prsc->depth0,
-                    prsc->last_level + 1, prsc->array_size, false, false, true, &l))
-      return -1;
+   if (!fdl6_layout_image(&rsc->layout, screen->info, &params, &l))
+      return false;
 
    if (rsc->layout.size > fd_bo_size(rsc->bo))
-      return -1;
+      return false;
 
-   return 0;
+   return true;
 }
 
-static int
-fd6_layout_resource_for_modifier(struct fd_resource *rsc, uint64_t modifier)
+static bool
+fd6_layout_resource_for_handle(struct fd_resource *rsc, struct winsys_handle *handle)
 {
+   uint64_t modifier = handle->modifier;
+
+   if (modifier == DRM_FORMAT_MOD_INVALID) {
+      struct fdl_metadata metadata;
+      if (!fd_bo_get_metadata(rsc->bo, &metadata, sizeof(metadata)))
+         modifier = metadata.modifier;
+   }
+
    switch (modifier) {
    case DRM_FORMAT_MOD_QCOM_COMPRESSED:
-      return fill_ubwc_buffer_sizes(rsc);
+      return layout_resource_for_handle(rsc, handle, true, TILE6_3);
    case DRM_FORMAT_MOD_LINEAR:
-      if (can_do_ubwc(&rsc->b.b)) {
-         perf_debug("%" PRSC_FMT
-                    ": not UBWC: imported with DRM_FORMAT_MOD_LINEAR!",
-                    PRSC_ARGS(&rsc->b.b));
-      }
-      return 0;
-   case DRM_FORMAT_MOD_QCOM_TILED3:
-      rsc->layout.tile_mode = fd6_tile_mode(&rsc->b.b);
-      FALLTHROUGH;
    case DRM_FORMAT_MOD_INVALID:
-      /* For now, without buffer metadata, we must assume that buffers
-       * imported with INVALID modifier are linear
-       */
       if (can_do_ubwc(&rsc->b.b)) {
-         perf_debug("%" PRSC_FMT
-                    ": not UBWC: imported with DRM_FORMAT_MOD_INVALID!",
-                    PRSC_ARGS(&rsc->b.b));
+         const char *mod_name =
+               (modifier == DRM_FORMAT_MOD_LINEAR) ? "LINEAR" : "INVALID";
+         perf_debug("%" PRSC_FMT ": not UBWC: imported with DRM_FORMAT_MOD_%s!",
+                    PRSC_ARGS(&rsc->b.b), mod_name);
       }
-      return 0;
+      return layout_resource_for_handle(rsc, handle, false, TILE6_LINEAR);
+   case DRM_FORMAT_MOD_QCOM_TILED3:
+      return layout_resource_for_handle(rsc, handle, false, TILE6_3);
    default:
-      return -1;
+      return false;
    }
 }
 
@@ -354,8 +358,8 @@ fd6_resource_screen_init(struct pipe_screen *pscreen)
 {
    struct fd_screen *screen = fd_screen(pscreen);
 
-   screen->setup_slices = fd6_setup_slices<CHIP>;
-   screen->layout_resource_for_modifier = fd6_layout_resource_for_modifier;
+   screen->layout_resource = fd6_layout_resource<CHIP>;
+   screen->layout_resource_for_handle = fd6_layout_resource_for_handle;
    screen->is_format_supported = fd6_is_format_supported;
 }
 FD_GENX(fd6_resource_screen_init);

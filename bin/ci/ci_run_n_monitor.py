@@ -430,6 +430,13 @@ def parse_args() -> argparse.Namespace:
         + '--target ".*traces" ',
     )
     parser.add_argument(
+        "--server",
+        metavar="gitlab-server",
+        type=str,
+        default=GITLAB_URL,
+        help=f"Specify the GitLab server work with (Default: {GITLAB_URL})",
+    )
+    parser.add_argument(
         "--target",
         metavar="target-job",
         help="Target job regex. For multiple targets, pass multiple values, "
@@ -472,14 +479,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--stress",
-        default=0,
+        metavar="n",
         type=int,
+        default=0,
         help="Stresstest job(s). Specify the number of times to rerun the selected jobs, "
              "or use -1 for indefinite. Defaults to 0. If jobs have already been executed, "
              "this will ensure the total run count respects the specified number.",
     )
     parser.add_argument(
         "--project",
+        metavar="name",
+        type=str,
         default="mesa",
         help="GitLab project in the format <user>/<project> or just <project>",
     )
@@ -491,14 +501,21 @@ def parse_args() -> argparse.Namespace:
 
     mutex_group1 = parser.add_mutually_exclusive_group()
     mutex_group1.add_argument(
-        "--rev", default="HEAD", metavar="revision", help="repository git revision (default: HEAD)"
+        "--rev",
+        metavar="id",
+        type=str,
+        default="HEAD",
+        help="Repository git commit-ish, tag or branch name (default: HEAD)",
     )
     mutex_group1.add_argument(
         "--pipeline-url",
+        metavar="url",
+        type=str,
         help="URL of the pipeline to use, instead of auto-detecting it.",
     )
     mutex_group1.add_argument(
         "--mr",
+        metavar="id",
         type=int,
         help="ID of a merge request; the latest pipeline in that MR will be used.",
     )
@@ -534,6 +551,7 @@ def print_detected_jobs(
 
 
 def find_dependencies(
+    server: str,
     token: str | None,
     target_jobs_regex: re.Pattern,
     include_stage_regex: re.Pattern,
@@ -549,6 +567,7 @@ def find_dependencies(
     dependencies, and returns the names of these jobs.
 
     Args:
+        server (str): The url to the GitLab server.
         token (str | None): The GitLab API token. If None, the API is accessed without
                             authentication.
         target_jobs_regex (re.Pattern): A regex pattern to match the names of the target jobs.
@@ -561,7 +580,10 @@ def find_dependencies(
     Raises:
         SystemExit: If no target jobs are found in the pipeline.
     """
-    gql_instance = GitlabGQL(token=token)
+    gql_instance = GitlabGQL(
+        url=f"{server}/api/graphql",
+        token=token
+    )
     dag = create_job_needs_dag(
         gql_instance, {"projectPath": project_path.path_with_namespace, "iid": iid}
     )
@@ -624,7 +646,7 @@ def main() -> None:
 
         token = read_token(args.token)
 
-        gl = gitlab.Gitlab(url=GITLAB_URL,
+        gl = gitlab.Gitlab(url=args.server,
                            private_token=token,
                            retry_transient_errors=True)
 
@@ -700,6 +722,7 @@ def main() -> None:
         exclude_stage_regex = re.compile(exclude_stage)
 
         deps = find_dependencies(
+            server=args.server,
             token=token,
             target_jobs_regex=target_jobs_regex,
             include_stage_regex=include_stage_regex,

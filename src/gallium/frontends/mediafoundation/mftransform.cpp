@@ -904,7 +904,7 @@ CDX12EncHMFT::InitializeEncoder( pipe_video_profile videoProfile, UINT32 Width, 
                                                   &m_pPipeFenceHandle,
                                                   m_hSharedFenceHandle,
                                                   NULL,
-                                                  PIPE_FD_TYPE_TIMELINE_SEMAPHORE );
+                                                  PIPE_FD_TYPE_TIMELINE_SEMAPHORE_D3D12 );
 
       hr = S_OK;
    }
@@ -1030,7 +1030,7 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
       std::lock_guard<std::mutex> lock( pThis->m_lock );
       while( !bHasEncodingError && pThis->m_EncodingQueue.try_pop( pDX12EncodeContext ) )
       {
-         pipe_enc_feedback_metadata metadata = { 0 };
+         pipe_enc_feedback_metadata metadata = { };
          unsigned int encoded_bitstream_bytes = 0u;
          ComPtr<IMFSample> spOutputSample;
          MFCreateSample( &spOutputSample );
@@ -1064,11 +1064,12 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
                   assert( pDX12EncodeContext->pSliceFences[slice_idx] );
 
                   bool fenceWaitResult =
-                     pThis->m_pPipeVideoCodec->context->screen->fence_finish( pThis->m_pPipeVideoCodec->context->screen,
-                                                                              NULL, /*passing non NULL resets GRFX context*/
-                                                                              pDX12EncodeContext->pSliceFences[slice_idx],
-                                                                              OS_TIMEOUT_INFINITE );
+                     pThis->m_pPipeVideoCodec->fence_wait( pThis->m_pPipeVideoCodec,
+                                                           pDX12EncodeContext->pSliceFences[slice_idx],
+                                                           OS_TIMEOUT_INFINITE ) != 0;
                   assert( fenceWaitResult );
+                  pThis->m_pPipeVideoCodec->destroy_fence( pThis->m_pPipeVideoCodec,
+                                                           pDX12EncodeContext->pSliceFences[slice_idx]);
                   if( fenceWaitResult )
                   {
                      std::vector<struct codec_unit_location_t> codec_unit_metadata;
@@ -1118,6 +1119,8 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
                   }
                }
 
+               memset(pDX12EncodeContext->pSliceFences.data(), 0, pDX12EncodeContext->pSliceFences.size() * sizeof(pipe_fence_handle *));
+
                spMemoryBuffer->Unlock();
                spMemoryBuffer->SetCurrentLength( static_cast<DWORD>( output_buffer_offset ) );
                spOutputSample->AddBuffer( spMemoryBuffer.Get() );
@@ -1129,27 +1132,10 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
             assert( pDX12EncodeContext->pAsyncFence );   // NULL returned pDX12EncodeContext->pAsyncFence indicates encode error
             if( pDX12EncodeContext->pAsyncFence )
             {
-               HRESULT hr = E_FAIL;
-               // Convert pipe_fence_handle to win32 shared fence HANDLE
-               uint64_t encoder_fence_value = 0;
-               HANDLE encoder_fence_shared_handle =
-                  pThis->m_pPipeVideoCodec->context->screen->fence_get_win32_handle( pThis->m_pPipeVideoCodec->context->screen,
-                                                                                     pDX12EncodeContext->pAsyncFence,
-                                                                                     &encoder_fence_value );
-               if( encoder_fence_shared_handle )
-               {
-                  // Convert win32 shared handle to ID3D12Fence
-                  ComPtr<ID3D12Fence> d3d12_encoder_fence;
-                  if( SUCCEEDED( hr = pThis->m_spDevice->OpenSharedHandle( encoder_fence_shared_handle,
-                                                                           IID_PPV_ARGS( d3d12_encoder_fence.GetAddressOf() ) ) ) )
-                  {
-                     // Wait for completion
-                     hr = d3d12_encoder_fence->SetEventOnCompletion( encoder_fence_value, NULL );
-                     HMFT_ETW_EVENT_INFO( "FenceCompletion", pThis );
-                  }
-
-                  CloseHandle( encoder_fence_shared_handle );
-               }
+               int wait_res = pThis->m_pPipeVideoCodec->fence_wait(pThis->m_pPipeVideoCodec, pDX12EncodeContext->pAsyncFence, OS_TIMEOUT_INFINITE);
+               HRESULT hr = wait_res > 0 ? S_OK : E_FAIL; // Based on p_video_codec interface
+               pThis->m_pPipeVideoCodec->destroy_fence(pThis->m_pPipeVideoCodec, pDX12EncodeContext->pAsyncFence);
+               pDX12EncodeContext->pAsyncFence = nullptr;
 
                assert( SUCCEEDED( hr ) );
                if( SUCCEEDED( hr ) )
@@ -1176,8 +1162,8 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
                      struct pipe_vpp_desc vpblit_params = {};
                      struct pipe_fence_handle *dst_surface_fence = nullptr;
 
-                     vpblit_params.src_surface_fence = NULL;   // No need, we _just_ waited for completion above before get_feedback
-                     vpblit_params.base.fence = &dst_surface_fence;   // Output surface fence (driver output)
+                     vpblit_params.base.in_fence = NULL;   // No need, we _just_ waited for completion above before get_feedback
+                     vpblit_params.base.out_fence = &dst_surface_fence;   // Output surface fence (driver output)
 
 #if MFT_CODEC_H264ENC
                      auto &cur_pic_dpb_entry =
@@ -1227,7 +1213,7 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
 
                      pThis->m_pPipeVideoBlitter->flush( pThis->m_pPipeVideoBlitter );
 
-                     assert( *vpblit_params.base.fence );   // Driver must have returned the completion fence
+                     assert( dst_surface_fence );   // Driver must have returned the completion fence
                      // Wait for downscaling completion before encode can proceed
 
                      // TODO: This can probably be done better later as plumbing
@@ -1236,11 +1222,11 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
                      // queue the fence wait into the next frame's encode GPU fence wait
 
                      ASSERTED bool finished =
-                        pThis->m_pPipeVideoCodec->context->screen->fence_finish( pThis->m_pPipeVideoCodec->context->screen,
-                                                                                 NULL, /*passing non NULL resets GRFX context*/
-                                                                                 *vpblit_params.base.fence,
-                                                                                 OS_TIMEOUT_INFINITE );
+                        pThis->m_pPipeVideoCodec->fence_wait(pThis->m_pPipeVideoCodec,
+                                                             dst_surface_fence,
+                                                             OS_TIMEOUT_INFINITE ) != 0;
                      assert( finished );
+                     pThis->m_pPipeVideoCodec->destroy_fence(pThis->m_pPipeVideoCodec, dst_surface_fence);
                   }
 #endif   // (MFT_CODEC_H264ENC || MFT_CODEC_H265ENC)
 
@@ -1318,6 +1304,7 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
                {
                   HRESULT hr = MFAttachPipeResourceAsSampleExtension( pThis->m_pPipeContext,
                                                                       pDX12EncodeContext->pPipeResourcePSNRStats,
+                                                                      pDX12EncodeContext->pSyncObjectQueue,
                                                                       MFSampleExtension_FramePsnrYuv,
                                                                       spOutputSample.Get() );
 
@@ -1332,6 +1319,7 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
                {
                   HRESULT hr = MFAttachPipeResourceAsSampleExtension( pThis->m_pPipeContext,
                                                                       pDX12EncodeContext->pPipeResourceQPMapStats,
+                                                                      pDX12EncodeContext->pSyncObjectQueue,
                                                                       MFSampleExtension_VideoEncodeQPMap,
                                                                       spOutputSample.Get() );
 
@@ -1346,6 +1334,7 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
                {
                   HRESULT hr = MFAttachPipeResourceAsSampleExtension( pThis->m_pPipeContext,
                                                                       pDX12EncodeContext->pPipeResourceRCBitAllocMapStats,
+                                                                      pDX12EncodeContext->pSyncObjectQueue,
                                                                       MFSampleExtension_VideoEncodeBitsUsedMap,
                                                                       spOutputSample.Get() );
 
@@ -1424,7 +1413,7 @@ CDX12EncHMFT::xThreadProc( void *pCtx )
          pThis->m_eventInputDrained.set();
       }
       pThis->m_eventHaveInput.reset();
-      if( !pThis->m_bLowLatency )
+      if( !pThis->m_bLowLatency && !pThis->m_bFlushing && !pThis->m_bDraining )
       {
          pThis->m_dwNeedInputCount++;
          HRESULT hr = pThis->QueueEvent( METransformNeedInput, GUID_NULL, S_OK, nullptr );
@@ -2016,7 +2005,7 @@ CDX12EncHMFT::ProcessInput( DWORD dwInputStreamIndex, IMFSample *pSample, DWORD 
 
       HMFT_ETW_EVENT_STOP( "PipeSubmitFrame", this );
 
-      pDX12EncodeContext->encoderPicInfo.base.fence =
+      pDX12EncodeContext->encoderPicInfo.base.out_fence =
          &pDX12EncodeContext->pAsyncFence;   // end_frame will fill in the fence as output param
 
       HMFT_ETW_EVENT_START( "PipeEndFrame", this );

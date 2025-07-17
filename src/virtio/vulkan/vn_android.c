@@ -168,6 +168,8 @@ vn_android_drm_format_to_vk_format(uint32_t format)
       return VK_FORMAT_R16G16B16A16_SFLOAT;
    case DRM_FORMAT_ABGR2101010:
       return VK_FORMAT_A2B10G10R10_UNORM_PACK32;
+   case DRM_FORMAT_R8:
+      return VK_FORMAT_R8_UNORM;
    case DRM_FORMAT_YVU420:
       return VK_FORMAT_G8_B8_R8_3PLANE_420_UNORM;
    case DRM_FORMAT_NV12:
@@ -189,40 +191,6 @@ vn_android_drm_format_is_yuv(uint32_t format)
    default:
       return false;
    }
-}
-
-VkResult
-vn_GetSwapchainGrallocUsage2ANDROID(
-   VkDevice device,
-   VkFormat format,
-   VkImageUsageFlags imageUsage,
-   VkSwapchainImageUsageFlagsANDROID swapchainImageUsage,
-   uint64_t *grallocConsumerUsage,
-   uint64_t *grallocProducerUsage)
-{
-   struct vn_device *dev = vn_device_from_handle(device);
-
-   if (VN_DEBUG(WSI)) {
-      vn_log(dev->instance,
-             "format=%d, imageUsage=0x%x, swapchainImageUsage=0x%x", format,
-             imageUsage, swapchainImageUsage);
-   }
-
-   *grallocConsumerUsage = 0;
-   *grallocProducerUsage = 0;
-   if (imageUsage & (VK_IMAGE_USAGE_TRANSFER_DST_BIT |
-                     VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT))
-      *grallocProducerUsage |= AHARDWAREBUFFER_USAGE_GPU_FRAMEBUFFER;
-
-   if (imageUsage &
-       (VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
-      *grallocProducerUsage |= AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE;
-
-   if (swapchainImageUsage & VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_ANDROID)
-      *grallocProducerUsage |= vk_android_get_front_buffer_usage();
-
-   return VK_SUCCESS;
 }
 
 static VkResult
@@ -418,8 +386,6 @@ vn_android_image_from_anb_internal(struct vn_device *dev,
    }
 
    img->wsi.is_wsi = true;
-   img->wsi.tiling_override = builder.create.tiling;
-   img->wsi.drm_format_modifier = builder.modifier.drmFormatModifier;
 
    int dma_buf_fd = vn_android_gralloc_get_dma_buf_fd(anb_info->handle);
    if (dma_buf_fd < 0) {
@@ -800,10 +766,9 @@ vn_android_get_drm_format_modifier_info(
 }
 
 VkResult
-vn_android_device_import_ahb(
-   struct vn_device *dev,
-   struct vn_device_memory *mem,
-   const struct VkMemoryDedicatedAllocateInfo *dedicated_info)
+vn_android_device_import_ahb(struct vn_device *dev,
+                             struct vn_device_memory *mem,
+                             const struct VkMemoryAllocateInfo *alloc_info)
 {
    const struct vk_device_memory *mem_vk = &mem->base.vk;
    const native_handle_t *handle = NULL;
@@ -812,7 +777,6 @@ vn_android_device_import_ahb(
    uint64_t alloc_size = 0;
    uint32_t mem_type_bits = 0;
    uint32_t mem_type_index = mem_vk->memory_type_index;
-   bool force_unmappable = false;
    VkResult result = VK_SUCCESS;
 
    handle = AHardwareBuffer_getNativeHandle(mem_vk->ahardware_buffer);
@@ -824,6 +788,9 @@ vn_android_device_import_ahb(
                                              &mem_type_bits);
    if (result != VK_SUCCESS)
       return result;
+
+   const VkMemoryDedicatedAllocateInfo *dedicated_info =
+      vk_find_struct_const(alloc_info->pNext, MEMORY_DEDICATED_ALLOCATE_INFO);
 
    /* If ahb is for an image, finish the deferred image creation first */
    if (dedicated_info && dedicated_info->image != VK_NULL_HANDLE) {
@@ -871,13 +838,6 @@ vn_android_device_import_ahb(
 
          mem_type_index = ffs(mem_type_bits & mem_req->memoryTypeBits) - 1;
       }
-
-      /* XXX Workaround before we use cross-domain backend in minigbm. The
-       * blob_mem allocated from virgl backend can have a queried guest
-       * mappable size smaller than the size returned from image memory
-       * requirement.
-       */
-      force_unmappable = true;
    }
 
    if (dedicated_info && dedicated_info->buffer != VK_NULL_HANDLE) {
@@ -921,8 +881,8 @@ vn_android_device_import_ahb(
       .allocationSize = alloc_size,
       .memoryTypeIndex = mem_type_index,
    };
-   result = vn_device_memory_import_dma_buf(dev, mem, &local_alloc_info,
-                                            force_unmappable, dup_fd);
+   result =
+      vn_device_memory_import_dma_buf(dev, mem, &local_alloc_info, dup_fd);
    if (result != VK_SUCCESS) {
       close(dup_fd);
       return result;

@@ -5,9 +5,11 @@ use crate::ir::*;
 use crate::legalize::{
     src_is_reg, swap_srcs_if_not_reg, LegalizeBuildHelpers, LegalizeBuilder,
 };
-use bitview::{
-    BitMutView, BitMutViewable, BitView, BitViewable, SetBit, SetField,
+use crate::sm30_instr_latencies::{
+    encode_kepler_shader, instr_exec_latency, instr_latency,
+    KeplerInstructionEncoder,
 };
+use bitview::*;
 
 use rustc_hash::FxHashMap;
 use std::fmt;
@@ -59,19 +61,18 @@ impl ShaderModel for ShaderModel20 {
         false
     }
 
-    fn exec_latency(&self, _op: &Op) -> u32 {
-        1
+    fn exec_latency(&self, op: &Op) -> u32 {
+        instr_exec_latency(self.sm, op)
     }
 
     fn raw_latency(
         &self,
-        _write: &Op,
-        _dst_idx: usize,
+        write: &Op,
+        dst_idx: usize,
         _read: &Op,
         _src_idx: usize,
     ) -> u32 {
-        // TODO
-        13
+        instr_latency(self.sm, write, dst_idx)
     }
 
     fn war_latency(
@@ -81,7 +82,6 @@ impl ShaderModel for ShaderModel20 {
         _write: &Op,
         _dst_idx: usize,
     ) -> u32 {
-        // TODO
         // We assume the source gets read in the first 4 cycles.  We don't know
         // how quickly the write will happen.  This is all a guess.
         4
@@ -89,27 +89,27 @@ impl ShaderModel for ShaderModel20 {
 
     fn waw_latency(
         &self,
-        _a: &Op,
-        _a_dst_idx: usize,
+        a: &Op,
+        a_dst_idx: usize,
         _a_has_pred: bool,
         _b: &Op,
         _b_dst_idx: usize,
     ) -> u32 {
         // We know our latencies are wrong so assume the wrote could happen
         // anywhere between 0 and instr_latency(a) cycles
-
-        // TODO
-        13
+        instr_latency(self.sm, a, a_dst_idx)
     }
 
     fn paw_latency(&self, _write: &Op, _dst_idx: usize) -> u32 {
-        // TODO
         13
     }
 
-    fn worst_latency(&self, _write: &Op, _dst_idx: usize) -> u32 {
-        // TODO
-        15
+    fn worst_latency(&self, write: &Op, dst_idx: usize) -> u32 {
+        instr_latency(self.sm, write, dst_idx)
+    }
+
+    fn max_instr_delay(&self) -> u8 {
+        32
     }
 
     fn legalize_op(&self, b: &mut LegalizeBuilder, op: &mut Op) {
@@ -117,7 +117,12 @@ impl ShaderModel for ShaderModel20 {
     }
 
     fn encode_shader(&self, s: &Shader<'_>) -> Vec<u32> {
-        encode_sm20_shader(self, s)
+        if self.sm >= 30 {
+            // Kepler adds explicit instruction latency encodings
+            encode_sm30_shader(self, s)
+        } else {
+            encode_sm20_shader(self, s)
+        }
     }
 }
 
@@ -251,18 +256,14 @@ impl SM20Encoder<'_> {
         range2: Range<usize>,
         dst: &Dst,
     ) {
-        assert!(range1.len() == 2);
-        assert!(range2.len() == 1);
         let reg = match dst {
             Dst::None => true_reg(),
             Dst::Reg(reg) => *reg,
             _ => panic!("Dst is not pred {dst}"),
         };
         assert!(reg.file() == RegFile::Pred);
-        assert!(reg.base_idx() <= 7);
         assert!(reg.comps() == 1);
-        self.set_field(range1, reg.base_idx() & 0x3);
-        self.set_field(range2, reg.base_idx() >> 2);
+        self.set_field2(range1, range2, reg.base_idx());
     }
 
     fn set_pred(&mut self, pred: &Pred) {
@@ -874,7 +875,7 @@ impl SM20Op for OpFSwz {
                 FSwzShuffle::SwapVertical => 5_u8,
             },
         );
-        e.set_bit(9, false); // .ndv
+        e.set_tex_ndv(9, self.deriv_mode);
 
         for (i, op) in self.ops.iter().enumerate() {
             e.set_field(
@@ -1675,6 +1676,15 @@ impl SM20Encoder<'_> {
         );
     }
 
+    fn set_tex_ndv(&mut self, bit: usize, deriv_mode: TexDerivMode) {
+        let ndv = match deriv_mode {
+            TexDerivMode::Auto => false,
+            TexDerivMode::NonDivergent => true,
+            _ => panic!("{deriv_mode} is not supported"),
+        };
+        self.set_bit(bit, ndv);
+    }
+
     fn set_tex_channel_mask(
         &mut self,
         range: Range<usize>,
@@ -1725,6 +1735,7 @@ impl SM20Op for OpTex {
         assert!(self.fault.is_none());
         e.set_reg_src(20..26, &self.srcs[0]);
         e.set_reg_src(26..32, &self.srcs[1]);
+        e.set_tex_ndv(45, self.deriv_mode);
         e.set_tex_channel_mask(46..50, self.channel_mask);
         e.set_tex_dim(51..54, self.dim);
         e.set_bit(54, self.offset_mode == TexOffsetMode::AddOffI);
@@ -1854,6 +1865,7 @@ impl SM20Op for OpTmml {
         assert!(self.dsts[1].is_none());
         e.set_reg_src(20..26, &self.srcs[0]);
         e.set_reg_src(26..32, &self.srcs[1]);
+        e.set_tex_ndv(45, self.deriv_mode);
         e.set_tex_channel_mask(46..50, self.channel_mask);
         e.set_tex_dim(51..54, self.dim);
     }
@@ -2825,7 +2837,7 @@ impl SM20Op for OpTexDepBar {
     fn encode(&self, e: &mut SM20Encoder<'_>) {
         e.set_opcode(SM20Unit::Tex, 0x3c);
         e.set_field(5..9, 0xf_u8); // flags
-        e.set_field(26..30, self.textures_left);
+        e.set_field(26..32, self.textures_left);
     }
 }
 
@@ -3071,4 +3083,39 @@ fn encode_sm20_shader(sm: &ShaderModel20, s: &Shader<'_>) -> Vec<u32> {
     }
 
     encoded
+}
+
+impl KeplerInstructionEncoder for ShaderModel20 {
+    fn encode_instr(
+        &self,
+        instr: &Instr,
+        labels: &FxHashMap<Label, usize>,
+        encoded: &mut Vec<u32>,
+    ) {
+        let mut e = SM20Encoder {
+            sm: self,
+            ip: encoded.len() * 4,
+            labels,
+            inst: [0_u32; 2],
+        };
+        as_sm20_op(&instr.op).encode(&mut e);
+        e.set_pred(&instr.pred);
+        encoded.extend(&e.inst[..]);
+    }
+
+    fn prepare_sched_instr<'a>(
+        &self,
+        sched_instr: &'a mut [u32; 2],
+    ) -> impl BitMutViewable + 'a {
+        let mut bv = BitMutView::new(sched_instr);
+        bv.set_field(0..4, 0b0111);
+        bv.set_field(60..64, 0b0010);
+
+        BitMutView::new_subset(sched_instr, 4..60)
+    }
+}
+
+fn encode_sm30_shader(sm: &ShaderModel20, s: &Shader<'_>) -> Vec<u32> {
+    assert!(sm.sm >= 30);
+    encode_kepler_shader(sm, s)
 }

@@ -62,7 +62,7 @@ static bool do_winsys_init(struct amdgpu_winsys *aws,
 
    /* TODO: Enable this once the kernel handles it efficiently. */
    if (!aws->info.userq_ip_mask)
-      aws->info.has_local_buffers = false;
+      aws->info.has_vm_always_valid = false;
 
    return true;
 
@@ -101,8 +101,8 @@ static void do_winsys_deinit(struct amdgpu_winsys *aws)
    simple_mtx_destroy(&aws->bo_export_table_lock);
 
    ac_addrlib_destroy(aws->addrlib);
+   ac_drm_cs_destroy_syncobj(aws->dev, aws->vm_timeline_syncobj);
    ac_drm_device_deinitialize(aws->dev);
-   ac_drm_cs_destroy_syncobj(aws->fd, aws->vm_timeline_syncobj);
    simple_mtx_destroy(&aws->bo_fence_lock);
 
    FREE(aws);
@@ -456,7 +456,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
       aws->info.drm_major = drm_major;
       aws->info.drm_minor = drm_minor;
 
-      if (ac_drm_cs_create_syncobj(aws->fd, &aws->vm_timeline_syncobj))
+      if (ac_drm_cs_create_syncobj2(aws->dev, 0, &aws->vm_timeline_syncobj))
          goto fail_alloc;
       simple_mtx_init(&aws->vm_ioctl_lock, mtx_plain);
 
@@ -547,6 +547,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
 
    amdgpu_bo_init_functions(sws);
    amdgpu_cs_init_functions(sws);
+   amdgpu_userq_init_functions(sws);
    amdgpu_surface_init_functions(sws);
 
    simple_mtx_lock(&aws->sws_list_lock);
