@@ -96,6 +96,7 @@ enum {
    RADV_PERFTEST_RT_WAVE_32 = 1u << 15,
    RADV_PERFTEST_VIDEO_ENCODE = 1u << 16,
    RADV_PERFTEST_NO_GTT_SPILL = 1u << 17,
+   RADV_PERFTEST_HIC = 1u << 18,
 };
 
 enum {
@@ -117,7 +118,6 @@ void radv_trap_handler_finish(struct radv_device *device);
 void radv_check_trap_handler(struct radv_queue *queue);
 
 bool radv_vm_fault_occurred(struct radv_device *device, struct radv_winsys_gpuvm_fault_info *fault_info);
-
 
 ALWAYS_INLINE static bool
 radv_device_fault_detection_enabled(const struct radv_device *device)

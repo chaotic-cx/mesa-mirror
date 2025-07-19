@@ -148,13 +148,27 @@ lower_abi_instr(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
    case nir_intrinsic_load_cull_any_enabled_amd: {
       nir_def *gs_tg_info = ac_nir_load_arg(b, &s->args->ac, s->args->ac.gs_tg_info);
 
-      /* Consider a workgroup small if it contains less than 16 triangles.
+      /* Cull only if the workgroup contains at least 16 triangles.
        *
        * The gs_tg_info[30:22] is the number of primitives, which we know is non-zero,
        * so the below is equivalent to: "ult(ubfe(gs_tg_info, 22, 9), 16)", but
        * ACO can optimize out the comparison to zero (see try_optimize_scc_nocompare).
        */
       nir_def *small_workgroup = nir_ieq_imm(b, nir_iand_imm(b, gs_tg_info, BITFIELD_RANGE(22 + 4, 9 - 4)), 0);
+
+      if (b->shader->info.cull_distance_array_size) {
+         /* If cull distances are present, always cull in the shader. We don't export them in order to increase
+          * primitive throughput.
+          */
+         replacement = nir_imm_true(b);
+         break;
+      }
+
+      if (b->shader->info.clip_distance_array_size) {
+         /* If clip distances are present, cull in the shader only when the workgroup is large enough. */
+         replacement = nir_inot(b, small_workgroup);
+         break;
+      }
 
       nir_def *mask =
          nir_bcsel(b, small_workgroup, nir_imm_int(b, radv_nggc_none),
@@ -206,14 +220,6 @@ lower_abi_instr(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
       break;
    case nir_intrinsic_load_ring_mesh_scratch_amd:
       replacement = load_ring(b, RING_MS_SCRATCH, s);
-      break;
-   case nir_intrinsic_load_ring_mesh_scratch_offset_amd:
-      /* gs_tg_info[0:11] is ordered_wave_id. Multiply by the ring entry size. */
-      replacement = nir_imul_imm(b, nir_iand_imm(b, ac_nir_load_arg(b, &s->args->ac, s->args->ac.gs_tg_info), 0xfff),
-                                 RADV_MESH_SCRATCH_ENTRY_BYTES);
-      break;
-   case nir_intrinsic_load_task_ring_entry_amd:
-      replacement = ac_nir_load_arg(b, &s->args->ac, s->args->ac.task_ring_entry);
       break;
    case nir_intrinsic_load_lshs_vertex_stride_amd: {
       if (stage == MESA_SHADER_VERTEX) {
@@ -368,18 +374,7 @@ lower_abi_instr(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
                                            nir_imm_int(b, s->address32_hi));
       break;
    case nir_intrinsic_load_lds_ngg_gs_out_vertex_base_amd:
-      if (s->info->merged_shader_compiled_separately) {
-         replacement = GET_SGPR_FIELD_NIR(s->args->ngg_lds_layout, NGG_LDS_LAYOUT_GS_OUT_VERTEX_BASE);
-      } else {
-         replacement = nir_imm_int(b, s->info->ngg_info.esgs_ring_size);
-      }
-      break;
-   case nir_intrinsic_load_lds_ngg_scratch_base_amd:
-      if (s->info->merged_shader_compiled_separately) {
-         replacement = GET_SGPR_FIELD_NIR(s->args->ngg_lds_layout, NGG_LDS_LAYOUT_SCRATCH_BASE);
-      } else {
-         replacement = nir_imm_int(b, s->info->ngg_info.scratch_lds_base);
-      }
+      replacement = GET_SGPR_FIELD_NIR(s->args->ngg_lds_layout, NGG_LDS_LAYOUT_GS_OUT_VERTEX_BASE);
       break;
    case nir_intrinsic_load_num_vertices_per_primitive_amd: {
       unsigned num_vertices;
@@ -468,7 +463,7 @@ load_gsvs_ring(nir_builder *b, lower_abi_state *s, unsigned stream_id)
    unsigned stream_offset = 0;
    unsigned stride = 0;
    for (unsigned i = 0; i <= stream_id; i++) {
-      stride = 4 * s->info->gs.num_stream_output_components[i] * s->info->gs.vertices_out;
+      stride = 4 * (uint32_t)s->info->gs.num_components_per_stream[i] * s->info->gs.vertices_out;
       if (i < stream_id)
          stream_offset += stride * s->info->wave_size;
    }

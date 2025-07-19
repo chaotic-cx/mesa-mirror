@@ -22,13 +22,16 @@
 #include "panvk_cmd_draw.h"
 #include "panvk_cmd_fb_preload.h"
 #include "panvk_cmd_meta.h"
+#include "panvk_cmd_ts.h"
 #include "panvk_device.h"
 #include "panvk_entrypoints.h"
 #include "panvk_image.h"
 #include "panvk_image_view.h"
 #include "panvk_instance.h"
 #include "panvk_priv_bo.h"
+#include "panvk_query_pool.h"
 #include "panvk_shader.h"
+#include "panvk_tracepoints.h"
 
 #include "pan_desc.h"
 #include "pan_earlyzs.h"
@@ -1797,29 +1800,36 @@ wrap_prev_oq(struct panvk_cmd_buffer *cmdbuf)
    if (!last_syncobj)
       return VK_SUCCESS;
 
-   struct pan_ptr new_oq_node = panvk_cmd_alloc_dev_mem(
-      cmdbuf, desc, sizeof(struct panvk_cs_occlusion_query), 8);
+   /* We need to signal n_views consecutive queries for multiview. */
+   const uint32_t n_views =
+      MAX2(1, util_bitcount(cmdbuf->state.gfx.render.view_mask));
 
-   if (!new_oq_node.gpu)
-      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+   for (uint32_t view_idx = 0; view_idx < n_views; ++view_idx) {
+      struct pan_ptr new_oq_node = panvk_cmd_alloc_dev_mem(
+         cmdbuf, desc, sizeof(struct panvk_cs_occlusion_query), 8);
 
-   cmdbuf->state.gfx.render.oq.chain = new_oq_node.gpu;
 
-   struct panvk_cs_occlusion_query *oq = new_oq_node.cpu;
+      if (!new_oq_node.gpu)
+         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
-   *oq = (struct panvk_cs_occlusion_query){
-      .node = {.next = 0},
-      .syncobj = last_syncobj,
-   };
+      cmdbuf->state.gfx.render.oq.chain = new_oq_node.gpu;
 
-   struct cs_builder *b = panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_FRAGMENT);
-   struct cs_index new_node_ptr = cs_scratch_reg64(b, 0);
-   cs_move64_to(b, new_node_ptr, new_oq_node.gpu);
-   cs_single_link_list_add_tail(
-      b, cs_subqueue_ctx_reg(b),
-      offsetof(struct panvk_cs_subqueue_context, render.oq_chain), new_node_ptr,
-      offsetof(struct panvk_cs_occlusion_query, node),
-      cs_scratch_reg_tuple(b, 10, 4));
+      struct panvk_cs_occlusion_query *oq = new_oq_node.cpu;
+
+      *oq = (struct panvk_cs_occlusion_query){
+         .node = {.next = 0},
+         .syncobj = last_syncobj + view_idx * sizeof(struct panvk_query_available_obj),
+      };
+
+      struct cs_builder *b = panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_FRAGMENT);
+      struct cs_index new_node_ptr = cs_scratch_reg64(b, 0);
+      cs_move64_to(b, new_node_ptr, new_oq_node.gpu);
+      cs_single_link_list_add_tail(
+         b, cs_subqueue_ctx_reg(b),
+         offsetof(struct panvk_cs_subqueue_context, render.oq_chain), new_node_ptr,
+         offsetof(struct panvk_cs_occlusion_query, node),
+         cs_scratch_reg_tuple(b, 10, 4));
+   }
 
    return VK_SUCCESS;
 }
@@ -2820,6 +2830,9 @@ panvk_per_arch(CmdBeginRendering)(VkCommandBuffer commandBuffer,
    /* If we're not resuming, the FBD should be NULL. */
    assert(!state->render.fbds.gpu || resuming);
 
+   trace_begin_render(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_VERTEX_TILER], cmdbuf);
+   trace_begin_render(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_FRAGMENT], cmdbuf);
+
    if (!resuming)
       panvk_per_arch(cmd_preload_render_area_border)(cmdbuf, pRenderingInfo);
 }
@@ -3022,7 +3035,9 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
                             length_reg);
 
    /* Wait for the tiling to be done before submitting the fragment job. */
+   trace_begin_sync_wait(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_FRAGMENT], cmdbuf);
    wait_finish_tiling(cmdbuf);
+   trace_end_sync_wait(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_FRAGMENT], cmdbuf);
 
    /* Disable the oom handler once the vertex/tiler work has finished.
     * We need to disable the handler at this point as the vertex/tiler subqueue
@@ -3279,6 +3294,60 @@ panvk_per_arch(cmd_flush_draws)(struct panvk_cmd_buffer *cmdbuf)
    }
 }
 
+static void
+handle_deferred_queries(struct panvk_cmd_buffer *cmdbuf)
+{
+   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
+
+   for (uint32_t sq = 0; sq < PANVK_SUBQUEUE_COUNT; ++sq) {
+      struct cs_builder *b = panvk_get_cs_builder(cmdbuf, sq);
+      struct cs_index current = cs_scratch_reg64(b, 0);
+      struct cs_index reports = cs_scratch_reg64(b, 2);
+      struct cs_index next = cs_scratch_reg64(b, 4);
+      int offset = sizeof(uint64_t) * sq;
+
+      cs_load64_to(
+         b, current, cs_subqueue_ctx_reg(b),
+         offsetof(struct panvk_cs_subqueue_context, render.ts_chain.head));
+
+      cs_while(b, MALI_CS_CONDITION_NEQUAL, current) {
+
+         cs_load64_to(b, reports, current,
+                      offsetof(struct panvk_cs_timestamp_query, reports));
+
+         cs_if(b, MALI_CS_CONDITION_NEQUAL, reports)
+            cs_store_state(b, reports, offset, MALI_CS_STATE_TIMESTAMP,
+                           cs_defer(dev->csf.sb.all_iters_mask, SB_ID(LS)));
+
+         cs_load64_to(b, next, current,
+                      offsetof(struct panvk_cs_timestamp_query, node.next));
+
+         if (sq == PANVK_QUERY_TS_INFO_SUBQUEUE) {
+            /* WAR on panvk_cs_timestamp_query::next. */
+            cs_flush_loads(b);
+            struct cs_index tmp = cs_scratch_reg64(b, 6);
+            cs_move64_to(b, tmp, 0);
+            cs_store64(b, tmp, current,
+                       offsetof(struct panvk_cs_timestamp_query, node.next));
+
+            cs_single_link_list_add_tail(
+               b, cs_subqueue_ctx_reg(b),
+               offsetof(struct panvk_cs_subqueue_context, render.ts_done_chain),
+               current, offsetof(struct panvk_cs_timestamp_query, node),
+               cs_scratch_reg_tuple(b, 10, 4));
+         }
+
+         cs_add64(b, current, next, 0);
+      }
+
+      cs_move64_to(b, current, 0);
+      cs_store64(
+         b, current, cs_subqueue_ctx_reg(b),
+         offsetof(struct panvk_cs_subqueue_context, render.ts_chain.head));
+      cs_flush_stores(b);
+   }
+}
+
 VKAPI_ATTR void VKAPI_CALL
 panvk_per_arch(CmdEndRendering)(VkCommandBuffer commandBuffer)
 {
@@ -3314,6 +3383,8 @@ panvk_per_arch(CmdEndRendering)(VkCommandBuffer commandBuffer)
       if (cmdbuf->state.gfx.render.fbds.gpu || inherits_render_ctx(cmdbuf)) {
          flush_tiling(cmdbuf);
          issue_fragment_jobs(cmdbuf);
+
+         handle_deferred_queries(cmdbuf);
       }
    } else if (!inherits_render_ctx(cmdbuf)) {
       /* If we're suspending the render pass and we didn't inherit the render
@@ -3338,4 +3409,11 @@ panvk_per_arch(CmdEndRendering)(VkCommandBuffer commandBuffer)
    /* If we're not suspending, we need to resolve attachments. */
    if (!suspending)
       panvk_per_arch(cmd_resolve_attachments)(cmdbuf);
+
+   trace_end_render(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_VERTEX_TILER], cmdbuf,
+                    cmdbuf->state.gfx.render.flags,
+                    &cmdbuf->state.gfx.render.fb.info);
+   trace_end_render(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_FRAGMENT], cmdbuf,
+                    cmdbuf->state.gfx.render.flags,
+                    &cmdbuf->state.gfx.render.fb.info);
 }

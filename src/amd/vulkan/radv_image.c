@@ -48,7 +48,8 @@ radv_choose_tiling(struct radv_device *device, const VkImageCreateInfo *pCreateI
        pCreateInfo->usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR))
       return RADEON_SURF_MODE_LINEAR_ALIGNED;
 
-   if (pCreateInfo->usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR))
+   if (pdev->info.vcn_ip_version < VCN_5_0_0 &&
+       pCreateInfo->usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR))
       return RADEON_SURF_MODE_LINEAR_ALIGNED;
 
    /* MSAA resources must be 2D tiled. */
@@ -629,7 +630,7 @@ radv_get_surface_flags(struct radv_device *device, struct radv_image *image, uns
    VkFormat format = radv_image_get_plane_format(pdev, image, plane_id);
    const struct util_format_description *desc = radv_format_description(format);
    const VkImageAlignmentControlCreateInfoMESA *alignment =
-         vk_find_struct_const(pCreateInfo->pNext, IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA);
+      vk_find_struct_const(pCreateInfo->pNext, IMAGE_ALIGNMENT_CONTROL_CREATE_INFO_MESA);
    bool is_depth, is_stencil;
 
    is_depth = util_format_has_depth(desc);
@@ -720,9 +721,8 @@ radv_get_surface_flags(struct radv_device *device, struct radv_image *image, uns
       bool is_4k_capable;
 
       if (!vk_format_is_depth_or_stencil(image_format)) {
-         is_4k_capable =
-               !(pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) && (flags & RADEON_SURF_DISABLE_DCC) &&
-               (flags & RADEON_SURF_NO_FMASK);
+         is_4k_capable = !(pCreateInfo->usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) &&
+                         (flags & RADEON_SURF_DISABLE_DCC) && (flags & RADEON_SURF_NO_FMASK);
       } else {
          /* Depth-stencil format without DEPTH_STENCIL usage does not work either. */
          is_4k_capable = false;
@@ -733,6 +733,9 @@ radv_get_surface_flags(struct radv_device *device, struct radv_image *image, uns
       if (alignment->maximumRequestedAlignment <= 64 * 1024)
          flags |= RADEON_SURF_PREFER_64K_ALIGNMENT;
    }
+
+   if (pCreateInfo->usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT)
+      flags |= RADEON_SURF_HOST_TRANSFER | RADEON_SURF_NO_FMASK | RADEON_SURF_NO_HTILE | RADEON_SURF_DISABLE_DCC;
 
    return flags;
 }
@@ -842,7 +845,8 @@ radv_image_alloc_single_sample_cmask(const struct radv_device *device, const str
 {
    if (!surf->cmask_size || surf->cmask_offset || surf->bpe > 8 || image->vk.mip_levels > 1 ||
        image->vk.extent.depth > 1 || radv_image_has_dcc(image) || !radv_image_use_fast_clear_for_image(device, image) ||
-       (image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT))
+       (image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT) ||
+       (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT))
       return;
 
    assert(image->vk.samples == 1);
@@ -1059,6 +1063,8 @@ radv_get_ac_surf_info(struct radv_device *device, const struct radv_image *image
    if (!vk_format_is_depth_or_stencil(image->vk.format) && !image->vk.external_handle_types &&
        !(image->vk.create_flags & (VK_IMAGE_CREATE_SPARSE_ALIASED_BIT | VK_IMAGE_CREATE_ALIAS_BIT |
                                    VK_IMAGE_CREATE_DESCRIPTOR_BUFFER_CAPTURE_REPLAY_BIT_EXT)) &&
+       !(image->vk.usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR |
+                            VK_IMAGE_USAGE_HOST_TRANSFER_BIT)) &&
        image->vk.tiling != VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
       info.surf_index = &device->image_mrt_offset_counter;
       info.fmask_surf_index = &device->fmask_mrt_offset_counter;
@@ -1173,15 +1179,21 @@ radv_image_create_layout(struct radv_device *device, struct radv_image_create_in
     * to sample it later with a linear filter, it will get garbage after the height it wants,
     * so we let the user specify the width/height unaligned, and align them preallocation.
     */
-   if (image->vk.usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR |
-                          VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
+   if (image->vk.usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR |
                           VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR)) {
       if (!device->vk.enabled_features.videoMaintenance1)
          assert(profile_list);
-      uint32_t width_align, height_align;
-      radv_video_get_profile_alignments(pdev, profile_list, &width_align, &height_align);
-      image_info.width = align(image_info.width, width_align);
-      image_info.height = align(image_info.height, height_align);
+
+      const bool is_linear =
+         image->vk.tiling == VK_IMAGE_TILING_LINEAR || image->planes[0].surface.modifier == DRM_FORMAT_MOD_LINEAR;
+
+      /* Only linear decode target requires the custom alignment. */
+      if (is_linear || !(image->vk.usage & VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR)) {
+         uint32_t width_align, height_align;
+         radv_video_get_profile_alignments(pdev, profile_list, &width_align, &height_align);
+         image_info.width = align(image_info.width, width_align);
+         image_info.height = align(image_info.height, height_align);
+      }
 
       if (radv_has_uvd(pdev) && image->vk.usage & VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR) {
          /* UVD and kernel demand a full DPB allocation. */
@@ -1206,6 +1218,12 @@ radv_image_create_layout(struct radv_device *device, struct radv_image_create_in
 
       if (create_info.no_metadata_planes || plane_count > 1) {
          image->planes[plane].surface.flags |= RADEON_SURF_DISABLE_DCC | RADEON_SURF_NO_FMASK | RADEON_SURF_NO_HTILE;
+      }
+
+      if (plane > 0 &&
+          image->vk.usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR)) {
+         image->planes[plane].surface.flags |= RADEON_SURF_FORCE_SWIZZLE_MODE;
+         image->planes[plane].surface.u.gfx9.swizzle_mode = image->planes[0].surface.u.gfx9.swizzle_mode;
       }
 
       radv_surface_init(pdev, &info, &image->planes[plane].surface);
@@ -1760,7 +1778,7 @@ radv_DestroyImage(VkDevice _device, VkImage _image, const VkAllocationCallbacks 
 
 static void
 radv_bind_image_memory(struct radv_device *device, struct radv_image *image, uint32_t bind_idx,
-                       struct radeon_winsys_bo *bo, uint64_t addr, uint64_t range)
+                       struct radeon_winsys_bo *bo, uint64_t addr, uint64_t offset, uint64_t range)
 {
    struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_instance *instance = radv_physical_device_instance(pdev);
@@ -1768,8 +1786,11 @@ radv_bind_image_memory(struct radv_device *device, struct radv_image *image, uin
    assert(bind_idx < 3);
 
    image->bindings[bind_idx].bo = bo;
-   image->bindings[bind_idx].addr = addr;
+   image->bindings[bind_idx].addr = addr + offset;
    image->bindings[bind_idx].range = range;
+
+   if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT)
+      image->bindings[bind_idx].host_ptr = (uint8_t *)radv_buffer_map(device->ws, bo) + offset;
 
    radv_rmv_log_image_bind(device, bind_idx, radv_image_to_handle(image));
 
@@ -1790,18 +1811,14 @@ radv_BindImageMemory2(VkDevice _device, uint32_t bindInfoCount, const VkBindImag
       if (status)
          *status->pResult = VK_SUCCESS;
 
-         /* Ignore this struct on Android, we cannot access swapchain structures there. */
+      /* Ignore this struct on Android, we cannot access swapchain structures there. */
 #ifdef RADV_USE_WSI_PLATFORM
-      const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
-         vk_find_struct_const(pBindInfos[i].pNext, BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
-
-      if (swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE) {
-         struct radv_image *swapchain_img =
-            radv_image_from_handle(wsi_common_get_image(swapchain_info->swapchain, swapchain_info->imageIndex));
-
-         radv_bind_image_memory(device, image, 0, swapchain_img->bindings[0].bo, swapchain_img->bindings[0].addr,
-                                swapchain_img->bindings[0].range);
-         continue;
+      if (!mem) {
+         const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
+            vk_find_struct_const(pBindInfos[i].pNext, BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
+         assert(swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE);
+         mem = radv_device_memory_from_handle(
+            wsi_common_get_memory(swapchain_info->swapchain, swapchain_info->imageIndex));
       }
 #endif
 
@@ -1836,9 +1853,10 @@ radv_BindImageMemory2(VkDevice _device, uint32_t bindInfoCount, const VkBindImag
          }
       }
 
-      const uint64_t addr = radv_buffer_get_va(mem->bo) + pBindInfos[i].memoryOffset;
+      const uint64_t addr = radv_buffer_get_va(mem->bo);
 
-      radv_bind_image_memory(device, image, bind_idx, mem->bo, addr, reqs.memoryRequirements.size);
+      radv_bind_image_memory(device, image, bind_idx, mem->bo, addr, pBindInfos[i].memoryOffset,
+                             reqs.memoryRequirements.size);
    }
    return VK_SUCCESS;
 }
@@ -1920,6 +1938,10 @@ radv_GetImageSubresourceLayout2(VkDevice _device, VkImage _image, const VkImageS
             radv_image_has_dcc(image) ? VK_IMAGE_COMPRESSION_DEFAULT_EXT : VK_IMAGE_COMPRESSION_DISABLED_EXT;
       }
    }
+
+   VkSubresourceHostMemcpySizeEXT *host_memcpy_size = vk_find_struct(pLayout->pNext, SUBRESOURCE_HOST_MEMCPY_SIZE_EXT);
+   if (host_memcpy_size)
+      host_memcpy_size->size = pLayout->subresourceLayout.size;
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL

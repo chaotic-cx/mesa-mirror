@@ -150,9 +150,14 @@ destroy_swapchain(struct zink_screen *screen, struct kopper_swapchain *cswap)
       return;
    util_queue_fence_destroy(&cswap->present_fence);
    for (unsigned i = 0; i < cswap->num_images; i++) {
-      simple_mtx_lock(&screen->semaphores_lock);
-      util_dynarray_append(&screen->semaphores, VkSemaphore, cswap->images[i].acquire);
-      simple_mtx_unlock(&screen->semaphores_lock);
+      /* Destroy the acquire semaphore directly, if any.  If acquire != NULL
+       * then we've called vkAcquireNextImage() with the given semaphore but
+       * not submitted anything which waits on it.  This means the semaphore
+       * has a pending signal operation and is not safe to recycle.
+       */
+      if (cswap->images[i].acquire != VK_NULL_HANDLE)
+         VKSCR(DestroySemaphore)(screen->dev, cswap->images[i].acquire, NULL);
+
       pipe_resource_reference(&cswap->images[i].readback, NULL);
       zink_destroy_resource_surface_cache(screen, &cswap->images[i].surface_cache, false);
    }
@@ -618,7 +623,19 @@ kopper_acquire(struct zink_screen *screen, struct zink_resource *res, uint64_t t
       /* swapchain images are initially in the UNDEFINED layout */
       res->layout = VK_IMAGE_LAYOUT_UNDEFINED;
       cdt->swapchain->images[res->obj->dt_idx].init = true;
+      if (screen->info.have_EXT_host_image_copy && res->obj->vkusage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
+         VkImageLayout layout = screen->info.have_KHR_unified_image_layouts ? VK_IMAGE_LAYOUT_GENERAL : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+         zink_resource_image_hic_transition(screen, res, layout);
+      }
    }
+   res->obj->unordered_read = true;
+   res->obj->unordered_write = true;
+   res->obj->access = 0;
+   res->obj->unordered_access = 0;
+   /* this is the stage used by the acquire semaphore */
+   res->obj->unordered_access_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+   res->obj->access_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+   res->obj->ordered_access_is_copied = true;
    if (timeout == UINT64_MAX) {
       res->obj->indefinite_acquire = true;
       p_atomic_inc(&cdt->swapchain->num_acquires);
@@ -636,6 +653,7 @@ kill_swapchain(struct zink_context *ctx, struct zink_resource *res)
    zink_batch_reference_resource(ctx, res);
    struct pipe_resource *pres = screen->base.resource_create(&screen->base, &res->base.b);
    zink_resource_object_reference(screen, &res->obj, zink_resource(pres)->obj);
+   res->rebind_count++;
    res->layout = VK_IMAGE_LAYOUT_UNDEFINED;
    res->swapchain = false;
    pipe_resource_reference(&pres, NULL);
@@ -1133,6 +1151,7 @@ zink_kopper_fixup_depth_buffer(struct zink_context *ctx)
    struct pipe_resource *pz = screen->base.resource_create(&screen->base, &templ);
    struct zink_resource *z = zink_resource(pz);
    zink_resource_object_reference(screen, &res->obj, z->obj);
+   res->rebind_count++;
    res->base.b.width0 = ctx->fb_state.width;
    res->base.b.height0 = ctx->fb_state.height;
    pipe_resource_reference(&pz, NULL);

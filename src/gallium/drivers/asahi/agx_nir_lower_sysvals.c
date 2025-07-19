@@ -118,13 +118,12 @@ load_ubo(nir_builder *b, nir_intrinsic_instr *intr, void *bases)
 static nir_def *
 load_texture_handle(nir_builder *b, nir_intrinsic_instr *intr, void *base)
 {
-   nir_def *uniform =
-      nir_load_sysval_agx(b, 1, 64, .desc_set = stage_table(b),
-                          .binding = (uintptr_t)base, .flags = ~0);
+   nir_def *offs_B =
+      nir_imul_imm(b, nir_u2u32(b, intr->src[0].ssa), AGX_TEXTURE_DESC_STRIDE);
 
-   return nir_vec2(
-      b, nir_u2u32(b, uniform),
-      nir_imul_imm(b, nir_u2u32(b, intr->src[0].ssa), AGX_TEXTURE_DESC_STRIDE));
+   nir_load_sysval_agx(b, 1, 64, .desc_set = stage_table(b),
+                       .binding = (uintptr_t)base, .flags = ~0);
+   return nir_bindless_image_agx(b, offs_B);
 }
 
 static nir_def *
@@ -180,16 +179,16 @@ lower_intrinsic(nir_builder *b, nir_intrinsic_instr *intr,
    case nir_intrinsic_get_ssbo_size:
       return load_sysval_indirect(b, 1, 32, stage_table(b), &s->ssbo_size,
                                   intr->src[0].ssa);
-   case nir_intrinsic_load_input_assembly_buffer_agx:
+   case nir_intrinsic_load_input_assembly_buffer_poly:
       return load_sysval_root(b, 1, 64, &u->input_assembly);
-   case nir_intrinsic_load_geometry_param_buffer_agx:
+   case nir_intrinsic_load_geometry_param_buffer_poly:
       return load_sysval_root(b, 1, 64, &u->geometry_params);
-   case nir_intrinsic_load_vs_output_buffer_agx:
+   case nir_intrinsic_load_vs_output_buffer_poly:
       return nir_load_global_constant(
          b, load_sysval_root(b, 1, 64, &u->vertex_output_buffer_ptr), 8, 1, 64);
-   case nir_intrinsic_load_vs_outputs_agx:
+   case nir_intrinsic_load_vs_outputs_poly:
       return load_sysval_root(b, 1, 64, &u->vertex_outputs);
-   case nir_intrinsic_load_tess_param_buffer_agx:
+   case nir_intrinsic_load_tess_param_buffer_poly:
       return load_sysval_root(b, 1, 64, &u->tess_params);
    case nir_intrinsic_load_fixed_point_size_agx:
       return load_sysval_root(b, 1, 32, &u->fixed_point_size);
@@ -199,6 +198,8 @@ lower_intrinsic(nir_builder *b, nir_intrinsic_instr *intr,
       return load_sysval_root(b, 1, 16, &u->no_epilog_discard);
    case nir_intrinsic_load_clip_z_coeff_agx:
       return nir_f2f32(b, load_sysval_root(b, 1, 16, &u->clip_z_coeff));
+   case nir_intrinsic_load_rasterization_stream:
+      return nir_imm_int(b, 0);
    case nir_intrinsic_load_depth_never_agx:
       /* TODO: Do we need this workaround for anything in GL? */
       return nir_imm_intN_t(b, 0, 16);
@@ -459,23 +460,27 @@ lay_out_uniforms(struct agx_compiled_shader *shader, struct state *state)
       nir_intrinsic_instr *intr = *intr_;
       uint8_t table = nir_intrinsic_desc_set(intr);
       uint16_t offset = nir_intrinsic_binding(intr);
-      bool load_uniform_location = nir_intrinsic_flags(intr);
+      bool bindless_image = nir_intrinsic_flags(intr);
 
       struct agx_push_range *range =
          find_push_range_containing(shader, table, offset);
       unsigned base = range->uniform + ((offset - range->offset) / 2);
 
-      nir_builder b = nir_builder_at(nir_instr_remove(&(intr->instr)));
-      nir_def *repl;
+      nir_builder b = nir_builder_at(nir_before_instr(&intr->instr));
 
-      if (load_uniform_location) {
-         repl = nir_imm_int(&b, base);
+      if (bindless_image) {
+         nir_instr *next = nir_instr_next(&intr->instr);
+         assert(next->type == nir_instr_type_intrinsic);
+
+         nir_intrinsic_instr *nintr = nir_instr_as_intrinsic(next);
+         assert(nintr->intrinsic == nir_intrinsic_bindless_image_agx);
+
+         nir_intrinsic_set_desc_set(nintr, base);
       } else {
-         repl = nir_load_preamble(&b, intr->def.num_components,
-                                  intr->def.bit_size, .base = base);
+         nir_def *repl = nir_load_preamble(&b, intr->def.num_components,
+                                           intr->def.bit_size, .base = base);
+         nir_def_replace(&intr->def, repl);
       }
-
-      nir_def_rewrite_uses(&intr->def, repl);
    }
 
    return uniform;

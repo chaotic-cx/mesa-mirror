@@ -245,7 +245,7 @@ merge_sets_interfere(struct ir3_liveness *live, struct ir3_merge_set *a,
    int dom_index = -1;
 
    /* Reject trying to merge the sets if the alignment doesn't work out */
-   if (b_offset % a->alignment != 0)
+   if ((a->alignment + b_offset) % b->alignment != 0)
       return true;
 
    while (a_index < a->regs_count || b_index < b->regs_count) {
@@ -381,6 +381,19 @@ aggressive_coalesce_collect(struct ir3_liveness *live,
           !collect->srcs[i]->def)
          continue;
       try_merge_defs(live, collect->dsts[0], collect->srcs[i]->def, offset);
+   }
+}
+
+static void
+aggressive_coalesce_subreg_move(struct ir3_liveness *live,
+                                struct ir3_instruction *instr)
+{
+   enum ir3_subreg_move subreg_move = ir3_is_subreg_move(instr);
+
+   if (subreg_move != IR3_SUBREG_MOVE_NONE &&
+       (instr->dsts[0]->flags & IR3_REG_SSA)) {
+      unsigned offset = subreg_move == IR3_SUBREG_MOVE_LOWER ? 0 : 1;
+      try_merge_defs(live, instr->srcs[0]->def, instr->dsts[0], offset);
    }
 }
 
@@ -605,6 +618,7 @@ ir3_aggressive_coalesce(struct ir3_liveness *live,
       aggressive_coalesce_parallel_copy(live, instr);
       break;
    default:
+      aggressive_coalesce_subreg_move(live, instr);
       break;
    }
 }

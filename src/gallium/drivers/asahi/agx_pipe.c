@@ -106,7 +106,7 @@ agx_resource_debug(struct agx_resource *res, const char *msg)
 
    agx_msg(
       "%s%s %dx%dx%d %dL %d/%dM %dS M:%llx %s%s %s%s S:0x%llx LS:0x%llx CS:0x%llx "
-      "Base=0x%llx Size=0x%llx Meta=0x%llx/0x%llx (%s) %s%s%s%s%s%sfd:%d(%d) B:%x @ %p\n",
+      "Base=0x%llx Size=0x%llx Meta=0x%llx/0x%llx (%s) %s%s%s%s%s%sfd:%d(%d) B:%x H:%x/%x @ %p\n",
       msg ?: "", util_format_short_name(res->base.format), res->base.width0,
       res->base.height0, res->base.depth0, res->base.array_size,
       res->base.last_level, res->layout.levels, res->layout.sample_count_sa,
@@ -128,7 +128,7 @@ agx_resource_debug(struct agx_resource *res, const char *msg)
       res->bo->flags & AGX_BO_WRITEBACK ? "WB " : "",
       res->bo->flags & AGX_BO_SHAREABLE ? "SA " : "",
       res->bo->flags & AGX_BO_READONLY ? "RO " : "", res->bo->prime_fd, ino,
-      res->base.bind, res);
+      res->base.bind, res->bo->handle, res->bo->uapi_handle, res);
 }
 
 static void
@@ -259,6 +259,15 @@ agx_resource_get_handle(struct pipe_screen *pscreen, struct pipe_context *ctx,
       return renderonly_get_handle(rsrc->scanout, handle);
    } else if (handle->type == WINSYS_HANDLE_TYPE_KMS) {
       rsrc_debug(rsrc, "Get handle: %p (KMS)\n", rsrc);
+
+      /* BO must be considered shared at this point.
+       * The seemingly redundant check exists because if the BO is
+       * already shared then mutating the BO would be potentially
+       * racy.
+       */
+      assert(rsrc->bo->flags & AGX_BO_SHAREABLE);
+      if (!(rsrc->bo->flags & AGX_BO_SHARED))
+         rsrc->bo->flags |= AGX_BO_SHARED;
 
       handle->handle = rsrc->bo->handle;
    } else if (handle->type == WINSYS_HANDLE_TYPE_FD) {
@@ -2293,8 +2302,8 @@ agx_destroy_screen(struct pipe_screen *pscreen)
    ralloc_free(screen);
 }
 
-static const void *
-agx_get_compiler_options(struct pipe_screen *pscreen, enum pipe_shader_ir ir,
+static const struct nir_shader_compiler_options *
+agx_get_compiler_options(struct pipe_screen *pscreen,
                          enum pipe_shader_type shader)
 {
    return &agx_nir_options;

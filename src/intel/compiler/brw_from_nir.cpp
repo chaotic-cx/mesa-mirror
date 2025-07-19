@@ -31,6 +31,7 @@
 #include "dev/intel_debug.h"
 #include "util/u_math.h"
 #include "util/bitscan.h"
+#include "compiler/glsl_types.h"
 
 #include <vector>
 
@@ -4427,6 +4428,20 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
       break;
    }
 
+   case nir_intrinsic_store_per_primitive_payload_intel: {
+      const brw_builder ubld = bld.exec_all().group(1, 0);
+      brw_reg src = get_nir_src(ntb, instr->src[0], -1);
+      src = retype(bld.emit_uniformize(src), BRW_TYPE_UD);
+
+      ubld.MOV(retype(
+                  brw_per_primitive_reg(bld,
+                                        nir_intrinsic_base(instr),
+                                        nir_intrinsic_component(instr)),
+                  BRW_TYPE_UD),
+               component(src, 0));
+      break;
+   }
+
    case nir_intrinsic_load_fs_input_interp_deltas: {
       assert(s.stage == MESA_SHADER_FRAGMENT);
       assert(nir_src_as_uint(instr->src[0]) == 0);
@@ -4585,9 +4600,15 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
       bld.MOV(retype(dest, BRW_TYPE_UD), brw_imm_ud(s.max_polygons));
       break;
 
+   case nir_intrinsic_load_per_primitive_remap_intel:
+      bld.MOV(retype(dest, BRW_TYPE_UD),
+              brw_dynamic_per_primitive_remap(brw_wm_prog_data(s.prog_data)));
+      break;
+
    case nir_intrinsic_read_attribute_payload_intel: {
-      const brw_reg offset = retype(get_nir_src(ntb, instr->src[0], 0),
-                                    BRW_TYPE_UD);
+      const brw_reg offset = retype(
+         bld.emit_uniformize(get_nir_src(ntb, instr->src[0], 0)),
+         BRW_TYPE_UD);
       bld.emit(FS_OPCODE_READ_ATTRIBUTE_PAYLOAD, retype(dest, BRW_TYPE_UD), offset);
       break;
    }
@@ -4609,7 +4630,6 @@ static void
 set_memory_address(nir_to_brw_state &ntb,
                    const brw_builder &bld,
                    nir_intrinsic_instr *instr,
-                   bool is_store,
                    brw_reg *srcs)
 {
    const intel_device_info *devinfo = ntb.devinfo;
@@ -4840,6 +4860,53 @@ brw_from_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
          ->saturate = nir_intrinsic_saturate(instr);
 
       cs_prog_data->uses_systolic = true;
+      break;
+   }
+
+   case nir_intrinsic_convert_cmat_intel: {
+      struct glsl_cmat_description dst_cmat_desc =
+         nir_intrinsic_dst_cmat_desc(instr);
+      struct glsl_cmat_description src_cmat_desc =
+         nir_intrinsic_src_cmat_desc(instr);
+
+      brw_reg_type dst_type =
+         brw_type_for_base_type((enum glsl_base_type)dst_cmat_desc.element_type);
+      brw_reg_type src_type =
+         brw_type_for_base_type((enum glsl_base_type)src_cmat_desc.element_type);
+
+      const unsigned dst_element_bits =
+         brw_type_size_bits(dst_type);
+      const unsigned src_element_bits =
+         brw_type_size_bits(src_type);
+
+      const unsigned element_bits = 32;
+      const unsigned src_packing_factor = element_bits / src_element_bits;
+      const unsigned src_components = nir_src_num_components(instr->src[0]);
+      const unsigned elems = src_components * src_packing_factor;
+
+      brw_builder bldn = bld.exec_all();
+      const brw_reg src = retype(get_nir_src(ntb, instr->src[0], 0), src_type);
+      const brw_reg dst = retype(dest, dst_type);
+
+      assert(dst_cmat_desc.use == src_cmat_desc.use);
+
+      switch (src_cmat_desc.use) {
+      case GLSL_CMAT_USE_B:
+         assert(dst_element_bits == src_element_bits);
+         FALLTHROUGH;
+
+      case GLSL_CMAT_USE_A:
+      case GLSL_CMAT_USE_ACCUMULATOR: {
+         const unsigned width = bldn.dispatch_width();
+         for (unsigned c = 0; c < elems; c++) {
+            bldn.MOV(suboffset(dst, c * width),
+                     suboffset(src, c * width));
+         }
+         break;
+      }
+      default:
+         unreachable("not reached");
+      }
       break;
    }
 
@@ -7097,7 +7164,7 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
                     LSC_ADDR_SURFTYPE_BSS : LSC_ADDR_SURFTYPE_BTI);
       srcs[MEMORY_LOGICAL_BINDING] =
          get_nir_buffer_intrinsic_index(ntb, bld, instr, &no_mask_handle);
-      set_memory_address(ntb, bld, instr, is_store, srcs);
+      set_memory_address(ntb, bld, instr, srcs);
       data_src = is_atomic ? 2 : 0;
       break;
    case nir_intrinsic_load_shared:
@@ -7109,7 +7176,7 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
    case nir_intrinsic_load_shared_uniform_block_intel: {
       srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_SHARED_LOCAL);
       srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_FLAT);
-      set_memory_address(ntb, bld, instr, is_store, srcs);
+      set_memory_address(ntb, bld, instr, srcs);
       data_src = is_atomic ? 1 : 0;
       no_mask_handle = true;
       break;
@@ -7168,7 +7235,7 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
    case nir_intrinsic_store_global_block_intel:
       srcs[MEMORY_LOGICAL_MODE] = brw_imm_ud(MEMORY_MODE_UNTYPED);
       srcs[MEMORY_LOGICAL_BINDING_TYPE] = brw_imm_ud(LSC_ADDR_SURFTYPE_FLAT);
-      set_memory_address(ntb, bld, instr, is_store, srcs);
+      set_memory_address(ntb, bld, instr, srcs);
       data_src = is_atomic ? 1 : 0;
       no_mask_handle = srcs[MEMORY_LOGICAL_ADDRESS].is_scalar;
       break;

@@ -58,14 +58,9 @@ struct lima_resource {
    bool tiled;
    bool modifier_constant;
    unsigned full_updates;
+   unsigned reload;
 
    struct lima_resource_level levels[LIMA_MAX_MIP_LEVELS];
-};
-
-struct lima_surface {
-   struct pipe_surface base;
-   int tiled_w, tiled_h;
-   unsigned reload;
 };
 
 struct lima_transfer {
@@ -77,12 +72,6 @@ static inline struct lima_resource *
 lima_resource(struct pipe_resource *res)
 {
    return (struct lima_resource *)res;
-}
-
-static inline struct lima_surface *
-lima_surface(struct pipe_surface *surf)
-{
-   return (struct lima_surface *)surf;
 }
 
 static inline struct lima_transfer *

@@ -39,6 +39,9 @@ if get_option('layout') != 'mirror'
   error('`mirror` is the only build directory layout supported')
 endif
 
+with_llvm = get_option('llvm')
+amd_with_llvm = get_option('amd-use-llvm')
+
 with_mesa_debug = get_option('buildtype') == 'debug'
 
 # This means the final value of b_ndebug==true
@@ -95,18 +98,19 @@ with_vulkan_vram_report_limit_layer = get_option('vulkan-layers').contains('vram
 with_tools = get_option('tools')
 if with_tools.contains('all')
   with_tools = [
-    'drm-shim',
+    'asahi',
     'dlclose-skip',
+    'drm-shim',
     'etnaviv',
     'freedreno',
     'glsl',
+    'imagination',
     'intel',
     'intel-ui',
     'lima',
     'nir',
     'nouveau',
-    'asahi',
-    'imagination',
+    'panfrost',
   ]
 endif
 
@@ -140,6 +144,7 @@ gallium_drivers = get_option('gallium-drivers')
 if gallium_drivers.contains('auto')
   if system_has_kms_drm
     # TODO: Sparc
+    # TODO: handle llvm being disabled or auto when setting default_drivers
     if ['x86', 'x86_64'].contains(host_machine.cpu_family())
       gallium_drivers = [
         'r300', 'r600', 'radeonsi', 'nouveau', 'virgl', 'svga', 'llvmpipe', 'softpipe',
@@ -205,6 +210,10 @@ with_gallium_asahi = gallium_drivers.contains('asahi')
 foreach gallium_driver : gallium_drivers
   pre_args += '-DHAVE_@0@'.format(gallium_driver.to_upper())
 endforeach
+with_llvm = with_llvm \
+  .enable_if(with_gallium_radeonsi and amd_with_llvm, error_message : 'RadeonSI Gallium driver configured to require LLVM') \
+  .enable_if(with_gallium_r600 and amd_with_llvm, error_message : 'R600 Gallium driver configured to require LLVM') \
+  .enable_if(with_gallium_llvmpipe, error_message : 'LLVMPipe Gallium driver requires LLVM')
 
 # compatibility for "swrast" as an internal-ish driver name
 with_gallium_swrast = with_gallium_softpipe or with_gallium_llvmpipe
@@ -225,6 +234,7 @@ with_gallium_kmsro = system_has_kms_drm and [
 
 _vulkan_drivers = get_option('vulkan-drivers')
 if _vulkan_drivers.contains('auto')
+  # TODO: handle swrat driver if llvm is auto/disabled
   if system_has_kms_drm
     if host_machine.cpu_family().startswith('x86')
       _vulkan_drivers = ['amd', 'intel', 'intel_hasvk', 'nouveau', 'swrast']
@@ -269,6 +279,10 @@ with_asahi_vk = _vulkan_drivers.contains('asahi')
 with_gfxstream_vk = _vulkan_drivers.contains('gfxstream')
 with_any_vk = _vulkan_drivers.length() != 0
 
+with_llvm = with_llvm \
+  .enable_if(with_swrast_vk, error_message : 'Lavapipe Vulkan driver requires LLVM') \
+  .enable_if(with_amd_vk and with_aco_tests, error_message : 'RadV ACO tests require LLVM')
+
 with_any_llvmpipe = with_gallium_llvmpipe or with_swrast_vk
 with_gallium_or_lvp = with_gallium or with_swrast_vk
 
@@ -288,8 +302,6 @@ if freedreno_kmds.length() != 0 and freedreno_kmds != [ 'msm' ] and with_freedre
 endif
 
 with_vdrm = [
-  with_gallium_virgl,
-  with_virtio_vk,
   with_amdgpu_virtio,
   freedreno_kmds.contains('virtio'),
   with_gallium_asahi,
@@ -569,8 +581,6 @@ endif
 
 with_dri2 = (with_dri or with_any_vk) and (with_dri_platform == 'drm' or with_dri_platform == 'apple')
 
-with_x11_dri2 = with_dri2 and get_option('legacy-x11').contains('dri2')
-
 if with_dri
   if with_glx == 'disabled' and not with_egl and not with_gbm
     error('building dri drivers require at least one windowing system')
@@ -776,6 +786,9 @@ if with_gallium_rusticl or with_nouveau_vk or with_tools.contains('etnaviv') or 
     '--raw-line', '#![allow(non_snake_case)]',
     '--raw-line', '#![allow(non_upper_case_globals)]',
   ]
+  if rustc.version().version_compare('>= 1.88')
+    bindgen_output_args += ['--raw-line', '#![allow(unnecessary_transmutes)]']
+  endif
 endif
 
 if get_option('precomp-compiler') != 'system'
@@ -801,6 +814,9 @@ else
              with_microsoft_clc or with_gallium_rusticl or \
              with_drivers_clc or with_driver_using_cl
 endif
+
+with_llvm = with_llvm \
+  .enable_if(with_clc, error_message : 'CLC requires LLVM')
 
 dep_clc = null_dep
 if with_clc
@@ -1568,18 +1584,14 @@ if dep_thread.found()
 endif
 
 with_expat = get_option('expat') \
-  .disable_auto_if(with_platform_android or with_platform_windows)
+  .disable_auto_if(with_platform_android or with_platform_windows) \
+  .enable_if(with_intel_tools, error_message : 'Intel tools require expat')
 
 if host_machine.system() == 'darwin'
   dep_expat = meson.get_compiler('c').find_library('expat', required : with_expat)
 else
   dep_expat = dependency('expat', allow_fallback: true,
                          required : with_expat)
-endif
-
-# TODO: with Meson 1.1.0 this can be replaced with with_expat.enable_if(with_intel_tools)
-if with_intel_tools and not dep_expat.found()
-  error('Intel tools require expat')
 endif
 
 # We don't require expat on Android or Windows
@@ -1711,7 +1723,6 @@ if draw_with_llvm
   # lto is needded with LLVM>=15, but we don't know what LLVM verrsion we are using yet
   llvm_optional_modules += ['lto']
 endif
-amd_with_llvm = get_option('amd-use-llvm')
 
 # MCJIT is deprecated in LLVM and will not accept new architecture ports,
 # so any architecture not in the exhaustive list will have to rely on LLVM
@@ -1724,43 +1735,30 @@ if with_amd_vk or with_gallium_radeonsi
 elif with_clc or llvm_with_orcjit
   _llvm_version = '>= 15.0.0'
 else
-  _llvm_version = '>= 5.0.0'
+  _llvm_version = '>= 8.0.0'
 endif
 
 _shared_llvm = get_option('shared-llvm') \
   .disable_auto_if(host_machine.system() == 'windows') \
   .allowed()
 
-_llvm = get_option('llvm')
-dep_llvm = null_dep
-with_llvm = false
-if _llvm.allowed()
-  dep_llvm = dependency(
-    'llvm',
-    method : host_machine.system() == 'windows' ? 'auto' : 'config-tool',
-    version : _llvm_version,
-    modules : llvm_modules,
-    optional_modules : llvm_optional_modules,
-    required : (
-      with_amd_vk or with_gallium_radeonsi or with_clc
-      or _llvm.enabled()
-    ),
-    static : not _shared_llvm,
-    fallback : ['llvm', 'dep_llvm'],
-    include_type : 'system',
-  )
-  with_llvm = dep_llvm.found()
-endif
-if with_llvm
+dep_llvm = dependency(
+  'llvm',
+  method : host_machine.system() == 'windows' ? 'auto' : 'config-tool',
+  version : _llvm_version,
+  modules : llvm_modules,
+  optional_modules : llvm_optional_modules,
+  required : with_llvm,
+  static : not _shared_llvm,
+  fallback : ['llvm', 'dep_llvm'],
+  include_type : 'system',
+)
+if dep_llvm.found()
   pre_args += '-DMESA_LLVM_VERSION_STRING="@0@"'.format(dep_llvm.version())
   pre_args += '-DLLVM_IS_SHARED=@0@'.format(_shared_llvm.to_int())
 
   if (with_swrast_vk or with_gallium_llvmpipe) and not draw_with_llvm
     error('Lavapipe and llvmpipe require LLVM draw support.')
-  endif
-
-  if with_gallium_r600 and not amd_with_llvm
-    error('R600 requires LLVM AMD support.')
   endif
 
   if host_machine.system() != 'windows'
@@ -1790,22 +1788,14 @@ if with_llvm
       language : ['c', 'cpp'],
     )
   endif
-elif with_amd_vk and with_aco_tests
-  error('ACO tests require LLVM, but LLVM is disabled.')
-elif with_swrast_vk
-  error('lavapipe requires LLVM and is enabled, but LLVM is disabled.')
-elif with_any_llvmpipe
-  error('llvmpipe requires LLVM and is enabled, but LLVM is disabled.')
-elif with_clc
-  error('The CLC compiler requires LLVM, but LLVM is disabled.')
 else
   draw_with_llvm = false
 endif
-amd_with_llvm = amd_with_llvm and with_llvm
-pre_args += '-DLLVM_AVAILABLE=@0@'.format(with_llvm.to_int())
-pre_args += '-DDRAW_LLVM_AVAILABLE=@0@'.format((with_llvm and draw_with_llvm).to_int())
+amd_with_llvm = amd_with_llvm and dep_llvm.found()
+pre_args += '-DLLVM_AVAILABLE=@0@'.format(dep_llvm.found().to_int())
+pre_args += '-DDRAW_LLVM_AVAILABLE=@0@'.format((dep_llvm.found() and draw_with_llvm).to_int())
 pre_args += '-DAMD_LLVM_AVAILABLE=@0@'.format(amd_with_llvm.to_int())
-pre_args += '-DGALLIVM_USE_ORCJIT=@0@'.format((with_llvm and llvm_with_orcjit).to_int())
+pre_args += '-DGALLIVM_USE_ORCJIT=@0@'.format((dep_llvm.found() and llvm_with_orcjit).to_int())
 
 if with_clc
   chosen_llvm_version_array = dep_llvm.version().split('.')
@@ -1987,6 +1977,7 @@ endif
 
 # TODO: symbol mangling
 
+with_wayland_bind_display = with_platform_wayland and get_option('legacy-wayland').contains('bind-wayland-display')
 if with_platform_wayland
   dep_wl_scanner = dependency('wayland-scanner', native: true)
   prog_wl_scanner = find_program(dep_wl_scanner.get_variable(pkgconfig : 'wayland_scanner'))
@@ -2028,14 +2019,11 @@ endif
 
 dep_x11 = null_dep
 dep_xext = null_dep
-dep_xfixes = null_dep
 dep_x11_xcb = null_dep
 dep_xcb = null_dep
 dep_xcb_keysyms = null_dep
 dep_xcb_glx = null_dep
-dep_xcb_dri2 = null_dep
 dep_xcb_dri3 = null_dep
-dep_dri2proto = null_dep
 dep_glproto = null_dep
 dep_xxf86vm = null_dep
 dep_xcb_present = null_dep
@@ -2046,13 +2034,11 @@ dep_xcb_xrandr = null_dep
 dep_xcb_shm = null_dep
 dep_xlib_xrandr = null_dep
 
-dep_dri2proto_version = '>= 2.8'
 dep_glproto_version = '>= 1.4.14'
-dep_xcb_dri2_version = '>= 1.8'
 dep_xcb_dri3_version = '>= 1.13'
 dep_xcb_glx_version = '>= 1.8.1'
 dep_xcb_present_version = '>= 1.13'
-dep_xfixes_version = '>= 2.0'
+dep_xlib_version = '>= 1.8'
 dep_xlib_xrandr_version = '>= 1.3'
 dep_xshmfence_version = '>= 1.1'
 
@@ -2062,17 +2048,16 @@ if with_platform_x11
   dep_xcb = dependency('xcb')
   dep_xcb_xrandr = dependency('xcb-randr')
   if with_glx == 'xlib'
-    dep_x11 = dependency('x11')
+    dep_x11 = dependency('x11', version : dep_xlib_version)
     dep_xext = dependency('xext')
   elif with_glx == 'dri'
-    dep_x11 = dependency('x11')
+    dep_x11 = dependency('x11', version : dep_xlib_version)
     dep_xext = dependency('xext')
-    dep_xfixes = dependency('xfixes', version : dep_xfixes_version)
     dep_xcb_glx = dependency('xcb-glx', version : dep_xcb_glx_version)
     dep_xcb_shm = dependency('xcb-shm')
   elif with_gallium_rusticl
     # needed for GL sharing extension
-    dep_x11 = dependency('x11')
+    dep_x11 = dependency('x11', version : dep_xlib_version)
   endif
   if (with_any_vk or with_glx == 'dri' or with_egl or
        (with_gallium_vdpau or with_gallium_va))
@@ -2083,14 +2068,11 @@ if with_platform_x11
       pre_args += '-DXCB_KEYSYMS_AVAILABLE'
     endif
     dep_x11_xcb = dependency('x11-xcb')
-    dep_xcb_dri2 = dependency('xcb-dri2', version : dep_xcb_dri2_version, required : with_x11_dri2)
     if with_dri_platform == 'drm' and not dep_libdrm.found()
       error('libdrm required for gallium video statetrackers when using x11')
     endif
   endif
   if with_dri_platform == 'drm'
-    dep_xcb_dri2 = dependency('xcb-dri2', version : dep_xcb_dri2_version, required : with_x11_dri2)
-
     dep_xcb_dri3 = dependency('xcb-dri3', version : dep_xcb_dri3_version)
     dep_xcb_present = dependency('xcb-present', version : dep_xcb_present_version)
     if (dep_xcb_dri3.version().version_compare('>= 1.17') and
@@ -2107,7 +2089,6 @@ if with_platform_x11
   endif
   if with_glx == 'dri'
     if with_dri_platform == 'drm'
-      dep_dri2proto = dependency('dri2proto', version : dep_dri2proto_version)
       if with_glx_direct
         dep_xxf86vm = dependency('xxf86vm')
       endif
@@ -2138,9 +2119,6 @@ if with_dri
 endif
 if with_dri2
   pre_args += '-DHAVE_DRI2'
-endif
-if with_x11_dri2
-  pre_args += '-DHAVE_X11_DRI2'
 endif
 if with_dri3_explicit_sync
   pre_args += '-DHAVE_DRI3_EXPLICIT_SYNC'
@@ -2242,7 +2220,7 @@ if host_machine.system() == 'windows'
   endif
 else
   prog_nm = find_program('nm')
-  with_symbols_check = with_tests
+  with_symbols_check = prog_nm.found() and with_tests
   symbols_check_args = ['--nm', prog_nm.full_path()]
 endif
 
@@ -2361,8 +2339,8 @@ endif
 video_summary += {'APIs': video_apis.length() != 0 ? video_apis : false}
 summary(video_summary, section: 'Video', bool_yn: true, list_sep: ' ')
 
-llvm_summary = {'Enabled': with_llvm}
-if with_llvm
+llvm_summary = {'Required': with_llvm}
+if dep_llvm.found()
   llvm_summary += {'Version': dep_llvm.version()}
 endif
 summary(llvm_summary, section: 'LLVM', bool_yn: true, list_sep: ' ')

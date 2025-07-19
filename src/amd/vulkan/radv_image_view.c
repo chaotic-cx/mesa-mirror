@@ -10,11 +10,11 @@
 
 #include "vk_log.h"
 
-#include "radv_image_view.h"
 #include "radv_buffer_view.h"
 #include "radv_entrypoints.h"
 #include "radv_formats.h"
 #include "radv_image.h"
+#include "radv_image_view.h"
 
 #include "ac_descriptors.h"
 #include "ac_formats.h"
@@ -67,12 +67,9 @@ radv_set_mutable_tex_desc_fields(struct radv_device *device, struct radv_image *
       .va = gpu_address,
       .gfx10 =
          {
+            .nbc_view = nbc_view,
             .write_compress_enable = dcc_enabled && is_storage_image && enable_write_compression,
             .iterate_256 = radv_image_get_iterate256(device, image),
-         },
-      .gfx9 =
-         {
-            .nbc_view = nbc_view,
          },
       .gfx6 =
          {
@@ -181,11 +178,8 @@ gfx10_make_texture_descriptor(struct radv_device *device, struct radv_image *ima
       .min_lod = min_lod,
       .gfx10 =
          {
-            .uav3d = array_pitch,
-         },
-      .gfx9 =
-         {
             .nbc_view = nbc_view,
+            .uav3d = array_pitch,
          },
       .dcc_enabled = radv_dcc_enabled(image, first_level),
       .tc_compat_htile_enabled = radv_tc_compat_htile_enabled(image, first_level),
@@ -397,8 +391,8 @@ radv_image_view_make_descriptor(struct radv_image_view *iview, struct radv_devic
          first_layer = 0;
       } else {
          /* Video decode target uses custom height alignment. */
-         if (image->vk.usage & VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR) {
-            assert(image->planes[plane_id].surface.u.gfx9.swizzle_mode == 0);
+         if (image->vk.usage & VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR &&
+             image->planes[plane_id].surface.u.gfx9.swizzle_mode == 0) {
             offset += first_layer * image->planes[plane_id].surface.u.gfx9.surf_slice_size;
             first_layer = 0;
          }

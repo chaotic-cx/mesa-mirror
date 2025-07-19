@@ -46,12 +46,44 @@
 #include "vk_object.h"
 #include "vk_util.h"
 
+bool
+panvk_image_can_use_afbc(
+   struct panvk_physical_device *phys_dev, VkFormat fmt,
+   VkImageUsageFlags usage, VkImageType type, VkImageTiling tiling,
+   VkImageCreateFlags flags)
+{
+   unsigned arch = pan_arch(phys_dev->kmod.props.gpu_id);
+   struct panvk_instance *instance = to_panvk_instance(phys_dev->vk.instance);
+   enum pipe_format pfmt = vk_format_to_pipe_format(fmt);
+
+   /* Disallow AFBC if either of these is true
+    * - PANVK_DEBUG does not have the 'afbc' flag set
+    * - storage image views are requested
+    * - host image copies are requested
+    * - the GPU doesn't support AFBC
+    * - the format is not AFBC-able
+    * - tiling is set to linear
+    * - this is a 1D image
+    * - this is a 3D image on a pre-v7 GPU
+    * - this is a mutable format image on v7
+    */
+   return
+      (instance->debug_flags & PANVK_DEBUG_AFBC) &&
+      !(usage & (VK_IMAGE_USAGE_STORAGE_BIT |
+                 VK_IMAGE_USAGE_HOST_TRANSFER_BIT)) &&
+      pan_query_afbc(&phys_dev->kmod.props) &&
+      pan_afbc_supports_format(arch, pfmt) &&
+      tiling == VK_IMAGE_TILING_OPTIMAL &&
+      type != VK_IMAGE_TYPE_1D &&
+      (type != VK_IMAGE_TYPE_3D || arch >= 7) &&
+      (!(flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) || arch != 7);
+}
+
 static bool
 panvk_image_can_use_mod(struct panvk_image *image, uint64_t mod)
 {
    struct panvk_physical_device *phys_dev =
       to_panvk_physical_device(image->vk.base.device->physical);
-   unsigned arch = pan_arch(phys_dev->kmod.props.gpu_prod_id);
    struct panvk_instance *instance =
       to_panvk_instance(image->vk.base.device->physical->instance);
    enum pipe_format pfmt = vk_format_to_pipe_format(image->vk.format);
@@ -65,28 +97,17 @@ panvk_image_can_use_mod(struct panvk_image *image, uint64_t mod)
       return mod == DRM_FORMAT_MOD_LINEAR;
 
    if (drm_is_afbc(mod)) {
-      /* Disallow AFBC if either of these is true
-       * - PANVK_DEBUG does not have the 'afbc' flag set
-       * - storage image views are requested
-       * - this is a multisample image
-       * - the GPU doesn't support AFBC
-       * - the format is not AFBC-able
-       * - tiling is set to linear
-       * - this is a 1D image
-       * - this is a 3D image on a pre-v7 GPU
-       * - this is a mutable format image on v7
-       */
-      if (!(instance->debug_flags & PANVK_DEBUG_AFBC) ||
-          ((image->vk.usage | image->vk.stencil_usage) &
-           VK_IMAGE_USAGE_STORAGE_BIT) ||
-          image->vk.samples > 1 ||
-          !pan_query_afbc(&phys_dev->kmod.props) ||
-          !pan_afbc_supports_format(arch, pfmt) ||
-          image->vk.tiling == VK_IMAGE_TILING_LINEAR ||
-          image->vk.image_type == VK_IMAGE_TYPE_1D ||
-          (image->vk.image_type == VK_IMAGE_TYPE_3D && arch < 7) ||
-          ((image->vk.create_flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) &&
-           arch == 7))
+      if (!panvk_image_can_use_afbc(
+            phys_dev, image->vk.format,
+            image->vk.usage | image->vk.stencil_usage, image->vk.image_type,
+            image->vk.tiling, image->vk.create_flags))
+         return false;
+
+      /* AFBC is not supported for multisample images
+       *
+       * This is not checked in panvk_image_can_use_afbc because the sample
+       * count is not known in vkGetPhysicalDeviceImageFormatProperties2. */
+      if (image->vk.samples > 1)
          return false;
 
       const struct util_format_description *fdesc =
@@ -230,13 +251,27 @@ is_disjoint(const struct panvk_image *image)
    return image->vk.create_flags & VK_IMAGE_CREATE_DISJOINT_BIT;
 }
 
+static bool
+strict_import(struct panvk_image *image, uint32_t plane)
+{
+   /* We can't do strict imports for AFBC because a Vulkan-based compositor
+    * might be importing buffers from clients that are relying on the old
+    * behavior. The only exception is AFBC(YUV) because support for these
+    * formats was added after we started enforcing WSI pitch. */
+   if (drm_is_afbc(image->vk.drm_format_mod) &&
+       !pan_format_is_yuv(image->planes[plane].image.props.format))
+      return false;
+
+   return true;
+}
+
 static VkResult
 panvk_image_init_layouts(struct panvk_image *image,
                          const VkImageCreateInfo *pCreateInfo)
 {
    struct panvk_physical_device *phys_dev =
       to_panvk_physical_device(image->vk.base.device->physical);
-   unsigned arch = pan_arch(phys_dev->kmod.props.gpu_prod_id);
+   unsigned arch = pan_arch(phys_dev->kmod.props.gpu_id);
    const VkImageDrmFormatModifierExplicitCreateInfoEXT *explicit_info =
       vk_find_struct_const(
          pCreateInfo->pNext,
@@ -291,6 +326,7 @@ panvk_image_init_layouts(struct panvk_image *image,
          .planes = {&image->planes[plane].plane},
       };
 
+      plane_layout.strict = strict_import(image, plane);
       if (!pan_image_layout_init(arch, &image->planes[plane].image, 0,
                                  &plane_layout)) {
          return panvk_error(image->vk.base.device,
@@ -393,6 +429,7 @@ panvk_image_plane_bind(struct panvk_device *dev,
                        uint64_t base, uint64_t offset)
 {
    plane->plane.base = base + offset;
+   plane->offset = offset;
    /* Reset the AFBC headers */
    if (drm_is_afbc(plane->image.props.modifier)) {
       /* Transient CPU mapping */
@@ -407,11 +444,18 @@ panvk_image_plane_bind(struct panvk_device *dev,
            layer++) {
          for (unsigned level = 0; level < plane->image.props.nr_slices;
               level++) {
-            void *header = bo_base + offset +
-                           (layer * plane->plane.layout.array_stride_B) +
-                           plane->plane.layout.slices[level].offset_B;
-            memset(header, 0,
-                   plane->plane.layout.slices[level].afbc.header.size_B);
+            const struct pan_image_slice_layout *slayout =
+               &plane->plane.layout.slices[level];
+            uint32_t z_slice_count =
+               u_minify(plane->image.props.extent_px.depth, level);
+
+            for (unsigned z = 0; z < z_slice_count; z++) {
+               void *header = bo_base + offset +
+                              ((uint64_t)slayout->afbc.surface_stride_B * z) +
+                              (layer * plane->plane.layout.array_stride_B) +
+                              plane->plane.layout.slices[level].offset_B;
+               memset(header, 0, slayout->afbc.header.surface_size_B);
+            }
          }
       }
 
@@ -502,10 +546,33 @@ get_image_subresource_layout(const struct panvk_image *image,
       layout->rowPitch = pan_afbc_stride_blocks(
          image->vk.drm_format_mod, slice_layout->afbc.header.row_stride_B);
       layout->depthPitch = pan_afbc_stride_blocks(
-         image->vk.drm_format_mod, slice_layout->afbc.header.surface_stride_B);
+         image->vk.drm_format_mod, slice_layout->afbc.header.surface_size_B);
    } else {
       layout->rowPitch = slice_layout->tiled_or_linear.row_stride_B;
       layout->depthPitch = slice_layout->tiled_or_linear.surface_stride_B;
+   }
+
+   VkSubresourceHostMemcpySize *memcpy_size =
+      vk_find_struct(layout2->pNext, SUBRESOURCE_HOST_MEMCPY_SIZE);
+   if (memcpy_size) {
+      /* When copying to/from a D24S8 image, we can't use the normal memcpy
+       * path because we need to interleave the depth/stencil components. For
+       * the stencil aspect, the copied data only needs 1 byte/px instead of 4.
+       */
+      if (image->vk.format == VK_FORMAT_D24_UNORM_S8_UINT) {
+         switch (subres->aspectMask) {
+            case VK_IMAGE_ASPECT_DEPTH_BIT:
+               memcpy_size->size = slice_layout->size_B;
+               break;
+            case VK_IMAGE_ASPECT_STENCIL_BIT:
+               memcpy_size->size = slice_layout->size_B / 4;
+               break;
+            default:
+               unreachable("invalid aspect");
+         }
+      } else {
+         memcpy_size->size = slice_layout->size_B;
+      }
    }
 }
 
@@ -613,42 +680,39 @@ static VkResult
 panvk_image_bind(struct panvk_device *dev,
                  const VkBindImageMemoryInfo *bind_info) {
    VK_FROM_HANDLE(panvk_image, image, bind_info->image);
-   const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
-      vk_find_struct_const(bind_info->pNext,
-                           BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
+   VK_FROM_HANDLE(panvk_device_memory, mem, bind_info->memory);
 
-   if (swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE) {
-      VkImage wsi_vk_image = wsi_common_get_image(swapchain_info->swapchain,
-                                                swapchain_info->imageIndex);
-      VK_FROM_HANDLE(panvk_image, wsi_image, wsi_vk_image);
+   if (!mem) {
+#if DETECT_OS_ANDROID
+      /* TODO handle VkNativeBufferANDROID when we support ANB */
+      unreachable("VkBindImageMemoryInfo with no memory");
+#else
+      const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
+         vk_find_struct_const(bind_info->pNext,
+                              BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
+      assert(swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE);
+      VkDeviceMemory mem_handle = wsi_common_get_memory(
+         swapchain_info->swapchain, swapchain_info->imageIndex);
+      mem = panvk_device_memory_from_handle(mem_handle);
+#endif
+   }
 
-      assert(image->plane_count == 1);
-      assert(wsi_image->plane_count == 1);
-
-      image->bo = wsi_image->bo;
-      return panvk_image_plane_bind(
-         dev, &image->planes[0], image->bo, wsi_image->planes[0].plane.base, 0);
+   assert(mem);
+   image->mem = mem;
+   if (is_disjoint(image)) {
+      const VkBindImagePlaneMemoryInfo *plane_info =
+         vk_find_struct_const(bind_info->pNext, BIND_IMAGE_PLANE_MEMORY_INFO);
+      const uint8_t plane =
+         panvk_plane_index(image->vk.format, plane_info->planeAspect);
+      return panvk_image_plane_bind(dev, &image->planes[plane], mem->bo,
+                                    mem->addr.dev, bind_info->memoryOffset);
    } else {
-      VK_FROM_HANDLE(panvk_device_memory, mem, bind_info->memory);
-      assert(mem);
-      image->bo = mem->bo;
-      if (is_disjoint(image)) {
-         const VkBindImagePlaneMemoryInfo *plane_info =
-            vk_find_struct_const(bind_info->pNext,
-                                 BIND_IMAGE_PLANE_MEMORY_INFO);
-         const uint8_t plane =
-            panvk_plane_index(image->vk.format, plane_info->planeAspect);
-         return panvk_image_plane_bind(
-            dev, &image->planes[plane], image->bo, mem->addr.dev,
-            bind_info->memoryOffset);
-      } else {
-         for (unsigned plane = 0; plane < image->plane_count; plane++) {
-            VkResult result = panvk_image_plane_bind(
-               dev, &image->planes[plane], image->bo, mem->addr.dev,
-               bind_info->memoryOffset);
-            if (result != VK_SUCCESS)
-               return result;
-         }
+      for (unsigned plane = 0; plane < image->plane_count; plane++) {
+         VkResult result =
+            panvk_image_plane_bind(dev, &image->planes[plane], mem->bo,
+                                   mem->addr.dev, bind_info->memoryOffset);
+         if (result != VK_SUCCESS)
+            return result;
       }
    }
 

@@ -630,6 +630,9 @@ hk_reserve_scratch(struct hk_cmd_buffer *cmd, struct hk_cs *cs,
    uint32_t max_scratch_size =
       MAX2(s->b.info.scratch_size, s->b.info.preamble_scratch_size);
 
+   /* Not scratch but this is the most convenient place for this... */
+   cs->uses_sampler_heap |= s->b.info.uses_sampler_heap;
+
    if (max_scratch_size == 0)
       return;
 
@@ -679,10 +682,11 @@ hk_upload_usc_words(struct hk_cmd_buffer *cmd, struct hk_shader *s,
 
    uint64_t root_ptr;
 
-   if (sw_stage == PIPE_SHADER_COMPUTE)
+   if (sw_stage == PIPE_SHADER_COMPUTE) {
       root_ptr = hk_cmd_buffer_upload_root(cmd, VK_PIPELINE_BIND_POINT_COMPUTE);
-   else
+   } else {
       root_ptr = cmd->state.gfx.root;
+   }
 
    static_assert(offsetof(struct hk_root_descriptor_table, root_desc_addr) == 0,
                  "self-reflective");
@@ -739,7 +743,8 @@ hk_upload_usc_words(struct hk_cmd_buffer *cmd, struct hk_shader *s,
       root_unif = AGX_ABI_FUNI_ROOT;
    }
 
-   agx_usc_uniform(&b, root_unif, 4, root_ptr);
+   /* Address for the root and each set */
+   agx_usc_uniform(&b, root_unif, 4 * (1 + s->info.set_count), root_ptr);
 
    agx_usc_push_blob(&b, linked->usc.data, linked->usc.size);
    return agx_usc_addr(&dev->dev, t.gpu);

@@ -103,7 +103,8 @@ panvk_sampler_fill_desc(const struct VkSamplerCreateInfo *info,
                         struct mali_sampler_packed *desc,
                         VkClearColorValue border_color,
                         VkFilter min_filter, VkFilter mag_filter,
-                        VkSamplerReductionMode reduction_mode)
+                        VkSamplerReductionMode reduction_mode,
+                        VkSamplerCreateFlags flags)
 {
    pan_pack(desc, SAMPLER, cfg) {
       cfg.magnify_nearest = mag_filter == VK_FILTER_NEAREST;
@@ -154,6 +155,10 @@ panvk_sampler_fill_desc(const struct VkSamplerCreateInfo *info,
          info->unnormalizedCoordinates
             ? MALI_WRAP_MODE_CLAMP_TO_EDGE
             : panvk_translate_sampler_address_mode(info->addressModeW);
+
+      cfg.seamless_cube_map =
+         (flags & VK_SAMPLER_CREATE_NON_SEAMLESS_CUBE_MAP_BIT_EXT) == 0;
+
       cfg.compare_function = panvk_translate_sampler_compare_func(info);
       cfg.border_color_r = border_color.uint32[0];
       cfg.border_color_g = border_color.uint32[1];
@@ -166,7 +171,7 @@ panvk_sampler_fill_desc(const struct VkSamplerCreateInfo *info,
       }
 
 #if PAN_ARCH >= 10
-   cfg.reduction_mode = panvk_translate_reduction_mode(reduction_mode);
+      cfg.reduction_mode = panvk_translate_reduction_mode(reduction_mode);
 #endif
    }
 }
@@ -200,7 +205,7 @@ panvk_per_arch(CreateSampler)(VkDevice _device,
    sampler->desc_count = 1;
    panvk_sampler_fill_desc(pCreateInfo, &sampler->descs[0], border_color,
                            pCreateInfo->minFilter, pCreateInfo->magFilter,
-                           sampler->vk.reduction_mode);
+                           sampler->vk.reduction_mode, pCreateInfo->flags);
 
    /* In order to support CONVERSION_SEPARATE_RECONSTRUCTION_FILTER_BIT,
     * we need multiple sampler planes: at minimum we will need one for
@@ -214,7 +219,8 @@ panvk_per_arch(CreateSampler)(VkDevice _device,
          sampler->desc_count = 2;
          panvk_sampler_fill_desc(pCreateInfo, &sampler->descs[1],
                                  border_color, chroma_filter, chroma_filter,
-                                 sampler->vk.reduction_mode);
+                                 sampler->vk.reduction_mode,
+                                 pCreateInfo->flags);
       }
    }
 

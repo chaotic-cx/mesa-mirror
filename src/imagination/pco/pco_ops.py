@@ -83,7 +83,6 @@ IO = enum_type('io', [
    ('is5', 'is5'),
 
    ('ft0', 'ft0'),
-   ('ft0h', 'ft0h'),
    ('ft1', 'ft1'),
    ('ft2', 'ft2'),
    ('fte', 'fte'),
@@ -141,6 +140,15 @@ OM_LP = op_mod('lp', BaseType.bool)
 OM_SCALE = op_mod('scale', BaseType.bool)
 OM_ROUNDZERO = op_mod('roundzero', BaseType.bool)
 OM_S = op_mod('s', BaseType.bool)
+OM_TST_TYPE_MAIN = op_mod_enum('tst_type_main', [
+   'f32',
+   'u16',
+   's16',
+   'u8',
+   's8',
+   'u32',
+   's32',
+])
 OM_TST_OP_MAIN = op_mod_enum('tst_op_main', [
    ('zero', 'z'),
    ('gzero', 'gz'),
@@ -268,17 +276,34 @@ OM_ATOM = op_mod('atom', BaseType.bool, unset=True)
 OM_OLCHK = op_mod('olchk', BaseType.bool, unset=True)
 OM_END = op_mod('end', BaseType.bool, unset=True)
 
+OM_LOGIOP = op_mod_enum('logiop', [
+   'or',
+   'and',
+   'xor',
+   'nor',
+   'nand',
+   'xnor',
+])
 # Ops.
 
 OM_ALU = [OM_OLCHK, OM_EXEC_CND, OM_END, OM_ATOM, OM_RPT]
-OM_ALU_RPT1 = [OM_OLCHK, OM_EXEC_CND, OM_END, OM_ATOM, OM_RPT]
+OM_ALU_RPT1 = [OM_OLCHK, OM_EXEC_CND, OM_END, OM_ATOM]
 
 ## Main.
 O_FADD = hw_op('fadd', OM_ALU + [OM_SAT], 1, 2, [], [[RM_ABS, RM_NEG, RM_FLR], [RM_ABS]])
 O_FMUL = hw_op('fmul', OM_ALU + [OM_SAT], 1, 2, [], [[RM_ABS, RM_NEG, RM_FLR], [RM_ABS]])
 O_FMAD = hw_op('fmad', OM_ALU + [OM_SAT, OM_LP], 1, 3, [], [[RM_ABS, RM_NEG], [RM_ABS, RM_NEG], [RM_ABS, RM_NEG, RM_FLR]])
-O_MBYP0 = hw_op('mbyp0', OM_ALU, 1, 1, [], [[RM_ABS, RM_NEG]])
+O_FRCP = hw_op('frcp', OM_ALU, 1, 1, [], [[RM_ABS, RM_NEG]])
+O_MBYP = hw_op('mbyp', OM_ALU, 1, 1, [], [[RM_ABS, RM_NEG]])
 O_PCK = hw_op('pck', OM_ALU + [OM_PCK_FMT, OM_ROUNDZERO, OM_SCALE], 1, 1)
+O_ADD64_32 = hw_op('add64_32', OM_ALU + [OM_S], 2, 4, [], [[RM_ABS, RM_NEG], [], [RM_ABS, RM_NEG]])
+O_UNPCK = hw_op('unpck', OM_ALU + [OM_PCK_FMT, OM_ROUNDZERO, OM_SCALE], 1, 1, [], [[RM_ELEM]])
+
+O_TST = hw_direct_op('tst', [OM_TST_OP_MAIN, OM_PHASE2END, OM_TST_TYPE_MAIN], 2, 2, [], [[RM_ELEM], [RM_ELEM]])
+O_MOVC = hw_direct_op('movc', [OM_PHASE2END], 2, 5, [[RM_ELEM]])
+
+O_MOVWM = hw_op('movwm', OM_ALU + [OM_PHASE2END], 1, 2, [[RM_ELEM]])
+O_MOVS1 = hw_op('movs1', OM_ALU, 1, 1)
 
 # TODO
 # O_PCK_ELEM = pseudo_op('pck.elem', OM_ALU_RPT1 + [OM_PCK_FMT, OM_ROUNDZERO, OM_SCALE], 1, 2)
@@ -293,22 +318,31 @@ O_UVSW_WRITE_EMIT_ENDTASK = hw_op('uvsw.write.emit.endtask', [OM_END], 0, 2)
 O_FITR = hw_op('fitr', OM_ALU + [OM_ITR_MODE, OM_SAT], 1, 3)
 O_FITRP = hw_op('fitrp', OM_ALU + [OM_ITR_MODE, OM_SAT], 1, 4)
 
-## Bitwise.
-O_BBYP0BM = hw_direct_op('bbyp0bm', 2, 2)
+O_LD = hw_op('ld', OM_ALU_RPT1 + [OM_MCU_CACHE_MODE_LD], 1, 3)
 
-O_MOVI32 = pseudo_op('movi32', OM_ALU, 1, 1)
+## Bitwise.
+O_MOVI32 = hw_op('movi32', OM_ALU, 1, 1)
+
+O_LOGICAL = hw_op('logical', OM_ALU + [OM_LOGIOP], 1, 2)
+
+O_BBYP0BM_IMM32 = hw_direct_op('bbyp0bm', [], 2, 2)
+O_BBYP0S1 = hw_direct_op('bbyp0s1', [], 1, 1)
 
 ## Control.
 O_WOP = hw_op('wop')
 O_WDF = hw_op('wdf', [], 0, 1)
-O_NOP = hw_op('nop', [OM_EXEC_CND])
-O_NOP_END = hw_op('nop.end', [OM_EXEC_CND])
+O_NOP = hw_op('nop', [OM_EXEC_CND, OM_END])
 
 # TODO NEXT: gate usage of OM_F16!
 O_DITR = hw_op('ditr', [OM_EXEC_CND, OM_ITR_MODE, OM_SAT, OM_SCHED, OM_F16], 1, 3)
 O_DITRP = hw_op('ditrp', [OM_EXEC_CND, OM_ITR_MODE, OM_SAT, OM_SCHED, OM_F16], 1, 4)
 O_DITRP_WRITE = hw_op('ditrp.write', [OM_EXEC_CND, OM_ITR_MODE, OM_SAT, OM_SCHED, OM_F16], 1, 4)
 O_DITRP_READ = hw_op('ditrp.read', [OM_EXEC_CND, OM_ITR_MODE, OM_SAT, OM_SCHED, OM_F16], 1, 3)
+
+# Combination (> 1 instructions per group).
+O_SCMP = hw_op('scmp', OM_ALU + [OM_TST_OP_MAIN], 1, 2, [], [[RM_ABS, RM_NEG], [RM_ABS, RM_NEG]])
+O_FMIN = hw_op('fmin', OM_ALU, 1, 2, [], [[RM_ABS, RM_NEG], [RM_ABS, RM_NEG]])
+O_FMAX = hw_op('fmax', OM_ALU, 1, 2, [], [[RM_ABS, RM_NEG], [RM_ABS, RM_NEG]])
 
 # Pseudo-ops (unmapped).
 O_NEG = pseudo_op('neg', OM_ALU, 1, 1)

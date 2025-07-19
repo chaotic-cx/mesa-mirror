@@ -69,11 +69,7 @@ struct dri_screen
    const __DRIkopperLoaderExtension *kopper_loader;
 
    struct {
-       /* Flag to indicate that this is a DRI2 screen.  Many of the above
-        * fields will not be valid or initializaed in that case. */
-       const __DRIdri2LoaderExtension *loader;
        const __DRIimageLookupExtension *image;
-       const __DRIbackgroundCallableExtension *backgroundCallable;
    } dri2;
 
    struct {
@@ -105,16 +101,11 @@ struct dri_screen
    struct pipe_loader_device *dev;
 
    /* gallium */
-   bool auto_fake_front;
    bool has_reset_status_query;
    bool has_protected_context;
    enum pipe_texture_target target;
 
    bool swrast_no_present;
-
-   /* DRI exts that vary based on gallium pipe_screen caps. */
-   __DRIimageExtension image_extension;
-   __DRI2bufferDamageExtension buffer_damage_extension;
 
    /* DRI exts on this screen. Populated at init time based on device caps. */
    const __DRIextension *screen_extensions[14];
@@ -143,7 +134,6 @@ struct dri_image {
    unsigned layer;
    uint32_t dri_format;
    uint32_t dri_fourcc;
-   uint32_t dri_components;
    /* Provided by eglCreateImageKHR if creating from a
     * texture or a renderbuffer. 0 otherwise.
     */
@@ -166,16 +156,6 @@ struct dri_image {
 
    struct dri_screen *screen;
 };
-
-static inline bool
-dri_with_format(struct dri_screen *screen)
-{
-   const __DRIdri2LoaderExtension *loader = screen->dri2.loader;
-
-   return loader
-       && (loader->base.version >= 3)
-       && (loader->getBuffersWithFormat != NULL);
-}
 
 void
 dri_fill_st_visual(struct st_visual *stvis,

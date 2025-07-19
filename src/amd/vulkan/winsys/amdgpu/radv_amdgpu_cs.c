@@ -240,7 +240,9 @@ radv_amdgpu_cs_domain(const struct radeon_winsys *_ws)
    /* Bandwidth should be equivalent to at least PCIe 3.0 x8.
     * If there is no PCIe info, assume there is enough bandwidth.
     */
-   bool enough_bandwidth = !ws->info.has_pcie_bandwidth_info || ws->info.pcie_bandwidth_mbps >= 8 * 0.985 * 1024;
+   const uint32_t bandwidth_mbps_threshold = 8 * 0.985 * 1024;
+   bool enough_bandwidth =
+      !ws->info.has_pcie_bandwidth_info || ws->info.pcie_bandwidth_mbps >= bandwidth_mbps_threshold;
 
    bool use_sam =
       (enough_vram && enough_bandwidth && ws->info.has_dedicated_vram && !(ws->perftest & RADV_PERFTEST_NO_SAM)) ||
@@ -1242,13 +1244,13 @@ radv_amdgpu_cs_submit_zero(struct radv_amdgpu_ctx *ctx, enum amd_ip_type ip_type
 
    if (sem_info->wait.syncobj_count || sem_info->wait.timeline_syncobj_count) {
       int fd;
-      ret = ac_drm_cs_syncobj_export_sync_file(ctx->ws->fd, queue_syncobj, &fd);
+      ret = ac_drm_cs_syncobj_export_sync_file(ctx->ws->dev, queue_syncobj, &fd);
       if (ret < 0)
          return VK_ERROR_DEVICE_LOST;
 
       for (unsigned i = 0; i < sem_info->wait.syncobj_count; ++i) {
          int fd2;
-         ret = ac_drm_cs_syncobj_export_sync_file(ctx->ws->fd, sem_info->wait.syncobj[i], &fd2);
+         ret = ac_drm_cs_syncobj_export_sync_file(ctx->ws->dev, sem_info->wait.syncobj[i], &fd2);
          if (ret < 0) {
             close(fd);
             return VK_ERROR_DEVICE_LOST;
@@ -1260,14 +1262,14 @@ radv_amdgpu_cs_submit_zero(struct radv_amdgpu_ctx *ctx, enum amd_ip_type ip_type
       for (unsigned i = 0; i < sem_info->wait.timeline_syncobj_count; ++i) {
          int fd2;
          ret = ac_drm_cs_syncobj_export_sync_file2(
-            ctx->ws->fd, sem_info->wait.syncobj[i + sem_info->wait.syncobj_count], sem_info->wait.points[i], 0, &fd2);
+            ctx->ws->dev, sem_info->wait.syncobj[i + sem_info->wait.syncobj_count], sem_info->wait.points[i], 0, &fd2);
          if (ret < 0) {
             /* This works around a kernel bug where the fence isn't copied if it is already
              * signalled. Since it is already signalled it is totally fine to not wait on it.
              *
              * kernel patch: https://patchwork.freedesktop.org/patch/465583/ */
             uint64_t point;
-            ret = ac_drm_cs_syncobj_query2(ctx->ws->fd, &sem_info->wait.syncobj[i + sem_info->wait.syncobj_count],
+            ret = ac_drm_cs_syncobj_query2(ctx->ws->dev, &sem_info->wait.syncobj[i + sem_info->wait.syncobj_count],
                                            &point, 1, 0);
             if (!ret && point >= sem_info->wait.points[i])
                continue;
@@ -1279,7 +1281,7 @@ radv_amdgpu_cs_submit_zero(struct radv_amdgpu_ctx *ctx, enum amd_ip_type ip_type
          sync_accumulate("radv", &fd, fd2);
          close(fd2);
       }
-      ret = ac_drm_cs_syncobj_import_sync_file(ctx->ws->fd, queue_syncobj, fd);
+      ret = ac_drm_cs_syncobj_import_sync_file(ctx->ws->dev, queue_syncobj, fd);
       close(fd);
       if (ret < 0)
          return VK_ERROR_DEVICE_LOST;
@@ -1292,23 +1294,23 @@ radv_amdgpu_cs_submit_zero(struct radv_amdgpu_ctx *ctx, enum amd_ip_type ip_type
       uint32_t src_handle = queue_syncobj;
 
       if (ctx->ws->info.has_timeline_syncobj) {
-         ret = ac_drm_cs_syncobj_transfer(ctx->ws->fd, dst_handle, 0, src_handle, 0, 0);
+         ret = ac_drm_cs_syncobj_transfer(ctx->ws->dev, dst_handle, 0, src_handle, 0, 0);
          if (ret < 0)
             return VK_ERROR_DEVICE_LOST;
       } else {
          int fd;
-         ret = ac_drm_cs_syncobj_export_sync_file(ctx->ws->fd, src_handle, &fd);
+         ret = ac_drm_cs_syncobj_export_sync_file(ctx->ws->dev, src_handle, &fd);
          if (ret < 0)
             return VK_ERROR_DEVICE_LOST;
 
-         ret = ac_drm_cs_syncobj_import_sync_file(ctx->ws->fd, dst_handle, fd);
+         ret = ac_drm_cs_syncobj_import_sync_file(ctx->ws->dev, dst_handle, fd);
          close(fd);
          if (ret < 0)
             return VK_ERROR_DEVICE_LOST;
       }
    }
    for (unsigned i = 0; i < sem_info->signal.timeline_syncobj_count; ++i) {
-      ret = ac_drm_cs_syncobj_transfer(ctx->ws->fd, sem_info->signal.syncobj[i + sem_info->signal.syncobj_count],
+      ret = ac_drm_cs_syncobj_transfer(ctx->ws->dev, sem_info->signal.syncobj[i + sem_info->signal.syncobj_count],
                                        sem_info->signal.points[i], queue_syncobj, 0, 0);
       if (ret < 0)
          return VK_ERROR_DEVICE_LOST;
@@ -1630,7 +1632,7 @@ radv_amdgpu_ctx_destroy(struct radeon_winsys_ctx *rwctx)
    for (unsigned ip = 0; ip <= AMDGPU_HW_IP_NUM; ++ip) {
       for (unsigned ring = 0; ring < MAX_RINGS_PER_TYPE; ++ring) {
          if (ctx->queue_syncobj[ip][ring])
-            ac_drm_cs_destroy_syncobj(ctx->ws->fd, ctx->queue_syncobj[ip][ring]);
+            ac_drm_cs_destroy_syncobj(ctx->ws->dev, ctx->queue_syncobj[ip][ring]);
       }
    }
 
@@ -1644,7 +1646,7 @@ radv_amdgpu_ctx_queue_syncobj(struct radv_amdgpu_ctx *ctx, unsigned ip, unsigned
 {
    uint32_t *syncobj = &ctx->queue_syncobj[ip][ring];
    if (!*syncobj) {
-      ac_drm_cs_create_syncobj2(ctx->ws->fd, DRM_SYNCOBJ_CREATE_SIGNALED, syncobj);
+      ac_drm_cs_create_syncobj2(ctx->ws->dev, DRM_SYNCOBJ_CREATE_SIGNALED, syncobj);
    }
    return *syncobj;
 }

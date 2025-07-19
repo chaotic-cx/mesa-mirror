@@ -153,6 +153,18 @@ panthor_kmod_dev_create(int fd, uint32_t flags, drmVersionPtr version,
    }
 
    /* Map the LATEST_FLUSH_ID register at device creation time. */
+   if (version->version_major > 1 || version->version_minor >= 5) {
+      struct drm_panthor_set_user_mmio_offset user_mmio_offset = {
+         .offset = DRM_PANTHOR_USER_MMIO_OFFSET,
+      };
+
+      ret = drmIoctl(fd, DRM_IOCTL_PANTHOR_SET_USER_MMIO_OFFSET, &user_mmio_offset);
+      if (ret) {
+         mesa_loge("DRM_IOCTL_PANTHOR_SET_USER_MMIO_OFFSET, failed (err=%d)", errno);
+         goto err_free_dev;
+      }
+   }
+
    panthor_dev->flush_id = os_mmap(0, getpagesize(), PROT_READ, MAP_SHARED, fd,
                                    DRM_PANTHOR_USER_FLUSH_ID_MMIO_OFFSET);
    if (panthor_dev->flush_id == MAP_FAILED) {
@@ -254,8 +266,7 @@ panthor_dev_query_props(const struct pan_kmod_dev *dev,
       container_of(dev, struct panthor_kmod_dev, base);
 
    *props = (struct pan_kmod_dev_props){
-      .gpu_prod_id = panthor_dev->props.gpu.gpu_id >> 16,
-      .gpu_revision = panthor_dev->props.gpu.gpu_id & 0xffff,
+      .gpu_id = panthor_dev->props.gpu.gpu_id,
       .gpu_variant = panthor_dev->props.gpu.core_features & 0xff,
       .shader_present = panthor_dev->props.gpu.shader_present,
       .tiler_features = panthor_dev->props.gpu.tiler_features,

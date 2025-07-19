@@ -23,6 +23,21 @@
 #include "clb197.h"
 #include "clc197.h"
 #include "clc597.h"
+#include "clcd97.h"
+
+static bool
+nvk_use_separate_zs(const struct nvk_physical_device *pdev, VkFormat vk_format)
+{
+   /* Separate depth/stencil doesn't exist pre-Blackwell */
+   if (pdev->info.cls_eng3d < BLACKWELL_A)
+      return false;
+
+   const VkImageAspectFlags format_aspects = vk_format_aspects(vk_format);
+
+   /* Just depth or just stencil is still a single plane */
+   return format_aspects == (VK_IMAGE_ASPECT_DEPTH_BIT |
+                             VK_IMAGE_ASPECT_STENCIL_BIT);
+}
 
 static VkFormatFeatureFlags2
 nvk_get_image_plane_format_features(const struct nvk_physical_device *pdev,
@@ -566,8 +581,9 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
       }
    }
 
-   const unsigned plane_count =
-      vk_format_get_plane_count(pImageFormatInfo->format);
+   unsigned plane_count = vk_format_get_plane_count(pImageFormatInfo->format);
+   if (nvk_use_separate_zs(pdev, pImageFormatInfo->format))
+      plane_count = 2;
 
    /* From the Vulkan 1.3.259 spec, VkImageCreateInfo:
     *
@@ -592,9 +608,12 @@ nvk_GetPhysicalDeviceImageFormatProperties2(
        (pImageFormatInfo->flags & VK_IMAGE_CREATE_DISJOINT_BIT))
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
-   if (ycbcr_info &&
-       ((pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT) ||
-       (pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT)))
+   /* We don't support sparse residency for multi-plane images.  While we
+    * could probably support sparse for VK_FORMAT_B8G8R8G8_422_UNORM, we
+    * disable it because the standard block sizes are funky.
+    */
+   if ((plane_count > 1 || ycbcr_info != NULL) &&
+       (pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT))
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
    if ((pImageFormatInfo->flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT) &&
@@ -781,6 +800,11 @@ nvk_image_init(struct nvk_device *dev,
    image->disjoint = image->plane_count > 1 &&
                      (image->vk.create_flags & VK_IMAGE_CREATE_DISJOINT_BIT);
 
+   if (nvk_use_separate_zs(pdev, image->vk.format)) {
+      image->separate_zs = true;
+      image->plane_count = 2;
+   }
+
    if (image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_RESIDENCY_BIT) {
       /* Sparse multiplane is not supported */
       assert(image->plane_count == 1);
@@ -891,6 +915,13 @@ nvk_image_init(struct nvk_device *dev,
       const uint8_t height_scale = ycbcr_info ?
          ycbcr_info->planes[plane].denominator_scales[1] : 1;
 
+      if (image->separate_zs) {
+	 if (plane == 0)
+	    format = vk_format_depth_only(format);
+	 else if (plane == 1)
+	    format = vk_format_stencil_only(format);
+      }
+
       nil_info[plane] = (struct nil_image_init_info) {
          .dim = vk_image_type_to_nil_dim(image->vk.image_type),
          .format = nil_format(nvk_format_to_pipe_format(format)),
@@ -931,7 +962,8 @@ nvk_image_init(struct nvk_device *dev,
       }
    }
 
-   if (image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
+   const enum pipe_format plane0_format = image->planes[0].nil.format.p_format;
+   if (plane0_format == PIPE_FORMAT_Z32_FLOAT_S8X24_UINT) {
       struct nil_image_init_info stencil_nil_info = {
          .dim = vk_image_type_to_nil_dim(image->vk.image_type),
          .format = nil_format(PIPE_FORMAT_R32_UINT),
@@ -1491,27 +1523,16 @@ nvk_bind_image_memory(struct nvk_device *dev,
 
    /* Ignore this struct on Android, we cannot access swapchain structures there. */
 #ifdef NVK_USE_WSI_PLATFORM
-   const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
-      vk_find_struct_const(info->pNext, BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
-
-   if (swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE) {
-      VkImage _wsi_image = wsi_common_get_image(swapchain_info->swapchain,
-                                                swapchain_info->imageIndex);
-      VK_FROM_HANDLE(nvk_image, wsi_img, _wsi_image);
-
-      assert(image->plane_count == 1);
-      assert(wsi_img->plane_count == 1);
-
-      struct nvk_image_plane *plane = &image->planes[0];
-      struct nvk_image_plane *swapchain_plane = &wsi_img->planes[0];
-
-      /* Copy memory binding information from swapchain image to the current image's plane. */
-      plane->addr = swapchain_plane->addr;
-
-      return VK_SUCCESS;
+   if (mem == NULL) {
+      const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
+         vk_find_struct_const(info->pNext, BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
+      assert(swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE);
+      mem = nvk_device_memory_from_handle(
+         wsi_common_get_memory(swapchain_info->swapchain, swapchain_info->imageIndex));
    }
 #endif
 
+   assert(mem != NULL);
    uint64_t offset_B = info->memoryOffset;
    if (image->disjoint) {
       const VkBindImagePlaneMemoryInfo *plane_info =

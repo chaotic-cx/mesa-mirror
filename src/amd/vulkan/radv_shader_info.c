@@ -22,15 +22,13 @@ mark_sampler_desc(const nir_variable *var, struct radv_shader_info *info)
 }
 
 static bool
-radv_use_vs_prolog(const nir_shader *nir,
-                   const struct radv_graphics_state_key *gfx_state)
+radv_use_vs_prolog(const nir_shader *nir, const struct radv_graphics_state_key *gfx_state)
 {
    return gfx_state->vs.has_prolog && nir->info.inputs_read;
 }
 
 static bool
-radv_use_per_attribute_vb_descs(const nir_shader *nir,
-                                const struct radv_graphics_state_key *gfx_state,
+radv_use_per_attribute_vb_descs(const nir_shader *nir, const struct radv_graphics_state_key *gfx_state,
                                 const struct radv_shader_stage_key *stage_key)
 {
    return stage_key->vertex_robustness1 || radv_use_vs_prolog(nir, gfx_state);
@@ -149,9 +147,6 @@ gather_intrinsic_store_output_info(const nir_shader *nir, const nir_intrinsic_in
    case MESA_SHADER_TESS_EVAL:
       output_usage_mask = info->tes.output_usage_mask;
       break;
-   case MESA_SHADER_GEOMETRY:
-      output_usage_mask = info->gs.output_usage_mask;
-      break;
    case MESA_SHADER_FRAGMENT:
       if (location >= FRAG_RESULT_DATA0) {
          const unsigned fs_semantic = location + io_sem.dual_source_blend_index;
@@ -182,11 +177,6 @@ gather_intrinsic_store_output_info(const nir_shader *nir, const nir_intrinsic_in
          if (!nir_scalar_is_const(pos_w) || nir_scalar_as_uint(pos_w) != 0x3f800000u)
             info->force_vrs_per_vertex = true;
       }
-   }
-
-   if (nir->info.stage == MESA_SHADER_GEOMETRY) {
-      const uint8_t gs_streams = nir_intrinsic_io_semantics(instr).gs_streams;
-      info->gs.output_streams[location] |= gs_streams << (component * 2);
    }
 
    if ((location == VARYING_SLOT_CLIP_DIST0 || location == VARYING_SLOT_CLIP_DIST1) && !io_sem.no_sysval_output) {
@@ -375,7 +365,7 @@ gather_xfb_info(const nir_shader *nir, struct radv_shader_info *info)
 
    const nir_xfb_info *xfb = nir->xfb_info;
 
-   u_foreach_bit(output_buffer, xfb->buffers_written) {
+   u_foreach_bit (output_buffer, xfb->buffers_written) {
       unsigned stream = xfb->buffer_to_stream[output_buffer];
       so->enabled_stream_buffers_mask |= (1 << output_buffer) << (stream * 4);
       so->strides[output_buffer] = xfb->buffers[output_buffer].stride / 4;
@@ -406,9 +396,8 @@ radv_get_output_masks(const struct nir_shader *nir, const struct radv_graphics_s
                       uint64_t *per_vtx_mask, uint64_t *per_prim_mask)
 {
    /* These are not compiled into neither output param nor position exports. */
-   const uint64_t special_mask = BITFIELD64_BIT(VARYING_SLOT_PRIMITIVE_COUNT) |
-                                 BITFIELD64_BIT(VARYING_SLOT_PRIMITIVE_INDICES) |
-                                 BITFIELD64_BIT(VARYING_SLOT_CULL_PRIMITIVE);
+   const uint64_t special_mask =
+      VARYING_BIT_PRIMITIVE_COUNT | VARYING_BIT_PRIMITIVE_INDICES | VARYING_BIT_CULL_PRIMITIVE;
 
    *per_prim_mask = nir->info.outputs_written & nir->info.per_primitive_outputs & ~special_mask;
    *per_vtx_mask = nir->info.outputs_written & ~nir->info.per_primitive_outputs & ~special_mask;
@@ -667,8 +656,8 @@ gather_shader_info_tes(struct radv_device *device, const nir_shader *nir, struct
    if (!info->inputs_linked) {
       info->tes.num_linked_inputs = util_last_bit64(radv_gather_unlinked_io_mask(
          nir->info.inputs_read & ~(VARYING_BIT_TESS_LEVEL_OUTER | VARYING_BIT_TESS_LEVEL_INNER)));
-      info->tes.num_linked_patch_inputs = util_last_bit64(
-         radv_gather_unlinked_patch_io_mask(nir->info.inputs_read, nir->info.patch_inputs_read));
+      info->tes.num_linked_patch_inputs =
+         util_last_bit64(radv_gather_unlinked_patch_io_mask(nir->info.inputs_read, nir->info.patch_inputs_read));
    }
    if (!info->outputs_linked)
       info->tes.num_linked_outputs = util_last_bit64(radv_gather_unlinked_io_mask(nir->info.outputs_written));
@@ -687,11 +676,25 @@ gather_shader_info_tes(struct radv_device *device, const nir_shader *nir, struct
    }
 }
 
-static void
-radv_init_legacy_gs_ring_info(const struct radv_device *device, struct radv_shader_info *gs_info)
+void
+radv_get_legacy_gs_info(const struct radv_device *device, struct radv_shader_info *gs_info)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   struct radv_legacy_gs_info *gs_ring_info = &gs_info->gs_ring_info;
+   struct radv_legacy_gs_info *out = &gs_info->gs_ring_info;
+   const unsigned esgs_vertex_stride = out->esgs_itemsize * 4;
+   ac_legacy_gs_subgroup_info info;
+
+   ac_legacy_gs_compute_subgroup_info(gs_info->gs.input_prim, gs_info->gs.vertices_out, gs_info->gs.invocations,
+                                      esgs_vertex_stride, &info);
+
+   const uint32_t lds_granularity = pdev->info.lds_encode_granularity;
+   const uint32_t total_lds_bytes = align(info.esgs_lds_size * 4, lds_granularity);
+
+   out->gs_inst_prims_in_subgroup = info.gs_inst_prims_in_subgroup;
+   out->es_verts_per_subgroup = info.es_verts_per_subgroup;
+   out->gs_prims_per_subgroup = info.gs_prims_per_subgroup;
+   out->lds_size = total_lds_bytes / lds_granularity;
+
    unsigned num_se = pdev->info.max_se;
    unsigned wave_size = 64;
    unsigned max_gs_waves = 32 * num_se; /* max 32 per SE on GCN */
@@ -704,157 +707,43 @@ radv_init_legacy_gs_ring_info(const struct radv_device *device, struct radv_shad
    unsigned max_size = ((unsigned)(63.999 * 1024 * 1024) & ~255) * num_se;
 
    /* Calculate the minimum size. */
-   unsigned min_esgs_ring_size = align(gs_ring_info->esgs_itemsize * 4 * gs_vertex_reuse * wave_size, alignment);
+   unsigned min_esgs_ring_size = align(esgs_vertex_stride * gs_vertex_reuse * wave_size, alignment);
    /* These are recommended sizes, not minimum sizes. */
-   unsigned esgs_ring_size = max_gs_waves * 2 * wave_size * gs_ring_info->esgs_itemsize * 4 * gs_info->gs.vertices_in;
-   unsigned gsvs_ring_size = max_gs_waves * 2 * wave_size * gs_info->gs.max_gsvs_emit_size;
+   unsigned esgs_ring_size = max_gs_waves * 2 * wave_size * esgs_vertex_stride * gs_info->gs.vertices_in;
+
+   unsigned gsvs_emit_size = 0;
+   for (unsigned stream = 0; stream < 4; stream++) {
+      gsvs_emit_size += (uint32_t)gs_info->gs.num_components_per_stream[stream] * 4 * gs_info->gs.vertices_out;
+   }
+
+   unsigned gsvs_ring_size = max_gs_waves * 2 * wave_size * gsvs_emit_size;
 
    min_esgs_ring_size = align(min_esgs_ring_size, alignment);
    esgs_ring_size = align(esgs_ring_size, alignment);
    gsvs_ring_size = align(gsvs_ring_size, alignment);
 
    if (pdev->info.gfx_level <= GFX8)
-      gs_ring_info->esgs_ring_size = CLAMP(esgs_ring_size, min_esgs_ring_size, max_size);
+      out->esgs_ring_size = CLAMP(esgs_ring_size, min_esgs_ring_size, max_size);
 
-   gs_ring_info->gsvs_ring_size = MIN2(gsvs_ring_size, max_size);
-}
-
-static void
-radv_get_legacy_gs_info(const struct radv_device *device, struct radv_shader_info *gs_info)
-{
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-   struct radv_legacy_gs_info *out = &gs_info->gs_ring_info;
-   const unsigned gs_num_invocations = MAX2(gs_info->gs.invocations, 1);
-   const bool uses_adjacency =
-      gs_info->gs.input_prim == MESA_PRIM_LINES_ADJACENCY || gs_info->gs.input_prim == MESA_PRIM_TRIANGLES_ADJACENCY;
-
-   /* All these are in dwords: */
-   /* We can't allow using the whole LDS, because GS waves compete with
-    * other shader stages for LDS space. */
-   const unsigned max_lds_size = 8 * 1024;
-   const unsigned esgs_itemsize = radv_compute_esgs_itemsize(device, gs_info->gs.num_linked_inputs) / 4;
-   unsigned esgs_lds_size;
-
-   /* All these are per subgroup: */
-   const unsigned max_out_prims = 32 * 1024;
-   const unsigned max_es_verts = 255;
-   const unsigned ideal_gs_prims = 64;
-   unsigned max_gs_prims, gs_prims;
-   unsigned min_es_verts, es_verts, worst_case_es_verts;
-
-   if (uses_adjacency || gs_num_invocations > 1)
-      max_gs_prims = 127 / gs_num_invocations;
-   else
-      max_gs_prims = 255;
-
-   /* MAX_PRIMS_PER_SUBGROUP = gs_prims * max_vert_out * gs_invocations.
-    * Make sure we don't go over the maximum value.
-    */
-   if (gs_info->gs.vertices_out > 0) {
-      max_gs_prims = MIN2(max_gs_prims, max_out_prims / (gs_info->gs.vertices_out * gs_num_invocations));
-   }
-   assert(max_gs_prims > 0);
-
-   /* If the primitive has adjacency, halve the number of vertices
-    * that will be reused in multiple primitives.
-    */
-   min_es_verts = gs_info->gs.vertices_in / (uses_adjacency ? 2 : 1);
-
-   gs_prims = MIN2(ideal_gs_prims, max_gs_prims);
-   worst_case_es_verts = MIN2(min_es_verts * gs_prims, max_es_verts);
-
-   /* Compute ESGS LDS size based on the worst case number of ES vertices
-    * needed to create the target number of GS prims per subgroup.
-    */
-   esgs_lds_size = esgs_itemsize * worst_case_es_verts;
-
-   /* If total LDS usage is too big, refactor partitions based on ratio
-    * of ESGS item sizes.
-    */
-   if (esgs_lds_size > max_lds_size) {
-      /* Our target GS Prims Per Subgroup was too large. Calculate
-       * the maximum number of GS Prims Per Subgroup that will fit
-       * into LDS, capped by the maximum that the hardware can support.
-       */
-      gs_prims = MIN2((max_lds_size / (esgs_itemsize * min_es_verts)), max_gs_prims);
-      assert(gs_prims > 0);
-      worst_case_es_verts = MIN2(min_es_verts * gs_prims, max_es_verts);
-
-      esgs_lds_size = esgs_itemsize * worst_case_es_verts;
-      assert(esgs_lds_size <= max_lds_size);
-   }
-
-   /* Now calculate remaining ESGS information. */
-   if (esgs_lds_size)
-      es_verts = MIN2(esgs_lds_size / esgs_itemsize, max_es_verts);
-   else
-      es_verts = max_es_verts;
-
-   /* Vertices for adjacency primitives are not always reused, so restore
-    * it for ES_VERTS_PER_SUBGRP.
-    */
-   min_es_verts = gs_info->gs.vertices_in;
-
-   /* For normal primitives, the VGT only checks if they are past the ES
-    * verts per subgroup after allocating a full GS primitive and if they
-    * are, kick off a new subgroup.  But if those additional ES verts are
-    * unique (e.g. not reused) we need to make sure there is enough LDS
-    * space to account for those ES verts beyond ES_VERTS_PER_SUBGRP.
-    */
-   es_verts -= min_es_verts - 1;
-
-   const uint32_t es_verts_per_subgroup = es_verts;
-   const uint32_t gs_prims_per_subgroup = gs_prims;
-   const uint32_t gs_inst_prims_in_subgroup = gs_prims * gs_num_invocations;
-   const uint32_t max_prims_per_subgroup = gs_inst_prims_in_subgroup * gs_info->gs.vertices_out;
-   const uint32_t lds_granularity = pdev->info.lds_encode_granularity;
-   const uint32_t total_lds_bytes = align(esgs_lds_size * 4, lds_granularity);
-
-   out->gs_inst_prims_in_subgroup = gs_inst_prims_in_subgroup;
-   out->es_verts_per_subgroup = es_verts_per_subgroup;
-   out->gs_prims_per_subgroup = gs_prims_per_subgroup;
-   out->esgs_itemsize = esgs_itemsize;
-   out->lds_size = total_lds_bytes / lds_granularity;
-   assert(max_prims_per_subgroup <= max_out_prims);
-
-   radv_init_legacy_gs_ring_info(device, gs_info);
+   out->gsvs_ring_size = MIN2(gsvs_ring_size, max_size);
 }
 
 static void
 gather_shader_info_gs(struct radv_device *device, const nir_shader *nir, struct radv_shader_info *info)
 {
-   unsigned add_clip = nir->info.clip_distance_array_size + nir->info.cull_distance_array_size > 4;
-   info->gs.gsvs_vertex_size = (util_bitcount64(nir->info.outputs_written) + add_clip) * 16;
-   info->gs.max_gsvs_emit_size = info->gs.gsvs_vertex_size * nir->info.gs.vertices_out;
-
    info->gs.vertices_in = nir->info.gs.vertices_in;
    info->gs.vertices_out = nir->info.gs.vertices_out;
    info->gs.input_prim = nir->info.gs.input_primitive;
    info->gs.output_prim = nir->info.gs.output_primitive;
    info->gs.invocations = nir->info.gs.invocations;
-   info->gs.max_stream = nir->info.gs.active_stream_mask ? util_last_bit(nir->info.gs.active_stream_mask) - 1 : 0;
-
-   for (unsigned slot = 0; slot < VARYING_SLOT_MAX; ++slot) {
-      const uint8_t usage_mask = info->gs.output_usage_mask[slot];
-      const uint8_t gs_streams = info->gs.output_streams[slot];
-
-      for (unsigned component = 0; component < 4; ++component) {
-         if (!(usage_mask & BITFIELD_BIT(component)))
-            continue;
-
-         const uint8_t stream = (gs_streams >> (component * 2)) & 0x3;
-         info->gs.num_stream_output_components[stream]++;
-      }
-   }
 
    if (!info->inputs_linked)
       info->gs.num_linked_inputs = util_last_bit64(radv_gather_unlinked_io_mask(nir->info.inputs_read));
 
-   if (info->is_ngg) {
+   if (info->is_ngg)
       gather_shader_info_ngg_query(device, info);
-   } else {
-      radv_get_legacy_gs_info(device, info);
-   }
+   else
+      info->gs_ring_info.esgs_itemsize = radv_compute_esgs_itemsize(device, info->gs.num_linked_inputs) / 4;
 }
 
 static void
@@ -909,7 +798,7 @@ calc_mesh_workgroup_size(const struct radv_device *device, const nir_shader *nir
    const struct radv_physical_device *pdev = radv_device_physical(device);
    unsigned api_workgroup_size = ac_compute_cs_workgroup_size(nir->info.workgroup_size, false, UINT32_MAX);
 
-   if (pdev->mesh_fast_launch_2) {
+   if (pdev->info.mesh_fast_launch_2) {
       /* Use multi-row export. It is also necessary to use the API workgroup size for non-emulated queries. */
       info->workgroup_size = api_workgroup_size;
    } else {
@@ -1231,19 +1120,6 @@ radv_nir_shader_info_pass(struct radv_device *device, const struct nir_shader *n
       outinfo->writes_layer_per_primitive = per_prim_mask & VARYING_BIT_LAYER;
       outinfo->writes_primitive_shading_rate_per_primitive = per_prim_mask & VARYING_BIT_PRIMITIVE_SHADING_RATE;
       outinfo->export_prim_id_per_primitive = per_prim_mask & VARYING_BIT_PRIMITIVE_ID;
-
-      outinfo->pos_exports = 1;
-
-      if (outinfo->writes_pointsize || outinfo->writes_viewport_index || outinfo->writes_layer ||
-          outinfo->writes_primitive_shading_rate)
-         outinfo->pos_exports++;
-
-      unsigned clip_cull_mask = outinfo->clip_dist_mask | outinfo->cull_dist_mask;
-
-      if (clip_cull_mask & 0x0f)
-         outinfo->pos_exports++;
-      if (clip_cull_mask & 0xf0)
-         outinfo->pos_exports++;
    }
 
    info->vs.needs_draw_id |= BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID);
@@ -1320,7 +1196,7 @@ radv_nir_shader_info_pass(struct radv_device *device, const struct nir_shader *n
                                      (info->workgroup_size % info->wave_size) == 0;
       break;
    case MESA_SHADER_VERTEX:
-      if (info->vs.as_ls || info->vs.as_es) {
+      if (info->vs.as_ls || info->vs.as_es || info->is_ngg) {
          /* Set the maximum possible value by default, this will be optimized during linking if
           * possible.
           */
@@ -1340,7 +1216,7 @@ radv_nir_shader_info_pass(struct radv_device *device, const struct nir_shader *n
       }
       break;
    case MESA_SHADER_TESS_EVAL:
-      if (info->tes.as_es) {
+      if (info->tes.as_es || info->is_ngg) {
          /* Set the maximum possible value by default, this will be optimized during linking if
           * possible.
           */
@@ -1351,11 +1227,20 @@ radv_nir_shader_info_pass(struct radv_device *device, const struct nir_shader *n
       break;
    case MESA_SHADER_GEOMETRY:
       if (!info->is_ngg) {
-         unsigned es_verts_per_subgroup = info->gs_ring_info.es_verts_per_subgroup;
-         unsigned gs_inst_prims_in_subgroup = info->gs_ring_info.gs_inst_prims_in_subgroup;
+         /* ESGS may operate in workgroups if on-chip GS (LDS rings) are enabled.
+          *
+          * GFX6: Not possible in the HW.
+          * GFX7-8 (unmerged): possible in the HW, but not implemented in Mesa.
+          * GFX9+ (merged): implemented in Mesa.
+          *
+          * Set the maximum possible value by default, this will be optimized during linking if
+          * possible.
+          */
+         if (pdev->info.gfx_level <= GFX8)
+            info->workgroup_size = info->wave_size;
+         else
+            info->workgroup_size = 256;
 
-         info->workgroup_size = ac_compute_esgs_workgroup_size(pdev->info.gfx_level, info->wave_size,
-                                                               es_verts_per_subgroup, gs_inst_prims_in_subgroup);
       } else {
          /* Set the maximum possible value by default, this will be optimized during linking if
           * possible.
@@ -1421,34 +1306,20 @@ radv_get_pre_rast_input_topology(const struct radv_shader_info *es_info, const s
 }
 
 static unsigned
-gfx10_get_ngg_scratch_lds_base(const struct radv_device *device, const struct radv_shader_info *es_info,
-                               const struct radv_shader_info *gs_info, const struct gfx10_ngg_info *ngg_info)
+gfx10_get_ngg_vert_prim_lds_size(const struct radv_device *device, const struct radv_shader_info *es_info,
+                                 const struct radv_shader_info *gs_info, const struct gfx10_ngg_info *ngg_info)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
-   uint32_t scratch_lds_base;
-
    if (gs_info) {
       const unsigned esgs_ring_lds_bytes = ngg_info->esgs_ring_size;
       const unsigned gs_total_out_vtx_bytes = ngg_info->ngg_emit_size * 4u;
 
-      scratch_lds_base = ALIGN(esgs_ring_lds_bytes + gs_total_out_vtx_bytes, 8u /* for the repacking code */);
+      return esgs_ring_lds_bytes + gs_total_out_vtx_bytes;
    } else {
-      const bool uses_instanceid = es_info->vs.needs_instance_id;
-      const bool uses_primitive_id = es_info->uses_prim_id;
-      const bool streamout_enabled = es_info->so.enabled_stream_buffers_mask && pdev->use_ngg_streamout;
-      const uint32_t num_outputs =
-         es_info->stage == MESA_SHADER_VERTEX ? es_info->vs.num_outputs : es_info->tes.num_outputs;
-      unsigned pervertex_lds_bytes = ac_ngg_nogs_get_pervertex_lds_size(
-         es_info->stage, num_outputs, streamout_enabled, es_info->outinfo.export_prim_id, false, /* user edge flag */
-         es_info->has_ngg_culling, uses_instanceid, uses_primitive_id);
-
       assert(ngg_info->hw_max_esverts <= 256);
-      unsigned total_es_lds_bytes = pervertex_lds_bytes * ngg_info->hw_max_esverts;
+      unsigned total_es_lds_bytes = es_info->ngg_lds_vertex_size * ngg_info->hw_max_esverts;
 
-      scratch_lds_base = ALIGN(total_es_lds_bytes, 8u);
+      return total_es_lds_bytes;
    }
-
-   return scratch_lds_base;
 }
 
 void
@@ -1457,318 +1328,155 @@ gfx10_get_ngg_info(const struct radv_device *device, struct radv_shader_info *es
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    const enum amd_gfx_level gfx_level = pdev->info.gfx_level;
-   const unsigned max_verts_per_prim = radv_get_num_input_vertices(es_info, gs_info);
-   const unsigned min_verts_per_prim = gs_info ? max_verts_per_prim : 1;
-
+   const struct radv_shader_info *stage_info = gs_info ? gs_info : es_info;
    const unsigned gs_num_invocations = gs_info ? MAX2(gs_info->gs.invocations, 1) : 1;
-
    const unsigned input_prim = radv_get_pre_rast_input_topology(es_info, gs_info);
-   const bool uses_adjacency = input_prim == MESA_PRIM_LINES_ADJACENCY || input_prim == MESA_PRIM_TRIANGLES_ADJACENCY;
+   const unsigned gs_vertices_out = gs_info ? gs_info->gs.vertices_out : 0;
+   ac_ngg_subgroup_info info;
 
-   /* All these are in dwords: */
-   /* We can't allow using the whole LDS, because GS waves compete with
-    * other shader stages for LDS space.
-    *
-    * TODO: We should really take the shader's internal LDS use into
-    *       account. The linker will fail if the size is greater than
-    *       8K dwords.
-    */
-   const unsigned max_lds_size = 8 * 1024 - 768;
-   const unsigned target_lds_size = max_lds_size;
-   unsigned esvert_lds_size = 0;
-   unsigned gsprim_lds_size = 0;
+   ac_ngg_compute_subgroup_info(gfx_level, es_info->stage, !!gs_info, input_prim, gs_vertices_out, gs_num_invocations,
+                                128, stage_info->wave_size, es_info->esgs_itemsize, stage_info->ngg_lds_vertex_size,
+                                stage_info->ngg_lds_scratch_size, false, 0, &info);
 
-   /* All these are per subgroup: */
-   const unsigned min_esverts = gfx_level >= GFX11 ? max_verts_per_prim /* gfx11 requires at least 1 primitive per TG */
-                                : gfx_level >= GFX10_3 ? 29
-                                                       : (24 - 1 + max_verts_per_prim);
-   bool max_vert_out_per_gs_instance = false;
-   unsigned max_esverts_base = 128;
-   unsigned max_gsprims_base = 128; /* default prim group size clamp */
+   out->hw_max_esverts = info.hw_max_esverts;
+   out->max_gsprims = info.max_gsprims;
+   out->max_out_verts = info.max_out_verts;
+   out->max_vert_out_per_gs_instance = info.max_vert_out_per_gs_instance;
+   out->ngg_emit_size = info.ngg_out_lds_size;
+   out->esgs_ring_size = info.esgs_lds_size * 4;
+   out->prim_amp_factor = gs_info ? gs_info->gs.vertices_out : 1;
 
-   /* Hardware has the following non-natural restrictions on the value
-    * of GE_CNTL.VERT_GRP_SIZE based on based on the primitive type of
-    * the draw:
-    *  - at most 252 for any line input primitive type
-    *  - at most 251 for any quad input primitive type
-    *  - at most 251 for triangle strips with adjacency (this happens to
-    *    be the natural limit for triangle *lists* with adjacency)
-    */
-   max_esverts_base = MIN2(max_esverts_base, 251 + max_verts_per_prim - 1);
+   const struct radv_shader_info *rinfo = gs_info ? gs_info : es_info;
+   out->lds_size = rinfo->ngg_lds_scratch_size + gfx10_get_ngg_vert_prim_lds_size(device, es_info, gs_info, out);
 
-   if (gs_info) {
-      unsigned max_out_verts_per_gsprim = gs_info->gs.vertices_out * gs_num_invocations;
-
-      if (max_out_verts_per_gsprim <= 256) {
-         if (max_out_verts_per_gsprim) {
-            max_gsprims_base = MIN2(max_gsprims_base, 256 / max_out_verts_per_gsprim);
-         }
-      } else {
-         /* Use special multi-cycling mode in which each GS
-          * instance gets its own subgroup. Does not work with
-          * tessellation. */
-         max_vert_out_per_gs_instance = true;
-         max_gsprims_base = 1;
-         max_out_verts_per_gsprim = gs_info->gs.vertices_out;
-      }
-
-      esvert_lds_size = es_info->esgs_itemsize / 4;
-      gsprim_lds_size = (gs_info->gs.gsvs_vertex_size / 4 + 1) * max_out_verts_per_gsprim;
-   } else {
-      /* VS and TES. */
-      /* LDS size for passing data from GS to ES. */
-      struct radv_streamout_info *so_info = &es_info->so;
-
-      if (so_info->enabled_stream_buffers_mask) {
-         /* Compute the same pervertex LDS size as the NGG streamout lowering pass which allocates
-          * space for all outputs.
-          * TODO: only alloc space for outputs that really need streamout.
-          */
-         const uint32_t num_outputs =
-            es_info->stage == MESA_SHADER_VERTEX ? es_info->vs.num_outputs : es_info->tes.num_outputs;
-         esvert_lds_size = 4 * num_outputs + 1;
-      }
-
-      /* GS stores Primitive IDs (one DWORD) into LDS at the address
-       * corresponding to the ES thread of the provoking vertex. All
-       * ES threads load and export PrimitiveID for their thread.
-       */
-      if (es_info->stage == MESA_SHADER_VERTEX && es_info->outinfo.export_prim_id)
-         esvert_lds_size = MAX2(esvert_lds_size, 1);
-   }
-
-   unsigned max_gsprims = max_gsprims_base;
-   unsigned max_esverts = max_esverts_base;
-
-   if (esvert_lds_size)
-      max_esverts = MIN2(max_esverts, target_lds_size / esvert_lds_size);
-   if (gsprim_lds_size)
-      max_gsprims = MIN2(max_gsprims, target_lds_size / gsprim_lds_size);
-
-   max_esverts = MIN2(max_esverts, max_gsprims * max_verts_per_prim);
-   clamp_gsprims_to_esverts(&max_gsprims, max_esverts, min_verts_per_prim, uses_adjacency);
-   assert(max_esverts >= max_verts_per_prim && max_gsprims >= 1);
-
-   if (esvert_lds_size || gsprim_lds_size) {
-      /* Now that we have a rough proportionality between esverts
-       * and gsprims based on the primitive type, scale both of them
-       * down simultaneously based on required LDS space.
-       *
-       * We could be smarter about this if we knew how much vertex
-       * reuse to expect.
-       */
-      unsigned lds_total = max_esverts * esvert_lds_size + max_gsprims * gsprim_lds_size;
-      if (lds_total > target_lds_size) {
-         max_esverts = max_esverts * target_lds_size / lds_total;
-         max_gsprims = max_gsprims * target_lds_size / lds_total;
-
-         max_esverts = MIN2(max_esverts, max_gsprims * max_verts_per_prim);
-         clamp_gsprims_to_esverts(&max_gsprims, max_esverts, min_verts_per_prim, uses_adjacency);
-         assert(max_esverts >= max_verts_per_prim && max_gsprims >= 1);
-      }
-   }
-
-   /* Round up towards full wave sizes for better ALU utilization. */
-   if (!max_vert_out_per_gs_instance) {
-      unsigned orig_max_esverts;
-      unsigned orig_max_gsprims;
-      unsigned wavesize;
-
-      if (gs_info) {
-         wavesize = gs_info->wave_size;
-      } else {
-         wavesize = es_info->wave_size;
-      }
-
-      do {
-         orig_max_esverts = max_esverts;
-         orig_max_gsprims = max_gsprims;
-
-         max_esverts = align(max_esverts, wavesize);
-         max_esverts = MIN2(max_esverts, max_esverts_base);
-         if (esvert_lds_size)
-            max_esverts = MIN2(max_esverts, (max_lds_size - max_gsprims * gsprim_lds_size) / esvert_lds_size);
-         max_esverts = MIN2(max_esverts, max_gsprims * max_verts_per_prim);
-
-         /* Hardware restriction: minimum value of max_esverts */
-         if (gfx_level == GFX10)
-            max_esverts = MAX2(max_esverts, min_esverts - 1 + max_verts_per_prim);
-         else
-            max_esverts = MAX2(max_esverts, min_esverts);
-
-         max_gsprims = align(max_gsprims, wavesize);
-         max_gsprims = MIN2(max_gsprims, max_gsprims_base);
-         if (gsprim_lds_size) {
-            /* Don't count unusable vertices to the LDS
-             * size. Those are vertices above the maximum
-             * number of vertices that can occur in the
-             * workgroup, which is e.g. max_gsprims * 3
-             * for triangles.
-             */
-            unsigned usable_esverts = MIN2(max_esverts, max_gsprims * max_verts_per_prim);
-            max_gsprims = MIN2(max_gsprims, (max_lds_size - usable_esverts * esvert_lds_size) / gsprim_lds_size);
-         }
-         clamp_gsprims_to_esverts(&max_gsprims, max_esverts, min_verts_per_prim, uses_adjacency);
-         assert(max_esverts >= max_verts_per_prim && max_gsprims >= 1);
-      } while (orig_max_esverts != max_esverts || orig_max_gsprims != max_gsprims);
-
-      /* Verify the restriction. */
-      if (gfx_level == GFX10)
-         assert(max_esverts >= min_esverts - 1 + max_verts_per_prim);
-      else
-         assert(max_esverts >= min_esverts);
-   } else {
-      /* Hardware restriction: minimum value of max_esverts */
-      if (gfx_level == GFX10)
-         max_esverts = MAX2(max_esverts, min_esverts - 1 + max_verts_per_prim);
-      else
-         max_esverts = MAX2(max_esverts, min_esverts);
-   }
-
-   unsigned max_out_vertices = max_vert_out_per_gs_instance ? gs_info->gs.vertices_out
-                               : gs_info ? max_gsprims * gs_num_invocations * gs_info->gs.vertices_out
-                                         : max_esverts;
-   assert(max_out_vertices <= 256);
-
-   unsigned prim_amp_factor = 1;
-   if (gs_info) {
-      /* Number of output primitives per GS input primitive after
-       * GS instancing. */
-      prim_amp_factor = gs_info->gs.vertices_out;
-   }
-
-   /* On Gfx10, the GE only checks against the maximum number of ES verts
-    * after allocating a full GS primitive. So we need to ensure that
-    * whenever this check passes, there is enough space for a full
-    * primitive without vertex reuse.
-    */
-   if (gfx_level == GFX10)
-      out->hw_max_esverts = max_esverts - max_verts_per_prim + 1;
-   else
-      out->hw_max_esverts = max_esverts;
-
-   out->max_gsprims = max_gsprims;
-   out->max_out_verts = max_out_vertices;
-   out->prim_amp_factor = prim_amp_factor;
-   out->max_vert_out_per_gs_instance = max_vert_out_per_gs_instance;
-   out->ngg_emit_size = max_gsprims * gsprim_lds_size;
-
-   /* Don't count unusable vertices. */
-   out->esgs_ring_size = MIN2(max_esverts, max_gsprims * max_verts_per_prim) * esvert_lds_size * 4;
-
-   if (gs_info) {
-      out->vgt_esgs_ring_itemsize = es_info->esgs_itemsize / 4;
-   } else {
-      out->vgt_esgs_ring_itemsize = 1;
-   }
-
-   assert(out->hw_max_esverts >= min_esverts); /* HW limitation */
-
-   out->scratch_lds_base = gfx10_get_ngg_scratch_lds_base(device, es_info, gs_info, out);
-
-   /* Get scratch LDS usage. */
-   const struct radv_shader_info *info = gs_info ? gs_info : es_info;
-   const unsigned scratch_lds_size = ac_ngg_get_scratch_lds_size(info->stage, info->workgroup_size, info->wave_size,
-                                                                 pdev->use_ngg_streamout, info->has_ngg_culling, false);
-   out->lds_size = out->scratch_lds_base + scratch_lds_size;
-
-   unsigned workgroup_size =
-      ac_compute_ngg_workgroup_size(max_esverts, max_gsprims * gs_num_invocations, max_out_vertices, prim_amp_factor);
+   unsigned workgroup_size = ac_compute_ngg_workgroup_size(info.hw_max_esverts, info.max_gsprims * gs_num_invocations,
+                                                           info.max_out_verts, out->prim_amp_factor);
    if (gs_info) {
       gs_info->workgroup_size = workgroup_size;
    }
    es_info->workgroup_size = workgroup_size;
 }
 
+void
+gfx10_ngg_set_esgs_ring_itemsize(const struct radv_device *device, struct radv_shader_info *es_info,
+                                 struct radv_shader_info *gs_info, struct gfx10_ngg_info *out)
+{
+   if (gs_info) {
+      out->vgt_esgs_ring_itemsize = es_info->esgs_itemsize / 4;
+   } else {
+      out->vgt_esgs_ring_itemsize = 1;
+   }
+}
+
 static void
-radv_determine_ngg_settings(struct radv_device *device, struct radv_shader_stage *es_stage,
+radv_determine_ngg_settings(struct radv_device *device, struct radv_shader_stage *ngg_stage,
                             struct radv_shader_stage *fs_stage, const struct radv_graphics_state_key *gfx_state)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    uint64_t ps_inputs_read;
 
-   assert(es_stage->stage == MESA_SHADER_VERTEX || es_stage->stage == MESA_SHADER_TESS_EVAL);
+   assert(ngg_stage->info.is_ngg);
+   assert(ngg_stage->stage != MESA_SHADER_TESS_EVAL || !ngg_stage->info.tes.as_es);
+   assert(ngg_stage->stage != MESA_SHADER_VERTEX || (!ngg_stage->info.tes.as_es && !ngg_stage->info.vs.as_ls));
    assert(!fs_stage || fs_stage->stage == MESA_SHADER_FRAGMENT);
 
    if (fs_stage) {
       ps_inputs_read = fs_stage->nir->info.inputs_read;
    } else {
-      /* Rely on the number of VS/TES outputs when the FS is unknown (for fast-link or unlinked ESO)
+      /* Rely on the number of VS/TES/GS outputs when the FS is unknown (for fast-link or unlinked ESO)
        * because this should be a good approximation of the number of FS inputs.
        */
-      ps_inputs_read = es_stage->nir->info.outputs_written;
+      ps_inputs_read = ngg_stage->nir->info.outputs_written;
 
       /* Clear varyings that can't be PS inputs. */
       ps_inputs_read &= ~(VARYING_BIT_POS | VARYING_BIT_PSIZ);
    }
 
    unsigned num_vertices_per_prim = 0;
-   if (es_stage->stage == MESA_SHADER_VERTEX) {
+   if (ngg_stage->stage == MESA_SHADER_VERTEX) {
       num_vertices_per_prim = radv_get_num_vertices_per_prim(gfx_state);
-   } else if (es_stage->stage == MESA_SHADER_TESS_EVAL) {
-      num_vertices_per_prim = es_stage->nir->info.tess.point_mode                                   ? 1
-                              : es_stage->nir->info.tess._primitive_mode == TESS_PRIMITIVE_ISOLINES ? 2
-                                                                                                    : 3;
+   } else if (ngg_stage->stage == MESA_SHADER_TESS_EVAL) {
+      num_vertices_per_prim = ngg_stage->nir->info.tess.point_mode                                   ? 1
+                              : ngg_stage->nir->info.tess._primitive_mode == TESS_PRIMITIVE_ISOLINES ? 2
+                                                                                                     : 3;
+   } else {
+      assert(ngg_stage->stage == MESA_SHADER_GEOMETRY);
+      num_vertices_per_prim = mesa_vertices_per_prim(ngg_stage->nir->info.gs.output_primitive);
    }
 
-   es_stage->info.has_ngg_culling =
-      radv_consider_culling(pdev, es_stage->nir, ps_inputs_read, num_vertices_per_prim, &es_stage->info);
+   ngg_stage->info.has_ngg_culling =
+      radv_consider_culling(pdev, ngg_stage->nir, ps_inputs_read, num_vertices_per_prim, &ngg_stage->info);
 
-   nir_function_impl *impl = nir_shader_get_entrypoint(es_stage->nir);
-   es_stage->info.has_ngg_early_prim_export = pdev->info.gfx_level < GFX11 && exec_list_is_singular(&impl->body);
+   if (ngg_stage->stage != MESA_SHADER_GEOMETRY) {
+      nir_function_impl *impl = nir_shader_get_entrypoint(ngg_stage->nir);
+      ngg_stage->info.has_ngg_early_prim_export = pdev->info.gfx_level < GFX11 && exec_list_is_singular(&impl->body);
 
-   /* NGG passthrough mode should be disabled when culling and when the vertex shader
-    * exports the primitive ID.
-    */
-   es_stage->info.is_ngg_passthrough = !es_stage->info.has_ngg_culling && !(es_stage->stage == MESA_SHADER_VERTEX &&
-                                                                            es_stage->info.outinfo.export_prim_id);
+      /* NGG passthrough mode should be disabled when culling and when the vertex shader
+       * exports the primitive ID.
+       */
+      ngg_stage->info.is_ngg_passthrough =
+         !ngg_stage->info.has_ngg_culling &&
+         !(ngg_stage->stage == MESA_SHADER_VERTEX && ngg_stage->info.outinfo.export_prim_id);
+   }
 }
 
 static void
-radv_link_shaders_info(struct radv_device *device, struct radv_shader_stage *producer,
-                       struct radv_shader_stage *consumer, const struct radv_graphics_state_key *gfx_state)
+radv_link_shaders_info(struct radv_device *device, struct radv_shader_stage *stages,
+                       const struct radv_graphics_state_key *gfx_state)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
+   struct radv_shader_stage *vs_stage = stages[MESA_SHADER_VERTEX].nir ? &stages[MESA_SHADER_VERTEX] : NULL;
+   struct radv_shader_stage *tcs_stage = stages[MESA_SHADER_TESS_CTRL].nir ? &stages[MESA_SHADER_TESS_CTRL] : NULL;
+   struct radv_shader_stage *tes_stage = stages[MESA_SHADER_TESS_EVAL].nir ? &stages[MESA_SHADER_TESS_EVAL] : NULL;
+   struct radv_shader_stage *gs_stage = stages[MESA_SHADER_GEOMETRY].nir ? &stages[MESA_SHADER_GEOMETRY] : NULL;
+   struct radv_shader_stage *ms_stage = stages[MESA_SHADER_MESH].nir ? &stages[MESA_SHADER_MESH] : NULL;
+   struct radv_shader_stage *fs_stage = stages[MESA_SHADER_FRAGMENT].nir ? &stages[MESA_SHADER_FRAGMENT] : NULL;
+   struct radv_shader_stage *es_stage = tes_stage && tes_stage->info.tes.as_es ? tes_stage
+                                        : vs_stage && vs_stage->info.vs.as_es  ? vs_stage
+                                                                               : NULL;
+   struct radv_shader_stage *prerast_stage = ms_stage                                  ? ms_stage
+                                             : gs_stage                                ? gs_stage
+                                             : tes_stage && !tes_stage->info.tes.as_es ? tes_stage
+                                             : vs_stage && !vs_stage->info.vs.as_es && !vs_stage->info.vs.as_ls
+                                                ? vs_stage
+                                                : NULL;
+   struct radv_shader_stage *ngg_stage = prerast_stage && prerast_stage->info.is_ngg ? prerast_stage : NULL;
 
    /* Export primitive ID and clip/cull distances if read by the FS, or export unconditionally when
     * the next stage is unknown (with graphics pipeline library).
     */
-   if (producer->info.next_stage == MESA_SHADER_FRAGMENT ||
-       !(gfx_state->lib_flags & VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT)) {
-      const bool ps_prim_id_in = !consumer || consumer->info.ps.prim_id_input;
-      const bool ps_clip_dists_in = !consumer || !!consumer->info.ps.input_clips_culls_mask;
+   if (prerast_stage && (prerast_stage->info.next_stage == MESA_SHADER_FRAGMENT ||
+                         !(gfx_state->lib_flags & VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT))) {
+      const bool ps_prim_id_in = !fs_stage || fs_stage->info.ps.prim_id_input;
+      const bool ps_clip_dists_in = !fs_stage || !!fs_stage->info.ps.input_clips_culls_mask;
 
-      radv_set_vs_output_param(device, producer->nir, gfx_state, &producer->info, ps_prim_id_in, ps_clip_dists_in);
+      radv_set_vs_output_param(device, prerast_stage->nir, gfx_state, &prerast_stage->info, ps_prim_id_in,
+                               ps_clip_dists_in);
    }
 
-   if (producer->stage == MESA_SHADER_VERTEX || producer->stage == MESA_SHADER_TESS_EVAL) {
+   if (prerast_stage && !ms_stage) {
       /* Compute NGG info (GFX10+) or GS info. */
-      if (producer->info.is_ngg) {
-         struct radv_shader_stage *gs_stage = consumer && consumer->stage == MESA_SHADER_GEOMETRY ? consumer : NULL;
-         struct gfx10_ngg_info *out = gs_stage ? &gs_stage->info.ngg_info : &producer->info.ngg_info;
+      if (ngg_stage) {
+         /* Determine other NGG settings like culling. */
+         radv_determine_ngg_settings(device, ngg_stage, fs_stage, gfx_state);
 
-         /* Determine other NGG settings like culling for VS or TES without GS. */
-         if (!gs_stage) {
-            radv_determine_ngg_settings(device, producer, consumer, gfx_state);
+         if (es_stage) {
+            gfx10_ngg_set_esgs_ring_itemsize(device, &es_stage->info, gs_stage ? &gs_stage->info : NULL,
+                                             &prerast_stage->info.ngg_info);
+            assert(es_stage->info.workgroup_size == 256);
          }
 
-         gfx10_get_ngg_info(device, &producer->info, gs_stage ? &gs_stage->info : NULL, out);
-      } else if (consumer && consumer->stage == MESA_SHADER_GEOMETRY) {
-         struct radv_shader_info *gs_info = &consumer->info;
-         struct radv_shader_info *es_info = &producer->info;
-
-         es_info->workgroup_size = gs_info->workgroup_size;
+         assert(ngg_stage->info.workgroup_size == 256);
+      } else if (es_stage && gs_stage) {
+         es_stage->info.workgroup_size = gs_stage->info.workgroup_size;
       }
 
-      if (consumer && consumer->stage == MESA_SHADER_GEOMETRY) {
-         producer->info.gs_inputs_read = consumer->nir->info.inputs_read;
+      if (es_stage && gs_stage) {
+         es_stage->info.gs_inputs_read = gs_stage->nir->info.inputs_read;
       }
    }
 
-   if (producer->stage == MESA_SHADER_VERTEX && consumer && consumer->stage == MESA_SHADER_TESS_CTRL) {
-      struct radv_shader_stage *vs_stage = producer;
-      struct radv_shader_stage *tcs_stage = consumer;
-
+   if (vs_stage && tcs_stage) {
       vs_stage->info.vs.tcs_inputs_via_lds = tcs_stage->nir->info.inputs_read;
 
       if (gfx_state->ts.patch_control_points) {
@@ -1808,10 +1516,7 @@ radv_link_shaders_info(struct radv_device *device, struct radv_shader_stage *pro
    }
 
    /* Copy shader info between TCS<->TES. */
-   if (producer->stage == MESA_SHADER_TESS_CTRL && consumer && consumer->stage == MESA_SHADER_TESS_EVAL) {
-      struct radv_shader_stage *tcs_stage = producer;
-      struct radv_shader_stage *tes_stage = consumer;
-
+   if (tcs_stage && tes_stage) {
       tcs_stage->info.tcs.tes_reads_tess_factors = tes_stage->info.tes.reads_tess_factors;
       tcs_stage->info.tcs.tes_inputs_read = tes_stage->nir->info.inputs_read;
       tcs_stage->info.tcs.tes_patch_inputs_read = tes_stage->nir->info.patch_inputs_read;
@@ -1852,29 +1557,13 @@ radv_nir_shader_info_merge(const struct radv_shader_stage *src, struct radv_shad
       dst_info->gs.es_type = src->stage;
 }
 
-static const gl_shader_stage graphics_shader_order[] = {
-   MESA_SHADER_VERTEX, MESA_SHADER_TESS_CTRL, MESA_SHADER_TESS_EVAL, MESA_SHADER_GEOMETRY,
-
-   MESA_SHADER_TASK,   MESA_SHADER_MESH,
-};
-
 void
 radv_nir_shader_info_link(struct radv_device *device, const struct radv_graphics_state_key *gfx_state,
                           struct radv_shader_stage *stages)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   /* Walk backwards to link */
-   struct radv_shader_stage *next_stage = stages[MESA_SHADER_FRAGMENT].nir ? &stages[MESA_SHADER_FRAGMENT] : NULL;
-
-   for (int i = ARRAY_SIZE(graphics_shader_order) - 1; i >= 0; i--) {
-      gl_shader_stage s = graphics_shader_order[i];
-      if (!stages[s].nir)
-         continue;
-
-      radv_link_shaders_info(device, &stages[s], next_stage, gfx_state);
-      next_stage = &stages[s];
-   }
+   radv_link_shaders_info(device, stages, gfx_state);
 
    if (pdev->info.gfx_level >= GFX9) {
       /* Merge shader info for VS+TCS. */

@@ -714,6 +714,15 @@ print_constant(nir_constant *c, const struct glsl_type *type, print_state *state
       }
       break;
 
+   case GLSL_TYPE_COOPERATIVE_MATRIX:
+      // This occurs as the constant initializer for a cmat variable.
+      // In this case it's a scalar constant, and its word value is
+      // c->values[0], but we have to interpet it via the component type.
+      fprintf(fp, "%s(", glsl_get_type_name(type));
+      print_constant(c, glsl_get_cmat_element(type), state);
+      fprintf(fp, ")");
+      break;
+
    default:
       unreachable("not reached");
    }
@@ -1106,6 +1115,13 @@ print_deref_instr(nir_deref_instr *instr, print_state *state)
       fprintf(fp, "%s%s", get_variable_mode_str(1 << m, true),
               modes ? "|" : "");
    }
+
+   nir_variable *var = nir_deref_instr_get_variable(instr);
+   if (var) {
+      static const char *precision_str[] = {"", " highp", " mediump", " lowp"};
+      fprintf(fp, "%s", precision_str[var->data.precision]);
+   }
+
    fprintf(fp, " %s)", get_type_name(instr->type, state));
 
    if (instr->deref_type == nir_deref_type_cast) {
@@ -1216,6 +1232,12 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
 
    for (unsigned i = 0; i < info->num_indices; i++) {
       unsigned idx = info->indices[i];
+
+      /* Skip "general" to denoise since it is the unremarkable default case */
+      if (idx == NIR_INTRINSIC_PREAMBLE_CLASS &&
+          nir_intrinsic_preamble_class(instr) == nir_preamble_class_general)
+         continue;
+
       if (i == 0)
          fprintf(fp, " (");
       else
@@ -1683,6 +1705,19 @@ print_intrinsic_instr(nir_intrinsic_instr *instr, print_state *state)
          fprintf(fp, "interp_mode=%s",
                  glsl_interp_mode_name(nir_intrinsic_interp_mode(instr)));
          break;
+
+      case NIR_INTRINSIC_PREAMBLE_CLASS: {
+         /* "General" handled above */
+         nir_preamble_class cls = nir_intrinsic_preamble_class(instr);
+         if (cls == nir_preamble_class_image)
+            fprintf(fp, "class=image");
+         else if (cls == nir_preamble_class_sampler)
+            fprintf(fp, "class=sampler");
+         else
+            unreachable("invalid class");
+
+         break;
+      }
 
       default: {
          unsigned off = info->index_map[idx] - 1;

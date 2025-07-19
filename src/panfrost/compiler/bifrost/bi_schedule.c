@@ -397,6 +397,48 @@ bi_lower_atom_c1(bi_context *ctx, struct bi_clause_state *clause,
 }
 
 static bi_instr *
+bi_lower_atom_c_64(bi_context *ctx, struct bi_clause_state *clause,
+                struct bi_tuple_state *tuple)
+{
+   bi_instr *pinstr = tuple->add;
+   bi_builder b = bi_init_builder(ctx, bi_before_instr(pinstr));
+   bi_instr *atom_c = bi_atom_c_return_i64(&b, pinstr->src[1], pinstr->src[2],
+                                           pinstr->src[0], pinstr->atom_opc);
+
+   if (bi_is_null(pinstr->dest[0]))
+      bi_set_opcode(atom_c, BI_OPCODE_ATOM_C_I64);
+
+   bi_instr *atom_cx =
+      bi_atom_cx_to(&b, pinstr->dest[0], pinstr->src[0], pinstr->src[1],
+                    pinstr->src[2], pinstr->src[0], pinstr->sr_count);
+   tuple->add = atom_cx;
+   bi_remove_instruction(pinstr);
+
+   return atom_c;
+}
+
+static bi_instr *
+bi_lower_atom_c1_64(bi_context *ctx, struct bi_clause_state *clause,
+                 struct bi_tuple_state *tuple)
+{
+   bi_instr *pinstr = tuple->add;
+   bi_builder b = bi_init_builder(ctx, bi_before_instr(pinstr));
+   bi_instr *atom_c = bi_atom_c1_return_i64(&b, pinstr->src[0], pinstr->src[1],
+                                            pinstr->atom_opc);
+
+   if (bi_is_null(pinstr->dest[0]))
+      bi_set_opcode(atom_c, BI_OPCODE_ATOM_C1_I64);
+
+   bi_instr *atom_cx =
+      bi_atom_cx_to(&b, pinstr->dest[0], bi_null(), pinstr->src[0],
+                    pinstr->src[1], bi_dontcare(&b), pinstr->sr_count);
+   tuple->add = atom_cx;
+   bi_remove_instruction(pinstr);
+
+   return atom_c;
+}
+
+static bi_instr *
 bi_lower_seg_add(bi_context *ctx, struct bi_clause_state *clause,
                  struct bi_tuple_state *tuple)
 {
@@ -1289,6 +1331,10 @@ bi_take_instr(bi_context *ctx, struct bi_worklist st,
       return bi_lower_atom_c(ctx, clause, tuple);
    else if (tuple->add && tuple->add->op == BI_OPCODE_ATOM1_RETURN_I32)
       return bi_lower_atom_c1(ctx, clause, tuple);
+   else if (tuple->add && tuple->add->op == BI_OPCODE_ATOM_RETURN_I64)
+      return bi_lower_atom_c_64(ctx, clause, tuple);
+   else if (tuple->add && tuple->add->op == BI_OPCODE_ATOM1_RETURN_I64)
+      return bi_lower_atom_c1_64(ctx, clause, tuple);
    else if (tuple->add && tuple->add->op == BI_OPCODE_SEG_ADD_I64)
       return bi_lower_seg_add(ctx, clause, tuple);
    else if (tuple->add && tuple->add->table)
@@ -1364,6 +1410,10 @@ bi_use_passthrough(bi_instr *ins, bi_index old, enum bifrost_packed_src new,
 
    bi_foreach_src(ins, i) {
       if ((i == 0 || i == 4) && except_sr)
+         continue;
+
+      if ((new == BIFROST_SRC_PASS_FMA || new == BIFROST_SRC_PASS_ADD) &&
+          !bi_reads_temps(ins, i))
          continue;
 
       if (bi_is_word_equiv(ins->src[i], old)) {
@@ -2030,6 +2080,11 @@ bi_check_fau_src(bi_instr *ins, unsigned s, uint32_t *constants,
 {
    assert(s < ins->nr_srcs);
    bi_index src = ins->src[s];
+
+   /* CLPER only support registers on source 0 */
+   if (s == 0 &&
+       (ins->op == BI_OPCODE_CLPER_OLD_I32 || ins->op == BI_OPCODE_CLPER_I32))
+      return false;
 
    /* Staging registers can't have FAU accesses */
    if (bi_is_staging_src(ins, s))

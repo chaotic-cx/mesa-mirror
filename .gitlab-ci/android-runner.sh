@@ -59,15 +59,6 @@ get_gles_runtime_version
 get_vk_runtime_device_name
 get_vk_runtime_version
 
-# download Android Mesa from S3
-MESA_ANDROID_ARTIFACT_URL=https://${PIPELINE_ARTIFACTS_BASE}/${S3_ANDROID_ARTIFACT_NAME}.tar.zst
-curl -L --retry 4 -f --retry-all-errors --retry-delay 60 -o ${S3_ANDROID_ARTIFACT_NAME}.tar.zst ${MESA_ANDROID_ARTIFACT_URL}
-mkdir /mesa-android
-tar -C /mesa-android -xvf ${S3_ANDROID_ARTIFACT_NAME}.tar.zst
-rm "${S3_ANDROID_ARTIFACT_NAME}.tar.zst" &
-
-INSTALL="/mesa-android/install"
-
 # replace libraries
 
 $ADB shell rm -f /vendor/lib64/libgallium_dri.so*
@@ -122,12 +113,8 @@ if [ -n "${ANGLE_TAG:-}" ]; then
     echo "Fatal: Android is loading a wrong version of the ANGLE libs: ${ANGLE_HASH}" 1>&2
     exit 1
   fi
-else
-  if ! printf "%s" "$GLES_RUNTIME_VERSION" | grep -Fq -- "${MESA_BUILD_VERSION}"; then
-     echo "Fatal: Android is loading a wrong version of the Mesa3D GLES libs: ${GLES_RUNTIME_VERSION}" 1>&2
-     exit 1
-  fi
 fi
+
 if ! printf "%s" "$VK_RUNTIME_VERSION" | grep -Fq -- "${MESA_BUILD_VERSION}"; then
      echo "Fatal: Android is loading a wrong version of the Mesa3D Vulkan libs: ${VK_RUNTIME_VERSION}" 1>&2
      exit 1

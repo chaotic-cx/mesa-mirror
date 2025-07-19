@@ -120,6 +120,7 @@ typedef uint32_t xcb_window_t;
 struct anv_batch;
 struct anv_buffer;
 struct anv_buffer_view;
+struct anv_image;
 struct anv_image_view;
 struct anv_instance;
 
@@ -246,6 +247,7 @@ get_max_vbs(const struct intel_device_info *devinfo) {
  */
 #define ANV_INLINE_PARAM_PUSH_ADDRESS_OFFSET (0)
 #define ANV_INLINE_PARAM_NUM_WORKGROUPS_OFFSET (8)
+#define ANV_INLINE_PARAM_MESH_PROVOKING_VERTEX (8)
 
 /* RENDER_SURFACE_STATE is a bit smaller (48b) but since it is aligned to 64
  * and we can't put anything else there we use 64b.
@@ -1569,6 +1571,7 @@ enum anv_gfx_state_bits {
    ANV_GFX_STATE_FS_MSAA_FLAGS,
    ANV_GFX_STATE_TCS_INPUT_VERTICES,
    ANV_GFX_STATE_COARSE_STATE,
+   ANV_GFX_STATE_MESH_PROVOKING_VERTEX,
 
    ANV_GFX_STATE_MAX,
 };
@@ -1894,6 +1897,11 @@ struct anv_gfx_dynamic_state {
     */
    uint32_t tcs_input_vertices;
 
+   /**
+    * Provoking vertex index, sent to the mesh shader for Wa_18019110168.
+    */
+   uint32_t mesh_provoking_vertex;
+
    bool pma_fix;
 
    /**
@@ -1921,11 +1929,6 @@ enum anv_internal_kernel_name {
    ANV_INTERNAL_KERNEL_MEMCPY_COMPUTE,
 
    ANV_INTERNAL_KERNEL_COUNT,
-};
-
-enum anv_rt_bvh_build_method {
-   ANV_BVH_BUILD_METHOD_TRIVIAL,
-   ANV_BVH_BUILD_METHOD_NEW_SAH,
 };
 
 /* If serialization-breaking or algorithm-breaking changes are made,
@@ -2101,8 +2104,6 @@ struct anv_device {
     struct anv_shader_bin                      *rt_trivial_return;
     struct anv_shader_bin                      *rt_null_ahs;
 
-    enum anv_rt_bvh_build_method                bvh_build_method;
-
     /** Draw generation shader
      *
      * Generates direct draw calls out of indirect parameters. Used to
@@ -2136,6 +2137,7 @@ struct anv_device {
     nir_shader                                  *fp64_nir;
 
     uint32_t                                    draw_call_count;
+    uint32_t                                    dispatch_call_count;
     struct anv_state                            breakpoint;
 
     /** Precompute all dirty graphics bits
@@ -2758,6 +2760,9 @@ anv_async_submit_done(struct anv_async_submit *submit);
 bool
 anv_async_submit_wait(struct anv_async_submit *submit);
 
+void
+anv_async_submit_print_batch(struct anv_async_submit *submit);
+
 struct anv_sparse_submission {
    struct anv_queue *queue;
 
@@ -2798,6 +2803,8 @@ struct anv_device_memory {
 
    /* The map, from the user PoV is map + map_delta */
    uint64_t                                     map_delta;
+
+   struct anv_image                             *dedicated_image;
 };
 
 /**
@@ -2917,6 +2924,36 @@ enum anv_descriptor_data {
    ANV_DESCRIPTOR_SURFACE_SAMPLER         = BITFIELD_BIT(9),
 };
 
+struct anv_embedded_sampler_key {
+   /** No need to track binding elements for embedded samplers as :
+    *
+    *    VUID-VkDescriptorSetLayoutBinding-flags-08006:
+    *
+    *       "If VkDescriptorSetLayoutCreateInfo:flags contains
+    *        VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
+    *        descriptorCount must: less than or equal to 1"
+    *
+    * The following struct can be safely hash as it doesn't include in
+    * address/offset.
+    */
+   uint32_t sampler[4];
+   uint32_t color[4];
+};
+
+struct anv_descriptor_set_layout_sampler {
+   /* Immutable sampler used to populate descriptor sets on allocation */
+   struct anv_sampler *immutable_sampler;
+
+   /* Hashing key for embedded samplers */
+   struct anv_embedded_sampler_key embedded_key;
+
+   /* Whether ycbcr_conversion_state hold any data */
+   bool has_ycbcr_conversion;
+
+   /* YCbCr conversion state (only valid if has_ycbcr_conversion is true) */
+   struct vk_ycbcr_conversion_state ycbcr_conversion_state;
+};
+
 struct anv_descriptor_set_binding_layout {
    /* The type of the descriptors in this binding */
    VkDescriptorType type;
@@ -2968,8 +3005,8 @@ struct anv_descriptor_set_binding_layout {
     */
    uint16_t descriptor_sampler_stride;
 
-   /* Immutable samplers (or NULL if no immutable samplers) */
-   struct anv_sampler **immutable_samplers;
+   /* Sampler data (or NULL if no embedded/immutable samplers) */
+   struct anv_descriptor_set_layout_sampler *samplers;
 };
 
 enum anv_descriptor_set_layout_type {
@@ -3357,22 +3394,6 @@ struct anv_pipeline_binding {
        */
       uint8_t dynamic_offset_index;
    };
-};
-
-struct anv_embedded_sampler_key {
-   /** No need to track binding elements for embedded samplers as :
-    *
-    *    VUID-VkDescriptorSetLayoutBinding-flags-08006:
-    *
-    *       "If VkDescriptorSetLayoutCreateInfo:flags contains
-    *        VK_DESCRIPTOR_SET_LAYOUT_CREATE_EMBEDDED_IMMUTABLE_SAMPLERS_BIT_EXT,
-    *        descriptorCount must: less than or equal to 1"
-    *
-    * The following struct can be safely hash as it doesn't include in
-    * address/offset.
-    */
-   uint32_t sampler[4];
-   uint32_t color[4];
 };
 
 struct anv_pipeline_embedded_sampler_binding {
@@ -3829,6 +3850,8 @@ struct anv_push_constants {
 
          /** Robust access pushed registers. */
          uint64_t push_reg_mask[MESA_SHADER_STAGES];
+
+         uint32_t fs_per_prim_remap_offset;
       } gfx;
 
       struct {
@@ -4995,6 +5018,8 @@ struct anv_graphics_pipeline {
    uint32_t                                     view_mask;
    uint32_t                                     instance_multiplier;
 
+   /* First VUE slot read by SBE */
+   uint32_t                                     first_vue_slot;
    /* Attribute index of the PrimitiveID in the delivered attributes */
    uint32_t                                     primitive_id_index;
 
@@ -6327,13 +6352,13 @@ struct gfx8_border_color {
    uint32_t _pad[12];
 };
 
+extern const struct gfx8_border_color anv_default_border_colors[];
+
 struct anv_sampler {
    struct vk_sampler            vk;
 
-   /* Hash of the sampler state + border color, useful for embedded samplers
-    * and included in the descriptor layout hash.
-    */
-   unsigned char                sha1[20];
+   /* Hashing key for embedded samplers */
+   struct anv_embedded_sampler_key embedded_key;
 
    uint32_t                     state[3][4];
    /* Packed SAMPLER_STATE without the border color pointer. */
@@ -6345,7 +6370,7 @@ struct anv_sampler {
     */
    struct anv_state             bindless_state;
 
-   struct anv_state             custom_border_color;
+   struct anv_state             custom_border_color_state;
 };
 
 
@@ -6478,6 +6503,7 @@ enum anv_vid_mem_av1_types {
    ANV_VID_MEM_AV1_LOOP_RESTORATION_FILTER_TILE_COLUMN_Y,
    ANV_VID_MEM_AV1_LOOP_RESTORATION_FILTER_TILE_COLUMN_U,
    ANV_VID_MEM_AV1_LOOP_RESTORATION_FILTER_TILE_COLUMN_V,
+   ANV_VID_MEM_AV1_LOOP_RESTORATION_FILTER_TILE_COLUMN_ALIGNMENT_RW,
    ANV_VID_MEM_AV1_CDF_DEFAULTS_0,
    ANV_VID_MEM_AV1_CDF_DEFAULTS_1,
    ANV_VID_MEM_AV1_CDF_DEFAULTS_2,
@@ -6595,11 +6621,6 @@ void anv_perf_write_pass_results(struct intel_perf_config *perf,
                                  struct anv_query_pool *pool, uint32_t pass,
                                  const struct intel_perf_query_result *accumulated_results,
                                  union VkPerformanceCounterResultKHR *results);
-
-void anv_apply_per_prim_attr_wa(struct nir_shader *ms_nir,
-                                struct nir_shader *fs_nir,
-                                struct anv_device *device,
-                                const VkGraphicsPipelineCreateInfo *info);
 
 /* Use to emit a series of memcpy operations */
 struct anv_memcpy_state {

@@ -69,7 +69,6 @@
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 #include <wayland-client.h>
-#include "wayland-drm-client-protocol.h"
 #endif
 
 #define V3DV_API_VERSION VK_MAKE_VERSION(1, 3, VK_HEADER_VERSION)
@@ -2250,7 +2249,7 @@ v3dv_AllocateMemory(VkDevice _device,
       assert(fd_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT ||
              fd_info->handleType == VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
       result = device_import_bo(device, pAllocator,
-                                fd_info->fd, alloc_size, &mem->bo);
+                                fd_info->fd, pAllocateInfo->allocationSize, &mem->bo);
       if (result == VK_SUCCESS)
          close(fd_info->fd);
    } else if (mem->vk.ahardware_buffer) {
@@ -2538,16 +2537,13 @@ v3dv_BindImageMemory2(VkDevice _device,
                               BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
       if (swapchain_info && swapchain_info->swapchain) {
 #if !DETECT_OS_ANDROID
-         struct v3dv_image *swapchain_image =
-            v3dv_wsi_get_image_from_swapchain(swapchain_info->swapchain,
-                                              swapchain_info->imageIndex);
-         /* Making the assumption that swapchain images are a single plane */
-         assert(swapchain_image->plane_count == 1);
+         VkDeviceMemory wsi_mem_handle = wsi_common_get_memory(
+            swapchain_info->swapchain, swapchain_info->imageIndex);
          VkBindImageMemoryInfo swapchain_bind = {
             .sType = VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_INFO,
             .image = pBindInfos[i].image,
-            .memory = v3dv_device_memory_to_handle(swapchain_image->planes[0].mem),
-            .memoryOffset = swapchain_image->planes[0].mem_offset,
+            .memory = wsi_mem_handle,
+            .memoryOffset = 0,
          };
          bind_image_memory(&swapchain_bind);
 #endif

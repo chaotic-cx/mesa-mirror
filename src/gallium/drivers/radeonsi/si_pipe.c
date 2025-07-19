@@ -39,38 +39,6 @@
 static struct pipe_context *si_create_context(struct pipe_screen *screen, unsigned flags);
 
 static const struct debug_named_value radeonsi_debug_options[] = {
-   /* Shader logging options: */
-   {"vs", DBG(VS), "Print vertex shaders"},
-   {"ps", DBG(PS), "Print pixel shaders"},
-   {"gs", DBG(GS), "Print geometry shaders"},
-   {"tcs", DBG(TCS), "Print tessellation control shaders"},
-   {"tes", DBG(TES), "Print tessellation evaluation shaders"},
-   {"cs", DBG(CS), "Print compute shaders"},
-
-   {"initnir", DBG(INIT_NIR), "Print initial input NIR when shaders are created"},
-   {"nir", DBG(NIR), "Print final NIR after lowering when shader variants are created"},
-   {"initllvm", DBG(INIT_LLVM), "Print initial LLVM IR before optimizations"},
-   {"llvm", DBG(LLVM), "Print final LLVM IR"},
-   {"initaco", DBG(INIT_ACO), "Print initial ACO IR before optimizations"},
-   {"aco", DBG(ACO), "Print final ACO IR"},
-   {"asm", DBG(ASM), "Print final shaders in asm"},
-   {"stats", DBG(STATS), "Print shader-db stats to stderr"},
-
-   /* Shader compiler options the shader cache should be aware of: */
-   {"w32ge", DBG(W32_GE), "Use Wave32 for vertex, tessellation, and geometry shaders."},
-   {"w32ps", DBG(W32_PS), "Use Wave32 for pixel shaders."},
-   {"w32cs", DBG(W32_CS), "Use Wave32 for computes shaders."},
-   {"w64ge", DBG(W64_GE), "Use Wave64 for vertex, tessellation, and geometry shaders."},
-   {"w64ps", DBG(W64_PS), "Use Wave64 for pixel shaders."},
-   {"w64cs", DBG(W64_CS), "Use Wave64 for computes shaders."},
-
-   /* Shader compiler options (with no effect on the shader cache): */
-   {"checkir", DBG(CHECK_IR), "Enable additional sanity checks on shader IR"},
-   {"mono", DBG(MONOLITHIC_SHADERS), "Use old-style monolithic shaders compiled on demand"},
-   {"nooptvariant", DBG(NO_OPT_VARIANT), "Disable compiling optimized shader variants."},
-   {"useaco", DBG(USE_ACO), "Use ACO as shader compiler when possible"},
-   {"usellvm", DBG(USE_LLVM), "Use LLVM as shader compiler when possible"},
-
    /* Information logging options: */
    {"info", DBG(INFO), "Print driver information"},
    {"tex", DBG(TEX), "Print texture info"},
@@ -86,6 +54,7 @@ static const struct debug_named_value radeonsi_debug_options[] = {
    {"check_vm", DBG(CHECK_VM), "Check VM faults and dump debug info."},
    {"reserve_vmid", DBG(RESERVE_VMID), "Force VMID reservation per context."},
    {"shadowregs", DBG(SHADOW_REGS), "Enable CP register shadowing."},
+   {"userqnoshadowregs", DBG(USERQ_NO_SHADOW_REGS), "Disable register shadowing in userqueue."},
    {"nofastdlist", DBG(NO_FAST_DISPLAY_LIST), "Disable fast display lists"},
    {"nodmashaders", DBG(NO_DMA_SHADERS), "Disable uploading shaders via CP DMA and map them directly."},
 
@@ -123,6 +92,40 @@ static const struct debug_named_value radeonsi_debug_options[] = {
    DEBUG_NAMED_VALUE_END /* must be last */
 };
 
+static const struct debug_named_value radeonsi_shader_debug_options[] = {
+   /* Shader logging options: */
+   {"vs", DBG(VS), "Print vertex shaders"},
+   {"ps", DBG(PS), "Print pixel shaders"},
+   {"gs", DBG(GS), "Print geometry shaders"},
+   {"tcs", DBG(TCS), "Print tessellation control shaders"},
+   {"tes", DBG(TES), "Print tessellation evaluation shaders"},
+   {"cs", DBG(CS), "Print compute shaders"},
+
+   {"initnir", DBG(INIT_NIR), "Print initial input NIR when shaders are created"},
+   {"nir", DBG(NIR), "Print final NIR after lowering when shader variants are created"},
+   {"initllvm", DBG(INIT_LLVM), "Print initial LLVM IR before optimizations"},
+   {"llvm", DBG(LLVM), "Print final LLVM IR"},
+   {"initaco", DBG(INIT_ACO), "Print initial ACO IR before optimizations"},
+   {"aco", DBG(ACO), "Print final ACO IR"},
+   {"asm", DBG(ASM), "Print final shaders in asm"},
+   {"stats", DBG(STATS), "Print shader-db stats to stderr"},
+
+   /* Shader compiler options the shader cache should be aware of: */
+   {"w32ge", DBG(W32_GE), "Use Wave32 for vertex, tessellation, and geometry shaders."},
+   {"w32ps", DBG(W32_PS), "Use Wave32 for pixel shaders."},
+   {"w32cs", DBG(W32_CS), "Use Wave32 for computes shaders."},
+   {"w64ge", DBG(W64_GE), "Use Wave64 for vertex, tessellation, and geometry shaders."},
+   {"w64ps", DBG(W64_PS), "Use Wave64 for pixel shaders."},
+   {"w64cs", DBG(W64_CS), "Use Wave64 for computes shaders."},
+
+   /* Shader compiler options (with no effect on the shader cache): */
+   {"checkir", DBG(CHECK_IR), "Enable additional sanity checks on shader IR"},
+   {"mono", DBG(MONOLITHIC_SHADERS), "Use old-style monolithic shaders compiled on demand"},
+   {"nooptvariant", DBG(NO_OPT_VARIANT), "Disable compiling optimized shader variants."},
+   {"useaco", DBG(USE_ACO), "Use ACO as shader compiler when possible"},
+   {"usellvm", DBG(USE_LLVM), "Use LLVM as shader compiler when possible"},
+};
+
 static const struct debug_named_value test_options[] = {
    /* Tests: */
    {"clearbuffer", DBG(TEST_CLEAR_BUFFER), "Test correctness of the clear_buffer compute shader"},
@@ -147,7 +150,7 @@ struct ac_llvm_compiler *si_create_llvm_compiler(struct si_screen *sscreen)
       return NULL;
 
    if (!ac_init_llvm_compiler(compiler, sscreen->info.family,
-                              sscreen->debug_flags & DBG(CHECK_IR) ? AC_TM_CHECK_IR : 0))
+                              sscreen->shader_debug_flags & DBG(CHECK_IR) ? AC_TM_CHECK_IR : 0))
       return NULL;
 
    compiler->beo = ac_create_backend_optimizer(compiler->tm);
@@ -200,7 +203,7 @@ static void si_destroy_context(struct pipe_context *context)
    util_framebuffer_init(context, NULL, sctx->framebuffer.fb_cbufs, &sctx->framebuffer.fb_zsbuf);
    si_release_all_descriptors(sctx);
 
-   if (sctx->gfx_level >= GFX10 && sctx->has_graphics)
+   if (sctx->gfx_level >= GFX10 && sctx->is_gfx_queue)
       si_gfx11_destroy_query(sctx);
 
    if (sctx->sqtt) {
@@ -499,7 +502,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    /* Don't create a context if it's not compute-only and hw is compute-only. */
    if (!sscreen->info.has_graphics && !(flags & PIPE_CONTEXT_COMPUTE_ONLY)) {
-      mesa_loge("radeonsi: can't create a graphics context on a compute chip\n");
+      mesa_loge("can't create a graphics context on a compute chip");
       return NULL;
    }
 
@@ -508,11 +511,11 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    int shader, i;
 
    if (!sctx) {
-      mesa_loge("radeonsi: can't allocate a context\n");
+      mesa_loge("can't allocate a context");
       return NULL;
    }
 
-   sctx->has_graphics = sscreen->info.gfx_level == GFX6 ||
+   sctx->is_gfx_queue = sscreen->info.gfx_level == GFX6 ||
                         /* Compute queues hang on Raven and derivatives, see:
                          * https://gitlab.freedesktop.org/mesa/mesa/-/issues/12310 */
                         ((sscreen->info.family == CHIP_RAVEN ||
@@ -520,6 +523,13 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
                          !sscreen->info.has_dedicated_vram) ||
                         !sscreen->info.ip[AMD_IP_COMPUTE].num_queues ||
                         !(flags & PIPE_CONTEXT_COMPUTE_ONLY);
+
+   if (sctx->is_gfx_queue) {
+      if (sscreen->info.userq_ip_mask & (1 << AMD_IP_GFX))
+         sctx->uses_userq_reg_shadowing = !(sscreen->debug_flags & DBG(USERQ_NO_SHADOW_REGS));
+      else
+         sctx->uses_kernelq_reg_shadowing = sscreen->info.has_kernelq_reg_shadowing;
+   }
 
    if (flags & PIPE_CONTEXT_DEBUG)
       sscreen->record_llvm_ir = true; /* racy but not critical */
@@ -544,7 +554,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
          &sscreen->b, PIPE_RESOURCE_FLAG_UNMAPPABLE | SI_RESOURCE_FLAG_DRIVER_INTERNAL,
          PIPE_USAGE_DEFAULT, 16 * sscreen->info.max_render_backends, 256);
       if (!sctx->eop_bug_scratch) {
-         mesa_loge("radeonsi: can't create eop_bug_scratch\n");
+         mesa_loge("can't create eop_bug_scratch");
          goto fail;
       }
    }
@@ -552,13 +562,13 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    /* Initialize the context handle and the command stream. */
    sctx->ctx = sctx->ws->ctx_create(sctx->ws, sctx->context_flags);
    if (!sctx->ctx) {
-      mesa_loge("radeonsi: can't create radeon_winsys_ctx\n");
+      mesa_loge("can't create radeon_winsys_ctx");
       goto fail;
    }
 
-   if (!ws->cs_create(&sctx->gfx_cs, sctx->ctx, sctx->has_graphics ? AMD_IP_GFX : AMD_IP_COMPUTE,
+   if (!ws->cs_create(&sctx->gfx_cs, sctx->ctx, sctx->is_gfx_queue ? AMD_IP_GFX : AMD_IP_COMPUTE,
                       (void *)si_flush_gfx_cs, sctx)) {
-      mesa_loge("radeonsi: can't create gfx_cs\n");
+      mesa_loge("can't create gfx_cs");
       sctx->gfx_cs.priv = NULL;
       goto fail;
    }
@@ -571,7 +581,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    sctx->cached_gtt_allocator = u_upload_create(&sctx->b, 16 * 1024, 0, PIPE_USAGE_STAGING, 0);
    if (!sctx->cached_gtt_allocator) {
-      mesa_loge("radeonsi: can't create cached_gtt_allocator\n");
+      mesa_loge("can't create cached_gtt_allocator");
       goto fail;
    }
 
@@ -586,7 +596,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
                                                                : PIPE_USAGE_STREAM,
                       SI_RESOURCE_FLAG_32BIT); /* same flags as const_uploader */
    if (!sctx->b.stream_uploader) {
-      mesa_loge("radeonsi: can't create stream_uploader\n");
+      mesa_loge("can't create stream_uploader");
       goto fail;
    }
 
@@ -597,7 +607,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
          u_upload_create(&sctx->b, 256 * 1024, 0, PIPE_USAGE_DEFAULT,
                          SI_RESOURCE_FLAG_32BIT);
       if (!sctx->b.const_uploader) {
-         mesa_loge("radeonsi: can't create const_uploader\n");
+         mesa_loge("can't create const_uploader");
          goto fail;
       }
    }
@@ -606,21 +616,21 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    if (sscreen->info.has_3d_cube_border_color_mipmap) {
       sctx->border_color_table = malloc(SI_MAX_BORDER_COLORS * sizeof(*sctx->border_color_table));
       if (!sctx->border_color_table) {
-         mesa_loge("radeonsi: can't create border_color_table\n");
+         mesa_loge("can't create border_color_table");
          goto fail;
       }
 
       sctx->border_color_buffer = si_resource(pipe_buffer_create(
          screen, 0, PIPE_USAGE_DEFAULT, SI_MAX_BORDER_COLORS * sizeof(*sctx->border_color_table)));
       if (!sctx->border_color_buffer) {
-         mesa_loge("radeonsi: can't create border_color_buffer\n");
+         mesa_loge("can't create border_color_buffer");
          goto fail;
       }
 
       sctx->border_color_map =
          ws->buffer_map(ws, sctx->border_color_buffer->buf, NULL, PIPE_MAP_WRITE);
       if (!sctx->border_color_map) {
-         mesa_loge("radeonsi: can't map border_color_buffer\n");
+         mesa_loge("can't map border_color_buffer");
          goto fail;
       }
    }
@@ -657,7 +667,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
    si_init_context_texture_functions(sctx);
 
    /* Initialize graphics-only context functions. */
-   if (sctx->has_graphics) {
+   if (sctx->is_gfx_queue) {
       if (sctx->gfx_level >= GFX10)
          si_gfx11_init_query(sctx);
       si_init_msaa_functions(sctx);
@@ -668,7 +678,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
       sctx->blitter = util_blitter_create(&sctx->b);
       if (sctx->blitter == NULL) {
-         mesa_loge("radeonsi: can't create blitter\n");
+         mesa_loge("can't create blitter");
          goto fail;
       }
       sctx->blitter->skip_viewport_restore = true;
@@ -744,12 +754,12 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
                                     PIPE_USAGE_DEFAULT, 16,
                                     sctx->screen->info.tcc_cache_line_size);
       if (!sctx->null_const_buf.buffer) {
-         mesa_loge("radeonsi: can't create null_const_buf\n");
+         mesa_loge("can't create null_const_buf");
          goto fail;
       }
       sctx->null_const_buf.buffer_size = sctx->null_const_buf.buffer->width0;
 
-      unsigned start_shader = sctx->has_graphics ? 0 : PIPE_SHADER_COMPUTE;
+      unsigned start_shader = sctx->is_gfx_queue ? 0 : PIPE_SHADER_COMPUTE;
       for (shader = start_shader; shader < SI_NUM_SHADERS; shader++) {
          for (i = 0; i < SI_NUM_CONST_BUFFERS; i++) {
             sctx->b.set_constant_buffer(&sctx->b, shader, i, false, &sctx->null_const_buf);
@@ -774,14 +784,15 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    sctx->dirty_implicit_resources = _mesa_pointer_hash_table_create(NULL);
    if (!sctx->dirty_implicit_resources) {
-      mesa_loge("radeonsi: can't create dirty_implicit_resources\n");
+      mesa_loge("can't create dirty_implicit_resources");
       goto fail;
    }
 
    /* The remainder of this function initializes the gfx CS and must be last. */
    assert(sctx->gfx_cs.current.cdw == 0);
 
-   si_init_cp_reg_shadowing(sctx);
+   if (!si_init_cp_reg_shadowing(sctx))
+      goto fail;
 
    /* Set immutable fields of shader keys. */
    if (sctx->gfx_level >= GFX9) {
@@ -808,7 +819,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
                                     PIPE_USAGE_DEFAULT, 4,
                                     sscreen->info.tcc_cache_line_size);
       if (!sctx->wait_mem_scratch) {
-         mesa_loge("radeonsi: can't create wait_mem_scratch\n");
+         mesa_loge("can't create wait_mem_scratch");
          goto fail;
       }
 
@@ -882,7 +893,7 @@ static struct pipe_context *si_create_context(struct pipe_screen *screen, unsign
 
    return &sctx->b;
 fail:
-   mesa_loge("radeonsi: Failed to create a context.\n");
+   mesa_loge("Failed to create a context.");
    si_destroy_context(&sctx->b);
    return NULL;
 }
@@ -938,10 +949,10 @@ static struct pipe_context *si_pipe_create_context(struct pipe_screen *screen, v
           sscreen->ws->cs_set_pstate(&((struct si_context *)ctx)->gfx_cs, RADEON_CTX_PSTATE_PEAK);
 
       if (ac_check_profile_state(&sscreen->info)) {
-         fprintf(stderr, "radeonsi: Canceling RGP trace request as a hang condition has been "
-                         "detected. Force the GPU into a profiling mode with e.g. "
-                         "\"echo profile_peak  > "
-                         "/sys/class/drm/card0/device/power_dpm_force_performance_level\"\n");
+         mesa_loge("Canceling RGP trace request as a hang condition has been "
+                   "detected. Force the GPU into a profiling mode with e.g. "
+                   "\"echo profile_peak  > "
+                   "/sys/class/drm/card0/device/power_dpm_force_performance_level\"");
       } else if (!si_init_sqtt((struct si_context *)ctx)) {
          FREE(ctx);
          return NULL;
@@ -957,7 +968,7 @@ static struct pipe_context *si_pipe_create_context(struct pipe_screen *screen, v
 
    /* When shaders are logged to stderr, asynchronous compilation is
     * disabled too. */
-   if (sscreen->debug_flags & DBG_ALL_SHADERS)
+   if (sscreen->shader_debug_flags & DBG_ALL_SHADERS)
       return ctx;
 
    /* Use asynchronous flushes only on amdgpu, since the radeon
@@ -1124,7 +1135,7 @@ parse_hex(char *out, const char *in, unsigned length)
 static void si_disk_cache_create(struct si_screen *sscreen)
 {
    /* Don't use the cache if shader dumping is enabled. */
-   if (sscreen->debug_flags & DBG_ALL_SHADERS)
+   if (sscreen->shader_debug_flags & DBG_ALL_SHADERS)
       return;
 
    struct mesa_sha1 ctx;
@@ -1227,7 +1238,7 @@ static void si_setup_force_shader_use_aco(struct si_screen *sscreen, bool suppor
 
    FILE *f = fopen(option, "r");
    if (!f) {
-      fprintf(stderr, "radeonsi: invalid AMD_FORCE_SHADER_USE_ACO value\n");
+      mesa_loge("invalid AMD_FORCE_SHADER_USE_ACO value");
       return;
    }
 
@@ -1285,6 +1296,7 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
    sscreen->context_roll_log_filename = debug_get_option("AMD_ROLLS", NULL);
    sscreen->debug_flags = debug_get_flags_option("R600_DEBUG", radeonsi_debug_options, 0);
    sscreen->debug_flags |= debug_get_flags_option("AMD_DEBUG", radeonsi_debug_options, 0);
+   sscreen->shader_debug_flags = debug_get_flags_option("AMD_DEBUG", radeonsi_shader_debug_options, 0);
    test_flags = debug_get_flags_option("AMD_TEST", test_options, 0);
 
    if (sscreen->debug_flags & DBG(NO_DISPLAY_DCC)) {
@@ -1293,8 +1305,9 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
    }
 
    /* Using the environment variable doesn't enable PAIRS packets for simplicity. */
-   if (sscreen->debug_flags & DBG(SHADOW_REGS))
-      sscreen->info.register_shadowing_required = true;
+   if ((sscreen->debug_flags & DBG(SHADOW_REGS)) &&
+       !(sscreen->info.userq_ip_mask & (1 << AMD_IP_GFX)))
+      sscreen->info.has_kernelq_reg_shadowing = true;
 
    bool support_aco = aco_is_gpu_supported(&sscreen->info);
 
@@ -1306,16 +1319,16 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
        (sscreen->info.gfx_level == GFX11_5 && LLVM_VERSION_MAJOR < 19))
       sscreen->use_aco = true;
    else if (sscreen->info.gfx_level >= GFX10)
-      sscreen->use_aco = (sscreen->debug_flags & DBG(USE_ACO));
+      sscreen->use_aco = (sscreen->shader_debug_flags & DBG(USE_ACO));
    else
       sscreen->use_aco = support_aco && sscreen->info.has_image_opcodes &&
-                         !(sscreen->debug_flags & DBG(USE_LLVM));
+                         !(sscreen->shader_debug_flags & DBG(USE_LLVM));
 #else
    sscreen->use_aco = true;
 #endif
 
    if (sscreen->use_aco && !support_aco) {
-      fprintf(stderr, "radeonsi: ACO does not support this chip yet\n");
+      mesa_loge("ACO does not support this chip yet");
       FREE(sscreen);
       return NULL;
    }
@@ -1547,10 +1560,11 @@ static struct pipe_screen *radeonsi_screen_create_impl(struct radeon_winsys *ws,
    }
 
    (void)simple_mtx_init(&sscreen->shader_parts_mutex, mtx_plain);
-   sscreen->use_monolithic_shaders = (sscreen->debug_flags & DBG(MONOLITHIC_SHADERS)) != 0;
+   sscreen->use_monolithic_shaders =
+      (sscreen->shader_debug_flags & DBG(MONOLITHIC_SHADERS)) != 0;
 
    if (debug_get_bool_option("RADEON_DUMP_SHADERS", false))
-      sscreen->debug_flags |= DBG_ALL_SHADERS;
+      sscreen->shader_debug_flags |= DBG_ALL_SHADERS;
 
    /* Syntax:
     *     EQAA=s,z,c
@@ -1664,6 +1678,8 @@ struct pipe_screen *radeonsi_screen_create(int fd, const struct pipe_screen_conf
 #ifdef HAVE_AMDGPU_VIRTIO
    if (strcmp(version->name, "virtio_gpu") == 0) {
       rw = amdgpu_winsys_create(fd, config, radeonsi_screen_create_impl, true);
+   } else if (debug_get_bool_option("AMD_FORCE_VPIPE", false)) {
+      rw = amdgpu_winsys_create(-1, config, radeonsi_screen_create_impl, true);
    } else
 #endif
    {

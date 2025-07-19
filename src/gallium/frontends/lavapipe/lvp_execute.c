@@ -80,6 +80,13 @@ struct lvp_render_attachment {
    bool read_only;
 };
 
+struct lvp_conditional_rendering_state {
+   struct pipe_resource *buffer;
+   uint32_t offset;
+   bool condition;
+   bool enabled;
+};
+
 struct rendering_state {
    struct pipe_context *pctx;
    struct lvp_device *device;
@@ -119,6 +126,7 @@ struct rendering_state {
       float offset_units;
       float offset_scale;
       float offset_clamp;
+      VkDepthBiasRepresentationEXT representation;
       bool enabled;
    } depth_bias;
    struct pipe_rasterizer_state rs_state;
@@ -171,7 +179,6 @@ struct rendering_state {
 
    VkRect2D render_area;
    bool suspending;
-   bool render_cond;
    uint32_t color_att_count;
    struct lvp_render_attachment color_att[PIPE_MAX_COLOR_BUFS];
    struct lvp_render_attachment depth_att;
@@ -204,6 +211,8 @@ struct rendering_state {
    struct util_dynarray internal_buffers;
 
    struct lvp_pipeline *exec_graph;
+
+   struct lvp_conditional_rendering_state conditional_rendering;
 
    struct {
       struct lvp_shader *compute_shader;
@@ -412,6 +421,16 @@ static void emit_state(struct rendering_state *state)
          state->rs_state.offset_tri = true;
          state->rs_state.offset_line = true;
          state->rs_state.offset_point = true;
+
+         state->rs_state.offset_units_unscaled =
+            state->depth_bias.representation == VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT ||
+            state->depth_bias.representation == VK_DEPTH_BIAS_REPRESENTATION_FLOAT_EXT;
+
+         if (state->depth_bias.representation == VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORCE_UNORM_EXT) {
+            enum pipe_format depth_format = util_format_get_depth_only(state->depth_att.imgv->pformat);
+            const struct util_format_description *desc = util_format_description(depth_format);
+            state->rs_state.offset_units *= util_get_depth_format_mrd(desc);
+         }
       } else {
          state->rs_state.offset_units = 0.0f;
          state->rs_state.offset_scale = 0.0f;
@@ -758,6 +777,7 @@ static void handle_graphics_pipeline(struct lvp_pipeline *pipeline,
          state->depth_bias.offset_units = ps->rs->depth_bias.constant_factor;
          state->depth_bias.offset_scale = ps->rs->depth_bias.slope_factor;
          state->depth_bias.offset_clamp = ps->rs->depth_bias.clamp;
+         state->depth_bias.representation = ps->rs->depth_bias.representation;
       }
 
       if (!BITSET_TEST(ps->dynamic, MESA_VK_DYNAMIC_RS_CULL_MODE))
@@ -1380,7 +1400,7 @@ static void render_clear_fast(struct rendering_state *state)
    if (state->framebuffer.viewmask)
       goto slow_clear;
 
-   if (state->render_cond)
+   if (state->conditional_rendering.enabled)
       goto slow_clear;
 
    uint32_t buffers = 0;
@@ -1977,6 +1997,24 @@ static void handle_set_depth_bias(struct vk_cmd_queue_entry *cmd,
    state->depth_bias.offset_units = cmd->u.set_depth_bias.depth_bias_constant_factor;
    state->depth_bias.offset_scale = cmd->u.set_depth_bias.depth_bias_slope_factor;
    state->depth_bias.offset_clamp = cmd->u.set_depth_bias.depth_bias_clamp;
+   state->rs_dirty = true;
+}
+
+static void handle_set_depth_bias2(struct vk_cmd_queue_entry *cmd,
+                                   struct rendering_state *state)
+{
+   VkDepthBiasInfoEXT *info = cmd->u.set_depth_bias2_ext.depth_bias_info;
+
+   state->depth_bias.offset_units = info->depthBiasConstantFactor;
+   state->depth_bias.offset_scale = info->depthBiasSlopeFactor;
+   state->depth_bias.offset_clamp = info->depthBiasClamp;
+
+   const VkDepthBiasRepresentationInfoEXT *representation_info =
+      vk_find_struct_const(info->pNext, DEPTH_BIAS_REPRESENTATION_INFO_EXT);
+   state->depth_bias.representation =
+      representation_info ? representation_info->depthBiasRepresentation
+                          : VK_DEPTH_BIAS_REPRESENTATION_LEAST_REPRESENTABLE_VALUE_FORMAT_EXT;
+
    state->rs_dirty = true;
 }
 
@@ -3392,21 +3430,35 @@ static void handle_draw_indirect_byte_count(struct vk_cmd_queue_entry *cmd,
    state->pctx->draw_vbo(state->pctx, &state->info, 0, NULL, &draw, 1);
 }
 
+static void
+lvp_emit_conditional_rendering(struct rendering_state *state)
+{
+   if (state->conditional_rendering.enabled) {
+      state->pctx->render_condition_mem(
+         state->pctx,
+         state->conditional_rendering.buffer,
+         state->conditional_rendering.offset,
+         state->conditional_rendering.condition);
+   } else {
+      state->pctx->render_condition_mem(state->pctx, NULL, 0, false);
+   }
+}
+
 static void handle_begin_conditional_rendering(struct vk_cmd_queue_entry *cmd,
                                                struct rendering_state *state)
 {
    struct VkConditionalRenderingBeginInfoEXT *bcr = cmd->u.begin_conditional_rendering_ext.conditional_rendering_begin;
-   state->render_cond = true;
-   state->pctx->render_condition_mem(state->pctx,
-                                     lvp_buffer_from_handle(bcr->buffer)->bo,
-                                     bcr->offset,
-                                     bcr->flags & VK_CONDITIONAL_RENDERING_INVERTED_BIT_EXT);
+   state->conditional_rendering.buffer = lvp_buffer_from_handle(bcr->buffer)->bo;
+   state->conditional_rendering.offset = bcr->offset;
+   state->conditional_rendering.condition = bcr->flags & VK_CONDITIONAL_RENDERING_INVERTED_BIT_EXT;
+   state->conditional_rendering.enabled = true;
+   lvp_emit_conditional_rendering(state);
 }
 
 static void handle_end_conditional_rendering(struct rendering_state *state)
 {
-   state->render_cond = false;
-   state->pctx->render_condition_mem(state->pctx, NULL, 0, false);
+   state->conditional_rendering.enabled = false;
+   lvp_emit_conditional_rendering(state);
 }
 
 static void handle_set_vertex_input(struct vk_cmd_queue_entry *cmd,
@@ -3849,7 +3901,7 @@ static void handle_draw_mesh_tasks(struct vk_cmd_queue_entry *cmd,
    state->dispatch_info.grid_base[2] = 0;
    state->dispatch_info.draw_count = 1;
    state->dispatch_info.indirect = NULL;
-   state->pctx->draw_mesh_tasks(state->pctx, 0, &state->dispatch_info);
+   state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
 }
 
 static void handle_draw_mesh_tasks_indirect(struct vk_cmd_queue_entry *cmd,
@@ -3860,7 +3912,7 @@ static void handle_draw_mesh_tasks_indirect(struct vk_cmd_queue_entry *cmd,
    state->dispatch_info.indirect_offset = cmd->u.draw_mesh_tasks_indirect_ext.offset;
    state->dispatch_info.indirect_stride = cmd->u.draw_mesh_tasks_indirect_ext.stride;
    state->dispatch_info.draw_count = cmd->u.draw_mesh_tasks_indirect_ext.draw_count;
-   state->pctx->draw_mesh_tasks(state->pctx, 0, &state->dispatch_info);
+   state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
 }
 
 static void handle_draw_mesh_tasks_indirect_count(struct vk_cmd_queue_entry *cmd,
@@ -3873,7 +3925,7 @@ static void handle_draw_mesh_tasks_indirect_count(struct vk_cmd_queue_entry *cmd
    state->dispatch_info.draw_count = cmd->u.draw_mesh_tasks_indirect_count_ext.max_draw_count;
    state->dispatch_info.indirect_draw_count_offset = cmd->u.draw_mesh_tasks_indirect_count_ext.count_buffer_offset;
    state->dispatch_info.indirect_draw_count = lvp_buffer_from_handle(cmd->u.draw_mesh_tasks_indirect_count_ext.count_buffer)->bo;
-   state->pctx->draw_mesh_tasks(state->pctx, 0, &state->dispatch_info);
+   state->pctx->draw_mesh_tasks(state->pctx, &state->dispatch_info);
 }
 
 static VkBuffer
@@ -4523,8 +4575,10 @@ handle_write_acceleration_structures_properties(struct vk_cmd_queue_entry *cmd, 
    }
 }
 
-static void emit_ray_tracing_state(struct rendering_state *state)
+static void
+lvp_trace_rays(struct rendering_state *state, VkTraceRaysIndirectCommand2KHR *command)
 {
+   /* Emit ray tracing state. */
    bool pcbuf_dirty = state->pcbuf_dirty[MESA_SHADER_RAYGEN];
    if (pcbuf_dirty)
       update_pcbuf(state, MESA_SHADER_COMPUTE, MESA_SHADER_RAYGEN);
@@ -4541,14 +4595,32 @@ static void emit_ray_tracing_state(struct rendering_state *state)
    state->pcbuf_dirty[MESA_SHADER_COMPUTE] = true;
    state->constbuf_dirty[MESA_SHADER_COMPUTE] = true;
    state->compute_shader_dirty = true;
+
+   /* Dispatch. The spec states that conditional rendering only affects compute dispatches
+    * so ray tracing dispatches have to suspend it.
+    */
+   state->trace_rays_info.grid[0] = DIV_ROUND_UP(command->width, state->trace_rays_info.block[0]);
+   state->trace_rays_info.grid[1] = DIV_ROUND_UP(command->height, state->trace_rays_info.block[1]);
+   state->trace_rays_info.grid[2] = DIV_ROUND_UP(command->depth, state->trace_rays_info.block[2]);
+
+   bool conditional_rendering_enabled = state->conditional_rendering.enabled;
+   if (conditional_rendering_enabled) {
+      state->conditional_rendering.enabled = false;
+      lvp_emit_conditional_rendering(state);
+   }
+
+   state->pctx->launch_grid(state->pctx, &state->trace_rays_info);
+
+   if (conditional_rendering_enabled) {
+      state->conditional_rendering.enabled = true;
+      lvp_emit_conditional_rendering(state);
+   }
 }
 
 static void
 handle_trace_rays(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
 {
    struct vk_cmd_trace_rays_khr *trace = &cmd->u.trace_rays_khr;
-
-   emit_ray_tracing_state(state);
 
    VkTraceRaysIndirectCommand2KHR *command = lvp_push_internal_buffer(
       state, MESA_SHADER_COMPUTE, sizeof(VkTraceRaysIndirectCommand2KHR));
@@ -4570,19 +4642,13 @@ handle_trace_rays(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
       .depth = trace->depth,
    };
 
-   state->trace_rays_info.grid[0] = DIV_ROUND_UP(trace->width, state->trace_rays_info.block[0]);
-   state->trace_rays_info.grid[1] = DIV_ROUND_UP(trace->height, state->trace_rays_info.block[1]);
-   state->trace_rays_info.grid[2] = DIV_ROUND_UP(trace->depth, state->trace_rays_info.block[2]);
-
-   state->pctx->launch_grid(state->pctx, &state->trace_rays_info);
+   lvp_trace_rays(state, command);
 }
 
 static void
 handle_trace_rays_indirect(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
 {
    struct vk_cmd_trace_rays_indirect_khr *trace = &cmd->u.trace_rays_indirect_khr;
-
-   emit_ray_tracing_state(state);
 
    size_t indirect_offset;
    VkBuffer _indirect = get_buffer(state, (void *)(uintptr_t)trace->indirect_device_address, &indirect_offset);
@@ -4613,21 +4679,15 @@ handle_trace_rays_indirect(struct vk_cmd_queue_entry *cmd, struct rendering_stat
       .depth = src->depth,
    };
 
-   state->trace_rays_info.grid[0] = DIV_ROUND_UP(src->width, state->trace_rays_info.block[0]);
-   state->trace_rays_info.grid[1] = DIV_ROUND_UP(src->height, state->trace_rays_info.block[1]);
-   state->trace_rays_info.grid[2] = DIV_ROUND_UP(src->depth, state->trace_rays_info.block[2]);
-
    state->pctx->buffer_unmap(state->pctx, transfer);
 
-   state->pctx->launch_grid(state->pctx, &state->trace_rays_info);
+   lvp_trace_rays(state, command);
 }
 
 static void
 handle_trace_rays_indirect2(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
 {
    struct vk_cmd_trace_rays_indirect2_khr *trace = &cmd->u.trace_rays_indirect2_khr;
-
-   emit_ray_tracing_state(state);
 
    size_t indirect_offset;
    VkBuffer _indirect = get_buffer(state, (void *)(uintptr_t)trace->indirect_device_address, &indirect_offset);
@@ -4642,13 +4702,9 @@ handle_trace_rays_indirect2(struct vk_cmd_queue_entry *cmd, struct rendering_sta
       state, MESA_SHADER_COMPUTE, sizeof(VkTraceRaysIndirectCommand2KHR));
    *command = *src;
 
-   state->trace_rays_info.grid[0] = DIV_ROUND_UP(src->width, state->trace_rays_info.block[0]);
-   state->trace_rays_info.grid[1] = DIV_ROUND_UP(src->height, state->trace_rays_info.block[1]);
-   state->trace_rays_info.grid[2] = DIV_ROUND_UP(src->depth, state->trace_rays_info.block[2]);
-
    state->pctx->buffer_unmap(state->pctx, transfer);
 
-   state->pctx->launch_grid(state->pctx, &state->trace_rays_info);
+   lvp_trace_rays(state, command);
 }
 
 static void
@@ -4884,6 +4940,8 @@ void lvp_add_enqueue_cmd_entrypoints(struct vk_device_dispatch_table *disp)
    ENQUEUE_CMD(CmdTraceRaysIndirect2KHR)
    ENQUEUE_CMD(CmdTraceRaysIndirectKHR)
    ENQUEUE_CMD(CmdTraceRaysKHR)
+
+   ENQUEUE_CMD(CmdSetDepthBias2EXT)
 
 #undef ENQUEUE_CMD
 }
@@ -5291,6 +5349,9 @@ static void lvp_execute_cmd_buffer(struct list_head *cmds,
          break;
       case VK_CMD_TRACE_RAYS_KHR:
          handle_trace_rays(cmd, state);
+         break;
+      case VK_CMD_SET_DEPTH_BIAS2_EXT:
+         handle_set_depth_bias2(cmd, state);
          break;
       default:
          fprintf(stderr, "Unsupported command %s\n", vk_cmd_queue_type_names[cmd->type]);

@@ -237,8 +237,11 @@ struct pipe_picture_desc
    enum pipe_format output_format;
    /* Flush flags for pipe_video_codec::end_frame */
    unsigned flush_flags;
+   /* A fence for pipe_video_codec::begin_frame to wait on */
+   struct pipe_fence_handle *in_fence;
+   uint64_t in_fence_value;
    /* A fence for pipe_video_codec::end_frame to signal job completion */
-   struct pipe_fence_handle **fence;
+   struct pipe_fence_handle **out_fence;
 };
 
 struct pipe_quant_matrix
@@ -401,6 +404,7 @@ struct pipe_h264_sps
    uint8_t  mb_adaptive_frame_field_flag;
    uint8_t  direct_8x8_inference_flag;
    uint8_t  MinLumaBiPredSize8x8;
+   uint8_t  gaps_in_frame_num_value_allowed_flag;
    uint32_t pic_width_in_mbs_minus1;
    uint32_t pic_height_in_mbs_minus1;
 };
@@ -2151,9 +2155,6 @@ struct pipe_vpp_desc
    struct u_rect dst_region;
    enum pipe_video_vpp_orientation orientation;
    struct pipe_vpp_blend blend;
-
-   /* Fence to wait on for the src surface */
-   struct pipe_fence_handle *src_surface_fence;
 
    uint32_t background_color;
    enum pipe_video_vpp_color_standard_type in_colors_standard;

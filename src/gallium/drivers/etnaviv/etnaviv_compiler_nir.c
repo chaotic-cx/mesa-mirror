@@ -237,6 +237,7 @@ src_swizzle(hw_src src, unsigned swizzle)
 #define UNIFORM(x) CONST_VAL(ETNA_UNIFORM_UNIFORM, x)
 #define TEXSCALE(x, i) CONST_VAL(ETNA_UNIFORM_TEXRECT_SCALE_X + (i), x)
 #define TEXSIZE(x, i) CONST_VAL(ETNA_UNIFORM_TEXTURE_WIDTH + (i), x)
+#define SAMPLERLOD(x, i) CONST_VAL(ETNA_UNIFORM_SAMPLER_LOD_MIN + (i), x)
 
 static int
 const_add(uint64_t *c, uint64_t value)
@@ -403,6 +404,16 @@ get_src(struct etna_compile *c, nir_src *src)
             TEXSIZE(sampler, 0),
             TEXSIZE(sampler, 1),
             TEXSIZE(sampler, 2),
+         };
+
+         return src_swizzle(const_src(c, values, 3), SWIZZLE(X,Y,Z,X));
+      }
+      case nir_intrinsic_load_sampler_lod_parameters: {
+         int sampler = nir_src_as_int(intr->src[0]);
+         nir_const_value values[] = {
+            SAMPLERLOD(sampler, 0),
+            SAMPLERLOD(sampler, 1),
+            SAMPLERLOD(sampler, 2),
          };
 
          return src_swizzle(const_src(c, values, 3), SWIZZLE(X,Y,Z,X));
@@ -663,6 +674,7 @@ emit_intrinsic(struct etna_compile *c, nir_intrinsic_instr * intr)
    case nir_intrinsic_load_vertex_id:
    case nir_intrinsic_load_texture_scale:
    case nir_intrinsic_load_texture_size_etna:
+   case nir_intrinsic_load_sampler_lod_parameters:
    case nir_intrinsic_decl_reg:
    case nir_intrinsic_load_reg:
    case nir_intrinsic_store_reg:
@@ -1169,6 +1181,21 @@ fill_vs_mystery(struct etna_shader_variant *v)
                              VIVS_VS_LOAD_BALANCING_D(0x0f);
 }
 
+static uint8_t
+alu_width_cb(const nir_instr *instr, UNUSED const void *cb_data)
+{
+   if (instr->type == nir_instr_type_alu) {
+      nir_alu_instr *alu = nir_instr_as_alu(instr);
+
+      if (alu->op == nir_op_fdot2 ||
+          alu->op == nir_op_fdot3 ||
+          alu->op == nir_op_fdot4)
+         return 0;
+   }
+
+   return 4;
+}
+
 bool
 etna_compile_shader(struct etna_shader_variant *v)
 {
@@ -1248,7 +1275,7 @@ etna_compile_shader(struct etna_shader_variant *v)
    NIR_PASS(_, s, nir_lower_vars_to_ssa);
    NIR_PASS(_, s, nir_lower_indirect_derefs, nir_var_all, UINT32_MAX);
    NIR_PASS(_, s, etna_nir_lower_texture, &v->key, v->shader->info);
-   NIR_PASS(_, s, nir_lower_alu_width, NULL, NULL);
+   NIR_PASS(_, s, nir_lower_alu_width, alu_width_cb, NULL);
 
    NIR_PASS(_, s, nir_lower_alu_to_scalar, etna_alu_to_scalar_filter_cb, c->info);
    if (c->info->halti >= 2) {

@@ -79,9 +79,7 @@ setupLoaderExtensions(struct dri_screen *screen,
                       const __DRIextension **extensions)
 {
    static const struct dri_extension_match matches[] = {
-       {__DRI_DRI2_LOADER, 1, offsetof(struct dri_screen, dri2.loader), true},
        {__DRI_IMAGE_LOOKUP, 1, offsetof(struct dri_screen, dri2.image), true},
-       {__DRI_BACKGROUND_CALLABLE, 1, offsetof(struct dri_screen, dri2.backgroundCallable), true},
        {__DRI_SWRAST_LOADER, 1, offsetof(struct dri_screen, swrast_loader), true},
        {__DRI_IMAGE_LOADER, 1, offsetof(struct dri_screen, image.loader), true},
        {__DRI_MUTABLE_RENDER_BUFFER_LOADER, 1, offsetof(struct dri_screen, mutableRenderBuffer.loader), true},

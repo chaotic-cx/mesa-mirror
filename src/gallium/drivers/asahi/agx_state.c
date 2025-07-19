@@ -1386,7 +1386,6 @@ agx_bind_vertex_elements_state(struct pipe_context *pctx, void *cso)
 }
 
 DERIVE_HASH_TABLE(asahi_vs_shader_key);
-DERIVE_HASH_TABLE(asahi_gs_shader_key);
 DERIVE_HASH_TABLE(asahi_fs_shader_key);
 DERIVE_HASH_TABLE(agx_fast_link_key);
 
@@ -1593,10 +1592,8 @@ agx_compile_variant(struct agx_device *dev, struct pipe_context *pctx,
    } else if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
       NIR_PASS(_, nir, agx_nir_lower_tcs);
    } else if (nir->info.stage == MESA_SHADER_GEOMETRY) {
-      struct asahi_gs_shader_key *key = &key_->gs;
-
-      NIR_PASS(_, nir, agx_nir_lower_gs, key->rasterizer_discard, &gs_count,
-               &gs_copy, &pre_gs, &gs_info);
+      NIR_PASS(_, nir, agx_nir_lower_gs, &gs_count, &gs_copy, &pre_gs,
+               &gs_info);
    } else if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       struct asahi_fs_shader_key *key = &key_->fs;
 
@@ -1724,11 +1721,7 @@ agx_get_shader_variant(struct agx_screen *screen, struct pipe_context *pctx,
    } else if (so->type == PIPE_SHADER_VERTEX ||
               so->type == PIPE_SHADER_TESS_EVAL) {
       memcpy(cloned_key, key, sizeof(struct asahi_vs_shader_key));
-   } else if (so->type == PIPE_SHADER_GEOMETRY) {
-      memcpy(cloned_key, key, sizeof(struct asahi_gs_shader_key));
    } else {
-      assert(gl_shader_stage_is_compute(so->type) ||
-             so->type == PIPE_SHADER_TESS_CTRL);
       /* No key */
    }
 
@@ -1918,9 +1911,8 @@ agx_create_shader_state(struct pipe_context *pctx,
        nir->info.stage == MESA_SHADER_TESS_EVAL) {
       so->variants = asahi_vs_shader_key_table_create(so);
       so->linked_shaders = agx_fast_link_key_table_create(so);
-   } else if (nir->info.stage == MESA_SHADER_GEOMETRY) {
-      so->variants = asahi_gs_shader_key_table_create(so);
-   } else if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
+   } else if (nir->info.stage == MESA_SHADER_TESS_CTRL ||
+              nir->info.stage == MESA_SHADER_GEOMETRY) {
       /* No variants */
       so->variants = _mesa_hash_table_create(NULL, asahi_cs_shader_key_hash,
                                              asahi_cs_shader_key_equal);
@@ -1958,6 +1950,7 @@ agx_create_shader_state(struct pipe_context *pctx,
     * acceptable for now.
     */
    if ((so->type == PIPE_SHADER_TESS_CTRL) ||
+       (so->type == PIPE_SHADER_GEOMETRY) ||
        (so->type == PIPE_SHADER_FRAGMENT && !so->info.uses_fbfetch)) {
       union asahi_shader_key key = {0};
       agx_get_shader_variant(agx_screen(pctx->screen), pctx, so, &key);
@@ -1975,9 +1968,6 @@ agx_create_shader_state(struct pipe_context *pctx,
       union asahi_shader_key key = {0};
 
       switch (so->type) {
-      case PIPE_SHADER_GEOMETRY:
-         break;
-
       case PIPE_SHADER_TESS_EVAL:
          /* TODO: Tessellation shaders with shader-db */
          return so;
@@ -2256,12 +2246,10 @@ agx_update_gs(struct agx_context *ctx, const struct pipe_draw_info *info,
          tgt->stride = gs->xfb_strides[i];
    }
 
-   struct asahi_gs_shader_key key = {
-      .rasterizer_discard = ctx->rast->base.rasterizer_discard,
-   };
-
-   return agx_update_shader(ctx, &ctx->gs, PIPE_SHADER_GEOMETRY,
-                            (union asahi_shader_key *)&key);
+   ctx->gs = _mesa_hash_table_next_entry(
+                ctx->stage[PIPE_SHADER_GEOMETRY].shader->variants, NULL)
+                ->data;
+   return true;
 }
 
 static enum pipe_blendfactor
@@ -2767,7 +2755,7 @@ agx_upload_textures(struct agx_batch *batch, struct agx_compiled_shader *cs,
 
       if (!(ctx->stage[stage].image_mask & BITFIELD_BIT(i))) {
          agx_set_null_texture(texture);
-         agx_set_null_pbe(pbe, agx_pool_alloc_aligned(&batch->pool, 1, 64).gpu);
+         agx_set_null_pbe(pbe);
          continue;
       }
 
@@ -3870,14 +3858,14 @@ agx_ia_update(struct agx_batch *batch, const struct pipe_draw_info *info,
 
    /* With a geometry/tessellation shader, clipper counters are written by the
     * pre-GS/tess prefix sum kernel since they depend on the output on the
-    * geometry/tessellation shader.  Without a geometry/tessellation shader,
+    * geometry/tessellation shader. Without a geometry/tessellation shader,
     * they are written along with IA.
     */
    if (ctx->stage[PIPE_SHADER_GEOMETRY].shader ||
        ctx->stage[PIPE_SHADER_TESS_EVAL].shader) {
 
-      c_prims = 0;
-      c_invs = 0;
+      c_prims = AGX_SCRATCH_PAGE_ADDRESS;
+      c_invs = AGX_SCRATCH_PAGE_ADDRESS;
    }
 
    if (info->primitive_restart) {
@@ -3945,6 +3933,8 @@ agx_batch_geometry_params(struct agx_batch *batch, uint64_t input_index_buffer,
       .flat_outputs =
          batch->ctx->stage[PIPE_SHADER_FRAGMENT].shader->info.inputs_flat_shaded,
       .input_topology = info->mode,
+      .xfb_offs_ptrs = {AGX_ZERO_PAGE_ADDRESS, AGX_ZERO_PAGE_ADDRESS,
+                        AGX_ZERO_PAGE_ADDRESS, AGX_ZERO_PAGE_ADDRESS},
    };
 
    for (unsigned i = 0; i < ARRAY_SIZE(batch->ctx->streamout.targets); ++i) {
@@ -3960,8 +3950,6 @@ agx_batch_geometry_params(struct agx_batch *batch, uint64_t input_index_buffer,
          params.xfb_offs_ptrs[i] = rsrc->bo->va->addr;
          agx_batch_writes(batch, rsrc, 0);
          batch->incoherent_writes = true;
-      } else {
-         params.xfb_offs_ptrs[i] = 0;
       }
    }
 
@@ -3983,6 +3971,12 @@ agx_batch_geometry_params(struct agx_batch *batch, uint64_t input_index_buffer,
 
       params.xfb_any_overflow =
          agx_get_query_address(batch, batch->ctx->tf_any_overflow);
+   } else {
+      for (unsigned i = 0; i < ARRAY_SIZE(batch->ctx->tf_overflow); ++i) {
+         params.xfb_overflow[i] = AGX_SCRATCH_PAGE_ADDRESS;
+      }
+
+      params.xfb_any_overflow = AGX_SCRATCH_PAGE_ADDRESS;
    }
 
    /* Calculate input primitive count for direct draws, and allocate the vertex
@@ -4711,8 +4705,8 @@ agx_draw_patches(struct agx_context *ctx, const struct pipe_draw_info *info,
     * Otherwise, we do when tessellating.
     */
    if (ctx->stage[PIPE_SHADER_GEOMETRY].shader) {
-      c_prims = 0;
-      c_invs = 0;
+      c_prims = AGX_SCRATCH_PAGE_ADDRESS;
+      c_invs = AGX_SCRATCH_PAGE_ADDRESS;
    }
 
    /* Generate counts, then prefix sum them, then finally tessellate. */
@@ -4852,6 +4846,40 @@ agx_legalize_feedback_loops(struct agx_context *ctx)
    }
 }
 
+/*
+ * Usually, non-attachment stores must be barriered explicitly by the app using
+ * glMemoryBarrier. Transform feedback buffers are annoyingly excluded from this
+ * requirement, so we need to handle those hazards ourselves. Transform feedback
+ * will barrier with itself so we only need to consider write-after-read
+ * hazards.
+ *
+ * The general case does require a flush. Consider binding a buffer as a UBO,
+ * drawing with a fragment shader reading that UBO, then rebinding as XFB, and
+ * drawing with XFB stores. We have to split the batch in the middle.
+ * gles-3.0-transform-feedback-uniform-buffer-object does this.
+ */
+static void
+agx_legalize_xfb(struct agx_context *ctx)
+{
+   /* If this draw isn't writing transform feedback, there's nothing to worry
+    * about.
+    */
+   if (!ctx->streamout.num_targets ||
+       !agx_last_uncompiled_vgt(ctx)->has_xfb_info)
+      return;
+
+   /* Otherwise, flush the readers of anything written by transform feedback. */
+   for (unsigned i = 0; i < ctx->streamout.num_targets; ++i) {
+      struct agx_streamout_target *tgt =
+         agx_so_target(ctx->streamout.targets[i]);
+
+      if (tgt != NULL) {
+         agx_flush_readers(ctx, agx_resource(tgt->base.buffer),
+                           "Transform feedback buffer");
+      }
+   }
+}
+
 static void
 agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
              unsigned drawid_offset,
@@ -4905,10 +4933,12 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       return;
    }
 
-   /* We must legalize feedback loops before getting the batch, since once we
-    * have the batch we're not allowed to flush the bound render targets.
+   /* We must legalize feedback loops and transform feedback writes before
+    * getting the batch, since once we have the batch we're not allowed to flush
+    * the bound render targets.
     */
    agx_legalize_feedback_loops(ctx);
+   agx_legalize_xfb(ctx);
 
    struct agx_batch *batch = agx_get_batch(ctx);
    uint64_t ib = 0;
@@ -5105,9 +5135,6 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
       /* Launch the pre-rasterization parts of the geometry shader */
       agx_launch_gs_prerast(batch, info, draws, indirect);
 
-      if (ctx->rast->base.rasterizer_discard)
-         return;
-
       /* Setup to rasterize the GS results */
       struct agx_gs_info *gsi = &ctx->gs->gs;
       info_gs = (struct pipe_draw_info){
@@ -5228,6 +5255,14 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
 
    out = (void *)agx_vdm_draw((uint32_t *)out, 0 /* ignored for now */, draw,
                               agx_primitive_for_pipe(info->mode));
+
+   /* Barrier transform feedback writes on themselves for consistency.
+    * This is the other half of agx_legalize_xfb.
+    */
+   if (ctx->gs && ctx->streamout.num_targets > 0) {
+      struct agx_device *dev = agx_device(ctx->base.screen);
+      out = (void *)agx_vdm_barrier((uint32_t *)out, dev->chip);
+   }
 
    batch->vdm.current = out;
    assert((batch->vdm.current + AGX_VDM_STREAM_LINK_LENGTH) <= batch->vdm.end &&

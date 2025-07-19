@@ -725,12 +725,10 @@ static void *virgl_shader_encoder(struct pipe_context *ctx,
        * more than 32 IO locations explicitly, and with varyings and patches we already
        * exhaust the possible ways of handling this for the varyings with generic names,
        * so drop the flag in these cases */
-      const uint64_t drop_slots_for_separable_io = 0xffull << VARYING_SLOT_TEX0 |
-                                                        1 <<  VARYING_SLOT_FOGC |
-                                                        1 <<  VARYING_SLOT_BFC0 |
-                                                        1 <<  VARYING_SLOT_BFC1 |
-                                                        1 <<  VARYING_SLOT_COL0 |
-                                                        1 <<  VARYING_SLOT_COL1;
+      const uint64_t drop_slots_for_separable_io =
+         VARYING_BITS_TEX_ANY | VARYING_BIT_FOGC | VARYING_BIT_BFC0 |
+         VARYING_BIT_BFC1 | VARYING_BIT_COL0 | VARYING_BIT_COL1;
+
       bool keep_separable_flags = true;
       if (s->info.stage != MESA_SHADER_VERTEX)
          keep_separable_flags &= !(s->info.inputs_read & drop_slots_for_separable_io);
@@ -1401,10 +1399,12 @@ static void virgl_create_fence_fd(struct pipe_context *ctx,
 }
 
 static void virgl_fence_server_sync(struct pipe_context *ctx,
-			            struct pipe_fence_handle *fence)
+			            struct pipe_fence_handle *fence,
+                                    uint64_t value)
 {
    struct virgl_context *vctx = virgl_context(ctx);
    struct virgl_screen *rs = virgl_screen(ctx->screen);
+   assert(!value);
 
    if (rs->vws->fence_server_sync)
       rs->vws->fence_server_sync(rs->vws, vctx->cbuf, fence);

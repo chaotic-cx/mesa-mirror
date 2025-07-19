@@ -6,6 +6,7 @@
 #pragma once
 
 #include <ctype.h>
+#include <inttypes.h>
 #include "nir.h"
 #include "nir_builder.h"
 #include "nir_serialize.h"
@@ -566,8 +567,68 @@ nir_precomp_print_binary_map(FILE *fp, const nir_shader *nir,
    fprintf(fp, "};\n\n");
 }
 
+static inline void
+nir_precomp_print_target_enum_map(FILE *fp_c, FILE *fp_h, const char *prefix, unsigned num_targets, const char **targets, uint64_t *target_ids)
+{
+   /* Generate an enum indexing all devices */
+   fprintf(fp_h, "enum %s_target {\n", prefix);
+   for (unsigned t = 0; t < num_targets; ++t) {
+      fprintf(fp_h, "    ");
+      nir_print_uppercase(fp_h, prefix);
+      fprintf(fp_h, "_TARGET_");
+      nir_print_uppercase(fp_h, targets[t]);
+      fprintf(fp_h, " = %u,\n", t);
+   }
+   fprintf(fp_h, "    ");
+   nir_print_uppercase(fp_h, prefix);
+   fprintf(fp_h, "_NUM_TARGETS,\n");
+   fprintf(fp_h, "};\n");
+
+   if (!target_ids)
+      return;
+
+   fprintf(fp_h, "extern const uint64_t %s_target_id_map[", prefix);
+   nir_print_uppercase(fp_h, prefix);
+   fprintf(fp_h, "_NUM_TARGETS");
+   fprintf(fp_h, "];\n");
+
+   fprintf(fp_c, "const uint64_t %s_target_id_map[", prefix);
+   nir_print_uppercase(fp_c, prefix);
+   fprintf(fp_c, "_NUM_TARGETS");
+   fprintf(fp_c, "] = {\n");
+   for (unsigned t = 0; t < num_targets; ++t) {
+      fprintf(fp_c, "    [");
+      nir_print_uppercase(fp_c, prefix);
+      fprintf(fp_c, "_TARGET_");
+      nir_print_uppercase(fp_c, targets[t]);
+      fprintf(fp_c, "] = 0x%" PRIx64 ",\n", target_ids[t]);
+   }
+   fprintf(fp_c, "};\n\n");
+}
+
+static inline void
+nir_precomp_print_target_binary_map(FILE *fp_c, FILE *fp_h, const char *prefix, unsigned num_targets, const char **targets)
+{
+   fprintf(fp_h, "extern const uint32_t **%s_targets[", prefix);
+   nir_print_uppercase(fp_h, prefix);
+   fprintf(fp_h, "_NUM_TARGETS];\n");
+
+   fprintf(fp_c, "const uint32_t **%s_targets[", prefix);
+   nir_print_uppercase(fp_c, prefix);
+   fprintf(fp_c, "_NUM_TARGETS] = {\n");
+   for (unsigned t = 0; t < num_targets; ++t) {
+      fprintf(fp_c, "    [");
+      nir_print_uppercase(fp_c, prefix);
+      fprintf(fp_c, "_TARGET_");
+      nir_print_uppercase(fp_c, targets[t]);
+      fprintf(fp_c, "] = %s_%s,\n", prefix, targets[t]);
+   }
+   fprintf(fp_c, "};\n\n");
+}
+
 static inline nir_shader *
-nir_precompiled_build_variant(const nir_function *libfunc, unsigned variant,
+nir_precompiled_build_variant(const nir_function *libfunc,
+                              gl_shader_stage stage, unsigned variant,
                               const nir_shader_compiler_options *opts,
                               const struct nir_precomp_opts *precomp_opt,
                               nir_def *(*load_arg)(nir_builder *b,
@@ -581,11 +642,11 @@ nir_precompiled_build_variant(const nir_function *libfunc, unsigned variant,
 
    nir_builder b;
    if (has_variants) {
-      b = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE, opts,
+      b = nir_builder_init_simple_shader(stage, opts,
                                          "%s variant %u", libfunc->name,
                                          variant);
    } else {
-      b = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE, opts, "%s",
+      b = nir_builder_init_simple_shader(stage, opts, "%s",
                                          libfunc->name);
    }
 

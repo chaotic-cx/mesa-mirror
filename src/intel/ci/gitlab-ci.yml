@@ -70,7 +70,7 @@ anv-tgl-vk-full:
     MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
   timeout: 2h
 
-hasvk-hsw:
+.hasvk-hsw:
   extends:
     - .hasvk-hsw-full
   variables:
@@ -252,6 +252,7 @@ iris-kbl-traces:
 iris-cml-traces:
   variables:
     GPU_VERSION: intel-cml
+    FDO_CI_CONCURRENT: 6  # Higher leads to OOMs
   extends:
     - .iris-cml-test
     - .iris-traces
@@ -285,6 +286,13 @@ iris-kbl-traces-performance:
     - .profile-traces
   variables:
     GPU_VERSION: intel-kbl
+
+iris-adl-traces-performance:
+  extends:
+    - .iris-adl-test
+    - .profile-traces
+  variables:
+    GPU_VERSION: intel-adl
 
 intel-adl-cl:
   extends:

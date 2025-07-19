@@ -22,6 +22,13 @@
 #define RADV_INSTANCE_TRIANGLE_FACING_CULL_DISABLE (1u << 29)
 #define RADV_INSTANCE_TRIANGLE_FLIP_FACING         (1u << 28)
 
+#define RADV_BLAS_POINTER_FORCE_OPAQUE     (1ul << 54)
+#define RADV_BLAS_POINTER_FORCE_NON_OPAQUE (1ul << 55)
+#define RADV_BLAS_POINTER_DISABLE_TRI_CULL (1ul << 56)
+#define RADV_BLAS_POINTER_FLIP_FACING      (1ul << 57)
+#define RADV_BLAS_POINTER_SKIP_TRIANGLES   (1ul << 62)
+#define RADV_BLAS_POINTER_SKIP_AABBS       (1ul << 63)
+
 #ifdef VULKAN
 #define VK_UUID_SIZE 16
 #else
@@ -48,7 +55,8 @@ struct radv_accel_struct_geometry_info {
 
 struct radv_accel_struct_header {
    uint32_t bvh_offset;
-   uint32_t reserved;
+   /* Copy of the root node's box flags for quicker access (no indirection through bvh_offset) */
+   uint32_t root_flags;
    vk_aabb aabb;
 
    /* GFX12 */
@@ -113,11 +121,27 @@ struct radv_bvh_box16_node {
 struct radv_bvh_box32_node {
    uint32_t children[4];
    vk_aabb coords[4];
-   uint32_t reserved[4];
+   /* VK_BVH_BOX_FLAG_* indicating if all/no children are opaque */
+   uint32_t flags;
+   uint32_t reserved[3];
 };
 
 #define RADV_BVH_ROOT_NODE    radv_bvh_node_box32
 #define RADV_BVH_INVALID_NODE 0xffffffffu
+/* used by gfx11's ds_bvh_stack* only
+ * Indicator to ignore everything in the intrinsic result (i.e. push nothing to the stack) and only pop the next node
+ * from the stack.
+ */
+#define RADV_BVH_STACK_TERMINAL_NODE 0xfffffffeu
+/* used by gfx12's ds_bvh_stack* only */
+#define RADV_BVH_STACK_SKIP_0_TO_3 0xfffffffdu
+#define RADV_BVH_STACK_SKIP_4_TO_7 0xfffffffbu
+#define RADV_BVH_STACK_SKIP_0_TO_7 0xfffffff9u
+
+/* On gfx12, bits 29-31 of the stack pointer contain flags. */
+#define RADV_BVH_STACK_FLAG_HAS_BLAS (1u << 29)
+#define RADV_BVH_STACK_FLAG_OVERFLOW (1u << 30)
+#define RADV_BVH_STACK_FLAG_TLAS_POP (1u << 31)
 
 /* GFX12 */
 

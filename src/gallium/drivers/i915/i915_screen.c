@@ -175,11 +175,10 @@ static const struct nir_shader_compiler_options gallivm_nir_options = {
    .no_integers = true,
 };
 
-static const void *
-i915_get_compiler_options(struct pipe_screen *pscreen, enum pipe_shader_ir ir,
+static const struct nir_shader_compiler_options *
+i915_get_compiler_options(struct pipe_screen *pscreen,
                           enum pipe_shader_type shader)
 {
-   assert(ir == PIPE_SHADER_IR_NIR);
    if (shader == PIPE_SHADER_FRAGMENT)
       return &i915_compiler_options;
    else
@@ -194,8 +193,7 @@ i915_optimize_nir(struct nir_shader *s)
    do {
       progress = false;
 
-      NIR_PASS_V(s, nir_lower_vars_to_ssa);
-
+      NIR_PASS(progress, s, nir_lower_vars_to_ssa);
       NIR_PASS(progress, s, nir_copy_prop);
       NIR_PASS(progress, s, nir_opt_algebraic);
       NIR_PASS(progress, s, nir_opt_constant_folding);
@@ -234,7 +232,7 @@ i915_optimize_nir(struct nir_shader *s)
    /* Group texture loads together to try to avoid hitting the
     * texture indirection phase limit.
     */
-   NIR_PASS_V(s, nir_group_loads, nir_group_all, ~0);
+   NIR_PASS(_, s, nir_group_loads, nir_group_all, ~0);
 }
 
 static char *

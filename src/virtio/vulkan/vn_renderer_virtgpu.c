@@ -158,6 +158,8 @@ sim_syncobj_create(struct virtgpu *gpu, bool signaled)
       sim.syncobjs = _mesa_pointer_hash_table_create(NULL);
       if (!sim.syncobjs) {
          mtx_unlock(&sim.mutex);
+         mtx_destroy(&syncobj->mutex);
+         free(syncobj);
          return 0;
       }
 
@@ -172,6 +174,8 @@ sim_syncobj_create(struct virtgpu *gpu, bool signaled)
          _mesa_hash_table_destroy(sim.syncobjs, NULL);
          sim.syncobjs = NULL;
          mtx_unlock(&sim.mutex);
+         mtx_destroy(&syncobj->mutex);
+         free(syncobj);
          return 0;
       }
 
@@ -1183,10 +1187,16 @@ virtgpu_bo_create_from_dma_buf(struct vn_renderer *renderer,
       /* mmap_size is only used when mappable */
       mmap_size = 0;
       if (blob_flags & VIRTGPU_BLOB_FLAG_USE_MAPPABLE) {
+         /* If queried blob size is smaller than requested allocation size, we
+          * drop the mappable flag to defer the mapping failure till the app's
+          * vkMapMemory api call.
+          *
+          * Use size zero to request mapping the whole bo.
+          */
          if (info.size < size)
-            goto fail;
-
-         mmap_size = size;
+            blob_flags &= ~VIRTGPU_BLOB_FLAG_USE_MAPPABLE;
+         else
+            mmap_size = size > 0 ? size : info.size;
       }
    }
 

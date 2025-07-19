@@ -382,6 +382,9 @@ lower_bit_size_callback(const nir_instr *instr, enum amd_gfx_level chip, bool di
       case nir_op_iadd_sat:
       case nir_op_isub_sat:
          return !divergence_known || bit_size == 8 || !alu->def.divergent ? 32 : 0;
+      case nir_op_extract_u8:
+      case nir_op_extract_i8:
+         return !divergence_known || !alu->def.divergent ? 32 : 0;
 
       default:
          return 0;
@@ -878,4 +881,14 @@ ac_nir_repack_invocations_in_workgroup(nir_builder *b, nir_def **input_bool,
       results[i].repacked_invocation_index =
          nir_mbcnt_amd(b, input_mask[i], wg_repacked_index_base);
    }
+}
+
+uint8_t
+ac_nir_lower_phis_to_scalar_cb(const nir_instr *instr, const void *_)
+{
+   nir_phi_instr *phi = nir_instr_as_phi(instr);
+   if (phi->def.bit_size == 1 || phi->def.bit_size >= 32)
+      return 1;
+
+   return 32 / phi->def.bit_size;
 }

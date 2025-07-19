@@ -1496,7 +1496,7 @@ vc4_optimize_nir(struct nir_shader *s)
 
                 NIR_PASS(_, s, nir_lower_vars_to_ssa);
                 NIR_PASS(progress, s, nir_lower_alu_to_scalar, NULL, NULL);
-                NIR_PASS(progress, s, nir_lower_phis_to_scalar, false);
+                NIR_PASS(progress, s, nir_lower_phis_to_scalar, NULL, NULL);
                 NIR_PASS(progress, s, nir_copy_prop);
                 NIR_PASS(progress, s, nir_opt_remove_phis);
                 NIR_PASS(progress, s, nir_opt_dce);
@@ -2156,7 +2156,6 @@ nir_to_qir(struct vc4_compile *c)
 }
 
 static const nir_shader_compiler_options nir_options = {
-        .lower_all_io_to_temps = true,
         .lower_extract_byte = true,
         .lower_extract_word = true,
         .lower_insert_byte = true,
@@ -2186,9 +2185,8 @@ static const nir_shader_compiler_options nir_options = {
         .scalarize_ddx = true,
 };
 
-const void *
+const struct nir_shader_compiler_options *
 vc4_screen_get_compiler_options(struct pipe_screen *pscreen,
-                                enum pipe_shader_ir ir,
                                 enum pipe_shader_type shader)
 {
         return &nir_options;

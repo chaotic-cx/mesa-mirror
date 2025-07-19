@@ -24,6 +24,7 @@
 #include "util/hash_table.h"
 #include "util/macros.h"
 #include "util/list.h"
+#include "util/u_debug.h"
 #include "util/u_dynarray.h"
 #include "util/u_math.h"
 
@@ -186,7 +187,7 @@ typedef struct _pco_igrp {
          enum pco_main_variant main;
          enum pco_backend_variant backend;
          enum pco_bitwise_variant bitwise;
-         enum pco_ctrl_variant ctrl;
+         enum pco_ctrl_variant control;
       } instr[_PCO_OP_PHASE_COUNT];
       enum pco_src_variant lower_src;
       enum pco_src_variant upper_src;
@@ -223,7 +224,10 @@ typedef struct _pco_instr {
          pco_block *parent_block; /** Basic block containing the instruction. */
       };
 
-      pco_igrp *parent_igrp; /** Igrp containing the instruction. */
+      struct {
+         enum pco_op_phase phase; /** Igrp phase the instruction is in. */
+         pco_igrp *parent_igrp; /** Igrp containing the instruction. */
+      };
    };
 
    pco_func *parent_func; /** Parent function. */
@@ -337,21 +341,13 @@ typedef struct _pco_shader {
    const char *name; /** Shader name. */
    bool is_internal; /** Whether this is an internal shader. */
    bool is_grouped; /** Whether the shader uses igrps. */
+   bool is_legalized; /** Whether the shader has been legalized. */
 
    struct list_head funcs; /** List of functions. */
    unsigned next_func; /** Next function index. */
 
    pco_data data; /** Shader data. */
-
-   struct {
-      struct util_dynarray buf; /** Shader binary. */
-
-      /** Binary patch info. */
-      unsigned num_patches;
-      struct {
-         unsigned offset;
-      } * patch;
-   } binary;
+   struct util_dynarray binary; /** Shader binary. */
 } pco_shader;
 
 /** Op info. */
@@ -365,8 +361,16 @@ struct pco_op_info {
    uint64_t src_mods[_PCO_OP_MAX_SRCS]; /** Supported source mods. */
    enum pco_op_type type; /** Op type. */
    bool has_target_cf_node; /** Set if op has a cf-node as a target. */
+   uint8_t dest_intrn_map[_PCO_OP_MAX_DESTS];
+   uint8_t src_intrn_map[_PCO_OP_MAX_SRCS];
+#ifndef NDEBUG
+   uint32_t grp_dest_maps[_PCO_OP_PHASE_COUNT][_PCO_OP_MAX_DESTS];
+   uint32_t grp_src_maps[_PCO_OP_PHASE_COUNT][_PCO_OP_MAX_SRCS];
+#endif /* NDEBUG */
 };
 extern const struct pco_op_info pco_op_info[_PCO_OP_COUNT];
+static_assert(_PCO_REF_MAP_COUNT <= 32,
+              "enum pco_ref_map must fit into an uint32_t");
 
 /** Op mod info. */
 struct pco_op_mod_info {
@@ -532,21 +536,49 @@ PCO_DEFINE_CAST(pco_cf_node_as_func,
    pco_foreach_block_in_func_rev (block, func)          \
       list_for_each_entry_safe_rev (pco_instr, instr, &(block)->instrs, link)
 
+#define pco_foreach_igrp_in_func(igrp, func) \
+   assert(func->parent_shader->is_grouped);  \
+   pco_foreach_block_in_func (block, func)   \
+      list_for_each_entry (pco_igrp, igrp, &(block)->instrs, link)
+
+#define pco_foreach_instr_in_igrp(instr, igrp)                        \
+   for (pco_instr *instr = pco_igrp_first_instr(igrp); instr != NULL; \
+        instr = pco_igrp_next_instr(instr))
+
+#define pco_foreach_instr_in_igrp_rev(instr, igrp)                   \
+   for (pco_instr *instr = pco_igrp_last_instr(igrp); instr != NULL; \
+        instr = pco_igrp_prev_instr(instr))
+
 #define pco_foreach_instr_dest(pdest, instr)    \
    for (pco_ref *pdest = &instr->dest[0];       \
         pdest < &instr->dest[instr->num_dests]; \
+        ++pdest)
+
+#define pco_foreach_instr_dest_from(pdest, instr, pdest_from)                \
+   for (pco_ref *pdest = pdest_from; pdest < &instr->dest[instr->num_dests]; \
         ++pdest)
 
 #define pco_foreach_instr_src(psrc, instr)                                   \
    for (pco_ref *psrc = &instr->src[0]; psrc < &instr->src[instr->num_srcs]; \
         ++psrc)
 
+#define pco_foreach_instr_src_from(psrc, instr, psrc_from) \
+   for (pco_ref *psrc = psrc_from; psrc < &instr->src[instr->num_srcs]; ++psrc)
+
 #define pco_foreach_instr_dest_ssa(pdest, instr) \
    pco_foreach_instr_dest (pdest, instr)         \
       if (pco_ref_is_ssa(*pdest))
 
+#define pco_foreach_instr_dest_ssa_from(pdest, instr, pdest_from) \
+   pco_foreach_instr_dest_from (pdest, instr, pdest_from)         \
+      if (pco_ref_is_ssa(*pdest))
+
 #define pco_foreach_instr_src_ssa(psrc, instr) \
    pco_foreach_instr_src (psrc, instr)         \
+      if (pco_ref_is_ssa(*psrc))
+
+#define pco_foreach_instr_src_ssa_from(psrc, instr, psrc_from) \
+   pco_foreach_instr_src_from (psrc, instr, psrc_from)         \
       if (pco_ref_is_ssa(*psrc))
 
 #define pco_first_cf_node(body) list_first_entry(body, pco_cf_node, link)
@@ -629,7 +661,7 @@ static inline unsigned pco_igrp_variant(const pco_igrp *igrp,
       return igrp->variant.instr[phase].bitwise;
 
    case PCO_ALUTYPE_CONTROL:
-      return igrp->variant.instr[phase].ctrl;
+      return igrp->variant.instr[phase].control;
 
    default:
       break;
@@ -1043,6 +1075,75 @@ static inline pco_igrp *pco_prev_igrp(pco_igrp *igrp)
    return list_entry(igrp->link.prev, pco_igrp, link);
 }
 
+/**
+ * \brief Returns the first instruction in an igrp.
+ *
+ * \param[in] igrp The igrp.
+ * \return The first instruction.
+ */
+static inline pco_instr *pco_igrp_first_instr(pco_igrp *igrp)
+{
+   for (enum pco_op_phase p = 0; p < _PCO_OP_PHASE_COUNT; ++p)
+      if (igrp->instrs[p])
+         return igrp->instrs[p];
+
+   unreachable();
+}
+
+/**
+ * \brief Returns the last instruction in an igrp.
+ *
+ * \param[in] igrp The igrp.
+ * \return The last instruction.
+ */
+static inline pco_instr *pco_igrp_last_instr(pco_igrp *igrp)
+{
+   for (enum pco_op_phase p = _PCO_OP_PHASE_COUNT; p-- > 0;)
+      if (igrp->instrs[p])
+         return igrp->instrs[p];
+
+   unreachable();
+}
+
+/**
+ * \brief Returns the next instruction in an igrp.
+ *
+ * \param[in] instr The current instruction.
+ * \return The next instruction, or NULL if we've reached the end of the igrp.
+ */
+static inline pco_instr *pco_igrp_next_instr(pco_instr *instr)
+{
+   if (!instr)
+      return NULL;
+
+   pco_igrp *igrp = instr->parent_igrp;
+   for (enum pco_op_phase p = instr->phase + 1; p < _PCO_OP_PHASE_COUNT; ++p)
+      if (igrp->instrs[p])
+         return igrp->instrs[p];
+
+   return NULL;
+}
+
+/**
+ * \brief Returns the previous instruction in an igrp.
+ *
+ * \param[in] instr The current instruction.
+ * \return The previous instruction, or NULL if we've reached the end of the
+ *         igrp.
+ */
+static inline pco_instr *pco_igrp_prev_instr(pco_instr *instr)
+{
+   if (!instr)
+      return NULL;
+
+   pco_igrp *igrp = instr->parent_igrp;
+   for (enum pco_op_phase p = instr->phase; p-- > 0;)
+      if (igrp->instrs[p])
+         return igrp->instrs[p];
+
+   return NULL;
+}
+
 /* Debug printing helpers. */
 static inline bool pco_should_print_nir(nir_shader *nir)
 {
@@ -1119,8 +1220,13 @@ bool pco_dce(pco_shader *shader);
 bool pco_end(pco_shader *shader);
 bool pco_group_instrs(pco_shader *shader);
 bool pco_index(pco_shader *shader, bool skip_ssa);
-bool pco_nir_pfo(nir_shader *nir, pco_fs_data *fs);
-bool pco_nir_pvi(nir_shader *nir, pco_vs_data *vs);
+bool pco_legalize(pco_shader *shader);
+bool pco_nir_lower_algebraic(nir_shader *shader);
+bool pco_nir_lower_algebraic_late(nir_shader *shader);
+bool pco_nir_lower_vk(nir_shader *shader, pco_common_data *common);
+bool pco_nir_pfo(nir_shader *shader, pco_fs_data *fs);
+bool pco_nir_point_size(nir_shader *shader);
+bool pco_nir_pvi(nir_shader *shader, pco_vs_data *vs);
 bool pco_opt(pco_shader *shader);
 bool pco_ra(pco_shader *shader);
 bool pco_schedule(pco_shader *shader);
@@ -1444,6 +1550,38 @@ static inline enum pco_io pco_ref_get_io(pco_ref ref)
 }
 
 /**
+ * \brief Returns the movw01 value of an I/O reference type.
+ *
+ * \param[in] ref Reference.
+ * \return movw01 value.
+ */
+static inline enum pco_movw01 pco_ref_get_movw01(pco_ref ref)
+{
+   /* Default/unused case. */
+   if (pco_ref_is_null(ref))
+      return PCO_MOVW01_FT0;
+
+   switch (pco_ref_get_io(ref)) {
+   case PCO_IO_FT0:
+      return PCO_MOVW01_FT0;
+
+   case PCO_IO_FT1:
+      return PCO_MOVW01_FT1;
+
+   case PCO_IO_FT2:
+      return PCO_MOVW01_FT2;
+
+   case PCO_IO_FTE:
+      return PCO_MOVW01_FTE;
+
+   default:
+      break;
+   }
+
+   unreachable();
+}
+
+/**
  * \brief Returns the predicate from its reference type.
  *
  * \param[in] ref Reference.
@@ -1520,12 +1658,7 @@ static inline pco_ref pco_ref_ssa(unsigned index, unsigned bits, unsigned chans)
 static inline pco_ref
 pco_ref_new_ssa(pco_func *func, unsigned bits, unsigned chans)
 {
-   return (pco_ref){
-      .val = func->next_ssa++,
-      .chans = chans - 1,
-      .bits = pco_bits(bits),
-      .type = PCO_REF_TYPE_SSA,
-   };
+   return pco_ref_ssa(func->next_ssa++, bits, chans);
 }
 
 /**
@@ -1537,6 +1670,30 @@ pco_ref_new_ssa(pco_func *func, unsigned bits, unsigned chans)
 static inline pco_ref pco_ref_new_ssa32(pco_func *func)
 {
    return pco_ref_new_ssa(func, 32, 1);
+}
+
+/**
+ * \brief Builds and returns a new 32x2 SSA address reference.
+ *
+ * \param[in,out] func The function.
+ * \return SSA address reference.
+ */
+static inline pco_ref pco_ref_new_ssa_addr(pco_func *func)
+{
+   return pco_ref_new_ssa(func, 32, 2);
+}
+
+/**
+ * \brief Builds new 32x1[2] SSA address component references.
+ *
+ * \param[in,out] func The function.
+ * \param[out] addr_comps The new address component references.
+ */
+static inline void pco_ref_new_ssa_addr_comps(pco_func *func,
+                                              pco_ref addr_comps[static 2])
+{
+   addr_comps[0] = pco_ref_new_ssa32(func);
+   addr_comps[1] = pco_ref_new_ssa32(func);
 }
 
 /**
@@ -1597,6 +1754,21 @@ pco_ref_hwreg_vec(unsigned index, enum pco_reg_class reg_class, unsigned chans)
       .type = PCO_REF_TYPE_REG,
       .reg_class = reg_class,
    };
+}
+
+/**
+ * \brief Builds 32x1[2] hardware register address component references.
+ *
+ * \param[in] index Register index.
+ * \param[in] reg_class Register class.
+ * \param[out] addr_comps The new address component references.
+ */
+static inline void pco_ref_hwreg_addr_comps(unsigned index,
+                                            enum pco_reg_class reg_class,
+                                            pco_ref addr_comps[static 2])
+{
+   addr_comps[0] = pco_ref_hwreg(index, reg_class);
+   addr_comps[1] = pco_ref_hwreg(index + 1, reg_class);
 }
 
 /**
@@ -1727,13 +1899,31 @@ static inline pco_ref pco_ref_drc(enum pco_drc drc)
 }
 
 /* PCO ref utils. */
+
+/**
+ * \brief Updates a reference to reset its mods.
+ *
+ * \param[in] ref Base reference.
+ * \return Updated reference.
+ */
+static inline pco_ref pco_ref_reset_mods(pco_ref ref)
+{
+   ref.oneminus = false;
+   ref.clamp = false;
+   ref.flr = false;
+   ref.abs = false;
+   ref.neg = false;
+   ref.elem = 0;
+
+   return ref;
+}
+
 /**
  * \brief Transfers reference mods, optionally resetting them.
  *
  * \param[in,out] dest Reference to transfer mods to.
  * \param[in,out] source Reference to transfer mods from.
  * \param[in] reset Whether to reset the source mods.
- * \return I/O reference.
  */
 static inline void pco_ref_xfer_mods(pco_ref *dest, pco_ref *source, bool reset)
 {
@@ -1744,14 +1934,8 @@ static inline void pco_ref_xfer_mods(pco_ref *dest, pco_ref *source, bool reset)
    dest->neg = source->neg;
    dest->elem = source->elem;
 
-   if (reset) {
-      source->oneminus = false;
-      source->clamp = false;
-      source->flr = false;
-      source->abs = false;
-      source->neg = false;
-      source->elem = 0;
-   }
+   if (reset)
+      *source = pco_ref_reset_mods(*source);
 }
 
 /**
@@ -1922,6 +2106,47 @@ static inline bool pco_refs_are_equal(pco_ref ref0, pco_ref ref1)
 }
 
 /**
+ * \brief Checks a reference has a valid hardware source mapping.
+ *
+ * \param[in] ref Reference.
+ * \param[in] mapped_src Hardware source mapping.
+ * \param[out] needs_s124 Whether the mapping needs to use S{1,2,4}
+ *                        rather than S{0,2,3}.
+ * \return True if the mapping is valid.
+ */
+static inline bool
+ref_src_map_valid(pco_ref ref, enum pco_io mapped_src, bool *needs_s124)
+{
+   if (needs_s124)
+      *needs_s124 = false;
+
+   /* Restrictions only apply to hardware registers. */
+   if (!pco_ref_is_idx_reg(ref) && !pco_ref_is_reg(ref))
+      return true;
+
+   switch (pco_ref_get_reg_class(ref)) {
+   case PCO_REG_CLASS_COEFF:
+   case PCO_REG_CLASS_SHARED:
+   case PCO_REG_CLASS_INDEX:
+   case PCO_REG_CLASS_PIXOUT:
+      return (mapped_src == PCO_IO_S0) || (mapped_src == PCO_IO_S2) ||
+             (mapped_src == PCO_IO_S3);
+
+   case PCO_REG_CLASS_SPEC:
+      if (needs_s124)
+         *needs_s124 = true;
+
+      return (mapped_src == PCO_IO_S1) || (mapped_src == PCO_IO_S2) ||
+             (mapped_src == PCO_IO_S4);
+
+   default:
+      return true;
+   }
+
+   return false;
+}
+
+/**
  * \brief Returns whether none of the lower/upper sources in an instruction
  *        group are set.
  *
@@ -1991,6 +2216,32 @@ static inline pco_instr *find_parent_instr_from(pco_ref src, pco_instr *from)
    return NULL;
 }
 
+static inline bool pco_should_skip_pass(const char *pass)
+{
+   return comma_separated_list_contains(pco_skip_passes, pass);
+}
+
+#define PCO_PASS(progress, shader, pass, ...)                 \
+   do {                                                       \
+      if (pco_should_skip_pass(#pass)) {                      \
+         fprintf(stdout, "Skipping pass '%s'\n", #pass);      \
+         break;                                               \
+      }                                                       \
+                                                              \
+      if (pass(shader, ##__VA_ARGS__)) {                      \
+         UNUSED bool _;                                       \
+         progress = true;                                     \
+                                                              \
+         if (PCO_DEBUG(REINDEX))                              \
+            pco_index(shader, false);                         \
+                                                              \
+         pco_validate_shader(shader, "after " #pass);         \
+                                                              \
+         if (pco_should_print_shader_pass(shader))            \
+            pco_print_shader(shader, stdout, "after " #pass); \
+      }                                                       \
+   } while (0)
+
 /* Common hw constants. */
 
 /** Integer/float zero. */
@@ -2011,5 +2262,40 @@ void pco_print_instr(pco_shader *shader, pco_instr *instr);
 void pco_print_igrp(pco_shader *shader, pco_igrp *igrp);
 void pco_print_cf_node_name(pco_shader *shader, pco_cf_node *cf_node);
 void pco_print_shader_info(pco_shader *shader);
+void pco_print_phase(pco_shader *shader,
+                     enum pco_alutype alutype,
+                     enum pco_op_phase phase);
+
+/**
+ * \brief Packs a descriptor set and binding into a uint32_t.
+ *
+ * \param[in] desc_set The descriptor set.
+ * \param[in] binding The binding.
+ * \return The packed descriptor set and binding.
+ */
+static inline uint32_t pco_pack_desc(unsigned desc_set, unsigned binding)
+{
+   assert(desc_set <= UINT16_MAX);
+   assert(binding <= UINT16_MAX);
+
+   return desc_set | binding << 16;
+}
+
+/**
+ * \brief Unpacks a descriptor set and binding from a uint32_t.
+ *
+ * \param[in] packed The packed descriptor set and binding.
+ * \param[out] desc_set The descriptor set.
+ * \param[out] binding The binding.
+ */
+static inline void
+pco_unpack_desc(uint32_t packed, unsigned *desc_set, unsigned *binding)
+{
+   assert(desc_set);
+   assert(binding);
+
+   *desc_set = packed & 0xffff;
+   *binding = packed >> 16;
+}
 
 #endif /* PCO_INTERNAL_H */

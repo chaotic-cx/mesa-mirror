@@ -2,9 +2,9 @@
 # shellcheck disable=SC2086 # we want word splitting
 # shellcheck disable=SC1091 # paths only become valid at runtime
 
-set -uex
-
 . "${SCRIPTS_DIR}/setup-test-env.sh"
+
+set -uex
 
 section_start cuttlefish_setup "cuttlefish: setup"
 
@@ -87,6 +87,14 @@ HOME=/cuttlefish launch_cvd \
 sleep 1
 
 popd
+
+# download Android Mesa from S3
+curl-with-retry -O "${FDO_HTTP_CACHE_URI:-}https://${PIPELINE_ARTIFACTS_BASE}/${S3_ANDROID_ARTIFACT_NAME}.tar.zst"
+mkdir /mesa-android
+tar -C /mesa-android -xvf ${S3_ANDROID_ARTIFACT_NAME}.tar.zst
+
+# shellcheck disable=SC2034 # used externally
+INSTALL="/mesa-android/install"
 
 # shellcheck disable=SC2034 # used externally
 ADB=adb

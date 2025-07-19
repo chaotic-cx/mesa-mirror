@@ -1877,6 +1877,17 @@ impl<'a> ShaderFromNir<'a> {
                 _ => panic!("Invalid LOD mode"),
             };
 
+            // Starting with Blackwell B, the shader stage check for derivatives
+            // is back to defaulting to disabled on compute and instead we have
+            // a new derivative mode to re-enable it.  If tex_lod_mode == Zero,
+            // there is no implicit derivative so this doesn't matter.
+            let deriv_mode =
+                if self.sm.sm() >= 120 && lod_mode != TexLodMode::Zero {
+                    TexDerivMode::DerivXY
+                } else {
+                    TexDerivMode::Auto
+                };
+
             let offset_mode = match flags.offset_mode() {
                 NAK_NIR_OFFSET_MODE_NONE => TexOffsetMode::None,
                 NAK_NIR_OFFSET_MODE_AOFFI => TexOffsetMode::AddOffI,
@@ -1908,12 +1919,14 @@ impl<'a> ShaderFromNir<'a> {
                     channel_mask,
                 });
             } else if tex.op == nir_texop_lod {
+                assert!(lod_mode == TexLodMode::Auto);
                 assert!(offset_mode == TexOffsetMode::None);
                 b.push_op(OpTmml {
                     dsts: dsts,
                     tex: tex_ref,
                     srcs: srcs,
                     dim: dim,
+                    deriv_mode,
                     nodep: flags.nodep(),
                     channel_mask,
                 });
@@ -1955,6 +1968,7 @@ impl<'a> ShaderFromNir<'a> {
                     srcs: srcs,
                     dim: dim,
                     lod_mode: lod_mode,
+                    deriv_mode,
                     z_cmpr: flags.has_z_cmpr(),
                     offset_mode,
                     mem_eviction_priority: MemEvictionPriority::Normal,
@@ -1980,12 +1994,6 @@ impl<'a> ShaderFromNir<'a> {
             }
         }
 
-        if self.sm.sm() < 50 {
-            // TODO: texbar should be created by calc_instr_deps() and
-            // should be less conservative than textures_left=0.
-            // See the old pass: NVC0LegalizePostRA::insertTextureBarriers
-            b.push_op(OpTexDepBar { textures_left: 0 });
-        }
         self.set_ssa(tex.def.as_def(), nir_dst);
     }
 
@@ -2328,6 +2336,14 @@ impl<'a> ShaderFromNir<'a> {
                         op: ShflOp::Bfly,
                     });
 
+                    // Starting with Blackwell, the shader stage now affects
+                    // fswzadd so we need to use fswzadd.ndv
+                    let deriv_mode = if self.sm.sm() >= 100 {
+                        TexDerivMode::NonDivergent
+                    } else {
+                        TexDerivMode::Auto
+                    };
+
                     b.push_op(OpFSwzAdd {
                         dst: dst.into(),
                         srcs: [scratch.into(), self.get_src(&srcs[0])],
@@ -2339,6 +2355,7 @@ impl<'a> ShaderFromNir<'a> {
                         ],
                         rnd_mode: self.float_ctl[ftype].rnd_mode,
                         ftz: self.float_ctl[ftype].ftz,
+                        deriv_mode,
                     });
                 } else {
                     b.push_op(OpFSwz {
@@ -2352,6 +2369,7 @@ impl<'a> ShaderFromNir<'a> {
                         ],
                         rnd_mode: self.float_ctl[ftype].rnd_mode,
                         ftz: self.float_ctl[ftype].ftz,
+                        deriv_mode: TexDerivMode::Auto,
                         shuffle: FSwzShuffle::SwapHorizontal,
                     });
                 }
@@ -2379,6 +2397,14 @@ impl<'a> ShaderFromNir<'a> {
                         op: ShflOp::Bfly,
                     });
 
+                    // Starting with Blackwell, the shader stage now affects
+                    // fswzadd so we need to use fswzadd.ndv
+                    let deriv_mode = if self.sm.sm() >= 100 {
+                        TexDerivMode::NonDivergent
+                    } else {
+                        TexDerivMode::Auto
+                    };
+
                     b.push_op(OpFSwzAdd {
                         dst: dst.into(),
                         srcs: [scratch.into(), self.get_src(&srcs[0])],
@@ -2390,6 +2416,7 @@ impl<'a> ShaderFromNir<'a> {
                         ],
                         rnd_mode: self.float_ctl[ftype].rnd_mode,
                         ftz: self.float_ctl[ftype].ftz,
+                        deriv_mode,
                     });
                 } else {
                     b.push_op(OpFSwz {
@@ -2403,6 +2430,7 @@ impl<'a> ShaderFromNir<'a> {
                         ],
                         rnd_mode: self.float_ctl[ftype].rnd_mode,
                         ftz: self.float_ctl[ftype].ftz,
+                        deriv_mode: TexDerivMode::Auto,
                         shuffle: FSwzShuffle::SwapVertical,
                     });
                 }
@@ -3655,28 +3683,110 @@ impl<'a> ShaderFromNir<'a> {
             nir_intrinsic_vote_all
             | nir_intrinsic_vote_any
             | nir_intrinsic_vote_ieq => {
-                assert!(srcs[0].bit_size() == 1);
                 let src = self.get_src(&srcs[0]);
+                let src_bits = srcs[0].bit_size() * srcs[0].num_components();
 
                 assert!(intrin.def.bit_size() == 1);
                 let dst = b.alloc_ssa(RegFile::Pred);
 
-                b.push_op(OpVote {
-                    op: match intrin.intrinsic {
-                        nir_intrinsic_vote_all => VoteOp::All,
-                        nir_intrinsic_vote_any => VoteOp::Any,
-                        nir_intrinsic_vote_ieq => VoteOp::Eq,
-                        _ => panic!("Unknown vote intrinsic"),
-                    },
-                    ballot: Dst::None,
-                    vote: dst.into(),
-                    pred: src,
-                });
+                if src_bits == 1 {
+                    b.push_op(OpVote {
+                        op: match intrin.intrinsic {
+                            nir_intrinsic_vote_all => VoteOp::All,
+                            nir_intrinsic_vote_any => VoteOp::Any,
+                            nir_intrinsic_vote_ieq => VoteOp::Eq,
+                            _ => panic!("Unknown vote intrinsic"),
+                        },
+                        ballot: Dst::None,
+                        vote: dst.into(),
+                        pred: src,
+                    });
+                } else {
+                    assert_eq!(intrin.intrinsic, nir_intrinsic_vote_ieq);
+                    b.push_op(OpMatch {
+                        op: MatchOp::All,
+                        mask: Dst::None,
+                        pred: dst.into(),
+                        src,
+                        u64: match src_bits {
+                            32 => false,
+                            64 => true,
+                            _ => panic!("Unsupported vote_ieq bit size"),
+                        },
+                    });
+                }
                 self.set_dst(&intrin.def, dst.into());
             }
             nir_intrinsic_is_sparse_texels_resident => {
                 let src = self.get_src(&srcs[0]);
                 let dst = b.isetp(IntCmpType::I32, IntCmpOp::Ne, src, 0.into());
+                self.set_dst(&intrin.def, dst.into());
+            }
+            nir_intrinsic_cmat_muladd_nv => {
+                let flags: nak_nir_cmat_mul_add_flags =
+                    unsafe { std::mem::transmute(intrin.flags()) };
+                let cmat_a = self.get_src(&srcs[0]);
+                let cmat_b = self.get_src(&srcs[1]);
+                let cmat_c = self.get_src(&srcs[2]);
+                let dst_bit_size = intrin.def.bit_size();
+                let dst = b.alloc_ssa_vec(
+                    RegFile::GPR,
+                    (intrin.def.num_components() * intrin.def.bit_size)
+                        .div_ceil(32),
+                );
+                let dst_type = FloatType::from_bits(dst_bit_size.into());
+                match flags.cmat_type() {
+                    NAK_CMAT_TYPE_M16N8K8_FLOAT
+                    | NAK_CMAT_TYPE_M16N8K16_FLOAT => {
+                        let mat_size = match flags.cmat_type() {
+                            NAK_CMAT_TYPE_M16N8K8_FLOAT => HmmaSize::M16N8K8,
+                            NAK_CMAT_TYPE_M16N8K16_FLOAT => HmmaSize::M16N8K16,
+                            val => unreachable!("unsupported HMMA type: {val}"),
+                        };
+
+                        assert_eq!(flags.a_type(), GLSL_TYPE_FLOAT16);
+                        assert_eq!(flags.b_type(), GLSL_TYPE_FLOAT16);
+                        assert!(!flags.sat());
+                        b.push_op(OpHmma {
+                            dst: dst.clone().into(),
+                            dst_type: dst_type,
+                            src_type: FloatType::F16,
+                            mat_size: mat_size,
+                            srcs: [cmat_a.into(), cmat_b.into(), cmat_c.into()],
+                        });
+                    }
+                    NAK_CMAT_TYPE_M8N8K16_INT
+                    | NAK_CMAT_TYPE_M16N8K16_INT
+                    | NAK_CMAT_TYPE_M16N8K32_INT => {
+                        let a_type = match flags.a_type() {
+                            GLSL_TYPE_UINT8 => IntType::U8,
+                            GLSL_TYPE_INT8 => IntType::I8,
+                            val => unreachable!("Invalid a_type: {val}"),
+                        };
+                        let b_type = match flags.b_type() {
+                            GLSL_TYPE_UINT8 => IntType::U8,
+                            GLSL_TYPE_INT8 => IntType::I8,
+                            val => unreachable!("Invalid b_type: {val}"),
+                        };
+
+                        let mat_size = match flags.cmat_type() {
+                            NAK_CMAT_TYPE_M8N8K16_INT => ImmaSize::M8N8K16,
+                            NAK_CMAT_TYPE_M16N8K16_INT => ImmaSize::M16N8K16,
+                            NAK_CMAT_TYPE_M16N8K32_INT => ImmaSize::M16N8K32,
+                            val => unreachable!("unsupported IMMA type: {val}"),
+                        };
+
+                        b.push_op(OpImma {
+                            dst: dst.clone().into(),
+                            mat_size,
+                            srcs: [cmat_a.into(), cmat_b.into(), cmat_c.into()],
+                            src_types: [a_type, b_type],
+                            saturate: flags.sat(),
+                        });
+                    }
+                    val => unreachable!("Unknown cmat_type {val}"),
+                }
+
                 self.set_dst(&intrin.def, dst.into());
             }
             _ => panic!(

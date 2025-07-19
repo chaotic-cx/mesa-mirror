@@ -237,7 +237,8 @@ struct nvc0_context {
    struct list_head tex_head;
    struct list_head img_head;
 
-   PIPE_FB_SURFACES; //STOP USING THIS
+   struct pipe_surface *fb_cbufs[PIPE_MAX_COLOR_BUFS];
+   struct pipe_surface *fb_zsbuf;
    struct pipe_framebuffer_state framebuffer;
    bool sample_locations_enabled;
    uint8_t sample_locations[2 * 4 * 8];
@@ -270,11 +271,6 @@ struct nvc0_context {
    uint32_t cond_condmode; /* the calculated condition */
 
    struct nvc0_blitctx *blit;
-
-   /* NOTE: some of these surfaces may reference buffers */
-   struct pipe_surface *surfaces[2][NVC0_MAX_SURFACE_SLOTS];
-   uint16_t surfaces_dirty[2];
-   uint16_t surfaces_valid[2];
 
    struct pipe_shader_buffer buffers[6][NVC0_MAX_BUFFERS];
    uint32_t buffers_dirty[6];

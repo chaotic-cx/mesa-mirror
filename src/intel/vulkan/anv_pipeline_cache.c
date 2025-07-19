@@ -272,7 +272,12 @@ anv_shader_bin_create(struct anv_device *device,
       prog_data_in->const_data_offset;
 
    int rv_count = 0;
-   struct brw_shader_reloc_value reloc_values[10];
+   struct brw_shader_reloc_value reloc_values[11];
+   assert((device->physical->va.instruction_state_pool.addr & 0xffffffff) == 0);
+   reloc_values[rv_count++] = (struct brw_shader_reloc_value) {
+      .id = BRW_SHADER_RELOC_INSTRUCTION_BASE_ADDR_HIGH,
+      .value = device->physical->va.instruction_state_pool.addr >> 32,
+   };
    assert((device->physical->va.dynamic_visible_pool.addr & 0xffffffff) == 0);
    reloc_values[rv_count++] = (struct brw_shader_reloc_value) {
       .id = BRW_SHADER_RELOC_DESCRIPTORS_BUFFER_ADDR_HIGH,
@@ -665,9 +670,9 @@ anv_load_fp64_shader(struct anv_device *device)
 
    nir_validate_shader(nir, "after spirv_to_nir");
 
-   NIR_PASS_V(nir, nir_lower_variable_initializers, nir_var_function_temp);
-   NIR_PASS_V(nir, nir_lower_returns);
-   NIR_PASS_V(nir, nir_inline_functions);
+   NIR_PASS(_, nir, nir_lower_variable_initializers, nir_var_function_temp);
+   NIR_PASS(_, nir, nir_lower_returns);
+   NIR_PASS(_, nir, nir_inline_functions);
 
    anv_device_upload_nir(device, device->internal_cache,
                          nir, sha1);

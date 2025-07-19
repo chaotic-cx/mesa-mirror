@@ -194,6 +194,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .KHR_variable_pointers                 = true,
    .KHR_vertex_attribute_divisor          = true,
    .KHR_vulkan_memory_model               = true,
+   .KHR_workgroup_memory_explicit_layout  = true,
    .KHR_zero_initialize_workgroup_memory  = true,
    .ARM_rasterization_order_attachment_access = true,
    .EXT_4444_formats                      = true,
@@ -203,6 +204,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .EXT_calibrated_timestamps             = true,
    .EXT_color_write_enable                = true,
    .EXT_conditional_rendering             = true,
+   .EXT_depth_bias_control                = true,
    .EXT_depth_clip_enable                 = true,
    .EXT_depth_clip_control                = true,
    .EXT_depth_range_unrestricted          = true,
@@ -268,6 +270,7 @@ static const struct vk_device_extension_table lvp_device_extensions_supported = 
    .EXT_swapchain_maintenance1            = true,
 #endif
    .EXT_texel_buffer_alignment            = true,
+   .EXT_tooling_info                      = true,
    .EXT_transform_feedback                = true,
    .EXT_vertex_attribute_divisor          = true,
    .EXT_vertex_input_dynamic_state        = true,
@@ -548,6 +551,12 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       /* VK_EXT_image_sliced_view_of_3d */
       .imageSlicedViewOf3D = true,
 
+      /* VK_EXT_depth_bias_control */
+      .depthBiasControl = true,
+      .leastRepresentableValueForceUnormRepresentation = true,
+      .floatRepresentation = true,
+      .depthBiasExact = true,
+
       /* VK_EXT_depth_clip_control */
       .depthClipControl = true,
 
@@ -774,6 +783,12 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       .fragmentShaderSampleInterlock = true,
       .fragmentShaderPixelInterlock = true,
       .fragmentShaderShadingRateInterlock = false,
+
+      /* VK_KHR_workgroup_memory_explicit_layout */
+      .workgroupMemoryExplicitLayout = true,
+      .workgroupMemoryExplicitLayoutScalarBlockLayout = true,
+      .workgroupMemoryExplicitLayout8BitAccess = true,
+      .workgroupMemoryExplicitLayout16BitAccess = true,
    };
 }
 
@@ -1008,7 +1023,7 @@ lvp_get_properties(const struct lvp_physical_device *device, struct vk_propertie
       .maxDescriptorSetUpdateAfterBindStorageImages = MAX_DESCRIPTORS,
       .maxDescriptorSetUpdateAfterBindInputAttachments = MAX_DESCRIPTORS,
 
-      .supportedDepthResolveModes = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT | VK_RESOLVE_MODE_AVERAGE_BIT,
+      .supportedDepthResolveModes = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT,
       .supportedStencilResolveModes = VK_RESOLVE_MODE_SAMPLE_ZERO_BIT,
       .independentResolveNone = false,
       .independentResolve = false,
@@ -1294,7 +1309,7 @@ lvp_physical_device_init(struct lvp_physical_device *device,
    if (!device->pscreen)
       return vk_error(instance, VK_ERROR_OUT_OF_HOST_MEMORY);
    for (unsigned i = 0; i < ARRAY_SIZE(device->drv_options); i++)
-      device->drv_options[i] = device->pscreen->get_compiler_options(device->pscreen, PIPE_SHADER_IR_NIR, i);
+      device->drv_options[i] = device->pscreen->get_compiler_options(device->pscreen, i);
 
    device->sync_timeline_type = vk_sync_timeline_get_type(&lvp_pipe_sync_type);
    device->sync_types[0] = &lvp_pipe_sync_type;
@@ -2349,66 +2364,46 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_BindImageMemory2(VkDevice _device,
       LVP_FROM_HANDLE(lvp_device_memory, mem, bind_info->memory);
       LVP_FROM_HANDLE(lvp_image, image, bind_info->image);
       VkBindMemoryStatusKHR *status = (void*)vk_find_struct_const(&pBindInfos[i], BIND_MEMORY_STATUS_KHR);
-      bool did_bind = false;
 
-#ifdef LVP_USE_WSI_PLATFORM
-      vk_foreach_struct_const(s, bind_info->pNext) {
-         switch (s->sType) {
-         case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR: {
-            const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
-               (const VkBindImageMemorySwapchainInfoKHR *) s;
-            struct lvp_image *swapchain_image =
-               lvp_swapchain_get_image(swapchain_info->swapchain,
-                                       swapchain_info->imageIndex);
-
-            image->planes[0].pmem = swapchain_image->planes[0].pmem;
-            image->planes[0].memory_offset = swapchain_image->planes[0].memory_offset;
-            device->pscreen->resource_bind_backing(device->pscreen,
-                                                   image->planes[0].bo,
-                                                   image->planes[0].pmem,
-                                                   0, 0,
-                                                   image->planes[0].memory_offset);
-            did_bind = true;
-            if (status)
-               *status->pResult = VK_SUCCESS;
-            break;
-         }
-         default:
-            break;
-         }
-      }
+      if (!mem) {
+#if DETECT_OS_ANDROID
+         /* TODO handle VkNativeBufferANDROID */
+         unreachable("VkBindImageMemoryInfo with no memory");
+#else
+         const VkBindImageMemorySwapchainInfoKHR *swapchain_info =
+            vk_find_struct_const(bind_info->pNext,
+                                 BIND_IMAGE_MEMORY_SWAPCHAIN_INFO_KHR);
+         assert(swapchain_info && swapchain_info->swapchain != VK_NULL_HANDLE);
+         mem = lvp_device_memory_from_handle(wsi_common_get_memory(
+            swapchain_info->swapchain, swapchain_info->imageIndex));
 #endif
+      }
 
-      if (!did_bind) {
-         if (!mem) {
-            continue;
-         }
-
-         uint64_t offset_B = 0;
-         VkResult result;
-         if (image->disjoint) {
-            const VkBindImagePlaneMemoryInfo *plane_info =
-               vk_find_struct_const(pBindInfos[i].pNext, BIND_IMAGE_PLANE_MEMORY_INFO);
-            uint8_t plane = lvp_image_aspects_to_plane(image, plane_info->planeAspect);
+      assert(mem);
+      uint64_t offset_B = 0;
+      VkResult result;
+      if (image->disjoint) {
+         const VkBindImagePlaneMemoryInfo *plane_info =
+            vk_find_struct_const(pBindInfos[i].pNext, BIND_IMAGE_PLANE_MEMORY_INFO);
+         uint8_t plane = lvp_image_aspects_to_plane(image, plane_info->planeAspect);
+         result = lvp_image_plane_bind(device, &image->planes[plane],
+                                       mem, bind_info->memoryOffset, &offset_B);
+         if (status)
+            *status->pResult = result;
+         if (result != VK_SUCCESS)
+            return result;
+      } else {
+         VkResult fail = VK_SUCCESS;
+         for (unsigned plane = 0; plane < image->plane_count; plane++) {
             result = lvp_image_plane_bind(device, &image->planes[plane],
-                                          mem, bind_info->memoryOffset, &offset_B);
+                                          mem, bind_info->memoryOffset + image->offset, &offset_B);
             if (status)
-               *status->pResult = result;
+               *status->pResult = res;
             if (result != VK_SUCCESS)
-               return result;
-         } else {
-            VkResult fail = VK_SUCCESS;
-            for (unsigned plane = 0; plane < image->plane_count; plane++) {
-               result = lvp_image_plane_bind(device, &image->planes[plane],
-                                             mem, bind_info->memoryOffset + image->offset, &offset_B);
-               if (status)
-                  *status->pResult = res;
-               if (result != VK_SUCCESS)
-                  fail = result;
-            }
-            if (fail != VK_SUCCESS)
-               return fail;
+               fail = result;
          }
+         if (fail != VK_SUCCESS)
+            return fail;
       }
    }
    return res;

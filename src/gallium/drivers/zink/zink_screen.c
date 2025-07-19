@@ -115,7 +115,6 @@ zink_debug_options[] = {
    { "nobgc", ZINK_DEBUG_NOBGC, "Disable all async pipeline compiles" },
    { "mem", ZINK_DEBUG_MEM, "Debug memory allocations" },
    { "quiet", ZINK_DEBUG_QUIET, "Suppress warnings" },
-   { "ioopt", ZINK_DEBUG_IOOPT, "Optimize IO" },
    { "nopc", ZINK_DEBUG_NOPC, "No precompilation" },
    { "msaaopt", ZINK_DEBUG_MSAAOPT, "Optimize out loads/stores of MSAA attachments" },
    DEBUG_NAMED_VALUE_END
@@ -924,6 +923,8 @@ zink_init_screen_caps(struct zink_screen *screen)
 
    caps->min_texel_offset = screen->info.props.limits.minTexelOffset;
    caps->max_texel_offset = screen->info.props.limits.maxTexelOffset;
+
+   caps->max_timeline_semaphore_difference = screen->info.timeline_props.maxTimelineSemaphoreValueDifference;
 
    caps->vertex_color_unclamped = true;
 
@@ -2299,6 +2300,27 @@ zink_create_exportable_semaphore(struct zink_screen *screen)
    return ret == VK_SUCCESS ? sem : VK_NULL_HANDLE;
 }
 
+#if defined(HAVE_LIBDRM) && (DETECT_OS_LINUX || DETECT_OS_BSD)
+static int
+zink_resource_get_dma_buf(struct zink_screen *screen, struct zink_resource *res)
+{
+   if (res->obj->is_aux) {
+      return os_dupfd_cloexec(res->obj->handle);
+   } else {
+      VkMemoryGetFdInfoKHR fd_info = {0};
+      fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
+      fd_info.memory = zink_bo_get_mem(res->obj->bo);
+      fd_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
+
+      int fd;
+      if (VKSCR(GetMemoryFdKHR)(screen->dev, &fd_info, &fd) != VK_SUCCESS)
+         return -1;
+
+      return fd;
+   }
+}
+#endif
+
 VkSemaphore
 zink_screen_export_dmabuf_semaphore(struct zink_screen *screen, struct zink_resource *res)
 {
@@ -2309,23 +2331,14 @@ zink_screen_export_dmabuf_semaphore(struct zink_screen *screen, struct zink_reso
       .fd = -1,
    };
 
-   int fd = -1;
-   if (res->obj->is_aux) {
-      fd = os_dupfd_cloexec(res->obj->handle);
-   } else {
-      VkMemoryGetFdInfoKHR fd_info = {0};
-      fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
-      fd_info.memory = zink_bo_get_mem(res->obj->bo);
-      fd_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-      VKSCR(GetMemoryFdKHR)(screen->dev, &fd_info, &fd);
-   }
-
+   int fd = zink_resource_get_dma_buf(screen, res);
    if (unlikely(fd < 0)) {
       mesa_loge("MESA: Unable to get a valid memory fd");
       return VK_NULL_HANDLE;
    }
 
    int ret = drmIoctl(fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &export);
+   close(fd);
    if (ret) {
       if (errno == ENOTTY || errno == EBADF || errno == ENOSYS) {
          assert(!"how did this fail?");
@@ -2346,8 +2359,8 @@ zink_screen_export_dmabuf_semaphore(struct zink_screen *screen, struct zink_reso
       .fd = export.fd,
    };
    bool success = VKSCR(ImportSemaphoreFdKHR)(screen->dev, &sdi) == VK_SUCCESS;
-   close(fd);
    if (!success) {
+      close(export.fd);
       VKSCR(DestroySemaphore)(screen->dev, sem, NULL);
       return VK_NULL_HANDLE;
    }
@@ -2371,17 +2384,7 @@ zink_screen_import_dmabuf_semaphore(struct zink_screen *screen, struct zink_reso
    }
 
    bool ret = false;
-   int fd;
-   if (res->obj->is_aux) {
-      fd = os_dupfd_cloexec(res->obj->handle);
-   } else {
-      VkMemoryGetFdInfoKHR fd_info = {0};
-      fd_info.sType = VK_STRUCTURE_TYPE_MEMORY_GET_FD_INFO_KHR;
-      fd_info.memory = zink_bo_get_mem(res->obj->bo);
-      fd_info.handleType = VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT;
-      if (VKSCR(GetMemoryFdKHR)(screen->dev, &fd_info, &fd) != VK_SUCCESS)
-         fd = -1;
-   }
+   int fd = zink_resource_get_dma_buf(screen, res);
    if (fd != -1) {
       struct dma_buf_import_sync_file import = {
          .flags = DMA_BUF_SYNC_RW,
@@ -3547,8 +3550,6 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
    }
    zink_screen_fence_init(&screen->base);
 
-   if (zink_debug & ZINK_DEBUG_IOOPT)
-      screen->driver_compiler_workarounds.io_opt = true;
    zink_screen_init_compiler(screen);
    if (!disk_cache_init(screen)) {
       if (!screen->driver_name_is_inferred)

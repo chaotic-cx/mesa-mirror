@@ -324,7 +324,7 @@ ir3_optimize_loop(struct ir3_compiler *compiler,
 
       OPT(s, nir_lower_vars_to_ssa);
       progress |= OPT(s, nir_lower_alu_to_scalar, NULL, NULL);
-      progress |= OPT(s, nir_lower_phis_to_scalar, false);
+      progress |= OPT(s, nir_lower_phis_to_scalar, NULL, NULL);
 
       progress |= OPT(s, nir_copy_prop);
       progress |= OPT(s, nir_opt_deref);
@@ -888,7 +888,8 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
             .ballot_bit_size = 32,
             .ballot_components = max_subgroup_size / 32,
             .lower_to_scalar = true,
-            .lower_vote_eq = true,
+            .lower_vote_feq = true,
+            .lower_vote_ieq = true,
             .lower_vote_bool_eq = true,
             .lower_subgroup_masks = true,
             .lower_read_invocation_to_cond = true,
@@ -951,7 +952,7 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
       OPT(s, ir3_nir_lower_ssbo_size, 2);
 
    /* The resinfo opcode we have for getting the SSBO size on a6xx returns a
-    * byte length divided by IBO_0_FMT, while the NIR intrinsic coming in is a
+    * byte length divided by UAV_0_FMT, while the NIR intrinsic coming in is a
     * number of bytes. Switch things so the NIR intrinsic in our backend means
     * dwords.
     */

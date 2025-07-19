@@ -20,7 +20,7 @@
 #define RADEON_DEC_ERR(fmt, args...)                                                             \
    do {                                                                                          \
       dec->error = true;                                                                         \
-      fprintf(stderr, "EE %s:%d %s VCN - " fmt, __FILE__, __LINE__, __func__, ##args);           \
+      mesa_loge("%s:%d %s VCN - " fmt, __FILE__, __LINE__, __func__, ##args);           \
    } while(0)
 
 struct rvcn_dec_dynamic_dpb_t2 {
@@ -66,6 +66,7 @@ struct jpeg_registers {
 struct radeon_decoder {
    struct pipe_video_codec base;
 
+   unsigned stream_handle;
    unsigned stream_type;
    unsigned frame_number;
    unsigned db_alignment;

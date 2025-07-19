@@ -10,9 +10,6 @@
 
 #include "vn_wsi.h"
 
-#include <xf86drm.h>
-
-#include "drm-uapi/dma-buf.h"
 #include "vk_enum_to_str.h"
 #include "wsi_common_entrypoints.h"
 
@@ -132,6 +129,23 @@ vn_wsi_create_image(struct vn_device *dev,
       create_info = &local_create_info;
    }
 
+   /* Gamescope relies on legacy scanout support when explicit modifier isn't
+    * available and it chains the mesa wsi hint requesting such. Venus doesn't
+    * support legacy scanout with optimal tiling on its own, so venus disables
+    * legacy scanout in favor of prime buffer blit for optimal performance. As
+    * a workaround here, venus can once again force linear tiling when legacy
+    * scanout is requested outside of common wsi.
+    */
+   if (wsi_info->scanout) {
+      if (create_info != &local_create_info) {
+         local_create_info = *create_info;
+         local_create_info.tiling = VK_IMAGE_TILING_LINEAR;
+         create_info = &local_create_info;
+      } else {
+         local_create_info.tiling = VK_IMAGE_TILING_LINEAR;
+      }
+   }
+
    struct vn_image *img;
    VkResult result = vn_image_create(dev, create_info, alloc, &img);
    if (result != VK_SUCCESS)
@@ -139,121 +153,12 @@ vn_wsi_create_image(struct vn_device *dev,
 
    img->wsi.is_wsi = true;
    img->wsi.is_prime_blit_src = wsi_info->blit_src;
-   img->wsi.tiling_override = create_info->tiling;
-
-   if (create_info->tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
-      VkDevice dev_handle = vn_device_to_handle(dev);
-      VkImage img_handle = vn_image_to_handle(img);
-
-      VkImageDrmFormatModifierPropertiesEXT props = {
-         .sType = VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_PROPERTIES_EXT,
-      };
-      result = vn_GetImageDrmFormatModifierPropertiesEXT(dev_handle,
-                                                         img_handle, &props);
-      if (result != VK_SUCCESS) {
-         vn_DestroyImage(dev_handle, img_handle, alloc);
-         return result;
-      }
-
-      img->wsi.drm_format_modifier = props.drmFormatModifier;
-   }
-
-   *out_img = img;
-   return VK_SUCCESS;
-}
-
-VkResult
-vn_wsi_create_image_from_swapchain(
-   struct vn_device *dev,
-   const VkImageCreateInfo *create_info,
-   const VkImageSwapchainCreateInfoKHR *swapchain_info,
-   const VkAllocationCallbacks *alloc,
-   struct vn_image **out_img)
-{
-   const struct vn_image *swapchain_img = vn_image_from_handle(
-      wsi_common_get_image(swapchain_info->swapchain, 0));
-   assert(swapchain_img->wsi.is_wsi);
-
-   /* must match what the common WSI and vn_wsi_create_image do */
-   VkImageCreateInfo local_create_info = *create_info;
-
-   /* match external memory */
-   const VkExternalMemoryImageCreateInfo local_external_info = {
-      .sType = VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO,
-      .pNext = local_create_info.pNext,
-      .handleTypes =
-         dev->physical_device->external_memory.renderer_handle_type,
-   };
-   local_create_info.pNext = &local_external_info;
-
-   /* match image tiling */
-   local_create_info.tiling = swapchain_img->wsi.tiling_override;
-
-   VkImageDrmFormatModifierListCreateInfoEXT local_mod_info;
-   if (local_create_info.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
-      local_mod_info = (const VkImageDrmFormatModifierListCreateInfoEXT){
-         .sType =
-            VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT,
-         .pNext = local_create_info.pNext,
-         .drmFormatModifierCount = 1,
-         .pDrmFormatModifiers = &swapchain_img->wsi.drm_format_modifier,
-      };
-      local_create_info.pNext = &local_mod_info;
-   }
-
-   /* match image usage */
-   if (swapchain_img->wsi.is_prime_blit_src)
-      local_create_info.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-
-   create_info = &local_create_info;
-
-   struct vn_image *img;
-   VkResult result = vn_image_create(dev, create_info, alloc, &img);
-   if (result != VK_SUCCESS)
-      return result;
-
-   img->wsi.is_wsi = true;
-   img->wsi.tiling_override = swapchain_img->wsi.tiling_override;
-   img->wsi.drm_format_modifier = swapchain_img->wsi.drm_format_modifier;
 
    *out_img = img;
    return VK_SUCCESS;
 }
 
 /* swapchain commands */
-
-static int
-vn_wsi_export_sync_file(struct vn_device *dev, struct vn_renderer_bo *bo)
-{
-   /* Don't keep trying an IOCTL that doesn't exist. */
-   static bool no_dma_buf_sync_file = false;
-   if (no_dma_buf_sync_file)
-      return -1;
-
-   /* For simplicity, export dma-buf here and rely on the dma-buf sync file
-    * export api. On legacy kernels without the new uapi, for the record, we
-    * do have the fallback option to track the wsi bo in the sync payload and
-    * do DRM_IOCTL_VIRTGPU_WAIT where we do sync_wait.
-    */
-   int dma_buf_fd = vn_renderer_bo_export_dma_buf(dev->renderer, bo);
-   if (dma_buf_fd < 0)
-      return -1;
-
-   struct dma_buf_export_sync_file export = {
-      .flags = DMA_BUF_SYNC_RW,
-      .fd = -1,
-   };
-   int ret = drmIoctl(dma_buf_fd, DMA_BUF_IOCTL_EXPORT_SYNC_FILE, &export);
-
-   close(dma_buf_fd);
-
-   if (ret && (errno == ENOTTY || errno == EBADF || errno == ENOSYS)) {
-      no_dma_buf_sync_file = true;
-      return -1;
-   }
-
-   return export.fd;
-}
 
 VkResult
 vn_AcquireNextImage2KHR(VkDevice device,
@@ -275,57 +180,16 @@ vn_AcquireNextImage2KHR(VkDevice device,
    if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
       return vn_error(dev->instance, result);
 
-   /* Extract compositor implicit fence and resolve on the driver side upon
-    * the acquire fence being submitted. Since we used to rely on renderer
-    * side drivers being able to handle implicit in-fence, here we only opt-in
-    * the new behavior for those known to be unable to handle it.
-    */
-   int sync_fd = -1;
-   if (dev->physical_device->renderer_driver_id ==
-       VK_DRIVER_ID_NVIDIA_PROPRIETARY) {
-      struct vn_image *wsi_img = vn_image_from_handle(
-         wsi_common_get_image(pAcquireInfo->swapchain, *pImageIndex));
-      assert(wsi_img->wsi.is_wsi);
-
-      struct vn_device_memory *wsi_mem = wsi_img->wsi.is_prime_blit_src
-                                            ? wsi_img->wsi.blit_mem
-                                            : wsi_img->wsi.memory;
-      if (wsi_mem)
-         sync_fd = vn_wsi_export_sync_file(dev, wsi_mem->base_bo);
-   }
-
-   int sem_fd = -1, fence_fd = -1;
-   if (sync_fd >= 0) {
-      if (pAcquireInfo->semaphore != VK_NULL_HANDLE &&
-          pAcquireInfo->fence != VK_NULL_HANDLE) {
-         sem_fd = sync_fd;
-         fence_fd = dup(sync_fd);
-         if (fence_fd < 0) {
-            result = errno == EMFILE ? VK_ERROR_TOO_MANY_OBJECTS
-                                     : VK_ERROR_OUT_OF_HOST_MEMORY;
-            close(sync_fd);
-            return vn_error(dev->instance, result);
-         }
-      } else if (pAcquireInfo->semaphore != VK_NULL_HANDLE) {
-         sem_fd = sync_fd;
-      } else {
-         assert(pAcquireInfo->fence != VK_NULL_HANDLE);
-         fence_fd = sync_fd;
-      }
-   }
-
+   /* XXX this relies on renderer side doing implicit fencing */
    if (pAcquireInfo->semaphore != VK_NULL_HANDLE) {
-      /* venus waits on the driver side when this semaphore is submitted */
       const VkImportSemaphoreFdInfoKHR info = {
          .sType = VK_STRUCTURE_TYPE_IMPORT_SEMAPHORE_FD_INFO_KHR,
          .semaphore = pAcquireInfo->semaphore,
          .flags = VK_SEMAPHORE_IMPORT_TEMPORARY_BIT,
          .handleType = VK_EXTERNAL_SEMAPHORE_HANDLE_TYPE_SYNC_FD_BIT,
-         .fd = sem_fd,
+         .fd = -1,
       };
       result = vn_ImportSemaphoreFdKHR(device, &info);
-      if (result == VK_SUCCESS)
-         sem_fd = -1;
    }
 
    if (result == VK_SUCCESS && pAcquireInfo->fence != VK_NULL_HANDLE) {
@@ -334,17 +198,10 @@ vn_AcquireNextImage2KHR(VkDevice device,
          .fence = pAcquireInfo->fence,
          .flags = VK_FENCE_IMPORT_TEMPORARY_BIT,
          .handleType = VK_EXTERNAL_FENCE_HANDLE_TYPE_SYNC_FD_BIT,
-         .fd = fence_fd,
+         .fd = -1,
       };
       result = vn_ImportFenceFdKHR(device, &info);
-      if (result == VK_SUCCESS)
-         fence_fd = -1;
    }
-
-   if (sem_fd >= 0)
-      close(sem_fd);
-   if (fence_fd >= 0)
-      close(fence_fd);
 
    return vn_result(dev->instance, result);
 }

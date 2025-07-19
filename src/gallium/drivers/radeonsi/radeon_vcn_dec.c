@@ -76,10 +76,16 @@ static rvcn_dec_message_avc_t get_h264_msg(struct radeon_decoder *dec,
    result.level = dec->base.level;
 
    result.sps_info_flags = 0;
-   result.sps_info_flags |= pic->pps->sps->direct_8x8_inference_flag << 0;
-   result.sps_info_flags |= pic->pps->sps->mb_adaptive_frame_field_flag << 1;
-   result.sps_info_flags |= pic->pps->sps->frame_mbs_only_flag << 2;
-   result.sps_info_flags |= pic->pps->sps->delta_pic_order_always_zero_flag << 3;
+   result.sps_info_flags |= pic->pps->sps->direct_8x8_inference_flag
+                            << RDECODE_SPS_INFO_H264_DIRECT_8X8_INFERENCE_FLAG_SHIFT;
+   result.sps_info_flags |= pic->pps->sps->mb_adaptive_frame_field_flag
+                            << RDECODE_SPS_INFO_H264_MB_ADAPTIVE_FRAME_FIELD_FLAG_SHIFT;
+   result.sps_info_flags |= pic->pps->sps->frame_mbs_only_flag
+                            << RDECODE_SPS_INFO_H264_FRAME_MBS_ONLY_FLAG_SHIFT;
+   result.sps_info_flags |= pic->pps->sps->delta_pic_order_always_zero_flag
+                            << RDECODE_SPS_INFO_H264_DELTA_PIC_ORDER_ALWAYS_ZERO_FLAG_SHIFT;
+   result.sps_info_flags |= pic->pps->sps->gaps_in_frame_num_value_allowed_flag
+                            << RDECODE_SPS_INFO_H264_GAPS_IN_FRAME_NUM_VALUE_ALLOWED_FLAG_SHIFT;
    result.sps_info_flags |= ((dec->dpb_type >= DPB_DYNAMIC_TIER_2) ? 0 : 1)
                               << RDECODE_SPS_INFO_H264_EXTENSION_SUPPORT_FLAG_SHIFT;
 
@@ -1309,6 +1315,7 @@ static void rvcn_dec_message_create(struct radeon_decoder *dec)
    header->total_size = sizes;
    header->num_buffers = 1;
    header->msg_type = RDECODE_MSG_CREATE;
+   header->stream_handle = dec->stream_handle;
    header->status_report_feedback_number = 0;
 
    header->index[0].message_id = RDECODE_MESSAGE_CREATE;
@@ -1556,6 +1563,7 @@ static struct pb_buffer_lean *rvcn_dec_message_decode(struct radeon_decoder *dec
    header->header_size = sizeof(rvcn_dec_message_header_t);
    header->total_size = sizes;
    header->msg_type = RDECODE_MSG_DECODE;
+   header->stream_handle = dec->stream_handle;
    header->status_report_feedback_number = dec->frame_number;
 
    header->index[0].message_id = RDECODE_MESSAGE_DECODE;
@@ -1937,6 +1945,7 @@ static void rvcn_dec_message_destroy(struct radeon_decoder *dec)
    header->total_size = sizeof(rvcn_dec_message_header_t) - sizeof(rvcn_dec_message_index_t);
    header->num_buffers = 0;
    header->msg_type = RDECODE_MSG_DESTROY;
+   header->stream_handle = dec->stream_handle;
    header->status_report_feedback_number = 0;
 }
 
@@ -2640,7 +2649,7 @@ static int radeon_dec_end_frame(struct pipe_video_codec *decoder, struct pipe_vi
    if (!dec->send_cmd(dec, target, picture))
       return 1;
 
-   flush(dec, picture->flush_flags, picture->fence);
+   flush(dec, picture->flush_flags, picture->out_fence);
 
    next_buffer(dec);
    return 0;
@@ -2712,7 +2721,7 @@ static int radeon_dec_jpeg_end_frame(struct pipe_video_codec *decoder, struct pi
    if (dec->jpg.crop_y + dec->jpg.crop_height > pic->picture_parameter.picture_height)
       dec->jpg.crop_height = 0;
    dec->send_cmd(dec, target, picture);
-   dec->ws->cs_flush(&dec->jcs[dec->cb_idx], picture->flush_flags, picture->fence);
+   dec->ws->cs_flush(&dec->jcs[dec->cb_idx], picture->flush_flags, picture->out_fence);
    next_buffer(dec);
    dec->cb_idx = (dec->cb_idx+1) % dec->njctx;
    return 0;
@@ -2817,6 +2826,7 @@ struct pipe_video_codec *radeon_create_decoder(struct pipe_context *context,
    dec->base.destroy_fence = radeon_dec_destroy_fence;
 
    dec->stream_type = stream_type;
+   dec->stream_handle = si_vid_alloc_stream_handle();
    dec->screen = context->screen;
    dec->ws = ws;
 

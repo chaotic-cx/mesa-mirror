@@ -103,7 +103,7 @@ struct radeon_cmdbuf {
 #define RADEON_SURF_MODE_SHIFT    8
 
 #define RADEON_SURF_GET(v, field) (((v) >> RADEON_SURF_##field##_SHIFT) & RADEON_SURF_##field##_MASK)
-#define RADEON_SURF_SET(v, field) (((v)&RADEON_SURF_##field##_MASK) << RADEON_SURF_##field##_SHIFT)
+#define RADEON_SURF_SET(v, field) (((v) & RADEON_SURF_##field##_MASK) << RADEON_SURF_##field##_SHIFT)
 #define RADEON_SURF_CLR(v, field) ((v) & ~(RADEON_SURF_##field##_MASK << RADEON_SURF_##field##_SHIFT))
 
 enum radeon_bo_layout {
@@ -317,6 +317,8 @@ struct radeon_winsys {
    int (*get_fd)(struct radeon_winsys *ws);
 
    const struct vk_sync_type *const *(*get_sync_types)(struct radeon_winsys *ws);
+
+   struct util_sync_provider *(*get_sync_provider)(struct radeon_winsys *ws);
 };
 
 static inline uint64_t

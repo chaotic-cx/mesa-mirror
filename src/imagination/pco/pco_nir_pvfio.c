@@ -177,19 +177,21 @@ static bool lower_pfo(nir_builder *b, nir_instr *instr, void *cb_data)
 /**
  * \brief Per-fragment output pass.
  *
- * \param[in,out] nir NIR shader.
+ * \param[in,out] shader NIR shader.
  * \param[in,out] fs Fragment shader-specific data.
  * \return True if the pass made progress.
  */
-bool pco_nir_pfo(nir_shader *nir, pco_fs_data *fs)
+bool pco_nir_pfo(nir_shader *shader, pco_fs_data *fs)
 {
-   assert(nir->info.stage == MESA_SHADER_FRAGMENT);
+   assert(shader->info.stage == MESA_SHADER_FRAGMENT);
 
    struct pfo_state state = { .fs = fs };
    util_dynarray_init(&state.stores, NULL);
 
-   bool progress =
-      nir_shader_instructions_pass(nir, lower_pfo, nir_metadata_none, &state);
+   bool progress = nir_shader_instructions_pass(shader,
+                                                lower_pfo,
+                                                nir_metadata_none,
+                                                &state);
 
    util_dynarray_fini(&state.stores);
 
@@ -199,17 +201,87 @@ bool pco_nir_pfo(nir_shader *nir, pco_fs_data *fs)
 /**
  * \brief Per-vertex input pass.
  *
- * \param[in,out] nir NIR shader.
+ * \param[in,out] shader NIR shader.
  * \param[in,out] vs Vertex shader-specific data.
  * \return True if the pass made progress.
  */
-bool pco_nir_pvi(nir_shader *nir, pco_vs_data *vs)
+bool pco_nir_pvi(nir_shader *shader, pco_vs_data *vs)
 {
-   assert(nir->info.stage == MESA_SHADER_VERTEX);
+   assert(shader->info.stage == MESA_SHADER_VERTEX);
 
    puts("finishme: pco_nir_pvi");
 
    /* TODO: format conversion and inserting unspecified/missing components. */
 
    return false;
+}
+
+/**
+ * \brief Checks if the point size is written.
+ *
+ * \param[in] b NIR builder.
+ * \param[in] intr NIR intrinsic instruction.
+ * \param[in] cb_data User callback data.
+ * \return True if the instruction was lowered.
+ */
+static bool
+check_psiz_write(nir_builder *b, nir_intrinsic_instr *intr, void *cb_data)
+{
+   if (intr->intrinsic != nir_intrinsic_store_output)
+      return false;
+
+   bool *writes_psiz = cb_data;
+
+   struct nir_io_semantics io_semantics = nir_intrinsic_io_semantics(intr);
+   *writes_psiz |= (io_semantics.location == VARYING_SLOT_PSIZ);
+
+   return false;
+}
+
+/**
+ * \brief Vertex shader point size pass.
+ *
+ * \param[in,out] shader NIR shader.
+ * \return True if the pass made progress.
+ */
+bool pco_nir_point_size(nir_shader *shader)
+{
+   assert(shader->info.stage == MESA_SHADER_VERTEX);
+   if (shader->info.internal)
+      return false;
+
+   bool writes_psiz = false;
+   nir_shader_intrinsics_pass(shader,
+                              check_psiz_write,
+                              nir_metadata_all,
+                              &writes_psiz);
+
+   /* Nothing to do if the shader already writes the point size. */
+   if (writes_psiz)
+      return false;
+
+   /* Create a point size variable if there isn't one. */
+   nir_get_variable_with_location(shader,
+                                  nir_var_shader_out,
+                                  VARYING_SLOT_PSIZ,
+                                  glsl_float_type());
+
+   /* Add a point size write. */
+   nir_builder b = nir_builder_at(
+      nir_after_block(nir_impl_last_block(nir_shader_get_entrypoint(shader))));
+
+   nir_store_output(&b,
+                    nir_imm_float(&b, PVR_POINT_SIZE_RANGE_MIN),
+                    nir_imm_int(&b, 0),
+                    .base = 0,
+                    .range = 1,
+                    .write_mask = 1,
+                    .component = 0,
+                    .src_type = nir_type_float32,
+                    .io_semantics = (nir_io_semantics){
+                       .location = VARYING_SLOT_PSIZ,
+                       .num_slots = 1,
+                    });
+
+   return true;
 }

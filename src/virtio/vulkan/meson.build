@@ -21,7 +21,7 @@ virtio_icd = custom_target(
   output : 'virtio_icd.@0@.json'.format(host_machine.cpu()),
   command : [
     prog_python, '@INPUT0@',
-    '--api-version', '1.3', '--xml', '@INPUT1@',
+    '--api-version', '1.4', '--xml', '@INPUT1@',
     '--sizeof-pointer', sizeof_pointer,
     '--lib-path', join_paths(get_option('prefix'), get_option('libdir'),
                              'libvulkan_virtio.so'),
@@ -40,7 +40,7 @@ _dev_icd = custom_target(
   output : _dev_icdname,
   command : [
     prog_python, '@INPUT0@',
-    '--api-version', '1.3', '--xml', '@INPUT1@',
+    '--api-version', '1.4', '--xml', '@INPUT1@',
     '--sizeof-pointer', sizeof_pointer,
     '--lib-path', meson.current_build_dir() / 'libvulkan_virtio.so',
     '--out', '@OUTPUT@',
@@ -74,12 +74,10 @@ libvn_files = files(
   'vn_ring.c',
   'vn_renderer_internal.c',
   'vn_renderer_util.c',
-  'vn_renderer_virtgpu.c',
   'vn_renderer_vtest.c',
 )
 
 vn_deps = [
-  dep_libdrm,
   dep_thread,
   idep_mesautil,
   idep_vulkan_util,
@@ -95,6 +93,11 @@ vn_flags = [
 ])
 
 vn_libs = []
+
+if system_has_kms_drm
+  libvn_files += files('vn_renderer_virtgpu.c')
+  vn_deps += dep_libdrm
+endif
 
 if with_platform_wayland or with_platform_x11 or \
    (system_has_kms_drm and not with_platform_android)

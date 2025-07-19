@@ -133,6 +133,7 @@ struct NOP_ctx_gfx10 {
    std::bitset<128> sgprs_read_by_VMEM_store;
    std::bitset<128> sgprs_read_by_DS;
    std::bitset<128> sgprs_read_by_SMEM;
+   int waits_since_fp_atomic = 3;
 
    void join(const NOP_ctx_gfx10& other)
    {
@@ -148,6 +149,7 @@ struct NOP_ctx_gfx10 {
       sgprs_read_by_DS |= other.sgprs_read_by_DS;
       sgprs_read_by_VMEM_store |= other.sgprs_read_by_VMEM_store;
       sgprs_read_by_SMEM |= other.sgprs_read_by_SMEM;
+      waits_since_fp_atomic = std::min(waits_since_fp_atomic, other.waits_since_fp_atomic);
    }
 
    bool operator==(const NOP_ctx_gfx10& other)
@@ -160,7 +162,8 @@ struct NOP_ctx_gfx10 {
              sgprs_read_by_VMEM == other.sgprs_read_by_VMEM &&
              sgprs_read_by_DS == other.sgprs_read_by_DS &&
              sgprs_read_by_VMEM_store == other.sgprs_read_by_VMEM_store &&
-             sgprs_read_by_SMEM == other.sgprs_read_by_SMEM;
+             sgprs_read_by_SMEM == other.sgprs_read_by_SMEM &&
+             waits_since_fp_atomic == other.waits_since_fp_atomic;
    }
 };
 
@@ -886,6 +889,27 @@ handle_instruction_gfx10(State& state, NOP_ctx_gfx10& ctx, aco_ptr<Instruction>&
       sa_sdst = instr->salu().imm & 0x1;
    }
 
+   /* FPAtomicToDenormModeHazard */
+   if (instr->opcode == aco_opcode::s_denorm_mode && ctx.waits_since_fp_atomic < 3) {
+      bld.sopp(aco_opcode::s_nop, 3 - ctx.waits_since_fp_atomic - 1);
+      ctx.waits_since_fp_atomic = 3;
+   } else if (instr->isVALU() || instr->opcode == aco_opcode::s_waitcnt ||
+              instr->opcode == aco_opcode::s_waitcnt_vscnt ||
+              instr->opcode == aco_opcode::s_waitcnt_vmcnt ||
+              instr->opcode == aco_opcode::s_waitcnt_expcnt ||
+              instr->opcode == aco_opcode::s_waitcnt_lgkmcnt ||
+              instr->opcode == aco_opcode::s_wait_idle) {
+      ctx.waits_since_fp_atomic = 3;
+   } else if (instr_is_vmem_fp_atomic(instr.get())) {
+      ctx.waits_since_fp_atomic = 0;
+   } else {
+      ctx.waits_since_fp_atomic += get_wait_states(instr);
+      ctx.waits_since_fp_atomic = std::min(ctx.waits_since_fp_atomic, 3);
+   }
+
+   if (state.program->gfx_level != GFX10)
+      return; /* no other hazards/bugs to mitigate */
+
    /* VMEMtoScalarWriteHazard
     * Handle EXEC/M0/SGPR write following a VMEM/DS instruction without a VALU or "waitcnt vmcnt(0)"
     * in-between.
@@ -1051,6 +1075,13 @@ resolve_all_gfx10(State& state, NOP_ctx_gfx10& ctx,
    Builder bld(state.program, &new_instructions);
 
    size_t prev_count = new_instructions.size();
+
+   /* FPAtomicToDenormModeHazard */
+   if (ctx.waits_since_fp_atomic < 3)
+      bld.sopp(aco_opcode::s_nop, 3 - ctx.waits_since_fp_atomic - 1);
+
+   if (state.program->gfx_level != GFX10)
+      return; /* no other hazards/bugs to mitigate */
 
    /* VcmpxPermlaneHazard */
    if (ctx.has_VOPC_write_exec) {
@@ -2004,8 +2035,6 @@ insert_NOPs(Program* program)
 
       mitigate_hazards<NOP_ctx_gfx11, handle_instruction_gfx11, resolve_all_gfx11>(program,
                                                                                    initial_ctx);
-   } else if (program->gfx_level >= GFX10_3) {
-      ; /* no hazards/bugs to mitigate */
    } else if (program->gfx_level >= GFX10) {
       mitigate_hazards<NOP_ctx_gfx10, handle_instruction_gfx10, resolve_all_gfx10>(program);
    } else {

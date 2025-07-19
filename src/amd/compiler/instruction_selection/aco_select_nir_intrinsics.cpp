@@ -218,6 +218,36 @@ emit_readfirstlane(isel_context* ctx, Temp src, Temp dst)
    return dst;
 }
 
+Temp
+add64_32(Builder& bld, Temp src0, Operand src1)
+{
+   Temp src00 = bld.tmp(src0.type(), 1);
+   Temp src01 = bld.tmp(src0.type(), 1);
+   bld.pseudo(aco_opcode::p_split_vector, Definition(src00), Definition(src01), src0);
+
+   if (src0.type() == RegType::vgpr || src1.isOfType(RegType::vgpr)) {
+      src1 = src1.isOfType(RegType::vgpr) ? src1 : bld.copy(bld.def(v1), src1);
+      Temp dst0 = bld.tmp(v1);
+      Temp carry = bld.vadd32(Definition(dst0), src00, src1, true).def(1).getTemp();
+      Temp dst1 = bld.vadd32(bld.def(v1), src01, Operand::zero(), false, carry);
+      return bld.pseudo(aco_opcode::p_create_vector, bld.def(v2), dst0, dst1);
+   } else {
+      Temp carry = bld.tmp(s1);
+      Temp dst0 =
+         bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.scc(Definition(carry)), src00, src1);
+      Temp dst1 = bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.def(s1, scc), src01, carry);
+      return bld.pseudo(aco_opcode::p_create_vector, bld.def(s2), dst0, dst1);
+   }
+}
+
+/* undef becomes Temp(id=0) */
+Temp
+as_temp(Builder& bld, Operand op)
+{
+   RegClass rc(RegType::sgpr, op.size());
+   return op.isTemp() ? op.getTemp() : op.isConstant() ? bld.copy(bld.def(rc), op) : Temp(0, rc);
+}
+
 struct LoadEmitInfo {
    Operand offset;
    Temp dst;
@@ -230,6 +260,8 @@ struct LoadEmitInfo {
    unsigned align_mul = 0;
    unsigned align_offset = 0;
    pipe_format format;
+   nir_src* offset_src = NULL; /* should be equal to offset or NULL */
+   isel_context* ctx;
 
    ac_hw_cache_flags cache = {{0, 0, 0, 0, 0}};
    bool split_by_component_stride = true;
@@ -240,13 +272,21 @@ struct LoadEmitInfo {
 };
 
 struct EmitLoadParameters {
-   using Callback = Temp (*)(Builder& bld, const LoadEmitInfo& info, Temp offset,
-                             unsigned bytes_needed, unsigned align, unsigned const_offset,
-                             Temp dst_hint);
+   using Callback = Temp (*)(Builder& bld, const LoadEmitInfo& info, unsigned bytes_needed,
+                             unsigned align);
 
    Callback callback;
    uint32_t max_const_offset;
 };
+
+bool
+add_might_overflow(isel_context* ctx, nir_src* offset, uint32_t const_offset)
+{
+   if (!offset)
+      return true;
+   return nir_addition_might_overflow(ctx->shader, ctx->range_ht, nir_get_scalar(offset->ssa, 0),
+                                      const_offset, &ctx->ub_config);
+}
 
 void
 emit_load(isel_context* ctx, Builder& bld, const LoadEmitInfo& info,
@@ -275,50 +315,42 @@ emit_load(isel_context* ctx, Builder& bld, const LoadEmitInfo& info,
       }
 
       /* reduce constant offset */
+      LoadEmitInfo new_info = info;
+      new_info.ctx = ctx;
       Operand offset = info.offset;
       unsigned reduced_const_offset = const_offset;
-      if (const_offset && const_offset > params.max_const_offset) {
+      if (const_offset > params.max_const_offset) {
          uint32_t max_const_offset_plus_one = params.max_const_offset + 1;
          unsigned to_add = const_offset / max_const_offset_plus_one * max_const_offset_plus_one;
          reduced_const_offset %= max_const_offset_plus_one;
-         Temp offset_tmp = offset.isTemp() ? offset.getTemp() : Temp();
-         if (offset.isConstant()) {
+
+         /* For global loads with a 32-bit offset, the resource is the 64-bit address. */
+         bool offset_changed = true;
+         if (new_info.resource.id() && new_info.resource.size() == 2 &&
+             add_might_overflow(ctx, info.offset_src, to_add)) {
+            new_info.resource = add64_32(bld, new_info.resource, Operand::c32(to_add));
+            offset_changed = false;
+         } else if (offset.isConstant()) {
             offset = Operand::c32(offset.constantValue() + to_add);
          } else if (offset.isUndefined()) {
             offset = Operand::c32(to_add);
-         } else if (offset_tmp.regClass() == s1) {
-            offset = bld.sop2(aco_opcode::s_add_i32, bld.def(s1), bld.def(s1, scc), offset_tmp,
+         } else if (offset.regClass() == s1) {
+            offset = bld.sop2(aco_opcode::s_add_i32, bld.def(s1), bld.def(s1, scc), offset,
                               Operand::c32(to_add));
-         } else if (offset_tmp.regClass() == v1) {
-            offset = bld.vadd32(bld.def(v1), offset_tmp, Operand::c32(to_add));
+         } else if (offset.regClass() == v1) {
+            offset = bld.vadd32(bld.def(v1), offset, Operand::c32(to_add));
          } else {
-            Temp lo = bld.tmp(offset_tmp.type(), 1);
-            Temp hi = bld.tmp(offset_tmp.type(), 1);
-            bld.pseudo(aco_opcode::p_split_vector, Definition(lo), Definition(hi), offset_tmp);
-
-            if (offset_tmp.regClass() == s2) {
-               Temp carry = bld.tmp(s1);
-               lo = bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.scc(Definition(carry)), lo,
-                             Operand::c32(to_add));
-               hi = bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.def(s1, scc), hi, carry);
-               offset = bld.pseudo(aco_opcode::p_create_vector, bld.def(s2), lo, hi);
-            } else {
-               Temp new_lo = bld.tmp(v1);
-               Temp carry =
-                  bld.vadd32(Definition(new_lo), lo, Operand::c32(to_add), true).def(1).getTemp();
-               hi = bld.vadd32(bld.def(v1), hi, Operand::zero(), false, carry);
-               offset = bld.pseudo(aco_opcode::p_create_vector, bld.def(v2), new_lo, hi);
-            }
+            offset = Operand(add64_32(bld, offset.getTemp(), Operand::c32(to_add)));
          }
+         if (offset_changed)
+            new_info.offset_src = NULL;
       }
+      new_info.offset = Operand(as_temp(bld, offset));
+      new_info.const_offset = reduced_const_offset;
 
       unsigned align = align_offset ? 1 << (ffs(align_offset) - 1) : align_mul;
-      Temp offset_tmp = offset.isTemp()       ? offset.getTemp()
-                        : offset.isConstant() ? bld.copy(bld.def(s1), offset)
-                                              : Temp(0, s1);
 
-      Temp val = params.callback(bld, info, offset_tmp, bytes_needed, align, reduced_const_offset,
-                                 info.dst);
+      Temp val = params.callback(bld, new_info, bytes_needed, align);
 
       /* the callback wrote directly to dst */
       if (val == info.dst) {
@@ -438,10 +470,11 @@ emit_load(isel_context* ctx, Builder& bld, const LoadEmitInfo& info,
 }
 
 Temp
-lds_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned bytes_needed,
-                  unsigned align, unsigned const_offset, Temp dst_hint)
+lds_load_callback(Builder& bld, const LoadEmitInfo& info, unsigned bytes_needed, unsigned align)
 {
-   offset = offset.regClass() == s1 ? bld.copy(bld.def(v1), offset) : offset;
+   Temp offset =
+      info.offset.regClass() == s1 ? bld.copy(bld.def(v1), info.offset) : info.offset.getTemp();
+   uint32_t const_offset = info.const_offset;
 
    Operand m = load_lds_size_m0(bld);
 
@@ -491,7 +524,7 @@ lds_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned 
    const_offset /= const_offset_unit;
 
    RegClass rc = RegClass::get(RegType::vgpr, size);
-   Temp val = rc == info.dst.regClass() && dst_hint.id() ? dst_hint : bld.tmp(rc);
+   Temp val = rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
    Instruction* instr;
    if (read2)
       instr = bld.ds(op, Definition(val), offset, m, const_offset, const_offset + 1);
@@ -529,8 +562,7 @@ get_smem_opcode(amd_gfx_level level, unsigned bytes, bool buffer, bool round_dow
 }
 
 Temp
-smem_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned bytes_needed,
-                   unsigned align, unsigned const_offset, Temp dst_hint)
+smem_load_callback(Builder& bld, const LoadEmitInfo& info, unsigned bytes_needed, unsigned align)
 {
    /* Only scalar sub-dword loads are supported. */
    assert(bytes_needed % 4 == 0 || bytes_needed <= 2);
@@ -538,6 +570,8 @@ smem_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned
 
    bld.program->has_smem_buffer_or_global_loads = true;
 
+   uint32_t const_offset = info.const_offset;
+   Temp offset = info.offset.getTemp();
    bool buffer = info.resource.id() && info.resource.bytes() == 16;
    Temp addr = info.resource;
    if (!buffer && !addr.id()) {
@@ -582,9 +616,7 @@ smem_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned
       else
          load->operands[1] = Operand::c32(const_offset);
    }
-   Temp val = dst_hint.id() && dst_hint.regClass() == rc && rc.bytes() == bytes_needed
-                 ? dst_hint
-                 : bld.tmp(rc);
+   Temp val = info.dst.regClass() == rc && rc.bytes() == bytes_needed ? info.dst : bld.tmp(rc);
    load->definitions[0] = Definition(val);
    load->smem().cache = info.cache;
    load->smem().sync = info.sync;
@@ -592,7 +624,7 @@ smem_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned
 
    if (rc.bytes() > bytes_needed) {
       rc = RegClass(RegType::sgpr, DIV_ROUND_UP(bytes_needed, 4u));
-      Temp val2 = dst_hint.id() && dst_hint.regClass() == rc ? dst_hint : bld.tmp(rc);
+      Temp val2 = info.dst.regClass() == rc ? info.dst : bld.tmp(rc);
       val = bld.pseudo(aco_opcode::p_extract_vector, Definition(val2), val, Operand::c32(0u));
    }
 
@@ -602,9 +634,9 @@ smem_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned
 const EmitLoadParameters smem_load_params{smem_load_callback, 1023};
 
 Temp
-mubuf_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned bytes_needed,
-                    unsigned align_, unsigned const_offset, Temp dst_hint)
+mubuf_load_callback(Builder& bld, const LoadEmitInfo& info, unsigned bytes_needed, unsigned align_)
 {
+   Temp offset = info.offset.getTemp();
    Operand vaddr = offset.type() == RegType::vgpr ? Operand(offset) : Operand(v1);
    Operand soffset = offset.type() == RegType::sgpr ? Operand(offset) : Operand::c32(0);
 
@@ -656,9 +688,9 @@ mubuf_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigne
    mubuf->mubuf().idxen = idxen;
    mubuf->mubuf().cache = info.cache;
    mubuf->mubuf().sync = info.sync;
-   mubuf->mubuf().offset = const_offset;
+   mubuf->mubuf().offset = info.const_offset;
    RegClass rc = RegClass::get(RegType::vgpr, bytes_size);
-   Temp val = dst_hint.id() && rc == dst_hint.regClass() ? dst_hint : bld.tmp(rc);
+   Temp val = rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
    mubuf->definitions[0] = Definition(val);
    bld.insert(std::move(mubuf));
 
@@ -668,10 +700,10 @@ mubuf_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigne
 const EmitLoadParameters mubuf_load_params{mubuf_load_callback, 4095};
 
 Temp
-mubuf_load_format_callback(Builder& bld, const LoadEmitInfo& info, Temp offset,
-                           unsigned bytes_needed, unsigned align_, unsigned const_offset,
-                           Temp dst_hint)
+mubuf_load_format_callback(Builder& bld, const LoadEmitInfo& info, unsigned bytes_needed,
+                           unsigned align_)
 {
+   Temp offset = info.offset.getTemp();
    Operand vaddr = offset.type() == RegType::vgpr ? Operand(offset) : Operand(v1);
    Operand soffset = offset.type() == RegType::sgpr ? Operand(offset) : Operand::c32(0);
 
@@ -720,9 +752,9 @@ mubuf_load_format_callback(Builder& bld, const LoadEmitInfo& info, Temp offset,
    mubuf->mubuf().idxen = idxen;
    mubuf->mubuf().cache = info.cache;
    mubuf->mubuf().sync = info.sync;
-   mubuf->mubuf().offset = const_offset;
+   mubuf->mubuf().offset = info.const_offset;
    RegClass rc = RegClass::get(RegType::vgpr, bytes_needed);
-   Temp val = dst_hint.id() && rc == dst_hint.regClass() ? dst_hint : bld.tmp(rc);
+   Temp val = rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
    mubuf->definitions[0] = Definition(val);
    bld.insert(std::move(mubuf));
 
@@ -732,8 +764,8 @@ mubuf_load_format_callback(Builder& bld, const LoadEmitInfo& info, Temp offset,
 const EmitLoadParameters mubuf_load_format_params{mubuf_load_format_callback, 4095};
 
 Temp
-scratch_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned bytes_needed,
-                      unsigned align_, unsigned const_offset, Temp dst_hint)
+scratch_load_callback(Builder& bld, const LoadEmitInfo& info, unsigned bytes_needed,
+                      unsigned align_)
 {
    unsigned bytes_size = 0;
    aco_opcode op;
@@ -757,12 +789,13 @@ scratch_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsig
       op = aco_opcode::scratch_load_dwordx4;
    }
    RegClass rc = RegClass::get(RegType::vgpr, bytes_size);
-   Temp val = dst_hint.id() && rc == dst_hint.regClass() ? dst_hint : bld.tmp(rc);
+   Temp val = rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
    aco_ptr<Instruction> flat{create_instruction(op, Format::SCRATCH, 2, 1)};
+   Temp offset = info.offset.getTemp();
    flat->operands[0] = offset.regClass() == s1 ? Operand(v1) : Operand(offset);
    flat->operands[1] = offset.regClass() == s1 ? Operand(offset) : Operand(s1);
    flat->scratch().sync = info.sync;
-   flat->scratch().offset = const_offset;
+   flat->scratch().offset = info.const_offset;
    flat->definitions[0] = Definition(val);
    bld.insert(std::move(flat));
 
@@ -773,7 +806,7 @@ const EmitLoadParameters scratch_mubuf_load_params{mubuf_load_callback, 4095};
 const EmitLoadParameters scratch_flat_load_params{scratch_load_callback, 2047};
 
 Temp
-get_gfx6_global_rsrc(Builder& bld, Temp addr)
+get_mubuf_global_rsrc(Builder& bld, Temp addr)
 {
    uint32_t desc[4];
    ac_build_raw_buffer_descriptor(bld.program->gfx_level, 0, 0xffffffff, desc);
@@ -786,82 +819,82 @@ get_gfx6_global_rsrc(Builder& bld, Temp addr)
 }
 
 Temp
-add64_32(Builder& bld, Temp src0, Temp src1)
+add64_const64(Builder& bld, Temp addr, uint64_t offset)
 {
-   Temp src00 = bld.tmp(src0.type(), 1);
-   Temp src01 = bld.tmp(src0.type(), 1);
-   bld.pseudo(aco_opcode::p_split_vector, Definition(src00), Definition(src01), src0);
-
-   if (src0.type() == RegType::vgpr || src1.type() == RegType::vgpr) {
-      Temp dst0 = bld.tmp(v1);
-      Temp carry = bld.vadd32(Definition(dst0), src00, src1, true).def(1).getTemp();
-      Temp dst1 = bld.vadd32(bld.def(v1), src01, Operand::zero(), false, carry);
-      return bld.pseudo(aco_opcode::p_create_vector, bld.def(v2), dst0, dst1);
-   } else {
-      Temp carry = bld.tmp(s1);
-      Temp dst0 =
-         bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.scc(Definition(carry)), src00, src1);
-      Temp dst1 = bld.sop2(aco_opcode::s_add_u32, bld.def(s1), bld.def(s1, scc), src01, carry);
-      return bld.pseudo(aco_opcode::p_create_vector, bld.def(s2), dst0, dst1);
+   /* This could be more efficient if offset>UINT32_MAX by doing a full 64-bit addition,
+    * but that should be really rare.
+    */
+   while (offset) {
+      uint32_t src2 = MIN2(offset, UINT32_MAX);
+      addr = add64_32(bld, addr, Operand::c32(src2));
+      offset -= src2;
    }
+   return addr;
 }
 
-void
-lower_global_address(Builder& bld, uint32_t offset_in, Temp* address_inout,
-                     uint32_t* const_offset_inout, Temp* offset_inout)
+Format
+lower_global_address(isel_context* ctx, Builder& bld, uint32_t offset_in, Temp* address_inout,
+                     uint32_t* const_offset_inout, Temp* offset_inout, nir_src* offset_src)
 {
    Temp address = *address_inout;
    uint64_t const_offset = *const_offset_inout + offset_in;
    Temp offset = *offset_inout;
 
+   Format format = Format::MUBUF;
+   if (bld.program->gfx_level >= GFX9)
+      format = Format::GLOBAL;
+   else if (bld.program->gfx_level >= GFX7 && address.type() == RegType::vgpr)
+      format = Format::FLAT;
+
    uint64_t max_const_offset_plus_one =
       1; /* GFX7/8/9: FLAT loads do not support constant offsets */
-   if (bld.program->gfx_level >= GFX9)
-      max_const_offset_plus_one = bld.program->dev.scratch_global_offset_max;
-   else if (bld.program->gfx_level == GFX6)
+   if (format == Format::GLOBAL)
+      max_const_offset_plus_one = bld.program->dev.scratch_global_offset_max + UINT64_C(1);
+   else if (format == Format::MUBUF)
       max_const_offset_plus_one = bld.program->dev.buf_offset_max + 1;
    uint64_t excess_offset = const_offset - (const_offset % max_const_offset_plus_one);
    const_offset %= max_const_offset_plus_one;
 
    if (!offset.id()) {
-      while (unlikely(excess_offset > UINT32_MAX)) {
-         address = add64_32(bld, address, bld.copy(bld.def(s1), Operand::c32(UINT32_MAX)));
-         excess_offset -= UINT32_MAX;
-      }
-      if (excess_offset)
-         offset = bld.copy(bld.def(s1), Operand::c32(excess_offset));
+      address = add64_const64(bld, address, excess_offset / UINT32_MAX * UINT32_MAX);
+      if (excess_offset % UINT32_MAX)
+         offset = bld.copy(bld.def(s1), Operand::c32(excess_offset % UINT32_MAX));
    } else {
       /* If we add to "offset", we would transform the indended
        * "address + u2u64(offset) + u2u64(const_offset)" into
        * "address + u2u64(offset + const_offset)", so add to the address.
-       * This could be more efficient if excess_offset>UINT32_MAX by doing a full 64-bit addition,
-       * but that should be really rare.
        */
-      while (excess_offset) {
-         uint32_t src2 = MIN2(excess_offset, UINT32_MAX);
-         address = add64_32(bld, address, bld.copy(bld.def(s1), Operand::c32(src2)));
-         excess_offset -= src2;
-      }
+      address = add64_const64(bld, address, excess_offset);
    }
 
-   if (bld.program->gfx_level == GFX6) {
-      /* GFX6 (MUBUF): (SGPR address, SGPR offset) or (VGPR address, SGPR offset) */
-      if (offset.type() != RegType::sgpr) {
-         address = add64_32(bld, address, offset);
-         offset = Temp();
+   if (format == Format::MUBUF) {
+      /* GFX6 (MUBUF): (SGPR address, SGPR offset) or (SGPR address, VGPR offset) */
+      /* GFX6 (MUBUF-addr64): (VGPR address, SGPR offset) */
+      /* Disallow SGPR address with both a const_offset and offset in case of possible overflow. */
+      if (offset.id() &&
+          (address.type() == RegType::vgpr ? offset.type() != RegType::sgpr
+                                           : add_might_overflow(ctx, offset_src, const_offset))) {
+         if (offset.type() == RegType::vgpr && bld.program->gfx_level > GFX6) {
+            assert(address.type() == RegType::sgpr);
+            address = add64_const64(bld, address, const_offset);
+            const_offset = 0;
+         } else {
+            address = add64_32(bld, address, Operand(offset));
+            offset = Temp();
+         }
       }
       offset = offset.id() ? offset : bld.copy(bld.def(s1), Operand::zero());
-   } else if (bld.program->gfx_level <= GFX8) {
+   } else if (format == Format::FLAT) {
       /* GFX7,8 (FLAT): VGPR address */
       if (offset.id()) {
-         address = add64_32(bld, address, offset);
+         address = add64_32(bld, address, Operand(offset));
          offset = Temp();
       }
       address = as_vgpr(bld, address);
    } else {
       /* GFX9+ (GLOBAL): (VGPR address), or (SGPR address and VGPR offset) */
       if (address.type() == RegType::vgpr && offset.id()) {
-         address = add64_32(bld, address, offset);
+         address = add64_32(bld, address, Operand(offset));
          offset = Temp();
       } else if (address.type() == RegType::sgpr && offset.id()) {
          offset = as_vgpr(bld, offset);
@@ -873,22 +906,26 @@ lower_global_address(Builder& bld, uint32_t offset_in, Temp* address_inout,
    *address_inout = address;
    *const_offset_inout = const_offset;
    *offset_inout = offset;
+
+   return format;
 }
 
 Temp
-global_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned bytes_needed,
-                     unsigned align_, unsigned const_offset, Temp dst_hint)
+global_load_callback(Builder& bld, const LoadEmitInfo& info, unsigned bytes_needed, unsigned align_)
 {
+   Temp offset = info.offset.getTemp();
    Temp addr = info.resource;
    if (!addr.id()) {
       addr = offset;
       offset = Temp();
    }
-   lower_global_address(bld, 0, &addr, &const_offset, &offset);
+   uint32_t const_offset = info.const_offset;
+   Format format =
+      lower_global_address(info.ctx, bld, 0, &addr, &const_offset, &offset, info.offset_src);
 
    unsigned bytes_size = 0;
-   bool use_mubuf = bld.program->gfx_level == GFX6;
-   bool global = bld.program->gfx_level >= GFX9;
+   bool use_mubuf = format == Format::MUBUF;
+   bool global = format == Format::GLOBAL;
    aco_opcode op;
    if (bytes_needed == 1 || align_ % 2u) {
       bytes_size = 1;
@@ -905,14 +942,16 @@ global_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsign
       op = use_mubuf ? aco_opcode::buffer_load_dword
            : global  ? aco_opcode::global_load_dword
                      : aco_opcode::flat_load_dword;
-   } else if (bytes_needed <= 8 || (bytes_needed <= 12 && use_mubuf)) {
+   } else if (bytes_needed <= 8 || (bytes_needed <= 12 && bld.program->gfx_level == GFX6)) {
       bytes_size = 8;
       op = use_mubuf ? aco_opcode::buffer_load_dwordx2
            : global  ? aco_opcode::global_load_dwordx2
                      : aco_opcode::flat_load_dwordx2;
-   } else if (bytes_needed <= 12 && !use_mubuf) {
+   } else if (bytes_needed <= 12) {
       bytes_size = 12;
-      op = global ? aco_opcode::global_load_dwordx3 : aco_opcode::flat_load_dwordx3;
+      op = use_mubuf ? aco_opcode::buffer_load_dwordx3
+           : global  ? aco_opcode::global_load_dwordx3
+                     : aco_opcode::flat_load_dwordx3;
    } else {
       bytes_size = 16;
       op = use_mubuf ? aco_opcode::buffer_load_dwordx4
@@ -920,12 +959,20 @@ global_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsign
                      : aco_opcode::flat_load_dwordx4;
    }
    RegClass rc = RegClass::get(RegType::vgpr, bytes_size);
-   Temp val = dst_hint.id() && rc == dst_hint.regClass() ? dst_hint : bld.tmp(rc);
+   Temp val = rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
    if (use_mubuf) {
+      assert(bld.program->gfx_level == GFX6 || addr.type() != RegType::vgpr);
+
       aco_ptr<Instruction> mubuf{create_instruction(op, Format::MUBUF, 3, 1)};
-      mubuf->operands[0] = Operand(get_gfx6_global_rsrc(bld, addr));
-      mubuf->operands[1] = addr.type() == RegType::vgpr ? Operand(addr) : Operand(v1);
-      mubuf->operands[2] = Operand(offset);
+      mubuf->operands[0] = Operand(get_mubuf_global_rsrc(bld, addr));
+      if (addr.type() == RegType::vgpr)
+         mubuf->operands[1] = Operand(addr);
+      else if (offset.type() == RegType::vgpr)
+         mubuf->operands[1] = Operand(offset);
+      else
+         mubuf->operands[1] = Operand(v1);
+      mubuf->operands[2] = offset.type() == RegType::sgpr ? Operand(offset) : Operand::c32(0);
+      mubuf->mubuf().offen = offset.type() == RegType::vgpr;
       mubuf->mubuf().cache = info.cache;
       mubuf->mubuf().offset = const_offset;
       mubuf->mubuf().addr64 = addr.type() == RegType::vgpr;
@@ -934,8 +981,7 @@ global_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsign
       mubuf->definitions[0] = Definition(val);
       bld.insert(std::move(mubuf));
    } else {
-      aco_ptr<Instruction> flat{
-         create_instruction(op, global ? Format::GLOBAL : Format::FLAT, 2, 1)};
+      aco_ptr<Instruction> flat{create_instruction(op, format, 2, 1)};
       if (addr.regClass() == s2) {
          assert(global && offset.id() && offset.type() == RegType::vgpr);
          flat->operands[0] = Operand(offset);
@@ -1450,9 +1496,10 @@ visit_load_interpolated_input(isel_context* ctx, nir_intrinsic_instr* instr)
 }
 
 Temp
-mtbuf_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigned bytes_needed,
-                    unsigned alignment, unsigned const_offset, Temp dst_hint)
+mtbuf_load_callback(Builder& bld, const LoadEmitInfo& info, unsigned bytes_needed,
+                    unsigned alignment)
 {
+   Temp offset = info.offset.getTemp();
    Operand vaddr = offset.type() == RegType::vgpr ? Operand(offset) : Operand(v1);
    Operand soffset = offset.type() == RegType::sgpr ? Operand(offset) : Operand::c32(0);
 
@@ -1483,7 +1530,7 @@ mtbuf_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigne
    /* Calculate maximum number of components loaded according to alignment. */
    unsigned max_fetched_components = bytes_needed / info.component_size;
    max_fetched_components =
-      ac_get_safe_fetch_size(bld.program->gfx_level, vtx_info, const_offset, max_components,
+      ac_get_safe_fetch_size(bld.program->gfx_level, vtx_info, info.const_offset, max_components,
                              alignment, max_fetched_components);
    const unsigned fetch_fmt = vtx_info->hw_format[max_fetched_components - 1];
    /* Adjust bytes needed in case we need to do a smaller load due to alignment.
@@ -1537,11 +1584,11 @@ mtbuf_load_callback(Builder& bld, const LoadEmitInfo& info, Temp offset, unsigne
    mtbuf->mtbuf().idxen = idxen;
    mtbuf->mtbuf().cache = info.cache;
    mtbuf->mtbuf().sync = info.sync;
-   mtbuf->mtbuf().offset = const_offset;
+   mtbuf->mtbuf().offset = info.const_offset;
    mtbuf->mtbuf().dfmt = fetch_fmt & 0xf;
    mtbuf->mtbuf().nfmt = fetch_fmt >> 4;
    RegClass rc = RegClass::get(RegType::vgpr, bytes_size);
-   Temp val = dst_hint.id() && rc == dst_hint.regClass() ? dst_hint : bld.tmp(rc);
+   Temp val = rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
    mtbuf->definitions[0] = Definition(val);
    bld.insert(std::move(mtbuf));
 
@@ -1793,19 +1840,51 @@ visit_bvh8_intersect_ray_amd(isel_context* ctx, nir_intrinsic_instr* instr)
    Temp new_origin = bld.tmp(v3);
    Temp new_dir = bld.tmp(v3);
 
-   std::vector<Temp> args = {bvh_base,
-                             bld.pseudo(aco_opcode::p_create_vector, bld.def(v2), tmax, cull_mask),
-                             origin, dir, node_id};
+   std::vector<Temp> args = {bvh_base, tmax, cull_mask, origin, dir, node_id};
 
-   MIMG_instruction* mimg = emit_mimg(bld, aco_opcode::image_bvh8_intersect_ray,
-                                      {new_origin, new_dir, result}, resource, Operand(s4), args);
-   mimg->dim = ac_image_1d;
-   mimg->dmask = 0xf;
-   mimg->unrm = true;
-   mimg->r128 = true;
+   /* Use vector-aligned scalar operands in order to avoid unnecessary copies
+    * when creating vectors.
+    */
+   std::vector<Operand> scalar_args;
+   for (unsigned i = 0; i < args.size(); ++i) {
+      Temp tmp = args[i];
+      for (unsigned j = 0; j < tmp.size(); j++) {
+         scalar_args.emplace_back(emit_extract_vector(ctx, tmp, j, v1));
+         scalar_args.back().setVectorAligned(true);
+      }
+      /* (tmax, cull_mask) is passed as one vector */
+      if (i != 1)
+         scalar_args.back().setVectorAligned(false);
+   }
 
-   bld.pseudo(aco_opcode::p_create_vector, Definition(dst), Operand(result), Operand(new_origin),
-              Operand(new_dir));
+   Instruction* mimg = create_instruction(aco_opcode::image_bvh8_intersect_ray, Format::MIMG,
+                                          3 + scalar_args.size(), 3);
+   mimg->definitions[0] = Definition(new_origin);
+   mimg->definitions[1] = Definition(new_dir);
+   mimg->definitions[2] = Definition(result);
+   mimg->operands[0] = Operand(resource);
+   mimg->operands[1] = Operand(s4);
+   mimg->operands[2] = Operand(v1);
+   for (unsigned i = 0; i < scalar_args.size(); i++)
+      mimg->operands[3 + i] = scalar_args[i];
+
+   mimg->mimg().dim = ac_image_1d;
+   mimg->mimg().dmask = 0xf;
+   mimg->mimg().unrm = true;
+   mimg->mimg().r128 = true;
+   bld.insert(std::move(mimg));
+   emit_split_vector(ctx, result, 10);
+   emit_split_vector(ctx, new_origin, 3);
+   emit_split_vector(ctx, new_dir, 3);
+
+   Temp vec[16];
+   for (unsigned i = 0; i < 10; ++i)
+      vec[i] = emit_extract_vector(ctx, result, i, RegClass::v1);
+   for (unsigned i = 0; i < 3; ++i) {
+      vec[10 + i] = emit_extract_vector(ctx, new_origin, i, RegClass::v1);
+      vec[13 + i] = emit_extract_vector(ctx, new_dir, i, RegClass::v1);
+   }
+   create_vec_from_array(ctx, vec, 16, RegType::vgpr, 4, 0, dst);
 }
 
 static std::vector<Temp>
@@ -2453,6 +2532,7 @@ visit_load_global(isel_context* ctx, nir_intrinsic_instr* instr)
    info.align_mul = nir_intrinsic_align_mul(instr);
    info.align_offset = nir_intrinsic_align_offset(instr);
    info.sync = get_memory_sync_info(instr, storage_buffer, 0);
+   info.offset_src = &instr->src[1];
 
    unsigned access = nir_intrinsic_access(instr) | ACCESS_TYPE_LOAD;
    if (access & ACCESS_SMEM_AMD) {
@@ -2496,14 +2576,15 @@ visit_store_global(isel_context* ctx, nir_intrinsic_instr* instr)
       Temp write_address = addr;
       uint32_t write_const_offset = const_offset;
       Temp write_offset = offset;
-      lower_global_address(bld, offsets[i], &write_address, &write_const_offset, &write_offset);
+      Format format = lower_global_address(ctx, bld, offsets[i], &write_address,
+                                           &write_const_offset, &write_offset, &instr->src[2]);
 
       unsigned access = nir_intrinsic_access(instr) | ACCESS_TYPE_STORE;
       if (write_datas[i].bytes() < 4)
          access |= ACCESS_MAY_STORE_SUBDWORD;
 
-      if (ctx->options->gfx_level >= GFX7) {
-         bool global = ctx->options->gfx_level >= GFX9;
+      if (format != Format::MUBUF) {
+         bool global = format == Format::GLOBAL;
          aco_opcode op;
          switch (write_datas[i].bytes()) {
          case 1: op = global ? aco_opcode::global_store_byte : aco_opcode::flat_store_byte; break;
@@ -2521,8 +2602,7 @@ visit_store_global(isel_context* ctx, nir_intrinsic_instr* instr)
          default: unreachable("store_global not implemented for this size.");
          }
 
-         aco_ptr<Instruction> flat{
-            create_instruction(op, global ? Format::GLOBAL : Format::FLAT, 3, 0)};
+         aco_ptr<Instruction> flat{create_instruction(op, format, 3, 0)};
          if (write_address.regClass() == s2) {
             assert(global && write_offset.id() && write_offset.type() == RegType::vgpr);
             flat->operands[0] = Operand(write_offset);
@@ -2541,18 +2621,24 @@ visit_store_global(isel_context* ctx, nir_intrinsic_instr* instr)
          ctx->program->needs_exact = true;
          ctx->block->instructions.emplace_back(std::move(flat));
       } else {
-         assert(ctx->options->gfx_level == GFX6);
+         assert(ctx->options->gfx_level == GFX6 || write_address.type() != RegType::vgpr);
 
          aco_opcode op = get_buffer_store_op(write_datas[i].bytes());
 
-         Temp rsrc = get_gfx6_global_rsrc(bld, write_address);
+         Temp rsrc = get_mubuf_global_rsrc(bld, write_address);
 
          aco_ptr<Instruction> mubuf{create_instruction(op, Format::MUBUF, 4, 0)};
          mubuf->operands[0] = Operand(rsrc);
-         mubuf->operands[1] =
-            write_address.type() == RegType::vgpr ? Operand(write_address) : Operand(v1);
-         mubuf->operands[2] = Operand(write_offset);
+         if (write_address.type() == RegType::vgpr)
+            mubuf->operands[1] = Operand(write_address);
+         else if (write_offset.type() == RegType::vgpr)
+            mubuf->operands[1] = Operand(write_offset);
+         else
+            mubuf->operands[1] = Operand(v1);
+         mubuf->operands[2] =
+            write_offset.type() == RegType::sgpr ? Operand(write_offset) : Operand::c32(0);
          mubuf->operands[3] = Operand(write_datas[i]);
+         mubuf->mubuf().offen = write_offset.type() == RegType::vgpr;
          mubuf->mubuf().cache = get_cache_flags(ctx, access);
          mubuf->mubuf().offset = write_const_offset;
          mubuf->mubuf().addr64 = write_address.type() == RegType::vgpr;
@@ -2585,10 +2671,10 @@ visit_global_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
    Temp addr, offset;
    uint32_t const_offset;
    parse_global(ctx, instr, &addr, &const_offset, &offset);
-   lower_global_address(bld, 0, &addr, &const_offset, &offset);
+   Format format = lower_global_address(ctx, bld, 0, &addr, &const_offset, &offset, &instr->src[2]);
 
-   if (ctx->options->gfx_level >= GFX7) {
-      bool global = ctx->options->gfx_level >= GFX9;
+   if (format != Format::MUBUF) {
+      bool global = format == Format::GLOBAL;
       switch (nir_op) {
       case nir_atomic_op_iadd:
          op32 = global ? aco_opcode::global_atomic_add : aco_opcode::flat_atomic_add;
@@ -2651,8 +2737,7 @@ visit_global_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
       }
 
       aco_opcode op = instr->def.bit_size == 32 ? op32 : op64;
-      aco_ptr<Instruction> flat{create_instruction(op, global ? Format::GLOBAL : Format::FLAT, 3,
-                                                   return_previous ? 1 : 0)};
+      aco_ptr<Instruction> flat{create_instruction(op, format, 3, return_previous ? 1 : 0)};
       if (addr.regClass() == s2) {
          assert(global && offset.id() && offset.type() == RegType::vgpr);
          flat->operands[0] = Operand(offset);
@@ -2673,24 +2758,30 @@ visit_global_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
       ctx->program->needs_exact = true;
       ctx->block->instructions.emplace_back(std::move(flat));
    } else {
-      assert(ctx->options->gfx_level == GFX6);
+      assert(ctx->options->gfx_level == GFX6 || addr.type() != RegType::vgpr);
 
       UNUSED aco_opcode image_op;
       translate_buffer_image_atomic_op(nir_op, &op32, &op64, &image_op);
 
-      Temp rsrc = get_gfx6_global_rsrc(bld, addr);
+      Temp rsrc = get_mubuf_global_rsrc(bld, addr);
 
       aco_opcode op = instr->def.bit_size == 32 ? op32 : op64;
 
       aco_ptr<Instruction> mubuf{create_instruction(op, Format::MUBUF, 4, return_previous ? 1 : 0)};
       mubuf->operands[0] = Operand(rsrc);
-      mubuf->operands[1] = addr.type() == RegType::vgpr ? Operand(addr) : Operand(v1);
-      mubuf->operands[2] = Operand(offset);
+      if (addr.type() == RegType::vgpr)
+         mubuf->operands[1] = Operand(addr);
+      else if (offset.type() == RegType::vgpr)
+         mubuf->operands[1] = Operand(offset);
+      else
+         mubuf->operands[1] = Operand(v1);
+      mubuf->operands[2] = offset.type() == RegType::sgpr ? Operand(offset) : Operand::c32(0);
       mubuf->operands[3] = Operand(data);
       Definition def =
          return_previous ? (cmpswap ? bld.def(data.regClass()) : Definition(dst)) : Definition();
       if (return_previous)
          mubuf->definitions[0] = def;
+      mubuf->mubuf().offen = offset.type() == RegType::vgpr;
       mubuf->mubuf().cache = get_atomic_cache_flags(ctx, return_previous);
       mubuf->mubuf().offset = const_offset;
       mubuf->mubuf().addr64 = addr.type() == RegType::vgpr;
@@ -3927,6 +4018,67 @@ pops_await_overlapped_waves(isel_context* ctx)
    bld.reset(ctx->block);
 }
 
+uint16_t
+ds_bvh_stack_offset1_gfx11(unsigned stack_size)
+{
+   switch (stack_size) {
+   case 8: return 0x00;
+   case 16: return 0x10;
+   case 32: return 0x20;
+   case 64: return 0x30;
+   default: unreachable("invalid stack size");
+   }
+}
+
+void
+emit_ds_bvh_stack_push4_pop1_rtn(isel_context* ctx, nir_intrinsic_instr* instr, Builder& bld)
+{
+   Temp dst = get_ssa_temp(ctx, &instr->def);
+   Temp stack_addr = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[0].ssa));
+   Temp last_node = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[1].ssa));
+   Temp intersection_result = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[2].ssa));
+
+   Temp dst_stack_addr = bld.tmp(v1);
+   Temp dst_node_pointer = bld.tmp(v1);
+   uint32_t offset0 = 0, offset1 = 0;
+   if (ctx->program->gfx_level >= GFX12)
+      offset0 = nir_intrinsic_stack_size(instr);
+   else
+      offset1 = ds_bvh_stack_offset1_gfx11(nir_intrinsic_stack_size(instr));
+   bld.ds(aco_opcode::ds_bvh_stack_push4_pop1_rtn_b32, Definition(dst_stack_addr),
+          Definition(dst_node_pointer), Operand(stack_addr), Operand(last_node),
+          Operand(intersection_result), offset0, offset1);
+   bld.pseudo(aco_opcode::p_create_vector, Definition(dst), Operand(dst_stack_addr),
+              Operand(dst_node_pointer));
+}
+
+void
+emit_ds_bvh_stack_push8_pop1_rtn(isel_context* ctx, nir_intrinsic_instr* instr, Builder& bld)
+{
+   Temp dst = get_ssa_temp(ctx, &instr->def);
+   Temp stack_addr = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[0].ssa));
+   Temp last_node = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[1].ssa));
+   Temp intersection_result = as_vgpr(ctx, get_ssa_temp(ctx, instr->src[2].ssa));
+
+   Temp dst_stack_addr = bld.tmp(v1);
+   Temp dst_node_pointer = bld.tmp(v1);
+   Instruction* ds_instr =
+      create_instruction(aco_opcode::ds_bvh_stack_push8_pop1_rtn_b32, Format::DS, 2 + 8, 2);
+   ds_instr->definitions[0] = Definition(dst_stack_addr);
+   ds_instr->definitions[1] = Definition(dst_node_pointer);
+   ds_instr->operands[0] = Operand(stack_addr);
+   ds_instr->operands[1] = Operand(last_node);
+   for (unsigned i = 0; i < 8; ++i) {
+      ds_instr->operands[2 + i] = Operand(emit_extract_vector(ctx, intersection_result, i, v1));
+      if (i < 7)
+         ds_instr->operands[2 + i].setVectorAligned(true);
+   }
+   ds_instr->ds().offset0 = nir_intrinsic_stack_size(instr);
+   bld.insert(aco_ptr<Instruction>(ds_instr));
+   bld.pseudo(aco_opcode::p_create_vector, Definition(dst), Operand(dst_stack_addr),
+              Operand(dst_node_pointer));
+}
+
 } // namespace
 
 void
@@ -4932,18 +5084,6 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       ctx->block->instructions.emplace_back(std::move(vec));
       break;
    }
-   case nir_intrinsic_load_lds_ngg_scratch_base_amd: {
-      Temp dst = get_ssa_temp(ctx, &instr->def);
-      bld.sop1(aco_opcode::p_load_symbol, Definition(dst),
-               Operand::c32(aco_symbol_lds_ngg_scratch_base));
-      break;
-   }
-   case nir_intrinsic_load_lds_ngg_gs_out_vertex_base_amd: {
-      Temp dst = get_ssa_temp(ctx, &instr->def);
-      bld.sop1(aco_opcode::p_load_symbol, Definition(dst),
-               Operand::c32(aco_symbol_lds_ngg_gs_out_vertex_base));
-      break;
-   }
    case nir_intrinsic_store_scalar_arg_amd: {
       BITSET_SET(ctx->output_args, nir_intrinsic_base(instr));
       ctx->arg_temps[nir_intrinsic_base(instr)] =
@@ -4977,6 +5117,14 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       bld.pseudo(aco_opcode::p_unit_test, Definition(get_ssa_temp(ctx, &instr->def)),
                  Operand::c32(nir_intrinsic_base(instr)));
       break;
+   case nir_intrinsic_bvh_stack_rtn_amd: {
+      switch (instr->num_components) {
+      case 4: emit_ds_bvh_stack_push4_pop1_rtn(ctx, instr, bld); break;
+      case 8: emit_ds_bvh_stack_push8_pop1_rtn(ctx, instr, bld); break;
+      default: unreachable("Invalid BVH stack component count!");
+      }
+      break;
+   }
    default:
       isel_err(&instr->instr, "Unimplemented intrinsic instr");
       abort();

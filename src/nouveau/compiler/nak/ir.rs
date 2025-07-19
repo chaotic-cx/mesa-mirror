@@ -1930,12 +1930,61 @@ impl TexLodMode {
 impl fmt::Display for TexLodMode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            TexLodMode::Auto => write!(f, "la"),
-            TexLodMode::Zero => write!(f, "lz"),
-            TexLodMode::Bias => write!(f, "lb"),
-            TexLodMode::Lod => write!(f, "ll"),
-            TexLodMode::Clamp => write!(f, "lc"),
-            TexLodMode::BiasClamp => write!(f, "lb.lc"),
+            TexLodMode::Auto => write!(f, ""),
+            TexLodMode::Zero => write!(f, ".lz"),
+            TexLodMode::Bias => write!(f, ".lb"),
+            TexLodMode::Lod => write!(f, ".ll"),
+            TexLodMode::Clamp => write!(f, ".lc"),
+            TexLodMode::BiasClamp => write!(f, ".lb.lc"),
+        }
+    }
+}
+
+/// Derivative behavior for tex ops and FSwzAdd
+///
+/// The descriptions here may not be wholly accurate as they come from cobbling
+/// together a bunch of pieces.  This is my (Faith's) best understanding of how
+/// these things work.
+#[allow(dead_code)]
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum TexDerivMode {
+    /// Automatic
+    ///
+    /// For partial (not full) quads, the derivative will default to the value
+    /// of DEFAULT_PARTIAL in SET_SHADER_CONTROL.
+    ///
+    /// On Volta and earlier GPUs or on Blackwell B and later, derivatives in
+    /// all non-fragment shaders stages are assumed to be partial.
+    Auto,
+
+    /// Assume a non-divergent (full) derivative
+    ///
+    /// Partial derivative checks are skipped and the hardware does the
+    /// derivative anyway, possibly on rubbish data.
+    NonDivergent,
+
+    /// Force the derivative to be considered divergent (partial)
+    ///
+    /// This only exists as a separate thing on Blackwell A.  On Hopper and
+    /// earlier, there is a .fdv that's part of the LodMode, but only for
+    /// LodMode::Clamp.  On Blackwell B, it appears (according to the
+    /// disassembler) to be removed again in favor of DerivXY.
+    ForceDivergent,
+
+    /// Attempt an X/Y derivative, ignoring shader stage
+    ///
+    /// This is (I think) identical to Auto except that it ignores the shader
+    /// stage checks.  This is new on Blackwell B+.
+    DerivXY,
+}
+
+impl fmt::Display for TexDerivMode {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            TexDerivMode::Auto => Ok(()),
+            TexDerivMode::NonDivergent => write!(f, ".ndv"),
+            TexDerivMode::ForceDivergent => write!(f, ".fdv"),
+            TexDerivMode::DerivXY => write!(f, ".dxy"),
         }
     }
 }
@@ -2831,6 +2880,7 @@ pub struct OpFSwzAdd {
 
     pub rnd_mode: FRndMode,
     pub ftz: bool,
+    pub deriv_mode: TexDerivMode,
 
     pub ops: [FSwzAddOp; 4],
 }
@@ -2844,6 +2894,7 @@ impl DisplayOp for OpFSwzAdd {
         if self.ftz {
             write!(f, ".ftz")?;
         }
+        write!(f, "{}", self.deriv_mode)?;
         write!(
             f,
             " {} {} [{}, {}, {}, {}]",
@@ -2904,6 +2955,7 @@ pub struct OpFSwz {
 
     pub rnd_mode: FRndMode,
     pub ftz: bool,
+    pub deriv_mode: TexDerivMode,
     pub shuffle: FSwzShuffle,
 
     pub ops: [FSwzAddOp; 4],
@@ -2915,6 +2967,7 @@ impl DisplayOp for OpFSwz {
         if self.rnd_mode != FRndMode::NearestEven {
             write!(f, "{}", self.rnd_mode)?;
         }
+        write!(f, "{}", self.deriv_mode)?;
         if self.ftz {
             write!(f, ".ftz")?;
         }
@@ -3296,6 +3349,108 @@ impl DisplayOp for OpHMul2 {
     }
 }
 impl_display_for_op!(OpHMul2);
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+#[allow(dead_code)]
+pub enum ImmaSize {
+    M8N8K16,
+    M8N8K32,
+    M16N8K16,
+    M16N8K32,
+    M16N8K64,
+}
+
+impl fmt::Display for ImmaSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ImmaSize::M8N8K16 => write!(f, ".m8n8k16"),
+            ImmaSize::M8N8K32 => write!(f, ".m8n8k32"),
+            ImmaSize::M16N8K16 => write!(f, ".m16n8k16"),
+            ImmaSize::M16N8K32 => write!(f, ".m16n8k32"),
+            ImmaSize::M16N8K64 => write!(f, ".m16n8k64"),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(SrcsAsSlice, DstsAsSlice)]
+pub struct OpImma {
+    #[dst_type(Vec)]
+    pub dst: Dst,
+
+    pub mat_size: ImmaSize,
+    pub src_types: [IntType; 2],
+    pub saturate: bool,
+
+    #[src_type(SSA)]
+    pub srcs: [Src; 3],
+}
+
+impl DisplayOp for OpImma {
+    fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let sat = if self.saturate { ".sat" } else { "" };
+        write!(
+            f,
+            "imma{}{}{}{sat} {} {} {}",
+            self.mat_size,
+            self.src_types[0],
+            self.src_types[1],
+            self.srcs[0],
+            self.srcs[1],
+            self.srcs[2],
+        )
+    }
+}
+
+impl_display_for_op!(OpImma);
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+#[allow(dead_code)]
+pub enum HmmaSize {
+    M16N8K16,
+    M16N8K8,
+    M16N8K4,
+}
+
+impl fmt::Display for HmmaSize {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            HmmaSize::M16N8K16 => write!(f, ".m16n8k16"),
+            HmmaSize::M16N8K8 => write!(f, ".m16n8k8"),
+            HmmaSize::M16N8K4 => write!(f, ".m16n8k4"),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(SrcsAsSlice, DstsAsSlice)]
+pub struct OpHmma {
+    #[dst_type(Vec)]
+    pub dst: Dst,
+
+    pub mat_size: HmmaSize,
+    pub src_type: FloatType,
+    pub dst_type: FloatType,
+
+    #[src_type(SSA)]
+    pub srcs: [Src; 3],
+}
+
+impl DisplayOp for OpHmma {
+    fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "hmma{}{} {} {} {}",
+            self.mat_size,
+            self.dst_type,
+            self.srcs[0],
+            self.srcs[1],
+            self.srcs[2],
+        )
+    }
+}
+
+impl_display_for_op!(OpHmma);
 
 #[repr(C)]
 #[derive(SrcsAsSlice, DstsAsSlice)]
@@ -5113,6 +5268,7 @@ pub struct OpTex {
 
     pub dim: TexDim,
     pub lod_mode: TexLodMode,
+    pub deriv_mode: TexDerivMode,
     pub z_cmpr: bool,
     pub offset_mode: TexOffsetMode,
     pub mem_eviction_priority: MemEvictionPriority,
@@ -5122,11 +5278,11 @@ pub struct OpTex {
 
 impl DisplayOp for OpTex {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "tex{}", self.dim)?;
-        if self.lod_mode != TexLodMode::Auto {
-            write!(f, ".{}", self.lod_mode)?;
-        }
-        write!(f, "{}", self.offset_mode)?;
+        write!(
+            f,
+            "tex{}{}{}{}",
+            self.dim, self.lod_mode, self.offset_mode, self.deriv_mode
+        )?;
         if self.z_cmpr {
             write!(f, ".dc")?;
         }
@@ -5162,11 +5318,7 @@ pub struct OpTld {
 
 impl DisplayOp for OpTld {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "tld{}", self.dim)?;
-        if self.lod_mode != TexLodMode::Auto {
-            write!(f, ".{}", self.lod_mode)?;
-        }
-        write!(f, "{}", self.offset_mode)?;
+        write!(f, "tld{}{}{}", self.dim, self.lod_mode, self.offset_mode)?;
         if self.is_ms {
             write!(f, ".ms")?;
         }
@@ -5227,13 +5379,14 @@ pub struct OpTmml {
     pub srcs: [Src; 2],
 
     pub dim: TexDim,
+    pub deriv_mode: TexDerivMode,
     pub nodep: bool,
     pub channel_mask: ChannelMask,
 }
 
 impl DisplayOp for OpTmml {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "tmml.lod{}", self.dim)?;
+        write!(f, "tmml.lod{}{}", self.dim, self.deriv_mode)?;
         if self.nodep {
             write!(f, ".nodep")?;
         }
@@ -5331,7 +5484,7 @@ pub struct OpSuLd {
     pub mem_order: MemOrder,
     pub mem_eviction_priority: MemEvictionPriority,
 
-    #[src_type(GPR)]
+    #[src_type(SSA)]
     pub handle: Src,
 
     #[src_type(SSA)]
@@ -5362,7 +5515,7 @@ pub struct OpSuSt {
     pub mem_order: MemOrder,
     pub mem_eviction_priority: MemEvictionPriority,
 
-    #[src_type(GPR)]
+    #[src_type(SSA)]
     pub handle: Src,
 
     #[src_type(SSA)]
@@ -5403,7 +5556,7 @@ pub struct OpSuAtom {
     pub mem_order: MemOrder,
     pub mem_eviction_priority: MemEvictionPriority,
 
-    #[src_type(GPR)]
+    #[src_type(SSA)]
     pub handle: Src,
 
     #[src_type(SSA)]
@@ -6792,7 +6945,15 @@ impl_display_for_op!(OpBar);
 #[repr(C)]
 #[derive(SrcsAsSlice, DstsAsSlice)]
 pub struct OpTexDepBar {
-    pub textures_left: i8,
+    pub textures_left: u8,
+}
+
+impl OpTexDepBar {
+    /// Maximum value of textures_left
+    ///
+    /// The maximum encodable value is 63.  However, nvcc starts emitting
+    /// TEXDEPBAR 0x3e as soon as it hits 62 texture instructions.
+    pub const MAX_TEXTURES_LEFT: u8 = 62;
 }
 
 impl DisplayOp for OpTexDepBar {
@@ -7000,6 +7161,46 @@ impl DisplayOp for OpVote {
     }
 }
 impl_display_for_op!(OpVote);
+
+#[allow(dead_code)]
+#[derive(Copy, Clone)]
+pub enum MatchOp {
+    All,
+    Any,
+}
+
+impl fmt::Display for MatchOp {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            MatchOp::All => write!(f, ".all"),
+            MatchOp::Any => write!(f, ".any"),
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(SrcsAsSlice, DstsAsSlice)]
+pub struct OpMatch {
+    #[dst_type(Pred)]
+    pub pred: Dst,
+
+    #[dst_type(GPR)]
+    pub mask: Dst,
+
+    #[src_type(GPR)]
+    pub src: Src,
+
+    pub op: MatchOp,
+    pub u64: bool,
+}
+
+impl DisplayOp for OpMatch {
+    fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let u64_str = if self.u64 { ".u64" } else { "" };
+        write!(f, "match{}{} {}", self.op, u64_str, self.src)
+    }
+}
+impl_display_for_op!(OpMatch);
 
 #[repr(C)]
 #[derive(SrcsAsSlice, DstsAsSlice)]
@@ -7548,6 +7749,8 @@ pub enum Op {
     HMul2(OpHMul2),
     HSet2(OpHSet2),
     HSetP2(OpHSetP2),
+    Imma(OpImma),
+    Hmma(OpHmma),
     HMnMx2(OpHMnMx2),
     BMsk(OpBMsk),
     BRev(OpBRev),
@@ -7638,6 +7841,7 @@ pub enum Op {
     PixLd(OpPixLd),
     S2R(OpS2R),
     Vote(OpVote),
+    Match(OpMatch),
     Undef(OpUndef),
     SrcBar(OpSrcBar),
     PhiSrcs(OpPhiSrcs),
@@ -7712,6 +7916,9 @@ impl Op {
             | Op::DMnMx(_)
             | Op::DMul(_)
             | Op::DSetP(_) => false,
+
+            // Matrix Multiply Add
+            Op::Imma(_) | Op::Hmma(_) => false,
 
             // Integer ALU
             Op::BRev(_) | Op::Flo(_) | Op::PopC(_) => false,
@@ -7815,7 +8022,8 @@ impl Op {
             | Op::ViLd(_)
             | Op::Kill(_)
             | Op::PixLd(_)
-            | Op::S2R(_) => false,
+            | Op::S2R(_)
+            | Op::Match(_) => false,
             Op::Nop(_) | Op::Vote(_) => true,
 
             // Virtual ops
@@ -7982,7 +8190,6 @@ impl fmt::Display for Pred {
 }
 
 pub const MIN_INSTR_DELAY: u8 = 1;
-pub const MAX_INSTR_DELAY: u8 = 15;
 
 pub struct InstrDeps {
     pub delay: u8,
@@ -8777,8 +8984,18 @@ pub trait ShaderModel {
     }
 
     #[allow(dead_code)]
-    fn is_blackwell(&self) -> bool {
+    fn is_blackwell_a(&self) -> bool {
         self.sm() >= 100 && self.sm() < 110
+    }
+
+    #[allow(dead_code)]
+    fn is_blackwell_b(&self) -> bool {
+        self.sm() >= 120 && self.sm() < 130
+    }
+
+    #[allow(dead_code)]
+    fn is_blackwell(&self) -> bool {
+        self.is_blackwell_a() || self.is_blackwell_b()
     }
 
     fn num_regs(&self, file: RegFile) -> u32;
@@ -8828,6 +9045,9 @@ pub trait ShaderModel {
 
     /// Worst-case access-after-write latency
     fn worst_latency(&self, write: &Op, dst_idx: usize) -> u32;
+
+    /// Maximum encodable instruction delay
+    fn max_instr_delay(&self) -> u8;
 
     fn legalize_op(&self, b: &mut LegalizeBuilder, op: &mut Op);
     fn encode_shader(&self, s: &Shader<'_>) -> Vec<u32>;

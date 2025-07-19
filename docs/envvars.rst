@@ -26,14 +26,6 @@ LibGL environment variables
    if set to ``true``, do not use DrawArrays GLX protocol (for
    debugging)
 
-.. envvar:: LIBGL_DRI2_DISABLE
-
-   disable DRI2 if set to ``true``.
-
-.. envvar:: LIBGL_DRI3_DISABLE
-
-   disable DRI3 if set to ``true``.
-
 .. envvar:: LIBGL_KOPPER_DISABLE
 
    disable Vulkan swapchains with Zink if set to ``true``.
@@ -44,9 +36,10 @@ LibGL environment variables
 
 .. envvar:: LIBGL_KOPPER_DRI2
 
-   disable DRI3 with Zink if set to ``true``.
-   In general, this should not be used unless you know what you are
-   doing. Some examples of "knowing what you are doing" include:
+   if set to ``true``, allow loading Zink even if X11 does not support
+   explicit DRM format modifiers. In general, this should not be used
+   unless you know what you are doing. Some examples of "knowing what you
+   are doing" include:
    - running xrdp
    - using a VK driver which doesn't support modifiers
 
@@ -535,6 +528,10 @@ Intel driver environment variables
       use color in output
    ``cs``
       dump shader assembly for compute shaders
+   ``dispatch_bkp``
+      Add semaphore wait before/after dispatch call count.
+      ``INTEL_DEBUG_BKP_BEFORE_DISPATCH_COUNT`` or
+      ``INTEL_DEBUG_BKP_AFTER_DISPATCH_COUNT`` can control dispatch call number.
    ``do32``
       generate compute shader SIMD32 programs even if workgroup size
       doesn't exceed the SIMD16 limit
@@ -1515,6 +1512,8 @@ RADV driver environment variables
       rt extensions with older hardware.
    ``gewave32``
       enable wave32 for vertex/tess/geometry shaders (GFX10+)
+   ``hic``
+      enable experimental implementation of VK_EXT_host_image_copy (GFX10+)
    ``localbos``
       enable local BOs
    ``nggc``
@@ -1748,6 +1747,10 @@ RadeonSI driver environment variables
       Enable DPBB. Enable DPBB for gfx9 dGPU. Default enabled for gfx9 APU and >= gfx10.
    ``extra_md``
       add extra information in bo metadata to help tools (umr)
+   ``shadowregs``
+      Enable CP register shadowing in kernel queue.
+   ``userqnoshadowregs``
+      Disable register shadowing in userqueue. This will also disable userqueue mcbp.
 
 r600 driver environment variables
 ---------------------------------

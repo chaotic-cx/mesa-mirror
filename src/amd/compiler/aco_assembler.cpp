@@ -513,11 +513,17 @@ emit_ds_instruction(asm_context& ctx, std::vector<uint32_t>& out, const Instruct
    out.push_back(encoding);
    encoding = 0;
    if (!instr->definitions.empty())
-      encoding |= reg(ctx, instr->definitions[0], 8) << 24;
-   for (unsigned i = 0; i < MIN2(instr->operands.size(), 3); i++) {
-      const Operand& op = instr->operands[i];
+      encoding |= reg(ctx, instr->definitions.back(), 8) << 24;
+   unsigned op_idx = 0;
+   for (unsigned vector_idx = 0; op_idx < MIN2(instr->operands.size(), 3); vector_idx++) {
+      assert(vector_idx < 3);
+
+      const Operand& op = instr->operands[op_idx];
       if (op.physReg() != m0 && !op.isUndefined())
-         encoding |= reg(ctx, op, 8) << (8 * i);
+         encoding |= reg(ctx, op, 8) << (8 * vector_idx);
+      while (instr->operands[op_idx].isVectorAligned())
+         ++op_idx;
+      ++op_idx;
    }
    out.push_back(encoding);
 }

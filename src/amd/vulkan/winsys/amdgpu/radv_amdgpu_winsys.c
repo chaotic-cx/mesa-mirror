@@ -170,6 +170,15 @@ radv_amdgpu_winsys_get_sync_types(struct radeon_winsys *rws)
    return ws->sync_types;
 }
 
+static struct util_sync_provider *
+radv_amdgpu_winsys_get_sync_provider(struct radeon_winsys *rws)
+{
+   struct radv_amdgpu_winsys *ws = (struct radv_amdgpu_winsys *)rws;
+   struct util_sync_provider *p = ac_drm_device_get_sync_provider(ws->dev);
+   /* vk_device owns the provider, so we need to clone it. */
+   return p->clone(p);
+}
+
 VkResult
 radv_amdgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags, bool reserve_vmid, bool is_virtio,
                           struct radeon_winsys **winsys)
@@ -200,6 +209,12 @@ radv_amdgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags,
    if (entry) {
       ws = (struct radv_amdgpu_winsys *)entry->data;
       ++ws->refcount;
+   }
+
+   if (is_virtio && (perftest_flags & (RADV_PERFTEST_BO_LIST | RADV_PERFTEST_LOCAL_BOS))) {
+      /* virtio doesn't support VM_ALWAYS_VALID, so disable options that requires it. */
+      fprintf(stderr, "localbos and bolist options are not supported values for RADV_PERFTEST with virtio.\n");
+      return VK_ERROR_INITIALIZATION_FAILED;
    }
 
    if (ws) {
@@ -274,7 +289,7 @@ radv_amdgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags,
    }
    int num_sync_types = 0;
 
-   ws->syncobj_sync_type = vk_drm_syncobj_get_type(ws->fd);
+   ws->syncobj_sync_type = vk_drm_syncobj_get_type_from_provider(ac_drm_device_get_sync_provider(dev));
    if (ws->syncobj_sync_type.features) {
       /* multi wait is always supported */
       ws->syncobj_sync_type.features |= VK_SYNC_FEATURE_GPU_MULTI_WAIT;
@@ -309,6 +324,7 @@ radv_amdgpu_winsys_create(int fd, uint64_t debug_flags, uint64_t perftest_flags,
    ws->base.destroy = radv_amdgpu_winsys_destroy;
    ws->base.get_fd = radv_amdgpu_winsys_get_fd;
    ws->base.get_sync_types = radv_amdgpu_winsys_get_sync_types;
+   ws->base.get_sync_provider = radv_amdgpu_winsys_get_sync_provider;
    radv_amdgpu_bo_init_functions(ws);
    radv_amdgpu_cs_init_functions(ws);
 

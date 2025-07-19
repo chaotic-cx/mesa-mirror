@@ -57,6 +57,7 @@ static const struct debug_named_value bifrost_debug_options[] = {
    {"nosb",       BIFROST_DBG_NOSB,       "Disable scoreboarding"},
    {"nopreload",  BIFROST_DBG_NOPRELOAD,  "Disable message preloading"},
    {"spill",      BIFROST_DBG_SPILL,      "Test register spilling"},
+   {"nossara",    BIFROST_DBG_NOSSARA,    "Disable SSA in register allocation"},
    DEBUG_NAMED_VALUE_END
 };
 /* clang-format on */
@@ -1596,6 +1597,8 @@ bi_atom_opc_for_nir(nir_atomic_op op)
    case nir_atomic_op_iand: return BI_ATOM_OPC_AAND;
    case nir_atomic_op_ior:  return BI_ATOM_OPC_AOR;
    case nir_atomic_op_ixor: return BI_ATOM_OPC_AXOR;
+   case nir_atomic_op_xchg: return BI_ATOM_OPC_AXCHG;
+   case nir_atomic_op_cmpxchg: return BI_ATOM_OPC_AXCHG;
    default: unreachable("Unexpected computational atomic");
    }
    /* clang-format on */
@@ -1828,6 +1831,36 @@ bi_emit_image_store(bi_builder *b, nir_intrinsic_instr *instr)
              BI_REGISTER_FORMAT_AUTO, instr->num_components - 1);
 }
 
+static void
+bi_emit_atomic_i64_to(bi_builder *b, bi_index dst, bi_index addr, bi_index arg,
+                      nir_atomic_op op)
+{
+   enum bi_atom_opc opc = bi_atom_opc_for_nir(op);
+   enum bi_atom_opc post_opc = opc;
+   bool bifrost = b->shader->arch <= 8;
+
+   /* ATOM_C.i64 takes a vector with {arg, coalesced}, ATOM_C1.i64 doesn't
+    * take any vector but can still output in RETURN mode */
+   bi_index tmp_dest = bifrost ? bi_temp(b->shader) : dst;
+   unsigned sr_count = bifrost ? 4 : 2;
+
+   /* Generate either ATOM or ATOM1 as required */
+   if (bi_promote_atom_c1(opc, arg, &opc)) {
+      bi_atom1_return_i64_to(b, tmp_dest, bi_extract(b, addr, 0),
+                             bi_extract(b, addr, 1), opc, sr_count);
+   } else {
+      bi_atom_return_i64_to(b, tmp_dest, arg, bi_extract(b, addr, 0),
+                            bi_extract(b, addr, 1), opc, sr_count);
+   }
+
+   if (bifrost) {
+      /* Post-process it */
+      bi_emit_cached_split(b, tmp_dest, 64 * 2);
+      bi_atom_post_i64_to(b, dst, bi_extract(b, tmp_dest, 0),
+                          bi_extract(b, tmp_dest, 2), post_opc);
+      bi_emit_cached_split(b, dst, 64);
+   }
+}
 static void
 bi_emit_atomic_i32_to(bi_builder *b, bi_index dst, bi_index addr, bi_index arg,
                       nir_atomic_op op)
@@ -2103,7 +2136,7 @@ bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
          break;
 
       case SCOPE_WORKGROUP:
-         assert(b->shader->stage == MESA_SHADER_COMPUTE);
+         assert(gl_shader_stage_is_compute(b->shader->stage));
          bi_barrier(b);
          /*
           * Blob doesn't seem to do anything for memory barriers, so no need to
@@ -2120,24 +2153,32 @@ bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
    case nir_intrinsic_shared_atomic: {
       nir_atomic_op op = nir_intrinsic_atomic_op(instr);
 
-      if (op == nir_atomic_op_xchg) {
-         bi_emit_axchg_to(b, dst, bi_src_index(&instr->src[0]), &instr->src[1],
-                          BI_SEG_WLS);
+      bi_index addr = bi_src_index(&instr->src[0]);
+      bi_index addr_hi;
+
+      if (b->shader->arch >= 9) {
+         bi_handle_segment(b, &addr, &addr_hi, BI_SEG_WLS, NULL);
+         addr = bi_collect_v2i32(b, addr, addr_hi);
+
+         if (nir_src_bit_size(instr->src[1]) == 32) {
+            bi_emit_atomic_i32_to(b, dst, addr, bi_src_index(&instr->src[1]), op);
+         } else {
+            bi_emit_atomic_i64_to(b, dst, addr, bi_src_index(&instr->src[1]), op);
+         }
       } else {
-         assert(nir_src_bit_size(instr->src[1]) == 32);
-
-         bi_index addr = bi_src_index(&instr->src[0]);
-         bi_index addr_hi;
-
-         if (b->shader->arch >= 9) {
-            bi_handle_segment(b, &addr, &addr_hi, BI_SEG_WLS, NULL);
-            addr = bi_collect_v2i32(b, addr, addr_hi);
+         if (op == nir_atomic_op_xchg) {
+            bi_emit_axchg_to(b, dst, addr, &instr->src[1],
+                             BI_SEG_WLS);
          } else {
             addr = bi_seg_add_i64(b, addr, bi_zero(), false, BI_SEG_WLS);
             bi_emit_cached_split(b, addr, 64);
-         }
 
-         bi_emit_atomic_i32_to(b, dst, addr, bi_src_index(&instr->src[1]), op);
+            if (nir_src_bit_size(instr->src[1]) == 32) {
+               bi_emit_atomic_i32_to(b, dst, addr, bi_src_index(&instr->src[1]), op);
+            } else {
+               bi_emit_atomic_i64_to(b, dst, addr, bi_src_index(&instr->src[1]), op);
+            }
+         }
       }
 
       bi_split_def(b, &instr->def);
@@ -2147,14 +2188,27 @@ bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
    case nir_intrinsic_global_atomic: {
       nir_atomic_op op = nir_intrinsic_atomic_op(instr);
 
-      if (op == nir_atomic_op_xchg) {
-         bi_emit_axchg_to(b, dst, bi_src_index(&instr->src[0]), &instr->src[1],
-                          BI_SEG_NONE);
+      if (b->shader->arch >= 9) {
+         if (nir_src_bit_size(instr->src[1]) == 32) {
+            bi_emit_atomic_i32_to(b, dst, bi_src_index(&instr->src[0]),
+                                  bi_src_index(&instr->src[1]), op);
+         } else {
+            bi_emit_atomic_i64_to(b, dst, bi_src_index(&instr->src[0]),
+                                  bi_src_index(&instr->src[1]), op);
+         }
       } else {
-         assert(nir_src_bit_size(instr->src[1]) == 32);
 
-         bi_emit_atomic_i32_to(b, dst, bi_src_index(&instr->src[0]),
-                               bi_src_index(&instr->src[1]), op);
+         if (op == nir_atomic_op_xchg) {
+            bi_emit_axchg_to(b, dst, bi_src_index(&instr->src[0]), &instr->src[1], BI_SEG_NONE);
+         } else {
+            if (nir_src_bit_size(instr->src[1]) == 32) {
+               bi_emit_atomic_i32_to(b, dst, bi_src_index(&instr->src[0]),
+                                     bi_src_index(&instr->src[1]), op);
+            } else {
+               bi_emit_atomic_i64_to(b, dst, bi_src_index(&instr->src[0]),
+                                     bi_src_index(&instr->src[1]), op);
+            }
+         }
       }
 
       bi_split_def(b, &instr->def);
@@ -2382,20 +2436,29 @@ bi_emit_intrinsic(bi_builder *b, nir_intrinsic_instr *instr)
 static void
 bi_emit_load_const(bi_builder *b, nir_load_const_instr *instr)
 {
-   /* Make sure we've been lowered */
-   assert(instr->def.num_components <= (32 / instr->def.bit_size));
-
    /* Accumulate all the channels of the constant, as if we did an
     * implicit SEL over them */
-   uint32_t acc = 0;
+   uint64_t acc = 0;
 
    for (unsigned i = 0; i < instr->def.num_components; ++i) {
-      unsigned v =
+      uint64_t v =
          nir_const_value_as_uint(instr->value[i], instr->def.bit_size);
       acc |= (v << (i * instr->def.bit_size));
    }
 
-   bi_mov_i32_to(b, bi_get_index(instr->def.index), bi_imm_u32(acc));
+   if (instr->def.bit_size <= 32) {
+      bi_mov_i32_to(b, bi_get_index(instr->def.index), bi_imm_u32(acc));
+   } else {
+      uint32_t imm_2x32[2] = { acc & 0xffffffff, (acc >> 32) & 0xffffffff };
+      bi_index tempa = bi_temp(b->shader);
+      bi_index tempb = bi_temp(b->shader);
+      bi_mov_i32_to(b, tempa, bi_imm_u32(imm_2x32[0]));
+      bi_mov_i32_to(b, tempb, bi_imm_u32(imm_2x32[1]));
+
+      bi_instr *collect = bi_collect_i32_to(b, bi_get_index(instr->def.index), 2);
+      collect->src[0] = tempa;
+      collect->src[1] = tempb;
+   }
 }
 
 static bi_index
@@ -5440,7 +5503,7 @@ bi_optimize_nir(nir_shader *nir, unsigned gpu_id, bool is_blend)
    }
 
    /* This opt currently helps on Bifrost but not Valhall */
-   if (gpu_id < 0x9000)
+   if (pan_arch(gpu_id) < 9)
       NIR_PASS(progress, nir, bifrost_nir_opt_boolean_bitwise);
 
    NIR_PASS(progress, nir, nir_lower_alu_to_scalar, bi_scalarize_filter, NULL);
@@ -5848,8 +5911,8 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
     * scratch access.
     */
    glsl_type_size_align_func vars_to_scratch_size_align_func =
-      (gpu_id >= 0x9000) ? glsl_get_vec4_size_align_bytes
-                         : glsl_get_natural_size_align_bytes;
+      (pan_arch(gpu_id) >= 9) ? glsl_get_vec4_size_align_bytes
+                              : glsl_get_natural_size_align_bytes;
    /* Lower large arrays to scratch and small arrays to bcsel */
    NIR_PASS(_, nir, nir_lower_scratch_to_var);
    NIR_PASS(_, nir, nir_lower_vars_to_scratch, nir_var_function_temp, 256,
@@ -5883,9 +5946,9 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
 
       NIR_PASS(_, nir, bifrost_nir_lower_load_output);
    } else if (nir->info.stage == MESA_SHADER_VERTEX) {
-      if (gpu_id >= 0x9000) {
+      if (pan_arch(gpu_id) >= 9) {
          NIR_PASS(_, nir, nir_lower_mediump_io, nir_var_shader_out,
-                  BITFIELD64_BIT(VARYING_SLOT_PSIZ), false);
+                  VARYING_BIT_PSIZ, false);
       }
 
       NIR_PASS(_, nir, pan_nir_lower_store_component);
@@ -5929,7 +5992,8 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
          .ballot_bit_size = 32,
          .ballot_components = 1,
          .lower_to_scalar = true,
-         .lower_vote_eq = true,
+         .lower_vote_feq = true,
+         .lower_vote_ieq = true,
          .lower_vote_bool_eq = true,
          .lower_first_invocation_to_ballot = true,
          .lower_read_first_invocation = true,
@@ -5983,7 +6047,7 @@ bifrost_preprocess_nir(nir_shader *nir, unsigned gpu_id)
 
    NIR_PASS(_, nir, nir_lower_alu_to_scalar, bi_scalarize_filter, NULL);
    NIR_PASS(_, nir, nir_lower_load_const_to_scalar);
-   NIR_PASS(_, nir, nir_lower_phis_to_scalar, true);
+   NIR_PASS(_, nir, nir_lower_all_phis_to_scalar);
    NIR_PASS(_, nir, nir_lower_flrp, 16 | 32 | 64, false /* always_precise */);
    NIR_PASS(_, nir, nir_lower_var_copies);
    NIR_PASS(_, nir, nir_lower_alu);
@@ -6327,15 +6391,13 @@ bi_compile_variant(nir_shader *nir,
           * written (that mean not position, layer or point size) */
          info->vs.secondary_enable =
             (nir->info.outputs_written &
-             ~(BITFIELD64_BIT(VARYING_SLOT_POS) |
-               BITFIELD64_BIT(VARYING_SLOT_LAYER) |
-               BITFIELD64_BIT(VARYING_SLOT_PSIZ))) != 0;
+             ~(VARYING_BIT_POS | VARYING_BIT_LAYER | VARYING_BIT_PSIZ)) != 0;
       }
    }
 
    if ((idvs == BI_IDVS_POSITION || idvs == BI_IDVS_ALL) &&
        !nir->info.internal &&
-       nir->info.outputs_written & BITFIELD_BIT(VARYING_SLOT_PSIZ)) {
+       nir->info.outputs_written & VARYING_BIT_PSIZ) {
       /* Find the psiz write */
       bi_instr *write = NULL;
 
@@ -6377,8 +6439,8 @@ bi_should_idvs(nir_shader *nir, const struct pan_compile_inputs *inputs)
       return false;
 
    /* Bifrost cannot write gl_PointSize during IDVS */
-   if ((inputs->gpu_id < 0x9000) &&
-       nir->info.outputs_written & BITFIELD_BIT(VARYING_SLOT_PSIZ))
+   if ((pan_arch(inputs->gpu_id) < 9) &&
+       nir->info.outputs_written & VARYING_BIT_PSIZ)
       return false;
 
    /* Otherwise, IDVS is usually better */

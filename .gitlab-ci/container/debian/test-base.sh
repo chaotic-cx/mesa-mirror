@@ -40,6 +40,7 @@ EPHEMERAL=(
     glslang-tools
     g++
     libasound2-dev
+    libcairo2-dev
     libcap-dev
     "libclang-cpp${LLVM_VERSION}-dev"
     "libclang-rt-${LLVM_VERSION}-dev"
@@ -49,28 +50,37 @@ EPHEMERAL=(
     libepoxy-dev
     libexpat1-dev
     libgbm-dev
+    libinput-dev
     libgles2-mesa-dev
     liblz4-dev
     libpciaccess-dev
+    libpixman-1-dev
     libssl-dev
+    libtirpc-dev
     libvulkan-dev
     libudev-dev
     libwaffle-dev
-    libwayland-dev
     libx11-xcb-dev
+    libxcb-composite0-dev
     libxcb-dri2-0-dev
     libxcb-dri3-dev
     libxcb-present-dev
     libxfixes-dev
     libxcb-ewmh-dev
+    libxcursor-dev
+    libxcvt-dev
     libxext-dev
+    libxfont-dev
     libxkbcommon-dev
+    libxkbfile-dev
     libxrandr-dev
     libxrender-dev
+    libxshmfence-dev
     libzstd-dev
     "llvm-${LLVM_VERSION}-dev"
     make
     meson
+    mesa-common-dev
     patch
     pkgconf
     protobuf-compiler
@@ -95,30 +105,39 @@ DEPS=(
     jq
     kmod
     libasan8
+    libcairo2
     libcap2
     libdrm2
     libegl1
     libepoxy0
     libexpat1
     libfdt1
+    libinput10
     "libclang-common-${LLVM_VERSION}-dev"
     "libclang-cpp${LLVM_VERSION}"
     "libllvm${LLVM_VERSION}"
     liblz4-1
+    libpixman-1-0
     libpng16-16
     libproc2-0
     libpython3.11
+    libtirpc3
     libubsan1
     libvulkan1
     libwayland-client0
     libwayland-server0
+    libxcb-composite0
     libxcb-ewmh2
     libxcb-randr0
     libxcb-shm0
     libxcb-xfixes0
+    libxcursor1
+    libxcvt0
+    libxfont2
     libxkbcommon0
     libxrandr2
     libxrender1
+    libxshmfence1
     ocl-icd-libopencl1
     pciutils
     python3-lxml
@@ -137,9 +156,8 @@ DEPS=(
     sysvinit-core
     vulkan-tools
     waffle-utils
-    weston
-    xwayland
     xinit
+    xserver-common
     xserver-xorg-video-amdgpu
     xserver-xorg-video-ati
     xauth
@@ -195,6 +213,14 @@ section_end debian_setup
 ############### Build Wayland
 
 . .gitlab-ci/container/build-wayland.sh
+
+############### Build Weston
+
+. .gitlab-ci/container/build-weston.sh
+
+############### Build XWayland
+
+. .gitlab-ci/container/build-xwayland.sh
 
 ############### Install Rust toolchain
 

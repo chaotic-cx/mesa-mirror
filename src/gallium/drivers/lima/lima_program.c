@@ -64,7 +64,6 @@ static const nir_shader_compiler_options vs_nir_options = {
    .force_indirect_unrolling_sampler = true,
    .max_unroll_iterations = 32,
    .no_integers = true,
-   .support_indirect_inputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES),
    .max_varying_expression_cost = 2,
 };
 
@@ -87,7 +86,7 @@ static const nir_shader_compiler_options fs_nir_options = {
    .force_indirect_unrolling_sampler = true,
    .max_unroll_iterations = 32,
    .no_integers = true,
-   .support_indirect_inputs = (uint8_t)BITFIELD_MASK(PIPE_SHADER_TYPES),
+   .support_indirect_inputs = BITFIELD_BIT(MESA_SHADER_FRAGMENT),
    .max_varying_expression_cost = 2,
 };
 
@@ -129,7 +128,7 @@ lima_program_optimize_vs_nir(struct nir_shader *s)
 
       NIR_PASS_V(s, nir_lower_vars_to_ssa);
       NIR_PASS(progress, s, nir_lower_alu_to_scalar, NULL, NULL);
-      NIR_PASS(progress, s, nir_lower_phis_to_scalar, false);
+      NIR_PASS(progress, s, nir_lower_phis_to_scalar, NULL, NULL);
       NIR_PASS(progress, s, nir_copy_prop);
       NIR_PASS(progress, s, nir_opt_remove_phis);
       NIR_PASS(progress, s, nir_opt_dce);

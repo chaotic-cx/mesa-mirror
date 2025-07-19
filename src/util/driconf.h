@@ -611,6 +611,10 @@
    DRI_CONF_OPT_B(pan_enable_vertex_pipeline_stores_atomics, def, \
                   "Enable vertexPipelineStoresAndAtomics on v13+ (This cannot work on older generation because of speculative behaviors around vertices)")
 
+#define DRI_CONF_PAN_FORCE_ENABLE_SHADER_ATOMICS(def) \
+   DRI_CONF_OPT_B(pan_force_enable_shader_atomics, def, \
+                  "Enable fragmentStoresAndAtomics and vertexPipelineStoresAndAtomics on any architecture. (This may not work reliably and is for debug purposes only!)")
+
 /**
  * \brief Turnip specific configuration options
  */
@@ -819,15 +823,6 @@
 #define DRI_CONF_ANV_FORCE_FILTER_ADDR_ROUNDING(def) \
    DRI_CONF_OPT_B(anv_force_filter_addr_rounding, def, \
                   "Force min/mag filter address rounding to be enabled even for NEAREST sampling")
-
-#define DRI_CONF_ANV_MESH_CONV_PRIM_ATTRS_TO_VERT_ATTRS(def) \
-   DRI_CONF_OPT_E(anv_mesh_conv_prim_attrs_to_vert_attrs, def, -2, 2, \
-                  "Apply workaround for gfx12.5 per-prim attribute corruption HW bug", \
-                  DRI_CONF_ENUM(-2, "enable attribute conversion and vertex duplication ONLY if needed") \
-                  DRI_CONF_ENUM(-1, "enable attribute conversion ONLY if needed") \
-                  DRI_CONF_ENUM(0,  "disable workaround") \
-                  DRI_CONF_ENUM(1,  "enable attribute conversion ALWAYS") \
-                  DRI_CONF_ENUM(2,  "enable attribute conversion and vertex duplication ALWAYS") )
 
 #define DRI_CONF_ANV_FP64_WORKAROUND_ENABLED(def) \
    DRI_CONF_OPT_B(fp64_workaround_enabled, def, \

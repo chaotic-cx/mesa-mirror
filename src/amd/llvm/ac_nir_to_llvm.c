@@ -31,6 +31,7 @@ struct ac_nir_context {
 
    struct ac_llvm_pointer scratch;
    struct ac_llvm_pointer constant_data;
+   struct ac_llvm_pointer lds;
 
    struct hash_table *defs;
    struct hash_table *phis;
@@ -55,12 +56,22 @@ static LLVMValueRef get_src(struct ac_nir_context *nir, nir_src src)
    return nir->ssa_defs[src.ssa->index];
 }
 
-static LLVMValueRef get_memory_ptr(struct ac_nir_context *ctx, nir_src src, unsigned c_off)
+static LLVMValueRef get_shared_mem_ptr(struct ac_nir_context *ctx, nir_src src, unsigned c_off)
 {
+   if (!ctx->lds.value) {
+      unsigned lds_size = ctx->ac.gfx_level >= GFX7 ? 65536 : 32768;
+      LLVMTypeRef type = LLVMArrayType(ctx->ac.i32, lds_size / 4);
+      ctx->lds = (struct ac_llvm_pointer) {
+         .value = LLVMBuildIntToPtr(ctx->ac.builder, ctx->ac.i32_0,
+                     LLVMPointerType(type, AC_ADDR_SPACE_LDS), "lds"),
+         .pointee_type = type,
+      };
+   }
+
    LLVMValueRef ptr = get_src(ctx, src);
    ptr = LLVMBuildAdd(ctx->ac.builder, ptr, LLVMConstInt(ctx->ac.i32, c_off, 0), "");
    /* LDS is used here as a i8 pointer. */
-   return LLVMBuildGEP2(ctx->ac.builder, ctx->ac.i8, ctx->ac.lds.value, &ptr, 1, "");
+   return LLVMBuildGEP2(ctx->ac.builder, ctx->ac.i8, ctx->lds.value, &ptr, 1, "");
 }
 
 static LLVMBasicBlockRef get_block(struct ac_nir_context *nir, const struct nir_block *b)
@@ -1166,9 +1177,14 @@ static bool visit_alu(struct ac_nir_context *ctx, const nir_alu_instr *instr)
    case nir_op_extract_i16: {
       bool is_signed = instr->op == nir_op_extract_i16 || instr->op == nir_op_extract_i8;
       unsigned size = instr->op == nir_op_extract_u8 || instr->op == nir_op_extract_i8 ? 8 : 16;
-      LLVMValueRef offset = LLVMConstInt(LLVMTypeOf(src[0]), nir_src_as_uint(instr->src[1].src) * size, false);
+      LLVMValueRef offset = LLVMBuildMul(ctx->ac.builder, src[1], ac_const_uint_vec(&ctx->ac, LLVMTypeOf(src[1]), size), "");
       result = LLVMBuildLShr(ctx->ac.builder, src[0], offset, "");
-      result = LLVMBuildTrunc(ctx->ac.builder, result, LLVMIntTypeInContext(ctx->ac.context, size), "");
+
+      LLVMTypeRef small_type = LLVMIntTypeInContext(ctx->ac.context, size);
+      if (instr->def.num_components > 1)
+         small_type = LLVMVectorType(small_type, instr->def.num_components);
+
+      result = LLVMBuildTrunc(ctx->ac.builder, result, small_type, "");
       if (is_signed)
          result = LLVMBuildSExt(ctx->ac.builder, result, LLVMTypeOf(src[0]), "");
       else
@@ -2500,7 +2516,7 @@ static LLVMValueRef visit_load_shared(struct ac_nir_context *ctx, const nir_intr
    unsigned const_off = nir_intrinsic_base(instr);
 
    LLVMTypeRef elem_type = LLVMIntTypeInContext(ctx->ac.context, instr->def.bit_size);
-   LLVMValueRef ptr = get_memory_ptr(ctx, instr->src[0], const_off);
+   LLVMValueRef ptr = get_shared_mem_ptr(ctx, instr->src[0], const_off);
 
    for (int chan = 0; chan < instr->num_components; chan++) {
       index = LLVMConstInt(ctx->ac.i32, chan, 0);
@@ -2520,7 +2536,7 @@ static void visit_store_shared(struct ac_nir_context *ctx, const nir_intrinsic_i
 
    unsigned const_off = nir_intrinsic_base(instr);
    LLVMTypeRef elem_type = LLVMIntTypeInContext(ctx->ac.context, instr->src[0].ssa->bit_size);
-   LLVMValueRef ptr = get_memory_ptr(ctx, instr->src[1], const_off);
+   LLVMValueRef ptr = get_shared_mem_ptr(ctx, instr->src[1], const_off);
    LLVMValueRef src = get_src(ctx, instr->src[0]);
 
    int writemask = nir_intrinsic_write_mask(instr);
@@ -2539,7 +2555,7 @@ static LLVMValueRef visit_load_shared2_amd(struct ac_nir_context *ctx,
                                            const nir_intrinsic_instr *instr)
 {
    LLVMTypeRef pointee_type = LLVMIntTypeInContext(ctx->ac.context, instr->def.bit_size);
-   LLVMValueRef ptr = get_memory_ptr(ctx, instr->src[0], 0);
+   LLVMValueRef ptr = get_shared_mem_ptr(ctx, instr->src[0], 0);
 
    LLVMValueRef values[2];
    uint8_t offsets[] = {nir_intrinsic_offset0(instr), nir_intrinsic_offset1(instr)};
@@ -2557,7 +2573,7 @@ static LLVMValueRef visit_load_shared2_amd(struct ac_nir_context *ctx,
 static void visit_store_shared2_amd(struct ac_nir_context *ctx, const nir_intrinsic_instr *instr)
 {
    LLVMTypeRef pointee_type = LLVMIntTypeInContext(ctx->ac.context, instr->src[0].ssa->bit_size);
-   LLVMValueRef ptr = get_memory_ptr(ctx, instr->src[1], 0);
+   LLVMValueRef ptr = get_shared_mem_ptr(ctx, instr->src[1], 0);
    LLVMValueRef src = get_src(ctx, instr->src[0]);
 
    uint8_t offsets[] = {nir_intrinsic_offset0(instr), nir_intrinsic_offset1(instr)};
@@ -2768,10 +2784,6 @@ static bool visit_intrinsic(struct ac_nir_context *ctx, nir_intrinsic_instr *ins
       result = ac_build_gather_values(&ctx->ac, values, 3);
       break;
    }
-   case nir_intrinsic_load_lds_ngg_scratch_base_amd:
-   case nir_intrinsic_load_lds_ngg_gs_out_vertex_base_amd:
-      result = ctx->abi->intrinsic_load(ctx->abi, instr);
-      break;
    case nir_intrinsic_load_helper_invocation:
    case nir_intrinsic_is_helper_invocation:
       result = ac_build_load_helper_invocation(&ctx->ac);
@@ -2887,7 +2899,7 @@ static bool visit_intrinsic(struct ac_nir_context *ctx, nir_intrinsic_instr *ins
       break;
    case nir_intrinsic_shared_atomic:
    case nir_intrinsic_shared_atomic_swap: {
-      LLVMValueRef ptr = get_memory_ptr(ctx, instr->src[0], nir_intrinsic_base(instr));
+      LLVMValueRef ptr = get_shared_mem_ptr(ctx, instr->src[0], nir_intrinsic_base(instr));
       result = visit_var_atomic(ctx, instr, ptr, 1);
       break;
    }
@@ -4023,23 +4035,6 @@ static void setup_constant_data(struct ac_nir_context *ctx, struct nir_shader *s
    };
 }
 
-static void setup_shared(struct ac_nir_context *ctx, struct nir_shader *nir)
-{
-   if (ctx->ac.lds.value)
-      return;
-
-   LLVMTypeRef type = LLVMArrayType(ctx->ac.i8, nir->info.shared_size);
-
-   LLVMValueRef lds =
-      LLVMAddGlobalInAddressSpace(ctx->ac.module, type, "compute_lds", AC_ADDR_SPACE_LDS);
-   LLVMSetAlignment(lds, 64 * 1024);
-
-   ctx->ac.lds = (struct ac_llvm_pointer) {
-      .value = lds,
-      .pointee_type = type
-   };
-}
-
 static void setup_gds(struct ac_nir_context *ctx, nir_function_impl *impl)
 {
    bool has_gds_atomic = false;
@@ -4097,9 +4092,6 @@ bool ac_nir_translate(struct ac_llvm_context *ac, struct ac_shader_abi *abi,
    setup_scratch(&ctx, nir);
    setup_constant_data(&ctx, nir);
    setup_gds(&ctx, func->impl);
-
-   if (gl_shader_stage_is_compute(nir->info.stage))
-      setup_shared(&ctx, nir);
 
    if ((ret = visit_cf_list(&ctx, &func->impl->body)))
       phi_post_pass(&ctx);

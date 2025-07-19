@@ -58,7 +58,6 @@
 #if defined(GLX_DIRECT_RENDERING) && !defined(GLX_USE_APPLEGL)
 
 #include <X11/Xlib.h>
-#include <X11/extensions/Xfixes.h>
 #include <X11/Xlib-xcb.h>
 #include <X11/xshmfence.h>
 #include <xcb/xcb.h>
@@ -76,9 +75,8 @@
 #include "dri_common.h"
 #include "dri3_priv.h"
 #include "loader.h"
-#include "loader_x11.h"
+#include "x11_dri3.h"
 #include "loader_dri_helper.h"
-#include "dri2.h"
 #include "util/u_debug.h"
 #include "dri_util.h"
 
@@ -341,21 +339,6 @@ dri3_flush_swap_buffers(struct dri_drawable *driDrawable, void *loaderPrivate)
    loader_dri3_swapbuffer_barrier(draw);
 }
 
-static void
-dri_set_background_context(void *loaderPrivate)
-{
-   __glXSetCurrentContext(loaderPrivate);
-}
-
-static GLboolean
-dri_is_thread_safe(void *loaderPrivate)
-{
-   /* Unlike DRI2, DRI3 doesn't call GetBuffers/GetBuffersWithFormat
-    * during draw so we're safe here.
-    */
-   return true;
-}
-
 /* The image loader extension record for DRI3
  */
 static const __DRIimageLoaderExtension imageLoaderExtension = {
@@ -366,16 +349,8 @@ static const __DRIimageLoaderExtension imageLoaderExtension = {
    .flushSwapBuffers    = dri3_flush_swap_buffers,
 };
 
-static const __DRIbackgroundCallableExtension dri3BackgroundCallable = {
-   .base = { __DRI_BACKGROUND_CALLABLE, 2 },
-
-   .setBackgroundContext = dri_set_background_context,
-   .isThreadSafe         = dri_is_thread_safe,
-};
-
 static const __DRIextension *loader_extensions[] = {
    &imageLoaderExtension.base,
-   &dri3BackgroundCallable.base,
    NULL
 };
 

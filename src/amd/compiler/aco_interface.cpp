@@ -157,6 +157,9 @@ aco_postprocess_shader(const struct aco_compiler_options* options,
    if (!options->optimisations_disabled && !(debug_flags & DEBUG_NO_SCHED_ILP))
       schedule_ilp(program.get());
 
+   if (program->needs_fp_mode_insertion)
+      insert_fp_mode(program.get());
+
    insert_waitcnt(program.get());
    insert_NOPs(program.get());
    if (program->gfx_level >= GFX11)
@@ -469,10 +472,14 @@ aco_nir_op_supports_packed_math_16bit(const nir_alu_instr* alu)
    case nir_op_imin:
    case nir_op_imax:
    case nir_op_umin:
-   case nir_op_umax: return true;
-   case nir_op_ishl: /* TODO: in NIR, these have 32bit shift operands */
-   case nir_op_ishr: /* while Radeon needs 16bit operands when vectorized */
-   case nir_op_ushr:
+   case nir_op_umax:
+   case nir_op_extract_u8:
+   case nir_op_extract_i8:
+   case nir_op_ishl:
+   case nir_op_ishr:
+   case nir_op_ushr: return true;
+   case nir_op_u2u16:
+   case nir_op_i2i16: return alu->src[0].src.ssa->bit_size == 8;
    default: return false;
    }
 }

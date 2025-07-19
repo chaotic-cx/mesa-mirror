@@ -16,6 +16,10 @@
 
 #include <vulkan/vulkan.h>
 
+struct radv_cmd_buffer;
+struct radv_descriptor_pool;
+struct radv_device;
+
 struct radv_descriptor_set_binding_layout {
    VkDescriptorType type;
 
@@ -102,76 +106,6 @@ struct radv_descriptor_set {
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(radv_descriptor_set, header.base, VkDescriptorSet, VK_OBJECT_TYPE_DESCRIPTOR_SET)
 
-struct radv_push_descriptor_set {
-   struct radv_descriptor_set_header set;
-   uint32_t capacity;
-};
-
-struct radv_descriptor_pool_entry {
-   uint32_t offset;
-   uint32_t size;
-   struct radv_descriptor_set *set;
-};
-
-struct radv_descriptor_pool {
-   struct vk_object_base base;
-   struct radeon_winsys_bo *bo;
-   uint8_t *host_bo;
-   uint8_t *mapped_ptr;
-   uint64_t current_offset;
-   uint64_t size;
-
-   uint8_t *host_memory_base;
-   uint8_t *host_memory_ptr;
-   uint8_t *host_memory_end;
-
-   uint32_t entry_count;
-   uint32_t max_entry_count;
-
-   union {
-      struct radv_descriptor_set *sets[0];
-      struct radv_descriptor_pool_entry entries[0];
-   };
-};
-
-VK_DEFINE_NONDISP_HANDLE_CASTS(radv_descriptor_pool, base, VkDescriptorPool, VK_OBJECT_TYPE_DESCRIPTOR_POOL)
-
-struct radv_descriptor_update_template_entry {
-   VkDescriptorType descriptor_type;
-
-   /* The number of descriptors to update */
-   uint32_t descriptor_count;
-
-   /* Into mapped_ptr or dynamic_descriptors, in units of the respective array */
-   uint32_t dst_offset;
-
-   /* In dwords. Not valid/used for dynamic descriptors */
-   uint32_t dst_stride;
-
-   uint32_t buffer_offset;
-
-   /* Only valid for combined image samplers and samplers */
-   uint8_t has_sampler;
-   uint8_t has_ycbcr_sampler;
-
-   /* In bytes */
-   size_t src_offset;
-   size_t src_stride;
-
-   /* For push descriptors */
-   const uint32_t *immutable_samplers;
-};
-
-struct radv_descriptor_update_template {
-   struct vk_object_base base;
-   uint32_t entry_count;
-   VkPipelineBindPoint bind_point;
-   struct radv_descriptor_update_template_entry entry[0];
-};
-
-VK_DEFINE_NONDISP_HANDLE_CASTS(radv_descriptor_update_template, base, VkDescriptorUpdateTemplate,
-                               VK_OBJECT_TYPE_DESCRIPTOR_UPDATE_TEMPLATE)
-
 static inline const uint32_t *
 radv_immutable_samplers(const struct radv_descriptor_set_layout *set,
                         const struct radv_descriptor_set_binding_layout *binding)
@@ -192,17 +126,12 @@ radv_immutable_ycbcr_samplers(const struct radv_descriptor_set_layout *set, unsi
    return (const struct vk_ycbcr_conversion_state *)((const char *)set + offsets[binding_index]);
 }
 
-struct radv_device;
-struct radv_cmd_buffer;
-
 void radv_cmd_update_descriptor_sets(struct radv_device *device, struct radv_cmd_buffer *cmd_buffer,
                                      VkDescriptorSet overrideSet, uint32_t descriptorWriteCount,
                                      const VkWriteDescriptorSet *pDescriptorWrites, uint32_t descriptorCopyCount,
                                      const VkCopyDescriptorSet *pDescriptorCopies);
 
-void radv_cmd_update_descriptor_set_with_template(struct radv_device *device, struct radv_cmd_buffer *cmd_buffer,
-                                                  struct radv_descriptor_set *set,
-                                                  VkDescriptorUpdateTemplate descriptorUpdateTemplate,
-                                                  const void *pData);
+void radv_descriptor_set_destroy(struct radv_device *device, struct radv_descriptor_pool *pool,
+                                 struct radv_descriptor_set *set, bool free_bo);
 
 #endif /* RADV_DESCRIPTOR_SET_H */

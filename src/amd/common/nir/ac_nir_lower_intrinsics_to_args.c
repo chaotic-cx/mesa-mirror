@@ -6,6 +6,7 @@
 
 #include "ac_nir.h"
 #include "ac_nir_helpers.h"
+#include "ac_gpu_info.h"
 
 #include "nir_builder.h"
 
@@ -476,6 +477,16 @@ lower_intrinsic_to_arg(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
    case nir_intrinsic_load_subgroup_invocation:
       replacement = nir_mbcnt_amd(b, nir_imm_intN_t(b, ~0ull, s->wave_size), nir_imm_int(b, 0));
       break;
+   case nir_intrinsic_load_task_ring_entry_amd:
+      replacement = ac_nir_load_arg(b, s->args, s->args->task_ring_entry);
+      break;
+   case nir_intrinsic_load_ring_mesh_scratch_offset_amd: {
+      /* gs_tg_info[0:11] is ordered_wave_id. Multiply by the ring entry size. */
+      nir_def *gs_tg_info = ac_nir_load_arg(b, s->args, s->args->gs_tg_info);
+      nir_def *ordered_wave_id = nir_iand_imm(b, gs_tg_info, 0xfff);
+      replacement = nir_imul_imm(b, ordered_wave_id, AC_MESH_SCRATCH_ENTRY_BYTES);
+      break;
+   }
    default:
       return false;
    }

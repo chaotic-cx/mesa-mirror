@@ -912,9 +912,10 @@ validate_ir(Program* program)
                check(op.isOfType(RegType::vgpr) || op.physReg() == m0 || op.isUndefined(),
                      "Only VGPRs are valid DS instruction operands", instr.get());
             }
-            if (!instr->definitions.empty())
-               check(instr->definitions[0].regClass().type() == RegType::vgpr,
-                     "DS instruction must return VGPR", instr.get());
+            for (const Definition& def : instr->definitions) {
+               check(def.regClass().type() == RegType::vgpr, "DS instruction must return VGPR",
+                     instr.get());
+            }
             break;
          }
          case Format::EXP: {
@@ -1317,9 +1318,8 @@ get_subdword_bytes_written(Program* program, const aco_ptr<Instruction>& instr, 
 
    if (instr->isPseudo())
       return gfx_level >= GFX8 ? def.bytes() : def.size() * 4u;
-   if (instr->isVALU() || instr->isVINTRP()) {
-      assert(def.bytes() <= 2);
 
+   if (instr->isVALU() || instr->isVINTRP()) {
       if (instr->isSDWA())
          return instr->sdwa().dst_sel.size();
 

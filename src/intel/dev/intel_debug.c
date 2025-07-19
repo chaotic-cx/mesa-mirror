@@ -115,11 +115,13 @@ static const struct debug_control_bitset debug_control[] = {
    OPT1("isl",               DEBUG_ISL),
    OPT1("sparse",            DEBUG_SPARSE),
    OPT1("draw_bkp",          DEBUG_DRAW_BKP),
+   OPT1("dispatch_bkp",      DEBUG_DISPATCH_BKP),
    OPT1("bat-stats",         DEBUG_BATCH_STATS),
    OPT1("reg-pressure",      DEBUG_REG_PRESSURE),
    OPT1("shader-print",      DEBUG_SHADER_PRINT),
    OPT1("cl-quiet",          DEBUG_CL_QUIET),
    OPT1("no-send-gather",    DEBUG_NO_SEND_GATHER),
+   OPT1("no-vrt",            DEBUG_NO_VRT),
    OPT1("shaders-lineno",    DEBUG_SHADERS_LINENO),
    OPT1("show_shader_stage", DEBUG_SHOW_SHADER_STAGE),
    { NULL, }
@@ -210,6 +212,9 @@ uint32_t intel_debug_bkp_before_draw_count = 0;
 uint32_t intel_debug_bkp_after_draw_count = 0;
 uint32_t intel_shader_dump_filter = 0;
 
+uint32_t intel_debug_bkp_before_dispatch_count = 0;
+uint32_t intel_debug_bkp_after_dispatch_count = 0;
+
 static void
 parse_debug_bitset(const char *env, const struct debug_control_bitset *tbl)
 {
@@ -263,6 +268,11 @@ process_intel_debug_variable_once(void)
 
    intel_shader_dump_filter =
       debug_get_num_option("INTEL_SHADER_DUMP_FILTER", 0);
+
+   intel_debug_bkp_before_dispatch_count =
+      debug_get_num_option("INTEL_DEBUG_BKP_BEFORE_DISPATCH_COUNT", 0);
+   intel_debug_bkp_after_dispatch_count =
+      debug_get_num_option("INTEL_DEBUG_BKP_AFTER_DISPATCH_COUNT", 0);
 
    if (!(intel_simd & DEBUG_FS_SIMD))
       intel_simd |=   DEBUG_FS_SIMD;

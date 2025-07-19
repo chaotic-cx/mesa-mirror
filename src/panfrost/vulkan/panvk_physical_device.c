@@ -27,6 +27,7 @@
 #include "panvk_physical_device.h"
 #include "panvk_wsi.h"
 
+#include "pan_afbc.h"
 #include "pan_props.h"
 
 #include "genxml/gen_macros.h"
@@ -184,7 +185,7 @@ static VkResult
 get_device_sync_types(struct panvk_physical_device *device,
                       const struct panvk_instance *instance)
 {
-   const unsigned arch = pan_arch(device->kmod.props.gpu_prod_id);
+   const unsigned arch = pan_arch(device->kmod.props.gpu_id);
    uint32_t sync_type_count = 0;
 
    device->drm_syncobj_type = vk_drm_syncobj_get_type(device->kmod.dev->fd);
@@ -220,6 +221,17 @@ get_device_sync_types(struct panvk_physical_device *device,
    return VK_SUCCESS;
 }
 
+float
+panvk_get_gpu_system_timestamp_period(const struct panvk_physical_device *device)
+{
+   if (!device->kmod.props.gpu_can_query_timestamp ||
+       !device->kmod.props.timestamp_frequency)
+      return 0;
+
+   const float ns_per_s = 1000000000.0;
+   return ns_per_s / (float)device->kmod.props.timestamp_frequency;
+}
+
 void
 panvk_physical_device_finish(struct panvk_physical_device *device)
 {
@@ -243,15 +255,15 @@ panvk_physical_device_init(struct panvk_physical_device *device,
 
    pan_kmod_dev_query_props(device->kmod.dev, &device->kmod.props);
 
-   device->model = pan_get_model(device->kmod.props.gpu_prod_id,
+   device->model = pan_get_model(device->kmod.props.gpu_id,
                                  device->kmod.props.gpu_variant);
 
-   unsigned arch = pan_arch(device->kmod.props.gpu_prod_id);
+   unsigned arch = pan_arch(device->kmod.props.gpu_id);
 
    if (!device->model) {
       result = panvk_errorf(instance, VK_ERROR_INCOMPATIBLE_DRIVER,
                             "Unknown gpu_id (%#x) or variant (%#x)",
-                            device->kmod.props.gpu_prod_id,
+                            device->kmod.props.gpu_id,
                             device->kmod.props.gpu_variant);
       goto fail;
    }
@@ -289,7 +301,7 @@ panvk_physical_device_init(struct panvk_physical_device *device,
    memset(device->name, 0, sizeof(device->name));
    sprintf(device->name, "%s", device->model->name);
 
-   if (get_cache_uuid(device->kmod.props.gpu_prod_id, device->cache_uuid)) {
+   if (get_cache_uuid(device->kmod.props.gpu_id, device->cache_uuid)) {
       result = panvk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED,
                             "cannot generate UUID");
       goto fail;
@@ -386,7 +398,7 @@ panvk_GetPhysicalDeviceQueueFamilyProperties2(
    VK_FROM_HANDLE(panvk_physical_device, physical_device, physicalDevice);
    VK_OUTARRAY_MAKE_TYPED(VkQueueFamilyProperties2, out, pQueueFamilyProperties,
                           pQueueFamilyPropertyCount);
-   unsigned arch = pan_arch(physical_device->kmod.props.gpu_prod_id);
+   unsigned arch = pan_arch(physical_device->kmod.props.gpu_id);
 
    vk_outarray_append_typed(VkQueueFamilyProperties2, &out, p)
    {
@@ -396,7 +408,10 @@ panvk_GetPhysicalDeviceQueueFamilyProperties2(
          /* On v10+ we can support up to 127 queues but this causes timeout on
             some CTS tests */
          .queueCount = arch >= 10 ? 2 : 1,
-         .timestampValidBits = 0,
+         .timestampValidBits =
+            arch >= 10 && physical_device->kmod.props.gpu_can_query_timestamp
+               ? 64
+               : 0,
          .minImageTransferGranularity = (VkExtent3D){1, 1, 1},
       };
 
@@ -450,7 +465,7 @@ panvk_CreateDevice(VkPhysicalDevice physicalDevice,
                    const VkAllocationCallbacks *pAllocator, VkDevice *pDevice)
 {
    VK_FROM_HANDLE(panvk_physical_device, physical_device, physicalDevice);
-   unsigned arch = pan_arch(physical_device->kmod.props.gpu_prod_id);
+   unsigned arch = pan_arch(physical_device->kmod.props.gpu_id);
    VkResult result = VK_ERROR_INITIALIZATION_FAILED;
 
    panvk_arch_dispatch_ret(arch, create_device, result, physical_device,
@@ -465,7 +480,7 @@ panvk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
    VK_FROM_HANDLE(panvk_device, device, _device);
    struct panvk_physical_device *physical_device =
       to_panvk_physical_device(device->vk.physical);
-   unsigned arch = pan_arch(physical_device->kmod.props.gpu_prod_id);
+   unsigned arch = pan_arch(physical_device->kmod.props.gpu_id);
 
    panvk_arch_dispatch(arch, destroy_device, device, pAllocator);
 }
@@ -521,7 +536,7 @@ get_image_plane_format_features(struct panvk_physical_device *physical_device,
    VkFormatFeatureFlags2 features = 0;
    enum pipe_format pfmt = vk_format_to_pipe_format(format);
    const struct pan_format fmt = physical_device->formats.all[pfmt];
-   unsigned arch = pan_arch(physical_device->kmod.props.gpu_prod_id);
+   unsigned arch = pan_arch(physical_device->kmod.props.gpu_id);
 
    if (!format_is_supported(physical_device, fmt, pfmt))
       return 0;
@@ -539,6 +554,9 @@ get_image_plane_format_features(struct panvk_physical_device *physical_device,
          features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_FILTER_LINEAR_BIT;
 
       features |= VK_FORMAT_FEATURE_2_BLIT_SRC_BIT;
+
+      if (vk_format_has_depth(format))
+         features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
    }
 
    if (fmt.bind & PAN_BIND_RENDER_TARGET) {
@@ -555,19 +573,19 @@ get_image_plane_format_features(struct panvk_physical_device *physical_device,
       }
    }
 
-   if (fmt.bind & PAN_BIND_STORAGE_IMAGE)
+   if (fmt.bind & PAN_BIND_STORAGE_IMAGE) {
       features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT |
                   VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT |
                   VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
-
-   if (pfmt == PIPE_FORMAT_R32_UINT || pfmt == PIPE_FORMAT_R32_SINT)
-      features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
+      if (pfmt == PIPE_FORMAT_R32_UINT || pfmt == PIPE_FORMAT_R32_SINT)
+         features |= VK_FORMAT_FEATURE_2_STORAGE_IMAGE_ATOMIC_BIT;
+   }
 
    if (fmt.bind & PAN_BIND_DEPTH_STENCIL)
       features |= VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT;
 
-   if (vk_format_has_depth(format))
-      features |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_DEPTH_COMPARISON_BIT;
+   if (features != 0)
+      features |= VK_FORMAT_FEATURE_2_HOST_IMAGE_TRANSFER_BIT;
 
    return features;
 }
@@ -578,7 +596,7 @@ get_image_format_features(struct panvk_physical_device *physical_device,
 {
    const struct vk_format_ycbcr_info *ycbcr_info =
          vk_format_get_ycbcr_info(format);
-   const unsigned arch = pan_arch(physical_device->kmod.props.gpu_prod_id);
+   const unsigned arch = pan_arch(physical_device->kmod.props.gpu_id);
 
    /* TODO: Bifrost YCbCr support */
    if (ycbcr_info && arch <= 7)
@@ -670,7 +688,7 @@ static VkFormatFeatureFlags2
 get_image_format_sample_counts(struct panvk_physical_device *physical_device,
                                VkFormat format)
 {
-   unsigned arch = pan_arch(physical_device->kmod.props.gpu_prod_id);
+   unsigned arch = pan_arch(physical_device->kmod.props.gpu_id);
    unsigned max_tib_size = pan_get_max_tib_size(arch, physical_device->model);
    unsigned max_cbuf_atts = pan_get_max_cbufs(arch, max_tib_size);
 
@@ -764,7 +782,9 @@ panvk_GetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice,
 static VkExtent3D
 get_max_2d_image_size(struct panvk_physical_device *phys_dev, VkFormat format)
 {
-   const uint32_t max_img_size_B = UINT32_MAX;
+   const unsigned arch = pan_arch(phys_dev->kmod.props.gpu_id);
+   const uint64_t max_img_size_B =
+      arch <= 10 ? u_uintN_max(32) : u_uintN_max(48);
    const enum pipe_format pfmt = vk_format_to_pipe_format(format);
    const uint32_t fmt_blksize = util_format_get_blocksize(pfmt);
    /* Evenly split blocks across all axis. */
@@ -785,7 +805,9 @@ get_max_2d_image_size(struct panvk_physical_device *phys_dev, VkFormat format)
 static VkExtent3D
 get_max_3d_image_size(struct panvk_physical_device *phys_dev, VkFormat format)
 {
-   const uint32_t max_img_size_B = UINT32_MAX;
+   const unsigned arch = pan_arch(phys_dev->kmod.props.gpu_id);
+   const uint64_t max_img_size_B =
+      arch <= 10 ? u_uintN_max(32) : u_uintN_max(48);
    enum pipe_format pfmt = vk_format_to_pipe_format(format);
    uint32_t fmt_blksize = util_format_get_blocksize(pfmt);
    /* Evenly split blocks across each axis. */
@@ -847,7 +869,10 @@ get_image_format_properties(struct panvk_physical_device *physical_device,
       break;
    }
    default:
-      unreachable("bad VkPhysicalDeviceImageFormatInfo2");
+      /* VK_KHR_maintenance5: Physical-device-level functions can now be called
+       * with any value in the valid range for a type beyond the defined
+       * enumerants [...] */
+      goto unsupported;
    }
 
    /* For the purposes of these checks, we don't care about all the extra
@@ -874,8 +899,6 @@ get_image_format_properties(struct panvk_physical_device *physical_device,
       goto unsupported;
 
    switch (info->type) {
-   default:
-      unreachable("bad vkimage type");
    case VK_IMAGE_TYPE_1D:
       maxExtent.width = 1 << 16;
       maxExtent.height = 1;
@@ -893,6 +916,11 @@ get_image_format_properties(struct panvk_physical_device *physical_device,
       maxMipLevels = util_logbase2(maxExtent.width) + 1;
       maxArraySize = 1;
       break;
+   default:
+      /* VK_KHR_maintenance5: Physical-device-level functions can now be called
+       * with any value in the valid range for a type beyond the defined
+       * enumerants [...] */
+      goto unsupported;
    }
 
    if (ycbcr_info)
@@ -1046,11 +1074,13 @@ panvk_GetPhysicalDeviceImageFormatProperties2(
    VkImageFormatProperties2 *base_props)
 {
    VK_FROM_HANDLE(panvk_physical_device, physical_device, physicalDevice);
+   const VkImageStencilUsageCreateInfo *stencil_usage_info = NULL;
    const VkPhysicalDeviceExternalImageFormatInfo *external_info = NULL;
    const VkPhysicalDeviceImageViewImageFormatInfoEXT *image_view_info = NULL;
    VkExternalImageFormatProperties *external_props = NULL;
    VkFilterCubicImageViewImageFormatPropertiesEXT *cubic_props = NULL;
    VkFormatFeatureFlags2 format_feature_flags;
+   VkHostImageCopyDevicePerformanceQuery *hic_props = NULL;
    VkSamplerYcbcrConversionImageFormatProperties *ycbcr_props = NULL;
    VkResult result;
 
@@ -1063,6 +1093,9 @@ panvk_GetPhysicalDeviceImageFormatProperties2(
    /* Extract input structs */
    vk_foreach_struct_const(s, base_info->pNext) {
       switch (s->sType) {
+      case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO:
+         stencil_usage_info = (const void*)s;
+         break;
       case VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_IMAGE_FORMAT_INFO:
          external_info = (const void *)s;
          break;
@@ -1082,6 +1115,9 @@ panvk_GetPhysicalDeviceImageFormatProperties2(
          break;
       case VK_STRUCTURE_TYPE_FILTER_CUBIC_IMAGE_VIEW_IMAGE_FORMAT_PROPERTIES_EXT:
          cubic_props = (void *)s;
+         break;
+      case VK_STRUCTURE_TYPE_HOST_IMAGE_COPY_DEVICE_PERFORMANCE_QUERY:
+         hic_props = (void *)s;
          break;
       case VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_IMAGE_FORMAT_PROPERTIES:
          ycbcr_props = (void *)s;
@@ -1131,6 +1167,22 @@ panvk_GetPhysicalDeviceImageFormatProperties2(
          cubic_props->filterCubic = false;
          cubic_props->filterCubicMinmax = false;
       }
+   }
+
+   if (hic_props) {
+      VkImageUsageFlags stencil_usage = stencil_usage_info ?
+         stencil_usage_info->stencilUsage : base_info->usage;
+
+      /* We don't support AFBC for images used for host transfer. So, if an
+       * image could have been tiled as AFBC if it weren't for host transfer,
+       * report suboptimal access. */
+      VkImageUsageFlags usage = base_info->usage | stencil_usage;
+      usage &= ~VK_IMAGE_USAGE_HOST_TRANSFER_BIT;
+      bool can_use_afbc = panvk_image_can_use_afbc(
+         physical_device, base_info->format, usage, base_info->type,
+         base_info->tiling, base_info->flags);
+      hic_props->optimalDeviceAccess = !can_use_afbc;
+      hic_props->identicalMemoryLayout = !can_use_afbc;
    }
 
    const struct vk_format_ycbcr_info *ycbcr_info =
@@ -1239,4 +1291,36 @@ panvk_GetPhysicalDeviceExternalBufferProperties(
          .exportFromImportedHandleTypes = handle_types,
          .compatibleHandleTypes = handle_types,
       };
+}
+
+static const VkTimeDomainKHR panvk_time_domains[] = {
+   VK_TIME_DOMAIN_DEVICE_KHR,
+   VK_TIME_DOMAIN_CLOCK_MONOTONIC_KHR,
+#ifdef CLOCK_MONOTONIC_RAW
+   VK_TIME_DOMAIN_CLOCK_MONOTONIC_RAW_KHR,
+#endif
+};
+
+VKAPI_ATTR VkResult VKAPI_CALL
+panvk_GetPhysicalDeviceCalibrateableTimeDomainsKHR(
+   VkPhysicalDevice physicalDevice, uint32_t *pTimeDomainCount,
+   VkTimeDomainKHR *pTimeDomains)
+{
+   VK_FROM_HANDLE(panvk_physical_device, pdev, physicalDevice);
+   VK_OUTARRAY_MAKE_TYPED(VkTimeDomainKHR, out, pTimeDomains, pTimeDomainCount);
+
+   int d = 0;
+
+   /* If GPU query timestamp isn't supported, skip device domain */
+   if (!pdev->kmod.props.gpu_can_query_timestamp)
+      d++;
+
+   for (; d < ARRAY_SIZE(panvk_time_domains); d++) {
+      vk_outarray_append_typed(VkTimeDomainKHR, &out, i)
+      {
+         *i = panvk_time_domains[d];
+      }
+   }
+
+   return vk_outarray_status(&out);
 }

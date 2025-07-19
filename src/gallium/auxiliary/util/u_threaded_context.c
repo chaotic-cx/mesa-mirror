@@ -377,12 +377,12 @@ tc_resource_batch_usage_test_busy(const struct threaded_context *tc, const struc
 
    int diff;
    if (tbuf->last_batch_usage < tc->last_completed)
-      /* account for wrapping */
-      diff = (tbuf->last_batch_usage + (INT8_MAX - 1)) - tc->last_completed;
+      /* account for wrapping: un-wrap the resource's usage */
+      diff = (tbuf->last_batch_usage + INT8_MAX) - tc->last_completed;
    else
       diff = tbuf->last_batch_usage - tc->last_completed;
 
-   /* if diff is positive, then batch usage has completed: resource is not busy */
+   /* if diff is positive, then batch usage has not completed: resource is busy */
    return diff > 0;
 }
 
@@ -1452,8 +1452,10 @@ tc_set_framebuffer_state(struct pipe_context *_pipe,
 {
    struct threaded_context *tc = threaded_context(_pipe);
    unsigned next = tc->next;
-   /* always skip incrementing if this is the first call on a batch */
-   bool set_skip_first_increment = !tc->batch_slots[tc->next].num_total_slots;
+   /* always skip incrementing if this is the first call on a batch AND there is no pending work from previous batch */
+   bool set_skip_first_increment = !tc->batch_slots[tc->next].num_total_slots &&
+                                   (!tc->renderpass_info_recording ||
+                                    !TC_RENDERPASS_INFO_HAS_WORK(tc->renderpass_info_recording->data32[0]));
    struct tc_framebuffer *p =
       tc_add_call_no_copy(tc, TC_CALL_set_framebuffer_state, tc_framebuffer);
    unsigned nr_cbufs = fb->nr_cbufs;
@@ -3181,13 +3183,16 @@ tc_texture_subdata(struct pipe_context *_pipe,
 {
    struct threaded_context *tc = threaded_context(_pipe);
    uint64_t size;
+   uint32_t last_row_stride;
 
    assert(box->height >= 1);
    assert(box->depth >= 1);
 
+   last_row_stride = box->width * util_format_get_blocksize(resource->format);
+
    size = (box->depth - 1) * layer_stride +
           (box->height - 1) * (uint64_t)stride +
-          box->width * util_format_get_blocksize(resource->format);
+          last_row_stride;
    if (!size)
       return;
 
@@ -3217,60 +3222,10 @@ tc_texture_subdata(struct pipe_context *_pipe,
 
       if (!can_unsync && resource->usage != PIPE_USAGE_STAGING &&
           tc->options.parse_renderpass_info && tc->in_renderpass) {
-         enum pipe_format format = resource->format;
-         if (usage & PIPE_MAP_DEPTH_ONLY)
-            format = util_format_get_depth_only(format);
-         else if (usage & PIPE_MAP_STENCIL_ONLY)
-            format = PIPE_FORMAT_S8_UINT;
-
-         unsigned fmt_stride = util_format_get_stride(format, box->width);
-         uint64_t fmt_layer_stride = util_format_get_2d_size(format, stride, box->height);
-         assert(fmt_layer_stride * box->depth <= UINT32_MAX);
-
+         /* upload to staging buffer and then buf2img copy */
          struct pipe_resource *pres = pipe_buffer_create(pipe->screen, 0, PIPE_USAGE_STREAM, layer_stride * box->depth);
          pipe->buffer_subdata(pipe, pres, unsync_usage, 0, layer_stride * box->depth, data);
-         struct pipe_box src_box = *box;
-         src_box.x = src_box.y = src_box.z = 0;
-
-         if (fmt_stride == stride && fmt_layer_stride == layer_stride) {
-            /* if stride matches, single copy is fine*/
-            tc->base.resource_copy_region(&tc->base, resource, level, box->x, box->y, box->z, pres, 0, &src_box);
-         } else {
-            /* if stride doesn't match, inline util_copy_box on the GPU and assume the driver will optimize */
-            src_box.depth = 1;
-            for (unsigned z = 0; z < box->depth; ++z, src_box.x = z * layer_stride) {
-               unsigned dst_x = box->x, dst_y = box->y, width = box->width, height = box->height, dst_z = box->z + z;
-               int blocksize = util_format_get_blocksize(format);
-               int blockwidth = util_format_get_blockwidth(format);
-               int blockheight = util_format_get_blockheight(format);
-
-               assert(blocksize > 0);
-               assert(blockwidth > 0);
-               assert(blockheight > 0);
-
-               dst_x /= blockwidth;
-               dst_y /= blockheight;
-               width = DIV_ROUND_UP(width, blockwidth);
-               height = DIV_ROUND_UP(height, blockheight);
-
-               width *= blocksize;
-
-               if (width == fmt_stride && width == (unsigned)stride) {
-                  ASSERTED uint64_t size = (uint64_t)height * width;
-
-                  assert(size <= SIZE_MAX);
-                  assert(dst_x + src_box.width < u_minify(pres->width0, level));
-                  assert(dst_y + src_box.height < u_minify(pres->height0, level));
-                  assert(pres->target != PIPE_TEXTURE_3D ||  z + src_box.depth < u_minify(pres->depth0, level));
-                  tc->base.resource_copy_region(&tc->base, resource, level, dst_x, dst_y, dst_z, pres, 0, &src_box);
-               } else {
-                  src_box.height = 1;
-                  for (unsigned i = 0; i < height; i++, dst_y++, src_box.x += stride)
-                     tc->base.resource_copy_region(&tc->base, resource, level, dst_x, dst_y, dst_z, pres, 0, &src_box);
-               }
-            }
-         }
-
+         tc->base.image_copy_buffer(&tc->base, resource, pres, 0, stride, layer_stride, level, box);
          pipe_resource_reference(&pres, NULL);
       } else {
          if (can_unsync) {
@@ -3432,21 +3387,24 @@ tc_create_fence_fd(struct pipe_context *_pipe,
 struct tc_fence_call {
    struct tc_call_base base;
    struct pipe_fence_handle *fence;
+   uint64_t value;
 };
 
 static uint16_t ALWAYS_INLINE
 tc_call_fence_server_sync(struct pipe_context *pipe, void *call)
 {
-   struct pipe_fence_handle *fence = to_call(call, tc_fence_call)->fence;
+   struct tc_fence_call *p = (void*)to_call(call, tc_fence_call);
+   struct pipe_fence_handle *fence = p->fence;
 
-   pipe->fence_server_sync(pipe, fence);
+   pipe->fence_server_sync(pipe, fence, p->value);
    pipe->screen->fence_reference(pipe->screen, &fence, NULL);
    return call_size(tc_fence_call);
 }
 
 static void
 tc_fence_server_sync(struct pipe_context *_pipe,
-                     struct pipe_fence_handle *fence)
+                     struct pipe_fence_handle *fence,
+                     uint64_t value)
 {
    struct threaded_context *tc = threaded_context(_pipe);
    struct pipe_screen *screen = tc->pipe->screen;
@@ -3455,17 +3413,19 @@ tc_fence_server_sync(struct pipe_context *_pipe,
 
    call->fence = NULL;
    screen->fence_reference(screen, &call->fence, fence);
+   call->value = value;
 }
 
 static void
 tc_fence_server_signal(struct pipe_context *_pipe,
-                           struct pipe_fence_handle *fence)
+                           struct pipe_fence_handle *fence,
+                           uint64_t value)
 {
    struct threaded_context *tc = threaded_context(_pipe);
    struct pipe_context *pipe = tc->pipe;
    tc_sync(tc);
    tc_set_driver_thread(tc);
-   pipe->fence_server_signal(pipe, fence);
+   pipe->fence_server_signal(pipe, fence, value);
    tc_clear_driver_thread(tc);
 }
 
@@ -4441,6 +4401,70 @@ tc_launch_grid(struct pipe_context *_pipe,
       tc_add_all_compute_bindings_to_buffer_list(tc);
 }
 
+struct tc_image_copy_buffer {
+   struct tc_call_base base;
+   unsigned buffer_stride;
+   unsigned buffer_layer_stride;
+   unsigned level;
+   unsigned buffer_offset;
+   struct pipe_box box;
+   struct pipe_resource *dst;
+   struct pipe_resource *src;
+};
+
+static uint16_t ALWAYS_INLINE
+tc_call_image_copy_buffer(struct pipe_context *pipe, void *call)
+{
+   struct tc_image_copy_buffer *p = to_call(call, tc_image_copy_buffer);
+
+   pipe->image_copy_buffer(pipe, p->dst, p->src, p->buffer_offset, p->buffer_stride,
+                           p->buffer_layer_stride, p->level, &p->box);
+   tc_drop_resource_reference(p->dst);
+   tc_drop_resource_reference(p->src);
+   return call_size(tc_image_copy_buffer);
+}
+
+static void
+tc_image_copy_buffer(struct pipe_context *_pipe,
+                     struct pipe_resource *dst,
+                     struct pipe_resource *src,
+                     unsigned buffer_offset,
+                     unsigned buffer_stride,
+                     unsigned buffer_layer_stride,
+                     unsigned level,
+                     const struct pipe_box *box)
+{
+   struct threaded_context *tc = threaded_context(_pipe);
+   struct threaded_resource *tbuf = dst->target == PIPE_BUFFER ? threaded_resource(dst) : threaded_resource(src);
+   struct threaded_resource *timg = dst->target == PIPE_BUFFER ? threaded_resource(src) : threaded_resource(dst);
+   struct tc_image_copy_buffer *p =
+      tc_add_call(tc, TC_CALL_image_copy_buffer,
+                  tc_image_copy_buffer);
+
+   if (dst->target == PIPE_BUFFER)
+      tc_buffer_disable_cpu_storage(&tbuf->b);
+   if (tc->options.parse_renderpass_info && tc->in_renderpass)
+      tc_check_fb_access(tc, NULL, &timg->b);
+
+   tc_set_resource_batch_usage(tc, dst);
+   tc_set_resource_reference(&p->dst, dst);
+   p->buffer_offset = buffer_offset;
+   p->buffer_stride = buffer_stride;
+   p->buffer_layer_stride = buffer_layer_stride;
+   p->level = level;
+   p->box = *box;
+   tc_set_resource_batch_usage(tc, src);
+   tc_set_resource_reference(&p->src, src);
+
+   struct tc_buffer_list *next = &tc->buffer_lists[tc->next_buf_list];
+
+   tc_add_to_buffer_list(next, &tbuf->b);
+
+   if (dst->target == PIPE_BUFFER)
+      util_range_add(&tbuf->b, &tbuf->valid_buffer_range,
+                     buffer_offset, buffer_offset + box->width);
+}
+
 static uint16_t ALWAYS_INLINE
 tc_call_resource_copy_region(struct pipe_context *pipe, void *call)
 {
@@ -5376,6 +5400,8 @@ threaded_context_create(struct pipe_context *pipe,
    if (options) {
       /* this is unimplementable */
       assert(!(options->parse_renderpass_info && options->driver_calls_flush_notify));
+      /* this is required */
+      assert(!options->parse_renderpass_info || pipe->image_copy_buffer);
       tc->options = *options;
    }
 
@@ -5454,6 +5480,7 @@ threaded_context_create(struct pipe_context *pipe,
    CTX_INIT(draw_vertex_state);
    CTX_INIT(launch_grid);
    CTX_INIT(resource_copy_region);
+   CTX_INIT(image_copy_buffer);
    CTX_INIT(blit);
    CTX_INIT(clear);
    CTX_INIT(clear_render_target);

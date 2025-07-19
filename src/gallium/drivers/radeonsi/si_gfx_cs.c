@@ -132,7 +132,7 @@ void si_flush_gfx_cs(struct si_context *ctx, unsigned flags, struct pipe_fence_h
 
    ctx->gfx_flush_in_progress = true;
 
-   if (ctx->has_graphics) {
+   if (ctx->is_gfx_queue) {
       if (!list_is_empty(&ctx->active_queries))
          si_suspend_queries(ctx);
 
@@ -512,7 +512,7 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
       radeon_add_to_buffer_list(ctx, &ctx->gfx_cs, ctx->border_color_buffer,
                                 RADEON_USAGE_READ | RADEON_PRIO_BORDER_COLORS);
    }
-   if (ctx->shadowing.registers) {
+   if (ctx->uses_kernelq_reg_shadowing) {
       radeon_add_to_buffer_list(ctx, &ctx->gfx_cs, ctx->shadowing.registers,
                                 RADEON_USAGE_READWRITE | RADEON_PRIO_DESCRIPTORS);
 
@@ -534,7 +534,7 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
       radeon_end();
    }
 
-   if (!ctx->has_graphics) {
+   if (!ctx->is_gfx_queue) {
       ctx->initial_gfx_cs_size = ctx->gfx_cs.current.cdw;
       return;
    }
@@ -594,7 +594,7 @@ void si_begin_new_gfx_cs(struct si_context *ctx, bool first_cs)
    if (ctx->screen->use_ngg_culling)
       si_mark_atom_dirty(ctx, &ctx->atoms.s.ngg_cull_state);
 
-   if (first_cs || !ctx->shadowing.registers) {
+   if (first_cs || !ctx->uses_kernelq_reg_shadowing) {
       /* These don't add any buffers, so skip them with shadowing. */
       si_mark_atom_dirty(ctx, &ctx->atoms.s.clip_regs);
       /* CLEAR_STATE sets zeros. */

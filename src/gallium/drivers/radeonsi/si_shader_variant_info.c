@@ -137,6 +137,27 @@ void si_get_shader_variant_info(struct si_shader *shader,
                      shader->info.writes_stencil = true;
                   else if (sem.location == FRAG_RESULT_SAMPLE_MASK)
                      shader->info.writes_sample_mask = true;
+               } else if (nir->info.stage <= MESA_SHADER_GEOMETRY &&
+                          !shader->key.ge.as_ls && !shader->key.ge.as_es) {
+                  nir_io_semantics sem = nir_intrinsic_io_semantics(intr);
+
+                  /* Clip/cull distances must be gathered manually because nir_opt_clip_cull_const
+                   * can reduce their number.
+                   */
+                  if ((sem.location == VARYING_SLOT_CLIP_DIST0 ||
+                       sem.location == VARYING_SLOT_CLIP_DIST1) && !sem.no_sysval_output) {
+                     assert(nir_src_as_uint(*nir_get_io_offset_src(intr)) == 0);
+                     unsigned index = (sem.location - VARYING_SLOT_CLIP_DIST0) * 4 +
+                                      nir_intrinsic_component(intr);
+
+                     if (index < nir->info.clip_distance_array_size) {
+                        assert(shader->selector->info.clipdist_mask & BITFIELD_BIT(index));
+                        shader->info.clipdist_mask |= BITFIELD_BIT(index);
+                     } else if (index < nir->info.clip_distance_array_size +
+                                        nir->info.cull_distance_array_size) {
+                        shader->info.culldist_mask |= BITFIELD_BIT(index);
+                     }
+                  }
                }
                break;
             case nir_intrinsic_demote:
@@ -249,13 +270,22 @@ void si_get_shader_variant_info(struct si_shader *shader,
       }
    }
 
-   if (nir->info.stage <= MESA_SHADER_GEOMETRY && nir->xfb_info &&
-       !shader->key.ge.as_ls && !shader->key.ge.as_es) {
-      unsigned num_streamout_dwords = 0;
+   if (nir->info.stage <= MESA_SHADER_GEOMETRY) {
+      if (!shader->key.ge.as_ls && !shader->key.ge.as_es) {
+         if (nir->xfb_info) {
+            unsigned num_streamout_dwords = 0;
 
-      for (unsigned i = 0; i < 4; i++)
-         num_streamout_dwords += nir->info.xfb_stride[i];
-      shader->info.num_streamout_vec4s = DIV_ROUND_UP(num_streamout_dwords, 4);
+            for (unsigned i = 0; i < 4; i++)
+               num_streamout_dwords += nir->info.xfb_stride[i];
+            shader->info.num_streamout_vec4s = DIV_ROUND_UP(num_streamout_dwords, 4);
+         }
+
+         if (shader->key.ge.mono.write_pos_to_clipvertex ||
+             nir->info.outputs_written & VARYING_BIT_CLIP_VERTEX)
+            shader->info.clipdist_mask = SI_USER_CLIP_PLANE_MASK;
+
+         shader->info.clipdist_mask &= ~shader->key.ge.opt.kill_clip_distances;
+      }
    }
 }
 
@@ -263,16 +293,18 @@ void si_get_shader_variant_info(struct si_shader *shader,
 void si_get_late_shader_variant_info(struct si_shader *shader, struct si_shader_args *args,
                                      nir_shader *nir)
 {
-   if ((nir->info.stage != MESA_SHADER_VERTEX || nir->info.vs.blit_sgprs_amd) &&
-       nir->info.stage != MESA_SHADER_TESS_EVAL &&
-       (nir->info.stage != MESA_SHADER_GEOMETRY || !shader->key.ge.as_ngg))
-      return;
-
    nir_foreach_block(block, nir_shader_get_entrypoint(nir)) {
       nir_foreach_instr(instr, block) {
-         if (instr->type == nir_instr_type_intrinsic &&
-             nir_instr_as_intrinsic(instr)->intrinsic == nir_intrinsic_load_scalar_arg_amd &&
-             nir_intrinsic_base(nir_instr_as_intrinsic(instr)) == args->vs_state_bits.arg_index) {
+         if (instr->type != nir_instr_type_intrinsic)
+            continue;
+
+         nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+         switch (intr->intrinsic) {
+         case nir_intrinsic_load_scalar_arg_amd:
+            if (!args->vs_state_bits.used ||
+                nir_intrinsic_base(intr) != args->vs_state_bits.arg_index)
+               continue;
+
             assert(args->vs_state_bits.used);
 
             /* Gather which VS_STATE and GS_STATE user SGPR bits are used. */
@@ -289,6 +321,17 @@ void si_get_late_shader_variant_info(struct si_shader *shader, struct si_shader_
                if (bits_used & ENCODE_FIELD(GS_STATE_OUTPRIM, ~0))
                   shader->info.uses_gs_state_outprim = true;
             }
+            break;
+         case nir_intrinsic_export_amd: {
+            unsigned target = nir_intrinsic_base(intr);
+            if (target >= V_008DFC_SQ_EXP_POS && target <= V_008DFC_SQ_EXP_POS + 4) {
+               shader->info.nr_pos_exports = MAX2(shader->info.nr_pos_exports,
+                                                  target - V_008DFC_SQ_EXP_POS + 1);
+            }
+            break;
+         }
+         default:
+            break;
          }
       }
    }

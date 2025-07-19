@@ -13,51 +13,53 @@
 #include "nir/nir_builder.h"
 #include "pco.h"
 #include "pco_internal.h"
+#include "pvr_limits.h"
 
 #include <stdio.h>
 
-/** Base/common SPIR-V to NIR options. */
-static const struct spirv_to_nir_options pco_base_spirv_options = {
+/** SPIR-V to NIR options. */
+static const struct spirv_to_nir_options spirv_options = {
    .environment = NIR_SPIRV_VULKAN,
+
+   .ubo_addr_format = nir_address_format_vec2_index_32bit_offset,
+
+   .min_ubo_alignment = PVR_UNIFORM_BUFFER_OFFSET_ALIGNMENT,
+   .min_ssbo_alignment = PVR_STORAGE_BUFFER_OFFSET_ALIGNMENT,
 };
 
-/** Base/common NIR options. */
-static const nir_shader_compiler_options pco_base_nir_options = {
+/** NIR options. */
+static const nir_shader_compiler_options nir_options = {
    .fuse_ffma32 = true,
 
+   .has_fused_comp_and_csel = true,
+
+   .instance_id_includes_base_index = true,
+
+   .lower_fdiv = true,
    .lower_fquantize2f16 = true,
    .lower_layer_fs_input_to_sysval = true,
    .compact_arrays = true,
 };
 
 /**
- * \brief Sets up device/core-specific SPIR-V to NIR options.
+ * \brief Returns the SPIR-V to NIR options.
  *
- * \param[in] dev_info Device info.
- * \param[out] spirv_options SPIR-V to NIR options.
+ * \return The SPIR-V to NIR options.
  */
-void pco_setup_spirv_options(const struct pvr_device_info *dev_info,
-                             struct spirv_to_nir_options *spirv_options)
+const struct spirv_to_nir_options *pco_spirv_options(void)
 {
-   memcpy(spirv_options, &pco_base_spirv_options, sizeof(*spirv_options));
-
-   /* TODO: Device/core-dependent options. */
-   puts("finishme: pco_setup_spirv_options");
+   return &spirv_options;
 }
 
 /**
- * \brief Sets up device/core-specific NIR options.
+ * \brief Returns the NIR options for a PCO compiler
+ * context.
  *
- * \param[in] dev_info Device info.
- * \param[out] nir_options NIR options.
+ * \return The NIR options.
  */
-void pco_setup_nir_options(const struct pvr_device_info *dev_info,
-                           nir_shader_compiler_options *nir_options)
+const nir_shader_compiler_options *pco_nir_options(void)
 {
-   memcpy(nir_options, &pco_base_nir_options, sizeof(*nir_options));
-
-   /* TODO: Device/core-dependent options. */
-   puts("finishme: pco_setup_nir_options");
+   return &nir_options;
 }
 
 /**
@@ -84,6 +86,30 @@ void pco_preprocess_nir(pco_ctx *ctx, nir_shader *nir)
             nir,
             nir_split_array_vars,
             nir_var_function_temp | nir_var_shader_temp);
+
+   if (nir->info.stage == MESA_SHADER_FRAGMENT) {
+      const struct nir_lower_sysvals_to_varyings_options sysvals_to_varyings = {
+         .frag_coord = true,
+         .point_coord = true,
+      };
+      NIR_PASS(_, nir, nir_lower_sysvals_to_varyings, &sysvals_to_varyings);
+   }
+
+   NIR_PASS(_, nir, nir_lower_system_values);
+
+   NIR_PASS(_,
+            nir,
+            nir_lower_io_vars_to_temporaries,
+            nir_shader_get_entrypoint(nir),
+            true,
+            true);
+
+   NIR_PASS(_, nir, nir_split_var_copies);
+   NIR_PASS(_, nir, nir_lower_var_copies);
+   NIR_PASS(_, nir, nir_lower_global_vars_to_local);
+   NIR_PASS(_, nir, nir_lower_vars_to_ssa);
+   NIR_PASS(_, nir, nir_remove_dead_derefs);
+
    NIR_PASS(_,
             nir,
             nir_lower_indirect_derefs,
@@ -95,7 +121,9 @@ void pco_preprocess_nir(pco_ctx *ctx, nir_shader *nir)
             nir_remove_dead_variables,
             nir_var_function_temp | nir_var_shader_temp,
             NULL);
+   NIR_PASS(_, nir, nir_copy_prop);
    NIR_PASS(_, nir, nir_opt_dce);
+   NIR_PASS(_, nir, nir_opt_cse);
 
    if (pco_should_print_nir(nir)) {
       puts("after pco_preprocess_nir:");
@@ -142,21 +170,33 @@ static uint8_t vectorize_filter(const nir_instr *instr, UNUSED const void *data)
 }
 
 /**
- * \brief Filters for a varying position load_input in frag shaders.
+ * \brief Filter for fragment shader inputs that need to be scalar.
  *
  * \param[in] instr Instruction.
  * \param[in] data User data.
  * \return True if the instruction was found.
  */
-static bool frag_pos_filter(const nir_instr *instr, UNUSED const void *data)
+static bool frag_in_scalar_filter(const nir_instr *instr, const void *data)
 {
    assert(instr->type == nir_instr_type_intrinsic);
+   nir_shader *nir = (nir_shader *)data;
 
    nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
    if (intr->intrinsic != nir_intrinsic_load_input)
       return false;
 
-   return nir_intrinsic_io_semantics(intr).location == VARYING_SLOT_POS;
+   gl_varying_slot location = nir_intrinsic_io_semantics(intr).location;
+   if (location == VARYING_SLOT_POS)
+      return true;
+
+   nir_variable *var =
+      nir_find_variable_with_location(nir, nir_var_shader_in, location);
+   assert(var);
+
+   if (var->data.interpolation == INTERP_MODE_FLAT)
+      return true;
+
+   return false;
 }
 
 /**
@@ -168,6 +208,14 @@ static bool frag_pos_filter(const nir_instr *instr, UNUSED const void *data)
  */
 void pco_lower_nir(pco_ctx *ctx, nir_shader *nir, pco_data *data)
 {
+   NIR_PASS(_,
+            nir,
+            nir_lower_explicit_io,
+            nir_var_mem_ubo,
+            spirv_options.ubo_addr_format);
+
+   NIR_PASS(_, nir, pco_nir_lower_vk, &data->common);
+
    NIR_PASS(_,
             nir,
             nir_lower_io,
@@ -185,6 +233,15 @@ void pco_lower_nir(pco_ctx *ctx, nir_shader *nir, pco_data *data)
    if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       NIR_PASS(_, nir, pco_nir_pfo, &data->fs);
    } else if (nir->info.stage == MESA_SHADER_VERTEX) {
+      NIR_PASS(_,
+               nir,
+               nir_lower_point_size,
+               PVR_POINT_SIZE_RANGE_MIN,
+               PVR_POINT_SIZE_RANGE_MAX);
+
+      if (!nir->info.internal)
+         NIR_PASS(_, nir, pco_nir_point_size);
+
       NIR_PASS(_, nir, pco_nir_pvi, &data->vs);
    }
 
@@ -205,15 +262,24 @@ void pco_lower_nir(pco_ctx *ctx, nir_shader *nir, pco_data *data)
    NIR_PASS(_, nir, nir_lower_alu);
    NIR_PASS(_, nir, nir_lower_pack);
    NIR_PASS(_, nir, nir_opt_algebraic);
+   NIR_PASS(_, nir, pco_nir_lower_algebraic);
+   NIR_PASS(_, nir, nir_opt_constant_folding);
+   NIR_PASS(_, nir, nir_opt_algebraic);
+   NIR_PASS(_, nir, pco_nir_lower_algebraic);
+   NIR_PASS(_, nir, nir_opt_constant_folding);
+
+   NIR_PASS(_, nir, nir_lower_alu_to_scalar, NULL, NULL);
+
    do {
       progress = false;
 
       NIR_PASS(progress, nir, nir_opt_algebraic_late);
-      NIR_PASS(_, nir, nir_opt_constant_folding);
-      NIR_PASS(_, nir, nir_lower_load_const_to_scalar);
-      NIR_PASS(_, nir, nir_copy_prop);
-      NIR_PASS(_, nir, nir_opt_dce);
-      NIR_PASS(_, nir, nir_opt_cse);
+      NIR_PASS(progress, nir, pco_nir_lower_algebraic_late);
+      NIR_PASS(progress, nir, nir_opt_constant_folding);
+      NIR_PASS(progress, nir, nir_lower_load_const_to_scalar);
+      NIR_PASS(progress, nir, nir_copy_prop);
+      NIR_PASS(progress, nir, nir_opt_dce);
+      NIR_PASS(progress, nir, nir_opt_cse);
    } while (progress);
 
    nir_variable_mode vec_modes = nir_var_shader_in;
@@ -221,7 +287,7 @@ void pco_lower_nir(pco_ctx *ctx, nir_shader *nir, pco_data *data)
    if (nir->info.stage != MESA_SHADER_FRAGMENT)
       vec_modes |= nir_var_shader_out;
 
-   NIR_PASS(_, nir, nir_opt_vectorize_io, vec_modes);
+   NIR_PASS(_, nir, nir_opt_vectorize_io, vec_modes, false);
 
    /* Special case for frag coords:
     * - x,y come from (non-consecutive) special regs - always scalar.
@@ -233,11 +299,9 @@ void pco_lower_nir(pco_ctx *ctx, nir_shader *nir, pco_data *data)
                nir,
                nir_lower_io_to_scalar,
                nir_var_shader_in,
-               frag_pos_filter,
-               NULL);
+               frag_in_scalar_filter,
+               nir);
    }
-
-   NIR_PASS(_, nir, nir_lower_alu_to_scalar, NULL, NULL);
 
    do {
       progress = false;
@@ -277,10 +341,11 @@ static bool gather_fs_data_pass(UNUSED struct nir_builder *b,
 
    unsigned component = nir_intrinsic_component(intr);
    unsigned chans = intr->def.num_components;
+   assert(component == 2 || chans == 1);
 
    pco_data *data = cb_data;
 
-   data->fs.uses.z |= (component + chans > 2);
+   data->fs.uses.z |= (component == 2);
    data->fs.uses.w |= (component + chans > 3);
 
    return false;
@@ -338,6 +403,9 @@ static void gather_data(nir_shader *nir, pco_data *data)
  */
 void pco_postprocess_nir(pco_ctx *ctx, nir_shader *nir, pco_data *data)
 {
+   NIR_PASS(_, nir, nir_opt_sink, ~0U);
+   NIR_PASS(_, nir, nir_opt_move, ~0U);
+
    NIR_PASS(_, nir, nir_move_vec_src_uses_to_dest, false);
 
    /* Re-index everything. */

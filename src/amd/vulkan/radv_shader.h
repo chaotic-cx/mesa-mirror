@@ -46,8 +46,8 @@ enum {
 #define RADV_STAGE_MASK ((1 << MESA_VULKAN_SHADER_STAGES) - 1)
 
 #define radv_foreach_stage(stage, stage_bits)                                                                          \
-   for (gl_shader_stage stage, __tmp = (gl_shader_stage)((stage_bits)&RADV_STAGE_MASK); stage = ffs(__tmp) - 1, __tmp; \
-        __tmp &= ~(1 << (stage)))
+   for (gl_shader_stage stage, __tmp = (gl_shader_stage)((stage_bits) & RADV_STAGE_MASK);                              \
+        stage = ffs(__tmp) - 1, __tmp; __tmp &= ~(1 << (stage)))
 
 enum radv_nggc_settings {
    radv_nggc_none = 0,
@@ -200,22 +200,22 @@ struct radv_nir_compiler_options {
    } debug;
 };
 
-#define SET_SGPR_FIELD(field, value) (((unsigned)(value)&field##__MASK) << field##__SHIFT)
+#define SET_SGPR_FIELD(field, value) (((unsigned)(value) & field##__MASK) << field##__SHIFT)
 
-#define TCS_OFFCHIP_LAYOUT_NUM_PATCHES__SHIFT          0
-#define TCS_OFFCHIP_LAYOUT_NUM_PATCHES__MASK           0x7f
+#define TCS_OFFCHIP_LAYOUT_NUM_PATCHES__SHIFT           0
+#define TCS_OFFCHIP_LAYOUT_NUM_PATCHES__MASK            0x7f
 #define TCS_OFFCHIP_LAYOUT_PATCH_VERTICES_IN__SHIFT     7
 #define TCS_OFFCHIP_LAYOUT_PATCH_VERTICES_IN__MASK      0x1f
 #define TCS_OFFCHIP_LAYOUT_TCS_MEM_ATTRIB_STRIDE__SHIFT 12
 #define TCS_OFFCHIP_LAYOUT_TCS_MEM_ATTRIB_STRIDE__MASK  0x1f
-#define TCS_OFFCHIP_LAYOUT_NUM_LS_OUTPUTS__SHIFT       17
-#define TCS_OFFCHIP_LAYOUT_NUM_LS_OUTPUTS__MASK        0x3f
-#define TCS_OFFCHIP_LAYOUT_NUM_HS_OUTPUTS__SHIFT       23
-#define TCS_OFFCHIP_LAYOUT_NUM_HS_OUTPUTS__MASK        0x3f
-#define TCS_OFFCHIP_LAYOUT_PRIMITIVE_MODE__SHIFT       29
-#define TCS_OFFCHIP_LAYOUT_PRIMITIVE_MODE__MASK        0x03
-#define TCS_OFFCHIP_LAYOUT_TES_READS_TF__SHIFT         31
-#define TCS_OFFCHIP_LAYOUT_TES_READS_TF__MASK          0x01
+#define TCS_OFFCHIP_LAYOUT_NUM_LS_OUTPUTS__SHIFT        17
+#define TCS_OFFCHIP_LAYOUT_NUM_LS_OUTPUTS__MASK         0x3f
+#define TCS_OFFCHIP_LAYOUT_NUM_HS_OUTPUTS__SHIFT        23
+#define TCS_OFFCHIP_LAYOUT_NUM_HS_OUTPUTS__MASK         0x3f
+#define TCS_OFFCHIP_LAYOUT_PRIMITIVE_MODE__SHIFT        29
+#define TCS_OFFCHIP_LAYOUT_PRIMITIVE_MODE__MASK         0x03
+#define TCS_OFFCHIP_LAYOUT_TES_READS_TF__SHIFT          31
+#define TCS_OFFCHIP_LAYOUT_TES_READS_TF__MASK           0x01
 
 #define TES_STATE_NUM_PATCHES__SHIFT      0
 #define TES_STATE_NUM_PATCHES__MASK       0xff
@@ -226,8 +226,6 @@ struct radv_nir_compiler_options {
 
 #define NGG_LDS_LAYOUT_GS_OUT_VERTEX_BASE__SHIFT 0
 #define NGG_LDS_LAYOUT_GS_OUT_VERTEX_BASE__MASK  0xffff
-#define NGG_LDS_LAYOUT_SCRATCH_BASE__SHIFT       16
-#define NGG_LDS_LAYOUT_SCRATCH_BASE__MASK        0xffff
 
 #define NGG_STATE_NUM_VERTS_PER_PRIM__SHIFT 0
 #define NGG_STATE_NUM_VERTS_PER_PRIM__MASK  0x7
@@ -274,6 +272,7 @@ struct radv_shader_stage {
    unsigned char shader_sha1[20];
 
    nir_shader *nir;
+   nir_shader *gs_copy_shader;
    nir_shader *internal_nir; /* meta shaders */
 
    struct radv_shader_info info;

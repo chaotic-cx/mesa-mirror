@@ -236,21 +236,8 @@ dri_server_wait_sync(struct dri_context *_ctx, void *_fence, unsigned flags)
    _mesa_glthread_finish(st->ctx);
 
    if (ctx->fence_server_sync)
-      ctx->fence_server_sync(ctx, fence->pipe_fence);
+      ctx->fence_server_sync(ctx, fence->pipe_fence, 0);
 }
-
-const __DRI2fenceExtension dri2FenceExtension = {
-   .base = { __DRI2_FENCE, 2 },
-
-   .create_fence = dri_create_fence,
-   .get_fence_from_cl_event = dri_get_fence_from_cl_event,
-   .destroy_fence = dri_destroy_fence,
-   .client_wait_sync = dri_client_wait_sync,
-   .server_wait_sync = dri_server_wait_sync,
-   .get_capabilities = dri_fence_get_caps,
-   .create_fence_fd = dri_create_fence_fd,
-   .get_fence_fd = dri_get_fence_fd,
-};
 
 struct dri_image *
 dri_create_image_from_renderbuffer(struct dri_context *dri_ctx,
@@ -324,14 +311,10 @@ void
 dri2_destroy_image(struct dri_image *img)
 {
    const __DRIimageLoaderExtension *imgLoader = img->screen->image.loader;
-   const __DRIdri2LoaderExtension *dri2Loader = img->screen->dri2.loader;
 
    if (imgLoader && imgLoader->base.version >= 4 &&
          imgLoader->destroyLoaderImageState) {
       imgLoader->destroyLoaderImageState(img->loader_private);
-   } else if (dri2Loader && dri2Loader->base.version >= 5 &&
-         dri2Loader->destroyLoaderImageState) {
-      dri2Loader->destroyLoaderImageState(img->loader_private);
    }
 
    pipe_resource_reference(&img->texture, NULL);
@@ -422,137 +405,182 @@ dri2_create_from_texture(struct dri_context *dri_ctx, int target, unsigned textu
 }
 
 static const struct dri2_format_mapping dri2_format_table[] = {
-      { DRM_FORMAT_ABGR16161616F, __DRI_IMAGE_FORMAT_ABGR16161616F,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_R16G16B16A16_FLOAT, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR16161616F } } },
-      { DRM_FORMAT_XBGR16161616F, __DRI_IMAGE_FORMAT_XBGR16161616F,
-        __DRI_IMAGE_COMPONENTS_RGB,       PIPE_FORMAT_R16G16B16X16_FLOAT, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_XBGR16161616F } } },
-      { DRM_FORMAT_ABGR16161616, __DRI_IMAGE_FORMAT_ABGR16161616,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_R16G16B16A16_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR16161616 } } },
-      { DRM_FORMAT_XBGR16161616, __DRI_IMAGE_FORMAT_XBGR16161616,
-        __DRI_IMAGE_COMPONENTS_RGB,      PIPE_FORMAT_R16G16B16X16_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_XBGR16161616 } } },
-      { DRM_FORMAT_ARGB2101010,   __DRI_IMAGE_FORMAT_ARGB2101010,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_B10G10R10A2_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ARGB2101010 } } },
-      { DRM_FORMAT_XRGB2101010,   __DRI_IMAGE_FORMAT_XRGB2101010,
-        __DRI_IMAGE_COMPONENTS_RGB,       PIPE_FORMAT_B10G10R10X2_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_XRGB2101010 } } },
-      { DRM_FORMAT_ABGR2101010,   __DRI_IMAGE_FORMAT_ABGR2101010,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_R10G10B10A2_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR2101010 } } },
-      { DRM_FORMAT_XBGR2101010,   __DRI_IMAGE_FORMAT_XBGR2101010,
-        __DRI_IMAGE_COMPONENTS_RGB,       PIPE_FORMAT_R10G10B10X2_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_XBGR2101010 } } },
-      { DRM_FORMAT_ARGB8888,      __DRI_IMAGE_FORMAT_ARGB8888,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_BGRA8888_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ARGB8888 } } },
-      { DRM_FORMAT_ABGR8888,      __DRI_IMAGE_FORMAT_ABGR8888,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_RGBA8888_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR8888 } } },
-      { __DRI_IMAGE_FOURCC_SARGB8888,     __DRI_IMAGE_FORMAT_SARGB8,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_BGRA8888_SRGB, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_SARGB8 } } },
-      { DRM_FORMAT_XRGB8888,      __DRI_IMAGE_FORMAT_XRGB8888,
-        __DRI_IMAGE_COMPONENTS_RGB,       PIPE_FORMAT_BGRX8888_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_XRGB8888 } } },
-      { DRM_FORMAT_RGB888,        __DRI_IMAGE_FORMAT_RGB888,
-        __DRI_IMAGE_COMPONENTS_RGB,       PIPE_FORMAT_B8G8R8_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_RGB888 } } },
-      { DRM_FORMAT_XBGR8888,      __DRI_IMAGE_FORMAT_XBGR8888,
-        __DRI_IMAGE_COMPONENTS_RGB,       PIPE_FORMAT_RGBX8888_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_XBGR8888 } } },
-      { DRM_FORMAT_BGR888,        __DRI_IMAGE_FORMAT_BGR888,
-        __DRI_IMAGE_COMPONENTS_RGB,       PIPE_FORMAT_R8G8B8_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_BGR888 } } },
-      { DRM_FORMAT_ARGB1555,      __DRI_IMAGE_FORMAT_ARGB1555,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_B5G5R5A1_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ARGB1555 } } },
-      { DRM_FORMAT_ABGR1555,      __DRI_IMAGE_FORMAT_ABGR1555,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_R5G5B5A1_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR1555 } } },
-      { DRM_FORMAT_ARGB4444,      __DRI_IMAGE_FORMAT_ARGB4444,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_B4G4R4A4_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ARGB4444 } } },
-      { DRM_FORMAT_ABGR4444,      __DRI_IMAGE_FORMAT_ABGR4444,
-        __DRI_IMAGE_COMPONENTS_RGBA,      PIPE_FORMAT_R4G4B4A4_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR4444 } } },
-      { DRM_FORMAT_RGB565,        __DRI_IMAGE_FORMAT_RGB565,
-        __DRI_IMAGE_COMPONENTS_RGB,       PIPE_FORMAT_B5G6R5_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_RGB565 } } },
-      { DRM_FORMAT_R8,            __DRI_IMAGE_FORMAT_R8,
-        __DRI_IMAGE_COMPONENTS_R,         PIPE_FORMAT_R8_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 } } },
-      { DRM_FORMAT_R16,           __DRI_IMAGE_FORMAT_R16,
-        __DRI_IMAGE_COMPONENTS_R,         PIPE_FORMAT_R16_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 } } },
-      { DRM_FORMAT_GR88,          __DRI_IMAGE_FORMAT_GR88,
-        __DRI_IMAGE_COMPONENTS_RG,        PIPE_FORMAT_RG88_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR88 } } },
-      { DRM_FORMAT_GR1616,        __DRI_IMAGE_FORMAT_GR1616,
-        __DRI_IMAGE_COMPONENTS_RG,        PIPE_FORMAT_RG1616_UNORM, 1,
-        { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR1616 } } },
 
+      /*
+       * RGB formats:
+       */
+      { DRM_FORMAT_ABGR16161616F, __DRI_IMAGE_FORMAT_ABGR16161616F,
+        PIPE_FORMAT_R16G16B16A16_FLOAT, 1, },
+      { DRM_FORMAT_XBGR16161616F, __DRI_IMAGE_FORMAT_XBGR16161616F,
+        PIPE_FORMAT_R16G16B16X16_FLOAT, 1, },
+      { DRM_FORMAT_ABGR16161616, __DRI_IMAGE_FORMAT_ABGR16161616,
+        PIPE_FORMAT_R16G16B16A16_UNORM, 1, },
+      { DRM_FORMAT_XBGR16161616, __DRI_IMAGE_FORMAT_XBGR16161616,
+        PIPE_FORMAT_R16G16B16X16_UNORM, 1, },
+      { DRM_FORMAT_ARGB2101010,   __DRI_IMAGE_FORMAT_ARGB2101010,
+        PIPE_FORMAT_B10G10R10A2_UNORM, 1, },
+      { DRM_FORMAT_XRGB2101010,   __DRI_IMAGE_FORMAT_XRGB2101010,
+        PIPE_FORMAT_B10G10R10X2_UNORM, 1, },
+      { DRM_FORMAT_ABGR2101010,   __DRI_IMAGE_FORMAT_ABGR2101010,
+        PIPE_FORMAT_R10G10B10A2_UNORM, 1, },
+      { DRM_FORMAT_XBGR2101010,   __DRI_IMAGE_FORMAT_XBGR2101010,
+        PIPE_FORMAT_R10G10B10X2_UNORM, 1, },
+      { DRM_FORMAT_ARGB8888,      __DRI_IMAGE_FORMAT_ARGB8888,
+        PIPE_FORMAT_BGRA8888_UNORM, 1, },
+      { DRM_FORMAT_ABGR8888,      __DRI_IMAGE_FORMAT_ABGR8888,
+        PIPE_FORMAT_RGBA8888_UNORM, 1, },
+      { __DRI_IMAGE_FOURCC_SARGB8888,     __DRI_IMAGE_FORMAT_SARGB8,
+        PIPE_FORMAT_BGRA8888_SRGB, 1, },
+      { DRM_FORMAT_XRGB8888,      __DRI_IMAGE_FORMAT_XRGB8888,
+        PIPE_FORMAT_BGRX8888_UNORM, 1, },
+      { DRM_FORMAT_RGB888,        __DRI_IMAGE_FORMAT_RGB888,
+        PIPE_FORMAT_B8G8R8_UNORM, 1, },
+      { DRM_FORMAT_XBGR8888,      __DRI_IMAGE_FORMAT_XBGR8888,
+        PIPE_FORMAT_RGBX8888_UNORM, 1, },
+      { DRM_FORMAT_BGR888,        __DRI_IMAGE_FORMAT_BGR888,
+        PIPE_FORMAT_R8G8B8_UNORM, 1, },
+      { DRM_FORMAT_ARGB1555,      __DRI_IMAGE_FORMAT_ARGB1555,
+        PIPE_FORMAT_B5G5R5A1_UNORM, 1, },
+      { DRM_FORMAT_ABGR1555,      __DRI_IMAGE_FORMAT_ABGR1555,
+        PIPE_FORMAT_R5G5B5A1_UNORM, 1, },
+      { DRM_FORMAT_ARGB4444,      __DRI_IMAGE_FORMAT_ARGB4444,
+        PIPE_FORMAT_B4G4R4A4_UNORM, 1, },
+      { DRM_FORMAT_ABGR4444,      __DRI_IMAGE_FORMAT_ABGR4444,
+        PIPE_FORMAT_R4G4B4A4_UNORM, 1, },
+      { DRM_FORMAT_RGB565,        __DRI_IMAGE_FORMAT_RGB565,
+        PIPE_FORMAT_B5G6R5_UNORM, 1, },
+      { DRM_FORMAT_R8,            __DRI_IMAGE_FORMAT_R8,
+        PIPE_FORMAT_R8_UNORM, 1, },
+      { DRM_FORMAT_R16,           __DRI_IMAGE_FORMAT_R16,
+        PIPE_FORMAT_R16_UNORM, 1, },
+      { DRM_FORMAT_GR88,          __DRI_IMAGE_FORMAT_GR88,
+        PIPE_FORMAT_RG88_UNORM, 1, },
+      { DRM_FORMAT_GR1616,        __DRI_IMAGE_FORMAT_GR1616,
+        PIPE_FORMAT_RG1616_UNORM, 1, },
+      { DRM_FORMAT_R16F,          PIPE_FORMAT_R16_FLOAT,
+         PIPE_FORMAT_R16_FLOAT, 1 },
+      { DRM_FORMAT_R32F,          PIPE_FORMAT_R32_FLOAT,
+         PIPE_FORMAT_R32_FLOAT, 1 },
+      { DRM_FORMAT_GR1616F,       PIPE_FORMAT_R16G16_FLOAT,
+         PIPE_FORMAT_R16G16_FLOAT, 1 },
+      { DRM_FORMAT_GR3232F,       PIPE_FORMAT_R32G32_FLOAT,
+         PIPE_FORMAT_R32G32_FLOAT, 1 },
+      { DRM_FORMAT_BGR161616,     PIPE_FORMAT_R16G16B16_UNORM,
+         PIPE_FORMAT_R16G16B16_UNORM, 1 },
+      { DRM_FORMAT_BGR161616F,    PIPE_FORMAT_R16G16B16_FLOAT,
+         PIPE_FORMAT_R16G16B16_FLOAT, 1 },
+      { DRM_FORMAT_BGR323232F,    PIPE_FORMAT_R32G32B32_FLOAT,
+         PIPE_FORMAT_R32G32B32_FLOAT, 1 },
+      { DRM_FORMAT_ABGR32323232F, PIPE_FORMAT_R32G32B32A32_FLOAT,
+         PIPE_FORMAT_R32G32B32A32_FLOAT, 1 },
+
+      /*
+       * YUV formats:
+       */
       { DRM_FORMAT_YUV410, __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 2, 2, __DRI_IMAGE_FORMAT_R8 },
           { 2, 2, 2, __DRI_IMAGE_FORMAT_R8 } } },
       { DRM_FORMAT_YUV411, __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 2, 0, __DRI_IMAGE_FORMAT_R8 },
           { 2, 2, 0, __DRI_IMAGE_FORMAT_R8 } } },
       { DRM_FORMAT_YUV420,        __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_R8 },
           { 2, 1, 1, __DRI_IMAGE_FORMAT_R8 } } },
       { DRM_FORMAT_YUV422,        __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 1, 0, __DRI_IMAGE_FORMAT_R8 },
           { 2, 1, 0, __DRI_IMAGE_FORMAT_R8 } } },
       { DRM_FORMAT_YUV444,        __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 2, 0, 0, __DRI_IMAGE_FORMAT_R8 } } },
 
       { DRM_FORMAT_YVU410,        __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 2, 2, 2, __DRI_IMAGE_FORMAT_R8 },
           { 1, 2, 2, __DRI_IMAGE_FORMAT_R8 } } },
       { DRM_FORMAT_YVU411,        __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 2, 2, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 2, 0, __DRI_IMAGE_FORMAT_R8 } } },
       { DRM_FORMAT_YVU420,        __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 2, 1, 1, __DRI_IMAGE_FORMAT_R8 },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_R8 } } },
       { DRM_FORMAT_YVU422,        __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 2, 1, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 1, 0, __DRI_IMAGE_FORMAT_R8 } } },
       { DRM_FORMAT_YVU444,        __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_U_V,     PIPE_FORMAT_IYUV, 3,
+        PIPE_FORMAT_IYUV, 3,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 2, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 0, 0, __DRI_IMAGE_FORMAT_R8 } } },
 
+      { DRM_FORMAT_S010,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y10X6_U10X6_V10X6_420_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 1, 1, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 1, 1, __DRI_IMAGE_FORMAT_R16 } } },
+      { DRM_FORMAT_S210,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y10X6_U10X6_V10X6_422_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 1, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 1, 0, __DRI_IMAGE_FORMAT_R16 } } },
+      { DRM_FORMAT_S410,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y10X6_U10X6_V10X6_444_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 0, 0, __DRI_IMAGE_FORMAT_R16 } } },
+      { DRM_FORMAT_S012,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y12X4_U12X4_V12X4_420_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 1, 1, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 1, 1, __DRI_IMAGE_FORMAT_R16 } } },
+      { DRM_FORMAT_S212,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y12X4_U12X4_V12X4_422_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 1, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 1, 0, __DRI_IMAGE_FORMAT_R16 } } },
+      { DRM_FORMAT_S412,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y12X4_U12X4_V12X4_444_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 0, 0, __DRI_IMAGE_FORMAT_R16 } } },
+      { DRM_FORMAT_S016,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y16_U16_V16_420_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 1, 1, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 1, 1, __DRI_IMAGE_FORMAT_R16 } } },
+      { DRM_FORMAT_S216,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y16_U16_V16_422_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 1, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 1, 0, __DRI_IMAGE_FORMAT_R16 } } },
+      { DRM_FORMAT_S416,          __DRI_IMAGE_FORMAT_NONE,
+        PIPE_FORMAT_Y16_U16_V16_444_UNORM, 3,
+        { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 1, 0, 0, __DRI_IMAGE_FORMAT_R16 },
+          { 2, 0, 0, __DRI_IMAGE_FORMAT_R16 } } },
+
       { DRM_FORMAT_NV12,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_NV12, 2,
+        PIPE_FORMAT_NV12, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_GR88 } } },
       { DRM_FORMAT_NV21,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_NV21, 2,
+        PIPE_FORMAT_NV21, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_GR88 } } },
 
@@ -560,45 +588,45 @@ static const struct dri2_format_mapping dri2_format_table[] = {
          are tightly packed, so the planes don't correspond
          to any native DRI format */
       { DRM_FORMAT_NV15,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_NV15, 2,
+        PIPE_FORMAT_NV15, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_NONE },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_NONE } } },
       { DRM_FORMAT_NV20,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_NV20, 2,
+        PIPE_FORMAT_NV20, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_NONE },
           { 1, 1, 0, __DRI_IMAGE_FORMAT_NONE } } },
 
       { DRM_FORMAT_P010,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_P010, 2,
+        PIPE_FORMAT_P010, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_GR1616 } } },
       { DRM_FORMAT_P012,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_P012, 2,
+        PIPE_FORMAT_P012, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_GR1616 } } },
       { DRM_FORMAT_P016,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_P016, 2,
+        PIPE_FORMAT_P016, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_GR1616 } } },
       { DRM_FORMAT_P030,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_P030, 2,
+        PIPE_FORMAT_P030, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R16 },
           { 1, 1, 1, __DRI_IMAGE_FORMAT_GR1616 } } },
 
       { DRM_FORMAT_NV16,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UV,      PIPE_FORMAT_NV16, 2,
+        PIPE_FORMAT_NV16, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_R8 },
           { 1, 1, 0, __DRI_IMAGE_FORMAT_GR88 } } },
 
       { DRM_FORMAT_AYUV,      __DRI_IMAGE_FORMAT_ABGR8888,
-        __DRI_IMAGE_COMPONENTS_AYUV,      PIPE_FORMAT_AYUV, 1,
+        PIPE_FORMAT_AYUV, 1,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR8888 } } },
       { DRM_FORMAT_XYUV8888,      __DRI_IMAGE_FORMAT_XBGR8888,
-        __DRI_IMAGE_COMPONENTS_XYUV,      PIPE_FORMAT_XYUV, 1,
+        PIPE_FORMAT_XYUV, 1,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_XBGR8888 } } },
 
       { DRM_FORMAT_Y410,          __DRI_IMAGE_FORMAT_ABGR2101010,
-        __DRI_IMAGE_COMPONENTS_AYUV,      PIPE_FORMAT_Y410, 1,
+        PIPE_FORMAT_Y410, 1,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR2101010 } } },
 
       /* Y412 is an unusual format.  It has the same layout as Y416 (i.e.,
@@ -607,10 +635,10 @@ static const struct dri2_format_mapping dri2_format_table[] = {
        * to these bits.
        */
       { DRM_FORMAT_Y412,          __DRI_IMAGE_FORMAT_ABGR16161616,
-        __DRI_IMAGE_COMPONENTS_AYUV,      PIPE_FORMAT_Y412, 1,
+        PIPE_FORMAT_Y412, 1,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR16161616 } } },
       { DRM_FORMAT_Y416,          __DRI_IMAGE_FORMAT_ABGR16161616,
-        __DRI_IMAGE_COMPONENTS_AYUV,      PIPE_FORMAT_Y416, 1,
+        PIPE_FORMAT_Y416, 1,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_ABGR16161616 } } },
 
       /* For YUYV and UYVY buffers, we set up two overlapping DRI images
@@ -622,19 +650,19 @@ static const struct dri2_format_mapping dri2_format_table[] = {
        * components correctly when sampling from plane 0, and interpolate
        * U and V correctly when sampling from plane 1. */
       { DRM_FORMAT_YUYV,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_XUXV,    PIPE_FORMAT_YUYV, 2,
+        PIPE_FORMAT_YUYV, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR88 },
           { 0, 1, 0, __DRI_IMAGE_FORMAT_ARGB8888 } } },
       { DRM_FORMAT_YVYU,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_XUXV,    PIPE_FORMAT_YVYU, 2,
+        PIPE_FORMAT_YVYU, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR88 },
           { 0, 1, 0, __DRI_IMAGE_FORMAT_ARGB8888 } } },
       { DRM_FORMAT_UYVY,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UXVX,    PIPE_FORMAT_UYVY, 2,
+        PIPE_FORMAT_UYVY, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR88 },
           { 0, 1, 0, __DRI_IMAGE_FORMAT_ABGR8888 } } },
       { DRM_FORMAT_VYUY,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_UXVX,    PIPE_FORMAT_VYUY, 2,
+        PIPE_FORMAT_VYUY, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR88 },
           { 0, 1, 0, __DRI_IMAGE_FORMAT_ABGR8888 } } },
 
@@ -642,7 +670,7 @@ static const struct dri2_format_mapping dri2_format_table[] = {
        * formats.
        */
       { DRM_FORMAT_Y210,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_XUXV,    PIPE_FORMAT_Y210, 2,
+        PIPE_FORMAT_Y210, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR1616 },
           { 0, 1, 0, __DRI_IMAGE_FORMAT_ABGR16161616 } } },
       /* Y212 is an unusual format.  It has the same layout as Y216 (i.e.,
@@ -651,24 +679,24 @@ static const struct dri2_format_mapping dri2_format_table[] = {
        * to these bits.
        */
       { DRM_FORMAT_Y212,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_XUXV,    PIPE_FORMAT_Y212, 2,
+        PIPE_FORMAT_Y212, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR1616 },
           { 0, 1, 0, __DRI_IMAGE_FORMAT_ABGR16161616 } } },
       { DRM_FORMAT_Y216,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_Y_XUXV,    PIPE_FORMAT_Y216, 2,
+        PIPE_FORMAT_Y216, 2,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_GR1616 },
           { 0, 1, 0, __DRI_IMAGE_FORMAT_ABGR16161616 } } },
 
       /* YUV420_8BIT is a single plane with all components, but in an
          unspecified order */
       { DRM_FORMAT_YUV420_8BIT,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_XYUV,    PIPE_FORMAT_Y8U8V8_420_UNORM_PACKED, 1,
+        PIPE_FORMAT_Y8U8V8_420_UNORM_PACKED, 1,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_NONE } } },
 
       /* YUV420_10BIT is a single plane with all components, but in an
          unspecified order */
       { DRM_FORMAT_YUV420_10BIT,          __DRI_IMAGE_FORMAT_NONE,
-        __DRI_IMAGE_COMPONENTS_XYUV,    PIPE_FORMAT_Y10U10V10_420_UNORM_PACKED, 1,
+        PIPE_FORMAT_Y10U10V10_420_UNORM_PACKED, 1,
         { { 0, 0, 0, __DRI_IMAGE_FORMAT_NONE } } },
 };
 
@@ -695,17 +723,6 @@ dri2_get_mapping_by_format(int format)
    }
 
    return NULL;
-}
-
-enum pipe_format
-dri2_get_pipe_format_for_dri_format(int format)
-{
-   for (unsigned i = 0; i < ARRAY_SIZE(dri2_format_table); i++) {
-      if (dri2_format_table[i].dri_format == format)
-         return dri2_format_table[i].pipe_format;
-   }
-
-   return PIPE_FORMAT_NONE;
 }
 
 static enum pipe_format
@@ -740,9 +757,12 @@ dri2_yuv_dma_buf_supported(struct dri_screen *screen,
    if (pscreen->is_format_supported(pscreen, alt_pipe_format(map->pipe_format),
                                     screen->target, 0, 0, PIPE_BIND_SAMPLER_VIEW))
       return true;
+
+   if (!util_format_is_yuv(map->pipe_format))
+      return false;
+
    for (unsigned i = 0; i < map->nplanes; i++) {
-      if (!pscreen->is_format_supported(pscreen,
-            dri2_get_pipe_format_for_dri_format(map->planes[i].dri_format),
+      if (!pscreen->is_format_supported(pscreen, map->planes[i].dri_format,
             screen->target, 0, 0, PIPE_BIND_SAMPLER_VIEW))
          return false;
    }
@@ -771,6 +791,9 @@ dri_query_dma_buf_formats(struct dri_screen *screen, int max, int *formats,
           pscreen->is_format_supported(pscreen, map->pipe_format,
                                        screen->target, 0, 0,
                                        PIPE_BIND_SAMPLER_VIEW) ||
+          pscreen->is_format_supported(pscreen, map->pipe_format,
+                                       screen->target, 0, 0,
+                                       PIPE_BIND_SAMPLER_VIEW | PIPE_BIND_SAMPLER_VIEW_SUBOPTIMAL) ||
           dri2_yuv_dma_buf_supported(screen, map)) {
          if (j < max)
             formats[j] = map->dri_fourcc;
@@ -830,7 +853,7 @@ dri_image_fence_sync(struct dri_context *ctx, struct dri_image *img)
    img->in_fence_fd = -1;
 
    pipe->create_fence_fd(pipe, &fence, fd, PIPE_FD_TYPE_NATIVE_SYNC);
-   pipe->fence_server_sync(pipe, fence);
+   pipe->fence_server_sync(pipe, fence, 0);
    pipe->screen->fence_reference(pipe->screen, &fence, NULL);
 
    close(fd);

@@ -802,6 +802,7 @@ struct ir3_instruction *
 ir3_block_get_last_non_terminator(struct ir3_block *block);
 
 struct ir3_instruction *ir3_block_get_last_phi(struct ir3_block *block);
+struct ir3_instruction *ir3_block_get_first_instr(struct ir3_block *block);
 
 static inline struct ir3_block *
 ir3_after_preamble(struct ir3 *ir)
@@ -1142,6 +1143,14 @@ is_subgroup_cond_mov_macro(struct ir3_instruction *instr)
       return false;
    }
 }
+
+enum ir3_subreg_move {
+   IR3_SUBREG_MOVE_NONE,
+   IR3_SUBREG_MOVE_LOWER,
+   IR3_SUBREG_MOVE_UPPER,
+};
+
+enum ir3_subreg_move ir3_is_subreg_move(struct ir3_instruction *instr);
 
 static inline bool
 is_alu(struct ir3_instruction *instr)

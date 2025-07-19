@@ -85,16 +85,6 @@ lower_load_constant(nir_builder *b, nir_intrinsic_instr *load,
 }
 
 static nir_def *
-load_descriptor_set_addr(nir_builder *b, uint32_t set,
-                         UNUSED const struct lower_descriptors_ctx *ctx)
-{
-   uint32_t set_addr_offset =
-      hk_root_descriptor_offset(sets) + set * sizeof(uint64_t);
-
-   return load_root(b, 1, 64, nir_imm_int(b, set_addr_offset), 8);
-}
-
-static nir_def *
 load_dynamic_buffer_start(nir_builder *b, uint32_t set,
                           const struct lower_descriptors_ctx *ctx)
 {
@@ -152,8 +142,8 @@ load_descriptor(nir_builder *b, unsigned num_components, unsigned bit_size,
    }
 
    case VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK: {
-      nir_def *base_addr = nir_iadd_imm(
-         b, load_descriptor_set_addr(b, set, ctx), binding_layout->offset);
+      nir_def *base_addr = nir_iadd_imm(b, nir_load_descriptor_set_agx(b, set),
+                                        binding_layout->offset);
 
       assert(binding_layout->stride == 1);
       const uint32_t binding_size = binding_layout->array_size;
@@ -177,7 +167,7 @@ load_descriptor(nir_builder *b, unsigned num_components, unsigned bit_size,
       desc_align_offset %= desc_align_mul;
 
       nir_def *desc;
-      nir_def *set_addr = load_descriptor_set_addr(b, set, ctx);
+      nir_def *set_addr = nir_load_descriptor_set_agx(b, set);
       desc = nir_load_global_constant_offset(
          b, num_components, bit_size, set_addr, desc_ubo_offset,
          .align_mul = desc_align_mul, .align_offset = desc_align_offset,
@@ -315,12 +305,35 @@ load_resource_deref_desc(nir_builder *b, unsigned num_components,
                           offset_B, ctx);
 }
 
+static nir_def *
+load_image_handle(nir_builder *b, const struct lower_descriptors_ctx *ctx,
+                  nir_src src, unsigned offset_B)
+
+{
+   uint32_t set, binding;
+   nir_def *index;
+   get_resource_deref_binding(b, nir_src_as_deref(src), &set, &binding, &index);
+
+   const struct hk_descriptor_set_binding_layout *binding_layout =
+      get_binding_layout(set, binding, ctx);
+
+   if (ctx->clamp_desc_array_bounds)
+      index =
+         nir_umin(b, index, nir_imm_int(b, binding_layout->array_size - 1));
+
+   assert(binding_layout->stride > 0);
+   nir_def *desc_offs_B =
+      nir_iadd_imm(b, nir_imul_imm(b, index, binding_layout->stride),
+                   binding_layout->offset + offset_B);
+
+   return nir_bindless_image_agx(b, desc_offs_B, .desc_set = set);
+}
+
 static bool
 lower_image_intrin(nir_builder *b, nir_intrinsic_instr *intr,
                    const struct lower_descriptors_ctx *ctx)
 {
    b->cursor = nir_before_instr(&intr->instr);
-   nir_deref_instr *deref = nir_src_as_deref(intr->src[0]);
 
    /* Reads and queries use the texture descriptor; writes and atomics PBE. */
    unsigned offs;
@@ -329,14 +342,13 @@ lower_image_intrin(nir_builder *b, nir_intrinsic_instr *intr,
        intr->intrinsic != nir_intrinsic_image_deref_size &&
        intr->intrinsic != nir_intrinsic_image_deref_samples) {
 
-      offs = offsetof(struct hk_storage_image_descriptor, pbe_offset);
+      offs = offsetof(struct hk_storage_image_descriptor, pbe);
    } else {
-      offs = offsetof(struct hk_storage_image_descriptor, tex_offset);
+      offs = offsetof(struct hk_storage_image_descriptor, tex);
    }
 
-   nir_def *offset = load_resource_deref_desc(b, 1, 32, deref, offs, ctx);
-   nir_rewrite_image_intrinsic(intr, nir_load_texture_handle_agx(b, offset),
-                               true);
+   nir_rewrite_image_intrinsic(
+      intr, load_image_handle(b, ctx, intr->src[0], offs), true);
 
    return true;
 }
@@ -404,17 +416,20 @@ lower_uvs_index(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
    case nir_intrinsic_load_depth_never_agx:
       return lower_sysval_to_root_table(b, intrin, draw.force_never_in_shader);
 
-   case nir_intrinsic_load_geometry_param_buffer_agx:
+   case nir_intrinsic_load_geometry_param_buffer_poly:
       return lower_sysval_to_root_table(b, intrin, draw.geometry_params);
 
-   case nir_intrinsic_load_vs_output_buffer_agx:
+   case nir_intrinsic_load_vs_output_buffer_poly:
       return lower_sysval_to_root_table(b, intrin, draw.vertex_output_buffer);
 
-   case nir_intrinsic_load_vs_outputs_agx:
+   case nir_intrinsic_load_vs_outputs_poly:
       return lower_sysval_to_root_table(b, intrin, draw.vertex_outputs);
 
-   case nir_intrinsic_load_tess_param_buffer_agx:
+   case nir_intrinsic_load_tess_param_buffer_poly:
       return lower_sysval_to_root_table(b, intrin, draw.tess_params);
+
+   case nir_intrinsic_load_rasterization_stream:
+      return lower_sysval_to_root_table(b, intrin, draw.rasterization_stream);
 
    case nir_intrinsic_load_is_first_fan_agx: {
       unsigned offset = hk_root_descriptor_offset(draw.provoking);
@@ -436,7 +451,7 @@ lower_uvs_index(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
    case nir_intrinsic_load_first_vertex:
    case nir_intrinsic_load_base_instance:
    case nir_intrinsic_load_draw_id:
-   case nir_intrinsic_load_input_assembly_buffer_agx: {
+   case nir_intrinsic_load_input_assembly_buffer_poly: {
       b->cursor = nir_instr_remove(&intrin->instr);
 
       unsigned base = AGX_ABI_VUNI_FIRST_VERTEX(*nr_vbos);
@@ -448,7 +463,7 @@ lower_uvs_index(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
          base = AGX_ABI_VUNI_DRAW_ID(*nr_vbos);
          size = 16;
       } else if (intrin->intrinsic ==
-                 nir_intrinsic_load_input_assembly_buffer_agx) {
+                 nir_intrinsic_load_input_assembly_buffer_poly) {
          base = AGX_ABI_VUNI_INPUT_ASSEMBLY(*nr_vbos);
          size = 64;
       }
@@ -497,7 +512,8 @@ lower_uvs_index(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
          present = nir_iand(b, present, nir_ine_imm(b, api_gs, 0));
       }
 
-      addr = nir_bcsel(b, present, addr, nir_imm_int64(b, 0));
+      addr = nir_bcsel(b, present, addr,
+                       nir_imm_int64(b, AGX_SCRATCH_PAGE_ADDRESS));
 
       nir_def_rewrite_uses(&intrin->def, addr);
       return true;
@@ -643,22 +659,21 @@ lower_tex(nir_builder *b, nir_tex_instr *tex,
    }
 
    {
-      unsigned offs =
-         offsetof(struct hk_sampled_image_descriptor, image_offset);
+      unsigned offset_B =
+         plane_offset_B + offsetof(struct hk_sampled_image_descriptor, tex);
 
-      nir_def *offset = load_resource_deref_desc(
-         b, 1, 32, nir_src_as_deref(nir_src_for_ssa(texture)),
-         plane_offset_B + offs, ctx);
+      nir_def *handle =
+         load_image_handle(b, ctx, nir_src_for_ssa(texture), offset_B);
 
-      nir_def *handle = nir_load_texture_handle_agx(b, offset);
       nir_tex_instr_add_src(tex, nir_tex_src_texture_handle, handle);
    }
 
    if (sampler != NULL) {
       unsigned offs =
          offsetof(struct hk_sampled_image_descriptor, sampler_index);
+      bool clamp_to_0 = tex->backend_flags & AGX_TEXTURE_FLAG_CLAMP_TO_0;
 
-      if (tex->backend_flags & AGX_TEXTURE_FLAG_CLAMP_TO_0) {
+      if (clamp_to_0) {
          offs = offsetof(struct hk_sampled_image_descriptor,
                          clamp_0_sampler_index_or_negative);
       }
@@ -666,6 +681,30 @@ lower_tex(nir_builder *b, nir_tex_instr *tex,
       nir_def *index = load_resource_deref_desc(
          b, 1, 16, nir_src_as_deref(nir_src_for_ssa(sampler)),
          plane_offset_B + offs, ctx);
+
+      if (!clamp_to_0) {
+         uint32_t set, binding;
+         nir_def *idx;
+         get_resource_deref_binding(b,
+                                    nir_src_as_deref(nir_src_for_ssa(sampler)),
+                                    &set, &binding, &idx);
+
+         const struct hk_descriptor_set_binding_layout *binding_layout =
+            get_binding_layout(set, binding, ctx);
+
+         if (ctx->clamp_desc_array_bounds)
+            idx =
+               nir_umin(b, idx, nir_imm_int(b, binding_layout->array_size - 1));
+
+         assert(binding_layout->stride > 0);
+         nir_def *desc_offs_B = nir_iadd_imm(
+            b, nir_imul_imm(b, idx, binding_layout->stride),
+            binding_layout->offset + plane_offset_B +
+               offsetof(struct hk_sampled_image_descriptor, sampler));
+
+         index =
+            nir_bindless_sampler_agx(b, desc_offs_B, index, .desc_set = set);
+      }
 
       nir_tex_instr_add_src(tex, nir_tex_src_sampler_handle, index);
    }
@@ -711,7 +750,7 @@ lower_ssbo_resource_index(nir_builder *b, nir_intrinsic_instr *intrin,
    switch (binding_layout->type) {
    case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER: {
-      nir_def *set_addr = load_descriptor_set_addr(b, set, ctx);
+      nir_def *set_addr = nir_load_descriptor_set_agx(b, set);
       binding_addr = nir_iadd_imm(b, set_addr, binding_layout->offset);
       binding_stride = binding_layout->stride;
       break;

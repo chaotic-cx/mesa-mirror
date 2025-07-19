@@ -66,7 +66,7 @@ optimize(nir_shader *nir)
 
       NIR_PASS(progress, nir, nir_copy_prop);
       NIR_PASS(progress, nir, nir_opt_remove_phis);
-      NIR_PASS(progress, nir, nir_lower_phis_to_scalar, true);
+      NIR_PASS(progress, nir, nir_lower_all_phis_to_scalar);
       NIR_PASS(progress, nir, nir_opt_dce);
       NIR_PASS(progress, nir, nir_opt_dead_cf);
       NIR_PASS(progress, nir, nir_opt_cse);
@@ -265,7 +265,7 @@ main(int argc, const char **argv)
    const char *output_h_path = argv[4];
    const char *output_c_path = argv[5];
 
-   int target_arch = atoi(target_arch_str);
+   unsigned target_arch = atoi(target_arch_str);
 
    if (target_arch < 4 || target_arch > 13) {
       fprintf(stderr, "Unsupported target arch %d\n", target_arch);
@@ -334,11 +334,13 @@ main(int argc, const char **argv)
 
       for (unsigned v = 0; v < nr_vars; ++v) {
          nir_shader *s = nir_precompiled_build_variant(
-            libfunc, v, get_compiler_options(target_arch), &opt,
-            load_kernel_input);
+            libfunc, MESA_SHADER_COMPUTE, v, get_compiler_options(target_arch),
+            &opt, load_kernel_input);
+
+         unsigned gpu_prod_id = (target_arch & 0xf) << 12;
 
          struct pan_compile_inputs inputs = {
-            .gpu_id = target_arch << 12,
+            .gpu_id = gpu_prod_id << 16,
          };
 
          nir_link_shader_functions(s, nir);

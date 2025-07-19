@@ -1386,7 +1386,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
 {
    struct loader_dri3_buffer *buffer;
    struct dri_image *pixmap_buffer = NULL, *linear_buffer_display_gpu = NULL;
-   int format = loader_fourcc_to_image_format(fourcc);
+   enum pipe_format format = loader_fourcc_to_pipe_format(fourcc);
    xcb_pixmap_t pixmap;
    xcb_sync_fence_t sync_fence;
    struct xshmfence *shm_fence;
@@ -1611,7 +1611,7 @@ dri3_alloc_render_buffer(struct loader_dri3_drawable *draw, unsigned int fourcc,
       cookie_pix = xcb_dri3_pixmap_from_buffer_checked(draw->conn,
                                                        pixmap,
                                                        draw->drawable,
-                                                       buffer->size,
+                                                       0,
                                                        width, height, buffer->strides[0],
                                                        depth, buffer->cpp * 8,
                                                        buffer_fds[0]);
@@ -2166,7 +2166,7 @@ loader_dri3_get_buffers(struct dri_drawable *driDrawable,
 {
    struct loader_dri3_drawable *draw = loaderPrivate;
    struct loader_dri3_buffer   *front, *back;
-   int fourcc = loader_image_format_to_fourcc(format);
+   int fourcc = loader_pipe_format_to_fourcc(format);
    int buf_id;
 
    buffers->image_mask = 0;

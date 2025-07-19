@@ -16,6 +16,7 @@ libnak_c_files = files(
   'nak.h',
   'nak_nir.c',
   'nak_nir_lower_cf.c',
+  'nak_nir_lower_cmat.c',
   'nak_nir_lower_fs_inputs.c',
   'nak_nir_lower_gs_intrinsics.c',
   'nak_nir_lower_image_addrs.c',
@@ -65,6 +66,8 @@ _nak_bindings_rs = rust.bindgen(
     '--allowlist-function', 'drm.*',
     '--allowlist-function', 'nak_.*',
     '--allowlist-function', 'nouveau_ws_.*',
+    # provided through compiler::bindings::*
+    '--blocklist-type', 'glsl_.*',
     '--no-prepend-enum-name',
     '--with-derive-default',
   ],

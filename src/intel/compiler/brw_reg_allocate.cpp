@@ -29,6 +29,7 @@
 #include "brw_shader.h"
 #include "brw_builder.h"
 #include "brw_cfg.h"
+#include "dev/intel_debug.h"
 #include "util/set.h"
 #include "util/register_allocate.h"
 
@@ -80,7 +81,8 @@ extern "C" void
 brw_alloc_reg_sets(struct brw_compiler *compiler)
 {
    const struct intel_device_info *devinfo = compiler->devinfo;
-   int base_reg_count = (devinfo->ver >= 30 ? XE3_MAX_GRF / reg_unit(devinfo) :
+   int base_reg_count = (devinfo->ver >= 30 && !INTEL_DEBUG(DEBUG_NO_VRT) ?
+                         XE3_MAX_GRF / reg_unit(devinfo) :
                          BRW_MAX_GRF);
 
    /* The registers used to make up almost all values handled in the compiler
@@ -426,12 +428,27 @@ brw_reg_alloc::setup_live_interference(unsigned node, brw_range ip_range)
  * GRF sources and the destination.
  */
 static bool
-brw_inst_has_source_and_destination_hazard(const brw_inst *inst)
+brw_inst_has_source_and_destination_hazard(const struct intel_device_info *devinfo,
+                                           const brw_inst *inst, unsigned src)
 {
    switch (inst->opcode) {
    case FS_OPCODE_PACK_HALF_2x16_SPLIT:
       /* Multiple partial writes to the destination */
       return true;
+   case SHADER_OPCODE_BROADCAST:
+      /* This instruction returns an arbitrary channel from the source. If the
+       * source is 64-bits and the platform does not support 64-bit integers,
+       * the instruction will be split in to multiple instructionsin the
+       * generator.  It's possible that one of the instructions will read from
+       * a channel corresponding to an earlier instruction.
+       *
+       * Otherwise, if the SIMD size is larger than the fundamental SIMD size
+       * of the platform, the instruction will be implicitly SIMD split. It is
+       * possible for earlier "instructions" to overwrite the source needed
+       * later.
+       */
+      return inst->exec_size > 8 * reg_unit(devinfo) ||
+             (brw_type_size_bytes(inst->src[src].type) > 4 && !devinfo->has_64bit_int);
    case SHADER_OPCODE_SHUFFLE:
       /* This instruction returns an arbitrary channel from the source and
        * gets split into smaller instructions in the generator.  It's possible
@@ -499,19 +516,15 @@ brw_inst_has_source_and_destination_hazard(const brw_inst *inst)
        *
        * Now our destination for the first instruction overwrote the
        * second instruction's src0, and we get garbage for those 8
-       * pixels.  There's a similar issue for the pre-gfx6
-       * pixel_x/pixel_y, which are registers of 16-bit values and thus
-       * would get stomped by the first decode as well.
+       * pixels.
        */
-      if (inst->exec_size == 16) {
-         for (int i = 0; i < inst->sources; i++) {
-            if (inst->src[i].file == VGRF && (inst->src[i].stride == 0 ||
-                                              inst->src[i].type == BRW_TYPE_UW ||
-                                              inst->src[i].type == BRW_TYPE_W ||
-                                              inst->src[i].type == BRW_TYPE_UB ||
-                                              inst->src[i].type == BRW_TYPE_B)) {
-               return true;
-            }
+      if (inst->exec_size > 8 * reg_unit(devinfo)) {
+         if (inst->src[src].file == VGRF && (inst->src[src].stride == 0 ||
+                                             inst->src[src].type == BRW_TYPE_UW ||
+                                             inst->src[src].type == BRW_TYPE_W ||
+                                             inst->src[src].type == BRW_TYPE_UB ||
+                                             inst->src[src].type == BRW_TYPE_B)) {
+            return true;
          }
       }
       return false;
@@ -524,9 +537,10 @@ brw_reg_alloc::setup_inst_interference(const brw_inst *inst)
    /* Certain instructions can't safely use the same register for their
     * sources and destination.  Add interference.
     */
-   if (inst->dst.file == VGRF && brw_inst_has_source_and_destination_hazard(inst)) {
+   if (inst->dst.file == VGRF) {
       for (unsigned i = 0; i < inst->sources; i++) {
-         if (inst->src[i].file == VGRF) {
+         if (inst->src[i].file == VGRF &&
+             brw_inst_has_source_and_destination_hazard(devinfo, inst, i)) {
             ra_add_node_interference(g, first_vgrf_node + inst->dst.nr,
                                         first_vgrf_node + inst->src[i].nr);
          }
@@ -534,16 +548,29 @@ brw_reg_alloc::setup_inst_interference(const brw_inst *inst)
    }
 
    /* A compressed instruction is actually two instructions executed
-    * simultaneously.  On most platforms, it ok to have the source and
-    * destination registers be the same.  In this case, each instruction
-    * over-writes its own source and there's no problem.  The real problem
-    * here is if the source and destination registers are off by one.  Then
-    * you can end up in a scenario where the first instruction over-writes the
-    * source of the second instruction.  Since the compiler doesn't know about
-    * this level of granularity, we simply make the source and destination
-    * interfere.
+    * simultaneously. If the source and destination registers are the same,
+    * each instruction overwrites its own source, and there's no problem. The
+    * real problem here is if the source and destination registers are off by
+    * one. Then you can end up in a scenario where the first instruction
+    * overwrites the source of the second instruction. Consider this
+    * instruction:
+    *
+    *    and(16)         g17<1>UD        g16<1,1,0>UD    g13<1,1,0>UD
+    *
+    * The EU processes this as
+    *
+    *    and(8)          g17<1>UD        g16<1,1,0>UD    g13<1,1,0>UD
+    *    and(8)          g18<1>UD        g17<1,1,0>UD    g14<1,1,0>UD
+    *
+    * The first SIMD8 part of the instruction overwrites the source used in
+    * the second SIMD8 part. Since there's no way to tell the register
+    * allocator "the destination register number can be src, but it can't be
+    * src+1," simply make the source and destination interfere.
+    *
+    * Theoretically, the register_coalesce passes should have done the dest ==
+    * src merging.
     */
-   if (inst->dst.component_size(inst->exec_size) > REG_SIZE &&
+   if (inst->dst.component_size(inst->exec_size) > (reg_unit(devinfo) * REG_SIZE) &&
        inst->dst.file == VGRF) {
       for (int i = 0; i < inst->sources; ++i) {
          if (inst->src[i].file == VGRF) {
@@ -554,11 +581,14 @@ brw_reg_alloc::setup_inst_interference(const brw_inst *inst)
    }
 
    if (grf127_send_hack_node >= 0) {
-      /* At Intel Broadwell PRM, vol 07, section "Instruction Set Reference",
-       * subsection "EUISA Instructions", Send Message (page 990):
+      /* Bspec says:
        *
-       * "r127 must not be used for return address when there is a src and
-       * dest overlap in send instruction."
+       *    [Pre-CNL] r127 must not be used for return address when there is a
+       *    src and dest overlap in send instruction.
+       *
+       * The Intel Broadwell PRM, vol 07, section "Instruction Set Reference",
+       * subsection "EUISA Instructions", Send Message (page 990) contains the
+       * same text.
        *
        * We are avoiding using grf127 as part of the destination of send
        * messages adding a node interference to the grf127_send_hack_node.
@@ -632,8 +662,21 @@ brw_reg_alloc::build_interference_graph(bool allow_spilling)
    first_payload_node = node_count;
    node_count += payload_node_count;
 
-   grf127_send_hack_node = node_count;
-   node_count++;
+   /* Bspec says:
+    *
+    *    [Pre-CNL] r127 must not be used for return address when there is a
+    *    src and dest overlap in send instruction.
+    *
+    * The Intel Broadwell PRM, vol 07, section "Instruction Set Reference",
+    * subsection "EUISA Instructions", Send Message (page 990) contains the
+    * same text.
+    *
+    * The workaround will only be applied to Gfx9.
+    */
+   if (devinfo->ver < 10)
+      grf127_send_hack_node = node_count++;
+   else
+      grf127_send_hack_node = -1;
 
    first_vgrf_node = node_count;
    node_count += fs->alloc.count;

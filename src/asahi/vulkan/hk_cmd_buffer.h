@@ -10,6 +10,7 @@
 #include "util/macros.h"
 
 #include "util/list.h"
+#include "agx_abi.h"
 #include "agx_helpers.h"
 #include "agx_linker.h"
 #include "agx_pack.h"
@@ -45,7 +46,13 @@ struct vk_shader;
 
 /** Root descriptor table. */
 struct hk_root_descriptor_table {
+   /* Address of this descriptor itself. Must be first for reflection. */
    uint64_t root_desc_addr;
+
+   /* Descriptor set base addresses. Must follow root_desc_addr to match our
+    * push layout.
+    */
+   uint64_t sets[HK_MAX_SETS];
 
    union {
       struct {
@@ -92,6 +99,9 @@ struct hk_root_descriptor_table {
          uint16_t api_gs;
          uint16_t _pad5;
 
+         uint16_t rasterization_stream;
+         uint16_t _pad6;
+
          /* Mapping from varying slots written by the last vertex stage to UVS
           * indices. This mapping must be compatible with the fragment shader.
           */
@@ -105,9 +115,6 @@ struct hk_root_descriptor_table {
 
    /* Client push constants */
    uint8_t push[HK_MAX_PUSH_SIZE];
-
-   /* Descriptor set base addresses */
-   uint64_t sets[HK_MAX_SETS];
 
    /* Dynamic buffer bindings */
    struct hk_buffer_address dynamic_buffers[HK_MAX_DYNAMIC_BUFFERS];
@@ -353,6 +360,12 @@ struct hk_cs {
    /* Whether there is more than just the root chunk */
    bool stream_linked;
 
+   /* Whether the sampler heap is required. Although we always must maintain the
+    * heap for correctness, it's often not necessary since we can push lots of
+    * samplers (especially for GL/DX11-era engines).
+    */
+   bool uses_sampler_heap;
+
    /* Scratch requirements */
    struct {
       union {
@@ -421,6 +434,7 @@ hk_cs_merge_cdm(struct hk_cs *a, const struct hk_cs *b)
    a->current = b->current;
    a->stream_linked = true;
 
+   a->uses_sampler_heap |= b->uses_sampler_heap;
    a->scratch.cs.main |= b->scratch.cs.main;
    a->scratch.cs.preamble |= b->scratch.cs.preamble;
 
@@ -752,8 +766,14 @@ hk_pipeline_stat_addr(struct hk_cmd_buffer *cmd,
       return root->draw.pipeline_stats + (sizeof(uint64_t) * index);
    } else {
       /* Query disabled */
-      return 0;
+      return AGX_SCRATCH_PAGE_ADDRESS;
    }
+}
+
+static inline bool
+hk_stat_enabled(uint64_t addr)
+{
+   return addr != AGX_SCRATCH_PAGE_ADDRESS;
 }
 
 void hk_cmd_buffer_begin_graphics(struct hk_cmd_buffer *cmd,

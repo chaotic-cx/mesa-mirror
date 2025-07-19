@@ -368,7 +368,7 @@ panvk_get_nir_options(UNUSED struct vk_physical_device *vk_pdev,
                       UNUSED const struct vk_pipeline_robustness_state *rs)
 {
    struct panvk_physical_device *phys_dev = to_panvk_physical_device(vk_pdev);
-   return pan_shader_get_compiler_options(pan_arch(phys_dev->kmod.props.gpu_prod_id));
+   return pan_shader_get_compiler_options(pan_arch(phys_dev->kmod.props.gpu_id));
 }
 
 static struct spirv_to_nir_options
@@ -1282,7 +1282,7 @@ panvk_compile_shader(struct panvk_device *dev,
 
    shader->own_bin = true;
    struct pan_compile_inputs inputs = {
-      .gpu_id = phys_dev->kmod.props.gpu_prod_id,
+      .gpu_id = phys_dev->kmod.props.gpu_id,
       .view_mask = (state && state->rp) ? state->rp->view_mask : 0,
    };
 
@@ -1631,7 +1631,7 @@ panvk_shader_get_executable_properties(
    vk_outarray_append_typed(VkPipelineExecutablePropertiesKHR, &out, props)
    {
       props->stages = mesa_to_vk_shader_stage(shader->info.stage);
-      props->subgroupSize = 8;
+      props->subgroupSize = pan_subgroup_size(PAN_ARCH);
       VK_COPY_STR(props->name,
                   _mesa_shader_stage_to_string(shader->info.stage));
       VK_PRINT_STR(props->description, "%s shader",
@@ -1642,7 +1642,7 @@ panvk_shader_get_executable_properties(
       vk_outarray_append_typed(VkPipelineExecutablePropertiesKHR, &out, props)
       {
          props->stages = mesa_to_vk_shader_stage(shader->info.stage);
-         props->subgroupSize = 8;
+         props->subgroupSize = pan_subgroup_size(PAN_ARCH);
          VK_COPY_STR(props->name, "varying");
          VK_COPY_STR(props->description, "Varying shader");
       }

@@ -179,10 +179,10 @@ d3d12_video_processor_end_frame(struct pipe_video_codec * codec,
 
     pD3D12Proc->m_spCommandList->ResourceBarrier(static_cast<uint32_t>(barrier_transitions.size()), barrier_transitions.data());
 
-    ASSERTED bool success = d3d12_reset_fence(&pD3D12Proc->m_PendingFences[d3d12_video_processor_pool_current_index(pD3D12Proc)], pD3D12Proc->m_spFence.Get(), pD3D12Proc->m_fenceValue);
-    assert(success);
-
-    *picture->fence = (pipe_fence_handle*) &pD3D12Proc->m_PendingFences[d3d12_video_processor_pool_current_index(pD3D12Proc)];
+    d3d12_unique_fence &fence = pD3D12Proc->m_PendingFences[d3d12_video_processor_pool_current_index(pD3D12Proc)];
+    fence.reset(d3d12_create_fence_raw(pD3D12Proc->m_spFence.Get(), pD3D12Proc->m_fenceValue));
+    if (picture->out_fence)
+      d3d12_fence_reference((struct d3d12_fence **)picture->out_fence, fence.get());
     return 0;
 }
 
@@ -193,8 +193,9 @@ d3d12_video_processor_process_frame(struct pipe_video_codec *codec,
 {
     struct d3d12_video_processor * pD3D12Proc = (struct d3d12_video_processor *) codec;
 
-    // begin_frame gets only called once so wouldn't update process_properties->src_surface_fence correctly
-    pD3D12Proc->input_surface_fence = (struct d3d12_fence*) process_properties->src_surface_fence;
+    // begin_frame gets only called once so wouldn't update process_properties->base.in_fence correctly
+    pD3D12Proc->input_surface_fence = (struct d3d12_fence*) process_properties->base.in_fence;
+    pD3D12Proc->input_surface_fence_value = process_properties->base.in_fence_value;
 
     // Get the underlying resources from the pipe_video_buffers
     struct d3d12_video_buffer *pInputVideoBuffer = (struct d3d12_video_buffer *) input_texture;
@@ -370,7 +371,7 @@ d3d12_video_processor_flush(struct pipe_video_codec * codec)
 
         struct d3d12_fence *input_surface_fence = pD3D12Proc->input_surface_fence;
         if (input_surface_fence)
-            pD3D12Proc->m_spCommandQueue->Wait(input_surface_fence->cmdqueue_fence, input_surface_fence->value);
+           d3d12_fence_wait_impl(input_surface_fence, pD3D12Proc->m_spCommandQueue.Get(), pD3D12Proc->input_surface_fence_value);
 
         ID3D12CommandList *ppCommandLists[1] = { pD3D12Proc->m_spCommandList.Get() };
         pD3D12Proc->m_spCommandQueue->ExecuteCommandLists(1, ppCommandLists);
@@ -426,6 +427,7 @@ d3d12_video_processor_create(struct pipe_context *context, const struct pipe_vid
    pD3D12Proc->base.end_frame = d3d12_video_processor_end_frame;
    pD3D12Proc->base.flush = d3d12_video_processor_flush;
    pD3D12Proc->base.fence_wait = d3d12_video_processor_fence_wait;
+   pD3D12Proc->base.destroy_fence = d3d12_video_destroy_fence;
 
    ///
 

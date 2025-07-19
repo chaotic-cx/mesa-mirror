@@ -324,14 +324,13 @@ struct RegClass {
    constexpr unsigned size() const { return (bytes() + 3) >> 2; }
    constexpr bool is_linear() const { return rc <= RC::s16 || is_linear_vgpr(); }
    constexpr RegClass as_linear() const { return RegClass((RC)(rc | (1 << 6))); }
-   constexpr RegClass as_subdword() const { return RegClass((RC)(rc | 1 << 7)); }
 
    static constexpr RegClass get(RegType type, unsigned bytes)
    {
       if (type == RegType::sgpr) {
          return RegClass(type, DIV_ROUND_UP(bytes, 4u));
       } else {
-         return bytes % 4u ? RegClass(type, bytes).as_subdword() : RegClass(type, bytes / 4u);
+         return bytes % 4u ? RegClass((RC)(1 << 5 | 1 << 7 | bytes)) : RegClass(type, bytes / 4u);
       }
    }
 
@@ -1599,6 +1598,14 @@ static_assert(sizeof(VINTRP_instruction) == sizeof(Instruction) + 4, "Unexpected
  * Operand(n-1): M0 - LDS size.
  * Definition(0): VDST - Destination VGPR when results returned to VGPRs.
  *
+ * For ds_bvh_stack* instructions:
+ *
+ * Operand(0): ADDR - VGPR supplying the stack address (overwritten with stack address after push)
+ * Operand(1): LVADDR - VGPR supplying the last visited node ID
+ * Operand(2): DATA - VGPR supplying the result of bvh*_intersect_ray
+ * Definition(0) - new ADDR (tied to operand 0, contains new stack address)
+ * Definition(1): VDST - next node ID to test for intersection
+ *
  */
 struct DS_instruction : public Instruction {
    memory_sync_info sync;
@@ -1712,7 +1719,8 @@ struct FLAT_instruction : public Instruction {
    uint32_t lds : 1;
    uint32_t nv : 1;
    uint32_t disable_wqm : 1; /* Require an exec mask without helper invocations */
-   uint32_t padding0 : 5;
+   uint32_t may_use_lds : 1; /* FLAT only: indicates that it might access LDS */
+   uint32_t padding0 : 4;
 };
 static_assert(sizeof(FLAT_instruction) == sizeof(Instruction) + 8, "Unexpected padding");
 
@@ -1907,6 +1915,8 @@ unsigned get_mimg_nsa_dwords(const Instruction* instr);
 unsigned get_vopd_opy_start(const Instruction* instr);
 
 bool should_form_clause(const Instruction* a, const Instruction* b);
+
+bool instr_is_vmem_fp_atomic(Instruction* instr);
 
 enum vmem_type : uint8_t {
    vmem_nosampler = 1 << 0,
@@ -2140,6 +2150,7 @@ public:
    Stage stage;
    bool needs_exact = false; /* there exists an instruction with disable_wqm = true */
    bool needs_wqm = false;   /* there exists a p_wqm instruction */
+   bool needs_fp_mode_insertion = false; /* insert_fp_mode should be run */
    bool has_smem_buffer_or_global_loads = false;
    bool has_pops_overlapped_waves_wait = false;
    bool has_color_exports = false;
@@ -2286,6 +2297,7 @@ void lower_to_hw_instr(Program* program);
 void schedule_program(Program* program);
 void schedule_ilp(Program* program);
 void schedule_vopd(Program* program);
+void insert_fp_mode(Program* program);
 void spill(Program* program);
 void insert_waitcnt(Program* program);
 void insert_delay_alu(Program* program);

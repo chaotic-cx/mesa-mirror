@@ -19,7 +19,12 @@
 #include "vk_shader_module.h"
 
 #define PKT3_INDIRECT_BUFFER_BYTES 16
-#define DGC_VBO_INFO_SIZE (sizeof(struct radv_vbo_info) + 4 /* vbo_offsets */)
+#define DGC_VBO_INFO_SIZE          (sizeof(struct radv_vbo_info) + 4 /* vbo_offsets */)
+
+/* Arbitrary limit of the maximum number of sequences per IB to simplify the DGC IB chaining
+ * implementation which is already quite complicated.
+ */
+#define MAX_SEQUENCES_PER_IB       65536
 
 /* The DGC command buffer layout is quite complex, here's some explanations:
  *
@@ -56,6 +61,9 @@
  * - on GFX, the driver uses the IB2 packet which the easiest solution
  * - on COMPUTE, IB2 isn't supported and the driver chains the DGC command buffer by patching the
  *   trailer
+ *
+ * In case the number of sequences is greater than the arbitrary limit defined above, IB chaining
+ * is used between sequences (ie. sequence #0 chains to sequence #1 etc).
  */
 
 uint32_t
@@ -97,8 +105,26 @@ radv_dgc_trailer_cmdbuf_size(const struct radv_device *device, enum amd_ip_type 
 }
 
 static bool
+radv_dgc_use_ib_chaining(uint32_t sequences_count)
+{
+   /* Use IB chaining when the number of sequences is too high because the maximum number of DWORDS
+    * per IB is limited by the hw. This limit is arbitrary and could be more optimal. Though in
+    * practice, most applications use <= 4K sequences and won't be affected by this.
+    *
+    * This IB chaining mechanism is implemented by emitting a IB packet at the end of each sequence
+    * to chain the next one. Except for the last sequence which emits the "jump to trailer" when on
+    * compute queue or only padding when on graphics queue.
+    */
+   return sequences_count >= MAX_SEQUENCES_PER_IB;
+}
+
+static bool
 radv_dgc_use_preamble(const VkGeneratedCommandsInfoEXT *pGeneratedCommandsInfo)
 {
+   /* Use a preamble with IB chaining to determine the cmdbuf execution size dynamically. */
+   if (radv_dgc_use_ib_chaining(pGeneratedCommandsInfo->maxSequenceCount))
+      return true;
+
    /* Heuristic on when the overhead for the preamble (i.e. double jump) is worth it. Obviously
     * a bit of a guess as it depends on the actual count which we don't know. */
    return pGeneratedCommandsInfo->sequenceCountAddress != 0 && pGeneratedCommandsInfo->maxSequenceCount >= 64;
@@ -277,7 +303,7 @@ radv_get_sequence_size_graphics(const struct radv_indirect_command_layout *layou
                *ace_cmd_size += 6 * 4;
             } else {
                /* userdata writes + instance count + non-indexed draw */
-               *cmd_size += (6 + 2 + (pdev->mesh_fast_launch_2 ? 5 : 3)) * 4;
+               *cmd_size += (6 + 2 + (pdev->info.mesh_fast_launch_2 ? 5 : 3)) * 4;
             }
          } else {
             /* userdata writes + instance count + non-indexed draw */
@@ -286,7 +312,7 @@ radv_get_sequence_size_graphics(const struct radv_indirect_command_layout *layou
       }
    }
 
-   if (pdev->info.gfx_level == GFX12 && pdev->use_hiz) {
+   if (pdev->use_gfx12_hiz_his_event_wa) {
       /* HiZ/HiS hw workaround */
       *cmd_size += 8 * 4;
    }
@@ -441,6 +467,7 @@ radv_get_sequence_size(const struct radv_indirect_command_layout *layout, const 
 
 struct dgc_cmdbuf_layout {
    bool use_preamble;
+   bool use_ib_chaining;
    uint32_t alloc_size;
 
    uint32_t main_trailer_offset;
@@ -471,6 +498,16 @@ get_dgc_cmdbuf_layout(const struct radv_device *device, const struct radv_indire
    memset(layout, 0, sizeof(*layout));
 
    radv_get_sequence_size(dgc_layout, pNext, &layout->main_cmd_stride, &layout->ace_cmd_stride, &layout->upload_stride);
+
+   layout->use_ib_chaining = radv_dgc_use_ib_chaining(sequences_count);
+   if (layout->use_ib_chaining) {
+      layout->main_cmd_stride = radv_align_cmdbuf(
+         device, radv_pad_cmdbuf(device, layout->main_cmd_stride + PKT3_INDIRECT_BUFFER_BYTES, AMD_IP_GFX), AMD_IP_GFX);
+
+      layout->ace_cmd_stride = radv_align_cmdbuf(
+         device, radv_pad_cmdbuf(device, layout->ace_cmd_stride + PKT3_INDIRECT_BUFFER_BYTES, AMD_IP_COMPUTE),
+         AMD_IP_COMPUTE);
+   }
 
    layout->use_preamble = use_preamble;
    if (layout->use_preamble) {
@@ -626,6 +663,7 @@ struct radv_dgc_params {
 
    uint8_t queue_family;
    uint8_t use_preamble;
+   uint8_t use_ib_chaining;
 
    uint64_t params_addr;
 
@@ -907,6 +945,53 @@ dgc_emit_sqtt_end_api_marker(struct dgc_cmdbuf *cs, enum rgp_sqtt_marker_general
 /**
  * Command buffer
  */
+static void
+dgc_emit_indirect_buffer(struct dgc_cmdbuf *cs, nir_def *va, nir_def *ib_offset, nir_def *ib_cdw)
+{
+   const struct radv_physical_device *pdev = radv_device_physical(cs->dev);
+   nir_builder *b = cs->b;
+
+   nir_def *packet[] = {
+      nir_imm_int(b, PKT3(PKT3_INDIRECT_BUFFER, 2, 0)),
+      nir_iadd(b, load_param32(b, upload_addr), ib_offset),
+      nir_imm_int(b, pdev->info.address32_hi),
+      nir_ior_imm(b, ib_cdw, S_3F2_CHAIN(1) | S_3F2_VALID(1) | S_3F2_PRE_ENA(false)),
+   };
+
+   nir_build_store_global(b, nir_vec(b, packet, 4), va, .access = ACCESS_NON_READABLE);
+}
+
+static void
+dgc_emit_padding(struct dgc_cmdbuf *cs, nir_def *cmd_buf_offset, nir_def *size)
+{
+   const unsigned MAX_PACKET_WORDS = 0x3FFC;
+   nir_builder *b = cs->b;
+
+   nir_def *va = nir_iadd(b, cs->va, nir_u2u64(b, cmd_buf_offset));
+
+   nir_variable *offset = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "offset");
+   nir_store_var(b, offset, nir_imm_int(b, 0), 0x1);
+
+   nir_push_loop(b);
+   {
+      nir_def *curr_offset = nir_load_var(b, offset);
+
+      nir_break_if(b, nir_ieq(b, curr_offset, size));
+
+      nir_def *packet_size = nir_isub(b, size, curr_offset);
+      packet_size = nir_umin(b, size, nir_imm_int(b, MAX_PACKET_WORDS * 4));
+
+      nir_def *len = nir_ushr_imm(b, packet_size, 2);
+      len = nir_iadd_imm(b, len, -2);
+      nir_def *packet = nir_pkt3(b, PKT3_NOP, len);
+
+      nir_build_store_global(b, packet, nir_iadd(b, va, nir_u2u64(b, curr_offset)), .access = ACCESS_NON_READABLE);
+
+      nir_store_var(b, offset, nir_iadd(b, curr_offset, packet_size), 0x1);
+   }
+   nir_pop_loop(b, NULL);
+}
+
 static nir_def *
 dgc_cmd_buf_size(nir_builder *b, nir_def *sequence_count, bool is_ace, const struct radv_device *device)
 {
@@ -927,11 +1012,11 @@ dgc_cmd_buf_size(nir_builder *b, nir_def *sequence_count, bool is_ace, const str
 }
 
 static void
-build_dgc_buffer_tail(nir_builder *b, nir_def *cmd_buf_offset, nir_def *cmd_buf_size, nir_def *cmd_buf_stride,
-                      nir_def *cmd_buf_trailer_offset, nir_def *sequence_count, unsigned trailer_size, bool is_ace,
-                      const struct radv_device *device)
+build_dgc_buffer_tail(struct dgc_cmdbuf *cs, nir_def *cmd_buf_offset, nir_def *cmd_buf_size, nir_def *cmd_buf_stride,
+                      nir_def *cmd_buf_trailer_offset, nir_def *sequence_count, unsigned trailer_size, bool is_ace)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
+   nir_builder *b = cs->b;
+
    nir_def *is_compute_queue = nir_ior_imm(b, nir_ieq_imm(b, load_param8(b, queue_family), RADV_QUEUE_COMPUTE), is_ace);
 
    nir_def *global_id = radv_meta_nir_get_global_ids(b, 1);
@@ -940,51 +1025,19 @@ build_dgc_buffer_tail(nir_builder *b, nir_def *cmd_buf_offset, nir_def *cmd_buf_
    {
       nir_def *cmd_buf_tail_start = nir_imul(b, cmd_buf_stride, sequence_count);
 
-      nir_variable *offset = nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "offset");
-      nir_store_var(b, offset, cmd_buf_tail_start, 0x1);
-
       /* On compute queue, the DGC command buffer is chained by patching the
        * trailer but this isn't needed on graphics because it's using IB2.
        */
       cmd_buf_size =
          nir_bcsel(b, is_compute_queue, nir_iadd_imm(b, cmd_buf_size, -PKT3_INDIRECT_BUFFER_BYTES), cmd_buf_size);
 
-      nir_def *va = nir_pack_64_2x32_split(b, load_param32(b, upload_addr), nir_imm_int(b, pdev->info.address32_hi));
-      nir_push_loop(b);
-      {
-         nir_def *curr_offset = nir_load_var(b, offset);
-         const unsigned MAX_PACKET_WORDS = 0x3FFC;
-
-         nir_break_if(b, nir_ieq(b, curr_offset, cmd_buf_size));
-
-         nir_def *packet, *packet_size;
-
-         packet_size = nir_isub(b, cmd_buf_size, curr_offset);
-         packet_size = nir_umin(b, packet_size, nir_imm_int(b, MAX_PACKET_WORDS * 4));
-
-         nir_def *len = nir_ushr_imm(b, packet_size, 2);
-         len = nir_iadd_imm(b, len, -2);
-         packet = nir_pkt3(b, PKT3_NOP, len);
-
-         nir_build_store_global(b, packet, nir_iadd(b, va, nir_u2u64(b, nir_iadd(b, curr_offset, cmd_buf_offset))),
-                                .access = ACCESS_NON_READABLE);
-
-         nir_store_var(b, offset, nir_iadd(b, curr_offset, packet_size), 0x1);
-      }
-      nir_pop_loop(b, NULL);
+      dgc_emit_padding(cs, nir_iadd(b, cmd_buf_offset, cmd_buf_tail_start),
+                       nir_isub(b, cmd_buf_size, cmd_buf_tail_start));
 
       nir_push_if(b, is_compute_queue);
       {
-         nir_def *chain_packets[] = {
-            nir_imm_int(b, PKT3(PKT3_INDIRECT_BUFFER, 2, 0)),
-            nir_iadd(b, load_param32(b, upload_addr), cmd_buf_trailer_offset),
-            nir_imm_int(b, pdev->info.address32_hi),
-            nir_imm_int(b, trailer_size | S_3F2_CHAIN(1) | S_3F2_VALID(1) | S_3F2_PRE_ENA(false)),
-         };
-
-         nir_build_store_global(b, nir_vec(b, chain_packets, 4),
-                                nir_iadd(b, va, nir_u2u64(b, nir_iadd(b, nir_load_var(b, offset), cmd_buf_offset))),
-                                .access = ACCESS_NON_READABLE);
+         dgc_emit_indirect_buffer(cs, nir_iadd(b, cs->va, nir_u2u64(b, nir_iadd(b, cmd_buf_size, cmd_buf_offset))),
+                                  cmd_buf_trailer_offset, nir_imm_int(b, trailer_size));
       }
       nir_pop_if(b, NULL);
    }
@@ -992,51 +1045,51 @@ build_dgc_buffer_tail(nir_builder *b, nir_def *cmd_buf_offset, nir_def *cmd_buf_
 }
 
 static void
-build_dgc_buffer_tail_main(nir_builder *b, nir_def *sequence_count, const struct radv_device *device)
+build_dgc_buffer_tail_main(struct dgc_cmdbuf *cs, nir_def *sequence_count)
 {
+   const struct radv_device *device = cs->dev;
+   nir_builder *b = cs->b;
+
    nir_def *cmd_buf_offset = load_param32(b, cmd_buf_main_offset);
    nir_def *cmd_buf_size = dgc_cmd_buf_size(b, sequence_count, false, device);
    nir_def *cmd_buf_stride = load_param32(b, cmd_buf_stride);
    nir_def *cmd_buf_trailer_offset = nir_imm_int(b, 0);
    unsigned trailer_size = radv_dgc_trailer_cmdbuf_size(device, AMD_IP_GFX) / 4;
 
-   build_dgc_buffer_tail(b, cmd_buf_offset, cmd_buf_size, cmd_buf_stride, cmd_buf_trailer_offset, sequence_count,
-                         trailer_size, false, device);
+   build_dgc_buffer_tail(cs, cmd_buf_offset, cmd_buf_size, cmd_buf_stride, cmd_buf_trailer_offset, sequence_count,
+                         trailer_size, false);
 }
 
 static void
-build_dgc_buffer_tail_ace(nir_builder *b, nir_def *sequence_count, const struct radv_device *device)
+build_dgc_buffer_tail_ace(struct dgc_cmdbuf *cs, nir_def *sequence_count)
 {
+   const struct radv_device *device = cs->dev;
+   nir_builder *b = cs->b;
+
    nir_def *cmd_buf_offset = load_param32(b, ace_cmd_buf_main_offset);
    nir_def *cmd_buf_size = dgc_cmd_buf_size(b, sequence_count, true, device);
    nir_def *cmd_buf_stride = load_param32(b, ace_cmd_buf_stride);
    nir_def *cmd_buf_trailer_offset = load_param32(b, ace_cmd_buf_trailer_offset);
    unsigned trailer_size = radv_dgc_trailer_cmdbuf_size(device, AMD_IP_COMPUTE) / 4;
 
-   build_dgc_buffer_tail(b, cmd_buf_offset, cmd_buf_size, cmd_buf_stride, cmd_buf_trailer_offset, sequence_count,
-                         trailer_size, true, device);
+   build_dgc_buffer_tail(cs, cmd_buf_offset, cmd_buf_size, cmd_buf_stride, cmd_buf_trailer_offset, sequence_count,
+                         trailer_size, true);
 }
 
 static void
-build_dgc_buffer_trailer(nir_builder *b, nir_def *cmd_buf_offset, unsigned trailer_size,
-                         const struct radv_device *device)
+build_dgc_buffer_trailer(struct dgc_cmdbuf *cs, nir_def *cmd_buf_offset, unsigned trailer_size)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
+   nir_builder *b = cs->b;
 
    nir_def *global_id = radv_meta_nir_get_global_ids(b, 1);
 
    nir_push_if(b, nir_ieq_imm(b, global_id, 0));
    {
-      nir_def *va = nir_pack_64_2x32_split(b, load_param32(b, upload_addr), nir_imm_int(b, pdev->info.address32_hi));
-      va = nir_iadd(b, va, nir_u2u64(b, cmd_buf_offset));
+      nir_def *va = nir_iadd(b, cs->va, nir_u2u64(b, cmd_buf_offset));
 
       const uint32_t pad_size = trailer_size - PKT3_INDIRECT_BUFFER_BYTES;
-      const uint32_t pad_size_dw = pad_size >> 2;
 
-      nir_def *len = nir_imm_int(b, pad_size_dw - 2);
-      nir_def *packet = nir_pkt3(b, PKT3_NOP, len);
-
-      nir_build_store_global(b, packet, va, .access = ACCESS_NON_READABLE);
+      dgc_emit_padding(cs, cmd_buf_offset, nir_imm_int(b, pad_size));
 
       nir_def *nop_packets[] = {
          nir_imm_int(b, PKT3_NOP_PAD),
@@ -1052,83 +1105,103 @@ build_dgc_buffer_trailer(nir_builder *b, nir_def *cmd_buf_offset, unsigned trail
 }
 
 static void
-build_dgc_buffer_trailer_main(nir_builder *b, const struct radv_device *device)
+build_dgc_buffer_trailer_main(struct dgc_cmdbuf *cs)
 {
+   const struct radv_device *device = cs->dev;
+   nir_builder *b = cs->b;
+
    nir_def *cmd_buf_offset = nir_imm_int(b, 0);
    const unsigned trailer_size = radv_dgc_trailer_cmdbuf_size(device, AMD_IP_GFX);
 
-   build_dgc_buffer_trailer(b, cmd_buf_offset, trailer_size, device);
+   build_dgc_buffer_trailer(cs, cmd_buf_offset, trailer_size);
 }
 
 static void
-build_dgc_buffer_trailer_ace(nir_builder *b, const struct radv_device *device)
+build_dgc_buffer_trailer_ace(struct dgc_cmdbuf *cs)
 {
+   const struct radv_device *device = cs->dev;
+   nir_builder *b = cs->b;
+
    nir_def *cmd_buf_offset = load_param32(b, ace_cmd_buf_trailer_offset);
    const unsigned trailer_size = radv_dgc_trailer_cmdbuf_size(device, AMD_IP_COMPUTE);
 
-   build_dgc_buffer_trailer(b, cmd_buf_offset, trailer_size, device);
+   build_dgc_buffer_trailer(cs, cmd_buf_offset, trailer_size);
 }
 
 static void
-build_dgc_buffer_preamble(nir_builder *b, nir_def *cmd_buf_preamble_offset, nir_def *cmd_buf_size,
-                          nir_def *cmd_buf_main_offset, unsigned preamble_size, nir_def *sequence_count,
-                          const struct radv_device *device)
+build_dgc_buffer_preamble(struct dgc_cmdbuf *cs, nir_def *cmd_buf_preamble_offset, nir_def *cmd_buf_exec_size,
+                          nir_def *cmd_buf_main_offset, unsigned preamble_size)
 {
-   const struct radv_physical_device *pdev = radv_device_physical(device);
+   nir_builder *b = cs->b;
 
    nir_def *global_id = radv_meta_nir_get_global_ids(b, 1);
    nir_def *use_preamble = nir_ine_imm(b, load_param8(b, use_preamble), 0);
 
    nir_push_if(b, nir_iand(b, nir_ieq_imm(b, global_id, 0), use_preamble));
    {
-      nir_def *va = nir_pack_64_2x32_split(b, load_param32(b, upload_addr), nir_imm_int(b, pdev->info.address32_hi));
-      va = nir_iadd(b, va, nir_u2u64(b, cmd_buf_preamble_offset));
+      nir_def *va = nir_iadd(b, cs->va, nir_u2u64(b, cmd_buf_preamble_offset));
 
-      nir_def *words = nir_ushr_imm(b, cmd_buf_size, 2);
+      nir_def *words = nir_ushr_imm(b, cmd_buf_exec_size, 2);
 
       const uint32_t pad_size = preamble_size - PKT3_INDIRECT_BUFFER_BYTES;
-      const uint32_t pad_size_dw = pad_size >> 2;
 
-      nir_def *len = nir_imm_int(b, pad_size_dw - 2);
-      nir_def *packet = nir_pkt3(b, PKT3_NOP, len);
+      dgc_emit_padding(cs, cmd_buf_preamble_offset, nir_imm_int(b, pad_size));
 
-      nir_build_store_global(b, packet, va, .access = ACCESS_NON_READABLE);
-
-      nir_def *chain_packets[] = {
-         nir_imm_int(b, PKT3(PKT3_INDIRECT_BUFFER, 2, 0)),
-         nir_iadd(b, cmd_buf_main_offset, load_param32(b, upload_addr)),
-         nir_imm_int(b, pdev->info.address32_hi),
-         nir_ior_imm(b, words, S_3F2_CHAIN(1) | S_3F2_VALID(1) | S_3F2_PRE_ENA(false)),
-      };
-
-      nir_build_store_global(b, nir_vec(b, chain_packets, 4), nir_iadd_imm(b, va, pad_size),
-                             .access = ACCESS_NON_READABLE);
+      dgc_emit_indirect_buffer(cs, nir_iadd_imm(b, va, pad_size), cmd_buf_main_offset, words);
    }
    nir_pop_if(b, NULL);
 }
 
-static void
-build_dgc_buffer_preamble_main(nir_builder *b, nir_def *sequence_count, const struct radv_device *device)
+static nir_def *
+dgc_cmd_buf_exec_size(struct dgc_cmdbuf *cs, nir_def *sequence_count, bool is_ace)
 {
-   nir_def *cmd_buf_preamble_offset = load_param32(b, cmd_buf_preamble_offset);
-   nir_def *cmd_buf_main_offset = load_param32(b, cmd_buf_main_offset);
-   nir_def *cmd_buf_size = dgc_cmd_buf_size(b, sequence_count, false, device);
-   unsigned preamble_size = radv_dgc_preamble_cmdbuf_size(device, AMD_IP_GFX);
+   const enum amd_ip_type ip_type = is_ace ? AMD_IP_COMPUTE : AMD_IP_GFX;
+   const struct radv_device *device = cs->dev;
+   nir_builder *b = cs->b;
 
-   build_dgc_buffer_preamble(b, cmd_buf_preamble_offset, cmd_buf_size, cmd_buf_main_offset, preamble_size,
-                             sequence_count, device);
+   nir_def *use_ib_chaining = nir_ine_imm(b, load_param8(b, use_ib_chaining), 0);
+   unsigned tail_size = radv_pad_cmdbuf(device, PKT3_INDIRECT_BUFFER_BYTES, ip_type);
+
+   nir_def *cmd_buf_stride = is_ace ? load_param32(b, ace_cmd_buf_stride) : load_param32(b, cmd_buf_stride);
+
+   /* When IB chaining is used, the cmdbuf execution size is either:
+    * - the size of the tail (ie. padding + "jump to trailer" IB on compute queue) when the number
+    *   of sequences is 0.
+    * - the size of one stride (ie. sequence + padding + "chain to next sequence" IB).
+    *
+    * Otherwise, it's the whole cmdbuf size.
+    */
+   return nir_bcsel(b, use_ib_chaining,
+                    nir_bcsel(b, nir_ieq_imm(b, sequence_count, 0), nir_imm_int(b, tail_size), cmd_buf_stride),
+                    dgc_cmd_buf_size(b, sequence_count, is_ace, device));
 }
 
 static void
-build_dgc_buffer_preamble_ace(nir_builder *b, nir_def *sequence_count, const struct radv_device *device)
+build_dgc_buffer_preamble_main(struct dgc_cmdbuf *cs, nir_def *sequence_count)
 {
+   const struct radv_device *device = cs->dev;
+   nir_builder *b = cs->b;
+
+   nir_def *cmd_buf_preamble_offset = load_param32(b, cmd_buf_preamble_offset);
+   nir_def *cmd_buf_main_offset = load_param32(b, cmd_buf_main_offset);
+   nir_def *cmd_buf_exec_size = dgc_cmd_buf_exec_size(cs, sequence_count, false);
+   unsigned preamble_size = radv_dgc_preamble_cmdbuf_size(device, AMD_IP_GFX);
+
+   build_dgc_buffer_preamble(cs, cmd_buf_preamble_offset, cmd_buf_exec_size, cmd_buf_main_offset, preamble_size);
+}
+
+static void
+build_dgc_buffer_preamble_ace(struct dgc_cmdbuf *cs, nir_def *sequence_count)
+{
+   const struct radv_device *device = cs->dev;
+   nir_builder *b = cs->b;
+
    nir_def *cmd_buf_preamble_offset = load_param32(b, ace_cmd_buf_preamble_offset);
    nir_def *cmd_buf_main_offset = load_param32(b, ace_cmd_buf_main_offset);
-   nir_def *cmd_buf_size = dgc_cmd_buf_size(b, sequence_count, true, device);
+   nir_def *cmd_buf_exec_size = dgc_cmd_buf_exec_size(cs, sequence_count, true);
    unsigned preamble_size = radv_dgc_preamble_cmdbuf_size(device, AMD_IP_COMPUTE);
 
-   build_dgc_buffer_preamble(b, cmd_buf_preamble_offset, cmd_buf_size, cmd_buf_main_offset, preamble_size,
-                             sequence_count, device);
+   build_dgc_buffer_preamble(cs, cmd_buf_preamble_offset, cmd_buf_exec_size, cmd_buf_main_offset, preamble_size);
 }
 
 /**
@@ -1140,7 +1213,7 @@ dgc_gfx12_emit_hiz_his_wa(struct dgc_cmdbuf *cs)
    const struct radv_device *device = cs->dev;
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   if (pdev->info.gfx_level == GFX12 && pdev->use_hiz) {
+   if (pdev->use_gfx12_hiz_his_event_wa) {
       dgc_cs_begin(cs);
       dgc_cs_emit_imm(PKT3(PKT3_RELEASE_MEM, 6, 0));
       dgc_cs_emit_imm(S_490_EVENT_TYPE(V_028A90_BOTTOM_OF_PIPE_TS) | S_490_EVENT_INDEX(5));
@@ -2094,7 +2167,7 @@ dgc_emit_dispatch_taskmesh_gfx(struct dgc_cmdbuf *cs, nir_def *sequence_id)
    nir_def *ring_entry_reg = load_param16(b, mesh_ring_entry_sgpr);
 
    nir_def *xyz_dim_enable = nir_bcsel(b, has_grid_size, nir_imm_int(b, S_4D1_XYZ_DIM_ENABLE(1)), nir_imm_int(b, 0));
-   nir_def *mode1_enable = nir_imm_int(b, S_4D1_MODE1_ENABLE(!pdev->mesh_fast_launch_2));
+   nir_def *mode1_enable = nir_imm_int(b, S_4D1_MODE1_ENABLE(!pdev->info.mesh_fast_launch_2));
    nir_def *linear_dispatch_en =
       nir_bcsel(b, has_linear_dispatch_en, nir_imm_int(b, S_4D1_LINEAR_DISPATCH_ENABLE(1)), nir_imm_int(b, 0));
    nir_def *sqtt_enable = nir_imm_int(b, device->sqtt.bo ? S_4D1_THREAD_TRACE_MARKER_ENABLE(1) : 0);
@@ -2143,7 +2216,7 @@ dgc_emit_draw_mesh_tasks_gfx(struct dgc_cmdbuf *cs, nir_def *stream_addr, nir_de
          dgc_emit_userdata_mesh(cs, x, y, z, sequence_id);
          dgc_emit_instance_count(cs, nir_imm_int(b, 1));
 
-         if (pdev->mesh_fast_launch_2) {
+         if (pdev->info.mesh_fast_launch_2) {
             dgc_emit_dispatch_mesh_direct(cs, x, y, z);
          } else {
             nir_def *vertex_count = nir_imul(b, x, nir_imul(b, y, z));
@@ -2209,7 +2282,7 @@ dgc_emit_draw_mesh_tasks_with_count_gfx(struct dgc_cmdbuf *cs, nir_def *stream_a
          nir_ior(b, nir_iand_imm(b, xyz_dim_reg, 0xFFFF), nir_ishl_imm(b, nir_iand_imm(b, draw_id_reg, 0xFFFF), 16)));
       if (pdev->info.gfx_level >= GFX11) {
          dgc_cs_emit(nir_ior_imm(b, nir_ior(b, draw_index_enable, xyz_dim_enable),
-                                 S_4C2_MODE1_ENABLE(!pdev->mesh_fast_launch_2)));
+                                 S_4C2_MODE1_ENABLE(!pdev->info.mesh_fast_launch_2)));
       } else {
          dgc_cs_emit(draw_index_enable);
       }
@@ -2495,19 +2568,229 @@ dgc_pad_cmdbuf(struct dgc_cmdbuf *cs, nir_def *cmd_buf_end)
    nir_pop_if(b, NULL);
 }
 
+static void
+dgc_emit_ib_chaining(struct dgc_cmdbuf *cs, nir_def *sequence_id, nir_def *sequence_count, nir_def *cmd_buf_stride,
+                     nir_def *cmd_buf_end, bool is_ace)
+{
+   nir_builder *b = cs->b;
+   nir_def *cmd_buf_offset = is_ace ? load_param32(b, ace_cmd_buf_main_offset) : load_param32(b, cmd_buf_main_offset);
+
+   nir_def *is_last_sequence = nir_ieq(b, nir_iadd_imm(b, sequence_id, 1), sequence_count);
+
+   /* Determine if the "jump to trailer" IB needs to be emitted. */
+   nir_def *is_compute_queue = nir_ior_imm(b, nir_ieq_imm(b, load_param8(b, queue_family), RADV_QUEUE_COMPUTE), is_ace);
+
+   /* Leave space for emitting an indirect packet if necessary. */
+   cmd_buf_end = nir_bcsel(b, nir_ior(b, nir_inot(b, is_last_sequence), is_compute_queue),
+                           nir_iadd_imm(b, cmd_buf_end, -PKT3_INDIRECT_BUFFER_BYTES), cmd_buf_end);
+
+   dgc_pad_cmdbuf(cs, cmd_buf_end);
+
+   /* Emit an IB to chain the next sequence. */
+   nir_push_if(b, is_last_sequence);
+   {
+      nir_push_if(b, is_compute_queue);
+      {
+         nir_def *va = nir_iadd(b, cs->va, nir_u2u64(b, cmd_buf_end));
+
+         nir_def *cmd_buf_trailer_offset;
+         unsigned trailer_size;
+
+         if (is_ace) {
+            cmd_buf_trailer_offset = load_param32(b, ace_cmd_buf_trailer_offset);
+            trailer_size = radv_dgc_trailer_cmdbuf_size(cs->dev, AMD_IP_COMPUTE) / 4;
+         } else {
+            cmd_buf_trailer_offset = nir_imm_int(b, 0);
+            trailer_size = radv_dgc_trailer_cmdbuf_size(cs->dev, AMD_IP_GFX) / 4;
+         }
+
+         dgc_emit_indirect_buffer(cs, va, cmd_buf_trailer_offset, nir_imm_int(b, trailer_size));
+      }
+      nir_pop_if(b, NULL);
+   }
+   nir_push_else(b, NULL);
+   {
+      nir_def *va = nir_iadd(b, cs->va, nir_u2u64(b, cmd_buf_end));
+
+      nir_def *ib_offset = nir_iadd(b, cmd_buf_offset, nir_imul(b, nir_iadd_imm(b, sequence_id, 1), cmd_buf_stride));
+      nir_def *ib_cdw = nir_udiv_imm(b, cmd_buf_stride, 4);
+
+      dgc_emit_indirect_buffer(cs, va, ib_offset, ib_cdw);
+   }
+   nir_pop_if(b, NULL);
+}
+
+static void
+dgc_emit_one_sequence_main(struct dgc_cmdbuf *cs, nir_def *sequence_id, nir_def *sequence_count,
+                           struct radv_indirect_command_layout *layout)
+{
+   nir_builder *b = cs->b;
+
+   nir_def *cmd_buf_stride = load_param32(b, cmd_buf_stride);
+   nir_def *cmd_buf_base_offset = load_param32(b, cmd_buf_main_offset);
+
+   nir_store_var(b, cs->offset, nir_iadd(b, nir_imul(b, sequence_id, cmd_buf_stride), cmd_buf_base_offset), 1);
+   nir_def *cmd_buf_end = nir_iadd(b, nir_load_var(b, cs->offset), cmd_buf_stride);
+
+   nir_def *stream_addr = load_param64(b, stream_addr);
+   stream_addr = nir_iadd(b, stream_addr, nir_u2u64(b, nir_imul_imm(b, sequence_id, layout->vk.stride)));
+
+   nir_def *upload_offset_init =
+      nir_iadd(b, load_param32(b, upload_main_offset), nir_imul(b, load_param32(b, upload_stride), sequence_id));
+   nir_store_var(b, cs->upload_offset, upload_offset_init, 0x1);
+
+   if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_IES))
+      cs->ies_va = dgc_load_ies_va(cs, stream_addr);
+
+   if (layout->push_constant_mask) {
+      const VkShaderStageFlags stages =
+         (layout->vk.dgc_info & (BITFIELD_BIT(MESA_VK_DGC_RT) | BITFIELD_BIT(MESA_VK_DGC_DISPATCH)))
+            ? VK_SHADER_STAGE_COMPUTE_BIT
+            : (VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_MESH_BIT_EXT);
+
+      dgc_emit_push_constant(cs, stream_addr, sequence_id, stages);
+   }
+
+   if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_RT)) {
+      /* Raytracing */
+      dgc_emit_rt(cs, stream_addr, sequence_id);
+   } else if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_DISPATCH)) {
+      /* Compute */
+      if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_IES)) {
+         dgc_emit_ies(cs);
+      }
+
+      dgc_emit_dispatch(cs, stream_addr, sequence_id);
+   } else {
+      /* Graphics */
+      if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_VB)) {
+         dgc_emit_vertex_buffer(cs, stream_addr);
+      }
+
+      if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_DRAW_INDEXED)) {
+         if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_IB)) {
+            nir_variable *max_index_count_var =
+               nir_variable_create(b->shader, nir_var_shader_temp, glsl_uint_type(), "max_index_count");
+
+            dgc_emit_index_buffer(cs, stream_addr, max_index_count_var);
+
+            nir_def *max_index_count = nir_load_var(b, max_index_count_var);
+
+            if (layout->vk.draw_count) {
+               dgc_emit_draw_with_count(cs, stream_addr, sequence_id, true);
+            } else {
+               dgc_emit_draw_indexed(cs, stream_addr, sequence_id, max_index_count);
+            }
+         } else {
+            if (layout->vk.draw_count) {
+               dgc_emit_draw_with_count(cs, stream_addr, sequence_id, true);
+            } else {
+               dgc_emit_draw_indirect(cs, stream_addr, sequence_id, true);
+            }
+         }
+      } else {
+         /* Non-indexed draws */
+         if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_DRAW_MESH)) {
+            if (layout->vk.draw_count) {
+               dgc_emit_draw_mesh_tasks_with_count_gfx(cs, stream_addr, sequence_id);
+            } else {
+               dgc_emit_draw_mesh_tasks_gfx(cs, stream_addr, sequence_id);
+            }
+         } else {
+            if (layout->vk.draw_count) {
+               dgc_emit_draw_with_count(cs, stream_addr, sequence_id, false);
+            } else {
+               dgc_emit_draw(cs, stream_addr, sequence_id);
+            }
+         }
+      }
+   }
+
+   nir_def *use_ib_chaining = nir_ine_imm(b, load_param8(b, use_ib_chaining), 0);
+   nir_push_if(b, use_ib_chaining);
+   {
+      dgc_emit_ib_chaining(cs, sequence_id, sequence_count, cmd_buf_stride, cmd_buf_end, false);
+   }
+   nir_push_else(b, NULL);
+   {
+      /* Pad the cmdbuffer if we did not use the whole stride */
+      dgc_pad_cmdbuf(cs, cmd_buf_end);
+   }
+   nir_pop_if(b, NULL);
+}
+
+static void
+dgc_emit_one_sequence_ace(struct dgc_cmdbuf *cs, nir_def *sequence_id, nir_def *sequence_count,
+                          struct radv_indirect_command_layout *layout)
+{
+   nir_builder *b = cs->b;
+
+   nir_def *ace_cmd_buf_stride = load_param32(b, ace_cmd_buf_stride);
+   nir_def *ace_cmd_buf_base_offset = load_param32(b, ace_cmd_buf_main_offset);
+
+   nir_store_var(b, cs->offset, nir_iadd(b, nir_imul(b, sequence_id, ace_cmd_buf_stride), ace_cmd_buf_base_offset), 1);
+   nir_def *cmd_buf_end = nir_iadd(b, nir_load_var(b, cs->offset), ace_cmd_buf_stride);
+
+   nir_def *stream_addr = load_param64(b, stream_addr);
+   stream_addr = nir_iadd(b, stream_addr, nir_u2u64(b, nir_imul_imm(b, sequence_id, layout->vk.stride)));
+
+   nir_def *upload_offset_init =
+      nir_iadd(b, load_param32(b, upload_main_offset), nir_imul(b, load_param32(b, upload_stride), sequence_id));
+   nir_store_var(b, cs->upload_offset, upload_offset_init, 0x1);
+
+   if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_IES))
+      cs->ies_va = dgc_load_ies_va(cs, stream_addr);
+
+   if (layout->push_constant_mask) {
+      nir_def *push_constant_stages = dgc_get_push_constant_stages(cs);
+
+      nir_push_if(b, nir_test_mask(b, push_constant_stages, VK_SHADER_STAGE_TASK_BIT_EXT));
+      {
+         const struct dgc_pc_params params = dgc_get_pc_params(cs);
+         dgc_emit_push_constant_for_stage(cs, stream_addr, sequence_id, &params, MESA_SHADER_TASK);
+      }
+      nir_pop_if(b, NULL);
+   }
+
+   if (layout->vk.draw_count) {
+      dgc_emit_draw_mesh_tasks_with_count_ace(cs, stream_addr, sequence_id);
+   } else {
+      dgc_emit_draw_mesh_tasks_ace(cs, stream_addr);
+   }
+
+   nir_def *use_ib_chaining = nir_ine_imm(b, load_param8(b, use_ib_chaining), 0);
+   nir_push_if(b, use_ib_chaining);
+   {
+      dgc_emit_ib_chaining(cs, sequence_id, sequence_count, ace_cmd_buf_stride, cmd_buf_end, true);
+   }
+   nir_push_else(b, NULL);
+   {
+      /* Pad the cmdbuffer if we did not use the whole stride */
+      dgc_pad_cmdbuf(cs, cmd_buf_end);
+   }
+   nir_pop_if(b, NULL);
+}
+
 static nir_shader *
 build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_layout *layout)
 {
    const struct radv_physical_device *pdev = radv_device_physical(dev);
+
    nir_builder b = radv_meta_nir_init_shader(dev, MESA_SHADER_COMPUTE, "meta_dgc_prepare");
    b.shader->info.workgroup_size[0] = 64;
+
+   struct dgc_cmdbuf cmd_buf = {
+      .b = &b,
+      .dev = dev,
+      .va = nir_pack_64_2x32_split(&b, load_param32(&b, upload_addr), nir_imm_int(&b, pdev->info.address32_hi)),
+      .offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "cmd_buf_offset"),
+      .upload_offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset"),
+      .layout = layout,
+   };
 
    nir_def *global_id = radv_meta_nir_get_global_ids(&b, 1);
 
    nir_def *sequence_id = global_id;
-
-   nir_def *cmd_buf_stride = load_param32(&b, cmd_buf_stride);
-   nir_def *cmd_buf_base_offset = load_param32(&b, cmd_buf_main_offset);
 
    nir_def *sequence_count = load_param32(&b, sequence_count);
    nir_def *sequence_count_addr = load_param64(&b, sequence_count_addr);
@@ -2542,159 +2825,30 @@ build_dgc_prepare_shader(struct radv_device *dev, struct radv_indirect_command_l
 
    sequence_count = nir_load_var(&b, count_var);
 
-   build_dgc_buffer_trailer_main(&b, dev);
+   build_dgc_buffer_trailer_main(&cmd_buf);
 
    nir_push_if(&b, nir_ult(&b, sequence_id, sequence_count));
    {
-      struct dgc_cmdbuf cmd_buf = {
-         .b = &b,
-         .dev = dev,
-         .va = nir_pack_64_2x32_split(&b, load_param32(&b, upload_addr), nir_imm_int(&b, pdev->info.address32_hi)),
-         .offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "cmd_buf_offset"),
-         .upload_offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset"),
-         .layout = layout,
-      };
-      nir_store_var(&b, cmd_buf.offset, nir_iadd(&b, nir_imul(&b, global_id, cmd_buf_stride), cmd_buf_base_offset), 1);
-      nir_def *cmd_buf_end = nir_iadd(&b, nir_load_var(&b, cmd_buf.offset), cmd_buf_stride);
-
-      nir_def *stream_addr = load_param64(&b, stream_addr);
-      stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul_imm(&b, sequence_id, layout->vk.stride)));
-
-      nir_def *upload_offset_init =
-         nir_iadd(&b, load_param32(&b, upload_main_offset), nir_imul(&b, load_param32(&b, upload_stride), sequence_id));
-      nir_store_var(&b, cmd_buf.upload_offset, upload_offset_init, 0x1);
-
-      if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_IES))
-         cmd_buf.ies_va = dgc_load_ies_va(&cmd_buf, stream_addr);
-
-      if (layout->push_constant_mask) {
-         const VkShaderStageFlags stages =
-            (layout->vk.dgc_info & (BITFIELD_BIT(MESA_VK_DGC_RT) | BITFIELD_BIT(MESA_VK_DGC_DISPATCH)))
-               ? VK_SHADER_STAGE_COMPUTE_BIT
-               : (VK_SHADER_STAGE_ALL_GRAPHICS | VK_SHADER_STAGE_MESH_BIT_EXT);
-
-         dgc_emit_push_constant(&cmd_buf, stream_addr, sequence_id, stages);
-      }
-
-      if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_RT)) {
-         /* Raytracing */
-         dgc_emit_rt(&cmd_buf, stream_addr, sequence_id);
-      } else if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_DISPATCH)) {
-         /* Compute */
-         if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_IES)) {
-            dgc_emit_ies(&cmd_buf);
-         }
-
-         dgc_emit_dispatch(&cmd_buf, stream_addr, sequence_id);
-      } else {
-         /* Graphics */
-         if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_VB)) {
-            dgc_emit_vertex_buffer(&cmd_buf, stream_addr);
-         }
-
-         if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_DRAW_INDEXED)) {
-            if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_IB)) {
-               nir_variable *max_index_count_var =
-                  nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "max_index_count");
-
-               dgc_emit_index_buffer(&cmd_buf, stream_addr, max_index_count_var);
-
-               nir_def *max_index_count = nir_load_var(&b, max_index_count_var);
-
-               if (layout->vk.draw_count) {
-                  dgc_emit_draw_with_count(&cmd_buf, stream_addr, sequence_id, true);
-               } else {
-                  dgc_emit_draw_indexed(&cmd_buf, stream_addr, sequence_id, max_index_count);
-               }
-            } else {
-               if (layout->vk.draw_count) {
-                  dgc_emit_draw_with_count(&cmd_buf, stream_addr, sequence_id, true);
-               } else {
-                  dgc_emit_draw_indirect(&cmd_buf, stream_addr, sequence_id, true);
-               }
-            }
-         } else {
-            /* Non-indexed draws */
-            if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_DRAW_MESH)) {
-               if (layout->vk.draw_count) {
-                  dgc_emit_draw_mesh_tasks_with_count_gfx(&cmd_buf, stream_addr, sequence_id);
-               } else {
-                  dgc_emit_draw_mesh_tasks_gfx(&cmd_buf, stream_addr, sequence_id);
-               }
-            } else {
-               if (layout->vk.draw_count) {
-                  dgc_emit_draw_with_count(&cmd_buf, stream_addr, sequence_id, false);
-               } else {
-                  dgc_emit_draw(&cmd_buf, stream_addr, sequence_id);
-               }
-            }
-         }
-      }
-
-      /* Pad the cmdbuffer if we did not use the whole stride */
-      dgc_pad_cmdbuf(&cmd_buf, cmd_buf_end);
+      dgc_emit_one_sequence_main(&cmd_buf, sequence_id, sequence_count, layout);
    }
    nir_pop_if(&b, NULL);
 
-   build_dgc_buffer_tail_main(&b, sequence_count, dev);
-   build_dgc_buffer_preamble_main(&b, sequence_count, dev);
+   build_dgc_buffer_tail_main(&cmd_buf, sequence_count);
+   build_dgc_buffer_preamble_main(&cmd_buf, sequence_count);
 
    /* Prepare the ACE command stream */
    nir_push_if(&b, nir_ieq_imm(&b, load_param8(&b, has_task_shader), 1));
    {
-      nir_def *ace_cmd_buf_stride = load_param32(&b, ace_cmd_buf_stride);
-      nir_def *ace_cmd_buf_base_offset = load_param32(&b, ace_cmd_buf_main_offset);
-
-      build_dgc_buffer_trailer_ace(&b, dev);
+      build_dgc_buffer_trailer_ace(&cmd_buf);
 
       nir_push_if(&b, nir_ult(&b, sequence_id, sequence_count));
       {
-         struct dgc_cmdbuf cmd_buf = {
-            .b = &b,
-            .dev = dev,
-            .va = nir_pack_64_2x32_split(&b, load_param32(&b, upload_addr), nir_imm_int(&b, pdev->info.address32_hi)),
-            .offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "cmd_buf_offset"),
-            .upload_offset = nir_variable_create(b.shader, nir_var_shader_temp, glsl_uint_type(), "upload_offset"),
-            .layout = layout,
-         };
-         nir_store_var(&b, cmd_buf.offset,
-                       nir_iadd(&b, nir_imul(&b, global_id, ace_cmd_buf_stride), ace_cmd_buf_base_offset), 1);
-         nir_def *cmd_buf_end = nir_iadd(&b, nir_load_var(&b, cmd_buf.offset), ace_cmd_buf_stride);
-
-         nir_def *stream_addr = load_param64(&b, stream_addr);
-         stream_addr = nir_iadd(&b, stream_addr, nir_u2u64(&b, nir_imul_imm(&b, sequence_id, layout->vk.stride)));
-
-         nir_def *upload_offset_init = nir_iadd(&b, load_param32(&b, upload_main_offset),
-                                                nir_imul(&b, load_param32(&b, upload_stride), sequence_id));
-         nir_store_var(&b, cmd_buf.upload_offset, upload_offset_init, 0x1);
-
-         if (layout->vk.dgc_info & BITFIELD_BIT(MESA_VK_DGC_IES))
-            cmd_buf.ies_va = dgc_load_ies_va(&cmd_buf, stream_addr);
-
-         if (layout->push_constant_mask) {
-            nir_def *push_constant_stages = dgc_get_push_constant_stages(&cmd_buf);
-
-            nir_push_if(&b, nir_test_mask(&b, push_constant_stages, VK_SHADER_STAGE_TASK_BIT_EXT));
-            {
-               const struct dgc_pc_params params = dgc_get_pc_params(&cmd_buf);
-               dgc_emit_push_constant_for_stage(&cmd_buf, stream_addr, sequence_id, &params, MESA_SHADER_TASK);
-            }
-            nir_pop_if(&b, NULL);
-         }
-
-         if (layout->vk.draw_count) {
-            dgc_emit_draw_mesh_tasks_with_count_ace(&cmd_buf, stream_addr, sequence_id);
-         } else {
-            dgc_emit_draw_mesh_tasks_ace(&cmd_buf, stream_addr);
-         }
-
-         /* Pad the cmdbuffer if we did not use the whole stride */
-         dgc_pad_cmdbuf(&cmd_buf, cmd_buf_end);
+         dgc_emit_one_sequence_ace(&cmd_buf, sequence_id, sequence_count, layout);
       }
       nir_pop_if(&b, NULL);
 
-      build_dgc_buffer_tail_ace(&b, sequence_count, dev);
-      build_dgc_buffer_preamble_ace(&b, sequence_count, dev);
+      build_dgc_buffer_tail_ace(&cmd_buf, sequence_count);
+      build_dgc_buffer_preamble_ace(&cmd_buf, sequence_count);
    }
    nir_pop_if(&b, NULL);
 
@@ -3006,6 +3160,7 @@ radv_prepare_dgc(struct radv_cmd_buffer *cmd_buffer, const VkGeneratedCommandsIn
       .upload_stride = cmdbuf_layout.upload_stride,
       .sequence_count = sequences_count,
       .use_preamble = use_preamble,
+      .use_ib_chaining = cmdbuf_layout.use_ib_chaining,
       .stream_addr = pGeneratedCommandsInfo->indirectAddress,
       .sequence_count_addr = pGeneratedCommandsInfo->sequenceCountAddress,
       .ies_addr = ies ? ies->va : 0,

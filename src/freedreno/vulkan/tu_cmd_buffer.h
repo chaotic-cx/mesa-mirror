@@ -289,6 +289,13 @@ struct tu_render_pass_state
    bool has_zpass_done_sample_count_write_in_rp;
    bool disable_gmem;
    bool sysmem_single_prim_mode;
+
+   /* This is set if, at any point in the render pass, we were not able to
+    * duplicate the viewport per-view due to the user using multiple viewports
+    * and instead we used the state from view 0 to transform each viewport. If
+    * this happens at any point then all views must contain the same FDM
+    * fragment size.
+    */
    bool shared_viewport;
 
    /* Track whether conditional predicate for COND_REG_EXEC is changed in draw_cs */
@@ -417,6 +424,8 @@ enum tu_suspend_resume_state
    SR_IN_CHAIN_AFTER_PRE_CHAIN,
 };
 
+typedef char tu_sha1_str[SHA1_DIGEST_STRING_LENGTH];
+
 struct tu_cmd_state
 {
    uint32_t dirty;
@@ -445,7 +454,24 @@ struct tu_cmd_state
    uint32_t max_vbs_bound;
 
    bool has_fdm;
+   /* See tu_pipeline::per_view_viewport */
    bool per_view_viewport;
+   /* See tu_pipeline::per_layer_viewport */
+   bool per_layer_viewport;
+   /* See tu_pipeline::fake_single_viewport */
+   bool fake_single_viewport;
+
+   /* If per_layer_viewport is true, the maximum number of layers rendered to.
+    * We need to save this because we might not necessarily know the number of
+    * layers in some corner cases and we need to know this in order to know
+    * how many viewports to emit.
+    */
+   uint8_t max_fdm_layers;
+
+   /* Set in CmdBeginRendering/CmdBeginRenderPass2, whether the FDM should be
+    * sampled per layer.
+    */
+   bool fdm_per_layer;
 
    /* saved states to re-emit in TU_CMD_DIRTY_DRAW_STATE case */
    struct tu_draw_state dynamic_state[TU_DYNAMIC_STATE_COUNT];
@@ -547,6 +573,9 @@ struct tu_cmd_state
 
    bool occlusion_query_may_be_running;
 
+   bool trace_draws_enabled;
+   enum tu_pipeline_type trace_draws_pipeline_type;
+
    enum tu_suspend_resume_state suspend_resume;
 
    bool suspending, resuming;
@@ -572,10 +601,8 @@ struct tu_cmd_buffer
 
    struct tu_device *device;
 
-   struct u_trace trace;
-   struct u_trace_iterator trace_rp_start;
-   struct u_trace_iterator trace_rp_drawcalls_start;
-   struct u_trace_iterator trace_rp_drawcalls_end;
+   struct u_trace_iterator trace_renderpass_start;
+   struct u_trace trace, rp_trace;
 
    struct list_head renderpass_autotune_results;
    struct tu_autotune_results_buffer* autotune_buffer;
@@ -632,7 +659,7 @@ struct tu_cmd_buffer
       bool fdm_offset;
       VkOffset2D fdm_offsets[MAX_VIEWS];
 
-      struct u_trace_iterator trace_rp_drawcalls_start, trace_rp_drawcalls_end;
+      struct u_trace rp_trace;
 
       struct tu_render_pass_state state;
 

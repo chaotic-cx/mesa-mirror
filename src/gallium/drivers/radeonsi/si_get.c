@@ -16,6 +16,7 @@
 #include "util/u_video.h"
 #include "vl/vl_video_buffer.h"
 #include <sys/utsname.h>
+#include "drm-uapi/drm.h"
 
 /* The capabilities reported by the kernel has priority
    over the existing logic in si_get_video_param */
@@ -55,12 +56,11 @@ si_is_compute_copy_faster(struct pipe_screen *pscreen,
    return false;
 }
 
-static const void *si_get_compiler_options(struct pipe_screen *screen, enum pipe_shader_ir ir,
-                                           enum pipe_shader_type shader)
+static const struct nir_shader_compiler_options *si_get_compiler_options(
+   struct pipe_screen *screen, enum pipe_shader_type shader)
 {
    struct si_screen *sscreen = (struct si_screen *)screen;
 
-   assert(ir == PIPE_SHADER_IR_NIR);
    return sscreen->nir_options;
 }
 
@@ -478,7 +478,9 @@ static int si_get_video_param(struct pipe_screen *screen, enum pipe_video_profil
       return 1;
    case PIPE_VIDEO_CAP_MIN_WIDTH:
    case PIPE_VIDEO_CAP_MIN_HEIGHT:
-      return (codec == PIPE_VIDEO_FORMAT_AV1) ? 16 : 64;
+      if (codec == PIPE_VIDEO_FORMAT_VP9 || codec == PIPE_VIDEO_FORMAT_AV1)
+         return 16;
+      return 64;
    case PIPE_VIDEO_CAP_MAX_WIDTH:
       if (codec != PIPE_VIDEO_FORMAT_UNKNOWN && QUERYABLE_KERNEL)
             return KERNEL_DEC_CAP(codec, max_width);
@@ -877,7 +879,8 @@ void si_init_screen_get_functions(struct si_screen *sscreen)
       (sscreen->info.family >= CHIP_GFX940 && !sscreen->info.has_graphics) ||
       /* fma32 is too slow for gpu < gfx9, so apply the option only for gpu >= gfx9 */
       (sscreen->info.gfx_level >= GFX9 && sscreen->options.force_use_fma32);
-   bool has_mediump = sscreen->info.gfx_level >= GFX9 && sscreen->options.mediump;
+   /* GFX8 has precision issues with 16-bit PS outputs. */
+   bool has_16bit_io = sscreen->info.gfx_level >= GFX9;
 
    nir_shader_compiler_options *options = sscreen->nir_options;
    ac_nir_set_options(&sscreen->info, !sscreen->use_aco, options);
@@ -904,10 +907,14 @@ void si_init_screen_get_functions(struct si_screen *sscreen)
     * GFX8 has precision issues with this option.
     */
    options->force_f2f16_rtz = sscreen->info.gfx_level >= GFX9;
-   options->io_options |= (!has_mediump ? nir_io_mediump_is_32bit : 0) | nir_io_has_intrinsics |
+   options->io_options |= (!has_16bit_io ? nir_io_mediump_is_32bit : 0) | nir_io_has_intrinsics |
                           (sscreen->use_ngg_culling ?
                               nir_io_compaction_groups_tes_inputs_into_pos_and_var_groups : 0);
-   options->lower_mediump_io = has_mediump ? si_lower_mediump_io : NULL;
+   if (has_16bit_io) {
+      options->lower_mediump_io = sscreen->options.mediump ? si_lower_mediump_io_option
+                                                           : si_lower_mediump_io_default;
+   }
+
    /* HW supports indirect indexing for: | Enabled in driver
     * -------------------------------------------------------
     * TCS inputs                         | Yes
@@ -1012,12 +1019,12 @@ void si_init_compute_caps(struct si_screen *sscreen)
 
    unsigned threads = 1024;
    unsigned subgroup_size =
-      sscreen->debug_flags & DBG(W64_CS) || sscreen->info.gfx_level < GFX10 ? 64 : 32;
+      sscreen->shader_debug_flags & DBG(W64_CS) || sscreen->info.gfx_level < GFX10 ? 64 : 32;
    caps->max_subgroups = threads / subgroup_size;
 
-   if (sscreen->debug_flags & DBG(W32_CS))
+   if (sscreen->shader_debug_flags & DBG(W32_CS))
       caps->subgroup_sizes = 32;
-   else if (sscreen->debug_flags & DBG(W64_CS))
+   else if (sscreen->shader_debug_flags & DBG(W64_CS))
       caps->subgroup_sizes = 64;
    else
       caps->subgroup_sizes = sscreen->info.gfx_level < GFX10 ? 64 : 64 | 32;
@@ -1147,6 +1154,11 @@ void si_init_screen_caps(struct si_screen *sscreen)
    caps->has_const_bw = true;
    caps->cl_gl_sharing = true;
    caps->call_finalize_nir_in_linker = true;
+
+   /* Fixup dmabuf caps for the virtio + vpipe case (when fd=-1, u_init_pipe_screen_caps
+    * fails to set this capability). */
+   if (sscreen->info.is_virtio)
+         caps->dmabuf |= DRM_PRIME_CAP_EXPORT | DRM_PRIME_CAP_IMPORT;
 
    caps->fbfetch = 1;
 

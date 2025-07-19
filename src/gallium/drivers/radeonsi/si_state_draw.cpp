@@ -53,12 +53,7 @@ static bool si_update_shaders(struct si_context *sctx)
 
    struct pipe_context *ctx = (struct pipe_context *)sctx;
    struct si_shader *old_vs = si_get_vs_inline(sctx, HAS_TESS, HAS_GS)->current;
-   unsigned old_pa_cl_vs_out_cntl = old_vs ? old_vs->pa_cl_vs_out_cntl : 0;
-   bool old_uses_gs_state_provoking_vertex = old_vs ? old_vs->info.uses_gs_state_provoking_vtx_first : false;
-   bool old_uses_gs_state_outprim = old_vs ? old_vs->info.uses_gs_state_outprim : false;
    struct si_shader *old_ps = sctx->shader.ps.current;
-   unsigned old_spi_shader_col_format =
-      old_ps ? old_ps->key.ps.part.epilog.spi_shader_col_format : 0;
    int r;
 
    /* Update TCS and TES. */
@@ -157,6 +152,12 @@ static bool si_update_shaders(struct si_context *sctx)
          assert(HAS_GS);
          si_pm4_bind_state(sctx, es, sctx->shader.vs.current);
       }
+   }
+
+   if (NGG && HAS_GS) {
+      assert((sctx->shader.gs.current->ngg.info.esgs_lds_size * 4) % 256 == 0);
+      SET_FIELD(sctx->current_gs_state, GS_STATE_GS_OUT_LDS_OFFSET_256B,
+                ((uint32_t)sctx->shader.gs.current->ngg.info.esgs_lds_size * 4) >> 8);
    }
 
    struct si_shader *api_vs = si_get_api_vs_inline(sctx, GFX_VERSION, HAS_TESS, HAS_GS);
@@ -264,12 +265,16 @@ static bool si_update_shaders(struct si_context *sctx)
       sctx->dirty_atoms |= SI_STATE_BIT(rasterizer);
    }
 
-   if (old_pa_cl_vs_out_cntl != hw_vs->pa_cl_vs_out_cntl)
+   if (!old_vs ||
+       old_vs->pa_cl_vs_out_cntl != hw_vs->pa_cl_vs_out_cntl ||
+       old_vs->info.clipdist_mask != hw_vs->info.clipdist_mask ||
+       old_vs->info.culldist_mask != hw_vs->info.culldist_mask)
       si_mark_atom_dirty(sctx, &sctx->atoms.s.clip_regs);
 
    /* If we start to use any of these, we need to update the SGPR. */
-   if ((hw_vs->info.uses_gs_state_provoking_vtx_first && !old_uses_gs_state_provoking_vertex) ||
-       (hw_vs->info.uses_gs_state_outprim && !old_uses_gs_state_outprim)) {
+   if (!old_vs ||
+       old_vs->info.uses_gs_state_provoking_vtx_first != hw_vs->info.uses_gs_state_provoking_vtx_first ||
+       old_vs->info.uses_gs_state_outprim != hw_vs->info.uses_gs_state_outprim) {
       si_update_ngg_sgpr_state_out_prim(sctx, hw_vs, NGG);
       si_update_ngg_sgpr_state_provoking_vtx(sctx, hw_vs, NGG);
    }
@@ -306,8 +311,9 @@ static bool si_update_shaders(struct si_context *sctx)
    if (is_ps_state_changed) {
       if ((GFX_VERSION >= GFX10_3 || (GFX_VERSION >= GFX9 && sctx->screen->info.rbplus_allowed)) &&
          si_pm4_state_changed(sctx, ps) &&
-         (!old_ps || old_spi_shader_col_format !=
-                        sctx->shader.ps.current->key.ps.part.epilog.spi_shader_col_format))
+         (!old_ps ||
+          old_ps->key.ps.part.epilog.spi_shader_col_format !=
+          sctx->shader.ps.current->key.ps.part.epilog.spi_shader_col_format))
          si_mark_atom_dirty(sctx, &sctx->atoms.s.cb_render_state);
 
       if (sctx->smoothing_enabled !=
@@ -1586,7 +1592,7 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
          if (increment_draw_id) {
             if (index_bias_varies) {
                for (unsigned i = 0; i < num_draws; i++) {
-                  uint64_t va = index_va + draws[i].start * index_size;
+                  uint64_t va = index_va + (uint64_t)draws[i].start * index_size;
 
                   if (i > 0) {
                      radeon_set_sh_reg_seq(sh_base_reg + SI_SGPR_BASE_VERTEX * 4, 2);
@@ -1610,7 +1616,7 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
             } else {
                /* Only DrawID varies. */
                for (unsigned i = 0; i < num_draws; i++) {
-                  uint64_t va = index_va + draws[i].start * index_size;
+                  uint64_t va = index_va + (uint64_t)draws[i].start * index_size;
 
                   if (i > 0)
                      radeon_set_sh_reg(sh_base_reg + SI_SGPR_DRAWID * 4, drawid_base + i);
@@ -1632,7 +1638,7 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
             if (index_bias_varies) {
                /* Only BaseVertex varies. */
                for (unsigned i = 0; i < num_draws; i++) {
-                  uint64_t va = index_va + draws[i].start * index_size;
+                  uint64_t va = index_va + (uint64_t)draws[i].start * index_size;
 
                   if (i > 0)
                      radeon_set_sh_reg(sh_base_reg + SI_SGPR_BASE_VERTEX * 4, draws[i].index_bias);
@@ -1662,7 +1668,7 @@ static void si_emit_draw_packets(struct si_context *sctx, const struct pipe_draw
                }
 
                for (unsigned i = 0; i < num_draws; i++) {
-                  uint64_t va = index_va + draws[i].start * index_size;
+                  uint64_t va = index_va + (uint64_t)draws[i].start * index_size;
 
                   radeon_emit(PKT3(PKT3_DRAW_INDEX_2, 4, render_cond_bit));
                   radeon_emit(index_max_size);
@@ -2128,19 +2134,19 @@ static void si_draw(struct pipe_context *ctx,
                 num_vertex_elements < vs->info.num_vs_inputs) {
 #ifndef NDEBUG
       if (!vs)
-         fprintf(stderr, "radeonsi: draw: missing vertex shader\n");
+         mesa_loge("draw: missing vertex shader");
 
       if (!sctx->shader.ps.cso)
-         fprintf(stderr, "radeonsi: draw: missing fragment shader\n");
+         mesa_loge("draw: missing fragment shader");
 
       if (HAS_TESS != (info->mode == MESA_PRIM_PATCHES)) {
-         fprintf(stderr, HAS_TESS ? "radeonsi: draw: invalid primitive type (expected PATCHES)\n"
-                                  : "radeonsi: draw: invalid primitive type (not expected PATCHES)\n");
+         mesa_loge(HAS_TESS ? "draw: invalid primitive type (expected PATCHES)"
+                            : "draw: invalid primitive type (not expected PATCHES)");
       }
 
       if (num_vertex_elements < vs->info.num_vs_inputs) {
-         fprintf(stderr, "radeonsi: draw: not enough vertex elements for a vertex shader "
-                         "(has: %u, need: %u)\n", num_vertex_elements, vs->info.num_vs_inputs);
+         mesa_loge("draw: not enough vertex elements for a vertex shader "
+                   "(has: %u, need: %u)", num_vertex_elements, vs->info.num_vs_inputs);
       }
 #endif
       assert(0);

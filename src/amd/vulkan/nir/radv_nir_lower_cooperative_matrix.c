@@ -152,10 +152,9 @@ radv_get_base_row(nir_builder *b, struct glsl_cmat_description desc, const lower
       base_row = nir_udiv_imm(b, local_idx, 16);
 
       if (params->wave_size == 64) {
-         /* Switch rows from lanes 16..31 to 32..47, offset right shift by -2
-          * to get implicit * 4.
-          */
-         base_row = nir_ushr_imm(b, nir_bitfield_reverse(b, base_row), 30 - 2);
+         /* Switch rows from lanes 16..31 to 32..47 */
+         base_row = nir_ushr_imm(b, nir_bitfield_reverse(b, base_row), 30);
+         base_row = nir_imul_imm(b, base_row, 4);
       } else {
          base_row = nir_imul_imm(b, base_row, 8);
       }
@@ -235,40 +234,115 @@ convert_use(nir_builder *b, nir_def *src, enum glsl_cmat_use src_use, enum glsl_
       assert(params->gfx_level < GFX12);
       nir_def *tmp[NIR_MAX_VEC_COMPONENTS];
 
-      if (params->wave_size == 64) {
-         nir_def *low_lanes = nir_inverse_ballot(b, 1, nir_imm_intN_t(b, UINT32_MAX, 64));
+      if (src->bit_size == 32) {
+         if (params->wave_size == 64) {
+            nir_def *low_lanes = nir_inverse_ballot(b, 1, nir_imm_intN_t(b, UINT32_MAX, 64));
+            for (int i = 0; i < num_comps; i++) {
+               nir_def *comp = components[i];
+               nir_def *half_swap = nir_rotate(b, comp, nir_imm_int(b, 32), .cluster_size = 64);
+
+               tmp[i * 2] = nir_bcsel(b, low_lanes, comp, half_swap);
+               tmp[i * 2 + 1] = nir_bcsel(b, low_lanes, half_swap, comp);
+            }
+            num_comps *= 2;
+            memcpy(components, tmp, sizeof(components));
+         }
+
+         nir_def *low_lanes = nir_inverse_ballot(b, 1, nir_imm_intN_t(b, 0xffff0000ffffull, params->wave_size));
+         for (int i = 0; i < num_comps; i++) {
+            unsigned swap16 = 0x1f | (0x10 << 10);
+            nir_def *half_swap = nir_masked_swizzle_amd(b, components[i], .swizzle_mask = swap16, .fetch_inactive = 1);
+            tmp[i * 2] = nir_bcsel(b, low_lanes, components[i], half_swap);
+            tmp[i * 2 + 1] = nir_bcsel(b, low_lanes, half_swap, components[i]);
+         }
+
+         num_comps *= 2;
+         memcpy(components, tmp, sizeof(components));
+      } else {
+         /* Same as above, but operate on 32 bits at once, using byte_perm as vectorized bcsel. */
+         assert(src->bit_size < 32);
+         nir_def *packed = nir_extract_bits(b, components, num_comps, 0, num_comps / (32 / src->bit_size), 32);
+         num_comps /= 32 / src->bit_size;
+         for (unsigned i = 0; i < num_comps; i++)
+            components[i] = nir_channel(b, packed, i);
+
+         nir_def *low_sel = nir_imm_int(b, src->bit_size == 8 ? 0x05010400 : 0x05040100);
+         nir_def *high_sel = nir_imm_int(b, src->bit_size == 8 ? 0x01050004 : 0x01000504);
+
+         if (params->wave_size == 64) {
+            nir_def *low_lanes = nir_inverse_ballot(b, 1, nir_imm_intN_t(b, UINT32_MAX, 64));
+            nir_def *first_perm = nir_bcsel(b, low_lanes, low_sel, high_sel);
+            nir_def *second_perm = nir_ior_imm(b, first_perm, 0x02020202);
+            for (int i = 0; i < num_comps; i++) {
+               nir_def *comp = components[i];
+               nir_def *half_swap = nir_rotate(b, comp, nir_imm_int(b, 32), .cluster_size = 64);
+
+               tmp[i * 2] = nir_byte_perm_amd(b, half_swap, comp, first_perm);
+               tmp[i * 2 + 1] = nir_byte_perm_amd(b, half_swap, comp, second_perm);
+            }
+            num_comps *= 2;
+            memcpy(components, tmp, sizeof(components));
+         }
+
+         nir_def *low_lanes = nir_inverse_ballot(b, 1, nir_imm_intN_t(b, 0xffff0000ffffull, params->wave_size));
+         nir_def *first_perm = nir_bcsel(b, low_lanes, low_sel, high_sel);
+         nir_def *second_perm = nir_ior_imm(b, first_perm, 0x02020202);
          for (int i = 0; i < num_comps; i++) {
             nir_def *comp = components[i];
-            nir_def *half_swap = nir_rotate(b, comp, nir_imm_int(b, 32), .cluster_size = 64);
-
-            tmp[i * 2] = nir_bcsel(b, low_lanes, comp, half_swap);
-            tmp[i * 2 + 1] = nir_bcsel(b, low_lanes, half_swap, comp);
+            unsigned swap16 = 0x1f | (0x10 << 10);
+            nir_def *half_swap = nir_masked_swizzle_amd(b, comp, .swizzle_mask = swap16, .fetch_inactive = 1);
+            tmp[i * 2] = nir_byte_perm_amd(b, half_swap, comp, first_perm);
+            tmp[i * 2 + 1] = nir_byte_perm_amd(b, half_swap, comp, second_perm);
          }
          num_comps *= 2;
          memcpy(components, tmp, sizeof(components));
+
+         nir_def *unpacked =
+            nir_extract_bits(b, components, num_comps, 0, num_comps * (32 / src->bit_size), src->bit_size);
+         num_comps *= 32 / src->bit_size;
+         for (unsigned i = 0; i < num_comps; i++)
+            components[i] = nir_channel(b, unpacked, i);
       }
 
-      for (int i = 0; i < num_comps; i++) {
-         unsigned broadcast_low16 = 0xf;
-         unsigned broadcast_high16 = 0xf | (0x10 << 10);
-         tmp[i * 2] = nir_masked_swizzle_amd(b, components[i], .swizzle_mask = broadcast_low16, .fetch_inactive = 1);
-         tmp[i * 2 + 1] =
-            nir_masked_swizzle_amd(b, components[i], .swizzle_mask = broadcast_high16, .fetch_inactive = 1);
-      }
-
-      num_comps *= 2;
-      memcpy(components, tmp, sizeof(components));
       assert(num_comps == 16);
    } else if (src_use == GLSL_CMAT_USE_B && dst_use == GLSL_CMAT_USE_ACCUMULATOR) {
       assert(params->gfx_level < GFX12);
       assert(num_comps == 16);
-      for (unsigned keep32 = 0; keep32 < ((params->wave_size == 64) ? 2 : 1); keep32++) {
-         nir_def *ballot = nir_imm_intN_t(b, keep32 ? UINT32_MAX : 0xffff0000ffffull, params->wave_size);
-         nir_def *keep = nir_inverse_ballot(b, 1, ballot);
-         num_comps /= 2;
-         for (unsigned i = 0; i < num_comps; i++) {
-            components[i] = nir_bcsel(b, keep, components[i * 2], components[i * 2 + 1]);
+      if (src->bit_size == 32) {
+         for (unsigned keep32 = 0; keep32 < ((params->wave_size == 64) ? 2 : 1); keep32++) {
+            nir_def *ballot = nir_imm_intN_t(b, keep32 ? UINT32_MAX : 0xffff0000ffffull, params->wave_size);
+            nir_def *keep = nir_inverse_ballot(b, 1, ballot);
+            num_comps /= 2;
+            for (unsigned i = 0; i < num_comps; i++) {
+               components[i] = nir_bcsel(b, keep, components[i * 2], components[i * 2 + 1]);
+            }
          }
+      } else {
+         /* Same as above, but operate on 32 bits at once, using byte_perm as vectorized bcsel. */
+         assert(src->bit_size < 32);
+         nir_def *packed = nir_extract_bits(b, components, num_comps, 0, num_comps / (32 / src->bit_size), 32);
+         num_comps /= 32 / src->bit_size;
+         for (unsigned i = 0; i < num_comps; i++)
+            components[i] = nir_channel(b, packed, i);
+
+         nir_def *low_sel = nir_imm_int(b, src->bit_size == 8 ? 0x06040200 : 0x05040100);
+         nir_def *high_sel = nir_imm_int(b, src->bit_size == 8 ? 0x07050301 : 0x07060302);
+
+         for (unsigned keep32 = 0; keep32 < ((params->wave_size == 64) ? 2 : 1); keep32++) {
+            nir_def *ballot = nir_imm_intN_t(b, keep32 ? UINT32_MAX : 0xffff0000ffffull, params->wave_size);
+            nir_def *keep = nir_inverse_ballot(b, 1, ballot);
+            nir_def *perm = nir_bcsel(b, keep, low_sel, high_sel);
+            num_comps /= 2;
+            for (unsigned i = 0; i < num_comps; i++) {
+               components[i] = nir_byte_perm_amd(b, components[i * 2 + 1], components[i * 2], perm);
+            }
+         }
+
+         nir_def *unpacked =
+            nir_extract_bits(b, components, num_comps, 0, num_comps * (32 / src->bit_size), src->bit_size);
+         num_comps *= 32 / src->bit_size;
+         for (unsigned i = 0; i < num_comps; i++)
+            components[i] = nir_channel(b, unpacked, i);
       }
    } else if ((src_use == GLSL_CMAT_USE_A && dst_use == GLSL_CMAT_USE_B) ||
               (src_use == GLSL_CMAT_USE_B && dst_use == GLSL_CMAT_USE_A)) {
@@ -606,9 +680,13 @@ radv_nir_lower_cooperative_matrix(nir_shader *shader, enum amd_gfx_level gfx_lev
                   src = nir_vec(&b, components, src->num_components / scale);
                }
 
-               src = convert_use(&b, src, src_use, dst_use, &params);
+               if (radv_nir_cmat_bits(src_desc) <= radv_nir_cmat_bits(dst_desc))
+                  src = convert_use(&b, src, src_use, dst_use, &params);
 
                nir_def *ret = convert_base_type(&b, src, src_element_type, dst_element_type, sat);
+
+               if (radv_nir_cmat_bits(src_desc) > radv_nir_cmat_bits(dst_desc))
+                  ret = convert_use(&b, ret, src_use, dst_use, &params);
 
                if (dst_mul > src_mul) {
                   nir_def *components[NIR_MAX_VEC_COMPONENTS];

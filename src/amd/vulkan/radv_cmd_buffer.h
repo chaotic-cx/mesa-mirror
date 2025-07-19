@@ -216,6 +216,11 @@ struct radv_rendering_state {
    VkExtent2D vrs_texel_size;
 };
 
+struct radv_push_descriptor_set {
+   struct radv_descriptor_set_header set;
+   uint32_t capacity;
+};
+
 struct radv_descriptor_state {
    struct radv_descriptor_set *sets[MAX_SETS];
    uint32_t dirty;
@@ -424,12 +429,12 @@ struct radv_cmd_state {
    bool rb_noncoherent_dirty;
 
    /* Conditional rendering info. */
-   uint8_t predication_op; /* 32-bit or 64-bit predicate value */
-   int predication_type;   /* -1: disabled, 0: normal, 1: inverted */
+   uint8_t predication_op;           /* 32-bit or 64-bit predicate value */
+   int predication_type;             /* -1: disabled, 0: normal, 1: inverted */
    uint64_t user_predication_va;     /* User predication VA. */
    uint64_t emulated_predication_va; /* Emulated VA if no 32-bit predication support. */
-   uint64_t mec_inv_pred_va;  /* For inverted predication when using MEC. */
-   bool mec_inv_pred_emitted; /* To ensure we don't have to repeat inverting the VA. */
+   uint64_t mec_inv_pred_va;         /* For inverted predication when using MEC. */
+   bool mec_inv_pred_emitted;        /* To ensure we don't have to repeat inverting the VA. */
    bool saved_user_cond_render;
    bool is_user_cond_render_suspended;
 

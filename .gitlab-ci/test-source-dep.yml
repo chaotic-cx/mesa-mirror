@@ -116,6 +116,8 @@
     FDO_CI_CONCURRENT: 1
     # Piglit is very sparse in its status output and downloads of big traces can take a while
     DEVICE_HANGING_TIMEOUT_SEC: 600
+    # So we aren't capped by VSync by the X server
+    EGL_PLATFORM: surfaceless
     GIT_STRATEGY: none
     HWCI_FREQ_MAX: "true"
     # Always use the same device
@@ -127,6 +129,16 @@
   # Don't run in parallel. It is okay to performance jobs to take a little
   # longer to finish, as they don't block marge from merging an MR.
   parallel: null
+  artifacts:
+    name: "${CI_PROJECT_NAME}_${CI_JOB_NAME_SLUG}"
+    when: always
+    paths:
+    - results/
+    exclude:
+    - results/*.shader_cache
+    reports:
+      junit:
+      - results/junit.xml
 
 # Mesa source file dependencies that may impact any GL driver test job.
 .gallium-core-rules:

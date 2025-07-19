@@ -74,12 +74,7 @@ dri_init_options(struct dri_screen *screen)
 static unsigned
 dri_loader_get_cap(struct dri_screen *screen, enum dri_loader_cap cap)
 {
-   const __DRIdri2LoaderExtension *dri2_loader = screen->dri2.loader;
    const __DRIimageLoaderExtension *image_loader = screen->image.loader;
-
-   if (dri2_loader && dri2_loader->base.version >= 4 &&
-       dri2_loader->getCapability)
-      return dri2_loader->getCapability(screen->loaderPrivate, cap);
 
    if (image_loader && image_loader->base.version >= 2 &&
        image_loader->getCapability)
@@ -606,11 +601,6 @@ dri_set_background_context(struct st_context *st,
                            struct util_queue_monitoring *queue_info)
 {
    struct dri_context *ctx = (struct dri_context *)st->frontend_context;
-   const __DRIbackgroundCallableExtension *backgroundCallable =
-      ctx->screen->dri2.backgroundCallable;
-
-   if (backgroundCallable)
-      backgroundCallable->setBackgroundContext(ctx->loaderPrivate);
 
    if (ctx->hud)
       hud_add_queue_for_monitoring(ctx->hud, queue_info);

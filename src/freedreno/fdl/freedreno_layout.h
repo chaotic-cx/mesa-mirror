@@ -76,6 +76,37 @@ struct fdl_explicit_layout {
 };
 
 /**
+ * General layout params for images.
+ */
+struct fdl_image_params {
+   enum pipe_format format;
+   uint32_t nr_samples;
+   uint32_t width0;
+   uint32_t height0;
+   uint32_t depth0;
+   uint32_t mip_levels;
+   uint32_t array_size;
+
+   /**
+    * Preferred tile mode, may be overriden by layout constraints.
+    */
+   uint32_t tile_mode;
+
+   /**
+    * UBWC preferred, may be overriden
+    */
+   bool ubwc;
+
+   /**
+    * Force UBWC, even when below the minimum width.
+    */
+   bool force_ubwc;
+
+   bool is_3d;
+   bool is_mutable;
+};
+
+/**
  * Metadata shared between vk and gallium driver for interop.
  *
  * NOTE: EXT_external_objects requires app to check device and driver
@@ -232,17 +263,10 @@ const char *fdl_tile_mode_desc(const struct fdl_layout *layout, int level);
 
 void fdl_layout_buffer(struct fdl_layout *layout, uint32_t size);
 
-void fdl5_layout(struct fdl_layout *layout, enum pipe_format format,
-                 uint32_t nr_samples, uint32_t width0, uint32_t height0,
-                 uint32_t depth0, uint32_t mip_levels, uint32_t array_size,
-                 bool is_3d);
-
-bool fdl6_layout(struct fdl_layout *layout, const struct fd_dev_info *info,
-                 enum pipe_format format, uint32_t nr_samples, uint32_t width0,
-                 uint32_t height0, uint32_t depth0, uint32_t mip_levels,
-                 uint32_t array_size, bool is_3d, bool is_mutable,
-                 bool force_ubwc,
-                 struct fdl_explicit_layout *plane_layout);
+void fdl5_layout_image(struct fdl_layout *layout, const struct fdl_image_params *params);
+bool fdl6_layout_image(struct fdl_layout *layout, const struct fd_dev_info *info,
+                       const struct fdl_image_params *params,
+                       const struct fdl_explicit_layout *explicit_layout);
 
 static inline void
 fdl_set_pitchalign(struct fdl_layout *layout, unsigned pitchalign)
@@ -316,16 +340,16 @@ struct fdl6_view {
    uint32_t FLAG_BUFFER_PITCH;
 
    uint32_t RB_MRT_BUF_INFO;
-   uint32_t SP_FS_MRT_REG;
+   uint32_t SP_PS_MRT_REG;
 
-   uint32_t SP_PS_2D_SRC_INFO;
-   uint32_t SP_PS_2D_SRC_SIZE;
+   uint32_t TPL1_A2D_SRC_TEXTURE_INFO;
+   uint32_t TPL1_A2D_SRC_TEXTURE_SIZE;
 
-   uint32_t RB_2D_DST_INFO;
+   uint32_t RB_A2D_DEST_BUFFER_INFO;
 
-   uint32_t RB_BLIT_DST_INFO;
+   uint32_t RB_RESOLVE_SYSTEM_BUFFER_INFO;
 
-   uint32_t GRAS_LRZ_DEPTH_VIEW;
+   uint32_t GRAS_LRZ_VIEW_INFO;
 };
 
 void

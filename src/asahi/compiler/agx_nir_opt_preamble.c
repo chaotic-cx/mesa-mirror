@@ -8,15 +8,39 @@
 #include "util/macros.h"
 #include "agx_compiler.h"
 #include "nir.h"
+#include "nir_builder_opcodes.h"
+#include "nir_intrinsics.h"
+#include "nir_intrinsics_indices.h"
 #include "nir_opcodes.h"
 
+static nir_preamble_class
+preamble_class(nir_def *def)
+{
+   nir_instr *instr = def->parent_instr;
+   if (instr->type != nir_instr_type_intrinsic)
+      return nir_preamble_class_general;
+
+   nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+   if (nir_intrinsic_has_desc_set(intr) && nir_intrinsic_desc_set(intr) >= 32)
+      return nir_preamble_class_general /* encoding restriction */;
+
+   if (intr->intrinsic == nir_intrinsic_bindless_image_agx)
+      return nir_preamble_class_image;
+   else if (intr->intrinsic == nir_intrinsic_bindless_sampler_agx)
+      return nir_preamble_class_sampler;
+   else
+      return nir_preamble_class_general;
+}
+
 static void
-def_size(nir_def *def, unsigned *size, unsigned *align)
+def_size(nir_def *def, unsigned *size, unsigned *align,
+         nir_preamble_class *class)
 {
    unsigned bit_size = MAX2(def->bit_size, 16);
 
    *size = (bit_size * def->num_components) / 16;
    *align = bit_size / 16;
+   *class = preamble_class(def);
 }
 
 static bool
@@ -222,6 +246,13 @@ instr_cost(nir_instr *instr, const void *data)
       case nir_intrinsic_ddy_fine:
       case nir_intrinsic_ddy_coarse:
          return 1.0;
+      case nir_intrinsic_bindless_image_agx:
+      case nir_intrinsic_bindless_sampler_agx:
+         /* It's worth promoting even with a constant source, but it doesn't
+          * turn into instructions so should be less than any other normal
+          * instruction... But just enough to get over the image rewrite_cost.
+          */
+         return 2.5;
       default:
          /* Assume it's a sysval or something */
          return 0.0;
@@ -277,42 +308,6 @@ rewrite_cost(nir_def *def, const void *data)
 static bool
 avoid_instr(const nir_instr *instr, const void *data)
 {
-   const nir_def *def = nir_instr_def((nir_instr *)instr);
-
-   /* Do not move bindless handles, since we need those to retain their
-    * constant base index.
-    */
-   if (def) {
-      nir_foreach_use(use, def) {
-         if (nir_src_parent_instr(use)->type == nir_instr_type_tex) {
-            /* Check if used as a bindless texture handle */
-            nir_tex_instr *tex = nir_instr_as_tex(nir_src_parent_instr(use));
-            int handle_idx =
-               nir_tex_instr_src_index(tex, nir_tex_src_texture_handle);
-
-            if (handle_idx >= 0 && tex->src[handle_idx].src.ssa == def)
-               return true;
-         } else if (nir_src_parent_instr(use)->type ==
-                    nir_instr_type_intrinsic) {
-            /* Check if used as a bindless image handle */
-            nir_intrinsic_instr *intr =
-               nir_instr_as_intrinsic(nir_src_parent_instr(use));
-
-            switch (intr->intrinsic) {
-            case nir_intrinsic_bindless_image_load:
-            case nir_intrinsic_bindless_image_sparse_load:
-            case nir_intrinsic_bindless_image_store:
-            case nir_intrinsic_bindless_image_store_block_agx:
-               if (intr->src[0].ssa == def)
-                  return true;
-               break;
-            default:
-               break;
-            }
-         }
-      }
-   }
-
    return false;
 }
 
@@ -330,11 +325,128 @@ static const nir_opt_preamble_options preamble_options = {
     * hot constants so we don't end up rematerializing all over the place.
     * 480 seems to be a sweetspot, based on a few minutes of shader-db.
     */
-   .preamble_storage_size = 480,
+   .preamble_storage_size[nir_preamble_class_general] = 480,
+
+   /* We have at least 32 texture state registers. TODO: check for more? */
+   .preamble_storage_size[nir_preamble_class_image] = 32,
+
+   /* We have at least 16 sampler state registers. TODO: check for more? */
+   .preamble_storage_size[nir_preamble_class_sampler] = 16,
 };
 
-bool
-agx_nir_opt_preamble(nir_shader *nir, unsigned *preamble_size)
+/*
+ * Bindless image handles can't be stored to uniforms, so we move them back to
+ * the main shader. Effectively un-optimizing the preamble.
+ */
+static bool
+lower_store_preamble(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
-   return nir_opt_preamble(nir, &preamble_options, preamble_size);
+   int16_t *heaps = data;
+   if (intr->intrinsic != nir_intrinsic_store_preamble ||
+       nir_intrinsic_preamble_class(intr) == nir_preamble_class_image)
+      return false;
+
+   nir_intrinsic_instr *handle = nir_src_as_intrinsic(intr->src[0]);
+   if (!handle || handle->intrinsic != nir_intrinsic_bindless_image_agx)
+      return false;
+
+   heaps[nir_intrinsic_base(intr)] = nir_intrinsic_desc_set(handle);
+   nir_src_rewrite(&intr->src[0], handle->src[0].ssa);
+   return true;
+}
+
+static bool
+lower_preamble(nir_builder *b, nir_intrinsic_instr *intr, void *data)
+{
+   if (intr->intrinsic == nir_intrinsic_bindless_sampler_agx) {
+      /* Rematerialize bindless_sampler_agx before store_preamble with only the
+       * byte offset (first source), not the sampler index.
+       */
+      nir_foreach_use_safe(use, &intr->def) {
+         nir_instr *parent = nir_src_parent_instr(use);
+         if (parent->type != nir_instr_type_intrinsic)
+            continue;
+         nir_intrinsic_instr *pintr = nir_instr_as_intrinsic(parent);
+         if (pintr->intrinsic != nir_intrinsic_store_preamble ||
+             nir_intrinsic_preamble_class(pintr) != nir_preamble_class_sampler)
+            continue;
+
+         b->cursor = nir_before_src(use);
+         nir_def *repl =
+            nir_bindless_sampler_agx(b, intr->src[0].ssa, nir_undef(b, 1, 16),
+                                     .desc_set = nir_intrinsic_desc_set(intr));
+         nir_src_rewrite(use, repl);
+      }
+
+      /* Replace other uses with just the sampler index. */
+      nir_def_replace(&intr->def, intr->src[1].ssa);
+      return true;
+   }
+
+   if (intr->intrinsic != nir_intrinsic_load_preamble)
+      return false;
+
+   int16_t *heaps = data;
+   b->cursor = nir_after_instr(&intr->instr);
+
+   unsigned base = nir_intrinsic_base(intr);
+   nir_def *new_ = NULL;
+   bool ts = nir_intrinsic_preamble_class(intr) == nir_preamble_class_image;
+   bool ss = nir_intrinsic_preamble_class(intr) == nir_preamble_class_sampler;
+   if (!ts && heaps[base] >= 0) {
+      new_ = nir_bindless_image_agx(b, &intr->def, .desc_set = heaps[base]);
+   }
+
+   nir_foreach_use_safe(use, &intr->def) {
+      nir_instr *parent = nir_src_parent_instr(use);
+
+      if (parent->type == nir_instr_type_intrinsic) {
+         nir_intrinsic_instr *pintr = nir_instr_as_intrinsic(parent);
+
+         if (ts) {
+            nir_rewrite_image_intrinsic(pintr, nir_imm_intN_t(b, base / 2, 16),
+                                        false);
+         } else if (new_ != NULL &&
+                    pintr->intrinsic != nir_intrinsic_bindless_image_agx) {
+            nir_src_rewrite(use, new_);
+         }
+      } else if (parent->type == nir_instr_type_tex) {
+         nir_tex_instr *tex = nir_instr_as_tex(parent);
+         nir_tex_src *src = (nir_tex_src *)use;
+
+         if (src->src_type == nir_tex_src_sampler_handle && ss) {
+            nir_steal_tex_src(tex, nir_tex_src_sampler_handle);
+            tex->sampler_index = base;
+         } else if (src->src_type == nir_tex_src_texture_handle && ts) {
+            nir_steal_tex_src(tex, nir_tex_src_texture_handle);
+            tex->texture_index = base / 2;
+         } else if (src->src_type == nir_tex_src_texture_handle) {
+            assert(new_ != NULL);
+            nir_src_rewrite(use, new_);
+         }
+      }
+   }
+
+   return true;
+}
+
+bool
+agx_nir_opt_preamble(nir_shader *nir, unsigned *sizes)
+{
+   bool progress = false;
+   NIR_PASS(progress, nir, nir_opt_preamble, &preamble_options, sizes);
+
+   if (progress) {
+      int16_t heap[512];
+      memset(heap, ~0, sizeof(heap));
+
+      nir_function_intrinsics_pass(nir_shader_get_preamble(nir),
+                                   lower_store_preamble,
+                                   nir_metadata_control_flow, heap);
+
+      NIR_PASS(progress, nir, nir_shader_intrinsics_pass, lower_preamble,
+               nir_metadata_control_flow, heap);
+   }
+
+   return progress;
 }

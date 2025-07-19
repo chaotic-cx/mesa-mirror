@@ -1,12 +1,12 @@
 // Copyright © 2022 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
+use crate::dataflow::BackwardDataflow;
 use crate::ir::*;
 
 use compiler::bitset::BitSet;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::cell::RefCell;
-use std::cmp::{max, Ord, Ordering};
+use std::cmp::{max, min, Ord, Ordering};
 
 #[derive(Clone)]
 pub struct LiveSet {
@@ -282,7 +282,6 @@ impl SimpleLiveness {
             ssa_block_ip: Default::default(),
             blocks: Vec::new(),
         };
-        let mut live_in = Vec::new();
 
         for (bi, b) in func.blocks.iter().enumerate() {
             let mut bl = SimpleBlockLiveness::new();
@@ -298,28 +297,37 @@ impl SimpleLiveness {
             }
 
             l.blocks.push(bl);
-            live_in.push(BitSet::new());
         }
         assert!(l.blocks.len() == func.blocks.len());
-        assert!(live_in.len() == func.blocks.len());
 
-        let mut to_do = true;
-        while to_do {
-            to_do = false;
-            for (b_idx, bl) in l.blocks.iter_mut().enumerate().rev() {
-                // Compute live-out
-                for sb_idx in func.blocks.succ_indices(b_idx) {
-                    to_do |= bl.live_out.union_with(live_in[*sb_idx].s(..));
-                }
-
-                to_do |= live_in[b_idx].union_with(
-                    (bl.live_out.s(..) | bl.uses.s(..)) - bl.defs.s(..),
-                );
-            }
+        let mut live_in: Vec<BitSet<SSAValue>> =
+            (0..func.blocks.len()).map(|_| Default::default()).collect();
+        let mut live_out: Vec<BitSet<SSAValue>> =
+            (0..func.blocks.len()).map(|_| Default::default()).collect();
+        BackwardDataflow {
+            cfg: &func.blocks,
+            block_in: &mut live_in[..],
+            block_out: &mut live_out[..],
+            transfer: |block_idx, _, live_in, live_out| {
+                let bl = &l.blocks[block_idx];
+                live_in.union_with(
+                    (live_out.s(..) | bl.uses.s(..)) - bl.defs.s(..),
+                )
+            },
+            join: |live_out, succ_live_in| {
+                *live_out |= succ_live_in.s(..);
+            },
         }
+        .solve();
 
-        for (bl, b_live_in) in l.blocks.iter_mut().zip(live_in.into_iter()) {
+        for ((bl, b_live_in), b_live_out) in l
+            .blocks
+            .iter_mut()
+            .zip(live_in.into_iter())
+            .zip(live_out.into_iter())
+        {
             bl.live_in = b_live_in;
+            bl.live_out = b_live_out;
         }
 
         l
@@ -536,54 +544,50 @@ impl NextUseLiveness {
             }
 
             debug_assert!(bi == blocks.len());
-            blocks.push(RefCell::new(bl));
+            blocks.push(bl);
         }
 
-        let mut to_do = true;
-        while to_do {
-            to_do = false;
-            for (b_idx, b) in func.blocks.iter().enumerate().rev() {
-                let num_instrs = b.instrs.len();
-                let mut bl = blocks[b_idx].borrow_mut();
+        let mut live_out: Vec<FxHashMap<SSAValue, usize>> =
+            (0..func.blocks.len()).map(|_| Default::default()).collect();
+        BackwardDataflow {
+            cfg: &func.blocks,
+            block_in: &mut blocks[..],
+            block_out: &mut live_out[..],
+            transfer: |_block_idx, _block, live_in, live_out| {
+                let num_instrs = live_in.num_instrs;
+                let mut changed = false;
 
-                // Compute live-out
-                for sb_idx in func.blocks.succ_indices(b_idx) {
-                    if *sb_idx == b_idx {
-                        for entry in bl.ssa_map.values_mut() {
-                            if entry.defined {
-                                continue;
-                            }
-
-                            let Some(first_use_ip) = entry.uses.first() else {
-                                continue;
-                            };
-
-                            to_do |= entry
-                                .add_successor_use(num_instrs, *first_use_ip);
-                        }
-                    } else {
-                        let sbl = blocks[*sb_idx].borrow();
-                        for (ssa, entry) in sbl.ssa_map.iter() {
-                            if entry.defined {
-                                continue;
-                            }
-
-                            let Some(first_use_ip) = entry.uses.first() else {
-                                continue;
-                            };
-
-                            to_do |= bl
-                                .entry_mut(*ssa)
-                                .add_successor_use(num_instrs, *first_use_ip);
-                        }
-                    }
+                for (&ssa, &first_use_ip) in live_out.iter() {
+                    changed |= live_in
+                        .entry_mut(ssa)
+                        .add_successor_use(num_instrs, first_use_ip);
                 }
-            }
-        }
+                changed
+            },
+            join: |live_out, succ_live_in| {
+                if live_out.capacity() == 0 {
+                    live_out.reserve(succ_live_in.ssa_map.len());
+                }
 
-        NextUseLiveness {
-            blocks: blocks.into_iter().map(|bl| bl.into_inner()).collect(),
+                for (&ssa, entry) in succ_live_in.ssa_map.iter() {
+                    if entry.defined {
+                        continue;
+                    }
+
+                    let Some(&first_use_ip) = entry.uses.first() else {
+                        continue;
+                    };
+
+                    live_out
+                        .entry(ssa)
+                        .and_modify(|val| *val = min(*val, first_use_ip))
+                        .or_insert(first_use_ip);
+                }
+            },
         }
+        .solve();
+
+        NextUseLiveness { blocks }
     }
 }
 

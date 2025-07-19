@@ -476,6 +476,8 @@ radv_build_flags(VkCommandBuffer commandBuffer, uint32_t key)
    /* gfx11 box intersection tests can return garbage with infs and non-standard box sorting */
    if (pdev->info.gfx_level == GFX11)
       flags |= RADV_BUILD_FLAG_NO_INFS;
+   if (pdev->info.gfx_level >= GFX11)
+      flags |= VK_BUILD_FLAG_PROPAGATE_CULL_FLAGS;
 
    return flags;
 }
@@ -979,6 +981,8 @@ radv_device_init_accel_struct_build_state(struct radv_device *device)
    struct vk_acceleration_structure_build_args *build_args = &device->meta_state.accel_struct_build.build_args;
    build_args->subgroup_size = 64;
    build_args->bvh_bounds_offset = offsetof(struct radv_accel_struct_header, aabb);
+   build_args->root_flags_offset = offsetof(struct radv_accel_struct_header, root_flags);
+   build_args->propagate_cull_flags = pdev->info.gfx_level >= GFX11;
    build_args->emit_markers = device->sqtt.bo;
    build_args->radix_sort = device->meta_state.accel_struct_build.radix_sort;
 

@@ -193,12 +193,12 @@ if dep_lua.found() and dep_libarchive.found()
 
       log = custom_target(name + '.log',
         output: name + '.log',
-        command: [cffdump, '--unit-test', args, files('../.gitlab-ci/traces/' + name + '.rd.gz')],
+        command: [cffdump, '--unit-test', args, files('../tests/traces/' + name + '.rd.gz')],
         capture: true,
       )
       test('cffdump-' + name,
         diff,
-        args: ['-u', files('../.gitlab-ci/reference/' + name + '.log'), log],
+        args: ['-u', files('../tests/reference/' + name + '.log'), log],
         suite: 'freedreno',
         workdir: dir_source_root
       )
@@ -233,6 +233,24 @@ crashdec = executable(
   install: install_fd_decode_tools,
 )
 
+dumpregs = executable(
+  'dumpregs',
+  [ 'dumpregs.c' ],
+  include_directories: [
+    inc_freedreno,
+    inc_freedreno_rnn,
+    inc_include,
+    inc_src,
+  ],
+  gnu_symbol_visibility: 'hidden',
+  dependencies: [],
+  link_with: [
+    libfreedreno_cffdec,
+  ],
+  build_by_default: with_tools.contains('freedreno'),
+  install: false,
+)
+
 if with_tests
   crashdec_tests = [
     ['crash', ['-sf']],
@@ -245,14 +263,14 @@ if with_tests
 
     log = custom_target(name + '.log',
       output: name + '.log',
-      command: [crashdec, args, files('../.gitlab-ci/traces/' + name + '.devcore')],
+      command: [crashdec, args, files('../tests/traces/' + name + '.devcore')],
       capture: true,
       env: {'GALLIUM_DUMP_CPU': 'false'},
     )
 
     test('crashdec-' + name,
       diff,
-      args: ['-u', files('../.gitlab-ci/reference/' + name + '.log'), log],
+      args: ['-u', files('../tests/reference/' + name + '.log'), log],
       suite: 'freedreno',
       workdir: dir_source_root
     )

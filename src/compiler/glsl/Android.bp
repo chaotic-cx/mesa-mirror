@@ -298,7 +298,6 @@ cc_library_static {
         "lower_vector_derefs.cpp",
         "ir_rvalue_visitor.cpp",
         "opt_tree_grafting.cpp",
-        "gl_nir_opt_dead_builtin_varyings.c",
         "ast_expr.cpp",
         "gl_nir_link_xfb.c",
         "ir_function.cpp",

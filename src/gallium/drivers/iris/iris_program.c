@@ -65,9 +65,9 @@ vue_layout(bool separate_shader)
    .prefix.program_string_id = ish->program_id,            \
    .prefix.limit_trig_input_range =                        \
       screen->driconf.limit_trig_input_range
-#define BRW_KEY_INIT(gen, prog_id, limit_trig_input, _vue_layout) \
-   .base.program_string_id = prog_id,                      \
-   .base.limit_trig_input_range = limit_trig_input,        \
+#define BRW_KEY_INIT(base_key, _vue_layout) \
+   .base.program_string_id = (base_key).program_string_id,     \
+   .base.limit_trig_input_range = (base_key).limit_trig_input_range, \
    .base.vue_layout = _vue_layout
 
 #ifdef INTEL_USE_ELK
@@ -532,9 +532,7 @@ iris_to_brw_vs_key(const struct iris_screen *screen,
                    const struct iris_vs_prog_key *key)
 {
    return (struct brw_vs_prog_key) {
-      BRW_KEY_INIT(screen->devinfo->ver, key->vue.base.program_string_id,
-                   key->vue.base.limit_trig_input_range,
-                   key->vue.layout),
+      BRW_KEY_INIT(key->vue.base, key->vue.layout),
    };
 }
 
@@ -543,9 +541,7 @@ iris_to_brw_tcs_key(const struct iris_screen *screen,
                     const struct iris_tcs_prog_key *key)
 {
    return (struct brw_tcs_prog_key) {
-      BRW_KEY_INIT(screen->devinfo->ver, key->vue.base.program_string_id,
-                   key->vue.base.limit_trig_input_range,
-                   key->vue.layout),
+      BRW_KEY_INIT(key->vue.base, key->vue.layout),
       ._tes_primitive_mode = key->_tes_primitive_mode,
       .input_vertices = key->input_vertices,
       .patch_outputs_written = key->patch_outputs_written,
@@ -558,9 +554,7 @@ iris_to_brw_tes_key(const struct iris_screen *screen,
                     const struct iris_tes_prog_key *key)
 {
    return (struct brw_tes_prog_key) {
-      BRW_KEY_INIT(screen->devinfo->ver, key->vue.base.program_string_id,
-                   key->vue.base.limit_trig_input_range,
-                   key->vue.layout),
+      BRW_KEY_INIT(key->vue.base, key->vue.layout),
       .patch_inputs_read = key->patch_inputs_read,
       .inputs_read = key->inputs_read,
    };
@@ -571,9 +565,7 @@ iris_to_brw_gs_key(const struct iris_screen *screen,
                    const struct iris_gs_prog_key *key)
 {
    return (struct brw_gs_prog_key) {
-      BRW_KEY_INIT(screen->devinfo->ver, key->vue.base.program_string_id,
-                   key->vue.base.limit_trig_input_range,
-                   key->vue.layout),
+      BRW_KEY_INIT(key->vue.base, key->vue.layout),
    };
 }
 
@@ -582,9 +574,7 @@ iris_to_brw_fs_key(const struct iris_screen *screen,
                    const struct iris_fs_prog_key *key)
 {
    return (struct brw_wm_prog_key) {
-      BRW_KEY_INIT(screen->devinfo->ver, key->base.program_string_id,
-                   key->base.limit_trig_input_range,
-                   key->vue_layout),
+      BRW_KEY_INIT(key->base, key->vue_layout),
       .nr_color_regions = key->nr_color_regions,
       .flat_shade = key->flat_shade,
       .alpha_test_replicate_alpha = key->alpha_test_replicate_alpha,
@@ -607,9 +597,7 @@ iris_to_brw_cs_key(const struct iris_screen *screen,
                    const struct iris_cs_prog_key *key)
 {
    return (struct brw_cs_prog_key) {
-      BRW_KEY_INIT(screen->devinfo->ver, key->base.program_string_id,
-                   key->base.limit_trig_input_range,
-                   INTEL_VUE_LAYOUT_SEPARATE),
+      BRW_KEY_INIT(key->base, INTEL_VUE_LAYOUT_SEPARATE),
    };
 }
 
@@ -810,10 +798,10 @@ iris_lower_storage_image_derefs_instr(nir_builder *b,
    }
 }
 
-static void
+static bool
 iris_lower_storage_image_derefs(nir_shader *nir)
 {
-   nir_shader_intrinsics_pass(nir, iris_lower_storage_image_derefs_instr,
+   return nir_shader_intrinsics_pass(nir, iris_lower_storage_image_derefs_instr,
                               nir_metadata_control_flow,
                               NULL);
 }
@@ -3023,10 +3011,10 @@ iris_compile_cs(struct iris_screen *screen,
    const struct iris_cs_prog_key *const key = &shader->key.cs;
 
    if (screen->brw)
-      NIR_PASS_V(nir, brw_nir_lower_cs_intrinsics, devinfo, NULL);
+      NIR_PASS(_, nir, brw_nir_lower_cs_intrinsics, devinfo, NULL);
    else
 #ifdef INTEL_USE_ELK
-      NIR_PASS_V(nir, elk_nir_lower_cs_intrinsics, devinfo, NULL);
+      NIR_PASS(_, nir, elk_nir_lower_cs_intrinsics, devinfo, NULL);
 #else
       unreachable("no elk support");
 #endif
@@ -3786,13 +3774,13 @@ iris_finalize_nir(struct pipe_screen *_screen, struct nir_shader *nir)
 {
    struct iris_screen *screen = (struct iris_screen *)_screen;
 
-   NIR_PASS_V(nir, iris_fix_edge_flags);
+   NIR_PASS(_, nir, iris_fix_edge_flags);
 
    if (screen->brw) {
       struct brw_nir_compiler_opts opts = {};
       brw_preprocess_nir(screen->brw, nir, &opts);
 
-      NIR_PASS_V(nir, brw_nir_lower_storage_image,
+      NIR_PASS(_, nir, brw_nir_lower_storage_image,
                  screen->brw,
                  &(struct brw_nir_lower_storage_image_opts) {
                     .lower_loads  = true,
@@ -3806,7 +3794,7 @@ iris_finalize_nir(struct pipe_screen *_screen, struct nir_shader *nir)
       struct elk_nir_compiler_opts opts = {};
       elk_preprocess_nir(screen->elk, nir, &opts);
 
-      NIR_PASS_V(nir, elk_nir_lower_storage_image,
+      NIR_PASS(_, nir, elk_nir_lower_storage_image,
                  &(struct elk_nir_lower_storage_image_opts) {
                     .devinfo        = devinfo,
                     .lower_loads    = true,
@@ -3822,7 +3810,7 @@ iris_finalize_nir(struct pipe_screen *_screen, struct nir_shader *nir)
 #endif
    }
 
-   NIR_PASS_V(nir, iris_lower_storage_image_derefs);
+   NIR_PASS(_, nir, iris_lower_storage_image_derefs);
 
    nir_sweep(nir);
 
@@ -4013,14 +4001,12 @@ iris_shader_perf_log(void *data, unsigned *id, const char *fmt, ...)
    va_end(args);
 }
 
-const void *
+const struct nir_shader_compiler_options *
 iris_get_compiler_options(struct pipe_screen *pscreen,
-                          enum pipe_shader_ir ir,
                           enum pipe_shader_type pstage)
 {
    struct iris_screen *screen = (struct iris_screen *) pscreen;
    gl_shader_stage stage = stage_from_pipe(pstage);
-   assert(ir == PIPE_SHADER_IR_NIR);
 
 #ifdef INTEL_USE_ELK
    return screen->brw ? screen->brw->nir_options[stage]

@@ -2142,7 +2142,7 @@ v3d_optimize_nir(struct v3d_compile *c, struct nir_shader *s)
                          NULL);
 
                 NIR_PASS(progress, s, nir_lower_alu_to_scalar, NULL, NULL);
-                NIR_PASS(progress, s, nir_lower_phis_to_scalar, false);
+                NIR_PASS(progress, s, nir_lower_phis_to_scalar, NULL, NULL);
                 NIR_PASS(progress, s, nir_copy_prop);
                 NIR_PASS(progress, s, nir_opt_remove_phis);
                 NIR_PASS(progress, s, nir_opt_dce);
@@ -2769,14 +2769,8 @@ ntq_emit_load_input(struct v3d_compile *c, nir_intrinsic_instr *instr)
 {
         /* XXX: Use ldvpmv (uniform offset) or ldvpmd (non-uniform offset).
          *
-         * Right now the driver sets support_indirect_inputs even
-         * if we don't support non-uniform offsets because we also set the
-         * lower_all_io_to_temps option in the NIR compiler. This ensures that
-         * any indirect indexing on in/out variables is turned into indirect
-         * indexing on temporary variables instead, that we handle by lowering
-         * to scratch. If we implement non-uniform offset here we might be able
-         * to avoid the temp and scratch lowering, which involves copying from
-         * the input to the temp variable, possibly making code more optimal.
+         * Indirect indexing is lowered by the GLSL compiler based on
+         * support_indirect_inputs.
          */
         unsigned offset =
                 nir_intrinsic_base(instr) + nir_src_as_uint(instr->src[0]);
@@ -5047,30 +5041,24 @@ v3d_nir_to_vir(struct v3d_compile *c)
                         break;
                 }
 
-                if (c->threads == min_threads &&
-                    V3D_DBG(RA)) {
-                        fprintf(stderr,
-                                "Failed to register allocate using %s\n",
-                                c->fallback_scheduler ? "the fallback scheduler:" :
-                                "the normal scheduler: \n");
-
-                        vir_dump(c);
-
-                        char *shaderdb;
-                        int ret = v3d_shaderdb_dump(c, &shaderdb);
-                        if (ret > 0) {
-                                fprintf(stderr, "%s\n", shaderdb);
-                                free(shaderdb);
-                        }
-                }
-
                 if (c->threads <= MAX2(c->min_threads_for_reg_alloc, min_threads)) {
-                        if (V3D_DBG(PERF)) {
+                        if (V3D_DBG(PERF) || V3D_DBG(RA)) {
                                 fprintf(stderr,
                                         "Failed to register allocate %s "
                                         "prog %d/%d at %d threads.\n",
                                         vir_get_stage_name(c),
                                         c->program_id, c->variant_id, c->threads);
+                        }
+                        if (V3D_DBG(RA)) {
+                                vir_dump(c);
+
+                                char *shaderdb;
+                                int ret = v3d_shaderdb_dump(c, &shaderdb);
+                                if (ret > 0) {
+                                        fprintf(stderr, "%s\n", shaderdb);
+                                        free(shaderdb);
+                                }
+
                         }
                         c->compilation_result =
                                 V3D_COMPILATION_FAILED_REGISTER_ALLOCATION;

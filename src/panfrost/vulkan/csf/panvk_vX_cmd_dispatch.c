@@ -23,6 +23,7 @@
 #include "panvk_macros.h"
 #include "panvk_meta.h"
 #include "panvk_physical_device.h"
+#include "panvk_tracepoints.h"
 
 #include "pan_desc.h"
 #include "pan_encoder.h"
@@ -224,12 +225,15 @@ cmd_dispatch(struct panvk_cmd_buffer *cmdbuf, struct panvk_dispatch_info *info)
       }
       cs_move32_to(b, cs_sr_reg32(b, COMPUTE, WG_SIZE),
                    wg_size.opaque[0]);
-      cs_move32_to(b, cs_sr_reg32(b, COMPUTE, JOB_OFFSET_X),
-                   info->wg_base.x * shader->cs.local_size.x);
-      cs_move32_to(b, cs_sr_reg32(b, COMPUTE, JOB_OFFSET_Y),
-                   info->wg_base.y * shader->cs.local_size.y);
-      cs_move32_to(b, cs_sr_reg32(b, COMPUTE, JOB_OFFSET_Z),
-                   info->wg_base.z * shader->cs.local_size.z);
+
+      /* global_id and wg_id in NIR are expected to have base_workgroup_id added.
+       * Because job offset doesn't apply to wg_id on Mali, we set this to 0.
+       * XXX: We could teach nir_lower_system_values how to handle Mali weird
+       * case. */
+      cs_move32_to(b, cs_sr_reg32(b, COMPUTE, JOB_OFFSET_X), 0);
+      cs_move32_to(b, cs_sr_reg32(b, COMPUTE, JOB_OFFSET_Y), 0);
+      cs_move32_to(b, cs_sr_reg32(b, COMPUTE, JOB_OFFSET_Z), 0);
+
       if (indirect) {
          /* Load parameters from indirect buffer and update workgroup count
           * registers and sysvals */
@@ -351,11 +355,20 @@ panvk_per_arch(CmdDispatchBase)(VkCommandBuffer commandBuffer,
                                 uint32_t groupCountY, uint32_t groupCountZ)
 {
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
+   const struct panvk_shader *shader = cmdbuf->state.compute.shader;
    struct panvk_dispatch_info info = {
       .wg_base = {baseGroupX, baseGroupY, baseGroupZ},
       .direct.wg_count = {groupCountX, groupCountY, groupCountZ},
    };
+
+   trace_begin_dispatch(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_COMPUTE], cmdbuf);
+
    cmd_dispatch(cmdbuf, &info);
+
+   trace_end_dispatch(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_COMPUTE], cmdbuf,
+                      baseGroupX, baseGroupY, baseGroupZ, groupCountX,
+                      groupCountY, groupCountZ, shader->cs.local_size.x,
+                      shader->cs.local_size.y, shader->cs.local_size.z);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -368,5 +381,13 @@ panvk_per_arch(CmdDispatchIndirect)(VkCommandBuffer commandBuffer,
    struct panvk_dispatch_info info = {
       .indirect.buffer_dev_addr = buffer_gpu,
    };
+
+   trace_begin_dispatch_indirect(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_COMPUTE],
+                                 cmdbuf);
+
    cmd_dispatch(cmdbuf, &info);
+
+   trace_end_dispatch_indirect(&cmdbuf->utrace.uts[PANVK_SUBQUEUE_COMPUTE],
+                               cmdbuf,
+                               (struct u_trace_address){.offset = buffer_gpu});
 }
