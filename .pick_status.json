@@ -1,0 +1,1232 @@
+[
+    {
+        "sha": "4f7076f45863b7f8045fbc99028f3361322eab65",
+        "description": "mediafoundation: change frame preanalysis rc from ifdef to runtime control",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "71f61ae7bb8af4caefdff9532652e8eac9ddb00f",
+        "description": "mediafoundation: Do GPU-GPU encoder sync for two-pass input vpblit",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2142f03031b29e75773b5cf781575e77344741aa",
+        "description": "mediafoundation: Fix recon pic two pass VPBlit target",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f6e95a7233d8318d04c12742a1d5a69b743a155f",
+        "description": "mediafoundation: support CODECAPI_AVEncVideoSatdMapBlockSize and MFSampleExtension_VideoEncodeSatdMap for SATD map.",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "76f76d4f4fe7b46fc2a9a142da39d109e2948f93",
+        "description": "nvk: Delete the old MSAA image workarounds and trust NIL and NAK",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "65d836fb26c53cb3681f55b2536068ace5380709",
+        "description": "nak: Lower MSAA image load/store/atomic/size",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "3a22117e56661b56bca4ee4dae4719f92a78275d",
+        "description": "nvk: Drop the pre-Volta texture query workaround",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "00525c8306ef92705ea12f5d59844573a5eba740",
+        "description": "nak/lower_tex: Handle NULL image queries pre-Volta",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "7118c0903493f4671fec0c70dca761fbf2b69423",
+        "description": "nak/lower_tex: Add texture query helpers",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f8bb3ec37cb0d8431f004e872f6fa50ccdf4b28c",
+        "description": "nak/lower_tex: Don't use remap_sampler_dim() for images",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "9fbb57e0a4c98ad70a9b88abf484927cd595f0e0",
+        "description": "nir,nak: Add a nir_texop_sample_pos_nv and plumb it through",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "3d59f56ab88b61f12760d6c593cf2ce776a5fb68",
+        "description": "nil: Use an extent in samples for MSAA storage images",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "1ce87e1669a29d968b1c7575ffa926a7db2c6dd4",
+        "description": "nil: Add a ViewAccess enum and plumb it through from NVK",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2dfd4dcbc575a30edebf45cdae3e644976a4b3ad",
+        "description": "brw: Fix cmat conversion between bfloat16 and non-float32",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "557ac588e40b69162fbc07c4ea0b523426183bd9",
+        "description": "nir/instr_set: Rework tex instr hash/compare",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "34babeac9bef289b2606370b89d8c72aa0b0a151",
+        "description": "gfxstream: Downgrade some debug prints to traces",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2594fcadd436f991d99f73ff0e2893298017a69c",
+        "description": "brw: Split virtual GRFs again at the end of optimizations",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f6da6399d7d46f86890b1a5f37d85df1f5487a01",
+        "description": "brw/reg_allocate: Don't access out of bounds in non-debug builds",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "c83f481cddce06f8561348ab6f36b0f42a7bff34",
+        "description": "gfxstream: Remove all \"Yoda conditions\" in gfxstream_vk_device.cpp",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "ae904e11a897c6b25ed65a6b6de8ae147336d774",
+        "description": "gfxstream: init vk_queues in CreateDevice() based on queueCreateInfo",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "4f227dc00c46ee43395d9e0170ce35a121b4012c",
+        "description": "gfxstream: Rename platform/linux to platform/drm",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "0dc9108f7afa27f5f43dc3521058fc8cf68c29ae",
+        "description": "gfxstream: fix build on 32-bit",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2e38cbc40c05ca90b8e81c125e94ec1093de09de",
+        "description": "lima: ppir: index SSA nodes the same way as we index registers",
+        "nominated": true,
+        "nomination_type": 4,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "32a2012975501f2b86e2d80744932b613b0d90fe",
+        "description": "radeonsi/vcn: vcn5 av1 decoding context buffer fix",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "68871363b08cb49663fe5eba8376f398501229e0",
+        "description": "lavapipe/ci: Add Android Hardware Buffer test set",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "209e402720757773557cb8377cbb37d6685a462c",
+        "description": "lavapipe: do not short-circuit AHB export alloc (non-import)",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "cebb2bf26623e31aa1fbab0e73c7e2a1e3cfe956",
+        "notes": null
+    },
+    {
+        "sha": "91c8372c67d2d9ea0f24c1a7f99e6c1e330ea9c0",
+        "description": "lavapipe: populate AHB memory mapping",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "cebb2bf26623e31aa1fbab0e73c7e2a1e3cfe956",
+        "notes": null
+    },
+    {
+        "sha": "faa71af431c1960da8d2a01b05e0de35028ad9ec",
+        "description": "lavapipe: properly handle AHB release",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "cebb2bf26623e31aa1fbab0e73c7e2a1e3cfe956",
+        "notes": null
+    },
+    {
+        "sha": "160cd3a317af7e88a43517e471d52648f479fab2",
+        "description": "lavapipe: do not close import fd on error and amend an error code",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "895d3399f7fb5cf58aa857fb2b98f23fe89071ba",
+        "notes": null
+    },
+    {
+        "sha": "f1af533b2c4be27fc05891c292c7c9b9b1dcb550",
+        "description": "lavapipe: implement GetMemoryAndroidHardwareBufferANDROID",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "cebb2bf26623e31aa1fbab0e73c7e2a1e3cfe956",
+        "notes": null
+    },
+    {
+        "sha": "3167e30ee2ef53df568c365db2122494d5a8e446",
+        "description": "lavapipe: allow AHB export allocation",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "cebb2bf26623e31aa1fbab0e73c7e2a1e3cfe956",
+        "notes": null
+    },
+    {
+        "sha": "f5c1b74c66fb57cc1cca8d9cf1971153ae1a5f3f",
+        "description": "vulkan/android: improve AHB image format check logging",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "46cbe95ccff2192f8e8b86308f4c25364100de76",
+        "description": "Uprev Piglit to 0980079dcfb5adbad873d88e00181268f55cb8ef",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "b665bd21cbade7bced4b623cf83150d0b4956a90",
+        "description": "radeonsi/vcn: Correctly handle tile swizzle",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f45778fbc7c4c4d045f974e91c0e99357b953854",
+        "description": "zink: flag dmabuf exports on usage set, not synchronization",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "fdace1c6fa888b1e43b91d730a194df231cbd42b",
+        "description": "freedreno/rddecompiler: Make use of hash table helpers",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "8a1b1d8bd5258710d016491279f2ffa9bf4dd358",
+        "description": "v3dv: Make use of hash table helpers",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "d8793e3874da71a316aa35eb620b5195d0f4ecec",
+        "description": "rusticl/mem: relax flags validation for clGetSupportedImageFormats",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "92811d9a566b1beb439509bfeeaaf6cc3f318d0e",
+        "description": "zink: use maint9 implicit query resets when available",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5965f34b5d4bd9db05758755b96ed11efb581621",
+        "description": "rusticl/queue: offload waiting on fences to another thread",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "70b9c88807e98c821acfe1bed75d3ecf4cd5dd07",
+        "description": "rusticl/mesa: add return status to PipeFence::wait",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5f13ab3ec3883b2974465db0cb8e8b05b67a2834",
+        "description": "Uprev ANGLE to 6a04a50f98cac71b25464d10289ce7a013841caf",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5c5c464988101fe3d801e1a6dd56beaac7ca4f6c",
+        "description": "ci/angle: Update gn arg to avoid warning message",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a333e7a6b815085c87327b0b7ec1bde3fc70e4d4",
+        "description": "lavapipe: VK_KHR_unified_image_layouts",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e6f18bfb42e9c806f86924cad2124e0e1b388e33",
+        "description": "lavapipe: maintenance9",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "6d2d4e9bbf4e1a338a1d37d59dff5aa04ecb7374",
+        "description": "lavapipe: call nir_lower_int64",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "05ee3c6e0fd811919cf8c7de08da45fff6820d50",
+        "description": "ac/nir/lower_mem_access_bit_sizes: make 8/16bit access 32bit if possible",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "3cdaf55334fe77cb33438553be33d1deedfdc1ba",
+        "description": "lvp: hook up AHB image and buffer properties queries",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "64a444209001cb2db1e640cc1b8917bcc34603bc",
+        "description": "v3dv: amend AHB buffer support",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "4ee67ba967ee94b038aa9f34a45f77d7c65103a9",
+        "description": "v3dv: adopt vk_android_get_ahb_image_properties",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "7934c9ab780d894ae07f5bfbbdb72e51cc1b30a5",
+        "description": "vulkan/android: make vk_ahb_probe_format private to android runtime",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e733ac93143548ca8cf916874f8c3d192c28f187",
+        "description": "turnip: amend AHB buffer support",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "bdf9524e1c0047c5f7609681f8cb0258f8d5cb35",
+        "description": "turnip: adopt vk_android_get_ahb_image_properties",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "cefda4eedbf75f339c79a526d34e051d27feb7eb",
+        "description": "venus: clean up post vk_android_get_ahb_image_properties adoption",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e4f9ce838a6ded9ca4a024cb7de0ceb309db5f52",
+        "description": "venus: adopt vk_android_get_ahb_image_properties",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e33870d2071bdccd7a2562b36a4dde25d5c6f7d8",
+        "description": "venus/wsi: move wsi image format info validation to vn_wsi",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "89f59389303069fa70d19e06bbc32efcd7c97bd7",
+        "description": "venus: adopt vk_android_get_ahb_buffer_properties",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "9fb91dfd935d0a4c9467595815e27ad2000824d4",
+        "description": "vulkan/android: add vk_android_get_ahb_buffer_properties",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "850ede0970af69ea9ed78ca6980ca2edb174b531",
+        "description": "vulkan/android: add vk_android_get_ahb_image_properties",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "c768699a739e60789da7cc3bbe8c0501c6550f9f",
+        "description": "zink: fix valid contents check for adding new bind",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "b022cdc8a1c3534d6f57f53b876e30b10e339432",
+        "notes": null
+    },
+    {
+        "sha": "6003a89b8974412e3fda090db6acfa242fcb254e",
+        "description": "tu: Use safe-const binning VS when safe-const full VS is used",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a0a9c12124be7d879ecc7801477da48e2c9977a5",
+        "description": "rusticl/mem: set swizzle for intensity images",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e03d23ddc93917c6cfd43c6debd84fdf2b11cae9",
+        "description": "zink: disable shader images for intensity formats",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "475c43cf8a7e0b8f353e8fbd169b98625e62b1f3",
+        "notes": null
+    },
+    {
+        "sha": "146e843254e4b42d5f13d744676b4897c78f86d9",
+        "description": "zink: disallow intensity buffer images",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "475c43cf8a7e0b8f353e8fbd169b98625e62b1f3",
+        "notes": null
+    },
+    {
+        "sha": "3a2f38cd44881782019d438d3dad18336af60368",
+        "description": "vtn/opencl: set exact on all ffmas and mads",
+        "nominated": true,
+        "nomination_type": 1,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "10602f2dddd47a295b5addd08eb5f36abfc16037",
+        "description": "ci: bump VVL to 1.4.322ish",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "b7f1f40bf4400f8e1506ec2e2c015d78e058f76a",
+        "description": "ci: Always save the artifacts for performance traces",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "b723bc80d2b4929892aa7ddebb13296a9c7255ce",
+        "notes": null
+    },
+    {
+        "sha": "0f09c9436b937cdb4ce09e5fd958dc97d8f83091",
+        "description": "ci/android: update comment about ANDROID_CTS_MODULES",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "545727f97c2324cd394dbc05e6daa54a41c33be7",
+        "notes": null
+    },
+    {
+        "sha": "12f77a833dc9fdb5b886e0e0dfc2acf455e70944",
+        "description": "Revert \"ci: Disable Valve keywords farm\"",
+        "nominated": false,
+        "nomination_type": 3,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": "75b92990a0894deb09e9a0ac6353e95215174d04",
+        "notes": null
+    },
+    {
+        "sha": "54fcb0e44302fd9195c976546bf8bf840f94fa5a",
+        "description": "ci/init-stage1: avoid duplicate mounts",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "89ff124263952b42a2a410d3f2b4340f3cd8aba0",
+        "description": "ci/lava: bump ALPINE_X86_64_LAVA_TRIGGER_TAG",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "c1898908a8b6e11064f9aabf37ba6fdbe48bdbe6",
+        "description": "ci/lava: Move lava_job_submitter tests to lava folder",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "d67436c7ec8f2bf34e8dbc7fc53186cb5eca5571",
+        "description": "ci/lava: make rootfs shell prompt configurable",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "75d1ac4b0b2fa429c30ba6a19c6952f3492fa9b1",
+        "description": "ci/lava: add main() function to fix entry point",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "38039e00e7d5afec5787e44dd5843226c60ee7f8",
+        "description": "ci/lava: default CI_JOB_TIMEOUT to 3600 if unset",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "9b158d05124676e9c880aa419a5f62c51ad7fc52",
+        "description": "ci/fluster: remove 3 pass cases resulted by gaps_in_frame",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a63e5f015ed8e891a96556276a2597cbb361a096",
+        "description": "radeon/vcn: add gaps_in_frame flag to h264 sps",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a7567ec6f4e0bc2214b97900e138f5dcc3ea23c5",
+        "description": "frontends/va: get gaps_in_frame for h264 dec",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "587102196c97f5e946e656e5f10d940dbc436233",
+        "description": "pipe: add gaps_in_frame for h264",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "75b92990a0894deb09e9a0ac6353e95215174d04",
+        "description": "ci: Disable Valve keywords farm",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "ce09d80698c1eb7aaaa1263b3971edcc6c5caedf",
+        "description": "gallium/hud: set the framebuffer texture when drawing",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "2eb45daa9c86f4b8bd602ddef7a67233f56f1edf",
+        "notes": null
+    },
+    {
+        "sha": "34c969f7676f734c9e9bd49021753fed335ba760",
+        "description": "freedreno,zink+tu/ci: Document Piglit bug",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "bcc1a96a7322b582104ad32ddcb8e871a7952323",
+        "description": "zink/ci: Run full zink-tu-a618 job pre-merge",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "0b677027a815b93230c63989d9fea45bc1c06d4a",
+        "description": "freedreno/ci: Re-enable a618-gl job",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2980a5913a69dc83338ab48f1368605a87d98de3",
+        "description": "turnip/ci: Increase coverage of a618-vk, reduce parallelism",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "7ec9404971a36b24effc41d2f909bc77872c8641",
+        "description": "freedreno/ci: Increase concurrency for a618 jobs",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "afdb2c64de0c686a1c1dea4a5606cf07f23be5cf",
+        "description": "venus/ci: udpate expectations from venus-lavapipe-full runs",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "126b795e76e0fb412ece3da039989beea97ee181",
+        "description": "bin/symbols-check: add __(de)register_frame_info_bases to platform symbols",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "442f242a4953a10c558d9628eaadb79117648a23",
+        "description": "venus: requests whole blob mem size for non-dedicated import",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "b32a8d17a282e3161598098448f7ffba7171be65",
+        "description": "venus/virtgpu: use size zero to request mapping the entire blob mem",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "768375fede6fe44619f1ac2310d85d40a7167ba6",
+        "description": "venus: refactor ahb import interface to take whole alloc info",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e27ad2a0215f390aa11b0f6f027634b0ad39b8d1",
+        "description": "venus: drop force_unmappable hack",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "6c8f075fb3e45537b691c4ade33a2ac8c40dcbc2",
+        "description": "venus/virtgpu: drop mappable if blob size is smaller than requested",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a6bbf544cf0c65aeec4b97b3e6ff2c2e69eae658",
+        "description": "doc: fix section and android instruction linking for install page",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "e39a41e104ca5eb2fa856899220b714f847f1b72",
+        "description": "gfxstream: move variables into the #ifdef that uses them",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2308960bed64272996a7265c788f3d795c03be1f",
+        "description": "treewide: use nir_mov_scalar",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "186db0ebfeda809f781e9abfcc670ed71945b452",
+        "description": "nir: add nir_mov_scalar helper",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "a5e9669a782234f718c0474a8a526b083cb7e5ea",
+        "description": "hk: only pass sampler heap if needed",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "74c32c2357c1d22a887351183aad183ef81f355b",
+        "description": "hk: optimize desc set addr push",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "642c6c6f620c04277f0c35d426a27178eac65f8c",
+        "description": "hk,agx: promote bindless samplers",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "49f042c5e85a2a8fabcfa84ab3ea896e5d6e606e",
+        "description": "hk: plumb sampler state counts",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "4a9ae295cd189153c6d7432500dc543fe95a68ac",
+        "description": "agx: report sampler state count",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2340541ecad6ffd4b6ba06525fd005c7e6cda7c7",
+        "description": "asahi: drop image heap decode",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5598d6aa10e4a3eefe2d880e02cd3f5d9f0d5fa8",
+        "description": "hk: drop image heap",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "1ea1b2d3602576110fe45a6e295ec2ba3fb33a0a",
+        "description": "hk: stop reserving uniform for image heap",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "97ff0ada8ba030312c0db3fc3af68e9f1de34769",
+        "description": "hk: stop pushing image heap",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "5a6c5eed653ff713504cb240592a04f23fba4974",
+        "description": "hk: embed texture desc in set",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "98aad84d73c515bbe01821f1b4b541c882bcb92d",
+        "description": "hk: push descriptor set addresses",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "899f001936f17239f60e8ef247ee6e1150062091",
+        "description": "hk: dedupe hk_buffer_view_descriptor",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "24c708564fcb0ea7f2e873e47e6f02d7ade397be",
+        "description": "nir: add bindless_sampler_agx intrinsic",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "58cc66238a15184099aaa15a638d2508ba1e2bba",
+        "description": "nir/opt_preamble: add sampler class",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f146a3a13ac7811bd6b120c73fc34131be23b60c",
+        "description": "gfxstream: update codegen for event save and load",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "650691e93c2ef94313fca5bfbffbf524f265f6fb",
+        "description": "gfxstream: fix warnings about unused parameters",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "eaed2871d9611dc048fef456c7e2fe3e7b3e3370",
+        "description": "docs: add sha sum for 25.1.6",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "2e653d044a1222567b578a2cf80e7eefdd8b9fd0",
+        "description": "docs: add release notes for 25.1.6",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "74a407c2cac8fc29f577e87be569c19b5cd045f5",
+        "description": "docs: update calendar for 25.1.6",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "01a4c26da164122d6ec264d47df23aa821c0cb16",
+        "description": "docs: update calendar for 25.2.0-rc1",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "d41967f6ebaf395b17a82c4d04fb08ed56907449",
+        "description": "docs/releasing: add missing \"track remote staging branch\" command in instructions",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "da61149b2a6e04acf7c8046a5e128b5b33d4ee09",
+        "description": "nak: disable imma 8x8x16 on Blackwell+",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "669c8a51452e484c45e28a7014ea49590a4a7ee3",
+        "notes": null
+    },
+    {
+        "sha": "4bb67cacbac4311ece87fcac55bbc0d5120c3f9f",
+        "description": "nak: Wire up the mma predicate on Hopper+",
+        "nominated": true,
+        "nomination_type": 2,
+        "resolution": 0,
+        "main_sha": null,
+        "because_sha": "90438bae51bc3a29bf1dfdb63e84a498104fc790",
+        "notes": null
+    },
+    {
+        "sha": "0bf2e3c712b71d7df184116c972bbf643ee76b2b",
+        "description": "ci/lava: Use UART for non-Chromebooks",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "cba15ce7870949975427f2ae264bc270ccbc9935",
+        "description": "docs: reset new_features.txt",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    },
+    {
+        "sha": "f130c3e47f76084372b210cc39523b2ec4a3c90a",
+        "description": "VERSION: bump to 25.3",
+        "nominated": false,
+        "nomination_type": 0,
+        "resolution": 4,
+        "main_sha": null,
+        "because_sha": null,
+        "notes": null
+    }
+]
