@@ -26,7 +26,6 @@ filegroup {
         "common/util.c",
         "radix_sort_vk.c",
         "radix_sort_u64.c",
-        "radix_sort_vk.c",
     ],
 }
 
