@@ -41,6 +41,7 @@ cc_library_static {
     header_libs: [
         "mesa_vulkan_mapper_headers",
         "mesa_common_headers",
+        "virtgpu_kumquat_ffi_headers_mesa3d",
     ],
     shared_libs: [
         "libcutils",
