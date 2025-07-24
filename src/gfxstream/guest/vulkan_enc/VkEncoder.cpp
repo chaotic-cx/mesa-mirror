@@ -605,7 +605,6 @@ void VkEncoder::vkGetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
         transform_fromhost_VkPhysicalDeviceProperties(sResourceTracker,
                                                       (VkPhysicalDeviceProperties*)(pProperties));
     }
-    sResourceTracker->on_vkGetPhysicalDeviceProperties(this, physicalDevice, pProperties);
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
         pool->freeAll();
@@ -1678,7 +1677,6 @@ void VkEncoder::vkGetDeviceQueue(VkDevice device, uint32_t queueFamilyIndex, uin
     stream->read((uint64_t*)&cgen_var_2, 8);
     stream->handleMapping()->mapHandles_u64_VkQueue(&cgen_var_2, (VkQueue*)pQueue, 1);
     stream->unsetHandleMapping();
-    sResourceTracker->on_vkGetDeviceQueue(this, device, queueFamilyIndex, queueIndex, pQueue);
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
         pool->freeAll();
@@ -12748,7 +12746,6 @@ void VkEncoder::vkGetDeviceQueue2(VkDevice device, const VkDeviceQueueInfo2* pQu
     stream->read((uint64_t*)&cgen_var_2, 8);
     stream->handleMapping()->mapHandles_u64_VkQueue(&cgen_var_2, (VkQueue*)pQueue, 1);
     stream->unsetHandleMapping();
-    sResourceTracker->on_vkGetDeviceQueue2(this, device, pQueueInfo, pQueue);
     ++encodeCount;
     if (0 == encodeCount % POOL_CLEAR_INTERVAL) {
         pool->freeAll();
