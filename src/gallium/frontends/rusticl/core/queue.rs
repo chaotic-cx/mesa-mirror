@@ -3,18 +3,22 @@ use crate::core::context::*;
 use crate::core::device::*;
 use crate::core::event::*;
 use crate::core::kernel::*;
+use crate::core::memory::PipeSamplerState;
 use crate::core::platform::*;
 use crate::impl_cl_type_trait;
 
 use mesa_rust::compiler::nir::NirShader;
 use mesa_rust::pipe::context::PipeContext;
 use mesa_rust::pipe::context::PipeContextPrio;
+use mesa_rust::pipe::fence::PipeFence;
+use mesa_rust::pipe::resource::PipeImageView;
+use mesa_rust::pipe::resource::PipeSamplerView;
 use mesa_rust_gen::*;
 use mesa_rust_util::properties::*;
 use rusticl_opencl_gen::*;
 
-use std::cell::RefCell;
 use std::cmp;
+use std::collections::HashMap;
 use std::ffi::c_void;
 use std::mem;
 use std::mem::ManuallyDrop;
@@ -48,35 +52,59 @@ impl Drop for CSOWrapper<'_> {
     }
 }
 
-struct QueueKernelState<'a> {
-    builds: Option<Arc<NirKernelBuilds>>,
-    variant: NirKernelVariant,
-    cso: Option<CSOWrapper<'a>>,
+pub struct QueueContext<'a> {
+    pub ctx: &'a PipeContext,
+    pub dev: &'static Device,
+}
+
+// This should go once we moved all state tracking into QueueContext
+impl Deref for QueueContext<'_> {
+    type Target = PipeContext;
+
+    fn deref(&self) -> &Self::Target {
+        self.ctx
+    }
+}
+
+impl<'a> QueueContext<'a> {
+    fn wrap(&'a self) -> QueueContextWithState<'a> {
+        QueueContextWithState {
+            ctx: self,
+            builds: None,
+            variant: NirKernelVariant::Default,
+            cso: None,
+            use_stream: self.dev.prefers_real_buffer_in_cb0(),
+            bound_sampler_views: 0,
+            bound_shader_images: 0,
+            samplers: HashMap::new(),
+        }
+    }
 }
 
 /// State tracking wrapper for [PipeContext]
 ///
 /// Used for tracking bound GPU state to lower CPU overhead and centralize state tracking
-pub struct QueueContext<'a> {
-    ctx: &'a PipeContext,
-    pub dev: &'static Device,
+pub struct QueueContextWithState<'a> {
+    pub ctx: &'a QueueContext<'a>,
     use_stream: bool,
-    kernel_state: RefCell<QueueKernelState<'a>>,
+    builds: Option<Arc<NirKernelBuilds>>,
+    variant: NirKernelVariant,
+    cso: Option<CSOWrapper<'a>>,
+    bound_sampler_views: u32,
+    bound_shader_images: u32,
+    samplers: HashMap<PipeSamplerState, *mut c_void>,
 }
 
-impl QueueContext<'_> {
+impl QueueContextWithState<'_> {
     // TODO: figure out how to make it &mut self without causing tons of borrowing issues.
     pub fn bind_kernel(
-        &self,
+        &mut self,
         builds: &Arc<NirKernelBuilds>,
         variant: NirKernelVariant,
     ) -> CLResult<()> {
-        // this should never panic, but you never know.
-        let mut state = self.kernel_state.borrow_mut();
-
         // If we already set the CSO then we don't have to bind again.
-        if let Some(stored_builds) = &state.builds {
-            if Arc::ptr_eq(stored_builds, builds) && state.variant == variant {
+        if let Some(stored_builds) = &self.builds {
+            if Arc::ptr_eq(stored_builds, builds) && self.variant == variant {
                 return Ok(());
             }
         }
@@ -93,16 +121,45 @@ impl QueueContext<'_> {
                 unsafe {
                     self.bind_compute_state(cso.cso.as_ptr());
                 }
-                state.cso.replace(cso);
+                self.cso.replace(cso);
             }
         };
 
         // We can only store the new builds after we bound the new cso otherwise we might drop it
         // too early.
-        state.builds = Some(Arc::clone(builds));
-        state.variant = variant;
+        self.builds = Some(Arc::clone(builds));
+        self.variant = variant;
 
         Ok(())
+    }
+
+    pub fn bind_sampler_states(&mut self, samplers: Vec<pipe_sampler_state>) {
+        let samplers = samplers
+            .into_iter()
+            .map(PipeSamplerState::from)
+            .map(|sampler| {
+                *self
+                    .samplers
+                    .entry(sampler)
+                    .or_insert_with_key(|sampler| self.ctx.create_sampler_state(sampler.pipe()))
+            })
+            .collect::<Vec<_>>();
+
+        self.ctx.bind_sampler_states(&samplers);
+    }
+
+    pub fn bind_sampler_views(&mut self, views: Vec<PipeSamplerView>) {
+        let cnt = views.len() as u32;
+        let unbind_cnt = self.bound_sampler_views.saturating_sub(cnt);
+        self.ctx.set_sampler_views(views, unbind_cnt);
+        self.bound_sampler_views = cnt;
+    }
+
+    pub fn bind_shader_images(&mut self, images: &[PipeImageView]) {
+        let cnt = images.len() as u32;
+        let unbind_cnt = self.bound_shader_images.saturating_sub(cnt);
+        self.ctx.set_shader_images(images, unbind_cnt);
+        self.bound_shader_images = cnt;
     }
 
     pub fn update_cb0(&self, data: &[u8]) -> CLResult<()> {
@@ -120,19 +177,26 @@ impl QueueContext<'_> {
     }
 }
 
-// This should go once we moved all state tracking into QueueContext
-impl Deref for QueueContext<'_> {
-    type Target = PipeContext;
+impl<'a> Deref for QueueContextWithState<'a> {
+    type Target = QueueContext<'a>;
 
     fn deref(&self) -> &Self::Target {
         self.ctx
     }
 }
 
-impl Drop for QueueContext<'_> {
+impl Drop for QueueContextWithState<'_> {
     fn drop(&mut self) {
         self.set_constant_buffer(0, &[]);
-        if self.kernel_state.get_mut().builds.is_some() {
+        self.ctx.clear_sampler_views(self.bound_sampler_views);
+        self.ctx.clear_sampler_states(self.dev.max_samplers());
+        self.ctx.clear_shader_images(self.bound_shader_images);
+
+        self.samplers
+            .values()
+            .for_each(|&sampler| self.ctx.delete_sampler_state(sampler));
+
+        if self.builds.is_some() {
             // SAFETY: We simply unbind here. The bound cso will only be dropped at the end of this
             //         drop handler.
             unsafe {
@@ -170,13 +234,7 @@ impl SendableQueueContext {
     fn ctx(&self) -> QueueContext {
         QueueContext {
             ctx: &self.ctx,
-            kernel_state: RefCell::new(QueueKernelState {
-                builds: None,
-                variant: NirKernelVariant::Default,
-                cso: None,
-            }),
             dev: self.dev,
-            use_stream: self.dev.prefers_real_buffer_in_cb0(),
         }
     }
 }
@@ -203,7 +261,8 @@ pub struct Queue {
     pub props: cl_command_queue_properties,
     pub props_v2: Properties<cl_queue_properties>,
     state: Mutex<QueueState>,
-    _thrd: JoinHandle<()>,
+    _thread_worker: JoinHandle<()>,
+    _thrd_signal: JoinHandle<()>,
 }
 
 /// Wrapper around Event to set it to an error state on drop. This is useful for dealing with panics
@@ -213,7 +272,7 @@ pub struct Queue {
 struct QueueEvent(Arc<Event>);
 
 impl QueueEvent {
-    fn call(self, ctx: &QueueContext) -> (cl_int, Arc<Event>) {
+    fn call(self, ctx: &mut QueueContextWithState) -> (cl_int, Arc<Event>) {
         let res = self.0.call(ctx);
         (res, self.into_inner())
     }
@@ -272,16 +331,22 @@ impl IntoIterator for QueueEvents {
 
 impl_cl_type_trait!(cl_command_queue, Queue, CL_INVALID_COMMAND_QUEUE);
 
-fn flush_events(evs: &mut Vec<Arc<Event>>, pipe: &PipeContext) -> cl_int {
+fn flush_events(
+    evs: &mut Vec<Arc<Event>>,
+    pipe: &PipeContext,
+    send: &mpsc::Sender<(PipeFence, Box<[Arc<Event>]>)>,
+) -> cl_int {
     if !evs.is_empty() {
-        pipe.flush().wait();
+        let fence = pipe.flush();
         if pipe.device_reset_status() != pipe_reset_status::PIPE_NO_RESET {
             // if the context reset while executing, simply put all events into error state.
             evs.drain(..)
                 .for_each(|e| e.set_user_status(CL_OUT_OF_RESOURCES));
             return CL_OUT_OF_RESOURCES;
         } else {
-            evs.drain(..).for_each(|e| e.signal());
+            // We drain the original vector so we don't start allocating from scratch.
+            let evs = evs.drain(..).collect();
+            send.send((fence, evs)).unwrap();
         }
     }
 
@@ -311,6 +376,7 @@ impl Queue {
         // should be detected earlier (e.g.: checking for CAPs).
         let ctx = SendableQueueContext::new(device, prio)?;
         let (tx_q, rx_t) = mpsc::channel::<Vec<Arc<Event>>>();
+        let (tx_q2, rx_t2) = mpsc::channel();
         Ok(Arc::new(Self {
             base: CLObjectBase::new(RusticlTypes::Queue),
             context: context,
@@ -322,9 +388,10 @@ impl Queue {
                 last: Weak::new(),
                 chan_in: tx_q,
             }),
-            _thrd: thread::Builder::new()
-                .name("rusticl queue thread".into())
+            _thread_worker: thread::Builder::new()
+                .name("rusticl queue worker thread".into())
                 .spawn(move || {
+                    let tx_q2 = tx_q2;
                     // Track the error of all executed events. This is only needed for in-order
                     // queues, so for out of order we'll need to update this.
                     // Also, the OpenCL specification gives us enough freedom to do whatever we want
@@ -340,6 +407,7 @@ impl Queue {
                     //       GPU contexts
                     let mut last_err = CL_SUCCESS as cl_int;
                     let ctx = ctx.ctx();
+                    let mut ctx = ctx.wrap();
                     let mut flushed = Vec::new();
                     loop {
                         debug_assert!(flushed.is_empty());
@@ -353,7 +421,7 @@ impl Queue {
                             // If we hit any deps from another queue, flush so we don't risk a dead
                             // lock.
                             if e.deps().iter().any(|ev| !e.has_same_queue_as(ev)) {
-                                let dep_err = flush_events(&mut flushed, &ctx);
+                                let dep_err = flush_events(&mut flushed, &ctx, &tx_q2);
                                 last_err = cmp::min(last_err, dep_err);
                             }
 
@@ -378,7 +446,7 @@ impl Queue {
                             // if there is an execution error don't bother signaling it as the  context
                             // might be in a broken state. How queues behave after any event hit an
                             // error is entirely implementation defined.
-                            let (err, e) = e.call(&ctx);
+                            let (err, e) = e.call(&mut ctx);
                             last_err = err;
                             if last_err < 0 {
                                 continue;
@@ -387,7 +455,7 @@ impl Queue {
                             if e.is_user() {
                                 // On each user event we flush our events as application might
                                 // wait on them before signaling user events.
-                                last_err = flush_events(&mut flushed, &ctx);
+                                last_err = flush_events(&mut flushed, &ctx, &tx_q2);
 
                                 if last_err >= 0 {
                                     // Wait on user events as they are synchronization points in the
@@ -396,14 +464,29 @@ impl Queue {
                                 }
                             } else if Platform::dbg().sync_every_event {
                                 flushed.push(e);
-                                last_err = flush_events(&mut flushed, &ctx);
+                                last_err = flush_events(&mut flushed, &ctx, &tx_q2);
                             } else {
                                 flushed.push(e);
                             }
                         }
 
-                        let flush_err = flush_events(&mut flushed, &ctx);
+                        let flush_err = flush_events(&mut flushed, &ctx, &tx_q2);
                         last_err = cmp::min(last_err, flush_err);
+                    }
+                })
+                .unwrap(),
+            _thrd_signal: thread::Builder::new()
+                .name("rusticl queue signal thread".into())
+                .spawn(move || loop {
+                    let Ok((fence, events)) = rx_t2.recv() else {
+                        break;
+                    };
+
+                    let evs = events.iter();
+                    if fence.wait() {
+                        evs.for_each(|e| e.signal());
+                    } else {
+                        evs.for_each(|e| e.set_user_status(CL_OUT_OF_RESOURCES));
                     }
                 })
                 .unwrap(),
@@ -451,10 +534,10 @@ impl Queue {
             // Waiting on the last event is good enough here as the queue will process it in order
             // It's not a problem if the weak ref is invalid as that means the work is already done
             // and waiting isn't necessary anymore.
-            let err = last.upgrade().map(|e| e.wait()).unwrap_or_default();
-            if err < 0 {
-                return Err(err);
-            }
+            //
+            // We also ignore any error state of events as it's the callers responsibility to check
+            // for it if it cares.
+            last.upgrade().map(|e| e.wait());
         }
         Ok(())
     }

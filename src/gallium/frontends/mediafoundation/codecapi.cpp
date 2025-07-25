@@ -262,6 +262,19 @@ StringFromCodecAPI( const GUID *Api )
    {
       return "CODECAPI_AVEncVideoOutputBitsUsedMapBlockSize";
    }
+   else if( *Api == CODECAPI_AVEncVideoSatdMapBlockSize )
+   {
+      return "CODECAPI_AVEncVideoSatdMapBlockSize";
+   }
+   else if (*Api == CODECAPI_AVEncVideoRateControlFramePreAnalysis)
+   {
+      return "CODECAPI_AVEncVideoRateControlFramePreAnalysis";
+   }
+   else if( *Api == CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale )
+   {
+      return "CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale";
+   }
+
    return "Unknown CodecAPI";
 }
 
@@ -357,6 +370,33 @@ CDX12EncHMFT::IsSupported( const GUID *Api )
    if( m_EncoderCapabilities.m_HWSupportStatsRCBitAllocationMapOutput.bits.supported )
    {
       if( *Api == CODECAPI_AVEncVideoOutputBitsUsedMapBlockSize )
+      {
+         hr = S_OK;
+         return hr;
+      }
+   }
+
+   if( m_EncoderCapabilities.m_HWSupportStatsSATDMapOutput.bits.supported )
+   {
+      if( *Api == CODECAPI_AVEncVideoSatdMapBlockSize )
+      {
+         hr = S_OK;
+         return hr;
+      }
+   }
+
+   if( m_EncoderCapabilities.m_TwoPassSupport.bits.supports_two_pass )
+   {
+      if( *Api == CODECAPI_AVEncVideoRateControlFramePreAnalysis )
+      {
+         hr = S_OK;
+         return hr;
+      }   
+   }
+
+   if( m_EncoderCapabilities.m_TwoPassSupport.bits.supports_1pass_recon_writing_skip )
+   {
+      if( *Api == CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale )
       {
          hr = S_OK;
          return hr;
@@ -812,6 +852,23 @@ CDX12EncHMFT::GetValue( const GUID *Api, VARIANT *Value )
          m_EncoderCapabilities.m_HWSupportStatsRCBitAllocationMapOutput.bits.supported ?
             (ULONG) ( 1 << m_EncoderCapabilities.m_HWSupportStatsRCBitAllocationMapOutput.bits.log2_values_block_size ) :
             0;
+   }
+   else if( *Api == CODECAPI_AVEncVideoSatdMapBlockSize )
+   {
+      Value->vt = VT_UI4;
+      Value->ulVal = m_EncoderCapabilities.m_HWSupportStatsSATDMapOutput.bits.supported ?
+                        (ULONG) ( 1 << m_EncoderCapabilities.m_HWSupportStatsSATDMapOutput.bits.log2_values_block_size ) :
+                        0;
+   }
+   else if( *Api == CODECAPI_AVEncVideoRateControlFramePreAnalysis )
+   {
+      Value->vt = VT_BOOL;
+      Value->boolVal = m_bRateControlFramePreAnalysis ? VARIANT_TRUE : VARIANT_FALSE;
+   }
+   else if( *Api == CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale )
+   {
+      Value->vt = VT_BOOL;
+      Value->boolVal = m_bRateControlFramePreAnalysisExternalReconDownscale ? VARIANT_TRUE : VARIANT_FALSE;
    }
    else
    {
@@ -1508,6 +1565,71 @@ CDX12EncHMFT::SetValue( const GUID *Api, VARIANT *Value )
          CHECKHR_GOTO( E_INVALIDARG, done );
       }
       m_uiVideoOutputBitsUsedMapBlockSize = Value->ulVal;
+   }
+   else if( *Api == CODECAPI_AVEncVideoSatdMapBlockSize )
+   {
+      debug_printf( "[dx12 hmft 0x%p] SET CODECAPI_AVEncVideoSatdMapBlockSize - %u\n", this, Value->ulVal );
+      if( Value->vt != VT_UI4 )
+      {
+         CHECKHR_GOTO( E_INVALIDARG, done );
+      }
+      if( !m_EncoderCapabilities.m_HWSupportStatsSATDMapOutput.bits.supported && Value->ulVal )
+      {
+         MFE_ERROR( "[dx12 hmft 0x%p] User tried to set CODECAPI_AVEncVideoSatdMapBlockSize as nonzero: %d, but this encoder "
+                    "does NOT support this feature.",
+                    this,
+                    Value->ulVal );
+         CHECKHR_GOTO( E_INVALIDARG, done );
+      }
+      if( m_EncoderCapabilities.m_HWSupportStatsSATDMapOutput.bits.supported && Value->ulVal &&
+          ( Value->ulVal != (ULONG) ( 1 << m_EncoderCapabilities.m_HWSupportStatsSATDMapOutput.bits.log2_values_block_size ) ) )
+      {
+         MFE_ERROR( "[dx12 hmft 0x%p] User MUST set CODECAPI_AVEncVideoSatdMapBlockSize as %d to enable this feature, or 0 to "
+                    "disable this feature.",
+                    this,
+                    ( 1 << m_EncoderCapabilities.m_HWSupportStatsSATDMapOutput.bits.log2_values_block_size ) );
+         CHECKHR_GOTO( E_INVALIDARG, done );
+      }
+      m_uiVideoSatdMapBlockSize = Value->ulVal;
+   }
+   else if( *Api == CODECAPI_AVEncVideoRateControlFramePreAnalysis )
+   {
+      debug_printf( "[dx12 hmft 0x%p] SET CODECAPI_AVEncVideoRateControlFramePreAnalysis - %s\n",
+                    this,
+                    (bool) Value->boolVal ? "true" : "false" );
+
+      if( Value->vt != VT_UI4 && Value->vt != VT_BOOL )
+      {
+         CHECKHR_GOTO( E_INVALIDARG, done );
+      }
+      if( !m_EncoderCapabilities.m_TwoPassSupport.bits.supports_two_pass && Value->boolVal )
+      {
+         MFE_ERROR( "[dx12 hmft 0x%p] User tried to set CODECAPI_AVEncVideoRateControlFramePreAnalysis, but this encoder does NOT "
+                    "support this feature.",
+                    this );
+         CHECKHR_GOTO( E_INVALIDARG, done );
+      }
+      m_bRateControlFramePreAnalysis = Value->boolVal == VARIANT_TRUE ? TRUE : FALSE;
+   }
+   else if( *Api == CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale )
+   {
+      debug_printf( "[dx12 hmft 0x%p] SET CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale - %s\n",
+                    this,
+                    (bool) Value->boolVal ? "true" : "false" );
+
+      if( Value->vt != VT_UI4 && Value->vt != VT_BOOL )
+      {
+         CHECKHR_GOTO( E_INVALIDARG, done );
+      }
+      if( !m_EncoderCapabilities.m_TwoPassSupport.bits.supports_1pass_recon_writing_skip && Value->boolVal )
+      {
+         MFE_ERROR( "[dx12 hmft 0x%p] User tried to set CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale, but "
+                    "this encoder does NOT "
+                    "support this feature.",
+                    this );
+         CHECKHR_GOTO( E_INVALIDARG, done );
+      }
+      m_bRateControlFramePreAnalysisExternalReconDownscale = Value->boolVal == VARIANT_TRUE ? TRUE : FALSE;
    }
    else
    {

@@ -322,6 +322,7 @@ opt_vectorize_callback(const nir_instr *instr, const void *_)
    case nir_op_ior:
    case nir_op_ixor:
    case nir_op_inot:
+   case nir_op_bitfield_select:
       for (unsigned idx = 0; idx < nir_op_infos[alu->op].num_inputs; idx++)
          target_width = MIN2(target_width, max_alu_src_identity_swizzle(alu, &alu->src[idx]));
       break;
@@ -466,11 +467,21 @@ radv_postprocess_nir(struct radv_device *device, const struct radv_graphics_stat
 
    if (!stage->key.optimisations_disabled) {
       NIR_PASS(_, stage->nir, nir_opt_licm);
-      if (stage->stage != MESA_SHADER_FRAGMENT || !pdev->cache_key.disable_sinking_load_input_fs)
-         sink_opts |= nir_move_load_input;
 
-      NIR_PASS(_, stage->nir, nir_opt_sink, sink_opts);
-      NIR_PASS(_, stage->nir, nir_opt_move, sink_opts | nir_move_load_input);
+      if (stage->stage == MESA_SHADER_VERTEX) {
+         /* Always load all VS inputs at the top to eliminate needless VMEM->s_wait->VMEM sequences.
+          * Each s_wait can cost 1000 cycles, so make sure all VS input loads are grouped.
+          */
+         NIR_PASS(_, stage->nir, nir_opt_move_to_top, nir_move_to_top_input_loads);
+         NIR_PASS(_, stage->nir, nir_opt_sink, sink_opts);
+         NIR_PASS(_, stage->nir, nir_opt_move, sink_opts);
+      } else {
+         if (stage->stage != MESA_SHADER_FRAGMENT || !pdev->cache_key.disable_sinking_load_input_fs)
+            sink_opts |= nir_move_load_input;
+
+         NIR_PASS(_, stage->nir, nir_opt_sink, sink_opts);
+         NIR_PASS(_, stage->nir, nir_opt_move, sink_opts | nir_move_load_input);
+      }
    }
 
    /* Lower VS inputs. We need to do this after nir_opt_sink, because

@@ -308,6 +308,9 @@ radv_probe_video_decode(struct radv_physical_device *pdev)
 
    pdev->video_decode_enabled = false;
 
+   if (instance->debug_flags & RADV_DEBUG_NO_VIDEO)
+      return;
+
    /* The support for decode events are available at the same time as encode */
    if (pdev->info.vcn_ip_version >= VCN_5_0_0) {
       pdev->video_decode_enabled = true;
@@ -674,6 +677,143 @@ radv_DestroyVideoSessionParametersKHR(VkDevice _device, VkVideoSessionParameters
    vk_free2(&device->vk.alloc, pAllocator, params);
 }
 
+static VkResult
+radv_video_is_profile_supported(struct radv_physical_device *pdev, const VkVideoProfileInfoKHR *pVideoProfile)
+{
+   switch (pVideoProfile->videoCodecOperation) {
+   case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR: {
+      const struct VkVideoDecodeH264ProfileInfoKHR *h264_profile =
+         vk_find_struct_const(pVideoProfile->pNext, VIDEO_DECODE_H264_PROFILE_INFO_KHR);
+
+      /* H264 allows different luma and chroma bit depths, monochrome is supported. */
+      if (pVideoProfile->chromaSubsampling != VK_VIDEO_CHROMA_SUBSAMPLING_MONOCHROME_BIT_KHR &&
+          pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_BASELINE &&
+          h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_MAIN &&
+          h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_HIGH)
+         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
+
+      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      break;
+   }
+   case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR: {
+      const bool have_10bit = pdev->info.family >= CHIP_STONEY;
+      const struct VkVideoDecodeH265ProfileInfoKHR *h265_profile =
+         vk_find_struct_const(pVideoProfile->pNext, VIDEO_DECODE_H265_PROFILE_INFO_KHR);
+
+      /* H265 allows different luma and chroma bit depths */
+      if (pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN &&
+          (!have_10bit || h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN_10) &&
+          h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN_STILL_PICTURE)
+         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
+
+      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR &&
+          (!have_10bit || pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR))
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      break;
+   }
+   case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_KHR: {
+      const bool have_12bit = pdev->info.vcn_ip_version >= VCN_5_0_0 || pdev->info.vcn_ip_version == VCN_4_0_0;
+      const struct VkVideoDecodeAV1ProfileInfoKHR *av1_profile =
+         vk_find_struct_const(pVideoProfile->pNext, VIDEO_DECODE_AV1_PROFILE_INFO_KHR);
+
+      /* Monochrome sampling implies an undefined chroma bit depth, and is supported in profile MAIN for AV1. */
+      if (pVideoProfile->chromaSubsampling != VK_VIDEO_CHROMA_SUBSAMPLING_MONOCHROME_BIT_KHR &&
+          pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR &&
+          pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR &&
+          (!have_12bit || pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_12_BIT_KHR))
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (av1_profile->stdProfile != STD_VIDEO_AV1_PROFILE_MAIN &&
+          (!have_12bit || av1_profile->stdProfile != STD_VIDEO_AV1_PROFILE_PROFESSIONAL))
+         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
+
+      break;
+   }
+   case VK_VIDEO_CODEC_OPERATION_DECODE_VP9_BIT_KHR: {
+      const struct VkVideoDecodeVP9ProfileInfoKHR *vp9_profile =
+         vk_find_struct_const(pVideoProfile->pNext, VIDEO_DECODE_VP9_PROFILE_INFO_KHR);
+
+      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR &&
+          pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (vp9_profile->stdProfile != STD_VIDEO_VP9_PROFILE_0 && vp9_profile->stdProfile != STD_VIDEO_VP9_PROFILE_2)
+         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
+
+      break;
+   }
+   case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR: {
+      const struct VkVideoEncodeH264ProfileInfoKHR *h264_profile =
+         vk_find_struct_const(pVideoProfile->pNext, VIDEO_ENCODE_H264_PROFILE_INFO_KHR);
+
+      /* H264 allows different luma and chroma bit depths */
+      if (pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_BASELINE &&
+          h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_MAIN &&
+          h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_HIGH)
+         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
+
+      break;
+   }
+   case VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR: {
+      const bool have_10bit = pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_2;
+      const struct VkVideoEncodeH265ProfileInfoKHR *h265_profile =
+         vk_find_struct_const(pVideoProfile->pNext, VIDEO_ENCODE_H265_PROFILE_INFO_KHR);
+
+      /* H265 allows different luma and chroma bit depths */
+      if (pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR &&
+          (!have_10bit || pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR))
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN &&
+          (!have_10bit || h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN_10))
+         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
+
+      break;
+   }
+   case VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR: {
+      const struct VkVideoEncodeAV1ProfileInfoKHR *av1_profile =
+         vk_find_struct_const(pVideoProfile->pNext, VIDEO_ENCODE_AV1_PROFILE_INFO_KHR);
+
+      if (pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR &&
+          pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR)
+         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+
+      if (av1_profile->stdProfile != STD_VIDEO_AV1_PROFILE_MAIN)
+         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
+
+      break;
+   }
+   default:
+      return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
+   }
+
+   return VK_SUCCESS;
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, const VkVideoProfileInfoKHR *pVideoProfile,
                                            VkVideoCapabilitiesKHR *pCapabilities)
@@ -681,6 +821,10 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
    VK_FROM_HANDLE(radv_physical_device, pdev, physicalDevice);
    const struct video_codec_cap *cap = NULL;
    bool is_encode = false;
+
+   VkResult res = radv_video_is_profile_supported(pdev, pVideoProfile);
+   if (res != VK_SUCCESS)
+      return res;
 
    switch (pVideoProfile->videoCodecOperation) {
 #ifndef _WIN32
@@ -750,31 +894,16 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
          enc_caps->supportedEncodeFeedbackFlags = VK_VIDEO_ENCODE_FEEDBACK_BITSTREAM_BUFFER_OFFSET_BIT_KHR |
                                                   VK_VIDEO_ENCODE_FEEDBACK_BITSTREAM_BYTES_WRITTEN_BIT_KHR;
       }
-      pCapabilities->minBitstreamBufferOffsetAlignment = 16;
-      pCapabilities->minBitstreamBufferSizeAlignment = 16;
+      pCapabilities->minBitstreamBufferOffsetAlignment = 256;
+      pCapabilities->minBitstreamBufferSizeAlignment = 8;
       if (pdev->info.vcn_ip_version >= VCN_5_0_0)
          pCapabilities->flags |= VK_VIDEO_CAPABILITY_SEPARATE_REFERENCE_IMAGES_BIT_KHR;
    }
 
    switch (pVideoProfile->videoCodecOperation) {
    case VK_VIDEO_CODEC_OPERATION_DECODE_H264_BIT_KHR: {
-      /* H264 allows different luma and chroma bit depths */
-      if (pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
-         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
-
-      struct VkVideoDecodeH264CapabilitiesKHR *ext = (struct VkVideoDecodeH264CapabilitiesKHR *)vk_find_struct(
-         pCapabilities->pNext, VIDEO_DECODE_H264_CAPABILITIES_KHR);
-
-      const struct VkVideoDecodeH264ProfileInfoKHR *h264_profile =
-         vk_find_struct_const(pVideoProfile->pNext, VIDEO_DECODE_H264_PROFILE_INFO_KHR);
-
-      if (h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_BASELINE &&
-          h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_MAIN &&
-          h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_HIGH)
-         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
-
-      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR)
-         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+      struct VkVideoDecodeH264CapabilitiesKHR *ext =
+         vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_H264_CAPABILITIES_KHR);
 
       pCapabilities->maxDpbSlots = RADV_VIDEO_H264_MAX_DPB_SLOTS;
       pCapabilities->maxActiveReferencePictures = RADV_VIDEO_H264_MAX_NUM_REF_FRAME;
@@ -790,25 +919,8 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
       break;
    }
    case VK_VIDEO_CODEC_OPERATION_DECODE_H265_BIT_KHR: {
-      const bool have_10bit = pdev->info.family >= CHIP_STONEY;
-      /* H265 allows different luma and chroma bit depths */
-      if (pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
-         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
-
-      struct VkVideoDecodeH265CapabilitiesKHR *ext = (struct VkVideoDecodeH265CapabilitiesKHR *)vk_find_struct(
-         pCapabilities->pNext, VIDEO_DECODE_H265_CAPABILITIES_KHR);
-
-      const struct VkVideoDecodeH265ProfileInfoKHR *h265_profile =
-         vk_find_struct_const(pVideoProfile->pNext, VIDEO_DECODE_H265_PROFILE_INFO_KHR);
-
-      if (h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN &&
-          (!have_10bit || h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN_10) &&
-          h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN_STILL_PICTURE)
-         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
-
-      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR &&
-          (!have_10bit || pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR))
-         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+      struct VkVideoDecodeH265CapabilitiesKHR *ext =
+         vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_H265_CAPABILITIES_KHR);
 
       pCapabilities->maxDpbSlots = RADV_VIDEO_H264_MAX_DPB_SLOTS;
       pCapabilities->maxActiveReferencePictures = RADV_VIDEO_H264_MAX_NUM_REF_FRAME;
@@ -821,25 +933,11 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
       break;
    }
    case VK_VIDEO_CODEC_OPERATION_DECODE_AV1_BIT_KHR: {
-      const bool have_12bit = pdev->info.vcn_ip_version >= VCN_5_0_0 || pdev->info.vcn_ip_version == VCN_4_0_0;
-      /* Monochrome sampling implies an undefined chroma bit depth, and is supported in profile MAIN for AV1. */
-      if (pVideoProfile->chromaSubsampling != VK_VIDEO_CHROMA_SUBSAMPLING_MONOCHROME_BIT_KHR &&
-          pVideoProfile->lumaBitDepth != pVideoProfile->chromaBitDepth)
-         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
       struct VkVideoDecodeAV1CapabilitiesKHR *ext =
          vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_AV1_CAPABILITIES_KHR);
 
       const struct VkVideoDecodeAV1ProfileInfoKHR *av1_profile =
          vk_find_struct_const(pVideoProfile->pNext, VIDEO_DECODE_AV1_PROFILE_INFO_KHR);
-
-      if (av1_profile->stdProfile != STD_VIDEO_AV1_PROFILE_MAIN &&
-          (!have_12bit || av1_profile->stdProfile != STD_VIDEO_AV1_PROFILE_PROFESSIONAL))
-         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
-
-      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR &&
-          pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR &&
-          (!have_12bit || pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_12_BIT_KHR))
-         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
 
       if (av1_profile->stdProfile == STD_VIDEO_AV1_PROFILE_PROFESSIONAL)
          dec_caps->flags &= ~VK_VIDEO_DECODE_CAPABILITY_DPB_AND_OUTPUT_COINCIDE_BIT_KHR;
@@ -858,6 +956,7 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
    case VK_VIDEO_CODEC_OPERATION_DECODE_VP9_BIT_KHR: {
       struct VkVideoDecodeVP9CapabilitiesKHR *ext =
          vk_find_struct(pCapabilities->pNext, VIDEO_DECODE_VP9_CAPABILITIES_KHR);
+
       pCapabilities->maxDpbSlots = RADV_VIDEO_VP9_MAX_DPB_SLOTS;
       pCapabilities->maxActiveReferencePictures = RADV_VIDEO_VP9_MAX_NUM_REF_FRAME;
       if (pdev->info.vcn_ip_version >= VCN_3_0_0)
@@ -870,19 +969,8 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
       break;
    }
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR: {
-      struct VkVideoEncodeH264CapabilitiesKHR *ext = (struct VkVideoEncodeH264CapabilitiesKHR *)vk_find_struct(
-         pCapabilities->pNext, VIDEO_ENCODE_H264_CAPABILITIES_KHR);
-
-      const struct VkVideoEncodeH264ProfileInfoKHR *h264_profile =
-         vk_find_struct_const(pVideoProfile->pNext, VIDEO_ENCODE_H264_PROFILE_INFO_KHR);
-
-      if (h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_BASELINE &&
-          h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_MAIN &&
-          h264_profile->stdProfileIdc != STD_VIDEO_H264_PROFILE_IDC_HIGH)
-         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
-
-      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR)
-         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
+      struct VkVideoEncodeH264CapabilitiesKHR *ext =
+         vk_find_struct(pCapabilities->pNext, VIDEO_ENCODE_H264_CAPABILITIES_KHR);
 
       ext->flags = VK_VIDEO_ENCODE_H264_CAPABILITY_HRD_COMPLIANCE_BIT_KHR |
                    VK_VIDEO_ENCODE_H264_CAPABILITY_PER_PICTURE_TYPE_MIN_MAX_QP_BIT_KHR |
@@ -922,21 +1010,13 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
       struct VkVideoEncodeH265CapabilitiesKHR *ext = (struct VkVideoEncodeH265CapabilitiesKHR *)vk_find_struct(
          pCapabilities->pNext, VIDEO_ENCODE_H265_CAPABILITIES_KHR);
 
-      const struct VkVideoEncodeH265ProfileInfoKHR *h265_profile =
-         vk_find_struct_const(pVideoProfile->pNext, VIDEO_ENCODE_H265_PROFILE_INFO_KHR);
-
-      if (h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN &&
-          (pdev->enc_hw_ver < RADV_VIDEO_ENC_HW_2 || h265_profile->stdProfileIdc != STD_VIDEO_H265_PROFILE_IDC_MAIN_10))
-         return VK_ERROR_VIDEO_PROFILE_OPERATION_NOT_SUPPORTED_KHR;
-
-      if (pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR &&
-          (pdev->enc_hw_ver < RADV_VIDEO_ENC_HW_2 ||
-           pVideoProfile->lumaBitDepth != VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR))
-         return VK_ERROR_VIDEO_PROFILE_FORMAT_NOT_SUPPORTED_KHR;
-
       pCapabilities->pictureAccessGranularity.width = VK_VIDEO_H265_CTU_MAX_WIDTH;
-      if (enc_caps)
+      if (enc_caps) {
          enc_caps->encodeInputPictureGranularity = pCapabilities->pictureAccessGranularity;
+         /* VCN1 can't enable rate control modes due to missing cu_qp_delta FW interface. */
+         if (pdev->enc_hw_ver == RADV_VIDEO_ENC_HW_1_2)
+            enc_caps->rateControlModes = VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DISABLED_BIT_KHR;
+      }
 
       ext->flags = VK_VIDEO_ENCODE_H265_CAPABILITY_HRD_COMPLIANCE_BIT_KHR |
                    VK_VIDEO_ENCODE_H265_CAPABILITY_PER_PICTURE_TYPE_MIN_MAX_QP_BIT_KHR |
@@ -981,6 +1061,7 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
    case VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR: {
       struct VkVideoEncodeAV1CapabilitiesKHR *ext = (struct VkVideoEncodeAV1CapabilitiesKHR *)vk_find_struct(
          pCapabilities->pNext, VIDEO_ENCODE_AV1_CAPABILITIES_KHR);
+
       pCapabilities->maxDpbSlots = RADV_VIDEO_AV1_MAX_DPB_SLOTS;
       pCapabilities->maxActiveReferencePictures = RADV_VIDEO_AV1_MAX_NUM_REF_FRAME;
       strcpy(pCapabilities->stdHeaderVersion.extensionName, VK_STD_VULKAN_VIDEO_CODEC_AV1_ENCODE_EXTENSION_NAME);
@@ -991,6 +1072,8 @@ radv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice, cons
       ext->codedPictureAlignment.width = pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_5 ? 8 : 64;
       ext->codedPictureAlignment.height = pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_5 ? 2 : 16;
       pCapabilities->pictureAccessGranularity = ext->codedPictureAlignment;
+      if (enc_caps)
+         enc_caps->encodeInputPictureGranularity = pCapabilities->pictureAccessGranularity;
       ext->maxTiles.width = 2;
       ext->maxTiles.height = 16;
       ext->minTileSize.width = 64;
@@ -1091,81 +1174,72 @@ radv_GetPhysicalDeviceVideoFormatPropertiesKHR(VkPhysicalDevice physicalDevice,
           (VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR | VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR))
       return VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR;
 
-   VK_OUTARRAY_MAKE_TYPED(VkVideoFormatPropertiesKHR, out, pVideoFormatProperties, pVideoFormatPropertyCount);
-
-   bool need_8bit = true;
-   bool need_10bit = false;
-   bool need_12bit = false;
+   VkFormat format = VK_FORMAT_UNDEFINED;
    const struct VkVideoProfileListInfoKHR *prof_list =
       (struct VkVideoProfileListInfoKHR *)vk_find_struct_const(pVideoFormatInfo->pNext, VIDEO_PROFILE_LIST_INFO_KHR);
    if (prof_list) {
       for (unsigned i = 0; i < prof_list->profileCount; i++) {
          const VkVideoProfileInfoKHR *profile = &prof_list->pProfiles[i];
-         if (profile->lumaBitDepth & VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR)
-            need_10bit = true;
-         else if (profile->lumaBitDepth & VK_VIDEO_COMPONENT_BIT_DEPTH_12_BIT_KHR)
-            need_12bit = true;
+
+         /* "If any of the video profiles specified via VkVideoProfileListInfoKHR::pProfiles are not
+          * supported, then this command returns one of the video-profile-specific error codes."
+          */
+         VkResult res = radv_video_is_profile_supported(pdev, profile);
+         if (res != VK_SUCCESS)
+            return res;
+
+         VkFormat profile_format = VK_FORMAT_UNDEFINED;
+
+         if (profile->lumaBitDepth == VK_VIDEO_COMPONENT_BIT_DEPTH_8_BIT_KHR)
+            profile_format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
+         else if (profile->lumaBitDepth == VK_VIDEO_COMPONENT_BIT_DEPTH_10_BIT_KHR)
+            profile_format = VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16;
+         else if (profile->lumaBitDepth == VK_VIDEO_COMPONENT_BIT_DEPTH_12_BIT_KHR)
+            profile_format = VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16;
+
+         /* All profiles must share the same format. */
+         if (format != VK_FORMAT_UNDEFINED && format != profile_format)
+            return VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR;
+
+         format = profile_format;
       }
+   } else {
+      format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
    }
 
-   if (need_12bit) {
+   if (format == VK_FORMAT_UNDEFINED)
+      return VK_ERROR_IMAGE_USAGE_NOT_SUPPORTED_KHR;
+
+   const bool dpb = pVideoFormatInfo->imageUsage &
+                    (VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_DPB_BIT_KHR);
+   const bool src_dst = pVideoFormatInfo->imageUsage &
+                        (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
+   VkImageTiling tiling[3];
+   uint32_t num_tiling = 0;
+
+   tiling[num_tiling++] = VK_IMAGE_TILING_OPTIMAL;
+
+   if (src_dst && !dpb)
+      tiling[num_tiling++] = VK_IMAGE_TILING_LINEAR;
+
+   if (src_dst && pdev->info.gfx_level >= GFX9)
+      tiling[num_tiling++] = VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT;
+
+   VK_OUTARRAY_MAKE_TYPED(VkVideoFormatPropertiesKHR, out, pVideoFormatProperties, pVideoFormatPropertyCount);
+
+   for (uint32_t i = 0; i < num_tiling; i++) {
       vk_outarray_append_typed(VkVideoFormatPropertiesKHR, &out, p)
       {
-         p->format = VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16;
+         p->format = format;
          p->componentMapping.r = VK_COMPONENT_SWIZZLE_IDENTITY;
          p->componentMapping.g = VK_COMPONENT_SWIZZLE_IDENTITY;
          p->componentMapping.b = VK_COMPONENT_SWIZZLE_IDENTITY;
          p->componentMapping.a = VK_COMPONENT_SWIZZLE_IDENTITY;
          p->imageCreateFlags = 0;
-         if (pVideoFormatInfo->imageUsage &
-             (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR))
+         if (src_dst)
             p->imageCreateFlags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
          p->imageType = VK_IMAGE_TYPE_2D;
-         p->imageTiling = VK_IMAGE_TILING_OPTIMAL;
-         p->imageUsageFlags = pVideoFormatInfo->imageUsage;
-      }
-
-      if (pVideoFormatInfo->imageUsage & (VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR)) {
-         need_8bit = false;
-         need_10bit = false;
-      }
-   }
-
-   if (need_10bit) {
-      vk_outarray_append_typed(VkVideoFormatPropertiesKHR, &out, p)
-      {
-         p->format = VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16;
-         p->componentMapping.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-         p->componentMapping.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-         p->componentMapping.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-         p->componentMapping.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-         p->imageCreateFlags = 0;
-         if (pVideoFormatInfo->imageUsage &
-             (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR))
-            p->imageCreateFlags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
-         p->imageType = VK_IMAGE_TYPE_2D;
-         p->imageTiling = VK_IMAGE_TILING_OPTIMAL;
-         p->imageUsageFlags = pVideoFormatInfo->imageUsage;
-      }
-
-      if (pVideoFormatInfo->imageUsage & (VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR))
-         need_8bit = false;
-   }
-
-   if (need_8bit) {
-      vk_outarray_append_typed(VkVideoFormatPropertiesKHR, &out, p)
-      {
-         p->format = VK_FORMAT_G8_B8R8_2PLANE_420_UNORM;
-         p->componentMapping.r = VK_COMPONENT_SWIZZLE_IDENTITY;
-         p->componentMapping.g = VK_COMPONENT_SWIZZLE_IDENTITY;
-         p->componentMapping.b = VK_COMPONENT_SWIZZLE_IDENTITY;
-         p->componentMapping.a = VK_COMPONENT_SWIZZLE_IDENTITY;
-         p->imageCreateFlags = 0;
-         if (pVideoFormatInfo->imageUsage &
-             (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR))
-            p->imageCreateFlags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
-         p->imageType = VK_IMAGE_TYPE_2D;
-         p->imageTiling = VK_IMAGE_TILING_OPTIMAL;
+         p->imageTiling = tiling[i];
          p->imageUsageFlags = pVideoFormatInfo->imageUsage;
       }
    }
@@ -1492,10 +1566,15 @@ get_h264_msg(struct radv_video_session *vid, struct radv_video_session_params *p
 
    result.sps_info_flags = 0;
 
-   result.sps_info_flags |= sps->flags.direct_8x8_inference_flag << 0;
-   result.sps_info_flags |= sps->flags.mb_adaptive_frame_field_flag << 1;
-   result.sps_info_flags |= sps->flags.frame_mbs_only_flag << 2;
-   result.sps_info_flags |= sps->flags.delta_pic_order_always_zero_flag << 3;
+   result.sps_info_flags |= sps->flags.direct_8x8_inference_flag
+                            << RDECODE_SPS_INFO_H264_DIRECT_8X8_INFERENCE_FLAG_SHIFT;
+   result.sps_info_flags |= sps->flags.mb_adaptive_frame_field_flag
+                            << RDECODE_SPS_INFO_H264_MB_ADAPTIVE_FRAME_FIELD_FLAG_SHIFT;
+   result.sps_info_flags |= sps->flags.frame_mbs_only_flag << RDECODE_SPS_INFO_H264_FRAME_MBS_ONLY_FLAG_SHIFT;
+   result.sps_info_flags |= sps->flags.delta_pic_order_always_zero_flag
+                            << RDECODE_SPS_INFO_H264_DELTA_PIC_ORDER_ALWAYS_ZERO_FLAG_SHIFT;
+   result.sps_info_flags |= sps->flags.gaps_in_frame_num_value_allowed_flag
+                            << RDECODE_SPS_INFO_H264_GAPS_IN_FRAME_NUM_VALUE_ALLOWED_FLAG_SHIFT;
    if (vid->dpb_type < DPB_DYNAMIC_TIER_2)
       result.sps_info_flags |= 1 << RDECODE_SPS_INFO_H264_EXTENSION_SUPPORT_FLAG_SHIFT;
 
@@ -1712,16 +1791,8 @@ get_h265_msg(struct radv_device *device, struct radv_video_session *vid, struct 
    }
 
    if (vid->vk.h265.profile_idc == STD_VIDEO_H265_PROFILE_IDC_MAIN_10) {
-      if (vid->vk.picture_format == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16) {
-         result.p010_mode = 1;
-         result.msb_mode = 1;
-      } else {
-         result.p010_mode = 0;
-         result.luma_10to8 = 5;
-         result.chroma_10to8 = 5;
-         result.hevc_reserved[0] = 4; /* sclr_luma10to8 */
-         result.hevc_reserved[1] = 4; /* sclr_chroma10to8 */
-      }
+      result.p010_mode = 1;
+      result.msb_mode = 1;
    }
 
    return result;
@@ -1901,14 +1972,8 @@ get_vp9_msg(struct radv_device *device, struct radv_video_session *vid, struct r
    }
 
    if (vid->vk.vp9.profile == STD_VIDEO_VP9_PROFILE_2) {
-      if (vid->vk.picture_format == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16) {
-         result.p010_mode = 1;
-         result.msb_mode = 1;
-      } else {
-         result.p010_mode = 0;
-         result.luma_10to8 = 1;
-         result.chroma_10to8 = 1;
-      }
+      result.p010_mode = 1;
+      result.msb_mode = 1;
    }
    return result;
 }
@@ -2208,14 +2273,8 @@ get_av1_msg(struct radv_device *device, struct radv_video_session *vid, struct r
    }
 
    if (seq_hdr->pColorConfig->BitDepth > 8) {
-      if (vid->vk.picture_format == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16 ||
-          vid->vk.picture_format == VK_FORMAT_G12X4_B12X4R12X4_2PLANE_420_UNORM_3PACK16) {
-         result.p010_mode = 1;
-         result.msb_mode = 1;
-      } else {
-         result.luma_10to8 = 1;
-         result.chroma_10to8 = 1;
-      }
+      result.p010_mode = 1;
+      result.msb_mode = 1;
    }
 
    result.preskip_segid = 0;
@@ -2698,10 +2757,15 @@ get_uvd_h264_msg(struct radv_video_session *vid, struct radv_video_session_param
 
    result.sps_info_flags = 0;
 
-   result.sps_info_flags |= sps->flags.direct_8x8_inference_flag << 0;
-   result.sps_info_flags |= sps->flags.mb_adaptive_frame_field_flag << 1;
-   result.sps_info_flags |= sps->flags.frame_mbs_only_flag << 2;
-   result.sps_info_flags |= sps->flags.delta_pic_order_always_zero_flag << 3;
+   result.sps_info_flags |= sps->flags.direct_8x8_inference_flag
+                            << RDECODE_SPS_INFO_H264_DIRECT_8X8_INFERENCE_FLAG_SHIFT;
+   result.sps_info_flags |= sps->flags.mb_adaptive_frame_field_flag
+                            << RDECODE_SPS_INFO_H264_MB_ADAPTIVE_FRAME_FIELD_FLAG_SHIFT;
+   result.sps_info_flags |= sps->flags.frame_mbs_only_flag << RDECODE_SPS_INFO_H264_FRAME_MBS_ONLY_FLAG_SHIFT;
+   result.sps_info_flags |= sps->flags.delta_pic_order_always_zero_flag
+                            << RDECODE_SPS_INFO_H264_DELTA_PIC_ORDER_ALWAYS_ZERO_FLAG_SHIFT;
+   result.sps_info_flags |= sps->flags.gaps_in_frame_num_value_allowed_flag
+                            << RDECODE_SPS_INFO_H264_GAPS_IN_FRAME_NUM_VALUE_ALLOWED_FLAG_SHIFT;
    result.sps_info_flags |= 1 << RDECODE_SPS_INFO_H264_EXTENSION_SUPPORT_FLAG_SHIFT;
 
    result.bit_depth_luma_minus8 = sps->bit_depth_luma_minus8;
@@ -2902,16 +2966,8 @@ get_uvd_h265_msg(struct radv_device *device, struct radv_video_session *vid, str
    }
 
    if (vid->vk.h265.profile_idc == STD_VIDEO_H265_PROFILE_IDC_MAIN_10) {
-      if (vid->vk.picture_format == VK_FORMAT_G10X6_B10X6R10X6_2PLANE_420_UNORM_3PACK16) {
-         result.p010_mode = 1;
-         result.msb_mode = 1;
-      } else {
-         result.p010_mode = 0;
-         result.luma_10to8 = 5;
-         result.chroma_10to8 = 5;
-         result.sclr_luma10to8 = 4;
-         result.sclr_chroma10to8 = 4;
-      }
+      result.p010_mode = 1;
+      result.msb_mode = 1;
    }
 
    return result;

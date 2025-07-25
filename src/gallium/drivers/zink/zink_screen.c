@@ -1363,6 +1363,11 @@ zink_is_format_supported(struct pipe_screen *pscreen,
          }
       }
 
+      /* We can't swizzle buffer views */
+      if (bind & (PIPE_BIND_SAMPLER_VIEW | PIPE_BIND_SHADER_IMAGE) &&
+          util_format_is_intensity(format))
+          return false;
+
       if (bind & PIPE_BIND_SAMPLER_VIEW &&
          !(props->bufferFeatures & VK_FORMAT_FEATURE_UNIFORM_TEXEL_BUFFER_BIT))
             return false;
@@ -1402,6 +1407,10 @@ zink_is_format_supported(struct pipe_screen *pscreen,
 
       if (bind & PIPE_BIND_SHADER_IMAGE &&
           !(props->optimalTilingFeatures & VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT))
+         return false;
+
+      /* Can't swizzle storage images. */
+      if (bind & PIPE_BIND_SHADER_IMAGE && util_format_is_intensity(format))
          return false;
    }
 
@@ -3477,6 +3486,9 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
    check_base_requirements(screen);
    util_live_shader_cache_init(&screen->shaders, zink_create_gfx_shader_state, zink_delete_shader_state);
 
+   for (unsigned i = 0; i < ARRAY_SIZE(screen->base.nir_options); i++)
+      screen->base.nir_options[i] = &screen->nir_options;
+
    screen->base.get_name = zink_get_name;
    if (screen->instance_info->have_KHR_external_memory_capabilities) {
       screen->base.get_device_uuid = zink_get_device_uuid;
@@ -3492,7 +3504,6 @@ zink_internal_create_screen(const struct pipe_screen_config *config, int64_t dev
    screen->base.get_device_vendor = zink_get_device_vendor;
    screen->base.get_timestamp = zink_get_timestamp;
    screen->base.query_memory_info = zink_query_memory_info;
-   screen->base.get_compiler_options = zink_get_compiler_options;
    screen->base.get_sample_pixel_grid = zink_get_sample_pixel_grid;
    screen->base.is_compute_copy_faster = zink_is_compute_copy_faster;
    screen->base.is_format_supported = zink_is_format_supported;

@@ -2788,6 +2788,7 @@ anv_bind_image_memory(struct anv_device *device,
        */
       if (device->info->has_flat_ccs &&
           (anv_bo_is_vram_only(bo) ||
+           (bo->alloc_flags & ANV_BO_ALLOC_COMPRESSED) ||
            (bo->alloc_flags & ANV_BO_ALLOC_IMPORTED)))
          continue;
 
@@ -2795,8 +2796,8 @@ anv_bind_image_memory(struct anv_device *device,
       if (device->info->has_aux_map && anv_image_map_aux_tt(device, image, p))
          continue;
 
-      /* Do nothing except for gfx12. There are no special requirements. */
-      if (device->info->ver != 12)
+      /* No special requirements on gfx9-11. */
+      if (device->info->ver <= 11)
          continue;
 
       /* The plane's BO cannot support CCS, disable compression on it. */
@@ -3119,9 +3120,6 @@ anv_layout_to_aux_state(const struct intel_device_info * const devinfo,
    const enum isl_aux_usage aux_usage = image->planes[plane].aux_usage;
    assert(aux_usage != ISL_AUX_USAGE_NONE);
 
-   /* All images that use an auxiliary surface are required to be tiled. */
-   assert(image->planes[plane].primary_surface.isl.tiling != ISL_TILING_LINEAR);
-
    /* Handle a few special cases */
    switch (layout) {
    /* Invalid layouts */
@@ -3131,8 +3129,8 @@ anv_layout_to_aux_state(const struct intel_device_info * const devinfo,
    /* Undefined layouts
     *
     * The pre-initialized layout is equivalent to the undefined layout for
-    * optimally-tiled images.  We can only do color compression (CCS or HiZ)
-    * on tiled images.
+    * optimally-tiled images and for images not bound to host-visible memory.
+    * We only do compression on images that have one or both properties.
     */
    case VK_IMAGE_LAYOUT_UNDEFINED:
    case VK_IMAGE_LAYOUT_PREINITIALIZED:
@@ -3406,6 +3404,12 @@ anv_layout_to_fast_clear_type(const struct intel_device_info * const devinfo,
    /* If there is no auxiliary surface allocated, there are no fast-clears */
    if (image->planes[plane].aux_usage == ISL_AUX_USAGE_NONE)
       return ANV_FAST_CLEAR_NONE;
+
+   /* Bspec 57340 (r68483) has no fast-clear rectangle for linear surfaces. */
+   if (image->planes[plane].primary_surface.isl.tiling == ISL_TILING_LINEAR) {
+      assert(devinfo->ver >= 20);
+      return ANV_FAST_CLEAR_NONE;
+   }
 
    /* Xe2+ platforms don't have fast clear type and can always support
     * arbitrary fast-clear values.

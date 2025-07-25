@@ -414,7 +414,7 @@ impl PipeScreen {
         &self,
         shader: pipe_shader_type,
     ) -> *const nir_shader_compiler_options {
-        unsafe { self.screen().get_compiler_options.unwrap()(self.screen.as_ptr(), shader) }
+        self.screen().nir_options[shader as usize]
     }
 
     pub fn shader_cache(&self) -> Option<DiskCacheBorrowed> {
@@ -445,14 +445,14 @@ impl PipeScreen {
         }
     }
 
-    pub(super) fn fence_finish(&self, fence: *mut pipe_fence_handle) {
+    pub(super) fn fence_finish(&self, fence: *mut pipe_fence_handle) -> bool {
         unsafe {
             self.screen().fence_finish.unwrap()(
                 self.screen.as_ptr(),
                 ptr::null_mut(),
                 fence,
                 OS_TIMEOUT_INFINITE as u64,
-            );
+            )
         }
     }
 
@@ -479,7 +479,6 @@ fn has_required_cbs(screen: *mut pipe_screen) -> bool {
         & has_required_feature!(screen, destroy)
         & has_required_feature!(screen, fence_finish)
         & has_required_feature!(screen, fence_reference)
-        & has_required_feature!(screen, get_compiler_options)
         & has_required_feature!(screen, get_name)
         & has_required_feature!(screen, is_format_supported)
         & has_required_feature!(screen, resource_create)

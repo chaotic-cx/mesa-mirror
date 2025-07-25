@@ -816,6 +816,7 @@ nir_tex_instr_create(nir_shader *shader, unsigned num_srcs)
    instr->texture_index = 0;
    instr->sampler_index = 0;
    memcpy(instr->tg4_offsets, default_tg4_offsets, sizeof(instr->tg4_offsets));
+   instr->can_speculate = false;
 
    return instr;
 }
@@ -2455,6 +2456,8 @@ nir_system_value_from_intrinsic(nir_intrinsic_op intrin)
    case nir_intrinsic_load_invocation_id:
       return SYSTEM_VALUE_INVOCATION_ID;
    case nir_intrinsic_load_frag_coord:
+   case nir_intrinsic_load_frag_coord_z:
+   case nir_intrinsic_load_frag_coord_w:
       return SYSTEM_VALUE_FRAG_COORD;
    case nir_intrinsic_load_pixel_coord:
       return SYSTEM_VALUE_PIXEL_COORD;
@@ -2724,6 +2727,47 @@ nir_intrinsic_can_reorder(nir_intrinsic_instr *instr)
 
    return (info->flags & NIR_INTRINSIC_CAN_ELIMINATE) &&
           (info->flags & NIR_INTRINSIC_CAN_REORDER);
+}
+
+/* Return whether an instruction returns the same result regardless of where
+ * it's executed in the shader and regardless of whether it's executed multiple
+ * times.
+ */
+bool
+nir_instr_can_speculate(nir_instr *instr)
+{
+   nir_intrinsic_instr *intr;
+
+   switch (instr->type) {
+   case nir_instr_type_undef:
+   case nir_instr_type_load_const:
+   case nir_instr_type_alu:
+   case nir_instr_type_deref:
+      return true;
+
+   case nir_instr_type_tex:
+      return nir_instr_as_tex(instr)->can_speculate;
+
+   case nir_instr_type_intrinsic:
+      intr = nir_instr_as_intrinsic(instr);
+
+      if (!nir_intrinsic_can_reorder(intr))
+         return false;
+
+      if (nir_intrinsic_has_access(intr))
+         return nir_intrinsic_access(intr) & ACCESS_CAN_SPECULATE;
+
+      /* Intrinsics without ACCESS are speculatable if they can be reordered. */
+      return true;
+
+   case nir_instr_type_call:
+   case nir_instr_type_jump:
+   case nir_instr_type_phi:
+   case nir_instr_type_parallel_copy:
+      return false;
+   }
+
+   return false;
 }
 
 nir_src *
@@ -3237,6 +3281,7 @@ nir_tex_instr_result_size(const nir_tex_instr *instr)
 
    case nir_texop_hdr_dim_nv:
    case nir_texop_tex_type_nv:
+   case nir_texop_sample_pos_nv:
       return 4;
 
    case nir_texop_custom_border_color_agx:
@@ -3266,6 +3311,7 @@ nir_tex_instr_is_query(const nir_tex_instr *instr)
    case nir_texop_has_custom_border_color_agx:
    case nir_texop_hdr_dim_nv:
    case nir_texop_tex_type_nv:
+   case nir_texop_sample_pos_nv:
       return true;
    case nir_texop_tex:
    case nir_texop_txb:

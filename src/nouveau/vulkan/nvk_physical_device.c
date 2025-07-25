@@ -82,6 +82,20 @@ nvk_get_vk_version(const struct nv_device_info *info)
    return VK_MAKE_VERSION(1, 4, VK_HEADER_VERSION);
 }
 
+static bool
+nvk_is_conformant(const struct nv_device_info *info)
+{
+   /* Tegra is not currently supported */
+   if (info->type != NV_DEVICE_TYPE_DIS)
+      return false;
+
+   /* Everything Maxwell through Ada is conformant */
+   if (info->cls_eng3d >= MAXWELL_A && info->cls_eng3d <= ADA_A)
+      return true;
+
+   return false;
+}
+
 static void
 nvk_get_device_extensions(const struct nvk_instance *instance,
                           const struct nv_device_info *info,
@@ -174,12 +188,13 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .KHR_shader_terminate_invocation = true,
       .KHR_spirv_1_4 = true,
       .KHR_storage_buffer_storage_class = true,
-      .KHR_timeline_semaphore = true,
 #ifdef NVK_USE_WSI_PLATFORM
       .KHR_swapchain = true,
       .KHR_swapchain_mutable_format = true,
 #endif
       .KHR_synchronization2 = true,
+      .KHR_timeline_semaphore = true,
+      .KHR_unified_image_layouts = true,
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_variable_pointers = true,
       .KHR_vertex_attribute_divisor = true,
@@ -493,6 +508,10 @@ nvk_get_device_features(const struct nv_device_info *info,
       /* VK_KHR_shader_subgroup_uniform_control_flow */
       .shaderSubgroupUniformControlFlow = true,
 
+      /* VK_KHR_unified_image_layouts */
+      .unifiedImageLayouts = true,
+      .unifiedImageLayoutsVideo = true,
+
       /* VK_KHR_workgroup_memory_explicit_layout */
       .workgroupMemoryExplicitLayout = true,
       .workgroupMemoryExplicitLayoutScalarBlockLayout = true,
@@ -704,7 +723,6 @@ nvk_get_device_features(const struct nv_device_info *info,
 static void
 nvk_get_device_properties(const struct nvk_instance *instance,
                           const struct nv_device_info *info,
-                          bool conformant,
                           struct vk_properties *properties)
 {
    const VkSampleCountFlagBits sample_counts = VK_SAMPLE_COUNT_1_BIT |
@@ -880,8 +898,8 @@ nvk_get_device_properties(const struct nvk_instance *instance,
       .independentResolve = true,
       .driverID = VK_DRIVER_ID_MESA_NVK,
       .conformanceVersion =
-         conformant ? (VkConformanceVersion) { 1, 4, 1, 3 }
-                    : (VkConformanceVersion) { 0, 0, 0, 0 },
+         nvk_is_conformant(info) ? (VkConformanceVersion) { 1, 4, 3, 0 }
+                                 : (VkConformanceVersion) { 0, 0, 0, 0 },
       .denormBehaviorIndependence = VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_ALL,
       .roundingModeIndependence = VK_SHADER_FLOAT_CONTROLS_INDEPENDENCE_ALL,
       .shaderSignedZeroInfNanPreserveFloat16 = true,
@@ -1313,11 +1331,7 @@ nvk_create_drm_physical_device(struct vk_instance *_instance,
       goto fail_nvkmd;
    }
 
-   bool conformant =
-      nvkmd->dev_info.type == NV_DEVICE_TYPE_DIS &&
-      nvkmd->dev_info.cls_eng3d <= ADA_A;
-
-   if (!conformant &&
+   if (!nvk_is_conformant(&nvkmd->dev_info) &&
        !debug_get_bool_option("NVK_I_WANT_A_BROKEN_VULKAN_DRIVER", false)) {
 #ifdef NDEBUG
       result = VK_ERROR_INCOMPATIBLE_DRIVER;
@@ -1331,7 +1345,7 @@ nvk_create_drm_physical_device(struct vk_instance *_instance,
       goto fail_nvkmd;
    }
 
-   if (!conformant)
+   if (!nvk_is_conformant(&nvkmd->dev_info))
       vk_warn_non_conformant_implementation("NVK");
 
    struct nvk_physical_device *pdev =
@@ -1359,8 +1373,7 @@ nvk_create_drm_physical_device(struct vk_instance *_instance,
                            &supported_features);
 
    struct vk_properties properties;
-   nvk_get_device_properties(instance, &nvkmd->dev_info, conformant,
-                             &properties);
+   nvk_get_device_properties(instance, &nvkmd->dev_info, &properties);
 
    if (nvkmd->drm.render_dev) {
       properties.drmHasRender = true;

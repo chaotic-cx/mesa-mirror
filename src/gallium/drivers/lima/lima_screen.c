@@ -246,14 +246,9 @@ lima_screen_is_format_supported(struct pipe_screen *pscreen,
       if (!lima_format_pixel_supported(format))
          return false;
 
-      if (util_format_is_float(format)) {
-         if (!lima_screen(pscreen)->allow_fp16_rts)
-            return false;
-
-         /* multisample unsupported with half float target */
-         if (sample_count > 1)
-            return false;
-      }
+      /* multisample unsupported with half float target */
+      if (sample_count > 1 && util_format_is_float(format))
+         return false;
    }
 
    if (usage & PIPE_BIND_DEPTH_STENCIL) {
@@ -350,13 +345,6 @@ lima_screen_is_format_supported(struct pipe_screen *pscreen,
       return lima_format_texel_supported(format);
 
    return true;
-}
-
-static const struct nir_shader_compiler_options *
-lima_screen_get_compiler_options(struct pipe_screen *pscreen,
-                                 enum pipe_shader_type shader)
-{
-   return lima_program_get_compiler_options(shader);
 }
 
 static bool
@@ -593,9 +581,6 @@ lima_screen_create(int fd, const struct pipe_screen_config *config,
    driParseConfigFiles(config->options, config->options_info, 0,
                        "lima", NULL, NULL, NULL, 0, NULL, 0);
 
-   screen->allow_fp16_rts = driQueryOptionb(config->options,
-                                            "lima_allow_fp16_rts");
-
    if (!lima_screen_query_info(screen))
       goto err_out0;
 
@@ -653,6 +638,9 @@ lima_screen_create(int fd, const struct pipe_screen_config *config,
    pp_frame_rsw[9] = screen->pp_buffer->va + pp_clear_program_offset;
    pp_frame_rsw[13] = 0x00000100;
 
+   for (unsigned i = 0; i <= MESA_SHADER_COMPUTE; i++)
+      screen->base.nir_options[i] = lima_program_get_compiler_options(i);
+
    screen->base.destroy = lima_screen_destroy;
    screen->base.get_screen_fd = lima_screen_get_fd;
    screen->base.get_name = lima_screen_get_name;
@@ -660,7 +648,6 @@ lima_screen_create(int fd, const struct pipe_screen_config *config,
    screen->base.get_device_vendor = lima_screen_get_device_vendor;
    screen->base.context_create = lima_context_create;
    screen->base.is_format_supported = lima_screen_is_format_supported;
-   screen->base.get_compiler_options = lima_screen_get_compiler_options;
    screen->base.query_dmabuf_modifiers = lima_screen_query_dmabuf_modifiers;
    screen->base.is_dmabuf_modifier_supported = lima_screen_is_dmabuf_modifier_supported;
    screen->base.get_disk_shader_cache = lima_get_disk_shader_cache;

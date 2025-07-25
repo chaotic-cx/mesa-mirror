@@ -571,19 +571,11 @@ static struct disk_cache *noop_get_disk_shader_cache(struct pipe_screen *pscreen
    return screen->get_disk_shader_cache(screen);
 }
 
-static const struct nir_shader_compiler_options *noop_get_compiler_options(
-   struct pipe_screen *pscreen, enum pipe_shader_type shader)
+static void noop_finalize_nir(struct pipe_screen *pscreen, struct nir_shader *nir)
 {
    struct pipe_screen *screen = ((struct noop_pipe_screen*)pscreen)->oscreen;
 
-   return screen->get_compiler_options(screen, shader);
-}
-
-static char *noop_finalize_nir(struct pipe_screen *pscreen, struct nir_shader *nir)
-{
-   struct pipe_screen *screen = ((struct noop_pipe_screen*)pscreen)->oscreen;
-
-   return screen->finalize_nir(screen, nir);
+   screen->finalize_nir(screen, nir);
 }
 
 static bool noop_check_resource_capability(struct pipe_screen *screen,
@@ -787,7 +779,6 @@ struct pipe_screen *noop_screen_create(struct pipe_screen *oscreen)
    screen->fence_finish = noop_fence_finish;
    screen->query_memory_info = noop_query_memory_info;
    screen->get_disk_shader_cache = noop_get_disk_shader_cache;
-   screen->get_compiler_options = noop_get_compiler_options;
    screen->finalize_nir = noop_finalize_nir;
    if (screen->create_fence_win32)
       screen->create_fence_win32 = noop_create_fence_win32;
@@ -814,6 +805,7 @@ struct pipe_screen *noop_screen_create(struct pipe_screen *oscreen)
    *(struct pipe_caps *)&screen->caps = oscreen->caps;
    *(struct pipe_compute_caps *)&screen->compute_caps = oscreen->compute_caps;
    memcpy((void *)screen->shader_caps, oscreen->shader_caps, sizeof(screen->shader_caps));
+   memcpy((void *)screen->nir_options, oscreen->nir_options, sizeof(screen->nir_options));
 
    slab_create_parent(&noop_screen->pool_transfers,
                       sizeof(struct pipe_transfer), 64);

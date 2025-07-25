@@ -8,15 +8,15 @@ http://0x04.net/cgit/index.cgi/rules-ng-ng
 git clone git://0x04.net/rules-ng-ng
 
 The rules-ng-ng source files this header was generated from are:
-- state.xml     (  30672 bytes, from 2025-01-06 20:30:33)
-- common.xml    (  35664 bytes, from 2024-12-05 12:09:36)
-- common_3d.xml (  15069 bytes, from 2024-12-05 12:09:36)
-- state_hi.xml  (  35909 bytes, from 2024-12-05 12:09:36)
-- copyright.xml (   1597 bytes, from 2020-10-28 12:56:03)
-- state_2d.xml  (  52271 bytes, from 2023-05-30 20:50:02)
-- state_3d.xml  (  89428 bytes, from 2025-03-14 21:09:00)
-- state_blt.xml (  14592 bytes, from 2024-12-05 12:09:36)
-- state_vg.xml  (   5975 bytes, from 2020-10-28 12:56:03)
+- state.xml     (  30672 bytes, from 2025-07-21 18:46:25)
+- common.xml    (  35664 bytes, from 2025-07-21 18:46:25)
+- common_3d.xml (  15069 bytes, from 2025-07-21 18:46:25)
+- state_hi.xml  (  35909 bytes, from 2025-07-21 18:46:25)
+- copyright.xml (   1597 bytes, from 2024-04-10 16:26:25)
+- state_2d.xml  (  52271 bytes, from 2024-04-10 16:26:25)
+- state_3d.xml  (  89665 bytes, from 2025-07-21 18:46:38)
+- state_blt.xml (  14592 bytes, from 2025-07-21 18:46:25)
+- state_vg.xml  (   5975 bytes, from 2024-04-10 16:26:25)
 
 Copyright (C) 2012-2025 by the following authors:
 - Wladimir J. van der Laan <laanwj@gmail.com>
@@ -257,17 +257,7 @@ DEALINGS IN THE SOFTWARE.
 #define VIVS_VS_RANGE_HIGH__SHIFT				16
 #define VIVS_VS_RANGE_HIGH(x)					(((x) << VIVS_VS_RANGE_HIGH__SHIFT) & VIVS_VS_RANGE_HIGH__MASK)
 
-#define VIVS_VS_UNIFORM_CACHE					0x00000860
-#define VIVS_VS_UNIFORM_CACHE_FLUSH				0x00000001
-#define VIVS_VS_UNIFORM_CACHE_PS				0x00000010
-#define VIVS_VS_UNIFORM_CACHE_RTNE_ROUNDING			0x00001000
-
 #define VIVS_VS_UNIFORM_BASE					0x00000864
-
-#define VIVS_VS_ICACHE_CONTROL					0x00000868
-#define VIVS_VS_ICACHE_CONTROL_ENABLE				0x00000001
-#define VIVS_VS_ICACHE_CONTROL_FLUSH_VS				0x00000010
-#define VIVS_VS_ICACHE_CONTROL_FLUSH_PS				0x00000020
 
 #define VIVS_VS_INST_ADDR					0x0000086c
 
@@ -281,9 +271,7 @@ DEALINGS IN THE SOFTWARE.
 
 #define VIVS_VS_NEWRANGE_LOW					0x00000874
 
-#define VIVS_VS_HALTI5_UNK00878					0x00000878
-
-#define VIVS_VS_HALTI5_UNK00880					0x00000880
+#define VIVS_VS_NEWRANGE_HIGH					0x00000878
 
 #define VIVS_VS_HALTI1_UNK00884					0x00000884
 
@@ -317,7 +305,7 @@ DEALINGS IN THE SOFTWARE.
 
 #define VIVS_VS_HALTI5_UNK008B8					0x000008b8
 
-#define VIVS_VS_NEWRANGE_HIGH					0x000008bc
+#define VIVS_VS_HALTI5_RANGE_HIGH				0x000008bc
 
 #define VIVS_VS_HALTI5_INPUT(i0)			       (0x000008c0 + 0x4*(i0))
 #define VIVS_VS_HALTI5_INPUT__ESIZE				0x00000004
@@ -744,7 +732,9 @@ DEALINGS IN THE SOFTWARE.
 
 #define VIVS_PS_NEWRANGE_LOW					0x0000087c
 
-#define VIVS_PS_NEWRANGE_HIGH					0x00001090
+#define VIVS_PS_NEWRANGE_HIGH					0x00000880
+
+#define VIVS_PS_HALTI5_RANGE_HIGH				0x00001090
 
 #define VIVS_PS_ICACHE_COUNT					0x00001094
 
@@ -1480,6 +1470,7 @@ DEALINGS IN THE SOFTWARE.
 #define VIVS_TS_SAMPLER_CONFIG_COMPRESSION_FORMAT__MASK		0x000000f0
 #define VIVS_TS_SAMPLER_CONFIG_COMPRESSION_FORMAT__SHIFT	4
 #define VIVS_TS_SAMPLER_CONFIG_COMPRESSION_FORMAT(x)		(((x) << VIVS_TS_SAMPLER_CONFIG_COMPRESSION_FORMAT__SHIFT) & VIVS_TS_SAMPLER_CONFIG_COMPRESSION_FORMAT__MASK)
+#define VIVS_TS_SAMPLER_CONFIG_64BPP_FORMAT			0x00000200
 #define VIVS_TS_SAMPLER_CONFIG_UNK11__MASK			0x00003800
 #define VIVS_TS_SAMPLER_CONFIG_UNK11__SHIFT			11
 #define VIVS_TS_SAMPLER_CONFIG_UNK11(x)				(((x) << VIVS_TS_SAMPLER_CONFIG_UNK11__SHIFT) & VIVS_TS_SAMPLER_CONFIG_UNK11__MASK)
@@ -1975,6 +1966,16 @@ DEALINGS IN THE SOFTWARE.
 #define VIVS_NTE_DESCRIPTOR_SAMP_ANISOTROPY(i0)		       (0x00017400 + 0x4*(i0))
 
 #define VIVS_SH							0x00000000
+
+#define VIVS_SH_CONTROL						0x00000860
+#define VIVS_SH_CONTROL_PS_CODE					0x00000001
+#define VIVS_SH_CONTROL_PS_UNIFORM				0x00000010
+#define VIVS_SH_CONTROL_RTNE_ROUNDING				0x00001000
+
+#define VIVS_SH_ICACHE_CONTROL					0x00000868
+#define VIVS_SH_ICACHE_CONTROL_ENABLE				0x00000001
+#define VIVS_SH_ICACHE_CONTROL_FLUSH_VS				0x00000010
+#define VIVS_SH_ICACHE_CONTROL_FLUSH_PS				0x00000020
 
 #define VIVS_SH_CONFIG						0x00015600
 #define VIVS_SH_CONFIG_RTNE_ROUNDING				0x00000002

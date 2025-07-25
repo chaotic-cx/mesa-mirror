@@ -141,8 +141,9 @@ linkcheck_ignore = [
     r'https://github.com/.*#.*',  # needs JS eval
     r'https://www.intel.com/.*',  # intel.com is blocking the linkcheck user-agent; maybe it can be customized to look like a browser?
     r'https://sourceforge.net/.*',  # blocking the linkcheck user-agent
+    r'https://.*\.sourceforge\.net/.*',  # blocking the linkcheck user-agent
     r'https://stackoverflow.com/.*',  # blocking the linkcheck user-agent
-    r'https://cgit.freedesktop.org/.*',  # cgit is no more
+    r'https://(www|dev)\.vulkan\.org/.*',  # blocking the linkcheck user-agent
 ]
 linkcheck_exclude_documents = [r'relnotes/.*']
 

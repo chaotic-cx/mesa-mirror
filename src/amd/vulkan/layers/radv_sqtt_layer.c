@@ -20,109 +20,26 @@
 void
 radv_sqtt_emit_relocated_shaders(struct radv_cmd_buffer *cmd_buffer, struct radv_graphics_pipeline *pipeline)
 {
-   struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const enum amd_gfx_level gfx_level = pdev->info.gfx_level;
    struct radv_sqtt_shaders_reloc *reloc = pipeline->sqtt_shaders_reloc;
    struct radeon_cmdbuf *cs = cmd_buffer->cs;
-   uint64_t va;
 
-   radv_cs_add_buffer(device->ws, cs, reloc->bo);
+   radv_foreach_stage (s, RADV_GRAPHICS_STAGE_BITS & ~VK_SHADER_STAGE_TASK_BIT_EXT) {
+      const struct radv_shader *shader = pipeline->base.shaders[s];
 
-   radeon_begin(cs);
+      if (!shader)
+         continue;
 
-   /* VS */
-   if (pipeline->base.shaders[MESA_SHADER_VERTEX]) {
-      struct radv_shader *vs = pipeline->base.shaders[MESA_SHADER_VERTEX];
-
-      va = reloc->va[MESA_SHADER_VERTEX];
-      if (vs->info.vs.as_ls) {
-         radeon_set_sh_reg(vs->info.regs.pgm_lo, va >> 8);
-      } else if (vs->info.vs.as_es) {
-         radeon_set_sh_reg_seq(vs->info.regs.pgm_lo, 2);
-         radeon_emit(va >> 8);
-         radeon_emit(S_00B324_MEM_BASE(va >> 40));
-      } else if (vs->info.is_ngg) {
-         radeon_set_sh_reg(vs->info.regs.pgm_lo, va >> 8);
+      /* Shaders are allocated in the 32-bit addr space and high bits are already configured. */
+      if (pdev->info.gfx_level >= GFX12) {
+         gfx12_push_sh_reg(cmd_buffer, shader->info.regs.pgm_lo, reloc->va[s] >> 8);
       } else {
-         radeon_set_sh_reg_seq(vs->info.regs.pgm_lo, 2);
-         radeon_emit(va >> 8);
-         radeon_emit(S_00B124_MEM_BASE(va >> 40));
+         radeon_begin(cs);
+         radeon_set_sh_reg(shader->info.regs.pgm_lo, reloc->va[s] >> 8);
+         radeon_end();
       }
    }
-
-   /* TCS */
-   if (pipeline->base.shaders[MESA_SHADER_TESS_CTRL]) {
-      const struct radv_shader *tcs = pipeline->base.shaders[MESA_SHADER_TESS_CTRL];
-
-      va = reloc->va[MESA_SHADER_TESS_CTRL];
-
-      if (gfx_level >= GFX9) {
-         radeon_set_sh_reg(tcs->info.regs.pgm_lo, va >> 8);
-      } else {
-         radeon_set_sh_reg_seq(tcs->info.regs.pgm_lo, 2);
-         radeon_emit(va >> 8);
-         radeon_emit(S_00B424_MEM_BASE(va >> 40));
-      }
-   }
-
-   /* TES */
-   if (pipeline->base.shaders[MESA_SHADER_TESS_EVAL]) {
-      struct radv_shader *tes = pipeline->base.shaders[MESA_SHADER_TESS_EVAL];
-
-      va = reloc->va[MESA_SHADER_TESS_EVAL];
-      if (tes->info.is_ngg) {
-         radeon_set_sh_reg(tes->info.regs.pgm_lo, va >> 8);
-      } else if (tes->info.tes.as_es) {
-         radeon_set_sh_reg_seq(tes->info.regs.pgm_lo, 2);
-         radeon_emit(va >> 8);
-         radeon_emit(S_00B324_MEM_BASE(va >> 40));
-      } else {
-         radeon_set_sh_reg_seq(tes->info.regs.pgm_lo, 2);
-         radeon_emit(va >> 8);
-         radeon_emit(S_00B124_MEM_BASE(va >> 40));
-      }
-   }
-
-   /* GS */
-   if (pipeline->base.shaders[MESA_SHADER_GEOMETRY]) {
-      struct radv_shader *gs = pipeline->base.shaders[MESA_SHADER_GEOMETRY];
-
-      va = reloc->va[MESA_SHADER_GEOMETRY];
-      if (gs->info.is_ngg) {
-         radeon_set_sh_reg(gs->info.regs.pgm_lo, va >> 8);
-      } else {
-         if (gfx_level >= GFX9) {
-            radeon_set_sh_reg(gs->info.regs.pgm_lo, va >> 8);
-         } else {
-            radeon_set_sh_reg_seq(gs->info.regs.pgm_lo, 2);
-            radeon_emit(va >> 8);
-            radeon_emit(S_00B224_MEM_BASE(va >> 40));
-         }
-      }
-   }
-
-   /* FS */
-   if (pipeline->base.shaders[MESA_SHADER_FRAGMENT]) {
-      const struct radv_shader *ps = pipeline->base.shaders[MESA_SHADER_FRAGMENT];
-
-      va = reloc->va[MESA_SHADER_FRAGMENT];
-
-      radeon_set_sh_reg_seq(ps->info.regs.pgm_lo, 2);
-      radeon_emit(va >> 8);
-      radeon_emit(S_00B024_MEM_BASE(va >> 40));
-   }
-
-   /* MS */
-   if (pipeline->base.shaders[MESA_SHADER_MESH]) {
-      const struct radv_shader *ms = pipeline->base.shaders[MESA_SHADER_MESH];
-
-      va = reloc->va[MESA_SHADER_MESH];
-
-      radeon_set_sh_reg(ms->info.regs.pgm_lo, va >> 8);
-   }
-
-   radeon_end();
 }
 
 static uint64_t
@@ -382,15 +299,44 @@ radv_describe_end_cmd_buffer(struct radv_cmd_buffer *cmd_buffer)
    radv_emit_sqtt_userdata(cmd_buffer, &marker, sizeof(marker) / 4);
 }
 
-void
-radv_describe_draw(struct radv_cmd_buffer *cmd_buffer)
+static void
+radv_gfx12_write_draw_marker(struct radv_cmd_buffer *cmd_buffer, const struct radv_draw_info *draw_info)
 {
-   struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   const enum amd_gfx_level gfx_level = pdev->info.gfx_level;
+   const enum amd_ip_type ring = radv_queue_family_to_ring(pdev, cmd_buffer->qf);
+   struct radeon_cmdbuf *cs = cmd_buffer->cs;
+
+   /* RGP doesn't need this marker for indirect draws. */
+   if (draw_info->indirect_va)
+      return;
+
+   const uint32_t dw0 = 0xf /* Used by RGP to identify this marker */ | (draw_info->instance_count << 4);
+   const uint32_t dw1 = draw_info->count;
+
+   /* This must be emitted with two separate SQ_THREAD_TRACE_USERDATA_7 packets, otherwise RGP
+    * doesn't recognize this draw marker.
+    */
+   radeon_begin(cs);
+   radeon_set_uconfig_perfctr_reg(gfx_level, ring, R_030D1C_SQ_THREAD_TRACE_USERDATA_7, dw0);
+   radeon_set_uconfig_perfctr_reg(gfx_level, ring, R_030D1C_SQ_THREAD_TRACE_USERDATA_7, dw1);
+   radeon_end();
+}
+
+void
+radv_describe_draw(struct radv_cmd_buffer *cmd_buffer, const struct radv_draw_info *draw_info)
+{
+   const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
 
    if (likely(!device->sqtt.bo))
       return;
 
    radv_write_event_marker(cmd_buffer, cmd_buffer->state.current_event_type, UINT_MAX, UINT_MAX, UINT_MAX);
+
+   if (pdev->info.gfx_level >= GFX12)
+      radv_gfx12_write_draw_marker(cmd_buffer, draw_info);
 }
 
 void

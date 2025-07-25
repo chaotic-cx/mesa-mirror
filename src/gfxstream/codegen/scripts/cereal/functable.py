@@ -110,7 +110,9 @@ SUCCESS_VAL = {
     "VkResult" : ["VK_SUCCESS"],
 }
 
-HANDWRITTEN_ENTRY_POINTS = [
+# These could be entrypoints that are custom-written for gfxstream, or ones that
+# are meant fall back to the vk_common_* entrypoints
+NON_AUTOGEN_ENTRYPOINTS = [
     # Instance/device/physical-device special-handling, dispatch tables, etc..
     "vkCreateInstance",
     "vkDestroyInstance",
@@ -125,8 +127,6 @@ HANDWRITTEN_ENTRY_POINTS = [
     "vkCreateDevice",
     "vkDestroyDevice",
     # Manual alloc/free + vk_*_init/free() call w/ special params
-    "vkGetDeviceQueue",
-    "vkGetDeviceQueue2",
     # Command pool/buffer handling
     "vkCreateCommandPool",
     "vkDestroyCommandPool",
@@ -140,7 +140,11 @@ HANDWRITTEN_ENTRY_POINTS = [
     # TODO: Make a codegen module (use deepcopy as reference) to make this more robust
     "vkAllocateMemory",
     "vkUpdateDescriptorSets",
-    "vkGetPhysicalDeviceFormatProperties2",
+
+    # Use vk_common_* entrypoints; usually just dispatches to the "vk*2()" API variant
+    "vkGetDeviceQueue",
+    "vkGetDeviceQueue2",
+    "vkGetPhysicalDeviceProperties",
 ]
 
 # Handles that need to be translated to/from their corresponding gfxstream object types
@@ -563,7 +567,7 @@ class VulkanFuncTable(VulkanWrapperGenerator):
             genReturnExpression()
 
         api_entry = api.withModifiedName("gfxstream_vk_" + api.name[2:])
-        if api.name not in HANDWRITTEN_ENTRY_POINTS:
+        if api.name not in NON_AUTOGEN_ENTRYPOINTS:
             cgen.line(self.cgen.makeFuncProto(api_entry))
             cgen.beginBlock()
             genGfxstreamEntry()

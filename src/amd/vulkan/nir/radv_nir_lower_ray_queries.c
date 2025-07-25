@@ -21,6 +21,7 @@
 #define MAX_SCRATCH_STACK_ENTRY_COUNT 76
 
 enum radv_ray_intersection_field {
+   radv_ray_intersection_primitive_addr,
    radv_ray_intersection_primitive_id,
    radv_ray_intersection_geometry_id_and_flags,
    radv_ray_intersection_instance_addr,
@@ -44,6 +45,7 @@ radv_get_intersection_type()
       .name = #field_name,                                                                                             \
    }
 
+   FIELD(primitive_addr, glsl_uint64_t_type());
    FIELD(primitive_id, glsl_uint_type());
    FIELD(geometry_id_and_flags, glsl_uint_type());
    FIELD(instance_addr, glsl_uint64_t_type());
@@ -192,6 +194,7 @@ copy_candidate_to_closest(nir_builder *b, nir_deref_instr *rq)
    nir_deref_instr *candidate = rq_deref(b, rq, candidate);
 
    isec_copy(b, closest, candidate, barycentrics);
+   isec_copy(b, closest, candidate, primitive_addr);
    isec_copy(b, closest, candidate, geometry_id_and_flags);
    isec_copy(b, closest, candidate, instance_addr);
    isec_copy(b, closest, candidate, intersection_type);
@@ -275,9 +278,19 @@ lower_rq_initialize(nir_builder *b, nir_intrinsic_instr *instr, struct ray_query
    isec_store(b, closest, instance_addr, accel_struct);
    isec_store(b, candidate, instance_addr, accel_struct);
 
-   nir_def *bvh_offset = nir_build_load_global(
-      b, 1, 32, nir_iadd_imm(b, accel_struct, offsetof(struct radv_accel_struct_header, bvh_offset)),
-      .access = ACCESS_NON_WRITEABLE);
+   nir_def *accel_struct_non_null = nir_ine_imm(b, accel_struct, 0);
+
+   nir_def *zero = nir_imm_int(b, 0);
+   nir_def *bvh_offset = NULL;
+   nir_push_if(b, accel_struct_non_null);
+   {
+      bvh_offset = nir_build_load_global(
+         b, 1, 32, nir_iadd_imm(b, accel_struct, offsetof(struct radv_accel_struct_header, bvh_offset)),
+         .access = ACCESS_NON_WRITEABLE);
+   }
+   nir_pop_if(b, NULL);
+   bvh_offset = nir_if_phi(b, bvh_offset, zero);
+
    nir_def *bvh_base = nir_iadd(b, accel_struct, nir_u2u64(b, bvh_offset));
    bvh_base = build_addr_to_node(device, b, bvh_base, instr->src[2].ssa);
 
@@ -309,7 +322,7 @@ lower_rq_initialize(nir_builder *b, nir_intrinsic_instr *instr, struct ray_query
 
    rq_store(b, rq, trav_top_stack, nir_imm_int(b, -1));
 
-   rq_store(b, rq, incomplete, nir_imm_bool(b, !(instance->debug_flags & RADV_DEBUG_NO_RT)));
+   rq_store(b, rq, incomplete, nir_iand_imm(b, accel_struct_non_null, !(instance->debug_flags & RADV_DEBUG_NO_RT)));
 
    vars->initialize = instr;
 }
@@ -387,11 +400,8 @@ lower_rq_load(struct radv_device *device, nir_builder *b, nir_intrinsic_instr *i
    case nir_ray_query_value_world_ray_origin:
       return rq_load(b, rq, origin);
    case nir_ray_query_value_intersection_triangle_vertex_positions: {
-      nir_def *instance_node_addr = isec_load(b, intersection, instance_addr);
-      nir_def *primitive_id = isec_load(b, intersection, primitive_id);
-      nir_def *geometry_id = nir_iand_imm(b, isec_load(b, intersection, geometry_id_and_flags), 0xFFFFFF);
-      return radv_load_vertex_position(device, b, instance_node_addr, geometry_id, primitive_id,
-                                       nir_intrinsic_column(instr));
+      nir_def *primitive_addr = isec_load(b, intersection, primitive_addr);
+      return radv_load_vertex_position(device, b, primitive_addr, nir_intrinsic_column(instr));
    }
    default:
       unreachable("Invalid nir_ray_query_value!");
@@ -414,6 +424,7 @@ handle_candidate_aabb(nir_builder *b, struct radv_leaf_intersection *intersectio
 
    nir_deref_instr *candidate = rq_deref(b, data->rq, candidate);
 
+   isec_store(b, candidate, primitive_addr, intersection->node_addr);
    isec_store(b, candidate, primitive_id, intersection->primitive_id);
    isec_store(b, candidate, geometry_id_and_flags, intersection->geometry_id_and_flags);
    isec_store(b, candidate, opaque, intersection->opaque);
@@ -434,6 +445,7 @@ handle_candidate_triangle(nir_builder *b, struct radv_triangle_intersection *int
    nir_deref_instr *candidate = rq_deref(b, data->rq, candidate);
 
    isec_store(b, candidate, barycentrics, intersection->barycentrics);
+   isec_store(b, candidate, primitive_addr, intersection->base.node_addr);
    isec_store(b, candidate, primitive_id, intersection->base.primitive_id);
    isec_store(b, candidate, geometry_id_and_flags, intersection->base.geometry_id_and_flags);
    isec_store(b, candidate, t, intersection->t);

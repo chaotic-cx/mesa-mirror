@@ -148,6 +148,7 @@ panvk_per_arch(get_physical_device_extensions)(
       .EXT_line_rasterization = true,
       .EXT_load_store_op_none = true,
       .EXT_non_seamless_cube_map = true,
+      .EXT_mutable_descriptor_type = PAN_ARCH >= 9,
       .EXT_physical_device_drm = true,
       .EXT_pipeline_creation_cache_control = true,
       .EXT_pipeline_creation_feedback = true,
@@ -440,7 +441,7 @@ panvk_per_arch(get_physical_device_features)(
       .pipelineRobustness = true,
 
       /* VK_EXT_robustness2 */
-      .robustBufferAccess2 = false,
+      .robustBufferAccess2 = PAN_ARCH >= 11,
       .robustImageAccess2 = false,
       .nullDescriptor = PAN_ARCH >= 10,
 
@@ -491,6 +492,9 @@ panvk_per_arch(get_physical_device_features)(
       .unifiedImageLayouts = true,
       /* Video is not currently supported, so set to false */
       .unifiedImageLayoutsVideo = false,
+
+      /* VK_EXT_mutable_descriptor_type */
+      .mutableDescriptorType = PAN_ARCH >= 9,
    };
 }
 

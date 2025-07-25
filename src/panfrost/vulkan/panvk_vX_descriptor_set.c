@@ -1,5 +1,6 @@
 /*
  * Copyright © 2024 Collabora Ltd.
+ * Copyright © 2025 Arm Ltd.
  * SPDX-License-Identifier: MIT
  */
 
@@ -194,22 +195,25 @@ write_dynamic_buffer_desc(struct panvk_descriptor_set *set,
                           const VkDescriptorBufferInfo *const info,
                           uint32_t binding, uint32_t elem)
 {
-   if (info->buffer == VK_NULL_HANDLE) {
-      write_nulldesc(set, binding, elem, NO_SUBDESC);
-      return;
+   /* Default to memory sink (OOB address) */
+   uint64_t dev_addr = 0x8ull << 60;
+   uint64_t range = 0;
+
+   if (info->buffer != VK_NULL_HANDLE) {
+      VK_FROM_HANDLE(panvk_buffer, buffer, info->buffer);
+
+      dev_addr = panvk_buffer_gpu_ptr(buffer, info->offset);
+      range = panvk_buffer_range(buffer, info->offset, info->range);
    }
 
-   VK_FROM_HANDLE(panvk_buffer, buffer, info->buffer);
    const struct panvk_descriptor_set_binding_layout *binding_layout =
       &set->layout->bindings[binding];
    uint32_t dyn_buf_idx = binding_layout->desc_idx + elem;
-   const uint64_t range = panvk_buffer_range(buffer, info->offset, info->range);
 
    assert(range <= UINT32_MAX);
    assert(dyn_buf_idx < ARRAY_SIZE(set->dyn_bufs));
 
-   set->dyn_bufs[dyn_buf_idx].dev_addr =
-      panvk_buffer_gpu_ptr(buffer, info->offset);
+   set->dyn_bufs[dyn_buf_idx].dev_addr = dev_addr;
    set->dyn_bufs[dyn_buf_idx].size = range;
 }
 
@@ -260,8 +264,10 @@ panvk_desc_pool_free_set(struct panvk_descriptor_pool *pool,
 
    if (!BITSET_TEST(pool->free_sets, set_idx)) {
       if (set->desc_count)
-         util_vma_heap_free(&pool->desc_heap, set->descs.dev,
-                            set->desc_count * PANVK_DESCRIPTOR_SIZE);
+         util_vma_heap_free(
+            &pool->desc_heap,
+            pool->host_only_mem ? (uintptr_t)set->descs.host : set->descs.dev,
+            set->desc_count * PANVK_DESCRIPTOR_SIZE);
 
       BITSET_SET(pool->free_sets, set_idx);
 
@@ -286,9 +292,45 @@ panvk_destroy_descriptor_pool(struct panvk_device *device,
    if (pool->desc_bo) {
       util_vma_heap_finish(&pool->desc_heap);
       panvk_priv_bo_unref(pool->desc_bo);
+   } else if (pool->host_only_mem) {
+      vk_free2(&device->vk.alloc, pAllocator, (void *)pool->host_only_mem);
+      pool->host_only_mem = 0;
    }
 
    vk_object_free(&device->vk, pAllocator, pool);
+}
+
+static VkResult
+panvk_init_pool_memory(struct panvk_device *device,
+                       struct panvk_descriptor_pool *pool,
+                       const VkDescriptorPoolCreateInfo *pCreateInfo,
+                       uint64_t pool_size,
+                       const VkAllocationCallbacks *pAllocator)
+{
+   if (!(pCreateInfo->flags & VK_DESCRIPTOR_POOL_CREATE_HOST_ONLY_BIT_EXT)) {
+      VkResult result = panvk_priv_bo_create(device, pool_size, 0,
+                                             VK_SYSTEM_ALLOCATION_SCOPE_OBJECT,
+                                             &pool->desc_bo);
+      if (result != VK_SUCCESS)
+         return result;
+
+      uint64_t bo_size = pool->desc_bo->bo->size;
+      assert(pool_size <= bo_size);
+
+      util_vma_heap_init(&pool->desc_heap, pool->desc_bo->addr.dev, bo_size);
+   } else {
+      void *pool_mem = vk_alloc2(&device->vk.alloc, pAllocator, pool_size, 8,
+                                 VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+      if (!pool_mem)
+         return VK_ERROR_OUT_OF_HOST_MEMORY;
+
+      /* A host-only pool has no bo backing it. */
+      pool->desc_bo = NULL;
+      pool->host_only_mem = (uintptr_t)pool_mem;
+      util_vma_heap_init(&pool->desc_heap, pool->host_only_mem, pool_size);
+   }
+
+   return VK_SUCCESS;
 }
 
 VkResult
@@ -333,16 +375,12 @@ panvk_per_arch(CreateDescriptorPool)(
       desc_count += pool->max_sets;
 
       uint64_t pool_size = desc_count * PANVK_DESCRIPTOR_SIZE;
-      VkResult result = panvk_priv_bo_create(device, pool_size, 0,
-                                             VK_SYSTEM_ALLOCATION_SCOPE_OBJECT,
-                                             &pool->desc_bo);
+      VkResult result = panvk_init_pool_memory(device, pool, pCreateInfo,
+                                               pool_size, pAllocator);
       if (result != VK_SUCCESS) {
          panvk_destroy_descriptor_pool(device, pAllocator, pool);
          return result;
       }
-      uint64_t bo_size = pool->desc_bo->bo->size;
-      assert(pool_size <= bo_size);
-      util_vma_heap_init(&pool->desc_heap, pool->desc_bo->addr.dev, bo_size);
    }
 
    *pDescriptorPool = panvk_descriptor_pool_to_handle(pool);
@@ -495,6 +533,10 @@ panvk_desc_pool_allocate_set(struct panvk_descriptor_pool *pool,
       set->descs.dev = descs_dev_addr;
       set->descs.host =
          pool->desc_bo->addr.host + set->descs.dev - pool->desc_bo->addr.dev;
+   } else {
+      /* This cast is fine because the heap is initialized from a host
+       * pointer in case of a host only pool. */
+      set->descs.host = (void *)(uintptr_t)descs_dev_addr;
    }
    desc_set_write_immutable_samplers(set, variable_count);
    BITSET_CLEAR(pool->free_sets, first_free_set - 1);
@@ -671,7 +713,9 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
    const struct panvk_descriptor_set_binding_layout *src_binding_layout =
       &src_set->layout->bindings[copy->srcBinding];
 
-   assert(dst_binding_layout->type == src_binding_layout->type);
+   const bool src_mutable = src_binding_layout->type == VK_DESCRIPTOR_TYPE_MUTABLE_EXT;
+   const bool dst_mutable = dst_binding_layout->type == VK_DESCRIPTOR_TYPE_MUTABLE_EXT;
+   assert(dst_binding_layout->type == src_binding_layout->type || src_mutable || dst_mutable);
 
    switch (src_binding_layout->type) {
    case VK_DESCRIPTOR_TYPE_SAMPLER:
@@ -683,6 +727,7 @@ panvk_descriptor_set_copy(const VkCopyDescriptorSet *copy)
    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+   case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
       for (uint32_t i = 0; i < copy->descriptorCount; i++) {
          void *dst = get_desc_slot_ptr(dst_set, copy->dstBinding,
                                        copy->dstArrayElement + i,

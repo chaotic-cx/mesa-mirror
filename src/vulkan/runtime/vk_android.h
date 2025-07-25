@@ -92,10 +92,6 @@ uint32_t vk_image_format_to_ahb_format(VkFormat vk_format);
 uint64_t vk_image_usage_to_ahb_usage(const VkImageCreateFlags vk_create,
                                      const VkImageUsageFlags vk_usage);
 
-bool vk_ahb_probe_format(VkFormat vk_format,
-                         VkImageCreateFlags vk_create,
-                         VkImageUsageFlags vk_usage);
-
 struct AHardwareBuffer *vk_alloc_ahardware_buffer(
    const VkMemoryAllocateInfo *pAllocateInfo);
 
@@ -103,6 +99,16 @@ VkResult vk_android_get_ahb_layout(
    struct AHardwareBuffer *ahardware_buffer,
    VkImageDrmFormatModifierExplicitCreateInfoEXT *out,
    VkSubresourceLayout *out_layouts, int max_planes);
+
+VkResult vk_android_get_ahb_image_properties(
+   VkPhysicalDevice pdev_handle,
+   const VkPhysicalDeviceImageFormatInfo2 *info,
+   VkImageFormatProperties2 *props);
+
+void vk_android_get_ahb_buffer_properties(
+   VkPhysicalDevice pdev_handle,
+   const VkPhysicalDeviceExternalBufferInfo *info,
+   VkExternalBufferProperties *props);
 
 #else /* DETECT_OS_ANDROID && ANDROID_API_LEVEL >= 26 */
 
@@ -131,14 +137,6 @@ vk_image_usage_to_ahb_usage(const VkImageCreateFlags vk_create,
    return 0;
 }
 
-static inline bool
-vk_ahb_probe_format(VkFormat vk_format,
-                    VkImageCreateFlags vk_create,
-                    VkImageUsageFlags vk_usage)
-{
-   return false;
-}
-
 static inline struct AHardwareBuffer *
 vk_alloc_ahardware_buffer(const VkMemoryAllocateInfo *pAllocateInfo)
 {
@@ -152,6 +150,23 @@ vk_android_get_ahb_layout(
    VkSubresourceLayout *out_layouts, int max_planes)
 {
    return VK_ERROR_FEATURE_NOT_PRESENT;
+}
+
+static inline VkResult
+vk_android_get_ahb_image_properties(
+   VkPhysicalDevice pdev_handle,
+   const VkPhysicalDeviceImageFormatInfo2 *info,
+   VkImageFormatProperties2 *props)
+{
+   return VK_ERROR_FORMAT_NOT_SUPPORTED;
+}
+
+static inline void
+vk_android_get_ahb_buffer_properties(
+   VkPhysicalDevice pdev_handle,
+   const VkPhysicalDeviceExternalBufferInfo *info,
+   VkExternalBufferProperties *props)
+{
 }
 
 #endif /* ANDROID_API_LEVEL >= 26 */

@@ -49,10 +49,6 @@ clamp_stage(const shader_info *info)
    return info->stage == MESA_SHADER_KERNEL ? MESA_SHADER_COMPUTE : info->stage;
 }
 
-const struct nir_shader_compiler_options *
-zink_get_compiler_options(struct pipe_screen *screen,
-                          gl_shader_stage shader);
-
 struct nir_shader *
 zink_tgsi_to_nir(struct pipe_screen *screen, const struct tgsi_token *tokens);
 
@@ -77,7 +73,7 @@ zink_shader_create(struct zink_screen *screen, struct nir_shader *nir);
 void
 zink_shader_init(struct zink_screen *screen, struct zink_shader *zs);
 
-char *
+void
 zink_shader_finalize(struct pipe_screen *pscreen, struct nir_shader *nir);
 
 void

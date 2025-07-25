@@ -830,9 +830,21 @@ radv_check_modifier_support(struct radv_physical_device *pdev, const VkPhysicalD
        !need_dcc_sign_reinterpret)
       return VK_ERROR_FORMAT_NOT_SUPPORTED;
 
+   const bool video = info->usage & (VK_IMAGE_USAGE_VIDEO_DECODE_DST_BIT_KHR | VK_IMAGE_USAGE_VIDEO_ENCODE_SRC_BIT_KHR);
+   if (video) {
+      if (!ac_modifier_supports_video(&pdev->info, modifier))
+         return VK_ERROR_FORMAT_NOT_SUPPORTED;
+
+      /* Decode DPB and output coincide (tier3) requires tiling. */
+      if (info->usage & VK_IMAGE_USAGE_VIDEO_DECODE_DPB_BIT_KHR && modifier == DRM_FORMAT_MOD_LINEAR)
+         return VK_ERROR_FORMAT_NOT_SUPPORTED;
+   }
+
    /* We can expand this as needed and implemented but there is not much demand
-    * for more. */
-   if (ac_modifier_has_dcc(modifier)) {
+    * for more.
+    * Video can't support array layers with swizzle modes that use slice index
+    * for addressing. */
+   if (ac_modifier_has_dcc(modifier) || video) {
       props->maxMipLevels = 1;
       props->maxArrayLayers = 1;
    }
@@ -975,13 +987,14 @@ radv_get_image_format_properties(struct radv_physical_device *pdev, const VkPhys
       goto unsupported;
    }
 
-   /* For some reasons, we can't create 1d block-compressed images that can be stored to with a
-    * different format on GFX6.
-    */
-   if (pdev->info.gfx_level == GFX6 && info->type == VK_IMAGE_TYPE_1D && vk_format_is_block_compressed(format) &&
-       (info->flags & VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT) &&
-       ((info->flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT) || (info->usage & VK_IMAGE_USAGE_STORAGE_BIT))) {
-      goto unsupported;
+   /* GFX6 has issues with 1D block-compressed formats. */
+   if (pdev->info.gfx_level == GFX6 && info->type == VK_IMAGE_TYPE_1D && vk_format_is_block_compressed(format)) {
+      maxMipLevels = 1;
+
+      if ((info->flags & VK_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT) &&
+          ((info->flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT) || (info->usage & VK_IMAGE_USAGE_STORAGE_BIT))) {
+         goto unsupported;
+      }
    }
 
    /* From the Vulkan 1.3.206 spec:

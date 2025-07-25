@@ -12,6 +12,7 @@
 #define RADV_RRA_H
 
 #include "util/hash_table.h"
+#include "util/set.h"
 #include "util/simple_mtx.h"
 #include "util/u_dynarray.h"
 #include "util/u_math.h"
@@ -31,6 +32,7 @@ struct radv_rra_accel_struct_data {
    uint64_t size;
    struct radv_rra_accel_struct_buffer *buffer;
    VkAccelerationStructureTypeKHR type;
+   bool can_be_tlas;
    bool is_dead;
 };
 
@@ -269,7 +271,7 @@ static_assert(sizeof(struct rra_geometry_info) == 12, "rra_geometry_info does no
 
 struct rra_validation_context {
    bool failed;
-   char location[31];
+   char location[63];
 };
 
 void PRINTFLIKE(2, 3) rra_validation_fail(struct rra_validation_context *ctx, const char *message, ...);
@@ -290,6 +292,7 @@ struct rra_bvh_info {
 };
 
 struct rra_transcoding_context {
+   struct set *used_blas;
    const uint8_t *src;
    uint8_t *dst;
    uint32_t dst_leaf_offset;

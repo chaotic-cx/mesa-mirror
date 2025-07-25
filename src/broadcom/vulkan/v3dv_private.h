@@ -598,11 +598,6 @@ struct v3dv_device {
    struct util_dynarray device_address_bo_list; /* Array of struct v3dv_bo * */
 };
 
-/* TFU has readhead of 64 bytes. So to avoid the unit reading unmaped memory
- * it is needed to overallocate buffers that could be read by the TFU
- */
-#define V3D_TFU_READAHEAD_SIZE 64
-
 struct v3dv_device_memory {
    struct vk_device_memory vk;
 
@@ -2598,18 +2593,6 @@ v3dv_flag_oom(struct v3dv_cmd_buffer *cmd_buffer, struct v3dv_job *job)
    if (__job && __job->cmd_buffer && __job->cmd_buffer->state.oom)  \
       return;                                                       \
 } while(0)                                                          \
-
-static inline uint32_t
-u64_hash(const void *key)
-{
-   return _mesa_hash_data(key, sizeof(uint64_t));
-}
-
-static inline bool
-u64_compare(const void *key1, const void *key2)
-{
-   return memcmp(key1, key2, sizeof(uint64_t)) == 0;
-}
 
 /* v3d_macros from common requires v3dX and V3DX definitions. Below we need to
  * define v3dX for each version supported, because when we compile code that

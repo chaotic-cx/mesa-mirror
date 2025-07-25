@@ -260,14 +260,8 @@ agx_resource_get_handle(struct pipe_screen *pscreen, struct pipe_context *ctx,
    } else if (handle->type == WINSYS_HANDLE_TYPE_KMS) {
       rsrc_debug(rsrc, "Get handle: %p (KMS)\n", rsrc);
 
-      /* BO must be considered shared at this point.
-       * The seemingly redundant check exists because if the BO is
-       * already shared then mutating the BO would be potentially
-       * racy.
-       */
-      assert(rsrc->bo->flags & AGX_BO_SHAREABLE);
-      if (!(rsrc->bo->flags & AGX_BO_SHARED))
-         rsrc->bo->flags |= AGX_BO_SHARED;
+      /* BO must be considered shared at this point. */
+      agx_bo_make_shared(dev, rsrc->bo);
 
       handle->handle = rsrc->bo->handle;
    } else if (handle->type == WINSYS_HANDLE_TYPE_FD) {
@@ -2302,13 +2296,6 @@ agx_destroy_screen(struct pipe_screen *pscreen)
    ralloc_free(screen);
 }
 
-static const struct nir_shader_compiler_options *
-agx_get_compiler_options(struct pipe_screen *pscreen,
-                         enum pipe_shader_type shader)
-{
-   return &agx_nir_options;
-}
-
 static void
 agx_resource_set_stencil(struct pipe_resource *prsrc,
                          struct pipe_resource *stencil)
@@ -2441,9 +2428,11 @@ agx_screen_create(int fd, struct renderonly *ro,
    screen->fence_reference = agx_fence_reference;
    screen->fence_finish = agx_fence_finish;
    screen->fence_get_fd = agx_fence_get_fd;
-   screen->get_compiler_options = agx_get_compiler_options;
    screen->get_disk_shader_cache = agx_get_disk_shader_cache;
    screen->get_cl_cts_version = agx_get_cl_cts_version;
+
+   for (unsigned i = 0; i <= MESA_SHADER_COMPUTE; i++)
+      screen->nir_options[i] = &agx_nir_options;
 
    screen->resource_create = u_transfer_helper_resource_create;
    screen->resource_destroy = u_transfer_helper_resource_destroy;

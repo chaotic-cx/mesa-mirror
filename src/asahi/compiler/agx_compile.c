@@ -897,11 +897,6 @@ agx_emit_block_image_store(agx_builder *b, nir_intrinsic_instr *instr)
    enum agx_dim dim = agx_tex_dim(nir_intrinsic_image_dim(instr), array);
    bool explicit = nir_intrinsic_explicit_coord(instr);
 
-   /* 32-bit source physically, 16-bit in NIR, top half ignored but needed
-    * logically to ensure alignment.
-    */
-   offset = agx_pad_to_32(b, offset);
-
    /* Modified coordinate descriptor */
    if (!explicit) {
       if (array) {
@@ -2189,8 +2184,6 @@ agx_lod_mode_for_nir(nir_texop op, bool biased, bool min_lod, bool lod_is_zero)
    case nir_texop_txd:
       return min_lod ? AGX_LOD_MODE_LOD_GRAD_MIN : AGX_LOD_MODE_LOD_GRAD;
    case nir_texop_txl:
-      assert(!min_lod);
-      return AGX_LOD_MODE_LOD_MIN;
    case nir_texop_txf:
       assert(!min_lod);
       return lod_is_zero ? AGX_LOD_MODE_AUTO_LOD : AGX_LOD_MODE_LOD_MIN;
@@ -2938,14 +2931,22 @@ agx_mem_vectorize_cb(unsigned align_mul, unsigned align_offset,
 }
 
 static bool
-set_speculate(nir_builder *b, nir_intrinsic_instr *intr, UNUSED void *_)
+set_speculate(nir_builder *b, nir_instr *instr, UNUSED void *_)
 {
-   if (!nir_intrinsic_has_access(intr))
-      return false;
+   if (instr->type == nir_instr_type_intrinsic &&
+       nir_intrinsic_has_access(nir_instr_as_intrinsic(instr))) {
+      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
+      nir_intrinsic_set_access(intr,
+                               ACCESS_CAN_SPECULATE | nir_intrinsic_access(intr));
+      return true;
+   }
 
-   nir_intrinsic_set_access(intr,
-                            ACCESS_CAN_SPECULATE | nir_intrinsic_access(intr));
-   return true;
+   if (instr->type == nir_instr_type_tex) {
+      nir_instr_as_tex(instr)->can_speculate = true;
+      return true;
+   }
+
+   return false;
 }
 
 static bool
@@ -3074,7 +3075,7 @@ agx_optimize_nir(nir_shader *nir, bool soft_fault, uint16_t *preamble_size,
     * peephole select and form preambles more aggressively.
     */
    if (soft_fault) {
-      NIR_PASS(_, nir, nir_shader_intrinsics_pass, set_speculate,
+      NIR_PASS(_, nir, nir_shader_instructions_pass, set_speculate,
                nir_metadata_control_flow, NULL);
    }
 
@@ -3161,8 +3162,30 @@ agx_optimize_nir(nir_shader *nir, bool soft_fault, uint16_t *preamble_size,
       } while (progress);
    }
 
+   /* Reassociate before forming preambles because it makes preambles more
+    * effective. Clean up after.
+    */
+   for (unsigned i = 0; i < 4; ++i) {
+      nir_reassociate_options opts = nir_reassociate_scalar_math;
+      if (i < 2)
+         opts |= nir_reassociate_cse_heuristic;
+
+      NIR_PASS(_, nir, nir_opt_reassociate, opts);
+
+      do {
+         progress = false;
+
+         NIR_PASS(progress, nir, nir_opt_algebraic);
+         NIR_PASS(progress, nir, nir_opt_constant_folding);
+         NIR_PASS(progress, nir, nir_copy_prop);
+         NIR_PASS(progress, nir, nir_opt_cse);
+         NIR_PASS(progress, nir, nir_opt_dce);
+      } while (progress);
+   }
+
    /* Lower fmin/fmax before optimizing preambles so we can see across uniform
-    * expressions.
+    * expressions. Do it after nir_opt_reassociate because nir_opt_reassociate
+    * should work on unlowered fmin/fmax.
     */
    NIR_PASS(_, nir, agx_nir_lower_fminmax);
 
@@ -3256,7 +3279,16 @@ agx_optimize_nir(nir_shader *nir, bool soft_fault, uint16_t *preamble_size,
 
    NIR_PASS(_, nir, nir_opt_sink, move_all);
    NIR_PASS(_, nir, nir_opt_move, move_all);
-   NIR_PASS(_, nir, nir_lower_all_phis_to_scalar);
+   NIR_PASS(progress, nir, nir_lower_all_phis_to_scalar);
+
+   /* After lowering phis to scalar, we must copy prop/DCE for correctness. RA
+    * can't deal with dead phis.
+    */
+   do {
+      NIR_PASS(progress, nir, nir_copy_prop);
+      NIR_PASS(progress, nir, nir_opt_dce);
+      progress = false;
+   } while (progress);
 }
 
 /*

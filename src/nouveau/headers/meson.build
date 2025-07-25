@@ -29,7 +29,7 @@ nv_classes = [
   'clc797',
   'clc7c0',
   'clc86f',
-  'clc9b5',
+  'clcab5',
   'clcb97',
   'clcbc0',
   'clcd97',
@@ -76,6 +76,9 @@ executable(
   build_by_default : with_tools.contains('nouveau'),
   install : with_tools.contains('nouveau'),
 )
+
+nouveau_util_py = files('util.py')
+nouveau_util_py_path = meson.current_source_dir()
 
 # Only generate Rust bindings for NVK
 if with_nouveau_vk

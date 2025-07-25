@@ -175,16 +175,6 @@ static const struct nir_shader_compiler_options gallivm_nir_options = {
    .no_integers = true,
 };
 
-static const struct nir_shader_compiler_options *
-i915_get_compiler_options(struct pipe_screen *pscreen,
-                          enum pipe_shader_type shader)
-{
-   if (shader == PIPE_SHADER_FRAGMENT)
-      return &i915_compiler_options;
-   else
-      return &gallivm_nir_options;
-}
-
 static void
 i915_optimize_nir(struct nir_shader *s)
 {
@@ -235,7 +225,7 @@ i915_optimize_nir(struct nir_shader *s)
    NIR_PASS(_, s, nir_group_loads, nir_group_all, ~0);
 }
 
-static char *
+static void
 i915_finalize_nir(struct pipe_screen *pscreen, struct nir_shader *s)
 {
    if (s->info.stage == MESA_SHADER_FRAGMENT)
@@ -258,7 +248,6 @@ i915_finalize_nir(struct pipe_screen *pscreen, struct nir_shader *s)
    nir_validate_shader(s, "after uniform var removal");
 
    nir_sweep(s);
-   return NULL;
 }
 
 static void
@@ -560,7 +549,6 @@ i915_screen_create(struct i915_winsys *iws)
    is->base.get_vendor = i915_get_vendor;
    is->base.get_device_vendor = i915_get_device_vendor;
    is->base.get_screen_fd = i915_screen_get_fd;
-   is->base.get_compiler_options = i915_get_compiler_options;
    is->base.finalize_nir = i915_finalize_nir;
    is->base.is_format_supported = i915_is_format_supported;
 
@@ -568,6 +556,9 @@ i915_screen_create(struct i915_winsys *iws)
 
    is->base.fence_reference = i915_fence_reference;
    is->base.fence_finish = i915_fence_finish;
+
+   is->base.nir_options[PIPE_SHADER_VERTEX] = &gallivm_nir_options;
+   is->base.nir_options[PIPE_SHADER_FRAGMENT] = &i915_compiler_options;
 
    i915_init_screen_resource_functions(is);
 

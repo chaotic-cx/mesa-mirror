@@ -77,6 +77,7 @@ class Opcode(object):
       assert isinstance(algebraic_properties, str)
       assert isinstance(const_expr, str)
       assert len(input_sizes) == len(input_types)
+      assert len(input_sizes) == 2 or "associative" not in algebraic_properties
       assert 0 <= output_size <= 5 or (output_size == 8) or (output_size == 16)
       for size in input_sizes:
          assert 0 <= size <= 5 or (size == 8) or (size == 16)
@@ -149,6 +150,7 @@ def type_base_type(type_):
 # sources.
 _2src_commutative = "2src_commutative "
 associative = "associative "
+inexact_associative = "inexact_associative "
 selection = "selection "
 
 # global dictionary of opcodes
@@ -610,7 +612,7 @@ def binop_reduce_all_sizes(name, output_size, src_type, prereduce_expr,
    binop_reduce("b32" + name[1:], output_size, tbool32, src_type,
                 prereduce_expr, reduce_expr, final_expr, description)
 
-binop("fadd", tfloat, _2src_commutative + associative,"""
+binop("fadd", tfloat, _2src_commutative + inexact_associative,"""
 if (nir_is_rounding_mode_rtz(execution_mode, bit_size)) {
    if (bit_size == 64)
       dst = _mesa_double_add_rtz(src0, src1);
@@ -652,7 +654,7 @@ binop_convert("uabs_isub", tuint, tint, "", """
 """)
 binop("uabs_usub", tuint, "", "(src1 > src0) ? (src1 - src0) : (src0 - src1)")
 
-binop("fmul", tfloat, _2src_commutative + associative, """
+binop("fmul", tfloat, _2src_commutative + inexact_associative, """
 if (nir_is_rounding_mode_rtz(execution_mode, bit_size)) {
    if (bit_size == 64)
       dst = _mesa_double_mul_rtz(src0, src1);
@@ -663,7 +665,7 @@ if (nir_is_rounding_mode_rtz(execution_mode, bit_size)) {
 }
 """)
 
-binop("fmulz", tfloat32, _2src_commutative + associative, """
+binop("fmulz", tfloat32, _2src_commutative + inexact_associative, """
 if (src0 == 0.0 || src1 == 0.0)
    dst = 0.0;
 else if (nir_is_rounding_mode_rtz(execution_mode, 32))
@@ -1041,10 +1043,10 @@ zero plus src2 if either src0 or src1 is zero.
 
 triop("flrp", tfloat, "", "src0 * (1 - src2) + src1 * src2")
 
-triop("iadd3", tint, _2src_commutative + associative, "src0 + src1 + src2",
+triop("iadd3", tint, _2src_commutative, "src0 + src1 + src2",
       description = "Ternary addition")
 
-triop("imad", tint, _2src_commutative + associative, "src0 * src1 + src2",
+triop("imad", tint, _2src_commutative, "src0 * src1 + src2",
       description = "Integer multiply-add")
 
 csel_description = """
@@ -1440,7 +1442,7 @@ opcode("lea_nv", 0, tuint, [0, 0, 0], [tuint, tuint, tuint32], False,
        "", "src0 + (src1 << (src2 % bit_size))")
 
 # 24b multiply into 32b result (with sign extension)
-binop("imul24", tint32, _2src_commutative + associative,
+binop("imul24", tint32, _2src_commutative,
       "(((int32_t)src0 << 8) >> 8) * (((int32_t)src1 << 8) >> 8)")
 
 # unsigned 24b multiply into 32b result plus 32b int
@@ -1448,13 +1450,13 @@ triop("umad24", tuint32, _2src_commutative,
       "(((uint32_t)src0 << 8) >> 8) * (((uint32_t)src1 << 8) >> 8) + src2")
 
 # unsigned 24b multiply into 32b result uint
-binop("umul24", tint32, _2src_commutative + associative,
+binop("umul24", tint32, _2src_commutative,
       "(((uint32_t)src0 << 8) >> 8) * (((uint32_t)src1 << 8) >> 8)")
 
 # relaxed versions of the above, which assume input is in the 24bit range (no clamping)
-binop("imul24_relaxed", tint32, _2src_commutative + associative, "src0 * src1")
+binop("imul24_relaxed", tint32, _2src_commutative, "src0 * src1")
 triop("umad24_relaxed", tuint32, _2src_commutative, "src0 * src1 + src2")
-binop("umul24_relaxed", tuint32, _2src_commutative + associative, "src0 * src1")
+binop("umul24_relaxed", tuint32, _2src_commutative, "src0 * src1")
 
 unop_convert("fisnormal", tbool1, tfloat, "isnormal(src0)")
 unop_convert("fisfinite", tbool1, tfloat, "isfinite(src0)")
@@ -1755,7 +1757,7 @@ opcode("udot_2x16_uadd_sat", 0, tint32, [0, 0, 0], [tuint32, tuint32, tint32],
 unop_numeric_convert("bf2f", tfloat32, tuint16, "_mesa_bfloat16_bits_to_float(src0)")
 unop_numeric_convert("f2bf", tuint16, tfloat32, "_mesa_float_to_bfloat16_bits_rte(src0)")
 
-binop("bfmul", tuint16, _2src_commutative + associative, """
+binop("bfmul", tuint16, _2src_commutative + inexact_associative, """
    const float a = _mesa_bfloat16_bits_to_float(src0);
    const float b = _mesa_bfloat16_bits_to_float(src1);
    dst = _mesa_float_to_bfloat16_bits_rte(a * b);

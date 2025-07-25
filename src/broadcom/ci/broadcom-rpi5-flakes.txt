@@ -163,6 +163,7 @@ dEQP-VK.rasterization.primitive_size.points.point_size_2048
 dEQP-VK.rasterization.primitive_size.points.point_size_512
 dEQP-VK.rasterization.provoking_vertex.draw.last.triangle_list_with_adjacency
 dEQP-VK.renderpass.suballocation.multisample_resolve.layers_3.r8g8b8a8_sint.samples_4_resolve_level_3
+dEQP-VK.renderpass.suballocation.multisample_resolve.layers_6.r32g32_sfloat.samples_4_resolve_level_4
 dEQP-VK.renderpass2.suballocation.multisample_resolve.layers_6.r8g8_unorm.samples_4_resolve_level_3
 dEQP-VK.robustness.image_robustness.bind.notemplate.r32i.dontunroll.volatile.storage_image.fmt_qual.img.samples_1.cube.frag
 dEQP-VK.robustness.image_robustness.bind.notemplate.r32ui.dontunroll.nonvolatile.sampled_image.no_fmt_qual.img.samples_1.1d_array.vert
@@ -172,13 +173,6 @@ dEQP-VK.spirv_assembly.type.scalar.i8.shift_left_logical_shift16_tesse
 dEQP-VK.ssbo.phys.layout.3_level_unsized_array.scalar.column_major_mat4x3_comp_access
 dEQP-VK.subgroups.builtin_mask_var.compute.subgroupltmask_requiredsubgroupsize
 dEQP-VK.subgroups.quad.compute.subgroupquadbroadcast_nonconst_uvec2
-dEQP-VK.synchronization.implicit.timeline_semaphore.write_copy_buffer_read_copy_buffer.buffer_16384.0233
-dEQP-VK.synchronization.implicit.timeline_semaphore.write_copy_buffer_read_copy_buffer.buffer_16384.0312
-dEQP-VK.synchronization2.implicit.timeline_semaphore.write_copy_buffer_read_copy_buffer.buffer_16384.0001
-dEQP-VK.synchronization2.implicit.timeline_semaphore.write_copy_buffer_read_copy_buffer.buffer_16384.0211
-dEQP-VK.synchronization2.implicit.timeline_semaphore.write_ssbo_vertex_read_copy_buffer.buffer_16384.2220
-dEQP-VK.synchronization2.timeline_semaphore.device_host.write_copy_buffer_to_image_read_copy_image.image_64x64x8_r32_sfloat
-dEQP-VK.synchronization2.timeline_semaphore.device_host.write_ssbo_fragment_read_ssbo_compute_indirect.buffer_16384
 dEQP-VK.tessellation.common_edge.quads_fractional_even_spacing_precise
 dEQP-VK.tessellation.invariance.outer_edge_index_independence.triangles_fractional_odd_spacing_ccw
 dEQP-VK.tessellation.misc_draw.fill_cover_triangles_equal_spacing_draw_indirect
@@ -198,7 +192,6 @@ dEQP-VK.texture.shadow.cube.nearest.less_d24_unorm_s8_uint
 dEQP-VK.texture.shadow.cube.nearest_mipmap_linear.not_equal_d24_unorm_s8_uint
 dEQP-VK.texture.shadow.cube.nearest_mipmap_nearest.not_equal_x8_d24_unorm_pack32
 
-dEQP-VK.synchronization2.basic.timeline_semaphore.one_queue
 spec@oes_texture_view@rendering-target
 spec@oes_texture_view@rendering-target@2D view rendering
 
