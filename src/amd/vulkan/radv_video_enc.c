@@ -50,7 +50,7 @@
 #define RENCODE_V3_FW_INTERFACE_MINOR_VERSION 27
 
 #define RENCODE_V2_FW_INTERFACE_MAJOR_VERSION 1
-#define RENCODE_V2_FW_INTERFACE_MINOR_VERSION 18
+#define RENCODE_V2_FW_INTERFACE_MINOR_VERSION 20
 
 #define RENCODE_FW_INTERFACE_MAJOR_VERSION 1
 #define RENCODE_FW_INTERFACE_MINOR_VERSION 15
@@ -60,7 +60,12 @@
 void
 radv_probe_video_encode(struct radv_physical_device *pdev)
 {
+   const struct radv_instance *instance = radv_physical_device_instance(pdev);
+
    pdev->video_encode_enabled = false;
+
+   if (instance->debug_flags & RADV_DEBUG_NO_VIDEO)
+      return;
 
    if (pdev->info.vcn_ip_version >= VCN_5_0_0) {
       pdev->video_encode_enabled = true;
@@ -105,7 +110,6 @@ radv_probe_video_encode(struct radv_physical_device *pdev)
          return;
    }
 
-   struct radv_instance *instance = radv_physical_device_instance(pdev);
    pdev->video_encode_enabled = !!(instance->perftest_flags & RADV_PERFTEST_VIDEO_ENCODE);
 }
 
@@ -500,10 +504,9 @@ radv_enc_session_init(struct radv_cmd_buffer *cmd_buffer, const struct VkVideoEn
    RADEON_ENC_CS(vid->enc_session.padding_height);
    RADEON_ENC_CS(vid->enc_session.pre_encode_mode);
    RADEON_ENC_CS(vid->enc_session.pre_encode_chroma_enabled);
-   if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_3) {
+   if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_3)
       RADEON_ENC_CS(vid->enc_session.slice_output_enabled);
-      RADEON_ENC_CS(vid->enc_session.display_remote);
-   }
+   RADEON_ENC_CS(vid->enc_session.display_remote);
    if (pdev->enc_hw_ver == RADV_VIDEO_ENC_HW_4) {
       RADEON_ENC_CS(vid->enc_session.WA_flags);
       RADEON_ENC_CS(0);
@@ -565,11 +568,12 @@ radv_enc_spec_misc_h264(struct radv_cmd_buffer *cmd_buffer, const struct VkVideo
       vk_video_find_h264_enc_std_sps(&cmd_buffer->video.params->vk, pic->seq_parameter_set_id);
    const StdVideoH264PictureParameterSet *pps =
       vk_video_find_h264_enc_std_pps(&cmd_buffer->video.params->vk, pic->pic_parameter_set_id);
+   const VkVideoEncodeH264NaluSliceInfoKHR *slice_info = &h264_picture_info->pNaluSliceEntries[0];
 
    RADEON_ENC_BEGIN(pdev->vcn_enc_cmds.spec_misc_h264);
    RADEON_ENC_CS(pps->flags.constrained_intra_pred_flag); // constrained_intra_pred_flag
    RADEON_ENC_CS(pps->flags.entropy_coding_mode_flag);    // cabac enable
-   RADEON_ENC_CS(0);                                      // cabac init idc
+   RADEON_ENC_CS(slice_info->pStdSliceHeader->cabac_init_idc);
    if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_5)
       RADEON_ENC_CS(pps->flags.transform_8x8_mode_flag);
    RADEON_ENC_CS(1);                                          // half pel enabled
@@ -612,8 +616,9 @@ radv_enc_spec_misc_hevc(struct radv_cmd_buffer *cmd_buffer, const struct VkVideo
       RADEON_ENC_CS(!pps->flags.transform_skip_enabled_flag);
       if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_5)
          RADEON_ENC_CS(0);
-      RADEON_ENC_CS(pps->flags.cu_qp_delta_enabled_flag);
    }
+   if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_2)
+      RADEON_ENC_CS(pps->flags.cu_qp_delta_enabled_flag);
    RADEON_ENC_END();
 }
 
@@ -822,13 +827,16 @@ radv_enc_deblocking_filter_h264(struct radv_cmd_buffer *cmd_buffer, const VkVide
       vk_find_struct_const(enc_info->pNext, VIDEO_ENCODE_H264_PICTURE_INFO_KHR);
    const VkVideoEncodeH264NaluSliceInfoKHR *h264_slice = &h264_picture_info->pNaluSliceEntries[0];
    const StdVideoEncodeH264SliceHeader *slice = h264_slice->pStdSliceHeader;
+   const StdVideoEncodeH264PictureInfo *pic = h264_picture_info->pStdPictureInfo;
+   const StdVideoH264PictureParameterSet *pps =
+      vk_video_find_h264_enc_std_pps(&cmd_buffer->video.params->vk, pic->pic_parameter_set_id);
 
    RADEON_ENC_BEGIN(pdev->vcn_enc_cmds.deblocking_filter_h264);
    RADEON_ENC_CS(slice->disable_deblocking_filter_idc);
    RADEON_ENC_CS(slice->slice_alpha_c0_offset_div2);
    RADEON_ENC_CS(slice->slice_beta_offset_div2);
-   RADEON_ENC_CS(0); // cb qp offset
-   RADEON_ENC_CS(0); // cr qp offset
+   RADEON_ENC_CS(pps->chroma_qp_index_offset);
+   RADEON_ENC_CS(pps->second_chroma_qp_index_offset);
    RADEON_ENC_END();
 }
 
@@ -878,12 +886,12 @@ radv_enc_latency(struct radv_cmd_buffer *cmd_buffer, VkVideoEncodeTuningModeKHR 
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   if (tuning_mode == VK_VIDEO_ENCODE_TUNING_MODE_LOW_LATENCY_KHR ||
-       tuning_mode == VK_VIDEO_ENCODE_TUNING_MODE_ULTRA_LOW_LATENCY_KHR) {
-      RADEON_ENC_BEGIN(pdev->vcn_enc_cmds.enc_latency);
-      RADEON_ENC_CS(1000);
-      RADEON_ENC_END();
-   }
+   const bool low_latency = tuning_mode == VK_VIDEO_ENCODE_TUNING_MODE_LOW_LATENCY_KHR ||
+                            tuning_mode == VK_VIDEO_ENCODE_TUNING_MODE_ULTRA_LOW_LATENCY_KHR;
+
+   RADEON_ENC_BEGIN(pdev->vcn_enc_cmds.enc_latency);
+   RADEON_ENC_CS(low_latency ? 1000 : 0);
+   RADEON_ENC_END();
 }
 
 static void
@@ -952,18 +960,6 @@ radv_enc_slice_header(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
 
    unsigned int max_frame_num_bits = sps->log2_max_frame_num_minus4 + 4;
    radv_enc_code_fixed_bits(cmd_buffer, pic->frame_num % (1 << max_frame_num_bits), max_frame_num_bits);
-#if 0
-   if (enc->enc_pic.h264_enc_params.input_picture_structure !=
-       RENCODE_H264_PICTURE_STRUCTURE_FRAME) {
-      radv_enc_code_fixed_bits(cmd_buffer, 0x1, 1);
-      radv_enc_code_fixed_bits(cmd_buffer,
-                                 enc->enc_pic.h264_enc_params.input_picture_structure ==
-                                       RENCODE_H264_PICTURE_STRUCTURE_BOTTOM_FIELD
-                                    ? 1
-                                    : 0,
-                                 1);
-   }
-#endif
 
    if (pic->flags.IdrPicFlag)
       radv_enc_code_ue(cmd_buffer, pic->idr_pic_id);
@@ -1722,7 +1718,8 @@ radv_enc_rc_per_pic(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoK
    RADEON_ENC_CS(per_pic->enabled_filler_data);
    RADEON_ENC_CS(per_pic->skip_frame_enable);
    RADEON_ENC_CS(per_pic->enforce_hrd);
-   RADEON_ENC_CS(0xFFFFFFFF); // reserved_0xff
+   if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_3)
+      RADEON_ENC_CS(0xFFFFFFFF); // qvbr_quality_level
    RADEON_ENC_END();
 }
 
@@ -1743,9 +1740,12 @@ radv_enc_params(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoKHR *
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radeon_cmdbuf *cs = cmd_buffer->cs;
+   uint32_t array_idx = enc_info->srcPictureResource.baseArrayLayer + src_iv->vk.base_array_layer;
    uint64_t va = src_img->bindings[0].addr;
-   uint64_t luma_va = va + src_img->planes[0].surface.u.gfx9.surf_offset;
-   uint64_t chroma_va = va + src_img->planes[1].surface.u.gfx9.surf_offset;
+   uint64_t luma_va = va + src_img->planes[0].surface.u.gfx9.surf_offset +
+                      array_idx * src_img->planes[0].surface.u.gfx9.surf_slice_size;
+   uint64_t chroma_va = va + src_img->planes[1].surface.u.gfx9.surf_offset +
+                        array_idx * src_img->planes[1].surface.u.gfx9.surf_slice_size;
    uint32_t pic_type;
    unsigned int slot_idx = 0xffffffff;
    unsigned int max_layers = cmd_buffer->video.vid->rc_layer_control.max_num_temporal_layers;
@@ -2615,15 +2615,6 @@ begin(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInfoKHR *enc_info)
 
    radv_enc_op_init(cmd_buffer);
    radv_enc_session_init(cmd_buffer, enc_info);
-   if (vid->vk.op == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR) {
-      radv_enc_slice_control(cmd_buffer, enc_info);
-      radv_enc_spec_misc_h264(cmd_buffer, enc_info);
-      radv_enc_deblocking_filter_h264(cmd_buffer, enc_info);
-   } else if (vid->vk.op == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR) {
-      radv_enc_slice_control_hevc(cmd_buffer, enc_info);
-      radv_enc_spec_misc_hevc(cmd_buffer, enc_info);
-      radv_enc_deblocking_filter_hevc(cmd_buffer, enc_info);
-   }
    radv_enc_layer_control(cmd_buffer, &vid->rc_layer_control);
    radv_enc_rc_session_init(cmd_buffer);
    radv_enc_quality_params(cmd_buffer);
@@ -2709,11 +2700,15 @@ radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
       } while (++i < vid->rc_layer_control.num_temporal_layers);
    }
 
-   // encode headers
-   // ctx
    if (vid->vk.op == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR) {
+      radv_enc_slice_control(cmd_buffer, enc_info);
+      radv_enc_spec_misc_h264(cmd_buffer, enc_info);
+      radv_enc_deblocking_filter_h264(cmd_buffer, enc_info);
       radv_enc_headers_h264(cmd_buffer, enc_info);
    } else if (vid->vk.op == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR) {
+      radv_enc_slice_control_hevc(cmd_buffer, enc_info);
+      radv_enc_spec_misc_hevc(cmd_buffer, enc_info);
+      radv_enc_deblocking_filter_hevc(cmd_buffer, enc_info);
       radv_enc_headers_hevc(cmd_buffer, enc_info);
    } else if (vid->vk.op == VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR) {
       radv_enc_av1_tile_config(cmd_buffer, enc_info);
@@ -3047,19 +3042,24 @@ radv_video_patch_encode_session_parameters(struct radv_device *device, struct vk
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR:
       for (unsigned i = 0; i < params->h264_enc.h264_pps_count; i++) {
          params->h264_enc.h264_pps[i].base.pic_init_qp_minus26 = 0;
+         params->h264_enc.h264_pps[i].base.pic_init_qs_minus26 = 0;
+         if (pdev->enc_hw_ver < RADV_VIDEO_ENC_HW_5)
+            params->h264_enc.h264_pps[i].base.flags.transform_8x8_mode_flag = 0;
       }
       break;
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR: {
-      /*
-       * AMD firmware requires these flags to be set in h265 with RC modes,
-       * VCN 3 need 1.27 and VCN 4 needs 1.7 or newer to pass the CTS tests,
-       * dEQP-VK.video.encode.h265_rc_*.
-       */
       for (unsigned i = 0; i < params->h265_enc.h265_pps_count; i++) {
-         params->h265_enc.h265_pps[i].base.flags.cu_qp_delta_enabled_flag = 1;
+         /* cu_qp_delta needs to be enabled if rate control is enabled. VCN2 and newer can also enable
+          * it with rate control disabled. Since we don't know what rate control will be used, we
+          * need to always force enable it.
+          * On VCN1 rate control modes are disabled.
+          */
+         params->h265_enc.h265_pps[i].base.flags.cu_qp_delta_enabled_flag = !!(pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_2);
          params->h265_enc.h265_pps[i].base.diff_cu_qp_delta_depth = 0;
          params->h265_enc.h265_pps[i].base.init_qp_minus26 = 0;
          params->h265_enc.h265_pps[i].base.flags.dependent_slice_segments_enabled_flag = 1;
+         if (pdev->enc_hw_ver < RADV_VIDEO_ENC_HW_3)
+            params->h265_enc.h265_pps[i].base.flags.transform_skip_enabled_flag = 0;
       }
       break;
    }

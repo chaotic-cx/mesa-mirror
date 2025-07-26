@@ -541,14 +541,14 @@ impl PipeContext {
         }
     }
 
-    pub fn set_sampler_views(&self, mut views: Vec<PipeSamplerView>) {
+    pub fn set_sampler_views(&self, mut views: Vec<PipeSamplerView>, unbind_trailing: u32) {
         unsafe {
             self.pipe.as_ref().set_sampler_views.unwrap()(
                 self.pipe.as_ptr(),
                 pipe_shader_type::PIPE_SHADER_COMPUTE,
                 0,
                 views.len() as u32,
-                0,
+                unbind_trailing,
                 PipeSamplerView::as_pipe(views.as_mut_slice()),
             );
         }
@@ -568,7 +568,7 @@ impl PipeContext {
         }
     }
 
-    pub fn set_shader_images(&self, images: &[PipeImageView]) {
+    pub fn set_shader_images(&self, images: &[PipeImageView], unbind_trailing: u32) {
         let images = PipeImageView::slice_to_pipe(images);
         unsafe {
             self.pipe.as_ref().set_shader_images.unwrap()(
@@ -576,7 +576,7 @@ impl PipeContext {
                 pipe_shader_type::PIPE_SHADER_COMPUTE,
                 0,
                 images.len() as u32,
-                0,
+                unbind_trailing,
                 images.as_ptr(),
             )
         }

@@ -38,29 +38,24 @@ class brw_builder {
 public:
    /**
     * Construct an brw_builder that inserts instructions
-    * at the end of \p shader. The \p dispatch_width gives
-    * the execution width, that may differ from the shader
-    * dispatch_width.
+    * at the end of \p shader. The optional \p dispatch_width
+    * gives the execution width to be used instead of the
+    * shader original dispatch_width.
     */
    brw_builder(brw_shader *shader,
-               unsigned dispatch_width) :
+               unsigned dispatch_width = 0) :
       shader(shader), block(NULL), cursor(NULL),
-      _dispatch_width(dispatch_width),
+      _dispatch_width(dispatch_width ? dispatch_width : shader->dispatch_width),
       _group(0),
       force_writemask_all(false),
       annotation()
    {
-      if (shader)
+      if (shader->cfg && shader->cfg->num_blocks > 0) {
+         block = shader->cfg->last_block();
+         cursor = &block->instructions.tail_sentinel;
+      } else {
          cursor = (exec_node *)&shader->instructions.tail_sentinel;
-   }
-
-   /**
-    * Construct an brw_builder that inserts instructions into \p shader,
-    * using its dispatch width.
-    */
-   explicit brw_builder(brw_shader *s = NULL) :
-      brw_builder(s, s ? s->dispatch_width : 0)
-   {
+      }
    }
 
    /**
@@ -82,17 +77,48 @@ public:
 #endif
    }
 
-   /**
-    * Construct an brw_builder that inserts instructions before \p cursor in
-    * basic block \p block, inheriting other code generation parameters
-    * from this.
-    */
    brw_builder
-   at(bblock_t *block, exec_node *cursor) const
+   at_start(bblock_t *block) const
    {
       brw_builder bld = *this;
       bld.block = block;
-      bld.cursor = cursor;
+      bld.cursor = block->instructions.head_sentinel.next;
+      return bld;
+   }
+
+   brw_builder
+   at_end(bblock_t *block) const
+   {
+      brw_builder bld = *this;
+      bld.block = block;
+      bld.cursor = &block->instructions.tail_sentinel;
+      return bld;
+   }
+
+   brw_builder
+   before(brw_inst *ref) const
+   {
+      brw_builder bld = *this;
+      bld.block = ref->block;
+      bld.cursor = ref;
+      return bld;
+   }
+
+   brw_builder
+   after(brw_inst *ref) const
+   {
+      brw_builder bld = *this;
+      bld.block = ref->block;
+      bld.cursor = ref->next;
+      return bld;
+   }
+
+   brw_builder
+   after_block_before_control_flow(bblock_t *block) const
+   {
+      brw_builder bld = *this;
+      bld.block = block;
+      bld.cursor = block->last_non_control_flow_inst()->next;
       return bld;
    }
 
@@ -362,7 +388,7 @@ public:
 #endif
 
       if (block)
-         static_cast<brw_inst *>(cursor)->insert_before(block, inst);
+         block->insert_before(inst, cursor);
       else
          cursor->insert_before(inst);
 

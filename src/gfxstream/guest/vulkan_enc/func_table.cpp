@@ -83,16 +83,6 @@ VkResult gfxstream_vk_GetPhysicalDeviceImageFormatProperties(
     }
     return vkGetPhysicalDeviceImageFormatProperties_VkResult_return;
 }
-void gfxstream_vk_GetPhysicalDeviceProperties(VkPhysicalDevice physicalDevice,
-                                              VkPhysicalDeviceProperties* pProperties) {
-    MESA_TRACE_SCOPE("vkGetPhysicalDeviceProperties");
-    VK_FROM_HANDLE(gfxstream_vk_physical_device, gfxstream_physicalDevice, physicalDevice);
-    {
-        auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
-        vkEnc->vkGetPhysicalDeviceProperties(gfxstream_physicalDevice->internal_object, pProperties,
-                                             true /* do lock */);
-    }
-}
 void gfxstream_vk_GetPhysicalDeviceQueueFamilyProperties(
     VkPhysicalDevice physicalDevice, uint32_t* pQueueFamilyPropertyCount,
     VkQueueFamilyProperties* pQueueFamilyProperties) {
@@ -1861,6 +1851,18 @@ void gfxstream_vk_GetPhysicalDeviceProperties2(VkPhysicalDevice physicalDevice,
         auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
         vkEnc->vkGetPhysicalDeviceProperties2(gfxstream_physicalDevice->internal_object,
                                               pProperties, true /* do lock */);
+    }
+}
+void gfxstream_vk_GetPhysicalDeviceFormatProperties2(VkPhysicalDevice physicalDevice,
+                                                     VkFormat format,
+                                                     VkFormatProperties2* pFormatProperties) {
+    MESA_TRACE_SCOPE("vkGetPhysicalDeviceFormatProperties2");
+    VK_FROM_HANDLE(gfxstream_vk_physical_device, gfxstream_physicalDevice, physicalDevice);
+    {
+        auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
+        auto resources = gfxstream::vk::ResourceTracker::get();
+        resources->on_vkGetPhysicalDeviceFormatProperties2(
+            vkEnc, gfxstream_physicalDevice->internal_object, format, pFormatProperties);
     }
 }
 VkResult gfxstream_vk_GetPhysicalDeviceImageFormatProperties2(

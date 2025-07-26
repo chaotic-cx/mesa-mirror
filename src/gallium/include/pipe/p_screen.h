@@ -95,6 +95,7 @@ struct pipe_screen {
    const struct pipe_caps caps;
    const struct pipe_shader_caps shader_caps[PIPE_SHADER_MESH_TYPES];
    const struct pipe_compute_caps compute_caps;
+   const struct nir_shader_compiler_options *nir_options[PIPE_SHADER_MESH_TYPES];
 
    /**
     * Get the fd associated with the screen
@@ -468,12 +469,6 @@ struct pipe_screen {
                              struct pipe_memory_info *info);
 
    /**
-    * Get nir compiler options struct.
-    */
-   const struct nir_shader_compiler_options *(*get_compiler_options)(
-      struct pipe_screen *screen, enum pipe_shader_type shader);
-
-   /**
     * Returns a pointer to a driver-specific on-disk shader cache. If the
     * driver failed to create the cache or does not support an on-disk shader
     * cache NULL is returned. The callback itself may also be NULL if the
@@ -619,11 +614,8 @@ struct pipe_screen {
     *
     * gallium frontends should call this before passing shaders to drivers,
     * and ideally also before shader caching.
-    *
-    * The driver may return a non-NULL string to trigger GLSL link failure
-    * and logging of that message in the GLSL linker log.
     */
-   char *(*finalize_nir)(struct pipe_screen *screen, struct nir_shader *nir);
+   void (*finalize_nir)(struct pipe_screen *screen, struct nir_shader *nir);
 
    /*Separated memory/resource allocations interfaces for Vulkan */
 

@@ -164,8 +164,6 @@ class ResourceTracker {
                                          VkPhysicalDeviceFeatures2* pFeatures);
     void on_vkGetPhysicalDeviceFeatures2KHR(void* context, VkPhysicalDevice physicalDevice,
                                             VkPhysicalDeviceFeatures2* pFeatures);
-    void on_vkGetPhysicalDeviceProperties(void* context, VkPhysicalDevice physicalDevice,
-                                          VkPhysicalDeviceProperties* pProperties);
     void on_vkGetPhysicalDeviceProperties2(void* context, VkPhysicalDevice physicalDevice,
                                            VkPhysicalDeviceProperties2* pProperties);
     void on_vkGetPhysicalDeviceProperties2KHR(void* context, VkPhysicalDevice physicalDevice,
@@ -180,10 +178,6 @@ class ResourceTracker {
     void on_vkGetPhysicalDeviceMemoryProperties2KHR(
         void* context, VkPhysicalDevice physicalDevice,
         VkPhysicalDeviceMemoryProperties2* pMemoryProperties);
-    void on_vkGetDeviceQueue(void* context, VkDevice device, uint32_t queueFamilyIndex,
-                             uint32_t queueIndex, VkQueue* pQueue);
-    void on_vkGetDeviceQueue2(void* context, VkDevice device, const VkDeviceQueueInfo2* pQueueInfo,
-                              VkQueue* pQueue);
 
     VkResult on_vkCreateInstance(void* context, VkResult input_result,
                                  const VkInstanceCreateInfo* createInfo,
@@ -827,7 +821,7 @@ class ResourceTracker {
     };
 
     struct VkQueue_Info {
-        VkDevice device;
+        uint32_t placeholder;
     };
 
     // custom guest-side structs for images/buffers because of AHardwareBuffer :((

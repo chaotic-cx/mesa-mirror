@@ -58,10 +58,10 @@ cc_library_static {
     target: {
         android: {
             srcs: [
-                "linux/LinuxVirtGpuBlob.cpp",
-                "linux/LinuxVirtGpuBlobMapping.cpp",
-                "linux/LinuxVirtGpuDevice.cpp",
-                "linux/LinuxSync.cpp",
+                "drm/DrmVirtGpuBlob.cpp",
+                "drm/DrmVirtGpuBlobMapping.cpp",
+                "drm/DrmVirtGpuDevice.cpp",
+                "drm/DrmSync.cpp",
                 "kumquat/VirtGpuKumquatStub.cpp",
             ],
             shared_libs: [
@@ -78,10 +78,10 @@ cc_library_static {
                 "vk_extensions_header",
             ],
             srcs: [
-                "linux/LinuxVirtGpuBlob.cpp",
-                "linux/LinuxVirtGpuBlobMapping.cpp",
-                "linux/LinuxVirtGpuDevice.cpp",
-                "linux/LinuxSync.cpp",
+                "drm/DrmVirtGpuBlob.cpp",
+                "drm/DrmVirtGpuBlobMapping.cpp",
+                "drm/DrmVirtGpuDevice.cpp",
+                "drm/DrmSync.cpp",
                 "kumquat/VirtGpuKumquatBlob.cpp",
                 "kumquat/VirtGpuKumquatBlobMapping.cpp",
                 "kumquat/VirtGpuKumquatDevice.cpp",

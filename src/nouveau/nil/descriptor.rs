@@ -22,11 +22,7 @@ use std::ops::Range;
 
 use crate::extent::{units, Extent4D};
 use crate::format::Format;
-use crate::image::Image;
-use crate::image::ImageDim;
-use crate::image::SampleLayout;
-use crate::image::View;
-use crate::image::ViewType;
+use crate::image::{Image, ImageDim, SampleLayout, View, ViewAccess, ViewType};
 
 macro_rules! set_enum {
     ($th:expr, $cls:ident, $field:ident, $enum:ident) => {
@@ -276,6 +272,19 @@ fn normalize_extent(image: &Image, view: &View) -> Extent4D<units::Pixels> {
         }
     }
     extent.array_len = 0;
+
+    // When an MSAA image is accessed through surface ops (suld/sust), the
+    // surface hardware entirely ignores the sample layout so we have to
+    // increase the size in the descriptor or else it will crop to the upper
+    // left corner.
+    if view.access == ViewAccess::Storage
+        && image.sample_layout != SampleLayout::_1x1
+    {
+        assert!(image.dim == ImageDim::_2D);
+        assert!(view.base_level == 0);
+        assert!(view.num_levels == 1);
+        extent = extent.to_sa(image.sample_layout).cast_units();
+    }
 
     extent
 }
@@ -922,6 +931,9 @@ impl Descriptor {
                 &mut desc.bits,
             );
         } else if dev.cls_eng3d >= FERMI_A {
+            // Kepler and earlier doesn't support surface access through
+            // conventional image descriptors
+            assert_eq!(view.access, ViewAccess::Texture);
             nv9097_fill_image_view_desc(
                 image,
                 view,

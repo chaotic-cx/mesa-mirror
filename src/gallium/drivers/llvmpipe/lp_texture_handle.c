@@ -126,7 +126,20 @@ llvmpipe_create_image_handle(struct pipe_context *pctx, const struct pipe_image_
    state.static_state.pot_height = false;
    state.static_state.pot_depth = false;
 
-   if (view->u.tex.first_layer == view->u.tex.last_layer) {
+   /*
+    * Rely on single_layer_view to distinguish array and non-array targets,
+    * since there's no target field in pipe_image_view, and there can
+    * be mismatch between resource and view.
+    * We cannot unconditionally demote array to non-array targets if there's
+    * only one layer, since we'd then ignore the layer coord completely and
+    * OOB behavior would be wrong.
+    *
+    * XXX shouldn't we do this in lp_sampler_static_texture_state_image()
+    * in the first place (there's more callers)?
+    */
+   if (view->resource && llvmpipe_resource_is_texture(view->resource) &&
+       view->u.tex.single_layer_view &&
+       view->u.tex.first_layer == view->u.tex.last_layer) {
       if (state.static_state.target == PIPE_TEXTURE_1D_ARRAY)
          state.static_state.target = PIPE_TEXTURE_1D;
       else if (state.static_state.target == PIPE_TEXTURE_2D_ARRAY ||
@@ -327,6 +340,8 @@ compile_image_function(struct llvmpipe_context *ctx, struct lp_static_texture_st
 
    struct lp_img_params params = { 0 };
 
+   params.instr_has_layer_coord = flags & LP_IMAGE_OP_HAS_LAYER;
+
    params.img_op = op % LP_IMAGE_OP_COUNT;
    if (params.img_op >= LP_IMG_OP_COUNT - 1) {
       params.op = params.img_op - (LP_IMG_OP_COUNT - 1);
@@ -371,7 +386,7 @@ compile_image_function(struct llvmpipe_context *ctx, struct lp_static_texture_st
    lp_disk_cache_find_shader(llvmpipe_screen(ctx->pipe.screen), &cached, cache_key);
    bool needs_caching = !cached.data_size;
 
-   struct gallivm_state *gallivm = gallivm_create("sample_function", get_llvm_context(ctx), &cached);
+   struct gallivm_state *gallivm = gallivm_create("image_function", get_llvm_context(ctx), &cached);
 
    struct lp_image_static_state state = {
       .image_state = local_texture,
@@ -629,7 +644,7 @@ compile_size_function(struct llvmpipe_context *ctx, struct lp_texture_handle_sta
    lp_disk_cache_find_shader(llvmpipe_screen(ctx->pipe.screen), &cached, cache_key);
    bool needs_caching = !cached.data_size;
 
-   struct gallivm_state *gallivm = gallivm_create("sample_function", get_llvm_context(ctx), &cached);
+   struct gallivm_state *gallivm = gallivm_create("size_function", get_llvm_context(ctx), &cached);
 
    struct lp_sampler_static_state state = {
       .texture_state = texture->static_state,
@@ -1270,11 +1285,14 @@ llvmpipe_register_texture(struct llvmpipe_context *ctx, struct lp_texture_handle
    simple_mtx_lock(&matrix->lock);
 
    if (entry->sampled) {
-      if (entry->sample_functions) {
-         entry->sample_functions = realloc(entry->sample_functions, matrix->sampler_count * sizeof(void **));
-         memset(entry->sample_functions + entry->sampler_count, 0, (matrix->sampler_count - entry->sampler_count) * sizeof(void **));
-      } else {
-         entry->sample_functions = calloc(matrix->sampler_count, sizeof(void **));
+      if (matrix->sampler_count > 0) {
+         if (entry->sample_functions) {
+            entry->sample_functions = realloc(entry->sample_functions, matrix->sampler_count * sizeof(void **));
+            memset(entry->sample_functions + entry->sampler_count, 0,
+                   (matrix->sampler_count - entry->sampler_count) * sizeof(void **));
+         } else {
+            entry->sample_functions = calloc(matrix->sampler_count, sizeof(void **));
+         }
       }
       entry->sampler_count = matrix->sampler_count;
 

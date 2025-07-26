@@ -193,11 +193,6 @@ panfrost_is_format_supported(struct pipe_screen *screen,
    if (format == PIPE_FORMAT_Z16_UNORM && dev->arch <= 4)
       return false;
 
-   if (dev->arch <= 4 && util_format_get_blocksize(format) >= 16 &&
-       !pan_screen(screen)->allow_128bit_rts_v4 &&
-       (bind & PIPE_BIND_RENDER_TARGET))
-      return false;
-
    /* Check we support the format with the given bind */
 
    unsigned pan_bind_flags = pipe_to_pan_bind_flags(bind);
@@ -676,6 +671,9 @@ panfrost_init_screen_caps(struct panfrost_screen *screen)
    caps->texture_multisample = true;
    caps->surface_sample_count = true;
 
+   caps->device_reset_status_query = dev->arch >= 10;
+   caps->robust_buffer_access_behavior = dev->arch >= 6;
+
    caps->sampler_view_target = true;
    caps->clip_halfz = true;
    caps->polygon_offset_clamp = true;
@@ -890,13 +888,6 @@ panfrost_destroy_screen(struct pipe_screen *pscreen)
    ralloc_free(pscreen);
 }
 
-static const struct nir_shader_compiler_options *
-panfrost_screen_get_compiler_options(struct pipe_screen *pscreen,
-                                     enum pipe_shader_type shader)
-{
-   return pan_shader_get_compiler_options(pan_screen(pscreen)->dev.arch);
-}
-
 static struct disk_cache *
 panfrost_get_disk_shader_cache(struct pipe_screen *pscreen)
 {
@@ -970,6 +961,8 @@ panfrost_create_screen(int fd, const struct pipe_screen_config *config,
    /* Debug must be set first for pandecode to work correctly */
    dev->debug =
       debug_get_flags_option("PAN_MESA_DEBUG", panfrost_debug_options, 0);
+   dev->fault_injection_rate =
+      debug_get_num_option("PAN_FAULT_INJECTION_RATE", 0);
    screen->max_afbc_packing_ratio = debug_get_num_option(
       "PAN_MAX_AFBC_PACKING_RATIO", DEFAULT_MAX_AFBC_PACKING_RATIO);
 
@@ -1032,9 +1025,6 @@ panfrost_create_screen(int fd, const struct pipe_screen_config *config,
       return NULL;
    }
 
-   screen->allow_128bit_rts_v4 =
-      driQueryOptionb(config->options, "pan_allow_128bit_rts_v4");
-
    screen->csf_tiler_heap.chunk_size = driQueryOptioni(config->options,
                                                        "pan_csf_chunk_size");
    screen->csf_tiler_heap.initial_chunks = driQueryOptioni(config->options,
@@ -1057,7 +1047,6 @@ panfrost_create_screen(int fd, const struct pipe_screen_config *config,
    screen->base.is_dmabuf_modifier_supported =
       panfrost_is_dmabuf_modifier_supported;
    screen->base.context_create = panfrost_create_context;
-   screen->base.get_compiler_options = panfrost_screen_get_compiler_options;
    screen->base.get_disk_shader_cache = panfrost_get_disk_shader_cache;
    screen->base.fence_reference = panfrost_fence_reference;
    screen->base.fence_finish = panfrost_fence_finish;
@@ -1082,6 +1071,9 @@ panfrost_create_screen(int fd, const struct pipe_screen_config *config,
       panfrost_destroy_screen(&(screen->base));
       return NULL;
    }
+
+   for (unsigned i = 0; i <= MESA_SHADER_COMPUTE; i++)
+      screen->base.nir_options[i] = pan_shader_get_compiler_options(pan_screen(&screen->base)->dev.arch);
 
    switch (dev->arch) {
    case 4:

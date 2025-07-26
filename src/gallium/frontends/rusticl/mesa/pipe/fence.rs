@@ -22,6 +22,8 @@ pub struct PipeFence {
     screen: Arc<PipeScreen>,
 }
 
+unsafe impl Send for PipeFence {}
+
 impl PipeFence {
     pub fn new(fence: *mut pipe_fence_handle, screen: &Arc<PipeScreen>) -> Self {
         Self {
@@ -30,8 +32,11 @@ impl PipeFence {
         }
     }
 
-    pub fn wait(&self) {
-        self.screen.fence_finish(self.fence);
+    /// Returns false on errors.
+    ///
+    /// TODO: should be a Result.
+    pub fn wait(&self) -> bool {
+        self.screen.fence_finish(self.fence)
     }
 }
 

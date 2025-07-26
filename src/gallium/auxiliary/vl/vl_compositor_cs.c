@@ -100,8 +100,7 @@ static nir_def *cs_create_shader(struct vl_compositor *c, struct cs_shader *s)
       glsl_sampler_type(sampler_dim, /*is_shadow*/ false, s->array, GLSL_TYPE_FLOAT);
    const struct glsl_type *image_type =
       glsl_image_type(GLSL_SAMPLER_DIM_2D, /*is_array*/ false, GLSL_TYPE_FLOAT);
-   const nir_shader_compiler_options *options =
-      c->pipe->screen->get_compiler_options(c->pipe->screen, PIPE_SHADER_COMPUTE);
+   const nir_shader_compiler_options *options = c->pipe->screen->nir_options[PIPE_SHADER_COMPUTE];
 
    s->b = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE, options, "vl:%s", s->name);
    nir_builder *b = &s->b;
@@ -264,7 +263,8 @@ static inline nir_def *cs_fetch_texel(struct cs_shader *s, nir_def *coords, unsi
    nir_builder *b = &s->b;
    nir_deref_instr *tex_deref = nir_build_deref_var(b, s->samplers[sampler]);
    nir_component_mask_t mask = s->array ? 0x7 : 0x3;
-   return nir_tex_deref(b, tex_deref, tex_deref, nir_channels(b, coords, mask));
+   return nir_tex(b, nir_channels(b, coords, mask),
+                  .texture_deref = tex_deref, .sampler_deref = tex_deref);
 }
 
 static inline nir_def *cs_image_load(struct cs_shader *s, nir_def *pos)

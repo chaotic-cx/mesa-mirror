@@ -206,7 +206,7 @@ filter_64_bit_instr(const nir_instr *const_instr, UNUSED const void *data)
 /* Second third of converting glsl_to_nir. This creates uniforms, gathers
  * info on varyings, etc after NIR link time opts have been applied.
  */
-static char *
+static void
 st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
                          struct gl_shader_program *shader_program)
 {
@@ -316,13 +316,12 @@ st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
    st_set_prog_affected_state_flags(prog);
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 
-   char *msg = NULL;
    if (st->allow_st_finalize_nir_twice) {
       st_serialize_base_nir(prog, nir);
       st_finalize_nir(st, prog, shader_program, nir, true, false);
 
       if (screen->finalize_nir)
-         msg = screen->finalize_nir(screen, nir);
+         screen->finalize_nir(screen, nir);
    }
 
    if (st->ctx->_Shader->Flags & GLSL_DUMP) {
@@ -333,8 +332,6 @@ st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
       nir_print_shader(nir, mesa_log_get_file());
       _mesa_log("\n\n");
    }
-
-   return msg;
 }
 
 extern "C" {
@@ -414,7 +411,7 @@ st_link_glsl_to_nir(struct gl_context *ctx,
    for (unsigned i = 0; i < num_shaders; i++) {
       struct gl_linked_shader *shader = linked_shader[i];
       const nir_shader_compiler_options *options =
-         st->ctx->Const.ShaderCompilerOptions[shader->Stage].NirOptions;
+         ctx->screen->nir_options[shader->Stage];
       struct gl_program *prog = shader->Program;
 
       shader->Program->info.separate_shader = shader_program->SeparateShader;
@@ -452,8 +449,8 @@ st_link_glsl_to_nir(struct gl_context *ctx,
       static const gl_nir_linker_options opts = {
          true /*fill_parameters */
       };
-      if (!gl_nir_link_spirv(&ctx->Const, &ctx->Extensions, shader_program,
-                             &opts))
+      if (!gl_nir_link_spirv(ctx->screen, &ctx->Const, &ctx->Extensions,
+                             shader_program, &opts))
          return GL_FALSE;
    }
 
@@ -515,14 +512,10 @@ st_link_glsl_to_nir(struct gl_context *ctx,
       struct gl_linked_shader *shader = linked_shader[i];
       struct shader_info *info = &shader->Program->nir->info;
 
-      char *msg = st_glsl_to_nir_post_opts(st, shader->Program, shader_program);
-      if (msg) {
-         linker_error(shader_program, msg);
-         return false;
-      }
+      st_glsl_to_nir_post_opts(st, shader->Program, shader_program);
 
       if (prev_info &&
-          ctx->Const.ShaderCompilerOptions[shader->Stage].NirOptions->unify_interfaces) {
+          ctx->screen->nir_options[shader->Stage]->unify_interfaces) {
          prev_info->outputs_written |= info->inputs_read &
             ~(VARYING_BIT_TESS_LEVEL_INNER | VARYING_BIT_TESS_LEVEL_OUTER);
          info->inputs_read |= prev_info->outputs_written &

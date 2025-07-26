@@ -2,6 +2,8 @@
  * Copyright 2024 Valve Corporation
  * Copyright 2024 Alyssa Rosenzweig
  * Copyright 2022-2023 Collabora Ltd. and Red Hat Inc.
+ * Copyright 2023 Advanced Micro Devices, Inc.
+ * Copyright 2018 Intel Corporation
  * SPDX-License-Identifier: MIT
  */
 #include "hk_shader.h"
@@ -10,6 +12,7 @@
 #include "agx_device.h"
 #include "agx_helpers.h"
 #include "agx_nir_lower_gs.h"
+#include "agx_nir_lower_vbo.h"
 #include "glsl_types.h"
 #include "libagx.h"
 #include "nir.h"
@@ -29,6 +32,7 @@
 #include "nir_intrinsics_indices.h"
 #include "nir_xfb_info.h"
 #include "shader_enums.h"
+#include "vk_graphics_state.h"
 #include "vk_nir_convert_ycbcr.h"
 #include "vk_physical_device_features.h"
 #include "vk_pipeline.h"
@@ -65,6 +69,19 @@ struct hk_fs_key {
    uint8_t pad[2];
 };
 static_assert(sizeof(struct hk_fs_key) == 4, "packed");
+
+struct hk_vs_key {
+   struct agx_velem_key attribs[32];
+   bool skip_prolog;
+   bool static_strides;
+   bool pad[2];
+};
+static_assert(sizeof(struct hk_vs_key) == 260, "packed");
+
+union hk_key {
+   struct hk_vs_key vs;
+   struct hk_fs_key fs;
+};
 
 static void
 shared_var_info(const struct glsl_type *type, unsigned *size, unsigned *align)
@@ -173,6 +190,29 @@ hk_preprocess_nir(struct vk_physical_device *vk_pdev, nir_shader *nir,
 }
 
 static void
+hk_populate_vs_key(struct hk_vs_key *key,
+                   const struct vk_graphics_pipeline_state *state)
+{
+   memset(key, 0, sizeof(*key));
+
+   if (state == NULL || !state->vi ||
+       BITSET_TEST(state->dynamic, MESA_VK_DYNAMIC_VI) ||
+       BITSET_TEST(state->dynamic, MESA_VK_DYNAMIC_VI_BINDINGS_VALID))
+      return;
+
+   agx_fill_velem_keys(state->vi, ~0 /* compacted on use */, key->attribs);
+   key->skip_prolog = true;
+   key->static_strides =
+      !BITSET_TEST(state->dynamic, MESA_VK_DYNAMIC_VI_BINDING_STRIDES);
+
+   if (!key->static_strides) {
+      for (unsigned i = 0; i < ARRAY_SIZE(key->attribs); ++i) {
+         key->attribs[i].stride = 0;
+      }
+   }
+}
+
+static void
 hk_populate_fs_key(struct hk_fs_key *key,
                    const struct vk_graphics_pipeline_state *state)
 {
@@ -232,7 +272,11 @@ hk_hash_graphics_state(struct vk_physical_device *device,
 {
    struct mesa_blake3 blake3_ctx;
    _mesa_blake3_init(&blake3_ctx);
-   if (state && (stages & VK_SHADER_STAGE_FRAGMENT_BIT)) {
+   if (state && (stages & VK_SHADER_STAGE_VERTEX_BIT)) {
+      struct hk_vs_key key;
+      hk_populate_vs_key(&key, state);
+      _mesa_blake3_update(&blake3_ctx, &key, sizeof(key));
+   } else if (state && (stages & VK_SHADER_STAGE_FRAGMENT_BIT)) {
       struct hk_fs_key key;
       hk_populate_fs_key(&key, state);
       _mesa_blake3_update(&blake3_ctx, &key, sizeof(key));
@@ -1013,7 +1057,7 @@ static VkResult
 hk_compile_nir(struct hk_device *dev, const VkAllocationCallbacks *pAllocator,
                nir_shader *nir, VkShaderCreateFlagsEXT shader_flags,
                const struct vk_pipeline_robustness_state *rs,
-               const struct hk_fs_key *fs_key, enum hk_feature_key features,
+               const union hk_key *key, enum hk_feature_key features,
                struct hk_shader *shader, gl_shader_stage sw_stage, bool hw,
                nir_xfb_info *xfb_info, unsigned set_count)
 {
@@ -1136,6 +1180,7 @@ hk_compile_nir(struct hk_device *dev, const VkAllocationCallbacks *pAllocator,
    if (lock)
       simple_mtx_lock(lock);
 
+   assert(nir->info.io_lowered);
    agx_compile_shader_nir(nir, &backend_key, &shader->b);
 
    if (lock)
@@ -1254,25 +1299,24 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
       return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
    }
 
-   /* TODO: Multiview with ESO */
-   const bool is_multiview = state && state->rp->view_mask != 0;
-
-   hk_lower_nir(dev, nir, info->robustness, is_multiview,
-                info->set_layout_count, info->set_layouts, features);
+   if (!nir->info.io_lowered) {
+      hk_lower_nir(dev, nir, info->robustness, false, info->set_layout_count,
+                   info->set_layouts, features);
+   }
 
    gl_shader_stage sw_stage = nir->info.stage;
 
-   struct hk_fs_key fs_key_tmp, *fs_key = NULL;
+   union hk_key key_tmp, *key = NULL;
    if (sw_stage == MESA_SHADER_FRAGMENT) {
-      hk_populate_fs_key(&fs_key_tmp, state);
-      fs_key = &fs_key_tmp;
+      hk_populate_fs_key(&key_tmp.fs, state);
+      key = &key_tmp;
 
-      nir->info.fs.uses_sample_shading |= fs_key->force_sample_shading;
+      nir->info.fs.uses_sample_shading |= key->fs.force_sample_shading;
 
       /* Force late-Z for Z/S self-deps. TODO: There's probably a less silly way
        * to do this.
        */
-      if (fs_key->zs_self_dep) {
+      if (key->fs.zs_self_dep) {
          nir_builder b =
             nir_builder_at(nir_before_impl(nir_shader_get_entrypoint(nir)));
          nir_discard_if(&b, nir_imm_false(&b));
@@ -1280,6 +1324,9 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
       }
 
       NIR_PASS(_, nir, agx_nir_lower_sample_intrinsics, false);
+   } else if (sw_stage == MESA_SHADER_VERTEX) {
+      hk_populate_vs_key(&key_tmp.vs, state);
+      key = &key_tmp;
    } else if (sw_stage == MESA_SHADER_TESS_CTRL) {
       NIR_PASS(_, nir, agx_nir_lower_tcs);
    }
@@ -1371,18 +1418,49 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
           */
          nir_shader *clone = last ? nir : nir_shader_clone(NULL, nir);
 
-         if (sw_stage == MESA_SHADER_VERTEX) {
-            NIR_PASS(_, clone, agx_nir_lower_vs_input_to_prolog,
-                     shader->info.vs.attrib_components_read);
+         NIR_PASS(_, clone, agx_nir_gather_vs_inputs,
+                  shader->info.vs.attrib_components_read);
 
+         if (sw_stage == MESA_SHADER_VERTEX) {
+            shader->info.vs.use_prolog = !(key && key->vs.skip_prolog);
             shader->info.vs.attribs_read =
                nir->info.inputs_read >> VERT_ATTRIB_GENERIC0;
+
+            if (shader->info.vs.use_prolog) {
+               NIR_PASS(_, clone, agx_nir_lower_vs_input_to_prolog);
+            } else {
+               struct agx_velem_key attribs[AGX_MAX_ATTRIBS];
+               for (unsigned a = 0; a < AGX_MAX_ATTRIBS; ++a) {
+                  if (key->vs.attribs[a].format) {
+                     unsigned slot = util_bitcount64(
+                        shader->info.vs.attribs_read & BITFIELD_MASK(a));
+
+                     attribs[slot] = key->vs.attribs[a];
+                  }
+               }
+
+               struct agx_robustness agx_rs = {
+                  .soft_fault = agx_has_soft_fault(&dev->dev),
+
+                  /* Correctly handling GPL + pipeline-robustness requires
+                   * runtime changes, and I don't care enough to optimize this.
+                   */
+                  .level = AGX_ROBUSTNESS_D3D,
+               };
+
+               agx_nir_lower_vbo(clone, attribs, agx_rs,
+                                 !key->vs.static_strides);
+
+               unsigned nr = DIV_ROUND_UP(
+                  BITSET_LAST_BIT(shader->info.vs.attrib_components_read), 4);
+               agx_nir_lower_non_monolithic_uniforms(clone, nr);
+            }
          }
 
          /* hk_compile_nir takes ownership of the clone */
          result =
             hk_compile_nir(dev, pAllocator, clone, info->flags,
-                           info->robustness, fs_key, features, shader, sw_stage,
+                           info->robustness, key, features, shader, sw_stage,
                            hw, nir->xfb_info, info->set_layout_count);
          if (result != VK_SUCCESS) {
             hk_api_shader_destroy(&dev->vk, &obj->vk, pAllocator);
@@ -1395,8 +1473,8 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
 
       /* hk_compile_nir takes ownership of nir */
       result = hk_compile_nir(dev, pAllocator, nir, info->flags,
-                              info->robustness, fs_key, features, shader,
-                              sw_stage, true, NULL, info->set_layout_count);
+                              info->robustness, key, features, shader, sw_stage,
+                              true, NULL, info->set_layout_count);
       if (result != VK_SUCCESS) {
          hk_api_shader_destroy(&dev->vk, &obj->vk, pAllocator);
          return result;
@@ -1405,6 +1483,41 @@ hk_compile_shader(struct hk_device *dev, struct vk_shader_compile_info *info,
 
    *shader_out = obj;
    return VK_SUCCESS;
+}
+
+static void
+nir_opts(nir_shader *nir)
+{
+   bool progress;
+
+   do {
+      progress = false;
+
+      NIR_PASS(progress, nir, nir_opt_loop);
+      NIR_PASS(progress, nir, nir_copy_prop);
+      NIR_PASS(progress, nir, nir_opt_remove_phis);
+      NIR_PASS(progress, nir, nir_opt_dce);
+
+      NIR_PASS(progress, nir, nir_opt_if, 0);
+      NIR_PASS(progress, nir, nir_opt_dead_cf);
+      NIR_PASS(progress, nir, nir_opt_cse);
+
+      NIR_PASS(progress, nir, nir_opt_peephole_select,
+               &(nir_opt_peephole_select_options){
+                  .limit = 8,
+                  .expensive_alu_ok = true,
+                  .discard_ok = true,
+               });
+
+      NIR_PASS(progress, nir, nir_opt_phi_precision);
+      NIR_PASS(progress, nir, nir_opt_algebraic);
+      NIR_PASS(progress, nir, nir_opt_constant_folding);
+      NIR_PASS(progress, nir, nir_io_add_const_offset_to_base,
+               nir_var_shader_in | nir_var_shader_out);
+
+      NIR_PASS(progress, nir, nir_opt_undef);
+      NIR_PASS(progress, nir, nir_opt_loop_unroll);
+   } while (progress);
 }
 
 static VkResult
@@ -1416,8 +1529,38 @@ hk_compile_shaders(struct vk_device *vk_dev, uint32_t shader_count,
                    struct vk_shader **shaders_out)
 {
    struct hk_device *dev = container_of(vk_dev, struct hk_device, vk);
+   nir_shader *shaders[shader_count];
+
+   /* Lower shaders, notably lowering I/O. This is a prerequisite for
+    * intershader optimization.
+    */
+   for (uint32_t i = 0; i < shader_count; i++) {
+      const struct vk_shader_compile_info *info = &infos[i];
+      /* TODO: Multiview with ESO */
+      const bool is_multiview = state && state->rp->view_mask != 0;
+      enum hk_feature_key hk_features = hk_make_feature_key(features);
+      nir_shader *nir = info->nir;
+
+      hk_lower_nir(dev, nir, info->robustness, is_multiview,
+                   info->set_layout_count, info->set_layouts, hk_features);
+
+      if (nir->xfb_info) {
+         nir_io_add_const_offset_to_base(
+            nir, nir_var_shader_in | nir_var_shader_out);
+
+         nir_io_add_intrinsic_xfb_info(nir);
+      }
+
+      shaders[i] = nir;
+   }
+
+   nir_opt_varyings_bulk(shaders, shader_count, true, UINT32_MAX, UINT32_MAX,
+                         nir_opts);
 
    for (uint32_t i = 0; i < shader_count; i++) {
+      nir_shader_gather_info(infos[i].nir,
+                             nir_shader_get_entrypoint(infos[i].nir));
+
       VkResult result =
          hk_compile_shader(dev, &infos[i], state, features, pAllocator,
                            (struct hk_api_shader **)&shaders_out[i]);

@@ -238,8 +238,10 @@
     GPU_VERSION: freedreno-a618
     KERNEL_IMAGE_TYPE: ""
     RUNNER_TAG: mesa-ci-x86-64-lava-sc7180-trogdor-kingoftown
+    DRIVER_NAME: freedreno-a6xx
     VK_DRIVER: freedreno
     LAVA_FIRMWARE: qcom-lava
+    KERNEL_TAG: msm-next-250718
 
 # Status: https://lava.collabora.dev/scheduler/device_type/sc7180-trogdor-lazor-limozeen
 .lava-sc7180-trogdor-lazor-limozeen:arm64:
@@ -255,8 +257,10 @@
     GPU_VERSION: freedreno-a618
     KERNEL_IMAGE_TYPE: ""
     RUNNER_TAG: mesa-ci-x86-64-lava-sc7180-trogdor-lazor-limozeen
+    DRIVER_NAME: freedreno-a6xx
     VK_DRIVER: freedreno
     LAVA_FIRMWARE: qcom-lava
+    KERNEL_TAG: msm-next-250718
 
 # Status: https://lava.collabora.dev/scheduler/device_type/sm8350-hdk
 .lava-sm8350-hdk:arm64:
@@ -273,8 +277,10 @@
     KERNEL_IMAGE_NAME: "Image.gz"
     KERNEL_IMAGE_TYPE: ""
     RUNNER_TAG: mesa-ci-x86-64-lava-sm8350-hdk
+    DRIVER_NAME: freedreno-a6xx
     VK_DRIVER: freedreno
     LAVA_FIRMWARE: qcom-lava
+    KERNEL_TAG: msm-next-250718
 
 
 .google-freedreno-test-gl:
@@ -338,24 +344,6 @@
   tags:
     - google-freedreno-db820c
 
-# 6 devices (2023-07-06)
-.a630-test:
-  variables:
-    FDO_CI_CONCURRENT: 10
-    BM_KERNEL: cheza-kernel
-    BM_CMDLINE: "ip=dhcp console=ttyMSM0,115200n8 root=/dev/nfs rw nfsrootdebug nfsroot=,tcp,nfsvers=4.2 init=/init"
-    DEVICE_TYPE: sdm845-cheza-r3
-    GPU_VERSION: freedreno-a630
-  timeout: 20m
-  tags:
-    - google-freedreno-cheza
-  script:
-    - ./install/bare-metal/cros-servo.sh
-
-.a630-full:
-  tags:
-    - google-freedreno-cheza-long
-
 # CI-tron
 
 .a750-mupuf:
@@ -375,4 +363,5 @@
     CI_TRON_WATCHDOG__FIRMWARE_TO_LINUX__START_REGEX: 'VB: RWDeviceState: Succeed using devinfo!'  # A line repeated during firmware boot
     CI_TRON_WATCHDOG__FIRMWARE_TO_LINUX__STOP_REGEX: 'CPU features: detected:'                     # A line repeated during Linux boot
     GPU_VERSION: freedreno-a750
+    DRIVER_NAME: freedreno-a6xx
     VK_DRIVER: freedreno

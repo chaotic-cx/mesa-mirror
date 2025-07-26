@@ -1531,7 +1531,7 @@ impl Kernel {
                                     iviews.push(image.image_view(ctx, true)?);
                                     (&mut img_formats, &mut img_orders)
                                 } else {
-                                    sviews.push(image.sampler_view(ctx)?);
+                                    sviews.push(image.sampler_view(ctx.ctx)?);
                                     (&mut tex_formats, &mut tex_orders)
                                 };
 
@@ -1625,7 +1625,7 @@ impl Kernel {
 
             let mut bdas: Vec<_> = bdas
                 .iter()
-                .map(|buffer| Ok(buffer.get_res_for_access(ctx, RWFlags::RW)?))
+                .map(|buffer| buffer.get_res_for_access(ctx, RWFlags::RW))
                 .collect::<CLResult<_>>()?;
 
             let svms_new = svms
@@ -1641,11 +1641,6 @@ impl Kernel {
             // subtract the shader local_size as we only request something on top of that.
             variable_local_size -= static_local_size;
 
-            let samplers: Vec<_> = samplers
-                .iter()
-                .map(|s| ctx.create_sampler_state(s))
-                .collect();
-
             let mut resources = Vec::with_capacity(resource_info.len());
             let mut globals: Vec<*mut u32> = Vec::with_capacity(resource_info.len());
             for (res, offset) in resource_info {
@@ -1653,11 +1648,10 @@ impl Kernel {
                 globals.push(unsafe { input.as_mut_ptr().byte_add(offset) }.cast());
             }
 
-            let sviews_len = sviews.len();
             ctx.bind_kernel(&nir_kernel_builds, variant)?;
-            ctx.bind_sampler_states(&samplers);
-            ctx.set_sampler_views(sviews);
-            ctx.set_shader_images(&iviews);
+            ctx.bind_sampler_states(samplers);
+            ctx.bind_sampler_views(sviews);
+            ctx.bind_shader_images(&iviews);
             ctx.set_global_binding(resources.as_slice(), &mut globals);
 
             for z in 0..grid[2].div_ceil(hw_max_grid[2]) {
@@ -1701,12 +1695,8 @@ impl Kernel {
             }
 
             ctx.clear_global_binding(globals.len() as u32);
-            ctx.clear_sampler_views(sviews_len as u32);
-            ctx.clear_sampler_states(samplers.len() as u32);
 
             ctx.memory_barrier(PIPE_BARRIER_GLOBAL_BUFFER);
-
-            samplers.iter().for_each(|s| ctx.delete_sampler_state(*s));
 
             if let Some(printf_buf) = &printf_buf {
                 let tx = ctx

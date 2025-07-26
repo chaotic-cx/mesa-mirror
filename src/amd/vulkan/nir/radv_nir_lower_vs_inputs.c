@@ -234,7 +234,8 @@ lower_load_vs_input(nir_builder *b, nir_intrinsic_instr *intrin, lower_vs_inputs
 
    nir_def *vertex_buffers_arg = ac_nir_load_arg(b, &s->args->ac, s->args->ac.vertex_buffers);
    nir_def *vertex_buffers = nir_pack_64_2x32_split(b, vertex_buffers_arg, nir_imm_int(b, s->gpu_info->address32_hi));
-   nir_def *descriptor = nir_load_smem_amd(b, 4, vertex_buffers, nir_imm_int(b, desc_index * 16));
+   nir_def *descriptor = nir_load_smem_amd(b, 4, vertex_buffers, nir_imm_int(b, desc_index * 16),
+                                           .access = ACCESS_CAN_SPECULATE);
    nir_def *base_index = calc_vs_input_index(b, location, s);
    nir_def *zero = nir_imm_int(b, 0);
 
@@ -326,11 +327,13 @@ lower_load_vs_input(nir_builder *b, nir_intrinsic_instr *intrin, lower_vs_inputs
       if (can_use_untyped_load(f, bit_size)) {
          loads[num_loads++] = nir_load_buffer_amd(b, channels, bit_size, descriptor, zero, zero, index,
                                                   .base = const_off, .memory_modes = nir_var_shader_in,
-                                                  .align_mul = align_mul, .align_offset = align_offset);
+                                                  .align_mul = align_mul, .align_offset = align_offset,
+                                                  .access = ACCESS_CAN_REORDER | ACCESS_CAN_SPECULATE);
       } else {
          loads[num_loads++] = nir_load_typed_buffer_amd(
             b, channels, bit_size, descriptor, zero, zero, index, .base = const_off, .format = fetch_format,
-            .align_mul = align_mul, .align_offset = align_offset, .memory_modes = nir_var_shader_in);
+            .align_mul = align_mul, .align_offset = align_offset, .memory_modes = nir_var_shader_in,
+            .access = ACCESS_CAN_REORDER | ACCESS_CAN_SPECULATE);
       }
    }
 

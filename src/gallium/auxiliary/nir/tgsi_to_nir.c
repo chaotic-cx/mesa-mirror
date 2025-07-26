@@ -1259,6 +1259,7 @@ ttn_tex(struct ttn_compile *c, nir_def **src)
 
    instr = nir_tex_instr_create(b->shader, num_srcs);
    instr->op = op;
+   instr->can_speculate = true; /* No shaders come from SPIR-V or GLSL. */
 
    get_texture_info(tgsi_inst->Texture.Texture,
                     &instr->sampler_dim, &instr->is_shadow, &instr->is_array);
@@ -1441,12 +1442,14 @@ ttn_txq(struct ttn_compile *c, nir_def **src)
    txs = nir_tex_instr_create(b->shader, 2);
    txs->op = nir_texop_txs;
    txs->dest_type = nir_type_uint32;
+   txs->can_speculate = true;
    get_texture_info(tgsi_inst->Texture.Texture,
                     &txs->sampler_dim, &txs->is_shadow, &txs->is_array);
 
    qlv = nir_tex_instr_create(b->shader, 1);
    qlv->op = nir_texop_query_levels;
    qlv->dest_type = nir_type_uint32;
+   qlv->can_speculate = true;
    get_texture_info(tgsi_inst->Texture.Texture,
                     &qlv->sampler_dim, &qlv->is_shadow, &qlv->is_array);
 
@@ -2245,10 +2248,8 @@ ttn_compile_init(const void *tgsi_tokens,
    tgsi_scan_shader(tgsi_tokens, &scan);
    c->scan = &scan;
 
-   if (!options) {
-      options =
-         screen->get_compiler_options(screen, scan.processor);
-   }
+   if (!options)
+      options = screen->nir_options[scan.processor];
 
    c->build = nir_builder_init_simple_shader(tgsi_processor_to_shader_stage(scan.processor),
                                              options, "TTN%d", (int)p_atomic_inc_return(&ttn_sh_counter));
@@ -2566,8 +2567,7 @@ ttn_finalize_nir(struct ttn_compile *c, struct pipe_screen *screen)
       NIR_PASS(_, nir, nir_lower_samplers);
 
    if (screen->finalize_nir) {
-      char *msg = screen->finalize_nir(screen, nir);
-      free(msg);
+      screen->finalize_nir(screen, nir);
    } else {
       ttn_optimize_nir(nir);
    }
@@ -2608,8 +2608,7 @@ load_nir_from_disk_cache(struct disk_cache *cache,
                          uint8_t key[CACHE_KEY_SIZE],
                          unsigned processor)
 {
-   const nir_shader_compiler_options *options =
-      screen->get_compiler_options(screen, processor);
+   const nir_shader_compiler_options *options = screen->nir_options[processor];
    struct blob_reader blob_reader;
    size_t size;
    nir_shader *s;

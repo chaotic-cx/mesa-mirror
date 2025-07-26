@@ -10,6 +10,12 @@
 #include "util/u_math.h"
 
 static bool
+has_null_descriptors(const struct nak_compiler *nak) {
+   /* We only have "real" null descriptors on Volta+ */
+   return nak->sm >= 70;
+}
+
+static bool
 has_cbuf_tex(const struct nak_compiler *nak) {
    /* TODO: Figure out how bound textures work on blackwell */
    return nak->sm >= 70 && nak->sm < 100;
@@ -34,6 +40,78 @@ tex_handle_as_cbuf(nir_def *tex_h, uint32_t *cbuf_out)
    *cbuf_out = (idx << 16) | offset;
 
    return true;
+}
+
+static nir_def *
+build_txq(nir_builder *b, nir_texop op, bool can_speculate, nir_def *img_h,
+          nir_def *lod_idx, const struct nak_compiler *nak)
+{
+   uint32_t texture_index = 0;
+   enum nak_nir_tex_ref_type ref_type = NAK_NIR_TEX_REF_TYPE_BINDLESS;
+   if (has_cbuf_tex(nak) && tex_handle_as_cbuf(img_h, &texture_index)) {
+      ref_type = NAK_NIR_TEX_REF_TYPE_CBUF;
+      img_h = NULL;
+   }
+
+   nir_tex_instr *txq = nir_tex_instr_create(b->shader, 1);
+   txq->op = op,
+
+   /* txq doesn't take any dimension parameters so we just smash in 2D because
+    * NIR needs us to set something.  And using the same dimensionality for
+    * everything gives us maximum CSE.
+    */
+   txq->sampler_dim = GLSL_SAMPLER_DIM_2D,
+   txq->is_array = false,
+   txq->dest_type = nir_type_int32;
+   txq->can_speculate = can_speculate;
+
+   nir_def *src[2] = { NULL, };
+   unsigned src_comps = 0;
+
+   if (img_h != NULL)
+      src[src_comps++] = img_h;
+   if (lod_idx != NULL)
+      src[src_comps++] = lod_idx;
+
+   if (src_comps == 0)
+      src[src_comps++] = nir_imm_int(b, 0);
+   nir_def *txq_src = nir_vec(b, src, src_comps);
+
+   txq->src[0] = (nir_tex_src) {
+      .src_type = nir_tex_src_backend1,
+      .src = nir_src_for_ssa(txq_src),
+   };
+   txq->texture_index = texture_index;
+
+   const struct nak_nir_tex_flags flags = {
+      .ref_type = ref_type,
+   };
+   txq->backend_flags = NAK_AS_U32(flags);
+
+   nir_def_init(&txq->instr, &txq->def, 4, 32);
+   nir_builder_instr_insert(b, &txq->instr);
+
+   return &txq->def;
+}
+
+static nir_def *
+build_txq_levels(nir_builder *b, bool can_speculate, nir_def *img_h,
+                 const struct nak_compiler *nak)
+{
+   nir_def *res = build_txq(b, nir_texop_hdr_dim_nv, can_speculate, img_h,
+                            nir_imm_int(b, 0), nak);
+   return nir_channel(b, res, 3);
+}
+
+static nir_def *
+build_img_is_null(nir_builder *b, bool can_speculate, nir_def *img_h,
+                  const struct nak_compiler *nak)
+{
+   /* Prior to Volta, we don't have real NULL descriptors but we can figure
+    * out if it's null based on the number of levels returned by
+    * txq.dimension.
+    */
+   return nir_ieq_imm(b, build_txq_levels(b, can_speculate, img_h, nak), 0);
 }
 
 static enum glsl_sampler_dim
@@ -334,10 +412,59 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const struct nak_compiler *nak)
       rel = nir_fmul_imm(b, rel, 1.0 / 256.0);
 
       nir_def *res = nir_vec2(b, abs, rel);
+
+      if (!has_null_descriptors(nak)) {
+         res = nir_bcsel(b, build_img_is_null(b, tex->can_speculate, tex_h, nak),
+                         nir_imm_int(b, 0), res);
+      }
+
       nir_def_rewrite_uses_after(&tex->def, res, res->parent_instr);
    }
 
    return true;
+}
+
+static nir_def *
+build_txq_samples_raw(nir_builder *b, bool can_speculate, nir_def *img_h,
+                      const struct nak_compiler *nak)
+{
+   nir_def *res = build_txq(b, nir_texop_tex_type_nv, can_speculate, img_h,
+                            NULL, nak);
+   return nir_channel(b, res, 2);
+}
+
+static nir_def *
+build_txq_samples(nir_builder *b, bool can_speculate, nir_def *img_h,
+                  const struct nak_compiler *nak)
+{
+   nir_def *res = build_txq_samples_raw(b, can_speculate, img_h, nak);
+
+   if (!has_null_descriptors(nak)) {
+      res = nir_bcsel(b, build_img_is_null(b, can_speculate, img_h, nak),
+                      nir_imm_int(b, 0), res);
+   }
+
+   return res;
+}
+
+static nir_def *
+build_txq_size(nir_builder *b, unsigned num_components, bool can_speculate,
+               nir_def *img_h, nir_def *lod,
+               const struct nak_compiler *nak)
+{
+   if (lod == NULL)
+      lod = nir_imm_int(b, 0);
+
+   nir_def *res = build_txq(b, nir_texop_hdr_dim_nv, can_speculate, img_h,
+                            lod, nak);
+   res = nir_trim_vector(b, res, num_components);
+
+   if (!has_null_descriptors(nak)) {
+      res = nir_bcsel(b, build_img_is_null(b, can_speculate, img_h, nak),
+                      nir_imm_int(b, 0), res);
+   }
+
+   return res;
 }
 
 static bool
@@ -358,58 +485,23 @@ lower_txq(nir_builder *b, nir_tex_instr *tex, const struct nak_compiler *nak)
       }
    }
 
-   enum nak_nir_tex_ref_type ref_type = NAK_NIR_TEX_REF_TYPE_BINDLESS;
-   if (has_cbuf_tex(nak) && tex_handle_as_cbuf(tex_h, &tex->texture_index)) {
-      ref_type = NAK_NIR_TEX_REF_TYPE_CBUF;
-      tex_h = NULL;
-   }
-
-   nir_def *txq_src;
-   nir_component_mask_t mask;
+   nir_def *res;
    switch (tex->op) {
    case nir_texop_txs:
-      tex->op = nir_texop_hdr_dim_nv;
-      if (lod == NULL)
-         lod = nir_imm_int(b, 0);
-      txq_src = tex_h != NULL ? nir_vec2(b, tex_h, lod) : lod;
-      mask = BITSET_MASK(tex->def.num_components);
+      res = build_txq_size(b, tex->can_speculate, tex->def.num_components,
+                           tex_h, lod, nak);
       break;
    case nir_texop_query_levels:
-      tex->op = nir_texop_hdr_dim_nv;
-      lod = nir_imm_int(b, 0);
-      txq_src = tex_h != NULL ? nir_vec2(b, tex_h, lod) : lod;
-      mask = BITSET_BIT(3);
+      res = build_txq_levels(b, tex->can_speculate, tex_h, nak);
       break;
    case nir_texop_texture_samples:
-      tex->op = nir_texop_tex_type_nv;
-      txq_src = tex_h != NULL ? tex_h : nir_imm_int(b, 0);
-      mask = BITSET_BIT(2);
+      res = build_txq_samples(b, tex->can_speculate, tex_h, nak);
       break;
    default:
       unreachable("Invalid texture query op");
    }
 
-   tex->src[0].src_type = nir_tex_src_backend1;
-   nir_src_rewrite(&tex->src[0].src, txq_src);
-
-   /* Remove any extras */
-   while (tex->num_srcs > 1)
-      nir_tex_instr_remove_src(tex, tex->num_srcs - 1);
-
-   tex->sampler_dim = remap_sampler_dim(tex->sampler_dim);
-
-   struct nak_nir_tex_flags flags = {
-      .ref_type = ref_type,
-   };
-   STATIC_ASSERT(sizeof(flags) == sizeof(tex->backend_flags));
-   memcpy(&tex->backend_flags, &flags, sizeof(flags));
-
-   b->cursor = nir_after_instr(&tex->instr);
-
-   /* Only pick off slected components */
-   tex->def.num_components = 4;
-   nir_def *res = nir_channels(b, &tex->def, mask);
-   nir_def_rewrite_uses_after(&tex->def, res, res->parent_instr);
+   nir_def_replace(&tex->def, res);
 
    return true;
 }
@@ -578,66 +670,125 @@ shrink_image_store(nir_builder *b, nir_intrinsic_instr *intrin,
    return true;
 }
 
+static nir_def *
+build_px_size_sa_log2(nir_builder *b, nir_def *samples)
+{
+   nir_def *samples_log2 = nir_ufind_msb(b, samples);
+   /* Map from samples_log2 to pixels per sample (log2):
+    *
+    *  0 -> (0, 0)
+    *  1 -> (1, 0)
+    *  2 -> (1, 1)
+    *  3 -> (2, 1)
+    *  4 -> (2, 2)
+    *
+    * so
+    *
+    * h_log2 = samples_log2 / 2
+    * w_log2 = (samples_log2 + 1) / 2 = samples_log2 - h_log2
+    */
+   nir_def *h_log2 = nir_udiv_imm(b, samples_log2, 2);
+   nir_def *w_log2 = nir_isub(b, samples_log2, h_log2);
+   return nir_vec2(b, w_log2, h_log2);
+}
+
+static bool
+lower_msaa_image_access(nir_builder *b, nir_intrinsic_instr *intrin,
+                        const struct nak_compiler *nak)
+{
+   assert(nir_intrinsic_image_dim(intrin) == GLSL_SAMPLER_DIM_MS);
+
+   b->cursor = nir_before_instr(&intrin->instr);
+
+   bool can_speculate = nir_instr_can_speculate(&intrin->instr);
+   nir_def *img_h = intrin->src[0].ssa;
+   nir_def *x = nir_channel(b, intrin->src[1].ssa, 0);
+   nir_def *y = nir_channel(b, intrin->src[1].ssa, 1);
+   nir_def *z = nir_channel(b, intrin->src[1].ssa, 2);
+   nir_def *w = nir_channel(b, intrin->src[1].ssa, 3);
+   nir_def *s = intrin->src[2].ssa;
+
+   nir_def *samples = build_txq_samples_raw(b, can_speculate, img_h, nak);
+
+   nir_def *px_size_sa_log2 = build_px_size_sa_log2(b, samples);
+   nir_def *px_w_log2 = nir_channel(b, px_size_sa_log2, 0);
+   nir_def *px_h_log2 = nir_channel(b, px_size_sa_log2, 1);
+
+   /* Compute the x/y offsets
+    *
+    * txq.sampler_pos gives us the sample coordinates as a signed 4.12 fixed
+    * point with x in the bottom 16 bits and y in the top 16 bits.
+    */
+   nir_def *spos_sf = build_txq(b, nir_texop_sample_pos_nv, can_speculate,
+                                img_h, s, nak);
+   spos_sf = nir_trim_vector(b, spos_sf, 2);
+
+   /* Fortunately, the samples are laid out in the supersampled image the same
+    * as the sample locations, rounded to an integer sample offset.  So we
+    * just have to figure out which samples each of those hits in the 2D grid.
+    *
+    * Add 0x0800 to convert from signed 4.12 fixed-point centered around 0 to
+    * unsigned 4.12 fixed point.  Then shift by 12 - px_sz_log2 to divide off
+    * the extra, leaving an integer offset.  It's safe to do it all in one add
+    * because we know a priori that the low 8 bits of each sample position are
+    * zero so any overflow in the low 16 bits will just set a 1 in bit 16
+    * which will get shifted away.
+    */
+   nir_def *spos_uf = nir_iadd_imm(b, spos_sf, 0x08000800);
+   nir_def *sx = nir_ushr(b, nir_iand_imm(b, spos_uf, 0xffff),
+                             nir_isub_imm(b, 12, px_w_log2));
+   nir_def *sy = nir_ushr(b, spos_uf, nir_isub_imm(b, 28, px_h_log2));
+
+   /* Add in the sample offsets */
+   x = nir_iadd(b, nir_ishl(b, x, px_w_log2), sx);
+   y = nir_iadd(b, nir_ishl(b, y, px_h_log2), sy);
+
+   /* Smash x negative if s > samples to get OOB behavior */
+   x = nir_bcsel(b, nir_ult(b, s, samples), x, nir_imm_int(b, -1));
+
+   nir_intrinsic_set_image_dim(intrin, GLSL_SAMPLER_DIM_2D);
+   nir_src_rewrite(&intrin->src[1], nir_vec4(b, x, y, z, w));
+   nir_src_rewrite(&intrin->src[2], nir_undef(b, 1, 32));
+
+   return true;
+}
+
 static bool
 lower_image_txq(nir_builder *b, nir_intrinsic_instr *intrin,
                 const struct nak_compiler *nak)
 {
-   b->cursor = nir_instr_remove(&intrin->instr);
+   b->cursor = nir_before_instr(&intrin->instr);
 
    nir_def *img_h = intrin->src[0].ssa;
 
-   uint32_t texture_index = 0;
-   enum nak_nir_tex_ref_type ref_type = NAK_NIR_TEX_REF_TYPE_BINDLESS;
-   if (has_cbuf_tex(nak) && tex_handle_as_cbuf(img_h, &texture_index)) {
-      ref_type = NAK_NIR_TEX_REF_TYPE_CBUF;
-      img_h = NULL;
-   }
+   bool can_speculate = nir_instr_can_speculate(&intrin->instr);
+   nir_def *res;
 
-   nir_tex_instr *txq = nir_tex_instr_create(b->shader, 1);
-   txq->sampler_dim = remap_sampler_dim(nir_intrinsic_image_dim(intrin));
-   txq->is_array = nir_intrinsic_image_array(intrin);
-   txq->dest_type = nir_type_int32;
-
-   nir_def *txq_src;
-   nir_component_mask_t mask;
    switch (intrin->intrinsic) {
-   case nir_intrinsic_bindless_image_size: {
-      txq->op = nir_texop_hdr_dim_nv;
-      nir_def *lod = intrin->src[1].ssa;
-      txq_src = img_h != NULL ? nir_vec2(b, img_h, lod) : lod;
-      mask = BITSET_MASK(intrin->def.num_components);
-      break;
-   }
+   case nir_intrinsic_bindless_image_size:
+      res = build_txq_size(b, intrin->def.num_components, can_speculate, img_h,
+                           intrin->src[1].ssa /* lod */, nak);
 
+      if (nir_intrinsic_image_dim(intrin) == GLSL_SAMPLER_DIM_MS) {
+         /* When NIL sets up the MSAA image descriptor, it uses a width and
+          * height in samples, rather than pixels because sust/ld/atom ignore
+          * the sample count and blindly bounds check whatever x/y coordinates
+          * they're given.  This means we need to divide back out the pixel
+          * size in order to get the size in pixels.
+          */
+         nir_def *samples = build_txq_samples_raw(b, can_speculate, img_h, nak);
+         nir_def *px_size_sa_log2 = build_px_size_sa_log2(b, samples);
+         res = nir_ushr(b, res, px_size_sa_log2);
+      }
+      break;
    case nir_intrinsic_bindless_image_samples:
-      txq->op = nir_texop_tex_type_nv;
-      txq_src = img_h != NULL ? img_h : nir_imm_int(b, 0);
-      mask = BITSET_BIT(2);
+      res = build_txq_samples(b, can_speculate, img_h, nak);
       break;
-
    default:
       unreachable("Invalid image query op");
    }
 
-   txq->src[0] = (nir_tex_src) {
-      .src_type = nir_tex_src_backend1,
-      .src = nir_src_for_ssa(txq_src),
-   };
-   txq->texture_index = texture_index;
-
-   struct nak_nir_tex_flags flags = {
-      .ref_type = ref_type,
-   };
-   STATIC_ASSERT(sizeof(flags) == sizeof(txq->backend_flags));
-   memcpy(&txq->backend_flags, &flags, sizeof(flags));
-
-   nir_def_init(&txq->instr, &txq->def, 4, 32);
-   nir_builder_instr_insert(b, &txq->instr);
-
-   /* Only pick off slected components */
-   nir_def *res = nir_channels(b, &txq->def, mask);
-
-   nir_def_rewrite_uses(&intrin->def, res);
+   nir_def_replace(&intrin->def, res);
 
    return true;
 }
@@ -672,13 +823,32 @@ lower_tex_instr(nir_builder *b, nir_instr *instr, void *_data)
       nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
       switch (intrin->intrinsic) {
       case nir_intrinsic_bindless_image_load:
-      case nir_intrinsic_bindless_image_sparse_load:
-         return shrink_image_load(b, intrin, nak);
-      case nir_intrinsic_bindless_image_store:
-         return shrink_image_store(b, intrin, nak);
+      case nir_intrinsic_bindless_image_sparse_load: {
+         bool progress = false;
+         if (nir_intrinsic_image_dim(intrin) == GLSL_SAMPLER_DIM_MS)
+            progress |= lower_msaa_image_access(b, intrin, nak);
+         progress |= shrink_image_load(b, intrin, nak);
+         return progress;
+      }
+
+      case nir_intrinsic_bindless_image_store: {
+         bool progress = false;
+         if (nir_intrinsic_image_dim(intrin) == GLSL_SAMPLER_DIM_MS)
+            progress |= lower_msaa_image_access(b, intrin, nak);
+         progress |= shrink_image_store(b, intrin, nak);
+         return progress;
+      }
+
+      case nir_intrinsic_bindless_image_atomic:
+      case nir_intrinsic_bindless_image_atomic_swap:
+         if (nir_intrinsic_image_dim(intrin) == GLSL_SAMPLER_DIM_MS)
+            return lower_msaa_image_access(b, intrin, nak);
+         return false;
+
       case nir_intrinsic_bindless_image_size:
       case nir_intrinsic_bindless_image_samples:
          return lower_image_txq(b, intrin, nak);
+
       default:
          return false;
       }

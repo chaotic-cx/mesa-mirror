@@ -27,6 +27,7 @@ cc_library_shared {
         "mesa_platform_virtgpu_defaults",
     ],
     generated_headers: [
+        "git_sha1_header",
         "vk_cmd_queue_header",
         "vk_physical_device_features_header",
         "vk_physical_device_properties_header",

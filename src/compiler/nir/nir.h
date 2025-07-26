@@ -1435,6 +1435,13 @@ typedef enum {
     * comparison.
     */
    NIR_OP_IS_SELECTION = (1 << 2),
+
+   /**
+    * Operation is associative mathematically (as real numbers), but not
+    * associative with floating-point math. This can be treated as associative
+    * iff the operation's exact bit is not set.
+    */
+   NIR_OP_IS_INEXACT_ASSOCIATIVE = (1 << 3),
 } nir_op_algebraic_property;
 
 /* vec16 is the widest ALU op in NIR, making the max number of input of ALU
@@ -2114,7 +2121,7 @@ void nir_rewrite_image_intrinsic(nir_intrinsic_instr *instr,
 
 /* Determine if an intrinsic can be arbitrarily reordered and eliminated. */
 bool nir_intrinsic_can_reorder(nir_intrinsic_instr *instr);
-
+bool nir_instr_can_speculate(nir_instr *instr);
 bool nir_intrinsic_writes_external_memory(const nir_intrinsic_instr *instr);
 
 static inline bool
@@ -2356,6 +2363,8 @@ typedef enum nir_texop {
    nir_texop_hdr_dim_nv,
    /** Maps to TXQ.TEXTURE_TYPE */
    nir_texop_tex_type_nv,
+   /** Maps to TXQ.SAMPLER_POS */
+   nir_texop_sample_pos_nv,
 } nir_texop;
 
 /** Represents a texture instruction */
@@ -2464,6 +2473,11 @@ typedef struct nir_tex_instr {
 
    /** True if the offset is not dynamically uniform */
    bool offset_non_uniform;
+
+   /** True whether this returns the same result anywhere in the shader and
+    *  doesn't cause page faults.
+    */
+   bool can_speculate;
 
    /** The texture index
     *
@@ -4369,6 +4383,13 @@ nir_src_rewrite(nir_src *src, nir_def *new_ssa)
    list_addtail(&src->use_link, &new_ssa->uses);
 }
 
+static inline void
+nir_alu_src_rewrite_scalar(nir_alu_src *alu, nir_scalar s)
+{
+   nir_src_rewrite(&alu->src, s.def);
+   alu->swizzle[0] = (uint8_t)s.comp;
+}
+
 /** Initialize a nir_src
  *
  * This is almost never the helper you want to use.  This helper assumes that
@@ -4997,6 +5018,14 @@ nir_opt_varyings_progress
 nir_opt_varyings(nir_shader *producer, nir_shader *consumer, bool spirv,
                  unsigned max_uniform_components, unsigned max_ubos_per_stage,
                  bool debug_no_algebraic);
+
+unsigned
+nir_varying_var_mask(nir_shader *nir);
+
+void
+nir_opt_varyings_bulk(nir_shader **shaders, uint32_t num_shaders, bool spirv,
+                      unsigned max_uniform_comps, unsigned max_ubos,
+                      void (*optimize)(nir_shader *));
 
 bool nir_slot_is_sysval_output(gl_varying_slot slot,
                                gl_shader_stage next_shader);
@@ -6238,6 +6267,24 @@ typedef struct nir_opt_peephole_select_options {
 
 bool nir_opt_peephole_select(nir_shader *shader,
                              const nir_opt_peephole_select_options *options);
+
+typedef enum {
+   /* Enable the global CSE heuristic */
+   nir_reassociate_cse_heuristic = (1 << 0),
+
+   /* Indicate the backend can accelerate scalar (i.e. non-divergent) math. If
+    * set, we try to reassociate expressions like ((div + con) + con) to be
+    * (div + (con + con)) to save a vector ALU operation. We're fairly
+    * aggressive about it: in some circumstances, we will spend 2 scalar
+    * instructions to save 1 vector instruction.
+    *
+    * This is true for backends using nir_opt_preamble even if there's no scalar
+    * ALU, since non-divergence is a decent proxy for uniformity.
+    */
+   nir_reassociate_scalar_math = (1 << 1),
+} nir_reassociate_options;
+
+bool nir_opt_reassociate(nir_shader *shader, nir_reassociate_options opts);
 
 bool nir_opt_reassociate_bfi(nir_shader *shader);
 

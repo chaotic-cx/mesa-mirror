@@ -64,9 +64,7 @@ using namespace concurrency;
 using namespace Microsoft::WRL;
 using Microsoft::WRL::ComPtr;
 
-#define ENCODE_WITH_TWO_PASS                          0
 #define ENCODE_WITH_TWO_PASS_LOWEST_RES               1
-#define ENCODE_WITH_TWO_PASS_EXTERNAL_DPB_RECON_SCALE 1
 
 #define NUM_INPUT_TYPES 3
 
@@ -357,6 +355,75 @@ DEFINE_GUID( MFSampleExtension_VideoEncodeBitsUsedMap, 0x6894263d, 0xe6e2, 0x4bc
 
 #endif
 
+#ifndef CODECAPI_AVEncVideoSatdMapBlockSize
+// AVEncVideoSatdMapBlockSize (VT_UI4)
+// The block size used in reporting the output SATD map for each block in an encoded video frame.
+// ulVal should be zero or power of 2, such as 16 or 32.
+// A zero value disables the SATD map reporting.
+DEFINE_CODECAPI_GUID( AVEncVideoSatdMapBlockSize,
+                      "596F1106-8CE0-4302-AF79-C4EC67AADC6D",
+                      0x596f1106,
+                      0x8ce0,
+                      0x4302,
+                      0xaf,
+                      0x79,
+                      0xc4,
+                      0xec,
+                      0x67,
+                      0xaa,
+                      0xdc,
+                      0x6d )
+#define CODECAPI_AVEncVideoSatdMapBlockSize DEFINE_CODECAPI_GUIDNAMED( AVEncVideoSatdMapBlockSize )
+
+// MFSampleExtension_VideoEncodeSatdMap {ADF61D96-C2D3-4B57-A138-DDE4D351EAA9}
+// Type: IMFMediaBuffer
+// The SATD map of an encoded video frame.
+DEFINE_GUID( MFSampleExtension_VideoEncodeSatdMap, 0xadf61d96, 0xc2d3, 0x4b57, 0xa1, 0x38, 0xdd, 0xe4, 0xd3, 0x51, 0xea, 0xa9 );
+
+#endif
+
+#ifndef CODECAPI_AVEncVideoRateControlFramePreAnalysis
+// AVEncVideoRateControlFramePreAnalysis (VT_BOOL) (Experimental, Testing only)
+// Indicates whether to enable or disable rate control frame preanalysis
+// VARIANT_FALSE: disable; VARIANT_TRUE: enable
+DEFINE_CODECAPI_GUID( AVEncVideoRateControlFramePreAnalysis,
+                      "CF229C1D-FA9A-4BBA-9E08-269F3CF5D621",
+                      0xcf229c1d,
+                      0xfa9a,
+                      0x4bba,
+                      0x9e,
+                      0x8,
+                      0x26,
+                      0x9f,
+                      0x3c,
+                      0xf5,
+                      0xd6,
+                      0x21 )
+#define CODECAPI_AVEncVideoRateControlFramePreAnalysis DEFINE_CODECAPI_GUIDNAMED( AVEncVideoRateControlFramePreAnalysis )
+#endif
+
+#ifndef CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale
+// CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale (VT_BOOL) (Experimental, Testing only)
+// Indicates whether to enable or disable external recon downscale in rate control frame preanalysis
+// VARIANT_FALSE: disable; VARIANT_TRUE: enable
+DEFINE_CODECAPI_GUID( AVEncVideoRateControlFramePreAnalysisExternalReconDownscale,
+                      "C53DEFA4-138A-4310-864F-4516661C56E7",
+                      0xc53defa4,
+                      0x138a,
+                      0x4310,
+                      0x86,
+                      0x4f,
+                      0x45,
+                      0x16,
+                      0x66,
+                      0x1c,
+                      0x56,
+                      0xe7 )
+#define CODECAPI_AVEncVideoRateControlFramePreAnalysisExternalReconDownscale                                                       \
+   DEFINE_CODECAPI_GUIDNAMED( AVEncVideoRateControlFramePreAnalysisExternalReconDownscale )
+#endif
+
+
 #if MFT_CODEC_H264ENC
 #define HMFT_GUID "8994db7c-288a-4c62-a136-a3c3c2a208a8"
 #elif MFT_CODEC_H265ENC
@@ -542,6 +609,10 @@ class __declspec( uuid( HMFT_GUID ) ) CDX12EncHMFT : CMFD3DManager,
    BOOL m_bVideoEnableSpatialAdaptiveQuantization = FALSE;
    UINT32 m_uiVideoOutputQPMapBlockSize = 0;
    UINT32 m_uiVideoOutputBitsUsedMapBlockSize = 0;
+   UINT32 m_uiVideoSatdMapBlockSize = 0;
+
+   BOOL m_bRateControlFramePreAnalysis = FALSE;
+   BOOL m_bRateControlFramePreAnalysisExternalReconDownscale = FALSE;
 
    struct pipe_video_codec *m_pPipeVideoCodec = nullptr;
    struct pipe_video_codec *m_pPipeVideoBlitter = nullptr;
@@ -554,7 +625,7 @@ class __declspec( uuid( HMFT_GUID ) ) CDX12EncHMFT : CMFD3DManager,
    ComPtr<ID3D12Fence> m_spStagingFence12;
    struct pipe_fence_handle *m_pPipeFenceHandle = nullptr;
    HANDLE m_hSharedFenceHandle = nullptr;
-   uint64_t m_NextSyncFenceValue = 1, m_CurrentSyncFenceValue = 0;
+   uint64_t m_CurrentSyncFenceValue = 1;
 
    // Cached encoder capabilities
    class encoder_capabilities m_EncoderCapabilities = {};

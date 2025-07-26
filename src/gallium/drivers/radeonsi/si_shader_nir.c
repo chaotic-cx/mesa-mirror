@@ -377,7 +377,7 @@ static void si_lower_nir(struct si_screen *sscreen, struct nir_shader *nir)
    NIR_PASS(_, nir, nir_lower_fp16_casts, nir_lower_fp16_split_fp64);
 }
 
-char *si_finalize_nir(struct pipe_screen *screen, struct nir_shader *nir)
+void si_finalize_nir(struct pipe_screen *screen, struct nir_shader *nir)
 {
    struct si_screen *sscreen = (struct si_screen *)screen;
 
@@ -390,8 +390,10 @@ char *si_finalize_nir(struct pipe_screen *screen, struct nir_shader *nir)
       NIR_PASS(_, nir, nir_remove_dead_variables, nir_var_shader_in | nir_var_shader_out, NULL);
    }
 
-   if (nir->info.stage == MESA_SHADER_FRAGMENT)
+   if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       NIR_PASS(_, nir, si_nir_lower_color_inputs_to_sysvals);
+      NIR_PASS(_, nir, nir_recompute_io_bases, nir_var_shader_out);
+   }
 
    NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_mem_shared, nir_address_format_32bit_offset);
 
@@ -439,6 +441,4 @@ char *si_finalize_nir(struct pipe_screen *screen, struct nir_shader *nir)
 
    /* Require divergence analysis to identify divergent loops. */
    nir_metadata_require(nir_shader_get_entrypoint(nir), nir_metadata_divergence);
-
-   return NULL;
 }

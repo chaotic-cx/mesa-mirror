@@ -373,10 +373,8 @@ st_prog_to_nir_postprocess(struct st_context *st, nir_shader *nir,
       st_serialize_base_nir(prog, nir);
       st_finalize_nir(st, prog, NULL, nir, true, false);
 
-      if (screen->finalize_nir) {
-         char *msg = screen->finalize_nir(screen, nir);
-         free(msg);
-      }
+      if (screen->finalize_nir)
+         screen->finalize_nir(screen, nir);
    }
 
    nir_validate_shader(nir, "after st/glsl finalize_nir");
@@ -647,7 +645,7 @@ get_nir_shader(struct st_context *st, struct gl_program *prog, bool is_draw)
 
    struct blob_reader blob_reader;
    const struct nir_shader_compiler_options *options =
-      is_draw ? &draw_nir_options : st_get_nir_compiler_options(st, prog->info.stage);
+      is_draw ? &draw_nir_options : st->screen->nir_options[prog->info.stage];
 
    if (is_draw && st->ctx->Const.PackedDriverUniformStorage &&
        (!prog->shader_program || prog->shader_program->data->LinkStatus != LINKING_SKIPPED)) {
@@ -846,10 +844,8 @@ st_create_common_variant(struct st_context *st,
 
    if (finalize || !st->allow_st_finalize_nir_twice || key->is_draw_shader) {
       struct pipe_screen *screen = st->screen;
-      if (!key->is_draw_shader && screen->finalize_nir) {
-         char *msg = screen->finalize_nir(screen, state.ir.nir);
-         free(msg);
-      }
+      if (!key->is_draw_shader && screen->finalize_nir)
+         screen->finalize_nir(screen, state.ir.nir);
 
       /* Clip lowering and edgeflags may have introduced new varyings, so
        * update the inputs_read/outputs_written. However, with
@@ -993,7 +989,7 @@ st_translate_fragment_program(struct st_context *st,
       prog->nir = prog_to_nir(st->ctx, prog);
    } else if (prog->ati_fs) {
       const struct nir_shader_compiler_options *options =
-         st_get_nir_compiler_options(st, MESA_SHADER_FRAGMENT);
+         st->screen->nir_options[MESA_SHADER_FRAGMENT];
 
       assert(!prog->nir);
       prog->nir = st_translate_atifs_program(prog->ati_fs, prog, options);
@@ -1232,10 +1228,8 @@ st_create_fp_variant(struct st_context *st,
                               nir_shader_get_entrypoint(state.ir.nir));
 
       struct pipe_screen *screen = st->screen;
-      if (screen->finalize_nir) {
-         char *msg = screen->finalize_nir(screen, state.ir.nir);
-         free(msg);
-      }
+      if (screen->finalize_nir)
+         screen->finalize_nir(screen, state.ir.nir);
    }
 
    variant->base.driver_shader = st_create_nir_shader(st, &state);

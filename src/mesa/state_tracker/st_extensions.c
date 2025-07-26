@@ -205,18 +205,9 @@ void st_init_limits(struct pipe_screen *screen,
          &c->ShaderCompilerOptions[stage];
       struct gl_program_constants *pc = &c->Program[stage];
 
-      if (screen->get_compiler_options)
-         options->NirOptions = screen->get_compiler_options(screen, sh);
-
-      if (!options->NirOptions) {
-         options->NirOptions =
-            nir_to_tgsi_get_compiler_options(screen, PIPE_SHADER_IR_NIR, sh);
-      }
-
-      if (sh == PIPE_SHADER_COMPUTE) {
-         if (!screen->caps.compute)
-            continue;
-      }
+      if (!screen->nir_options[stage] ||
+          (sh == PIPE_SHADER_COMPUTE && !screen->caps.compute))
+         continue;
 
       pc->MaxTextureImageUnits =
          _min(screen->shader_caps[sh].max_texture_samplers,
@@ -705,9 +696,10 @@ get_max_samples_for_formats(struct pipe_screen *screen,
                             unsigned bind)
 {
    unsigned i, f, supported_samples = 0;
+   unsigned min_samples = screen->caps.fake_sw_msaa ? 1 : 2;
 
    for (f = 0; f < num_formats; f++) {
-      for (i = max_samples; i > 0; --i) {
+      for (i = max_samples; i >= min_samples; --i) {
          if (screen->is_format_supported(screen, formats[f],
                                          PIPE_TEXTURE_2D, i, i, bind)) {
             /* update both return value and loop-boundary */
@@ -728,8 +720,9 @@ get_max_samples_for_formats_advanced(struct pipe_screen *screen,
                                      unsigned bind)
 {
    unsigned i, f;
+   unsigned min_samples = screen->caps.fake_sw_msaa ? 1 : 2;
 
-   for (i = max_samples; i > 0; --i) {
+   for (i = max_samples; i >= min_samples; --i) {
       for (f = 0; f < num_formats; f++) {
          if (screen->is_format_supported(screen, formats[f], PIPE_TEXTURE_2D,
                                          i, num_storage_samples, bind)) {
@@ -1847,13 +1840,11 @@ void st_init_extensions(struct pipe_screen *screen,
       screen->caps.allow_draw_out_of_order;
    consts->GLThreadNopCheckFramebufferStatus = options->glthread_nop_check_framebuffer_status;
 
-   const struct nir_shader_compiler_options *nir_options =
-      consts->ShaderCompilerOptions[MESA_SHADER_FRAGMENT].NirOptions;
-
    if (screen->shader_caps[PIPE_SHADER_FRAGMENT].integers &&
        extensions->ARB_stencil_texturing &&
        screen->caps.doubles &&
-       !(nir_options->lower_doubles_options & nir_lower_fp64_full_software))
+       !(screen->nir_options[MESA_SHADER_FRAGMENT]->lower_doubles_options &
+         nir_lower_fp64_full_software))
       extensions->NV_copy_depth_to_color = true;
    if (screen->caps.device_protected_surface || screen->caps.device_protected_context)
       extensions->EXT_protected_textures = true;
