@@ -312,8 +312,11 @@ cc_library_static {
     target: {
         android: {
             srcs: select(soong_config_variable("gfxstream", "mesa3d_platforms"), {
-                "none": [],
+                "none": [
+                    "vk_android_hal.c",
+                ],
                 default: [
+                    "vk_android_hal.c",
                     "vk_android.c",
                 ],
             }),

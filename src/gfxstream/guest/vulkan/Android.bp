@@ -92,6 +92,7 @@ cc_library_shared {
     target: {
         android: {
             relative_install_path: "hw",
+            ldflags: ["-Wl,--undefined=HMI"],
             static_libs: [
                 "mesa_u_gralloc",
             ],
