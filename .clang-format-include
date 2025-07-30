@@ -3,7 +3,9 @@
 
 src/gallium/drivers/i915
 src/gallium/drivers/r300/compiler/*
+src/gallium/drivers/rocket/**/*
 src/gallium/targets/teflon/**/*
+src/gallium/frontends/teflon/**/*
 src/amd/vulkan/**/*
 src/amd/compiler/**/*
 src/egl/**/*
