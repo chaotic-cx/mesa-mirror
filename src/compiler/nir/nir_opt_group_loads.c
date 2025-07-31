@@ -49,102 +49,19 @@
  */
 
 #include "nir.h"
+#include "util/u_dynarray.h"
 
-static bool
-is_memory_load(nir_instr *instr)
-{
-   /* Count texture_size too because it has the same latency as cache hits. */
-   if (instr->type == nir_instr_type_tex)
-      return true;
-
-   if (instr->type == nir_instr_type_intrinsic) {
-      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-      const char *name = nir_intrinsic_infos[intr->intrinsic].name;
-
-      /* TODO: nir_intrinsics.py could do this */
-      /* load_ubo is ignored because it's usually cheap. */
-      if (!nir_intrinsic_writes_external_memory(intr) &&
-          !strstr(name, "shared") &&
-          (strstr(name, "ssbo") || strstr(name, "image")))
-         return true;
-   }
-
-   return false;
-}
+typedef struct {
+   bool visited;
+   uint32_t instr_index;
+   uint32_t indirection_level;
+} instr_info;
 
 static nir_instr *
-get_intrinsic_resource(nir_intrinsic_instr *intr)
-{
-   /* This is also the list of intrinsics that are grouped. */
-   /* load_ubo is ignored because it's usually cheap. */
-   switch (intr->intrinsic) {
-   case nir_intrinsic_image_load:
-   case nir_intrinsic_image_deref_load:
-   case nir_intrinsic_image_sparse_load:
-   case nir_intrinsic_image_deref_sparse_load:
-   /* Group image_size too because it has the same latency as cache hits. */
-   case nir_intrinsic_image_samples_identical:
-   case nir_intrinsic_image_deref_samples_identical:
-   case nir_intrinsic_bindless_image_samples_identical:
-   case nir_intrinsic_image_size:
-   case nir_intrinsic_image_deref_size:
-   case nir_intrinsic_bindless_image_load:
-   case nir_intrinsic_bindless_image_sparse_load:
-   case nir_intrinsic_load_ssbo:
-   case nir_intrinsic_image_fragment_mask_load_amd:
-   case nir_intrinsic_image_deref_fragment_mask_load_amd:
-   case nir_intrinsic_bindless_image_fragment_mask_load_amd:
-      return intr->src[0].ssa->parent_instr;
-   default:
-      return NULL;
-   }
-}
-
-/* Track only those that we want to group. */
-static bool
-is_grouped_load(nir_instr *instr)
-{
-   /* Count texture_size too because it has the same latency as cache hits. */
-   if (instr->type == nir_instr_type_tex)
-      return true;
-
-   if (instr->type == nir_instr_type_intrinsic)
-      return get_intrinsic_resource(nir_instr_as_intrinsic(instr)) != NULL;
-
-   return false;
-}
-
-static bool
-can_move(nir_instr *instr, uint8_t current_indirection_level)
-{
-   /* Grouping is done by moving everything else out of the first/last
-    * instruction range of the indirection level.
-    */
-   if (is_grouped_load(instr) && instr->pass_flags == current_indirection_level)
-      return false;
-
-   if (instr->type == nir_instr_type_alu ||
-       instr->type == nir_instr_type_deref ||
-       instr->type == nir_instr_type_tex ||
-       instr->type == nir_instr_type_load_const ||
-       instr->type == nir_instr_type_undef)
-      return true;
-
-   if (instr->type == nir_instr_type_intrinsic &&
-       nir_intrinsic_can_reorder(nir_instr_as_intrinsic(instr)))
-      return true;
-
-   return false;
-}
-
-static nir_instr *
-get_uniform_inst_resource(nir_instr *instr)
+get_load_resource(nir_instr *instr)
 {
    if (instr->type == nir_instr_type_tex) {
       nir_tex_instr *tex = nir_instr_as_tex(instr);
-
-      if (tex->texture_non_uniform)
-         return NULL;
 
       for (unsigned i = 0; i < tex->num_srcs; i++) {
          switch (tex->src[i].src_type) {
@@ -155,18 +72,86 @@ get_uniform_inst_resource(nir_instr *instr)
             break;
          }
       }
-      return NULL;
+      unreachable("tex instr should have a resource");
    }
 
-   if (instr->type == nir_instr_type_intrinsic)
-      return get_intrinsic_resource(nir_instr_as_intrinsic(instr));
+   if (instr->type == nir_instr_type_intrinsic) {
+      /* This is also the list of intrinsics that are grouped. */
+      switch (nir_instr_as_intrinsic(instr)->intrinsic) {
+      /* Image loads. */
+      case nir_intrinsic_image_load:
+      case nir_intrinsic_image_deref_load:
+      case nir_intrinsic_bindless_image_load:
+      case nir_intrinsic_image_sparse_load:
+      case nir_intrinsic_image_deref_sparse_load:
+      case nir_intrinsic_bindless_image_sparse_load:
+      /* Fragment mask loads. (samples_identical also loads it) */
+      case nir_intrinsic_image_fragment_mask_load_amd:
+      case nir_intrinsic_image_deref_fragment_mask_load_amd:
+      case nir_intrinsic_bindless_image_fragment_mask_load_amd:
+      case nir_intrinsic_image_samples_identical:
+      case nir_intrinsic_image_deref_samples_identical:
+      case nir_intrinsic_bindless_image_samples_identical:
+      /* Queries */
+      case nir_intrinsic_image_size:
+      case nir_intrinsic_image_deref_size:
+      case nir_intrinsic_bindless_image_size:
+      case nir_intrinsic_image_samples:
+      case nir_intrinsic_image_deref_samples:
+      case nir_intrinsic_bindless_image_samples:
+      case nir_intrinsic_image_levels:
+      case nir_intrinsic_image_deref_levels:
+      case nir_intrinsic_bindless_image_levels:
+      /* Other loads. */
+      /* load_ubo is ignored because it's usually cheap. */
+      case nir_intrinsic_load_ssbo:
+      case nir_intrinsic_load_global:
+         return nir_instr_as_intrinsic(instr)->src[0].ssa->parent_instr;
+      default:
+         return NULL;
+      }
+   }
 
    return NULL;
 }
 
+/* Track only those that we want to group. */
+static bool
+is_grouped_load(nir_instr *instr)
+{
+   if (instr->type == nir_instr_type_intrinsic &&
+       !nir_intrinsic_can_reorder(nir_instr_as_intrinsic(instr)))
+      return false;
+
+   return get_load_resource(instr) != NULL;
+}
+
+static bool
+is_part_of_group(nir_instr *instr, nir_instr *first,
+                 uint32_t indirection_level, instr_info *infos)
+{
+   /* Grouping is done by moving everything else out of the first..last
+    * instruction range of the load group corresponding to the given
+    * indirection level.
+    *
+    * We can move anything that's not a grouped load because we are not really
+    * moving it. What we are doing is that we are moving grouped loads to
+    * the same place by moving everything else between the first and last load
+    * out of the way. This doesn't change the order of non-reorderable
+    * instructions.
+    *
+    * If "first" is set, compare against its indirection level, else compared
+    * against "indirection_level".
+    */
+   return is_grouped_load(instr) &&
+          infos[instr->index].indirection_level ==
+          (first ? infos[first->index].indirection_level : indirection_level);
+}
+
 struct check_sources_state {
+   instr_info *infos;
    nir_block *block;
-   uint32_t first_index;
+   uint32_t first_instr_index;
 };
 
 static bool
@@ -176,74 +161,79 @@ has_only_sources_less_than(nir_src *src, void *data)
 
    /* true if nir_foreach_src should keep going */
    return state->block != src->ssa->parent_instr->block ||
-          src->ssa->parent_instr->index < state->first_index;
+          state->infos[src->ssa->parent_instr->index].instr_index <
+          state->first_instr_index;
 }
 
 static void
-group_loads(nir_instr *first, nir_instr *last)
+group_loads(nir_instr *first, nir_instr *last, instr_info *infos)
 {
+   assert(is_grouped_load(first));
+   assert(is_grouped_load(last));
+
    /* Walk the instruction range between the first and last backward, and
     * move those that have no uses within the range after the last one.
     */
-   for (nir_instr *instr = exec_node_data_backward(nir_instr,
-                                                   last->node.prev, node);
-        instr != first;
-        instr = exec_node_data_backward(nir_instr, instr->node.prev, node)) {
-      /* Only move instructions without side effects. */
-      if (!can_move(instr, first->pass_flags))
+   for (nir_instr *instr = nir_instr_prev(last); instr != first;
+        instr = nir_instr_prev(instr)) {
+      if (is_part_of_group(instr, first, 0, infos))
          continue;
 
+      bool all_uses_after_last = true;
       nir_def *def = nir_instr_def(instr);
-      if (def) {
-         bool all_uses_after_last = true;
 
+      if (def) {
          nir_foreach_use(use, def) {
             if (nir_src_parent_instr(use)->block == instr->block &&
-                nir_src_parent_instr(use)->index <= last->index) {
+                infos[nir_src_parent_instr(use)->index].instr_index <=
+                infos[last->index].instr_index) {
                all_uses_after_last = false;
                break;
             }
          }
+      }
 
-         if (all_uses_after_last) {
-            nir_instr *move_instr = instr;
-            /* Set the last instruction because we'll delete the current one. */
-            instr = exec_node_data_forward(nir_instr, instr->node.next, node);
+      if (all_uses_after_last) {
+         nir_instr *move_instr = instr;
+         /* Set the iterator to the next instruction because we'll move
+          * the current one.
+          */
+         instr = nir_instr_next(instr);
 
-            /* Move the instruction after the last and update its index
-             * to indicate that it's after it.
-             */
-            nir_instr_move(nir_after_instr(last), move_instr);
-            move_instr->index = last->index + 1;
-         }
+         /* Move the instruction after the last and update its index to
+          * indicate that it's after it.
+          */
+         nir_instr_move(nir_after_instr(last), move_instr);
+         infos[move_instr->index].instr_index =
+            infos[last->index].instr_index + 1;
       }
    }
 
    struct check_sources_state state;
+   state.infos = infos;
    state.block = first->block;
-   state.first_index = first->index;
+   state.first_instr_index = infos[first->index].instr_index;
 
    /* Walk the instruction range between the first and last forward, and move
     * those that have no sources within the range before the first one.
     */
-   for (nir_instr *instr = exec_node_data_forward(nir_instr,
-                                                  first->node.next, node);
-        instr != last;
-        instr = exec_node_data_forward(nir_instr, instr->node.next, node)) {
+   for (nir_instr *instr = nir_instr_next(first); instr != last;
+        instr = nir_instr_next(instr)) {
       /* Only move instructions without side effects. */
-      if (!can_move(instr, first->pass_flags))
+      if (is_part_of_group(instr, first, 0, infos))
          continue;
 
       if (nir_foreach_src(instr, has_only_sources_less_than, &state)) {
          nir_instr *move_instr = instr;
          /* Set the last instruction because we'll delete the current one. */
-         instr = exec_node_data_backward(nir_instr, instr->node.prev, node);
+         instr = nir_instr_prev(instr);
 
          /* Move the instruction before the first and update its index
           * to indicate that it's before it.
           */
          nir_instr_move(nir_before_instr(first), move_instr);
-         move_instr->index = first->index - 1;
+         infos[move_instr->index].instr_index =
+            infos[first->index].instr_index - 1;
       }
    }
 }
@@ -259,9 +249,9 @@ is_pseudo_inst(nir_instr *instr)
 }
 
 static void
-set_instr_indices(nir_block *block)
+set_instr_indices(nir_block *block, instr_info *infos)
 {
-   /* Start with 1 because we'll move instruction before the first one
+   /* Start with 1 because we'll move instructions before the first one
     * and will want to label it 0.
     */
    unsigned counter = 1;
@@ -275,7 +265,7 @@ set_instr_indices(nir_block *block)
          counter++;
 
       /* Set each instruction's index within the block. */
-      instr->index = counter;
+      infos[instr->index].instr_index = counter;
 
       /* Only count non-pseudo instructions. */
       if (!is_pseudo_inst(instr))
@@ -286,31 +276,34 @@ set_instr_indices(nir_block *block)
 }
 
 static void
-handle_load_range(nir_instr **first, nir_instr **last,
-                  nir_instr *current, unsigned max_distance)
+handle_load_range(nir_instr **first, nir_instr **last, nir_instr *current,
+                  unsigned max_distance, instr_info *infos)
 {
-   assert(!current || !*first || current->index >= (*first)->index);
+   assert(!current || !*first ||
+          infos[current->index].instr_index >=
+          infos[(*first)->index].instr_index);
    if (*first && *last &&
-       (!current || current->index - (*first)->index > max_distance)) {
+       (!current ||
+        infos[current->index].instr_index -
+        infos[(*first)->index].instr_index > max_distance)) {
       assert(*first != *last);
-      group_loads(*first, *last);
-      set_instr_indices((*first)->block);
+      group_loads(*first, *last, infos);
+      set_instr_indices((*first)->block, infos);
       *first = NULL;
       *last = NULL;
    }
 }
 
 static bool
-is_barrier(nir_instr *instr)
+is_demote(nir_instr *instr)
 {
    if (instr->type == nir_instr_type_intrinsic) {
       nir_intrinsic_instr *intr = nir_instr_as_intrinsic(instr);
-      const char *name = nir_intrinsic_infos[intr->intrinsic].name;
 
       if (intr->intrinsic == nir_intrinsic_terminate ||
           intr->intrinsic == nir_intrinsic_terminate_if ||
-          /* TODO: nir_intrinsics.py could do this */
-          strstr(name, "barrier"))
+          intr->intrinsic == nir_intrinsic_demote ||
+          intr->intrinsic == nir_intrinsic_demote_if)
          return true;
    }
 
@@ -318,12 +311,13 @@ is_barrier(nir_instr *instr)
 }
 
 struct indirection_state {
+   instr_info *infos;
    nir_block *block;
    unsigned indirections;
 };
 
 static unsigned
-get_num_indirections(nir_instr *instr);
+get_num_indirections(nir_instr *instr, instr_info *infos);
 
 static bool
 gather_indirections(nir_src *src, void *data)
@@ -333,9 +327,10 @@ gather_indirections(nir_src *src, void *data)
 
    /* We only count indirections within the same block. */
    if (instr->block == state->block) {
-      unsigned indirections = get_num_indirections(src->ssa->parent_instr);
+      unsigned indirections = get_num_indirections(src->ssa->parent_instr,
+                                                   state->infos);
 
-      if (instr->type == nir_instr_type_tex || is_memory_load(instr))
+      if (instr->type == nir_instr_type_tex || is_grouped_load(instr))
          indirections++;
 
       state->indirections = MAX2(state->indirections, indirections);
@@ -346,7 +341,7 @@ gather_indirections(nir_src *src, void *data)
 
 /* Return the number of load indirections within the block. */
 static unsigned
-get_num_indirections(nir_instr *instr)
+get_num_indirections(nir_instr *instr, instr_info *infos)
 {
    /* Don't traverse phis because we could end up in an infinite recursion
     * if the phi points to the current block (such as a loop body).
@@ -354,62 +349,52 @@ get_num_indirections(nir_instr *instr)
    if (instr->type == nir_instr_type_phi)
       return 0;
 
-   if (instr->index != UINT32_MAX)
-      return instr->index; /* we've visited this instruction before */
+   if (infos[instr->index].visited)
+      return infos[instr->index].instr_index;
 
    struct indirection_state state;
+   state.infos = infos;
    state.block = instr->block;
    state.indirections = 0;
 
    nir_foreach_src(instr, gather_indirections, &state);
 
-   instr->index = state.indirections;
+   infos[instr->index].visited = true;
+   infos[instr->index].instr_index = state.indirections;
    return state.indirections;
 }
 
 static void
 process_block(nir_block *block, nir_load_grouping grouping,
-              unsigned max_distance)
+              unsigned max_distance, instr_info *infos)
 {
    int max_indirection = -1;
    unsigned num_inst_per_level[256] = { 0 };
 
-   /* UINT32_MAX means the instruction has not been visited. Once
-    * an instruction has been visited and its indirection level has been
-    * determined, we'll store the indirection level in the index. The next
-    * instruction that visits it will use the index instead of recomputing
-    * the indirection level, which would result in an exponetial time
-    * complexity.
-    */
-   nir_foreach_instr(instr, block) {
-      instr->index = UINT32_MAX; /* unknown */
+   for (unsigned i = 0; i < block->end_ip + 1 - block->start_ip; i++) {
+      infos[block->start_ip + i].visited = false;
    }
 
    /* Count the number of load indirections for each load instruction
-    * within this block. Store it in pass_flags.
+    * within this block.
     */
    nir_foreach_instr(instr, block) {
       if (is_grouped_load(instr)) {
-         unsigned indirections = get_num_indirections(instr);
+         unsigned indirections = get_num_indirections(instr, infos);
 
-         /* pass_flags has only 8 bits */
-         indirections = MIN2(indirections, 255);
          num_inst_per_level[indirections]++;
-         instr->pass_flags = indirections;
+         infos[instr->index].indirection_level = indirections;
 
          max_indirection = MAX2(max_indirection, (int)indirections);
       }
    }
-
-   /* 255 contains all indirection levels >= 255, so ignore them. */
-   max_indirection = MIN2(max_indirection, 254);
 
    /* Each indirection level is grouped. */
    for (int level = 0; level <= max_indirection; level++) {
       if (num_inst_per_level[level] <= 1)
          continue;
 
-      set_instr_indices(block);
+      set_instr_indices(block, infos);
 
       nir_instr *resource = NULL;
       nir_instr *first_load = NULL, *last_load = NULL;
@@ -420,17 +405,17 @@ process_block(nir_block *block, nir_load_grouping grouping,
        * between them out.
        */
       nir_foreach_instr(current, block) {
-         /* Don't group across barriers. */
-         if (is_barrier(current)) {
+         /* Don't group across terminate. */
+         if (is_demote(current)) {
             /* Group unconditionally.  */
-            handle_load_range(&first_load, &last_load, NULL, 0);
+            handle_load_range(&first_load, &last_load, NULL, 0, infos);
             first_load = NULL;
             last_load = NULL;
             continue;
          }
 
          /* Only group load instructions with the same indirection level. */
-         if (is_grouped_load(current) && current->pass_flags == level) {
+         if (is_part_of_group(current, NULL, level, infos)) {
             nir_instr *current_resource;
 
             switch (grouping) {
@@ -442,7 +427,7 @@ process_block(nir_block *block, nir_load_grouping grouping,
                break;
 
             case nir_group_same_resource_only:
-               current_resource = get_uniform_inst_resource(current);
+               current_resource = get_load_resource(current);
 
                if (current_resource) {
                   if (!first_load) {
@@ -456,11 +441,12 @@ process_block(nir_block *block, nir_load_grouping grouping,
          }
 
          /* Group only if we exceeded the maximum distance. */
-         handle_load_range(&first_load, &last_load, current, max_distance);
+         handle_load_range(&first_load, &last_load, current, max_distance,
+                           infos);
       }
 
       /* Group unconditionally.  */
-      handle_load_range(&first_load, &last_load, NULL, 0);
+      handle_load_range(&first_load, &last_load, NULL, 0, infos);
    }
 }
 
@@ -468,17 +454,30 @@ process_block(nir_block *block, nir_load_grouping grouping,
  * in a group.
  */
 bool
-nir_group_loads(nir_shader *shader, nir_load_grouping grouping,
-                unsigned max_distance)
+nir_opt_group_loads(nir_shader *shader, nir_load_grouping grouping,
+                    unsigned max_distance)
 {
+   /* Temporary space for instruction info. */
+   struct util_dynarray infos_scratch;
+   util_dynarray_init(&infos_scratch, NULL);
+
    nir_foreach_function_impl(impl, shader) {
+      nir_metadata_require(impl, nir_metadata_instr_index);
+
+      unsigned num_instr =
+         nir_impl_last_block(impl)->end_ip + 1; /* we might need 1 more */
+      instr_info *infos =
+         (instr_info*)util_dynarray_resize(&infos_scratch, instr_info,
+                                           num_instr);
+
       nir_foreach_block(block, impl) {
-         process_block(block, grouping, max_distance);
+         process_block(block, grouping, max_distance, infos);
       }
 
       nir_progress(true, impl,
                    nir_metadata_control_flow | nir_metadata_loop_analysis);
    }
 
+   util_dynarray_fini(&infos_scratch);
    return true;
 }

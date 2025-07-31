@@ -105,6 +105,9 @@ ir3_required_sync_flags(struct ir3_legalize_state *state,
       else
          reg = n->srcs[i - n->dsts_count];
 
+      if (reg->flags & IR3_REG_DUMMY)
+         continue;
+
       if (is_reg_gpr(reg)) {
 
          /* TODO: we probably only need (ss) for alu
@@ -160,7 +163,7 @@ ir3_required_sync_flags(struct ir3_legalize_state *state,
    }
 
    foreach_dst (reg, n) {
-      if (reg->flags & IR3_REG_RT)
+      if (reg->flags & (IR3_REG_RT | IR3_REG_DUMMY))
          continue;
       if (needs_sy_war(state, reg)) {
          flags |= IR3_INSTR_SY;
@@ -235,9 +238,9 @@ sync_update(struct ir3_legalize_state *state, struct ir3_compiler *compiler,
       }
    }
 
-   if (is_tex_or_prefetch(n) && n->dsts_count > 0) {
+   if (is_tex_or_prefetch(n) && !has_dummy_dst(n)) {
       regmask_set(&state->needs_sy, n->dsts[0]);
-   } else if (n->opc == OPC_RESINFO && n->dsts_count > 0) {
+   } else if (n->opc == OPC_RESINFO && !has_dummy_dst(n)) {
       regmask_set(&state->needs_ss, n->dsts[0]);
    } else if (is_load(n)) {
       if (is_local_mem_load(n))
@@ -464,13 +467,18 @@ get_ready_slot(struct ir3_legalize_state *state,
       consumer_alu ? &state->alu_nop : &state->non_alu_nop;
    assert(!(reg->flags & IR3_REG_SHARED));
    if (reg->flags & IR3_REG_HALF) {
-      if (matching_size)
+      if (matching_size) {
+         assert(num < ARRAY_SIZE(nop->half_ready));
          return &nop->half_ready[num];
-      else
+      } else {
+         assert(num / 2 < ARRAY_SIZE(nop->full_ready));
          return &nop->full_ready[num / 2];
+      }
    } else {
-      if (matching_size)
+      if (matching_size) {
+         assert(num < ARRAY_SIZE(nop->full_ready));
          return &nop->full_ready[num];
+      }
       /* If "num" is large enough, then it can't alias a half-reg because only
        * the first half of the full reg speace aliases half regs. Return NULL in
        * this case.
@@ -525,7 +533,7 @@ delay_update(struct ir3_compiler *compiler,
       return;
 
    foreach_dst_n (dst, n, instr) {
-      if (dst->flags & IR3_REG_RT)
+      if (dst->flags & (IR3_REG_RT | IR3_REG_DUMMY))
          continue;
 
       unsigned elems = post_ra_reg_elems(dst);
@@ -785,7 +793,7 @@ legalize_block(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
          ctx->has_tex_prefetch = true;
       }
 
-      if (n->opc == OPC_RESINFO && n->dsts_count > 0) {
+      if (n->opc == OPC_RESINFO && !has_dummy_dst(n)) {
          ir3_update_legalize_state(state, ctx->compiler, n);
 
          n = ir3_NOP(&build);
@@ -904,25 +912,6 @@ apply_fine_deriv_macro(struct ir3_legalize_ctx *ctx, struct ir3_block *block)
       }
    }
 
-   return true;
-}
-
-/* Some instructions can take a dummy destination of r63.x, which we model as it
- * not having a destination in the IR to avoid having special code to handle
- * this. Insert the dummy destination after everything else is done.
- */
-static bool
-expand_dummy_dests(struct ir3_block *block)
-{
-   foreach_instr (n, &block->instr_list) {
-      if ((n->opc == OPC_SAM || n->opc == OPC_LDC || n->opc == OPC_RESINFO) &&
-          n->dsts_count == 0) {
-         struct ir3_register *dst = ir3_dst_create(n, INVALID_REG, 0);
-         /* Copy the blob's writemask */
-         if (n->opc == OPC_SAM)
-            dst->wrmask = 0b1111;
-      }
-   }
    return true;
 }
 
@@ -2022,10 +2011,6 @@ ir3_legalize(struct ir3 *ir, struct ir3_shader_variant *so, int *max_bary)
    if (so->type == MESA_SHADER_FRAGMENT && so->need_pixlod &&
        so->compiler->gen >= 6)
       helper_sched(ctx, ir, so);
-
-   foreach_block (block, &ir->block_list) {
-      progress |= expand_dummy_dests(block);
-   }
 
    /* Note: insert (last) before alias.tex to have the sources that are actually
     * read by instructions (as opposed to alias registers) more easily

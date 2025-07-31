@@ -4745,19 +4745,6 @@ should_print_nir(UNUSED nir_shader *shader)
    }                                                                                        \
 })
 
-/**
- * Deprecated. Please do not use in newly written code.
- * See https://gitlab.freedesktop.org/mesa/mesa/-/issues/10409
- */
-#define NIR_PASS_V(nir, pass, ...) _PASS(pass, nir, {        \
-   if (should_print_nir(nir))                                \
-      printf("%s\n", #pass);                                 \
-   pass(nir, ##__VA_ARGS__);                                 \
-   nir_validate_shader(nir, "after " #pass " in " __FILE__); \
-   if (should_print_nir(nir))                                \
-      nir_print_shader(nir, stdout);                         \
-})
-
 #define _NIR_LOOP_PASS(progress, idempotent, skip, nir, pass, ...)   \
 do {                                                                 \
    bool nir_loop_pass_progress = false;                              \
@@ -4898,8 +4885,8 @@ typedef enum {
    nir_group_same_resource_only,
 } nir_load_grouping;
 
-bool nir_group_loads(nir_shader *shader, nir_load_grouping grouping,
-                     unsigned max_distance);
+bool nir_opt_group_loads(nir_shader *shader, nir_load_grouping grouping,
+                         unsigned max_distance);
 
 bool nir_shrink_vec_array_vars(nir_shader *shader, nir_variable_mode modes);
 bool nir_split_array_vars(nir_shader *shader, nir_variable_mode modes);
@@ -6207,15 +6194,35 @@ bool nir_opt_loop(nir_shader *shader);
 bool nir_opt_loop_unroll(nir_shader *shader);
 
 typedef enum {
-   nir_move_const_undef = (1 << 0),
-   nir_move_load_ubo = (1 << 1),
-   nir_move_load_input = (1 << 2),
-   nir_move_comparisons = (1 << 3),
-   nir_move_copies = (1 << 4),
-   nir_move_load_ssbo = (1 << 5),
-   nir_move_load_uniform = (1 << 6),
-   nir_move_alu = (1 << 7),
-   nir_dont_move_byte_word_vecs = (1 << 8),
+   nir_move_const_undef =              BITFIELD_BIT(0),
+   nir_move_alu =                      BITFIELD_BIT(1),
+   nir_move_copies =                   BITFIELD_BIT(2),
+   nir_move_comparisons =              BITFIELD_BIT(3),
+   nir_dont_move_byte_word_vecs =      BITFIELD_BIT(4),
+
+   /* Tex opcodes */
+   nir_move_tex_sample =               BITFIELD_BIT(8),
+   nir_move_tex_load =                 BITFIELD_BIT(9),
+   nir_move_tex_load_fragment_mask =   BITFIELD_BIT(10),
+   nir_move_tex_lod =                  BITFIELD_BIT(11),
+   nir_move_tex_query =                BITFIELD_BIT(12),
+
+   /* Intrinsics */
+   nir_move_load_image =               BITFIELD_BIT(13),
+   nir_move_load_image_fragment_mask = BITFIELD_BIT(14),
+   nir_move_query_image =              BITFIELD_BIT(15),
+
+   nir_move_load_input =               BITFIELD_BIT(16),
+   nir_move_load_global =              BITFIELD_BIT(17),
+   nir_move_load_ubo =                 BITFIELD_BIT(18),
+   nir_move_load_ssbo =                BITFIELD_BIT(19),
+   nir_move_load_uniform =             BITFIELD_BIT(20),
+   nir_move_load_buffer_amd =          BITFIELD_BIT(21),
+   nir_move_load_frag_coord =          BITFIELD_BIT(22),
+
+   /* The following options only impact load_global/ubo/ssbo/smem_amd. */
+   nir_move_only_convergent =          BITFIELD_BIT(30),
+   nir_move_only_divergent =           BITFIELD_BIT(31),
 } nir_move_options;
 
 bool nir_can_move_instr(nir_instr *instr, nir_move_options options);

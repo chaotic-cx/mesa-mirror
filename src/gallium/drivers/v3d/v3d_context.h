@@ -61,6 +61,7 @@ void v3d_job_add_bo(struct v3d_job *job, struct v3d_bo *bo);
 #define V3D_DIRTY_VERTTEX             (1ull <<  4)
 #define V3D_DIRTY_GEOMTEX             (1ull <<  5)
 #define V3D_DIRTY_FRAGTEX             (1ull <<  6)
+#define V3D_DIRTY_RASTERIZER_SCISSOR  (1ull <<  7)
 
 #define V3D_DIRTY_SHADER_IMAGE        (1ull <<  9)
 #define V3D_DIRTY_BLEND_COLOR         (1ull << 10)
@@ -667,6 +668,16 @@ struct v3d_context {
         uint8_t blend_dst_alpha_one;
 
         bool active_queries;
+
+        /* Whether a context with robust buffer access should be created.
+         */
+        bool robust_buffer;
+
+        /* How many GPU resets happened since the driver was proved, and how
+         * many were caused by this context.
+         */
+        uint32_t global_reset_count;
+        uint32_t context_reset_count;
 
         /**
          * If a compute job writes a resource read by a non-compute stage we

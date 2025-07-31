@@ -1692,9 +1692,6 @@ anv_image_init(struct anv_device *device, struct anv_image *image,
          image->vk.create_flags |= VK_IMAGE_CREATE_2D_VIEW_COMPATIBLE_BIT_EXT;
       image->vk.usage |=
          VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_STORAGE_BIT;
-
-      /* TODO: enable compression on emulation plane */
-      isl_extra_usage_flags |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
    }
 
    /* Disable aux if image supports export without modifiers. */
@@ -1883,14 +1880,69 @@ anv_image_init(struct anv_device *device, struct anv_image *image,
       const struct anv_format_plane plane_format = anv_get_format_plane(
             device->physical, image->emu_plane_format, 0, image->vk.tiling);
 
-      isl_surf_usage_flags_t isl_usage = anv_image_choose_isl_surf_usage(
-         device->physical, image->vk.format, image->vk.create_flags,
-         image->vk.usage, isl_extra_usage_flags, VK_IMAGE_ASPECT_COLOR_BIT,
-         image->vk.compr_flags);
+      /* According to vk_texcompress_astc_emulation_format() and
+       * anv_astc_emu_process(), there are a limited number of formats the
+       * emulation plane will be accessed as so we can just hardcode all of
+       * those here.
+       */
+      VkFormat emu_format_list[] = {
+         VK_FORMAT_R8G8B8A8_UINT,
+         VK_FORMAT_R8G8B8A8_SRGB,
+         VK_FORMAT_R8G8B8A8_UNORM,
+      };
+
+      VkImageFormatListCreateInfo emu_format_list_info = {
+         .sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO,
+         .pNext = NULL,
+         .viewFormatCount = ARRAY_SIZE(emu_format_list),
+         .pViewFormats = emu_format_list
+      };
+
+      VkImageFormatListCreateInfo *emu_format_list_info_ptr =
+         &emu_format_list_info;
+
+      /* We don't care to provide an accurate list on the older platforms
+       * which need denorms flushed as they don't support compression on the
+       * storage image usage.
+       */
+      if (device->physical->flush_astc_ldr_void_extent_denorms)
+         emu_format_list_info_ptr = NULL;
+
+      assert(image->vk.create_flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT);
+
+      if (device->info->ver >= 12) {
+         /* CCS_E is the only aux-mode supported for single sampled color
+          * surfaces on gfx12+. Since we hardcoded all the formats the
+          * emulation plane will be accessed as, CCS_E support should
+          * be guaranteed.
+          */
+         assert(anv_formats_ccs_e_compatible(device->physical,
+                                             image->vk.create_flags,
+                                             image->emu_plane_format,
+                                             image->vk.tiling,
+                                             image->vk.usage,
+                                             emu_format_list_info_ptr));
+      }
+
+      isl_surf_usage_flags_t isl_usage =
+         anv_image_choose_isl_surf_usage(device->physical,
+                                         image->vk.format,
+                                         image->vk.create_flags,
+                                         image->vk.usage,
+                                         0,
+                                         VK_IMAGE_ASPECT_COLOR_BIT,
+                                         image->vk.compr_flags);
 
       r = add_primary_surface(device, image, plane, plane_format,
                               ANV_OFFSET_IMPLICIT, 0,
                               isl_tiling_flags, isl_usage);
+      if (r != VK_SUCCESS)
+         goto fail;
+
+      r = add_aux_surface_if_supported(device, image, plane, plane_format,
+                                       emu_format_list_info_ptr,
+                                       ANV_OFFSET_IMPLICIT, 0,
+                                       ANV_OFFSET_IMPLICIT);
       if (r != VK_SUCCESS)
          goto fail;
    }
@@ -2131,13 +2183,34 @@ resolve_ahw_image(struct anv_device *device,
 #endif
 }
 
-static void
+static VkResult
 resolve_anb_image(struct anv_device *device,
                   struct anv_image *image,
                   const VkNativeBufferANDROID *gralloc_info)
 {
 #if DETECT_OS_ANDROID && ANDROID_API_LEVEL >= 29
    VkResult result;
+
+   /* Do not close the gralloc handle's dma_buf. The lifetime of the dma_buf
+    * must exceed that of the gralloc handle, and we do not own the gralloc
+    * handle.
+    */
+   int dma_buf = gralloc_info->handle->data[0];
+
+   /* If this function fails and if the imported bo was resident in the cache,
+    * we should avoid updating the bo's flags. Therefore, we defer updating
+    * the flags until success is certain.
+    *
+    */
+   struct anv_bo *bo = NULL;
+   result = anv_device_import_bo(device, dma_buf,
+                                 ANV_BO_ALLOC_EXTERNAL,
+                                 0 /* client_address */,
+                                 &bo);
+   if (result != VK_SUCCESS) {
+      return vk_errorf(device, result,
+                       "failed to import dma-buf from VkNativeBufferANDROID");
+   }
 
    /* Check tiling. */
    enum isl_tiling tiling;
@@ -2157,7 +2230,44 @@ resolve_anb_image(struct anv_device *device,
    result = add_all_surfaces_implicit_layout(device, image, NULL, gralloc_info->stride,
                                              isl_tiling_flags,
                                              ISL_SURF_USAGE_DISABLE_AUX_BIT);
-   assert(result == VK_SUCCESS);
+   if (result != VK_SUCCESS) {
+      anv_device_release_bo(device, bo);
+      return vk_errorf(device, result,
+                       "failed to add surfaces from VkNativeBufferANDROID");
+   }
+
+   VkMemoryRequirements2 mem_reqs = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2,
+   };
+
+   anv_image_get_memory_requirements(device, image, image->vk.aspects,
+                                     &mem_reqs);
+
+   VkDeviceSize aligned_image_size =
+      align64(mem_reqs.memoryRequirements.size,
+              mem_reqs.memoryRequirements.alignment);
+
+   if (bo->size < aligned_image_size) {
+      result = vk_errorf(device, VK_ERROR_INVALID_EXTERNAL_HANDLE,
+                         "dma-buf from VkNativeBufferANDROID is too small for "
+                         "VkImage: %"PRIu64"B < %"PRIu64"B",
+                         bo->size, aligned_image_size);
+      anv_device_release_bo(device, bo);
+      return result;
+   }
+
+   assert(!image->disjoint);
+   assert(image->n_planes == 1);
+   assert(image->planes[0].primary_surface.memory_range.binding ==
+          ANV_IMAGE_MEMORY_BINDING_MAIN);
+   assert(image->bindings[ANV_IMAGE_MEMORY_BINDING_MAIN].address.bo == NULL);
+   assert(image->bindings[ANV_IMAGE_MEMORY_BINDING_MAIN].address.offset == 0);
+   image->bindings[ANV_IMAGE_MEMORY_BINDING_MAIN].address.bo = bo;
+   image->from_gralloc = true;
+
+   return VK_SUCCESS;
+#else
+   return VK_ERROR_EXTENSION_NOT_PRESENT;
 #endif
 }
 
@@ -2744,11 +2854,11 @@ anv_bind_image_memory(struct anv_device *device,
       case VK_STRUCTURE_TYPE_NATIVE_BUFFER_ANDROID: {
          const VkNativeBufferANDROID *gralloc_info =
             (const VkNativeBufferANDROID *)s;
-         result = anv_image_bind_from_gralloc(device, image, gralloc_info);
+
+         result = resolve_anb_image(device, image, gralloc_info);
          if (result != VK_SUCCESS)
             return result;
 
-         resolve_anb_image(device, image, gralloc_info);
          did_bind = true;
          break;
       }

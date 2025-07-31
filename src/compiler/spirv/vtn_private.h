@@ -364,7 +364,9 @@ struct vtn_type {
 
       /* Members for pointer types */
       struct {
-         /* For pointers, the vtn_type of the object pointed to. */
+         /* For regular pointers, the vtn_type of the object pointed to;
+          * for untyped pointers it must be NULL.
+          */
          struct vtn_type *pointed;
 
          /* Storage class for pointers */
@@ -413,6 +415,7 @@ struct vtn_type {
 };
 
 bool vtn_type_contains_block(struct vtn_builder *b, struct vtn_type *type);
+bool vtn_type_is_block_array(struct vtn_builder *b, struct vtn_type *type);
 
 bool vtn_types_compatible(struct vtn_builder *b,
                           struct vtn_type *t1, struct vtn_type *t2);
@@ -488,17 +491,23 @@ struct vtn_pointer {
 
    /** The referenced variable, if known
     *
-    * This field may be NULL if the pointer uses a (block_index, offset) pair
-    * instead of an access chain or if the access chain starts at a deref.
+    * This field may be NULL if the access chain starts at a deref.
     */
    struct vtn_variable *var;
 
-   /** The NIR deref corresponding to this pointer */
-   nir_deref_instr *deref;
+   /* The descriptor "index"
+    *
+    * The stores the logical descriptor index (if any) and the result of a
+    * vulkan_resource_index or vulkan_resource_reindex intrinsic.
+    */
+   struct nir_def *desc_index;
 
-   /** A (block_index, offset) pair representing a UBO or SSBO position. */
-   struct nir_def *block_index;
-   struct nir_def *offset;
+   /** The NIR deref corresponding to this pointer
+    *
+    * This may be NULL if it's a pointer to a block or acceleration structure,
+    * in which case desc_index is used instead.
+    **/
+   nir_deref_instr *deref;
 
    /* Access qualifiers */
    enum gl_access_qualifier access;
@@ -914,6 +923,10 @@ nir_deref_instr *vtn_pointer_to_deref(struct vtn_builder *b,
 nir_def *
 vtn_pointer_to_offset(struct vtn_builder *b, struct vtn_pointer *ptr,
                       nir_def **index_out);
+
+struct vtn_pointer *
+vtn_cast_pointer(struct vtn_builder *b, struct vtn_pointer *p,
+                 struct vtn_type *pointed);
 
 nir_deref_instr *
 vtn_get_call_payload_for_location(struct vtn_builder *b, uint32_t location_id);

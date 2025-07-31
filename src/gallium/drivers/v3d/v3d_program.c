@@ -579,6 +579,9 @@ v3d_setup_shared_key(struct v3d_context *v3d, struct v3d_key *key,
                 if (return_size == 32)
                         key->sampler_is_32b |= (1 << i);
         }
+
+        key->robust_uniform_access = v3d->robust_buffer;
+        key->robust_storage_access = v3d->robust_buffer;
 }
 
 static void
@@ -719,6 +722,10 @@ v3d_update_compiled_fs(struct v3d_context *v3d, uint8_t prim_mode)
                 if (v3d->prog.fs->prog_data.fs->centroid_flags !=
                     old_fs->prog_data.fs->centroid_flags) {
                         v3d->dirty |= V3D_DIRTY_CENTROID_FLAGS;
+                }
+                if (v3d->prog.fs->prog_data.fs->disable_ez !=
+                    old_fs->prog_data.fs->disable_ez) {
+                   v3d->dirty |= V3D_DIRTY_ZSA;
                 }
         }
 

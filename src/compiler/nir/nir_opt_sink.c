@@ -108,45 +108,144 @@ can_sink_instr(nir_instr *instr, nir_move_options options, bool *can_mov_out_of_
 
       return true;
    }
+   case nir_instr_type_tex:
+      *can_mov_out_of_loop = false;
+
+      switch (nir_instr_as_tex(instr)->op) {
+      case nir_texop_tex:
+      case nir_texop_txb:
+      case nir_texop_txl:
+      case nir_texop_txd:
+      case nir_texop_tg4:
+         return options & nir_move_tex_sample;
+
+      case nir_texop_txf:
+      case nir_texop_txf_ms:
+      case nir_texop_txf_ms_fb:
+      case nir_texop_txf_ms_mcs_intel:
+         return options & nir_move_tex_load;
+
+      case nir_texop_samples_identical: /* this loads fragment mask too */
+      case nir_texop_fragment_fetch_amd:
+      case nir_texop_fragment_mask_fetch_amd:
+         return options & nir_move_tex_load_fragment_mask;
+
+      case nir_texop_lod:
+         return options & nir_move_tex_lod;
+
+      case nir_texop_txs:
+      case nir_texop_query_levels:
+      case nir_texop_texture_samples:
+         return options & nir_move_tex_query;
+
+      default:
+         return false;
+      }
    case nir_instr_type_intrinsic: {
       nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+
+      if (!nir_intrinsic_can_reorder(intrin))
+         return false;
+
+      if (intrin->intrinsic == nir_intrinsic_load_global ||
+          intrin->intrinsic == nir_intrinsic_load_ubo ||
+          intrin->intrinsic == nir_intrinsic_load_ssbo ||
+          intrin->intrinsic == nir_intrinsic_load_smem_amd) {
+         if (intrin->def.divergent) {
+            if (options & nir_move_only_convergent)
+               return false;
+         } else {
+            if (options & nir_move_only_divergent)
+               return false;
+         }
+      }
+
+      *can_mov_out_of_loop = false;
+
       switch (intrin->intrinsic) {
+      case nir_intrinsic_image_load:
+      case nir_intrinsic_image_deref_load:
+      case nir_intrinsic_bindless_image_load:
+      case nir_intrinsic_image_sparse_load:
+      case nir_intrinsic_image_deref_sparse_load:
+      case nir_intrinsic_bindless_image_sparse_load:
+         return options & nir_move_load_image;
+
+      case nir_intrinsic_image_fragment_mask_load_amd:
+      case nir_intrinsic_image_deref_fragment_mask_load_amd:
+      case nir_intrinsic_bindless_image_fragment_mask_load_amd:
+      case nir_intrinsic_image_samples_identical: /* this loads fragment mask too */
+      case nir_intrinsic_image_deref_samples_identical:
+      case nir_intrinsic_bindless_image_samples_identical:
+         return options & nir_move_load_image_fragment_mask;
+
+      case nir_intrinsic_image_size:
+      case nir_intrinsic_image_deref_size:
+      case nir_intrinsic_bindless_image_size:
+      case nir_intrinsic_image_samples:
+      case nir_intrinsic_image_deref_samples:
+      case nir_intrinsic_bindless_image_samples:
+      case nir_intrinsic_image_levels:
+      case nir_intrinsic_image_deref_levels:
+      case nir_intrinsic_bindless_image_levels:
+         return options & nir_move_query_image;
+
+      case nir_intrinsic_load_input:
+      case nir_intrinsic_load_interpolated_input:
+      case nir_intrinsic_load_input_vertex:
+      case nir_intrinsic_load_per_vertex_input:
+      case nir_intrinsic_load_per_primitive_input:
+      case nir_intrinsic_load_attribute_pan:
+         *can_mov_out_of_loop = true;
+         return options & nir_move_load_input;
+
+      case nir_intrinsic_load_global:
+      case nir_intrinsic_load_smem_amd: /* = global + convergent */
+         return options & nir_move_load_global;
+
       case nir_intrinsic_load_ubo:
       case nir_intrinsic_load_ubo_vec4:
-         *can_mov_out_of_loop = false;
-         return options & nir_move_load_ubo;
       case nir_intrinsic_load_global_constant_offset:
       case nir_intrinsic_load_global_constant_bounded:
+         *can_mov_out_of_loop =
+            intrin->intrinsic == nir_intrinsic_load_global_constant_offset ||
+            intrin->intrinsic == nir_intrinsic_load_global_constant_bounded;
          return options & nir_move_load_ubo;
+
       case nir_intrinsic_load_ssbo:
       case nir_intrinsic_load_ssbo_intel:
-         *can_mov_out_of_loop = false;
-         return (options & nir_move_load_ssbo) && nir_intrinsic_can_reorder(intrin);
       case nir_intrinsic_load_global_bounded:
-         return (options & nir_move_load_ssbo) && nir_intrinsic_can_reorder(intrin);
-      case nir_intrinsic_load_input:
-      case nir_intrinsic_load_per_primitive_input:
-      case nir_intrinsic_load_interpolated_input:
-      case nir_intrinsic_load_per_vertex_input:
+         *can_mov_out_of_loop =
+            intrin->intrinsic == nir_intrinsic_load_global_bounded;
+         return options & nir_move_load_ssbo;
+
+      case nir_intrinsic_load_buffer_amd:
+         return options & nir_move_load_buffer_amd;
+
       case nir_intrinsic_load_frag_coord:
       case nir_intrinsic_load_frag_coord_z:
       case nir_intrinsic_load_frag_coord_w:
       case nir_intrinsic_load_frag_coord_zw_pan:
       case nir_intrinsic_load_pixel_coord:
-      case nir_intrinsic_load_attribute_pan:
-         return options & nir_move_load_input;
+         *can_mov_out_of_loop = true;
+         return options & nir_move_load_frag_coord;
+
       case nir_intrinsic_load_uniform:
       case nir_intrinsic_load_kernel_input:
+         *can_mov_out_of_loop = true;
          return options & nir_move_load_uniform;
+
       case nir_intrinsic_inverse_ballot:
       case nir_intrinsic_is_subgroup_invocation_lt_amd:
-         *can_mov_out_of_loop = false;
          return options & nir_move_copies;
+
       case nir_intrinsic_load_constant_agx:
       case nir_intrinsic_load_local_pixel_agx:
       case nir_intrinsic_load_back_face_agx:
       case nir_intrinsic_load_shader_output_pan:
+         *can_mov_out_of_loop = true;
          return true;
+
       default:
          return false;
       }
@@ -259,7 +358,10 @@ nir_opt_sink(nir_shader *shader, nir_move_options options)
 
    nir_foreach_function_impl(impl, shader) {
       nir_metadata_require(impl,
-                           nir_metadata_control_flow);
+                           nir_metadata_control_flow |
+                           (options & (nir_move_only_convergent |
+                                       nir_move_only_divergent) ?
+                               nir_metadata_divergence : 0));
 
       nir_foreach_block_reverse(block, impl) {
          nir_foreach_instr_reverse_safe(instr, block) {
