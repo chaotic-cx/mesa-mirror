@@ -594,12 +594,12 @@ get_deref_tail(nir_deref_instr *deref)
       return deref;
 
    nir_deref_instr *parent =
-      nir_instr_as_deref(deref->parent.ssa->parent_instr);
+      nir_def_as_deref(deref->parent.ssa);
 
    if (parent->deref_type == nir_deref_type_cast &&
        parent->parent.ssa->parent_instr->type == nir_instr_type_deref) {
       nir_deref_instr *grandparent =
-         nir_instr_as_deref(parent->parent.ssa->parent_instr);
+         nir_def_as_deref(parent->parent.ssa);
 
       if (glsl_type_is_cmat(grandparent->type))
          return grandparent;
@@ -1936,7 +1936,7 @@ vtn_mode_to_address_format(struct vtn_builder *b, enum vtn_variable_mode mode)
       return nir_address_format_logical;
    }
 
-   unreachable("Invalid variable mode");
+   UNREACHABLE("Invalid variable mode");
 }
 
 static bool
@@ -2315,7 +2315,7 @@ vtn_create_variable(struct vtn_builder *b, struct vtn_value *val,
 
    case vtn_variable_mode_phys_ssbo:
    case vtn_variable_mode_generic:
-      unreachable("Should have been caught before");
+      UNREACHABLE("Should have been caught before");
    }
 
    /* Ignore incorrectly generated Undef initializers. */

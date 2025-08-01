@@ -748,7 +748,7 @@ nir_fdot(nir_builder *build, nir_def *src0, nir_def *src1)
    case 16:
       return nir_fdot16(build, src0, src1);
    default:
-      unreachable("bad component size");
+      UNREACHABLE("bad component size");
    }
 
    return NULL;
@@ -774,7 +774,7 @@ nir_bfdot(nir_builder *build, nir_def *src0, nir_def *src1)
    case 16:
       return nir_bfdot16(build, src0, src1);
    default:
-      unreachable("bad component size");
+      UNREACHABLE("bad component size");
    }
 
    return NULL;
@@ -799,7 +799,7 @@ nir_ball_iequal(nir_builder *b, nir_def *src0, nir_def *src1)
    case 16:
       return nir_ball_iequal16(b, src0, src1);
    default:
-      unreachable("bad component size");
+      UNREACHABLE("bad component size");
    }
 }
 
@@ -828,7 +828,7 @@ nir_bany_inequal(nir_builder *b, nir_def *src0, nir_def *src1)
    case 16:
       return nir_bany_inequal16(b, src0, src1);
    default:
-      unreachable("bad component size");
+      UNREACHABLE("bad component size");
    }
 }
 
@@ -999,7 +999,7 @@ nir_iadd_imm_nuw(nir_builder *b, nir_def *x, uint64_t y)
 {
    nir_def *d = nir_iadd_imm(b, x, y);
    if (d != x && d->parent_instr->type == nir_instr_type_alu)
-      nir_instr_as_alu(d->parent_instr)->no_unsigned_wrap = true;
+      nir_def_as_alu(d)->no_unsigned_wrap = true;
    return d;
 }
 
@@ -1007,7 +1007,7 @@ static inline nir_def *
 nir_iadd_nuw(nir_builder *b, nir_def *x, nir_def *y)
 {
    nir_def *d = nir_iadd(b, x, y);
-   nir_instr_as_alu(d->parent_instr)->no_unsigned_wrap = true;
+   nir_def_as_alu(d)->no_unsigned_wrap = true;
    return d;
 }
 
@@ -1823,7 +1823,7 @@ nir_build_deref_follower(nir_builder *b, nir_deref_instr *parent,
 
    switch (leader->deref_type) {
    case nir_deref_type_var:
-      unreachable("A var dereference cannot have a parent");
+      UNREACHABLE("A var dereference cannot have a parent");
       break;
 
    case nir_deref_type_array:
@@ -1868,7 +1868,7 @@ nir_build_deref_follower(nir_builder *b, nir_deref_instr *parent,
    }
 
    default:
-      unreachable("Invalid deref instruction type");
+      UNREACHABLE("Invalid deref instruction type");
    }
    return NULL;
 }
@@ -2155,13 +2155,13 @@ nir_build_deriv(nir_builder *b, nir_def *x, nir_intrinsic_op intrin)
 
       for (unsigned i = 0; i < x->num_components; ++i) {
          res[i] = _nir_build_ddx(b, x->bit_size, nir_channel(b, x, i));
-         nir_instr_as_intrinsic(res[i]->parent_instr)->intrinsic = intrin;
+         nir_def_as_intrinsic(res[i])->intrinsic = intrin;
       }
 
       return nir_vec(b, res, x->num_components);
    } else {
       nir_def *res = _nir_build_ddx(b, x->bit_size, x);
-      nir_instr_as_intrinsic(res->parent_instr)->intrinsic = intrin;
+      nir_def_as_intrinsic(res)->intrinsic = intrin;
       return res;
    }
 }

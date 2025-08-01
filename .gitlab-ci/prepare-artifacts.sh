@@ -29,23 +29,27 @@ if [ -z "$ARTIFACTS_DEBUG_SYMBOLS" ]; then
     find install -name \*.so -exec $STRIP --strip-debug {} \;
 fi
 
-# Test runs don't pull down the git tree, so put the dEQP helper
-# script and associated bits there.
 git_sha=$(git rev-parse --short=10 HEAD)
 echo "$(cat VERSION) (git-$git_sha)" > install/VERSION
-cp -Rp .gitlab-ci/bare-metal install/
-cp -Rp .gitlab-ci/common install/
-cp -Rp .gitlab-ci/piglit install/
-cp -Rp .gitlab-ci/fossils.yml install/
-cp -Rp .gitlab-ci/fossils install/
-cp -Rp .gitlab-ci/fossilize-runner.sh install/
-cp -Rp .gitlab-ci/crosvm-init.sh install/
-cp -Rp .gitlab-ci/*.txt install/
-cp -Rp .gitlab-ci/report-flakes.py install/
-cp -Rp .gitlab-ci/setup-test-env.sh install/
-cp -Rp .gitlab-ci/*-runner.sh install/
-cp -Rp .gitlab-ci/bin/structured_logger.py install/
-cp -Rp .gitlab-ci/bin/custom_logger.py install/
+
+# Test runs don't pull down the git tree, so put the dEQP helper
+# script and associated bits there.
+for f in \
+  .gitlab-ci/bare-metal \
+  .gitlab-ci/common \
+  .gitlab-ci/piglit \
+  .gitlab-ci/fossils.yml \
+  .gitlab-ci/fossils \
+  .gitlab-ci/crosvm-init.sh \
+  .gitlab-ci/*.txt \
+  .gitlab-ci/report-flakes.py \
+  .gitlab-ci/setup-test-env.sh \
+  .gitlab-ci/*-runner.sh \
+  .gitlab-ci/bin/structured_logger.py \
+  .gitlab-ci/bin/custom_logger.py \
+; do
+  cp -Rp "$f" install/
+done
 
 mapfile -t duplicate_files < <(
   find src/ -path '*/ci/*' \

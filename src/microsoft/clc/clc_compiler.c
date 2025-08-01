@@ -172,7 +172,7 @@ clc_lower_input_image_deref(nir_builder *b, struct clc_image_lower_context *cont
                case nir_type_float: type = FLOAT4; break;
                case nir_type_int: type = INT4; break;
                case nir_type_uint: type = UINT4; break;
-               default: unreachable("Unsupported image type for load.");
+               default: UNREACHABLE("Unsupported image type for load.");
                }
 
                int image_binding = image_bindings[type];
@@ -243,7 +243,7 @@ clc_lower_input_image_deref(nir_builder *b, struct clc_image_lower_context *cont
             }
 
             default:
-               unreachable("Unsupported image intrinsic");
+               UNREACHABLE("Unsupported image intrinsic");
             }
          } else if (nir_src_parent_instr(src)->type == nir_instr_type_tex) {
             assert(in_var->data.access & ACCESS_NON_WRITEABLE);
@@ -253,7 +253,7 @@ clc_lower_input_image_deref(nir_builder *b, struct clc_image_lower_context *cont
             case nir_type_float: type = FLOAT4; break;
             case nir_type_int: type = INT4; break;
             case nir_type_uint: type = UINT4; break;
-            default: unreachable("Unsupported image format for sample.");
+            default: UNREACHABLE("Unsupported image format for sample.");
             }
 
             int image_binding = image_bindings[type];
@@ -338,10 +338,7 @@ clc_lower_64bit_semantics(nir_shader *nir)
                b.cursor = nir_after_instr(instr);
 
                nir_def *i64 = nir_u2u64(&b, &intrinsic->def);
-               nir_def_rewrite_uses_after(
-                  &intrinsic->def,
-                  i64,
-                  i64->parent_instr);
+               nir_def_rewrite_uses_after(&intrinsic->def, i64);
             }
          }
       }
@@ -371,8 +368,7 @@ clc_lower_nonnormalized_samplers(nir_shader *nir,
 
             nir_src *sampler_src = &tex->src[sampler_src_idx].src;
             assert(sampler_src->ssa->parent_instr->type == nir_instr_type_deref);
-            nir_variable *sampler = nir_deref_instr_get_variable(
-               nir_instr_as_deref(sampler_src->ssa->parent_instr));
+            nir_variable *sampler = nir_deref_instr_get_variable(nir_def_as_deref(sampler_src->ssa));
 
             // If the sampler returns ints, we'll handle this in the int lowering pass
             if (nir_alu_type_get_base_type(tex->dest_type) != nir_type_float)
@@ -567,7 +563,7 @@ copy_const_initializer(const nir_constant *constant, const struct glsl_type *typ
             *((uint8_t *)data) = constant->values[i].u8;
             break;
          default:
-            unreachable("Invalid base type");
+            UNREACHABLE("Invalid base type");
          }
 
          data += glsl_get_bit_size(type) / 8;
@@ -1202,7 +1198,7 @@ clc_spirv_to_dxil(struct clc_libclc *lib,
             metadata->consts[metadata->num_consts].uav_id = var->data.binding;
             metadata->num_consts++;
          } else
-            unreachable("unexpected constant initializer");
+            UNREACHABLE("unexpected constant initializer");
       }
    }
 

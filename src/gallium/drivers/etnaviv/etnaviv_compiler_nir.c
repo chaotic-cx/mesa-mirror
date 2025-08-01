@@ -118,7 +118,7 @@ etna_emit_output(struct etna_compile *c, nir_variable *var, struct etna_inst_src
          c->variant->ps_depth_out_reg = src.reg;
          break;
       default:
-         unreachable("Unsupported fs output");
+         UNREACHABLE("Unsupported fs output");
       }
       return;
    }
@@ -822,7 +822,7 @@ static nir_const_value *get_alu_cv(nir_alu_src *src)
 
    if (!cv &&
        (src->src.ssa->parent_instr->type == nir_instr_type_alu)) {
-      nir_alu_instr *parent = nir_instr_as_alu(src->src.ssa->parent_instr);
+      nir_alu_instr *parent = nir_def_as_alu(src->src.ssa);
 
       if ((parent->op == nir_op_fabs) ||
           (parent->op == nir_op_fneg)) {
@@ -1459,7 +1459,7 @@ etna_link_shader(struct etna_shader_link_info *info,
          varying->semantic = VARYING_INTERPOLATION_MODE_FLAT;
          break;
       default:
-         unreachable("unsupported varying interpolation mode");
+         UNREACHABLE("unsupported varying interpolation mode");
       }
 
       /* point/tex coord is an input to the PS without matching VS output,

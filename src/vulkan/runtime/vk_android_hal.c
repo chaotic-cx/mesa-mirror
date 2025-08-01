@@ -1,9 +1,15 @@
-// Copyright 2025 Google LLC
+/*
+ * Copyright 2025 Google LLC
+ * SPDX-License-Identifier: MIT
+ */
 
 #include <hardware/hardware.h>
 #include <hardware/hwvulkan.h>
 #include <util/macros.h>
 #include <vulkan/vk_icd.h>
+
+#include <stdlib.h>
+#include <string.h>
 
 static_assert(HWVULKAN_DISPATCH_MAGIC == ICD_LOADER_MAGIC, "");
 

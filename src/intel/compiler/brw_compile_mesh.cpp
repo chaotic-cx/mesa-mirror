@@ -22,7 +22,6 @@
  */
 
 #include <list>
-#include <vector>
 #include "brw_compiler.h"
 #include "brw_shader.h"
 #include "brw_builder.h"
@@ -231,7 +230,7 @@ lower_set_vtx_and_prim_to_temp_write(nir_builder *b,
     */
    if (nir_src_is_const(intrin->src[1]) &&
        nir_src_as_uint(intrin->src[1]) > b->shader->info.mesh.max_primitives_out)
-      unreachable("number of primitives bigger than max specified");
+      UNREACHABLE("number of primitives bigger than max specified");
 
    b->cursor = nir_instr_remove(&intrin->instr);
 
@@ -543,7 +542,7 @@ brw_compute_mue_map(const struct brw_compiler *compiler,
       map->per_primitive_indices_stride = 4;
       break;
    default:
-      unreachable("invalid index format");
+      UNREACHABLE("invalid index format");
    }
 
    map->size += map->per_primitive_indices_stride * map->max_primitives;

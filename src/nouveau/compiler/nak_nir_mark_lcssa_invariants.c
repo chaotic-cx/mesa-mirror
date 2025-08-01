@@ -47,7 +47,7 @@ lower_block(nir_builder *b, nir_block *block)
 
       nir_def* x = nir_as_uniform(b, &phi->def);
       x->divergent = false;
-      nir_def_rewrite_uses_after(&phi->def, x, x->parent_instr);
+      nir_def_rewrite_uses_after(&phi->def, x);
 
       progress = true;
    }
@@ -91,7 +91,7 @@ lower_cf_list(nir_builder *b, struct exec_list *cf_list)
       }
 
       default:
-         unreachable("Unknown CF node type");
+         UNREACHABLE("Unknown CF node type");
       }
    }
 

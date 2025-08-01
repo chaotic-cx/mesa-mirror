@@ -1084,7 +1084,7 @@ lower_any_hit_for_intersection(nir_shader *any_hit)
             case nir_intrinsic_load_rt_arg_scratch_offset_amd:
                b->cursor = nir_after_instr(instr);
                nir_def *arg_offset = nir_isub(b, &intrin->def, scratch_offset);
-               nir_def_rewrite_uses_after(&intrin->def, arg_offset, arg_offset->parent_instr);
+               nir_def_rewrite_uses_after(&intrin->def, arg_offset);
                break;
 
             default:
@@ -1849,13 +1849,13 @@ lower_rt_instruction_monolithic(nir_builder *b, nir_instr *instr, void *data)
       return true;
    }
    case nir_intrinsic_rt_resume:
-      unreachable("nir_intrinsic_rt_resume");
+      UNREACHABLE("nir_intrinsic_rt_resume");
    case nir_intrinsic_rt_return_amd:
-      unreachable("nir_intrinsic_rt_return_amd");
+      UNREACHABLE("nir_intrinsic_rt_return_amd");
    case nir_intrinsic_execute_closest_hit_amd:
-      unreachable("nir_intrinsic_execute_closest_hit_amd");
+      UNREACHABLE("nir_intrinsic_execute_closest_hit_amd");
    case nir_intrinsic_execute_miss_amd:
-      unreachable("nir_intrinsic_execute_miss_amd");
+      UNREACHABLE("nir_intrinsic_execute_miss_amd");
    default:
       return false;
    }

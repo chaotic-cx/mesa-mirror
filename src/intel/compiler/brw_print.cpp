@@ -22,7 +22,7 @@ brw_print_instructions(const brw_shader &s, FILE *file)
       unsigned cf_count = 0;
       foreach_block(block, s.cfg) {
          fprintf(file, "START B%d", block->num);
-         foreach_list_typed(bblock_link, link, link, &block->parents) {
+         brw_foreach_list_typed(bblock_link, link, link, &block->parents) {
             fprintf(file, " <%cB%d",
                     link->kind == bblock_link_logical ? '-' : '~',
                     link->block->num);
@@ -54,7 +54,7 @@ brw_print_instructions(const brw_shader &s, FILE *file)
          }
 
          fprintf(file, "END B%d", block->num);
-         foreach_list_typed(bblock_link, link, link, &block->children) {
+         brw_foreach_list_typed(bblock_link, link, link, &block->children) {
             fprintf(file, " %c>B%d",
                     link->kind == bblock_link_logical ? '-' : '~',
                     link->block->num);
@@ -63,12 +63,12 @@ brw_print_instructions(const brw_shader &s, FILE *file)
       }
       if (rp)
          fprintf(file, "Maximum %3d registers live at once.\n", max_pressure);
-   } else if (s.cfg && exec_list_is_empty(&s.instructions)) {
+   } else if (s.cfg && brw_exec_list_is_empty(&s.instructions)) {
       foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
          brw_print_instruction(s, inst, file);
       }
    } else {
-      foreach_in_list(brw_inst, inst, &s.instructions) {
+      brw_foreach_in_list(brw_inst, inst, &s.instructions) {
          brw_print_instruction(s, inst, file);
       }
    }
@@ -309,7 +309,7 @@ brw_instruction_name(const struct brw_isa_info *isa, enum opcode op)
       return "flow";
    }
 
-   unreachable("not reached");
+   UNREACHABLE("not reached");
 }
 
 /**
@@ -385,7 +385,7 @@ print_memory_logical_source(FILE *file, const brw_inst *inst, unsigned i)
       fprintf(file, " data1: ");
       return false;
    default:
-      unreachable("invalid source");
+      UNREACHABLE("invalid source");
    }
 }
 
@@ -480,7 +480,7 @@ brw_print_instruction(const brw_shader &s, const brw_inst *inst, FILE *file, con
       }
       break;
    case IMM:
-      unreachable("not reached");
+      UNREACHABLE("not reached");
    }
 
    if (inst->dst.offset ||
@@ -648,7 +648,7 @@ brw_print_instruction(const brw_shader &s, const brw_inst *inst, FILE *file, con
          case BRW_SWAP_VERTICAL:   name = "vertical";   break;
          case BRW_SWAP_DIAGONAL:   name = "diagonal";   break;
          default:
-            unreachable("invalid brw_swap_direction");
+            UNREACHABLE("invalid brw_swap_direction");
          }
          fprintf(file, " (%s)", name);
       }

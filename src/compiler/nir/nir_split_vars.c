@@ -326,7 +326,7 @@ split_struct_derefs_impl(nir_function_impl *impl,
                break;
 
             default:
-               unreachable("Invalid deref type in path");
+               UNREACHABLE("Invalid deref type in path");
             }
          }
 
@@ -1607,9 +1607,7 @@ shrink_vec_var_access_impl(nir_function_impl *impl,
                }
                nir_def *vec = nir_vec(&b, vec_srcs, intrin->num_components);
 
-               nir_def_rewrite_uses_after(&intrin->def,
-                                          vec,
-                                          vec->parent_instr);
+               nir_def_rewrite_uses_after(&intrin->def, vec);
 
                /* The SSA def is now only used by the swizzle.  It's safe to
                 * shrink the number of components.

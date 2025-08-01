@@ -599,8 +599,7 @@ lower_tex_ycbcr(const struct tu_pipeline_layout *layout,
                                               ycbcr_sampler->ycbcr_range,
                                               &tex->def,
                                               bpcs);
-   nir_def_rewrite_uses_after(&tex->def, result,
-                              result->parent_instr);
+   nir_def_rewrite_uses_after(&tex->def, result);
 
    builder->cursor = nir_before_instr(&tex->instr);
 }
@@ -1118,7 +1117,7 @@ lower_ssbo_descriptor_instr(nir_builder *b, nir_intrinsic_instr *intrin,
       nir_def *buffer = intrin->src[buffer_src].ssa;
       assert(buffer->parent_instr->type == nir_instr_type_intrinsic);
       nir_intrinsic_instr *bindless =
-         nir_instr_as_intrinsic(buffer->parent_instr);
+         nir_def_as_intrinsic(buffer);
       assert(bindless->intrinsic == nir_intrinsic_bindless_resource_ir3);
       nir_def *descriptor_idx = bindless->src[0].ssa;
       descriptor_idx = nir_iadd_imm(b, descriptor_idx, 1);
@@ -1438,7 +1437,7 @@ tu6_emit_xs(struct tu_cs *cs,
       ));
       break;
    default:
-      unreachable("bad shader stage");
+      UNREACHABLE("bad shader stage");
    }
 
    tu_cs_emit_pkt4(cs, cfg->reg_sp_xs_instrlen, 1);
@@ -1520,32 +1519,6 @@ tu6_emit_xs(struct tu_cs *cs,
       tu_cs_emit_qw(cs,
                     iova |
                     (uint64_t)A6XX_UBO_1_SIZE(size_vec4s) << 32);
-
-      /* Upload the constant data to the const file if needed. */
-      const struct ir3_ubo_analysis_state *ubo_state = &const_state->ubo_state;
-
-      if (!cs->device->physical_device->info->a7xx.load_shader_consts_via_preamble) {
-         for (int i = 0; i < ubo_state->num_enabled; i++) {
-            if (ubo_state->range[i].ubo.block != offset ||
-                ubo_state->range[i].ubo.bindless) {
-               continue;
-            }
-
-            uint32_t start = ubo_state->range[i].start;
-            uint32_t end = ubo_state->range[i].end;
-            uint32_t size = MIN2(end - start,
-                                 (16 * xs->constlen) - ubo_state->range[i].offset);
-
-            tu_cs_emit_pkt7(cs, tu6_stage2opcode(stage), 3);
-            tu_cs_emit(cs,
-                     CP_LOAD_STATE6_0_DST_OFF(ubo_state->range[i].offset / 16) |
-                     CP_LOAD_STATE6_0_STATE_TYPE(ST6_CONSTANTS) |
-                     CP_LOAD_STATE6_0_STATE_SRC(SS6_INDIRECT) |
-                     CP_LOAD_STATE6_0_STATE_BLOCK(tu6_stage2shadersb(stage)) |
-                     CP_LOAD_STATE6_0_NUM_UNIT(size / 16));
-            tu_cs_emit_qw(cs, iova + start);
-         }
-      }
    }
 
    /* emit statically-known FS driver param */
@@ -1745,7 +1718,7 @@ tu6_tex_opc_to_prefetch_cmd(opc_t tex_opc)
    case OPC_SAM:
       return TEX_PREFETCH_SAM;
    default:
-      unreachable("Unknown tex opc for prefeth cmd");
+      UNREACHABLE("Unknown tex opc for prefeth cmd");
    }
 }
 
@@ -1757,7 +1730,7 @@ tu6_emit_fs_inputs(struct tu_cs *cs, const struct ir3_shader_variant *fs)
    uint32_t ij_regid[IJ_COUNT];
    uint32_t smask_in_regid, shading_rate_regid;
 
-   bool sample_shading = fs->per_samp | fs->key.sample_shading;
+   bool sample_shading = fs->sample_shading;
    bool enable_varyings = fs->total_in > 0;
 
    samp_id_regid   = ir3_find_sysval_regid(fs, SYSTEM_VALUE_SAMPLE_ID);
@@ -1893,7 +1866,6 @@ tu6_emit_fs_inputs(struct tu_cs *cs, const struct ir3_shader_variant *fs)
          CONDREG(smask_in_regid, A6XX_RB_PS_INPUT_CNTL_SAMPLEMASK) |
          CONDREG(samp_id_regid, A6XX_RB_PS_INPUT_CNTL_SAMPLEID) |
          CONDREG(ij_regid[IJ_PERSP_CENTER_RHW], A6XX_RB_PS_INPUT_CNTL_CENTERRHW) |
-         COND(fs->post_depth_coverage, A6XX_RB_PS_INPUT_CNTL_POSTDEPTHCOVERAGE)  |
          COND(fs->frag_face, A6XX_RB_PS_INPUT_CNTL_FACENESS) |
          CONDREG(shading_rate_regid, A6XX_RB_PS_INPUT_CNTL_FOVEATION));
 
@@ -2149,7 +2121,7 @@ primitive_to_tess(enum mesa_prim primitive) {
    case MESA_PRIM_TRIANGLE_STRIP:
       return TESS_CW_TRIS;
    default:
-      unreachable("");
+      UNREACHABLE("");
    }
 }
 
@@ -2250,7 +2222,7 @@ tu6_emit_variant(struct tu_cs *cs,
       tu6_emit_fs<CHIP>(cs, xs);
       break;
    default:
-      unreachable("unknown shader stage");
+      UNREACHABLE("unknown shader stage");
    }
 }
 
@@ -2697,6 +2669,7 @@ tu_shader_create(struct tu_device *dev,
    }
 
    if (nir->info.stage == MESA_SHADER_FRAGMENT && key->force_sample_interp) {
+      nir->info.fs.uses_sample_shading = true;
       nir_foreach_shader_in_variable(var, nir) {
          if (!var->data.centroid)
             var->data.sample = true;
@@ -2848,14 +2821,14 @@ tu_shader_create(struct tu_device *dev,
          break;
       case TESS_SPACING_UNSPECIFIED:
       default:
-         unreachable("invalid tess spacing");
+         UNREACHABLE("invalid tess spacing");
       }
 
       break;
    }
    case MESA_SHADER_FRAGMENT: {
       const struct ir3_shader_variant *fs = shader->variant;
-      shader->fs.per_samp = fs->per_samp || ir3_key->sample_shading;
+      shader->fs.sample_shading = fs->sample_shading;
       shader->fs.has_fdm = key->fragment_density_map;
       if (fs->has_kill)
          shader->fs.lrz.status |= TU_LRZ_FORCE_DISABLE_WRITE;
@@ -3002,7 +2975,7 @@ tu6_get_tessmode(const struct nir_shader *shader)
    case TESS_PRIMITIVE_UNSPECIFIED:
       return IR3_TESS_NONE;
    default:
-      unreachable("bad tessmode");
+      UNREACHABLE("bad tessmode");
    }
 }
 
@@ -3045,8 +3018,6 @@ tu_compile_shaders(struct tu_device *device,
 
    if (nir[MESA_SHADER_GEOMETRY])
       ir3_key.has_gs = true;
-
-   ir3_key.sample_shading = keys[MESA_SHADER_FRAGMENT].force_sample_interp;
 
    if (nir_initial_disasm) {
       for (gl_shader_stage stage = MESA_SHADER_VERTEX;

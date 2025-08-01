@@ -102,9 +102,9 @@ fd_set_sample_locations(struct pipe_context *pctx, size_t size,
 static void
 fd_set_min_samples(struct pipe_context *pctx, unsigned min_samples) in_dt
 {
-   struct fd_context *ctx = fd_context(pctx);
-   ctx->min_samples = min_samples;
-   fd_context_dirty(ctx, FD_DIRTY_MIN_SAMPLES);
+   /* We don't need to track min_samples, because the frontend lowers it to
+    * info->fs.uses_sample_shading for us.
+    */
 }
 
 static void
@@ -731,7 +731,7 @@ fd_set_global_binding(struct pipe_context *pctx, unsigned first, unsigned count,
       /* we are screwed no matter what */
       if (!util_dynarray_grow(&ctx->global_bindings, *prscs,
                               (first + count) - old_size))
-         unreachable("out of memory");
+         UNREACHABLE("out of memory");
 
       for (unsigned i = old_size; i < first + count; i++)
          *util_dynarray_element(&ctx->global_bindings,

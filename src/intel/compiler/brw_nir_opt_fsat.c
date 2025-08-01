@@ -99,7 +99,7 @@ collect_reaching_defs(nir_alu_instr *fsat, nir_instr_worklist *sources)
     * do its job. Adding another fsat will not help.
     */
    if (def->parent_instr->type == nir_instr_type_alu &&
-       def->parent_instr->block != fsat->instr.block) {
+       nir_def_block(def) != fsat->instr.block) {
       nir_instr_worklist_push_tail(sources, def->parent_instr);
    }
 }
@@ -190,7 +190,7 @@ fixup_defs(struct set *fixup)
 
       nir_def *new_fsat = nir_fsat(&b, src_def);
 
-      nir_def_rewrite_uses_after(src_def, new_fsat, new_fsat->parent_instr);
+      nir_def_rewrite_uses_after(src_def, new_fsat);
    }
 }
 

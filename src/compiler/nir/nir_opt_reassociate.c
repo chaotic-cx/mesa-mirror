@@ -214,7 +214,7 @@ can_reassociate(nir_alu_instr *alu)
 static void
 build_chain(struct chain *c, nir_scalar def, unsigned reserved_count)
 {
-   nir_alu_instr *alu = nir_instr_as_alu(def.def->parent_instr);
+   nir_alu_instr *alu = nir_def_as_alu(def.def);
 
    /* Conservative fast math handling: if ANY instruction along the chain is
     * exact, treat the whole chain as exact. Likewise for float controls.
@@ -321,7 +321,7 @@ find_chains(nir_function_impl *impl, struct hash_table *pair_freq,
          for (unsigned i = 0; i < c.length; ++i) {
             lowest_rank = MIN2(rank(c.srcs[i]), lowest_rank);
             highest_rank = MAX2(rank(c.srcs[i]), highest_rank);
-            local &= c.srcs[i].def->parent_instr->block == block;
+            local &= nir_def_block(c.srcs[i].def) == block;
          }
 
          for (unsigned i = 0; i < c.length; ++i) {

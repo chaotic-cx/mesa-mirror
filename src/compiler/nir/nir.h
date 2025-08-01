@@ -30,7 +30,7 @@
 
 #include <stdint.h>
 #include "compiler/glsl_types.h"
-#include "compiler/glsl/list.h"
+#include "compiler/list.h"
 #include "compiler/shader_enums.h"
 #include "compiler/shader_info.h"
 #include "util/bitset.h"
@@ -266,7 +266,7 @@ nir_const_value_for_raw_uint(uint64_t x, unsigned bit_size)
    case 32: v.u32 = (uint32_t)x;  break;
    case 64: v.u64 = x;  break;
    default:
-      unreachable("Invalid bit size");
+      UNREACHABLE("Invalid bit size");
    }
    /* clang-format on */
 
@@ -317,7 +317,7 @@ nir_const_value_as_int(nir_const_value value, unsigned bit_size)
    case 32: return value.i32;
    case 64: return value.i64;
    default:
-      unreachable("Invalid bit size");
+      UNREACHABLE("Invalid bit size");
    }
    /* clang-format on */
 }
@@ -333,7 +333,7 @@ nir_const_value_as_uint(nir_const_value value, unsigned bit_size)
    case 32: return value.u32;
    case 64: return value.u64;
    default:
-      unreachable("Invalid bit size");
+      UNREACHABLE("Invalid bit size");
    }
    /* clang-format on */
 }
@@ -1019,6 +1019,12 @@ typedef struct nir_def {
    bool loop_invariant;
 } nir_def;
 
+static inline nir_block *
+nir_def_block(nir_def *def)
+{
+   return def->parent_instr->block;
+}
+
 typedef struct nir_src {
    /* Instruction or if-statement that consumes this value as a source. This
     * should only be accessed through nir_src_* helpers.
@@ -1274,7 +1280,7 @@ nir_atomic_op_type(nir_atomic_op op)
       return nir_type_uint;
    }
 
-   unreachable("Invalid nir_atomic_op");
+   UNREACHABLE("Invalid nir_atomic_op");
 }
 
 nir_op
@@ -2852,6 +2858,21 @@ NIR_DEFINE_SRC_AS_CONST(bool, bool)
 NIR_DEFINE_SRC_AS_CONST(double, float)
 
 #undef NIR_DEFINE_SRC_AS_CONST
+
+#define NIR_DEFINE_DEF_AS_INSTR(type, suffix)                  \
+   static inline type *nir_def_as_##suffix(const nir_def *def) \
+   {                                                           \
+      return nir_instr_as_##suffix(def->parent_instr);         \
+   }
+
+NIR_DEFINE_DEF_AS_INSTR(nir_alu_instr, alu)
+NIR_DEFINE_DEF_AS_INSTR(nir_intrinsic_instr, intrinsic)
+NIR_DEFINE_DEF_AS_INSTR(nir_tex_instr, tex)
+NIR_DEFINE_DEF_AS_INSTR(nir_phi_instr, phi)
+NIR_DEFINE_DEF_AS_INSTR(nir_deref_instr, deref)
+NIR_DEFINE_DEF_AS_INSTR(nir_load_const_instr, load_const)
+
+#undef NIR_DEFINE_DEF_AS_INSTR
 
 typedef struct nir_scalar {
    nir_def *def;
@@ -4433,8 +4454,14 @@ nir_def_init_for_type(nir_instr *instr, nir_def *def,
 }
 void nir_def_rewrite_uses(nir_def *def, nir_def *new_ssa);
 void nir_def_rewrite_uses_src(nir_def *def, nir_src new_src);
-void nir_def_rewrite_uses_after(nir_def *def, nir_def *new_ssa,
-                                nir_instr *after_me);
+void nir_def_rewrite_uses_after_instr(nir_def *def, nir_def *new_ssa,
+                                      nir_instr *after_me);
+
+static inline void
+nir_def_rewrite_uses_after(nir_def *def, nir_def *new_ssa)
+{
+   nir_def_rewrite_uses_after_instr(def, new_ssa, new_ssa->parent_instr);
+}
 
 static inline void
 nir_def_replace(nir_def *def, nir_def *new_ssa)
@@ -6371,7 +6398,7 @@ nir_deref_count_slots(nir_deref_instr *deref, nir_variable *var)
       case nir_deref_type_var:
          return nir_variable_count_slots(var, deref->type);
       default:
-         unreachable("illegal deref type");
+         UNREACHABLE("illegal deref type");
       }
    }
    return glsl_count_attribute_slots(deref->type, false);

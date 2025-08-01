@@ -56,8 +56,7 @@ struct assignment {
    union {
       struct {
          bool assigned : 1;
-         bool vcc : 1;
-         bool m0 : 1;
+         bool precolor_affinity : 1;
          bool renamed : 1;
       };
       uint8_t _ = 0;
@@ -70,6 +69,11 @@ struct assignment {
       assigned = true;
       reg = def.physReg();
       rc = def.regClass();
+   }
+   void set_precolor_affinity(PhysReg affinity_reg)
+   {
+      precolor_affinity = true;
+      reg = affinity_reg;
    }
 };
 
@@ -568,6 +572,36 @@ is_sgpr_writable_without_side_effects(amd_gfx_level gfx_level, PhysReg reg)
           (!has_flat_scr_lo_gfx7_or_xnack_mask || (reg != 104 || reg != 105));
 }
 
+static bool
+convert_bitwise_to_16bit(Instruction* instr)
+{
+   if (instr->opcode == aco_opcode::v_cndmask_b32) {
+      instr->opcode = aco_opcode::v_cndmask_b16;
+      instr->format = withoutVOP2(asVOP3(instr->format));
+      instr->valu().abs = 0;
+      instr->valu().neg = 0;
+   } else if (instr->opcode == aco_opcode::v_mov_b32) {
+      instr->opcode = aco_opcode::v_mov_b16;
+      instr->valu().abs = 0;
+      instr->valu().neg = 0;
+   } else if (instr->opcode == aco_opcode::v_not_b32) {
+      instr->opcode = aco_opcode::v_not_b16;
+   } else if (instr->opcode == aco_opcode::v_and_b32) {
+      instr->opcode = aco_opcode::v_and_b16;
+      instr->format = withoutVOP2(asVOP3(instr->format));
+   } else if (instr->opcode == aco_opcode::v_or_b32) {
+      instr->opcode = aco_opcode::v_or_b16;
+      instr->format = withoutVOP2(asVOP3(instr->format));
+   } else if (instr->opcode == aco_opcode::v_xor_b32) {
+      instr->opcode = aco_opcode::v_xor_b16;
+      instr->format = withoutVOP2(asVOP3(instr->format));
+   } else {
+      return false;
+   }
+
+   return true;
+}
+
 unsigned
 get_subdword_operand_stride(amd_gfx_level gfx_level, const aco_ptr<Instruction>& instr,
                             unsigned idx, RegClass rc)
@@ -593,6 +627,13 @@ get_subdword_operand_stride(amd_gfx_level gfx_level, const aco_ptr<Instruction>&
    }
 
    switch (instr->opcode) {
+   case aco_opcode::v_mov_b32:
+   case aco_opcode::v_not_b32:
+   case aco_opcode::v_and_b32:
+   case aco_opcode::v_or_b32:
+   case aco_opcode::v_xor_b32:
+   case aco_opcode::v_cndmask_b32:
+      return gfx_level >= GFX11 && instr->definitions[0].bytes() <= 2 ? 2 : 4;
    case aco_opcode::v_cvt_f32_ubyte0: return 1;
    case aco_opcode::ds_write_b8:
    case aco_opcode::ds_write_b16: return gfx_level >= GFX9 ? 2 : 4;
@@ -643,6 +684,8 @@ add_subdword_operand(ra_ctx& ctx, aco_ptr<Instruction>& instr, unsigned idx, uns
          return;
       }
 
+      convert_bitwise_to_16bit(instr.get());
+
       assert(can_use_opsel(gfx_level, instr->opcode, idx));
       instr->valu().opsel[idx] = true;
       return;
@@ -672,7 +715,7 @@ add_subdword_operand(ra_ctx& ctx, aco_ptr<Instruction>& instr, unsigned idx, uns
    else if (instr->opcode == aco_opcode::global_store_short)
       instr->opcode = aco_opcode::global_store_short_d16_hi;
    else
-      unreachable("Something went wrong: Impossible register assignment.");
+      UNREACHABLE("Something went wrong: Impossible register assignment.");
    return;
 }
 
@@ -706,6 +749,16 @@ DefInfo::get_subdword_definition_info(Program* program, const aco_ptr<Instructio
           can_use_opsel(gfx_level, instr->opcode, -1)) {
          data_stride = 2;
          stride = rc == v2b ? 2 : stride;
+      } else if ((instr->opcode == aco_opcode::v_cndmask_b32 ||
+                  instr->opcode == aco_opcode::v_mov_b32 ||
+                  instr->opcode == aco_opcode::v_not_b32 ||
+                  instr->opcode == aco_opcode::v_and_b32 || instr->opcode == aco_opcode::v_or_b32 ||
+                  instr->opcode == aco_opcode::v_xor_b32) &&
+                 program->gfx_level >= GFX11) {
+         /* Convert to 16bit opcode on demand. */
+         rc = v2b;
+         data_stride = 2;
+         stride = 2;
       }
       return;
    }
@@ -785,6 +838,11 @@ add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg r
          return;
       }
 
+      if (convert_bitwise_to_16bit(instr.get())) {
+         if (reg.byte() == 0)
+            return;
+      }
+
       /* use opsel */
       assert(reg.byte() == 2);
       assert(can_use_opsel(gfx_level, instr->opcode, -1));
@@ -829,7 +887,7 @@ add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg r
    else if (instr->opcode == aco_opcode::ds_read_u16_d16)
       instr->opcode = aco_opcode::ds_read_u16_d16_hi;
    else
-      unreachable("Something went wrong: Impossible register assignment.");
+      UNREACHABLE("Something went wrong: Impossible register assignment.");
 }
 
 void
@@ -1880,13 +1938,10 @@ get_reg(ra_ctx& ctx, const RegisterFile& reg_file, Temp temp,
             return affinity.reg;
       }
    }
-   if (ctx.assignments[temp.id()].vcc) {
-      if (get_reg_specified(ctx, reg_file, temp.regClass(), instr, vcc, operand_index))
-         return vcc;
-   }
-   if (ctx.assignments[temp.id()].m0) {
-      if (get_reg_specified(ctx, reg_file, temp.regClass(), instr, m0, operand_index))
-         return m0;
+   if (ctx.assignments[temp.id()].precolor_affinity) {
+      if (get_reg_specified(ctx, reg_file, temp.regClass(), instr, ctx.assignments[temp.id()].reg,
+                            operand_index))
+         return ctx.assignments[temp.id()].reg;
    }
 
    std::optional<PhysReg> res;
@@ -3021,13 +3076,13 @@ get_affinities(ra_ctx& ctx)
             ctx.split_vectors[instr->operands[0].tempId()] = instr.get();
          } else if (instr->isVOPC() && !instr->isVOP3()) {
             if (!instr->isSDWA() || ctx.program->gfx_level == GFX8)
-               ctx.assignments[instr->definitions[0].tempId()].vcc = true;
+               ctx.assignments[instr->definitions[0].tempId()].set_precolor_affinity(vcc);
          } else if (instr->isVOP2() && !instr->isVOP3()) {
             if (instr->operands.size() == 3 && instr->operands[2].isTemp() &&
                 instr->operands[2].regClass().type() == RegType::sgpr)
-               ctx.assignments[instr->operands[2].tempId()].vcc = true;
+               ctx.assignments[instr->operands[2].tempId()].set_precolor_affinity(vcc);
             if (instr->definitions.size() == 2)
-               ctx.assignments[instr->definitions[1].tempId()].vcc = true;
+               ctx.assignments[instr->definitions[1].tempId()].set_precolor_affinity(vcc);
          } else if (instr->opcode == aco_opcode::s_and_b32 ||
                     instr->opcode == aco_opcode::s_and_b64) {
             /* If SCC is used by a branch, we might be able to use
@@ -3035,9 +3090,7 @@ get_affinities(ra_ctx& ctx)
              */
             if (!instr->definitions[1].isKill() && instr->operands[0].isTemp() &&
                 instr->operands[1].isFixed() && instr->operands[1].physReg() == exec)
-               ctx.assignments[instr->operands[0].tempId()].vcc = true;
-         } else if (instr->opcode == aco_opcode::s_sendmsg) {
-            ctx.assignments[instr->operands[0].tempId()].m0 = true;
+               ctx.assignments[instr->operands[0].tempId()].set_precolor_affinity(vcc);
          } else if (instr->format == Format::DS) {
             bool is_vector = false;
             for (unsigned i = 0, vector_begin = 0; i < instr->operands.size(); i++) {
@@ -3048,31 +3101,45 @@ get_affinities(ra_ctx& ctx)
             }
          }
 
+         /* Collect register-affinities for precolored operands. */
+         for (Operand op : instr->operands) {
+            if (op.isTemp() && op.isPrecolored())
+               ctx.assignments[op.tempId()].set_precolor_affinity(op.physReg());
+         }
+
          auto tied_defs = get_tied_defs(instr.get());
          for (unsigned i = 0; i < instr->definitions.size(); i++) {
             const Definition& def = instr->definitions[i];
             if (!def.isTemp())
                continue;
-            /* mark last-seen phi operand */
-            auto it = temp_to_phi_resources.find(def.tempId());
-            if (it != temp_to_phi_resources.end() &&
-                def.regClass() == phi_resources[it->second][0].regClass()) {
-               phi_resources[it->second][0] = def.getTemp();
-               /* try to coalesce phi affinities with parallelcopies */
-               Operand op;
-               if (instr->opcode == aco_opcode::p_parallelcopy) {
-                  op = instr->operands[i];
-               } else if (i < tied_defs.size()) {
-                  op = instr->operands[tied_defs[i]];
-               } else if (vop3_can_use_vop2acc(ctx, instr.get())) {
-                  op = instr->operands[2];
-               } else if (i == 0 && sop2_can_use_sopk(ctx, instr.get())) {
-                  op = instr->operands[instr->operands[0].isLiteral()];
-               } else {
-                  continue;
-               }
 
-               if (op.isTemp() && op.isFirstKillBeforeDef() && def.regClass() == op.regClass()) {
+            auto it = temp_to_phi_resources.find(def.tempId());
+            if (it != temp_to_phi_resources.end()) {
+               /* mark last-seen phi operand */
+               phi_resources[it->second][0] = def.getTemp();
+            } else if (!ctx.assignments[def.tempId()].precolor_affinity) {
+               continue;
+            }
+
+            /* try to coalesce affinities with parallelcopies */
+            Operand op;
+            if (instr->opcode == aco_opcode::p_parallelcopy) {
+               op = instr->operands[i];
+            } else if (i < tied_defs.size()) {
+               op = instr->operands[tied_defs[i]];
+            } else if (vop3_can_use_vop2acc(ctx, instr.get())) {
+               op = instr->operands[2];
+            } else if (i == 0 && sop2_can_use_sopk(ctx, instr.get())) {
+               op = instr->operands[instr->operands[0].isLiteral()];
+            } else {
+               continue;
+            }
+
+            if (op.isTemp() && op.isFirstKillBeforeDef() && def.regClass() == op.regClass()) {
+               if (ctx.assignments[def.tempId()].precolor_affinity)
+                  ctx.assignments[op.tempId()].set_precolor_affinity(
+                     ctx.assignments[def.tempId()].reg);
+               if (it != temp_to_phi_resources.end()) {
                   phi_resources[it->second].emplace_back(op.getTemp());
                   temp_to_phi_resources[op.tempId()] = it->second;
                }
@@ -3090,21 +3157,24 @@ get_affinities(ra_ctx& ctx)
             continue;
 
          assert(instr->definitions[0].isTemp());
-         auto it = temp_to_phi_resources.find(instr->definitions[0].tempId());
+         Temp def = instr->definitions[0].getTemp();
+         auto it = temp_to_phi_resources.find(def.id());
          unsigned index = phi_resources.size();
          std::vector<Temp>* affinity_related;
          if (it != temp_to_phi_resources.end()) {
             index = it->second;
-            phi_resources[index][0] = instr->definitions[0].getTemp();
+            phi_resources[index][0] = def;
             affinity_related = &phi_resources[index];
          } else {
-            phi_resources.emplace_back(std::vector<Temp>{instr->definitions[0].getTemp()});
+            phi_resources.emplace_back(std::vector<Temp>{def});
             affinity_related = &phi_resources.back();
          }
 
          for (const Operand& op : instr->operands) {
-            if (op.isTemp() && op.isKill() && op.regClass() == instr->definitions[0].regClass()) {
+            if (op.isTemp() && op.isKill() && op.regClass() == def.regClass()) {
                affinity_related->emplace_back(op.getTemp());
+               if (ctx.assignments[def.id()].precolor_affinity)
+                  ctx.assignments[op.tempId()].set_precolor_affinity(ctx.assignments[def.id()].reg);
                if (block.kind & block_kind_loop_header)
                   continue;
                temp_to_phi_resources[op.tempId()] = index;
@@ -3172,6 +3242,9 @@ optimize_encoding_vop2(ra_ctx& ctx, RegisterFile& register_file, aco_ptr<Instruc
            std::any_of(instr->operands.begin(), instr->operands.end(), [&](Operand op)
                        { return op.isKillBeforeDef() && op.physReg() == affinity.reg; })))
          return;
+   } else if (ctx.assignments[def_id].precolor_affinity) {
+      if (ctx.assignments[def_id].reg != instr->operands[2].physReg())
+         return;
    }
 
    if (!instr->operands[1].isOfType(RegType::vgpr))
@@ -3217,10 +3290,13 @@ optimize_encoding_sopk(ra_ctx& ctx, RegisterFile& register_file, aco_ptr<Instruc
    unsigned def_id = instr->definitions[0].tempId();
    if (ctx.assignments[def_id].affinity) {
       assignment& affinity = ctx.assignments[ctx.assignments[def_id].affinity];
-      if (affinity.assigned && affinity.reg != instr->operands[!literal_idx].physReg() &&
+      if (affinity.assigned && affinity.reg != op_reg &&
           (!register_file.test(affinity.reg, instr->operands[!literal_idx].bytes()) ||
            std::any_of(instr->operands.begin(), instr->operands.end(), [&](Operand op)
                        { return op.isKillBeforeDef() && op.physReg() == affinity.reg; })))
+         return;
+   } else if (ctx.assignments[def_id].precolor_affinity) {
+      if (ctx.assignments[def_id].reg != op_reg)
          return;
    }
 
@@ -3237,7 +3313,7 @@ optimize_encoding_sopk(ra_ctx& ctx, RegisterFile& register_file, aco_ptr<Instruc
    case aco_opcode::s_add_i32: instr->opcode = aco_opcode::s_addk_i32; break;
    case aco_opcode::s_mul_i32: instr->opcode = aco_opcode::s_mulk_i32; break;
    case aco_opcode::s_cselect_b32: instr->opcode = aco_opcode::s_cmovk_i32; break;
-   default: unreachable("illegal instruction");
+   default: UNREACHABLE("illegal instruction");
    }
 }
 

@@ -216,7 +216,7 @@ fill_state_base_addr(struct anv_cmd_buffer *cmd_buffer,
       sba->BindlessSurfaceStateMOCS = mocs;
       sba->BindlessSurfaceStateBaseAddressModifyEnable = true;
 #else
-      unreachable("Direct descriptor not supported");
+      UNREACHABLE("Direct descriptor not supported");
 #endif
    } else {
       sba->BindlessSurfaceStateBaseAddress =
@@ -1937,7 +1937,7 @@ genX(cmd_buffer_apply_pipe_flushes)(struct anv_cmd_buffer *cmd_buffer)
 static inline struct anv_state
 emit_dynamic_buffer_binding_table_entry(struct anv_cmd_buffer *cmd_buffer,
                                         struct anv_cmd_pipeline_state *pipe_state,
-                                        struct anv_pipeline_binding *binding,
+                                        const struct anv_pipeline_binding *binding,
                                         const struct anv_descriptor *desc)
 {
    if (!desc->buffer)
@@ -1985,7 +1985,7 @@ emit_dynamic_buffer_binding_table_entry(struct anv_cmd_buffer *cmd_buffer,
 static uint32_t
 emit_indirect_descriptor_binding_table_entry(struct anv_cmd_buffer *cmd_buffer,
                                              struct anv_cmd_pipeline_state *pipe_state,
-                                             struct anv_pipeline_binding *binding,
+                                             const struct anv_pipeline_binding *binding,
                                              const struct anv_descriptor *desc)
 {
    struct anv_device *device = cmd_buffer->device;
@@ -2069,7 +2069,7 @@ emit_indirect_descriptor_binding_table_entry(struct anv_cmd_buffer *cmd_buffer,
       break;
 
    default:
-      unreachable("Invalid descriptor type");
+      UNREACHABLE("Invalid descriptor type");
    }
 
    return surface_state.offset;
@@ -2079,7 +2079,7 @@ static uint32_t
 emit_direct_descriptor_binding_table_entry(struct anv_cmd_buffer *cmd_buffer,
                                            struct anv_cmd_pipeline_state *pipe_state,
                                            const struct anv_descriptor_set *set,
-                                           struct anv_pipeline_binding *binding,
+                                           const struct anv_pipeline_binding *binding,
                                            const struct anv_descriptor *desc)
 {
    uint32_t desc_offset;
@@ -2111,7 +2111,7 @@ emit_direct_descriptor_binding_table_entry(struct anv_cmd_buffer *cmd_buffer,
    }
 
    default:
-      unreachable("Invalid descriptor type");
+      UNREACHABLE("Invalid descriptor type");
    }
 
    return desc_offset;
@@ -2120,12 +2120,12 @@ emit_direct_descriptor_binding_table_entry(struct anv_cmd_buffer *cmd_buffer,
 static VkResult
 emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
                    struct anv_cmd_pipeline_state *pipe_state,
-                   struct anv_shader_bin *shader,
+                   const struct anv_shader_bin *shader,
                    struct anv_state *bt_state)
 {
    uint32_t state_offset;
 
-   struct anv_pipeline_bind_map *map = &shader->bind_map;
+   const struct anv_pipeline_bind_map *map = &shader->bind_map;
    if (map->surface_count == 0) {
       *bt_state = (struct anv_state) { 0, };
       return VK_SUCCESS;
@@ -2140,7 +2140,8 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
    for (uint32_t s = 0; s < map->surface_count; s++) {
-      struct anv_pipeline_binding *binding = &map->surface_to_descriptor[s];
+      const struct anv_pipeline_binding *binding =
+         &map->surface_to_descriptor[s];
 
       struct anv_state surface_state;
 
@@ -2174,7 +2175,7 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
          /* If the shader doesn't access the set buffer, just put the null
           * surface.
           */
-         if (set->is_push && !shader->push_desc_info.used_set_buffer) {
+         if (set->is_push && shader->push_desc_info.push_set_buffer == 0) {
             bt_map[s] = 0;
             break;
          }
@@ -2198,7 +2199,7 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
 
       default: {
          assert(binding->set < MAX_SETS);
-         const struct anv_descriptor_set *set =
+         struct anv_descriptor_set *set =
             pipe_state->descriptors[binding->set];
 
          if (binding->index >= set->descriptor_count) {
@@ -2240,16 +2241,15 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
             continue;
          }
 
-         const struct anv_pipeline *pipeline = pipe_state->pipeline;
          uint32_t surface_state_offset;
-         if (pipeline->layout.type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_INDIRECT) {
+         if (map->layout_type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_INDIRECT) {
             surface_state_offset =
                emit_indirect_descriptor_binding_table_entry(cmd_buffer,
                                                             pipe_state,
                                                             binding, desc);
          } else {
-            assert(pipeline->layout.type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_DIRECT ||
-                   pipeline->layout.type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER);
+            assert(map->layout_type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_DIRECT ||
+                   map->layout_type == ANV_PIPELINE_DESCRIPTOR_SET_LAYOUT_TYPE_BUFFER);
             surface_state_offset =
                emit_direct_descriptor_binding_table_entry(cmd_buffer, pipe_state,
                                                           set, binding, desc);
@@ -2267,10 +2267,10 @@ emit_binding_table(struct anv_cmd_buffer *cmd_buffer,
 static VkResult
 emit_samplers(struct anv_cmd_buffer *cmd_buffer,
               struct anv_cmd_pipeline_state *pipe_state,
-              struct anv_shader_bin *shader,
+              const struct anv_shader_bin *shader,
               struct anv_state *state)
 {
-   struct anv_pipeline_bind_map *map = &shader->bind_map;
+   const struct anv_pipeline_bind_map *map = &shader->bind_map;
    if (map->sampler_count == 0) {
       *state = (struct anv_state) { 0, };
       return VK_SUCCESS;
@@ -2283,7 +2283,8 @@ emit_samplers(struct anv_cmd_buffer *cmd_buffer,
       return VK_ERROR_OUT_OF_DEVICE_MEMORY;
 
    for (uint32_t s = 0; s < map->sampler_count; s++) {
-      struct anv_pipeline_binding *binding = &map->sampler_to_descriptor[s];
+      const struct anv_pipeline_binding *binding =
+         &map->sampler_to_descriptor[s];
       const struct anv_descriptor *desc =
          &pipe_state->descriptors[binding->set]->descriptors[binding->index];
 
@@ -2310,7 +2311,7 @@ uint32_t
 genX(cmd_buffer_flush_descriptor_sets)(struct anv_cmd_buffer *cmd_buffer,
                                        struct anv_cmd_pipeline_state *pipe_state,
                                        const VkShaderStageFlags dirty,
-                                       struct anv_shader_bin **shaders,
+                                       const struct anv_shader_bin **shaders,
                                        uint32_t num_shaders)
 {
    VkShaderStageFlags flushed = 0;
@@ -2444,7 +2445,7 @@ emit_pipe_control(struct anv_batch *batch,
 {
    if ((batch->engine_class == INTEL_ENGINE_CLASS_COPY) ||
        (batch->engine_class == INTEL_ENGINE_CLASS_VIDEO))
-      unreachable("Trying to emit unsupported PIPE_CONTROL command.");
+      UNREACHABLE("Trying to emit unsupported PIPE_CONTROL command.");
 
    const bool trace_flush =
       (bits & (ANV_PIPE_FLUSH_BITS |
@@ -3155,7 +3156,7 @@ genX(cmd_buffer_set_protected_memory)(struct anv_cmd_buffer *cmd_buffer,
          pc.ProtectedMemoryDisable = true;
    }
 #else
-   unreachable("Protected content not supported");
+   UNREACHABLE("Protected content not supported");
 #endif
 }
 
@@ -4691,7 +4692,7 @@ cmd_buffer_barrier(struct anv_cmd_buffer *cmd_buffer,
    }
 
    default:
-      unreachable("Invalid engine class");
+      UNREACHABLE("Invalid engine class");
    }
 }
 
@@ -5856,7 +5857,7 @@ void genX(CmdBeginRendering)(
     * with this edge case, we just dirty the pipeline at the start of every
     * subpass.
     */
-   gfx->dirty |= ANV_CMD_DIRTY_PIPELINE;
+   gfx->dirty |= ANV_CMD_DIRTY_ALL_SHADERS(cmd_buffer->device);
 
 #if GFX_VER >= 11
    if (render_target_change) {
@@ -6200,7 +6201,7 @@ void genX(CmdSetEvent2)(
    }
 
    default:
-      unreachable("Invalid engine class");
+      UNREACHABLE("Invalid engine class");
    }
 }
 
@@ -6246,7 +6247,7 @@ void genX(CmdResetEvent2)(
    }
 
    default:
-      unreachable("Invalid engine class");
+      UNREACHABLE("Invalid engine class");
    }
 }
 
@@ -6303,7 +6304,7 @@ VkResult genX(CmdSetPerformanceOverrideINTEL)(
       break;
 
    default:
-      unreachable("Invalid override");
+      UNREACHABLE("Invalid override");
    }
 
    return VK_SUCCESS;
@@ -6416,7 +6417,7 @@ void genX(cmd_emit_timestamp)(struct anv_batch *batch,
       break;
 
    default:
-      unreachable("invalid");
+      UNREACHABLE("invalid");
    }
 }
 
@@ -6505,7 +6506,7 @@ genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
       blt.DestinationTiling = XY_TILE_LINEAR;
    }
 #else
-   unreachable("Not implemented");
+   UNREACHABLE("Not implemented");
 #endif
 }
 
@@ -6587,7 +6588,7 @@ genX(cmd_buffer_begin_companion_rcs_syncpoint)(
 
    return syncpoint;
 #else
-   unreachable("Not implemented");
+   UNREACHABLE("Not implemented");
 #endif
 }
 
@@ -6616,7 +6617,7 @@ genX(cmd_buffer_end_companion_rcs_syncpoint)(struct anv_cmd_buffer *cmd_buffer,
                    &cmd_buffer->companion_rcs_cmd_buffer->batch);
    mi_store(&b, mi_mem32(xcs_wait_addr), mi_imm(0x1));
 #else
-   unreachable("Not implemented");
+   UNREACHABLE("Not implemented");
 #endif
 }
 
@@ -6719,7 +6720,7 @@ genX(write_trtt_entries)(struct anv_async_submit *submit,
                                 ANV_PIPE_CS_STALL_BIT |
                                 ANV_PIPE_TLB_INVALIDATE_BIT);
 #else
-   unreachable("Not implemented");
+   UNREACHABLE("Not implemented");
 #endif
 }
 

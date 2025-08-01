@@ -131,7 +131,7 @@ static nir_deref_instr *
 get_rq_deref(nir_builder *b, struct hash_table *ht, nir_def *def,
              struct rq_var **rq_var_out)
 {
-   nir_deref_instr *deref = nir_instr_as_deref(def->parent_instr);
+   nir_deref_instr *deref = nir_def_as_deref(def);
 
    nir_deref_path path;
    nir_deref_path_init(&path, deref, NULL);
@@ -153,7 +153,7 @@ get_rq_deref(nir_builder *b, struct hash_table *ht, nir_def *def,
 
             out_deref = nir_build_deref_array(b, out_deref, index);
          } else {
-            unreachable("Unsupported deref type");
+            UNREACHABLE("Unsupported deref type");
          }
       }
    }
@@ -170,7 +170,7 @@ static nir_def *
 get_rq_initialize_uav_index(nir_intrinsic_instr *intr, struct rq_var *var)
 {
    if (intr->src[1].ssa->parent_instr->type == nir_instr_type_intrinsic &&
-       nir_instr_as_intrinsic(intr->src[1].ssa->parent_instr)->intrinsic ==
+       nir_def_as_intrinsic(intr->src[1].ssa)->intrinsic ==
        nir_intrinsic_load_vulkan_descriptor) {
       return intr->src[1].ssa;
    } else {
@@ -205,7 +205,7 @@ calc_uav_index(nir_function_impl *impl, struct hash_table *ht)
             continue;
          }
 
-         nir_deref_instr *deref = nir_instr_as_deref(rq_def->parent_instr);
+         nir_deref_instr *deref = nir_def_as_deref(rq_def);
 
          if (deref->deref_type != nir_deref_type_var)
             continue;
@@ -302,7 +302,7 @@ lower_rq_initialize(nir_builder *b, struct hash_table *ht,
    struct rq_var *var;
    nir_deref_instr *rq = get_rq_deref(b, ht, intr->src[0].ssa, &var);
 
-   if (nir_instr_as_deref(intr->src[0].ssa->parent_instr)->deref_type ==
+   if (nir_def_as_deref(intr->src[0].ssa)->deref_type ==
        nir_deref_type_var) {
       var->initialization = intr;
    } else {
@@ -511,7 +511,7 @@ lower_rq_load(nir_builder *b, struct hash_table *ht, nir_intrinsic_instr *intr)
    case nir_ray_query_value_world_ray_origin:
       return rq_load(b, rq, world_origin);
    default:
-      unreachable("Invalid nir_ray_query_value!");
+      UNREACHABLE("Invalid nir_ray_query_value!");
    }
 
    return NULL;
@@ -1018,7 +1018,7 @@ tu_nir_lower_ray_queries(nir_shader *shader)
                lower_rq_terminate(&builder, query_ht, intrinsic);
                break;
             default:
-               unreachable("Unsupported ray query intrinsic!");
+               UNREACHABLE("Unsupported ray query intrinsic!");
             }
 
             if (new_dest)

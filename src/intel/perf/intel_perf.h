@@ -29,7 +29,7 @@
 #include <stdint.h>
 #include <string.h>
 
-#include "compiler/glsl/list.h"
+#include "../compiler/brw_list.h"
 #include "common/intel_bind_timeline.h"
 #include "dev/intel_device_info.h"
 #include "util/bitscan.h"
@@ -661,7 +661,7 @@ intel_perf_query_counter_get_size(const struct intel_perf_query_counter *counter
    case INTEL_PERF_COUNTER_DATA_TYPE_DOUBLE:
       return sizeof(double);
    default:
-      unreachable("invalid counter data type");
+      UNREACHABLE("invalid counter data type");
    }
 }
 

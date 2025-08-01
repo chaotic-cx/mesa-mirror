@@ -27,7 +27,7 @@ tex_handle_as_cbuf(nir_def *tex_h, uint32_t *cbuf_out)
    if (tex_h->parent_instr->type != nir_instr_type_intrinsic)
       return false;
 
-   nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(tex_h->parent_instr);
+   nir_intrinsic_instr *intrin = nir_def_as_intrinsic(tex_h);
    if (intrin->intrinsic != nir_intrinsic_ldc_nv)
       return false;
 
@@ -146,7 +146,7 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const struct nak_compiler *nak)
       case nir_tex_src_ddx:            ddx =       tex->src[i].src.ssa; break;
       case nir_tex_src_ddy:            ddy =       tex->src[i].src.ssa; break;
       default:
-         unreachable("Unsupported texture source");
+         UNREACHABLE("Unsupported texture source");
       }
       /* Remove sources as we walk them.  We'll add them back later */
       nir_instr_clear_src(&tex->instr, &tex->src[i].src);
@@ -221,7 +221,7 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const struct nak_compiler *nak)
          lod_mode = NAK_NIR_LOD_MODE_BIAS_CLAMP;
          break;
       default:
-         unreachable("Invalid min_lod");
+         UNREACHABLE("Invalid min_lod");
       }
       min_lod = nir_f2u32(b, nir_fmax(b, nir_fmul_imm(b, min_lod, 256),
                                          nir_imm_float(b, 16)));
@@ -375,7 +375,7 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const struct nak_compiler *nak)
                                nir_vec(b, src + 4, 4));
       }
    } else {
-      unreachable("Unsupported shader model");
+      UNREACHABLE("Unsupported shader model");
    }
 
    tex->sampler_dim = remap_sampler_dim(tex->sampler_dim);
@@ -419,7 +419,7 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const struct nak_compiler *nak)
          res = nir_bcsel(b, img_is_null, nir_imm_int(b, 0), res);
       }
 
-      nir_def_rewrite_uses_after(&tex->def, res, res->parent_instr);
+      nir_def_rewrite_uses_after(&tex->def, res);
    }
 
    return true;
@@ -482,7 +482,7 @@ lower_txq(nir_builder *b, nir_tex_instr *tex, const struct nak_compiler *nak)
       case nir_tex_src_sampler_handle: break; /* Ignored */
       case nir_tex_src_lod:            lod = tex->src[i].src.ssa; break;
       default:
-         unreachable("Unsupported texture source");
+         UNREACHABLE("Unsupported texture source");
       }
    }
 
@@ -499,7 +499,7 @@ lower_txq(nir_builder *b, nir_tex_instr *tex, const struct nak_compiler *nak)
       res = build_txq_samples(b, tex_h, tex->can_speculate, nak);
       break;
    default:
-      unreachable("Invalid texture query op");
+      UNREACHABLE("Invalid texture query op");
    }
 
    nir_def_replace(&tex->def, res);
@@ -585,7 +585,7 @@ shrink_image_load(nir_builder *b, nir_intrinsic_instr *intrin,
                          nir_u2u64(b, data_w));
       }
 
-      nir_def_rewrite_uses_after(&intrin->def, data, data->parent_instr);
+      nir_def_rewrite_uses_after(&intrin->def, data);
       return true;
    }
 
@@ -630,7 +630,7 @@ shrink_image_load(nir_builder *b, nir_intrinsic_instr *intrin,
       comps[old_comps - 1] = nir_channel(b, &intrin->def, new_comps);
 
    nir_def *data = nir_vec(b, comps, old_comps);
-   nir_def_rewrite_uses_after(&intrin->def, data, data->parent_instr);
+   nir_def_rewrite_uses_after(&intrin->def, data);
    return true;
 }
 
@@ -786,7 +786,7 @@ lower_image_txq(nir_builder *b, nir_intrinsic_instr *intrin,
       res = build_txq_samples(b, img_h, can_speculate, nak);
       break;
    default:
-      unreachable("Invalid image query op");
+      UNREACHABLE("Invalid image query op");
    }
 
    nir_def_replace(&intrin->def, res);
@@ -817,7 +817,7 @@ lower_tex_instr(nir_builder *b, nir_instr *instr, void *_data)
       case nir_texop_texture_samples:
          return lower_txq(b, tex, nak);
       default:
-         unreachable("Unsupported texture instruction");
+         UNREACHABLE("Unsupported texture instruction");
       }
    }
    case nir_instr_type_intrinsic: {

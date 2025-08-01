@@ -522,7 +522,7 @@ handle_call(ir_call *ir, const struct set *lowerable_rvalues,
    /* If the call is to a builtin, then the function won’t have a return
     * precision and we should determine it from the precision of the arguments.
     */
-   foreach_in_list(ir_rvalue, param, &ir->actual_parameters) {
+   ir_foreach_in_list(ir_rvalue, param, &ir->actual_parameters) {
       if (!check_parameters)
          break;
 
@@ -605,7 +605,7 @@ find_lowerable_rvalues_visitor::visit_leave(ir_assignment *ir)
 
 void
 find_lowerable_rvalues(const struct gl_shader_compiler_options *options,
-                       exec_list *instructions,
+                       ir_exec_list *instructions,
                        struct set *result)
 {
    find_lowerable_rvalues_visitor v(result, options);
@@ -638,7 +638,7 @@ convert_type(bool up, const glsl_type *type)
          new_base_type = GLSL_TYPE_UINT;
          break;
       default:
-         unreachable("invalid type");
+         UNREACHABLE("invalid type");
          return NULL;
       }
    } else {
@@ -653,7 +653,7 @@ convert_type(bool up, const glsl_type *type)
          new_base_type = GLSL_TYPE_UINT16;
          break;
       default:
-         unreachable("invalid type");
+         UNREACHABLE("invalid type");
          return NULL;
       }
    }
@@ -689,7 +689,7 @@ convert_precision(bool up, ir_rvalue *ir)
          op = ir_unop_u2u;
          break;
       default:
-         unreachable("invalid type");
+         UNREACHABLE("invalid type");
          return NULL;
       }
    } else {
@@ -704,7 +704,7 @@ convert_precision(bool up, ir_rvalue *ir)
          op = ir_unop_u2ump;
          break;
       default:
-         unreachable("invalid type");
+         UNREACHABLE("invalid type");
          return NULL;
       }
    }
@@ -743,7 +743,7 @@ lower_precision_visitor::handle_rvalue(ir_rvalue **rvalue)
             for (unsigned i = 0; i < ARRAY_SIZE(value.u16); i++)
                value.u16[i] = const_ir->value.u[i];
          } else {
-            unreachable("invalid type");
+            UNREACHABLE("invalid type");
          }
 
          const_ir->value = value;
@@ -909,7 +909,7 @@ find_precision_visitor::map_builtin(ir_function_signature *sig)
     * lowp.
     */
    if (strcmp(sig->function_name(), "bitCount") != 0) {
-      foreach_in_list(ir_variable, param, &lowered_sig->parameters) {
+      ir_foreach_in_list(ir_variable, param, &lowered_sig->parameters) {
          /* Demote the precision of unqualified function arguments. */
          if (param->data.precision == GLSL_PRECISION_NONE)
             param->data.precision = GLSL_PRECISION_MEDIUM;
@@ -1006,7 +1006,7 @@ lower_constant(ir_constant *ir)
       for (unsigned i = 0; i < ARRAY_SIZE(value.u16); i++)
          value.u16[i] = ir->value.u[i];
    } else {
-      unreachable("invalid type");
+      UNREACHABLE("invalid type");
    }
 
    ir->value = value;
@@ -1279,7 +1279,7 @@ lower_variables_visitor::visit_enter(ir_call *ir)
    void *mem_ctx = ralloc_parent(ir);
 
    /* We can't pass 16-bit variables as 32-bit inout/out parameters. */
-   foreach_two_lists(formal_node, &ir->callee->parameters,
+   ir_foreach_two_lists(formal_node, &ir->callee->parameters,
                      actual_node, &ir->actual_parameters) {
       ir_dereference *param_deref =
          ((ir_rvalue *)actual_node)->as_dereference();
@@ -1349,7 +1349,7 @@ lower_variables_visitor::visit_enter(ir_call *ir)
 
 void
 lower_precision(const struct gl_shader_compiler_options *options,
-                exec_list *instructions)
+                ir_exec_list *instructions)
 {
    find_precision_visitor v(options);
    find_lowerable_rvalues(options, instructions, v.lowerable_rvalues);

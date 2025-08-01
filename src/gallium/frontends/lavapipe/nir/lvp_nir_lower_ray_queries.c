@@ -437,7 +437,7 @@ lower_rq_load(nir_builder *b, nir_def *index, nir_intrinsic_instr *instr,
       return lvp_load_vertex_position(
          b, rq_load_var(b, index, intersection->primitive_addr), column);
    default:
-      unreachable("Invalid nir_ray_query_value!");
+      UNREACHABLE("Invalid nir_ray_query_value!");
    }
 
    return NULL;
@@ -597,12 +597,12 @@ lvp_nir_lower_ray_queries(struct nir_shader *shader)
                continue;
 
             nir_deref_instr *ray_query_deref =
-               nir_instr_as_deref(intrinsic->src[0].ssa->parent_instr);
+               nir_def_as_deref(intrinsic->src[0].ssa);
             nir_def *index = NULL;
 
             if (ray_query_deref->deref_type == nir_deref_type_array) {
                index = ray_query_deref->arr.index.ssa;
-               ray_query_deref = nir_instr_as_deref(ray_query_deref->parent.ssa->parent_instr);
+               ray_query_deref = nir_def_as_deref(ray_query_deref->parent.ssa);
             }
 
             assert(ray_query_deref->deref_type == nir_deref_type_var);
@@ -635,7 +635,7 @@ lvp_nir_lower_ray_queries(struct nir_shader *shader)
                lower_rq_terminate(&builder, index, intrinsic, vars);
                break;
             default:
-               unreachable("Unsupported ray query intrinsic!");
+               UNREACHABLE("Unsupported ray query intrinsic!");
             }
 
             if (new_dest)

@@ -503,9 +503,9 @@ anv_cmd_buffer_set_ray_query_buffer(struct anv_cmd_buffer *cmd_buffer,
  * state appropriately.
  */
 static void
-anv_cmd_buffer_flush_pipeline_state(struct anv_cmd_buffer *cmd_buffer,
-                                    struct anv_graphics_pipeline *old_pipeline,
-                                    struct anv_graphics_pipeline *new_pipeline)
+anv_cmd_buffer_flush_pipeline_hw_state(struct anv_cmd_buffer *cmd_buffer,
+                                       struct anv_graphics_pipeline *old_pipeline,
+                                       struct anv_graphics_pipeline *new_pipeline)
 {
    struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
    struct anv_gfx_dynamic_state *hw_state = &gfx->dyn_state;
@@ -554,7 +554,6 @@ anv_cmd_buffer_flush_pipeline_state(struct anv_cmd_buffer *cmd_buffer,
     * We avoid comparing protected packets as all the fields but the scratch
     * surface are identical. we just need to select the right one at emission.
     */
-   diff_fix_state(URB,                      final.urb);
    diff_fix_state(VF_SGVS,                  final.vf_sgvs);
    if (cmd_buffer->device->info->ver >= 11)
       diff_fix_state(VF_SGVS_2,             final.vf_sgvs_2);
@@ -614,6 +613,59 @@ anv_cmd_buffer_flush_pipeline_state(struct anv_cmd_buffer *cmd_buffer,
     */
 }
 
+static enum anv_cmd_dirty_bits
+get_pipeline_dirty_stages(struct anv_device *device,
+                          struct anv_graphics_pipeline *old_pipeline,
+                          struct anv_graphics_pipeline *new_pipeline)
+{
+   if (!old_pipeline)
+      return ANV_CMD_DIRTY_ALL_SHADERS(device);
+
+   enum anv_cmd_dirty_bits bits = 0;
+#define STAGE_CHANGED(_name) \
+   (old_pipeline->base.shaders[MESA_SHADER_##_name] != \
+    new_pipeline->base.shaders[MESA_SHADER_##_name])
+   if (STAGE_CHANGED(VERTEX))
+      bits |= ANV_CMD_DIRTY_VS;
+   if (STAGE_CHANGED(TESS_CTRL))
+      bits |= ANV_CMD_DIRTY_HS;
+   if (STAGE_CHANGED(TESS_EVAL))
+      bits |= ANV_CMD_DIRTY_DS;
+   if (STAGE_CHANGED(GEOMETRY))
+      bits |= ANV_CMD_DIRTY_GS;
+   if (STAGE_CHANGED(TASK))
+      bits |= ANV_CMD_DIRTY_TASK;
+   if (STAGE_CHANGED(MESH))
+      bits |= ANV_CMD_DIRTY_MESH;
+   if (STAGE_CHANGED(FRAGMENT))
+      bits |= ANV_CMD_DIRTY_PS;
+#undef STAGE_CHANGED
+
+   return bits;
+}
+
+static void
+update_push_descriptor_flags(struct anv_cmd_pipeline_state *state,
+                             struct anv_shader_bin **shaders,
+                             uint32_t shader_count)
+{
+   state->push_buffer_stages = 0;
+   state->push_descriptor_stages = 0;
+
+   for (uint32_t i = 0; i < shader_count; i++) {
+      if (shaders[i] == NULL)
+         continue;
+
+      VkShaderStageFlags stage = mesa_to_vk_shader_stage(shaders[i]->stage);
+
+      if (shaders[i]->push_desc_info.used_descriptors)
+         state->push_descriptor_stages |= stage;
+
+      if (shaders[i]->push_desc_info.push_set_buffer)
+         state->push_buffer_stages |= stage;
+   }
+}
+
 void anv_CmdBindPipeline(
     VkCommandBuffer                             commandBuffer,
     VkPipelineBindPoint                         pipelineBindPoint,
@@ -629,16 +681,19 @@ void anv_CmdBindPipeline(
       if (cmd_buffer->state.compute.base.pipeline == pipeline)
          return;
 
-      cmd_buffer->state.compute.base.pipeline = pipeline;
-      cmd_buffer->state.compute.pipeline_dirty = true;
-
       struct anv_compute_pipeline *compute_pipeline =
          anv_pipeline_to_compute(pipeline);
+
+      cmd_buffer->state.compute.shader = compute_pipeline->cs;
+      cmd_buffer->state.compute.pipeline_dirty = true;
+
       set_dirty_for_bind_map(cmd_buffer, MESA_SHADER_COMPUTE,
                              &compute_pipeline->cs->bind_map);
 
       state = &cmd_buffer->state.compute.base;
       stages = VK_SHADER_STAGE_COMPUTE_BIT;
+
+      update_push_descriptor_flags(state, &compute_pipeline->cs, 1);
       break;
    }
 
@@ -657,8 +712,16 @@ void anv_CmdBindPipeline(
          cmd_buffer->state.gfx.base.pipeline == NULL ? NULL :
          anv_pipeline_to_graphics(cmd_buffer->state.gfx.base.pipeline);
 
-      cmd_buffer->state.gfx.base.pipeline = pipeline;
-      cmd_buffer->state.gfx.dirty |= ANV_CMD_DIRTY_PIPELINE;
+      cmd_buffer->state.gfx.dirty |=
+         get_pipeline_dirty_stages(cmd_buffer->device,
+                                   old_pipeline, new_pipeline);
+
+      STATIC_ASSERT(sizeof(cmd_buffer->state.gfx.shaders) ==
+                    sizeof(new_pipeline->base.shaders));
+      memcpy(cmd_buffer->state.gfx.shaders,
+             new_pipeline->base.shaders,
+             sizeof(cmd_buffer->state.gfx.shaders));
+      cmd_buffer->state.gfx.active_stages = pipeline->active_stages;
 
       anv_foreach_stage(stage, new_pipeline->base.base.active_stages) {
          set_dirty_for_bind_map(cmd_buffer, stage,
@@ -668,6 +731,9 @@ void anv_CmdBindPipeline(
       state = &cmd_buffer->state.gfx.base;
       stages = new_pipeline->base.base.active_stages;
 
+      update_push_descriptor_flags(state,
+                                   new_pipeline->base.shaders,
+                                   ARRAY_SIZE(new_pipeline->base.shaders));
 
       /* When the pipeline is using independent states and dynamic buffers,
        * this will trigger an update of anv_push_constants::dynamic_base_index
@@ -679,15 +745,15 @@ void anv_CmdBindPipeline(
       if (layout->independent_sets && layout->num_dynamic_buffers > 0) {
          bool modified = false;
          for (uint32_t s = 0; s < layout->num_sets; s++) {
-            if (layout->set[s].layout == NULL)
+            if (layout->set_layouts[s] == NULL)
                continue;
 
-            assert(layout->set[s].dynamic_offset_start < MAX_DYNAMIC_BUFFERS);
-            if (layout->set[s].layout->dynamic_offset_count > 0 &&
+            assert(layout->dynamic_offset_start[s] < MAX_DYNAMIC_BUFFERS);
+            if (layout->set_layouts[s]->vk.dynamic_descriptor_count > 0 &&
                 (push->desc_surface_offsets[s] & ANV_DESCRIPTOR_SET_DYNAMIC_INDEX_MASK) !=
-                layout->set[s].dynamic_offset_start) {
+                layout->dynamic_offset_start[s]) {
                push->desc_surface_offsets[s] &= ~ANV_DESCRIPTOR_SET_DYNAMIC_INDEX_MASK;
-               push->desc_surface_offsets[s] |= (layout->set[s].dynamic_offset_start &
+               push->desc_surface_offsets[s] |= (layout->dynamic_offset_start[s] &
                                                  ANV_DESCRIPTOR_SET_DYNAMIC_INDEX_MASK);
                modified = true;
             }
@@ -698,7 +764,13 @@ void anv_CmdBindPipeline(
          }
       }
 
-      anv_cmd_buffer_flush_pipeline_state(cmd_buffer, old_pipeline, new_pipeline);
+      cmd_buffer->state.gfx.min_sample_shading = new_pipeline->min_sample_shading;
+      cmd_buffer->state.gfx.sample_shading_enable = new_pipeline->sample_shading_enable;
+      cmd_buffer->state.gfx.instance_multiplier = new_pipeline->instance_multiplier;
+      cmd_buffer->state.gfx.primitive_id_index = new_pipeline->primitive_id_index;
+      cmd_buffer->state.gfx.first_vue_slot = new_pipeline->first_vue_slot;
+
+      anv_cmd_buffer_flush_pipeline_hw_state(cmd_buffer, old_pipeline, new_pipeline);
       break;
    }
 
@@ -706,7 +778,6 @@ void anv_CmdBindPipeline(
       if (cmd_buffer->state.rt.base.pipeline == pipeline)
          return;
 
-      cmd_buffer->state.rt.base.pipeline = pipeline;
       cmd_buffer->state.rt.pipeline_dirty = true;
 
       struct anv_ray_tracing_pipeline *rt_pipeline =
@@ -717,13 +788,19 @@ void anv_CmdBindPipeline(
       }
 
       state = &cmd_buffer->state.rt.base;
+
+      state->push_buffer_stages = pipeline->use_push_descriptor_buffer;
+      state->push_descriptor_stages = pipeline->use_push_descriptor_buffer;
+      state->push_descriptor_index = pipeline->layout.push_descriptor_set_index;
       break;
    }
 
    default:
-      unreachable("invalid bind point");
+      UNREACHABLE("invalid bind point");
       break;
    }
+
+   state->pipeline = pipeline;
 
    if (pipeline->ray_queries > 0)
       anv_cmd_buffer_set_ray_query_buffer(cmd_buffer, state, pipeline, stages);
@@ -754,7 +831,7 @@ anv_cmd_buffer_get_pipeline_layout_state(struct anv_cmd_buffer *cmd_buffer,
       return &cmd_buffer->state.rt.base;
 
    default:
-      unreachable("invalid bind point");
+      UNREACHABLE("invalid bind point");
    }
 }
 
@@ -773,7 +850,7 @@ anv_cmd_buffer_maybe_dirty_descriptor_mode(struct anv_cmd_buffer *cmd_buffer,
 static void
 anv_cmd_buffer_bind_descriptor_set(struct anv_cmd_buffer *cmd_buffer,
                                    VkPipelineBindPoint bind_point,
-                                   struct anv_pipeline_sets_layout *layout,
+                                   struct vk_pipeline_layout *layout,
                                    uint32_t set_index,
                                    struct anv_descriptor_set *set,
                                    uint32_t *dynamic_offset_count,
@@ -794,7 +871,7 @@ anv_cmd_buffer_bind_descriptor_set(struct anv_cmd_buffer *cmd_buffer,
 
    anv_cmd_buffer_maybe_dirty_descriptor_mode(
       cmd_buffer,
-      (set->layout->flags &
+      (set->layout->vk.flags &
        VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) != 0 ?
       ANV_CMD_DESCRIPTOR_BUFFER_MODE_BUFFER :
       ANV_CMD_DESCRIPTOR_BUFFER_MODE_LEGACY);
@@ -813,7 +890,8 @@ anv_cmd_buffer_bind_descriptor_set(struct anv_cmd_buffer *cmd_buffer,
        anv_descriptor_set_is_push(set)) {
       pipe_state->descriptors[set_index] = set;
 
-      if (set->layout->flags & VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) {
+      if (set->layout->vk.flags &
+          VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT) {
          assert(set->is_push);
 
          pipe_state->descriptor_buffers[set_index].buffer_index = -1;
@@ -864,25 +942,25 @@ anv_cmd_buffer_bind_descriptor_set(struct anv_cmd_buffer *cmd_buffer,
    }
 
    if (dynamic_offsets) {
-      if (set_layout->dynamic_offset_count > 0) {
+      if (set_layout->vk.dynamic_descriptor_count > 0) {
          struct anv_push_constants *push = &pipe_state->push_constants;
          assert(layout != NULL);
          uint32_t dynamic_offset_start =
-            layout->set[set_index].dynamic_offset_start;
+            layout->dynamic_descriptor_offset[set_index];
          uint32_t *push_offsets =
             &push->dynamic_offsets[dynamic_offset_start];
 
          memcpy(pipe_state->dynamic_offsets[set_index].offsets,
                 *dynamic_offsets,
                 sizeof(uint32_t) * MIN2(*dynamic_offset_count,
-                                        set_layout->dynamic_offset_count));
+                                        set_layout->vk.dynamic_descriptor_count));
 
          /* Assert that everything is in range */
-         assert(set_layout->dynamic_offset_count <= *dynamic_offset_count);
-         assert(dynamic_offset_start + set_layout->dynamic_offset_count <=
+         assert(set_layout->vk.dynamic_descriptor_count <= *dynamic_offset_count);
+         assert(dynamic_offset_start + set_layout->vk.dynamic_descriptor_count <=
                 ARRAY_SIZE(push->dynamic_offsets));
 
-         for (uint32_t i = 0; i < set_layout->dynamic_offset_count; i++) {
+         for (uint32_t i = 0; i < set_layout->vk.dynamic_descriptor_count; i++) {
             if (push_offsets[i] != (*dynamic_offsets)[i]) {
                pipe_state->dynamic_offsets[set_index].offsets[i] =
                   push_offsets[i] = (*dynamic_offsets)[i];
@@ -894,10 +972,16 @@ anv_cmd_buffer_bind_descriptor_set(struct anv_cmd_buffer *cmd_buffer,
             }
          }
 
-         *dynamic_offsets += set_layout->dynamic_offset_count;
-         *dynamic_offset_count -= set_layout->dynamic_offset_count;
+         *dynamic_offsets += set_layout->vk.dynamic_descriptor_count;
+         *dynamic_offset_count -= set_layout->vk.dynamic_descriptor_count;
       }
    }
+
+   /* Update the push descriptor index tracking */
+   if (anv_descriptor_set_is_push(set))
+      pipe_state->push_descriptor_index = set_index;
+   else if (pipe_state->push_descriptor_index == set_index)
+      pipe_state->push_descriptor_index = UINT8_MAX;
 
    if (set->is_push)
       cmd_buffer->state.push_descriptors_dirty |= dirty_stages;
@@ -917,8 +1001,7 @@ void anv_CmdBindDescriptorSets2KHR(
     const VkBindDescriptorSetsInfoKHR*          pInfo)
 {
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
-   ANV_FROM_HANDLE(anv_pipeline_layout, pipeline_layout, pInfo->layout);
-   struct anv_pipeline_sets_layout *layout = &pipeline_layout->sets_layout;
+   VK_FROM_HANDLE(vk_pipeline_layout, layout, pInfo->layout);
 
    assert(pInfo->firstSet + pInfo->descriptorSetCount <= MAX_SETS);
 
@@ -1000,7 +1083,7 @@ void anv_CmdBindDescriptorBuffersEXT(
 static void
 anv_cmd_buffer_set_descriptor_buffer_offsets(struct anv_cmd_buffer *cmd_buffer,
                                              VkPipelineBindPoint bind_point,
-                                             struct anv_pipeline_layout *layout,
+                                             struct vk_pipeline_layout *layout,
                                              uint32_t first_set,
                                              uint32_t set_count,
                                              const VkDeviceSize *buffer_offsets,
@@ -1010,7 +1093,8 @@ anv_cmd_buffer_set_descriptor_buffer_offsets(struct anv_cmd_buffer *cmd_buffer,
       const uint32_t set_index = first_set + i;
 
       const struct anv_descriptor_set_layout *set_layout =
-         layout->sets_layout.set[set_index].layout;
+         container_of(layout->set_layouts[set_index],
+                      const struct anv_descriptor_set_layout, vk);
       VkShaderStageFlags stages;
       struct anv_cmd_pipeline_state *pipe_state =
          anv_cmd_buffer_get_pipeline_layout_state(cmd_buffer, bind_point,
@@ -1033,7 +1117,7 @@ void anv_CmdSetDescriptorBufferOffsets2EXT(
     const VkSetDescriptorBufferOffsetsInfoEXT*  pSetDescriptorBufferOffsetsInfo)
 {
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
-   ANV_FROM_HANDLE(anv_pipeline_layout, layout, pSetDescriptorBufferOffsetsInfo->layout);
+   VK_FROM_HANDLE(vk_pipeline_layout, layout, pSetDescriptorBufferOffsetsInfo->layout);
 
    if (pSetDescriptorBufferOffsetsInfo->stageFlags & VK_SHADER_STAGE_COMPUTE_BIT) {
       anv_cmd_buffer_set_descriptor_buffer_offsets(cmd_buffer,
@@ -1188,7 +1272,7 @@ anv_isl_format_for_descriptor_type(const struct anv_device *device,
       return ISL_FORMAT_RAW;
 
    default:
-      unreachable("Invalid descriptor type");
+      UNREACHABLE("Invalid descriptor type");
    }
 }
 
@@ -1262,12 +1346,11 @@ struct anv_state
 anv_cmd_buffer_cs_push_constants(struct anv_cmd_buffer *cmd_buffer)
 {
    const struct intel_device_info *devinfo = cmd_buffer->device->info;
-   struct anv_cmd_pipeline_state *pipe_state = &cmd_buffer->state.compute.base;
+   struct anv_cmd_compute_state *comp_state = &cmd_buffer->state.compute;
+   struct anv_cmd_pipeline_state *pipe_state = &comp_state->base;
    struct anv_push_constants *data = &pipe_state->push_constants;
-   struct anv_compute_pipeline *pipeline =
-      anv_pipeline_to_compute(cmd_buffer->state.compute.base.pipeline);
-   const struct brw_cs_prog_data *cs_prog_data = get_cs_prog_data(pipeline);
-   const struct anv_push_range *range = &pipeline->cs->bind_map.push_ranges[0];
+   const struct brw_cs_prog_data *cs_prog_data = get_cs_prog_data(comp_state);
+   const struct anv_push_range *range = &comp_state->shader->bind_map.push_ranges[0];
 
    const struct intel_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(devinfo, cs_prog_data, NULL);
@@ -1370,7 +1453,7 @@ anv_cmd_buffer_get_pipe_state(struct anv_cmd_buffer *cmd_buffer,
       return &cmd_buffer->state.rt.base;
       break;
    default:
-      unreachable("invalid bind point");
+      UNREACHABLE("invalid bind point");
    }
 }
 
@@ -1379,12 +1462,13 @@ anv_cmd_buffer_push_descriptor_sets(struct anv_cmd_buffer *cmd_buffer,
                                     VkPipelineBindPoint bind_point,
                                     const VkPushDescriptorSetInfoKHR *pInfo)
 {
-   ANV_FROM_HANDLE(anv_pipeline_layout, pipeline_layout, pInfo->layout);
-   struct anv_pipeline_sets_layout *layout = &pipeline_layout->sets_layout;
+   VK_FROM_HANDLE(vk_pipeline_layout, layout, pInfo->layout);
 
    assert(pInfo->set < MAX_SETS);
 
-   struct anv_descriptor_set_layout *set_layout = layout->set[pInfo->set].layout;
+   struct anv_descriptor_set_layout *set_layout =
+      container_of(layout->set_layouts[pInfo->set],
+                   struct anv_descriptor_set_layout, vk);
    struct anv_push_descriptor_set *push_set =
       &anv_cmd_buffer_get_pipe_state(cmd_buffer,
                                      bind_point)->push_descriptor;
@@ -1427,12 +1511,13 @@ void anv_CmdPushDescriptorSetWithTemplate2KHR(
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
    VK_FROM_HANDLE(vk_descriptor_update_template, template,
                   pInfo->descriptorUpdateTemplate);
-   ANV_FROM_HANDLE(anv_pipeline_layout, pipeline_layout, pInfo->layout);
-   struct anv_pipeline_sets_layout *layout = &pipeline_layout->sets_layout;
+   VK_FROM_HANDLE(vk_pipeline_layout, layout, pInfo->layout);
 
    assert(pInfo->set < MAX_PUSH_DESCRIPTORS);
 
-   struct anv_descriptor_set_layout *set_layout = layout->set[pInfo->set].layout;
+   struct anv_descriptor_set_layout *set_layout =
+      container_of(layout->set_layouts[pInfo->set],
+                   struct anv_descriptor_set_layout, vk);
    UNUSED VkShaderStageFlags stages;
    struct anv_cmd_pipeline_state *pipe_state =
       anv_cmd_buffer_get_pipeline_layout_state(cmd_buffer, template->bind_point,

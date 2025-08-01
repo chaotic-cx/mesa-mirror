@@ -282,7 +282,7 @@ gather_vars_written(struct copy_prop_var_state *state,
    }
 
    default:
-      unreachable("Invalid CF node type");
+      UNREACHABLE("Invalid CF node type");
    }
 
    if (new_written) {
@@ -1110,8 +1110,7 @@ copy_prop_vars_block(struct copy_prop_var_state *state,
                    * rewrite the vecN itself.
                    */
                   nir_def_rewrite_uses_after(&intrin->def,
-                                             value.ssa.def[0],
-                                             value.ssa.def[0]->parent_instr);
+                                                 value.ssa.def[0]);
                } else {
                   nir_def_rewrite_uses(&intrin->def,
                                        value.ssa.def[0]);
@@ -1483,7 +1482,7 @@ copy_prop_vars_cf_node(struct copy_prop_var_state *state,
    }
 
    default:
-      unreachable("Invalid CF node type");
+      UNREACHABLE("Invalid CF node type");
    }
 }
 

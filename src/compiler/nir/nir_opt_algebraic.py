@@ -914,6 +914,10 @@ optimizations.extend([
    (('umax', ('umin', a, b), a), a),
    (('imin', ('imax', a, b), a), a),
    (('imax', ('imin', a, b), a), a),
+   (('fmax(nsz)', 'a(is_a_number_not_negative)', 'b(is_not_positive)'), ('fmul', a, 1.0)),
+   (('fmin(nsz)', 'a(is_a_number_not_positive)', 'b(is_not_negative)'), ('fmul', a, 1.0)),
+   (('fmax', 'a(is_a_number_not_negative)', 'b(is_lt_zero)'), ('fmul', a, 1.0)),
+   (('fmin', 'a(is_a_number_not_positive)', 'b(is_gt_zero)'), ('fmul', a, 1.0)),
 ])
 
 for op in ['ine', 'ieq', 'ilt', 'ige', 'ult', 'uge', 'bitz', 'bitnz',
@@ -1032,6 +1036,11 @@ optimizations.extend([
     ('fsat', ('ffma', a, b, c)), '!options->lower_fsat'),
    (('fmax', ('ffma(is_used_once)', 'a', ('fneg', a), '#b(is_zero_to_one)'), 0.0),
     ('fsat', ('ffma', a, ('fneg', a), b)), '!options->lower_fsat'),
+
+   (('fsat', ('fmax', a, 'b(is_not_positive)')), ('fsat', a)),
+
+   (('fsat', ('bcsel(is_used_once)', a, b, '#c')), ('bcsel', a, ('fsat', b), ('fsat', c))),
+   (('fsat', ('bcsel(is_used_once)', a, '#b', c)), ('bcsel', a, ('fsat', b), ('fsat', c))),
 
    (('extract_u8', ('imin', ('imax', a, 0), 0xff), 0), ('imin', ('imax', a, 0), 0xff)),
 
@@ -2989,6 +2998,17 @@ optimizations += [
     (('i2i8', ('iand', 'a@16', 0xff)), ('u2u8', a)),
     (('i2i8', ('iand', 'a@32', 0xff)), ('u2u8', a)),
     (('i2i8', ('iand', 'a@64', 0xff)), ('u2u8', a)),
+]
+
+# Optimize fmin/fmax with constant followed by conversion to 16bit
+# Assume 16bit fmin/fmax is faster.
+optimizations += [
+   (('f2f16', ('fmax(is_used_once)', a, '#b')), ('fmax', ('f2f16', a), ('f2f16', b)), 'options->support_16bit_alu'),
+   (('f2f16', ('fmin(is_used_once)', a, '#b')), ('fmin', ('f2f16', a), ('f2f16', b)), 'options->support_16bit_alu'),
+   (('f2f16', ('vec2(is_used_once)', ('fmax(is_used_once)', a, '#b'), ('fmax(is_used_once)', c, '#d'))),
+    ('fmax', ('f2f16', ('vec2', a, c)), ('f2f16', ('vec2', b, d))), 'options->support_16bit_alu'),
+   (('f2f16', ('vec2(is_used_once)', ('fmin(is_used_once)', a, '#b'), ('fmin(is_used_once)', c, '#d'))),
+    ('fmin', ('f2f16', ('vec2', a, c)), ('f2f16', ('vec2', b, d))), 'options->support_16bit_alu'),
 ]
 
 # Some operations such as iadd have the property that the bottom N bits of the

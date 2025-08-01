@@ -315,11 +315,11 @@ can_constant_fold(nir_scalar scalar, nir_block *loop_header)
 
    if (scalar.def->parent_instr->type == nir_instr_type_phi) {
       /* If this is a phi from anything but the loop header, we cannot constant-fold. */
-      if (scalar.def->parent_instr->block != loop_header)
+      if (nir_def_block(scalar.def) != loop_header)
          return false;
 
       nir_block *preheader = nir_block_cf_tree_prev(loop_header);
-      nir_phi_instr *phi = nir_instr_as_phi(scalar.def->parent_instr);
+      nir_phi_instr *phi = nir_def_as_phi(scalar.def);
       nir_phi_src *src = nir_phi_get_src_from_block(phi, preheader);
       return can_constant_fold(nir_get_scalar(src->src.ssa, 0), loop_header);
    }
@@ -468,7 +468,7 @@ insert_phis_after_terminator_merge(nir_def *def, void *state)
       }
 
       if (nir_src_is_if(src) ||
-          (!nir_src_is_if(src) && nir_src_parent_instr(src)->block != def->parent_instr->block)) {
+          (!nir_src_is_if(src) && nir_src_parent_instr(src)->block != nir_def_block(def))) {
          if (!phi_created) {
             phi_instr = nir_phi_instr_create(m_state->shader);
             nir_def_init(&phi_instr->instr, &phi_instr->def, def->num_components,
@@ -696,7 +696,7 @@ opt_loop_cf_list(nir_builder *b, struct exec_list *cf_list,
       }
 
       case nir_cf_node_function:
-         unreachable("Invalid cf type");
+         UNREACHABLE("Invalid cf type");
       }
    }
 
