@@ -167,14 +167,14 @@ TEST_F(LiveRangeTests, SimpleArrayAccess)
 
    LiveRangeMap expect = vf.prepare_live_range_map();
 
-   expect.set_life_range(*array->element(0, nullptr, 0), 1, 5);
-   expect.set_life_range(*array->element(0, nullptr, 1), 1, 5);
+   expect.set_life_range(*array->element(0, nullptr, 0), 1, 6);
+   expect.set_life_range(*array->element(0, nullptr, 1), 1, 6);
    expect.set_life_range(*array->element(1, nullptr, 0), 1, 4);
 
    expect.set_life_range(*array->element(1, nullptr, 1), 2, 4);
 
-   expect.set_life_range(*s3[0], 6, 7);
-   expect.set_life_range(*s3[1], 6, 7);
+   expect.set_life_range(*s3[0], 7, 8);
+   expect.set_life_range(*s3[1], 7, 8);
 
    check(shader_with_dest_array2_scheduled, expect);
 }

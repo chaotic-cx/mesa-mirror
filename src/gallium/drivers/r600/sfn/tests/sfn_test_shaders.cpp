@@ -1941,7 +1941,14 @@ BLOCK_START ALU
 ENDIF
 BLOCK_END
 BLOCK_START ALU
-  ALU_GROUP_BEGIN
+ ALU_GROUP_BEGIN
+    ALU MOV S48.x@chgr : A2[0].z {W}
+    ALU MOV S48.y@chgr : A2[0].w {W}
+    ALU MOV S48.z@chgr : A2[1].z {W}
+    ALU MOV S48.w@chgr : A2[1].w {W}
+    ALU MOV S49.x@chgr : A2[2].z {WL}
+ ALU_GROUP_END
+ ALU_GROUP_BEGIN
     ALU MOV S46.x@chgr : A2[0].x {W}
     ALU MOV S46.y@chgr : A2[0].y {W}
     ALU MOV S46.z@chgr : A2[1].x {W}
@@ -1949,20 +1956,13 @@ BLOCK_START ALU
     ALU MOV S47.x@group : A2[2].x {WL}
  ALU_GROUP_END
  ALU_GROUP_BEGIN
-   ALU MOV S48.x@chgr : A2[0].z {W}
    ALU MOV S47.y@chgr : A2[2].y {W}
    ALU MOV S47.z@chgr : A2[3].x {W}
    ALU MOV S47.w@chgr : A2[3].y {W}
-   ALU MOV S48.y@group : A2[0].w {WL}
+   ALU MOV S49.y@chgr : A2[2].w {WL}
  ALU_GROUP_END
  ALU_GROUP_BEGIN
-  ALU MOV S49.x@chgr : A2[2].z {W}
-  ALU MOV S49.y@chgr : A2[2].w {W}
-  ALU MOV S48.z@chgr : A2[1].z {W}
-  ALU MOV S48.w@chgr : A2[1].w {W}
-  ALU MOV S49.z@group : A2[3].z {WL}
- ALU_GROUP_END
- ALU_GROUP_BEGIN
+   ALU MOV S49.z@chgr : A2[3].z {W}
    ALU MOV S49.w@chgr : A2[3].w {WL}
 ALU_GROUP_END
 BLOCK_END
@@ -2031,6 +2031,9 @@ ALU_GROUP_BEGIN
   ALU MOV A0[AR].y : L[2.0] {WL}
 ALU_GROUP_END
 ALU_GROUP_BEGIN
+  ALU NOP __.x : {L}
+ALU_GROUP_END
+ALU_GROUP_BEGIN
   ALU MOV __.x : A0[0].x {}
   ALU MOV __.y : A0[0].y {L}
 ALU_GROUP_END
@@ -2070,6 +2073,9 @@ ALU_GROUP_END
 ALU_GROUP_BEGIN
   ALU MOV A0[AR].x : I[1.0] {W}
   ALU MOV A0[AR].y : L[2.0] {WL}
+ALU_GROUP_END
+ALU_GROUP_BEGIN
+  ALU NOP __.x :  {L}
 ALU_GROUP_END
 ALU_GROUP_BEGIN
   ALU MOV __.x : A0[0].x {}

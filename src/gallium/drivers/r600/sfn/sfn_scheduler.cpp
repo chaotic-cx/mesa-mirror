@@ -337,7 +337,7 @@ BlockScheduler::BlockScheduler(r600_chip_class chip_class,
    m_current_block(nullptr),
    m_chip_class(chip_class)
 {
-   m_nop_after_rel_dest = chip_family == CHIP_RV770;
+   m_nop_after_rel_dest = m_chip_class >= ISA_CC_R700;
 
    m_nop_befor_rel_src = m_chip_class == ISA_CC_R600 &&
                          chip_family != CHIP_RV670 &&
