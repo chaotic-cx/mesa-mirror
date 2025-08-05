@@ -304,7 +304,7 @@ vir_channels_written(struct qinst *inst)
                         return 0xc;
                 }
         }
-        unreachable("Bad pack field");
+        UNREACHABLE("Bad pack field");
 }
 #endif
 
@@ -633,7 +633,7 @@ v3d_nir_lower_null_pointers_cb(nir_builder *b,
         if (src->ssa->parent_instr->type != nir_instr_type_alu)
                 return false;
 
-        nir_alu_instr *alu = nir_instr_as_alu(src->ssa->parent_instr);
+        nir_alu_instr *alu = nir_def_as_alu(src->ssa);
         if (alu->op != nir_op_bcsel)
                 return false;
 
@@ -992,7 +992,7 @@ v3d_set_prog_data(struct v3d_compile *c,
                 v3d_cs_set_prog_data(c, (struct v3d_compute_prog_data *)prog_data);
                 break;
         default:
-                unreachable("unsupported shader stage");
+                UNREACHABLE("unsupported shader stage");
         }
 }
 
@@ -1138,7 +1138,7 @@ v3d_nir_lower_fs_late(struct v3d_compile *c)
          *
          * The SPIR-V compiler will declare VARING_SLOT_CLIP_DIST0 as compact
          * array variable, so we have GL's clip lowering follow suit
-         * (PIPE_CAP_NIR_COMPACT_ARRAYS).
+         * (compact_arrays option at nir_shader_compiler_options)
          */
         if (c->fs_key->ucp_enables)
                 NIR_PASS(_, c->s, nir_lower_clip_fs, c->fs_key->ucp_enables, true, false);
@@ -1680,7 +1680,7 @@ v3d_attempt_compile(struct v3d_compile *c)
         case MESA_SHADER_COMPUTE:
                 break;
         default:
-                unreachable("unsupported shader stage");
+                UNREACHABLE("unsupported shader stage");
         }
 
         switch (c->s->info.stage) {

@@ -271,6 +271,12 @@ withoutVOP3(Format format)
    return (Format)((uint32_t)format & ~((uint32_t)Format::VOP3));
 }
 
+constexpr Format
+withoutVOP2(Format format)
+{
+   return (Format)((uint32_t)format & ~((uint32_t)Format::VOP2));
+}
+
 enum class RegType {
    sgpr,
    vgpr,
@@ -783,7 +789,7 @@ public:
          case 255:
             return (signext && (data_.i & 0x80000000u) ? 0xffffffff00000000ull : 0ull) | data_.i;
          }
-         unreachable("invalid register for 64-bit constant");
+         UNREACHABLE("invalid register for 64-bit constant");
       } else {
          return data_.i;
       }

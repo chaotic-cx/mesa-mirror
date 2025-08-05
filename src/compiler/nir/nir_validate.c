@@ -409,7 +409,7 @@ validate_deref_instr(nir_deref_instr *instr, validate_state *state)
          break;
 
       default:
-         unreachable("Invalid deref instruction type");
+         UNREACHABLE("Invalid deref instruction type");
       }
    }
 
@@ -911,9 +911,9 @@ validate_tex_instr(nir_tex_instr *instr, validate_state *state)
       case nir_tex_src_sampler_deref_intrinsic:
       case nir_tex_src_texture_deref_intrinsic: {
          nir_intrinsic_instr *intrin =
-            nir_instr_as_intrinsic(instr->src[i].src.ssa->parent_instr);
+            nir_def_as_intrinsic(instr->src[i].src.ssa);
          nir_deref_instr *deref =
-            nir_instr_as_deref(intrin->src[0].ssa->parent_instr);
+            nir_def_as_deref(intrin->src[0].ssa);
          if (!validate_assert(state, deref))
             break;
 
@@ -1231,7 +1231,7 @@ collect_blocks(struct exec_list *cf_list, validate_state *state)
          break;
 
       default:
-         unreachable("Invalid CF node type");
+         UNREACHABLE("Invalid CF node type");
       }
    }
 }
@@ -1362,7 +1362,7 @@ validate_block(nir_block *block, validate_state *state)
             break;
 
          default:
-            unreachable("unknown control flow node type");
+            UNREACHABLE("unknown control flow node type");
          }
       } else {
          if (next->type == nir_cf_node_if) {
@@ -1487,7 +1487,7 @@ validate_cf_node(nir_cf_node *node, validate_state *state)
       break;
 
    default:
-      unreachable("Invalid CF node type");
+      UNREACHABLE("Invalid CF node type");
    }
 }
 
@@ -1594,12 +1594,12 @@ validate_src_dominance(nir_src *src, void *_state)
 {
    validate_state *state = _state;
 
-   if (src->ssa->parent_instr->block == nir_src_parent_instr(src)->block) {
+   if (nir_def_block(src->ssa) == nir_src_parent_instr(src)->block) {
       validate_assert(state, src->ssa->index < state->impl->ssa_alloc);
       validate_assert(state, BITSET_TEST(state->ssa_defs_found,
                                          src->ssa->index));
    } else {
-      validate_assert(state, nir_block_dominates(src->ssa->parent_instr->block,
+      validate_assert(state, nir_block_dominates(nir_def_block(src->ssa),
                                                  nir_src_parent_instr(src)->block));
    }
    return true;
@@ -1618,7 +1618,7 @@ validate_ssa_dominance(nir_function_impl *impl, validate_state *state)
             nir_phi_instr *phi = nir_instr_as_phi(instr);
             nir_foreach_phi_src(src, phi) {
                validate_assert(state,
-                               nir_block_dominates(src->src.ssa->parent_instr->block,
+                               nir_block_dominates(nir_def_block(src->src.ssa),
                                                    src->pred));
             }
          } else {
@@ -1629,7 +1629,7 @@ validate_ssa_dominance(nir_function_impl *impl, validate_state *state)
 
       nir_if *nif = nir_block_get_following_if(block);
       if (nif) {
-         validate_assert(state, nir_block_dominates(nif->condition.ssa->parent_instr->block,
+         validate_assert(state, nir_block_dominates(nir_def_block(nif->condition.ssa),
                                                     block));
       }
    }

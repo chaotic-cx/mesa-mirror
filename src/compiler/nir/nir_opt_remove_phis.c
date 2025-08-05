@@ -46,8 +46,8 @@ phi_srcs_equal(nir_def *a, nir_def *b)
 
    /* nir_instrs_equal ignores exact/fast_math */
    if (a->parent_instr->type == nir_instr_type_alu) {
-      nir_alu_instr *a_alu = nir_instr_as_alu(a->parent_instr);
-      nir_alu_instr *b_alu = nir_instr_as_alu(b->parent_instr);
+      nir_alu_instr *a_alu = nir_def_as_alu(a);
+      nir_alu_instr *b_alu = nir_def_as_alu(b);
       if (a_alu->exact != b_alu->exact || a_alu->fp_fast_math != b_alu->fp_fast_math)
          return false;
    }
@@ -59,7 +59,7 @@ static bool
 src_dominates_block(nir_src *src, void *state)
 {
    nir_block *block = state;
-   return nir_block_dominates(src->ssa->parent_instr->block, block);
+   return nir_block_dominates(nir_def_block(src->ssa), block);
 }
 
 static bool
@@ -120,7 +120,7 @@ remove_phis_instr(nir_builder *b, nir_phi_instr *phi, void *unused)
 
       if (def == NULL) {
          def = src->src.ssa;
-         if (!nir_block_dominates(def->parent_instr->block, block->imm_dom)) {
+         if (!nir_block_dominates(nir_def_block(def), block->imm_dom)) {
             if (!can_rematerialize_phi_src(block->imm_dom, def))
                return false;
             needs_remat = true;

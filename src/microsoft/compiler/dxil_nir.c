@@ -455,7 +455,7 @@ lower_deref_bit_size(nir_builder *b, nir_intrinsic_instr *intr, void *data)
          intr->def.bit_size = glsl_get_bit_size(var_scalar_type);
          b->cursor = nir_after_instr(&intr->instr);
          nir_def *downcast = nir_type_convert(b, &intr->def, new_type, old_type, nir_rounding_mode_undef);
-         nir_def_rewrite_uses_after(&intr->def, downcast, downcast->parent_instr);
+         nir_def_rewrite_uses_after(&intr->def, downcast);
       }
       else {
          b->cursor = nir_before_instr(&intr->instr);
@@ -516,7 +516,7 @@ lower_var_bit_size_types(nir_variable *var, unsigned min_bit_size, unsigned max_
                var->constant_initializer->elements[i]->values[0].i16 = var->constant_initializer->elements[i]->values[0].i8;
             break;
          case GLSL_TYPE_UINT8: base_type = GLSL_TYPE_UINT16; break;
-         default: unreachable("Unexpected base type");
+         default: UNREACHABLE("Unexpected base type");
          }
          break;
       case 32:
@@ -543,10 +543,10 @@ lower_var_bit_size_types(nir_variable *var, unsigned min_bit_size, unsigned max_
             break;
          case GLSL_TYPE_UINT8: base_type = GLSL_TYPE_UINT; break;
          case GLSL_TYPE_UINT16: base_type = GLSL_TYPE_UINT; break;
-         default: unreachable("Unexpected base type");
+         default: UNREACHABLE("Unexpected base type");
          }
          break;
-      default: unreachable("Unexpected min bit size");
+      default: UNREACHABLE("Unexpected min bit size");
       }
       var->type = glsl_type_wrap_in_arrays(glsl_scalar_type(base_type), var->type);
       return true;
@@ -1084,7 +1084,7 @@ dxil_nir_lower_double_math_instr(nir_builder *b,
       nir_src_rewrite(&intr->src[0], nir_pack_double_2x32_dxil(b, nir_unpack_64_2x32(b, intr->src[0].ssa)));
       b->cursor = nir_after_instr(instr);
       nir_def *result = nir_pack_64_2x32(b, nir_unpack_double_2x32_dxil(b, &intr->def));
-      nir_def_rewrite_uses_after(&intr->def, result, result->parent_instr);
+      nir_def_rewrite_uses_after(&intr->def, result);
       return true;
    }
 
@@ -1132,7 +1132,7 @@ dxil_nir_lower_double_math_instr(nir_builder *b,
          components[c] = nir_pack_64_2x32(b, unpacked_double);
       }
       nir_def *repacked_dvec = nir_vec(b, components, alu->def.num_components);
-      nir_def_rewrite_uses_after(&alu->def, repacked_dvec, repacked_dvec->parent_instr);
+      nir_def_rewrite_uses_after(&alu->def, repacked_dvec);
       progress = true;
    }
 
@@ -2016,7 +2016,7 @@ get_cast_type(unsigned bit_size)
    case 8:
       return glsl_int8_t_type();
    }
-   unreachable("Invalid bit_size");
+   UNREACHABLE("Invalid bit_size");
 }
 
 static nir_def *
@@ -2145,7 +2145,7 @@ lower_inclusive_to_exclusive(nir_builder *b, nir_intrinsic_instr *intr)
 
    nir_def *final_val = nir_build_alu2(b, nir_intrinsic_reduction_op(intr),
                                            &intr->def, intr->src[0].ssa);
-   nir_def_rewrite_uses_after(&intr->def, final_val, final_val->parent_instr);
+   nir_def_rewrite_uses_after(&intr->def, final_val);
 }
 
 static bool
@@ -2420,7 +2420,7 @@ propagate_input_to_output_dependencies(struct dxil_module *mod, nir_intrinsic_in
             }
             break;
          default:
-            unreachable("Don't expect any other jumps");
+            UNREACHABLE("Don't expect any other jumps");
          }
          break;
       }
@@ -2511,7 +2511,7 @@ get_format_for_var(unsigned num_comps, enum glsl_base_type sampled_type)
       case 2: return PIPE_FORMAT_R32G32_SINT;
       case 3: return PIPE_FORMAT_R32G32B32_SINT;
       case 4: return PIPE_FORMAT_R32G32B32A32_SINT;
-      default: unreachable("Invalid num_comps");
+      default: UNREACHABLE("Invalid num_comps");
       }
    case GLSL_TYPE_UINT:
    case GLSL_TYPE_UINT64:
@@ -2521,7 +2521,7 @@ get_format_for_var(unsigned num_comps, enum glsl_base_type sampled_type)
       case 2: return PIPE_FORMAT_R32G32_UINT;
       case 3: return PIPE_FORMAT_R32G32B32_UINT;
       case 4: return PIPE_FORMAT_R32G32B32A32_UINT;
-      default: unreachable("Invalid num_comps");
+      default: UNREACHABLE("Invalid num_comps");
       }
    case GLSL_TYPE_FLOAT:
    case GLSL_TYPE_FLOAT16:
@@ -2531,9 +2531,9 @@ get_format_for_var(unsigned num_comps, enum glsl_base_type sampled_type)
       case 2: return PIPE_FORMAT_R32G32_FLOAT;
       case 3: return PIPE_FORMAT_R32G32B32_FLOAT;
       case 4: return PIPE_FORMAT_R32G32B32A32_FLOAT;
-      default: unreachable("Invalid num_comps");
+      default: UNREACHABLE("Invalid num_comps");
       }
-   default: unreachable("Invalid sampler return type");
+   default: UNREACHABLE("Invalid sampler return type");
    }
 }
 
@@ -2681,7 +2681,7 @@ set_deref_variables_coherent(nir_shader *s, nir_deref_instr *deref)
 
    /* For derefs with casts, we only support pre-lowered Vulkan accesses */
    assert(deref->deref_type == nir_deref_type_cast);
-   nir_intrinsic_instr *cast_src = nir_instr_as_intrinsic(deref->parent.ssa->parent_instr);
+   nir_intrinsic_instr *cast_src = nir_def_as_intrinsic(deref->parent.ssa);
    assert(cast_src->intrinsic == nir_intrinsic_load_vulkan_descriptor);
    nir_binding binding = nir_chase_binding(cast_src->src[0]);
    set_binding_variables_coherent(s, binding, nir_var_mem_ssbo);
@@ -2772,7 +2772,7 @@ lower_coherent_load_store(nir_builder *b, nir_intrinsic_instr *intr, void *conte
       return false;
    }
 
-   nir_intrinsic_instr *atomic = nir_instr_as_intrinsic(atomic_def->parent_instr);
+   nir_intrinsic_instr *atomic = nir_def_as_intrinsic(atomic_def);
    nir_intrinsic_set_access(atomic, nir_intrinsic_access(intr));
    if (nir_intrinsic_has_image_dim(intr))
       nir_intrinsic_set_image_dim(atomic, nir_intrinsic_image_dim(intr));

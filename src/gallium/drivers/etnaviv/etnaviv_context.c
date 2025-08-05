@@ -499,8 +499,6 @@ etna_reset_gpu_state(struct etna_context *ctx)
       etna_set_state(stream, VIVS_PS_HALTI3_UNK0103C, 0x76543210);
    }
    if (screen->info->halti >= 4) { /* Only on HALTI4+ */
-      etna_set_state(stream, VIVS_PS_MSAA_CONFIG, 0x6fffffff & 0xf70fffff & 0xfff6ffff &
-                                                  0xffff6fff & 0xfffff6ff & 0xffffff7f);
       etna_set_state(stream, VIVS_PE_HALTI4_UNK014C0, 0x00000000);
    }
    if (screen->info->halti >= 5) { /* Only on HALTI5+ */
@@ -510,6 +508,20 @@ etna_reset_gpu_state(struct etna_context *ctx)
       etna_set_state(stream, VIVS_PS_SAMPLER_BASE, 0x00000000);
       etna_set_state(stream, VIVS_VS_SAMPLER_BASE, 0x00000020);
       etna_set_state(stream, VIVS_SH_CONFIG, VIVS_SH_CONFIG_RTNE_ROUNDING);
+   }
+
+   if (VIV_FEATURE(screen, ETNA_FEATURE_MSAA_FRAGMENT_OPERATION)) {
+      etna_set_state(stream, VIVS_PS_MSAA_CONFIG, 0x6fffffff & 0xf70fffff & 0xfff6ffff &
+                                                  0xfffff6ff & 0xffffff7f);
+
+      etna_set_state(stream, VIVS_PS_ALPHA_TO_COVERAGE_DITHER(0), 0x6e80e680);
+      etna_set_state(stream, VIVS_PS_ALPHA_TO_COVERAGE_DITHER(1), 0x2ac42a4c);
+      etna_set_state(stream, VIVS_PS_ALPHA_TO_COVERAGE_DITHER(2), 0x15fb5d3b);
+      etna_set_state(stream, VIVS_PS_ALPHA_TO_COVERAGE_DITHER(3), 0x9d7391f7);
+      etna_set_state(stream, VIVS_PS_ALPHA_TO_COVERAGE_DITHER(4), 0x08e691f7);
+      etna_set_state(stream, VIVS_PS_ALPHA_TO_COVERAGE_DITHER(5), 0x4ca25d3b);
+      etna_set_state(stream, VIVS_PS_ALPHA_TO_COVERAGE_DITHER(6), 0xbf512a4c);
+      etna_set_state(stream, VIVS_PS_ALPHA_TO_COVERAGE_DITHER(7), 0x37d9e680);
    }
 
    if (VIV_FEATURE(screen, ETNA_FEATURE_BUG_FIXES18))

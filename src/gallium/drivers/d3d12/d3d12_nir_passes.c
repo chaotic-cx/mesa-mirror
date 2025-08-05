@@ -124,7 +124,7 @@ lower_pos_read(nir_builder *b, struct nir_intrinsic_instr *intr, void *_var)
 
    pos = nir_vector_insert_imm(b, pos, depth, 2);
 
-   nir_def_rewrite_uses_after(&intr->def, pos, pos->parent_instr);
+   nir_def_rewrite_uses_after(&intr->def, pos);
    return true;
 }
 
@@ -765,7 +765,7 @@ lower_multisampling_instr(nir_builder *b, nir_instr *instr, void *_data)
    case nir_intrinsic_load_sample_mask_in:
       return nir_b2i32(b, nir_ine_imm(b, &intr->def, 0));
    default:
-      unreachable("Invalid intrinsic");
+      UNREACHABLE("Invalid intrinsic");
    }
 }
 

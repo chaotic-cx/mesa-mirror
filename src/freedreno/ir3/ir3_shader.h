@@ -385,7 +385,6 @@ struct ir3_shader_key {
          /*
           * Fragment shader variant parameters:
           */
-         unsigned sample_shading : 1;
          unsigned msaa           : 1;
          /* used when shader needs to handle flat varyings (a4xx)
           * for front/back color inputs to frag shader:
@@ -446,7 +445,7 @@ ir3_tess_mode(enum tess_primitive_mode tess_mode)
    case TESS_PRIMITIVE_QUADS:
       return IR3_TESS_QUADS;
    default:
-      unreachable("bad tessmode");
+      UNREACHABLE("bad tessmode");
    }
 }
 
@@ -462,7 +461,7 @@ ir3_tess_factor_stride(unsigned patch_type)
    case IR3_TESS_QUADS:
       return 28;
    default:
-      unreachable("bad tessmode");
+      UNREACHABLE("bad tessmode");
    }
 }
 
@@ -849,7 +848,12 @@ struct ir3_shader_variant {
     */
    bool has_kill;
 
-   bool per_samp;
+   /* Whether the shader should run at sample rate (set by
+    * info->fs.uses_sample_shading, which is set when using a variable that
+    * implicitly enables it, or glMinSampleShading() or
+    * VkPipelineMultisampleStateCreateInfo->sampleShadingEnable forcing it.
+    */
+   bool sample_shading;
 
    bool post_depth_coverage;
 
@@ -965,7 +969,7 @@ ir3_shader_stage(struct ir3_shader_variant *v)
    case MESA_SHADER_KERNEL:
       return "CL";
    default:
-      unreachable("invalid type");
+      UNREACHABLE("invalid type");
       return NULL;
    }
 }

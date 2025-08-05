@@ -561,7 +561,7 @@ ir_expression::ir_expression(int op, ir_rvalue *op0, ir_rvalue *op1)
          base = GLSL_TYPE_UINT64;
          break;
       default:
-         unreachable("Invalid base type.");
+         UNREACHABLE("Invalid base type.");
       }
 
       this->type = glsl_simple_type(base, op0->type->vector_elements, 1);
@@ -634,7 +634,7 @@ ir_expression::get_num_operands(ir_expression_operation op)
    if (op <= ir_last_quadop)
       return 4;
 
-   unreachable("Could not calculate number of operands");
+   UNREACHABLE("Could not calculate number of operands");
 }
 
 #include "ir_expression_operation_strings.h"
@@ -863,7 +863,7 @@ ir_constant::ir_constant(const ir_constant *c, unsigned i)
    }
 }
 
-ir_constant::ir_constant(const struct glsl_type *type, exec_list *value_list)
+ir_constant::ir_constant(const struct glsl_type *type, ir_exec_list *value_list)
    : ir_rvalue(ir_type_constant)
 {
    this->const_elements = NULL;
@@ -880,7 +880,7 @@ ir_constant::ir_constant(const struct glsl_type *type, exec_list *value_list)
    if (glsl_type_is_array(type) || glsl_type_is_struct(type)) {
       this->const_elements = ralloc_array(this, ir_constant *, type->length);
       unsigned i = 0;
-      foreach_in_list(ir_constant, value, value_list) {
+      ir_foreach_in_list(ir_constant, value, value_list) {
 	 assert(value->as_constant() != NULL);
 
 	 this->const_elements[i++] = value;
@@ -2108,10 +2108,10 @@ modes_match(unsigned a, unsigned b)
 
 
 const char *
-ir_function_signature::qualifiers_match(exec_list *params)
+ir_function_signature::qualifiers_match(ir_exec_list *params)
 {
    /* check that the qualifiers match. */
-   foreach_two_lists(a_node, &this->parameters, b_node, params) {
+   ir_foreach_two_lists(a_node, &this->parameters, b_node, params) {
       ir_variable *a = (ir_variable *) a_node;
       ir_variable *b = (ir_variable *) b_node;
 
@@ -2136,7 +2136,7 @@ ir_function_signature::qualifiers_match(exec_list *params)
 
 
 void
-ir_function_signature::replace_parameters(exec_list *new_params)
+ir_function_signature::replace_parameters(ir_exec_list *new_params)
 {
    /* Destroy all of the previous parameter information.  If the previous
     * parameter information comes from the function prototype, it may either
@@ -2157,7 +2157,7 @@ ir_function::ir_function(const char *name)
 bool
 ir_function::has_user_signature()
 {
-   foreach_in_list(ir_function_signature, sig, &this->signatures) {
+   ir_foreach_in_list(ir_function_signature, sig, &this->signatures) {
       if (!sig->is_builtin())
 	 return true;
    }
@@ -2176,56 +2176,18 @@ ir_rvalue::error_value(void *mem_ctx)
 
 
 void
-visit_exec_list(exec_list *list, ir_visitor *visitor)
+visit_exec_list(ir_exec_list *list, ir_visitor *visitor)
 {
-   foreach_in_list(ir_instruction, node, list) {
+   ir_foreach_in_list(ir_instruction, node, list) {
       node->accept(visitor);
    }
 }
 
 void
-visit_exec_list_safe(exec_list *list, ir_visitor *visitor)
+visit_exec_list_safe(ir_exec_list *list, ir_visitor *visitor)
 {
-   foreach_in_list_safe(ir_instruction, node, list) {
+   ir_foreach_in_list_safe(ir_instruction, node, list) {
       node->accept(visitor);
-   }
-}
-
-
-static void
-steal_memory(ir_instruction *ir, void *new_ctx)
-{
-   ir_variable *var = ir->as_variable();
-   ir_function *fn = ir->as_function();
-   ir_constant *constant = ir->as_constant();
-   if (var != NULL && var->constant_value != NULL)
-      steal_memory(var->constant_value, ir);
-
-   if (var != NULL && var->constant_initializer != NULL)
-      steal_memory(var->constant_initializer, ir);
-
-   if (fn != NULL && fn->subroutine_types)
-      ralloc_steal(new_ctx, fn->subroutine_types);
-
-   /* The components of aggregate constants are not visited by the normal
-    * visitor, so steal their values by hand.
-    */
-   if (constant != NULL &&
-       (glsl_type_is_array(constant->type) || glsl_type_is_struct(constant->type))) {
-      for (unsigned int i = 0; i < constant->type->length; i++) {
-         steal_memory(constant->const_elements[i], ir);
-      }
-   }
-
-   ralloc_steal(new_ctx, ir);
-}
-
-
-void
-reparent_ir(exec_list *list, void *mem_ctx)
-{
-   foreach_in_list(ir_instruction, node, list) {
-      visit_tree(node, steal_memory, mem_ctx);
    }
 }
 

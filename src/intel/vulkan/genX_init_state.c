@@ -106,7 +106,7 @@ genX(emit_slice_hashing_state)(struct anv_device *device,
       else if (ppipes_of[2] == 1 && ppipes_of[1] == 1 && ppipes_of[0] == 1)
          intel_compute_pixel_hash_table_3way(8, 16, 3, 3, 0, p.ThreeWayTableEntry[0]);
       else
-         unreachable("Illegal fusing.");
+         UNREACHABLE("Illegal fusing.");
    }
 
    anv_batch_emit(batch, GENX(3DSTATE_3D_MODE), p) {
@@ -200,7 +200,14 @@ init_common_queue_state(struct anv_queue *queue, struct anv_batch *batch)
     */
    const struct intel_l3_config *cfg = intel_get_default_l3_config(device->info);
    genX(emit_l3_config)(batch, device, cfg);
-   device->l3_config = cfg;
+   device->l3_config = device->l3_slm_config = cfg;
+#else
+   device->l3_config = intel_get_l3_config(
+      device->info,
+      intel_get_default_l3_weights(device->info, true, false /* slm */));
+   device->l3_slm_config = intel_get_l3_config(
+      device->info,
+      intel_get_default_l3_weights(device->info, true, true /* slm */));
 #endif
 
 #if GFX_VERx10 == 125
@@ -1073,7 +1080,7 @@ genX(emit_l3_config)(struct anv_batch *batch,
 #if GFX_VER >= 12
          l3cr.L3FullWayAllocationEnable = true;
 #else
-         unreachable("Invalid L3$ config");
+         UNREACHABLE("Invalid L3$ config");
 #endif
       } else {
 #if GFX_VER < 11
@@ -1165,7 +1172,7 @@ genX(emit_sample_pattern)(struct anv_batch *batch,
             }
             break;
          default:
-            unreachable("Invalid sample count");
+            UNREACHABLE("Invalid sample count");
          }
       }
    }
@@ -1176,7 +1183,7 @@ vk_to_intel_tex_filter(VkFilter filter, bool anisotropyEnable)
 {
    switch (filter) {
    default:
-      unreachable("Invalid filter");
+      UNREACHABLE("Invalid filter");
    case VK_FILTER_NEAREST:
       return anisotropyEnable ?
 #if GFX_VER >= 30

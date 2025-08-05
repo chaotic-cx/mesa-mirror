@@ -368,7 +368,7 @@ get_fb0_attachment(struct gl_context *ctx, struct gl_framebuffer *fb,
       case GL_STENCIL:
          return &fb->Attachment[BUFFER_STENCIL];
       default:
-         unreachable("invalid attachment");
+         UNREACHABLE("invalid attachment");
       }
    }
 
@@ -1063,6 +1063,17 @@ test_attachment_completeness(const struct gl_context *ctx, GLenum format,
             att->Complete = GL_FALSE;
             return;
          }
+         if (_mesa_is_gles(ctx)) {
+            switch (texImage->InternalFormat) {
+            case GL_SRGB_EXT:
+            case GL_SRGB_ALPHA_EXT:
+               att_incomplete("bad internal format");
+               att->Complete = GL_FALSE;
+               return;
+            default:
+               break;
+            }
+         }
       }
       else if (format == GL_DEPTH) {
          if (baseFormat != GL_DEPTH_COMPONENT &&
@@ -1195,7 +1206,15 @@ do_validate_attachment(struct gl_context *ctx,
                                        stObj->pt->nr_storage_samples,
                                        bindings);
    if (!valid) {
-      fbo_invalid("Invalid format");
+      /* this is the actual texture, so check the bind flags for more info */
+      if (stObj->pt->bind & (PIPE_BIND_RENDER_TARGET | PIPE_BIND_DEPTH_STENCIL)) {
+         if (_mesa_is_format_srgb(texFormat))
+            fbo_invalid("Invalid format: linear format supported for rendering but not sRGB");
+         else
+            fbo_invalid("Invalid format");
+      } else {
+         fbo_invalid("Format unsupported for rendering: RENDER_TARGET bind not applied");
+      }
    }
 
    return valid;
@@ -2432,8 +2451,9 @@ _mesa_base_fbo_format(const struct gl_context *ctx, GLenum internalFormat)
       return _mesa_is_desktop_gl(ctx) || _mesa_has_EXT_texture_norm16(ctx)
          ? GL_RGBA : 0;
    case GL_RGB10_A2:
-   case GL_SRGB8_ALPHA8_EXT:
       return _mesa_is_desktop_gl(ctx) || _mesa_is_gles3(ctx) ? GL_RGBA : 0;
+   case GL_SRGB8_ALPHA8_EXT:
+      return ctx->Extensions.EXT_sRGB ? GL_RGBA : 0;
    case GL_STENCIL_INDEX:
    case GL_STENCIL_INDEX1_EXT:
    case GL_STENCIL_INDEX4_EXT:

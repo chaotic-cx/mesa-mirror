@@ -70,7 +70,7 @@ before_conversion(nir_builder *bld, nir_alu_type type, unsigned bit_size, nir_de
    if (def->parent_instr->type != nir_instr_type_alu) {
       return NULL;
    }
-   nir_alu_instr *alu_instr = nir_instr_as_alu(def->parent_instr);
+   nir_alu_instr *alu_instr = nir_def_as_alu(def);
    if (alu_instr->op != nir_type_conversion_op((nir_alu_type)(type | bit_size),
                                                (nir_alu_type)(type | def->bit_size),
                                                nir_rounding_mode_undef) ||
@@ -280,7 +280,7 @@ lower_intrinsic_instr(nir_builder *b, nir_intrinsic_instr *intrin,
    }
 
    default:
-      unreachable("Unsupported instruction");
+      UNREACHABLE("Unsupported instruction");
    }
 }
 
@@ -303,8 +303,7 @@ lower_phi_instr(nir_builder *b, nir_phi_instr *phi, unsigned bit_size,
    b->cursor = nir_after_instr(&last_phi->instr);
 
    nir_def *new_dest = nir_u2uN(b, &phi->def, old_bit_size);
-   nir_def_rewrite_uses_after(&phi->def, new_dest,
-                              new_dest->parent_instr);
+   nir_def_rewrite_uses_after(&phi->def, new_dest);
 }
 
 static bool
@@ -340,7 +339,7 @@ lower_impl(nir_function_impl *impl,
             break;
 
          default:
-            unreachable("Unsupported instruction type");
+            UNREACHABLE("Unsupported instruction type");
          }
          progress = true;
       }

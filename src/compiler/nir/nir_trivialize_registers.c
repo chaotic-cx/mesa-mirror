@@ -101,7 +101,7 @@ trivialize_load(nir_intrinsic_instr *load)
    nir_builder b = nir_builder_at(nir_after_instr(&load->instr));
    nir_def *copy = nir_mov(&b, &load->def);
    copy->divergent = load->def.divergent;
-   nir_def_rewrite_uses_after(&load->def, copy, copy->parent_instr);
+   nir_def_rewrite_uses_after(&load->def, copy);
 
    assert(list_is_singular(&load->def.uses));
 }
@@ -345,7 +345,7 @@ clear_def(nir_def *def, void *state)
          continue;
 
       /* Anything global has already been trivialized and can be ignored */
-      if (parent->block != def->parent_instr->block)
+      if (parent->block != nir_def_block(def))
          continue;
 
       if (def == store->src[0].ssa) {

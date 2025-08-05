@@ -49,7 +49,7 @@ find_continue_block(nir_loop *loop)
          return (nir_block *)pred_entry->key;
    }
 
-   unreachable("Continue block not found!");
+   UNREACHABLE("Continue block not found!");
 }
 
 /**
@@ -162,8 +162,8 @@ opt_peel_loop_initial_if(nir_loop *loop)
    if (cond->parent_instr->type != nir_instr_type_phi)
       return false;
 
-   nir_phi_instr *cond_phi = nir_instr_as_phi(cond->parent_instr);
-   if (cond->parent_instr->block != header_block)
+   nir_phi_instr *cond_phi = nir_def_as_phi(cond);
+   if (nir_def_block(cond) != header_block)
       return false;
 
    bool entry_val = false, continue_val = false;
@@ -285,7 +285,7 @@ is_trivial_bcsel(const nir_instr *instr, bool allow_non_phi_src)
 
    for (unsigned i = 0; i < 3; i++) {
       if (!nir_alu_src_is_trivial_ssa(bcsel, i) ||
-          bcsel->src[i].src.ssa->parent_instr->block != instr->block)
+          nir_def_block(bcsel->src[i].src.ssa) != instr->block)
          return false;
 
       if (bcsel->src[i].src.ssa->parent_instr->type != nir_instr_type_phi) {
@@ -296,7 +296,7 @@ is_trivial_bcsel(const nir_instr *instr, bool allow_non_phi_src)
       }
    }
 
-   nir_foreach_phi_src(src, nir_instr_as_phi(bcsel->src[0].src.ssa->parent_instr)) {
+   nir_foreach_phi_src(src, nir_def_as_phi(bcsel->src[0].src.ssa)) {
       if (!nir_src_is_const(src->src))
          return false;
    }
@@ -636,7 +636,7 @@ opt_simplify_bcsel_of_phi(nir_builder *b, nir_loop *loop)
 
       nir_alu_instr *const bcsel = nir_instr_as_alu(instr);
       nir_phi_instr *const cond_phi =
-         nir_instr_as_phi(bcsel->src[0].src.ssa->parent_instr);
+         nir_def_as_phi(bcsel->src[0].src.ssa);
 
       bool entry_val = false, continue_val = false;
       if (!phi_has_constant_from_outside_and_one_from_inside_loop(cond_phi,
@@ -662,12 +662,12 @@ opt_simplify_bcsel_of_phi(nir_builder *b, nir_loop *loop)
       nir_block *continue_block = find_continue_block(loop);
       nir_phi_instr *const phi = nir_phi_instr_create(b->shader);
       nir_phi_instr_add_src(phi, prev_block,
-                            nir_phi_get_src_from_block(nir_instr_as_phi(bcsel->src[entry_src].src.ssa->parent_instr),
+                            nir_phi_get_src_from_block(nir_def_as_phi(bcsel->src[entry_src].src.ssa),
                                                        prev_block)
                                ->src.ssa);
 
       nir_phi_instr_add_src(phi, continue_block,
-                            nir_phi_get_src_from_block(nir_instr_as_phi(bcsel->src[continue_src].src.ssa->parent_instr),
+                            nir_phi_get_src_from_block(nir_def_as_phi(bcsel->src[continue_src].src.ssa),
                                                        continue_block)
                                ->src.ssa);
 
@@ -1089,7 +1089,7 @@ opt_if_rewrite_uniform_uses(nir_builder *b, nir_if *nif, nir_scalar cond, unsign
 
       if (!nir_scalar_is_intrinsic(src_uni))
          continue;
-      nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(src_uni.def->parent_instr);
+      nir_intrinsic_instr *intrin = nir_def_as_intrinsic(src_uni.def);
       if (intrin->intrinsic != nir_intrinsic_read_first_invocation &&
           intrin->intrinsic != nir_intrinsic_read_invocation &&
           (intrin->intrinsic != nir_intrinsic_reduce || nir_intrinsic_cluster_size(intrin)))
@@ -1354,7 +1354,7 @@ opt_if_cf_list(nir_builder *b, struct exec_list *cf_list,
       }
 
       case nir_cf_node_function:
-         unreachable("Invalid cf type");
+         UNREACHABLE("Invalid cf type");
       }
    }
 
@@ -1390,7 +1390,7 @@ opt_if_regs_cf_list(struct exec_list *cf_list)
       }
 
       case nir_cf_node_function:
-         unreachable("Invalid cf type");
+         UNREACHABLE("Invalid cf type");
       }
    }
 
@@ -1430,7 +1430,7 @@ opt_if_safe_cf_list(nir_builder *b, struct exec_list *cf_list, nir_opt_if_option
       }
 
       case nir_cf_node_function:
-         unreachable("Invalid cf type");
+         UNREACHABLE("Invalid cf type");
       }
    }
 

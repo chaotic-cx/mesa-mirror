@@ -1549,7 +1549,7 @@ emit_intrinsic_atomic_shared(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       atomic = ir3_ATOMIC_CMPXCHG(b, src0, 0, src1, 0);
       break;
    default:
-      unreachable("boo");
+      UNREACHABLE("boo");
    }
 
    atomic->cat6.iim_val = 1;
@@ -2324,7 +2324,7 @@ get_reduce_op(nir_op opc)
    case nir_op_ior:  return REDUCE_OP_OR_B;
    case nir_op_ixor: return REDUCE_OP_XOR_B;
    default:
-      unreachable("unknown NIR reduce op");
+      UNREACHABLE("unknown NIR reduce op");
    }
 }
 
@@ -2359,7 +2359,7 @@ get_reduce_identity(nir_op opc, unsigned size)
    case nir_op_ixor:
       return 0;
    default:
-      unreachable("unknown NIR reduce op");
+      UNREACHABLE("unknown NIR reduce op");
    }
 }
 
@@ -2417,7 +2417,7 @@ emit_intrinsic_reduce(struct ir3_context *ctx, nir_intrinsic_instr *intr)
    case nir_intrinsic_inclusive_scan: dst = inclusive; break;
    case nir_intrinsic_exclusive_scan: dst = exclusive; break;
    default:
-      unreachable("unknown reduce intrinsic");
+      UNREACHABLE("unknown reduce intrinsic");
    }
 
    return create_multidst_mov(&ctx->build, dst);
@@ -2514,7 +2514,7 @@ emit_intrinsic_reduce_clusters(struct ir3_context *ctx,
       break;
    }
    default:
-      unreachable("unknown reduce intrinsic");
+      UNREACHABLE("unknown reduce intrinsic");
    }
 
    return create_multidst_mov(&ctx->build, dst);
@@ -2542,7 +2542,7 @@ shfl_mode(nir_intrinsic_instr *intr)
    case nir_intrinsic_shuffle_xor_uniform_ir3:
       return SHFL_XOR;
    default:
-      unreachable("unsupported shfl");
+      UNREACHABLE("unsupported shfl");
    }
 }
 
@@ -2968,7 +2968,6 @@ emit_intrinsic(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       dst[0] = ctx->instance_id;
       break;
    case nir_intrinsic_load_sample_id:
-   case nir_intrinsic_load_sample_id_no_per_sample:
       if (!ctx->samp_id) {
          ctx->samp_id = create_sysval_input(ctx, SYSTEM_VALUE_SAMPLE_ID, 0x1);
          ctx->samp_id->dsts[0]->flags |= IR3_REG_HALF;
@@ -3497,7 +3496,7 @@ get_tex_dest_type(nir_tex_instr *tex)
       return TYPE_U16;
    case nir_type_invalid:
    default:
-      unreachable("bad dest_type");
+      UNREACHABLE("bad dest_type");
    }
 
    return type;
@@ -4159,7 +4158,7 @@ read_phi_src(struct ir3_context *ctx, struct ir3_block *blk,
       }
    }
 
-   unreachable("couldn't find phi node ir3 block");
+   UNREACHABLE("couldn't find phi node ir3 block");
    return NULL;
 }
 
@@ -4352,7 +4351,7 @@ get_branch_condition(struct ir3_context *ctx, nir_src *src, unsigned comp,
    struct ir3_instruction *condition = ir3_get_src(ctx, src)[comp];
 
    if (src->ssa->parent_instr->type == nir_instr_type_alu) {
-      nir_alu_instr *nir_cond = nir_instr_as_alu(src->ssa->parent_instr);
+      nir_alu_instr *nir_cond = nir_def_as_alu(src->ssa);
 
       if (nir_cond->op == nir_op_inot) {
          struct ir3_instruction *inv_cond = get_branch_condition(
@@ -4377,7 +4376,7 @@ fold_conditional_branch(struct ir3_context *ctx, struct nir_src *nir_cond)
    if (nir_cond->ssa->parent_instr->type != nir_instr_type_alu)
       return NULL;
 
-   nir_alu_instr *alu_cond = nir_instr_as_alu(nir_cond->ssa->parent_instr);
+   nir_alu_instr *alu_cond = nir_def_as_alu(nir_cond->ssa);
 
    if ((alu_cond->op != nir_op_iand) && (alu_cond->op != nir_op_ior))
       return NULL;
@@ -4452,7 +4451,7 @@ instr_can_be_predicated(nir_instr *instr)
    }
    }
 
-   unreachable("Checked all cases");
+   UNREACHABLE("Checked all cases");
 }
 
 static bool
@@ -5220,7 +5219,7 @@ uses_store_output(struct ir3_shader_variant *so)
    case MESA_SHADER_KERNEL:
       return false;
    default:
-      unreachable("unknown stage");
+      UNREACHABLE("unknown stage");
    }
 }
 
@@ -6001,7 +6000,7 @@ ir3_compile_shader_nir(struct ir3_compiler *compiler,
       so->fs.depth_layout = ctx->s->info.fs.depth_layout;
    }
 
-   ctx->so->per_samp = ctx->s->info.fs.uses_sample_shading;
+   ctx->so->sample_shading = ctx->s->info.fs.uses_sample_shading;
 
    if (ctx->has_relative_load_const_ir3) {
       /* NOTE: if relative addressing is used, we set

@@ -57,7 +57,7 @@ static bool debug = false;
 
 struct schedule_node_child;
 
-class schedule_node : public exec_node
+class schedule_node : public brw_exec_node
 {
 public:
    void set_latency(const struct brw_isa_info *isa);
@@ -382,7 +382,7 @@ schedule_node::set_latency(const struct brw_isa_info *isa)
             break;
 
          default:
-            unreachable("Unknown render cache message");
+            UNREACHABLE("Unknown render cache message");
          }
          break;
 
@@ -454,7 +454,7 @@ schedule_node::set_latency(const struct brw_isa_info *isa)
             break;
 
          default:
-            unreachable("Unknown data cache message");
+            UNREACHABLE("Unknown data cache message");
          }
          break;
 
@@ -488,7 +488,7 @@ schedule_node::set_latency(const struct brw_isa_info *isa)
             break;
 
          default:
-            unreachable("Unknown data cache message");
+            UNREACHABLE("Unknown data cache message");
          }
          break;
 
@@ -531,7 +531,7 @@ schedule_node::set_latency(const struct brw_isa_info *isa)
             latency = 1400;
             break;
          default:
-            unreachable("unsupported new data port message instruction");
+            UNREACHABLE("unsupported new data port message instruction");
          }
          break;
 
@@ -551,7 +551,7 @@ schedule_node::set_latency(const struct brw_isa_info *isa)
          break;
 
       default:
-         unreachable("Unknown SFID");
+         UNREACHABLE("Unknown SFID");
       }
       break;
 
@@ -640,7 +640,7 @@ public:
 
       unsigned cand_generation;
       int time;
-      exec_list available;
+      brw_exec_list available;
 
       /* Currently used address register */
       uint32_t address_register[16];
@@ -1574,7 +1574,7 @@ brw_instruction_scheduler::choose_instruction_to_schedule()
        * choose the one most likely to unblock an early program exit, or
        * otherwise the oldest one.
        */
-      foreach_in_list(schedule_node, n, &current.available) {
+      brw_foreach_in_list(schedule_node, n, &current.available) {
          if (!post_reg_alloc && address_register_interfere(n))
             continue;
 
@@ -1595,7 +1595,7 @@ brw_instruction_scheduler::choose_instruction_to_schedule()
        * shaders which naturally do a better job of hiding instruction
        * latency.
        */
-      foreach_in_list(schedule_node, n, &current.available) {
+      brw_foreach_in_list(schedule_node, n, &current.available) {
          if (!post_reg_alloc && address_register_interfere(n))
             continue;
 

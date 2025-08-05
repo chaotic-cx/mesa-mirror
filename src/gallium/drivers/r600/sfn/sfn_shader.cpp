@@ -660,7 +660,7 @@ Shader::process_cf_node(nir_cf_node *node)
 static bool
 child_block_empty(const exec_list& list)
 {
-   if (list.is_empty())
+   if (exec_list_is_empty(&list))
       return true;
 
    bool result = true;
@@ -669,7 +669,7 @@ child_block_empty(const exec_list& list)
    {
 
       if (n->type == nir_cf_node_block) {
-         if (!nir_cf_node_as_block(n)->instr_list.is_empty())
+         if (!exec_list_is_empty(&nir_cf_node_as_block(n)->instr_list))
             return false;
       }
       if (n->type == nir_cf_node_if)
@@ -979,7 +979,7 @@ lds_op_from_intrinsic(nir_atomic_op op, bool ret)
    case nir_atomic_op_cmpxchg:
       return LDS_CMP_XCHG_RET;
    default:
-      unreachable("Unsupported shared atomic_op opcode");
+      UNREACHABLE("Unsupported shared atomic_op opcode");
    }
 }
 

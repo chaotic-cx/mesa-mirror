@@ -71,13 +71,13 @@ try_opt_bcsel_of_shuffle(nir_builder *b, nir_alu_instr *alu,
 
    nir_def *data1, *index1;
    if (!nir_alu_src_is_trivial_ssa(alu, 1) ||
-       alu->src[1].src.ssa->parent_instr->block != alu->instr.block ||
+       nir_def_block(alu->src[1].src.ssa) != alu->instr.block ||
        !src_is_single_use_shuffle(alu->src[1].src, &data1, &index1))
       return NULL;
 
    nir_def *data2, *index2;
    if (!nir_alu_src_is_trivial_ssa(alu, 2) ||
-       alu->src[2].src.ssa->parent_instr->block != alu->instr.block ||
+       nir_def_block(alu->src[2].src.ssa) != alu->instr.block ||
        !src_is_single_use_shuffle(alu->src[2].src, &data2, &index2))
       return NULL;
 
@@ -214,7 +214,7 @@ try_opt_quad_vote(nir_builder *b, nir_alu_instr *alu, bool block_has_discard)
             lane = (nir_intrinsic_swizzle_mask(quad_broadcasts[i]) >> (j * 2)) & 0x3;
             break;
          default:
-            unreachable();
+            UNREACHABLE("");
          }
          lanes_read |= (1 << lane) << (j * 4);
       }

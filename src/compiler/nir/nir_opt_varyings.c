@@ -969,7 +969,7 @@ color_uses_shade_model(struct linkage_info *linkage, unsigned i)
       assert(iter->instr->intrinsic == nir_intrinsic_load_interpolated_input);
 
       nir_intrinsic_instr *baryc =
-         nir_instr_as_intrinsic(iter->instr->src[0].ssa->parent_instr);
+         nir_def_as_intrinsic(iter->instr->src[0].ssa);
       if (nir_intrinsic_interp_mode(baryc) == INTERP_MODE_NONE)
          return true;
    }
@@ -985,7 +985,7 @@ get_interp_vec4_type(struct linkage_info *linkage, unsigned slot,
    assert(load->intrinsic == nir_intrinsic_load_interpolated_input);
 
    nir_intrinsic_instr *baryc =
-      nir_instr_as_intrinsic(load->src[0].ssa->parent_instr);
+      nir_def_as_intrinsic(load->src[0].ssa);
    enum fs_vec4_type base;
 
    if (color_uses_shade_model(linkage, slot))
@@ -995,7 +995,7 @@ get_interp_vec4_type(struct linkage_info *linkage, unsigned slot,
    else if (load->def.bit_size == 16)
       base = FS_VEC4_TYPE_INTERP_FP16_PERSP_PIXEL;
    else
-      unreachable("invalid load_interpolated_input type");
+      UNREACHABLE("invalid load_interpolated_input type");
 
    bool linear = nir_intrinsic_interp_mode(baryc) == INTERP_MODE_NOPERSPECTIVE;
 
@@ -1012,7 +1012,7 @@ get_interp_vec4_type(struct linkage_info *linkage, unsigned slot,
    case nir_intrinsic_load_barycentric_sample:
       return base + 2;
    default:
-      unreachable("unexpected barycentric intrinsic");
+      UNREACHABLE("unexpected barycentric intrinsic");
    }
 }
 
@@ -1038,7 +1038,7 @@ build_convert_inf_to_nan(nir_builder *b, nir_def *x)
 {
    /* Do x*0 + x. The multiplication by 0 can't be optimized out. */
    nir_def *fma = nir_ffma_imm1(b, x, 0, x);
-   nir_instr_as_alu(fma->parent_instr)->exact = true;
+   nir_def_as_alu(fma)->exact = true;
    return fma;
 }
 
@@ -1053,7 +1053,7 @@ is_sysval(nir_instr *instr, gl_system_value sysval)
 
       if (intr->intrinsic == nir_intrinsic_load_deref) {
          nir_deref_instr *deref =
-            nir_instr_as_deref(intr->src[0].ssa->parent_instr);
+            nir_def_as_deref(intr->src[0].ssa);
 
          return nir_deref_mode_is_one_of(deref, nir_var_system_value) &&
                 nir_deref_instr_get_variable(deref)->data.location == sysval;
@@ -1323,13 +1323,13 @@ gather_inputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_d
             else if (intr->def.bit_size == 16)
                fs_vec4_type = FS_VEC4_TYPE_INTERP_FP16;
             else
-               unreachable("invalid load_interpolated_input type");
+               UNREACHABLE("invalid load_interpolated_input type");
          } else {
             fs_vec4_type = get_interp_vec4_type(linkage, slot, intr);
          }
          break;
       default:
-         unreachable("unexpected input load intrinsic");
+         UNREACHABLE("unexpected input load intrinsic");
       }
 
       linkage->fs_vec4_type[sem.location] = fs_vec4_type;
@@ -1421,7 +1421,7 @@ gather_inputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_d
          break;
 
       case FS_VEC4_TYPE_NONE:
-         unreachable("unexpected fs_vec4_type");
+         UNREACHABLE("unexpected fs_vec4_type");
       }
 
       if (!linkage->has_flexible_interp &&
@@ -1461,7 +1461,7 @@ gather_inputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_d
       else if (intr->def.bit_size == 16)
          BITSET_SET(linkage->flat16_mask, slot);
       else
-         unreachable("invalid load_input type");
+         UNREACHABLE("invalid load_input type");
 
       if (linkage->consumer_stage == MESA_SHADER_TESS_CTRL &&
           intr->intrinsic == nir_intrinsic_load_per_vertex_input) {
@@ -1474,7 +1474,7 @@ gather_inputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_d
             else if (intr->def.bit_size == 16)
                BITSET_SET(linkage->cross_invoc16_mask, slot);
             else
-               unreachable("invalid load_input type");
+               UNREACHABLE("invalid load_input type");
          }
       }
    }
@@ -1565,7 +1565,7 @@ gather_outputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_
             else if (intr->src[0].ssa->bit_size == 16)
                BITSET_SET(linkage->xfb16_only_mask, slot);
             else
-               unreachable("invalid load_input type");
+               UNREACHABLE("invalid load_input type");
          }
       }
    } else {
@@ -1625,7 +1625,7 @@ gather_outputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_
             else if (value.def->bit_size == 16)
                BITSET_SET(linkage->convergent16_mask, slot);
             else
-               unreachable("invalid store_output type");
+               UNREACHABLE("invalid store_output type");
          }
       } else {
          /* There are multiple stores to the same output. If they store
@@ -1641,7 +1641,7 @@ gather_outputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_
             else if (value.def->bit_size == 16)
                BITSET_CLEAR(linkage->convergent16_mask, slot);
             else
-               unreachable("invalid store_output type");
+               UNREACHABLE("invalid store_output type");
          }
       }
 
@@ -1656,7 +1656,7 @@ gather_outputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_
             else if (value.def->bit_size == 16)
                BITSET_SET(linkage->cross_invoc16_mask, slot);
             else
-               unreachable("invalid store_output type");
+               UNREACHABLE("invalid store_output type");
          }
       }
    } else {
@@ -1676,7 +1676,7 @@ gather_outputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_
       else if (intr->def.bit_size == 16)
          BITSET_SET(linkage->flat16_mask, slot);
       else
-         unreachable("invalid load_input type");
+         UNREACHABLE("invalid load_input type");
    }
    return false;
 }
@@ -1959,7 +1959,7 @@ remove_all_stores(struct linkage_info *linkage, unsigned i,
                else if (iter->instr->src[0].ssa->bit_size == 16)
                   BITSET_SET(linkage->xfb16_only_mask, i);
                else
-                  unreachable("invalid load_input type");
+                  UNREACHABLE("invalid load_input type");
             }
          }
       }
@@ -2187,7 +2187,7 @@ find_per_vertex_load_for_tes_interp(nir_instr *instr)
    }
 
    default:
-      unreachable("unexpected instruction type");
+      UNREACHABLE("unexpected instruction type");
    }
 }
 
@@ -2230,7 +2230,7 @@ clone_ssa_impl(struct linkage_info *linkage, nir_builder *b, nir_def *ssa)
    switch (ssa->parent_instr->type) {
    case nir_instr_type_load_const:
       clone = nir_build_imm(b, ssa->num_components, ssa->bit_size,
-                            nir_instr_as_load_const(ssa->parent_instr)->value);
+                            nir_def_as_load_const(ssa)->value);
       break;
 
    case nir_instr_type_undef:
@@ -2238,7 +2238,7 @@ clone_ssa_impl(struct linkage_info *linkage, nir_builder *b, nir_def *ssa)
       break;
 
    case nir_instr_type_alu: {
-      nir_alu_instr *alu = nir_instr_as_alu(ssa->parent_instr);
+      nir_alu_instr *alu = nir_def_as_alu(ssa);
 
       if (alu->instr.pass_flags & FLAG_ALU_IS_TES_INTERP_LOAD) {
          /* We are cloning an interpolated TES load in the producer for
@@ -2256,7 +2256,7 @@ clone_ssa_impl(struct linkage_info *linkage, nir_builder *b, nir_def *ssa)
          src[i] = clone_ssa_impl(linkage, b, alu->src[i].src.ssa);
 
       clone = nir_build_alu(b, alu->op, src[0], src[1], src[2], src[3]);
-      nir_alu_instr *alu_clone = nir_instr_as_alu(clone->parent_instr);
+      nir_alu_instr *alu_clone = nir_def_as_alu(clone);
 
       alu_clone->exact = alu->exact;
       alu_clone->no_signed_wrap = alu->no_signed_wrap;
@@ -2275,12 +2275,12 @@ clone_ssa_impl(struct linkage_info *linkage, nir_builder *b, nir_def *ssa)
       /* Clone load_deref of uniform or ubo. It's the only thing that can
        * occur here.
        */
-      nir_intrinsic_instr *intr = nir_instr_as_intrinsic(ssa->parent_instr);
+      nir_intrinsic_instr *intr = nir_def_as_intrinsic(ssa);
 
       switch (intr->intrinsic) {
       case nir_intrinsic_load_deref: {
          nir_def *ssa = clone_ssa_impl(linkage, b, intr->src[0].ssa);
-         clone = nir_load_deref(b, nir_instr_as_deref(ssa->parent_instr));
+         clone = nir_load_deref(b, nir_def_as_deref(ssa));
          break;
       }
 
@@ -2298,13 +2298,13 @@ clone_ssa_impl(struct linkage_info *linkage, nir_builder *b, nir_def *ssa)
       }
 
       default:
-         unreachable("unexpected intrinsic");
+         UNREACHABLE("unexpected intrinsic");
       }
       break;
    }
 
    case nir_instr_type_deref: {
-      nir_deref_instr *deref = nir_instr_as_deref(ssa->parent_instr);
+      nir_deref_instr *deref = nir_def_as_deref(ssa);
       assert(nir_deref_mode_is_one_of(deref, nir_var_uniform | nir_var_mem_ubo));
 
       /* Get the uniform from the original shader. */
@@ -2323,8 +2323,7 @@ clone_ssa_impl(struct linkage_info *linkage, nir_builder *b, nir_def *ssa)
       } else {
          nir_deref_instr *parent_orig = nir_deref_instr_parent(deref);
          nir_deref_instr *parent_clone =
-            nir_instr_as_deref(clone_ssa_impl(linkage, b, &parent_orig->def)
-                                  ->parent_instr);
+            nir_def_as_deref(clone_ssa_impl(linkage, b, &parent_orig->def));
 
          switch (deref->deref_type) {
          case nir_deref_type_array: {
@@ -2338,14 +2337,14 @@ clone_ssa_impl(struct linkage_info *linkage, nir_builder *b, nir_def *ssa)
                         ->def;
             break;
          default:
-            unreachable("invalid deref type");
+            UNREACHABLE("invalid deref type");
          }
       }
       break;
    }
 
    default:
-      unreachable("unexpected instruction type");
+      UNREACHABLE("unexpected instruction type");
    }
 
    _mesa_hash_table_insert(linkage->clones_ht, ssa->parent_instr, clone);
@@ -2642,7 +2641,7 @@ get_input_qualifier(struct linkage_info *linkage, unsigned i)
        baryc->intrinsic == nir_intrinsic_load_barycentric_at_sample) {
       list_for_each_entry(struct list_node, iter, &slot->consumer.loads, head) {
          nir_intrinsic_instr *bar =
-            nir_instr_as_intrinsic(iter->instr->src[0].ssa->parent_instr);
+            nir_def_as_intrinsic(iter->instr->src[0].ssa);
 
          if (bar->intrinsic != nir_intrinsic_load_barycentric_centroid &&
              bar->intrinsic != nir_intrinsic_load_barycentric_at_offset &&
@@ -2672,7 +2671,7 @@ get_input_qualifier(struct linkage_info *linkage, unsigned i)
       /* Don't deduplicate outputs that are interpolated at offset/sample. */
       return QUAL_SKIP;
    default:
-      unreachable("unexpected barycentric src");
+      UNREACHABLE("unexpected barycentric src");
    }
 
    switch (nir_intrinsic_interp_mode(baryc)) {
@@ -2686,7 +2685,7 @@ get_input_qualifier(struct linkage_info *linkage, unsigned i)
       qual = is_color ? QUAL_COLOR_LINEAR_PIXEL : QUAL_VAR_LINEAR_PIXEL;
       break;
    default:
-      unreachable("unexpected interp mode");
+      UNREACHABLE("unexpected interp mode");
    }
 
    /* The ordering of the "qual" enum was carefully chosen to make this
@@ -3404,7 +3403,7 @@ gather_used_input_loads(nir_instr *instr,
 
       default:
          printf("%u\n", intr->intrinsic);
-         unreachable("unexpected intrinsic");
+         UNREACHABLE("unexpected intrinsic");
       }
    }
 
@@ -3426,12 +3425,12 @@ gather_used_input_loads(nir_instr *instr,
          return;
 
       default:
-         unreachable("unexpected deref type");
+         UNREACHABLE("unexpected deref type");
       }
    }
 
    default:
-      unreachable("unexpected instr type");
+      UNREACHABLE("unexpected instr type");
    }
 }
 
@@ -3639,7 +3638,7 @@ try_move_postdominator(struct linkage_info *linkage,
          remap = remap_wuv;
          break;
       default:
-         unreachable("invalid TES interpolation mode");
+         UNREACHABLE("invalid TES interpolation mode");
       }
 
       nir_def *tesscoord = slot->consumer.tes_load_tess_coord;
@@ -4012,7 +4011,7 @@ backward_inter_shader_code_motion(struct linkage_info *linkage,
             /* Inter-shader code motion is unimplemented these. */
             continue;
          default:
-            unreachable("unexpected load intrinsic");
+            UNREACHABLE("unexpected load intrinsic");
          }
       }
 
@@ -4117,7 +4116,7 @@ backward_inter_shader_code_motion(struct linkage_info *linkage,
 
                bit_size = intr->def.bit_size;
             } else {
-               unreachable("unexpected instr type");
+               UNREACHABLE("unexpected instr type");
             }
 
             /* Skip unsupported bit sizes and keep searching. */
@@ -4388,7 +4387,7 @@ relocate_slot(struct linkage_info *linkage, struct scalar_slot *slot,
                                                       .interp_mode = INTERP_MODE_NONE);
                   break;
                default:
-                  unreachable("invalid qualifier");
+                  UNREACHABLE("invalid qualifier");
                }
 
                nir_src_rewrite(&intr->src[0], baryc);
@@ -5202,7 +5201,7 @@ default_varying_estimate_instr_cost(nir_instr *instr)
          return 2 * num_dst_dwords;
 
       default:
-         unreachable("unexpected intrinsic");
+         UNREACHABLE("unexpected intrinsic");
       }
 
    case nir_instr_type_deref: {
@@ -5220,12 +5219,12 @@ default_varying_estimate_instr_cost(nir_instr *instr)
          return nir_src_is_const(deref->arr.index) ? 0 : 128;
 
       default:
-         unreachable("unexpected deref type");
+         UNREACHABLE("unexpected deref type");
       }
    }
 
    default:
-      unreachable("unexpected instr type");
+      UNREACHABLE("unexpected instr type");
    }
 }
 

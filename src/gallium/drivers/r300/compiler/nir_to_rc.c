@@ -370,7 +370,7 @@ ntr_try_store_ssa_in_tgsi_output(struct ntr_compile *c, struct ureg_dst *dst, ni
    nir_foreach_use_including_if (use, def) {
       return ntr_try_store_in_tgsi_output_with_use(c, dst, use);
    }
-   unreachable("We have one use");
+   UNREACHABLE("We have one use");
 }
 
 static void
@@ -500,7 +500,7 @@ tgsi_texture_type_from_sampler_dim(enum glsl_sampler_dim dim, bool is_array)
    case GLSL_SAMPLER_DIM_BUF:
       return TGSI_TEXTURE_BUFFER;
    default:
-      unreachable("unknown sampler dim");
+      UNREACHABLE("unknown sampler dim");
    }
 }
 
@@ -515,7 +515,7 @@ tgsi_return_type_from_base_type(enum glsl_base_type type)
    case GLSL_TYPE_FLOAT:
       return TGSI_RETURN_TYPE_FLOAT;
    default:
-      unreachable("unexpected texture type");
+      UNREACHABLE("unexpected texture type");
    }
 }
 
@@ -629,7 +629,7 @@ ntr_get_chased_src(struct ntr_compile *c, nir_legacy_src *src)
 {
    if (src->is_ssa) {
       if (src->ssa->parent_instr->type == nir_instr_type_load_const)
-         return ntr_get_load_const_src(c, nir_instr_as_load_const(src->ssa->parent_instr));
+         return ntr_get_load_const_src(c, nir_def_as_load_const(src->ssa));
 
       return c->ssa_temp[src->ssa->index];
    } else {
@@ -695,7 +695,7 @@ ntr_get_ssa_def_decl(struct ntr_compile *c, nir_def *ssa)
    uint32_t writemask;
    /* Fix writemask for nir_intrinsic_load_ubo_vec4 according to uses. */
    if (ssa->parent_instr->type == nir_instr_type_intrinsic &&
-       nir_instr_as_intrinsic(ssa->parent_instr)->intrinsic == nir_intrinsic_load_ubo_vec4)
+       nir_def_as_intrinsic(ssa)->intrinsic == nir_intrinsic_load_ubo_vec4)
       writemask = nir_def_components_read(ssa);
    else
       writemask = BITSET_MASK(ssa->num_components);
@@ -923,7 +923,7 @@ ntr_emit_alu(struct ntr_compile *c, nir_alu_instr *instr)
          break;
 
       case nir_op_fmod:
-         unreachable("should be handled by .lower_fmod = true");
+         UNREACHABLE("should be handled by .lower_fmod = true");
          break;
 
       case nir_op_fpow:
@@ -951,11 +951,11 @@ ntr_emit_alu(struct ntr_compile *c, nir_alu_instr *instr)
       case nir_op_vec4:
       case nir_op_vec3:
       case nir_op_vec2:
-         unreachable("covered by nir_lower_vec_to_movs()");
+         UNREACHABLE("covered by nir_lower_vec_to_movs()");
 
       default:
          fprintf(stderr, "Unknown NIR opcode: %s\n", nir_op_infos[instr->op].name);
-         unreachable("Unknown NIR opcode");
+         UNREACHABLE("Unknown NIR opcode");
       }
    }
 
@@ -1072,7 +1072,7 @@ ntr_emit_load_input(struct ntr_compile *c, nir_intrinsic_instr *instr)
    case nir_intrinsic_load_interpolated_input: {
       input = ntr_ureg_src_indirect(c, input, instr->src[1], 0);
 
-      nir_intrinsic_instr *bary_instr = nir_instr_as_intrinsic(instr->src[0].ssa->parent_instr);
+      nir_intrinsic_instr *bary_instr = nir_def_as_intrinsic(instr->src[0].ssa);
 
       switch (bary_instr->intrinsic) {
       case nir_intrinsic_load_barycentric_pixel:
@@ -1106,13 +1106,13 @@ ntr_emit_load_input(struct ntr_compile *c, nir_intrinsic_instr *instr)
          break;
 
       default:
-         unreachable("bad barycentric interp intrinsic\n");
+         UNREACHABLE("bad barycentric interp intrinsic\n");
       }
       break;
    }
 
    default:
-      unreachable("bad load input intrinsic\n");
+      UNREACHABLE("bad load input intrinsic\n");
    }
 }
 
@@ -1382,7 +1382,7 @@ ntr_emit_texture(struct ntr_compile *c, nir_tex_instr *instr)
       tex_opcode = TGSI_OPCODE_TXQS;
       break;
    default:
-      unreachable("unsupported tex op");
+      UNREACHABLE("unsupported tex op");
    }
 
    struct ntr_tex_operand_state s = {.i = 0};
@@ -1438,7 +1438,7 @@ ntr_emit_texture(struct ntr_compile *c, nir_tex_instr *instr)
       tex_type = TGSI_RETURN_TYPE_UINT;
       break;
    default:
-      unreachable("unknown texture type");
+      UNREACHABLE("unknown texture type");
    }
 
    struct ureg_dst tex_dst;
@@ -1592,7 +1592,7 @@ ntr_emit_block(struct ntr_compile *c, nir_block *block)
          fprintf(stderr, "Emitted ureg insn during: ");
          nir_print_instr(instr, stderr);
          fprintf(stderr, "\n");
-         unreachable("emitted ureg insn");
+         UNREACHABLE("emitted ureg insn");
       }
    }
 
@@ -1626,7 +1626,7 @@ ntr_emit_cf_list(struct ntr_compile *c, struct exec_list *list)
          break;
 
       default:
-         unreachable("unknown CF type");
+         UNREACHABLE("unknown CF type");
       }
    }
 }
@@ -1725,7 +1725,7 @@ ntr_emit_cf_list_ureg(struct ntr_compile *c, struct exec_list *list)
          break;
 
       default:
-         unreachable("unknown CF type");
+         UNREACHABLE("unknown CF type");
       }
    }
 }

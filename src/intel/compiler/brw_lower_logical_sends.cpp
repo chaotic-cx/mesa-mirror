@@ -661,7 +661,7 @@ sampler_msg_type(const intel_device_info *devinfo,
       assert(!has_min_lod);
       return GFX6_SAMPLER_MESSAGE_SAMPLE_SAMPLEINFO;
    default:
-      unreachable("not reached");
+      UNREACHABLE("not reached");
    }
 }
 
@@ -1467,7 +1467,7 @@ setup_lsc_surface_descriptors(const brw_builder &bld, brw_inst *inst,
       break;
 
    default:
-      unreachable("Invalid LSC surface address type");
+      UNREACHABLE("Invalid LSC surface address type");
    }
 }
 
@@ -1478,7 +1478,7 @@ lsc_addr_size_for_type(enum brw_reg_type type)
    case 2: return LSC_ADDR_SIZE_A16;
    case 4: return LSC_ADDR_SIZE_A32;
    case 8: return LSC_ADDR_SIZE_A64;
-   default: unreachable("invalid type size");
+   default: UNREACHABLE("invalid type size");
    }
 }
 
@@ -1512,6 +1512,7 @@ lower_lsc_memory_logical_send(const brw_builder &bld, brw_inst *inst)
       (enum memory_flags) inst->src[MEMORY_LOGICAL_FLAGS].ud;
    const bool transpose = flags & MEMORY_FLAG_TRANSPOSE;
    const bool include_helpers = flags & MEMORY_FLAG_INCLUDE_HELPERS;
+   const bool volatile_access = flags & MEMORY_FLAG_VOLATILE_ACCESS;
    const brw_reg data0 = inst->src[MEMORY_LOGICAL_DATA0];
    const brw_reg data1 = inst->src[MEMORY_LOGICAL_DATA1];
    const bool has_side_effects = inst->has_side_effects();
@@ -1573,11 +1574,32 @@ lower_lsc_memory_logical_send(const brw_builder &bld, brw_inst *inst)
     *
     *    Atomic messages are always forced to "un-cacheable" in the L1
     *    cache.
+    *
+    * Bspec: Overview of memory Access:
+    *
+    *   If a read from a Null tile gets a cache-hit in a virtually-addressed
+    *   GPU cache, then the read may not return zeroes.
+    *
+    * If a shader writes to a null tile and wants to be able to read it back
+    * as zero, it will use the 'volatile' decoration for the access, otherwise
+    * the compiler may choose to optimize things out, breaking the
+    * residencyNonResidentStrict guarantees. Due to the above, we need to make
+    * these operations uncached.
     */
    unsigned cache_mode =
-      lsc_opcode_is_atomic(op) ? (unsigned) LSC_CACHE(devinfo, STORE, L1UC_L3WB) :
-      lsc_opcode_is_store(op)  ? (unsigned) LSC_CACHE(devinfo, STORE, L1STATE_L3MOCS) :
-      (unsigned) LSC_CACHE(devinfo, LOAD, L1STATE_L3MOCS);
+      lsc_opcode_is_atomic(op) ? LSC_CACHE(devinfo, STORE, L1UC_L3WB) :
+      volatile_access ?
+         (devinfo->ver >= 20 ?
+            /* Xe2 has a better L3 that can deal with null tiles.*/
+            (lsc_opcode_is_store(op) ?
+               LSC_CACHE(devinfo, STORE, L1UC_L3WB) :
+               LSC_CACHE(devinfo, LOAD, L1UC_L3C)) :
+            /* On older platforms, all caches have to be bypassed. */
+            (lsc_opcode_is_store(op) ?
+               LSC_CACHE(devinfo, STORE, L1UC_L3UC) :
+               LSC_CACHE(devinfo, LOAD, L1UC_L3UC))) :
+      lsc_opcode_is_store(op) ? LSC_CACHE(devinfo, STORE, L1STATE_L3MOCS) :
+      LSC_CACHE(devinfo, LOAD, L1STATE_L3MOCS);
 
    /* If we're a fragment shader, we have to predicate with the sample mask to
     * avoid helper invocations in instructions with side effects, unless they
@@ -1638,7 +1660,7 @@ lower_lsc_memory_logical_send(const brw_builder &bld, brw_inst *inst)
    inst->ex_mlen = ex_mlen;
    inst->header_size = 0;
    inst->send_has_side_effects = has_side_effects;
-   inst->send_is_volatile = !has_side_effects;
+   inst->send_is_volatile = !has_side_effects || volatile_access;
 
    inst->resize_sources(4);
 
@@ -1708,6 +1730,7 @@ lower_hdc_memory_logical_send(const brw_builder &bld, brw_inst *inst)
       (enum memory_flags) inst->src[MEMORY_LOGICAL_FLAGS].ud;
    const bool block = flags & MEMORY_FLAG_TRANSPOSE;
    const bool include_helpers = flags & MEMORY_FLAG_INCLUDE_HELPERS;
+   const bool volatile_access = flags & MEMORY_FLAG_VOLATILE_ACCESS;
    const brw_reg data0 = inst->src[MEMORY_LOGICAL_DATA0];
    const brw_reg data1 = inst->src[MEMORY_LOGICAL_DATA1];
    const bool has_side_effects = inst->has_side_effects();
@@ -1921,7 +1944,7 @@ lower_hdc_memory_logical_send(const brw_builder &bld, brw_inst *inst)
    inst->ex_mlen = ex_mlen;
    inst->header_size = header.file != BAD_FILE ? 1 : 0;
    inst->send_has_side_effects = has_side_effects;
-   inst->send_is_volatile = !has_side_effects;
+   inst->send_is_volatile = !has_side_effects || volatile_access;
 
    if (block) {
       assert(inst->force_writemask_all);
@@ -1961,7 +1984,7 @@ lower_hdc_memory_logical_send(const brw_builder &bld, brw_inst *inst)
       }
       break;
    default:
-      unreachable("Unknown surface type");
+      UNREACHABLE("Unknown surface type");
    }
 
    inst->desc = desc;
@@ -2168,7 +2191,7 @@ lower_interpolator_logical_send(const brw_builder &bld, brw_inst *inst,
       break;
 
    default:
-      unreachable("Invalid interpolator instruction");
+      UNREACHABLE("Invalid interpolator instruction");
    }
 
    const bool dynamic_mode =
@@ -2298,7 +2321,7 @@ lower_btd_logical_send(const brw_builder &bld, brw_inst *inst)
       break;
 
    default:
-      unreachable("Invalid BTD message");
+      UNREACHABLE("Invalid BTD message");
    }
 
    /* Stack IDs are always in R1 regardless of whether we're coming from a

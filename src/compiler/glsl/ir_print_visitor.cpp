@@ -62,7 +62,7 @@ glsl_print_type(FILE *f, const glsl_type *t)
 
 extern "C" {
 void
-_mesa_print_ir(FILE *f, exec_list *instructions,
+_mesa_print_ir(FILE *f, ir_exec_list *instructions,
 	       struct _mesa_glsl_parse_state *state)
 {
    if (state) {
@@ -83,7 +83,7 @@ _mesa_print_ir(FILE *f, exec_list *instructions,
    }
 
    fprintf(f, "(\n");
-   foreach_in_list(ir_instruction, ir, instructions) {
+   ir_foreach_in_list(ir_instruction, ir, instructions) {
       ir->fprint(f);
       if (ir->ir_type != ir_type_function)
 	 fprintf(f, "\n");
@@ -253,7 +253,7 @@ void ir_print_visitor::visit(ir_function_signature *ir)
    fprintf(f, "(parameters\n");
    indentation++;
 
-   foreach_in_list(ir_variable, inst, &ir->parameters) {
+   ir_foreach_in_list(ir_variable, inst, &ir->parameters) {
       indent();
       inst->accept(this);
       fprintf(f, "\n");
@@ -268,7 +268,7 @@ void ir_print_visitor::visit(ir_function_signature *ir)
    fprintf(f, "(\n");
    indentation++;
 
-   foreach_in_list(ir_instruction, inst, &ir->body) {
+   ir_foreach_in_list(ir_instruction, inst, &ir->body) {
       indent();
       inst->accept(this);
       fprintf(f, "\n");
@@ -285,7 +285,7 @@ void ir_print_visitor::visit(ir_function *ir)
 {
    fprintf(f, "(%s function %s\n", ir->is_subroutine ? "subroutine" : "", ir->name);
    indentation++;
-   foreach_in_list(ir_function_signature, sig, &ir->signatures) {
+   ir_foreach_in_list(ir_function_signature, sig, &ir->signatures) {
       indent();
       sig->accept(this);
       fprintf(f, "\n");
@@ -403,7 +403,7 @@ void ir_print_visitor::visit(ir_texture *ir)
       ir->lod_info.component->accept(this);
       break;
    case ir_samples_identical:
-      unreachable("ir_samples_identical was already handled");
+      UNREACHABLE("ir_samples_identical was already handled");
    };
    fprintf(f, ")");
 }
@@ -543,7 +543,7 @@ void ir_print_visitor::visit(ir_constant *ir)
                fprintf(f, "%f", ir->value.d[i]);
             break;
 	 default:
-            unreachable("Invalid constant type");
+            UNREACHABLE("Invalid constant type");
 	 }
       }
    }
@@ -558,7 +558,7 @@ ir_print_visitor::visit(ir_call *ir)
    if (ir->return_deref)
       ir->return_deref->accept(this);
    fprintf(f, " (");
-   foreach_in_list(ir_rvalue, param, &ir->actual_parameters) {
+   ir_foreach_in_list(ir_rvalue, param, &ir->actual_parameters) {
       param->accept(this);
    }
    fprintf(f, "))\n");
@@ -610,7 +610,7 @@ ir_print_visitor::visit(ir_if *ir)
    fprintf(f, "(\n");
    indentation++;
 
-   foreach_in_list(ir_instruction, inst, &ir->then_instructions) {
+   ir_foreach_in_list(ir_instruction, inst, &ir->then_instructions) {
       indent();
       inst->accept(this);
       fprintf(f, "\n");
@@ -625,7 +625,7 @@ ir_print_visitor::visit(ir_if *ir)
       fprintf(f, "(\n");
       indentation++;
 
-      foreach_in_list(ir_instruction, inst, &ir->else_instructions) {
+      ir_foreach_in_list(ir_instruction, inst, &ir->else_instructions) {
 	 indent();
 	 inst->accept(this);
 	 fprintf(f, "\n");
@@ -645,7 +645,7 @@ ir_print_visitor::visit(ir_loop *ir)
    fprintf(f, "(loop (\n");
    indentation++;
 
-   foreach_in_list(ir_instruction, inst, &ir->body_instructions) {
+   ir_foreach_in_list(ir_instruction, inst, &ir->body_instructions) {
       indent();
       inst->accept(this);
       fprintf(f, "\n");

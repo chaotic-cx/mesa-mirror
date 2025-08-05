@@ -290,7 +290,7 @@ gather_intrinsic_info(const nir_shader *nir, const nir_intrinsic_instr *instr, s
    case nir_intrinsic_image_deref_atomic_swap:
    case nir_intrinsic_image_deref_size:
    case nir_intrinsic_image_deref_samples: {
-      nir_variable *var = nir_deref_instr_get_variable(nir_instr_as_deref(instr->src[0].ssa->parent_instr));
+      nir_variable *var = nir_deref_instr_get_variable(nir_def_as_deref(instr->src[0].ssa));
       mark_sampler_desc(var, info);
       break;
    }
@@ -1032,7 +1032,7 @@ radv_get_user_data_0(const struct radv_device *device, struct radv_shader_info *
    case MESA_SHADER_ANY_HIT:
       return R_00B900_COMPUTE_USER_DATA_0;
    default:
-      unreachable("invalid shader stage");
+      UNREACHABLE("invalid shader stage");
    }
 }
 
@@ -1622,6 +1622,6 @@ radv_select_hw_stage(const struct radv_shader_info *const info, const enum amd_g
    case MESA_SHADER_CALLABLE:
       return AC_HW_COMPUTE_SHADER;
    default:
-      unreachable("Unsupported HW stage");
+      UNREACHABLE("Unsupported HW stage");
    }
 }

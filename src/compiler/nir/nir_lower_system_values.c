@@ -142,7 +142,7 @@ lower_system_value_instr(nir_builder *b, nir_instr *instr, void *_state)
          return nir_load_barycentric_coord_at_offset(b, 32, intrin->src[1].ssa,
                                                      .interp_mode = interp_mode);
       default:
-         unreachable("Bogus interpolateAt() intrinsic.");
+         UNREACHABLE("Bogus interpolateAt() intrinsic.");
       }
    }
 
@@ -193,7 +193,7 @@ lower_system_value_instr(nir_builder *b, nir_instr *instr, void *_state)
             break;
 
          default:
-            unreachable("unsupported system value array deref");
+            UNREACHABLE("unsupported system value array deref");
          }
       }
       nir_variable *var = deref->var;
@@ -347,11 +347,14 @@ lower_system_value_instr(nir_builder *b, nir_instr *instr, void *_state)
 nir_def *
 nir_build_lowered_load_helper_invocation(nir_builder *b)
 {
-   nir_def *tmp;
-   tmp = nir_ishl(b, nir_imm_int(b, 1),
-                  nir_load_sample_id_no_per_sample(b));
-   tmp = nir_iand(b, nir_load_sample_mask_in(b), tmp);
-   return nir_inot(b, nir_i2b(b, tmp));
+   nir_def *mask = nir_load_sample_mask_in(b);
+
+   if (b->shader->info.fs.uses_sample_shading) {
+      nir_def *id = nir_load_sample_id(b);
+      mask = nir_iand(b, mask, nir_ishl(b, nir_imm_int(b, 1), id));
+   }
+
+   return nir_ieq_imm(b, mask, 0);
 }
 
 bool

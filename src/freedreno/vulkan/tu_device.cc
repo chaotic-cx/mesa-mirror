@@ -316,7 +316,6 @@ get_device_extensions(const struct tu_physical_device *device,
       .EXT_physical_device_drm = !is_kgsl(device->instance),
       .EXT_pipeline_creation_cache_control = true,
       .EXT_pipeline_creation_feedback = true,
-      .EXT_post_depth_coverage = true,
       .EXT_primitive_topology_list_restart = true,
       .EXT_primitives_generated_query = true,
       .EXT_private_data = true,
@@ -1177,8 +1176,7 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->maxFragmentShadingRateRasterizationSamples = VK_SAMPLE_COUNT_4_BIT;
    props->fragmentShadingRateWithShaderDepthStencilWrites = true;
    props->fragmentShadingRateWithSampleMask = true;
-   /* Has wrong gl_SampleMaskIn[0] values with VK_EXT_post_depth_coverage used. */
-   props->fragmentShadingRateWithShaderSampleMask = false;
+   props->fragmentShadingRateWithShaderSampleMask = true;
    props->fragmentShadingRateWithConservativeRasterization = true;
    props->fragmentShadingRateWithFragmentShaderInterlock = false;
    props->fragmentShadingRateWithCustomSampleLocations = true;
@@ -1825,7 +1823,7 @@ tu_physical_device_get_global_priority_properties(const struct tu_physical_devic
       props->priorities[2] = VK_QUEUE_GLOBAL_PRIORITY_HIGH_KHR;
       break;
    default:
-      unreachable("unexpected priority count");
+      UNREACHABLE("unexpected priority count");
       break;
    }
 }

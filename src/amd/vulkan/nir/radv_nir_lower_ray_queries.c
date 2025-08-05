@@ -404,7 +404,7 @@ lower_rq_load(struct radv_device *device, nir_builder *b, nir_intrinsic_instr *i
       return radv_load_vertex_position(device, b, primitive_addr, nir_intrinsic_column(instr));
    }
    default:
-      unreachable("Invalid nir_ray_query_value!");
+      UNREACHABLE("Invalid nir_ray_query_value!");
    }
 
    return NULL;
@@ -639,7 +639,7 @@ radv_nir_lower_ray_queries(struct nir_shader *shader, struct radv_device *device
             if (!nir_intrinsic_is_ray_query(intrinsic->intrinsic))
                continue;
 
-            nir_deref_instr *ray_query_deref = nir_instr_as_deref(intrinsic->src[0].ssa->parent_instr);
+            nir_deref_instr *ray_query_deref = nir_def_as_deref(intrinsic->src[0].ssa);
 
             struct ray_query_vars *vars =
                (struct ray_query_vars *)_mesa_hash_table_search(query_ht, nir_deref_instr_get_variable(ray_query_deref))
@@ -671,7 +671,7 @@ radv_nir_lower_ray_queries(struct nir_shader *shader, struct radv_device *device
                lower_rq_terminate(&builder, intrinsic, rq);
                break;
             default:
-               unreachable("Unsupported ray query intrinsic!");
+               UNREACHABLE("Unsupported ray query intrinsic!");
             }
 
             if (new_dest)

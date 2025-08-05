@@ -766,7 +766,7 @@ iris_vue_data(struct iris_compiled_shader *shader)
    case MESA_SHADER_TESS_EVAL: return &shader->tes.base;
    case MESA_SHADER_GEOMETRY:  return &shader->gs.base;
    default:
-      unreachable("invalid shader stage for vue prog data");
+      UNREACHABLE("invalid shader stage for vue prog data");
       return NULL;
    }
 }
@@ -1051,8 +1051,6 @@ struct iris_context {
       /** Aux usage of the fb's depth buffer (which may or may not exist). */
       enum isl_aux_usage hiz_usage;
 
-      enum intel_urb_deref_block_size urb_deref_block_size;
-
       /** Are depth writes enabled?  (Depth buffer may or may not exist.) */
       bool depth_writes_enabled;
 
@@ -1294,7 +1292,7 @@ iris_blorp_batch_usage(struct iris_batch *batch, bool is_dest)
    case IRIS_BATCH_BLITTER:
       return is_dest ? ISL_SURF_USAGE_BLITTER_DST_BIT : ISL_SURF_USAGE_BLITTER_SRC_BIT;
    default:
-      unreachable("Unhandled batch type");
+      UNREACHABLE("Unhandled batch type");
    }
 }
 
