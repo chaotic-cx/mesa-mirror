@@ -5210,4 +5210,11 @@ VkResult gfxstream_vk_GetSemaphoreGOOGLE(VkDevice device, VkSemaphore semaphore,
     }
     return vkGetSemaphoreGOOGLE_VkResult_return;
 }
+void gfxstream_vk_TraceAsyncGOOGLE(uint64_t id) {
+    MESA_TRACE_SCOPE("vkTraceAsyncGOOGLE");
+    {
+        auto vkEnc = gfxstream::vk::ResourceTracker::getThreadLocalEncoder();
+        vkEnc->vkTraceAsyncGOOGLE(id, true /* do lock */);
+    }
+}
 #endif
