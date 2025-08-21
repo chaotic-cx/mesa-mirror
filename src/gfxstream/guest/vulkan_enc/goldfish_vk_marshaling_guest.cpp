@@ -18663,6 +18663,11 @@ const char* api_opcode_to_string(const uint32_t opcode) {
             return "OP_vkCmdSetStencilTestEnableEXT";
         }
 #endif
+#ifdef VK_GOOGLE_gfxstream
+        case OP_vkTraceAsyncGOOGLE: {
+            return "OP_vkTraceAsyncGOOGLE";
+        }
+#endif
 #ifdef VK_VERSION_1_3
         case OP_vkCmdSetStencilTestEnable: {
             return "OP_vkCmdSetStencilTestEnable";
