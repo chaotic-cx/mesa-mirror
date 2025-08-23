@@ -958,6 +958,8 @@ class ResourceTracker {
     void transformImageMemoryRequirementsForGuestLocked(VkImage image, VkMemoryRequirements* reqs);
     CoherentMemoryPtr freeCoherentMemoryLocked(VkDeviceMemory memory, VkDeviceMemory_Info& info);
 
+    void EmitGuestAndHostTraceMarker(VkEncoder* encoder);
+
     std::recursive_mutex mLock;
 
     std::optional<const VkPhysicalDeviceMemoryProperties> mCachedPhysicalDeviceMemoryProps;
