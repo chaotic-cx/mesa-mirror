@@ -101,6 +101,7 @@ cc_library_static {
         "driconf_static_header",
     ],
     static_libs: [
+        "libperfetto_client_experimental",
         "mesa_util_c11",
     ],
     shared_libs: [
@@ -138,6 +139,7 @@ cc_library_static {
         "os_socket.c",
         "pb_slab.c",
         "perf/u_trace.c",
+        "perf/u_perfetto.cc",
         "u_process.c",
         "u_qsort.cpp",
         "rwlock.c",

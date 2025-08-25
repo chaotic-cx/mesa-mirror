@@ -55,7 +55,6 @@ cc_library_static {
     static_libs: [
         "mesa_vulkan_util",
         "mesa_vulkan_runtime",
-        "mesa_gfxstream_vulkan_entrypoints",
         "mesa_util",
         "libdrm",
     ],

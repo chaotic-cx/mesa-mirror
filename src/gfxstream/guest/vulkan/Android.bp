@@ -53,6 +53,7 @@ cc_library_shared {
         "libringbuffer",
         "libqemupipe.ranchu",
         "libarect",
+        "libperfetto_client_experimental",
         "mesa_gfxstream_aemu",
         "mesa_gfxstream_guest_android",
         "mesa_gfxstream_connection_manager",

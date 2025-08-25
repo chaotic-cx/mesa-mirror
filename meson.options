@@ -52,6 +52,12 @@ option(
 )
 
 option(
+  'android-libperfetto',
+  type : 'feature',
+  description : 'Use Android\'s libperfetto',
+)
+
+option(
   'dri-drivers-path',
   type : 'string',
   value : '',
@@ -844,9 +850,9 @@ option(
 option(
   'allow-fallback-for',
   type : 'array',
-  value : [],
+  value : ['perfetto'],
   choices : [
-    'libdrm',
+    'libdrm', 'perfetto',
   ],
   description : 'Allows the fallback mechanism if the dependency is not available on the system, or too old.'
 )

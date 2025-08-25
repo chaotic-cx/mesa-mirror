@@ -157,6 +157,8 @@ cc_defaults {
         "-DHAVE___BUILTIN_CLZ",
         "-DHAVE___BUILTIN_CLZLL",
         "-DHAVE___BUILTIN_UNREACHABLE",
+        "-DHAVE_PERFETTO",
+        "-DANDROID_LIBPERFETTO",
         "-DHAVE_PTHREAD=1",
         "-DHAVE_DLADDR",
         "-DHAVE_DL_ITERATE_PHDR",

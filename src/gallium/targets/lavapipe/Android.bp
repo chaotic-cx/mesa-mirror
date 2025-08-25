@@ -101,6 +101,7 @@ cc_library_shared {
         "mesa_wsw",
         "mesa_loader",
         "libLLVM16_swiftshader",
+        "libperfetto_client_experimental",
     ],
     shared_libs: [
         "libzstd",
