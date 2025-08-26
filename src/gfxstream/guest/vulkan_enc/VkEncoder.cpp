@@ -27722,7 +27722,6 @@ void VkEncoder::vkTraceAsyncGOOGLE(uint64_t id, uint32_t doLock) {
     uint32_t packetSize_vkTraceAsyncGOOGLE =
         4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
     uint8_t* streamPtr = stream->reserve(packetSize_vkTraceAsyncGOOGLE);
-    uint8_t* packetBeginPtr = streamPtr;
     uint8_t** streamPtrPtr = &streamPtr;
     uint32_t opcode_vkTraceAsyncGOOGLE = OP_vkTraceAsyncGOOGLE;
     uint32_t seqno;
