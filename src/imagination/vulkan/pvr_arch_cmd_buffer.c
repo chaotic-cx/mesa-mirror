@@ -569,6 +569,7 @@ static VkResult pvr_sub_cmd_gfx_per_job_fragment_programs_create_and_upload(
    const uint32_t emit_count,
    const uint32_t *pbe_cs_words,
    const unsigned *tile_buffer_ids,
+   unsigned long *layer_size,
    unsigned pixel_output_width,
    struct pvr_pds_upload *const pds_upload_out)
 {
@@ -595,6 +596,9 @@ static VkResult pvr_sub_cmd_gfx_per_job_fragment_programs_create_and_upload(
 
    bool has_tile_buffers = false;
    for (unsigned u = 0; u < emit_count; ++u) {
+      props.rta_element_stride[u] =
+         layer_size[u] / ROGUE_PBESTATE_STATE_WORD0_ADDRESS_LOW_ALIGNMENT;
+
       unsigned tile_buffer_id = tile_buffer_ids[u];
       if (tile_buffer_id == ~0)
          continue;
@@ -1524,6 +1528,8 @@ struct pvr_emit_state {
 
    unsigned tile_buffer_ids[PVR_MAX_COLOR_ATTACHMENTS];
 
+   unsigned long layer_size[PVR_MAX_COLOR_ATTACHMENTS];
+
    uint32_t emit_count;
 };
 
@@ -1566,6 +1572,14 @@ pvr_setup_emit_state(const struct pvr_device_info *dev_info,
 
          if (mrt_resource->type != resource_type)
             continue;
+
+         const struct pvr_image *image = pvr_image_view_get_image(iview);
+         if (PVR_HAS_FEATURE(dev_info, gs_rta_support) &&
+             rstate->layers > 1) {
+            const struct pvr_image_plane *plane = pvr_single_plane_const(image);
+
+            emit_state->layer_size[emit_state->emit_count] = plane->layer_size;
+         }
 
          if (surface->need_resolve) {
             const struct pvr_image_view *resolve_src =
@@ -1705,6 +1719,7 @@ static VkResult pvr_sub_cmd_gfx_job_init(const struct pvr_device_info *dev_info,
             emit_state.emit_count,
             emit_state.pbe_cs_words[0],
             emit_state.tile_buffer_ids,
+            emit_state.layer_size,
             pixel_output_width,
             &pds_pixel_event_program);
          if (result != VK_SUCCESS)

@@ -24,6 +24,7 @@ struct pvr_load_op;
 /* EOT shader generation. */
 struct pvr_eot_props {
    unsigned emit_count;
+   uint32_t rta_element_stride[PVR_MAX_COLOR_ATTACHMENTS];
 
    bool shared_words;
    union {

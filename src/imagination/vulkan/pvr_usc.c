@@ -166,6 +166,18 @@ pco_shader *pvr_usc_eot(pco_ctx *ctx,
          state1 = nir_imm_int(&b, props->state_words[state_off + 1]);
       }
 
+      if (props->rta_element_stride[u]) {
+         nir_def *state =
+            nir_umad64_32(&b,
+                          nir_imm_int(&b, props->rta_element_stride[u]),
+                          nir_load_layer_id(&b),
+                          state0,
+                          state1);
+
+         state0 = nir_channel(&b, state, 0);
+         state1 = nir_channel(&b, state, 1);
+      }
+
       last_emit = nir_emitpix_pco(&b, state0, state1);
    }
 
