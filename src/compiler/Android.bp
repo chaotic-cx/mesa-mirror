@@ -62,11 +62,7 @@ python_binary_host {
     libs: [
         "mako",
     ],
-    version: {
-        py3: {
-            embedded_launcher: false,
-        },
-    },
+    embedded_launcher: false,
 }
 
 python_binary_host {
@@ -79,11 +75,7 @@ python_binary_host {
     libs: [
         "mako",
     ],
-    version: {
-        py3: {
-            embedded_launcher: false,
-        },
-    },
+    embedded_launcher: false,
 }
 
 genrule {
