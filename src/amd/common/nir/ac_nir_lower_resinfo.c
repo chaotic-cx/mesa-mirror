@@ -47,7 +47,10 @@ static nir_def *query_levels(nir_builder *b, nir_def *desc, enum amd_gfx_level g
    nir_def *base_level, *last_level;
 
    if (gfx_level >= GFX12) {
-      base_level = get_field(b, desc, 1, ~C_00A004_BASE_LEVEL_GFX12);
+      if (gfx_level >= GFX13)
+         base_level = get_field(b, desc, 1, ~C_00A004_BASE_LEVEL_GFX13);
+      else
+         base_level = get_field(b, desc, 1, ~C_00A004_BASE_LEVEL_GFX12);
       last_level = get_field(b, desc, 3, ~C_00A00C_LAST_LEVEL_GFX12);
    } else {
       base_level = get_field(b, desc, 3, ~C_00A00C_BASE_LEVEL);
@@ -90,13 +93,21 @@ lower_query_size(nir_builder *b, nir_def *desc, nir_src *lod,
    /* Get the width, height, depth, layers. */
    if (gfx_level >= GFX10) {
       if (has_width) {
-         nir_def *width_lo = get_field(b, desc, 1, ~C_00A004_WIDTH_LO);
-         nir_def *width_hi = get_field(b, desc, 2, ~C_00A008_WIDTH_HI);
-         /* Use iadd to get s_lshl2_add_u32 in the end. */
-         width = nir_iadd(b, width_lo, nir_ishl_imm(b, width_hi, 2));
+         if (gfx_level >= GFX13)
+            width = get_field(b, desc, 2, ~C_00A008_WIDTH);
+         else {
+            nir_def *width_lo = get_field(b, desc, 1, ~C_00A004_WIDTH_LO);
+            nir_def *width_hi = get_field(b, desc, 2, ~C_00A008_WIDTH_HI);
+            /* Use iadd to get s_lshl2_add_u32 in the end. */
+            width = nir_iadd(b, width_lo, nir_ishl_imm(b, width_hi, 2));
+         }
       }
-      if (has_height)
-         height = get_field(b, desc, 2, ~C_00A008_HEIGHT_GFX10);
+      if (has_height) {
+         if (gfx_level >= GFX13)
+            height = get_field(b, desc, 2, ~C_00A008_HEIGHT_GFX13);
+         else
+            height = get_field(b, desc, 2, ~C_00A008_HEIGHT_GFX10);
+      }
       if (has_depth) {
          if (gfx_level >= GFX12)
             depth = get_field(b, desc, 4, ~C_00A010_DEPTH_GFX12);
@@ -160,7 +171,9 @@ lower_query_size(nir_builder *b, nir_def *desc, nir_src *lod,
    if (dim != GLSL_SAMPLER_DIM_MS && dim != GLSL_SAMPLER_DIM_RECT) {
       nir_def *base_level;
 
-      if (gfx_level >= GFX12)
+      if (gfx_level >= GFX13)
+         base_level = get_field(b, desc, 1, ~C_00A004_BASE_LEVEL_GFX13);
+      else if (gfx_level >= GFX12)
          base_level = get_field(b, desc, 1, ~C_00A004_BASE_LEVEL_GFX12);
       else
          base_level = get_field(b, desc, 3, ~C_00A00C_BASE_LEVEL);
@@ -194,7 +207,10 @@ lower_query_size(nir_builder *b, nir_def *desc, nir_src *lod,
 
       if (gfx_level >= GFX12) {
          uav_depth = get_field(b, desc, 4, ~C_00A010_DEPTH_GFX12);
-         uav3d = nir_ieq_imm(b, get_field(b, desc, 5, ~C_00A014_UAV3D_GFX12), 1);
+         if (gfx_level >= GFX13)
+            uav3d = nir_ieq_imm(b, get_field(b, desc, 5, ~C_00A014_UAV3D_GFX13), 1);
+         else
+            uav3d = nir_ieq_imm(b, get_field(b, desc, 5, ~C_00A014_UAV3D_GFX12), 1);
       } else {
          uav_depth = get_field(b, desc, 4, ~C_00A010_DEPTH_GFX10);
          uav3d = nir_ieq_imm(b, get_field(b, desc, 5, ~C_00A014_ARRAY_PITCH), 1);
