@@ -483,7 +483,10 @@ radv_patch_image_dimensions(struct radv_device *device, struct radv_image *image
    if (create_info->bo_metadata && radv_is_valid_opaque_metadata(device, create_info->bo_metadata)) {
       const struct radeon_bo_metadata *md = create_info->bo_metadata;
 
-      if (pdev->info.gfx_level >= GFX10) {
+      if (pdev->info.gfx_level >= GFX13) {
+         width = G_00A008_WIDTH(md->metadata[4]) + 1;
+         height = G_00A008_HEIGHT_GFX13(md->metadata[4]) + 1;
+      } else if (pdev->info.gfx_level >= GFX10) {
          width = G_00A004_WIDTH_LO(md->metadata[3]) + (G_00A008_WIDTH_HI(md->metadata[4]) << 2) + 1;
          height = G_00A008_HEIGHT_GFX10(md->metadata[4]) + 1;
       } else {

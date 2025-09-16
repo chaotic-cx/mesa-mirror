@@ -490,7 +490,10 @@ ac_get_gfx10_img_format(const enum amd_gfx_level gfx_level, const struct ac_text
 
    if (desc->colorspace == UTIL_FORMAT_COLORSPACE_ZS &&
        state->gfx10.upgraded_depth && !util_format_has_stencil(desc)) {
-      if (gfx_level >= GFX11) {
+      if (gfx_level >= GFX13) {
+         assert(img_format == V_008F10_GFX13_FORMAT_32_FLOAT);
+         img_format = V_008F10_GFX13_FORMAT_32_FLOAT_CLAMP;
+      } else if (gfx_level >= GFX11) {
          assert(img_format == V_008F0C_GFX11_FORMAT_32_FLOAT);
          img_format = V_008F0C_GFX11_FORMAT_32_FLOAT_CLAMP;
       } else {
@@ -582,32 +585,48 @@ ac_build_gfx12_texture_descriptor(const struct radeon_info *info, const struct a
       max_mip = nbc_view->num_levels - 1;
 
    desc[0] = 0;
-   desc[1] = S_00A004_MAX_MIP_GFX12(max_mip) |
-             S_00A004_FORMAT_GFX12(img_format) |
-             S_00A004_BASE_LEVEL_GFX12(state->num_samples > 1 ? 0 : state->first_level) |
-             S_00A004_WIDTH_LO(state->width - 1);
-   desc[2] = S_00A008_WIDTH_HI((state->width - 1) >> 2) |
-             S_00A008_HEIGHT_GFX10(state->height - 1);
-   desc[3] = S_00A00C_DST_SEL_X_GFX10(ac_map_swizzle(state->swizzle[0])) |
-             S_00A00C_DST_SEL_Y_GFX10(ac_map_swizzle(state->swizzle[1])) |
-             S_00A00C_DST_SEL_Z_GFX10(ac_map_swizzle(state->swizzle[2])) |
-             S_00A00C_DST_SEL_W_GFX10(ac_map_swizzle(state->swizzle[3])) |
-             S_00A00C_NO_EDGE_CLAMP_GFX12(no_edge_clamp) |
-             S_00A00C_LAST_LEVEL_GFX12(field_last_level) |
-             S_00A00C_BC_SWIZZLE(ac_border_color_swizzle(fmt_desc)) |
-             S_00A00C_TYPE(state->type);
-
+   if (info->gfx_level >= GFX13) {
+      desc[1] = S_00A004_MAX_MIP_GFX13(max_mip) |
+                S_00A004_FORMAT_GFX13(img_format) |
+                S_00A004_BASE_LEVEL_GFX13(state->num_samples > 1 ? 0 : state->first_level);
+      desc[2] = S_00A008_WIDTH(state->width - 1) |
+                S_00A008_HEIGHT_GFX13(state->height - 1);
+      desc[3] = S_00A00C_DST_SEL_X_GFX13(ac_map_swizzle(state->swizzle[0])) |
+                S_00A00C_DST_SEL_Y_GFX13(ac_map_swizzle(state->swizzle[1])) |
+                S_00A00C_DST_SEL_Z_GFX13(ac_map_swizzle(state->swizzle[2])) |
+                S_00A00C_DST_SEL_W_GFX13(ac_map_swizzle(state->swizzle[3])) |
+                S_00A00C_NO_EDGE_CLAMP_GFX13(no_edge_clamp);
+      desc[5] = S_00A014_UAV3D_GFX13(state->gfx10.uav3d) |
+                S_00A014_PERF_MOD_GFX13(4) |
+                S_00A014_MIN_LOD_LO_GFX13(min_lod_clamped);
+      desc[6] = S_00A018_MIN_LOD_HI(min_lod_clamped >> 9);
+   } else {
+      desc[1] = S_00A004_MAX_MIP_GFX12(max_mip) |
+                S_00A004_FORMAT_GFX12(img_format) |
+                S_00A004_BASE_LEVEL_GFX12(state->num_samples > 1 ? 0 : state->first_level) |
+                S_00A004_WIDTH_LO(state->width - 1);
+      desc[2] = S_00A008_WIDTH_HI((state->width - 1) >> 2) |
+                S_00A008_HEIGHT_GFX10(state->height - 1);
+      desc[3] = S_00A00C_DST_SEL_X_GFX10(ac_map_swizzle(state->swizzle[0])) |
+                S_00A00C_DST_SEL_Y_GFX10(ac_map_swizzle(state->swizzle[1])) |
+                S_00A00C_DST_SEL_Z_GFX10(ac_map_swizzle(state->swizzle[2])) |
+                S_00A00C_DST_SEL_W_GFX10(ac_map_swizzle(state->swizzle[3])) |
+                S_00A00C_NO_EDGE_CLAMP_GFX12(no_edge_clamp);
+      desc[5] = S_00A014_UAV3D_GFX12(state->gfx10.uav3d) |
+                S_00A014_PERF_MOD_GFX10(4) |
+                S_00A014_MIN_LOD_LO_GFX12(min_lod_clamped);
+      desc[6] = S_00A018_MIN_LOD_HI(min_lod_clamped >> 6);
+   }
+   desc[3] |= S_00A00C_LAST_LEVEL_GFX12(field_last_level) |
+              S_00A00C_BC_SWIZZLE(ac_border_color_swizzle(fmt_desc)) |
+              S_00A00C_TYPE(state->type);
    /* Depth is the the last accessible layer on gfx9+. The hw doesn't need
     * to know the total number of layers.
     */
    desc[4] = S_00A010_DEPTH_GFX12(state->depth) |
              S_00A010_BASE_ARRAY(state->first_layer);
-   desc[5] = S_00A014_UAV3D_GFX12(state->gfx10.uav3d) |
-             S_00A014_PERF_MOD_GFX10(4) |
-             S_00A014_MIN_LOD_LO_GFX12(min_lod_clamped);
-   desc[6] = S_00A018_MAX_UNCOMPRESSED_BLOCK_SIZE(1 /*256B*/) |
-             S_00A018_MAX_COMPRESSED_BLOCK_SIZE(surf->u.gfx9.color.dcc.max_compressed_block_size) |
-             S_00A018_MIN_LOD_HI(min_lod_clamped >> 6);
+   desc[6] |= S_00A018_MAX_UNCOMPRESSED_BLOCK_SIZE(1 /*256B*/) |
+              S_00A018_MAX_COMPRESSED_BLOCK_SIZE(surf->u.gfx9.color.dcc.max_compressed_block_size);
    desc[7] = 0;
 }
 
