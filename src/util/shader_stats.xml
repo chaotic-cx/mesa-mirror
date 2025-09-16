@@ -216,4 +216,11 @@
          <stat name="Control inst group count">Number of control instruction groups</stat>
       </isa>
    </family>
+
+   <isa name="Vivante">
+      <stat name="Instructions" display="Instrs">Instruction count</stat>
+      <stat name="Temps" type="u16">Number of temporary registers used</stat>
+      <stat name="Uniforms used" type="u16">Number of uniform registers used</stat>
+      <stat name="Code size">Binary size in bytes</stat>
+   </isa>
 </shaderdb>
