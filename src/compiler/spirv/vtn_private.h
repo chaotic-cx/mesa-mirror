@@ -1115,4 +1115,14 @@ vtn_value_is_non_uniform(struct vtn_builder *b, struct vtn_value *value)
    return false;
 }
 
+nir_constant *vtn_null_constant(struct vtn_builder *b, struct vtn_type *type);
+struct vtn_ssa_value *vtn_composite_extract(struct vtn_builder *b, struct vtn_ssa_value *src,
+                                            const uint32_t *indices, unsigned num_indices);
+struct vtn_ssa_value *vtn_composite_insert(struct vtn_builder *b, struct vtn_ssa_value *src,
+                                           struct vtn_type *src_type, struct vtn_ssa_value *insert,
+                                           const uint32_t *indices, unsigned num_indices);
+struct vtn_ssa_value *vtn_composite_copy_logical(struct vtn_builder *b, struct vtn_ssa_value *src,
+                                                 struct vtn_type* dest_type);
+nir_def *vtn_vector_construct(struct vtn_builder *b, unsigned num_components,
+                              unsigned num_srcs, nir_def **srcs);
 #endif /* _VTN_PRIVATE_H_ */

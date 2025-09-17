@@ -2519,7 +2519,7 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
    }
 }
 
-static nir_constant *
+nir_constant *
 vtn_null_constant(struct vtn_builder *b, struct vtn_type *type)
 {
    nir_constant *c = rzalloc(b, nir_constant);
@@ -5128,7 +5128,7 @@ vtn_vector_shuffle(struct vtn_builder *b, unsigned num_components,
 /*
  * Concatentates a number of vectors/scalars together to produce a vector
  */
-static nir_def *
+nir_def *
 vtn_vector_construct(struct vtn_builder *b, unsigned num_components,
                      unsigned num_srcs, nir_def **srcs)
 {
@@ -5167,7 +5167,7 @@ vtn_vector_construct(struct vtn_builder *b, unsigned num_components,
 /*
  * Creates a copy of `src`, reinterpreting it as `dest_type`.
  */
-static struct vtn_ssa_value *
+struct vtn_ssa_value *
 vtn_composite_copy_logical(struct vtn_builder *b, struct vtn_ssa_value *src, struct vtn_type* dest_type)
 {
    assert(!src->is_variable);
@@ -5193,7 +5193,7 @@ vtn_composite_copy_logical(struct vtn_builder *b, struct vtn_ssa_value *src, str
    return dest;
 }
 
-static struct vtn_ssa_value *
+struct vtn_ssa_value *
 vtn_composite_insert(struct vtn_builder *b, struct vtn_ssa_value *src,
                      struct vtn_type *src_type, struct vtn_ssa_value *insert,
                      const uint32_t *indices, unsigned num_indices)
@@ -5236,7 +5236,7 @@ vtn_composite_insert(struct vtn_builder *b, struct vtn_ssa_value *src,
    return dest;
 }
 
-static struct vtn_ssa_value *
+struct vtn_ssa_value *
 vtn_composite_extract(struct vtn_builder *b, struct vtn_ssa_value *src,
                       const uint32_t *indices, unsigned num_indices)
 {
