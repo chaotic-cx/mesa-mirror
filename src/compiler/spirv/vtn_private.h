@@ -829,6 +829,7 @@ vtn_constant_uint(struct vtn_builder *b, uint32_t value_id)
                "Expected id %u to be an integer constant", value_id);
 
    switch (glsl_get_bit_size(val->type->type)) {
+   case 1:  return val->constant->values[0].b;
    case 8:  return val->constant->values[0].u8;
    case 16: return val->constant->values[0].u16;
    case 32: return val->constant->values[0].u32;
