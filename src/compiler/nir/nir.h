@@ -7498,6 +7498,42 @@ bool nir_opt_barycentric(nir_shader *shader, bool lower_sample_to_pos);
 
 bool nir_normalize_sin_cos(nir_shader *shader);
 
+/*
+ * Intermediate state for tensor addressing calculations.
+ * Drivers call the init for this with the call operation,
+ * then in a loop use it to calculate the tensor ptr.
+ */
+struct nir_calc_tensor_info {
+   nir_deref_instr *view;
+   nir_def *spans;
+   nir_def *strides;
+   nir_def *offsets;
+   nir_def *block_sizes;
+   nir_def *layout_dims;
+   nir_def *clamp_value;
+   nir_def *clip_row_offset;
+   nir_def *clip_col_offset;
+   nir_def *clip_row_span;
+   nir_def *clip_col_span;
+   nir_def *view_dims;
+   nir_def *view_strides;
+   uint32_t cols;
+   uint32_t row_imm_offset;
+   uint32_t col_imm_offset;
+   uint8_t view_permutations[NIR_TENSOR_VIEW_MAX_PERMUTATIONS];
+   bool view_has_dims;
+   struct glsl_cmat_description desc;
+   nir_tensor_clamp_mode clamp_mode;
+   nir_if *clipped_if;
+   nir_def *do_clamp;
+};
+
+void nir_calc_tensor_derefs_init(nir_builder *b, struct nir_calc_tensor_info *info,
+                                 nir_cmat_call_instr *call);
+nir_def *nir_calc_tensor_derefs(nir_builder *b, struct nir_calc_tensor_info *info,
+                                nir_def *row, nir_def *col,
+                                nir_deref_instr **iter_deref_p);
+
 #include "nir_inline_helpers.h"
 
 static inline bool

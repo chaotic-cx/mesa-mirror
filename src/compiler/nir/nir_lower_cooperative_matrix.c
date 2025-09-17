@@ -985,3 +985,199 @@ nir_lower_cooperative_matrix_flexible_dimensions(nir_shader *shader,
       nir_progress(progress, fnim, 0);
    return progress;
 }
+
+static inline nir_def *
+nir_load_struct_field(nir_builder *build, nir_deref_instr *deref, int field)
+{
+   return nir_load_deref(build, nir_build_deref_struct(build, deref, field));
+}
+
+void
+nir_calc_tensor_derefs_init(nir_builder *b, struct nir_calc_tensor_info *info,
+                            nir_cmat_call_instr *call)
+{
+   struct nir_cmat_tensor_load tensor_load = nir_cmat_call_tensor_load_info(call);
+   nir_deref_instr *layout = nir_src_as_deref(call->params[2]);
+   nir_tensor_clamp_mode clamp_mode = tensor_load.layout_clamp_mode;
+   struct glsl_cmat_description orig_desc = nir_cmat_call_cmat_desc(call);
+   bool is_store = call->op == nir_cmat_call_op_tensor_store;
+   nir_deref_instr *cmat_deref = nir_src_as_deref(call->params[is_store]);
+   struct glsl_cmat_description desc = *glsl_get_cmat_description(cmat_deref->type);
+   bool add_clamp = false;
+
+   info->row_imm_offset = tensor_load.split_row_index * desc.rows;
+   info->col_imm_offset = tensor_load.split_col_index * desc.cols;
+   info->desc = desc;
+   info->view = NULL;
+   if (tensor_load.tensor_view) {
+      info->view = nir_src_as_deref(call->params[3]);
+      for (unsigned p = 0; p < NIR_TENSOR_VIEW_MAX_PERMUTATIONS; p++)
+         info->view_permutations[p] = tensor_load.view_permutations[p];
+      info->view_has_dims = tensor_load.view_has_dims;
+   }
+
+   info->cols = orig_desc.cols;
+
+   if (is_store && clamp_mode != NIR_TENSOR_CLAMP_UNDEFINED)
+      clamp_mode = NIR_TENSOR_CLAMP_CONSTANT;
+
+   add_clamp = clamp_mode != NIR_TENSOR_CLAMP_UNDEFINED;
+   info->clamp_mode = clamp_mode;
+   if (info->clamp_mode == NIR_TENSOR_CLAMP_CONSTANT)
+      info->clamp_value = nir_load_struct_field(b, layout, NIR_TENSOR_LAYOUT_CLAMP_VALUE);
+   info->offsets = nir_load_struct_field(b, layout, NIR_TENSOR_LAYOUT_OFFSET);
+   info->block_sizes = nir_load_struct_field(b, layout, NIR_TENSOR_LAYOUT_BLOCKSIZE);
+   info->layout_dims = add_clamp ? nir_load_struct_field(b, layout, NIR_TENSOR_LAYOUT_LAYOUT_DIM) : NULL;
+   info->spans = nir_load_struct_field(b, layout, NIR_TENSOR_LAYOUT_SPAN);
+   info->strides = nir_load_struct_field(b, layout, NIR_TENSOR_LAYOUT_STRIDE);
+
+   if (info->view) {
+      info->clip_row_offset = nir_load_struct_field(b, info->view, NIR_TENSOR_VIEW_CLIP_ROW_OFFSET);
+      info->clip_col_offset = nir_load_struct_field(b, info->view, NIR_TENSOR_VIEW_CLIP_COL_OFFSET);
+      info->clip_col_span = nir_load_struct_field(b, info->view, NIR_TENSOR_VIEW_CLIP_COL_SPAN);
+      info->clip_row_span = nir_load_struct_field(b, info->view, NIR_TENSOR_VIEW_CLIP_ROW_SPAN);
+
+      if (info->view_has_dims) {
+         info->view_dims = nir_load_struct_field(b, info->view, NIR_TENSOR_VIEW_DIM);
+         info->view_strides = nir_load_struct_field(b, info->view, NIR_TENSOR_VIEW_STRIDE);
+      } else {
+         info->view_dims = info->spans;
+         info->view_strides = NULL;
+      }
+   }
+}
+
+static nir_def *
+nir_calc_tensor_view_linear(nir_builder *b,
+                            struct nir_calc_tensor_info *info,
+                            nir_def *row, nir_def *col)
+{
+   nir_def *clipped_row = nir_ior(b,
+                                  nir_ult(b, row, info->clip_row_offset),
+                                  nir_uge(b, row, nir_iadd(b, info->clip_row_span, info->clip_row_offset)));
+   nir_def *clipped_col = nir_ior(b,
+                                  nir_ult(b, col, info->clip_col_offset),
+                                  nir_uge(b, col, nir_iadd(b, info->clip_col_span, info->clip_col_offset)));
+   nir_def *unclipped = nir_inot(b, nir_ior(b, clipped_row, clipped_col));
+
+   info->clipped_if = nir_push_if(b, unclipped);
+
+   row = nir_isub(b, row, info->clip_row_offset);
+   col = nir_isub(b, col, info->clip_col_offset);
+
+   /* matrixCoordToLinear */
+
+   nir_def *width = nir_umin(b, nir_imm_int(b, info->cols), info->clip_col_span);
+   nir_def *idx = nir_iadd(b, nir_imul(b, row, width), col);
+
+   int nc = info->view_dims->num_components;
+   nir_def *view_coord[5];
+   for (int dim = nc - 1; dim >= 0; dim--) {
+      uint32_t i = info->view_permutations[dim];
+      nir_def *view_dim = nir_channel(b, info->view_dims, i);
+      view_coord[i] = nir_umod(b, idx, view_dim);
+      idx = nir_udiv(b, idx, view_dim);
+   }
+
+   /* viewCoordToLinear */
+   nir_def *stride[5];
+   if (info->view_strides) {
+      for (int dim = 0; dim < nc; dim++) {
+         stride[dim] = nir_channel(b, info->view_strides, dim);
+      }
+   } else {
+      stride[nc - 1] = nir_imm_int(b, 1);
+      for (int dim = nc - 2; dim >= 0; --dim) {
+         stride[dim] = nir_imul(b, stride[dim + 1], nir_channel(b, info->spans, dim + 1));
+      }
+   }
+
+   idx = nir_imm_int(b, 0);
+   for (int dim = nc - 1; dim >= 0; --dim) {
+      idx = nir_iadd(b, idx, nir_imul(b, view_coord[dim], stride[dim]));
+   }
+   return idx;
+}
+
+nir_def *
+nir_calc_tensor_derefs(nir_builder *b, struct nir_calc_tensor_info *info,
+                       nir_def *row, nir_def *col,
+                       nir_deref_instr **iter_deref_p)
+{
+   nir_def *idx;
+   nir_def *span_coord[5];
+
+   col = nir_iadd_imm(b, col, info->col_imm_offset);
+   row = nir_iadd_imm(b, row, info->row_imm_offset);
+
+   nir_deref_instr *iter_deref = *iter_deref_p;
+   iter_deref = nir_build_deref_cast(b, &iter_deref->def, iter_deref->modes,
+                                     glsl_scalar_type(info->desc.element_type),
+                                     glsl_base_type_bit_size(info->desc.element_type) / 8);
+
+   if (info->view) {
+      idx = nir_calc_tensor_view_linear(b, info, row, col);
+   } else {
+      /* matrixCoordToLinear */
+      idx = nir_iadd(b, nir_imul_imm(b, row, info->cols), col);
+   }
+
+   /* linearToSpanCoord */
+   int nc = info->spans->num_components;
+
+   for (int dim = nc - 1; dim >= 0; dim--) {
+      nir_def *span_dim = nir_channel(b, info->spans, dim);
+      span_coord[dim] = nir_umod(b, idx, span_dim);
+      idx = nir_udiv(b, idx, span_dim);
+   }
+
+   /* spanCoordToTensorCoord */
+   nir_def *block_coord[5];
+
+   info->do_clamp = nir_imm_false(b);
+   for (unsigned dim = 0; dim < nc; dim++) {
+      nir_def *c = nir_iadd(b, span_coord[dim], nir_channel(b, info->offsets, dim));
+
+      nir_def *this_clamp;
+      if (info->clamp_mode != NIR_TENSOR_CLAMP_UNDEFINED) {
+         this_clamp = nir_ior(b, nir_ilt_imm(b, c, 0), nir_ige(b, c, nir_channel(b, info->layout_dims, dim)));
+         info->do_clamp = nir_ior(b, info->do_clamp, this_clamp);
+      } else
+         this_clamp = nir_imm_false(b);
+
+      nir_def *c_clamped = c;
+      switch (info->clamp_mode) {
+      case NIR_TENSOR_CLAMP_UNDEFINED:
+      case NIR_TENSOR_CLAMP_CONSTANT:
+         c_clamped = nir_imm_int(b, 0);
+         break;
+      case NIR_TENSOR_CLAMP_EDGE:
+         c_clamped = nir_imin(b, nir_imax_imm(b, c, 0), nir_iadd_imm(b, nir_channel(b, info->layout_dims, dim), -1));
+         break;
+      case NIR_TENSOR_CLAMP_REPEAT:
+         c_clamped = nir_imod(b, c, nir_channel(b, info->layout_dims, dim));
+         break;
+      case NIR_TENSOR_CLAMP_REPEAT_MIRRORED: {
+         nir_def *dimX = nir_channel(b, info->layout_dims, dim);
+         c_clamped = nir_imod(b, c, nir_iadd_imm(b, nir_imul_imm(b, dimX, 2), -2));
+         nir_def *val = nir_isub(b, nir_iadd_imm(b, nir_imul_imm(b, dimX, 2), -2), c_clamped);
+         c_clamped = nir_bcsel(b, nir_ige(b, c_clamped, dimX), val, c_clamped);
+         break;
+      }
+      }
+
+      if (info->clamp_mode != NIR_TENSOR_CLAMP_UNDEFINED)
+         c = nir_bcsel(b, this_clamp, c_clamped, c);
+      block_coord[dim] = nir_udiv(b, c, nir_channel(b, info->block_sizes, dim));
+   }
+
+   /* tensorCoordToLinear */
+   idx = nir_imm_int(b, 0);
+   for (unsigned dim = 0; dim < nc; dim++) {
+      idx = nir_iadd(b, idx, nir_imul(b, block_coord[dim], nir_channel(b, info->strides, dim)));
+   }
+
+   *iter_deref_p = nir_build_deref_ptr_as_array(b, iter_deref, nir_u2uN(b, idx, iter_deref->def.bit_size));
+   return idx;
+}
+
