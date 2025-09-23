@@ -35,8 +35,8 @@
 
 void
 panvk_per_arch(get_physical_device_extensions)(
-   const struct panvk_physical_device *device,
    const struct panvk_instance *instance,
+   const struct panvk_physical_device *device,
    struct vk_device_extension_table *ext)
 {
    bool has_gralloc = vk_android_get_ugralloc() != NULL;

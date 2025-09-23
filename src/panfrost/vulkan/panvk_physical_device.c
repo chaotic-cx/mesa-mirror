@@ -42,8 +42,8 @@
 
 #define PER_ARCH_FUNCS(_ver)                                                   \
    void panvk_v##_ver##_get_physical_device_extensions(                        \
-      const struct panvk_physical_device *device,                              \
       const struct panvk_instance *instance,                                   \
+      const struct panvk_physical_device *device,                              \
       struct vk_device_extension_table *ext);                                  \
                                                                                \
    void panvk_v##_ver##_get_physical_device_features(                          \
@@ -508,8 +508,8 @@ panvk_physical_device_init(struct panvk_physical_device *device,
       vk_warn_non_conformant_implementation("panvk");
 
    struct vk_device_extension_table supported_extensions;
-   panvk_arch_dispatch(arch, get_physical_device_extensions, device, instance,
-                       &supported_extensions);
+   panvk_arch_dispatch(arch, get_physical_device_extensions, instance,
+                       device, &supported_extensions);
 
    struct vk_features supported_features;
    panvk_arch_dispatch(arch, get_physical_device_features, instance,
