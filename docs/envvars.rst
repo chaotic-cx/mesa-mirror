@@ -1330,6 +1330,7 @@ Rusticl environment variables
    - ``perfspam`` same as perf, but doesn't skip same warnings
    - ``program`` dumps compilation logs to stderr
    - ``sync`` waits on the GPU to complete after every event
+   - ``use_llvm_spirv_target`` uses the LLVM SPIR-V target instead of the SPIRV-LLVM-Translator
    - ``validate`` validates any internally generated SPIR-Vs, e.g. through compiling OpenCL C code
 
 .. envvar:: RUSTICL_MAX_WORK_GROUPS

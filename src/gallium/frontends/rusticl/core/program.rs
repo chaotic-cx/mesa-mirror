@@ -846,6 +846,7 @@ impl Program {
                     device.cl_features(),
                     &device.spirv_extensions,
                     device.address_bits(),
+                    Platform::dbg().use_llvm_spirv_target,
                 );
 
                 if Platform::dbg().validate_spirv {
