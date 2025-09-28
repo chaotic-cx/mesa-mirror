@@ -169,6 +169,31 @@ fd5_launch_grid(struct fd_context *ctx,
    }
 }
 
+static void
+fd5_get_compute_state_info(struct pipe_context *pctx, void *cso, struct pipe_compute_state_object_info *cinfo)
+{
+   static struct ir3_shader_key key; /* static is implicitly zeroed */
+   struct ir3_shader_state *hwcso = (struct ir3_shader_state *)cso;
+   struct ir3_shader_variant *v = ir3_shader_variant(ir3_get_shader(hwcso), key, false, &pctx->debug);
+   const struct fd_dev_info *info = fd_context(pctx)->screen->info;
+   uint32_t threadsize_base = info->threadsize_base;
+
+   uint32_t threadsize = threadsize_base << v->info.double_threadsize;
+
+   cinfo->max_threads = threadsize * info->max_waves;
+   cinfo->simd_sizes = threadsize;
+   cinfo->preferred_simd_size = threadsize;
+
+   unsigned regs_count = v->info.max_reg + 1 + (v->info.max_half_reg + 2) / 2;
+   unsigned reg_max_waves = ir3_get_reg_dependent_max_waves(
+      v->compiler, regs_count, v->info.double_threadsize);
+
+   /* the waves are counted at the single size, a double wave pays in registers */
+   cinfo->max_threads = MIN2(cinfo->max_threads, reg_max_waves * threadsize_base);
+
+   cinfo->private_memory = v->pvtmem_size;
+}
+
 void
 fd5_compute_init(struct pipe_context *pctx) disable_thread_safety_analysis
 {
@@ -176,4 +201,5 @@ fd5_compute_init(struct pipe_context *pctx) disable_thread_safety_analysis
    ctx->launch_grid = fd5_launch_grid;
    pctx->create_compute_state = ir3_shader_compute_state_create;
    pctx->delete_compute_state = ir3_shader_state_delete;
+   pctx->get_compute_state_info = fd5_get_compute_state_info;
 }
