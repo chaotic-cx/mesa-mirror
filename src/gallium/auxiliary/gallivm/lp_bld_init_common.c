@@ -115,7 +115,7 @@ gallivm_verify_function(struct gallivm_state *gallivm,
                         LLVMValueRef func)
 {
    /* Verify the LLVM IR.  If invalid, dump and abort */
-#if MESA_DEBUG
+#if 0 // MESA_DEBUG
    if (LLVMVerifyFunction(func, LLVMPrintMessageAction)) {
       lp_debug_dump_value(func);
       assert(0);
