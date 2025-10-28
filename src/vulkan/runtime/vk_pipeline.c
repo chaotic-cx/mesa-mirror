@@ -2415,7 +2415,12 @@ vk_rt_pipeline_cmd_bind(struct vk_command_buffer *cmd_buffer,
 
       ops->cmd_set_rt_state(cmd_buffer,
                             rt_pipeline->scratch_size,
-                            rt_pipeline->ray_queries);
+                            rt_pipeline->stack_size);
+
+      for (uint32_t i = 0; i < rt_pipeline->stage_count; i++) {
+         struct vk_shader *shader = rt_pipeline->stages[i].shader;
+         ops->update_push_descriptor_flags(cmd_buffer, shader, 1);
+      }
 
       if (rt_pipeline->stack_size > 0)
          ops->cmd_set_stack_size(cmd_buffer, rt_pipeline->stack_size);

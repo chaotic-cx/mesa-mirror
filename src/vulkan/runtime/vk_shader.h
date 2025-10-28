@@ -333,6 +333,11 @@ struct vk_device_shader_ops {
                             VkDeviceSize scratch_size,
                             uint32_t ray_queries);
 
+   /** Update Push descriptor flags for RT shaders */
+   void (*update_push_descriptor_flags)(struct vk_command_buffer *cmd_buffer,
+                                        struct vk_shader *shaders,
+                                        uint32_t shader_count);
+
    /** Sets stack size for RT pipelines */
    void (*cmd_set_stack_size)(struct vk_command_buffer *cmd_buffer,
                               VkDeviceSize stack_size);
