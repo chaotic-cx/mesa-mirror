@@ -1245,6 +1245,19 @@ void anv_CmdPushDescriptorSetWithTemplate2KHR(
 }
 
 void
+anv_update_push_descriptor_flags(struct vk_command_buffer *vk_cmd_buffer,
+                                 struct vk_shader *vk_shaders,
+                                 uint32_t shader_count)
+{
+   struct anv_shader *shaders = (struct anv_shader *)vk_shaders;
+   struct anv_cmd_buffer *cmd_buffer =
+      container_of(vk_cmd_buffer, struct anv_cmd_buffer, vk);
+   struct anv_cmd_ray_tracing_state *rt = &cmd_buffer->state.rt;
+
+   update_push_descriptor_flags(&rt->base, &shaders, shader_count);
+}
+
+void
 anv_cmd_buffer_set_rt_state(struct vk_command_buffer *vk_cmd_buffer,
                             VkDeviceSize scratch_size,
                             uint32_t ray_queries)

@@ -2039,4 +2039,5 @@ struct vk_device_shader_ops anv_device_shader_ops = {
    .cmd_set_dynamic_graphics_state = vk_cmd_set_dynamic_graphics_state,
    .cmd_set_rt_state               = anv_cmd_buffer_set_rt_state,
    .cmd_set_stack_size             = anv_cmd_buffer_set_stack_size,
+   .update_push_descriptor_flags = anv_update_push_descriptor_flags,
 };

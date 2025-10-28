@@ -6126,6 +6126,10 @@ void
 anv_cmd_buffer_set_rt_state(struct vk_command_buffer *vk_cmd_buffer,
                             VkDeviceSize scratch_size,
                             uint32_t ray_queries);
+void
+anv_update_push_descriptor_flags(struct vk_command_buffer *vk_cmd_buffer,
+                                 struct vk_shader *shader,
+                                 uint32_t shader_count);
 
 void
 anv_cmd_buffer_set_stack_size(struct vk_command_buffer *vk_cmd_buffer,
