@@ -1398,7 +1398,7 @@ tu_get_properties(struct tu_physical_device *pdevice,
    props->maxSamplerDescriptorBufferBindings = pdevice->usable_sets;
    props->maxEmbeddedImmutableSamplerBindings = pdevice->usable_sets;
    props->maxEmbeddedImmutableSamplers = max_descriptor_set_size;
-   props->bufferCaptureReplayDescriptorDataSize = 0;
+   props->bufferCaptureReplayDescriptorDataSize = sizeof(uint64_t);
    props->imageCaptureReplayDescriptorDataSize = sizeof(uint64_t);
    props->imageViewCaptureReplayDescriptorDataSize = 0;
    props->samplerCaptureReplayDescriptorDataSize = 0;
