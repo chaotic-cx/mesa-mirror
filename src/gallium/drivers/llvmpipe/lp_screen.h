@@ -59,7 +59,6 @@ struct llvmpipe_screen
    unsigned timestamp;
 
    struct lp_rasterizer *rast;
-   mtx_t rast_mutex;
 
    struct lp_cs_tpool *cs_tpool;
    mtx_t cs_mutex;

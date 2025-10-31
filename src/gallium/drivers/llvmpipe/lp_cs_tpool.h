@@ -54,6 +54,7 @@ struct lp_cs_tpool {
 struct lp_cs_local_mem {
    unsigned local_size;
    void *local_mem_ptr;
+   unsigned thread_index; /* index of the worker thread (0..num_threads-1) */
 };
 
 typedef void (*lp_cs_tpool_task_func)(void *data, int iter_idx, struct lp_cs_local_mem *lmem);

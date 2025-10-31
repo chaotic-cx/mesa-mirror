@@ -59,9 +59,9 @@ llvmpipe_flush(struct pipe_context *pipe,
    /* ask the setup module to flush */
    lp_setup_flush(llvmpipe->setup, reason);
 
-   mtx_lock(&screen->rast_mutex);
+   mtx_lock(&screen->cs_mutex);
    lp_rast_fence(screen->rast, (struct lp_fence **)fence);
-   mtx_unlock(&screen->rast_mutex);
+   mtx_unlock(&screen->cs_mutex);
 
    if (fence && (!*fence))
       *fence = (struct pipe_fence_handle *)lp_fence_create(0);

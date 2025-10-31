@@ -47,6 +47,7 @@ struct lp_rasterizer;
 struct lp_scene;
 struct lp_fence;
 struct cmd_bin;
+struct lp_cs_tpool;
 
 #define FIXED_TYPE_WIDTH 64
 /** For sub-pixel positioning */
@@ -238,11 +239,9 @@ void
 lp_rast_destroy(struct lp_rasterizer *);
 
 void
-lp_rast_queue_scene(struct lp_rasterizer *rast,
-                     struct lp_scene *scene);
-
-void
-lp_rast_finish(struct lp_rasterizer *rast);
+lp_rast_queue_scene_compute(struct lp_cs_tpool *cs_tpool,
+                             struct lp_rasterizer *rast,
+                             struct lp_scene *scene);
 
 
 union lp_rast_cmd_arg {

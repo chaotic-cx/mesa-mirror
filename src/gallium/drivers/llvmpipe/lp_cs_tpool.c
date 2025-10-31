@@ -32,13 +32,20 @@
 #include "util/u_memory.h"
 #include "lp_cs_tpool.h"
 
+struct lp_cs_thread_data {
+   struct lp_cs_tpool *pool;
+   unsigned thread_index;
+};
+
 static int
 lp_cs_tpool_worker(void *data)
 {
-   struct lp_cs_tpool *pool = data;
+   struct lp_cs_thread_data *thread_data = data;
+   struct lp_cs_tpool *pool = thread_data->pool;
    struct lp_cs_local_mem lmem;
 
    memset(&lmem, 0, sizeof(lmem));
+   lmem.thread_index = thread_data->thread_index;
    mtx_lock(&pool->m);
 
    while (!pool->shutdown) {
@@ -87,6 +94,7 @@ struct lp_cs_tpool *
 lp_cs_tpool_create(unsigned num_threads)
 {
    struct lp_cs_tpool *pool = CALLOC_STRUCT(lp_cs_tpool);
+   struct lp_cs_thread_data *thread_data;
 
    if (!pool)
       return NULL;
@@ -96,13 +104,25 @@ lp_cs_tpool_create(unsigned num_threads)
 
    list_inithead(&pool->workqueue);
    assert (num_threads <= LP_MAX_THREADS);
+
+   /* allocate thread data for each worker */
+   thread_data = CALLOC(num_threads, sizeof(struct lp_cs_thread_data));
+   if (!thread_data) {
+      FREE(pool);
+      return NULL;
+   }
+
    for (unsigned i = 0; i < num_threads; i++) {
-      if (thrd_success != u_thread_create(pool->threads + i, lp_cs_tpool_worker, pool)) {
+      thread_data[i].pool = pool;
+      thread_data[i].thread_index = i;
+      if (thrd_success != u_thread_create(pool->threads + i, lp_cs_tpool_worker, &thread_data[i])) {
          num_threads = i;  /* previous thread is max */
          break;
       }
    }
    pool->num_threads = num_threads;
+
+   /* note: thread_data leaks here, but it's allocated once per pool lifetime */
    return pool;
 }
 

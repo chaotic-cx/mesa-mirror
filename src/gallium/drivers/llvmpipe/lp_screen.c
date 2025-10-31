@@ -787,7 +787,6 @@ llvmpipe_destroy_screen(struct pipe_screen *_screen)
    close(screen->fd_mem_alloc);
    mtx_destroy(&screen->mem_mutex);
 #endif
-   mtx_destroy(&screen->rast_mutex);
    mtx_destroy(&screen->cs_mutex);
    FREE(screen);
 }
@@ -1050,7 +1049,6 @@ llvmpipe_create_screen(struct sw_winsys *winsys)
    list_inithead(&screen->ctx_list);
    (void) mtx_init(&screen->ctx_mutex, mtx_plain);
    (void) mtx_init(&screen->cs_mutex, mtx_plain);
-   (void) mtx_init(&screen->rast_mutex, mtx_plain);
 
    (void) mtx_init(&screen->late_mutex, mtx_plain);
 

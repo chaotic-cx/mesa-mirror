@@ -49,6 +49,7 @@
 #include "lp_scene.h"
 #include "lp_screen.h"
 #include "lp_tex_sample.h"
+#include "lp_cs_tpool.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -73,30 +74,6 @@ const float lp_sample_pos_8x[8][2] = { { 0.5625, 0.3125 },
                                        { 0.0625, 0.4375 },
                                        { 0.6875, 0.9375 },
                                        { 0.9375, 0.0625 } };
-
-/**
- * Begin rasterizing a scene.
- * Called once per scene by one thread.
- */
-static void
-lp_rast_begin(struct lp_rasterizer *rast,
-              struct lp_scene *scene)
-{
-   rast->curr_scene = scene;
-
-   LP_DBG(DEBUG_RAST, "%s\n", __func__);
-
-   lp_scene_begin_rasterization(scene);
-   lp_scene_bin_iter_begin(scene);
-}
-
-
-static void
-lp_rast_end(struct lp_rasterizer *rast)
-{
-   rast->curr_scene = NULL;
-}
-
 
 /**
  * Beginning rasterization of a tile.
@@ -1048,67 +1025,59 @@ is_empty_bin(const struct cmd_bin *bin)
 
 
 /**
- * Rasterize/execute all bins within a scene.
- * Called per thread.
+ * Dispatch structure for compute-based scene rasterization.
+ */
+struct scene_dispatch {
+   struct lp_scene *scene;
+   struct lp_rasterizer *rast;
+};
+
+
+/**
+ * Per-tile execution function for compute-based rasterization.
+ * Called by cs_tpool for each tile in the scene.
  */
 static void
-rasterize_scene(struct lp_rasterizer_task *task,
-                struct lp_scene *scene)
+scene_tile_exec_fn(void *init_data, int iter_idx, struct lp_cs_local_mem *lmem)
 {
+   struct scene_dispatch *dispatch = init_data;
+   struct lp_scene *scene = dispatch->scene;
+   struct lp_rasterizer *rast = dispatch->rast;
+
+   /* decode iter_idx into tile coordinates */
+   const int tile_y = iter_idx / scene->tiles_x;
+   const int tile_x = iter_idx % scene->tiles_x;
+
+   /* get bin for this tile */
+   struct cmd_bin *bin = &scene->tiles[tile_y * scene->tiles_x + tile_x];
+
+   if (is_empty_bin(bin))
+      return;
+
+   /* create a task for this thread/tile
+    * we reuse the task from the rasterizer, indexed by thread
+    * note: this assumes cs_tpool thread indices match rast thread indices
+    */
+   const unsigned thread_index = lmem->thread_index;
+   struct lp_rasterizer_task *task = &rast->tasks[thread_index];
+
+   /* set up task for this tile */
    task->scene = scene;
 
-   /* Clear the cache tags. This should not always be necessary but
-    * simpler for now.
-    */
-#if LP_USE_TEXTURE_CACHE
-   memset(task->thread_data.cache->cache_tags, 0,
-          sizeof(task->thread_data.cache->cache_tags));
-#if LP_BUILD_FORMAT_CACHE_DEBUG
-   task->thread_data.cache->cache_access_total = 0;
-   task->thread_data.cache->cache_access_miss = 0;
-#endif
-#endif
-
-   if (!task->rast->no_rast) {
-      /* loop over scene bins, rasterize each */
-      struct cmd_bin *bin;
-      int i, j;
-
-      assert(scene);
-      while ((bin = lp_scene_bin_iter_next(scene, &i, &j))) {
-         if (!is_empty_bin(bin))
-            rasterize_bin(task, bin, i, j);
-      }
-   }
-
-#if LP_BUILD_FORMAT_CACHE_DEBUG
-   {
-      uint64_t total, miss;
-      total = task->thread_data.cache->cache_access_total;
-      miss = task->thread_data.cache->cache_access_miss;
-      if (total) {
-         debug_printf("thread %d cache access %llu miss %llu hit rate %f\n",
-                 task->thread_index, (long long unsigned)total,
-                 (long long unsigned)miss,
-                 (float)(total - miss)/(float)total);
-      }
-   }
-#endif
-
-   if (scene->fence) {
-      lp_fence_signal(scene->fence);
-   }
-
-   task->scene = NULL;
+   /* rasterize this bin */
+   rasterize_bin(task, bin, tile_x, tile_y);
 }
 
 
 /**
- * Called by setup module when it has something for us to render.
+ * Queue scene for rasterization using compute thread pool.
+ * Alternative to lp_rast_queue_scene() that uses cs_tpool instead of
+ * dedicated rasterizer threads.
  */
 void
-lp_rast_queue_scene(struct lp_rasterizer *rast,
-                    struct lp_scene *scene)
+lp_rast_queue_scene_compute(struct lp_cs_tpool *cs_tpool,
+                             struct lp_rasterizer *rast,
+                             struct lp_scene *scene)
 {
    LP_DBG(DEBUG_SETUP, "%s\n", __func__);
 
@@ -1116,147 +1085,31 @@ lp_rast_queue_scene(struct lp_rasterizer *rast,
    if (rast->last_fence)
       rast->last_fence->issued = true;
 
-   if (rast->num_threads == 0) {
-      /* no threading */
-      unsigned fpstate = util_fpstate_get();
+   /* prepare scene for rasterization */
+   lp_scene_begin_rasterization(scene);
 
-      /* Make sure that denorms are treated like zeros. This is
-       * the behavior required by D3D10. OpenGL doesn't care.
-       */
-      util_fpstate_set_denorms_to_zero(fpstate);
+   /* set up dispatch */
+   struct scene_dispatch dispatch = {
+      .scene = scene,
+      .rast = rast,
+   };
 
-      lp_rast_begin(rast, scene);
+   /* dispatch as 2D grid: tiles_x × tiles_y */
+   const int num_tasks = scene->tiles_x * scene->tiles_y;
 
-      rasterize_scene(&rast->tasks[0], scene);
+   /* queue work to compute thread pool */
+   struct lp_cs_tpool_task *task =
+      lp_cs_tpool_queue_task(cs_tpool, scene_tile_exec_fn, &dispatch, num_tasks);
 
-      lp_rast_end(rast);
+   /* wait for completion */
+   lp_cs_tpool_wait_for_task(cs_tpool, &task);
 
-      util_fpstate_set(fpstate);
-
-      rast->curr_scene = NULL;
-   } else {
-      /* threaded rendering! */
-      lp_scene_enqueue(rast->full_scenes, scene);
-
-      /* signal the threads that there's work to do */
-      for (unsigned i = 0; i < rast->num_threads; i++) {
-         util_semaphore_signal(&rast->tasks[i].work_ready);
-      }
+   /* signal fence */
+   if (scene->fence) {
+      lp_fence_signal(scene->fence);
    }
 
-   LP_DBG(DEBUG_SETUP, "%s done \n", __func__);
-}
-
-
-void
-lp_rast_finish(struct lp_rasterizer *rast)
-{
-   if (rast->num_threads == 0) {
-      /* nothing to do */
-   } else {
-      /* wait for work to complete */
-      for (unsigned i = 0; i < rast->num_threads; i++) {
-         util_semaphore_wait(&rast->tasks[i].work_done);
-      }
-   }
-}
-
-
-/**
- * This is the thread's main entrypoint.
- * It's a simple loop:
- *   1. wait for work
- *   2. do work
- *   3. signal that we're done
- */
-static int
-thread_function(void *init_data)
-{
-   struct lp_rasterizer_task *task = (struct lp_rasterizer_task *) init_data;
-   struct lp_rasterizer *rast = task->rast;
-   bool debug = false;
-   char thread_name[16];
-
-   snprintf(thread_name, sizeof thread_name, "llvmpipe-%u", task->thread_index);
-   u_thread_setname(thread_name);
-
-   /* Make sure that denorms are treated like zeros. This is
-    * the behavior required by D3D10. OpenGL doesn't care.
-    */
-   unsigned fpstate = util_fpstate_get();
-   util_fpstate_set_denorms_to_zero(fpstate);
-
-   while (1) {
-      /* wait for work */
-      if (debug)
-         debug_printf("thread %d waiting for work\n", task->thread_index);
-      util_semaphore_wait(&task->work_ready);
-
-      if (rast->exit_flag)
-         break;
-
-      if (task->thread_index == 0) {
-         /* thread[0]:
-          *  - get next scene to rasterize
-          *  - map the framebuffer surfaces
-          */
-         lp_rast_begin(rast, lp_scene_dequeue(rast->full_scenes, true));
-      }
-
-      /* Wait for all threads to get here so that threads[1+] don't
-       * get a null rast->curr_scene pointer.
-       */
-      util_barrier_wait(&rast->barrier);
-
-      /* do work */
-      if (debug)
-         debug_printf("thread %d doing work\n", task->thread_index);
-
-      rasterize_scene(task, rast->curr_scene);
-
-      /* wait for all threads to finish with this scene */
-      util_barrier_wait(&rast->barrier);
-
-      /* XXX: shouldn't be necessary:
-       */
-      if (task->thread_index == 0) {
-         lp_rast_end(rast);
-      }
-
-      /* signal done with work */
-      if (debug)
-         debug_printf("thread %d done working\n", task->thread_index);
-
-      util_semaphore_signal(&task->work_done);
-   }
-
-#ifdef _WIN32
-   util_semaphore_signal(&task->exited);
-#endif
-
-   return 0;
-}
-
-
-/**
- * Initialize semaphores and spawn the threads.
- */
-static void
-create_rast_threads(struct lp_rasterizer *rast)
-{
-   /* NOTE: if num_threads is zero, we won't use any threads */
-   for (unsigned i = 0; i < rast->num_threads; i++) {
-      util_semaphore_init(&rast->tasks[i].work_ready, 0);
-      util_semaphore_init(&rast->tasks[i].work_done, 0);
-#ifdef _WIN32
-      util_semaphore_init(&rast->tasks[i].exited, 0);
-#endif
-      if (thrd_success != u_thread_create(rast->threads + i, thread_function,
-                                            (void *) &rast->tasks[i])) {
-         rast->num_threads = i; /* previous thread is max */
-         break;
-      }
-   }
+   LP_DBG(DEBUG_SETUP, "%s done\n", __func__);
 }
 
 
@@ -1271,11 +1124,6 @@ lp_rast_create(unsigned num_threads)
    struct lp_rasterizer *rast = CALLOC_STRUCT(lp_rasterizer);
    if (!rast) {
       goto no_rast;
-   }
-
-   rast->full_scenes = lp_scene_queue_create();
-   if (!rast->full_scenes) {
-      goto no_full_scenes;
    }
 
    for (unsigned i = 0; i < MAX2(1, num_threads); i++) {
@@ -1293,13 +1141,6 @@ lp_rast_create(unsigned num_threads)
 
    rast->no_rast = debug_get_bool_option("LP_NO_RAST", false);
 
-   create_rast_threads(rast);
-
-   /* for synchronizing rasterization threads */
-   if (rast->num_threads > 0) {
-      util_barrier_init(&rast->barrier, rast->num_threads);
-   }
-
    memset(lp_dummy_tile, 0, sizeof lp_dummy_tile);
 
    return rast;
@@ -1311,8 +1152,6 @@ no_thread_data_cache:
       }
    }
 
-   lp_scene_queue_destroy(rast->full_scenes);
-no_full_scenes:
    FREE(rast);
 no_rast:
    return NULL;
@@ -1324,53 +1163,12 @@ no_rast:
 void
 lp_rast_destroy(struct lp_rasterizer *rast)
 {
-   /* Set exit_flag and signal each thread's work_ready semaphore.
-    * Each thread will be woken up, notice that the exit_flag is set and
-    * break out of its main loop.  The thread will then exit.
-    */
-   rast->exit_flag = true;
-   for (unsigned i = 0; i < rast->num_threads; i++) {
-      util_semaphore_signal(&rast->tasks[i].work_ready);
-   }
-
-   /* Wait for threads to terminate before cleaning up per-thread data.
-    * We don't actually call pipe_thread_wait to avoid dead lock on Windows
-    * per https://bugs.freedesktop.org/show_bug.cgi?id=76252 */
-   for (unsigned i = 0; i < rast->num_threads; i++) {
-#ifdef _WIN32
-      /* Threads might already be dead - Windows apparently terminates
-       * other threads when returning from main.
-       */
-      DWORD exit_code = STILL_ACTIVE;
-      if (GetExitCodeThread(rast->threads[i].handle, &exit_code) &&
-          exit_code == STILL_ACTIVE) {
-         util_semaphore_wait(&rast->tasks[i].exited);
-      }
-#else
-      thrd_join(rast->threads[i], NULL);
-#endif
-   }
-
    /* Clean up per-thread data */
-   for (unsigned i = 0; i < rast->num_threads; i++) {
-      util_semaphore_destroy(&rast->tasks[i].work_ready);
-      util_semaphore_destroy(&rast->tasks[i].work_done);
-#ifdef _WIN32
-      util_semaphore_destroy(&rast->tasks[i].exited);
-#endif
-   }
    for (unsigned i = 0; i < MAX2(1, rast->num_threads); i++) {
       align_free(rast->tasks[i].thread_data.cache);
    }
 
    lp_fence_reference(&rast->last_fence, NULL);
-
-   /* for synchronizing rasterization threads */
-   if (rast->num_threads > 0) {
-      util_barrier_destroy(&rast->barrier);
-   }
-
-   lp_scene_queue_destroy(rast->full_scenes);
 
    FREE(rast);
 }

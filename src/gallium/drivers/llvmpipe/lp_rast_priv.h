@@ -99,12 +99,6 @@ struct lp_rasterizer_task
 
    /** Non-interpolated passthru state and occlude counter for visible pixels */
    struct lp_jit_thread_data thread_data;
-
-   util_semaphore work_ready;
-   util_semaphore work_done;
-#ifdef _WIN32
-   util_semaphore exited;
-#endif
 };
 
 
@@ -115,23 +109,12 @@ struct lp_rasterizer_task
  */
 struct lp_rasterizer
 {
-   bool exit_flag;
    bool no_rast;  /**< For debugging/profiling */
-
-   /** The incoming queue of scenes ready to rasterize */
-   struct lp_scene_queue *full_scenes;
-
-   /** The scene currently being rasterized by the threads */
-   struct lp_scene *curr_scene;
 
    /** A task object for each rasterization thread */
    struct lp_rasterizer_task tasks[LP_MAX_THREADS];
 
    unsigned num_threads;
-   thrd_t threads[LP_MAX_THREADS];
-
-   /** For synchronizing the rasterization threads */
-   util_barrier barrier;
 
    struct lp_fence *last_fence;
 };

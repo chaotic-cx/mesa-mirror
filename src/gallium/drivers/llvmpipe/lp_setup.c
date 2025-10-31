@@ -51,6 +51,7 @@
 #include "lp_fence.h"
 #include "lp_query.h"
 #include "lp_rast.h"
+#include "lp_cs_tpool.h"
 #include "lp_setup_context.h"
 #include "lp_screen.h"
 #include "lp_state.h"
@@ -238,9 +239,9 @@ lp_setup_rasterize_scene(struct lp_setup_context *setup)
 
    lp_scene_end_binning(scene);
 
-   mtx_lock(&screen->rast_mutex);
-   lp_rast_queue_scene(screen->rast, scene);
-   mtx_unlock(&screen->rast_mutex);
+   mtx_lock(&screen->cs_mutex);
+   lp_rast_queue_scene_compute(screen->cs_tpool, screen->rast, scene);
+   mtx_unlock(&screen->cs_mutex);
 
    lp_setup_reset(setup);
 
@@ -256,9 +257,10 @@ begin_binning(struct lp_setup_context *setup)
    assert(scene);
    assert(scene->fence == NULL);
 
-   /* Always create a fence:
+   /* Always create a fence. With the unified thread pool, rasterization
+    * is synchronous and we signal the fence once when the scene completes.
     */
-   scene->fence = lp_fence_create(MAX2(1, setup->num_threads));
+   scene->fence = lp_fence_create(1);
    if (!scene->fence)
       return false;
 
@@ -1541,9 +1543,9 @@ lp_setup_end_query(struct lp_setup_context *setup, struct llvmpipe_query *pq)
       }
    } else {
       struct llvmpipe_screen *screen = llvmpipe_screen(setup->pipe->screen);
-      mtx_lock(&screen->rast_mutex);
+      mtx_lock(&screen->cs_mutex);
       lp_rast_fence(screen->rast, &pq->fence);
-      mtx_unlock(&screen->rast_mutex);
+      mtx_unlock(&screen->cs_mutex);
    }
 
 fail:
