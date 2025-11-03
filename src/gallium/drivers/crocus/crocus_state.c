@@ -4975,8 +4975,8 @@ emit_null_fb_surface(struct crocus_batch *batch,
    layer = 0;
 
    if (cso->nr_cbufs == 0 && ice->state.fb_zsbuf) {
-      width = ((struct crocus_surface*)ice->state.fb_zsbuf)->surf.logical_level0_px.width;
-      height = ((struct crocus_surface*)ice->state.fb_zsbuf)->surf.logical_level0_px.height;
+      width = MAX2(((struct crocus_surface*)ice->state.fb_zsbuf)->surf.logical_level0_px.width, 1);
+      height = MAX2(((struct crocus_surface*)ice->state.fb_zsbuf)->surf.logical_level0_px.height, 1);
       level = cso->zsbuf.level;
       layer = cso->zsbuf.first_layer;
    }
