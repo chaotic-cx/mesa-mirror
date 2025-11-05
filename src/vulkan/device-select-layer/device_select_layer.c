@@ -89,12 +89,34 @@ static VkResult
 device_select_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
                              const VkAllocationCallbacks *pAllocator, VkInstance *pInstance)
 {
-   VkLayerInstanceCreateInfo *chain_info;
-   for (chain_info = (VkLayerInstanceCreateInfo *)pCreateInfo->pNext; chain_info;
-        chain_info = (VkLayerInstanceCreateInfo *)chain_info->pNext)
-      if (chain_info->sType == VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO &&
-          chain_info->function == VK_LAYER_LINK_INFO)
+   VkLayerInstanceCreateInfo *chain_info = NULL;
+   bool bypass_device_select = false;
+   vk_foreach_struct_const(s, pCreateInfo->pNext) {
+      switch (s->sType) {
+      case VK_STRUCTURE_TYPE_LOADER_INSTANCE_CREATE_INFO: {
+         const VkLayerInstanceCreateInfo *this_info = (const void *)s;
+         if (this_info->function == VK_LAYER_LINK_INFO)
+            chain_info = (VkLayerInstanceCreateInfo *)this_info; /* loses const */
          break;
+      }
+      case VK_STRUCTURE_TYPE_LAYER_SETTINGS_CREATE_INFO_EXT: {
+         const VkLayerSettingsCreateInfoEXT *lsci = (const void *)s;
+         for (unsigned i = 0; i < lsci->settingCount; i++) {
+            const VkLayerSettingEXT *ls = &lsci->pSettings[i];
+            if (!strcmp(ls->pLayerName, "MESA_device_select")) {
+               if (!strcmp(ls->pSettingName, "no_device_select")) {
+                  assert(ls->type == VK_LAYER_SETTING_TYPE_BOOL32_EXT);
+                  uint32_t *values = (uint32_t *)ls->pValues;
+                  bypass_device_select = values[0];
+               }
+            }
+         }
+         break;
+      }
+      default:
+         break;
+      }
+   }
 
    assert(chain_info->u.pLayerInfo);
 
@@ -121,10 +143,10 @@ device_select_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
       return result;
    }
 
+   bool zink = !strcmp(engineName, "mesa zink");
+   bool xwayland = !strcmp(applicationName, "Xwayland");
    struct instance_info *info = (struct instance_info *)calloc(1, sizeof(struct instance_info));
    info->GetInstanceProcAddr = GetInstanceProcAddr;
-   info->zink = !strcmp(engineName, "mesa zink");
-   info->xwayland = !strcmp(applicationName, "Xwayland");
    info->xserver = !strcmp(applicationName, "Xorg") || !strcmp(applicationName, "Xephyr");
 
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
@@ -143,15 +165,18 @@ device_select_CreateInstance(const VkInstanceCreateInfo *pCreateInfo,
 #ifdef VK_USE_PLATFORM_XCB_KHR
       if (!strcmp(pCreateInfo->ppEnabledExtensionNames[i], VK_KHR_XCB_SURFACE_EXTENSION_NAME) &&
           has_xcb)
-         info->has_xcb = !info->xserver || !info->zink;
+         info->has_xcb = !info->xserver || !zink;
 #endif
    }
 
+   if (zink && xwayland)
+      bypass_device_select = true;
    /*
     * The loader is currently not able to handle GetPhysicalDeviceProperties2KHR calls in
     * EnumeratePhysicalDevices when there are other layers present. To avoid mysterious crashes
     * for users just use only the vulkan version for now.
     */
+   info->bypass_device_select = bypass_device_select;
    info->has_vulkan11 = pCreateInfo->pApplicationInfo &&
                         pCreateInfo->pApplicationInfo->apiVersion >= VK_MAKE_VERSION(1, 1, 0);
 
@@ -252,7 +277,7 @@ device_select_EnumeratePhysicalDevices(VkInstance instance, uint32_t *pPhysicalD
    uint32_t physical_device_count = 0;
    uint32_t selected_physical_device_count = 0;
    bool expose_only_one_dev = false;
-   if (info->zink && info->xwayland)
+   if (info->bypass_device_select)
       return info->EnumeratePhysicalDevices(instance, pPhysicalDeviceCount, pPhysicalDevices);
    VkResult result = info->EnumeratePhysicalDevices(instance, &physical_device_count, NULL);
    VK_OUTARRAY_MAKE_TYPED(VkPhysicalDevice, out, pPhysicalDevices, pPhysicalDeviceCount);
@@ -340,7 +365,7 @@ device_select_EnumeratePhysicalDeviceGroups(VkInstance instance,
    struct instance_info *info = device_select_layer_get_instance(instance);
    uint32_t physical_device_group_count = 0;
    uint32_t selected_physical_device_group_count = 0;
-   if (info->zink && info->xwayland)
+   if (info->bypass_device_select)
       return info->EnumeratePhysicalDeviceGroups(instance, pPhysicalDeviceGroupCount,
                                                  pPhysicalDeviceGroups);
    VkResult result =
