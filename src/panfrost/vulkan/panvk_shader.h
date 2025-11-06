@@ -20,6 +20,8 @@
 #include "panvk_macros.h"
 #include "panvk_mempool.h"
 
+#include "poly/nir/poly_nir.h"
+
 #include "vk_pipeline_layout.h"
 
 #include "vk_shader.h"
@@ -153,6 +155,26 @@ struct panvk_graphics_sysvals {
    struct {
       /* Address of input assembly buffer if geom/tess is used, else 0 */
       uint64_t vertex_params;
+
+      /* Address of geometry param buffer if GS is used, else 0 */
+      uint64_t geometry_params;
+
+      /* Pipeline statistics queries. This is a base address with flags. */
+      uint64_t pipeline_stats;
+      VkQueryPipelineStatisticFlags pipeline_stats_flags;
+
+      uint32_t rasterization_stream;
+
+      /* True if there is an API geometry shader. If false, there may still
+       * be a geometry shader in use (notably for transform feedback) but it
+       * should not contribute to pipeline statistics.
+       */
+      uint32_t is_api_gs;
+
+      /* Provoking vertex 0, 1, or 2. Usually 0 or 2 for FIRST/LAST. 1 can
+       * only be set for tri fans.
+       */
+      uint32_t provoking_vertex;
    } poly;
 
    struct {
@@ -452,10 +474,27 @@ enum panvk_vs_variant {
    PANVK_VS_VARIANTS,
 };
 
+enum panvk_gs_variant {
+   /* IDVS shader used for rasterization */
+   PANVK_GS_VARIANT_RAST,
+
+   /* Main compute shader */
+   PANVK_GS_VARIANT_MAIN,
+
+   /* Count compute shader */
+   PANVK_GS_VARIANT_COUNT,
+
+   /* Pre-GS compute shader */
+   PANVK_GS_VARIANT_PRE,
+
+   PANVK_GS_VARIANTS,
+};
+
 struct panvk_shader {
    struct vk_shader vk;
 
    struct panvk_shader_desc_info desc_info;
+   struct poly_gs_info gs_info;
 
    struct panvk_shader_variant variants[];
 };
@@ -466,12 +505,22 @@ panvk_shader_num_variants(mesa_shader_stage stage)
    if (stage == MESA_SHADER_VERTEX)
       return PANVK_VS_VARIANTS;
 
+   if (stage == MESA_SHADER_GEOMETRY)
+      return PANVK_GS_VARIANTS;
+
    return 1;
 }
 
 static const char *panvk_vs_shader_variant_name[] = {
    [PANVK_VS_VARIANT_HW] = "Hardware",
    [PANVK_VS_VARIANT_SW] = "Software",
+};
+
+static const char *panvk_gs_variant_name[] = {
+   [PANVK_GS_VARIANT_RAST] = "Rasterization",
+   [PANVK_GS_VARIANT_MAIN] = "Main",
+   [PANVK_GS_VARIANT_COUNT] = "Count",
+   [PANVK_GS_VARIANT_PRE] = "Pre-GS",
 };
 
 static const char *
@@ -484,6 +533,11 @@ panvk_shader_variant_name(const struct panvk_shader *shader,
    if (shader->vk.stage == MESA_SHADER_VERTEX) {
       assert(i < ARRAY_SIZE(panvk_vs_shader_variant_name));
       return panvk_vs_shader_variant_name[i];
+   }
+
+   if (shader->vk.stage == MESA_SHADER_GEOMETRY) {
+      assert(i < ARRAY_SIZE(panvk_gs_variant_name));
+      return panvk_gs_variant_name[i];
    }
 
    assert(panvk_shader_num_variants(shader->vk.stage) == 1);
@@ -508,6 +562,38 @@ panvk_shader_hw_variant(const struct panvk_shader *shader)
       return NULL;
 
    return &shader->variants[0];
+}
+
+static const struct panvk_shader_variant *
+panvk_main_gs_variant(const struct panvk_shader *shader)
+{
+   assert(shader);
+   assert(shader->vk.stage == MESA_SHADER_GEOMETRY);
+   return &shader->variants[PANVK_GS_VARIANT_MAIN];
+}
+
+const static struct panvk_shader_variant *
+panvk_count_gs_variant(const struct panvk_shader *shader)
+{
+   assert(shader);
+   assert(shader->vk.stage == MESA_SHADER_GEOMETRY);
+   return &shader->variants[PANVK_GS_VARIANT_COUNT];
+}
+
+const static struct panvk_shader_variant *
+panvk_rast_gs_variant(const struct panvk_shader *shader)
+{
+   assert(shader);
+   assert(shader->vk.stage == MESA_SHADER_GEOMETRY);
+   return &shader->variants[PANVK_GS_VARIANT_RAST];
+}
+
+static const struct panvk_shader_variant *
+panvk_pre_gs_variant(const struct panvk_shader *shader)
+{
+   assert(shader);
+   assert(shader->vk.stage == MESA_SHADER_GEOMETRY);
+   return &shader->variants[PANVK_GS_VARIANT_PRE];
 }
 
 static inline uint64_t
