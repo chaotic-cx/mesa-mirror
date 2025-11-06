@@ -174,6 +174,7 @@ foreach arch : [6, 7, 10, 11, 12, 13, 14]
       inc_panfrost,
       inc_panvk_per_arch,
     ],
+    link_with : [libpoly_nir],
     dependencies : [
       idep_nir_headers,
       idep_pan_packers,

@@ -151,6 +151,11 @@ struct panvk_graphics_sysvals {
    } viewport;
 
    struct {
+      /* Address of input assembly buffer if geom/tess is used, else 0 */
+      uint64_t vertex_params;
+   } poly;
+
+   struct {
 #if PAN_ARCH < 9
       int32_t raw_vertex_offset;
 #endif
@@ -441,6 +446,9 @@ enum panvk_vs_variant {
    /* Hardware vertex shader, when next stage is fragment */
    PANVK_VS_VARIANT_HW,
 
+   /* Hardware compute shader, when next is geometry/tessellation */
+   PANVK_VS_VARIANT_SW,
+
    PANVK_VS_VARIANTS,
 };
 
@@ -462,7 +470,8 @@ panvk_shader_num_variants(mesa_shader_stage stage)
 }
 
 static const char *panvk_vs_shader_variant_name[] = {
-   [PANVK_VS_VARIANT_HW] = NULL,
+   [PANVK_VS_VARIANT_HW] = "Hardware",
+   [PANVK_VS_VARIANT_SW] = "Software",
 };
 
 static const char *
