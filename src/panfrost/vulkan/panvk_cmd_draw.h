@@ -22,6 +22,7 @@
 #include "vk_command_buffer.h"
 #include "vk_format.h"
 #include "vk_meta.h"
+#include "poly/geometry.h"
 #include "util/u_tristate.h"
 
 #include "pan_fb.h"
@@ -206,6 +207,14 @@ struct panvk_cmd_graphics_state {
       const struct panvk_shader *shader;
       struct panvk_shader_desc_state desc;
    } tcs;
+
+   struct {
+      struct poly_vertex_params vp;
+      uint64_t vp_addr;
+
+      struct poly_geometry_params gp;
+      uint64_t gp_addr;
+   } poly;
 
    struct {
       const struct panvk_shader *shader;

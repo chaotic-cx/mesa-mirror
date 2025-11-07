@@ -768,6 +768,123 @@ prepare_descs(struct panvk_cmd_buffer *cmdbuf,
    return VK_SUCCESS;
 }
 
+static VkResult
+prepare_poly(struct panvk_cmd_buffer *cmdbuf,
+             const struct panvk_draw_info *draw)
+{
+   const struct panvk_shader *gs = cmdbuf->state.gfx.gs.shader;
+   memset(&cmdbuf->state.gfx.poly, 0, sizeof(cmdbuf->state.gfx.poly));
+   if (!gs)
+      return VK_SUCCESS;
+
+   /* NOTE: that there are no dirty checks here.  The geometry buffers are
+    * also used written by the compute shaders we'll launch so we need fresh
+    * buffers every time.  That's just the cost of geometry shaders.
+    */
+
+   const struct panvk_shader_variant *vs =
+      panvk_sw_vs_variant(cmdbuf->state.gfx.vs.shader);
+
+   /* We use 1x1x1 workgroups, and require workgroup merging on all libpoly
+    * shaders, validated after shader compilation.
+    */
+   const uint32_t wg_size[3] = {1, 1, 1};
+
+   struct poly_vertex_params *vp = &cmdbuf->state.gfx.poly.vp;
+   poly_vertex_params_init(vp, vs->info.outputs_written, wg_size);
+
+   if (draw->index.index_size) {
+      uint32_t range_el = draw->index.buffer_size / draw->index.index_size;
+      vp->index_size_B = draw->index.index_size;
+      vp->index_buffer = poly_index_buffer(draw->index.buffer_dev_addr,
+                                           range_el, draw->index.offset,
+                                           draw->index.index_size,
+                                           PAN_SHADER_OOB_ADDRESS);
+      vp->index_buffer_range_el = range_el;
+   }
+
+   if (!draw->indirect.buffer_dev_addr) {
+      poly_vertex_params_set_draw(vp, draw->vertex.count, draw->instance.count);
+
+      const uint32_t vb_size =
+         poly_tcs_in_size(draw->vertex.count * draw->instance.count,
+                          vs->info.outputs_written);
+      struct pan_ptr vb =
+         panvk_cmd_alloc_dev_mem(cmdbuf, desc, vb_size, 16);
+      if (vb_size && !vb.gpu)
+         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+      /* Allocate if there are any outputs, or use the null sink to trap
+       * reads if there aren't. Those reads are undefined but should not
+       * fault. Affects:
+       *
+       *    dEQP-VK.pipeline.monolithic.no_position.explicit_declarations.basic.single_view.v0_g1
+       */
+      vp->output_buffer = vb_size ? vb.gpu
+                                  : PAN_SHADER_OOB_ADDRESS;
+   }
+
+   struct pan_ptr vp_mem =
+      panvk_cmd_upload_dev_mem(cmdbuf, desc, vp, sizeof(*vp), 8);
+   if (!vp_mem.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+   cmdbuf->state.gfx.poly.vp_addr = vp_mem.gpu;
+
+   const struct poly_gs_info *gsi = &gs->gs_info;
+   const struct panvk_shader *tes = cmdbuf->state.gfx.tes.shader;
+   const bool indirect_draw = draw->indirect.buffer_dev_addr ||
+                              draw->index.restart_enable || tes;
+
+   enum mesa_prim prim = draw->prim;
+   if (draw->index.restart_enable)
+      prim = u_decomposed_prim(prim);
+
+   struct poly_geometry_params *gp = &cmdbuf->state.gfx.poly.gp;
+   poly_geometry_params_init(gp, prim, wg_size);
+
+   if (indirect_draw) {
+      if (gsi->shape == POLY_GS_SHAPE_DYNAMIC_INDEXED) {
+         UNREACHABLE("TODO");
+      } else {
+         gp->draw.index_count =
+            poly_gs_rast_vertices(gsi->shape, gsi->max_indices, 1, 0);
+      }
+   } else {
+      poly_geometry_params_set_draw(gp, prim, gsi->shape, gsi->max_indices,
+                                    draw->vertex.count, draw->instance.count);
+
+      if (gsi->shape == POLY_GS_SHAPE_DYNAMIC_INDEXED) {
+         struct pan_ptr gs_index_buffer = panvk_cmd_alloc_dev_mem(
+            cmdbuf, desc, gp->draw.index_count * poly_gs_index_size(gsi->shape),
+            poly_gs_index_size(gsi->shape));
+         if (!gs_index_buffer.gpu)
+            return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+         gp->output_index_buffer = gs_index_buffer.gpu;
+      }
+   }
+   if (gsi->shape == POLY_GS_SHAPE_STATIC_INDEXED) {
+      struct pan_ptr gs_index_buffer = panvk_cmd_upload_dev_mem(
+         cmdbuf, desc, gsi->topology,
+         gsi->max_indices * poly_gs_index_size(gsi->shape),
+         poly_gs_index_size(gsi->shape));
+      if (!gs_index_buffer.gpu)
+         return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+      gp->output_index_buffer = gs_index_buffer.gpu;
+   }
+
+   struct pan_ptr gp_mem =
+      panvk_cmd_upload_dev_mem(cmdbuf, desc, gp, sizeof(*gp), 8);
+   if (!gp_mem.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+   cmdbuf->state.gfx.poly.gp_addr = gp_mem.gpu;
+
+   return VK_SUCCESS;
+}
+
 static bool
 has_depth_att(struct panvk_cmd_buffer *cmdbuf)
 {
@@ -3226,6 +3343,119 @@ launch_gfx_cs(struct panvk_cmd_buffer *cmdbuf,
    compute_state_set_dirty(cmdbuf, PUSH_UNIFORMS);
 }
 
+static struct panvk_draw_info
+launch_gs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
+{
+   const struct panvk_shader_variant *vs =
+      panvk_sw_vs_variant(cmdbuf->state.gfx.vs.shader);
+   const struct poly_vertex_params *vp = &cmdbuf->state.gfx.poly.vp;
+
+   const struct panvk_shader *gs = cmdbuf->state.gfx.gs.shader;
+   const struct poly_geometry_params *gp = &cmdbuf->state.gfx.poly.gp;
+   const struct poly_gs_info *gsi = &gs->gs_info;
+   const struct panvk_shader_variant *main = panvk_main_gs_variant(gs);
+   /* count and pre are only needed for xfb/queries */
+   UNUSED const struct panvk_shader_variant *count = panvk_count_gs_variant(gs);
+   UNUSED const struct panvk_shader_variant *pre = panvk_pre_gs_variant(gs);
+
+   bool is_indirect = draw.indirect.buffer_dev_addr != 0;
+   bool is_multiview = cmdbuf->state.gfx.render.view_mask != 0;
+   bool is_multidraw = is_indirect &&
+                       (draw.indirect.draw_count != 1 ||
+                        draw.indirect.count_buffer_dev_addr != 0);
+
+   assert(!is_multiview); /* TODO: multiview */
+   assert(!is_indirect); /* TODO: indirect */
+   assert(!is_multidraw); /* TODO: multidraw */
+
+   /* libpoly CS dispatches are sequential, so we use PANVK_CSF_BARRIER_WAIT for
+    * every dispatch except the last */
+   unsigned dispatches_left = 0;
+   if (vs->bin_size)
+      dispatches_left++;
+   if (main->bin_size)
+      dispatches_left++;
+
+   if (vs->bin_size) {
+      dispatches_left--;
+      struct panvk_dispatch_info vs_disp;
+      if (draw.indirect.buffer_dev_addr) {
+         vs_disp = (struct panvk_dispatch_info) {
+            .indirect.buffer_dev_addr = cmdbuf->state.gfx.poly.vp_addr +
+               offsetof(struct poly_vertex_params, grid),
+            .barrier = dispatches_left > 0 ? PANVK_CSF_BARRIER_WAIT
+                                           : PANVK_CSF_BARRIER_SYNC,
+         };
+      } else {
+         assert(vp->grid[2] == 1);
+         vs_disp = (struct panvk_dispatch_info) {
+            .direct.wg_count = {
+               .x = vp->grid[0],
+               .y = vp->grid[1],
+               .z = vp->grid[2],
+            },
+            .barrier = dispatches_left > 0 ? PANVK_CSF_BARRIER_WAIT
+                                           : PANVK_CSF_BARRIER_SYNC,
+         };
+      }
+      launch_gfx_cs(cmdbuf, vs, &cmdbuf->state.gfx.vs.desc, 0, &vs_disp);
+   }
+
+   if (main->bin_size) {
+      dispatches_left--;
+      struct panvk_dispatch_info gs_disp;
+      if (draw.indirect.buffer_dev_addr) {
+         gs_disp = (struct panvk_dispatch_info) {
+            .indirect.buffer_dev_addr = cmdbuf->state.gfx.poly.gp_addr +
+               offsetof(struct poly_geometry_params, grid),
+            .barrier = dispatches_left > 0 ? PANVK_CSF_BARRIER_WAIT
+                                           : PANVK_CSF_BARRIER_SYNC,
+         };
+      } else {
+         assert(gp->grid[2] == 1);
+         gs_disp = (struct panvk_dispatch_info) {
+            .direct.wg_count = {
+               .x = gp->grid[0],
+               .y = gp->grid[1],
+               .z = gp->grid[2],
+            },
+            .barrier = dispatches_left > 0 ? PANVK_CSF_BARRIER_WAIT
+                                           : PANVK_CSF_BARRIER_SYNC,
+         };
+      };
+      launch_gfx_cs(cmdbuf, main, &cmdbuf->state.gfx.gs.desc, 0, &gs_disp);
+   }
+
+   if (poly_gs_indexed(gsi->shape)) {
+      if (draw.indirect.buffer_dev_addr) {
+         UNREACHABLE("TODO");
+      } else {
+         return (struct panvk_draw_info) {
+            .index.buffer_dev_addr = gp->output_index_buffer,
+            .index.buffer_size =
+                gp->draw.index_count * poly_gs_index_size(gsi->shape),
+            .index.index_size = poly_gs_index_size(gsi->shape),
+            .index.offset = gp->draw.first_index,
+            .index.restart_enable = true,
+            .vertex.count = gp->draw.index_count,
+            .instance.count = gp->draw.instance_count,
+            .prim = gs->gs_info.mode,
+         };
+      }
+   } else {
+      if (draw.indirect.buffer_dev_addr) {
+         UNREACHABLE("TODO");
+      } else {
+         return (struct panvk_draw_info) {
+            .vertex.count = gp->draw.vertex_count,
+            .vertex.base = gp->draw.first_vertex,
+            .instance.count = gp->draw.instance_count,
+            .prim = gs->gs_info.mode,
+         };
+      }
+   }
+}
+
 static void
 launch_draw(struct panvk_cmd_buffer *cmdbuf,
             const struct panvk_draw_info *draw)
@@ -3602,6 +3832,7 @@ launch_indirect_draw(struct panvk_cmd_buffer *cmdbuf,
 static void
 panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
 {
+   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    VkResult result;
 
    /* If there's no hardware vertex shader, then nothing is going to generate
@@ -3641,6 +3872,10 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
    if (result != VK_SUCCESS)
       return;
 
+   result = prepare_poly(cmdbuf, &draw);
+   if (result != VK_SUCCESS)
+      return;
+
    result = prepare_blend(cmdbuf);
    if (result != VK_SUCCESS)
       return;
@@ -3650,6 +3885,21 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
    /* For indirect draws, we need to patch the descriptors we just emitted */
    if (draw.indirect.buffer_dev_addr)
       patch_vs_attribs(cmdbuf, &draw);
+
+   const struct panvk_shader *gs = cmdbuf->state.gfx.gs.shader;
+   assert(cmdbuf->state.gfx.tcs.shader == NULL);
+
+   if (gs) {
+      draw = launch_gs(cmdbuf, draw);
+
+      const struct panvk_cs_deps deps = {
+         .src[PANVK_SUBQUEUE_COMPUTE].wait_sb_mask =
+            dev->csf.sb.all_iters_mask,
+         .dst[PANVK_SUBQUEUE_VERTEX_TILER].wait_subqueue_mask =
+            BITFIELD_BIT(PANVK_SUBQUEUE_COMPUTE),
+      };
+      panvk_per_arch(emit_barrier)(cmdbuf, deps);
+   }
 
    result = prepare_draw(cmdbuf, &draw);
    if (result != VK_SUCCESS)

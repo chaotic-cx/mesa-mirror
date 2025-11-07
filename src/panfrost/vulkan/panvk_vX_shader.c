@@ -224,6 +224,11 @@ panvk_lower_sysvals(nir_builder *b, nir_instr *instr, void *data)
       val = load_sysval(b, graphics, bit_size, poly.provoking_vertex);
       break;
 
+   case nir_intrinsic_load_stat_query_address_poly:
+      /* TODO: we don't support stat queries yet */
+      val = nir_imm_int64(b, PAN_SHADER_OOB_ADDRESS);
+      break;
+
    default:
       return false;
    }

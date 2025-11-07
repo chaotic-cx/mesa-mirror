@@ -963,6 +963,28 @@ panvk_per_arch(cmd_prepare_draw_sysvals)(struct panvk_cmd_buffer *cmdbuf,
    if (dyn_gfx_state_dirty(cmdbuf, INPUT_ATTACHMENT_MAP))
       prepare_iam_sysvals(cmdbuf, dirty_sysvals);
 
+    set_gfx_sysval(cmdbuf, dirty_sysvals, poly.vertex_params,
+                   cmdbuf->state.gfx.poly.vp_addr);
+    set_gfx_sysval(cmdbuf, dirty_sysvals, poly.geometry_params,
+                   cmdbuf->state.gfx.poly.gp_addr);
+
+   if (dyn_gfx_state_dirty(cmdbuf, IA_PRIMITIVE_TOPOLOGY) ||
+       dyn_gfx_state_dirty(cmdbuf, RS_PROVOKING_VERTEX)) {
+      const struct vk_input_assembly_state *ia =
+         &cmdbuf->vk.dynamic_graphics_state.ia;
+      const struct vk_rasterization_state *rs =
+         &cmdbuf->vk.dynamic_graphics_state.rs;
+
+      unsigned provoking;
+      if (rs->provoking_vertex == VK_PROVOKING_VERTEX_MODE_LAST_VERTEX_EXT)
+         provoking = 2;
+      else if (ia->primitive_topology == VK_PRIMITIVE_TOPOLOGY_TRIANGLE_FAN)
+         provoking = 1;
+      else
+         provoking = 0;
+      set_gfx_sysval(cmdbuf, dirty_sysvals, poly.provoking_vertex, provoking);
+   }
+
 #if PAN_ARCH < 9
    struct panvk_descriptor_state *desc_state = &cmdbuf->state.gfx.desc_state;
    struct panvk_shader_desc_state *vs_desc_state = &cmdbuf->state.gfx.vs.desc;
