@@ -1223,6 +1223,12 @@ create_copy_table(nir_shader *nir, struct lower_desc_ctx *ctx)
       /* Dummy sampler comes after the vertex attributes. */
       dummy_sampler_idx = 16;
       break;
+   case MESA_SHADER_TESS_CTRL:
+   case MESA_SHADER_TESS_EVAL:
+   case MESA_SHADER_GEOMETRY:
+      /* Dummy sampler comes first. */
+      dummy_sampler_idx = 0;
+      break;
    case MESA_SHADER_FRAGMENT:
       /* Dummy sampler comes after the varyings. */
       dummy_sampler_idx = desc_info->num_varying_attr_descs;

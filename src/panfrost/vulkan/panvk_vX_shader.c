@@ -2721,6 +2721,27 @@ panvk_cmd_bind_shader(struct panvk_cmd_buffer *cmd, const mesa_shader_stage stag
          gfx_state_set_dirty(cmd, VS_PUSH_UNIFORMS);
       }
       break;
+   case MESA_SHADER_TESS_CTRL:
+      if (cmd->state.gfx.tcs.shader != shader) {
+         cmd->state.gfx.tcs.shader = shader;
+         gfx_state_set_dirty(cmd, TCS);
+         gfx_state_set_dirty(cmd, TCS_PUSH_UNIFORMS);
+      }
+      break;
+   case MESA_SHADER_TESS_EVAL:
+      if (cmd->state.gfx.tes.shader != shader) {
+         cmd->state.gfx.tes.shader = shader;
+         gfx_state_set_dirty(cmd, TES);
+         gfx_state_set_dirty(cmd, TES_PUSH_UNIFORMS);
+      }
+      break;
+   case MESA_SHADER_GEOMETRY:
+      if (cmd->state.gfx.gs.shader != shader) {
+         cmd->state.gfx.gs.shader = shader;
+         gfx_state_set_dirty(cmd, GS);
+         gfx_state_set_dirty(cmd, GS_PUSH_UNIFORMS);
+      }
+      break;
    case MESA_SHADER_FRAGMENT:
       if (cmd->state.gfx.fs.shader != shader) {
          cmd->state.gfx.fs.shader = shader;
