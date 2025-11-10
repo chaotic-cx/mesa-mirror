@@ -866,10 +866,6 @@ static VkResult
 update_tls(struct panvk_cmd_buffer *cmdbuf)
 {
    struct panvk_tls_state *state = &cmdbuf->state.tls;
-   const struct panvk_shader_variant *vs =
-      panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
-   const struct panvk_shader_variant *fs =
-      panvk_shader_only_variant(get_fs(cmdbuf));
    struct cs_builder *b =
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
 
@@ -894,8 +890,23 @@ update_tls(struct panvk_cmd_buffer *cmdbuf)
       }
    }
 
-   state->info.tls.size =
-      MAX3(vs->info.tls_size, fs ? fs->info.tls_size : 0, state->info.tls.size);
+   panvk_shader_foreach_variant_const(cmdbuf->state.gfx.vs.shader, vs)
+      state->info.tls.size = MAX2(state->info.tls.size, vs->info.tls_size);
+
+   panvk_shader_foreach_variant_const(cmdbuf->state.gfx.tcs.shader, tcs)
+      state->info.tls.size = MAX2(state->info.tls.size, tcs->info.tls_size);
+
+   panvk_shader_foreach_variant_const(cmdbuf->state.gfx.tes.shader, tes)
+      state->info.tls.size = MAX2(state->info.tls.size, tes->info.tls_size);
+
+   panvk_shader_foreach_variant_const(cmdbuf->state.gfx.gs.shader, gs)
+      state->info.tls.size = MAX2(state->info.tls.size, gs->info.tls_size);
+
+   const struct panvk_shader_variant *fs =
+      panvk_shader_only_variant(cmdbuf->state.gfx.fs.shader);
+   if (fs)
+      state->info.tls.size = MAX2(state->info.tls.size, fs->info.tls_size);
+
    return VK_SUCCESS;
 }
 
