@@ -806,7 +806,7 @@ panvk_emit_vertex_dcd(struct panvk_cmd_buffer *cmdbuf,
       }
 
       cfg.uniform_buffers = vs_desc_state->tables[PANVK_BIFROST_DESC_TABLE_UBO];
-      cfg.push_uniforms = cmdbuf->state.gfx.vs.push_uniforms;
+      cfg.push_uniforms = cmdbuf->state.gfx.hw_vs.push_uniforms;
       cfg.textures = vs_desc_state->tables[PANVK_BIFROST_DESC_TABLE_TEXTURE];
       cfg.samplers = vs_desc_state->tables[PANVK_BIFROST_DESC_TABLE_SAMPLER];
    }
@@ -1366,7 +1366,7 @@ prepare_draw_layer(struct panvk_cmd_buffer *cmdbuf,
       cmdbuf, vs, &vs_push_uniforms, 1);
    if (result != VK_SUCCESS)
       return result;
-   cmdbuf->state.gfx.vs.push_uniforms = vs_push_uniforms.gpu;
+   cmdbuf->state.gfx.hw_vs.push_uniforms = vs_push_uniforms.gpu;
 
    if (fs) {
       struct pan_ptr fs_push_uniforms;
@@ -1599,21 +1599,21 @@ panvk_cmd_draw_indirect(struct panvk_cmd_buffer *cmdbuf,
       uint64_t first_instance_sysval = 0x8ull << 60;
       uint64_t raw_vertex_offset_sysval = 0x8ull << 60;
       if (shader_uses_sysval(vs, graphics, vs.first_vertex)) {
-         first_vertex_sysval = cmdbuf->state.gfx.vs.push_uniforms +
+         first_vertex_sysval = cmdbuf->state.gfx.hw_vs.push_uniforms +
                                shader_remapped_sysval_offset(
                                   vs, sysval_offset(graphics, vs.first_vertex));
       }
 
       if (shader_uses_sysval(vs, graphics, vs.base_instance)) {
          first_instance_sysval =
-            cmdbuf->state.gfx.vs.push_uniforms +
+            cmdbuf->state.gfx.hw_vs.push_uniforms +
             shader_remapped_sysval_offset(
                vs, sysval_offset(graphics, vs.base_instance));
       }
 
       if (shader_uses_sysval(vs, graphics, vs.raw_vertex_offset)) {
          raw_vertex_offset_sysval =
-            cmdbuf->state.gfx.vs.push_uniforms +
+            cmdbuf->state.gfx.hw_vs.push_uniforms +
             shader_remapped_sysval_offset(
                vs, sysval_offset(graphics, vs.raw_vertex_offset));
       }
