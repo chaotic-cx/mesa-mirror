@@ -963,9 +963,6 @@ panvk_per_arch(cmd_prepare_draw_sysvals)(struct panvk_cmd_buffer *cmdbuf,
    if (dyn_gfx_state_dirty(cmdbuf, INPUT_ATTACHMENT_MAP))
       prepare_iam_sysvals(cmdbuf, dirty_sysvals);
 
-   const struct panvk_shader_variant *vs =
-      panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
-
 #if PAN_ARCH < 9
    struct panvk_descriptor_state *desc_state = &cmdbuf->state.gfx.desc_state;
    struct panvk_shader_desc_state *vs_desc_state = &cmdbuf->state.gfx.vs.desc;
@@ -999,9 +996,30 @@ panvk_per_arch(cmd_prepare_draw_sysvals)(struct panvk_cmd_buffer *cmdbuf,
    /* We mask the dirty sysvals by the shader usage, and only flag
     * the push uniforms dirty if those intersect. */
    BITSET_DECLARE(dirty_shader_sysvals, MAX_SYSVAL_FAUS);
-   BITSET_AND(dirty_shader_sysvals, dirty_sysvals, vs->fau.used_sysvals);
-   if (!BITSET_IS_EMPTY(dirty_shader_sysvals))
-      gfx_state_set_dirty(cmdbuf, VS_PUSH_UNIFORMS);
+
+   panvk_shader_foreach_variant_const(cmdbuf->state.gfx.vs.shader, vs) {
+      BITSET_AND(dirty_shader_sysvals, dirty_sysvals, vs->fau.used_sysvals);
+      if (!BITSET_IS_EMPTY(dirty_shader_sysvals))
+         gfx_state_set_dirty(cmdbuf, VS_PUSH_UNIFORMS);
+   }
+
+   panvk_shader_foreach_variant_const(cmdbuf->state.gfx.tcs.shader, tcs) {
+      BITSET_AND(dirty_shader_sysvals, dirty_sysvals, tcs->fau.used_sysvals);
+      if (!BITSET_IS_EMPTY(dirty_shader_sysvals))
+         gfx_state_set_dirty(cmdbuf, TCS_PUSH_UNIFORMS);
+   }
+
+   panvk_shader_foreach_variant_const(cmdbuf->state.gfx.tes.shader, tes) {
+      BITSET_AND(dirty_shader_sysvals, dirty_sysvals, tes->fau.used_sysvals);
+      if (!BITSET_IS_EMPTY(dirty_shader_sysvals))
+         gfx_state_set_dirty(cmdbuf, TES_PUSH_UNIFORMS);
+   }
+
+   panvk_shader_foreach_variant_const(cmdbuf->state.gfx.gs.shader, gs) {
+      BITSET_AND(dirty_shader_sysvals, dirty_sysvals, gs->fau.used_sysvals);
+      if (!BITSET_IS_EMPTY(dirty_shader_sysvals))
+         gfx_state_set_dirty(cmdbuf, GS_PUSH_UNIFORMS);
+   }
 
    if (fs) {
       BITSET_AND(dirty_shader_sysvals, dirty_sysvals, fs->fau.used_sysvals);
