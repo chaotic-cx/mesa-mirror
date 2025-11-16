@@ -3352,6 +3352,64 @@ launch_gfx_cs(struct panvk_cmd_buffer *cmdbuf,
 }
 
 static struct panvk_draw_info
+unroll_restart(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
+{
+   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
+
+   assert(draw.index.index_size);
+   if (!draw.indirect.buffer_dev_addr) {
+      /* If it's not indirect yet, make it indirect */
+      const VkDrawIndexedIndirectCommand cmd = {
+         .indexCount = draw.vertex.count,
+         .instanceCount = draw.instance.count,
+         .firstIndex = draw.index.offset,
+         .vertexOffset = draw.vertex.base,
+         .firstInstance = draw.instance.base,
+      };
+
+      draw.indirect.buffer_dev_addr =
+         panvk_cmd_upload_dev_mem(cmdbuf, desc, &cmd, sizeof(cmd), 4).gpu;
+      draw.indirect.draw_count = 1;
+      draw.indirect.stride = 0;
+   }
+
+   struct pan_ptr indirect = panvk_cmd_alloc_dev_mem(
+      cmdbuf, desc, sizeof(VkDrawIndexedIndirectCommand), 4);
+   if (!indirect.gpu)
+      return (struct panvk_draw_info) { .vertex.count = 0 };
+
+   const struct vk_dynamic_graphics_state *dyns =
+      &cmdbuf->vk.dynamic_graphics_state;
+
+   struct panlib_unroll_restart_args unroll = {
+      .out_draw = indirect.gpu,
+      .heap = panvk_priv_mem_dev_addr(dev->poly_heap.state),
+      .in_draw = draw.indirect.buffer_dev_addr,
+      .index_buffer = draw.index.buffer_dev_addr,
+      .index_buffer_range_el =
+         draw.index.buffer_size / draw.index.index_size,
+      .index_size_log2 = util_logbase2(draw.index.index_size),
+      .restart_index = u_uintN_max(draw.index.index_size * 8),
+      .flatshade_first =
+         dyns->rs.provoking_vertex == VK_PROVOKING_VERTEX_MODE_FIRST_VERTEX_EXT,
+   };
+
+   struct panvk_precomp_ctx ctx = panvk_per_arch(precomp_cs)(cmdbuf);
+   panlib_unroll_restart_struct(&ctx, panlib_1d(1),
+                                PANLIB_BARRIER_CSF_WAIT, unroll,
+                                poly_compact_prim(draw.prim));
+
+   return (struct panvk_draw_info) {
+      .index.index_size = draw.index.index_size,
+      .index.buffer_dev_addr = dev->poly_heap.buffer->addr.dev,
+      .index.buffer_size = dev->poly_heap.buffer->bo->size,
+      .indirect.buffer_dev_addr = indirect.gpu,
+      .indirect.draw_count = 1,
+      .prim = u_decomposed_prim(draw.prim),
+   };
+}
+
+static struct panvk_draw_info
 launch_gs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
 {
    struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
@@ -3950,6 +4008,10 @@ panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
    assert(cmdbuf->state.gfx.tcs.shader == NULL);
 
    if (gs) {
+      /* The polygon pipeline requires restarts to be unrolled first */
+      if (draw.index.restart_enable)
+         draw = unroll_restart(cmdbuf, draw);
+
       draw = launch_gs(cmdbuf, draw);
 
       const struct panvk_cs_deps deps = {
