@@ -981,6 +981,7 @@ allocate_bo(struct zink_screen *screen, const struct pipe_resource *templ,
       emai.pNext = mai.pNext;
       mai.pNext = &emai;
       obj->exportable = true;
+      obj->exportable_dmabuf = !!(alloc_info->export_types & VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT);
    }
 
 #ifdef ZINK_USE_DMABUF

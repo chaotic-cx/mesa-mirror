@@ -1237,6 +1237,7 @@ struct zink_resource_object {
    bool render_target;
    bool is_buffer;
    bool exportable;
+   bool exportable_dmabuf;
 
    /* TODO: this should be a union */
    int handle;

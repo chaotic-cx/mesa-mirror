@@ -1133,9 +1133,11 @@ rebind_buffer_as_image(struct pipe_context *pctx, struct pipe_resource *pres, en
    whandle.modifier = 0;
 
    struct pipe_resource *import = pctx->screen->resource_from_handle(pctx->screen, &tmpl, &whandle, 0);
-   if (import)
+   if (import) {
       /* this isn't actually used cross-process, so don't emit extra sync */
       zink_resource(import)->obj->exportable = false;
+      zink_resource(import)->obj->exportable_dmabuf = false;
+   }
 #if !defined(_WIN32)
    close(whandle.handle);
 #endif

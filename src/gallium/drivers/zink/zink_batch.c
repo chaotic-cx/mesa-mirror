@@ -811,8 +811,10 @@ submit_queue(void *data, void *gdata, int thread_index)
    VkSemaphore *sem = bs->signal_semaphores.data;
    set_foreach(&bs->dmabuf_exports, entry) {
       struct zink_resource *res = (void*)entry->key;
-      for (; res; res = zink_resource(res->base.b.next))
-         zink_screen_import_dmabuf_semaphore(screen, res, sem[i++]);
+      if (res->obj->exportable_dmabuf) {
+         for (; res; res = zink_resource(res->base.b.next))
+            zink_screen_import_dmabuf_semaphore(screen, res, sem[i++]);
+      }
 
       struct pipe_resource *pres = (void*)entry->key;
       pipe_resource_reference(&pres, NULL);
