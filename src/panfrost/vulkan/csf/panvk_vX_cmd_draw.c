@@ -555,8 +555,7 @@ static void
 emit_varying_descs(const struct panvk_cmd_buffer *cmdbuf,
                    struct mali_attribute_packed *descs)
 {
-   const struct panvk_shader_variant *vs =
-      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
+   const struct panvk_shader_variant *vs = get_hw_vs(cmdbuf);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
 
@@ -644,7 +643,7 @@ static bool
 fs_desc_dirty(struct panvk_cmd_buffer *cmdbuf)
 {
    return fs_user_dirty(cmdbuf) ||
-          gfx_state_dirty(cmdbuf, VS) ||
+          hw_vs_user_dirty(cmdbuf) || /* Used by get_varying_slots() */
           gfx_state_dirty(cmdbuf, DESC_STATE);
 }
 
@@ -1144,7 +1143,7 @@ prepare_tiler_primitive_size(struct panvk_cmd_buffer *cmdbuf,
    float primitive_size;
 
    if (!dyn_gfx_state_dirty(cmdbuf, RS_LINE_WIDTH) &&
-       !gfx_state_dirty(cmdbuf, VS) &&
+       !hw_vs_user_dirty(cmdbuf) &&
        !gfx_state_dirty(cmdbuf, IDVS))
       return;
 
@@ -1160,8 +1159,7 @@ prepare_tiler_primitive_size(struct panvk_cmd_buffer *cmdbuf,
     */
 #if PAN_ARCH < 13
    case MESA_PRIM_POINTS: {
-      const struct panvk_shader_variant *vs =
-         panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
+      const struct panvk_shader_variant *vs = get_hw_vs(cmdbuf);
 
       if (vs->info.vs.writes_point_size)
          return;
@@ -2289,7 +2287,7 @@ prepare_vs(struct panvk_cmd_buffer *cmdbuf,
                       vs_desc_state->res_table);
 
 #if PAN_ARCH >= 12
-      if (gfx_state_dirty(cmdbuf, VS) ||
+      if (hw_vs_user_dirty(cmdbuf) ||
           gfx_state_dirty(cmdbuf, IDVS)) {
          const uint64_t spd_addr =
             cmdbuf->state.gfx.idvs.prim == MESA_PRIM_POINTS
@@ -2298,7 +2296,7 @@ prepare_vs(struct panvk_cmd_buffer *cmdbuf,
          cs_move64_to(b, cs_sr_reg64(b, IDVS, VERTEX_SPD), spd_addr);
       }
 #else
-      if (gfx_state_dirty(cmdbuf, VS) ||
+      if (hw_vs_user_dirty(cmdbuf) ||
           gfx_state_dirty(cmdbuf, IDVS)) {
          const uint64_t pos_spd_addr =
             cmdbuf->state.gfx.idvs.prim == MESA_PRIM_POINTS
@@ -2307,7 +2305,7 @@ prepare_vs(struct panvk_cmd_buffer *cmdbuf,
          cs_move64_to(b, cs_sr_reg64(b, IDVS, VERTEX_POS_SPD), pos_spd_addr);
       }
 
-      if (gfx_state_dirty(cmdbuf, VS))
+      if (hw_vs_user_dirty(cmdbuf))
          cs_move64_to(b, cs_sr_reg64(b, IDVS, VERTEX_VARY_SPD),
                       panvk_priv_mem_dev_addr(vs->spds.var));
 #endif
@@ -2353,7 +2351,7 @@ prepare_push_uniforms(struct panvk_cmd_buffer *cmdbuf,
          vs_repeat_count = draw->indirect.draw_count;
    }
 
-   if (gfx_state_dirty(cmdbuf, VS_PUSH_UNIFORMS)) {
+   if (vs_user_dirty(cmdbuf) || gfx_state_dirty(cmdbuf, VS_PUSH_UNIFORMS)) {
       struct pan_ptr push_uniforms;
       result = panvk_per_arch(cmd_prepare_gfx_push_uniforms)(
          cmdbuf, vs, &push_uniforms, vs_repeat_count);
@@ -2883,8 +2881,7 @@ static void
 set_tiler_idvs_flags(struct cs_builder *b, struct panvk_cmd_buffer *cmdbuf,
                      const struct panvk_draw_info *draw)
 {
-   const struct panvk_shader_variant *vs =
-      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
+   const struct panvk_shader_variant *vs = get_hw_vs(cmdbuf);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
    const struct vk_dynamic_graphics_state *dyns =
@@ -2902,7 +2899,7 @@ set_tiler_idvs_flags(struct cs_builder *b, struct panvk_cmd_buffer *cmdbuf,
    bool writes_prim_id = vs->info.outputs_written & VARYING_BIT_PRIMITIVE_ID;
    bool fs_reads_prim_id = fs ? fs->info.fs.reads_primitive_id : false;
 
-   bool dirty = gfx_state_dirty(cmdbuf, VS) || fs_user_dirty(cmdbuf) ||
+   bool dirty = hw_vs_user_dirty(cmdbuf) || fs_user_dirty(cmdbuf) ||
                 gfx_state_dirty(cmdbuf, IDVS) ||
                 dyn_gfx_state_dirty(cmdbuf, RS_DEPTH_CLAMP_ENABLE) ||
                 dyn_gfx_state_dirty(cmdbuf, RS_DEPTH_CLIP_ENABLE);
@@ -2966,8 +2963,7 @@ static VkResult
 prepare_draw(struct panvk_cmd_buffer *cmdbuf,
              const struct panvk_draw_info *draw)
 {
-   const struct panvk_shader_variant *vs =
-      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
+   const struct panvk_shader_variant *vs = get_vs_variant(cmdbuf);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
    ASSERTED bool idvs = vs->info.vs.idvs;
@@ -3416,8 +3412,7 @@ launch_indirect_draw(struct panvk_cmd_buffer *cmdbuf,
 {
    const struct cs_tracing_ctx *tracing_ctx =
       &cmdbuf->state.cs[PANVK_SUBQUEUE_VERTEX_TILER].tracing;
-   const struct panvk_shader_variant *vs =
-      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
+   const struct panvk_shader_variant *vs = get_vs_variant(cmdbuf);
    struct cs_builder *b =
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
 
@@ -3584,12 +3579,13 @@ launch_indirect_draw(struct panvk_cmd_buffer *cmdbuf,
 static void
 panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
 {
-   const struct panvk_shader_variant *vs =
-      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
    VkResult result;
 
-   /* If there's no vertex shader, we can skip the draw. */
-   if (!panvk_priv_mem_check_alloc(vs->spd))
+   /* If there's no hardware vertex shader, then nothing is going to generate
+    * positions so it's all undefined and we can skip the draw.  If we don't,
+    * we can end up in a situation where the IDVS faults.
+    */
+   if (!panvk_priv_mem_check_alloc(get_hw_vs(cmdbuf)->spd))
       return;
 
    /* Needs to be done before get_fs() is called because it depends on
@@ -5042,8 +5038,7 @@ panvk_per_arch(cmd_draw_fullscreen)(struct vk_command_buffer *cmd,
    cmdbuf->state.gfx.fs.required =
       fs_required(&cmdbuf->state.gfx, &cmdbuf->vk.dynamic_graphics_state);
    struct vk_rasterization_state rs = cmdbuf->vk.dynamic_graphics_state.rs;
-   const struct panvk_shader_variant *vs =
-      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
+   const struct panvk_shader_variant *vs = get_vs_variant(cmdbuf);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
    const struct panvk_shader_desc_info *vs_desc_info =

@@ -329,6 +329,48 @@ panvk_select_tiler_hierarchy_mask(const struct panvk_physical_device *phys_dev,
    return hierarchy_mask;
 }
 
+static inline const struct panvk_shader_variant *
+panvk_gfx_state_get_vs_variant(const struct panvk_cmd_graphics_state *gfx)
+{
+   if (gfx->gs.shader || gfx->tes.shader)
+      return &gfx->vs.shader->variants[PANVK_VS_VARIANT_SW];
+   else
+      return &gfx->vs.shader->variants[PANVK_VS_VARIANT_HW];
+}
+
+#define get_vs_variant(__cmdbuf)                                               \
+   panvk_gfx_state_get_vs_variant(&(__cmdbuf)->state.gfx)
+
+/* Anything that might change the value returned by get_vs_variant() makes
+ * users of the vertex shader dirty.
+ */
+#define vs_user_dirty(__cmdbuf)                                                \
+   (gfx_state_dirty(cmdbuf, VS) ||                                             \
+    gfx_state_dirty(cmdbuf, TES) ||                                            \
+    gfx_state_dirty(cmdbuf, GS))
+
+static inline const struct panvk_shader_variant *
+panvk_gfx_state_get_hw_vs(const struct panvk_cmd_graphics_state *gfx)
+{
+   if (gfx->gs.shader)
+      return panvk_rast_gs_variant(gfx->gs.shader);
+   else if (gfx->tes.shader)
+      UNREACHABLE("Tessellation not yet supported");
+   else
+      return panvk_hw_vs_variant(gfx->vs.shader);
+}
+
+/* Anything that might change the value returned by get_hw_vs() makes
+ * users of the vertex shader dirty.
+ */
+#define hw_vs_user_dirty(__cmdbuf)                                             \
+   (gfx_state_dirty(cmdbuf, VS) ||                                             \
+    gfx_state_dirty(cmdbuf, TES) ||                                            \
+    gfx_state_dirty(cmdbuf, GS))
+
+#define get_hw_vs(__cmdbuf)                                               \
+   panvk_gfx_state_get_hw_vs(&(__cmdbuf)->state.gfx)
+
 static inline bool
 fs_required(const struct panvk_cmd_graphics_state *state,
             const struct vk_dynamic_graphics_state *dyn_state)
