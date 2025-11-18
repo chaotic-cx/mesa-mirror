@@ -556,7 +556,7 @@ emit_varying_descs(const struct panvk_cmd_buffer *cmdbuf,
                    struct mali_attribute_packed *descs)
 {
    const struct panvk_shader_variant *vs =
-      panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
+      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
 
@@ -1161,7 +1161,7 @@ prepare_tiler_primitive_size(struct panvk_cmd_buffer *cmdbuf,
 #if PAN_ARCH < 13
    case MESA_PRIM_POINTS: {
       const struct panvk_shader_variant *vs =
-         panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
+         panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
 
       if (vs->info.vs.writes_point_size)
          return;
@@ -2884,7 +2884,7 @@ set_tiler_idvs_flags(struct cs_builder *b, struct panvk_cmd_buffer *cmdbuf,
                      const struct panvk_draw_info *draw)
 {
    const struct panvk_shader_variant *vs =
-      panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
+      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
    const struct vk_dynamic_graphics_state *dyns =
@@ -2967,7 +2967,7 @@ prepare_draw(struct panvk_cmd_buffer *cmdbuf,
              const struct panvk_draw_info *draw)
 {
    const struct panvk_shader_variant *vs =
-      panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
+      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
    ASSERTED bool idvs = vs->info.vs.idvs;
@@ -3417,7 +3417,7 @@ launch_indirect_draw(struct panvk_cmd_buffer *cmdbuf,
    const struct cs_tracing_ctx *tracing_ctx =
       &cmdbuf->state.cs[PANVK_SUBQUEUE_VERTEX_TILER].tracing;
    const struct panvk_shader_variant *vs =
-      panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
+      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
    struct cs_builder *b =
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
 
@@ -3585,7 +3585,7 @@ static void
 panvk_cmd_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
 {
    const struct panvk_shader_variant *vs =
-      panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
+      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
    VkResult result;
 
    /* If there's no vertex shader, we can skip the draw. */
@@ -5043,7 +5043,7 @@ panvk_per_arch(cmd_draw_fullscreen)(struct vk_command_buffer *cmd,
       fs_required(&cmdbuf->state.gfx, &cmdbuf->vk.dynamic_graphics_state);
    struct vk_rasterization_state rs = cmdbuf->vk.dynamic_graphics_state.rs;
    const struct panvk_shader_variant *vs =
-      panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
+      panvk_hw_vs_variant(cmdbuf->state.gfx.vs.shader);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
    const struct panvk_shader_desc_info *vs_desc_info =

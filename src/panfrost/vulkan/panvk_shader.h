@@ -556,12 +556,19 @@ panvk_shader_only_variant(const struct panvk_shader *shader)
 }
 
 static const struct panvk_shader_variant *
-panvk_shader_hw_variant(const struct panvk_shader *shader)
+panvk_hw_vs_variant(const struct panvk_shader *shader)
 {
-   if (!shader)
-      return NULL;
+   assert(shader);
+   assert(shader->vk.stage == MESA_SHADER_VERTEX);
+   return &shader->variants[PANVK_VS_VARIANT_HW];
+}
 
-   return &shader->variants[0];
+static const struct panvk_shader_variant *
+panvk_sw_vs_variant(const struct panvk_shader *shader)
+{
+   assert(shader);
+   assert(shader->vk.stage == MESA_SHADER_VERTEX);
+   return &shader->variants[PANVK_VS_VARIANT_SW];
 }
 
 static const struct panvk_shader_variant *
