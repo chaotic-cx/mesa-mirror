@@ -459,6 +459,98 @@ prepare_vs_desc(struct panvk_cmd_buffer *cmdbuf,
    return VK_SUCCESS;
 }
 
+static VkResult
+prepare_poly_shader_driver_set(struct panvk_cmd_buffer *cmdbuf,
+                               const struct panvk_shader *shader,
+                               struct panvk_shader_desc_state *shader_desc_state)
+{
+   const struct panvk_shader_desc_info *desc_info = &shader->desc_info;
+   uint32_t desc_count = desc_info->dyn_bufs.count + 1;
+
+   struct pan_ptr driver_set = panvk_cmd_alloc_dev_mem(
+      cmdbuf, desc, desc_count * PANVK_DESCRIPTOR_SIZE, PANVK_DESCRIPTOR_SIZE);
+   struct panvk_opaque_desc *descs = driver_set.cpu;
+
+   if (desc_count && !driver_set.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+   /* Dummy sampler always comes first */
+   pan_cast_and_pack(&descs[0], SAMPLER, cfg) {
+      cfg.clamp_integer_array_indices = false;
+   }
+
+   const struct panvk_descriptor_state *desc_state =
+      &cmdbuf->state.gfx.desc_state;
+
+   panvk_per_arch(cmd_fill_dyn_bufs)(
+      desc_state, desc_info, (struct mali_buffer_packed *)(&descs[1]));
+
+   shader_desc_state->driver_set.dev_addr = driver_set.gpu;
+   shader_desc_state->driver_set.size = desc_count * PANVK_DESCRIPTOR_SIZE;
+   gfx_state_set_dirty(cmdbuf, DESC_STATE);
+   return VK_SUCCESS;
+}
+
+static VkResult
+prepare_poly_shader_desc(struct panvk_cmd_buffer *cmdbuf,
+                    const struct panvk_shader *shader,
+                    struct panvk_shader_desc_state *shader_desc_state)
+{
+   if (!shader) {
+      memset(shader_desc_state, 0, sizeof(*shader_desc_state));
+      return VK_SUCCESS;
+   }
+
+   VkResult result = prepare_poly_shader_driver_set(cmdbuf, shader,
+                                                    shader_desc_state);
+   if (result != VK_SUCCESS)
+      return result;
+
+   const struct panvk_shader_desc_info *desc_info = &shader->desc_info;
+   const struct panvk_descriptor_state *desc_state =
+      &cmdbuf->state.gfx.desc_state;
+
+   result = panvk_per_arch(cmd_prepare_shader_res_table)(
+      cmdbuf, desc_state, desc_info, shader_desc_state, 1);
+   if (result != VK_SUCCESS)
+      return result;
+
+   return VK_SUCCESS;
+}
+
+static VkResult
+prepare_gs_desc(struct panvk_cmd_buffer *cmdbuf)
+{
+   if (!gfx_state_dirty(cmdbuf, GS) &&
+       !gfx_state_dirty(cmdbuf, DESC_STATE))
+      return VK_SUCCESS;
+
+   return prepare_poly_shader_desc(cmdbuf, cmdbuf->state.gfx.gs.shader,
+                                   &cmdbuf->state.gfx.gs.desc);
+}
+
+static VkResult
+prepare_tcs_desc(struct panvk_cmd_buffer *cmdbuf)
+{
+   if (!gfx_state_dirty(cmdbuf, TCS) &&
+       !gfx_state_dirty(cmdbuf, DESC_STATE))
+      return VK_SUCCESS;
+
+   return prepare_poly_shader_desc(cmdbuf, cmdbuf->state.gfx.tcs.shader,
+                                   &cmdbuf->state.gfx.tcs.desc);
+}
+
+static VkResult
+prepare_tes_desc(struct panvk_cmd_buffer *cmdbuf)
+{
+   if (!gfx_state_dirty(cmdbuf, TES) &&
+       !gfx_state_dirty(cmdbuf, DESC_STATE))
+      return VK_SUCCESS;
+
+   return prepare_poly_shader_desc(cmdbuf, cmdbuf->state.gfx.tes.shader,
+                                   &cmdbuf->state.gfx.tes.desc);
+}
+
 static void
 emit_varying_descs(const struct panvk_cmd_buffer *cmdbuf,
                    struct mali_attribute_packed *descs)
@@ -590,6 +682,9 @@ prepare_descs(struct panvk_cmd_buffer *cmdbuf,
               const struct panvk_draw_info *draw)
 {
    const struct panvk_shader *vs = cmdbuf->state.gfx.vs.shader;
+   const struct panvk_shader *tcs = cmdbuf->state.gfx.tcs.shader;
+   const struct panvk_shader *tes = cmdbuf->state.gfx.tes.shader;
+   const struct panvk_shader *gs = cmdbuf->state.gfx.gs.shader;
    const struct panvk_shader *fs = get_fs(cmdbuf);
    struct panvk_descriptor_state *desc_state =
       &cmdbuf->state.gfx.desc_state;
@@ -597,8 +692,14 @@ prepare_descs(struct panvk_cmd_buffer *cmdbuf,
 
    if (gfx_state_dirty(cmdbuf, DESC_STATE) ||
        gfx_state_dirty(cmdbuf, VS) ||
+       gfx_state_dirty(cmdbuf, TCS) ||
+       gfx_state_dirty(cmdbuf, TES) ||
+       gfx_state_dirty(cmdbuf, GS) ||
        fs_user_dirty(cmdbuf)) {
       uint32_t used_set_mask = vs->desc_info.used_set_mask;
+      used_set_mask |= gs ? gs->desc_info.used_set_mask : 0;
+      used_set_mask |= tcs ? tcs->desc_info.used_set_mask : 0;
+      used_set_mask |= tes ? tes->desc_info.used_set_mask : 0;
       used_set_mask |= fs ? fs->desc_info.used_set_mask : 0;
 
       result = panvk_per_arch(cmd_prepare_push_descs)(cmdbuf, desc_state,
@@ -608,6 +709,18 @@ prepare_descs(struct panvk_cmd_buffer *cmdbuf,
    }
 
    result = prepare_vs_desc(cmdbuf, draw);
+   if (result != VK_SUCCESS)
+      return result;
+
+   result = prepare_tes_desc(cmdbuf);
+   if (result != VK_SUCCESS)
+      return result;
+
+   result = prepare_tcs_desc(cmdbuf);
+   if (result != VK_SUCCESS)
+      return result;
+
+   result = prepare_gs_desc(cmdbuf);
    if (result != VK_SUCCESS)
       return result;
 
