@@ -836,6 +836,14 @@ prepare_poly(struct panvk_cmd_buffer *cmdbuf,
    const bool indirect_draw = draw->indirect.buffer_dev_addr ||
                               draw->index.restart_enable || tes;
 
+   if (indirect_draw || gsi->shape == POLY_GS_SHAPE_DYNAMIC_INDEXED) {
+      VkResult result = panvk_per_arch(cmd_init_poly_heap)(cmdbuf);
+      if (result != VK_SUCCESS) {
+         vk_command_buffer_set_error(&cmdbuf->vk, result);
+         return result;
+      }
+   }
+
    enum mesa_prim prim = draw->prim;
    if (draw->index.restart_enable)
       prim = u_decomposed_prim(prim);
@@ -845,7 +853,7 @@ prepare_poly(struct panvk_cmd_buffer *cmdbuf,
 
    if (indirect_draw) {
       if (gsi->shape == POLY_GS_SHAPE_DYNAMIC_INDEXED) {
-         UNREACHABLE("TODO");
+         /* Nothing for us to do here */
       } else {
          gp->draw.index_count =
             poly_gs_rast_vertices(gsi->shape, gsi->max_indices, 1, 0);
@@ -3346,13 +3354,16 @@ launch_gfx_cs(struct panvk_cmd_buffer *cmdbuf,
 static struct panvk_draw_info
 launch_gs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
 {
+   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    const struct panvk_shader_variant *vs =
       panvk_sw_vs_variant(cmdbuf->state.gfx.vs.shader);
-   const struct poly_vertex_params *vp = &cmdbuf->state.gfx.poly.vp;
-
    const struct panvk_shader *gs = cmdbuf->state.gfx.gs.shader;
-   const struct poly_geometry_params *gp = &cmdbuf->state.gfx.poly.gp;
    const struct poly_gs_info *gsi = &gs->gs_info;
+
+   assert(!cmdbuf->state.gfx.tes.shader);
+   const struct panvk_shader_variant *tes = NULL;
+
+   const struct poly_geometry_params *gp = &cmdbuf->state.gfx.poly.gp;
    const struct panvk_shader_variant *main = panvk_main_gs_variant(gs);
    /* count and pre are only needed for xfb/queries */
    UNUSED const struct panvk_shader_variant *count = panvk_count_gs_variant(gs);
@@ -3365,21 +3376,51 @@ launch_gs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
                         draw.indirect.count_buffer_dev_addr != 0);
 
    assert(!is_multiview); /* TODO: multiview */
-   assert(!is_indirect); /* TODO: indirect */
    assert(!is_multidraw); /* TODO: multidraw */
 
    /* libpoly CS dispatches are sequential, so we use PANVK_CSF_BARRIER_WAIT for
     * every dispatch except the last */
    unsigned dispatches_left = 0;
+   if (is_indirect)
+      dispatches_left++;
    if (vs->bin_size)
       dispatches_left++;
    if (main->bin_size)
       dispatches_left++;
 
+   if (is_indirect) {
+      dispatches_left--;
+      struct panlib_gs_setup_indirect_args setup = {
+         .vp = cmdbuf->state.gfx.poly.vp_addr,
+         .gp = cmdbuf->state.gfx.poly.gp_addr,
+         .heap = panvk_priv_mem_dev_addr(dev->poly_heap.state),
+         .draw = draw.indirect.buffer_dev_addr,
+         .vs_outputs = tes ? tes->info.outputs_written
+                           : vs->info.outputs_written,
+         .prim = draw.prim,
+         .is_prefix_summing = gsi->prefix_sum,
+         .max_indices = gsi->max_indices,
+         .shape = gsi->shape,
+      };
+
+      if (draw.index.index_size) {
+         setup.index_buffer = draw.index.buffer_dev_addr;
+         setup.index_size_B = draw.index.index_size;
+         setup.index_buffer_range_el =
+            draw.index.buffer_size / draw.index.index_size;
+      }
+
+      enum panlib_barrier barrier = dispatches_left > 0 ?
+         PANLIB_BARRIER_CSF_WAIT : PANLIB_BARRIER_CSF_SYNC;
+      struct panvk_precomp_ctx ctx = panvk_per_arch(precomp_cs)(cmdbuf);
+      panlib_gs_setup_indirect_struct(&ctx, panlib_1d(1), barrier, setup);
+   }
+
    if (vs->bin_size) {
       dispatches_left--;
+      const struct poly_vertex_params *vp = &cmdbuf->state.gfx.poly.vp;
       struct panvk_dispatch_info vs_disp;
-      if (draw.indirect.buffer_dev_addr) {
+      if (is_indirect) {
          vs_disp = (struct panvk_dispatch_info) {
             .indirect.buffer_dev_addr = cmdbuf->state.gfx.poly.vp_addr +
                offsetof(struct poly_vertex_params, grid),
@@ -3404,7 +3445,7 @@ launch_gs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
    if (main->bin_size) {
       dispatches_left--;
       struct panvk_dispatch_info gs_disp;
-      if (draw.indirect.buffer_dev_addr) {
+      if (is_indirect) {
          gs_disp = (struct panvk_dispatch_info) {
             .indirect.buffer_dev_addr = cmdbuf->state.gfx.poly.gp_addr +
                offsetof(struct poly_geometry_params, grid),
@@ -3427,8 +3468,21 @@ launch_gs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
    }
 
    if (poly_gs_indexed(gsi->shape)) {
-      if (draw.indirect.buffer_dev_addr) {
-         UNREACHABLE("TODO");
+      if (is_indirect) {
+         return (struct panvk_draw_info) {
+            /* Poly will use first_index to specify the offset into the heap
+             * buffer.  We just need to provide the buffer here.
+             */
+            .index.buffer_dev_addr = dev->poly_heap.buffer->addr.dev,
+            .index.buffer_size = dev->poly_heap.buffer->bo->size,
+            .index.index_size = poly_gs_index_size(gsi->shape),
+            .index.restart_enable = true,
+            .indirect.buffer_dev_addr =
+               cmdbuf->state.gfx.poly.gp_addr +
+               offsetof(struct poly_geometry_params, draw),
+            .indirect.draw_count = 1,
+            .prim = gs->gs_info.mode,
+         };
       } else {
          return (struct panvk_draw_info) {
             .index.buffer_dev_addr = gp->output_index_buffer,
@@ -3443,8 +3497,14 @@ launch_gs(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info draw)
          };
       }
    } else {
-      if (draw.indirect.buffer_dev_addr) {
-         UNREACHABLE("TODO");
+      if (is_indirect) {
+         return (struct panvk_draw_info) {
+            .indirect.buffer_dev_addr =
+               cmdbuf->state.gfx.poly.gp_addr +
+               offsetof(struct poly_geometry_params, draw),
+            .indirect.draw_count = 1,
+            .prim = gs->gs_info.mode,
+         };
       } else {
          return (struct panvk_draw_info) {
             .vertex.count = gp->draw.vertex_count,

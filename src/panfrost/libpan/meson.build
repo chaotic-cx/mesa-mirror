@@ -7,6 +7,7 @@ libpan_shader_files = files(
   'query_pool.cl',
   'draw_helper.cl',
   'indirect_dispatch.cl',
+  'geometry.cl',
 )
 
 idep_libpan_per_arch = {}
