@@ -282,6 +282,7 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
       struct vtn_pointer *src_p = vtn_value_to_pointer(b, src_val);
       nir_deref_instr *clip_src = vtn_get_cmat_deref(b, w[4]);
       nir_def *view = NULL;
+      struct vtn_function *decode_fn = NULL;
       SpvMemoryAccessMask access = SpvMemoryAccessMaskNone;
       unsigned idx = 6;
       if (count > 6) {
@@ -306,6 +307,12 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
          tensor_load.view_has_dims = view_type->tensor_view_has_dims;
 	 idx++;
       }
+      if (tensor_addressing & SpvTensorAddressingOperandsDecodeFuncMask) {
+         decode_fn = vtn_value(b, w[idx], vtn_value_type_function)->func;
+         decode_fn->referenced = true;
+         decode_fn->nir_func->cmat_call = true;
+         idx++;
+      }
       assert(idx == count);
       if (!view) {
          view = nir_undef(&b->nb, 1, 32);
@@ -321,7 +328,8 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
       nir_deref_instr *dst = vtn_create_cmat_temporary(b, dst_type->type, "cmat_tensor");
 
       nir_cmat_call_op op = nir_cmat_call_op_tensor_load;
-      nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, op, NULL);
+      nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, op,
+                                                             decode_fn ? decode_fn->nir_func : NULL);
 
       call->params[0] = nir_src_for_ssa(&dst->def);
       call->params[1] = nir_src_for_ssa(vtn_pointer_to_ssa(b, src_p));
