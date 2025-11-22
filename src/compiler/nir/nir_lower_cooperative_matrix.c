@@ -820,6 +820,62 @@ split_cmat_call_per_element_op(nir_builder *b,
 }
 
 static bool
+split_cmat_call_tensor_load_store(nir_builder *b,
+                                  nir_cmat_call_instr *call,
+                                  struct split_info *info)
+{
+   bool is_load = call->op != nir_cmat_call_op_tensor_store;
+   nir_instr *instr = &call->instr;
+   struct split_mat *split = find_call_split(info->split_mats, call, !is_load);
+   if (!split)
+      return false;
+
+   struct split_mat *clip_split = NULL;
+   if (is_load) {
+      clip_split = find_call_split(info->split_mats, call, 4);
+   }
+   unsigned splits = get_num_splits(split);
+   if (splits <= 1)
+      return false;
+
+   struct nir_cmat_tensor_load tensor_load = nir_cmat_call_tensor_load_info(call);
+   for (unsigned i = 0; i < splits; i++) {
+      nir_deref_instr *dst_deref = recreate_derefs(b, &call->params[!is_load], split->split_vars[i]);
+      nir_deref_instr *clip_deref = NULL;
+
+      if (clip_split)
+         clip_deref = recreate_derefs(b, &call->params[4], clip_split->split_vars[i]);
+      b->cursor = nir_before_instr(instr);
+      struct nir_cmat_tensor_load split_tensor_load = { 0 };
+
+      split_tensor_load.tensor_view = tensor_load.tensor_view;
+      split_tensor_load.view_has_dims = tensor_load.view_has_dims;
+      split_tensor_load.layout_clamp_mode = tensor_load.layout_clamp_mode;
+      for (unsigned p = 0; p < NIR_TENSOR_VIEW_MAX_PERMUTATIONS; p++)
+         split_tensor_load.view_permutations[p] = tensor_load.view_permutations[p];
+
+      if (i > 0) {
+         split_tensor_load.split_row_index = i / split->box.outer_cols;
+         split_tensor_load.split_col_index = i % split->box.outer_cols;
+      }
+
+      nir_cmat_call_instr *splitcall = nir_cmat_call_instr_create(b->shader, call->op, call->callee);
+      splitcall->params[!is_load] = nir_src_for_ssa(&dst_deref->def);
+      splitcall->params[is_load] = call->params[is_load];
+      splitcall->params[2] = call->params[2];
+      splitcall->params[3] = call->params[3];
+      if (is_load)
+         splitcall->params[4] = nir_src_for_ssa(&clip_deref->def);
+      nir_cmat_call_set_tensor_load_info(splitcall, split_tensor_load);
+      nir_cmat_call_dup_cmat_desc(splitcall, call);
+      nir_builder_instr_insert(b, &splitcall->instr);
+   }
+
+   nir_instr_remove(instr);
+   return true;
+}
+
+static bool
 split_matrix_impl(nir_function_impl *impl, struct split_info *info)
 {
    bool progress = false;
@@ -884,6 +940,10 @@ split_matrix_impl(nir_function_impl *impl, struct split_info *info)
                break;
             case nir_cmat_call_op_per_element_op:
                progress |= split_cmat_call_per_element_op(&b, cmat_call, info);
+               break;
+            case nir_cmat_call_op_tensor_load:
+            case nir_cmat_call_op_tensor_store:
+               progress |= split_cmat_call_tensor_load_store(&b, cmat_call, info);
                break;
             default:
                break;
