@@ -7526,6 +7526,7 @@ struct nir_calc_tensor_info {
    nir_tensor_clamp_mode clamp_mode;
    nir_if *clipped_if;
    nir_def *do_clamp;
+   nir_function *decode_fnptr;
 };
 
 void nir_calc_tensor_derefs_init(nir_builder *b, struct nir_calc_tensor_info *info,
