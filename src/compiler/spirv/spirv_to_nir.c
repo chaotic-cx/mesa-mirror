@@ -59,6 +59,7 @@ static const struct spirv_capabilities implemented_capabilities = {
    .CooperativeMatrixConversionsNV = true,
    .CooperativeMatrixReductionsNV = true,
    .CooperativeMatrixPerElementOperationsNV = true,
+   .CooperativeMatrixTensorAddressingNV = true,
    .CoreBuiltinsARM = true,
    .CullDistance = true,
    .DemoteToHelperInvocation = true,
@@ -192,6 +193,7 @@ static const struct spirv_capabilities implemented_capabilities = {
    .SubgroupBufferBlockIOINTEL = true,
    .SubgroupShuffleINTEL = true,
    .SubgroupVoteKHR = true,
+   .TensorAddressingNV = true,
    .Tessellation = true,
    .TessellationPointSize = true,
    .TextureBlockMatchQCOM = true,
@@ -455,6 +457,8 @@ vtn_base_type_to_string(enum vtn_base_type t)
    CASE(function);
    CASE(event);
    CASE(cooperative_matrix);
+   CASE(tensor_layout);
+   CASE(tensor_view);
    CASE(buffer);
    }
 #undef CASE
@@ -1304,6 +1308,34 @@ vtn_types_compatible(struct vtn_builder *b,
       }
       return true;
 
+   case vtn_base_type_tensor_layout:
+      if (t1->length != t2->length)
+         return false;
+
+      if (t1->tensor_layout_clamp_mode != t2->tensor_layout_clamp_mode)
+         return false;
+
+      for (unsigned i = 0; i < t1->length; i++) {
+         if (!vtn_types_compatible(b, t1->tensor_layout_members[i], t2->tensor_layout_members[i]))
+            return false;
+      }
+      return true;
+   case vtn_base_type_tensor_view:
+      if (t1->length != t2->length)
+         return false;
+
+      if (t1->tensor_view_has_dims != t2->tensor_view_has_dims)
+         return false;
+
+      for (unsigned p = 0; p < NIR_TENSOR_VIEW_MAX_PERMUTATIONS; p++)
+         if (t1->tensor_view_permutations[p] != t2->tensor_view_permutations[p])
+            return false;
+
+      for (unsigned i = 0; i < t1->length; i++) {
+         if (!vtn_types_compatible(b, t1->tensor_view_members[i], t2->tensor_view_members[i]))
+            return false;
+      }
+      return true;
    case vtn_base_type_accel_struct:
    case vtn_base_type_ray_query:
       return true;
@@ -1360,6 +1392,18 @@ vtn_type_copy(struct vtn_builder *b, struct vtn_type *src)
       dest->offsets = vtn_alloc_array(b, unsigned, src->length);
       memcpy(dest->offsets, src->offsets,
              src->length * sizeof(src->offsets[0]));
+      break;
+
+   case vtn_base_type_tensor_layout:
+      dest->tensor_layout_members = vtn_alloc_array(b, struct vtn_type *, src->length);
+      memcpy(dest->tensor_layout_members, src->tensor_layout_members,
+             src->length * sizeof(src->tensor_layout_members[0]));
+      break;
+
+   case vtn_base_type_tensor_view:
+      dest->tensor_view_members = vtn_alloc_array(b, struct vtn_type *, src->length);
+      memcpy(dest->tensor_view_members, src->tensor_view_members,
+             src->length * sizeof(src->tensor_view_members[0]));
       break;
 
    case vtn_base_type_function:
@@ -2468,6 +2512,11 @@ vtn_handle_type(struct vtn_builder *b, SpvOp opcode,
          val->type->access = ACCESS_INCLUDE_HELPERS;
       break;
    }
+
+   case SpvOpTypeTensorLayoutNV:
+   case SpvOpTypeTensorViewNV:
+      vtn_handle_tensor_layout_type(b, val, opcode, w, count);
+      break;
 
    case SpvOpTypeCooperativeMatrixKHR:
       vtn_handle_cooperative_type(b, val, opcode, w, count);
@@ -6372,6 +6421,8 @@ vtn_handle_variable_or_type_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpTypeCooperativeMatrixKHR:
    case SpvOpTypeUntypedPointerKHR:
    case SpvOpTypeBufferEXT:
+   case SpvOpTypeTensorLayoutNV:
+   case SpvOpTypeTensorViewNV:
       vtn_handle_type(b, opcode, w, count);
       break;
 
@@ -7441,6 +7492,19 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpFinishWritingNodePayloadAMDX:
       break;
 
+   case SpvOpCreateTensorLayoutNV:
+   case SpvOpTensorLayoutSetBlockSizeNV:
+   case SpvOpTensorLayoutSetDimensionNV:
+   case SpvOpTensorLayoutSetStrideNV:
+   case SpvOpTensorLayoutSliceNV:
+   case SpvOpTensorLayoutSetClampValueNV:
+   case SpvOpCreateTensorViewNV:
+   case SpvOpTensorViewSetDimensionNV:
+   case SpvOpTensorViewSetStrideNV:
+   case SpvOpTensorViewSetClipNV:
+      vtn_handle_tensor_layout_instruction(b, opcode, w, count);
+      break;
+
    case SpvOpCooperativeMatrixLoadKHR:
    case SpvOpCooperativeMatrixStoreKHR:
    case SpvOpCooperativeMatrixLengthKHR:
@@ -7449,6 +7513,8 @@ vtn_handle_body_instruction(struct vtn_builder *b, SpvOp opcode,
    case SpvOpCooperativeMatrixTransposeNV:
    case SpvOpCooperativeMatrixReduceNV:
    case SpvOpCooperativeMatrixPerElementOpNV:
+   case SpvOpCooperativeMatrixLoadTensorNV:
+   case SpvOpCooperativeMatrixStoreTensorNV:
       vtn_handle_cooperative_instruction(b, opcode, w, count);
       break;
 
