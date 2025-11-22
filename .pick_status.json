@@ -2004,7 +2004,7 @@
         "description": "radeonsi: fix color interpolation when finalize_nir is called twice",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "deda05e2b71136c9620983c05628ac7defd5de3e",
         "notes": null
