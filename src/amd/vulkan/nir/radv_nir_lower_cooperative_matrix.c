@@ -448,6 +448,105 @@ lower_cmat_load_store(nir_builder *b, nir_intrinsic_instr *intr, const lower_cma
 }
 
 static bool
+lower_cmat_tensor_load_store(nir_builder *b, nir_cmat_call_instr *call, const lower_cmat_params *params)
+{
+   bool is_load = call->op != nir_cmat_call_op_tensor_store;
+   nir_deref_instr *cmat_deref = nir_src_as_deref(call->params[!is_load]);
+   struct glsl_cmat_description desc = *glsl_get_cmat_description(cmat_deref->type);
+
+   nir_deref_instr *deref = nir_src_as_deref(call->params[is_load]);
+   nir_deref_instr *clip_deref = NULL;
+
+   if (is_load)
+      clip_deref = nir_src_as_deref(call->params[4]);
+
+   nir_def *local_idx = nir_load_subgroup_invocation(b);
+   nir_def *inner_idx = nir_iand_imm(b, local_idx, 15);
+
+   unsigned length = radv_nir_cmat_length(desc, params);
+   unsigned mul = radv_nir_cmat_length_mul(desc, params);
+   unsigned lanes_per_iter = desc.use == GLSL_CMAT_USE_ACCUMULATOR ? params->wave_size : 16;
+
+   nir_def *vars[16];
+   nir_def *clips[16];
+   nir_if *store_if_outer = NULL;
+   if (is_load) {
+      if (mul > 1) {
+         for (unsigned i = 0; i < length; ++i)
+            if (i % mul != 0)
+               vars[i] = nir_undef(b, 1, radv_nir_cmat_bits(desc));
+      }
+
+      nir_def *clip_src = radv_nir_load_cmat(b, params, &clip_deref->def);
+      for (unsigned i = 0; i < length; ++i)
+         clips[i] = nir_channel(b, clip_src, i);
+   } else {
+      if (params->gfx_level < GFX11_7 && desc.use != GLSL_CMAT_USE_ACCUMULATOR)
+         store_if_outer = nir_push_if(b, nir_ilt_imm(b, local_idx, 16));
+
+      nir_def *src = radv_nir_load_cmat(b, params, &cmat_deref->def);
+      for (unsigned i = 0; i < length; ++i)
+         vars[i] = nir_channel(b, src, i);
+   }
+
+   nir_def *base_row = radv_get_base_row(b, desc, params, local_idx);
+   struct nir_calc_tensor_info info = {};
+   nir_calc_tensor_derefs_init(b, &info, call);
+
+   for (unsigned i = 0; i < length / mul; ++i) {
+      nir_deref_instr *iter_deref = deref;
+      nir_def *col_offset = inner_idx;
+      nir_def *row_offset;
+      uint32_t row_iter;
+
+      if (params->gfx_level >= GFX11_7) {
+         row_iter = i;
+      } else {
+         row_iter = i * lanes_per_iter / 16;
+      }
+
+      row_offset = nir_iadd_imm(b, base_row, row_iter);
+      if (desc.use == GLSL_CMAT_USE_A) {
+         SWAP(row_offset, col_offset);
+      }
+
+      nir_calc_tensor_derefs(b, &info, row_offset, col_offset, &iter_deref);
+
+      if (is_load) {
+         if (info.clamp_value) {
+            vars[i * mul] = nir_bcsel(b, info.do_clamp,
+                                      nir_u2uN(b, info.clamp_value, radv_nir_cmat_bits(desc)),
+                                      nir_load_deref(b, iter_deref));
+         } else {
+            vars[i * mul] = nir_load_deref(b, iter_deref);
+         }
+      } else {
+         nir_if *store_if_inner = nir_push_if(b, nir_inot(b, info.do_clamp));
+         nir_store_deref(b, iter_deref, vars[i * mul], 1);
+         nir_pop_if(b, store_if_inner);
+      }
+
+      if (info.clipped_if) {
+         nir_push_else(b, info.clipped_if);
+         nir_pop_if(b, info.clipped_if);
+         if (is_load)
+            vars[i * mul] = nir_if_phi(b, vars[i * mul], clips[i * mul]);
+      }
+
+   }
+
+   if (is_load) {
+      nir_def *mat = nir_vec(b, vars, length);
+      nir_store_deref(b, cmat_deref, mat, nir_component_mask(mat->num_components));
+   } else if (params->gfx_level < GFX11_7 && desc.use != GLSL_CMAT_USE_ACCUMULATOR) {
+      nir_pop_if(b, store_if_outer);
+   }
+
+   nir_instr_remove(&call->instr);
+   return true;
+}
+
+static bool
 lower_cmat_muladd(nir_builder *b, nir_intrinsic_instr *intr, const lower_cmat_params *params)
 {
    nir_def *A = radv_nir_load_cmat(b, params, intr->src[1].ssa);
@@ -1243,6 +1342,10 @@ radv_nir_lower_cooperative_matrix(nir_shader *shader, enum amd_gfx_level gfx_lev
                break;
             case nir_cmat_call_op_per_element_op:
                progress |= lower_cmat_per_element_op(&b, call, &params);
+               break;
+            case nir_cmat_call_op_tensor_load:
+            case nir_cmat_call_op_tensor_store:
+               progress |= lower_cmat_tensor_load_store(&b, call, &params);
                break;
             default:
                break;
