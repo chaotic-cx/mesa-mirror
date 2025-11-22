@@ -1046,6 +1046,40 @@ nir_lower_cooperative_matrix_flexible_dimensions(nir_shader *shader,
    return progress;
 }
 
+/*
+ * Cooperative block loads have a decode function.
+ * It can take either a Buffer or PhysicalBuffer,
+ * but only expects a PhysicalBuffer.
+ * This helps finds the cast deref that casts the
+ * result of load_param(1).
+ */
+static nir_deref_instr *
+find_decode_deref(nir_function_impl *impl)
+{
+   nir_foreach_block(block, impl) {
+      nir_foreach_instr(instr, block) {
+         if (instr->type == nir_instr_type_deref) {
+            nir_deref_instr *deref = nir_instr_as_deref(instr);
+            if (deref->deref_type != nir_deref_type_cast)
+               continue;
+
+            if (!nir_def_is_intrinsic(deref->parent.ssa))
+               continue;
+
+            nir_intrinsic_instr *parent_intrin = nir_def_as_intrinsic(deref->parent.ssa);
+            if (parent_intrin->intrinsic != nir_intrinsic_load_param)
+               continue;
+
+            if (nir_intrinsic_param_idx(parent_intrin) != 1)
+               continue;
+
+            return deref;
+         }
+      }
+   }
+   return NULL;
+}
+
 static inline nir_def *
 nir_load_struct_field(nir_builder *build, nir_deref_instr *deref, int field)
 {
@@ -1077,6 +1111,8 @@ nir_calc_tensor_derefs_init(nir_builder *b, struct nir_calc_tensor_info *info,
    }
 
    info->cols = orig_desc.cols;
+
+   info->decode_fnptr = call->callee;
 
    if (is_store && clamp_mode != NIR_TENSOR_CLAMP_UNDEFINED)
       clamp_mode = NIR_TENSOR_CLAMP_CONSTANT;
@@ -1193,6 +1229,7 @@ nir_calc_tensor_derefs(nir_builder *b, struct nir_calc_tensor_info *info,
 
    /* spanCoordToTensorCoord */
    nir_def *block_coord[5];
+   nir_def *coord_in_block[5];
 
    info->do_clamp = nir_imm_false(b);
    for (unsigned dim = 0; dim < nc; dim++) {
@@ -1228,6 +1265,8 @@ nir_calc_tensor_derefs(nir_builder *b, struct nir_calc_tensor_info *info,
 
       if (info->clamp_mode != NIR_TENSOR_CLAMP_UNDEFINED)
          c = nir_bcsel(b, this_clamp, c_clamped, c);
+      if (info->decode_fnptr)
+         coord_in_block[dim] = nir_umod(b, c, nir_channel(b, info->block_sizes, dim));
       block_coord[dim] = nir_udiv(b, c, nir_channel(b, info->block_sizes, dim));
    }
 
@@ -1237,7 +1276,40 @@ nir_calc_tensor_derefs(nir_builder *b, struct nir_calc_tensor_info *info,
       idx = nir_iadd(b, idx, nir_imul(b, block_coord[dim], nir_channel(b, info->strides, dim)));
    }
 
-   *iter_deref_p = nir_build_deref_ptr_as_array(b, iter_deref, nir_u2uN(b, idx, iter_deref->def.bit_size));
+   if (info->decode_fnptr) {
+      nir_variable *decode_out_tmp = nir_local_variable_create(b->impl, glsl_get_bare_type(info->decode_fnptr->params[0].type), "decode_tmp");
+      nir_deref_instr *decode_out_tmp_deref = nir_build_deref_var(b, decode_out_tmp);
+      nir_call_instr *call = nir_call_instr_create(b->shader, info->decode_fnptr);
+      nir_deref_instr *param_deref = find_decode_deref(info->decode_fnptr->impl);
+      /*
+       * The first parameter must be a pointer type with storage class PhysicalStorageBuffer,
+       * and the parameter is filled a pointer computed by multiplying the index returned by
+       * matrixCoordToTensorElement(WithView) by the size of the pointee type.
+       */
+      nir_def *idx_def;
+      if (param_deref) {
+         nir_deref_instr *idx_deref = nir_build_deref_cast(b, &iter_deref->def,
+                                                           iter_deref->modes,
+                                                           param_deref->type,
+                                                           glsl_get_explicit_size(param_deref->type, true));
+         idx_deref = nir_build_deref_ptr_as_array(b, idx_deref, nir_u2uN(b, idx, iter_deref->def.bit_size));
+         idx_def = &idx_deref->def;
+      } else
+         idx_def = nir_undef(b, info->decode_fnptr->params[1].num_components,
+                             info->decode_fnptr->params[1].bit_size);
+
+      call->params[0] = nir_src_for_ssa(&decode_out_tmp_deref->def);
+      call->params[1] = nir_src_for_ssa(idx_def);
+      for (unsigned dim = 0; dim < nc; dim++) {
+         call->params[2 + dim] = nir_src_for_ssa(block_coord[dim]);
+         call->params[2 + nc + dim] = nir_src_for_ssa(coord_in_block[dim]);
+      }
+      nir_builder_instr_insert(b, &call->instr);
+      idx = nir_load_deref(b, decode_out_tmp_deref);
+   } else {
+      *iter_deref_p = nir_build_deref_ptr_as_array(b, iter_deref, nir_u2uN(b, idx, iter_deref->def.bit_size));
+   }
+
    return idx;
 }
 
