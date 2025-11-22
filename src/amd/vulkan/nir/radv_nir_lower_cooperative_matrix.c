@@ -244,6 +244,19 @@ lower_cmat_construct(nir_builder *b, nir_intrinsic_instr *intr, const lower_cmat
    return true;
 }
 
+static nir_deref_instr *
+convert_ssbo_to_global(nir_builder *b, nir_deref_instr *deref, int elem_bits)
+{
+   nir_def *descriptor = nir_ssbo_descriptor_amd(b, &deref->def);
+   nir_def *addr_lo = nir_channel(b, descriptor, 0);
+   nir_def *addr_hi = nir_extract_i16(b, nir_channel(b, descriptor, 1), nir_imm_int(b, 0));
+   nir_def *addr = nir_pack_64_2x32_split(b, addr_lo, addr_hi);
+
+   nir_def *offset = nir_channel(b, &deref->def, 2);
+   addr = nir_iadd_nuw(b, addr, nir_u2u64(b, offset));
+   return nir_build_deref_cast(b, addr, nir_var_mem_global, deref->type, elem_bits / 8);
+}
+
 static void
 get_load_tr_row_col(nir_builder *b, unsigned bit_size, nir_def **row, nir_def **col)
 {
@@ -327,14 +340,7 @@ lower_cmat_load_store(nir_builder *b, nir_intrinsic_instr *intr, const lower_cma
 
       /* Convert buffer deref to a global one. */
       if (nir_deref_mode_is_one_of(deref, nir_var_mem_ssbo | nir_var_mem_ubo)) {
-         nir_def *descriptor = nir_ssbo_descriptor_amd(b, &deref->def);
-         nir_def *addr_lo = nir_channel(b, descriptor, 0);
-         nir_def *addr_hi = nir_extract_i16(b, nir_channel(b, descriptor, 1), nir_imm_int(b, 0));
-         nir_def *addr = nir_pack_64_2x32_split(b, addr_lo, addr_hi);
-
-         nir_def *offset = nir_channel(b, &deref->def, 2);
-         addr = nir_iadd_nuw(b, addr, nir_u2u64(b, offset));
-         deref = nir_build_deref_cast(b, addr, nir_var_mem_global, deref->type, elem_bits / 8);
+         deref = convert_ssbo_to_global(b, deref, elem_bits);
       }
 
       nir_def *mat = nir_load_deref_transpose_amd(b, length, elem_bits, &deref->def);
@@ -493,6 +499,12 @@ lower_cmat_tensor_load_store(nir_builder *b, nir_cmat_call_instr *call, const lo
    struct nir_calc_tensor_info info = {};
    nir_calc_tensor_derefs_init(b, &info, call);
 
+   if (info.decode_fnptr) {
+      if (nir_deref_mode_is_one_of(deref, nir_var_mem_ssbo)) {
+         const unsigned elem_bits = radv_nir_cmat_bits(desc);
+         deref = convert_ssbo_to_global(b, deref, elem_bits);
+      }
+   }
    for (unsigned i = 0; i < length / mul; ++i) {
       nir_deref_instr *iter_deref = deref;
       nir_def *col_offset = inner_idx;
@@ -510,20 +522,24 @@ lower_cmat_tensor_load_store(nir_builder *b, nir_cmat_call_instr *call, const lo
          SWAP(row_offset, col_offset);
       }
 
-      nir_calc_tensor_derefs(b, &info, row_offset, col_offset, &iter_deref);
+      nir_def *idx = nir_calc_tensor_derefs(b, &info, row_offset, col_offset, &iter_deref);
 
-      if (is_load) {
-         if (info.clamp_value) {
-            vars[i * mul] = nir_bcsel(b, info.do_clamp,
-                                      nir_u2uN(b, info.clamp_value, radv_nir_cmat_bits(desc)),
-                                      nir_load_deref(b, iter_deref));
+      if (!info.decode_fnptr) {
+         if (is_load) {
+            if (info.clamp_value) {
+               vars[i * mul] = nir_bcsel(b, info.do_clamp,
+                                         nir_u2uN(b, info.clamp_value, radv_nir_cmat_bits(desc)),
+                                         nir_load_deref(b, iter_deref));
+            } else {
+               vars[i * mul] = nir_load_deref(b, iter_deref);
+            }
          } else {
-            vars[i * mul] = nir_load_deref(b, iter_deref);
+            nir_if *store_if_inner = nir_push_if(b, nir_inot(b, info.do_clamp));
+            nir_store_deref(b, iter_deref, vars[i * mul], 1);
+            nir_pop_if(b, store_if_inner);
          }
       } else {
-         nir_if *store_if_inner = nir_push_if(b, nir_inot(b, info.do_clamp));
-         nir_store_deref(b, iter_deref, vars[i * mul], 1);
-         nir_pop_if(b, store_if_inner);
+         vars[i * mul] = idx;
       }
 
       if (info.clipped_if) {

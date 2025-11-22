@@ -3,6 +3,14 @@ dEQP-VK.wsi.direct.colorspace.hdr,Fail
 dEQP-VK.wsi.direct_drm.colorspace.basic,Fail
 dEQP-VK.wsi.direct_drm.colorspace.hdr,Fail
 
+# test bug
+dEQP-VK.compute.pipeline.cooperative_matrix.khr_r.subgroupscope.matrixmuladd_dequant.bfloat16_bfloat16.buffer.rowmajor.decode,Fail
+dEQP-VK.compute.pipeline.cooperative_matrix.khr_r.subgroupscope.matrixmuladd_dequant.bfloat16_bfloat16.physical_buffer.rowmajor.decode,Fail
+dEQP-VK.compute.shader_object_binary.cooperative_matrix.khr_r.subgroupscope.matrixmuladd_dequant.bfloat16_bfloat16.buffer.rowmajor.decode,Fail
+dEQP-VK.compute.shader_object_binary.cooperative_matrix.khr_r.subgroupscope.matrixmuladd_dequant.bfloat16_bfloat16.physical_buffer.rowmajor.decode,Fail
+dEQP-VK.compute.shader_object_spirv.cooperative_matrix.khr_r.subgroupscope.matrixmuladd_dequant.bfloat16_bfloat16.buffer.rowmajor.decode,Fail
+dEQP-VK.compute.shader_object_spirv.cooperative_matrix.khr_r.subgroupscope.matrixmuladd_dequant.bfloat16_bfloat16.physical_buffer.rowmajor.decode,Fail
+
 # Fluster
 GStreamer-H.264-Vulkan@CABREF3_Sand_D,Fail
 GStreamer-H.264-Vulkan@CAFI1_SVA_C,Fail
