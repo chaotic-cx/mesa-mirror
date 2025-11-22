@@ -1619,7 +1619,10 @@ read_call(read_ctx *ctx)
 static void
 write_cmat_call(write_ctx *ctx, const nir_cmat_call_instr *call)
 {
-   blob_write_uint32(ctx->blob, write_lookup_object(ctx, call->callee));
+   if (call->callee)
+      blob_write_uint32(ctx->blob, write_lookup_object(ctx, call->callee));
+   else
+      blob_write_uint32(ctx->blob, 0);
 
    blob_write_uint32(ctx->blob, call->op);
 
@@ -1633,7 +1636,10 @@ write_cmat_call(write_ctx *ctx, const nir_cmat_call_instr *call)
 static nir_cmat_call_instr *
 read_cmat_call(read_ctx *ctx)
 {
-   nir_function *callee = read_object(ctx);
+   uint32_t callee_int = blob_read_uint32(ctx->blob);
+   nir_function *callee = NULL;
+   if (callee_int)
+      callee = read_lookup_object(ctx, callee_int);
    nir_cmat_call_op op = blob_read_uint32(ctx->blob);
    nir_cmat_call_instr *call = nir_cmat_call_instr_create(ctx->nir, op, callee);
 

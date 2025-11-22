@@ -2242,6 +2242,10 @@ get_cmat_call_op_str(nir_cmat_call_op op)
       return "cmat_call_reduce_2x2";
    case nir_cmat_call_op_per_element_op:
       return "cmat_call_per_element";
+   case nir_cmat_call_op_tensor_load:
+      return "cmat_call_tensor_load";
+   case nir_cmat_call_op_tensor_store:
+      return "cmat_call_tensor_store";
    }
    UNREACHABLE("Unknown cmat call op");
 }
@@ -2253,13 +2257,13 @@ print_cmat_call_instr(nir_cmat_call_instr *instr, print_state *state)
 
    print_no_dest_padding(state);
 
-   fprintf(fp, "%s %s ", get_cmat_call_op_str(instr->op), instr->callee->name);
+   fprintf(fp, "%s %s ", get_cmat_call_op_str(instr->op), instr->callee ? instr->callee->name : "");
 
    for (unsigned i = 0; i < instr->num_params; i++) {
       if (i != 0)
          fprintf(fp, ", ");
 
-      if (instr->callee->params[i].name)
+      if (instr->callee && instr->callee->params[i].name)
          fprintf(fp, "%s ", instr->callee->params[i].name);
 
       print_src(&instr->params[i], state, nir_type_invalid);

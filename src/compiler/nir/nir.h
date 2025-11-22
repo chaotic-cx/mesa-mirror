@@ -292,7 +292,6 @@ typedef enum {
    NIR_CMAT_REDUCE_2X2 = 1u << 2,
 } nir_cmat_reduce;
 
-
 typedef enum {
    NIR_TENSOR_CLAMP_UNDEFINED = 0,
    NIR_TENSOR_CLAMP_CONSTANT = 1,
@@ -320,6 +319,22 @@ typedef enum {
 } nir_tensor_view_fields;
 
 #define NIR_TENSOR_VIEW_MAX_PERMUTATIONS 5
+
+/**
+ * tensor load cmat call information.
+ * view denotes if a tensor view is present
+ * the split row/col indexes are which group
+ * of rows or columns this operation is referring
+ * to.
+ */
+struct nir_cmat_tensor_load {
+   uint32_t tensor_view:1;
+   uint32_t split_row_index:15;
+   uint32_t view_has_dims:1;
+   uint32_t split_col_index:15;
+   uint8_t view_permutations[NIR_TENSOR_VIEW_MAX_PERMUTATIONS];
+   uint8_t layout_clamp_mode; /* nir_tensor_clamp_mode */
+};
 
 #define nir_const_value_to_array(arr, c, components, m) \
    do {                                                 \
@@ -2012,7 +2027,9 @@ typedef struct nir_call_instr {
    nir_src params[];
 } nir_call_instr;
 
-#define NIR_CMAT_CALL_MAX_CONST_INDEX 1
+#define NIR_CMAT_CALL_MAX_CONST_INDEX 5
+#define NIR_CMAT_CALL_LAYOUT_OFFSET 0
+#define NIR_CMAT_CALL_DESC_OFFSET 3
 
 typedef enum {
    /*
@@ -2036,6 +2053,11 @@ typedef enum {
     * per-element dst, row offset, col offset, src
     */
    nir_cmat_call_op_per_element_op,
+   /*
+    * Cooperative matrix tensor load store
+    */
+   nir_cmat_call_op_tensor_load,
+   nir_cmat_call_op_tensor_store,
 } nir_cmat_call_op;
 
 typedef struct nir_cmat_call_instr {
@@ -2053,6 +2075,40 @@ typedef struct nir_cmat_call_instr {
 static inline nir_cmat_reduce nir_cmat_call_reduce_flags(nir_cmat_call_instr *call)
 {
    return (nir_cmat_reduce)call->const_index[0];
+}
+
+static inline struct nir_cmat_tensor_load nir_cmat_call_tensor_load_info(nir_cmat_call_instr *call)
+{
+   struct nir_cmat_tensor_load tl;
+   STATIC_ASSERT(sizeof(call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET]) * 3 == sizeof(tl));
+   memcpy(&tl, &call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET], sizeof(tl));
+   return tl;
+}
+
+static inline void nir_cmat_call_set_tensor_load_info(nir_cmat_call_instr *call, struct nir_cmat_tensor_load tl)
+{
+   STATIC_ASSERT(sizeof(call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET]) * 3 == sizeof(tl));
+   memcpy(&call->const_index[NIR_CMAT_CALL_LAYOUT_OFFSET], &tl, sizeof(tl));
+}
+
+static inline struct glsl_cmat_description nir_cmat_call_cmat_desc(nir_cmat_call_instr *call)
+{
+   struct glsl_cmat_description desc;
+   STATIC_ASSERT(sizeof(call->const_index[NIR_CMAT_CALL_DESC_OFFSET]) * 2 == sizeof(desc));
+   memcpy(&desc, &call->const_index[NIR_CMAT_CALL_DESC_OFFSET], sizeof(desc));
+   return desc;
+}
+
+static inline void nir_cmat_call_set_cmat_desc(nir_cmat_call_instr *call, struct glsl_cmat_description desc)
+{
+   STATIC_ASSERT(sizeof(call->const_index[NIR_CMAT_CALL_DESC_OFFSET]) * 2 == sizeof(desc));
+   memcpy(&call->const_index[NIR_CMAT_CALL_DESC_OFFSET], &desc, sizeof(desc));
+}
+
+static inline void nir_cmat_call_dup_cmat_desc(nir_cmat_call_instr *dest, nir_cmat_call_instr *src)
+{
+   STATIC_ASSERT(sizeof(src->const_index[NIR_CMAT_CALL_DESC_OFFSET]) * 2 == sizeof(struct glsl_cmat_description));
+   memcpy(&dest->const_index[NIR_CMAT_CALL_DESC_OFFSET], &src->const_index[NIR_CMAT_CALL_DESC_OFFSET], sizeof(struct glsl_cmat_description));
 }
 
 #include "nir_intrinsics.h"

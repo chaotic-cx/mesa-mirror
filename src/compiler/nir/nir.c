@@ -929,6 +929,10 @@ nir_cmat_call_op_params(nir_cmat_call_op op, nir_function *callee)
       return 3;
    case nir_cmat_call_op_reduce_2x2:
       return 5;
+   case nir_cmat_call_op_tensor_load:
+      return 5;
+   case nir_cmat_call_op_tensor_store:
+      return 4;
    }
    UNREACHABLE("Invalid cmat call op");
 }
