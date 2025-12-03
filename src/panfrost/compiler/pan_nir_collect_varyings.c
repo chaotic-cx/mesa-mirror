@@ -237,8 +237,6 @@ pan_nir_collect_varyings(nir_shader *s, struct pan_shader_info *info,
  * come later, sparsely packed. This handles both linked and separable shaders
  * with a common code path, with minimal keying only for desktop GL. Each slot
  * consumes 16 bytes (TODO: fp16, partial vectors).
- *
- * This is a copy+paste of the identical function in bifrost_compile.c
  */
 static unsigned
 bi_varying_base_bytes(gl_varying_slot slot, uint32_t fixed_varyings)

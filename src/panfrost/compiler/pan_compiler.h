@@ -125,6 +125,9 @@ struct pan_compile_inputs {
     */
    uint32_t fixed_varying_mask;
 
+   /* Varying layout, if known */
+   const struct pan_varying_layout *varying_layout;
+
    /* Settings to move constants into the FAU. */
    struct {
       uint32_t *values;

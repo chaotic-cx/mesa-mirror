@@ -572,41 +572,6 @@ bi_emit_load_attr(bi_builder *b, nir_intrinsic_instr *instr)
    bi_copy_component(b, instr, dest);
 }
 
-/*
- * ABI: Special (desktop GL) slots come first, tightly packed. General varyings
- * come later, sparsely packed. This handles both linked and separable shaders
- * with a common code path, with minimal keying only for desktop GL. Each slot
- * consumes 16 bytes (TODO: fp16, partial vectors).
- */
-static unsigned
-bi_varying_base_bytes(bi_context *ctx, nir_intrinsic_instr *intr)
-{
-   nir_io_semantics sem = nir_intrinsic_io_semantics(intr);
-   uint32_t mask = ctx->inputs->fixed_varying_mask;
-
-   if (sem.location >= VARYING_SLOT_VAR0) {
-      unsigned nr_special = util_bitcount(mask);
-      unsigned general_index = (sem.location - VARYING_SLOT_VAR0);
-
-      return 16 * (nr_special + general_index);
-   } else {
-      return 16 * (util_bitcount(mask & BITFIELD_MASK(sem.location)));
-   }
-}
-
-/*
- * Compute the offset in bytes of a varying with an immediate offset, adding the
- * offset to the base computed above. Convenience method.
- */
-static unsigned
-bi_varying_offset(bi_context *ctx, nir_intrinsic_instr *intr)
-{
-   nir_src *src = nir_get_io_offset_src(intr);
-   assert(nir_src_is_const(*src) && "assumes immediate offset");
-
-   return bi_varying_base_bytes(ctx, intr) + (nir_src_as_uint(*src) * 16);
-}
-
 static void
 bi_emit_load_vary(bi_builder *b, nir_intrinsic_instr *instr)
 {
@@ -623,6 +588,15 @@ bi_emit_load_vary(bi_builder *b, nir_intrinsic_instr *instr)
       (component == 0) ? bi_def_index(&instr->def) : bi_temp(b->shader);
 
    nir_io_semantics sem = nir_intrinsic_io_semantics(instr);
+
+   const struct pan_varying_slot *slot = NULL;
+   if (b->shader->varying_layout) {
+      slot = pan_varying_layout_find_slot(b->shader->varying_layout,
+                                          sem.location);
+      ASSERTED uint32_t res_index =
+         pan_res_handle_get_index(nir_intrinsic_base(instr));
+      assert(slot == &b->shader->varying_layout->slots[res_index]);
+   }
 
    unsigned sz = instr->def.bit_size;
    assert(sz == 16 || sz == 32);
@@ -659,7 +633,7 @@ bi_emit_load_vary(bi_builder *b, nir_intrinsic_instr *instr)
       b->shader->info.bifrost->uses_flat_shading = true;
    }
 
-   nir_src *offset = nir_get_io_offset_src(instr);
+   nir_src *offset_src = nir_get_io_offset_src(instr);
    unsigned imm_index = 0;
    bool immediate = bi_is_imm_var_desc_handle(b, instr, &imm_index);
    unsigned base = nir_intrinsic_base(instr);
@@ -672,20 +646,21 @@ bi_emit_load_vary(bi_builder *b, nir_intrinsic_instr *instr)
 
    if (use_ld_var_buf) {
       if (immediate) {
+         assert(nir_src_is_const(*offset_src) && "assumes immediate offset");
+         unsigned offset = slot->offset + (nir_src_as_uint(*offset_src) * 16);
+
          /* Immediate index given in bytes. */
          bi_ld_var_buf_imm_to(b, sz, dest, src0, regfmt, sample, source_format,
-                              update, vecsize,
-                              bi_varying_offset(b->shader, instr));
+                              update, vecsize, offset);
       } else {
-         bi_index idx = bi_src_index(offset);
+         bi_index idx = bi_src_index(offset_src);
          /* Index needs to be in bytes, but NIR gives the index
           * in slots. For now assume 16 bytes per element.
           */
          bi_index idx_bytes = bi_lshift_or_i32(b, idx, bi_zero(), bi_imm_u8(4));
-         unsigned vbase = bi_varying_base_bytes(b->shader, instr);
-
-         if (vbase != 0)
-            idx_bytes = bi_iadd_u32(b, idx_bytes, bi_imm_u32(vbase), false);
+         if (slot->offset != 0)
+            idx_bytes = bi_iadd_u32(b, idx_bytes, bi_imm_u32(slot->offset),
+                                    false);
 
          bi_ld_var_buf_to(b, sz, dest, src0, idx_bytes, regfmt, sample,
                           source_format, update, vecsize);
@@ -714,7 +689,7 @@ bi_emit_load_vary(bi_builder *b, nir_intrinsic_instr *instr)
          if (b->shader->arch >= 9)
             I->table = va_res_fold_table_idx(pan_res_handle_get_table(base));
       } else {
-         bi_index idx = bi_src_index(offset);
+         bi_index idx = bi_src_index(offset_src);
 
          if (base != 0)
             idx = bi_iadd_u32(b, idx, bi_imm_u32(base), false);
@@ -1060,6 +1035,11 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
    ASSERTED unsigned T_size = nir_alu_type_get_type_size(T);
    nir_io_semantics sem = nir_intrinsic_io_semantics(instr);
 
+   const struct pan_varying_slot *slot =
+      pan_varying_layout_find_slot(b->shader->varying_layout, sem.location);
+   ASSERTED unsigned base = nir_intrinsic_base(instr);
+   assert(slot == &b->shader->varying_layout->slots[base]);
+
    unsigned imm_index = 0;
    bool immediate = bi_is_intr_immediate(instr, &imm_index, 16);
 
@@ -1112,35 +1092,16 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
                 bi_imm_u32(format), regfmt, nr - 1);
    } else if (b->shader->arch >= 9 && b->shader->idvs != BI_IDVS_NONE) {
       bi_index index = bi_preload(b, 59);
-      unsigned index_offset = 0;
-      unsigned pos_attr_offset = 0;
       unsigned src_bit_sz = nir_src_bit_size(instr->src[0]);
 
-      enum va_shader_output output_type = va_shader_output_from_semantics(&sem);
-      if (output_type == VA_SHADER_OUTPUT_ATTRIB)
+      unsigned index_offset = 0;
+      if (slot->section == PAN_VARYING_SECTION_ATTRIBS)
          index_offset += 4;
-
-      if (sem.location == VARYING_SLOT_LAYER) {
-         assert(nr == 1 && src_bit_sz == 32);
-         src_bit_sz = 8;
-         pos_attr_offset = 2;
-         data = bi_byte(data, 0);
-      }
-
-      if (sem.location == VARYING_SLOT_PSIZ)
-         assert(T_size == 16 && "should've been lowered");
-
-      if (sem.location == VARYING_SLOT_PRIMITIVE_ID) {
-         assert(nr == 1 && src_bit_sz == 32);
-         pos_attr_offset = 12;
-      }
-
-      bool varying = (output_type == VA_SHADER_OUTPUT_VARY);
 
       if (instr->intrinsic == nir_intrinsic_store_per_view_output) {
          unsigned view_index = nir_src_as_uint(instr->src[1]);
 
-         if (varying) {
+         if (slot->section == PAN_VARYING_SECTION_GENERIC) {
             index_offset += view_index * 4;
          } else {
             /* We don't patch these offsets in the no_psiz variant, so if
@@ -1160,6 +1121,14 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
       if (index_offset != 0)
          index = bi_iadd_imm_i32(b, index, index_offset);
 
+      const enum bi_seg seg =
+         slot->section == PAN_VARYING_SECTION_GENERIC ? BI_SEG_VARY
+                                                      : BI_SEG_POS;
+
+      nir_src *offset_src = nir_get_io_offset_src(instr);
+      assert(nir_src_is_const(*offset_src) && "assumes immediate offset");
+      unsigned offset = slot->offset + (nir_src_as_uint(*offset_src) * 16);
+
       /* On Valhall, with IDVS varying are stored in a hardware-controlled
        * buffer through table 61 at index 0 */
       bi_index address = bi_temp(b->shader);
@@ -1169,15 +1138,13 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
 
       /* On 5th Gen, the hardware-controlled buffer is at index 1 for varyings */
       if (pan_arch(b->shader->inputs->gpu_id) >= 12 &&
-          output_type == VA_SHADER_OUTPUT_VARY) {
+          slot->section == PAN_VARYING_SECTION_GENERIC) {
          I->index = 1;
       }
 
       bi_emit_split_i32(b, a, address, 2);
 
-      bi_store(b, nr * src_bit_sz, data, a[0], a[1],
-               varying ? BI_SEG_VARY : BI_SEG_POS,
-               varying ? bi_varying_offset(b->shader, instr) : pos_attr_offset);
+      bi_store(b, nr * src_bit_sz, data, a[0], a[1], seg, offset);
    } else {
       /* 16-bit varyings are always written and loaded as F16, regardless of
        * whether they are float or int */
@@ -6591,6 +6558,19 @@ bi_compile_variant_nir(nir_shader *nir,
    ctx->malloc_idvs = (ctx->arch >= 9) && !inputs->no_idvs;
    ctx->fau_consts_count = info.init_fau_consts_count;
 
+   if (!mesa_shader_stage_is_compute(nir->info.stage)) {
+      if (inputs->varying_layout) {
+         ctx->varying_layout = inputs->varying_layout;
+      } else if (nir->info.stage == MESA_SHADER_VERTEX ||
+                 inputs->valhall.use_ld_var_buf) {
+         struct pan_varying_layout *layout =
+            rzalloc(ctx, struct pan_varying_layout);
+         pan_build_varying_layout_sso_abi(layout, nir, inputs->gpu_id,
+                                          inputs->fixed_varying_mask);
+         ctx->varying_layout = layout;
+      }
+   }
+
    unsigned execution_mode = nir->info.float_controls_execution_mode;
    ctx->rtz_fp16 = nir_is_rounding_mode_rtz(execution_mode, 16);
    ctx->rtz_fp32 = nir_is_rounding_mode_rtz(execution_mode, 32);
@@ -6624,6 +6604,26 @@ bi_compile_variant_nir(nir_shader *nir,
       /* opt_cse can vectorize load_const, we need to lower this to scalar */
       NIR_PASS(progress, nir, nir_lower_load_const_to_scalar);
       NIR_PASS(progress, nir, nir_opt_dce);
+   }
+
+   /* The varying layout (if any) may have different bit sizes for some
+    * varyings than we have in the shader.  For descriptors, this isn't a
+    * problem as it's handled by the descriptor layout.  However, for direct
+    * loads and stores on Valhall+, we need the right bit sizes in the shader.
+    * We could do this in the back-end as we emit but it's easier for now to
+    * lower in NIR.
+    */
+   if (ctx->arch >= 9 && ctx->varying_layout) {
+      NIR_PASS(_, nir, pan_nir_resize_varying_io, ctx->varying_layout);
+
+      /* pan_nir_resize_varying_io may generate vector conversions which we
+       * need to clean up so the back-end doesn't see them.
+       */
+      unsigned gpu_id = inputs->gpu_id;
+      NIR_PASS(_, nir, nir_lower_alu_width, bi_vectorize_filter, &gpu_id);
+      NIR_PASS(_, nir, nir_lower_load_const_to_scalar);
+      NIR_PASS(_, nir, nir_opt_copy_prop);
+      NIR_PASS(_, nir, nir_opt_dce);
    }
 
    /* If nothing is pushed, all UBOs need to be uploaded */

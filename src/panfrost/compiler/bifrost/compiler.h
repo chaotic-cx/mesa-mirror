@@ -1050,6 +1050,8 @@ typedef struct {
    enum bi_idvs_mode idvs;
    unsigned num_blocks;
 
+   const struct pan_varying_layout *varying_layout;
+
    /* Floating point rounding mode controls */
    bool rtz_fp16;
    bool rtz_fp32;
