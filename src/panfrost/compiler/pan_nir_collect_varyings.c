@@ -73,6 +73,7 @@ walk_varyings(UNUSED nir_builder *b, nir_instr *instr, void *data)
    /* Only consider intrinsics that access varyings */
    switch (intr->intrinsic) {
    case nir_intrinsic_store_output:
+   case nir_intrinsic_store_per_view_output:
       if (b->shader->info.stage != MESA_SHADER_VERTEX)
          return false;
 
