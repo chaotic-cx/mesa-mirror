@@ -142,17 +142,83 @@ struct pan_compile_inputs {
    };
 };
 
+enum pan_varying_section {
+   PAN_VARYING_SECTION_POSITION,
+   PAN_VARYING_SECTION_ATTRIBS,
+   PAN_VARYING_SECTION_GENERIC,
+};
+
+/* Varyings which go in PAN_VARYING_SECTION_ATTRIBS */
+#define PAN_ATTRIB_VARYING_BITS                                   \
+   (VARYING_BIT_PSIZ | VARYING_BIT_LAYER | VARYING_BIT_VIEWPORT | \
+    VARYING_BIT_PRIMITIVE_ID)
+
+struct pan_varying_slot {
+   /* GLSL/SPIR-V location of the varying slot */
+   gl_varying_slot location : 7;
+
+   /* Format of the varying slot in memory */
+   enum pipe_format format : 12;
+
+   enum pan_varying_section section : 2;
+
+   /* Offset of the varying slot in the specified section of the varying
+    * buffer.  For special VS
+    * outputs (see PAN_ATTRIB_VARYING_BITS), this is relative to the start
+    * of the position header.  For all other varyings, this is relative to
+    * the start of the varying space.
+    */
+   unsigned offset : 11;
+};
+static_assert(sizeof(struct pan_varying_slot) == 4,
+              "This struct has no holes");
+
+PRAGMA_DIAGNOSTIC_PUSH
+PRAGMA_DIAGNOSTIC_ERROR(-Wpadded)
+struct pan_varying_layout {
+   uint8_t count;
+   uint8_t _pad;
+
+   /* Size of the generic section, in bytes */
+   uint16_t generic_size_B;
+
+   struct pan_varying_slot slots[PAN_MAX_VARYINGS];
+};
+PRAGMA_DIAGNOSTIC_POP
+
+static inline const struct pan_varying_slot *
+pan_varying_layout_find_slot(const struct pan_varying_layout *layout,
+                             gl_varying_slot location)
+{
+   for (unsigned i = 0; i < layout->count; i++) {
+      if (layout->slots[i].location == location)
+         return &layout->slots[i];
+   }
+
+   return NULL;
+}
+
+static inline uint32_t
+pan_get_fixed_varying_mask(unsigned varyings_used)
+{
+   return (varyings_used & BITFIELD_MASK(VARYING_SLOT_VAR0)) &
+      ~VARYING_BIT_POS & ~PAN_ATTRIB_VARYING_BITS;
+}
+
+/** Builds a varying layout according to the SSO ABI we developed for OpenGL.
+ *
+ * This can be called on either shader stage and the two varying layouts are
+ * guaranteed to match up the return value of pan_get_fixed_varying_mask()
+ */
+void
+pan_build_varying_layout_sso_abi(struct pan_varying_layout *layout,
+                                 nir_shader *nir, unsigned gpu_id,
+                                 uint32_t fixed_varyings);
+
 struct pan_shader_varying {
    gl_varying_slot location;
    enum pipe_format format;
 };
-
-static inline unsigned
-pan_get_fixed_varying_mask(unsigned varyings_used)
-{
-   return (varyings_used & BITFIELD_MASK(VARYING_SLOT_VAR0)) &
-      ~VARYING_BIT_POS & ~VARYING_BIT_PSIZ;
-}
 
 struct bifrost_shader_blend_info {
    nir_alu_type type;

@@ -7,6 +7,7 @@
 #include "compiler/nir/nir.h"
 #include "compiler/nir/nir_builder.h"
 #include "pan_nir.h"
+#include "panfrost/model/pan_model.h"
 
 static enum pipe_format
 varying_format(nir_alu_type t, unsigned ncomps)
@@ -52,7 +53,7 @@ struct slot_info {
 
 struct walk_varyings_data {
    enum pan_mediump_vary mediump;
-   struct pan_shader_info *info;
+   bool quirk_no_auto32;
    struct slot_info *slots;
 };
 
@@ -60,7 +61,6 @@ static bool
 walk_varyings(UNUSED nir_builder *b, nir_instr *instr, void *data)
 {
    struct walk_varyings_data *wv_data = data;
-   struct pan_shader_info *info = wv_data->info;
    struct slot_info *slots = wv_data->slots;
 
    if (instr->type != nir_instr_type_intrinsic)
@@ -109,7 +109,7 @@ walk_varyings(UNUSED nir_builder *b, nir_instr *instr, void *data)
     * fragment shader instead.
     */
    bool flat = intr->intrinsic != nir_intrinsic_load_interpolated_input;
-   bool auto32 = !info->quirk_no_auto32 && size == 32;
+   bool auto32 = !wv_data->quirk_no_auto32 && size == 32;
    nir_alu_type type = (flat && auto32) ? nir_type_uint : nir_type_float;
 
    if (sem.medium_precision) {
@@ -199,7 +199,7 @@ pan_nir_collect_varyings(nir_shader *s, struct pan_shader_info *info,
       return;
 
    struct slot_info slots[64] = {0};
-   struct walk_varyings_data wv_data = {mediump, info, slots};
+   struct walk_varyings_data wv_data = {mediump, info->quirk_no_auto32, slots};
    nir_shader_instructions_pass(s, walk_varyings, nir_metadata_all, &wv_data);
 
    struct pan_shader_varying *varyings = (s->info.stage == MESA_SHADER_VERTEX)
@@ -230,4 +230,114 @@ pan_nir_collect_varyings(nir_shader *s, struct pan_shader_info *info,
    if (s->info.stage == MESA_SHADER_FRAGMENT)
       info->varyings.noperspective =
          pan_nir_collect_noperspective_varyings_fs(s);
+}
+
+/*
+ * ABI: Special (desktop GL) slots come first, tightly packed. General varyings
+ * come later, sparsely packed. This handles both linked and separable shaders
+ * with a common code path, with minimal keying only for desktop GL. Each slot
+ * consumes 16 bytes (TODO: fp16, partial vectors).
+ *
+ * This is a copy+paste of the identical function in bifrost_compile.c
+ */
+static unsigned
+bi_varying_base_bytes(gl_varying_slot slot, uint32_t fixed_varyings)
+{
+   if (slot >= VARYING_SLOT_VAR0) {
+      unsigned nr_special = util_bitcount(fixed_varyings);
+      unsigned general_index = (slot - VARYING_SLOT_VAR0);
+
+      return 16 * (nr_special + general_index);
+   } else {
+      return 16 * (util_bitcount(fixed_varyings & BITFIELD_MASK(slot)));
+   }
+}
+
+static const struct pan_varying_slot hw_varying_slots[] = {{
+   .location = VARYING_SLOT_POS,
+   .format = PIPE_FORMAT_R32G32B32A32_FLOAT,
+   .section = PAN_VARYING_SECTION_POSITION,
+   .offset = 0,
+}, {
+   .location = VARYING_SLOT_PSIZ,
+   .format = PIPE_FORMAT_R16_FLOAT,
+   .section = PAN_VARYING_SECTION_ATTRIBS,
+   .offset = 0,
+}, {
+   .location = VARYING_SLOT_LAYER,
+   .format = PIPE_FORMAT_R8_UINT,
+   .section = PAN_VARYING_SECTION_ATTRIBS,
+   .offset = 2,
+}, {
+   .location = VARYING_SLOT_VIEWPORT,
+   .format = PIPE_FORMAT_R8_UINT,
+   .section = PAN_VARYING_SECTION_ATTRIBS,
+   .offset = 2,
+}, {
+   .location = VARYING_SLOT_PRIMITIVE_ID,
+   .format = PIPE_FORMAT_R32_UINT,
+   .section = PAN_VARYING_SECTION_ATTRIBS,
+   .offset = 12,
+}};
+
+static struct pan_varying_slot
+hw_varying_slot(gl_varying_slot slot)
+{
+   for (unsigned i = 0; i < ARRAY_SIZE(hw_varying_slots); i++) {
+      if (hw_varying_slots[i].location == slot)
+         return hw_varying_slots[i];
+   }
+   UNREACHABLE("Invalid HW varying slot");
+}
+
+void
+pan_build_varying_layout_sso_abi(struct pan_varying_layout *layout,
+                                 nir_shader *nir, unsigned gpu_id,
+                                 uint32_t fixed_varyings)
+{
+   /* TODO: Midgard */
+   assert(pan_arch(gpu_id) >= 6);
+
+   struct slot_info slots[64] = {0};
+   struct walk_varyings_data wv_data = {PAN_MEDIUMP_VARY_32BIT, false, slots};
+   nir_shader_instructions_pass(nir, walk_varyings, nir_metadata_all, &wv_data);
+
+   memset(layout, 0, sizeof(*layout));
+
+   unsigned generic_size_B = 0, count = 0;
+   for (unsigned i = 0; i < ARRAY_SIZE(slots); i++) {
+      if (!slots[i].type)
+         continue;
+
+      /* It's possible that something has been dead code eliminated between
+       * when the driver locations were set on variables and here.  Don't
+       * trust our compaction to match the driver.  Just copy over the index
+       * and accept that there's a hole in the mapping.
+       */
+      unsigned idx = slots[i].index;
+      count = MAX2(count, idx + 1);
+      assert(count <= ARRAY_SIZE(layout->slots));
+      assert(layout->slots[idx].format == PIPE_FORMAT_NONE);
+
+      if (BITFIELD64_BIT(i) & (VARYING_BIT_POS | PAN_ATTRIB_VARYING_BITS)) {
+         layout->slots[idx] = hw_varying_slot(i);
+      } else {
+         unsigned offset = bi_varying_base_bytes(i, fixed_varyings);
+         assert(offset < (1 << 11));
+
+         const enum pipe_format format =
+            varying_format(slots[i].type, slots[i].count);
+         const unsigned size = util_format_get_blocksize(format);
+         generic_size_B = MAX2(generic_size_B, offset + size);
+
+         layout->slots[idx] = (struct pan_varying_slot) {
+            .location = i,
+            .format = format,
+            .section = PAN_VARYING_SECTION_GENERIC,
+            .offset = offset,
+         };
+      }
+   }
+   layout->count = count;
+   layout->generic_size_B = generic_size_B;
 }
