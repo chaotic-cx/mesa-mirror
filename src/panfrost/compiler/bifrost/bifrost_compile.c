@@ -1107,8 +1107,8 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
 
    if (b->shader->arch <= 8 && b->shader->idvs == BI_IDVS_POSITION) {
       /* Bifrost position shaders have a fast path */
-      assert(T == nir_type_float16 || T == nir_type_float32);
-      unsigned regfmt = (T == nir_type_float16) ? 0 : 1;
+      assert(T == nir_type_float32);
+      unsigned regfmt = 1;
       unsigned identity = (b->shader->arch == 6) ? 0x688 : 0;
       unsigned snap4 = 0x5E;
       uint32_t format = identity | (snap4 << 12) | (regfmt << 24);
