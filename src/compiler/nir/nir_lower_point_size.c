@@ -23,12 +23,6 @@
 
 #include "nir_builder.h"
 
-struct lower_point_size_options {
-   float min;
-   float max;
-   nir_alu_type type;
-};
-
 /** @file nir_lower_point_size.c
  *
  * The OpenGL spec requires that implementations clamp gl_PointSize to an
@@ -41,7 +35,7 @@ struct lower_point_size_options {
 static bool
 lower_point_size_intrin(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
-   const struct lower_point_size_options *opts = data;
+   float *minmax = (float *)data;
 
    gl_varying_slot location = VARYING_SLOT_MAX;
    nir_src *psiz_src;
@@ -68,22 +62,11 @@ lower_point_size_intrin(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    nir_def *psiz = psiz_src->ssa;
    assert(psiz->num_components == 1);
 
-   if (opts->min > 0.0f)
-      psiz = nir_fmax(b, psiz, nir_imm_float(b, opts->min));
+   if (minmax[0] > 0.0f)
+      psiz = nir_fmax(b, psiz, nir_imm_float(b, minmax[0]));
 
-   if (opts->max > 0.0f)
-      psiz = nir_fmin(b, psiz, nir_imm_float(b, opts->max));
-
-   if (opts->type != nir_type_invalid) {
-      /* Currently only supported for lowered I/O */
-      assert(intr->intrinsic != nir_intrinsic_store_deref);
-      nir_alu_type old_type = nir_intrinsic_src_type(intr);
-      if (old_type != opts->type) {
-         psiz = nir_type_convert(b, psiz, old_type, opts->type,
-                                 nir_rounding_mode_undef);
-         nir_intrinsic_set_src_type(intr, opts->type);
-      }
-   }
+   if (minmax[1] > 0.0f)
+      psiz = nir_fmin(b, psiz, nir_imm_float(b, minmax[1]));
 
    nir_src_rewrite(psiz_src, psiz);
 
@@ -92,13 +75,10 @@ lower_point_size_intrin(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 
 /**
  * Clamps gl_PointSize to the range [min, max]. If either min or max are not
- * greater than 0 then no clamping is done for that side of the range.  If
- * type is not nir_type_invalid, the value is converted and the type on the
- * store is updated accordingly.
+ * greater than 0 then no clamping is done for that side of the range.
  */
 bool
-nir_lower_point_size(nir_shader *s, float min, float max,
-                     nir_alu_type type)
+nir_lower_point_size(nir_shader *s, float min, float max)
 {
    assert(s->info.stage != MESA_SHADER_FRAGMENT &&
           s->info.stage != MESA_SHADER_COMPUTE);
@@ -106,14 +86,10 @@ nir_lower_point_size(nir_shader *s, float min, float max,
    assert(min > 0.0f || max > 0.0f);
    assert(min <= 0.0f || max <= 0.0f || min <= max);
 
-   struct lower_point_size_options options = {
-      .min = min,
-      .max = max,
-      .type = type,
-   };
+   float minmax[] = { min, max };
    return nir_shader_intrinsics_pass(s, lower_point_size_intrin,
                                      nir_metadata_control_flow,
-                                     &options);
+                                     minmax);
 }
 
 /*
