@@ -112,6 +112,8 @@ va_disasm_instr(FILE *fp, uint64_t instr)
    unsigned fau_page = (instr >> 57) & MASK(2);
    unsigned secondary_opc = 0;
 
+   fprintf(fp, "%08x_%08x:  ", (uint32_t)(instr >> 32), (uint32_t)instr);
+
    switch (primary_opc) {
 % for bucket in OPCODES:
     <%
