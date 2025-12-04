@@ -1513,10 +1513,8 @@ compile_shaders(struct vk_device *vk_dev, uint32_t shader_count,
       use_static_noperspective = true;
    }
 
-   /* Vulkan runtime passes us shaders in stage order, so the FS will always
-    * be last if it exists. Iterate shaders in reverse order to ensure FS is
-    * processed before VS. */
-   for (i = shader_count - 1; i >= 0; i--) {
+   /* Vulkan runtime passes us shaders in stage order */
+   for (i = 0; i < shader_count; i++) {
       const uint32_t *noperspective_varyings_ptr =
          use_static_noperspective ? &noperspective_varyings : NULL;
       result =
@@ -1537,11 +1535,11 @@ compile_shaders(struct vk_device *vk_dev, uint32_t shader_count,
 
 err_cleanup:
    /* Clean up all the shaders before this point */
-   for (int32_t j = shader_count - 1; j > i; j--)
+   for (int32_t j = 0; j < i; j++)
       panvk_shader_destroy(&dev->vk, shaders_out[j], pAllocator);
 
    /* Clean up all the NIR from this point */
-   for (int32_t j = i; j >= 0; j--)
+   for (int32_t j = i; j < shader_count; j++)
       ralloc_free(infos[j].nir);
 
    /* Memset the output array */
