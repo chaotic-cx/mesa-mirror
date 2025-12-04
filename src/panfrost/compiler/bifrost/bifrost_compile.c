@@ -593,9 +593,6 @@ bi_emit_load_vary(bi_builder *b, nir_intrinsic_instr *instr)
    if (b->shader->varying_layout) {
       slot = pan_varying_layout_find_slot(b->shader->varying_layout,
                                           sem.location);
-      ASSERTED uint32_t res_index =
-         pan_res_handle_get_index(nir_intrinsic_base(instr));
-      assert(slot == &b->shader->varying_layout->slots[res_index]);
    }
 
    unsigned sz = instr->def.bit_size;
@@ -6610,7 +6607,9 @@ bi_compile_variant_nir(nir_shader *nir,
     * problem as it's handled by the descriptor layout.  However, for direct
     * loads and stores on Valhall+, we need the right bit sizes in the shader.
     * We could do this in the back-end as we emit but it's easier for now to
-    * lower in NIR.
+    * lower in NIR.  This also handles the case where we do a load from the
+    * fragment shader of something that isn't written by the vertex shader.
+    * In that case, we just return zero.
     */
    if (ctx->arch >= 9 && ctx->varying_layout) {
       NIR_PASS(_, nir, pan_nir_resize_varying_io, ctx->varying_layout);
