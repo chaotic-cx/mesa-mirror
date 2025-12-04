@@ -47,6 +47,7 @@ varying_format(nir_alu_type t, unsigned ncomps)
 
 struct slot_info {
    nir_alu_type type;
+   bool any_highp;
    unsigned count;
    unsigned index;
 };
@@ -148,6 +149,9 @@ walk_varyings(UNUSED nir_builder *b, nir_instr *instr, void *data)
          slots[location].type = type;
          slots[location].index = index;
       }
+
+      if (size == 32 && !sem.medium_precision)
+         slots[location].any_highp = true;
 
       slots[location].count = MAX2(slots[location].count, count);
    }
@@ -344,6 +348,68 @@ pan_build_varying_layout_sso_abi(struct pan_varying_layout *layout,
             varying_format(slots[i].type, slots[i].count);
          const unsigned size = util_format_get_blocksize(format);
          generic_size_B = MAX2(generic_size_B, offset + size);
+
+         layout->slots[idx] = (struct pan_varying_slot) {
+            .location = i,
+            .format = format,
+            .section = PAN_VARYING_SECTION_GENERIC,
+            .offset = offset,
+         };
+      }
+   }
+   layout->count = count;
+   layout->generic_size_B = generic_size_B;
+}
+
+void
+pan_build_varying_layout_compact(struct pan_varying_layout *layout,
+                                 nir_shader *nir, unsigned gpu_id)
+{
+   /* TODO: Midgard */
+   assert(pan_arch(gpu_id) >= 6);
+
+   struct slot_info slots[64] = {0};
+   struct walk_varyings_data wv_data = {PAN_MEDIUMP_VARY_32BIT, false, slots};
+   nir_shader_instructions_pass(nir, walk_varyings, nir_metadata_all, &wv_data);
+
+   memset(layout, 0, sizeof(*layout));
+
+   unsigned generic_size_B = 0, count = 0;
+   for (unsigned i = 0; i < ARRAY_SIZE(slots); i++) {
+      if (!slots[i].type)
+         continue;
+
+      /* It's possible that something has been dead code eliminated between
+       * when the driver locations were set on variables and here.  Don't
+       * trust our compaction to match the driver.  Just copy over the index
+       * and accept that there's a hole in the mapping.
+       */
+      unsigned idx = slots[i].index;
+      count = MAX2(count, idx + 1);
+      assert(count <= ARRAY_SIZE(layout->slots));
+      assert(layout->slots[idx].format == PIPE_FORMAT_NONE);
+
+      if (BITFIELD64_BIT(i) & (VARYING_BIT_POS | PAN_ATTRIB_VARYING_BITS)) {
+         layout->slots[idx] = hw_varying_slot(i);
+      } else {
+         /* The Vulkan spec requires types to match across all uses of a
+          * location but doesn't actually require RelaxedPrecision to match
+          * for the whole location.  So we can only apply mediump if every use
+          * of the location is mediump.
+          */
+         nir_alu_type type = nir_alu_type_get_base_type(slots[i].type);
+         unsigned bit_size = nir_alu_type_get_type_size(slots[i].type);
+         if (bit_size == 32 && !slots[i].any_highp)
+            bit_size = 16;
+         type |= bit_size;
+
+         unsigned size = slots[i].count * (bit_size / 8);
+         unsigned alignment = util_next_power_of_two(size);
+         unsigned offset = align(generic_size_B, alignment);
+         generic_size_B = offset + size;
+
+         const enum pipe_format format = varying_format(type, slots[i].count);
+         assert(size == util_format_get_blocksize(format));
 
          layout->slots[idx] = (struct pan_varying_slot) {
             .location = i,

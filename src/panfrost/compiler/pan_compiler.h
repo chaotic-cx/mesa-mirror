@@ -218,6 +218,10 @@ pan_build_varying_layout_sso_abi(struct pan_varying_layout *layout,
                                  nir_shader *nir, unsigned gpu_id,
                                  uint32_t fixed_varyings);
 
+void
+pan_build_varying_layout_compact(struct pan_varying_layout *layout,
+                                 nir_shader *nir, unsigned gpu_id);
+
 struct pan_shader_varying {
    gl_varying_slot location;
    enum pipe_format format;
