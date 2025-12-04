@@ -390,6 +390,10 @@ struct panvk_shader_variant {
       } cs;
 
       struct {
+         struct pan_varying_layout varyings;
+      } vs;
+
+      struct {
          struct pan_earlyzs_lut earlyzs_lut;
          uint32_t input_attachment_read;
       } fs;
