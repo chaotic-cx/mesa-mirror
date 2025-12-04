@@ -17,6 +17,7 @@ libpanfrost_compiler_files = files(
   'pan_nir_lower_texel_buffer_index.c',
   'pan_nir_lower_vertex_id.c',
   'pan_nir_lower_xfb.c',
+  'pan_nir_resize_varying_io.c',
 )
 
 subdir('bifrost')

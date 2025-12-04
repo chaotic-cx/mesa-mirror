@@ -92,4 +92,7 @@ enum pan_mediump_vary {
 void pan_nir_collect_varyings(nir_shader *s, struct pan_shader_info *info,
                               enum pan_mediump_vary mediump);
 
+bool pan_nir_resize_varying_io(nir_shader *nir,
+                               const struct pan_varying_layout *varying_layout);
+
 #endif /* __PAN_NIR_H__ */
