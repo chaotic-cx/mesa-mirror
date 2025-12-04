@@ -1059,11 +1059,6 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
    ASSERTED nir_alu_type T = nir_intrinsic_src_type(instr);
    ASSERTED unsigned T_size = nir_alu_type_get_type_size(T);
    nir_io_semantics sem = nir_intrinsic_io_semantics(instr);
-   assert(T_size == 32 || T_size == 16);
-   /* 16-bit varyings are always written and loaded as F16, regardless of
-    * whether they are float or int */
-   enum bi_register_format regfmt =
-      T_size == 16 ? BI_REGISTER_FORMAT_F16 : BI_REGISTER_FORMAT_AUTO;
 
    unsigned imm_index = 0;
    bool immediate = bi_is_intr_immediate(instr, &imm_index, 16);
@@ -1108,7 +1103,7 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
    if (b->shader->arch <= 8 && b->shader->idvs == BI_IDVS_POSITION) {
       /* Bifrost position shaders have a fast path */
       assert(T == nir_type_float32);
-      unsigned regfmt = 1;
+      unsigned regfmt = BI_REGISTER_FORMAT_F32;
       unsigned identity = (b->shader->arch == 6) ? 0x688 : 0;
       unsigned snap4 = 0x5E;
       uint32_t format = identity | (snap4 << 12) | (regfmt << 24);
@@ -1183,20 +1178,30 @@ bi_emit_store_vary(bi_builder *b, nir_intrinsic_instr *instr)
       bi_store(b, nr * src_bit_sz, data, a[0], a[1],
                varying ? BI_SEG_VARY : BI_SEG_POS,
                varying ? bi_varying_offset(b->shader, instr) : pos_attr_offset);
-   } else if (immediate) {
-      bi_index address = bi_lea_attr_imm(b, bi_vertex_id(b), bi_instance_id(b),
-                                         regfmt, imm_index);
-      bi_emit_split_i32(b, a, address, 3);
-
-      bi_st_cvt(b, data, a[0], a[1], a[2], regfmt, nr - 1);
    } else {
-      bi_index idx = bi_iadd_u32(b, bi_src_index(nir_get_io_offset_src(instr)),
-                                 bi_imm_u32(nir_intrinsic_base(instr)), false);
-      bi_index address =
-         bi_lea_attr(b, bi_vertex_id(b), bi_instance_id(b), idx, regfmt);
-      bi_emit_split_i32(b, a, address, 3);
+      /* 16-bit varyings are always written and loaded as F16, regardless of
+       * whether they are float or int */
+      assert(T_size == 32 || T_size == 16);
+      enum bi_register_format regfmt =
+         T_size == 16 ? BI_REGISTER_FORMAT_F16 : BI_REGISTER_FORMAT_AUTO;
 
-      bi_st_cvt(b, data, a[0], a[1], a[2], regfmt, nr - 1);
+      if (immediate) {
+         bi_index address = bi_lea_attr_imm(b, bi_vertex_id(b),
+                                            bi_instance_id(b),
+                                            regfmt, imm_index);
+         bi_emit_split_i32(b, a, address, 3);
+
+         bi_st_cvt(b, data, a[0], a[1], a[2], regfmt, nr - 1);
+      } else {
+         bi_index idx = bi_iadd_u32(b,
+            bi_src_index(nir_get_io_offset_src(instr)),
+            bi_imm_u32(nir_intrinsic_base(instr)), false);
+         bi_index address =
+            bi_lea_attr(b, bi_vertex_id(b), bi_instance_id(b), idx, regfmt);
+         bi_emit_split_i32(b, a, address, 3);
+
+         bi_st_cvt(b, data, a[0], a[1], a[2], regfmt, nr - 1);
+      }
    }
 }
 
