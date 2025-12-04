@@ -1503,11 +1503,21 @@ compile_shaders(struct vk_device *vk_dev, uint32_t shader_count,
    VkResult result;
    int32_t i;
 
+   /* If we are linking VS and FS, we can use the static interpolation
+    * qualifiers from the FS in the VS.  Vulkan runtime passes us shaders in
+    * stage order, so the FS will always be last if it exists.
+    */
+   if (infos[shader_count - 1].nir->info.stage == MESA_SHADER_FRAGMENT) {
+      nir_shader *nir = infos[shader_count - 1].nir;
+      noperspective_varyings = pan_nir_collect_noperspective_varyings_fs(nir);
+      use_static_noperspective = true;
+   }
+
    /* Vulkan runtime passes us shaders in stage order, so the FS will always
     * be last if it exists. Iterate shaders in reverse order to ensure FS is
     * processed before VS. */
    for (i = shader_count - 1; i >= 0; i--) {
-      uint32_t *noperspective_varyings_ptr =
+      const uint32_t *noperspective_varyings_ptr =
          use_static_noperspective ? &noperspective_varyings : NULL;
       result =
          panvk_compile_shader(dev, &infos[i], state, noperspective_varyings_ptr,
@@ -1515,18 +1525,6 @@ compile_shaders(struct vk_device *vk_dev, uint32_t shader_count,
 
       if (result != VK_SUCCESS)
          goto err_cleanup;
-
-      /* If we are linking VS and FS, we can use the static interpolation
-       * qualifiers from the FS in the VS. */
-      if (infos[i].nir->info.stage == MESA_SHADER_FRAGMENT) {
-         struct panvk_shader *shader =
-            container_of(shaders_out[i], struct panvk_shader, vk);
-         const struct panvk_shader_variant *variant =
-            panvk_shader_only_variant(shader);
-
-         use_static_noperspective = true;
-         noperspective_varyings = variant->info.varyings.noperspective;
-      }
 
       /* Clean up NIR for the current shader */
       ralloc_free(infos[i].nir);
