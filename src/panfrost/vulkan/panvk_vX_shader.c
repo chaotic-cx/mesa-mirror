@@ -1258,6 +1258,7 @@ static VkResult
 panvk_compile_shader(struct panvk_device *dev,
                      struct vk_shader_compile_info *info,
                      const struct vk_graphics_pipeline_state *state,
+                     const struct pan_varying_layout *vs_varying_layout,
                      const uint32_t *noperspective_varyings,
                      const VkAllocationCallbacks *pAllocator,
                      struct vk_shader **shader_out)
@@ -1385,11 +1386,14 @@ panvk_compile_shader(struct panvk_device *dev,
        */
       nir_assign_io_var_locations(nir, nir_var_shader_in);
 
+      inputs.varying_layout = vs_varying_layout;
+
 #if PAN_ARCH >= 9
-      /* LD_VAR_BUF[_IMM] takes an 8-bit offset, limiting its use to 16 or
-       * less varyings, assuming highp vec4.
+      /* LD_VAR_BUF[_IMM] takes an 8-bit offset, limiting its use when we have
+       * at most 256B of generic varyings.
        */
-      inputs.valhall.use_ld_var_buf = nir->num_inputs <= 16;
+      inputs.valhall.use_ld_var_buf =
+         vs_varying_layout && vs_varying_layout->generic_size_B <= 256;
       variant->desc_info.fs_varying_attr_desc_count =
          inputs.valhall.use_ld_var_buf ? 0 : nir->num_inputs;
 #endif
@@ -1524,8 +1528,30 @@ compile_shaders(struct vk_device *vk_dev, uint32_t shader_count,
    for (i = 0; i < shader_count; i++) {
       const uint32_t *noperspective_varyings_ptr =
          use_static_noperspective ? &noperspective_varyings : NULL;
+
+      /* For fragment shaders, Look at the previous stage to see if we can
+       * find a varying layout we can use instead of making up our own.
+       */
+      const struct pan_varying_layout *vs_varying_layout = NULL;
+      if (infos[i].stage == MESA_SHADER_FRAGMENT && i > 0 &&
+          infos[i - 1].next_stage_mask == VK_SHADER_STAGE_FRAGMENT_BIT) {
+         struct panvk_shader *prev_shader =
+            container_of(shaders_out[i - 1], struct panvk_shader, vk);
+
+         /* The last geometry stage before the FS will always have a HW vertex
+          * shader variant.
+          */
+         panvk_shader_foreach_variant(prev_shader, variant) {
+            if (variant->info.stage == MESA_SHADER_VERTEX) {
+               vs_varying_layout = &variant->vs.varyings;
+               break;
+            }
+         }
+      }
+
       result =
-         panvk_compile_shader(dev, &infos[i], state, noperspective_varyings_ptr,
+         panvk_compile_shader(dev, &infos[i], state, vs_varying_layout,
+                              noperspective_varyings_ptr,
                               pAllocator, &shaders_out[i]);
 
       if (result != VK_SUCCESS)
