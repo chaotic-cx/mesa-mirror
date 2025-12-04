@@ -364,53 +364,43 @@ prepare_vs_driver_set(struct panvk_cmd_buffer *cmdbuf,
    return VK_SUCCESS;
 }
 
-static uint32_t
-get_varying_slots(const struct panvk_cmd_buffer *cmdbuf)
+static void
+emit_varying_descs(const struct panvk_cmd_buffer *cmdbuf,
+                   struct mali_attribute_packed *descs)
 {
    const struct panvk_shader_variant *vs =
       panvk_shader_hw_variant(cmdbuf->state.gfx.vs.shader);
    const struct panvk_shader_variant *fs =
       panvk_shader_only_variant(get_fs(cmdbuf));
-   uint32_t varying_slots = 0;
 
-   if (fs) {
-      unsigned vs_vars = vs->info.varyings.output_count;
-      unsigned fs_vars = fs->info.varyings.input_count;
-      varying_slots = MAX2(vs_vars, fs_vars);
-   }
+   for (uint32_t i = 0; i < fs->info.varyings.input_count; i++) {
+      const struct pan_shader_varying *fs_var = &fs->info.varyings.input[i];
 
-   return varying_slots;
-}
-
-static void
-emit_varying_descs(const struct panvk_cmd_buffer *cmdbuf,
-                   struct mali_attribute_packed *descs)
-{
-   uint32_t varying_slots = get_varying_slots(cmdbuf);
-   /* Assumes 16 byte slots. We could do better. */
-   uint32_t varying_size = varying_slots * 16;
-
-   const struct panvk_shader_variant *fs =
-      panvk_shader_only_variant(get_fs(cmdbuf));
-
-   for (uint32_t i = 0; i < varying_slots; i++) {
-      const struct pan_shader_varying *var = &fs->info.varyings.input[i];
       /* Skip special varyings. */
-      if (var->location < VARYING_SLOT_VAR0)
+      if (fs_var->location < VARYING_SLOT_VAR0)
          continue;
 
-      uint32_t loc = var->location - VARYING_SLOT_VAR0;
+      unsigned offset = 0;
+      enum pipe_format format = PIPE_FORMAT_NONE;
+
+      const struct pan_varying_slot *vs_slot =
+         pan_varying_layout_find_slot(&vs->vs.varyings, fs_var->location);
+      if (vs_slot) {
+         offset = vs_slot->offset;
+         format = pan_varying_desc_format(vs_slot->format, fs_var->format);
+      }
+
       pan_pack(&descs[i], ATTRIBUTE, cfg) {
          cfg.attribute_type = MALI_ATTRIBUTE_TYPE_VERTEX_PACKET;
          cfg.offset_enable = false;
-         cfg.format = GENX(pan_format_from_pipe_format)(var->format)->hw;
+         cfg.format = GENX(pan_format_from_pipe_format)(format)->hw;
          cfg.table = 61;
          cfg.frequency = MALI_ATTRIBUTE_FREQUENCY_VERTEX;
-         cfg.offset = 1024 + (loc * 16);
+         cfg.offset = 1024 + offset;
          /* On v12+, the hardware-controlled buffer is at index 1 for varyings */
          cfg.buffer_index = PAN_ARCH >= 12 ? 1 : 0;
-         cfg.attribute_stride = varying_size;
-         cfg.packet_stride = varying_size + 16;
+         cfg.attribute_stride = vs->vs.varyings.generic_size_B;
+         cfg.packet_stride = vs->vs.varyings.generic_size_B + 16;
       }
    }
 }
@@ -1722,7 +1712,9 @@ prepare_fs(struct panvk_cmd_buffer *cmdbuf)
       panvk_get_cs_builder(cmdbuf, PANVK_SUBQUEUE_VERTEX_TILER);
 
    if (fs &&
-       (gfx_state_dirty(cmdbuf, FS) || gfx_state_dirty(cmdbuf, DESC_STATE))) {
+       (gfx_state_dirty(cmdbuf, VS) ||
+        gfx_state_dirty(cmdbuf, FS) ||
+        gfx_state_dirty(cmdbuf, DESC_STATE))) {
       VkResult result = prepare_fs_driver_set(cmdbuf);
       if (result != VK_SUCCESS)
          return result;
@@ -2330,15 +2322,13 @@ prepare_draw(struct panvk_cmd_buffer *cmdbuf, struct panvk_draw_info *draw)
    if (result != VK_SUCCESS)
       return result;
 
-   /* Assumes 16 byte slots. We could do better. */
-   uint32_t varying_size = get_varying_slots(cmdbuf) * 16;
-
    cs_update_vt_ctx(b) {
       prepare_index_buffer(cmdbuf, draw);
 
       set_tiler_idvs_flags(b, cmdbuf, draw);
 
-      cs_move32_to(b, cs_sr_reg32(b, IDVS, VARY_SIZE), varying_size);
+      cs_move32_to(b, cs_sr_reg32(b, IDVS, VARY_SIZE),
+                   vs->vs.varyings.generic_size_B);
 
       struct pan_earlyzs_state earlyzs = {0};
 
