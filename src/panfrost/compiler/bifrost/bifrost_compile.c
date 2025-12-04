@@ -6281,8 +6281,7 @@ bifrost_postprocess_nir(nir_shader *nir, unsigned gpu_id)
       NIR_PASS(_, nir, bifrost_nir_lower_load_output);
    } else if (nir->info.stage == MESA_SHADER_VERTEX) {
       NIR_PASS(_, nir, nir_lower_viewport_transform);
-      NIR_PASS(_, nir, nir_lower_point_size, 1.0, 0.0,
-               pan_arch(gpu_id) >= 9 ? nir_type_float16 : nir_type_float32);
+      NIR_PASS(_, nir, nir_lower_point_size, 1.0, 0.0, nir_type_float32);
       NIR_PASS(_, nir, pan_nir_lower_noperspective_vs);
 
       /* nir_lower[_explicit]_io is lazy and emits mul+add chains even
