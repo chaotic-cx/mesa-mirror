@@ -655,10 +655,7 @@ validate_intrinsic_instr(nir_intrinsic_instr *instr, validate_state *state)
    case nir_intrinsic_store_output:
    case nir_intrinsic_store_per_vertex_output:
    case nir_intrinsic_store_per_view_output:
-      if (state->shader->info.stage == MESA_SHADER_FRAGMENT)
-         validate_assert(state, nir_src_bit_size(instr->src[0]) >= 8);
-      else
-         validate_assert(state, nir_src_bit_size(instr->src[0]) >= 16);
+      validate_assert(state, nir_src_bit_size(instr->src[0]) >= 8);
       validate_assert(state,
                       nir_src_bit_size(instr->src[0]) ==
                          nir_alu_type_get_type_size(nir_intrinsic_src_type(instr)));
