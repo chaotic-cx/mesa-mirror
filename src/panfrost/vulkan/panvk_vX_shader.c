@@ -1344,9 +1344,8 @@ panvk_compile_shader(struct panvk_device *dev,
          panvk_lower_nir_io(nir);
 
          if (v == PANVK_VS_VARIANT_HW) {
-            pan_build_varying_layout_sso_abi(&variant->vs.varyings,
-                                             nir, inputs.gpu_id,
-                                             0 /* fixed_varyings */);
+            pan_build_varying_layout_compact(&variant->vs.varyings,
+                                             nir, inputs.gpu_id);
             inputs.varying_layout = &variant->vs.varyings;
          }
 
