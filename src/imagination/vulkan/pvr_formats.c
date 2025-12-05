@@ -546,7 +546,8 @@ pvr_get_image_format_properties(struct pvr_physical_device *pdevice,
    if ((info->flags & VK_IMAGE_CREATE_EXTENDED_USAGE_BIT) == 0) {
       if (usage & (VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
                    VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT) &&
-           !(pvr_format->bind & PVR_BIND_RENDER_TARGET)) {
+          !vk_format_is_depth_or_stencil(info->format) &&
+          !(pvr_format->bind & PVR_BIND_RENDER_TARGET)) {
          result = vk_error(pdevice, VK_ERROR_FORMAT_NOT_SUPPORTED);
          goto err_unsupported_format;
       }
