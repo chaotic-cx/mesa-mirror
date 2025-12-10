@@ -3779,6 +3779,22 @@ isl_surf_init_s(const struct isl_device *dev,
       CHOOSE(ISL_TILING_LINEAR);
    }
 
+   if (info->dim == ISL_SURF_DIM_2D && info->height == 1 &&
+       ISL_GFX_VER(dev) >= 35) {
+      /* From RENDER_SURFACE_STATE:SurfaceType (Bspec 57023, Xe3p):
+       *
+       *    For improved performance
+       *    If ([height] == 0) and ([SurfaceType] == 'SURFTYPE_2D') then
+       *    [tile mode' should be set to linear
+       *
+       * The HSD document suggests that the height mentioned above refers to
+       * rows of pixels, not elements. We don't check for it however as we're
+       * unlikely to create a single pixel high compressed image.
+       */
+      CHOOSE(ISL_TILING_LINEAR);
+   }
+
+
    /* For sparse images, prefer the formats that use the standard block
     * shapes.
     */
