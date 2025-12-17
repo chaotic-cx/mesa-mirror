@@ -672,6 +672,84 @@ lower_cmat_per_element_op_call(nir_builder *b, nir_cmat_call_instr *call)
 }
 
 static bool
+lower_cmat_tensor_load_store(nir_builder *b, nir_cmat_call_instr *call)
+{
+   bool is_load = call->op != nir_cmat_call_op_tensor_store;
+   nir_deref_instr *cmat_deref = nir_src_as_deref(call->params[!is_load]);
+   struct glsl_cmat_description desc = *glsl_get_cmat_description(cmat_deref->type);
+
+   nir_deref_instr *deref = nir_src_as_deref(call->params[is_load]);
+
+   nir_def *local_idx = nir_load_subgroup_invocation(b);
+   nir_def *vars[16];
+   nir_def *clips[16];
+   if (is_load) {
+      nir_def *clip_src = load_cmat_src(b, call->params[4]);
+      for (unsigned i = 0; i < CMAT_LEN; ++i)
+         clips[i] = nir_channel(b, clip_src, i);
+   } else {
+      nir_def *src = load_cmat_src(b, call->params[!is_load]);
+      for (unsigned i = 0; i < CMAT_LEN; ++i)
+         vars[i] = nir_channel(b, src, i);
+   }
+
+   struct nir_calc_tensor_info info = {};
+   nir_calc_tensor_derefs_init(b, &info, call);
+
+   if (info.decode_fnptr) {
+      if (nir_deref_mode_is_one_of(deref, nir_var_mem_ssbo)) {
+         nir_def *def = nir_load_ssbo_address(b, 1, 64, nir_trim_vector(b, &deref->def, 2),
+                                              nir_channel(b, &deref->def, 2));
+         deref = nir_build_deref_cast(b, def, nir_var_mem_global, deref->type, glsl_base_type_bit_size(desc.element_type) / 8);
+      }
+   }
+   for (unsigned i = 0; i < CMAT_LEN; ++i) {
+      nir_deref_instr *iter_deref = deref;
+      nir_def *col_offset = local_idx;
+      nir_def *row_offset = nir_imm_int(b, i);
+
+      if (desc.use == GLSL_CMAT_USE_B) {
+         SWAP(row_offset, col_offset);
+      }
+
+      nir_def *idx = nir_calc_tensor_derefs(b, &info, row_offset, col_offset, &iter_deref);
+      if (!info.decode_fnptr) {
+         if (is_load) {
+            if (info.clamp_value) {
+               vars[i] = nir_bcsel(b, info.do_clamp,
+                                   nir_u2uN(b, info.clamp_value, glsl_base_type_bit_size(desc.element_type)),
+                                   nir_load_deref(b, iter_deref));
+            } else {
+               vars[i] = nir_load_deref(b, iter_deref);
+            }
+         } else {
+            nir_if *store_if_inner = nir_push_if(b, nir_inot(b, info.do_clamp));
+            nir_store_deref(b, iter_deref, vars[i], 1);
+            nir_pop_if(b, store_if_inner);
+         }
+      } else {
+         vars[i] = idx;
+      }
+
+      if (info.clipped_if) {
+         nir_push_else(b, info.clipped_if);
+         nir_pop_if(b, info.clipped_if);
+         if (is_load)
+            vars[i] = nir_if_phi(b, vars[i], clips[i]);
+      }
+
+   }
+
+   if (is_load) {
+      nir_def *mat = nir_vec(b, vars, CMAT_LEN);
+      nir_store_deref(b, cmat_deref, mat, nir_component_mask(mat->num_components));
+   }
+
+   nir_instr_remove(&call->instr);
+   return true;
+}
+
+static bool
 lower_impl(nir_function_impl *impl,
            struct hash_table *type_mapping)
 {
@@ -764,6 +842,10 @@ lower_impl(nir_function_impl *impl,
                break;
             case nir_cmat_call_op_per_element_op:
                progress |= lower_cmat_per_element_op_call(&b, call);
+               break;
+            case nir_cmat_call_op_tensor_load:
+            case nir_cmat_call_op_tensor_store:
+               progress |= lower_cmat_tensor_load_store(&b, call);
                break;
             default:
                break;

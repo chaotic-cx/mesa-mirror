@@ -913,6 +913,8 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
       .cooperativeMatrixConversions = true,
       .cooperativeMatrixReductions = true,
       .cooperativeMatrixPerElementOperations = true,
+      .cooperativeMatrixTensorAddressing = true,
+      .cooperativeMatrixBlockLoads = true,
 
       /* VK_KHR_shader_untyped_pointers */
       .shaderUntypedPointers = true,
