@@ -384,7 +384,7 @@
         "description": "nir/algebraic: Add missing f on F-strings",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c49d6e048087a3a6fd17ca56c1e887c697624adf",
         "notes": null
