@@ -255,6 +255,9 @@ bo_create_internal(struct zink_screen *screen,
    struct zink_bo *bo = NULL;
    bool init_pb_cache;
 
+   /* all non-suballocated bo can cache */
+   init_pb_cache = !pNext;
+
    alignment = get_optimal_alignment(screen, size, alignment);
 
    VkMemoryAllocateFlagsInfo ai;
@@ -287,9 +290,6 @@ bo_create_internal(struct zink_screen *screen,
       mesa_loge("zink: can't allocate %"PRIu64" bytes from heap that's only %"PRIu64" bytes!\n", mai.allocationSize, screen->info.mem_props.memoryHeaps[vk_heap_idx].size);
       return NULL;
    }
-
-   /* all non-suballocated bo can cache */
-   init_pb_cache = !pNext;
 
    if (!bo)
       bo = CALLOC(1, sizeof(struct zink_bo) + init_pb_cache * sizeof(struct pb_cache_entry));
