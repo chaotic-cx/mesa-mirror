@@ -155,14 +155,14 @@ lookup_pair_freq(struct hash_table *ht, struct pair_key key)
 }
 
 static int
-rank(nir_scalar s)
+rank(nir_scalar s, bool prefer_convergent)
 {
    /* Constants are rank 0. This promotes constant folding. */
    if (nir_scalar_is_const(s))
       return 0;
 
    /* Convergent expressions are rank 1, promoting preambles and scalar ALU */
-   if (!s.def->divergent)
+   if (prefer_convergent && !s.def->divergent)
       return 1;
 
    /* Everything else is rank 2. TODO: Promote loop-invariant code motion. */
@@ -173,7 +173,7 @@ struct chain {
    nir_alu_instr *root;
    unsigned length;
    nir_scalar srcs[MAX_CHAIN_LENGTH];
-   bool do_global_cse;
+   bool do_global_cse, prefer_convergent;
    unsigned fp_math_ctrl;
 };
 
@@ -285,7 +285,7 @@ record_pairs(struct chain *c, struct hash_table *pair_freq)
  */
 static void
 find_chains(nir_function_impl *impl, struct hash_table *pair_freq,
-            struct util_dynarray *chains)
+            struct util_dynarray *chains, nir_reassociate_options opts)
 {
    nir_foreach_block_reverse(block, impl) {
       nir_foreach_instr_reverse(instr, block) {
@@ -298,7 +298,11 @@ find_chains(nir_function_impl *impl, struct hash_table *pair_freq,
             continue;
 
          /* Find the chain rooted at `alu` */
-         struct chain c = {.root = alu, .length = 0};
+         struct chain c = {
+            .root = alu,
+            .length = 0,
+            .prefer_convergent = (opts & nir_reassociate_scalar_math) != 0,
+         };
          build_chain(&c, nir_get_scalar(&alu->def, 0), 0);
 
          /* Record pairs even if we won't reassociate this chain, so we get
@@ -317,14 +321,14 @@ find_chains(nir_function_impl *impl, struct hash_table *pair_freq,
          bool local = true;
 
          for (unsigned i = 0; i < c.length; ++i) {
-            lowest_rank = MIN2(rank(c.srcs[i]), lowest_rank);
-            highest_rank = MAX2(rank(c.srcs[i]), highest_rank);
+            lowest_rank = MIN2(rank(c.srcs[i], c.prefer_convergent), lowest_rank);
+            highest_rank = MAX2(rank(c.srcs[i], c.prefer_convergent), highest_rank);
             local &= nir_def_block(c.srcs[i].def) == block;
          }
 
          for (unsigned i = 0; i < c.length; ++i) {
-            nr_lowest += (rank(c.srcs[i]) == lowest_rank);
-            nr_highest += (rank(c.srcs[i]) == highest_rank);
+            nr_lowest += (rank(c.srcs[i], c.prefer_convergent) == lowest_rank);
+            nr_highest += (rank(c.srcs[i], c.prefer_convergent) == highest_rank);
          }
 
          /* If we don't have the pair_freq table, the caller doesn't want to use
@@ -419,7 +423,8 @@ find_best_pair_in_chain(struct chain *c, void *pair_freq)
    foreach_pair(c, i, j) {
       struct pair_key key = get_pair_key(c->root->op, c->srcs[i], c->srcs[j]);
       unsigned freq = lookup_pair_freq(pair_freq, key);
-      unsigned max_rank = MAX2(rank(c->srcs[i]), rank(c->srcs[j]));
+      unsigned max_rank = MAX2(rank(c->srcs[i], c->prefer_convergent),
+                               rank(c->srcs[j], c->prefer_convergent));
 
       if (freq > best_freq || (freq == best_freq && max_rank < best_max_rank)) {
          best = (struct pair){i, j};
@@ -433,10 +438,11 @@ find_best_pair_in_chain(struct chain *c, void *pair_freq)
 
 /* Compare ranks. Tie break to ensure the sort-by-rank sort is stable */
 static int
-cmp_rank(const void *a_, const void *b_)
+cmp_rank(const void *a_, const void *b_, void *ctx)
 {
    const nir_scalar *a = a_, *b = b_;
-   int ra = rank(*a), rb = rank(*b);
+   const bool prefer_convergent = (bool) ctx;
+   int ra = rank(*a, prefer_convergent), rb = rank(*b, prefer_convergent);
 
    if (ra != rb)
       return ra - rb;
@@ -464,7 +470,8 @@ reassociate_chain(struct chain *c, void *pair_freq)
       }
    }
 
-   qsort(c->srcs + pinned, c->length - pinned, sizeof(c->srcs[0]), cmp_rank);
+   util_qsort_r(c->srcs + pinned, c->length - pinned, sizeof(c->srcs[0]),
+                cmp_rank, (void*) c->prefer_convergent);
 
    /* Reassociate according to the new order */
    nir_def *new_root = nir_mov_scalar(&b, c->srcs[0]);
@@ -532,7 +539,7 @@ nir_opt_reassociate(nir_shader *nir, nir_reassociate_options opts)
       util_dynarray_clear(&chains);
 
       /* Step 1: find all chains in the function */
-      find_chains(impl, pair_freq, &chains);
+      find_chains(impl, pair_freq, &chains, opts);
 
       /* Step 2: reassociate all chains */
       util_dynarray_foreach(&chains, struct chain, chain) {
