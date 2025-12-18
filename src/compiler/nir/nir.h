@@ -7252,7 +7252,10 @@ typedef enum {
     * This is true for backends using nir_opt_preamble even if there's no scalar
     * ALU, since non-divergence is a decent proxy for uniformity.
     */
-   nir_reassociate_scalar_math = (1 << 1),
+   nir_reassociate_scalar_int_math   = (1 << 1),
+   nir_reassociate_scalar_float_math = (1 << 2),
+   nir_reassociate_scalar_math       = nir_reassociate_scalar_int_math |
+                                       nir_reassociate_scalar_float_math,
 } nir_reassociate_options;
 
 bool nir_opt_reassociate(nir_shader *shader, nir_reassociate_options opts);

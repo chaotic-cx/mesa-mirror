@@ -301,8 +301,17 @@ find_chains(nir_function_impl *impl, struct hash_table *pair_freq,
          struct chain c = {
             .root = alu,
             .length = 0,
-            .prefer_convergent = (opts & nir_reassociate_scalar_math) != 0,
          };
+
+         nir_alu_type alu_type = nir_op_infos[alu->op].output_type;
+         if (nir_alu_type_get_base_type(alu_type) == nir_type_float) {
+            c.prefer_convergent =
+               (opts & nir_reassociate_scalar_float_math) != 0;
+         } else {
+            c.prefer_convergent =
+               (opts & nir_reassociate_scalar_int_math) != 0;
+         }
+
          build_chain(&c, nir_get_scalar(&alu->def, 0), 0);
 
          /* Record pairs even if we won't reassociate this chain, so we get
@@ -571,8 +580,9 @@ nir_opt_reassociate_loop(nir_shader *nir, nir_reassociate_options in_opts)
    for (unsigned i = 0; i < 2; ++i) {
       nir_reassociate_options opts = in_opts;
       if (i >= 1) {
-         if (in_opts == (nir_reassociate_cse_heuristic | nir_reassociate_scalar_math))
-            opts = nir_reassociate_scalar_math;
+         if ((in_opts & nir_reassociate_cse_heuristic) &&
+             (in_opts & nir_reassociate_scalar_math))
+            opts &= ~nir_reassociate_cse_heuristic;
          else
             break;
       }
