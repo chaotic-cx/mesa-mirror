@@ -964,7 +964,7 @@
         "description": "util/blob: Fix const correctness warning in blob_read_string",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "1c9877327ead37b7dd5a0ca3a8c7912e924328e5",
         "notes": null
