@@ -1604,7 +1604,7 @@
         "description": "nir/opt_vectorize_io: Fix allow_holes option",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "6286c1c66fb0ed21e1dfd0aaf0db9e1a8360e82b",
         "notes": null
