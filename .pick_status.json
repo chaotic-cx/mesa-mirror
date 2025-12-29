@@ -314,7 +314,7 @@
         "description": "radeonsi: fix incorrect PS shader key with sample shading",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "65398d571be888bfb6dc1b1db674279e33b30c32",
         "notes": null
