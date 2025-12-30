@@ -1270,11 +1270,12 @@ create_bperm(Builder& bld, uint8_t swiz[4], Definition dst, Operand src1,
 
    dst = Definition(PhysReg(dst.physReg().reg()), v1);
    if (!src1.isConstant())
-      src1 = Operand(PhysReg(src1.physReg().reg()), v1);
+      src1 = Operand(PhysReg(src1.physReg().reg()), src1.regClass().resize(4));
    if (src0.isUndefined())
       src0 = Operand(dst.physReg(), v1);
    else if (!src0.isConstant())
-      src0 = Operand(PhysReg(src0.physReg().reg()), v1);
+      src0 = Operand(PhysReg(src0.physReg().reg()), src0.regClass().resize(4));
+
    bld.vop3(aco_opcode::v_perm_b32, dst, src0, src1, Operand::c32(swiz_packed));
 }
 
@@ -1296,8 +1297,10 @@ emit_v_mov_b16(Builder& bld, Definition dst, Operand op)
    instr->valu().opsel[0] = op.physReg().byte() == 2;
    instr->valu().opsel[3] = dst.physReg().byte() == 2;
 
-   if (op.physReg().reg() < 256 && instr->valu().opsel[0])
+   if (op.isOfType(RegType::sgpr) && instr->valu().opsel[0]) {
       instr->format = asVOP3(instr->format);
+      instr->operands[0] = Operand(PhysReg(op.physReg().reg()), op.regClass());
+   }
 }
 
 void
@@ -1416,7 +1419,11 @@ do_copy(lower_context* ctx, Builder& bld, const copy_operation& copy, bool* pres
       } else if (def.regClass() == v2b && ctx->program->gfx_level >= GFX11) {
          emit_v_mov_b16(bld, def, op);
       } else if (def.regClass().is_subdword()) {
-         bld.vop1_sdwa(aco_opcode::v_mov_b32, def, op);
+         Instruction* instr = bld.vop1_sdwa(aco_opcode::v_mov_b32, def, op);
+         if (op.isOfType(RegType::sgpr)) {
+            instr->operands[0] = Operand(PhysReg(op.physReg().reg()), op.regClass());
+            instr->sdwa().sel[0] = SubdwordSel(def.bytes(), op.physReg().byte(), false);
+         }
       } else {
          UNREACHABLE("unsupported copy");
       }
@@ -2310,11 +2317,9 @@ lower_to_hw_instr(Program* program)
                if (reg == def.physReg())
                   break;
 
-               RegClass op_rc = def.regClass().is_subdword()
-                                   ? def.regClass()
-                                   : RegClass(instr->operands[0].getTemp().type(), def.size());
+               RegClass rc_op = RegClass::get(instr->operands[0].regClass().type(), def.bytes());
                std::map<PhysReg, copy_operation> copy_operations;
-               copy_operations[def.physReg()] = {Operand(reg, op_rc), def, def.bytes()};
+               copy_operations[def.physReg()] = {Operand(reg, rc_op), def, def.bytes()};
                handle_operands(copy_operations, &ctx, program->gfx_level, pi);
                break;
             }
@@ -2353,9 +2358,7 @@ lower_to_hw_instr(Program* program)
                PhysReg reg = instr->operands[0].physReg();
 
                for (const Definition& def : instr->definitions) {
-                  RegClass rc_op = def.regClass().is_subdword()
-                                      ? def.regClass()
-                                      : instr->operands[0].getTemp().regClass().resize(def.bytes());
+                  RegClass rc_op = RegClass::get(instr->operands[0].regClass().type(), def.bytes());
                   const Operand op = Operand(reg, rc_op);
                   copy_operations[def.physReg()] = {op, def, def.bytes()};
                   reg.reg_b += def.bytes();

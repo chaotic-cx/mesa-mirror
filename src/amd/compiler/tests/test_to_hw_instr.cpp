@@ -845,7 +845,7 @@ BEGIN_TEST(to_hw_instr.mov_b16_sgpr_src)
       return;
 
    //>> p_unit_test 0
-   //! v2b: %0:v[0][0:16] = v_mov_b16 hi(%0:s[0][16:32])
+   //! v2b: %0:v[0][0:16] = v_mov_b16 hi(%0:s[0])
    bld.pseudo(aco_opcode::p_unit_test, Operand::zero());
    bld.pseudo(aco_opcode::p_extract_vector, Definition(PhysReg(256), v2b), Operand(PhysReg(0), s1),
               Operand::c32(1));
