@@ -1276,6 +1276,7 @@ create_bperm(Builder& bld, uint8_t swiz[4], Definition dst, Operand src1,
    else if (!src0.isConstant())
       src0 = Operand(PhysReg(src0.physReg().reg()), src0.regClass().resize(4));
 
+   assert(src0.isOfType(RegType::vgpr) || src1.isOfType(RegType::vgpr));
    bld.vop3(aco_opcode::v_perm_b32, dst, src0, src1, Operand::c32(swiz_packed));
 }
 
@@ -1608,14 +1609,18 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
       return;
    }
 
+   /* Whether both Operands can be used in a single VOP3 instruction. */
+   bool both_ops_are_sgpr = lo.isOfType(RegType::sgpr) && hi.isOfType(RegType::sgpr);
+   bool can_use_vop3 = ctx->program->gfx_level >= GFX10 ||
+                       (!lo.isLiteral() && !hi.isLiteral() && !both_ops_are_sgpr);
+
    /* v_pack_b32_f16 can be used for bit exact copies if:
     * - fp16 input denorms are enabled, otherwise they get flushed to zero
     * - signalling input NaNs are kept, which is the case with IEEE_MODE=0
     *   GFX12+ always quiets signalling NaNs, IEEE_MODE was removed
     */
    bool can_use_pack = (ctx->block->fp_mode.denorm16_64 & fp_denorm_keep_in) &&
-                       (ctx->program->gfx_level >= GFX10 ||
-                        (ctx->program->gfx_level >= GFX9 && !lo.isLiteral() && !hi.isLiteral())) &&
+                       ctx->program->gfx_level >= GFX9 && can_use_vop3 &&
                        ctx->program->gfx_level < GFX12;
 
    if (can_use_pack) {
@@ -1626,7 +1631,7 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
    }
 
    /* a single alignbyte can be sufficient: hi can be a 32-bit integer constant */
-   if (lo.physReg().byte() == 2 && hi.physReg().byte() == 0 &&
+   if (lo.physReg().byte() == 2 && hi.physReg().byte() == 0 && can_use_vop3 &&
        (!hi.isConstant() || (hi.constantValue() && (!Operand::c32(hi.constantValue()).isLiteral() ||
                                                     ctx->program->gfx_level >= GFX10)))) {
       if (hi.isConstant())
@@ -1637,7 +1642,8 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
       return;
    }
 
-   if (ctx->program->gfx_level >= GFX10 && !lo.constantEquals(0) && !hi.constantEquals(0)) {
+   if (ctx->program->gfx_level >= GFX10 && !lo.constantEquals(0) && !hi.constantEquals(0) &&
+       !both_ops_are_sgpr) {
       uint8_t swiz[4];
       Operand ops[2] = {lo, hi};
       for (unsigned i = 0; i < 2; i++) {
