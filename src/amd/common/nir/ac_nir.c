@@ -632,6 +632,13 @@ ac_nir_mem_vectorize_callback(unsigned align_mul, unsigned align_offset, unsigne
    if (!is_shared) {
       return (align % (bit_size / 8u)) == 0 && num_components <= NIR_MAX_VEC_COMPONENTS;
    } else {
+      /* Due to NIR limitations, we can't efficiently bitcast 8-bit vectors into 16-bit.
+       * We don't do this check for VMEM/SMEM because those are just later lowered to 16/32-bit
+       * loads instead.
+       */
+      if (!is_store && bit_size == 8 && (low->def.bit_size == 16 || high->def.bit_size == 16))
+         return false;
+
       /* 96-bit and 128-bit LDS loads are slow. Don't use them. */
       if (!is_store && bit_size * num_components > 64)
          return false;

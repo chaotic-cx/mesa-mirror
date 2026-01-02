@@ -174,7 +174,7 @@
         "description": "ac/nir: don't vectorize 16-bit shared loads to 8-bit",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "49d923078fe34d01e0fd0462d13f32405f20a01d",
         "notes": null
