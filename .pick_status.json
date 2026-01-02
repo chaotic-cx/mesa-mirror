@@ -654,7 +654,7 @@
         "description": "aco/lower_to_hw: Fix SGPR Operand RegClasses for pack_2x16",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null

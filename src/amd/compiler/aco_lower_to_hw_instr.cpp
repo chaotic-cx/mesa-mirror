@@ -1614,6 +1614,12 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
    bool can_use_vop3 = ctx->program->gfx_level >= GFX10 ||
                        (!lo.isLiteral() && !hi.isLiteral() && !both_ops_are_sgpr);
 
+   /* Fix SGPR operands RegClasses. */
+   bool opsel_lo = lo.physReg().byte();
+   bool opsel_hi = hi.physReg().byte();
+   lo = lo.isOfType(RegType::sgpr) ? Operand(PhysReg(lo.physReg().reg()), lo.regClass()) : lo;
+   hi = hi.isOfType(RegType::sgpr) ? Operand(PhysReg(hi.physReg().reg()), hi.regClass()) : hi;
+
    /* v_pack_b32_f16 can be used for bit exact copies if:
     * - fp16 input denorms are enabled, otherwise they get flushed to zero
     * - signalling input NaNs are kept, which is the case with IEEE_MODE=0
@@ -1626,12 +1632,13 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
    if (can_use_pack) {
       Instruction* instr = bld.vop3(aco_opcode::v_pack_b32_f16, def, lo, hi);
       /* opsel: 0 = select low half, 1 = select high half. [0] = src0, [1] = src1 */
-      instr->valu().opsel = hi.physReg().byte() | (lo.physReg().byte() >> 1);
+      instr->valu().opsel[0] = opsel_lo;
+      instr->valu().opsel[1] = opsel_hi;
       return;
    }
 
    /* a single alignbyte can be sufficient: hi can be a 32-bit integer constant */
-   if (lo.physReg().byte() == 2 && hi.physReg().byte() == 0 && can_use_vop3 &&
+   if (opsel_lo && !opsel_hi && can_use_vop3 &&
        (!hi.isConstant() || (hi.constantValue() && (!Operand::c32(hi.constantValue()).isLiteral() ||
                                                     ctx->program->gfx_level >= GFX10)))) {
       if (hi.isConstant())
@@ -1650,8 +1657,9 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
          ops[i] =
             ops[i].isConstant() ? Operand::c32((int32_t)(int16_t)ops[i].constantValue()) : ops[i];
 
-         swiz[i * 2 + 0] = i * 4 + ops[i].physReg().byte();
-         swiz[i * 2 + 1] = i * 4 + ops[i].physReg().byte() + 1;
+         unsigned opsel = i ? opsel_hi : opsel_lo;
+         swiz[i * 2 + 0] = i * 4 + opsel * 2;
+         swiz[i * 2 + 1] = i * 4 + opsel * 2 + 1;
 
          if (ops[i].isLiteral()) {
             Operand b0 = Operand::c32((int32_t)(int8_t)ops[i].constantValue());
@@ -1682,7 +1690,7 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
 
    if (lo.isConstant()) {
       /* move hi and zero low bits */
-      if (hi.physReg().byte() == 0)
+      if (!opsel_hi)
          bld.vop2(aco_opcode::v_lshlrev_b32, def_hi, Operand::c32(16u), hi);
       else
          bld.vop2(aco_opcode::v_and_b32, def_hi, Operand::c32(~0xFFFFu), hi);
@@ -1693,7 +1701,7 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
    }
    if (hi.isConstant()) {
       /* move lo and zero high bits */
-      if (lo.physReg().byte() == 2)
+      if (opsel_lo)
          bld.vop2(aco_opcode::v_lshrrev_b32, def_lo, Operand::c32(16u), lo);
       else if (ctx->program->gfx_level >= GFX11)
          bld.vop1(aco_opcode::v_cvt_u32_u16, def, lo);
@@ -1707,36 +1715,39 @@ do_pack_2x16(lower_context* ctx, Builder& bld, Definition def, Operand lo, Opera
 
    if (lo.physReg().reg() == def.physReg().reg()) {
       /* lo is in the high bits of def */
-      assert(lo.physReg().byte() == 2);
+      assert(opsel_lo);
       bld.vop2(aco_opcode::v_lshrrev_b32, def_lo, Operand::c32(16u), lo);
-      lo.setFixed(def.physReg());
-   } else if (hi.physReg() == def.physReg()) {
+      lo = Operand(def.physReg(), v2b);
+   } else if (hi.physReg().reg() == def.physReg().reg()) {
       /* hi is in the low bits of def */
-      assert(hi.physReg().byte() == 0);
+      assert(!opsel_hi);
       bld.vop2(aco_opcode::v_lshlrev_b32, def_hi, Operand::c32(16u), hi);
-      hi.setFixed(def.physReg().advance(2));
+      hi = Operand(def.physReg().advance(2), v2b);
    } else if (ctx->program->gfx_level >= GFX8) {
       /* Either lo or hi can be placed with just a v_mov. SDWA is not needed, because
-       * op.physReg().byte()==def.physReg().byte() and the other half will be overwritten.
+       * op.physReg().byte() == def.physReg().byte() and the other half will be overwritten.
        */
-      assert(lo.physReg().byte() == 0 || hi.physReg().byte() == 2);
-      Operand& op = lo.physReg().byte() == 0 ? lo : hi;
+      assert(!opsel_lo || opsel_hi);
+      Operand& op = !opsel_lo ? lo : hi;
       PhysReg reg = def.physReg().advance(op.physReg().byte());
       bld.vop1(aco_opcode::v_mov_b32, Definition(reg, v2b), op);
-      op.setFixed(reg);
+      op = Operand(reg, v2b);
    }
 
-   /* either hi or lo are already placed correctly */
+   /* Either hi or lo are already placed correctly. */
+   bool opsel = lo.physReg() == def.physReg() ? opsel_hi : opsel_lo;
+   Operand op = lo.physReg() == def.physReg() ? hi : lo;
+   def = lo.physReg() == def.physReg() ? def_hi : def_lo;
    if (ctx->program->gfx_level >= GFX11) {
-      if (lo.physReg().reg() == def.physReg().reg())
-         emit_v_mov_b16(bld, def_hi, hi);
-      else
-         emit_v_mov_b16(bld, def_lo, lo);
+      Instruction* instr = bld.vop1(aco_opcode::v_mov_b16, def, op);
+      instr->valu().opsel[0] = opsel;
+      instr->valu().opsel[3] = def.physReg().byte();
+      if (op.isOfType(RegType::sgpr) && opsel)
+         instr->format = asVOP3(instr->format);
    } else {
-      if (lo.physReg().reg() == def.physReg().reg())
-         bld.vop1_sdwa(aco_opcode::v_mov_b32, def_hi, hi);
-      else
-         bld.vop1_sdwa(aco_opcode::v_mov_b32, def_lo, lo);
+      Instruction* instr = bld.vop1_sdwa(aco_opcode::v_mov_b32, def, op);
+      if (op.isOfType(RegType::sgpr))
+         instr->sdwa().sel[0] = opsel ? SubdwordSel::uword1 : SubdwordSel::uword0;
    }
 }
 
