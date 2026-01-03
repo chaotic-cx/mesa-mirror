@@ -407,7 +407,6 @@ ms_load_arrayed_output(nir_builder *b,
    ms_out_mode out_mode;
    const ms_out_part *out = ms_get_out_layout_part(location, &b->shader->info, &out_mode, s);
 
-   unsigned component_addr_off = component_offset * 4;
    unsigned num_outputs = util_bitcount64(out->mask);
    unsigned const_off = out->addr + component_offset * 4;
 
@@ -420,7 +419,7 @@ ms_load_arrayed_output(nir_builder *b,
 
    if (out_mode == ms_out_mode_lds) {
       return nir_load_shared(b, num_components, load_bit_size, addr, .align_mul = 16,
-                             .align_offset = component_addr_off % 16,
+                             .align_offset = (component_offset * 4) % 16,
                              .base = const_off);
    } else if (out_mode == ms_out_mode_scratch_ring) {
       nir_def *ring = nir_load_ring_mesh_scratch_amd(b);
@@ -434,7 +433,7 @@ ms_load_arrayed_output(nir_builder *b,
       assert(load_bit_size == 32);
       nir_def *arr[8] = {0};
       for (unsigned comp = 0; comp < num_components; ++comp) {
-         unsigned idx = location * 4 + comp + component_addr_off;
+         unsigned idx = location * 4 + comp + component_offset;
          arr[comp] = nir_load_var(b, s->out_variables[idx]);
       }
       return nir_vec(b, arr, num_components);
