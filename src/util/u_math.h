@@ -334,6 +334,37 @@ uid(uint64_t ui)
    return di.d;
 }
 
+
+/* Unlike C's fmax, this follows IEEE 754-2019
+ * maximumNumber rules (except sNaN vs qNaN behavior).
+ * This means, +0.0 is strictly greater than -0.0
+ * and NaN less than any number.
+ */
+static inline double
+util_max_num(double a, double b)
+{
+   /* Handle signed zero. (And sign bit.) */
+   if (a == b)
+      return uid(dui(a) & dui(b));
+
+   return fmax(a, b);
+}
+
+/* Unlike C's fmin, this follows IEEE 754-2019
+ * minimumNumber rules (except sNaN vs qNaN behavior).
+ * This means, -0.0 is strictly less than +0.0
+ * and NaN greater than any number.
+ */
+static inline double
+util_min_num(double a, double b)
+{
+   /* Handle signed zero. (Or sign bit.) */
+   if (a == b)
+      return uid(dui(a) | dui(b));
+
+   return fmin(a, b);
+}
+
 /**
  * Convert uint8_t to float in [0, 1].
  */
