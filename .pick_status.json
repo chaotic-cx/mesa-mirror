@@ -434,7 +434,7 @@
         "description": "rusticl: fix 'enable-drivers' meson option",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "1301d61de41e4c12c0767ab75d8a2cabe977509e",
         "notes": null
