@@ -984,6 +984,9 @@ static void si_init_buffer_resources(struct si_context *sctx,
 
    si_init_descriptors(descs, shader_userdata_rel_index, 4, num_buffers);
 
+   if (sctx->gfx_level >= GFX13)
+      return;
+
    const struct ac_buffer_state buffer_state = {
       .format = PIPE_FORMAT_R32_FLOAT,
       .swizzle =
@@ -1060,9 +1063,21 @@ static void si_get_buffer_from_descriptors(struct si_buffer_resources *buffers,
       const uint32_t *desc = descs->list + idx * 4;
       uint64_t va;
 
-      *size = desc[2];
+      if (((struct si_screen *)res->b.b.screen)->info.gfx_level >= GFX13) {
+         /* GFX13 has NUM_RECORDS across WORD1/WORD2/WORD3.
+          */
+         uint64_t num_records = 0;
+         num_records |= (uint64_t)G_008F04_NUM_RECORDS_1(desc[1]);
+         num_records |= (uint64_t)desc[2] << 7;
+         num_records |= (uint64_t)G_008F0C_NUM_RECORDS_3(desc[3]) << 39;
 
-      assert(G_008F04_STRIDE(desc[1]) == 0);
+         assert(num_records <= UINT_MAX);
+         *size = (unsigned)num_records;
+         assert(G_008F0C_STRIDE(desc[3]) == 0);
+      } else {
+         *size = desc[2];
+         assert(G_008F04_STRIDE(desc[1]) == 0);
+      }
       va = si_desc_extract_buffer_address(desc);
 
       assert(va >= res->gpu_address && va + *size <= res->gpu_address + res->bo_size);
@@ -1117,8 +1132,14 @@ static void si_set_constant_buffer(struct si_context *sctx, struct si_buffer_res
 
       /* Set the descriptor. */
       uint32_t *desc = descs->list + slot * 4;
-      si_set_buf_desc_address(si_resource(buffer), buffer_offset, desc);
-      desc[2] = input->buffer_size;
+      if (sctx->gfx_level >= GFX13) {
+         uint64_t va = si_resource(buffer)->gpu_address + buffer_offset;
+         ac_build_raw_buffer_descriptor(sctx->gfx_level, sctx->screen->info.compiler_info.has_desc_resource_level,
+                                        va, input->buffer_size, desc);
+      } else {
+         si_set_buf_desc_address(si_resource(buffer), buffer_offset, desc);
+         desc[2] = input->buffer_size;
+      }
 
       pipe_resource_reference(&buffers->buffers[slot], buffer);
       buffers->offsets[slot] = buffer_offset;
@@ -1126,8 +1147,13 @@ static void si_set_constant_buffer(struct si_context *sctx, struct si_buffer_res
                                 RADEON_USAGE_READ | buffers->priority_constbuf);
       buffers->enabled_mask |= 1llu << slot;
    } else {
-      /* Clear the descriptor. Only 3 dwords are cleared. The 4th dword is immutable. */
-      memset(descs->list + slot * 4, 0, sizeof(uint32_t) * 3);
+      /* Clear the descriptor.
+       * - pre-gfx13: Only 3 dwords are cleared. The 4th dword is immutable.
+       * - gfx13: clear the full 4dw descriptor
+       */
+      unsigned num_dwords_to_clear = sctx->gfx_level < GFX13 ? 3 : 4;
+      memset(descs->list + slot * 4, 0, sizeof(uint32_t) * num_dwords_to_clear);
+
       pipe_resource_reference(&buffers->buffers[slot], NULL);
       buffers->enabled_mask &= ~(1llu << slot);
    }
@@ -1257,8 +1283,13 @@ static void si_set_shader_buffer(struct si_context *sctx, struct si_buffer_resou
 
    if (!sbuffer || !sbuffer->buffer) {
       pipe_resource_reference(&buffers->buffers[slot], NULL);
-      /* Clear the descriptor. Only 3 dwords are cleared. The 4th dword is immutable. */
-      memset(desc, 0, sizeof(uint32_t) * 3);
+      /* Clear the descriptor.
+       * - pre-gfx13: Only 3 dwords are cleared. The 4th dword is immutable.
+       * - gfx13: clear the full 4dw descriptor
+       */
+      unsigned num_dwords_to_clear = sctx->gfx_level < GFX13 ? 3 : 4;
+      memset(desc, 0, sizeof(uint32_t) * num_dwords_to_clear);
+
       buffers->enabled_mask &= ~(1llu << slot);
       buffers->writable_mask &= ~(1llu << slot);
       sctx->descriptors_dirty |= 1u << descriptors_idx;
@@ -1274,8 +1305,14 @@ static void si_set_shader_buffer(struct si_context *sctx, struct si_buffer_resou
     */
    assert(sbuffer->buffer_offset + sbuffer->buffer_size <= align(buf->bo_size, 4));
 
-   si_set_buf_desc_address(buf, sbuffer->buffer_offset, desc);
-   desc[2] = sbuffer->buffer_size;
+   if (sctx->gfx_level >= GFX13) {
+      uint64_t va = buf->gpu_address + sbuffer->buffer_offset;
+      ac_build_raw_buffer_descriptor(sctx->gfx_level, sctx->screen->info.compiler_info.has_desc_resource_level,
+                                     va, sbuffer->buffer_size, desc);
+   } else {
+      si_set_buf_desc_address(buf, sbuffer->buffer_offset, desc);
+      desc[2] = sbuffer->buffer_size;
+   }
 
    pipe_resource_reference(&buffers->buffers[slot], &buf->b.b);
    buffers->offsets[slot] = sbuffer->buffer_offset;
