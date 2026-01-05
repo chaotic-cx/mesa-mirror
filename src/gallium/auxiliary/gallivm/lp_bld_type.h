@@ -54,6 +54,16 @@ extern "C" {
 extern unsigned lp_native_vector_width;
 
 /**
+ * Logical subgroup size (number of invocations per subgroup).
+ *
+ * This can be larger than lp_native_vector_width / 32, in which case
+ * subgroups are executed as multiple vector iterations. This allows
+ * llvmpipe to expose subgroup sizes like 32 on AVX2 (which only has
+ * 8-wide vectors for float32).
+ */
+extern unsigned lp_subgroup_size;
+
+/**
  * Maximum supported vector width (not necessarily supported at run-time).
  *
  * Should only be used when lp_native_vector_width isn't available,

@@ -576,6 +576,14 @@ generate_compute(struct llvmpipe_context *lp,
    LLVMTypeRef hdl_ptr_type = LLVMPointerType(LLVMInt8TypeInContext(gallivm->context), 0);
    LLVMValueRef vec_length = lp_build_const_int32(gallivm, cs_type.length);
 
+   /*
+    * For multi-vector subgroups: calculate how many vector chunks per logical subgroup.
+    * E.g., for 32-wide subgroups on AVX2 (8-wide vectors), chunks_per_subgroup = 4.
+    */
+   unsigned chunks_per_subgroup_val = lp_subgroup_size / cs_type.length;
+   assert(chunks_per_subgroup_val >= 1);
+   LLVMValueRef chunks_per_subgroup = lp_build_const_int32(gallivm, chunks_per_subgroup_val);
+
    if (use_coro) {
       lp_function_add_debug_info(gallivm, function, func_type);
 
@@ -599,10 +607,16 @@ generate_compute(struct llvmpipe_context *lp,
       LLVMValueRef invocation_count = LLVMBuildMul(gallivm->builder, block_x_size_arg, block_y_size_arg, "");
       invocation_count = LLVMBuildMul(gallivm->builder, invocation_count, block_z_size_arg, "");
 
+      /*
+       * For Option A multi-vector subgroups: one coroutine per logical subgroup.
+       * Each coroutine processes chunks_per_subgroup chunks.
+       */
+      LLVMValueRef subgroup_size_val = lp_build_const_int32(gallivm, lp_subgroup_size);
       partials = LLVMBuildURem(gallivm->builder, invocation_count, vec_length, "");
 
-      num_subgroup_loop = LLVMBuildAdd(gallivm->builder, invocation_count, lp_build_const_int32(gallivm, cs_type.length - 1), "");
-      num_subgroup_loop = LLVMBuildUDiv(gallivm->builder, num_subgroup_loop, vec_length, "");
+      /* Number of logical subgroups = ceil(invocation_count / lp_subgroup_size) */
+      num_subgroup_loop = LLVMBuildAdd(gallivm->builder, invocation_count, lp_build_const_int32(gallivm, lp_subgroup_size - 1), "");
+      num_subgroup_loop = LLVMBuildUDiv(gallivm->builder, num_subgroup_loop, subgroup_size_val, "num_logical_subgroups");
 
       /* build a ptr in memory to store all the frames in later. */
       coro_mem = LLVMBuildAlloca(gallivm->builder, hdl_ptr_type, "coro_mem");
@@ -732,13 +746,21 @@ generate_compute(struct llvmpipe_context *lp,
       LLVMValueRef invocation_count = LLVMBuildMul(gallivm->builder, block_x_size_arg, block_y_size_arg, "");
       invocation_count = LLVMBuildMul(gallivm->builder, invocation_count, block_z_size_arg, "");
 
+      /*
+       * For Option A multi-vector subgroups: loop over logical subgroups, not chunks.
+       * Each logical subgroup contains chunks_per_subgroup vector chunks.
+       * partials_in_subgroup = invocation_count % lp_subgroup_size
+       */
+      LLVMValueRef subgroup_size_val = lp_build_const_int32(gallivm, lp_subgroup_size);
       partials = LLVMBuildURem(gallivm->builder, invocation_count, vec_length, "");
 
-      num_subgroup_loop = LLVMBuildAdd(gallivm->builder, invocation_count, lp_build_const_int32(gallivm, cs_type.length - 1), "");
-      num_subgroup_loop = LLVMBuildUDiv(gallivm->builder, num_subgroup_loop, vec_length, "");
+      /* Number of logical subgroups = ceil(invocation_count / lp_subgroup_size) */
+      num_subgroup_loop = LLVMBuildAdd(gallivm->builder, invocation_count, lp_build_const_int32(gallivm, lp_subgroup_size - 1), "");
+      num_subgroup_loop = LLVMBuildUDiv(gallivm->builder, num_subgroup_loop, subgroup_size_val, "num_logical_subgroups");
 
       lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
 
+      /* loop_state.counter is now the logical subgroup index */
       subgroup_id = loop_state.counter;
    }
 
@@ -777,10 +799,20 @@ generate_compute(struct llvmpipe_context *lp,
       struct lp_build_context bld;
       lp_build_context_init(&bld, gallivm, lp_uint_type(cs_type));
 
-      LLVMValueRef base_val = LLVMBuildMul(gallivm->builder, subgroup_id, vec_length, "");
+      /*
+       * For Option A multi-vector subgroups:
+       * - subgroup_id is now the logical subgroup index (not chunk index)
+       * - We process chunks_per_subgroup chunks per logical subgroup
+       * - For now, compute invocation_index for chunk 0; inner chunk loop will adjust
+       * - base_invocation = subgroup_id * lp_subgroup_size
+       */
+      LLVMValueRef subgroup_size_val = lp_build_const_int32(gallivm, lp_subgroup_size);
+      LLVMValueRef base_invocation = LLVMBuildMul(gallivm->builder, subgroup_id, subgroup_size_val, "base_invoc");
+
+      /* For chunk 0: invocation indices are base_invocation + 0, 1, ..., vec_length-1 */
       LLVMValueRef invocation_indices[LP_MAX_VECTOR_LENGTH];
       for (i = 0; i < cs_type.length; i++)
-         invocation_indices[i] = LLVMBuildAdd(gallivm->builder, base_val, lp_build_const_int32(gallivm, i), "");
+         invocation_indices[i] = LLVMBuildAdd(gallivm->builder, base_invocation, lp_build_const_int32(gallivm, i), "");
       LLVMValueRef invocation_index = lp_build_gather_values(gallivm, invocation_indices, cs_type.length);
 
       LLVMValueRef block_x_size_vec = lp_build_broadcast_scalar(&bld, block_x_size_arg);
@@ -819,13 +851,34 @@ generate_compute(struct llvmpipe_context *lp,
       system_values.work_dim = work_dim_arg;
       system_values.draw_id = draw_id_arg;
 
+      /*
+       * For Option A multi-vector subgroups:
+       * - subgroup_id is already the logical subgroup index (loop counter)
+       * - num_subgroup_loop is already the count of logical subgroups
+       * - base_invocation is the first invocation index for this logical subgroup
+       * - subgroup_chunk_id starts at 0; inner chunk loop in shader will iterate
+       * - chunks_per_subgroup tells the shader how many chunks to process
+       */
       system_values.subgroup_id = subgroup_id;
       system_values.num_subgroups = num_subgroup_loop;
+      system_values.base_invocation = base_invocation;
+      system_values.subgroup_chunk_id = lp_build_const_int32(gallivm, 0);  /* inner loop will vary this */
+      system_values.chunks_per_subgroup = chunks_per_subgroup;
 
       system_values.block_size[0] = block_x_size_arg;
       system_values.block_size[1] = block_y_size_arg;
       system_values.block_size[2] = block_z_size_arg;
 
+      /*
+       * Partial mask computation for the last logical subgroup.
+       *
+       * TODO: For Option A multi-chunk subgroups (chunks_per_subgroup > 1),
+       * this only computes the mask for chunk 0. The inner chunk loop
+       * in lp_build_nir_soa.c will need to compute per-chunk masks based
+       * on how many invocations remain in each chunk.
+       *
+       * For now, this works correctly when chunks_per_subgroup == 1.
+       */
       LLVMValueRef last_loop = LLVMBuildICmp(gallivm->builder, LLVMIntEQ, subgroup_id, LLVMBuildSub(gallivm->builder, num_subgroup_loop, lp_build_const_int32(gallivm, 1), ""), "");
       LLVMValueRef use_partial_mask = LLVMBuildAnd(gallivm->builder, last_loop, has_partials, "");
       struct lp_build_if_state if_state;
