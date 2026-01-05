@@ -794,7 +794,7 @@
         "description": "util/rmq: Fix uninitialized read in preprocess",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "0d07b86073342820196e00213f240158481f3b4a",
         "notes": null
