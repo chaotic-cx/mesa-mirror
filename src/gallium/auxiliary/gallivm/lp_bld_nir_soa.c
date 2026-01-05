@@ -47,6 +47,21 @@
 #include "nir_deref.h"
 #include "nir_search_helpers.h"
 
+/* Forward declaration of the SOA context struct */
+struct lp_build_nir_soa_context;
+
+/* Forward declarations for functions used in emit_reduce */
+static LLVMValueRef
+get_src(struct lp_build_nir_soa_context *bld, nir_src *src, uint32_t component);
+
+static LLVMValueRef
+get_src_for_chunk(struct lp_build_nir_soa_context *bld, nir_src *src,
+                  uint32_t component, uint32_t chunk);
+
+static LLVMValueRef
+cast_type(struct lp_build_nir_soa_context *bld, LLVMValueRef val,
+          nir_alu_type alu_type, unsigned bit_size);
+
 static bool
 lp_nir_instr_src_divergent(nir_instr *instr, uint32_t src_index)
 {
@@ -253,6 +268,20 @@ struct lp_build_nir_soa_context
 
    LLVMTypeRef call_context_type;
    LLVMValueRef call_context_ptr;
+
+   /*
+    * For Option A multi-vector subgroups:
+    * - chunks_per_subgroup: compile-time constant for how many vector chunks per logical subgroup
+    * - ssa_stride: number of LLVMValueRef slots per SSA value
+    * - current_chunk: which chunk we're currently generating code for (0..chunks_per_subgroup-1)
+    *
+    * SSA layout per value (ssa_stride slots total):
+    *   [0..NIR_MAX_VEC_COMPONENTS-1] = uniform (scalar) components
+    *   [NIR_MAX_VEC_COMPONENTS + chunk*NIR_MAX_VEC_COMPONENTS + c] = divergent chunk's component c
+    */
+   unsigned chunks_per_subgroup;
+   unsigned ssa_stride;
+   unsigned current_chunk;
 };
 
 static inline struct lp_build_context *
@@ -1890,13 +1919,93 @@ static void emit_sysval_intrin(struct lp_build_nir_soa_context *bld,
          result[i] = bld->system_values.block_id[i];
       break;
    }
-   case nir_intrinsic_load_local_invocation_id:
-      for (unsigned i = 0; i < 3; i++)
-         result[i] = bld->system_values.thread_id[i];
+   case nir_intrinsic_load_local_invocation_id: {
+      /*
+       * For Option A multi-vector subgroups or when subgroup < workgroup:
+       * gl_LocalInvocationID should be SUBGROUP-relative, not workgroup-relative.
+       *
+       * The pre-computed thread_id is workgroup-global (0..workgroup_size-1).
+       * We need subgroup-relative: invocation_index - base_invocation
+       * where invocation_index is workgroup-global and base_invocation = subgroup_id * lp_subgroup_size.
+       */
+      struct lp_build_context *uint_bld = &bld->uint_bld;
+      LLVMBuilderRef builder = gallivm->builder;
+
+      if (bld->chunks_per_subgroup > 1) {
+         /* Multi-chunk: compute chunk_invocation = base_invocation + current_chunk * vec_length + lane_id */
+         LLVMValueRef chunk_offset = lp_build_const_int32(gallivm, bld->current_chunk * bld->base.type.length);
+         LLVMValueRef chunk_base = LLVMBuildAdd(builder, bld->system_values.base_invocation, chunk_offset, "");
+
+         LLVMValueRef lane_ids[LP_MAX_VECTOR_LENGTH];
+         for (unsigned i = 0; i < bld->base.type.length; i++)
+            lane_ids[i] = lp_build_const_int32(gallivm, i);
+         LLVMValueRef lane_id = lp_build_gather_values(gallivm, lane_ids, bld->base.type.length);
+
+         LLVMValueRef chunk_base_vec = lp_build_broadcast_scalar(uint_bld, chunk_base);
+         LLVMValueRef chunk_invocation = lp_build_add(uint_bld, chunk_base_vec, lane_id);
+
+         /* Compute thread_id from chunk_invocation */
+         LLVMValueRef block_x_size_vec = lp_build_broadcast_scalar(uint_bld, bld->system_values.block_size[0]);
+         LLVMValueRef block_y_size_vec = lp_build_broadcast_scalar(uint_bld, bld->system_values.block_size[1]);
+
+         result[0] = LLVMBuildURem(builder, chunk_invocation, block_x_size_vec, "");
+         result[1] = LLVMBuildUDiv(builder, chunk_invocation, block_x_size_vec, "");
+         result[1] = LLVMBuildURem(builder, result[1], block_y_size_vec, "");
+         result[2] = LLVMBuildUDiv(builder, chunk_invocation, block_x_size_vec, "");
+         result[2] = LLVMBuildUDiv(builder, result[2], block_y_size_vec, "");
+      } else {
+         /* Single chunk: use workgroup-global thread_id */
+         for (unsigned i = 0; i < 3; i++) {
+            result[i] = bld->system_values.thread_id[i];
+         }
+      }
       break;
-   case nir_intrinsic_load_local_invocation_index:
-      result[0] = get_local_invocation_index(bld);
+   }
+   case nir_intrinsic_load_local_invocation_index: {
+      /*
+       * For multi-chunk subgroups, compute index from chunk-aware thread_id.
+       * index = thread_id.z * (block_size.x * block_size.y) + thread_id.y * block_size.x + thread_id.x
+       */
+      if (bld->chunks_per_subgroup > 1) {
+         LLVMValueRef thread_id[3];
+         /* Get chunk-aware thread_id (reuse logic from load_local_invocation_id) */
+         struct lp_build_context *uint_bld = &bld->uint_bld;
+         LLVMBuilderRef builder = gallivm->builder;
+
+         LLVMValueRef chunk_offset = lp_build_const_int32(gallivm, bld->current_chunk * bld->base.type.length);
+         LLVMValueRef chunk_base = LLVMBuildAdd(builder, bld->system_values.base_invocation, chunk_offset, "");
+
+         LLVMValueRef lane_ids[LP_MAX_VECTOR_LENGTH];
+         for (unsigned i = 0; i < bld->base.type.length; i++)
+            lane_ids[i] = lp_build_const_int32(gallivm, i);
+         LLVMValueRef lane_id = lp_build_gather_values(gallivm, lane_ids, bld->base.type.length);
+
+         LLVMValueRef chunk_base_vec = lp_build_broadcast_scalar(uint_bld, chunk_base);
+         LLVMValueRef chunk_invocation = lp_build_add(uint_bld, chunk_base_vec, lane_id);
+
+         LLVMValueRef block_x_size_vec = lp_build_broadcast_scalar(uint_bld, bld->system_values.block_size[0]);
+         LLVMValueRef block_y_size_vec = lp_build_broadcast_scalar(uint_bld, bld->system_values.block_size[1]);
+
+         thread_id[0] = LLVMBuildURem(builder, chunk_invocation, block_x_size_vec, "");
+         thread_id[1] = LLVMBuildUDiv(builder, chunk_invocation, block_x_size_vec, "");
+         thread_id[1] = LLVMBuildURem(builder, thread_id[1], block_y_size_vec, "");
+         thread_id[2] = LLVMBuildUDiv(builder, chunk_invocation, block_x_size_vec, "");
+         thread_id[2] = LLVMBuildUDiv(builder, thread_id[2], block_y_size_vec, "");
+
+         /* Compute flattened index */
+         LLVMValueRef tmp = lp_build_broadcast_scalar(uint_bld, bld->system_values.block_size[1]);
+         LLVMValueRef tmp2 = lp_build_broadcast_scalar(uint_bld, bld->system_values.block_size[0]);
+         tmp = lp_build_mul(uint_bld, tmp, tmp2);
+         tmp = lp_build_mul(uint_bld, tmp, thread_id[2]);
+
+         tmp2 = lp_build_mul(uint_bld, tmp2, thread_id[1]);
+         tmp = lp_build_add(uint_bld, tmp, tmp2);
+         result[0] = lp_build_add(uint_bld, tmp, thread_id[0]);
+      } else {
+         result[0] = get_local_invocation_index(bld);
+      }
       break;
+   }
    case nir_intrinsic_load_num_workgroups: {
       for (unsigned i = 0; i < 3; i++)
          result[i] = bld->system_values.grid_size[i];
@@ -1954,10 +2063,28 @@ static void emit_sysval_intrin(struct lp_build_nir_soa_context *bld,
       result[0] = bld->system_values.view_index;
       break;
    case nir_intrinsic_load_subgroup_invocation: {
+      /*
+       * For multi-vector subgroups, the invocation ID within the subgroup is:
+       * subgroup_chunk_id * vector_length + lane_index
+       *
+       * If chunks_per_subgroup is 1 (single-vector subgroup), this reduces to
+       * just [0, 1, 2, ..., length-1] as before.
+       */
       LLVMValueRef elems[LP_MAX_VECTOR_LENGTH];
       for(unsigned i = 0; i < bld->base.type.length; ++i)
          elems[i] = lp_build_const_int32(gallivm, i);
-      result[0] = LLVMConstVector(elems, bld->base.type.length);
+      LLVMValueRef lane_indices = LLVMConstVector(elems, bld->base.type.length);
+
+      if (bld->system_values.subgroup_chunk_id) {
+         /* Multi-vector subgroup: add chunk_id * vector_length offset */
+         LLVMValueRef chunk_offset = LLVMBuildMul(gallivm->builder,
+            bld->system_values.subgroup_chunk_id,
+            lp_build_const_int32(gallivm, bld->base.type.length), "chunk_offset");
+         LLVMValueRef chunk_offset_vec = lp_build_broadcast_scalar(&bld->uint_bld, chunk_offset);
+         result[0] = LLVMBuildAdd(gallivm->builder, chunk_offset_vec, lane_indices, "subgroup_invoc");
+      } else {
+         result[0] = lane_indices;
+      }
       break;
    }
    case nir_intrinsic_load_subgroup_id:
@@ -2181,101 +2308,232 @@ emit_prologue(struct lp_build_nir_soa_context *bld)
    }
 }
 
-static void emit_vote(struct lp_build_nir_soa_context *bld, LLVMValueRef src,
+static void emit_vote(struct lp_build_nir_soa_context *bld, nir_src *src_nir,
                       nir_intrinsic_instr *instr, LLVMValueRef result[4])
 {
    struct gallivm_state * gallivm = bld->base.gallivm;
    LLVMBuilderRef builder = gallivm->builder;
-   uint32_t bit_size = nir_src_bit_size(instr->src[0]);
-   LLVMValueRef exec_mask = group_op_mask_vec(bld);
-   struct lp_build_loop_state loop_state;
-   LLVMValueRef outer_cond = LLVMBuildICmp(builder, LLVMIntNE, exec_mask, bld->uint_bld.zero, "");
+   uint32_t bit_size = nir_src_bit_size(*src_nir);
 
+   /*
+    * For multi-chunk subgroups during pass 1, not all chunks are available yet.
+    * Skip execution and return placeholder - pass 2 will compute the real result.
+    */
+   bool all_chunks_available = true;
+   if (bld->chunks_per_subgroup > 1) {
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         if (!get_src_for_chunk(bld, src_nir, 0, chunk)) {
+            all_chunks_available = false;
+            break;
+         }
+      }
+   }
+
+   if (!all_chunks_available) {
+      /* Return placeholder during pass 1 */
+      result[0] = instr->intrinsic == nir_intrinsic_vote_any ?
+         LLVMConstInt(LLVMInt1TypeInContext(gallivm->context), 0, 0) :
+         LLVMConstInt(LLVMInt1TypeInContext(gallivm->context), 1, 0);
+      return;
+   }
+
+   /*
+    * Fetch source vectors for all chunks.
+    * For multi-chunk, we need to process all lanes across all chunks.
+    */
+   LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+   unsigned num_chunks = 1;
+
+   /* Check if source is uniform (chunk 0 returns NULL) */
+   LLVMValueRef first_chunk = get_src_for_chunk(bld, src_nir, 0, 0);
+   if (!first_chunk) {
+      /* Uniform value - fetch scalar, cast, then broadcast once */
+      LLVMValueRef scalar_src = get_src(bld, src_nir, 0);
+      scalar_src = cast_type(bld, scalar_src, nir_type_int, bit_size);
+      if (bit_size == 1) {
+         scalar_src = LLVMBuildSExt(builder, scalar_src, bld->uint8_bld.elem_type, "");
+      }
+      struct lp_build_context *broadcast_bld = get_int_bld(bld, true,
+                                                           bit_size == 1 ? 32 : bit_size, true);
+      LLVMValueRef broadcast_vec = lp_build_broadcast_scalar(broadcast_bld, scalar_src);
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         src_chunks[chunk] = broadcast_vec;
+      }
+      num_chunks = bld->chunks_per_subgroup;
+   } else {
+      /* Divergent value - fetch each chunk */
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         LLVMValueRef src = (chunk == 0) ? first_chunk :
+                            get_src_for_chunk(bld, src_nir, 0, chunk);
+         src = cast_type(bld, src, nir_type_int, bit_size);
+         if (bit_size == 1) {
+            src = LLVMBuildSExt(builder, src, bld->uint_bld.vec_type, "");
+         }
+         src_chunks[chunk] = src;
+      }
+      num_chunks = bld->chunks_per_subgroup;
+   }
+
+   /*
+    * Process all chunks. For multi-chunk subgroups, we need to check all lanes
+    * across all chunks to compute the vote result.
+    */
+   LLVMValueRef exec_mask = group_op_mask_vec(bld);
    LLVMValueRef res_store = lp_build_alloca(gallivm, bld->uint_bld.elem_type, "");
-   LLVMValueRef eq_store = lp_build_alloca(gallivm, get_int_bld(bld, true, bit_size, false)->elem_type, "");
+   LLVMValueRef eq_store = lp_build_alloca(gallivm, get_int_bld(bld, true, bit_size == 1 ? 32 : bit_size, false)->elem_type, "");
    LLVMValueRef init_val = NULL;
+
+   /* For vote_ieq/vote_feq, find the first active lane's value to compare against */
    if (instr->intrinsic == nir_intrinsic_vote_ieq ||
        instr->intrinsic == nir_intrinsic_vote_feq) {
-      /* for equal we unfortunately have to loop and find the first valid one. */
+      for (unsigned chunk = 0; chunk < num_chunks; chunk++) {
+         LLVMValueRef outer_cond = LLVMBuildICmp(builder, LLVMIntNE, exec_mask, bld->uint_bld.zero, "");
+         struct lp_build_loop_state loop_state;
+         lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
+         LLVMValueRef if_cond = LLVMBuildExtractElement(gallivm->builder, outer_cond, loop_state.counter, "");
+
+         struct lp_build_if_state ifthen;
+         lp_build_if(&ifthen, gallivm, if_cond);
+         LLVMValueRef value_ptr = LLVMBuildExtractElement(gallivm->builder, src_chunks[chunk],
+                                                          loop_state.counter, "");
+         LLVMBuildStore(builder, value_ptr, eq_store);
+         LLVMBuildStore(builder, lp_build_const_int32(gallivm, -1), res_store);
+         lp_build_endif(&ifthen);
+         lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
+                                NULL, LLVMIntUGE);
+      }
+      init_val = LLVMBuildLoad2(builder, get_int_bld(bld, true, bit_size == 1 ? 32 : bit_size, false)->elem_type, eq_store, "");
+   }
+
+   /* Initialize result based on operation */
+   LLVMBuildStore(builder, lp_build_const_int32(gallivm, instr->intrinsic == nir_intrinsic_vote_any ? 0 : -1), res_store);
+
+   /* Process all lanes in all chunks */
+   for (unsigned chunk = 0; chunk < num_chunks; chunk++) {
+      LLVMValueRef outer_cond = LLVMBuildICmp(builder, LLVMIntNE, exec_mask, bld->uint_bld.zero, "");
+      struct lp_build_loop_state loop_state;
       lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
+      LLVMValueRef value_ptr = LLVMBuildExtractElement(gallivm->builder, src_chunks[chunk],
+                                                       loop_state.counter, "");
       LLVMValueRef if_cond = LLVMBuildExtractElement(gallivm->builder, outer_cond, loop_state.counter, "");
 
       struct lp_build_if_state ifthen;
       lp_build_if(&ifthen, gallivm, if_cond);
-      LLVMValueRef value_ptr = LLVMBuildExtractElement(gallivm->builder, src,
-                                                       loop_state.counter, "");
-      LLVMBuildStore(builder, value_ptr, eq_store);
-      LLVMBuildStore(builder, lp_build_const_int32(gallivm, -1), res_store);
+      LLVMValueRef res = LLVMBuildLoad2(builder, bld->uint_bld.elem_type, res_store, "");
+
+      if (instr->intrinsic == nir_intrinsic_vote_feq) {
+         struct lp_build_context *flt_bld = get_flt_bld(bld, bit_size, false);
+         LLVMValueRef tmp = LLVMBuildFCmp(builder, LLVMRealUEQ,
+                                          LLVMBuildBitCast(builder, init_val, flt_bld->elem_type, ""),
+                                          LLVMBuildBitCast(builder, value_ptr, flt_bld->elem_type, ""), "");
+         tmp = LLVMBuildSExt(builder, tmp, bld->uint_bld.elem_type, "");
+         res = LLVMBuildAnd(builder, res, tmp, "");
+      } else if (instr->intrinsic == nir_intrinsic_vote_ieq) {
+         LLVMValueRef tmp = LLVMBuildICmp(builder, LLVMIntEQ, init_val, value_ptr, "");
+         tmp = LLVMBuildSExt(builder, tmp, bld->uint_bld.elem_type, "");
+         res = LLVMBuildAnd(builder, res, tmp, "");
+      } else if (instr->intrinsic == nir_intrinsic_vote_any)
+         res = LLVMBuildOr(builder, res, value_ptr, "");
+      else
+         res = LLVMBuildAnd(builder, res, value_ptr, "");
+      LLVMBuildStore(builder, res, res_store);
       lp_build_endif(&ifthen);
       lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
                              NULL, LLVMIntUGE);
-      init_val = LLVMBuildLoad2(builder, get_int_bld(bld, true, bit_size, false)->elem_type, eq_store, "");
-   } else {
-      LLVMBuildStore(builder, lp_build_const_int32(gallivm, instr->intrinsic == nir_intrinsic_vote_any ? 0 : -1), res_store);
    }
-
-   if (bit_size == 1) {
-      src = LLVMBuildSExt(builder, src, get_int_bld(bld, true, 32, lp_value_is_divergent(src))->vec_type, "");
-      if (init_val)
-         init_val = LLVMBuildSExt(builder, init_val, get_int_bld(bld, true, 32, lp_value_is_divergent(init_val))->vec_type, "");
-   }
-
-   LLVMValueRef res;
-   lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
-   LLVMValueRef value_ptr = LLVMBuildExtractElement(gallivm->builder, src,
-                                                       loop_state.counter, "");
-   struct lp_build_if_state ifthen;
-   LLVMValueRef if_cond;
-   if_cond = LLVMBuildExtractElement(gallivm->builder, outer_cond, loop_state.counter, "");
-
-   lp_build_if(&ifthen, gallivm, if_cond);
-   res = LLVMBuildLoad2(builder, bld->uint_bld.elem_type, res_store, "");
-
-   if (instr->intrinsic == nir_intrinsic_vote_feq) {
-      struct lp_build_context *flt_bld = get_flt_bld(bld, bit_size, false);
-      LLVMValueRef tmp = LLVMBuildFCmp(builder, LLVMRealUEQ,
-                                       LLVMBuildBitCast(builder, init_val, flt_bld->elem_type, ""),
-                                       LLVMBuildBitCast(builder, value_ptr, flt_bld->elem_type, ""), "");
-      tmp = LLVMBuildSExt(builder, tmp, bld->uint_bld.elem_type, "");
-      res = LLVMBuildAnd(builder, res, tmp, "");
-   } else if (instr->intrinsic == nir_intrinsic_vote_ieq) {
-      LLVMValueRef tmp = LLVMBuildICmp(builder, LLVMIntEQ, init_val, value_ptr, "");
-      tmp = LLVMBuildSExt(builder, tmp, bld->uint_bld.elem_type, "");
-      res = LLVMBuildAnd(builder, res, tmp, "");
-   } else if (instr->intrinsic == nir_intrinsic_vote_any)
-      res = LLVMBuildOr(builder, res, value_ptr, "");
-   else
-      res = LLVMBuildAnd(builder, res, value_ptr, "");
-   LLVMBuildStore(builder, res, res_store);
-   lp_build_endif(&ifthen);
-   lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
-                          NULL, LLVMIntUGE);
    result[0] = LLVMBuildLoad2(builder, bld->uint_bld.elem_type, res_store, "");
    result[0] = LLVMBuildICmp(builder, LLVMIntNE, result[0], lp_build_const_int32(gallivm, 0), "");
 }
 
-static void emit_ballot(struct lp_build_nir_soa_context *bld, LLVMValueRef src, nir_intrinsic_instr *instr, LLVMValueRef result[4])
+static void emit_ballot(struct lp_build_nir_soa_context *bld, nir_src *src_nir, nir_intrinsic_instr *instr, LLVMValueRef result[4])
 {
    struct gallivm_state * gallivm = bld->base.gallivm;
    LLVMBuilderRef builder = gallivm->builder;
    LLVMValueRef exec_mask = group_op_mask_vec(bld);
-   struct lp_build_loop_state loop_state;
-   src = LLVMBuildSExt(builder, src, bld->int_bld.vec_type, "");
-   src = LLVMBuildAnd(builder, src, exec_mask, "");
-   LLVMValueRef res_store = lp_build_alloca(gallivm, bld->int_bld.elem_type, "");
-   LLVMValueRef res;
-   lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
-   LLVMValueRef value_ptr = LLVMBuildExtractElement(gallivm->builder, src,
-                                                    loop_state.counter, "");
-   res = LLVMBuildLoad2(builder, bld->int_bld.elem_type, res_store, "");
-   res = LLVMBuildOr(builder,
-                     res,
-                     LLVMBuildAnd(builder, value_ptr, LLVMBuildShl(builder, lp_build_const_int32(gallivm, 1), loop_state.counter, ""), ""), "");
-   LLVMBuildStore(builder, res, res_store);
 
-   lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
-                          NULL, LLVMIntUGE);
-   result[0] = LLVMBuildLoad2(builder, bld->int_bld.elem_type, res_store, "");
+   /*
+    * For multi-chunk subgroups during pass 1, not all chunks are available yet.
+    * Skip execution and return placeholder - pass 2 will compute the real result.
+    */
+   if (bld->chunks_per_subgroup > 1) {
+      bool all_chunks_available = true;
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         if (!get_src_for_chunk(bld, src_nir, 0, chunk)) {
+            all_chunks_available = false;
+            break;
+         }
+      }
+      if (!all_chunks_available) {
+         result[0] = lp_build_const_int32(gallivm, 0);
+         return;
+      }
+   }
+
+   /*
+    * For Option A multi-chunk subgroups: ballot must aggregate across all chunks.
+    * Fetch source from all chunks, compute ballot bits for each chunk, then OR them together.
+    */
+   if (bld->chunks_per_subgroup > 1) {
+      /* Fetch source from all chunks */
+      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         LLVMValueRef chunk_src = get_src_for_chunk(bld, src_nir, 0, chunk);
+         if (!chunk_src) {
+            /* Uniform source - fetch once and broadcast */
+            chunk_src = get_src(bld, src_nir, 0);
+            chunk_src = lp_build_broadcast_scalar(&bld->uint_bld, chunk_src);
+         }
+         chunk_src = LLVMBuildSExt(builder, chunk_src, bld->int_bld.vec_type, "");
+         chunk_src = LLVMBuildAnd(builder, chunk_src, exec_mask, "");
+         src_chunks[chunk] = chunk_src;
+      }
+
+      /* Accumulate ballot bits from all chunks */
+      LLVMValueRef ballot = lp_build_const_int64(gallivm, 0);
+      uint32_t vector_length = bld->base.type.length;
+
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         /* Compute ballot bits for this chunk */
+         LLVMValueRef chunk_ballot = lp_build_const_int32(gallivm, 0);
+         for (unsigned lane = 0; lane < vector_length; lane++) {
+            LLVMValueRef value = LLVMBuildExtractElement(builder, src_chunks[chunk],
+                                                          lp_build_const_int32(gallivm, lane), "");
+            LLVMValueRef bit = LLVMBuildAnd(builder, value,
+                                            lp_build_const_int32(gallivm, 1), "");
+            bit = LLVMBuildShl(builder, bit, lp_build_const_int32(gallivm, lane), "");
+            chunk_ballot = LLVMBuildOr(builder, chunk_ballot, bit, "");
+         }
+
+         /* Shift and merge into full ballot */
+         LLVMValueRef chunk_offset = lp_build_const_int32(gallivm, chunk * vector_length);
+         LLVMValueRef chunk_ballot_64 = LLVMBuildZExt(builder, chunk_ballot, bld->uint64_bld.elem_type, "");
+         chunk_ballot_64 = LLVMBuildShl(builder, chunk_ballot_64, chunk_offset, "");
+         ballot = LLVMBuildOr(builder, ballot, chunk_ballot_64, "");
+      }
+
+      /* Ballot result is uniform (same for all lanes) - truncate to 32-bit for now */
+      result[0] = LLVMBuildTrunc(builder, ballot, bld->int_bld.elem_type, "");
+   } else {
+      /* Single chunk: use original implementation */
+      LLVMValueRef src = get_src(bld, src_nir, 0);
+      struct lp_build_loop_state loop_state;
+      src = LLVMBuildSExt(builder, src, bld->int_bld.vec_type, "");
+      src = LLVMBuildAnd(builder, src, exec_mask, "");
+      LLVMValueRef res_store = lp_build_alloca(gallivm, bld->int_bld.elem_type, "");
+      LLVMValueRef res;
+      lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
+      LLVMValueRef value_ptr = LLVMBuildExtractElement(gallivm->builder, src,
+                                                       loop_state.counter, "");
+      res = LLVMBuildLoad2(builder, bld->int_bld.elem_type, res_store, "");
+      res = LLVMBuildOr(builder,
+                        res,
+                        LLVMBuildAnd(builder, value_ptr, LLVMBuildShl(builder, lp_build_const_int32(gallivm, 1), loop_state.counter, ""), ""), "");
+      LLVMBuildStore(builder, res, res_store);
+
+      lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
+                             NULL, LLVMIntUGE);
+      result[0] = LLVMBuildLoad2(builder, bld->int_bld.elem_type, res_store, "");
+   }
 }
 
 static void emit_elect(struct lp_build_nir_soa_context *bld, LLVMValueRef result[4])
@@ -2283,57 +2541,197 @@ static void emit_elect(struct lp_build_nir_soa_context *bld, LLVMValueRef result
    struct gallivm_state *gallivm = bld->base.gallivm;
    LLVMBuilderRef builder = gallivm->builder;
    LLVMValueRef exec_mask = group_op_mask_vec(bld);
-   struct lp_build_loop_state loop_state;
+   uint32_t vector_length = bld->base.type.length;
 
-   LLVMValueRef idx_store = lp_build_alloca(gallivm, bld->int_bld.elem_type, "");
-   LLVMValueRef found_store = lp_build_alloca(gallivm, bld->int_bld.elem_type, "");
-   lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
-   LLVMValueRef value_ptr = LLVMBuildExtractElement(gallivm->builder, exec_mask,
-                                                    loop_state.counter, "");
-   LLVMValueRef cond = LLVMBuildICmp(gallivm->builder,
-                                     LLVMIntEQ,
-                                     value_ptr,
-                                     lp_build_const_int32(gallivm, -1), "");
-   LLVMValueRef cond2 = LLVMBuildICmp(gallivm->builder,
-                                      LLVMIntEQ,
-                                      LLVMBuildLoad2(builder, bld->int_bld.elem_type, found_store, ""),
-                                      lp_build_const_int32(gallivm, 0), "");
+   /*
+    * For multi-chunk subgroups: find first active invocation across all chunks.
+    * Search chunks in order, return true only for the globally first active lane.
+    */
+   if (bld->chunks_per_subgroup > 1) {
+      /* Search all chunks in order to find first active lane */
+      LLVMValueRef first_chunk_idx = lp_build_const_int32(gallivm, -1);
+      LLVMValueRef first_lane_idx = lp_build_const_int32(gallivm, -1);
 
-   cond = LLVMBuildAnd(builder, cond, cond2, "");
-   struct lp_build_if_state ifthen;
-   lp_build_if(&ifthen, gallivm, cond);
-   LLVMBuildStore(builder, lp_build_const_int32(gallivm, 1), found_store);
-   LLVMBuildStore(builder, loop_state.counter, idx_store);
-   lp_build_endif(&ifthen);
-   lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
-                          NULL, LLVMIntUGE);
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         for (unsigned lane = 0; lane < vector_length; lane++) {
+            LLVMValueRef is_active = LLVMBuildExtractElement(builder, exec_mask,
+               lp_build_const_int32(gallivm, lane), "");
+            is_active = LLVMBuildICmp(builder, LLVMIntEQ, is_active,
+               lp_build_const_int32(gallivm, -1), "");
 
-   result[0] = LLVMBuildInsertElement(builder, bld->uint_bld.zero,
-                                      lp_build_const_int32(gallivm, -1),
-                                      LLVMBuildLoad2(builder, bld->int_bld.elem_type, idx_store, ""),
-                                      "");
-   result[0] = LLVMBuildICmp(builder, LLVMIntNE, result[0], lp_build_const_int_vec(gallivm, bld->int_bld.type, 0), "");
+            /* Only update if we haven't found an active lane yet */
+            LLVMValueRef not_found = LLVMBuildICmp(builder, LLVMIntEQ, first_chunk_idx,
+               lp_build_const_int32(gallivm, -1), "");
+            LLVMValueRef should_set = LLVMBuildAnd(builder, is_active, not_found, "");
+
+            first_chunk_idx = LLVMBuildSelect(builder, should_set,
+               lp_build_const_int32(gallivm, chunk), first_chunk_idx, "");
+            first_lane_idx = LLVMBuildSelect(builder, should_set,
+               lp_build_const_int32(gallivm, lane), first_lane_idx, "");
+         }
+      }
+
+      /* Return true only if elected lane is in current chunk */
+      LLVMValueRef is_elected_chunk = LLVMBuildICmp(builder, LLVMIntEQ, first_chunk_idx,
+         lp_build_const_int32(gallivm, bld->current_chunk), "");
+
+      result[0] = bld->uint_bld.zero;
+      LLVMValueRef elected_mask = LLVMBuildSelect(builder, is_elected_chunk,
+         lp_build_const_int32(gallivm, -1), lp_build_const_int32(gallivm, 0), "");
+      result[0] = LLVMBuildInsertElement(builder, result[0], elected_mask, first_lane_idx, "");
+      result[0] = LLVMBuildICmp(builder, LLVMIntNE, result[0],
+         lp_build_const_int_vec(gallivm, bld->int_bld.type, 0), "");
+   } else {
+      /* Single chunk: use original implementation */
+      struct lp_build_loop_state loop_state;
+      LLVMValueRef idx_store = lp_build_alloca(gallivm, bld->int_bld.elem_type, "");
+      LLVMValueRef found_store = lp_build_alloca(gallivm, bld->int_bld.elem_type, "");
+      lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
+      LLVMValueRef value_ptr = LLVMBuildExtractElement(gallivm->builder, exec_mask,
+                                                       loop_state.counter, "");
+      LLVMValueRef cond = LLVMBuildICmp(gallivm->builder,
+                                        LLVMIntEQ,
+                                        value_ptr,
+                                        lp_build_const_int32(gallivm, -1), "");
+      LLVMValueRef cond2 = LLVMBuildICmp(gallivm->builder,
+                                         LLVMIntEQ,
+                                         LLVMBuildLoad2(builder, bld->int_bld.elem_type, found_store, ""),
+                                         lp_build_const_int32(gallivm, 0), "");
+
+      cond = LLVMBuildAnd(builder, cond, cond2, "");
+      struct lp_build_if_state ifthen;
+      lp_build_if(&ifthen, gallivm, cond);
+      LLVMBuildStore(builder, lp_build_const_int32(gallivm, 1), found_store);
+      LLVMBuildStore(builder, loop_state.counter, idx_store);
+      lp_build_endif(&ifthen);
+      lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
+                             NULL, LLVMIntUGE);
+
+      result[0] = LLVMBuildInsertElement(builder, bld->uint_bld.zero,
+                                         lp_build_const_int32(gallivm, -1),
+                                         LLVMBuildLoad2(builder, bld->int_bld.elem_type, idx_store, ""),
+                                         "");
+      result[0] = LLVMBuildICmp(builder, LLVMIntNE, result[0], lp_build_const_int_vec(gallivm, bld->int_bld.type, 0), "");
+   }
 }
 
-static LLVMValueRef build_reduction_identity_val(struct gallivm_state *gallivm,
-                                                 struct lp_build_context *int_bld,
-                                                 nir_op reduction_op,
-                                                 unsigned bit_size)
-{
-   nir_const_value const_val = nir_alu_binop_identity(reduction_op, bit_size);
-
-   return lp_build_const_int_vec(gallivm, lp_elem_type(int_bld->type),
-                                 nir_const_value_as_uint(const_val, bit_size));
-}
-
-static void emit_reduce(struct lp_build_nir_soa_context *bld, LLVMValueRef src,
+static void emit_reduce(struct lp_build_nir_soa_context *bld, nir_src *src_nir,
                         nir_intrinsic_instr *instr, LLVMValueRef result[4])
 {
    struct gallivm_state *gallivm = bld->base.gallivm;
    LLVMBuilderRef builder = gallivm->builder;
    uint32_t bit_size = nir_src_bit_size(instr->src[0]);
+   /* can't use llvm reduction intrinsics because of exec_mask */
    LLVMValueRef exec_mask = group_op_mask_vec(bld);
    nir_op reduction_op = nir_intrinsic_reduction_op(instr);
+
+   uint32_t cluster_size = 0;
+   uint32_t vector_length = bld->int_bld.type.length;
+   uint32_t subgroup_size = bld->chunks_per_subgroup * vector_length;
+
+   if (instr->intrinsic == nir_intrinsic_reduce)
+      cluster_size = nir_intrinsic_cluster_size(instr);
+
+   /* cluster_size 0 means full subgroup */
+   if (cluster_size == 0)
+      cluster_size = subgroup_size;
+
+   /*
+    * For multi-chunk subgroups during pass 1, not all chunks are available yet.
+    * Skip execution and return placeholder - pass 2 will compute the real result.
+    *
+    * IMPORTANT: We check if source exists for ALL chunks except the current one.
+    * If we're in chunk N during pass 1, chunks 0..N exist but N+1..end don't.
+    * We can only compute the full reduce when ALL chunks have been processed.
+    */
+   bool all_chunks_available = true;
+   if (bld->chunks_per_subgroup > 1) {
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         if (!get_src_for_chunk(bld, src_nir, 0, chunk)) {
+            all_chunks_available = false;
+            break;
+         }
+      }
+   }
+
+   if (!all_chunks_available) {
+      /* Return identity value as placeholder during pass 1 */
+      LLVMValueRef placeholder;
+      switch (reduction_op) {
+      case nir_op_iadd:
+      case nir_op_fadd:
+      case nir_op_ior:
+      case nir_op_ixor:
+         placeholder = lp_build_const_int_vec(gallivm, bld->int_bld.type, 0);
+         break;
+      case nir_op_imul:
+      case nir_op_fmul:
+      case nir_op_iand:
+         placeholder = lp_build_const_int_vec(gallivm, bld->int_bld.type, 1);
+         break;
+      default:
+         placeholder = lp_build_undef(gallivm, bld->int_bld.type);
+         break;
+      }
+      result[0] = placeholder;
+      return;
+   }
+
+   /*
+    * Fetch source vectors for chunks that have been processed.
+    * For multi-chunk subgroups during pass 1, only chunks 0..current_chunk exist.
+    * During pass 2, all chunks exist. We only aggregate from available chunks.
+    */
+   LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+   unsigned num_chunks_available = 0;
+
+   /* Check if source is uniform (chunk 0 returns NULL) */
+   LLVMValueRef first_chunk = get_src_for_chunk(bld, src_nir, 0, 0);
+   if (!first_chunk) {
+      /* Uniform value - fetch scalar, cast, then broadcast once */
+      LLVMValueRef scalar_src = get_src(bld, src_nir, 0);
+      scalar_src = cast_type(bld, scalar_src, nir_type_int, bit_size);
+      if (bit_size == 1) {
+         scalar_src = LLVMBuildZExt(builder, scalar_src, bld->uint8_bld.elem_type, "");
+      }
+      /* Use integer context for broadcast */
+      struct lp_build_context *broadcast_bld = get_int_bld(bld, true,
+                                                           bit_size == 1 ? 8 : bit_size, true);
+      LLVMValueRef broadcast_vec = lp_build_broadcast_scalar(broadcast_bld, scalar_src);
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         src_chunks[chunk] = broadcast_vec;
+      }
+      num_chunks_available = bld->chunks_per_subgroup;
+   } else {
+      /* Divergent value - fetch each chunk that exists */
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         LLVMValueRef src = (chunk == 0) ? first_chunk :
+                            get_src_for_chunk(bld, src_nir, 0, chunk);
+         if (!src) {
+            /* Chunk not yet processed - stop here during pass 1 */
+            break;
+         }
+         src = cast_type(bld, src, nir_type_int, bit_size);
+         if (bit_size == 1) {
+            src = LLVMBuildZExt(builder, src, bld->uint8_bld.vec_type, "");
+         }
+         src_chunks[chunk] = src;
+         num_chunks_available++;
+      }
+   }
+
+   uint32_t working_bit_size = bit_size;
+   if (bit_size == 1)
+      working_bit_size = 8;
+
+   LLVMValueRef res_store = NULL;
+   LLVMValueRef scan_store;
+   struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, true);
+
+   res_store = lp_build_alloca(gallivm, int_bld->vec_type, "");
+   scan_store = lp_build_alloca(gallivm, int_bld->elem_type, "");
+
+   struct lp_build_context elem_bld;
    bool is_flt = reduction_op == nir_op_fadd ||
       reduction_op == nir_op_fmul ||
       reduction_op == nir_op_fmin ||
@@ -2341,127 +2739,158 @@ static void emit_reduce(struct lp_build_nir_soa_context *bld, LLVMValueRef src,
    bool is_unsigned = reduction_op == nir_op_umin ||
       reduction_op == nir_op_umax;
 
-   uint32_t cluster_size = 0;
-
-   if (instr->intrinsic == nir_intrinsic_reduce)
-      cluster_size = nir_intrinsic_cluster_size(instr);
-
-   if (cluster_size == 0)
-      cluster_size = bld->int_bld.type.length;
-
-   if (bit_size == 1) {
-      bit_size = 8;
-      src = LLVMBuildZExt(builder, src, bld->uint8_bld.vec_type, "");
-   }
-
-   struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, true);
    struct lp_build_context *vec_bld = is_flt ? get_flt_bld(bld, bit_size, true) :
       get_int_bld(bld, is_unsigned, bit_size, true);
 
-   /*
-    * For a reduce operation with the correct cluster size, the llvm
-    * intrinsics can be used as long as the exec_mask is taken into account.
-    * Values are defaulted in disabled lanes depending on the operation.
-    */
-   if (instr->intrinsic == nir_intrinsic_reduce &&
-       cluster_size == bld->int_bld.type.length) {
-      char intrinsic[64];
-      uint32_t length = vec_bld->type.length;
-      uint32_t src_width = bit_size;
-
-      src = LLVMBuildBitCast(builder, src, int_bld->vec_type, "");
-      if (bit_size < 32)
-         exec_mask = LLVMBuildTrunc(builder, exec_mask, int_bld->vec_type, "");
-      if (bit_size > 32)
-         exec_mask = LLVMBuildSExt(builder, exec_mask, int_bld->vec_type, "");
-      LLVMValueRef masked_val = lp_build_and(int_bld, src, exec_mask);
-      const char *opname;
-
-      switch (reduction_op) {
-      case nir_op_iadd: opname = "add"; break;
-      case nir_op_iand: opname = "and"; break;
-      case nir_op_ior: opname = "or"; break;
-      case nir_op_ixor: opname = "xor"; break;
-      case nir_op_imul: opname = "mul"; break;
-      case nir_op_fadd: opname = "fadd"; break;
-      case nir_op_fmul: opname = "fmul"; break;
-      case nir_op_imin: opname = "smin"; break;
-      case nir_op_umin: opname = "umin"; break;
-      case nir_op_fmin: opname = "fmin"; break;
-      case nir_op_imax: opname = "smax"; break;
-      case nir_op_umax: opname = "umax"; break;
-      case nir_op_fmax: opname = "fmax"; break;
-      default:
-	 UNREACHABLE("Unhandled reduction operation");
-      };
-      snprintf(intrinsic, sizeof intrinsic, "llvm.vector.reduce.%s.v%u%s%u",
-               opname,
-               length, is_flt ? "f" : "i" , src_width);
-
-      LLVMValueRef init_val = build_reduction_identity_val(gallivm,
-                                                           int_bld,
-                                                           reduction_op,
-                                                           bit_size);
-      if (init_val) {
-         init_val = lp_build_broadcast_scalar(int_bld, init_val);
-         init_val = lp_build_andnot(int_bld, init_val, exec_mask);
-         masked_val = lp_build_or(int_bld, masked_val, init_val);
-      }
-      if (is_flt)
-         masked_val = LLVMBuildBitCast(builder, masked_val, vec_bld->vec_type, "");
-
-      LLVMValueRef args[2];
-      int num_args = 1;
-
-      if (reduction_op == nir_op_fadd ||
-          reduction_op == nir_op_fmul) {
-         if (reduction_op == nir_op_fmul) {
-            args[0] = lp_build_const_elem(gallivm, vec_bld->type, 1);
-         } else {
-            args[0] = lp_build_const_elem(gallivm, vec_bld->type, -0.0);
-         }
-         args[1] = masked_val;
-         num_args++;
-      } else {
-         args[0] = masked_val;
-      }
-
-      LLVMValueRef res = lp_build_intrinsic(builder, intrinsic, vec_bld->elem_type, args, num_args, 0);
-
-      result[0] = lp_build_broadcast(gallivm, vec_bld->vec_type, res);
-
-      if (instr->def.bit_size == 1)
-         result[0] = LLVMBuildICmp(builder, LLVMIntNE, result[0], int_bld->zero, "");
-      return;
-   }
-
-   LLVMValueRef res_store = NULL;
-   LLVMValueRef scan_store;
-
-   res_store = lp_build_alloca(gallivm, int_bld->vec_type, "");
-   scan_store = lp_build_alloca(gallivm, int_bld->elem_type, "");
-
-   struct lp_build_context elem_bld;
-
    lp_build_context_init(&elem_bld, gallivm, lp_elem_type(vec_bld->type));
 
-   LLVMValueRef store_val = build_reduction_identity_val(gallivm, int_bld, reduction_op, bit_size);
+   LLVMValueRef store_val = NULL;
    /*
     * Put the identity value for the operation into the storage
     */
+   switch (reduction_op) {
+   case nir_op_fmin: {
+      LLVMValueRef flt_max = bit_size == 64 ? LLVMConstReal(LLVMDoubleTypeInContext(gallivm->context), INFINITY) :
+         (bit_size == 16 ? LLVMConstReal(LLVMHalfTypeInContext(gallivm->context), INFINITY) : lp_build_const_float(gallivm, INFINITY));
+      store_val = LLVMBuildBitCast(builder, flt_max, int_bld->elem_type, "");
+      break;
+   }
+   case nir_op_fmax: {
+      LLVMValueRef flt_min = bit_size == 64 ? LLVMConstReal(LLVMDoubleTypeInContext(gallivm->context), -INFINITY) :
+         (bit_size == 16 ? LLVMConstReal(LLVMHalfTypeInContext(gallivm->context), -INFINITY) : lp_build_const_float(gallivm, -INFINITY));
+      store_val = LLVMBuildBitCast(builder, flt_min, int_bld->elem_type, "");
+      break;
+   }
+   case nir_op_fmul: {
+      LLVMValueRef flt_one = bit_size == 64 ? LLVMConstReal(LLVMDoubleTypeInContext(gallivm->context), 1.0) :
+         (bit_size == 16 ? LLVMConstReal(LLVMHalfTypeInContext(gallivm->context), 1.0) : lp_build_const_float(gallivm, 1.0));
+      store_val = LLVMBuildBitCast(builder, flt_one, int_bld->elem_type, "");
+      break;
+   }
+   case nir_op_umin:
+      switch (bit_size) {
+      case 8:
+         store_val = LLVMConstInt(LLVMInt8TypeInContext(gallivm->context), UINT8_MAX, 0);
+         break;
+      case 16:
+         store_val = LLVMConstInt(LLVMInt16TypeInContext(gallivm->context), UINT16_MAX, 0);
+         break;
+      case 32:
+      default:
+         store_val  = lp_build_const_int32(gallivm, UINT_MAX);
+         break;
+      case 64:
+         store_val  = lp_build_const_int64(gallivm, UINT64_MAX);
+         break;
+      }
+      break;
+   case nir_op_imin:
+      switch (bit_size) {
+      case 8:
+         store_val = LLVMConstInt(LLVMInt8TypeInContext(gallivm->context), INT8_MAX, 0);
+         break;
+      case 16:
+         store_val = LLVMConstInt(LLVMInt16TypeInContext(gallivm->context), INT16_MAX, 0);
+         break;
+      case 32:
+      default:
+         store_val  = lp_build_const_int32(gallivm, INT_MAX);
+         break;
+      case 64:
+         store_val  = lp_build_const_int64(gallivm, INT64_MAX);
+         break;
+      }
+      break;
+   case nir_op_imax:
+      switch (bit_size) {
+      case 8:
+         store_val = LLVMConstInt(LLVMInt8TypeInContext(gallivm->context), INT8_MIN, 0);
+         break;
+      case 16:
+         store_val = LLVMConstInt(LLVMInt16TypeInContext(gallivm->context), INT16_MIN, 0);
+         break;
+      case 32:
+      default:
+         store_val  = lp_build_const_int32(gallivm, INT_MIN);
+         break;
+      case 64:
+         store_val  = lp_build_const_int64(gallivm, INT64_MIN);
+         break;
+      }
+      break;
+   case nir_op_imul:
+      switch (bit_size) {
+      case 8:
+         store_val = LLVMConstInt(LLVMInt8TypeInContext(gallivm->context), 1, 0);
+         break;
+      case 16:
+         store_val = LLVMConstInt(LLVMInt16TypeInContext(gallivm->context), 1, 0);
+         break;
+      case 32:
+      default:
+         store_val  = lp_build_const_int32(gallivm, 1);
+         break;
+      case 64:
+         store_val  = lp_build_const_int64(gallivm, 1);
+         break;
+      }
+      break;
+   case nir_op_iand:
+      switch (bit_size) {
+      case 8:
+         store_val = LLVMConstInt(LLVMInt8TypeInContext(gallivm->context), 0xff, 0);
+         break;
+      case 16:
+         store_val = LLVMConstInt(LLVMInt16TypeInContext(gallivm->context), 0xffff, 0);
+         break;
+      case 32:
+      default:
+         store_val  = lp_build_const_int32(gallivm, 0xffffffff);
+         break;
+      case 64:
+         store_val  = lp_build_const_int64(gallivm, 0xffffffffffffffffLL);
+         break;
+      }
+      break;
+   default:
+      break;
+   }
    if (store_val)
       LLVMBuildStore(builder, store_val, scan_store);
 
    LLVMValueRef outer_cond = LLVMBuildICmp(builder, LLVMIntNE, exec_mask, bld->uint_bld.zero, "");
 
-   for (uint32_t i = 0; i < bld->uint_bld.type.length; i++) {
-      LLVMValueRef counter = lp_build_const_int32(gallivm, i);
+   /*
+    * For multi-vector subgroups, we iterate over available lanes across available chunks.
+    * Lane i is in chunk (i / vector_length) at position (i % vector_length).
+    *
+    * During pass 1, we only have partial chunks available, so we compute partial results.
+    * During pass 2, all chunks are available and we compute final results.
+    *
+    * For reduce: accumulate across all available lanes in the cluster, then broadcast
+    * the result. Since reduce returns the same value for all lanes in the
+    * cluster, we only need to store one result and broadcast it.
+    *
+    * For scan: each lane needs its own prefix result. This requires storing
+    * results back to each chunk, which is more complex. For now, scans with
+    * multi-chunk subgroups are only partially supported (chunk 0 only).
+    */
+   bool is_reduce = (instr->intrinsic == nir_intrinsic_reduce);
+
+   /* For reduce, iterate over available chunks; for scan, stay within vector */
+   uint32_t available_lanes = num_chunks_available * vector_length;
+   uint32_t lane_count = is_reduce ? available_lanes : vector_length;
+
+   for (uint32_t i = 0; i < lane_count; i++) {
+      uint32_t chunk_idx = i / vector_length;
+      uint32_t lane_in_chunk = i % vector_length;
+      LLVMValueRef counter = lp_build_const_int32(gallivm, lane_in_chunk);
 
       struct lp_build_if_state ifthen;
       LLVMValueRef if_cond = LLVMBuildExtractElement(gallivm->builder, outer_cond, counter, "");
       lp_build_if(&ifthen, gallivm, if_cond);
 
-      LLVMValueRef value = LLVMBuildExtractElement(gallivm->builder, src, counter, "");
+      LLVMValueRef value = LLVMBuildExtractElement(gallivm->builder, src_chunks[chunk_idx], counter, "");
 
       LLVMValueRef res = NULL;
       LLVMValueRef scan_val = LLVMBuildLoad2(gallivm->builder, int_bld->elem_type, scan_store, "");
@@ -2531,7 +2960,13 @@ static void emit_reduce(struct lp_build_nir_soa_context *bld, LLVMValueRef src,
          else
             LLVMBuildStore(builder, LLVMConstNull(int_bld->elem_type), scan_store);
 
-         LLVMValueRef cluster_index = lp_build_const_int32(gallivm, i / cluster_size);
+         /*
+          * For multi-chunk clusters, the cluster_index needs to account for
+          * which chunk we're building the result for. Since reduce returns
+          * the same value for all lanes in the cluster, we'll broadcast it
+          * to all lanes below.
+          */
+         LLVMValueRef cluster_index = lp_build_const_int32(gallivm, (i / cluster_size) % (vector_length / MIN2(cluster_size, vector_length)));
          res = LLVMBuildInsertElement(builder, res, scan_val, cluster_index, "");
 
          LLVMBuildStore(builder, res, res_store);
@@ -2541,13 +2976,27 @@ static void emit_reduce(struct lp_build_nir_soa_context *bld, LLVMValueRef src,
    LLVMValueRef res = LLVMBuildLoad2(gallivm->builder, int_bld->vec_type, res_store, "");
 
    if (instr->intrinsic == nir_intrinsic_reduce) {
-      LLVMValueRef swizzle[LP_MAX_VECTOR_LENGTH];
-      for (uint32_t i = 0; i < bld->int_bld.type.length; i++)
-         swizzle[i] = lp_build_const_int32(gallivm, i / cluster_size);
+      /*
+       * For full-subgroup reduce (cluster_size >= vector_length), all lanes
+       * get the same value. Build a splat vector with the final result.
+       * For clustered reduce within a vector, use the shuffle to broadcast
+       * each cluster's result to its lanes.
+       */
+      if (cluster_size >= vector_length) {
+         /* Full subgroup or multi-chunk cluster - broadcast scalar to all lanes */
+         LLVMValueRef final_val = LLVMBuildLoad2(gallivm->builder, int_bld->elem_type, scan_store, "");
+         /* Wait, we reset scan_store - need the last stored value */
+         final_val = LLVMBuildExtractElement(builder, res, lp_build_const_int32(gallivm, 0), "");
+         result[0] = lp_build_broadcast(gallivm, int_bld->vec_type, final_val);
+      } else {
+         LLVMValueRef swizzle[LP_MAX_VECTOR_LENGTH];
+         for (uint32_t i = 0; i < vector_length; i++)
+            swizzle[i] = lp_build_const_int32(gallivm, i / cluster_size);
 
-      LLVMValueRef undef = LLVMGetUndef(int_bld->vec_type);
-      result[0] = LLVMBuildShuffleVector(
-         builder, res, undef, LLVMConstVector(swizzle, bld->int_bld.type.length), "");
+         LLVMValueRef undef = LLVMGetUndef(int_bld->vec_type);
+         result[0] = LLVMBuildShuffleVector(
+            builder, res, undef, LLVMConstVector(swizzle, vector_length), "");
+      }
    } else {
       result[0] = res;
    }
@@ -2557,33 +3006,113 @@ static void emit_reduce(struct lp_build_nir_soa_context *bld, LLVMValueRef src,
 }
 
 static void emit_read_invocation(struct lp_build_nir_soa_context *bld,
-                                 LLVMValueRef src,
+                                 nir_src *src_nir,
                                  unsigned bit_size,
                                  LLVMValueRef invoc,
                                  LLVMValueRef result[4])
 {
    struct gallivm_state *gallivm = bld->base.gallivm;
+   LLVMBuilderRef builder = gallivm->builder;
+   uint32_t vector_length = bld->base.type.length;
 
-   if (!lp_value_is_divergent(src)) {
-      result[0] = src;
-      return;
-   }
-
-   if (invoc && !lp_value_is_divergent(invoc)) {
-      result[0] = LLVMBuildExtractElement(gallivm->builder, src, invoc, "");
-      return;
-   }
-
-   LLVMValueRef idx = first_active_invocation(bld, false);
-
-   /* If we're emitting readInvocation() (as opposed to readFirstInvocation),
-    * use the first active channel to pull the invocation index number out of
-    * the invocation arg.
+   /*
+    * For multi-chunk subgroups during pass 1, not all chunks are available yet.
+    * Skip execution and return placeholder - pass 2 will compute the real result.
     */
-   if (invoc)
-      idx = LLVMBuildExtractElement(gallivm->builder, invoc, idx, "");
+   if (bld->chunks_per_subgroup > 1) {
+      bool all_chunks_available = true;
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         if (!get_src_for_chunk(bld, src_nir, 0, chunk)) {
+            all_chunks_available = false;
+            break;
+         }
+      }
+      if (!all_chunks_available) {
+         /* Uniform source or pass 1 placeholder */
+         LLVMValueRef uniform_src = get_src(bld, src_nir, 0);
+         if (!lp_value_is_divergent(uniform_src)) {
+            result[0] = uniform_src;
+         } else {
+            struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, false);
+            result[0] = lp_build_const_int_vec(int_bld->gallivm, int_bld->type, 0);
+         }
+         return;
+      }
+   }
 
-   result[0] = LLVMBuildExtractElement(gallivm->builder, src, idx, "");
+   /*
+    * For multi-chunk subgroups: invocation index can reference any lane
+    * across all chunks. Fetch all chunks and select from the right one.
+    */
+   if (bld->chunks_per_subgroup > 1) {
+      /* Fetch source from all chunks */
+      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+      bool is_uniform = true;
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         LLVMValueRef chunk_src = get_src_for_chunk(bld, src_nir, 0, chunk);
+         if (chunk_src) {
+            is_uniform = false;
+            src_chunks[chunk] = chunk_src;
+         }
+      }
+
+      if (is_uniform) {
+         /* Uniform source - just return it */
+         result[0] = get_src(bld, src_nir, 0);
+         return;
+      }
+
+      /* Determine which lane to read from */
+      LLVMValueRef idx;
+      if (invoc && !lp_value_is_divergent(invoc)) {
+         /* Uniform invocation index */
+         idx = invoc;
+      } else {
+         /* Read first active invocation */
+         idx = first_active_invocation(bld, false);
+         if (invoc)
+            idx = LLVMBuildExtractElement(builder, invoc, idx, "");
+      }
+
+      /* Convert lane index to chunk + lane_in_chunk */
+      LLVMValueRef chunk_idx = LLVMBuildUDiv(builder, idx,
+         lp_build_const_int32(gallivm, vector_length), "");
+      LLVMValueRef lane_idx = LLVMBuildURem(builder, idx,
+         lp_build_const_int32(gallivm, vector_length), "");
+
+      /* Select from the appropriate chunk */
+      LLVMValueRef res = NULL;
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         LLVMValueRef chunk_match = LLVMBuildICmp(builder, LLVMIntEQ, chunk_idx,
+            lp_build_const_int32(gallivm, chunk), "");
+         LLVMValueRef chunk_val = LLVMBuildExtractElement(builder, src_chunks[chunk], lane_idx, "");
+         if (res)
+            res = LLVMBuildSelect(builder, chunk_match, chunk_val, res, "");
+         else
+            res = chunk_val;
+      }
+
+      result[0] = res;
+   } else {
+      /* Single chunk: use original implementation */
+      LLVMValueRef src = get_src(bld, src_nir, 0);
+
+      if (!lp_value_is_divergent(src)) {
+         result[0] = src;
+         return;
+      }
+
+      if (invoc && !lp_value_is_divergent(invoc)) {
+         result[0] = LLVMBuildExtractElement(gallivm->builder, src, invoc, "");
+         return;
+      }
+
+      LLVMValueRef idx = first_active_invocation(bld, false);
+      if (invoc)
+         idx = LLVMBuildExtractElement(gallivm->builder, invoc, idx, "");
+
+      result[0] = LLVMBuildExtractElement(gallivm->builder, src, idx, "");
+   }
 }
 
 static void
@@ -2923,8 +3452,18 @@ get_instr_src_vec(struct lp_build_nir_soa_context *bld, nir_instr *instr, uint32
 
    bool divergent = lp_nir_instr_src_divergent(instr, src_index);
 
+   /*
+    * SSA layout uses ssa_stride slots per value:
+    * - Uniform: offset 0..NIR_MAX_VEC_COMPONENTS-1
+    * - Divergent: offset NIR_MAX_VEC_COMPONENTS + chunk*NIR_MAX_VEC_COMPONENTS + c
+    *
+    * For multi-chunk subgroups, bld->current_chunk determines which chunk slot we read from.
+    */
+   unsigned base = src->ssa->index * bld->ssa_stride;
+   unsigned chunk_offset = NIR_MAX_VEC_COMPONENTS + bld->current_chunk * NIR_MAX_VEC_COMPONENTS;
+   unsigned offset = divergent ? chunk_offset : 0;
    memcpy(src_values,
-          &bld->ssa_defs[src->ssa->index * NIR_MAX_VEC_COMPONENTS * 2 + divergent * NIR_MAX_VEC_COMPONENTS],
+          &bld->ssa_defs[base + offset],
           sizeof(LLVMValueRef) * nir_src_num_components(*src));
 
    for (uint32_t c = 0; c < nir_src_num_components(*src); c++) {
@@ -2937,7 +3476,7 @@ get_instr_src_vec(struct lp_build_nir_soa_context *bld, nir_instr *instr, uint32
        */
       assert(!divergent);
       src_values[c] = LLVMBuildExtractElement(
-         builder, bld->ssa_defs[src->ssa->index * NIR_MAX_VEC_COMPONENTS * 2 + NIR_MAX_VEC_COMPONENTS + c],
+         builder, bld->ssa_defs[base + chunk_offset + c],
          first_active_invocation(bld, true), "");
    }
 }
@@ -2951,12 +3490,33 @@ get_src_vec(struct lp_build_nir_soa_context *bld, uint32_t src_index, LLVMValueR
 static LLVMValueRef
 get_src(struct lp_build_nir_soa_context *bld, nir_src *src, uint32_t component)
 {
-   if (nir_src_is_if(src))
-      return bld->ssa_defs[src->ssa->index * NIR_MAX_VEC_COMPONENTS * 2 + NIR_MAX_VEC_COMPONENTS + component];
+   if (nir_src_is_if(src)) {
+      /* If sources are always divergent (chunk 0 for now) */
+      unsigned base = src->ssa->index * bld->ssa_stride;
+      return bld->ssa_defs[base + NIR_MAX_VEC_COMPONENTS + component];
+   }
 
    LLVMValueRef result[NIR_MAX_VEC_COMPONENTS] = { NULL };
    get_instr_src_vec(bld, nir_src_parent_instr(src), get_src_index(src), result);
    return result[component];
+}
+
+/*
+ * Get a divergent SSA value for a specific chunk.
+ * For Option A multi-vector subgroups, divergent values are stored as:
+ *   chunk 0: base + NIR_MAX_VEC_COMPONENTS + 0*NIR_MAX_VEC_COMPONENTS + component
+ *   chunk 1: base + NIR_MAX_VEC_COMPONENTS + 1*NIR_MAX_VEC_COMPONENTS + component
+ *   etc.
+ *
+ * This function returns NULL if the value at chunk 0 is not set (uniform value).
+ */
+static LLVMValueRef
+get_src_for_chunk(struct lp_build_nir_soa_context *bld, nir_src *src,
+                  uint32_t component, uint32_t chunk)
+{
+   unsigned base = src->ssa->index * bld->ssa_stride;
+   unsigned offset = NIR_MAX_VEC_COMPONENTS + chunk * NIR_MAX_VEC_COMPONENTS + component;
+   return bld->ssa_defs[base + offset];
 }
 
 static void
@@ -3016,17 +3576,35 @@ assign_ssa_dest(struct lp_build_nir_soa_context *bld, const nir_def *ssa,
       used_by_divergent |= use_divergent;
    }
 
+   /*
+    * SSA layout uses ssa_stride slots per value:
+    * - Uniform: base + 0..NIR_MAX_VEC_COMPONENTS-1
+    * - Divergent: base + NIR_MAX_VEC_COMPONENTS + chunk*NIR_MAX_VEC_COMPONENTS + c
+    *
+    * For multi-chunk subgroups, bld->current_chunk determines which chunk slot we store to.
+    */
+   unsigned base = ssa->index * bld->ssa_stride;
+   unsigned chunk_offset = NIR_MAX_VEC_COMPONENTS + bld->current_chunk * NIR_MAX_VEC_COMPONENTS;
+
    for (uint32_t c = 0; c < ssa->num_components; c++) {
       char name[64];
       sprintf(name, "ssa_%u", ssa->index);
       LLVMSetValueName(vals[c], name);
 
-      if (lp_value_is_divergent(vals[c])) {
-         bld->ssa_defs[ssa->index * NIR_MAX_VEC_COMPONENTS * 2 + NIR_MAX_VEC_COMPONENTS + c] = vals[c];
+      /*
+       * Check both NIR divergence analysis and LLVM type:
+       * - NIR marks subgroup operations as divergent even when they return scalars
+       * - LLVM vector types indicate per-lane divergent values
+       * For multi-chunk subgroups, divergent values must be stored per-chunk
+       */
+      bool is_divergent = ssa->divergent || lp_value_is_divergent(vals[c]);
+
+      if (is_divergent) {
+         bld->ssa_defs[base + chunk_offset + c] = vals[c];
       } else {
-         bld->ssa_defs[ssa->index * NIR_MAX_VEC_COMPONENTS * 2 + c] = vals[c];
+         bld->ssa_defs[base + c] = vals[c];
          if (used_by_divergent) {
-            bld->ssa_defs[ssa->index * NIR_MAX_VEC_COMPONENTS * 2 + NIR_MAX_VEC_COMPONENTS + c] =
+            bld->ssa_defs[base + chunk_offset + c] =
                lp_build_broadcast(gallivm, LLVMVectorType(LLVMTypeOf(vals[c]), bld->base.type.length), vals[c]);
          }
       }
@@ -4800,42 +5378,110 @@ static void visit_shuffle(struct lp_build_nir_soa_context *bld,
    struct gallivm_state *gallivm = bld->base.gallivm;
    LLVMBuilderRef builder = gallivm->builder;
 
-   LLVMValueRef src = get_src(bld, &instr->src[0], 0);
-   src = cast_type(bld, src, nir_type_int,
-                   nir_src_bit_size(instr->src[0]));
-   LLVMValueRef index = get_src(bld, &instr->src[1], 0);
-   index = cast_type(bld, index, nir_type_uint,
-                     nir_src_bit_size(instr->src[1]));
-
    uint32_t bit_size = nir_src_bit_size(instr->src[0]);
    uint32_t index_bit_size = nir_src_bit_size(instr->src[1]);
    struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, true);
+   uint32_t vector_length = bld->base.type.length;
 
-   if (util_get_cpu_caps()->has_avx2 && bit_size == 32 && index_bit_size == 32 && int_bld->type.length == 8) {
-      /* freeze `src` in case inactive invocations contain poison */
-      src = LLVMBuildFreeze(builder, src, "");
-      result[0] = lp_build_intrinsic_binary(builder, "llvm.x86.avx2.permd", int_bld->vec_type, src, index);
-   } else {
+   /*
+    * For multi-chunk subgroups during pass 1, not all chunks are available yet.
+    * Skip execution and return placeholder - pass 2 will compute the real result.
+    */
+   if (bld->chunks_per_subgroup > 1) {
+      bool all_chunks_available = true;
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         if (!get_src_for_chunk(bld, &instr->src[0], 0, chunk)) {
+            all_chunks_available = false;
+            break;
+         }
+      }
+      if (!all_chunks_available) {
+         result[0] = lp_build_const_int_vec(gallivm, int_bld->type, 0);
+         return;
+      }
+   }
+
+   /*
+    * For multi-chunk subgroups: shuffle can reference any lane in the logical subgroup.
+    * We need to flatten all chunks into a single array, then shuffle from that.
+    */
+   if (bld->chunks_per_subgroup > 1) {
+      /* Fetch source values from all chunks */
+      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         LLVMValueRef chunk_src = get_src_for_chunk(bld, &instr->src[0], 0, chunk);
+         if (!chunk_src) {
+            /* Uniform - broadcast to vector */
+            chunk_src = get_src(bld, &instr->src[0], 0);
+            chunk_src = lp_build_broadcast_scalar(int_bld, chunk_src);
+         }
+         chunk_src = cast_type(bld, chunk_src, nir_type_int, bit_size);
+         src_chunks[chunk] = chunk_src;
+      }
+
+      /* Get index for current chunk */
+      LLVMValueRef index = get_src(bld, &instr->src[1], 0);
+      index = cast_type(bld, index, nir_type_uint, index_bit_size);
+
+      /* For each lane in current chunk, extract from appropriate source chunk */
       LLVMValueRef res_store = lp_build_alloca(gallivm, int_bld->vec_type, "");
-      struct lp_build_loop_state loop_state;
-      lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
+      for (unsigned lane = 0; lane < vector_length; lane++) {
+         LLVMValueRef lane_idx = lp_build_const_int32(gallivm, lane);
+         LLVMValueRef index_value = LLVMBuildExtractElement(builder, index, lane_idx, "");
 
-      LLVMValueRef index_value = LLVMBuildExtractElement(builder, index, loop_state.counter, "");
+         /* Determine which chunk and which lane within that chunk */
+         LLVMValueRef src_chunk_idx = LLVMBuildUDiv(builder, index_value,
+            lp_build_const_int32(gallivm, vector_length), "");
+         LLVMValueRef src_lane_idx = LLVMBuildURem(builder, index_value,
+            lp_build_const_int32(gallivm, vector_length), "");
 
-      LLVMValueRef src_value = LLVMBuildExtractElement(builder, src, index_value, "");
-      /* freeze `src_value` in case an out-of-bounds index or an index into an
-       * inactive invocation results in poison
-       */
-      src_value = LLVMBuildFreeze(builder, src_value, "");
+         /* Extract value from the appropriate chunk */
+         LLVMValueRef src_value = NULL;
+         for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+            LLVMValueRef chunk_match = LLVMBuildICmp(builder, LLVMIntEQ, src_chunk_idx,
+               lp_build_const_int32(gallivm, chunk), "");
+            LLVMValueRef chunk_val = LLVMBuildExtractElement(builder, src_chunks[chunk], src_lane_idx, "");
+            if (src_value)
+               src_value = LLVMBuildSelect(builder, chunk_match, chunk_val, src_value, "");
+            else
+               src_value = chunk_val;
+         }
 
-      LLVMValueRef res = LLVMBuildLoad2(builder, int_bld->vec_type, res_store, "");
-      res = LLVMBuildInsertElement(builder, res, src_value, loop_state.counter, "");
-      LLVMBuildStore(builder, res, res_store);
-
-      lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
-                             NULL, LLVMIntUGE);
+         src_value = LLVMBuildFreeze(builder, src_value, "");
+         LLVMValueRef res = LLVMBuildLoad2(builder, int_bld->vec_type, res_store, "");
+         res = LLVMBuildInsertElement(builder, res, src_value, lane_idx, "");
+         LLVMBuildStore(builder, res, res_store);
+      }
 
       result[0] = LLVMBuildLoad2(builder, int_bld->vec_type, res_store, "");
+   } else {
+      /* Single chunk: use original implementation */
+      LLVMValueRef src = get_src(bld, &instr->src[0], 0);
+      src = cast_type(bld, src, nir_type_int, bit_size);
+      LLVMValueRef index = get_src(bld, &instr->src[1], 0);
+      index = cast_type(bld, index, nir_type_uint, index_bit_size);
+
+      if (util_get_cpu_caps()->has_avx2 && bit_size == 32 && index_bit_size == 32 && int_bld->type.length == 8) {
+         src = LLVMBuildFreeze(builder, src, "");
+         result[0] = lp_build_intrinsic_binary(builder, "llvm.x86.avx2.permd", int_bld->vec_type, src, index);
+      } else {
+         LLVMValueRef res_store = lp_build_alloca(gallivm, int_bld->vec_type, "");
+         struct lp_build_loop_state loop_state;
+         lp_build_loop_begin(&loop_state, gallivm, lp_build_const_int32(gallivm, 0));
+
+         LLVMValueRef index_value = LLVMBuildExtractElement(builder, index, loop_state.counter, "");
+         LLVMValueRef src_value = LLVMBuildExtractElement(builder, src, index_value, "");
+         src_value = LLVMBuildFreeze(builder, src_value, "");
+
+         LLVMValueRef res = LLVMBuildLoad2(builder, int_bld->vec_type, res_store, "");
+         res = LLVMBuildInsertElement(builder, res, src_value, loop_state.counter, "");
+         LLVMBuildStore(builder, res, res_store);
+
+         lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
+                                NULL, LLVMIntUGE);
+
+         result[0] = LLVMBuildLoad2(builder, int_bld->vec_type, res_store, "");
+      }
    }
 }
 #endif
@@ -5142,7 +5788,7 @@ visit_intrinsic(struct lp_build_nir_soa_context *bld,
    case nir_intrinsic_vote_any:
    case nir_intrinsic_vote_ieq:
    case nir_intrinsic_vote_feq:
-      emit_vote(bld, cast_type(bld, get_src(bld, &instr->src[0], 0), nir_type_int, nir_src_bit_size(instr->src[0])), instr, result);
+      emit_vote(bld, &instr->src[0], instr, result);
       break;
    case nir_intrinsic_elect:
       emit_elect(bld, result);
@@ -5150,10 +5796,10 @@ visit_intrinsic(struct lp_build_nir_soa_context *bld,
    case nir_intrinsic_reduce:
    case nir_intrinsic_inclusive_scan:
    case nir_intrinsic_exclusive_scan:
-      emit_reduce(bld, cast_type(bld, get_src(bld, &instr->src[0], 0), nir_type_int, nir_src_bit_size(instr->src[0])), instr, result);
+      emit_reduce(bld, &instr->src[0], instr, result);
       break;
    case nir_intrinsic_ballot:
-      emit_ballot(bld, get_src(bld, &instr->src[0], 0), instr, result);
+      emit_ballot(bld, &instr->src[0], instr, result);
       break;
 #if LLVM_VERSION_MAJOR >= 10
    case nir_intrinsic_shuffle:
@@ -5162,14 +5808,11 @@ visit_intrinsic(struct lp_build_nir_soa_context *bld,
 #endif
    case nir_intrinsic_read_invocation:
    case nir_intrinsic_read_first_invocation: {
-      LLVMValueRef src0 = get_src(bld, &instr->src[0], 0);
-      src0 = cast_type(bld, src0, nir_type_int, nir_src_bit_size(instr->src[0]));
-
       LLVMValueRef src1 = NULL;
       if (instr->intrinsic == nir_intrinsic_read_invocation)
          src1 = cast_type(bld, get_src(bld, &instr->src[1], 0), nir_type_int, nir_src_bit_size(instr->src[1]));
 
-      emit_read_invocation(bld, src0, nir_src_bit_size(instr->src[0]), src1, result);
+      emit_read_invocation(bld, &instr->src[0], nir_src_bit_size(instr->src[0]), src1, result);
       break;
    }
    case nir_intrinsic_interp_deref_at_offset:
@@ -5694,49 +6337,119 @@ visit_block(struct lp_build_nir_soa_context *bld, nir_block *block)
 {
    struct gallivm_state *gallivm = bld->base.gallivm;
 
-   nir_foreach_instr(instr, block)
-   {
-      bld->instr = instr;
+   /*
+    * For multi-chunk subgroups: use two-pass processing.
+    * Pass 1: Process all per-chunk instructions for each chunk
+    * Pass 2: Process cross-chunk operations after all chunks are done
+    *
+    * This is necessary because cross-chunk operations need values from all chunks,
+    * but those values don't exist until all chunks have been processed.
+    */
+   for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+      bld->current_chunk = chunk;
 
-      if (gallivm->di_builder && gallivm->file_name && instr->has_debug_info) {
-         nir_instr_debug_info *debug_info = nir_instr_get_debug_info(instr);
-         LLVMMetadataRef di_loc = LLVMDIBuilderCreateDebugLocation(
-            gallivm->context, debug_info->nir_line, 1, gallivm->di_function, NULL);
-         LLVMSetCurrentDebugLocation2(gallivm->builder, di_loc);
+      nir_foreach_instr(instr, block)
+      {
+         bld->instr = instr;
 
-         LLVMBuildStore(gallivm->builder, mask_vec(bld), bld->debug_exec_mask);
+         if (gallivm->di_builder && gallivm->file_name && instr->has_debug_info) {
+            nir_instr_debug_info *debug_info = nir_instr_get_debug_info(instr);
+            LLVMMetadataRef di_loc = LLVMDIBuilderCreateDebugLocation(
+               gallivm->context, debug_info->nir_line, 1, gallivm->di_function, NULL);
+            LLVMSetCurrentDebugLocation2(gallivm->builder, di_loc);
+
+            LLVMBuildStore(gallivm->builder, mask_vec(bld), bld->debug_exec_mask);
+         }
+
+         switch (instr->type) {
+         case nir_instr_type_alu:
+            visit_alu(bld, nir_instr_as_alu(instr));
+            break;
+         case nir_instr_type_load_const:
+            visit_load_const(bld, nir_instr_as_load_const(instr));
+            break;
+         case nir_instr_type_intrinsic:
+            visit_intrinsic(bld, nir_instr_as_intrinsic(instr));
+            break;
+         case nir_instr_type_tex:
+            visit_tex(bld, nir_instr_as_tex(instr));
+            break;
+         case nir_instr_type_undef:
+            visit_ssa_undef(bld, nir_instr_as_undef(instr));
+            break;
+         case nir_instr_type_jump:
+            visit_jump(bld, nir_instr_as_jump(instr));
+            break;
+         case nir_instr_type_deref:
+            visit_deref(bld, nir_instr_as_deref(instr));
+            break;
+         case nir_instr_type_call:
+            visit_call(bld, nir_instr_as_call(instr));
+            break;
+         default:
+            fprintf(stderr, "Unknown NIR instr type: ");
+            nir_print_instr(instr, stderr);
+            fprintf(stderr, "\n");
+            abort();
+         }
       }
+   }
 
-      switch (instr->type) {
-      case nir_instr_type_alu:
-         visit_alu(bld, nir_instr_as_alu(instr));
-         break;
-      case nir_instr_type_load_const:
-         visit_load_const(bld, nir_instr_as_load_const(instr));
-         break;
-      case nir_instr_type_intrinsic:
-         visit_intrinsic(bld, nir_instr_as_intrinsic(instr));
-         break;
-      case nir_instr_type_tex:
-         visit_tex(bld, nir_instr_as_tex(instr));
-         break;
-      case nir_instr_type_undef:
-         visit_ssa_undef(bld, nir_instr_as_undef(instr));
-         break;
-      case nir_instr_type_jump:
-         visit_jump(bld, nir_instr_as_jump(instr));
-         break;
-      case nir_instr_type_deref:
-         visit_deref(bld, nir_instr_as_deref(instr));
-         break;
-      case nir_instr_type_call:
-         visit_call(bld, nir_instr_as_call(instr));
-         break;
-      default:
-         fprintf(stderr, "Unknown NIR instr type: ");
-         nir_print_instr(instr, stderr);
-         fprintf(stderr, "\n");
-         abort();
+   /*
+    * Pass 2: Process ALL instructions after all chunks have been computed.
+    * This ensures instructions that depend on cross-chunk operations see
+    * the correct values computed in pass 2, rather than the placeholders
+    * from pass 1.
+    */
+   if (bld->chunks_per_subgroup > 1) {
+      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+         bld->current_chunk = chunk;
+
+         nir_foreach_instr(instr, block)
+         {
+            bld->instr = instr;
+
+            if (gallivm->di_builder && gallivm->file_name && instr->has_debug_info) {
+               nir_instr_debug_info *debug_info = nir_instr_get_debug_info(instr);
+               LLVMMetadataRef di_loc = LLVMDIBuilderCreateDebugLocation(
+                  gallivm->context, debug_info->nir_line, 1, gallivm->di_function, NULL);
+               LLVMSetCurrentDebugLocation2(gallivm->builder, di_loc);
+
+               LLVMBuildStore(gallivm->builder, mask_vec(bld), bld->debug_exec_mask);
+            }
+
+            switch (instr->type) {
+            case nir_instr_type_alu:
+               visit_alu(bld, nir_instr_as_alu(instr));
+               break;
+            case nir_instr_type_load_const:
+               visit_load_const(bld, nir_instr_as_load_const(instr));
+               break;
+            case nir_instr_type_intrinsic:
+               visit_intrinsic(bld, nir_instr_as_intrinsic(instr));
+               break;
+            case nir_instr_type_tex:
+               visit_tex(bld, nir_instr_as_tex(instr));
+               break;
+            case nir_instr_type_undef:
+               visit_ssa_undef(bld, nir_instr_as_undef(instr));
+               break;
+            case nir_instr_type_jump:
+               visit_jump(bld, nir_instr_as_jump(instr));
+               break;
+            case nir_instr_type_deref:
+               visit_deref(bld, nir_instr_as_deref(instr));
+               break;
+            case nir_instr_type_call:
+               visit_call(bld, nir_instr_as_call(instr));
+               break;
+            default:
+               fprintf(stderr, "Unknown NIR instr type: ");
+               nir_print_instr(instr, stderr);
+               fprintf(stderr, "\n");
+               abort();
+            }
+         }
       }
    }
 }
@@ -6021,6 +6734,18 @@ void lp_build_nir_soa_func(struct gallivm_state *gallivm,
 
    bld.shader = shader;
 
+   /*
+    * For Option A multi-vector subgroups: compute chunks_per_subgroup at compile time.
+    * This is lp_subgroup_size / vector_length.
+    *
+    * ssa_stride = NIR_MAX_VEC_COMPONENTS * (1 + chunks_per_subgroup)
+    *   - 1 set for uniform (scalar) values
+    *   - chunks_per_subgroup sets for divergent vector values
+    */
+   bld.chunks_per_subgroup = lp_subgroup_size / type.length;
+   assert(bld.chunks_per_subgroup >= 1);
+   bld.ssa_stride = NIR_MAX_VEC_COMPONENTS * (1 + bld.chunks_per_subgroup);
+
    bld.scratch_size = align(shader->scratch_size, 8);
    if (params->scratch_ptr)
       bld.scratch_ptr = params->scratch_ptr;
@@ -6111,7 +6836,8 @@ void lp_build_nir_soa_func(struct gallivm_state *gallivm,
    }
 
    nir_divergence_analysis_impl(impl, impl->function->shader->options->divergence_analysis_options);
-   bld.ssa_defs = calloc(impl->ssa_alloc * NIR_MAX_VEC_COMPONENTS * 2, sizeof(LLVMValueRef));
+   /* Allocate SSA storage using the stride computed above */
+   bld.ssa_defs = calloc(impl->ssa_alloc * bld.ssa_stride, sizeof(LLVMValueRef));
    visit_cf_list(&bld, &impl->body);
 
    free(bld.ssa_defs);

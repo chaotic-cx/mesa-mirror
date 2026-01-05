@@ -69,10 +69,16 @@ lp_build_opt_nir(struct nir_shader *nir)
       nir_lower_tex_options options = { .lower_invalid_implicit_lod = true, };
       NIR_PASS(_, nir, nir_lower_tex, &options);
 
+      /*
+       * Use lp_subgroup_size for the logical subgroup size.
+       * This can be larger than the vector width, in which case we execute
+       * multiple vector iterations per subgroup and accumulate results.
+       * ballot_components is sized to fit the subgroup size.
+       */
       const nir_lower_subgroups_options subgroups_options = {
-         .subgroup_size = lp_native_vector_width / 32,
+         .subgroup_size = lp_subgroup_size,
          .ballot_bit_size = 32,
-         .ballot_components = 1,
+         .ballot_components = (lp_subgroup_size + 31) / 32,
          .lower_to_scalar = true,
          .lower_subgroup_masks = true,
          .lower_relative_shuffle = true,

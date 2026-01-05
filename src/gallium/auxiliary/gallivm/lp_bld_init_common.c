@@ -27,6 +27,8 @@
 
 #include "util/u_debug.h"
 #include "util/u_cpu_detect.h"
+#include "util/u_math.h"
+#include "lp_bld.h"
 #include "lp_bld_debug.h"
 #include "lp_bld_init.h"
 #include "lp_bld_type.h"
@@ -65,6 +67,7 @@ static const struct debug_named_value lp_bld_debug_flags[] = {
 DEBUG_GET_ONCE_FLAGS_OPTION(gallivm_debug, "GALLIVM_DEBUG", lp_bld_debug_flags, 0)
 
 unsigned lp_native_vector_width;
+unsigned lp_subgroup_size;
 
 unsigned
 lp_build_init_native_width(void)
@@ -75,6 +78,20 @@ lp_build_init_native_width(void)
 
    lp_native_vector_width = debug_get_num_option("LP_NATIVE_VECTOR_WIDTH", lp_native_vector_width);
    assert(lp_native_vector_width);
+
+   /*
+    * Logical subgroup size can be larger than the vector width.
+    * Default to vector width for backward compatibility, but allow
+    * LP_SUBGROUP_SIZE to request larger subgroups (e.g., 32 for AVX2).
+    * The subgroup will be executed as multiple vector iterations.
+    */
+   lp_subgroup_size = lp_native_vector_width / 32;
+   lp_subgroup_size = debug_get_num_option("LP_SUBGROUP_SIZE", lp_subgroup_size);
+   /* Must be power of two and at least vector width */
+   assert(lp_subgroup_size >= lp_native_vector_width / 32);
+   assert(util_is_power_of_two_nonzero(lp_subgroup_size));
+   /* Cap at 128 for sanity */
+   lp_subgroup_size = MIN2(lp_subgroup_size, 128);
 
    return lp_native_vector_width;
 }

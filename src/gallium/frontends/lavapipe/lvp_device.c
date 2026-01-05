@@ -883,6 +883,9 @@ lvp_get_features(const struct lvp_physical_device *pdevice,
    };
 }
 
+extern unsigned lp_native_vector_width;
+extern unsigned lp_subgroup_size;
+
 static VkImageLayout lvp_host_copy_image_layouts[] = {
    VK_IMAGE_LAYOUT_GENERAL,
    VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
@@ -1044,7 +1047,7 @@ lvp_get_properties(const struct lvp_physical_device *device, struct vk_propertie
       .deviceLUIDValid = false,
       .deviceNodeMask = 0,
 
-      .subgroupSize = lp_native_vector_width / 32,
+      .subgroupSize = lp_subgroup_size,
       .subgroupSupportedStages = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT | VK_SHADER_STAGE_TASK_BIT_EXT | VK_SHADER_STAGE_MESH_BIT_EXT,
       .subgroupSupportedOperations = VK_SUBGROUP_FEATURE_BASIC_BIT | VK_SUBGROUP_FEATURE_VOTE_BIT | VK_SUBGROUP_FEATURE_ARITHMETIC_BIT | VK_SUBGROUP_FEATURE_BALLOT_BIT,
       .subgroupQuadOperationsInAllStages = true,
@@ -1122,8 +1125,8 @@ lvp_get_properties(const struct lvp_physical_device *device, struct vk_propertie
       .framebufferIntegerColorSampleCounts = VK_SAMPLE_COUNT_1_BIT, /* LVP_SAMPLE_COUNTS? */
 
       /* Vulkan 1.3 */
-      .minSubgroupSize = lp_native_vector_width / 32,
-      .maxSubgroupSize = lp_native_vector_width / 32,
+      .minSubgroupSize = lp_subgroup_size,
+      .maxSubgroupSize = lp_subgroup_size,
       .maxComputeWorkgroupSubgroups = 32,
       .requiredSubgroupSizeStages = VK_SHADER_STAGE_FRAGMENT_BIT | VK_SHADER_STAGE_COMPUTE_BIT,
       .maxInlineUniformTotalSize = MAX_DESCRIPTOR_UNIFORM_BLOCK_SIZE * MAX_PER_STAGE_DESCRIPTOR_UNIFORM_BLOCKS * MAX_SETS,

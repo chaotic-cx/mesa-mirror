@@ -187,6 +187,20 @@ struct lp_bld_tgsi_system_values {
    LLVMValueRef view_index;
    LLVMValueRef subgroup_id;
    LLVMValueRef num_subgroups;
+
+   /*
+    * For Option A multi-vector subgroups (lp_subgroup_size > vector_length):
+    * - base_invocation: first invocation index for this logical subgroup (scalar)
+    * - subgroup_chunk_id: which vector chunk within the current subgroup (0..chunks_per_subgroup-1)
+    * - chunks_per_subgroup: number of vector chunks per logical subgroup
+    *
+    * The inner chunk loop uses base_invocation to compute per-chunk thread_id:
+    *   chunk_invocation[lane] = base_invocation + chunk * vec_length + lane
+    *   thread_id[dim] = f(chunk_invocation, block_size)
+    */
+   LLVMValueRef base_invocation;
+   LLVMValueRef subgroup_chunk_id;
+   LLVMValueRef chunks_per_subgroup;
 };
 
 
