@@ -467,6 +467,15 @@ do_triangle_ccw(struct lp_setup_context *setup,
    tri->inputs.viewport_index = viewport_index;
    tri->inputs.view_index = setup->view_index;
 
+   /* Store reference point for interpolation (vertex 0 position minus pixel center offset).
+    * This matches what the JIT computes as x0_center/y0_center.
+    */
+   {
+      float pixel_center = setup->setup.variant->key.pixel_center_half ? 0.5f : 0.0f;
+      tri->inputs.x_ref = v0[0][0] - pixel_center;
+      tri->inputs.y_ref = v0[0][1] - pixel_center;
+   }
+
    if (0)
       lp_dump_setup_coef(&setup->setup.variant->key,
                          GET_A0(&tri->inputs),

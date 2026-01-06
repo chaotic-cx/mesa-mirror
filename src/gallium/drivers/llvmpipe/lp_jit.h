@@ -191,6 +191,8 @@ enum {
  * @param a0            shader input a0
  * @param dadx          shader input dadx
  * @param dady          shader input dady
+ * @param x_ref         interpolation reference x (vertex 0 position)
+ * @param y_ref         interpolation reference y (vertex 0 position)
  * @param color         color buffer
  * @param depth         depth buffer
  * @param mask          mask of visible pixels in block (16-bits per sample)
@@ -207,6 +209,8 @@ typedef void
                     const void *a0,
                     const void *dadx,
                     const void *dady,
+                    float x_ref,
+                    float y_ref,
                     uint8_t **color,
                     uint8_t *depth,
                     uint64_t mask0,

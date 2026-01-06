@@ -343,6 +343,13 @@ try_rect_cw(struct lp_setup_context *setup,
    rect->inputs.viewport_index = viewport_index;
    rect->inputs.view_index = setup->view_index;
 
+   /* Store reference point for interpolation (vertex 0 position minus pixel center offset) */
+   {
+      float pixel_center = setup->setup.variant->key.pixel_center_half ? 0.5f : 0.0f;
+      rect->inputs.x_ref = v0[0][0] - pixel_center;
+      rect->inputs.y_ref = v0[0][1] - pixel_center;
+   }
+
    return lp_setup_bin_rectangle(setup, rect, variant->opaque);
 }
 

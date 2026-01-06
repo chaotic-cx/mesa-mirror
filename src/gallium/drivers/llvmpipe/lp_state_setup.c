@@ -358,17 +358,16 @@ load_attribute(struct gallivm_state *gallivm,
 
 
 /*
- * FIXME: interpolation is always done wrt fb origin (0/0).
- * However, if some (small) tri is far away from the origin and gradients
- * are large, this can lead to HUGE errors, since the a0 value calculated
- * here can get very large (with the actual values inside the triangle way
- * smaller), leading to complete loss of accuracy. This could be prevented
- * by using some point inside (or at corner) of the tri as interpolation
- * origin, or just use barycentric interpolation (which GL suggests and is
- * what real hw does - you can get the barycentric coordinates from the
- * edge functions in rasterization in principle (though we skip these
- * sometimes completely in case of tris covering a block fully,
- * which obviously wouldn't work)).
+ * Calculate interpolation coefficients for a triangle attribute.
+ *
+ * We store the attribute value at vertex 0 (not extrapolated to the origin)
+ * along with the gradients dadx and dady. The shader uses a reference point
+ * (x_ref, y_ref) stored in the inputs structure to compute:
+ *   attr = a0 + dadx * (x - x_ref) + dady * (y - y_ref)
+ *
+ * This avoids precision loss that would occur if we extrapolated a0 to the
+ * framebuffer origin (0,0) - for triangles far from the origin with large
+ * gradients, that extrapolation would involve subtracting huge values.
  */
 static void
 calc_coef4(struct gallivm_state *gallivm,
@@ -379,13 +378,10 @@ calc_coef4(struct gallivm_state *gallivm,
            LLVMValueRef out[3])
 {
    LLVMBuilderRef b = gallivm->builder;
-   LLVMValueRef attr_0;
    LLVMValueRef dy20_ooa = args->dy20_ooa;
    LLVMValueRef dy01_ooa = args->dy01_ooa;
    LLVMValueRef dx20_ooa = args->dx20_ooa;
    LLVMValueRef dx01_ooa = args->dx01_ooa;
-   LLVMValueRef x0_center = args->x0_center;
-   LLVMValueRef y0_center = args->y0_center;
    LLVMValueRef da01 = LLVMBuildFSub(b, a0, a1, "da01");
    LLVMValueRef da20 = LLVMBuildFSub(b, a2, a0, "da20");
 
@@ -401,14 +397,11 @@ calc_coef4(struct gallivm_state *gallivm,
    LLVMValueRef da20_dx01_ooa = LLVMBuildFMul(b, da20, dx01_ooa, "da20_dx01_ooa");
    LLVMValueRef dady          = LLVMBuildFSub(b, da20_dx01_ooa, da01_dx20_ooa, "dady");
 
-   /* Calculate a0 - the attribute value at the origin
+   /* a0 is stored as the attribute value at vertex 0, not at the origin.
+    * The reference point (x_ref, y_ref) is stored separately in the inputs
+    * structure so the shader can compute: a0 + dadx*(x-x_ref) + dady*(y-y_ref)
     */
-   LLVMValueRef dadx_x0    = LLVMBuildFMul(b, dadx, x0_center, "dadx_x0");
-   LLVMValueRef dady_y0    = LLVMBuildFMul(b, dady, y0_center, "dady_y0");
-   LLVMValueRef attr_v0    = LLVMBuildFAdd(b, dadx_x0, dady_y0, "attr_v0");
-   attr_0                  = LLVMBuildFSub(b, a0, attr_v0, "attr_0");
-
-   out[0] = attr_0;
+   out[0] = a0;
    out[1] = dadx;
    out[2] = dady;
 }

@@ -3175,7 +3175,7 @@ generate_fragment(struct llvmpipe_context *lp,
    struct lp_shader_input inputs[PIPE_MAX_SHADER_INPUTS];
    LLVMTypeRef fs_elem_type;
    LLVMTypeRef blend_vec_type;
-   LLVMTypeRef arg_types[17];
+   LLVMTypeRef arg_types[19];
    LLVMTypeRef func_type;
    LLVMTypeRef int32_type = LLVMInt32TypeInContext(gallivm->context);
    LLVMTypeRef int32p_type = LLVMPointerType(int32_type, 0);
@@ -3254,22 +3254,24 @@ generate_fragment(struct llvmpipe_context *lp,
             partial_mask ? "partial" : "whole");
 
    arg_types[0] = variant->jit_context_ptr_type;       /* context */
-   arg_types[1] = variant->jit_resources_ptr_type;       /* context */
+   arg_types[1] = variant->jit_resources_ptr_type;     /* resources */
    arg_types[2] = int32_type;                          /* x */
    arg_types[3] = int32_type;                          /* y */
    arg_types[4] = int32_type;                          /* facing */
    arg_types[5] = LLVMPointerType(fs_elem_type, 0);    /* a0 */
    arg_types[6] = LLVMPointerType(fs_elem_type, 0);    /* dadx */
    arg_types[7] = LLVMPointerType(fs_elem_type, 0);    /* dady */
-   arg_types[8] = LLVMPointerType(int8p_type, 0);  /* color */
-   arg_types[9] = int8p_type;       /* depth */
-   arg_types[10] = LLVMInt64TypeInContext(gallivm->context);  /* mask_input0 */
-   arg_types[11] = LLVMInt64TypeInContext(gallivm->context);  /* mask_input1 */
-   arg_types[12] = variant->jit_thread_data_ptr_type;  /* per thread data */
-   arg_types[13] = int32p_type;     /* stride */
-   arg_types[14] = int32_type;                         /* depth_stride */
-   arg_types[15] = int32p_type;     /* color sample strides */
-   arg_types[16] = int32_type;                         /* depth sample stride */
+   arg_types[8] = LLVMFloatTypeInContext(gallivm->context);   /* x_ref */
+   arg_types[9] = LLVMFloatTypeInContext(gallivm->context);   /* y_ref */
+   arg_types[10] = LLVMPointerType(int8p_type, 0); /* color */
+   arg_types[11] = int8p_type;      /* depth */
+   arg_types[12] = LLVMInt64TypeInContext(gallivm->context);  /* mask_input0 */
+   arg_types[13] = LLVMInt64TypeInContext(gallivm->context);  /* mask_input1 */
+   arg_types[14] = variant->jit_thread_data_ptr_type;  /* per thread data */
+   arg_types[15] = int32p_type;     /* stride */
+   arg_types[16] = int32_type;                         /* depth_stride */
+   arg_types[17] = int32p_type;     /* color sample strides */
+   arg_types[18] = int32_type;                         /* depth sample stride */
 
    func_type = LLVMFunctionType(LLVMVoidTypeInContext(gallivm->context),
                                 arg_types, ARRAY_SIZE(arg_types), 0);
@@ -3303,15 +3305,17 @@ generate_fragment(struct llvmpipe_context *lp,
    a0_ptr       = LLVMGetParam(function, 5);
    dadx_ptr     = LLVMGetParam(function, 6);
    dady_ptr     = LLVMGetParam(function, 7);
-   color_ptr_ptr = LLVMGetParam(function, 8);
-   depth_ptr    = LLVMGetParam(function, 9);
-   mask_input0  = LLVMGetParam(function, 10);
-   mask_input1  = LLVMGetParam(function, 11);
-   thread_data_ptr  = LLVMGetParam(function, 12);
-   stride_ptr   = LLVMGetParam(function, 13);
-   depth_stride = LLVMGetParam(function, 14);
-   color_sample_stride_ptr = LLVMGetParam(function, 15);
-   depth_sample_stride = LLVMGetParam(function, 16);
+   LLVMValueRef x_ref = LLVMGetParam(function, 8);
+   LLVMValueRef y_ref = LLVMGetParam(function, 9);
+   color_ptr_ptr = LLVMGetParam(function, 10);
+   depth_ptr    = LLVMGetParam(function, 11);
+   mask_input0  = LLVMGetParam(function, 12);
+   mask_input1  = LLVMGetParam(function, 13);
+   thread_data_ptr  = LLVMGetParam(function, 14);
+   stride_ptr   = LLVMGetParam(function, 15);
+   depth_stride = LLVMGetParam(function, 16);
+   color_sample_stride_ptr = LLVMGetParam(function, 17);
+   depth_sample_stride = LLVMGetParam(function, 18);
 
    lp_build_name(context_ptr, "context");
    lp_build_name(resources_ptr, "resources");
@@ -3320,6 +3324,8 @@ generate_fragment(struct llvmpipe_context *lp,
    lp_build_name(a0_ptr, "a0");
    lp_build_name(dadx_ptr, "dadx");
    lp_build_name(dady_ptr, "dady");
+   lp_build_name(x_ref, "x_ref");
+   lp_build_name(y_ref, "y_ref");
    lp_build_name(color_ptr_ptr, "color_ptr_ptr");
    lp_build_name(depth_ptr, "depth");
    lp_build_name(mask_input0, "mask_input0");
@@ -3507,7 +3513,8 @@ generate_fragment(struct llvmpipe_context *lp,
                                num_loop,
                                builder, fs_type, smask_val,
                                a0_ptr, dadx_ptr, dady_ptr,
-                               x, y);
+                               x, y,
+                               x_ref, y_ref);
 
       generate_fs_loop(gallivm,
                        shader, key,

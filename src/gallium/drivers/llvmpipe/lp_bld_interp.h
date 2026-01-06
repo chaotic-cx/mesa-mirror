@@ -97,6 +97,8 @@ struct lp_build_interp_soa_context
 
    LLVMValueRef x;
    LLVMValueRef y;
+   LLVMValueRef x_ref;  /* interpolation reference point (vertex 0 position) */
+   LLVMValueRef y_ref;
 
    LLVMValueRef a0_ptr;
    LLVMValueRef dadx_ptr;
@@ -137,7 +139,9 @@ lp_build_interp_soa_init(struct lp_build_interp_soa_context *bld,
                          LLVMValueRef dadx_ptr,
                          LLVMValueRef dady_ptr,
                          LLVMValueRef x,
-                         LLVMValueRef y);
+                         LLVMValueRef y,
+                         LLVMValueRef x_ref,
+                         LLVMValueRef y_ref);
 
 void
 lp_build_interp_soa_update_inputs_dyn(struct lp_build_interp_soa_context *bld,

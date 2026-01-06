@@ -118,7 +118,8 @@ struct lp_rast_shader_inputs {
    unsigned layer:11;
    unsigned view_index:14;
    unsigned stride;             /* how much to advance data between a0, dadx, dady */
-   unsigned pad[2];
+   float x_ref;                 /* reference x coordinate for interpolation */
+   float y_ref;                 /* reference y coordinate for interpolation */
    /* followed by a0, dadx, dady and planes[] */
 };
 

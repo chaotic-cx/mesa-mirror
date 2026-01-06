@@ -383,10 +383,20 @@ attribs_update_simple(struct lp_build_interp_soa_context *bld,
                        &loop_iter, 1, "");
    pixoffy = LLVMBuildLoad2(builder, bld->store_elem_type, ptr, "");
 
+   /* Compute pixel coordinates relative to the interpolation reference point.
+    * This is (pixel_x - x_ref, pixel_y - y_ref) where x_ref/y_ref is the
+    * position of vertex 0. This avoids precision loss that would occur if
+    * we computed coordinates relative to the framebuffer origin for triangles
+    * far from the origin.
+    */
    pixoffx = LLVMBuildFAdd(builder, pixoffx,
                            lp_build_broadcast_scalar(coeff_bld, bld->x), "");
    pixoffy = LLVMBuildFAdd(builder, pixoffy,
                            lp_build_broadcast_scalar(coeff_bld, bld->y), "");
+   pixoffx = LLVMBuildFSub(builder, pixoffx,
+                           lp_build_broadcast_scalar(coeff_bld, bld->x_ref), "");
+   pixoffy = LLVMBuildFSub(builder, pixoffy,
+                           lp_build_broadcast_scalar(coeff_bld, bld->y_ref), "");
 
    for (unsigned attrib = start; attrib < end; attrib++) {
       const unsigned mask = bld->mask[attrib];
@@ -637,10 +647,15 @@ lp_build_interp_soa(struct lp_build_interp_soa_context *bld,
                        &loop_iter, 1, "");
    pixoffy = LLVMBuildLoad2(builder, bld->store_elem_type, ptr, "");
 
+   /* Compute pixel coordinates relative to the interpolation reference point */
    pixoffx = LLVMBuildFAdd(builder, pixoffx,
                            lp_build_broadcast_scalar(coeff_bld, bld->x), "");
    pixoffy = LLVMBuildFAdd(builder, pixoffy,
                            lp_build_broadcast_scalar(coeff_bld, bld->y), "");
+   pixoffx = LLVMBuildFSub(builder, pixoffx,
+                           lp_build_broadcast_scalar(coeff_bld, bld->x_ref), "");
+   pixoffy = LLVMBuildFSub(builder, pixoffy,
+                           lp_build_broadcast_scalar(coeff_bld, bld->y_ref), "");
 
    LLVMValueRef pix_center_offset = lp_build_const_vec(gallivm,
                                                        coeff_bld->type, 0.5);
@@ -797,7 +812,9 @@ lp_build_interp_soa_init(struct lp_build_interp_soa_context *bld,
                          LLVMValueRef dadx_ptr,
                          LLVMValueRef dady_ptr,
                          LLVMValueRef x0,
-                         LLVMValueRef y0)
+                         LLVMValueRef y0,
+                         LLVMValueRef x_ref,
+                         LLVMValueRef y_ref)
 {
    struct lp_type coeff_type;
    struct lp_type setup_type;
@@ -928,6 +945,10 @@ lp_build_interp_soa_init(struct lp_build_interp_soa_context *bld,
    }
 
    pos_init(bld, x0, y0);
+
+   /* Store reference point for interpolation */
+   bld->x_ref = x_ref;
+   bld->y_ref = y_ref;
 
    /*
     * Simple method (single step interpolation) may be slower if vector length
