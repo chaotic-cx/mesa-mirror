@@ -149,11 +149,9 @@ lp_setup_is_blit(const struct lp_setup_context *setup,
       const struct lp_jit_texture *texture =
          &setup->fs.current.jit_resources.textures[0];
 
-      /* XXX: dadx vs dady confusion below?
-       */
       const float dsdx = GET_DADX(inputs)[1][0] * texture->width;
-      const float dsdy = GET_DADX(inputs)[1][1] * texture->width;
-      const float dtdx = GET_DADY(inputs)[1][0] * texture->height;
+      const float dsdy = GET_DADY(inputs)[1][0] * texture->width;
+      const float dtdx = GET_DADX(inputs)[1][1] * texture->height;
       const float dtdy = GET_DADY(inputs)[1][1] * texture->height;
 
       /*
