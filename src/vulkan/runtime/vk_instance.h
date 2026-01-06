@@ -32,7 +32,9 @@
 #include "util/simple_mtx.h"
 #include "util/u_debug.h"
 
+#if HAVE_RENDERDOC_INTEGRATION
 #include "renderdoc_app.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -180,9 +182,11 @@ struct vk_instance {
    /** Whether the capture mode is per-submit. */
    bool trace_per_submit;
 
+#if HAVE_RENDERDOC_INTEGRATION
    /** For triggering renderdoc captures from inside the driver. */
    simple_mtx_t renderdoc_mtx;
    RENDERDOC_API_1_0_0 *renderdoc_api;
+#endif
 };
 
 VK_DEFINE_HANDLE_CASTS(vk_instance, base, VkInstance,

@@ -504,7 +504,7 @@
         "description": "vk/runtime,zink: only integrate renderdoc on supported platforms",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "48a0478126ffd4e0bc1585e424cd90e8a0be36aa",
         "notes": null

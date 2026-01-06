@@ -116,11 +116,13 @@ zink_context_destroy(struct pipe_context *pctx)
    struct pipe_framebuffer_state fb = {0};
    pctx->set_framebuffer_state(pctx, &fb);
 
+#if HAVE_RENDERDOC_INTEGRATION
    if (screen->base.num_contexts == 1 && screen->renderdoc_capturing) {
       screen->renderdoc_capture_all = false;
       ctx->bs->has_work = true;
       pctx->flush(pctx, NULL, 0);
    }
+#endif
 
    if (util_queue_is_initialized(&screen->flush_queue))
       util_queue_finish(&screen->flush_queue);
@@ -4219,7 +4221,9 @@ zink_flush(struct pipe_context *pctx,
    }
 
    if (flags & PIPE_FLUSH_END_OF_FRAME) {
+#if HAVE_RENDERDOC_INTEGRATION
       p_atomic_inc(&screen->renderdoc_frame);
+#endif
       if (ctx->needs_present && ctx->needs_present->obj->dt_idx != UINT32_MAX &&
           zink_is_swapchain(ctx->needs_present)) {
          zink_kopper_readback_update(ctx, ctx->needs_present);

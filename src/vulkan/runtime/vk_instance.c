@@ -210,7 +210,9 @@ vk_instance_init(struct vk_instance *instance,
       instance->trace_trigger_file = secure_getenv("MESA_VK_TRACE_TRIGGER");
    }
 
+#if HAVE_RENDERDOC_INTEGRATION
    simple_mtx_init(&instance->renderdoc_mtx, mtx_plain);
+#endif
 
 #if !VK_LITE_RUNTIME_INSTANCE
    glsl_type_singleton_init_or_ref();
@@ -238,7 +240,9 @@ vk_instance_finish(struct vk_instance *instance)
    glsl_type_singleton_decref();
 #endif
 
+#if HAVE_RENDERDOC_INTEGRATION
    simple_mtx_destroy(&instance->renderdoc_mtx);
+#endif
 
    if (unlikely(!list_is_empty(&instance->debug_utils.callbacks))) {
       list_for_each_entry_safe(struct vk_debug_utils_messenger, messenger,
@@ -647,7 +651,7 @@ vk_icdNegotiateLoaderICDInterfaceVersion(uint32_t *pSupportedVersion)
 void
 vk_instance_start_renderdoc_capture(struct vk_instance *instance)
 {
-#ifndef _WIN32
+#if HAVE_RENDERDOC_INTEGRATION
    simple_mtx_lock(&instance->renderdoc_mtx);
 
    if (!instance->renderdoc_api) {
@@ -669,6 +673,7 @@ vk_instance_start_renderdoc_capture(struct vk_instance *instance)
 void
 vk_instance_end_renderdoc_capture(struct vk_instance *instance)
 {
+#if HAVE_RENDERDOC_INTEGRATION
    if (!instance->renderdoc_api)
       return;
 
@@ -678,4 +683,5 @@ vk_instance_end_renderdoc_capture(struct vk_instance *instance)
       instance->renderdoc_api->EndFrameCapture(NULL, NULL);
 
    simple_mtx_unlock(&instance->renderdoc_mtx);
+#endif
 }

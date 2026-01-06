@@ -1543,8 +1543,10 @@ zink_destroy_screen(struct pipe_screen *pscreen)
       }
    }
 
+#if HAVE_RENDERDOC_INTEGRATION
    if (screen->renderdoc_capture_all && p_atomic_dec_zero(&num_screens))
       screen->renderdoc_api->EndFrameCapture(RENDERDOC_DEVICEPOINTER_FROM_VKINSTANCE(screen->instance), NULL);
+#endif
 
    hash_table_foreach(&screen->dts, entry)
       zink_kopper_deinit_displaytarget(screen, entry->data);
@@ -2324,7 +2326,7 @@ populate_format_props(struct zink_screen *screen)
 static void
 setup_renderdoc(struct zink_screen *screen)
 {
-#ifndef _WIN32
+#if HAVE_RENDERDOC_INTEGRATION
    const char *capture_id = debug_get_option("ZINK_RENDERDOC", NULL);
    if (!capture_id)
       return;

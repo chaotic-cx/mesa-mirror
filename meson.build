@@ -2182,6 +2182,13 @@ if get_option('android-libperfetto').enabled()
   pre_args += '-DANDROID_LIBPERFETTO'
 endif
 
+# Platforms where RenderDoc integration actually works
+renderdoc_integration_supported = [
+  'linux',
+  'android',
+].contains(host_machine.system())
+pre_args += '-DHAVE_RENDERDOC_INTEGRATION=@0@'.format(renderdoc_integration_supported)
+
 with_teflon = get_option('teflon')
 if with_teflon and with_tests
   dep_flatbuffers = dependency('flatbuffers')

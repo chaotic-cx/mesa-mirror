@@ -66,7 +66,9 @@
 #include "vk_dispatch_table.h"
 #include "util/perf/cpu_trace.h"
 
+#if HAVE_RENDERDOC_INTEGRATION
 #include "renderdoc_app.h"
+#endif
 
 /* the descriptor binding id for fbfetch/input attachment */
 #define ZINK_FBFETCH_BINDING 5
@@ -1487,12 +1489,14 @@ struct zink_screen {
 
    unsigned screen_id;
 
+#if HAVE_RENDERDOC_INTEGRATION
    RENDERDOC_API_1_0_0 *renderdoc_api;
    unsigned renderdoc_capture_start;
    unsigned renderdoc_capture_end;
    unsigned renderdoc_frame;
    bool renderdoc_capturing;
    bool renderdoc_capture_all;
+#endif
 
    struct vk_uncompacted_dispatch_table vk;
 
