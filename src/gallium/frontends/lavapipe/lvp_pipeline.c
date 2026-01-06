@@ -577,6 +577,17 @@ lvp_shader_compile_to_ir(struct lvp_pipeline *pipeline, const void *pipeline_pNe
       struct lvp_shader *shader = &pipeline->shaders[stage];
       lvp_shader_init(shader, nir);
       shader->push_constant_size = pipeline->layout->push_constant_size;
+
+      /* Check for requested subgroup size */
+      const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo *subgroup_size_info =
+         vk_find_struct_const(sinfo->pNext, PIPELINE_SHADER_STAGE_REQUIRED_SUBGROUP_SIZE_CREATE_INFO);
+      if (subgroup_size_info) {
+         shader->subgroup_size = subgroup_size_info->requiredSubgroupSize;
+         nir->info.api_subgroup_size = subgroup_size_info->requiredSubgroupSize;
+      } else {
+         shader->subgroup_size = 0; /* use default */
+         nir->info.api_subgroup_size = 0; /* use default */
+      }
    }
    return result;
 }

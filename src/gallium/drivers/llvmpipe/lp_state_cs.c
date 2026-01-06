@@ -1173,7 +1173,8 @@ make_variant_key(struct llvmpipe_context *lp,
     */
    key->nr_samplers = BITSET_LAST_BIT(nir->info.samplers_used);
    key->nr_sampler_views = BITSET_LAST_BIT(nir->info.textures_used);
-   key->subgroup_size = lp_subgroup_size;
+   /* Use shader-requested subgroup size if specified, otherwise use global default */
+   key->subgroup_size = nir->info.api_subgroup_size ? nir->info.api_subgroup_size : lp_subgroup_size;
    struct lp_sampler_static_state *cs_sampler;
 
    cs_sampler = lp_cs_variant_key_samplers(key);
@@ -1387,7 +1388,14 @@ generate_variant(struct llvmpipe_context *lp,
       variant->jit_prim_type = LLVMArrayType(LLVMArrayType(LLVMFloatTypeInContext(variant->gallivm->context), 4), per_prim_count);
    }
 
+   /* Temporarily set lp_subgroup_size to the variant's requested size for code generation */
+   unsigned saved_subgroup_size = lp_subgroup_size;
+   lp_subgroup_size = key->subgroup_size;
+
    generate_compute(lp, shader, variant);
+
+   /* Restore global subgroup size */
+   lp_subgroup_size = saved_subgroup_size;
 
 #if GALLIVM_USE_ORCJIT
 /* module has been moved into ORCJIT after gallivm_compile_module */
