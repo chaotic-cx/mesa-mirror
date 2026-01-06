@@ -1173,6 +1173,7 @@ make_variant_key(struct llvmpipe_context *lp,
     */
    key->nr_samplers = BITSET_LAST_BIT(nir->info.samplers_used);
    key->nr_sampler_views = BITSET_LAST_BIT(nir->info.textures_used);
+   key->subgroup_size = lp_subgroup_size;
    struct lp_sampler_static_state *cs_sampler;
 
    cs_sampler = lp_cs_variant_key_samplers(key);
@@ -1234,6 +1235,7 @@ dump_cs_variant_key(const struct lp_compute_shader_variant_key *key)
 {
    int i;
    debug_printf("cs variant %p:\n", (void *) key);
+   debug_printf("  .subgroup_size = %u\n", key->subgroup_size);
 
    for (i = 0; i < key->nr_samplers; ++i) {
       const struct lp_sampler_static_state *samplers = lp_cs_variant_key_samplers(key);

@@ -41,6 +41,7 @@ struct lp_compute_shader_variant_key
    unsigned nr_samplers:8;
    unsigned nr_sampler_views:8;
    unsigned nr_images:8;
+   unsigned subgroup_size:8;  /* LP_SUBGROUP_SIZE: cache per subgroup size */
 };
 
 #define LP_CS_MAX_VARIANT_KEY_SIZE                                      \
