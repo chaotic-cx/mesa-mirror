@@ -357,11 +357,25 @@ try_setup_line(struct lp_setup_context *setup,
       float x_offset = 0, y_offset=0;
       float x_offset_end = 0, y_offset_end = 0;
 
-      /* FIXME: not taking into account setup->pixel_offset here is wrong. */
-      float x1diff = v1[0][0] - floorf(v1[0][0]) - 0.5f;
-      float y1diff = v1[0][1] - floorf(v1[0][1]) - 0.5f;
-      float x2diff = v2[0][0] - floorf(v2[0][0]) - 0.5f;
-      float y2diff = v2[0][1] - floorf(v2[0][1]) - 0.5f;
+      /*
+       * Compute the distance from each vertex to its pixel center.
+       * The pixel center is at floor(v + 0.5 - pixel_offset) + pixel_offset,
+       * so the distance is v - floor(v + 0.5 - pixel_offset) - pixel_offset.
+       */
+      const float half_minus_offset = 0.5f - pixel_offset;
+      float x1diff = v1[0][0] - floorf(v1[0][0] + half_minus_offset) - pixel_offset;
+      float y1diff = v1[0][1] - floorf(v1[0][1] + half_minus_offset) - pixel_offset;
+      float x2diff = v2[0][0] - floorf(v2[0][0] + half_minus_offset) - pixel_offset;
+      float y2diff = v2[0][1] - floorf(v2[0][1] + half_minus_offset) - pixel_offset;
+
+      /*
+       * Fixed-point versions of the diffs for comparisons that need to match
+       * the rasterizer's fixed-point arithmetic.
+       */
+      int x1diff_fixed = subpixel_snap(x1diff);
+      int y1diff_fixed = subpixel_snap(y1diff);
+      int x2diff_fixed = subpixel_snap(x2diff);
+      int y2diff_fixed = subpixel_snap(y2diff);
 
       /* linewidth should be interpreted as integer */
       int fixed_width = util_iround(width) * FIXED_ONE;
@@ -422,14 +436,14 @@ try_setup_line(struct lp_setup_context *setup,
 
             /* Otherwise shift planes appropriately */
             /* left edge */
-            will_draw_start = x1diff <= 0.f;
+            will_draw_start = x1diff_fixed <= 0;
             if (will_draw_start != draw_start) {
                x_offset_end = -x1diff - 0.5f;
                y_offset_end = x_offset_end * dydx;
 
             }
             /* right edge */
-            will_draw_end = x2diff > 0.f;
+            will_draw_end = x2diff_fixed > 0;
             if (will_draw_end != draw_end) {
                x_offset = -x2diff - 0.5f;
                y_offset = x_offset * dydx;
@@ -437,13 +451,13 @@ try_setup_line(struct lp_setup_context *setup,
          } else {
             /* Otherwise shift planes appropriately */
             /* right edge */
-            will_draw_start = x1diff > 0.f;
+            will_draw_start = x1diff_fixed > 0;
             if (will_draw_start != draw_start) {
                x_offset = -x1diff + 0.5f;
                y_offset = x_offset * dydx;
             }
             /* left edge */
-            will_draw_end = x2diff <= 0.f;
+            will_draw_end = x2diff_fixed <= 0;
             if (will_draw_end != draw_end) {
                x_offset_end = -x2diff + 0.5f;
                y_offset_end = x_offset_end * dydx;
@@ -499,13 +513,6 @@ try_setup_line(struct lp_setup_context *setup,
             draw_end = (xintersect < 1.0f && xintersect >= 0.0f);
          }
 
-         /*
-          * Are we already drawing start/end?
-          * FIXME: this needs to be done with fixed point arithmetic (otherwise
-          * the comparisons against zero are not mirroring what actually happens
-          * when rasterizing using the plane equations).
-          */
-
          bool will_draw_start;
          bool will_draw_end;
 
@@ -518,11 +525,11 @@ try_setup_line(struct lp_setup_context *setup,
             SWAP(v1, v2);
 
             if (setup->bottom_edge_rule) {
-               will_draw_start = y1diff >= 0.f;
-               will_draw_end = y2diff < 0.f;
+               will_draw_start = y1diff_fixed >= 0;
+               will_draw_end = y2diff_fixed < 0;
             } else {
-               will_draw_start = y1diff > 0.f;
-               will_draw_end = y2diff <= 0.f;
+               will_draw_start = y1diff_fixed > 0;
+               will_draw_end = y2diff_fixed <= 0;
             }
 
             /* Otherwise shift planes appropriately */
@@ -538,11 +545,11 @@ try_setup_line(struct lp_setup_context *setup,
             }
          } else {
             if (setup->bottom_edge_rule) {
-               will_draw_start = y1diff < 0.f;
-               will_draw_end = y2diff >= 0.f;
+               will_draw_start = y1diff_fixed < 0;
+               will_draw_end = y2diff_fixed >= 0;
             } else {
-               will_draw_start = y1diff <= 0.f;
-               will_draw_end = y2diff > 0.f;
+               will_draw_start = y1diff_fixed <= 0;
+               will_draw_end = y2diff_fixed > 0;
             }
 
             /* Otherwise shift planes appropriately */
