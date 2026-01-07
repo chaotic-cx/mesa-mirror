@@ -44,7 +44,7 @@
         "description": "Revert \"ci/android: add sudo to EPHEMERAL deps for debian/x86_64_test-android.sh\"",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "0e80e831f83d9a13e282c830cea6aad40882f9c5",
         "notes": null

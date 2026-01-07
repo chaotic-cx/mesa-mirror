@@ -25,7 +25,6 @@ EPHEMERAL=(
     debhelper-compat
     dpkg-dev
     ninja-build
-    sudo
     unzip
 )
 
@@ -152,7 +151,6 @@ section_switch debian_cleanup "Cleaning up base Debian system"
 
 rm -rf "/${ndk:?}"
 
-export SUDO_FORCE_REMOVE=yes
 apt-get purge -y "${EPHEMERAL[@]}"
 
 . .gitlab-ci/container/container_post_build.sh
