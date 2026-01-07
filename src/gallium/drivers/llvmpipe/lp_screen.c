@@ -177,8 +177,10 @@ llvmpipe_init_compute_caps(struct pipe_screen *screen)
    caps->grid_dimension = 3;
    caps->max_global_size = 1 << 31;
    caps->max_mem_alloc_size = 1 << 31;
-   caps->subgroup_sizes = lp_subgroup_size;
-   caps->max_subgroups = 1024 / lp_subgroup_size;
+   /* Bitmask of supported subgroup sizes: bit N = size 2^N
+    * Support 8, 16, 32, 64, 128 (bits 3-7) */
+   caps->subgroup_sizes = (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6) | (1 << 7);
+   caps->max_subgroups = 1024 / 8;  /* max subgroups using smallest size */
    caps->max_compute_units = 8;
    caps->max_clock_frequency = 300;
    caps->address_bits = sizeof(void*) * 8;
