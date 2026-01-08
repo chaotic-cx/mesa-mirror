@@ -67,6 +67,19 @@ static void radeon_vcn_enc_invalid_frame_rate(uint32_t *den, uint32_t *num)
    }
 }
 
+static unsigned get_rec_alignment(enum pipe_video_format format)
+{
+   switch (format) {
+   case PIPE_VIDEO_FORMAT_MPEG4_AVC:
+      return 16;
+   case PIPE_VIDEO_FORMAT_HEVC:
+   case PIPE_VIDEO_FORMAT_AV1:
+      return 64;
+   default:
+      UNREACHABLE("unsupported codec");
+   }
+}
+
 static uint32_t radeon_vcn_per_frame_integer(uint32_t bitrate, uint32_t den, uint32_t num)
 {
    uint64_t rate_den = (uint64_t)bitrate * (uint64_t)den;
@@ -1237,7 +1250,8 @@ static void pre_encode_size(struct radeon_encoder *enc,
    struct si_screen *sscreen = (struct si_screen *)enc->screen;
    bool is_h264 = u_reduce_video_profile(enc->base.profile)
                              == PIPE_VIDEO_FORMAT_MPEG4_AVC;
-   uint32_t rec_alignment = is_h264 ? 16 : 64;
+   uint32_t rec_alignment =
+      get_rec_alignment(u_reduce_video_profile(enc->base.profile));
    uint32_t aligned_width = align(enc->base.width, rec_alignment);
    uint32_t aligned_height = align(enc->base.height, rec_alignment);
    struct radeon_enc_pic *enc_pic = &enc->enc_pic;
@@ -1269,7 +1283,8 @@ static int setup_dpb(struct radeon_encoder *enc, uint32_t num_reconstructed_pict
                              == PIPE_VIDEO_FORMAT_MPEG4_AVC;
    bool is_av1 = u_reduce_video_profile(enc->base.profile)
                              == PIPE_VIDEO_FORMAT_AV1;
-   uint32_t rec_alignment = is_h264 ? 16 : 64;
+   uint32_t rec_alignment =
+      get_rec_alignment(u_reduce_video_profile(enc->base.profile));
    uint32_t aligned_width = align(enc->base.width, rec_alignment);
    uint32_t aligned_height = align(enc->base.height, rec_alignment);
    uint32_t pitch = align(aligned_width, enc->alignment);
