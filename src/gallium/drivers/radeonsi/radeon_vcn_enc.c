@@ -2133,9 +2133,14 @@ static struct pipe_video_buffer *radeon_enc_create_dpb_buffer(struct pipe_video_
                                                               const struct pipe_video_buffer *templat)
 {
    struct radeon_encoder *enc = (struct radeon_encoder *)encoder;
+   uint32_t rec_alignment =
+      get_rec_alignment(u_reduce_video_profile(enc->base.profile));
 
    struct pipe_video_buffer templ = *templat;
    templ.bind |= PIPE_BIND_VIDEO_ENCODE_DPB;
+   templ.width = align(templ.width, rec_alignment);
+   templ.height = align(templ.height, rec_alignment);
+
    struct pipe_video_buffer *buf = enc->base.context->create_video_buffer(enc->base.context, &templ);
    if (!buf) {
       RADEON_ENC_ERR("Can't create dpb buffer!\n");
