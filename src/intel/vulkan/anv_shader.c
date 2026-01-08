@@ -23,6 +23,7 @@ anv_shader_destroy(struct vk_device *vk_device,
    for (uint32_t i = 0; i < shader->bind_map.embedded_sampler_count; i++)
       anv_embedded_sampler_unref(device, shader->embedded_samplers[i]);
 
+   ANV_DMR_SP_FREE(&device->vk.base, &device->instruction_state_pool, shader->kernel);
    anv_state_pool_free(&device->instruction_state_pool, shader->kernel);
    anv_reloc_list_finish(&shader->relocs);
    vk_shader_free(vk_device, pAllocator, vk_shader);
