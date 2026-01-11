@@ -4312,7 +4312,11 @@ static void *si_create_vertex_elements(struct pipe_context *ctx, unsigned count,
    unsigned num_vbos_in_user_sgprs = si_num_vbos_in_user_sgprs_inline(sscreen->info.gfx_level);
    unsigned alloc_count =
       count > num_vbos_in_user_sgprs ? count - num_vbos_in_user_sgprs : 0;
-   v->vb_desc_list_alloc_size = align(alloc_count * 16, SI_CPDMA_ALIGNMENT);
+   unsigned alloc_size = alloc_count * 16;
+   /* Append the size of format dwords (5th dword of descriptor) for GFX13. */
+   if (sscreen->info.gfx_level >= GFX13)
+      alloc_size += DIV_ROUND_UP(alloc_count, 4) * 16;
+   v->vb_desc_list_alloc_size = align(alloc_size, SI_CPDMA_ALIGNMENT);
 
    for (i = 0; i < count; ++i) {
       const struct util_format_description *desc;
@@ -4485,7 +4489,10 @@ static void *si_create_vertex_elements(struct pipe_context *ctx, unsigned count,
          .has_desc_resource_level = sscreen->info.compiler_info.has_desc_resource_level,
       };
 
-      ac_set_buf_desc_word3(sscreen->info.gfx_level, &buffer_state, &v->elem[i].rsrc_word3);
+      if (sscreen->info.gfx_level >= GFX13)
+         ac_set_buf_desc_word4(sscreen->info.gfx_level, &buffer_state, &v->elem[i].rsrc_word3);
+      else
+         ac_set_buf_desc_word3(sscreen->info.gfx_level, &buffer_state, &v->elem[i].rsrc_word3);
    }
 
    if (v->instance_divisor_is_fetched) {
@@ -4663,8 +4670,10 @@ si_create_vertex_state(struct pipe_screen *screen,
    }
 
    for (unsigned i = 0; i < num_elements; i++) {
+      unsigned desc_size = si_buffer_desc_size_in_dw(sscreen->info.gfx_level);
       si_set_vertex_buffer_descriptor(sscreen, &state->velems, &state->b.input.vbuffer, i,
-                                      &state->descriptors[i * 4]);
+                                      &state->descriptors[i * desc_size],
+                                      &state->descriptors[i * desc_size + 4]);
    }
 
    return &state->b;

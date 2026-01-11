@@ -426,15 +426,74 @@ load_vs_input_from_vertex_buffer(nir_builder *b, unsigned input_index,
    const union si_shader_key *key = &s->shader->key;
    unsigned bit_size = intr->def.bit_size;
    unsigned channels_read = nir_def_components_read(&intr->def) << nir_intrinsic_component(intr);
+   nir_def *vb_desc, *soffset = NULL;
+   nir_def *zero = nir_imm_int(b, 0);
+   unsigned vb_desc_load_index = 0;
+   nir_def *vertex_buffer_desc_list = si_nir_load_addr32_arg(s->shader->selector->screen, s->args,
+                                                             b, s->args->ac.vertex_buffers);
 
-   nir_def *vb_desc;
-   if (input_index < sel->info.num_vbos_in_user_sgprs) {
-      vb_desc = ac_nir_load_arg(b, &s->args->ac, s->args->vb_descriptors[input_index]);
+   if (s->shader->selector->screen->info.gfx_level >= GFX13) {
+      /* Layout in user SGPRs. The VB descriptor list uses the same layout for each consecutive
+       * group of 4 descriptors.
+       *
+       * 4 4-dword descriptors + the format dword via soffset. The format dwords are
+       * first in the descending order:
+       *    user_sgpr[12] = format dword 3--------------\
+       *    user_sgpr[13] = format dword 2------------\ |
+       *    user_sgpr[14] = format dword 1----------\ | |
+       *    user_sgpr[15] = format dword 0-------\  | | |
+       *    user_sgpr[16:19] = vertex buffer 0---/  | | |
+       *    user_sgpr[20:23] = vertex buffer 1------/ | |
+       *    user_sgpr[24:27] = vertex buffer 2--------/ |
+       *    user_sgpr[28:31] = vertex buffer 3----------/
+       *
+       * If less than 4 vbo descriptors are present, 4 format dwords are always reserved
+       * and only the right number of vertex buffer descriptors are followed.
+       */
+      if (input_index < sel->info.num_vbos_in_user_sgprs) {
+         assert(input_index < 4);
+         /* soffset contains the format dword. */
+         soffset = nir_channel(b, ac_nir_load_arg(b, &s->args->ac, s->args->vbo.gfx13.formats),
+                               3 - input_index);
+      } else {
+         unsigned index = input_index - sel->info.num_vbos_in_user_sgprs;
+
+         /* Map (0, 1, 2, 3, 4, 5, 6, 7, 8, ...) -> (1, 2, 3, 4, 6, 7, 8, 9, 11, ...),
+          * skipping 0, 5, 10, ...
+          */
+         vb_desc_load_index = 1 + index + index / 4;
+
+         /* Map (1, 2, 3, 4, 6, 7, 8, 9, 11, ...) -> (0, 0, 0, 0, 5, 5, 5, 5, 10, ...). */
+         unsigned vb_format_desc = (vb_desc_load_index / 5) * 5;
+
+         /* Always load 4 dwords even if we use only one. We want CSE to eliminate the duplication
+          * and the load/store vectorizer will merge it with other SMEM loads.
+          */
+         nir_def *format_dwords =
+            ac_nir_load_smem(b, 4, vertex_buffer_desc_list, nir_imm_int(b, vb_format_desc * 16),
+                             16, ACCESS_CAN_SPECULATE);
+         /* soffset contains the format dword. */
+         soffset = nir_channel(b, format_dwords, 3 - index % 4);
+      }
    } else {
-      unsigned index = input_index - sel->info.num_vbos_in_user_sgprs;
-      nir_def *addr = si_nir_load_addr32_arg(s->shader->selector->screen, s->args,
-                                             b, s->args->ac.vertex_buffers);
-      vb_desc = ac_nir_load_smem(b, 4, addr, nir_imm_int(b, index * 16), 16,
+      vb_desc_load_index = input_index - sel->info.num_vbos_in_user_sgprs;
+      soffset = zero;
+   }
+
+   if (input_index < sel->info.num_vbos_in_user_sgprs) {
+      struct ac_arg vb_descriptor;
+
+      if (sel->screen->info.gfx_level >= GFX13)
+         vb_descriptor = s->args->vbo.gfx13.descriptors[input_index];
+      else if (sel->screen->info.gfx_level >= GFX9)
+         vb_descriptor = s->args->vbo.gfx9.descriptors[input_index];
+      else
+         vb_descriptor = s->args->vbo.gfx6.descriptors[input_index];
+
+      vb_desc = ac_nir_load_arg(b, &s->args->ac, vb_descriptor);
+   } else {
+      vb_desc = ac_nir_load_smem(b, 4, vertex_buffer_desc_list,
+                                 nir_imm_int(b, vb_desc_load_index * 16), 16,
                                  ACCESS_CAN_SPECULATE);
    }
 
@@ -489,9 +548,8 @@ load_vs_input_from_vertex_buffer(nir_builder *b, unsigned input_index,
    }
 
    for (unsigned i = 0; i < num_fetches; ++i) {
-      nir_def *zero = nir_imm_int(b, 0);
       fetches[i] = nir_load_buffer_amd(b, channels_per_fetch, bit_size, vb_desc,
-                                       zero, zero, vertex_index,
+                                       zero, soffset, vertex_index,
                                        .base = fetch_stride * i,
                                        .access = ACCESS_USES_FORMAT_AMD | ACCESS_CAN_REORDER |
                                                  ACCESS_CAN_SPECULATE,

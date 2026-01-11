@@ -520,7 +520,7 @@ void si_cp_dma_prefetch(struct radeon_cmdbuf *cs,
                         unsigned offset, unsigned size);
 MESAPROC void si_set_vertex_buffer_descriptor(struct si_screen *sscreen, struct si_vertex_elements *velems,
                                           const struct pipe_vertex_buffer *vb, unsigned element_index,
-                                          uint32_t *out) TAILV;
+                                          uint32_t *out, uint32_t *format_dword) TAILV;
 void si_emit_buffered_compute_sh_regs(struct si_context *sctx, struct radeon_cmdbuf *cs);
 void si_emit_buffered_gfx_sh_regs_for_mesh(struct si_context *sctx);
 void si_emit_rasterizer_prim_state_for_mesh(struct si_context *sctx);

@@ -204,6 +204,19 @@ enum
    SI_SGPR_VS_VB_DESCRIPTOR_FIRST = 12,
 };
 
+union si_vbo_args {
+   struct {
+      struct ac_arg descriptors[1];
+   } gfx6;
+   struct {
+      struct ac_arg descriptors[5];
+   } gfx9;
+   struct {
+      struct ac_arg formats;
+      struct ac_arg descriptors[4];
+   } gfx13;
+};
+
 /* LLVM function parameter indices */
 enum
 {

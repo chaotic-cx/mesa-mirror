@@ -84,9 +84,22 @@ static void declare_vb_descriptor_input_sgprs(struct si_shader_args *args,
       for (unsigned i = user_sgprs; i < SI_SGPR_VS_VB_DESCRIPTOR_FIRST; i++)
          ac_add_arg(&args->ac, AC_ARG_SGPR, 1, AC_ARG_VALUE, NULL); /* unused */
 
-      assert(num_vbos_in_user_sgprs <= ARRAY_SIZE(args->vb_descriptors));
+      struct ac_arg *vb_descriptors;
+
+      if (shader->selector->screen->info.gfx_level >= GFX13) {
+         assert(num_vbos_in_user_sgprs <= ARRAY_SIZE(args->vbo.gfx13.descriptors));
+         ac_add_arg(&args->ac, AC_ARG_SGPR, 4, AC_ARG_VALUE, &args->vbo.gfx13.formats);
+         vb_descriptors = args->vbo.gfx13.descriptors;
+      } else if (shader->selector->screen->info.gfx_level >= GFX9) {
+         assert(num_vbos_in_user_sgprs <= ARRAY_SIZE(args->vbo.gfx9.descriptors));
+         vb_descriptors = args->vbo.gfx9.descriptors;
+      } else {
+         assert(num_vbos_in_user_sgprs <= ARRAY_SIZE(args->vbo.gfx6.descriptors));
+         vb_descriptors = args->vbo.gfx6.descriptors;
+      }
+
       for (unsigned i = 0; i < num_vbos_in_user_sgprs; i++)
-         ac_add_arg(&args->ac, AC_ARG_SGPR, 4, AC_ARG_VALUE, &args->vb_descriptors[i]);
+         ac_add_arg(&args->ac, AC_ARG_SGPR, 4, AC_ARG_VALUE, &vb_descriptors[i]);
    }
 }
 

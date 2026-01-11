@@ -246,8 +246,11 @@ static unsigned si_get_num_vs_user_sgprs(struct si_shader *shader,
    /* 1 SGPR is reserved for the vertex buffer pointer. */
    assert(num_always_on_user_sgprs <= SI_SGPR_VS_VB_DESCRIPTOR_FIRST - 1);
 
-   if (num_vbos_in_user_sgprs)
-      return SI_SGPR_VS_VB_DESCRIPTOR_FIRST + num_vbos_in_user_sgprs * 4;
+   if (num_vbos_in_user_sgprs) {
+      /* 4 format dwords used via soffset for BUF/format loads on GFX13.*/
+      unsigned format_dwords = shader->selector->screen->info.gfx_level >= GFX13 ? 4 : 0;
+      return SI_SGPR_VS_VB_DESCRIPTOR_FIRST + format_dwords + num_vbos_in_user_sgprs * 4;
+   }
 
    /* Add the pointer to VBO descriptors. */
    return num_always_on_user_sgprs + 1;

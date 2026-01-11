@@ -854,7 +854,8 @@ struct si_small_prim_cull_info {
 struct si_vertex_state {
    struct pipe_vertex_state b;
    struct si_vertex_elements velems;
-   uint32_t descriptors[4 * SI_MAX_ATTRIBS];
+   /* GFX13: 5 dwords per descriptor; GFX6-12: 4 dwords per descriptor. */
+   uint32_t descriptors[5 * SI_MAX_ATTRIBS];
 };
 
 typedef void (*pipe_draw_vertex_state_func)(struct pipe_context *ctx,
@@ -1980,13 +1981,30 @@ static inline unsigned si_get_num_coverage_samples(struct si_context *sctx)
    return 1;
 }
 
+static inline unsigned
+si_buffer_desc_size_in_dw(enum amd_gfx_level gfx_level)
+{
+   /* On GFX13, vertex and texel buffer descriptors require a separate format dword
+    * used by formatted buffer loads and stores.
+    */
+   return 4 + (gfx_level >= GFX13);
+}
+
 static unsigned ALWAYS_INLINE
 si_num_vbos_in_user_sgprs_inline(enum amd_gfx_level gfx_level)
 {
    /* This decreases CPU overhead if all descriptors are in user SGPRs because we don't
     * have to allocate and count references for the upload buffer.
+    *
+    * Note that GFX13 supports up to 4 vbo descriptors with 4 format dwords and GFX9-12
+    * support up to 5 in user SGPRS.
     */
-   return gfx_level >= GFX9 ? 5 : 1;
+   if (gfx_level >= GFX13)
+      return ARRAY_SIZE(((union si_vbo_args *)0)->gfx13.descriptors);
+   else if (gfx_level >= GFX9)
+      return ARRAY_SIZE(((union si_vbo_args *)0)->gfx9.descriptors);
+   else
+      return ARRAY_SIZE(((union si_vbo_args *)0)->gfx6.descriptors);
 }
 
 static inline

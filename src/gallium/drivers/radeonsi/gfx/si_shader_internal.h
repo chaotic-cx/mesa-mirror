@@ -29,7 +29,7 @@ struct si_shader_args {
    struct ac_arg small_prim_cull_info;
    struct ac_arg gs_attr_address;
    /* API VS */
-   struct ac_arg vb_descriptors[5];
+   union si_vbo_args vbo;
    /* VS state bits. See the VS_STATE_* and GS_STATE_* definitions. */
    struct ac_arg vs_state_bits;
    struct ac_arg vs_blit_inputs;
