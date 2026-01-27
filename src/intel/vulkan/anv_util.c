@@ -312,15 +312,25 @@ create_bvh_dump_file(struct anv_bvh_dump *bvh)
    fclose(file);
 }
 
-void anv_dump_bvh_to_files(struct anv_device *device)
+void anv_get_pending_bvh_dumps(struct list_head *list,
+                               uint32_t cmd_buffer_count,
+                               struct anv_cmd_buffer **cmd_buffers)
 {
-   /* device->mutex is acquired in anv_queue_submit, so no need to lock here. */
-   list_for_each_entry_safe(struct anv_bvh_dump, bvh_dump, &device->bvh_dumps,
-                            link) {
+   list_inithead(list);
+   if (INTEL_DEBUG_BVH_ANY) {
+      for (uint32_t i = 0; i < cmd_buffer_count; ++i) {
+         list_splicetail(&cmd_buffers[i]->bvh_dumps, list);
+         list_inithead(&cmd_buffers[i]->bvh_dumps);
+      }
+   }
+}
+
+void anv_dump_bvh_to_files(struct anv_device* device, struct list_head *list)
+{
+   list_for_each_entry_safe(struct anv_bvh_dump, bvh_dump, list, link) {
       create_bvh_dump_file(bvh_dump);
 
       anv_device_release_bo(device, bvh_dump->bo);
-      list_del(&bvh_dump->link);
       free(bvh_dump);
    }
 }

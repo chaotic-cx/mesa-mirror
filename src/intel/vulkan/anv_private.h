@@ -2532,9 +2532,6 @@ struct anv_device {
     /** List of anv_image objects with a private binding for implicit CCS */
     struct list_head                            image_private_objects;
 
-    /** List of anv_bvh_dump objects that get dumped on cmd buf completion */
-    struct list_head                            bvh_dumps;
-
     /** Memory pool for batch buffers */
     struct anv_bo_pool                          batch_bo_pool;
     /** Memory pool for utrace timestamp buffers */
@@ -2936,7 +2933,11 @@ VkResult anv_device_wait(struct anv_device *device, struct anv_bo *bo,
 VkResult anv_device_print_init(struct anv_device *device);
 void anv_device_print_fini(struct anv_device *device);
 
-void anv_dump_bvh_to_files(struct anv_device *device);
+void anv_get_pending_bvh_dumps(struct list_head *list,
+                               uint32_t cmd_buffer_count,
+                               struct anv_cmd_buffer **cmd_buffers);
+
+void anv_dump_bvh_to_files(struct anv_device *device, struct list_head *list);
 
 void anv_wait_for_attach(void);
 
@@ -2964,12 +2965,6 @@ anv_queue_post_submit(struct anv_queue *queue, VkResult submit_result)
       if (result != VK_SUCCESS)
          result = vk_queue_set_lost(&queue->vk, "sync wait failed");
    }
-
-#if ANV_SUPPORT_RT
-   /* The recorded bvh is dumped to files upon command buffer completion */
-   if (INTEL_DEBUG_BVH_ANY)
-      anv_dump_bvh_to_files(queue->device);
-#endif
 
    return result;
 }
@@ -4923,6 +4918,9 @@ struct anv_cmd_buffer {
       struct anv_video_session *vid;
       struct vk_video_session_parameters *params;
    } video;
+
+   /** List of anv_bvh_dump objects that get dumped on cmd buf completion */
+   struct list_head                            bvh_dumps;
 
    /**
     * Companion RCS command buffer to support the MSAA operations on compute

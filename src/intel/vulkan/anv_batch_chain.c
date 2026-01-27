@@ -1335,6 +1335,16 @@ anv_queue_exec_locked(struct anv_queue *queue,
    struct anv_device *device = queue->device;
    VkResult result = VK_SUCCESS;
 
+#if ANV_SUPPORT_RT
+   /* The application could begin resetting command buffers before the
+    * submission thread actually reaches anv_dump_bvh_to_files, so we
+    * have to steal the BVH dump list earlier while we're still certain
+    * the command buffer is in the pending state.
+    */
+   struct list_head bvh_dumps;
+   anv_get_pending_bvh_dumps(&bvh_dumps, cmd_buffer_count, cmd_buffers);
+#endif
+
    /* We only need to synchronize the main & companion command buffers if we
     * have a companion command buffer somewhere in the list of command
     * buffers.
@@ -1360,6 +1370,11 @@ anv_queue_exec_locked(struct anv_queue *queue,
          perf_query_pool,
          perf_query_pass,
          utrace_submit);
+
+#if ANV_SUPPORT_RT
+   anv_dump_bvh_to_files(queue->device, &bvh_dumps);
+#endif
+
    if (result != VK_SUCCESS)
       return result;
 

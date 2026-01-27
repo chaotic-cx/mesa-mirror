@@ -184,6 +184,8 @@ anv_create_cmd_buffer(struct vk_command_pool *pool,
 
    u_trace_init(&cmd_buffer->trace, &device->ds.trace_context);
 
+   list_inithead(&cmd_buffer->bvh_dumps);
+
    *cmd_buffer_out = &cmd_buffer->vk;
 
    return VK_SUCCESS;
@@ -221,6 +223,12 @@ destroy_cmd_buffer(struct anv_cmd_buffer *cmd_buffer)
                        &cmd_buffer->device->bvh_bo_pool, *bo);
    }
    u_vector_finish(&cmd_buffer->dynamic_bos);
+
+   list_for_each_entry_safe(struct anv_bvh_dump, bvh_dump,
+         &cmd_buffer->bvh_dumps, link) {
+      anv_device_release_bo(cmd_buffer->device, bvh_dump->bo);
+      free(bvh_dump);
+   }
 
    anv_cmd_state_finish(cmd_buffer);
 
@@ -297,6 +305,13 @@ reset_cmd_buffer(struct anv_cmd_buffer *cmd_buffer,
 
    u_trace_fini(&cmd_buffer->trace);
    u_trace_init(&cmd_buffer->trace, &cmd_buffer->device->ds.trace_context);
+
+   list_for_each_entry_safe(struct anv_bvh_dump, bvh_dump,
+         &cmd_buffer->bvh_dumps, link) {
+      anv_device_release_bo(cmd_buffer->device, bvh_dump->bo);
+      free(bvh_dump);
+   }
+   list_inithead(&cmd_buffer->bvh_dumps);
 }
 
 void

@@ -110,6 +110,7 @@ add_bvh_dump(struct anv_cmd_buffer *cmd_buffer,
              enum bvh_dump_type dump_type)
 {
    assert(dump_size % 4 == 0);
+   assert(cmd_buffer->vk.level == VK_COMMAND_BUFFER_LEVEL_PRIMARY);
 
    struct anv_device *device = cmd_buffer->device;
    struct anv_bo *bo = NULL;
@@ -143,9 +144,7 @@ add_bvh_dump(struct anv_cmd_buffer *cmd_buffer,
    vk_barrier_compute_w_to_host_r(vk_command_buffer_to_handle(&cmd_buffer->vk));
    genX(cmd_buffer_apply_pipe_flushes)(cmd_buffer);
 
-   pthread_mutex_lock(&device->mutex);
-   list_addtail(&bvh_dump->link, &device->bvh_dumps);
-   pthread_mutex_unlock(&device->mutex);
+   list_addtail(&bvh_dump->link, &cmd_buffer->bvh_dumps);
 }
 
 static void

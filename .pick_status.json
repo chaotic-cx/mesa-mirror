@@ -814,7 +814,7 @@
         "description": "anv: Avoid dumping BVH before command buffer is submitted",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "1b55f101055e2c07c34219e9b3352cf61da95bdf",
         "notes": null
