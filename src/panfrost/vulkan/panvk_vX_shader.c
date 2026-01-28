@@ -2228,6 +2228,7 @@ panvk_per_arch(link_shaders)(struct panvk_pool *desc_pool,
       fmts[pos] = format;
    }
 
+   panvk_shader_link_cleanup(link);
    VkResult result = emit_varying_attrs(
       desc_pool, vs->info.varyings.output, vs->info.varyings.output_count,
       fmts, buf_offsets, &link->vs.attribs);

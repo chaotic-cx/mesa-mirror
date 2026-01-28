@@ -383,6 +383,10 @@ panvk_destroy_cmdbuf(struct vk_command_buffer *vk_cmdbuf)
       vk_free(&cmdbuf->vk.pool->alloc, batch);
    }
 
+#if PAN_ARCH < 9
+   panvk_shader_link_cleanup(&cmdbuf->state.gfx.link);
+#endif
+
    panvk_pool_cleanup(&cmdbuf->desc_pool);
    panvk_pool_cleanup(&cmdbuf->tls_pool);
    panvk_pool_cleanup(&cmdbuf->varying_pool);
