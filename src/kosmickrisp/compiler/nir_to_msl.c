@@ -952,7 +952,10 @@ intrinsic_to_msl(struct nir_to_msl_ctx *ctx, nir_intrinsic_instr *instr)
    case nir_intrinsic_load_base_instance:
       P(ctx, "gl_BaseInstance;\n");
       break;
+   /* load_helper_invocation is undefined after a demote, so we can just assume
+    * it'll be called before that and map it to simd_is_helper_thread. */
    case nir_intrinsic_load_helper_invocation:
+   case nir_intrinsic_is_helper_invocation:
       P(ctx, "simd_is_helper_thread();\n");
       break;
    case nir_intrinsic_ddx:

@@ -1184,7 +1184,7 @@
         "description": "kk: Fix disabling workaround 4",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "67d05f71e9e8a740a4e37752eba4e1939f228d76",
         "notes": null
