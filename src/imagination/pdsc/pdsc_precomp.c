@@ -28,6 +28,9 @@ struct pdsc_precomp_info {
    pdsc_precomp_fn_t fn;
    enum pdsc_feature feature_variants;
 };
+
+#include "programs/pdsc_set_view_index.h"
+
 #include "programs/pdsc_xfb_end.h"
 #include "programs/pdsc_xfb_init.h"
 #include "programs/pdsc_xfb_query_begin.h"
@@ -40,7 +43,10 @@ struct pdsc_precomp_info {
       .fn = pdsc_##_name##_gen,              \
       .feature_variants = _feature_variants, \
    }
+
 static const struct pdsc_precomp_info pdsc_precomp_infos[] = {
+   PRECOMP(set_view_index, 0),
+
    PRECOMP(xfb_end, 0),
    PRECOMP(xfb_init, 0),
    PRECOMP(xfb_query_begin, 0),

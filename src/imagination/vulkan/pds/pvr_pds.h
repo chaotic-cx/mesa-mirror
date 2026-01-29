@@ -823,13 +823,6 @@ uint32_t *pvr_pds_generate_stream_out_terminate_program(
    enum pvr_pds_generate_mode gen_mode,
    const struct pvr_device_info *dev_info);
 
-#define PVR_PTEMP_VIEW_INDEX 4U
-
-uint32_t *pvr_pds_generate_view_index_init_program(
-   struct pvr_pds_view_index_init_program *restrict program,
-   uint32_t *restrict buffer,
-   enum pvr_pds_generate_mode gen_mode);
-
 /* Structure representing DrawIndirect PDS programs. */
 struct pvr_pds_drawindirect_program {
    /* --- Input to pvr_pds_drawindirect_program --- */

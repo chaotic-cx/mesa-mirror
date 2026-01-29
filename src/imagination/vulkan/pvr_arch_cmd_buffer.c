@@ -2369,16 +2369,22 @@ pvr_csb_gfx_build_view_index_ctrl_stream(struct pvr_device *const device,
                                          struct pvr_bo **bo,
                                          uint32_t *stride)
 {
+   unsigned temp_size =
+      pdsc_program_temps_used(device->pdsc_precomp_programs.set_view_index);
+   unsigned data_size = DIV_ROUND_UP(
+      pdsc_program_data_size(device->pdsc_precomp_programs.set_view_index),
+      ROGUE_VDMCTRL_PDS_STATE0_PDS_DATA_SIZE_UNIT_SIZE);
+   uint64_t code_addr =
+      device->pdsc_precomp_programs.set_view_index_code.pvr_bo->dev_addr.addr;
    struct list_head bo_list;
    struct pvr_csb csb;
    VkResult result;
 
    pvr_csb_init(device, PVR_CMD_STREAM_TYPE_GRAPHICS, &csb);
 
-   for (uint32_t i = 0; i < PVR_MAX_MULTIVIEW; ++i) {
-      struct pvr_pds_view_index_init_program *program =
-         &device->view_index_init_info[i];
-
+   for (unsigned u = 0;
+        u < ARRAY_SIZE(device->pdsc_precomp_programs.set_view_index_data);
+        ++u) {
       pvr_csb_set_relocation_mark(&csb);
 
       pvr_csb_emit (&csb, VDMCTRL_PDS_STATE0, state_update0) {
@@ -2387,23 +2393,20 @@ pvr_csb_gfx_build_view_index_ctrl_stream(struct pvr_device *const device,
          state_update0.usc_target = ROGUE_VDMCTRL_USC_TARGET_ALL;
          state_update0.usc_common_size = 0;
          state_update0.usc_unified_size = 0;
-         state_update0.pds_temp_size = program->temps_used;
-         state_update0.pds_data_size = DIV_ROUND_UP(
-            PVR_DW_TO_BYTES(device->view_index_init_programs[i].data_size),
-            ROGUE_VDMCTRL_PDS_STATE0_PDS_DATA_SIZE_UNIT_SIZE);
+         state_update0.pds_temp_size = temp_size;
+         state_update0.pds_data_size = data_size;
       }
 
       pvr_csb_emit (&csb, VDMCTRL_PDS_STATE1, state_update1) {
          state_update1.pds_data_addr =
-            device->view_index_init_programs[i].pvr_bo->dev_addr;
+            device->pdsc_precomp_programs.set_view_index_data[u]
+               .pvr_bo->dev_addr;
          state_update1.sd_type = ROGUE_VDMCTRL_SD_TYPE_PDS;
          state_update1.sd_next_type = ROGUE_VDMCTRL_SD_TYPE_USC;
       }
 
       pvr_csb_emit (&csb, VDMCTRL_PDS_STATE2, state_update2) {
-         state_update2.pds_code_addr.addr =
-            device->view_index_init_programs[i].pvr_bo->dev_addr.addr +
-            PVR_DW_TO_BYTES(device->view_index_init_programs[i].data_size);
+         state_update2.pds_code_addr.addr = code_addr;
       }
 
       pvr_csb_clear_relocation_mark(&csb);

@@ -25,6 +25,7 @@
 #include "util/mesa-blake3.h"
 
 #include "ds/pvr_driver_ds.h"
+#include "pdsc/pdsc.h"
 #include "pvr_bo.h"
 #include "pvr_common.h"
 #include "pvr_macros.h"
@@ -95,10 +96,6 @@ struct pvr_device {
       struct pvr_suballoc_bo *usc;
    } nop_program;
 
-   struct pvr_pds_view_index_init_program
-      view_index_init_info[PVR_MAX_MULTIVIEW];
-   struct pvr_pds_upload view_index_init_programs[PVR_MAX_MULTIVIEW];
-
    /* Issue Data Fence, Wait for Data Fence state. */
    struct {
       uint32_t usc_shareds;
@@ -159,6 +156,10 @@ struct pvr_device {
    } dummy_rt;
 
    struct {
+      pdsc_program *set_view_index;
+      struct pvr_pds_upload set_view_index_code;
+      struct pvr_pds_upload set_view_index_data[PVR_MAX_MULTIVIEW];
+
       pdsc_program *xfb_init;
       pdsc_program *xfb_main;
       pdsc_program *xfb_end;

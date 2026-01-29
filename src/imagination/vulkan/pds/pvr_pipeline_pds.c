@@ -27,6 +27,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "common/pvr_iface.h"
 #include "pvr_device_info.h"
 #include "pvr_pds.h"
 #include "pvr_rogue_pds_defs.h"
@@ -1465,7 +1466,7 @@ void pvr_pds_generate_vertex_primary_program(
 
    if (input_program->flags & PVR_PDS_VERTEX_FLAGS_VIEW_INDEX_REQUIRED) {
       bool last_dma = (++running_dma_count == total_dma_count);
-      uint32_t data_mask = (PVR_PTEMP_VIEW_INDEX & 1) ? 0x2 : 0x1;
+      uint32_t data_mask = (PVR_VDM_PTEMP_VIEW_INDEX_OUT & 1) ? 0x2 : 0x1;
 
       PVR_PDS_MODE_TOGGLE(
          code,
@@ -1475,7 +1476,7 @@ void pvr_pds_generate_vertex_primary_program(
             last_dma,
             false,
             R64_C(write_view_index_control),
-            R64_P(PVR_PTEMP_VIEW_INDEX >> 1),
+            R64_P(PVR_VDM_PTEMP_VIEW_INDEX_OUT >> 1),
             data_mask,
             input_program->view_index_register,
             PVR_ROGUE_PDSINST_DOUT_FIELDS_DOUTW_SRC1_DEST_UNIFIED_STORE,

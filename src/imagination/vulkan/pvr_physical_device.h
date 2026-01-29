@@ -24,6 +24,7 @@
 
 #include "wsi_common.h"
 
+#include "pdsc/pdsc.h"
 #include "pvr_device_info.h"
 #include "pvr_formats.h"
 
@@ -68,6 +69,7 @@ struct pvr_physical_device {
 
    VkPhysicalDeviceMemoryProperties memory;
 
+   enum pdsc_feature pdsc_features;
    struct wsi_device wsi_device;
 
    pco_ctx *pco_ctx;

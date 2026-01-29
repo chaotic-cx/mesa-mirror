@@ -1166,6 +1166,15 @@ static inline uint64_t pvr_compute_heap_size(struct pvr_instance *instance)
 static void
 pvr_physical_device_setup_formats(struct pvr_physical_device *const pdevice);
 
+static void pvr_physical_device_init_pdsc(struct pvr_physical_device *pdevice)
+{
+   pdevice->pdsc_features = 0;
+   if (PVR_HAS_FEATURE(&pdevice->dev_info, pds_ddmadt))
+      pdevice->pdsc_features |= PDSC_FEATURE_DDMADT;
+
+   pdsc_init();
+}
+
 VkResult pvr_physical_device_init(struct pvr_physical_device *pdevice,
                                   struct pvr_instance *instance,
                                   drmDevicePtr drm_render_device,
@@ -1304,6 +1313,8 @@ VkResult pvr_physical_device_init(struct pvr_physical_device *pdevice,
    }
 
    pdevice->vk.supported_sync_types = ws->sync_types;
+
+   pvr_physical_device_init_pdsc(pdevice);
 
    pdevice->pco_ctx =
       pco_ctx_create(&pdevice->dev_info, &pdevice->dev_runtime_info, NULL);

@@ -10,6 +10,7 @@ libpowervr_pdsc_files = files(
   'pdsc_ops.c',
   'pdsc_print.c',
   'pdsc_validate.c',
+  'programs/pdsc_set_view_index.c',
 )
 
 libpowervr_pdsc = static_library(

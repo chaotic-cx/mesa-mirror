@@ -9,7 +9,7 @@
 /**
  * \file pvr_iface.h
  *
- * \brief USC program interface.
+ * \brief USC/PDS program interface.
  */
 
 /** Query availability shader data; shared registers. */
@@ -172,6 +172,13 @@ enum pvr_idfwdf_sr_data {
 #define PVR_SLICED_VIEW_OFFSET_LENGTH 16U
 #define PVR_SLICED_VIEW_COUNT_OFFSET 16U
 #define PVR_SLICED_VIEW_COUNT_LENGTH 16U
+
+/**/
+
+/** VDM ptemps. */
+enum pvr_vdm_ptemp {
+   PVR_VDM_PTEMP_VIEW_INDEX_OUT = 4,
+};
 
 /* PDSC XFB main patch IDs */
 
