@@ -299,9 +299,39 @@ static const struct pan_varying_slot hw_varying_slots[] = {{
    .offset = 12,
 }};
 
+/* On Midgard some attributes are computed on-the-fly from the drawing state,
+ * those are called special and require a custom descriptor definition.
+ * From v6 onwards those use the LD_VAR_SPECIAL instruction.
+ * TODO: point sprites? :(
+ */
+static bool
+is_slot_special(unsigned gpu_id, mesa_shader_stage stage, gl_varying_slot slot) {
+   if (pan_arch(gpu_id) >= 6) {
+      return false;
+   }
+   switch (slot) {
+   case VARYING_SLOT_POS:
+      /* Only special in fragment shader input, not vertex shader output */
+      return stage == MESA_SHADER_FRAGMENT;
+   case VARYING_SLOT_PNTC:
+   case VARYING_SLOT_FACE:
+      return true;
+   default:
+      return false;
+   }
+}
+
 static struct pan_varying_slot
-hw_varying_slot(gl_varying_slot slot)
+hw_varying_slot(unsigned gpu_id, mesa_shader_stage stage, gl_varying_slot slot)
 {
+   if (is_slot_special(gpu_id, stage, slot)) {
+      return (struct pan_varying_slot){
+         .location = slot,
+         .format = 0,
+         .section = PAN_VARYING_SECTION_SPECIAL,
+         .offset = 0,
+      };
+   }
    for (unsigned i = 0; i < ARRAY_SIZE(hw_varying_slots); i++) {
       if (hw_varying_slots[i].location == slot)
          return hw_varying_slots[i];
@@ -314,9 +344,6 @@ pan_build_varying_layout_sso_abi(struct pan_varying_layout *layout,
                                  nir_shader *nir, unsigned gpu_id,
                                  uint32_t fixed_varyings)
 {
-   /* TODO: Midgard */
-   assert(pan_arch(gpu_id) >= 6);
-
    struct slot_info slots[64] = {0};
    struct walk_varyings_data wv_data = {PAN_MEDIUMP_VARY_32BIT, false, slots};
    nir_shader_instructions_pass(nir, walk_varyings, nir_metadata_all, &wv_data);
@@ -338,8 +365,8 @@ pan_build_varying_layout_sso_abi(struct pan_varying_layout *layout,
       assert(count <= ARRAY_SIZE(layout->slots));
       assert(layout->slots[idx].format == PIPE_FORMAT_NONE);
 
-      if (BITFIELD64_BIT(i) & (VARYING_BIT_POS | PAN_ATTRIB_VARYING_BITS)) {
-         layout->slots[idx] = hw_varying_slot(i);
+      if (BITFIELD64_BIT(i) & PAN_HARDWARE_VARYING_BITS) {
+         layout->slots[idx] = hw_varying_slot(gpu_id, nir->info.stage, i);
       } else {
          unsigned offset = bi_varying_base_bytes(i, fixed_varyings);
          assert(offset < (1 << 11));
@@ -365,9 +392,6 @@ void
 pan_build_varying_layout_compact(struct pan_varying_layout *layout,
                                  nir_shader *nir, unsigned gpu_id)
 {
-   /* TODO: Midgard */
-   assert(pan_arch(gpu_id) >= 6);
-
    struct slot_info slots[64] = {0};
    struct walk_varyings_data wv_data = {PAN_MEDIUMP_VARY_32BIT, false, slots};
    nir_shader_instructions_pass(nir, walk_varyings, nir_metadata_all, &wv_data);
@@ -389,8 +413,8 @@ pan_build_varying_layout_compact(struct pan_varying_layout *layout,
       assert(count <= ARRAY_SIZE(layout->slots));
       assert(layout->slots[idx].format == PIPE_FORMAT_NONE);
 
-      if (BITFIELD64_BIT(i) & (VARYING_BIT_POS | PAN_ATTRIB_VARYING_BITS)) {
-         layout->slots[idx] = hw_varying_slot(i);
+      if (BITFIELD64_BIT(i) & PAN_HARDWARE_VARYING_BITS) {
+         layout->slots[idx] = hw_varying_slot(gpu_id, nir->info.stage, i);
       } else {
          /* The Vulkan spec requires types to match across all uses of a
           * location but doesn't actually require RelaxedPrecision to match

@@ -148,6 +148,8 @@ struct pan_compile_inputs {
 enum pan_varying_section {
    PAN_VARYING_SECTION_POSITION,
    PAN_VARYING_SECTION_ATTRIBS,
+   /* Varyings computed on-the-fly */
+   PAN_VARYING_SECTION_SPECIAL,
    PAN_VARYING_SECTION_GENERIC,
 };
 
@@ -155,6 +157,14 @@ enum pan_varying_section {
 #define PAN_ATTRIB_VARYING_BITS                                   \
    (VARYING_BIT_PSIZ | VARYING_BIT_LAYER | VARYING_BIT_VIEWPORT | \
     VARYING_BIT_PRIMITIVE_ID)
+
+/* Varyings which go in PAN_VARYING_SECTION_SPECIAL (Midfrost only) */
+#define PAN_SPECIAL_VARYING_BITS                                  \
+   (VARYING_BIT_PNTC | VARYING_BIT_POS | VARYING_BIT_FACE)
+
+/* Varyings which DO NOT go in PAN_VARYING_SECTION_GENERIC */
+#define PAN_HARDWARE_VARYING_BITS                                  \
+   (VARYING_BIT_POS | PAN_ATTRIB_VARYING_BITS | PAN_SPECIAL_VARYING_BITS)
 
 struct pan_varying_slot {
    /* GLSL/SPIR-V location of the varying slot */
