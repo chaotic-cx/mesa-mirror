@@ -2653,7 +2653,7 @@ panfrost_emit_varying(const struct panfrost_device *dev,
                       struct mali_attribute_packed *out,
                       const struct pan_shader_varying varying,
                       enum pipe_format pipe_format, unsigned present,
-                      uint16_t point_sprite_mask, signed offset,
+                      uint16_t point_sprite_mask, unsigned offset,
                       enum pan_special_varying pos_varying)
 {
    /* Note: varying.format != pipe_format in some obscure cases due to a
@@ -2673,7 +2673,7 @@ panfrost_emit_varying(const struct panfrost_device *dev,
       pan_emit_vary_special(dev, out, present, PAN_VARY_PSIZ);
    } else if (loc == VARYING_SLOT_FACE) {
       pan_emit_vary_special(dev, out, present, PAN_VARY_FACE);
-   } else if (offset < 0) {
+   } else if (pipe_format == PIPE_FORMAT_NONE) {
       pan_emit_vary(dev, out, 0, (MALI_CONSTANT << 12), 0);
    } else {
       STATIC_ASSERT(PAN_VARY_GENERAL == 0);
@@ -2694,10 +2694,12 @@ panfrost_emit_varying_descs(struct panfrost_pool *pool,
    unsigned producer_count = producer->info.varyings.output_count;
    unsigned consumer_count = consumer->info.varyings.input_count;
 
+   unsigned buf_offsets[VARYING_SLOT_MAX] = {0};
+   enum pipe_format fmts[VARYING_SLOT_MAX];
+
    /* Offsets within the general varying buffer, indexed by location */
-   signed offsets[PAN_MAX_VARYINGS];
-   assert(producer_count <= ARRAY_SIZE(offsets));
-   assert(consumer_count <= ARRAY_SIZE(offsets));
+   assert(producer->info.stage == MESA_SHADER_VERTEX);
+   const struct pan_varying_layout *layout = &producer->vs.varyings_layout;
 
    /* Allocate enough descriptors for both shader stages */
    struct pan_ptr T = pan_pool_alloc_desc_array(
@@ -2719,34 +2721,43 @@ panfrost_emit_varying_descs(struct panfrost_pool *pool,
    out->present = pan_varying_present(dev, &producer->info, &consumer->info,
                                       point_coord_mask);
 
-   out->stride =
-      pan_assign_varyings(dev, &producer->info, &consumer->info, offsets);
+   out->stride = layout->generic_size_B;
 
+   for (unsigned i = 0; i < consumer_count; i++) {
+      const struct pan_shader_varying *fs_var = &consumer->info.varyings.input[i];
+      const gl_varying_slot pos = fs_var->location;
+
+      unsigned offset = 0;
+      enum pipe_format format = PIPE_FORMAT_NONE;
+
+      const struct pan_varying_slot *vs_slot =
+         pan_varying_layout_find_slot(layout, fs_var->location);
+      if (vs_slot) {
+         offset = vs_slot->offset;
+         format = pan_varying_desc_format(vs_slot->format, fs_var->format);
+      }
+
+      buf_offsets[pos] = offset;
+      fmts[pos] = format;
+   }
+
+   /* Now just write the computed formats and offsets in the right order */
    for (unsigned i = 0; i < producer_count; ++i) {
-      signed j = pan_find_vary(consumer->info.varyings.input,
-                               consumer->info.varyings.input_count,
-                               producer->info.varyings.output[i].location);
+      const struct pan_shader_varying var = producer->info.varyings.output[i];
+      const unsigned loc = var.location;
 
-      enum pipe_format format = (j >= 0)
-                                   ? consumer->info.varyings.input[j].format
-                                   : producer->info.varyings.output[i].format;
-
-      panfrost_emit_varying(dev, descs + i, producer->info.varyings.output[i],
-                            format, out->present, 0, offsets[i],
-                            PAN_VARY_POSITION);
+      panfrost_emit_varying(
+         dev, descs + i, var, fmts[loc], out->present,
+         0, buf_offsets[loc], PAN_VARY_POSITION);
    }
 
    for (unsigned i = 0; i < consumer_count; ++i) {
-      signed j = pan_find_vary(producer->info.varyings.output,
-                               producer->info.varyings.output_count,
-                               consumer->info.varyings.input[i].location);
-
-      signed offset = (j >= 0) ? offsets[j] : -1;
+      const struct pan_shader_varying var = consumer->info.varyings.input[i];
+      const unsigned loc = var.location;
 
       panfrost_emit_varying(
-         dev, descs + producer_count + i, consumer->info.varyings.input[i],
-         consumer->info.varyings.input[i].format, out->present,
-         point_coord_mask, offset, PAN_VARY_FRAGCOORD);
+         dev, descs + producer_count + i, var, fmts[loc], out->present,
+         point_coord_mask, buf_offsets[loc], PAN_VARY_FRAGCOORD);
    }
 }
 
