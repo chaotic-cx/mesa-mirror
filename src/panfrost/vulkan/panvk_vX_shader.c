@@ -1688,6 +1688,12 @@ panvk_deserialize_shader_variant(struct vk_device *vk_dev,
                       sizeof(shader->cs.local_size));
       break;
 
+   case MESA_SHADER_VERTEX:
+      blob_copy_bytes(blob, &shader->vs.varyings,
+                      sizeof(shader->vs.varyings));
+      break;
+
+
    case MESA_SHADER_FRAGMENT:
       shader->fs.earlyzs_lut = pan_earlyzs_analyze(&shader->info, PAN_ARCH);
       blob_copy_bytes(blob, &shader->fs.input_attachment_read,
@@ -1828,6 +1834,10 @@ panvk_shader_serialize_variant(struct vk_device *vk_dev,
    case MESA_SHADER_KERNEL:
       blob_write_bytes(blob, &shader->cs.local_size,
                        sizeof(shader->cs.local_size));
+      break;
+   case MESA_SHADER_VERTEX:
+      blob_write_bytes(blob, &shader->vs.varyings,
+                       sizeof(shader->vs.varyings));
       break;
 
    case MESA_SHADER_FRAGMENT:
