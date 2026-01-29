@@ -559,7 +559,7 @@ jm_emit_tiler_draw(struct mali_draw_packed *out, struct panfrost_batch *batch,
          bool has_oq = ctx->occlusion_query && ctx->active_queries;
 
          struct pan_earlyzs_state earlyzs = pan_earlyzs_get(
-            fs->earlyzs, ctx->depth_stencil->writes_zs || has_oq,
+            fs->fs.earlyzs, ctx->depth_stencil->writes_zs || has_oq,
             ctx->blend->base.alpha_to_coverage,
             ctx->depth_stencil->zs_always_passes,
             PAN_EARLYZS_ZS_TILEBUF_NOT_READ);

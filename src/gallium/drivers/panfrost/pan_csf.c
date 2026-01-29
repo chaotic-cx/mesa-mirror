@@ -1247,7 +1247,7 @@ csf_emit_draw_state(struct panfrost_batch *batch,
 
       if (fs_required) {
          struct pan_earlyzs_state earlyzs = pan_earlyzs_get(
-            fs->earlyzs, ctx->depth_stencil->writes_zs || has_oq,
+            fs->fs.earlyzs, ctx->depth_stencil->writes_zs || has_oq,
             ctx->blend->base.alpha_to_coverage,
             ctx->depth_stencil->zs_always_passes,
             PAN_EARLYZS_ZS_TILEBUF_NOT_READ);

@@ -375,7 +375,12 @@ struct panfrost_compiled_shader {
    struct pan_shader_info info;
    struct panfrost_sysvals sysvals;
 
-   struct pan_earlyzs_lut earlyzs;
+   union {
+      struct {
+         struct pan_earlyzs_lut earlyzs;
+      } fs;
+   };
+
 
    /* Linked varyings, for non-separable programs */
    struct pan_linkage linkage;

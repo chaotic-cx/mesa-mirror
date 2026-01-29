@@ -379,7 +379,9 @@ panfrost_new_variant_locked(struct panfrost_context *ctx,
    panfrost_shader_get(ctx->base.screen, &ctx->shaders, &ctx->descs, uncompiled,
                        &ctx->base.debug, prog, 0);
 
-   prog->earlyzs = pan_earlyzs_analyze(&prog->info, dev->arch);
+   if (prog->info.stage == MESA_SHADER_FRAGMENT) {
+      prog->fs.earlyzs = pan_earlyzs_analyze(&prog->info, dev->arch);
+   }
 
    return prog;
 }
