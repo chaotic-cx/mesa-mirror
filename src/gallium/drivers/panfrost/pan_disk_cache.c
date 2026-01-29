@@ -82,6 +82,7 @@ panfrost_disk_cache_store(struct disk_cache *cache,
    blob_write_bytes(&blob, binary->binary.data, binary->binary.size);
    blob_write_bytes(&blob, &binary->info, sizeof(binary->info));
    blob_write_bytes(&blob, &binary->sysvals, sizeof(binary->sysvals));
+   blob_write_bytes(&blob, &binary->varyings_layout_vs, sizeof(binary->varyings_layout_vs));
 
    disk_cache_put(cache, cache_key, blob.data, blob.size, NULL);
    blob_finish(&blob);
@@ -132,6 +133,7 @@ panfrost_disk_cache_retrieve(struct disk_cache *cache,
    blob_copy_bytes(&blob, ptr, binary_size);
    blob_copy_bytes(&blob, &binary->info, sizeof(binary->info));
    blob_copy_bytes(&blob, &binary->sysvals, sizeof(binary->sysvals));
+   blob_copy_bytes(&blob, &binary->varyings_layout_vs, sizeof(binary->varyings_layout_vs));
 
    free(buffer);
 

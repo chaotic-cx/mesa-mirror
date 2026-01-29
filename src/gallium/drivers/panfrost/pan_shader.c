@@ -91,11 +91,19 @@ lower_sample_mask_writes(nir_builder *b, nir_intrinsic_instr *intrin,
 }
 
 static bool
-panfrost_use_ld_var_buf(const nir_shader *ir)
+panfrost_use_ld_var_buf(const nir_shader *ir, const struct pan_compile_inputs *inputs)
 {
-   const uint64_t allowed = VARYING_BIT_POS | VARYING_BIT_PSIZ |
-      BITFIELD64_MASK(16) << VARYING_SLOT_VAR0;
-   return (ir->info.inputs_read & ~allowed) == 0;
+   const uint64_t custom_attribs = BITFIELD64_MASK(16) << VARYING_SLOT_VAR0;
+   const uint64_t allowed = VARYING_BIT_POS | VARYING_BIT_PSIZ | custom_attribs;
+   const bool only_allowed_varyings = (ir->info.inputs_read & ~allowed) == 0;
+   /* ld_var_buf needs to know the precise layout of the varyings at compile time.
+    * This isn't known in certain conditions (e.g. fragment shader with unlinked vertex shader).
+    * If the two shaders have a layout conflict (DCE or precision conflict) the results are undefined.
+    */
+   const bool has_custom_attribs = (ir->info.inputs_read & custom_attribs) != 0;
+   const bool varyings_layout_known = inputs->varying_layout != NULL || !has_custom_attribs;
+
+   return only_allowed_varyings && varyings_layout_known;
 }
 
 static void
@@ -209,8 +217,14 @@ panfrost_shader_compile(struct panfrost_screen *screen, const nir_shader *ir,
    NIR_PASS(_, s, panfrost_nir_lower_res_indices, &inputs);
    pan_nir_lower_texture_late(s, inputs.gpu_id);
 
+   if (s->info.stage == MESA_SHADER_VERTEX) {
+      pan_build_varying_layout_sso_abi(&out->varyings_layout_vs, s, inputs.gpu_id,
+                                       inputs.fixed_varying_mask);
+      inputs.varying_layout = &out->varyings_layout_vs;
+   }
+
    if (dev->arch >= 9) {
-      inputs.valhall.use_ld_var_buf = panfrost_use_ld_var_buf(s);
+      inputs.valhall.use_ld_var_buf = panfrost_use_ld_var_buf(s, &inputs);
       /* Always enable this for GL, it avoids crashes when using unbound
        * resources. */
       inputs.robust_descriptors = true;
@@ -268,6 +282,9 @@ panfrost_shader_get(struct pipe_screen *pscreen,
 
    state->info = res.info;
    state->sysvals = res.sysvals;
+   if (uncompiled->nir->info.stage == MESA_SHADER_VERTEX) {
+      state->vs.varyings_layout = res.varyings_layout_vs;
+   }
 
    if (res.binary.size) {
       state->bin = panfrost_pool_take_ref(

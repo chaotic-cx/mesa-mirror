@@ -377,6 +377,9 @@ struct panfrost_compiled_shader {
 
    union {
       struct {
+         struct pan_varying_layout varyings_layout;
+      } vs;
+      struct {
          struct pan_earlyzs_lut earlyzs;
       } fs;
    };
@@ -434,6 +437,8 @@ struct panfrost_shader_binary {
    /* Collected information about the compiled shader */
    struct pan_shader_info info;
    struct panfrost_sysvals sysvals;
+   /* Varying attributes layout */
+   struct pan_varying_layout varyings_layout_vs;
 
    /* The binary itself */
    struct util_dynarray binary;
