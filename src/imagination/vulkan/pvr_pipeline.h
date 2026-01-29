@@ -125,15 +125,6 @@ struct pvr_compute_pipeline {
    struct pvr_compute_shader_state shader_state;
    struct pvr_stage_allocation_descriptor_state descriptor_state;
 
-   struct pvr_pds_upload pds_cs_program;
-   struct pvr_pds_info pds_cs_program_info;
-
-   uint32_t *pds_cs_data_section;
-   uint32_t base_workgroup_data_patching_offset;
-   uint32_t num_workgroups_data_patching_offset;
-   uint32_t num_workgroups_indirect_src_patching_offset;
-   uint32_t num_workgroups_indirect_src_dma_patching_offset;
-
    /* Debug Info */
    struct pvr_stats *cs_stats;
    const char *cs_nir_str;

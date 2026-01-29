@@ -160,6 +160,9 @@ struct pvr_device {
       struct pvr_pds_upload set_view_index_code;
       struct pvr_pds_upload set_view_index_data[PVR_MAX_MULTIVIEW];
 
+      pdsc_program *compute_shader;
+      struct pvr_pds_upload compute_shader_code;
+
       pdsc_program *xfb_init;
       pdsc_program *xfb_main;
       pdsc_program *xfb_end;

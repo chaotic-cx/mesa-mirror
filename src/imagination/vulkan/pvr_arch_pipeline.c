@@ -716,189 +716,6 @@ static void pvr_pds_descriptor_program_destroy(
    pvr_bo_suballoc_free(descriptor_state->static_consts);
 }
 
-static void pvr_pds_compute_program_setup(
-   const struct pvr_device_info *dev_info,
-   pco_data *cs_data,
-   struct pvr_compute_shader_state *compute_state,
-   struct pvr_pds_compute_shader_program *const program)
-{
-   pco_range *sys_vals = cs_data->common.sys_vals;
-
-   pvr_pds_compute_shader_program_init(program);
-
-   if (sys_vals[SYSTEM_VALUE_LOCAL_INVOCATION_INDEX].count > 0) {
-      program->local_input_regs[0] =
-         sys_vals[SYSTEM_VALUE_LOCAL_INVOCATION_INDEX].start;
-   }
-
-   for (unsigned u = 0; u < ARRAY_SIZE(program->work_group_input_regs); ++u) {
-      if (sys_vals[SYSTEM_VALUE_WORKGROUP_ID].count > u) {
-         program->work_group_input_regs[u] =
-            sys_vals[SYSTEM_VALUE_WORKGROUP_ID].start + u;
-      }
-   }
-
-   for (unsigned u = 0; u < ARRAY_SIZE(program->num_work_groups_regs); ++u) {
-      if (sys_vals[SYSTEM_VALUE_NUM_WORKGROUPS].count > u) {
-         program->num_work_groups_regs[u] =
-            sys_vals[SYSTEM_VALUE_NUM_WORKGROUPS].start + u;
-      }
-   }
-
-   program->flattened_work_groups = true;
-   program->kick_usc = true;
-
-   pvr_pds_setup_doutu(&program->usc_task_control,
-                       compute_state->shader_bo->dev_addr.addr,
-                       cs_data->common.temps,
-                       ROGUE_PDSINST_DOUTU_SAMPLE_RATE_INSTANCE,
-                       false);
-
-   if (compute_state->coeff_update_shader_bo) {
-      program->has_coefficient_update_task = true;
-      pvr_pds_setup_doutu(&program->usc_task_control_coeff_update,
-                          compute_state->coeff_update_shader_bo->dev_addr.addr,
-                          compute_state->coeff_update_shader_temps,
-                          ROGUE_PDSINST_DOUTU_SAMPLE_RATE_INSTANCE,
-                          false);
-   }
-
-   pvr_pds_compute_shader(program, NULL, PDS_GENERATE_SIZES, dev_info);
-}
-
-/* This uploads the code segment and base data segment variant.
- * This can be patched at dispatch time.
- */
-static VkResult pvr_pds_compute_program_create_and_upload(
-   struct pvr_device *const device,
-   const VkAllocationCallbacks *const allocator,
-   struct pvr_compute_shader_state *compute_state,
-   struct pvr_compute_pipeline *compute_pipeline)
-{
-   pco_range *sys_vals = compute_pipeline->cs_data.common.sys_vals;
-   struct pvr_device_info *dev_info = &device->pdevice->dev_info;
-   struct pvr_pds_compute_shader_program program;
-   uint32_t *code_buffer;
-   uint32_t *data_buffer;
-   VkResult result;
-
-   bool uses_wg_id = sys_vals[SYSTEM_VALUE_WORKGROUP_ID].count > 0;
-   bool uses_num_wgs = sys_vals[SYSTEM_VALUE_NUM_WORKGROUPS].count > 0;
-
-   pvr_pds_compute_program_setup(dev_info,
-                                 &compute_pipeline->cs_data,
-                                 compute_state,
-                                 &program);
-
-   code_buffer = vk_alloc2(&device->vk.alloc,
-                           allocator,
-                           PVR_DW_TO_BYTES(program.code_size),
-                           8,
-                           VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-   if (!code_buffer)
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
-
-   data_buffer = vk_alloc2(&device->vk.alloc,
-                           allocator,
-                           PVR_DW_TO_BYTES(program.code_size),
-                           8,
-                           VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
-   if (!data_buffer) {
-      vk_free2(&device->vk.alloc, allocator, code_buffer);
-      return vk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
-   }
-
-   pvr_pds_compute_shader(&program,
-                          &code_buffer[0],
-                          PDS_GENERATE_CODE_SEGMENT,
-                          dev_info);
-
-   pvr_pds_compute_shader(&program,
-                          &data_buffer[0],
-                          PDS_GENERATE_DATA_SEGMENT,
-                          dev_info);
-
-   /* Initialize. */
-   if (uses_wg_id) {
-      unsigned offset = program.base_workgroup_constant_offset_in_dwords[0];
-      for (unsigned u = 0; u < PVR_WORKGROUP_DIMENSIONS; ++u) {
-         data_buffer[offset + u] = 0;
-      }
-   }
-
-   if (uses_num_wgs) {
-      unsigned offset = program.num_workgroups_constant_offset_in_dwords[0];
-      for (unsigned u = 0; u < PVR_WORKGROUP_DIMENSIONS; ++u) {
-         data_buffer[offset + u] = 0;
-      }
-
-      offset = program.num_workgroups_indirect_src;
-      data_buffer[offset] = 0;
-      data_buffer[offset + 1] = 0;
-   }
-
-   /* FIXME: Figure out the define for alignment of 16. */
-   result = pvr_gpu_upload_pds(device,
-                               data_buffer,
-                               program.data_size,
-                               16,
-                               code_buffer,
-                               program.code_size,
-                               16,
-                               16,
-                               &compute_pipeline->pds_cs_program);
-   if (result != VK_SUCCESS) {
-      vk_free2(&device->vk.alloc, allocator, code_buffer);
-      vk_free2(&device->vk.alloc, allocator, data_buffer);
-      return result;
-   }
-
-   compute_pipeline->pds_cs_data_section = data_buffer;
-
-   /* The base workgroup and num workgroups can be patched in the
-    * PDS data section before dispatch so we save their offsets.
-    */
-   compute_pipeline->base_workgroup_data_patching_offset = ~0u;
-   if (uses_wg_id) {
-      compute_pipeline->base_workgroup_data_patching_offset =
-         program.base_workgroup_constant_offset_in_dwords[0];
-   }
-
-   compute_pipeline->num_workgroups_data_patching_offset = ~0u;
-   compute_pipeline->num_workgroups_indirect_src_patching_offset = ~0u;
-   compute_pipeline->num_workgroups_indirect_src_dma_patching_offset = ~0u;
-   if (uses_num_wgs) {
-      compute_pipeline->num_workgroups_data_patching_offset =
-         program.num_workgroups_constant_offset_in_dwords[0];
-
-      compute_pipeline->num_workgroups_indirect_src_patching_offset =
-         program.num_workgroups_indirect_src;
-
-      compute_pipeline->num_workgroups_indirect_src_dma_patching_offset =
-         program.num_workgroups_indirect_src_dma;
-   }
-
-   compute_pipeline->pds_cs_program_info = (struct pvr_pds_info){
-      .temps_required = program.highest_temp,
-      .code_size_in_dwords = program.code_size,
-      .data_size_in_dwords = program.data_size,
-   };
-
-   vk_free2(&device->vk.alloc, allocator, code_buffer);
-
-   return VK_SUCCESS;
-}
-
-static void
-pvr_pds_compute_program_destroy(struct pvr_device *device,
-                                const VkAllocationCallbacks *const allocator,
-                                struct pvr_pds_upload *const pds_cs_program,
-                                uint32_t *pds_cs_data_section)
-{
-   pvr_bo_suballoc_free(pds_cs_program->pvr_bo);
-   vk_free2(&device->vk.alloc, allocator, pds_cs_data_section);
-}
-
 /******************************************************************************
    Generic pipeline functions
  ******************************************************************************/
@@ -1006,9 +823,6 @@ static VkResult pvr_compute_pipeline_compile(
    nir_shader *nir;
    pco_shader *cs;
 
-   struct pvr_compute_shader_state *compute_state =
-      &compute_pipeline->shader_state;
-
    VkResult result;
 
    result =
@@ -1087,27 +901,6 @@ static VkResult pvr_compute_pipeline_compile(
    if (result != VK_SUCCESS)
       goto err_free_build_context;
 
-   if (compute_pipeline->cs_data.cs.zero_shmem &&
-       !compute_pipeline->cs_data.cs.global_shmem) {
-      uint32_t start = compute_pipeline->cs_data.cs.shmem.start;
-      uint32_t count = compute_pipeline->cs_data.cs.shmem.count;
-      pco_shader *zero_init_shader =
-         pvr_usc_zero_init_wg_mem(pco_ctx, start, count);
-
-      compute_state->coeff_update_shader_temps =
-         pco_shader_data(zero_init_shader)->common.temps;
-
-      result = pvr_gpu_upload_usc(device,
-                                  pco_shader_binary_data(zero_init_shader),
-                                  pco_shader_binary_size(zero_init_shader),
-                                  cache_line_size,
-                                  &compute_state->coeff_update_shader_bo);
-      ralloc_free(zero_init_shader);
-
-      if (result != VK_SUCCESS)
-         goto err_free_shader;
-   }
-
    result = pvr_pds_descriptor_program_create_and_upload(
       device,
       allocator,
@@ -1116,26 +909,11 @@ static VkResult pvr_compute_pipeline_compile(
       &compute_pipeline->cs_data,
       &compute_pipeline->descriptor_state);
    if (result != VK_SUCCESS)
-      goto err_free_coeff_update_shader;
-
-   result = pvr_pds_compute_program_create_and_upload(device,
-                                                      allocator,
-                                                      compute_state,
-                                                      compute_pipeline);
-   if (result != VK_SUCCESS)
-      goto err_free_descriptor_program;
+      goto err_free_shader;
 
    ralloc_free(shader_mem_ctx);
 
    return VK_SUCCESS;
-
-err_free_coeff_update_shader:
-   pvr_bo_suballoc_free(compute_pipeline->shader_state.coeff_update_shader_bo);
-
-err_free_descriptor_program:
-   pvr_pds_descriptor_program_destroy(device,
-                                      allocator,
-                                      &compute_pipeline->descriptor_state);
 
 err_free_shader:
    pvr_bo_suballoc_free(compute_pipeline->shader_state.shader_bo);
@@ -1216,10 +994,6 @@ static void pvr_compute_pipeline_destroy(
    const VkAllocationCallbacks *const allocator,
    struct pvr_compute_pipeline *const compute_pipeline)
 {
-   pvr_pds_compute_program_destroy(device,
-                                   allocator,
-                                   &compute_pipeline->pds_cs_program,
-                                   compute_pipeline->pds_cs_data_section);
    pvr_pds_descriptor_program_destroy(device,
                                       allocator,
                                       &compute_pipeline->descriptor_state);

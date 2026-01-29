@@ -87,6 +87,8 @@
 #include "vk_synchronization.h"
 #include "vk_util.h"
 
+#include "pdsc/programs/pdsc_compute.h"
+
 /* Structure used to pass data into pvr_compute_generate_control_stream()
  * function.
  */
@@ -294,6 +296,9 @@ static VkResult pvr_cmd_buffer_create(struct pvr_device *device,
    list_inithead(&cmd_buffer->deferred_clears);
    list_inithead(&cmd_buffer->sub_cmds);
    list_inithead(&cmd_buffer->bo_list);
+
+   cmd_buffer->state.cond_render_buffer_addr = 0;
+   cmd_buffer->state.cond_render_invert = true;
 
    *pCommandBuffer = pvr_cmd_buffer_to_handle(cmd_buffer);
 
@@ -6507,76 +6512,100 @@ static void pvr_compute_update_kernel(
    const uint32_t global_base_group[static const PVR_WORKGROUP_DIMENSIONS],
    const uint32_t global_workgroup_size[static const PVR_WORKGROUP_DIMENSIONS])
 {
-   const struct pvr_physical_device *pdevice = cmd_buffer->device->pdevice;
+   const struct pvr_device *device = cmd_buffer->device;
+   const struct pvr_physical_device *pdevice = device->pdevice;
    struct pvr_cmd_buffer_state *state = &cmd_buffer->state;
    const struct pvr_device_runtime_info *dev_runtime_info =
       &pdevice->dev_runtime_info;
    struct pvr_csb *csb = &sub_cmd->control_stream;
    const struct pvr_compute_pipeline *pipeline = state->compute_pipeline;
    const pco_data *const cs_data = &pipeline->cs_data;
-   const struct pvr_pds_info *program_info = &pipeline->pds_cs_program_info;
-   bool uses_wg_id = pipeline->base_workgroup_data_patching_offset != ~0u;
-   bool uses_num_wgs = pipeline->num_workgroups_data_patching_offset != ~0u;
-   bool base_group_set = !!global_base_group[0] || !!global_base_group[1] ||
-                         !!global_base_group[2];
-   uint32_t pds_data_offset = pipeline->pds_cs_program.data_offset;
    const unsigned max_coeffs = dev_runtime_info->cdm_max_local_mem_size_regs;
 
-   /* Does the PDS data segment need patching, or can the default be used? */
-   if ((uses_wg_id && base_group_set) || uses_num_wgs) {
-      struct pvr_pds_upload pds_data_upload;
-      uint32_t *pds_data;
+   pdsc_program *compute_shader = device->pdsc_precomp_programs.compute_shader;
+   const struct pvr_pds_upload *compute_shader_code =
+      &device->pdsc_precomp_programs.compute_shader_code;
 
-      /* Upload and patch PDS data segment. */
+   /* Upload and patch PDS data segment. */
+   struct pvr_pds_upload pds_data_upload;
+   VkResult result =
       pvr_cmd_buffer_upload_pds_data(cmd_buffer,
-                                     pipeline->pds_cs_data_section,
-                                     program_info->data_size_in_dwords,
+                                     pdsc_program_data(compute_shader),
+                                     pdsc_program_data_size(compute_shader) /
+                                        sizeof(uint32_t),
                                      16,
                                      &pds_data_upload);
-      pds_data_offset = pds_data_upload.data_offset;
-      pds_data = pvr_bo_suballoc_get_map_addr(pds_data_upload.pvr_bo);
-
-      if (uses_wg_id && base_group_set) {
-         unsigned offset = pipeline->base_workgroup_data_patching_offset;
-         for (unsigned u = 0; u < PVR_WORKGROUP_DIMENSIONS; ++u) {
-            pds_data[offset + u] = global_base_group[u];
-         }
-      }
-
-      if (uses_num_wgs) {
-         if (indirect_addr.addr) {
-            unsigned offset =
-               pipeline->num_workgroups_indirect_src_patching_offset;
-
-            uint64_t *pds_data64 =
-               pvr_bo_suballoc_get_map_addr(pds_data_upload.pvr_bo);
-            pds_data64[offset / 2] = indirect_addr.addr;
-
-            offset = pipeline->num_workgroups_indirect_src_dma_patching_offset;
-
-            pds_data[offset] |=
-               3 << PVR_ROGUE_PDSINST_DOUT_FIELDS_DOUTD_SRC1_BSIZE_SHIFT;
-         }
-
-         unsigned offset = pipeline->num_workgroups_data_patching_offset;
-         for (unsigned u = 0; u < PVR_WORKGROUP_DIMENSIONS; ++u) {
-            pds_data[offset + u] = global_workgroup_size[u];
-         }
-      }
+   if (result != VK_SUCCESS) {
+      vk_command_buffer_set_error(&cmd_buffer->vk, result);
+      return;
    }
+
+   uint32_t *pds_data = pvr_bo_suballoc_get_map_addr(pds_data_upload.pvr_bo);
+
+   struct pvr_suballoc_bo *shader_bo = pipeline->shader_state.shader_bo;
+   struct pvr_suballoc_bo *coeff_update_shader_bo =
+      pipeline->shader_state.coeff_update_shader_bo;
+
+   const pco_range *sys_vals = cs_data->common.sys_vals;
+
+   struct pdsc_compute_arguments args = {
+      .global_base_group[0] = global_base_group[0],
+      .global_base_group[1] = global_base_group[1],
+      .global_base_group[2] = global_base_group[2],
+      .zero_addr = device->null_state.zero_bo->vma->dev_addr.addr,
+      .zero_start = cs_data->cs.shmem.start,
+      .zero_count = (cs_data->cs.zero_shmem && !cs_data->cs.global_shmem)
+                       ? cs_data->cs.shmem.count
+                       : 0,
+      .num_wgs_start = sys_vals[SYSTEM_VALUE_NUM_WORKGROUPS].start,
+      .num_wgs_count = sys_vals[SYSTEM_VALUE_NUM_WORKGROUPS].count,
+      .wgid_start = sys_vals[SYSTEM_VALUE_WORKGROUP_ID].start,
+      .wgid_count = sys_vals[SYSTEM_VALUE_WORKGROUP_ID].count,
+      .cs_lid_start = sys_vals[SYSTEM_VALUE_LOCAL_INVOCATION_INDEX].start,
+      .cs_lid_count = sys_vals[SYSTEM_VALUE_LOCAL_INVOCATION_INDEX].count,
+      .cond_render_addr = state->cond_render_buffer_addr,
+      .cond_render_invert = state->cond_render_invert,
+      .shader_temps = cs_data->common.temps,
+      .shader_addr = shader_bo->dev_addr.addr,
+      .coeff_update_shader_addr =
+         coeff_update_shader_bo ? coeff_update_shader_bo->dev_addr.addr : 0,
+   };
+
+   if (indirect_addr.addr) {
+      args.num_wgs_addr = indirect_addr.addr;
+   } else {
+      /* TODO: only upload if requested. */
+      struct pvr_suballoc_bo *num_wgs_bo;
+
+      result =
+         pvr_arch_cmd_buffer_upload_general(cmd_buffer,
+                                            global_workgroup_size,
+                                            sizeof(*global_workgroup_size) *
+                                               PVR_WORKGROUP_DIMENSIONS,
+                                            &num_wgs_bo);
+
+      if (result != VK_SUCCESS) {
+         vk_command_buffer_set_error(&cmd_buffer->vk, result);
+         return;
+      }
+
+      args.num_wgs_addr = num_wgs_bo->dev_addr.addr;
+   }
+
+   pdsc_patch_compute_shader(compute_shader, &args, pds_data);
 
    struct pvr_compute_kernel_info info = {
       .indirect_buffer_addr = indirect_addr,
       .usc_target = ROGUE_CDMCTRL_USC_TARGET_ANY,
       .pds_temp_size =
-         DIV_ROUND_UP(program_info->temps_required << 2U,
+         DIV_ROUND_UP(pdsc_program_temps_used(compute_shader) << 2U,
                       ROGUE_CDMCTRL_KERNEL0_PDS_TEMP_SIZE_UNIT_SIZE),
 
       .pds_data_size =
-         DIV_ROUND_UP(PVR_DW_TO_BYTES(program_info->data_size_in_dwords),
+         DIV_ROUND_UP(pdsc_program_data_size(compute_shader),
                       ROGUE_CDMCTRL_KERNEL0_PDS_DATA_SIZE_UNIT_SIZE),
-      .pds_data_offset = pds_data_offset,
-      .pds_code_offset = pipeline->pds_cs_program.code_offset,
+      .pds_data_offset = pds_data_upload.data_offset,
+      .pds_code_offset = compute_shader_code->code_offset,
 
       .sd_type = ROGUE_CDMCTRL_SD_TYPE_NONE,
 
@@ -10626,4 +10655,32 @@ void PVR_PER_ARCH(GetRenderingAreaGranularity)(
 {
    VK_FROM_HANDLE(pvr_device, device, _device);
    pvr_get_render_area_granularity(device->pdevice, pGranularity);
+}
+
+void pvr_CmdBeginConditionalRenderingEXT(
+   VkCommandBuffer commandBuffer,
+   const VkConditionalRenderingBeginInfoEXT *pConditionalRenderingBegin)
+{
+   VK_FROM_HANDLE(pvr_cmd_buffer, cmd_buffer, commandBuffer);
+   struct pvr_cmd_buffer_state *state = &cmd_buffer->state;
+
+   vk_foreach_struct_const (sType, ext, pConditionalRenderingBegin->pNext) {
+      vk_debug_ignored_stype(sType);
+   }
+
+   VK_FROM_HANDLE(pvr_buffer, buffer, pConditionalRenderingBegin->buffer);
+   state->cond_render_buffer_addr =
+      buffer->dev_addr.addr + pConditionalRenderingBegin->offset;
+
+   state->cond_render_invert = pConditionalRenderingBegin->flags &
+                               VK_CONDITIONAL_RENDERING_INVERTED_BIT_EXT;
+}
+
+void pvr_CmdEndConditionalRenderingEXT(VkCommandBuffer commandBuffer)
+{
+   VK_FROM_HANDLE(pvr_cmd_buffer, cmd_buffer, commandBuffer);
+   struct pvr_cmd_buffer_state *state = &cmd_buffer->state;
+
+   state->cond_render_buffer_addr = 0;
+   state->cond_render_invert = true;
 }

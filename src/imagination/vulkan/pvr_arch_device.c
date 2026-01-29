@@ -709,6 +709,16 @@ static void pvr_device_dummy_rt_finish(struct pvr_device *device)
 static VkResult
 pvr_device_finish_pdsc_precomp_programs(struct pvr_device *device)
 {
+#define finish(p)                                                          \
+   do {                                                                    \
+      pvr_bo_suballoc_free(device->pdsc_precomp_programs.p##_code.pvr_bo); \
+      device->pdsc_precomp_programs.p##_code.pvr_bo = NULL;                \
+      ralloc_free(device->pdsc_precomp_programs.p);                        \
+      device->pdsc_precomp_programs.p = NULL;                              \
+   } while (0)
+
+   finish(compute_shader);
+
    pvr_bo_suballoc_free(
       device->pdsc_precomp_programs.set_view_index_code.pvr_bo);
    device->pdsc_precomp_programs.set_view_index_code.pvr_bo = NULL;
@@ -724,6 +734,11 @@ pvr_device_finish_pdsc_precomp_programs(struct pvr_device *device)
    ralloc_free(device->pdsc_precomp_programs.set_view_index);
    device->pdsc_precomp_programs.set_view_index = NULL;
 
+   memset(&device->pdsc_precomp_programs,
+          0,
+          sizeof(device->pdsc_precomp_programs));
+
+#undef finish
    return VK_SUCCESS;
 }
 
@@ -785,8 +800,10 @@ static VkResult pvr_device_init_pdsc_precomp_programs(struct pvr_device *device)
          goto err_pvr_finish_pdsc_precomp_programs;
    }
 
+   upload(compute_shader);
 #undef upload
    return result;
+
 err_pvr_finish_pdsc_precomp_programs:
    pvr_device_finish_pdsc_precomp_programs(device);
 

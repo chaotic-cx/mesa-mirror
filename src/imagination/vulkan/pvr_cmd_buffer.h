@@ -551,6 +551,9 @@ struct pvr_cmd_buffer_state {
 
    uint32_t max_shared_regs;
 
+   uint64_t cond_render_buffer_addr;
+   bool cond_render_invert;
+
    /* Address of data segment for vertex attrib upload program. */
    uint32_t pds_vertex_attrib_offset;
 

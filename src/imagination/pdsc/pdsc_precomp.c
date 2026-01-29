@@ -29,6 +29,7 @@ struct pdsc_precomp_info {
    enum pdsc_feature feature_variants;
 };
 
+#include "programs/pdsc_compute.h"
 #include "programs/pdsc_set_view_index.h"
 
 #include "programs/pdsc_xfb_end.h"
@@ -46,6 +47,7 @@ struct pdsc_precomp_info {
 
 static const struct pdsc_precomp_info pdsc_precomp_infos[] = {
    PRECOMP(set_view_index, 0),
+   PRECOMP(compute_shader, 0),
 
    PRECOMP(xfb_end, 0),
    PRECOMP(xfb_init, 0),

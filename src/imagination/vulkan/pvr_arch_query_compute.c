@@ -37,7 +37,6 @@
 #include "pvr_device.h"
 #include "pvr_formats.h"
 #include "pvr_macros.h"
-#include "pvr_pds.h"
 #include "pvr_physical_device.h"
 #include "pvr_pipeline.h"
 #include "pvr_query.h"
@@ -47,18 +46,7 @@
 #include "vk_command_pool.h"
 #include "vk_util.h"
 
-/* TODO: multicore support/awareness. */
-
-static inline void pvr_init_primary_compute_pds_program(
-   struct pvr_pds_compute_shader_program *program)
-{
-   pvr_pds_compute_shader_program_init(program);
-   program->local_input_regs[0] = 0;
-   /* Workgroup id is in reg0. */
-   program->work_group_input_regs[0] = 0;
-   program->flattened_work_groups = true;
-   program->kick_usc = true;
-}
+#include "pdsc/programs/pdsc_compute.h"
 
 static VkResult
 pvr_create_compute_secondary_prog(struct pvr_device *device,
@@ -148,7 +136,6 @@ static VkResult pvr_create_compute_query_precomp_program(
 {
    const uint32_t cache_line_size =
       pvr_get_slc_cache_line_size(&device->pdevice->dev_info);
-   struct pvr_pds_compute_shader_program pds_primary_prog = { 0 };
    const pco_precomp_data *precomp_data;
    VkResult result;
 
@@ -163,23 +150,34 @@ static VkResult pvr_create_compute_query_precomp_program(
    if (result != VK_SUCCESS)
       return result;
 
-   pvr_init_primary_compute_pds_program(&pds_primary_prog);
+   pdsc_program *p = device->pdsc_precomp_programs.compute_shader;
 
-   pvr_pds_setup_doutu(&pds_primary_prog.usc_task_control,
-                       query_prog->usc_bo->dev_addr.addr,
-                       precomp_data->temps,
-                       ROGUE_PDSINST_DOUTU_SAMPLE_RATE_INSTANCE,
-                       false);
+   result = pvr_gpu_upload_pds(device,
+                               pdsc_program_data(p),
+                               pdsc_program_data_size(p) / sizeof(uint32_t),
+                               16,
+                               NULL,
+                               0,
+                               0,
+                               16,
+                               &query_prog->pds_prim_code);
 
-   result =
-      pvr_arch_pds_compute_shader_create_and_upload(device,
-                                                    &pds_primary_prog,
-                                                    &query_prog->pds_prim_code);
    if (result != VK_SUCCESS)
       goto err_free_usc_bo;
 
-   query_prog->primary_data_size_dw = pds_primary_prog.data_size;
-   query_prog->primary_num_temps = pds_primary_prog.temps_used;
+   uint32_t *pds_data =
+      pvr_bo_suballoc_get_map_addr(query_prog->pds_prim_code.pvr_bo);
+
+   struct pdsc_compute_arguments args = {
+      .cs_lid_count = 1,
+      .wgid_count = 1,
+      .shader_addr = query_prog->usc_bo->dev_addr.addr,
+      .shader_temps = precomp_data->temps,
+   };
+   pdsc_patch_compute_shader(p, &args, pds_data);
+
+   query_prog->primary_data_size_dw = pdsc_program_data_size(p);
+   query_prog->primary_num_temps = pdsc_program_temps_used(p);
 
    result =
       pvr_create_compute_secondary_prog(device, const_shared_regs, query_prog);
@@ -448,7 +446,8 @@ VkResult pvr_arch_add_query_program(struct pvr_cmd_buffer *cmd_buffer,
       UNREACHABLE("Invalid query type");
    }
 
-   pipeline.pds_code_offset = query_prog->pds_prim_code.code_offset;
+   pipeline.pds_code_offset =
+      device->pdsc_precomp_programs.compute_shader_code.code_offset;
    pipeline.pds_data_offset = query_prog->pds_prim_code.data_offset;
 
    pipeline.pds_shared_update_code_offset =
