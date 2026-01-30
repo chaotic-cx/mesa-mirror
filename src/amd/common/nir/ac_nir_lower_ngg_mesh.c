@@ -770,7 +770,11 @@ ms_emit_attribute_ring_output_stores(nir_builder *b, const uint64_t outputs_mask
       if (s->vs_output_param_offset[slot] > AC_EXP_PARAM_OFFSET_31)
          continue;
 
-      nir_def *soffset = nir_iadd_imm(b, off, s->vs_output_param_offset[slot] * 16 * 32);
+      /* GFX13: The swizzled addressing would amplify the soffset by index_stride=32.
+       * GFX11-12: Multiply by 512.
+       */
+      unsigned attr_granularity = s->ac->gfx_level >= GFX13 ? 16 : 16 * 32;
+      nir_def *soffset = nir_iadd_imm(b, off, s->vs_output_param_offset[slot] * attr_granularity);
       nir_def *store_val = nir_undef(b, 4, 32);
       unsigned store_val_components = 0;
       for (unsigned c = 0; c < 4; ++c) {

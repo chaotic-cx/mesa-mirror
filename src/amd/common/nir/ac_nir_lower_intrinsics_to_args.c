@@ -309,7 +309,14 @@ lower_intrinsic_to_arg(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
       break;
    case nir_intrinsic_load_ring_attr_offset_amd: {
       nir_def *ring_attr_offset = ac_nir_load_arg(b, s->args, s->args->gs_attr_offset);
-      replacement = nir_ishl_imm(b, nir_ubfe_imm(b, ring_attr_offset, 0, 15), 9); /* 512b increments. */
+      /* On GFX13: The offset appears to be in multiple of 16B, but actually it's in multiples
+       * of 512B. Since swizzled addressing is applied to soffset, which multiplies it by hardcoded
+       * INDEX_STRIDE=32 (16 * 32 = 512), so we must multiply it by 16 to get multiples of 512B.
+       *
+       * GFX11-12: Multiply by 512.
+       */
+      replacement = nir_ishl_imm(b, nir_ubfe_imm(b, ring_attr_offset, 0, 15),
+                                 s->options->gfx_level >= GFX13 ? 4 : 9);
       break;
    }
    case nir_intrinsic_load_first_vertex:
