@@ -2154,7 +2154,7 @@ static unsigned si_is_vertex_format_supported(struct pipe_screen *screen, enum p
 
    if (sscreen->info.gfx_level >= GFX10) {
       const struct gfx10_format *fmt = &ac_get_gfx10_format_table(sscreen->info.gfx_level)[format];
-      unsigned first_image_only_format = sscreen->info.gfx_level >= GFX11 ? 64 : 128;
+      unsigned first_image_only_format = (sscreen->info.gfx_level >= GFX11 && sscreen->info.gfx_level < GFX13) ? 64 : 128;
 
       if (!fmt->img_format || fmt->img_format >= first_image_only_format)
          return 0;
