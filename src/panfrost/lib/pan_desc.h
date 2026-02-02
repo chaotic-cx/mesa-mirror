@@ -187,6 +187,44 @@ pan_calc_workgroups_per_task(const struct pan_compute_dim *shader_local_size,
    return wg_per_task;
 }
 
+/* Decide on a common format for varying descriptors.
+ *
+ * Varying formats usually agree as the layout is passed from the vertex shader
+ * onto the fragment shader when they are compiled together. When they aren't though
+ * they can disagree on the precision (PrecisionRelaxed / mediump).
+ * This function decides on a format to use as the attribute descriptor given the
+ * format from both VS and FS.
+ * Although Bitfrost and older (< v9) can adapt to the format used in the descriptor,
+ * from Valhall onwards new instructions have been added that do not use the descriptor
+ * and rely on a agreement on the varyings layout between the shaders.
+ * This function must not break that layout agreement.
+ */
+static enum pipe_format
+pan_varying_desc_format(enum pipe_format vs_format, enum pipe_format fs_format)
+{
+   const struct util_format_description *vs_desc, *fs_desc;
+
+   if (vs_format == fs_format) {
+      return vs_format;
+   }
+
+   vs_desc = util_format_description(vs_format);
+   fs_desc = util_format_description(fs_format);
+
+   assert(vs_desc->is_array && fs_desc->is_array);
+   assert(!vs_desc->channel[0].normalized);
+   assert(!fs_desc->channel[0].normalized);
+
+   /* Create a format with the component layout from the VS format but the
+    * data type from the FS format.
+    */
+   return util_format_get_array(fs_desc->channel[0].type,
+                                vs_desc->channel[0].size,
+                                vs_desc->nr_channels,
+                                false /* normalized */,
+                                fs_desc->channel[0].pure_integer);
+}
+
 static inline unsigned
 pan_calc_wls_instances(const struct pan_compute_dim *shader_local_size,
                        const struct pan_kmod_dev_props *props,
