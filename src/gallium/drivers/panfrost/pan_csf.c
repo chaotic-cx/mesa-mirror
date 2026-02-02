@@ -1167,7 +1167,7 @@ csf_emit_draw_state(struct panfrost_batch *batch,
    }
 
    cs_move32_to(b, cs_sr_reg32(b, IDVS, VARY_SIZE),
-                panfrost_vertex_attribute_stride(vs, fs));
+                vs->vs.varyings_layout.generic_size_B);
    cs_move64_to(b, cs_sr_reg64(b, IDVS, BLEND_DESC),
                 batch->blend | MAX2(batch->key.nr_cbufs, 1));
    cs_move64_to(b, cs_sr_reg64(b, IDVS, ZSD), batch->depth_stencil);

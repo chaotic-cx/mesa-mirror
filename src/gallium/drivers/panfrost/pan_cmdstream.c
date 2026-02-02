@@ -3040,7 +3040,8 @@ panfrost_val_emit_varying_descriptors(struct panfrost_batch *batch)
    struct panfrost_compiled_shader *fs =
       batch->ctx->prog[MESA_SHADER_FRAGMENT];
 
-   const uint32_t vs_out_mask = vs->info.varyings.fixed_varyings;
+   const struct pan_varying_layout *layout = &vs->vs.varyings_layout;
+
    const uint32_t fs_in_mask = fs->info.varyings.fixed_varyings;
    const uint32_t fs_in_slots = fs->info.varyings.input_count +
                                 util_bitcount(fs_in_mask);
@@ -3051,31 +3052,30 @@ panfrost_val_emit_varying_descriptors(struct panfrost_batch *batch)
 
    batch->nr_varying_attribs[MESA_SHADER_FRAGMENT] = fs_in_slots;
 
-   const uint32_t varying_size = panfrost_vertex_attribute_stride(vs, fs);
-
    for (uint32_t i = 0; i < fs_in_slots; i++) {
-      const struct pan_shader_varying *var = &fs->info.varyings.input[i];
+      const struct pan_shader_varying *fs_var = &fs->info.varyings.input[i];
 
-      uint32_t index = 0;
-      if (var->location >= VARYING_SLOT_VAR0) {
-         unsigned nr_special = util_bitcount(vs_out_mask);
-         unsigned general_index = (var->location - VARYING_SLOT_VAR0);
-         index = nr_special + general_index;
-      } else {
-         index = util_bitcount(vs_out_mask & BITFIELD_MASK(var->location));
+      unsigned offset = 0;
+      enum pipe_format format = PIPE_FORMAT_NONE;
+
+      const struct pan_varying_slot *vs_slot =
+         pan_varying_layout_find_slot(layout, fs_var->location);
+      if (vs_slot) {
+         offset = vs_slot->offset;
+         format = pan_varying_desc_format(vs_slot->format, fs_var->format);
       }
 
       pan_pack(&descs[i], ATTRIBUTE, cfg) {
          cfg.attribute_type = MALI_ATTRIBUTE_TYPE_VERTEX_PACKET;
          cfg.offset_enable = false;
-         cfg.format = GENX(pan_format_from_pipe_format)(var->format)->hw;
+         cfg.format = GENX(pan_format_from_pipe_format)(format)->hw;
          cfg.table = 61;
          cfg.frequency = MALI_ATTRIBUTE_FREQUENCY_VERTEX;
-         cfg.offset = 1024 + (index * 16);
+         cfg.offset = 1024 + offset;
          /* On v12+, the hardware-controlled buffer is at index 1 for varyings */
          cfg.buffer_index = PAN_ARCH >= 12 ? 1 : 0;
-         cfg.attribute_stride = varying_size;
-         cfg.packet_stride = varying_size + 16;
+         cfg.attribute_stride = layout->generic_size_B;
+         cfg.packet_stride = layout->generic_size_B + 16;
       }
    }
 
