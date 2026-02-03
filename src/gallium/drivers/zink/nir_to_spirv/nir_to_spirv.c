@@ -5009,7 +5009,8 @@ nir_to_spirv(struct nir_shader *s, const struct ntv_info *sinfo)
          emit_image(&ctx, var, get_bare_image_type(&ctx, var, false));
    }
 
-   if (sinfo->float_controls.flush_denorms) {
+   if (sinfo->float_controls.flush_denorms ||
+       sinfo->float_controls.preserve_denorms) {
       unsigned execution_mode = s->info.float_controls_execution_mode;
       bool flush_16_bit = nir_is_denorm_flush_to_zero(execution_mode, 16);
       bool flush_32_bit = nir_is_denorm_flush_to_zero(execution_mode, 32);

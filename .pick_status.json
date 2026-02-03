@@ -854,7 +854,7 @@
         "description": "zink: Emit float controls for preserve_denorms too",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "6afa1b3bade64e0676b349d7d57b3c89b5ec3e9e",
         "notes": null
