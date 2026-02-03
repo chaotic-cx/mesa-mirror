@@ -55,6 +55,8 @@ fi
 if [ -n "$VKD3D_PROTON_TAG" ]; then
   # Are we using the right vkd3d-proton version?
   ci_tag_test_time_check "VKD3D_PROTON_TAG"
+else
+  rm -rf /vkd3d-proton-tests
 fi
 
 if [ -n "${OPENCL_CTS_TAG:-}" ]; then
