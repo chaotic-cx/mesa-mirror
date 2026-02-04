@@ -784,7 +784,7 @@
         "description": "tu/kgsl: wait-only submit handling should not ignore sparse bind commands",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "71ef46717cd091f0a12a12cf5a8da3ec8a6fe96a",
         "notes": null
