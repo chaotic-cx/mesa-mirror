@@ -19,7 +19,7 @@ enum radv_color_op {
 static VkResult
 get_dcc_decompress_compute_pipeline(struct radv_device *device, VkPipeline *pipeline_out, VkPipelineLayout *layout_out)
 {
-   enum radv_meta_object_key_type key = RADV_META_OBJECT_KEY_DCC_DECOMPRESS;
+   enum radv_meta_object_key_type key = RADV_META_OBJECT_KEY_DCC_DECOMPRESS_CS;
    VkResult result;
 
    const VkDescriptorSetLayoutBinding bindings[] = {
