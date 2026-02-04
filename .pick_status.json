@@ -1104,7 +1104,7 @@
         "description": "Revert \"ci: lima farm maintenance\"",
         "nominated": true,
         "nomination_type": 3,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ca1d59d813972911a3a523713445ced7d758713e",
         "notes": null
