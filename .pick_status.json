@@ -1154,7 +1154,7 @@
         "description": "nvk: Reenable compression support with nouveau 1.4.2",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f3c53cf66bfcc38f3f54de01a16e40db0e7f79b6",
         "notes": null

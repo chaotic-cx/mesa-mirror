@@ -101,13 +101,8 @@ nvkmd_nouveau_try_create_pdev(struct _drmDevice *drm_device,
       .has_alloc_tiled = nouveau_ws_device_has_tiled_bo(ws_dev),
       .has_map_fixed = true,
       .has_overmap = true,
-      /*
-       * Disabled for now due to
-       * https://gitlab.freedesktop.org/mesa/mesa/-/issues/14610
-       * .has_compression = ws_dev->nouveau_version >= 0x01000401 &&
-       *                    ws_dev->info.cls_eng3d >= TURING_A,
-       */
-      .has_compression = false,
+      .has_compression = ws_dev->nouveau_version >= 0x01000402 &&
+                         ws_dev->info.cls_eng3d >= TURING_A,
    };
 
    /* We get this ourselves */
