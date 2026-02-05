@@ -809,4 +809,8 @@
     <field name="UAV Coherency Mode Mask" dword="2" bits="22:22" type="uint" />
     <field name="Memory allocation for Scratch and Midthread Preemption buffers Mask" dword="2" bits="27:27" type="uint" />
   </instruction>
+  <register name="CHICKEN_RASTER_2" length="1" num="0x6208">
+    <field name="Disable Any MCTR response fix" dword="0" bits="5:5" type="bool" />
+    <field name="Disable Any MCTR response fix Mask" dword="0" bits="21:21" type="bool" />
+  </register>
 </genxml>

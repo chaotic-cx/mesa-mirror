@@ -974,7 +974,7 @@
         "description": "intel/genxml: add CHICKEN_RASTER_2 with required bit for Xe3",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
