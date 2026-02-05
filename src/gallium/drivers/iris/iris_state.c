@@ -1424,6 +1424,17 @@ iris_init_render_context(struct iris_batch *batch)
    };
 #endif
 
+#if GFX_VERx10 >= 300
+/* Set value explicitly on init to override possible wrong setting. This bit
+ * default changed from Xe2 to Xe3 and is required to be zero for
+ * Wa_16020518922 as mentioned in bspec 55893.
+ */
+   iris_emit_reg(batch, GENX(CHICKEN_RASTER_2), reg) {
+      reg.DisableAnyMCTRresponsefix = false;
+      reg.DisableAnyMCTRresponsefixMask = true;
+   };
+#endif
+
 #if GFX_VER >= 20
    iris_emit_cmd(batch, GENX(3DSTATE_3D_MODE), p) {
       p.DX10OGLBorderModeforYCRCB = true;
