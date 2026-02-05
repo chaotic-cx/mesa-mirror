@@ -628,6 +628,17 @@ init_render_queue_state(struct anv_queue *queue, bool is_companion_rcs_batch)
    }
 #endif
 
+#if GFX_VERx10 >= 300
+   /* Set value explicitly on init to override possible wrong setting. This bit
+    * default changed from Xe2 to Xe3 and is required to be zero for
+    * Wa_16020518922 as mentioned in bspec 55893.
+    */
+   anv_batch_write_reg(batch, GENX(CHICKEN_RASTER_2), reg) {
+      reg.DisableAnyMCTRresponsefix = false;
+      reg.DisableAnyMCTRresponsefixMask = true;
+   }
+#endif
+
    /* Set the "CONSTANT_BUFFER Address Offset Disable" bit, so
     * 3DSTATE_CONSTANT_XS buffer 0 is an absolute address.
     *
