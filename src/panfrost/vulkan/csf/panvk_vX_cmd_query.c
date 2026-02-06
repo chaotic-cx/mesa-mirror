@@ -390,7 +390,8 @@ panvk_cmd_reset_timestamp_queries(struct panvk_cmd_buffer *cmd,
 }
 
 static uint32_t
-vk_stage_to_timestamp_subqueue_mask(VkPipelineStageFlagBits2 vk_stage)
+vk_stage_to_timestamp_subqueue_mask(struct panvk_device *dev,
+                                    VkPipelineStageFlagBits2 vk_stage)
 {
    assert(util_bitcount64(vk_stage) == 1);
 
@@ -406,7 +407,8 @@ vk_stage_to_timestamp_subqueue_mask(VkPipelineStageFlagBits2 vk_stage)
        * with drawing. */
       return BITFIELD_BIT(PANVK_SUBQUEUE_COMPUTE);
 
-   uint32_t result = vk_stages_to_subqueue_mask(vk_stage, SYNC_SCOPE_FIRST);
+   uint32_t result = vk_stages_to_subqueue_mask(dev, vk_stage,
+                                                SYNC_SCOPE_FIRST);
 
    /* All stages should map to at least one subqueue. */
    assert(util_bitcount(result) > 0);
@@ -419,6 +421,8 @@ panvk_cs_write_ts_info(struct panvk_cmd_buffer *cmd,
                        VkPipelineStageFlags2 stage,
                        struct panvk_query_pool *pool, uint32_t first_query)
 {
+   struct panvk_device *dev = to_panvk_device(cmd->vk.base.device);
+
    const uint32_t n_views =
       MAX2(1, util_bitcount(cmd->state.gfx.render.view_mask));
 
@@ -432,7 +436,7 @@ panvk_cs_write_ts_info(struct panvk_cmd_buffer *cmd,
    uint64_t ts_info = panvk_timestamp_info_encode(
       stage == VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT ? PANVK_QUERY_TS_OP_MIN
                                                    : PANVK_QUERY_TS_OP_MAX,
-      vk_stage_to_timestamp_subqueue_mask(stage));
+      vk_stage_to_timestamp_subqueue_mask(dev, stage));
 
    cs_move64_to(b, info, ts_info);
    for (uint32_t query = first_query; query < first_query + n_views; ++query) {
@@ -474,10 +478,13 @@ panvk_cs_defer_timestamp(struct panvk_cmd_buffer *cmd,
                          VkPipelineStageFlags2 stage,
                          struct panvk_query_pool *pool, uint32_t query)
 {
+   struct panvk_device *dev = to_panvk_device(cmd->vk.base.device);
+
    /* Deferring top of pipe doesn't make sense. */
    assert(VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT != stage);
 
-   const uint32_t write_sq_mask = vk_stage_to_timestamp_subqueue_mask(stage);
+   const uint32_t write_sq_mask =
+      vk_stage_to_timestamp_subqueue_mask(dev, stage);
    const uint32_t n_views =
       MAX2(1, util_bitcount(cmd->state.gfx.render.view_mask));
 
@@ -526,7 +533,8 @@ panvk_cs_write_timestamp(struct panvk_cmd_buffer *cmd,
 {
    struct panvk_device *dev = to_panvk_device(cmd->vk.base.device);
 
-   const uint32_t write_sq_mask = vk_stage_to_timestamp_subqueue_mask(stage);
+   const uint32_t write_sq_mask =
+      vk_stage_to_timestamp_subqueue_mask(dev, stage);
    const uint32_t n_views =
       MAX2(1, util_bitcount(cmd->state.gfx.render.view_mask));
 
@@ -557,8 +565,11 @@ panvk_cmd_write_timestamp_query(struct panvk_cmd_buffer *cmd,
                                 VkPipelineStageFlags2 stage,
                                 struct panvk_query_pool *pool, uint32_t query)
 {
+   struct panvk_device *dev = to_panvk_device(cmd->vk.base.device);
+
    /* Store the actual timestamp values per subqueue. */
-   const uint32_t write_sq_mask = vk_stage_to_timestamp_subqueue_mask(stage);
+   const uint32_t write_sq_mask =
+      vk_stage_to_timestamp_subqueue_mask(dev, stage);
 
    /* The timestamp has to be written after RUN_FRAGMENT if we are inside
     * a renderpass at the moment and cover the F subqueue.

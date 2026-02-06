@@ -860,6 +860,9 @@ panvk_queue_submit_init_storage(
    struct panvk_queue_submit_stack_storage *stack_storage)
 {
    PAN_TRACE_FUNC(PAN_TRACE_VK_CSF);
+
+   struct panvk_device *dev = submit->dev;
+
    submit->utrace.first_subqueue = PANVK_SUBQUEUE_COUNT;
    VkPipelineStageFlags2 cmd_stage_mask = VK_PIPELINE_STAGE_2_NONE;
    for (uint32_t i = 0; i < vk_submit->command_buffer_count; i++) {
@@ -872,7 +875,7 @@ panvk_queue_submit_init_storage(
          if (cs_is_empty(b))
             continue;
 
-         cmd_stage_mask |= panvk_get_subqueue_stages(j);
+         cmd_stage_mask |= panvk_get_subqueue_stages(dev, j);
          submit->qsubmit_count++;
 
          struct panvk_subqueue *subq = &submit->queue->subqueues[j];
@@ -928,16 +931,17 @@ panvk_queue_submit_init_storage(
       /* wait stage mask is BOTTOM_OF_PIPE/NONE, wait deferred */
       if (wait_stages_mask == VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT ||
           wait_stages_mask == VK_PIPELINE_STAGE_2_NONE) {
-         wait_stages_mask = panvk_get_subqueue_stages(PANVK_SUBQUEUE_FRAGMENT) |
-                            panvk_get_subqueue_stages(PANVK_SUBQUEUE_COMPUTE);
+         wait_stages_mask =
+            panvk_get_subqueue_stages(dev, PANVK_SUBQUEUE_FRAGMENT) |
+            panvk_get_subqueue_stages(dev, PANVK_SUBQUEUE_COMPUTE);
       }
    }
 
    submit->wait_queue_mask =
-      vk_stages_to_subqueue_mask(wait_stages_mask, SYNC_SCOPE_SECOND);
+      vk_stages_to_subqueue_mask(dev, wait_stages_mask, SYNC_SCOPE_SECOND);
 
    submit->signal_queue_mask =
-      vk_stages_to_subqueue_mask(signal_stages_mask, SYNC_SCOPE_FIRST) |
+      vk_stages_to_subqueue_mask(dev, signal_stages_mask, SYNC_SCOPE_FIRST) |
       submit->utrace.queue_mask;
 
    /* Signal all subqueues if force_sync */

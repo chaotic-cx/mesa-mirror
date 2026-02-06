@@ -92,6 +92,7 @@ panvk_per_arch(CmdSetEvent2)(VkCommandBuffer commandBuffer, VkEvent _event,
 {
    VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
    VK_FROM_HANDLE(panvk_event, event, _event);
+   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct panvk_cs_deps deps = {0};
 
    panvk_per_arch(add_cs_deps)(cmdbuf, pDependencyInfo, &deps, true);
@@ -107,11 +108,12 @@ panvk_per_arch(CmdSetEvent2)(VkCommandBuffer commandBuffer, VkEvent _event,
    }
 
    if (!panvk_event_transitions_execute_at_wait(pDependencyInfo)) {
-      panvk_per_arch(collect_crc_invalidation_deps)(pDependencyInfo, &deps,
+      panvk_per_arch(collect_crc_invalidation_deps)(dev, pDependencyInfo, &deps,
                                                     crc_addrs);
 
       if (deps.crc.count) {
          uint32_t src_mask = vk_stages_to_subqueue_mask(
+            dev,
             vk_collect_dependency_info_src_stages(pDependencyInfo),
             SYNC_SCOPE_FIRST);
 
@@ -169,6 +171,7 @@ static void
 cmd_wait_event(struct panvk_cmd_buffer *cmdbuf, struct panvk_event *event,
                const VkDependencyInfo *info)
 {
+   struct panvk_device *dev = to_panvk_device(cmdbuf->vk.base.device);
    struct panvk_cs_deps deps = {0};
 
    panvk_per_arch(add_cs_deps)(cmdbuf, info, &deps, false);
@@ -181,14 +184,15 @@ cmd_wait_event(struct panvk_cmd_buffer *cmdbuf, struct panvk_event *event,
    }
 
    if (panvk_event_transitions_execute_at_wait(info)) {
-      panvk_per_arch(collect_crc_invalidation_deps)(info, &deps, crc_addrs);
+      panvk_per_arch(collect_crc_invalidation_deps)(dev, info, &deps,
+                                                    crc_addrs);
    }
 
    struct panvk_cs_crc_deps crc = deps.crc;
    struct panvk_cache_flush_info cache_flush = collect_event_cache_flush(&deps);
 
    uint32_t dst_mask = vk_stages_to_subqueue_mask(
-      vk_collect_dependency_info_dst_stages(info), SYNC_SCOPE_SECOND);
+      dev, vk_collect_dependency_info_dst_stages(info), SYNC_SCOPE_SECOND);
 
    bool has_wait_ops = crc.count || !panvk_cache_flush_is_nop(&cache_flush);
 
