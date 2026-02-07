@@ -449,7 +449,9 @@ isl_genX(surf_fill_state_s)(const struct isl_device *dev, void *state,
    }
 
 #if GFX_VER >= 7
-   if (INTEL_NEEDS_WA_1806565034) {
+   if (info->surf->usage & ISL_SURF_USAGE_NO_ARRAY_OVERFETCH_BIT) {
+      s.SurfaceArray = false;
+   } else if (INTEL_NEEDS_WA_1806565034) {
       /* Wa_1806565034:
        *
        *    "Only set SurfaceArray if arrayed surface is > 1."
