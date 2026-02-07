@@ -342,7 +342,16 @@ xe_vm_bind(struct anv_device *device, struct anv_sparse_submission *submit,
 static VkResult
 xe_vm_bind_bo(struct anv_device *device, struct anv_bo *bo)
 {
-   struct anv_vm_bind bind = {
+   int binds_len = 0;
+   struct anv_vm_bind binds[2];
+   if (bo->alloc_flags & ANV_BO_ALLOC_NULL_INITIALIZED_HEAP) {
+      binds[binds_len++] = (struct anv_vm_bind) {
+         .address = bo->offset,
+         .size = bo->actual_size,
+         .op = ANV_VM_UNBIND,
+      };
+   }
+   binds[binds_len++] = (struct anv_vm_bind) {
       .bo = bo,
       .address = bo->offset,
       .bo_offset = 0,
@@ -351,9 +360,9 @@ xe_vm_bind_bo(struct anv_device *device, struct anv_bo *bo)
    };
    struct anv_sparse_submission submit = {
       .queue = NULL,
-      .binds = &bind,
-      .binds_len = 1,
-      .binds_capacity = 1,
+      .binds = binds,
+      .binds_len = binds_len,
+      .binds_capacity = ARRAY_SIZE(binds),
       .wait_count = 0,
       .signal_count = 0,
    };
@@ -364,26 +373,36 @@ xe_vm_bind_bo(struct anv_device *device, struct anv_bo *bo)
 static VkResult
 xe_vm_unbind_bo(struct anv_device *device, struct anv_bo *bo)
 {
-   struct anv_vm_bind bind = {
+   int binds_len = 0;
+   struct anv_vm_bind binds[2];
+   binds[binds_len] = (struct anv_vm_bind) {
       .bo = bo,
       .address = 0,
       .bo_offset = 0,
       .size = 0,
       .op = ANV_VM_UNBIND_ALL,
    };
+   if (bo->from_host_ptr) {
+      binds[binds_len].address = bo->offset;
+      binds[binds_len].size = bo->actual_size;
+      binds[binds_len].op = ANV_VM_UNBIND;
+   }
+   binds_len++;
+   if (bo->alloc_flags & ANV_BO_ALLOC_NULL_INITIALIZED_HEAP) {
+      binds[binds_len++] = (struct anv_vm_bind) {
+         .address = bo->offset,
+         .size = bo->actual_size,
+         .op = ANV_VM_BIND,
+      };
+   }
    struct anv_sparse_submission submit = {
       .queue = NULL,
-      .binds = &bind,
-      .binds_len = 1,
-      .binds_capacity = 1,
+      .binds = binds,
+      .binds_len = binds_len,
+      .binds_capacity = ARRAY_SIZE(binds),
       .wait_count = 0,
       .signal_count = 0,
    };
-   if (bo->from_host_ptr) {
-      bind.address = bo->offset;
-      bind.size = bo->actual_size;
-      bind.op = ANV_VM_UNBIND;
-   }
    return xe_vm_bind_op(device, &submit,
                         ANV_VM_BIND_FLAG_SIGNAL_BIND_TIMELINE);
 }
