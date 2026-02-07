@@ -2813,6 +2813,8 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
 
    device->always_flush_cache = INTEL_DEBUG(DEBUG_STALL) ||
       driQueryOptionb(&instance->dri_options, "always_flush_cache");
+   device->has_scratch_page = device->info.kmd_type == INTEL_KMD_TYPE_I915 ||
+      driQueryOptionb(&instance->dri_options, "anv_enable_scratch_page");
 
    device->compiler = brw_compiler_create(NULL, &device->info);
    if (device->compiler == NULL) {
@@ -2830,6 +2832,7 @@ anv_physical_device_try_create(struct vk_instance *vk_instance,
       driQueryOptionb(&instance->dri_options, "intel_sampler_route_to_lsc");
    device->isl_dev.l1_storage_wt =
       driQueryOptionb(&instance->dri_options, "intel_storage_cache_policy_wt");
+   device->isl_dev.requires_padding = !device->has_scratch_page;
 
    result = anv_physical_device_init_uuids(device);
    if (result != VK_SUCCESS)

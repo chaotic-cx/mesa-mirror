@@ -953,6 +953,10 @@
    DRI_CONF_OPT_B(anv_disable_link_time_optimization, def, \
                   "Disable linking of graphics pipeline shaders")
 
+#define DRI_CONF_ANV_ENABLE_SCRATCH_PAGE(def) \
+   DRI_CONF_OPT_B(anv_enable_scratch_page, def, \
+                  "Disables surface padding and suppresses all page faults, drops writes and returns zeros on reads.")
+
 /**
  * \brief HASVK specific configuration options
  */

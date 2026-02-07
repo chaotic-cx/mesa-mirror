@@ -1576,6 +1576,8 @@ struct anv_physical_device {
     /** Can the platform support cooperative matrices and is it enabled? */
     bool                                        has_cooperative_matrix;
 
+    bool                                        has_scratch_page;
+
     struct {
       uint32_t                                  family_count;
       struct anv_queue_family                   families[ANV_MAX_QUEUE_FAMILIES];
