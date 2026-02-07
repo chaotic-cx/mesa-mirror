@@ -407,6 +407,10 @@ _vk_device_set_lost(struct vk_device *device,
    vk_logd(VK_LOG_OBJS(device), "Timeline mode is %s.",
            timeline_mode_str(device));
 
+   if (debug_get_bool_option("MESA_VK_CAPTURE_TRACE_ON_DEVICE_LOSS", false) &&
+       device->physical->instance->trace_mode)
+      device->capture_trace(vk_queue_to_handle(list_first_entry(&device->queues, struct vk_queue, link)));
+
    if (debug_get_bool_option("MESA_VK_ABORT_ON_DEVICE_LOSS", false))
       abort();
 

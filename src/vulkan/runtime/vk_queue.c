@@ -130,6 +130,10 @@ _vk_queue_set_lost(struct vk_queue *queue,
 
    p_atomic_inc(&queue->base.device->_lost.lost);
 
+   if (debug_get_bool_option("MESA_VK_CAPTURE_TRACE_ON_DEVICE_LOSS", false) &&
+       queue->base.device->base.instance->trace_mode)
+      queue->base.device->capture_trace(vk_queue_to_handle(queue));
+
    if (debug_get_bool_option("MESA_VK_ABORT_ON_DEVICE_LOSS", false)) {
       _vk_device_report_lost(queue->base.device);
       abort();
