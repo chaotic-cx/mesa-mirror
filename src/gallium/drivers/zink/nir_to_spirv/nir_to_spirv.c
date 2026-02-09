@@ -2691,6 +2691,99 @@ emit_store_global(struct ntv_context *ctx, nir_intrinsic_instr *intr)
 }
 
 static void
+emit_load_global_block_intel(struct ntv_context *ctx, nir_intrinsic_instr *intr)
+{
+   spirv_builder_emit_cap(&ctx->builder, SpvCapabilityPhysicalStorageBufferAddresses);
+   spirv_builder_emit_cap(&ctx->builder, SpvCapabilitySubgroupBufferBlockIOINTEL);
+   spirv_builder_emit_extension(&ctx->builder, "SPV_INTEL_subgroups");
+
+   SpvId dest_type = get_def_type(ctx, &intr->def, nir_type_uint);
+   SpvId pointer_type = spirv_builder_type_pointer(&ctx->builder,
+                                                   SpvStorageClassPhysicalStorageBuffer,
+                                                   dest_type);
+   nir_alu_type atype;
+   SpvId ptr = emit_bitcast(ctx, pointer_type, get_src(ctx, &intr->src[0], &atype));
+   SpvId result = spirv_builder_emit_unop(&ctx->builder, SpvOpSubgroupBlockReadINTEL,
+                                          dest_type, ptr);
+   store_def(ctx, intr->def.index, result, nir_type_uint);
+}
+
+static void
+emit_store_global_block_intel(struct ntv_context *ctx, nir_intrinsic_instr *intr)
+{
+   spirv_builder_emit_cap(&ctx->builder, SpvCapabilityPhysicalStorageBufferAddresses);
+   spirv_builder_emit_cap(&ctx->builder, SpvCapabilitySubgroupBufferBlockIOINTEL);
+   spirv_builder_emit_extension(&ctx->builder, "SPV_INTEL_subgroups");
+
+   unsigned bit_size = nir_src_bit_size(intr->src[0]);
+   SpvId dest_type = get_uvec_type(ctx, bit_size, intr->num_components);
+   SpvId pointer_type = spirv_builder_type_pointer(&ctx->builder,
+                                                   SpvStorageClassPhysicalStorageBuffer,
+                                                   dest_type);
+   nir_alu_type atype;
+   SpvId param = get_src(ctx, &intr->src[0], &atype);
+   if (atype != nir_type_uint)
+      param = emit_bitcast(ctx, dest_type, param);
+   SpvId ptr = emit_bitcast(ctx, pointer_type, get_src(ctx, &intr->src[1], &atype));
+
+   spirv_builder_emit_binop_void(&ctx->builder, SpvOpSubgroupBlockWriteINTEL, ptr, param);
+}
+
+static void
+emit_load_shared_block_intel(struct ntv_context *ctx, nir_intrinsic_instr *intr)
+{
+   spirv_builder_emit_cap(&ctx->builder, SpvCapabilitySubgroupBufferBlockIOINTEL);
+   spirv_builder_emit_extension(&ctx->builder, "SPV_INTEL_subgroups");
+
+   unsigned bit_size = intr->def.bit_size;
+   SpvId shared_block = get_shared_block(ctx, bit_size);
+   SpvId dest_type = get_def_type(ctx, &intr->def, nir_type_uint);
+   SpvId ptr_type = spirv_builder_type_pointer(&ctx->builder,
+                                               SpvStorageClassWorkgroup,
+                                               dest_type);
+   nir_alu_type atype;
+   SpvId offset = get_src(ctx, &intr->src[0], &atype);
+   if (atype != nir_type_uint)
+      offset = bitcast_to_uvec(ctx, offset, nir_src_bit_size(intr->src[0]), 1);
+   /* convert byte offset to element offset */
+   offset = emit_binop(ctx, SpvOpUDiv, spirv_builder_type_uint(&ctx->builder, 32),
+                       offset, emit_uint_const(ctx, 32, bit_size / 8));
+   SpvId ptr = spirv_builder_emit_access_chain(&ctx->builder, ptr_type,
+                                               shared_block, &offset, 1);
+   SpvId result = spirv_builder_emit_unop(&ctx->builder, SpvOpSubgroupBlockReadINTEL,
+                                          dest_type, ptr);
+   store_def(ctx, intr->def.index, result, nir_type_uint);
+}
+
+static void
+emit_store_shared_block_intel(struct ntv_context *ctx, nir_intrinsic_instr *intr)
+{
+   spirv_builder_emit_cap(&ctx->builder, SpvCapabilitySubgroupBufferBlockIOINTEL);
+   spirv_builder_emit_extension(&ctx->builder, "SPV_INTEL_subgroups");
+
+   unsigned bit_size = nir_src_bit_size(intr->src[0]);
+   SpvId shared_block = get_shared_block(ctx, bit_size);
+   SpvId value_type = get_uvec_type(ctx, bit_size, nir_src_num_components(intr->src[0]));
+   SpvId ptr_type = spirv_builder_type_pointer(&ctx->builder,
+                                               SpvStorageClassWorkgroup,
+                                               value_type);
+   nir_alu_type atype;
+   SpvId param = get_src(ctx, &intr->src[0], &atype);
+   if (atype != nir_type_uint)
+      param = emit_bitcast(ctx, value_type, param);
+   SpvId offset = get_src(ctx, &intr->src[1], &atype);
+   if (atype != nir_type_uint)
+      offset = bitcast_to_uvec(ctx, offset, nir_src_bit_size(intr->src[1]), 1);
+   /* convert byte offset to element offset */
+   offset = emit_binop(ctx, SpvOpUDiv, spirv_builder_type_uint(&ctx->builder, 32),
+                       offset, emit_uint_const(ctx, 32, bit_size / 8));
+   SpvId ptr = spirv_builder_emit_access_chain(&ctx->builder, ptr_type,
+                                               shared_block, &offset, 1);
+
+   spirv_builder_emit_binop_void(&ctx->builder, SpvOpSubgroupBlockWriteINTEL, ptr, param);
+}
+
+static void
 emit_load_reg(struct ntv_context *ctx, nir_intrinsic_instr *intr)
 {
    assert(nir_intrinsic_base(intr) == 0 && "no array registers");
@@ -4055,6 +4148,22 @@ emit_intrinsic(struct ntv_context *ctx, nir_intrinsic_instr *intr)
    case nir_intrinsic_shuffle_up:
    case nir_intrinsic_shuffle_down:
       emit_shuffle(ctx, intr);
+      break;
+
+   case nir_intrinsic_load_global_block_intel:
+      emit_load_global_block_intel(ctx, intr);
+      break;
+
+   case nir_intrinsic_store_global_block_intel:
+      emit_store_global_block_intel(ctx, intr);
+      break;
+
+   case nir_intrinsic_load_shared_block_intel:
+      emit_load_shared_block_intel(ctx, intr);
+      break;
+
+   case nir_intrinsic_store_shared_block_intel:
+      emit_store_shared_block_intel(ctx, intr);
       break;
 
    case nir_intrinsic_elect:

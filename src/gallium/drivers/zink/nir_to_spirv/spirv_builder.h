@@ -233,6 +233,10 @@ spirv_builder_emit_store(struct spirv_builder *b, SpvId pointer, SpvId object, b
 void
 spirv_builder_emit_store_aligned(struct spirv_builder *b, SpvId pointer, SpvId object, unsigned alignment, bool coherent);
 
+void
+spirv_builder_emit_binop_void(struct spirv_builder *b, SpvOp op,
+                              SpvId operand0, SpvId operand1);
+
 SpvId
 spirv_builder_emit_access_chain(struct spirv_builder *b, SpvId result_type,
                                 SpvId base, const SpvId indexes[],

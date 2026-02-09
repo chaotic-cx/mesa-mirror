@@ -566,6 +566,16 @@ spirv_builder_emit_store_aligned(struct spirv_builder *b, SpvId pointer, SpvId o
 }
 
 void
+spirv_builder_emit_binop_void(struct spirv_builder *b, SpvOp op,
+                              SpvId operand0, SpvId operand1)
+{
+   spirv_buffer_prepare(&b->instructions, b->mem_ctx, 3);
+   spirv_buffer_emit_word(&b->instructions, op | (3 << 16));
+   spirv_buffer_emit_word(&b->instructions, operand0);
+   spirv_buffer_emit_word(&b->instructions, operand1);
+}
+
+void
 spirv_builder_emit_atomic_store(struct spirv_builder *b, SpvId pointer, SpvScope scope,
                                 SpvMemorySemanticsMask semantics, SpvId object)
 {
