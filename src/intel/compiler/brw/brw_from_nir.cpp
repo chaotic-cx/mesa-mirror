@@ -6165,12 +6165,28 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
       brw_type_with_size(BRW_TYPE_UD, nir_bit_size);
    assert(data_bit_size >= nir_bit_size);
 
+   /* Determine if this is a block operation early, so we can skip
+    * D16U32/D8U32 expansion for block stores (they use raw bytes).
+    */
+   const bool is_block_op =
+      instr->intrinsic == nir_intrinsic_load_ubo_uniform_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_ssbo_uniform_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_shared_uniform_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_global_constant_uniform_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_global_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_shared_block_intel ||
+      instr->intrinsic == nir_intrinsic_load_ssbo_block_intel ||
+      instr->intrinsic == nir_intrinsic_store_global_block_intel ||
+      instr->intrinsic == nir_intrinsic_store_shared_block_intel ||
+      instr->intrinsic == nir_intrinsic_store_ssbo_block_intel;
+
    if (!is_load) {
       for (unsigned i = 0; i < lsc_op_num_data_values(op); i++) {
          brw_reg nir_src =
             retype(get_nir_src(ntb, instr->src[data_src + i], -1), nir_data_type);
 
-         if (data_bit_size > nir_bit_size) {
+         /* For block stores, don't expand to D16U32/D8U32 - we use raw bytes */
+         if (data_bit_size > nir_bit_size && !is_block_op) {
             /* Expand e.g. D16 to D16U32 */
             srcs[MEMORY_LOGICAL_DATA0 + i] = xbld.vgrf(data_type, components);
             for (unsigned c = 0; c < components; c++) {
@@ -6199,13 +6215,7 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
       instr->intrinsic == nir_intrinsic_load_ssbo_uniform_block_intel ||
       instr->intrinsic == nir_intrinsic_load_shared_uniform_block_intel ||
       instr->intrinsic == nir_intrinsic_load_global_constant_uniform_block_intel;
-   const bool block = convergent_block_load ||
-      instr->intrinsic == nir_intrinsic_load_global_block_intel ||
-      instr->intrinsic == nir_intrinsic_load_shared_block_intel ||
-      instr->intrinsic == nir_intrinsic_load_ssbo_block_intel ||
-      instr->intrinsic == nir_intrinsic_store_global_block_intel ||
-      instr->intrinsic == nir_intrinsic_store_shared_block_intel ||
-      instr->intrinsic == nir_intrinsic_store_ssbo_block_intel;
+   const bool block = is_block_op;
 
    brw_mem_inst *mem;
 
@@ -6230,8 +6240,20 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
          }
       }
    } else {
-      assert(nir_bit_size == 32);
-
+      /* Block i/o path (transpose messages).
+       *
+       * For LSC transpose, we always use D32 or D64 as the data size and
+       * read/write raw bytes. The hardware doesn't support D8U32/D16U32 for
+       * transpose - instead we read the appropriate number of bytes as
+       * dwords, then reinterpret the result.
+       *
+       * For sub-dword types (8/16-bit):
+       * - Calculate total bytes = elements * element_size
+       * - Round up to dwords and read as D32
+       * - Reinterpret the raw bytes as sub-dword elements
+       *
+       * For 64-bit types, use D64 transpose.
+       */
       flags |= MEMORY_FLAG_TRANSPOSE;
       srcs[MEMORY_LOGICAL_ADDRESS] =
          bld.emit_uniformize(srcs[MEMORY_LOGICAL_ADDRESS]);
@@ -6239,6 +6261,15 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
       const brw_builder ubld = bld.uniform();
       unsigned total;
       unsigned first_read_component = 0;
+
+      /* For block operations, use D32 for everything <= 32 bits, D64 for 64-bit.
+       * The hardware reads raw bytes, so we compute total bytes and round up
+       * to the appropriate message element size.
+       */
+      const bool use_d64 = nir_bit_size == 64;
+      const unsigned block_elem_bytes = use_d64 ? 8 : 4;
+      const enum lsc_data_size block_data_size = use_d64 ? LSC_DATA_SIZE_D64 : LSC_DATA_SIZE_D32;
+      const brw_reg_type block_type = use_d64 ? BRW_TYPE_UQ : BRW_TYPE_UD;
 
       if (convergent_block_load) {
          /* If the address is a constant and alignment permits, skip unread
@@ -6253,15 +6284,40 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
             first_read_component = nir_def_first_component_read(&instr->def);
             unsigned last_component = nir_def_last_component_read(&instr->def);
             srcs[MEMORY_LOGICAL_ADDRESS].u64 +=
-               first_read_component * (data_bit_size / 8);
+               first_read_component * (nir_bit_size / 8);
             components = last_component - first_read_component + 1;
          }
 
          total = align(components, REG_SIZE * reg_unit(devinfo) / 4);
          dest = ubld.vgrf(BRW_TYPE_UD, total);
       } else {
-         total = components * bld.dispatch_width();
-         dest = nir_dest;
+         /* For non-convergent block loads (intel_sub_group_block_read*),
+          * calculate total bytes and convert to dwords (or qwords for 64-bit).
+          *
+          * For loads, the minimum block size is 8 dwords (32 bytes), so we may
+          * read more than strictly necessary for small sub-dword reads.
+          *
+          * For stores, we use the exact size needed to avoid overwriting data
+          * from adjacent subgroups.
+          */
+         const unsigned total_elems = components * bld.dispatch_width();
+         const unsigned total_bytes = total_elems * (nir_bit_size / 8);
+         const unsigned raw_total = DIV_ROUND_UP(total_bytes, block_elem_bytes);
+
+         if (is_store) {
+            /* For stores, use exact size to avoid overwrites */
+            total = raw_total;
+         } else {
+            /* For loads, pad to min_block to avoid assertion failures */
+            const unsigned min_block = 8;
+            total = MAX2(raw_total, min_block);
+         }
+
+         /* Allocate dest for the raw dwords/qwords. For sub-dword types,
+          * these will contain packed sub-dword elements (e.g., 2 ushorts
+          * per dword for 16-bit, or 4 uchars per dword for 8-bit).
+          */
+         dest = ubld.vgrf(block_type, total);
       }
 
       brw_reg src = srcs[MEMORY_LOGICAL_DATA0];
@@ -6269,13 +6325,18 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
       unsigned done = 0;
       while (done < total) {
          unsigned block_comps = choose_block_size_dwords(devinfo, total - done);
-         const unsigned block_bytes = block_comps * (nir_bit_size / 8);
+         /* D64 transpose only supports up to 8 elements, not 64 like D32 */
+         if (use_d64)
+            block_comps = MIN2(block_comps, 8);
+         /* For stores with small data sizes, cap to actual data size */
+         block_comps = MIN2(block_comps, total - done);
+         const unsigned block_bytes = block_comps * block_elem_bytes;
 
          brw_reg dst_offset = is_store ? brw_reg() :
-            retype(byte_offset(dest, done * 4), BRW_TYPE_UD);
+            retype(byte_offset(dest, done * block_elem_bytes), block_type);
          if (is_store) {
             srcs[MEMORY_LOGICAL_DATA0] =
-               retype(byte_offset(src, done * 4), BRW_TYPE_UD);
+               retype(byte_offset(src, done * block_elem_bytes), block_type);
          }
 
          mem = ubld.emit(opcode, dst_offset, srcs, MEMORY_LOGICAL_NUM_SRCS)->as_mem();
@@ -6287,7 +6348,7 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
          mem->binding_type = *binding_type;
          mem->address_offset = address_offset;
          mem->coord_components = coord_components;
-         mem->data_size = data_size;
+         mem->data_size = block_data_size;
          mem->components = block_comps;
          mem->alignment = alignment;
          mem->flags = flags;
@@ -6313,6 +6374,54 @@ brw_from_nir_emit_memory_access(nir_to_brw_state &ntb,
             xbld.MOV(retype(offset(nir_dest, xbld, first_read_component + c),
                             BRW_TYPE_UD),
                      component(dest, c));
+         }
+      } else if (is_load) {
+         /* For non-convergent block loads, the raw bytes in dest need to be
+          * copied to nir_dest. The layouts should match:
+          * - Block load writes contiguous bytes to dest
+          * - nir_dest expects contiguous bytes (all lanes of comp0, then comp1, etc.)
+          *
+          * For sub-dword types, the raw bytes are already packed correctly.
+          * We just need to copy from dest to nir_dest with proper typing.
+          */
+         const unsigned total_bytes = components * bld.dispatch_width() * (nir_bit_size / 8);
+         const unsigned bytes_per_component = bld.dispatch_width() * (nir_bit_size / 8);
+
+         /* Copy each component's worth of data */
+         for (unsigned c = 0; c < components; c++) {
+            /* Use the uniform builder to copy the raw bytes.
+             * Since both dest and nir_dest have contiguous layout, we can
+             * just do a raw byte copy for each component.
+             */
+            const unsigned comp_offset = c * bytes_per_component;
+
+            /* For large copies, use multiple MOVs with different types */
+            unsigned bytes_copied = 0;
+            while (bytes_copied < bytes_per_component) {
+               unsigned remaining = bytes_per_component - bytes_copied;
+               brw_reg_type copy_type;
+               unsigned copy_size;
+
+               if (remaining >= 8 && (comp_offset + bytes_copied) % 8 == 0) {
+                  copy_type = BRW_TYPE_UQ;
+                  copy_size = 8;
+               } else if (remaining >= 4 && (comp_offset + bytes_copied) % 4 == 0) {
+                  copy_type = BRW_TYPE_UD;
+                  copy_size = 4;
+               } else if (remaining >= 2 && (comp_offset + bytes_copied) % 2 == 0) {
+                  copy_type = BRW_TYPE_UW;
+                  copy_size = 2;
+               } else {
+                  copy_type = BRW_TYPE_UB;
+                  copy_size = 1;
+               }
+
+               /* Emit a SIMD1 MOV for each chunk */
+               ubld.MOV(retype(byte_offset(nir_dest, comp_offset + bytes_copied), copy_type),
+                        retype(byte_offset(dest, comp_offset + bytes_copied), copy_type));
+
+               bytes_copied += copy_size;
+            }
          }
       }
    }

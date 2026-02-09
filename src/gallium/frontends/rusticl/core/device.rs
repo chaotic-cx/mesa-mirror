@@ -757,11 +757,15 @@ impl DeviceBase {
             }
 
             if self.intel_subgroups_supported() {
-                // add_cap(SpvCapability::SpvCapabilitySubgroupBufferBlockIOINTEL);
+                add_cap(SpvCapability::SpvCapabilitySubgroupBufferBlockIOINTEL);
                 // add_cap(SpvCapability::SpvCapabilitySubgroupImageBlockIOINTEL);
                 add_cap(SpvCapability::SpvCapabilitySubgroupShuffleINTEL);
                 add_ext(1, 0, 0, "cl_intel_required_subgroup_size");
                 add_ext(1, 0, 0, "cl_intel_subgroups");
+                add_ext(1, 0, 0, "cl_intel_subgroups_short");
+                add_ext(1, 0, 0, "cl_intel_subgroups_char");
+                add_ext(1, 0, 0, "cl_intel_subgroups_long");
+                add_ext(1, 0, 0, "cl_intel_spirv_subgroups");
                 add_spirv(c"SPV_INTEL_subgroups");
             }
         }

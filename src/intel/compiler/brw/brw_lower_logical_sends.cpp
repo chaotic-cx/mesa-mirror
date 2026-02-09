@@ -1229,7 +1229,7 @@ lower_lsc_memory_logical_send(const brw_builder &bld, brw_mem_inst *mem)
          assert(data1.file == BAD_FILE);
 
          payload2 = data0;
-         ex_mlen = DIV_ROUND_UP(components, 8);
+         ex_mlen = DIV_ROUND_UP(components * data_size_B, REG_SIZE);
       } else {
          brw_reg data[8];
          unsigned size = 0;

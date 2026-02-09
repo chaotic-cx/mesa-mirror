@@ -1034,6 +1034,16 @@ clc_compile_to_llvm_module(LLVMContext &llvm_ctx,
    }
    if (args->features.intel_subgroups) {
       c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_intel_subgroups");
+      c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_intel_subgroups_short");
+      c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_intel_subgroups_char");
+      c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_intel_subgroups_long");
+      c->getTargetOpts().OpenCLExtensionsAsWritten.push_back("+cl_intel_subgroup_local_block_io");
+      /* define preprocessor macros so opencl-c.h enables the builtins */
+      c->getPreprocessorOpts().addMacroDef("cl_intel_subgroups=1");
+      c->getPreprocessorOpts().addMacroDef("cl_intel_subgroups_short=1");
+      c->getPreprocessorOpts().addMacroDef("cl_intel_subgroups_char=1");
+      c->getPreprocessorOpts().addMacroDef("cl_intel_subgroups_long=1");
+      c->getPreprocessorOpts().addMacroDef("cl_intel_subgroup_local_block_io=1");
       needs_opencl_c_h = true;
    }
    if (args->features.kernel_clock && LLVM_VERSION_MAJOR >= 19) {

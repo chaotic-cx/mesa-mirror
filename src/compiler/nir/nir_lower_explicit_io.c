@@ -982,7 +982,8 @@ build_explicit_io_store(nir_builder *b, nir_intrinsic_instr *intrin,
       store->src[2] = nir_src_for_ssa(addr_to_offset(b, addr, addr_format));
    }
 
-   nir_intrinsic_set_write_mask(store, write_mask);
+   if (nir_intrinsic_has_write_mask(store))
+      nir_intrinsic_set_write_mask(store, write_mask);
 
    if (nir_intrinsic_has_access(store))
       nir_intrinsic_set_access(store, nir_intrinsic_access(intrin));
