@@ -510,6 +510,8 @@ try_setup_point(struct lp_setup_context *setup,
       point->inputs.layer = layer;
       point->inputs.viewport_index = viewport_index;
       point->inputs.view_index = setup->view_index;
+      point->inputs.x_ref = v0[0][0] - setup->pixel_offset;
+      point->inputs.y_ref = v0[0][1] - setup->pixel_offset;
 
       plane = GET_PLANES(point);
 
@@ -594,6 +596,8 @@ try_setup_point(struct lp_setup_context *setup,
       point->inputs.layer = layer;
       point->inputs.viewport_index = viewport_index;
       point->inputs.view_index = setup->view_index;
+      point->inputs.x_ref = v0[0][0] - setup->pixel_offset;
+      point->inputs.y_ref = v0[0][1] - setup->pixel_offset;
 
       return lp_setup_bin_rectangle(setup, point,
                                     setup->fs.current.variant->opaque);

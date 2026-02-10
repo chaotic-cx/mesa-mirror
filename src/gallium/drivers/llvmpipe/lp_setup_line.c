@@ -92,9 +92,8 @@ linear_coef(struct lp_setup_context *setup,
 
    info->dadx[slot][i] = dadx;
    info->dady[slot][i] = dady;
-   info->a0[slot][i] = (a1 -
-                        (dadx * (info->v1[0][0] - setup->pixel_offset) +
-                         dady * (info->v1[0][1] - setup->pixel_offset)));
+   /* store value at v1, not extrapolated to origin */
+   info->a0[slot][i] = a1;
 }
 
 
@@ -123,9 +122,8 @@ perspective_coef(struct lp_setup_context *setup,
 
    info->dadx[slot][i] = dadx;
    info->dady[slot][i] = dady;
-   info->a0[slot][i] = (a1 -
-                        (dadx * (info->v1[0][0] - setup->pixel_offset) +
-                         dady * (info->v1[0][1] - setup->pixel_offset)));
+   /* store value at v1, not extrapolated to origin */
+   info->a0[slot][i] = a1;
 }
 
 
@@ -672,6 +670,8 @@ try_setup_line(struct lp_setup_context *setup,
    line->inputs.layer = layer;
    line->inputs.viewport_index = viewport_index;
    line->inputs.view_index = setup->view_index;
+   line->inputs.x_ref = v1[0][0] - setup->pixel_offset;
+   line->inputs.y_ref = v1[0][1] - setup->pixel_offset;
 
    /*
     * XXX: this code is mostly identical to the one in lp_setup_tri, except it
