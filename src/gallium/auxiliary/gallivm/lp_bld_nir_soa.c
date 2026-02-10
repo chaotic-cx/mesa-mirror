@@ -2464,7 +2464,8 @@ static void emit_ballot(struct lp_build_nir_soa_context *bld, nir_src *src_nir, 
          }
       }
       if (!all_chunks_available) {
-         result[0] = lp_build_const_int32(gallivm, 0);
+         for (unsigned c = 0; c < instr->def.num_components; c++)
+            result[c] = lp_build_const_int32(gallivm, 0);
          return;
       }
    }
@@ -2511,8 +2512,19 @@ static void emit_ballot(struct lp_build_nir_soa_context *bld, nir_src *src_nir, 
          ballot = LLVMBuildOr(builder, ballot, chunk_ballot_64, "");
       }
 
-      /* Ballot result is uniform (same for all lanes) - truncate to 32-bit for now */
-      result[0] = LLVMBuildTrunc(builder, ballot, bld->int_bld.elem_type, "");
+      /* Split ballot result into output components */
+      unsigned num_components = instr->def.num_components;
+      unsigned comp_bits = instr->def.bit_size;
+      for (unsigned c = 0; c < num_components; c++) {
+         LLVMValueRef comp_val = ballot;
+         if (c > 0)
+            comp_val = LLVMBuildLShr(builder, ballot,
+               lp_build_const_int64(gallivm, c * comp_bits), "");
+         if (comp_bits == 32)
+            result[c] = LLVMBuildTrunc(builder, comp_val, bld->int_bld.elem_type, "");
+         else
+            result[c] = comp_val;
+      }
    } else {
       /* Single chunk: use original implementation */
       LLVMValueRef src = get_src(bld, src_nir, 0);
@@ -2533,6 +2545,9 @@ static void emit_ballot(struct lp_build_nir_soa_context *bld, nir_src *src_nir, 
       lp_build_loop_end_cond(&loop_state, lp_build_const_int32(gallivm, bld->uint_bld.type.length),
                              NULL, LLVMIntUGE);
       result[0] = LLVMBuildLoad2(builder, bld->int_bld.elem_type, res_store, "");
+      /* Zero remaining components for single-chunk case */
+      for (unsigned c = 1; c < instr->def.num_components; c++)
+         result[c] = lp_build_const_int32(gallivm, 0);
    }
 }
 
@@ -3008,8 +3023,9 @@ static void emit_reduce(struct lp_build_nir_soa_context *bld, nir_src *src_nir,
 static void emit_read_invocation(struct lp_build_nir_soa_context *bld,
                                  nir_src *src_nir,
                                  unsigned bit_size,
+                                 unsigned num_components,
                                  LLVMValueRef invoc,
-                                 LLVMValueRef result[4])
+                                 LLVMValueRef result[NIR_MAX_VEC_COMPONENTS])
 {
    struct gallivm_state *gallivm = bld->base.gallivm;
    LLVMBuilderRef builder = gallivm->builder;
@@ -3029,12 +3045,14 @@ static void emit_read_invocation(struct lp_build_nir_soa_context *bld,
       }
       if (!all_chunks_available) {
          /* Uniform source or pass 1 placeholder */
-         LLVMValueRef uniform_src = get_src(bld, src_nir, 0);
-         if (!lp_value_is_divergent(uniform_src)) {
-            result[0] = uniform_src;
-         } else {
-            struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, false);
-            result[0] = lp_build_const_int_vec(int_bld->gallivm, int_bld->type, 0);
+         struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, false);
+         for (unsigned c = 0; c < num_components; c++) {
+            LLVMValueRef uniform_src = get_src(bld, src_nir, c);
+            if (!lp_value_is_divergent(uniform_src)) {
+               result[c] = uniform_src;
+            } else {
+               result[c] = lp_build_const_int_vec(int_bld->gallivm, int_bld->type, 0);
+            }
          }
          return;
       }
@@ -3045,20 +3063,9 @@ static void emit_read_invocation(struct lp_build_nir_soa_context *bld,
     * across all chunks. Fetch all chunks and select from the right one.
     */
    if (bld->chunks_per_subgroup > 1) {
-      /* Fetch source from all chunks */
-      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
       struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, false);
-      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
-         LLVMValueRef chunk_src = get_src_for_chunk(bld, src_nir, 0, chunk);
-         if (!chunk_src) {
-            /* Uniform source - fetch once and broadcast */
-            chunk_src = get_src(bld, src_nir, 0);
-            chunk_src = lp_build_broadcast_scalar(int_bld, chunk_src);
-         }
-         src_chunks[chunk] = chunk_src;
-      }
 
-      /* Determine which lane to read from */
+      /* Determine which lane to read from (shared across all components) */
       LLVMValueRef idx;
       if (invoc && !lp_value_is_divergent(invoc)) {
          /* Uniform invocation index */
@@ -3076,38 +3083,55 @@ static void emit_read_invocation(struct lp_build_nir_soa_context *bld,
       LLVMValueRef lane_idx = LLVMBuildURem(builder, idx,
          lp_build_const_int32(gallivm, vector_length), "");
 
-      /* Select from the appropriate chunk */
-      LLVMValueRef res = NULL;
-      for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
-         LLVMValueRef chunk_match = LLVMBuildICmp(builder, LLVMIntEQ, chunk_idx,
-            lp_build_const_int32(gallivm, chunk), "");
-         LLVMValueRef chunk_val = LLVMBuildExtractElement(builder, src_chunks[chunk], lane_idx, "");
-         if (res)
-            res = LLVMBuildSelect(builder, chunk_match, chunk_val, res, "");
-         else
-            res = chunk_val;
-      }
+      /* Process each component */
+      for (unsigned c = 0; c < num_components; c++) {
+         /* Fetch source from all chunks for this component */
+         LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+         for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+            LLVMValueRef chunk_src = get_src_for_chunk(bld, src_nir, c, chunk);
+            if (!chunk_src) {
+               /* Uniform source - fetch once and broadcast */
+               chunk_src = get_src(bld, src_nir, c);
+               chunk_src = lp_build_broadcast_scalar(int_bld, chunk_src);
+            }
+            src_chunks[chunk] = chunk_src;
+         }
 
-      result[0] = res;
+         /* Select from the appropriate chunk */
+         LLVMValueRef res = NULL;
+         for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
+            LLVMValueRef chunk_match = LLVMBuildICmp(builder, LLVMIntEQ, chunk_idx,
+               lp_build_const_int32(gallivm, chunk), "");
+            LLVMValueRef chunk_val = LLVMBuildExtractElement(builder, src_chunks[chunk], lane_idx, "");
+            if (res)
+               res = LLVMBuildSelect(builder, chunk_match, chunk_val, res, "");
+            else
+               res = chunk_val;
+         }
+
+         result[c] = res;
+      }
    } else {
-      /* Single chunk: use original implementation */
-      LLVMValueRef src = get_src(bld, src_nir, 0);
+      /* Single chunk: process each component */
+      for (unsigned c = 0; c < num_components; c++) {
+         LLVMValueRef src = get_src(bld, src_nir, c);
 
-      if (!lp_value_is_divergent(src)) {
-         result[0] = src;
-         return;
+         if (!lp_value_is_divergent(src)) {
+            result[c] = src;
+            continue;
+         }
+
+         if (invoc && !lp_value_is_divergent(invoc)) {
+            result[c] = LLVMBuildExtractElement(gallivm->builder, src, invoc, "");
+            continue;
+         }
+
+         LLVMValueRef idx = first_active_invocation(bld, false);
+         if (invoc)
+            idx = LLVMBuildExtractElement(gallivm->builder, invoc, idx, "");
+
+         result[c] = LLVMBuildExtractElement(gallivm->builder, src, idx, "");
       }
-
-      if (invoc && !lp_value_is_divergent(invoc)) {
-         result[0] = LLVMBuildExtractElement(gallivm->builder, src, invoc, "");
-         return;
-      }
-
-      LLVMValueRef idx = first_active_invocation(bld, false);
-      if (invoc)
-         idx = LLVMBuildExtractElement(gallivm->builder, invoc, idx, "");
-
-      result[0] = LLVMBuildExtractElement(gallivm->builder, src, idx, "");
    }
 }
 
@@ -5808,7 +5832,8 @@ visit_intrinsic(struct lp_build_nir_soa_context *bld,
       if (instr->intrinsic == nir_intrinsic_read_invocation)
          src1 = cast_type(bld, get_src(bld, &instr->src[1], 0), nir_type_int, nir_src_bit_size(instr->src[1]));
 
-      emit_read_invocation(bld, &instr->src[0], nir_src_bit_size(instr->src[0]), src1, result);
+      emit_read_invocation(bld, &instr->src[0], nir_src_bit_size(instr->src[0]),
+                           instr->def.num_components, src1, result);
       break;
    }
    case nir_intrinsic_interp_deref_at_offset:
