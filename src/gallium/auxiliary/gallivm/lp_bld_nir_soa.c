@@ -3047,19 +3047,15 @@ static void emit_read_invocation(struct lp_build_nir_soa_context *bld,
    if (bld->chunks_per_subgroup > 1) {
       /* Fetch source from all chunks */
       LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
-      bool is_uniform = true;
+      struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, false);
       for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
          LLVMValueRef chunk_src = get_src_for_chunk(bld, src_nir, 0, chunk);
-         if (chunk_src) {
-            is_uniform = false;
-            src_chunks[chunk] = chunk_src;
+         if (!chunk_src) {
+            /* Uniform source - fetch once and broadcast */
+            chunk_src = get_src(bld, src_nir, 0);
+            chunk_src = lp_build_broadcast_scalar(int_bld, chunk_src);
          }
-      }
-
-      if (is_uniform) {
-         /* Uniform source - just return it */
-         result[0] = get_src(bld, src_nir, 0);
-         return;
+         src_chunks[chunk] = chunk_src;
       }
 
       /* Determine which lane to read from */
