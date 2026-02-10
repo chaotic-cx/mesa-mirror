@@ -2475,13 +2475,17 @@ static void emit_ballot(struct lp_build_nir_soa_context *bld, nir_src *src_nir, 
     */
    if (bld->chunks_per_subgroup > 1) {
       /* Fetch source from all chunks */
-      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH] = {NULL};
       for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
          LLVMValueRef chunk_src = get_src_for_chunk(bld, src_nir, 0, chunk);
          if (!chunk_src) {
-            /* Uniform source - fetch once and broadcast */
+            /* Chunk not available - fetch via get_src and handle appropriately */
             chunk_src = get_src(bld, src_nir, 0);
-            chunk_src = lp_build_broadcast_scalar(&bld->uint_bld, chunk_src);
+            if (!chunk_src) {
+               chunk_src = LLVMGetUndef(bld->uint_bld.vec_type);
+            } else if (!lp_value_is_divergent(chunk_src)) {
+               chunk_src = lp_build_broadcast_scalar(&bld->uint_bld, chunk_src);
+            }
          }
          chunk_src = LLVMBuildSExt(builder, chunk_src, bld->int_bld.vec_type, "");
          chunk_src = LLVMBuildAnd(builder, chunk_src, exec_mask, "");
@@ -3046,14 +3050,21 @@ static void emit_read_invocation(struct lp_build_nir_soa_context *bld,
     */
    if (bld->chunks_per_subgroup > 1) {
       /* Fetch source from all chunks */
-      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH] = {NULL};
       struct lp_build_context *int_bld = get_int_bld(bld, true, bit_size, false);
       for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
          LLVMValueRef chunk_src = get_src_for_chunk(bld, src_nir, 0, chunk);
          if (!chunk_src) {
-            /* Uniform source - fetch once and broadcast */
+            /* Chunk not available - fetch via get_src and handle appropriately */
             chunk_src = get_src(bld, src_nir, 0);
-            chunk_src = lp_build_broadcast_scalar(int_bld, chunk_src);
+            if (!chunk_src) {
+               /* Source not available - use undefined */
+               chunk_src = LLVMGetUndef(int_bld->vec_type);
+            } else if (!lp_value_is_divergent(chunk_src)) {
+               /* Uniform source - broadcast to vector */
+               chunk_src = lp_build_broadcast_scalar(int_bld, chunk_src);
+            }
+            /* If divergent, use the vector value directly */
          }
          src_chunks[chunk] = chunk_src;
       }
@@ -5403,13 +5414,17 @@ static void visit_shuffle(struct lp_build_nir_soa_context *bld,
     */
    if (bld->chunks_per_subgroup > 1) {
       /* Fetch source values from all chunks */
-      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH];
+      LLVMValueRef src_chunks[LP_MAX_VECTOR_LENGTH] = {NULL};
       for (unsigned chunk = 0; chunk < bld->chunks_per_subgroup; chunk++) {
          LLVMValueRef chunk_src = get_src_for_chunk(bld, &instr->src[0], 0, chunk);
          if (!chunk_src) {
-            /* Uniform - broadcast to vector */
+            /* Chunk not available - fetch via get_src and handle appropriately */
             chunk_src = get_src(bld, &instr->src[0], 0);
-            chunk_src = lp_build_broadcast_scalar(int_bld, chunk_src);
+            if (!chunk_src) {
+               chunk_src = LLVMGetUndef(int_bld->vec_type);
+            } else if (!lp_value_is_divergent(chunk_src)) {
+               chunk_src = lp_build_broadcast_scalar(int_bld, chunk_src);
+            }
          }
          chunk_src = cast_type(bld, chunk_src, nir_type_int, bit_size);
          src_chunks[chunk] = chunk_src;
