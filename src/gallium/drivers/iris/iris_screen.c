@@ -203,6 +203,10 @@ iris_init_shader_caps(struct iris_screen *screen)
       caps->indirect_const_addr = true;
 
       caps->integers = true;
+      caps->fp16 = true;
+      caps->fp16_derivatives = true;
+      caps->fp16_const_buffers = true;
+      caps->int16 = true;
       caps->max_texture_samplers = IRIS_MAX_SAMPLERS;
       caps->max_sampler_views = IRIS_MAX_TEXTURES;
       caps->max_shader_images = IRIS_MAX_IMAGES;
