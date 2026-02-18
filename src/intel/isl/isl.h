@@ -1173,6 +1173,7 @@ typedef uint64_t isl_surf_usage_flags_t;
 #define ISL_SURF_USAGE_SOFTWARE_DETILING       (1u << 26)
 #define ISL_SURF_USAGE_PREFER_4K_ALIGNMENT     (1u << 27)
 #define ISL_SURF_USAGE_NO_ARRAY_OVERFETCH_BIT  (1u << 28)
+#define ISL_SURF_USAGE_NO_PADDING_BIT          (1u << 29)
 /** @} */
 
 /**
@@ -1385,6 +1386,12 @@ struct isl_device {
     * address, size).
     */
    bool buffer_length_in_aux_addr;
+
+   /**
+    * True if the driver is running with scratch page disabled and requires
+    * extra padding on some surfaces to avoid page faults.
+    */
+   bool requires_padding;
 
    uint64_t dummy_aux_address;
 

@@ -2810,10 +2810,14 @@ isl_calc_phys_total_extent_el(const struct isl_device *dev,
 static uint32_t
 isl_calc_row_pitch_alignment(const struct isl_device *dev,
                              const struct isl_surf_init_info *surf_info,
-                             const struct isl_tile_info *tile_info)
+                             const struct isl_tile_info *tile_info,
+                             const struct isl_extent3d *image_align_el)
 {
-   if (tile_info->tiling != ISL_TILING_LINEAR) {
+   const struct isl_format_layout *fmtl = isl_format_get_layout(surf_info->format);
+   const uint32_t bs = fmtl->bpb / 8;
+   uint32_t alignment = 1;
 
+   if (tile_info->tiling != ISL_TILING_LINEAR) {
       /* On gfx12, aligning to 512B may be wanted or needed for CCS_E. */
       if (ISL_GFX_VER(dev) == 12 && surf_info->samples == 1 &&
           !isl_surf_usage_is_depth_or_stencil(surf_info->usage) &&
@@ -2833,7 +2837,7 @@ isl_calc_row_pitch_alignment(const struct isl_device *dev,
           */
          if (isl_surf_usage_is_display(surf_info->usage)) {
             assert(tile_info->phys_extent_B.width == 128);
-            return 512;
+            alignment = 512;
          }
 
          /* On gfx12.0, CCS fast clears don't seem to cover the correct
@@ -2847,64 +2851,81 @@ isl_calc_row_pitch_alignment(const struct isl_device *dev,
             if (tile_info->format_bpb > 32 ||
                 surf_info->width > 256 ||
                 surf_info->height > 256) {
-               return MAX(tile_info->phys_extent_B.width, 512);
+               alignment = 512;
             }
          }
       }
 
-      return tile_info->phys_extent_B.width;
-   }
-
-   /* We only support tiled fragment shading rate buffers. */
-   assert((surf_info->usage & ISL_SURF_USAGE_CPB_BIT) == 0);
-
-   /* From the Broadwel PRM >> Volume 2d: Command Reference: Structures >>
-    * RENDER_SURFACE_STATE Surface Pitch (p349):
-    *
-    *    - For linear render target surfaces and surfaces accessed with the
-    *      typed data port messages, the pitch must be a multiple of the
-    *      element size for non-YUV surface formats.  Pitch must be
-    *      a multiple of 2 * element size for YUV surface formats.
-    *
-    *    - [Requirements for SURFTYPE_BUFFER and SURFTYPE_STRBUF, which we
-    *      ignore because isl doesn't do buffers.]
-    *
-    *    - For other linear surfaces, the pitch can be any multiple of
-    *      bytes.
-    */
-   const struct isl_format_layout *fmtl = isl_format_get_layout(surf_info->format);
-   const uint32_t bs = fmtl->bpb / 8;
-   uint32_t alignment;
-
-   if (surf_info->usage & ISL_SURF_USAGE_RENDER_TARGET_BIT) {
-      if (isl_format_is_yuv(surf_info->format)) {
-         alignment = 2 * bs;
-      } else  {
-         alignment = bs;
-      }
+      alignment = MAX(alignment, tile_info->phys_extent_B.width);
    } else {
-      alignment = 1;
+      /* We only support tiled fragment shading rate buffers. */
+      assert((surf_info->usage & ISL_SURF_USAGE_CPB_BIT) == 0);
+
+      /* From the Broadwel PRM >> Volume 2d: Command Reference: Structures >>
+      * RENDER_SURFACE_STATE Surface Pitch (p349):
+      *
+      *    - For linear render target surfaces and surfaces accessed with the
+      *      typed data port messages, the pitch must be a multiple of the
+      *      element size for non-YUV surface formats.  Pitch must be
+      *      a multiple of 2 * element size for YUV surface formats.
+      *
+      *    - [Requirements for SURFTYPE_BUFFER and SURFTYPE_STRBUF, which we
+      *      ignore because isl doesn't do buffers.]
+      *
+      *    - For other linear surfaces, the pitch can be any multiple of
+      *      bytes.
+      */
+      if (surf_info->usage & ISL_SURF_USAGE_RENDER_TARGET_BIT) {
+         if (isl_format_is_yuv(surf_info->format)) {
+            alignment = 2 * bs;
+         } else  {
+            alignment = bs;
+         }
+      }
+
+      /* From the Broadwell PRM >> Volume 2c: Command Reference: Registers >>
+       * PRI_STRIDE Stride (p1254):
+       *
+       *    "When using linear memory, this must be at least 64 byte aligned."
+       *
+       * However, when displaying on NVIDIA and recent AMD GPUs via PRIME,
+       * we need a larger pitch of 256 bytes.
+       *
+       * If the ISL caller didn't specify a row_pitch_B, then we should assume
+       * the NVIDIA/AMD requirements. Otherwise, if we have a specified
+       * row_pitch_B, this is probably because the caller is trying to import a
+       * buffer. In that case we limit the minimum row pitch to the Intel HW
+       * requirement.
+       */
+      if (surf_info->usage & ISL_SURF_USAGE_DISPLAY_BIT) {
+         if (surf_info->row_pitch_B == 0)
+            alignment = isl_align(alignment, 256);
+         else
+            alignment = isl_align(alignment, 64);
+      }
    }
 
-   /* From the Broadwell PRM >> Volume 2c: Command Reference: Registers >>
-    * PRI_STRIDE Stride (p1254):
-    *
-    *    "When using linear memory, this must be at least 64 byte aligned."
-    *
-    * However, when displaying on NVIDIA and recent AMD GPUs via PRIME,
-    * we need a larger pitch of 256 bytes.
-    *
-    * If the ISL caller didn't specify a row_pitch_B, then we should assume
-    * the NVIDIA/AMD requirements. Otherwise, if we have a specified
-    * row_pitch_B, this is probably because the caller is trying to import a
-    * buffer. In that case we limit the minimum row pitch to the Intel HW
-    * requirement.
-    */
-   if (surf_info->usage & ISL_SURF_USAGE_DISPLAY_BIT) {
-      if (surf_info->row_pitch_B == 0)
-         alignment = isl_align(alignment, 256);
-      else
-         alignment = isl_align(alignment, 64);
+   if (dev->requires_padding &&
+       (surf_info->usage & ISL_SURF_USAGE_TEXTURE_BIT) &&
+       !(surf_info->usage & ISL_SURF_USAGE_NO_PADDING_BIT)) {
+      /* Bspec 58780:
+       *
+       *    "It is possible that a cache line will straddle a page boundary if
+       *     the base address or pitch is not aligned"
+       *
+       *    "To determine the necessary padding on the bottom and right side of
+       *     the surface, refer to the table in Alignment Unit Size section for
+       *     the i and j parameters for the surface format in use."
+       *
+       * The row pitch of the surface needs to be aligned to HAlign if we want
+       * to avoid having the sampler cache straddle an extra cacheline/page.
+       *
+       * Unfortunately, depending on format, HAlign translated to bytes is not
+       * aligned to the tile width, may end up greater than the tile width, and
+       * is also not guaranteed to be a power of 2, so we have to determine the
+       * final alignment requirement via LCM and use isl_align_npot.
+       */
+      alignment = isl_lcm_u32(alignment, bs * image_align_el->w);
    }
 
    return alignment;
@@ -2943,7 +2964,7 @@ isl_calc_tiled_min_row_pitch(const struct isl_device *dev,
     * can be 128B), so align the row pitch to the alignment.
     */
    assert(alignment_B >= tile_info->phys_extent_B.width);
-   return isl_align(total_w_tl * tile_info->phys_extent_B.width, alignment_B);
+   return isl_align_npot(total_w_tl * tile_info->phys_extent_B.width, alignment_B);
 }
 
 static uint32_t
@@ -3052,10 +3073,11 @@ isl_calc_row_pitch(const struct isl_device *dev,
                    const struct isl_tile_info *tile_info,
                    enum isl_dim_layout dim_layout,
                    const struct isl_extent4d *phys_total_el,
+                   const struct isl_extent3d *image_align_el,
                    uint32_t *out_row_pitch_B)
 {
    uint32_t alignment_B =
-      isl_calc_row_pitch_alignment(dev, surf_info, tile_info);
+      isl_calc_row_pitch_alignment(dev, surf_info, tile_info, image_align_el);
 
    const uint32_t min_row_pitch_B =
       isl_calc_min_row_pitch(dev, surf_info, tile_info, phys_total_el,
@@ -3146,25 +3168,88 @@ isl_calc_row_pitch(const struct isl_device *dev,
    return true;
 }
 
+static void
+isl_calc_padding_rows(const struct isl_device *dev,
+                      const struct isl_surf_init_info *info,
+                      const struct isl_extent3d *image_align_el,
+                      uint32_t *phys_total_h)
+{
+   if (!dev->requires_padding ||
+       !(info->usage & ISL_SURF_USAGE_TEXTURE_BIT) ||
+       (info->usage & ISL_SURF_USAGE_NO_PADDING_BIT))
+      return;
+
+   const struct isl_format_layout *fmtl = isl_format_get_layout(info->format);
+
+   if (fmtl->bpb % 3 == 0 || isl_format_is_yuv(info->format)) {
+      /* BSpec 58780:
+       *
+       *    "For packed YUV, 96 bpt, 48 bpt, and 24 bpt surface formats,
+       *     additional padding is required. These surfaces require an extra
+       *     row plus 16 bytes of padding at the bottom in addition to the
+       *     general padding requirements."
+       *
+       * These formats are pretty uncommon, we'll just add 2 rows for now to
+       * keep the mess to a minimum.
+       */
+      *phys_total_h += 2;
+   }
+
+   if (fmtl->bh == 1) {
+      /* BSpec 58780:
+       *
+       *    "To determine the necessary padding on the bottom and right side of
+       *     the surface, refer to the table in Alignment Unit Size section for
+       *     the i and j parameters for the surface format in use."
+       *
+       * The height of the surface needs to be aligned to VAlign to accomidate
+       * the overfetch we get when SurfaceArray is enabled.
+       */
+      *phys_total_h = isl_align(*phys_total_h, image_align_el->h);
+   } else {
+      /* BSpec 58780:
+       *
+       *    "For compressed textures (BC*, FXT1, ETC*, and EAC* surface formats),
+       *     padding at the bottom of the surface is to an even compressed row.
+       *     This is equivalent to a multiple of 2q, where q is the compression
+       *     block height in texels."
+       */
+      *phys_total_h = isl_align_npot(*phys_total_h, fmtl->bh * 2);
+
+      /* BSpec 58780:
+       *
+       *    "For cube surfaces, an additional two rows of padding are required at
+       *     the bottom of the surface."
+       */
+      if (info->usage & ISL_SURF_USAGE_CUBE_BIT)
+         *phys_total_h += fmtl->bh * 2;
+   }
+}
+
 static bool
 isl_calc_size(const struct isl_device *dev,
               const struct isl_surf_init_info *info,
               const struct isl_tile_info *tile_info,
               const struct isl_extent4d *phys_total_el,
+              const struct isl_extent3d *image_align_el,
               uint32_t array_pitch_el_rows,
               uint32_t row_pitch_B,
               uint64_t *out_size_B)
 {
+   uint32_t phys_total_h = phys_total_el->h;
+   isl_calc_padding_rows(dev, info, image_align_el, &phys_total_h);
+
    uint64_t size_B;
    if (tile_info->tiling == ISL_TILING_LINEAR) {
       /* LINEAR tiling has no concept of intra-tile arrays */
       assert(phys_total_el->d == 1 && phys_total_el->a == 1);
 
-      size_B = (uint64_t) row_pitch_B * phys_total_el->h;
-
+      size_B = (uint64_t) row_pitch_B * phys_total_h;
    } else {
       /* Pitches must make sense with the tiling */
       assert(row_pitch_B % tile_info->phys_extent_B.width == 0);
+      /* Tile size should already be a multiple of VAlign */
+      assert(tile_info->phys_extent_B.height % image_align_el->h == 0);
 
       uint32_t array_slices, array_pitch_tl_rows;
       if (phys_total_el->d > 1) {
@@ -3187,7 +3272,7 @@ isl_calc_size(const struct isl_device *dev,
 
       const uint32_t total_h_tl =
          (array_slices - 1) * array_pitch_tl_rows +
-         isl_align_div(phys_total_el->h, tile_info->logical_extent_el.height);
+         isl_align_div(phys_total_h, tile_info->logical_extent_el.height);
 
       size_B = (uint64_t) total_h_tl * tile_info->phys_extent_B.height *
                row_pitch_B;
@@ -3270,7 +3355,11 @@ isl_calc_base_alignment(const struct isl_device *dev,
       }
       base_alignment_B = isl_round_up_to_power_of_two(base_alignment_B);
 
-      /* From the Skylake PRM Vol 2c, PLANE_STRIDE::Stride:
+      /* Even though the sampler requirement is 1B, we should request at
+       * least 64B of alignment so that we don't end up straddling more
+       * cachelines/pages than needed in the next level.
+       *
+       * From the Skylake PRM Vol 2c, PLANE_STRIDE::Stride:
        *
        *     "For Linear memory, this field specifies the stride in chunks of
        *     64 bytes (1 cache line)."
@@ -3287,7 +3376,10 @@ isl_calc_base_alignment(const struct isl_device *dev,
        *     "Format: SplitBaseAddress64ByteAligned"
        */
       if (isl_surf_usage_is_display(info->usage) ||
-          (info->usage & ISL_SURF_USAGE_VIDEO_DECODE_BIT))
+          (info->usage & ISL_SURF_USAGE_VIDEO_DECODE_BIT) ||
+          (dev->requires_padding &&
+            (info->usage & ISL_SURF_USAGE_TEXTURE_BIT) &&
+           !(info->usage & ISL_SURF_USAGE_NO_PADDING_BIT)))
          base_alignment_B = MAX(base_alignment_B, 64);
    } else {
       const uint32_t tile_size_B = tile_info->phys_extent_B.width *
@@ -3416,12 +3508,14 @@ isl_surf_init_s_with_tiling(const struct isl_device *dev,
 
    uint32_t row_pitch_B;
    if (!isl_calc_row_pitch(dev, info, &tile_info, dim_layout,
-                           &phys_total_el, &row_pitch_B))
+                           &phys_total_el, &image_align_el,
+                           &row_pitch_B))
       return false;
 
    uint64_t size_B;
    if (!isl_calc_size(dev, info, &tile_info, &phys_total_el,
-                      array_pitch_el_rows, row_pitch_B, &size_B))
+                      &image_align_el, array_pitch_el_rows,
+                      row_pitch_B, &size_B))
       return false;
 
    const uint32_t base_alignment_B =
@@ -3754,7 +3848,8 @@ isl_surf_from_mem(const struct isl_device *isl_dev,
    /* Create the surface. */
    isl_surf_usage_flags_t usage = ISL_SURF_USAGE_TEXTURE_BIT |
                                   ISL_SURF_USAGE_RENDER_TARGET_BIT |
-                                  ISL_SURF_USAGE_NO_AUX_TT_ALIGNMENT_BIT;
+                                  ISL_SURF_USAGE_NO_AUX_TT_ALIGNMENT_BIT |
+                                  ISL_SURF_USAGE_NO_PADDING_BIT;
    ASSERTED bool ok = isl_surf_init(isl_dev, surf,
                                     .dim = ISL_SURF_DIM_2D,
                                     .format = fmtl->format,
@@ -4776,7 +4871,8 @@ isl_surf_get_image_surf(const struct isl_device *dev,
     * corresponding flag if present.
     */
    const isl_surf_usage_flags_t usage =
-      surf->usage & (~ISL_SURF_USAGE_CUBE_BIT);
+      (surf->usage & ~ISL_SURF_USAGE_CUBE_BIT) |
+         ISL_SURF_USAGE_NO_PADDING_BIT;
 
    bool ok UNUSED;
    ok = isl_surf_init(dev, image_surf,
