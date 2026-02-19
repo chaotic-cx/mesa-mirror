@@ -689,11 +689,17 @@ VkResult anv_CreateDevice(
    if (result != VK_SUCCESS)
       goto fail_dynamic_state_pool;
 
+   result = anv_device_bind_null_va(device,
+                                    &device->physical->va.instruction_state_pool,
+                                    ANV_VM_BIND);
+   if (result != VK_SUCCESS)
+      goto fail_custom_border_color_pool;
+
    result = anv_shader_heap_init(&device->shader_heap, device,
                                  device->physical->va.instruction_state_pool,
                                  21 /* 2MiB */, 27 /* 64MiB */);
    if (result != VK_SUCCESS)
-      goto fail_custom_border_color_pool;
+      goto fail_null_shader_heap_init;
 
    if (device->info->verx10 >= 125) {
       /* Put the scratch surface states at the beginning of the internal
@@ -1235,6 +1241,10 @@ VkResult anv_CreateDevice(
       anv_state_pool_finish(&device->scratch_surface_state_pool);
  fail_shader_vma_heap:
       anv_shader_heap_finish(&device->shader_heap);
+ fail_null_shader_heap_init:
+   anv_device_bind_null_va(device,
+                           &device->physical->va.instruction_state_pool,
+                           ANV_VM_UNBIND);
  fail_custom_border_color_pool:
    anv_state_reserved_array_pool_finish(&device->custom_border_colors);
  fail_dynamic_state_pool:

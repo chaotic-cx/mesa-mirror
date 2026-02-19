@@ -150,7 +150,8 @@ anv_shader_heap_alloc(struct anv_shader_heap *heap,
                                 ANV_BO_ALLOC_MAPPED |
                                 ANV_BO_ALLOC_HOST_CACHED_COHERENT |
                                 ANV_BO_ALLOC_CAPTURE |
-                                ANV_BO_ALLOC_INTERNAL,
+                                ANV_BO_ALLOC_INTERNAL |
+                                ANV_BO_ALLOC_NULL_INITIALIZED_HEAP,
                                 heap->bos[i].addr,
                                 &heap->bos[i].bo);
          ANV_DMR_BO_ALLOC(&heap->device->vk.base, heap->bos[i].bo, result);
