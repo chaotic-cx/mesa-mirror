@@ -3312,6 +3312,14 @@ isl_tiling_get_intratile_offset_sa(enum isl_tiling tiling,
 }
 
 /**
+ * Calculates the size of a sampling engine surface, including the maximum
+ * number of extra padding bytes that could be fetched due to caching.
+ */
+uint64_t
+isl_surf_get_sampler_overfetch_size_B(const struct isl_device *dev,
+                                      const struct isl_surf *surf);
+
+/**
  * Get value of 3DSTATE_DEPTH_BUFFER.SurfaceFormat
  *
  * @pre surf->usage has ISL_SURF_USAGE_DEPTH_BIT

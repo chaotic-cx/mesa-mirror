@@ -5205,6 +5205,40 @@ isl_tiling_get_intratile_offset_el(enum isl_tiling tiling,
       (uint64_t)x_offset_tl * tile_info.phys_extent_B.h * tile_info.phys_extent_B.w;
 }
 
+uint64_t
+isl_surf_get_sampler_overfetch_size_B(const struct isl_device *dev,
+                                      const struct isl_surf *surf)
+{
+   if (dev->requires_padding && !(surf->usage & ISL_SURF_USAGE_NO_PADDING_BIT))
+      return surf->size_B;
+
+   /* We don't currently need to calculate overfetch besides when using linear
+    * tiled surfaces to copy data from an application defined buffer
+    */
+   assert(surf->tiling == ISL_TILING_LINEAR);
+   assert(surf->dim == ISL_SURF_DIM_2D);
+   assert(surf->levels == 1);
+
+   const struct isl_format_layout *fmtl = isl_format_get_layout(surf->format);
+   uint32_t row_alignment_B = fmtl->bpb * surf->image_alignment_el.w / 8;
+   uint32_t size_B = surf->size_B + surf->size_B % surf->row_pitch_B;
+
+   if (!(surf->usage & ISL_SURF_USAGE_NO_ARRAY_OVERFETCH_BIT)) {
+      uint32_t height = surf->size_B / surf->row_pitch_B;
+      uint32_t col_alignment = fmtl->bh * surf->image_alignment_el.h;
+
+      if (fmtl->bw != 1 || fmtl->bh != 1)
+         col_alignment *= 2;
+
+      size_B += (col_alignment - height % col_alignment) * surf->row_pitch_B;
+
+      if (isl_format_is_yuv(surf->format) || fmtl->bpb % 3 == 0)
+         size_B += surf->row_pitch_B + 16;
+   }
+
+   return isl_align_npot(size_B, row_alignment_B);
+}
+
 uint32_t
 isl_surf_get_depth_format(const struct isl_device *dev,
                           const struct isl_surf *surf)
