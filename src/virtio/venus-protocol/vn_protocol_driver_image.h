@@ -313,13 +313,13 @@ vn_sizeof_VkImageCreateInfo_pnext(const void *val)
         case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageCreateInfo_pnext(((const VkExternalMemoryImageCreateInfo *)pnext)->pNext);
             size += vn_sizeof_VkExternalMemoryImageCreateInfo_self((const VkExternalMemoryImageCreateInfo *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageCreateInfo_pnext(((const VkImageFormatListCreateInfo *)pnext)->pNext);
             size += vn_sizeof_VkImageFormatListCreateInfo_self((const VkImageFormatListCreateInfo *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT:
@@ -327,7 +327,7 @@ vn_sizeof_VkImageCreateInfo_pnext(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageCreateInfo_pnext(((const VkImageDrmFormatModifierListCreateInfoEXT *)pnext)->pNext);
             size += vn_sizeof_VkImageDrmFormatModifierListCreateInfoEXT_self((const VkImageDrmFormatModifierListCreateInfoEXT *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT:
@@ -335,13 +335,13 @@ vn_sizeof_VkImageCreateInfo_pnext(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageCreateInfo_pnext(((const VkImageDrmFormatModifierExplicitCreateInfoEXT *)pnext)->pNext);
             size += vn_sizeof_VkImageDrmFormatModifierExplicitCreateInfoEXT_self((const VkImageDrmFormatModifierExplicitCreateInfoEXT *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageCreateInfo_pnext(((const VkImageStencilUsageCreateInfo *)pnext)->pNext);
             size += vn_sizeof_VkImageStencilUsageCreateInfo_self((const VkImageStencilUsageCreateInfo *)pnext);
             return size;
         default:
@@ -402,13 +402,13 @@ vn_encode_VkImageCreateInfo_pnext(struct vn_cs_encoder *enc, const void *val)
         case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageCreateInfo_pnext(enc, ((const VkExternalMemoryImageCreateInfo *)pnext)->pNext);
             vn_encode_VkExternalMemoryImageCreateInfo_self(enc, (const VkExternalMemoryImageCreateInfo *)pnext);
             return;
         case VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageCreateInfo_pnext(enc, ((const VkImageFormatListCreateInfo *)pnext)->pNext);
             vn_encode_VkImageFormatListCreateInfo_self(enc, (const VkImageFormatListCreateInfo *)pnext);
             return;
         case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT:
@@ -416,7 +416,7 @@ vn_encode_VkImageCreateInfo_pnext(struct vn_cs_encoder *enc, const void *val)
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageCreateInfo_pnext(enc, ((const VkImageDrmFormatModifierListCreateInfoEXT *)pnext)->pNext);
             vn_encode_VkImageDrmFormatModifierListCreateInfoEXT_self(enc, (const VkImageDrmFormatModifierListCreateInfoEXT *)pnext);
             return;
         case VK_STRUCTURE_TYPE_IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT:
@@ -424,13 +424,13 @@ vn_encode_VkImageCreateInfo_pnext(struct vn_cs_encoder *enc, const void *val)
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageCreateInfo_pnext(enc, ((const VkImageDrmFormatModifierExplicitCreateInfoEXT *)pnext)->pNext);
             vn_encode_VkImageDrmFormatModifierExplicitCreateInfoEXT_self(enc, (const VkImageDrmFormatModifierExplicitCreateInfoEXT *)pnext);
             return;
         case VK_STRUCTURE_TYPE_IMAGE_STENCIL_USAGE_CREATE_INFO:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageCreateInfo_pnext(enc, ((const VkImageStencilUsageCreateInfo *)pnext)->pNext);
             vn_encode_VkImageStencilUsageCreateInfo_self(enc, (const VkImageStencilUsageCreateInfo *)pnext);
             return;
         default:
@@ -623,13 +623,13 @@ vn_sizeof_VkBindImageMemoryInfo_pnext(const void *val)
         case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkBindImageMemoryInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkBindImageMemoryInfo_pnext(((const VkBindImageMemoryDeviceGroupInfo *)pnext)->pNext);
             size += vn_sizeof_VkBindImageMemoryDeviceGroupInfo_self((const VkBindImageMemoryDeviceGroupInfo *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkBindImageMemoryInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkBindImageMemoryInfo_pnext(((const VkBindImagePlaneMemoryInfo *)pnext)->pNext);
             size += vn_sizeof_VkBindImagePlaneMemoryInfo_self((const VkBindImagePlaneMemoryInfo *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_BIND_MEMORY_STATUS:
@@ -637,7 +637,7 @@ vn_sizeof_VkBindImageMemoryInfo_pnext(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkBindImageMemoryInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkBindImageMemoryInfo_pnext(((const VkBindMemoryStatus *)pnext)->pNext);
             size += vn_sizeof_VkBindMemoryStatus_self((const VkBindMemoryStatus *)pnext);
             return size;
         default:
@@ -683,13 +683,13 @@ vn_encode_VkBindImageMemoryInfo_pnext(struct vn_cs_encoder *enc, const void *val
         case VK_STRUCTURE_TYPE_BIND_IMAGE_MEMORY_DEVICE_GROUP_INFO:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkBindImageMemoryInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkBindImageMemoryInfo_pnext(enc, ((const VkBindImageMemoryDeviceGroupInfo *)pnext)->pNext);
             vn_encode_VkBindImageMemoryDeviceGroupInfo_self(enc, (const VkBindImageMemoryDeviceGroupInfo *)pnext);
             return;
         case VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkBindImageMemoryInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkBindImageMemoryInfo_pnext(enc, ((const VkBindImagePlaneMemoryInfo *)pnext)->pNext);
             vn_encode_VkBindImagePlaneMemoryInfo_self(enc, (const VkBindImagePlaneMemoryInfo *)pnext);
             return;
         case VK_STRUCTURE_TYPE_BIND_MEMORY_STATUS:
@@ -697,7 +697,7 @@ vn_encode_VkBindImageMemoryInfo_pnext(struct vn_cs_encoder *enc, const void *val
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkBindImageMemoryInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkBindImageMemoryInfo_pnext(enc, ((const VkBindMemoryStatus *)pnext)->pNext);
             vn_encode_VkBindMemoryStatus_self(enc, (const VkBindMemoryStatus *)pnext);
             return;
         default:
@@ -794,7 +794,7 @@ vn_sizeof_VkImageMemoryRequirementsInfo2_pnext(const void *val)
         case VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageMemoryRequirementsInfo2_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageMemoryRequirementsInfo2_pnext(((const VkImagePlaneMemoryRequirementsInfo *)pnext)->pNext);
             size += vn_sizeof_VkImagePlaneMemoryRequirementsInfo_self((const VkImagePlaneMemoryRequirementsInfo *)pnext);
             return size;
         default:
@@ -838,7 +838,7 @@ vn_encode_VkImageMemoryRequirementsInfo2_pnext(struct vn_cs_encoder *enc, const 
         case VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageMemoryRequirementsInfo2_pnext(enc, pnext->pNext);
+            vn_encode_VkImageMemoryRequirementsInfo2_pnext(enc, ((const VkImagePlaneMemoryRequirementsInfo *)pnext)->pNext);
             vn_encode_VkImagePlaneMemoryRequirementsInfo_self(enc, (const VkImagePlaneMemoryRequirementsInfo *)pnext);
             return;
         default:
@@ -1370,7 +1370,7 @@ vn_sizeof_VkSubresourceLayout2_pnext(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkSubresourceLayout2_pnext(pnext->pNext);
+            size += vn_sizeof_VkSubresourceLayout2_pnext(((const VkSubresourceHostMemcpySize *)pnext)->pNext);
             size += vn_sizeof_VkSubresourceHostMemcpySize_self((const VkSubresourceHostMemcpySize *)pnext);
             return size;
         default:
@@ -1424,7 +1424,7 @@ vn_decode_VkSubresourceLayout2_pnext(struct vn_cs_decoder *dec, const void *val)
 
     switch ((int32_t)pnext->sType) {
     case VK_STRUCTURE_TYPE_SUBRESOURCE_HOST_MEMCPY_SIZE:
-        vn_decode_VkSubresourceLayout2_pnext(dec, pnext->pNext);
+        vn_decode_VkSubresourceLayout2_pnext(dec, ((VkSubresourceHostMemcpySize *)pnext)->pNext);
         vn_decode_VkSubresourceHostMemcpySize_self(dec, (VkSubresourceHostMemcpySize *)pnext);
         break;
     default:
@@ -1465,7 +1465,7 @@ vn_sizeof_VkSubresourceLayout2_pnext_partial(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkSubresourceLayout2_pnext_partial(pnext->pNext);
+            size += vn_sizeof_VkSubresourceLayout2_pnext_partial(((const VkSubresourceHostMemcpySize *)pnext)->pNext);
             size += vn_sizeof_VkSubresourceHostMemcpySize_self_partial((const VkSubresourceHostMemcpySize *)pnext);
             return size;
         default:
@@ -1511,7 +1511,7 @@ vn_encode_VkSubresourceLayout2_pnext_partial(struct vn_cs_encoder *enc, const vo
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkSubresourceLayout2_pnext_partial(enc, pnext->pNext);
+            vn_encode_VkSubresourceLayout2_pnext_partial(enc, ((const VkSubresourceHostMemcpySize *)pnext)->pNext);
             vn_encode_VkSubresourceHostMemcpySize_self_partial(enc, (const VkSubresourceHostMemcpySize *)pnext);
             return;
         default:

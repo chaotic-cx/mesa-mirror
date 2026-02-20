@@ -185,7 +185,7 @@ vn_sizeof_VkImageViewCreateInfo_pnext(const void *val)
         case VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageViewCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageViewCreateInfo_pnext(((const VkImageViewUsageCreateInfo *)pnext)->pNext);
             size += vn_sizeof_VkImageViewUsageCreateInfo_self((const VkImageViewUsageCreateInfo *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_IMAGE_VIEW_SLICED_CREATE_INFO_EXT:
@@ -193,13 +193,13 @@ vn_sizeof_VkImageViewCreateInfo_pnext(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageViewCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageViewCreateInfo_pnext(((const VkImageViewSlicedCreateInfoEXT *)pnext)->pNext);
             size += vn_sizeof_VkImageViewSlicedCreateInfoEXT_self((const VkImageViewSlicedCreateInfoEXT *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageViewCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageViewCreateInfo_pnext(((const VkSamplerYcbcrConversionInfo *)pnext)->pNext);
             size += vn_sizeof_VkSamplerYcbcrConversionInfo_self((const VkSamplerYcbcrConversionInfo *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_IMAGE_VIEW_MIN_LOD_CREATE_INFO_EXT:
@@ -207,7 +207,7 @@ vn_sizeof_VkImageViewCreateInfo_pnext(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkImageViewCreateInfo_pnext(pnext->pNext);
+            size += vn_sizeof_VkImageViewCreateInfo_pnext(((const VkImageViewMinLodCreateInfoEXT *)pnext)->pNext);
             size += vn_sizeof_VkImageViewMinLodCreateInfoEXT_self((const VkImageViewMinLodCreateInfoEXT *)pnext);
             return size;
         default:
@@ -256,7 +256,7 @@ vn_encode_VkImageViewCreateInfo_pnext(struct vn_cs_encoder *enc, const void *val
         case VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageViewCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageViewCreateInfo_pnext(enc, ((const VkImageViewUsageCreateInfo *)pnext)->pNext);
             vn_encode_VkImageViewUsageCreateInfo_self(enc, (const VkImageViewUsageCreateInfo *)pnext);
             return;
         case VK_STRUCTURE_TYPE_IMAGE_VIEW_SLICED_CREATE_INFO_EXT:
@@ -264,13 +264,13 @@ vn_encode_VkImageViewCreateInfo_pnext(struct vn_cs_encoder *enc, const void *val
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageViewCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageViewCreateInfo_pnext(enc, ((const VkImageViewSlicedCreateInfoEXT *)pnext)->pNext);
             vn_encode_VkImageViewSlicedCreateInfoEXT_self(enc, (const VkImageViewSlicedCreateInfoEXT *)pnext);
             return;
         case VK_STRUCTURE_TYPE_SAMPLER_YCBCR_CONVERSION_INFO:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageViewCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageViewCreateInfo_pnext(enc, ((const VkSamplerYcbcrConversionInfo *)pnext)->pNext);
             vn_encode_VkSamplerYcbcrConversionInfo_self(enc, (const VkSamplerYcbcrConversionInfo *)pnext);
             return;
         case VK_STRUCTURE_TYPE_IMAGE_VIEW_MIN_LOD_CREATE_INFO_EXT:
@@ -278,7 +278,7 @@ vn_encode_VkImageViewCreateInfo_pnext(struct vn_cs_encoder *enc, const void *val
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkImageViewCreateInfo_pnext(enc, pnext->pNext);
+            vn_encode_VkImageViewCreateInfo_pnext(enc, ((const VkImageViewMinLodCreateInfoEXT *)pnext)->pNext);
             vn_encode_VkImageViewMinLodCreateInfoEXT_self(enc, (const VkImageViewMinLodCreateInfoEXT *)pnext);
             return;
         default:

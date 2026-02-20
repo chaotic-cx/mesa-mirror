@@ -1584,7 +1584,7 @@ vn_sizeof_VkWriteDescriptorSet_pnext(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkWriteDescriptorSet_pnext(pnext->pNext);
+            size += vn_sizeof_VkWriteDescriptorSet_pnext(((const VkWriteDescriptorSetInlineUniformBlock *)pnext)->pNext);
             size += vn_sizeof_VkWriteDescriptorSetInlineUniformBlock_self((const VkWriteDescriptorSetInlineUniformBlock *)pnext);
             return size;
         case VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR:
@@ -1592,7 +1592,7 @@ vn_sizeof_VkWriteDescriptorSet_pnext(const void *val)
                 break;
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkWriteDescriptorSet_pnext(pnext->pNext);
+            size += vn_sizeof_VkWriteDescriptorSet_pnext(((const VkWriteDescriptorSetAccelerationStructureKHR *)pnext)->pNext);
             size += vn_sizeof_VkWriteDescriptorSetAccelerationStructureKHR_self((const VkWriteDescriptorSetAccelerationStructureKHR *)pnext);
             return size;
         default:
@@ -1663,7 +1663,7 @@ vn_encode_VkWriteDescriptorSet_pnext(struct vn_cs_encoder *enc, const void *val)
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkWriteDescriptorSet_pnext(enc, pnext->pNext);
+            vn_encode_VkWriteDescriptorSet_pnext(enc, ((const VkWriteDescriptorSetInlineUniformBlock *)pnext)->pNext);
             vn_encode_VkWriteDescriptorSetInlineUniformBlock_self(enc, (const VkWriteDescriptorSetInlineUniformBlock *)pnext);
             return;
         case VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR:
@@ -1671,7 +1671,7 @@ vn_encode_VkWriteDescriptorSet_pnext(struct vn_cs_encoder *enc, const void *val)
                 break;
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkWriteDescriptorSet_pnext(enc, pnext->pNext);
+            vn_encode_VkWriteDescriptorSet_pnext(enc, ((const VkWriteDescriptorSetAccelerationStructureKHR *)pnext)->pNext);
             vn_encode_VkWriteDescriptorSetAccelerationStructureKHR_self(enc, (const VkWriteDescriptorSetAccelerationStructureKHR *)pnext);
             return;
         default:
@@ -1928,7 +1928,7 @@ vn_sizeof_VkMemoryRequirements2_pnext(const void *val)
         case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkMemoryRequirements2_pnext(pnext->pNext);
+            size += vn_sizeof_VkMemoryRequirements2_pnext(((const VkMemoryDedicatedRequirements *)pnext)->pNext);
             size += vn_sizeof_VkMemoryDedicatedRequirements_self((const VkMemoryDedicatedRequirements *)pnext);
             return size;
         default:
@@ -1982,7 +1982,7 @@ vn_decode_VkMemoryRequirements2_pnext(struct vn_cs_decoder *dec, const void *val
 
     switch ((int32_t)pnext->sType) {
     case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS:
-        vn_decode_VkMemoryRequirements2_pnext(dec, pnext->pNext);
+        vn_decode_VkMemoryRequirements2_pnext(dec, ((VkMemoryDedicatedRequirements *)pnext)->pNext);
         vn_decode_VkMemoryDedicatedRequirements_self(dec, (VkMemoryDedicatedRequirements *)pnext);
         break;
     default:
@@ -2021,7 +2021,7 @@ vn_sizeof_VkMemoryRequirements2_pnext_partial(const void *val)
         case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS:
             size += vn_sizeof_simple_pointer(pnext);
             size += vn_sizeof_VkStructureType(&pnext->sType);
-            size += vn_sizeof_VkMemoryRequirements2_pnext_partial(pnext->pNext);
+            size += vn_sizeof_VkMemoryRequirements2_pnext_partial(((const VkMemoryDedicatedRequirements *)pnext)->pNext);
             size += vn_sizeof_VkMemoryDedicatedRequirements_self_partial((const VkMemoryDedicatedRequirements *)pnext);
             return size;
         default:
@@ -2065,7 +2065,7 @@ vn_encode_VkMemoryRequirements2_pnext_partial(struct vn_cs_encoder *enc, const v
         case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS:
             vn_encode_simple_pointer(enc, pnext);
             vn_encode_VkStructureType(enc, &pnext->sType);
-            vn_encode_VkMemoryRequirements2_pnext_partial(enc, pnext->pNext);
+            vn_encode_VkMemoryRequirements2_pnext_partial(enc, ((const VkMemoryDedicatedRequirements *)pnext)->pNext);
             vn_encode_VkMemoryDedicatedRequirements_self_partial(enc, (const VkMemoryDedicatedRequirements *)pnext);
             return;
         default:
