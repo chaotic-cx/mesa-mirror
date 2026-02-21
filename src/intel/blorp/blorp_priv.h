@@ -77,6 +77,19 @@ enum {
 
 #define BLORP_SAMPLER_INDEX 0
 
+/* Repacking parameters
+ *
+ * idx = in_sa_x + in_sa_y * unpack_pitch
+ * idx += repack_offset
+ * out_sa_x = idx % repack_pitch
+ * out_sa_y = idx / repack_pitch
+ */
+struct blorp_surf_repack {
+   uint32_t unpack_pitch;
+   uint32_t repack_offset;
+   uint32_t repack_pitch;
+};
+
 struct blorp_surface_info
 {
    bool enabled;
@@ -97,6 +110,8 @@ struct blorp_surface_info
    float z_offset;
 
    uint32_t tile_x_sa, tile_y_sa;
+
+   struct blorp_surf_repack repack;
 };
 
 void
@@ -174,6 +189,8 @@ struct blorp_wm_inputs_blit
    struct blorp_surf_offset src_offset;
    struct blorp_surf_offset dst_offset;
 
+   struct blorp_surf_repack src_repack;
+
    /* (1/width, 1/height) for the source surface */
    float src_inv_size[2];
 
@@ -199,7 +216,7 @@ struct blorp_wm_inputs
    /* Note: Pad out to an integral number of registers when extending, but
     * make sure subgroup_id is the last 32-bit item.
     */
-   uint32_t pad[4];
+   uint32_t pad[1];
    uint32_t subgroup_id;
 };
 
@@ -443,6 +460,13 @@ struct blorp_blit_prog_key
    /* If a compute shader is used, this is the local size y dimension.
     */
    uint8_t local_y;
+
+   /* True if this blit operation is unpacking data from an arbitrarily-sized
+    * linear surface. This is for buffer-to-image copies to allow the surfaces
+    * to be cacheline-aligned even when the data isn't. Repacking is applied
+    * texture coordinates after source offsets.
+    */
+   bool need_repack;
 };
 
 /**

@@ -191,6 +191,20 @@ struct blorp_address {
    uint32_t mocs;
 
    /**
+    * When combined with limit, this value defines where the allocation
+    * actually starts in the buffer.
+    */
+   int64_t base;
+
+   /**
+    * If non-zero, defines the limit of the buffer. BLORP will make
+    * sure that no transfer attempts to access memory outside of this
+    * range when accounting for the sampler overfetch. The full range
+    * of buffer is assumed to be [base, limit).
+    */
+   uint64_t limit;
+
+   /**
     * True if this buffer is intended to live in device-local memory.
     * This is only a performance hint; it's OK to set it to true even
     * if eviction has temporarily forced the buffer to system memory.

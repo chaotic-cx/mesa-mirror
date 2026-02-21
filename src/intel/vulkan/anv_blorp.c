@@ -236,15 +236,49 @@ get_usage_flag_for_cmd_buffer(const struct anv_cmd_buffer *cmd_buffer,
 }
 
 static void
-get_blorp_surf_for_anv_address(struct anv_cmd_buffer *cmd_buffer,
-                               struct anv_address address,
-                               uint32_t width, uint32_t height,
-                               uint32_t row_pitch, enum isl_format format,
-                               bool is_dest,
-                               struct blorp_surf *blorp_surf,
-                               struct isl_surf *isl_surf)
+init_blorp_address_bounds(struct blorp_address *addr)
+{
+   assert(addr->buffer);
+   const struct anv_bo *bo = addr->buffer;
+   if (bo->slab_parent) {
+      addr->buffer = bo->slab_parent;
+      addr->offset += bo->offset - bo->slab_parent->offset;
+      addr->limit = bo->slab_parent->actual_size;
+   } else {
+      addr->limit = bo->actual_size;
+   }
+}
+
+/**
+ * Initializes the bounds of a blorp_address from an anv_buffer, also handling
+ * sparse binding correctly.
+ */
+static void
+init_blorp_buffer_bounds(const struct anv_buffer *buffer,
+                         struct blorp_address *addr)
+{
+   if (addr->buffer) {
+      init_blorp_address_bounds(addr);
+   } else if (anv_buffer_is_sparse(buffer)) {
+      addr->base = buffer->sparse_data.address;
+      addr->limit = buffer->sparse_data.address + buffer->sparse_data.size;
+   } else {
+      UNREACHABLE("Could not determine allocation size");
+   }
+}
+
+static void
+get_blorp_surf_for_anv_buffer(struct anv_cmd_buffer *cmd_buffer,
+                              struct anv_buffer *buffer, uint64_t offset,
+                              uint32_t width, uint32_t height,
+                              uint32_t row_pitch, enum isl_format format,
+                              bool is_dest,
+                              struct blorp_surf *blorp_surf,
+                              struct isl_surf *isl_surf)
 {
    bool ok UNUSED;
+   struct anv_address address = anv_address_add(buffer->address, offset);
+
    isl_surf_usage_flags_t usage =
       get_usage_flag_for_cmd_buffer(cmd_buffer, is_dest, false,
                                     address.protected);
@@ -257,6 +291,8 @@ get_blorp_surf_for_anv_address(struct anv_cmd_buffer *cmd_buffer,
          .mocs = anv_mocs(cmd_buffer->device, address.bo, usage),
       },
    };
+
+   init_blorp_buffer_bounds(buffer, &blorp_surf->addr);
 
    usage |= ISL_SURF_USAGE_NO_PADDING_BIT;
 
@@ -273,21 +309,6 @@ get_blorp_surf_for_anv_address(struct anv_cmd_buffer *cmd_buffer,
                      .usage = usage,
                      .tiling_flags = ISL_TILING_LINEAR_BIT);
    assert(ok);
-}
-
-static void
-get_blorp_surf_for_anv_buffer(struct anv_cmd_buffer *cmd_buffer,
-                              struct anv_buffer *buffer, uint64_t offset,
-                              uint32_t width, uint32_t height,
-                              uint32_t row_pitch, enum isl_format format,
-                              bool is_dest,
-                              struct blorp_surf *blorp_surf,
-                              struct isl_surf *isl_surf)
-{
-   get_blorp_surf_for_anv_address(cmd_buffer,
-                                  anv_address_add(buffer->address, offset),
-                                  width, height, row_pitch, format,
-                                  is_dest, blorp_surf, isl_surf);
 }
 
 /* Pick something high enough that it won't be used in core and low enough it
@@ -706,7 +727,8 @@ void anv_CmdCopyImage2(
 static void
 copy_buffer_to_image(struct anv_cmd_buffer *cmd_buffer,
                      struct blorp_batch *batch,
-                     struct anv_address mem_addr,
+                     struct anv_buffer *mem_buffer,
+                     VkDeviceSize mem_offset,
                      const struct vk_image_buffer_layout *mem_layout,
                      const struct anv_image *anv_image,
                      VkImageLayout image_layout,
@@ -755,10 +777,10 @@ copy_buffer_to_image(struct anv_cmd_buffer *cmd_buffer,
       anv_get_isl_format(cmd_buffer->device->physical, anv_image->vk.format,
                          sub_resource.aspectMask, VK_IMAGE_TILING_LINEAR);
 
-   get_blorp_surf_for_anv_address(cmd_buffer, mem_addr,
-                                  extent.width, extent.height,
-                                  mem_layout->row_stride_B, linear_format,
-                                  false, &memory.surf, &memory_isl_surf);
+   get_blorp_surf_for_anv_buffer(cmd_buffer, mem_buffer, mem_offset,
+                                 extent.width, extent.height,
+                                 mem_layout->row_stride_B, linear_format,
+                                 false, &memory.surf, &memory_isl_surf);
 
    blorp_copy_get_formats(&cmd_buffer->device->isl_dev,
                           src->isl_surf, dst->isl_surf,
@@ -820,8 +842,7 @@ void anv_CmdCopyBufferToImage2(
             vk_image_buffer_copy_layout(&dst_image->vk, region);
 
          copy_buffer_to_image(cmd_buffer, &batch,
-                              anv_address_add(src_buffer->address,
-                                              region->bufferOffset),
+                              src_buffer, region->bufferOffset,
                               &buffer_layout,
                               dst_image, pCopyBufferToImageInfo->dstImageLayout,
                               region->imageSubresource,
@@ -907,8 +928,7 @@ void anv_CmdCopyImageToBuffer2(
             vk_image_buffer_copy_layout(&src_image->vk, region);
 
          copy_buffer_to_image(cmd_buffer, &batch,
-                              anv_address_add(dst_buffer->address,
-                                              region->bufferOffset),
+                              dst_buffer, region->bufferOffset,
                               &buffer_layout,
                               src_image, pCopyImageToBufferInfo->srcImageLayout,
                               region->imageSubresource,
@@ -1102,31 +1122,6 @@ void anv_CmdBlitImage2(
 /* This is maximum possible width/height our HW can handle */
 #define MAX_SURFACE_DIM (1ull << 14)
 
-static void
-copy_memory(struct anv_device *device,
-            struct blorp_batch *batch,
-            struct anv_address src_addr,
-            struct anv_address dst_addr,
-            uint64_t size)
-{
-   struct blorp_address src = {
-      .buffer = src_addr.bo,
-      .offset = src_addr.offset,
-      .mocs = anv_mocs(device, src_addr.bo,
-                       blorp_batch_isl_copy_usage(batch, false /* is_dest */,
-                                                  src_addr.protected)),
-   };
-   struct blorp_address dst = {
-      .buffer = dst_addr.bo,
-      .offset = dst_addr.offset,
-      .mocs = anv_mocs(device, dst_addr.bo,
-                       blorp_batch_isl_copy_usage(batch, true /* is_dest */,
-                                                  dst_addr.protected)),
-   };
-
-   blorp_buffer_copy(batch, src, dst, size);
-}
-
 void
 anv_cmd_copy_addr(struct anv_cmd_buffer *cmd_buffer,
                   struct anv_address src_addr,
@@ -1141,7 +1136,25 @@ anv_cmd_copy_addr(struct anv_cmd_buffer *cmd_buffer,
                         cmd_buffer->device->physical->gpgpu_pipeline_value ?
                         BLORP_BATCH_USE_COMPUTE : 0);
 
-   copy_memory(device, &batch, src_addr, dst_addr, size);
+   struct blorp_address src = {
+      .buffer = src_addr.bo,
+      .offset = src_addr.offset,
+      .mocs = anv_mocs(device, src_addr.bo,
+                       blorp_batch_isl_copy_usage(&batch, false /* is_dest */,
+                                                  src_addr.protected)),
+   };
+   struct blorp_address dst = {
+      .buffer = dst_addr.bo,
+      .offset = dst_addr.offset,
+      .mocs = anv_mocs(device, dst_addr.bo,
+                       blorp_batch_isl_copy_usage(&batch, true /* is_dest */,
+                                                  dst_addr.protected)),
+   };
+
+   init_blorp_address_bounds(&src);
+   init_blorp_address_bounds(&dst);
+
+   blorp_buffer_copy(&batch, src, dst, size);
 
    anv_add_buffer_write_pending_bits(cmd_buffer, "after copy buffer");
    anv_blorp_batch_finish(&batch);
@@ -1164,10 +1177,30 @@ void anv_CmdCopyBuffer2(
    for (unsigned r = 0; r < pCopyBufferInfo->regionCount; r++) {
       const VkBufferCopy2 *region = &pCopyBufferInfo->pRegions[r];
 
-      copy_memory(cmd_buffer->device, &batch,
-                  anv_address_add(src_buffer->address, region->srcOffset),
-                  anv_address_add(dst_buffer->address, region->dstOffset),
-                  region->size);
+      struct anv_address src_addr =
+         anv_address_add(src_buffer->address, region->srcOffset);
+      struct anv_address dst_addr =
+         anv_address_add(dst_buffer->address, region->dstOffset);
+
+      struct blorp_address src = {
+         .buffer = src_addr.bo,
+         .offset = src_addr.offset,
+         .mocs = anv_mocs(cmd_buffer->device, src_addr.bo,
+                          blorp_batch_isl_copy_usage(&batch, false /* is_dest */,
+                                                     src_addr.protected)),
+      };
+      struct blorp_address dst = {
+         .buffer = dst_addr.bo,
+         .offset = dst_addr.offset,
+         .mocs = anv_mocs(cmd_buffer->device, dst_addr.bo,
+                          blorp_batch_isl_copy_usage(&batch, true /* is_dest */,
+                                                     dst_addr.protected)),
+      };
+
+      init_blorp_buffer_bounds(src_buffer, &src);
+      init_blorp_buffer_bounds(dst_buffer, &dst);
+
+      blorp_buffer_copy(&batch, src, dst, region->size);
    }
 
    anv_add_buffer_write_pending_bits(cmd_buffer, "after copy buffer");
@@ -1234,6 +1267,11 @@ anv_cmd_buffer_update_addr(
                              false /* is_depth */,
                              address.protected)),
       };
+
+      /* We can't extract a limit from tmp_addr because it just points to the
+       * first BO in the pool, so we manually set it to the pool's full size.
+       */
+      src.limit = cmd_buffer->device->dynamic_state_pool.block_pool.size;
 
       blorp_buffer_copy(&batch, src, dst, copy_size);
 

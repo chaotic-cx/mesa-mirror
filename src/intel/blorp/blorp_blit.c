@@ -45,6 +45,7 @@ struct blorp_blit_vars {
    nir_variable *v_src_offset;
    nir_variable *v_dst_offset;
    nir_variable *v_src_inv_size;
+   nir_variable *v_src_repack;
 };
 
 static void
@@ -60,8 +61,36 @@ blorp_blit_vars_init(nir_builder *b, struct blorp_blit_vars *v)
    LOAD_INPUT(src_offset, glsl_vector_type(GLSL_TYPE_UINT, 2))
    LOAD_INPUT(dst_offset, glsl_vector_type(GLSL_TYPE_UINT, 2))
    LOAD_INPUT(src_inv_size, glsl_vector_type(GLSL_TYPE_FLOAT, 2))
+   LOAD_INPUT(src_repack, glsl_vector_type(GLSL_TYPE_UINT, 3))
 
 #undef LOAD_INPUT
+}
+
+static nir_def *
+repack_coords(struct nir_builder *b,
+              nir_def *input,
+              nir_variable *v_repack)
+{
+   assert(input->num_components <= 4);
+   nir_def *repack = nir_load_var(b, v_repack);
+   nir_def *unpack_pitch = nir_channel(b, repack,  0);
+   nir_def *repack_offset = nir_channel(b, repack, 1);
+   nir_def *repack_pitch = nir_channel(b, repack, 2);
+
+   nir_def *idx =
+      nir_iadd(b,
+               nir_iadd(b,
+                        nir_imul(b, nir_channel(b, input, 1), unpack_pitch),
+                        nir_channel(b, input, 0)),
+               repack_offset);
+
+   nir_def *result[4];
+   result[0] = nir_umod(b, idx, repack_pitch);
+   result[1] = nir_udiv(b, idx, repack_pitch);
+   for (unsigned i = 2; i < input->num_components; ++i)
+      result[i] = nir_channel(b, input, i);
+
+   return nir_vec(b, result, input->num_components);
 }
 
 static nir_def *
@@ -186,6 +215,8 @@ blorp_nir_tex(nir_builder *b, struct blorp_blit_vars *v,
               const struct blorp_blit_prog_key *key, nir_def *pos,
               const struct intel_device_info *devinfo)
 {
+   assert(!key->need_repack);
+
    if (key->need_src_offset)
       pos = nir_fadd(b, pos, nir_i2f32(b, nir_load_var(b, v->v_src_offset)));
 
@@ -1358,6 +1389,9 @@ blorp_build_nir_shader(struct blorp_context *blorp,
       if (key->need_src_offset)
          src_pos = nir_iadd(&b, src_pos, nir_load_var(&b, v.v_src_offset));
 
+      if (key->need_repack)
+         src_pos = repack_coords(&b, src_pos, v.v_src_repack);
+
       /* Now (X, Y, S) = decode_msaa(tex_samples, detile(tex_tiling, offset)).
        *
        * In other words: X, Y, and S now contain values which, when passed to
@@ -1904,6 +1938,125 @@ enum blit_shrink_status {
    BLIT_DST_HEIGHT_SHRINK  = (1 << 3),
 };
 
+/** Corrects the alignment of a linear surface so that the sampler does not
+ * overfetch outside of the memory allocation.
+ *
+ * Returns true on success, or false if the caller should try again with half
+ * of the surface.
+ */
+static bool
+blorp_surf_fix_sampler_alignment(const struct intel_device_info *devinfo,
+                                 struct blorp_surface_info *info)
+{
+   assert(!(info->addr.limit % 4096));
+   assert(info->surf.tiling == ISL_TILING_LINEAR);
+   assert(info->surf.logical_level0_px.d == 1);
+   assert(info->surf.logical_level0_px.array_len == 1);
+   assert(info->surf.samples == 1);
+   assert(info->surf.levels == 1);
+   const struct isl_format_layout *fmtl =
+      isl_format_get_layout(info->surf.format);
+   assert(fmtl->bw == 1 && fmtl->bh == 1);
+   uint32_t element_size_B = fmtl->bpb / 8;
+   assert(!(info->surf.row_pitch_B % element_size_B));
+   int64_t data_size_B = (int64_t) (info->surf.logical_level0_px.height - 1) *
+      info->surf.row_pitch_B + info->surf.logical_level0_px.width * element_size_B;
+   int64_t surf_limit_B = info->addr.offset + data_size_B;
+
+   /* Bail to avoid infinite loops */
+   if (surf_limit_B > info->addr.limit) {
+      assert(false && "Surface is not contained within the allocation");
+      return 0;
+   }
+
+   int64_t base_align = info->addr.offset % 64;
+   int64_t limit_align = (64 - surf_limit_B % 64) % 64;
+
+   /* Bail to avoid infinite loops */
+   if (base_align % element_size_B &&
+       (element_size_B % 3 || base_align % (element_size_B / 3))) {
+      assert(false && "Surface offset has an impossible alignment");
+      return 0;
+   }
+
+   while (base_align % element_size_B)
+      base_align += 64;
+   while ((surf_limit_B + limit_align) % element_size_B)
+      limit_align += 64;
+
+   uint32_t cacheline_B = element_size_B * info->surf.image_alignment_el.w;
+   uint32_t num_cachelines = (data_size_B + cacheline_B - 1) / cacheline_B;
+
+   uint32_t max_height = get_max_surface_size(devinfo, info);
+   uint32_t max_width = max_height / info->surf.image_alignment_el.w;
+
+   uint32_t div;
+   uint32_t adj_width, adj_height;
+   int64_t base_offset_B;
+
+   /* Find a way to divide the surface into aligned units of cacheline_B
+    * without any overlapping outside of the page. Prefer alignment to 64B
+    * if possible, falling back to unaligned if necessary. In the unlikely
+    * case where this fails, because both the beginning and end is within
+    * one cacheline of the edge of the page, we'll shrink it and retry.
+    */
+   for (char is_aligned = 1; is_aligned >= 0; --is_aligned) {
+      div = (num_cachelines + max_width - 1) / max_width;
+
+      for (;;) {
+         adj_width = num_cachelines / div;
+         if (adj_width == 0)
+            break;
+
+         adj_height = (num_cachelines + adj_width - 1) / adj_width;
+         if (adj_height > max_height)
+            break;
+
+         uint32_t padded_size = adj_width * adj_height;
+         int64_t surface_size_B = (int64_t) cacheline_B * padded_size;
+
+#define CHOOSE(val)                                                \
+         base_offset_B = (val);                                    \
+         if (base_offset_B >= info->addr.base &&                   \
+             base_offset_B <= info->addr.offset &&                 \
+             base_offset_B + surface_size_B <= info->addr.limit && \
+             base_offset_B + surface_size_B >= surf_limit_B)       \
+            goto success;
+
+         if (is_aligned) {
+            /* 64B-aligned base, padding at end of data */
+            CHOOSE(info->addr.offset - base_align)
+            /* 64B-aligned limit, padding at start of data */
+            CHOOSE(surf_limit_B + limit_align - surface_size_B);
+         } else {
+            /* Unaligned base, padding at end of data */
+            CHOOSE(info->addr.offset);
+            /* Unaligned limit, padding at start of data */
+            CHOOSE(surf_limit_B - surface_size_B);
+         }
+
+#undef CHOOSE
+         div = adj_height + 1;
+      }
+   }
+
+   return false;
+
+success:
+   adj_width *= info->surf.image_alignment_el.w;
+   info->surf.logical_level0_px.width = adj_width;
+   info->surf.logical_level0_px.height = adj_height;
+   info->surf.phys_level0_sa.width = adj_width;
+   info->surf.phys_level0_sa.height = adj_height;
+   info->repack.unpack_pitch = info->surf.row_pitch_B / element_size_B;
+   info->repack.repack_offset = (info->addr.offset - base_offset_B) / element_size_B;
+   info->repack.repack_pitch = adj_width;
+   info->surf.row_pitch_B = adj_width * element_size_B;
+   info->addr.offset = base_offset_B;
+
+   return true;
+}
+
 /* Try to blit. If the surface parameters exceed the size allowed by hardware,
  * then enum blit_shrink_status will be returned. If BLIT_NO_SHRINK is
  * returned, then the blit was successful.
@@ -2244,6 +2397,36 @@ try_blorp_blit(struct blorp_batch *batch,
          key->use_kill = true;
    }
 
+   unsigned result = 0;
+
+   if (batch->blorp->isl_dev->requires_padding &&
+       params->src.addr.limit != 0) {
+      uint64_t size_B =
+         isl_surf_get_sampler_overfetch_size_B(batch->blorp->isl_dev,
+                                               &params->src.surf);
+      if (params->src.addr.offset + size_B > params->src.addr.limit) {
+         /* Try to fix the overfetch by disabling SurfaceArray */
+         params->src.surf.usage |= ISL_SURF_USAGE_NO_ARRAY_OVERFETCH_BIT;
+         size_B = isl_surf_get_sampler_overfetch_size_B(batch->blorp->isl_dev,
+                                                        &params->src.surf);
+         if (params->src.addr.offset + size_B > params->src.addr.limit) {
+            /* Disabling SurfaceArray didn't fix it, realign the whole surface */
+            if (!blorp_surf_fix_sampler_alignment(devinfo, &params->src)) {
+               if (params->src.surf.logical_level0_px.height > 1)
+                  result |= BLIT_SRC_HEIGHT_SHRINK;
+               else
+                  result |= BLIT_SRC_WIDTH_SHRINK;
+            }
+         }
+      }
+   }
+
+   if (result)
+      return result;
+
+   key->need_repack = params->src.repack.repack_pitch != 0;
+   params->wm_inputs.blit.src_repack = params->src.repack;
+
    if (compute) {
       if (!blorp_get_blit_kernel_cs(batch, params, key))
          return 0;
@@ -2255,7 +2438,6 @@ try_blorp_blit(struct blorp_batch *batch,
          return 0;
    }
 
-   unsigned result = 0;
    unsigned max_src_surface_size = get_max_surface_size(devinfo, &params->src);
    if (params->src.surf.logical_level0_px.width > max_src_surface_size)
       result |= BLIT_SRC_WIDTH_SHRINK;
@@ -2319,9 +2501,11 @@ shrink_surface_params(const struct isl_device *dev,
                       struct blorp_surface_info *info,
                       double *x0, double *x1, double *y0, double *y1)
 {
-   uint64_t offset_B;
+   uint64_t start_offset_B;
+   uint64_t end_offset_B;
    uint32_t x_offset_sa, y_offset_sa, size;
    struct isl_extent2d px_size_sa;
+   struct isl_extent4d surf_size_sa;
    int adjust;
 
    blorp_surf_convert_to_single_slice(dev, info);
@@ -2334,19 +2518,28 @@ shrink_surface_params(const struct isl_device *dev,
     */
    x_offset_sa = (uint32_t)*x0 * px_size_sa.w + info->tile_x_sa;
    y_offset_sa = (uint32_t)*y0 * px_size_sa.h + info->tile_y_sa;
+   surf_size_sa = (struct isl_extent4d) {
+      .w = (uint32_t)ceil(*x1) * px_size_sa.w + info->tile_x_sa,
+      .h = (uint32_t)ceil(*y1) * px_size_sa.h + info->tile_y_sa,
+      .d = 1,
+      .a = 1,
+   };
+
    uint32_t tile_z_sa, tile_a;
-   isl_tiling_get_intratile_offset_sa(info->surf.tiling, info->surf.dim,
-                                      info->surf.msaa_layout,
-                                      info->surf.format, info->surf.samples,
-                                      info->surf.row_pitch_B,
-                                      info->surf.array_pitch_el_rows,
-                                      x_offset_sa, y_offset_sa, 0, 0,
-                                      &offset_B,
-                                      &info->tile_x_sa, &info->tile_y_sa,
-                                      &tile_z_sa, &tile_a);
+   isl_tiling_get_intratile_range_sa(info->surf.tiling, info->surf.dim,
+                                     info->surf.msaa_layout,
+                                     info->surf.format, info->surf.samples,
+                                     info->surf.row_pitch_B,
+                                     info->surf.array_pitch_el_rows,
+                                     x_offset_sa, y_offset_sa, 0, 0,
+                                     surf_size_sa,
+                                     &start_offset_B,
+                                     &end_offset_B,
+                                     &info->tile_x_sa, &info->tile_y_sa,
+                                     &tile_z_sa, &tile_a);
    assert(tile_z_sa == 0 && tile_a == 0);
 
-   info->addr.offset += offset_B;
+   info->addr.offset += start_offset_B;
 
    adjust = (int)info->tile_x_sa / px_size_sa.w - (int)*x0;
    *x0 += adjust;
@@ -2366,6 +2559,7 @@ shrink_surface_params(const struct isl_device *dev,
    info->surf.logical_level0_px.height = size;
    info->surf.phys_level0_sa.height = size * px_size_sa.h;
 
+   info->surf.size_B = end_offset_B - start_offset_B;
    info->surf.usage |= ISL_SURF_USAGE_NO_PADDING_BIT;
 
    /* Stomp the 64B alignment because we set NO_PADDING_BIT */
