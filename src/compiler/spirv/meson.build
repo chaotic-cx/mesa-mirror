@@ -36,6 +36,7 @@ files_libvtn = files(
   'vtn_amd.c',
   'vtn_cfg.c',
   'vtn_cmat.c',
+  'vtn_constants.c',
   'vtn_debug.c',
   'vtn_glsl450.c',
   'vtn_opencl.c',

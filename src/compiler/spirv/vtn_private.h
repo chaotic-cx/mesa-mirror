@@ -965,6 +965,8 @@ void vtn_variable_store(struct vtn_builder *b, struct vtn_ssa_value *src,
 void vtn_handle_variables(struct vtn_builder *b, SpvOp opcode,
                           const uint32_t *w, unsigned count);
 
+void vtn_handle_constants(struct vtn_builder *b, SpvOp opcode,
+                          const uint32_t *w, unsigned count);
 
 typedef void (*vtn_decoration_foreach_cb)(struct vtn_builder *,
                                           struct vtn_value *,
