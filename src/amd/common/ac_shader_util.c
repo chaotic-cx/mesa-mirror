@@ -111,7 +111,202 @@ unsigned ac_get_tbuffer_format(enum amd_gfx_level gfx_level, unsigned dfmt, unsi
    if (dfmt == V_008F0C_GFX10_FORMAT_INVALID)
       return V_008F0C_GFX10_FORMAT_INVALID;
 
-   if (gfx_level >= GFX11) {
+   if (gfx_level >= GFX13) {
+      switch (dfmt) {
+      default:
+         UNREACHABLE("bad dfmt");
+      case V_008F0C_BUF_DATA_FORMAT_INVALID:
+         return V_008F10_GFX13_FORMAT_INVALID;
+
+      case V_008F0C_BUF_DATA_FORMAT_8:
+         switch (nfmt) {
+         case V_008F0C_BUF_NUM_FORMAT_UNORM:
+            return V_008F10_GFX13_FORMAT_8_UNORM;
+         case V_008F0C_BUF_NUM_FORMAT_SNORM:
+            return V_008F10_GFX13_FORMAT_8_SNORM;
+         case V_008F0C_BUF_NUM_FORMAT_USCALED:
+            return V_008F10_GFX13_FORMAT_8_USCALED;
+         case V_008F0C_BUF_NUM_FORMAT_SSCALED:
+            return V_008F10_GFX13_FORMAT_8_SSCALED;
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_8_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_8_SINT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_8_8:
+         switch (nfmt) {
+         case V_008F0C_BUF_NUM_FORMAT_UNORM:
+            return V_008F10_GFX13_FORMAT_8_8_UNORM;
+         case V_008F0C_BUF_NUM_FORMAT_SNORM:
+            return V_008F10_GFX13_FORMAT_8_8_SNORM;
+         case V_008F0C_BUF_NUM_FORMAT_USCALED:
+            return V_008F10_GFX13_FORMAT_8_8_USCALED;
+         case V_008F0C_BUF_NUM_FORMAT_SSCALED:
+            return V_008F10_GFX13_FORMAT_8_8_SSCALED;
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_8_8_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_8_8_SINT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_8_8_8_8:
+         switch (nfmt) {
+         case V_008F0C_BUF_NUM_FORMAT_UNORM:
+            return V_008F10_GFX13_FORMAT_8_8_8_8_UNORM;
+         case V_008F0C_BUF_NUM_FORMAT_SNORM:
+            return V_008F10_GFX13_FORMAT_8_8_8_8_SNORM;
+         case V_008F0C_BUF_NUM_FORMAT_USCALED:
+            return V_008F10_GFX13_FORMAT_8_8_8_8_USCALED;
+         case V_008F0C_BUF_NUM_FORMAT_SSCALED:
+            return V_008F10_GFX13_FORMAT_8_8_8_8_SSCALED;
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_8_8_8_8_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_8_8_8_8_SINT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_16:
+         switch (nfmt) {
+         case V_008F0C_BUF_NUM_FORMAT_UNORM:
+            return V_008F10_GFX13_FORMAT_16_UNORM;
+         case V_008F0C_BUF_NUM_FORMAT_SNORM:
+            return V_008F10_GFX13_FORMAT_16_SNORM;
+         case V_008F0C_BUF_NUM_FORMAT_USCALED:
+            return V_008F10_GFX13_FORMAT_16_USCALED;
+         case V_008F0C_BUF_NUM_FORMAT_SSCALED:
+            return V_008F10_GFX13_FORMAT_16_SSCALED;
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_16_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_16_SINT;
+         case V_008F0C_BUF_NUM_FORMAT_FLOAT:
+            return V_008F10_GFX13_FORMAT_16_FLOAT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_16_16:
+         switch (nfmt) {
+         case V_008F0C_BUF_NUM_FORMAT_UNORM:
+            return V_008F10_GFX13_FORMAT_16_16_UNORM;
+         case V_008F0C_BUF_NUM_FORMAT_SNORM:
+            return V_008F10_GFX13_FORMAT_16_16_SNORM;
+         case V_008F0C_BUF_NUM_FORMAT_USCALED:
+            return V_008F10_GFX13_FORMAT_16_16_USCALED;
+         case V_008F0C_BUF_NUM_FORMAT_SSCALED:
+            return V_008F10_GFX13_FORMAT_16_16_SSCALED;
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_16_16_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_16_16_SINT;
+         case V_008F0C_BUF_NUM_FORMAT_FLOAT:
+            return V_008F10_GFX13_FORMAT_16_16_FLOAT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_16_16_16_16:
+         switch (nfmt) {
+         case V_008F0C_BUF_NUM_FORMAT_UNORM:
+            return V_008F10_GFX13_FORMAT_16_16_16_16_UNORM;
+         case V_008F0C_BUF_NUM_FORMAT_SNORM:
+            return V_008F10_GFX13_FORMAT_16_16_16_16_SNORM;
+         case V_008F0C_BUF_NUM_FORMAT_USCALED:
+            return V_008F10_GFX13_FORMAT_16_16_16_16_USCALED;
+         case V_008F0C_BUF_NUM_FORMAT_SSCALED:
+            return V_008F10_GFX13_FORMAT_16_16_16_16_SSCALED;
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_16_16_16_16_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_16_16_16_16_SINT;
+         case V_008F0C_BUF_NUM_FORMAT_FLOAT:
+            return V_008F10_GFX13_FORMAT_16_16_16_16_FLOAT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_32:
+         switch (nfmt) {
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_32_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_32_SINT;
+         case V_008F0C_BUF_NUM_FORMAT_FLOAT:
+            return V_008F10_GFX13_FORMAT_32_FLOAT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_32_32:
+         switch (nfmt) {
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_32_32_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_32_32_SINT;
+         case V_008F0C_BUF_NUM_FORMAT_FLOAT:
+            return V_008F10_GFX13_FORMAT_32_32_FLOAT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_32_32_32:
+         switch (nfmt) {
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_32_32_32_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_32_32_32_SINT;
+         case V_008F0C_BUF_NUM_FORMAT_FLOAT:
+            return V_008F10_GFX13_FORMAT_32_32_32_FLOAT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_32_32_32_32:
+         switch (nfmt) {
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_32_32_32_32_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_32_32_32_32_SINT;
+         case V_008F0C_BUF_NUM_FORMAT_FLOAT:
+            return V_008F10_GFX13_FORMAT_32_32_32_32_FLOAT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_2_10_10_10:
+         switch (nfmt) {
+         case V_008F0C_BUF_NUM_FORMAT_UNORM:
+            return V_008F10_GFX13_FORMAT_2_10_10_10_UNORM;
+         case V_008F0C_BUF_NUM_FORMAT_SNORM:
+            return V_008F10_GFX13_FORMAT_2_10_10_10_SNORM;
+         case V_008F0C_BUF_NUM_FORMAT_USCALED:
+            return V_008F10_GFX13_FORMAT_2_10_10_10_USCALED;
+         case V_008F0C_BUF_NUM_FORMAT_SSCALED:
+            return V_008F10_GFX13_FORMAT_2_10_10_10_SSCALED;
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_UINT:
+            return V_008F10_GFX13_FORMAT_2_10_10_10_UINT;
+         case V_008F0C_BUF_NUM_FORMAT_SINT:
+            return V_008F10_GFX13_FORMAT_2_10_10_10_SINT;
+         }
+
+      case V_008F0C_BUF_DATA_FORMAT_10_11_11:
+         switch (nfmt) {
+         default:
+            UNREACHABLE("bad nfmt");
+         case V_008F0C_BUF_NUM_FORMAT_FLOAT:
+            return V_008F10_GFX13_FORMAT_10_11_11_FLOAT;
+         }
+      }
+   } else if (gfx_level >= GFX11) {
       switch (dfmt) {
       default:
          UNREACHABLE("bad dfmt");
@@ -478,11 +673,19 @@ static const struct ac_vtx_format_info vb_formats_gfx10[] = {VB_FORMATS};
 #define HW_FMT(dfmt, nfmt) V_008F0C_GFX11_FORMAT_##dfmt##_##nfmt
 #define HW_FMT_INVALID V_008F0C_GFX11_FORMAT_INVALID
 static const struct ac_vtx_format_info vb_formats_gfx11[] = {VB_FORMATS};
+#undef HW_FMT_INVALID
+#undef HW_FMT
+
+#define HW_FMT(dfmt, nfmt) V_008F10_GFX13_FORMAT_##dfmt##_##nfmt
+#define HW_FMT_INVALID V_008F10_GFX13_FORMAT_INVALID
+static const struct ac_vtx_format_info vb_formats_gfx13[] = {VB_FORMATS};
 
 const struct ac_vtx_format_info *
 ac_get_vtx_format_info_table(enum amd_gfx_level level, bool has_alpha_adjust_bug)
 {
-   if (level >= GFX11)
+   if (level >= GFX13)
+      return vb_formats_gfx13;
+   else if (level >= GFX11)
       return vb_formats_gfx11;
    else if (level >= GFX10)
       return vb_formats_gfx10;
