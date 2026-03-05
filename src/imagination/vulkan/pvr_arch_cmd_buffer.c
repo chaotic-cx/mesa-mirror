@@ -4246,39 +4246,20 @@ void PVR_PER_ARCH(CmdBeginRenderPass2)(
                           &cmd_buffer->state.current_sub_cmd->gfx);
 }
 
-static inline uint32_t
-pvr_get_ds_component_bits(const VkFormat vk_format,
-                          const VkImageAspectFlags ds_aspect)
-{
-   uint32_t component;
-
-   if (ds_aspect == VK_IMAGE_ASPECT_STENCIL_BIT) {
-      assert(vk_format_has_stencil(vk_format));
-      component = 0;
-   } else {
-      assert(ds_aspect == VK_IMAGE_ASPECT_DEPTH_BIT);
-      assert(vk_format_has_depth(vk_format));
-      component = 1;
-   }
-
-   return vk_format_get_component_bits(vk_format,
-                                       UTIL_FORMAT_COLORSPACE_ZS,
-                                       component);
-}
-
 static inline bool
-pvr_can_pbe_resolve_ds_attachment(const struct pvr_device_info *dev_info,
-                                  VkFormat vk_format,
-                                  uint32_t sample_count,
-                                  VkResolveModeFlagBits resolve_mode)
+pvr_can_pbe_resolve_attachment(const struct pvr_device_info *dev_info,
+                               VkFormat vk_format,
+                               VkResolveModeFlagBits resolve_mode)
 {
+   /* On cores without gs_rta_support, PBE resolves might depend on writes
+    * that occur within the deferred RTA clears that happen after the PBE has
+    * written. Since the driver doesn't know at CmdBeginRendering whether
+    * RTA clears are needed, PBE resolves can't be used.
+    */
    if (!PVR_HAS_FEATURE(dev_info, gs_rta_support))
       return false;
 
    if (resolve_mode != VK_RESOLVE_MODE_AVERAGE_BIT)
-      return false;
-
-   if (pvr_get_ds_component_bits(vk_format, VK_IMAGE_ASPECT_STENCIL_BIT))
       return false;
 
    return pvr_arch_format_is_pbe_downscalable(dev_info, vk_format);
@@ -4383,10 +4364,9 @@ static VkResult pvr_dynamic_rendering_output_attachments_setup(
       attachment->stencil_resolve_mode = VK_RESOLVE_MODE_NONE;
       attachment->need_eot = true;
       /* TODO: verify logic for is_pbe_downscalable */
-      attachment->is_pbe_downscalable = pvr_can_pbe_resolve_ds_attachment(
+      attachment->is_pbe_downscalable = pvr_can_pbe_resolve_attachment(
          &cmd_buffer->device->pdevice->dev_info,
          iview->vk.view_format,
-         image->vk.samples,
          attachment_info->resolveMode);
 
       dr_info->color_attachments[i].index_color = cur_attach_idx;
