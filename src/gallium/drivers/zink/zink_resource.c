@@ -1467,6 +1467,7 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
          infos[i].image = obj->image;
          infos[i].memory = zink_bo_get_mem(obj->bo);
          infos[i].memoryOffset = obj->plane_offsets[i];
+         assert(!alloc_info->need_dedicated || obj->plane_offsets[i] == 0);
          if (templ->bind & ZINK_BIND_VIDEO) {
             infos[i].pNext = &planes[i];
             planes[i].sType = VK_STRUCTURE_TYPE_BIND_IMAGE_PLANE_MEMORY_INFO;
@@ -1479,11 +1480,13 @@ create_image(struct zink_screen *screen, struct zink_resource_object *obj,
          return roc_fail_and_cleanup_all;
       }
    } else {
-      if (!(templ->flags & PIPE_RESOURCE_FLAG_SPARSE))
+      if (!(templ->flags & PIPE_RESOURCE_FLAG_SPARSE)) {
+         assert(!alloc_info->need_dedicated || obj->offset == 0);
          if (VKSCR(BindImageMemory)(screen->dev, obj->image, zink_bo_get_mem(obj->bo), obj->offset) != VK_SUCCESS) {
             mesa_loge("ZINK: vkBindImageMemory failed");
             return roc_fail_and_cleanup_all;
          }
+      }
    }
    _mesa_set_init(&obj->surface_cache, NULL, NULL, equals_surface_key);
    return roc_success;
