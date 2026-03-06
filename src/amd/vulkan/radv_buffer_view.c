@@ -32,7 +32,7 @@ radv_make_texel_buffer_descriptor(struct radv_device *device, uint64_t va, VkFor
 
    radv_compose_swizzle(desc, NULL, swizzle);
 
-   if (pdev->info.gfx_level != GFX8 && stride) {
+   if (pdev->info.gfx_level != GFX8 && pdev->info.gfx_level != GFX13 && stride) {
       range /= stride;
    }
 

@@ -7252,7 +7252,7 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
    }
 
    const unsigned stride = vbo_info.stride;
-   uint32_t num_records = vbo_info.size;
+   uint64_t num_records = vbo_info.size;
 
    if (vs->info.vs.use_per_attribute_vb_descs) {
       const uint32_t attrib_end = vbo_info.attrib_offset + vbo_info.attrib_format_size;
@@ -7266,9 +7266,9 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
       }
 
       /* GFX10 uses OOB_SELECT_RAW if stride==0, so convert num_records from elements into
-       * into bytes in that case. GFX8 always uses bytes.
+       * into bytes in that case. GFX8 and GFX13 always uses bytes.
        */
-      if (num_records && (chip == GFX8 || (chip != GFX9 && !stride))) {
+      if (num_records && (chip == GFX8 || (chip != GFX9 && !stride) || chip >= GFX13)) {
          num_records = (num_records - 1) * stride + attrib_end;
       } else if (!num_records) {
          /* On GFX9, it seems bounds checking is disabled if both
@@ -7287,18 +7287,8 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
          return;
       }
    } else {
-      if (chip != GFX8 && stride)
+      if (chip != GFX8 && chip < GFX13 && stride)
          num_records = DIV_ROUND_UP(num_records, stride);
-   }
-
-   if (chip >= GFX10) {
-      /* OOB_SELECT chooses the out-of-bounds check:
-       * - 1: index >= NUM_RECORDS (Structured)
-       * - 3: offset >= NUM_RECORDS (Raw)
-       */
-      int oob_select = stride ? V_008F0C_OOB_SELECT_STRUCTURED : V_008F0C_OOB_SELECT_RAW;
-      rsrc_word3 |= S_008F0C_OOB_SELECT_GFX10(oob_select) |
-                    S_008F0C_RESOURCE_LEVEL(pdev->info.compiler_info.has_desc_resource_level);
    }
 
    uint64_t va = vbo_info.va;
@@ -7306,9 +7296,31 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
       va += vbo_info.attrib_offset;
 
    desc[0] = va;
-   desc[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) | S_008F04_STRIDE(stride);
-   desc[2] = num_records;
-   desc[3] = rsrc_word3;
+
+   if (chip >= GFX13) {
+      desc[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) | S_008F04_NUM_RECORDS_1(num_records);
+      desc[2] = num_records >> 7;
+      /* GFX13 has only 2 modes for OOB_SELECT:
+       * 0: oob = total_offset + payload > numRecords
+       * 1: oob = total_offset + payload > numRecords || offset + payload > stride
+       * Thus OOB_SELECT = 0 should be chosen for vertex buffer.
+       */
+      desc[3] = S_008F0C_NUM_RECORDS_3(num_records >> 39) | S_008F0C_STRIDE(stride) | S_008F0C_OOB_SELECT_GFX13(0);
+   } else {
+      if (chip >= GFX10) {
+         /* OOB_SELECT chooses the out-of-bounds check:
+          * - 1: index >= NUM_RECORDS (Structured)
+          * - 3: offset >= NUM_RECORDS (Raw)
+          */
+         int oob_select = stride ? V_008F0C_OOB_SELECT_STRUCTURED : V_008F0C_OOB_SELECT_RAW;
+         rsrc_word3 |= S_008F0C_OOB_SELECT_GFX10(oob_select) |
+                       S_008F0C_RESOURCE_LEVEL(pdev->info.compiler_info.has_desc_resource_level);
+      }
+
+      desc[1] = S_008F04_BASE_ADDRESS_HI(va >> 32) | S_008F04_STRIDE(stride);
+      desc[2] = num_records;
+      desc[3] = rsrc_word3;
+   }
 }
 
 ALWAYS_INLINE static void

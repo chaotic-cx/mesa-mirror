@@ -802,7 +802,7 @@ struct radv_vbo_info {
 
    uint32_t binding;
    uint32_t stride;
-   uint32_t size;
+   uint64_t size;
 
    uint32_t attrib_offset;
    uint32_t attrib_format_size;
