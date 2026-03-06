@@ -7199,7 +7199,7 @@ radv_get_vbo_info(const struct radv_cmd_buffer *cmd_buffer, uint32_t idx, struct
 
 ALWAYS_INLINE static void
 radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs, const unsigned i,
-                             const bool uses_dynamic_inputs, uint32_t *desc)
+                             const bool uses_dynamic_inputs, uint32_t *desc, uint32_t *format)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -7212,16 +7212,25 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
        * descriptor to avoid hangs (prologs load all attributes, even if there are holes).
        */
       memset(desc, 0, 4 * 4);
+      if (format)
+         format[0] = 0;
       return;
    }
 
    struct radv_vbo_info vbo_info;
    radv_get_vbo_info(cmd_buffer, i, &vbo_info);
 
-   uint32_t rsrc_word3;
+   uint32_t rsrc_word3 = 0;
 
    if (uses_dynamic_inputs && vbo_info.non_trivial_format) {
-      rsrc_word3 = vbo_info.non_trivial_format;
+      if (format)
+         /* GFX13 requires 5-dword buffer descriptor for buffer_load/store_format_* which are
+          * only used in aligned path of VS prolog. If non_trivial_format is 0, the VS prolog
+          * will use the misaligned path instead and the format dword will not be consumed.
+          */
+         format[0] = vbo_info.non_trivial_format;
+      else
+         rsrc_word3 = vbo_info.non_trivial_format;
    } else {
       rsrc_word3 = S_008F0C_DST_SEL_X(V_008F0C_SQ_SEL_X) | S_008F0C_DST_SEL_Y(V_008F0C_SQ_SEL_Y) |
                    S_008F0C_DST_SEL_Z(V_008F0C_SQ_SEL_Z) | S_008F0C_DST_SEL_W(V_008F0C_SQ_SEL_W);
@@ -7235,7 +7244,7 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
    }
 
    if (!vbo_info.va) {
-      if (uses_dynamic_inputs) {
+      if (uses_dynamic_inputs && chip < GFX13) {
          /* Stride needs to be non-zero on GFX9, or else bounds checking is disabled. We need
           * to include the format/word3 so that the alpha channel is 1 for formats without an
           * alpha channel.
@@ -7275,7 +7284,7 @@ radv_write_vertex_descriptor(const struct radv_cmd_buffer *cmd_buffer, const str
           * num_records and stride are zero. This doesn't seem necessary on GFX8, GFX10 and
           * GFX10.3 but it doesn't hurt.
           */
-         if (uses_dynamic_inputs) {
+         if (uses_dynamic_inputs && chip < GFX13) {
             desc[0] = 0;
             desc[1] = S_008F04_STRIDE(16);
             desc[2] = 0;
@@ -7327,10 +7336,28 @@ ALWAYS_INLINE static void
 radv_write_vertex_descriptors_dynamic(const struct radv_cmd_buffer *cmd_buffer, const struct radv_shader *vs,
                                       void *vb_ptr)
 {
-   unsigned desc_index = 0;
-   for (unsigned i = 0; i < vs->info.vs.num_attributes; i++) {
-      uint32_t *desc = &((uint32_t *)vb_ptr)[desc_index++ * 4];
-      radv_write_vertex_descriptor(cmd_buffer, vs, i, true, desc);
+   struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+
+   for (unsigned desc_index = 0; desc_index < vs->info.vs.num_attributes; desc_index++) {
+      if (pdev->info.gfx_level >= GFX13) {
+         /* On GFX13, dynamic vertex inputs requires the format dwords (5th dword of descriptor).
+          * The descriptor memory layout is:
+          *    dword[0:3] = format dwords 0-3
+          *    dword[4:19] = descriptors 0-3
+          *    dword[20:23] = format dwords 4-7
+          *    dword[24:39] = descriptors 4-7
+          *    ... and so on for each attribute.
+          */
+         unsigned desc_load_index = 1 + desc_index + desc_index / 4;
+         unsigned format_load_index = (desc_index / 4) * 5;
+         uint32_t *desc = &((uint32_t *)vb_ptr)[desc_load_index * 4];
+         uint32_t *format = &((uint32_t *)vb_ptr)[format_load_index * 4 + desc_index % 4];
+         radv_write_vertex_descriptor(cmd_buffer, vs, desc_index, true, desc, format);
+      } else {
+         uint32_t *desc = &((uint32_t *)vb_ptr)[desc_index * 4];
+         radv_write_vertex_descriptor(cmd_buffer, vs, desc_index, true, desc, NULL);
+      }
    }
 }
 
@@ -7340,7 +7367,7 @@ radv_write_vertex_descriptors(const struct radv_cmd_buffer *cmd_buffer, const st
    unsigned desc_index = 0;
    u_foreach_bit (i, vs->info.vs.vb_desc_usage_mask) {
       uint32_t *desc = &((uint32_t *)vb_ptr)[desc_index++ * 4];
-      radv_write_vertex_descriptor(cmd_buffer, vs, i, false, desc);
+      radv_write_vertex_descriptor(cmd_buffer, vs, i, false, desc, NULL);
    }
 }
 
@@ -7349,6 +7376,7 @@ radv_flush_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
 {
    struct radv_shader *vs = radv_get_shader(cmd_buffer->state.shaders, MESA_SHADER_VERTEX);
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_cmd_stream *cs = cmd_buffer->cs;
 
    if (!vs)
@@ -7360,6 +7388,9 @@ radv_flush_vertex_descriptors(struct radv_cmd_buffer *cmd_buffer)
    bool uses_dynamic_inputs = vs->info.vs.dynamic_inputs;
    unsigned vb_desc_alloc_size =
       (uses_dynamic_inputs ? vs->info.vs.num_attributes : util_bitcount(vs->info.vs.vb_desc_usage_mask)) * 16;
+   if (pdev->info.gfx_level >= GFX13 && uses_dynamic_inputs)
+      /* Append the size of format dwords (5th dword of descriptor). */
+      vb_desc_alloc_size += DIV_ROUND_UP(vs->info.vs.num_attributes, 4) * 16;
    void *vb_ptr;
    uint64_t va;
 

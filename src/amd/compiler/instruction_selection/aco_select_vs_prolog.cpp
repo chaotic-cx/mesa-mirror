@@ -23,22 +23,60 @@ get_arg_fixed(const struct ac_shader_args* args, struct ac_arg arg)
 }
 
 unsigned
-load_vb_descs(Builder& bld, PhysReg dest, Operand base, unsigned start, unsigned max)
+load_vb_descs(Builder& bld, PhysReg dest, PhysReg format, Operand base, unsigned start,
+              unsigned max)
 {
    unsigned sgpr_limit = get_addr_regs_from_waves(bld.program, bld.program->min_waves).sgpr;
-   unsigned count = MIN2((sgpr_limit - dest.reg()) / 4u, max);
+   unsigned count;
+   if (bld.program->gfx_level >= GFX13) {
+      count = MIN2((sgpr_limit - format.reg()) / 5u, max);
+   } else {
+      count = MIN2((sgpr_limit - dest.reg()) / 4u, max);
+   }
+
    for (unsigned i = 0; i < count;) {
       unsigned size = 1u << util_logbase2(MIN2(count - i, 4));
+      unsigned desc_index = start + i;
+
+      if (bld.program->gfx_level >= GFX13) {
+         /* The descriptor memory layout is:
+          *    dword[0:3] = format dwords 0-3
+          *    dword[4:19] = descriptors 0-3
+          *    dword[20:23] = format dwords 4-7
+          *    dword[24:39] = descriptors 4-7
+          *    ... and so on for each attribute.
+          *
+          * On GFX13, don't cross group boundaries since format and descriptors
+          * are grouped in blocks of 4.
+          */
+         unsigned remaining_in_group = 4 - (desc_index % 4);
+         size = 1u << util_logbase2(MIN2(size, remaining_in_group));
+
+         /* Load format dwords. */
+         unsigned format_offset = (desc_index / 4) * 80 + (desc_index % 4) * 4;
+         if (size == 4)
+            bld.smem(aco_opcode::s_load_dwordx4, Definition(format, s4), base,
+                     Operand::c32(format_offset));
+         else if (size == 2)
+            bld.smem(aco_opcode::s_load_dwordx2, Definition(format, s2), base,
+                     Operand::c32(format_offset));
+         else
+            bld.smem(aco_opcode::s_load_dword, Definition(format, s1), base,
+                     Operand::c32(format_offset));
+
+         format = format.advance(size * 4u);
+         desc_index = 1 + desc_index + desc_index / 4;
+      }
 
       if (size == 4)
          bld.smem(aco_opcode::s_load_dwordx16, Definition(dest, s16), base,
-                  Operand::c32((start + i) * 16u));
+                  Operand::c32(desc_index * 16u));
       else if (size == 2)
          bld.smem(aco_opcode::s_load_dwordx8, Definition(dest, s8), base,
-                  Operand::c32((start + i) * 16u));
+                  Operand::c32(desc_index * 16u));
       else
          bld.smem(aco_opcode::s_load_dwordx4, Definition(dest, s4), base,
-                  Operand::c32((start + i) * 16u));
+                  Operand::c32(desc_index * 16u));
 
       dest = dest.advance(size * 16u);
       i += size;
@@ -401,6 +439,16 @@ select_vs_prolog(Program* program, const struct aco_vs_prolog_info* pinfo, ac_sh
    PhysReg prolog_input = vertex_buffers.advance(8);
    PhysReg desc(
       align((has_nontrivial_divisors ? prolog_input : vertex_buffers).advance(8).reg(), 4));
+   /* sgprs required by GFX13 for format dwords (5th dword of descriptor) */
+   PhysReg format;
+   if (options->gfx_level >= GFX13) {
+      /* On GFX13, allocate space for format dwords and descriptors separately. */
+      format = desc;
+      unsigned sgpr_limit = get_addr_regs_from_waves(bld.program, bld.program->min_waves).sgpr;
+      unsigned max_batch = MIN2((sgpr_limit - format.reg()) / 5u, pinfo->num_attributes);
+
+      desc = PhysReg(align(desc.reg() + max_batch, 4));
+   }
 
    Operand start_instance = get_arg_fixed(args, args->start_instance);
    Operand instance_id = get_arg_fixed(args, args->instance_id);
@@ -454,8 +502,8 @@ select_vs_prolog(Program* program, const struct aco_vs_prolog_info* pinfo, ac_sh
 
    unsigned num_sgprs = 0;
    for (unsigned loc = 0; loc < pinfo->num_attributes;) {
-      unsigned num_descs =
-         load_vb_descs(bld, desc, Operand(vertex_buffers, s2), loc, pinfo->num_attributes - loc);
+      unsigned num_descs = load_vb_descs(bld, desc, format, Operand(vertex_buffers, s2), loc,
+                                         pinfo->num_attributes - loc);
       num_sgprs = MAX2(num_sgprs, desc.advance(num_descs * 16u).reg());
 
       if (loc == 0) {
@@ -567,8 +615,14 @@ select_vs_prolog(Program* program, const struct aco_vs_prolog_info* pinfo, ac_sh
             loc += slots;
             i += slots;
          } else {
+            /* On GFX13, buffer_load_format requires the format dword of descriptor in soffset */
+            Operand soffset = Operand::c32(0u);
+            if (program->gfx_level >= GFX13) {
+               PhysReg cur_format = format.advance(i * 4);
+               soffset = Operand(cur_format, s1);
+            }
             bld.mubuf(aco_opcode::buffer_load_format_xyzw, Definition(dest, v4),
-                      Operand(cur_desc, s4), fetch_index, Operand::c32(0u), 0u, false, true);
+                      Operand(cur_desc, s4), fetch_index, soffset, 0u, false, true);
             loc++;
             i++;
          }
