@@ -911,6 +911,8 @@ nvk_image_init(struct nvk_device *dev,
       max_alignment_B = alignment->maximumRequestedAlignment;
    }
 
+   const struct vk_format_ycbcr_info *ycbcr_info =
+      vk_format_get_ycbcr_info(image->vk.format);
    if (image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
       /* Modifiers are not supported with YCbCr */
       assert(image->plane_count == 1);
@@ -942,29 +944,44 @@ nvk_image_init(struct nvk_device *dev,
       }
 
       if (image->vk.drm_format_mod == DRM_FORMAT_MOD_LINEAR) {
-         /* We only have one shadow plane per nvk_image */
-         assert(image->plane_count == 1);
+         for (uint8_t plane = 0; plane < image->plane_count; plane++) {
+            VkFormat format = ycbcr_info ?
+               ycbcr_info->planes[plane].format : image->vk.format;
+            const uint8_t width_scale = ycbcr_info ?
+               ycbcr_info->planes[plane].denominator_scales[0] : 1;
+            const uint8_t height_scale = ycbcr_info ?
+               ycbcr_info->planes[plane].denominator_scales[1] : 1;
 
-         struct nil_image_init_info tiled_shadow_nil_info = {
-            .dim = vk_image_type_to_nil_dim(image->vk.image_type),
-            .format = nil_format(nvk_format_to_pipe_format(image->vk.format)),
-            .modifier = DRM_FORMAT_MOD_INVALID,
-            .extent_px = {
-               .width = image->vk.extent.width,
-               .height = image->vk.extent.height,
-               .depth = image->vk.extent.depth,
-               .array_len = image->vk.array_layers,
-            },
-            .levels = image->vk.mip_levels,
-            .samples = image->vk.samples,
-            .usage = usage & ~NIL_IMAGE_USAGE_LINEAR_BIT,
-         };
-         bool ok = nil_image_init(&pdev->info,
-                                  &image->linear_tiled_shadow.nil,
-                                  &tiled_shadow_nil_info);
-         if (!ok)
-            return vk_errorf(dev, VK_ERROR_UNKNOWN,
-                             "Invalid image creation parameters");
+            struct nil_image_init_info tiled_shadow_nil_info = {
+               .dim = vk_image_type_to_nil_dim(image->vk.image_type),
+               .format = nil_format(nvk_format_to_pipe_format(format)),
+               .modifier = DRM_FORMAT_MOD_INVALID,
+               .extent_px = {
+                  .width = image->vk.extent.width / width_scale,
+                  .height = image->vk.extent.height / height_scale,
+                  .depth = image->vk.extent.depth,
+                  .array_len = image->vk.array_layers,
+               },
+               .levels = image->vk.mip_levels,
+               .samples = image->vk.samples,
+               .usage = usage & ~NIL_IMAGE_USAGE_LINEAR_BIT,
+            };
+
+            bool ok = nil_image_init(&pdev->info,
+                                     &image->linear_tiled_shadows[plane].nil,
+                                     &tiled_shadow_nil_info);
+            if (!ok)
+               return vk_errorf(dev, VK_ERROR_UNKNOWN,
+                                "Invalid image creation parameters");
+
+            /* These are always allocated by the driver so the offset
+             * doesn't matter.
+             */
+            image->linear_tiled_shadows[plane].plane_offset_B = 0;
+            image->linear_tiled_shadows[plane].plane_align_B =
+               MAX2(image->linear_tiled_shadows[plane].nil.align_B,
+                    pdev->nvkmd->bind_align_B);
+         }
       }
    }
 
@@ -973,8 +990,6 @@ nvk_image_init(struct nvk_device *dev,
     * the info for NIL early, which would give it enough information to get and
     * use the smallest block size for all planes.
     */
-   const struct vk_format_ycbcr_info *ycbcr_info =
-      vk_format_get_ycbcr_info(image->vk.format);
    struct nil_image_init_info nil_info[NVK_MAX_IMAGE_PLANES];
    for (uint8_t plane = 0; plane < image->plane_count; plane++) {
       VkFormat format = ycbcr_info ?
@@ -1202,9 +1217,11 @@ nvk_image_finish(struct nvk_device *dev, struct nvk_image *image,
                              image->vk.create_flags, pAllocator);
    }
 
-   assert(image->linear_tiled_shadow.va == NULL);
-   if (image->linear_tiled_shadow_mem != NULL)
-      nvkmd_mem_unref(image->linear_tiled_shadow_mem);
+   for (uint8_t plane = 0; plane < image->plane_count; plane++) {
+      assert(image->linear_tiled_shadows[plane].va == NULL);
+      if (image->linear_tiled_shadow_mem[plane] != NULL)
+         nvkmd_mem_unref(image->linear_tiled_shadow_mem[plane]);
+   }
 
    vk_image_finish(&image->vk);
 }
@@ -1252,17 +1269,19 @@ nvk_CreateImage(VkDevice _device,
       }
    }
 
-   if (image->linear_tiled_shadow.nil.size_B > 0) {
-      struct nvk_image_plane *shadow = &image->linear_tiled_shadow;
-      result = nvkmd_dev_alloc_tiled_mem(dev->nvkmd, &dev->vk.base,
-                                         shadow->nil.size_B, shadow->nil.align_B,
-                                         shadow->nil.pte_kind, shadow->nil.tile_mode,
-                                         NVKMD_MEM_LOCAL,
-                                         &image->linear_tiled_shadow_mem);
-      if (result != VK_SUCCESS)
-         goto fail;
+   for (uint8_t plane = 0; plane < image->plane_count; plane++) {
+      if (image->linear_tiled_shadows[plane].nil.size_B > 0) {
+         struct nvk_image_plane *shadow = &image->linear_tiled_shadows[plane];
+         result = nvkmd_dev_alloc_tiled_mem(dev->nvkmd, &dev->vk.base,
+                                            shadow->nil.size_B, shadow->nil.align_B,
+                                            shadow->nil.pte_kind, shadow->nil.tile_mode,
+                                            NVKMD_MEM_LOCAL,
+                                            &image->linear_tiled_shadow_mem[plane]);
+         if (result != VK_SUCCESS)
+            goto fail;
 
-      shadow->addr = image->linear_tiled_shadow_mem->va->addr;
+         shadow->addr = image->linear_tiled_shadow_mem[plane]->va->addr;
+      }
    }
 
    /* This section is removed by the optimizer for non-ANDROID builds */

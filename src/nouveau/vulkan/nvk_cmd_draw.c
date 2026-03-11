@@ -1193,7 +1193,7 @@ nvk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 
          if (!render->linear &&
              plane->nil.levels[0].tiling.gob_type == NIL_GOB_TYPE_LINEAR)
-            plane = &image->linear_tiled_shadow;
+            plane = &image->linear_tiled_shadows[ip];
 
          const struct nil_image *nil_image = &plane->nil;
          const struct nil_image_level *level =

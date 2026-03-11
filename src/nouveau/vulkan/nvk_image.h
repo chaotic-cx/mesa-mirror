@@ -126,8 +126,8 @@ struct nvk_image {
     * rendering in the general case, we need to keep a tiled copy, which would
     * be used to fake support if the conditions aren't satisfied.
     */
-   struct nvk_image_plane linear_tiled_shadow;
-   struct nvkmd_mem *linear_tiled_shadow_mem;
+   struct nvk_image_plane linear_tiled_shadows[NVK_MAX_IMAGE_PLANES];
+   struct nvkmd_mem *linear_tiled_shadow_mem[NVK_MAX_IMAGE_PLANES];
 
    /* This indicates that we would like to compress the image and would prefer
     * larger pages and a dedicated allocation.

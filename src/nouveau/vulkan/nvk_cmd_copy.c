@@ -680,9 +680,9 @@ nvk_linear_render_copy(struct nvk_cmd_buffer *cmd,
    const struct nvk_image_plane *src_plane = NULL, *dst_plane = NULL;
    if (copy_to_tiled_shadow) {
       src_plane = &image->planes[ip];
-      dst_plane = &image->linear_tiled_shadow;
+      dst_plane = &image->linear_tiled_shadows[ip];
    } else {
-      src_plane = &image->linear_tiled_shadow;
+      src_plane = &image->linear_tiled_shadows[ip];
       dst_plane = &image->planes[ip];
    }
 
