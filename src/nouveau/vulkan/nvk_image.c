@@ -201,32 +201,34 @@ nvk_get_drm_format_modifier_properties_list(const struct nvk_physical_device *pd
     */
    VkDrmFormatModifierPropertiesListEXT *p = (void *)ext;
 
-   /* We don't support modifiers for YCbCr images */
-   if (vk_format_get_ycbcr_info(vk_format) != NULL) {
-      p->drmFormatModifierCount = 0;
-      return;
-   }
-
    /* Check that we actually support the format so we don't try to query
     * modifiers for formats NIL doesn't support.
     */
    const VkFormatFeatureFlags2 tiled_features =
-      nvk_get_image_plane_format_features(pdev, vk_format,
-                                          VK_IMAGE_TILING_OPTIMAL,
-                                          DRM_FORMAT_MOD_INVALID);
+      nvk_get_image_format_features(pdev, vk_format,
+                                    VK_IMAGE_TILING_OPTIMAL,
+                                    DRM_FORMAT_MOD_INVALID);
    if (tiled_features == 0) {
       p->drmFormatModifierCount = 0;
       return;
    }
 
+   size_t mod_count = 0;
    uint64_t mods[NIL_MAX_DRM_FORMAT_MODS];
-   size_t mod_count = NIL_MAX_DRM_FORMAT_MODS;
-   enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
-   nil_drm_format_mods_for_format(&pdev->info, nil_format(p_format),
-                                  &mod_count, &mods);
-   if (mod_count == 0) {
-      p->drmFormatModifierCount = 0;
-      return;
+   const struct vk_format_ycbcr_info *ycbcr_info =
+      vk_format_get_ycbcr_info(vk_format);
+   if (ycbcr_info != NULL) {
+      mods[0] = DRM_FORMAT_MOD_LINEAR;
+      mod_count = 1;
+   } else {
+      mod_count = NIL_MAX_DRM_FORMAT_MODS;
+      enum pipe_format p_format = nvk_format_to_pipe_format(vk_format);
+      nil_drm_format_mods_for_format(&pdev->info, nil_format(p_format),
+                                     &mod_count, &mods);
+      if (mod_count == 0) {
+         p->drmFormatModifierCount = 0;
+         return;
+      }
    }
 
    switch (ext->sType) {
@@ -243,7 +245,8 @@ nvk_get_drm_format_modifier_properties_list(const struct nvk_physical_device *pd
          if (features2 != 0) {
             vk_outarray_append_typed(VkDrmFormatModifierPropertiesEXT, &out, mp) {
                mp->drmFormatModifier = mods[i];
-               mp->drmFormatModifierPlaneCount = 1;
+               mp->drmFormatModifierPlaneCount = ycbcr_info != NULL ?
+                  ycbcr_info->n_planes : 1;
                mp->drmFormatModifierTilingFeatures =
                   vk_format_features2_to_features(features2);
             }
@@ -266,7 +269,8 @@ nvk_get_drm_format_modifier_properties_list(const struct nvk_physical_device *pd
          if (features2 != 0) {
             vk_outarray_append_typed(VkDrmFormatModifierProperties2EXT, &out, mp) {
                mp->drmFormatModifier = mods[i];
-               mp->drmFormatModifierPlaneCount = 1;
+               mp->drmFormatModifierPlaneCount = ycbcr_info != NULL ?
+                  ycbcr_info->n_planes : 1;
                mp->drmFormatModifierTilingFeatures = features2;
             }
          }
@@ -883,7 +887,7 @@ nvk_image_init(struct nvk_device *dev,
    if (!image->can_compress)
       usage |= NIL_IMAGE_USAGE_UNCOMPRESSED_BIT;
 
-   uint32_t explicit_row_stride_B = 0;
+   uint32_t explicit_row_stride_B[NVK_MAX_IMAGE_PLANES] = { 0 };
    int64_t explicit_offsets_B[NVK_MAX_IMAGE_PLANES];
    for (uint8_t plane = 0; plane < NVK_MAX_IMAGE_PLANES; plane++)
       explicit_offsets_B[plane] = -1;
@@ -898,8 +902,10 @@ nvk_image_init(struct nvk_device *dev,
          return result;
 
       image->vk.drm_format_mod = eci.drmFormatModifier;
-      explicit_row_stride_B = eci.pPlaneLayouts[0].rowPitch;
-      explicit_offsets_B[0] = eci.pPlaneLayouts[0].offset;
+      for (uint8_t plane = 0; plane < eci.drmFormatModifierPlaneCount; plane++) {
+         explicit_row_stride_B[plane] = eci.pPlaneLayouts[plane].rowPitch;
+         explicit_offsets_B[plane] = eci.pPlaneLayouts[plane].offset;
+      }
    }
 
    uint32_t max_alignment_B = 0;
@@ -914,9 +920,6 @@ nvk_image_init(struct nvk_device *dev,
    const struct vk_format_ycbcr_info *ycbcr_info =
       vk_format_get_ycbcr_info(image->vk.format);
    if (image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
-      /* Modifiers are not supported with YCbCr */
-      assert(image->plane_count == 1);
-
       const struct VkImageDrmFormatModifierExplicitCreateInfoEXT *mod_explicit_info =
          vk_find_struct_const(pCreateInfo->pNext,
                               IMAGE_DRM_FORMAT_MODIFIER_EXPLICIT_CREATE_INFO_EXT);
@@ -925,11 +928,16 @@ nvk_image_init(struct nvk_device *dev,
          /* Normally with explicit modifiers, the client specifies all strides,
           * however in our case, we can only really make use of this in the linear
           * case, and we can only create 2D non-array linear images, so ultimately
-          * we only care about the row stride. 
+          * we only care about the row stride. For multiplanar images, we also
+          * have to care about the explicit plane offset.
           */
-         explicit_row_stride_B = mod_explicit_info->pPlaneLayouts->rowPitch;
-         explicit_offsets_B[0] = mod_explicit_info->pPlaneLayouts->offset;
+         for (uint8_t plane = 0; plane < mod_explicit_info->drmFormatModifierPlaneCount; plane++) {
+            explicit_row_stride_B[plane] = mod_explicit_info->pPlaneLayouts[plane].rowPitch;
+            explicit_offsets_B[plane] = mod_explicit_info->pPlaneLayouts[plane].offset;
+         }
       } else {
+         /* Non-linear modifiers are not supported with YCbCr */
+         assert(image->plane_count == 1);
          const struct VkImageDrmFormatModifierListCreateInfoEXT *mod_list_info =
             vk_find_struct_const(pCreateInfo->pNext,
                                  IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT);
@@ -1021,7 +1029,7 @@ nvk_image_init(struct nvk_device *dev,
          .levels = image->vk.mip_levels,
          .samples = image->vk.samples,
          .usage = usage,
-         .explicit_row_stride_B = explicit_row_stride_B,
+         .explicit_row_stride_B = explicit_row_stride_B[plane],
          .max_alignment_B = max_alignment_B,
       };
    }
@@ -1351,7 +1359,8 @@ nvk_get_image_memory_requirements(struct nvk_device *dev,
       switch (ext->sType) {
       case VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS: {
          VkMemoryDedicatedRequirements *dedicated = (void *)ext;
-         if (image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT) {
+         if (image->vk.tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT &&
+             image->vk.drm_format_mod != DRM_FORMAT_MOD_LINEAR) {
             dedicated->prefersDedicatedAllocation = true;
             dedicated->requiresDedicatedAllocation = true;
          } else if (image->can_compress) {
