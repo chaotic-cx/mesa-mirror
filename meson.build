@@ -978,6 +978,10 @@ if with_any_rust
     '--raw-line', '#![allow(unsafe_op_in_unsafe_fn)]',
   ]
 
+  bindgen_c_args = [
+    '-DMESA_BINDGEN=1'
+  ]
+
   rust_global_args = [
     # We want to be able to write `else { if {} }` when it makes more sense than
     # collapsing it into `else if {}`.

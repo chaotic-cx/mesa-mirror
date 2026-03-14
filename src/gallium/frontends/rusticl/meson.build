@@ -121,6 +121,7 @@ rusticl_bindgen_args = [
 
 rusticl_bindgen_c_args = [
   '-fno-builtin-malloc',
+  bindgen_c_args,
 ]
 
 cl_c_args = [

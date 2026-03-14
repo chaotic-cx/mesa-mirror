@@ -45,6 +45,7 @@ _nak_bindings_rs = rust.bindgen(
   output : 'nak_bindings.rs',
   c_args : [
     pre_args,
+    bindgen_c_args,
   ],
   args : [
     bindgen_output_args,

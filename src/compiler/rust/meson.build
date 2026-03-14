@@ -107,6 +107,7 @@ _compiler_bindings_rs = rust.bindgen(
   output_inline_wrapper : 'bindings.c',
   c_args : [
     pre_args,
+    bindgen_c_args,
   ],
   args : _compiler_bindgen_args,
   dependencies : [
