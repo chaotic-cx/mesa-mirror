@@ -60,7 +60,7 @@ nak_nir_workgroup_has_one_subgroup(const nir_shader *nir)
    case MESA_SHADER_GEOMETRY:
    case MESA_SHADER_FRAGMENT:
       UNREACHABLE("Shader stage does not have workgroups");
-      break;
+      return false;
 
    case MESA_SHADER_TESS_CTRL:
       /* Tessellation only ever has one subgroup per workgroup.  The Vulkan
@@ -91,6 +91,7 @@ nak_nir_workgroup_has_one_subgroup(const nir_shader *nir)
 
    default:
       UNREACHABLE("Unknown shader stage");
+      return false;
    }
 }
 

@@ -267,7 +267,7 @@ anv_call_internal_shader(nir_builder *b,
 
    default:
       UNREACHABLE("Invalid shader name");
-      break;
+      return -1;
    }
 }
 
