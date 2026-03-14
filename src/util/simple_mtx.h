@@ -65,6 +65,14 @@
 #else
 #  define HG(x)
 #endif
+
+#if THREAD_SANITIZER == 1 && !defined(MESA_BINDGEN)
+#  include <sanitizer/tsan_interface.h>
+#  define TS(x) x
+#else
+#  define TS(x)
+#endif
+
 #else /* !UTIL_FUTEX_SUPPORTED */
 #  include "c11/threads.h"
 #endif /* UTIL_FUTEX_SUPPORTED */
@@ -89,6 +97,7 @@ simple_mtx_init(simple_mtx_t *mtx, ASSERTED int type)
 
    mtx->val = 0;
 
+   TS(__tsan_mutex_create(mtx, 0));
    HG(ANNOTATE_RWLOCK_CREATE(mtx));
 }
 
@@ -96,6 +105,7 @@ static inline void
 simple_mtx_destroy(ASSERTED simple_mtx_t *mtx)
 {
    HG(ANNOTATE_RWLOCK_DESTROY(mtx));
+   TS(__tsan_mutex_destroy(mtx, 0));
 #ifndef NDEBUG
    mtx->val = _SIMPLE_MTX_INVALID_VALUE;
 #endif
@@ -106,6 +116,7 @@ simple_mtx_lock(simple_mtx_t *mtx)
 {
    int64_t c;
 
+   TS(__tsan_mutex_pre_lock(mtx, 0));
    c = p_atomic_cmpxchg(&mtx->val, 0, 1);
 
    assert(c != _SIMPLE_MTX_INVALID_VALUE);
@@ -119,6 +130,7 @@ simple_mtx_lock(simple_mtx_t *mtx)
       }
    }
 
+   TS(__tsan_mutex_post_lock(mtx, 0, 0));
    HG(ANNOTATE_RWLOCK_ACQUIRED(mtx, 1));
 }
 
@@ -127,6 +139,7 @@ simple_mtx_unlock(simple_mtx_t *mtx)
 {
    int64_t c;
 
+   TS(__tsan_mutex_pre_unlock(mtx, 0));
    HG(ANNOTATE_RWLOCK_RELEASED(mtx, 1));
 
    c = p_atomic_fetch_add(&mtx->val, -1);
@@ -137,6 +150,7 @@ simple_mtx_unlock(simple_mtx_t *mtx)
       mtx->val = 0;
       futex_wake(&mtx->val, 1);
    }
+   TS(__tsan_mutex_post_unlock(mtx, 0));
 }
 
 static inline void
