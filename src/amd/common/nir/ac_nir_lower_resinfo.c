@@ -62,23 +62,70 @@ static nir_def *query_levels(nir_builder *b, nir_def *desc, enum amd_gfx_level g
    return handle_null_desc(b, desc, levels);
 }
 
+nir_def *
+ac_nir_get_buffer_num_records(nir_builder *b, unsigned bit_size, nir_def *desc,
+                              enum amd_gfx_level gfx_level)
+{
+   assert(bit_size == 32 || bit_size == 64);
+
+   if (gfx_level >= GFX13) {
+      /* The number indicates the bit position of the result. */
+      nir_def *num_records0 = nir_u2u64(b, get_field(b, desc, 1, ~C_008F04_NUM_RECORDS_1));  /* 7 bits */
+      nir_def *num_records7 = nir_u2u64(b, nir_channel(b, desc, 2));                         /* 32 bits */
+      nir_def *num_records39 = nir_u2u64(b, get_field(b, desc, 3, ~C_008F0C_NUM_RECORDS_3)); /* 6 bits */
+
+      num_records7 = nir_ishl_imm(b, num_records7, 7);
+      num_records39 = nir_ishl_imm(b, num_records39, 39);
+
+      nir_def *result = nir_ior(b, nir_ior(b, num_records0, num_records7), num_records39);
+
+      if (bit_size == 32)
+         result = nir_u2u32(b, nir_umin_imm(b, result, UINT32_MAX));
+
+      return result;
+   } else {
+      nir_def *result = nir_channel(b, desc, 2);
+
+      if (bit_size == 64)
+         result = nir_u2u64(b, result);
+
+      return result;
+   }
+}
+
 static nir_def *
 lower_query_size(nir_builder *b, nir_def *desc, nir_src *lod,
                  enum glsl_sampler_dim dim, bool is_array, enum amd_gfx_level gfx_level)
 {
    if (dim == GLSL_SAMPLER_DIM_BUF) {
-      nir_def *size = nir_channel(b, desc, 2);
-
-      if (gfx_level == GFX8) {
-         /* On GFX8, the descriptor contains the size in bytes,
-          * but TXQ must return the size in elements.
-          * The stride is always non-zero for resources using TXQ, except when
-          * using null descriptors in Vulkan, so apply trivial fixup.
-          * Divide the size by the stride.
+      if (gfx_level >= GFX13) {
+         /* Get the 64-bit size on GFX13 because we'll divide by the stride, which should fit
+          * into 32 bits.
+          *
+          * Larger texel fetch buffers / storage buffers / TBOs / image buffers aren't addressible
+          * because vindex has 32 bits, so R8 buffers are limited to 4GB, R16 buffers are limited
+          * to 8GB, ... R32G32B32A32 buffers are limited to 64GB, etc.
           */
-         size = nir_udiv(b, size, nir_umax_imm(b, get_field(b, desc, 1, ~C_008F04_STRIDE), 1));
+         nir_def *size = ac_nir_get_buffer_num_records(b, 64, desc, gfx_level);
+         /* Null descriptors have stride=0, which is illegal for division, so clamp to 1. */
+         nir_def *stride = nir_umax_imm(b, get_field(b, desc, 3, ~C_008F0C_STRIDE), 1);
+
+         size = nir_udiv(b, size, nir_u2u64(b, stride));
+         return nir_u2u32(b, nir_umin_imm(b, size, UINT32_MAX));
+      } else {
+         nir_def *size = ac_nir_get_buffer_num_records(b, 32, desc, gfx_level);
+
+         if (gfx_level == GFX8) {
+            /* On GFX8, the descriptor contains the size in bytes,
+             * but TXQ must return the size in elements.
+             * The stride is always non-zero for resources using TXQ, except when
+             * using null descriptors in Vulkan, so apply trivial fixup.
+             * Divide the size by the stride.
+             */
+            size = nir_udiv(b, size, nir_umax_imm(b, get_field(b, desc, 1, ~C_008F04_STRIDE), 1));
+         }
+         return size;
       }
-      return size;
    }
 
    /* Cube textures return (height, height) instead of (width, height) because it's fewer
@@ -265,7 +312,7 @@ static bool lower_resinfo(nir_builder *b, nir_instr *instr, void *data)
                                               .access = nir_intrinsic_access(intr));
 
       if (intr->intrinsic == nir_intrinsic_get_ssbo_size) {
-         result = nir_u2uN(b, nir_channel(b, desc, 2), nir_instr_def(instr)->bit_size);
+         result = ac_nir_get_buffer_num_records(b, intr->def.bit_size, desc, gfx_level);
       } else {
          nir_def *addr_lo = nir_channel(b, desc, 0);
          nir_def *addr_hi = nir_ibfe_imm(b, nir_channel(b, desc, 1), 0, 16);

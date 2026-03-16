@@ -954,7 +954,7 @@ ac_nir_ngg_build_streamout_buffer_info(nir_builder *b,
 
       for (unsigned buffer = 0; buffer < 4; buffer++) {
          if (info->buffers_written & BITFIELD_BIT(buffer)) {
-            nir_def *buffer_size = nir_channel(b, so_buffer_ret[buffer], 2);
+            nir_def *buffer_size = ac_nir_get_buffer_num_records(b, 32, so_buffer_ret[buffer], gfx_level);
             /* In radeonsi, we may not know if a feedback buffer has been bound when
              * compile time, so have to check buffer size in runtime to disable the
              * GDS update for unbind buffer to prevent the case that previous draw
@@ -1125,7 +1125,7 @@ ac_nir_ngg_build_streamout_buffer_info(nir_builder *b,
       nir_def *overflow_amount[4] = {undef, undef, undef, undef};
 
       u_foreach_bit(buffer, info->buffers_written) {
-         nir_def *buffer_size = nir_channel(b, so_buffer_ret[buffer], 2);
+         nir_def *buffer_size = ac_nir_get_buffer_num_records(b, 32, so_buffer_ret[buffer], gfx_level);
 
          /* Only consider overflow for valid feedback buffers because
           * otherwise the ordered operation above (GDS atomic return) might
