@@ -1887,15 +1887,8 @@ next_opaque_bind_plane(const VkSparseMemoryBind *bind,
                        uint64_t *plane_offset_B,
                        uint64_t *mem_offset_B,
                        uint64_t *bind_size_B,
-                       uint64_t *image_plane_offset_B_iter)
+                       uint64_t image_plane_offset_B)
 {
-   /* Figure out the offset to thise plane and increment _iter up-front so
-    * that we're free to early return elsewhere in the function.
-    */
-   *image_plane_offset_B_iter = align64(*image_plane_offset_B_iter, align_B);
-   const uint64_t image_plane_offset_B = *image_plane_offset_B_iter;
-   *image_plane_offset_B_iter += size_B;
-
    /* Offset into the image or image mip tail, as appropriate */
    uint64_t bind_offset_B = bind->resourceOffset;
    if (bind_offset_B >= NVK_MIP_TAIL_START_OFFSET)
@@ -1934,17 +1927,15 @@ static VkResult
 queue_image_plane_opaque_bind(struct nvk_queue *queue,
                               struct nvk_image *image,
                               struct nvk_image_plane *plane,
-                              const VkSparseMemoryBind *bind,
-                              uint64_t *image_plane_offset_B)
+                              const VkSparseMemoryBind *bind)
 {
-   uint64_t plane_size_B, plane_align_B;
-   nvk_image_plane_size_align_B(nvk_queue_device(queue), image, plane,
-                                &plane_size_B, &plane_align_B);
+   const uint64_t plane_align_B = plane->plane_align_B; 
+   const uint64_t plane_size_B = align64(plane->nil.size_B, plane_align_B);
 
    uint64_t plane_offset_B, mem_offset_B, bind_size_B;
    if (!next_opaque_bind_plane(bind, plane_size_B, plane_align_B,
                                &plane_offset_B, &mem_offset_B, &bind_size_B,
-                               image_plane_offset_B))
+                               plane->plane_offset_B))
       return VK_SUCCESS;
 
    VK_FROM_HANDLE(nvk_device_memory, mem, bind->memory);
@@ -1967,12 +1958,9 @@ static VkResult
 queue_image_plane_bind_mip_tail(struct nvk_queue *queue,
                                 struct nvk_image *image,
                                 struct nvk_image_plane *plane,
-                                const VkSparseMemoryBind *bind,
-                                uint64_t *image_plane_offset_B)
+                                const VkSparseMemoryBind *bind)
 {
-   uint64_t plane_size_B, plane_align_B;
-   nvk_image_plane_size_align_B(nvk_queue_device(queue), image, plane,
-                                &plane_size_B, &plane_align_B);
+   const uint64_t plane_align_B = plane->plane_align_B;
 
    const uint64_t mip_tail_offset_B =
       nil_image_mip_tail_offset_B(&plane->nil);
@@ -1986,7 +1974,7 @@ queue_image_plane_bind_mip_tail(struct nvk_queue *queue,
    uint64_t plane_offset_B, mem_offset_B, bind_size_B;
    if (!next_opaque_bind_plane(bind, whole_mip_tail_size_B, plane_align_B,
                                &plane_offset_B, &mem_offset_B, &bind_size_B,
-                               image_plane_offset_B))
+                               plane->plane_offset_B))
       return VK_SUCCESS;
 
    VK_FROM_HANDLE(nvk_device_memory, mem, bind->memory);
@@ -2051,18 +2039,15 @@ nvk_queue_image_opaque_bind(struct nvk_queue *queue,
    for (unsigned i = 0; i < bind_info->bindCount; i++) {
       const VkSparseMemoryBind *bind = &bind_info->pBinds[i];
 
-      uint64_t image_plane_offset_B = 0;
       for (unsigned plane = 0; plane < image->plane_count; plane++) {
          if (bind->resourceOffset >= NVK_MIP_TAIL_START_OFFSET) {
             result = queue_image_plane_bind_mip_tail(queue, image,
                                                      &image->planes[plane],
-                                                     bind,
-                                                     &image_plane_offset_B);
+                                                     bind);
          } else {
             result = queue_image_plane_opaque_bind(queue, image,
                                                    &image->planes[plane],
-                                                   bind,
-                                                   &image_plane_offset_B);
+                                                   bind);
          }
          if (result != VK_SUCCESS)
             return result;
@@ -2070,8 +2055,7 @@ nvk_queue_image_opaque_bind(struct nvk_queue *queue,
       if (image->stencil_copy_temp.nil.size_B > 0) {
          result = queue_image_plane_opaque_bind(queue, image,
                                                 &image->stencil_copy_temp,
-                                                bind,
-                                                &image_plane_offset_B);
+                                                bind);
          if (result != VK_SUCCESS)
             return result;
       }
