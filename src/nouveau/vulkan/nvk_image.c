@@ -884,6 +884,9 @@ nvk_image_init(struct nvk_device *dev,
       usage |= NIL_IMAGE_USAGE_UNCOMPRESSED_BIT;
 
    uint32_t explicit_row_stride_B = 0;
+   int64_t explicit_offsets_B[NVK_MAX_IMAGE_PLANES];
+   for (uint8_t plane = 0; plane < NVK_MAX_IMAGE_PLANES; plane++)
+      explicit_offsets_B[plane] = -1;
 
    /* This section is removed by the optimizer for non-ANDROID builds */
    if (vk_image_is_android_native_buffer(&image->vk)) {
@@ -896,6 +899,7 @@ nvk_image_init(struct nvk_device *dev,
 
       image->vk.drm_format_mod = eci.drmFormatModifier;
       explicit_row_stride_B = eci.pPlaneLayouts[0].rowPitch;
+      explicit_offsets_B[0] = eci.pPlaneLayouts[0].offset;
    }
 
    uint32_t max_alignment_B = 0;
@@ -922,6 +926,7 @@ nvk_image_init(struct nvk_device *dev,
           * we only care about the row stride. 
           */
          explicit_row_stride_B = mod_explicit_info->pPlaneLayouts->rowPitch;
+         explicit_offsets_B[0] = mod_explicit_info->pPlaneLayouts->offset;
       } else {
          const struct VkImageDrmFormatModifierListCreateInfoEXT *mod_list_info =
             vk_find_struct_const(pCreateInfo->pNext,
@@ -1063,8 +1068,60 @@ nvk_image_init(struct nvk_device *dev,
       if (!ok)
          return vk_errorf(dev, VK_ERROR_UNKNOWN,
                           "Invalid image creation parameters");
+
+      image->stencil_copy_temp.plane_align_B =
+         image->stencil_copy_temp.nil.align_B;
    }
 
+   uint64_t plane_offset_B = 0;
+   image->image_size_B = 0;
+   image->image_align_B = 0;
+   const bool sparse_bound =
+      image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT;
+   for (uint8_t plane = 0; plane < image->plane_count; plane++) {
+      uint32_t plane_align_B = image->planes[plane].nil.align_B;
+      if (sparse_bound || image->planes[plane].nil.pte_kind)
+         plane_align_B = MAX2(plane_align_B, pdev->nvkmd->bind_align_B);
+      image->planes[plane].plane_align_B = plane_align_B;
+      image->image_align_B = MAX2(plane_align_B, image->image_align_B);
+
+      if (explicit_offsets_B[plane] >= 0) {
+         assert(explicit_offsets_B[plane] % plane_align_B == 0);
+         image->planes[plane].plane_offset_B = explicit_offsets_B[plane];
+         image->image_size_B =
+            MAX2((explicit_offsets_B[plane] + image->planes[plane].nil.size_B),
+                 image->image_size_B);
+      } else if (image->disjoint) {
+         image->planes[plane].plane_offset_B = 0;
+      } else {
+         plane_offset_B = align64(plane_offset_B, plane_align_B);
+         image->planes[plane].plane_offset_B = plane_offset_B;
+         plane_offset_B += image->planes[plane].nil.size_B;
+         image->image_size_B = plane_offset_B;
+      }
+   }
+
+   if (image->zcull.nil.size_B > 0) {
+      assert(image->vk.drm_format_mod == DRM_FORMAT_MOD_INVALID);
+      plane_offset_B = align64(plane_offset_B, image->zcull.nil.align_B);
+      image->zcull.plane_offset_B = plane_offset_B;
+      plane_offset_B += image->zcull.nil.size_B;
+      image->image_size_B = plane_offset_B;
+      image->image_align_B = MAX2(image->zcull.nil.align_B,
+                                  image->image_align_B);
+   }
+
+   if (image->stencil_copy_temp.nil.size_B > 0) {
+      assert(image->vk.drm_format_mod == DRM_FORMAT_MOD_INVALID);
+      plane_offset_B =
+         align64(plane_offset_B, image->stencil_copy_temp.plane_align_B);
+      image->stencil_copy_temp.plane_offset_B = plane_offset_B;
+      plane_offset_B += image->stencil_copy_temp.nil.size_B;
+      image->image_size_B = plane_offset_B;
+      image->image_align_B = MAX2(image->stencil_copy_temp.plane_align_B,
+                                  image->image_align_B);
+   }
+   
    return VK_SUCCESS;
 }
 
@@ -1105,8 +1162,8 @@ nvk_image_plane_alloc_va(struct nvk_device *dev,
       if (sparse_resident)
          va_flags |= NVKMD_VA_SPARSE;
 
-      uint64_t va_size_B, va_align_B;
-      nvk_image_plane_size_align_B(dev, image, plane, &va_size_B, &va_align_B);
+      const uint64_t va_align_B = plane->plane_align_B;
+      const uint64_t va_size_B = align64(plane->nil.size_B, va_align_B);
 
       result = nvkmd_dev_alloc_va(dev->nvkmd, &dev->vk.base,
                                   va_flags, plane->nil.pte_kind,
@@ -1242,33 +1299,6 @@ nvk_DestroyImage(VkDevice device,
 }
 
 static void
-nvk_image_plane_add_req(struct nvk_device *dev,
-                        const struct nvk_image *image,
-                        const struct nvk_image_plane *plane,
-                        uint64_t *size_B, uint32_t *align_B)
-{
-   assert(util_is_power_of_two_or_zero64(*align_B));
-   uint64_t plane_size_B, plane_align_B;
-   nvk_image_plane_size_align_B(dev, image, plane,
-                                &plane_size_B, &plane_align_B);
-
-   *align_B = MAX2(*align_B, plane_align_B);
-   *size_B = align64(*size_B, plane_align_B);
-   *size_B += plane_size_B;
-}
-
-static void
-nvk_image_zcull_add_req(struct nvk_device *dev,
-                        const struct nvk_zcull_plane *zcull,
-                        uint64_t *size_B, uint32_t *align_B)
-{
-   assert(util_is_power_of_two_or_zero64(*align_B));
-   *align_B = MAX2(*align_B, zcull->nil.align_B);
-   *size_B = align64(*size_B, zcull->nil.align_B);
-   *size_B += zcull->nil.size_B;
-}
-
-static void
 nvk_get_image_memory_requirements(struct nvk_device *dev,
                                   struct nvk_image *image,
                                   VkImageAspectFlags aspects,
@@ -1293,22 +1323,16 @@ nvk_get_image_memory_requirements(struct nvk_device *dev,
    uint32_t align_B = 0;
    if (image->disjoint) {
       uint8_t plane = nvk_image_memory_aspects_to_plane(image, aspects);
-      nvk_image_plane_add_req(dev, image, &image->planes[plane],
-                              &size_B, &align_B);
+
+      assert(image->zcull.nil.size_B == 0);
+      assert(image->stencil_copy_temp.nil.size_B == 0);
+
+      size_B = align64(image->planes[plane].nil.size_B,
+                       image->planes[plane].plane_align_B);
+      align_B = image->planes[plane].plane_align_B;
    } else {
-      for (unsigned plane = 0; plane < image->plane_count; plane++) {
-         nvk_image_plane_add_req(dev, image, &image->planes[plane],
-                                 &size_B, &align_B);
-      }
-   }
-
-   if (image->zcull.nil.size_B > 0) {
-      nvk_image_zcull_add_req(dev, &image->zcull, &size_B, &align_B);
-   }
-
-   if (image->stencil_copy_temp.nil.size_B > 0) {
-      nvk_image_plane_add_req(dev, image, &image->stencil_copy_temp,
-                              &size_B, &align_B);
+      size_B = image->image_size_B;
+      align_B = image->image_align_B;
    }
 
    pMemoryRequirements->memoryRequirements.memoryTypeBits = memory_types;
@@ -1506,13 +1530,8 @@ nvk_get_image_subresource_layout(struct nvk_device *dev,
    const struct nvk_image_plane *plane = &image->planes[p];
 
    uint64_t offset_B = 0;
-   if (!image->disjoint) {
-      uint32_t align_B = 0;
-      for (unsigned plane = 0; plane < p; plane++) {
-         nvk_image_plane_add_req(dev, image, &image->planes[plane],
-                                 &offset_B, &align_B);
-      }
-   }
+   if (!image->disjoint)
+      offset_B = plane->plane_offset_B;
    offset_B += nil_image_level_layer_offset_B(&plane->nil, isr->mipLevel,
                                               isr->arrayLayer);
 
@@ -1568,39 +1587,35 @@ nvk_image_plane_bind(struct nvk_device *dev,
                      struct nvk_image *image,
                      struct nvk_image_plane *plane,
                      struct nvk_device_memory *mem,
-                     uint64_t *offset_B)
+                     uint64_t offset_B)
 {
-   uint64_t plane_size_B, plane_align_B;
-   nvk_image_plane_size_align_B(dev, image, plane,
-                                &plane_size_B, &plane_align_B);
-   *offset_B = align64(*offset_B, plane_align_B);
+   offset_B += plane->plane_offset_B;
+   assert(offset_B % plane->plane_align_B == 0);
 
    const bool not_shared = !(mem->mem->flags & NVKMD_MEM_SHARED);
 
    if (plane->nil.pte_kind != 0) {
       if (mem->dedicated_image == image && image->can_compress && not_shared) {
          image->is_compressed = true;
-         plane->addr = mem->mem->va->addr + *offset_B;
+         plane->addr = mem->mem->va->addr + offset_B;
       } else {
          VkResult result = nvk_image_plane_alloc_va(dev, image, plane);
          if (result != VK_SUCCESS)
             return result;
          result = nvkmd_va_bind_mem(plane->va, &image->vk.base, 0,
-                                    mem->mem, *offset_B,
+                                    mem->mem, offset_B,
                                     plane->va->size_B);
          if (result != VK_SUCCESS)
             return result;
       }
    } else {
-      plane->addr = mem->mem->va->addr + *offset_B;
+      plane->addr = mem->mem->va->addr + offset_B;
    }
 
    if (image->vk.usage & VK_IMAGE_USAGE_HOST_TRANSFER_BIT_EXT) {
       plane->host_mem = mem;
-      plane->host_offset = *offset_B;
+      plane->host_offset_B = offset_B;
    }
-
-   *offset_B += plane_size_B;
 
    return VK_SUCCESS;
 }
@@ -1608,11 +1623,11 @@ nvk_image_plane_bind(struct nvk_device *dev,
 static VkResult
 nvk_image_zcull_bind(struct nvk_zcull_plane *zcull,
                      struct nvk_device_memory *mem,
-                     uint64_t *offset_B)
+                     uint64_t offset_B)
 {
-   *offset_B = align64(*offset_B, zcull->nil.align_B);
-   zcull->addr = mem->mem->va->addr + *offset_B;
-   *offset_B += zcull->nil.size_B;
+   offset_B += zcull->plane_offset_B;
+   assert(offset_B % zcull->nil.align_B == 0);
+   zcull->addr = mem->mem->va->addr + offset_B;
    return VK_SUCCESS;
 }
 
@@ -1654,20 +1669,20 @@ nvk_bind_image_memory(struct nvk_device *dev,
       const uint8_t plane =
          nvk_image_memory_aspects_to_plane(image, plane_info->planeAspect);
       result = nvk_image_plane_bind(dev, image, &image->planes[plane],
-                                    mem, &offset_B);
+                                    mem, offset_B);
       if (result != VK_SUCCESS)
          return result;
    } else {
       for (unsigned plane = 0; plane < image->plane_count; plane++) {
          result = nvk_image_plane_bind(dev, image, &image->planes[plane],
-                                       mem, &offset_B);
+                                       mem, offset_B);
          if (result != VK_SUCCESS)
             return result;
       }
    }
 
    if (image->zcull.nil.size_B > 0) {
-      result = nvk_image_zcull_bind(&image->zcull, mem, &offset_B);
+      result = nvk_image_zcull_bind(&image->zcull, mem, offset_B);
       if (result != VK_SUCCESS)
          return result;
 
@@ -1688,7 +1703,7 @@ nvk_bind_image_memory(struct nvk_device *dev,
 
    if (image->stencil_copy_temp.nil.size_B > 0) {
       result = nvk_image_plane_bind(dev, image, &image->stencil_copy_temp,
-                                    mem, &offset_B);
+                                    mem, offset_B);
       if (result != VK_SUCCESS)
          return result;
    }

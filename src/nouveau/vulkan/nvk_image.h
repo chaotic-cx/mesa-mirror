@@ -62,17 +62,35 @@ struct nvk_image_plane {
    /** Reserved VA for sparse images, NULL otherwise. */
    struct nvkmd_va *va;
 
+   /* Byte offset of the plane. Calculated and stashed at image create time
+    * so that we don't have to constantly calculate it with every bind and
+    * sparse bind, and so that we can respect explicit modifier offsets for
+    * linear modifiers.
+    */
+   uint64_t plane_offset_B;
+
+   /* Plane alignment in bytes. This isn't always the same as nil->align_B
+    * because sparse and tiled images have a minimum.
+    */
+   uint32_t plane_align_B;
+
    /* Needed for EXT_Host_Image_Copy. We get GPU addresses from the API,
     * so we stash in the memory object and the offset in the plane to be able
     * to retrieve CPU addresses for host copies.
     */
    struct nvk_device_memory *host_mem;
-   uint64_t host_offset;
+
+   /* This is not the same as the plane offset above because this includes the
+    * memory offset given by the client at bind time in VkBindImageMemoryInfo:
+    * host_offset_B = plane_offset_B + memoryOffset
+    */
+   uint64_t host_offset_B;
 };
 
 struct nvk_zcull_plane {
    struct nil_zcull nil;
    uint64_t addr;
+   uint64_t plane_offset_B;
 };
 
 struct nvk_image {
@@ -119,6 +137,13 @@ struct nvk_image {
     * bind time.
     */
    bool is_compressed;
+
+   /* Total image size and alignment for all planes combined, used by
+    * GetImageMemoryRequirements(). Set to 0 for disjoint images as size and
+    * alignment have to be calculated per plane in that case.
+    */
+   uint64_t image_size_B;
+   uint32_t image_align_B;
 };
 
 VK_DEFINE_NONDISP_HANDLE_CASTS(nvk_image, vk.base, VkImage, VK_OBJECT_TYPE_IMAGE)
