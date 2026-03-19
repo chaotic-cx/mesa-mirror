@@ -1150,25 +1150,6 @@ nvk_image_init(struct nvk_device *dev,
    return VK_SUCCESS;
 }
 
-static void
-nvk_image_plane_size_align_B(struct nvk_device *dev,
-                             const struct nvk_image *image,
-                             const struct nvk_image_plane *plane,
-                             uint64_t *size_B_out, uint64_t *align_B_out)
-{
-   const struct nvk_physical_device *pdev = nvk_device_physical(dev);
-   const bool sparse_bound =
-      image->vk.create_flags & VK_IMAGE_CREATE_SPARSE_BINDING_BIT;
-
-   assert(util_is_power_of_two_or_zero64(plane->nil.align_B));
-   if (sparse_bound || plane->nil.pte_kind) {
-      *align_B_out = MAX2(plane->nil.align_B, pdev->nvkmd->bind_align_B);
-   } else {
-      *align_B_out = plane->nil.align_B;
-   }
-   *size_B_out = align64(plane->nil.size_B, *align_B_out);
-}
-
 static VkResult
 nvk_image_plane_alloc_va(struct nvk_device *dev,
                          const struct nvk_image *image,

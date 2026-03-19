@@ -604,7 +604,7 @@
         "description": "nvk: Remove nvk_image_plane_size_align_B()",
         "nominated": true,
         "nomination_type": 4,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
