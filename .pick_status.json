@@ -634,7 +634,7 @@
         "description": "nvk: Defer tiled shadow plane memory allocation to draw time",
         "nominated": true,
         "nomination_type": 4,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null

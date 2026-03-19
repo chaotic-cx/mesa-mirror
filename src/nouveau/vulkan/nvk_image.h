@@ -125,7 +125,14 @@ struct nvk_image {
     * under certain conditions, so to support DRM_FORMAT_MOD_LINEAR
     * rendering in the general case, we need to keep a tiled copy, which would
     * be used to fake support if the conditions aren't satisfied.
+    * 
+    * In order to avoid needlessly paying the memory cost of the tiled shadows
+    * even if they aren't needed (imports for texturing or rendering with the
+    * conditions satisfied), we hold a mutex at image create time to guard the
+    * memory object and defer the memory allocation till draw time, where we
+    * check if it's needed per-plane and selectively allocate memory for it.
     */
+   simple_mtx_t tiled_shadow_mutex;
    struct nvk_image_plane linear_tiled_shadows[NVK_MAX_IMAGE_PLANES];
    struct nvkmd_mem *linear_tiled_shadow_mem[NVK_MAX_IMAGE_PLANES];
 

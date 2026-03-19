@@ -985,6 +985,8 @@ nvk_image_init(struct nvk_device *dev,
       }
    }
 
+   simple_mtx_init(&image->tiled_shadow_mutex, mtx_plain);
+
    /* The video decode engine needs the block size to be the same across chroma
     * and luma planes, so in order to work around this limitation we gather all
     * the info for NIL early, which would give it enough information to get and
@@ -1223,6 +1225,8 @@ nvk_image_finish(struct nvk_device *dev, struct nvk_image *image,
          nvkmd_mem_unref(image->linear_tiled_shadow_mem[plane]);
    }
 
+   simple_mtx_destroy(&image->tiled_shadow_mutex);
+
    vk_image_finish(&image->vk);
 }
 
@@ -1266,21 +1270,6 @@ nvk_CreateImage(VkDevice _device,
          result = nvk_image_plane_alloc_va(dev, image, &image->stencil_copy_temp);
          if (result != VK_SUCCESS)
             goto fail;
-      }
-   }
-
-   for (uint8_t plane = 0; plane < image->plane_count; plane++) {
-      if (image->linear_tiled_shadows[plane].nil.size_B > 0) {
-         struct nvk_image_plane *shadow = &image->linear_tiled_shadows[plane];
-         result = nvkmd_dev_alloc_tiled_mem(dev->nvkmd, &dev->vk.base,
-                                            shadow->nil.size_B, shadow->nil.align_B,
-                                            shadow->nil.pte_kind, shadow->nil.tile_mode,
-                                            NVKMD_MEM_LOCAL,
-                                            &image->linear_tiled_shadow_mem[plane]);
-         if (result != VK_SUCCESS)
-            goto fail;
-
-         shadow->addr = image->linear_tiled_shadow_mem[plane]->va->addr;
       }
    }
 
