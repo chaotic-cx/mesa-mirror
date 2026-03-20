@@ -1204,15 +1204,15 @@ if not any_python_found
 endif
 
 if has_version_module.returncode() != 0
-  error('One of Python (3.x) packaging or distutils module is required.')
+  error('One of Python ' + python_version_req + ' packaging or distutils module is required.')
 endif
 
 if has_mako.returncode() != 0
-  error('Python (3.x) mako module >= 0.8.0 required to build mesa.')
+  error('Python ' + python_version_req + ' mako module >= 0.8.0 required to build mesa.')
 endif
 
 if has_yaml.returncode() != 0
-  error('Python (3.x) yaml module (PyYAML) required to build mesa.')
+  error('Python ' + python_version_req + ' yaml module (PyYAML) required to build mesa.')
 endif
 
 # Support systems without ETIME (e.g. FreeBSD)
