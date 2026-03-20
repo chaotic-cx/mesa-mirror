@@ -1159,6 +1159,7 @@ python_exec_list = ['python3.16', 'python3.15', 'python3.14', 'python3.13',
 # version ''.
 python_required_modules = {
   'mako': { 'version': '0.8', 'required_if': true },
+  'pycparser': { 'version': '2.20', 'required_if': with_gallium_etnaviv },
   'yaml': { 'version': '', 'required_if': true },
 }
 

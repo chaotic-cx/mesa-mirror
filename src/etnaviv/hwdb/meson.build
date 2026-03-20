@@ -1,20 +1,6 @@
 # Copyright © 2024 Igalia S.L.
 # SPDX-License-Identifier: MIT
 
-has_pycparser = run_command(
-  prog_python, '-c',
-  '''
-try:
-  from packaging.version import Version
-except:
-  from distutils.version import StrictVersion as Version
-import pycparser
-assert Version(pycparser.__version__) >= Version("2.20")
-  ''', check: false)
-if has_pycparser.returncode() != 0
-  error('Python (3.x) pycparser module >= 2.20 required to build mesa.')
-endif
-
 prog_hwdb = files('hwdb.h.py')
 hwdb_h = custom_target(
   'hwdb.h',
