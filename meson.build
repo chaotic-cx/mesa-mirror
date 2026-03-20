@@ -1158,9 +1158,11 @@ python_exec_list = ['python3.16', 'python3.15', 'python3.14', 'python3.13',
 # which the module is not required. If any version will do, use the special
 # version ''.
 python_required_modules = {
+  'docutils': { 'version': '', 'required_if': get_option('html-docs').enabled() },
   'hawkmoth': { 'version': '0.16', 'required_if': get_option('html-docs').enabled() },
   'mako': { 'version': '0.8', 'required_if': true },
   'pycparser': { 'version': '2.20', 'required_if': with_gallium_etnaviv },
+  'sphinx': { 'version': '', 'required_if': get_option('html-docs').enabled() },
   'yaml': { 'version': '', 'required_if': true },
 }
 
