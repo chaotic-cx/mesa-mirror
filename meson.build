@@ -1164,26 +1164,28 @@ foreach p : python_exec_list
 
   any_python_found = true
 
+  has_version_module = run_command(
+    prog_python, '-c',
+    '''
+try:
+    from packaging.version import Version
+except:
+    from distutils.version import StrictVersion as Version
+''', check: false)
+  if has_version_module.returncode() != 0
+    continue
+  endif
+
   has_mako = run_command(
     prog_python, '-c',
     '''
-import sys
-
 try:
-    try:
-        from packaging.version import Version
-    except:
-        from distutils.version import StrictVersion as Version
+    from packaging.version import Version
 except:
-    sys.exit(2)
+    from distutils.version import StrictVersion as Version
 
-try:
-    import mako
-except:
-    sys.exit(1)
-
-if Version(mako.__version__) < Version("0.8.0"):
-    sys.exit(1)
+import mako
+assert Version(mako.__version__) >= Version("0.8.0")
 ''', check: false)
   if has_mako.returncode() != 0
     continue
@@ -1201,10 +1203,12 @@ if not any_python_found
   error('Python ' + python_version_req + ' not found')
 endif
 
-if has_mako.returncode() == 1
-  error('Python (3.x) mako module >= 0.8.0 required to build mesa.')
-elif has_mako.returncode() == 2
+if has_version_module.returncode() != 0
   error('One of Python (3.x) packaging or distutils module is required.')
+endif
+
+if has_mako.returncode() != 0
+  error('Python (3.x) mako module >= 0.8.0 required to build mesa.')
 endif
 
 if has_yaml.returncode() != 0
