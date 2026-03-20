@@ -1154,8 +1154,15 @@ python_version_req = '>= 3.10'
 python_exec_list = ['python3.16', 'python3.15', 'python3.14', 'python3.13',
                     'python3.12', 'python3.11', 'python3.10', 'python3', 'python']
 
-any_python_found = false
+# Tuples of version required for that module, and optional condition without
+# which the module is not required. If any version will do, use the special
+# version ''.
+python_required_modules = {
+  'mako': { 'version': '0.8', 'required_if': true },
+  'yaml': { 'version': '', 'required_if': true },
+}
 
+any_python_found = false
 foreach p : python_exec_list
   prog_python = find_program(p, required : false, version : python_version_req)
   if not prog_python.found()
@@ -1176,23 +1183,32 @@ except:
     continue
   endif
 
-  has_mako = run_command(
-    prog_python, '-c',
-    '''
+  missing_modules = []
+  foreach module_name, module : python_required_modules
+    if not module['required_if']
+      continue
+    endif
+    if module['version'] == ''
+      if run_command(prog_python, '-c', 'import '+ module_name, check: false).returncode() != 0
+        missing_modules += module_name
+      endif
+    else
+      if run_command(prog_python, '-c', '''
 try:
     from packaging.version import Version
 except:
     from distutils.version import StrictVersion as Version
 
-import mako
-assert Version(mako.__version__) >= Version("0.8.0")
-''', check: false)
-  if has_mako.returncode() != 0
-    continue
-  endif
+import @0@
+assert Version(@0@.__version__) >= Version("@1@")
+      '''.format(module_name, module['version']), check: false).returncode() != 0
+        missing_modules += module_name + ' >= ' + module['version']
+      endif
+      # }}
+    endif
+  endforeach
 
-  has_yaml = run_command(prog_python, '-c', 'import yaml', check: false)
-  if has_yaml.returncode() != 0
+  if missing_modules.length() > 0
     continue
   endif
 
@@ -1207,12 +1223,12 @@ if has_version_module.returncode() != 0
   error('One of Python ' + python_version_req + ' packaging or distutils module is required.')
 endif
 
-if has_mako.returncode() != 0
-  error('Python ' + python_version_req + ' mako module >= 0.8.0 required to build mesa.')
-endif
-
-if has_yaml.returncode() != 0
-  error('Python ' + python_version_req + ' yaml module (PyYAML) required to build mesa.')
+if missing_modules.length() > 0
+  warning('Python ' + python_version_req + ' found but is missing some required modules:')
+  foreach module : missing_modules
+    warning('- ' + module)
+  endforeach
+  error('Please install the missing modules and try again')
 endif
 
 # Support systems without ETIME (e.g. FreeBSD)
