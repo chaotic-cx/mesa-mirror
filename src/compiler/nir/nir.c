@@ -3552,7 +3552,8 @@ nir_tex_instr_result_size(const nir_tex_instr *instr)
       return 1;
 
    case nir_texop_descriptor_amd:
-      return instr->sampler_dim == GLSL_SAMPLER_DIM_BUF ? 4 : 8;
+      /* Variable number of components: 4 or 8. */
+      return 0;
 
    case nir_texop_sampler_descriptor_amd:
       return 4;

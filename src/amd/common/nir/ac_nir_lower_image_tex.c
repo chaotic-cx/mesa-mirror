@@ -29,9 +29,11 @@ static void
 replace_with_formatted_load_buffer_amd(nir_builder *b, nir_def *old_def, nir_deref_instr *deref,
                                        nir_def *handle, nir_def *heap_offset, nir_def *vindex,
                                        unsigned access, nir_variable_mode mode,
-                                       unsigned backend_flags, nir_alu_type dest_type)
+                                       unsigned backend_flags, nir_alu_type dest_type,
+                                       enum amd_gfx_level gfx_level)
 {
    nir_def *zero = nir_imm_int(b, 0);
+   nir_def *soffset = zero;
 
    nir_def *desc = nir_build_tex(b, nir_texop_descriptor_amd,
                                  .texture_deref = deref,
@@ -41,7 +43,13 @@ replace_with_formatted_load_buffer_amd(nir_builder *b, nir_def *old_def, nir_der
                                  .dest_type = nir_type_uint32,
                                  .can_speculate = access & ACCESS_CAN_SPECULATE,
                                  .backend_flags = backend_flags);
-   desc->num_components = 4; /* buffer descriptors have 4 components */
+   desc->num_components = gfx_level >= GFX13 ? 8 : 4; /* size of buffer descriptors */
+
+   if (gfx_level >= GFX13) {
+      /* The 5th dword is the format dword. */
+      soffset = nir_channel(b, desc, 4);
+      desc = nir_trim_vector(b, desc, 4);
+   }
 
    assert(vindex->num_components == 1);
 
@@ -92,7 +100,7 @@ replace_with_formatted_load_buffer_amd(nir_builder *b, nir_def *old_def, nir_der
       bit_size = old_def->bit_size;
    }
 
-   nir_def *result = nir_load_buffer_amd(b, num_total_components, bit_size, desc, zero, zero,
+   nir_def *result = nir_load_buffer_amd(b, num_total_components, bit_size, desc, zero, soffset,
                                          vindex,
                                          .memory_modes = mode,
                                          .access = access,
@@ -197,7 +205,7 @@ lower_tex(nir_builder *b, nir_tex_instr *tex, const ac_nir_lower_image_tex_optio
                                              (tex->skip_helpers ? ACCESS_SKIP_HELPERS : 0) |
                                              (tex->is_sparse ? ACCESS_SPARSE : 0),
                                              nir_var_uniform /* nir_var_texture? */, 0,
-                                             tex->dest_type);
+                                             tex->dest_type, options->gfx_level);
       return true;
    }
 
@@ -242,7 +250,7 @@ lower_image(nir_builder *b, nir_intrinsic_instr *intr, const ac_nir_lower_image_
 
       replace_with_formatted_load_buffer_amd(b, &intr->def, deref, handle, heap_offset, vindex, access,
                                              nir_var_image, AC_NIR_TEX_BACKEND_FLAG_IS_IMAGE,
-                                             nir_intrinsic_dest_type(intr));
+                                             nir_intrinsic_dest_type(intr), options->gfx_level);
       return true;
    }
 

@@ -1209,8 +1209,9 @@ validate_tex_instr(nir_tex_instr *instr, validate_state *state)
       validate_assert(state, instr->op == nir_texop_tg4);
 
    validate_def(&instr->def, state);
-   validate_assert(state, instr->def.num_components ==
-                             nir_tex_instr_dest_size(instr));
+   unsigned dest_size = nir_tex_instr_dest_size(instr);
+   /* A zero size means variable number of components */
+   validate_assert(state, instr->def.num_components == dest_size || dest_size == 0);
 
    unsigned bit_size = nir_alu_type_get_type_size(instr->dest_type);
    validate_assert(state,

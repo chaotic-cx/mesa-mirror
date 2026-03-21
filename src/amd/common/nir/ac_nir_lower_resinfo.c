@@ -373,8 +373,8 @@ static bool lower_resinfo(nir_builder *b, nir_instr *instr, void *data)
                new_tex->dest_type = nir_type_int32;
                new_tex->src[0].src = nir_src_for_ssa(tex->src[i].src.ssa);
                new_tex->src[0].src_type = tex->src[i].src_type;
-               nir_def_init(&new_tex->instr, &new_tex->def,
-                            nir_tex_instr_dest_size(new_tex), 32);
+               unsigned num_desc_components = tex->sampler_dim == GLSL_SAMPLER_DIM_BUF ? 4 : 8;
+               nir_def_init(&new_tex->instr, &new_tex->def, num_desc_components, 32);
                nir_builder_instr_insert(b, &new_tex->instr);
                desc = &new_tex->def;
                break;
