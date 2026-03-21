@@ -563,7 +563,10 @@ void si_init_shader_args(struct si_shader *shader, struct si_shader_args *args,
       }
       /* Images in user SGPRs. */
       for (unsigned i = 0; i < shader->info.cs_num_images_in_user_sgprs; i++) {
-         unsigned num_sgprs = BITSET_TEST(info->image_buffers, i) ? 4 : 8;
+         /* On GFX13, image_buffer descriptors are stored as 8 dwords. */
+         unsigned num_sgprs =
+            (BITSET_TEST(info->image_buffers, i) &&
+             sel->screen->info.gfx_level < GFX13) ? 4 : 8;
 
          while (args->ac.num_sgprs_used % num_sgprs != 0)
             ac_add_arg(&args->ac, AC_ARG_SGPR, 1, AC_ARG_VALUE, NULL);

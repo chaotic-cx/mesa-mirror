@@ -2478,8 +2478,11 @@ void si_emit_compute_shader_pointers(struct si_context *sctx)
          unsigned desc_offset = si_get_image_slot(i) * 8;
          unsigned num_sgprs = 8;
 
-         /* Image buffers are in desc[4..7]. */
-         if (shader->info.cs_image_buffer_mask & BITFIELD_BIT(i))
+         /* On pre-GFX13 image buffer descriptors are 4 dwords. On GFX13 we upload
+          * the full 8-dword image slot for buffers.
+          */
+         if ((shader->info.cs_image_buffer_mask & BITFIELD_BIT(i)) &&
+             sctx->gfx_level < GFX13)
             num_sgprs = 4;
 
          radeon_emit_array(&desc->list[desc_offset], num_sgprs);

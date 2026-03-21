@@ -2301,7 +2301,14 @@ static void visit_image_store(struct ac_nir_context *ctx, const nir_intrinsic_in
       vindex =
          LLVMBuildExtractElement(ctx->ac.builder, get_src(ctx, instr->src[1]), ctx->ac.i32_0, "");
 
-      ac_build_buffer_store_format(&ctx->ac, rsrc, src, vindex, ctx->ac.i32_0, ctx->ac.i32_0,
+      LLVMValueRef soffset = ctx->ac.i32_0;
+      if (ctx->ac.gfx_level >= GFX13) {
+         /* load additional dword via soffset */
+         soffset = LLVMBuildExtractElement(ctx->ac.builder, rsrc, LLVMConstInt(ctx->ac.i32, 4, 0), "");
+         rsrc = ac_extract_components(&ctx->ac, rsrc, 0, 4);
+      }
+
+      ac_build_buffer_store_format(&ctx->ac, rsrc, src, vindex, ctx->ac.i32_0, soffset,
                                    args.access, true);
    } else {
       bool level_zero = nir_src_is_const(instr->src[4]) && nir_src_as_uint(instr->src[4]) == 0;
@@ -2403,7 +2410,15 @@ static LLVMValueRef visit_image_atomic(struct ac_nir_context *ctx, const nir_int
 
    LLVMValueRef result;
    if (dim == GLSL_SAMPLER_DIM_BUF) {
-      params[param_count++] = ctx->abi->load_sampler_desc(ctx->abi, dynamic_index, AC_DESC_BUFFER);
+      LLVMValueRef rsrc = ctx->abi->load_sampler_desc(ctx->abi, dynamic_index, AC_DESC_BUFFER);
+
+      /* On GFX13, buffer descriptors loaded for image_buffer are 8 dwords with the
+       * format dword at index 4. Buffer atomics use a regular 4-dword buffer descriptor.
+       */
+      if (ctx->ac.gfx_level >= GFX13 && ac_get_llvm_num_components(rsrc) > 4)
+         rsrc = ac_extract_components(&ctx->ac, rsrc, 0, 4);
+
+      params[param_count++] = rsrc;
       params[param_count++] = LLVMBuildExtractElement(ctx->ac.builder, get_src(ctx, instr->src[1]),
                                                       ctx->ac.i32_0, ""); /* vindex */
       params[param_count++] = ctx->ac.i32_0;                              /* voffset */
@@ -3024,6 +3039,9 @@ static bool visit_intrinsic(struct ac_nir_context *ctx, nir_intrinsic_instr *ins
 
       if (instr->intrinsic == nir_intrinsic_load_buffer_amd && uses_format) {
          assert(instr->def.bit_size == 16 || instr->def.bit_size == 32);
+         /* GFX13: soffset is the 5th dword of the buffer descriptor.
+          * Don't add const_offset to it.
+          */
          result = ac_build_buffer_load_format(&ctx->ac, descriptor, vidx, voffset, addr_soffset,
                                               num_components - is_sparse, access, reorder,
                                               instr->def.bit_size == 16, is_sparse);

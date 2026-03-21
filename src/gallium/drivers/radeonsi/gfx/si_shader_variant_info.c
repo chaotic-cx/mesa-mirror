@@ -392,7 +392,15 @@ void si_get_shader_variant_info(struct si_shader *shader,
             non_fmask_images &= ~nir->info.msaa_images[0];
 
          for (unsigned i = 0; i < 3 && non_fmask_images & (1 << i); i++) {
-            unsigned num_sgprs = BITSET_TEST(nir->info.image_buffers, i) ? 4 : 8;
+            /* On GFX13, image_buffer descriptors need 5 dwords (the 5th dword is the
+             * format dword that ac_nir_lower_image_tex extracts from desc[4] for
+             * load_buffer_amd's soffset). Round up to 8 SGPRs to match regular images
+             * so the user-SGPR fast path in si_nir_lower_resource returns a descriptor
+             * with the correct number of components.
+             */
+            unsigned num_sgprs =
+               (BITSET_TEST(nir->info.image_buffers, i) &&
+                shader->selector->screen->info.gfx_level < GFX13) ? 4 : 8;
 
             if (align(num_user_sgprs, num_sgprs) + num_sgprs > 16)
                break;

@@ -145,13 +145,10 @@ static nir_def *load_image_desc(nir_builder *b, nir_def *list, nir_def *index,
    /* index is in uvec8 unit, convert to offset in bytes */
    nir_def *offset = nir_ishl_imm(b, index, 5);
 
-   unsigned num_channels;
-   if (desc_type == AC_DESC_BUFFER) {
-      num_channels = 4;
-   } else {
-      assert(desc_type == AC_DESC_IMAGE || desc_type == AC_DESC_FMASK);
-      num_channels = 8;
-   }
+   assert(desc_type == AC_DESC_BUFFER || desc_type == AC_DESC_IMAGE || desc_type == AC_DESC_FMASK);
+   unsigned num_channels =
+      ((desc_type == AC_DESC_BUFFER && s->shader->selector->screen->info.gfx_level < GFX13)
+       ? 4 : 8);
 
    nir_def *rsrc = ac_nir_load_smem(b, num_channels, list, offset, 16,
                                     bindless ? 0 : ACCESS_CAN_SPECULATE);
@@ -360,8 +357,11 @@ static bool lower_resource_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin
          desc_type = dim == GLSL_SAMPLER_DIM_BUF ? AC_DESC_BUFFER : AC_DESC_IMAGE;
       }
 
+      unsigned int channels = ((desc_type == AC_DESC_BUFFER
+         && s->shader->selector->screen->info.gfx_level < GFX13) ? 4 : 8);
+
       /* Check if the instruction already sources a descriptor and doesn't need to be lowered. */
-      if (intrin->src[0].ssa->num_components == (desc_type == AC_DESC_BUFFER ? 4 : 8) &&
+      if (intrin->src[0].ssa->num_components == channels &&
           intrin->src[0].ssa->bit_size == 32)
          return false;
 
@@ -389,7 +389,8 @@ static bool lower_resource_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin
 }
 
 static nir_def *load_sampler_desc(nir_builder *b, nir_def *list, nir_def *index,
-                                  enum ac_descriptor_type desc_type, bool bindless)
+                                  enum ac_descriptor_type desc_type, bool bindless,
+                                  struct lower_resource_state *s)
 {
    /* index is in 16 dword unit, convert to offset in bytes */
    nir_def *offset = nir_ishl_imm(b, index, 6);
@@ -401,8 +402,8 @@ static nir_def *load_sampler_desc(nir_builder *b, nir_def *list, nir_def *index,
       num_channels = 8;
       break;
    case AC_DESC_BUFFER:
-      /* The buffer is in [0:3]. */
-      num_channels = 4;
+      /* The buffer is in [0:3] for <GFX13 and [0:7] for >=GFX13. */
+      num_channels = (s->shader->selector->screen->info.gfx_level < GFX13 ? 4 : 8);
       break;
    case AC_DESC_FMASK:
       /* The FMASK is at [8:15]. */
@@ -436,7 +437,7 @@ static nir_def *load_deref_sampler_desc(nir_builder *b, nir_deref_instr *deref,
    if (return_descriptor) {
       nir_def *list = si_nir_load_addr32_arg(s->shader->selector->screen, s->args,
                                              b, s->args->samplers_and_images);
-      return load_sampler_desc(b, list, index, desc_type, false);
+      return load_sampler_desc(b, list, index, desc_type, false, s);
    }
 
    /* Just use index here and let nir-to-llvm backend to translate to actual
@@ -453,7 +454,7 @@ static nir_def *load_bindless_sampler_desc(nir_builder *b, nir_def *index,
    nir_def *list = si_nir_load_addr32_arg(s->shader->selector->screen, s->args,
                                           b, s->args->bindless_samplers_and_images);
 
-   return load_sampler_desc(b, list, index, desc_type, true);
+   return load_sampler_desc(b, list, index, desc_type, true, s);
 }
 
 static nir_def *load_tex_descriptor(nir_builder *b, nir_deref_instr *texture_deref,
