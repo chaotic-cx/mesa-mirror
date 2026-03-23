@@ -226,7 +226,7 @@ tu_lrz_init_state(struct tu_cmd_buffer *cmd,
    bool has_gpu_tracking =
       cmd->device->physical_device->info->props.has_lrz_dir_tracking;
 
-   if (!has_gpu_tracking && !clears_depth)
+   if (!has_gpu_tracking && (!clears_depth || cmd->state.resuming))
       return;
 
    /* We need to always have an LRZ view just to disable it if there is a
