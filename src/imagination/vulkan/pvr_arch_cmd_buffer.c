@@ -1426,7 +1426,7 @@ pvr_sub_cmd_gfx_align_ds_subtiles(struct pvr_cmd_buffer *const cmd_buffer,
       .pNext = NULL,
       .bufferOffset = 0,
       .bufferRowLength = rounded_size.width,
-      .bufferImageHeight = 0,
+      .bufferImageHeight = rounded_size.height,
       .imageSubresource = {
          .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT,
          .mipLevel = ds->iview->vk.base_mip_level,
@@ -1456,6 +1456,7 @@ pvr_sub_cmd_gfx_align_ds_subtiles(struct pvr_cmd_buffer *const cmd_buffer,
       result = pvr_copy_image_to_buffer_region_format(cmd_buffer,
                                                       ds_image,
                                                       buffer->dev_addr,
+                                                      ds_image->alignment,
                                                       &region,
                                                       copy_format,
                                                       copy_format);
@@ -1489,6 +1490,7 @@ pvr_sub_cmd_gfx_align_ds_subtiles(struct pvr_cmd_buffer *const cmd_buffer,
 
       result = pvr_copy_buffer_to_image_region_format(cmd_buffer,
                                                       buffer->dev_addr,
+                                                      ds_image->alignment,
                                                       ds_image,
                                                       &region,
                                                       copy_format,
@@ -1513,6 +1515,7 @@ pvr_sub_cmd_gfx_align_ds_subtiles(struct pvr_cmd_buffer *const cmd_buffer,
    ds->addr = buffer->dev_addr;
    ds->base_array_layer = 0;
    ds->physical_extent = rounded_size;
+   ds->layer_size = buffer_layer_size;
 
    gfx_sub_cmd->wait_on_previous_transfer = true;
 

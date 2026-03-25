@@ -901,6 +901,7 @@ end_cmd_copy_image2:
 VkResult
 pvr_copy_buffer_to_image_region_format(struct pvr_cmd_buffer *const cmd_buffer,
                                        const pvr_dev_addr_t buffer_dev_addr,
+                                       const uint32_t buffer_alignment,
                                        const struct pvr_image *const image,
                                        const VkBufferImageCopy2 *const region,
                                        const VkFormat src_format,
@@ -939,6 +940,7 @@ pvr_copy_buffer_to_image_region_format(struct pvr_cmd_buffer *const cmd_buffer,
 
    buffer_slice_size = height_in_blks * row_length;
    buffer_layer_size = buffer_slice_size * region->imageExtent.depth;
+   buffer_layer_size = align(buffer_layer_size, buffer_alignment);
 
    layer_count =
       vk_image_subresource_layer_count(&image->vk, &region->imageSubresource);
@@ -1010,6 +1012,7 @@ pvr_copy_buffer_to_image_region(struct pvr_cmd_buffer *const cmd_buffer,
                                 const VkBufferImageCopy2 *const region)
 {
    const VkImageAspectFlags aspect_mask = region->imageSubresource.aspectMask;
+   const uint32_t buffer_alignment = 1;
    VkFormat src_format;
    VkFormat dst_format;
    uint32_t flags = 0;
@@ -1040,6 +1043,7 @@ pvr_copy_buffer_to_image_region(struct pvr_cmd_buffer *const cmd_buffer,
 
    return pvr_copy_buffer_to_image_region_format(cmd_buffer,
                                                  buffer_dev_addr,
+                                                 buffer_alignment,
                                                  image,
                                                  region,
                                                  src_format,
@@ -1077,6 +1081,7 @@ VkResult
 pvr_copy_image_to_buffer_region_format(struct pvr_cmd_buffer *const cmd_buffer,
                                        const struct pvr_image *const image,
                                        const pvr_dev_addr_t buffer_dev_addr,
+                                       const uint32_t buffer_alignment,
                                        const VkBufferImageCopy2 *const region,
                                        const VkFormat src_format,
                                        const VkFormat dst_format)
@@ -1110,6 +1115,8 @@ pvr_copy_image_to_buffer_region_format(struct pvr_cmd_buffer *const cmd_buffer,
 
    buffer_slice_size = buffer_image_height * buffer_row_length *
                        vk_format_get_blocksize(dst_format);
+
+   buffer_slice_size = align(buffer_slice_size, buffer_alignment);
 
    max_depth_slice = region->imageExtent.depth + region->imageOffset.z;
 
@@ -1216,7 +1223,9 @@ pvr_copy_image_to_buffer_region(struct pvr_cmd_buffer *const cmd_buffer,
    const VkImageAspectFlags aspect_mask = region->imageSubresource.aspectMask;
 
    VkFormat src_format = pvr_get_copy_format(image->vk.format, aspect_mask);
+   const uint32_t buffer_alignment = 1;
    VkFormat dst_format;
+
 
    /* From the Vulkan spec:
     *
@@ -1249,6 +1258,7 @@ pvr_copy_image_to_buffer_region(struct pvr_cmd_buffer *const cmd_buffer,
    return pvr_copy_image_to_buffer_region_format(cmd_buffer,
                                                  image,
                                                  buffer_dev_addr,
+                                                 buffer_alignment,
                                                  region,
                                                  src_format,
                                                  dst_format);

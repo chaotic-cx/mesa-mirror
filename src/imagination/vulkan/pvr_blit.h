@@ -56,6 +56,7 @@ VkResult pvr_copy_or_resolve_depth_stencil_region(
 VkResult
 pvr_copy_buffer_to_image_region_format(struct pvr_cmd_buffer *cmd_buffer,
                                        pvr_dev_addr_t buffer_dev_addr,
+                                       const uint32_t buffer_alignment,
                                        const struct pvr_image *image,
                                        const VkBufferImageCopy2 *region,
                                        VkFormat src_format,
@@ -66,6 +67,7 @@ VkResult
 pvr_copy_image_to_buffer_region_format(struct pvr_cmd_buffer *cmd_buffer,
                                        const struct pvr_image *image,
                                        pvr_dev_addr_t buffer_dev_addr,
+                                       const uint32_t buffer_alignment,
                                        const VkBufferImageCopy2 *region,
                                        VkFormat src_format,
                                        VkFormat dst_format);
