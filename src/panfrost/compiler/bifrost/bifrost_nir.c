@@ -853,7 +853,8 @@ bifrost_postprocess_nir(nir_shader *nir,
       NIR_PASS(_, nir, bifrost_nir_lower_load_output);
 
       /* Collect format varyings */
-      pan_varying_collect_formats(&info->varyings.formats, nir, gpu_arch);
+      pan_varying_collect_formats(&info->varyings.formats, nir, gpu_arch,
+                                  false);
 
       NIR_PASS(_, nir, pan_nir_resize_varying_io, &info->varyings.formats,
                inputs->varying_layout ?: &info->varyings.formats);
@@ -900,6 +901,11 @@ bifrost_postprocess_nir(nir_shader *nir,
       NIR_PASS(_, nir, pan_nir_lower_vs_outputs, gpu_arch,
                inputs->varying_layout, info->vs.idvs,
                &info->vs.needs_extended_fifo);
+   } else if (nir->info.stage == MESA_SHADER_COMPUTE) {
+      /* This may be a SW VS, which still has a varying layout */
+      if (inputs->varying_layout)
+         memcpy(&info->varyings.formats, inputs->varying_layout,
+                sizeof(*inputs->varying_layout));
    }
 
    NIR_PASS(_, nir, pan_nir_lower_tex, gpu_arch);

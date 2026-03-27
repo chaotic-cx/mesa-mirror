@@ -1612,11 +1612,10 @@ panvk_compile_shader(struct panvk_device *dev,
          NIR_PASS(_, nir, nir_opt_constant_folding);
 
          struct pan_varying_layout varying_layout;
-         if (v == PANVK_VS_VARIANT_HW) {
-            pan_varying_collect_formats(&varying_layout, nir, PAN_ARCH);
-            pan_build_varying_layout_compact(&varying_layout, nir, PAN_ARCH);
-            variant_inputs.varying_layout = &varying_layout;
-         }
+         pan_varying_collect_formats(&varying_layout, nir, PAN_ARCH,
+                                     v == PANVK_VS_VARIANT_SW);
+         pan_build_varying_layout_compact(&varying_layout, nir, PAN_ARCH);
+         variant_inputs.varying_layout = &varying_layout;
 
          if (v == PANVK_VS_VARIANT_SW)
             panvk_nir_lower_compute_vs(nir);
@@ -1701,7 +1700,7 @@ panvk_compile_shader(struct panvk_device *dev,
 
          struct pan_varying_layout varying_layout;
          if (variant - shader->variants == PANVK_GS_VARIANT_RAST) {
-            pan_varying_collect_formats(&varying_layout, nir, PAN_ARCH);
+            pan_varying_collect_formats(&varying_layout, nir, PAN_ARCH, false);
             pan_build_varying_layout_compact(&varying_layout, nir, PAN_ARCH);
             variant_inputs.varying_layout = &varying_layout;
          }

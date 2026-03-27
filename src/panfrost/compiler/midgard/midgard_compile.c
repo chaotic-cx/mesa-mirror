@@ -2986,7 +2986,7 @@ midgard_compile_shader_nir(nir_shader *nir,
       memcpy(&info->varyings.formats, inputs->varying_layout,
              sizeof(*inputs->varying_layout));
    } else if (nir->info.stage == MESA_SHADER_FRAGMENT) {
-      pan_varying_collect_formats(&info->varyings.formats, nir, arch);
+      pan_varying_collect_formats(&info->varyings.formats, nir, arch, false);
       info->varyings.noperspective =
          pan_nir_collect_noperspective_varyings_fs(nir);
    }
