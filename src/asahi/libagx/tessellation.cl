@@ -69,7 +69,8 @@ libagx_tess_setup_indirect(
    if (in_index_size_B) {
       vp->index_buffer =
          poly_index_buffer(in_index_buffer, in_index_buffer_range_el,
-                           indirect[2], in_index_size_B);
+                           indirect[2], in_index_size_B,
+                           nir_load_ro_sink_address_poly());
 
       vp->index_buffer_range_el =
          poly_index_buffer_range_el(in_index_buffer_range_el, indirect[2]);

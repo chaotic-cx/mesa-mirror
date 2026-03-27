@@ -1054,16 +1054,6 @@ hk_heap(struct hk_cmd_buffer *cmd)
 }
 
 static uint64_t
-hk_index_buffer(uint64_t index_buffer, uint size_el, uint offset_el,
-                uint elsize_B)
-{
-   if (offset_el < size_el)
-      return index_buffer + (offset_el * elsize_B);
-   else
-      return AGX_ZERO_PAGE_ADDRESS;
-}
-
-static uint64_t
 hk_upload_vertex_params(struct hk_cmd_buffer *cmd, struct agx_draw draw)
 {
    struct hk_graphics_state *gfx = &cmd->state.gfx;
@@ -1084,8 +1074,9 @@ hk_upload_vertex_params(struct hk_cmd_buffer *cmd, struct agx_draw draw)
       unsigned index_size_B = agx_index_size_to_B(draw.index_size);
       unsigned range_el = agx_draw_index_range_el(draw);
 
-      params.index_buffer = hk_index_buffer(agx_draw_index_buffer(draw),
-                                            range_el, 0, index_size_B);
+      params.index_buffer = poly_index_buffer(agx_draw_index_buffer(draw),
+                                              range_el, 0, index_size_B,
+                                              AGX_ZERO_PAGE_ADDRESS);
 
       params.index_buffer_range_el = range_el;
    }

@@ -197,7 +197,8 @@ poly_unroll_geometry(global uint32_t *out_draw,
    }
 
    uintptr_t in_ptr = (uintptr_t)(poly_index_buffer(
-      index_buffer, index_buffer_range_el, in_draw[2], in_index_size_B));
+      index_buffer, index_buffer_range_el, in_draw[2], in_index_size_B,
+      nir_load_ro_sink_address_poly()));
    uint in_range_el = poly_index_buffer_range_el(
       index_buffer_range_el, in_draw[2]);
 
@@ -278,7 +279,8 @@ poly_count_restart_prims(constant uint *in_draw,
    uint count = in_draw[0];
 
    uintptr_t in_ptr = (uintptr_t)(poly_index_buffer(
-      index_buffer, index_buffer_range_el, in_draw[2], index_size_B));
+      index_buffer, index_buffer_range_el, in_draw[2], index_size_B,
+      nir_load_ro_sink_address_poly()));
    uint in_range_el = poly_index_buffer_range_el(
       index_buffer_range_el, in_draw[2]);
 

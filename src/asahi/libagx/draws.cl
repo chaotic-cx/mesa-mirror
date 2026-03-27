@@ -50,7 +50,8 @@ libagx_draw_without_adj(global VkDrawIndirectCommand *out,
       uint offs = in->firstVertex;
 
       vp->index_buffer = poly_index_buffer(index_buffer, index_buffer_range_el,
-                                           offs, index_size_B);
+                                           offs, index_size_B,
+                                           nir_load_ro_sink_address_poly());
 
       vp->index_buffer_range_el =
          poly_index_buffer_range_el(index_buffer_range_el, offs);
