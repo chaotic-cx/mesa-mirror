@@ -380,6 +380,13 @@ optimizations += [
    # (b!=0.0 ? a : 0.0) * (a!=0.0 ? b : 0.0) -> fmulz(a, b)
    *add_fabs_fneg((('fmul@32(nsz)', ('bcsel', ('fneu', b, 0.0), 'ma', 0.0), ('bcsel', ('fneu', a, 0.0), 'mb', 0.0)),
     ('fmulz', 'ma', 'mb'), has_fmulz), {'ma' : a, 'mb' : b}),
+   # b2f(a != 0.0 && b) * (b ? a : 0.0)
+   *add_fabs_fneg((('fmul@32(nsz)', ('b2f', ('iand', ('fneu', a, 0.0), b)), ('bcsel', b, 'ma', 0.0)),
+    ('fmulz', 'ma', ('b2f', b)), has_fmulz), {'ma' : a}),
+   # b2f(!(a == 0.0 || b)) * (b ? 0.0 : a)
+   *add_fabs_fneg((('fmul@32(nsz)', ('b2f', ('inot', ('ior', ('feq', a, 0.0), b))), ('bcsel', b, 0.0, 'ma')),
+    ('fmulz', 'ma', ('b2f', ('inot', b))), has_fmulz), {'ma' : a}),
+
 
    # (min(abs(a), abs(b)) == 0.0 ? 0.0 : a * b) -> fmulz(a,b)
    *add_fabs_fneg((('bcsel', ('feq', ('fmin', ('fabs', a), ('fabs', b)), 0.0), 0.0, ('fmul@32', 'ma', 'mb')),
@@ -394,6 +401,10 @@ optimizations += [
     ('ffmaz', 'ma', 'mb', c), has_fmulz), {'ma' : a, 'mb' : b}),
    *add_fabs_fneg((('ffma@32(nsz)', 'ma', ('bcsel', ('feq', a, 0.0), 0.0, '#b(is_not_const_zero)'), c),
     ('ffmaz', 'ma', b, c), has_fmulz), {'ma' : a}),
+   *add_fabs_fneg((('ffma@32(nsz)', ('b2f', ('iand', ('fneu', a, 0.0), b)), ('bcsel', b, 'ma', 0.0), c),
+    ('ffmaz', 'ma', ('b2f', b), c), has_fmulz), {'ma' : a}),
+   *add_fabs_fneg((('ffma@32(nsz)', ('b2f', ('inot', ('ior', ('feq', a, 0.0), b))), ('bcsel', b, 0.0, 'ma'), c),
+    ('ffmaz', 'ma', ('b2f', ('inot', b)), c), has_fmulz), {'ma' : a}),
 
    # b == 0.0 ? 1.0 : fexp2(fmul(a, b)) -> fexp2(fmulz(a, b))
    *add_fabs_fneg((('bcsel(nsz,nnan,ninf)', ('feq', b, 0.0), 1.0, ('fexp2', ('fmul@32', a, 'mb'))),
@@ -797,6 +808,10 @@ optimizations.extend([
    (('bcsel(is_only_used_as_float_nsz)', ('fneu', a, 0.0), a, 0.0), a),
    (('bcsel(is_only_used_as_float_nsz)', ('feq', a, 0.0), -0.0, a),  a),
    (('bcsel(is_only_used_as_float_nsz)', ('fneu', a, 0.0), a, -0.0), a),
+   (('bcsel(is_only_used_as_float_nsz)', ('ior',  ('feq', a, 0.0),  b), 0.0, a), ('bcsel', b, 0, a)),
+   (('bcsel(is_only_used_as_float_nsz)', ('iand', ('fneu', a, 0.0), b), a, 0.0), ('bcsel', b, a, 0)),
+   (('bcsel(is_only_used_as_float_nsz)', ('ior',  ('feq', a, 0.0),  b), -0.0, a), ('bcsel', b, 0, a)),
+   (('bcsel(is_only_used_as_float_nsz)', ('iand', ('fneu', a, 0.0), b), a, -0.0), ('bcsel', b, a, 0)),
    (('bcsel', ('feq', a, 0), 0, ('fsat', ('fmul', a, 'b(is_a_number)'))), ('fsat(preserve_sz)', ('fmul', a, b))),
    (('bcsel', ('fneu', a, 0), ('fsat', ('fmul', a, 'b(is_a_number)')), 0), ('fsat(preserve_sz)', ('fmul', a, b))),
    (('bcsel', ('feq', a, 0), 0, ('fsat', ('fmul_rtz', a, 'b(is_a_number)'))), ('fsat(preserve_sz)', ('fmul_rtz', a, b))),
