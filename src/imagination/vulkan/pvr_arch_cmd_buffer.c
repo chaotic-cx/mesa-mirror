@@ -1577,8 +1577,10 @@ pvr_setup_emit_state(const struct pvr_device_info *dev_info,
             continue;
 
          const struct pvr_image *image = pvr_image_view_get_image(iview);
+
          if (PVR_HAS_FEATURE(dev_info, gs_rta_support) &&
-             rstate->layers > 1) {
+             rstate->layers > 1 &&
+             image->memlayout != PVR_MEMLAYOUT_3DTWIDDLED) {
             const struct pvr_image_plane *plane = pvr_single_plane_const(image);
 
             emit_state->layer_size[emit_state->emit_count] = plane->layer_size;
