@@ -2259,7 +2259,9 @@ static void pvr_clear_attachments(struct pvr_cmd_buffer *cmd_buffer,
                if (result != VK_SUCCESS)
                   return;
 
-               continue;
+               if (clear_rect->baseArrayLayer != 0)
+                  continue;
+
             } else {
                pvr_finishme(
                   "incomplete support for deferred (emulated) RTA clears");
