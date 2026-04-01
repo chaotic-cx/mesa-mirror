@@ -36,6 +36,25 @@ struct constant_fold_state {
    bool has_indirect_load_const;
 };
 
+static nir_def *
+const_value_for_alu(nir_builder *b, nir_alu_instr *alu, unsigned bit_size,
+                    nir_const_value src[NIR_ALU_MAX_INPUTS][NIR_MAX_VEC_COMPONENTS])
+{
+   nir_const_value dest[NIR_MAX_VEC_COMPONENTS];
+   nir_const_value *srcs[NIR_ALU_MAX_INPUTS];
+
+   memset(dest, 0, sizeof(dest));
+   for (unsigned i = 0; i < nir_op_infos[alu->op].num_inputs; ++i)
+      srcs[i] = src[i];
+
+   nir_eval_const_opcode(alu->op, dest, NULL, alu->def.num_components,
+                         bit_size, srcs,
+                         b->shader->info.float_controls_execution_mode);
+
+   return nir_build_imm(b, alu->def.num_components, alu->def.bit_size,
+                        dest);
+}
+
 nir_def *
 nir_try_constant_fold_alu(nir_builder *b, nir_alu_instr *alu)
 {
@@ -72,18 +91,7 @@ nir_try_constant_fold_alu(nir_builder *b, nir_alu_instr *alu)
    if (bit_size == 0)
       bit_size = 32;
 
-   nir_const_value dest[NIR_MAX_VEC_COMPONENTS];
-   nir_const_value *srcs[NIR_ALU_MAX_INPUTS];
-   memset(dest, 0, sizeof(dest));
-   for (unsigned i = 0; i < nir_op_infos[alu->op].num_inputs; ++i)
-      srcs[i] = src[i];
-   nir_eval_const_opcode(alu->op, dest, NULL, alu->def.num_components,
-                         bit_size, srcs,
-                         b->shader->info.float_controls_execution_mode);
-
-   return nir_build_imm(b, alu->def.num_components,
-                                alu->def.bit_size,
-                                dest);
+   return const_value_for_alu(b, alu, bit_size, src);
 }
 
 static nir_const_value *
