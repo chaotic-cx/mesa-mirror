@@ -2310,10 +2310,10 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
       .combinedImageSamplerDescriptorSize = radv_get_combined_image_sampler_desc_size(pdev),
       .sampledImageDescriptorSize = radv_get_sampled_image_desc_size(pdev),
       .storageImageDescriptorSize = RADV_STORAGE_IMAGE_DESC_SIZE,
-      .uniformTexelBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
-      .robustUniformTexelBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
-      .storageTexelBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
-      .robustStorageTexelBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
+      .uniformTexelBufferDescriptorSize = radv_get_texel_buffer_desc_size(pdev),
+      .robustUniformTexelBufferDescriptorSize = radv_get_texel_buffer_desc_size(pdev),
+      .storageTexelBufferDescriptorSize = radv_get_texel_buffer_desc_size(pdev),
+      .robustStorageTexelBufferDescriptorSize = radv_get_texel_buffer_desc_size(pdev),
       .uniformBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
       .robustUniformBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
       .storageBufferDescriptorSize = RADV_BUFFER_DESC_SIZE,
@@ -3808,10 +3808,11 @@ radv_GetPhysicalDeviceDescriptorSizeEXT(VkPhysicalDevice physicalDevice, VkDescr
       return pdev->vk.properties.imageDescriptorSize;
    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
       return RADV_STORAGE_IMAGE_DESC_SIZE;
-   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
    case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
    case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+      return radv_get_texel_buffer_desc_size(pdev);
+   case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+   case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
       return pdev->vk.properties.bufferDescriptorSize;
    default:

@@ -513,7 +513,7 @@ radv_compute_copy_memory_to_image_indirect(struct radv_cmd_buffer *cmd_buffer,
                                            },
                                         }}});
 
-         uint32_t buffer_view_desc[4];
+         uint32_t buffer_view_desc[8];
          radv_make_texel_buffer_descriptor(device, 0, img_bsurf.format, ~0, buffer_view_desc);
 
          const uint64_t copy_addr = pCopyMemoryToImageIndirectInfo->copyAddressRange.address +

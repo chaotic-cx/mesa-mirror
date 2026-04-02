@@ -66,8 +66,16 @@ radv_make_texel_buffer_descriptor(struct radv_device *device, uint64_t va, VkFor
    };
 
    ac_build_buffer_descriptor(pdev->info.gfx_level, &ac_state, state);
-   if (pdev->info.gfx_level >= GFX13)
+   if (pdev->info.gfx_level >= GFX13) {
       ac_set_buf_desc_word4(pdev->info.gfx_level, &ac_state, state + 4);
+
+      /* GFX13 texel buffer descriptors require 3-dword padding and it should be always cleared
+       * since descriptor writes require same bit pattern for the advertised size.
+       */
+      state[5] = 0;
+      state[6] = 0;
+      state[7] = 0;
+   }
 }
 
 VKAPI_ATTR VkResult VKAPI_CALL

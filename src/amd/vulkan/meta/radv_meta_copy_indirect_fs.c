@@ -346,7 +346,7 @@ radv_gfx_copy_memory_to_image_indirect(struct radv_cmd_buffer *cmd_buffer,
          radv_meta_push_constants(cmd_buffer, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(vertex_push_constants),
                                   vertex_push_constants);
 
-         uint32_t buffer_view_desc[4];
+         uint32_t buffer_view_desc[8];
          radv_make_texel_buffer_descriptor(device, 0, format, ~0, buffer_view_desc);
 
          const uint32_t fragment_push_constants[7] = {

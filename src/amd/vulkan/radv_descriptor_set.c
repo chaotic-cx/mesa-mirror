@@ -97,7 +97,8 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
 
    uint32_t first_alignment = 32;
    if (pCreateInfo->bindingCount > 0) {
-      uint32_t last_alignment = radv_descriptor_alignment(bindings[pCreateInfo->bindingCount - 1].descriptorType);
+      uint32_t last_alignment =
+         radv_descriptor_alignment(pdev->info.gfx_level, bindings[pCreateInfo->bindingCount - 1].descriptorType);
       if (bindings[pCreateInfo->bindingCount - 1].descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
          uint64_t mutable_size = 0, mutable_align = 0;
          radv_mutable_descriptor_type_size_alignment(device, &sorted->mutable_type_lists[pCreateInfo->bindingCount - 1],
@@ -113,7 +114,7 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
          const VkDescriptorSetLayoutBinding *binding = bindings + j;
          const VkDescriptorBindingFlags binding_flags = sorted->flags[j];
          uint32_t b = binding->binding;
-         uint32_t alignment = radv_descriptor_alignment(binding->descriptorType);
+         uint32_t alignment = radv_descriptor_alignment(pdev->info.gfx_level, binding->descriptorType);
          uint32_t descriptor_count = binding->descriptorCount;
          uint32_t max_sampled_image_descriptors = 1;
          bool has_ycbcr_sampler = false;
@@ -143,9 +144,11 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
             break;
          case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
          case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+            set_layout->binding[b].size = RADV_BUFFER_DESC_SIZE;
+            break;
          case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
          case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-            set_layout->binding[b].size = RADV_BUFFER_DESC_SIZE;
+            set_layout->binding[b].size = radv_get_texel_buffer_desc_size(pdev);
             break;
          case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
             set_layout->binding[b].size = RADV_STORAGE_IMAGE_DESC_SIZE;
@@ -269,7 +272,8 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
 
    uint32_t first_alignment = 32;
    if (pCreateInfo->bindingCount > 0) {
-      uint32_t last_alignment = radv_descriptor_alignment(bindings[pCreateInfo->bindingCount - 1].descriptorType);
+      uint32_t last_alignment =
+         radv_descriptor_alignment(pdev->info.gfx_level, bindings[pCreateInfo->bindingCount - 1].descriptorType);
       if (bindings[pCreateInfo->bindingCount - 1].descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
          uint64_t mutable_size = 0, mutable_align = 0;
          radv_mutable_descriptor_type_size_alignment(device, &sorted->mutable_type_lists[pCreateInfo->bindingCount - 1],
@@ -288,7 +292,7 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
          const VkDescriptorBindingFlags binding_flags = sorted->flags[i];
 
          uint64_t descriptor_size = 0;
-         uint64_t descriptor_alignment = radv_descriptor_alignment(binding->descriptorType);
+         uint64_t descriptor_alignment = radv_descriptor_alignment(pdev->info.gfx_level, binding->descriptorType);
          uint32_t descriptor_count = binding->descriptorCount;
          switch (binding->descriptorType) {
          case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC:
@@ -296,9 +300,11 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
             break;
          case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
          case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+            descriptor_size = RADV_BUFFER_DESC_SIZE;
+            break;
          case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
          case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-            descriptor_size = RADV_BUFFER_DESC_SIZE;
+            descriptor_size = radv_get_texel_buffer_desc_size(pdev);
             break;
          case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
             descriptor_size = RADV_STORAGE_IMAGE_DESC_SIZE;
@@ -596,7 +602,7 @@ radv_update_descriptor_sets_impl(struct radv_device *device, struct radv_cmd_buf
             break;
          case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
          case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-            radv_write_texel_buffer_descriptor(ptr, writeset->pTexelBufferView[j]);
+            radv_write_texel_buffer_descriptor(device, ptr, writeset->pTexelBufferView[j]);
             break;
          case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
             radv_write_image_descriptor(ptr, RADV_STORAGE_IMAGE_DESC_SIZE, writeset->descriptorType,

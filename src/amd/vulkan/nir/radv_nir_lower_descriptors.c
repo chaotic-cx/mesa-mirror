@@ -344,7 +344,7 @@ get_sampler_desc(nir_builder *b, lower_descriptors_state *state, nir_deref_instr
       size = RADV_SAMPLER_DESC_SIZE / 4;
       break;
    case AC_DESC_BUFFER:
-      size = RADV_BUFFER_DESC_SIZE / 4;
+      size = (state->gfx_level >= GFX13 ? RADV_TEXEL_BUFFER_DESC_SIZE_GFX13 : RADV_BUFFER_DESC_SIZE) / 4;
       break;
    case AC_DESC_PLANE_2:
       offset += 2 * plane_offset;

@@ -24,23 +24,24 @@
 
 #include <vulkan/vulkan.h>
 
-uint32_t radv_descriptor_alignment(VkDescriptorType type);
+uint32_t radv_descriptor_alignment(enum amd_gfx_level gfx_level, VkDescriptorType type);
 
 bool radv_mutable_descriptor_type_size_alignment(const struct radv_device *device,
                                                  const VkMutableDescriptorTypeListEXT *list, uint64_t *out_size,
                                                  uint64_t *out_align);
 
 static ALWAYS_INLINE void
-radv_write_texel_buffer_descriptor(unsigned *dst, const VkBufferView _buffer_view)
+radv_write_texel_buffer_descriptor(struct radv_device *device, unsigned *dst, const VkBufferView _buffer_view)
 {
    VK_FROM_HANDLE(radv_buffer_view, buffer_view, _buffer_view);
+   unsigned desc_size = radv_get_texel_buffer_desc_size(radv_device_physical(device));
 
    if (!buffer_view) {
-      memset(dst, 0, RADV_BUFFER_DESC_SIZE);
+      memset(dst, 0, desc_size);
       return;
    }
 
-   memcpy(dst, buffer_view->state, RADV_BUFFER_DESC_SIZE);
+   memcpy(dst, buffer_view->state, desc_size);
 }
 
 static ALWAYS_INLINE void

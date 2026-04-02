@@ -302,6 +302,12 @@ radv_get_sampled_image_desc_size(const struct radv_physical_device *pdev)
 }
 
 static inline uint32_t
+radv_get_texel_buffer_desc_size(const struct radv_physical_device *pdev)
+{
+   return pdev->info.gfx_level >= GFX13 ? RADV_TEXEL_BUFFER_DESC_SIZE_GFX13 : RADV_BUFFER_DESC_SIZE;
+}
+
+static inline uint32_t
 radv_get_combined_image_sampler_desc_size(const struct radv_physical_device *pdev)
 {
    const uint32_t image_desc_size = radv_get_sampled_image_desc_size(pdev);

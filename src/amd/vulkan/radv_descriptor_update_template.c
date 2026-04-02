@@ -170,7 +170,7 @@ radv_update_descriptor_set_with_template_impl(struct radv_device *device, struct
             break;
          case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
          case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-            radv_write_texel_buffer_descriptor(pDst, *(VkBufferView *)pSrc);
+            radv_write_texel_buffer_descriptor(device, pDst, *(VkBufferView *)pSrc);
             break;
          case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
             radv_write_image_descriptor(pDst, RADV_STORAGE_IMAGE_DESC_SIZE, templ->entry[i].descriptor_type,

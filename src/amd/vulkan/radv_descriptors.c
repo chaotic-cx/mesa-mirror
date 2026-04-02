@@ -16,17 +16,18 @@ static_assert(RADV_SAMPLER_DESC_SIZE == 16 && RADV_BUFFER_DESC_SIZE == 16 && RAD
               "Sampler/buffer/acceleration structure descriptor sizes must match.");
 
 uint32_t
-radv_descriptor_alignment(VkDescriptorType type)
+radv_descriptor_alignment(enum amd_gfx_level gfx_level, VkDescriptorType type)
 {
    switch (type) {
    case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
    case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-   case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
-   case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
    case VK_DESCRIPTOR_TYPE_SAMPLER:
    case VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK:
    case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
       return 16;
+   case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+   case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+      return gfx_level >= GFX13 ? 32 : 16;
    case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
    case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
    case VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT:
@@ -49,15 +50,17 @@ radv_mutable_descriptor_type_size_alignment(const struct radv_device *device,
 
    for (uint32_t i = 0; i < list->descriptorTypeCount; i++) {
       uint32_t size = 0;
-      uint32_t align = radv_descriptor_alignment(list->pDescriptorTypes[i]);
+      uint32_t align = radv_descriptor_alignment(pdev->info.gfx_level, list->pDescriptorTypes[i]);
 
       switch (list->pDescriptorTypes[i]) {
       case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
       case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
-      case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
-      case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
       case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
          size = RADV_BUFFER_DESC_SIZE;
+         break;
+      case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
+      case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
+         size = radv_get_texel_buffer_desc_size(pdev);
          break;
       case VK_DESCRIPTOR_TYPE_SAMPLER:
          size = RADV_SAMPLER_DESC_SIZE;
@@ -159,7 +162,7 @@ radv_GetDescriptorEXT(VkDevice _device, const VkDescriptorGetInfoEXT *pDescripto
          radv_make_texel_buffer_descriptor(device, addr_info->address, addr_info->format, addr_info->range,
                                            pDescriptor);
       } else {
-         memset(pDescriptor, 0, RADV_BUFFER_DESC_SIZE);
+         memset(pDescriptor, 0, radv_get_texel_buffer_desc_size(pdev));
       }
       break;
    }
@@ -255,7 +258,7 @@ radv_WriteResourceDescriptorsEXT(VkDevice _device, uint32_t resourceCount,
             radv_make_texel_buffer_descriptor(device, desc_info->addressRange.address, desc_info->format,
                                               desc_info->addressRange.size, host_addr_range->address);
          } else {
-            memset(host_addr_range->address, 0, RADV_BUFFER_DESC_SIZE);
+            memset(host_addr_range->address, 0, radv_get_texel_buffer_desc_size(pdev));
          }
          break;
       }
