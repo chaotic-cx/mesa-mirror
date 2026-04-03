@@ -1970,6 +1970,18 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
    if (dim == GLSL_SAMPLER_DIM_BUF) {
       Temp rsrc = bld.as_uniform(get_ssa_temp(ctx, instr->src[0].ssa));
       Temp vindex = emit_extract_vector(ctx, get_ssa_temp(ctx, instr->src[1].ssa), 0, v1);
+
+      /* GFX13: buffer desc are 5 DWORDs; extract dword 4 (format) as soffset. */
+      Operand soffset = Operand::c32(0);
+      if (ctx->program->gfx_level >= GFX13) {
+         soffset = Operand(emit_extract_vector(ctx, rsrc, 4, s1));
+         rsrc = bld.pseudo(aco_opcode::p_create_vector, bld.def(s4),
+                           emit_extract_vector(ctx, rsrc, 0, s1),
+                           emit_extract_vector(ctx, rsrc, 1, s1),
+                           emit_extract_vector(ctx, rsrc, 2, s1),
+                           emit_extract_vector(ctx, rsrc, 3, s1));
+      }
+
       aco_opcode opcode;
       if (!d16) {
          switch (dmask) {
@@ -1991,7 +2003,7 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
       aco_ptr<Instruction> store{create_instruction(opcode, Format::MUBUF, 6, 0)};
       store->operands[0] = Operand(rsrc);
       store->operands[1] = Operand(vindex);
-      store->operands[2] = Operand::c32(0);
+      store->operands[2] = soffset;
       store->operands[3] = Operand(data);
       store->mubuf().idxen = true;
       store->mubuf().cache = cache;
@@ -2139,6 +2151,18 @@ visit_image_atomic(isel_context* ctx, nir_intrinsic_instr* instr)
    if (dim == GLSL_SAMPLER_DIM_BUF) {
       Temp vindex = emit_extract_vector(ctx, get_ssa_temp(ctx, instr->src[1].ssa), 0, v1);
       Temp resource = bld.as_uniform(get_ssa_temp(ctx, instr->src[0].ssa));
+
+      /* On GFX13, buffer descriptors loaded for image_buffer are 8 dwords with the
+       * format dword at index 4. Buffer atomics use a regular 4-dword buffer descriptor.
+       */
+      if (ctx->program->gfx_level >= GFX13 && resource.size() > 4) {
+         resource = bld.pseudo(aco_opcode::p_create_vector, bld.def(s4),
+                               emit_extract_vector(ctx, resource, 0, s1),
+                               emit_extract_vector(ctx, resource, 1, s1),
+                               emit_extract_vector(ctx, resource, 2, s1),
+                               emit_extract_vector(ctx, resource, 3, s1));
+      }
+
       // assert(ctx->options->gfx_level < GFX9 && "GFX9 stride size workaround not yet
       // implemented.");
       aco_ptr<Instruction> mubuf{create_instruction(is_64bit ? buf_op64 : buf_op, Format::MUBUF, 6,
