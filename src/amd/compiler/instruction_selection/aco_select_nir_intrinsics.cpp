@@ -1546,12 +1546,13 @@ visit_load_constant(isel_context* ctx, nir_intrinsic_instr* instr)
 
    Builder bld(ctx->program, ctx->block);
 
-   uint32_t desc[4];
-   ac_build_raw_buffer_descriptor(ctx->options->gfx_level,
-                                  ctx->program->dev.has_desc_resource_level, 0, 0, desc);
-
    unsigned base = nir_intrinsic_base(instr);
    unsigned range = nir_intrinsic_range(instr);
+   uint64_t num_records = MIN2(base + range, ctx->shader->constant_data_size);
+
+   uint32_t desc[4];
+   ac_build_raw_buffer_descriptor(ctx->options->gfx_level,
+                                  ctx->program->dev.has_desc_resource_level, 0, num_records, desc);
 
    Temp offset = get_ssa_temp(ctx, instr->src[0].ssa);
    if (base && offset.type() == RegType::sgpr)
@@ -1560,11 +1561,23 @@ visit_load_constant(isel_context* ctx, nir_intrinsic_instr* instr)
    else if (base && offset.type() == RegType::vgpr)
       offset = bld.vadd32(bld.def(v1), Operand::c32(base), offset);
 
-   Temp rsrc = bld.pseudo(aco_opcode::p_create_vector, bld.def(s4),
-                          bld.pseudo(aco_opcode::p_constaddr, bld.def(s2), bld.def(s1, scc),
-                                     Operand::c32(ctx->constant_data_offset)),
-                          Operand::c32(MIN2(base + range, ctx->shader->constant_data_size)),
-                          Operand::c32(desc[3]));
+   Temp rsrc;
+   Temp addr = bld.pseudo(aco_opcode::p_constaddr, bld.def(s2), bld.def(s1, scc),
+                          Operand::c32(ctx->constant_data_offset));
+   if (ctx->options->gfx_level >= GFX13) {
+      emit_split_vector(ctx, addr, 2);
+      Temp addr_lo = emit_extract_vector(ctx, addr, 0, s1);
+      Temp addr_hi = emit_extract_vector(ctx, addr, 1, s1);
+
+      Temp dword1 = bld.sop2(aco_opcode::s_pack_lh_b32_b16, bld.def(s1), addr_hi,
+                             Operand::c32(desc[1]));
+
+      rsrc = bld.pseudo(aco_opcode::p_create_vector, bld.def(s4), addr_lo, dword1,
+                        Operand::c32(desc[2]), Operand::c32(desc[3]));
+   } else {
+      rsrc = bld.pseudo(aco_opcode::p_create_vector, bld.def(s4), addr, Operand::c32(num_records),
+                        Operand::c32(desc[3]));
+   }
    unsigned size = instr->def.bit_size / 8;
    load_buffer(ctx, instr->num_components, size, dst, rsrc, offset, nir_intrinsic_align_mul(instr),
                nir_intrinsic_align_offset(instr), nir_intrinsic_access(instr) | ACCESS_CAN_REORDER);
