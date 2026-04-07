@@ -65,7 +65,6 @@ dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed29,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed29_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed2_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed3,Fail
-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed30,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed30_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed31,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed31_multiview,Fail
@@ -87,7 +86,6 @@ dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed39,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed39_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed3_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed4,Fail
-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed40,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed40_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed41,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed41_multiview,Fail
@@ -113,7 +111,6 @@ dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed50,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed50_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed51,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed51_multiview,Fail
-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed52,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed52_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed53,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed53_multiview,Fail
@@ -178,11 +175,9 @@ dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed80,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed80_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed81,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed81_multiview,Fail
-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed82,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed82_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed83,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed83_multiview,Fail
-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed84,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed84_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed85,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed85_multiview,Fail
@@ -202,7 +197,6 @@ dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed91,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed91_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed92,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed92_multiview,Fail
-dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed93,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed93_multiview,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed94,Fail
 dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.random.seed94_multiview,Fail

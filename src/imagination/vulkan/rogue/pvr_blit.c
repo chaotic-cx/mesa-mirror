@@ -1973,8 +1973,14 @@ static VkResult pvr_add_deferred_rta_clear(struct pvr_cmd_buffer *cmd_buffer,
    image = vk_to_pvr_image(image_view->vk.image);
 
    for (uint32_t i = 0; i < rect->layerCount; i++) {
-      struct pvr_transfer_cmd *transfer_cmd =
-         pvr_transfer_cmd_alloc(cmd_buffer);
+      struct pvr_transfer_cmd *transfer_cmd;
+      uint32_t rt_id = rect->baseArrayLayer + i;
+
+      /* Do not defer the clear of active render target */
+      if (hw_render->view_mask & (1 << rt_id))
+         continue;
+
+      transfer_cmd = pvr_transfer_cmd_alloc(cmd_buffer);
 
       list_addtail(&transfer_cmd->link, &cmd_buffer->deferred_clears);
 
