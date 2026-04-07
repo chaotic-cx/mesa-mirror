@@ -136,6 +136,7 @@ static void pvr_cmd_buffer_free_sub_cmd(struct pvr_cmd_buffer *cmd_buffer,
                            VK_COMMAND_BUFFER_USAGE_RENDER_PASS_CONTINUE_BIT);
 
          util_dynarray_fini(&sub_cmd->gfx.sec_query_indices);
+         util_dynarray_fini(&sub_cmd->gfx.unbound_deferred_clears);
          pvr_csb_finish(&sub_cmd->gfx.control_stream);
          pvr_bo_free(cmd_buffer->device, sub_cmd->gfx.terminate_ctrl_stream);
          pvr_bo_free(cmd_buffer->device, sub_cmd->gfx.multiview_ctrl_stream);
@@ -2753,6 +2754,7 @@ VkResult pvr_arch_cmd_buffer_start_sub_cmd(struct pvr_cmd_buffer *cmd_buffer,
       }
 
       sub_cmd->gfx.sec_query_indices = UTIL_DYNARRAY_INIT;
+      sub_cmd->gfx.unbound_deferred_clears = UTIL_DYNARRAY_INIT;
       break;
 
    case PVR_SUB_CMD_TYPE_QUERY:
@@ -9034,6 +9036,17 @@ pvr_execute_graphics_cmd_buffer(struct pvr_cmd_buffer *cmd_buffer,
 
          util_dynarray_append_dynarray(&state->query_indices,
                                        &sec_sub_cmd->gfx.sec_query_indices);
+      }
+
+      if (!PVR_HAS_FEATURE(dev_info, gs_rta_support)) {
+         util_dynarray_foreach (&sec_sub_cmd->gfx.unbound_deferred_clears,
+                                struct pvr_unbound_deferred_clear,
+                                recorded_clear) {
+            result =
+               pvr_bind_unbound_deferred_clear(cmd_buffer, recorded_clear);
+            if (result != VK_SUCCESS)
+               return result;
+         }
       }
 
       if (pvr_cmd_uses_deferred_cs_cmds(sec_cmd_buffer)) {
