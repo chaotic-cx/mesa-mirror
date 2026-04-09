@@ -584,7 +584,7 @@
         "description": "anv: Fix address bit masking for indirect SBTs",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ce68824bdfb05379f0e682165588528a11b05214",
         "notes": null
