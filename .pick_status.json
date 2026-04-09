@@ -574,7 +574,7 @@
         "description": "anv: Fix support for indirect SBTs on Xe3+",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "6deb1950a4b632b9c1b0af88ad949a4dcf6d4257",
         "notes": null

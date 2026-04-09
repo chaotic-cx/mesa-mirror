@@ -1030,6 +1030,7 @@ cmd_buffer_emit_rt_dispatch_globals(struct anv_cmd_buffer *cmd_buffer,
    return rtdg_state;
 }
 
+#if GFX_VER < 30
 static struct mi_value
 mi_build_sbt_entry(struct mi_builder *b,
                    uint64_t addr_field_addr,
@@ -1041,6 +1042,7 @@ mi_build_sbt_entry(struct mi_builder *b,
                  mi_ishl_imm(b, mi_mem32(anv_address_from_u64(stride_field_addr)),
                                 48));
 }
+#endif
 
 static struct anv_state
 cmd_buffer_emit_rt_dispatch_globals_indirect(struct anv_cmd_buffer *cmd_buffer,
@@ -1086,6 +1088,7 @@ cmd_buffer_emit_rt_dispatch_globals_indirect(struct anv_cmd_buffer *cmd_buffer,
    /* Fill the MissGroupTable, HitGroupTable & CallableGroupTable fields of
     * RT_DISPATCH_GLOBALS using the mi_builder.
     */
+#if GFX_VER < 30
    mi_store(&b,
             mi_mem64(
                anv_address_add(
@@ -1122,7 +1125,82 @@ cmd_buffer_emit_rt_dispatch_globals_indirect(struct anv_cmd_buffer *cmd_buffer,
                                params->indirect_sbts_addr +
                                offsetof(VkTraceRaysIndirectCommand2KHR,
                                         callableShaderBindingTableStride)));
+#else
+   mi_store(&b,
+            mi_mem64(
+               anv_address_add(
+                  rtdg_addr,
+                  GENX(RT_DISPATCH_GLOBALS_MissGroupTable_start) / 8)),
+            mi_mem64(
+               anv_address_from_u64(
+                  params->indirect_sbts_addr +
+                  offsetof(VkTraceRaysIndirectCommand2KHR,
+                           missShaderBindingTableAddress))));
+   mi_store(&b,
+            mi_mem64(
+               anv_address_add(
+                  rtdg_addr,
+                  GENX(RT_DISPATCH_GLOBALS_HitGroupTable_start) / 8)),
+            mi_mem64(
+               anv_address_from_u64(
+                  params->indirect_sbts_addr +
+                  offsetof(VkTraceRaysIndirectCommand2KHR,
+                           hitShaderBindingTableAddress))));
+   mi_store(&b,
+            mi_mem64(
+               anv_address_add(
+                  rtdg_addr,
+                  GENX(RT_DISPATCH_GLOBALS_CallableGroupTable_start) / 8)),
+            mi_mem64(
+               anv_address_from_u64(
+                  params->indirect_sbts_addr +
+                  offsetof(VkTraceRaysIndirectCommand2KHR,
+                           callableShaderBindingTableAddress))));
 
+   /* The hit and miss group stride on Xe3+ are smashed into the same dword,
+    * along with the max bvh levels.
+    */
+   struct mi_value hit_stride_bits =
+      mi_ishl_imm(&b,
+                  mi_iand(&b,
+                          mi_mem32(
+                             anv_address_from_u64(
+                                params->indirect_sbts_addr +
+                                offsetof(VkTraceRaysIndirectCommand2KHR,
+                                         hitShaderBindingTableStride))),
+                          mi_imm(BITFIELD_MASK(13))),
+                  GENX(RT_DISPATCH_GLOBALS_HitGroupStride_start) % 32);
+   struct mi_value miss_stride_bits =
+      mi_ishl_imm(&b,
+                  mi_iand(&b,
+                          mi_mem32(
+                             anv_address_from_u64(
+                                params->indirect_sbts_addr +
+                                offsetof(VkTraceRaysIndirectCommand2KHR,
+                                         missShaderBindingTableStride))),
+                          mi_imm(BITFIELD_MASK(13))),
+                  GENX(RT_DISPATCH_GLOBALS_MissGroupStride_start) % 32);
+   mi_store(&b,
+            mi_mem32(
+               anv_address_add(
+                  rtdg_addr,
+                  GENX(RT_DISPATCH_GLOBALS_HitGroupStride_start) / 32 * 4)),
+            mi_ior(&b,
+                   mi_ior(&b, hit_stride_bits, miss_stride_bits),
+                   mi_imm(BRW_RT_MAX_BVH_LEVELS)));
+   mi_store(&b,
+            mi_mem32(
+               anv_address_add(
+                  rtdg_addr,
+                  GENX(RT_DISPATCH_GLOBALS_CallableGroupStride_start) / 8)),
+            mi_iand(&b,
+                    mi_mem32(
+                       anv_address_from_u64(
+                          params->indirect_sbts_addr +
+                          offsetof(VkTraceRaysIndirectCommand2KHR,
+                                   callableShaderBindingTableStride))),
+                    mi_imm(BITFIELD_MASK(13))));
+#endif
    return rtdg_state;
 }
 
