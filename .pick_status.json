@@ -1644,7 +1644,7 @@
         "description": "pvr: wait for graphics jobs in CopyQueryPoolResults",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "24b1e3946cc7e679a31aa07bd731464c900c1df7",
         "notes": null
