@@ -3051,6 +3051,10 @@ tu_trace_end_render_pass(struct tu_cmd_buffer *cmd, bool gmem)
 static void
 tu_renderpass_begin(struct tu_cmd_buffer *cmd)
 {
+   if (cmd->state.pass->warn_fdm_force_disabled) {
+      trace_warning_fdm_force_disabled(&cmd->trace, &cmd->cs, cmd);
+   }
+
    /* We need to re-emit any draw states that are patched in order for them to
     * be correctly added to the per-renderpass patchpoint list, even if they
     * are the same as before.

@@ -76,7 +76,25 @@ static const struct {
    [UPDATE_BUFFER_STAGE_ID] = { "Update Buffer", "" },
    [SLOW_CLEAR_LRZ_STAGE_ID] = { "Slow Clear LRZ", "Perform slow clear of LRZ for this image, should be avoided" },
    [DISABLE_LRZ_STAGE_ID] = { "Disable LRZ", "Disable LRZ for this image, should be avoided" },
-   // TODO add the rest
+   [WARNING_SLOW_CLEAR_LRZ_STAGE_ID] = {
+      "Slow LRZ Clear",
+     "LRZ fast clear is not used. Possible causes:\n"
+     "- The depth image is too large (width x height x layers x msaa) for LRZ fast clear\n"
+     "- [Adreno A6XX] LRZ is being cleared with a depth clear value other than 0.0 or 1.0"
+    },
+   [WARNING_DEPTH_IMAGE_NO_LRZ_STAGE_ID] = {
+     "Depth Image Without LRZ",
+     "LRZ isn't used because the depth image width x height x layers x msaa is too large"
+    },
+   [WARNING_LRZ_DISABLED_STAGE_ID] = {
+      "LRZ Read/Write Disabled",
+     "LRZ read/write is disabled for the rest of the RP. This should be avoided near the start of the RP, but is OK near the end" },
+   [WARNING_LRZ_WRITE_DISABLED_STAGE_ID] = {
+      "LRZ Write Disabled",
+     "LRZ write is disabled for the rest of the RP. Avoid this near the start of the RP, it is OK near the end" },
+   [WARNING_FDM_FORCE_DISABLED_STAGE_ID] = {
+      "FDM Force Disabled",
+     "FDM is disabled due to the presence of LOAD_OP_LOAD or LOAD_OP_STORE" },
 };
 
 static uint32_t gpu_clock_id;
@@ -245,6 +263,12 @@ get_stack(struct tu_device *dev, enum tu_stage_id stage_id)
    case CMD_BUFFER_ANNOTATION_STAGE_ID:
    case CMD_BUFFER_ANNOTATION_RENDER_PASS_STAGE_ID:
       return &dev->perfetto.annotations_stack;
+   case WARNING_SLOW_CLEAR_LRZ_STAGE_ID:
+   case WARNING_DEPTH_IMAGE_NO_LRZ_STAGE_ID:
+   case WARNING_LRZ_DISABLED_STAGE_ID:
+   case WARNING_LRZ_WRITE_DISABLED_STAGE_ID:
+   case WARNING_FDM_FORCE_DISABLED_STAGE_ID:
+      return &dev->perfetto.sticky_warnings_stack;
    default:
       return &dev->perfetto.render_stack;
    }
@@ -359,6 +383,14 @@ stage_end(struct tu_device *dev, uint64_t ts_ns, enum tu_stage_id stage_id,
       case CONCURRENT_BINNING_STAGE_ID:
       case CONCURRENT_BINNING_BARRIER_STAGE_ID:
          queue_id = BV_HW_QUEUE_ID;
+         break;
+      case WARNING_SLOW_CLEAR_LRZ_STAGE_ID:
+      case WARNING_DEPTH_IMAGE_NO_LRZ_STAGE_ID:
+      case WARNING_LRZ_DISABLED_STAGE_ID:
+      case WARNING_LRZ_WRITE_DISABLED_STAGE_ID:
+      case WARNING_FDM_FORCE_DISABLED_STAGE_ID:
+         queue_id = PERF_WARNINGS_QUEUE_ID;
+         break;
       default:
          break;
    }
@@ -644,6 +676,11 @@ CREATE_EVENT_CALLBACK(update_buffer, UPDATE_BUFFER_STAGE_ID)
 CREATE_EVENT_CALLBACK(resolve_image, RESOLVE_IMAGE_STAGE_ID)
 CREATE_EVENT_CALLBACK(slow_clear_lrz, SLOW_CLEAR_LRZ_STAGE_ID)
 CREATE_EVENT_CALLBACK(disable_lrz, DISABLE_LRZ_STAGE_ID)
+CREATE_STICKY_WARNING_EVENT_CALLBACK(warning_slow_clear_lrz, WARNING_SLOW_CLEAR_LRZ_STAGE_ID)
+CREATE_STICKY_WARNING_EVENT_CALLBACK(warning_depth_image_no_lrz, WARNING_DEPTH_IMAGE_NO_LRZ_STAGE_ID)
+CREATE_STICKY_WARNING_EVENT_CALLBACK(warning_lrz_disabled, WARNING_LRZ_DISABLED_STAGE_ID)
+CREATE_STICKY_WARNING_EVENT_CALLBACK(warning_lrz_write_disabled, WARNING_LRZ_WRITE_DISABLED_STAGE_ID)
+CREATE_STICKY_WARNING_EVENT_CALLBACK(warning_fdm_force_disabled, WARNING_FDM_FORCE_DISABLED_STAGE_ID)
 
 void
 tu_perfetto_start_cmd_buffer_annotation(

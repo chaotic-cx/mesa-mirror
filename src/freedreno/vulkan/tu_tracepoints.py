@@ -286,6 +286,18 @@ begin_end_tp('compute_indirect',
                                       is_indirect=True, c_format="%ux%ux%u",
                                       fields=['x', 'y', 'z'])])
 
+# Performance warnings
+
+singular_tp('warning_slow_clear_lrz', toggle_name='perf_warnings')
+singular_tp('warning_depth_image_no_lrz', toggle_name='perf_warnings')
+singular_tp('warning_lrz_disabled',
+            toggle_name='perf_warnings',
+            args=[Arg(type='const char *', var='reason', c_format='%s')])
+singular_tp('warning_lrz_write_disabled',
+            toggle_name='perf_warnings',
+            args=[Arg(type='const char *', var='reason', c_format='%s')])
+singular_tp('warning_fdm_force_disabled', toggle_name='perf_warnings')
+
 # Annotations for Cmd(Begin|End)DebugUtilsLabelEXT
 for suffix in ["", "_rp"]:
     begin_end_tp('cmd_buffer_annotation' + suffix,

@@ -2305,6 +2305,7 @@ tu6_clear_lrz(struct tu_cmd_buffer *cmd,
 
    trace_start_slow_clear_lrz(&cmd->trace, &cmd->cs, cmd, image->vk.format,
                               image->vk.extent.width, image->vk.extent.height);
+   trace_warning_slow_clear_lrz(&cmd->trace, cs, cmd);
 
    /* It is assumed that LRZ cache is invalidated at this point for
     * the writes here to become visible to LRZ.
