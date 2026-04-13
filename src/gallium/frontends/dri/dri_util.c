@@ -956,6 +956,24 @@ static const struct {
       .image_format    = __DRI_IMAGE_FORMAT_XBGR8888,
       .internal_format =        GL_RGB8,
    },
+#if UTIL_ARCH_BIG_ENDIAN
+   {
+      .image_format    = PIPE_FORMAT_A8R8G8B8_UNORM,
+      .internal_format =        GL_RGBA8,
+   },
+   {
+      .image_format    = PIPE_FORMAT_X8R8G8B8_UNORM,
+      .internal_format =        GL_RGB8,
+   },
+   {
+      .image_format    = PIPE_FORMAT_A8B8G8R8_UNORM,
+      .internal_format =        GL_RGBA8,
+   },
+   {
+      .image_format    = PIPE_FORMAT_X8B8G8R8_UNORM,
+      .internal_format =        GL_RGB8,
+   },
+#endif
    {
       .image_format    = __DRI_IMAGE_FORMAT_R8,
       .internal_format =        GL_R8,
