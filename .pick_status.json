@@ -1204,7 +1204,7 @@
         "description": "broadcom/compiler: move nir_lower_undef_to_zero out of optimization loop",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "cbe24a0e9c57a1e65243a9dce1c122597b08d50f",
         "notes": null

@@ -2243,7 +2243,6 @@ v3d_optimize_nir(struct v3d_compile *c, struct nir_shader *s)
                 }
 
                 NIR_PASS(progress, s, nir_opt_undef);
-                NIR_PASS(progress, s, nir_lower_undef_to_zero);
 
                 if (c && !c->disable_loop_unrolling &&
                     s->options->max_unroll_iterations > 0) {
@@ -2253,6 +2252,8 @@ v3d_optimize_nir(struct v3d_compile *c, struct nir_shader *s)
                        progress |= local_progress;
                 }
         } while (progress);
+
+        NIR_PASS(progress, s, nir_lower_undef_to_zero);
 
         /* needs to be outside of optimization loop, otherwise it fights with
          * opt_algebraic optimizing the conversion lowering
