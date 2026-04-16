@@ -41,6 +41,7 @@ enum tu_queue_id {
    ANNOTATIONS_QUEUE_ID,
    BR_HW_QUEUE_ID,
    BV_HW_QUEUE_ID,
+   PERF_WARNINGS_QUEUE_ID,
 
    TU_QUEUE_ID_COUNT,
 };
@@ -111,6 +112,7 @@ struct tu_perfetto_clocks
 struct tu_perfetto_state {
    struct tu_perfetto_stage_stack annotations_stack;
    struct tu_perfetto_stage_stack render_stack;
+   struct tu_perfetto_stage_stack sticky_warnings_stack;
 
    uint64_t context_iid;
    uint64_t queue_iids[TU_QUEUE_ID_COUNT];

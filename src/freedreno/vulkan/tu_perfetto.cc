@@ -38,6 +38,7 @@ static const struct {
    [ANNOTATIONS_QUEUE_ID] = {"Annotations", "Annotations Queue"},
    [BR_HW_QUEUE_ID] = {"GPU Queue 0", "Default Adreno Hardware Queue"},
    [BV_HW_QUEUE_ID] = {"GPU Queue 1", "Adreno Bin Visibility Queue"},
+   [PERF_WARNINGS_QUEUE_ID] = {"Performance Warnings", "Performance Warnings Queue"},
 };
 
 static const struct {
@@ -330,6 +331,23 @@ stage_end(struct tu_device *dev, uint64_t ts_ns, enum tu_stage_id stage_id,
    }
 
    uint32_t queue_id = BR_HW_QUEUE_ID;
+
+   /* Warnings should last until the end of the corresponding stage.
+    * This is a roundabout way to achive that, since we don't track
+    * which stage warning corresponds to.
+    */
+   if (stage_id != CLEAR_SYSMEM_STAGE_ID &&
+       stage_id != CLEAR_GMEM_STAGE_ID &&
+       stage_id != GENERIC_CLEAR_STAGE_ID &&
+       stage_id != GMEM_LOAD_STAGE_ID &&
+       stage_id != GMEM_STORE_STAGE_ID) {
+      while (dev->perfetto.sticky_warnings_stack.stage_depth > 0) {
+         struct tu_perfetto_stage *stage =
+            &dev->perfetto.sticky_warnings_stack.stages[dev->perfetto.sticky_warnings_stack.stage_depth - 1];
+         stage_end(dev, ts_ns, (tu_stage_id) stage->stage_id, nullptr, flush_data);
+      }
+   }
+
    switch (stage->stage_id) {
       case CMD_BUFFER_ANNOTATION_STAGE_ID:
       case CMD_BUFFER_ANNOTATION_RENDER_PASS_STAGE_ID:
@@ -585,6 +603,14 @@ tu_perfetto_end_submit(struct tu_queue *queue,
       stage_end(                                                                    \
          dev, ts_ns, stage_id, NULL, flush_data, payload, indirect_data,            \
          (trace_payload_as_extra_func) &trace_payload_as_extra_end_##event_name);   \
+   }
+
+#define CREATE_STICKY_WARNING_EVENT_CALLBACK(event_name, stage_id)                                                     \
+   void tu_perfetto_##event_name(struct tu_device *dev, uint64_t ts_ns, uint16_t tp_idx, const void *flush_data,       \
+                                 const struct trace_##event_name *payload, const void *indirect_data)                  \
+   {                                                                                                                   \
+      stage_start(dev, ts_ns, stage_id, payload, sizeof(*payload), indirect_data,                                      \
+                  (trace_payload_as_extra_func) & trace_payload_as_extra_##event_name);                                \
    }
 
 CREATE_EVENT_CALLBACK(cmd_buffer, CMD_BUFFER_STAGE_ID)

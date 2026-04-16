@@ -83,6 +83,29 @@ def begin_end_tp(name, args=[], tp_struct=None, tp_print=None,
                tp_print=end_tp_print if queue_tp else None,
                tp_markers='tu_cs_trace_end' if marker_tp else None)
 
+def singular_tp(name, args=[], tp_struct=None, tp_print=None,
+                tp_default_enabled=True, marker_tp=True,
+                queue_tp=True, toggle_name=None):
+    global tu_default_tps
+
+    if not toggle_name:
+        toggle_name = name
+
+    if tp_default_enabled and toggle_name not in tu_default_tps:
+        tu_default_tps.append(toggle_name)
+
+    tp_struct = [command_buffer_struct] + (tp_struct if tp_struct else [])
+    args = [command_buffer_arg] + (args if args else [])
+
+    Tracepoint('{0}'.format(name),
+               toggle_name=toggle_name,
+               args=args,
+               tp_struct=tp_struct,
+               tp_perfetto='tu_perfetto_{0}'.format(name) if queue_tp else None,
+               tp_print=tp_print if queue_tp else None,
+               tp_markers='tu_cs_trace_singular' if marker_tp else None)
+
+
 begin_end_tp('cmd_buffer',
     args=[Arg(type='str',                       var='TUdebugFlags', c_format='%s', length_arg='96', copy_func='strncpy'),
           Arg(type='str',                       var='IR3debugFlags', c_format='%s', length_arg='96', copy_func='strncpy')],
