@@ -1584,7 +1584,7 @@
         "description": "tu/u_trace: Fix explicit toggle_name not being used",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "889f71f71a709a6b871715f5cab7947ce220685e",
         "notes": null

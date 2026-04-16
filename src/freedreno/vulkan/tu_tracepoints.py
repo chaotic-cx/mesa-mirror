@@ -60,8 +60,8 @@ def begin_end_tp(name, args=[], tp_struct=None, tp_print=None,
     if not toggle_name:
         toggle_name = name
 
-    if tp_default_enabled:
-        tu_default_tps.append(name)
+    if tp_default_enabled and toggle_name not in tu_default_tps:
+        tu_default_tps.append(toggle_name)
 
     # Make all the GPU render stage events take a cmdbuf, so that the
     # command_buffer field can be set appropriately in the UI.
@@ -69,14 +69,14 @@ def begin_end_tp(name, args=[], tp_struct=None, tp_print=None,
     args = [command_buffer_arg] + (args if args else [])
 
     Tracepoint('start_{0}'.format(name),
-               toggle_name=name,
+               toggle_name=toggle_name,
                args=args,
                tp_struct=tp_struct,
                tp_perfetto='tu_perfetto_start_{0}'.format(name) if queue_tp else None,
                tp_print=tp_print if queue_tp else None,
                tp_markers='tu_cs_trace_start' if marker_tp else None)
     Tracepoint('end_{0}'.format(name),
-               toggle_name=name,
+               toggle_name=toggle_name,
                args=end_args,
                tp_struct=end_tp_struct,
                tp_perfetto='tu_perfetto_end_{0}'.format(name),
