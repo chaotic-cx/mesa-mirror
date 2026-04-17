@@ -704,7 +704,7 @@ vlVaHandleVAProcPipelineParameterBufferType(vlVaDriver *drv, vlVaContext *contex
       vpp.out_transfer_characteristics = param->output_color_properties.transfer_characteristics;
       vpp.out_matrix_coefficients = param->output_color_properties.matrix_coefficients;
    } else {
-      vlVaGetColorProperties(param->surface_color_standard, &vpp.out_color_primaries,
+      vlVaGetColorProperties(param->output_color_standard, &vpp.out_color_primaries,
                              &vpp.out_transfer_characteristics, &vpp.out_matrix_coefficients);
    }
 

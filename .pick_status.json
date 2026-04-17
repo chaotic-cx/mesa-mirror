@@ -994,7 +994,7 @@
         "description": "frontends/va: Fix setting output color properties from color standard",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "6e8a8d8ee707bf21b6452d61b5412f0981b3eb1e",
         "notes": null
