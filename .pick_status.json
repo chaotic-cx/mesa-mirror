@@ -974,7 +974,7 @@
         "description": "frontends/va: Add missing NULL check for additional output surface",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "efc6d27fd4bf863f205e1218bc89260c21f8b983",
         "notes": null

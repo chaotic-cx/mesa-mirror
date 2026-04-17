@@ -553,6 +553,8 @@ vlVaHandleVAProcPipelineParameterBufferType(vlVaDriver *drv, vlVaContext *contex
          return VA_STATUS_ERROR_INVALID_PARAMETER;
 
       dst_surface = handle_table_get(drv->htab, param->additional_outputs[0]);
+      if (!dst_surface)
+         return VA_STATUS_ERROR_INVALID_SURFACE;
    }
 
    src_region = vlVaRegionDefault(param->surface_region, src_surface, &def_src_region);
