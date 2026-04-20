@@ -28,8 +28,6 @@ H_TEMPLATE = Template(textwrap.dedent(u"""\
     #ifndef MESA_VK_STRUCT_CASTS_H
     #define MESA_VK_STRUCT_CASTS_H
 
-    #include <vulkan/vulkan.h>
-
     #ifdef __cplusplus
     extern "C" {
     #endif
