@@ -1895,6 +1895,30 @@ static VkResult pvr_clear_color_attachment_static(
    return VK_SUCCESS;
 }
 
+static void
+pvr_set_rta_clear_layer_depth(const struct pvr_image_view *image_view,
+                              uint32_t view_layer,
+                              uint32_t *image_layer,
+                              float *image_depth)
+{
+   const struct pvr_image *image = vk_to_pvr_image(image_view->vk.image);
+   uint32_t view_image_layer = image_view->vk.base_array_layer + view_layer;
+
+   /* Convert layer to depth for 2D array views of 3D images */
+   if (image->memlayout == PVR_MEMLAYOUT_3DTWIDDLED) {
+      /* Vulkan does not have a 3D array image view type, so for RTAs the
+       * view must be a 2D array view of a 3D image.
+       */
+      assert(image_view->vk.view_type == VK_IMAGE_VIEW_TYPE_2D_ARRAY);
+
+      *image_layer = 0;
+      *image_depth = (float) view_image_layer;
+   } else {
+      *image_layer = view_image_layer;
+      *image_depth = 0.0f;
+   }
+}
+
 /**
  * \brief Record a deferred clear operation into the command buffer.
  *
@@ -1914,7 +1938,6 @@ static VkResult pvr_add_deferred_rta_clear(struct pvr_cmd_buffer *cmd_buffer,
       pvr_arch_pass_info_get_hw_render(pass_info, sub_cmd->hw_render_idx);
    const struct pvr_image_view *image_view;
    const struct pvr_image *image;
-   uint32_t base_layer;
 
    const VkOffset3D offset = {
       .x = rect->rect.offset.x,
@@ -1969,12 +1992,13 @@ static VkResult pvr_add_deferred_rta_clear(struct pvr_cmd_buffer *cmd_buffer,
       image_view = pass_info->attachments[attachment_idx];
    }
 
-   base_layer = image_view->vk.base_array_layer + rect->baseArrayLayer;
    image = vk_to_pvr_image(image_view->vk.image);
 
    for (uint32_t i = 0; i < rect->layerCount; i++) {
       struct pvr_transfer_cmd *transfer_cmd;
       uint32_t rt_id = rect->baseArrayLayer + i;
+      float depth = 0.0f;
+      uint32_t layer = 0;
 
       /* Do not defer the clear of active render target */
       if (hw_render->view_mask & (1 << rt_id))
@@ -2003,15 +2027,16 @@ static VkResult pvr_add_deferred_rta_clear(struct pvr_cmd_buffer *cmd_buffer,
             attachment->clearValue.depthStencil.stencil;
       }
 
+      pvr_set_rta_clear_layer_depth(image_view, rt_id, &layer, &depth);
       pvr_setup_transfer_surface(cmd_buffer->device,
                                  &transfer_cmd->dst,
                                  &transfer_cmd->scissor,
                                  image,
-                                 base_layer + i,
+                                 layer,
                                  0,
                                  &offset,
                                  &extent,
-                                 0.0f,
+                                 depth,
                                  image->vk.format,
                                  attachment->aspectMask);
    }

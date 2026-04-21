@@ -1364,7 +1364,7 @@
         "description": "pvr: properly handle deferred RTA clears for 2D array view of 3D image",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "95820584d06e067766283ccb76c33a75c383a203",
         "notes": null
