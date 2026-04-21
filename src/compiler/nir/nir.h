@@ -6793,6 +6793,11 @@ typedef struct nir_lower_idiv_options {
     * down 8 ulp.  Holds for rcp error in [-128, +8] ulp.
     */
    bool fp32_udiv_correction;
+
+   /* Skip instructions with a bit size smaller than this. The default 0
+    * lowers all sizes up to 32 bits.
+    */
+   unsigned min_bit_size;
 } nir_lower_idiv_options;
 
 bool nir_lower_idiv(nir_shader *shader, const nir_lower_idiv_options *options);

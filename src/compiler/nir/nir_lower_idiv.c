@@ -208,14 +208,15 @@ lower_idiv(nir_builder *b, nir_instr *instr, void *_data)
 }
 
 static bool
-inst_is_idiv(const nir_instr *instr, UNUSED const void *_state)
+inst_is_idiv(const nir_instr *instr, const void *_state)
 {
    if (instr->type != nir_instr_type_alu)
       return false;
 
    nir_alu_instr *alu = nir_instr_as_alu(instr);
+   const nir_lower_idiv_options *options = _state;
 
-   if (alu->def.bit_size > 32)
+   if (alu->def.bit_size > 32 || alu->def.bit_size < options->min_bit_size)
       return false;
 
    switch (alu->op) {
