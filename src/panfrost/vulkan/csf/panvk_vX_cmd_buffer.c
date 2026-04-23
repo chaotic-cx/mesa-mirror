@@ -436,8 +436,23 @@ collect_cs_deps(struct panvk_cmd_buffer *cmdbuf, const VkDependencyInfo *info,
       /* skip the tiler subqueue self-wait because we use the same
        * scoreboard slot for the idvs jobs
        */
-      wait_masks[PANVK_SUBQUEUE_VERTEX_TILER] &=
-         ~BITFIELD_BIT(PANVK_SUBQUEUE_VERTEX_TILER);
+      if (wait_masks[PANVK_SUBQUEUE_VERTEX_TILER] &
+          BITFIELD_BIT(PANVK_SUBQUEUE_VERTEX_TILER)) {
+         /* the self-wait is still needed to synchronize across subqueues
+          * though, so we can't drop it if any other subqueues wait on the
+          * tiler subqueue
+          */
+         bool self_wait_needed = false;
+         for (uint32_t i = 0; i < PANVK_SUBQUEUE_COUNT; i++) {
+            if (i != PANVK_SUBQUEUE_VERTEX_TILER)
+               self_wait_needed |=
+                  wait_masks[i] & BITFIELD_BIT(PANVK_SUBQUEUE_VERTEX_TILER);
+         }
+
+         if (!self_wait_needed)
+            wait_masks[PANVK_SUBQUEUE_VERTEX_TILER] &=
+               ~BITFIELD_BIT(PANVK_SUBQUEUE_VERTEX_TILER);
+      }
    }
 
    for (uint32_t i = 0; i < PANVK_SUBQUEUE_COUNT; i++) {
