@@ -545,6 +545,12 @@ panfrost_clean_state_3d(struct panfrost_context *ctx)
    }
 }
 
+static inline bool
+panfrost_occlusion_query_active(struct panfrost_context *ctx)
+{
+   return ctx->occlusion_query && ctx->active_queries;
+}
+
 void panfrost_set_batch_masks_blend(struct panfrost_batch *batch);
 
 void panfrost_set_batch_masks_zs(struct panfrost_batch *batch);

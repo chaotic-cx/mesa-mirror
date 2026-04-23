@@ -494,7 +494,7 @@ panfrost_prepare_fs_state(struct panfrost_context *ctx, uint64_t *blend_shaders,
    for (unsigned c = 0; c < rt_count; ++c)
       has_blend_shader |= (blend_shaders[c] != 0);
 
-   bool has_oq = ctx->occlusion_query && ctx->active_queries;
+   bool has_oq = panfrost_occlusion_query_active(ctx);
 
    pan_pack(rsd, RENDERER_STATE, cfg) {
       if (panfrost_fs_required(fs, so, &ctx->pipe_framebuffer, zsa)) {
@@ -3563,7 +3563,8 @@ panfrost_draw_indirect(struct pipe_context *pipe,
 {
    struct panfrost_context *ctx = pan_context(pipe);
 
-   if (!PAN_GPU_SUPPORTS_DRAW_INDIRECT || ctx->active_queries ||
+   if (!PAN_GPU_SUPPORTS_DRAW_INDIRECT ||
+       panfrost_occlusion_query_active(ctx) ||
        ctx->streamout.num_targets) {
       util_draw_indirect(pipe, info, drawid_offset, indirect);
       perf_debug(ctx, "Emulating indirect draw on the CPU");
