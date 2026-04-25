@@ -780,6 +780,10 @@ if (nir_is_rounding_mode_rtz(execution_mode, bit_size)) {
 }
 """)
 
+binop("fmul_rtz", tfloat32, _2src_commutative + inexact_associative, """
+dst = _mesa_double_to_float_rtz((double)src0 * (double)src1);
+""")
+
 binop("fmulz", tfloat32, _2src_commutative + inexact_associative, """
 if (src0 == 0.0 || src1 == 0.0)
    dst = 0.0;
