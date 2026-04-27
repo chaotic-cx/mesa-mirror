@@ -1063,8 +1063,8 @@ isl_genX(buffer_fill_state_s)(const struct isl_device *dev, void *state,
        * newer are enough to fit 32bit num_elements.
        */
       if (num_elements > (1 << 27)) {
-         mesa_logw("%s: num_elements is too big: %"PRIu64" (buffer size: %"PRIu64")\n",
-                   __func__, num_elements, buffer_size);
+         mesa_logw_once("%s: num_elements is too big: %"PRIu64" (buffer size: %"PRIu64")\n",
+                        __func__, num_elements, buffer_size);
       }
    }
 
