@@ -1624,7 +1624,7 @@
         "description": "mediafoundation: Test compile steps v/s step , and set build flag",
         "nominated": true,
         "nomination_type": 4,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
