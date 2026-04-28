@@ -734,7 +734,7 @@
         "description": "intel/isl: fix assert when surf->size_B is > UINT_MAX",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "fcdae4d4c09cfe3f8f38011a6e2b533cbb5e04f7",
         "notes": null

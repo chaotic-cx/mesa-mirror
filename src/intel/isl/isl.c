@@ -3784,7 +3784,7 @@ isl_surf_from_mem(const struct isl_device *isl_dev,
    assert(ok);
    if (extent.a > 1)
       assert(surf->array_pitch_el_rows == extent.h);
-   assert(surf->size_B == surf->row_pitch_B * extent.h * extent.a);
+   assert(surf->size_B == (uint64_t)surf->row_pitch_B * extent.h * extent.a);
    assert(surf->size_B <= max_tiles * tile_size_B);
 }
 
