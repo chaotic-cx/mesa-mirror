@@ -584,7 +584,7 @@ static bool pvr_physical_device_get_properties(
       .maxPerStageDescriptorSampledImages = 16,
       .maxPerStageDescriptorStorageImages = 4,
       .maxPerStageDescriptorInputAttachments = 4,
-      .maxPerStageResources = 44,
+      .maxPerStageResources = 48,
       .maxDescriptorSetSamplers = 3U * 16U,
       .maxDescriptorSetUniformBuffers = 3U * 12U,
       .maxDescriptorSetUniformBuffersDynamic = 8U,
