@@ -724,8 +724,12 @@ ac_identify_chip(struct radeon_info *info, const struct drm_amdgpu_info_device *
          identify_chip(GFX1170);
          break;
       case FAMILY_NV4:
-         identify_chip(GFX1200);
-         identify_chip(GFX1201);
+         if (info->ip[AMD_IP_GFX].ver_minor == 0) {
+            identify_chip(GFX1200);
+            identify_chip(GFX1201);
+         } else if (info->ip[AMD_IP_GFX].ver_minor == 1) {
+            info->family = CHIP_GFX1210;
+         }
          break;
    }
 
@@ -735,7 +739,9 @@ ac_identify_chip(struct radeon_info *info, const struct drm_amdgpu_info_device *
       return false;
    }
 
-   if (info->ip[AMD_IP_GFX].ver_major == 12 && info->ip[AMD_IP_GFX].ver_minor == 0)
+   if (info->ip[AMD_IP_GFX].ver_major == 12 && info->ip[AMD_IP_GFX].ver_minor == 1)
+      info->gfx_level = GFX12_1;
+   else if (info->ip[AMD_IP_GFX].ver_major == 12 && info->ip[AMD_IP_GFX].ver_minor == 0)
       info->gfx_level = GFX12;
    else if (info->ip[AMD_IP_GFX].ver_major == 11 && info->ip[AMD_IP_GFX].ver_minor == 7)
       info->gfx_level = GFX11_7;

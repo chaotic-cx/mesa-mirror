@@ -132,6 +132,7 @@ enum radeon_family
    /* GFX12 (RDNA 4) */
    CHIP_GFX1200,        /* Radeon 9060 */
    CHIP_GFX1201,        /* Radeon 9070 */
+   CHIP_GFX1210,
    CHIP_LAST,
 };
 
@@ -155,6 +156,7 @@ enum amd_gfx_level
    GFX11_5,
    GFX11_7,
    GFX12,
+   GFX12_1,
 
    NUM_GFX_VERSIONS,
 };
