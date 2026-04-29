@@ -95,7 +95,7 @@ header_template = mako.template.Template("""\
 % endif
 
 #define FMT(_img_format, ...) \
-   { .img_format = V_008F0C_${gfx.upper()}_FORMAT_##_img_format, \
+   { .img_format = V_${reg_loc}_${gfx.upper()}_FORMAT_##_img_format, \
      ##__VA_ARGS__ }
 
 const struct gfx10_format ${gfx}_format_table[PIPE_FORMAT_COUNT] = {
@@ -256,26 +256,22 @@ def pipe_formats_to_formats(pipe_formats, mapping):
 
     return formats
 
+
+def generate_format_table(pipe_formats, regdb_path, reg_loc, gfx, header):
+    with open(regdb_path, 'r') as filp:
+        db = RegisterDatabase.from_json(json.load(filp))
+
+    gfx_formats = [Gfx10Format(entry) for entry in db.enum(gfx.upper() + '_FORMAT').entries]
+    mapping = Gfx10FormatMapping(pipe_formats, gfx_formats)
+    formats = pipe_formats_to_formats(pipe_formats, mapping)
+    print(header_template.render(header=header, reg_loc=reg_loc, gfx=gfx, formats=formats))
+
+
 if __name__ == '__main__':
     pipe_formats = parse(sys.argv[1])
     # Fixed little-endian formats are aliases of the host-endian ones on
     # little-endian hosts.
     pipe_formats = [f for f in pipe_formats if not f.le_byte_order]
 
-    # gfx10
-    with open(sys.argv[2], 'r') as filp:
-        db = RegisterDatabase.from_json(json.load(filp))
-
-    gfx10_formats = [Gfx10Format(entry) for entry in db.enum('GFX10_FORMAT').entries]
-    mapping = Gfx10FormatMapping(pipe_formats, gfx10_formats)
-    formats = pipe_formats_to_formats(pipe_formats, mapping)
-    print(header_template.render(header=True, gfx='gfx10', formats=formats))
-
-    # gfx11
-    with open(sys.argv[3], 'r') as filp:
-        db = RegisterDatabase.from_json(json.load(filp))
-
-    gfx11_formats = [Gfx10Format(entry) for entry in db.enum('GFX11_FORMAT').entries]
-    mapping = Gfx10FormatMapping(pipe_formats, gfx11_formats)
-    formats = pipe_formats_to_formats(pipe_formats, mapping)
-    print(header_template.render(header=False, gfx='gfx11', formats=formats))
+    generate_format_table(pipe_formats, sys.argv[2], '008F0C', 'gfx10', True)
+    generate_format_table(pipe_formats, sys.argv[3], '008F0C', 'gfx11', False)
