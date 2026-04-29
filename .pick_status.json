@@ -744,7 +744,7 @@
         "description": "pan/kmod: fix double syncop count sum when populating vm_bind syncs",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "97f6a62f7ef82b909f62ca78788d4f24416fbd31",
         "notes": null

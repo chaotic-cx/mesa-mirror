@@ -1042,8 +1042,8 @@ panthor_kmod_vm_bind(struct pan_kmod_vm *vm, enum pan_kmod_vm_op_mode mode,
       vm_orig_sync_point = vm_new_sync_point = panthor_kmod_vm_sync_lock(vm);
 
    for (uint32_t i = 0; i < op_count; i++) {
-      uint32_t op_sync_cnt = ops[i].syncs.count;
       uint64_t signal_vm_point = 0;
+      uint32_t op_sync_cnt = 0;
 
       if (async && track_activity) {
          signal_vm_point = ++vm_new_sync_point;
