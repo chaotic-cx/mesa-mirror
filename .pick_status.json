@@ -684,7 +684,7 @@
         "description": "ir3: Fix shared IMAD24 lowering.",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "b4874aa5cf56a7041eb609b6d9829719f8a49bcb",
         "notes": null
