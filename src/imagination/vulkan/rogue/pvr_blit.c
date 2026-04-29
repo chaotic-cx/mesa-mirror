@@ -2005,13 +2005,10 @@ static VkResult pvr_add_deferred_rta_clear(struct pvr_cmd_buffer *cmd_buffer,
          continue;
 
       transfer_cmd = pvr_transfer_cmd_alloc(cmd_buffer);
+      if (!transfer_cmd)
+         return VK_ERROR_OUT_OF_HOST_MEMORY;
 
       list_addtail(&transfer_cmd->link, &cmd_buffer->deferred_clears);
-
-      if (!transfer_cmd) {
-         return vk_command_buffer_set_error(&cmd_buffer->vk,
-                                            VK_ERROR_OUT_OF_HOST_MEMORY);
-      }
 
       transfer_cmd->flags = PVR_TRANSFER_CMD_FLAGS_FILL;
 

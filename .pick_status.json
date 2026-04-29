@@ -1354,7 +1354,7 @@
         "description": "pvr: add deferred RTA clear command to list after checking it's not NULL",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "2eabbbe57d1215695310ed8ce101be6a448a557e",
         "notes": null
