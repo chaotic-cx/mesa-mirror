@@ -754,7 +754,7 @@
         "description": "pan/kmod: Fix minor version number check for USER_MMIO_OFFSET ioctl",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "590ad83b980e37e87bab6bcc7574e154729066ec",
         "notes": null
