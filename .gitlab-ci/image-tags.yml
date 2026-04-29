@@ -30,7 +30,7 @@ variables:
 
   ALPINE_X86_64_BUILD_TAG: "20251001-realninja"
 
-  FEDORA_X86_64_BUILD_TAG: "20250917-rust"
+  FEDORA_X86_64_BUILD_TAG: "20260429-static261"
 
   KERNEL_TAG: "v6.19-mesa-8a6f"
   KERNEL_REPO: "gfx-ci/linux"
