@@ -94,7 +94,7 @@
         "description": "util/format: support 256-bit formats in util_format_get_tilesize()",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "eb64ce43866b0e87526dcd20807ccdeb5ba17c80",
         "notes": null
