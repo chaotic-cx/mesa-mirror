@@ -1064,7 +1064,7 @@
         "description": "driconf: disable allow_rgb16_configs for SPECviewperf",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f2aaa9ce00ffe7310bddcd5e884f34afb741f460",
         "notes": null
