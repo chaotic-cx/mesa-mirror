@@ -35,13 +35,13 @@ radv_suspend_queries(struct radv_meta_saved_state *state, struct radv_cmd_buffer
    if (cmd_buffer->state.active_occlusion_queries) {
       state->active_occlusion_queries = cmd_buffer->state.active_occlusion_queries;
       cmd_buffer->state.active_occlusion_queries = 0;
-      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_OCCLUSION_QUERY;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY(OCCLUSION_QUERY);
    }
 
    /* Primitives generated queries (legacy). */
    if (cmd_buffer->state.active_prims_gen_queries) {
       cmd_buffer->state.streamout.suspended = true;
-      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_STREAMOUT_ENABLE;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY(STREAMOUT_ENABLE);
    }
 
    /* Primitives generated queries (NGG). */
@@ -78,13 +78,13 @@ radv_resume_queries(const struct radv_meta_saved_state *state, struct radv_cmd_b
    /* Occlusion queries. */
    if (state->active_occlusion_queries) {
       cmd_buffer->state.active_occlusion_queries = state->active_occlusion_queries;
-      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_OCCLUSION_QUERY;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY(OCCLUSION_QUERY);
    }
 
    /* Primitives generated queries (legacy). */
    if (cmd_buffer->state.active_prims_gen_queries) {
       cmd_buffer->state.streamout.suspended = false;
-      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_STREAMOUT_ENABLE;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY(STREAMOUT_ENABLE);
    }
 
    /* Primitives generated queries (NGG). */
@@ -186,7 +186,7 @@ radv_meta_end(struct radv_cmd_buffer *cmd_buffer)
       cmd_buffer->state.dirty_dynamic |= RADV_DYNAMIC_ALL;
 
       /* Re-emit the guardband state because meta operations changed dynamic states. */
-      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_GUARDBAND;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY(GUARDBAND);
    }
 
    if (state->flags & RADV_META_SAVE_COMPUTE_PIPELINE) {
@@ -272,7 +272,7 @@ radv_meta_begin_rendering(struct radv_cmd_buffer *cmd_buffer)
    /* We always enable HiZ within meta operations, so this needs to be set for meta draws which
     * don't have their own render pass instance.
     */
-   cmd_buffer->state.dirty |= RADV_CMD_DIRTY_GFX12_HIZ_WA_STATE;
+   cmd_buffer->state.dirty |= RADV_CMD_DIRTY(GFX12_HIZ_WA_STATE);
 }
 
 void
@@ -280,7 +280,7 @@ radv_meta_end_rendering(struct radv_cmd_buffer *cmd_buffer)
 {
    assert(cmd_buffer->state.render.active);
    radv_meta_end(cmd_buffer);
-   cmd_buffer->state.dirty |= RADV_CMD_DIRTY_GFX12_HIZ_WA_STATE;
+   cmd_buffer->state.dirty |= RADV_CMD_DIRTY(GFX12_HIZ_WA_STATE);
 }
 
 VkImageViewType

@@ -336,7 +336,7 @@ radv_begin_occlusion_query(struct radv_cmd_buffer *cmd_buffer, uint64_t va, VkQu
          cmd_buffer->state.perfect_occlusion_queries_enabled = true;
       }
 
-      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_OCCLUSION_QUERY;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY(OCCLUSION_QUERY);
    } else {
       if ((flags & VK_QUERY_CONTROL_PRECISE_BIT) && !cmd_buffer->state.perfect_occlusion_queries_enabled) {
          /* This is not the first query, but this one
@@ -345,7 +345,7 @@ radv_begin_occlusion_query(struct radv_cmd_buffer *cmd_buffer, uint64_t va, VkQu
           */
          cmd_buffer->state.perfect_occlusion_queries_enabled = true;
 
-         cmd_buffer->state.dirty |= RADV_CMD_DIRTY_OCCLUSION_QUERY;
+         cmd_buffer->state.dirty |= RADV_CMD_DIRTY(OCCLUSION_QUERY);
       }
    }
 
@@ -368,7 +368,7 @@ radv_end_occlusion_query(struct radv_cmd_buffer *cmd_buffer, uint64_t va)
        */
       cmd_buffer->state.perfect_occlusion_queries_enabled = false;
 
-      cmd_buffer->state.dirty |= RADV_CMD_DIRTY_OCCLUSION_QUERY;
+      cmd_buffer->state.dirty |= RADV_CMD_DIRTY(OCCLUSION_QUERY);
    }
 
    radv_emit_event_write(&pdev->info, cmd_buffer->cs, RADV_EVENT_WRITE_OCCLUSION_QUERY, va + 8);
@@ -1272,7 +1272,7 @@ radv_begin_pg_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *
          cmd_buffer->state.active_prims_gen_queries++;
 
          if (old_streamout_enabled != radv_is_streamout_enabled(cmd_buffer)) {
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY_STREAMOUT_ENABLE;
+            cmd_buffer->state.dirty |= RADV_CMD_DIRTY(STREAMOUT_ENABLE);
          }
       } else {
          cmd_buffer->state.active_prims_gen_queries++;
@@ -1321,7 +1321,7 @@ radv_end_pg_query(struct radv_cmd_buffer *cmd_buffer, struct radv_query_pool *po
          cmd_buffer->state.active_prims_gen_queries--;
 
          if (old_streamout_enabled != radv_is_streamout_enabled(cmd_buffer)) {
-            cmd_buffer->state.dirty |= RADV_CMD_DIRTY_STREAMOUT_ENABLE;
+            cmd_buffer->state.dirty |= RADV_CMD_DIRTY(STREAMOUT_ENABLE);
          }
       } else {
          cmd_buffer->state.active_prims_gen_queries--;

@@ -91,128 +91,128 @@ radv_dynamic_state_mask(VkDynamicState state)
 {
    switch (state) {
    case VK_DYNAMIC_STATE_VIEWPORT:
-      return RADV_DYNAMIC_VIEWPORT;
+      return RADV_DYNAMIC(VIEWPORT);
    case VK_DYNAMIC_STATE_SCISSOR:
-      return RADV_DYNAMIC_SCISSOR;
+      return RADV_DYNAMIC(SCISSOR);
    case VK_DYNAMIC_STATE_LINE_WIDTH:
-      return RADV_DYNAMIC_LINE_WIDTH;
+      return RADV_DYNAMIC(LINE_WIDTH);
    case VK_DYNAMIC_STATE_DEPTH_BIAS:
-      return RADV_DYNAMIC_DEPTH_BIAS;
+      return RADV_DYNAMIC(DEPTH_BIAS);
    case VK_DYNAMIC_STATE_BLEND_CONSTANTS:
-      return RADV_DYNAMIC_BLEND_CONSTANTS;
+      return RADV_DYNAMIC(BLEND_CONSTANTS);
    case VK_DYNAMIC_STATE_DEPTH_BOUNDS:
-      return RADV_DYNAMIC_DEPTH_BOUNDS;
+      return RADV_DYNAMIC(DEPTH_BOUNDS);
    case VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK:
-      return RADV_DYNAMIC_STENCIL_COMPARE_MASK;
+      return RADV_DYNAMIC(STENCIL_COMPARE_MASK);
    case VK_DYNAMIC_STATE_STENCIL_WRITE_MASK:
-      return RADV_DYNAMIC_STENCIL_WRITE_MASK;
+      return RADV_DYNAMIC(STENCIL_WRITE_MASK);
    case VK_DYNAMIC_STATE_STENCIL_REFERENCE:
-      return RADV_DYNAMIC_STENCIL_REFERENCE;
+      return RADV_DYNAMIC(STENCIL_REFERENCE);
    case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_EXT:
-      return RADV_DYNAMIC_DISCARD_RECTANGLE;
+      return RADV_DYNAMIC(DISCARD_RECTANGLE);
    case VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_EXT:
-      return RADV_DYNAMIC_SAMPLE_LOCATIONS;
+      return RADV_DYNAMIC(SAMPLE_LOCATIONS);
    case VK_DYNAMIC_STATE_LINE_STIPPLE:
-      return RADV_DYNAMIC_LINE_STIPPLE;
+      return RADV_DYNAMIC(LINE_STIPPLE);
    case VK_DYNAMIC_STATE_CULL_MODE:
-      return RADV_DYNAMIC_CULL_MODE;
+      return RADV_DYNAMIC(CULL_MODE);
    case VK_DYNAMIC_STATE_FRONT_FACE:
-      return RADV_DYNAMIC_FRONT_FACE;
+      return RADV_DYNAMIC(FRONT_FACE);
    case VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY:
-      return RADV_DYNAMIC_PRIMITIVE_TOPOLOGY;
+      return RADV_DYNAMIC(PRIMITIVE_TOPOLOGY);
    case VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE:
-      return RADV_DYNAMIC_DEPTH_TEST_ENABLE;
+      return RADV_DYNAMIC(DEPTH_TEST_ENABLE);
    case VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE:
-      return RADV_DYNAMIC_DEPTH_WRITE_ENABLE;
+      return RADV_DYNAMIC(DEPTH_WRITE_ENABLE);
    case VK_DYNAMIC_STATE_DEPTH_COMPARE_OP:
-      return RADV_DYNAMIC_DEPTH_COMPARE_OP;
+      return RADV_DYNAMIC(DEPTH_COMPARE_OP);
    case VK_DYNAMIC_STATE_DEPTH_BOUNDS_TEST_ENABLE:
-      return RADV_DYNAMIC_DEPTH_BOUNDS_TEST_ENABLE;
+      return RADV_DYNAMIC(DEPTH_BOUNDS_TEST_ENABLE);
    case VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE:
-      return RADV_DYNAMIC_STENCIL_TEST_ENABLE;
+      return RADV_DYNAMIC(STENCIL_TEST_ENABLE);
    case VK_DYNAMIC_STATE_STENCIL_OP:
-      return RADV_DYNAMIC_STENCIL_OP;
+      return RADV_DYNAMIC(STENCIL_OP);
    case VK_DYNAMIC_STATE_VERTEX_INPUT_BINDING_STRIDE:
-      return RADV_DYNAMIC_VERTEX_INPUT_BINDING_STRIDE;
+      return RADV_DYNAMIC(VERTEX_INPUT_BINDING_STRIDE);
    case VK_DYNAMIC_STATE_FRAGMENT_SHADING_RATE_KHR:
-      return RADV_DYNAMIC_FRAGMENT_SHADING_RATE;
+      return RADV_DYNAMIC(FRAGMENT_SHADING_RATE);
    case VK_DYNAMIC_STATE_PATCH_CONTROL_POINTS_EXT:
-      return RADV_DYNAMIC_PATCH_CONTROL_POINTS;
+      return RADV_DYNAMIC(PATCH_CONTROL_POINTS);
    case VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE:
-      return RADV_DYNAMIC_RASTERIZER_DISCARD_ENABLE;
+      return RADV_DYNAMIC(RASTERIZER_DISCARD_ENABLE);
    case VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE:
-      return RADV_DYNAMIC_DEPTH_BIAS_ENABLE;
+      return RADV_DYNAMIC(DEPTH_BIAS_ENABLE);
    case VK_DYNAMIC_STATE_LOGIC_OP_EXT:
-      return RADV_DYNAMIC_LOGIC_OP;
+      return RADV_DYNAMIC(LOGIC_OP);
    case VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE:
-      return RADV_DYNAMIC_PRIMITIVE_RESTART_ENABLE;
+      return RADV_DYNAMIC(PRIMITIVE_RESTART_ENABLE);
    case VK_DYNAMIC_STATE_COLOR_WRITE_ENABLE_EXT:
-      return RADV_DYNAMIC_COLOR_WRITE_ENABLE;
+      return RADV_DYNAMIC(COLOR_WRITE_ENABLE);
    case VK_DYNAMIC_STATE_VERTEX_INPUT_EXT:
-      return RADV_DYNAMIC_VERTEX_INPUT;
+      return RADV_DYNAMIC(VERTEX_INPUT);
    case VK_DYNAMIC_STATE_POLYGON_MODE_EXT:
-      return RADV_DYNAMIC_POLYGON_MODE;
+      return RADV_DYNAMIC(POLYGON_MODE);
    case VK_DYNAMIC_STATE_TESSELLATION_DOMAIN_ORIGIN_EXT:
-      return RADV_DYNAMIC_TESS_DOMAIN_ORIGIN;
+      return RADV_DYNAMIC(TESS_DOMAIN_ORIGIN);
    case VK_DYNAMIC_STATE_LOGIC_OP_ENABLE_EXT:
-      return RADV_DYNAMIC_LOGIC_OP_ENABLE;
+      return RADV_DYNAMIC(LOGIC_OP_ENABLE);
    case VK_DYNAMIC_STATE_LINE_STIPPLE_ENABLE_EXT:
-      return RADV_DYNAMIC_LINE_STIPPLE_ENABLE;
+      return RADV_DYNAMIC(LINE_STIPPLE_ENABLE);
    case VK_DYNAMIC_STATE_ALPHA_TO_COVERAGE_ENABLE_EXT:
-      return RADV_DYNAMIC_ALPHA_TO_COVERAGE_ENABLE;
+      return RADV_DYNAMIC(ALPHA_TO_COVERAGE_ENABLE);
    case VK_DYNAMIC_STATE_SAMPLE_MASK_EXT:
-      return RADV_DYNAMIC_SAMPLE_MASK;
+      return RADV_DYNAMIC(SAMPLE_MASK);
    case VK_DYNAMIC_STATE_DEPTH_CLIP_ENABLE_EXT:
-      return RADV_DYNAMIC_DEPTH_CLIP_ENABLE;
+      return RADV_DYNAMIC(DEPTH_CLIP_ENABLE);
    case VK_DYNAMIC_STATE_CONSERVATIVE_RASTERIZATION_MODE_EXT:
-      return RADV_DYNAMIC_CONSERVATIVE_RAST_MODE;
+      return RADV_DYNAMIC(CONSERVATIVE_RAST_MODE);
    case VK_DYNAMIC_STATE_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE_EXT:
-      return RADV_DYNAMIC_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE;
+      return RADV_DYNAMIC(DEPTH_CLIP_NEGATIVE_ONE_TO_ONE);
    case VK_DYNAMIC_STATE_PROVOKING_VERTEX_MODE_EXT:
-      return RADV_DYNAMIC_PROVOKING_VERTEX_MODE;
+      return RADV_DYNAMIC(PROVOKING_VERTEX_MODE);
    case VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT:
-      return RADV_DYNAMIC_DEPTH_CLAMP_ENABLE;
+      return RADV_DYNAMIC(DEPTH_CLAMP_ENABLE);
    case VK_DYNAMIC_STATE_COLOR_WRITE_MASK_EXT:
-      return RADV_DYNAMIC_COLOR_WRITE_MASK;
+      return RADV_DYNAMIC(COLOR_WRITE_MASK);
    case VK_DYNAMIC_STATE_COLOR_BLEND_ENABLE_EXT:
-      return RADV_DYNAMIC_COLOR_BLEND_ENABLE;
+      return RADV_DYNAMIC(COLOR_BLEND_ENABLE);
    case VK_DYNAMIC_STATE_RASTERIZATION_SAMPLES_EXT:
-      return RADV_DYNAMIC_RASTERIZATION_SAMPLES;
+      return RADV_DYNAMIC(RASTERIZATION_SAMPLES);
    case VK_DYNAMIC_STATE_LINE_RASTERIZATION_MODE_EXT:
-      return RADV_DYNAMIC_LINE_RASTERIZATION_MODE;
+      return RADV_DYNAMIC(LINE_RASTERIZATION_MODE);
    case VK_DYNAMIC_STATE_COLOR_BLEND_EQUATION_EXT:
-      return RADV_DYNAMIC_COLOR_BLEND_EQUATION;
+      return RADV_DYNAMIC(COLOR_BLEND_EQUATION);
    case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_ENABLE_EXT:
-      return RADV_DYNAMIC_DISCARD_RECTANGLE_ENABLE;
+      return RADV_DYNAMIC(DISCARD_RECTANGLE_ENABLE);
    case VK_DYNAMIC_STATE_DISCARD_RECTANGLE_MODE_EXT:
-      return RADV_DYNAMIC_DISCARD_RECTANGLE_MODE;
+      return RADV_DYNAMIC(DISCARD_RECTANGLE_MODE);
    case VK_DYNAMIC_STATE_ATTACHMENT_FEEDBACK_LOOP_ENABLE_EXT:
-      return RADV_DYNAMIC_ATTACHMENT_FEEDBACK_LOOP_ENABLE;
+      return RADV_DYNAMIC(ATTACHMENT_FEEDBACK_LOOP_ENABLE);
    case VK_DYNAMIC_STATE_SAMPLE_LOCATIONS_ENABLE_EXT:
-      return RADV_DYNAMIC_SAMPLE_LOCATIONS_ENABLE;
+      return RADV_DYNAMIC(SAMPLE_LOCATIONS_ENABLE);
    case VK_DYNAMIC_STATE_ALPHA_TO_ONE_ENABLE_EXT:
-      return RADV_DYNAMIC_ALPHA_TO_ONE_ENABLE;
+      return RADV_DYNAMIC(ALPHA_TO_ONE_ENABLE);
    case VK_DYNAMIC_STATE_DEPTH_CLAMP_RANGE_EXT:
-      return RADV_DYNAMIC_DEPTH_CLAMP_RANGE;
+      return RADV_DYNAMIC(DEPTH_CLAMP_RANGE);
    case VK_DYNAMIC_STATE_VIEWPORT_WITH_COUNT:
-      return RADV_DYNAMIC_VIEWPORT | RADV_DYNAMIC_VIEWPORT_WITH_COUNT;
+      return RADV_DYNAMIC(VIEWPORT) | RADV_DYNAMIC(VIEWPORT_WITH_COUNT);
    case VK_DYNAMIC_STATE_SCISSOR_WITH_COUNT:
-      return RADV_DYNAMIC_SCISSOR | RADV_DYNAMIC_SCISSOR_WITH_COUNT;
+      return RADV_DYNAMIC(SCISSOR) | RADV_DYNAMIC(SCISSOR_WITH_COUNT);
    default:
       UNREACHABLE("Unhandled dynamic state");
    }
 }
 
 #define RADV_DYNAMIC_CB_STATES                                                                                         \
-   (RADV_DYNAMIC_LOGIC_OP_ENABLE | RADV_DYNAMIC_LOGIC_OP | RADV_DYNAMIC_COLOR_WRITE_ENABLE |                           \
-    RADV_DYNAMIC_COLOR_WRITE_MASK | RADV_DYNAMIC_COLOR_BLEND_ENABLE | RADV_DYNAMIC_COLOR_BLEND_EQUATION |              \
-    RADV_DYNAMIC_BLEND_CONSTANTS)
+   (RADV_DYNAMIC(LOGIC_OP_ENABLE) | RADV_DYNAMIC(LOGIC_OP) | RADV_DYNAMIC(COLOR_WRITE_ENABLE) |                        \
+    RADV_DYNAMIC(COLOR_WRITE_MASK) | RADV_DYNAMIC(COLOR_BLEND_ENABLE) | RADV_DYNAMIC(COLOR_BLEND_EQUATION) |           \
+    RADV_DYNAMIC(BLEND_CONSTANTS))
 
 #define RADV_DYNAMIC_DS_STATES                                                                                         \
-   (RADV_DYNAMIC_DEPTH_BOUNDS | RADV_DYNAMIC_STENCIL_COMPARE_MASK | RADV_DYNAMIC_STENCIL_WRITE_MASK |                  \
-    RADV_DYNAMIC_STENCIL_REFERENCE | RADV_DYNAMIC_DEPTH_TEST_ENABLE | RADV_DYNAMIC_DEPTH_WRITE_ENABLE |                \
-    RADV_DYNAMIC_DEPTH_COMPARE_OP | RADV_DYNAMIC_DEPTH_BOUNDS_TEST_ENABLE | RADV_DYNAMIC_STENCIL_TEST_ENABLE |         \
-    RADV_DYNAMIC_STENCIL_OP)
+   (RADV_DYNAMIC(DEPTH_BOUNDS) | RADV_DYNAMIC(STENCIL_COMPARE_MASK) | RADV_DYNAMIC(STENCIL_WRITE_MASK) |               \
+    RADV_DYNAMIC(STENCIL_REFERENCE) | RADV_DYNAMIC(DEPTH_TEST_ENABLE) | RADV_DYNAMIC(DEPTH_WRITE_ENABLE) |             \
+    RADV_DYNAMIC(DEPTH_COMPARE_OP) | RADV_DYNAMIC(DEPTH_BOUNDS_TEST_ENABLE) | RADV_DYNAMIC(STENCIL_TEST_ENABLE) |      \
+    RADV_DYNAMIC(STENCIL_OP))
 
 static bool
 radv_pipeline_is_blend_enabled(const struct radv_graphics_pipeline *pipeline, const struct vk_color_blend_state *cb)
@@ -220,7 +220,7 @@ radv_pipeline_is_blend_enabled(const struct radv_graphics_pipeline *pipeline, co
    /* If we don't know then we have to assume that blend may be enabled. cb may also be NULL in this
     * case.
     */
-   if (pipeline->dynamic_states & (RADV_DYNAMIC_COLOR_BLEND_ENABLE | RADV_DYNAMIC_COLOR_WRITE_MASK))
+   if (pipeline->dynamic_states & (RADV_DYNAMIC(COLOR_BLEND_ENABLE) | RADV_DYNAMIC(COLOR_WRITE_MASK)))
       return true;
 
    /* If we have the blend enable state, then cb being NULL indicates no attachments are written. */
@@ -240,64 +240,64 @@ radv_pipeline_needed_dynamic_state(const struct radv_device *device, const struc
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
    bool raster_enabled =
-      !state->rs->rasterizer_discard_enable || (pipeline->dynamic_states & RADV_DYNAMIC_RASTERIZER_DISCARD_ENABLE);
+      !state->rs->rasterizer_discard_enable || (pipeline->dynamic_states & RADV_DYNAMIC(RASTERIZER_DISCARD_ENABLE));
    uint64_t states = RADV_DYNAMIC_ALL;
 
    if (pdev->info.gfx_level < GFX10_3)
-      states &= ~RADV_DYNAMIC_FRAGMENT_SHADING_RATE;
+      states &= ~RADV_DYNAMIC(FRAGMENT_SHADING_RATE);
 
    /* Disable dynamic states that are useless to mesh shading. */
    if (radv_pipeline_has_stage(pipeline, MESA_SHADER_MESH)) {
       if (!raster_enabled)
-         return RADV_DYNAMIC_RASTERIZER_DISCARD_ENABLE;
+         return RADV_DYNAMIC(RASTERIZER_DISCARD_ENABLE);
 
-      states &= ~(RADV_DYNAMIC_VERTEX_INPUT | RADV_DYNAMIC_VERTEX_INPUT_BINDING_STRIDE |
-                  RADV_DYNAMIC_PRIMITIVE_RESTART_ENABLE | RADV_DYNAMIC_PRIMITIVE_TOPOLOGY);
+      states &= ~(RADV_DYNAMIC(VERTEX_INPUT) | RADV_DYNAMIC(VERTEX_INPUT_BINDING_STRIDE) |
+                  RADV_DYNAMIC(PRIMITIVE_RESTART_ENABLE) | RADV_DYNAMIC(PRIMITIVE_TOPOLOGY));
    }
 
    /* Disable dynamic states that are useless when rasterization is disabled. */
    if (!raster_enabled) {
-      states = RADV_DYNAMIC_RASTERIZER_DISCARD_ENABLE;
+      states = RADV_DYNAMIC(RASTERIZER_DISCARD_ENABLE);
 
       if (state->ia)
-         states |= RADV_DYNAMIC_PRIMITIVE_TOPOLOGY | RADV_DYNAMIC_PRIMITIVE_RESTART_ENABLE;
+         states |= RADV_DYNAMIC(PRIMITIVE_TOPOLOGY) | RADV_DYNAMIC(PRIMITIVE_RESTART_ENABLE);
 
       if (state->vi)
-         states |= RADV_DYNAMIC_VERTEX_INPUT | RADV_DYNAMIC_VERTEX_INPUT_BINDING_STRIDE;
+         states |= RADV_DYNAMIC(VERTEX_INPUT) | RADV_DYNAMIC(VERTEX_INPUT_BINDING_STRIDE);
 
       if (pipeline->active_stages & VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT)
-         states |= RADV_DYNAMIC_PATCH_CONTROL_POINTS | RADV_DYNAMIC_TESS_DOMAIN_ORIGIN;
+         states |= RADV_DYNAMIC(PATCH_CONTROL_POINTS) | RADV_DYNAMIC(TESS_DOMAIN_ORIGIN);
 
       return states;
    }
 
-   if (!state->rs->depth_bias.enable && !(pipeline->dynamic_states & RADV_DYNAMIC_DEPTH_BIAS_ENABLE))
-      states &= ~RADV_DYNAMIC_DEPTH_BIAS;
+   if (!state->rs->depth_bias.enable && !(pipeline->dynamic_states & RADV_DYNAMIC(DEPTH_BIAS_ENABLE)))
+      states &= ~RADV_DYNAMIC(DEPTH_BIAS);
 
-   if (!(pipeline->dynamic_states & RADV_DYNAMIC_DEPTH_BOUNDS_TEST_ENABLE) &&
+   if (!(pipeline->dynamic_states & RADV_DYNAMIC(DEPTH_BOUNDS_TEST_ENABLE)) &&
        (!state->ds || !state->ds->depth.bounds_test.enable))
-      states &= ~RADV_DYNAMIC_DEPTH_BOUNDS;
+      states &= ~RADV_DYNAMIC(DEPTH_BOUNDS);
 
-   if (!(pipeline->dynamic_states & RADV_DYNAMIC_STENCIL_TEST_ENABLE) &&
+   if (!(pipeline->dynamic_states & RADV_DYNAMIC(STENCIL_TEST_ENABLE)) &&
        (!state->ds || !state->ds->stencil.test_enable))
-      states &= ~(RADV_DYNAMIC_STENCIL_COMPARE_MASK | RADV_DYNAMIC_STENCIL_WRITE_MASK | RADV_DYNAMIC_STENCIL_REFERENCE |
-                  RADV_DYNAMIC_STENCIL_OP);
+      states &= ~(RADV_DYNAMIC(STENCIL_COMPARE_MASK) | RADV_DYNAMIC(STENCIL_WRITE_MASK) |
+                  RADV_DYNAMIC(STENCIL_REFERENCE) | RADV_DYNAMIC(STENCIL_OP));
 
-   if (!(pipeline->dynamic_states & RADV_DYNAMIC_DISCARD_RECTANGLE_ENABLE) && !state->dr->rectangle_count)
-      states &= ~RADV_DYNAMIC_DISCARD_RECTANGLE;
+   if (!(pipeline->dynamic_states & RADV_DYNAMIC(DISCARD_RECTANGLE_ENABLE)) && !state->dr->rectangle_count)
+      states &= ~RADV_DYNAMIC(DISCARD_RECTANGLE);
 
-   if (!(pipeline->dynamic_states & RADV_DYNAMIC_SAMPLE_LOCATIONS_ENABLE) &&
+   if (!(pipeline->dynamic_states & RADV_DYNAMIC(SAMPLE_LOCATIONS_ENABLE)) &&
        (!state->ms || !state->ms->sample_locations_enable))
-      states &= ~RADV_DYNAMIC_SAMPLE_LOCATIONS;
+      states &= ~RADV_DYNAMIC(SAMPLE_LOCATIONS);
 
    if (!radv_pipeline_is_blend_enabled(pipeline, state->cb))
-      states &= ~RADV_DYNAMIC_BLEND_CONSTANTS;
+      states &= ~RADV_DYNAMIC(BLEND_CONSTANTS);
 
    if (!(pipeline->active_stages & VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT))
-      states &= ~(RADV_DYNAMIC_PATCH_CONTROL_POINTS | RADV_DYNAMIC_TESS_DOMAIN_ORIGIN);
+      states &= ~(RADV_DYNAMIC(PATCH_CONTROL_POINTS) | RADV_DYNAMIC(TESS_DOMAIN_ORIGIN));
 
-   if (pipeline->dynamic_states & RADV_DYNAMIC_VERTEX_INPUT)
-      states &= ~RADV_DYNAMIC_VERTEX_INPUT_BINDING_STRIDE;
+   if (pipeline->dynamic_states & RADV_DYNAMIC(VERTEX_INPUT))
+      states &= ~RADV_DYNAMIC(VERTEX_INPUT_BINDING_STRIDE);
 
    if (!radv_pipeline_has_color_attachments(state->rp))
       states &= ~RADV_DYNAMIC_CB_STATES;
@@ -534,149 +534,149 @@ radv_pipeline_init_dynamic_state(const struct radv_device *device, struct radv_g
    states &= ~pipeline->dynamic_states;
 
    /* Input assembly. */
-   if (states & RADV_DYNAMIC_PRIMITIVE_TOPOLOGY) {
+   if (states & RADV_DYNAMIC(PRIMITIVE_TOPOLOGY)) {
       dynamic->vk.ia.primitive_topology = radv_translate_prim(state->ia->primitive_topology);
    }
 
-   if (states & RADV_DYNAMIC_PRIMITIVE_RESTART_ENABLE) {
+   if (states & RADV_DYNAMIC(PRIMITIVE_RESTART_ENABLE)) {
       dynamic->vk.ia.primitive_restart_enable = state->ia->primitive_restart_enable;
    }
 
    /* Tessellation. */
-   if (states & RADV_DYNAMIC_PATCH_CONTROL_POINTS) {
+   if (states & RADV_DYNAMIC(PATCH_CONTROL_POINTS)) {
       dynamic->vk.ts.patch_control_points = state->ts->patch_control_points;
    }
 
-   if (states & RADV_DYNAMIC_TESS_DOMAIN_ORIGIN) {
+   if (states & RADV_DYNAMIC(TESS_DOMAIN_ORIGIN)) {
       dynamic->vk.ts.domain_origin = state->ts->domain_origin;
    }
 
    /* Viewport. */
-   if (states & RADV_DYNAMIC_VIEWPORT) {
+   if (states & RADV_DYNAMIC(VIEWPORT)) {
       typed_memcpy(dynamic->vk.vp.viewports, state->vp->viewports, state->vp->viewport_count);
       for (unsigned i = 0; i < state->vp->viewport_count; i++)
          radv_get_viewport_xform(&dynamic->vk.vp.viewports[i], dynamic->vp_xform[i].scale,
                                  dynamic->vp_xform[i].translate);
    }
 
-   if (states & RADV_DYNAMIC_VIEWPORT_WITH_COUNT) {
+   if (states & RADV_DYNAMIC(VIEWPORT_WITH_COUNT)) {
       dynamic->vk.vp.viewport_count = state->vp->viewport_count;
    }
 
    /* Scissor. */
-   if (states & RADV_DYNAMIC_SCISSOR) {
+   if (states & RADV_DYNAMIC(SCISSOR)) {
       typed_memcpy(dynamic->vk.vp.scissors, state->vp->scissors, state->vp->scissor_count);
    }
 
-   if (states & RADV_DYNAMIC_SCISSOR_WITH_COUNT) {
+   if (states & RADV_DYNAMIC(SCISSOR_WITH_COUNT)) {
       dynamic->vk.vp.scissor_count = state->vp->scissor_count;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_CLIP_NEGATIVE_ONE_TO_ONE) {
+   if (states & RADV_DYNAMIC(DEPTH_CLIP_NEGATIVE_ONE_TO_ONE)) {
       dynamic->vk.vp.depth_clip_negative_one_to_one = state->vp->depth_clip_negative_one_to_one;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_CLAMP_RANGE) {
+   if (states & RADV_DYNAMIC(DEPTH_CLAMP_RANGE)) {
       dynamic->vk.vp.depth_clamp_mode = state->vp->depth_clamp_mode;
       dynamic->vk.vp.depth_clamp_range = state->vp->depth_clamp_range;
    }
 
    /* Discard rectangles. */
-   if (needed_states & RADV_DYNAMIC_DISCARD_RECTANGLE) {
+   if (needed_states & RADV_DYNAMIC(DISCARD_RECTANGLE)) {
       dynamic->vk.dr.rectangle_count = state->dr->rectangle_count;
-      if (states & RADV_DYNAMIC_DISCARD_RECTANGLE) {
+      if (states & RADV_DYNAMIC(DISCARD_RECTANGLE)) {
          typed_memcpy(dynamic->vk.dr.rectangles, state->dr->rectangles, state->dr->rectangle_count);
       }
    }
 
    /* Rasterization. */
-   if (states & RADV_DYNAMIC_LINE_WIDTH) {
+   if (states & RADV_DYNAMIC(LINE_WIDTH)) {
       dynamic->vk.rs.line.width = state->rs->line.width;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_BIAS) {
+   if (states & RADV_DYNAMIC(DEPTH_BIAS)) {
       dynamic->vk.rs.depth_bias.constant_factor = state->rs->depth_bias.constant_factor;
       dynamic->vk.rs.depth_bias.clamp = state->rs->depth_bias.clamp;
       dynamic->vk.rs.depth_bias.slope_factor = state->rs->depth_bias.slope_factor;
       dynamic->vk.rs.depth_bias.representation = state->rs->depth_bias.representation;
    }
 
-   if (states & RADV_DYNAMIC_CULL_MODE) {
+   if (states & RADV_DYNAMIC(CULL_MODE)) {
       dynamic->vk.rs.cull_mode = state->rs->cull_mode;
    }
 
-   if (states & RADV_DYNAMIC_FRONT_FACE) {
+   if (states & RADV_DYNAMIC(FRONT_FACE)) {
       dynamic->vk.rs.front_face = state->rs->front_face;
    }
 
-   if (states & RADV_DYNAMIC_LINE_STIPPLE) {
+   if (states & RADV_DYNAMIC(LINE_STIPPLE)) {
       dynamic->vk.rs.line.stipple.factor = state->rs->line.stipple.factor;
       dynamic->vk.rs.line.stipple.pattern = state->rs->line.stipple.pattern;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_BIAS_ENABLE) {
+   if (states & RADV_DYNAMIC(DEPTH_BIAS_ENABLE)) {
       dynamic->vk.rs.depth_bias.enable = state->rs->depth_bias.enable;
    }
 
-   if (states & RADV_DYNAMIC_RASTERIZER_DISCARD_ENABLE) {
+   if (states & RADV_DYNAMIC(RASTERIZER_DISCARD_ENABLE)) {
       dynamic->vk.rs.rasterizer_discard_enable = state->rs->rasterizer_discard_enable;
    }
 
-   if (states & RADV_DYNAMIC_POLYGON_MODE) {
+   if (states & RADV_DYNAMIC(POLYGON_MODE)) {
       dynamic->vk.rs.polygon_mode = radv_translate_fill(state->rs->polygon_mode);
    }
 
-   if (states & RADV_DYNAMIC_LINE_STIPPLE_ENABLE) {
+   if (states & RADV_DYNAMIC(LINE_STIPPLE_ENABLE)) {
       dynamic->vk.rs.line.stipple.enable = state->rs->line.stipple.enable;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_CLIP_ENABLE) {
+   if (states & RADV_DYNAMIC(DEPTH_CLIP_ENABLE)) {
       dynamic->vk.rs.depth_clip_enable = state->rs->depth_clip_enable;
    }
 
-   if (states & RADV_DYNAMIC_CONSERVATIVE_RAST_MODE) {
+   if (states & RADV_DYNAMIC(CONSERVATIVE_RAST_MODE)) {
       dynamic->vk.rs.conservative_mode = state->rs->conservative_mode;
    }
 
-   if (states & RADV_DYNAMIC_PROVOKING_VERTEX_MODE) {
+   if (states & RADV_DYNAMIC(PROVOKING_VERTEX_MODE)) {
       dynamic->vk.rs.provoking_vertex = state->rs->provoking_vertex;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_CLAMP_ENABLE) {
+   if (states & RADV_DYNAMIC(DEPTH_CLAMP_ENABLE)) {
       dynamic->vk.rs.depth_clamp_enable = state->rs->depth_clamp_enable;
    }
 
-   if (states & RADV_DYNAMIC_LINE_RASTERIZATION_MODE) {
+   if (states & RADV_DYNAMIC(LINE_RASTERIZATION_MODE)) {
       dynamic->vk.rs.line.mode = state->rs->line.mode;
    }
 
    /* Fragment shading rate. */
-   if (states & RADV_DYNAMIC_FRAGMENT_SHADING_RATE) {
+   if (states & RADV_DYNAMIC(FRAGMENT_SHADING_RATE)) {
       dynamic->vk.fsr = *state->fsr;
    }
 
    /* Multisample. */
-   if (states & RADV_DYNAMIC_ALPHA_TO_COVERAGE_ENABLE) {
+   if (states & RADV_DYNAMIC(ALPHA_TO_COVERAGE_ENABLE)) {
       dynamic->vk.ms.alpha_to_coverage_enable = state->ms->alpha_to_coverage_enable;
    }
 
-   if (states & RADV_DYNAMIC_ALPHA_TO_ONE_ENABLE) {
+   if (states & RADV_DYNAMIC(ALPHA_TO_ONE_ENABLE)) {
       dynamic->vk.ms.alpha_to_one_enable = state->ms->alpha_to_one_enable;
    }
 
-   if (states & RADV_DYNAMIC_SAMPLE_MASK) {
+   if (states & RADV_DYNAMIC(SAMPLE_MASK)) {
       dynamic->vk.ms.sample_mask = state->ms->sample_mask & 0xffff;
    }
 
-   if (states & RADV_DYNAMIC_RASTERIZATION_SAMPLES) {
+   if (states & RADV_DYNAMIC(RASTERIZATION_SAMPLES)) {
       dynamic->vk.ms.rasterization_samples = state->ms->rasterization_samples;
    }
 
-   if (states & RADV_DYNAMIC_SAMPLE_LOCATIONS_ENABLE) {
+   if (states & RADV_DYNAMIC(SAMPLE_LOCATIONS_ENABLE)) {
       dynamic->vk.ms.sample_locations_enable = state->ms->sample_locations_enable;
    }
 
-   if (states & RADV_DYNAMIC_SAMPLE_LOCATIONS) {
+   if (states & RADV_DYNAMIC(SAMPLE_LOCATIONS)) {
       unsigned count = state->ms->sample_locations->per_pixel * state->ms->sample_locations->grid_size.width *
                        state->ms->sample_locations->grid_size.height;
 
@@ -687,47 +687,47 @@ radv_pipeline_init_dynamic_state(const struct radv_device *device, struct radv_g
    }
 
    /* Depth stencil. */
-   if (states & RADV_DYNAMIC_DEPTH_BOUNDS) {
+   if (states & RADV_DYNAMIC(DEPTH_BOUNDS)) {
       dynamic->vk.ds.depth.bounds_test.min = state->ds->depth.bounds_test.min;
       dynamic->vk.ds.depth.bounds_test.max = state->ds->depth.bounds_test.max;
    }
 
-   if (states & RADV_DYNAMIC_STENCIL_COMPARE_MASK) {
+   if (states & RADV_DYNAMIC(STENCIL_COMPARE_MASK)) {
       dynamic->vk.ds.stencil.front.compare_mask = state->ds->stencil.front.compare_mask;
       dynamic->vk.ds.stencil.back.compare_mask = state->ds->stencil.back.compare_mask;
    }
 
-   if (states & RADV_DYNAMIC_STENCIL_WRITE_MASK) {
+   if (states & RADV_DYNAMIC(STENCIL_WRITE_MASK)) {
       dynamic->vk.ds.stencil.front.write_mask = state->ds->stencil.front.write_mask;
       dynamic->vk.ds.stencil.back.write_mask = state->ds->stencil.back.write_mask;
    }
 
-   if (states & RADV_DYNAMIC_STENCIL_REFERENCE) {
+   if (states & RADV_DYNAMIC(STENCIL_REFERENCE)) {
       dynamic->vk.ds.stencil.front.reference = state->ds->stencil.front.reference;
       dynamic->vk.ds.stencil.back.reference = state->ds->stencil.back.reference;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_TEST_ENABLE) {
+   if (states & RADV_DYNAMIC(DEPTH_TEST_ENABLE)) {
       dynamic->vk.ds.depth.test_enable = state->ds->depth.test_enable;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_WRITE_ENABLE) {
+   if (states & RADV_DYNAMIC(DEPTH_WRITE_ENABLE)) {
       dynamic->vk.ds.depth.write_enable = state->ds->depth.write_enable;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_COMPARE_OP) {
+   if (states & RADV_DYNAMIC(DEPTH_COMPARE_OP)) {
       dynamic->vk.ds.depth.compare_op = state->ds->depth.compare_op;
    }
 
-   if (states & RADV_DYNAMIC_DEPTH_BOUNDS_TEST_ENABLE) {
+   if (states & RADV_DYNAMIC(DEPTH_BOUNDS_TEST_ENABLE)) {
       dynamic->vk.ds.depth.bounds_test.enable = state->ds->depth.bounds_test.enable;
    }
 
-   if (states & RADV_DYNAMIC_STENCIL_TEST_ENABLE) {
+   if (states & RADV_DYNAMIC(STENCIL_TEST_ENABLE)) {
       dynamic->vk.ds.stencil.test_enable = state->ds->stencil.test_enable;
    }
 
-   if (states & RADV_DYNAMIC_STENCIL_OP) {
+   if (states & RADV_DYNAMIC(STENCIL_OP)) {
       dynamic->vk.ds.stencil.front.op.compare = state->ds->stencil.front.op.compare;
       dynamic->vk.ds.stencil.front.op.fail = radv_translate_stencil_op(state->ds->stencil.front.op.fail);
       dynamic->vk.ds.stencil.front.op.pass = radv_translate_stencil_op(state->ds->stencil.front.op.pass);
@@ -746,39 +746,39 @@ radv_pipeline_init_dynamic_state(const struct radv_device *device, struct radv_g
     *    disabled or if the subpass of the render pass the pipeline is
     *    created against does not use any color attachments.
     */
-   if (states & RADV_DYNAMIC_BLEND_CONSTANTS) {
+   if (states & RADV_DYNAMIC(BLEND_CONSTANTS)) {
       typed_memcpy(dynamic->vk.cb.blend_constants, state->cb->blend_constants, 4);
    }
 
-   if (states & RADV_DYNAMIC_LOGIC_OP) {
-      if ((pipeline->dynamic_states & RADV_DYNAMIC_LOGIC_OP_ENABLE) || state->cb->logic_op_enable) {
+   if (states & RADV_DYNAMIC(LOGIC_OP)) {
+      if ((pipeline->dynamic_states & RADV_DYNAMIC(LOGIC_OP_ENABLE)) || state->cb->logic_op_enable) {
          dynamic->vk.cb.logic_op = radv_translate_blend_logic_op(state->cb->logic_op);
       }
    }
 
-   if (states & RADV_DYNAMIC_COLOR_WRITE_ENABLE) {
+   if (states & RADV_DYNAMIC(COLOR_WRITE_ENABLE)) {
       u_foreach_bit (i, state->cb->color_write_enables) {
          dynamic->color_write_enable |= BITFIELD_RANGE(i * 4, 4);
       }
    }
 
-   if (states & RADV_DYNAMIC_LOGIC_OP_ENABLE) {
+   if (states & RADV_DYNAMIC(LOGIC_OP_ENABLE)) {
       dynamic->vk.cb.logic_op_enable = state->cb->logic_op_enable;
    }
 
-   if (states & RADV_DYNAMIC_COLOR_WRITE_MASK) {
+   if (states & RADV_DYNAMIC(COLOR_WRITE_MASK)) {
       for (unsigned i = 0; i < state->cb->attachment_count; i++) {
          dynamic->color_write_mask |= (uint32_t)state->cb->attachments[i].write_mask << (4 * i);
       }
    }
 
-   if (states & RADV_DYNAMIC_COLOR_BLEND_ENABLE) {
+   if (states & RADV_DYNAMIC(COLOR_BLEND_ENABLE)) {
       for (unsigned i = 0; i < state->cb->attachment_count; i++) {
          dynamic->color_blend_enable |= state->cb->attachments[i].blend_enable << i;
       }
    }
 
-   if (states & RADV_DYNAMIC_COLOR_BLEND_EQUATION) {
+   if (states & RADV_DYNAMIC(COLOR_BLEND_EQUATION)) {
       for (unsigned i = 0; i < state->cb->attachment_count; i++) {
          const struct vk_color_blend_attachment_state *att = &state->cb->attachments[i];
 
@@ -791,28 +791,28 @@ radv_pipeline_init_dynamic_state(const struct radv_device *device, struct radv_g
       dynamic->blend_eq.mrt0_is_dual_src = radv_can_enable_dual_src(&state->cb->attachments[0]);
    }
 
-   if (states & RADV_DYNAMIC_DISCARD_RECTANGLE_ENABLE) {
+   if (states & RADV_DYNAMIC(DISCARD_RECTANGLE_ENABLE)) {
       dynamic->vk.dr.enable = state->dr->rectangle_count > 0;
    }
 
-   if (states & RADV_DYNAMIC_DISCARD_RECTANGLE_MODE) {
+   if (states & RADV_DYNAMIC(DISCARD_RECTANGLE_MODE)) {
       dynamic->vk.dr.mode = state->dr->mode;
    }
 
-   if (states & RADV_DYNAMIC_ATTACHMENT_FEEDBACK_LOOP_ENABLE) {
+   if (states & RADV_DYNAMIC(ATTACHMENT_FEEDBACK_LOOP_ENABLE)) {
       bool uses_ds_feedback_loop = radv_pipeline_uses_ds_feedback_loop(pipeline, state);
 
       dynamic->feedback_loop_aspects =
          uses_ds_feedback_loop ? (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT) : VK_IMAGE_ASPECT_NONE;
    }
 
-   if (states & RADV_DYNAMIC_VERTEX_INPUT_BINDING_STRIDE) {
+   if (states & RADV_DYNAMIC(VERTEX_INPUT_BINDING_STRIDE)) {
       u_foreach_bit (i, state->vi->bindings_valid) {
          dynamic->vk.vi_binding_strides[i] = state->vi->bindings[i].stride;
       }
    }
 
-   if (states & RADV_DYNAMIC_VERTEX_INPUT) {
+   if (states & RADV_DYNAMIC(VERTEX_INPUT)) {
       radv_pipeline_init_vertex_input_state(device, pipeline, state);
    }
 
