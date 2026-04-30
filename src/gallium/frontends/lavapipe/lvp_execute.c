@@ -2543,16 +2543,18 @@ static void handle_copy_memory_indirect(struct vk_cmd_queue_entry *cmd,
 {
    const VkCopyMemoryIndirectInfoKHR *copycmd = cmd->u.copy_memory_indirect_khr.copy_memory_indirect_info;
 
+   uint8_t *base = (uint8_t*)(uintptr_t)copycmd->copyAddressRange.address;
    for (uint32_t i = 0; i < copycmd->copyCount; i++) {
-      uint8_t *ptr = (void*)(uintptr_t)copycmd->copyAddressRange.address;
-      VkCopyMemoryIndirectCommandKHR *copy = (void*)(ptr + i * copycmd->copyAddressRange.stride);
+      if (i * copycmd->copyAddressRange.stride > copycmd->copyAddressRange.size)
+         break;
+      VkCopyMemoryIndirectCommandKHR *copy = (void*)(base + i * copycmd->copyAddressRange.stride);
       void *src = (void*)(uintptr_t)copy->srcAddress;
       void *dst = (void*)(uintptr_t)copy->dstAddress;
       /* Techincally apps passing in size of zero still need valid pointers,
        * but in case they don't (which is easy to do) we don't want undefined behavior (or crash) in memcpy.
        */
       if (copy->size != 0)
-         memcpy(dst, src, copycmd->copyAddressRange.size);
+         memcpy(dst, src, copy->size);
    }
 }
 
