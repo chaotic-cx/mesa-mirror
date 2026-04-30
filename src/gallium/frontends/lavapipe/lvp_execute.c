@@ -332,7 +332,7 @@ update_pcbuf(struct rendering_state *state, mesa_shader_stage pstage,
 
 static void emit_compute_state(struct rendering_state *state)
 {
-   if (state->pcbuf_dirty[MESA_SHADER_COMPUTE])
+   if (state->pcbuf_dirty[MESA_SHADER_COMPUTE] && state->has_pcbuf[MESA_SHADER_COMPUTE])
       update_pcbuf(state, MESA_SHADER_COMPUTE, MESA_SHADER_COMPUTE);
 
    if (state->constbuf_dirty[MESA_SHADER_COMPUTE]) {
@@ -637,9 +637,6 @@ handle_compute_shader(struct rendering_state *state, struct lvp_shader *shader)
    state->shaders[MESA_SHADER_COMPUTE] = shader;
 
    state->has_pcbuf[MESA_SHADER_COMPUTE] = shader->push_constant_size > 0;
-
-   if (!state->has_pcbuf[MESA_SHADER_COMPUTE])
-      state->pcbuf_dirty[MESA_SHADER_COMPUTE] = false;
 
    state->dispatch_info.block[0] = shader->pipeline_nir->nir->info.workgroup_size[0];
    state->dispatch_info.block[1] = shader->pipeline_nir->nir->info.workgroup_size[1];
