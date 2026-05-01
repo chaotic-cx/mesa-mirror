@@ -4227,7 +4227,7 @@ process_sequence_ext(struct rendering_state *state,
       // only available if VK_EXT_mesh_shader is supported
       case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_MESH_TASKS_EXT: {
          VkDrawMeshTasksIndirectCommandEXT *data = input;
-         memcpy(&cmd->u.draw_mesh_tasks_ext, data, sizeof(VkDrawIndirectCountIndirectCommandEXT));
+         memcpy(&cmd->u.draw_mesh_tasks_ext, data, sizeof(VkDrawMeshTasksIndirectCommandEXT));
          break;
       }
       case VK_INDIRECT_COMMANDS_TOKEN_TYPE_DRAW_MESH_TASKS_COUNT_EXT: {
