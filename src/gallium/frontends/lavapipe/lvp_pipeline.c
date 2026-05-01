@@ -1315,14 +1315,6 @@ create_shader_object(struct lvp_device *device, const VkShaderCreateInfoEXT *pCr
       shader->tess_ccw = lvp_create_pipeline_nir(nir_shader_clone(NULL, shader->pipeline_nir->nir));
       shader->tess_ccw->nir->info.tess.ccw = !shader->pipeline_nir->nir->info.tess.ccw;
       shader->tess_ccw_cso = lvp_shader_compile(device, shader, nir_shader_clone(NULL, shader->tess_ccw->nir), false);
-   } else if (stage == MESA_SHADER_FRAGMENT && nir->info.fs.uses_fbfetch_output) {
-      /* this is (currently) illegal */
-      assert(!nir->info.fs.uses_fbfetch_output);
-      shader_destroy(device, shader, false);
-
-      vk_object_base_finish(&shader->base);
-      vk_free2(&device->vk.alloc, pAllocator, shader);
-      return VK_NULL_HANDLE;
    }
    nir_serialize(&shader->blob, nir, true);
    shader->shader_cso = lvp_shader_compile(device, shader, nir_shader_clone(NULL, nir), false);
