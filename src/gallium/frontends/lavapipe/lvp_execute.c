@@ -2000,10 +2000,12 @@ handle_rendering_attachment_locations(struct vk_cmd_queue_entry *cmd, struct ren
    state->fb_remapped = true;
    memset(state->fb_map, PIPE_MAX_COLOR_BUFS, sizeof(state->fb_map));
    assert(state->color_att_count == set->colorAttachmentCount);
-   for (unsigned i = 0; i < state->color_att_count; i++) {
-      if (set->pColorAttachmentLocations[i] == VK_ATTACHMENT_UNUSED)
-         continue;
-      state->fb_map[i] = set->pColorAttachmentLocations[i];
+   if (set->pColorAttachmentLocations) {
+      for (unsigned i = 0; i < state->color_att_count; i++) {
+         if (set->pColorAttachmentLocations[i] == VK_ATTACHMENT_UNUSED)
+            continue;
+         state->fb_map[i] = set->pColorAttachmentLocations[i];
+      }
    }
    emit_fb_state(state);
 }
