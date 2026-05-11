@@ -1769,6 +1769,7 @@ optimizations.extend([
    (('ior',  ('inot', ('ior', a, b)), ('iand', a, b)),           ('inot', ('ixor', a, b))),
    (('iand', ('ior', ('inot', a), b), ('ior', a,  ('inot', b))), ('inot', ('ixor', a, b))),
    (('ior', ('iand', ('inot', a), b), ('iand', a, ('inot', b))),          ('ixor', a, b)),
+   (('iand', ('ior', a, '#b(uint)'), '#c(uint)'), c, when('(b & c) == c')),
 
    # It is common for sequences of (x & 1) to occur in large trees.  Replacing
    # an expression like ((a & 1) & (b & 1)) with ((a & b) & 1) allows the "&
