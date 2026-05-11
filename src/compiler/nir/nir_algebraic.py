@@ -845,18 +845,18 @@ class SearchAndReplace(object):
         search = transform[0]
         replace = transform[1]
         if len(transform) > 2:
-            self.condition = transform[2]
+            self.condition_flag = transform[2]
         else:
-            self.condition = 'true'
+            self.condition_flag = 'true'
 
         if len(transform) > 3:
             self.test_status = transform[3]
         else:
             self.test_status = TestStatus.PASS
 
-        if self.condition not in algebraic_pass.pattern_cond:
-            algebraic_pass.pattern_cond.append(self.condition)
-        self.condition_index = algebraic_pass.pattern_cond.index(self.condition)
+        if self.condition_flag not in algebraic_pass.pattern_cond:
+            algebraic_pass.pattern_cond.append(self.condition_flag)
+        self.condition_flag_index = algebraic_pass.pattern_cond.index(self.condition_flag)
 
         varset = VarSet()
         if isinstance(search, Expression):
@@ -1219,7 +1219,7 @@ static const nir_search_variable_cond ${pass_name}_variable_cond[] = {
 static const struct transform ${pass_name}_transforms[] = {
 % for i in automaton.state_patterns:
 % if i is not None:
-   { ${xforms[i].search.array_index}, ${xforms[i].replace.array_index}, ${xforms[i].condition_index} },
+   { ${xforms[i].search.array_index}, ${xforms[i].replace.array_index}, ${xforms[i].condition_flag_index} },
 % else:
    { ~0, ~0, ~0 }, /* Sentinel */
 
@@ -1281,14 +1281,14 @@ ${pass_name}(
 % endfor
 ) {
    bool progress = false;
-   bool condition_flags[${len(condition_list)}];
+   bool condition_flags[${len(condition_flag_list)}];
    const nir_shader_compiler_options *options = shader->options;
    const shader_info *info = &shader->info;
    (void) options;
    (void) info;
 
    STATIC_ASSERT(${str(cache["next_index"])} == ARRAY_SIZE(${pass_name}_values));
-   % for index, condition in enumerate(condition_list):
+   % for index, condition in enumerate(condition_flag_list):
    condition_flags[${index}] = ${condition};
    % endfor
 
@@ -1636,7 +1636,7 @@ class AlgebraicPass(object):
                 xform.replace, "replace", value_comps, variable_map, xform_defs, expr_conds, fp_math_ctrl, self.pass_name)
 
             # lowering patterns can lose precision
-            if expression_is_inexact(xform.search) or (xform.condition != "true" and expression_has_float(xform.search)):
+            if expression_is_inexact(xform.search) or (xform.condition_flag != "true" and expression_has_float(xform.search)):
                 xform_defs.append("exact = false;")
 
             if fp_math_ctrl:
@@ -1681,7 +1681,7 @@ class AlgebraicPass(object):
         return _algebraic_pass_template.render(pass_name=self.pass_name,
                                                xforms=self.xforms,
                                                opcode_xforms=self.opcode_xforms,
-                                               condition_list=self.pattern_cond,
+                                               condition_flag_list=self.pattern_cond,
                                                automaton=self.automaton,
                                                expression_cond=sorted(
                                                    self.expression_cond.items(), key=lambda kv: kv[1]),

@@ -825,9 +825,9 @@ nir_algebraic_instr(nir_builder *build, nir_instr *instr,
    int xform_idx = *util_dynarray_element(states, uint16_t,
                                           alu->def.index);
    for (const struct transform *xform = &table->transforms[table->transform_offsets[xform_idx]];
-        xform->condition_offset != ~0;
+        xform->condition_flag_offset != ~0;
         xform++) {
-      if (condition_flags[xform->condition_offset] &&
+      if (condition_flags[xform->condition_flag_offset] &&
           nir_replace_instr(build, alu, state, states, table,
                             &table->values[xform->search].expression,
                             &table->values[xform->replace].value, worklist, dead_instrs)) {
