@@ -1392,8 +1392,6 @@ for op in ['iand', 'ior', 'ixor']:
 
 # Integer sizes
 for s in [8, 16, 32, 64]:
-    amount_bits = int(math.log2(s))
-
     lower_umin = 'options->lower_umin'
     lower_umax = 'options->lower_umax'
     lower_imin = 'false'
@@ -1423,13 +1421,6 @@ for s in [8, 16, 32, 64]:
        (('bcsel', ('ige', 'a@{}'.format(s), b), b, a), ('imin', a, b), '!'+lower_imin),
        (('bcsel', ('ige', 'b@{}'.format(s), a), b, a), ('imax', a, b), '!'+lower_imax),
 
-       # SM5 32-bit shifts are defined to use the 5 least significant bits (or 4 bits for 16 bits)
-       (('ishl', 'a@{}'.format(s), ('iand', s - 1, b)), ('ishl', a, b)),
-       (('ishr', 'a@{}'.format(s), ('iand', s - 1, b)), ('ishr', a, b)),
-       (('ushr', 'a@{}'.format(s), ('iand', s - 1, b)), ('ushr', a, b)),
-       (('ushr', 'a@{}'.format(s), ('ishl(is_used_once)', ('iand', b, 1), amount_bits - 1)), ('ushr', a, ('ishl', b, amount_bits - 1))),
-       (('ushr', 'a@{}'.format(s), ('ishl(is_used_once)', ('iand', b, 3), amount_bits - 2)), ('ushr', a, ('ishl', b, amount_bits - 2))),
-
        (('ior', ('ilt(is_used_once)', f'a@{s}', b), ('ilt', a, c)), ('ilt', a, ('imax', b, c)), '!'+lower_imax),
        (('ior', ('ilt(is_used_once)', f'a@{s}', c), ('ilt', b, c)), ('ilt', ('imin', a, b), c), '!'+lower_imin),
        (('ior', ('ige(is_used_once)', f'a@{s}', b), ('ige', a, c)), ('ige', a, ('imin', b, c)), '!'+lower_imin),
@@ -1452,6 +1443,20 @@ for s in [8, 16, 32, 64]:
     if s == 32:
         # True/False are ~0 and 0 in NIR.  b2i of True is 1, and -1 is ~0 (True).
         optimizations.extend([(('ineg', ('b2i{}'.format(s), 'a@{}'.format(s))), a)])
+
+# SM5 32-bit shifts are defined to use the 5 least significant bits (or 4 bits for 16 bits)
+optimizations.extend([
+    (('ishl', a, ('iand', b, '#c(uint)')), ('ishl', a, b), when('c == (a->bit_size - 1)'), TestStatus.UNSUPPORTED),
+    (('ishr', a, ('iand', b, '#c(uint)')), ('ishr', a, b), when('c == (a->bit_size - 1)'), TestStatus.UNSUPPORTED),
+    (('ushr', a, ('iand', b, '#c(uint)')), ('ushr', a, b), when('c == (a->bit_size - 1)'), TestStatus.UNSUPPORTED),
+
+    (('ushr', a, ('ishl(is_used_once)', ('iand', b, 1), '#c(uint)')),
+     ('ushr', a, ('ishl', b, c)),
+     when('c == (util_logbase2(a->bit_size) - 1)')),
+    (('ushr', a, ('ishl(is_used_once)', ('iand', b, 3), '#c(uint)')),
+     ('ushr', a, ('ishl', b, c)),
+     when('c == (util_logbase2(a->bit_size) - 2)')),
+])
 
 optimizations.extend([
    # Common pattern like 'if (i == 0 || i == 1 || ...)'
