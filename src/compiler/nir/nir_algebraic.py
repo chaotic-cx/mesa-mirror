@@ -1209,7 +1209,7 @@ UNUSED static const nir_search_expression_cond ${pass_name}_expression_cond[] = 
 % endif
 
 % if variable_cond:
-static const nir_search_variable_cond ${pass_name}_variable_cond[] = {
+${ '' if build_tests else 'static ' }const nir_search_variable_cond ${pass_name}_variable_cond[] = {
 % for cond in variable_cond:
    ${cond[0]},
 % endfor
@@ -1306,13 +1306,11 @@ _algebraic_pass_pattern_test_template = mako.template.Template("""
 #include "tests/nir_algebraic_pattern_test.h"
 #include "nir_search_helpers.h"
 
+extern "C" {
 % if variable_cond:
-UNUSED static const nir_search_variable_cond ${pass_name}_variable_cond[] = {
-% for cond in variable_cond:
-   ${cond[0]},
-% endfor
-};
+UNUSED extern const nir_search_variable_cond ${pass_name}_variable_cond[];
 % endif
+}
 
 class ${pass_name}_pattern_test : public nir_algebraic_pattern_test {
 protected:
@@ -1545,6 +1543,7 @@ class AlgebraicPass(object):
         self.xforms = []
         self.opcode_xforms = defaultdict(lambda: [])
         self.pass_name = pass_name
+        self.build_tests = build_tests
         self.expression_cond = {}
         self.variable_cond = {}
         self.pattern_cond = ['true']
@@ -1679,6 +1678,7 @@ class AlgebraicPass(object):
 
     def render(self):
         return _algebraic_pass_template.render(pass_name=self.pass_name,
+                                               build_tests=self.build_tests,
                                                xforms=self.xforms,
                                                opcode_xforms=self.opcode_xforms,
                                                condition_flag_list=self.pattern_cond,
@@ -1700,6 +1700,5 @@ class AlgebraicPass(object):
             pass_name=self.pass_name,
             chunks=chunks,
             subset=i,
-            variable_cond=sorted(
-                self.variable_cond.items(), key=lambda kv: kv[1])
+            variable_cond=len(self.variable_cond) > 0,
         )
