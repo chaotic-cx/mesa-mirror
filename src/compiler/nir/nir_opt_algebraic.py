@@ -48,10 +48,6 @@ has_fmulz = '(options->has_fmulz || \
 has_ffmaz = '(options->has_ffmaz_no_denorms && \
               !nir_is_denorm_preserve(info->float_controls_execution_mode, 32))'
 
-denorm_ftz_16 = 'nir_is_denorm_flush_to_zero(info->float_controls_execution_mode, 16)'
-denorm_ftz_32 = 'nir_is_denorm_flush_to_zero(info->float_controls_execution_mode, 32)'
-denorm_ftz_64 = 'nir_is_denorm_flush_to_zero(info->float_controls_execution_mode, 64)'
-
 # Written in the form (<search>, <replace>) where <search> is an expression
 # and <replace> is either an expression or a value.  An expression is
 # defined as a tuple of the form ([~]<op>, <src0>, <src1>, <src2>, <src3>)
@@ -177,9 +173,7 @@ optimize_fcanonicalize = [
    # another, because we don't know if they flush the same way.
    # Constant folding would also not flush, so there is already a lot of handwaving
    # involved, and this mode is supposed to be fast, not 100% reproducible.
-   (('fcanonicalize', 'a@16'), a, '!'+denorm_ftz_16),
-   (('fcanonicalize', 'a@32'), a, '!'+denorm_ftz_32),
-   (('fcanonicalize', 'a@64'), a, '!'+denorm_ftz_64),
+   (('fcanonicalize', a), a, when('!nir_is_denorm_flush_to_zero(info->float_controls_execution_mode, a->bit_size)')),
 
    # If denormals are required to be flushed we can still
    # eliminate it if any denormals are already flushed or will be flushed.
