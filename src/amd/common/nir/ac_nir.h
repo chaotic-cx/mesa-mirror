@@ -263,10 +263,12 @@ ac_nir_lower_ngg_mesh(nir_shader *shader, const ac_nir_lower_ngg_options *option
 
 bool
 ac_nir_lower_task_outputs_to_mem(nir_shader *shader,
-                                 bool has_query);
+                                 bool has_query,
+                                 enum amd_gfx_level gfx_level);
 
 bool
-ac_nir_lower_mesh_inputs_to_mem(nir_shader *shader, bool has_task_shader);
+ac_nir_lower_mesh_inputs_to_mem(nir_shader *shader, bool has_task_shader,
+                                enum amd_gfx_level gfx_level);
 
 bool
 ac_nir_lower_global_access(nir_shader *shader, enum amd_gfx_level gfx_level);

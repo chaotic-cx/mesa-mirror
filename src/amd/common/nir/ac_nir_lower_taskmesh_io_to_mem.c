@@ -20,6 +20,7 @@ typedef struct {
    bool has_query;
    /* True if the mesh shader is linked with a task shader. */
    bool has_task_shader;
+   enum amd_gfx_level gfx_level;
 } lower_tsms_io_state;
 
 static nir_def *
@@ -27,7 +28,7 @@ task_num_entries(nir_builder *b,
                  lower_tsms_io_state *s)
 {
    nir_def *ring = nir_load_ring_task_draw_amd(b);
-   nir_def *bytes = nir_channel(b, ring, 2);
+   nir_def *bytes = ac_nir_get_buffer_num_records(b, 32, ring, s->gfx_level);
    return nir_udiv_imm(b, bytes, AC_TASK_DRAW_ENTRY_BYTES);
 }
 
@@ -37,7 +38,7 @@ task_payload_entry_bytes(nir_builder *b,
 {
    nir_def *num_entries = task_num_entries(b, s);
    nir_def *ring = nir_load_ring_task_payload_amd(b);
-   nir_def *bytes = nir_channel(b, ring, 2);
+   nir_def *bytes = ac_nir_get_buffer_num_records(b, 32, ring, s->gfx_level);
 
    /* num_entries must be a power of two,
     * use that to implement a division using a shift.
@@ -311,7 +312,8 @@ lower_task_intrinsics(nir_builder *b,
 
 bool
 ac_nir_lower_task_outputs_to_mem(nir_shader *shader,
-                                 bool has_query)
+                                 bool has_query,
+                                 enum amd_gfx_level gfx_level)
 {
    bool progress = false;
 
@@ -325,6 +327,7 @@ ac_nir_lower_task_outputs_to_mem(nir_shader *shader,
 
    lower_tsms_io_state state = {
       .has_query = has_query,
+      .gfx_level = gfx_level,
    };
 
    progress |= nir_shader_lower_instructions(shader,
@@ -370,11 +373,13 @@ lower_mesh_intrinsics(nir_builder *b,
 }
 
 bool
-ac_nir_lower_mesh_inputs_to_mem(nir_shader *shader, bool has_task_shader)
+ac_nir_lower_mesh_inputs_to_mem(nir_shader *shader, bool has_task_shader,
+                                enum amd_gfx_level gfx_level)
 {
    lower_tsms_io_state state = {0};
 
    state.has_task_shader = has_task_shader;
+   state.gfx_level = gfx_level;
 
    return nir_shader_lower_instructions(shader,
                                         filter_mesh_input_load,
