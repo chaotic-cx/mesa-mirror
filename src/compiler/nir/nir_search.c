@@ -866,6 +866,9 @@ nir_algebraic_impl(nir_function_impl *impl,
    _mesa_pointer_hash_table_init(&numlsb_ht, NULL);
 
    nir_search_state state;
+   state.shader = impl->function->shader;
+   state.options = state.shader->options;
+   state.info = &state.shader->info;
    state.range_ht = &range_ht;
    state.numlsb_ht = &numlsb_ht;
 

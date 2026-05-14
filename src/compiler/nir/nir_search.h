@@ -198,6 +198,9 @@ typedef union {
 } nir_search_value_union;
 
 typedef struct {
+   const nir_shader *shader;
+   const nir_shader_compiler_options *options;
+   const shader_info *info;
    nir_fp_analysis_state *range_ht;
    struct hash_table *numlsb_ht;
 } nir_search_state;

@@ -480,6 +480,9 @@ nir_algebraic_pattern_test::check_variable_conds()
 
    nir_fp_analysis_state range_ht = nir_create_fp_analysis_state(b->impl);
    nir_search_state state = {
+      .shader = b->shader,
+      .options = b->shader->options,
+      .info = &b->shader->info,
       .range_ht = &range_ht,
       .numlsb_ht = _mesa_pointer_hash_table_create(NULL),
    };
