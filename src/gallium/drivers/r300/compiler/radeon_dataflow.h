@@ -92,10 +92,6 @@ void rc_get_readers_sub(struct radeon_compiler *c, struct rc_instruction *writer
  * Compiler passes based on dataflow analysis.
  */
 /*@{*/
-typedef void (*rc_dataflow_mark_outputs_fn)(void *userdata, void *data,
-                                            void (*mark_fn)(void *data, unsigned int index,
-                                                            unsigned int mask));
-void rc_dataflow_deadcode(struct radeon_compiler *c, void *user);
 void rc_dataflow_swizzles(struct radeon_compiler *c, void *user);
 /*@}*/
 

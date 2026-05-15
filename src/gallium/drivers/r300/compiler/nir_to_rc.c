@@ -780,13 +780,7 @@ ntr_swizzle_for_write_mask(struct rc_src_register src, uint32_t write_mask)
 static struct rc_dst_register
 ntr_get_ssa_def_decl(struct ntr_compile *c, nir_def *ssa)
 {
-   uint32_t writemask;
-   /* Fix writemask for nir_intrinsic_load_ubo_vec4 according to uses. */
-   if (nir_def_is_intrinsic(ssa) &&
-       nir_def_as_intrinsic(ssa)->intrinsic == nir_intrinsic_load_ubo_vec4)
-      writemask = nir_def_components_read(ssa);
-   else
-      writemask = BITSET_MASK(ssa->num_components);
+   uint32_t writemask = nir_def_components_read(ssa);
 
    struct rc_dst_register dst;
    if (!ntr_try_store_ssa_in_tgsi_output(c, &dst, ssa))
@@ -1299,7 +1293,8 @@ ntr_push_tex_arg(struct ntr_compile *c, nir_tex_instr *instr, nir_tex_src_type t
 static void
 ntr_emit_texture(struct ntr_compile *c, nir_tex_instr *instr)
 {
-   struct rc_dst_register dst = ntr_get_dest(c, &instr->def);
+   nir_legacy_dest dest = nir_legacy_chase_dest(&instr->def);
+   struct rc_dst_register dst = ntr_get_chased_dest(c, &dest);
    struct rc_dst_register tex_dst = dst;
    assert(!instr->is_shadow);
    rc_texture_target target =
@@ -1367,11 +1362,13 @@ ntr_emit_texture(struct ntr_compile *c, nir_tex_instr *instr)
 
    assert(s.i == rc_get_opcode_info(tex_opcode)->NumSrcRegs);
 
+   /* R300/R400 texture instructions always write a full vec4 so partial register
+    * writes need a temporary to preserve other components. */
    bool needs_mov =
       dst.File != RC_FILE_TEMPORARY ||
-      (!c->compiler->is_r500 && dst.WriteMask != RC_MASK_XYZW);
+      (!c->compiler->is_r500 && !dest.is_ssa && dst.WriteMask != RC_MASK_XYZW);
    if (needs_mov)
-      tex_dst = ntr_temp(c);
+      tex_dst = ntr_writemask(ntr_temp(c), dst.WriteMask);
 
    struct rc_sub_instruction *inst =
       rc_sub_instruction(c, tex_opcode, &tex_dst, RC_SATURATE_NONE, &s.srcs[0],
@@ -2005,14 +2002,11 @@ nir_to_rc_lower_tex_instr(nir_builder *b, nir_tex_instr *tex, void *data)
    while (!s.channels[s.i - 1].def)
       s.i--;
 
-   /* Instead of putting undefs in the unused slots of the vecs, just put in
-    * another used channel.  Otherwise, we'll get unnecessary moves into
-    * registers.
-    */
+   /* Let nir_lower_vec_to_regs skip writes to unused coordinate channels. */
    assert(s.channels[0].def != NULL);
    for (int i = 1; i < s.i; i++) {
       if (!s.channels[i].def)
-         s.channels[i] = s.channels[0];
+         s.channels[i] = nir_get_scalar(nir_undef(b, 1, 32), 0);
    }
 
    nir_tex_instr_add_src(tex, nir_tex_src_backend1, nir_vec_scalars(b, s.channels, MIN2(s.i, 4)));

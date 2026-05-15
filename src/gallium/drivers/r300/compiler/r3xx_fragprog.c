@@ -122,7 +122,7 @@ r3xx_compile_fragment_program(struct r300_fragment_program_compiler *c)
       /* NAME                     DUMP PREDICATE        FUNCTION                        PARAM */
       {"transform IF",            1,   is_r500,         r500_transform_IF,              NULL},
       {"native rewrite",          1,   1,               rc_local_transform,             native_rewrite},
-      {"deadcode",                1,   opt,             rc_dataflow_deadcode,           NULL},
+      {"unused channels",         1,   opt,             rc_mark_unused_channels,        NULL},
       {"dataflow optimize",       1,   opt,             rc_optimize,                    NULL},
       {"convert rgb<->alpha",     1,   opt,             rc_convert_rgb_alpha,           NULL},
       {"inline literals",         1,   is_r500 && opt,  rc_inline_literals,             NULL},

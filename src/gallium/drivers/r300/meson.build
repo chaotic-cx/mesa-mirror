@@ -64,7 +64,6 @@ files_r300 = files(
   'compiler/radeon_compiler_util.c',
   'compiler/radeon_compiler_util.h',
   'compiler/radeon_dataflow.c',
-  'compiler/radeon_dataflow_deadcode.c',
   'compiler/radeon_dataflow.h',
   'compiler/radeon_dataflow_swizzles.c',
   'compiler/radeon_inline_literals.c',

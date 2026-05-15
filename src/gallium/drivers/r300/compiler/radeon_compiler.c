@@ -107,7 +107,14 @@ rc_mark_unused_channels(struct radeon_compiler *c, void *user)
    for (struct rc_instruction *inst = c->Program.Instructions.Next;
         inst != &c->Program.Instructions; inst = inst->Next) {
 
-      rc_compute_sources_for_writemask(inst, inst->U.I.DstReg.WriteMask, srcmasks);
+      unsigned int writemask = inst->U.I.DstReg.WriteMask;
+      /* R500 predicates can write ALUResult without writing a register. */
+      if (inst->U.I.WriteALUResult == RC_ALURESULT_X)
+         writemask |= RC_MASK_X;
+      else if (inst->U.I.WriteALUResult == RC_ALURESULT_W)
+         writemask |= RC_MASK_W;
+
+      rc_compute_sources_for_writemask(inst, writemask, srcmasks);
 
       for (unsigned int src = 0; src < 3; ++src) {
          for (unsigned int chan = 0; chan < 4; ++chan) {
