@@ -1268,11 +1268,31 @@ static const struct intel_device_info intel_device_info_nvl_u_h = {
    .has_local_mem = false,
 };
 
+#define XE3P_URB_MIN_MAX_ENTRIES  \
+   .urb = {                                                \
+      .size = 600, /* For intel_stub_gpu */                \
+      .min_entries = {                                     \
+         [MESA_SHADER_VERTEX]    = 128,                    \
+         [MESA_SHADER_TESS_CTRL] = 2,                      \
+         [MESA_SHADER_TESS_EVAL] = 128,                    \
+         [MESA_SHADER_GEOMETRY]  = 4,                      \
+         [MESA_SHADER_TASK]      = 2,                      \
+         [MESA_SHADER_MESH]      = 4,                      \
+      },                                                   \
+      .max_entries = {                                     \
+         [MESA_SHADER_VERTEX]    = 5888, /* BSpec 56268 */ \
+         [MESA_SHADER_TESS_CTRL] = 1548, /* BSpec 56265 */ \
+         [MESA_SHADER_TESS_EVAL] = 4480, /* BSpec 56263 */ \
+         [MESA_SHADER_GEOMETRY]  = 1952, /* BSpec 56264 */ \
+         [MESA_SHADER_TASK]      = 1548, /* BSpec 56267 */ \
+         [MESA_SHADER_MESH]      = 1952, /* BSpec 56266 */ \
+      }                                                    \
+   }
+
 #define XE3P_PLACEHOLDER_THREADS_AND_URB                        \
    XE3_PLACEHOLDER_THREADS_AND_URB,                             \
    .num_thread_per_eu = 8 /* BSpec 74198 */,                    \
-   .urb.min_entries[MESA_SHADER_TASK] = 2,                      \
-   .urb.min_entries[MESA_SHADER_MESH] = 2
+   XE3P_URB_MIN_MAX_ENTRIES
 
 #define XE3P_FEATURES                                           \
    XE3_FEATURES,                                                \
