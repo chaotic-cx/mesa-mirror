@@ -33,12 +33,12 @@ etna_ml_lower_relu(struct etna_ml_subgraph *subgraph,
 
 void
 etna_ml_lower_absolute(struct etna_ml_subgraph *subgraph,
-                       const struct pipe_ml_operation *pad,
+                       const struct pipe_ml_operation *abs,
                        struct etna_operation *operation);
 
 void
 etna_ml_lower_logistic(struct etna_ml_subgraph *subgraph,
-                       const struct pipe_ml_operation *pad,
+                       const struct pipe_ml_operation *log,
                        struct etna_operation *operation);
 
 void

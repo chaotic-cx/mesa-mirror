@@ -1075,7 +1075,7 @@ etna_ml_lower_absolute(struct etna_ml_subgraph *subgraph,
 
 void
 etna_ml_lower_logistic(struct etna_ml_subgraph *subgraph,
-                       const struct pipe_ml_operation *abs,
+                       const struct pipe_ml_operation *log,
                        struct etna_operation *operation)
 {
    operation->type = ETNA_JOB_TYPE_TP;
@@ -1083,21 +1083,21 @@ etna_ml_lower_logistic(struct etna_ml_subgraph *subgraph,
    operation->stride = 1;
 
    operation->input_count = 1;
-   operation->input_width = abs->input_tensors[0]->dims[1];
-   operation->input_height = abs->input_tensors[0]->dims[2];
-   operation->input_channels = abs->input_tensors[0]->dims[3];
+   operation->input_width = log->input_tensors[0]->dims[1];
+   operation->input_height = log->input_tensors[0]->dims[2];
+   operation->input_channels = log->input_tensors[0]->dims[3];
    operation->input_tensor_sizes[0] = operation->input_width *
                                       operation->input_height *
                                       operation->input_channels;
-   operation->input_zero_point = etna_tensor_zero_point(abs->input_tensors[0]);
-   operation->input_scale = abs->input_tensors[0]->scale;
+   operation->input_zero_point = etna_tensor_zero_point(log->input_tensors[0]);
+   operation->input_scale = log->input_tensors[0]->scale;
 
    operation->output_count = 1;
-   operation->output_width = abs->output_tensors[0]->dims[1];
-   operation->output_height = abs->output_tensors[0]->dims[2];
-   operation->output_channels = abs->output_tensors[0]->dims[3];
-   operation->output_zero_point = etna_tensor_zero_point(abs->output_tensors[0]);
-   operation->output_scale = abs->output_tensors[0]->scale;
+   operation->output_width = log->output_tensors[0]->dims[1];
+   operation->output_height = log->output_tensors[0]->dims[2];
+   operation->output_channels = log->output_tensors[0]->dims[3];
+   operation->output_zero_point = etna_tensor_zero_point(log->output_tensors[0]);
+   operation->output_scale = log->output_tensors[0]->scale;
    operation->output_tensor_sizes[0] = operation->output_width *
                                        operation->output_height *
                                        operation->output_channels;
