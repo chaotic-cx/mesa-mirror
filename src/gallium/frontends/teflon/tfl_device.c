@@ -860,15 +860,25 @@ fill_tensor(struct teflon_delegate *delegate, TfLiteContext *tf_context, struct 
 }
 
 static void
-dump_graph(struct pipe_tensor *tensors, unsigned tensor_count, struct pipe_ml_operation *operations, unsigned operation_count)
+dump_used_tensors(struct pipe_tensor *tensors, unsigned tensor_count,
+                  struct pipe_ml_operation *operations,
+                  unsigned operation_count)
 {
-   teflon_debug("\n");
-   teflon_debug("teflon: compiling graph: %d tensors %d operations\n",
-                tensor_count, operation_count);
+   bool *used = calloc(tensor_count, sizeof(*used));
+
+   for (unsigned i = 0; i < operation_count; i++) {
+      for (unsigned j = 0; j < operations[i].input_count; j++)
+         used[operations[i].input_tensors[j]->index] = true;
+      for (unsigned j = 0; j < operations[i].output_count; j++)
+         used[operations[i].output_tensors[j]->index] = true;
+   }
 
    teflon_debug("%3s %-8s %3s %s %-12s\n", "idx", "scale", "zp", "has_data", "size");
    teflon_debug("=======================================\n");
-   for (int i = 0; i < tensor_count; i++) {
+   for (unsigned i = 0; i < tensor_count; i++) {
+      if (!used[i])
+         continue;
+
       teflon_debug("%3d %6f %3x %-8s %dx%dx%dx%d\n",
                    tensors[i].index,
                    tensors[i].scale,
@@ -876,6 +886,18 @@ dump_graph(struct pipe_tensor *tensors, unsigned tensor_count, struct pipe_ml_op
                    tensors[i].data == NULL ? "no" : "yes",
                    tensors[i].dims[0], tensors[i].dims[1], tensors[i].dims[2], tensors[i].dims[3]);
    }
+
+   free(used);
+}
+
+static void
+dump_graph(struct pipe_tensor *tensors, unsigned tensor_count, struct pipe_ml_operation *operations, unsigned operation_count)
+{
+   teflon_debug("\n");
+   teflon_debug("teflon: compiling graph: %d tensors %d operations\n",
+                tensor_count, operation_count);
+
+   dump_used_tensors(tensors, tensor_count, operations, operation_count);
 
    teflon_debug("\n");
    teflon_debug("%3s %-15s %-20s %-20s\n", "idx", "type", "inputs", "outputs");
