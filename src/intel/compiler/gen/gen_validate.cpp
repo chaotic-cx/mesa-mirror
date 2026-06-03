@@ -412,6 +412,33 @@ private:
       UNREACHABLE("invalid execution type");
    }
 
+   gen_pipe
+   inferred_sync_pipe() const
+   {
+      if (devinfo->verx10 < 125)
+         return GEN_PIPE_FLOAT;
+
+      if (gen_inst_is_send(inst))
+         return GEN_PIPE_NONE;
+
+      bool has_int_src  = false;
+      bool has_long_src = false;
+
+      for (unsigned i = 0; i < num_sources; i++) {
+         const gen_reg_type t = inst->src[i].type;
+         has_int_src  |= gen_type_is_int(t);
+         has_long_src |= gen_type_size_bytes(t) >= 8;
+      }
+
+      /* See also inferred_sync_pipe() from brw. */
+      if (devinfo->has_64bit_float_via_math_pipe && has_long_src)
+         return GEN_PIPE_NONE;
+
+      return has_long_src ? GEN_PIPE_LONG :
+             has_int_src  ? GEN_PIPE_INT  :
+                            GEN_PIPE_FLOAT;
+   }
+
    bool
    math_requires_src1() const
    {
@@ -1848,6 +1875,13 @@ private:
 
          ERROR_IF(inst->atomic_control,
                   "Atomic DPAS is not supported by the validator.");
+
+         if (inst->swsb.mode && inst->swsb.regdist) {
+            const gen_pipe inferred_pipe = inferred_sync_pipe();
+            ERROR_IF(inst->swsb.pipe != GEN_PIPE_NONE &&
+                     inst->swsb.pipe != inferred_pipe,
+                     "DPAS RegDist with SBID must use an unspecified or inferred synchronization pipeline.");
+         }
 
          const bool float_mode =
             gen_type_is_float_or_bfloat(src1_type) ||

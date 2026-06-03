@@ -1169,6 +1169,31 @@ static const struct {
    { "dpas.8x8 (16) r0:f r1:f r2:hf r3:hf {Atomic}", SAME_ERROR, { .ge = 200 } },
 
 
+   { "dpas.8x8 (8) r0:f r1:f r2:hf r3:hf {F@1,$10}", VALID, { .ge = 125, .lt = 200 } },
+   { "dpas.8x8 (8) r0:f r1:f r2:hf r3:hf {@1,$10}",  VALID, { .ge = 125, .lt = 200 } },
+   { "dpas.8x8 (8) r0:f r1:f r2:hf r3:hf {I@1,$10}",
+     "DPAS RegDist with SBID must use an unspecified or inferred synchronization pipeline.", { .ge = 125, .lt = 200 }
+   },
+   { "dpas.8x8 (8) r0:f r1:f r2:hf r3:hf {A@1,$10}", SAME_ERROR, { .ge = 125, .lt = 200 } },
+   { "dpas.8x8 (16) r0:f r1:f r2:hf r3:hf {F@1,$10}", VALID, { .ge = 200 } },
+   { "dpas.8x8 (16) r0:f r1:f r2:hf r3:hf {@1,$10}",  VALID, { .ge = 200 } },
+   { "dpas.8x8 (16) r0:f r1:f r2:hf r3:hf {I@1,$10}",
+     "DPAS RegDist with SBID must use an unspecified or inferred synchronization pipeline.", { .ge = 200 }
+   },
+   { "dpas.8x8 (16) r0:f r1:f r2:hf r3:hf {A@1,$10}", SAME_ERROR, { .ge = 200 } },
+
+   { "dpas.8x8 (8) r0:d r1:d r2:b r3:b {I@1,$10}", VALID, { .ge = 125, .lt = 200 } },
+   { "dpas.8x8 (8) r0:d r1:d r2:b r3:b {@1,$10}",  VALID, { .ge = 125, .lt = 200 } },
+   { "dpas.8x8 (8) r0:d r1:d r2:b r3:b {F@1,$10}",
+     "DPAS RegDist with SBID must use an unspecified or inferred synchronization pipeline.", { .ge = 125, .lt = 200 }
+   },
+   { "dpas.8x8 (16) r0:d r1:d r2:b r3:b {I@1,$10}", VALID, { .ge = 200 } },
+   { "dpas.8x8 (16) r0:d r1:d r2:b r3:b {@1,$10}",  VALID, { .ge = 200 } },
+   { "dpas.8x8 (16) r0:d r1:d r2:b r3:b {F@1,$10}",
+     "DPAS RegDist with SBID must use an unspecified or inferred synchronization pipeline.", { .ge = 200 }
+   },
+
+
    { "dpas.8x8 (8) r0:hf r1:hf r2:hf r3:hf",
      "DPAS destination type must be F before Gfx20 in floating-point mode.", { .ge = 125, .lt = 200 }
    },
