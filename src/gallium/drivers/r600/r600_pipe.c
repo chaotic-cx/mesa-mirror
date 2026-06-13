@@ -313,10 +313,12 @@ static void r600_init_shader_caps(struct r600_screen *rscreen)
 
 		caps->supported_irs = 1 << PIPE_SHADER_IR_NIR;
 
-		caps->max_shader_buffers =
-		caps->max_shader_images =
-			rscreen->b.family >= CHIP_CEDAR &&
-			(i == MESA_SHADER_FRAGMENT || i == MESA_SHADER_COMPUTE) ? 8 : 0;
+		if (rscreen->b.family >= CHIP_CEDAR && (
+			    i == MESA_SHADER_FRAGMENT ||
+			    i == MESA_SHADER_COMPUTE)) {
+			caps->max_shader_buffers = R600_MAX_USABLE_SSBOS;
+			caps->max_shader_images = R600_MAX_IMAGES;
+		}
 
 		if (rscreen->b.family >= CHIP_CEDAR &&
 		    rscreen->has_atomics) {
@@ -524,13 +526,7 @@ static void r600_init_screen_caps(struct r600_screen *rscreen)
 
 	caps->buffer_sampler_view_rgba_only = family < CHIP_CEDAR;
 
-	caps->max_combined_shader_output_resources = 8;
-
 	caps->max_gs_invocations = 32;
-
-	/* shader buffer objects */
-	caps->max_shader_buffer_size = 1 << 27;
-	caps->max_combined_shader_buffers = 8;
 
 	caps->int64 =
 	caps->doubles =
@@ -579,6 +575,14 @@ static void r600_init_screen_caps(struct r600_screen *rscreen)
 	caps->rasterizer_subpixel_bits = 8;
 
 	caps->framebuffer_msaa_constraints = 2;
+
+	/* shader buffer objects */
+	caps->max_shader_buffer_size = 1 << 27;
+	caps->max_combined_shader_buffers = R600_MAX_USABLE_SSBOS;
+	caps->max_combined_shader_output_resources = R600_MAX_SSBOS;
+	assert(caps->max_combined_shader_output_resources >=
+	       caps->max_combined_shader_buffers &&
+	       R600_MAX_IMAGES <= R600_MAX_SSBOS);
 
 	/* Timer queries, present when the clock frequency is non zero. */
 	caps->query_time_elapsed =

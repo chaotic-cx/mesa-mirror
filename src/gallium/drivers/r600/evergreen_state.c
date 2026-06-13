@@ -1838,17 +1838,18 @@ static void evergreen_emit_image_state(struct r600_context *rctx, struct r600_at
 	struct r600_texture *rtex;
 	struct r600_resource *resource;
 	bool has_vm = rctx->b.screen->info.r600_has_virtual_memory;
-	int i;
 
 	assert(!(state->enabled_mask & state->incomplete_mask));
 
-	for (i = 0; i < R600_MAX_IMAGES; i++) {
+	for (unsigned i = 0; i < R600_MAX_SSBOS; i++) {
 		struct r600_image_view *image = &state->views[i];
 		unsigned reloc, immed_reloc;
-		int idx = i + offset;
+		const unsigned idx = i + offset +
+			(!pkt_flags ? fb_state->nr_cbufs + (rctx->dual_src_blend ? 1 : 0) : 0);
 
-		if (!pkt_flags)
-			idx += fb_state->nr_cbufs + (rctx->dual_src_blend ? 1 : 0);
+		if (idx >= R600_MAX_SSBOS)
+			break;
+
 		if (!image->base.resource) {
 			if (state->incomplete_mask & (1<<i)) {
 				evergreen_emit_arb_shader_image_load_store_incomplete(rctx,
@@ -1879,24 +1880,44 @@ static void evergreen_emit_image_state(struct r600_context *rctx, struct r600_at
 							RADEON_USAGE_READWRITE |
 							RADEON_PRIO_SHADER_RW_BUFFER);
 
-		if (pkt_flags)
-			radeon_compute_set_context_reg_seq(cs, R_028C60_CB_COLOR0_BASE + idx * 0x3C, 13);
-		else
-			radeon_set_context_reg_seq(cs, R_028C60_CB_COLOR0_BASE + idx * 0x3C, 13);
+		if (idx < R600_MAX_IMAGES) {
+			const unsigned cb_base = R_028C60_CB_COLOR0_BASE + idx * 0x3C;
 
-		radeon_emit(cs, image->cb_color_base);	/* R_028C60_CB_COLOR0_BASE */
-		radeon_emit(cs, image->cb_color_pitch);	/* R_028C64_CB_COLOR0_PITCH */
-		radeon_emit(cs, image->cb_color_slice);	/* R_028C68_CB_COLOR0_SLICE */
-		radeon_emit(cs, image->cb_color_view);	/* R_028C6C_CB_COLOR0_VIEW */
-		radeon_emit(cs, image->cb_color_info); /* R_028C70_CB_COLOR0_INFO */
-		radeon_emit(cs, image->cb_color_attrib);	/* R_028C74_CB_COLOR0_ATTRIB */
-		radeon_emit(cs, image->cb_color_dim);		/* R_028C78_CB_COLOR0_DIM */
-		radeon_emit(cs, rtex ? rtex->cmask.base_address_reg : image->cb_color_base);	/* R_028C7C_CB_COLOR0_CMASK */
-		radeon_emit(cs, rtex ? rtex->cmask.slice_tile_max : 0);	/* R_028C80_CB_COLOR0_CMASK_SLICE */
-		radeon_emit(cs, image->cb_color_fmask);	/* R_028C84_CB_COLOR0_FMASK */
-		radeon_emit(cs, image->cb_color_fmask_slice); /* R_028C88_CB_COLOR0_FMASK_SLICE */
-		radeon_emit(cs, rtex ? rtex->color_clear_value[0] : 0); /* R_028C8C_CB_COLOR0_CLEAR_WORD0 */
-		radeon_emit(cs, rtex ? rtex->color_clear_value[1] : 0); /* R_028C90_CB_COLOR0_CLEAR_WORD1 */
+			if (pkt_flags)
+				radeon_compute_set_context_reg_seq(cs, cb_base, 13);
+			else
+				radeon_set_context_reg_seq(cs, cb_base, 13);
+
+			radeon_emit(cs, image->cb_color_base);	/* R_028C60_CB_COLOR0_BASE */
+			radeon_emit(cs, image->cb_color_pitch);	/* R_028C64_CB_COLOR0_PITCH */
+			radeon_emit(cs, image->cb_color_slice);	/* R_028C68_CB_COLOR0_SLICE */
+			radeon_emit(cs, image->cb_color_view);	/* R_028C6C_CB_COLOR0_VIEW */
+			radeon_emit(cs, image->cb_color_info); /* R_028C70_CB_COLOR0_INFO */
+			radeon_emit(cs, image->cb_color_attrib);	/* R_028C74_CB_COLOR0_ATTRIB */
+			radeon_emit(cs, image->cb_color_dim);		/* R_028C78_CB_COLOR0_DIM */
+			radeon_emit(cs, rtex ? rtex->cmask.base_address_reg : image->cb_color_base);	/* R_028C7C_CB_COLOR0_CMASK */
+			radeon_emit(cs, rtex ? rtex->cmask.slice_tile_max : 0);	/* R_028C80_CB_COLOR0_CMASK_SLICE */
+			radeon_emit(cs, image->cb_color_fmask);	/* R_028C84_CB_COLOR0_FMASK */
+			radeon_emit(cs, image->cb_color_fmask_slice); /* R_028C88_CB_COLOR0_FMASK_SLICE */
+			radeon_emit(cs, rtex ? rtex->color_clear_value[0] : 0); /* R_028C8C_CB_COLOR0_CLEAR_WORD0 */
+			radeon_emit(cs, rtex ? rtex->color_clear_value[1] : 0); /* R_028C90_CB_COLOR0_CLEAR_WORD1 */
+		} else {
+			const unsigned cb_base = R_028E40_CB_COLOR8_BASE +
+				(idx - R600_MAX_IMAGES) * 0x1C;
+
+			if (pkt_flags)
+				radeon_compute_set_context_reg_seq(cs, cb_base, 7);
+			else
+				radeon_set_context_reg_seq(cs, cb_base, 7);
+
+			radeon_emit(cs, image->cb_color_base);	/* R_028C60_CB_COLOR0_BASE */
+			radeon_emit(cs, image->cb_color_pitch);	/* R_028C64_CB_COLOR0_PITCH */
+			radeon_emit(cs, image->cb_color_slice);	/* R_028C68_CB_COLOR0_SLICE */
+			radeon_emit(cs, image->cb_color_view);	/* R_028C6C_CB_COLOR0_VIEW */
+			radeon_emit(cs, image->cb_color_info); /* R_028C70_CB_COLOR0_INFO */
+			radeon_emit(cs, image->cb_color_attrib);	/* R_028C74_CB_COLOR0_ATTRIB */
+			radeon_emit(cs, image->cb_color_dim);		/* R_028C78_CB_COLOR0_DIM */
+		}
 
 		if(!has_vm) {
 			radeon_emit(cs, PKT3(PKT3_NOP, 0, 0)); /* R_028C60_CB_COLOR0_BASE */

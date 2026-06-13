@@ -24,14 +24,20 @@
 
 #define R600_NUM_ATOMS 57
 
+#define R600_MAX_PS_RESOURCES 176
+#define R600_MAX_VS_RESOURCES 160
+
 #define R600_MAX_IMAGES 8
+#define R600_MAX_SSBOS 12 /* CB0 -> CB11 */
+#define R600_MAX_USABLE_SSBOS (R600_MAX_SSBOS - 1)
+
 /*
  * ranges reserved for images on evergreen
  * first set for the immediate buffers,
  * second for the actual resources for RESQ.
  */
-#define R600_IMAGE_IMMED_RESOURCE_OFFSET 160
-#define R600_IMAGE_REAL_RESOURCE_OFFSET 168
+#define R600_IMAGE_IMMED_RESOURCE_OFFSET (R600_MAX_PS_RESOURCES - 2 * R600_MAX_SSBOS)
+#define R600_IMAGE_REAL_RESOURCE_OFFSET (R600_MAX_PS_RESOURCES - 1 * R600_MAX_SSBOS)
 
 /* read caches */
 #define R600_CONTEXT_INV_VERTEX_CACHE		(R600_CONTEXT_PRIVATE_FLAG << 0)
@@ -463,7 +469,7 @@ struct r600_image_state {
 	uint32_t			compressed_colortex_mask;
 	uint32_t			incomplete_mask;
 	bool				dirty_buffer_constants;
-	struct r600_image_view views[R600_MAX_IMAGES];
+	struct r600_image_view views[R600_MAX_SSBOS];
 };
 
 /* Used to spill shader temps */
