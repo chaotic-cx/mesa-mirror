@@ -2836,6 +2836,17 @@ print_dedup_entry(const char *place, struct set *set, dedup_entry *entry)
           entry->gs_emit_index);
 }
 
+/* dedup_entry contains nir_scalar fields (pointer + unsigned) that have
+ * compiler-inserted padding bytes. Entries are allocated with rzalloc, which
+ * zeros all bytes including padding. Assignments into nir_scalar fields must
+ * be done member-by-member (not via struct assignment) so that the zero
+ * padding from rzalloc is preserved. With that invariant, XXH32 and memcmp
+ * over the full struct are correct and efficient.
+ * If this assert fires, audit all nir_scalar assignments below.
+ */
+static_assert(sizeof(dedup_entry) == (sizeof(void *) == 8 ? 48 : 28),
+              "dedup_entry layout changed");
+
 static uint32_t
 dedup_entry_hash_accum(const void *key, uint32_t hash)
 {
@@ -2965,16 +2976,21 @@ deduplicate_outputs(struct linkage_info *linkage,
          unsigned location = nir_intrinsic_io_semantics(iter->instr).location;
          dedup_entry *entry = rzalloc(mem_ctx, dedup_entry);
          entry->block = iter->instr->instr.block;
-         entry->value =
+         nir_scalar value_scalar =
             nir_scalar_resolved(nir_get_io_data_src(iter->instr)->ssa, 0);
+         entry->value.def = value_scalar.def;
+         entry->value.comp = value_scalar.comp;
          entry->gs_emit_index = iter->gs_emit_index;
          entry->is_back_color = location == VARYING_SLOT_BFC0 ||
                                 location == VARYING_SLOT_BFC1;
          /* TODO: per-view outputs might need something here */
 
          nir_src *index = nir_get_io_arrayed_index_src(iter->instr);
-         if (index)
-            entry->index = nir_scalar_resolved(index->ssa, 0);
+         if (index) {
+            nir_scalar index_scalar = nir_scalar_resolved(index->ssa, 0);
+            entry->index.def = index_scalar.def;
+            entry->index.comp = index_scalar.comp;
+         }
 
          if (DEBUG_PRINT_DEDUP)
             print_dedup_entry("add/block", key, entry);
