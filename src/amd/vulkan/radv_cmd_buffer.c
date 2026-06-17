@@ -1349,8 +1349,7 @@ radv_destroy_cmd_buffer(struct vk_command_buffer *vk_cmd_buffer)
 
       radv_destroy_msrtss_transients(cmd_buffer);
 
-      if (cmd_buffer->accel_struct_buffers)
-         radv_rra_accel_struct_buffers_unref(device, cmd_buffer->accel_struct_buffers);
+      radv_rra_accel_struct_buffers_unref(device, cmd_buffer->accel_struct_buffers);
       _mesa_set_destroy(cmd_buffer->accel_struct_buffers, NULL);
 
       for (unsigned i = 0; i < ARRAY_SIZE(cmd_buffer->linear_suballocators); i++) {

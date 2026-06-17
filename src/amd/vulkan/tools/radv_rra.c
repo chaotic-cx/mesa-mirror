@@ -530,6 +530,9 @@ radv_rra_accel_struct_buffer_unref(struct radv_device *device, struct radv_rra_a
 void
 radv_rra_accel_struct_buffers_unref(struct radv_device *device, struct set *buffers)
 {
+   if (!buffers)
+      return;
+
    set_foreach_remove (buffers, entry)
       radv_rra_accel_struct_buffer_unref(device, (void *)entry->key);
 }
