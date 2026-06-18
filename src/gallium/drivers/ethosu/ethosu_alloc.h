@@ -6,12 +6,10 @@
 #ifndef ETHOSU_ALLOC_H
 #define ETHOSU_ALLOC_H
 
-struct ethosu_feature_map;
 struct ethosu_subgraph;
 
-unsigned
-ethosu_allocate_feature_map(struct ethosu_subgraph *subgraph,
-                            const unsigned *required_sizes,
-                            struct ethosu_feature_map *fm);
+void
+ethosu_allocate_tensors(struct ethosu_subgraph *subgraph,
+                        const unsigned *required_sizes);
 
 #endif /* ETHOSU_ALLOC_H */
