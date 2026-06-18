@@ -6,6 +6,7 @@
 #include "util/u_inlines.h"
 
 #include "ethosu_alloc.h"
+#include "ethosu_device.h"
 #include "ethosu_lower.h"
 #include "ethosu_ml.h"
 
@@ -300,10 +301,83 @@ ethosu_validate_io_feature_map(struct ethosu_feature_map *fm)
    assert(ethosu_feature_map_span(fm) <= fm->tensor->size - offset);
 }
 
+unsigned
+ethosu_coefficient_size(const struct ethosu_operation *operation)
+{
+   assert(operation->type == ETHOSU_OPERATION_TYPE_CONVOLUTION);
+
+   return ALIGN_POT(operation->conv.scales.size + operation->conv.weights.size,
+                    16);
+}
+
+static void
+ethosu_allocate_sram_coefficients(struct ethosu_subgraph *subgraph)
+{
+   struct ethosu_ml_device *device = ethosu_ml_device(subgraph->base.device);
+   unsigned sram_size = device->sram_size;
+   unsigned op_count =
+      util_dynarray_num_elements(&subgraph->operations, struct ethosu_operation);
+
+   for (unsigned i = 0; i < op_count; i++) {
+      struct ethosu_operation *dma =
+         util_dynarray_element(&subgraph->operations, struct ethosu_operation, i);
+      struct ethosu_operation *conv = NULL;
+
+      if (dma->type != ETHOSU_OPERATION_TYPE_DMA ||
+          dma->dma.dst_region != SCRATCH_REGION)
+         continue;
+
+      /* A fused LUT upload is emitted after the coefficient DMA, before the
+       * convolution that consumes both.  It does not break the association
+       * between the coefficient DMA and that convolution. */
+      for (unsigned j = i + 1; j < op_count; j++) {
+         struct ethosu_operation *operation =
+            util_dynarray_element(&subgraph->operations,
+                                  struct ethosu_operation, j);
+
+         if (operation->type == ETHOSU_OPERATION_TYPE_NONE)
+            continue;
+
+         if (operation->type == ETHOSU_OPERATION_TYPE_DMA) {
+            if (operation->dma.dst_region == LUT_REGION)
+               continue;
+
+            break;
+         }
+
+         if (operation->type == ETHOSU_OPERATION_TYPE_CONVOLUTION)
+            conv = operation;
+
+         break;
+      }
+
+      if (!conv)
+         continue;
+
+      unsigned size = ethosu_coefficient_size(conv);
+
+      assert(size <= sram_size);
+
+      unsigned sram_address = sram_size - size;
+
+      dma->dma.dst_address = sram_address;
+      dma->dma.dst_region = SCRATCH_REGION;
+
+      conv->conv.scales.region = SCRATCH_REGION;
+      conv->conv.scales.address = sram_address;
+
+      conv->conv.weights.region = SCRATCH_REGION;
+      conv->conv.weights.address =
+         conv->conv.scales.address + conv->conv.scales.size;
+   }
+}
+
 void
 ethosu_allocate_tensors(struct ethosu_subgraph *subgraph,
                         const unsigned *required_sizes)
 {
+   ethosu_allocate_sram_coefficients(subgraph);
+
    const unsigned op_count =
       util_dynarray_num_elements(&subgraph->operations, struct ethosu_operation);
    const unsigned tensor_count =

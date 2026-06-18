@@ -3263,17 +3263,12 @@ static void
 ethosu_lower_dma(struct ethosu_operation *conv_operation,
                  struct ethosu_operation *operation)
 {
+   unsigned size = conv_operation->conv.scales.size + conv_operation->conv.weights.size;
    operation->type = ETHOSU_OPERATION_TYPE_DMA;
 
    operation->dma.address = conv_operation->conv.scales.address;
-   operation->dma.size = conv_operation->conv.scales.size + conv_operation->conv.weights.size;
+   operation->dma.size = size;
    operation->dma.dst_region = SCRATCH_REGION;
-
-   conv_operation->conv.scales.region = SCRATCH_REGION;
-   conv_operation->conv.scales.address = 0;
-
-   conv_operation->conv.weights.region = SCRATCH_REGION;
-   conv_operation->conv.weights.address = conv_operation->conv.scales.size;
 }
 
 static void
@@ -3751,7 +3746,7 @@ ethosu_weights_in_sram(struct ethosu_subgraph *subgraph,
 {
    return operation->type == ETHOSU_OPERATION_TYPE_CONVOLUTION &&
           operation->conv.weights_in_sram &&
-          operation->conv.scales.size + operation->conv.weights.size <=
+          ethosu_coefficient_size(operation) <=
              ethosu_ml_device(subgraph->base.device)->sram_size;
 }
 
