@@ -125,6 +125,7 @@ merge_requests:
         '^.gitlab-ci': ['CI']
         '^bin/ci/': ['CI']
         '^.ci-farms(-disabled)?/collabora': ['CI', 'radeonsi', 'RADV', 'iris', 'ANV', 'panfrost', 'panvk', 'freedreno', 'turnip', 'venus', 'zink']
+        '^.ci-farms(-disabled)?/qualcomm': ['CI', 'freedreno', 'turnip']
         '^.*/gitlab-ci(-inc)?.yml': ['CI']
         '^.*/ci/deqp-.*\.toml': ['CI']
         '^.*/ci/.*-(fails|flakes|skips)\.txt': ['CI-Expectations']
