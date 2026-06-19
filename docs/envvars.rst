@@ -445,6 +445,9 @@ Core Mesa environment variables
       * - ``ctxroll``
         - Context rolls
         - ``RADV``
+      * - ``rdp``
+        - Radeon Developer Panel connection. Implicitly enables ``rgp``.
+        - ``RADV``
 
    - Creating RMV captures requires the ``scripts/setup.sh`` script in the
      Radeon Developer Tools folder to be run beforehand

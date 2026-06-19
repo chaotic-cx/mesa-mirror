@@ -188,10 +188,19 @@ radv_get_perftest_option_name(int id)
    return NULL;
 }
 
+// clang-format off
 static const struct debug_control trace_options[] = {
-   {"rgp", RADV_TRACE_MODE_RGP},           {"rra", RADV_TRACE_MODE_RRA},       {"gamma", RADV_TRACE_MODE_GAMMA},
-   {"ctxroll", RADV_TRACE_MODE_CTX_ROLLS}, {"ranges", RADV_TRACE_MODE_RANGES}, {NULL, 0},
+   {"rgp", RADV_TRACE_MODE_RGP},
+   {"rra", RADV_TRACE_MODE_RRA},
+   {"gamma", RADV_TRACE_MODE_GAMMA},
+   {"ctxroll", RADV_TRACE_MODE_CTX_ROLLS},
+   {"ranges", RADV_TRACE_MODE_RANGES},
+#ifdef RADV_SUPPORT_RDP
+   {"rdp", RADV_TRACE_MODE_RDP},
+#endif
+   {NULL, 0},
 };
+// clang-format on
 
 static const struct vk_instance_extension_table radv_instance_extensions_supported = {
    .KHR_device_group_creation = true,
