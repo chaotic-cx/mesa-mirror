@@ -23,6 +23,7 @@ enum ethosu_dbg {
    ETHOSU_DBG_FORCE_U85 = BITFIELD_BIT(5),
    ETHOSU_DBG_DUMP_PERF = BITFIELD_BIT(6),
    ETHOSU_DBG_DUMP_LOWERING = BITFIELD_BIT(7),
+   ETHOSU_DBG_MEM = BITFIELD_BIT(8),
 };
 
 extern int ethosu_debug;
