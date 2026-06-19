@@ -1,0 +1,253 @@
+KHR-GLES3.framebuffer_blit.multisampled_to_singlesampled_blit_depth_config_test,Fail
+KHR-GLES31.core.polygon_offset_clamp.PolygonOffsetClampMinMax,Fail
+KHR-GLES31.core.texture_buffer.texture_buffer_atomic_functions,Fail
+KHR-GLES31.core.texture_buffer.texture_buffer_operations_buffer_load,Fail
+KHR-GLES31.core.texture_buffer.texture_buffer_operations_cpu_writes,Fail
+KHR-GLES31.core.texture_buffer.texture_buffer_operations_framebuffer_readback,Fail
+KHR-GLES31.core.texture_buffer.texture_buffer_operations_image_store,Fail
+KHR-GLES31.core.texture_buffer.texture_buffer_operations_ssbo_writes,Fail
+KHR-GLES31.core.texture_buffer.texture_buffer_operations_transform_feedback,Fail
+dEQP-GLES2.functional.texture.mipmap.2d.projected.linear_nearest_clamp,Fail
+dEQP-GLES2.functional.texture.mipmap.2d.projected.linear_nearest_mirror,Fail
+dEQP-GLES2.functional.texture.mipmap.2d.projected.linear_nearest_repeat,Fail
+dEQP-GLES2.functional.texture.mipmap.2d.projected.nearest_nearest_clamp,Fail
+dEQP-GLES2.functional.texture.mipmap.2d.projected.nearest_nearest_mirror,Fail
+dEQP-GLES2.functional.texture.mipmap.2d.projected.nearest_nearest_repeat,Fail
+dEQP-GLES3.functional.rasterization.fbo.rbo_multisample_4.primitives.lines,Fail
+dEQP-GLES3.functional.rasterization.fbo.rbo_multisample_max.primitives.lines,Fail
+dEQP-GLES31.functional.shaders.helper_invocation.derivate.lines_4_samples_dfdx,Fail
+dEQP-GLES31.functional.shaders.helper_invocation.derivate.lines_max_samples_dfdy,Fail
+
+multisample-dEQP-GLES3.functional.clipping.line.line_clip_viewport_center,Fail
+multisample-dEQP-GLES3.functional.clipping.line.line_clip_viewport_corner,Fail
+multisample-dEQP-GLES3.functional.rasterization.primitives.lines,Fail
+
+# OpenCL tests below
+#
+## rusticl-core issues:
+#
+#Unexpected CL error: CL_SUCCESS 0
+#Expected CL error: CL_INVALID_LINKER_OPTIONS -67
+#Failed (error code: CL_SUCCESS): Trigger CL_INVALID_LINKER_OPTIONS if the linker options specified by options are invalid.
+#Unexpected CL error: CL_LINK_PROGRAM_FAILURE -17
+#Expected CL error: CL_INVALID_OPERATION -59
+#Failed (error code: CL_LINK_PROGRAM_FAILURE): Trigger CL_INVALID_OPERATION if the rules for devices containing compiled binaries or libraries as described in input_programs argument above are not followed.
+#Unexpected CL error: CL_SUCCESS 0
+#Expected CL error: CL_LINK_PROGRAM_FAILURE -17
+api@cllinkprogram,Fail
+
+# https://gitlab.freedesktop.org/mesa/mesa/-/issues/8408
+program@execute@global-offset,Fail
+program@execute@global-offset@3d- input dependent,Fail
+
+#
+## freedreno issues:
+#
+#Error at data[0]
+custom@r600 create release buffer bug,Fail
+
+#
+## works on OnePlus 6:
+#
+#Failed: return NULL if platform is not a valid platform
+api@clgetextensionfunctionaddressforplatform,Fail
+
+#
+## Not our problem:
+#
+# CL_DEVICE_MAX_READ_IMAGE_ARGS: failed, expected at least 128, got 16
+api@clgetdeviceinfo,Fail
+
+# broken piglit test (doesn't account for FTZ)
+program@execute@builtin@builtin-float-nextafter-1.0.generated,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float1,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float16,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float2,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float4,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float8,Fail
+
+# (file=input,line=0,column=0,index=0): Unresolved external reference to "_Z21convert_char4_sat_rteDv4_i".
+program@execute@vector-conversion,Fail
+
+#
+## A702-specific
+#
+
+#   Build options: -D WORKSIZE=256 -cl-std=CL1.2
+# Unexpected CL error: CL_INVALID_WORK_GROUP_SIZE -54
+program@bitcoin: phatk kernel,Fail
+
+#  Global work size and local work size is: {512, 0, 0}
+# Unexpected CL error: CL_INVALID_WORK_GROUP_SIZE -54
+#  Global work size and local work size is: {1, 512, 0}
+# Unexpected CL error: CL_INVALID_WORK_GROUP_SIZE -54
+program@run kernel with max work item sizes,Fail
+
+# Expecting 0.500000 (0x3f000000) with tolerance 0.000000 (0 ulps), but got 1.000000 (0x3f800000)
+program@execute@sampler@read from image using linear filtering and normalized coords,Fail
+# Expecting 0.500000 (0x3f000000) with tolerance 0.000000 (0 ulps), but got 1.000000 (0x3f800000)
+program@execute@sampler@read from image using linear filtering and unnormalized coords,Fail
+# because of the two failures above
+program@execute@sampler,Fail
+
+# Required core version for xVK_KHR_surface_protected_capabilities not met (1.1)
+# https://github.com/KhronosGroup/VK-GL-CTS/issues/620
+dEQP-VK.api.info.extension_core_versions.extension_core_versions,Fail
+
+# Enabling unsupported features didn't return VK_ERROR_FEATURE_NOT_PRESENT.
+dEQP-VK.api.device_init.create_device_unsupported_features.protected_memory_features,Fail
+
+# missing deps for VK_KHR_create_renderpass2
+dEQP-VK.info.device_extension_dependencies,Fail
+
+# missing deps for VK_KHR_surface_protected_capabilities
+dEQP-VK.info.instance_extension_dependencies,Fail
+
+# deqp-vk: ../src/freedreno/ir3/ir3_spill.c:823: limit: Assertion `ctx->cur_pressure.full <= ctx->limit_pressure.full' failed.
+# A702's current reg_size_vec4 is too small, fixed with https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/43038
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroup_memory.1,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroup_memory.128,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroup_memory.16,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroup_memory.2,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroup_memory.4,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroup_memory.64,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroups.x,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroups.y,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.max_workgroups.z,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.specialize_workgroup.7_7_8,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.specialize_workgroup.7_8_7,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.specialize_workgroup.7_8_8,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.specialize_workgroup.8_7_7,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.specialize_workgroup.8_7_8,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.specialize_workgroup.8_8_7,Crash
+dEQP-VK.compute.pipeline.zero_initialize_workgroup_memory.specialize_workgroup.8_8_8,Crash
+
+dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_discard_host_memory,Crash
+dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_discard_local_memory,Crash
+dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_no_discard_host_memory,Crash
+dEQP-VK.conditional_rendering.draw_clear.draw.update_with_rendering_no_discard_local_memory,Crash
+
+# Early-fragment multisample autotune regression
+dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_samples_2,Fail
+
+dEQP-VK.glsl.logical_copy.initialized_struct,Crash
+dEQP-VK.glsl.logical_copy.undefined_memory,Crash
+gmem-dEQP-VK.glsl.logical_copy.undefined_memory,Crash
+
+dEQP-VK.glsl.shader_clock.compute.clock2x32ARB,Crash
+dEQP-VK.glsl.shader_clock.compute.clockRealtimeEXT,Crash
+dEQP-VK.glsl.shader_clock.fragment.clock2x32ARB,Crash
+dEQP-VK.glsl.shader_clock.fragment.clockARB,Crash
+dEQP-VK.glsl.shader_clock.fragment.clockRealtime2x32EXT,Crash
+dEQP-VK.glsl.shader_clock.fragment.clockRealtimeEXT,Crash
+dEQP-VK.glsl.shader_clock.vertex.clockARB,Crash
+dEQP-VK.glsl.shader_clock.vertex.clockRealtimeEXT,Crash
+gmem-dEQP-VK.glsl.shader_clock.vertex.clockARB,Crash
+
+dEQP-VK.pipeline.fast_linked_library.attachment_feedback_loop_layout.sampler.attachment_feedback_loop_optimal.combined_image_sampler.image_type.2d.format.d32_sfloat_depth_read,Fail
+dEQP-VK.pipeline.fast_linked_library.attachment_feedback_loop_layout.sampler.attachment_feedback_loop_optimal.combined_image_sampler.image_type.2d_unnormalized.format.d24_unorm_s8_uint_depth_read_dynamic_zero_static,Fail
+dEQP-VK.pipeline.fast_linked_library.attachment_feedback_loop_layout.sampler.general.combined_image_sampler.image_type.2d.format.d32_sfloat_s8_uint_stencil_read_write_same_pixel_interleave_read_write_components,Fail
+dEQP-VK.pipeline.fast_linked_library.attachment_feedback_loop_layout.sampler.general.combined_image_sampler.image_type.2d_unnormalized.format.d32_sfloat_s8_uint_depth_read_write_different_areas,Fail
+dEQP-VK.pipeline.fast_linked_library.attachment_feedback_loop_layout.sampler.general.combined_image_sampler.image_type.3d.format.r8g8b8a8_unorm_color_read,Fail
+dEQP-VK.pipeline.fast_linked_library.attachment_feedback_loop_layout.sampler.general.sampled_image.image_type.2d.format.d32_sfloat_depth_read_write_different_areas_dynamic_zero_static,Fail
+dEQP-VK.pipeline.fast_linked_library.color_write_enable.green_channel.before_draw.disable_second_and_last,Fail
+dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.after_pipelines.disable_raster,Fail
+dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.before_draw.disable_raster,Fail
+dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.between_pipelines.disable_raster,Fail
+dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.cmd_buffer_start.disable_raster,Fail
+dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.three_draws_dynamic.disable_raster,Fail
+dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.three_draws_dynamic.large_stride_with_offset,Fail
+dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.two_draws_dynamic.disable_raster,Fail
+dEQP-VK.pipeline.monolithic.attachment_feedback_loop_layout.sampler.attachment_feedback_loop_optimal.sampled_image.image_type.2d.format.d24_unorm_s8_uint_depth_read_write_different_areas_dynamic_bad_static,Fail
+dEQP-VK.pipeline.monolithic.attachment_feedback_loop_layout.sampler.attachment_feedback_loop_optimal.sampled_image.image_type.2d_unnormalized.format.d16_unorm_depth_read_write_same_pixel,Fail
+dEQP-VK.pipeline.monolithic.attachment_feedback_loop_layout.sampler.attachment_feedback_loop_optimal.sampled_image.image_type.2d_unnormalized.format.d32_sfloat_s8_uint_stencil_read_write_same_pixel_dynamic_zero_static,Fail
+dEQP-VK.pipeline.monolithic.color_write_enable.all_channels.after_pipelines.enable_second_and_last,Fail
+dEQP-VK.pipeline.monolithic.color_write_enable.green_channel.between_pipelines.enable_first,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.after_pipelines.disable_raster,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.before_draw.disable_raster,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.between_pipelines.disable_raster,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.cmd_buffer_start.disable_raster,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.three_draws_dynamic.disable_raster,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.three_draws_dynamic.stencil_state_face_both_dual_lt_inc_clamp_clear_254_ref_253_depthfail,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.two_draws_dynamic.disable_raster,Fail
+dEQP-VK.pipeline.monolithic.push_descriptor.compute.incremental_updates,Crash
+dEQP-VK.pipeline.monolithic.push_descriptor.compute.incremental_updates_template,Crash
+dEQP-VK.pipeline.pipeline_library.attachment_feedback_loop_layout.sampler.attachment_feedback_loop_optimal.combined_image_sampler.image_type.1d.format.r8g8b8a8_unorm_color_read_write_different_areas,Fail
+dEQP-VK.pipeline.pipeline_library.attachment_feedback_loop_layout.sampler.attachment_feedback_loop_optimal.combined_image_sampler.image_type.2d.format.r8g8b8a8_unorm_color_read_write_same_pixel,Fail
+dEQP-VK.pipeline.pipeline_library.color_write_enable.all_channels.static.enable_all,Fail
+dEQP-VK.pipeline.pipeline_library.color_write_enable.alpha_channel.static.disable_last,Fail
+dEQP-VK.pipeline.pipeline_library.color_write_enable.green_channel.static.disable_first_and_second,Fail
+dEQP-VK.pipeline.pipeline_library.extended_dynamic_state.after_pipelines.disable_raster,Fail
+dEQP-VK.pipeline.pipeline_library.extended_dynamic_state.before_draw.disable_raster,Fail
+dEQP-VK.pipeline.pipeline_library.extended_dynamic_state.between_pipelines.disable_raster,Fail
+dEQP-VK.pipeline.pipeline_library.extended_dynamic_state.cmd_buffer_start.disable_raster,Fail
+dEQP-VK.pipeline.pipeline_library.extended_dynamic_state.three_draws_dynamic.disable_raster,Fail
+dEQP-VK.pipeline.pipeline_library.extended_dynamic_state.two_draws_dynamic.disable_raster,Fail
+gmem-dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.three_draws_dynamic.disable_raster,Fail
+gmem-dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.two_draws_dynamic.null_rasterization_state,Crash
+gmem-dEQP-VK.pipeline.monolithic.extended_dynamic_state.cmd_buffer_start.disable_raster,Fail
+gmem-dEQP-VK.pipeline.monolithic.extended_dynamic_state.three_draws_dynamic.disable_raster,Fail
+gmem-dEQP-VK.pipeline.monolithic.extended_dynamic_state.two_draws_dynamic.disable_raster,Fail
+gmem-dEQP-VK.pipeline.pipeline_library.extended_dynamic_state.two_draws_dynamic.disable_raster,Fail
+
+dEQP-VK.shader_object.misc.state.pipeline.vert.depth.bias,Fail
+dEQP-VK.shader_object.misc.state.pipeline.vert_frag.depth.bias,Fail
+gmem-dEQP-VK.shader_object.misc.state.pipeline.vert.depth.bias,Fail
+
+# Transform feedback counter_offset does not currently work on A6XX & A702
+dEQP-VK.transform_feedback.simple.draw_indirect_counter_offset_16,Fail
+dEQP-VK.transform_feedback.simple.draw_indirect_counter_offset_244,Fail
+dEQP-VK.transform_feedback.simple.draw_indirect_counter_offset_508,Fail
+dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_16,Fail
+dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_244,Fail
+dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_508,Fail
+dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_offset_16,Fail
+dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_offset_244,Fail
+dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_offset_508,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_counter_offset_16,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_counter_offset_244,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_counter_offset_508,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_multiview_counter_buffer_offset_16,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_multiview_counter_buffer_offset_244,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_multiview_counter_buffer_offset_508,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_multiview_counter_offset_16,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_multiview_counter_offset_244,Fail
+dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_multiview_counter_offset_508,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_counter_offset_16,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_counter_offset_244,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_counter_offset_508,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_multiview_counter_buffer_offset_16,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_multiview_counter_buffer_offset_244,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_multiview_counter_buffer_offset_508,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_multiview_counter_offset_16,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_multiview_counter_offset_244,Fail
+dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_multiview_counter_offset_508,Fail
+gmem-dEQP-VK.transform_feedback.simple.draw_indirect_counter_offset_16,Fail
+gmem-dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_16,Fail
+gmem-dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_counter_offset_16,Fail
+gmem-dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_multiview_counter_offset_16,Fail
+gmem-dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_counter_offset_508,Fail
+gmem-dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_multiview_counter_buffer_offset_244,Fail
+nobin-dEQP-VK.transform_feedback.simple.draw_indirect_counter_offset_16,Fail
+nobin-dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_16,Fail
+nobin-dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_counter_offset_16,Fail
+nobin-dEQP-VK.transform_feedback.simple_fast_gpl.draw_indirect_multiview_counter_offset_16,Fail
+nobin-dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_counter_offset_508,Fail
+nobin-dEQP-VK.transform_feedback.simple_optimized_gpl.draw_indirect_multiview_counter_buffer_offset_244,Fail
+
+dEQP-VK.ycbcr.copy.a1b5g5r5_unorm_pack16.g8_b8r8_2plane_420_unorm.optimal_optimal,Fail
+dEQP-VK.ycbcr.copy.a4b4g4r4_unorm_pack16.g8_b8r8_2plane_420_unorm.optimal_optimal,Fail
+dEQP-VK.ycbcr.copy.b5g6r5_unorm_pack16.g8_b8r8_2plane_420_unorm.optimal_optimal,Fail
+dEQP-VK.ycbcr.copy.r16_unorm.g8_b8r8_2plane_420_unorm.optimal_optimal,Fail
+gmem-dEQP-VK.ycbcr.copy.a4b4g4r4_unorm_pack16.g8_b8r8_2plane_420_unorm.optimal_optimal,Fail
+
+# Only failing with GMEM
+gmem-dEQP-VK.memory.pipeline_barrier.host_write_storage_buffer.1048576,Fail
+gmem-dEQP-VK.memory.pipeline_barrier.host_write_storage_texel_buffer.1024,Fail
+gmem-dEQP-VK.memory.pipeline_barrier.host_write_storage_texel_buffer.1048576,Fail
+gmem-dEQP-VK.memory.pipeline_barrier.host_write_storage_texel_buffer.65536,Fail
+gmem-dEQP-VK.memory.pipeline_barrier.host_write_uniform_texel_buffer.1024,Fail
+gmem-dEQP-VK.memory.pipeline_barrier.host_write_uniform_texel_buffer.65536,Fail
+
+# Some buffer values were incorrect
+dEQP-VK.sparse_resources.buffer.ssbo.read_write.sparse_residency_non_resident_strict,Fail

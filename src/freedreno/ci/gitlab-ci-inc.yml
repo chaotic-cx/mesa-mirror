@@ -364,6 +364,29 @@
     LAVA_FIRMWARE: qcom-lava
 
 
+# Status: https://lava.infra.foundries.io/scheduler/device_type/qrb2210-rb1
+.lava-qcom-rb1:arm64:
+  variables:
+    BOOT_METHOD: fastboot
+    DEVICE_TYPE: qrb2210-rb1
+    DTB: qrb2210-rb1
+    FDO_CI_CONCURRENT: 4
+    # Increase the hangcheck timer for our spilling tests which bump up against
+    # the .5s default.
+    FREEDRENO_HANGCHECK_MS: 2000
+    FARM: qualcomm
+    LAVA_TAGS: "mesa-ci"
+    GPU_VERSION: freedreno-a702
+    KERNEL_IMAGE_NAME: "Image.gz"
+    KERNEL_IMAGE_TYPE: ""
+    RUNNER_TAG: mesa-ci-x86-64-lava-qcom-rb1
+    VISIBILITY_GROUP: "mesa-ci"
+    LAVA_FIRMWARE: qcom-lava
+    FLASHER_BASE_PATH: s.lava.infra.foundries.io
+    FLASHER_IMAGE: rb1/rb1-image-fastboot.tar.gz
+    DRIVER_NAME: freedreno-a6xx
+    VK_DRIVER: freedreno
+
 # CI-tron
 
 .a200:

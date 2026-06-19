@@ -316,6 +316,31 @@ a660-vk-traces-restricted:
     HWCI_START_WESTON: 1
   allow_failure: true
 
+a702-gl-cl:
+  extends:
+    - .lava-arm64-test-gl
+    - .test-piglit
+    - .lava-qcom-rb1:arm64
+    - .qualcomm-freedreno-turnip-manual-rules
+  rules:
+    - !reference [.qualcomm-freedreno-turnip-manual-rules, rules]
+    - !reference [.rusticl-manual-rules, rules]
+  timeout: 300m
+  variables:
+    DEQP_SUITE: freedreno-a702
+    HWCI_START_WESTON: 1
+
+a702-vk:
+  extends:
+    - .lava-arm64-test-vk
+    - .lava-qcom-rb1:arm64
+    - .qualcomm-turnip-manual-rules
+  timeout: 6000m
+  parallel: 4
+  variables:
+    DEQP_SUITE: freedreno-a702-vk
+    FDO_CI_CONCURRENT: 1
+
 a750-angle:
   extends:
     - .ci-tron-arm64-test-gl
