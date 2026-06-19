@@ -18,6 +18,9 @@
 #include "util/u_memory.h"
 #include "ac_rgp.h"
 #include "ac_sqtt.h"
+#ifdef RADV_SUPPORT_RDP
+#include "ac_devdriver.h"
+#endif
 
 void
 radv_sqtt_emit_relocated_shaders(struct radv_cmd_buffer *cmd_buffer, struct radv_graphics_pipeline *pipeline)
@@ -585,6 +588,7 @@ radv_describe_queue_submit(struct radv_queue *queue, struct radv_cmd_buffer *cmd
    record->gpu_timestamps[1] = post_gpu_timestamp_ptr;
    record->queue_info_index = queue->vk.queue_family_index;
    record->submit_sub_index = cmdbuf_idx;
+   record->sqtt_cb_id = cmd_buffer->sqtt_cb_id;
 
    radv_describe_queue_event(queue, record);
 
@@ -611,6 +615,41 @@ radv_describe_queue_semaphore(struct radv_queue *queue, struct vk_semaphore *syn
    return VK_SUCCESS;
 }
 
+/* Check if RDP requested a trace via UberTrace RPC and the target frame was reached. */
+static bool
+radv_handle_rdp_trace_request(struct radv_device *device)
+{
+   bool trigger_trace = false;
+
+#ifdef RADV_SUPPORT_RDP
+   if (device->devdriver && !device->sqtt_enabled && !device->sqtt.capture_cancelled) {
+      if (ac_devdriver_ubertrace_is_trace_requested(device->devdriver)) {
+         uint32_t target_frame = ac_devdriver_ubertrace_get_target_capture_frame(device->devdriver);
+         /* target_frame == 0: capture immediately (default / "capture now" in GUI).
+          * target_frame > 0: wait until current_frame passes the target.
+          *   current_frame is incremented at the start of each present (Nth present -> N),
+          *   target_frame is 0-indexed, so > is used for correct alignment. */
+         if (target_frame == 0 || device->vk.current_frame > target_frame) {
+            fprintf(stderr, "radv/rdp: Starting capture at frame %u\n", device->vk.current_frame);
+            trigger_trace = true;
+         }
+      }
+   }
+#endif
+
+   return trigger_trace;
+}
+
+/* Call DevDriver DriverTick() to process state machine transitions (e.g. Halted -> Running). */
+static void
+radv_rdp_tick(struct radv_device *device)
+{
+#ifdef RADV_SUPPORT_RDP
+   if (device->devdriver)
+      ac_devdriver_driver_tick(device->devdriver);
+#endif
+}
+
 static void
 radv_handle_sqtt(VkQueue _queue)
 {
@@ -618,6 +657,9 @@ radv_handle_sqtt(VkQueue _queue)
    struct radv_device *device = radv_queue_device(queue);
    bool trigger = device->sqtt_triggered;
    device->sqtt_triggered = false;
+
+   if (radv_handle_rdp_trace_request(device))
+      trigger = true;
 
    if (device->sqtt_enabled) {
       if (!radv_sqtt_stop_capturing(queue)) {
@@ -638,6 +680,8 @@ sqtt_QueuePresentKHR(VkQueue _queue, const VkPresentInfoKHR *pPresentInfo)
    VK_FROM_HANDLE(radv_queue, queue, _queue);
    struct radv_device *device = radv_queue_device(queue);
    VkResult result;
+
+   radv_rdp_tick(device);
 
    queue->sqtt_present = true;
 

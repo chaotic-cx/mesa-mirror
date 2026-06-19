@@ -17,6 +17,10 @@
 #include "ac_pm4.h"
 #include "ac_rgp.h"
 
+#ifdef RADV_SUPPORT_RDP
+#include "ac_devdriver.h"
+#include "ac_rdf_rgp_writer.h"
+#endif
 #include "vk_command_pool.h"
 #include "vk_common_entrypoints.h"
 
@@ -679,6 +683,66 @@ radv_end_sqtt(struct radv_queue *queue)
    return true;
 }
 
+/* RDP trace config overrides the env vars when RDP drives the capture. */
+static void
+radv_sqtt_apply_rdp_trace_config(struct radv_device *device)
+{
+#ifdef RADV_SUPPORT_RDP
+   if (ac_devdriver_ubertrace_is_trace_requested(device->devdriver)) {
+      device->sqtt.instruction_timing_enabled =
+         ac_devdriver_ubertrace_get_instruction_tokens_enabled(device->devdriver);
+      device->sqtt.instruction_timing_se_mask =
+         device->sqtt.instruction_timing_enabled ? ac_devdriver_ubertrace_get_se_mask(device->devdriver) : 0;
+   }
+#endif
+}
+
+/* Whether the current capture was requested by RDP. */
+static bool
+radv_sqtt_is_rdp_capture(struct radv_device *device)
+{
+   bool ret = false;
+
+#ifdef RADV_SUPPORT_RDP
+   ret = ac_devdriver_ubertrace_is_trace_requested(device->devdriver);
+#endif
+
+   return ret;
+}
+
+/* Set the data for streaming the capture to RDP. Returns false on failure. */
+static bool
+radv_sqtt_set_rdp_trace_data(struct radv_device *device, const struct ac_sqtt_trace *sqtt_trace,
+                             const struct ac_spm_trace *spm_trace)
+{
+   bool ret = false;
+
+#ifdef RADV_SUPPORT_RDP
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   size_t rdf_buffer_size = 0;
+
+   /* Generate trace in RDF format expected by RDP. */
+   void *rdf_buffer =
+      ac_sqtt_to_rdf(&pdev->info, sqtt_trace, spm_trace, device->sqtt.instruction_timing_enabled,
+                     device->sqtt.buffer_size, ac_devdriver_ubertrace_get_trace_config_json(device->devdriver),
+                     ac_devdriver_ubertrace_get_rdf_chunk_mask(device->devdriver),
+                     ac_devdriver_ubertrace_get_compression_mask(device->devdriver), &rdf_buffer_size);
+
+   if (rdf_buffer && rdf_buffer_size > 0) {
+      /* Pass data to UberTrace service for pull-based transfer. RDP will call CollectTrace RPC
+       * to retrieve it. UberTrace takes ownership of the buffer, don't free it here. */
+      ac_devdriver_ubertrace_set_trace_data(device->devdriver, rdf_buffer, rdf_buffer_size);
+      fprintf(stderr, "radv/rdp: RGP trace captured - ready for transfer (%.2f MB)\n",
+              (double)rdf_buffer_size / (1024.0 * 1024.0));
+      ret = true;
+   } else {
+      fprintf(stderr, "radv/rdp: Failed to prepare RDF data for UberTrace transfer\n");
+   }
+#endif
+
+   return ret;
+}
+
 void
 radv_sqtt_start_capturing(struct radv_queue *queue)
 {
@@ -700,6 +764,8 @@ radv_sqtt_start_capturing(struct radv_queue *queue)
       fprintf(stderr, "radv: Failed to reserve VMID for SQTT tracing.\n");
       return;
    }
+
+   radv_sqtt_apply_rdp_trace_config(device);
 
    /* Sample CPU/GPU clocks before starting the trace. */
    if (!radv_sqtt_sample_clocks(device)) {
@@ -733,18 +799,28 @@ radv_sqtt_stop_capturing(struct radv_queue *queue)
    const bool sqtt_ok = radv_get_sqtt_trace(queue, &sqtt_trace);
    const bool spm_ok = !device->spm.bo || radv_get_spm_trace(queue, &spm_trace);
 
-   struct ac_rgp_capture_info capture_info = {
-      .mode = instance->vk.trace_per_submit ? AC_RGP_CAPTURE_MODE_SUBMIT : AC_RGP_CAPTURE_MODE_FRAME,
-   };
-
-   if (instance->vk.trace_per_submit) {
-      capture_info.submit_idx = device->rgp_num_submits;
-   } else {
-      capture_info.frame_idx = device->vk.current_frame;
-   }
-
    if (sqtt_ok && spm_ok) {
-      ac_dump_rgp_capture(&pdev->info, &sqtt_trace, device->spm.bo ? &spm_trace : NULL, &capture_info);
+      if (radv_sqtt_is_rdp_capture(device)) {
+         /* If RDP triggered the capture, stream to the tool instead of dumping to .rgp file. */
+         if (!radv_sqtt_set_rdp_trace_data(device, &sqtt_trace, device->spm.bo ? &spm_trace : NULL)) {
+            /* Set 'capture_cancelled' to prevent buffer resizing and trying again next frame. */
+            device->sqtt.capture_cancelled = true;
+            captured = false;
+         }
+      } else {
+         /* Dump to .rgp file. */
+         struct ac_rgp_capture_info capture_info = {
+            .mode = instance->vk.trace_per_submit ? AC_RGP_CAPTURE_MODE_SUBMIT : AC_RGP_CAPTURE_MODE_FRAME,
+         };
+
+         if (instance->vk.trace_per_submit) {
+            capture_info.submit_idx = device->rgp_num_submits;
+         } else {
+            capture_info.frame_idx = device->vk.current_frame;
+         }
+
+         ac_dump_rgp_capture(&pdev->info, &sqtt_trace, device->spm.bo ? &spm_trace : NULL, &capture_info);
+      }
    } else {
       /* Failed to capture because the buffer was too small. */
       captured = false;
