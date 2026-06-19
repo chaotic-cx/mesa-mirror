@@ -27,6 +27,9 @@
 #include "util/u_debug.h"
 #include "radv_cs.h"
 #include "radv_device.h"
+#ifdef RADV_SUPPORT_RDP
+#include "ac_devdriver.h"
+#endif
 #include "radv_entrypoints.h"
 #include "radv_formats.h"
 #include "radv_physical_device.h"
@@ -605,6 +608,39 @@ radv_device_init_rmv(struct radv_device *device)
    radv_memory_trace_init(device);
 }
 
+/* Get devdriver from instance and complete late device rdp initialization. Only the first
+ * vkCreateDevice call runs this init. Concurrent vkCreateDevice calls wait until the first one
+ * finishes. It may block if RDP requests driver halt.
+ */
+static void
+radv_device_init_rdp(struct radv_device *device)
+{
+#ifdef RADV_SUPPORT_RDP
+   const struct radv_physical_device *pdev = radv_device_physical(device);
+   struct radv_instance *instance = radv_physical_device_instance(pdev);
+
+   device->devdriver = instance->devdriver;
+   if (device->devdriver) {
+      simple_mtx_lock(&instance->devdriver_mtx);
+      if (!ac_devdriver_is_driver_initialized(device->devdriver)) {
+         /* Handle RDP device halt requests in late_device_init, this will block
+          * waiting for StepDriver request, then advance to LateDeviceInit state.
+          * finalize() completes protocol server initialization.
+          */
+         ac_devdriver_set_num_gpus(device->devdriver, list_length(&instance->vk.physical_devices.list));
+         ac_devdriver_start_late_device_init(device->devdriver);
+         ac_devdriver_finalize(device->devdriver);
+
+         /* Advance the DriverControl protocol to the Running state. The driver is now fully
+          * initialized and ready for RDP communication.
+          */
+         ac_devdriver_finish_device_init(device->devdriver);
+      }
+      simple_mtx_unlock(&instance->devdriver_mtx);
+   }
+#endif
+}
+
 static VkResult
 radv_device_init_trap_handler(struct radv_device *device)
 {
@@ -865,7 +901,8 @@ capture_trace(VkQueue _queue)
       simple_mtx_unlock(&device->vk.memory_trace_data.token_mtx);
    }
 
-   if (instance->vk.trace_mode & RADV_TRACE_MODE_RGP)
+   /* Note: Additional RDP check to disable F1 hotkey in this mode. */
+   if ((instance->vk.trace_mode & RADV_TRACE_MODE_RGP) && !(instance->vk.trace_mode & RADV_TRACE_MODE_RDP))
       device->sqtt_triggered = true;
 
    if (instance->vk.trace_mode & RADV_TRACE_MODE_CTX_ROLLS) {
@@ -1792,7 +1829,10 @@ radv_CreateDevice(VkPhysicalDevice physicalDevice, const VkDeviceCreateInfo *pCr
       device->capture_replay_arena_vas = _mesa_hash_table_u64_create(NULL);
    }
 
+   radv_device_init_rdp(device);
+
    *pDevice = radv_device_to_handle(device);
+
    return VK_SUCCESS;
 
 fail:

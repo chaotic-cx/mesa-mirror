@@ -35,6 +35,7 @@
 
 struct radv_image_view;
 struct radv_cmd_stream;
+struct ac_devdriver_server;
 
 enum radv_dispatch_table {
    RADV_DEVICE_DISPATCH_TABLE,
@@ -338,6 +339,9 @@ struct radv_device {
    } fault;
 
    uint32_t memory_types_allowed;
+
+   /* DevDriver server for RDP/RGP integration */
+   struct ac_devdriver_server *devdriver;
 };
 
 VK_DEFINE_HANDLE_CASTS(radv_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)

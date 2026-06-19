@@ -27,6 +27,10 @@
 #include "vk_instance.h"
 #include "vk_log.h"
 
+#ifdef RADV_SUPPORT_RDP
+#include "ac_devdriver.h"
+#endif
+
 static const struct debug_control_bitset radv_debug_options[] = {
 #define OPT1(name, bit)                                                                                                \
    {                                                                                                                   \
@@ -246,6 +250,69 @@ radv_parse_pstate(const char *str)
    }
 }
 
+/* Initialize DevDriver for RDP integration. If no RDP is found, the driver runs as normal.
+ * The driver may halt in this function if RDP requests it.
+ */
+static void
+radv_instance_init_rdp(struct radv_instance *instance)
+{
+   instance->devdriver = NULL;
+#ifdef RADV_SUPPORT_RDP
+   if (instance->vk.trace_mode & RADV_TRACE_MODE_RDP) {
+      instance->devdriver = ac_devdriver_create();
+      if (instance->devdriver) {
+         simple_mtx_init(&instance->devdriver_mtx, mtx_plain);
+
+         /* Enable RGP trace mode so the SQTT layer is enabled.
+          * This allows sqtt_QueuePresentKHR to intercept frames and handle trace requests.
+          */
+         instance->vk.trace_mode |= RADV_TRACE_MODE_RGP;
+
+         /* Ignore MESA_VK_TRACE_FRAME / _TRIGGER / _PER_SUBMIT vars if 'rdp' mode is
+          * enabled to not produce any .rgp files in the background.
+          */
+         if (instance->vk.trace_frame != 0xFFFFFFFF || instance->vk.trace_trigger_file ||
+             instance->vk.trace_per_submit) {
+            fprintf(stderr, "radv: warning: MESA_VK_TRACE_FRAME / MESA_VK_TRACE_TRIGGER / "
+                            "MESA_VK_TRACE_PER_SUBMIT are ignored under MESA_VK_TRACE=rdp; "
+                            "RDP drives the capture.\n");
+         }
+         instance->vk.trace_frame = 0xFFFFFFFF;
+         instance->vk.trace_trigger_file = NULL;
+         instance->vk.trace_per_submit = false;
+
+         /* Warning to the user in case RADV_THREAD_TRACE_INSTRUCTION_TIMING / _SE_MASK vars are used. */
+         if (os_get_option("RADV_THREAD_TRACE_INSTRUCTION_TIMING") ||
+             os_get_option("RADV_THREAD_TRACE_INSTRUCTION_TIMING_SE_MASK")) {
+            fprintf(stderr, "radv: warning: RADV_THREAD_TRACE_INSTRUCTION_TIMING / "
+                            "RADV_THREAD_TRACE_INSTRUCTION_TIMING_SE_MASK are ignored under "
+                            "MESA_VK_TRACE=rdp; RDP drives the capture.\n");
+         }
+
+         /* Advance init to the next state. If RDP requests platform halt,
+          * this will block until RDP sends StepDriver request.
+          */
+         ac_devdriver_start_early_device_init(instance->devdriver);
+      } else {
+         /* Tool not present - clear the bit so downstream code does not assume RDP is live. */
+         instance->vk.trace_mode &= ~(uint64_t)RADV_TRACE_MODE_RDP;
+      }
+   }
+#endif
+}
+
+static void
+radv_instance_finish_rdp(struct radv_instance *instance)
+{
+#ifdef RADV_SUPPORT_RDP
+   if (instance->devdriver) {
+      ac_devdriver_destroy(instance->devdriver);
+      instance->devdriver = NULL;
+   }
+   simple_mtx_destroy(&instance->devdriver_mtx);
+#endif
+}
+
 VKAPI_ATTR VkResult VKAPI_CALL
 radv_CreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationCallbacks *pAllocator,
                     VkInstance *pInstance)
@@ -328,6 +395,8 @@ radv_CreateInstance(const VkInstanceCreateInfo *pCreateInfo, const VkAllocationC
 
    VG(VALGRIND_CREATE_MEMPOOL(instance, 0, false));
 
+   radv_instance_init_rdp(instance);
+
    *pInstance = radv_instance_to_handle(instance);
 
    return VK_SUCCESS;
@@ -340,6 +409,8 @@ radv_DestroyInstance(VkInstance _instance, const VkAllocationCallbacks *pAllocat
 
    if (!instance)
       return;
+
+   radv_instance_finish_rdp(instance);
 
    VG(VALGRIND_DESTROY_MEMPOOL(instance));
 

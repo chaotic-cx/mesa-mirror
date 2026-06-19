@@ -251,6 +251,10 @@ if with_amdgpu_virtio
   radv_flags += '-DHAVE_AMDGPU_VIRTIO'
 endif
 
+if with_amd_rdp
+  radv_flags += '-DRADV_SUPPORT_RDP'
+endif
+
 if with_platform_x11
   radv_deps += dep_xcb_dri3
 endif
@@ -286,7 +290,7 @@ libvulkan_radeon = shared_library(
     inc_util, inc_virtio_gpu
   ],
   link_with : [
-    libamd_common, libamd_common_llvm, libamdgpu_addrlib,
+    libamd_common, libamd_common_llvm, libamd_common_rdp, libamdgpu_addrlib,
   ],
   dependencies : [
     dep_llvm, dep_libdrm_amdgpu, dep_thread, dep_elf, dep_dl, dep_m,
