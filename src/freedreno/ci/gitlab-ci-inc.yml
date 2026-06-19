@@ -224,6 +224,60 @@
       artifacts: false # we pull the artifacts from S3
   dependencies: null
 
+.qualcomm-freedreno-rules:
+  stage: freedreno
+  rules:
+    - !reference [.test, rules]
+    - !reference [.qualcomm-farm-rules, rules]
+    - !reference [.freedreno-rules, rules]
+
+.qualcomm-freedreno-manual-rules:
+  stage: freedreno-nightly
+  extends: .no-auto-retry
+  rules:
+    - !reference [.test, rules]
+    - !reference [.qualcomm-farm-manual-rules, rules]
+    - !reference [.freedreno-manual-rules, rules]
+
+
+.qualcomm-turnip-rules:
+  stage: freedreno
+  rules:
+    - !reference [.test, rules]
+    - !reference [.qualcomm-farm-rules, rules]
+    - !reference [.turnip-rules, rules]
+
+.qualcomm-turnip-restricted-rules:
+  stage: freedreno
+  rules:
+    - !reference [.test, rules]
+    - !reference [.restricted-rules, rules]
+    - !reference [.qualcomm-turnip-rules, rules]
+
+.qualcomm-turnip-manual-rules:
+  stage: freedreno-nightly
+  extends: .no-auto-retry
+  rules:
+    - !reference [.test, rules]
+    - !reference [.qualcomm-farm-manual-rules, rules]
+    - !reference [.turnip-manual-rules, rules]
+
+# For piglit and skqp test jobs that run both GL and VK tests.
+.qualcomm-freedreno-turnip-rules:
+  stage: freedreno
+  rules:
+    - !reference [.test, rules]
+    - !reference [.qualcomm-freedreno-rules, rules]
+    - !reference [.qualcomm-turnip-rules, rules]
+
+.qualcomm-freedreno-turnip-manual-rules:
+  stage: freedreno-nightly
+  extends: .no-auto-retry
+  rules:
+    - !reference [.test, rules]
+    - !reference [.qualcomm-freedreno-manual-rules, rules]
+    - !reference [.qualcomm-turnip-manual-rules, rules]
+
 # Status: https://lava.collabora.dev/scheduler/device_type/dragonboard-410c
 .lava-dragonboard-410c:arm64:
   variables:
