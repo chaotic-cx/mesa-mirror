@@ -250,6 +250,37 @@ libamd_common = static_library(
   c_args : c_args
 )
 
+# Radeon Developer Panel (RDP) support
+if with_amd_rdp
+  libamd_common_rdp = static_library(
+    'amd_common_rdp',
+    files(
+      # DevDriver wrapper for RDP/RGP integration
+      'ac_devdriver.cpp',
+      'ac_devdriver.h',
+      # UberTrace service for modern RPC-based tracing
+      'ac_ubertrace_service.cpp',
+      'ac_ubertrace_service.h',
+      # RDF chunk definitions
+      'ac_rdf_rgp_chunks.h',
+      # RDF RGP trace writer
+      'ac_rdf_rgp_writer.c',
+      'ac_rdf_rgp_writer.h',
+    ),
+    include_directories : [
+      inc_include, inc_src
+    ],
+    dependencies : [dep_thread, idep_mesautil, idep_amd_generated_headers, dep_devdriver,
+      idep_parson
+    ],
+    link_with: [libamd_common],
+    gnu_symbol_visibility : 'hidden',
+    build_by_default : false
+  )
+else
+  libamd_common_rdp = []
+endif
+
 executable(
   'ac_ib_parser',
   ['ac_ib_parser.c'],

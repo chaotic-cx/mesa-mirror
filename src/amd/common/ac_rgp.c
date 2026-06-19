@@ -1181,6 +1181,7 @@ static void ac_sqtt_dump_derived_spm(const struct ac_spm_derived_trace *spm_deri
 }
 
 #if defined(USE_LIBELF)
+/* TODO: Switch to the ac_rdf writer to remove code duplication (already used by RRA and RDP). */
 static void
 ac_sqtt_dump_data(const struct radeon_info *rad_info, struct ac_sqtt_trace *sqtt_trace,
                   const struct ac_spm_trace *spm_trace,
