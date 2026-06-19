@@ -55,6 +55,14 @@ tail -f results/lava.log &
 # making it easier to debug the job in case it fails.
 set -x
 
+FLASHER_ARGS=()
+if [ -n "${FLASHER_IMAGE}" ]; then
+	FLASHER_ARGS+=(
+		--flasher-url-prefix="https://${FLASHER_BASE_PATH}"
+		--flasher-image-name="${FLASHER_IMAGE}"
+		)
+fi
+
 # List of optional overlays
 # NOTE: If you encounter "Attempted path traversal in tar file at /dev/ttyS1",
 # that is an indication that one of your rootfs and overlays contain a duplicate file.
@@ -160,6 +168,7 @@ lava-job-submitter \
 	--jwt-file "${S3_JWT_FILE}" \
 	--kernel-image-name "${KERNEL_IMAGE_NAME}" \
 	--kernel-image-type "${KERNEL_IMAGE_TYPE}" \
+	"${FLASHER_ARGS[@]}" \
 	--visibility-group "${VISIBILITY_GROUP}" \
 	--lava-tags "${LAVA_TAGS}" \
 	--mesa-job-name "$CI_JOB_NAME" \
