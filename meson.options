@@ -217,7 +217,7 @@ option(
   'amd-options',
   type : 'array',
   value : ['use-llvm'],
-  choices : ['use-llvm', 'virtio'],
+  choices : ['use-llvm', 'virtio', 'rdp'],
   description : 'List of options that apply to radv and radeonsi',
 )
 

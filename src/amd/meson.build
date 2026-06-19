@@ -7,6 +7,16 @@ if with_tools.contains('drm-shim')
   subdir('drm-shim')
 endif
 
+with_amd_rdp = with_amd_vk and amd_options.contains('rdp') and not with_platform_windows
+if with_amd_rdp
+  # DevDriver Meson subproject for RDP integration - it has to come before 'common'
+  dep_devdriver = dependency(
+    'devdriver',
+    fallback : ['devdriver', 'dep_devdriver'],
+    default_options : ['werror=false'],
+  )
+endif
+
 if with_amd_vk or with_gallium_radeonsi
   subdir('addrlib')
   subdir('common')
