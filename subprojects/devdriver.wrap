@@ -1,0 +1,6 @@
+[wrap-file]
+directory = devdriver-26.07.23
+source_url = https://github.com/GPUOpen-Tools/devdriver/archive/refs/tags/v26.07.23.tar.gz
+source_filename = devdriver-26.07.23.tar.gz
+source_hash = 0b1cbec889e62e125641d3f4231de62ca273276af9c7e42011fb83c5920e050b
+patch_directory = devdriver
