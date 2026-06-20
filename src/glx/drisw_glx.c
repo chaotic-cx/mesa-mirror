@@ -92,6 +92,17 @@ XCreateDrawable(struct drisw_drawable * pdp, int shmid, Display * dpy)
          /* dispatch pending errors */
          XSync(dpy, False);
 
+         /* Ensure xshm_opcode is set before installing handle_xerror.
+          * check_xshm() used to do this as a side-effect; since that
+          * function was removed (commit 5f4eccf1fbb), we must query it
+          * here so the assert in handle_xerror doesn't fire.
+          */
+         if (xshm_opcode == -1) {
+            int event_base, error_base;
+            XQueryExtension(dpy, "MIT-SHM", &xshm_opcode,
+                            &event_base, &error_base);
+         }
+
          old_handler = XSetErrorHandler(handle_xerror);
          /* This may trigger the X protocol error we're ready to catch: */
          XShmAttach(dpy, &pdp->shminfo);
