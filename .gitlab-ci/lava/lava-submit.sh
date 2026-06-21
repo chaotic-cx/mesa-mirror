@@ -73,7 +73,7 @@ if [ -n "${LAVA_FIRMWARE:-}" ]; then
             - append-overlay
               --name=linux-firmware
               --url="https://${S3_BASE_PATH}/${FIRMWARE_REPO}/${fw}-${FIRMWARE_TAG}.tar"
-              --path="/"
+              --path="/usr"
               --format=tar
         )
     done
