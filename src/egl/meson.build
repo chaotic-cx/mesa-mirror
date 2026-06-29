@@ -163,6 +163,7 @@ else
   deps_for_egl += dep_glvnd
   files_egl += [g_egldispatchstubs]
   files_egl += files('main/eglglvnd.c', 'main/egldispatchstubs.c')
+  link_args_for_egl += ld_args_nodelete
 endif
 
 if with_ld_version_script

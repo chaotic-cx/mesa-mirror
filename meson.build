@@ -1837,6 +1837,10 @@ ld_args_bsymbolic = []
 if cc.links('int main() { return 0; }', args : '-Wl,-Bsymbolic', name : 'Bsymbolic')
   ld_args_bsymbolic += '-Wl,-Bsymbolic'
 endif
+ld_args_nodelete = []
+if cc.links('int main() { return 0; }', args : '-Wl,-z,nodelete', name : 'z nodelete')
+  ld_args_nodelete += '-Wl,-z,nodelete'
+endif
 with_ld_version_script = false
 if host_machine.system() != 'windows' and cc.links('int main() { return 0; }',
             args : '-Wl,--version-script=@0@'.format(
