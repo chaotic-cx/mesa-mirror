@@ -19,10 +19,10 @@ void gamma_check_vk_result_internal(VkResult result, const char *file, uint32_t 
 
 #define gamma_check_vk_result(result) gamma_check_vk_result_internal(result, __FILE__, __LINE__)
 
-struct gamma_app;
+struct gamma_device;
 
 struct gamma_backed_buffer {
-   gamma_app *app;
+   gamma_device *device;
    VkDeviceMemory memory = VK_NULL_HANDLE;
    VkBuffer buffer = VK_NULL_HANDLE;
    void *map = nullptr;
@@ -37,12 +37,12 @@ enum gamma_memory_type {
    gamma_memory_type_host_visible_cached,
 };
 
-std::shared_ptr<gamma_backed_buffer> gamma_create_backed_buffer(gamma_app *app, uint64_t size,
+std::shared_ptr<gamma_backed_buffer> gamma_create_backed_buffer(gamma_device *device, uint64_t size,
                                                                 enum gamma_memory_type memory_type,
                                                                 VkBufferUsageFlags usage, bool map);
 
 struct gamma_backed_image {
-   gamma_app *app = nullptr;
+   gamma_device *device = nullptr;
    VkImage image = VK_NULL_HANDLE;
    VkDeviceMemory memory = VK_NULL_HANDLE;
    VkImageView image_view = VK_NULL_HANDLE;
@@ -51,7 +51,7 @@ struct gamma_backed_image {
 };
 
 std::shared_ptr<gamma_backed_image>
-gamma_create_backed_image(gamma_app *app, VkExtent3D extent, const std::vector<VkFormat> &formats,
+gamma_create_backed_image(gamma_device *device, VkExtent3D extent, const std::vector<VkFormat> &formats,
                           VkFormatFeatureFlags format_features, VkImageUsageFlags usage,
                           VkImageAspectFlagBits aspect_mask, uint32_t samples, uint32_t levels);
 

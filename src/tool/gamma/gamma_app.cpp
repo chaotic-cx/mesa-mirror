@@ -35,6 +35,47 @@ static const uint32_t renderer_frag_spv[] = {
 
 #include "util/macros.h"
 
+bool
+gamma_app_pdev_supported(VkInstance instance, VkPhysicalDevice pdev)
+{
+
+   VkPhysicalDeviceMultiDrawFeaturesEXT multi_draw_features = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_FEATURES_EXT,
+   };
+
+   VkPhysicalDeviceVulkan11Features features11 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
+      .pNext = &multi_draw_features,
+   };
+
+   VkPhysicalDeviceVulkan12Features features12 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
+      .pNext = &features11,
+   };
+
+   VkPhysicalDeviceVulkan13Features features13 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
+      .pNext = &features12,
+   };
+
+   VkPhysicalDeviceVulkan14Features features14 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES,
+      .pNext = &features13,
+   };
+
+   VkPhysicalDeviceFeatures2 features2 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
+      .pNext = &features14,
+   };
+   vkGetPhysicalDeviceFeatures2(pdev, &features2);
+
+   if (!features2.features.fillModeNonSolid || !features2.features.wideLines || !features11.shaderDrawParameters ||
+       !features12.scalarBlockLayout || !features13.dynamicRendering || !features14.maintenance5 ||
+       !multi_draw_features.multiDraw)
+      return false;
+   return true;
+}
+
 int
 gamma_app_init(gamma_app *app)
 {
@@ -51,177 +92,6 @@ gamma_app_init(gamma_app *app)
 
    uint32_t sdl_extensions_count = 0;
    const char *const *sdl_extensions = SDL_Vulkan_GetInstanceExtensions(&sdl_extensions_count);
-
-   uint32_t api_version = VK_API_VERSION_1_0;
-   vkEnumerateInstanceVersion(&api_version);
-
-   if (api_version < VK_API_VERSION_1_4) {
-      fprintf(stderr, "gamma: VK_API_VERSION_1_4 is required but not supported.\n");
-      gamma_app_finish(app);
-      return 1;
-   }
-
-   uint32_t layer_property_count = 0;
-   vkEnumerateInstanceLayerProperties(&layer_property_count, nullptr);
-   std::vector<VkLayerProperties> layer_properties(layer_property_count);
-   vkEnumerateInstanceLayerProperties(&layer_property_count, layer_properties.data());
-
-   bool has_validation = false;
-   for (const VkLayerProperties &properties : layer_properties) {
-      if (!strcmp("VK_LAYER_KHRONOS_validation", properties.layerName)) {
-         has_validation = true;
-         break;
-      }
-   }
-
-   if (has_validation)
-      fprintf(stderr, "gamma: Enabling VK_LAYER_KHRONOS_validation.\n");
-
-   VkApplicationInfo app_info = {
-      .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-      .pApplicationName = "mesa.gamma",
-      .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-      .pEngineName = "mesa.gamma",
-      .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-      .apiVersion = api_version,
-   };
-
-   const char *layers[] = {"VK_LAYER_KHRONOS_validation"};
-
-   VkInstanceCreateInfo instance_info = {
-      .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-      .pApplicationInfo = &app_info,
-      .enabledLayerCount = (uint32_t)(has_validation ? ARRAY_SIZE(layers) : 0),
-      .ppEnabledLayerNames = layers,
-      .enabledExtensionCount = sdl_extensions_count,
-      .ppEnabledExtensionNames = sdl_extensions,
-   };
-
-   gamma_check_vk_result(vkCreateInstance(&instance_info, nullptr, &app->instance));
-
-   VkSurfaceKHR surface;
-   if (!SDL_Vulkan_CreateSurface(app->window, app->instance, nullptr, &surface)) {
-      fprintf(stderr, "gamma: Failed to create VkSurfaceKHR: %s\n", SDL_GetError());
-      gamma_app_finish(app);
-      return 1;
-   }
-
-   uint32_t physical_device_count = 0;
-   gamma_check_vk_result(vkEnumeratePhysicalDevices(app->instance, &physical_device_count, nullptr));
-   std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
-   gamma_check_vk_result(vkEnumeratePhysicalDevices(app->instance, &physical_device_count, physical_devices.data()));
-
-   for (VkPhysicalDevice pdev : physical_devices) {
-      uint32_t extension_property_count = 0;
-      vkEnumerateDeviceExtensionProperties(pdev, nullptr, &extension_property_count, nullptr);
-      std::vector<VkExtensionProperties> extension_properties(extension_property_count);
-      vkEnumerateDeviceExtensionProperties(pdev, nullptr, &extension_property_count, extension_properties.data());
-
-      bool has_multi_draw = false;
-      for (const VkExtensionProperties &properties : extension_properties) {
-         if (!strcmp(VK_EXT_MULTI_DRAW_EXTENSION_NAME, properties.extensionName)) {
-            has_multi_draw = true;
-            break;
-         }
-      }
-
-      if (!has_multi_draw)
-         continue;
-
-      VkPhysicalDeviceMultiDrawFeaturesEXT multi_draw_features = {
-         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_FEATURES_EXT,
-      };
-
-      VkPhysicalDeviceVulkan11Features features11 = {
-         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES,
-         .pNext = &multi_draw_features,
-      };
-
-      VkPhysicalDeviceVulkan12Features features12 = {
-         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES,
-         .pNext = &features11,
-      };
-
-      VkPhysicalDeviceVulkan13Features features13 = {
-         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES,
-         .pNext = &features12,
-      };
-
-      VkPhysicalDeviceVulkan14Features features14 = {
-         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_4_FEATURES,
-         .pNext = &features13,
-      };
-
-      VkPhysicalDeviceFeatures2 features2 = {
-         .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2,
-         .pNext = &features14,
-      };
-      vkGetPhysicalDeviceFeatures2(pdev, &features2);
-
-      if (!features2.features.fillModeNonSolid || !features2.features.wideLines || !features11.shaderDrawParameters ||
-          !features12.scalarBlockLayout || !features13.dynamicRendering || !features14.maintenance5 ||
-          !multi_draw_features.multiDraw)
-         continue;
-
-      uint32_t queue_family_property_count = 0;
-      vkGetPhysicalDeviceQueueFamilyProperties(pdev, &queue_family_property_count, nullptr);
-      std::vector<VkQueueFamilyProperties> queue_family_properties(queue_family_property_count);
-      vkGetPhysicalDeviceQueueFamilyProperties(pdev, &queue_family_property_count, queue_family_properties.data());
-
-      for (uint32_t i = 0; i < queue_family_property_count; i++) {
-         if (queue_family_properties[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-            app->queue_family_index = i;
-            break;
-         }
-      }
-
-      app->pdev = pdev;
-      break;
-   }
-
-   if (!app->pdev) {
-      fprintf(stderr, "gamma: Failed to find suitable VkPhysicalDevice\n");
-      gamma_app_finish(app);
-      return 1;
-   }
-
-   VkPhysicalDeviceMultiDrawPropertiesEXT multi_draw_properties = {
-      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_PROPERTIES_EXT,
-   };
-
-   VkPhysicalDeviceProperties2 properties2 = {
-      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
-      .pNext = &multi_draw_properties,
-   };
-
-   vkGetPhysicalDeviceProperties2(app->pdev, &properties2);
-
-   VkSampleCountFlags sample_counts = properties2.properties.limits.framebufferColorSampleCounts &
-                                      properties2.properties.limits.framebufferDepthSampleCounts;
-   app->sample_count = 1;
-   if (sample_counts & VK_SAMPLE_COUNT_16_BIT)
-      app->sample_count = 16;
-   else if (sample_counts & VK_SAMPLE_COUNT_8_BIT)
-      app->sample_count = 8;
-   else if (sample_counts & VK_SAMPLE_COUNT_4_BIT)
-      app->sample_count = 4;
-   else if (sample_counts & VK_SAMPLE_COUNT_2_BIT)
-      app->sample_count = 2;
-
-   fprintf(stderr, "gamma: Using GPU: %s\n", properties2.properties.deviceName);
-
-   float thick_line_width = fmin(3.0, properties2.properties.limits.lineWidthRange[1]);
-
-   app->max_multi_draw_count = multi_draw_properties.maxMultiDrawCount;
-
-   float priority = 1.0;
-   VkDeviceQueueCreateInfo queue_info = {
-      .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
-      .queueFamilyIndex = app->queue_family_index,
-      .queueCount = 1,
-      .pQueuePriorities = &priority,
-   };
-
    const char *extensions[] = {VK_EXT_MULTI_DRAW_EXTENSION_NAME, VK_KHR_SWAPCHAIN_EXTENSION_NAME};
 
    VkPhysicalDeviceFeatures features = {
@@ -258,18 +128,47 @@ gamma_app_init(gamma_app *app)
       .multiDraw = true,
    };
 
-   VkDeviceCreateInfo device_info = {
-      .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
-      .pNext = &multi_draw_features,
-      .queueCreateInfoCount = 1,
-      .pQueueCreateInfos = &queue_info,
-      .enabledExtensionCount = ARRAY_SIZE(extensions),
-      .ppEnabledExtensionNames = extensions,
-      .pEnabledFeatures = &features,
-   };
-   gamma_check_vk_result(vkCreateDevice(app->pdev, &device_info, nullptr, &app->device));
+   if (gamma_device_init(app, gamma_app_pdev_supported, sdl_extensions_count, sdl_extensions, ARRAY_SIZE(extensions),
+                         extensions, &features, &multi_draw_features)) {
+      fprintf(stderr, "gamma: Failed to initialize base Vulkan structures\n");
+      return 1;
+   }
 
-   vkGetDeviceQueue(app->device, app->queue_family_index, 0, &app->queue);
+   VkSurfaceKHR surface;
+   if (!SDL_Vulkan_CreateSurface(app->window, app->instance, nullptr, &surface)) {
+      fprintf(stderr, "gamma: Failed to create VkSurfaceKHR: %s\n", SDL_GetError());
+      gamma_app_finish(app);
+      return 1;
+   }
+
+   VkPhysicalDeviceMultiDrawPropertiesEXT multi_draw_properties = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MULTI_DRAW_PROPERTIES_EXT,
+   };
+
+   VkPhysicalDeviceProperties2 properties2 = {
+      .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+      .pNext = &multi_draw_properties,
+   };
+
+   vkGetPhysicalDeviceProperties2(app->pdev, &properties2);
+
+   VkSampleCountFlags sample_counts = properties2.properties.limits.framebufferColorSampleCounts &
+                                      properties2.properties.limits.framebufferDepthSampleCounts;
+   app->sample_count = 1;
+   if (sample_counts & VK_SAMPLE_COUNT_16_BIT)
+      app->sample_count = 16;
+   else if (sample_counts & VK_SAMPLE_COUNT_8_BIT)
+      app->sample_count = 8;
+   else if (sample_counts & VK_SAMPLE_COUNT_4_BIT)
+      app->sample_count = 4;
+   else if (sample_counts & VK_SAMPLE_COUNT_2_BIT)
+      app->sample_count = 2;
+
+   fprintf(stderr, "gamma: Using GPU: %s\n", properties2.properties.deviceName);
+
+   float thick_line_width = fmin(3.0, properties2.properties.limits.lineWidthRange[1]);
+
+   app->max_multi_draw_count = multi_draw_properties.maxMultiDrawCount;
 
    app->vkCmdDrawMultiEXT = (PFN_vkCmdDrawMultiEXT)vkGetDeviceProcAddr(app->device, "vkCmdDrawMultiEXT");
 
@@ -358,12 +257,6 @@ gamma_app_init(gamma_app *app)
    init_info.PipelineInfoMain.MSAASamples = VK_SAMPLE_COUNT_1_BIT;
    init_info.CheckVkResultFn = nullptr;
    ImGui_ImplVulkan_Init(&init_info);
-
-   VkCommandPoolCreateInfo command_pool_info = {
-      .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-      .queueFamilyIndex = app->queue_family_index,
-   };
-   gamma_check_vk_result(vkCreateCommandPool(app->device, &command_pool_info, nullptr, &app->staging_command_pool));
 
    /* Start uploading data to the GPU before compiling pipelines to reduce startup time. */
    app->cube_vertex_buffer =
@@ -726,66 +619,4 @@ gamma_app_run(gamma_app *app)
    app->t += app->dt;
 
    return false;
-}
-
-void *
-gamma_app::upload_memory(std::shared_ptr<gamma_backed_buffer> dst)
-{
-   std::shared_ptr<gamma_backed_buffer> staging_buffer = gamma_create_backed_buffer(
-      this, dst->size, gamma_memory_type_host_visible, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, true);
-   pending_staging_buffers.push_back({staging_buffer, dst});
-   return staging_buffer->map;
-}
-
-void
-gamma_app::flush_upload_memory()
-{
-   if (pending_staging_buffers.empty())
-      return;
-
-   assert(!staging_command_buffer);
-
-   VkCommandBufferAllocateInfo command_buffer_info = {
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-      .commandPool = staging_command_pool,
-      .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-      .commandBufferCount = 1,
-   };
-   gamma_check_vk_result(vkAllocateCommandBuffers(device, &command_buffer_info, &staging_command_buffer));
-
-   VkCommandBufferBeginInfo begin_info = {
-      .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-      .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
-   };
-   gamma_check_vk_result(vkBeginCommandBuffer(staging_command_buffer, &begin_info));
-
-   for (const auto &staging_buffer : pending_staging_buffers) {
-      VkBufferCopy copy = {
-         .size = staging_buffer.first->size,
-      };
-      vkCmdCopyBuffer(staging_command_buffer, staging_buffer.first->buffer, staging_buffer.second->buffer, 1, &copy);
-   }
-
-   gamma_check_vk_result(vkEndCommandBuffer(staging_command_buffer));
-
-   VkSubmitInfo submit_info = {
-      .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-      .commandBufferCount = 1,
-      .pCommandBuffers = &staging_command_buffer,
-   };
-   gamma_check_vk_result(vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE));
-}
-
-void
-gamma_app::finish_upload_memory()
-{
-   if (!staging_command_buffer)
-      return;
-
-   gamma_check_vk_result(vkQueueWaitIdle(queue));
-
-   vkFreeCommandBuffers(device, staging_command_pool, 1, &staging_command_buffer);
-   staging_command_buffer = VK_NULL_HANDLE;
-
-   pending_staging_buffers.clear();
 }

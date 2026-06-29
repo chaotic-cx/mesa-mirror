@@ -8,6 +8,7 @@ gamma_files = files(
   'radv/gamma_file_view_radv.cpp',
   'main.cpp',
   'gamma_app.cpp',
+  'gamma_device.cpp',
   'gamma_file_view.cpp',
   'gamma_util.cpp',
 )
