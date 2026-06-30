@@ -571,6 +571,9 @@ static bool pco_ra_func(pco_func *func, pco_ra_ctx *ctx)
       pco_ref src = instr->src[0];
       unsigned offset = pco_ref_get_imm(instr->src[1]);
 
+      if (!pco_ref_is_ssa(dest))
+         continue;
+
       BITSET_SET(comps, dest.val);
 
       assert(pco_ref_is_ssa(src));
@@ -737,6 +740,9 @@ static bool pco_ra_func(pco_func *func, pco_ra_ctx *ctx)
 
       pco_ref dest = instr->dest[0];
       pco_ref src_vec = instr->src[0];
+
+      if (!pco_ref_is_ssa(dest))
+         continue;
 
       struct vec_override *vec_override =
          _mesa_hash_table_u64_search(overrides, src_vec.val);
@@ -1023,8 +1029,10 @@ static bool pco_ra_func(pco_func *func, pco_ra_ctx *ctx)
          pco_instr_delete(instr);
          continue;
       } else if (instr->op == PCO_OP_COMP) {
-         pco_instr_delete(instr);
-         continue;
+         if (pco_ref_is_ssa(instr->dest[0])) {
+            pco_instr_delete(instr);
+            continue;
+         }
       }
 
       pco_foreach_instr_dest_ssa (pdest, instr) {

@@ -657,6 +657,26 @@ static bool legalize_pseudo_post_ra(pco_instr *instr)
       return true;
    }
 
+   case PCO_OP_COMP: {
+      pco_builder b =
+         pco_builder_create(instr->parent_func, pco_cursor_before_instr(instr));
+
+      pco_ref dest = instr->dest[0];
+      pco_ref src = instr->src[0];
+
+      unsigned chan = pco_ref_get_imm(instr->src[1]);
+      assert(chan < pco_ref_get_chans(src));
+
+      /* Select the component/channel. */
+      src = pco_ref_chans(src, 1u);
+      src = pco_ref_offset(src, chan);
+
+      pco_mbyp(&b, dest, src);
+
+      pco_instr_delete(instr);
+      return true;
+   }
+
    default:
       break;
    }
