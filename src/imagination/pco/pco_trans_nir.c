@@ -2542,6 +2542,30 @@ trans_blend_load(trans_ctx *tctx, nir_intrinsic_instr *intr, pco_ref dest)
                                   &range);
 }
 
+static
+pco_instr *
+trans_preamble(trans_ctx *tctx,
+               nir_intrinsic_instr *intr,
+               pco_ref dest,
+               pco_ref src,
+               bool is_load)
+{
+   const pco_common_data *common = &tctx->shader->data.common;
+   unsigned base = common->preamble.start + nir_intrinsic_base(intr);
+   unsigned chans = is_load ? pco_ref_get_chans(dest) : pco_ref_get_chans(src);
+
+   /* Internal/pre-compiled shaders use preamble in a different manner. */
+   assert(((base + chans) <= common->preamble.count) ||
+          (!common->preamble.count && tctx->shader->is_internal));
+
+   pco_ref reg = pco_ref_hwreg_vec(base, PCO_REG_CLASS_SHARED, chans);
+
+   if (is_load)
+      return pco_mov(&tctx->b, dest, reg, .rpt = chans);
+
+   return pco_mov(&tctx->b, reg, src, .rpt = chans);
+}
+
 /**
  * \brief Translates a NIR intrinsic instruction into PCO.
  *
@@ -2638,21 +2662,13 @@ static pco_instr *trans_intr(trans_ctx *tctx, nir_intrinsic_instr *intr)
       break;
 
    case nir_intrinsic_load_preamble:
-      instr = pco_mov(&tctx->b,
-                      dest,
-                      pco_ref_hwreg_vec(nir_intrinsic_base(intr),
-                                        PCO_REG_CLASS_SHARED,
-                                        pco_ref_get_chans(dest)),
-                      .rpt = pco_ref_get_chans(dest));
-      break;
-
    case nir_intrinsic_store_preamble:
-      instr = pco_mov(&tctx->b,
-                      pco_ref_hwreg_vec(nir_intrinsic_base(intr),
-                                        PCO_REG_CLASS_SHARED,
-                                        pco_ref_get_chans(src[0])),
-                      src[0],
-                      .rpt = pco_ref_get_chans(src[0]));
+      instr =
+         trans_preamble(tctx,
+                        intr,
+                        dest,
+                        src[0],
+                        intr->intrinsic == nir_intrinsic_load_preamble);
       break;
 
    case nir_intrinsic_store_preamble_dynamic: {

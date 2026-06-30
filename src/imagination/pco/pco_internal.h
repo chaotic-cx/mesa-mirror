@@ -70,6 +70,7 @@ enum pco_debug {
    PCO_DEBUG_RA_FORCE_SPILL = BITFIELD64_BIT(6),
    PCO_DEBUG_RA_SKIP_OPT = BITFIELD64_BIT(7),
    PCO_DEBUG_NO_DMA_CACHE = BITFIELD64_BIT(8),
+   PCO_DEBUG_PREAMBLE = BITFIELD64_BIT(9),
 };
 
 extern uint64_t pco_debug;
@@ -1828,12 +1829,14 @@ bool pco_nir_lower_vs_intrinsics(nir_shader *shader);
 bool pco_nir_lower_images(nir_shader *shader, pco_data *data, pco_ctx *ctx);
 bool pco_nir_lower_interpolation(nir_shader *shader, pco_fs_data *fs);
 bool pco_nir_lower_io(nir_shader *shader, pco_data *data);
+bool pco_nir_lower_preamble_to_scalar(nir_shader *shader);
 bool pco_nir_lower_sample_mask_out(nir_shader *shader);
 bool pco_nir_lower_shared_io_to_global(nir_shader *shader, unsigned usc_slots);
 bool pco_nir_lower_subgroups(nir_shader *shader);
 bool pco_nir_lower_tex(nir_shader *shader, pco_data *data, pco_ctx *ctx);
 bool pco_nir_lower_variables(nir_shader *shader, bool inputs, bool outputs);
 bool pco_nir_lower_vk(nir_shader *shader, pco_data *data);
+bool pco_nir_opt_preamble(nir_shader *shader, pco_data *data);
 bool pco_nir_pfo(nir_shader *shader, pco_fs_data *fs);
 bool pco_nir_point_size(nir_shader *shader);
 bool pco_nir_point_size_xfb(nir_shader *shader);

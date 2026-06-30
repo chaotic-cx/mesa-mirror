@@ -1383,28 +1383,6 @@ pco_shader *pvr_uscgen_clear_attach(pco_ctx *ctx,
    return build_shader(ctx, b.shader, &data);
 }
 
-pco_shader *
-pvr_usc_zero_init_wg_mem(pco_ctx *ctx, unsigned start, unsigned count)
-{
-   pco_data data = {
-      .cs.shmem.start = start,
-      .cs.shmem.count = count,
-      .common.uses.usclib = true,
-   };
-
-   nir_builder b = nir_builder_init_simple_shader(MESA_SHADER_COMPUTE,
-                                                  pco_nir_options(),
-                                                  "zero_init_wg_mem(%u, %u)",
-                                                  start,
-                                                  count);
-
-   usclib_zero_init_wg_mem(&b, nir_imm_int(&b, count));
-
-   nir_jump(&b, nir_jump_return);
-
-   return build_shader(ctx, b.shader, &data);
-}
-
 pco_shader *pvr_uscgen_spm_load(pco_ctx *ctx, struct pvr_spm_load_props *props)
 {
    pco_data data = { 0 };

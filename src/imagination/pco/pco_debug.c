@@ -42,6 +42,7 @@ static const struct debug_named_value pco_debug_options[] = {
      PCO_DEBUG_RA_SKIP_OPT,
      "Skip attempting to allocate temps with the optimal amount during RA." },
    { "no_dma_cache", PCO_DEBUG_NO_DMA_CACHE, "Disable DMA cache." },
+   { "preamble", PCO_DEBUG_PREAMBLE, "Enable preamble shader." },
    DEBUG_NAMED_VALUE_END,
 };
 

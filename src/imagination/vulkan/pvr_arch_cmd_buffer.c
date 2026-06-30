@@ -6279,6 +6279,19 @@ static VkResult pvr_setup_descriptor_mappings(
          break;
       }
 
+      case PVR_PDS_CONST_MAP_ENTRY_TYPE_DOUTU_ADDRESS: {
+         const struct pvr_const_map_entry_doutu_address *const doutu_addr =
+            (struct pvr_const_map_entry_doutu_address *)entries;
+
+         PVR_WRITE(qword_buffer,
+                   doutu_addr->doutu_control,
+                   doutu_addr->const_offset,
+                   pds_info->data_size_in_dwords);
+
+         entries += sizeof(*doutu_addr);
+         break;
+      }
+
       default:
          UNREACHABLE("Unsupported map entry type.");
       }
@@ -6541,15 +6554,21 @@ static void pvr_compute_update_kernel(
    }
 
    uint32_t *pds_data = pvr_bo_suballoc_get_map_addr(pds_data_upload.pvr_bo);
-
    struct pvr_suballoc_bo *shader_bo = pipeline->shader_state.shader_bo;
-   struct pvr_suballoc_bo *coeff_update_shader_bo =
-      pipeline->shader_state.coeff_update_shader_bo;
-
    const pco_range *sys_vals = cs_data->common.sys_vals;
 
    pvr_dev_addr_t shader_addr =
       PVR_DEV_ADDR_OFFSET(shader_bo->dev_addr, cs_data->common.entry_offset);
+
+   unsigned coeff_update_temps = 0u;
+   pvr_dev_addr_t coeff_update_addr = { 0 };
+   if (cs_data->common.uses.preamble) {
+      coeff_update_temps = cs_data->common.preamble_temps;
+
+      coeff_update_addr =
+         PVR_DEV_ADDR_OFFSET(shader_bo->dev_addr,
+                             cs_data->common.preamble_offset);
+   }
 
    struct pdsc_compute_arguments args = {
       .global_base_group[0] = global_base_group[0],
@@ -6570,8 +6589,8 @@ static void pvr_compute_update_kernel(
       .cond_render_invert = state->cond_render_invert,
       .shader_temps = cs_data->common.temps,
       .shader_addr = shader_addr.addr,
-      .coeff_update_shader_addr =
-         coeff_update_shader_bo ? coeff_update_shader_bo->dev_addr.addr : 0,
+      .coeff_update_shader_temps = coeff_update_temps,
+      .coeff_update_shader_addr = coeff_update_addr.addr,
    };
 
    if (indirect_addr.addr) {

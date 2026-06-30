@@ -31,10 +31,6 @@ struct pvr_pipeline_stage_state {
 struct pvr_compute_shader_state {
    /* Pointer to a buffer object that contains the shader binary. */
    struct pvr_suballoc_bo *shader_bo;
-
-   /* Buffer object for the coefficient update shader binary. */
-   struct pvr_suballoc_bo *coeff_update_shader_bo;
-   uint32_t coeff_update_shader_temps;
 };
 
 struct pvr_pds_attrib_program {

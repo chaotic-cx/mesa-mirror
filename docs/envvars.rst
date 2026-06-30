@@ -2307,6 +2307,9 @@ PowerVR driver environment variables
    ``no_dma_cache``
       Disable DMA cache.
 
+   ``preamble``
+      Enable preamble shader.
+
 .. envvar:: PCO_SKIP_PASSES
 
    A comma-separated list of passes to skip.

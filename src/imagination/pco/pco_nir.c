@@ -915,6 +915,15 @@ static inline bool should_spill_shmem(const pco_ctx *ctx, unsigned shared_size)
    return ((float)shared_size / (float)max_shmem) > PCO_SHMEM_THRESHOLD;
 }
 
+static void
+nir_remove_non_entrypoints_or_preamble(nir_shader *nir)
+{
+   nir_foreach_function_safe(func, nir) {
+      if (!func->is_entrypoint && !func->is_preamble)
+         exec_node_remove(&func->node);
+   }
+}
+
 /**
  * \brief Lowers a NIR shader.
  *
@@ -1095,12 +1104,20 @@ void pco_lower_nir(pco_ctx *ctx, nir_shader *nir, pco_data *data)
       NIR_PASS(_, nir, pco_nir_lower_vs_intrinsics);
    }
 
+   if (!nir->info.internal && PCO_DEBUG(PREAMBLE)) {
+      NIR_PASS(_, nir, nir_opt_reassociate, nir_reassociate_scalar_math |
+                                            nir_reassociate_cse_heuristic);
+
+      NIR_PASS(_, nir, pco_nir_opt_preamble, data);
+      NIR_PASS(_, nir, pco_nir_lower_preamble_to_scalar);
+   }
+
    if (data->common.uses.usclib) {
       assert(ctx->usclib);
 
       nir_link_shader_functions(nir, ctx->usclib);
       NIR_PASS(_, nir, nir_inline_functions);
-      nir_remove_non_entrypoints(nir);
+      nir_remove_non_entrypoints_or_preamble(nir);
       NIR_PASS(_, nir, nir_opt_deref);
       NIR_PASS(_, nir, nir_lower_vars_to_ssa);
       NIR_PASS(_, nir, nir_remove_dead_derefs);

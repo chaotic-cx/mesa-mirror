@@ -476,7 +476,8 @@ static VkResult pvr_pds_descriptor_program_create_and_upload(
    const struct vk_pipeline_layout *const layout,
    mesa_shader_stage stage,
    pco_data *data,
-   struct pvr_stage_allocation_descriptor_state *const descriptor_state)
+   struct pvr_stage_allocation_descriptor_state *const descriptor_state,
+   struct pvr_suballoc_bo *shader_bo)
 {
    const size_t const_entries_size_in_bytes = PVR_PDS_MAX_DESC_UPLOAD_BYTES;
    struct pvr_pds_info *const pds_info = &descriptor_state->pds_info;
@@ -628,6 +629,19 @@ static VkResult pvr_pds_descriptor_program_create_and_upload(
    }
 
    pds_info->entries_size_in_bytes = const_entries_size_in_bytes;
+
+   if (shader_bo && data->common.uses.preamble) {
+      const pvr_dev_addr_t exec_addr =
+         PVR_DEV_ADDR_OFFSET(shader_bo->dev_addr,
+                             data->common.preamble_offset);
+
+      program.secondary_program_present = true;
+      pvr_pds_setup_doutu(&program.secondary_task_control,
+                          exec_addr.addr,
+                          data->common.preamble_temps,
+                          ROGUE_PDSINST_DOUTU_SAMPLE_RATE_INSTANCE,
+                          false);
+   }
 
    pvr_pds_generate_descriptor_upload_program(&program, NULL, pds_info);
 
@@ -901,13 +915,18 @@ static VkResult pvr_compute_pipeline_compile(
    if (result != VK_SUCCESS)
       goto err_free_build_context;
 
+   /* Don't pass the shader bo for compute, as the preamble shader will be
+    * processed as a coefficient update program rather than a descriptor
+    * secondary program.
+    */
    result = pvr_pds_descriptor_program_create_and_upload(
       device,
       allocator,
       layout,
       MESA_SHADER_COMPUTE,
       &compute_pipeline->cs_data,
-      &compute_pipeline->descriptor_state);
+      &compute_pipeline->descriptor_state,
+      NULL);
    if (result != VK_SUCCESS)
       goto err_free_shader;
 
@@ -997,7 +1016,6 @@ static void pvr_compute_pipeline_destroy(
    pvr_pds_descriptor_program_destroy(device,
                                       allocator,
                                       &compute_pipeline->descriptor_state);
-   pvr_bo_suballoc_free(compute_pipeline->shader_state.coeff_update_shader_bo);
    pvr_bo_suballoc_free(compute_pipeline->shader_state.shader_bo);
 
    pvr_pipeline_destroy_shader_data(&compute_pipeline->cs_data, false);
@@ -2530,6 +2548,11 @@ static void pvr_postprocess_shader_data(pco_data *data,
 {
    const VkGraphicsPipelineCreateInfo *pGraphicsCreateInfo = pCreateInfo;
 
+   if (data->common.uses.preamble) {
+      data->common.preamble.start = data->common.shareds;
+      data->common.shareds += data->common.preamble.count;
+   }
+
    switch (nir->info.stage) {
    case MESA_SHADER_VERTEX: {
       pvr_alloc_vs_sysvals(data, nir);
@@ -3163,7 +3186,8 @@ pvr_graphics_pipeline_compile(struct pvr_device *const device,
          layout,
          MESA_SHADER_FRAGMENT,
          &gfx_pipeline->fs_data,
-         &fragment_state->descriptor_state);
+         &fragment_state->descriptor_state,
+         fragment_state->shader_bo);
       if (result != VK_SUCCESS)
          goto err_free_frag_program;
 
@@ -3189,7 +3213,8 @@ pvr_graphics_pipeline_compile(struct pvr_device *const device,
       layout,
       MESA_SHADER_VERTEX,
       &gfx_pipeline->vs_data,
-      &vertex_state->descriptor_state);
+      &vertex_state->descriptor_state,
+      vertex_state->shader_bo);
    if (result != VK_SUCCESS)
       goto err_free_vertex_attrib_program;
 

@@ -204,9 +204,6 @@ pvr_uscgen_clear_attach_index(struct pvr_clear_attach_props *props)
 }
 #undef INDEX
 
-pco_shader *
-pvr_usc_zero_init_wg_mem(pco_ctx *ctx, unsigned start, unsigned count);
-
 /* SPM load shader generation. */
 struct pvr_spm_load_props {
    unsigned output_reg_count;
