@@ -6548,6 +6548,9 @@ static void pvr_compute_update_kernel(
 
    const pco_range *sys_vals = cs_data->common.sys_vals;
 
+   pvr_dev_addr_t shader_addr =
+      PVR_DEV_ADDR_OFFSET(shader_bo->dev_addr, cs_data->common.entry_offset);
+
    struct pdsc_compute_arguments args = {
       .global_base_group[0] = global_base_group[0],
       .global_base_group[1] = global_base_group[1],
@@ -6566,7 +6569,7 @@ static void pvr_compute_update_kernel(
       .cond_render_addr = state->cond_render_buffer_addr,
       .cond_render_invert = state->cond_render_invert,
       .shader_temps = cs_data->common.temps,
-      .shader_addr = shader_bo->dev_addr.addr,
+      .shader_addr = shader_addr.addr,
       .coeff_update_shader_addr =
          coeff_update_shader_bo ? coeff_update_shader_bo->dev_addr.addr : 0,
    };

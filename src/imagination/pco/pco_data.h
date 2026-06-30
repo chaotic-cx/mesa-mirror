@@ -217,6 +217,7 @@ typedef struct _pco_common_data {
    unsigned shareds; /** Number of allocated shared registers. */
 
    unsigned entry_offset; /** Offset of the shader entrypoint. */
+   unsigned preamble_offset; /** Offset of the shader preamble. */
 
    struct {
       bool atomics; /** Whether the shader uses atomics. */

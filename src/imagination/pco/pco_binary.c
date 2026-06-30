@@ -117,6 +117,11 @@ void pco_encode_ir(pco_ctx *ctx, pco_shader *shader)
 
    unsigned bytes_encoded = 0;
    pco_foreach_func_in_shader (func, shader) {
+      if (func->type == PCO_FUNC_TYPE_PREAMBLE)
+         shader->data.common.preamble_offset = bytes_encoded;
+      else if (func->type == PCO_FUNC_TYPE_ENTRYPOINT)
+         shader->data.common.entry_offset = bytes_encoded;
+
       func->enc_offset = bytes_encoded;
       pco_foreach_block_in_func (block, func) {
          pco_foreach_igrp_in_block (igrp, block) {
