@@ -414,7 +414,7 @@
         "description": "intel/gen: Fix possible corruption of instructions other than standard one/two-source layout during pre-compaction.",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "884168589670f0b552bca00a58ab55862cc3af9d",
         "notes": null
