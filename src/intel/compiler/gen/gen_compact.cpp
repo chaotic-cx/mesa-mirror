@@ -1987,6 +1987,13 @@ private:
    void
    precompact()
    {
+      /* The following reads and modifies fields specific to the one-
+       * and two-source instruction layout.
+       */
+      if (desc->format != GEN_FORMAT_BASIC_ONE_SRC &&
+          desc->format != GEN_FORMAT_BASIC_TWO_SRC)
+         return;
+
       /* In XeHP the compaction tables removed the entries for source regions
        * <8;8,1> giving preference to <1;1,0> as the way to indicate
        * sequential elements, so convert to those before compacting.
