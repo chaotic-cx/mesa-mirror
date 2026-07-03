@@ -295,7 +295,7 @@ get_compute_copy_memory_to_image_indirect_pipeline_layout(struct radv_device *de
 
    const VkPushConstantRange pc_range = {
       .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
-      .size = 36,
+      .size = 40,
    };
 
    return vk_meta_get_pipeline_layout(&device->vk, &device->meta_state.device, &desc_info, &pc_range, &key, sizeof(key),
@@ -513,21 +513,16 @@ radv_compute_copy_memory_to_image_indirect(struct radv_cmd_buffer *cmd_buffer,
                                            },
                                         }}});
 
-         uint32_t buffer_view_desc[8];
+         uint32_t buffer_view_desc[8] = {0};
          radv_make_texel_buffer_descriptor(device, 0, img_bsurf.format, ~0, buffer_view_desc);
 
          const uint64_t copy_addr = pCopyMemoryToImageIndirectInfo->copyAddressRange.address +
                                     i * pCopyMemoryToImageIndirectInfo->copyAddressRange.stride;
 
-         const uint32_t constants[9] = {
-            copy_addr,
-            copy_addr >> 32,
-            slice,
-            buffer_view_desc[0],
-            buffer_view_desc[1],
-            buffer_view_desc[2],
-            buffer_view_desc[3],
-            imageSubresource->baseArrayLayer,
+         const uint32_t constants[10] = {
+            copy_addr,           copy_addr >> 32,     slice,
+            buffer_view_desc[0], buffer_view_desc[1], buffer_view_desc[2],
+            buffer_view_desc[3], buffer_view_desc[4], imageSubresource->baseArrayLayer,
             texel_scale,
          };
 

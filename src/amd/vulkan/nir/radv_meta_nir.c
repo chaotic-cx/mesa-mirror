@@ -1555,8 +1555,9 @@ radv_meta_nir_build_copy_memory_to_image_indirect_cs(uint8_t fmt_block_width, ui
    nir_def *indirect_addr = nir_load_push_constant(&b, 1, 64, nir_imm_int(&b, 0), .base = 0, .range = 8);
    nir_def *layer = nir_load_push_constant(&b, 1, 32, nir_imm_int(&b, 0), .base = 8, .range = 4);
    nir_def *descriptor = nir_load_push_constant(&b, 4, 32, nir_imm_int(&b, 0), .base = 12, .range = 16);
-   nir_def *base_array_layer = nir_load_push_constant(&b, 1, 32, nir_imm_int(&b, 0), .base = 28, .range = 4);
-   nir_def *texel_scale = nir_load_push_constant(&b, 1, 32, nir_imm_int(&b, 0), .base = 32, .range = 4);
+   nir_def *soffset = nir_load_push_constant(&b, 1, 32, nir_imm_int(&b, 0), .base = 28, .range = 4);
+   nir_def *base_array_layer = nir_load_push_constant(&b, 1, 32, nir_imm_int(&b, 0), .base = 32, .range = 4);
+   nir_def *texel_scale = nir_load_push_constant(&b, 1, 32, nir_imm_int(&b, 0), .base = 36, .range = 4);
 
    nir_def *row_stride_B = get_row_stride_B(&b, indirect_addr, fmt_element_size_B, fmt_block_width);
    nir_def *image_stride_B = get_image_stride_B(&b, indirect_addr, row_stride_B, fmt_block_height);
@@ -1590,8 +1591,8 @@ radv_meta_nir_build_copy_memory_to_image_indirect_cs(uint8_t fmt_block_width, ui
    nir_def *coord = nir_iadd(&b, global_id, offset);
 
    nir_def *zero = nir_imm_int(&b, 0);
-   nir_def *outval = nir_load_buffer_amd(&b, 4, 32, descriptor, zero, zero, buf_coord, .access = ACCESS_USES_FORMAT_AMD,
-                                         .dest_type = nir_type_uint32);
+   nir_def *outval = nir_load_buffer_amd(&b, 4, 32, descriptor, zero, soffset, buf_coord,
+                                         .access = ACCESS_USES_FORMAT_AMD, .dest_type = nir_type_uint32);
 
    nir_def *img_coord = nir_vec4(&b, nir_channel(&b, coord, 0), nir_channel(&b, coord, 1),
                                  is_3d ? nir_channel(&b, coord, 2) : nir_undef(&b, 1, 32), nir_undef(&b, 1, 32));
@@ -1701,6 +1702,7 @@ radv_meta_nir_build_copy_memory_to_image_indirect_fs(VkImageAspectFlags aspect_m
    nir_def *indirect_addr = nir_load_push_constant(&b, 1, 64, nir_imm_int(&b, 0), .base = 16, .range = 8);
    nir_def *layer = nir_load_push_constant(&b, 1, 32, nir_imm_int(&b, 0), .base = 24, .range = 4);
    nir_def *descriptor = nir_load_push_constant(&b, 4, 32, nir_imm_int(&b, 0), .base = 28, .range = 16);
+   nir_def *soffset = nir_load_push_constant(&b, 1, 32, nir_imm_int(&b, 0), .base = 44, .range = 4);
 
    nir_def *row_stride_B = get_row_stride_B(&b, indirect_addr, fmt_element_size_B, fmt_block_width);
    nir_def *image_stride_B = get_image_stride_B(&b, indirect_addr, row_stride_B, fmt_block_height);
@@ -1728,7 +1730,7 @@ radv_meta_nir_build_copy_memory_to_image_indirect_fs(VkImageAspectFlags aspect_m
    pos_x = nir_iadd(&b, pos_x, pos_y);
 
    nir_def *zero = nir_imm_int(&b, 0);
-   nir_def *data = nir_load_buffer_amd(&b, 4, 32, descriptor, zero, zero, pos_x, .access = ACCESS_USES_FORMAT_AMD,
+   nir_def *data = nir_load_buffer_amd(&b, 4, 32, descriptor, zero, soffset, pos_x, .access = ACCESS_USES_FORMAT_AMD,
                                        .dest_type = nir_type_uint32);
 
    nir_store_var(&b, fs_output, data, output_channels);

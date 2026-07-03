@@ -15,7 +15,7 @@ get_gfx_copy_memory_to_image_indirect_pipeline_layout(struct radv_device *device
 
    const VkPushConstantRange pc_range = {
       .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-      .size = 44,
+      .size = 48,
    };
 
    return vk_meta_get_pipeline_layout(&device->vk, &device->meta_state.device, NULL, &pc_range, &key, sizeof(key),
@@ -346,12 +346,13 @@ radv_gfx_copy_memory_to_image_indirect(struct radv_cmd_buffer *cmd_buffer,
          radv_meta_push_constants(cmd_buffer, layout, VK_SHADER_STAGE_VERTEX_BIT, 0, sizeof(vertex_push_constants),
                                   vertex_push_constants);
 
-         uint32_t buffer_view_desc[8];
+         uint32_t buffer_view_desc[8] = {0};
          radv_make_texel_buffer_descriptor(device, 0, format, ~0, buffer_view_desc);
 
-         const uint32_t fragment_push_constants[7] = {
-            copy_addr,           copy_addr >> 32,     slice, buffer_view_desc[0], buffer_view_desc[1],
-            buffer_view_desc[2], buffer_view_desc[3],
+         const uint32_t fragment_push_constants[8] = {
+            copy_addr,           copy_addr >> 32,     slice,
+            buffer_view_desc[0], buffer_view_desc[1], buffer_view_desc[2],
+            buffer_view_desc[3], buffer_view_desc[4],
          };
 
          radv_meta_push_constants(cmd_buffer, layout, VK_SHADER_STAGE_FRAGMENT_BIT, sizeof(vertex_push_constants),
