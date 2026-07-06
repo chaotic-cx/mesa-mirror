@@ -735,3 +735,69 @@ gamma_file_view_radv::bvh8_get_instance_info(const gamma_acceleration_structure_
    *blas = radv_bvh8_instance_node_get_blas(this, node);
    *transform = mat3x4_to_gamma(node->wto_matrix);
 }
+
+void
+gamma_file_view_radv::bvh8_write_geometry_data(const gamma_acceleration_structure_radv *acceleration_structure,
+                                               const std::vector<char *> &geometry_data_ptrs, uint32_t id)
+{
+   uint32_t offset = (id & (~0xf)) << 3;
+   const radv_gfx12_box_node *box_node = (const radv_gfx12_box_node *)(acceleration_structure->bvh + offset);
+   radv_bvh8_box_node_iterator iterator = box_node;
+   for (uint32_t child_id = iterator.next(); child_id != RADV_BVH_INVALID_NODE; child_id = iterator.next()) {
+      uint32_t child_offset = (child_id & (~0xf)) << 3;
+      uint32_t child_type = child_id & 0xf;
+      if (child_type == radv_bvh_node_box32) {
+         bvh8_write_geometry_data(acceleration_structure, geometry_data_ptrs, child_id);
+      } else if (child_type != radv_bvh_node_instance) {
+         const BITSET_WORD *node = (const BITSET_WORD *)(acceleration_structure->bvh + child_offset);
+         radv_bvh8_primitive_node_info info(node);
+         for (uint32_t i = 0; i < (info.triangle_pair_count_minus_one + 1) * 2; i++) {
+            gamma_triangle triangle = info.triangles[i];
+            if (triangle.primitive_index == GAMMA_PRIMITIVE_INDEX_INACTIVE)
+               continue;
+
+            if (info.procedural_mask & BITFIELD_BIT(i)) {
+               gamma_aabb aabb = radv_bvh8_box_child_get_aabb(box_node->children[iterator.index], box_node->origin,
+                                                              box_node->child_count_exponents);
+               gamma_acceleration_structure_aabb_primitive *prim_data =
+                  (gamma_acceleration_structure_aabb_primitive *)geometry_data_ptrs[triangle.geometry_index];
+               prim_data[triangle.primitive_index].min[0] = aabb.min.x;
+               prim_data[triangle.primitive_index].min[1] = aabb.min.y;
+               prim_data[triangle.primitive_index].min[2] = aabb.min.z;
+               prim_data[triangle.primitive_index].max[0] = aabb.max.x;
+               prim_data[triangle.primitive_index].max[1] = aabb.max.y;
+               prim_data[triangle.primitive_index].max[2] = aabb.max.z;
+            } else {
+               gamma_acceleration_structure_triangle_primitive *prim_data =
+                  (gamma_acceleration_structure_triangle_primitive *)geometry_data_ptrs[triangle.geometry_index];
+               memcpy(prim_data[triangle.primitive_index].coords, triangle.vertices, sizeof(triangle.vertices));
+            }
+         }
+      } else {
+         const radv_gfx12_instance_node *node =
+            (const radv_gfx12_instance_node *)(acceleration_structure->bvh + child_offset);
+         const radv_gfx12_instance_node_user_data *user_data = (const radv_gfx12_instance_node_user_data *)(node + 1);
+         VkAccelerationStructureInstanceKHR *prim_data = (VkAccelerationStructureInstanceKHR *)geometry_data_ptrs[0];
+
+         uint32_t primitive_index = user_data->instance_index;
+
+         uint32_t flags = 0;
+         if (node->pointer_flags_bvh_addr & RADV_BLAS_POINTER_FORCE_OPAQUE)
+            flags |= VK_GEOMETRY_INSTANCE_FORCE_OPAQUE_BIT_KHR;
+         if (node->pointer_flags_bvh_addr & RADV_BLAS_POINTER_FORCE_NON_OPAQUE)
+            flags |= VK_GEOMETRY_INSTANCE_FORCE_NO_OPAQUE_BIT_KHR;
+         if (node->pointer_flags_bvh_addr & RADV_BLAS_POINTER_DISABLE_TRI_CULL)
+            flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FACING_CULL_DISABLE_BIT_KHR;
+         if (node->pointer_flags_bvh_addr & RADV_BLAS_POINTER_FLIP_FACING)
+            flags |= VK_GEOMETRY_INSTANCE_TRIANGLE_FLIP_FACING_BIT_KHR;
+
+         prim_data[primitive_index].accelerationStructureReference =
+            acceleration_structure->view->addr_to_id(radv_node_to_addr(node->pointer_flags_bvh_addr));
+         prim_data[primitive_index].instanceCustomIndex = user_data->custom_instance;
+         prim_data[primitive_index].mask = node->cull_mask_user_data >> 24;
+         prim_data[primitive_index].instanceShaderBindingTableRecordOffset = (node->cull_mask_user_data & 0xffffff);
+         prim_data[primitive_index].flags = flags;
+         memcpy(prim_data[primitive_index].transform.matrix, &user_data->otw_matrix, sizeof(user_data->otw_matrix));
+      }
+   }
+}

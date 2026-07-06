@@ -176,6 +176,12 @@ struct gamma_acceleration_structure {
    void init_camera();
 
    void load(FILE *file, uint32_t chunk_size);
+
+   virtual char *write_build_info(char *dst_chunk) = 0;
+   /* Returns a vector of pointers to where geometry data should be written for
+    * each geometry. Overwrites *dst with the value write_build_info should return.
+    */
+   std::vector<char *> write_common_build_info(char **dst);
 };
 
 struct gamma_file_view {

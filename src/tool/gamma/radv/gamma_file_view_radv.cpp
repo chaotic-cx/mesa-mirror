@@ -15,6 +15,7 @@
 #include <imgui.h>
 #include <memory>
 #include <stdint.h>
+#include <vector>
 
 #include "imgui_internal.h"
 
@@ -34,6 +35,23 @@ std::unique_ptr<gamma_acceleration_structure>
 gamma_file_view_radv::create_acceleration_structure()
 {
    return std::make_unique<gamma_acceleration_structure_radv>(this);
+}
+
+char *
+gamma_acceleration_structure_radv::write_build_info(char *dst)
+{
+   std::vector<char *> geometry_data_ptrs = write_common_build_info(&dst);
+
+   if (geometry_data_ptrs.empty())
+      return dst;
+
+   gamma_file_view_radv *view_radv = (gamma_file_view_radv *)view;
+   if (view_radv->trace_info->bvh8)
+      view_radv->bvh8_write_geometry_data(this, geometry_data_ptrs, RADV_BVH_ROOT_NODE);
+   else
+      view_radv->bvh4_write_geometry_data(this, geometry_data_ptrs, RADV_BVH_ROOT_NODE);
+
+   return dst;
 }
 
 float

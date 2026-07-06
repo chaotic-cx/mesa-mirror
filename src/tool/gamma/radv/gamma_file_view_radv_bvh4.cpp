@@ -488,3 +488,60 @@ gamma_file_view_radv::bvh4_get_instance_info(const gamma_acceleration_structure_
    *blas = radv_bvh_instance_node_get_blas(this, node);
    *transform = mat3x4_to_gamma(node->wto_matrix);
 }
+
+void
+gamma_file_view_radv::bvh4_write_geometry_data(const gamma_acceleration_structure_radv *acceleration_structure,
+                                               const std::vector<char *> &geometry_data_ptrs, uint32_t id)
+{
+   uint32_t offset = (id & (~0x7)) << 3;
+   uint32_t type = id & 0x7;
+   radv_bvh_box32_node box_node = radv_get_box_node(acceleration_structure->bvh + offset, type);
+   for (uint32_t i = 0; i < 4; i++) {
+      if (box_node.children[i] == RADV_BVH_INVALID_NODE)
+         continue;
+
+      uint32_t child_offset = (box_node.children[i] & (~0x7)) << 3;
+      uint32_t child_type = box_node.children[i] & 0x7;
+      if (child_type == radv_bvh_node_box32 || child_type == radv_bvh_node_box16) {
+         bvh4_write_geometry_data(acceleration_structure, geometry_data_ptrs, box_node.children[i]);
+      } else if (child_type == radv_bvh_node_triangle) {
+         const radv_bvh_triangle_node *node =
+            (const radv_bvh_triangle_node *)(acceleration_structure->bvh + child_offset);
+
+         uint32_t geometry_index = node->geometry_id_and_flags & 0xffffff;
+         gamma_acceleration_structure_triangle_primitive *prim_data =
+            (gamma_acceleration_structure_triangle_primitive *)geometry_data_ptrs[geometry_index];
+         uint32_t primitive_index = node->triangle_id;
+         memcpy(prim_data[primitive_index].coords, node->coords, sizeof(node->coords));
+      } else if (child_type == radv_bvh_node_aabb) {
+         const radv_bvh_aabb_node *node = (const radv_bvh_aabb_node *)(acceleration_structure->bvh + child_offset);
+
+         gamma_aabb aabb = vk_aabb_to_gamma(box_node.coords[i]);
+         uint32_t geometry_index = node->geometry_id_and_flags & 0xffffff;
+         gamma_acceleration_structure_aabb_primitive *prim_data =
+            (gamma_acceleration_structure_aabb_primitive *)geometry_data_ptrs[geometry_index];
+         uint32_t primitive_index = node->primitive_id;
+
+         prim_data[primitive_index].min[0] = aabb.min.x;
+         prim_data[primitive_index].min[1] = aabb.min.y;
+         prim_data[primitive_index].min[2] = aabb.min.z;
+         prim_data[primitive_index].max[0] = aabb.max.x;
+         prim_data[primitive_index].max[1] = aabb.max.y;
+         prim_data[primitive_index].max[2] = aabb.max.z;
+      } else if (child_type == radv_bvh_node_instance) {
+         const radv_bvh_instance_node *node =
+            (const radv_bvh_instance_node *)(acceleration_structure->bvh + child_offset);
+         VkAccelerationStructureInstanceKHR *prim_data = (VkAccelerationStructureInstanceKHR *)geometry_data_ptrs[0];
+
+         uint32_t primitive_index = node->instance_id;
+
+         prim_data[primitive_index].accelerationStructureReference =
+            acceleration_structure->view->addr_to_id(radv_node_to_addr(node->bvh_ptr));
+         prim_data[primitive_index].instanceCustomIndex = node->custom_instance_and_mask & 0xFFFFFF;
+         prim_data[primitive_index].mask = node->custom_instance_and_mask >> 24;
+         prim_data[primitive_index].instanceShaderBindingTableRecordOffset = node->sbt_offset_and_flags & 0xFFFFFF;
+         prim_data[primitive_index].flags = node->sbt_offset_and_flags >> 24;
+         memcpy(prim_data[primitive_index].transform.matrix, &node->otw_matrix, sizeof(node->otw_matrix));
+      }
+   }
+}

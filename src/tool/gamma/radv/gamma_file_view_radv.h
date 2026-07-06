@@ -11,6 +11,7 @@
 #include <map>
 #include <memory>
 #include <stdint.h>
+#include <vector>
 #include "bvh_defines.h"
 #include "gamma_file_view.h"
 #include "gamma_util.h"
@@ -32,6 +33,8 @@ struct gamma_acceleration_structure_radv : public gamma_acceleration_structure {
 
    uint32_t first_vertex;
    uint32_t wireframe_first_vertex;
+
+   virtual char *write_build_info(char *dst) override;
 };
 
 struct gamma_dispatch_view_settings {
@@ -135,6 +138,9 @@ struct gamma_file_view_radv : public gamma_file_view {
    void bvh4_get_instance_info(const gamma_acceleration_structure_radv *acceleration_structure, uint32_t id,
                                gamma_mat4 *transform, gamma_acceleration_structure_radv **blas);
 
+   void bvh4_write_geometry_data(const gamma_acceleration_structure_radv *acceleration_structure,
+                                 const std::vector<char *> &geometry_data_ptrs, uint32_t id);
+
    /* bvh8 */
    void bvh8_traverse(gamma_acceleration_structure_radv *acceleration_structure, gamma_ray ray, uint32_t id,
                       float *tmax, const std::unordered_set<uint32_t> &path, bool select);
@@ -154,6 +160,9 @@ struct gamma_file_view_radv : public gamma_file_view {
 
    void bvh8_get_instance_info(const gamma_acceleration_structure_radv *acceleration_structure, uint32_t id,
                                gamma_mat4 *transform, gamma_acceleration_structure_radv **blas);
+
+   void bvh8_write_geometry_data(const gamma_acceleration_structure_radv *acceleration_structure,
+                                 const std::vector<char *> &geometry_data_ptrs, uint32_t id);
 };
 
 static inline uint64_t
