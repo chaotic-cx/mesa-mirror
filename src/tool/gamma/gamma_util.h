@@ -25,6 +25,7 @@ struct gamma_backed_buffer {
    gamma_device *device;
    VkDeviceMemory memory = VK_NULL_HANDLE;
    VkBuffer buffer = VK_NULL_HANDLE;
+   VkDeviceAddress address = 0;
    void *map = nullptr;
    uint64_t size = 0;
 

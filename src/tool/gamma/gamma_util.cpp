@@ -96,11 +96,17 @@ gamma_create_backed_buffer(gamma_device *device, uint64_t size, enum gamma_memor
    };
    vkGetDeviceBufferMemoryRequirements(device->device, &buffer_mem_req_info, &mem_reqs);
 
+   VkMemoryAllocateFlagsInfo device_address_info = {
+      .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO,
+      .flags = VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT_KHR,
+   };
    VkMemoryAllocateInfo alloc_info = {
       .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
       .allocationSize = mem_reqs.memoryRequirements.size,
       .memoryTypeIndex = memory_type_index,
    };
+   if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT)
+      alloc_info.pNext = &device_address_info;
    gamma_check_vk_result(vkAllocateMemory(device->device, &alloc_info, NULL, &buffer->memory));
 
    VkBindBufferMemoryInfo bind_info = {
@@ -117,6 +123,13 @@ gamma_create_backed_buffer(gamma_device *device, uint64_t size, enum gamma_memor
          .size = VK_WHOLE_SIZE,
       };
       gamma_check_vk_result(vkMapMemory2(device->device, &mem_map_info, &buffer->map));
+   }
+   if (usage & VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT) {
+      VkBufferDeviceAddressInfo address_info = {
+         .sType = VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO,
+         .buffer = buffer->buffer,
+      };
+      buffer->address = vkGetBufferDeviceAddress(device->device, &address_info);
    }
 
    return buffer;
