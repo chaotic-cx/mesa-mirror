@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <stdint.h>
@@ -179,6 +180,25 @@ gamma_file_view::addr_to_acceleration_structure(uint64_t address)
       return acceleration_structure;
 
    return nullptr;
+}
+
+uint32_t
+gamma_file_view::addr_to_id(uint64_t address)
+{
+   if (address_map.empty())
+      return ~0u;
+
+   auto lower_bound = address_map.lower_bound(address);
+
+   if (lower_bound == address_map.end() || lower_bound->first > address)
+      lower_bound--;
+
+   gamma_acceleration_structure *acceleration_structure = acceleration_structures[lower_bound->second].get();
+   if (address >= acceleration_structure->header.address &&
+       address < acceleration_structure->header.address + acceleration_structure->header.allocated_size)
+      return std::distance(address_map.begin(), lower_bound);
+
+   return ~0u;
 }
 
 std::unique_ptr<gamma_file_view>

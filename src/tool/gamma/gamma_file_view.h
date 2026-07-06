@@ -254,6 +254,7 @@ struct gamma_file_view {
    void end_node_info();
 
    gamma_acceleration_structure *addr_to_acceleration_structure(uint64_t address);
+   uint32_t addr_to_id(uint64_t address);
 };
 
 std::unique_ptr<gamma_file_view> gamma_create_file_view(gamma_app *app, const char *file);
