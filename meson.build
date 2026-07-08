@@ -1963,6 +1963,12 @@ if draw_with_llvm
   llvm_modules += 'native'
   # lto is needded with LLVM>=15, but we don't know what LLVM verrsion we are using yet
   llvm_optional_modules += ['lto']
+  if host_machine.system() == 'darwin'
+    # Apple systems frequently cross-compile and build fat binaries with multiple
+    # archs, so lp_build_create_jit_compiler_for_module() initializes every target
+    # instead of just the native one. Link all of them, not just the native one.
+    llvm_modules += 'all-targets'
+  endif
 endif
 
 # MCJIT is deprecated in LLVM and will not accept new architecture ports,
