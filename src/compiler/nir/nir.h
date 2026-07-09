@@ -292,6 +292,35 @@ typedef enum {
    NIR_CMAT_REDUCE_2X2 = 1u << 2,
 } nir_cmat_reduce;
 
+
+typedef enum {
+   NIR_TENSOR_CLAMP_UNDEFINED = 0,
+   NIR_TENSOR_CLAMP_CONSTANT = 1,
+   NIR_TENSOR_CLAMP_EDGE = 2,
+   NIR_TENSOR_CLAMP_REPEAT = 3,
+   NIR_TENSOR_CLAMP_REPEAT_MIRRORED = 4,
+} nir_tensor_clamp_mode;
+
+typedef enum {
+   NIR_TENSOR_LAYOUT_BLOCKSIZE,
+   NIR_TENSOR_LAYOUT_LAYOUT_DIM,
+   NIR_TENSOR_LAYOUT_STRIDE,
+   NIR_TENSOR_LAYOUT_OFFSET,
+   NIR_TENSOR_LAYOUT_SPAN,
+   NIR_TENSOR_LAYOUT_CLAMP_VALUE,
+} nir_tensor_layout_fields;
+
+typedef enum {
+   NIR_TENSOR_VIEW_DIM,
+   NIR_TENSOR_VIEW_STRIDE,
+   NIR_TENSOR_VIEW_CLIP_ROW_OFFSET,
+   NIR_TENSOR_VIEW_CLIP_ROW_SPAN,
+   NIR_TENSOR_VIEW_CLIP_COL_OFFSET,
+   NIR_TENSOR_VIEW_CLIP_COL_SPAN,
+} nir_tensor_view_fields;
+
+#define NIR_TENSOR_VIEW_MAX_PERMUTATIONS 5
+
 #define nir_const_value_to_array(arr, c, components, m) \
    do {                                                 \
       for (unsigned i = 0; i < components; ++i)         \
