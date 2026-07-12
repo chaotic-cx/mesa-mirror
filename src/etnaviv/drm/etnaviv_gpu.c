@@ -184,6 +184,9 @@ query_limits_from_kernel(struct etna_gpu *gpu)
 	etna_gpu_get_param(gpu, ETNA_GPU_REGISTER_MAX, &val);
 	info->gpu.max_registers = val;
 
+	etna_gpu_get_param(gpu, ETNA_GPU_THREAD_COUNT, &val);
+	info->gpu.thread_count = val;
+
 	etna_gpu_get_param(gpu, ETNA_GPU_PIXEL_PIPES, &val);
 	info->gpu.pixel_pipes = val;
 

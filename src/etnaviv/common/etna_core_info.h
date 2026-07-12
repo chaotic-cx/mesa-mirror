@@ -95,6 +95,7 @@ struct etna_core_gpu_info {
    unsigned vertex_output_buffer_size; /* size of vertex shader output buffer */
    unsigned vertex_cache_size;         /* size of a cached vertex (?) */
    unsigned shader_core_count;         /* number of shader cores */
+   unsigned thread_count;              /* number of hardware threads */
    unsigned stream_count;              /* number of vertex streams */
    unsigned max_registers;             /* maximum number of registers */
    unsigned pixel_pipes;               /* available pixel pipes */

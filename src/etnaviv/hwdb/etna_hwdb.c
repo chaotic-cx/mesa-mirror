@@ -134,6 +134,7 @@ etna_query_feature_db(struct etna_core_info *info)
       info->gpu.vertex_output_buffer_size = db->VertexOutputBufferSize;
       info->gpu.vertex_cache_size = db->VertexCacheSize;
       info->gpu.shader_core_count = db->NumShaderCores;
+      info->gpu.thread_count = db->ThreadCount;
       info->gpu.stream_count = db->Streams;
       info->gpu.max_registers = db->TempRegisters;
       info->gpu.pixel_pipes = db->NumPixelPipes;
