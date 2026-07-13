@@ -2659,7 +2659,8 @@ resolve_image(struct anv_cmd_buffer *cmd_buffer,
    anv_foreach_image_aspect_bit(aspect_bit, src_image,
                                 region->srcSubresource.aspectMask) {
       const VkImageAspectFlags aspect = (1 << aspect_bit);
-      const uint32_t plane = anv_image_aspect_to_plane(src_image, aspect);
+      const uint32_t src_plane = anv_image_aspect_to_plane(src_image, aspect);
+      const uint32_t dst_plane = anv_image_aspect_to_plane(dst_image, aspect);
 
       enum isl_aux_usage src_aux_usage =
          anv_layout_to_aux_usage(cmd_buffer->device->info, src_image,
@@ -2680,8 +2681,8 @@ resolve_image(struct anv_cmd_buffer *cmd_buffer,
          vk_to_blorp_resolve_mode(res_info->resolveMode) :
          BLORP_FILTER_NONE;
 
-      enum isl_format src_format = src_image->planes[plane].primary_surface.isl.format;
-      enum isl_format dst_format = dst_image->planes[plane].primary_surface.isl.format;
+      enum isl_format src_format = src_image->planes[src_plane].primary_surface.isl.format;
+      enum isl_format dst_format = dst_image->planes[dst_plane].primary_surface.isl.format;
       if (skip_srgb_decode) {
          src_format = isl_format_srgb_to_linear(src_format);
          dst_format = isl_format_srgb_to_linear(dst_format);
