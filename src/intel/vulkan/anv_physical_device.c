@@ -426,6 +426,7 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_maintenance9                      = true,
       .KHR_maintenance10                     = true,
       .KHR_maintenance11                     = true,
+      .KHR_maintenance12                     = true,
       .KHR_map_memory2                       = true,
       .KHR_multiview                         = true,
       .KHR_performance_query =
@@ -1301,6 +1302,9 @@ get_features(const struct anv_physical_device *pdevice,
       /* VK_KHR_maintenance11 */
       .maintenance11 = true,
 
+      /* VK_KHR_maintenance12 */
+      .maintenance12 = true,
+
       /* VK_KHR_device_address_commands */
       .deviceAddressCommands = true,
 
@@ -1881,6 +1885,11 @@ get_properties(const struct anv_physical_device *pdevice,
       props->rgba4OpaqueBlackSwizzled = true;
       props->resolveSrgbFormatAppliesTransferFunction = true;
       props->resolveSrgbFormatSupportsTransferFunctionControl = true;
+   }
+
+   /* VK_KHR_maintenance12 */
+   {
+      props->maxInputAttachmentIndex = MAX_DESCRIPTOR_SET_INPUT_ATTACHMENTS - 1;
    }
 
    /* VK_KHR_performance_query */
