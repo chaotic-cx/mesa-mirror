@@ -1039,11 +1039,24 @@ calculate_unspill_ranges(const struct intel_device_info *devinfo,
 
          brw_range range = { int(offset), int(offset + bytes_read) };
 
-         ranges[num_ranges].unspill_range = range;
-         ranges[num_ranges].spill_range = { -1, -1 };
-         ranges[num_ranges].reg = brw_reg();
-         ranges[num_ranges].src = 1U << i;
-         num_ranges++;
+         unsigned j;
+         for (j = 0; j < num_ranges; j++) {
+            if (overlaps(range, ranges[j].unspill_range) ||
+                range.end == ranges[j].unspill_range.start ||
+                range.start == ranges[j].unspill_range.end) {
+               ranges[j].unspill_range = merge(range, ranges[j].unspill_range);
+               ranges[j].src |= 1U << i;
+               break;
+            }
+         }
+
+         if (j == num_ranges) {
+            ranges[num_ranges].unspill_range = range;
+            ranges[num_ranges].spill_range = { -1, -1 };
+            ranges[num_ranges].reg = brw_reg();
+            ranges[num_ranges].src = 1U << i;
+            num_ranges++;
+         }
       }
    }
 
