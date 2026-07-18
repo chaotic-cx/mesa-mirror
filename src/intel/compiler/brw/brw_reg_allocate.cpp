@@ -1088,15 +1088,31 @@ calculate_unspill_ranges(const struct intel_device_info *devinfo,
 
       brw_range range = { int(offset), int(offset + bytes_written) };
 
-      ranges[num_ranges].spill_range = range;
-      ranges[num_ranges].unspill_range = need_unspill ?
-         range : (brw_range) { -1, -1 };
+      unsigned j;
+      for (j = 0; j < num_ranges; j++) {
+         if (range.start == ranges[j].unspill_range.start) {
+            ranges[j].spill_range = range;
+            ranges[j].no_mask = !per_channel;
+            ranges[j].width = width;
 
-      ranges[num_ranges].no_mask = !per_channel;
-      ranges[num_ranges].width = width;
+            if (need_unspill)
+               ranges[j].unspill_range = merge(range, ranges[j].unspill_range);
 
-      ranges[num_ranges].reg = brw_reg();
-      num_ranges++;
+            break;
+         }
+      }
+
+      if (j == num_ranges) {
+         ranges[num_ranges].spill_range = range;
+         ranges[num_ranges].unspill_range = need_unspill ?
+            range : (brw_range) { -1, -1 };
+
+         ranges[num_ranges].no_mask = !per_channel;
+         ranges[num_ranges].width = width;
+
+         ranges[num_ranges].reg = brw_reg();
+         num_ranges++;
+      }
    }
 
    return num_ranges;
