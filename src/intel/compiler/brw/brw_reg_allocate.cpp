@@ -1003,30 +1003,28 @@ brw_reg_alloc::emit_unspill(const brw_builder &bld,
    const unsigned reg_size = dst.component_size(bld.dispatch_width()) /
                              REG_SIZE;
 
+   /* LSC is limited to SIMD16 (SIMD32 on Xe2) load/store but we can load more
+    * using transpose messages.
+    */
+   const bool use_transpose = devinfo->verx10 >= 125 &&
+      (bld.dispatch_width() > 16 * reg_unit(devinfo) || bld.has_writemask_all());
+   const brw_builder ubld = use_transpose ? bld.uniform() : bld;
+   brw_reg payload1 = brw_reg();
+
    for (unsigned i = 0; i < DIV_ROUND_UP(count, reg_size); i++) {
       ++stats->fill_count;
 
       if (devinfo->verx10 >= 125) {
-         /* LSC is limited to SIMD16 (SIMD32 on Xe2) load/store but we can
-          * load more using transpose messages.
-          */
-         const bool use_transpose =
-            bld.dispatch_width() > 16 * reg_unit(devinfo) ||
-            bld.has_writemask_all();
-         const brw_builder ubld = use_transpose ? bld.uniform() : bld;
-         brw_reg offset;
          bool use_base_offset = false;
-         if (use_transpose) {
-            offset = build_single_offset(ubld, slot.offset, ip, &use_base_offset);
-         } else {
-            offset = build_lane_offsets(ubld, slot.offset, ip, &use_base_offset);
-         }
 
-         const bool exec_all = use_transpose || bld.has_writemask_all();
-         brw_scratch_inst *unspill_inst = bld.exec_all(exec_all).FILL();
+         payload1 = use_transpose ?
+            build_single_offset(ubld, slot.offset, ip, &use_base_offset) :
+            build_lane_offsets(ubld, slot.offset, ip, &use_base_offset);
+
+         brw_scratch_inst *unspill_inst = bld.exec_all(use_transpose).FILL();
          unspill_inst->dst = dst;
 
-         unspill_inst->src[FILL_SRC_PAYLOAD1] = offset;
+         unspill_inst->src[FILL_SRC_PAYLOAD1] = payload1;
 
          unspill_inst->offset = slot.offset;
          unspill_inst->logical_offset = slot.logical_offset;
@@ -1039,7 +1037,7 @@ brw_reg_alloc::emit_unspill(const brw_builder &bld,
          _mesa_set_add(spill_insts, unspill_inst);
          assert(unspill_inst->force_writemask_all || count % reg_size == 0);
       } else {
-         brw_reg header = build_legacy_scratch_header(bld, slot.offset, ip);
+         payload1 = build_legacy_scratch_header(bld, slot.offset, ip);
 
          const unsigned bti = GEN_BTI_STATELESS_NON_COHERENT;
 
@@ -1048,7 +1046,7 @@ brw_reg_alloc::emit_unspill(const brw_builder &bld,
 
          unspill_inst->src[SEND_SRC_DESC]     = brw_imm_ud(0);
          unspill_inst->src[SEND_SRC_EX_DESC]  = brw_imm_ud(0);
-         unspill_inst->src[SEND_SRC_PAYLOAD1] = header;
+         unspill_inst->src[SEND_SRC_PAYLOAD1] = payload1;
          unspill_inst->src[SEND_SRC_PAYLOAD2] = brw_reg();
 
          unspill_inst->mlen = 1;
@@ -1087,18 +1085,19 @@ brw_reg_alloc::emit_spill(const brw_builder &bld,
    const intel_device_info *devinfo = bld.shader->devinfo;
    const unsigned reg_size = src.component_size(bld.dispatch_width()) /
                              REG_SIZE;
+   brw_reg payload1 = brw_reg();
 
    for (unsigned i = 0; i < DIV_ROUND_UP(count, reg_size); i++) {
       ++stats->spill_count;
 
       if (devinfo->verx10 >= 125) {
          bool use_base_offset = false;
-         brw_reg offset = build_lane_offsets(bld, slot.offset, ip, &use_base_offset);
+         payload1 = build_lane_offsets(bld, slot.offset, ip, &use_base_offset);
 
          brw_scratch_inst *spill_inst = bld.SPILL();
          spill_inst->dst = bld.null_reg_f();
 
-         spill_inst->src[SPILL_SRC_PAYLOAD1] = offset;
+         spill_inst->src[SPILL_SRC_PAYLOAD1] = payload1;
          spill_inst->src[SPILL_SRC_PAYLOAD2] = src;
 
          spill_inst->offset = slot.offset;
@@ -1109,7 +1108,7 @@ brw_reg_alloc::emit_spill(const brw_builder &bld,
          _mesa_set_add(spill_insts, spill_inst);
          assert(spill_inst->force_writemask_all || count % reg_size == 0);
       } else {
-         brw_reg header = build_legacy_scratch_header(bld, slot.offset, ip);
+         payload1 = build_legacy_scratch_header(bld, slot.offset, ip);
 
          const unsigned bti = GEN_BTI_STATELESS_NON_COHERENT;
 
@@ -1118,7 +1117,7 @@ brw_reg_alloc::emit_spill(const brw_builder &bld,
 
          spill_inst->src[SEND_SRC_DESC]     = brw_imm_ud(0);
          spill_inst->src[SEND_SRC_EX_DESC]  = brw_imm_ud(0);
-         spill_inst->src[SEND_SRC_PAYLOAD1] = header;
+         spill_inst->src[SEND_SRC_PAYLOAD1] = payload1;
          spill_inst->src[SEND_SRC_PAYLOAD2] = src;
 
          spill_inst->mlen = 1;
