@@ -368,7 +368,7 @@ kk_GetPhysicalDeviceImageFormatProperties2(
                     VK_FORMAT_FEATURE_2_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
        !(pImageFormatInfo->flags & VK_IMAGE_CREATE_CUBE_COMPATIBLE_BIT) &&
        !(pImageFormatInfo->usage & VK_IMAGE_USAGE_STORAGE_BIT)) {
-      sampleCounts = pdev->supported_sample_counts;
+      sampleCounts = pdev->info.supported_sample_counts;
    }
 
    /* From the Vulkan 1.2.199 spec:

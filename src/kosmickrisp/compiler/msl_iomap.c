@@ -8,6 +8,7 @@
  * model of I/O to the Metal one. */
 
 #include "msl_private.h"
+#include "nir_to_msl.h"
 
 #include "nir_builder.h"
 
@@ -455,7 +456,7 @@ msl_emit_io_blocks(struct nir_to_msl_ctx *ctx, nir_shader *shader)
 
    P(ctx, "struct SamplerTable {\n");
    ctx->indentlevel++;
-   P_IND(ctx, "sampler handles[1024];\n");
+   P_IND(ctx, "sampler handles[%d];\n", MSL_MAX_SAMPLERS);
    ctx->indentlevel--;
    P(ctx, "};\n")
 }

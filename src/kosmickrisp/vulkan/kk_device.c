@@ -16,6 +16,7 @@
 #include "kosmickrisp/bridge/mtl_bridge.h"
 #include "kosmickrisp/bridge/mtl_device.h"
 #include "kosmickrisp/bridge/ns_process_info.h"
+#include "kosmickrisp/compiler/nir_to_msl.h"
 
 #include "kk_dispatch_cmd.h"
 #include "vk_cmd_enqueue_entrypoints.h"
@@ -118,7 +119,10 @@ kk_init_sampler_heap(struct kk_device *dev, struct kk_sampler_heap *h)
    if (!h->ht)
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-   VkResult result = kk_query_table_init(dev, &h->table, 1024);
+   /* We optimistically size the table to fit the maximum number of samplers we
+    * advertise. If this exceeds the hardware sampler limit, it is handled by
+    * additional checks in `kk_sampler_heap_add_locked` */
+   VkResult result = kk_query_table_init(dev, &h->table, MSL_MAX_SAMPLERS);
 
    if (result != VK_SUCCESS) {
       ralloc_free(h->ht);
@@ -148,6 +152,8 @@ kk_sampler_heap_add_locked(struct kk_device *dev, struct kk_sampler_heap *h,
                            struct mtl_sampler_packed desc,
                            struct kk_rc_sampler **out)
 {
+   struct kk_physical_device *pdev = kk_device_physical(dev);
+
    struct hash_entry *ent = _mesa_hash_table_search(h->ht, &desc);
    if (ent != NULL) {
       *out = ent->data;
@@ -157,6 +163,10 @@ kk_sampler_heap_add_locked(struct kk_device *dev, struct kk_sampler_heap *h,
 
       return VK_SUCCESS;
    }
+
+   /* Constrain to device max sampler count */
+   if (h->ht->entries >= pdev->info.max_sampler_count)
+      return VK_ERROR_OUT_OF_HOST_MEMORY;
 
    struct kk_rc_sampler *rc = ralloc(h->ht, struct kk_rc_sampler);
    if (!rc)

@@ -41,8 +41,10 @@ struct kk_device_info {
    uint32_t max_compute_shared_memory_size;
    uint32_t gpu_apple_family;
    uint64_t max_buffer_size;
+   uint32_t max_sampler_count;
    uint32_t rendering_tile_width;
    uint32_t rendering_tile_height;
+   VkSampleCountFlags supported_sample_counts;
 };
 
 struct kk_physical_device {
@@ -66,8 +68,6 @@ struct kk_physical_device {
 
    struct kk_queue_family queue_families[3];
    uint8_t queue_family_count;
-
-   VkSampleCountFlags supported_sample_counts;
 };
 
 static inline uint32_t

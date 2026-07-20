@@ -83,6 +83,12 @@ mtl_device_current_allocated_size(mtl_device *dev)
    return 0u;
 }
 
+uint32_t
+mtl_device_max_argument_buffer_sampler_count(mtl_device *dev)
+{
+   return 0u;
+}
+
 /* Timestamp query */
 uint64_t
 mtl_device_get_gpu_timestamp(mtl_device *dev)

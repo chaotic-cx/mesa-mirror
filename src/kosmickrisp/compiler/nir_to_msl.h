@@ -8,6 +8,8 @@
 
 #include "nir.h"
 
+#define MSL_MAX_SAMPLERS 4096
+
 enum pipe_format;
 
 struct nir_to_msl_options {
