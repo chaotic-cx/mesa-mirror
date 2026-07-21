@@ -869,6 +869,7 @@ typedef struct jay_shader {
    struct list_head functions;
    const struct intel_device_info *devinfo;
    union brw_any_prog_data *prog_data;
+   const struct jay_compile_params *params;
    debug_archiver *archiver;
    unsigned spills, fills;
    unsigned scratch_size;

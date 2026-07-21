@@ -86,6 +86,8 @@ struct anv_shader_data {
    union brw_any_prog_key key;
    uint32_t key_size;
 
+   struct intel_push_layout push_layout;
+
    union brw_any_prog_data prog_data;
 
    uint64_t source_hash;

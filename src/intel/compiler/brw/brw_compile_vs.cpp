@@ -96,7 +96,8 @@ brw_compile_vs(const struct brw_compiler *compiler,
    prog_data->no_vf_slot_compaction = key->no_vf_slot_compaction;
 
    unsigned nr_input_components = 0;
-   brw_nir_lower_vs_inputs(nir, compiler->devinfo, key, prog_data,
+   brw_nir_lower_vs_inputs(nir, compiler->devinfo, key,
+                           &params->push_layout, prog_data,
                            &nr_input_components,
                            &prog_data->base.urb_read_length);
    brw_nir_lower_vue_outputs(nir);

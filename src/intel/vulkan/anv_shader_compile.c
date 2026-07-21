@@ -1731,6 +1731,7 @@ anv_shader_lower_nir(struct anv_device *device,
                                            shader_data->fs_color_map == NULL,
                },
                &shader_data->key.base,
+               &shader_data->push_layout,
                &shader_data->prog_data.base,
                &shader_data->bind_map, &shader_data->push_map);
 
@@ -2068,6 +2069,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       .nir = nir,
       .key = (union brw_any_prog_key *)params->key,
       .prog_data = (union brw_any_prog_data *)params->prog_data,
+      .push_layout = params->push_layout,
       .fs.mue_map =
          nir->info.stage == MESA_SHADER_FRAGMENT ? params->fs.mue_map : NULL,
       .archiver = shader_data->archiver,
@@ -2463,6 +2465,7 @@ anv_shader_compile(struct vk_device *vk_device,
          .nir = nir,
          .key = &shader_data->key.base,
          .prog_data = &shader_data->prog_data.base,
+         .push_layout = shader_data->push_layout,
          .stats = shader_data->stats,
          .log_data = device,
          .archiver = shader_data->archiver,
@@ -2570,7 +2573,7 @@ anv_shader_compile(struct vk_device *vk_device,
       }
 
       anv_nir_validate_push_layout(device->physical,
-                                   &shader_data->prog_data.base,
+                                   &shader_data->push_layout,
                                    &shader_data->bind_map);
 
       shader_data->xfb_info = shader_data->info->nir->xfb_info;

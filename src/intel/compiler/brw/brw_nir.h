@@ -257,6 +257,7 @@ void brw_nir_opt_vectorize_urb(struct brw_pass_tracker *pt);
 void brw_nir_lower_vs_inputs(nir_shader *nir,
                              const struct intel_device_info *devinfo,
                              const struct brw_vs_prog_key *prog_key,
+                             const struct intel_push_layout *push_layout,
                              struct brw_vs_prog_data *prog_data,
                              unsigned *out_nr_packed_regs,
                              unsigned *out_urb_read_length);

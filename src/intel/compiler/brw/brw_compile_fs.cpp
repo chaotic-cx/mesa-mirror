@@ -797,12 +797,13 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
  * overhead.
  */
 static void
-gfx9_ps_header_only_workaround(struct brw_fs_prog_data *fs_prog_data)
+gfx9_ps_header_only_workaround(struct brw_fs_prog_data *fs_prog_data,
+                               const struct intel_push_layout *push_layout)
 {
    if (fs_prog_data->num_varying_inputs)
       return;
 
-   if (fs_prog_data->base.push_sizes[0] > 0)
+   if (push_layout->push_sizes[0] > 0)
       return;
 
    fs_prog_data->urb_setup[VARYING_SLOT_LAYER] = 0;
@@ -1093,7 +1094,8 @@ run_fs(brw_shader &s, bool allow_spilling, bool do_rep_send)
       s.assign_curb_setup();
 
       if (devinfo->ver == 9)
-         gfx9_ps_header_only_workaround(fs_prog_data);
+         gfx9_ps_header_only_workaround(fs_prog_data,
+                                        &s.compile_params->push_layout);
 
       brw_assign_fs_urb_setup(s);
 

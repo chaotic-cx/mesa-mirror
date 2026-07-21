@@ -1359,6 +1359,7 @@ void
 brw_nir_lower_vs_inputs(nir_shader *nir,
                         const struct intel_device_info *devinfo,
                         const struct brw_vs_prog_key *prog_key,
+                        const struct intel_push_layout *push_layout,
                         struct brw_vs_prog_data *prog_data,
                         unsigned *out_nr_input_components,
                         unsigned *out_urb_read_length)
@@ -1541,8 +1542,8 @@ brw_nir_lower_vs_inputs(nir_shader *nir,
    /* reserve space for the R0 & R1 header */
    max_size -= 2 * REG_SIZE * reg_unit(devinfo);
    /* reserve space for push constants */
-   for (uint32_t i = 0; i < ARRAY_SIZE(prog_data->base.base.push_sizes); i++)
-      max_size -= prog_data->base.base.push_sizes[i];
+   for (uint32_t i = 0; i < ARRAY_SIZE(push_layout->push_sizes); i++)
+      max_size -= push_layout->push_sizes[i];
 
    const unsigned max_push_bytes = MAX2(max_size, 0);
 

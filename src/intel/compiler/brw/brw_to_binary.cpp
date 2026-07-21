@@ -2373,9 +2373,10 @@ brw_generator::generate_code(const brw_shader &s,
          stats->push_constant_ranges = 0;
          stats->push_constant_registers = 0;
          for (uint32_t i = 0; i < 4; i++) {
-            stats->push_constant_ranges += prog_data->push_sizes[i] != 0;
+            stats->push_constant_ranges += params->push_layout.push_sizes[i] != 0;
             stats->push_constant_registers +=
-               DIV_ROUND_UP(prog_data->push_sizes[i], reg_unit(devinfo) * REG_SIZE);
+               DIV_ROUND_UP(params->push_layout.push_sizes[i],
+                            reg_unit(devinfo) * REG_SIZE);
          }
          break;
 
@@ -2385,10 +2386,11 @@ brw_generator::generate_code(const brw_shader &s,
           * shaders, post Gfx12.5 the shader has to pull the constant data.
           */
          stats->push_constant_ranges =
-            devinfo->verx10 < 125 ? (prog_data->push_sizes[0] != 0) : 0;
+            devinfo->verx10 < 125 ? (params->push_layout.push_sizes[0] != 0) : 0;
          stats->push_constant_registers =
             devinfo->verx10 < 125 ?
-            DIV_ROUND_UP(prog_data->push_sizes[0], reg_unit(devinfo) * REG_SIZE) : 0;
+            DIV_ROUND_UP(params->push_layout.push_sizes[0],
+                         reg_unit(devinfo) * REG_SIZE) : 0;
          break;
 
       case MESA_SHADER_MESH:

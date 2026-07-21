@@ -315,12 +315,14 @@ brw_shader::mark_last_urb_write_with_eot()
 void
 brw_shader::assign_curb_setup()
 {
+   const intel_push_layout &push_layout = compile_params->push_layout;
+
    uint32_t ranges_start[4];
    this->push_data_size = 0;
    for (uint32_t i = 0; i < 4; i++) {
       ranges_start[i] = this->push_data_size / REG_SIZE;
-      assert(prog_data->push_sizes[i] == align(prog_data->push_sizes[i], REG_SIZE));
-      this->push_data_size += prog_data->push_sizes[i];
+      assert(push_layout.push_sizes[i] == align(push_layout.push_sizes[i], REG_SIZE));
+      this->push_data_size += push_layout.push_sizes[i];
    }
 
    /* Map the offsets in the UNIFORM file to fixed HW regs. */
@@ -357,7 +359,7 @@ brw_shader::assign_curb_setup()
       }
    }
 
-   if (prog_data->robust_ubo_ranges) {
+   if (push_layout.robust_ubo_ranges) {
       brw_builder ubld = brw_builder(this, 8).exec_all().at_start(cfg->first_block());
       /* At most we can write 2 GRFs (HW limit), the SIMD width matching the
        * HW generation depends on the size of the physical register.
@@ -366,7 +368,7 @@ brw_shader::assign_curb_setup()
       assert(max_grf_writes <= 4);
 
       /* push_reg_mask_param is in 32-bit units */
-      unsigned mask_param = prog_data->push_reg_mask_param;
+      unsigned mask_param = push_layout.push_reg_mask_param;
       brw_reg mask = retype(brw_vec1_grf(payload().num_regs + mask_param / 8,
                                          mask_param % 8), BRW_TYPE_UB);
 
@@ -377,9 +379,9 @@ brw_shader::assign_curb_setup()
       if (max_grf_writes > 2)
          ubld.group(16, 0).ADD(horiz_offset(offset_base, 16), offset_base, brw_imm_uw(16));
 
-      u_foreach_bit(i, prog_data->robust_ubo_ranges) {
+      u_foreach_bit(i, push_layout.robust_ubo_ranges) {
          const unsigned range_length =
-            DIV_ROUND_UP(prog_data->push_sizes[i], REG_SIZE);
+            DIV_ROUND_UP(push_layout.push_sizes[i], REG_SIZE);
 
          const unsigned range_start = ranges_start[i];
          uint64_t want_zero = (used >> range_start) & BITFIELD64_MASK(range_length);
@@ -1127,6 +1129,11 @@ void brw_prog_data_init(struct brw_stage_prog_data *prog_data,
    prog_data->stage = params->nir->info.stage;
    prog_data->total_scratch = 0;
    prog_data->total_shared = params->nir->info.shared_size;
+
+   memcpy(prog_data->push_sizes, params->push_layout.push_sizes,
+          sizeof(params->push_layout.push_sizes));
+   prog_data->robust_ubo_ranges = params->push_layout.robust_ubo_ranges;
+   prog_data->push_reg_mask_param = params->push_layout.push_reg_mask_param;
 }
 
 brw_reg

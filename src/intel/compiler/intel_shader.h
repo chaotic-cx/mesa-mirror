@@ -545,6 +545,20 @@ struct intel_shader_reloc_value {
    uint32_t value;
 };
 
+struct intel_push_layout {
+   /** Byte size of each of the four 32-byte-aligned push ranges. */
+   uint16_t push_sizes[4];
+
+   /** Bitmask of push ranges requiring robust UBO bounds checks. */
+   uint8_t robust_ubo_ranges;
+
+   /**
+    * Dword index of four packed 8-bit UBO limits, in 16-byte units.
+    * Valid when robust_ubo_ranges is nonzero.
+    */
+   unsigned push_reg_mask_param;
+};
+
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

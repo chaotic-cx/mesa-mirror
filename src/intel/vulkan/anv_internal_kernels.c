@@ -397,23 +397,27 @@ compile_shader(struct anv_device *device,
    };
    NIR_PASS(_, nir, nir_opt_load_store_vectorize, &options);
 
-   prog_data.base.push_sizes[0] = uniform_size;
+   struct intel_push_layout push_layout = {
+      .push_sizes[0] = uniform_size,
+   };
 
    void *temp_ctx = ralloc_context(NULL);
 
    const unsigned *program;
    if (stage == MESA_SHADER_FRAGMENT) {
+      push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
+
       struct genisa_stats stats[3] = {};
       struct brw_compile_params params = {
          .mem_ctx = temp_ctx,
          .nir = nir,
          .key = &key.fs.base,
          .prog_data = (struct brw_stage_prog_data *)&prog_data.fs,
+         .push_layout = push_layout,
          .stats = stats,
          .log_data = device,
          .debug_flag = DEBUG_WM,
       };
-      prog_data.base.push_sizes[0] = align(prog_data.base.push_sizes[0], REG_SIZE);
       program = brw_compile(compiler, &params);
 
       if (!ANV_DEBUG(SHADER_PRINT)) {
@@ -435,8 +439,8 @@ compile_shader(struct anv_device *device,
          }
       }
    } else {
-      brw_cs_fill_push_const_info(device->info, &prog_data.cs, -1);
-      prog_data.base.push_sizes[0] = align(prog_data.base.push_sizes[0], REG_SIZE);
+      brw_cs_fill_push_const_info(device->info, &push_layout, &prog_data.cs, -1);
+      push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
 
       struct genisa_stats stats;
       struct brw_compile_params params = {
@@ -444,6 +448,7 @@ compile_shader(struct anv_device *device,
          .nir = nir,
          .key = &key.cs.base,
          .prog_data = (struct brw_stage_prog_data *)&prog_data.cs,
+         .push_layout = push_layout,
          .stats = &stats,
          .log_data = device,
          .debug_flag = DEBUG_CS,

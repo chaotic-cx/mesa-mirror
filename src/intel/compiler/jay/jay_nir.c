@@ -676,8 +676,8 @@ jay_process_nir(const struct intel_device_info *devinfo,
       prog_data->vs.no_vf_slot_compaction = key->vs.no_vf_slot_compaction;
 
       unsigned nr_input_components;
-      brw_nir_lower_vs_inputs(nir, devinfo, &key->vs, &prog_data->vs,
-                              &nr_input_components,
+      brw_nir_lower_vs_inputs(nir, devinfo, &key->vs, &params->push_layout,
+                              &prog_data->vs, &nr_input_components,
                               &prog_data->vue.urb_read_length);
       brw_nir_lower_vue_outputs(nir);
       JAY_NIR_SNAPSHOT("after_lower_io");

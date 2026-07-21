@@ -91,6 +91,7 @@ iris_backend_compile(const struct iris_screen *screen,
          .nir = nir,
          .key = (union brw_any_prog_key *)params->key,
          .prog_data = (union brw_any_prog_data *)params->prog_data,
+         .push_layout = params->push_layout,
          .archiver = params->archiver,
          .error_str = &params->error_str,
       };
@@ -2157,7 +2158,7 @@ static void
 brw_apply_ubo_ranges(const struct iris_screen *screen,
                      nir_shader *nir,
                      struct iris_ubo_range ubo_ranges[4],
-                     struct brw_stage_prog_data *prog_data)
+                     struct intel_push_layout *push_layout)
 {
    const bool need_reserved_64bits_binding_tables = iris_bufmgr_is_eff_64bit_enabled(screen->bufmgr) &&
                                                     mesa_shader_stage_is_compute(nir->info.stage) == false;
@@ -2193,7 +2194,7 @@ brw_apply_ubo_ranges(const struct iris_screen *screen,
    }
 
    for (uint32_t i = 0; i < 4; i++)
-      prog_data->push_sizes[i] = ubo_ranges[i].length * 32;
+      push_layout->push_sizes[i] = ubo_ranges[i].length * 32;
 }
 
 /**
@@ -2244,7 +2245,8 @@ iris_compile_vs(struct iris_screen *screen,
          rzalloc(mem_ctx, struct brw_vs_prog_data);
 
       struct iris_ubo_range ubo_ranges[4] = {};
-      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &brw_prog_data->base.base);
+      struct intel_push_layout push_layout = {};
+      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
 
       struct brw_vs_prog_key brw_key = iris_to_brw_vs_key(screen, key);
 
@@ -2253,6 +2255,7 @@ iris_compile_vs(struct iris_screen *screen,
          .nir = nir,
          .key = &brw_key.base,
          .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
+         .push_layout = push_layout,
          .log_data = dbg,
          .archiver = debug_archiver,
       };
@@ -2503,13 +2506,15 @@ iris_compile_tcs(struct iris_screen *screen,
          rzalloc(mem_ctx, struct brw_tcs_prog_data);
 
       struct iris_ubo_range ubo_ranges[4] = {};
-      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &brw_prog_data->base.base);
+      struct intel_push_layout push_layout = {};
+      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
 
       struct brw_compile_params params = {
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &brw_key.base,
          .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
+         .push_layout = push_layout,
          .log_data = dbg,
          .archiver = debug_archiver,
       };
@@ -2704,7 +2709,8 @@ iris_compile_tes(struct iris_screen *screen,
          rzalloc(mem_ctx, struct brw_tes_prog_data);
 
       struct iris_ubo_range ubo_ranges[4] = {};
-      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &brw_prog_data->base.base);
+      struct intel_push_layout push_layout = {};
+      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
 
       struct intel_vue_map input_vue_map;
       brw_compute_tess_vue_map(&input_vue_map, key->inputs_read,
@@ -2717,6 +2723,7 @@ iris_compile_tes(struct iris_screen *screen,
          .nir = nir,
          .key = &brw_key.base,
          .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
+         .push_layout = push_layout,
          .log_data = dbg,
          .tes = {
             .input_vue_map = &input_vue_map,
@@ -2897,7 +2904,8 @@ iris_compile_gs(struct iris_screen *screen,
          rzalloc(mem_ctx, struct brw_gs_prog_data);
 
       struct iris_ubo_range ubo_ranges[4] = {};
-      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &brw_prog_data->base.base);
+      struct intel_push_layout push_layout = {};
+      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
 
       struct brw_gs_prog_key brw_key = iris_to_brw_gs_key(screen, key);
 
@@ -2906,6 +2914,7 @@ iris_compile_gs(struct iris_screen *screen,
          .nir = nir,
          .key = &brw_key.base,
          .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
+         .push_layout = push_layout,
          .log_data = dbg,
          .archiver = debug_archiver,
       };
@@ -3133,7 +3142,8 @@ iris_compile_fs(struct iris_screen *screen,
          rzalloc(mem_ctx, struct brw_fs_prog_data);
 
       struct iris_ubo_range ubo_ranges[4] = {};
-      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &brw_prog_data->base);
+      struct intel_push_layout push_layout = {};
+      brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
 
       struct brw_fs_prog_key brw_key = iris_to_brw_fs_key(screen, key);
       struct brw_compile_params params = {
@@ -3141,6 +3151,7 @@ iris_compile_fs(struct iris_screen *screen,
          .nir = nir,
          .key = &brw_key.base,
          .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
+         .push_layout = push_layout,
          .log_data = dbg,
          .fs = {
             .vue_map = vue_map,
@@ -3481,14 +3492,15 @@ iris_compile_cs(struct iris_screen *screen,
       struct brw_cs_prog_data *brw_prog_data =
          rzalloc(mem_ctx, struct brw_cs_prog_data);
 
+      struct intel_push_layout push_layout = {};
       bool subgroup_id_lowered = false;
       NIR_PASS(subgroup_id_lowered, nir, brw_nir_lower_cs_subgroup_id, devinfo, 0);
       if (subgroup_id_lowered) {
-         brw_prog_data->base.push_sizes[0] = 4;
-         brw_cs_fill_push_const_info(devinfo, brw_prog_data, 0);
-         brw_prog_data->base.push_sizes[0] = align(4, REG_SIZE);
+         push_layout.push_sizes[0] = 4;
+         brw_cs_fill_push_const_info(devinfo, &push_layout, brw_prog_data, 0);
+         push_layout.push_sizes[0] = align(4, REG_SIZE);
       } else {
-         brw_cs_fill_push_const_info(devinfo, brw_prog_data, -1);
+         brw_cs_fill_push_const_info(devinfo, &push_layout, brw_prog_data, -1);
       }
 
       struct brw_compile_params params = {
@@ -3496,6 +3508,7 @@ iris_compile_cs(struct iris_screen *screen,
          .nir = nir,
          .key = &brw_key.base,
          .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
+         .push_layout = push_layout,
          .log_data = dbg,
          .archiver = debug_archiver,
       };

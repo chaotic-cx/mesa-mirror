@@ -26,6 +26,8 @@ struct jay_compile_params {
    union brw_any_prog_key *key;
    union brw_any_prog_data *prog_data;
 
+   struct intel_push_layout push_layout;
+
    struct {
       const struct brw_mue_map *mue_map;
    } fs;

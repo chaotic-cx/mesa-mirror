@@ -4284,8 +4284,8 @@ static void
 setup_payload_push(struct nir_to_jay_state *nj, struct payload_builder *p)
 {
    unsigned push_size_B = 0;
-   for (int i = 0; i < ARRAY_SIZE(nj->s->prog_data->base.push_sizes); i++) {
-      push_size_B += nj->s->prog_data->base.push_sizes[i];
+   for (int i = 0; i < ARRAY_SIZE(nj->s->params->push_layout.push_sizes); i++) {
+      push_size_B += nj->s->params->push_layout.push_sizes[i];
    }
 
    assert(util_is_aligned(push_size_B, 32));
@@ -4776,7 +4776,8 @@ jay_setup_payload(struct nir_to_jay_state *nj)
 
    s->payload_gprs = p.offsets[GPR];
 
-   jay_def mask = nj->payload.push_data[s->prog_data->base.push_reg_mask_param];
+   const struct intel_push_layout *push_layout = &s->params->push_layout;
+   jay_def mask = nj->payload.push_data[push_layout->push_reg_mask_param];
    unsigned simd = b->shader->dispatch_width;
 
    /* To handle robustness, we need to zero some pushed data depending on a
@@ -4789,8 +4790,8 @@ jay_setup_payload(struct nir_to_jay_state *nj)
     *
     * See the definition of robust_ubo_ranges for more details.
     */
-   u_foreach_bit(r, nj->s->prog_data->base.robust_ubo_ranges) {
-      unsigned sz_W = nj->s->prog_data->base.push_sizes[r] / 4;
+   u_foreach_bit(r, push_layout->robust_ubo_ranges) {
+      unsigned sz_W = push_layout->push_sizes[r] / 4;
 
       jay_def limit_16B = jay_CVT_u32(b, mask, JAY_TYPE_U8, JAY_ROUND, r);
       jay_def limit_4B = jay_SHL_u32(b, limit_16B, 2);
@@ -4800,7 +4801,7 @@ jay_setup_payload(struct nir_to_jay_state *nj)
       jay_def higher = jay_null();
 
       for (unsigned i = 0; i < r; ++i) {
-         push_data += s->prog_data->base.push_sizes[i] / 4;
+         push_data += push_layout->push_sizes[i] / 4;
       }
 
       for (unsigned base = 0; base < sz_W; base += simd) {
@@ -5001,6 +5002,7 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    s->scratch_size = align(nir->scratch_size, 4) * s->dispatch_width;
    s->devinfo = devinfo;
    s->prog_data = prog_data;
+   s->params = params;
    s->archiver = params->archiver;
    s->helpers_tracked = track_helpers;
    s->use_efficient_64bit = params->key->base.use_efficient_64bit;
@@ -5225,6 +5227,11 @@ jay_compile_simd(const struct intel_device_info *devinfo,
     */
    prog_data->base.total_scratch =
       MAX2(prog_data->base.total_scratch, stats->scratch_memory_size);
+
+   memcpy(prog_data->base.push_sizes, params->push_layout.push_sizes,
+          sizeof(prog_data->base.push_sizes));
+   prog_data->base.robust_ubo_ranges = params->push_layout.robust_ubo_ranges;
+   prog_data->base.push_reg_mask_param = params->push_layout.push_reg_mask_param;
 
    ralloc_free(s);
    return bin;

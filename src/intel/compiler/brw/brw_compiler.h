@@ -1277,6 +1277,8 @@ struct brw_compile_params {
    const struct brw_base_prog_key *key;
    struct brw_stage_prog_data *prog_data;
 
+   struct intel_push_layout push_layout;
+
    /** Filled by the compiler, one entry per compiled variant. */
    struct genisa_stats *stats;
 
@@ -1343,6 +1345,7 @@ brw_cs_push_const_total_size(const struct brw_cs_prog_data *cs_prog_data,
 
 void
 brw_cs_fill_push_const_info(const struct intel_device_info *devinfo,
+                            const struct intel_push_layout *push_layout,
                             struct brw_cs_prog_data *cs_prog_data,
                             int subgroup_id_index);
 

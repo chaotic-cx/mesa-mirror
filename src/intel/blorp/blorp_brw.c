@@ -58,9 +58,6 @@ blorp_compile_fs_brw(struct blorp_context *blorp, void *mem_ctx,
 
    struct brw_fs_prog_data *fs_prog_data = rzalloc(mem_ctx, struct brw_fs_prog_data);
 
-   if (blorp->config.use_efficient_64bit)
-      fs_prog_data->base.push_sizes[0] = 32;
-
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 
    struct brw_nir_compiler_opts opts = {
@@ -95,6 +92,9 @@ blorp_compile_fs_brw(struct blorp_context *blorp, void *mem_ctx,
       .nir = nir,
       .key = &wm_key.base,
       .prog_data = (struct brw_stage_prog_data *)fs_prog_data,
+      .push_layout = {
+         .push_sizes = { blorp->config.use_efficient_64bit ? 32 : 0 },
+      },
       .log_data = blorp->driver_ctx,
       .debug_flag = DEBUG_BLORP,
       .fs = {
@@ -232,11 +232,14 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
                  sizeof(struct blorp_wm_inputs));
 
    struct brw_cs_prog_data *cs_prog_data = rzalloc(mem_ctx, struct brw_cs_prog_data);
-   cs_prog_data->base.push_sizes[0] = sizeof(struct blorp_wm_inputs);
 
-   brw_cs_fill_push_const_info(compiler->devinfo, cs_prog_data,
+   struct intel_push_layout push_layout = {
+      .push_sizes[0] = sizeof(struct blorp_wm_inputs),
+   };
+
+   brw_cs_fill_push_const_info(compiler->devinfo, &push_layout, cs_prog_data,
                                offsetof(struct blorp_wm_inputs, subgroup_id) / 4);
-   cs_prog_data->base.push_sizes[0] = align(cs_prog_data->base.push_sizes[0], REG_SIZE);
+   push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
 
    NIR_PASS(_, nir, brw_nir_lower_cs_intrinsics, compiler->devinfo,
               cs_prog_data);
@@ -258,6 +261,7 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
       .nir = nir,
       .key = &cs_key.base,
       .prog_data = (struct brw_stage_prog_data *)cs_prog_data,
+      .push_layout = push_layout,
       .log_data = blorp->driver_ctx,
       .debug_flag = DEBUG_BLORP,
       .archiver = archiver,
