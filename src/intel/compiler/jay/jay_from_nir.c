@@ -5248,6 +5248,11 @@ jay_compile(const struct intel_device_info *devinfo,
       .mue = params->fs.mue_map,
    };
 
+   if (mesa_shader_stage_is_compute(nir->info.stage)) {
+      prog_data->cs.walk_order = params->cs.dispatch.walk_order;
+      prog_data->cs.generate_local_id = params->cs.dispatch.generate_local_id;
+   }
+
    jay_process_nir(devinfo, params, &fs_perprim);
 
    unsigned modes = jay_select_simd(devinfo, nir);

@@ -372,6 +372,12 @@ enum intel_compute_walk_order {
    INTEL_WALK_ORDER_ZYX = 5,
 };
 
+/** Compute dispatch configuration selected while lowering system values. */
+struct intel_cs_dispatch_params {
+   uint8_t generate_local_id;
+   enum intel_compute_walk_order walk_order;
+};
+
 static inline uint32_t
 intel_tess_config(uint32_t input_vertices,
                   uint32_t output_vertices,

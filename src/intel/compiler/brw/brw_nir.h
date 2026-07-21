@@ -173,7 +173,7 @@ brw_nir_link_shaders(const struct brw_compiler *compiler,
 
 bool brw_nir_lower_cs_intrinsics(nir_shader *nir,
                                  const struct intel_device_info *devinfo,
-                                 struct brw_cs_prog_data *prog_data);
+                                 struct intel_cs_dispatch_params *dispatch);
 bool brw_nir_lower_cs_subgroup_id(nir_shader *nir,
                                   const struct intel_device_info *devinfo,
                                   unsigned subgroup_id_offset);

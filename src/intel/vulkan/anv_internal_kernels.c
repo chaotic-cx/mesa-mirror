@@ -373,6 +373,8 @@ compile_shader(struct anv_device *device,
    union brw_any_prog_data prog_data;
    memset(&prog_data, 0, sizeof(prog_data));
 
+   struct intel_cs_dispatch_params dispatch = {};
+
    if (stage == MESA_SHADER_COMPUTE) {
       /* Pick SIMD16, it shouldn't spill prior Xe2 and it's the native size
        * after.
@@ -380,7 +382,7 @@ compile_shader(struct anv_device *device,
       nir->info.min_subgroup_size = nir->info.max_subgroup_size = 16;
 
       NIR_PASS(_, nir, brw_nir_lower_cs_intrinsics,
-                 device->info, &prog_data.cs);
+                 device->info, &dispatch);
    }
 
    /* Do vectorizing here. For some reason when trying to do it in the back
@@ -452,6 +454,7 @@ compile_shader(struct anv_device *device,
          .stats = &stats,
          .log_data = device,
          .debug_flag = DEBUG_CS,
+         .cs.dispatch = dispatch,
       };
       program = brw_compile(compiler, &params);
 

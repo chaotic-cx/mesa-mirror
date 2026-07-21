@@ -1310,6 +1310,10 @@ struct brw_compile_params {
    } fs;
 
    struct {
+      struct intel_cs_dispatch_params dispatch;
+   } cs;
+
+   struct {
       unsigned num_resume_shaders;
       struct nir_shader **resume_shaders;
    } bs;

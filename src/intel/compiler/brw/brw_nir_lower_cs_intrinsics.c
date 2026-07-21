@@ -305,7 +305,7 @@ lower_cs_intrinsics_convert_impl(struct lower_intrinsics_state *state)
 bool
 brw_nir_lower_cs_intrinsics(nir_shader *nir,
                             const struct intel_device_info *devinfo,
-                            struct brw_cs_prog_data *prog_data)
+                            struct intel_cs_dispatch_params *dispatch)
 {
    assert(mesa_shader_stage_uses_workgroup(nir->info.stage));
 
@@ -328,7 +328,7 @@ brw_nir_lower_cs_intrinsics(nir_shader *nir,
       }
    }
 
-   if (devinfo->verx10 >= 125 && prog_data &&
+   if (devinfo->verx10 >= 125 && dispatch &&
        nir->info.stage == MESA_SHADER_COMPUTE &&
        nir->info.derivative_group != DERIVATIVE_GROUP_QUADS &&
        !nir->info.workgroup_size_variable &&
@@ -346,7 +346,7 @@ brw_nir_lower_cs_intrinsics(nir_shader *nir,
           nir->info.workgroup_size[2] == 1) ||
          (nir->info.num_images == 0 && nir->info.num_textures == 0);
 
-      prog_data->walk_order =
+      dispatch->walk_order =
          linear ? INTEL_WALK_ORDER_XYZ : INTEL_WALK_ORDER_YXZ;
 
       /* nir_lower_compute_system_values will replace any references to
@@ -355,7 +355,7 @@ brw_nir_lower_cs_intrinsics(nir_shader *nir,
        * generating those.  However, the hardware can only generate
        * X, XY, or XYZ - it can't skip earlier components.
        */
-      prog_data->generate_local_id =
+      dispatch->generate_local_id =
          (nir->info.workgroup_size[0] > 1 ? WRITEMASK_X   : 0) |
          (nir->info.workgroup_size[1] > 1 ? WRITEMASK_XY  : 0) |
          (nir->info.workgroup_size[2] > 1 ? WRITEMASK_XYZ : 0);

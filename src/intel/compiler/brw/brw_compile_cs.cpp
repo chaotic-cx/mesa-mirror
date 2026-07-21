@@ -132,6 +132,12 @@ brw_compile_cs(const struct brw_compiler *compiler,
 
    brw_prog_data_init(&prog_data->base, params);
 
+   /* TODO: Temporary, while code still reads these from prog_data instead of
+    * the compile params.
+    */
+   prog_data->generate_local_id = params->cs.dispatch.generate_local_id;
+   prog_data->walk_order = params->cs.dispatch.walk_order;
+
    if (!nir->info.workgroup_size_variable) {
       prog_data->local_size[0] = nir->info.workgroup_size[0];
       prog_data->local_size[1] = nir->info.workgroup_size[1];

@@ -29,6 +29,10 @@ struct jay_compile_params {
    struct intel_push_layout push_layout;
 
    struct {
+      struct intel_cs_dispatch_params dispatch;
+   } cs;
+
+   struct {
       const struct brw_mue_map *mue_map;
    } fs;
 

@@ -1702,7 +1702,7 @@ anv_shader_lower_nir(struct anv_device *device,
 
    if (mesa_shader_stage_is_compute(nir->info.stage)) {
       NIR_PASS(_, nir, brw_nir_lower_cs_intrinsics, devinfo,
-               &shader_data->prog_data.cs);
+               &shader_data->cs_dispatch);
    }
 
    NIR_PASS(_, nir, anv_nir_lower_driver_values, pdevice);
@@ -2064,7 +2064,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
 
    set_debug_archive_filename(shader_data, has_resume_shaders, -1);
 
-   const struct jay_compile_params jc_params = {
+   struct jay_compile_params jc_params = {
       .mem_ctx = mem_ctx,
       .nir = nir,
       .key = (union brw_any_prog_key *)params->key,
@@ -2075,6 +2075,10 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       .archiver = shader_data->archiver,
       .error_str = &params->error_str,
    };
+
+   if (mesa_shader_stage_is_compute(nir->info.stage)) {
+      jc_params.cs.dispatch = params->cs.dispatch;
+   }
 
    struct jay_shader_bin *main_bin = jay_compile(devinfo, &jc_params);
    if (!main_bin)
@@ -2475,8 +2479,10 @@ anv_shader_compile(struct vk_device *vk_device,
       case MESA_SHADER_VERTEX:
       case MESA_SHADER_GEOMETRY:
       case MESA_SHADER_TASK:
-      case MESA_SHADER_COMPUTE:
          /* Nothing to do. */
+         break;
+      case MESA_SHADER_COMPUTE:
+         params.cs.dispatch = shader_data->cs_dispatch;
          break;
       case MESA_SHADER_TESS_CTRL:
          shader_data->key.tcs.outputs_written = nir->info.outputs_written;

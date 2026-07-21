@@ -241,8 +241,9 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
                                offsetof(struct blorp_wm_inputs, subgroup_id) / 4);
    push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
 
+   struct intel_cs_dispatch_params dispatch = {};
    NIR_PASS(_, nir, brw_nir_lower_cs_intrinsics, compiler->devinfo,
-              cs_prog_data);
+              &dispatch);
    NIR_PASS(_, nir, brw_nir_lower_cs_subgroup_id, compiler->devinfo,
                offsetof(struct blorp_wm_inputs, subgroup_id));
    NIR_PASS(_, nir, nir_shader_intrinsics_pass, lower_base_workgroup_id,
@@ -264,6 +265,7 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
       .push_layout = push_layout,
       .log_data = blorp->driver_ctx,
       .debug_flag = DEBUG_BLORP,
+      .cs.dispatch = dispatch,
       .archiver = archiver,
    };
 
