@@ -29,6 +29,10 @@ struct jay_compile_params {
    struct intel_push_layout push_layout;
 
    struct {
+      /* Whether the compute shader uses BTD stack IDs, delivered in the
+       * thread payload.
+       */
+      bool uses_btd_stack_ids;
       struct intel_cs_dispatch_params dispatch;
       struct brw_cs_push_const_info push;
    } cs;

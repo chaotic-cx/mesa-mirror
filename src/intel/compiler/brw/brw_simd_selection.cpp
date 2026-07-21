@@ -91,7 +91,7 @@ brw_simd_should_compile(brw_simd_selection_state &state, unsigned simd)
       return false;
    }
 
-   if (width == 32 && cs_prog_data && cs_prog_data->uses_btd_stack_ids) {
+   if (width == 32 && state.uses_btd_stack_ids) {
       state.error[simd] = "Bindless shader calls not supported";
       return false;
    }
@@ -227,6 +227,7 @@ brw_simd_select_for_workgroup_size(const struct intel_device_info *devinfo,
                   prog_data->local_size[2] == sizes[2])) {
       brw_simd_selection_state simd_state{
          .prog_data = const_cast<struct brw_cs_prog_data *>(prog_data),
+         .uses_btd_stack_ids = prog_data->uses_btd_stack_ids,
       };
 
       /* Propagate the prog_data information back to the simd_state,
@@ -250,6 +251,7 @@ brw_simd_select_for_workgroup_size(const struct intel_device_info *devinfo,
    brw_simd_selection_state simd_state{
       .devinfo = devinfo,
       .prog_data = &cloned,
+      .uses_btd_stack_ids = prog_data->uses_btd_stack_ids,
    };
 
    for (unsigned simd = 0; simd < SIMD_COUNT; simd++) {

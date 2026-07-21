@@ -5636,7 +5636,7 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
 
    case nir_intrinsic_load_btd_stack_id_intel:
       if (s.stage == MESA_SHADER_COMPUTE) {
-         assert(brw_cs_prog_data(s.prog_data)->uses_btd_stack_ids);
+         assert(s.uses_btd_stack_ids);
       } else {
          assert(brw_shader_stage_is_bindless(s.stage));
       }
@@ -5649,7 +5649,7 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
 
    case nir_intrinsic_btd_spawn_intel:
       if (s.stage == MESA_SHADER_COMPUTE) {
-         assert(brw_cs_prog_data(s.prog_data)->uses_btd_stack_ids);
+         assert(s.uses_btd_stack_ids);
       } else {
          assert(brw_shader_stage_is_bindless(s.stage));
       }
@@ -5665,7 +5665,7 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
 
    case nir_intrinsic_btd_retire_intel:
       if (s.stage == MESA_SHADER_COMPUTE) {
-         assert(brw_cs_prog_data(s.prog_data)->uses_btd_stack_ids);
+         assert(s.uses_btd_stack_ids);
       } else {
          assert(brw_shader_stage_is_bindless(s.stage));
       }

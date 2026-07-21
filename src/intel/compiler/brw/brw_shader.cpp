@@ -167,6 +167,7 @@ brw_shader::brw_shader(const brw_shader_params *params)
      needs_register_pressure(params->needs_register_pressure),
      dispatch_width(params->dispatch_width),
      max_polygons(params->num_polygons),
+     uses_btd_stack_ids(params->compile_params->cs.uses_btd_stack_ids),
      api_subgroup_size(brw_nir_api_subgroup_size(params->nir, dispatch_width))
 {
    assert(api_subgroup_size == 0 ||

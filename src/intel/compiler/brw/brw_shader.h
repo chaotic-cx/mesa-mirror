@@ -221,6 +221,11 @@ public:
    const unsigned dispatch_width; /**< 8, 16 or 32 */
    const unsigned max_polygons;
 
+   /* Whether the (compute) shader uses BTD stack IDs, delivered in the
+    * thread payload.
+    */
+   const bool uses_btd_stack_ids;
+
    /* The API selected subgroup size */
    unsigned api_subgroup_size; /**< 0, 8, 16, 32 */
 

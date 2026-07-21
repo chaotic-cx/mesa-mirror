@@ -138,6 +138,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
    prog_data->generate_local_id = params->cs.dispatch.generate_local_id;
    prog_data->walk_order = params->cs.dispatch.walk_order;
    prog_data->push = params->cs.push;
+   prog_data->uses_btd_stack_ids = params->cs.uses_btd_stack_ids;
 
    if (!nir->info.workgroup_size_variable) {
       prog_data->local_size[0] = nir->info.workgroup_size[0];
@@ -162,6 +163,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
       .devinfo = compiler->devinfo,
       .prog_data = prog_data,
       .required_width = brw_required_dispatch_width(&nir->info),
+      .uses_btd_stack_ids = params->cs.uses_btd_stack_ids,
    };
 
    unsigned pressure[SIMD_COUNT];

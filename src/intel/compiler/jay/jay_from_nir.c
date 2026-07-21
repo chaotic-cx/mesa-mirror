@@ -2098,7 +2098,7 @@ static bool
 jay_shader_stage_uses_btd(jay_shader *s)
 {
    return s->stage == MESA_SHADER_COMPUTE ?
-             s->prog_data->cs.uses_btd_stack_ids :
+             s->params->cs.uses_btd_stack_ids :
              brw_shader_stage_is_bindless(s->stage);
 }
 
@@ -4407,7 +4407,7 @@ setup_compute_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
       return;
    }
 
-   if (nj->s->prog_data->cs.uses_btd_stack_ids)
+   if (nj->s->params->cs.uses_btd_stack_ids)
       nj->payload.u1 = read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
 
    u_foreach_bit(axis, nj->s->prog_data->cs.generate_local_id) {
@@ -5252,6 +5252,7 @@ jay_compile(const struct intel_device_info *devinfo,
       prog_data->cs.walk_order = params->cs.dispatch.walk_order;
       prog_data->cs.generate_local_id = params->cs.dispatch.generate_local_id;
       prog_data->cs.push = params->cs.push;
+      prog_data->cs.uses_btd_stack_ids = params->cs.uses_btd_stack_ids;
    }
 
    jay_process_nir(devinfo, params, &fs_perprim);

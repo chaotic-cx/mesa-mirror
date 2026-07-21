@@ -327,7 +327,7 @@ brw_cs_thread_payload::brw_cs_thread_payload(const brw_shader &v)
       }
 
       /* TODO: Fill out uses_btd_stack_ids automatically */
-      if (prog_data->uses_btd_stack_ids)
+      if (v.uses_btd_stack_ids)
          r += reg_unit(v.devinfo);
 
       if (v.stage == MESA_SHADER_COMPUTE) {

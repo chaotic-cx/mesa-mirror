@@ -142,6 +142,8 @@ struct brw_simd_selection_state {
 
    unsigned required_width;
 
+   bool uses_btd_stack_ids;
+
    const char *error[SIMD_COUNT];
 
    bool compiled[SIMD_COUNT];
