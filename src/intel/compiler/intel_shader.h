@@ -557,6 +557,11 @@ struct intel_push_layout {
     * Valid when robust_ubo_ranges is nonzero.
     */
    unsigned push_reg_mask_param;
+
+   /**
+    * Byte offset of intel_tess_config in the pushed data.
+    */
+   unsigned tess_config_param;
 };
 
 #ifdef __cplusplus

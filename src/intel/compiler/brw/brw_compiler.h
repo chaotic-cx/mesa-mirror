@@ -991,12 +991,6 @@ struct brw_tcs_prog_data
 
    /** Track patch count threshold */
    int patch_count_threshold;
-
-   /**
-    * Push constant location of intel_tess_config (dynamic configuration of
-    * the tessellation shaders) in bytes.
-    */
-   unsigned tess_config_param;
 };
 
 struct brw_tes_prog_data
@@ -1006,12 +1000,6 @@ struct brw_tes_prog_data
    struct brw_tess_info tess_info;
 
    bool include_primitive_id;
-
-   /**
-    * Push constant location of intel_tess_config (dynamic configuration of
-    * the tessellation shaders) in bytes.
-    */
-   unsigned tess_config_param;
 };
 
 struct brw_gs_prog_data

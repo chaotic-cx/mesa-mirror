@@ -2461,9 +2461,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       break;
 
    case nir_intrinsic_load_tess_config_intel: {
-      const unsigned offs = tes ? s->prog_data->tes.tess_config_param :
-                                  s->prog_data->tcs.tess_config_param;
-      jay_MOV(b, dst, nj->payload.push_data[offs / 4]);
+      jay_MOV(b, dst, nj->payload.push_data[s->params->push_layout.tess_config_param / 4]);
       break;
    }
 

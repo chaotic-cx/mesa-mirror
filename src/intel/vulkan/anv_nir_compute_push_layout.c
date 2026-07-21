@@ -849,23 +849,19 @@ anv_nir_compute_push_layout(nir_shader *nir,
    switch (nir->info.stage) {
    case MESA_SHADER_TESS_CTRL:
       if (data.needs_dyn_tess_config) {
-         struct brw_tcs_prog_data *tcs_prog_data = brw_tcs_prog_data(prog_data);
-
          const uint32_t tess_config_offset =
             anv_drv_const_offset(drv_data.gfx.tess_config);
          assert(tess_config_offset >= push_start);
-         tcs_prog_data->tess_config_param = tess_config_offset - push_start;
+         push_layout->tess_config_param = tess_config_offset - push_start;
       }
       break;
 
    case MESA_SHADER_TESS_EVAL:
       if (push_info->separate_tessellation) {
-         struct brw_tes_prog_data *tes_prog_data = brw_tes_prog_data(prog_data);
-
          const uint32_t tess_config_offset =
             anv_drv_const_offset(drv_data.gfx.tess_config);
          assert(tess_config_offset >= push_start);
-         tes_prog_data->tess_config_param = tess_config_offset - push_start;
+         push_layout->tess_config_param = tess_config_offset - push_start;
       }
       break;
 

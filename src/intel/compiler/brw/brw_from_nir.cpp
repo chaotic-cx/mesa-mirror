@@ -2929,8 +2929,9 @@ brw_from_nir_emit_tcs_intrinsic(nir_to_brw_state &ntb,
       bld.MOV(retype(dst, BRW_TYPE_UD),
               byte_offset(
                  brw_uniform_reg(
-                    tcs_prog_data->tess_config_param / REG_SIZE, BRW_TYPE_UD),
-                 tcs_prog_data->tess_config_param % REG_SIZE));
+                    s.compile_params->push_layout.tess_config_param /
+                    REG_SIZE, BRW_TYPE_UD),
+                 s.compile_params->push_layout.tess_config_param % REG_SIZE));
       break;
 
    default:
@@ -2947,7 +2948,6 @@ brw_from_nir_emit_tes_intrinsic(nir_to_brw_state &ntb,
    brw_shader &s = ntb.s;
 
    assert(s.stage == MESA_SHADER_TESS_EVAL);
-   struct brw_tes_prog_data *tes_prog_data = brw_tes_prog_data(s.prog_data);
 
    brw_reg dest;
    if (nir_intrinsic_infos[instr->intrinsic].has_dest)
@@ -2975,8 +2975,9 @@ brw_from_nir_emit_tes_intrinsic(nir_to_brw_state &ntb,
       bld.MOV(retype(dest, BRW_TYPE_UD),
               byte_offset(
                  brw_uniform_reg(
-                    tes_prog_data->tess_config_param / REG_SIZE, BRW_TYPE_UD),
-                 tes_prog_data->tess_config_param % REG_SIZE));
+                    s.compile_params->push_layout.tess_config_param /
+                    REG_SIZE, BRW_TYPE_UD),
+                 s.compile_params->push_layout.tess_config_param % REG_SIZE));
       break;
 
    default:
