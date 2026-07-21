@@ -88,6 +88,7 @@ struct anv_shader_data {
 
    struct intel_push_layout push_layout;
    struct intel_cs_dispatch_params cs_dispatch;
+   struct brw_cs_push_const_info cs_push;
 
    union brw_any_prog_data prog_data;
 

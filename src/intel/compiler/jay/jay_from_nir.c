@@ -5251,6 +5251,7 @@ jay_compile(const struct intel_device_info *devinfo,
    if (mesa_shader_stage_is_compute(nir->info.stage)) {
       prog_data->cs.walk_order = params->cs.dispatch.walk_order;
       prog_data->cs.generate_local_id = params->cs.dispatch.generate_local_id;
+      prog_data->cs.push = params->cs.push;
    }
 
    jay_process_nir(devinfo, params, &fs_perprim);

@@ -137,7 +137,7 @@ bool anv_nir_compute_push_layout(nir_shader *nir,
                                  const struct anv_nir_push_layout_info *info,
                                  struct brw_base_prog_key *prog_key,
                                  struct intel_push_layout *push_layout,
-                                 struct brw_stage_prog_data *prog_data,
+                                 struct brw_cs_push_const_info *cs_push,
                                  struct anv_pipeline_bind_map *map,
                                  const struct anv_pipeline_push_map *push_map);
 

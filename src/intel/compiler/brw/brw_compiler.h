@@ -803,6 +803,11 @@ struct brw_push_const_block {
    unsigned size;       /* Bytes, register aligned */
 };
 
+struct brw_cs_push_const_info {
+   struct brw_push_const_block cross_thread;
+   struct brw_push_const_block per_thread;
+};
+
 struct brw_cs_prog_data {
    struct brw_stage_prog_data base;
 
@@ -833,10 +838,7 @@ struct brw_cs_prog_data {
    /* True if the shader was compiled with SIMD32 forced */
    bool force_simd32;
 
-   struct {
-      struct brw_push_const_block cross_thread;
-      struct brw_push_const_block per_thread;
-   } push;
+   struct brw_cs_push_const_info push;
 };
 
 static inline uint32_t
@@ -1311,6 +1313,7 @@ struct brw_compile_params {
 
    struct {
       struct intel_cs_dispatch_params dispatch;
+      struct brw_cs_push_const_info push;
    } cs;
 
    struct {
@@ -1332,8 +1335,8 @@ brw_cs_push_const_total_size(const struct brw_cs_prog_data *cs_prog_data,
 void
 brw_cs_fill_push_const_info(const struct intel_device_info *devinfo,
                             const struct intel_push_layout *push_layout,
-                            struct brw_cs_prog_data *cs_prog_data,
-                            int subgroup_id_index);
+                            int subgroup_id_index,
+                            struct brw_cs_push_const_info *push);
 
 void
 brw_write_shader_relocs(const struct brw_isa_info *isa,

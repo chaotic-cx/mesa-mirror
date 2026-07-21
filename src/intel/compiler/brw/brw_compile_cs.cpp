@@ -27,8 +27,8 @@ fill_push_const_block_info(struct brw_push_const_block *block, unsigned dwords)
 extern "C" void
 brw_cs_fill_push_const_info(const struct intel_device_info *devinfo,
                             const struct intel_push_layout *push_layout,
-                            struct brw_cs_prog_data *cs_prog_data,
-                            int subgroup_id_index)
+                            int subgroup_id_index,
+                            struct brw_cs_push_const_info *push)
 {
    unsigned cross_thread_dwords, per_thread_dwords;
    if (devinfo->verx10 < 125 && subgroup_id_index >= 0) {
@@ -42,13 +42,13 @@ brw_cs_fill_push_const_info(const struct intel_device_info *devinfo,
       per_thread_dwords = 0u;
    }
 
-   fill_push_const_block_info(&cs_prog_data->push.cross_thread, cross_thread_dwords);
-   fill_push_const_block_info(&cs_prog_data->push.per_thread, per_thread_dwords);
+   fill_push_const_block_info(&push->cross_thread, cross_thread_dwords);
+   fill_push_const_block_info(&push->per_thread, per_thread_dwords);
 
-   assert(cs_prog_data->push.cross_thread.dwords % 8 == 0 ||
-          cs_prog_data->push.per_thread.size == 0);
-   assert(cs_prog_data->push.cross_thread.dwords +
-          cs_prog_data->push.per_thread.dwords ==
+   assert(push->cross_thread.dwords % 8 == 0 ||
+          push->per_thread.size == 0);
+   assert(push->cross_thread.dwords +
+          push->per_thread.dwords ==
              push_layout->push_sizes[0] / 4);
 }
 
@@ -137,6 +137,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
     */
    prog_data->generate_local_id = params->cs.dispatch.generate_local_id;
    prog_data->walk_order = params->cs.dispatch.walk_order;
+   prog_data->push = params->cs.push;
 
    if (!nir->info.workgroup_size_variable) {
       prog_data->local_size[0] = nir->info.workgroup_size[0];

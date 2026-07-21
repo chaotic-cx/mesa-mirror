@@ -30,6 +30,7 @@ struct jay_compile_params {
 
    struct {
       struct intel_cs_dispatch_params dispatch;
+      struct brw_cs_push_const_info push;
    } cs;
 
    struct {

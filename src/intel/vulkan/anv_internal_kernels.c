@@ -374,6 +374,7 @@ compile_shader(struct anv_device *device,
    memset(&prog_data, 0, sizeof(prog_data));
 
    struct intel_cs_dispatch_params dispatch = {};
+   struct brw_cs_push_const_info cs_push = {};
 
    if (stage == MESA_SHADER_COMPUTE) {
       /* Pick SIMD16, it shouldn't spill prior Xe2 and it's the native size
@@ -441,7 +442,7 @@ compile_shader(struct anv_device *device,
          }
       }
    } else {
-      brw_cs_fill_push_const_info(device->info, &push_layout, &prog_data.cs, -1);
+      brw_cs_fill_push_const_info(device->info, &push_layout, -1, &cs_push);
       push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
 
       struct genisa_stats stats;
@@ -454,7 +455,10 @@ compile_shader(struct anv_device *device,
          .stats = &stats,
          .log_data = device,
          .debug_flag = DEBUG_CS,
-         .cs.dispatch = dispatch,
+         .cs = {
+            .dispatch = dispatch,
+            .push = cs_push,
+         },
       };
       program = brw_compile(compiler, &params);
 

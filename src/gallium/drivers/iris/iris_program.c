@@ -86,7 +86,7 @@ iris_backend_compile(const struct iris_screen *screen,
    brw_nir_select_divergence_options(screen->brw, nir, use_jay);
 
    if (use_jay) {
-      const struct jay_compile_params jc_params = {
+      struct jay_compile_params jc_params = {
          .mem_ctx = params->mem_ctx,
          .nir = nir,
          .key = (union brw_any_prog_key *)params->key,
@@ -95,6 +95,9 @@ iris_backend_compile(const struct iris_screen *screen,
          .archiver = params->archiver,
          .error_str = &params->error_str,
       };
+      if (mesa_shader_stage_is_compute(nir->info.stage))
+         jc_params.cs.push = params->cs.push;
+
       struct jay_shader_bin *bin = jay_compile(devinfo, &jc_params);
 
       if (bin == NULL)
@@ -3493,14 +3496,15 @@ iris_compile_cs(struct iris_screen *screen,
          rzalloc(mem_ctx, struct brw_cs_prog_data);
 
       struct intel_push_layout push_layout = {};
+      struct brw_cs_push_const_info cs_push = {};
       bool subgroup_id_lowered = false;
       NIR_PASS(subgroup_id_lowered, nir, brw_nir_lower_cs_subgroup_id, devinfo, 0);
       if (subgroup_id_lowered) {
          push_layout.push_sizes[0] = 4;
-         brw_cs_fill_push_const_info(devinfo, &push_layout, brw_prog_data, 0);
+         brw_cs_fill_push_const_info(devinfo, &push_layout, 0, &cs_push);
          push_layout.push_sizes[0] = align(4, REG_SIZE);
       } else {
-         brw_cs_fill_push_const_info(devinfo, &push_layout, brw_prog_data, -1);
+         brw_cs_fill_push_const_info(devinfo, &push_layout, -1, &cs_push);
       }
 
       struct brw_compile_params params = {
@@ -3510,6 +3514,7 @@ iris_compile_cs(struct iris_screen *screen,
          .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
          .push_layout = push_layout,
          .log_data = dbg,
+         .cs.push = cs_push,
          .archiver = debug_archiver,
       };
 

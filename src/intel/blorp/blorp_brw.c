@@ -237,8 +237,10 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
       .push_sizes[0] = sizeof(struct blorp_wm_inputs),
    };
 
-   brw_cs_fill_push_const_info(compiler->devinfo, &push_layout, cs_prog_data,
-                               offsetof(struct blorp_wm_inputs, subgroup_id) / 4);
+   struct brw_cs_push_const_info cs_push = {};
+   brw_cs_fill_push_const_info(compiler->devinfo, &push_layout,
+                               offsetof(struct blorp_wm_inputs, subgroup_id) / 4,
+                               &cs_push);
    push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
 
    struct intel_cs_dispatch_params dispatch = {};
@@ -265,7 +267,10 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
       .push_layout = push_layout,
       .log_data = blorp->driver_ctx,
       .debug_flag = DEBUG_BLORP,
-      .cs.dispatch = dispatch,
+      .cs = {
+         .dispatch = dispatch,
+         .push = cs_push,
+      },
       .archiver = archiver,
    };
 

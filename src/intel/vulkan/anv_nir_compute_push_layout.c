@@ -664,7 +664,7 @@ anv_nir_compute_push_layout(nir_shader *nir,
                             const struct anv_nir_push_layout_info *push_info,
                             struct brw_base_prog_key *prog_key,
                             struct intel_push_layout *push_layout,
-                            struct brw_stage_prog_data *prog_data,
+                            struct brw_cs_push_const_info *cs_push,
                             struct anv_pipeline_bind_map *map,
                             const struct anv_pipeline_push_map *push_map)
 {
@@ -879,9 +879,9 @@ anv_nir_compute_push_layout(nir_shader *nir,
       const int subgroup_id_index =
          BITSET_TEST(data.push_dwords, anv_drv_const_offset(subgroup_id) / 4) ?
          (anv_drv_const_offset(subgroup_id) - push_start) / 4 : -1;
-      struct brw_cs_prog_data *cs_prog_data = brw_cs_prog_data(prog_data);
-      brw_cs_fill_push_const_info(devinfo, push_layout, cs_prog_data,
-                                  subgroup_id_index);
+      assert(cs_push != NULL);
+      brw_cs_fill_push_const_info(devinfo, push_layout,
+                                  subgroup_id_index, cs_push);
       break;
    }
 

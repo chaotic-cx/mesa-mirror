@@ -1732,7 +1732,8 @@ anv_shader_lower_nir(struct anv_device *device,
                },
                &shader_data->key.base,
                &shader_data->push_layout,
-               &shader_data->prog_data.base,
+               mesa_shader_stage_is_compute(nir->info.stage) ?
+                  &shader_data->cs_push : NULL,
                &shader_data->bind_map, &shader_data->push_map);
 
    if (!(shader_data->info->flags & VK_SHADER_CREATE_DESCRIPTOR_HEAP_BIT_EXT)) {
@@ -2078,6 +2079,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
 
    if (mesa_shader_stage_is_compute(nir->info.stage)) {
       jc_params.cs.dispatch = params->cs.dispatch;
+      jc_params.cs.push = params->cs.push;
    }
 
    struct jay_shader_bin *main_bin = jay_compile(devinfo, &jc_params);
@@ -2483,6 +2485,7 @@ anv_shader_compile(struct vk_device *vk_device,
          break;
       case MESA_SHADER_COMPUTE:
          params.cs.dispatch = shader_data->cs_dispatch;
+         params.cs.push = shader_data->cs_push;
          break;
       case MESA_SHADER_TESS_CTRL:
          shader_data->key.tcs.outputs_written = nir->info.outputs_written;
