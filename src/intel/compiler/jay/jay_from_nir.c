@@ -4569,7 +4569,8 @@ setup_fragment_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
    setup_payload_dispatch_start(nj, p);
    setup_payload_push(nj, p);
 
-   fs->config = nj->payload.push_data[nj->s->prog_data->fs.fs_config_param / 4];
+   fs->config =
+      nj->payload.push_data[nj->s->params->push_layout.fs_config_param / 4];
 
    if (nj->s->prog_data->fs.num_per_primitive_inputs > 0) {
       /* always read up to a mutliple of 64 bytes */

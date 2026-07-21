@@ -247,10 +247,8 @@ void
 brw_check_dynamic_fs_config(const brw_builder &bld,
                             enum intel_fs_config flag)
 {
-   struct brw_fs_prog_data *fs_prog_data = brw_fs_prog_data(bld.shader->prog_data);
-   fs_prog_data->uses_fs_config = true;
    brw_inst *inst = bld.AND(bld.null_reg_ud(),
-                            brw_dynamic_fs_config(fs_prog_data),
+                            brw_dynamic_fs_config(*bld.shader),
                             brw_imm_ud(flag));
    inst->conditional_mod = BRW_CONDITIONAL_NZ;
 }

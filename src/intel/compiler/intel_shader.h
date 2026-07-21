@@ -562,6 +562,11 @@ struct intel_push_layout {
     * Byte offset of intel_tess_config in the pushed data.
     */
    unsigned tess_config_param;
+
+   /**
+    * Byte offset of intel_fs_config in the pushed data.
+    */
+   unsigned fs_config_param;
 };
 
 #ifdef __cplusplus

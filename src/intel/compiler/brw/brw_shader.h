@@ -270,13 +270,14 @@ sample_mask_flag_subreg(const brw_shader &s)
 }
 
 inline brw_reg
-brw_dynamic_fs_config(struct brw_fs_prog_data *fs_prog_data)
+brw_dynamic_fs_config(brw_shader &s)
 {
-   fs_prog_data->uses_fs_config = true;
+   const unsigned config_param =
+      s.compile_params->push_layout.fs_config_param;
+   brw_fs_prog_data(s.prog_data)->uses_fs_config = true;
    return byte_offset(
-      brw_uniform_reg(
-         fs_prog_data->fs_config_param / REG_SIZE, BRW_TYPE_UD),
-      fs_prog_data->fs_config_param % REG_SIZE);
+      brw_uniform_reg(config_param / REG_SIZE, BRW_TYPE_UD),
+      config_param % REG_SIZE);
 }
 
 enum intel_barycentric_mode

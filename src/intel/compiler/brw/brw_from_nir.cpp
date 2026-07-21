@@ -4042,8 +4042,7 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
    }
 
    case nir_intrinsic_load_fs_config_intel:
-      bld.MOV(retype(dest, BRW_TYPE_UD),
-              brw_dynamic_fs_config(brw_fs_prog_data(s.prog_data)));
+      bld.MOV(retype(dest, BRW_TYPE_UD), brw_dynamic_fs_config(s));
       break;
 
    case nir_intrinsic_load_max_polygon_intel:

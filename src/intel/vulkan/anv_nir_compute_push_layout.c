@@ -866,14 +866,11 @@ anv_nir_compute_push_layout(nir_shader *nir,
       break;
 
    case MESA_SHADER_FRAGMENT: {
-      struct brw_fs_prog_data *fs_prog_data =
-         container_of(prog_data, struct brw_fs_prog_data, base);
-
       if (push_info->fragment_dynamic) {
          const uint32_t fs_config_offset =
             anv_drv_const_offset(drv_data.gfx.fs_config);
          assert(fs_config_offset >= push_start);
-         fs_prog_data->fs_config_param = fs_config_offset - push_start;
+         push_layout->fs_config_param = fs_config_offset - push_start;
       }
       break;
    }
