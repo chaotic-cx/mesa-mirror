@@ -1,0 +1,4 @@
+# Nightly run expectations update
+dEQP-VK.robustness.buffer_access.compute.vec4_copy.r32_sfloat.oob_storage_write.range_32_bytes,Fail
+dEQP-VK.robustness.buffer_access.compute.vec4_copy.r32_sint.oob_storage_write.range_32_bytes,Fail
+dEQP-VK.robustness.buffer_access.compute.vec4_copy.r32_uint.oob_storage_write.range_32_bytes,Fail

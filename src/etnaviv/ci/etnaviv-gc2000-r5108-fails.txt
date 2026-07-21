@@ -634,11 +634,9 @@ spec@glsl-1.10@execution@variable-indexing@fs-input-array-float-index-rd,Fail
 spec@glsl-1.10@execution@variable-indexing@fs-input-array-vec2-index-rd,Fail
 
 # uprev Piglit in Mesa
-spec@!opengl 1.1@gl-1.1-drawarrays-vertex-count 100000 vbo gl_line_strip,Fail
 spec@!opengl 1.1@polygon-mode-offset@config 3: Expected blue pixel in center,Fail
 spec@!opengl 1.1@polygon-mode-offset@config 4: Expected blue pixel in center,Fail
 spec@!opengl 1.1@push-pop-color-material,Fail
-spec@ati_fragment_shader@ati_fragment_shader-render-ops,Fail
 spec@ext_framebuffer_object@fbo-readpixels-depth-formats,Fail
 spec@glsl-1.10@execution@built-in-functions@fs-notequal-ivec2-ivec2,Fail
 spec@glsl-1.10@execution@built-in-functions@vs-sign-vec4,Fail

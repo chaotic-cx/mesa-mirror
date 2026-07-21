@@ -355,14 +355,10 @@ spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb-fp,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb-fp@sRGB decode full precision,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb-fp,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb-fp@sRGB decode full precision,Fail
-spec@nv_primitive_restart@primitive-restart-draw-mode-quad_strip,Fail
 
-api@clgetcommandqueueinfo,Fail
 api@clgetdeviceinfo,Fail
 api@clgetextensionfunctionaddressforplatform,Fail
-api@clgetkernelarginfo,Fail
 api@cllinkprogram,Fail
-api@clsetkernelarg,Fail
 api@clsetkernelarg@Input checks,Fail
 api@clsetkernelarg@Set kernel argument for array,Fail
 api@clsetkernelarg@Set kernel argument for buffer,Fail
@@ -4130,11 +4126,13 @@ program@execute@vstore@vstorea_half-float-private@vector storea_half private off
 program@execute@vstore@vstorea_half-float-private@vector storea_half private offset float8,Fail
 
 # Nightly run expectations update
-spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-dvec4-index-wr,Crash
+api@clsetkernelarg@Trigger CL_INVALID_ARG_SIZE if arg_size is zero and the argument is declared with the __local qualifier,Fail
 spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-float-index-wr,Crash
 spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-float-index-wr-before-barrier,Crash
 spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-vec2-index-wr,Crash
 spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-vec2-index-wr-before-barrier,Crash
+spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-vec3-index-wr,Crash
 spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-vec3-index-wr-before-barrier,Crash
+spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-vec4-index-wr,Crash
 spec@arb_tessellation_shader@execution@variable-indexing@tcs-output-array-vec4-index-wr-before-barrier,Crash
-
+vulkan@shaders@cmat-uniform-ctor,Fail

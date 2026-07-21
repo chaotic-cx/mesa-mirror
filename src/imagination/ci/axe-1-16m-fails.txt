@@ -39,3 +39,8 @@ dEQP-VK.rasterization.line_continuity.line-strip,Crash
 # VKCTS 1.4.5.3 -> 1.4.6.1 uprev
 dEQP-VK.binding_model.shader_access.secondary_cmd_buf.bind.with_template.uniform_buffer_dynamic.no_access.multiple_discontiguous_descriptor_sets.multiple_arbitrary_descriptors.offset_view_zero_dynamic_nonzero,Crash
 dEQP-VK.ycbcr.conversion.g8_b8_r8_3plane_420_unorm.color_conversion.ycbcr_709_itu_narrow_tiling_optimal_cosited_binding_15,Fail
+
+# Nightly run expectations update
+dEQP-VK.robustness.buffer_access.compute.vec4_copy.r32_sfloat.oob_storage_write.range_32_bytes,Fail
+dEQP-VK.robustness.buffer_access.compute.vec4_copy.r32_sint.oob_storage_write.range_32_bytes,Fail
+dEQP-VK.robustness.buffer_access.compute.vec4_copy.r32_uint.oob_storage_write.range_32_bytes,Fail

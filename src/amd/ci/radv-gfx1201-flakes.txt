@@ -21,3 +21,7 @@ dEQP-VK.wsi.direct.present_timing.time_domain.calibration.present_stage_local
 dEQP-VK.wsi.direct_drm.maintenance1.scaling.fifo.one_to_one.center_max.swapchain_smaller_same_aspect
 dEQP-VK.wsi.direct_drm.present_timing.basic.retired_swapchain
 dEQP-VK.wsi.direct_drm.present_timing.time_domain.calibration.present_stage_local
+
+# Nightly run expectations update
+dEQP-VK.subgroups.quad.mesh.subgroupquadswaphorizontal_i64vec4_task
+dEQP-VK.subgroups.shuffle.mesh.subgroupshuffledown_i8vec3_dynamically_uniform_task

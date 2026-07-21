@@ -3,3 +3,9 @@ dEQP-VK.pipeline.shader_object_unlinked_spirv.image.suballocation.sampling_type.
 dEQP-VK.pipeline.shader_object_unlinked_spirv.image.suballocation.sampling_type.combined.view_type.cube.format.r8g8b8a8_uint.count_1.size.32x32_compute
 
 dEQP-VK.video.encode.av1.720x480_10le_420.i_15.qindex128_tiling_1x2_rc_disabled_lf_lr_layered_dpb
+
+# Nightly run expectations update
+dEQP-VK.binding_model.descriptorset_random.sets4.constant.ubolimitlow.sbolimitlow.sampledimglow.outimgtexlow.noiub.nouab.task.noia.6
+dEQP-VK.pipeline.monolithic.image.suballocation.sampling_type.combined.view_type.2d_array.format.a4r4g4b4_unorm_pack16.count_1.size.1x1_array_of_3_compute
+dEQP-VK.pipeline.shader_object_unlinked_spirv.image.suballocation.sampling_type.separate.view_type.3d.format.r16g16_snorm.count_1.size.16x16x16_compute
+dEQP-VK.video.encode.av1.720x480_10le_420.i_p_open_15.rc_vbr_layered_dpb

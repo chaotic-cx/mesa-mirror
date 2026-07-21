@@ -1177,10 +1177,14 @@ spec@ext_framebuffer_multisample@accuracy 4 depth_draw depthstencil,Fail
 spec@ext_framebuffer_multisample@accuracy 4 depth_draw small depthstencil,Fail
 spec@ext_framebuffer_multisample@accuracy 4 depth_resolve depthstencil,Fail
 spec@ext_framebuffer_multisample@accuracy 4 depth_resolve small depthstencil,Fail
+spec@ext_framebuffer_multisample@accuracy 4 srgb depthstencil,Fail
+spec@ext_framebuffer_multisample@accuracy 4 srgb small depthstencil linear,Fail
 spec@ext_framebuffer_multisample@accuracy all_samples depth_draw depthstencil,Fail
 spec@ext_framebuffer_multisample@accuracy all_samples depth_draw small depthstencil,Fail
 spec@ext_framebuffer_multisample@accuracy all_samples depth_resolve depthstencil,Fail
 spec@ext_framebuffer_multisample@accuracy all_samples depth_resolve small depthstencil,Fail
+spec@ext_framebuffer_multisample@accuracy all_samples srgb depthstencil,Fail
+spec@ext_framebuffer_multisample@accuracy all_samples srgb small depthstencil,Fail
 spec@ext_framebuffer_multisample@multisample-blit 2 depth,Fail
 spec@ext_framebuffer_multisample@multisample-blit 4 depth,Fail
 spec@ext_framebuffer_multisample@no-color 2 depth combined,Fail

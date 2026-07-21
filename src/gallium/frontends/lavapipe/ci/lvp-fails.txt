@@ -872,3 +872,12 @@ dEQP-VK.multiview.renderpass2.multisample_resolve.no_queries.5_10_5_10,Crash
 dEQP-VK.multiview.renderpass2.multisample_resolve.no_queries.8,Crash
 dEQP-VK.multiview.renderpass2.multisample_resolve.no_queries.max_multi_view_view_count,Crash
 dEQP-VK.shader_object.tessellation.hlsl.spacing_fractional_odd_rebind,Fail
+
+# Nightly run expectations update
+dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.two_draws_dynamic.stride_with_offset_and_padding,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.after_pipelines.tess_domain_origin_lower_left,Fail
+dEQP-VK.pipeline.monolithic.extended_dynamic_state.two_draws_dynamic.stride_with_offset_and_padding,Fail
+dEQP-VK.pipeline.pipeline_library.extended_dynamic_state.two_draws_dynamic.large_stride_with_offset_and_padding,Fail
+dEQP-VK.pipeline.shader_object_linked_spirv.bind_buffers_2.maintenance5.robustness2.triangle_strip.buffers5.stride_offset_rnd543.true_size.beyond_size,Fail
+dEQP-VK.shader_object.misc.state.pipeline.vert_tess_geom_frag.alphaToOne.enabled,Fail
+dEQP-VK.shader_object.misc.state.pipeline.vert_tess_geom_frag.depth.clip_control,Fail

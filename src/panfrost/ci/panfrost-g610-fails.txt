@@ -321,7 +321,6 @@ Images (clCopyImage max size)@3Dto2Darray,Fail
 Math@ilogb,Fail
 Math,Crash
 Relationals,Crash
-Integer Ops,Crash
 Images (API Info),Fail
 Images (API Info)@1Darray,Fail
 Images (API Info)@2D,Fail

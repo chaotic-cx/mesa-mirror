@@ -106,4 +106,5 @@ spec@glsl-1.30@execution@glsl-packed-back-color,Fail
 
 # Nightly run expectations update
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-transcode-nv12-as-r8-gr88,Fail
+spec@glsl-1.50@execution@primitive-id-no-gs-varying,Fail
 
