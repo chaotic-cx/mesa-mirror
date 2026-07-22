@@ -22,11 +22,10 @@ brw_vs_thread_payload::brw_vs_thread_payload(const brw_shader &v)
 
 brw_tcs_thread_payload::brw_tcs_thread_payload(const brw_shader &v)
 {
-   struct brw_vue_prog_data *vue_prog_data = brw_vue_prog_data(v.prog_data);
    struct brw_tcs_prog_data *tcs_prog_data = brw_tcs_prog_data(v.prog_data);
    struct brw_tcs_prog_key *tcs_key = (struct brw_tcs_prog_key *) v.key;
 
-   if (vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH) {
+   if (v.info.vue.dispatch_mode == INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH) {
       patch_urb_output = brw_ud1_grf(0, 0);
       primitive_id = brw_vec1_grf(0, 1);
 
@@ -35,7 +34,7 @@ brw_tcs_thread_payload::brw_tcs_thread_payload(const brw_shader &v)
 
       num_regs = 5;
    } else {
-      assert(vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_MULTI_PATCH);
+      assert(v.info.vue.dispatch_mode == INTEL_DISPATCH_MODE_TCS_MULTI_PATCH);
       assert(tcs_key->input_vertices <= BRW_MAX_TCS_INPUT_VERTICES);
 
       unsigned r = 0;
@@ -110,7 +109,7 @@ brw_gs_thread_payload::brw_gs_thread_payload(brw_shader &v)
     * scenarios with just a few inputs, so just make things easier and a bit
     * safer by always having pull model available.
     */
-   gs_prog_data->base.include_vue_handles = true;
+   v.info.vue.include_vue_handles = true;
 
    /* R3..RN: ICP Handles for each incoming vertex (when using pull model) */
    icp_handle_start = brw_ud8_grf(r, 0);

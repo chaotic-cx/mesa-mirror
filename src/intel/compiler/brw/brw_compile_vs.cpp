@@ -87,8 +87,9 @@ brw_compile_vs(const struct brw_compiler *compiler,
    /* Only position is allowed to be per-view */
    assert(!(nir->info.per_view_outputs & ~VARYING_BIT_POS));
 
+   struct intel_vue_map vue_map;
    brw_compute_vue_map(compiler->devinfo,
-                       &prog_data->base.vue_map, nir->info.outputs_written,
+                       &vue_map, nir->info.outputs_written,
                        key->base.vue_layout, pos_slots);
 
    brw_nir_apply_key(pt, &key->base, dispatch_width);
@@ -98,17 +99,18 @@ brw_compile_vs(const struct brw_compiler *compiler,
    prog_data->no_vf_slot_compaction = key->no_vf_slot_compaction;
 
    unsigned nr_input_components = 0;
+   unsigned urb_read_length = 0;
    brw_nir_lower_vs_inputs(nir, compiler->devinfo, key,
                            &params->push_layout, prog_data,
                            &nr_input_components,
-                           &prog_data->base.urb_read_length);
+                           &urb_read_length);
    brw_nir_lower_vue_outputs(nir);
    BRW_NIR_SNAPSHOT("after_lower_io");
 
    brw_postprocess_nir(pt, debug_enabled);
 
    BRW_NIR_PASS(brw_nir_lower_deferred_urb_writes, compiler->devinfo,
-                &prog_data->base.vue_map, 0, 0);
+                &vue_map, 0, 0);
 
    if (BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_FIRST_VERTEX))
       prog_data->uses_firstvertex = true;
@@ -131,16 +133,14 @@ brw_compile_vs(const struct brw_compiler *compiler,
     */
    const unsigned vue_entries =
       MAX2(DIV_ROUND_UP(nr_input_components, 4),
-           (unsigned)prog_data->base.vue_map.num_slots);
+           (unsigned)vue_map.num_slots);
 
-   prog_data->base.urb_entry_size = DIV_ROUND_UP(vue_entries, 4);
+   const unsigned urb_entry_size = DIV_ROUND_UP(vue_entries, 4);
 
    if (unlikely(debug_enabled)) {
       fprintf(stderr, "VS Output ");
-      brw_print_vue_map(stderr, &prog_data->base.vue_map, MESA_SHADER_VERTEX);
+      brw_print_vue_map(stderr, &vue_map, MESA_SHADER_VERTEX);
    }
-
-   prog_data->base.dispatch_mode = INTEL_DISPATCH_MODE_SIMD8;
 
    const brw_shader_params shader_params = {
       .compiler                = compiler,
@@ -149,6 +149,12 @@ brw_compile_vs(const struct brw_compiler *compiler,
       .info = {
          .source_hash = params->source_hash,
          .ray_queries = ray_queries,
+         .vue = {
+            .vue_map = vue_map,
+            .urb_read_length = urb_read_length,
+            .urb_entry_size = urb_entry_size,
+            .dispatch_mode = INTEL_DISPATCH_MODE_SIMD8,
+         },
       },
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->collect_register_pressure,

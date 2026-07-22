@@ -172,15 +172,17 @@ brw_compile_gs(const struct brw_compiler *compiler,
       (nir->info.per_view_outputs & VARYING_BIT_POS) ?
       MAX2(1, util_bitcount(key->base.view_mask)) : 1;
 
+   struct intel_vue_map vue_map;
    brw_compute_vue_map(compiler->devinfo,
-                       &prog_data->base.vue_map,
+                       &vue_map,
                        nir->info.outputs_written,
                        key->base.vue_layout,
                        pos_slots);
 
    brw_nir_apply_key(pt, &key->base, dispatch_width);
+   unsigned urb_read_length = 0;
    brw_nir_lower_gs_inputs(nir, compiler->devinfo, &input_vue_map,
-                           &prog_data->base.urb_read_length);
+                           &urb_read_length);
    brw_nir_lower_vue_outputs(nir);
 
    BRW_NIR_SNAPSHOT("after_lower_io");
@@ -279,7 +281,7 @@ brw_compile_gs(const struct brw_compiler *compiler,
     * per interpolation type, so this is plenty.
     *
     */
-   unsigned output_vertex_size_bytes = prog_data->base.vue_map.num_slots * 16;
+   unsigned output_vertex_size_bytes = vue_map.num_slots * 16;
    assert(output_vertex_size_bytes <= GFX7_MAX_GS_OUTPUT_VERTEX_SIZE_BYTES);
    prog_data->output_vertex_size_hwords =
       align(output_vertex_size_bytes, 32) / 32;
@@ -289,7 +291,7 @@ brw_compile_gs(const struct brw_compiler *compiler,
       ((prog_data->static_vertex_count == -1) ? 2 : 0);
 
    BRW_NIR_PASS(brw_nir_lower_deferred_urb_writes, compiler->devinfo,
-                &prog_data->base.vue_map, starting_urb_offset,
+                &vue_map, starting_urb_offset,
                 2 * prog_data->output_vertex_size_hwords);
 
    /* Compute URB entry size.  The maximum allowed URB entry size is 32k.
@@ -342,9 +344,8 @@ brw_compile_gs(const struct brw_compiler *compiler,
    if (output_size_bytes > max_output_size_bytes)
       return NULL;
 
-
    /* URB entry sizes are stored as a multiple of 64 bytes in gfx7+. */
-   prog_data->base.urb_entry_size = align(output_size_bytes, 64) / 64;
+   const unsigned urb_entry_size = align(output_size_bytes, 64) / 64;
 
    assert(nir->info.gs.output_primitive < ARRAY_SIZE(gl_prim_to_hw_prim));
    prog_data->output_topology =
@@ -359,7 +360,7 @@ brw_compile_gs(const struct brw_compiler *compiler,
       fprintf(stderr, "GS Input ");
       brw_print_vue_map(stderr, &input_vue_map, MESA_SHADER_GEOMETRY);
       fprintf(stderr, "GS Output ");
-      brw_print_vue_map(stderr, &prog_data->base.vue_map, MESA_SHADER_GEOMETRY);
+      brw_print_vue_map(stderr, &vue_map, MESA_SHADER_GEOMETRY);
    }
 
    const brw_shader_params shader_params = {
@@ -369,6 +370,12 @@ brw_compile_gs(const struct brw_compiler *compiler,
       .info = {
          .source_hash = params->source_hash,
          .ray_queries = ray_queries,
+         .vue = {
+            .vue_map = vue_map,
+            .urb_read_length = urb_read_length,
+            .urb_entry_size = urb_entry_size,
+            .dispatch_mode = INTEL_DISPATCH_MODE_SIMD8,
+         },
       },
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->collect_register_pressure,
@@ -378,8 +385,6 @@ brw_compile_gs(const struct brw_compiler *compiler,
    v.gs.control_data_bits_per_vertex = control_data_bits_per_vertex;
    v.gs.control_data_header_size_bits = control_data_header_size_bits;
    if (run_gs(v)) {
-      prog_data->base.dispatch_mode = INTEL_DISPATCH_MODE_SIMD8;
-
       const brw_to_binary_params to_binary_params = {
          .compiler = compiler,
          .params = params,

@@ -494,7 +494,8 @@ static void
 populate_vs_prog_data(nir_shader *nir,
                       const struct intel_device_info *devinfo,
                       const struct brw_vs_prog_key *key,
-                      struct brw_vs_prog_data *prog_data)
+                      struct brw_vs_prog_data *prog_data,
+                      struct intel_shader_info *info)
 {
    BITSET_WORD *sysvals = nir->info.system_values_read;
 
@@ -513,13 +514,14 @@ populate_vs_prog_data(nir_shader *nir,
       *bool_sysvals[i].data = BITSET_TEST(sysvals, bool_sysvals[i].val);
    }
 
-   prog_data->base.dispatch_mode = INTEL_DISPATCH_MODE_SIMD8;
+   info->vue.dispatch_mode = INTEL_DISPATCH_MODE_SIMD8;
 }
 
 static void
 populate_tcs_prog_data(nir_shader *nir,
                        const struct brw_tcs_prog_key *key,
-                       struct brw_tcs_prog_data *prog_data)
+                       struct brw_tcs_prog_data *prog_data,
+                       struct intel_shader_info *info)
 {
    brw_fill_tess_info_from_shader_info(&prog_data->tess_info, &nir->info);
 
@@ -529,10 +531,10 @@ populate_tcs_prog_data(nir_shader *nir,
    prog_data->instances = nir->info.tess.tcs_vertices_out;
    prog_data->include_primitive_id =
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_PRIMITIVE_ID);
-   prog_data->base.dispatch_mode = INTEL_DISPATCH_MODE_TCS_MULTI_PATCH;
+   info->vue.dispatch_mode = INTEL_DISPATCH_MODE_TCS_MULTI_PATCH;
 
    /* We don't use push inputs for TCS. */
-   prog_data->base.urb_read_length = 0;
+   info->vue.urb_read_length = 0;
 }
 
 /* TODO: this is copied in two places right now. probably dedup it? */
@@ -557,9 +559,10 @@ static const uint32_t
 static void
 populate_gs_prog_data(nir_shader *nir,
                       const struct brw_gs_prog_key *key,
-                      struct brw_gs_prog_data *prog_data)
+                      struct brw_gs_prog_data *prog_data,
+                      struct intel_shader_info *info)
 {
-   unsigned output_vertex_size_bytes = prog_data->base.vue_map.num_slots * 16;
+   unsigned output_vertex_size_bytes = info->vue.vue_map.num_slots * 16;
    assert(output_vertex_size_bytes <= GFX7_MAX_GS_OUTPUT_VERTEX_SIZE_BYTES);
 
    prog_data->output_vertex_size_hwords =
@@ -599,6 +602,7 @@ populate_gs_prog_data(nir_shader *nir,
 void
 jay_populate_prog_data(const struct intel_device_info *devinfo,
                        nir_shader *nir,
+                       struct intel_shader_info *info,
                        union brw_any_prog_data *prog_data,
                        union brw_any_prog_key *key,
                        struct jay_fs_perprim_data *fs_perprim)
@@ -606,9 +610,9 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
    prog_data->base.is_jay = true;
 
    if (nir->info.stage == MESA_SHADER_VERTEX) {
-      populate_vs_prog_data(nir, devinfo, &key->vs, &prog_data->vs);
+      populate_vs_prog_data(nir, devinfo, &key->vs, &prog_data->vs, info);
    } else if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
-      populate_tcs_prog_data(nir, &key->tcs, &prog_data->tcs);
+      populate_tcs_prog_data(nir, &key->tcs, &prog_data->tcs, info);
    } else if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       int32_t *per_primitive_offsets = fs_perprim->per_primitive_offsets;
       memset(per_primitive_offsets, -1, VARYING_SLOT_MAX * sizeof(int));
@@ -616,7 +620,7 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
       populate_fs_prog_data(nir, devinfo, &key->fs, &prog_data->fs,
                             fs_perprim->mue, per_primitive_offsets);
    } else if (nir->info.stage == MESA_SHADER_GEOMETRY) {
-      populate_gs_prog_data(nir, &key->gs, &prog_data->gs);
+      populate_gs_prog_data(nir, &key->gs, &prog_data->gs, info);
    }
 
    if (nir->info.stage == MESA_SHADER_VERTEX ||
@@ -632,8 +636,8 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
          prog_data->mesh.clip_distance_mask = clip_mask;
          prog_data->mesh.cull_distance_mask = cull_mask;
       } else {
-         prog_data->vue.clip_distance_mask = clip_mask;
-         prog_data->vue.cull_distance_mask = cull_mask;
+         info->vue.clip_distance_mask = clip_mask;
+         info->vue.cull_distance_mask = cull_mask;
       }
    }
 }

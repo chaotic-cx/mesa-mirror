@@ -90,10 +90,8 @@ run_tcs(brw_shader &s)
 {
    assert(s.stage == MESA_SHADER_TESS_CTRL);
 
-   struct brw_vue_prog_data *vue_prog_data = brw_vue_prog_data(s.prog_data);
-
-   assert(vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH ||
-          vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_MULTI_PATCH);
+   assert(s.info.vue.dispatch_mode == INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH ||
+          s.info.vue.dispatch_mode == INTEL_DISPATCH_MODE_TCS_MULTI_PATCH);
 
    s.payload_ = new brw_tcs_thread_payload(s);
 
@@ -179,7 +177,7 @@ brw_compile_tcs(const struct brw_compiler *compiler,
       (const struct brw_tcs_prog_key *)params->key;
    struct brw_tcs_prog_data *prog_data =
       (struct brw_tcs_prog_data *)params->prog_data;
-   struct brw_vue_prog_data *vue_prog_data = &prog_data->base;
+   struct intel_vue_map vue_map;
    const unsigned dispatch_width = brw_geometry_stage_dispatch_width(compiler->devinfo);
 
    const bool debug_enabled = brw_should_print_shader(
@@ -208,14 +206,14 @@ brw_compile_tcs(const struct brw_compiler *compiler,
    struct intel_vue_map input_vue_map;
    brw_compute_vue_map(devinfo, &input_vue_map, nir->info.inputs_read,
                        key->base.vue_layout, 1);
-   brw_compute_tess_vue_map(&vue_prog_data->vue_map,
+   brw_compute_tess_vue_map(&vue_map,
                             nir->info.outputs_written,
                             nir->info.patch_outputs_written,
                             key->separate_tess_vue_layout);
 
    brw_nir_apply_key(pt, &key->base, dispatch_width);
    brw_nir_lower_tcs_inputs(nir, devinfo, &input_vue_map);
-   brw_nir_lower_tcs_outputs(nir, devinfo, &vue_prog_data->vue_map,
+   brw_nir_lower_tcs_outputs(nir, devinfo, &vue_map,
                              key->_tes_primitive_mode);
    BRW_NIR_SNAPSHOT("after_lower_io");
 
@@ -237,13 +235,14 @@ brw_compile_tcs(const struct brw_compiler *compiler,
    prog_data->output_vertices = nir->info.tess.tcs_vertices_out;
    prog_data->patch_count_threshold = get_patch_count_threshold(key->input_vertices);
 
+   enum intel_shader_dispatch_mode dispatch_mode;
    if (intel_use_tcs_multi_patch(devinfo)) {
-      vue_prog_data->dispatch_mode = INTEL_DISPATCH_MODE_TCS_MULTI_PATCH;
+      dispatch_mode = INTEL_DISPATCH_MODE_TCS_MULTI_PATCH;
       prog_data->instances = nir->info.tess.tcs_vertices_out;
       prog_data->include_primitive_id = has_primitive_id;
    } else {
       unsigned verts_per_thread = 8;
-      vue_prog_data->dispatch_mode = INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH;
+      dispatch_mode = INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH;
       prog_data->instances =
          DIV_ROUND_UP(nir->info.tess.tcs_vertices_out, verts_per_thread);
    }
@@ -260,8 +259,8 @@ brw_compile_tcs(const struct brw_compiler *compiler,
     *
     *  15808 bytes left for varying packing overhead
     */
-   const int num_per_patch_slots = vue_prog_data->vue_map.num_per_patch_slots;
-   const int num_per_vertex_slots = vue_prog_data->vue_map.num_per_vertex_slots;
+   const int num_per_patch_slots = vue_map.num_per_patch_slots;
+   const int num_per_vertex_slots = vue_map.num_per_vertex_slots;
    unsigned output_size_bytes = 0;
    /* Note that the patch header is counted in num_per_patch_slots. */
    output_size_bytes += num_per_patch_slots * 16;
@@ -273,19 +272,13 @@ brw_compile_tcs(const struct brw_compiler *compiler,
       return NULL;
 
    /* URB entry sizes are stored as a multiple of 64 bytes. */
-   vue_prog_data->urb_entry_size = align(output_size_bytes, 64) / 64;
-
-   /* HS does not use the usual payload pushing from URB to GRFs,
-    * because we don't have enough registers for a full-size payload, and
-    * the hardware is broken on Haswell anyway.
-    */
-   vue_prog_data->urb_read_length = 0;
+   const unsigned urb_entry_size = align(output_size_bytes, 64) / 64;
 
    if (unlikely(debug_enabled)) {
       fprintf(stderr, "TCS Input ");
       brw_print_vue_map(stderr, &input_vue_map, MESA_SHADER_TESS_CTRL);
       fprintf(stderr, "TCS Output ");
-      brw_print_vue_map(stderr, &vue_prog_data->vue_map, MESA_SHADER_TESS_CTRL);
+      brw_print_vue_map(stderr, &vue_map, MESA_SHADER_TESS_CTRL);
    }
 
    const brw_shader_params shader_params = {
@@ -295,6 +288,17 @@ brw_compile_tcs(const struct brw_compiler *compiler,
       .info = {
          .source_hash = params->source_hash,
          .ray_queries = ray_queries,
+         .vue = {
+            .vue_map = vue_map,
+
+            /* HS does not use the usual payload pushing from URB to GRFs,
+             * because we don't have enough registers for a full-size payload,
+             * and the hardware is broken on Haswell anyway.
+             */
+            .urb_read_length = 0,
+            .urb_entry_size = urb_entry_size,
+            .dispatch_mode = dispatch_mode,
+         },
       },
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->collect_register_pressure,

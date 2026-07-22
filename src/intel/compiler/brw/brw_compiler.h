@@ -879,23 +879,6 @@ void brw_compute_tess_vue_map(struct intel_vue_map *const vue_map,
 
 struct brw_vue_prog_data {
    struct brw_stage_prog_data base;
-   struct intel_vue_map vue_map;
-
-   /** Should the hardware deliver input VUE handles for URB pull loads? */
-   bool include_vue_handles;
-
-   unsigned urb_read_length;
-
-   uint32_t clip_distance_mask;
-   uint32_t cull_distance_mask;
-
-   /* Used for calculating urb partitions.  In the VS, this is the size of the
-    * URB entry used for both input and output to the thread.  In the GS, this
-    * is the size of the URB entry used for output.
-    */
-   unsigned urb_entry_size;
-
-   enum intel_shader_dispatch_mode dispatch_mode;
 };
 
 struct brw_vs_prog_data {

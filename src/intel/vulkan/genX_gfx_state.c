@@ -823,11 +823,8 @@ update_urb_config(struct anv_gfx_dynamic_state *hw_state,
 #endif
    {
       for (int i = MESA_SHADER_VERTEX; i <= MESA_SHADER_GEOMETRY; i++) {
-         const struct brw_vue_prog_data *prog_data = anv_gfx_has_stage(gfx, i) ?
-            (const struct brw_vue_prog_data *) gfx->shaders[i]->prog_data :
-            NULL;
-
-         new_cfg.size[i] = prog_data ? prog_data->urb_entry_size : 1;
+         new_cfg.size[i] = anv_gfx_has_stage(gfx, i) ?
+            gfx->shaders[i]->bin->info.vue.urb_entry_size : 1;
       }
 
       UNUSED bool constrained;
@@ -2690,7 +2687,9 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
    const bool tcs_dynamic =
       tcs_prog_data && tcs_prog_data->input_vertices == 0;
    const bool tes_dynamic =
-      tes_prog_data && tes_prog_data->base.vue_map.layout != INTEL_VUE_LAYOUT_FIXED;
+      tes_prog_data &&
+      gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.vue.vue_map.layout !=
+         INTEL_VUE_LAYOUT_FIXED;
    if ((tcs_dynamic || tes_dynamic) &&
        ((gfx->dirty & (ANV_CMD_DIRTY_HS | ANV_CMD_DIRTY_DS)) ||
         BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_TS_PATCH_CONTROL_POINTS))) {
@@ -2698,14 +2697,16 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
       struct brw_tess_info tess_info =
          brw_merge_tess_info(tcs_prog_data->tess_info,
                              tes_prog_data->tess_info);
+      const struct intel_vue_map *tcs_vue_map =
+         &gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.vue.vue_map;
 
       SET(TESS_CONFIG, tess_config,
           intel_tess_config(dyn->ts.patch_control_points,
                             tcs_prog_data->output_vertices,
                             brw_tess_info_domain(tess_info),
-                            tcs_prog_data->base.vue_map.num_per_patch_slots,
-                            tcs_prog_data->base.vue_map.num_per_vertex_slots,
-                            tcs_prog_data->base.vue_map.builtins_slot_offset));
+                            tcs_vue_map->num_per_patch_slots,
+                            tcs_vue_map->num_per_vertex_slots,
+                            tcs_vue_map->builtins_slot_offset));
    }
 
 #if INTEL_WA_18019110168_GFX_VER

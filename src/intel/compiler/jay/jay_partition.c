@@ -262,7 +262,7 @@ jay_partition_grf(jay_shader *shader)
 
    if (shader->stage == MESA_SHADER_VERTEX) {
       payload_4[0] = 1;
-      payload_4[1] = shader->prog_data->vue.urb_read_length * 8;
+      payload_4[1] = shader->info.vue.urb_read_length * 8;
       payload_u[1] = shader->push_grfs;
       eot_4 = 16;
    } else if (shader->stage == MESA_SHADER_TASK ||
@@ -292,7 +292,7 @@ jay_partition_grf(jay_shader *shader)
        * Note that even though ICP URB input handles are technically optional,
        * we always enable them anyway.
        */
-      unsigned urb_push_size = shader->prog_data->vue.urb_read_length *
+      unsigned urb_push_size = shader->info.vue.urb_read_length *
                                8 *
                                shader->prog_data->gs.vertices_in;
 

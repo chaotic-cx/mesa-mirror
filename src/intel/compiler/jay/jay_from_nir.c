@@ -2885,7 +2885,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
          } else {
             assert(nj->nir->info.gs.invocations == 1);
             const unsigned vertex = nir_src_as_uint(intr->src[0]);
-            const unsigned stride = nj->s->prog_data->vue.urb_read_length * 8;
+            const unsigned stride = nj->s->info.vue.urb_read_length * 8;
 
             jay_copy(b, dst,
                      jay_collect_vectors(
@@ -4302,7 +4302,7 @@ setup_vertex_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
    setup_payload_dispatch_start(nj, p);
    setup_payload_push(nj, p);
 
-   for (unsigned i = 0; i < (8 * nj->s->prog_data->vue.urb_read_length); ++i) {
+   for (unsigned i = 0; i < (8 * nj->s->info.vue.urb_read_length); ++i) {
       assert(i < ARRAY_SIZE(nj->payload.vs.attributes));
       nj->payload.vs.attributes[i] = read_payload(p, GPR);
    }
@@ -4354,7 +4354,7 @@ setup_geometry_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
       nj->payload.gs.primitive_id = read_payload(p, GPR);
    }
 
-   nj->s->prog_data->vue.include_vue_handles = true;
+   nj->s->info.vue.include_vue_handles = true;
    /* (R2 or R3)...Rn: input URB handles */
    if (nj->nir->info.gs.invocations == 1) {
       nj->payload.gs.icp_handles =
@@ -4368,7 +4368,7 @@ setup_geometry_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
 
    /* Pushed vertex data. */
    for (unsigned i = 0; i < (8 *
-                             nj->s->prog_data->vue.urb_read_length *
+                             nj->s->info.vue.urb_read_length *
                              nj->s->prog_data->gs.vertices_in);
         ++i) {
       assert(i < ARRAY_SIZE(nj->payload.gs.attributes));
@@ -4390,7 +4390,7 @@ setup_tess_eval_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
    setup_payload_dispatch_start(nj, p);
    setup_payload_push(nj, p);
 
-   unsigned input_ugprs = 8 * nj->s->prog_data->vue.urb_read_length;
+   unsigned input_ugprs = 8 * nj->s->info.vue.urb_read_length;
 
    for (unsigned i = 0; i < input_ugprs; ++i) {
       assert(i < ARRAY_SIZE(nj->payload.tes.patch_inputs));
@@ -4982,16 +4982,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       INTEL_DEBUG(intel_debug_flag_for_shader_stage(nir->info.stage)) &&
       (!nir->info.internal || NIR_DEBUG(PRINT_INTERNAL));
 
-   bool track_helpers = false;
-   jay_process_nir_for_simd(devinfo, params, simd_width, &track_helpers);
-
-   if (debug) {
-      /* We can't use nir_print_shader since it reindexes SSA defs. */
-      fprintf(stderr, "NIR right before from_nir:\n\n");
-      nir_print_shader_annotated(nir, stderr, NULL);
-      fflush(stderr);
-   }
-
    jay_shader *s = jay_new_shader(NULL, nir->info.stage);
    s->info = *base_info;
    s->dispatch_width = simd_width;
@@ -5000,8 +4990,18 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    s->prog_data = prog_data;
    s->params = params;
    s->archiver = params->archiver;
+
+   bool track_helpers = false;
+   jay_process_nir_for_simd(devinfo, params, simd_width, &track_helpers, &s->info);
    s->helpers_tracked = track_helpers;
    s->use_efficient_64bit = params->key->base.use_efficient_64bit;
+
+   if (debug) {
+      /* We can't use nir_print_shader since it reindexes SSA defs. */
+      fprintf(stderr, "NIR right before from_nir:\n\n");
+      nir_print_shader_annotated(nir, stderr, NULL);
+      fflush(stderr);
+   }
 
    nir_foreach_function_impl(impl, nir) {
       jay_from_nir_function(devinfo, nir, s, impl, fs_perprim);

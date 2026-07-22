@@ -668,7 +668,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       /* Only position is allowed to be per-view */
       assert(!(nir->info.per_view_outputs & ~VARYING_BIT_POS));
 
-      brw_compute_vue_map(devinfo, &prog_data->vue.vue_map,
+      brw_compute_vue_map(devinfo, &info->vue.vue_map,
                           nir->info.outputs_written, key->base.vue_layout,
                           pos_slots);
 
@@ -679,7 +679,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       unsigned nr_input_components;
       brw_nir_lower_vs_inputs(nir, devinfo, &key->vs, &params->push_layout,
                               &prog_data->vs, &nr_input_components,
-                              &prog_data->vue.urb_read_length);
+                              &info->vue.urb_read_length);
       brw_nir_lower_vue_outputs(nir);
       JAY_NIR_SNAPSHOT("after_lower_io");
 
@@ -690,7 +690,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       JAY_NIR_PASS(nir_opt_constant_folding);
       JAY_NIR_PASS(intel_nir_lower_shading_rate_output);
       JAY_NIR_PASS(brw_nir_lower_deferred_urb_writes, devinfo,
-                   &prog_data->vue.vue_map, 0, 0);
+                   &info->vue.vue_map, 0, 0);
 
       /* Since vertex shaders reuse the same VUE entry for inputs and outputs
        * (overwriting the original contents), we need to make sure the size is
@@ -698,9 +698,9 @@ jay_process_nir(const struct intel_device_info *devinfo,
        */
       const unsigned vue_entries =
          MAX2(DIV_ROUND_UP(nr_input_components, 4),
-              (unsigned) prog_data->vue.vue_map.num_slots);
+              (unsigned) info->vue.vue_map.num_slots);
 
-      prog_data->vue.urb_entry_size = DIV_ROUND_UP(vue_entries, 4);
+      info->vue.urb_entry_size = DIV_ROUND_UP(vue_entries, 4);
    } else if (stage == MESA_SHADER_TESS_CTRL) {
       nir->info.outputs_written = key->tcs.outputs_written;
       nir->info.patch_outputs_written = key->tcs.patch_outputs_written;
@@ -708,13 +708,13 @@ jay_process_nir(const struct intel_device_info *devinfo,
       struct intel_vue_map input_vue_map;
       brw_compute_vue_map(devinfo, &input_vue_map, nir->info.inputs_read,
                           key->base.vue_layout, 1);
-      brw_compute_tess_vue_map(&prog_data->vue.vue_map,
+      brw_compute_tess_vue_map(&info->vue.vue_map,
                                nir->info.outputs_written,
                                nir->info.patch_outputs_written,
                                key->tcs.separate_tess_vue_layout);
 
       brw_nir_lower_tcs_inputs(nir, devinfo, &input_vue_map);
-      brw_nir_lower_tcs_outputs(nir, devinfo, &prog_data->vue.vue_map,
+      brw_nir_lower_tcs_outputs(nir, devinfo, &info->vue.vue_map,
                                 key->tcs._tes_primitive_mode);
       JAY_NIR_SNAPSHOT("after_lower_io");
 
@@ -733,10 +733,8 @@ jay_process_nir(const struct intel_device_info *devinfo,
        *
        *  15808 bytes left for varying packing overhead
        */
-      const int num_per_patch_slots =
-         prog_data->vue.vue_map.num_per_patch_slots;
-      const int num_per_vertex_slots =
-         prog_data->vue.vue_map.num_per_vertex_slots;
+      const int num_per_patch_slots = info->vue.vue_map.num_per_patch_slots;
+      const int num_per_vertex_slots = info->vue.vue_map.num_per_vertex_slots;
       unsigned output_size_bytes = 0;
       /* Note that the patch header is counted in num_per_patch_slots. */
       output_size_bytes += num_per_patch_slots * 16;
@@ -747,7 +745,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       assert(output_size_bytes < GFX7_MAX_HS_URB_ENTRY_SIZE_BYTES);
 
       /* URB entry sizes are stored as a multiple of 64 bytes. */
-      prog_data->vue.urb_entry_size = align(output_size_bytes, 64) / 64;
+      info->vue.urb_entry_size = align(output_size_bytes, 64) / 64;
    } else if (stage == MESA_SHADER_GEOMETRY) {
       nir_variable *control_data_bits =
          nir_variable_create(nir, nir_var_shader_temp, glsl_uint_type(),
@@ -770,12 +768,12 @@ jay_process_nir(const struct intel_device_info *devinfo,
             MAX2(1, util_bitcount(key->base.view_mask)) :
             1;
 
-      brw_compute_vue_map(devinfo, &prog_data->vue.vue_map,
+      brw_compute_vue_map(devinfo, &info->vue.vue_map,
                           nir->info.outputs_written, key->base.vue_layout,
                           pos_slots);
 
       brw_nir_lower_gs_inputs(nir, compiler.devinfo, &input_vue_map,
-                              &prog_data->vue.urb_read_length);
+                              &info->vue.urb_read_length);
 
       brw_nir_lower_vue_outputs(nir);
       JAY_NIR_SNAPSHOT("after_lower_io");
@@ -783,7 +781,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       brw_nir_opt_vectorize_urb(pt);
       nir_lower_gs_intrinsics(nir, 0);
 
-      jay_populate_prog_data(devinfo, nir, prog_data, key, NULL);
+      jay_populate_prog_data(devinfo, nir, info, prog_data, key, NULL);
 
       /* Get constant offsets out of the way for proper clip/cull handling */
       JAY_NIR_PASS(nir_lower_io_to_scalar, nir_var_shader_out, NULL, NULL);
@@ -824,7 +822,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
          ((prog_data->gs.static_vertex_count == -1) ? 2 : 0);
 
       JAY_NIR_PASS(brw_nir_lower_deferred_urb_writes, devinfo,
-                   &prog_data->vue.vue_map, starting_urb_offset,
+                   &info->vue.vue_map, starting_urb_offset,
                    2 * prog_data->gs.output_vertex_size_hwords);
 
       unsigned output_size_bytes = prog_data->gs.output_vertex_size_hwords *
@@ -845,7 +843,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
          output_size_bytes = 1;
 
       /* URB entry sizes are stored as a multiple of 64 bytes in gfx7+. */
-      prog_data->vue.urb_entry_size = align(output_size_bytes, 64) / 64;
+      info->vue.urb_entry_size = align(output_size_bytes, 64) / 64;
 
       JAY_NIR_PASS(nir_lower_global_vars_to_local);
       JAY_NIR_PASS(nir_lower_vars_to_ssa);
@@ -858,7 +856,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
             MAX2(1, util_bitcount(key->base.view_mask)) :
             1;
 
-      brw_compute_vue_map(devinfo, &prog_data->vue.vue_map,
+      brw_compute_vue_map(devinfo, &info->vue.vue_map,
                           nir->info.outputs_written, key->base.vue_layout,
                           pos_slots);
 
@@ -869,7 +867,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
                                key->tes.separate_tess_vue_layout);
 
       brw_nir_lower_tes_inputs(nir, devinfo, &input_vue_map,
-                               &prog_data->vue.urb_read_length);
+                               &info->vue.urb_read_length);
       brw_nir_lower_vue_outputs(nir);
       BRW_NIR_SNAPSHOT("after_lower_io");
 
@@ -877,9 +875,9 @@ jay_process_nir(const struct intel_device_info *devinfo,
       BRW_NIR_PASS(intel_nir_lower_patch_vertices_tes);
 
       BRW_NIR_PASS(brw_nir_lower_deferred_urb_writes, devinfo,
-                   &prog_data->vue.vue_map, 0, 0);
+                   &info->vue.vue_map, 0, 0);
 
-      unsigned output_size_bytes = prog_data->vue.vue_map.num_slots * 4 * 4;
+      unsigned output_size_bytes = info->vue.vue_map.num_slots * 4 * 4;
 
       assert(output_size_bytes >= 1);
       assert(output_size_bytes <= GFX7_MAX_DS_URB_ENTRY_SIZE_BYTES);
@@ -888,7 +886,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_PRIMITIVE_ID);
 
       /* URB entry sizes are stored as a multiple of 64 bytes. */
-      prog_data->vue.urb_entry_size = align(output_size_bytes, 64) / 64;
+      info->vue.urb_entry_size = align(output_size_bytes, 64) / 64;
 
       brw_fill_tess_info_from_shader_info(&prog_data->tes.tess_info,
                                           &nir->info);
@@ -994,7 +992,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       /* Do this before lower_fs_config_intel so that the pass has the right
        * information.
        */
-      jay_populate_prog_data(devinfo, nir, prog_data, key, fs_perprim);
+      jay_populate_prog_data(devinfo, nir, info, prog_data, key, fs_perprim);
 
       /* Although its not required by the spec, other vendors mask out helper
        * lanes entirely unless the shader uses derivatives. Some applications
@@ -1167,7 +1165,8 @@ void
 jay_process_nir_for_simd(const struct intel_device_info *devinfo,
                          const struct jay_compile_params *params,
                          unsigned simd_width,
-                         bool *track_helpers)
+                         bool *track_helpers,
+                         struct intel_shader_info *info)
 {
    nir_shader *nir = params->nir;
 
@@ -1286,7 +1285,7 @@ jay_process_nir_for_simd(const struct intel_device_info *devinfo,
          }
       }
    } else {
-      jay_populate_prog_data(devinfo, nir, params->prog_data, params->key, NULL);
+      jay_populate_prog_data(devinfo, nir, info, params->prog_data, params->key, NULL);
    }
 
    /* This must be the very last pass since nir_print itself will reindex! */

@@ -5712,16 +5712,13 @@ get_gfx_last_vue_map(const struct anv_cmd_graphics_state *gfx)
                gfx->shaders[MESA_SHADER_MESH]->prog_data)->map.vue_map;
    }
    if (gfx->shaders[MESA_SHADER_GEOMETRY] != NULL) {
-      return &((const struct brw_gs_prog_data *)
-               gfx->shaders[MESA_SHADER_GEOMETRY]->prog_data)->base.vue_map;
+      return &gfx->shaders[MESA_SHADER_GEOMETRY]->bin->info.vue.vue_map;
    }
    if (gfx->shaders[MESA_SHADER_TESS_EVAL] != NULL) {
-      return &((const struct brw_tes_prog_data *)
-               gfx->shaders[MESA_SHADER_TESS_EVAL]->prog_data)->base.vue_map;
+      return &gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.vue.vue_map;
    }
    if (gfx->shaders[MESA_SHADER_VERTEX] != NULL) {
-      return &((const struct brw_vs_prog_data *)
-               gfx->shaders[MESA_SHADER_VERTEX]->prog_data)->base.vue_map;
+      return &gfx->shaders[MESA_SHADER_VERTEX]->bin->info.vue.vue_map;
    }
    UNREACHABLE("Invalid bound shaders");
 }

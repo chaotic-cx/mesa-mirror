@@ -614,6 +614,27 @@ struct intel_shader_info {
 
    /** Does this shader pull from any UBO or other constant buffers? */
    bool has_ubo_pull;
+
+   /* Fields common to subset of stages */
+   union {
+      struct {
+         struct intel_vue_map vue_map;
+         uint32_t urb_read_length;
+         uint32_t clip_distance_mask;
+         uint32_t cull_distance_mask;
+
+         /* Used for calculating urb partitions.  In the VS, this is the size of the
+          * URB entry used for both input and output to the thread.  In the GS, this
+          * is the size of the URB entry used for output.
+          */
+         uint32_t urb_entry_size;
+
+         enum intel_shader_dispatch_mode dispatch_mode;
+
+         /** Should the hardware deliver input VUE handles for URB pull loads? */
+         bool include_vue_handles;
+      } vue; /* VS, TES, TCS, GS */
+   };
 };
 
 #define INTEL_SHADER_BIN_MAX_STATS 3

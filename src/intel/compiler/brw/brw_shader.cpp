@@ -24,11 +24,10 @@
 void
 brw_assign_urb_setup(brw_shader &s)
 {
-   struct brw_vue_prog_data *vue_prog_data = brw_vue_prog_data(s.prog_data);
    const unsigned verts =
       s.stage == MESA_SHADER_GEOMETRY ? s.nir->info.gs.vertices_in : 1;
 
-   s.first_non_payload_grf += 8 * vue_prog_data->urb_read_length * verts;
+   s.first_non_payload_grf += 8 * s.info.vue.urb_read_length * verts;
 
    /* Rewrite all ATTR file references to HW_REGs. */
    foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
@@ -174,6 +173,24 @@ brw_shader::brw_shader(const brw_shader_params *params)
    info.stage = stage;
    info.push_layout = params->compile_params->push_layout;
    info.total_shared = params->nir->info.shared_size;
+
+   switch (stage) {
+   case MESA_SHADER_VERTEX:
+   case MESA_SHADER_TESS_EVAL:
+   case MESA_SHADER_GEOMETRY:
+      if (nir->info.outputs_written &
+          (VARYING_BIT_CLIP_DIST0 | VARYING_BIT_CLIP_DIST1 |
+           VARYING_BIT_CULL_DIST0 | VARYING_BIT_CULL_DIST1)) {
+         info.vue.clip_distance_mask =
+            BITFIELD_MASK(nir->info.clip_distance_array_size);
+         info.vue.cull_distance_mask =
+            BITFIELD_RANGE(nir->info.clip_distance_array_size,
+                           nir->info.cull_distance_array_size);
+      }
+      break;
+   default:
+      break;
+   }
 
    assert(api_subgroup_size == 0 ||
          api_subgroup_size == 8 ||

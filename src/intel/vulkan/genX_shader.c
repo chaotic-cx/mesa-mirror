@@ -108,8 +108,7 @@ emit_3dstate_streamout(struct anv_batch *batch,
    }
 
    const struct nir_xfb_info *xfb_info = shader->xfb_info;
-   const struct intel_vue_map *vue_map =
-      &brw_vue_prog_data_const(shader->prog_data)->vue_map;
+   const struct intel_vue_map *vue_map = &shader->bin->info.vue.vue_map;
 
    struct GENX(SO_DECL) so_decl[MAX_XFB_STREAMS][128];
    int next_offset[MAX_XFB_BUFFERS] = {0, 0, 0, 0};
@@ -569,7 +568,7 @@ emit_vs_shader(struct anv_batch *batch,
       vs.KernelStartPointer   = anv_shader_get_pointer(device, &shader->kernel);
 #if GFX_VER < 20
       vs.SIMD8DispatchEnable  =
-         vs_prog_data->base.dispatch_mode == DISPATCH_MODE_SIMD8;
+         shader->bin->info.vue.dispatch_mode == DISPATCH_MODE_SIMD8;
 #endif
 
 #if GFX_VER < 11
@@ -583,15 +582,15 @@ emit_vs_shader(struct anv_batch *batch,
       vs.SoftwareExceptionEnable    = false;
       vs.MaximumNumberofThreads     = devinfo->max_vs_threads - 1;
 
-      vs.VertexURBEntryReadLength      = vs_prog_data->base.urb_read_length;
+      vs.VertexURBEntryReadLength      = shader->bin->info.vue.urb_read_length;
       vs.VertexURBEntryReadOffset      = 0;
       vs.DispatchGRFStartRegisterForURBData =
          shader->bin->info.dispatch_grf_start_reg;
 
       vs.UserClipDistanceClipTestEnableBitmask =
-         vs_prog_data->base.clip_distance_mask;
+         shader->bin->info.vue.clip_distance_mask;
       vs.UserClipDistanceCullTestEnableBitmask =
-         vs_prog_data->base.cull_distance_mask;
+         shader->bin->info.vue.cull_distance_mask;
 
 #if GFX_VER >= 30
       vs.RegistersPerThread =
@@ -668,7 +667,7 @@ emit_hs_shader(struct anv_batch *batch,
 #endif
 
 #if GFX_VER < 20
-      hs.DispatchMode = tcs_prog_data->base.dispatch_mode;
+      hs.DispatchMode = shader->bin->info.vue.dispatch_mode;
 #endif
       hs.IncludePrimitiveID = tcs_prog_data->include_primitive_id;
 
@@ -705,8 +704,10 @@ emit_ds_shader(struct anv_batch *batch,
                struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
+#if GFX_VER >= 12
    const struct brw_tes_prog_data *tes_prog_data =
       get_shader_tes_prog_data(shader);
+#endif
 
    anv_shader_emit(batch, shader, ds.te, GENX(3DSTATE_TE), te) {
       te.TEEnable = true;
@@ -743,7 +744,7 @@ emit_ds_shader(struct anv_batch *batch,
       ds.BindingTableEntryCount = get_surface_count(device, shader);
       ds.MaximumNumberofThreads = devinfo->max_tes_threads - 1;
 
-      ds.PatchURBEntryReadLength = tes_prog_data->base.urb_read_length;
+      ds.PatchURBEntryReadLength = shader->bin->info.vue.urb_read_length;
       ds.PatchURBEntryReadOffset = 0;
       ds.DispatchGRFStartRegisterForURBData =
          shader->bin->info.dispatch_grf_start_reg;
@@ -751,9 +752,9 @@ emit_ds_shader(struct anv_batch *batch,
       ds.DispatchMode = DISPATCH_MODE_SIMD8_SINGLE_PATCH;
 
       ds.UserClipDistanceClipTestEnableBitmask =
-         tes_prog_data->base.clip_distance_mask;
+         shader->bin->info.vue.clip_distance_mask;
       ds.UserClipDistanceCullTestEnableBitmask =
-         tes_prog_data->base.cull_distance_mask;
+         shader->bin->info.vue.cull_distance_mask;
 
 #if GFX_VER >= 12
       ds.PrimitiveIDNotRequired = !tes_prog_data->include_primitive_id;
@@ -801,14 +802,14 @@ emit_gs_shader(struct anv_batch *batch,
       gs.StatisticsEnable        = true;
       gs.KernelStartPointer      = anv_shader_get_pointer(device, &shader->kernel);
 #if GFX_VER < 20
-      gs.DispatchMode            = gs_prog_data->base.dispatch_mode;
+      gs.DispatchMode            = shader->bin->info.vue.dispatch_mode;
 #endif
 
       gs.SingleProgramFlow       = false;
       gs.VectorMaskEnable        = false;
       gs.SamplerCount            = get_sampler_count(device, shader);
       gs.BindingTableEntryCount  = get_surface_count(device, shader);
-      gs.IncludeVertexHandles    = gs_prog_data->base.include_vue_handles;
+      gs.IncludeVertexHandles    = shader->bin->info.vue.include_vue_handles;
       gs.IncludePrimitiveID      = gs_prog_data->include_primitive_id;
 
       gs.MaximumNumberofThreads  = devinfo->max_gs_threads - 1;
@@ -825,14 +826,14 @@ emit_gs_shader(struct anv_batch *batch,
                                    gs_prog_data->static_vertex_count : 0;
 
       gs.VertexURBEntryReadOffset = 0;
-      gs.VertexURBEntryReadLength = gs_prog_data->base.urb_read_length;
+      gs.VertexURBEntryReadLength = shader->bin->info.vue.urb_read_length;
       gs.DispatchGRFStartRegisterForURBData =
          shader->bin->info.dispatch_grf_start_reg;
 
       gs.UserClipDistanceClipTestEnableBitmask =
-         gs_prog_data->base.clip_distance_mask;
+         shader->bin->info.vue.clip_distance_mask;
       gs.UserClipDistanceCullTestEnableBitmask =
-         gs_prog_data->base.cull_distance_mask;
+         shader->bin->info.vue.cull_distance_mask;
 
 #if GFX_VER >= 30
       gs.RegistersPerThread =

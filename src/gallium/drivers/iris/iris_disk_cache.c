@@ -252,7 +252,7 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
    if (stage == MESA_SHADER_VERTEX ||
        stage == MESA_SHADER_TESS_EVAL ||
        stage == MESA_SHADER_GEOMETRY) {
-      struct intel_vue_map *vue_map = &brw_vue_prog_data(brw)->vue_map;
+      const struct intel_vue_map *vue_map = &bin.info.vue.vue_map;
       so_decls = screen->vtbl.create_so_decl_list(&ish->stream_output, vue_map);
    }
 

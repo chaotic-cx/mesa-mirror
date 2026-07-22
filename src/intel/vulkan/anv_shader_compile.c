@@ -1058,7 +1058,7 @@ populate_compile_params_tes(struct brw_compile_params *params,
    }
 
    params->tes.input_vue_map = prev_shader_data ?
-                               &prev_shader_data->prog_data.tcs.base.vue_map :
+                               &prev_shader_data->bin->info.vue.vue_map :
                                NULL;
 }
 
@@ -1162,7 +1162,7 @@ populate_compile_params_fs(struct brw_compile_params *params,
       case MESA_SHADER_VERTEX:
       case MESA_SHADER_TESS_EVAL:
       case MESA_SHADER_GEOMETRY:
-         params->fs.vue_map = &prev_shader_data->prog_data.vue.vue_map;
+         params->fs.vue_map = &prev_shader_data->bin->info.vue.vue_map;
          break;
       case MESA_SHADER_MESH:
          params->fs.mue_map = shader_data->mue_map;

@@ -34,6 +34,7 @@ bool jay_nir_lower_bfloat_math(nir_shader *nir);
 
 void jay_populate_prog_data(const struct intel_device_info *devinfo,
                             nir_shader *nir,
+                            struct intel_shader_info *info,
                             union brw_any_prog_data *prog_data,
                             union brw_any_prog_key *key,
                             struct jay_fs_perprim_data *fs_perprim);
@@ -45,7 +46,8 @@ unsigned jay_select_simd(const struct intel_device_info *, nir_shader *nir);
 void jay_process_nir_for_simd(const struct intel_device_info *devinfo,
                               const struct jay_compile_params *params,
                               unsigned simd_width,
-                              bool *track_helpers);
+                              bool *track_helpers,
+                              struct intel_shader_info *info);
 
 void jay_compute_liveness(jay_function *f);
 void jay_calculate_last_use(jay_function *func);

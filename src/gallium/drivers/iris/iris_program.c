@@ -215,16 +215,16 @@ iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader,
 }
 
 static void
-iris_apply_brw_vue_prog_data(const struct brw_vue_prog_data *brw,
+iris_apply_brw_vue_prog_data(const struct intel_shader_info *info,
                              struct iris_vue_data *iris)
 {
-   memcpy(&iris->vue_map, &brw->vue_map, sizeof(struct intel_vue_map));
+   memcpy(&iris->vue_map, &info->vue.vue_map, sizeof(struct intel_vue_map));
 
-   iris->urb_read_length     = brw->urb_read_length;
-   iris->cull_distance_mask  = brw->cull_distance_mask;
-   iris->urb_entry_size      = brw->urb_entry_size;
-   iris->dispatch_mode       = brw->dispatch_mode;
-   iris->include_vue_handles = brw->include_vue_handles;
+   iris->urb_read_length     = info->vue.urb_read_length;
+   iris->cull_distance_mask  = info->vue.cull_distance_mask;
+   iris->urb_entry_size      = info->vue.urb_entry_size;
+   iris->dispatch_mode       = info->vue.dispatch_mode;
+   iris->include_vue_handles = info->vue.include_vue_handles;
 }
 
 static void
@@ -234,7 +234,7 @@ iris_apply_brw_vs_prog_data(struct iris_compiled_shader *shader,
    assert(shader->stage == MESA_SHADER_VERTEX);
    struct iris_vs_data *iris = &shader->vs;
 
-   iris_apply_brw_vue_prog_data(&brw->base, &iris->base);
+   iris_apply_brw_vue_prog_data(&shader->info, &iris->base);
 
    iris->uses_vertexid     = brw->uses_vertexid;
    iris->uses_instanceid   = brw->uses_instanceid;
@@ -250,7 +250,7 @@ iris_apply_brw_tcs_prog_data(struct iris_compiled_shader *shader,
    assert(shader->stage == MESA_SHADER_TESS_CTRL);
    struct iris_tcs_data *iris = &shader->tcs;
 
-   iris_apply_brw_vue_prog_data(&brw->base, &iris->base);
+   iris_apply_brw_vue_prog_data(&shader->info, &iris->base);
 
    iris->instances             = brw->instances;
    iris->patch_count_threshold = brw->patch_count_threshold;
@@ -264,7 +264,7 @@ iris_apply_brw_tes_prog_data(struct iris_compiled_shader *shader,
    assert(shader->stage == MESA_SHADER_TESS_EVAL);
    struct iris_tes_data *iris = &shader->tes;
 
-   iris_apply_brw_vue_prog_data(&brw->base, &iris->base);
+   iris_apply_brw_vue_prog_data(&shader->info, &iris->base);
 
    iris->partitioning         = brw_tess_info_partitioning(brw->tess_info);
    iris->output_topology      = brw_tess_info_output_topology(brw->tess_info);
@@ -279,7 +279,7 @@ iris_apply_brw_gs_prog_data(struct iris_compiled_shader *shader,
    assert(shader->stage == MESA_SHADER_GEOMETRY);
    struct iris_gs_data *iris = &shader->gs;
 
-   iris_apply_brw_vue_prog_data(&brw->base, &iris->base);
+   iris_apply_brw_vue_prog_data(&shader->info, &iris->base);
 
    iris->vertices_in                     = brw->vertices_in;
    iris->output_vertex_size_hwords       = brw->output_vertex_size_hwords;

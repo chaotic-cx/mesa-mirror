@@ -2872,7 +2872,6 @@ brw_from_nir_emit_tcs_intrinsic(nir_to_brw_state &ntb,
 
    assert(s.stage == MESA_SHADER_TESS_CTRL);
    struct brw_tcs_prog_data *tcs_prog_data = brw_tcs_prog_data(s.prog_data);
-   struct brw_vue_prog_data *vue_prog_data = &tcs_prog_data->base;
 
    brw_reg dst;
    if (nir_intrinsic_infos[instr->intrinsic].has_dest)
@@ -2912,7 +2911,7 @@ brw_from_nir_emit_tcs_intrinsic(nir_to_brw_state &ntb,
 
    case nir_intrinsic_load_urb_input_handle_indexed_intel: {
       const bool multi_patch =
-         vue_prog_data->dispatch_mode == INTEL_DISPATCH_MODE_TCS_MULTI_PATCH;
+         s.info.vue.dispatch_mode == INTEL_DISPATCH_MODE_TCS_MULTI_PATCH;
 
       brw_reg icp_handle = multi_patch ?
          get_tcs_multi_patch_icp_handle(ntb, bld, instr) :
@@ -3016,7 +3015,7 @@ brw_from_nir_emit_gs_intrinsic(nir_to_brw_state &ntb,
       assert(s.nir->info.gs.invocations == 1);
       assert(nir_src_as_uint(instr->src[1]) == 0);
       const unsigned vertex = nir_src_as_uint(instr->src[0]);
-      const unsigned stride = gs_prog_data->base.urb_read_length * 8;
+      const unsigned stride = s.info.vue.urb_read_length * 8;
       const unsigned imm_offset = vertex * stride +
                                   4 * nir_intrinsic_base(instr) +
                                   nir_intrinsic_component(instr);
@@ -6639,10 +6638,7 @@ set_clip_cull_distance_masks(brw_shader &s)
 {
    const shader_info &info = s.nir->info;
 
-   if (info.stage != MESA_SHADER_VERTEX &&
-       info.stage != MESA_SHADER_TESS_EVAL &&
-       info.stage != MESA_SHADER_GEOMETRY &&
-       info.stage != MESA_SHADER_MESH)
+   if (info.stage != MESA_SHADER_MESH)
       return;
 
    if (info.outputs_written &
@@ -6654,15 +6650,9 @@ set_clip_cull_distance_masks(brw_shader &s)
       uint32_t cull_mask = BITFIELD_RANGE(info.clip_distance_array_size,
                                           info.cull_distance_array_size);
 
-      if (info.stage == MESA_SHADER_MESH) {
-         struct brw_mesh_prog_data *prog_data = brw_mesh_prog_data(s.prog_data);
-         prog_data->clip_distance_mask = clip_mask;
-         prog_data->cull_distance_mask = cull_mask;
-      } else {
-         struct brw_vue_prog_data *prog_data = brw_vue_prog_data(s.prog_data);
-         prog_data->clip_distance_mask = clip_mask;
-         prog_data->cull_distance_mask = cull_mask;
-      }
+      struct brw_mesh_prog_data *prog_data = brw_mesh_prog_data(s.prog_data);
+      prog_data->clip_distance_mask = clip_mask;
+      prog_data->cull_distance_mask = cull_mask;
    }
 }
 
