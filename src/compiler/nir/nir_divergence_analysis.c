@@ -1202,19 +1202,12 @@ visit_def(nir_def *def, struct divergence_state *state)
 static bool
 nir_variable_mode_is_uniform(nir_variable_mode mode)
 {
-   switch (mode) {
-   case nir_var_uniform:
-   case nir_var_mem_ubo:
-   case nir_var_mem_push_const:
-   case nir_var_mem_ssbo:
-   case nir_var_mem_shared:
-   case nir_var_mem_task_payload:
-   case nir_var_mem_global:
-   case nir_var_image:
-      return true;
-   default:
-      return false;
-   }
+   nir_variable_mode uniform_modes =
+      nir_var_uniform | nir_var_mem_ubo | nir_var_mem_push_const |
+      nir_var_mem_ssbo | nir_var_mem_shared | nir_var_mem_task_payload |
+      nir_var_mem_global;
+
+   return (mode & ~uniform_modes) == 0;
 }
 
 static bool
@@ -1291,10 +1284,16 @@ visit_deref(nir_shader *shader, nir_deref_instr *deref,
    case nir_deref_type_array_wildcard:
       is_divergent |= src_divergent(deref->parent, state);
       break;
-   case nir_deref_type_cast:
-      is_divergent = !nir_variable_mode_is_uniform(deref->var->data.mode) ||
-                     src_divergent(deref->parent, state);
+   case nir_deref_type_cast: {
+      is_divergent = src_divergent(deref->parent, state);
+
+      nir_deref_instr *parent = nir_src_as_deref(deref->parent);
+      if (!parent) {
+         /* Check the mode because this might be a generic or private pointer. */
+         is_divergent |= !nir_variable_mode_is_uniform(deref->modes);
+      }
       break;
+   }
    }
 
    deref->def.divergent = is_divergent;
