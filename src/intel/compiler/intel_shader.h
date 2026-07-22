@@ -590,6 +590,9 @@ struct brw_stage_prog_data;
 struct intel_shader_info {
    mesa_shader_stage stage;
 
+   /** How many ray query objects in this shader. */
+   unsigned ray_queries;
+
    /** Does this shader pull from any UBO or other constant buffers? */
    bool has_ubo_pull;
 };

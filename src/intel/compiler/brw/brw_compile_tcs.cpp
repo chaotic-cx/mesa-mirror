@@ -197,6 +197,8 @@ brw_compile_tcs(const struct brw_compiler *compiler,
 
    brw_prog_data_init(&prog_data->base.base, params);
 
+   const unsigned ray_queries = nir->info.ray_queries;
+
    brw_fill_tess_info_from_shader_info(&prog_data->tess_info,
                                        &nir->info);
 
@@ -290,6 +292,7 @@ brw_compile_tcs(const struct brw_compiler *compiler,
       .compiler                = compiler,
       .compile_params          = params,
       .nir                     = nir,
+      .info                    = { .ray_queries = ray_queries },
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->collect_register_pressure,
       .debug_enabled           = debug_enabled,

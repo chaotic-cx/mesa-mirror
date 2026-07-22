@@ -5267,7 +5267,10 @@ jay_compile(const struct intel_device_info *devinfo,
       prog_data->cs.force_simd32 = params->cs.force_simd32;
    }
 
-   struct intel_shader_info info = {};
+   struct intel_shader_info info = {
+      /* nir_shader_gather_info() clears this once ray queries are lowered. */
+      .ray_queries = nir->info.ray_queries,
+   };
    jay_process_nir(devinfo, params, &fs_perprim, &info);
 
    unsigned modes = jay_select_simd(devinfo, nir);

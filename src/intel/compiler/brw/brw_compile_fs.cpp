@@ -1240,6 +1240,8 @@ brw_compile_fs(const struct brw_compiler *compiler,
 
    brw_prog_data_init(&prog_data->base, params);
 
+   const unsigned ray_queries = nir->info.ray_queries;
+
    const struct intel_device_info *devinfo = compiler->devinfo;
    const unsigned max_subgroup_size = 32;
    unsigned max_polygons = MAX2(1, params->fs.max_polygons);
@@ -1359,6 +1361,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
       .compiler                = compiler,
       .compile_params          = params,
       .nir                     = nir,
+      .info                    = { .ray_queries = ray_queries },
       .per_primitive_offsets   = per_primitive_offsets,
       .needs_register_pressure = params->collect_register_pressure,
       .debug_enabled           = debug_enabled,
@@ -1458,7 +1461,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
       if ((!vmulti || vmulti->dispatch_width < 32) &&
           max_dispatch_width >= 32 &&
           INTEL_SIMD(FS, 32) &&
-          !prog_data->base.ray_queries) {
+          !ray_queries) {
          /* Try a SIMD32 compile */
          brw_shader_params shader_params = base_shader_params;
          shader_params.dispatch_width = 32;
@@ -1535,7 +1538,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
           (INTEL_SIMD_FORCE(32) ||
            (!has_spilled && !beyond_threshold[2] &&
             !simd16_failed && INTEL_SIMD(FS, 32)))) {
-         assert(!prog_data->base.ray_queries);
+         assert(!ray_queries);
 
          /* Try a SIMD32 compile */
          brw_shader_params shader_params = base_shader_params;

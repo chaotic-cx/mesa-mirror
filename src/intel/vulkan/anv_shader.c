@@ -943,7 +943,7 @@ anv_shader_create(struct anv_device *device,
       shader->vk.stack_size = bs_prog_data->max_stack_size;
    }
    shader->vk.scratch_size = shader->prog_data->total_scratch;
-   shader->vk.ray_queries = shader->prog_data->ray_queries;
+   shader->vk.ray_queries = shader->bin->info.ray_queries;
 
    result =
       anv_reloc_list_init(&shader->relocs, &device->vk.alloc,

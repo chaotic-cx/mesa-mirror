@@ -501,9 +501,6 @@ struct brw_stage_prog_data {
    unsigned num_relocs;
    const struct intel_shader_reloc *relocs;
 
-   /** How many ray queries objects in this shader. */
-   unsigned ray_queries;
-
    /**
     * Register where the thread expects to find input data from the URB
     * (typically uniforms, followed by vertex or fragment attributes).

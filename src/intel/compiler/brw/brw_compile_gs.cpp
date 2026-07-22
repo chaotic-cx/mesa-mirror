@@ -153,6 +153,8 @@ brw_compile_gs(const struct brw_compiler *compiler,
 
    brw_prog_data_init(&prog_data->base.base, params);
 
+   const unsigned ray_queries = nir->info.ray_queries;
+
    /* The GLSL linker will have already matched up GS inputs and the outputs
     * of prior stages.  The driver does extend VS outputs in some cases, but
     * only for legacy OpenGL or Gfx4-5 hardware, neither of which offer
@@ -364,6 +366,7 @@ brw_compile_gs(const struct brw_compiler *compiler,
       .compiler                = compiler,
       .compile_params          = params,
       .nir                     = nir,
+      .info                    = { .ray_queries = ray_queries },
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->collect_register_pressure,
       .debug_enabled           = debug_enabled,

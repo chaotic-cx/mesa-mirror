@@ -53,6 +53,7 @@ compile_single_bs(const struct brw_compiler *compiler,
                   const struct brw_bs_prog_key *key,
                   struct brw_bs_prog_data *prog_data,
                   nir_shader *shader,
+                  unsigned ray_queries,
                   bool needs_register_pressure)
 {
    const bool debug_enabled = brw_should_print_shader(
@@ -83,6 +84,7 @@ compile_single_bs(const struct brw_compiler *compiler,
       .compiler                = compiler,
       .compile_params          = params,
       .nir                     = shader,
+      .info                    = { .ray_queries = ray_queries },
       .dispatch_width          = required_width,
       .needs_register_pressure = needs_register_pressure,
       .debug_enabled           = debug_enabled,
@@ -115,11 +117,14 @@ brw_compile_bs(const struct brw_compiler *compiler,
 
    brw_prog_data_init(&prog_data->base, params);
 
+   const unsigned ray_queries = shader->info.ray_queries;
+
    prog_data->max_stack_size = 0;
 
    std::unique_ptr<brw_shader> main_shader =
       compile_single_bs(compiler, params, key, prog_data,
-                        shader, params->collect_register_pressure);
+                        shader, ray_queries,
+                        params->collect_register_pressure);
    if (!main_shader)
       return NULL;
 
@@ -133,7 +138,7 @@ brw_compile_bs(const struct brw_compiler *compiler,
       /* TODO: Figure out shader stats etc. for resume shaders */
       std::unique_ptr<brw_shader> r =
          compile_single_bs(compiler, params, key, prog_data,
-                           resume_shaders[i], false);
+                           resume_shaders[i], ray_queries, false);
       if (!r)
          return NULL;
       resume_ptrs[i] = r.get();

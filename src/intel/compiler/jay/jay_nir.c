@@ -635,7 +635,6 @@ jay_process_nir(const struct intel_device_info *devinfo,
    enum mesa_shader_stage stage = nir->info.stage;
    struct brw_compiler compiler = { .devinfo = devinfo };
 
-   prog_data->base.ray_queries = nir->info.ray_queries;
    prog_data->base.stage = stage;
    info->stage = stage;
    prog_data->base.total_shared = nir->info.shared_size;

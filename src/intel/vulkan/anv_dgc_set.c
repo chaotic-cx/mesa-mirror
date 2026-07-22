@@ -177,7 +177,7 @@ write_cs_set_entry(struct anv_device *device,
    indirect_set->max_scratch = MAX2(indirect_set->max_scratch,
                                     prog_data->base.total_scratch);
    indirect_set->max_ray_queries = MAX2(indirect_set->max_ray_queries,
-                                        shader->prog_data->ray_queries);
+                                        shader->bin->info.ray_queries);
 }
 
 static void

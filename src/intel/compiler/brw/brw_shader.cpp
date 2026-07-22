@@ -1129,7 +1129,6 @@ void brw_prog_data_init(struct brw_stage_prog_data *prog_data,
    /* Do not memset the structure to 0, the driver might have put some bits of
     * information in there.
     */
-   prog_data->ray_queries = params->nir->info.ray_queries;
    prog_data->stage = params->nir->info.stage;
    prog_data->total_scratch = 0;
    prog_data->total_shared = params->nir->info.shared_size;
