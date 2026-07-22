@@ -2164,7 +2164,6 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    /* Copy resource requirements accumulated across all resume shaders. */
    prog_data->base.total_scratch = main_prog_data.base.total_scratch;
    prog_data->bs.max_stack_size = main_prog_data.bs.max_stack_size;
-   prog_data->base.has_ubo_pull = main_prog_data.base.has_ubo_pull;
 
    /* Allocate the relocs array once, sized for the whole thing. */
    struct intel_shader_reloc *relocs =
@@ -2235,6 +2234,10 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    ralloc_free((void *)main_bin->code);
    main_bin->code = combined_bin;
    main_bin->code_size = total_bin_size;
+   for (unsigned i = 0; i < params->bs.num_resume_shaders; i++) {
+      const struct intel_shader_info *resume_info = &resume_shader_bins[i]->info;
+      main_bin->info.has_ubo_pull |= resume_info->has_ubo_pull;
+   }
 
    return main_bin;
 }

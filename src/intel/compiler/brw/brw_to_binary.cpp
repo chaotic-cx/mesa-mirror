@@ -2725,6 +2725,14 @@ brw_to_binary(const brw_to_binary_params *p)
    assert(first_shader != NULL);
    assert(first_shader->info.stage == prog_data->stage);
    bin->info = first_shader->info;
+   for (unsigned i = 0; i < BRW_TO_BINARY_MAX_SHADERS; i++) {
+      brw_shader *shader = p->shaders[i];
+      if (shader == NULL)
+         continue;
+      bin->info.has_ubo_pull |= shader->info.has_ubo_pull;
+   }
+   for (unsigned i = 0; i < p->num_resume_shaders; i++)
+      bin->info.has_ubo_pull |= p->resume_shaders[i]->info.has_ubo_pull;
    ralloc_steal(bin, (void *)code);
    bin->code = code;
    bin->code_size = g.get_output_size();

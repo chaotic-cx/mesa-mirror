@@ -501,9 +501,6 @@ struct brw_stage_prog_data {
    unsigned num_relocs;
    const struct intel_shader_reloc *relocs;
 
-   /** Does this program pull from any UBO or other constant buffers? */
-   bool has_ubo_pull;
-
    /** How many ray queries objects in this shader. */
    unsigned ray_queries;
 

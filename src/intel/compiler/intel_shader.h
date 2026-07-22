@@ -589,6 +589,9 @@ struct brw_stage_prog_data;
  */
 struct intel_shader_info {
    mesa_shader_stage stage;
+
+   /** Does this shader pull from any UBO or other constant buffers? */
+   bool has_ubo_pull;
 };
 
 #define INTEL_SHADER_BIN_MAX_STATS 3

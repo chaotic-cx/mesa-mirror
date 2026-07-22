@@ -5302,12 +5302,12 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
    }
 
    case nir_intrinsic_load_ubo_uniform_block_intel:
-      s.prog_data->has_ubo_pull = true;
+      s.info.has_ubo_pull = true;
       brw_from_nir_emit_memory_access(ntb, bld, xbld, instr);
       break;
 
    case nir_intrinsic_load_ubo: {
-      s.prog_data->has_ubo_pull = true;
+      s.info.has_ubo_pull = true;
       if (devinfo->has_lsc) {
          brw_from_nir_emit_memory_access(ntb, bld, xbld, instr);
          break;

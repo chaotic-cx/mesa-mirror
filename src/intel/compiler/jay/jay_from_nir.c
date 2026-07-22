@@ -1410,7 +1410,7 @@ jay_emit_mem_access_lsc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
        intr->intrinsic == nir_intrinsic_load_ubo_uniform_block_intel) {
       ubo = bti;
       bti = NULL;
-      b->shader->prog_data->base.has_ubo_pull = true;
+      b->shader->info.has_ubo_pull = true;
    }
 
    const struct intel_device_info *devinfo = b->shader->devinfo;
@@ -1702,7 +1702,7 @@ jay_emit_mem_access_hdc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
        intr->intrinsic == nir_intrinsic_load_ubo_uniform_block_intel) {
       ubo = bti;
       bti = NULL;
-      b->shader->prog_data->base.has_ubo_pull = true;
+      b->shader->info.has_ubo_pull = true;
    }
 
    const struct intel_device_info *devinfo = b->shader->devinfo;
@@ -5238,6 +5238,15 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    return bin;
 }
 
+static void
+jay_merge_shader_info(struct intel_shader_info *dst,
+                      const struct intel_shader_info *src)
+{
+   assert(dst->stage == src->stage);
+
+   dst->has_ubo_pull |= src->has_ubo_pull;
+}
+
 intel_shader_bin *
 jay_compile(const struct intel_device_info *devinfo,
             const struct jay_compile_params *params)
@@ -5445,8 +5454,11 @@ jay_compile(const struct intel_device_info *devinfo,
       offset += variants[i].bin->code_size;
       reloc_start += variants[i].num_relocs;
 
+      const struct intel_shader_info *variant_info = &variants[i].bin->info;
       if (s == 0)
-         bin->info = variants[i].bin->info;
+         bin->info = *variant_info;
+      else
+         jay_merge_shader_info(&bin->info, variant_info);
 
       bin->stats[s++] = variants[i].bin->stats[0];
 
