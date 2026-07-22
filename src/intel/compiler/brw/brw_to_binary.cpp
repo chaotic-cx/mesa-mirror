@@ -2820,7 +2820,6 @@ brw_to_binary(const brw_to_binary_params *p)
    ralloc_steal(bin, (void *)bin->relocs);
    if (brw_shader_stage_is_bindless(bin->info.stage))
       bin->info.bs.resume_sbt_offset = g.resume_sbt_offset;
-   bin->prog_data = prog_data;
 
    assert(num_stats <= ARRAY_SIZE(bin->stats));
    memcpy(bin->stats, stats, num_stats * sizeof(stats[0]));

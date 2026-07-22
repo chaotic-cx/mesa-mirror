@@ -735,12 +735,11 @@ static void
 blorp_emit_vs_config(struct blorp_batch *batch,
                      const struct blorp_params *params)
 {
-   struct brw_vs_prog_data *vs_prog_data = params->vs_prog_data;
-   assert(!vs_prog_data || GFX_VER < 11 ||
+   assert(!params->vs_info || GFX_VER < 11 ||
           params->vs_info->vue.dispatch_mode == INTEL_DISPATCH_MODE_SIMD8);
 
    blorp_emit(batch, GENX(3DSTATE_VS), vs) {
-      if (vs_prog_data) {
+      if (params->vs_info) {
          assert(params->vs_info->total_scratch == 0);
 
          vs.Enable = true;

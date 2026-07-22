@@ -414,7 +414,7 @@ iris_blorp_exec_render(struct blorp_batch *blorp_batch,
    if (blorp_batch->flags & BLORP_BATCH_NO_EMIT_DEPTH_STENCIL)
       skip_bits |= IRIS_DIRTY_DEPTH_BUFFER;
 
-   if (!params->fs_prog_data)
+   if (!params->fs_info && !params->fs_prog_data)
       skip_bits |= IRIS_DIRTY_BLEND_STATE | IRIS_DIRTY_PS_BLEND;
 
    ice->state.dirty |= ~skip_bits;

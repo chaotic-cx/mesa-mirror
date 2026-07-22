@@ -5197,7 +5197,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       jay_to_binary(s, nir->constant_data, nir->constant_data_size, debug);
    assert(bin->code);
    ralloc_steal(params->mem_ctx, bin);
-   bin->prog_data = &prog_data->base;
    bin->num_stats = 1;
 
    struct genisa_stats *stats = &bin->stats[0];
@@ -5258,7 +5257,6 @@ jay_compile(const struct intel_device_info *devinfo,
 {
    void *mem_ctx = params->mem_ctx;
    nir_shader *nir = params->nir;
-   union brw_any_prog_data *prog_data = params->prog_data;
 
    struct jay_fs_perprim_data fs_perprim = {
       .mue = params->fs.mue_map,
@@ -5413,7 +5411,6 @@ jay_compile(const struct intel_device_info *devinfo,
    bin->info.stage = orig_nir->info.stage;
    bin->code = rzalloc_size(bin, total_bin_size);
    bin->code_size = total_bin_size;
-   bin->prog_data = &prog_data->base;
 
    struct intel_shader_reloc *relocs = NULL;
    if (total_num_relocs > 0) {

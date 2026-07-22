@@ -580,7 +580,6 @@ struct intel_push_layout {
 };
 
 #ifndef __OPENCL_VERSION__
-struct brw_stage_prog_data;
 struct intel_shader_reloc;
 
 struct brw_push_const_block {
@@ -1009,9 +1008,6 @@ typedef struct intel_shader_bin {
 
    struct genisa_stats stats[INTEL_SHADER_BIN_MAX_STATS];
    unsigned num_stats;
-
-   /* TODO: Remove this once fields are migrated to the bin itself. */
-   struct brw_stage_prog_data *prog_data;
 } intel_shader_bin;
 #endif
 #ifdef __cplusplus

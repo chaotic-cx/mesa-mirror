@@ -440,7 +440,7 @@ blorp_exec_on_render(struct blorp_batch *batch,
       BITSET_SET(hw_state->emit_dirty, ANV_GFX_STATE_MESH_CONTROL);
       BITSET_SET(hw_state->emit_dirty, ANV_GFX_STATE_TASK_CONTROL);
    }
-   if (params->fs_prog_data) {
+   if (params->fs_info) {
       BITSET_SET(hw_state->emit_dirty, ANV_GFX_STATE_CC_STATE);
       BITSET_SET(hw_state->emit_dirty, ANV_GFX_STATE_PS_BLEND);
    }

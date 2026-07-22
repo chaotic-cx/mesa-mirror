@@ -55,34 +55,29 @@ iris_disk_cache_compute_key(struct disk_cache *cache,
 
 #ifdef ENABLE_SHADER_CACHE
 static void
-iris_disk_cache_store_brw(struct disk_cache *cache,
-                          const struct iris_uncompiled_shader *ish,
-                          const struct iris_compiled_shader *shader,
-                          const intel_shader_bin *bin,
-                          const cache_key cache_key)
+iris_disk_cache_store_shader_bin(struct disk_cache *cache,
+                                 const struct iris_compiled_shader *shader,
+                                 const intel_shader_bin *bin,
+                                 const cache_key cache_key)
 {
-   mesa_shader_stage stage = ish->nir->info.stage;
-   const struct brw_stage_prog_data *brw = shader->brw_prog_data;
-   assert(bin && brw);
+   assert(shader->info.stage != MESA_SHADER_NONE);
+   assert(shader->info.stage == shader->stage);
+   assert(bin != NULL);
 
    struct blob blob;
    blob_init(&blob);
 
    /* We write the following data to the cache blob:
     *
-    * 1. Prog data
-    * 2. Shader info
-    * 3. Assembly size
-    * 4. Assembly code
-    * 5. Number of entries in the system value array
-    * 6. System value array
-    * 7. Shader relocations
-    * 8. UBO ranges
-    * 9. Binding table
+    * 1. Shader info
+    * 2. Assembly size
+    * 3. Assembly code
+    * 4. Number of entries in the system value array
+    * 5. System value array
+    * 6. Shader relocations
+    * 7. UBO ranges
+    * 8. Binding table
     */
-   size_t prog_data_s = brw_prog_data_size(stage);
-   blob_write_bytes(&blob, brw, prog_data_s);
-
    blob_write_bytes(&blob, &shader->info, sizeof(shader->info));
    blob_write_uint32(&blob, shader->program_size);
    blob_write_bytes(&blob, shader->map, shader->program_size);
@@ -177,14 +172,15 @@ iris_disk_cache_store(struct disk_cache *cache,
    }
 
 #ifdef INTEL_USE_ELK
-   assert((shader->brw_prog_data == NULL) != (shader->elk_prog_data == NULL));
+   assert((shader->info.stage != MESA_SHADER_NONE) !=
+          (shader->elk_prog_data != NULL));
    if (shader->elk_prog_data)
       iris_disk_cache_store_elk(cache, ish, shader, cache_key);
    else
-      iris_disk_cache_store_brw(cache, ish, shader, bin, cache_key);
+      iris_disk_cache_store_shader_bin(cache, shader, bin, cache_key);
 #else
-   assert(shader->brw_prog_data);
-   iris_disk_cache_store_brw(cache, ish, shader, bin, cache_key);
+   assert(shader->info.stage != MESA_SHADER_NONE);
+   iris_disk_cache_store_shader_bin(cache, shader, bin, cache_key);
 #endif
 #endif
 }
@@ -200,30 +196,28 @@ static const enum iris_program_cache_id cache_id_for_stage[] = {
 
 #ifdef ENABLE_SHADER_CACHE
 static bool
-iris_disk_cache_retrieve_brw(struct iris_screen *screen,
-                             struct u_upload_mgr *uploader,
-                             struct iris_uncompiled_shader *ish,
-                             struct iris_compiled_shader *shader,
-                             void *buffer,
-                             size_t size,
-                             const void *prog_key,
-                             uint32_t key_size)
+iris_disk_cache_retrieve_shader_bin(struct iris_screen *screen,
+                                    struct u_upload_mgr *uploader,
+                                    struct iris_uncompiled_shader *ish,
+                                    struct iris_compiled_shader *shader,
+                                    void *buffer,
+                                    size_t size,
+                                    const void *prog_key,
+                                    uint32_t key_size)
 {
    assert(screen->brw);
 
    mesa_shader_stage stage = ish->nir->info.stage;
-   const uint32_t prog_data_size = brw_prog_data_size(stage);
-   struct brw_stage_prog_data *brw = ralloc_size(NULL, prog_data_size);
    intel_shader_bin bin = {};
    const void *assembly;
    uint32_t num_system_values;
    uint32_t *system_values = NULL;
    uint32_t *so_decls = NULL;
+   struct iris_ubo_range ubo_ranges[4];
+   struct iris_binding_table bt;
 
    struct blob_reader blob;
    blob_reader_init(&blob, buffer, size);
-   blob_copy_bytes(&blob, brw, prog_data_size);
-
    blob_copy_bytes(&blob, &bin.info, sizeof(bin.info));
    bin.code_size = blob_read_uint32(&blob);
    assembly = blob_read_bytes(&blob, bin.code_size);
@@ -242,11 +236,7 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
       blob_read_bytes(&blob, bin.num_relocs * sizeof(bin.relocs[0])) :
       NULL;
 
-   bin.prog_data = brw;
-
-   blob_copy_bytes(&blob, shader->ubo_ranges, sizeof(shader->ubo_ranges));
-
-   struct iris_binding_table bt;
+   blob_copy_bytes(&blob, ubo_ranges, sizeof(ubo_ranges));
    blob_copy_bytes(&blob, &bt, sizeof(bt));
 
    if (stage == MESA_SHADER_VERTEX ||
@@ -268,7 +258,7 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
    if (num_system_values)
       num_cbufs++;
 
-   iris_apply_brw_prog_data(shader, &bin, NULL);
+   iris_apply_shader_bin(shader, &bin, ubo_ranges);
 
    iris_finalize_program(shader, so_decls, system_values,
                          num_system_values, num_cbufs,
@@ -277,7 +267,9 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
    assert(stage < ARRAY_SIZE(cache_id_for_stage));
    enum iris_program_cache_id cache_id = cache_id_for_stage[stage];
 
-   /* Upload our newly read shader to the in-memory program cache. */
+   /* Upload our newly read shader to the in-memory program cache while the
+    * assembly and relocation storage borrowed from the blob are still alive.
+    */
    iris_upload_shader(screen, ish, shader, NULL, uploader,
                       cache_id, key_size, prog_key, assembly, &bin);
 
@@ -417,16 +409,16 @@ iris_disk_cache_retrieve(struct iris_screen *screen,
 #ifdef INTEL_USE_ELK
    assert((screen->brw == NULL) != (screen->elk == NULL));
    if (screen->brw) {
-      return iris_disk_cache_retrieve_brw(screen, uploader, ish, shader,
-                                          buffer, size, prog_key, key_size);
+      return iris_disk_cache_retrieve_shader_bin(screen, uploader, ish, shader,
+                                                 buffer, size, prog_key, key_size);
    } else {
       return iris_disk_cache_retrieve_elk(screen, uploader, ish, shader,
                                           buffer, size, prog_key, key_size);
    }
 #else
    assert(screen->brw);
-   return iris_disk_cache_retrieve_brw(screen, uploader, ish, shader,
-                                       buffer, size, prog_key, key_size);
+   return iris_disk_cache_retrieve_shader_bin(screen, uploader, ish, shader,
+                                              buffer, size, prog_key, key_size);
 #endif
 #else
    return false;

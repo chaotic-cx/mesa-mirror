@@ -168,8 +168,6 @@ anv_shader_deserialize(struct vk_device *vk_device,
    uint32_t code_len = blob_read_uint32(blob);
    data.code = (void *)blob_read_bytes(blob, code_len);
 
-   blob_copy_bytes(blob, &data.prog_data, brw_prog_data_size(stage));
-
    bin.num_relocs = blob_read_uint32(blob);
    bin.relocs = (const struct intel_shader_reloc *)
       blob_read_bytes(blob, bin.num_relocs * sizeof(bin.relocs[0]));
@@ -181,7 +179,6 @@ anv_shader_deserialize(struct vk_device *vk_device,
 
    bin.code = data.code;
    bin.code_size = code_len;
-   bin.prog_data = &data.prog_data.base;
    data.bin = &bin;
 
    uint32_t xfb_size = blob_read_uint32(blob);
@@ -247,9 +244,6 @@ anv_shader_serialize(struct vk_device *device,
    blob_write_bytes(blob, &shader->bin->info, sizeof(shader->bin->info));
    blob_write_uint32(blob, shader->bin->code_size);
    blob_write_bytes(blob, shader->bin->code, shader->bin->code_size);
-
-   const unsigned prog_data_size = brw_prog_data_size(vk_shader->stage);
-   blob_write_bytes(blob, shader->prog_data, prog_data_size);
 
    blob_write_uint32(blob, shader->bin->num_relocs);
    blob_write_bytes(blob, shader->bin->relocs,
@@ -821,8 +815,6 @@ anv_shader_create(struct anv_device *device,
    VK_MULTIALLOC_DECL(&ma, struct anv_shader, shader, 1);
    VK_MULTIALLOC_DECL(&ma, uint32_t, cmd_data, cmd_data_dwords);
    VK_MULTIALLOC_DECL_SIZE(&ma, void, obj_key_data, brw_prog_key_size(stage));
-   VK_MULTIALLOC_DECL_SIZE(&ma, struct brw_stage_prog_data, prog_data,
-                           brw_prog_data_size(stage));
    VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc, prog_data_relocs,
                       shader_data->bin->num_relocs);
    VK_MULTIALLOC_DECL(&ma, intel_shader_bin, bin, 1);
@@ -875,18 +867,13 @@ anv_shader_create(struct anv_device *device,
              internal_representations.nir_str_len);
    }
 
-   memcpy(prog_data, &shader_data->prog_data, brw_prog_data_size(stage));
-
    typed_memcpy(prog_data_relocs,
                 shader_data->bin->relocs,
                 shader_data->bin->num_relocs);
 
-   shader->prog_data = prog_data;
-
    shader->bin = bin;
    *bin = *shader_data->bin;
    bin->code = shader->code;
-   bin->prog_data = prog_data;
    bin->relocs = prog_data_relocs;
 
    if (shader_data->xfb_info) {

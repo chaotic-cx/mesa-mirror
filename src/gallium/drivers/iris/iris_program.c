@@ -181,8 +181,7 @@ iris_apply_brw_fs_prog_data(struct iris_compiled_shader *shader)
 }
 
 static void
-iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader,
-                            const struct brw_cs_prog_data *brw)
+iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader)
 {
    const struct intel_shader_info *info = &shader->info;
    assert(shader->stage == MESA_SHADER_COMPUTE);
@@ -229,8 +228,7 @@ iris_apply_brw_vue_prog_data(const struct intel_shader_info *info,
 }
 
 static void
-iris_apply_brw_vs_prog_data(struct iris_compiled_shader *shader,
-                            const struct brw_vs_prog_data *brw)
+iris_apply_brw_vs_prog_data(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_VERTEX);
    struct iris_vs_data *iris = &shader->vs;
@@ -246,8 +244,7 @@ iris_apply_brw_vs_prog_data(struct iris_compiled_shader *shader,
 }
 
 static void
-iris_apply_brw_tcs_prog_data(struct iris_compiled_shader *shader,
-                             const struct brw_tcs_prog_data *brw)
+iris_apply_brw_tcs_prog_data(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_TESS_CTRL);
    struct iris_tcs_data *iris = &shader->tcs;
@@ -262,8 +259,7 @@ iris_apply_brw_tcs_prog_data(struct iris_compiled_shader *shader,
 }
 
 static void
-iris_apply_brw_tes_prog_data(struct iris_compiled_shader *shader,
-                             const struct brw_tes_prog_data *brw)
+iris_apply_brw_tes_prog_data(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_TESS_EVAL);
    struct iris_tes_data *iris = &shader->tes;
@@ -279,8 +275,7 @@ iris_apply_brw_tes_prog_data(struct iris_compiled_shader *shader,
 }
 
 static void
-iris_apply_brw_gs_prog_data(struct iris_compiled_shader *shader,
-                            const struct brw_gs_prog_data *brw)
+iris_apply_brw_gs_prog_data(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_GEOMETRY);
    struct iris_gs_data *iris = &shader->gs;
@@ -300,12 +295,10 @@ iris_apply_brw_gs_prog_data(struct iris_compiled_shader *shader,
 }
 
 void
-iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
-                         const intel_shader_bin *bin,
-                         struct iris_ubo_range *ubo_ranges)
+iris_apply_shader_bin(struct iris_compiled_shader *shader,
+                      const intel_shader_bin *bin,
+                      struct iris_ubo_range *ubo_ranges)
 {
-   struct brw_stage_prog_data *brw = bin->prog_data;
-
    assert(bin->info.stage == shader->stage);
    shader->info = bin->info;
 
@@ -327,27 +320,23 @@ iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
       iris_apply_brw_fs_prog_data(shader);
       break;
    case MESA_SHADER_COMPUTE:
-      iris_apply_brw_cs_prog_data(shader, brw_cs_prog_data_const(brw));
+      iris_apply_brw_cs_prog_data(shader);
       break;
    case MESA_SHADER_VERTEX:
-      iris_apply_brw_vs_prog_data(shader, brw_vs_prog_data_const(brw));
+      iris_apply_brw_vs_prog_data(shader);
       break;
    case MESA_SHADER_TESS_CTRL:
-      iris_apply_brw_tcs_prog_data(shader, brw_tcs_prog_data_const(brw));
+      iris_apply_brw_tcs_prog_data(shader);
       break;
    case MESA_SHADER_TESS_EVAL:
-      iris_apply_brw_tes_prog_data(shader, brw_tes_prog_data_const(brw));
+      iris_apply_brw_tes_prog_data(shader);
       break;
    case MESA_SHADER_GEOMETRY:
-      iris_apply_brw_gs_prog_data(shader, brw_gs_prog_data_const(brw));
+      iris_apply_brw_gs_prog_data(shader);
       break;
    default:
       UNREACHABLE("invalid shader stage");
    }
-
-   shader->brw_prog_data = brw;
-
-   ralloc_steal(shader, shader->brw_prog_data);
 }
 
 #ifdef INTEL_USE_ELK
@@ -563,9 +552,10 @@ iris_finalize_program(struct iris_compiled_shader *shader,
 {
    /* There can be only one. */
 #ifdef INTEL_USE_ELK
-   assert((shader->brw_prog_data == NULL) != (shader->elk_prog_data == NULL));
+   assert((shader->info.stage != MESA_SHADER_NONE) !=
+          (shader->elk_prog_data != NULL));
 #else
-   assert(shader->brw_prog_data);
+   assert(shader->info.stage != MESA_SHADER_NONE);
 #endif
 
    shader->streamout = streamout;
@@ -2283,7 +2273,7 @@ iris_compile_vs(struct iris_screen *screen,
       error = params.error_str;
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
+         iris_apply_shader_bin(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -2546,7 +2536,7 @@ iris_compile_tcs(struct iris_screen *screen,
 
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
+         iris_apply_shader_bin(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -2761,7 +2751,7 @@ iris_compile_tes(struct iris_screen *screen,
 
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
+         iris_apply_shader_bin(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -2951,7 +2941,7 @@ iris_compile_gs(struct iris_screen *screen,
       error = params.error_str;
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
+         iris_apply_shader_bin(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -3201,7 +3191,7 @@ iris_compile_fs(struct iris_screen *screen,
       error = params.error_str;
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
+         iris_apply_shader_bin(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -3554,7 +3544,7 @@ iris_compile_cs(struct iris_screen *screen,
       error = params.error_str;
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, bin, NULL);
+         iris_apply_shader_bin(shader, bin, NULL);
       }
    } else {
 #ifdef INTEL_USE_ELK

@@ -495,8 +495,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
          .key_data            = &trampoline_key,
          .key_size            = sizeof(trampoline_key),
          .bin                 = bin,
-         .prog_data           = &trampoline_prog_data.base,
-         .prog_data_size      = sizeof(trampoline_prog_data),
          .bind_map            = &empty_bind_map,
          .push_desc_info      = &empty_push_desc_info,
       };
@@ -581,8 +579,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
          .key_data            = &return_key,
          .key_size            = sizeof(return_key),
          .bin                 = bin,
-         .prog_data           = &return_prog_data.base,
-         .prog_data_size      = sizeof(return_prog_data),
          .bind_map            = &empty_bind_map,
          .push_desc_info      = &empty_push_desc_info,
       };
@@ -664,8 +660,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
          .key_data            = &null_return_key,
          .key_size            = sizeof(null_return_key),
          .bin                 = bin,
-         .prog_data           = &return_prog_data.base,
-         .prog_data_size      = sizeof(return_prog_data),
          .bind_map            = &empty_bind_map,
          .push_desc_info      = &empty_push_desc_info,
       };

@@ -293,7 +293,7 @@ iris_blorp_lookup_shader(struct blorp_batch *blorp_batch,
 #ifdef INTEL_USE_ELK
       batch->screen->elk ? (void *)shader->elk_prog_data :
 #endif
-      (void *)shader->brw_prog_data;
+      NULL;
 
    if (info_out)
       *info_out = shader->elk_prog_data ? NULL : &shader->info;
@@ -325,18 +325,14 @@ iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
       iris_create_shader_variant(screen, ice->shaders.cache, stage,
                                  IRIS_CACHE_BLORP, key_size, key);
 
-   void *prog_data = ralloc_size(NULL, prog_data_size);
-   memcpy(prog_data, prog_data_templ, prog_data_size);
-
    if (screen->brw) {
       assert(src_bin != NULL);
-      intel_shader_bin bin = *src_bin;
-      bin.code_size = kernel_size;
-      bin.prog_data = prog_data;
-      iris_apply_brw_prog_data(shader, &bin, NULL);
+      iris_apply_shader_bin(shader, src_bin, NULL);
    } else {
 #ifdef INTEL_USE_ELK
       assert(screen->elk);
+      void *prog_data = ralloc_size(NULL, prog_data_size);
+      memcpy(prog_data, prog_data_templ, prog_data_size);
       iris_apply_elk_prog_data(shader, prog_data);
 #else
       UNREACHABLE("no elk support");
@@ -357,7 +353,7 @@ iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
 #ifdef INTEL_USE_ELK
       screen->elk ? (void *)shader->elk_prog_data :
 #endif
-      (void*)shader->brw_prog_data;
+      NULL;
 
    if (info_out)
       *info_out = shader->elk_prog_data ? NULL : &shader->info;
@@ -528,7 +524,7 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
       bin = brw_compile(screen->brw, &params);
       assert(bin);
       program = bin->code;
-      iris_apply_brw_prog_data(shader, bin, NULL);
+      iris_apply_shader_bin(shader, bin, NULL);
    } else {
 #ifdef INTEL_USE_ELK
       union elk_any_prog_key prog_key;

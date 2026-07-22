@@ -812,10 +812,9 @@ update_urb_config(struct anv_gfx_dynamic_state *hw_state,
 
 #if GFX_VERx10 >= 125
    if (anv_gfx_has_stage(gfx, MESA_SHADER_MESH)) {
-      const struct brw_task_prog_data *task_prog_data =
-         get_gfx_task_prog_data(gfx);
       intel_get_mesh_urb_config(device->info, device->l3_config,
-                                task_prog_data ? gfx->shaders[MESA_SHADER_TASK]->bin->info.task.map.size_dw : 0,
+                                anv_gfx_has_stage(gfx, MESA_SHADER_TASK) ?
+                                gfx->shaders[MESA_SHADER_TASK]->bin->info.task.map.size_dw : 0,
                                 gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.size / 4, &new_cfg);
    } else
 #endif
@@ -857,7 +856,7 @@ update_fs_config(struct anv_gfx_dynamic_state *hw_state,
    if (!info->fs.uses_fs_config)
       return;
 
-   UNUSED const struct brw_mesh_prog_data *mesh_prog_data = get_gfx_mesh_prog_data(gfx);
+   UNUSED const bool has_mesh = anv_gfx_has_stage(gfx, MESA_SHADER_MESH);
 
    enum intel_fs_config fs_config =
       intel_fs_config((struct intel_fs_params) {
@@ -869,7 +868,7 @@ update_fs_config(struct anv_gfx_dynamic_state *hw_state,
             .first_vue_slot            = hw_state->first_vue_slot,
             .primitive_id_index        = hw_state->primitive_id_index,
 #if INTEL_WA_18019110168_GFX_VER
-            .per_primitive_remapping   = mesh_prog_data &&
+            .per_primitive_remapping   = has_mesh &&
                                          gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active,
 #endif
             .conservative_raster       = dyn->rs.conservative_mode != VK_CONSERVATIVE_RASTERIZATION_MODE_DISABLED_EXT,
@@ -878,7 +877,7 @@ update_fs_config(struct anv_gfx_dynamic_state *hw_state,
    SET(FS_CONFIG, fs_config, fs_config);
 
 #if INTEL_WA_18019110168_GFX_VER
-   if (mesh_prog_data && gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active) {
+   if (has_mesh && gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active) {
       SET(WA_18019110168, wa_18019110168,
           (GET(wa_18019110168) & ~ANV_WA_18019110168_PER_PRIMITIVE_REMAP_TABLE_OFFSET_MASK) |
           ((gfx->shaders[MESA_SHADER_MESH]->kernel.offset +
@@ -915,15 +914,13 @@ update_sbe(struct anv_gfx_dynamic_state *hw_state,
    if (info == NULL)
       return;
 
-   const struct brw_mesh_prog_data *mesh_prog_data =
-      get_gfx_mesh_prog_data(gfx);
-
+   const bool has_mesh = anv_gfx_has_stage(gfx, MESA_SHADER_MESH);
    const struct intel_vue_map *vue_map = get_gfx_last_vue_map(gfx);
 
    uint32_t vertex_read_offset, vertex_read_length, vertex_varyings, flat_inputs;
    brw_compute_sbe_per_vertex_urb_read(
-      vue_map, mesh_prog_data != NULL,
-      mesh_prog_data ? gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active : false,
+      vue_map, has_mesh,
+      has_mesh ? gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active : false,
       &gfx->shaders[MESA_SHADER_FRAGMENT]->bin->info,
       &vertex_read_offset, &vertex_read_length, &vertex_varyings,
       &hw_state->primitive_id_index, &flat_inputs);
@@ -934,13 +931,13 @@ update_sbe(struct anv_gfx_dynamic_state *hw_state,
     * the pipeline is using Mesh. We still fill the instruction for now, but
     * in the future we might want to completely avoid its emission.
     */
-   SET(SBE, sbe.AttributeSwizzleEnable, mesh_prog_data == NULL);
+   SET(SBE, sbe.AttributeSwizzleEnable, !has_mesh);
    SET(SBE, sbe.PointSpriteTextureCoordinateOrigin, UPPERLEFT);
    SET(SBE, sbe.NumberofSFOutputAttributes, vertex_varyings);
    SET(SBE, sbe.ConstantInterpolationEnable, flat_inputs);
    SET(SBE, sbe.VertexAttributesBypass, info->fs.vertex_attributes_bypass);
 
-   if (mesh_prog_data == NULL) {
+   if (!has_mesh) {
       for (uint8_t idx = 0; idx < info->fs.urb_setup_attribs_count; idx++) {
          gl_varying_slot attr = info->fs.urb_setup_attribs[idx];
          int input_index = info->fs.urb_setup[attr];
@@ -991,7 +988,7 @@ update_sbe(struct anv_gfx_dynamic_state *hw_state,
    SET(SBE, sbe.PrimitiveIDOverrideComponentW, prim_id_override);
 
 #if GFX_VERx10 >= 125
-   if (mesh_prog_data) {
+   if (has_mesh) {
       SET(SBE_MESH, sbe_mesh.PerVertexURBEntryOutputReadOffset, vertex_read_offset);
       SET(SBE_MESH, sbe_mesh.PerVertexURBEntryOutputReadLength, vertex_read_length);
 
@@ -1171,18 +1168,15 @@ get_primitive_topology(const struct anv_cmd_graphics_state *gfx,
 ALWAYS_INLINE static bool
 geom_or_tess_prim_id_used(const struct anv_cmd_graphics_state *gfx)
 {
-   const struct brw_tcs_prog_data *tcs_prog_data =
-      get_gfx_tcs_prog_data(gfx);
-   const struct brw_tes_prog_data *tes_prog_data =
-      get_gfx_tes_prog_data(gfx);
-   const struct brw_gs_prog_data *gs_prog_data =
-      get_gfx_gs_prog_data(gfx);
+   const bool has_tcs = anv_gfx_has_stage(gfx, MESA_SHADER_TESS_CTRL);
+   const bool has_tes = anv_gfx_has_stage(gfx, MESA_SHADER_TESS_EVAL);
+   const bool has_gs = anv_gfx_has_stage(gfx, MESA_SHADER_GEOMETRY);
 
-   return (tcs_prog_data &&
+   return (has_tcs &&
            gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.include_primitive_id) ||
-          (tes_prog_data &&
+          (has_tes &&
            gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.tes.include_primitive_id) ||
-      (gs_prog_data &&
+      (has_gs &&
        gfx->shaders[MESA_SHADER_GEOMETRY]->bin->info.gs.include_primitive_id);
 }
 
@@ -1386,9 +1380,9 @@ ALWAYS_INLINE static void
 update_ds(struct anv_gfx_dynamic_state *hw_state,
           const struct anv_cmd_graphics_state *gfx)
 {
-   const struct brw_tes_prog_data *tes_prog_data = get_gfx_tes_prog_data(gfx);
+   const bool has_tes = anv_gfx_has_stage(gfx, MESA_SHADER_TESS_EVAL);
 
-   if (tes_prog_data) {
+   if (has_tes) {
       struct brw_tess_info tess_info =
          brw_merge_tess_info(
             gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.tess_info,
@@ -1405,9 +1399,9 @@ update_te(struct anv_gfx_dynamic_state *hw_state,
           const struct vk_dynamic_graphics_state *dyn,
           const struct anv_cmd_graphics_state *gfx)
 {
-   const struct brw_tes_prog_data *tes_prog_data = get_gfx_tes_prog_data(gfx);
+   const bool has_tes = anv_gfx_has_stage(gfx, MESA_SHADER_TESS_EVAL);
 
-   if (tes_prog_data) {
+   if (has_tes) {
       struct brw_tess_info tess_info =
          brw_merge_tess_info(
             gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.tess_info,
@@ -2678,19 +2672,19 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
     * tessellation domain is dynamic and either the pipeline change or the
     * dynamic value change, check the value and reemit if needed.
     */
-   const struct brw_tcs_prog_data *tcs_prog_data = get_gfx_tcs_prog_data(gfx);
-   const struct brw_tes_prog_data *tes_prog_data = get_gfx_tes_prog_data(gfx);
+   const bool has_tcs = anv_gfx_has_stage(gfx, MESA_SHADER_TESS_CTRL);
+   const bool has_tes = anv_gfx_has_stage(gfx, MESA_SHADER_TESS_EVAL);
    const bool tcs_dynamic =
-      tcs_prog_data &&
+      has_tcs &&
       gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.input_vertices == 0;
    const bool tes_dynamic =
-      tes_prog_data &&
+      has_tes &&
       gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.vue.vue_map.layout !=
          INTEL_VUE_LAYOUT_FIXED;
    if ((tcs_dynamic || tes_dynamic) &&
        ((gfx->dirty & (ANV_CMD_DIRTY_HS | ANV_CMD_DIRTY_DS)) ||
         BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_TS_PATCH_CONTROL_POINTS))) {
-      assert(tcs_prog_data != NULL && tes_prog_data != NULL);
+      assert(has_tcs && has_tes);
       struct brw_tess_info tess_info =
          brw_merge_tess_info(
             gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.tess_info,
@@ -2708,10 +2702,10 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
    }
 
 #if INTEL_WA_18019110168_GFX_VER
-   const struct brw_mesh_prog_data *mesh_prog_data = get_gfx_mesh_prog_data(gfx);
+   const bool has_mesh = anv_gfx_has_stage(gfx, MESA_SHADER_MESH);
    const bool mesh_provoking_vertex_update =
       intel_needs_workaround(device->info, 18019110168) &&
-      mesh_prog_data &&
+      has_mesh &&
       (gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.vue_map.slots_valid & (VARYING_BIT_CLIP_DIST0 |
                                                   VARYING_BIT_CLIP_DIST1)) &&
       ((gfx->dirty & ANV_CMD_DIRTY_MESH) ||

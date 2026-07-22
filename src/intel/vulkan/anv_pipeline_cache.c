@@ -75,8 +75,6 @@ static struct anv_shader_internal *
 anv_shader_internal_create(struct anv_device *device,
                            mesa_shader_stage stage,
                            const void *key_data, uint32_t key_size,
-                           const struct brw_stage_prog_data *prog_data_in,
-                           uint32_t prog_data_size,
                            const intel_shader_bin *src_bin)
 {
    assert(src_bin != NULL);
@@ -86,8 +84,6 @@ anv_shader_internal_create(struct anv_device *device,
    VK_MULTIALLOC(ma);
    VK_MULTIALLOC_DECL(&ma, struct anv_shader_internal, shader, 1);
    VK_MULTIALLOC_DECL_SIZE(&ma, void, obj_key_data, key_size);
-   VK_MULTIALLOC_DECL_SIZE(&ma, struct brw_stage_prog_data, prog_data,
-                                prog_data_size);
    VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc, prog_data_relocs,
                            src_bin->num_relocs);
    VK_MULTIALLOC_DECL(&ma, void, code, src_bin->code_size);
@@ -103,17 +99,12 @@ anv_shader_internal_create(struct anv_device *device,
 
    shader->stage = stage;
 
-   memcpy(prog_data, prog_data_in, prog_data_size);
-   shader->prog_data = prog_data;
-   shader->prog_data_size = prog_data_size;
-
    shader->code = code;
    memcpy(shader->code, src_bin->code, src_bin->code_size);
 
    shader->bin = bin;
    *bin = *src_bin;
    bin->code = code;
-   bin->prog_data = prog_data;
    typed_memcpy(prog_data_relocs, src_bin->relocs, src_bin->num_relocs);
    bin->relocs = prog_data_relocs;
 
@@ -169,9 +160,6 @@ anv_shader_internal_serialize(struct vk_pipeline_cache_object *object,
    blob_write_uint32(blob, shader->bin->code_size);
    blob_write_bytes(blob, shader->bin->code, shader->bin->code_size);
 
-   blob_write_uint32(blob, shader->prog_data_size);
-   blob_write_bytes(blob, shader->prog_data, shader->prog_data_size);
-
    blob_write_uint32(blob, shader->bin->num_relocs);
    blob_write_bytes(blob, shader->bin->relocs,
                     shader->bin->num_relocs * sizeof(shader->bin->relocs[0]));
@@ -193,21 +181,11 @@ anv_shader_internal_deserialize(struct vk_pipeline_cache *cache,
 
    mesa_shader_stage stage = blob_read_uint32(blob);
 
-   struct intel_shader_info info;
-   blob_copy_bytes(blob, &info, sizeof(info));
-   intel_shader_bin bin = { .info = info };
+   intel_shader_bin bin = {};
+   blob_copy_bytes(blob, &bin.info, sizeof(bin.info));
 
    bin.code_size = blob_read_uint32(blob);
    bin.code = blob_read_bytes(blob, bin.code_size);
-
-   uint32_t prog_data_size = blob_read_uint32(blob);
-   const void *prog_data_bytes = blob_read_bytes(blob, prog_data_size);
-   if (blob->overrun)
-      return NULL;
-
-   union brw_any_prog_data prog_data;
-   memcpy(&prog_data, prog_data_bytes,
-          MIN2(sizeof(prog_data), prog_data_size));
 
    bin.num_relocs = blob_read_uint32(blob);
    bin.relocs = (const struct intel_shader_reloc *)
@@ -221,14 +199,12 @@ anv_shader_internal_deserialize(struct vk_pipeline_cache *cache,
        num_stats > ARRAY_SIZE(bin.stats) || blob->overrun)
       return NULL;
 
-   bin.prog_data = &prog_data.base;
    bin.num_stats = num_stats;
    typed_memcpy(bin.stats, stats, num_stats);
 
    struct anv_shader_internal *shader =
       anv_shader_internal_create(device, stage,
                                  key_data, key_size,
-                                 &prog_data.base, prog_data_size,
                                  &bin);
 
    if (shader == NULL)
@@ -276,8 +252,6 @@ anv_device_upload_kernel(struct anv_device *device,
                                  params->stage,
                                  params->key_data,
                                  params->key_size,
-                                 params->prog_data,
-                                 params->prog_data_size,
                                  params->bin);
    if (shader == NULL)
       return NULL;

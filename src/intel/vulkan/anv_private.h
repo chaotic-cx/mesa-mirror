@@ -1321,8 +1321,6 @@ struct anv_shader {
 
    intel_shader_bin *bin;
 
-   const struct brw_stage_prog_data *prog_data;
-
    char *nir_str;
 
    struct nir_xfb_info *xfb_info;
@@ -5558,9 +5556,6 @@ struct anv_shader_upload_params {
    const void *key_data;
    uint32_t key_size;
 
-   const struct brw_stage_prog_data *prog_data;
-   uint32_t prog_data_size;
-
    /* Compile output bin; copied wholesale into the created shader. */
    const intel_shader_bin *bin;
 
@@ -5608,9 +5603,6 @@ struct anv_shader_internal {
    struct anv_shader_alloc kernel;
 
    intel_shader_bin *bin;
-
-   const struct brw_stage_prog_data *prog_data;
-   uint32_t prog_data_size;
 };
 
 static inline struct anv_shader_internal *
@@ -5676,34 +5668,6 @@ anv_cmd_graphic_state_update_has_uint_rt(struct anv_cmd_graphics_state *state)
    }
 }
 
-#define ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(prefix, stage)             \
-static inline const struct brw_##prefix##_prog_data *                   \
-get_gfx_##prefix##_prog_data(                                           \
-   const struct anv_cmd_graphics_state *gfx)                            \
-{                                                                       \
-   if (anv_gfx_has_stage(gfx, stage)) {                                 \
-      return (const struct brw_##prefix##_prog_data *)                  \
-         (gfx)->shaders[stage]->prog_data;                              \
-   } else {                                                             \
-      return NULL;                                                      \
-   }                                                                    \
-}                                                                       \
-                                                                        \
-static inline const struct brw_##prefix##_prog_data *                   \
-get_shader_##prefix##_prog_data(const struct anv_shader *shader)        \
-{                                                                       \
-   return (const struct brw_##prefix##_prog_data *)                     \
-      shader->prog_data;                                                \
-}
-
-ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(vs, MESA_SHADER_VERTEX)
-ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(tcs, MESA_SHADER_TESS_CTRL)
-ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(tes, MESA_SHADER_TESS_EVAL)
-ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(gs, MESA_SHADER_GEOMETRY)
-ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(fs, MESA_SHADER_FRAGMENT)
-ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(mesh, MESA_SHADER_MESH)
-ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(task, MESA_SHADER_TASK)
-
 static inline const struct intel_shader_info *
 get_gfx_fs_info(const struct anv_cmd_graphics_state *gfx)
 {
@@ -5728,19 +5692,6 @@ get_gfx_last_vue_map(const struct anv_cmd_graphics_state *gfx)
       return &gfx->shaders[MESA_SHADER_VERTEX]->bin->info.vue.vue_map;
    }
    UNREACHABLE("Invalid bound shaders");
-}
-
-static inline const struct brw_cs_prog_data *
-get_cs_prog_data(const struct anv_cmd_compute_state *comp_state)
-{
-   assert(comp_state->shader);
-   return (const struct brw_cs_prog_data *) comp_state->shader->prog_data;
-}
-
-static inline const struct brw_cs_prog_data *
-get_shader_cs_prog_data(const struct anv_shader *shader)
-{
-   return (const struct brw_cs_prog_data *) shader->prog_data;
 }
 
 VkResult

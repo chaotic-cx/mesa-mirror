@@ -480,8 +480,6 @@ compile_shader(struct anv_device *device,
       .key_data            = hash_key,
       .key_size            = hash_key_size,
       .bin                 = bin,
-      .prog_data           = &prog_data.base,
-      .prog_data_size      = sizeof(prog_data),
       .bind_map            = &empty_bind_map,
       .push_desc_info      = &empty_push_desc_info,
    };
