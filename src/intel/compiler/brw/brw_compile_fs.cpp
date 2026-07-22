@@ -619,7 +619,6 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
    prog_data->uses_kill = shader->info.fs.uses_discard;
    prog_data->uses_omask = !key->ignore_sample_mask_out &&
       (shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK));
-   prog_data->max_polygons = 1;
    prog_data->computed_depth_mode = computed_depth_mode(shader);
    prog_data->computed_stencil =
       shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL);
@@ -1245,6 +1244,8 @@ brw_compile_fs(const struct brw_compiler *compiler,
    const struct intel_device_info *devinfo = compiler->devinfo;
    const unsigned max_subgroup_size = 32;
    unsigned max_polygons = MAX2(1, params->fs.max_polygons);
+   uint8_t dispatch_grf_start_reg_16 = 0;
+   uint8_t dispatch_grf_start_reg_32 = 0;
 
    brw_pass_tracker pt_ = {
       .nir = nir,
@@ -1364,6 +1365,9 @@ brw_compile_fs(const struct brw_compiler *compiler,
       .info = {
          .source_hash = params->source_hash,
          .ray_queries = ray_queries,
+         .fs = {
+            .max_polygons = 1,
+         },
       },
       .per_primitive_offsets   = per_primitive_offsets,
       .needs_register_pressure = params->collect_register_pressure,
@@ -1474,7 +1478,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
             v32.reset();
          } else {
             assert(v32->payload().num_regs % reg_unit(devinfo) == 0);
-            prog_data->dispatch_grf_start_reg_32 = v32->payload().num_regs / reg_unit(devinfo);
+            dispatch_grf_start_reg_32 = v32->payload().num_regs / reg_unit(devinfo);
          }
       }
 
@@ -1492,7 +1496,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
             v16.reset();
          } else {
             assert(v16->payload().num_regs % reg_unit(devinfo) == 0);
-            prog_data->dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
+            dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
          }
       }
 
@@ -1517,7 +1521,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
             simd16_failed = true;
          } else {
             assert(v16->payload().num_regs % reg_unit(devinfo) == 0);
-            prog_data->dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
+            dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
 
             const brw_performance &perf = v16->performance_analysis.require();
             throughput = MAX2(throughput, perf.throughput);
@@ -1554,7 +1558,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
                v32.reset();
             } else {
                assert(v32->payload().num_regs % reg_unit(devinfo) == 0);
-               prog_data->dispatch_grf_start_reg_32 = v32->payload().num_regs / reg_unit(devinfo);
+               dispatch_grf_start_reg_32 = v32->payload().num_regs / reg_unit(devinfo);
 
                throughput = MAX2(throughput, perf.throughput);
             }
@@ -1637,34 +1641,31 @@ brw_compile_fs(const struct brw_compiler *compiler,
    unsigned num_variants = 0;
 
    if (vmulti) {
-      prog_data->dispatch_multi = vmulti->dispatch_width;
-      prog_data->max_polygons = vmulti->max_polygons;
+      vmulti->info.fs.dispatch_multi = vmulti->dispatch_width;
+      vmulti->info.fs.max_polygons = vmulti->max_polygons;
       to_binary_params.shaders[num_variants++] = vmulti.get();
       max_dispatch_width = vmulti->dispatch_width;
    } else if (v8) {
-      prog_data->dispatch_8 = true;
+      v8->info.fs.dispatch_8 = true;
       to_binary_params.shaders[num_variants++] = v8.get();
       max_dispatch_width = 8;
    }
 
    if (v16) {
-      prog_data->dispatch_16 = true;
+      v16->info.fs.dispatch_16 = true;
+      v16->info.fs.dispatch_grf_start_reg_16 = dispatch_grf_start_reg_16;
       to_binary_params.shaders[num_variants++] = v16.get();
       max_dispatch_width = 16;
    }
 
    if (v32) {
-      prog_data->dispatch_32 = true;
+      v32->info.fs.dispatch_32 = true;
+      v32->info.fs.dispatch_grf_start_reg_32 = dispatch_grf_start_reg_32;
       to_binary_params.shaders[num_variants++] = v32.get();
       max_dispatch_width = 32;
    }
 
    intel_shader_bin *bin = brw_to_binary(&to_binary_params);
-
-   if (v16)
-      prog_data->prog_offset_16 = v16->start_offset;
-   if (v32)
-      prog_data->prog_offset_32 = v32->start_offset;
 
    /* Override per-variant max_dispatch_width to make reports more useful. */
    for (unsigned i = 0; i < bin->num_stats; i++)

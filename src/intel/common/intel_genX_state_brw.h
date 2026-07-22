@@ -43,16 +43,17 @@ extern "C" {
 static inline void
 intel_set_ps_dispatch_state(struct GENX(3DSTATE_PS) *ps,
                             const struct intel_device_info *devinfo,
-                            const struct brw_fs_prog_data *prog_data,
+                            const struct intel_shader_info *info,
+                            bool persample_dispatch,
                             unsigned rasterization_samples,
                             enum intel_fs_config fs_config)
 {
    assert(rasterization_samples != 0);
 
-   bool enable_8  = prog_data->dispatch_8;
-   bool enable_16 = prog_data->dispatch_16;
-   bool enable_32 = prog_data->dispatch_32;
-   uint8_t dispatch_multi = prog_data->dispatch_multi;
+   bool enable_8  = info->fs.dispatch_8;
+   bool enable_16 = info->fs.dispatch_16;
+   bool enable_32 = info->fs.dispatch_32;
+   uint8_t dispatch_multi = info->fs.dispatch_multi;
 
 #if GFX_VER >= 20
    if (ps->RenderTargetFastClearEnable) {
@@ -88,7 +89,7 @@ intel_set_ps_dispatch_state(struct GENX(3DSTATE_PS) *ps,
       enable_8 = false;
 #endif
 
-   if (prog_data->persample_dispatch) {
+   if (persample_dispatch) {
       /* TGL PRMs, Volume 2d: Command Reference: Structures:
        *    3DSTATE_PS_BODY::32 Pixel Dispatch Enable:
        *
@@ -135,8 +136,8 @@ intel_set_ps_dispatch_state(struct GENX(3DSTATE_PS) *ps,
       ps->Kernel0Enable = true;
       ps->Kernel0SIMDWidth = (dispatch_multi == 32 ? PS_SIMD32 : PS_SIMD16);
       ps->Kernel0MaximumPolysperThread =
-         prog_data->max_polygons - 1;
-      switch (dispatch_multi / prog_data->max_polygons) {
+         info->fs.max_polygons - 1;
+      switch (dispatch_multi / info->fs.max_polygons) {
       case 8:
          ps->Kernel0PolyPackingPolicy = POLY_PACK8_FIXED;
          break;

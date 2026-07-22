@@ -945,29 +945,31 @@ blorp_emit_ps_config(struct blorp_batch *batch,
       if (prog_data) {
          assert(params->fs_info->total_scratch == 0);
 
-         intel_set_ps_dispatch_state(&ps, devinfo, prog_data,
+         intel_set_ps_dispatch_state(&ps, devinfo,
+                                     params->fs_info,
+                                     prog_data->persample_dispatch,
                                      params->num_samples,
                                      0 /* fs_config */);
 
          ps.DispatchGRFStartRegisterForConstantSetupData0 =
-            brw_fs_prog_data_dispatch_grf_start_reg(params->fs_info,
-                                                     prog_data, ps, 0);
+            intel_shader_info_fs_dispatch_grf_start_reg(params->fs_info,
+                                                         ps, 0);
          ps.DispatchGRFStartRegisterForConstantSetupData1 =
-            brw_fs_prog_data_dispatch_grf_start_reg(params->fs_info,
-                                                     prog_data, ps, 1);
+            intel_shader_info_fs_dispatch_grf_start_reg(params->fs_info,
+                                                         ps, 1);
 #if GFX_VER < 20
          ps.DispatchGRFStartRegisterForConstantSetupData2 =
-            brw_fs_prog_data_dispatch_grf_start_reg(params->fs_info,
-                                                     prog_data, ps, 2);
+            intel_shader_info_fs_dispatch_grf_start_reg(params->fs_info,
+                                                         ps, 2);
 #endif
 
          ps.KernelStartPointer0 = params->wm_prog_kernel +
-                                  brw_fs_prog_data_prog_offset(prog_data, ps, 0);
+            intel_shader_info_fs_prog_offset(params->fs_info, ps, 0);
          ps.KernelStartPointer1 = params->wm_prog_kernel +
-                                  brw_fs_prog_data_prog_offset(prog_data, ps, 1);
+            intel_shader_info_fs_prog_offset(params->fs_info, ps, 1);
 #if GFX_VER < 20
          ps.KernelStartPointer2 = params->wm_prog_kernel +
-                                  brw_fs_prog_data_prog_offset(prog_data, ps, 2);
+            intel_shader_info_fs_prog_offset(params->fs_info, ps, 2);
 #endif
 
 #if GFX_VER >= 30

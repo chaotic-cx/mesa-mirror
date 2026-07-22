@@ -2637,6 +2637,31 @@ brw_bsr(const struct intel_device_info *devinfo,
 }
 
 static void
+brw_to_binary_merge_fs_info(struct intel_shader_info *dst,
+                            const struct intel_shader_info *src,
+                            unsigned prog_offset)
+{
+   dst->fs.dispatch_8 |= src->fs.dispatch_8;
+   dst->fs.dispatch_16 |= src->fs.dispatch_16;
+   dst->fs.dispatch_32 |= src->fs.dispatch_32;
+
+   if (src->fs.dispatch_multi) {
+      dst->fs.dispatch_multi = src->fs.dispatch_multi;
+      dst->fs.max_polygons = src->fs.max_polygons;
+   }
+
+   if (src->fs.dispatch_16) {
+      dst->fs.prog_offset_16 = prog_offset;
+      dst->fs.dispatch_grf_start_reg_16 = src->fs.dispatch_grf_start_reg_16;
+   }
+
+   if (src->fs.dispatch_32) {
+      dst->fs.prog_offset_32 = prog_offset;
+      dst->fs.dispatch_grf_start_reg_32 = src->fs.dispatch_grf_start_reg_32;
+   }
+}
+
+static void
 brw_to_binary_emit_shader(brw_generator &g,
                           const brw_to_binary_params *p,
                           brw_shader *shader,
@@ -2744,6 +2769,11 @@ brw_to_binary(const brw_to_binary_params *p)
          MAX2(bin->info.total_shared, shader->info.total_shared);
       bin->info.grf_used = MAX2(bin->info.grf_used,
                                 shader->info.grf_used);
+
+      if (bin->info.stage == MESA_SHADER_FRAGMENT) {
+         brw_to_binary_merge_fs_info(&bin->info, &shader->info,
+                                     shader->start_offset);
+      }
 
       if (mesa_shader_stage_uses_workgroup(bin->info.stage)) {
          auto *dst = &bin->info.wg;

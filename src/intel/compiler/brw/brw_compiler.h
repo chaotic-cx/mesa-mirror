@@ -500,32 +500,12 @@ struct brw_fs_prog_data {
     */
    unsigned num_varying_inputs;
 
-   uint8_t dispatch_grf_start_reg_16;
-   uint8_t dispatch_grf_start_reg_32;
-   uint32_t prog_offset_16;
-   uint32_t prog_offset_32;
-
    uint8_t computed_depth_mode;
-
-   /**
-    * Number of polygons handled in parallel by the multi-polygon PS
-    * kernel.
-    */
-   uint8_t max_polygons;
-
-   /**
-    * Dispatch width of the multi-polygon PS kernel, or 0 if no
-    * multi-polygon kernel was built.
-    */
-   uint8_t dispatch_multi;
 
    bool computed_stencil;
    bool early_fragment_tests;
    bool post_depth_coverage;
    bool inner_coverage;
-   bool dispatch_8;
-   bool dispatch_16;
-   bool dispatch_32;
    bool dual_src_blend;
    bool uses_pos_offset;
    bool uses_omask;
@@ -717,36 +697,35 @@ brw_fs_simd_width_for_ksp(unsigned ksp_idx, bool simd8_enabled,
    (brw_wm_state_simd_width_for_ksp((wm_state), (ksp_idx)) != 0)
 
 static inline uint32_t
-_brw_fs_prog_data_prog_offset(const struct brw_fs_prog_data *prog_data,
-                              unsigned simd_width)
+_intel_shader_info_fs_prog_offset(const struct intel_shader_info *info,
+                                  unsigned simd_width)
 {
    switch (simd_width) {
    case 8: return 0;
-   case 16: return prog_data->prog_offset_16;
-   case 32: return prog_data->prog_offset_32;
+   case 16: return info->fs.prog_offset_16;
+   case 32: return info->fs.prog_offset_32;
    default: return 0;
    }
 }
 
-#define brw_fs_prog_data_prog_offset(prog_data, wm_state, ksp_idx) \
-   _brw_fs_prog_data_prog_offset(prog_data, \
+#define intel_shader_info_fs_prog_offset(info, wm_state, ksp_idx) \
+   _intel_shader_info_fs_prog_offset(info, \
       brw_wm_state_simd_width_for_ksp(wm_state, ksp_idx))
 
 static inline uint8_t
-_brw_fs_prog_data_dispatch_grf_start_reg(const struct intel_shader_info *info,
-                                         const struct brw_fs_prog_data *prog_data,
-                                         unsigned simd_width)
+_intel_shader_info_fs_dispatch_grf_start_reg(const struct intel_shader_info *info,
+                                             unsigned simd_width)
 {
    switch (simd_width) {
    case 8: return info->dispatch_grf_start_reg;
-   case 16: return prog_data->dispatch_grf_start_reg_16;
-   case 32: return prog_data->dispatch_grf_start_reg_32;
+   case 16: return info->fs.dispatch_grf_start_reg_16;
+   case 32: return info->fs.dispatch_grf_start_reg_32;
    default: return 0;
    }
 }
 
-#define brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, wm_state, ksp_idx) \
-   _brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, \
+#define intel_shader_info_fs_dispatch_grf_start_reg(info, wm_state, ksp_idx) \
+   _intel_shader_info_fs_dispatch_grf_start_reg(info, \
       brw_wm_state_simd_width_for_ksp(wm_state, ksp_idx))
 
 struct brw_cs_prog_data {

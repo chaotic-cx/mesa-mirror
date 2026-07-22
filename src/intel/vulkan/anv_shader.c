@@ -115,14 +115,14 @@ anv_device_maybe_dump_shader(struct anv_device *device, struct anv_shader *shade
       return;
 
    if (shader->vk.stage == MESA_SHADER_FRAGMENT) {
-      const struct brw_fs_prog_data *fs_prog_data = get_shader_fs_prog_data(shader);
+      const struct intel_shader_info *info = &shader->bin->info;
 
-      if (fs_prog_data->dispatch_8 || fs_prog_data->dispatch_multi)
+      if (info->fs.dispatch_8 || info->fs.dispatch_multi)
          anv_device_dump_shader_variant(device, shader, "-8", 0);
-      if (fs_prog_data->dispatch_16)
-         anv_device_dump_shader_variant(device, shader, "-16", fs_prog_data->prog_offset_16);
-      if (fs_prog_data->dispatch_32)
-         anv_device_dump_shader_variant(device, shader, "-32", fs_prog_data->prog_offset_32);
+      if (info->fs.dispatch_16)
+         anv_device_dump_shader_variant(device, shader, "-16", info->fs.prog_offset_16);
+      if (info->fs.dispatch_32)
+         anv_device_dump_shader_variant(device, shader, "-32", info->fs.prog_offset_32);
    } else {
       anv_device_dump_shader_variant(device, shader, "", 0);
    }
@@ -495,22 +495,22 @@ get_shader_isa_text(struct anv_device *device,
    const int program_size = shader->bin->code_size;
 
    if (shader->vk.stage == MESA_SHADER_FRAGMENT) {
-      const struct brw_fs_prog_data *fs_prog_data = get_shader_fs_prog_data(shader);
+      const struct intel_shader_info *info = &shader->bin->info;
 
-      int simd8_index = (fs_prog_data->dispatch_8 || fs_prog_data->dispatch_multi) ? 0 : -1;
-      int simd16_index = fs_prog_data->dispatch_16 ? (simd8_index + 1) : -1;
-      int simd32_index = fs_prog_data->dispatch_32 ? (MAX2(simd8_index, simd16_index) + 1) : -1;
+      int simd8_index = (info->fs.dispatch_8 || info->fs.dispatch_multi) ? 0 : -1;
+      int simd16_index = info->fs.dispatch_16 ? (simd8_index + 1) : -1;
+      int simd32_index = info->fs.dispatch_32 ? (MAX2(simd8_index, simd16_index) + 1) : -1;
 
       if (executable_index == simd8_index) {
          anv_dump_shader_assembly(stream, devinfo, shader->code, 0,
                                   program_size, 0, 0);
       } else if (executable_index == simd16_index) {
          anv_dump_shader_assembly(stream, devinfo, shader->code,
-                                  fs_prog_data->prog_offset_16,
+                                  info->fs.prog_offset_16,
                                   program_size, 0, 0);
       } else if (executable_index == simd32_index) {
          anv_dump_shader_assembly(stream, devinfo, shader->code,
-                                  fs_prog_data->prog_offset_32,
+                                  info->fs.prog_offset_32,
                                   program_size, 0, 0);
       }
    } else {

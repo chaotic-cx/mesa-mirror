@@ -197,7 +197,9 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
    anv_batch_emit(batch, GENX(3DSTATE_WM), wm);
 
    anv_batch_emit(batch, GENX(3DSTATE_PS), ps) {
-      intel_set_ps_dispatch_state(&ps, device->info, prog_data,
+      intel_set_ps_dispatch_state(&ps, device->info,
+                                  &state->kernel->bin->info,
+                                  prog_data->persample_dispatch,
                                   1 /* rasterization_samples */,
                                   0 /* fs_config */);
 
@@ -210,24 +212,24 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
 
       const struct intel_shader_info *info = &state->kernel->bin->info;
       ps.DispatchGRFStartRegisterForConstantSetupData0 =
-         brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, ps, 0);
+         intel_shader_info_fs_dispatch_grf_start_reg(info, ps, 0);
       ps.DispatchGRFStartRegisterForConstantSetupData1 =
-         brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, ps, 1);
+         intel_shader_info_fs_dispatch_grf_start_reg(info, ps, 1);
 #if GFX_VER < 20
       ps.DispatchGRFStartRegisterForConstantSetupData2 =
-         brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, ps, 2);
+         intel_shader_info_fs_dispatch_grf_start_reg(info, ps, 2);
 #endif
 
       ps.KernelStartPointer0 =
          anv_shader_get_pointer(device, &state->kernel->kernel) +
-         brw_fs_prog_data_prog_offset(prog_data, ps, 0);
+         intel_shader_info_fs_prog_offset(info, ps, 0);
       ps.KernelStartPointer1 =
          anv_shader_get_pointer(device, &state->kernel->kernel) +
-         brw_fs_prog_data_prog_offset(prog_data, ps, 1);
+         intel_shader_info_fs_prog_offset(info, ps, 1);
 #if GFX_VER < 20
       ps.KernelStartPointer2 =
          anv_shader_get_pointer(device, &state->kernel->kernel) +
-         brw_fs_prog_data_prog_offset(prog_data, ps, 2);
+         intel_shader_info_fs_prog_offset(info, ps, 2);
 #endif
 
 #if GFX_VER >= 30

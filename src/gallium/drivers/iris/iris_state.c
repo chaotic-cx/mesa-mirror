@@ -7962,13 +7962,17 @@ iris_upload_dirty_render_state(struct iris_context *ice,
             uint32_t ps_state[GENX(3DSTATE_PS_length)] = {0};
             _iris_pack_command(batch, GENX(3DSTATE_PS), ps_state, ps) {
 #if GFX_VER >= 9
-               struct brw_fs_prog_data *fs_prog_data = brw_fs_prog_data(shader->brw_prog_data);
+               intel_set_ps_dispatch_state(&ps, batch->screen->devinfo,
+                                           &shader->info,
+                                           brw_fs_prog_data_const(shader->brw_prog_data)->persample_dispatch,
+                                           util_framebuffer_get_num_samples(cso_fb),
+                                           0 /* fs_config */);
 #else
                struct elk_fs_prog_data *fs_prog_data = elk_fs_prog_data(shader->elk_prog_data);
-#endif
                intel_set_ps_dispatch_state(&ps, batch->screen->devinfo,
                                            fs_prog_data, util_framebuffer_get_num_samples(cso_fb),
                                            0 /* fs_config */);
+#endif
 
 #if GFX_VER == 12
                assert(fs_data->dispatch_multi == 0 ||
@@ -7984,24 +7988,24 @@ iris_upload_dirty_render_state(struct iris_context *ice,
 
 #if GFX_VER >= 9
                ps.DispatchGRFStartRegisterForConstantSetupData0 =
-                  brw_fs_prog_data_dispatch_grf_start_reg(
-                     &shader->info, fs_prog_data, ps, 0);
+                  intel_shader_info_fs_dispatch_grf_start_reg(
+                     &shader->info, ps, 0);
                ps.DispatchGRFStartRegisterForConstantSetupData1 =
-                  brw_fs_prog_data_dispatch_grf_start_reg(
-                     &shader->info, fs_prog_data, ps, 1);
+                  intel_shader_info_fs_dispatch_grf_start_reg(
+                     &shader->info, ps, 1);
 #if GFX_VER < 20
                ps.DispatchGRFStartRegisterForConstantSetupData2 =
-                  brw_fs_prog_data_dispatch_grf_start_reg(
-                     &shader->info, fs_prog_data, ps, 2);
+                  intel_shader_info_fs_dispatch_grf_start_reg(
+                     &shader->info, ps, 2);
 #endif
 
                ps.KernelStartPointer0 = KSP(shader) +
-                  brw_fs_prog_data_prog_offset(fs_prog_data, ps, 0);
+                  intel_shader_info_fs_prog_offset(&shader->info, ps, 0);
                ps.KernelStartPointer1 = KSP(shader) +
-                  brw_fs_prog_data_prog_offset(fs_prog_data, ps, 1);
+                  intel_shader_info_fs_prog_offset(&shader->info, ps, 1);
 #if GFX_VER < 20
                ps.KernelStartPointer2 = KSP(shader) +
-                  brw_fs_prog_data_prog_offset(fs_prog_data, ps, 2);
+                  intel_shader_info_fs_prog_offset(&shader->info, ps, 2);
 #endif
 #else
                ps.DispatchGRFStartRegisterForConstantSetupData0 =

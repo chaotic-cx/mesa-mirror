@@ -1029,35 +1029,32 @@ update_ps(struct anv_gfx_dynamic_state *hw_state,
    }
 
    const struct anv_shader *fs = gfx->shaders[MESA_SHADER_FRAGMENT];
+   const struct intel_shader_info *fs_info = &fs->bin->info;
    struct GENX(3DSTATE_PS) ps = {};
-   intel_set_ps_dispatch_state(&ps, device->info, fs_prog_data,
+   intel_set_ps_dispatch_state(&ps, device->info, fs_info,
+                               fs_prog_data->persample_dispatch,
                                MAX2(dyn->ms.rasterization_samples, 1),
                                hw_state->fs_config);
 
    SET(PS, ps.KernelStartPointer0,
            anv_shader_get_pointer(device, &fs->kernel) +
-           brw_fs_prog_data_prog_offset(fs_prog_data, ps, 0));
+           intel_shader_info_fs_prog_offset(fs_info, ps, 0));
    SET(PS, ps.KernelStartPointer1,
            anv_shader_get_pointer(device, &fs->kernel) +
-           brw_fs_prog_data_prog_offset(fs_prog_data, ps, 1));
+           intel_shader_info_fs_prog_offset(fs_info, ps, 1));
 #if GFX_VER < 20
    SET(PS, ps.KernelStartPointer2,
            anv_shader_get_pointer(device, &fs->kernel) +
-           brw_fs_prog_data_prog_offset(fs_prog_data, ps, 2));
+           intel_shader_info_fs_prog_offset(fs_info, ps, 2));
 #endif
 
-   const struct intel_shader_info *fs_info =
-      &gfx->shaders[MESA_SHADER_FRAGMENT]->bin->info;
    SET(PS, ps.DispatchGRFStartRegisterForConstantSetupData0,
-           brw_fs_prog_data_dispatch_grf_start_reg(fs_info,
-                                                   fs_prog_data, ps, 0));
+           intel_shader_info_fs_dispatch_grf_start_reg(fs_info, ps, 0));
    SET(PS, ps.DispatchGRFStartRegisterForConstantSetupData1,
-           brw_fs_prog_data_dispatch_grf_start_reg(fs_info,
-                                                   fs_prog_data, ps, 1));
+           intel_shader_info_fs_dispatch_grf_start_reg(fs_info, ps, 1));
 #if GFX_VER < 20
    SET(PS, ps.DispatchGRFStartRegisterForConstantSetupData2,
-           brw_fs_prog_data_dispatch_grf_start_reg(fs_info,
-                                                   fs_prog_data, ps, 2));
+           intel_shader_info_fs_dispatch_grf_start_reg(fs_info, ps, 2));
 #endif
 
 #if GFX_VER < 20

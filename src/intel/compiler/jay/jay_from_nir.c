@@ -4269,9 +4269,9 @@ setup_payload_dispatch_start(struct nir_to_jay_state *nj,
                               p->offsets[UGPR] / jay_ugpr_per_grf(nj->s);
 
    if (s->stage == MESA_SHADER_FRAGMENT && s->dispatch_width == 32) {
-      s->prog_data->fs.dispatch_grf_start_reg_32 = start_grf;
+      s->info.fs.dispatch_grf_start_reg_32 = start_grf;
    } else if (s->stage == MESA_SHADER_FRAGMENT && s->dispatch_width == 16) {
-      s->prog_data->fs.dispatch_grf_start_reg_16 = start_grf;
+      s->info.fs.dispatch_grf_start_reg_16 = start_grf;
    } else {
       s->info.dispatch_grf_start_reg = start_grf;
    }
@@ -5184,6 +5184,13 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       s->info.bs.simd_size = simd_width;
       s->info.bs.max_stack_size =
          MAX2(s->info.bs.max_stack_size, nir->scratch_size);
+   } else if (s->stage == MESA_SHADER_FRAGMENT) {
+      if (simd_width == 8)
+         s->info.fs.dispatch_8 = true;
+      else if (simd_width == 16)
+         s->info.fs.dispatch_16 = true;
+      else
+         s->info.fs.dispatch_32 = true;
    }
 
    intel_shader_bin *bin =
@@ -5210,25 +5217,14 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       genisa_stats_fprintf(stderr, shader_name, stats);
    }
 
-   if (s->stage == MESA_SHADER_FRAGMENT) {
-      if (simd_width == 8) {
-         prog_data->fs.dispatch_8 = true;
-      } else if (simd_width == 16) {
-         prog_data->fs.dispatch_16 = true;
-         prog_data->fs.prog_offset_16 = 0;
-      } else if (simd_width == 32) {
-         prog_data->fs.dispatch_32 = true;
-         prog_data->fs.prog_offset_32 = 0;
-      }
-   }
-
    ralloc_free(s);
    return bin;
 }
 
 static void
 jay_merge_shader_info(struct intel_shader_info *dst,
-                      const struct intel_shader_info *src)
+                      const struct intel_shader_info *src,
+                      unsigned offset)
 {
    assert(dst->stage == src->stage);
 
@@ -5236,6 +5232,22 @@ jay_merge_shader_info(struct intel_shader_info *dst,
    dst->total_scratch = MAX2(dst->total_scratch, src->total_scratch);
    dst->total_shared = MAX2(dst->total_shared, src->total_shared);
    dst->grf_used = MAX2(dst->grf_used, src->grf_used);
+
+   if (dst->stage == MESA_SHADER_FRAGMENT) {
+      if (src->fs.dispatch_8) {
+         dst->fs.dispatch_8 = true;
+      } else if (src->fs.dispatch_16) {
+         dst->fs.dispatch_16 = true;
+         dst->fs.prog_offset_16 = offset;
+         dst->fs.dispatch_grf_start_reg_16 =
+            src->fs.dispatch_grf_start_reg_16;
+      } else if (src->fs.dispatch_32) {
+         dst->fs.dispatch_32 = true;
+         dst->fs.prog_offset_32 = offset;
+         dst->fs.dispatch_grf_start_reg_32 =
+            src->fs.dispatch_grf_start_reg_32;
+      }
+   }
 }
 
 intel_shader_bin *
@@ -5397,11 +5409,6 @@ jay_compile(const struct intel_device_info *devinfo,
    bin->code = rzalloc_size(bin, total_bin_size);
    bin->code_size = total_bin_size;
    bin->prog_data = &prog_data->base;
-   if (orig_nir->info.stage == MESA_SHADER_FRAGMENT) {
-      prog_data->fs.dispatch_8 = false;
-      prog_data->fs.dispatch_16 = false;
-      prog_data->fs.dispatch_32 = false;
-   }
 
    struct intel_shader_reloc *relocs = NULL;
    if (total_num_relocs > 0) {
@@ -5427,28 +5434,16 @@ jay_compile(const struct intel_device_info *devinfo,
          relocs[reloc_start + r].offset += offset;
       }
 
-      if (orig_nir->info.stage == MESA_SHADER_FRAGMENT) {
-         if (i == 0) {
-            prog_data->fs.dispatch_8 = true;
-         } else if (i == 1) {
-            prog_data->fs.dispatch_16 = true;
-            prog_data->fs.prog_offset_16 = offset;
-         } else if (i == 2) {
-            prog_data->fs.dispatch_32 = true;
-            prog_data->fs.prog_offset_32 = offset;
-         }
-      }
-
-      offset += variants[i].bin->code_size;
-      reloc_start += variants[i].bin->num_relocs;
-
       const struct intel_shader_info *variant_info = &variants[i].bin->info;
       if (s == 0)
          bin->info = *variant_info;
       else
-         jay_merge_shader_info(&bin->info, variant_info);
+         jay_merge_shader_info(&bin->info, variant_info, offset);
 
       bin->stats[s++] = variants[i].bin->stats[0];
+
+      offset += variants[i].bin->code_size;
+      reloc_start += variants[i].bin->num_relocs;
 
       ralloc_free(variants[i].bin);
    }

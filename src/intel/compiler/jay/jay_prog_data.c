@@ -306,7 +306,8 @@ populate_fs_prog_data(nir_shader *shader,
                       const struct brw_fs_prog_key *key,
                       struct brw_fs_prog_data *prog_data,
                       const struct brw_mue_map *mue_map,
-                      int *per_primitive_offsets)
+                      int *per_primitive_offsets,
+                      struct intel_shader_info *info)
 {
    /* Sanity check, the driver should be able to be sensible here. */
    assert(key->multisample_fbo != INTEL_NEVER || !key->persample_interp);
@@ -358,7 +359,7 @@ populate_fs_prog_data(nir_shader *shader,
    prog_data->uses_omask =
       !key->ignore_sample_mask_out &&
       (shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK));
-   prog_data->max_polygons = 1;
+   info->fs.max_polygons = 1;
    prog_data->computed_depth_mode = computed_depth_mode(shader);
    prog_data->computed_stencil =
       shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL);
@@ -614,7 +615,7 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
       memset(per_primitive_offsets, -1, VARYING_SLOT_MAX * sizeof(int));
 
       populate_fs_prog_data(nir, devinfo, &key->fs, &prog_data->fs,
-                            fs_perprim->mue, per_primitive_offsets);
+                            fs_perprim->mue, per_primitive_offsets, info);
    } else if (nir->info.stage == MESA_SHADER_GEOMETRY) {
       populate_gs_prog_data(nir, &key->gs, info);
    }

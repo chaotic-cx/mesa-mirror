@@ -803,6 +803,29 @@ struct intel_shader_info {
          bool include_primitive_id;
       } gs;
       struct {
+         bool dispatch_8;
+         bool dispatch_16;
+         bool dispatch_32;
+
+         /**
+          * Dispatch width of the multi-polygon PS kernel, or 0 if no
+          * multi-polygon kernel was built.
+          */
+         uint8_t dispatch_multi;
+
+         /**
+          * Number of polygons handled in parallel by the multi-polygon PS
+          * kernel.
+          */
+         uint8_t max_polygons;
+
+         uint8_t dispatch_grf_start_reg_16;
+         uint8_t dispatch_grf_start_reg_32;
+
+         uint32_t prog_offset_16;
+         uint32_t prog_offset_32;
+      } fs;
+      struct {
          struct brw_tue_map map;
          bool uses_drawid;
       } task;

@@ -1030,9 +1030,10 @@ emit_ps_shader(struct anv_batch *batch,
    uint32_t ps_dwords[GENX(3DSTATE_PS_length)];
    anv_shader_emit_tmp(batch, ps_dwords, GENX(3DSTATE_PS), ps) {
 #if GFX_VER == 12
-      assert(fs_prog_data->dispatch_multi == 0 ||
-             (fs_prog_data->dispatch_multi == 16 && fs_prog_data->max_polygons == 2));
-      ps.DualSIMD8DispatchEnable = fs_prog_data->dispatch_multi;
+      assert(shader->bin->info.fs.dispatch_multi == 0 ||
+             (shader->bin->info.fs.dispatch_multi == 16 &&
+              shader->bin->info.fs.max_polygons == 2));
+      ps.DualSIMD8DispatchEnable = shader->bin->info.fs.dispatch_multi;
       /* XXX - No major improvement observed from enabling
        *       overlapping subspans, but it could be helpful
        *       in theory when the requirements listed on the

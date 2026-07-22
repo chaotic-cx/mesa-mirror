@@ -450,13 +450,13 @@ compile_shader(struct anv_device *device,
    if (stage == MESA_SHADER_FRAGMENT) {
       if (!ANV_DEBUG(SHADER_PRINT)) {
          unsigned stat_idx = 0;
-         if (prog_data.fs.dispatch_8) {
+         if (bin->info.fs.dispatch_8) {
             check_sends(&bin->stats[stat_idx++], sends_count_expectation);
          }
-         if (prog_data.fs.dispatch_16) {
+         if (bin->info.fs.dispatch_16) {
             check_sends(&bin->stats[stat_idx++], sends_count_expectation);
          }
-         if (prog_data.fs.dispatch_32) {
+         if (bin->info.fs.dispatch_32) {
             check_sends(&bin->stats[stat_idx++], sends_count_expectation *
                                             (device->info->ver < 20 ? 2 : 1));
          }
