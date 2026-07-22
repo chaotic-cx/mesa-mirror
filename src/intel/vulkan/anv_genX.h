@@ -316,17 +316,17 @@ void genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
                                             struct anv_device *device);
 
 #if GFX_VERx10 >= 300
-#define anv_shader_internal_get_handler(devinfo, bin,                \
+#define anv_shader_internal_get_handler(devinfo, shader,             \
                                         local_arg_offset) ({         \
    assert((local_arg_offset) % 8 == 0);                              \
    const struct brw_bs_prog_data *prog_data =                        \
-      brw_bs_prog_data_const(bin->prog_data);                        \
+      brw_bs_prog_data_const(shader->prog_data);                     \
    assert(prog_data->simd_size == 16);                               \
                                                                      \
    (struct GENX(CALL_STACK_HANDLER)) {                               \
       .OffsetToLocalArguments = (local_arg_offset) / 8,              \
       .BindlessShaderDispatchMode = RT_SIMD16,                       \
-      .KernelStartPointer = bin->kernel.offset,                      \
+      .KernelStartPointer = shader->kernel.offset,                   \
       .RegistersPerThread =                                          \
          intel_register_blocks(devinfo, prog_data->base.grf_used),   \
    };                                                                \
@@ -367,34 +367,34 @@ void genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
 #endif
 
 #if GFX_VERx10 >= 300
-#define anv_shader_internal_get_bsr(devinfo, bin,                    \
+#define anv_shader_internal_get_bsr(devinfo, shader,                 \
                                     local_arg_offset) ({             \
    assert((local_arg_offset) % 8 == 0);                              \
    const struct brw_bs_prog_data *prog_data =                        \
-      brw_bs_prog_data_const(bin->prog_data);                        \
+      brw_bs_prog_data_const(shader->prog_data);                     \
    assert(prog_data->simd_size == 16);                               \
                                                                      \
    (struct GENX(BINDLESS_SHADER_RECORD)) {                           \
       .OffsetToLocalArguments = (local_arg_offset) / 8,              \
       .BindlessShaderDispatchMode = RT_SIMD16,                       \
-      .KernelStartPointer = bin->kernel.offset,                      \
+      .KernelStartPointer = shader->kernel.offset,                   \
       .RegistersPerThread =                                          \
          intel_register_blocks(devinfo, prog_data->base.grf_used),   \
    };                                                                \
 })
 #else
-#define anv_shader_internal_get_bsr(devinfo, bin,                    \
+#define anv_shader_internal_get_bsr(devinfo, shader,                 \
                                     local_arg_offset) ({             \
    assert((local_arg_offset) % 8 == 0);                              \
    const struct brw_bs_prog_data *prog_data =                        \
-      brw_bs_prog_data_const(bin->prog_data);                        \
+      brw_bs_prog_data_const(shader->prog_data);                     \
    assert(prog_data->simd_size == 8 || prog_data->simd_size == 16);  \
                                                                      \
    (struct GENX(BINDLESS_SHADER_RECORD)) {                           \
       .OffsetToLocalArguments = (local_arg_offset) / 8,              \
       .BindlessShaderDispatchMode =                                  \
          prog_data->simd_size == 16 ? RT_SIMD16 : RT_SIMD8,          \
-      .KernelStartPointer = bin->kernel.offset,                      \
+      .KernelStartPointer = shader->kernel.offset,                   \
    };                                                                \
 })
 #endif

@@ -162,17 +162,28 @@ anv_shader_deserialize(struct vk_device *vk_device,
 
    mesa_shader_stage stage = blob_read_uint32(blob);
 
+   intel_shader_bin bin = {};
+   blob_copy_bytes(blob, &bin.info, sizeof(bin.info));
+
    uint32_t code_len = blob_read_uint32(blob);
    data.code = (void *)blob_read_bytes(blob, code_len);
 
    blob_copy_bytes(blob, &data.prog_data, brw_prog_data_size(stage));
-
    data.prog_data.base.relocs =
       blob_read_bytes(blob, data.prog_data.base.num_relocs *
                       sizeof(data.prog_data.base.relocs[0]));
 
    data.num_stats = blob_read_uint32(blob);
+   if (data.num_stats > ARRAY_SIZE(data.stats))
+      return vk_error(device, VK_ERROR_UNKNOWN);
    blob_copy_bytes(blob, data.stats, data.num_stats * sizeof(data.stats[0]));
+
+   bin.code = data.code;
+   bin.code_size = code_len;
+   bin.prog_data = &data.prog_data.base;
+   bin.num_stats = data.num_stats;
+   typed_memcpy(bin.stats, data.stats, data.num_stats);
+   data.bin = &bin;
 
    uint32_t xfb_size = blob_read_uint32(blob);
    if (xfb_size)
@@ -215,7 +226,7 @@ anv_shader_deserialize(struct vk_device *vk_device,
                    sizeof(data.bind_map.dynamic_descriptors));
    data.bind_map.inferred_behavior = blob_read_uint8(blob);
 
-   if (blob->overrun)
+   if (bin.info.stage != stage || blob->overrun)
       return vk_error(device, VK_ERROR_UNKNOWN);
 
    VkResult result =
@@ -234,22 +245,23 @@ anv_shader_serialize(struct vk_device *device,
 
    blob_write_uint32(blob, vk_shader->stage);
 
-   blob_write_uint32(blob, shader->prog_data->program_size);
-   blob_write_bytes(blob, shader->code, shader->prog_data->program_size);
+   blob_write_bytes(blob, &shader->bin->info, sizeof(shader->bin->info));
+   blob_write_uint32(blob, shader->bin->code_size);
+   blob_write_bytes(blob, shader->bin->code, shader->bin->code_size);
 
+   const unsigned prog_data_size = brw_prog_data_size(vk_shader->stage);
    union brw_any_prog_data prog_data;
-   memcpy(&prog_data, shader->prog_data, brw_prog_data_size(vk_shader->stage));
+   assert(prog_data_size <= sizeof(prog_data));
+   memcpy(&prog_data, shader->prog_data, prog_data_size);
    prog_data.base.relocs = NULL;
-
-   blob_write_bytes(blob, &prog_data, brw_prog_data_size(vk_shader->stage));
-
+   blob_write_bytes(blob, &prog_data, prog_data_size);
    blob_write_bytes(blob, shader->prog_data->relocs,
                     shader->prog_data->num_relocs *
                     sizeof(shader->prog_data->relocs[0]));
 
-   blob_write_uint32(blob, shader->num_stats);
-   blob_write_bytes(blob, shader->stats,
-                    shader->num_stats * sizeof(shader->stats[0]));
+   blob_write_uint32(blob, shader->bin->num_stats);
+   blob_write_bytes(blob, shader->bin->stats,
+                    shader->bin->num_stats * sizeof(shader->bin->stats[0]));
 
    if (shader->xfb_info) {
       uint32_t xfb_info_size =
@@ -819,6 +831,7 @@ anv_shader_create(struct anv_device *device,
                            brw_prog_data_size(stage));
    VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc, prog_data_relocs,
                       shader_data->prog_data.base.num_relocs);
+   VK_MULTIALLOC_DECL(&ma, intel_shader_bin, bin, 1);
 
    VK_MULTIALLOC_DECL_SIZE(&ma, nir_xfb_info, xfb_info,
                            shader_data->xfb_info == NULL ? 0 :
@@ -877,6 +890,16 @@ anv_shader_create(struct anv_device *device,
    prog_data->relocs = prog_data_relocs;
 
    shader->prog_data = prog_data;
+
+   shader->bin = bin;
+   *bin = *shader_data->bin;
+   bin->code = shader->code;
+   bin->prog_data = prog_data;
+
+   /* TODO: Remove once BRW reports statistics through the shader bin. */
+   assert(shader_data->num_stats <= ARRAY_SIZE(bin->stats));
+   bin->num_stats = shader_data->num_stats;
+   typed_memcpy(bin->stats, shader_data->stats, shader_data->num_stats);
 
    shader->num_stats = shader_data->num_stats;
    typed_memcpy(shader->stats, shader_data->stats, shader_data->num_stats);

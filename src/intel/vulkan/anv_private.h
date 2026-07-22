@@ -1319,6 +1319,8 @@ struct anv_shader {
 
    struct anv_shader_alloc kernel;
 
+   intel_shader_bin *bin;
+
    const struct brw_stage_prog_data *prog_data;
 
    struct genisa_stats stats[3];
@@ -5611,6 +5613,8 @@ struct anv_shader_internal {
 
    struct anv_shader_alloc kernel;
    uint32_t kernel_size;
+
+   intel_shader_bin *bin;
 
    const struct brw_stage_prog_data *prog_data;
    uint32_t prog_data_size;

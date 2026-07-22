@@ -2526,6 +2526,7 @@ anv_shader_compile(struct vk_device *vk_device,
 
          if (bin) {
             shader_data->code = bin->code;
+            shader_data->bin = bin;
             for (unsigned i = 0; i < bin->num_stats; i++)
                shader_data->stats[i] = bin->stats[i];
 
@@ -2546,6 +2547,7 @@ anv_shader_compile(struct vk_device *vk_device,
 
          const intel_shader_bin *bin = brw_compile(compiler, &params);
          shader_data->code = bin ? bin->code : NULL;
+         shader_data->bin = bin;
       }
 
       /* The compiler should not alter this. */

@@ -92,6 +92,11 @@ struct anv_shader_data {
 
    union brw_any_prog_data prog_data;
 
+   /* Compile output.  On the deserialization path this points at a
+    * temporary bin read from the blob.
+    */
+   const intel_shader_bin *bin;
+
    uint64_t source_hash;
 
    /* Per-shader workaround from source_hash (NULL if none), for compile-time
