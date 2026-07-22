@@ -188,13 +188,13 @@ iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader,
    assert(shader->stage == MESA_SHADER_COMPUTE);
    struct iris_cs_data *iris = &shader->cs;
 
-   iris->push.cross_thread.dwords = brw->push.cross_thread.dwords;
-   iris->push.cross_thread.regs   = brw->push.cross_thread.regs;
-   iris->push.cross_thread.size   = brw->push.cross_thread.size;
+   iris->push.cross_thread.dwords = info->cs.push.cross_thread.dwords;
+   iris->push.cross_thread.regs   = info->cs.push.cross_thread.regs;
+   iris->push.cross_thread.size   = info->cs.push.cross_thread.size;
 
-   iris->push.per_thread.dwords = brw->push.per_thread.dwords;
-   iris->push.per_thread.regs   = brw->push.per_thread.regs;
-   iris->push.per_thread.size   = brw->push.per_thread.size;
+   iris->push.per_thread.dwords = info->cs.push.per_thread.dwords;
+   iris->push.per_thread.regs   = info->cs.push.per_thread.regs;
+   iris->push.per_thread.size   = info->cs.push.per_thread.size;
 
    iris->local_size[0]  = info->wg.local_size[0];
    iris->local_size[1]  = info->wg.local_size[1];
@@ -203,11 +203,11 @@ iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader,
    iris->prog_offset[1] = info->wg.prog_offset[1];
    iris->prog_offset[2] = info->wg.prog_offset[2];
 
-   iris->generate_local_id = brw->generate_local_id;
-   iris->walk_order        = brw->walk_order;
+   iris->generate_local_id = info->cs.generate_local_id;
+   iris->walk_order        = info->cs.walk_order;
    iris->uses_barrier      = info->wg.uses_barrier;
-   iris->uses_fence        = brw->uses_fence;
-   iris->uses_sampler      = brw->uses_sampler;
+   iris->uses_fence        = info->cs.uses_fence;
+   iris->uses_sampler      = info->cs.uses_sampler;
    iris->prog_mask         = info->wg.prog_mask;
 
    /* The pushed constants only contain the subgroup_id */
@@ -4575,8 +4575,7 @@ iris_cs_push_const_total_size(const struct iris_compiled_shader *shader,
       UNREACHABLE("no elk support");
 #endif
    } else {
-      return brw_cs_push_const_total_size(brw_cs_prog_data(shader->brw_prog_data),
-                                          threads);
+      return brw_cs_push_const_total_size(&shader->info, threads);
    }
 }
 

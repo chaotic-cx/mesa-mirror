@@ -134,14 +134,6 @@ brw_compile_cs(const struct brw_compiler *compiler,
 
    const unsigned ray_queries = nir->info.ray_queries;
 
-   /* TODO: Temporary, while code still reads these from prog_data instead of
-    * the compile params.
-    */
-   prog_data->generate_local_id = params->cs.dispatch.generate_local_id;
-   prog_data->walk_order = params->cs.dispatch.walk_order;
-   prog_data->push = params->cs.push;
-   prog_data->force_simd32 = params->cs.force_simd32;
-
    uint32_t local_size[3] = {};
    if (!nir->info.workgroup_size_variable) {
       local_size[0] = nir->info.workgroup_size[0];
@@ -178,7 +170,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
          pressure[i] > compiler->register_pressure_threshold;
    }
 
-   prog_data->uses_sampler = brw_nir_uses_sampler(params->nir);
+   const bool uses_sampler = brw_nir_uses_sampler(params->nir);
 
    std::unique_ptr<brw_shader> v[3];
 
@@ -219,7 +211,12 @@ brw_compile_cs(const struct brw_compiler *compiler,
                .local_size = { local_size[0], local_size[1], local_size[2] },
             },
             .cs = {
+               .walk_order = params->cs.dispatch.walk_order,
+               .push = params->cs.push,
                .uses_btd_stack_ids = params->cs.uses_btd_stack_ids,
+               .uses_sampler = uses_sampler,
+               .force_simd32 = params->cs.force_simd32,
+               .generate_local_id = params->cs.dispatch.generate_local_id,
             },
          },
          .dispatch_width          = dispatch_width,

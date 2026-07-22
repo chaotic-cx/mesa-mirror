@@ -4224,7 +4224,7 @@ brw_from_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
 
    case nir_intrinsic_load_local_invocation_id:
       /* This is only used for hardware generated local IDs. */
-      assert(brw_cs_prog_data(s.prog_data)->generate_local_id);
+      assert(s.info.cs.generate_local_id);
 
       dest.type = BRW_TYPE_UD;
 
@@ -5029,10 +5029,8 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
             break;
       }
 
-      if (s.stage == MESA_SHADER_COMPUTE) {
-         struct brw_cs_prog_data *cs_prog_data = brw_cs_prog_data(s.prog_data);
-         cs_prog_data->uses_fence = true;
-      }
+      if (s.stage == MESA_SHADER_COMPUTE)
+         s.info.cs.uses_fence = true;
 
       unsigned fence_regs_count = 0;
       brw_reg fence_regs[4] = {};

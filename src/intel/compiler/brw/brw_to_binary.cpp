@@ -2762,6 +2762,12 @@ brw_to_binary(const brw_to_binary_params *p)
          auto *dst = &bin->info.cs;
          const auto *src = &shader->info.cs;
          assert(dst->uses_btd_stack_ids == src->uses_btd_stack_ids);
+         assert(dst->force_simd32 == src->force_simd32);
+         assert(dst->generate_local_id == src->generate_local_id);
+         assert(dst->walk_order == src->walk_order);
+         assert(memcmp(&dst->push, &src->push, sizeof(dst->push)) == 0);
+         dst->uses_fence |= src->uses_fence;
+         dst->uses_sampler |= src->uses_sampler;
       }
    }
    for (unsigned i = 0; i < p->num_resume_shaders; i++) {

@@ -583,6 +583,17 @@ struct intel_push_layout {
 struct brw_stage_prog_data;
 struct intel_shader_reloc;
 
+struct brw_push_const_block {
+   unsigned dwords;     /* Dword count, not reg aligned */
+   unsigned regs;
+   unsigned size;       /* Bytes, register aligned */
+};
+
+struct brw_cs_push_const_info {
+   struct brw_push_const_block cross_thread;
+   struct brw_push_const_block per_thread;
+};
+
 struct brw_tess_info {
    enum tess_primitive_mode primitive_mode:8;
    uint8_t                         spacing:2;
@@ -678,7 +689,19 @@ struct intel_shader_info {
          bool uses_drawid;
       } vs;
       struct {
+         enum intel_compute_walk_order walk_order;
+         struct brw_cs_push_const_info push;
+
+         bool uses_fence;
          bool uses_btd_stack_ids;
+
+         /* True if shader has any sample operation */
+         bool uses_sampler;
+
+         /* True if the shader was compiled with SIMD32 forced */
+         bool force_simd32;
+
+         uint8_t generate_local_id;
       } cs;
       struct {
          struct brw_tess_info tess_info;

@@ -1133,13 +1133,11 @@ emit_cs_shader(struct anv_batch *batch,
 {
    const struct intel_device_info *devinfo = device->info;
    const intel_shader_bin *bin = shader->bin;
-   const struct brw_cs_prog_data *cs_prog_data =
-      get_shader_cs_prog_data(shader);
    const struct intel_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(devinfo, &bin->info, NULL);
    UNUSED const enum intel_compute_walk_order walk_order =
       anv_compute_walk_order(device->physical->drirc.perf.force_preferred_walk_order,
-                             cs_prog_data->walk_order);
+                             bin->info.cs.walk_order);
 
    if (GFX_VERx10 >= 350 && device->physical->uses_efficient_64bit) {
 #if GFX_VERx10 >= 350
@@ -1151,7 +1149,7 @@ emit_cs_shader(struct anv_batch *batch,
 
       intel_compute_engine_async_threads_limit(device->info, dispatch.threads,
                                                slm_or_barrier_enabled,
-                                               cs_prog_data->uses_fence,
+                                               bin->info.cs.uses_fence,
                                                &pixel_async_compute_thread_limit,
                                                &z_pass_async_compute_thread_limit,
                                                &np_z_async_throttle_settings);
@@ -1161,14 +1159,16 @@ emit_cs_shader(struct anv_batch *batch,
          .StackIDControl         = genX(compute_walker2_get_stack_id_control_value)(device),
          .SIMDSize               = dispatch.simd_size / 16,
          .MessageSIMD            = dispatch.simd_size / 16,
-         .GenerateLocalID        = cs_prog_data->generate_local_id != 0,
-         .EmitLocal              = cs_prog_data->generate_local_id,
+         .GenerateLocalID        = bin->info.cs.generate_local_id != 0,
+         .EmitLocal              = bin->info.cs.generate_local_id,
          .EmitInlineParameter    = true,
          .WalkOrder              = walk_order,
          .TileLayout             = walk_order == INTEL_WALK_ORDER_YXZ ?
                                    TL_TileY32bpe : TL_Linear,
-         .DispatchWalkOrder      = cs_prog_data->uses_sampler ? DWO_Morton2x2XYWalk : DWO_LinearWalk,
-         .ThreadGroupBatchSize   = cs_prog_data->uses_sampler ? TGBS_TG_BATCH_4 : TGBS_TG_BATCH_1,
+         .DispatchWalkOrder      = bin->info.cs.uses_sampler ?
+                                   DWO_Morton2x2XYWalk : DWO_LinearWalk,
+         .ThreadGroupBatchSize   = bin->info.cs.uses_sampler ?
+                                   TGBS_TG_BATCH_4 : TGBS_TG_BATCH_1,
          .ExecutionMask          = dispatch.right_mask,
          .LocalXMaximum          = bin->info.wg.local_size[0] - 1,
          .LocalYMaximum          = bin->info.wg.local_size[1] - 1,
@@ -1209,18 +1209,18 @@ emit_cs_shader(struct anv_batch *batch,
           * increasing sample address locality within a subslice.
           */
 #if GFX_VER >= 30
-         .DispatchWalkOrder        = cs_prog_data->uses_sampler ?
-         MortonWalk : LinearWalk,
-         .ThreadGroupBatchSize     = cs_prog_data->uses_sampler ?
-         TG_BATCH_4 : TG_BATCH_1,
+         .DispatchWalkOrder              = bin->info.cs.uses_sampler ?
+                                           MortonWalk : LinearWalk,
+         .ThreadGroupBatchSize           = bin->info.cs.uses_sampler ?
+                                           TG_BATCH_4 : TG_BATCH_1,
 #endif
          .SIMDSize                       = dispatch.simd_size / 16,
          .MessageSIMD                    = dispatch.simd_size / 16,
-         .GenerateLocalID                = cs_prog_data->generate_local_id != 0,
-         .EmitLocal                      = cs_prog_data->generate_local_id,
+         .GenerateLocalID                = bin->info.cs.generate_local_id != 0,
+         .EmitLocal                      = bin->info.cs.generate_local_id,
          .WalkOrder                      = walk_order,
          .TileLayout                     = walk_order == INTEL_WALK_ORDER_YXZ ?
-         TileY32bpe : Linear,
+                                           TileY32bpe : Linear,
          .LocalXMaximum                  = bin->info.wg.local_size[0] - 1,
          .LocalYMaximum                  = bin->info.wg.local_size[1] - 1,
          .LocalZMaximum                  = bin->info.wg.local_size[2] - 1,
@@ -1253,8 +1253,8 @@ emit_cs_shader(struct anv_batch *batch,
                                      &walker);
 #else
       const uint32_t vfe_curbe_allocation =
-         align(cs_prog_data->push.per_thread.regs * dispatch.threads +
-               cs_prog_data->push.cross_thread.regs, 2);
+         align(bin->info.cs.push.per_thread.regs * dispatch.threads +
+               bin->info.cs.push.cross_thread.regs, 2);
 
       anv_shader_emit(batch, shader, cs.gfx9.vfe, GENX(MEDIA_VFE_STATE), vfe) {
          vfe.StackSize              = 0;
@@ -1287,9 +1287,9 @@ emit_cs_shader(struct anv_batch *batch,
             GFX_VER, bin->info.total_shared),
 
          .ConstantURBEntryReadOffset = 0,
-         .ConstantURBEntryReadLength = cs_prog_data->push.per_thread.regs,
+         .ConstantURBEntryReadLength = bin->info.cs.push.per_thread.regs,
          .CrossThreadConstantDataReadLength =
-         cs_prog_data->push.cross_thread.regs,
+            bin->info.cs.push.cross_thread.regs,
 #if GFX_VER >= 12
          /* TODO: Check if we are missing workarounds and enable mid-thread
           * preemption.
@@ -1329,8 +1329,6 @@ genX(write_cs_descriptor)(struct anv_dgc_cs_descriptor *desc,
                                 push_range->start : 0),
    };
 
-   const struct brw_cs_prog_data *prog_data =
-      brw_cs_prog_data_const(shader->prog_data);
    const struct intel_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(device->info, &shader->bin->info, NULL);
 
@@ -1391,11 +1389,11 @@ genX(write_cs_descriptor)(struct anv_dgc_cs_descriptor *desc,
           sizeof(desc->gfx9.interface_descriptor_data));
 
    desc->gfx9.n_threads = dispatch.threads;
-   desc->gfx9.cross_thread_push_size = prog_data->push.cross_thread.size;
-   desc->gfx9.per_thread_push_size = prog_data->push.per_thread.size;
+   desc->gfx9.cross_thread_push_size = shader->bin->info.cs.push.cross_thread.size;
+   desc->gfx9.per_thread_push_size = shader->bin->info.cs.push.per_thread.size;
    desc->gfx9.subgroup_id_offset =
       offsetof(struct anv_push_constants, subgroup_id) -
-      (32 * push_range->start + prog_data->push.cross_thread.size);
+      (32 * push_range->start + shader->bin->info.cs.push.cross_thread.size);
 
    GENX(GPGPU_WALKER_pack)(NULL, desc->gfx9.gpgpu_walker,
                            &(struct GENX(GPGPU_WALKER)) {

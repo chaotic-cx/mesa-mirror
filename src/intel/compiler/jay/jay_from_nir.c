@@ -918,7 +918,7 @@ emit_lsc_fence(struct nir_to_jay_state *nj,
    }
 
    if (mesa_shader_stage_is_compute(nj->nir->info.stage)) {
-      nj->s->prog_data->cs.uses_fence = true;
+      nj->s->info.cs.uses_fence = true;
    }
 
    jay_def notif = jay_alloc_def(&nj->bld, UGPR, 32, jay_ugpr_per_grf(nj->s));
@@ -3657,7 +3657,7 @@ jay_emit_texture(struct nir_to_jay_state *nj, nir_tex_instr *tex)
    }
 
    if (mesa_shader_stage_is_compute(b->shader->stage)) {
-      b->shader->prog_data->cs.uses_sampler |= !nir_tex_instr_is_query(tex);
+      b->shader->info.cs.uses_sampler |= !nir_tex_instr_is_query(tex);
    }
 }
 
@@ -4409,7 +4409,7 @@ setup_compute_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
    if (nj->s->params->cs.uses_btd_stack_ids)
       nj->payload.u1 = read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
 
-   u_foreach_bit(axis, nj->s->prog_data->cs.generate_local_id) {
+   u_foreach_bit(axis, nj->s->info.cs.generate_local_id) {
       nj->payload.cs.local_invocation_ids[axis] =
          read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
    }
@@ -5250,13 +5250,6 @@ jay_compile(const struct intel_device_info *devinfo,
       .mue = params->fs.mue_map,
    };
 
-   if (mesa_shader_stage_is_compute(nir->info.stage)) {
-      prog_data->cs.walk_order = params->cs.dispatch.walk_order;
-      prog_data->cs.generate_local_id = params->cs.dispatch.generate_local_id;
-      prog_data->cs.push = params->cs.push;
-      prog_data->cs.force_simd32 = params->cs.force_simd32;
-   }
-
    struct intel_shader_info info = {
       .source_hash = params->source_hash,
       .push_layout = params->push_layout,
@@ -5265,8 +5258,13 @@ jay_compile(const struct intel_device_info *devinfo,
       .ray_queries = nir->info.ray_queries,
    };
 
-   if (mesa_shader_stage_is_compute(nir->info.stage))
+   if (mesa_shader_stage_is_compute(nir->info.stage)) {
+      info.cs.walk_order = params->cs.dispatch.walk_order;
+      info.cs.generate_local_id = params->cs.dispatch.generate_local_id;
+      info.cs.push = params->cs.push;
+      info.cs.force_simd32 = params->cs.force_simd32;
       info.cs.uses_btd_stack_ids = params->cs.uses_btd_stack_ids;
+   }
 
    if (mesa_shader_stage_uses_workgroup(nir->info.stage) &&
        !nir->info.workgroup_size_variable) {

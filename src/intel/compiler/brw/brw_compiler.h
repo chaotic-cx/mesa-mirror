@@ -749,31 +749,8 @@ _brw_fs_prog_data_dispatch_grf_start_reg(const struct intel_shader_info *info,
    _brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, \
       brw_wm_state_simd_width_for_ksp(wm_state, ksp_idx))
 
-struct brw_push_const_block {
-   unsigned dwords;     /* Dword count, not reg aligned */
-   unsigned regs;
-   unsigned size;       /* Bytes, register aligned */
-};
-
-struct brw_cs_push_const_info {
-   struct brw_push_const_block cross_thread;
-   struct brw_push_const_block per_thread;
-};
-
 struct brw_cs_prog_data {
    struct brw_stage_prog_data base;
-
-   bool uses_fence;
-   uint8_t generate_local_id;
-   enum intel_compute_walk_order walk_order;
-
-   /* True if shader has any sample operation */
-   bool uses_sampler;
-
-   /* True if the shader was compiled with SIMD32 forced */
-   bool force_simd32;
-
-   struct brw_cs_push_const_info push;
 };
 
 static inline uint32_t
@@ -1177,7 +1154,7 @@ brw_compile(const struct brw_compiler *compiler,
             struct brw_compile_params *params);
 
 unsigned
-brw_cs_push_const_total_size(const struct brw_cs_prog_data *cs_prog_data,
+brw_cs_push_const_total_size(const struct intel_shader_info *info,
                              unsigned threads);
 
 void

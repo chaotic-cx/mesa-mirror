@@ -974,7 +974,7 @@ anv_shader_create(struct anv_device *device,
 
    case MESA_SHADER_COMPUTE:
       if (device->info->ver >= 20 &&
-          brw_cs_prog_data_const(shader->prog_data)->force_simd32 !=
+          shader->bin->info.cs.force_simd32 !=
           shader->workaround.force_xe2_simd32_cs) {
          anv_perf_warn(VK_LOG_OBJS(&device->vk.base),
                        "Compute shader 0x%016"PRIx64" for disk cache not "

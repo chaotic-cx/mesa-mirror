@@ -1001,13 +1001,13 @@ brw_pass_tracker_archive(brw_pass_tracker *pt, const char *pass_name)
 #endif
 
 unsigned
-brw_cs_push_const_total_size(const struct brw_cs_prog_data *cs_prog_data,
+brw_cs_push_const_total_size(const struct intel_shader_info *info,
                              unsigned threads)
 {
-   assert(cs_prog_data->push.per_thread.size % REG_SIZE == 0);
-   assert(cs_prog_data->push.cross_thread.size % REG_SIZE == 0);
-   return cs_prog_data->push.per_thread.size * threads +
-          cs_prog_data->push.cross_thread.size;
+   assert(info->cs.push.per_thread.size % REG_SIZE == 0);
+   assert(info->cs.push.cross_thread.size % REG_SIZE == 0);
+   return info->cs.push.per_thread.size * threads +
+          info->cs.push.cross_thread.size;
 }
 
 struct intel_cs_dispatch_info

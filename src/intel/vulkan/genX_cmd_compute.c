@@ -479,7 +479,7 @@ compute_update_async_threads_limit(struct anv_cmd_buffer *cmd_buffer,
 
    intel_compute_engine_async_threads_limit(devinfo, dispatch->threads,
                                             slm_or_barrier_enabled,
-                                            prog_data->uses_fence,
+                                            bin->info.cs.uses_fence,
                                             &pixel_async_compute_thread_limit,
                                             &z_pass_async_compute_thread_limit,
                                             &np_z_async_throttle_settings);
@@ -1554,6 +1554,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
    const struct intel_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(device->info,
                                &device->rt_trampoline->bin->info, NULL);
+   UNUSED const bool uses_sampler =
+      device->rt_trampoline->bin->info.cs.uses_sampler;
    const uint32_t max_tile_size =
       device->info->max_cs_workgroup_threads * dispatch.simd_size;
 
@@ -1670,8 +1672,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
          .ThreadGroupIDZDimension        = global_size[2],
          .ExecutionMask                  = dispatch.right_mask,
          .EmitInlineParameter            = true,
-         .DispatchWalkOrder              = cs_prog_data->uses_sampler ? MortonWalk : LinearWalk,
-         .ThreadGroupBatchSize           = cs_prog_data->uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
+         .DispatchWalkOrder              = uses_sampler ? MortonWalk : LinearWalk,
+         .ThreadGroupBatchSize           = uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
          .Post_sync_opn0.MOCS            = anv_mocs(device, NULL, 0),
          .Post_sync_opn1.MOCS            = anv_mocs(device, NULL, 0),
          .Post_sync_opn2.MOCS            = anv_mocs(device, NULL, 0),
@@ -1719,8 +1721,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
          .PostSync.MOCS                  = anv_mocs(cmd_buffer->device, NULL, 0),
 #if GFX_VER >= 30
          /* HSD 14016252163 */
-         .DispatchWalkOrder = cs_prog_data->uses_sampler ? MortonWalk : LinearWalk,
-         .ThreadGroupBatchSize = cs_prog_data->uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
+         .DispatchWalkOrder = uses_sampler ? MortonWalk : LinearWalk,
+         .ThreadGroupBatchSize = uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
 #endif
 
          .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {

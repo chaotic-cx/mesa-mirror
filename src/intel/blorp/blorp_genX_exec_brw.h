@@ -2008,11 +2008,10 @@ blorp_get_compute_push_const(struct blorp_batch *batch,
                              uint32_t *state_surfaces_offset,
                              uint32_t *state_sampler_offset)
 {
-   const struct brw_cs_prog_data *cs_prog_data = params->cs_prog_data;
    uint32_t push_const_size =
-      align(brw_cs_push_const_total_size(cs_prog_data, threads), 64);
-   assert(cs_prog_data->push.cross_thread.size +
-          cs_prog_data->push.per_thread.size == sizeof(params->wm_inputs));
+      align(brw_cs_push_const_total_size(params->cs_info, threads), 64);
+   assert(params->cs_info->cs.push.cross_thread.size +
+          params->cs_info->cs.push.per_thread.size == sizeof(params->wm_inputs));
 
 #if GFX_VERx10 >= 350
    const bool use_efficient_64bit = params->use_efficient_64bit;
@@ -2046,22 +2045,22 @@ blorp_get_compute_push_const(struct blorp_batch *batch,
    void *dst = push_const;
    const void *src = (char *)&params->wm_inputs;
 
-   if (cs_prog_data->push.cross_thread.size > 0) {
-      memcpy(dst, src, cs_prog_data->push.cross_thread.size);
-      dst += cs_prog_data->push.cross_thread.size;
-      src += cs_prog_data->push.cross_thread.size;
+   if (params->cs_info->cs.push.cross_thread.size > 0) {
+      memcpy(dst, src, params->cs_info->cs.push.cross_thread.size);
+      dst += params->cs_info->cs.push.cross_thread.size;
+      src += params->cs_info->cs.push.cross_thread.size;
    }
 
-   assert(GFX_VERx10 < 125 || cs_prog_data->push.per_thread.size == 0);
+   assert(GFX_VERx10 < 125 || params->cs_info->cs.push.per_thread.size == 0);
 #if GFX_VERx10 < 125
-   if (cs_prog_data->push.per_thread.size > 0) {
+   if (params->cs_info->cs.push.per_thread.size > 0) {
       for (unsigned t = 0; t < threads; t++) {
-         memcpy(dst, src, (cs_prog_data->push.per_thread.dwords - 1) * 4);
+         memcpy(dst, src, (params->cs_info->cs.push.per_thread.dwords - 1) * 4);
 
-         uint32_t *subgroup_id = dst + cs_prog_data->push.per_thread.size - 4;
+         uint32_t *subgroup_id = dst + params->cs_info->cs.push.per_thread.size - 4;
          *subgroup_id = t;
 
-         dst += cs_prog_data->push.per_thread.size;
+         dst += params->cs_info->cs.push.per_thread.size;
       }
    }
 #endif
@@ -2250,9 +2249,9 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
    blorp_measure_start(batch, params);
 
    const struct intel_device_info *devinfo = batch->blorp->compiler->brw->devinfo;
-   const struct brw_cs_prog_data *cs_prog_data = params->cs_prog_data;
    const struct intel_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(devinfo, params->cs_info, NULL);
+   UNUSED const bool uses_sampler = params->cs_info->cs.uses_sampler;
 
    bool use_indirect = blorp_op_type_is_indirect(params->op);
 
@@ -2304,7 +2303,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
       intel_compute_engine_async_threads_limit(devinfo, dispatch.threads,
                                                slm_or_barrier_enabled,
-                                               cs_prog_data->uses_fence,
+                                               params->cs_info->cs.uses_fence,
                                                &pixel_async_compute_thread_limit,
                                                &z_pass_async_compute_thread_limit,
                                                &np_z_async_throttle_settings);
@@ -2345,14 +2344,14 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
             [BLORP_INLINE_PARAM_SAMPLER_UDW / 4]                     = sampler_addr64 >> 32,
          },
 
-         .GenerateLocalID                = cs_prog_data->generate_local_id != 0,
-         .EmitLocal                      = cs_prog_data->generate_local_id,
-         .WalkOrder                      = cs_prog_data->walk_order,
-         .TileLayout                     = cs_prog_data->walk_order == INTEL_WALK_ORDER_YXZ ?
+         .GenerateLocalID                = params->cs_info->cs.generate_local_id != 0,
+         .EmitLocal                      = params->cs_info->cs.generate_local_id,
+         .WalkOrder                      = params->cs_info->cs.walk_order,
+         .TileLayout                     = params->cs_info->cs.walk_order == INTEL_WALK_ORDER_YXZ ?
                                            TileY32bpe : Linear,
          /* HSD 14016252163 */
-         .DispatchWalkOrder              = cs_prog_data->uses_sampler ? MortonWalk : LinearWalk,
-         .ThreadGroupBatchSize           = cs_prog_data->uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
+         .DispatchWalkOrder              = uses_sampler ? MortonWalk : LinearWalk,
+         .ThreadGroupBatchSize           = uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
          .StatCountDisable               = true,
 
          .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA_2)) {
@@ -2379,7 +2378,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          },
       };
 
-      assert(cs_prog_data->push.per_thread.regs == 0);
+      assert(params->cs_info->cs.push.per_thread.regs == 0);
       blorp_emit(batch, GENX(COMPUTE_WALKER_2), cw) {
          cw.IndirectParameterEnable = use_indirect;
          cw.body = body;
@@ -2402,7 +2401,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
          intel_compute_engine_async_threads_limit(devinfo, dispatch.threads,
                                                   slm_or_barrier_enabled,
-                                                  cs_prog_data->uses_fence,
+                                                  params->cs_info->cs.uses_fence,
                                                   &pixel_async_compute_thread_limit,
                                                   &z_pass_async_compute_thread_limit,
                                                   &np_z_async_throttle_settings);
@@ -2452,15 +2451,15 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
             [BLORP_INLINE_PARAM_THREAD_GROUP_ID_Z_DIMENSION / 4 + 0] = params->num_layers,
          },
 
-         .GenerateLocalID                = cs_prog_data->generate_local_id != 0,
-         .EmitLocal                      = cs_prog_data->generate_local_id,
-         .WalkOrder                      = cs_prog_data->walk_order,
-         .TileLayout                     = cs_prog_data->walk_order == INTEL_WALK_ORDER_YXZ ?
+         .GenerateLocalID                = params->cs_info->cs.generate_local_id != 0,
+         .EmitLocal                      = params->cs_info->cs.generate_local_id,
+         .WalkOrder                      = params->cs_info->cs.walk_order,
+         .TileLayout                     = params->cs_info->cs.walk_order == INTEL_WALK_ORDER_YXZ ?
                                            TileY32bpe : Linear,
 #if GFX_VER >= 30
          /* HSD 14016252163 */
-         .DispatchWalkOrder              = cs_prog_data->uses_sampler ? MortonWalk : LinearWalk,
-         .ThreadGroupBatchSize           = cs_prog_data->uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
+         .DispatchWalkOrder              = uses_sampler ? MortonWalk : LinearWalk,
+         .ThreadGroupBatchSize           = uses_sampler ? TG_BATCH_4 : TG_BATCH_1,
 #endif
 
          .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
@@ -2490,7 +2489,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          },
       };
 
-      assert(cs_prog_data->push.per_thread.regs == 0);
+      assert(params->cs_info->cs.push.per_thread.regs == 0);
       blorp_emit(batch, GENX(COMPUTE_WALKER), cw) {
          cw.IndirectParameterEnable = use_indirect;
          cw.body = body;
@@ -2526,8 +2525,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          vfe.URBEntryAllocationSize = 2;
 
          const uint32_t vfe_curbe_allocation =
-            align(cs_prog_data->push.per_thread.regs * dispatch.threads +
-                  cs_prog_data->push.cross_thread.regs, 2);
+            align(params->cs_info->cs.push.per_thread.regs * dispatch.threads +
+                  params->cs_info->cs.push.cross_thread.regs, 2);
          vfe.CURBEAllocationSize = vfe_curbe_allocation;
       }
 
@@ -2544,13 +2543,13 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          .SamplerCount = params->src.enabled ? 1 : 0,
          .BindingTableEntryCount = params->src.enabled ? 2 : 1,
          .BindingTablePointer = surfaces_offset,
-         .ConstantURBEntryReadLength = cs_prog_data->push.per_thread.regs,
+         .ConstantURBEntryReadLength = params->cs_info->cs.push.per_thread.regs,
          .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
          .SharedLocalMemorySize = intel_compute_slm_encode_size(GFX_VER,
-                                                                params->cs_info->total_shared),
+                                                                 params->cs_info->total_shared),
          .BarrierEnable = params->cs_info->wg.uses_barrier,
          .CrossThreadConstantDataReadLength =
-         cs_prog_data->push.cross_thread.regs,
+         params->cs_info->cs.push.cross_thread.regs,
       };
 
       uint32_t idd_offset;

@@ -304,8 +304,6 @@ brw_fs_thread_payload::brw_fs_thread_payload(const brw_shader &v)
 
 brw_cs_thread_payload::brw_cs_thread_payload(const brw_shader &v)
 {
-   struct brw_cs_prog_data *prog_data = brw_cs_prog_data(v.prog_data);
-
    unsigned r = reg_unit(v.devinfo);
 
    /* See nir_setup_uniforms for subgroup_id in earlier versions. */
@@ -313,7 +311,7 @@ brw_cs_thread_payload::brw_cs_thread_payload(const brw_shader &v)
       subgroup_id_ = brw_ud1_grf(0, 2);
 
       for (int i = 0; i < 3; i++) {
-         if (prog_data->generate_local_id & (1 << i)) {
+         if (v.info.cs.generate_local_id & (1 << i)) {
             local_invocation_id[i] = brw_uw8_grf(r, 0);
             r += reg_unit(v.devinfo);
             if (v.devinfo->ver < 20 && v.dispatch_width == 32)
