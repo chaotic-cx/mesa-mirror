@@ -233,14 +233,15 @@ iris_apply_brw_vs_prog_data(struct iris_compiled_shader *shader,
 {
    assert(shader->stage == MESA_SHADER_VERTEX);
    struct iris_vs_data *iris = &shader->vs;
+   const struct intel_shader_info *info = &shader->info;
 
-   iris_apply_brw_vue_prog_data(&shader->info, &iris->base);
+   iris_apply_brw_vue_prog_data(info, &iris->base);
 
-   iris->uses_vertexid     = brw->uses_vertexid;
-   iris->uses_instanceid   = brw->uses_instanceid;
-   iris->uses_firstvertex  = brw->uses_firstvertex;
-   iris->uses_baseinstance = brw->uses_baseinstance;
-   iris->uses_drawid       = brw->uses_drawid;
+   iris->uses_vertexid     = info->vs.uses_vertexid;
+   iris->uses_instanceid   = info->vs.uses_instanceid;
+   iris->uses_firstvertex  = info->vs.uses_firstvertex;
+   iris->uses_baseinstance = info->vs.uses_baseinstance;
+   iris->uses_drawid       = info->vs.uses_drawid;
 }
 
 static void

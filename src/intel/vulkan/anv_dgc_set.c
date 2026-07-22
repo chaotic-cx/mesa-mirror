@@ -87,12 +87,14 @@ anv_write_gfx_indirect_descriptor(struct anv_device *device,
    assert(descriptor->final_commands_size <= sizeof(descriptor->final_commands));
 
    if (device->info->ver == 9) {
-      const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+      assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+      const struct intel_shader_info *info =
+         &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
 
       descriptor->draw_params =
-         ((vs_prog_data->uses_firstvertex || vs_prog_data->uses_baseinstance) ?
+         ((info->vs.uses_firstvertex || info->vs.uses_baseinstance) ?
           ANV_DGC_DRAW_PARAM_BASE_INSTANCE_VERTEX : 0) |
-         (vs_prog_data->uses_drawid ? ANV_DGC_DRAW_PARAM_DRAW_ID : 0);
+         (info->vs.uses_drawid ? ANV_DGC_DRAW_PARAM_DRAW_ID : 0);
    }
 
    anv_foreach_vk_stage(vk_stage, ANV_GRAPHICS_STAGE_BITS) {

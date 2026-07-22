@@ -534,18 +534,18 @@ anv_dgc_fill_gfx_layout(struct anv_dgc_gfx_layout *layout,
       }
    }
    if (devinfo->ver == 9) {
-      const struct brw_vs_prog_data *vs_prog_data =
-         get_shader_vs_prog_data(shaders[MESA_SHADER_VERTEX]);
-      if (vs_prog_data->uses_firstvertex ||
-          vs_prog_data->uses_baseinstance ||
-          vs_prog_data->uses_drawid) {
+      const struct intel_shader_info *info =
+         &shaders[MESA_SHADER_VERTEX]->bin->info;
+      if (info->vs.uses_firstvertex ||
+          info->vs.uses_baseinstance ||
+          info->vs.uses_drawid) {
          layout->vertex_buffers.cmd_size = MAX2(
             layout->vertex_buffers.cmd_size,
             4 /* TODO: _3DSTATE_VERTEX_BUFFERS_length(devinfo) */);
-         if (vs_prog_data->uses_firstvertex ||
-             vs_prog_data->uses_baseinstance)
+         if (info->vs.uses_firstvertex ||
+             info->vs.uses_baseinstance)
             layout->vertex_buffers.cmd_size += VERTEX_BUFFER_STATE_length(devinfo) * 4;
-         if (vs_prog_data->uses_drawid)
+         if (info->vs.uses_drawid)
             layout->vertex_buffers.cmd_size += VERTEX_BUFFER_STATE_length(devinfo) * 4;
       }
       if (vk_layout->dgc_info & BITFIELD_BIT(MESA_VK_DGC_VB))

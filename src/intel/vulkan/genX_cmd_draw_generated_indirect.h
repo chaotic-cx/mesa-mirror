@@ -65,7 +65,9 @@ genX(cmd_buffer_emit_generate_draws)(struct anv_cmd_buffer *cmd_buffer,
       return ANV_STATE_NULL;
 
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
    const bool use_tbimr = cmd_buffer->state.gfx.dyn_state.use_tbimr;
 
    struct anv_address draw_count_addr;
@@ -125,10 +127,10 @@ genX(cmd_buffer_emit_generate_draws)(struct anv_cmd_buffer *cmd_buffer,
                                 (indexed ? ANV_GENERATED_FLAG_INDEXED : 0) |
                                 (cmd_buffer->state.conditional_render_enabled ?
                                  ANV_GENERATED_FLAG_PREDICATED : 0) |
-                                ((vs_prog_data->uses_firstvertex ||
-                                  vs_prog_data->uses_baseinstance) ?
+                                ((info->vs.uses_firstvertex ||
+                                  info->vs.uses_baseinstance) ?
                                  ANV_GENERATED_FLAG_BASE : 0) |
-                                (vs_prog_data->uses_drawid ? ANV_GENERATED_FLAG_DRAWID : 0) |
+                                (info->vs.uses_drawid ? ANV_GENERATED_FLAG_DRAWID : 0) |
                                 (!anv_address_is_null(count_addr) ?
                                  ANV_GENERATED_FLAG_COUNT : 0) |
                                 (ring_count != 0 ? ANV_GENERATED_FLAG_RING_MODE : 0),
@@ -205,8 +207,10 @@ genX(cmd_buffer_get_draw_id_addr)(struct anv_cmd_buffer *cmd_buffer,
    return ANV_NULL_ADDRESS;
 #else
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
-   if (!vs_prog_data->uses_drawid)
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
+   if (!info->vs.uses_drawid)
       return ANV_NULL_ADDRESS;
 
    struct anv_state draw_id_state =
@@ -226,20 +230,22 @@ genX(cmd_buffer_get_generated_draw_stride)(struct anv_cmd_buffer *cmd_buffer)
    return 4 * GENX(3DPRIMITIVE_EXTENDED_length);
 #else
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
 
    uint32_t len = 0;
 
-   if (vs_prog_data->uses_firstvertex ||
-       vs_prog_data->uses_baseinstance ||
-       vs_prog_data->uses_drawid) {
+   if (info->vs.uses_firstvertex ||
+       info->vs.uses_baseinstance ||
+       info->vs.uses_drawid) {
       len += 4; /* 3DSTATE_VERTEX_BUFFERS */
 
-      if (vs_prog_data->uses_firstvertex ||
-          vs_prog_data->uses_baseinstance)
+      if (info->vs.uses_firstvertex ||
+          info->vs.uses_baseinstance)
          len += 4 * GENX(VERTEX_BUFFER_STATE_length);
 
-      if (vs_prog_data->uses_drawid)
+      if (info->vs.uses_drawid)
          len += 4 * GENX(VERTEX_BUFFER_STATE_length);
    }
 
@@ -294,10 +300,12 @@ genX(cmd_buffer_emit_indirect_generated_draws_inplace)(struct anv_cmd_buffer *cm
    }
 
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
 
-   if (vs_prog_data->uses_baseinstance ||
-       vs_prog_data->uses_firstvertex) {
+   if (info->vs.uses_baseinstance ||
+       info->vs.uses_firstvertex) {
       /* We're using the indirect buffer directly to source base instance &
        * first vertex values. Mark the entire area as used.
        */
@@ -306,7 +314,7 @@ genX(cmd_buffer_emit_indirect_generated_draws_inplace)(struct anv_cmd_buffer *cm
                                                      indirect_data_stride * max_draw_count);
    }
 
-   if (vs_prog_data->uses_drawid) {
+   if (info->vs.uses_drawid) {
       /* Mark the whole draw id buffer as used. */
       genX(cmd_buffer_set_binding_for_gfx8_vb_flush)(cmd_buffer, ANV_SVGS_VB_INDEX,
                                                      draw_id_addr,
@@ -475,10 +483,12 @@ genX(cmd_buffer_emit_indirect_generated_draws_inring)(struct anv_cmd_buffer *cmd
       cmd_buffer->generation.ring_bo->size);
 
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
 
-   if (vs_prog_data->uses_baseinstance ||
-       vs_prog_data->uses_firstvertex) {
+   if (info->vs.uses_baseinstance ||
+       info->vs.uses_firstvertex) {
       /* We're using the indirect buffer directly to source base instance &
        * first vertex values. Mark the entire area as used.
        */
@@ -487,7 +497,7 @@ genX(cmd_buffer_emit_indirect_generated_draws_inring)(struct anv_cmd_buffer *cmd
                                                      indirect_data_stride * max_draw_count);
    }
 
-   if (vs_prog_data->uses_drawid) {
+   if (info->vs.uses_drawid) {
       /* Mark the whole draw id buffer as used. */
       genX(cmd_buffer_set_binding_for_gfx8_vb_flush)(cmd_buffer, ANV_SVGS_VB_INDEX,
                                                      draw_id_addr,

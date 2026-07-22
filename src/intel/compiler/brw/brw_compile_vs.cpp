@@ -94,14 +94,14 @@ brw_compile_vs(const struct brw_compiler *compiler,
 
    brw_nir_apply_key(pt, &key->base, dispatch_width);
 
-   prog_data->inputs_read = nir->info.inputs_read;
-   prog_data->double_inputs_read = nir->info.vs.double_inputs;
-   prog_data->no_vf_slot_compaction = key->no_vf_slot_compaction;
+   const uint64_t inputs_read = nir->info.inputs_read;
+   const uint64_t double_inputs_read = nir->info.vs.double_inputs;
 
    unsigned nr_input_components = 0;
    unsigned urb_read_length = 0;
+   uint32_t vf_component_packing[4] = {};
    brw_nir_lower_vs_inputs(nir, compiler->devinfo, key,
-                           &params->push_layout, prog_data,
+                           &params->push_layout, vf_component_packing,
                            &nr_input_components,
                            &urb_read_length);
    brw_nir_lower_vue_outputs(nir);
@@ -111,21 +111,6 @@ brw_compile_vs(const struct brw_compiler *compiler,
 
    BRW_NIR_PASS(brw_nir_lower_deferred_urb_writes, compiler->devinfo,
                 &vue_map, 0, 0);
-
-   if (BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_FIRST_VERTEX))
-      prog_data->uses_firstvertex = true;
-
-   if (BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_BASE_INSTANCE))
-      prog_data->uses_baseinstance = true;
-
-   if (BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_VERTEX_ID_ZERO_BASE))
-      prog_data->uses_vertexid = true;
-
-   if (BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_INSTANCE_ID))
-      prog_data->uses_instanceid = true;
-
-   if (BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID))
-      prog_data->uses_drawid = true;
 
    /* Since vertex shaders reuse the same VUE entry for inputs and outputs
     * (overwriting the original contents), we need to make sure the size is
@@ -142,7 +127,7 @@ brw_compile_vs(const struct brw_compiler *compiler,
       brw_print_vue_map(stderr, &vue_map, MESA_SHADER_VERTEX);
    }
 
-   const brw_shader_params shader_params = {
+   brw_shader_params shader_params = {
       .compiler                = compiler,
       .compile_params          = params,
       .nir                     = nir,
@@ -155,11 +140,27 @@ brw_compile_vs(const struct brw_compiler *compiler,
             .urb_entry_size = urb_entry_size,
             .dispatch_mode = INTEL_DISPATCH_MODE_SIMD8,
          },
+         .vs = {
+            .inputs_read = inputs_read,
+            .double_inputs_read = double_inputs_read,
+            .uses_vertexid = BITSET_TEST(nir->info.system_values_read,
+                                         SYSTEM_VALUE_VERTEX_ID_ZERO_BASE),
+            .uses_instanceid = BITSET_TEST(nir->info.system_values_read,
+                                           SYSTEM_VALUE_INSTANCE_ID),
+            .uses_firstvertex = BITSET_TEST(nir->info.system_values_read,
+                                            SYSTEM_VALUE_FIRST_VERTEX),
+            .uses_baseinstance = BITSET_TEST(nir->info.system_values_read,
+                                             SYSTEM_VALUE_BASE_INSTANCE),
+            .uses_drawid = BITSET_TEST(nir->info.system_values_read,
+                                       SYSTEM_VALUE_DRAW_ID),
+         },
       },
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->collect_register_pressure,
       .debug_enabled           = debug_enabled,
    };
+   memcpy(shader_params.info.vs.vf_component_packing, vf_component_packing,
+          sizeof(vf_component_packing));
    brw_shader v(&shader_params);
    if (!run_vs(v)) {
       params->error_str =

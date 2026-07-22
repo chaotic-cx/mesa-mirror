@@ -883,18 +883,6 @@ struct brw_vue_prog_data {
 
 struct brw_vs_prog_data {
    struct brw_vue_prog_data base;
-
-   uint64_t inputs_read;
-   uint64_t double_inputs_read;
-
-   bool uses_vertexid;
-   bool uses_instanceid;
-   bool uses_firstvertex;
-   bool uses_baseinstance;
-   bool uses_drawid;
-   bool no_vf_slot_compaction;
-
-   uint32_t vf_component_packing[4];
 };
 
 struct brw_tess_info {

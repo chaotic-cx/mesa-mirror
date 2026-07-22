@@ -1150,7 +1150,9 @@ brw_nir_lower_16bit_io(nir_shader *nir, nir_variable_mode mode)
 }
 
 static bool
-brw_nir_pack_vs_input(nir_shader *nir, struct brw_vs_prog_data *prog_data,
+brw_nir_pack_vs_input(nir_shader *nir,
+                      const struct brw_vs_prog_key *prog_key,
+                      uint32_t vf_component_packing[4],
                       unsigned *out_nr_packed_input_components)
 {
    struct vf_attribute {
@@ -1228,7 +1230,7 @@ brw_nir_pack_vs_input(nir_shader *nir, struct brw_vs_prog_data *prog_data,
     *     enabled."
     */
    if (nir->info.inputs_read == 0) {
-      if (prog_data->no_vf_slot_compaction) {
+      if (prog_key->no_vf_slot_compaction) {
          attributes[VERT_ATTRIB_GENERIC0].is_used = true;
          attributes[VERT_ATTRIB_GENERIC0].component_mask = 0x1;
       } else if (!BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_IS_INDEXED_DRAW) &&
@@ -1324,13 +1326,13 @@ brw_nir_pack_vs_input(nir_shader *nir, struct brw_vs_prog_data *prog_data,
    unsigned vf_element_count = 0;
    for (unsigned a = VERT_ATTRIB_GENERIC0; a < MAX_HW_VERT_ATTRIB && vf_element_count < 32; a++) {
       /* Consider all attributes used when no slot compaction is active */
-      if (!attributes[a].is_used && !prog_data->no_vf_slot_compaction)
+      if (!attributes[a].is_used && !prog_key->no_vf_slot_compaction)
          continue;
 
       uint32_t mask;
       /* Stores masks in attributes[a].component_mask are in terms of 32-bit
        * components, but the HW depending on the format will interpret
-       * prog_data->vf_component_packing[] bits as either a 32-bit or 64-bit
+       * vf_component_packing[] bits as either a 32-bit or 64-bit
        * component. So we need to only consider every other bit.
        */
       if (attributes[a].is_64bit) {
@@ -1343,7 +1345,7 @@ brw_nir_pack_vs_input(nir_shader *nir, struct brw_vs_prog_data *prog_data,
       /* We should only have 4bits enabled max */
       assert((mask & ~0xfu) == 0);
 
-      prog_data->vf_component_packing[vf_element_count / 8] |=
+      vf_component_packing[vf_element_count / 8] |=
          mask << (4 * (vf_element_count % 8));
       vf_element_count++;
    }
@@ -1360,10 +1362,12 @@ brw_nir_lower_vs_inputs(nir_shader *nir,
                         const struct intel_device_info *devinfo,
                         const struct brw_vs_prog_key *prog_key,
                         const struct intel_push_layout *push_layout,
-                        struct brw_vs_prog_data *prog_data,
+                        uint32_t vf_component_packing[4],
                         unsigned *out_nr_input_components,
                         unsigned *out_urb_read_length)
 {
+   const uint64_t inputs_read = nir->info.inputs_read;
+
    /* Start with the location of the variable's base. */
    nir_foreach_shader_in_variable(var, nir)
       var->data.driver_location = var->data.location;
@@ -1504,13 +1508,14 @@ brw_nir_lower_vs_inputs(nir_shader *nir,
       }
    }
 
-   memset(prog_data->vf_component_packing, 0,
-          sizeof(prog_data->vf_component_packing));
+   memset(vf_component_packing, 0,
+          4 * sizeof(*vf_component_packing));
    unsigned nr_packed_input_components = 0;
    if (prog_key->vf_component_packing)
-      NIR_PASS(_, nir, brw_nir_pack_vs_input, prog_data, &nr_packed_input_components);
+      NIR_PASS(_, nir, brw_nir_pack_vs_input, prog_key, vf_component_packing,
+               &nr_packed_input_components);
 
-   unsigned nr_input_slots = util_bitcount64(prog_data->inputs_read);
+   unsigned nr_input_slots = util_bitcount64(inputs_read);
    /* gl_VertexID and gl_InstanceID are system values, but arrive via an
     * incoming vertex attribute.  So, add an extra slot.
     */

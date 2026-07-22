@@ -493,8 +493,6 @@ populate_fs_prog_data(nir_shader *shader,
 static void
 populate_vs_prog_data(nir_shader *nir,
                       const struct intel_device_info *devinfo,
-                      const struct brw_vs_prog_key *key,
-                      struct brw_vs_prog_data *prog_data,
                       struct intel_shader_info *info)
 {
    BITSET_WORD *sysvals = nir->info.system_values_read;
@@ -503,11 +501,11 @@ populate_vs_prog_data(nir_shader *nir,
       bool *data;
       gl_system_value val;
    } bool_sysvals[] = {
-      { &prog_data->uses_firstvertex,     SYSTEM_VALUE_FIRST_VERTEX        },
-      { &prog_data->uses_baseinstance,    SYSTEM_VALUE_BASE_INSTANCE       },
-      { &prog_data->uses_vertexid,        SYSTEM_VALUE_VERTEX_ID_ZERO_BASE },
-      { &prog_data->uses_instanceid,      SYSTEM_VALUE_INSTANCE_ID         },
-      { &prog_data->uses_drawid,          SYSTEM_VALUE_DRAW_ID             },
+      { &info->vs.uses_firstvertex,     SYSTEM_VALUE_FIRST_VERTEX        },
+      { &info->vs.uses_baseinstance,    SYSTEM_VALUE_BASE_INSTANCE       },
+      { &info->vs.uses_vertexid,        SYSTEM_VALUE_VERTEX_ID_ZERO_BASE },
+      { &info->vs.uses_instanceid,      SYSTEM_VALUE_INSTANCE_ID         },
+      { &info->vs.uses_drawid,          SYSTEM_VALUE_DRAW_ID             },
    };
 
    for (unsigned i = 0; i < ARRAY_SIZE(bool_sysvals); ++i) {
@@ -610,7 +608,7 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
    prog_data->base.is_jay = true;
 
    if (nir->info.stage == MESA_SHADER_VERTEX) {
-      populate_vs_prog_data(nir, devinfo, &key->vs, &prog_data->vs, info);
+      populate_vs_prog_data(nir, devinfo, info);
    } else if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
       populate_tcs_prog_data(nir, &key->tcs, &prog_data->tcs, info);
    } else if (nir->info.stage == MESA_SHADER_FRAGMENT) {

@@ -1357,8 +1357,9 @@ void genX(CmdDraw)(
    genX(flush_pipeline_select_3d)(cmd_buffer);
 
 #if GFX_VER < 11
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
    cmd_buffer_emit_vertex_constants_and_flush(cmd_buffer,
-                                              get_gfx_vs_prog_data(gfx),
+                                              &gfx->shaders[MESA_SHADER_VERTEX]->bin->info,
                                               firstVertex, firstInstance, 0,
                                               false /* force_flush */);
 #endif
@@ -1417,9 +1418,10 @@ void genX(CmdDrawMultiEXT)(
 
    uint32_t i = 0;
 #if GFX_VER < 11
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
    vk_foreach_multi_draw(draw, i, pVertexInfo, drawCount, stride) {
       cmd_buffer_emit_vertex_constants_and_flush(cmd_buffer,
-                                                 get_gfx_vs_prog_data(gfx),
+                                                 &gfx->shaders[MESA_SHADER_VERTEX]->bin->info,
                                                  draw->firstVertex,
                                                  firstInstance, i, !i);
 
@@ -1515,8 +1517,10 @@ void genX(CmdDrawIndexed)(
    genX(flush_pipeline_select_3d)(cmd_buffer);
 
 #if GFX_VER < 11
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
-   cmd_buffer_emit_vertex_constants_and_flush(cmd_buffer, vs_prog_data,
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
+   cmd_buffer_emit_vertex_constants_and_flush(cmd_buffer, info,
                                               vertexOffset, firstInstance,
                                               0, false /* force_flush */);
 #endif
@@ -1575,17 +1579,19 @@ void genX(CmdDrawMultiIndexedEXT)(
 
    uint32_t i = 0;
 #if GFX_VER < 11
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
    if (pVertexOffset) {
-      if (vs_prog_data->uses_drawid) {
+      if (info->vs.uses_drawid) {
          bool emitted = true;
-         if (vs_prog_data->uses_firstvertex ||
-             vs_prog_data->uses_baseinstance) {
+         if (info->vs.uses_firstvertex ||
+             info->vs.uses_baseinstance) {
             emit_base_vertex_instance(cmd_buffer, *pVertexOffset, firstInstance);
             emitted = true;
          }
          vk_foreach_multi_draw_indexed(draw, i, pIndexInfo, drawCount, stride) {
-            if (vs_prog_data->uses_drawid) {
+            if (info->vs.uses_drawid) {
                emit_draw_index(cmd_buffer, i);
                emitted = true;
             }
@@ -1624,8 +1630,8 @@ void genX(CmdDrawMultiIndexedEXT)(
             emitted = false;
          }
       } else {
-         if (vs_prog_data->uses_firstvertex ||
-             vs_prog_data->uses_baseinstance) {
+         if (info->vs.uses_firstvertex ||
+             info->vs.uses_baseinstance) {
             emit_base_vertex_instance(cmd_buffer, *pVertexOffset, firstInstance);
             /* Emitting draw index or vertex index BOs may result in needing
              * additional VF cache flushes.
@@ -1663,7 +1669,7 @@ void genX(CmdDrawMultiIndexedEXT)(
       }
    } else {
       vk_foreach_multi_draw_indexed(draw, i, pIndexInfo, drawCount, stride) {
-         cmd_buffer_emit_vertex_constants_and_flush(cmd_buffer, vs_prog_data,
+         cmd_buffer_emit_vertex_constants_and_flush(cmd_buffer, info,
                                                     draw->vertexOffset,
                                                     firstInstance, i, i != 0);
 
@@ -1791,11 +1797,13 @@ void genX(CmdDrawIndirectByteCount2EXT)(
    genX(flush_pipeline_select_3d)(cmd_buffer);
 
 #if GFX_VER < 11
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
-   if (vs_prog_data->uses_firstvertex ||
-       vs_prog_data->uses_baseinstance)
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
+   if (info->vs.uses_firstvertex ||
+       info->vs.uses_baseinstance)
       emit_base_vertex_instance(cmd_buffer, firstVertex, firstInstance);
-   if (vs_prog_data->uses_drawid)
+   if (info->vs.uses_drawid)
       emit_draw_index(cmd_buffer, 0);
 #endif
 
@@ -1915,21 +1923,23 @@ execute_indirect_draw_supported(const struct anv_cmd_buffer *cmd_buffer)
 
 
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   const struct intel_shader_info *info =
+      gfx->shaders[MESA_SHADER_VERTEX] != NULL ?
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info : NULL;
    const struct brw_task_prog_data *task_prog_data = get_gfx_task_prog_data(gfx);
    const struct brw_mesh_prog_data *mesh_prog_data = get_gfx_mesh_prog_data(gfx);
    const bool is_multiview = gfx->instance_multiplier > 1;
 
    const bool uses_draw_id =
-      (vs_prog_data && vs_prog_data->uses_drawid) ||
+      (info != NULL && info->vs.uses_drawid) ||
       (mesh_prog_data && mesh_prog_data->uses_drawid) ||
       (task_prog_data && task_prog_data->uses_drawid);
 
    const bool uses_firstvertex =
-      (vs_prog_data && vs_prog_data->uses_firstvertex);
+      (info != NULL && info->vs.uses_firstvertex);
 
    const bool uses_baseinstance =
-      (vs_prog_data && vs_prog_data->uses_baseinstance);
+      (info != NULL && info->vs.uses_baseinstance);
 
    return !is_multiview &&
           !uses_draw_id &&
@@ -1949,7 +1959,9 @@ emit_indirect_draws(struct anv_cmd_buffer *cmd_buffer,
 {
 #if GFX_VER < 11
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
 #endif
 
 #if GFX_VER >= 20
@@ -1982,12 +1994,12 @@ emit_indirect_draws(struct anv_cmd_buffer *cmd_buffer,
        * We want the VkDrawIndirectCommand::vertexOffset field at offset 12 in
        * the structure.
        */
-      if (vs_prog_data->uses_firstvertex ||
-          vs_prog_data->uses_baseinstance) {
+      if (info->vs.uses_firstvertex ||
+          info->vs.uses_baseinstance) {
          emit_base_vertex_instance_bo(cmd_buffer,
                                       anv_address_add(draw, indexed ? 12 : 8));
       }
-      if (vs_prog_data->uses_drawid)
+      if (info->vs.uses_drawid)
          emit_draw_index(cmd_buffer, i);
 #endif
 
@@ -2313,7 +2325,9 @@ emit_indirect_count_draws(struct anv_cmd_buffer *cmd_buffer,
 {
 #if GFX_VER < 11
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
 #endif
 
    cmd_buffer_flush_gfx(cmd_buffer);
@@ -2332,12 +2346,12 @@ emit_indirect_count_draws(struct anv_cmd_buffer *cmd_buffer,
       emit_draw_count_predicate_cond(cmd_buffer, &b, i, max);
 
 #if GFX_VER < 11
-      if (vs_prog_data->uses_firstvertex ||
-          vs_prog_data->uses_baseinstance) {
+      if (info->vs.uses_firstvertex ||
+          info->vs.uses_baseinstance) {
          emit_base_vertex_instance_bo(cmd_buffer,
                                       anv_address_add(draw, indexed ? 12 : 8));
       }
-      if (vs_prog_data->uses_drawid)
+      if (info->vs.uses_drawid)
          emit_draw_index(cmd_buffer, i);
 
       /* Emitting draw index or vertex index BOs may result in needing

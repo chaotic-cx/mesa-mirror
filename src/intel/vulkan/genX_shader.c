@@ -242,12 +242,11 @@ emit_3dstate_streamout(struct anv_batch *batch,
 /* Stage specific packing */
 
 static uint32_t
-get_vs_input_elements(const struct brw_vs_prog_data *vs_prog_data)
+get_vs_input_elements(const struct intel_shader_info *info)
 {
-   /* Pull inputs_read out of the VS prog data */
-   const uint64_t inputs_read = vs_prog_data->inputs_read;
+   const uint64_t inputs_read = info->vs.inputs_read;
    const uint64_t double_inputs_read =
-      vs_prog_data->double_inputs_read & inputs_read;
+      info->vs.double_inputs_read & inputs_read;
    assert((inputs_read & ((1 << VERT_ATTRIB_GENERIC0) - 1)) == 0);
    const uint32_t elements = inputs_read >> VERT_ATTRIB_GENERIC0;
    const uint32_t elements_double = double_inputs_read >> VERT_ATTRIB_GENERIC0;
@@ -323,11 +322,9 @@ emit_ves_vf_instancing(struct anv_batch *batch,
                        struct anv_shader *shader,
                        const struct vk_vertex_input_state *vi)
 {
-   const struct brw_vs_prog_data *vs_prog_data =
-      get_shader_vs_prog_data(shader);
-   const uint64_t inputs_read = vs_prog_data->inputs_read;
+   const uint64_t inputs_read = shader->bin->info.vs.inputs_read;
    const uint64_t double_inputs_read =
-      vs_prog_data->double_inputs_read & inputs_read;
+      shader->bin->info.vs.double_inputs_read & inputs_read;
    assert((inputs_read & ((1 << VERT_ATTRIB_GENERIC0) - 1)) == 0);
    const uint32_t elements = inputs_read >> VERT_ATTRIB_GENERIC0;
    const uint32_t elements_double = double_inputs_read >> VERT_ATTRIB_GENERIC0;
@@ -434,19 +431,17 @@ emit_vs_shader(struct anv_batch *batch,
                struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
-   const struct brw_vs_prog_data *vs_prog_data =
-      get_shader_vs_prog_data(shader);
 
-   shader->vs.input_elements = get_vs_input_elements(vs_prog_data);
+   shader->vs.input_elements = get_vs_input_elements(&shader->bin->info);
 
    shader->vs.sgvs_count =
-      (vs_prog_data->uses_vertexid ||
-       vs_prog_data->uses_instanceid ||
-       vs_prog_data->uses_firstvertex ||
-       vs_prog_data->uses_baseinstance) + vs_prog_data->uses_drawid;
+      (shader->bin->info.vs.uses_vertexid ||
+       shader->bin->info.vs.uses_instanceid ||
+       shader->bin->info.vs.uses_firstvertex ||
+       shader->bin->info.vs.uses_baseinstance) + shader->bin->info.vs.uses_drawid;
 
    const bool needs_sgvs_elem = shader->vs.sgvs_count > 1 ||
-                                !vs_prog_data->uses_drawid;
+                                !shader->bin->info.vs.uses_drawid;
    const uint32_t id_slot = shader->vs.input_elements;
    const uint32_t drawid_slot = id_slot + needs_sgvs_elem;
    if (shader->vs.sgvs_count > 0) {
@@ -463,8 +458,8 @@ emit_vs_shader(struct anv_batch *batch,
           * This means, that if we have BaseInstance, we need BaseVertex as
           * well.  Just do all or nothing.
           */
-         uint32_t base_ctrl = (vs_prog_data->uses_firstvertex ||
-                               vs_prog_data->uses_baseinstance) ?
+         uint32_t base_ctrl = (shader->bin->info.vs.uses_firstvertex ||
+                               shader->bin->info.vs.uses_baseinstance) ?
                               VFCOMP_STORE_SRC : VFCOMP_STORE_0;
 #endif
 
@@ -494,7 +489,7 @@ emit_vs_shader(struct anv_batch *batch,
          }
       }
 
-      if (vs_prog_data->uses_drawid) {
+      if (shader->bin->info.vs.uses_drawid) {
          struct GENX(VERTEX_ELEMENT_STATE) element = {
             .VertexBufferIndex = ANV_DRAWID_VB_INDEX,
             .Valid = true,
@@ -522,10 +517,10 @@ emit_vs_shader(struct anv_batch *batch,
    }
 
    anv_shader_emit(batch, shader, vs.vf_sgvs, GENX(3DSTATE_VF_SGVS), sgvs) {
-      sgvs.VertexIDEnable              = vs_prog_data->uses_vertexid;
+      sgvs.VertexIDEnable              = shader->bin->info.vs.uses_vertexid;
       sgvs.VertexIDComponentNumber     = 2;
       sgvs.VertexIDElementOffset       = id_slot;
-      sgvs.InstanceIDEnable            = vs_prog_data->uses_instanceid;
+      sgvs.InstanceIDEnable            = shader->bin->info.vs.uses_instanceid;
       sgvs.InstanceIDComponentNumber   = 3;
       sgvs.InstanceIDElementOffset     = id_slot;
    }
@@ -533,19 +528,19 @@ emit_vs_shader(struct anv_batch *batch,
 #if GFX_VER >= 11
    anv_shader_emit(batch, shader, vs.vf_sgvs_2, GENX(3DSTATE_VF_SGVS_2), sgvs) {
       /* gl_BaseVertex */
-      sgvs.XP0Enable                   = vs_prog_data->uses_firstvertex;
+      sgvs.XP0Enable                   = shader->bin->info.vs.uses_firstvertex;
       sgvs.XP0SourceSelect             = XP0_PARAMETER;
       sgvs.XP0ComponentNumber          = 0;
       sgvs.XP0ElementOffset            = id_slot;
 
       /* gl_BaseInstance */
-      sgvs.XP1Enable                   = vs_prog_data->uses_baseinstance;
+      sgvs.XP1Enable                   = shader->bin->info.vs.uses_baseinstance;
       sgvs.XP1SourceSelect             = StartingInstanceLocation;
       sgvs.XP1ComponentNumber          = 1;
       sgvs.XP1ElementOffset            = id_slot;
 
       /* gl_DrawID */
-      sgvs.XP2Enable                   = vs_prog_data->uses_drawid;
+      sgvs.XP2Enable                   = shader->bin->info.vs.uses_drawid;
       sgvs.XP2ComponentNumber          = 0;
       sgvs.XP2ElementOffset            = drawid_slot;
    }
@@ -554,10 +549,10 @@ emit_vs_shader(struct anv_batch *batch,
    if (device->physical->drirc.perf.vf_comp_packing) {
       anv_shader_emit(batch, shader, vs.vf_component_packing,
                       GENX(3DSTATE_VF_COMPONENT_PACKING), vfc) {
-         vfc.VertexElementEnablesDW[0] = vs_prog_data->vf_component_packing[0];
-         vfc.VertexElementEnablesDW[1] = vs_prog_data->vf_component_packing[1];
-         vfc.VertexElementEnablesDW[2] = vs_prog_data->vf_component_packing[2];
-         vfc.VertexElementEnablesDW[3] = vs_prog_data->vf_component_packing[3];
+         vfc.VertexElementEnablesDW[0] = shader->bin->info.vs.vf_component_packing[0];
+         vfc.VertexElementEnablesDW[1] = shader->bin->info.vs.vf_component_packing[1];
+         vfc.VertexElementEnablesDW[2] = shader->bin->info.vs.vf_component_packing[2];
+         vfc.VertexElementEnablesDW[3] = shader->bin->info.vs.vf_component_packing[3];
       }
    }
 

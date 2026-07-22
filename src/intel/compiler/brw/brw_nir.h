@@ -258,7 +258,7 @@ void brw_nir_lower_vs_inputs(nir_shader *nir,
                              const struct intel_device_info *devinfo,
                              const struct brw_vs_prog_key *prog_key,
                              const struct intel_push_layout *push_layout,
-                             struct brw_vs_prog_data *prog_data,
+                             uint32_t vf_component_packing[4],
                              unsigned *out_nr_packed_regs,
                              unsigned *out_urb_read_length);
 void brw_nir_lower_gs_inputs(nir_shader *nir,

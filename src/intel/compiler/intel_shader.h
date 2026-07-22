@@ -635,6 +635,20 @@ struct intel_shader_info {
          bool include_vue_handles;
       } vue; /* VS, TES, TCS, GS */
    };
+
+   /* Extra stage-specific fields. */
+   union {
+      struct {
+         uint64_t inputs_read;
+         uint64_t double_inputs_read;
+         uint32_t vf_component_packing[4];
+         bool uses_vertexid;
+         bool uses_instanceid;
+         bool uses_firstvertex;
+         bool uses_baseinstance;
+         bool uses_drawid;
+      } vs;
+   };
 };
 
 #define INTEL_SHADER_BIN_MAX_STATS 3

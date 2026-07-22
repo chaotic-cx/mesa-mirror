@@ -109,13 +109,15 @@ update_dirty_vbs_for_gfx8_vb_flush(struct anv_cmd_buffer *cmd_buffer,
    const struct vk_dynamic_graphics_state *dyn =
       &cmd_buffer->vk.dynamic_graphics_state;
    const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
-   const struct brw_vs_prog_data *vs_prog_data = get_gfx_vs_prog_data(gfx);
+   assert(gfx->shaders[MESA_SHADER_VERTEX] != NULL);
+   const struct intel_shader_info *info =
+      &gfx->shaders[MESA_SHADER_VERTEX]->bin->info;
 
    uint64_t vb_used = dyn->vi->bindings_valid;
-   if (vs_prog_data->uses_firstvertex ||
-       vs_prog_data->uses_baseinstance)
+   if (info->vs.uses_firstvertex ||
+       info->vs.uses_baseinstance)
       vb_used |= 1ull << ANV_SVGS_VB_INDEX;
-   if (vs_prog_data->uses_drawid)
+   if (info->vs.uses_drawid)
       vb_used |= 1ull << ANV_DRAWID_VB_INDEX;
 
    genX(cmd_buffer_update_dirty_vbs_for_gfx8_vb_flush)(cmd_buffer,
@@ -127,19 +129,19 @@ update_dirty_vbs_for_gfx8_vb_flush(struct anv_cmd_buffer *cmd_buffer,
 #if GFX_VER < 11
 ALWAYS_INLINE static void
 cmd_buffer_emit_vertex_constants_and_flush(struct anv_cmd_buffer *cmd_buffer,
-                                           const struct brw_vs_prog_data *vs_prog_data,
+                                           const struct intel_shader_info *info,
                                            uint32_t base_vertex,
                                            uint32_t base_instance,
                                            uint32_t draw_id,
                                            bool force_flush)
 {
    bool emitted = false;
-   if (vs_prog_data->uses_firstvertex ||
-       vs_prog_data->uses_baseinstance) {
+   if (info->vs.uses_firstvertex ||
+       info->vs.uses_baseinstance) {
       emit_base_vertex_instance(cmd_buffer, base_vertex, base_instance);
       emitted = true;
    }
-   if (vs_prog_data->uses_drawid) {
+   if (info->vs.uses_drawid) {
       emit_draw_index(cmd_buffer, draw_id);
       emitted = true;
    }
