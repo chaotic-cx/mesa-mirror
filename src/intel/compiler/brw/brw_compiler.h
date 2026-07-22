@@ -297,7 +297,7 @@ struct brw_vs_prog_key {
     *
     * Using this option requires that the driver programs
     * 3DSTATE_VF_COMPONENT_PACKING with the values provided in
-    * brw_vs_prog_data::vf_component_packing
+    * intel_shader_info::vs.vf_component_packing
     */
    bool vf_component_packing : 1;
 
@@ -492,7 +492,7 @@ enum brw_pixel_shader_computed_depth_mode {
  * If the given KSP is enabled, a SIMD width of 8, 16, or 32 is
  * returned.  Note that for a multipolygon dispatch kernel 8 is always
  * returned, since multipolygon kernels use the "_8" fields from
- * brw_fs_prog_data regardless of their SIMD width.  If the KSP is
+ * intel_shader_info regardless of their SIMD width.  If the KSP is
  * invalid, 0 is returned.
  */
 static inline unsigned
@@ -587,8 +587,8 @@ _intel_shader_info_fs_dispatch_grf_start_reg(const struct intel_shader_info *inf
       brw_wm_state_simd_width_for_ksp(wm_state, ksp_idx))
 
 static inline uint32_t
-brw_cs_prog_data_prog_offset(const struct intel_shader_info *info,
-                             unsigned dispatch_width)
+intel_shader_info_cs_prog_offset(const struct intel_shader_info *info,
+                                unsigned dispatch_width)
 {
    assert(dispatch_width == 8 ||
           dispatch_width == 16 ||

@@ -777,7 +777,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       brw_nir_opt_vectorize_urb(pt);
       nir_lower_gs_intrinsics(nir, 0);
 
-      jay_populate_prog_data(devinfo, nir, info, key, NULL);
+      jay_populate_shader_info(devinfo, nir, info, key, NULL);
 
       /* Get constant offsets out of the way for proper clip/cull handling */
       JAY_NIR_PASS(nir_lower_io_to_scalar, nir_var_shader_out, NULL, NULL);
@@ -952,7 +952,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       if (!brw_can_coherent_fb_fetch(devinfo))
          JAY_NIR_PASS(brw_nir_lower_fs_load_output, &key->fs, 0);
 
-      /* Do this lowering before jay_populate_prog_data(). */
+      /* Do this lowering before jay_populate_shader_info(). */
       JAY_NIR_PASS(nir_opt_frag_coord_to_pixel_coord);
       JAY_NIR_PASS(nir_lower_frag_coord_to_pixel_coord);
       JAY_NIR_PASS(nir_lower_alu_to_scalar, NULL, NULL);
@@ -972,7 +972,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       JAY_NIR_PASS(nir_shader_intrinsics_pass, lower_fragment_outputs,
                    nir_metadata_control_flow, NULL);
 
-      brw_nir_cleanup_pre_fs_prog_data(pt);
+      brw_nir_cleanup_pre_fs_info(pt);
 
       // TODO
       // JAY_NIR_PASS(brw_nir_move_interpolation_to_top);
@@ -980,7 +980,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       /* Do this before lower_fs_config_intel so that the pass has the right
        * information.
        */
-      jay_populate_prog_data(devinfo, nir, info, key, fs_perprim);
+      jay_populate_shader_info(devinfo, nir, info, key, fs_perprim);
 
       /* Although its not required by the spec, other vendors mask out helper
        * lanes entirely unless the shader uses derivatives. Some applications
@@ -1273,7 +1273,7 @@ jay_process_nir_for_simd(const struct intel_device_info *devinfo,
          }
       }
    } else {
-      jay_populate_prog_data(devinfo, nir, info, params->key, NULL);
+      jay_populate_shader_info(devinfo, nir, info, params->key, NULL);
    }
 
    /* This must be the very last pass since nir_print itself will reindex! */

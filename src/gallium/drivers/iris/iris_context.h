@@ -358,15 +358,15 @@ struct iris_cs_data {
 };
 
 static inline uint32_t
-iris_cs_data_prog_offset(const struct iris_cs_data *prog_data,
+iris_cs_data_prog_offset(const struct iris_cs_data *cs_data,
                          unsigned dispatch_width)
 {
    assert(dispatch_width == 8 ||
           dispatch_width == 16 ||
           dispatch_width == 32);
    const unsigned index = dispatch_width / 16;
-   assert(prog_data->prog_mask & (1 << index));
-   return prog_data->prog_offset[index];
+   assert(cs_data->prog_mask & (1 << index));
+   return cs_data->prog_offset[index];
 }
 
 struct iris_vue_data {
@@ -706,7 +706,7 @@ struct iris_compiled_shader {
    struct iris_ubo_range ubo_ranges[4];
 
    /**
-    * Data derived from BRW prog_data.
+    * Data derived from the compiled shader metadata.
     */
    uint16_t push_sizes[4];
 
@@ -737,8 +737,8 @@ struct iris_compiled_shader {
    };
 
    /**
-    * Shader packets and other data derived from prog_data.  These must be
-    * completely determined from prog_data.
+    * Shader packets and other data derived from the compiled shader
+    * metadata.  These must be completely determined from that metadata.
     */
    uint8_t derived_data[0];
 };

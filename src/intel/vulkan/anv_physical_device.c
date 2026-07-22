@@ -43,8 +43,8 @@ anv_drirc_shader_cb(const void *hash_data,
                     const driOptionValue *value,
                     void *shaderOptionCallbackData)
 {
-   /* Should always be 8 bytes or more. Our compiler prog_data only holds the
-    * first 64bits, so just use that for the hash table.
+   /* Should always be 8 bytes or more. The intel_shader_info source_hash only
+    * holds the first 64bits, so just use that for the hash table.
     */
    assert(hash_size >= 8);
    uint64_t shader_hash = ((uint64_t *)hash_data)[0];

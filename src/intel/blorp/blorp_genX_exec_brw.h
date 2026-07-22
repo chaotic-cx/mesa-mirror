@@ -2356,8 +2356,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
          .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA_2)) {
             .KernelStartPointer = params->cs_prog_kernel +
-               brw_cs_prog_data_prog_offset(params->cs_info,
-                                            dispatch.simd_size),
+               intel_shader_info_cs_prog_offset(params->cs_info,
+                                                dispatch.simd_size),
             .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
             .ThreadGroupDispatchSize =
                intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
@@ -2464,8 +2464,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
          .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
             .KernelStartPointer = params->cs_prog_kernel +
-               brw_cs_prog_data_prog_offset(params->cs_info,
-                                            dispatch.simd_size),
+               intel_shader_info_cs_prog_offset(params->cs_info,
+                                                dispatch.simd_size),
             .SamplerStatePointer = samplers_offset,
             .SamplerCount = params->src.enabled ? 1 : 0,
             .BindingTableEntryCount = params->src.enabled ? 2 : 1,
@@ -2537,8 +2537,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
       struct GENX(INTERFACE_DESCRIPTOR_DATA) idd = {
          .KernelStartPointer = params->cs_prog_kernel +
-            brw_cs_prog_data_prog_offset(params->cs_info,
-                                         dispatch.simd_size),
+            intel_shader_info_cs_prog_offset(params->cs_info,
+                                             dispatch.simd_size),
          .SamplerStatePointer = samplers_offset,
          .SamplerCount = params->src.enabled ? 1 : 0,
          .BindingTableEntryCount = params->src.enabled ? 2 : 1,

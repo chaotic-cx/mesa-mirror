@@ -25,7 +25,7 @@ brw_emit_interpolation_setup(brw_shader &s)
    const struct intel_device_info *devinfo = s.devinfo;
    const brw_builder bld = brw_builder(&s);
    brw_builder abld = bld.annotate("compute pixel centers");
-   struct intel_shader_info *fs_prog_data = &s.info;
+   struct intel_shader_info *info = &s.info;
 
    brw_reg ub_cps_width, ub_cps_height;
    {
@@ -36,7 +36,7 @@ brw_emit_interpolation_setup(brw_shader &s)
       const brw_reg r1_0 = retype(brw_vec1_reg(FIXED_GRF, 1, 0), BRW_TYPE_UD);
 
       brw_reg cps_size = ubld.vgrf(BRW_TYPE_UD);
-      ubld.MOV(cps_size, fs_prog_data->fs.coarse_pixel_dispatch ?
+      ubld.MOV(cps_size, info->fs.coarse_pixel_dispatch ?
                          r1_0 : brw_imm_ud(0x00000101));
 
       cps_size = component(cps_size, 0);
@@ -52,7 +52,7 @@ brw_emit_interpolation_setup(brw_shader &s)
    brw_reg int_sample_offset_x, int_sample_offset_y; /* Used on Gen12HP+ */
    brw_reg int_sample_offset_xy; /* Used on Gen8+ */
    brw_reg half_int_sample_offset_x, half_int_sample_offset_y;
-   if (!fs_prog_data->fs.coarse_pixel_dispatch) {
+   if (!info->fs.coarse_pixel_dispatch) {
       /* The thread payload only delivers subspan locations (ss0, ss1,
        * ss2, ...). Since subspans covers 2x2 pixels blocks, we need to
        * generate 4 pixel coordinates out of each subspan location. We do this
@@ -101,7 +101,7 @@ brw_emit_interpolation_setup(brw_shader &s)
    brw_reg int_coarse_offset_x, int_coarse_offset_y; /* Used on Gen12HP+ */
    brw_reg int_coarse_offset_xy; /* Used on Gen8+ */
    brw_reg half_int_coarse_offset_x, half_int_coarse_offset_y;
-   if (fs_prog_data->fs.coarse_pixel_dispatch) {
+   if (info->fs.coarse_pixel_dispatch) {
       /* In coarse pixel dispatch we have to do the same ADD instruction that
        * we do in normal per pixel dispatch, except this time we're not adding
        * 1 in each direction, but instead the coarse pixel size.
@@ -146,7 +146,7 @@ brw_emit_interpolation_setup(brw_shader &s)
    brw_reg int_pixel_offset_x, int_pixel_offset_y; /* Used on Gen12HP+ */
    brw_reg int_pixel_offset_xy; /* Used on Gen8+ */
    brw_reg half_int_pixel_offset_x, half_int_pixel_offset_y;
-   if (fs_prog_data->fs.coarse_pixel_dispatch) {
+   if (info->fs.coarse_pixel_dispatch) {
       int_pixel_offset_x = int_coarse_offset_x;
       int_pixel_offset_y = int_coarse_offset_y;
       int_pixel_offset_xy = int_coarse_offset_xy;
@@ -193,7 +193,7 @@ brw_emit_interpolation_setup(brw_shader &s)
                   brw_reg(stride(suboffset(gi_uw, 5), 2, 8, 0)),
                   int_pixel_offset_y);
 
-         if (fs_prog_data->fs.coarse_pixel_dispatch) {
+         if (info->fs.coarse_pixel_dispatch) {
             dbld.ADD(int_pixel_x_4b, int_pixel_x_4b,
                                      horiz_stride(half_int_pixel_offset_x, 0));
             dbld.ADD(int_pixel_y_4b, int_pixel_y_4b,
@@ -228,7 +228,7 @@ brw_emit_interpolation_setup(brw_shader &s)
       }
    }
 
-   if (fs_prog_data->fs.uses_depth_w_coefficients) {
+   if (info->fs.uses_depth_w_coefficients) {
       brw_reg coef_payload = brw_vec8_grf(payload.depth_w_coef_reg, 0);
       s.x_start = devinfo->ver >= 20 ?
          brw_vec1_grf(coef_payload.nr, 6) :
@@ -247,10 +247,10 @@ brw_emit_interpolation_setup(brw_shader &s)
          brw_vec1_grf(coef_payload.nr, 3);
    }
 
-   if (fs_prog_data->fs.uses_src_depth)
+   if (info->fs.uses_src_depth)
       s.pixel_z = brw_fetch_payload_reg(bld, payload.source_depth_reg);
 
-   if (fs_prog_data->fs.uses_src_w) {
+   if (info->fs.uses_src_w) {
       abld = bld.annotate("compute pos.w");
       s.pixel_w = brw_fetch_payload_reg(abld, payload.source_w_reg);
       s.wpos_w = bld.vgrf(BRW_TYPE_F);
@@ -342,13 +342,13 @@ brw_emit_repclear_shader(brw_shader &s)
 static void
 calculate_urb_setup(const struct intel_device_info *devinfo,
                     const struct brw_fs_prog_key *key,
-                    struct intel_shader_info *prog_data,
+                    struct intel_shader_info *info,
                     nir_shader *nir,
                     const struct intel_vue_map *prev_stage_vue_map,
                     const struct brw_mue_map *mue_map,
                     int *per_primitive_offsets)
 {
-   memset(prog_data->fs.urb_setup, -1, sizeof(prog_data->fs.urb_setup));
+   memset(info->fs.urb_setup, -1, sizeof(info->fs.urb_setup));
 
    int urb_next = 0; /* in vec4s */
 
@@ -420,10 +420,10 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
          per_primitive_offsets[i] -= first_read_offset;
       }
 
-      prog_data->fs.num_per_primitive_inputs =
+      info->fs.num_per_primitive_inputs =
          2 * DIV_ROUND_UP(per_primitive_stride - first_read_offset, 32);
    } else {
-      prog_data->fs.num_per_primitive_inputs = 0;
+      info->fs.num_per_primitive_inputs = 0;
    }
 
    /* Now do the per-vertex stuff (what used to be legacy pipeline) */
@@ -444,7 +444,7 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
        */
       for (unsigned int i = 0; i < VARYING_SLOT_MAX; i++) {
          if (inputs_read & BITFIELD64_BIT(i)) {
-            prog_data->fs.urb_setup[i] = urb_next++;
+            info->fs.urb_setup[i] = urb_next++;
          }
       }
    } else {
@@ -466,18 +466,18 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
       for (int slot = first_slot; slot < vue_map.num_slots; slot++) {
          int varying = vue_map.slot_to_varying[slot];
          if (varying > 0 && (inputs_read & BITFIELD64_BIT(varying))) {
-            prog_data->fs.urb_setup[varying] = slot - first_slot;
+            info->fs.urb_setup[varying] = slot - first_slot;
             last_slot = slot;
          }
       }
       urb_next = last_slot - first_slot + 1;
    }
 
-   prog_data->fs.num_varying_inputs = urb_next;
-   prog_data->fs.inputs = inputs_read;
-   prog_data->fs.per_primitive_inputs = per_primitive_inputs;
+   info->fs.num_varying_inputs = urb_next;
+   info->fs.inputs = inputs_read;
+   info->fs.per_primitive_inputs = per_primitive_inputs;
 
-   brw_compute_urb_setup_index(prog_data);
+   brw_compute_urb_setup_index(info);
 }
 
 /**
@@ -534,10 +534,10 @@ brw_compute_barycentric_interp_modes(const nir_shader *shader,
 }
 
 static void
-brw_compute_flat_inputs(struct intel_shader_info *prog_data,
+brw_compute_flat_inputs(struct intel_shader_info *info,
                         const nir_shader *shader)
 {
-   prog_data->fs.flat_inputs = 0;
+   info->fs.flat_inputs = 0;
 
    nir_foreach_shader_in_variable(var, shader) {
       /* flat shading */
@@ -549,10 +549,10 @@ brw_compute_flat_inputs(struct intel_shader_info *prog_data,
 
       unsigned slots = glsl_count_attribute_slots(var->type, false);
       for (unsigned s = 0; s < slots; s++) {
-         int input_index = prog_data->fs.urb_setup[var->data.location + s];
+         int input_index = info->fs.urb_setup[var->data.location + s];
 
          if (input_index >= 0)
-            prog_data->fs.flat_inputs |= 1 << input_index;
+            info->fs.flat_inputs |= 1 << input_index;
       }
    }
 }
@@ -596,13 +596,13 @@ alpha_to_coverage_enabled(nir_shader *shader, enum intel_sometimes alpha_to_cove
 }
 
 static void
-brw_nir_populate_fs_prog_data(nir_shader *shader,
-                              const struct intel_device_info *devinfo,
-                              const struct brw_fs_prog_key *key,
-                              struct intel_shader_info *prog_data,
-                              const struct intel_vue_map *prev_stage_vue_map,
-                              const struct brw_mue_map *mue_map,
-                              int *per_primitive_offsets)
+brw_nir_populate_fs_info(nir_shader *shader,
+                         const struct intel_device_info *devinfo,
+                         const struct brw_fs_prog_key *key,
+                         struct intel_shader_info *info,
+                         const struct intel_vue_map *prev_stage_vue_map,
+                         const struct brw_mue_map *mue_map,
+                         int *per_primitive_offsets)
 {
    unsigned interp_modes, offset_interp_modes;
    brw_compute_barycentric_interp_modes(shader, &interp_modes, &offset_interp_modes);
@@ -616,20 +616,20 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
 
    assert(key->multisample_fbo != INTEL_NEVER || !key->persample_interp);
 
-   prog_data->fs.uses_kill = shader->info.fs.uses_discard;
-   prog_data->fs.uses_omask = !key->ignore_sample_mask_out &&
+   info->fs.uses_kill = shader->info.fs.uses_discard;
+   info->fs.uses_omask = !key->ignore_sample_mask_out &&
       (shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK));
-   prog_data->fs.computed_depth_mode = computed_depth_mode(shader);
-   prog_data->fs.computed_stencil =
+   info->fs.computed_depth_mode = computed_depth_mode(shader);
+   info->fs.computed_stencil =
       shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL);
 
-   prog_data->fs.dual_src_blend =
+   info->fs.dual_src_blend =
       shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_DUAL_SRC_BLEND);
-   assert(!prog_data->fs.dual_src_blend || key->nr_color_regions == 1);
+   assert(!info->fs.dual_src_blend || key->nr_color_regions == 1);
 
    const bool sample_shading = shader->info.fs.uses_sample_shading;
 
-   prog_data->fs.persample_interp = sample_shading || key->persample_interp;
+   info->fs.persample_interp = sample_shading || key->persample_interp;
    /* If we have both pixel & sample interpolation we need to enable persample
     * dispatch, otherwise spec allows us to fallback to pixel in non MSAA
     * cases.
@@ -640,8 +640,8 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
    const bool interp_at_pixel_and_sample =
       (interp_modes & interp_at_pixel_and_sample_bits) ==
       interp_at_pixel_and_sample_bits;
-   prog_data->fs.persample_dispatch =
-      (prog_data->fs.persample_interp && key->multisample_fbo >= INTEL_SOMETIMES) ||
+   info->fs.persample_dispatch =
+      (info->fs.persample_interp && key->multisample_fbo >= INTEL_SOMETIMES) ||
        interp_at_pixel_and_sample;
 
    /* Move sample barycentric modes to pixel when persample dispatch is always
@@ -652,7 +652,7 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
       u_foreach_bit(b, interp_modes) {
          tmp |= BITFIELD_BIT(
             intel_fs_barycentric_mode_for_persample_dispatch(
-               prog_data->fs.persample_dispatch,
+               info->fs.persample_dispatch,
                (enum intel_barycentric_mode) b));
       }
       interp_modes = tmp;
@@ -660,17 +660,17 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
 
    /* Gate alpha to coverage with the draw buffer 0 being written.
     */
-   prog_data->fs.alpha_to_coverage =
+   info->fs.alpha_to_coverage =
       alpha_to_coverage_enabled(shader, key->alpha_to_coverage);
 
    assert(devinfo->verx10 >= 125 || key->mesh_input == INTEL_NEVER);
 
    assert(devinfo->verx10 >= 200 || key->provoking_vertex_last == INTEL_NEVER);
-   prog_data->fs.provoking_vertex_last = key->provoking_vertex_last;
+   info->fs.provoking_vertex_last = key->provoking_vertex_last;
 
-   prog_data->fs.uses_fully_covered =
+   info->fs.uses_fully_covered =
       BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FULLY_COVERED);
-   prog_data->fs.uses_sample_mask = prog_data->fs.uses_fully_covered ||
+   info->fs.uses_sample_mask = info->fs.uses_fully_covered ||
       BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_SAMPLE_MASK_IN);
 
    /* From the Ivy Bridge PRM documentation for 3DSTATE_PS:
@@ -682,33 +682,33 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
     * per-sample dispatch.  If we need gl_SamplePosition and we don't have
     * persample dispatch, we hard-code it to 0.5.
     */
-   prog_data->fs.uses_pos_offset =
-      prog_data->fs.persample_dispatch &&
+   info->fs.uses_pos_offset =
+      info->fs.persample_dispatch &&
       (BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_SAMPLE_POS) ||
        BITSET_TEST(shader->info.system_values_read,
                    SYSTEM_VALUE_SAMPLE_POS_OR_CENTER));
 
-   prog_data->fs.early_fragment_tests = shader->info.fs.early_fragment_tests;
-   prog_data->fs.post_depth_coverage = shader->info.fs.post_depth_coverage;
-   prog_data->fs.inner_coverage = shader->info.fs.inner_coverage;
+   info->fs.early_fragment_tests = shader->info.fs.early_fragment_tests;
+   info->fs.post_depth_coverage = shader->info.fs.post_depth_coverage;
+   info->fs.inner_coverage = shader->info.fs.inner_coverage;
 
-   prog_data->fs.barycentric_interp_modes = interp_modes;
+   info->fs.barycentric_interp_modes = interp_modes;
 
    if (devinfo->ver >= 20) {
-      prog_data->fs.vertex_attributes_bypass = brw_needs_vertex_attributes_bypass(shader);
+      info->fs.vertex_attributes_bypass = brw_needs_vertex_attributes_bypass(shader);
 
-      prog_data->fs.uses_npc_bary_coefficients =
+      info->fs.uses_npc_bary_coefficients =
          offset_interp_modes & INTEL_BARYCENTRIC_NONPERSPECTIVE_BITS;
-      prog_data->fs.uses_pc_bary_coefficients =
+      info->fs.uses_pc_bary_coefficients =
          offset_interp_modes & ~INTEL_BARYCENTRIC_NONPERSPECTIVE_BITS;
-      prog_data->fs.uses_sample_offsets =
+      info->fs.uses_sample_offsets =
          offset_interp_modes & ((1 << INTEL_BARYCENTRIC_PERSPECTIVE_SAMPLE) |
                                 (1 << INTEL_BARYCENTRIC_NONPERSPECTIVE_SAMPLE));
    }
 
-   prog_data->fs.uses_nonperspective_interp_modes =
-      (prog_data->fs.barycentric_interp_modes & INTEL_BARYCENTRIC_NONPERSPECTIVE_BITS) ||
-      prog_data->fs.uses_npc_bary_coefficients;
+   info->fs.uses_nonperspective_interp_modes =
+      (info->fs.barycentric_interp_modes & INTEL_BARYCENTRIC_NONPERSPECTIVE_BITS) ||
+      info->fs.uses_npc_bary_coefficients;
 
    /* Variable rate shading & sample shading are 2 features that are known at
     * compile time in Vulkan GPL & ESO scenarios, so a driver should not be
@@ -716,19 +716,19 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
     */
    assert(!key->coarse_pixel || !key->persample_interp);
 
-   prog_data->fs.coarse_pixel_dispatch = !prog_data->fs.persample_dispatch;
+   info->fs.coarse_pixel_dispatch = !info->fs.persample_dispatch;
    if (!key->coarse_pixel ||
        /* DG2 should support this, but Wa_22012766191 says there are issues
         * with CPS 1x1 + MSAA + FS writing to oMask.
         */
        (devinfo->verx10 < 200 &&
-        (prog_data->fs.uses_omask ||
-         prog_data->fs.uses_sample_mask)) ||
+        (info->fs.uses_omask ||
+         info->fs.uses_sample_mask)) ||
        sample_shading ||
-       (prog_data->fs.computed_depth_mode != BRW_PSCDEPTH_OFF) ||
-       prog_data->fs.computed_stencil ||
+       (info->fs.computed_depth_mode != BRW_PSCDEPTH_OFF) ||
+       info->fs.computed_stencil ||
        devinfo->ver < 11) {
-      prog_data->fs.coarse_pixel_dispatch = false;
+      info->fs.coarse_pixel_dispatch = false;
    }
 
    /* ICL PRMs, Volume 9: Render Engine, Shared Functions Pixel Interpolater,
@@ -758,30 +758,30 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
     * interpolater message at sample.
     */
    if (intel_nir_pulls_at_sample(shader))
-      prog_data->fs.coarse_pixel_dispatch = false;
+      info->fs.coarse_pixel_dispatch = false;
 
    /* We choose to always enable VMask prior to XeHP, as it would cause
     * us to lose out on the eliminate_find_live_channel() optimization.
     */
-   prog_data->fs.uses_vmask = devinfo->verx10 < 125 ||
-                           shader->info.fs.needs_coarse_quad_helper_invocations ||
-                           shader->info.uses_wide_subgroup_intrinsics ||
-                           prog_data->fs.coarse_pixel_dispatch;
+   info->fs.uses_vmask = devinfo->verx10 < 125 ||
+                         shader->info.fs.needs_coarse_quad_helper_invocations ||
+                         shader->info.uses_wide_subgroup_intrinsics ||
+                         info->fs.coarse_pixel_dispatch;
 
-   prog_data->fs.uses_src_w =
+   info->fs.uses_src_w =
       BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FRAG_COORD_W);
-   prog_data->fs.uses_src_depth =
+   info->fs.uses_src_depth =
       BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FRAG_COORD_Z) &&
-      !prog_data->fs.coarse_pixel_dispatch;
-   prog_data->fs.uses_depth_w_coefficients = prog_data->fs.uses_pc_bary_coefficients ||
+      !info->fs.coarse_pixel_dispatch;
+   info->fs.uses_depth_w_coefficients = info->fs.uses_pc_bary_coefficients ||
       (BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_FRAG_COORD_Z) &&
-       prog_data->fs.coarse_pixel_dispatch);
+       info->fs.coarse_pixel_dispatch);
 
-   calculate_urb_setup(devinfo, key, prog_data, shader, prev_stage_vue_map,
+   calculate_urb_setup(devinfo, key, info, shader, prev_stage_vue_map,
                        mue_map, per_primitive_offsets);
-   brw_compute_flat_inputs(prog_data, shader);
+   brw_compute_flat_inputs(info, shader);
 
-   prog_data->fs.prefer_simd32 = key->prefer_simd32;
+   info->fs.prefer_simd32 = key->prefer_simd32;
 }
 
 /* From the SKL PRM, Volume 16, Workarounds:
@@ -797,24 +797,24 @@ brw_nir_populate_fs_prog_data(nir_shader *shader,
  * overhead.
  */
 static void
-gfx9_ps_header_only_workaround(struct intel_shader_info *fs_prog_data,
+gfx9_ps_header_only_workaround(struct intel_shader_info *info,
                                const struct intel_push_layout *push_layout)
 {
-   if (fs_prog_data->fs.num_varying_inputs)
+   if (info->fs.num_varying_inputs)
       return;
 
    if (push_layout->push_sizes[0] > 0)
       return;
 
-   fs_prog_data->fs.urb_setup[VARYING_SLOT_LAYER] = 0;
-   fs_prog_data->fs.num_varying_inputs = 1;
+   info->fs.urb_setup[VARYING_SLOT_LAYER] = 0;
+   info->fs.num_varying_inputs = 1;
 
-   brw_compute_urb_setup_index(fs_prog_data);
+   brw_compute_urb_setup_index(info);
 }
 
 static brw_reg
 remap_attr_reg(brw_shader &s,
-               struct intel_shader_info *prog_data,
+               struct intel_shader_info *info,
                const brw_reg &src,
                unsigned urb_start,
                unsigned exec_size)
@@ -882,13 +882,13 @@ remap_attr_reg(brw_shader &s,
     * accessing a primitive or vertex input.  Also calculate
     * the index of the input within that block.
     */
-   const bool per_prim = src.nr < prog_data->fs.num_per_primitive_inputs;
+   const bool per_prim = src.nr < info->fs.num_per_primitive_inputs;
    const unsigned base = urb_start +
       (per_prim ? 0 :
-       align(prog_data->fs.num_per_primitive_inputs / 2,
+       align(info->fs.num_per_primitive_inputs / 2,
              reg_unit(s.devinfo)) * s.max_polygons);
    const unsigned idx = per_prim ? src.nr :
-      src.nr - prog_data->fs.num_per_primitive_inputs;
+      src.nr - info->fs.num_per_primitive_inputs;
 
    /* Translate the offset within the param_width-wide
     * representation described above into an offset and a
@@ -974,7 +974,7 @@ brw_assign_fs_urb_setup(brw_shader &s)
 {
    assert(s.stage == MESA_SHADER_FRAGMENT);
 
-   struct intel_shader_info *prog_data = &s.info;
+   struct intel_shader_info *info = &s.info;
 
    const int urb_start =
       s.payload().num_regs +
@@ -996,14 +996,14 @@ brw_assign_fs_urb_setup(brw_shader &s)
       }
 
       if (inst->dst.file == ATTR) {
-         inst->dst = remap_attr_reg(s, prog_data, inst->dst,
+         inst->dst = remap_attr_reg(s, info, inst->dst,
                                     urb_start, inst->exec_size);
          continue;
       }
 
       for (int i = 0; i < inst->sources; i++) {
          if (inst->src[i].file == ATTR) {
-            inst->src[i] = remap_attr_reg(s, prog_data, inst->src[i],
+            inst->src[i] = remap_attr_reg(s, info, inst->src[i],
                                           urb_start, inst->exec_size);
          }
       }
@@ -1019,14 +1019,14 @@ brw_assign_fs_urb_setup(brw_shader &s)
     * dispatch.
     */
    s.first_non_payload_grf +=
-      (read_attribute_payload ? 32 : prog_data->fs.num_varying_inputs) *
+      (read_attribute_payload ? 32 : info->fs.num_varying_inputs) *
       2 * s.max_polygons;
 
    /* Unlike regular attributes, per-primitive attributes have all 4 channels
     * in the same slot, so each GRF can store two slots.
     */
-   assert(prog_data->fs.num_per_primitive_inputs % 2 == 0);
-   s.first_non_payload_grf += prog_data->fs.num_per_primitive_inputs / 2 * s.max_polygons;
+   assert(info->fs.num_per_primitive_inputs % 2 == 0);
+   s.first_non_payload_grf += info->fs.num_per_primitive_inputs / 2 * s.max_polygons;
 
    s.debug_optimizer(s.nir, "urb_setup", 91, 0);
 }
@@ -1035,7 +1035,7 @@ static bool
 run_fs(brw_shader &s, bool allow_spilling, bool do_rep_send)
 {
    const struct intel_device_info *devinfo = s.devinfo;
-   struct intel_shader_info *fs_prog_data = &s.info;
+   struct intel_shader_info *info = &s.info;
    const brw_builder bld = brw_builder(&s);
    const nir_shader *nir = s.nir;
 
@@ -1062,7 +1062,7 @@ run_fs(brw_shader &s, bool allow_spilling, bool do_rep_send)
            (BITSET_TEST(nir->info.system_values_read,
                         SYSTEM_VALUE_HELPER_INVOCATION) ||
             nir->info.writes_memory)) ||
-          fs_prog_data->fs.uses_kill) {
+          info->fs.uses_kill) {
 
          const unsigned lower_width = MIN2(s.dispatch_width, 16);
          for (unsigned i = 0; i < s.dispatch_width / lower_width; i++) {
@@ -1080,7 +1080,7 @@ run_fs(brw_shader &s, bool allow_spilling, bool do_rep_send)
       }
 
       if (nir->info.writes_memory)
-         fs_prog_data->fs.has_side_effects = true;
+         info->fs.has_side_effects = true;
 
       brw_from_nir(&s);
 
@@ -1094,7 +1094,7 @@ run_fs(brw_shader &s, bool allow_spilling, bool do_rep_send)
       s.assign_curb_setup();
 
       if (devinfo->ver == 9)
-         gfx9_ps_header_only_workaround(fs_prog_data,
+         gfx9_ps_header_only_workaround(info,
                                         &s.compile_params->push_layout);
 
       brw_assign_fs_urb_setup(s);
@@ -1149,7 +1149,7 @@ brw_print_fs_urb_setup(FILE *fp, const struct intel_shader_info *info,
 }
 
 void
-brw_nir_cleanup_pre_fs_prog_data(brw_pass_tracker *pt)
+brw_nir_cleanup_pre_fs_info(brw_pass_tracker *pt)
 {
    pass_tracker_new_loop(pt);
 
@@ -1284,13 +1284,13 @@ brw_compile_fs(const struct brw_compiler *compiler,
    if (!brw_can_coherent_fb_fetch(devinfo))
       BRW_NIR_PASS(brw_nir_lower_fs_load_output, key, 0);
 
-   /* Do this lowering before brw_nir_populate_fs_prog_data(). */
+   /* Do this lowering before brw_nir_populate_fs_info(). */
    BRW_NIR_PASS(nir_opt_frag_coord_to_pixel_coord);
    BRW_NIR_PASS(nir_lower_frag_coord_to_pixel_coord);
 
    BRW_NIR_PASS(brw_nir_move_interpolation_to_top);
 
-   brw_nir_cleanup_pre_fs_prog_data(pt);
+   brw_nir_cleanup_pre_fs_info(pt);
 
    /* From the SKL PRM, Volume 7, "Alpha Coverage":
     *  "If Pixel Shader outputs oMask, AlphaToCoverage is disabled in
@@ -1299,7 +1299,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
    if (alpha_to_coverage_enabled(nir, key->alpha_to_coverage) != INTEL_NEVER)
       BRW_NIR_PASS(brw_nir_lower_alpha_to_coverage);
 
-   /* We need to do this before populate_fs_prog_data because this might
+   /* We need to do this before populate_fs_info because this might
     * disable sample_mask writes.
     */
    BRW_NIR_PASS(intel_nir_lower_fragment_outputs,
@@ -1315,9 +1315,9 @@ brw_compile_fs(const struct brw_compiler *compiler,
    int per_primitive_offsets[VARYING_SLOT_MAX];
    memset(per_primitive_offsets, -1, sizeof(per_primitive_offsets));
 
-   brw_nir_populate_fs_prog_data(nir, compiler->devinfo, key, &info,
-                                 params->fs.vue_map, params->fs.mue_map,
-                                 per_primitive_offsets);
+   brw_nir_populate_fs_info(nir, compiler->devinfo, key, &info,
+                            params->fs.vue_map, params->fs.mue_map,
+                            per_primitive_offsets);
    info.fs.max_polygons = 1;
 
    if (info.fs.coarse_pixel_dispatch)

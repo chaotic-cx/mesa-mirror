@@ -298,12 +298,12 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
 }
 
 static void
-populate_fs_prog_data(nir_shader *shader,
-                      const struct intel_device_info *devinfo,
-                      const struct brw_fs_prog_key *key,
-                      const struct brw_mue_map *mue_map,
-                      int *per_primitive_offsets,
-                      struct intel_shader_info *info)
+populate_fs_info(nir_shader *shader,
+                 const struct intel_device_info *devinfo,
+                 const struct brw_fs_prog_key *key,
+                 const struct brw_mue_map *mue_map,
+                 int *per_primitive_offsets,
+                 struct intel_shader_info *info)
 {
    /* Sanity check, the driver should be able to be sensible here. */
    assert(key->multisample_fbo != INTEL_NEVER || !key->persample_interp);
@@ -488,9 +488,9 @@ populate_fs_prog_data(nir_shader *shader,
 }
 
 static void
-populate_vs_prog_data(nir_shader *nir,
-                      const struct intel_device_info *devinfo,
-                      struct intel_shader_info *info)
+populate_vs_info(nir_shader *nir,
+                 const struct intel_device_info *devinfo,
+                 struct intel_shader_info *info)
 {
    BITSET_WORD *sysvals = nir->info.system_values_read;
 
@@ -513,9 +513,9 @@ populate_vs_prog_data(nir_shader *nir,
 }
 
 static void
-populate_tcs_prog_data(nir_shader *nir,
-                       const struct brw_tcs_prog_key *key,
-                       struct intel_shader_info *info)
+populate_tcs_info(nir_shader *nir,
+                  const struct brw_tcs_prog_key *key,
+                  struct intel_shader_info *info)
 {
    brw_fill_tess_info_from_shader_info(&info->tcs.tess_info, &nir->info);
 
@@ -551,9 +551,9 @@ static const uint32_t
    };
 
 static void
-populate_gs_prog_data(nir_shader *nir,
-                      const struct brw_gs_prog_key *key,
-                      struct intel_shader_info *info)
+populate_gs_info(nir_shader *nir,
+                 const struct brw_gs_prog_key *key,
+                 struct intel_shader_info *info)
 {
    unsigned output_vertex_size_bytes = info->vue.vue_map.num_slots * 16;
    assert(output_vertex_size_bytes <= GFX7_MAX_GS_OUTPUT_VERTEX_SIZE_BYTES);
@@ -593,26 +593,26 @@ populate_gs_prog_data(nir_shader *nir,
 }
 
 void
-jay_populate_prog_data(const struct intel_device_info *devinfo,
-                       nir_shader *nir,
-                       struct intel_shader_info *info,
-                       union brw_any_prog_key *key,
-                       struct jay_fs_perprim_data *fs_perprim)
+jay_populate_shader_info(const struct intel_device_info *devinfo,
+                         nir_shader *nir,
+                         struct intel_shader_info *info,
+                         union brw_any_prog_key *key,
+                         struct jay_fs_perprim_data *fs_perprim)
 {
    info->is_jay = true;
 
    if (nir->info.stage == MESA_SHADER_VERTEX) {
-      populate_vs_prog_data(nir, devinfo, info);
+      populate_vs_info(nir, devinfo, info);
    } else if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
-      populate_tcs_prog_data(nir, &key->tcs, info);
+      populate_tcs_info(nir, &key->tcs, info);
    } else if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       int32_t *per_primitive_offsets = fs_perprim->per_primitive_offsets;
       memset(per_primitive_offsets, -1, VARYING_SLOT_MAX * sizeof(int));
 
-      populate_fs_prog_data(nir, devinfo, &key->fs,
-                            fs_perprim->mue, per_primitive_offsets, info);
+      populate_fs_info(nir, devinfo, &key->fs,
+                       fs_perprim->mue, per_primitive_offsets, info);
    } else if (nir->info.stage == MESA_SHADER_GEOMETRY) {
-      populate_gs_prog_data(nir, &key->gs, info);
+      populate_gs_info(nir, &key->gs, info);
    }
 
    if (nir->info.stage == MESA_SHADER_VERTEX ||

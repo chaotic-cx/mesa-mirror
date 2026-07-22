@@ -815,7 +815,7 @@ anv_shader_create(struct anv_device *device,
    VK_MULTIALLOC_DECL(&ma, struct anv_shader, shader, 1);
    VK_MULTIALLOC_DECL(&ma, uint32_t, cmd_data, cmd_data_dwords);
    VK_MULTIALLOC_DECL_SIZE(&ma, void, obj_key_data, brw_prog_key_size(stage));
-   VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc, prog_data_relocs,
+   VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc, bin_relocs,
                       shader_data->bin->num_relocs);
    VK_MULTIALLOC_DECL(&ma, intel_shader_bin, bin, 1);
 
@@ -867,14 +867,14 @@ anv_shader_create(struct anv_device *device,
              internal_representations.nir_str_len);
    }
 
-   typed_memcpy(prog_data_relocs,
+   typed_memcpy(bin_relocs,
                 shader_data->bin->relocs,
                 shader_data->bin->num_relocs);
 
    shader->bin = bin;
    *bin = *shader_data->bin;
    bin->code = shader->code;
-   bin->relocs = prog_data_relocs;
+   bin->relocs = bin_relocs;
 
    if (shader_data->xfb_info) {
       *xfb_info = *shader_data->xfb_info;

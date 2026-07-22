@@ -84,7 +84,7 @@ anv_shader_internal_create(struct anv_device *device,
    VK_MULTIALLOC(ma);
    VK_MULTIALLOC_DECL(&ma, struct anv_shader_internal, shader, 1);
    VK_MULTIALLOC_DECL_SIZE(&ma, void, obj_key_data, key_size);
-   VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc, prog_data_relocs,
+   VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc, bin_relocs,
                            src_bin->num_relocs);
    VK_MULTIALLOC_DECL(&ma, void, code, src_bin->code_size);
    VK_MULTIALLOC_DECL(&ma, intel_shader_bin, bin, 1);
@@ -105,8 +105,8 @@ anv_shader_internal_create(struct anv_device *device,
    shader->bin = bin;
    *bin = *src_bin;
    bin->code = code;
-   typed_memcpy(prog_data_relocs, src_bin->relocs, src_bin->num_relocs);
-   bin->relocs = prog_data_relocs;
+   typed_memcpy(bin_relocs, src_bin->relocs, src_bin->num_relocs);
+   bin->relocs = bin_relocs;
 
    if (anv_needs_printf_buffer()) {
       struct intel_shader_reloc_value reloc_values[3];

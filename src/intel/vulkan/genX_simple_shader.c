@@ -625,7 +625,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA_2)) {
                .KernelStartPointer                 =
                   anv_shader_get_pointer(device, &state->kernel->kernel) +
-                  brw_cs_prog_data_prog_offset(&bin->info, dispatch.simd_size),
+                  intel_shader_info_cs_prog_offset(&bin->info, dispatch.simd_size),
                .RegistersPerThread                 =
                   intel_register_blocks(devinfo, bin->info.grf_used),
                .NumberOfBarriers                   = bin->info.wg.uses_barrier,
@@ -708,7 +708,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
 
             .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
                .KernelStartPointer                = state->kernel->kernel.offset +
-                  brw_cs_prog_data_prog_offset(&bin->info, dispatch.simd_size),
+                  intel_shader_info_cs_prog_offset(&bin->info, dispatch.simd_size),
                .SamplerStatePointer               = 0,
                .BindingTablePointer               = 0,
                .BindingTableEntryCount            = 0,
@@ -783,7 +783,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
 
          struct GENX(INTERFACE_DESCRIPTOR_DATA) iface_desc = {
             .KernelStartPointer                    = state->kernel->kernel.offset +
-               brw_cs_prog_data_prog_offset(&bin->info, dispatch.simd_size),
+               intel_shader_info_cs_prog_offset(&bin->info, dispatch.simd_size),
 
             .SamplerCount                          = 0,
             .BindingTableEntryCount                = 0,

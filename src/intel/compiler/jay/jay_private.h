@@ -32,11 +32,11 @@ bool jay_nir_lower_bool(nir_shader *nir);
 bool jay_nir_lower_algebraic(nir_shader *nir, unsigned verx10);
 bool jay_nir_lower_bfloat_math(nir_shader *nir);
 
-void jay_populate_prog_data(const struct intel_device_info *devinfo,
-                            nir_shader *nir,
-                            struct intel_shader_info *info,
-                            union brw_any_prog_key *key,
-                            struct jay_fs_perprim_data *fs_perprim);
+void jay_populate_shader_info(const struct intel_device_info *devinfo,
+                              nir_shader *nir,
+                              struct intel_shader_info *info,
+                              union brw_any_prog_key *key,
+                              struct jay_fs_perprim_data *fs_perprim);
 void jay_process_nir(const struct intel_device_info *devinfo,
                      const struct jay_compile_params *params,
                      struct jay_fs_perprim_data *fs_perprim,

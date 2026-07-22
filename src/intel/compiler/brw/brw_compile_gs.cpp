@@ -342,7 +342,7 @@ brw_compile_gs(const struct brw_compiler *compiler,
    const unsigned output_topology =
       gl_prim_to_hw_prim[nir->info.gs.output_primitive];
 
-   /* Now that prog_data setup is done, we are ready to actually compile the
+   /* Now that the metadata setup is done, we are ready to actually compile the
     * program.
     */
    if (unlikely(debug_enabled)) {

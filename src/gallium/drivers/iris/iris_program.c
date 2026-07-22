@@ -134,7 +134,7 @@ iris_backend_compile(const struct iris_screen *screen,
 }
 
 static void
-iris_apply_brw_fs_prog_data(struct iris_compiled_shader *shader)
+iris_apply_brw_fs_info(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_FRAGMENT);
    struct iris_fs_data *iris = &shader->fs;
@@ -180,7 +180,7 @@ iris_apply_brw_fs_prog_data(struct iris_compiled_shader *shader)
 }
 
 static void
-iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader)
+iris_apply_brw_cs_info(struct iris_compiled_shader *shader)
 {
    const struct intel_shader_info *info = &shader->info;
    assert(shader->stage == MESA_SHADER_COMPUTE);
@@ -214,8 +214,8 @@ iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader)
 }
 
 static void
-iris_apply_brw_vue_prog_data(const struct intel_shader_info *info,
-                             struct iris_vue_data *iris)
+iris_apply_brw_vue_info(const struct intel_shader_info *info,
+                        struct iris_vue_data *iris)
 {
    memcpy(&iris->vue_map, &info->vue.vue_map, sizeof(struct intel_vue_map));
 
@@ -227,13 +227,13 @@ iris_apply_brw_vue_prog_data(const struct intel_shader_info *info,
 }
 
 static void
-iris_apply_brw_vs_prog_data(struct iris_compiled_shader *shader)
+iris_apply_brw_vs_info(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_VERTEX);
    struct iris_vs_data *iris = &shader->vs;
    const struct intel_shader_info *info = &shader->info;
 
-   iris_apply_brw_vue_prog_data(info, &iris->base);
+   iris_apply_brw_vue_info(info, &iris->base);
 
    iris->uses_vertexid     = info->vs.uses_vertexid;
    iris->uses_instanceid   = info->vs.uses_instanceid;
@@ -243,14 +243,14 @@ iris_apply_brw_vs_prog_data(struct iris_compiled_shader *shader)
 }
 
 static void
-iris_apply_brw_tcs_prog_data(struct iris_compiled_shader *shader)
+iris_apply_brw_tcs_info(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_TESS_CTRL);
    struct iris_tcs_data *iris = &shader->tcs;
 
    const struct intel_shader_info *info = &shader->info;
 
-   iris_apply_brw_vue_prog_data(info, &iris->base);
+   iris_apply_brw_vue_info(info, &iris->base);
 
    iris->instances             = info->tcs.instances;
    iris->patch_count_threshold = info->tcs.patch_count_threshold;
@@ -258,14 +258,14 @@ iris_apply_brw_tcs_prog_data(struct iris_compiled_shader *shader)
 }
 
 static void
-iris_apply_brw_tes_prog_data(struct iris_compiled_shader *shader)
+iris_apply_brw_tes_info(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_TESS_EVAL);
    struct iris_tes_data *iris = &shader->tes;
 
    const struct intel_shader_info *info = &shader->info;
 
-   iris_apply_brw_vue_prog_data(info, &iris->base);
+   iris_apply_brw_vue_info(info, &iris->base);
 
    iris->partitioning         = brw_tess_info_partitioning(info->tes.tess_info);
    iris->output_topology      = brw_tess_info_output_topology(info->tes.tess_info);
@@ -274,14 +274,14 @@ iris_apply_brw_tes_prog_data(struct iris_compiled_shader *shader)
 }
 
 static void
-iris_apply_brw_gs_prog_data(struct iris_compiled_shader *shader)
+iris_apply_brw_gs_info(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_GEOMETRY);
    struct iris_gs_data *iris = &shader->gs;
 
    const struct intel_shader_info *info = &shader->info;
 
-   iris_apply_brw_vue_prog_data(info, &iris->base);
+   iris_apply_brw_vue_info(info, &iris->base);
 
    iris->vertices_in                     = info->gs.vertices_in;
    iris->output_vertex_size_hwords       = info->gs.output_vertex_size_hwords;
@@ -316,22 +316,22 @@ iris_apply_shader_bin(struct iris_compiled_shader *shader,
 
    switch (shader->stage) {
    case MESA_SHADER_FRAGMENT:
-      iris_apply_brw_fs_prog_data(shader);
+      iris_apply_brw_fs_info(shader);
       break;
    case MESA_SHADER_COMPUTE:
-      iris_apply_brw_cs_prog_data(shader);
+      iris_apply_brw_cs_info(shader);
       break;
    case MESA_SHADER_VERTEX:
-      iris_apply_brw_vs_prog_data(shader);
+      iris_apply_brw_vs_info(shader);
       break;
    case MESA_SHADER_TESS_CTRL:
-      iris_apply_brw_tcs_prog_data(shader);
+      iris_apply_brw_tcs_info(shader);
       break;
    case MESA_SHADER_TESS_EVAL:
-      iris_apply_brw_tes_prog_data(shader);
+      iris_apply_brw_tes_info(shader);
       break;
    case MESA_SHADER_GEOMETRY:
-      iris_apply_brw_gs_prog_data(shader);
+      iris_apply_brw_gs_info(shader);
       break;
    default:
       UNREACHABLE("invalid shader stage");

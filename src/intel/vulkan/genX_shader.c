@@ -1274,7 +1274,7 @@ emit_cs_shader(struct anv_batch *batch,
       struct GENX(INTERFACE_DESCRIPTOR_DATA) desc = {
          .KernelStartPointer     =
             anv_shader_get_pointer(device, &shader->kernel) +
-            brw_cs_prog_data_prog_offset(&bin->info, dispatch.simd_size),
+            intel_shader_info_cs_prog_offset(&bin->info, dispatch.simd_size),
 
          .SamplerCount           = get_sampler_count(device, shader),
          .BindingTableEntryCount = MIN2(get_surface_count(device, shader), 31),

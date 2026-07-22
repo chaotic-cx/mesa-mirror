@@ -377,7 +377,7 @@ struct blorp_params
    const struct intel_shader_info *fs_info;
    const struct intel_shader_info *cs_info;
 
-   /* These are pointers to struct {brw,elk}_stage_prog_data. */
+   /* Pointers to struct elk_stage_prog_data. */
    void *vs_prog_data;
    void *sf_prog_data;
    void *fs_prog_data;
