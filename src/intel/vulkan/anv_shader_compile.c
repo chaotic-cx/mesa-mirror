@@ -1107,7 +1107,7 @@ populate_compile_params_mesh(struct brw_compile_params *params,
                              struct anv_shader_data *prev_shader_data)
 {
    params->mesh.tue_map = prev_shader_data ?
-                          &prev_shader_data->prog_data.task.map : NULL;
+                          &prev_shader_data->bin->info.task.map : NULL;
    params->mesh.wa_18019110168_load_provoking_vertex =
       wa_18019110168_load_provoking_vertex;
    params->mesh.wa_18019110168_data = (void *)&shader_data->bind_map;
@@ -1165,7 +1165,7 @@ populate_compile_params_fs(struct brw_compile_params *params,
          params->fs.vue_map = &prev_shader_data->bin->info.vue.vue_map;
          break;
       case MESA_SHADER_MESH:
-         params->fs.mue_map = shader_data->mue_map;
+         params->fs.mue_map = &prev_shader_data->bin->info.mesh.map;
          break;
       default:
          break;
@@ -1807,7 +1807,6 @@ anv_shaders_pre_lower_gfx(struct anv_device *device,
          break;
       case MESA_SHADER_MESH:
          anv_shader_link(compiler, info, next_stage->info);
-         next_stage->mue_map = &shader_data->prog_data.mesh.map;
          break;
       default:
          UNREACHABLE("Invalid graphics shader stage");

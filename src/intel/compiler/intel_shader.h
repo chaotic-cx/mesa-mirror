@@ -594,6 +594,51 @@ struct brw_cs_push_const_info {
    struct brw_push_const_block per_thread;
 };
 
+struct brw_tue_map {
+   uint32_t size_dw;
+};
+
+struct brw_mue_map {
+   /* Total size in bytes of the MUE (32B aligned) */
+   uint32_t size;
+
+   uint32_t max_primitives;
+   uint32_t max_vertices;
+
+   /* Stride in bytes between sets of primitive indices */
+   uint32_t per_primitive_indices_stride;
+
+   /* Per primitive offset from the start of the MUE (32B aligned) */
+   uint32_t per_primitive_offset;
+
+   /* Per primitive stride in bytes (32B aligned) */
+   uint32_t per_primitive_stride;
+
+   /* Per vertex offset in bytes from the start of the MUE (32B aligned) */
+   uint32_t per_vertex_offset;
+
+   /* Per vertex stride in bytes (32B aligned) */
+   uint32_t per_vertex_stride;
+
+   /* VUE map for the per vertex attributes */
+   struct intel_vue_map vue_map;
+
+   /* Offset in bytes of each per primitive relative to
+    * per_primitive_offset (-1 if unused)
+    */
+   int per_primitive_offsets[VARYING_SLOT_MAX];
+
+   /* Whether the per primitive block includes a header */
+   bool has_per_primitive_header;
+
+   bool wa_18019110168_active;
+};
+
+enum brw_mesh_index_format {
+   BRW_INDEX_FORMAT_U32,
+   BRW_INDEX_FORMAT_U888X,
+};
+
 struct brw_tess_info {
    enum tess_primitive_mode primitive_mode:8;
    uint8_t                         spacing:2;
@@ -757,6 +802,29 @@ struct intel_shader_info {
          uint32_t invocations;
          bool include_primitive_id;
       } gs;
+      struct {
+         struct brw_tue_map map;
+         bool uses_drawid;
+      } task;
+      struct {
+         struct brw_mue_map map;
+         uint32_t clip_distance_mask;
+         uint32_t cull_distance_mask;
+         enum brw_mesh_index_format index_format;
+
+         /**
+          * Offset in the program where the remapping table for Wa_18019110168 is
+          * located.
+          *
+          * The remapping table has the same format as
+          * intel_vue_map::varying_to_slot[]
+          */
+         uint32_t wa_18019110168_mapping_offset;
+
+         uint16_t primitive_type;
+         bool uses_drawid;
+         bool autostrip_enable;
+      } mesh;
    };
 };
 

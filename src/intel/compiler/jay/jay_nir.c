@@ -889,18 +889,18 @@ jay_process_nir(const struct intel_device_info *devinfo,
       brw_fill_tess_info_from_shader_info(&info->tes.tess_info,
                                           &nir->info);
    } else if (stage == MESA_SHADER_MESH) {
-      prog_data->mesh.primitive_type = nir->info.mesh.primitive_type;
+      info->mesh.primitive_type = nir->info.mesh.primitive_type;
 
       struct index_packing_state index_packing_state = {};
       if (brw_can_pack_primitive_indices(nir, &index_packing_state)) {
          if (index_packing_state.original_prim_indices)
             NIR_PASS(_, nir, brw_pack_primitive_indices, &index_packing_state);
-         prog_data->mesh.index_format = BRW_INDEX_FORMAT_U888X;
+         info->mesh.index_format = BRW_INDEX_FORMAT_U888X;
       } else {
-         prog_data->mesh.index_format = BRW_INDEX_FORMAT_U32;
+         info->mesh.index_format = BRW_INDEX_FORMAT_U32;
       }
 
-      prog_data->mesh.uses_drawid =
+      info->mesh.uses_drawid =
          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID);
 
       brw_nir_lower_tue_inputs(pt, NULL);
@@ -909,23 +909,23 @@ jay_process_nir(const struct intel_device_info *devinfo,
       BRW_NIR_PASS(nir_opt_dce);
       BRW_NIR_PASS(nir_remove_dead_variables, nir_var_shader_out, NULL);
 
-      brw_compute_mue_map(&compiler, nir, &prog_data->mesh.map,
-                          prog_data->mesh.index_format, key->base.vue_layout,
+      brw_compute_mue_map(&compiler, nir, &info->mesh.map,
+                          info->mesh.index_format, key->base.vue_layout,
                           NULL);
-      brw_nir_lower_mesh_outputs(nir, &prog_data->mesh.map);
+      brw_nir_lower_mesh_outputs(nir, &info->mesh.map);
 
-      if (prog_data->mesh.map.has_per_primitive_header)
-         BRW_NIR_PASS(brw_nir_initialize_mue, &prog_data->mesh.map);
+      if (info->mesh.map.has_per_primitive_header)
+         BRW_NIR_PASS(brw_nir_initialize_mue, &info->mesh.map);
       NIR_PASS(_, nir, brw_nir_lower_cs_intrinsics, devinfo, NULL);
 
-      prog_data->mesh.autostrip_enable =
-         brw_mesh_autostrip_enable(&compiler, nir, &prog_data->mesh.map);
+      info->mesh.autostrip_enable =
+         brw_mesh_autostrip_enable(&compiler, nir, &info->mesh.map);
 
    } else if (stage == MESA_SHADER_TASK) {
-      prog_data->task.uses_drawid =
+      info->task.uses_drawid =
          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID);
 
-      brw_nir_lower_tue_outputs(pt, &prog_data->task.map);
+      brw_nir_lower_tue_outputs(pt, &info->task.map);
 
       BRW_NIR_PASS(brw_nir_align_launch_mesh_workgroups);
 
@@ -1021,15 +1021,15 @@ jay_process_nir(const struct intel_device_info *devinfo,
 
       const struct brw_lower_urb_cb_data cb_data = {
          .devinfo = devinfo,
-         .varying_to_slot = prog_data->mesh.map.vue_map.varying_to_slot,
-         .per_vertex_stride = prog_data->mesh.map.per_vertex_stride,
-         .per_vertex_offset = prog_data->mesh.map.per_vertex_offset,
-         .per_primitive_offset = prog_data->mesh.map.per_primitive_offset,
-         .per_primitive_stride = prog_data->mesh.map.per_primitive_stride,
+         .varying_to_slot = info->mesh.map.vue_map.varying_to_slot,
+         .per_vertex_stride = info->mesh.map.per_vertex_stride,
+         .per_vertex_offset = info->mesh.map.per_vertex_offset,
+         .per_primitive_offset = info->mesh.map.per_primitive_offset,
+         .per_primitive_stride = info->mesh.map.per_primitive_stride,
          .per_primitive_indices_stride =
-            prog_data->mesh.map.per_primitive_indices_stride,
+            info->mesh.map.per_primitive_indices_stride,
          .per_primitive_byte_offsets =
-            prog_data->mesh.map.per_primitive_offsets,
+            info->mesh.map.per_primitive_offsets,
       };
       BRW_NIR_PASS(brw_nir_lower_outputs_to_urb_intrinsics, &cb_data);
       struct nir_opt_offsets_options offset_options = {};

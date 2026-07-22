@@ -111,9 +111,6 @@ struct anv_shader_data {
    bool use_primitive_replication;
    uint32_t instance_multiplier;
 
-   /* For fragment shaders only */
-   struct brw_mue_map *mue_map;
-
    struct anv_push_descriptor_info push_desc_info;
 
    struct anv_pipeline_bind_map bind_map;

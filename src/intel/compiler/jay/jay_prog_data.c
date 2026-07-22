@@ -629,8 +629,8 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
                                           nir->info.cull_distance_array_size);
 
       if (nir->info.stage == MESA_SHADER_MESH) {
-         prog_data->mesh.clip_distance_mask = clip_mask;
-         prog_data->mesh.cull_distance_mask = cull_mask;
+         info->mesh.clip_distance_mask = clip_mask;
+         info->mesh.cull_distance_mask = cull_mask;
       } else {
          info->vue.clip_distance_mask = clip_mask;
          info->vue.cull_distance_mask = cull_mask;

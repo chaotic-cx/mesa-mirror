@@ -857,78 +857,13 @@ struct brw_gs_prog_data
    struct brw_vue_prog_data base;
 };
 
-struct brw_tue_map {
-   uint32_t size_dw;
-};
-
-struct brw_mue_map {
-   /* Total size in bytes of the MUE (32B aligned) */
-   uint32_t size;
-
-   uint32_t max_primitives;
-   uint32_t max_vertices;
-
-   /* Stride in bytes between sets of primitive indices */
-   uint32_t per_primitive_indices_stride;
-
-   /* Per primitive offset from the start of the MUE (32B aligned) */
-   uint32_t per_primitive_offset;
-
-   /* Per primitive stride in bytes (32B aligned) */
-   uint32_t per_primitive_stride;
-
-   /* Whether the per primitive block includes a header */
-   bool has_per_primitive_header;
-
-   /* Per vertex offset in bytes from the start of the MUE (32B aligned) */
-   uint32_t per_vertex_offset;
-
-   /* Per vertex stride in bytes (32B aligned) */
-   uint32_t per_vertex_stride;
-
-   /* VUE map for the per vertex attributes */
-   struct intel_vue_map vue_map;
-
-   bool wa_18019110168_active;
-
-   /* Offset in bytes of each per primitive relative to
-    * per_primitive_offset (-1 if unused)
-    */
-   int per_primitive_offsets[VARYING_SLOT_MAX];
-};
-
 struct brw_task_prog_data {
    struct brw_cs_prog_data base;
-   struct brw_tue_map map;
-   bool uses_drawid;
 };
 
-enum brw_mesh_index_format {
-   BRW_INDEX_FORMAT_U32,
-   BRW_INDEX_FORMAT_U888X,
-};
 
 struct brw_mesh_prog_data {
    struct brw_cs_prog_data base;
-   struct brw_mue_map map;
-
-   uint32_t clip_distance_mask;
-   uint32_t cull_distance_mask;
-   uint16_t primitive_type;
-
-   enum brw_mesh_index_format index_format;
-
-   bool uses_drawid;
-   bool autostrip_enable;
-
-   /**
-    * Offset in the program where the remapping table for Wa_18019110168 is
-    * located.
-    *
-    * The remapping table has the same format as
-    * intel_vue_map::varying_to_slot[]
-    */
-   uint32_t wa_18019110168_mapping_offset;
 };
 
 /* brw_any_prog_data is prog_data for any stage that maps to an API stage */

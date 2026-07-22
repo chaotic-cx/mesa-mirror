@@ -537,7 +537,7 @@ cmd_buffer_flush_gfx_push_constants(struct anv_cmd_buffer *cmd_buffer,
              * shaders.
              */
             if (range->set == ANV_DESCRIPTOR_SET_PER_PRIM_PADDING &&
-                mesh_prog_data && !mesh_prog_data->map.wa_18019110168_active) {
+                mesh_prog_data && !gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active) {
                break;
             }
 #endif
@@ -1932,8 +1932,10 @@ execute_indirect_draw_supported(const struct anv_cmd_buffer *cmd_buffer)
 
    const bool uses_draw_id =
       (info != NULL && info->vs.uses_drawid) ||
-      (mesh_prog_data && mesh_prog_data->uses_drawid) ||
-      (task_prog_data && task_prog_data->uses_drawid);
+      (mesh_prog_data &&
+       gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.uses_drawid) ||
+      (task_prog_data &&
+       gfx->shaders[MESA_SHADER_TASK]->bin->info.task.uses_drawid);
 
    const bool uses_firstvertex =
       (info != NULL && info->vs.uses_firstvertex);
@@ -2659,7 +2661,6 @@ void genX(CmdDrawMeshTasksIndirect2EXT)(
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
    struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
    const struct brw_task_prog_data *task_prog_data = get_gfx_task_prog_data(gfx);
-   const struct brw_mesh_prog_data *mesh_prog_data = get_gfx_mesh_prog_data(gfx);
    struct anv_cmd_state *cmd_state = &cmd_buffer->state;
 
    if (anv_batch_has_error(&cmd_buffer->batch))
@@ -2691,8 +2692,8 @@ void genX(CmdDrawMeshTasksIndirect2EXT)(
    if (cmd_state->conditional_render_enabled)
       genX(cmd_emit_conditional_render_predicate)(cmd_buffer);
 
-   bool uses_drawid = (task_prog_data && task_prog_data->uses_drawid) ||
-                       mesh_prog_data->uses_drawid;
+   bool uses_drawid = (task_prog_data && gfx->shaders[MESA_SHADER_TASK]->bin->info.task.uses_drawid) ||
+                       gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.uses_drawid;
    struct mi_builder b;
    mi_builder_init(&b, cmd_buffer->device->info, &cmd_buffer->batch);
 
@@ -2718,7 +2719,6 @@ void genX(CmdDrawMeshTasksIndirectCount2EXT)(
    ANV_FROM_HANDLE(anv_cmd_buffer, cmd_buffer, commandBuffer);
    struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
    const struct brw_task_prog_data *task_prog_data = get_gfx_task_prog_data(gfx);
-   const struct brw_mesh_prog_data *mesh_prog_data = get_gfx_mesh_prog_data(gfx);
 
    if (anv_batch_has_error(&cmd_buffer->batch))
       return;
@@ -2749,8 +2749,8 @@ void genX(CmdDrawMeshTasksIndirectCount2EXT)(
 
    cmd_buffer_flush_gfx(cmd_buffer);
 
-   bool uses_drawid = (task_prog_data && task_prog_data->uses_drawid) ||
-                       mesh_prog_data->uses_drawid;
+   bool uses_drawid = (task_prog_data && gfx->shaders[MESA_SHADER_TASK]->bin->info.task.uses_drawid) ||
+                       gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.uses_drawid;
 
    struct mi_builder b;
    mi_builder_init(&b, cmd_buffer->device->info, &cmd_buffer->batch);

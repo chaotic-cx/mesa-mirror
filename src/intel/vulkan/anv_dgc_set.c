@@ -115,10 +115,9 @@ anv_write_gfx_indirect_descriptor(struct anv_device *device,
          &gfx->shaders[stage]->bind_map;
       if (stage == MESA_SHADER_MESH &&
           intel_needs_workaround(device->info, 18019110168)) {
-         const struct brw_mesh_prog_data *mesh_prog_data = get_gfx_mesh_prog_data(gfx);
          descriptor->wa_18019110168_remapping_table_offset =
             gfx->shaders[MESA_SHADER_MESH]->kernel.offset +
-            mesh_prog_data->wa_18019110168_mapping_offset;
+            gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.wa_18019110168_mapping_offset;
       }
 
       if (stage == MESA_SHADER_MESH || stage == MESA_SHADER_TASK) {

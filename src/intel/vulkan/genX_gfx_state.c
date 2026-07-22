@@ -461,7 +461,7 @@ anv_raster_polygon_mode(const struct anv_cmd_graphics_state *gfx,
                         VkPrimitiveTopology primitive_topology)
 {
    if (gfx->shaders[MESA_SHADER_MESH] != NULL) {
-      switch (get_gfx_mesh_prog_data(gfx)->primitive_type) {
+      switch (gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.primitive_type) {
       case MESA_PRIM_POINTS:
          return VK_POLYGON_MODE_POINT;
       case MESA_PRIM_LINES:
@@ -814,11 +814,9 @@ update_urb_config(struct anv_gfx_dynamic_state *hw_state,
    if (anv_gfx_has_stage(gfx, MESA_SHADER_MESH)) {
       const struct brw_task_prog_data *task_prog_data =
          get_gfx_task_prog_data(gfx);
-      const struct brw_mesh_prog_data *mesh_prog_data =
-         get_gfx_mesh_prog_data(gfx);
       intel_get_mesh_urb_config(device->info, device->l3_config,
-                                task_prog_data ? task_prog_data->map.size_dw : 0,
-                                mesh_prog_data->map.size / 4, &new_cfg);
+                                task_prog_data ? gfx->shaders[MESA_SHADER_TASK]->bin->info.task.map.size_dw : 0,
+                                gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.size / 4, &new_cfg);
    } else
 #endif
    {
@@ -872,7 +870,7 @@ update_fs_config(struct anv_gfx_dynamic_state *hw_state,
             .primitive_id_index        = hw_state->primitive_id_index,
 #if INTEL_WA_18019110168_GFX_VER
             .per_primitive_remapping   = mesh_prog_data &&
-                                         mesh_prog_data->map.wa_18019110168_active,
+                                         gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active,
 #endif
             .conservative_raster       = dyn->rs.conservative_mode != VK_CONSERVATIVE_RASTERIZATION_MODE_DISABLED_EXT,
          });
@@ -880,11 +878,11 @@ update_fs_config(struct anv_gfx_dynamic_state *hw_state,
    SET(FS_CONFIG, fs_config, fs_config);
 
 #if INTEL_WA_18019110168_GFX_VER
-   if (mesh_prog_data && mesh_prog_data->map.wa_18019110168_active) {
+   if (mesh_prog_data && gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active) {
       SET(WA_18019110168, wa_18019110168,
           (GET(wa_18019110168) & ~ANV_WA_18019110168_PER_PRIMITIVE_REMAP_TABLE_OFFSET_MASK) |
           ((gfx->shaders[MESA_SHADER_MESH]->kernel.offset +
-            mesh_prog_data->wa_18019110168_mapping_offset)));
+            gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.wa_18019110168_mapping_offset)));
    }
 #endif
 }
@@ -897,9 +895,7 @@ sbe_primitive_id_override(const struct anv_cmd_graphics_state *gfx)
       return false;
 
    if (anv_gfx_has_stage(gfx, MESA_SHADER_MESH)) {
-      const struct brw_mesh_prog_data *mesh_prog_data =
-         get_gfx_mesh_prog_data(gfx);
-      const struct brw_mue_map *mue = &mesh_prog_data->map;
+      const struct brw_mue_map *mue = &gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map;
       return (fs_prog_data->inputs & VARYING_BIT_PRIMITIVE_ID) &&
               mue->per_primitive_offsets[VARYING_SLOT_PRIMITIVE_ID] == -1;
    }
@@ -927,7 +923,7 @@ update_sbe(struct anv_gfx_dynamic_state *hw_state,
    uint32_t vertex_read_offset, vertex_read_length, vertex_varyings, flat_inputs;
    brw_compute_sbe_per_vertex_urb_read(
       vue_map, mesh_prog_data != NULL,
-      mesh_prog_data ? mesh_prog_data->map.wa_18019110168_active : false,
+      mesh_prog_data ? gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.wa_18019110168_active : false,
       fs_prog_data,
       &vertex_read_offset, &vertex_read_length, &vertex_varyings,
       &hw_state->primitive_id_index, &flat_inputs);
@@ -1002,7 +998,7 @@ update_sbe(struct anv_gfx_dynamic_state *hw_state,
       uint32_t prim_read_offset, prim_read_length;
       brw_compute_sbe_per_primitive_urb_read(fs_prog_data->per_primitive_inputs,
                                              fs_prog_data->num_per_primitive_inputs,
-                                             &mesh_prog_data->map,
+                                             &gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map,
                                              &prim_read_offset,
                                              &prim_read_length);
 
@@ -1665,7 +1661,7 @@ update_clip_preraster_stages(struct anv_gfx_dynamic_state *hw_state,
 {
    const bool layer_written =
       anv_gfx_has_stage(gfx, MESA_SHADER_MESH) ?
-      get_gfx_mesh_prog_data(gfx)->map.per_primitive_offsets[VARYING_SLOT_LAYER] >= 0 :
+      gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.per_primitive_offsets[VARYING_SLOT_LAYER] >= 0 :
       (get_gfx_last_vue_map(gfx)->slots_valid & VARYING_BIT_LAYER);
 
    SET(CLIP, clip.ForceZeroRTAIndexEnable, !layer_written);
@@ -2348,10 +2344,10 @@ update_vs(struct anv_gfx_dynamic_state *hw_state,
 
 #if INTEL_WA_18019110168_GFX_VER
 static inline unsigned
-compute_mesh_provoking_vertex(const struct brw_mesh_prog_data *mesh_prog_data,
+compute_mesh_provoking_vertex(const struct intel_shader_info *info,
                               const struct vk_dynamic_graphics_state *dyn)
 {
-   switch (mesh_prog_data->primitive_type) {
+   switch (info->mesh.primitive_type) {
    case MESA_PRIM_POINTS:
       return 0;
    case MESA_PRIM_LINES:
@@ -2721,7 +2717,7 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
    const bool mesh_provoking_vertex_update =
       intel_needs_workaround(device->info, 18019110168) &&
       mesh_prog_data &&
-      (mesh_prog_data->map.vue_map.slots_valid & (VARYING_BIT_CLIP_DIST0 |
+      (gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.vue_map.slots_valid & (VARYING_BIT_CLIP_DIST0 |
                                                   VARYING_BIT_CLIP_DIST1)) &&
       ((gfx->dirty & ANV_CMD_DIRTY_MESH) ||
        BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_RS_PROVOKING_VERTEX));
@@ -2729,7 +2725,7 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
       SET(WA_18019110168, wa_18019110168,
           (GET(wa_18019110168) & ~ANV_WA_18019110168_PROVOKING_VERTEX_MASK) |
           compute_mesh_provoking_vertex(
-             mesh_prog_data, dyn));
+             &gfx->shaders[MESA_SHADER_MESH]->bin->info, dyn));
    }
 #endif
 }

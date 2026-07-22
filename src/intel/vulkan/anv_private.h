@@ -5708,8 +5708,7 @@ static inline const struct intel_vue_map *
 get_gfx_last_vue_map(const struct anv_cmd_graphics_state *gfx)
 {
    if (gfx->shaders[MESA_SHADER_MESH] != NULL) {
-      return &((const struct brw_mesh_prog_data *)
-               gfx->shaders[MESA_SHADER_MESH]->prog_data)->map.vue_map;
+      return &gfx->shaders[MESA_SHADER_MESH]->bin->info.mesh.map.vue_map;
    }
    if (gfx->shaders[MESA_SHADER_GEOMETRY] != NULL) {
       return &gfx->shaders[MESA_SHADER_GEOMETRY]->bin->info.vue.vue_map;

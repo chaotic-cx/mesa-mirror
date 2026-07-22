@@ -856,8 +856,6 @@ emit_task_shader(struct anv_batch *batch,
                  struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
-   const struct brw_task_prog_data *task_prog_data =
-      get_shader_task_prog_data(shader);
    const struct intel_cs_dispatch_info task_dispatch =
       brw_cs_get_dispatch_info(devinfo, &shader->bin->info, NULL);
 
@@ -900,7 +898,7 @@ emit_task_shader(struct anv_batch *batch,
       task.EmitInlineParameter = shader->bind_map.inline_dwords_count > 0;
       task.IndirectDataLength = align(shader->bind_map.push_ranges[0].length * 32, 64);
 
-      task.XP0Required = task_prog_data->uses_drawid;
+      task.XP0Required = shader->bin->info.task.uses_drawid;
 
 #if GFX_VER >= 30
       task.RegistersPerThread =
@@ -925,8 +923,6 @@ emit_mesh_shader(struct anv_batch *batch,
                  struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
-   const struct brw_mesh_prog_data *mesh_prog_data =
-      get_shader_mesh_prog_data(shader);
    const struct intel_cs_dispatch_info mesh_dispatch =
       brw_cs_get_dispatch_info(devinfo, &shader->bin->info, NULL);
 
@@ -936,7 +932,7 @@ emit_mesh_shader(struct anv_batch *batch,
       mc.StatisticsEnable = true;
       mc.MaximumNumberofThreadGroups = 511;
 #if GFX_VER >= 20
-      mc.VPandRTAIndexAutostripEnable = mesh_prog_data->autostrip_enable;
+      mc.VPandRTAIndexAutostripEnable = shader->bin->info.mesh.autostrip_enable;
 #endif
    }
 
@@ -952,12 +948,12 @@ emit_mesh_shader(struct anv_batch *batch,
    }
 
    const unsigned output_topology =
-      mesh_prog_data->primitive_type == MESA_PRIM_POINTS ? OUTPUT_POINT :
-      mesh_prog_data->primitive_type == MESA_PRIM_LINES  ? OUTPUT_LINE :
+      shader->bin->info.mesh.primitive_type == MESA_PRIM_POINTS ? OUTPUT_POINT :
+      shader->bin->info.mesh.primitive_type == MESA_PRIM_LINES  ? OUTPUT_LINE :
                                                              OUTPUT_TRI;
 
    uint32_t index_format;
-   switch (mesh_prog_data->index_format) {
+   switch (shader->bin->info.mesh.index_format) {
    case BRW_INDEX_FORMAT_U32:
       index_format = INDEX_U32;
       break;
@@ -977,11 +973,11 @@ emit_mesh_shader(struct anv_batch *batch,
       mesh.LocalXMaximum                     = mesh_dispatch.group_size - 1;
       mesh.EmitLocalIDX                      = true;
 
-      mesh.MaximumPrimitiveCount             = MAX2(mesh_prog_data->map.max_primitives, 1) - 1;
+      mesh.MaximumPrimitiveCount             = MAX2(shader->bin->info.mesh.map.max_primitives, 1) - 1;
       mesh.OutputTopology                    = output_topology;
-      mesh.PerVertexDataPitch                = mesh_prog_data->map.per_vertex_stride / 32;
-      mesh.PerPrimitiveDataPresent           = mesh_prog_data->map.per_primitive_stride > 0;
-      mesh.PerPrimitiveDataPitch             = mesh_prog_data->map.per_primitive_stride / 32;
+      mesh.PerVertexDataPitch                = shader->bin->info.mesh.map.per_vertex_stride / 32;
+      mesh.PerPrimitiveDataPresent           = shader->bin->info.mesh.map.per_primitive_stride > 0;
+      mesh.PerPrimitiveDataPitch             = shader->bin->info.mesh.map.per_primitive_stride / 32;
       mesh.IndexFormat                       = index_format;
 
       mesh.NumberofBarriers                  = shader->bin->info.wg.uses_barrier;
@@ -996,7 +992,7 @@ emit_mesh_shader(struct anv_batch *batch,
       mesh.EmitInlineParameter = shader->bind_map.inline_dwords_count > 0;
       mesh.IndirectDataLength = align(shader->bind_map.push_ranges[0].length * 32, 64);
 
-      mesh.XP0Required = mesh_prog_data->uses_drawid;
+      mesh.XP0Required = shader->bin->info.mesh.uses_drawid;
 
 #if GFX_VER >= 30
       mesh.RegistersPerThread =
@@ -1012,9 +1008,9 @@ emit_mesh_shader(struct anv_batch *batch,
    }
 
    anv_shader_emit(batch, shader, ms.clip, GENX(3DSTATE_CLIP_MESH), clip_mesh) {
-      clip_mesh.PrimitiveHeaderEnable = mesh_prog_data->map.has_per_primitive_header;
-      clip_mesh.UserClipDistanceClipTestEnableBitmask = mesh_prog_data->clip_distance_mask;
-      clip_mesh.UserClipDistanceCullTestEnableBitmask = mesh_prog_data->cull_distance_mask;
+      clip_mesh.PrimitiveHeaderEnable = shader->bin->info.mesh.map.has_per_primitive_header;
+      clip_mesh.UserClipDistanceClipTestEnableBitmask = shader->bin->info.mesh.clip_distance_mask;
+      clip_mesh.UserClipDistanceCullTestEnableBitmask = shader->bin->info.mesh.cull_distance_mask;
    }
 
    /* Disable streamout */
