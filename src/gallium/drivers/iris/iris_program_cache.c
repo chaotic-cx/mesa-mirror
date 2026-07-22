@@ -504,9 +504,6 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
       union brw_any_prog_key prog_key;
       memset(&prog_key, 0, sizeof(prog_key));
 
-      struct brw_fs_prog_data *prog_data = ralloc_size(NULL, sizeof(*prog_data));
-      memset(prog_data, 0, sizeof(*prog_data));
-
       struct intel_push_layout push_layout = {
          .push_sizes[0] = uniform_size,
       };
@@ -515,7 +512,6 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
          .mem_ctx = nir,
          .nir = nir,
          .key = &prog_key.fs.base,
-         .prog_data = (struct brw_stage_prog_data *)prog_data,
          .push_layout = push_layout,
          .collect_register_pressure = true,
          .log_data = &ice->dbg,

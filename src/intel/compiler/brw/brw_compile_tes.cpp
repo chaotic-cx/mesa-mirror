@@ -69,8 +69,6 @@ brw_compile_tes(const struct brw_compiler *compiler,
    const struct brw_tes_prog_key *key =
       (const struct brw_tes_prog_key *)params->key;
    struct intel_vue_map input_vue_map;
-   struct brw_tes_prog_data *prog_data =
-      (struct brw_tes_prog_data *)params->prog_data;
    const unsigned dispatch_width = brw_geometry_stage_dispatch_width(compiler->devinfo);
 
    const bool debug_enabled = brw_should_print_shader(
@@ -85,8 +83,6 @@ brw_compile_tes(const struct brw_compiler *compiler,
    }, *pt = &pt_;
 
    BRW_NIR_SNAPSHOT("first");
-
-   brw_prog_data_init(&prog_data->base.base, params);
 
    const unsigned ray_queries = nir->info.ray_queries;
 
@@ -185,7 +181,6 @@ brw_compile_tes(const struct brw_compiler *compiler,
    const brw_to_binary_params to_binary_params = {
       .compiler = compiler,
       .params = params,
-      .prog_data = &prog_data->base.base,
       .shaders = { &v },
    };
    return brw_to_binary(&to_binary_params);

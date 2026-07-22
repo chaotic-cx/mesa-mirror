@@ -90,8 +90,6 @@ struct anv_shader_data {
    struct intel_cs_dispatch_params cs_dispatch;
    struct brw_cs_push_const_info cs_push;
 
-   union brw_any_prog_data prog_data;
-
    /* Compile output.  On the deserialization path this points at a
     * temporary bin read from the blob.
     */

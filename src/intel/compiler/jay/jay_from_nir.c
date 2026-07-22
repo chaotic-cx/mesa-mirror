@@ -4972,7 +4972,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
                  struct jay_fs_perprim_data *fs_perprim)
 {
    nir_shader *nir = params->nir;
-   union brw_any_prog_data *prog_data = params->prog_data;
 
    jay_debug = debug_get_option_jay_debug();
    bool debug =
@@ -4986,7 +4985,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    s->dispatch_width = simd_width;
    s->info.total_scratch = align(nir->scratch_size, 4) * s->dispatch_width;
    s->devinfo = devinfo;
-   s->prog_data = prog_data;
    s->params = params;
    s->archiver = params->archiver;
 

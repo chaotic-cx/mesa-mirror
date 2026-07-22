@@ -122,15 +122,11 @@ brw_compile_cs(const struct brw_compiler *compiler,
    struct nir_shader *nir = params->nir;
    const struct brw_cs_prog_key *key =
       (const struct brw_cs_prog_key *)params->key;
-   struct brw_cs_prog_data *prog_data =
-      (struct brw_cs_prog_data *)params->prog_data;
 
    const bool debug_enabled =
       brw_should_print_shader(nir, params->debug_flag ?
                                    params->debug_flag : DEBUG_CS,
                                    params->source_hash);
-
-   brw_prog_data_init(&prog_data->base, params);
 
    const unsigned ray_queries = nir->info.ray_queries;
 
@@ -279,7 +275,6 @@ brw_compile_cs(const struct brw_compiler *compiler,
    brw_to_binary_params to_binary_params = {
       .compiler = compiler,
       .params = params,
-      .prog_data = &prog_data->base,
    };
 
    for (unsigned simd = 0; simd < 3; simd++) {

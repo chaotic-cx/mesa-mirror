@@ -48,8 +48,6 @@ brw_compile_vs(const struct brw_compiler *compiler,
    struct nir_shader *nir = params->nir;
    const struct brw_vs_prog_key *key =
       (const struct brw_vs_prog_key *)params->key;
-   struct brw_vs_prog_data *prog_data =
-      (struct brw_vs_prog_data *)params->prog_data;
    const bool debug_enabled =
       brw_should_print_shader(nir, params->debug_flag ?
                                    params->debug_flag : DEBUG_VS,
@@ -72,8 +70,6 @@ brw_compile_vs(const struct brw_compiler *compiler,
    }, *pt = &pt_;
 
    BRW_NIR_SNAPSHOT("first");
-
-   brw_prog_data_init(&prog_data->base.base, params);
 
    const unsigned ray_queries = nir->info.ray_queries;
 
@@ -171,7 +167,6 @@ brw_compile_vs(const struct brw_compiler *compiler,
    const brw_to_binary_params to_binary_params = {
       .compiler = compiler,
       .params = params,
-      .prog_data = &prog_data->base.base,
       .shaders = { &v },
    };
    return brw_to_binary(&to_binary_params);

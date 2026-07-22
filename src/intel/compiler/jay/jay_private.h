@@ -35,7 +35,6 @@ bool jay_nir_lower_bfloat_math(nir_shader *nir);
 void jay_populate_prog_data(const struct intel_device_info *devinfo,
                             nir_shader *nir,
                             struct intel_shader_info *info,
-                            union brw_any_prog_data *prog_data,
                             union brw_any_prog_key *key,
                             struct jay_fs_perprim_data *fs_perprim);
 void jay_process_nir(const struct intel_device_info *devinfo,

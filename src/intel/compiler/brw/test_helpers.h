@@ -148,15 +148,12 @@ protected:
          dispatch_width = devinfo->ver >= 20 ? 16 : 8;
 
       nir_shader *nir = nir_shader_create(mem_ctx, stage, NULL);
-      brw_stage_prog_data *pd =
-         (struct brw_stage_prog_data *)rzalloc(mem_ctx, brw_any_prog_data);
 
       /* Owned by mem_ctx, since brw_shader keeps a pointer to it. */
       brw_compile_params *compile_params =
          rzalloc(mem_ctx, brw_compile_params);
-      compile_params->mem_ctx   = mem_ctx;
-      compile_params->nir       = nir;
-      compile_params->prog_data = pd;
+      compile_params->mem_ctx = mem_ctx;
+      compile_params->nir = nir;
 
       const brw_shader_params shader_params = {
          .compiler       = compiler,

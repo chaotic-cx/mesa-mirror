@@ -278,8 +278,6 @@ brw_compile_task(const struct brw_compiler *compiler,
    struct nir_shader *nir = params->nir;
    const struct brw_task_prog_key *key =
       (const struct brw_task_prog_key *)params->key;
-   struct brw_task_prog_data *prog_data =
-      (struct brw_task_prog_data *)params->prog_data;
    const bool debug_enabled = brw_should_print_shader(nir, DEBUG_TASK,
                                                       params->source_hash);
 
@@ -312,8 +310,6 @@ brw_compile_task(const struct brw_compiler *compiler,
 
    NIR_PASS(_, nir, brw_nir_lower_cs_intrinsics, compiler->devinfo,
             NULL);
-
-   brw_prog_data_init(&prog_data->base.base, params);
 
    const unsigned ray_queries = nir->info.ray_queries;
 
@@ -427,7 +423,6 @@ brw_compile_task(const struct brw_compiler *compiler,
    const brw_to_binary_params to_binary_params = {
       .compiler = compiler,
       .params = params,
-      .prog_data = &prog_data->base.base,
       .shaders = { &selected },
    };
    return brw_to_binary(&to_binary_params);
@@ -966,8 +961,6 @@ brw_compile_mesh(const struct brw_compiler *compiler,
    struct nir_shader *nir = params->nir;
    const struct brw_mesh_prog_key *key =
       (const struct brw_mesh_prog_key *)params->key;
-   struct brw_mesh_prog_data *prog_data =
-      (struct brw_mesh_prog_data *)params->prog_data;
    const bool debug_enabled = brw_should_print_shader(nir, DEBUG_MESH,
                                                       params->source_hash);
 
@@ -980,8 +973,6 @@ brw_compile_mesh(const struct brw_compiler *compiler,
    }, *pt = &pt_;
 
    BRW_NIR_SNAPSHOT("first");
-
-   brw_prog_data_init(&prog_data->base.base, params);
 
    const unsigned ray_queries = nir->info.ray_queries;
 
@@ -1189,7 +1180,6 @@ brw_compile_mesh(const struct brw_compiler *compiler,
    const brw_to_binary_params to_binary_params = {
       .compiler = compiler,
       .params = params,
-      .prog_data = &prog_data->base.base,
       .shaders = { &selected },
       .extra_const_data = map.wa_18019110168_active ? remap_table : NULL,
       .extra_const_data_size = map.wa_18019110168_active ? (unsigned)sizeof(remap_table) : 0u,

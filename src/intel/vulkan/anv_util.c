@@ -451,15 +451,12 @@ anv_device_init_rt_shaders(struct anv_device *device)
          anv_rt_debug_archiver_open(tmp_ctx, trampoline_nir,
                                     &trampoline_key, sizeof(trampoline_key));
 
-      struct brw_cs_prog_data trampoline_prog_data = {};
-
       char *error_str = NULL;
       const intel_shader_bin *bin;
       if (intel_use_jay(device->info, trampoline_nir)) {
          struct jay_compile_params params = {
             .mem_ctx = tmp_ctx,
             .nir = trampoline_nir,
-            .prog_data = (union brw_any_prog_data *)&trampoline_prog_data,
             .key = (union brw_any_prog_key *)&trampoline_key.key,
             .cs.uses_btd_stack_ids = true,
             .archiver = debug_archiver,
@@ -471,7 +468,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .mem_ctx = tmp_ctx,
             .nir = trampoline_nir,
             .key = &trampoline_key.key.base,
-            .prog_data = (struct brw_stage_prog_data *)&trampoline_prog_data,
             .log_data = device,
             .cs.uses_btd_stack_ids = true,
             .archiver = debug_archiver,
@@ -538,7 +534,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
       NIR_PASS(_, trivial_return_nir, brw_nir_lower_rt_intrinsics,
                  &return_key.key.base, device->info);
 
-      struct brw_bs_prog_data return_prog_data = { 0, };
       char *error_str = NULL;
       const intel_shader_bin *bin;
       if (intel_use_jay(device->info, trivial_return_nir)) {
@@ -546,7 +541,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .mem_ctx = tmp_ctx,
             .nir = trivial_return_nir,
             .key = (union brw_any_prog_key *)&return_key.key,
-            .prog_data = (union brw_any_prog_data *)&return_prog_data,
             .archiver = debug_archiver,
             .error_str = &error_str,
          };
@@ -556,7 +550,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .mem_ctx = tmp_ctx,
             .nir = trivial_return_nir,
             .key = &return_key.key.base,
-            .prog_data = (struct brw_stage_prog_data *)&return_prog_data,
             .log_data = device,
             .archiver = debug_archiver,
          };
@@ -621,7 +614,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
       NIR_PASS(_, null_ahs_nir, brw_nir_lower_rt_intrinsics,
                  &null_return_key.key.base, device->info);
 
-      struct brw_bs_prog_data return_prog_data = { 0, };
       char *error_str = NULL;
       const intel_shader_bin *bin;
       if (intel_use_jay(device->info, null_ahs_nir)) {
@@ -629,7 +621,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .mem_ctx = tmp_ctx,
             .nir = null_ahs_nir,
             .key = (union brw_any_prog_key *)&null_return_key.key,
-            .prog_data = (union brw_any_prog_data *)&return_prog_data,
             .archiver = debug_archiver,
             .error_str = &error_str,
          };
@@ -639,7 +630,6 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .mem_ctx = tmp_ctx,
             .nir = null_ahs_nir,
             .key = &null_return_key.key.base,
-            .prog_data = (struct brw_stage_prog_data *)&return_prog_data,
             .log_data = device,
          };
          bin = brw_compile(device->physical->compiler, &params);

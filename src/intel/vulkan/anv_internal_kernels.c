@@ -370,9 +370,6 @@ compile_shader(struct anv_device *device,
 
    key.base.use_efficient_64bit = device->physical->uses_efficient_64bit;
 
-   union brw_any_prog_data prog_data;
-   memset(&prog_data, 0, sizeof(prog_data));
-
    struct intel_cs_dispatch_params dispatch = {};
    struct brw_cs_push_const_info cs_push = {};
 
@@ -415,7 +412,6 @@ compile_shader(struct anv_device *device,
          .mem_ctx = temp_ctx,
          .nir = nir,
          .key = &key.fs.base,
-         .prog_data = (struct brw_stage_prog_data *)&prog_data.fs,
          .push_layout = push_layout,
          .collect_register_pressure = true,
          .log_data = device,
@@ -430,7 +426,6 @@ compile_shader(struct anv_device *device,
          .mem_ctx = temp_ctx,
          .nir = nir,
          .key = &key.cs.base,
-         .prog_data = (struct brw_stage_prog_data *)&prog_data.cs,
          .push_layout = push_layout,
          .collect_register_pressure = true,
          .log_data = device,

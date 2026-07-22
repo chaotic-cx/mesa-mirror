@@ -51,7 +51,6 @@ static std::unique_ptr<brw_shader>
 compile_single_bs(const struct brw_compiler *compiler,
                   struct brw_compile_params *params,
                   const struct brw_bs_prog_key *key,
-                  struct brw_bs_prog_data *prog_data,
                   nir_shader *shader,
                   unsigned ray_queries,
                   bool needs_register_pressure)
@@ -114,18 +113,13 @@ brw_compile_bs(const struct brw_compiler *compiler,
    nir_shader *shader = params->nir;
    const struct brw_bs_prog_key *key =
       (const struct brw_bs_prog_key *)params->key;
-   struct brw_bs_prog_data *prog_data =
-      (struct brw_bs_prog_data *)params->prog_data;
    unsigned num_resume_shaders = params->bs.num_resume_shaders;
    nir_shader **resume_shaders = params->bs.resume_shaders;
-
-   brw_prog_data_init(&prog_data->base, params);
 
    const unsigned ray_queries = shader->info.ray_queries;
 
    std::unique_ptr<brw_shader> main_shader =
-      compile_single_bs(compiler, params, key, prog_data,
-                        shader, ray_queries,
+      compile_single_bs(compiler, params, key, shader, ray_queries,
                         params->collect_register_pressure);
    if (!main_shader)
       return NULL;
@@ -135,8 +129,8 @@ brw_compile_bs(const struct brw_compiler *compiler,
    for (unsigned i = 0; i < num_resume_shaders; i++) {
       /* TODO: Figure out shader stats etc. for resume shaders */
       std::unique_ptr<brw_shader> r =
-         compile_single_bs(compiler, params, key, prog_data,
-                           resume_shaders[i], ray_queries, false);
+         compile_single_bs(compiler, params, key, resume_shaders[i],
+                           ray_queries, false);
       if (!r)
          return NULL;
       main_shader->info.bs.max_stack_size =
@@ -160,7 +154,6 @@ brw_compile_bs(const struct brw_compiler *compiler,
    const brw_to_binary_params to_binary_params = {
       .compiler = compiler,
       .params = params,
-      .prog_data = &prog_data->base,
       .shaders = { main_shader.get() },
       .resume_shaders = resume_ptrs.data(),
       .num_resume_shaders = num_resume_shaders,

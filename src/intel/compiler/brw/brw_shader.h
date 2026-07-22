@@ -125,7 +125,6 @@ public:
 
    const brw_base_prog_key *const key;
 
-   struct brw_stage_prog_data *prog_data;
    brw_analysis<brw_live_variables, brw_shader> live_analysis;
    brw_analysis<brw_register_pressure, brw_shader> regpressure_analysis;
    brw_analysis<brw_performance, brw_shader> performance_analysis;
@@ -431,7 +430,6 @@ brw_inst *brw_transform_inst(brw_shader &s, brw_inst *inst, enum opcode new_opco
 struct brw_to_binary_params {
    const struct brw_compiler *compiler;
    const struct brw_compile_params *params;
-   struct brw_stage_prog_data *prog_data;
 
    /* Main shaders.  Slots with shader == NULL are skipped.  Non-skipped
     * slots are processed in array order.

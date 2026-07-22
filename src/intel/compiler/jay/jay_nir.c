@@ -628,13 +628,11 @@ jay_process_nir(const struct intel_device_info *devinfo,
                 struct intel_shader_info *info)
 {
    nir_shader *nir = params->nir;
-   union brw_any_prog_data *prog_data = params->prog_data;
    union brw_any_prog_key *key = params->key;
 
    enum mesa_shader_stage stage = nir->info.stage;
    struct brw_compiler compiler = { .devinfo = devinfo };
 
-   prog_data->base.stage = stage;
    info->stage = stage;
    info->total_shared = nir->info.shared_size;
 
@@ -779,7 +777,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       brw_nir_opt_vectorize_urb(pt);
       nir_lower_gs_intrinsics(nir, 0);
 
-      jay_populate_prog_data(devinfo, nir, info, prog_data, key, NULL);
+      jay_populate_prog_data(devinfo, nir, info, key, NULL);
 
       /* Get constant offsets out of the way for proper clip/cull handling */
       JAY_NIR_PASS(nir_lower_io_to_scalar, nir_var_shader_out, NULL, NULL);
@@ -982,7 +980,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
       /* Do this before lower_fs_config_intel so that the pass has the right
        * information.
        */
-      jay_populate_prog_data(devinfo, nir, info, prog_data, key, fs_perprim);
+      jay_populate_prog_data(devinfo, nir, info, key, fs_perprim);
 
       /* Although its not required by the spec, other vendors mask out helper
        * lanes entirely unless the shader uses derivatives. Some applications
@@ -1275,7 +1273,7 @@ jay_process_nir_for_simd(const struct intel_device_info *devinfo,
          }
       }
    } else {
-      jay_populate_prog_data(devinfo, nir, info, params->prog_data, params->key, NULL);
+      jay_populate_prog_data(devinfo, nir, info, params->key, NULL);
    }
 
    /* This must be the very last pass since nir_print itself will reindex! */

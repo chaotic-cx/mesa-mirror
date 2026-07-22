@@ -471,27 +471,12 @@ PRAGMA_DIAGNOSTIC_POP
 /** Max number of render targets in a shader */
 #define BRW_MAX_DRAW_BUFFERS 8
 
-struct brw_stage_prog_data {
-   mesa_shader_stage stage;
-};
-
 enum brw_pixel_shader_computed_depth_mode {
    BRW_PSCDEPTH_OFF   = 0, /* PS does not compute depth */
    BRW_PSCDEPTH_ON    = 1, /* PS computes depth; no guarantee about value */
    BRW_PSCDEPTH_ON_GE = 2, /* PS guarantees output depth >= source depth */
    BRW_PSCDEPTH_ON_LE = 3, /* PS guarantees output depth <= source depth */
 };
-
-/* Data about a particular attempt to compile a program.  Note that
- * there can be many of these, each in a different GL state
- * corresponding to a different brw_fs_prog_key struct, with different
- * compiled programs.
- */
-struct brw_fs_prog_data {
-   struct brw_stage_prog_data base;
-
-};
-
 
 #ifdef GFX_VERx10
 
@@ -601,10 +586,6 @@ _intel_shader_info_fs_dispatch_grf_start_reg(const struct intel_shader_info *inf
    _intel_shader_info_fs_dispatch_grf_start_reg(info, \
       brw_wm_state_simd_width_for_ksp(wm_state, ksp_idx))
 
-struct brw_cs_prog_data {
-   struct brw_stage_prog_data base;
-};
-
 static inline uint32_t
 brw_cs_prog_data_prog_offset(const struct intel_shader_info *info,
                              unsigned dispatch_width)
@@ -616,10 +597,6 @@ brw_cs_prog_data_prog_offset(const struct intel_shader_info *info,
    assert(info->wg.prog_mask & (1 << index));
    return info->wg.prog_offset[index];
 }
-
-struct brw_bs_prog_data {
-   struct brw_stage_prog_data base;
-};
 
 #define BRW_VUE_HEADER_VARYING_MASK \
    (VARYING_BIT_VIEWPORT | \
@@ -676,87 +653,6 @@ void brw_compute_tess_vue_map(struct intel_vue_map *const vue_map,
                               uint64_t slots_valid,
                               uint32_t is_patch,
                               bool separate_shader);
-
-struct brw_vue_prog_data {
-   struct brw_stage_prog_data base;
-};
-
-struct brw_vs_prog_data {
-   struct brw_vue_prog_data base;
-};
-
-struct brw_tcs_prog_data
-{
-   struct brw_vue_prog_data base;
-};
-
-struct brw_tes_prog_data
-{
-   struct brw_vue_prog_data base;
-};
-
-struct brw_gs_prog_data
-{
-   struct brw_vue_prog_data base;
-};
-
-struct brw_task_prog_data {
-   struct brw_cs_prog_data base;
-};
-
-
-struct brw_mesh_prog_data {
-   struct brw_cs_prog_data base;
-};
-
-/* brw_any_prog_data is prog_data for any stage that maps to an API stage */
-union brw_any_prog_data {
-   struct brw_stage_prog_data base;
-   struct brw_vue_prog_data vue;
-   struct brw_vs_prog_data vs;
-   struct brw_tcs_prog_data tcs;
-   struct brw_tes_prog_data tes;
-   struct brw_gs_prog_data gs;
-   struct brw_fs_prog_data fs;
-   struct brw_cs_prog_data cs;
-   struct brw_bs_prog_data bs;
-   struct brw_task_prog_data task;
-   struct brw_mesh_prog_data mesh;
-};
-
-#define DEFINE_PROG_DATA_DOWNCAST(STAGE, CHECK)                            \
-static inline struct brw_##STAGE##_prog_data *                             \
-brw_##STAGE##_prog_data(struct brw_stage_prog_data *prog_data)             \
-{                                                                          \
-   if (prog_data)                                                          \
-      assert(CHECK);                                                       \
-   return (struct brw_##STAGE##_prog_data *) prog_data;                    \
-}                                                                          \
-static inline const struct brw_##STAGE##_prog_data *                       \
-brw_##STAGE##_prog_data_const(const struct brw_stage_prog_data *prog_data) \
-{                                                                          \
-   if (prog_data)                                                          \
-      assert(CHECK);                                                       \
-   return (const struct brw_##STAGE##_prog_data *) prog_data;              \
-}
-
-DEFINE_PROG_DATA_DOWNCAST(vs,  prog_data->stage == MESA_SHADER_VERTEX)
-DEFINE_PROG_DATA_DOWNCAST(tcs, prog_data->stage == MESA_SHADER_TESS_CTRL)
-DEFINE_PROG_DATA_DOWNCAST(tes, prog_data->stage == MESA_SHADER_TESS_EVAL)
-DEFINE_PROG_DATA_DOWNCAST(gs,  prog_data->stage == MESA_SHADER_GEOMETRY)
-DEFINE_PROG_DATA_DOWNCAST(fs,  prog_data->stage == MESA_SHADER_FRAGMENT)
-DEFINE_PROG_DATA_DOWNCAST(cs,  mesa_shader_stage_uses_workgroup(prog_data->stage))
-DEFINE_PROG_DATA_DOWNCAST(bs,  brw_shader_stage_is_bindless(prog_data->stage))
-
-DEFINE_PROG_DATA_DOWNCAST(vue, prog_data->stage == MESA_SHADER_VERTEX ||
-                               prog_data->stage == MESA_SHADER_TESS_CTRL ||
-                               prog_data->stage == MESA_SHADER_TESS_EVAL ||
-                               prog_data->stage == MESA_SHADER_GEOMETRY)
-
-DEFINE_PROG_DATA_DOWNCAST(task, prog_data->stage == MESA_SHADER_TASK)
-DEFINE_PROG_DATA_DOWNCAST(mesh, prog_data->stage == MESA_SHADER_MESH)
-
-#undef DEFINE_PROG_DATA_DOWNCAST
 
 static inline struct brw_tess_info
 brw_merge_tess_info(struct brw_tess_info tcs_info,
@@ -848,9 +744,6 @@ brw_device_blake3_update(blake3_hasher *blake3_ctx,
                        const struct intel_device_info *devinfo);
 
 unsigned
-brw_prog_data_size(mesa_shader_stage stage);
-
-unsigned
 brw_prog_key_size(mesa_shader_stage stage);
 
 struct brw_compile_params {
@@ -859,8 +752,8 @@ struct brw_compile_params {
    nir_shader *nir;
 
    const struct brw_base_prog_key *key;
-   struct brw_stage_prog_data *prog_data;
 
+   /* Push constant layout decided by the driver. */
    struct intel_push_layout push_layout;
 
    bool collect_register_pressure;

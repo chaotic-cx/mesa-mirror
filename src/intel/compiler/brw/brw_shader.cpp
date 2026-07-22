@@ -157,7 +157,6 @@ brw_shader::brw_shader(const brw_shader_params *params)
      info(params->info),
      debug_enabled(params->debug_enabled),
      key(params->compile_params->key),
-     prog_data(params->compile_params->prog_data),
      live_analysis(this),
      regpressure_analysis(this),
      performance_analysis(this),
@@ -1102,7 +1101,6 @@ brw_compile(const struct brw_compiler *compiler,
    assert(params);
    assert(params->nir);
    assert(params->key);
-   assert(params->prog_data);
 
    switch (params->nir->info.stage) {
    case MESA_SHADER_VERTEX:
@@ -1133,16 +1131,6 @@ brw_compile(const struct brw_compiler *compiler,
       UNREACHABLE("Unsupported shader stage");
       return NULL;
    }
-}
-
-void brw_prog_data_init(struct brw_stage_prog_data *prog_data,
-                        const struct brw_compile_params *params)
-{
-   /* Do not memset the structure to 0, the driver might have put some bits of
-    * information in there.
-    */
-   prog_data->stage = params->nir->info.stage;
-
 }
 
 brw_reg

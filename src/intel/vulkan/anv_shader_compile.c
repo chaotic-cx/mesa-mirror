@@ -2069,7 +2069,6 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       .mem_ctx = mem_ctx,
       .nir = nir,
       .key = (union brw_any_prog_key *)params->key,
-      .prog_data = (union brw_any_prog_data *)params->prog_data,
       .source_hash = params->source_hash,
       .push_layout = params->push_layout,
       .fs.mue_map =
@@ -2095,10 +2094,6 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
 
    assert(mesa_shader_stage_is_rt(shader_data->info->stage));
    assert(params->bs.resume_shaders != NULL);
-
-   union brw_any_prog_data *prog_data =
-      (union brw_any_prog_data *)params->prog_data;
-   union brw_any_prog_data main_prog_data = *prog_data;
 
    /* Account main shader size */
    uint64_t total_bin_size = main_bin->code_size;
@@ -2138,7 +2133,6 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
 
       struct jay_compile_params resume_params = jc_params;
       resume_params.nir = resume_nir;
-      resume_params.prog_data = &main_prog_data;
 
       resume_shader_bins[i] = jay_compile(devinfo, &resume_params);
       if (!resume_shader_bins[i])
@@ -2342,8 +2336,6 @@ anv_shader_compile(struct vk_device *vk_device,
                        MAX2(sets_layout_embedded_sampler_count(info),
                             info->embedded_sampler_count));
 
-      shader_data->prog_data.base.stage = info->stage;
-
       switch (info->stage) {
       case MESA_SHADER_VERTEX:
          populate_vs_prog_key(&shader_data->key.vs, vk_device->physical,
@@ -2459,7 +2451,6 @@ anv_shader_compile(struct vk_device *vk_device,
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &shader_data->key.base,
-         .prog_data = &shader_data->prog_data.base,
          .push_layout = shader_data->push_layout,
          .collect_register_pressure = true,
          .log_data = device,

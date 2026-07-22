@@ -90,7 +90,6 @@ iris_backend_compile(const struct iris_screen *screen,
          .mem_ctx = params->mem_ctx,
          .nir = nir,
          .key = (union brw_any_prog_key *)params->key,
-         .prog_data = (union brw_any_prog_data *)params->prog_data,
          .push_layout = params->push_layout,
          .source_hash = params->source_hash,
          .archiver = params->archiver,
@@ -2249,9 +2248,6 @@ iris_compile_vs(struct iris_screen *screen,
    const unsigned *program;
    intel_shader_bin *bin = NULL;
    if (screen->brw) {
-      struct brw_vs_prog_data *brw_prog_data =
-         rzalloc(mem_ctx, struct brw_vs_prog_data);
-
       struct iris_ubo_range ubo_ranges[4] = {};
       struct intel_push_layout push_layout = {};
       brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
@@ -2262,7 +2258,6 @@ iris_compile_vs(struct iris_screen *screen,
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &brw_key.base,
-         .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
          .push_layout = push_layout,
          .log_data = dbg,
          .archiver = debug_archiver,
@@ -2513,9 +2508,6 @@ iris_compile_tcs(struct iris_screen *screen,
    const unsigned *program;
    intel_shader_bin *bin = NULL;
    if (screen->brw) {
-      struct brw_tcs_prog_data *brw_prog_data =
-         rzalloc(mem_ctx, struct brw_tcs_prog_data);
-
       struct iris_ubo_range ubo_ranges[4] = {};
       struct intel_push_layout push_layout = {};
       brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
@@ -2524,7 +2516,6 @@ iris_compile_tcs(struct iris_screen *screen,
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &brw_key.base,
-         .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
          .push_layout = push_layout,
          .log_data = dbg,
          .archiver = debug_archiver,
@@ -2719,9 +2710,6 @@ iris_compile_tes(struct iris_screen *screen,
    intel_shader_bin *bin = NULL;
 
    if (screen->brw) {
-      struct brw_tes_prog_data *brw_prog_data =
-         rzalloc(mem_ctx, struct brw_tes_prog_data);
-
       struct iris_ubo_range ubo_ranges[4] = {};
       struct intel_push_layout push_layout = {};
       brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
@@ -2736,7 +2724,6 @@ iris_compile_tes(struct iris_screen *screen,
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &brw_key.base,
-         .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
          .push_layout = push_layout,
          .log_data = dbg,
          .tes = {
@@ -2917,9 +2904,6 @@ iris_compile_gs(struct iris_screen *screen,
    const unsigned *program;
    intel_shader_bin *bin = NULL;
    if (screen->brw) {
-      struct brw_gs_prog_data *brw_prog_data =
-         rzalloc(mem_ctx, struct brw_gs_prog_data);
-
       struct iris_ubo_range ubo_ranges[4] = {};
       struct intel_push_layout push_layout = {};
       brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
@@ -2930,7 +2914,6 @@ iris_compile_gs(struct iris_screen *screen,
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &brw_key.base,
-         .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
          .push_layout = push_layout,
          .log_data = dbg,
          .archiver = debug_archiver,
@@ -3159,9 +3142,6 @@ iris_compile_fs(struct iris_screen *screen,
    intel_shader_bin *bin = NULL;
 
    if (screen->brw) {
-      struct brw_fs_prog_data *brw_prog_data =
-         rzalloc(mem_ctx, struct brw_fs_prog_data);
-
       struct iris_ubo_range ubo_ranges[4] = {};
       struct intel_push_layout push_layout = {};
       brw_apply_ubo_ranges(screen, nir, ubo_ranges, &push_layout);
@@ -3171,7 +3151,6 @@ iris_compile_fs(struct iris_screen *screen,
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &brw_key.base,
-         .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
          .push_layout = push_layout,
          .log_data = dbg,
          .fs = {
@@ -3513,9 +3492,6 @@ iris_compile_cs(struct iris_screen *screen,
    if (screen->brw) {
       struct brw_cs_prog_key brw_key = iris_to_brw_cs_key(screen, key);
 
-      struct brw_cs_prog_data *brw_prog_data =
-         rzalloc(mem_ctx, struct brw_cs_prog_data);
-
       struct intel_push_layout push_layout = {};
       struct brw_cs_push_const_info cs_push = {};
       bool subgroup_id_lowered = false;
@@ -3532,7 +3508,6 @@ iris_compile_cs(struct iris_screen *screen,
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &brw_key.base,
-         .prog_data = (struct brw_stage_prog_data *)brw_prog_data,
          .push_layout = push_layout,
          .log_data = dbg,
          .cs.push = cs_push,

@@ -37,7 +37,6 @@ public:
 
    brw_generator(const struct brw_compiler *compiler,
                 const struct brw_compile_params *params,
-                struct brw_stage_prog_data *prog_data,
                 mesa_shader_stage stage);
    ~brw_generator();
 
@@ -87,8 +86,6 @@ private:
    const struct brw_compile_params *params;
 
    const struct intel_device_info *devinfo;
-
-   struct brw_stage_prog_data * const prog_data;
 
    unsigned dispatch_width; /**< 8, 16 or 32 */
 
@@ -366,12 +363,11 @@ normalize_brw_reg_for_encoding(brw_reg *reg)
 
 brw_generator::brw_generator(const struct brw_compiler *compiler,
                              const struct brw_compile_params *params,
-                             struct brw_stage_prog_data *prog_data,
                              mesa_shader_stage stage)
 
    : compiler(compiler), params(params),
      devinfo(compiler->devinfo),
-     prog_data(prog_data), dispatch_width(0),
+     dispatch_width(0),
      debug_flag(false),
      shader_name(NULL), stage(stage), mem_ctx(params->mem_ctx),
      next_annotation(NULL)
@@ -2678,7 +2674,7 @@ brw_to_binary_emit_shader(brw_generator &g,
       const char *debug_name =
          ralloc_asprintf(p->params->mem_ctx, "%s %s%s shader %s",
                          info->label ? info->label : "unnamed",
-                         _mesa_shader_stage_to_string(shader->prog_data->stage),
+                         _mesa_shader_stage_to_string(shader->stage),
                          resume_suffix ? resume_suffix : "",
                          info->name);
       g.enable_debug(debug_name);
@@ -2690,10 +2686,9 @@ brw_to_binary_emit_shader(brw_generator &g,
 intel_shader_bin *
 brw_to_binary(const brw_to_binary_params *p)
 {
-   struct brw_stage_prog_data *prog_data = p->prog_data;
-   assert(prog_data);
+   const mesa_shader_stage stage = p->params->nir->info.stage;
 
-   brw_generator g(p->compiler, p->params, prog_data, prog_data->stage);
+   brw_generator g(p->compiler, p->params, stage);
 
    struct genisa_stats stats[BRW_TO_BINARY_MAX_SHADERS] = {};
    unsigned num_stats = 0;
@@ -2717,7 +2712,7 @@ brw_to_binary(const brw_to_binary_params *p)
    }
 
    if (p->num_resume_shaders > 0) {
-      assert(brw_shader_stage_is_bindless(prog_data->stage));
+      assert(brw_shader_stage_is_bindless(stage));
       assert(p->resume_shaders != NULL);
 
       uint64_t *resume_sbt = ralloc_array(p->params->mem_ctx,
@@ -2761,7 +2756,7 @@ brw_to_binary(const brw_to_binary_params *p)
    intel_shader_bin *bin =
       rzalloc(p->params->mem_ctx, intel_shader_bin);
    assert(first_shader != NULL);
-   assert(first_shader->info.stage == prog_data->stage);
+   assert(first_shader->info.stage == stage);
    bin->info = first_shader->info;
    for (unsigned i = 0; i < BRW_TO_BINARY_MAX_SHADERS; i++) {
       brw_shader *shader = p->shaders[i];
