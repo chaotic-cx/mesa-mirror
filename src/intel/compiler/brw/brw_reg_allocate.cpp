@@ -69,7 +69,7 @@ brw_assign_regs_trivial(brw_shader &s)
 
    if (devinfo->ver >= 30 && intel_threads_per_eu_set != (uint32_t)-1 &&
        (intel_threads_per_eu_srchash == BRW_SRCHASH_EMPTY ||
-        intel_threads_per_eu_srchash == s.prog_data->source_hash))
+        intel_threads_per_eu_srchash == s.info.source_hash))
       s.grf_used = MAX2(s.grf_used,
                         ROUND_DOWN_TO(1024 / intel_threads_per_eu_set, 32));
 
@@ -294,16 +294,16 @@ public:
          (intel_threads_per_eu_min != (uint32_t)-1 ||
           intel_threads_per_eu_set != (uint32_t)-1) &&
          (intel_threads_per_eu_srchash == BRW_SRCHASH_EMPTY ||
-          intel_threads_per_eu_srchash == fs->prog_data->source_hash);
+          intel_threads_per_eu_srchash == fs->info.source_hash);
       if (unlikely(debug_limit_registers)) {
          if (intel_threads_per_eu_set != (uint32_t)-1) {
             fprintf(stderr,
                     "INTEL_THREADS_PER_EU: set=%u for src_hash=0x%" PRIx64 "\n",
-                    intel_threads_per_eu_set, fs->prog_data->source_hash);
+                    intel_threads_per_eu_set, fs->info.source_hash);
          } else {
             fprintf(stderr,
                     "INTEL_THREADS_PER_EU: min=%u for src_hash=0x%" PRIx64 "\n",
-                    intel_threads_per_eu_min, fs->prog_data->source_hash);
+                    intel_threads_per_eu_min, fs->info.source_hash);
          }
       }
 

@@ -19,6 +19,8 @@ struct jay_compile_params {
    union brw_any_prog_key *key;
    union brw_any_prog_data *prog_data;
 
+   uint64_t source_hash;
+
    struct intel_push_layout push_layout;
 
    struct {

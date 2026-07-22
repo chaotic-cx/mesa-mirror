@@ -422,7 +422,7 @@ jay_partition_grf(jay_shader *shader)
 
       hw_grfs =
          intel_vrt_register_file_size(shader->devinfo,
-                                      shader->prog_data->base.source_hash,
+                                      shader->info.source_hash,
                                       MAX2(uniform_grfs + estimate_nonunif_grf,
                                            96));
 

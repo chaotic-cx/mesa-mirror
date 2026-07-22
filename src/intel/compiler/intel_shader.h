@@ -588,6 +588,7 @@ struct brw_stage_prog_data;
  * Must not contain pointers, so it can be trivially serialized.
  */
 struct intel_shader_info {
+   uint64_t source_hash;
    mesa_shader_stage stage;
 
    /** How many ray query objects in this shader. */

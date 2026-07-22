@@ -4949,7 +4949,7 @@ jay_gather_stats(const jay_shader *s, struct genisa_stats *stats)
    stats->fills = s->fills;
    stats->sends -= (s->spills + s->fills);
    stats->dispatch_width = s->dispatch_width;
-   stats->source_hash = s->prog_data->base.source_hash;
+   stats->source_hash = s->info.source_hash;
    stats->grf_registers = s->prog_data->base.grf_used;
    stats->vrt_size =
       intel_vrt_register_file_size(s->devinfo, stats->source_hash, stats->grf_registers);
@@ -4983,7 +4983,7 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    jay_debug = debug_get_option_jay_debug();
    bool debug =
       (!intel_shader_dump_filter ||
-       intel_shader_dump_filter == prog_data->base.source_hash) &&
+       intel_shader_dump_filter == base_info->source_hash) &&
       INTEL_DEBUG(intel_debug_flag_for_shader_stage(nir->info.stage)) &&
       (!nir->info.internal || NIR_DEBUG(PRINT_INTERNAL));
 
@@ -5170,8 +5170,8 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    if (INTEL_DEBUG(DEBUG_SHADER_HASH)) {
       jay_function *entry = jay_shader_get_entrypoint(s);
       jay_builder b = jay_init_builder(entry, jay_after_block(jay_last_block(entry)));
-      jay_MOV(&b, jay_null(), (uint32_t) prog_data->base.source_hash);
-      jay_MOV(&b, jay_null(), (uint32_t) (prog_data->base.source_hash >> 32));
+      jay_MOV(&b, jay_null(), (uint32_t) s->info.source_hash);
+      jay_MOV(&b, jay_null(), (uint32_t) (s->info.source_hash >> 32));
    }
 
    intel_shader_bin *bin =
@@ -5268,6 +5268,8 @@ jay_compile(const struct intel_device_info *devinfo,
    }
 
    struct intel_shader_info info = {
+      .source_hash = params->source_hash,
+
       /* nir_shader_gather_info() clears this once ray queries are lowered. */
       .ray_queries = nir->info.ray_queries,
    };

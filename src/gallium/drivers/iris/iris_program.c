@@ -80,7 +80,7 @@ iris_backend_compile(const struct iris_screen *screen,
    const struct intel_device_info *devinfo = screen->devinfo;
    nir_shader *nir = params->nir;
 
-   params->prog_data->source_hash = *(uint64_t *)nir->info.source_blake3;
+   params->source_hash = *(uint64_t *)nir->info.source_blake3;
 
    const bool use_jay = intel_use_jay(devinfo, nir);
    brw_nir_select_divergence_options(screen->brw, nir, use_jay);
@@ -92,6 +92,7 @@ iris_backend_compile(const struct iris_screen *screen,
          .key = (union brw_any_prog_key *)params->key,
          .prog_data = (union brw_any_prog_data *)params->prog_data,
          .push_layout = params->push_layout,
+         .source_hash = params->source_hash,
          .archiver = params->archiver,
          .error_str = &params->error_str,
       };

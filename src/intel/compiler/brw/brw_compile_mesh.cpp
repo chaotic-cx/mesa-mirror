@@ -281,7 +281,7 @@ brw_compile_task(const struct brw_compiler *compiler,
    struct brw_task_prog_data *prog_data =
       (struct brw_task_prog_data *)params->prog_data;
    const bool debug_enabled = brw_should_print_shader(nir, DEBUG_TASK,
-                                                      prog_data->base.base.source_hash);
+                                                      params->source_hash);
 
    brw_pass_tracker pt_ = {
       .nir = nir,
@@ -374,7 +374,10 @@ brw_compile_task(const struct brw_compiler *compiler,
          .compiler                = compiler,
          .compile_params          = params,
          .nir                     = shader,
-         .info                    = { .ray_queries = ray_queries },
+         .info = {
+            .source_hash = params->source_hash,
+            .ray_queries = ray_queries,
+         },
          .dispatch_width          = dispatch_width,
          .needs_register_pressure = params->collect_register_pressure,
          .debug_enabled           = debug_enabled,
@@ -961,7 +964,7 @@ brw_compile_mesh(const struct brw_compiler *compiler,
    struct brw_mesh_prog_data *prog_data =
       (struct brw_mesh_prog_data *)params->prog_data;
    const bool debug_enabled = brw_should_print_shader(nir, DEBUG_MESH,
-                                                      prog_data->base.base.source_hash);
+                                                      params->source_hash);
 
    brw_pass_tracker pt_ = {
       .nir = nir,
@@ -1102,7 +1105,10 @@ brw_compile_mesh(const struct brw_compiler *compiler,
          .compiler                = compiler,
          .compile_params          = params,
          .nir                     = shader,
-         .info                    = { .ray_queries = ray_queries },
+         .info = {
+            .source_hash = params->source_hash,
+            .ray_queries = ray_queries,
+         },
          .dispatch_width          = dispatch_width,
          .needs_register_pressure = params->collect_register_pressure,
          .debug_enabled           = debug_enabled,

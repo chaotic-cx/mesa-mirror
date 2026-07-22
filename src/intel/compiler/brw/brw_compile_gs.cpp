@@ -139,7 +139,7 @@ brw_compile_gs(const struct brw_compiler *compiler,
    unsigned control_data_header_size_bits = 0;
 
    const bool debug_enabled = brw_should_print_shader(
-      nir, DEBUG_GS, prog_data->base.base.source_hash);
+      nir, DEBUG_GS, params->source_hash);
 
    brw_pass_tracker pt_ = {
       .nir = nir,
@@ -366,7 +366,10 @@ brw_compile_gs(const struct brw_compiler *compiler,
       .compiler                = compiler,
       .compile_params          = params,
       .nir                     = nir,
-      .info                    = { .ray_queries = ray_queries },
+      .info = {
+         .source_hash = params->source_hash,
+         .ray_queries = ray_queries,
+      },
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->collect_register_pressure,
       .debug_enabled           = debug_enabled,

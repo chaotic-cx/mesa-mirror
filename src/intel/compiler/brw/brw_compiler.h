@@ -510,8 +510,6 @@ struct brw_stage_prog_data {
    /** Number of GRF registers used. */
    unsigned grf_used;
 
-   uint64_t source_hash;
-
    /* Was this shader compiled with Jay? */
    bool is_jay;
 };
@@ -1265,6 +1263,8 @@ struct brw_compile_params {
    char *error_str;
 
    uint64_t debug_flag;
+
+   uint64_t source_hash;
 
    struct {
       const struct intel_vue_map *input_vue_map;

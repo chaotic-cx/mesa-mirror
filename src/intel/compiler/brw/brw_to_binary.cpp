@@ -2088,8 +2088,8 @@ brw_generator::generate_code(const brw_shader &s,
    }
 
    if (INTEL_DEBUG(DEBUG_SHADER_HASH)) {
-      append_MOV(retype(brw_null_reg(), BRW_TYPE_UD), brw_imm_ud(prog_data->source_hash & 0xffffffff));
-      append_MOV(retype(brw_null_reg(), BRW_TYPE_UD), brw_imm_ud(prog_data->source_hash >> 32));
+      append_MOV(retype(brw_null_reg(), BRW_TYPE_UD), brw_imm_ud(s.info.source_hash & 0xffffffff));
+      append_MOV(retype(brw_null_reg(), BRW_TYPE_UD), brw_imm_ud(s.info.source_hash >> 32));
    }
 
 #ifndef NDEBUG
@@ -2272,7 +2272,7 @@ brw_generator::generate_code(const brw_shader &s,
       FILE *files[2] = { NULL, NULL };
 
       if (debug_flag && (!intel_shader_dump_filter ||
-                         (intel_shader_dump_filter && intel_shader_dump_filter == prog_data->source_hash)))
+                         (intel_shader_dump_filter && intel_shader_dump_filter == params->source_hash)))
          files[0] = stderr;
 
       if (params->archiver) {
@@ -2290,7 +2290,7 @@ brw_generator::generate_code(const brw_shader &s,
                  "Promoted %u constants. "
                  "GRF registers: %u. "
                  "Compacted %d to %d bytes (%.0f%%)\n",
-                 shader_name, prog_data->source_hash, blake3buf,
+                 shader_name, params->source_hash, blake3buf,
                  dispatch_width,
                  before_size / 16 - nop_count - sync_nop_count,
                  loop_count, perf.latency,
@@ -2359,7 +2359,7 @@ brw_generator::generate_code(const brw_shader &s,
       stats->fills = shader_stats.fill_count;
       stats->scratch_memory_size = prog_data->total_scratch;
       stats->max_live_registers = shader_stats.max_register_pressure;
-      stats->source_hash = prog_data->source_hash;
+      stats->source_hash = params->source_hash;
       stats->grf_registers = devinfo->ver >= 30 ? s.grf_used : 0;
       stats->vrt_size =
          intel_vrt_register_file_size(devinfo, stats->source_hash, stats->grf_registers);

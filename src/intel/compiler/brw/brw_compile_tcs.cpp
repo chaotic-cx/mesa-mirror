@@ -183,7 +183,7 @@ brw_compile_tcs(const struct brw_compiler *compiler,
    const unsigned dispatch_width = brw_geometry_stage_dispatch_width(compiler->devinfo);
 
    const bool debug_enabled = brw_should_print_shader(
-      nir, DEBUG_TCS, prog_data->base.base.source_hash);
+      nir, DEBUG_TCS, params->source_hash);
 
    brw_pass_tracker pt_ = {
       .nir = nir,
@@ -292,7 +292,10 @@ brw_compile_tcs(const struct brw_compiler *compiler,
       .compiler                = compiler,
       .compile_params          = params,
       .nir                     = nir,
-      .info                    = { .ray_queries = ray_queries },
+      .info = {
+         .source_hash = params->source_hash,
+         .ray_queries = ray_queries,
+      },
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->collect_register_pressure,
       .debug_enabled           = debug_enabled,

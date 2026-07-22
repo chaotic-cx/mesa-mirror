@@ -83,7 +83,7 @@ anv_device_dump_shader_variant(struct anv_device *device,
    if (device->shader_dump.archive != NULL) {
       char filename[80];
       snprintf(filename, sizeof(filename), "0x%016"PRIx64"-%s%s",
-               shader->prog_data->source_hash,
+               shader->bin->info.source_hash,
                _mesa_shader_stage_to_abbrev(shader->vk.stage),
                variant);
       f = debug_archiver_start_file(device->shader_dump.archive, filename);
@@ -91,7 +91,7 @@ anv_device_dump_shader_variant(struct anv_device *device,
       f = stderr;
       fprintf(f, "\nDumping shader asm for %s (src_hash 0x%"PRIx64"):\n\n",
               _mesa_shader_stage_to_abbrev(shader->vk.stage),
-              shader->prog_data->source_hash);
+              shader->bin->info.source_hash);
    }
 
    anv_dump_shader_assembly(f, devinfo, shader->code, code_offset,
@@ -111,7 +111,7 @@ anv_device_maybe_dump_shader(struct anv_device *device, struct anv_shader *shade
       return;
 
    if (intel_shader_dump_filter &&
-       intel_shader_dump_filter != shader->prog_data->source_hash)
+       intel_shader_dump_filter != shader->bin->info.source_hash)
       return;
 
    if (shader->vk.stage == MESA_SHADER_FRAGMENT) {
@@ -957,7 +957,7 @@ anv_shader_create(struct anv_device *device,
    if (pdevice->shader_workarounds != NULL) {
       struct anv_shader_workaround *workaround =
          _mesa_hash_table_u64_search(pdevice->shader_workarounds,
-                                     shader->prog_data->source_hash);
+                                     shader->bin->info.source_hash);
       if (workaround != NULL)
          shader->workaround = *workaround;
    }
@@ -969,7 +969,7 @@ anv_shader_create(struct anv_device *device,
          anv_perf_warn(VK_LOG_OBJS(&device->vk.base),
                        "Fragment shader 0x%016"PRIx64" for disk cache not "
                        "matching SIMD preference, recompile needed",
-                       shader->prog_data->source_hash);
+                       shader->bin->info.source_hash);
          result = VK_ERROR_UNKNOWN;
          goto error_state;
       }
@@ -982,7 +982,7 @@ anv_shader_create(struct anv_device *device,
          anv_perf_warn(VK_LOG_OBJS(&device->vk.base),
                        "Compute shader 0x%016"PRIx64" for disk cache not "
                        "matching SIMD preference, recompile needed",
-                       shader->prog_data->source_hash);
+                       shader->bin->info.source_hash);
          result = VK_ERROR_UNKNOWN;
          goto error_state;
       }

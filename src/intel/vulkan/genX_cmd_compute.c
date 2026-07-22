@@ -802,7 +802,7 @@ emit_cs_walker(struct anv_cmd_buffer *cmd_buffer,
       mi_builder_init(&b, device->info, &cmd_buffer->batch);
       mi_builder_set_mocs(&b, isl_mocs(&device->isl_dev, 0, false));
       mi_store(&b, mi_mem64(device->workaround_address),
-                   mi_imm(prog_data->base.source_hash));
+                   mi_imm(cmd_buffer->state.compute.shader->bin->info.source_hash));
    }
 
    genX(emit_breakpoint)(&cmd_buffer->batch, cmd_buffer->device, true);
@@ -882,7 +882,7 @@ void genX(CmdDispatchBase)(
 
    trace_intel_end_compute(&cmd_buffer->trace,
                            groupCountX, groupCountY, groupCountZ,
-                           prog_data->base.source_hash);
+                           cmd_buffer->state.compute.shader->bin->info.source_hash);
 }
 
 /*
@@ -953,7 +953,7 @@ genX(cmd_dispatch_unaligned)(
 
    trace_intel_end_compute(&cmd_buffer->trace,
                            groupCountX, groupCountY, groupCountZ,
-                           prog_data->base.source_hash);
+                           cmd_buffer->state.compute.shader->bin->info.source_hash);
 }
 
 /*
@@ -1000,7 +1000,7 @@ genX(cmd_buffer_dispatch_indirect)(struct anv_cmd_buffer *cmd_buffer,
 
    trace_intel_end_compute_indirect(&cmd_buffer->trace,
                                     anv_address_utrace(indirect_addr),
-                                    prog_data->base.source_hash);
+                                    cmd_buffer->state.compute.shader->bin->info.source_hash);
 }
 
 void genX(CmdDispatchIndirect2KHR)(

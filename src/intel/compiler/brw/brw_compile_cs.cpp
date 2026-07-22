@@ -128,7 +128,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
    const bool debug_enabled =
       brw_should_print_shader(nir, params->debug_flag ?
                                    params->debug_flag : DEBUG_CS,
-                                   prog_data->base.source_hash);
+                                   params->source_hash);
 
    brw_prog_data_init(&prog_data->base, params);
 
@@ -211,7 +211,10 @@ brw_compile_cs(const struct brw_compiler *compiler,
          .compiler                = compiler,
          .compile_params          = params,
          .nir                     = shader,
-         .info                    = { .ray_queries = ray_queries },
+         .info = {
+            .source_hash = params->source_hash,
+            .ray_queries = ray_queries,
+         },
          .dispatch_width          = dispatch_width,
          .needs_register_pressure = params->collect_register_pressure,
          .debug_enabled           = debug_enabled,

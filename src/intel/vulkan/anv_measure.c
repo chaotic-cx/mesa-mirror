@@ -155,12 +155,12 @@ anv_measure_start_snapshot(struct anv_cmd_buffer *cmd_buffer,
                             : measure->base.renderpass;
 
    if (type == INTEL_SNAPSHOT_COMPUTE && cmd_buffer->state.compute.shader) {
-      snapshot->cs = cmd_buffer->state.compute.shader->prog_data->source_hash;
+      snapshot->cs = cmd_buffer->state.compute.shader->bin->info.source_hash;
    } else if (type == INTEL_SNAPSHOT_DRAW) {
       const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
 #define SHADER_SOURCE_HASH(_name)         \
       (gfx->shaders[MESA_SHADER_##_name] ? \
-       gfx->shaders[MESA_SHADER_##_name]->prog_data->source_hash : 0)
+       gfx->shaders[MESA_SHADER_##_name]->bin->info.source_hash : 0)
       snapshot->vs = SHADER_SOURCE_HASH(VERTEX);
       snapshot->tcs = SHADER_SOURCE_HASH(TESS_CTRL);
       snapshot->tes = SHADER_SOURCE_HASH(TESS_EVAL);
@@ -217,12 +217,12 @@ state_changed(struct anv_cmd_buffer *cmd_buffer,
       return false;
 
    if (type == INTEL_SNAPSHOT_COMPUTE) {
-      cs = cmd_buffer->state.compute.shader->prog_data->source_hash;
+      cs = cmd_buffer->state.compute.shader->bin->info.source_hash;
    } else if (type == INTEL_SNAPSHOT_DRAW) {
       const struct anv_cmd_graphics_state *gfx = &cmd_buffer->state.gfx;
 #define SHADER_SOURCE_HASH(_name) \
       (gfx->shaders[MESA_SHADER_##_name] ? \
-       gfx->shaders[MESA_SHADER_##_name]->prog_data->source_hash : 0)
+       gfx->shaders[MESA_SHADER_##_name]->bin->info.source_hash : 0)
       vs = SHADER_SOURCE_HASH(VERTEX);
       tcs = SHADER_SOURCE_HASH(TESS_CTRL);
       tes = SHADER_SOURCE_HASH(TESS_EVAL);

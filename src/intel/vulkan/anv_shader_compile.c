@@ -2070,6 +2070,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       .nir = nir,
       .key = (union brw_any_prog_key *)params->key,
       .prog_data = (union brw_any_prog_data *)params->prog_data,
+      .source_hash = params->source_hash,
       .push_layout = params->push_layout,
       .fs.mue_map =
          nir->info.stage == MESA_SHADER_FRAGMENT ? params->fs.mue_map : NULL,
@@ -2469,6 +2470,7 @@ anv_shader_compile(struct vk_device *vk_device,
          .push_layout = shader_data->push_layout,
          .collect_register_pressure = true,
          .log_data = device,
+         .source_hash = shader_data->source_hash,
          .archiver = shader_data->archiver,
       };
 
@@ -2515,8 +2517,6 @@ anv_shader_compile(struct vk_device *vk_device,
          UNREACHABLE("Invalid graphics shader stage");
       }
 
-      shader_data->prog_data.base.source_hash = shader_data->source_hash;
-
       const bool use_jay = intel_use_jay(devinfo, nir);
       brw_nir_select_divergence_options(compiler, nir, use_jay);
 
@@ -2549,7 +2549,8 @@ anv_shader_compile(struct vk_device *vk_device,
       }
 
       /* The compiler should not alter this. */
-      assert(shader_data->prog_data.base.source_hash == shader_data->source_hash);
+      assert(shader_data->bin == NULL ||
+             shader_data->bin->info.source_hash == shader_data->source_hash);
 
       if (shader_data->info->stage == MESA_SHADER_FRAGMENT) {
          /* Update the push constant padding range now that we know the amount

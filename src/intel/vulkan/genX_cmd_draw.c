@@ -1149,9 +1149,9 @@ anv_use_generated_draws(const struct anv_cmd_buffer *cmd_buffer, uint32_t count)
 
 #define gfx_source_hashes(gfx) \
    (gfx->shaders[MESA_SHADER_VERTEX] != NULL ? \
-    gfx->shaders[MESA_SHADER_VERTEX]->prog_data->source_hash : 0ull), \
+    gfx->shaders[MESA_SHADER_VERTEX]->bin->info.source_hash : 0ull), \
    (gfx->shaders[MESA_SHADER_FRAGMENT] != NULL ? \
-    gfx->shaders[MESA_SHADER_FRAGMENT]->prog_data->source_hash : 0ull)
+    gfx->shaders[MESA_SHADER_FRAGMENT]->bin->info.source_hash : 0ull)
 
 #include "genX_cmd_draw_helpers.h"
 #include "genX_cmd_draw_generated_indirect.h"
@@ -1177,7 +1177,7 @@ cmd_buffer_pre_draw_wa(struct anv_cmd_buffer *cmd_buffer)
       if (ANV_DEBUG(SHADER_HASH)) {                                     \
          mi_store(&b,                                                   \
                   mi_mem64(device->workaround_address),                 \
-                  mi_imm(gfx->shaders[stage]->prog_data->source_hash)); \
+                  mi_imm(gfx->shaders[stage]->bin->info.source_hash)); \
       }                                                                 \
    } while (0)
 
