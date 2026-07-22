@@ -495,8 +495,6 @@ struct brw_stage_prog_data {
    unsigned total_scratch;
    unsigned total_shared;
 
-   unsigned program_size;
-
    unsigned const_data_size;
    unsigned const_data_offset;
 

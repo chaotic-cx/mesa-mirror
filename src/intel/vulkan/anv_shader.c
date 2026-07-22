@@ -95,7 +95,7 @@ anv_device_dump_shader_variant(struct anv_device *device,
    }
 
    anv_dump_shader_assembly(f, devinfo, shader->code, code_offset,
-                            shader->prog_data->program_size,
+                            shader->bin->code_size,
                             GEN_PRINT_BYTE_OFFSETS, shader->kernel.offset);
 
    if (device->shader_dump.archive != NULL)
@@ -496,7 +496,7 @@ get_shader_isa_text(struct anv_device *device,
 
    const struct intel_device_info *devinfo =
       device->physical->compiler->isa.devinfo;
-   const int program_size = shader->prog_data->program_size;
+   const int program_size = shader->bin->code_size;
 
    if (shader->vk.stage == MESA_SHADER_FRAGMENT) {
       const struct brw_fs_prog_data *fs_prog_data = get_shader_fs_prog_data(shader);
@@ -757,7 +757,7 @@ anv_shader_reloc_begin(struct anv_shader_reloc *reloc,
       BRW_SHADER_RELOC_EMBEDDED_SAMPLER_HANDLE +
       shader->bind_map.embedded_sampler_count;
    VK_MULTIALLOC(ma);
-   VK_MULTIALLOC_DECL_SIZE(&ma, void, code, shader->prog_data->program_size);
+   VK_MULTIALLOC_DECL_SIZE(&ma, void, code, shader->bin->code_size);
    VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc_value, reloc_values, max_relocs);
 
    if (!vk_multialloc_zalloc2(&ma, &device->vk.alloc, alloc,
@@ -768,7 +768,7 @@ anv_shader_reloc_begin(struct anv_shader_reloc *reloc,
     * comes from, could be read-only, could app-managed, ...
     */
    reloc->relocated_code = code;
-   memcpy(reloc->relocated_code, in_code, shader->prog_data->program_size);
+   memcpy(reloc->relocated_code, in_code, shader->bin->code_size);
 
    uint32_t rv_count = anv_shader_set_relocs(device, reloc_values, shader);
    assert(rv_count <= max_relocs);
@@ -837,7 +837,7 @@ anv_shader_create(struct anv_device *device,
                            shader_data->xfb_info == NULL ? 0 :
                            nir_xfb_info_size(shader_data->xfb_info->output_count));
 
-   VK_MULTIALLOC_DECL(&ma, void, code, shader_data->prog_data.base.program_size);
+   VK_MULTIALLOC_DECL(&ma, void, code, shader_data->bin->code_size);
    VK_MULTIALLOC_DECL(&ma, struct anv_pipeline_binding, surface_to_descriptor,
                       shader_data->bind_map.surface_count);
    VK_MULTIALLOC_DECL(&ma, struct anv_pipeline_binding, sampler_to_descriptor,
@@ -865,11 +865,10 @@ anv_shader_create(struct anv_device *device,
    }
 
    shader->code = code;
-   memcpy(shader->code, shader_data->code,
-          shader_data->prog_data.base.program_size);
+   memcpy(shader->code, shader_data->code, shader_data->bin->code_size);
 
    shader->kernel = anv_shader_heap_alloc(&device->shader_heap,
-                                          shader_data->prog_data.base.program_size,
+                                          shader_data->bin->code_size,
                                           64, false, 0);
    if (shader->kernel.alloc_size == 0) {
       result = vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
@@ -943,7 +942,7 @@ anv_shader_create(struct anv_device *device,
    anv_shader_heap_upload(&device->shader_heap,
                           shader->kernel,
                           reloc.relocated_code,
-                          shader_data->prog_data.base.program_size);
+                          shader_data->bin->code_size);
 
    anv_shader_reloc_end(&reloc);
 
@@ -1141,7 +1140,7 @@ anv_replay_rt_shader_group(struct vk_device *vk_device,
       if (shader->replay_kernel.alloc_size == 0) {
          shader->replay_kernel = anv_shader_heap_alloc(
             &device->shader_heap,
-            shader->prog_data->program_size,
+            shader->bin->code_size,
             64, true, offset);
          assert(shader->replay_kernel.alloc_size != 0);
 
@@ -1154,7 +1153,7 @@ anv_replay_rt_shader_group(struct vk_device *vk_device,
          anv_shader_heap_upload(&device->shader_heap,
                                 shader->replay_kernel,
                                 reloc.relocated_code,
-                                shader->prog_data->program_size);
+                                shader->bin->code_size);
 
          anv_shader_reloc_end(&reloc);
       }

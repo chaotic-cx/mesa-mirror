@@ -5222,8 +5222,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
          MAX2(prog_data->bs.max_stack_size, nir->scratch_size);
    }
 
-   prog_data->base.program_size = bin->code_size;
-
    /* Take the max of any previously compiled variant of the shader. In the
     * case of bindless shaders with return parts, this will also take the
     * max of all parts.
@@ -5389,7 +5387,6 @@ jay_compile(const struct intel_device_info *devinfo,
    bin->code = rzalloc_size(bin, total_bin_size);
    bin->code_size = total_bin_size;
    bin->prog_data = &prog_data->base;
-   prog_data->base.program_size = total_bin_size;
    prog_data->base.grf_used = 0;
    if (orig_nir->info.stage == MESA_SHADER_FRAGMENT) {
       prog_data->fs.dispatch_8 = false;

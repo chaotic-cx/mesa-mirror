@@ -2231,7 +2231,6 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    bs_prog_data->resume_sbt_offset = resume_sbt_offset;
    bs_prog_data->base.relocs = relocs;
    bs_prog_data->base.num_relocs = reloc_count;
-   bs_prog_data->base.program_size = total_bin_size;
 
    ralloc_free((void *)main_bin->code);
    main_bin->code = combined_bin;

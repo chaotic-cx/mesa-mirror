@@ -69,7 +69,7 @@ iris_disk_cache_store_brw(struct disk_cache *cache,
 
    /* We write the following data to the cache blob:
     *
-    * 1. Prog data (must come first because it has the assembly size)
+    * 1. Prog data
     *   - Zero out pointer values in prog data, so cache entries will be
     *     consistent.
     * 2. Shader info

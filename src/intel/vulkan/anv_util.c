@@ -454,7 +454,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
       struct brw_cs_prog_data trampoline_prog_data = {};
 
       char *error_str = NULL;
-      const unsigned *tramp_data = NULL;
+      const intel_shader_bin *bin;
       if (intel_use_jay(device->info, trampoline_nir)) {
          struct jay_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -465,8 +465,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
             .error_str = &error_str,
          };
-         intel_shader_bin *bin = jay_compile(device->info, &params);
-         tramp_data = bin ? bin->code : NULL;
+         bin = jay_compile(device->info, &params);
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -478,13 +477,11 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
          };
 
-         const intel_shader_bin *bin =
-            brw_compile(device->physical->compiler, &params);
-         tramp_data = bin ? bin->code : NULL;
+         bin = brw_compile(device->physical->compiler, &params);
          error_str = params.error_str;
       }
 
-      if (!tramp_data) {
+      if (!bin) {
          VkResult result =
             vk_errorf(device, VK_ERROR_UNKNOWN, "%s",
                       error_str ?: "Shader compilation failed");
@@ -497,8 +494,8 @@ anv_device_init_rt_shaders(struct anv_device *device)
          .stage               = MESA_SHADER_COMPUTE,
          .key_data            = &trampoline_key,
          .key_size            = sizeof(trampoline_key),
-         .kernel_data         = tramp_data,
-         .kernel_size         = trampoline_prog_data.base.program_size,
+         .kernel_data         = bin->code,
+         .kernel_size         = bin->code_size,
          .prog_data           = &trampoline_prog_data.base,
          .prog_data_size      = sizeof(trampoline_prog_data),
          .bind_map            = &empty_bind_map,
@@ -546,7 +543,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
 
       struct brw_bs_prog_data return_prog_data = { 0, };
       char *error_str = NULL;
-      const unsigned *return_data = NULL;
+      const intel_shader_bin *bin;
       if (intel_use_jay(device->info, trivial_return_nir)) {
          struct jay_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -556,8 +553,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
             .error_str = &error_str,
          };
-         intel_shader_bin *bin = jay_compile(device->info, &params);
-         return_data = bin ? bin->code : NULL;
+         bin = jay_compile(device->info, &params);
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -568,13 +564,11 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
          };
 
-         const intel_shader_bin *bin =
-            brw_compile(device->physical->compiler, &params);
-         return_data = bin ? bin->code : NULL;
+         bin = brw_compile(device->physical->compiler, &params);
          error_str = params.error_str;
       }
 
-      if (!return_data) {
+      if (!bin) {
          VkResult result =
             vk_errorf(device, VK_ERROR_UNKNOWN, "%s",
                       error_str ?: "Shader compilation failed");
@@ -587,8 +581,8 @@ anv_device_init_rt_shaders(struct anv_device *device)
          .stage               = MESA_SHADER_CALLABLE,
          .key_data            = &return_key,
          .key_size            = sizeof(return_key),
-         .kernel_data         = return_data,
-         .kernel_size         = return_prog_data.base.program_size,
+         .kernel_data         = bin->code,
+         .kernel_size         = bin->code_size,
          .prog_data           = &return_prog_data.base,
          .prog_data_size      = sizeof(return_prog_data),
          .bind_map            = &empty_bind_map,
@@ -635,7 +629,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
 
       struct brw_bs_prog_data return_prog_data = { 0, };
       char *error_str = NULL;
-      const unsigned *return_data = NULL;
+      const intel_shader_bin *bin;
       if (intel_use_jay(device->info, null_ahs_nir)) {
          struct jay_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -645,8 +639,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
             .error_str = &error_str,
          };
-         intel_shader_bin *bin = jay_compile(device->info, &params);
-         return_data = bin ? bin->code : NULL;
+         bin = jay_compile(device->info, &params);
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -655,13 +648,11 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .prog_data = (struct brw_stage_prog_data *)&return_prog_data,
             .log_data = device,
          };
-         const intel_shader_bin *bin =
-            brw_compile(device->physical->compiler, &params);
-         return_data = bin ? bin->code : NULL;
+         bin = brw_compile(device->physical->compiler, &params);
          error_str = params.error_str;
       }
 
-      if (!return_data) {
+      if (!bin) {
          VkResult result =
             vk_errorf(device, VK_ERROR_UNKNOWN, "%s",
                       error_str ?: "Shader compilation failed");
@@ -674,8 +665,8 @@ anv_device_init_rt_shaders(struct anv_device *device)
          .stage               = MESA_SHADER_CALLABLE,
          .key_data            = &null_return_key,
          .key_size            = sizeof(null_return_key),
-         .kernel_data         = return_data,
-         .kernel_size         = return_prog_data.base.program_size,
+         .kernel_data         = bin->code,
+         .kernel_size         = bin->code_size,
          .prog_data           = &return_prog_data.base,
          .prog_data_size      = sizeof(return_prog_data),
          .bind_map            = &empty_bind_map,

@@ -114,7 +114,7 @@ blorp_compile_fs_brw(struct blorp_context *blorp, void *mem_ctx,
 
    return (struct blorp_program){
       .kernel         = kernel,
-      .kernel_size    = fs_prog_data->base.program_size,
+      .kernel_size    = bin->code_size,
       .prog_data      = fs_prog_data,
       .prog_data_size = sizeof(*fs_prog_data),
    };
@@ -160,7 +160,7 @@ blorp_compile_vs_brw(struct blorp_context *blorp, void *mem_ctx,
 
    return (struct blorp_program) {
       .kernel         = kernel,
-      .kernel_size    = vs_prog_data->base.base.program_size,
+      .kernel_size    = bin->code_size,
       .prog_data      = vs_prog_data,
       .prog_data_size = sizeof(*vs_prog_data),
    };
@@ -286,7 +286,7 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
 
    return (struct blorp_program) {
       .kernel         = kernel,
-      .kernel_size    = cs_prog_data->base.program_size,
+      .kernel_size    = bin->code_size,
       .prog_data      = cs_prog_data,
       .prog_data_size = sizeof(*cs_prog_data),
    };

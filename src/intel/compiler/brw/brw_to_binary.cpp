@@ -26,6 +26,8 @@ namespace {
 class brw_generator
 {
 public:
+   unsigned get_output_size() const { return output_size; }
+
    brw_generator(const struct brw_compiler *compiler,
                 const struct brw_compile_params *params,
                 struct brw_stage_prog_data *prog_data,
@@ -2476,8 +2478,6 @@ brw_generator::get_assembly()
    allocate_output(0, 16);
    assert(output_size % 16 == 0);
 
-   prog_data->program_size = output_size;
-
    return (unsigned *)output;
 }
 
@@ -2729,7 +2729,7 @@ brw_to_binary(const brw_to_binary_params *p)
    bin->info = first_shader->info;
    ralloc_steal(bin, (void *)code);
    bin->code = code;
-   bin->code_size = prog_data->program_size;
+   bin->code_size = g.get_output_size();
    bin->prog_data = prog_data;
 
    return bin;

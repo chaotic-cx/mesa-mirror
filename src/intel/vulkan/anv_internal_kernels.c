@@ -406,7 +406,7 @@ compile_shader(struct anv_device *device,
 
    void *temp_ctx = ralloc_context(NULL);
 
-   const unsigned *program;
+   const intel_shader_bin *bin;
    if (stage == MESA_SHADER_FRAGMENT) {
       push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
 
@@ -421,8 +421,8 @@ compile_shader(struct anv_device *device,
          .log_data = device,
          .debug_flag = DEBUG_WM,
       };
-      const intel_shader_bin *bin = brw_compile(compiler, &params);
-      program = bin ? bin->code : NULL;
+      bin = brw_compile(compiler, &params);
+      assert(bin != NULL);
 
       if (!ANV_DEBUG(SHADER_PRINT)) {
          unsigned stat_idx = 0;
@@ -461,8 +461,8 @@ compile_shader(struct anv_device *device,
             .push = cs_push,
          },
       };
-      const intel_shader_bin *bin = brw_compile(compiler, &params);
-      program = bin ? bin->code : NULL;
+      bin = brw_compile(compiler, &params);
+      assert(bin != NULL);
 
       if (!ANV_DEBUG(SHADER_PRINT)) {
          check_sends(&stats, sends_count_expectation);
@@ -471,9 +471,8 @@ compile_shader(struct anv_device *device,
 
    /* Complex shaders are allowed to spill */
    assert(sends_count_expectation == 0 || prog_data.base.total_scratch == 0);
-   assert(program != NULL);
    struct anv_shader_internal *kernel = NULL;
-   if (program == NULL)
+   if (bin == NULL)
       goto exit;
 
    struct anv_pipeline_bind_map empty_bind_map = {};
@@ -482,8 +481,8 @@ compile_shader(struct anv_device *device,
       .stage               = nir->info.stage,
       .key_data            = hash_key,
       .key_size            = hash_key_size,
-      .kernel_data         = program,
-      .kernel_size         = prog_data.base.program_size,
+      .kernel_data         = bin->code,
+      .kernel_size         = bin->code_size,
       .prog_data           = &prog_data.base,
       .prog_data_size      = sizeof(prog_data),
       .bind_map            = &empty_bind_map,

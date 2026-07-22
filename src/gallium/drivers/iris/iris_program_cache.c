@@ -253,12 +253,12 @@ iris_upload_shader(struct iris_screen *screen,
           (intel_shader_dump_filter && ish && intel_shader_dump_filter == ish->source_hash)) {
          int start = 0;
          /* dump each simd variant of shader */
-         while (start < shader->brw_prog_data->program_size) {
+         while (start < shader->program_size) {
             const uint8_t *variant = (const uint8_t *)assembly + start;
             const int size = gen_dump_shader_with_lineno(
                stderr, screen->brw->isa.devinfo, shader->stage,
                ish ? ish->source_hash : 0, variant,
-               (int)(shader->brw_prog_data->program_size - start),
+               (int)(shader->program_size - start),
                res->bo->address + shader->assembly.offset + start);
             if (size <= 0)
                break;
@@ -301,7 +301,7 @@ iris_blorp_lookup_shader(struct blorp_batch *blorp_batch,
 bool
 iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
                          const void *key, uint32_t key_size,
-                         const void *kernel, UNUSED uint32_t kernel_size,
+                         const void *kernel, uint32_t kernel_size,
                          const void *prog_data_templ,
                          UNUSED uint32_t prog_data_size,
                          uint64_t *kernel_out, void *prog_data_out)
@@ -324,7 +324,7 @@ iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
    if (screen->brw) {
       intel_shader_bin bin = {
          .info.stage = stage,
-         .code_size = ((struct brw_stage_prog_data *)prog_data)->program_size,
+         .code_size = kernel_size,
          .prog_data = prog_data,
       };
       iris_apply_brw_prog_data(shader, &bin, NULL);
