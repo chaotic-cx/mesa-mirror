@@ -319,9 +319,7 @@ void genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
 #define anv_shader_internal_get_handler(devinfo, shader,             \
                                         local_arg_offset) ({         \
    assert((local_arg_offset) % 8 == 0);                              \
-   const struct brw_bs_prog_data *prog_data =                        \
-      brw_bs_prog_data_const(shader->prog_data);                     \
-   assert(prog_data->simd_size == 16);                               \
+   assert(shader->bin->info.bs.simd_size == 16);                     \
                                                                      \
    (struct GENX(CALL_STACK_HANDLER)) {                               \
       .OffsetToLocalArguments = (local_arg_offset) / 8,              \
@@ -336,9 +334,7 @@ void genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
 #if GFX_VERx10 >= 300
 #define anv_shader_get_bsr(devinfo, shader, local_arg_offset) ({     \
    assert((local_arg_offset) % 8 == 0);                              \
-   const struct brw_bs_prog_data *prog_data =                        \
-      brw_bs_prog_data_const(shader->prog_data);                     \
-   assert(prog_data->simd_size == 16);                               \
+   assert(shader->bin->info.bs.simd_size == 16);                     \
                                                                      \
    (struct GENX(BINDLESS_SHADER_RECORD)) {                           \
       .OffsetToLocalArguments = (local_arg_offset) / 8,              \
@@ -352,14 +348,13 @@ void genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
 #else
 #define anv_shader_get_bsr(devinfo, shader, local_arg_offset) ({     \
    assert((local_arg_offset) % 8 == 0);                              \
-   const struct brw_bs_prog_data *prog_data =                        \
-      brw_bs_prog_data_const(shader->prog_data);                     \
-   assert(prog_data->simd_size == 8 || prog_data->simd_size == 16);  \
+   const uint8_t bs_simd_size = shader->bin->info.bs.simd_size;      \
+   assert(bs_simd_size == 8 || bs_simd_size == 16);                  \
                                                                      \
    (struct GENX(BINDLESS_SHADER_RECORD)) {                           \
       .OffsetToLocalArguments = (local_arg_offset) / 8,              \
       .BindlessShaderDispatchMode =                                  \
-         prog_data->simd_size == 16 ? RT_SIMD16 : RT_SIMD8,          \
+         bs_simd_size == 16 ? RT_SIMD16 : RT_SIMD8,                  \
       .KernelStartPointer = shader->replay_kernel.alloc_size != 0 ?  \
          shader->replay_kernel.offset : shader->kernel.offset,       \
    };                                                                \
@@ -370,9 +365,7 @@ void genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
 #define anv_shader_internal_get_bsr(devinfo, shader,                 \
                                     local_arg_offset) ({             \
    assert((local_arg_offset) % 8 == 0);                              \
-   const struct brw_bs_prog_data *prog_data =                        \
-      brw_bs_prog_data_const(shader->prog_data);                     \
-   assert(prog_data->simd_size == 16);                               \
+   assert(shader->bin->info.bs.simd_size == 16);                     \
                                                                      \
    (struct GENX(BINDLESS_SHADER_RECORD)) {                           \
       .OffsetToLocalArguments = (local_arg_offset) / 8,              \
@@ -386,14 +379,13 @@ void genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
 #define anv_shader_internal_get_bsr(devinfo, shader,                 \
                                     local_arg_offset) ({             \
    assert((local_arg_offset) % 8 == 0);                              \
-   const struct brw_bs_prog_data *prog_data =                        \
-      brw_bs_prog_data_const(shader->prog_data);                     \
-   assert(prog_data->simd_size == 8 || prog_data->simd_size == 16);  \
+   const uint8_t bs_simd_size = shader->bin->info.bs.simd_size;      \
+   assert(bs_simd_size == 8 || bs_simd_size == 16);                  \
                                                                      \
    (struct GENX(BINDLESS_SHADER_RECORD)) {                           \
       .OffsetToLocalArguments = (local_arg_offset) / 8,              \
       .BindlessShaderDispatchMode =                                  \
-         prog_data->simd_size == 16 ? RT_SIMD16 : RT_SIMD8,          \
+         bs_simd_size == 16 ? RT_SIMD16 : RT_SIMD8,                  \
       .KernelStartPointer = shader->kernel.offset,                   \
    };                                                                \
 })

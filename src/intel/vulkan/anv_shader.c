@@ -646,12 +646,10 @@ anv_shader_set_relocs(struct anv_device *device,
       .value = anv_address_physical(device->null_cacheline_addr) & 0xffffffff,
    };
    if (brw_shader_stage_is_bindless(shader->vk.stage)) {
-      const struct brw_bs_prog_data *bs_prog_data =
-         brw_bs_prog_data_const(shader->prog_data);
       uint64_t resume_sbt_addr =
          device->physical->va.shader_heap.addr +
          shader->kernel.offset +
-         bs_prog_data->resume_sbt_offset;
+         shader->bin->info.bs.resume_sbt_offset;
       reloc_values[rv_count++] = (struct intel_shader_reloc_value) {
          .id = BRW_SHADER_RELOC_RESUME_SBT_ADDR_LOW,
          .value = resume_sbt_addr,
@@ -935,9 +933,7 @@ anv_shader_create(struct anv_device *device,
    anv_shader_reloc_end(&reloc);
 
    if (mesa_shader_stage_is_rt(shader->vk.stage)) {
-      const struct brw_bs_prog_data *bs_prog_data =
-         (const struct brw_bs_prog_data *)shader->prog_data;
-      shader->vk.stack_size = bs_prog_data->max_stack_size;
+      shader->vk.stack_size = shader->bin->info.bs.max_stack_size;
    }
    shader->vk.scratch_size = shader->bin->info.total_scratch;
    shader->vk.ray_queries = shader->bin->info.ray_queries;

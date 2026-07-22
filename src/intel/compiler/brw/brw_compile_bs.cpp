@@ -59,9 +59,6 @@ compile_single_bs(const struct brw_compiler *compiler,
    const bool debug_enabled = brw_should_print_shader(
       shader, DEBUG_RT, params->source_hash);
 
-   prog_data->max_stack_size = MAX2(prog_data->max_stack_size,
-                                    shader->scratch_size);
-
    /* Since divergence is a lot more likely in RT than compute, it makes
     * sense to limit ourselves to the smallest available SIMD for now.
     */
@@ -87,6 +84,10 @@ compile_single_bs(const struct brw_compiler *compiler,
       .info = {
          .source_hash = params->source_hash,
          .ray_queries = ray_queries,
+         .bs = {
+            .max_stack_size = shader->scratch_size,
+            .simd_size = (uint8_t)required_width,
+         },
       },
       .dispatch_width          = required_width,
       .needs_register_pressure = needs_register_pressure,
@@ -122,16 +123,12 @@ brw_compile_bs(const struct brw_compiler *compiler,
 
    const unsigned ray_queries = shader->info.ray_queries;
 
-   prog_data->max_stack_size = 0;
-
    std::unique_ptr<brw_shader> main_shader =
       compile_single_bs(compiler, params, key, prog_data,
                         shader, ray_queries,
                         params->collect_register_pressure);
    if (!main_shader)
       return NULL;
-
-   prog_data->simd_size = main_shader->dispatch_width;
 
    std::vector<std::unique_ptr<brw_shader>> resume_owners(num_resume_shaders);
    std::vector<brw_shader *>                resume_ptrs(num_resume_shaders);
@@ -142,6 +139,9 @@ brw_compile_bs(const struct brw_compiler *compiler,
                            resume_shaders[i], ray_queries, false);
       if (!r)
          return NULL;
+      main_shader->info.bs.max_stack_size =
+         MAX2(main_shader->info.bs.max_stack_size,
+              r->info.bs.max_stack_size);
       resume_ptrs[i] = r.get();
       resume_owners[i] = std::move(r);
    }

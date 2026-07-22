@@ -825,6 +825,16 @@ struct intel_shader_info {
          bool uses_drawid;
          bool autostrip_enable;
       } mesh;
+      struct {
+         /** Maximum stack size of all shaders */
+         uint32_t max_stack_size;
+
+         /** Offset into the shader where the resume SBT is located */
+         uint32_t resume_sbt_offset;
+
+         /** SIMD size of the root shader */
+         uint8_t simd_size;
+      } bs;
    };
 };
 

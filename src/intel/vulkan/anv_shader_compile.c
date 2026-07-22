@@ -2112,10 +2112,6 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    /* Tracks per-shader dispatch width */
    uint8_t *resume_dispatch_width = ralloc_array(mem_ctx, uint8_t,
                                                  params->bs.num_resume_shaders);
-   /* Tracks resume shader prog_data */
-   union brw_any_prog_data *resume_prog_data =
-      ralloc_array(mem_ctx, union brw_any_prog_data,
-                   params->bs.num_resume_shaders);
 
    const struct intel_shader_reloc *main_relocs = main_bin->relocs;
    const unsigned main_num_relocs = main_bin->num_relocs;
@@ -2147,9 +2143,8 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       if (!resume_shader_bins[i])
          return NULL;
 
-      resume_prog_data[i] = main_prog_data;
       resume_grf_used[i] = resume_shader_bins[i]->info.grf_used;
-      resume_dispatch_width[i] = resume_prog_data[i].bs.simd_size;
+      resume_dispatch_width[i] = resume_shader_bins[i]->info.bs.simd_size;
 
       /* Ensure shaders start at 64 byte boundary. */
       total_bin_size = align(total_bin_size, 64);
@@ -2160,9 +2155,6 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
        */
       reloc_count += resume_shader_bins[i]->num_relocs + 1;
    }
-
-   /* Copy resource requirements accumulated across all resume shaders. */
-   prog_data->bs.max_stack_size = main_prog_data.bs.max_stack_size;
 
    /* Allocate the relocs array once, sized for the whole thing. */
    struct intel_shader_reloc *relocs =
@@ -2223,22 +2215,21 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    /* Copy SBT table at the end */
    memcpy(combined_bin + resume_sbt_offset, resume_sbt, sbt_size);
 
-   struct brw_bs_prog_data *bs_prog_data =
-      brw_bs_prog_data(params->prog_data);
-
-   bs_prog_data->resume_sbt_offset = resume_sbt_offset;
-
    ralloc_free((void *)main_bin->code);
    main_bin->code = combined_bin;
    main_bin->code_size = total_bin_size;
    ralloc_free((void *)main_relocs);
    main_bin->relocs = relocs;
    main_bin->num_relocs = reloc_count;
+   main_bin->info.bs.resume_sbt_offset = resume_sbt_offset;
    for (unsigned i = 0; i < params->bs.num_resume_shaders; i++) {
       const struct intel_shader_info *resume_info = &resume_shader_bins[i]->info;
       main_bin->info.has_ubo_pull |= resume_info->has_ubo_pull;
       main_bin->info.total_scratch = MAX2(main_bin->info.total_scratch,
                                           resume_info->total_scratch);
+      main_bin->info.bs.max_stack_size =
+         MAX2(main_bin->info.bs.max_stack_size,
+              resume_info->bs.max_stack_size);
    }
 
    return main_bin;

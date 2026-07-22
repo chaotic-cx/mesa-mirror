@@ -5180,6 +5180,10 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       s->info.wg.prog_offset[i] = 0;
       s->info.wg.prog_mask = BITFIELD_BIT(i);
       s->info.wg.prog_spilled = uses_scratch; /* XXX */
+   } else if (brw_shader_stage_is_bindless(s->stage)) {
+      s->info.bs.simd_size = simd_width;
+      s->info.bs.max_stack_size =
+         MAX2(s->info.bs.max_stack_size, nir->scratch_size);
    }
 
    intel_shader_bin *bin =
@@ -5216,10 +5220,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
          prog_data->fs.dispatch_32 = true;
          prog_data->fs.prog_offset_32 = 0;
       }
-   } else if (brw_shader_stage_is_bindless(s->stage)) {
-      prog_data->bs.simd_size = simd_width;
-      prog_data->bs.max_stack_size =
-         MAX2(prog_data->bs.max_stack_size, nir->scratch_size);
    }
 
    ralloc_free(s);
@@ -5437,8 +5437,6 @@ jay_compile(const struct intel_device_info *devinfo,
             prog_data->fs.dispatch_32 = true;
             prog_data->fs.prog_offset_32 = offset;
          }
-      } else if (brw_shader_stage_is_bindless(orig_nir->info.stage)) {
-         prog_data->bs.simd_size = 8 << i;
       }
 
       offset += variants[i].bin->code_size;

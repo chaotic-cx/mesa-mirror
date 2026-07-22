@@ -767,15 +767,6 @@ brw_cs_prog_data_prog_offset(const struct intel_shader_info *info,
 
 struct brw_bs_prog_data {
    struct brw_stage_prog_data base;
-
-   /** SIMD size of the root shader */
-   uint8_t simd_size;
-
-   /** Maximum stack size of all shaders */
-   uint32_t max_stack_size;
-
-   /** Offset into the shader where the resume SBT is located */
-   uint32_t resume_sbt_offset;
 };
 
 #define BRW_VUE_HEADER_VARYING_MASK \

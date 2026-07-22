@@ -33,6 +33,7 @@ public:
    }
    unsigned const_data_offset = 0;
    unsigned const_data_size = 0;
+   unsigned resume_sbt_offset = 0;
 
    brw_generator(const struct brw_compiler *compiler,
                 const struct brw_compile_params *params,
@@ -2455,12 +2456,11 @@ void
 brw_generator::add_resume_sbt(unsigned num_resume_shaders, uint64_t *sbt)
 {
    assert(brw_shader_stage_is_bindless(stage));
-   struct brw_bs_prog_data *bs_prog_data = brw_bs_prog_data(prog_data);
    if (num_resume_shaders > 0) {
-      bs_prog_data->resume_sbt_offset =
+      resume_sbt_offset =
          append_output(sbt, num_resume_shaders * sizeof(uint64_t), 32);
       for (unsigned i = 0; i < num_resume_shaders; i++) {
-         size_t offset = bs_prog_data->resume_sbt_offset + i * sizeof(*sbt);
+         size_t offset = resume_sbt_offset + i * sizeof(*sbt);
          assert(offset <= UINT32_MAX);
          append_reloc({
             .id = INTEL_SHADER_RELOC_SHADER_START_OFFSET,
@@ -2783,6 +2783,8 @@ brw_to_binary(const brw_to_binary_params *p)
    bin->info.const_data_size = g.const_data_size;
    bin->relocs = g.get_relocs(&bin->num_relocs);
    ralloc_steal(bin, (void *)bin->relocs);
+   if (brw_shader_stage_is_bindless(bin->info.stage))
+      bin->info.bs.resume_sbt_offset = g.resume_sbt_offset;
    bin->prog_data = prog_data;
 
    assert(num_stats <= ARRAY_SIZE(bin->stats));
