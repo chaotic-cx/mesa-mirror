@@ -2118,8 +2118,8 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       ralloc_array(mem_ctx, union brw_any_prog_data,
                    params->bs.num_resume_shaders);
 
-   const struct intel_shader_reloc *main_relocs = main_prog_data.base.relocs;
-   const unsigned main_num_relocs = main_prog_data.base.num_relocs;
+   const struct intel_shader_reloc *main_relocs = main_bin->relocs;
+   const unsigned main_num_relocs = main_bin->num_relocs;
    unsigned reloc_count = main_num_relocs;
 
    /* Compile each resume shader */
@@ -2159,7 +2159,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       /* Account for resume shaders number of relocation, plus the SBT offset
        * reloc.
        */
-      reloc_count += resume_prog_data[i].base.num_relocs + 1;
+      reloc_count += resume_shader_bins[i]->num_relocs + 1;
    }
 
    /* Copy resource requirements accumulated across all resume shaders. */
@@ -2167,7 +2167,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
 
    /* Allocate the relocs array once, sized for the whole thing. */
    struct intel_shader_reloc *relocs =
-      ralloc_array(mem_ctx, struct intel_shader_reloc, reloc_count);
+      ralloc_array(main_bin, struct intel_shader_reloc, reloc_count);
 
    /* Copy relocs from the main shader */
    memcpy(relocs, main_relocs, main_num_relocs * sizeof(relocs[0]));
@@ -2202,8 +2202,8 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
                               resume_dispatch_width[i], 0,
                               resume_grf_used[i]);
 
-      for (unsigned j = 0; j < resume_prog_data[i].base.num_relocs; j++) {
-         relocs[reloc_count] = resume_prog_data[i].base.relocs[j];
+      for (unsigned j = 0; j < resume_shader_bins[i]->num_relocs; j++) {
+         relocs[reloc_count] = resume_shader_bins[i]->relocs[j];
          relocs[reloc_count].offset += resume_reloc_offset;
          reloc_count++;
       }
@@ -2228,12 +2228,13 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       brw_bs_prog_data(params->prog_data);
 
    bs_prog_data->resume_sbt_offset = resume_sbt_offset;
-   bs_prog_data->base.relocs = relocs;
-   bs_prog_data->base.num_relocs = reloc_count;
 
    ralloc_free((void *)main_bin->code);
    main_bin->code = combined_bin;
    main_bin->code_size = total_bin_size;
+   ralloc_free((void *)main_relocs);
+   main_bin->relocs = relocs;
+   main_bin->num_relocs = reloc_count;
    for (unsigned i = 0; i < params->bs.num_resume_shaders; i++) {
       const struct intel_shader_info *resume_info = &resume_shader_bins[i]->info;
       main_bin->info.has_ubo_pull |= resume_info->has_ubo_pull;

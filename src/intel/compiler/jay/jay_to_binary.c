@@ -754,7 +754,6 @@ jay_to_binary(jay_shader *s,
    util_dynarray_init(&jc.loop_stack, mem_ctx);
    util_dynarray_init(&jc.relocs, bin);
 
-   struct brw_stage_prog_data *prog_data = &s->prog_data->base;
    int code_size;
 
    /* TODO: Multifunction properly */
@@ -881,11 +880,10 @@ jay_to_binary(jay_shader *s,
       bin->info.const_data_offset = offset;
    }
 
-   prog_data->relocs = jc.relocs.data;
-   prog_data->num_relocs = num_relocs;
-
    bin->code = jc.output;
    bin->code_size = jc.output_size;
+   bin->relocs = jc.relocs.data;
+   bin->num_relocs = num_relocs;
 
    ralloc_free(mem_ctx);
    return bin;

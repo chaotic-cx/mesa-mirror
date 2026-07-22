@@ -581,6 +581,7 @@ struct intel_push_layout {
 
 #ifndef __OPENCL_VERSION__
 struct brw_stage_prog_data;
+struct intel_shader_reloc;
 
 /**
  * Plain-old-data metadata about a compiled shader.
@@ -625,6 +626,9 @@ typedef struct intel_shader_bin {
 
    const void *code;
    unsigned code_size;
+
+   const struct intel_shader_reloc *relocs;
+   unsigned num_relocs;
 
    struct genisa_stats stats[INTEL_SHADER_BIN_MAX_STATS];
    unsigned num_stats;

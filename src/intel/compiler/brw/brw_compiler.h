@@ -492,9 +492,6 @@ struct brw_stage_prog_data {
    uint8_t robust_ubo_ranges;
    unsigned push_reg_mask_param;
 
-   unsigned num_relocs;
-   const struct intel_shader_reloc *relocs;
-
    /* Was this shader compiled with Jay? */
    bool is_jay;
 };
@@ -1320,7 +1317,7 @@ brw_cs_fill_push_const_info(const struct intel_device_info *devinfo,
 void
 brw_write_shader_relocs(const struct brw_isa_info *isa,
                         void *program,
-                        const struct brw_stage_prog_data *prog_data,
+                        const intel_shader_bin *bin,
                         struct intel_shader_reloc_value *values,
                         unsigned num_values);
 

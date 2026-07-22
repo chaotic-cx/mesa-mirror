@@ -176,7 +176,8 @@ iris_upload_shader(struct iris_screen *screen,
                    enum iris_program_cache_id cache_id,
                    uint32_t key_size,
                    const void *key,
-                   const void *assembly)
+                   const void *assembly,
+                   const intel_shader_bin *bin)
 {
    iris_u_upload_alloc_ref_to_iris_state_ref(uploader, 0, shader->program_size,
                                              64, &shader->assembly, &shader->map);
@@ -226,7 +227,7 @@ iris_upload_shader(struct iris_screen *screen,
 
    if (screen->brw) {
       brw_write_shader_relocs(&screen->brw->isa, shader->map,
-                              shader->brw_prog_data, reloc_values,
+                              bin, reloc_values,
                               rv_count);
    } else {
 #ifdef INTEL_USE_ELK
@@ -346,7 +347,7 @@ iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
 
    iris_upload_shader(screen, NULL, shader, ice->shaders.cache,
                       ice->shaders.uploader_driver,
-                      IRIS_CACHE_BLORP, key_size, key, kernel);
+                      IRIS_CACHE_BLORP, key_size, key, kernel, src_bin);
 
    struct iris_bo *bo = iris_resource_bo(shader->assembly.res);
    *kernel_out = iris_bufmgr_is_eff_64bit_enabled(bo->bufmgr) ?
@@ -566,7 +567,7 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
 
    iris_upload_shader(screen, NULL, shader, ice->shaders.cache,
                       ice->shaders.uploader_driver,
-                      IRIS_CACHE_BLORP, sizeof(key), &key, program);
+                      IRIS_CACHE_BLORP, sizeof(key), &key, program, bin);
 
    ralloc_free(nir);
 

@@ -170,9 +170,9 @@ anv_shader_deserialize(struct vk_device *vk_device,
 
    blob_copy_bytes(blob, &data.prog_data, brw_prog_data_size(stage));
 
-   data.prog_data.base.relocs =
-      blob_read_bytes(blob, data.prog_data.base.num_relocs *
-                      sizeof(data.prog_data.base.relocs[0]));
+   bin.num_relocs = blob_read_uint32(blob);
+   bin.relocs = (const struct intel_shader_reloc *)
+      blob_read_bytes(blob, bin.num_relocs * sizeof(bin.relocs[0]));
 
    bin.num_stats = blob_read_uint32(blob);
    if (bin.num_stats > ARRAY_SIZE(bin.stats))
@@ -249,14 +249,11 @@ anv_shader_serialize(struct vk_device *device,
    blob_write_bytes(blob, shader->bin->code, shader->bin->code_size);
 
    const unsigned prog_data_size = brw_prog_data_size(vk_shader->stage);
-   union brw_any_prog_data prog_data;
-   assert(prog_data_size <= sizeof(prog_data));
-   memcpy(&prog_data, shader->prog_data, prog_data_size);
-   prog_data.base.relocs = NULL;
-   blob_write_bytes(blob, &prog_data, prog_data_size);
-   blob_write_bytes(blob, shader->prog_data->relocs,
-                    shader->prog_data->num_relocs *
-                    sizeof(shader->prog_data->relocs[0]));
+   blob_write_bytes(blob, shader->prog_data, prog_data_size);
+
+   blob_write_uint32(blob, shader->bin->num_relocs);
+   blob_write_bytes(blob, shader->bin->relocs,
+                    shader->bin->num_relocs * sizeof(shader->bin->relocs[0]));
 
    blob_write_uint32(blob, shader->bin->num_stats);
    blob_write_bytes(blob, shader->bin->stats,
@@ -773,7 +770,7 @@ anv_shader_reloc_begin(struct anv_shader_reloc *reloc,
    assert(rv_count <= max_relocs);
 
    brw_write_shader_relocs(&device->physical->compiler->isa,
-                           reloc->relocated_code, shader->prog_data,
+                           reloc->relocated_code, shader->bin,
                            reloc_values, rv_count);
 
    return VK_SUCCESS;
@@ -829,7 +826,7 @@ anv_shader_create(struct anv_device *device,
    VK_MULTIALLOC_DECL_SIZE(&ma, struct brw_stage_prog_data, prog_data,
                            brw_prog_data_size(stage));
    VK_MULTIALLOC_DECL(&ma, struct intel_shader_reloc, prog_data_relocs,
-                      shader_data->prog_data.base.num_relocs);
+                      shader_data->bin->num_relocs);
    VK_MULTIALLOC_DECL(&ma, intel_shader_bin, bin, 1);
 
    VK_MULTIALLOC_DECL_SIZE(&ma, nir_xfb_info, xfb_info,
@@ -883,9 +880,8 @@ anv_shader_create(struct anv_device *device,
    memcpy(prog_data, &shader_data->prog_data, brw_prog_data_size(stage));
 
    typed_memcpy(prog_data_relocs,
-                shader_data->prog_data.base.relocs,
-                shader_data->prog_data.base.num_relocs);
-   prog_data->relocs = prog_data_relocs;
+                shader_data->bin->relocs,
+                shader_data->bin->num_relocs);
 
    shader->prog_data = prog_data;
 
@@ -893,6 +889,7 @@ anv_shader_create(struct anv_device *device,
    *bin = *shader_data->bin;
    bin->code = shader->code;
    bin->prog_data = prog_data;
+   bin->relocs = prog_data_relocs;
 
    if (shader_data->xfb_info) {
       *xfb_info = *shader_data->xfb_info;

@@ -27,6 +27,10 @@ class brw_generator
 {
 public:
    unsigned get_output_size() const { return output_size; }
+   const intel_shader_reloc *get_relocs(unsigned *count) const {
+      *count = num_relocs;
+      return relocs;
+   }
    unsigned const_data_offset = 0;
    unsigned const_data_size = 0;
 
@@ -2471,9 +2475,6 @@ brw_generator::add_resume_sbt(unsigned num_resume_shaders, uint64_t *sbt)
 const unsigned *
 brw_generator::get_assembly()
 {
-   prog_data->relocs = relocs;
-   prog_data->num_relocs = num_relocs;
-
    /* TODO: Check if we really need this padding at the end. */
 
    /* Align final size with instruction size. */
@@ -2755,6 +2756,8 @@ brw_to_binary(const brw_to_binary_params *p)
    bin->code_size = g.get_output_size();
    bin->info.const_data_offset = g.const_data_offset;
    bin->info.const_data_size = g.const_data_size;
+   bin->relocs = g.get_relocs(&bin->num_relocs);
+   ralloc_steal(bin, (void *)bin->relocs);
    bin->prog_data = prog_data;
 
    assert(num_stats <= ARRAY_SIZE(bin->stats));

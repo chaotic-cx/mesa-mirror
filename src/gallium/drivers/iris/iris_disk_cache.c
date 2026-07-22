@@ -58,11 +58,12 @@ static void
 iris_disk_cache_store_brw(struct disk_cache *cache,
                           const struct iris_uncompiled_shader *ish,
                           const struct iris_compiled_shader *shader,
+                          const intel_shader_bin *bin,
                           const cache_key cache_key)
 {
    mesa_shader_stage stage = ish->nir->info.stage;
    const struct brw_stage_prog_data *brw = shader->brw_prog_data;
-   assert(brw);
+   assert(bin && brw);
 
    struct blob blob;
    blob_init(&blob);
@@ -70,8 +71,6 @@ iris_disk_cache_store_brw(struct disk_cache *cache,
    /* We write the following data to the cache blob:
     *
     * 1. Prog data
-    *   - Zero out pointer values in prog data, so cache entries will be
-    *     consistent.
     * 2. Shader info
     * 3. Assembly size
     * 4. Assembly code
@@ -82,11 +81,7 @@ iris_disk_cache_store_brw(struct disk_cache *cache,
     * 9. Binding table
     */
    size_t prog_data_s = brw_prog_data_size(stage);
-   union brw_any_prog_data serializable;
-   assert(prog_data_s <= sizeof(serializable));
-   memcpy(&serializable, shader->brw_prog_data, prog_data_s);
-   serializable.base.relocs = NULL;
-   blob_write_bytes(&blob, &serializable, prog_data_s);
+   blob_write_bytes(&blob, brw, prog_data_s);
 
    blob_write_bytes(&blob, &shader->info, sizeof(shader->info));
    blob_write_uint32(&blob, shader->program_size);
@@ -94,8 +89,9 @@ iris_disk_cache_store_brw(struct disk_cache *cache,
    blob_write_uint32(&blob, shader->num_system_values);
    blob_write_bytes(&blob, shader->system_values,
                     shader->num_system_values * sizeof(uint32_t));
-   blob_write_bytes(&blob, brw->relocs,
-                    brw->num_relocs * sizeof(struct intel_shader_reloc));
+   blob_write_uint32(&blob, bin->num_relocs);
+   blob_write_bytes(&blob, bin->relocs,
+                    bin->num_relocs * sizeof(bin->relocs[0]));
    blob_write_bytes(&blob, shader->ubo_ranges, sizeof(shader->ubo_ranges));
    blob_write_bytes(&blob, &shader->bt, sizeof(shader->bt));
 
@@ -163,6 +159,7 @@ void
 iris_disk_cache_store(struct disk_cache *cache,
                       const struct iris_uncompiled_shader *ish,
                       const struct iris_compiled_shader *shader,
+                      const intel_shader_bin *bin,
                       const void *prog_key,
                       uint32_t prog_key_size)
 {
@@ -184,10 +181,10 @@ iris_disk_cache_store(struct disk_cache *cache,
    if (shader->elk_prog_data)
       iris_disk_cache_store_elk(cache, ish, shader, cache_key);
    else
-      iris_disk_cache_store_brw(cache, ish, shader, cache_key);
+      iris_disk_cache_store_brw(cache, ish, shader, bin, cache_key);
 #else
    assert(shader->brw_prog_data);
-   iris_disk_cache_store_brw(cache, ish, shader, cache_key);
+   iris_disk_cache_store_brw(cache, ish, shader, bin, cache_key);
 #endif
 #endif
 }
@@ -239,14 +236,11 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
                       num_system_values * sizeof(uint32_t));
    }
 
-   brw->relocs = NULL;
-   if (brw->num_relocs) {
-      struct intel_shader_reloc *relocs =
-         ralloc_array(NULL, struct intel_shader_reloc, brw->num_relocs);
-      blob_copy_bytes(&blob, relocs,
-                      brw->num_relocs * sizeof(struct intel_shader_reloc));
-      brw->relocs = relocs;
-   }
+   bin.num_relocs = blob_read_uint32(&blob);
+   bin.relocs = bin.num_relocs ?
+      (const struct intel_shader_reloc *)
+      blob_read_bytes(&blob, bin.num_relocs * sizeof(bin.relocs[0])) :
+      NULL;
 
    bin.prog_data = brw;
 
@@ -285,7 +279,7 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
 
    /* Upload our newly read shader to the in-memory program cache. */
    iris_upload_shader(screen, ish, shader, NULL, uploader,
-                      cache_id, key_size, prog_key, assembly);
+                      cache_id, key_size, prog_key, assembly, &bin);
 
    free(buffer);
 
@@ -375,7 +369,7 @@ iris_disk_cache_retrieve_elk(struct iris_screen *screen,
 
    /* Upload our newly read shader to the in-memory program cache. */
    iris_upload_shader(screen, ish, shader, NULL, uploader,
-                      cache_id, key_size, prog_key, assembly);
+                      cache_id, key_size, prog_key, assembly, NULL);
 
    free(buffer);
 

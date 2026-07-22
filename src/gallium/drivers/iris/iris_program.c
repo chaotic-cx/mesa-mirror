@@ -338,7 +338,6 @@ iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
    shader->brw_prog_data = brw;
 
    ralloc_steal(shader, shader->brw_prog_data);
-   ralloc_steal(shader->brw_prog_data, (void *)brw->relocs);
 }
 
 #ifdef INTEL_USE_ELK
@@ -2337,9 +2336,10 @@ iris_compile_vs(struct iris_screen *screen,
                          system_values, num_system_values, num_cbufs, &bt);
 
    iris_upload_shader(screen, ish, shader, NULL, uploader, IRIS_CACHE_VS,
-                      sizeof(*key), key, program);
+                      sizeof(*key), key, program, bin);
 
-   iris_disk_cache_store(screen->disk_cache, ish, shader, key, sizeof(*key));
+   iris_disk_cache_store(screen->disk_cache, ish, shader, bin,
+                         key, sizeof(*key));
 
    ralloc_free(mem_ctx);
 }
@@ -2585,10 +2585,11 @@ iris_compile_tcs(struct iris_screen *screen,
                          num_system_values, num_cbufs, &bt);
 
    iris_upload_shader(screen, ish, shader, passthrough_ht, uploader,
-                      IRIS_CACHE_TCS, sizeof(*key), key, program);
+                      IRIS_CACHE_TCS, sizeof(*key), key, program, bin);
 
    if (ish)
-      iris_disk_cache_store(screen->disk_cache, ish, shader, key, sizeof(*key));
+      iris_disk_cache_store(screen->disk_cache, ish, shader, bin,
+                            key, sizeof(*key));
 
    ralloc_free(mem_ctx);
 }
@@ -2810,9 +2811,10 @@ iris_compile_tes(struct iris_screen *screen,
                          num_system_values, num_cbufs, &bt);
 
    iris_upload_shader(screen, ish, shader, NULL, uploader, IRIS_CACHE_TES,
-                      sizeof(*key), key, program);
+                      sizeof(*key), key, program, bin);
 
-   iris_disk_cache_store(screen->disk_cache, ish, shader, key, sizeof(*key));
+   iris_disk_cache_store(screen->disk_cache, ish, shader, bin,
+                         key, sizeof(*key));
 
    ralloc_free(mem_ctx);
 }
@@ -2999,9 +3001,10 @@ iris_compile_gs(struct iris_screen *screen,
                          num_system_values, num_cbufs, &bt);
 
    iris_upload_shader(screen, ish, shader, NULL, uploader, IRIS_CACHE_GS,
-                      sizeof(*key), key, program);
+                      sizeof(*key), key, program, bin);
 
-   iris_disk_cache_store(screen->disk_cache, ish, shader, key, sizeof(*key));
+   iris_disk_cache_store(screen->disk_cache, ish, shader, bin,
+                         key, sizeof(*key));
 
    ralloc_free(mem_ctx);
 }
@@ -3244,9 +3247,10 @@ iris_compile_fs(struct iris_screen *screen,
                          num_system_values, num_cbufs, &bt);
 
    iris_upload_shader(screen, ish, shader, NULL, uploader, IRIS_CACHE_FS,
-                      sizeof(*key), key, program);
+                      sizeof(*key), key, program, bin);
 
-   iris_disk_cache_store(screen->disk_cache, ish, shader, key, sizeof(*key));
+   iris_disk_cache_store(screen->disk_cache, ish, shader, bin,
+                         key, sizeof(*key));
 
    ralloc_free(mem_ctx);
 }
@@ -3588,9 +3592,10 @@ iris_compile_cs(struct iris_screen *screen,
                          &bt);
 
    iris_upload_shader(screen, ish, shader, NULL, uploader, IRIS_CACHE_CS,
-                      sizeof(*key), key, program);
+                      sizeof(*key), key, program, bin);
 
-   iris_disk_cache_store(screen->disk_cache, ish, shader, key, sizeof(*key));
+   iris_disk_cache_store(screen->disk_cache, ish, shader, bin,
+                         key, sizeof(*key));
 
    ralloc_free(mem_ctx);
 }

@@ -5292,8 +5292,6 @@ jay_compile(const struct intel_device_info *devinfo,
    struct jay_simd_variant {
       intel_shader_bin *bin;
       char *error;
-      const struct intel_shader_reloc *relocs;
-      unsigned num_relocs;
    } variants[3] = {};
 
    unsigned best_vrt_size = UINT32_MAX;
@@ -5322,8 +5320,6 @@ jay_compile(const struct intel_device_info *devinfo,
 
       jv->bin = jay_compile_simd(devinfo, &clone_params, &info, simd,
                                  simd != smallest, &fs_perprim);
-      jv->relocs = prog_data->base.relocs;
-      jv->num_relocs = prog_data->base.num_relocs;
 
       ralloc_free(nir);
 
@@ -5386,7 +5382,7 @@ jay_compile(const struct intel_device_info *devinfo,
          total_bin_size = align(total_bin_size, 64);
          total_bin_size += variants[i].bin->code_size;
 
-         total_num_relocs += variants[i].num_relocs;
+         total_num_relocs += variants[i].bin->num_relocs;
       }
    }
 
@@ -5409,9 +5405,9 @@ jay_compile(const struct intel_device_info *devinfo,
 
    struct intel_shader_reloc *relocs = NULL;
    if (total_num_relocs > 0) {
-      prog_data->base.relocs = relocs =
-         ralloc_array(mem_ctx, struct intel_shader_reloc, total_num_relocs);
-      prog_data->base.num_relocs = total_num_relocs;
+      bin->relocs = relocs =
+         ralloc_array(bin, struct intel_shader_reloc, total_num_relocs);
+      bin->num_relocs = total_num_relocs;
    }
 
    uint8_t *kernel = (uint8_t *) bin->code;
@@ -5426,8 +5422,8 @@ jay_compile(const struct intel_device_info *devinfo,
       memcpy(kernel + offset, variants[i].bin->code,
              variants[i].bin->code_size);
 
-      for (unsigned r = 0; r < variants[i].num_relocs; r++) {
-         relocs[reloc_start + r] = variants[i].relocs[r];
+      for (unsigned r = 0; r < variants[i].bin->num_relocs; r++) {
+         relocs[reloc_start + r] = variants[i].bin->relocs[r];
          relocs[reloc_start + r].offset += offset;
       }
 
@@ -5448,7 +5444,7 @@ jay_compile(const struct intel_device_info *devinfo,
       }
 
       offset += variants[i].bin->code_size;
-      reloc_start += variants[i].num_relocs;
+      reloc_start += variants[i].bin->num_relocs;
 
       const struct intel_shader_info *variant_info = &variants[i].bin->info;
       if (s == 0)

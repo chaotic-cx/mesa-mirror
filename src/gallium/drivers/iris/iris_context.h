@@ -1422,6 +1422,7 @@ iris_get_compiler_options(struct pipe_screen *pscreen,
 void iris_disk_cache_store(struct disk_cache *cache,
                            const struct iris_uncompiled_shader *ish,
                            const struct iris_compiled_shader *shader,
+                           const intel_shader_bin *bin,
                            const void *prog_key,
                            uint32_t prog_key_size);
 bool
@@ -1463,7 +1464,8 @@ void iris_upload_shader(struct iris_screen *screen,
                         enum iris_program_cache_id,
                         uint32_t key_size,
                         const void *key,
-                        const void *assembly);
+                        const void *assembly,
+                        const intel_shader_bin *bin);
 void iris_delete_shader_variant(struct iris_compiled_shader *shader);
 
 void iris_destroy_shader_state(struct pipe_context *ctx, void *state);

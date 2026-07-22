@@ -381,17 +381,17 @@ brw_prog_key_size(mesa_shader_stage stage)
 void
 brw_write_shader_relocs(const struct brw_isa_info *isa,
                         void *program,
-                        const struct brw_stage_prog_data *prog_data,
+                        const intel_shader_bin *bin,
                         struct intel_shader_reloc_value *values,
                         unsigned num_values)
 {
-   for (unsigned i = 0; i < prog_data->num_relocs; i++) {
-      assert(prog_data->relocs[i].offset % 8 == 0);
-      void *dst = program + prog_data->relocs[i].offset;
+   for (unsigned i = 0; i < bin->num_relocs; i++) {
+      assert(bin->relocs[i].offset % 8 == 0);
+      void *dst = program + bin->relocs[i].offset;
       for (unsigned j = 0; j < num_values; j++) {
-         if (prog_data->relocs[i].id == values[j].id) {
-            uint32_t value = values[j].value + prog_data->relocs[i].delta;
-            switch (prog_data->relocs[i].type) {
+         if (bin->relocs[i].id == values[j].id) {
+            uint32_t value = values[j].value + bin->relocs[i].delta;
+            switch (bin->relocs[i].type) {
             case INTEL_SHADER_RELOC_TYPE_U32:
                *(uint32_t *)dst = value;
                break;
