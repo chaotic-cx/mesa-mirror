@@ -5558,14 +5558,11 @@ struct anv_shader_upload_params {
    const void *key_data;
    uint32_t key_size;
 
-   const void *kernel_data;
-   uint32_t kernel_size;
-
    const struct brw_stage_prog_data *prog_data;
    uint32_t prog_data_size;
 
-   const struct genisa_stats *stats;
-   uint32_t num_stats;
+   /* Compile output bin; copied wholesale into the created shader. */
+   const intel_shader_bin *bin;
 
    const struct nir_xfb_info *xfb_info;
 
@@ -5609,7 +5606,6 @@ struct anv_shader_internal {
    void *code;
 
    struct anv_shader_alloc kernel;
-   uint32_t kernel_size;
 
    intel_shader_bin *bin;
 

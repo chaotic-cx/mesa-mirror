@@ -1502,14 +1502,17 @@ bool iris_blorp_lookup_shader(struct blorp_batch *blorp_batch,
                               const void *key,
                               uint32_t key_size,
                               uint64_t *kernel_out,
-                              void *prog_data_out);
+                              void *prog_data_out,
+                              const struct intel_shader_info **info_out);
 bool iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
                               const void *key, uint32_t key_size,
                               const void *kernel, uint32_t kernel_size,
                               const void *prog_data,
                               uint32_t prog_data_size,
+                              const intel_shader_bin *src_bin,
                               uint64_t *kernel_out,
-                              void *prog_data_out);
+                              void *prog_data_out,
+                              const struct intel_shader_info **info_out);
 
 void iris_ensure_indirect_generation_shader(struct iris_batch *batch);
 

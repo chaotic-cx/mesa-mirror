@@ -373,6 +373,10 @@ struct blorp_params
    uint64_t wm_prog_kernel;
    uint64_t cs_prog_kernel;
 
+   const struct intel_shader_info *vs_info;
+   const struct intel_shader_info *fs_info;
+   const struct intel_shader_info *cs_info;
+
    /* These are pointers to struct {brw,elk}_stage_prog_data. */
    void *vs_prog_data;
    void *sf_prog_data;
@@ -430,6 +434,8 @@ const char *blorp_shader_type_to_name(enum blorp_shader_type type);
 const char *blorp_shader_pipeline_to_name(enum blorp_shader_pipeline pipe);
 
 struct blorp_program {
+   const struct intel_shader_bin *bin;
+
    const void *kernel;
    uint32_t    kernel_size;
 

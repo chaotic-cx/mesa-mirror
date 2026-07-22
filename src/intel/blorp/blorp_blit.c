@@ -1775,7 +1775,8 @@ blorp_get_blit_kernel_fs(struct blorp_batch *batch,
    struct blorp_context *blorp = batch->blorp;
 
    if (blorp->lookup_shader(batch, key, sizeof(*key),
-                            &params->wm_prog_kernel, &params->fs_prog_data))
+                            &params->wm_prog_kernel, &params->fs_prog_data,
+                            &params->fs_info))
       return true;
 
    void *mem_ctx = ralloc_context(NULL);
@@ -1796,8 +1797,9 @@ blorp_get_blit_kernel_fs(struct blorp_batch *batch,
       blorp->upload_shader(batch, MESA_SHADER_FRAGMENT,
                            key, sizeof(*key),
                            p.kernel, p.kernel_size,
-                           p.prog_data, p.prog_data_size,
-                           &params->wm_prog_kernel, &params->fs_prog_data);
+                           p.prog_data, p.prog_data_size, p.bin,
+                           &params->wm_prog_kernel, &params->fs_prog_data,
+                           &params->fs_info);
    assert(result);
 
    ralloc_free(mem_ctx);
@@ -1812,7 +1814,8 @@ blorp_get_blit_kernel_cs(struct blorp_batch *batch,
    struct blorp_context *blorp = batch->blorp;
 
    if (blorp->lookup_shader(batch, prog_key, sizeof(*prog_key),
-                            &params->cs_prog_kernel, &params->cs_prog_data))
+                            &params->cs_prog_kernel, &params->cs_prog_data,
+                            &params->cs_info))
       return true;
 
    void *mem_ctx = ralloc_context(NULL);
@@ -1833,8 +1836,9 @@ blorp_get_blit_kernel_cs(struct blorp_batch *batch,
       blorp->upload_shader(batch, MESA_SHADER_COMPUTE,
                            prog_key, sizeof(*prog_key),
                            p.kernel, p.kernel_size,
-                           p.prog_data, p.prog_data_size,
-                           &params->cs_prog_kernel, &params->cs_prog_data);
+                           p.prog_data, p.prog_data_size, p.bin,
+                           &params->cs_prog_kernel, &params->cs_prog_data,
+                           &params->cs_info);
    assert(result);
 
    ralloc_free(mem_ctx);

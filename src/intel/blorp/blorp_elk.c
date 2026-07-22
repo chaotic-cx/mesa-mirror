@@ -224,7 +224,8 @@ blorp_ensure_sf_program_elk(struct blorp_batch *batch,
           sizeof(key.key.interp_mode));
 
    if (blorp->lookup_shader(batch, &key, sizeof(key),
-                            &params->sf_prog_kernel, &params->sf_prog_data))
+                            &params->sf_prog_kernel, &params->sf_prog_data,
+                            NULL))
       return true;
 
    void *mem_ctx = ralloc_context(NULL);
@@ -245,7 +246,9 @@ blorp_ensure_sf_program_elk(struct blorp_batch *batch,
       blorp->upload_shader(batch, MESA_SHADER_NONE,
                            &key, sizeof(key), program, program_size,
                            (void *)&prog_data_tmp, sizeof(prog_data_tmp),
-                           &params->sf_prog_kernel, &params->sf_prog_data);
+                           NULL,
+                           &params->sf_prog_kernel, &params->sf_prog_data,
+                           NULL);
 
    ralloc_free(mem_ctx);
 
@@ -281,7 +284,8 @@ blorp_params_get_layer_offset_vs_elk(struct blorp_batch *batch,
       blorp_key.num_inputs = fs_prog_data->num_varying_inputs;
 
    if (blorp->lookup_shader(batch, &blorp_key, sizeof(blorp_key),
-                            &params->vs_prog_kernel, &params->vs_prog_data))
+                            &params->vs_prog_kernel, &params->vs_prog_data,
+                            &params->vs_info))
       return true;
 
    void *mem_ctx = ralloc_context(NULL);
@@ -338,8 +342,9 @@ blorp_params_get_layer_offset_vs_elk(struct blorp_batch *batch,
       blorp->upload_shader(batch, MESA_SHADER_VERTEX,
                            &blorp_key, sizeof(blorp_key),
                            p.kernel, p.kernel_size,
-                           p.prog_data, p.prog_data_size,
-                           &params->vs_prog_kernel, &params->vs_prog_data);
+                           p.prog_data, p.prog_data_size, p.bin,
+                           &params->vs_prog_kernel, &params->vs_prog_data,
+                           &params->vs_info);
 
    ralloc_free(mem_ctx);
    return result;

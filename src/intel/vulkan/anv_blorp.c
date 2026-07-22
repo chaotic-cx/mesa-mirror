@@ -27,7 +27,8 @@
 static bool
 lookup_blorp_shader(struct blorp_batch *batch,
                     const void *key, uint32_t key_size,
-                    uint64_t *kernel_out, void *prog_data_out)
+                    uint64_t *kernel_out, void *prog_data_out,
+                    const struct intel_shader_info **info_out)
 {
    struct blorp_context *blorp = batch->blorp;
    struct anv_device *device = blorp->driver_ctx;
@@ -45,6 +46,8 @@ lookup_blorp_shader(struct blorp_batch *batch,
 
    *kernel_out = anv_shader_get_pointer(device, &bin->kernel);
    *(const struct brw_stage_prog_data **)prog_data_out = bin->prog_data;
+   if (info_out)
+      *info_out = &bin->bin->info;
 
    return true;
 }
@@ -52,10 +55,12 @@ lookup_blorp_shader(struct blorp_batch *batch,
 static bool
 upload_blorp_shader(struct blorp_batch *batch, uint32_t stage,
                     const void *key, uint32_t key_size,
-                    const void *kernel, uint32_t kernel_size,
+                    UNUSED const void *kernel, UNUSED uint32_t kernel_size,
                     const void *prog_data,
                     uint32_t prog_data_size,
-                    uint64_t *kernel_out, void *prog_data_out)
+                    const intel_shader_bin *src_bin,
+                    uint64_t *kernel_out, void *prog_data_out,
+                    const struct intel_shader_info **info_out)
 {
    struct blorp_context *blorp = batch->blorp;
    struct anv_device *device = blorp->driver_ctx;
@@ -66,10 +71,9 @@ upload_blorp_shader(struct blorp_batch *batch, uint32_t stage,
       .stage               = stage,
       .key_data            = key,
       .key_size            = key_size,
-      .kernel_data         = kernel,
-      .kernel_size         = kernel_size,
       .prog_data           = prog_data,
       .prog_data_size      = prog_data_size,
+      .bin                 = src_bin,
       .bind_map            = &empty_bind_map,
       .push_desc_info      = &empty_push_desc_info,
    };
@@ -87,6 +91,8 @@ upload_blorp_shader(struct blorp_batch *batch, uint32_t stage,
 
    *kernel_out = anv_shader_get_pointer(device, &bin->kernel);
    *(const struct brw_stage_prog_data **)prog_data_out = bin->prog_data;
+   if (info_out)
+      *info_out = &bin->bin->info;
 
    return true;
 }

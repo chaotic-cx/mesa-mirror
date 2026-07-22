@@ -271,7 +271,8 @@ iris_upload_shader(struct iris_screen *screen,
 bool
 iris_blorp_lookup_shader(struct blorp_batch *blorp_batch,
                          const void *key, uint32_t key_size,
-                         uint64_t *kernel_out, void *prog_data_out)
+                         uint64_t *kernel_out, void *prog_data_out,
+                         const struct intel_shader_info **info_out)
 {
    struct blorp_context *blorp = blorp_batch->blorp;
    struct iris_context *ice = blorp->driver_ctx;
@@ -293,6 +294,9 @@ iris_blorp_lookup_shader(struct blorp_batch *blorp_batch,
 #endif
       (void *)shader->brw_prog_data;
 
+   if (info_out)
+      *info_out = shader->elk_prog_data ? NULL : &shader->info;
+
    iris_use_pinned_bo(batch, bo, false, IRIS_DOMAIN_NONE);
 
    return true;
@@ -304,7 +308,9 @@ iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
                          const void *kernel, uint32_t kernel_size,
                          const void *prog_data_templ,
                          UNUSED uint32_t prog_data_size,
-                         uint64_t *kernel_out, void *prog_data_out)
+                         const intel_shader_bin *src_bin,
+                         uint64_t *kernel_out, void *prog_data_out,
+                         const struct intel_shader_info **info_out)
 {
    struct blorp_context *blorp = blorp_batch->blorp;
    struct iris_context *ice = blorp->driver_ctx;
@@ -322,11 +328,10 @@ iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
    memcpy(prog_data, prog_data_templ, prog_data_size);
 
    if (screen->brw) {
-      intel_shader_bin bin = {
-         .info.stage = stage,
-         .code_size = kernel_size,
-         .prog_data = prog_data,
-      };
+      assert(src_bin != NULL);
+      intel_shader_bin bin = *src_bin;
+      bin.code_size = kernel_size;
+      bin.prog_data = prog_data;
       iris_apply_brw_prog_data(shader, &bin, NULL);
    } else {
 #ifdef INTEL_USE_ELK
@@ -352,6 +357,9 @@ iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
       screen->elk ? (void *)shader->elk_prog_data :
 #endif
       (void*)shader->brw_prog_data;
+
+   if (info_out)
+      *info_out = shader->elk_prog_data ? NULL : &shader->info;
 
    iris_use_pinned_bo(batch, bo, false, IRIS_DOMAIN_NONE);
 

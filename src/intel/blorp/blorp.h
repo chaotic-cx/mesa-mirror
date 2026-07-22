@@ -36,6 +36,9 @@ extern "C" {
 struct brw_compiler;
 struct elk_compiler;
 
+struct intel_shader_bin;
+struct intel_shader_info;
+
 typedef struct nir_shader nir_shader;
 
 enum blorp_op {
@@ -114,14 +117,17 @@ struct blorp_context {
 
    bool (*lookup_shader)(struct blorp_batch *batch,
                          const void *key, uint32_t key_size,
-                         uint64_t *kernel_out, void *prog_data_out);
+                         uint64_t *kernel_out, void *prog_data_out,
+                         const struct intel_shader_info **info_out);
    bool (*upload_shader)(struct blorp_batch *batch,
                          uint32_t stage,
                          const void *key, uint32_t key_size,
                          const void *kernel, uint32_t kernel_size,
                          const void *prog_data,
                          uint32_t prog_data_size,
-                         uint64_t *kernel_out, void *prog_data_out);
+                         const struct intel_shader_bin *src_bin,
+                         uint64_t *kernel_out, void *prog_data_out,
+                         const struct intel_shader_info **info_out);
    uint64_t (*get_surface_address)(struct blorp_batch *batch,
                                    struct blorp_address addr);
    void (*exec)(struct blorp_batch *batch, const struct blorp_params *params);

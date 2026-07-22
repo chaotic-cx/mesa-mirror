@@ -82,7 +82,8 @@ blorp_params_get_clear_kernel_fs(struct blorp_batch *batch,
    params->shader_pipeline = blorp_key.base.shader_pipeline;
 
    if (blorp->lookup_shader(batch, &blorp_key, sizeof(blorp_key),
-                            &params->wm_prog_kernel, &params->fs_prog_data))
+                            &params->wm_prog_kernel, &params->fs_prog_data,
+                            &params->fs_info))
       return true;
 
    void *mem_ctx = ralloc_context(NULL);
@@ -119,8 +120,9 @@ blorp_params_get_clear_kernel_fs(struct blorp_batch *batch,
       blorp->upload_shader(batch, MESA_SHADER_FRAGMENT,
                            &blorp_key, sizeof(blorp_key),
                            p.kernel, p.kernel_size,
-                           p.prog_data, p.prog_data_size,
-                           &params->wm_prog_kernel, &params->fs_prog_data);
+                           p.prog_data, p.prog_data_size, p.bin,
+                           &params->wm_prog_kernel, &params->fs_prog_data,
+                           &params->fs_info);
    assert(result);
 
    ralloc_free(mem_ctx);
@@ -146,7 +148,8 @@ blorp_params_get_clear_kernel_cs(struct blorp_batch *batch,
    params->shader_pipeline = blorp_key.base.shader_pipeline;
 
    if (blorp->lookup_shader(batch, &blorp_key, sizeof(blorp_key),
-                            &params->cs_prog_kernel, &params->cs_prog_data))
+                            &params->cs_prog_kernel, &params->cs_prog_data,
+                            &params->cs_info))
       return true;
 
    void *mem_ctx = ralloc_context(NULL);
@@ -231,8 +234,9 @@ blorp_params_get_clear_kernel_cs(struct blorp_batch *batch,
       blorp->upload_shader(batch, MESA_SHADER_COMPUTE,
                            &blorp_key, sizeof(blorp_key),
                            p.kernel, p.kernel_size,
-                           p.prog_data, p.prog_data_size,
-                           &params->cs_prog_kernel, &params->cs_prog_data);
+                           p.prog_data, p.prog_data_size, p.bin,
+                           &params->cs_prog_kernel, &params->cs_prog_data,
+                           &params->cs_info);
    assert(result);
 
    ralloc_free(mem_ctx);
@@ -1546,7 +1550,8 @@ blorp_params_get_mcs_partial_resolve_kernel(struct blorp_batch *batch,
    blorp_key.num_samples = params->num_samples;
 
    if (blorp->lookup_shader(batch, &blorp_key, sizeof(blorp_key),
-                            &params->wm_prog_kernel, &params->fs_prog_data))
+                            &params->wm_prog_kernel, &params->fs_prog_data,
+                            &params->fs_info))
       return true;
 
    void *mem_ctx = ralloc_context(NULL);
@@ -1598,8 +1603,9 @@ blorp_params_get_mcs_partial_resolve_kernel(struct blorp_batch *batch,
       blorp->upload_shader(batch, MESA_SHADER_FRAGMENT,
                            &blorp_key, sizeof(blorp_key),
                            p.kernel, p.kernel_size,
-                           p.prog_data, p.prog_data_size,
-                           &params->wm_prog_kernel, &params->fs_prog_data);
+                           p.prog_data, p.prog_data_size, p.bin,
+                           &params->wm_prog_kernel, &params->fs_prog_data,
+                           &params->fs_info);
    assert(result);
 
    ralloc_free(mem_ctx);
