@@ -41,7 +41,8 @@ blorp_nir_options_brw(struct blorp_context *blorp,
 }
 
 static nir_def *
-blorp_nir_rt_write(nir_builder *b, signed rt, void *data)
+blorp_nir_rt_write(nir_builder *b, UNUSED signed rt,
+                   UNUSED struct intel_shader_info *info, UNUSED void *data)
 {
    return nir_load_push_data_intel(b, 1, 64, nir_imm_int(b, 0), .base = 0, .range = 8);
 }
@@ -319,9 +320,8 @@ blorp_params_get_layer_offset_vs_brw(struct blorp_batch *batch,
                   BLORP_SHADER_TYPE_LAYER_OFFSET_VS,
                   BLORP_SHADER_PIPELINE_RENDER);
 
-   struct brw_fs_prog_data *fs_prog_data = params->fs_prog_data;
-   if (fs_prog_data)
-      blorp_key.num_inputs = fs_prog_data->num_varying_inputs;
+   if (params->fs_info)
+      blorp_key.num_inputs = params->fs_info->fs.num_varying_inputs;
 
    if (blorp->lookup_shader(batch, &blorp_key, sizeof(blorp_key),
                             &params->vs_prog_kernel, &params->vs_prog_data,

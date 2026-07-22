@@ -490,135 +490,8 @@ enum brw_pixel_shader_computed_depth_mode {
 struct brw_fs_prog_data {
    struct brw_stage_prog_data base;
 
-   /**
-    * Number of slots (16B) chunks dedicated to per primitive payload.
-    */
-   unsigned num_per_primitive_inputs;
-
-   /**
-    * Number of slots (16B) chunks dedicated to per vertex payload.
-    */
-   unsigned num_varying_inputs;
-
-   uint8_t computed_depth_mode;
-
-   bool computed_stencil;
-   bool early_fragment_tests;
-   bool post_depth_coverage;
-   bool inner_coverage;
-   bool dual_src_blend;
-   bool uses_pos_offset;
-   bool uses_omask;
-   bool uses_kill;
-   bool uses_src_xy;
-   bool uses_src_depth;
-   bool uses_src_w;
-   bool uses_depth_w_coefficients;
-   bool uses_pc_bary_coefficients;
-   bool uses_npc_bary_coefficients;
-   bool uses_sample_offsets;
-   bool uses_sample_mask;
-   bool uses_vmask;
-   bool has_side_effects;
-   bool pulls_bary;
-   bool uses_fully_covered;
-
-   /**
-    * Whether nonperspective interpolation modes are used by the
-    * barycentric_interp_modes or fragment shader through interpolator messages.
-    */
-   bool uses_nonperspective_interp_modes;
-
-   /** Fragment shader barycentrics
-    *
-    * Request that the HW delta computation of attributes be turned off. This is needed
-    * when the FS has per-vertex inputs or reads BaryCoordKHR/BaryCoordNoPerspKHR.
-    */
-   bool vertex_attributes_bypass;
-
-   /** Shader is using per-sample interpolation */
-   bool persample_interp;
-
-   /** Whether this shader uses the FS config push data value */
-   bool uses_fs_config;
-
-   /** Whether this shader uses the FS color offset push data value
-    *
-    * Efficient 64bit mode only
-    */
-   bool uses_fs_color_offset;
-
-   /** Whether this shader uses the FS color map push data value
-    *
-    * Efficient 64bit mode only
-    */
-   bool uses_fs_color_map;
-
-   /** Should this shader be dispatched per-sample */
-   bool persample_dispatch;
-
-   /**
-    * Shader is ran at the coarse pixel shading dispatch rate (3DSTATE_CPS).
-    */
-   bool coarse_pixel_dispatch;
-
-   /**
-    * Whether the shader was compiled with a preference for SIMD32.
-    */
-   bool prefer_simd32;
-
-   /**
-    * Shader writes the SampleMask and this is AND-ed with the API's
-    * SampleMask to generate a new coverage mask.
-    */
-   enum intel_sometimes alpha_to_coverage;
-
-   /*
-    * Provoking vertex may be dynamically set to last and we need to know
-    * its value for fragment shader barycentrics and flat inputs.
-    */
-   enum intel_sometimes provoking_vertex_last;
-
-   /**
-    * Mask of which interpolation modes are required by the fragment shader.
-    * Those interpolations are delivered as part of the thread payload. Used
-    * in hardware setup on gfx6+.
-    */
-   uint32_t barycentric_interp_modes;
-
-   /**
-    * Mask of which FS inputs are marked flat by the shader source.  This is
-    * needed for setting up 3DSTATE_SF/SBE.
-    */
-   uint32_t flat_inputs;
-
-   /**
-    * The FS inputs
-    */
-   uint64_t inputs;
-
-   /**
-    * The FS per-primitive inputs (some bits can be in both inputs &
-    * per_primitive_inputs if the shader is compiled without being linked to
-    * the previous stage)
-    */
-   uint64_t per_primitive_inputs;
-
-   /**
-    * Map from gl_varying_slot to the position within the FS setup data
-    * payload where the varying's attribute vertex deltas should be delivered.
-    * For varying slots that are not used by the FS, the value is -1.
-    */
-   int urb_setup[VARYING_SLOT_MAX];
-
-   /**
-    * Cache structure into the urb_setup array above that contains the
-    * attribute numbers of active varyings out of urb_setup.
-    * The actual count is stored in urb_setup_attribs_count.
-    */
-   uint8_t urb_setup_attribs[VARYING_SLOT_MAX];
-   uint8_t urb_setup_attribs_count;
 };
+
 
 #ifdef GFX_VERx10
 
@@ -1098,7 +971,7 @@ brw_cs_get_dispatch_info(const struct intel_device_info *devinfo,
 static inline bool
 brw_stage_has_packed_dispatch(ASSERTED const struct intel_device_info *devinfo,
                               mesa_shader_stage stage, unsigned max_polygons,
-                              const struct brw_stage_prog_data *prog_data)
+                              const struct intel_shader_info *info)
 {
    /* The code below makes assumptions about the hardware's thread dispatch
     * behavior that could be proven wrong in future generations -- Make sure
@@ -1119,11 +992,9 @@ brw_stage_has_packed_dispatch(ASSERTED const struct intel_device_info *devinfo,
        * the SIMD thread, so dispatch of unlit samples cannot be avoided in
        * general and we should return false.
        */
-      const struct brw_fs_prog_data *fs_prog_data =
-         (const struct brw_fs_prog_data *)prog_data;
       return devinfo->verx10 < 125 &&
-             !fs_prog_data->persample_dispatch &&
-             fs_prog_data->uses_vmask &&
+             !info->fs.persample_dispatch &&
+             info->fs.uses_vmask &&
              max_polygons < 2;
    }
    case MESA_SHADER_COMPUTE:
@@ -1160,7 +1031,7 @@ brw_compute_first_fs_urb_slot_required(uint64_t inputs_read,
 void
 brw_compute_sbe_per_vertex_urb_read(const struct intel_vue_map *prev_stage_vue_map,
                                     bool mesh, bool per_primitive_remapping,
-                                    const struct brw_fs_prog_data *fs_prog_data,
+                                    const struct intel_shader_info *info,
                                     uint32_t *out_first_slot,
                                     uint32_t *num_slots,
                                     uint32_t *out_num_varyings,

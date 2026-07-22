@@ -45,8 +45,7 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
    struct anv_batch *batch = state->batch;
    struct anv_device *device = state->device;
    const struct anv_physical_device *pdevice = device->physical;
-   const struct brw_fs_prog_data *prog_data =
-      brw_fs_prog_data_const(state->kernel->prog_data);
+   const struct intel_shader_info *info = &state->kernel->bin->info;
 
    uint32_t *dw = anv_batch_emitn(batch,
                                   1 + 2 * GENX(VERTEX_ELEMENT_STATE_length),
@@ -185,9 +184,9 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
 
    anv_batch_emit(batch, GENX(3DSTATE_SBE), sbe) {
       sbe.VertexURBEntryReadOffset = 1;
-      sbe.NumberofSFOutputAttributes = prog_data->num_varying_inputs;
-      sbe.VertexURBEntryReadLength = MAX2((prog_data->num_varying_inputs + 1) / 2, 1);
-      sbe.ConstantInterpolationEnable = prog_data->flat_inputs;
+      sbe.NumberofSFOutputAttributes = info->fs.num_varying_inputs;
+      sbe.VertexURBEntryReadLength = MAX2((info->fs.num_varying_inputs + 1) / 2, 1);
+      sbe.ConstantInterpolationEnable = info->fs.flat_inputs;
       sbe.ForceVertexURBEntryReadLength = true;
       sbe.ForceVertexURBEntryReadOffset = true;
       for (unsigned i = 0; i < 32; i++)
@@ -199,11 +198,10 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
    anv_batch_emit(batch, GENX(3DSTATE_PS), ps) {
       intel_set_ps_dispatch_state(&ps, device->info,
                                   &state->kernel->bin->info,
-                                  prog_data->persample_dispatch,
                                   1 /* rasterization_samples */,
                                   0 /* fs_config */);
 
-      ps.VectorMaskEnable       = prog_data->uses_vmask;
+      ps.VectorMaskEnable       = info->fs.uses_vmask;
 
       ps.BindingTableEntryCount = GFX_VER == 9 ? 1 : 0;
 #if GFX_VER < 20
@@ -249,18 +247,18 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
    anv_batch_emit(batch, GENX(3DSTATE_PS_EXTRA), psx) {
       psx.PixelShaderValid = true;
 #if GFX_VER < 20
-      psx.AttributeEnable = prog_data->num_varying_inputs > 0;
+      psx.AttributeEnable = info->fs.num_varying_inputs > 0;
 #endif
-      psx.PixelShaderIsPerSample = prog_data->persample_dispatch;
-      psx.PixelShaderComputedDepthMode = prog_data->computed_depth_mode;
-      psx.PixelShaderComputesStencil = prog_data->computed_stencil;
+      psx.PixelShaderIsPerSample = info->fs.persample_dispatch;
+      psx.PixelShaderComputedDepthMode = info->fs.computed_depth_mode;
+      psx.PixelShaderComputesStencil = info->fs.computed_stencil;
 
 #if INTEL_WA_18038825448_GFX_VER
       psx.EnablePSDependencyOnCPsizeChange = needs_ps_dependency;
 #endif
 
 #if INTEL_WA_16030144090_GFX_VER
-      assert(!prog_data->persample_dispatch);
+      assert(!info->fs.persample_dispatch);
 #endif
    }
 

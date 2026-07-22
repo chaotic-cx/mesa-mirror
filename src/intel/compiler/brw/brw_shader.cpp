@@ -505,7 +505,7 @@ brw_shader::assign_curb_setup()
  * on each upload.
  */
 void
-brw_compute_urb_setup_index(struct brw_fs_prog_data *fs_prog_data)
+brw_compute_urb_setup_index(struct intel_shader_info *info)
 {
    /* TODO(mesh): Review usage of this in the context of Mesh, we may want to
     * skip per-primitive attributes here.
@@ -515,11 +515,11 @@ brw_compute_urb_setup_index(struct brw_fs_prog_data *fs_prog_data)
    STATIC_ASSERT(VARYING_SLOT_MAX <= 0xff);
    uint8_t index = 0;
    for (uint8_t attr = 0; attr < VARYING_SLOT_MAX; attr++) {
-      if (fs_prog_data->urb_setup[attr] >= 0) {
-         fs_prog_data->urb_setup_attribs[index++] = attr;
+      if (info->fs.urb_setup[attr] >= 0) {
+         info->fs.urb_setup_attribs[index++] = attr;
       }
    }
-   fs_prog_data->urb_setup_attribs_count = index;
+   info->fs.urb_setup_attribs_count = index;
 }
 
 void
@@ -567,11 +567,11 @@ brw_shader::convert_attr_sources_to_hw_regs(brw_inst *inst)
 
 uint32_t
 brw_fb_write_msg_control(const brw_inst *inst,
-                         const struct brw_fs_prog_data *prog_data)
+                         const struct intel_shader_info *info)
 {
    uint32_t mctl;
 
-   if (prog_data->dual_src_blend) {
+   if (info->fs.dual_src_blend) {
       assert(inst->exec_size < 32);
 
       if (inst->group % 16 == 0)

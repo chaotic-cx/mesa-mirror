@@ -2644,6 +2644,11 @@ brw_to_binary_merge_fs_info(struct intel_shader_info *dst,
    dst->fs.dispatch_8 |= src->fs.dispatch_8;
    dst->fs.dispatch_16 |= src->fs.dispatch_16;
    dst->fs.dispatch_32 |= src->fs.dispatch_32;
+   dst->fs.uses_fs_config |= src->fs.uses_fs_config;
+   dst->fs.uses_nonperspective_interp_modes |=
+      src->fs.uses_nonperspective_interp_modes;
+   dst->fs.pulls_bary |= src->fs.pulls_bary;
+   dst->fs.has_side_effects |= src->fs.has_side_effects;
 
    if (src->fs.dispatch_multi) {
       dst->fs.dispatch_multi = src->fs.dispatch_multi;

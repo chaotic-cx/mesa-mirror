@@ -1024,8 +1024,7 @@ emit_ps_shader(struct anv_batch *batch,
                struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
-   const struct brw_fs_prog_data *fs_prog_data =
-      get_shader_fs_prog_data(shader);
+   const struct intel_shader_info *info = &shader->bin->info;
 
    uint32_t ps_dwords[GENX(3DSTATE_PS_length)];
    anv_shader_emit_tmp(batch, ps_dwords, GENX(3DSTATE_PS), ps) {
@@ -1043,7 +1042,7 @@ emit_ps_shader(struct anv_batch *batch,
 #endif
 
       ps.SingleProgramFlow          = false;
-      ps.VectorMaskEnable           = fs_prog_data->uses_vmask;
+      ps.VectorMaskEnable           = info->fs.uses_vmask;
       ps.SamplerCount               = get_sampler_count(device, shader);
       ps.BindingTableEntryCount     = get_surface_count(device, shader);
 #if GFX_VER < 20
@@ -1081,29 +1080,29 @@ emit_ps_shader(struct anv_batch *batch,
    anv_shader_emit(batch, shader, ps.ps_extra, GENX(3DSTATE_PS_EXTRA), ps) {
       ps.PixelShaderValid              = true;
 #if GFX_VER < 20
-      ps.AttributeEnable               = fs_prog_data->num_varying_inputs > 0;
+      ps.AttributeEnable               = info->fs.num_varying_inputs > 0;
 #endif
-      ps.oMaskPresenttoRenderTarget    = fs_prog_data->uses_omask;
-      ps.PixelShaderComputedDepthMode  = fs_prog_data->computed_depth_mode;
-      ps.PixelShaderUsesSourceDepth    = fs_prog_data->uses_src_depth;
-      ps.PixelShaderUsesSourceW        = fs_prog_data->uses_src_w;
+      ps.oMaskPresenttoRenderTarget    = info->fs.uses_omask;
+      ps.PixelShaderComputedDepthMode  = info->fs.computed_depth_mode;
+      ps.PixelShaderUsesSourceDepth    = info->fs.uses_src_depth;
+      ps.PixelShaderUsesSourceW        = info->fs.uses_src_w;
 
-      ps.PixelShaderComputesStencil    = fs_prog_data->computed_stencil;
+      ps.PixelShaderComputesStencil    = info->fs.computed_stencil;
 #if GFX_VER >= 20
-      assert(!fs_prog_data->pulls_bary);
+      assert(!info->fs.pulls_bary);
 #else
-      ps.PixelShaderPullsBary          = fs_prog_data->pulls_bary;
+      ps.PixelShaderPullsBary          = info->fs.pulls_bary;
 #endif
 
 #if GFX_VER >= 11
       ps.PixelShaderRequiresSubpixelSampleOffsets =
-         fs_prog_data->uses_sample_offsets;
+         info->fs.uses_sample_offsets;
       ps.PixelShaderRequiresNonPerspectiveBaryPlaneCoefficients =
-         fs_prog_data->uses_npc_bary_coefficients;
+         info->fs.uses_npc_bary_coefficients;
       ps.PixelShaderRequiresPerspectiveBaryPlaneCoefficients =
-         fs_prog_data->uses_pc_bary_coefficients;
+         info->fs.uses_pc_bary_coefficients;
       ps.PixelShaderRequiresSourceDepthandorWPlaneCoefficients =
-         fs_prog_data->uses_depth_w_coefficients;
+         info->fs.uses_depth_w_coefficients;
 #endif
    }
 
@@ -1113,9 +1112,9 @@ emit_ps_shader(struct anv_batch *batch,
       wm.LineAntialiasingRegionWidth         = _10pixels;
       wm.PointRasterizationRule              = RASTRULE_UPPER_LEFT;
 
-      if (fs_prog_data->early_fragment_tests) {
+      if (info->fs.early_fragment_tests) {
          wm.EarlyDepthStencilControl         = EDSC_PREPS;
-      } else if (fs_prog_data->has_side_effects) {
+      } else if (info->fs.has_side_effects) {
          wm.EarlyDepthStencilControl         = EDSC_PSEXEC;
       } else {
          wm.EarlyDepthStencilControl         = EDSC_NORMAL;

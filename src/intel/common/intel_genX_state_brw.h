@@ -44,7 +44,6 @@ static inline void
 intel_set_ps_dispatch_state(struct GENX(3DSTATE_PS) *ps,
                             const struct intel_device_info *devinfo,
                             const struct intel_shader_info *info,
-                            bool persample_dispatch,
                             unsigned rasterization_samples,
                             enum intel_fs_config fs_config)
 {
@@ -89,7 +88,7 @@ intel_set_ps_dispatch_state(struct GENX(3DSTATE_PS) *ps,
       enable_8 = false;
 #endif
 
-   if (persample_dispatch) {
+   if (info->fs.persample_dispatch) {
       /* TGL PRMs, Volume 2d: Command Reference: Structures:
        *    3DSTATE_PS_BODY::32 Pixel Dispatch Enable:
        *

@@ -311,7 +311,7 @@ setup_color_payload(const brw_builder &bld, brw_reg *dst, brw_reg color,
 
 static void
 lower_fb_write_logical_send(const brw_builder &bld, brw_fb_write_inst *write,
-                            struct brw_fs_prog_data *prog_data,
+                            struct intel_shader_info *info,
                             const brw_fs_prog_key *key,
                             const brw_fs_thread_payload &fs_payload)
 {
@@ -371,7 +371,7 @@ lower_fb_write_logical_send(const brw_builder &bld, brw_fb_write_inst *write,
          g00_bits |= 1 << 11;
 
       /* Set computes stencil to render target */
-      if (prog_data->computed_stencil)
+      if (info->fs.computed_stencil)
          g00_bits |= 1 << 14;
 
       if (g00_bits) {
@@ -386,7 +386,7 @@ lower_fb_write_logical_send(const brw_builder &bld, brw_fb_write_inst *write,
          ubld.group(1, 0).MOV(component(header, 2), brw_imm_ud(target));
       }
 
-      if (prog_data->uses_kill) {
+      if (info->fs.uses_kill) {
          ubld.group(1, 0).MOV(retype(component(header, 15), BRW_TYPE_UW),
                               brw_sample_mask_reg(bld));
       }
@@ -487,8 +487,8 @@ lower_fb_write_logical_send(const brw_builder &bld, brw_fb_write_inst *write,
    send->has_side_effects = true;
 
    if (bld.shader->key->use_efficient_64bit) {
-      uint8_t msg_type = prog_data->dual_src_blend ? GFX35_RENDER_TARGET_DUAL_SOURCE_WRITE :
-                                                     GFX35_RENDER_TARGET_WRITE;
+      uint8_t msg_type = info->fs.dual_src_blend ? GFX35_RENDER_TARGET_DUAL_SOURCE_WRITE :
+                                                  GFX35_RENDER_TARGET_WRITE;
       send->combined_desc = brw_64bit_render_target_msg_desc(devinfo,
                                                              msg_type,
                                                              last_rt,
@@ -503,14 +503,14 @@ lower_fb_write_logical_send(const brw_builder &bld, brw_fb_write_inst *write,
       send->src[SENDG_SRC_IND_1_DESC] = brw_reg();
       send->efficient_64bit = true;
    } else {
-      uint32_t msg_ctl = brw_fb_write_msg_control(send, prog_data);
+      uint32_t msg_ctl = brw_fb_write_msg_control(send, info);
 
       /* XXX - Bit 13 Per-sample PS enable */
       uint32_t desc =
          (send->group / 16) << 11 | /* rt slot group */
          brw_fb_write_desc(devinfo, target, msg_ctl, last_rt,
                            0 /* coarse_rt_write */) |
-         (prog_data->coarse_pixel_dispatch ? (1 << 18) : 0);
+         (info->fs.coarse_pixel_dispatch ? (1 << 18) : 0);
 
       uint32_t ex_desc = 0;
       if (devinfo->ver >= 20) {
@@ -538,7 +538,7 @@ lower_fb_write_logical_send(const brw_builder &bld, brw_fb_write_inst *write,
 
 static void
 lower_fb_read_logical_send(const brw_builder &bld, brw_inst *inst,
-                           const struct brw_fs_prog_data *fs_prog_data)
+                           const struct intel_shader_info *info)
 {
    const intel_device_info *devinfo = bld.shader->devinfo;
    const brw_builder &ubld = bld.exec_all().group(8, 0);
@@ -603,7 +603,7 @@ lower_fb_read_logical_send(const brw_builder &bld, brw_inst *inst,
       (send->group / 16) << 11 | /* rt slot group */
       brw_fb_read_desc(devinfo, target,
                        0 /* msg_control */, send->exec_size,
-                       fs_prog_data->persample_dispatch);
+                       info->fs.persample_dispatch);
 }
 
 static bool
@@ -1902,8 +1902,7 @@ lower_varying_pull_constant_logical_send(const brw_builder &bld, brw_inst *inst)
 
 static void
 lower_interpolator_logical_send(const brw_builder &bld, brw_inst *inst,
-                                const struct brw_fs_prog_key *fs_prog_key,
-                                const struct brw_fs_prog_data *fs_prog_data)
+                                const struct brw_fs_prog_key *fs_prog_key)
 {
    assert(inst->src[INTERP_SRC_NOPERSPECTIVE].file == IMM);
 
@@ -2418,13 +2417,13 @@ brw_lower_logical_sends(brw_shader &s)
       case FS_OPCODE_FB_WRITE_LOGICAL:
          assert(s.stage == MESA_SHADER_FRAGMENT);
          lower_fb_write_logical_send(ibld, inst->as_fb_write(),
-                                     brw_fs_prog_data(s.prog_data),
+                                     &s.info,
                                      (const brw_fs_prog_key *)s.key,
                                      s.fs_payload());
          break;
 
       case FS_OPCODE_FB_READ_LOGICAL:
-         lower_fb_read_logical_send(ibld, inst, brw_fs_prog_data(s.prog_data));
+         lower_fb_read_logical_send(ibld, inst, &s.info);
          break;
 
       case SHADER_OPCODE_SAMPLER:
@@ -2451,8 +2450,7 @@ brw_lower_logical_sends(brw_shader &s)
       case FS_OPCODE_INTERPOLATE_AT_SHARED_OFFSET:
       case FS_OPCODE_INTERPOLATE_AT_PER_SLOT_OFFSET:
          lower_interpolator_logical_send(ibld, inst,
-                                         (const brw_fs_prog_key *)s.key,
-                                         brw_fs_prog_data(s.prog_data));
+                                         (const brw_fs_prog_key *)s.key);
          break;
 
       case SHADER_OPCODE_BTD_SPAWN_LOGICAL:

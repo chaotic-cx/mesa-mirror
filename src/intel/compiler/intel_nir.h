@@ -12,13 +12,16 @@ extern "C" {
 #endif
 
 struct intel_device_info;
+struct intel_shader_info;
 
 #define intel_nir_tess_field(b, field)                                  \
    nir_ubitfield_extract_imm(b, nir_load_tess_config_intel(b),          \
                              INTEL_TESS_CONFIG_##field##_OFFSET,        \
                              INTEL_TESS_CONFIG_##field##_SIZE)
 
-typedef nir_def *(*intel_nir_rt_write_cb)(nir_builder *, signed rt, void *data);
+typedef nir_def *(*intel_nir_rt_write_cb)(nir_builder *, signed rt,
+                                          struct intel_shader_info *info,
+                                          void *data);
 
 void intel_nir_apply_tcs_quads_workaround(nir_shader *nir);
 bool intel_nir_rebase_const_offset_ubo_loads(nir_shader *shader);
@@ -31,6 +34,7 @@ bool intel_nir_cleanup_resource_intel(nir_shader *shader);
 bool intel_nir_lower_fragment_outputs(nir_shader *shader,
                                       unsigned nr_colour_regions,
                                       bool replicate_alpha,
+                                      struct intel_shader_info *info,
                                       intel_nir_rt_write_cb cb,
                                       void *cb_data);
 bool intel_nir_lower_non_uniform_barycentric_at_sample(nir_shader *nir);

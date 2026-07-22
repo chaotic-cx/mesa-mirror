@@ -1220,12 +1220,12 @@ cmd_buffer_pre_draw_wa(struct anv_cmd_buffer *cmd_buffer)
 #endif
 
 #if GFX_VER >= 12 && GFX_VER <= 30
-   const struct brw_fs_prog_data *fs_prog_data = get_gfx_fs_prog_data(gfx);
+   const struct intel_shader_info *info = get_gfx_fs_info(gfx);
    enum isl_aux_usage depth_aux_usage = gfx->depth_att.aux_usage;
    if (isl_aux_usage_has_hiz(depth_aux_usage) &&
        hw_state->wm_ds.DepthTestEnable &&
        !hw_state->wm_ds.DepthBufferWriteEnable &&
-       fs_prog_data && fs_prog_data->computed_depth_mode != PSCDEPTH_OFF) {
+       info && info->fs.computed_depth_mode != PSCDEPTH_OFF) {
       /* According to Bspec 72161 (r890) and HSD 22019411255, we can improve
        * performance by avoiding HiZ planes for draw calls which compute depth
        * and perform read-only depth tests. According to HSD 22019338931, this

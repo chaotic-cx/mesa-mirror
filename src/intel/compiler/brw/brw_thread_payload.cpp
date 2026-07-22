@@ -119,7 +119,7 @@ brw_gs_thread_payload::brw_gs_thread_payload(brw_shader &v)
 static inline void
 setup_fs_payload_gfx20(brw_fs_thread_payload &payload, const brw_shader &v)
 {
-   struct brw_fs_prog_data *prog_data = brw_fs_prog_data(v.prog_data);
+   const struct intel_shader_info *info = &v.info;
    const unsigned payload_width = 16;
    assert(v.dispatch_width % payload_width == 0);
    assert(v.devinfo->ver >= 20);
@@ -138,20 +138,20 @@ setup_fs_payload_gfx20(brw_fs_thread_payload &payload, const brw_shader &v)
        * using the "Barycentric Interpolation Mode" bits in WM_STATE.
        */
       for (int i = 0; i < INTEL_BARYCENTRIC_MODE_COUNT; ++i) {
-         if (prog_data->barycentric_interp_modes & (1 << i)) {
+         if (info->fs.barycentric_interp_modes & (1 << i)) {
             payload.barycentric_coord_reg[i][j] = payload.num_regs;
             payload.num_regs += payload_width / 4;
          }
       }
 
       /* R14: Interpolated depth if "Pixel Shader Uses Source Depth" is set. */
-      if (prog_data->uses_src_depth) {
+      if (info->fs.uses_src_depth) {
          payload.source_depth_reg[j] = payload.num_regs;
          payload.num_regs += payload_width / 8;
       }
 
       /* R15: Interpolated W if "Pixel Shader Uses Source W" is set. */
-      if (prog_data->uses_src_w) {
+      if (info->fs.uses_src_w) {
          payload.source_w_reg[j] = payload.num_regs;
          payload.num_regs += payload_width / 8;
       }
@@ -159,7 +159,7 @@ setup_fs_payload_gfx20(brw_fs_thread_payload &payload, const brw_shader &v)
       /* R16: MSAA input coverage mask if "Pixel Shader Uses Input
        * Coverage Mask" is set.
        */
-      if (prog_data->uses_sample_mask) {
+      if (info->fs.uses_sample_mask) {
          payload.sample_mask_in_reg[j] = payload.num_regs;
          payload.num_regs += payload_width / 8;
       }
@@ -169,7 +169,7 @@ setup_fs_payload_gfx20(brw_fs_thread_payload &payload, const brw_shader &v)
        * this is delivered as a single SIMD32 vector, inconsistently
        * with most other PS payload fields.
        */
-      if (prog_data->uses_pos_offset && j == 0) {
+      if (info->fs.uses_pos_offset && j == 0) {
          for (unsigned k = 0; k < 2; k++) {
             payload.sample_pos_reg[k] = payload.num_regs;
             payload.num_regs++;
@@ -177,7 +177,7 @@ setup_fs_payload_gfx20(brw_fs_thread_payload &payload, const brw_shader &v)
       }
 
       /* R22: Sample offsets. */
-      if (prog_data->uses_sample_offsets && j == 0) {
+      if (info->fs.uses_sample_offsets && j == 0) {
          payload.sample_offsets_reg = payload.num_regs;
          payload.num_regs += 2;
       }
@@ -186,14 +186,14 @@ setup_fs_payload_gfx20(brw_fs_thread_payload &payload, const brw_shader &v)
    /* RP0: Source Depth and/or W Attribute Vertex Deltas and/or
     * Perspective Bary Planes.
     */
-   if (prog_data->uses_depth_w_coefficients ||
-       prog_data->uses_pc_bary_coefficients) {
+   if (info->fs.uses_depth_w_coefficients ||
+       info->fs.uses_pc_bary_coefficients) {
       payload.depth_w_coef_reg = payload.pc_bary_coef_reg = payload.num_regs;
       payload.num_regs += 2 * v.max_polygons;
    }
 
    /* RP4: Non-Perspective Bary planes. */
-   if (prog_data->uses_npc_bary_coefficients) {
+   if (info->fs.uses_npc_bary_coefficients) {
       payload.npc_bary_coef_reg = payload.num_regs;
       payload.num_regs += 2 * v.max_polygons;
    }
@@ -202,7 +202,7 @@ setup_fs_payload_gfx20(brw_fs_thread_payload &payload, const brw_shader &v)
 static inline void
 setup_fs_payload_gfx9(brw_fs_thread_payload &payload, const brw_shader &v)
 {
-   struct brw_fs_prog_data *prog_data = brw_fs_prog_data(v.prog_data);
+   const struct intel_shader_info *info = &v.info;
 
    const unsigned payload_width = MIN2(16, v.dispatch_width);
    assert(v.dispatch_width % payload_width == 0);
@@ -227,57 +227,57 @@ setup_fs_payload_gfx9(brw_fs_thread_payload &payload, const brw_shader &v)
        * WM_STATE.
        */
       for (int i = 0; i < INTEL_BARYCENTRIC_MODE_COUNT; ++i) {
-         if (prog_data->barycentric_interp_modes & (1 << i)) {
+         if (info->fs.barycentric_interp_modes & (1 << i)) {
             payload.barycentric_coord_reg[i][j] = payload.num_regs;
             payload.num_regs += payload_width / 4;
          }
       }
 
       /* R27-28: interpolated depth if uses source depth */
-      if (prog_data->uses_src_depth) {
+      if (info->fs.uses_src_depth) {
          payload.source_depth_reg[j] = payload.num_regs;
          payload.num_regs += payload_width / 8;
       }
 
       /* R29-30: interpolated W set if GFX6_WM_USES_SOURCE_W. */
-      if (prog_data->uses_src_w) {
+      if (info->fs.uses_src_w) {
          payload.source_w_reg[j] = payload.num_regs;
          payload.num_regs += payload_width / 8;
       }
 
       /* R31: MSAA position offsets. */
-      if (prog_data->uses_pos_offset) {
+      if (info->fs.uses_pos_offset) {
          payload.sample_pos_reg[j] = payload.num_regs;
          payload.num_regs++;
       }
 
       /* R32-33: MSAA input coverage mask */
-      if (prog_data->uses_sample_mask) {
+      if (info->fs.uses_sample_mask) {
          payload.sample_mask_in_reg[j] = payload.num_regs;
          payload.num_regs += payload_width / 8;
       }
    }
 
    /* R66: Source Depth and/or W Attribute Vertex Deltas. */
-   if (prog_data->uses_depth_w_coefficients) {
+   if (info->fs.uses_depth_w_coefficients) {
       payload.depth_w_coef_reg = payload.num_regs;
       payload.num_regs += v.max_polygons;
    }
 
    /* R68: Perspective bary planes. */
-   if (prog_data->uses_pc_bary_coefficients) {
+   if (info->fs.uses_pc_bary_coefficients) {
       payload.pc_bary_coef_reg = payload.num_regs;
       payload.num_regs += v.max_polygons;
    }
 
    /* R70: Non-perspective bary planes. */
-   if (prog_data->uses_npc_bary_coefficients) {
+   if (info->fs.uses_npc_bary_coefficients) {
       payload.npc_bary_coef_reg = payload.num_regs;
       payload.num_regs += v.max_polygons;
    }
 
    /* R72: Sample offsets. */
-   if (prog_data->uses_sample_offsets) {
+   if (info->fs.uses_sample_offsets) {
       payload.sample_offsets_reg = payload.num_regs;
       payload.num_regs++;
    }

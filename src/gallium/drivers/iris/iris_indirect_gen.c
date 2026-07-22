@@ -292,7 +292,6 @@ emit_indirect_generate_draw(struct iris_batch *batch,
    iris_emit_cmd(batch, GENX(3DSTATE_PS), ps) {
 #if GFX_VER >= 9
       intel_set_ps_dispatch_state(&ps, devinfo, &shader->info,
-                                  brw_fs_prog_data_const(shader->brw_prog_data)->persample_dispatch,
                                   1 /* rasterization_samples */,
                                   0 /* fs_config */);
 #else

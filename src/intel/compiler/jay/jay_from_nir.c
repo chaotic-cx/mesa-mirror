@@ -1090,8 +1090,8 @@ static void
 jay_emit_fb_write(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 {
    jay_builder *b = &nj->bld;
-   const struct brw_fs_prog_data *prog_data = &nj->s->prog_data->fs;
    const struct intel_device_info *devinfo = b->shader->devinfo;
+   const struct intel_shader_info *info = &nj->s->info;
    jay_def colour = nj_src(b, intr->src[1]);
    jay_def dual_colour = jay_null();
    jay_def src0_alpha = optional_src(b, intr->src[3]);
@@ -1101,18 +1101,18 @@ jay_emit_fb_write(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    int target = MAX2(((signed) nir_intrinsic_target(intr)), 0);
    const bool last = !nir_instr_next(&intr->instr);
-   const bool coarse = prog_data->coarse_pixel_dispatch;
+   const bool coarse = info->fs.coarse_pixel_dispatch;
 
    /* Enable null_rt if the shader doesn't write any relevant output. */
-   const bool null_rt = prog_data->alpha_to_coverage == INTEL_NEVER &&
-                        !prog_data->uses_omask &&
+   const bool null_rt = info->fs.alpha_to_coverage == INTEL_NEVER &&
+                        !info->fs.uses_omask &&
                         !(nj->nir->info.outputs_written &
                           (BITFIELD64_BIT(FRAG_RESULT_DEPTH) |
                            BITFIELD64_BIT(FRAG_RESULT_STENCIL))) &&
                         ((signed) nir_intrinsic_target(intr) < 0);
 
    /* The hardware freaks out if we give it an omask without multisampling. */
-   if (!prog_data->uses_omask) {
+   if (!info->fs.uses_omask) {
       omask = jay_null();
    }
 
@@ -1123,7 +1123,7 @@ jay_emit_fb_write(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
                      nir_scalar_resolved(intr->src[1].ssa, 3)))
       src0_alpha = jay_null();
 
-   if (prog_data->dual_src_blend) {
+   if (info->fs.dual_src_blend) {
       dual_colour = nj_src(b, intr->src[2]);
       src0_alpha = jay_null();
    }
@@ -1242,8 +1242,8 @@ static void
 jay_emit_fb_read(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 {
    jay_builder *b = &nj->bld;
-   const struct brw_fs_prog_data *prog_data = &nj->s->prog_data->fs;
    const struct intel_device_info *devinfo = b->shader->devinfo;
+   const struct intel_shader_info *info = &nj->s->info;
 
    assert(nir_intrinsic_component(intr) == 0 && "todo: combine"); // TODO
    assert(brw_can_coherent_fb_fetch(devinfo) && "pre-Xe2");
@@ -1275,7 +1275,7 @@ jay_emit_fb_read(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
 
    unsigned exec_size = MIN2(b->shader->dispatch_width, 16);
    uint64_t desc = brw_fb_read_desc(devinfo, target, 0 /* msg_control */,
-                                    exec_size, prog_data->persample_dispatch);
+                                    exec_size, info->fs.persample_dispatch);
    uint64_t ex_desc = 0;
 
    jay_CHECK_TDR(b);
@@ -2455,7 +2455,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       break;
 
    case nir_intrinsic_load_fs_config_intel:
-      s->prog_data->fs.uses_fs_config = true;
+      s->info.fs.uses_fs_config = true;
       jay_MOV(b, dst, fs->config);
       break;
 
@@ -2850,13 +2850,13 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
                                       intr->def.num_components));
       } else if (s->stage == MESA_SHADER_FRAGMENT) {
          unsigned start = UINT32_MAX, end_excl = 0;
-         if (nj->s->prog_data->fs.num_per_primitive_inputs > 0) {
+         if (nj->s->info.fs.num_per_primitive_inputs > 0) {
             start = jay_base_index(nj->payload.fs.per_prim_data);
             end_excl = start + jay_num_values(nj->payload.fs.per_prim_data);
          }
-         if (nj->s->prog_data->fs.num_varying_inputs) {
+         if (nj->s->info.fs.num_varying_inputs) {
             jay_def last =
-               fs->deltas[4 * nj->s->prog_data->fs.num_varying_inputs - 1];
+               fs->deltas[4 * nj->s->info.fs.num_varying_inputs - 1];
 
             start = MIN2(start, jay_base_index(fs->deltas[0]));
             end_excl = jay_base_index(last) + jay_num_values(last);
@@ -2919,7 +2919,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       assert(s->stage == MESA_SHADER_FRAGMENT);
       unsigned location = nir_intrinsic_io_semantics(intr).location +
                           nir_src_as_uint(intr->src[0]);
-      unsigned i = (s->prog_data->fs.urb_setup[location] * 4) +
+      unsigned i = (s->info.fs.urb_setup[location] * 4) +
                    nir_intrinsic_component(intr);
       assert(!jay_is_null(fs->deltas[i]));
 
@@ -2939,7 +2939,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
    case nir_intrinsic_load_input_vertex: {
       assert(fs);
       unsigned location = nir_intrinsic_io_semantics(intr).location;
-      unsigned i = (s->prog_data->fs.urb_setup[location] * 4) +
+      unsigned i = (s->info.fs.urb_setup[location] * 4) +
                    nir_intrinsic_component(intr);
       unsigned vtx = nir_src_as_uint(intr->src[0]);
 
@@ -4090,16 +4090,16 @@ jay_emit_eot(struct nir_to_jay_state *nj)
          unsigned gprs = 4;
          unsigned ugprs = 0;
 
-         struct brw_fs_prog_data *prog_data = &b->shader->prog_data->fs;
+         const struct intel_shader_info *info = &b->shader->info;
 
          /* We seem to hang unless the payload size matches the state that was
           * programmed in 3DSTATE_PS_EXTRA.
           */
-         gprs += (prog_data->computed_depth_mode ? 1 : 0);
-         ugprs += (prog_data->computed_stencil ? 1 : 0) +
-                  (prog_data->uses_omask       ? 1 : 0);
+         gprs += (info->fs.computed_depth_mode ? 1 : 0);
+         ugprs += (info->fs.computed_stencil ? 1 : 0) +
+                  (info->fs.uses_omask       ? 1 : 0);
 
-         if (prog_data->computed_stencil && prog_data->uses_omask) {
+         if (info->fs.computed_stencil && info->fs.uses_omask) {
             /* match demand with the existing RT writes */
             ugprs += gprs * jay_grf_per_gpr_at_width(b->shader, width);
             gprs = 0;
@@ -4109,9 +4109,9 @@ jay_emit_eot(struct nir_to_jay_state *nj)
 
          if (devinfo->ver >= 20) {
             ex_desc |=
-               (prog_data->computed_stencil    ? (1 << 14) : 0) |
-               (prog_data->computed_depth_mode ? (1 << 13) : 0) |
-               (prog_data->uses_omask          ? (1 << 12) : 0);
+               (info->fs.computed_stencil    ? (1 << 14) : 0) |
+               (info->fs.computed_depth_mode ? (1 << 13) : 0) |
+               (info->fs.uses_omask          ? (1 << 12) : 0);
          }
 
          jay_def pred = jay_null();
@@ -4496,7 +4496,7 @@ setup_fragment_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
       nj->payload.u1 = read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
    }
 
-   u_foreach_bit(i, nj->s->prog_data->fs.barycentric_interp_modes) {
+   u_foreach_bit(i, nj->s->info.fs.barycentric_interp_modes) {
       fs->bary[i] = read_vector_payload(p, GPR, 2);
    }
 
@@ -4504,9 +4504,9 @@ setup_fragment_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
       bool cond;
       jay_def *def;
    } split_gprs[] = {
-      { nj->s->prog_data->fs.uses_src_depth,   &fs->coord.z       },
-      { nj->s->prog_data->fs.uses_src_w,       &fs->coord.w       },
-      { nj->s->prog_data->fs.uses_sample_mask, &fs->coverage_mask },
+      { nj->s->info.fs.uses_src_depth,   &fs->coord.z       },
+      { nj->s->info.fs.uses_src_w,       &fs->coord.w       },
+      { nj->s->info.fs.uses_sample_mask, &fs->coverage_mask },
    };
 
    unsigned extra_gpr =
@@ -4532,7 +4532,7 @@ setup_fragment_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
 
    assert(extra_gpr == 0);
 
-   if (nj->s->prog_data->fs.uses_pos_offset) {
+   if (nj->s->info.fs.uses_pos_offset) {
       fs->sample_pos = read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
 
       /* 2 bytes per lane, divided into 4 byte UGPRs */
@@ -4540,7 +4540,7 @@ setup_fragment_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
          jay_extract_range(fs->sample_pos, 0, nj->s->dispatch_width / 2);
    }
 
-   if (nj->s->prog_data->fs.uses_sample_offsets) {
+   if (nj->s->info.fs.uses_sample_offsets) {
       jay_def t = read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
       fs->sample_offsets[0] = jay_extract_range(t, 0, 2);
       fs->sample_offsets[1] = jay_extract_range(t, 4, 2);
@@ -4556,12 +4556,12 @@ setup_fragment_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
       }
    }
 
-   if (nj->s->prog_data->fs.uses_depth_w_coefficients ||
-       nj->s->prog_data->fs.uses_pc_bary_coefficients) {
+   if (nj->s->info.fs.uses_depth_w_coefficients ||
+       nj->s->info.fs.uses_pc_bary_coefficients) {
       fs->coefficients = read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
    }
 
-   if (nj->s->prog_data->fs.uses_npc_bary_coefficients) {
+   if (nj->s->info.fs.uses_npc_bary_coefficients) {
       fs->npc_coefficients = read_vector_payload(p, UGPR, jay_ugpr_per_grf(nj->s));
    }
 
@@ -4571,20 +4571,20 @@ setup_fragment_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
    fs->config =
       nj->payload.push_data[nj->s->params->push_layout.fs_config_param / 4];
 
-   if (nj->s->prog_data->fs.num_per_primitive_inputs > 0) {
+   if (nj->s->info.fs.num_per_primitive_inputs > 0) {
       /* always read up to a mutliple of 64 bytes */
       unsigned num_per_prim_inputs =
-         DIV_ROUND_UP(nj->s->prog_data->fs.num_per_primitive_inputs, 4) * 4;
+         DIV_ROUND_UP(nj->s->info.fs.num_per_primitive_inputs, 4) * 4;
 
       fs->per_prim_data = read_vector_payload(p, UGPR, num_per_prim_inputs * 4);
    }
 
-   if (nj->s->prog_data->fs.num_varying_inputs > 0) {
+   if (nj->s->info.fs.num_varying_inputs > 0) {
       fs->deltas =
          linear_alloc_child_array(nj->s->lin_ctx, sizeof(jay_def),
-                                  nj->s->prog_data->fs.num_varying_inputs * 4);
+                                  nj->s->info.fs.num_varying_inputs * 4);
 
-      for (unsigned i = 0; i < nj->s->prog_data->fs.num_varying_inputs * 4;
+      for (unsigned i = 0; i < nj->s->info.fs.num_varying_inputs * 4;
            ++i) {
          if (devinfo->ver >= 20) {
             /* On Xe2, we have packed vec3s with the 15th reserved as padding */
@@ -4613,12 +4613,12 @@ setup_fragment_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
       }
    }
 
-   if (nj->s->prog_data->fs.uses_src_xy) {
+   if (nj->s->info.fs.uses_src_xy) {
       jay_def t = jay_alloc_def(b, GPR, 32, 1);
       jay_def lo = jay_extract_range(nj->payload.u0, 10, 4);
       jay_EXPAND_QUAD(b, t, lo, payload_u1(nj, 10, 4));
 
-      if (nj->s->prog_data->fs.coarse_pixel_dispatch) {
+      if (nj->s->info.fs.coarse_pixel_dispatch) {
          jay_def size_u8v2 = jay_extract(nj->payload.u0, 8);
 
          /* Expand from u8vec2 to u16vec2 */
@@ -5234,6 +5234,8 @@ jay_merge_shader_info(struct intel_shader_info *dst,
    dst->grf_used = MAX2(dst->grf_used, src->grf_used);
 
    if (dst->stage == MESA_SHADER_FRAGMENT) {
+      dst->fs.uses_fs_config |= src->fs.uses_fs_config;
+
       if (src->fs.dispatch_8) {
          dst->fs.dispatch_8 = true;
       } else if (src->fs.dispatch_16) {
@@ -5284,6 +5286,9 @@ jay_compile(const struct intel_device_info *devinfo,
       info.wg.local_size[1] = nir->info.workgroup_size[1];
       info.wg.local_size[2] = nir->info.workgroup_size[2];
    }
+
+   if (nir->info.stage == MESA_SHADER_FRAGMENT)
+      info.fs.prefer_simd32 = params->key->fs.prefer_simd32;
 
    jay_process_nir(devinfo, params, &fs_perprim, &info);
 

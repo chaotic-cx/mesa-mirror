@@ -4940,7 +4940,7 @@ iris_compute_sbe_urb_read_interval(struct iris_compiled_shader *fs_shader,
    brw_compute_sbe_per_vertex_urb_read(last_vue_map,
                                        false /* mesh */,
                                        false /* per_primitive_remapping */,
-                                       brw_fs_prog_data(fs_shader->brw_prog_data),
+                                       &fs_shader->info,
                                        out_offset, out_length, &num_varyings,
                                        &primid_offset, &flat_inputs);
 #else
@@ -7964,7 +7964,6 @@ iris_upload_dirty_render_state(struct iris_context *ice,
 #if GFX_VER >= 9
                intel_set_ps_dispatch_state(&ps, batch->screen->devinfo,
                                            &shader->info,
-                                           brw_fs_prog_data_const(shader->brw_prog_data)->persample_dispatch,
                                            util_framebuffer_get_num_samples(cso_fb),
                                            0 /* fs_config */);
 #else

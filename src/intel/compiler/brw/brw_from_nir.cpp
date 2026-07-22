@@ -1967,8 +1967,7 @@ emit_pixel_interpolater_send(const brw_builder &bld,
                              const brw_reg &flag_reg,
                              glsl_interp_mode interpolation)
 {
-   struct brw_fs_prog_data *fs_prog_data =
-      brw_fs_prog_data(bld.shader->prog_data);
+   struct intel_shader_info *info = &bld.shader->info;
 
    brw_reg srcs[INTERP_NUM_SRCS];
 
@@ -1990,14 +1989,14 @@ emit_pixel_interpolater_send(const brw_builder &bld,
        *     This field cannot be set to "Linear Interpolation"
        *     unless Non-Perspective Barycentric Enable in 3DSTATE_CLIP is enabled"
        */
-      fs_prog_data->uses_nonperspective_interp_modes = true;
+      info->fs.uses_nonperspective_interp_modes = true;
    }
 
    brw_inst *inst = bld.emit(opcode, dst, srcs, INTERP_NUM_SRCS);
    /* 2 floats per slot returned */
    inst->size_written = 2 * dst.component_size(inst->exec_size);
 
-   fs_prog_data->pulls_bary = true;
+   info->fs.pulls_bary = true;
 
    return inst;
 }
@@ -2062,16 +2061,15 @@ emit_pixel_interpolater_alu_at_offset(const brw_builder &bld,
    assert(devinfo->ver >= 11);
 
    const brw_fs_thread_payload &payload = shader->fs_payload();
-   const struct brw_fs_prog_data *fs_prog_data =
-      brw_fs_prog_data(shader->prog_data);
+   const struct intel_shader_info *info = &shader->info;
 
    if (interpolation == INTERP_MODE_NOPERSPECTIVE) {
-      assert(fs_prog_data->uses_npc_bary_coefficients &&
-             fs_prog_data->uses_nonperspective_interp_modes);
+      assert(info->fs.uses_npc_bary_coefficients &&
+             info->fs.uses_nonperspective_interp_modes);
    } else {
       assert(interpolation == INTERP_MODE_SMOOTH);
-      assert(fs_prog_data->uses_pc_bary_coefficients &&
-             fs_prog_data->uses_depth_w_coefficients);
+      assert(info->fs.uses_pc_bary_coefficients &&
+             info->fs.uses_depth_w_coefficients);
    }
 
    /* Account for half-pixel X/Y coordinate offset. */
@@ -2218,11 +2216,9 @@ emit_pixel_interpolater_alu_at_sample(const brw_builder &bld,
                                       glsl_interp_mode interpolation)
 {
    const brw_fs_thread_payload &payload = bld.shader->fs_payload();
-   const struct brw_fs_prog_data *fs_prog_data =
-      brw_fs_prog_data(bld.shader->prog_data);
    const brw_builder ubld = bld.exec_all().group(16, 0);
    const brw_reg sample_offs_xy = ubld.vgrf(BRW_TYPE_UD);
-   assert(fs_prog_data->uses_sample_offsets);
+   assert(bld.shader->info.fs.uses_sample_offsets);
 
    /* Interleave the X/Y coordinates of each sample in order to allow
     * a single indirect look-up, by using a MOV for the 16 X
@@ -3360,7 +3356,7 @@ emit_samplepos_setup(nir_to_brw_state &ntb)
    brw_shader &s = ntb.s;
 
    assert(s.stage == MESA_SHADER_FRAGMENT);
-   assert(brw_fs_prog_data(s.prog_data)->persample_dispatch);
+   assert(s.info.fs.persample_dispatch);
 
    const brw_builder abld = bld.annotate("compute sample position");
    brw_reg pos = abld.vgrf(BRW_TYPE_F, 2);
@@ -3501,12 +3497,12 @@ brw_interp_reg(const brw_builder &bld, unsigned location,
    assert((BITFIELD64_BIT(location) & ~s.nir->info.per_primitive_inputs) ||
           location == VARYING_SLOT_PRIMITIVE_ID);
 
-   const struct brw_fs_prog_data *prog_data = brw_fs_prog_data(s.prog_data);
+   const struct intel_shader_info *info = &s.info;
 
-   assert(prog_data->urb_setup[location] >= 0);
-   unsigned nr = prog_data->urb_setup[location];
+   assert(info->fs.urb_setup[location] >= 0);
+   unsigned nr = info->fs.urb_setup[location];
 
-   const unsigned per_vertex_start = prog_data->num_per_primitive_inputs;
+   const unsigned per_vertex_start = info->fs.num_per_primitive_inputs;
    const unsigned regnr = per_vertex_start + (nr * 4) + channel;
 
    if (s.max_polygons > 1) {
@@ -3536,14 +3532,14 @@ brw_per_primitive_reg(const brw_builder &bld, int location, unsigned comp)
    assert((BITFIELD64_BIT(location) & s.nir->info.per_primitive_inputs) ||
           location == VARYING_SLOT_PRIMITIVE_ID);
 
-   const struct brw_fs_prog_data *prog_data = brw_fs_prog_data(s.prog_data);
+   const struct intel_shader_info *info = &s.info;
 
    comp += (s.fs.per_primitive_offsets[location] % 16) / 4;
 
    const unsigned regnr = s.fs.per_primitive_offsets[location] / 16 + comp / 4;
 
    assert(s.fs.per_primitive_offsets[location] >= 0);
-   assert(regnr < prog_data->num_per_primitive_inputs);
+   assert(regnr < info->fs.num_per_primitive_inputs);
 
    brw_reg loc_reg = brw_attr_reg(regnr, BRW_TYPE_UD);
 
@@ -3677,8 +3673,7 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
    }
 
    case nir_intrinsic_load_coverage_mask_intel: {
-      struct brw_fs_prog_data *fs_prog_data = brw_fs_prog_data(ntb.s.prog_data);
-      assert(fs_prog_data->uses_sample_mask);
+      assert(ntb.s.info.fs.uses_sample_mask);
       bld.MOV(retype(dest, BRW_TYPE_UD),
               brw_fetch_payload_reg(ntb.bld,
                                     ntb.s.fs_payload().sample_mask_in_reg,
@@ -3913,7 +3908,7 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
    case nir_intrinsic_load_barycentric_sample: {
       /* Use the delta_xy values computed from the payload */
       enum intel_barycentric_mode bary = intel_fs_barycentric_mode_for_persample_dispatch(
-         brw_fs_prog_data(s.prog_data)->persample_dispatch, brw_barycentric_mode(instr));
+         s.info.fs.persample_dispatch, brw_barycentric_mode(instr));
       const brw_reg srcs[] = { offset(s.delta_xy[bary], bld, 0),
                               offset(s.delta_xy[bary], bld, 1) };
       bld.LOAD_PAYLOAD(dest, srcs, ARRAY_SIZE(srcs), 0);
@@ -4006,7 +4001,7 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
       } else {
          /* Use the delta_xy values computed from the payload */
          enum intel_barycentric_mode bary = intel_fs_barycentric_mode_for_persample_dispatch(
-            brw_fs_prog_data(s.prog_data)->persample_dispatch, brw_barycentric_mode(bary_intrinsic));
+            s.info.fs.persample_dispatch, brw_barycentric_mode(bary_intrinsic));
          dst_xy = s.delta_xy[bary];
       }
 
@@ -4039,8 +4034,6 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
       break;
 
    case nir_intrinsic_store_render_target_intel: {
-      struct brw_fs_prog_data *fs_prog_data = brw_fs_prog_data(ntb.s.prog_data);
-
       if (!s.seen_rt_write)
          ntb.bld.emit(SHADER_OPCODE_HALT_TARGET);
 
@@ -4058,7 +4051,7 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
       if (ntb.s.key->use_efficient_64bit) {
          /* Refer to the programming notes in HSD 14023691226. */
          if (!nir_src_is_undef(instr->src[3]) &&
-             fs_prog_data->alpha_to_coverage != INTEL_NEVER && target != 0)
+             s.info.fs.alpha_to_coverage != INTEL_NEVER && target != 0)
             sources[FB_WRITE_LOGICAL_SRC_SRC0_ALPHA] =
                get_nir_src(ntb, instr->src[3], 0);
       } else {
@@ -4072,7 +4065,7 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
                get_nir_src(ntb, instr->src[3], 0);
       }
 
-      if (!nir_src_is_undef(instr->src[4]) && fs_prog_data->uses_omask)
+      if (!nir_src_is_undef(instr->src[4]) && s.info.fs.uses_omask)
          sources[FB_WRITE_LOGICAL_SRC_OMASK] = get_nir_src(ntb, instr->src[4], 0);
       if (!nir_src_is_undef(instr->src[5]))
          sources[FB_WRITE_LOGICAL_SRC_SRC_DEPTH] = get_nir_src(ntb, instr->src[5], 0);
@@ -4084,8 +4077,8 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
       write->target     = MAX2(0, target);
       write->components = 4;
       /* Enable null_rt if the shader doesn't write any relevant output. */
-      write->null_rt    = fs_prog_data->alpha_to_coverage == INTEL_NEVER &&
-                          !fs_prog_data->uses_omask &&
+      write->null_rt    = s.info.fs.alpha_to_coverage == INTEL_NEVER &&
+                          !s.info.fs.uses_omask &&
                           !(s.nir->info.outputs_written &
                             (BITFIELD64_BIT(FRAG_RESULT_DEPTH) |
                              BITFIELD64_BIT(FRAG_RESULT_STENCIL))) &&
@@ -4093,7 +4086,7 @@ brw_from_nir_emit_fs_intrinsic(nir_to_brw_state &ntb,
       write->last_rt    = !nir_instr_next(&instr->instr);
       write->eot        = !nir_instr_next(&instr->instr);
 
-      if (fs_prog_data->uses_kill) {
+      if (s.info.fs.uses_kill) {
          write->predicate = BRW_PREDICATE_NORMAL;
          write->flag_subreg = sample_mask_flag_subreg(s);
       }
@@ -6599,11 +6592,11 @@ brw_test_dispatch_packing(const brw_builder &bld)
    const mesa_shader_stage stage = shader->stage;
    const bool uses_vmask =
       stage == MESA_SHADER_FRAGMENT &&
-      brw_fs_prog_data(shader->prog_data)->uses_vmask;
+      shader->info.fs.uses_vmask;
 
    if (brw_stage_has_packed_dispatch(shader->devinfo, stage,
                                      shader->max_polygons,
-                                     shader->prog_data)) {
+                                     &shader->info)) {
       const brw_builder ubld = bld.uniform();
       const brw_reg tmp = component(bld.vgrf(BRW_TYPE_UD), 0);
       const brw_reg mask = uses_vmask ? brw_vmask_reg() : brw_dmask_reg();

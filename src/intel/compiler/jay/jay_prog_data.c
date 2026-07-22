@@ -10,8 +10,7 @@
 #include "nir.h"
 
 static inline enum intel_barycentric_mode
-brw_barycentric_mode(const struct brw_fs_prog_data *prog_data,
-                     nir_intrinsic_instr *intr)
+brw_barycentric_mode(nir_intrinsic_instr *intr)
 {
    const enum glsl_interp_mode mode = nir_intrinsic_interp_mode(intr);
 
@@ -42,8 +41,8 @@ brw_barycentric_mode(const struct brw_fs_prog_data *prog_data,
 }
 
 struct fs_info_ctx {
-   struct brw_fs_prog_data *prog_data;
    const struct intel_device_info *devinfo;
+   struct intel_shader_info *info;
    unsigned interp_modes;
    unsigned offset_interp_modes;
 };
@@ -52,41 +51,39 @@ static bool
 gather_fs_info(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
    struct fs_info_ctx *ctx = data;
-   struct brw_fs_prog_data *prog_data = ctx->prog_data;
+   struct intel_shader_info *info = ctx->info;
 
    switch (intr->intrinsic) {
    case nir_intrinsic_load_barycentric_pixel:
    case nir_intrinsic_load_barycentric_centroid:
    case nir_intrinsic_load_barycentric_sample:
-      ctx->interp_modes |=
-         BITFIELD_BIT(brw_barycentric_mode(ctx->prog_data, intr));
+      ctx->interp_modes |= BITFIELD_BIT(brw_barycentric_mode(intr));
       break;
 
    case nir_intrinsic_load_barycentric_at_sample:
    case nir_intrinsic_load_barycentric_at_offset:
-      ctx->offset_interp_modes |=
-         BITFIELD_BIT(brw_barycentric_mode(ctx->prog_data, intr));
-      prog_data->uses_src_xy = true;
+      ctx->offset_interp_modes |= BITFIELD_BIT(brw_barycentric_mode(intr));
+      info->fs.uses_src_xy = true;
       break;
 
    case nir_intrinsic_load_frag_coord_z:
-      prog_data->uses_src_depth = true;
+      info->fs.uses_src_depth = true;
       break;
 
    case nir_intrinsic_load_frag_coord_w:
-      prog_data->uses_src_w = true;
+      info->fs.uses_src_w = true;
       break;
 
    case nir_intrinsic_load_coverage_mask_intel:
-      prog_data->uses_sample_mask = true;
+      info->fs.uses_sample_mask = true;
       break;
 
    case nir_intrinsic_load_pixel_coord:
-      prog_data->uses_src_xy = true;
+      info->fs.uses_src_xy = true;
       break;
 
    case nir_intrinsic_load_sample_pos_from_id:
-      prog_data->uses_sample_offsets = true;
+      info->fs.uses_sample_offsets = true;
       break;
 
    default:
@@ -97,10 +94,10 @@ gather_fs_info(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 }
 
 static void
-brw_compute_flat_inputs(struct brw_fs_prog_data *prog_data,
+brw_compute_flat_inputs(struct intel_shader_info *info,
                         const nir_shader *shader)
 {
-   prog_data->flat_inputs = 0;
+   info->fs.flat_inputs = 0;
 
    nir_foreach_shader_in_variable(var, shader) {
       if (var->data.interpolation != INTERP_MODE_FLAT ||
@@ -109,10 +106,10 @@ brw_compute_flat_inputs(struct brw_fs_prog_data *prog_data,
 
       unsigned slots = glsl_count_attribute_slots(var->type, false);
       for (unsigned s = 0; s < slots; s++) {
-         int input_index = prog_data->urb_setup[var->data.location + s];
+         int input_index = info->fs.urb_setup[var->data.location + s];
 
          if (input_index >= 0)
-            prog_data->flat_inputs |= 1 << input_index;
+            info->fs.flat_inputs |= 1 << input_index;
       }
    }
 }
@@ -153,7 +150,7 @@ computed_depth_mode(const nir_shader *shader)
  * on each upload.
  */
 static void
-brw_compute_urb_setup_index(struct brw_fs_prog_data *fs_prog_data)
+brw_compute_urb_setup_index(struct intel_shader_info *info)
 {
    /* TODO(mesh): Review usage of this in the context of Mesh, we may want to
     * skip per-primitive attributes here.
@@ -163,22 +160,22 @@ brw_compute_urb_setup_index(struct brw_fs_prog_data *fs_prog_data)
    static_assert(VARYING_SLOT_MAX <= 0xff);
    uint8_t index = 0;
    for (uint8_t attr = 0; attr < VARYING_SLOT_MAX; attr++) {
-      if (fs_prog_data->urb_setup[attr] >= 0) {
-         fs_prog_data->urb_setup_attribs[index++] = attr;
+      if (info->fs.urb_setup[attr] >= 0) {
+         info->fs.urb_setup_attribs[index++] = attr;
       }
    }
-   fs_prog_data->urb_setup_attribs_count = index;
+   info->fs.urb_setup_attribs_count = index;
 }
 
 static void
 calculate_urb_setup(const struct intel_device_info *devinfo,
                     const struct brw_fs_prog_key *key,
-                    struct brw_fs_prog_data *prog_data,
+                    struct intel_shader_info *info,
                     nir_shader *nir,
                     const struct brw_mue_map *mue_map,
                     int *per_primitive_offsets)
 {
-   memset(prog_data->urb_setup, -1, sizeof(prog_data->urb_setup));
+   memset(info->fs.urb_setup, -1, sizeof(info->fs.urb_setup));
    int urb_next = 0; /* in vec4s */
 
    /* Figure out where the PrimitiveID lives, either in the per-vertex block
@@ -242,10 +239,10 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
          per_primitive_offsets[i] -= first_read_offset;
       }
 
-      prog_data->num_per_primitive_inputs =
+      info->fs.num_per_primitive_inputs =
          2 * DIV_ROUND_UP(per_primitive_stride - first_read_offset, 32);
    } else {
-      prog_data->num_per_primitive_inputs = 0;
+      info->fs.num_per_primitive_inputs = 0;
    }
 
    /* Now do the per-vertex stuff (what used to be legacy pipeline) */
@@ -266,7 +263,7 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
        */
       for (unsigned int i = 0; i < VARYING_SLOT_MAX; i++) {
          if (inputs_read & BITFIELD64_BIT(i)) {
-            prog_data->urb_setup[i] = urb_next++;
+            info->fs.urb_setup[i] = urb_next++;
          }
       }
    } else {
@@ -287,24 +284,23 @@ calculate_urb_setup(const struct intel_device_info *devinfo,
       for (int slot = first_slot; slot < vue_map.num_slots; slot++) {
          int varying = vue_map.slot_to_varying[slot];
          if (varying > 0 && (inputs_read & BITFIELD64_BIT(varying))) {
-            prog_data->urb_setup[varying] = slot - first_slot;
+            info->fs.urb_setup[varying] = slot - first_slot;
          }
       }
       urb_next = vue_map.num_slots - first_slot;
    }
 
-   prog_data->num_varying_inputs = urb_next;
-   prog_data->inputs = inputs_read;
-   prog_data->per_primitive_inputs = per_primitive_inputs;
+   info->fs.num_varying_inputs = urb_next;
+   info->fs.inputs = inputs_read;
+   info->fs.per_primitive_inputs = per_primitive_inputs;
 
-   brw_compute_urb_setup_index(prog_data);
+   brw_compute_urb_setup_index(info);
 }
 
 static void
 populate_fs_prog_data(nir_shader *shader,
                       const struct intel_device_info *devinfo,
                       const struct brw_fs_prog_key *key,
-                      struct brw_fs_prog_data *prog_data,
                       const struct brw_mue_map *mue_map,
                       int *per_primitive_offsets,
                       struct intel_shader_info *info)
@@ -313,8 +309,8 @@ populate_fs_prog_data(nir_shader *shader,
    assert(key->multisample_fbo != INTEL_NEVER || !key->persample_interp);
 
    struct fs_info_ctx ctx = {
-      .prog_data = prog_data,
       .devinfo = devinfo,
+      .info = info,
    };
    nir_shader_intrinsics_pass(shader, gather_fs_info, nir_metadata_all, &ctx);
 
@@ -325,9 +321,9 @@ populate_fs_prog_data(nir_shader *shader,
    if (devinfo->ver < 20)
       ctx.interp_modes |= ctx.offset_interp_modes;
 
-   prog_data->barycentric_interp_modes |= ctx.interp_modes;
+   info->fs.barycentric_interp_modes |= ctx.interp_modes;
    const bool sample_shading = shader->info.fs.uses_sample_shading;
-   prog_data->persample_interp = sample_shading || key->persample_interp;
+   info->fs.persample_interp = sample_shading || key->persample_interp;
 
    /* If we have both pixel & sample interpolation we need both to per sample
     * dispatch, otherwise spec allows us to fallback to pixel in non MSAA
@@ -339,9 +335,9 @@ populate_fs_prog_data(nir_shader *shader,
    const bool interp_at_pixel_and_sample =
       (ctx.interp_modes & interp_at_pixel_and_sample_bits) ==
       interp_at_pixel_and_sample_bits;
-   prog_data->persample_dispatch = (prog_data->persample_interp &&
-                                    key->multisample_fbo >= INTEL_SOMETIMES) ||
-                                   interp_at_pixel_and_sample;
+   info->fs.persample_dispatch = (info->fs.persample_interp &&
+                                  key->multisample_fbo >= INTEL_SOMETIMES) ||
+                                 interp_at_pixel_and_sample;
 
    /* Move sample barycentric modes to pixel when persample dispatch is always
     * disabled.
@@ -350,34 +346,34 @@ populate_fs_prog_data(nir_shader *shader,
       unsigned tmp = 0;
       u_foreach_bit(b, ctx.interp_modes) {
          tmp |= BITFIELD_BIT(intel_fs_barycentric_mode_for_persample_dispatch(
-            prog_data->persample_dispatch, (enum intel_barycentric_mode) b));
+            info->fs.persample_dispatch, (enum intel_barycentric_mode) b));
       }
       ctx.interp_modes = tmp;
    }
 
-   prog_data->uses_kill = shader->info.fs.uses_discard;
-   prog_data->uses_omask =
+   info->fs.uses_kill = shader->info.fs.uses_discard;
+   info->fs.uses_omask =
       !key->ignore_sample_mask_out &&
       (shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK));
    info->fs.max_polygons = 1;
-   prog_data->computed_depth_mode = computed_depth_mode(shader);
-   prog_data->computed_stencil =
+   info->fs.computed_depth_mode = computed_depth_mode(shader);
+   info->fs.computed_stencil =
       shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_STENCIL);
 
-   prog_data->dual_src_blend =
+   info->fs.dual_src_blend =
       shader->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_DUAL_SRC_BLEND);
 
    /* Gate alpha to coverage with the draw buffer 0 being written. */
-   prog_data->alpha_to_coverage = (shader->info.outputs_written &
-                                   (BITFIELD64_BIT(FRAG_RESULT_COLOR) |
-                                    BITFIELD64_BIT(FRAG_RESULT_DATA0))) != 0 ?
-                                     key->alpha_to_coverage :
-                                     INTEL_NEVER;
+   info->fs.alpha_to_coverage = (shader->info.outputs_written &
+                                 (BITFIELD64_BIT(FRAG_RESULT_COLOR) |
+                                  BITFIELD64_BIT(FRAG_RESULT_DATA0))) != 0 ?
+                                   key->alpha_to_coverage :
+                                   INTEL_NEVER;
 
    assert(devinfo->verx10 >= 125 || key->mesh_input == INTEL_NEVER);
 
    assert(devinfo->verx10 >= 200 || key->provoking_vertex_last == INTEL_NEVER);
-   prog_data->provoking_vertex_last = key->provoking_vertex_last;
+   info->fs.provoking_vertex_last = key->provoking_vertex_last;
 
    /* From the Ivy Bridge PRM documentation for 3DSTATE_PS:
     *
@@ -388,34 +384,34 @@ populate_fs_prog_data(nir_shader *shader,
     * per-sample dispatch.  If we need gl_SamplePosition and we don't have
     * persample dispatch, we hard-code it to 0.5.
     */
-   prog_data->uses_pos_offset =
-      prog_data->persample_dispatch &&
+   info->fs.uses_pos_offset =
+      info->fs.persample_dispatch &&
       (BITSET_TEST(shader->info.system_values_read, SYSTEM_VALUE_SAMPLE_POS) ||
        BITSET_TEST(shader->info.system_values_read,
                    SYSTEM_VALUE_SAMPLE_POS_OR_CENTER));
 
-   prog_data->early_fragment_tests = shader->info.fs.early_fragment_tests;
-   prog_data->post_depth_coverage = shader->info.fs.post_depth_coverage;
-   prog_data->inner_coverage = shader->info.fs.inner_coverage;
+   info->fs.early_fragment_tests = shader->info.fs.early_fragment_tests;
+   info->fs.post_depth_coverage = shader->info.fs.post_depth_coverage;
+   info->fs.inner_coverage = shader->info.fs.inner_coverage;
 
    if (devinfo->ver >= 20) {
-      prog_data->vertex_attributes_bypass =
+      info->fs.vertex_attributes_bypass =
          brw_needs_vertex_attributes_bypass(shader);
 
-      prog_data->uses_npc_bary_coefficients =
+      info->fs.uses_npc_bary_coefficients =
          ctx.offset_interp_modes & INTEL_BARYCENTRIC_NONPERSPECTIVE_BITS;
-      prog_data->uses_pc_bary_coefficients =
+      info->fs.uses_pc_bary_coefficients =
          ctx.offset_interp_modes & ~INTEL_BARYCENTRIC_NONPERSPECTIVE_BITS;
-      prog_data->uses_sample_offsets |=
+      info->fs.uses_sample_offsets |=
          ctx.offset_interp_modes &
          ((1 << INTEL_BARYCENTRIC_PERSPECTIVE_SAMPLE) |
           (1 << INTEL_BARYCENTRIC_NONPERSPECTIVE_SAMPLE));
    }
 
-   prog_data->uses_nonperspective_interp_modes =
-      (prog_data->barycentric_interp_modes &
+   info->fs.uses_nonperspective_interp_modes =
+      (info->fs.barycentric_interp_modes &
        INTEL_BARYCENTRIC_NONPERSPECTIVE_BITS) ||
-      prog_data->uses_npc_bary_coefficients;
+      info->fs.uses_npc_bary_coefficients;
 
    /* Variable rate shading & sample shading are 2 features that are known at
     * compile time in Vulkan GPL & ESO scenarios, so a driver should not be
@@ -423,18 +419,18 @@ populate_fs_prog_data(nir_shader *shader,
     */
    assert(!key->coarse_pixel || !key->persample_interp);
 
-   prog_data->coarse_pixel_dispatch = !prog_data->persample_dispatch;
+   info->fs.coarse_pixel_dispatch = !info->fs.persample_dispatch;
    if (!key->coarse_pixel ||
        /* DG2 should support this, but Wa_22012766191 says there are issues
         * with CPS 1x1 + MSAA + FS writing to oMask.
         */
        (devinfo->verx10 < 200 &&
-        (prog_data->uses_omask || prog_data->uses_sample_mask)) ||
+        (info->fs.uses_omask || info->fs.uses_sample_mask)) ||
        sample_shading ||
-       (prog_data->computed_depth_mode != BRW_PSCDEPTH_OFF) ||
-       prog_data->computed_stencil ||
+       (info->fs.computed_depth_mode != BRW_PSCDEPTH_OFF) ||
+       info->fs.computed_stencil ||
        devinfo->ver < 11) {
-      prog_data->coarse_pixel_dispatch = false;
+      info->fs.coarse_pixel_dispatch = false;
    }
 
    /* ICL PRMs, Volume 9: Render Engine, Shared Functions Pixel Interpolater,
@@ -464,7 +460,7 @@ populate_fs_prog_data(nir_shader *shader,
     * interpolater message at sample.
     */
    if (intel_nir_pulls_at_sample(shader))
-      prog_data->coarse_pixel_dispatch = false;
+      info->fs.coarse_pixel_dispatch = false;
 
    /* TODO: Proprietary compilers are probably bloated with passes to
     * aggressively eliminate any instruction that computes derivatives from a
@@ -472,23 +468,23 @@ populate_fs_prog_data(nir_shader *shader,
     * want to guarantee that helper lane behavior matches the expectations of
     * broken apps.
     */
-   prog_data->uses_vmask =
+   info->fs.uses_vmask =
       shader->info.fs.needs_coarse_quad_helper_invocations ||
       shader->info.uses_wide_subgroup_intrinsics;
 
-   prog_data->uses_depth_w_coefficients = prog_data->uses_pc_bary_coefficients;
+   info->fs.uses_depth_w_coefficients = info->fs.uses_pc_bary_coefficients;
 
-   if (prog_data->coarse_pixel_dispatch) {
-      prog_data->uses_depth_w_coefficients |= prog_data->uses_src_depth;
-      prog_data->uses_src_xy |= prog_data->uses_src_depth;
-      prog_data->uses_src_depth = false;
+   if (info->fs.coarse_pixel_dispatch) {
+      info->fs.uses_depth_w_coefficients |= info->fs.uses_src_depth;
+      info->fs.uses_src_xy |= info->fs.uses_src_depth;
+      info->fs.uses_src_depth = false;
    }
 
-   calculate_urb_setup(devinfo, key, prog_data, shader, mue_map,
+   calculate_urb_setup(devinfo, key, info, shader, mue_map,
                        per_primitive_offsets);
-   brw_compute_flat_inputs(prog_data, shader);
+   brw_compute_flat_inputs(info, shader);
 
-   prog_data->has_side_effects = shader->info.writes_memory;
+   info->fs.has_side_effects = shader->info.writes_memory;
 }
 
 static void
@@ -614,7 +610,7 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
       int32_t *per_primitive_offsets = fs_perprim->per_primitive_offsets;
       memset(per_primitive_offsets, -1, VARYING_SLOT_MAX * sizeof(int));
 
-      populate_fs_prog_data(nir, devinfo, &key->fs, &prog_data->fs,
+      populate_fs_prog_data(nir, devinfo, &key->fs,
                             fs_perprim->mue, per_primitive_offsets, info);
    } else if (nir->info.stage == MESA_SHADER_GEOMETRY) {
       populate_gs_prog_data(nir, &key->gs, info);

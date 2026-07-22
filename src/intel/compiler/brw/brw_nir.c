@@ -1853,7 +1853,7 @@ lower_fs_config_intel(nir_builder *b, nir_intrinsic_instr *intrin, void *data)
 
 static uint32_t
 generate_fs_config_state_bits(const struct brw_fs_prog_key *key,
-                              const struct brw_fs_prog_data *prog_data,
+                              const struct intel_shader_info *info,
                               enum intel_sometimes comp_value)
 {
    uint32_t f = 0;
@@ -1861,10 +1861,10 @@ generate_fs_config_state_bits(const struct brw_fs_prog_key *key,
    if (key->multisample_fbo == comp_value)
       f |= INTEL_FS_CONFIG_MULTISAMPLE_FBO;
 
-   if (prog_data->alpha_to_coverage == comp_value)
+   if (info->fs.alpha_to_coverage == comp_value)
       f |= INTEL_FS_CONFIG_ALPHA_TO_COVERAGE;
 
-   if (prog_data->provoking_vertex_last == comp_value)
+   if (info->fs.provoking_vertex_last == comp_value)
       f |= INTEL_FS_CONFIG_PROVOKING_VERTEX_LAST;
 
    if (key->conservative_raster == comp_value)
@@ -1874,10 +1874,10 @@ generate_fs_config_state_bits(const struct brw_fs_prog_key *key,
       f |= INTEL_FS_CONFIG_PER_PRIMITIVE_REMAPPING;
 
    if (comp_value == INTEL_ALWAYS) {
-      if (prog_data->persample_dispatch)
+      if (info->fs.persample_dispatch)
          f |= INTEL_FS_CONFIG_PERSAMPLE_DISPATCH;
 
-      if (prog_data->coarse_pixel_dispatch)
+      if (info->fs.coarse_pixel_dispatch)
          f |= INTEL_FS_CONFIG_COARSE_RT_WRITES;
 
    }
@@ -1889,11 +1889,11 @@ generate_fs_config_state_bits(const struct brw_fs_prog_key *key,
 bool
 brw_nir_lower_fs_config_intel(nir_shader *nir,
                               const struct brw_fs_prog_key *key,
-                              const struct brw_fs_prog_data *prog_data)
+                              const struct intel_shader_info *info)
 {
    struct lower_fs_config_state state = {
-      .known_bits = ~generate_fs_config_state_bits(key, prog_data, INTEL_SOMETIMES),
-      .enabled_bits = generate_fs_config_state_bits(key, prog_data, INTEL_ALWAYS),
+      .known_bits = ~generate_fs_config_state_bits(key, info, INTEL_SOMETIMES),
+      .enabled_bits = generate_fs_config_state_bits(key, info, INTEL_ALWAYS),
    };
 
    return nir_shader_intrinsics_pass(nir, lower_fs_config_intel,

@@ -5704,6 +5704,14 @@ ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(fs, MESA_SHADER_FRAGMENT)
 ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(mesh, MESA_SHADER_MESH)
 ANV_DECL_GET_GRAPHICS_PROG_DATA_FUNC(task, MESA_SHADER_TASK)
 
+static inline const struct intel_shader_info *
+get_gfx_fs_info(const struct anv_cmd_graphics_state *gfx)
+{
+   if (anv_gfx_has_stage(gfx, MESA_SHADER_FRAGMENT))
+      return &gfx->shaders[MESA_SHADER_FRAGMENT]->bin->info;
+   return NULL;
+}
+
 static inline const struct intel_vue_map *
 get_gfx_last_vue_map(const struct anv_cmd_graphics_state *gfx)
 {

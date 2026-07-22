@@ -957,7 +957,7 @@ anv_shader_create(struct anv_device *device,
 
    switch (shader->vk.stage) {
    case MESA_SHADER_FRAGMENT:
-      if (brw_fs_prog_data_const(shader->prog_data)->prefer_simd32 !=
+      if (shader->bin->info.fs.prefer_simd32 !=
           shader->workaround.prefer_simd32_fs) {
          anv_perf_warn(VK_LOG_OBJS(&device->vk.base),
                        "Fragment shader 0x%016"PRIx64" for disk cache not "

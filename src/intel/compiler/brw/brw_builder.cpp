@@ -138,7 +138,7 @@ brw_sample_mask_reg(const brw_builder &bld)
    if (s.stage != MESA_SHADER_FRAGMENT) {
       return brw_imm_ud(0xffffffff);
    } else if (s.devinfo->ver >= 20 ||
-              brw_fs_prog_data(s.prog_data)->uses_kill) {
+              s.info.fs.uses_kill) {
       return brw_flag_subreg(sample_mask_flag_subreg(s) + bld.group() / 16);
    } else {
       assert(bld.dispatch_width() <= 16);
@@ -162,7 +162,7 @@ brw_emit_predicate_on_sample_mask(const brw_builder &bld, brw_inst *inst)
    const brw_reg sample_mask = brw_sample_mask_reg(bld);
    const unsigned subreg = sample_mask_flag_subreg(s);
 
-   if (s.devinfo->ver >= 20 || brw_fs_prog_data(s.prog_data)->uses_kill) {
+   if (s.devinfo->ver >= 20 || s.info.fs.uses_kill) {
       assert(sample_mask.file == ARF &&
              sample_mask.nr == brw_flag_subreg(subreg).nr &&
              sample_mask.subnr == brw_flag_subreg(

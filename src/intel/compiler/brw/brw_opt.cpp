@@ -471,7 +471,7 @@ brw_opt_eliminate_find_live_channel(brw_shader &s)
    unsigned depth = 0;
 
    if (!brw_stage_has_packed_dispatch(s.devinfo, s.stage, s.max_polygons,
-                                      s.prog_data)) {
+                                      &s.info)) {
       /* The optimization below assumes that channel zero is live on thread
        * dispatch, which may not be the case if the fixed function dispatches
        * threads sparsely.

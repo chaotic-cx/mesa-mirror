@@ -135,49 +135,49 @@ iris_backend_compile(const struct iris_screen *screen,
 }
 
 static void
-iris_apply_brw_fs_prog_data(struct iris_compiled_shader *shader,
-                            const struct brw_fs_prog_data *brw)
+iris_apply_brw_fs_prog_data(struct iris_compiled_shader *shader)
 {
    assert(shader->stage == MESA_SHADER_FRAGMENT);
    struct iris_fs_data *iris = &shader->fs;
+   const struct intel_shader_info *info = &shader->info;
 
-   STATIC_ASSERT(ARRAY_SIZE(iris->urb_setup) == ARRAY_SIZE(brw->urb_setup));
-   STATIC_ASSERT(ARRAY_SIZE(iris->urb_setup_attribs) == ARRAY_SIZE(brw->urb_setup_attribs));
-   memcpy(iris->urb_setup, brw->urb_setup, sizeof(iris->urb_setup));
-   memcpy(iris->urb_setup_attribs, brw->urb_setup_attribs, brw->urb_setup_attribs_count);
-   iris->urb_setup_attribs_count = brw->urb_setup_attribs_count;
+   STATIC_ASSERT(ARRAY_SIZE(iris->urb_setup) == ARRAY_SIZE(info->fs.urb_setup));
+   STATIC_ASSERT(ARRAY_SIZE(iris->urb_setup_attribs) == ARRAY_SIZE(info->fs.urb_setup_attribs));
+   memcpy(iris->urb_setup, info->fs.urb_setup, sizeof(iris->urb_setup));
+   memcpy(iris->urb_setup_attribs, info->fs.urb_setup_attribs, info->fs.urb_setup_attribs_count);
+   iris->urb_setup_attribs_count = info->fs.urb_setup_attribs_count;
 
-   iris->num_varying_inputs   = brw->num_varying_inputs;
-   iris->flat_inputs          = brw->flat_inputs;
-   iris->inputs               = brw->inputs;
-   iris->computed_depth_mode  = brw->computed_depth_mode;
-   iris->max_polygons         = shader->info.fs.max_polygons;
-   iris->dispatch_multi       = shader->info.fs.dispatch_multi;
-   iris->computed_stencil     = brw->computed_stencil;
-   iris->early_fragment_tests = brw->early_fragment_tests;
-   iris->post_depth_coverage  = brw->post_depth_coverage;
-   iris->inner_coverage       = brw->inner_coverage;
-   iris->dispatch_8           = shader->info.fs.dispatch_8;
-   iris->dispatch_16          = shader->info.fs.dispatch_16;
-   iris->dispatch_32          = shader->info.fs.dispatch_32;
-   iris->dual_src_blend       = brw->dual_src_blend;
-   iris->uses_pos_offset      = brw->uses_pos_offset;
-   iris->uses_omask           = brw->uses_omask;
-   iris->uses_kill            = brw->uses_kill;
-   iris->uses_src_depth       = brw->uses_src_depth;
-   iris->uses_src_w           = brw->uses_src_w;
-   iris->uses_sample_mask     = brw->uses_sample_mask;
-   iris->uses_vmask           = brw->uses_vmask;
-   iris->has_side_effects     = brw->has_side_effects;
-   iris->pulls_bary           = brw->pulls_bary;
+   iris->num_varying_inputs   = info->fs.num_varying_inputs;
+   iris->flat_inputs          = info->fs.flat_inputs;
+   iris->inputs               = info->fs.inputs;
+   iris->computed_depth_mode  = info->fs.computed_depth_mode;
+   iris->max_polygons         = info->fs.max_polygons;
+   iris->dispatch_multi       = info->fs.dispatch_multi;
+   iris->computed_stencil     = info->fs.computed_stencil;
+   iris->early_fragment_tests = info->fs.early_fragment_tests;
+   iris->post_depth_coverage  = info->fs.post_depth_coverage;
+   iris->inner_coverage       = info->fs.inner_coverage;
+   iris->dispatch_8           = info->fs.dispatch_8;
+   iris->dispatch_16          = info->fs.dispatch_16;
+   iris->dispatch_32          = info->fs.dispatch_32;
+   iris->dual_src_blend       = info->fs.dual_src_blend;
+   iris->uses_pos_offset      = info->fs.uses_pos_offset;
+   iris->uses_omask           = info->fs.uses_omask;
+   iris->uses_kill            = info->fs.uses_kill;
+   iris->uses_src_depth       = info->fs.uses_src_depth;
+   iris->uses_src_w           = info->fs.uses_src_w;
+   iris->uses_sample_mask     = info->fs.uses_sample_mask;
+   iris->uses_vmask           = info->fs.uses_vmask;
+   iris->has_side_effects     = info->fs.has_side_effects;
+   iris->pulls_bary           = info->fs.pulls_bary;
 
-   iris->uses_sample_offsets        = brw->uses_sample_offsets;
-   iris->uses_npc_bary_coefficients = brw->uses_npc_bary_coefficients;
-   iris->uses_pc_bary_coefficients  = brw->uses_pc_bary_coefficients;
-   iris->uses_depth_w_coefficients  = brw->uses_depth_w_coefficients;
+   iris->uses_sample_offsets        = info->fs.uses_sample_offsets;
+   iris->uses_npc_bary_coefficients = info->fs.uses_npc_bary_coefficients;
+   iris->uses_pc_bary_coefficients  = info->fs.uses_pc_bary_coefficients;
+   iris->uses_depth_w_coefficients  = info->fs.uses_depth_w_coefficients;
 
-   iris->uses_nonperspective_interp_modes = brw->uses_nonperspective_interp_modes;
-   iris->is_per_sample = brw->persample_dispatch;
+   iris->uses_nonperspective_interp_modes = info->fs.uses_nonperspective_interp_modes;
+   iris->is_per_sample = info->fs.persample_dispatch;
 }
 
 static void
@@ -324,7 +324,7 @@ iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
 
    switch (shader->stage) {
    case MESA_SHADER_FRAGMENT:
-      iris_apply_brw_fs_prog_data(shader, brw_fs_prog_data_const(brw));
+      iris_apply_brw_fs_prog_data(shader);
       break;
    case MESA_SHADER_COMPUTE:
       iris_apply_brw_cs_prog_data(shader, brw_cs_prog_data_const(brw));
@@ -3085,7 +3085,8 @@ iris_force_dual_color_blend(nir_shader *nir)
 }
 
 static nir_def *
-iris_rt_write_efficient_64bit(nir_builder *b, signed rt, void *data)
+iris_rt_write_efficient_64bit(nir_builder *b, signed rt,
+                             struct intel_shader_info *info, void *data)
 {
    const struct isl_device *isl_dev = data;
    uint64_t offset = rt > 0 ? (uint32_t)(rt * isl_dev->ss.size) : 0;
@@ -4591,7 +4592,7 @@ iris_fs_barycentric_modes(const struct iris_compiled_shader *shader,
       UNREACHABLE("no elk support");
 #endif
    } else {
-      return brw_fs_prog_data(shader->brw_prog_data)->barycentric_interp_modes;
+      return shader->info.fs.barycentric_interp_modes;
    }
 }
 

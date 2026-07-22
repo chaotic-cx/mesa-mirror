@@ -970,7 +970,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
                    (key->fs.nr_color_regions > 1 &&
                     alpha_to_coverage_enabled(nir, key->fs.alpha_to_coverage) &&
                     !(nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK))),
-                   NULL, NULL);
+                   info, NULL, NULL);
       JAY_NIR_PASS(nir_shader_intrinsics_pass, lower_fragment_outputs,
                    nir_metadata_control_flow, NULL);
 
@@ -988,7 +988,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
        * lanes entirely unless the shader uses derivatives. Some applications
        * depend on this behavior not to get stuck in infinite loops.
        */
-      if (!prog_data->fs.uses_vmask && !nir->info.maximally_reconverges) {
+      if (!info->fs.uses_vmask && !nir->info.maximally_reconverges) {
          JAY_NIR_PASS(nir_shader_intrinsics_pass, lower_demote_to_terminate,
                       nir_metadata_control_flow, NULL);
       }
@@ -1004,13 +1004,13 @@ jay_process_nir(const struct intel_device_info *devinfo,
       JAY_NIR_PASS(nir_shader_intrinsics_pass, lower_load_barycentric_at_offset,
                    0, NULL);
 
-      if (prog_data->fs.coarse_pixel_dispatch)
+      if (info->fs.coarse_pixel_dispatch)
          JAY_NIR_PASS(brw_nir_lower_frag_coord_z, devinfo);
 
       JAY_NIR_PASS(nir_shader_intrinsics_pass, lower_frag_coord,
                    nir_metadata_control_flow, NULL);
 
-      JAY_NIR_PASS(brw_nir_lower_fs_config_intel, &key->fs, &prog_data->fs);
+      JAY_NIR_PASS(brw_nir_lower_fs_config_intel, &key->fs, info);
    }
 
    JAY_NIR_PASS(nir_opt_phi_to_bool);
@@ -1254,12 +1254,12 @@ jay_process_nir_for_simd(const struct intel_device_info *devinfo,
       /* Certain features require tracking helpers for correctness */
       nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
 
-      if (params->prog_data->fs.uses_vmask || nir->info.maximally_reconverges) {
+      if (info->fs.uses_vmask || nir->info.maximally_reconverges) {
          *track_helpers |= nir->info.fs.uses_discard | nir->info.writes_memory;
          *track_helpers |= BITSET_TEST(nir->info.system_values_read,
                                        SYSTEM_VALUE_HELPER_INVOCATION);
 
-         if (params->prog_data->fs.uses_vmask || nir->info.fs.uses_discard) {
+         if (info->fs.uses_vmask || nir->info.fs.uses_discard) {
             /* ...but this is more subtle. nir_opt_load_skip_helpers flags
              * texturing operations that we can skip for bandwidth savings.  We
              * need divergence info for this, so we run late. Of course, if we

@@ -1114,7 +1114,8 @@ populate_compile_params_mesh(struct brw_compile_params *params,
 }
 
 static nir_def *
-rt_write_efficient_64bit(nir_builder *b, signed rt, void *data)
+rt_write_efficient_64bit(nir_builder *b, signed rt,
+                         struct intel_shader_info *info, void *data)
 {
    struct anv_shader_data *shader_data = data;
    const struct anv_pipeline_bind_map *bind_map = &shader_data->bind_map;
@@ -1141,11 +1142,11 @@ rt_write_efficient_64bit(nir_builder *b, signed rt, void *data)
                                      .range = anv_drv_const_size(drv_data.gfx.fs_color_map));
          nir_def *index = nir_ubitfield_extract_imm(b, map, rt * 4, 4);
          color_offset = nir_iadd(b, color_offset, nir_imul_imm(b, index, ANV_SURFACE_STATE_SIZE));
-         shader_data->prog_data.fs.uses_fs_color_map = true;
+         info->fs.uses_fs_color_map = true;
       }
    }
 
-   shader_data->prog_data.fs.uses_fs_color_offset = true;
+   info->fs.uses_fs_color_offset = true;
    return nir_pack_64_2x32_split(
       b,
       color_offset,
@@ -2536,7 +2537,8 @@ anv_shader_compile(struct vk_device *vk_device,
       assert(shader_data->bin == NULL ||
              shader_data->bin->info.source_hash == shader_data->source_hash);
 
-      if (shader_data->info->stage == MESA_SHADER_FRAGMENT) {
+      if (shader_data->info->stage == MESA_SHADER_FRAGMENT &&
+          shader_data->bin != NULL) {
          /* Update the push constant padding range now that we know the amount
           * of per-primitive data delivered in the payload.
           */
@@ -2544,7 +2546,7 @@ anv_shader_compile(struct vk_device *vk_device,
             if (shader_data->bind_map.push_ranges[i].set ==
                 ANV_DESCRIPTOR_SET_PER_PRIM_PADDING) {
                shader_data->bind_map.push_ranges[i].length = MAX2(
-                  shader_data->prog_data.fs.num_per_primitive_inputs / 2,
+                  shader_data->bin->info.fs.num_per_primitive_inputs / 2,
                   shader_data->bind_map.push_ranges[i].length);
                break;
             }

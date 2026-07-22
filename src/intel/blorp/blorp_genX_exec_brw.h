@@ -134,16 +134,16 @@ blorp_emit_post_draw(struct blorp_batch *batch,
                      const struct blorp_params *params);
 
 static inline unsigned
-brw_blorp_get_urb_length(const struct brw_fs_prog_data *prog_data)
+brw_blorp_get_urb_length(const struct intel_shader_info *info)
 {
-   if (prog_data == NULL)
+   if (info == NULL)
       return 1;
 
    /* From the BSpec: 3D Pipeline - Strips and Fans - 3DSTATE_SBE
     *
     * read_length = ceiling((max_source_attr+1)/2)
     */
-   return MAX2((prog_data->num_varying_inputs + 1) / 2, 1);
+   return MAX2((info->fs.num_varying_inputs + 1) / 2, 1);
 }
 
 static bool *
@@ -284,9 +284,9 @@ emit_urb_config(struct blorp_batch *batch,
     *
     * where 'n' stands for number of varying inputs expressed as vec4s.
     */
-   struct brw_fs_prog_data *fs_prog_data = params->fs_prog_data;
+   const struct intel_shader_info *info = params->fs_info;
    const unsigned num_varyings =
-      fs_prog_data ? fs_prog_data->num_varying_inputs : 0;
+      info ? info->fs.num_varying_inputs : 0;
    const unsigned total_needed = 16 + 16 + num_varyings * 16;
 
    /* The URB size is expressed in units of 64 bytes (512 bits) */
@@ -367,9 +367,9 @@ blorp_emit_input_varying_data(struct blorp_batch *batch,
    const unsigned vec4_size_in_bytes = 4 * sizeof(float);
    const unsigned max_num_varyings =
       DIV_ROUND_UP(sizeof(params->wm_inputs), vec4_size_in_bytes);
-   struct brw_fs_prog_data *fs_prog_data = params->fs_prog_data;
+   const struct intel_shader_info *info = params->fs_info;
    const unsigned num_varyings =
-      fs_prog_data ? fs_prog_data->num_varying_inputs : 0;
+      info ? info->fs.num_varying_inputs : 0;
 
    *size = 16 + num_varyings * vec4_size_in_bytes;
 
@@ -384,7 +384,7 @@ blorp_emit_input_varying_data(struct blorp_batch *batch,
    memcpy(inputs, &params->vs_inputs, sizeof(params->vs_inputs));
    inputs += 4;
 
-   if (params->fs_prog_data) {
+   if (params->fs_info) {
       /* Walk over the attribute slots, determine if the attribute is used by
        * the program and when necessary copy the values from the input storage
        * to the vertex data buffer.
@@ -392,7 +392,7 @@ blorp_emit_input_varying_data(struct blorp_batch *batch,
       for (unsigned i = 0; i < max_num_varyings; i++) {
          const gl_varying_slot attr = VARYING_SLOT_VAR0 + i;
 
-         const int input_index = fs_prog_data->urb_setup[attr];
+         const int input_index = info->fs.urb_setup[attr];
          if (input_index < 0)
             continue;
 
@@ -479,9 +479,9 @@ static void
 blorp_emit_vertex_elements(struct blorp_batch *batch,
                            const struct blorp_params *params)
 {
-   struct brw_fs_prog_data *fs_prog_data = params->fs_prog_data;
+   const struct intel_shader_info *info = params->fs_info;
    const unsigned num_varyings =
-      fs_prog_data ? fs_prog_data->num_varying_inputs : 0;
+      info ? info->fs.num_varying_inputs : 0;
    const unsigned num_elements = 2 + num_varyings;
 
    struct GENX(VERTEX_ELEMENT_STATE) ve[num_elements];
@@ -775,7 +775,7 @@ blorp_emit_sf_config(struct blorp_batch *batch,
                      const struct blorp_params *params,
                      const struct intel_urb_config *urb_cfg)
 {
-   const struct brw_fs_prog_data *prog_data = params->fs_prog_data;
+   const struct intel_shader_info *info = params->fs_info;
 
    /* 3DSTATE_SF
     *
@@ -808,10 +808,10 @@ blorp_emit_sf_config(struct blorp_batch *batch,
 
    blorp_emit(batch, GENX(3DSTATE_SBE), sbe) {
       sbe.VertexURBEntryReadOffset = 1;
-      if (prog_data) {
-         sbe.NumberofSFOutputAttributes = prog_data->num_varying_inputs;
-         sbe.VertexURBEntryReadLength = brw_blorp_get_urb_length(prog_data);
-         sbe.ConstantInterpolationEnable = prog_data->flat_inputs;
+      if (info) {
+         sbe.NumberofSFOutputAttributes = info->fs.num_varying_inputs;
+         sbe.VertexURBEntryReadLength = brw_blorp_get_urb_length(info);
+         sbe.ConstantInterpolationEnable = info->fs.flat_inputs;
       } else {
          sbe.NumberofSFOutputAttributes = 0;
          sbe.VertexURBEntryReadLength = 1;
@@ -828,7 +828,7 @@ static void
 blorp_emit_ps_config(struct blorp_batch *batch,
                      const struct blorp_params *params)
 {
-   const struct brw_fs_prog_data *prog_data = params->fs_prog_data;
+   const struct intel_shader_info *info = params->fs_info;
 
    /* Even when thread dispatch is disabled, max threads (dw5.25:31) must be
     * nonzero to prevent the GPU from hanging.  While the documentation doesn't
@@ -942,12 +942,11 @@ blorp_emit_ps_config(struct blorp_batch *batch,
       }
 #endif
 
-      if (prog_data) {
-         assert(params->fs_info->total_scratch == 0);
+      if (info) {
+         assert(info->total_scratch == 0);
 
          intel_set_ps_dispatch_state(&ps, devinfo,
-                                     params->fs_info,
-                                     prog_data->persample_dispatch,
+                                     info,
                                      params->num_samples,
                                      0 /* fs_config */);
 
@@ -984,11 +983,11 @@ blorp_emit_ps_config(struct blorp_batch *batch,
       if (params->src.enabled)
          psx.PixelShaderKillsPixel = true;
 
-      if (prog_data) {
+      if (info) {
          psx.PixelShaderValid = true;
-         psx.PixelShaderComputedDepthMode = prog_data->computed_depth_mode;
-         psx.PixelShaderComputesStencil = prog_data->computed_stencil;
-         psx.PixelShaderIsPerSample = prog_data->persample_dispatch;
+         psx.PixelShaderComputedDepthMode = info->fs.computed_depth_mode;
+         psx.PixelShaderComputesStencil = info->fs.computed_stencil;
+         psx.PixelShaderIsPerSample = info->fs.persample_dispatch;
 
 #if INTEL_WA_18038825448_GFX_VER
          psx.EnablePSDependencyOnCPsizeChange =
@@ -998,12 +997,12 @@ blorp_emit_ps_config(struct blorp_batch *batch,
 #if INTEL_WA_16030144090_GFX_VER
          if (intel_needs_workaround(devinfo, 16030144090)) {
             psx.EnablePSDependencyOnCPsizeChange =
-               prog_data->persample_dispatch;
+               info->fs.persample_dispatch;
          }
 #endif
 
 #if GFX_VER < 20
-         psx.AttributeEnable = prog_data->num_varying_inputs > 0;
+         psx.AttributeEnable = info->fs.num_varying_inputs > 0;
 #else
          /* Bspec 57340 (r59562):
           *
@@ -1190,7 +1189,7 @@ blorp_emit_pipeline(struct blorp_batch *batch,
    struct intel_urb_config urb_cfg;
    emit_urb_config(batch, params, &urb_cfg);
 
-   if (params->fs_prog_data) {
+   if (params->fs_info) {
       blorp_emit_blend_state(batch, params);
    }
    blorp_emit_color_calc_state(batch, params);

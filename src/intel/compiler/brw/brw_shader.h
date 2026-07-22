@@ -279,7 +279,7 @@ brw_dynamic_fs_config(brw_shader &s)
 {
    const unsigned config_param =
       s.compile_params->push_layout.fs_config_param;
-   brw_fs_prog_data(s.prog_data)->uses_fs_config = true;
+   s.info.fs.uses_fs_config = true;
    return byte_offset(
       brw_uniform_reg(config_param / REG_SIZE, BRW_TYPE_UD),
       config_param % REG_SIZE);
@@ -289,9 +289,9 @@ enum intel_barycentric_mode
 brw_barycentric_mode(nir_intrinsic_instr *intr);
 
 uint32_t brw_fb_write_msg_control(const brw_inst *inst,
-                                  const struct brw_fs_prog_data *prog_data);
+                                  const struct intel_shader_info *info);
 
-void brw_compute_urb_setup_index(struct brw_fs_prog_data *fs_prog_data);
+void brw_compute_urb_setup_index(struct intel_shader_info *info);
 
 void brw_assign_urb_setup(brw_shader &s);
 

@@ -82,6 +82,7 @@ gather_colour_components(nir_builder *b,
 
 static void
 insert_rt_store(nir_builder *b, struct frag_out_ctx *ctx, signed target,
+                struct intel_shader_info *info,
                 intel_nir_rt_write_cb cb, void *cb_data)
 {
    const unsigned src0_alpha_loc =
@@ -103,7 +104,7 @@ insert_rt_store(nir_builder *b, struct frag_out_ctx *ctx, signed target,
    if (colour == NULL && dual_colour != NULL)
       colour = dual_colour;
 
-   nir_def *surface = cb != NULL ? cb(b, target, cb_data) : nir_undef(b, 1, 64);
+   nir_def *surface = cb != NULL ? cb(b, target, info, cb_data) : nir_undef(b, 1, 64);
    if (cb != NULL && target > 0) {
       /* IND0's low three bits select BLEND_STATE_ENTRY independently of
        * the 64-byte-aligned surface-state address, this is documented in
@@ -125,6 +126,7 @@ bool
 intel_nir_lower_fragment_outputs(nir_shader *shader,
                                  unsigned nr_colour_regions,
                                  bool replicate_alpha,
+                                 struct intel_shader_info *info,
                                  intel_nir_rt_write_cb cb,
                                  void *cb_data)
 {
@@ -147,7 +149,7 @@ intel_nir_lower_fragment_outputs(nir_shader *shader,
    if (ctx.dual_blend) {
       gather_colour_components(b, &ctx, FRAG_RESULT_DATA0, undef);
       gather_colour_components(b, &ctx, FRAG_RESULT_DUAL_SRC_BLEND, undef);
-      insert_rt_store(b, &ctx, 0, cb, cb_data);
+      insert_rt_store(b, &ctx, 0, info, cb, cb_data);
       return true;
    }
    ctx.outputs[FRAG_RESULT_DUAL_SRC_BLEND] = nir_undef(b, 4, 32);
@@ -155,7 +157,7 @@ intel_nir_lower_fragment_outputs(nir_shader *shader,
    bool written = false;
    for (unsigned i = 0; i < nr_colour_regions; i++) {
       if (gather_colour_components(b, &ctx, FRAG_RESULT_DATA0 + i, undef)) {
-         insert_rt_store(b, &ctx, i, cb, cb_data);
+         insert_rt_store(b, &ctx, i, info, cb, cb_data);
          written = true;
       }
    }
@@ -168,7 +170,7 @@ intel_nir_lower_fragment_outputs(nir_shader *shader,
          ctx.colour[FRAG_RESULT_DATA0][c] = nir_get_scalar(undef, 0);
       gather_colour_components(b, &ctx, FRAG_RESULT_DATA0, undef);
 
-      insert_rt_store(b, &ctx, -1, cb, cb_data);
+      insert_rt_store(b, &ctx, -1, info, cb, cb_data);
    }
 
    return true;
