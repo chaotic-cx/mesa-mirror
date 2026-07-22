@@ -210,8 +210,6 @@ public:
 
    /* Whether we've seen an RT write already */
    bool seen_rt_write;
-
-   unsigned grf_used;
    bool spilled_any_registers;
    bool needs_register_pressure;
 

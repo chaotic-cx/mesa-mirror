@@ -553,7 +553,7 @@ jay_partition_grf(jay_shader *shader)
    build_partition(shader, hw_grfs, reserve_acc01, blocks, ARRAY_SIZE(blocks));
 
    /* By construction of our partition, the entire GRF is used. */
-   shader->prog_data->base.grf_used = hw_grfs;
+   shader->info.grf_used = hw_grfs;
 
    /* Spill as needed to fit within the partition we picked. */
    jay_foreach_function(shader, f) {

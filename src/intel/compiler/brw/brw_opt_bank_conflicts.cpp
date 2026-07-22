@@ -863,7 +863,7 @@ namespace {
 bool
 brw_opt_bank_conflicts(brw_shader &s)
 {
-   assert(s.grf_used || !"Must be called after register allocation");
+   assert(s.info.grf_used || !"Must be called after register allocation");
 
    /* TODO: Re-work this pass for Gfx20+. */
    if (s.devinfo->ver >= 20)

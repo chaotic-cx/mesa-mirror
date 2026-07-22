@@ -881,7 +881,7 @@ brw_lower_vgrf_to_fixed_grf(const struct intel_device_info *devinfo,
 void
 brw_lower_vgrfs_to_fixed_grfs(brw_shader &s)
 {
-   assert(s.grf_used || !"Must be called after register allocation");
+   assert(s.info.grf_used || !"Must be called after register allocation");
 
    foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
       assert(inst->dst.stride <= 4);
@@ -951,7 +951,7 @@ bool
 brw_lower_send_gather(brw_shader &s)
 {
    assert(s.devinfo->ver >= 30);
-   assert(s.grf_used || !"Must be called after register allocation");
+   assert(s.info.grf_used || !"Must be called after register allocation");
 
    bool progress = false;
 
@@ -986,7 +986,7 @@ brw_lower_sendg_ind_desc_to_arf_inst(brw_shader &s, brw_inst *inst, enum send_sr
 bool
 brw_lower_sendg_ind_desc_to_arf(brw_shader &s)
 {
-   assert(s.grf_used || !"Must be called after register allocation");
+   assert(s.info.grf_used || !"Must be called after register allocation");
 
    bool progress = false;
 

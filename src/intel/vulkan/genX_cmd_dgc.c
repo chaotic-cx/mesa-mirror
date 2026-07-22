@@ -712,7 +712,7 @@ preprocess_rt_sequences(struct anv_cmd_buffer *cmd_buffer,
 #if GFX_VER >= 30
                .RegistersPerThread =
                intel_register_blocks(device->info,
-                                     cs_prog_data->base.grf_used),
+                                     device->rt_trampoline->bin->info.grf_used),
 #endif
             },
          },

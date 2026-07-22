@@ -2299,7 +2299,7 @@ brw_generator::generate_code(const brw_shader &s,
                  send_count,
                  shader_stats.scheduler_mode,
                  shader_stats.promoted_constants,
-                 s.grf_used,
+                 s.info.grf_used,
                  before_size, after_size,
                  100.0f * (before_size - after_size) / before_size);
 
@@ -2360,7 +2360,7 @@ brw_generator::generate_code(const brw_shader &s,
       stats->scratch_memory_size = s.info.total_scratch;
       stats->max_live_registers = shader_stats.max_register_pressure;
       stats->source_hash = params->source_hash;
-      stats->grf_registers = devinfo->ver >= 30 ? s.grf_used : 0;
+      stats->grf_registers = devinfo->ver >= 30 ? s.info.grf_used : 0;
       stats->vrt_size =
          intel_vrt_register_file_size(devinfo, stats->source_hash, stats->grf_registers);
       stats->vrt_threads =
@@ -2670,6 +2670,11 @@ brw_to_binary(const brw_to_binary_params *p)
       if (shader == NULL)
          continue;
 
+      assert(shader->payload().num_regs %
+             reg_unit(p->compiler->devinfo) == 0);
+      shader->info.dispatch_grf_start_reg =
+         shader->payload().num_regs / reg_unit(p->compiler->devinfo);
+
       if (first_shader == NULL)
          first_shader = shader;
       else
@@ -2695,7 +2700,7 @@ brw_to_binary(const brw_to_binary_params *p)
 
          resume_sbt[i] = brw_bsr(p->compiler->devinfo, shader->start_offset,
                                  shader->dispatch_width, 0,
-                                 shader->grf_used);
+                                 shader->info.grf_used);
       }
 
       g.add_resume_sbt(p->num_resume_shaders, resume_sbt);
@@ -2734,6 +2739,8 @@ brw_to_binary(const brw_to_binary_params *p)
          MAX2(bin->info.total_scratch, shader->info.total_scratch);
       bin->info.total_shared =
          MAX2(bin->info.total_shared, shader->info.total_shared);
+      bin->info.grf_used = MAX2(bin->info.grf_used,
+                                shader->info.grf_used);
    }
    for (unsigned i = 0; i < p->num_resume_shaders; i++) {
       bin->info.has_ubo_pull |= p->resume_shaders[i]->info.has_ubo_pull;

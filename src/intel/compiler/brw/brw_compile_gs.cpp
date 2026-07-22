@@ -380,11 +380,6 @@ brw_compile_gs(const struct brw_compiler *compiler,
    if (run_gs(v)) {
       prog_data->base.dispatch_mode = INTEL_DISPATCH_MODE_SIMD8;
 
-      assert(v.payload().num_regs % reg_unit(compiler->devinfo) == 0);
-      prog_data->base.base.dispatch_grf_start_reg =
-         v.payload().num_regs / reg_unit(compiler->devinfo);
-      prog_data->base.base.grf_used = v.grf_used;
-
       const brw_to_binary_params to_binary_params = {
          .compiler = compiler,
          .params = params,

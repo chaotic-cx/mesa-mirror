@@ -440,9 +440,9 @@ brw_validate(const brw_shader &s)
                   VAL_ASSERT(float_sources == 3 || inst->src[2].file != ARF);
                }
 
-               if (s.grf_used != 0)
+               if (s.info.grf_used != 0)
                   VAL_ASSERT_NE(inst->src[1].file, IMM);
-            } else if (s.grf_used != 0) {
+            } else if (s.info.grf_used != 0) {
                /* Only perform the pre-Gfx10 checks after register allocation
                 * has occured.
                 *
@@ -592,7 +592,7 @@ brw_validate(const brw_shader &s)
                         break;
                      }
                   }
-               } else if (s.grf_used != 0) {
+               } else if (s.info.grf_used != 0) {
                   /* Only perform the pre-Gfx10 checks after register
                    * allocation has occured.
                    *

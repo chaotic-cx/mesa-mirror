@@ -1053,13 +1053,18 @@ update_ps(struct anv_gfx_dynamic_state *hw_state,
            brw_fs_prog_data_prog_offset(fs_prog_data, ps, 2));
 #endif
 
+   const struct intel_shader_info *fs_info =
+      &gfx->shaders[MESA_SHADER_FRAGMENT]->bin->info;
    SET(PS, ps.DispatchGRFStartRegisterForConstantSetupData0,
-           brw_fs_prog_data_dispatch_grf_start_reg(fs_prog_data, ps, 0));
+           brw_fs_prog_data_dispatch_grf_start_reg(fs_info,
+                                                   fs_prog_data, ps, 0));
    SET(PS, ps.DispatchGRFStartRegisterForConstantSetupData1,
-           brw_fs_prog_data_dispatch_grf_start_reg(fs_prog_data, ps, 1));
+           brw_fs_prog_data_dispatch_grf_start_reg(fs_info,
+                                                   fs_prog_data, ps, 1));
 #if GFX_VER < 20
    SET(PS, ps.DispatchGRFStartRegisterForConstantSetupData2,
-           brw_fs_prog_data_dispatch_grf_start_reg(fs_prog_data, ps, 2));
+           brw_fs_prog_data_dispatch_grf_start_reg(fs_info,
+                                                   fs_prog_data, ps, 2));
 #endif
 
 #if GFX_VER < 20

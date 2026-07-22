@@ -2149,7 +2149,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
          return NULL;
 
       resume_prog_data[i] = main_prog_data;
-      resume_grf_used[i] = resume_prog_data[i].base.grf_used;
+      resume_grf_used[i] = resume_shader_bins[i]->info.grf_used;
       resume_dispatch_width[i] = resume_prog_data[i].bs.simd_size;
 
       /* Ensure shaders start at 64 byte boundary. */

@@ -1817,7 +1817,7 @@ int
 brw_instruction_scheduler::calculate_issue_time(const brw_inst *inst)
 {
    const struct brw_isa_info *isa = &s->compiler->isa;
-   const unsigned overhead = s->grf_used && has_bank_conflict(isa, inst) ?
+   const unsigned overhead = s->info.grf_used && has_bank_conflict(isa, inst) ?
       DIV_ROUND_UP(inst->dst.component_size(inst->exec_size), REG_SIZE) : 0;
    if (is_compressed(inst))
       return 4 + overhead;
@@ -2030,7 +2030,7 @@ brw_schedule_instructions_post_ra(brw_shader &s)
 {
    const bool post_reg_alloc = true;
    const bool need_latencies = true;
-   const int grf_count = reg_unit(s.devinfo) * s.grf_used;
+   const int grf_count = reg_unit(s.devinfo) * s.info.grf_used;
 
    void *mem_ctx = ralloc_context(NULL);
 

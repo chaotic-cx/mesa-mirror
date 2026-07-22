@@ -597,6 +597,15 @@ struct intel_shader_info {
    unsigned total_scratch;
    unsigned total_shared;
 
+   /** Number of GRF registers used. */
+   unsigned grf_used;
+
+   /**
+    * Register where the thread expects to find input data from the URB
+    * (typically uniforms, followed by vertex or fragment attributes).
+    */
+   unsigned dispatch_grf_start_reg;
+
    /** Does this shader pull from any UBO or other constant buffers? */
    bool has_ubo_pull;
 };

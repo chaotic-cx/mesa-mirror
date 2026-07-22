@@ -61,7 +61,7 @@ brw_lsc_data_size_to_string(unsigned s)
 void
 brw_print_instructions(const brw_shader &s, FILE *file, unsigned flags)
 {
-   if (s.cfg && s.grf_used == 0) {
+   if (s.cfg && s.info.grf_used == 0) {
       const brw_def_analysis *defs =
          (flags & BRW_PRINT_DEFS) ? &s.def_analysis.require() : NULL;
       const bool with_blocks = flags & BRW_PRINT_BLOCKS;
@@ -473,7 +473,7 @@ brw_print_instruction(const brw_shader &s, const brw_inst *inst, FILE *file, con
    }
 
    if (inst->dst.offset ||
-       (!s.grf_used && inst->dst.file == VGRF &&
+       (!s.info.grf_used && inst->dst.file == VGRF &&
         s.alloc.sizes[inst->dst.nr] * REG_SIZE != inst->size_written)) {
       const unsigned reg_size = (inst->dst.file == UNIFORM ? 4 : REG_SIZE);
       fprintf(file, "+%d.%d", inst->dst.offset / reg_size,
@@ -675,7 +675,7 @@ brw_print_instruction(const brw_shader &s, const brw_inst *inst, FILE *file, con
 
          fprintf(file, ".%d", inst->src[i].subnr / brw_type_size_bytes(inst->src[i].type));
       } else if (inst->src[i].offset ||
-          (!s.grf_used && inst->src[i].file == VGRF &&
+          (!s.info.grf_used && inst->src[i].file == VGRF &&
            s.alloc.sizes[inst->src[i].nr] * REG_SIZE != inst->size_read(s.devinfo, i))) {
          const unsigned reg_size = (inst->src[i].file == UNIFORM ? 4 : REG_SIZE);
          fprintf(file, "+%d.%d", inst->src[i].offset / reg_size,

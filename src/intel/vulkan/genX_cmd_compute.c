@@ -1667,7 +1667,7 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
          .InterfaceDescriptor            = (struct GENX(INTERFACE_DESCRIPTOR_DATA_2)) {
             .KernelStartPointer                =
                anv_shader_get_pointer(device, &device->rt_trampoline->kernel),
-            .RegistersPerThread                = intel_register_blocks(device->info, cs_prog_data->base.grf_used),
+            .RegistersPerThread                = intel_register_blocks(device->info, device->rt_trampoline->bin->info.grf_used),
             .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
             .ThreadGroupDispatchSize           = intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
             .BTDmode                           = true,
@@ -1723,7 +1723,7 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
 #endif
 #if GFX_VER >= 30
             .RegistersPerThread =
-            intel_register_blocks(device->info, cs_prog_data->base.grf_used),
+            intel_register_blocks(device->info, device->rt_trampoline->bin->info.grf_used),
 #endif
          },
       };

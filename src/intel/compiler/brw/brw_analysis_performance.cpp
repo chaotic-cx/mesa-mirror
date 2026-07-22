@@ -65,7 +65,7 @@ namespace {
 
    unsigned
    num_grf_dependency_ids(const brw_shader *s) {
-      return (!s->grf_used ? s->alloc.count :
+      return (!s->info.grf_used ? s->alloc.count :
               s->devinfo->ver >= 30 ? XE3_MAX_GRF :
               s->devinfo->ver >= 20 ? XE2_MAX_GRF :
               BRW_MAX_GRF);
@@ -1049,7 +1049,7 @@ namespace {
    calculate_threads_per_eu(const brw_shader *s)
    {
       if (s->devinfo->ver >= 30) {
-         unsigned grf_used = s->grf_used;
+         unsigned grf_used = s->info.grf_used;
 
          if (!grf_used) {
             const brw_register_pressure &rp = s->regpressure_analysis.require();

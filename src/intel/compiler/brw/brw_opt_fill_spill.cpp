@@ -248,7 +248,7 @@ propagate_fill_to_fill(brw_shader &s, brw_inst *inst, brw_inst **tmp)
 bool
 brw_opt_fill_and_spill(brw_shader &s)
 {
-   assert(s.grf_used > 0);
+   assert(s.info.grf_used > 0);
 
    const intel_device_info *devinfo = s.devinfo;
    bool progress = false;

@@ -748,7 +748,7 @@ blorp_emit_vs_config(struct blorp_batch *batch,
          vs.KernelStartPointer = params->vs_prog_kernel;
 
          vs.DispatchGRFStartRegisterForURBData =
-            vs_prog_data->base.base.dispatch_grf_start_reg;
+            params->vs_info->dispatch_grf_start_reg;
          vs.VertexURBEntryReadLength =
             vs_prog_data->base.urb_read_length;
          vs.VertexURBEntryReadOffset = 0;
@@ -764,7 +764,7 @@ blorp_emit_vs_config(struct blorp_batch *batch,
 #if GFX_VER >= 30
          vs.RegistersPerThread =
             intel_register_blocks(batch->blorp->isl_dev->info,
-                                  vs_prog_data->base.base.grf_used);
+                                  params->vs_info->grf_used);
 #endif
       }
    }
@@ -950,12 +950,15 @@ blorp_emit_ps_config(struct blorp_batch *batch,
                                      0 /* fs_config */);
 
          ps.DispatchGRFStartRegisterForConstantSetupData0 =
-            brw_fs_prog_data_dispatch_grf_start_reg(prog_data, ps, 0);
+            brw_fs_prog_data_dispatch_grf_start_reg(params->fs_info,
+                                                     prog_data, ps, 0);
          ps.DispatchGRFStartRegisterForConstantSetupData1 =
-            brw_fs_prog_data_dispatch_grf_start_reg(prog_data, ps, 1);
+            brw_fs_prog_data_dispatch_grf_start_reg(params->fs_info,
+                                                     prog_data, ps, 1);
 #if GFX_VER < 20
          ps.DispatchGRFStartRegisterForConstantSetupData2 =
-            brw_fs_prog_data_dispatch_grf_start_reg(prog_data, ps, 2);
+            brw_fs_prog_data_dispatch_grf_start_reg(params->fs_info,
+                                                     prog_data, ps, 2);
 #endif
 
          ps.KernelStartPointer0 = params->wm_prog_kernel +
@@ -970,7 +973,7 @@ blorp_emit_ps_config(struct blorp_batch *batch,
 #if GFX_VER >= 30
          ps.RegistersPerThread =
             intel_register_blocks(batch->blorp->isl_dev->info,
-                                  prog_data->base.grf_used);
+                                  params->fs_info->grf_used);
 #endif
       }
    }
@@ -2250,9 +2253,6 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
    const struct intel_device_info *devinfo = batch->blorp->compiler->brw->devinfo;
    const struct brw_cs_prog_data *cs_prog_data = params->cs_prog_data;
-#if GFX_VER >= 30
-   const struct brw_stage_prog_data *prog_data = &cs_prog_data->base;
-#endif
    const struct intel_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(devinfo, cs_prog_data, NULL);
 
@@ -2372,7 +2372,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
                                                             dispatch.group_size,
                                                             dispatch.simd_size),
             .NumberOfBarriers = cs_prog_data->uses_barrier,
-            .RegistersPerThread = intel_register_blocks(devinfo, prog_data->grf_used),
+            .RegistersPerThread =
+               intel_register_blocks(devinfo, params->cs_info->grf_used),
             .PSAsyncThreadLimit = pixel_async_compute_thread_limit,
             .ZPassAsyncComputeThreadLimit = z_pass_async_compute_thread_limit,
             .NP_ZAsyncThrottlesettings = np_z_async_throttle_settings,
@@ -2483,7 +2484,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
             .NumberOfBarriers = cs_prog_data->uses_barrier,
 #if GFX_VER >= 30
             .RegistersPerThread =
-            intel_register_blocks(devinfo, prog_data->grf_used),
+               intel_register_blocks(devinfo, params->cs_info->grf_used),
 #endif
          },
       };

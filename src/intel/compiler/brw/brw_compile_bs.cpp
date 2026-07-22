@@ -132,8 +132,6 @@ brw_compile_bs(const struct brw_compiler *compiler,
       return NULL;
 
    prog_data->simd_size = main_shader->dispatch_width;
-   prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
-                                   main_shader->grf_used);
 
    std::vector<std::unique_ptr<brw_shader>> resume_owners(num_resume_shaders);
    std::vector<brw_shader *>                resume_ptrs(num_resume_shaders);

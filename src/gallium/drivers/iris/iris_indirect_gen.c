@@ -308,12 +308,15 @@ emit_indirect_generate_draw(struct iris_batch *batch,
 
 #if GFX_VER >= 9
       ps.DispatchGRFStartRegisterForConstantSetupData0 =
-         brw_fs_prog_data_dispatch_grf_start_reg(fs_prog_data, ps, 0);
+         brw_fs_prog_data_dispatch_grf_start_reg(&shader->info,
+                                                 fs_prog_data, ps, 0);
       ps.DispatchGRFStartRegisterForConstantSetupData1 =
-         brw_fs_prog_data_dispatch_grf_start_reg(fs_prog_data, ps, 1);
+         brw_fs_prog_data_dispatch_grf_start_reg(&shader->info,
+                                                 fs_prog_data, ps, 1);
 #if GFX_VER < 20
       ps.DispatchGRFStartRegisterForConstantSetupData2 =
-         brw_fs_prog_data_dispatch_grf_start_reg(fs_prog_data, ps, 2);
+         brw_fs_prog_data_dispatch_grf_start_reg(&shader->info,
+                                                 fs_prog_data, ps, 2);
 #endif
 
       ps.KernelStartPointer0 = KSP(ice->draw.generation.shader) +
@@ -327,7 +330,7 @@ emit_indirect_generate_draw(struct iris_batch *batch,
 
 #if GFX_VER >= 30
       ps.RegistersPerThread =
-         intel_register_blocks(devinfo, fs_prog_data->base.grf_used);
+         intel_register_blocks(devinfo, shader->info.grf_used);
 #endif
 
 #else

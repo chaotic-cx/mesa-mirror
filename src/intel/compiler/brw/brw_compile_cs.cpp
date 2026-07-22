@@ -274,8 +274,6 @@ brw_compile_cs(const struct brw_compiler *compiler,
       if (prog_data->prog_mask & (1u << simd)) {
          assert(v[simd]);
          to_binary_params.shaders[simd] = v[simd].get();
-         prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
-                                         v[simd]->grf_used);
       }
    }
 

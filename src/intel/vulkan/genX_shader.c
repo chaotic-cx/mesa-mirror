@@ -586,7 +586,7 @@ emit_vs_shader(struct anv_batch *batch,
       vs.VertexURBEntryReadLength      = vs_prog_data->base.urb_read_length;
       vs.VertexURBEntryReadOffset      = 0;
       vs.DispatchGRFStartRegisterForURBData =
-         vs_prog_data->base.base.dispatch_grf_start_reg;
+         shader->bin->info.dispatch_grf_start_reg;
 
       vs.UserClipDistanceClipTestEnableBitmask =
          vs_prog_data->base.clip_distance_mask;
@@ -595,7 +595,7 @@ emit_vs_shader(struct anv_batch *batch,
 
 #if GFX_VER >= 30
       vs.RegistersPerThread =
-         intel_register_blocks(devinfo, vs_prog_data->base.base.grf_used);
+         intel_register_blocks(devinfo, shader->bin->info.grf_used);
 #endif
    }
 
@@ -654,10 +654,10 @@ emit_hs_shader(struct anv_batch *batch,
       hs.VertexURBEntryReadLength = 0;
       hs.VertexURBEntryReadOffset = 0;
       hs.DispatchGRFStartRegisterForURBData =
-         tcs_prog_data->base.base.dispatch_grf_start_reg & 0x1f;
+         shader->bin->info.dispatch_grf_start_reg & 0x1f;
 #if GFX_VER >= 12
       hs.DispatchGRFStartRegisterForURBData5 =
-         tcs_prog_data->base.base.dispatch_grf_start_reg >> 5;
+         shader->bin->info.dispatch_grf_start_reg >> 5;
 #endif
 
 #if GFX_VER == 12
@@ -674,7 +674,7 @@ emit_hs_shader(struct anv_batch *batch,
 
 #if GFX_VER >= 30
       hs.RegistersPerThread =
-         intel_register_blocks(devinfo, tcs_prog_data->base.base.grf_used);
+         intel_register_blocks(devinfo, shader->bin->info.grf_used);
 #endif
    };
 
@@ -746,7 +746,7 @@ emit_ds_shader(struct anv_batch *batch,
       ds.PatchURBEntryReadLength = tes_prog_data->base.urb_read_length;
       ds.PatchURBEntryReadOffset = 0;
       ds.DispatchGRFStartRegisterForURBData =
-         tes_prog_data->base.base.dispatch_grf_start_reg;
+         shader->bin->info.dispatch_grf_start_reg;
 
       ds.DispatchMode = DISPATCH_MODE_SIMD8_SINGLE_PATCH;
 
@@ -761,7 +761,7 @@ emit_ds_shader(struct anv_batch *batch,
 
 #if GFX_VER >= 30
       ds.RegistersPerThread =
-         intel_register_blocks(devinfo, tes_prog_data->base.base.grf_used);
+         intel_register_blocks(devinfo, shader->bin->info.grf_used);
 #endif
    }
 
@@ -827,7 +827,7 @@ emit_gs_shader(struct anv_batch *batch,
       gs.VertexURBEntryReadOffset = 0;
       gs.VertexURBEntryReadLength = gs_prog_data->base.urb_read_length;
       gs.DispatchGRFStartRegisterForURBData =
-         gs_prog_data->base.base.dispatch_grf_start_reg;
+         shader->bin->info.dispatch_grf_start_reg;
 
       gs.UserClipDistanceClipTestEnableBitmask =
          gs_prog_data->base.clip_distance_mask;
@@ -836,7 +836,7 @@ emit_gs_shader(struct anv_batch *batch,
 
 #if GFX_VER >= 30
       gs.RegistersPerThread =
-         intel_register_blocks(devinfo, gs_prog_data->base.base.grf_used);
+         intel_register_blocks(devinfo, shader->bin->info.grf_used);
 #endif
    }
 
@@ -916,7 +916,7 @@ emit_task_shader(struct anv_batch *batch,
 
 #if GFX_VER >= 30
       task.RegistersPerThread =
-         intel_register_blocks(devinfo, task_prog_data->base.base.grf_used);
+         intel_register_blocks(devinfo, shader->bin->info.grf_used);
 #endif
    }
 
@@ -1012,7 +1012,7 @@ emit_mesh_shader(struct anv_batch *batch,
 
 #if GFX_VER >= 30
       mesh.RegistersPerThread =
-         intel_register_blocks(devinfo, mesh_prog_data->base.base.grf_used);
+         intel_register_blocks(devinfo, shader->bin->info.grf_used);
 #endif
    }
 
@@ -1069,7 +1069,7 @@ emit_ps_shader(struct anv_batch *batch,
 
 #if GFX_VER >= 30
       ps.RegistersPerThread =
-         intel_register_blocks(devinfo, fs_prog_data->base.grf_used);
+         intel_register_blocks(devinfo, shader->bin->info.grf_used);
 #endif
    }
 
@@ -1191,8 +1191,8 @@ emit_cs_shader(struct anv_batch *batch,
          .Post_sync_opn3.MOCS    = anv_mocs(device, NULL, 0),
          .InterfaceDescriptor    = (struct GENX(INTERFACE_DESCRIPTOR_DATA_2)) {
             .KernelStartPointer                 = anv_shader_get_pointer(device, &shader->kernel),
-            .RegistersPerThread                 = intel_register_blocks(devinfo,
-                                                                        cs_prog_data->base.grf_used),
+            .RegistersPerThread                 =
+               intel_register_blocks(devinfo, bin->info.grf_used),
             .NumberofThreadsinGPGPUThreadGroup  = dispatch.threads,
             .ThreadGroupDispatchSize            = intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
             .SharedLocalMemorySize              = intel_compute_slm_encode_size(
@@ -1252,7 +1252,7 @@ emit_cs_shader(struct anv_batch *batch,
             .NumberOfBarriers                  = cs_prog_data->uses_barrier,
 #if GFX_VER >= 30
             .RegistersPerThread                =
-            intel_register_blocks(devinfo, cs_prog_data->base.grf_used),
+               intel_register_blocks(devinfo, bin->info.grf_used),
 #endif
          },
          .EmitInlineParameter            = shader->bind_map.inline_dwords_count > 0,

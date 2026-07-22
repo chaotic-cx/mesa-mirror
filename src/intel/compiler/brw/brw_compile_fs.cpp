@@ -1383,11 +1383,6 @@ brw_compile_fs(const struct brw_compiler *compiler,
       }
 
       if (INTEL_SIMD(FS, 8)) {
-         assert(v8->payload().num_regs % reg_unit(devinfo) == 0);
-         prog_data->base.dispatch_grf_start_reg = v8->payload().num_regs / reg_unit(devinfo);
-         prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
-                                         v8->grf_used);
-
          const brw_performance &perf = v8->performance_analysis.require();
          throughput = MAX2(throughput, perf.throughput);
          has_spilled = v8->spilled_any_registers;
@@ -1480,8 +1475,6 @@ brw_compile_fs(const struct brw_compiler *compiler,
          } else {
             assert(v32->payload().num_regs % reg_unit(devinfo) == 0);
             prog_data->dispatch_grf_start_reg_32 = v32->payload().num_regs / reg_unit(devinfo);
-            prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
-                                            v32->grf_used);
          }
       }
 
@@ -1500,8 +1493,6 @@ brw_compile_fs(const struct brw_compiler *compiler,
          } else {
             assert(v16->payload().num_regs % reg_unit(devinfo) == 0);
             prog_data->dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
-            prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
-                                            v16->grf_used);
          }
       }
 
@@ -1527,8 +1518,6 @@ brw_compile_fs(const struct brw_compiler *compiler,
          } else {
             assert(v16->payload().num_regs % reg_unit(devinfo) == 0);
             prog_data->dispatch_grf_start_reg_16 = v16->payload().num_regs / reg_unit(devinfo);
-            prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
-                                            v16->grf_used);
 
             const brw_performance &perf = v16->performance_analysis.require();
             throughput = MAX2(throughput, perf.throughput);
@@ -1566,8 +1555,6 @@ brw_compile_fs(const struct brw_compiler *compiler,
             } else {
                assert(v32->payload().num_regs % reg_unit(devinfo) == 0);
                prog_data->dispatch_grf_start_reg_32 = v32->payload().num_regs / reg_unit(devinfo);
-               prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
-                                               v32->grf_used);
 
                throughput = MAX2(throughput, perf.throughput);
             }
@@ -1639,13 +1626,6 @@ brw_compile_fs(const struct brw_compiler *compiler,
             }
          }
       }
-   }
-
-   if (vmulti) {
-      assert(vmulti->payload().num_regs % reg_unit(devinfo) == 0);
-      prog_data->base.dispatch_grf_start_reg = vmulti->payload().num_regs / reg_unit(devinfo);
-      prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
-                                      vmulti->grf_used);
    }
 
    brw_to_binary_params to_binary_params = {

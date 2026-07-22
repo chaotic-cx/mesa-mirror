@@ -208,13 +208,14 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
       ps.PushConstantEnable     = prog_data->base.push_sizes[0] > 0;
 #endif
 
+      const struct intel_shader_info *info = &state->kernel->bin->info;
       ps.DispatchGRFStartRegisterForConstantSetupData0 =
-         brw_fs_prog_data_dispatch_grf_start_reg(prog_data, ps, 0);
+         brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, ps, 0);
       ps.DispatchGRFStartRegisterForConstantSetupData1 =
-         brw_fs_prog_data_dispatch_grf_start_reg(prog_data, ps, 1);
+         brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, ps, 1);
 #if GFX_VER < 20
       ps.DispatchGRFStartRegisterForConstantSetupData2 =
-         brw_fs_prog_data_dispatch_grf_start_reg(prog_data, ps, 2);
+         brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, ps, 2);
 #endif
 
       ps.KernelStartPointer0 =
@@ -231,7 +232,7 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
 
 #if GFX_VER >= 30
       ps.RegistersPerThread =
-         intel_register_blocks(device->info, prog_data->base.grf_used);
+         intel_register_blocks(device->info, state->kernel->bin->info.grf_used);
 #endif
 
       ps.MaximumNumberofThreadsPerPSD = device->info->max_threads_per_psd - 1;
@@ -625,8 +626,8 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
                .KernelStartPointer                 =
                   anv_shader_get_pointer(device, &state->kernel->kernel) +
                   brw_cs_prog_data_prog_offset(prog_data, dispatch.simd_size),
-               .RegistersPerThread                 = intel_register_blocks(
-                  devinfo, prog_data->base.grf_used),
+               .RegistersPerThread                 =
+                  intel_register_blocks(devinfo, bin->info.grf_used),
                .NumberOfBarriers                   = prog_data->uses_barrier,
                .NumberofThreadsinGPGPUThreadGroup  = dispatch.threads,
                .ThreadGroupDispatchSize            = intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
@@ -719,7 +720,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
                .NumberOfBarriers                  = prog_data->uses_barrier,
 #if GFX_VER >= 30
                .RegistersPerThread =
-               intel_register_blocks(devinfo, prog_data->base.grf_used),
+                  intel_register_blocks(devinfo, bin->info.grf_used),
 #endif
             },
             .EmitInlineParameter            = true,

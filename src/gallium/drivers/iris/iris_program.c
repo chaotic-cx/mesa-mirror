@@ -307,7 +307,7 @@ iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
    shader->total_shared           = bin->info.total_shared;
    shader->program_size           = bin->code_size;
    shader->const_data_offset      = brw->const_data_offset;
-   shader->dispatch_grf_start_reg = brw->dispatch_grf_start_reg;
+   shader->dispatch_grf_start_reg = bin->info.dispatch_grf_start_reg;
    shader->has_ubo_pull           = bin->info.has_ubo_pull;
 
    switch (shader->stage) {

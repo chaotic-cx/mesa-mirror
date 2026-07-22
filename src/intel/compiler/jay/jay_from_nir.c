@@ -4274,7 +4274,7 @@ setup_payload_dispatch_start(struct nir_to_jay_state *nj,
    } else if (s->stage == MESA_SHADER_FRAGMENT && s->dispatch_width == 16) {
       s->prog_data->fs.dispatch_grf_start_reg_16 = start_grf;
    } else {
-      s->prog_data->base.dispatch_grf_start_reg = start_grf;
+      s->info.dispatch_grf_start_reg = start_grf;
    }
 }
 
@@ -4950,7 +4950,7 @@ jay_gather_stats(const jay_shader *s, struct genisa_stats *stats)
    stats->sends -= (s->spills + s->fills);
    stats->dispatch_width = s->dispatch_width;
    stats->source_hash = s->info.source_hash;
-   stats->grf_registers = s->prog_data->base.grf_used;
+   stats->grf_registers = s->info.grf_used;
    stats->vrt_size =
       intel_vrt_register_file_size(s->devinfo, stats->source_hash, stats->grf_registers);
    stats->vrt_threads = intel_max_vrt_threads(s->devinfo, stats->vrt_size);
@@ -5242,6 +5242,7 @@ jay_merge_shader_info(struct intel_shader_info *dst,
    dst->has_ubo_pull |= src->has_ubo_pull;
    dst->total_scratch = MAX2(dst->total_scratch, src->total_scratch);
    dst->total_shared = MAX2(dst->total_shared, src->total_shared);
+   dst->grf_used = MAX2(dst->grf_used, src->grf_used);
 }
 
 intel_shader_bin *
@@ -5398,7 +5399,6 @@ jay_compile(const struct intel_device_info *devinfo,
    bin->code = rzalloc_size(bin, total_bin_size);
    bin->code_size = total_bin_size;
    bin->prog_data = &prog_data->base;
-   prog_data->base.grf_used = 0;
    if (orig_nir->info.stage == MESA_SHADER_FRAGMENT) {
       prog_data->fs.dispatch_8 = false;
       prog_data->fs.dispatch_16 = false;
@@ -5430,12 +5430,6 @@ jay_compile(const struct intel_device_info *devinfo,
          relocs[reloc_start + r] = variants[i].relocs[r];
          relocs[reloc_start + r].offset += offset;
       }
-
-      /* Smaller SIMD variants may use fewer registers, select the largest
-       * of the VRT sizes for all variants we're merging together.
-       */
-      prog_data->base.grf_used =
-         MAX2(prog_data->base.grf_used, variants[i].bin->stats[0].vrt_size);
 
       if (orig_nir->info.stage == MESA_SHADER_FRAGMENT) {
          if (i == 0) {

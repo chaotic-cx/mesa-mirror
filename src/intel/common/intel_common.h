@@ -27,7 +27,7 @@ int
 intel_compute_threads_group_dispatch_size_walker_2(uint32_t hw_threads_in_wg);
 
 /**
- * Convert a number of GRF registers used (grf_used in prog_data) into a
+ * Convert a number of GRF registers used (intel_shader_info::grf_used) into a
  * number of GRF register blocks supported by the hardware.
  */
 unsigned

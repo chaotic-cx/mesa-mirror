@@ -51,7 +51,7 @@ brw_assign_regs_trivial(brw_shader &s)
                            DIV_ROUND_UP(s.alloc.sizes[i - 1],
                                         reg_unit(devinfo)));
    }
-   s.grf_used = hw_reg_mapping[s.alloc.count];
+   s.info.grf_used = hw_reg_mapping[s.alloc.count];
 
    foreach_block_and_inst(block, brw_inst, inst, s.cfg) {
       assign_reg(devinfo, hw_reg_mapping, &inst->dst);
@@ -60,18 +60,18 @@ brw_assign_regs_trivial(brw_shader &s)
       }
    }
 
-   if (s.grf_used >= BRW_MAX_GRF) {
+   if (s.info.grf_used >= BRW_MAX_GRF) {
       s.fail("Ran out of regs on trivial allocator (%d/%d)\n",
-	     s.grf_used, BRW_MAX_GRF);
+	     s.info.grf_used, BRW_MAX_GRF);
    } else {
-      s.alloc.count = s.grf_used;
+      s.alloc.count = s.info.grf_used;
    }
 
    if (devinfo->ver >= 30 && intel_threads_per_eu_set != (uint32_t)-1 &&
        (intel_threads_per_eu_srchash == BRW_SRCHASH_EMPTY ||
         intel_threads_per_eu_srchash == s.info.source_hash))
-      s.grf_used = MAX2(s.grf_used,
-                        ROUND_DOWN_TO(1024 / intel_threads_per_eu_set, 32));
+      s.info.grf_used = MAX2(s.info.grf_used,
+                             ROUND_DOWN_TO(1024 / intel_threads_per_eu_set, 32));
 
    ralloc_free(hw_reg_mapping);
 }
@@ -1786,13 +1786,13 @@ brw_reg_alloc::assign_regs(bool allow_spilling, bool spill_all)
     * numbers.
     */
    unsigned *hw_reg_mapping = ralloc_array(NULL, unsigned, fs->alloc.count);
-   fs->grf_used = fs->first_non_payload_grf;
+   fs->info.grf_used = fs->first_non_payload_grf;
    for (unsigned i = 0; i < fs->alloc.count; i++) {
       int reg = ra_get_node_reg(g, first_vgrf_node + i);
 
       hw_reg_mapping[i] = reg;
-      fs->grf_used = MAX2(fs->grf_used,
-			  hw_reg_mapping[i] + DIV_ROUND_UP(fs->alloc.sizes[i],
+      fs->info.grf_used = MAX2(fs->info.grf_used,
+			       hw_reg_mapping[i] + DIV_ROUND_UP(fs->alloc.sizes[i],
                                                            reg_unit(devinfo)));
    }
 
@@ -1803,12 +1803,12 @@ brw_reg_alloc::assign_regs(bool allow_spilling, bool spill_all)
       }
    }
 
-   fs->alloc.count = fs->grf_used;
+   fs->alloc.count = fs->info.grf_used;
 
    if (devinfo->ver >= 30 && intel_threads_per_eu_set != (uint32_t)-1 &&
        debug_limit_registers)
-      fs->grf_used = MAX2(fs->grf_used,
-                          ROUND_DOWN_TO(1024 / intel_threads_per_eu_set, 32));
+      fs->info.grf_used = MAX2(fs->info.grf_used,
+                               ROUND_DOWN_TO(1024 / intel_threads_per_eu_set, 32));
 
    ralloc_free(hw_reg_mapping);
 

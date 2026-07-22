@@ -498,15 +498,6 @@ struct brw_stage_prog_data {
    unsigned num_relocs;
    const struct intel_shader_reloc *relocs;
 
-   /**
-    * Register where the thread expects to find input data from the URB
-    * (typically uniforms, followed by vertex or fragment attributes).
-    */
-   unsigned dispatch_grf_start_reg;
-
-   /** Number of GRF registers used. */
-   unsigned grf_used;
-
    /* Was this shader compiled with Jay? */
    bool is_jay;
 };
@@ -769,19 +760,20 @@ _brw_fs_prog_data_prog_offset(const struct brw_fs_prog_data *prog_data,
       brw_wm_state_simd_width_for_ksp(wm_state, ksp_idx))
 
 static inline uint8_t
-_brw_fs_prog_data_dispatch_grf_start_reg(const struct brw_fs_prog_data *prog_data,
+_brw_fs_prog_data_dispatch_grf_start_reg(const struct intel_shader_info *info,
+                                         const struct brw_fs_prog_data *prog_data,
                                          unsigned simd_width)
 {
    switch (simd_width) {
-   case 8: return prog_data->base.dispatch_grf_start_reg;
+   case 8: return info->dispatch_grf_start_reg;
    case 16: return prog_data->dispatch_grf_start_reg_16;
    case 32: return prog_data->dispatch_grf_start_reg_32;
    default: return 0;
    }
 }
 
-#define brw_fs_prog_data_dispatch_grf_start_reg(prog_data, wm_state, ksp_idx) \
-   _brw_fs_prog_data_dispatch_grf_start_reg(prog_data, \
+#define brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, wm_state, ksp_idx) \
+   _brw_fs_prog_data_dispatch_grf_start_reg(info, prog_data, \
       brw_wm_state_simd_width_for_ksp(wm_state, ksp_idx))
 
 struct brw_push_const_block {
