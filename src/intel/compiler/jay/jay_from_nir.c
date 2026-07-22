@@ -2700,7 +2700,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
          assert(nj->s->info.tcs.include_primitive_id);
          jay_copy(b, dst, tcs->primitive_id);
       } else if (gs) {
-         assert(nj->s->prog_data->gs.include_primitive_id);
+         assert(nj->s->info.gs.include_primitive_id);
          jay_copy(b, dst, gs->primitive_id);
       } else {
          assert(nj->s->info.tes.include_primitive_id);
@@ -2735,7 +2735,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
                         jay_SHL_u32(b, nj_src(b, intr->src[0]), shift));
          }
       } else if (gs) {
-         if (s->prog_data->gs.invocations == 1) {
+         if (s->info.gs.invocations == 1) {
             if (nir_src_is_const(intr->src[0])) {
                jay_copy(b, dst,
                         jay_extract(gs->icp_handles,
@@ -2751,7 +2751,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
             }
 
          } else {
-            assert(s->prog_data->gs.invocations > 1);
+            assert(s->info.gs.invocations > 1);
             jay_SHUFFLE(b, JAY_TYPE_U32, dst, gs->icp_handles,
                         jay_SHL_u32(b, nj_src(b, intr->src[0]), 2u));
          }
@@ -4358,7 +4358,7 @@ setup_geometry_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
    /* (R2 or R3)...Rn: input URB handles */
    if (nj->nir->info.gs.invocations == 1) {
       nj->payload.gs.icp_handles =
-         read_vector_payload(p, GPR, nj->s->prog_data->gs.vertices_in);
+         read_vector_payload(p, GPR, nj->s->info.gs.vertices_in);
    } else {
       nj->payload.gs.icp_handles = read_vector_payload(p, UGPR, 32);
    }
@@ -4369,7 +4369,7 @@ setup_geometry_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
    /* Pushed vertex data. */
    for (unsigned i = 0; i < (8 *
                              nj->s->info.vue.urb_read_length *
-                             nj->s->prog_data->gs.vertices_in);
+                             nj->s->info.gs.vertices_in);
         ++i) {
       assert(i < ARRAY_SIZE(nj->payload.gs.attributes));
       nj->payload.gs.attributes[i] = read_payload(p, GPR);

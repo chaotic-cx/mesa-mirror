@@ -782,8 +782,6 @@ emit_gs_shader(struct anv_batch *batch,
                struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
-   const struct brw_gs_prog_data *gs_prog_data =
-      get_shader_gs_prog_data(shader);
 
    uint32_t gs_dwords[GENX(3DSTATE_GS_length)];
    anv_shader_emit_tmp(batch, gs_dwords, GENX(3DSTATE_GS), gs) {
@@ -799,20 +797,20 @@ emit_gs_shader(struct anv_batch *batch,
       gs.SamplerCount            = get_sampler_count(device, shader);
       gs.BindingTableEntryCount  = get_surface_count(device, shader);
       gs.IncludeVertexHandles    = shader->bin->info.vue.include_vue_handles;
-      gs.IncludePrimitiveID      = gs_prog_data->include_primitive_id;
+      gs.IncludePrimitiveID      = shader->bin->info.gs.include_primitive_id;
 
       gs.MaximumNumberofThreads  = devinfo->max_gs_threads - 1;
 
-      gs.OutputVertexSize        = gs_prog_data->output_vertex_size_hwords * 2 - 1;
-      gs.OutputTopology          = gs_prog_data->output_topology;
-      gs.ControlDataFormat       = gs_prog_data->control_data_format;
-      gs.ControlDataHeaderSize   = gs_prog_data->control_data_header_size_hwords;
-      gs.InstanceControl         = MAX2(gs_prog_data->invocations, 1) - 1;
+      gs.OutputVertexSize        = shader->bin->info.gs.output_vertex_size_hwords * 2 - 1;
+      gs.OutputTopology          = shader->bin->info.gs.output_topology;
+      gs.ControlDataFormat       = shader->bin->info.gs.control_data_format;
+      gs.ControlDataHeaderSize   = shader->bin->info.gs.control_data_header_size_hwords;
+      gs.InstanceControl         = MAX2(shader->bin->info.gs.invocations, 1) - 1;
 
-      gs.ExpectedVertexCount     = gs_prog_data->vertices_in;
-      gs.StaticOutput            = gs_prog_data->static_vertex_count >= 0;
-      gs.StaticOutputVertexCount = gs_prog_data->static_vertex_count >= 0 ?
-                                   gs_prog_data->static_vertex_count : 0;
+      gs.ExpectedVertexCount     = shader->bin->info.gs.vertices_in;
+      gs.StaticOutput            = shader->bin->info.gs.static_vertex_count >= 0;
+      gs.StaticOutputVertexCount = shader->bin->info.gs.static_vertex_count >= 0 ?
+                                   shader->bin->info.gs.static_vertex_count : 0;
 
       gs.VertexURBEntryReadOffset = 0;
       gs.VertexURBEntryReadLength = shader->bin->info.vue.urb_read_length;

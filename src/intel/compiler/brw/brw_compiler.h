@@ -898,38 +898,6 @@ struct brw_tes_prog_data
 struct brw_gs_prog_data
 {
    struct brw_vue_prog_data base;
-
-   unsigned vertices_in;
-
-   /**
-    * Size of an output vertex, measured in HWORDS (32 bytes).
-    */
-   unsigned output_vertex_size_hwords;
-
-   unsigned output_topology;
-
-   /**
-    * Size of the control data (cut bits or StreamID bits), in hwords (32
-    * bytes).  0 if there is no control data.
-    */
-   unsigned control_data_header_size_hwords;
-
-   /**
-    * Format of the control data (either GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_SID
-    * if the control data is StreamID bits, or
-    * GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT if the control data is cut bits).
-    * Ignored if control_data_header_size is 0.
-    */
-   unsigned control_data_format;
-
-   bool include_primitive_id;
-
-   /**
-    * The number of vertices emitted, if constant - otherwise -1.
-    */
-   int static_vertex_count;
-
-   int invocations;
 };
 
 struct brw_tue_map {

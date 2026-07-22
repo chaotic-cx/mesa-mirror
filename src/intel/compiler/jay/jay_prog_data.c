@@ -556,23 +556,22 @@ static const uint32_t
 static void
 populate_gs_prog_data(nir_shader *nir,
                       const struct brw_gs_prog_key *key,
-                      struct brw_gs_prog_data *prog_data,
                       struct intel_shader_info *info)
 {
    unsigned output_vertex_size_bytes = info->vue.vue_map.num_slots * 16;
    assert(output_vertex_size_bytes <= GFX7_MAX_GS_OUTPUT_VERTEX_SIZE_BYTES);
 
-   prog_data->output_vertex_size_hwords =
+   info->gs.output_vertex_size_hwords =
       align(output_vertex_size_bytes, 32) / 32;
 
-   prog_data->include_primitive_id =
+   info->gs.include_primitive_id =
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_PRIMITIVE_ID);
-   prog_data->invocations = nir->info.gs.invocations;
+   info->gs.invocations = nir->info.gs.invocations;
 
    uint32_t control_data_bits_per_vertex;
 
    if (nir->info.gs.output_primitive == MESA_PRIM_POINTS) {
-      prog_data->control_data_format = GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_SID;
+      info->gs.control_data_format = GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_SID;
 
       if (nir->info.gs.active_stream_mask != (1 << 0)) {
          control_data_bits_per_vertex = 2;
@@ -580,20 +579,20 @@ populate_gs_prog_data(nir_shader *nir,
          control_data_bits_per_vertex = 0;
       }
    } else {
-      prog_data->control_data_format = GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT;
+      info->gs.control_data_format = GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT;
       control_data_bits_per_vertex = nir->info.gs.uses_end_primitive ? 1 : 0;
    }
 
    uint32_t control_data_header_size_bits =
       nir->info.gs.vertices_out * control_data_bits_per_vertex;
 
-   prog_data->control_data_header_size_hwords =
+   info->gs.control_data_header_size_hwords =
       align(control_data_header_size_bits, 256) / 256;
 
-   prog_data->output_topology =
+   info->gs.output_topology =
       gl_prim_to_hw_prim[nir->info.gs.output_primitive];
 
-   prog_data->vertices_in = nir->info.gs.vertices_in;
+   info->gs.vertices_in = nir->info.gs.vertices_in;
 }
 
 void
@@ -617,7 +616,7 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
       populate_fs_prog_data(nir, devinfo, &key->fs, &prog_data->fs,
                             fs_perprim->mue, per_primitive_offsets);
    } else if (nir->info.stage == MESA_SHADER_GEOMETRY) {
-      populate_gs_prog_data(nir, &key->gs, &prog_data->gs, info);
+      populate_gs_prog_data(nir, &key->gs, info);
    }
 
    if (nir->info.stage == MESA_SHADER_VERTEX ||

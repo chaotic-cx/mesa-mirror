@@ -2277,8 +2277,6 @@ emit_gs_end_primitive(nir_to_brw_state &ntb, const nir_src &vertex_count_nir_src
    brw_shader &s = ntb.s;
    assert(s.stage == MESA_SHADER_GEOMETRY);
 
-   struct brw_gs_prog_data *gs_prog_data = brw_gs_prog_data(s.prog_data);
-
    if (s.gs.control_data_header_size_bits == 0)
       return;
 
@@ -2286,7 +2284,7 @@ emit_gs_end_primitive(nir_to_brw_state &ntb, const nir_src &vertex_count_nir_src
     * consists of cut bits.  Fortunately, the only time it isn't is when the
     * output type is points, in which case EndPrimitive() is a no-op.
     */
-   if (gs_prog_data->control_data_format !=
+   if (s.info.gs.control_data_format !=
        GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT) {
       return;
    }
@@ -2420,8 +2418,6 @@ brw_shader::emit_gs_control_data_bits(const brw_reg &vertex_count)
    assert(stage == MESA_SHADER_GEOMETRY);
    assert(gs.control_data_bits_per_vertex != 0);
 
-   const struct brw_gs_prog_data *gs_prog_data = brw_gs_prog_data(prog_data);
-
    const brw_builder bld = brw_builder(this);
    const brw_builder abld = bld.annotate("emit control data bits");
 
@@ -2469,7 +2465,7 @@ brw_shader::emit_gs_control_data_bits(const brw_reg &vertex_count)
     * URB entry.  Since this is an OWord message, Global Offset is counted
     * in 128-bit units, so we must set it to 2.
     */
-   if (gs_prog_data->static_vertex_count == -1)
+   if (this->info.gs.static_vertex_count == -1)
       urb->offset = devinfo->ver >= 20 ? 32 : 2;
 }
 
@@ -2521,8 +2517,6 @@ emit_gs_vertex(nir_to_brw_state &ntb, const nir_src &vertex_count_nir_src,
    brw_shader &s = ntb.s;
 
    assert(s.stage == MESA_SHADER_GEOMETRY);
-
-   struct brw_gs_prog_data *gs_prog_data = brw_gs_prog_data(s.prog_data);
 
    brw_reg vertex_count = get_nir_src(ntb, vertex_count_nir_src, 0);
    vertex_count.type = BRW_TYPE_UD;
@@ -2603,7 +2597,7 @@ emit_gs_vertex(nir_to_brw_state &ntb, const nir_src &vertex_count_nir_src,
     * do for MESA_PRIM_POINTS outputs that don't use streams).
     */
    if (s.gs.control_data_header_size_bits > 0 &&
-       gs_prog_data->control_data_format ==
+       s.info.gs.control_data_format ==
           GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_SID) {
       set_gs_stream_control_data_bits(ntb, vertex_count, stream_id);
    }
@@ -2991,8 +2985,6 @@ brw_from_nir_emit_gs_intrinsic(nir_to_brw_state &ntb,
 
    assert(s.stage == MESA_SHADER_GEOMETRY);
 
-   struct brw_gs_prog_data *gs_prog_data = brw_gs_prog_data(s.prog_data);
-
    brw_reg dest;
    if (nir_intrinsic_infos[instr->intrinsic].has_dest)
       dest = get_nir_def(ntb, instr->def);
@@ -3000,7 +2992,8 @@ brw_from_nir_emit_gs_intrinsic(nir_to_brw_state &ntb,
    switch (instr->intrinsic) {
    case nir_intrinsic_load_primitive_id:
       assert(s.stage == MESA_SHADER_GEOMETRY);
-      assert(brw_gs_prog_data(s.prog_data)->include_primitive_id);
+      assert(BITSET_TEST(s.nir->info.system_values_read,
+                         SYSTEM_VALUE_PRIMITIVE_ID));
       bld.MOV(retype(dest, BRW_TYPE_UD), s.gs_payload().primitive_id);
       break;
 
@@ -3027,7 +3020,7 @@ brw_from_nir_emit_gs_intrinsic(nir_to_brw_state &ntb,
       brw_reg start = s.gs_payload().icp_handle_start;
       dest.type = start.type;
 
-      if (gs_prog_data->invocations == 1) {
+      if (s.nir->info.gs.invocations == 1) {
          if (nir_src_is_const(instr->src[0])) {
             /* Vertex index is constant; just select the proper URB handle. */
             bld.MOV(dest, byte_offset(start, grf_size_bytes *
@@ -3065,7 +3058,7 @@ brw_from_nir_emit_gs_intrinsic(nir_to_brw_state &ntb,
                      brw_imm_ud(s.nir->info.gs.vertices_in * grf_size_bytes));
          }
       } else {
-         assert(gs_prog_data->invocations > 1);
+         assert(s.nir->info.gs.invocations > 1);
 
          if (nir_src_is_const(instr->src[0])) {
             unsigned vertex = nir_src_as_uint(instr->src[0]);

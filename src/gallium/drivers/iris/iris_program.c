@@ -284,16 +284,18 @@ iris_apply_brw_gs_prog_data(struct iris_compiled_shader *shader,
    assert(shader->stage == MESA_SHADER_GEOMETRY);
    struct iris_gs_data *iris = &shader->gs;
 
-   iris_apply_brw_vue_prog_data(&shader->info, &iris->base);
+   const struct intel_shader_info *info = &shader->info;
 
-   iris->vertices_in                     = brw->vertices_in;
-   iris->output_vertex_size_hwords       = brw->output_vertex_size_hwords;
-   iris->output_topology                 = brw->output_topology;
-   iris->control_data_header_size_hwords = brw->control_data_header_size_hwords;
-   iris->control_data_format             = brw->control_data_format;
-   iris->static_vertex_count             = brw->static_vertex_count;
-   iris->invocations                     = brw->invocations;
-   iris->include_primitive_id            = brw->include_primitive_id;
+   iris_apply_brw_vue_prog_data(info, &iris->base);
+
+   iris->vertices_in                     = info->gs.vertices_in;
+   iris->output_vertex_size_hwords       = info->gs.output_vertex_size_hwords;
+   iris->output_topology                 = info->gs.output_topology;
+   iris->control_data_header_size_hwords = info->gs.control_data_header_size_hwords;
+   iris->control_data_format             = info->gs.control_data_format;
+   iris->static_vertex_count             = info->gs.static_vertex_count;
+   iris->invocations                     = info->gs.invocations;
+   iris->include_primitive_id            = info->gs.include_primitive_id;
 }
 
 void

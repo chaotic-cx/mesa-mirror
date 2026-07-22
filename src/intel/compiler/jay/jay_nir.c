@@ -276,9 +276,9 @@ jay_nir_lower_simd(nir_builder *b, nir_intrinsic_instr *intr, void *simd_)
 }
 
 static unsigned int
-calc_control_data_bits_per_vertex(struct brw_gs_prog_data *progdata)
+calc_control_data_bits_per_vertex(struct intel_shader_info *info)
 {
-   unsigned format = progdata->control_data_format;
+   unsigned format = info->gs.control_data_format;
    assert(format == GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT ||
           format == GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_SID);
    return format == GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT ? 1 : 2;
@@ -307,7 +307,7 @@ store_urb_vec4(nir_builder *b,
 }
 
 static void
-emit_gs_control_data_bits(struct brw_gs_prog_data *progdata,
+emit_gs_control_data_bits(struct intel_shader_info *info,
                           const struct intel_device_info *devinfo,
                           nir_builder *b,
                           nir_variable *control_data_bits,
@@ -318,10 +318,10 @@ emit_gs_control_data_bits(struct brw_gs_prog_data *progdata,
 
    nir_def *dword_urb_offset =
       nir_ushr_imm(b, nir_iadd_imm(b, nir_imax_imm(b, vertex_count, 1), -1),
-                   6 - calc_control_data_bits_per_vertex(progdata));
+                   6 - calc_control_data_bits_per_vertex(info));
 
    store_urb_vec4(b, devinfo, curr_control_data_bits, dword_urb_offset,
-                  progdata->static_vertex_count == -1 ? 2 : 0);
+                  info->gs.static_vertex_count == -1 ? 2 : 0);
 }
 
 /* This function is responsible for the code that emits control data bits
@@ -340,14 +340,14 @@ emit_gs_control_data_bits(struct brw_gs_prog_data *progdata,
 static void
 emit_gs_vertex(nir_builder *b,
                const struct intel_device_info *devinfo,
-               struct brw_gs_prog_data *progdata,
+               struct intel_shader_info *info,
                nir_variable *control_data_bits,
                nir_intrinsic_instr *intr)
 {
    nir_src *vertex_count_src = &intr->src[0];
 
    uint32_t control_data_header_size_bits =
-      progdata->control_data_header_size_hwords * 32 * 8;
+      info->gs.control_data_header_size_hwords * 32 * 8;
 
    /* Haswell and later hardware ignores the "Render Stream Select" bits
     * from the 3DSTATE_STREAMOUT packet when the SOL stage is disabled,
@@ -374,15 +374,14 @@ emit_gs_vertex(nir_builder *b,
       nir_def *should_push_vertex = nir_ieq_imm(
          b,
          nir_iand_imm(b, vertex_count_src->ssa,
-                      (1 << (6 - calc_control_data_bits_per_vertex(progdata))) -
-                         1),
+                      (1 << (6 - calc_control_data_bits_per_vertex(info))) - 1),
          0);
       nir_push_if(b, should_push_vertex);
       {
          /* If the vertex index is 0, don't emit anything. */
          nir_push_if(b, nir_ine_imm(b, vertex_count_src->ssa, 0));
          {
-            emit_gs_control_data_bits(progdata, devinfo, b, control_data_bits,
+            emit_gs_control_data_bits(info, devinfo, b, control_data_bits,
                                       vertex_count_src->ssa);
          }
          nir_pop_if(b, NULL);
@@ -397,8 +396,8 @@ emit_gs_vertex(nir_builder *b,
     * stream control bits so it knows what stream
     * the vertex is going to.
     */
-   if (progdata->control_data_header_size_hwords > 0 &&
-       progdata->control_data_format == GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_SID) {
+   if (info->gs.control_data_header_size_hwords > 0 &&
+       info->gs.control_data_format == GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_SID) {
       unsigned sid = nir_intrinsic_stream_id(intr);
       assert(sid < 4);
 
@@ -418,7 +417,7 @@ emit_gs_vertex(nir_builder *b,
 
 static void
 set_vert_and_prim_count(nir_builder *b,
-                        struct brw_gs_prog_data *progdata,
+                        struct intel_shader_info *info,
                         nir_intrinsic_instr *intr,
                         nir_variable *final_gs_vertex_count)
 {
@@ -428,15 +427,15 @@ set_vert_and_prim_count(nir_builder *b,
 
 static void
 end_primitive(nir_builder *b,
-              struct brw_gs_prog_data *progdata,
+              struct intel_shader_info *info,
               nir_intrinsic_instr *intr,
               nir_variable *control_data_bits)
 {
    /* Store a control data bit representing the fact that this vertex is the
     * last one in its primitive.
     */
-   if (progdata->control_data_header_size_hwords &&
-       progdata->control_data_format == GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT) {
+   if (info->gs.control_data_header_size_hwords &&
+       info->gs.control_data_format == GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT) {
 
       nir_def *prev_count = nir_iadd_imm(b, intr->src[0].ssa, -1);
       nir_def *mask =
@@ -462,7 +461,7 @@ remove_gs_outputs_cb(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 struct lower_gs_outputs_cb_data {
    nir_variable *control_data_bits;
    nir_variable *final_gs_vertex_count;
-   struct brw_gs_prog_data *progdata;
+   struct intel_shader_info *info;
    const struct intel_device_info *devinfo;
 };
 
@@ -473,12 +472,12 @@ lower_gs_outputs_cb(nir_builder *b, nir_intrinsic_instr *intr, void *_data)
    b->cursor = nir_before_instr(&intr->instr);
 
    if (intr->intrinsic == nir_intrinsic_emit_vertex_with_counter) {
-      emit_gs_vertex(b, data->devinfo, data->progdata, data->control_data_bits,
+      emit_gs_vertex(b, data->devinfo, data->info, data->control_data_bits,
                      intr);
    } else if (intr->intrinsic == nir_intrinsic_end_primitive_with_counter) {
-      end_primitive(b, data->progdata, intr, data->control_data_bits);
+      end_primitive(b, data->info, intr, data->control_data_bits);
    } else if (intr->intrinsic == nir_intrinsic_set_vertex_and_primitive_count) {
-      set_vert_and_prim_count(b, data->progdata, intr,
+      set_vert_and_prim_count(b, data->info, intr,
                               data->final_gs_vertex_count);
    } else {
       return false;
@@ -790,13 +789,13 @@ jay_process_nir(const struct intel_device_info *devinfo,
       JAY_NIR_PASS(intel_nir_lower_shading_rate_output);
 
       nir_gs_count_vertices_and_primitives(nir,
-                                           &prog_data->gs.static_vertex_count,
+                                           &info->gs.static_vertex_count,
                                            NULL, NULL, 1u);
 
       struct lower_gs_outputs_cb_data data = {
          .control_data_bits = control_data_bits,
          .final_gs_vertex_count = final_gs_vertex_count,
-         .progdata = &prog_data->gs,
+         .info = info,
          .devinfo = devinfo,
       };
       JAY_NIR_PASS(nir_shader_intrinsics_pass, lower_gs_outputs_cb,
@@ -806,28 +805,28 @@ jay_process_nir(const struct intel_device_info *devinfo,
          nir_builder_at(nir_after_impl(nir_shader_get_entrypoint(nir)));
 
       nir_def *out_vert_count = nir_load_var(&at_end, final_gs_vertex_count);
-      if (prog_data->gs.control_data_header_size_hwords > 0) {
-         emit_gs_control_data_bits(&prog_data->gs, devinfo, &at_end,
+      if (info->gs.control_data_header_size_hwords > 0) {
+         emit_gs_control_data_bits(info, devinfo, &at_end,
                                    control_data_bits, out_vert_count);
       }
 
-      if (prog_data->gs.static_vertex_count <= 0) {
+      if (info->gs.static_vertex_count <= 0) {
          store_urb_vec4(&at_end, devinfo, out_vert_count,
                         nir_imm_int(&at_end, 0), 0);
       }
 
       uint32_t starting_urb_offset =
-         2 * prog_data->gs.control_data_header_size_hwords +
-         ((prog_data->gs.static_vertex_count == -1) ? 2 : 0);
+         2 * info->gs.control_data_header_size_hwords +
+         ((info->gs.static_vertex_count == -1) ? 2 : 0);
 
       JAY_NIR_PASS(brw_nir_lower_deferred_urb_writes, devinfo,
                    &info->vue.vue_map, starting_urb_offset,
-                   2 * prog_data->gs.output_vertex_size_hwords);
+                   2 * info->gs.output_vertex_size_hwords);
 
-      unsigned output_size_bytes = prog_data->gs.output_vertex_size_hwords *
+      unsigned output_size_bytes = info->gs.output_vertex_size_hwords *
                                    32 *
                                    nir->info.gs.vertices_out;
-      output_size_bytes += 32 * prog_data->gs.control_data_header_size_hwords;
+      output_size_bytes += 32 * info->gs.control_data_header_size_hwords;
 
       /* Broadwell stores "Vertex Count" as a full 8 DWord (32 byte) URB output,
        * which comes before the control header.

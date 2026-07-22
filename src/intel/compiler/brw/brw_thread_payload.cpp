@@ -80,7 +80,6 @@ brw_tes_thread_payload::brw_tes_thread_payload(const brw_shader &v)
 
 brw_gs_thread_payload::brw_gs_thread_payload(brw_shader &v)
 {
-   struct brw_gs_prog_data *gs_prog_data = brw_gs_prog_data(v.prog_data);
    const brw_builder bld = brw_builder(&v);
 
    /* R0: thread header. */
@@ -97,7 +96,7 @@ brw_gs_thread_payload::brw_gs_thread_payload(brw_shader &v)
 
    r += reg_unit(v.devinfo);
 
-   if (gs_prog_data->include_primitive_id) {
+   if (v.info.gs.include_primitive_id) {
       primitive_id = brw_ud8_grf(r, 0);
       r += reg_unit(v.devinfo);
    }

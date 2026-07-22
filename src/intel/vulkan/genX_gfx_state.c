@@ -472,7 +472,7 @@ anv_raster_polygon_mode(const struct anv_cmd_graphics_state *gfx,
          UNREACHABLE("invalid primitive type for mesh");
       }
    } else if (gfx->shaders[MESA_SHADER_GEOMETRY] != NULL) {
-      switch (get_gfx_gs_prog_data(gfx)->output_topology) {
+      switch (gfx->shaders[MESA_SHADER_GEOMETRY]->bin->info.gs.output_topology) {
       case _3DPRIM_POINTLIST:
          return VK_POLYGON_MODE_POINT;
 
@@ -1191,7 +1191,8 @@ geom_or_tess_prim_id_used(const struct anv_cmd_graphics_state *gfx)
            gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.include_primitive_id) ||
           (tes_prog_data &&
            gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.tes.include_primitive_id) ||
-      (gs_prog_data && gs_prog_data->include_primitive_id);
+      (gs_prog_data &&
+       gfx->shaders[MESA_SHADER_GEOMETRY]->bin->info.gs.include_primitive_id);
 }
 
 ALWAYS_INLINE static void

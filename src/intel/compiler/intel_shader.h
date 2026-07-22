@@ -678,6 +678,38 @@ struct intel_shader_info {
          struct brw_tess_info tess_info;
          bool include_primitive_id;
       } tes;
+      struct {
+         uint32_t vertices_in;
+
+         /**
+          * Size of an output vertex, measured in HWORDS (32 bytes).
+          */
+         uint32_t output_vertex_size_hwords;
+
+         uint32_t output_topology;
+
+         /**
+          * Size of the control data (cut bits or StreamID bits), in hwords (32
+          * bytes).  0 if there is no control data.
+          */
+         uint32_t control_data_header_size_hwords;
+
+         /**
+          * Format of the control data (either GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_SID
+          * if the control data is StreamID bits, or
+          * GFX7_GS_CONTROL_DATA_FORMAT_GSCTL_CUT if the control data is cut bits).
+          * Ignored if control_data_header_size is 0.
+          */
+         uint32_t control_data_format;
+
+         /**
+          * The number of vertices emitted, if constant - otherwise -1.
+          */
+         int32_t static_vertex_count;
+
+         uint32_t invocations;
+         bool include_primitive_id;
+      } gs;
    };
 };
 

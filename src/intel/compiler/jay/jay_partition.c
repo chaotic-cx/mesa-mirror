@@ -294,19 +294,19 @@ jay_partition_grf(jay_shader *shader)
        */
       unsigned urb_push_size = shader->info.vue.urb_read_length *
                                8 *
-                               shader->prog_data->gs.vertices_in;
+                               shader->info.gs.vertices_in;
 
       unsigned prim_id_size =
-         (shader->prog_data->gs.include_primitive_id ? 1 : 0);
+         (shader->info.gs.include_primitive_id ? 1 : 0);
 
-      if (shader->prog_data->gs.invocations == 1) {
-         unsigned urb_icp_size = shader->prog_data->gs.vertices_in;
+      if (shader->info.gs.invocations == 1) {
+         unsigned urb_icp_size = shader->info.gs.vertices_in;
          payload_4[0] = 1 + prim_id_size + urb_icp_size;
          payload_u[1] = shader->push_grfs;
          payload_4[1] = urb_push_size;
       } else {
          payload_4[0] = 1 + prim_id_size;
-         payload_u[1] = shader->prog_data->gs.vertices_in + shader->push_grfs;
+         payload_u[1] = shader->info.gs.vertices_in + shader->push_grfs;
          payload_4[1] = urb_push_size;
       }
       eot_4 = 16;
