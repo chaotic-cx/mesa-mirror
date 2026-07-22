@@ -71,7 +71,7 @@ get_new_program_id(struct iris_screen *screen)
    return p_atomic_inc_return(&screen->program_id);
 }
 
-static const unsigned *
+static intel_shader_bin *
 iris_backend_compile(const struct iris_screen *screen,
                      struct brw_compile_params *params)
 {
@@ -127,11 +127,9 @@ iris_backend_compile(const struct iris_screen *screen,
                               bin->stats[i].code_size);
       }
 
-      return bin->code;
+      return bin;
    } else {
-      const intel_shader_bin *bin = brw_compile(screen->brw, params);
-
-      return bin ? bin->code : NULL;
+      return brw_compile(screen->brw, params);
    }
 }
 
@@ -293,9 +291,11 @@ iris_apply_brw_gs_prog_data(struct iris_compiled_shader *shader,
 
 void
 iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
-                         struct brw_stage_prog_data *brw,
+                         const intel_shader_bin *bin,
                          struct iris_ubo_range *ubo_ranges)
 {
+   struct brw_stage_prog_data *brw = bin->prog_data;
+
    if (ubo_ranges != NULL)
       memcpy(shader->ubo_ranges, ubo_ranges, sizeof(shader->ubo_ranges));
 
@@ -332,6 +332,8 @@ iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
       UNREACHABLE("invalid shader stage");
    }
 
+   assert(bin->info.stage == shader->stage);
+   shader->info = bin->info;
    shader->brw_prog_data = brw;
 
    ralloc_steal(shader, shader->brw_prog_data);
@@ -2245,6 +2247,7 @@ iris_compile_vs(struct iris_screen *screen,
 
    const char *error;
    const unsigned *program;
+   intel_shader_bin *bin = NULL;
    if (screen->brw) {
       struct brw_vs_prog_data *brw_prog_data =
          rzalloc(mem_ctx, struct brw_vs_prog_data);
@@ -2265,11 +2268,12 @@ iris_compile_vs(struct iris_screen *screen,
          .archiver = debug_archiver,
       };
 
-      program = iris_backend_compile(screen, &params);
+      bin = iris_backend_compile(screen, &params);
+      program = bin ? bin->code : NULL;
       error = params.error_str;
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, &brw_prog_data->base.base, ubo_ranges);
+         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -2506,6 +2510,7 @@ iris_compile_tcs(struct iris_screen *screen,
 
    const char *error = NULL;
    const unsigned *program;
+   intel_shader_bin *bin = NULL;
    if (screen->brw) {
       struct brw_tcs_prog_data *brw_prog_data =
          rzalloc(mem_ctx, struct brw_tcs_prog_data);
@@ -2524,12 +2529,13 @@ iris_compile_tcs(struct iris_screen *screen,
          .archiver = debug_archiver,
       };
 
-      program = iris_backend_compile(screen, &params);
+      bin = iris_backend_compile(screen, &params);
+      program = bin ? bin->code : NULL;
       error = params.error_str;
 
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, &brw_prog_data->base.base, ubo_ranges);
+         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -2708,6 +2714,7 @@ iris_compile_tes(struct iris_screen *screen,
 
    const char *error;
    const unsigned *program;
+   intel_shader_bin *bin = NULL;
 
    if (screen->brw) {
       struct brw_tes_prog_data *brw_prog_data =
@@ -2736,12 +2743,13 @@ iris_compile_tes(struct iris_screen *screen,
          .archiver = debug_archiver,
       };
 
-      program = iris_backend_compile(screen, &params);
+      bin = iris_backend_compile(screen, &params);
+      program = bin ? bin->code : NULL;
       error = params.error_str;
 
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, &brw_prog_data->base.base, ubo_ranges);
+         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -2904,6 +2912,7 @@ iris_compile_gs(struct iris_screen *screen,
 
    const char *error;
    const unsigned *program;
+   intel_shader_bin *bin = NULL;
    if (screen->brw) {
       struct brw_gs_prog_data *brw_prog_data =
          rzalloc(mem_ctx, struct brw_gs_prog_data);
@@ -2924,11 +2933,12 @@ iris_compile_gs(struct iris_screen *screen,
          .archiver = debug_archiver,
       };
 
-      program = iris_backend_compile(screen, &params);
+      bin = iris_backend_compile(screen, &params);
+      program = bin ? bin->code : NULL;
       error = params.error_str;
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, &brw_prog_data->base.base, ubo_ranges);
+         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -3141,6 +3151,7 @@ iris_compile_fs(struct iris_screen *screen,
 
    const char *error;
    const unsigned *program;
+   intel_shader_bin *bin = NULL;
 
    if (screen->brw) {
       struct brw_fs_prog_data *brw_prog_data =
@@ -3170,11 +3181,12 @@ iris_compile_fs(struct iris_screen *screen,
          params.fs.rt_write_data = (void *)&screen->isl_dev;
       }
 
-      program = iris_backend_compile(screen, &params);
+      bin = iris_backend_compile(screen, &params);
+      program = bin ? bin->code : NULL;
       error = params.error_str;
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, &brw_prog_data->base, ubo_ranges);
+         iris_apply_brw_prog_data(shader, bin, ubo_ranges);
       }
    } else {
 #ifdef INTEL_USE_ELK
@@ -3490,6 +3502,7 @@ iris_compile_cs(struct iris_screen *screen,
 
    const char *error;
    const unsigned *program;
+   intel_shader_bin *bin = NULL;
 
    if (screen->brw) {
       struct brw_cs_prog_key brw_key = iris_to_brw_cs_key(screen, key);
@@ -3520,11 +3533,12 @@ iris_compile_cs(struct iris_screen *screen,
          .archiver = debug_archiver,
       };
 
-      program = iris_backend_compile(screen, &params);
+      bin = iris_backend_compile(screen, &params);
+      program = bin ? bin->code : NULL;
       error = params.error_str;
       if (program) {
          iris_debug_recompile(dbg, ish, key);
-         iris_apply_brw_prog_data(shader, &brw_prog_data->base, NULL);
+         iris_apply_brw_prog_data(shader, bin, NULL);
       }
    } else {
 #ifdef INTEL_USE_ELK

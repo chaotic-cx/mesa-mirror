@@ -162,6 +162,7 @@ iris_create_shader_variant(const struct iris_screen *screen,
    }
 
    shader->stage = stage;
+   shader->info.stage = MESA_SHADER_NONE;
 
    return shader;
 }
@@ -321,7 +322,12 @@ iris_blorp_upload_shader(struct blorp_batch *blorp_batch, uint32_t stage,
    memcpy(prog_data, prog_data_templ, prog_data_size);
 
    if (screen->brw) {
-      iris_apply_brw_prog_data(shader, prog_data, NULL);
+      intel_shader_bin bin = {
+         .info.stage = stage,
+         .code_size = ((struct brw_stage_prog_data *)prog_data)->program_size,
+         .prog_data = prog_data,
+      };
+      iris_apply_brw_prog_data(shader, &bin, NULL);
    } else {
 #ifdef INTEL_USE_ELK
       assert(screen->elk);
@@ -488,6 +494,7 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
                                  sizeof(key), &key);
 
    const unsigned *program;
+   intel_shader_bin *bin = NULL;
    if (screen->brw) {
       union brw_any_prog_key prog_key;
       memset(&prog_key, 0, sizeof(prog_key));
@@ -510,10 +517,10 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
          .log_data = &ice->dbg,
          .debug_flag = DEBUG_WM,
       };
-      const intel_shader_bin *bin = brw_compile(screen->brw, &params);
+      bin = brw_compile(screen->brw, &params);
       assert(bin);
       program = bin->code;
-      iris_apply_brw_prog_data(shader, &prog_data->base, NULL);
+      iris_apply_brw_prog_data(shader, bin, NULL);
    } else {
 #ifdef INTEL_USE_ELK
       union elk_any_prog_key prog_key;

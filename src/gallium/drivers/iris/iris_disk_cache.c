@@ -72,12 +72,14 @@ iris_disk_cache_store_brw(struct disk_cache *cache,
     * 1. Prog data (must come first because it has the assembly size)
     *   - Zero out pointer values in prog data, so cache entries will be
     *     consistent.
-    * 2. Assembly code
-    * 3. Number of entries in the system value array
-    * 4. System value array
-    * 5. Shader relocations
-    * 6. UBO ranges
-    * 7. Binding table
+    * 2. Shader info
+    * 3. Assembly size
+    * 4. Assembly code
+    * 5. Number of entries in the system value array
+    * 6. System value array
+    * 7. Shader relocations
+    * 8. UBO ranges
+    * 9. Binding table
     */
    size_t prog_data_s = brw_prog_data_size(stage);
    union brw_any_prog_data serializable;
@@ -86,6 +88,8 @@ iris_disk_cache_store_brw(struct disk_cache *cache,
    serializable.base.relocs = NULL;
    blob_write_bytes(&blob, &serializable, prog_data_s);
 
+   blob_write_bytes(&blob, &shader->info, sizeof(shader->info));
+   blob_write_uint32(&blob, shader->program_size);
    blob_write_bytes(&blob, shader->map, shader->program_size);
    blob_write_uint32(&blob, shader->num_system_values);
    blob_write_bytes(&blob, shader->system_values,
@@ -213,6 +217,7 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
    mesa_shader_stage stage = ish->nir->info.stage;
    const uint32_t prog_data_size = brw_prog_data_size(stage);
    struct brw_stage_prog_data *brw = ralloc_size(NULL, prog_data_size);
+   intel_shader_bin bin = {};
    const void *assembly;
    uint32_t num_system_values;
    uint32_t *system_values = NULL;
@@ -222,7 +227,10 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
    blob_reader_init(&blob, buffer, size);
    blob_copy_bytes(&blob, brw, prog_data_size);
 
-   assembly = blob_read_bytes(&blob, brw->program_size);
+   blob_copy_bytes(&blob, &bin.info, sizeof(bin.info));
+   bin.code_size = blob_read_uint32(&blob);
+   assembly = blob_read_bytes(&blob, bin.code_size);
+   bin.code = assembly;
    num_system_values = blob_read_uint32(&blob);
    if (num_system_values) {
       system_values =
@@ -239,6 +247,9 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
                       brw->num_relocs * sizeof(struct intel_shader_reloc));
       brw->relocs = relocs;
    }
+
+   bin.prog_data = brw;
+
    blob_copy_bytes(&blob, shader->ubo_ranges, sizeof(shader->ubo_ranges));
 
    struct iris_binding_table bt;
@@ -263,7 +274,7 @@ iris_disk_cache_retrieve_brw(struct iris_screen *screen,
    if (num_system_values)
       num_cbufs++;
 
-   iris_apply_brw_prog_data(shader, brw, NULL);
+   iris_apply_brw_prog_data(shader, &bin, NULL);
 
    iris_finalize_program(shader, so_decls, system_values,
                          num_system_values, num_cbufs,

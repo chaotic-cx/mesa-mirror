@@ -677,6 +677,9 @@ struct iris_compiled_shader {
    /** Pointer to the assembly in the BO's map. */
    void *map;
 
+   /** Compiler-derived shader metadata. */
+   struct intel_shader_info info;
+
    /** The program data (owned by the program cache hash table) */
    struct brw_stage_prog_data *brw_prog_data;
    struct elk_stage_prog_data *elk_prog_data;
@@ -1396,7 +1399,7 @@ uint32_t iris_bti_to_group_index(const struct iris_binding_table *bt,
                                  enum iris_surface_group group,
                                  uint32_t bti);
 void iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
-                              struct brw_stage_prog_data *prog_data,
+                              const intel_shader_bin *bin,
                               struct iris_ubo_range *ubo_ranges);
 void iris_apply_elk_prog_data(struct iris_compiled_shader *shader,
                               struct elk_stage_prog_data *prog_data);
