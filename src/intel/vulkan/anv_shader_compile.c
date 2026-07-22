@@ -2458,15 +2458,13 @@ anv_shader_compile(struct vk_device *vk_device,
       const struct intel_device_info *devinfo = compiler->devinfo;
       nir_shader *nir = shader_data->info->nir;
 
-      shader_data->num_stats = 1;
-
       struct brw_compile_params params = {
          .mem_ctx = mem_ctx,
          .nir = nir,
          .key = &shader_data->key.base,
          .prog_data = &shader_data->prog_data.base,
          .push_layout = shader_data->push_layout,
-         .stats = shader_data->stats,
+         .collect_register_pressure = true,
          .log_data = device,
          .archiver = shader_data->archiver,
       };
@@ -2526,8 +2524,6 @@ anv_shader_compile(struct vk_device *vk_device,
          if (bin) {
             shader_data->code = bin->code;
             shader_data->bin = bin;
-            for (unsigned i = 0; i < bin->num_stats; i++)
-               shader_data->stats[i] = bin->stats[i];
 
             if (mesa_shader_stage_uses_workgroup(nir->info.stage)) {
                struct brw_cs_prog_data *prog_data =
@@ -2553,13 +2549,6 @@ anv_shader_compile(struct vk_device *vk_device,
       assert(shader_data->prog_data.base.source_hash == shader_data->source_hash);
 
       if (shader_data->info->stage == MESA_SHADER_FRAGMENT) {
-         shader_data->num_stats =
-            (uint32_t)!!shader_data->prog_data.fs.dispatch_multi +
-            (uint32_t)shader_data->prog_data.fs.dispatch_8 +
-            (uint32_t)shader_data->prog_data.fs.dispatch_16 +
-            (uint32_t)shader_data->prog_data.fs.dispatch_32;
-         assert(shader_data->num_stats <= ARRAY_SIZE(shader_data->stats));
-
          /* Update the push constant padding range now that we know the amount
           * of per-primitive data delivered in the payload.
           */

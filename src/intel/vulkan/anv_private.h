@@ -1323,9 +1323,6 @@ struct anv_shader {
 
    const struct brw_stage_prog_data *prog_data;
 
-   struct genisa_stats stats[3];
-   uint32_t num_stats;
-
    char *nir_str;
 
    struct nir_xfb_info *xfb_info;
@@ -5618,9 +5615,6 @@ struct anv_shader_internal {
 
    const struct brw_stage_prog_data *prog_data;
    uint32_t prog_data_size;
-
-   struct genisa_stats stats[3];
-   uint32_t num_stats;
 };
 
 static inline struct anv_shader_internal *

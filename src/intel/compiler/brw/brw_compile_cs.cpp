@@ -210,7 +210,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
          .compile_params          = params,
          .nir                     = shader,
          .dispatch_width          = dispatch_width,
-         .needs_register_pressure = params->stats != NULL,
+         .needs_register_pressure = params->collect_register_pressure,
          .debug_enabled           = debug_enabled,
       };
       v[simd] = std::make_unique<brw_shader>(&shader_params);
@@ -264,12 +264,10 @@ brw_compile_cs(const struct brw_compiler *compiler,
       .prog_data = &prog_data->base,
    };
 
-   unsigned num_variants = 0;
    for (unsigned simd = 0; simd < 3; simd++) {
       if (prog_data->prog_mask & (1u << simd)) {
          assert(v[simd]);
          to_binary_params.shaders[simd] = v[simd].get();
-         num_variants++;
          prog_data->base.grf_used = MAX2(prog_data->base.grf_used,
                                          v[simd]->grf_used);
       }
@@ -285,8 +283,8 @@ brw_compile_cs(const struct brw_compiler *compiler,
    /* Override per-variant max_dispatch_width to make reports more useful. */
    const uint32_t max_dispatch_width =
       8u << (util_last_bit(prog_data->prog_mask) - 1);
-   for (unsigned i = 0; i < num_variants && params->stats; i++)
-      params->stats[i].max_dispatch_width = max_dispatch_width;
+   for (unsigned i = 0; i < bin->num_stats; i++)
+      bin->stats[i].max_dispatch_width = max_dispatch_width;
 
    return bin;
 }

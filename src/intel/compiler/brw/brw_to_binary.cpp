@@ -2662,7 +2662,8 @@ brw_to_binary(const brw_to_binary_params *p)
 
    brw_generator g(p->compiler, p->params, prog_data, prog_data->stage);
 
-   struct genisa_stats *stats = p->params->stats;
+   struct genisa_stats stats[BRW_TO_BINARY_MAX_SHADERS] = {};
+   unsigned num_stats = 0;
    const brw_shader *first_shader = NULL;
    for (unsigned i = 0; i < BRW_TO_BINARY_MAX_SHADERS; i++) {
       brw_shader *shader = p->shaders[i];
@@ -2674,10 +2675,7 @@ brw_to_binary(const brw_to_binary_params *p)
       else
          assert(shader->info.stage == first_shader->info.stage);
 
-      brw_to_binary_emit_shader(g, p, shader, stats, NULL);
-
-      if (stats)
-         stats++;
+      brw_to_binary_emit_shader(g, p, shader, &stats[num_stats++], NULL);
    }
 
    if (p->num_resume_shaders > 0) {
@@ -2731,6 +2729,10 @@ brw_to_binary(const brw_to_binary_params *p)
    bin->code = code;
    bin->code_size = g.get_output_size();
    bin->prog_data = prog_data;
+
+   assert(num_stats <= ARRAY_SIZE(bin->stats));
+   memcpy(bin->stats, stats, num_stats * sizeof(stats[0]));
+   bin->num_stats = num_stats;
 
    return bin;
 }

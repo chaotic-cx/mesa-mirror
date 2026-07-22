@@ -119,7 +119,7 @@ brw_compile_bs(const struct brw_compiler *compiler,
 
    std::unique_ptr<brw_shader> main_shader =
       compile_single_bs(compiler, params, key, prog_data,
-                        shader, params->stats != NULL);
+                        shader, params->collect_register_pressure);
    if (!main_shader)
       return NULL;
 

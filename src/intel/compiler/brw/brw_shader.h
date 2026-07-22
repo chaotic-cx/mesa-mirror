@@ -436,8 +436,7 @@ struct brw_to_binary_params {
    struct brw_stage_prog_data *prog_data;
 
    /* Main shaders.  Slots with shader == NULL are skipped.  Non-skipped
-    * slots are processed in array order, each consuming (in turn) one entry
-    * from params->stats if it is non-NULL.
+    * slots are processed in array order.
     *
     * After the call, each emitted shader's start_offset field is set to the
     * offset of its code within the returned binary.

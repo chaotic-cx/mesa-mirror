@@ -373,7 +373,7 @@ brw_compile_task(const struct brw_compiler *compiler,
          .compile_params          = params,
          .nir                     = shader,
          .dispatch_width          = dispatch_width,
-         .needs_register_pressure = params->stats != NULL,
+         .needs_register_pressure = params->collect_register_pressure,
          .debug_enabled           = debug_enabled,
       };
       v[simd] = std::make_unique<brw_shader>(&shader_params);
@@ -1098,7 +1098,7 @@ brw_compile_mesh(const struct brw_compiler *compiler,
          .compile_params          = params,
          .nir                     = shader,
          .dispatch_width          = dispatch_width,
-         .needs_register_pressure = params->stats != NULL,
+         .needs_register_pressure = params->collect_register_pressure,
          .debug_enabled           = debug_enabled,
       };
       v[simd] = std::make_unique<brw_shader>(&shader_params);

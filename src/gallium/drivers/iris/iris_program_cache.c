@@ -506,14 +506,13 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
          .push_sizes[0] = uniform_size,
       };
 
-      struct genisa_stats stats[3];
       struct brw_compile_params params = {
          .mem_ctx = nir,
          .nir = nir,
          .key = &prog_key.fs.base,
          .prog_data = (struct brw_stage_prog_data *)prog_data,
          .push_layout = push_layout,
-         .stats = stats,
+         .collect_register_pressure = true,
          .log_data = &ice->dbg,
          .debug_flag = DEBUG_WM,
       };

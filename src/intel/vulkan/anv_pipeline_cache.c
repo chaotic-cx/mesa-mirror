@@ -108,10 +108,8 @@ anv_shader_internal_create(struct anv_device *device,
    shader->prog_data = prog_data;
    shader->prog_data_size = prog_data_size;
 
-   assert(num_stats <= ARRAY_SIZE(shader->stats));
+   assert(num_stats <= ARRAY_SIZE(bin->stats));
    assert((stats != NULL) || (num_stats == 0));
-   typed_memcpy(shader->stats, stats, num_stats);
-   shader->num_stats = num_stats;
 
    shader->code = code;
    memcpy(shader->code, kernel_data, kernel_size);

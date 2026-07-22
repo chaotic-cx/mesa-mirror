@@ -284,7 +284,7 @@ lower_base_workgroup_id(nir_builder *b, nir_intrinsic_instr *intrin,
 }
 
 static void
-check_sends(struct genisa_stats *stats, unsigned send_count)
+check_sends(const struct genisa_stats *stats, unsigned send_count)
 {
    assert(send_count == 0 || stats->spills == 0);
    assert(send_count == 0 || stats->fills == 0);
@@ -407,53 +407,32 @@ compile_shader(struct anv_device *device,
    void *temp_ctx = ralloc_context(NULL);
 
    const intel_shader_bin *bin;
+   struct anv_shader_internal *kernel = NULL;
    if (stage == MESA_SHADER_FRAGMENT) {
       push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
 
-      struct genisa_stats stats[3] = {};
       struct brw_compile_params params = {
          .mem_ctx = temp_ctx,
          .nir = nir,
          .key = &key.fs.base,
          .prog_data = (struct brw_stage_prog_data *)&prog_data.fs,
          .push_layout = push_layout,
-         .stats = stats,
+         .collect_register_pressure = true,
          .log_data = device,
          .debug_flag = DEBUG_WM,
       };
       bin = brw_compile(compiler, &params);
-      assert(bin != NULL);
-
-      if (!ANV_DEBUG(SHADER_PRINT)) {
-         unsigned stat_idx = 0;
-         if (prog_data.fs.dispatch_8) {
-            check_sends(&stats[stat_idx++], sends_count_expectation);
-         }
-         if (prog_data.fs.dispatch_16) {
-            check_sends(&stats[stat_idx++], sends_count_expectation);
-         }
-         if (prog_data.fs.dispatch_32) {
-            check_sends(&stats[stat_idx++], sends_count_expectation *
-                                            (device->info->ver < 20 ? 2 : 1));
-         }
-      } else {
-         for (uint32_t i = 0; i < ARRAY_SIZE(stats); i++) {
-            assert(stats[i].spills == 0);
-            assert(stats[i].fills == 0);
-         }
-      }
    } else {
       brw_cs_fill_push_const_info(device->info, &push_layout, -1, &cs_push);
       push_layout.push_sizes[0] = align(push_layout.push_sizes[0], REG_SIZE);
 
-      struct genisa_stats stats;
       struct brw_compile_params params = {
          .mem_ctx = temp_ctx,
          .nir = nir,
          .key = &key.cs.base,
          .prog_data = (struct brw_stage_prog_data *)&prog_data.cs,
          .push_layout = push_layout,
-         .stats = &stats,
+         .collect_register_pressure = true,
          .log_data = device,
          .debug_flag = DEBUG_CS,
          .cs = {
@@ -462,18 +441,37 @@ compile_shader(struct anv_device *device,
          },
       };
       bin = brw_compile(compiler, &params);
-      assert(bin != NULL);
+   }
 
+   assert(bin != NULL);
+   if (bin == NULL)
+      goto exit;
+
+   if (stage == MESA_SHADER_FRAGMENT) {
       if (!ANV_DEBUG(SHADER_PRINT)) {
-         check_sends(&stats, sends_count_expectation);
+         unsigned stat_idx = 0;
+         if (prog_data.fs.dispatch_8) {
+            check_sends(&bin->stats[stat_idx++], sends_count_expectation);
+         }
+         if (prog_data.fs.dispatch_16) {
+            check_sends(&bin->stats[stat_idx++], sends_count_expectation);
+         }
+         if (prog_data.fs.dispatch_32) {
+            check_sends(&bin->stats[stat_idx++], sends_count_expectation *
+                                            (device->info->ver < 20 ? 2 : 1));
+         }
+      } else {
+         for (uint32_t i = 0; i < bin->num_stats; i++) {
+            assert(bin->stats[i].spills == 0);
+            assert(bin->stats[i].fills == 0);
+         }
       }
+   } else if (!ANV_DEBUG(SHADER_PRINT)) {
+      check_sends(&bin->stats[0], sends_count_expectation);
    }
 
    /* Complex shaders are allowed to spill */
    assert(sends_count_expectation == 0 || prog_data.base.total_scratch == 0);
-   struct anv_shader_internal *kernel = NULL;
-   if (bin == NULL)
-      goto exit;
 
    struct anv_pipeline_bind_map empty_bind_map = {};
    struct anv_push_descriptor_info empty_push_desc_info = {};

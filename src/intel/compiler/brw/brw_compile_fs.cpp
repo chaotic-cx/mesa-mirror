@@ -1360,7 +1360,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
       .compile_params          = params,
       .nir                     = nir,
       .per_primitive_offsets   = per_primitive_offsets,
-      .needs_register_pressure = params->stats != NULL,
+      .needs_register_pressure = params->collect_register_pressure,
       .debug_enabled           = debug_enabled,
    };
 
@@ -1681,8 +1681,8 @@ brw_compile_fs(const struct brw_compiler *compiler,
       prog_data->prog_offset_32 = v32->start_offset;
 
    /* Override per-variant max_dispatch_width to make reports more useful. */
-   for (unsigned i = 0; i < num_variants && params->stats; i++)
-      params->stats[i].max_dispatch_width = max_dispatch_width;
+   for (unsigned i = 0; i < bin->num_stats; i++)
+      bin->stats[i].max_dispatch_width = max_dispatch_width;
 
    return bin;
 }

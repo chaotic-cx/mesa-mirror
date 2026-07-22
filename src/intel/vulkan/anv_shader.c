@@ -169,20 +169,19 @@ anv_shader_deserialize(struct vk_device *vk_device,
    data.code = (void *)blob_read_bytes(blob, code_len);
 
    blob_copy_bytes(blob, &data.prog_data, brw_prog_data_size(stage));
+
    data.prog_data.base.relocs =
       blob_read_bytes(blob, data.prog_data.base.num_relocs *
                       sizeof(data.prog_data.base.relocs[0]));
 
-   data.num_stats = blob_read_uint32(blob);
-   if (data.num_stats > ARRAY_SIZE(data.stats))
+   bin.num_stats = blob_read_uint32(blob);
+   if (bin.num_stats > ARRAY_SIZE(bin.stats))
       return vk_error(device, VK_ERROR_UNKNOWN);
-   blob_copy_bytes(blob, data.stats, data.num_stats * sizeof(data.stats[0]));
+   blob_copy_bytes(blob, bin.stats, bin.num_stats * sizeof(bin.stats[0]));
 
    bin.code = data.code;
    bin.code_size = code_len;
    bin.prog_data = &data.prog_data.base;
-   bin.num_stats = data.num_stats;
-   typed_memcpy(bin.stats, data.stats, data.num_stats);
    data.bin = &bin;
 
    uint32_t xfb_size = blob_read_uint32(blob);
@@ -326,8 +325,8 @@ anv_shader_get_executable_properties(struct vk_device *device,
    struct anv_shader *shader =
       container_of(vk_shader, struct anv_shader, vk);
 
-   for (uint32_t i = 0; i < shader->num_stats; i++) {
-      const struct genisa_stats *stats = &shader->stats[i];
+   for (uint32_t i = 0; i < shader->bin->num_stats; i++) {
+      const struct genisa_stats *stats = &shader->bin->stats[i];
 
       vk_outarray_append_typed(VkPipelineExecutablePropertiesKHR, &out, props) {
          mesa_shader_stage stage = vk_shader->stage;
@@ -375,8 +374,8 @@ anv_shader_get_executable_statistics(struct vk_device *vk_device,
    struct anv_shader *shader =
       container_of(vk_shader, struct anv_shader, vk);
 
-   assert(executable_index < shader->num_stats);
-   vk_add_genisa_stats(out, &shader->stats[executable_index]);
+   assert(executable_index < shader->bin->num_stats);
+   vk_add_genisa_stats(out, &shader->bin->stats[executable_index]);
    return VK_SUCCESS;
 }
 
@@ -543,7 +542,7 @@ anv_shader_get_executable_internal_representations(
    bool incomplete_text = false;
    struct anv_shader *shader =
       container_of(vk_shader, struct anv_shader, vk);
-   assert(executable_index < shader->num_stats);
+   assert(executable_index < shader->bin->num_stats);
 
    if (shader->nir_str) {
       vk_outarray_append_typed(VkPipelineExecutableInternalRepresentationKHR, &out, ir) {
@@ -894,14 +893,6 @@ anv_shader_create(struct anv_device *device,
    *bin = *shader_data->bin;
    bin->code = shader->code;
    bin->prog_data = prog_data;
-
-   /* TODO: Remove once BRW reports statistics through the shader bin. */
-   assert(shader_data->num_stats <= ARRAY_SIZE(bin->stats));
-   bin->num_stats = shader_data->num_stats;
-   typed_memcpy(bin->stats, shader_data->stats, shader_data->num_stats);
-
-   shader->num_stats = shader_data->num_stats;
-   typed_memcpy(shader->stats, shader_data->stats, shader_data->num_stats);
 
    if (shader_data->xfb_info) {
       *xfb_info = *shader_data->xfb_info;

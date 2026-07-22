@@ -145,7 +145,7 @@ brw_compile_vs(const struct brw_compiler *compiler,
       .compile_params          = params,
       .nir                     = nir,
       .dispatch_width          = dispatch_width,
-      .needs_register_pressure = params->stats != NULL,
+      .needs_register_pressure = params->collect_register_pressure,
       .debug_enabled           = debug_enabled,
    };
    brw_shader v(&shader_params);

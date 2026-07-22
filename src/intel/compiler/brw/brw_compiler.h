@@ -1261,8 +1261,7 @@ struct brw_compile_params {
 
    struct intel_push_layout push_layout;
 
-   /** Filled by the compiler, one entry per compiled variant. */
-   struct genisa_stats *stats;
+   bool collect_register_pressure;
 
    void *log_data;
 
