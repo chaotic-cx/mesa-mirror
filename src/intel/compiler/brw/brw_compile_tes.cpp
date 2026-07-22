@@ -59,7 +59,7 @@ brw_fill_tess_info_from_shader_info(struct brw_tess_info *brw_info,
    brw_info->point_mode = shader_info->tess.point_mode;
 }
 
-const unsigned *
+intel_shader_bin *
 brw_compile_tes(const struct brw_compiler *compiler,
                 brw_compile_params *params)
 {

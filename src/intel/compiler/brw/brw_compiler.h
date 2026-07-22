@@ -1326,7 +1326,7 @@ struct brw_compile_params {
    debug_archiver *archiver;
 };
 
-const unsigned *
+intel_shader_bin *
 brw_compile(const struct brw_compiler *compiler,
             struct brw_compile_params *params);
 

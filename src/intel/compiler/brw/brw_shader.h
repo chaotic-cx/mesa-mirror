@@ -424,9 +424,9 @@ brw_inst *brw_transform_inst(brw_shader &s, brw_inst *inst, enum opcode new_opco
 /* Maximum number of entries in brw_to_binary_params::shaders.
  *
  * This covers the most demanding caller (brw_compile_fs, which emits up to
- * four variants: vmulti, simd8, simd16, simd32).
+ * three variants: vmulti or simd8, simd16, simd32).
  */
-#define BRW_TO_BINARY_MAX_SHADERS 4
+#define BRW_TO_BINARY_MAX_SHADERS INTEL_SHADER_BIN_MAX_STATS
 
 struct brw_to_binary_params {
    const struct brw_compiler *compiler;
@@ -457,6 +457,6 @@ struct brw_to_binary_params {
    unsigned extra_const_data_size;
 };
 
-const unsigned *brw_to_binary(const brw_to_binary_params *p);
+intel_shader_bin *brw_to_binary(const brw_to_binary_params *p);
 
 brw_reg brw_get_scratch64_surface_state_addr(brw_shader *shader);

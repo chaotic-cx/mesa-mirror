@@ -421,7 +421,8 @@ compile_shader(struct anv_device *device,
          .log_data = device,
          .debug_flag = DEBUG_WM,
       };
-      program = brw_compile(compiler, &params);
+      const intel_shader_bin *bin = brw_compile(compiler, &params);
+      program = bin ? bin->code : NULL;
 
       if (!ANV_DEBUG(SHADER_PRINT)) {
          unsigned stat_idx = 0;
@@ -460,7 +461,8 @@ compile_shader(struct anv_device *device,
             .push = cs_push,
          },
       };
-      program = brw_compile(compiler, &params);
+      const intel_shader_bin *bin = brw_compile(compiler, &params);
+      program = bin ? bin->code : NULL;
 
       if (!ANV_DEBUG(SHADER_PRINT)) {
          check_sends(&stats, sends_count_expectation);

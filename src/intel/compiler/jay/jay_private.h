@@ -39,7 +39,8 @@ void jay_populate_prog_data(const struct intel_device_info *devinfo,
                             struct jay_fs_perprim_data *fs_perprim);
 void jay_process_nir(const struct intel_device_info *devinfo,
                      const struct jay_compile_params *params,
-                     struct jay_fs_perprim_data *fs_perprim);
+                     struct jay_fs_perprim_data *fs_perprim,
+                     struct intel_shader_info *info);
 unsigned jay_select_simd(const struct intel_device_info *, nir_shader *nir);
 void jay_process_nir_for_simd(const struct intel_device_info *devinfo,
                               const struct jay_compile_params *params,
@@ -127,10 +128,11 @@ gen_pipe jay_inst_exec_pipe(const struct intel_device_info *devinfo,
 unsigned jay_latency(jay_shader *s, jay_inst *I, bool bias_acc);
 unsigned jay_estimate_cycles(jay_function *f);
 
-struct jay_shader_bin *jay_to_binary(jay_shader *s,
-                                     void *const_data,
-                                     size_t const_data_size,
-                                     bool debug);
+intel_shader_bin *jay_to_binary(jay_shader *s,
+                                const struct intel_shader_info *info,
+                                void *const_data,
+                                size_t const_data_size,
+                                bool debug);
 
 /*
  * Check whether the Early EOT feature is possibly enabled. This feature was

@@ -101,7 +101,7 @@ compile_single_bs(const struct brw_compiler *compiler,
    return s;
 }
 
-const unsigned *
+intel_shader_bin *
 brw_compile_bs(const struct brw_compiler *compiler,
                struct brw_compile_params *params)
 {

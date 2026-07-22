@@ -169,7 +169,7 @@ lower_single_patch_invocation_id(nir_shader *nir)
                                      nir_metadata_control_flow, NULL);
 }
 
-extern "C" const unsigned *
+extern "C" intel_shader_bin *
 brw_compile_tcs(const struct brw_compiler *compiler,
                 struct brw_compile_params *params)
 {

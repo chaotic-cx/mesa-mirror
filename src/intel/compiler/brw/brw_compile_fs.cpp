@@ -1223,7 +1223,7 @@ limit_fs_dispatch_width(const struct intel_device_info *devinfo,
 #define INTEL_SIMD_FORCE(x) \
    ((intel_simd_overridden & (1 << MESA_SHADER_FRAGMENT)) && INTEL_SIMD(FS, x))
 
-const unsigned *
+intel_shader_bin *
 brw_compile_fs(const struct brw_compiler *compiler,
                struct brw_compile_params *params)
 {
@@ -1673,7 +1673,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
       max_dispatch_width = 32;
    }
 
-   const unsigned *assembly = brw_to_binary(&to_binary_params);
+   intel_shader_bin *bin = brw_to_binary(&to_binary_params);
 
    if (v16)
       prog_data->prog_offset_16 = v16->start_offset;
@@ -1684,7 +1684,7 @@ brw_compile_fs(const struct brw_compiler *compiler,
    for (unsigned i = 0; i < num_variants && params->stats; i++)
       params->stats[i].max_dispatch_width = max_dispatch_width;
 
-   return assembly;
+   return bin;
 }
 
 extern "C" void

@@ -2051,7 +2051,7 @@ set_debug_archive_filename(const struct anv_shader_data *shader_data,
 }
 
 
-static struct jay_shader_bin *
+static intel_shader_bin *
 anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
                        nir_shader *nir,
                        struct brw_compile_params *params,
@@ -2083,7 +2083,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       jc_params.cs.force_simd32 = params->cs.force_simd32;
    }
 
-   struct jay_shader_bin *main_bin = jay_compile(devinfo, &jc_params);
+   intel_shader_bin *main_bin = jay_compile(devinfo, &jc_params);
    if (!main_bin)
       return NULL;
 
@@ -2100,11 +2100,11 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    union brw_any_prog_data main_prog_data = *prog_data;
 
    /* Account main shader size */
-   uint64_t total_bin_size = main_bin->size;
+   uint64_t total_bin_size = main_bin->code_size;
 
    /* Tracks resume shader binaries */
-   struct jay_shader_bin **resume_shader_bins =
-      ralloc_array(mem_ctx, struct jay_shader_bin *,
+   intel_shader_bin **resume_shader_bins =
+      ralloc_array(mem_ctx, intel_shader_bin *,
                    params->bs.num_resume_shaders);
    /* Tracks how many GRF used by resume shader */
    unsigned *resume_grf_used = ralloc_array(mem_ctx, unsigned,
@@ -2153,7 +2153,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
 
       /* Ensure shaders start at 64 byte boundary. */
       total_bin_size = align(total_bin_size, 64);
-      total_bin_size += resume_shader_bins[i]->size;
+      total_bin_size += resume_shader_bins[i]->code_size;
 
       /* Account for resume shaders number of relocation, plus the SBT offset
        * reloc.
@@ -2181,11 +2181,11 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    uint32_t resume_sbt_offset = align(total_bin_size, 32);
    total_bin_size = resume_sbt_offset + sbt_size;
 
-   uint8_t *combined_bin = rzalloc_size(mem_ctx, total_bin_size);
-   uint32_t copy_offset = main_bin->size;
+   uint8_t *combined_bin = rzalloc_size(main_bin, total_bin_size);
+   uint32_t copy_offset = main_bin->code_size;
 
    /* Copy main shader blob first */
-   memcpy(combined_bin, main_bin->kernel, main_bin->size);
+   memcpy(combined_bin, main_bin->code, main_bin->code_size);
 
    /* Tracks BSR */
    uint64_t *resume_sbt = rzalloc_array(mem_ctx, uint64_t,
@@ -2195,7 +2195,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       /* Start each resume shader at 64B offset */
       copy_offset = align(copy_offset, 64);
       memcpy(combined_bin + copy_offset,
-            resume_shader_bins[i]->kernel, resume_shader_bins[i]->size);
+            resume_shader_bins[i]->code, resume_shader_bins[i]->code_size);
 
       uint32_t resume_reloc_offset = copy_offset;
       assert(resume_reloc_offset > 0);
@@ -2219,7 +2219,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
       };
 
       /* Move copy offset by resume shader size */
-      copy_offset += resume_shader_bins[i]->size;
+      copy_offset += resume_shader_bins[i]->code_size;
    }
 
    /* Copy SBT table at the end */
@@ -2233,11 +2233,9 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    bs_prog_data->base.num_relocs = reloc_count;
    bs_prog_data->base.program_size = total_bin_size;
 
-   struct jay_shader_bin *final_bin = rzalloc(mem_ctx, struct jay_shader_bin);
-
-   final_bin->kernel = (uint32_t *)combined_bin;
-   final_bin->size = total_bin_size;
-   main_bin = final_bin;
+   ralloc_free((void *)main_bin->code);
+   main_bin->code = combined_bin;
+   main_bin->code_size = total_bin_size;
 
    return main_bin;
 }
@@ -2523,12 +2521,12 @@ anv_shader_compile(struct vk_device *vk_device,
       brw_nir_select_divergence_options(compiler, nir, use_jay);
 
       if (use_jay) {
-         struct jay_shader_bin *bin =
+         intel_shader_bin *bin =
             anv_shader_compile_jay(devinfo, mem_ctx, nir, &params, shader_data);
 
          if (bin) {
-            shader_data->code = bin->kernel;
-            for (unsigned i = 0; i < 3; i++)
+            shader_data->code = bin->code;
+            for (unsigned i = 0; i < bin->num_stats; i++)
                shader_data->stats[i] = bin->stats[i];
 
             if (mesa_shader_stage_uses_workgroup(nir->info.stage)) {
@@ -2546,7 +2544,8 @@ anv_shader_compile(struct vk_device *vk_device,
 
          set_debug_archive_filename(shader_data, has_resume_shaders, -1);
 
-         shader_data->code = brw_compile(compiler, &params);
+         const intel_shader_bin *bin = brw_compile(compiler, &params);
+         shader_data->code = bin ? bin->code : NULL;
       }
 
       /* The compiler should not alter this. */

@@ -2654,7 +2654,7 @@ brw_to_binary_emit_shader(brw_generator &g,
    shader->start_offset = g.generate_code(*shader, stats);
 }
 
-const unsigned *
+intel_shader_bin *
 brw_to_binary(const brw_to_binary_params *p)
 {
    struct brw_stage_prog_data *prog_data = p->prog_data;
@@ -2714,5 +2714,15 @@ brw_to_binary(const brw_to_binary_params *p)
       }
    }
 
-   return g.get_assembly();
+   const unsigned *code = g.get_assembly();
+
+   intel_shader_bin *bin =
+      rzalloc(p->params->mem_ctx, intel_shader_bin);
+   bin->info.stage = prog_data->stage;
+   ralloc_steal(bin, (void *)code);
+   bin->code = code;
+   bin->code_size = prog_data->program_size;
+   bin->prog_data = prog_data;
+
+   return bin;
 }

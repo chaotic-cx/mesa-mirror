@@ -114,7 +114,7 @@ brw_nir_uses_sampler(nir_shader *shader)
                                        NULL);
 }
 
-const unsigned *
+intel_shader_bin *
 brw_compile_cs(const struct brw_compiler *compiler,
                struct brw_compile_params *params)
 {
@@ -275,7 +275,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
       }
    }
 
-   const unsigned *assembly = brw_to_binary(&to_binary_params);
+   intel_shader_bin *bin = brw_to_binary(&to_binary_params);
 
    for (unsigned simd = 0; simd < 3; simd++) {
       if (prog_data->prog_mask & (1u << simd))
@@ -288,5 +288,5 @@ brw_compile_cs(const struct brw_compiler *compiler,
    for (unsigned i = 0; i < num_variants && params->stats; i++)
       params->stats[i].max_dispatch_width = max_dispatch_width;
 
-   return assembly;
+   return bin;
 }

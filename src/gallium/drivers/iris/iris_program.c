@@ -98,7 +98,7 @@ iris_backend_compile(const struct iris_screen *screen,
       if (mesa_shader_stage_is_compute(nir->info.stage))
          jc_params.cs.push = params->cs.push;
 
-      struct jay_shader_bin *bin = jay_compile(devinfo, &jc_params);
+      intel_shader_bin *bin = jay_compile(devinfo, &jc_params);
 
       if (bin == NULL)
          return NULL;
@@ -127,9 +127,11 @@ iris_backend_compile(const struct iris_screen *screen,
                               bin->stats[i].code_size);
       }
 
-      return bin->kernel;
+      return bin->code;
    } else {
-      return brw_compile(screen->brw, params);
+      const intel_shader_bin *bin = brw_compile(screen->brw, params);
+
+      return bin ? bin->code : NULL;
    }
 }
 

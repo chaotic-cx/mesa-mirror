@@ -510,8 +510,9 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
          .log_data = &ice->dbg,
          .debug_flag = DEBUG_WM,
       };
-      program = brw_compile(screen->brw, &params);
-      assert(program);
+      const intel_shader_bin *bin = brw_compile(screen->brw, &params);
+      assert(bin);
+      program = bin->code;
       iris_apply_brw_prog_data(shader, &prog_data->base, NULL);
    } else {
 #ifdef INTEL_USE_ELK

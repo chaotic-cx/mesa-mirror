@@ -625,7 +625,8 @@ lower_fragment_outputs(nir_builder *b, nir_intrinsic_instr *intr, void *_)
 void
 jay_process_nir(const struct intel_device_info *devinfo,
                 const struct jay_compile_params *params,
-                struct jay_fs_perprim_data *fs_perprim)
+                struct jay_fs_perprim_data *fs_perprim,
+                struct intel_shader_info *info)
 {
    nir_shader *nir = params->nir;
    union brw_any_prog_data *prog_data = params->prog_data;
@@ -636,6 +637,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
 
    prog_data->base.ray_queries = nir->info.ray_queries;
    prog_data->base.stage = stage;
+   info->stage = stage;
    prog_data->base.total_shared = nir->info.shared_size;
 
    brw_pass_tracker pt_ = {

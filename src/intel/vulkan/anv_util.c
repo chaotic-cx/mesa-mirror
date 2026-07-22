@@ -465,8 +465,8 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
             .error_str = &error_str,
          };
-         struct jay_shader_bin *bin = jay_compile(device->info, &params);
-         tramp_data = bin ? bin->kernel : NULL;
+         intel_shader_bin *bin = jay_compile(device->info, &params);
+         tramp_data = bin ? bin->code : NULL;
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -478,7 +478,9 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
          };
 
-         tramp_data = brw_compile(device->physical->compiler, &params);
+         const intel_shader_bin *bin =
+            brw_compile(device->physical->compiler, &params);
+         tramp_data = bin ? bin->code : NULL;
          error_str = params.error_str;
       }
 
@@ -554,8 +556,8 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
             .error_str = &error_str,
          };
-         struct jay_shader_bin *bin = jay_compile(device->info, &params);
-         return_data = bin ? bin->kernel : NULL;
+         intel_shader_bin *bin = jay_compile(device->info, &params);
+         return_data = bin ? bin->code : NULL;
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -566,7 +568,9 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
          };
 
-         return_data = brw_compile(device->physical->compiler, &params);
+         const intel_shader_bin *bin =
+            brw_compile(device->physical->compiler, &params);
+         return_data = bin ? bin->code : NULL;
          error_str = params.error_str;
       }
 
@@ -641,8 +645,8 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .archiver = debug_archiver,
             .error_str = &error_str,
          };
-         struct jay_shader_bin *bin = jay_compile(device->info, &params);
-         return_data = bin ? bin->kernel : NULL;
+         intel_shader_bin *bin = jay_compile(device->info, &params);
+         return_data = bin ? bin->code : NULL;
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -651,7 +655,9 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .prog_data = (struct brw_stage_prog_data *)&return_prog_data,
             .log_data = device,
          };
-         return_data = brw_compile(device->physical->compiler, &params);
+         const intel_shader_bin *bin =
+            brw_compile(device->physical->compiler, &params);
+         return_data = bin ? bin->code : NULL;
          error_str = params.error_str;
       }
 

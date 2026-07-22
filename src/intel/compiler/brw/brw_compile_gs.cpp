@@ -122,7 +122,7 @@ run_gs(brw_shader &s)
    return !s.failed;
 }
 
-extern "C" const unsigned *
+extern "C" intel_shader_bin *
 brw_compile_gs(const struct brw_compiler *compiler,
                struct brw_compile_params *params)
 {

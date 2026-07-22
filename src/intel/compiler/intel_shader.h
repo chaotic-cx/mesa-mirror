@@ -14,6 +14,10 @@
 #include "util/bitscan.h"
 #include "util/enum_operators.h"
 
+#ifndef __OPENCL_VERSION__
+#include "util/shader_stats.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -575,6 +579,38 @@ struct intel_push_layout {
    unsigned fs_config_param;
 };
 
+#ifndef __OPENCL_VERSION__
+struct brw_stage_prog_data;
+
+/**
+ * Plain-old-data metadata about a compiled shader.
+ *
+ * Must not contain pointers, so it can be trivially serialized.
+ */
+struct intel_shader_info {
+   mesa_shader_stage stage;
+};
+
+#define INTEL_SHADER_BIN_MAX_STATS 3
+
+/**
+ * A compiled shader binary and the metadata needed to use it.
+ *
+ * This is the output of the backend compilers (brw and jay).
+ */
+typedef struct intel_shader_bin {
+   struct intel_shader_info info;
+
+   const void *code;
+   unsigned code_size;
+
+   struct genisa_stats stats[INTEL_SHADER_BIN_MAX_STATS];
+   unsigned num_stats;
+
+   /* TODO: Remove this once fields are migrated to the bin itself. */
+   struct brw_stage_prog_data *prog_data;
+} intel_shader_bin;
+#endif
 #ifdef __cplusplus
 } /* extern "C" */
 #endif

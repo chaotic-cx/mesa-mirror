@@ -106,7 +106,9 @@ blorp_compile_fs_brw(struct blorp_context *blorp, void *mem_ctx,
       .archiver = archiver,
    };
 
-   const unsigned *kernel = brw_compile(compiler, &params);
+   const intel_shader_bin *bin = brw_compile(compiler, &params);
+   assert(bin != NULL);
+   const void *kernel = bin->code;
 
    debug_archiver_close(archiver);
 
@@ -150,7 +152,9 @@ blorp_compile_vs_brw(struct blorp_context *blorp, void *mem_ctx,
       .archiver = archiver,
    };
 
-   const unsigned *kernel = brw_compile(compiler, &params);
+   const intel_shader_bin *bin = brw_compile(compiler, &params);
+   assert(bin != NULL);
+   const void *kernel = bin->code;
 
    debug_archiver_close(archiver);
 
@@ -274,7 +278,9 @@ blorp_compile_cs_brw(struct blorp_context *blorp, void *mem_ctx,
       .archiver = archiver,
    };
 
-   const unsigned *kernel = brw_compile(compiler, &params);
+   const intel_shader_bin *bin = brw_compile(compiler, &params);
+   assert(bin != NULL);
+   const void *kernel = bin->code;
 
    debug_archiver_close(archiver);
 

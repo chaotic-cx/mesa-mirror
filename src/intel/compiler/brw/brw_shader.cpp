@@ -1080,7 +1080,7 @@ brw_allocate_vgrf_units(brw_shader &s, unsigned units_of_REGSIZE)
    return brw_vgrf(brw_allocate_vgrf_number(s, units_of_REGSIZE), BRW_TYPE_UD);
 }
 
-const unsigned *
+intel_shader_bin *
 brw_compile(const struct brw_compiler *compiler,
             struct brw_compile_params *params)
 {

@@ -41,7 +41,7 @@ run_vs(brw_shader &s)
    return !s.failed;
 }
 
-extern "C" const unsigned *
+extern "C" intel_shader_bin *
 brw_compile_vs(const struct brw_compiler *compiler,
                struct brw_compile_params *params)
 {

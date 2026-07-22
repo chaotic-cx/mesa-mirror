@@ -270,7 +270,7 @@ run_task_mesh(brw_shader &s, bool allow_spilling)
    return !s.failed;
 }
 
-const unsigned *
+intel_shader_bin *
 brw_compile_task(const struct brw_compiler *compiler,
                  struct brw_compile_params *params)
 {
@@ -947,7 +947,7 @@ brw_mesh_autostrip_enable(const struct brw_compiler *compiler, struct nir_shader
    return true;
 }
 
-const unsigned *
+intel_shader_bin *
 brw_compile_mesh(const struct brw_compiler *compiler,
                  struct brw_compile_params *params)
 {
@@ -1159,7 +1159,7 @@ brw_compile_mesh(const struct brw_compiler *compiler,
       .extra_const_data = prog_data->map.wa_18019110168_active ? remap_table : NULL,
       .extra_const_data_size = prog_data->map.wa_18019110168_active ? (unsigned)sizeof(remap_table) : 0u,
    };
-   const unsigned *assembly = brw_to_binary(&to_binary_params);
+   intel_shader_bin *bin = brw_to_binary(&to_binary_params);
 
    if (prog_data->map.wa_18019110168_active) {
       prog_data->wa_18019110168_mapping_offset =
@@ -1167,5 +1167,5 @@ brw_compile_mesh(const struct brw_compiler *compiler,
          align(nir->constant_data_size, 32);
    }
 
-   return assembly;
+   return bin;
 }

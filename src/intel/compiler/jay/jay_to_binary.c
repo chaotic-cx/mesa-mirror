@@ -690,13 +690,15 @@ emit(struct jay_codegen *jc,
    }
 }
 
-struct jay_shader_bin *
+intel_shader_bin *
 jay_to_binary(jay_shader *s,
+              const struct intel_shader_info *info,
               void *const_data,
               size_t const_data_size,
               bool debug)
 {
-   struct jay_shader_bin *bin = rzalloc(s, struct jay_shader_bin);
+   intel_shader_bin *bin = rzalloc(s, intel_shader_bin);
+   bin->info = *info;
    void *mem_ctx = ralloc_context(NULL);
 
    int total_gen_insts = 0;
@@ -883,8 +885,8 @@ jay_to_binary(jay_shader *s,
    prog_data->relocs = jc.relocs.data;
    prog_data->num_relocs = num_relocs;
 
-   bin->kernel = (const uint32_t *) jc.output;
-   bin->size = jc.output_size;
+   bin->code = jc.output;
+   bin->code_size = jc.output_size;
 
    ralloc_free(mem_ctx);
    return bin;

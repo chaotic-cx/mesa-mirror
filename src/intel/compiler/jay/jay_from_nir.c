@@ -4969,15 +4969,17 @@ simd_to_index(unsigned simd)
    return util_logbase2(simd) - 3;
 }
 
-static struct jay_shader_bin *
+static intel_shader_bin *
 jay_compile_simd(const struct intel_device_info *devinfo,
                  const struct jay_compile_params *params,
+                 const struct intel_shader_info *base_info,
                  unsigned simd_width,
                  bool bail_if_inefficient,
                  struct jay_fs_perprim_data *fs_perprim)
 {
    nir_shader *nir = params->nir;
    union brw_any_prog_data *prog_data = params->prog_data;
+   struct intel_shader_info info = *base_info;
 
    jay_debug = debug_get_option_jay_debug();
    bool debug =
@@ -5172,15 +5174,18 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       jay_MOV(&b, jay_null(), (uint32_t) (prog_data->base.source_hash >> 32));
    }
 
-   struct jay_shader_bin *bin =
-      jay_to_binary(s, nir->constant_data, nir->constant_data_size, debug);
-   assert(bin->kernel);
+   intel_shader_bin *bin =
+      jay_to_binary(s, &info, nir->constant_data, nir->constant_data_size,
+                    debug);
+   assert(bin->code);
    ralloc_steal(params->mem_ctx, bin);
+   bin->prog_data = &prog_data->base;
+   bin->num_stats = 1;
 
    struct genisa_stats *stats = &bin->stats[0];
 
    jay_gather_stats(s, stats);
-   stats->code_size = bin->size;
+   stats->code_size = bin->code_size;
    stats->workgroup_memory_size = nir->info.shared_size;
 
    if (debug) {
@@ -5218,7 +5223,7 @@ jay_compile_simd(const struct intel_device_info *devinfo,
          MAX2(prog_data->bs.max_stack_size, nir->scratch_size);
    }
 
-   prog_data->base.program_size = bin->size;
+   prog_data->base.program_size = bin->code_size;
 
    /* Take the max of any previously compiled variant of the shader. In the
     * case of bindless shaders with return parts, this will also take the
@@ -5236,7 +5241,7 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    return bin;
 }
 
-struct jay_shader_bin *
+intel_shader_bin *
 jay_compile(const struct intel_device_info *devinfo,
             const struct jay_compile_params *params)
 {
@@ -5256,7 +5261,8 @@ jay_compile(const struct intel_device_info *devinfo,
       prog_data->cs.force_simd32 = params->cs.force_simd32;
    }
 
-   jay_process_nir(devinfo, params, &fs_perprim);
+   struct intel_shader_info info = {};
+   jay_process_nir(devinfo, params, &fs_perprim, &info);
 
    unsigned modes = jay_select_simd(devinfo, nir);
    if (modes == 0) {
@@ -5266,7 +5272,8 @@ jay_compile(const struct intel_device_info *devinfo,
    }
 
    if (util_bitcount(modes) == 1) {
-      return jay_compile_simd(devinfo, params, modes, false, &fs_perprim);
+      return jay_compile_simd(devinfo, params, &info, modes, false,
+                              &fs_perprim);
    }
 
    nir_shader *orig_nir = nir;
@@ -5274,7 +5281,7 @@ jay_compile(const struct intel_device_info *devinfo,
    const unsigned largest = 1u << (util_last_bit(modes) - 1);
 
    struct jay_simd_variant {
-      struct jay_shader_bin *bin;
+      intel_shader_bin *bin;
       char *error;
       const struct intel_shader_reloc *relocs;
       unsigned num_relocs;
@@ -5304,8 +5311,8 @@ jay_compile(const struct intel_device_info *devinfo,
       clone_params.nir = nir;
       clone_params.error_str = &jv->error;
 
-      jv->bin = jay_compile_simd(devinfo, &clone_params,
-                                 simd, simd != smallest, &fs_perprim);
+      jv->bin = jay_compile_simd(devinfo, &clone_params, &info, simd,
+                                 simd != smallest, &fs_perprim);
       jv->relocs = prog_data->base.relocs;
       jv->num_relocs = prog_data->base.num_relocs;
 
@@ -5368,7 +5375,7 @@ jay_compile(const struct intel_device_info *devinfo,
       if (variants[i].bin) {
          /* Ensure shaders start at 64 byte boundary. */
          total_bin_size = align(total_bin_size, 64);
-         total_bin_size += variants[i].bin->size;
+         total_bin_size += variants[i].bin->code_size;
 
          total_num_relocs += variants[i].num_relocs;
       }
@@ -5378,9 +5385,11 @@ jay_compile(const struct intel_device_info *devinfo,
       total_bin_size = align(total_bin_size, 32) + orig_nir->constant_data_size;
    }
 
-   struct jay_shader_bin *bin = rzalloc(mem_ctx, struct jay_shader_bin);
-   bin->kernel = rzalloc_size(mem_ctx, total_bin_size);
-   bin->size = total_bin_size;
+   intel_shader_bin *bin = rzalloc(mem_ctx, intel_shader_bin);
+   bin->info.stage = orig_nir->info.stage;
+   bin->code = rzalloc_size(bin, total_bin_size);
+   bin->code_size = total_bin_size;
+   bin->prog_data = &prog_data->base;
    prog_data->base.program_size = total_bin_size;
    prog_data->base.grf_used = 0;
    if (orig_nir->info.stage == MESA_SHADER_FRAGMENT) {
@@ -5398,7 +5407,7 @@ jay_compile(const struct intel_device_info *devinfo,
       prog_data->base.num_relocs = total_num_relocs;
    }
 
-   uint8_t *kernel = (uint8_t *) bin->kernel;
+   uint8_t *kernel = (uint8_t *) bin->code;
    unsigned offset = 0;
    unsigned reloc_start = 0;
    unsigned s = 0;
@@ -5407,7 +5416,8 @@ jay_compile(const struct intel_device_info *devinfo,
          continue;
 
       offset = align(offset, 64);
-      memcpy(kernel + offset, variants[i].bin->kernel, variants[i].bin->size);
+      memcpy(kernel + offset, variants[i].bin->code,
+             variants[i].bin->code_size);
 
       for (unsigned r = 0; r < variants[i].num_relocs; r++) {
          relocs[reloc_start + r] = variants[i].relocs[r];
@@ -5436,13 +5446,18 @@ jay_compile(const struct intel_device_info *devinfo,
          prog_data->bs.simd_size = 8 << i;
       }
 
-      offset += variants[i].bin->size;
+      offset += variants[i].bin->code_size;
       reloc_start += variants[i].num_relocs;
+
+      if (s == 0)
+         bin->info = variants[i].bin->info;
 
       bin->stats[s++] = variants[i].bin->stats[0];
 
       ralloc_free(variants[i].bin);
    }
+
+   bin->num_stats = s;
 
    if (orig_nir->constant_data_size) {
       offset = align(offset, 32);
