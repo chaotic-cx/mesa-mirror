@@ -606,6 +606,9 @@ struct intel_shader_info {
     */
    unsigned dispatch_grf_start_reg;
 
+   unsigned const_data_offset;
+   unsigned const_data_size;
+
    /** Does this shader pull from any UBO or other constant buffers? */
    bool has_ubo_pull;
 };

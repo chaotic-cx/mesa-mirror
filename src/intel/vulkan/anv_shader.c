@@ -601,7 +601,7 @@ anv_shader_set_relocs(struct anv_device *device,
    const uint64_t shader_data_addr =
       device->physical->va.shader_heap.addr +
       shader->kernel.offset +
-      shader->prog_data->const_data_offset;
+      shader->bin->info.const_data_offset;
 
    assert((device->physical->va.shader_heap.addr & 0xffffffff) == 0);
    reloc_values[rv_count++] = (struct intel_shader_reloc_value) {

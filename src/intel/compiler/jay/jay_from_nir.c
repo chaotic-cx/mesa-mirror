@@ -5467,8 +5467,8 @@ jay_compile(const struct intel_device_info *devinfo,
       offset = align(offset, 32);
       memcpy(kernel + offset, orig_nir->constant_data,
              orig_nir->constant_data_size);
-      prog_data->base.const_data_offset = offset;
-      prog_data->base.const_data_size = orig_nir->constant_data_size;
+      bin->info.const_data_offset = offset;
+      bin->info.const_data_size = orig_nir->constant_data_size;
    }
 
    return bin;

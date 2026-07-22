@@ -871,14 +871,14 @@ jay_to_binary(jay_shader *s,
       }
    }
 
-   assert(prog_data->const_data_size == 0);
+   assert(bin->info.const_data_size == 0);
    if (const_data_size > 0) {
       unsigned offset = align(jc.output_size, 32);
       assert(offset + const_data_size <= output_capacity);
       memcpy(jc.output + offset, const_data, const_data_size);
       jc.output_size = offset + const_data_size;
-      prog_data->const_data_size = const_data_size;
-      prog_data->const_data_offset = offset;
+      bin->info.const_data_size = const_data_size;
+      bin->info.const_data_offset = offset;
    }
 
    prog_data->relocs = jc.relocs.data;

@@ -27,6 +27,8 @@ class brw_generator
 {
 public:
    unsigned get_output_size() const { return output_size; }
+   unsigned const_data_offset = 0;
+   unsigned const_data_size = 0;
 
    brw_generator(const struct brw_compiler *compiler,
                 const struct brw_compile_params *params,
@@ -2437,11 +2439,11 @@ brw_generator::generate_code(const brw_shader &s,
 void
 brw_generator::add_const_data(void *data, unsigned size)
 {
-   assert(prog_data->const_data_size == 0);
+   assert(const_data_size == 0);
 
    if (size > 0) {
-      prog_data->const_data_size = size;
-      prog_data->const_data_offset = append_output(data, size, 32);
+      const_data_size = size;
+      const_data_offset = append_output(data, size, 32);
    }
 }
 
@@ -2751,6 +2753,8 @@ brw_to_binary(const brw_to_binary_params *p)
    ralloc_steal(bin, (void *)code);
    bin->code = code;
    bin->code_size = g.get_output_size();
+   bin->info.const_data_offset = g.const_data_offset;
+   bin->info.const_data_size = g.const_data_size;
    bin->prog_data = prog_data;
 
    assert(num_stats <= ARRAY_SIZE(bin->stats));

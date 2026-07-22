@@ -1171,7 +1171,7 @@ brw_compile_mesh(const struct brw_compiler *compiler,
 
    if (prog_data->map.wa_18019110168_active) {
       prog_data->wa_18019110168_mapping_offset =
-         prog_data->base.base.const_data_offset +
+         bin->info.const_data_offset +
          align(nir->constant_data_size, 32);
    }
 
