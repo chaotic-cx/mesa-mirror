@@ -274,8 +274,8 @@ jay_partition_grf(jay_shader *shader)
    } else if (shader->stage == MESA_SHADER_TESS_CTRL) {
       payload_4[0] =
          1 +
-         shader->prog_data->tcs.include_primitive_id +
-         (shader->prog_data->tcs.input_vertices ?: BRW_MAX_TCS_INPUT_VERTICES);
+         shader->info.tcs.include_primitive_id +
+         (shader->info.tcs.input_vertices ?: BRW_MAX_TCS_INPUT_VERTICES);
       payload_u[1] = shader->push_grfs;
       eot_4 = 16;
    } else if (shader->stage == MESA_SHADER_GEOMETRY) {

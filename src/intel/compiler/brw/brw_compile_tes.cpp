@@ -53,6 +53,7 @@ brw_fill_tess_info_from_shader_info(struct brw_tess_info *brw_info,
    STATIC_ASSERT(INTEL_TESS_PARTITIONING_EVEN_FRACTIONAL ==
                  TESS_SPACING_FRACTIONAL_EVEN - 1);
 
+   *brw_info = {};
    brw_info->primitive_mode = shader_info->tess._primitive_mode;
    brw_info->spacing = shader_info->tess.spacing;
    brw_info->ccw = shader_info->tess.ccw;
@@ -135,14 +136,14 @@ brw_compile_tes(const struct brw_compiler *compiler,
       return NULL;
    }
 
-   prog_data->include_primitive_id =
+   const bool include_primitive_id =
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_PRIMITIVE_ID);
 
    /* URB entry sizes are stored as a multiple of 64 bytes. */
    const unsigned urb_entry_size = align(output_size_bytes, 64) / 64;
 
-   brw_fill_tess_info_from_shader_info(&prog_data->tess_info,
-                                       &nir->info);
+   struct brw_tess_info tess_info;
+   brw_fill_tess_info_from_shader_info(&tess_info, &nir->info);
 
    if (unlikely(debug_enabled)) {
       fprintf(stderr, "TES Input ");
@@ -164,6 +165,10 @@ brw_compile_tes(const struct brw_compiler *compiler,
             .urb_read_length = urb_read_length,
             .urb_entry_size = urb_entry_size,
             .dispatch_mode = INTEL_DISPATCH_MODE_SIMD8,
+         },
+         .tes = {
+            .tess_info = tess_info,
+            .include_primitive_id = include_primitive_id,
          },
       },
       .dispatch_width          = dispatch_width,

@@ -583,6 +583,14 @@ struct intel_push_layout {
 struct brw_stage_prog_data;
 struct intel_shader_reloc;
 
+struct brw_tess_info {
+   enum tess_primitive_mode primitive_mode:8;
+   uint8_t                         spacing:2;
+   bool                                ccw:1;
+   bool                         point_mode:1;
+   uint32_t                            pad:20;
+};
+
 /**
  * Plain-old-data metadata about a compiled shader.
  *
@@ -648,6 +656,28 @@ struct intel_shader_info {
          bool uses_baseinstance;
          bool uses_drawid;
       } vs;
+      struct {
+         struct brw_tess_info tess_info;
+
+         /** Number of input vertices, 0 means dynamic */
+         uint32_t input_vertices;
+
+         /** Number of output vertices */
+         uint32_t output_vertices;
+
+         /** Number vertices in output patch */
+         uint32_t instances;
+
+         /** Track patch count threshold */
+         int32_t patch_count_threshold;
+
+         /** Should the non-SINGLE_PATCH payload provide primitive ID? */
+         bool include_primitive_id;
+      } tcs;
+      struct {
+         struct brw_tess_info tess_info;
+         bool include_primitive_id;
+      } tes;
    };
 };
 

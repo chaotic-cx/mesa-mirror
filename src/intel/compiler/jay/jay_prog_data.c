@@ -518,16 +518,15 @@ populate_vs_prog_data(nir_shader *nir,
 static void
 populate_tcs_prog_data(nir_shader *nir,
                        const struct brw_tcs_prog_key *key,
-                       struct brw_tcs_prog_data *prog_data,
                        struct intel_shader_info *info)
 {
-   brw_fill_tess_info_from_shader_info(&prog_data->tess_info, &nir->info);
+   brw_fill_tess_info_from_shader_info(&info->tcs.tess_info, &nir->info);
 
-   prog_data->input_vertices = key->input_vertices;
-   prog_data->output_vertices = nir->info.tess.tcs_vertices_out;
+   info->tcs.input_vertices = key->input_vertices;
+   info->tcs.output_vertices = nir->info.tess.tcs_vertices_out;
 
-   prog_data->instances = nir->info.tess.tcs_vertices_out;
-   prog_data->include_primitive_id =
+   info->tcs.instances = nir->info.tess.tcs_vertices_out;
+   info->tcs.include_primitive_id =
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_PRIMITIVE_ID);
    info->vue.dispatch_mode = INTEL_DISPATCH_MODE_TCS_MULTI_PATCH;
 
@@ -610,7 +609,7 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
    if (nir->info.stage == MESA_SHADER_VERTEX) {
       populate_vs_prog_data(nir, devinfo, info);
    } else if (nir->info.stage == MESA_SHADER_TESS_CTRL) {
-      populate_tcs_prog_data(nir, &key->tcs, &prog_data->tcs, info);
+      populate_tcs_prog_data(nir, &key->tcs, info);
    } else if (nir->info.stage == MESA_SHADER_FRAGMENT) {
       int32_t *per_primitive_offsets = fs_perprim->per_primitive_offsets;
       memset(per_primitive_offsets, -1, VARYING_SLOT_MAX * sizeof(int));

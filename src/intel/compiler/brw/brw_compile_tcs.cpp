@@ -197,8 +197,8 @@ brw_compile_tcs(const struct brw_compiler *compiler,
 
    const unsigned ray_queries = nir->info.ray_queries;
 
-   brw_fill_tess_info_from_shader_info(&prog_data->tess_info,
-                                       &nir->info);
+   struct brw_tess_info tess_info;
+   brw_fill_tess_info_from_shader_info(&tess_info, &nir->info);
 
    nir->info.outputs_written = key->outputs_written;
    nir->info.patch_outputs_written = key->patch_outputs_written;
@@ -231,19 +231,17 @@ brw_compile_tcs(const struct brw_compiler *compiler,
    bool has_primitive_id =
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_PRIMITIVE_ID);
 
-   prog_data->input_vertices = key->input_vertices;
-   prog_data->output_vertices = nir->info.tess.tcs_vertices_out;
-   prog_data->patch_count_threshold = get_patch_count_threshold(key->input_vertices);
-
    enum intel_shader_dispatch_mode dispatch_mode;
+   unsigned instances;
+   bool include_primitive_id = false;
    if (intel_use_tcs_multi_patch(devinfo)) {
       dispatch_mode = INTEL_DISPATCH_MODE_TCS_MULTI_PATCH;
-      prog_data->instances = nir->info.tess.tcs_vertices_out;
-      prog_data->include_primitive_id = has_primitive_id;
+      instances = nir->info.tess.tcs_vertices_out;
+      include_primitive_id = has_primitive_id;
    } else {
       unsigned verts_per_thread = 8;
       dispatch_mode = INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH;
-      prog_data->instances =
+      instances =
          DIV_ROUND_UP(nir->info.tess.tcs_vertices_out, verts_per_thread);
    }
 
@@ -298,6 +296,15 @@ brw_compile_tcs(const struct brw_compiler *compiler,
             .urb_read_length = 0,
             .urb_entry_size = urb_entry_size,
             .dispatch_mode = dispatch_mode,
+         },
+         .tcs = {
+            .tess_info = tess_info,
+            .input_vertices = key->input_vertices,
+            .output_vertices = nir->info.tess.tcs_vertices_out,
+            .instances = instances,
+            .patch_count_threshold =
+               get_patch_count_threshold(key->input_vertices),
+            .include_primitive_id = include_primitive_id,
          },
       },
       .dispatch_width          = dispatch_width,

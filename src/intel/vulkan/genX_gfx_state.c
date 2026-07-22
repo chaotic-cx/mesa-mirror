@@ -494,8 +494,8 @@ anv_raster_polygon_mode(const struct anv_cmd_graphics_state *gfx,
    } else if (gfx->shaders[MESA_SHADER_TESS_EVAL] != NULL) {
       struct brw_tess_info tess_info =
          brw_merge_tess_info(
-            get_gfx_tcs_prog_data(gfx)->tess_info,
-            get_gfx_tes_prog_data(gfx)->tess_info);
+            gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.tess_info,
+            gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.tes.tess_info);
 
       switch (brw_tess_info_output_topology(tess_info)) {
       case INTEL_TESS_OUTPUT_TOPOLOGY_POINT:
@@ -1187,8 +1187,10 @@ geom_or_tess_prim_id_used(const struct anv_cmd_graphics_state *gfx)
    const struct brw_gs_prog_data *gs_prog_data =
       get_gfx_gs_prog_data(gfx);
 
-   return (tcs_prog_data && tcs_prog_data->include_primitive_id) ||
-          (tes_prog_data && tes_prog_data->include_primitive_id) ||
+   return (tcs_prog_data &&
+           gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.include_primitive_id) ||
+          (tes_prog_data &&
+           gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.tes.include_primitive_id) ||
       (gs_prog_data && gs_prog_data->include_primitive_id);
 }
 
@@ -1396,8 +1398,9 @@ update_ds(struct anv_gfx_dynamic_state *hw_state,
 
    if (tes_prog_data) {
       struct brw_tess_info tess_info =
-         brw_merge_tess_info(get_gfx_tcs_prog_data(gfx)->tess_info,
-                             tes_prog_data->tess_info);
+         brw_merge_tess_info(
+            gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.tess_info,
+            gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.tes.tess_info);
 
       SET(DS, ds.ComputeWCoordinateEnable,
               brw_tess_info_domain(tess_info) == INTEL_TESS_DOMAIN_TRI);
@@ -1414,8 +1417,9 @@ update_te(struct anv_gfx_dynamic_state *hw_state,
 
    if (tes_prog_data) {
       struct brw_tess_info tess_info =
-         brw_merge_tess_info(get_gfx_tcs_prog_data(gfx)->tess_info,
-                             tes_prog_data->tess_info);
+         brw_merge_tess_info(
+            gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.tess_info,
+            gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.tes.tess_info);
 
       SET(TE, te.TEDomain, brw_tess_info_domain(tess_info));
 #if GFX_VER >= 12
@@ -2685,7 +2689,8 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
    const struct brw_tcs_prog_data *tcs_prog_data = get_gfx_tcs_prog_data(gfx);
    const struct brw_tes_prog_data *tes_prog_data = get_gfx_tes_prog_data(gfx);
    const bool tcs_dynamic =
-      tcs_prog_data && tcs_prog_data->input_vertices == 0;
+      tcs_prog_data &&
+      gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.input_vertices == 0;
    const bool tes_dynamic =
       tes_prog_data &&
       gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.vue.vue_map.layout !=
@@ -2695,14 +2700,15 @@ cmd_buffer_flush_gfx_runtime_state(struct anv_gfx_dynamic_state *hw_state,
         BITSET_TEST(dyn->dirty, MESA_VK_DYNAMIC_TS_PATCH_CONTROL_POINTS))) {
       assert(tcs_prog_data != NULL && tes_prog_data != NULL);
       struct brw_tess_info tess_info =
-         brw_merge_tess_info(tcs_prog_data->tess_info,
-                             tes_prog_data->tess_info);
+         brw_merge_tess_info(
+            gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.tess_info,
+            gfx->shaders[MESA_SHADER_TESS_EVAL]->bin->info.tes.tess_info);
       const struct intel_vue_map *tcs_vue_map =
          &gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.vue.vue_map;
 
       SET(TESS_CONFIG, tess_config,
           intel_tess_config(dyn->ts.patch_control_points,
-                            tcs_prog_data->output_vertices,
+                            gfx->shaders[MESA_SHADER_TESS_CTRL]->bin->info.tcs.output_vertices,
                             brw_tess_info_domain(tess_info),
                             tcs_vue_map->num_per_patch_slots,
                             tcs_vue_map->num_per_vertex_slots,

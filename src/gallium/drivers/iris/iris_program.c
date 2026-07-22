@@ -251,11 +251,13 @@ iris_apply_brw_tcs_prog_data(struct iris_compiled_shader *shader,
    assert(shader->stage == MESA_SHADER_TESS_CTRL);
    struct iris_tcs_data *iris = &shader->tcs;
 
-   iris_apply_brw_vue_prog_data(&shader->info, &iris->base);
+   const struct intel_shader_info *info = &shader->info;
 
-   iris->instances             = brw->instances;
-   iris->patch_count_threshold = brw->patch_count_threshold;
-   iris->include_primitive_id  = brw->include_primitive_id;
+   iris_apply_brw_vue_prog_data(info, &iris->base);
+
+   iris->instances             = info->tcs.instances;
+   iris->patch_count_threshold = info->tcs.patch_count_threshold;
+   iris->include_primitive_id  = info->tcs.include_primitive_id;
 }
 
 static void
@@ -265,12 +267,14 @@ iris_apply_brw_tes_prog_data(struct iris_compiled_shader *shader,
    assert(shader->stage == MESA_SHADER_TESS_EVAL);
    struct iris_tes_data *iris = &shader->tes;
 
-   iris_apply_brw_vue_prog_data(&shader->info, &iris->base);
+   const struct intel_shader_info *info = &shader->info;
 
-   iris->partitioning         = brw_tess_info_partitioning(brw->tess_info);
-   iris->output_topology      = brw_tess_info_output_topology(brw->tess_info);
-   iris->domain               = brw_tess_info_domain(brw->tess_info);
-   iris->include_primitive_id = brw->include_primitive_id;
+   iris_apply_brw_vue_prog_data(info, &iris->base);
+
+   iris->partitioning         = brw_tess_info_partitioning(info->tes.tess_info);
+   iris->output_topology      = brw_tess_info_output_topology(info->tes.tess_info);
+   iris->domain               = brw_tess_info_domain(info->tes.tess_info);
+   iris->include_primitive_id = info->tes.include_primitive_id;
 }
 
 static void

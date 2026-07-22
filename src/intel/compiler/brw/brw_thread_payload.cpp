@@ -22,7 +22,6 @@ brw_vs_thread_payload::brw_vs_thread_payload(const brw_shader &v)
 
 brw_tcs_thread_payload::brw_tcs_thread_payload(const brw_shader &v)
 {
-   struct brw_tcs_prog_data *tcs_prog_data = brw_tcs_prog_data(v.prog_data);
    struct brw_tcs_prog_key *tcs_key = (struct brw_tcs_prog_key *) v.key;
 
    if (v.info.vue.dispatch_mode == INTEL_DISPATCH_MODE_TCS_SINGLE_PATCH) {
@@ -44,7 +43,7 @@ brw_tcs_thread_payload::brw_tcs_thread_payload(const brw_shader &v)
       patch_urb_output = brw_ud8_grf(r, 0);
       r += reg_unit(v.devinfo);
 
-      if (tcs_prog_data->include_primitive_id) {
+      if (v.info.tcs.include_primitive_id) {
          primitive_id = brw_vec8_grf(r, 0);
          r += reg_unit(v.devinfo);
       }

@@ -620,8 +620,6 @@ emit_hs_shader(struct anv_batch *batch,
                struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
-   const struct brw_tcs_prog_data *tcs_prog_data =
-      get_shader_tcs_prog_data(shader);
 
    uint32_t hs_dwords[GENX(3DSTATE_HS_length)];
    anv_shader_emit_tmp(batch, hs_dwords, GENX(3DSTATE_HS), hs) {
@@ -638,12 +636,12 @@ emit_hs_shader(struct anv_batch *batch,
        *    the number of instance count. The number of max threads must be
        *    more than 2 times the number of instance count.
        */
-      assert((devinfo->max_tcs_threads / 2) > tcs_prog_data->instances);
+      assert((devinfo->max_tcs_threads / 2) > shader->bin->info.tcs.instances);
 #endif
 
       hs.MaximumNumberofThreads = devinfo->max_tcs_threads - 1;
       hs.IncludeVertexHandles = true;
-      hs.InstanceCount = tcs_prog_data->instances - 1;
+      hs.InstanceCount = shader->bin->info.tcs.instances - 1;
 
       hs.VertexURBEntryReadLength = 0;
       hs.VertexURBEntryReadOffset = 0;
@@ -658,13 +656,13 @@ emit_hs_shader(struct anv_batch *batch,
       /*  Patch Count threshold specifies the maximum number of patches that
        *  will be accumulated before a thread dispatch is forced.
        */
-      hs.PatchCountThreshold = tcs_prog_data->patch_count_threshold;
+      hs.PatchCountThreshold = shader->bin->info.tcs.patch_count_threshold;
 #endif
 
 #if GFX_VER < 20
       hs.DispatchMode = shader->bin->info.vue.dispatch_mode;
 #endif
-      hs.IncludePrimitiveID = tcs_prog_data->include_primitive_id;
+      hs.IncludePrimitiveID = shader->bin->info.tcs.include_primitive_id;
 
 #if GFX_VER >= 30
       hs.RegistersPerThread =
@@ -699,10 +697,6 @@ emit_ds_shader(struct anv_batch *batch,
                struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
-#if GFX_VER >= 12
-   const struct brw_tes_prog_data *tes_prog_data =
-      get_shader_tes_prog_data(shader);
-#endif
 
    anv_shader_emit(batch, shader, ds.te, GENX(3DSTATE_TE), te) {
       te.TEEnable = true;
@@ -752,7 +746,7 @@ emit_ds_shader(struct anv_batch *batch,
          shader->bin->info.vue.cull_distance_mask;
 
 #if GFX_VER >= 12
-      ds.PrimitiveIDNotRequired = !tes_prog_data->include_primitive_id;
+      ds.PrimitiveIDNotRequired = !shader->bin->info.tes.include_primitive_id;
 #endif
 
 #if GFX_VER >= 30

@@ -2672,7 +2672,6 @@ get_tcs_single_patch_icp_handle(nir_to_brw_state &ntb, const brw_builder &bld,
 {
    brw_shader &s = ntb.s;
 
-   struct brw_tcs_prog_data *tcs_prog_data = brw_tcs_prog_data(s.prog_data);
    const nir_src &vertex_src = instr->src[0];
    nir_intrinsic_instr *vertex_intrin = nir_src_as_intrinsic(vertex_src);
 
@@ -2684,7 +2683,7 @@ get_tcs_single_patch_icp_handle(nir_to_brw_state &ntb, const brw_builder &bld,
       /* Emit a MOV to resolve <0,1,0> regioning. */
       unsigned vertex = nir_src_as_uint(vertex_src);
       icp_handle = bld.MOV(component(start, vertex));
-   } else if (tcs_prog_data->instances == 1 && vertex_intrin &&
+   } else if (s.info.tcs.instances == 1 && vertex_intrin &&
               vertex_intrin->intrinsic == nir_intrinsic_load_invocation_id) {
       /* For the common case of only 1 instance, an array index of
        * gl_InvocationID means reading the handles from the start.  Skip all
@@ -2827,7 +2826,6 @@ emit_tcs_barrier(nir_to_brw_state &ntb)
    brw_shader &s = ntb.s;
 
    assert(s.stage == MESA_SHADER_TESS_CTRL);
-   struct brw_tcs_prog_data *tcs_prog_data = brw_tcs_prog_data(s.prog_data);
 
    brw_reg m0 = bld.vgrf(BRW_TYPE_UD);
    brw_reg m0_2 = component(m0, 2);
@@ -2845,7 +2843,7 @@ emit_tcs_barrier(nir_to_brw_state &ntb)
 
       /* Set the Barrier Count and the enable bit */
       chanbld.OR(m0_2, m0_2,
-                 brw_imm_ud(tcs_prog_data->instances << 8 | (1 << 15)));
+                 brw_imm_ud(s.info.tcs.instances << 8 | (1 << 15)));
    } else {
       /* Copy "Barrier ID" from r0.2, bits 16:13 */
       chanbld.AND(m0_2, retype(brw_vec1_grf(0, 2), BRW_TYPE_UD),
@@ -2856,7 +2854,7 @@ emit_tcs_barrier(nir_to_brw_state &ntb)
 
       /* Set the Barrier Count and the enable bit */
       chanbld.OR(m0_2, m0_2,
-                 brw_imm_ud(tcs_prog_data->instances << 9 | (1 << 15)));
+                 brw_imm_ud(s.info.tcs.instances << 9 | (1 << 15)));
    }
 
    bld.emit(SHADER_OPCODE_BARRIER, bld.null_reg_ud(), m0);
@@ -2871,7 +2869,6 @@ brw_from_nir_emit_tcs_intrinsic(nir_to_brw_state &ntb,
    brw_shader &s = ntb.s;
 
    assert(s.stage == MESA_SHADER_TESS_CTRL);
-   struct brw_tcs_prog_data *tcs_prog_data = brw_tcs_prog_data(s.prog_data);
 
    brw_reg dst;
    if (nir_intrinsic_infos[instr->intrinsic].has_dest)
@@ -2904,7 +2901,7 @@ brw_from_nir_emit_tcs_intrinsic(nir_to_brw_state &ntb,
       if (nir_intrinsic_memory_scope(instr) != SCOPE_NONE)
          brw_from_nir_emit_intrinsic(ntb, bld, instr);
       if (nir_intrinsic_execution_scope(instr) == SCOPE_WORKGROUP) {
-         if (tcs_prog_data->instances != 1)
+         if (s.info.tcs.instances != 1)
             emit_tcs_barrier(ntb);
       }
       break;

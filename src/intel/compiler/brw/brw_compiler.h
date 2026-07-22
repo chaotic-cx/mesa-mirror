@@ -885,43 +885,14 @@ struct brw_vs_prog_data {
    struct brw_vue_prog_data base;
 };
 
-struct brw_tess_info {
-   enum tess_primitive_mode primitive_mode:8;
-   uint8_t                         spacing:2;
-   bool                                ccw:1;
-   bool                         point_mode:1;
-   uint32_t                            pad:20;
-};
-
 struct brw_tcs_prog_data
 {
    struct brw_vue_prog_data base;
-
-   struct brw_tess_info tess_info;
-
-   /** Number of input vertices, 0 means dynamic */
-   unsigned input_vertices;
-
-   /** Number of output vertices */
-   unsigned output_vertices;
-
-   /** Should the non-SINGLE_PATCH payload provide primitive ID? */
-   bool include_primitive_id;
-
-   /** Number vertices in output patch */
-   int instances;
-
-   /** Track patch count threshold */
-   int patch_count_threshold;
 };
 
 struct brw_tes_prog_data
 {
    struct brw_vue_prog_data base;
-
-   struct brw_tess_info tess_info;
-
-   bool include_primitive_id;
 };
 
 struct brw_gs_prog_data

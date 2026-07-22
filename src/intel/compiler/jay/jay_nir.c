@@ -881,13 +881,13 @@ jay_process_nir(const struct intel_device_info *devinfo,
       assert(output_size_bytes >= 1);
       assert(output_size_bytes <= GFX7_MAX_DS_URB_ENTRY_SIZE_BYTES);
 
-      prog_data->tes.include_primitive_id =
+      info->tes.include_primitive_id =
          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_PRIMITIVE_ID);
 
       /* URB entry sizes are stored as a multiple of 64 bytes. */
       info->vue.urb_entry_size = align(output_size_bytes, 64) / 64;
 
-      brw_fill_tess_info_from_shader_info(&prog_data->tes.tess_info,
+      brw_fill_tess_info_from_shader_info(&info->tes.tess_info,
                                           &nir->info);
    } else if (stage == MESA_SHADER_MESH) {
       prog_data->mesh.base.local_size[0] = nir->info.workgroup_size[0];

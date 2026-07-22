@@ -1022,7 +1022,7 @@ jay_emit_barrier_s(struct nir_to_jay_state *nj,
        ((mesa_shader_stage_uses_workgroup(nj->s->stage) &&
          !jay_workgroup_is_one_subgroup(&nj->bld, nj->nir)) ||
         (nj->s->stage == MESA_SHADER_TESS_CTRL &&
-         nj->s->prog_data->tcs.instances != 1))) {
+         nj->s->info.tcs.instances != 1))) {
       jay_emit_signal_barrier(&nj->bld, nj);
    }
 }
@@ -2697,13 +2697,13 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
    case nir_intrinsic_load_primitive_id:
       assert(tes || tcs || gs);
       if (tcs) {
-         assert(nj->s->prog_data->tcs.include_primitive_id);
+         assert(nj->s->info.tcs.include_primitive_id);
          jay_copy(b, dst, tcs->primitive_id);
       } else if (gs) {
          assert(nj->s->prog_data->gs.include_primitive_id);
          jay_copy(b, dst, gs->primitive_id);
       } else {
-         assert(nj->s->prog_data->tes.include_primitive_id);
+         assert(nj->s->info.tes.include_primitive_id);
          jay_copy(b, dst, jay_extract(nj->payload.u0, 1));
       }
       break;
@@ -4327,12 +4327,12 @@ setup_tess_ctrl_payload(struct nir_to_jay_state *nj, struct payload_builder *p)
 {
    nj->payload.urb_handle = read_payload(p, GPR);
 
-   if (nj->s->prog_data->tcs.include_primitive_id)
+   if (nj->s->info.tcs.include_primitive_id)
       nj->payload.tcs.primitive_id = read_payload(p, GPR);
 
    nj->payload.tcs.icp_handles =
       read_vector_payload(p, GPR,
-                          nj->s->prog_data->tcs.input_vertices ?:
+                          nj->s->info.tcs.input_vertices ?:
                              BRW_MAX_TCS_INPUT_VERTICES);
 
    setup_payload_dispatch_start(nj, p);
