@@ -492,9 +492,6 @@ struct brw_stage_prog_data {
    uint8_t robust_ubo_ranges;
    unsigned push_reg_mask_param;
 
-   unsigned total_scratch;
-   unsigned total_shared;
-
    unsigned const_data_size;
    unsigned const_data_offset;
 

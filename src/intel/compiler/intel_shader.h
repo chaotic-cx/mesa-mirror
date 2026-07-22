@@ -594,6 +594,9 @@ struct intel_shader_info {
    /** How many ray query objects in this shader. */
    unsigned ray_queries;
 
+   unsigned total_scratch;
+   unsigned total_shared;
+
    /** Does this shader pull from any UBO or other constant buffers? */
    bool has_ubo_pull;
 };

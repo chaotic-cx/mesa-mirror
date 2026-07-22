@@ -400,17 +400,14 @@ genX(emit_simpler_shader_init_compute)(struct anv_simple_shader *state)
           state->cmd_buffer->state.current_pipeline == GPGPU);
 
 #if GFX_VERx10 >= 125
-   struct anv_shader_internal *cs_bin = state->kernel;
-   const struct brw_cs_prog_data *prog_data =
-      (const struct brw_cs_prog_data *) cs_bin->prog_data;
    if (state->cmd_buffer != NULL) {
       genX(cmd_buffer_ensure_cfe_state)(state->cmd_buffer,
-                                        prog_data->base.total_scratch);
+                                        state->kernel->bin->info.total_scratch);
    } else {
       /* Currently our simple shaders not in the command buffers are simple
        * enough that they never spill.
        */
-      assert(prog_data->base.total_scratch == 0);
+      assert(state->kernel->bin->info.total_scratch == 0);
       anv_batch_emit(state->batch, GENX(CFE_STATE), cfe) {
          cfe.MaximumNumberofThreads =
             state->device->info->max_cs_threads *
@@ -573,6 +570,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
       genX(batch_emit_post_3dprimitive_was)(batch, device, _3DPRIM_RECTLIST, 3);
       genX(emit_breakpoint)(batch, device, false);
    } else {
+      const intel_shader_bin *bin = state->kernel->bin;
       UNUSED const uint64_t push_addr64 = anv_address_physical(push_addr);
       const struct brw_cs_prog_data *prog_data =
          (const struct brw_cs_prog_data *) state->kernel->prog_data;
@@ -585,8 +583,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
          uint8_t z_pass_async_compute_thread_limit;
          uint8_t np_z_async_throttle_settings;
          const bool slm_or_barrier_enabled =
-            prog_data->base.total_shared != 0 ||
-            prog_data->uses_barrier;
+            bin->info.total_shared != 0 || prog_data->uses_barrier;
 
          intel_compute_engine_async_threads_limit(device->info, dispatch.threads,
                                                   slm_or_barrier_enabled,
@@ -634,7 +631,8 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
                .NumberofThreadsinGPGPUThreadGroup  = dispatch.threads,
                .ThreadGroupDispatchSize            = intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
                .PreferredSLMAllocationSize         = SLM_ENCODES_0K,
-               .SharedLocalMemorySize              = intel_compute_slm_encode_size(GFX_VER, prog_data->base.total_shared),
+               .SharedLocalMemorySize              = intel_compute_slm_encode_size(
+                  GFX_VER, bin->info.total_shared),
                .PSAsyncThreadLimit                 = pixel_async_compute_thread_limit,
                .ZPassAsyncComputeThreadLimit       = z_pass_async_compute_thread_limit,
                .NP_ZAsyncThrottlesettings          = np_z_async_throttle_settings,
@@ -655,7 +653,8 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
          if (!has_vrt) {
             uint8_t pixel_async_compute_thread_limit, z_pass_async_compute_thread_limit,
                np_z_async_throttle_settings;
-            bool slm_or_barrier_enabled = prog_data->base.total_shared != 0 || prog_data->uses_barrier;
+            bool slm_or_barrier_enabled =
+               bin->info.total_shared != 0 || prog_data->uses_barrier;
 
             intel_compute_engine_async_threads_limit(devinfo, dispatch.threads,
                                                      slm_or_barrier_enabled,
@@ -715,8 +714,8 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
                .BindingTableEntryCount            = 0,
                .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
                .ThreadGroupDispatchSize           = intel_compute_threads_group_dispatch_size(dispatch.threads),
-               .SharedLocalMemorySize             = intel_compute_slm_encode_size(GFX_VER,
-                                                                                  prog_data->base.total_shared),
+               .SharedLocalMemorySize             = intel_compute_slm_encode_size(
+                  GFX_VER, bin->info.total_shared),
                .NumberOfBarriers                  = prog_data->uses_barrier,
 #if GFX_VER >= 30
                .RegistersPerThread =
@@ -761,18 +760,17 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             vfe.URBEntryAllocationSize = 2;
             vfe.CURBEAllocationSize    = vfe_curbe_allocation;
 
-            if (prog_data->base.total_scratch) {
+            if (bin->info.total_scratch) {
                /* Broadwell's Per Thread Scratch Space is in the range [0, 11]
                 * where 0 = 1k, 1 = 2k, 2 = 4k, ..., 11 = 2M.
                 */
-               vfe.PerThreadScratchSpace =
-                  ffs(prog_data->base.total_scratch) - 11;
+               vfe.PerThreadScratchSpace = ffs(bin->info.total_scratch) - 11;
                vfe.ScratchSpaceBasePointer =
                   (struct anv_address) {
                   .bo = anv_scratch_pool_alloc(device,
                                                &device->scratch_pool,
                                                MESA_SHADER_COMPUTE,
-                                               prog_data->base.total_scratch),
+                                               bin->info.total_scratch),
                   .offset = 0,
                };
             }
@@ -791,8 +789,8 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             .SamplerCount                          = 0,
             .BindingTableEntryCount                = 0,
             .BarrierEnable                         = prog_data->uses_barrier,
-            .SharedLocalMemorySize                 = intel_compute_slm_encode_size(GFX_VER,
-                                                                                   prog_data->base.total_shared),
+            .SharedLocalMemorySize                 = intel_compute_slm_encode_size(
+               GFX_VER, bin->info.total_shared),
 
             .ConstantURBEntryReadOffset            = 0,
             .ConstantURBEntryReadLength            = prog_data->push.per_thread.regs,

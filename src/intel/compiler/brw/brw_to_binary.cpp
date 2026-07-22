@@ -2357,7 +2357,7 @@ brw_generator::generate_code(const brw_shader &s,
       stats->cycles = perf.latency;
       stats->spills = shader_stats.spill_count;
       stats->fills = shader_stats.fill_count;
-      stats->scratch_memory_size = prog_data->total_scratch;
+      stats->scratch_memory_size = s.info.total_scratch;
       stats->max_live_registers = shader_stats.max_register_pressure;
       stats->source_hash = params->source_hash;
       stats->grf_registers = devinfo->ver >= 30 ? s.grf_used : 0;
@@ -2421,7 +2421,7 @@ brw_generator::generate_code(const brw_shader &s,
          stats->max_dispatch_width = 0;
 
       if (mesa_shader_stage_uses_workgroup(stage))
-         stats->workgroup_memory_size = prog_data->total_shared;
+         stats->workgroup_memory_size = params->nir->info.shared_size;
       else
          stats->workgroup_memory_size = 0;
    }
@@ -2730,9 +2730,17 @@ brw_to_binary(const brw_to_binary_params *p)
       if (shader == NULL)
          continue;
       bin->info.has_ubo_pull |= shader->info.has_ubo_pull;
+      bin->info.total_scratch =
+         MAX2(bin->info.total_scratch, shader->info.total_scratch);
+      bin->info.total_shared =
+         MAX2(bin->info.total_shared, shader->info.total_shared);
    }
-   for (unsigned i = 0; i < p->num_resume_shaders; i++)
+   for (unsigned i = 0; i < p->num_resume_shaders; i++) {
       bin->info.has_ubo_pull |= p->resume_shaders[i]->info.has_ubo_pull;
+      bin->info.total_scratch =
+         MAX2(bin->info.total_scratch,
+              p->resume_shaders[i]->info.total_scratch);
+   }
    ralloc_steal(bin, (void *)code);
    bin->code = code;
    bin->code_size = g.get_output_size();

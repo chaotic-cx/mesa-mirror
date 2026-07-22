@@ -4954,12 +4954,7 @@ jay_gather_stats(const jay_shader *s, struct genisa_stats *stats)
    stats->vrt_size =
       intel_vrt_register_file_size(s->devinfo, stats->source_hash, stats->grf_registers);
    stats->vrt_threads = intel_max_vrt_threads(s->devinfo, stats->vrt_size);
-
-   /* Scratch is allocated in 1KiB increments. */
-   if (s->scratch_size > 0) {
-      stats->scratch_memory_size =
-         align(util_next_power_of_two(s->scratch_size), 1024);
-   }
+   stats->scratch_memory_size = s->info.total_scratch;
 }
 
 static unsigned
@@ -5000,7 +4995,7 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    jay_shader *s = jay_new_shader(NULL, nir->info.stage);
    s->info = *base_info;
    s->dispatch_width = simd_width;
-   s->scratch_size = align(nir->scratch_size, 4) * s->dispatch_width;
+   s->info.total_scratch = align(nir->scratch_size, 4) * s->dispatch_width;
    s->devinfo = devinfo;
    s->prog_data = prog_data;
    s->params = params;
@@ -5104,12 +5099,12 @@ jay_compile_simd(const struct intel_device_info *devinfo,
     * See 3D-Media-GPGPU Engine > Media GPGPU Pipeline > Thread Group Tracking >
     * Local Memory/Scratch Space.
     */
-   if (s->scratch_size > devinfo->max_scratch_size_per_thread) {
+   if (s->info.total_scratch > devinfo->max_scratch_size_per_thread) {
       *params->error_str =
          ralloc_asprintf(params->mem_ctx,
                          "SIMD%u shader requires %u bytes of scratch, "
                          "but the device supports at most %u bytes",
-                         simd_width, s->scratch_size,
+                         simd_width, s->info.total_scratch,
                          devinfo->max_scratch_size_per_thread);
       ralloc_free(s);
       return NULL;
@@ -5174,6 +5169,13 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       jay_MOV(&b, jay_null(), (uint32_t) (s->info.source_hash >> 32));
    }
 
+   const bool uses_scratch = s->info.total_scratch > 0;
+   if (uses_scratch)
+      s->info.total_scratch = util_next_power_of_two(s->info.total_scratch);
+
+   /* Scratch is allocated in 1KiB increments. */
+   s->info.total_scratch = align(s->info.total_scratch, 1024);
+
    intel_shader_bin *bin =
       jay_to_binary(s, nir->constant_data, nir->constant_data_size, debug);
    assert(bin->code);
@@ -5215,19 +5217,12 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       unsigned i = simd_width == 8 ? 0 : simd_width == 16 ? 1 : 2;
       prog_data->cs.prog_offset[i] = 0;
       prog_data->cs.prog_mask = BITFIELD_BIT(i);
-      prog_data->cs.prog_spilled = s->scratch_size > 0; /* XXX */
+      prog_data->cs.prog_spilled = uses_scratch; /* XXX */
    } else if (brw_shader_stage_is_bindless(s->stage)) {
       prog_data->bs.simd_size = simd_width;
       prog_data->bs.max_stack_size =
          MAX2(prog_data->bs.max_stack_size, nir->scratch_size);
    }
-
-   /* Take the max of any previously compiled variant of the shader. In the
-    * case of bindless shaders with return parts, this will also take the
-    * max of all parts.
-    */
-   prog_data->base.total_scratch =
-      MAX2(prog_data->base.total_scratch, stats->scratch_memory_size);
 
    memcpy(prog_data->base.push_sizes, params->push_layout.push_sizes,
           sizeof(prog_data->base.push_sizes));
@@ -5245,6 +5240,8 @@ jay_merge_shader_info(struct intel_shader_info *dst,
    assert(dst->stage == src->stage);
 
    dst->has_ubo_pull |= src->has_ubo_pull;
+   dst->total_scratch = MAX2(dst->total_scratch, src->total_scratch);
+   dst->total_shared = MAX2(dst->total_shared, src->total_shared);
 }
 
 intel_shader_bin *

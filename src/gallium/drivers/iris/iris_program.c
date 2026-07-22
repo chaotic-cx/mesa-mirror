@@ -303,8 +303,8 @@ iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
    for (int i = 0; i < ARRAY_SIZE(shader->push_sizes); i++)
       shader->push_sizes[i] = brw->push_sizes[i];
 
-   shader->total_scratch          = brw->total_scratch;
-   shader->total_shared           = brw->total_shared;
+   shader->total_scratch          = bin->info.total_scratch;
+   shader->total_shared           = bin->info.total_shared;
    shader->program_size           = bin->code_size;
    shader->const_data_offset      = brw->const_data_offset;
    shader->dispatch_grf_start_reg = brw->dispatch_grf_start_reg;

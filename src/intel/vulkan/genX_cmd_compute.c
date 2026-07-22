@@ -100,7 +100,7 @@ cmd_buffer_flush_compute_state(struct anv_cmd_buffer *cmd_buffer,
 
    genX(cmd_buffer_config_l3)(cmd_buffer,
                               (indirect_set != NULL ||
-                               comp_state->shader->prog_data->total_shared > 0) ?
+                               comp_state->shader->bin->info.total_shared > 0) ?
                               device->l3_slm_config : device->l3_config);
 
    genX(cmd_buffer_update_color_aux_op)(cmd_buffer, ANV_COLOR_AUX_OP_CLASS_NONE);
@@ -156,14 +156,14 @@ cmd_buffer_flush_compute_state(struct anv_cmd_buffer *cmd_buffer,
             cmd_buffer,
             indirect_set != NULL ?
             indirect_set->max_scratch :
-            get_cs_prog_data(comp_state)->base.total_scratch);
+            comp_state->shader->bin->info.total_scratch);
       }
 #elif GFX_VERx10 >= 125
       genX(cmd_buffer_ensure_cfe_state)(
          cmd_buffer,
          indirect_set != NULL ?
          indirect_set->max_scratch :
-         get_cs_prog_data(comp_state)->base.total_scratch);
+         comp_state->shader->bin->info.total_scratch);
 #else
       if (indirect_set == NULL)
          anv_batch_emit_cs(&cmd_buffer->batch, GENX(MEDIA_VFE_STATE), cs.gfx9.vfe);
@@ -466,6 +466,7 @@ get_interface_descriptor_data_tables(struct anv_cmd_buffer *cmd_buffer)
 
 static void
 compute_update_async_threads_limit(struct anv_cmd_buffer *cmd_buffer,
+                                   const intel_shader_bin *bin,
                                    const struct brw_cs_prog_data *prog_data,
                                    const struct intel_cs_dispatch_info *dispatch)
 {
@@ -473,7 +474,8 @@ compute_update_async_threads_limit(struct anv_cmd_buffer *cmd_buffer,
    const struct intel_device_info *devinfo = device->info;
    uint8_t pixel_async_compute_thread_limit, z_pass_async_compute_thread_limit,
            np_z_async_throttle_settings;
-   const bool slm_or_barrier_enabled = prog_data->base.total_shared != 0 || prog_data->uses_barrier;
+   const bool slm_or_barrier_enabled =
+      bin->info.total_shared != 0 || prog_data->uses_barrier;
 
    intel_compute_engine_async_threads_limit(devinfo, dispatch->threads,
                                             slm_or_barrier_enabled,
@@ -592,7 +594,8 @@ emit_indirect_compute_walker(struct anv_cmd_buffer *cmd_buffer,
       .unaligned_x_offset = 0,
    };
 
-   compute_update_async_threads_limit(cmd_buffer, prog_data, &dispatch);
+   compute_update_async_threads_limit(cmd_buffer, comp_state->shader->bin,
+                                      prog_data, &dispatch);
 
    if (GFX_VERx10 >= 350 && device->physical->uses_efficient_64bit) {
 #if GFX_VERx10 >= 350
@@ -665,7 +668,8 @@ emit_compute_walker(struct anv_cmd_buffer *cmd_buffer,
    const struct anv_bind_point_state *bind_state = comp_state->base;
    const bool predicate = cmd_buffer->state.conditional_render_enabled;
 
-   compute_update_async_threads_limit(cmd_buffer, prog_data, &dispatch);
+   compute_update_async_threads_limit(cmd_buffer, comp_state->shader->bin,
+                                      prog_data, &dispatch);
 
    uint64_t push_addr64 = anv_address_physical(
       anv_state_pool_state_address(anv_device_get_dynamic_state_pool(device),
@@ -1636,7 +1640,8 @@ cmd_buffer_trace_rays(struct anv_cmd_buffer *cmd_buffer,
 
    assert(threads_per_group <= device->info->max_cs_workgroup_threads);
 
-   compute_update_async_threads_limit(cmd_buffer, cs_prog_data, &dispatch);
+   compute_update_async_threads_limit(cmd_buffer, device->rt_trampoline->bin,
+                                      cs_prog_data, &dispatch);
 
    if (GFX_VERx10 >= 350 && device->physical->uses_efficient_64bit) {
 #if GFX_VERx10 >= 350

@@ -741,7 +741,7 @@ blorp_emit_vs_config(struct blorp_batch *batch,
 
    blorp_emit(batch, GENX(3DSTATE_VS), vs) {
       if (vs_prog_data) {
-         assert(vs_prog_data->base.base.total_scratch == 0);
+         assert(params->vs_info->total_scratch == 0);
 
          vs.Enable = true;
 
@@ -943,7 +943,7 @@ blorp_emit_ps_config(struct blorp_batch *batch,
 #endif
 
       if (prog_data) {
-         assert(prog_data->base.total_scratch == 0);
+         assert(params->fs_info->total_scratch == 0);
 
          intel_set_ps_dispatch_state(&ps, devinfo, prog_data,
                                      params->num_samples,
@@ -2250,7 +2250,9 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
    const struct intel_device_info *devinfo = batch->blorp->compiler->brw->devinfo;
    const struct brw_cs_prog_data *cs_prog_data = params->cs_prog_data;
+#if GFX_VER >= 30
    const struct brw_stage_prog_data *prog_data = &cs_prog_data->base;
+#endif
    const struct intel_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(devinfo, cs_prog_data, NULL);
 
@@ -2285,7 +2287,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
       uint8_t z_pass_async_compute_thread_limit;
       uint8_t np_z_async_throttle_settings;
       const bool slm_or_barrier_enabled =
-         cs_prog_data->base.total_shared != 0 ||
+         params->cs_info->total_shared != 0 ||
          cs_prog_data->uses_barrier;
 
       blorp_emit_efficient_64bit_io(batch, params,
@@ -2362,10 +2364,11 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
             .ThreadGroupDispatchSize =
                intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
             .SharedLocalMemorySize =
-            intel_compute_slm_encode_size(GFX_VER, prog_data->total_shared),
+               intel_compute_slm_encode_size(GFX_VER,
+                                             params->cs_info->total_shared),
             .PreferredSLMAllocationSize =
                intel_compute_preferred_slm_calc_encode_size(devinfo,
-                                                            prog_data->total_shared,
+                                                            params->cs_info->total_shared,
                                                             dispatch.group_size,
                                                             dispatch.simd_size),
             .NumberOfBarriers = cs_prog_data->uses_barrier,
@@ -2393,7 +2396,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
       if (!has_vrt) {
          uint8_t pixel_async_compute_thread_limit, z_pass_async_compute_thread_limit,
             np_z_async_throttle_settings;
-         bool slm_or_barrier_enabled = prog_data->total_shared != 0 || cs_prog_data->uses_barrier;
+         bool slm_or_barrier_enabled =
+            params->cs_info->total_shared != 0 || cs_prog_data->uses_barrier;
 
          intel_compute_engine_async_threads_limit(devinfo, dispatch.threads,
                                                   slm_or_barrier_enabled,
@@ -2469,10 +2473,11 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
             .ThreadGroupDispatchSize =
             intel_compute_threads_group_dispatch_size(dispatch.threads),
             .SharedLocalMemorySize =
-            intel_compute_slm_encode_size(GFX_VER, prog_data->total_shared),
+               intel_compute_slm_encode_size(GFX_VER,
+                                             params->cs_info->total_shared),
             .PreferredSLMAllocationSize =
             intel_compute_preferred_slm_calc_encode_size(devinfo,
-                                                         prog_data->total_shared,
+                                                         params->cs_info->total_shared,
                                                          dispatch.group_size,
                                                          dispatch.simd_size),
             .NumberOfBarriers = cs_prog_data->uses_barrier,
@@ -2508,7 +2513,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
       }
 
       blorp_emit(batch, GENX(MEDIA_VFE_STATE), vfe) {
-         assert(prog_data->total_scratch == 0);
+         assert(params->cs_info->total_scratch == 0);
          vfe.MaximumNumberofThreads =
             devinfo->max_cs_threads * devinfo->subslice_total - 1;
          vfe.NumberofURBEntries = 2;
@@ -2539,7 +2544,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          .ConstantURBEntryReadLength = cs_prog_data->push.per_thread.regs,
          .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
          .SharedLocalMemorySize = intel_compute_slm_encode_size(GFX_VER,
-                                                                prog_data->total_shared),
+                                                                params->cs_info->total_shared),
          .BarrierEnable = cs_prog_data->uses_barrier,
          .CrossThreadConstantDataReadLength =
          cs_prog_data->push.cross_thread.regs,

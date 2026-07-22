@@ -172,6 +172,7 @@ brw_shader::brw_shader(const brw_shader_params *params)
      api_subgroup_size(brw_nir_api_subgroup_size(params->nir, dispatch_width))
 {
    info.stage = stage;
+   info.total_shared = params->nir->info.shared_size;
 
    assert(api_subgroup_size == 0 ||
          api_subgroup_size == 8 ||
@@ -951,12 +952,7 @@ brw_allocate_registers(brw_shader &s, bool allow_spilling)
        * Thread Group Tracking > Local Memory/Scratch Space.
        */
       if (s.last_scratch <= devinfo->max_scratch_size_per_thread) {
-         /* Take the max of any previously compiled variant of the shader. In the
-          * case of bindless shaders with return parts, this will also take the
-          * max of all parts.
-          */
-         s.prog_data->total_scratch = MAX2(brw_get_scratch_size(s.last_scratch),
-                                           s.prog_data->total_scratch);
+         s.info.total_scratch = brw_get_scratch_size(s.last_scratch);
       } else {
          s.fail("Scratch space required is larger than supported");
       }
@@ -1130,8 +1126,6 @@ void brw_prog_data_init(struct brw_stage_prog_data *prog_data,
     * information in there.
     */
    prog_data->stage = params->nir->info.stage;
-   prog_data->total_scratch = 0;
-   prog_data->total_shared = params->nir->info.shared_size;
 
    memcpy(prog_data->push_sizes, params->push_layout.push_sizes,
           sizeof(params->push_layout.push_sizes));

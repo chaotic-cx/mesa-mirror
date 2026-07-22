@@ -637,7 +637,7 @@ jay_process_nir(const struct intel_device_info *devinfo,
 
    prog_data->base.stage = stage;
    info->stage = stage;
-   prog_data->base.total_shared = nir->info.shared_size;
+   info->total_shared = nir->info.shared_size;
 
    brw_pass_tracker pt_ = {
       .nir = nir,
@@ -951,7 +951,8 @@ jay_process_nir(const struct intel_device_info *devinfo,
       };
       BRW_NIR_PASS(nir_lower_task_shader, lower_ts_opt);
 
-      prog_data->base.total_shared = nir->info.shared_size;
+      /* Update since task lowering might use more shared memory. */
+      info->total_shared = nir->info.shared_size;
 
       BRW_NIR_PASS(brw_nir_lower_launch_mesh_workgroups);
       NIR_PASS(_, nir, brw_nir_lower_cs_intrinsics, devinfo, NULL);

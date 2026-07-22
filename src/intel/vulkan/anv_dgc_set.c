@@ -175,7 +175,7 @@ write_cs_set_entry(struct anv_device *device,
 
    indirect_set->uses_systolic |= prog_data->uses_systolic;
    indirect_set->max_scratch = MAX2(indirect_set->max_scratch,
-                                    prog_data->base.total_scratch);
+                                    shader->bin->info.total_scratch);
    indirect_set->max_ray_queries = MAX2(indirect_set->max_ray_queries,
                                         shader->bin->info.ray_queries);
 }

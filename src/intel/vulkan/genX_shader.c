@@ -70,7 +70,7 @@ get_scratch_address(struct anv_device *device, struct anv_shader *shader)
    return (struct anv_address) {
       .bo = anv_scratch_pool_alloc(device, &device->scratch_pool,
                                    shader->vk.stage,
-                                   shader->prog_data->total_scratch),
+                                   shader->bin->info.total_scratch),
       .offset = 0,
    };
 }
@@ -78,7 +78,7 @@ get_scratch_address(struct anv_device *device, struct anv_shader *shader)
 static UNUSED uint32_t
 get_scratch_space(const struct anv_shader *shader)
 {
-   return ffs(shader->prog_data->total_scratch / 2048);
+   return ffs(shader->bin->info.total_scratch / 2048);
 }
 
 static UNUSED uint32_t
@@ -92,7 +92,7 @@ get_scratch_surface(struct anv_batch *batch,
       return 0;
 
    return anv_shader_get_scratch_surf(batch, device, shader->vk.stage,
-                                      shader->prog_data->total_scratch,
+                                      shader->bin->info.total_scratch,
                                       protected);
 }
 
@@ -902,10 +902,10 @@ emit_task_shader(struct anv_batch *batch,
 
       task.NumberofBarriers                  = task_prog_data->base.uses_barrier;
       task.SharedLocalMemorySize             =
-         intel_compute_slm_encode_size(GFX_VER, task_prog_data->base.base.total_shared);
+         intel_compute_slm_encode_size(GFX_VER, shader->bin->info.total_shared);
       task.PreferredSLMAllocationSize        =
          intel_compute_preferred_slm_calc_encode_size(devinfo,
-                                                      task_prog_data->base.base.total_shared,
+                                                      shader->bin->info.total_shared,
                                                       task_dispatch.group_size,
                                                       task_dispatch.simd_size);
 
@@ -998,10 +998,10 @@ emit_mesh_shader(struct anv_batch *batch,
 
       mesh.NumberofBarriers                  = mesh_prog_data->base.uses_barrier;
       mesh.SharedLocalMemorySize             =
-         intel_compute_slm_encode_size(GFX_VER, mesh_prog_data->base.base.total_shared);
+         intel_compute_slm_encode_size(GFX_VER, shader->bin->info.total_shared);
       mesh.PreferredSLMAllocationSize        =
          intel_compute_preferred_slm_calc_encode_size(devinfo,
-                                                      mesh_prog_data->base.base.total_shared,
+                                                      shader->bin->info.total_shared,
                                                       mesh_dispatch.group_size,
                                                       mesh_dispatch.simd_size);
 
@@ -1144,6 +1144,7 @@ emit_cs_shader(struct anv_batch *batch,
                struct anv_shader *shader)
 {
    const struct intel_device_info *devinfo = device->info;
+   const intel_shader_bin *bin = shader->bin;
    const struct brw_cs_prog_data *cs_prog_data =
       get_shader_cs_prog_data(shader);
    const struct intel_cs_dispatch_info dispatch =
@@ -1158,8 +1159,7 @@ emit_cs_shader(struct anv_batch *batch,
       uint8_t z_pass_async_compute_thread_limit;
       uint8_t np_z_async_throttle_settings;
       const bool slm_or_barrier_enabled =
-         cs_prog_data->base.total_shared != 0 ||
-         cs_prog_data->uses_barrier;
+         bin->info.total_shared != 0 || cs_prog_data->uses_barrier;
 
       intel_compute_engine_async_threads_limit(device->info, dispatch.threads,
                                                slm_or_barrier_enabled,
@@ -1195,9 +1195,11 @@ emit_cs_shader(struct anv_batch *batch,
                                                                         cs_prog_data->base.grf_used),
             .NumberofThreadsinGPGPUThreadGroup  = dispatch.threads,
             .ThreadGroupDispatchSize            = intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
-            .SharedLocalMemorySize              = intel_compute_slm_encode_size(GFX_VER, cs_prog_data->base.total_shared),
+            .SharedLocalMemorySize              = intel_compute_slm_encode_size(
+               GFX_VER, bin->info.total_shared),
             .PreferredSLMAllocationSize         = intel_compute_preferred_slm_calc_encode_size(
-               devinfo, cs_prog_data->base.total_shared, dispatch.group_size, dispatch.simd_size),
+               devinfo, bin->info.total_shared,
+               dispatch.group_size, dispatch.simd_size),
             .NumberOfBarriers                   = cs_prog_data->uses_barrier,
             .PSAsyncThreadLimit                 = pixel_async_compute_thread_limit,
             .ZPassAsyncComputeThreadLimit       = z_pass_async_compute_thread_limit,
@@ -1243,9 +1245,9 @@ emit_cs_shader(struct anv_batch *batch,
             .BindingTableEntryCount            = MIN2(get_surface_count(device, shader), 31),
             .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
             .SharedLocalMemorySize             = intel_compute_slm_encode_size(
-               GFX_VER, cs_prog_data->base.total_shared),
+               GFX_VER, bin->info.total_shared),
             .PreferredSLMAllocationSize        = intel_compute_preferred_slm_calc_encode_size(
-               devinfo, cs_prog_data->base.total_shared,
+               devinfo, bin->info.total_shared,
                dispatch.group_size, dispatch.simd_size),
             .NumberOfBarriers                  = cs_prog_data->uses_barrier,
 #if GFX_VER >= 30
@@ -1276,11 +1278,11 @@ emit_cs_shader(struct anv_batch *batch,
          vfe.URBEntryAllocationSize = 2;
          vfe.CURBEAllocationSize    = vfe_curbe_allocation;
 
-         if (cs_prog_data->base.total_scratch) {
+         if (bin->info.total_scratch) {
             /* Broadwell's Per Thread Scratch Space is in the range [0, 11]
              * where 0 = 1k, 1 = 2k, 2 = 4k, ..., 11 = 2M.
              */
-            vfe.PerThreadScratchSpace = ffs(cs_prog_data->base.total_scratch) - 11;
+            vfe.PerThreadScratchSpace = ffs(bin->info.total_scratch) - 11;
             vfe.ScratchSpaceBasePointer = get_scratch_address(device, shader);
          }
       }
@@ -1294,7 +1296,7 @@ emit_cs_shader(struct anv_batch *batch,
          .BindingTableEntryCount = MIN2(get_surface_count(device, shader), 31),
          .BarrierEnable          = cs_prog_data->uses_barrier,
          .SharedLocalMemorySize  = intel_compute_slm_encode_size(
-            GFX_VER, cs_prog_data->base.total_shared),
+            GFX_VER, bin->info.total_shared),
 
          .ConstantURBEntryReadOffset = 0,
          .ConstantURBEntryReadLength = cs_prog_data->push.per_thread.regs,

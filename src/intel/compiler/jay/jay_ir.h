@@ -873,7 +873,6 @@ typedef struct jay_shader {
    const struct jay_compile_params *params;
    debug_archiver *archiver;
    unsigned spills, fills;
-   unsigned scratch_size;
    unsigned payload_gprs, payload_ugprs, push_grfs;
 
    /**

@@ -471,7 +471,7 @@ compile_shader(struct anv_device *device,
    }
 
    /* Complex shaders are allowed to spill */
-   assert(sends_count_expectation == 0 || prog_data.base.total_scratch == 0);
+   assert(sends_count_expectation == 0 || bin->info.total_scratch == 0);
 
    struct anv_pipeline_bind_map empty_bind_map = {};
    struct anv_push_descriptor_info empty_push_desc_info = {};

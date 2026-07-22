@@ -182,8 +182,8 @@ jay_lower_spill(jay_function *func)
               JAY_TYPE_U16, JAY_ROUND, 0);
    }
 
-   if (b.shader->scratch_size) {
-      jay_ADD(&b, JAY_TYPE_U32, sp, sp, b.shader->scratch_size);
+   if (b.shader->info.total_scratch) {
+      jay_ADD(&b, JAY_TYPE_U32, sp, sp, b.shader->info.total_scratch);
    }
 
    jay_foreach_block(func, block) {
@@ -199,7 +199,7 @@ jay_lower_spill(jay_function *func)
          if (I->op == JAY_OPCODE_MOV && jay_is_send_like(I)) {
             if (!address_valid) {
                jay_MOV(&b, ADDRESS_REG, sp_0);
-               jay_MOV(&b, sp_0, b.shader->scratch_size + sp_delta_B);
+               jay_MOV(&b, sp_0, b.shader->info.total_scratch + sp_delta_B);
                address_valid = true;
             }
 
@@ -225,7 +225,7 @@ jay_lower_spill(jay_function *func)
 
          if (!address_valid) {
             jay_MOV(&b, ADDRESS_REG, sp_0);
-            jay_MOV(&b, sp_0, b.shader->scratch_size + sp_delta_B);
+            jay_MOV(&b, sp_0, b.shader->info.total_scratch + sp_delta_B);
          }
 
          if (sp_delta_B > 0) {
@@ -237,5 +237,6 @@ jay_lower_spill(jay_function *func)
    /* Note this is bogus with recursion, but recursion is not supported on any
     * current graphics/compute API.
     */
-   func->shader->scratch_size += func->shader->dispatch_width * nr_mem * 4;
+   func->shader->info.total_scratch +=
+      func->shader->dispatch_width * nr_mem * 4;
 }
