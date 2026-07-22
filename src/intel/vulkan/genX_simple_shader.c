@@ -205,7 +205,7 @@ genX(emit_simpler_shader_init_fragment)(struct anv_simple_shader *state)
 
       ps.BindingTableEntryCount = GFX_VER == 9 ? 1 : 0;
 #if GFX_VER < 20
-      ps.PushConstantEnable     = prog_data->base.push_sizes[0] > 0;
+      ps.PushConstantEnable     = state->kernel->bin->info.push_layout.push_sizes[0] > 0;
 #endif
 
       const struct intel_shader_info *info = &state->kernel->bin->info;

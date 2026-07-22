@@ -610,6 +610,8 @@ struct intel_shader_info {
    unsigned const_data_offset;
    unsigned const_data_size;
 
+   struct intel_push_layout push_layout;
+
    /** Does this shader pull from any UBO or other constant buffers? */
    bool has_ubo_pull;
 };

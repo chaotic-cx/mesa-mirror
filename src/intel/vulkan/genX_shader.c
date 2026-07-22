@@ -1062,7 +1062,7 @@ emit_ps_shader(struct anv_batch *batch,
       ps.SamplerCount               = get_sampler_count(device, shader);
       ps.BindingTableEntryCount     = get_surface_count(device, shader);
 #if GFX_VER < 20
-      ps.PushConstantEnable         = fs_prog_data->base.push_sizes[0] > 0;
+      ps.PushConstantEnable         = shader->bin->info.push_layout.push_sizes[0] > 0;
 #endif
 
       ps.MaximumNumberofThreadsPerPSD = devinfo->max_threads_per_psd - 1;

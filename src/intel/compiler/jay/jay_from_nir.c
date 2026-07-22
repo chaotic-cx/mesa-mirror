@@ -5224,11 +5224,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
          MAX2(prog_data->bs.max_stack_size, nir->scratch_size);
    }
 
-   memcpy(prog_data->base.push_sizes, params->push_layout.push_sizes,
-          sizeof(prog_data->base.push_sizes));
-   prog_data->base.robust_ubo_ranges = params->push_layout.robust_ubo_ranges;
-   prog_data->base.push_reg_mask_param = params->push_layout.push_reg_mask_param;
-
    ralloc_free(s);
    return bin;
 }
@@ -5267,6 +5262,7 @@ jay_compile(const struct intel_device_info *devinfo,
 
    struct intel_shader_info info = {
       .source_hash = params->source_hash,
+      .push_layout = params->push_layout,
 
       /* nir_shader_gather_info() clears this once ray queries are lowered. */
       .ray_queries = nir->info.ray_queries,

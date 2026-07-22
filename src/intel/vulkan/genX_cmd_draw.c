@@ -464,7 +464,7 @@ cmd_buffer_flush_gfx_push_constants(struct anv_cmd_buffer *cmd_buffer,
       const struct anv_shader *shader = gfx->shaders[stage];
       const struct anv_pipeline_bind_map *bind_map = &shader->bind_map;
       struct anv_push_constants *push = &bind_state->push_constants;
-      u_foreach_bit(r, shader->prog_data->robust_ubo_ranges) {
+      u_foreach_bit(r, shader->bin->info.push_layout.robust_ubo_ranges) {
          const struct anv_push_range *range = &bind_map->push_ranges[r];
 
          assert(range->length != 0);

@@ -474,24 +474,6 @@ PRAGMA_DIAGNOSTIC_POP
 struct brw_stage_prog_data {
    mesa_shader_stage stage;
 
-   /**
-    * Amount of push data delivered to the shader (in bytes)
-    *
-    * The HW can push up to 4 ranges from 4 different virtual addresses.
-    * Values should be aligned to 32B.
-    */
-   uint16_t push_sizes[4];
-
-   /* If robust_ubo_ranges not 0, push_reg_mask_param specifies the param
-    * index (in 32-bit units) where the 4 UBO range limits will be pushed
-    * as 8-bit integers. The shader will zero byte i of UBO range j if:
-    *
-    *    (robust_ubo_ranges & (1 << j)) &&
-    *    (i < push_reg_mask_param[j] * 16)
-    */
-   uint8_t robust_ubo_ranges;
-   unsigned push_reg_mask_param;
-
    /* Was this shader compiled with Jay? */
    bool is_jay;
 };

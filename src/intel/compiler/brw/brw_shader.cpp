@@ -172,6 +172,7 @@ brw_shader::brw_shader(const brw_shader_params *params)
      api_subgroup_size(brw_nir_api_subgroup_size(params->nir, dispatch_width))
 {
    info.stage = stage;
+   info.push_layout = params->compile_params->push_layout;
    info.total_shared = params->nir->info.shared_size;
 
    assert(api_subgroup_size == 0 ||
@@ -1126,10 +1127,6 @@ void brw_prog_data_init(struct brw_stage_prog_data *prog_data,
     */
    prog_data->stage = params->nir->info.stage;
 
-   memcpy(prog_data->push_sizes, params->push_layout.push_sizes,
-          sizeof(params->push_layout.push_sizes));
-   prog_data->robust_ubo_ranges = params->push_layout.robust_ubo_ranges;
-   prog_data->push_reg_mask_param = params->push_layout.push_reg_mask_param;
 }
 
 brw_reg

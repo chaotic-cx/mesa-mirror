@@ -210,7 +210,8 @@ iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader,
    iris->prog_mask         = brw->prog_mask;
 
    /* The pushed constants only contain the subgroup_id */
-   iris->first_param_is_builtin_subgroup_id = brw->base.push_sizes[0] > 0;
+   iris->first_param_is_builtin_subgroup_id =
+      shader->info.push_layout.push_sizes[0] > 0;
 }
 
 static void
@@ -297,11 +298,14 @@ iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
 {
    struct brw_stage_prog_data *brw = bin->prog_data;
 
+   assert(bin->info.stage == shader->stage);
+   shader->info = bin->info;
+
    if (ubo_ranges != NULL)
       memcpy(shader->ubo_ranges, ubo_ranges, sizeof(shader->ubo_ranges));
 
    for (int i = 0; i < ARRAY_SIZE(shader->push_sizes); i++)
-      shader->push_sizes[i] = brw->push_sizes[i];
+      shader->push_sizes[i] = bin->info.push_layout.push_sizes[i];
 
    shader->total_scratch          = bin->info.total_scratch;
    shader->total_shared           = bin->info.total_shared;
@@ -333,8 +337,6 @@ iris_apply_brw_prog_data(struct iris_compiled_shader *shader,
       UNREACHABLE("invalid shader stage");
    }
 
-   assert(bin->info.stage == shader->stage);
-   shader->info = bin->info;
    shader->brw_prog_data = brw;
 
    ralloc_steal(shader, shader->brw_prog_data);
