@@ -1205,7 +1205,7 @@ nir_variable_mode_is_uniform(nir_variable_mode mode)
    nir_variable_mode uniform_modes =
       nir_var_uniform | nir_var_mem_ubo | nir_var_mem_push_const |
       nir_var_mem_ssbo | nir_var_mem_shared | nir_var_mem_task_payload |
-      nir_var_mem_global;
+      nir_var_mem_global | nir_var_mem_constant;
 
    return (mode & ~uniform_modes) == 0;
 }
