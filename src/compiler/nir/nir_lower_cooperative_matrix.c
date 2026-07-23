@@ -590,7 +590,7 @@ call_reduce(nir_builder *b,
             nir_cmat_reduce reduce,
             nir_def *dst, nir_def *src0)
 {
-   nir_cmat_call_instr *ncall = nir_cmat_call_instr_create(b->shader, nir_cmat_call_op_reduce, call->callee);
+   nir_cmat_call_instr *ncall = nir_cmat_call_instr_create(b->shader, nir_cmat_call_op_reduce, call->callee, NULL);
    ncall->params[0] = nir_src_for_ssa(dst);
    ncall->params[1] = nir_src_for_ssa(src0);
    ncall->const_index[0] = reduce;
@@ -603,7 +603,7 @@ call_reduce_finish(nir_builder *b,
                    nir_cmat_reduce reduce,
                    nir_def *dst, nir_def *src0, nir_def *src1)
 {
-   nir_cmat_call_instr *ncall = nir_cmat_call_instr_create(b->shader, nir_cmat_call_op_reduce_finish, call->callee);
+   nir_cmat_call_instr *ncall = nir_cmat_call_instr_create(b->shader, nir_cmat_call_op_reduce_finish, call->callee, NULL);
    ncall->params[0] = nir_src_for_ssa(dst);
    ncall->params[1] = nir_src_for_ssa(src0);
    ncall->params[2] = nir_src_for_ssa(src1);
@@ -618,7 +618,7 @@ call_reduce_2x2(nir_builder *b,
                 nir_def *src0, nir_def *src1,
                 nir_def *src2, nir_def *src3)
 {
-   nir_cmat_call_instr *ncall = nir_cmat_call_instr_create(b->shader, nir_cmat_call_op_reduce_2x2, call->callee);
+   nir_cmat_call_instr *ncall = nir_cmat_call_instr_create(b->shader, nir_cmat_call_op_reduce_2x2, call->callee, NULL);
    ncall->params[0] = nir_src_for_ssa(dst);
    ncall->params[1] = nir_src_for_ssa(src0);
    ncall->params[2] = nir_src_for_ssa(src1);
@@ -852,7 +852,7 @@ split_cmat_call_per_element_op(nir_builder *b,
       nir_deref_instr *dst_deref = recreate_derefs(b, &call->params[0], dst_split->split_vars[i]);
       nir_deref_instr *src_deref = recreate_derefs(b, &call->params[3], src_split->split_vars[i]);
       struct glsl_cmat_description cmat_desc = *glsl_get_cmat_description(src_split->split_vars[0]->type);
-      nir_cmat_call_instr *new_call = nir_cmat_call_instr_create(b->shader, nir_cmat_call_op_per_element_op, call->callee);
+      nir_cmat_call_instr *new_call = nir_cmat_call_instr_create(b->shader, nir_cmat_call_op_per_element_op, call->callee, NULL);
       new_call->params[0] = nir_src_for_ssa(&dst_deref->def);
       new_call->params[1] = nir_src_for_ssa(nir_imm_int(b, cmat_desc.rows * r));
       new_call->params[2] = nir_src_for_ssa(nir_imm_int(b, cmat_desc.cols * c));
@@ -913,7 +913,7 @@ split_cmat_call_tensor_load_store(nir_builder *b,
          split_tensor_load.split_col_index = i % split->box.outer_cols;
       }
 
-      nir_cmat_call_instr *splitcall = nir_cmat_call_instr_create(b->shader, call->op, call->callee);
+      nir_cmat_call_instr *splitcall = nir_cmat_call_instr_create(b->shader, call->op, call->callee, call->decode_vec_fn);
       splitcall->params[!is_load] = nir_src_for_ssa(&dst_deref->def);
       splitcall->params[is_load] = call->params[is_load];
       splitcall->params[2] = call->params[2];
@@ -1168,6 +1168,7 @@ nir_calc_tensor_derefs_init(nir_builder *b, struct nir_calc_tensor_info *info,
    info->cols = orig_desc.cols;
 
    info->decode_fnptr = call->callee;
+   info->decode_vec_fnptr = call->decode_vec_fn;
 
    if (is_store && clamp_mode != NIR_TENSOR_CLAMP_UNDEFINED)
       clamp_mode = NIR_TENSOR_CLAMP_CONSTANT;
@@ -1331,11 +1332,19 @@ nir_calc_tensor_derefs(nir_builder *b, struct nir_calc_tensor_info *info,
       idx = nir_iadd(b, idx, nir_imul(b, block_coord[dim], nir_channel(b, info->strides, dim)));
    }
 
-   if (info->decode_fnptr) {
-      nir_variable *decode_out_tmp = nir_local_variable_create(b->impl, glsl_get_bare_type(info->decode_fnptr->params[0].type), "decode_tmp");
+   nir_function *decode_fn;
+   if (info->decode_vec_fnptr && info->use_vec_decode)
+      decode_fn = info->decode_vec_fnptr;
+   else
+      decode_fn = info->decode_fnptr;
+
+   if (decode_fn) {
+      const struct glsl_type *out_type = glsl_get_bare_type(decode_fn->params[0].type);
+      nir_variable *decode_out_tmp = nir_local_variable_create(b->impl, out_type, "decode_vec_tmp");
       nir_deref_instr *decode_out_tmp_deref = nir_build_deref_var(b, decode_out_tmp);
-      nir_call_instr *call = nir_call_instr_create(b->shader, info->decode_fnptr);
-      nir_deref_instr *param_deref = find_decode_deref(info->decode_fnptr->impl);
+      nir_call_instr *call = nir_call_instr_create(b->shader, decode_fn);
+      nir_deref_instr *param_deref = find_decode_deref(decode_fn->impl);
+
       /*
        * The first parameter must be a pointer type with storage class PhysicalStorageBuffer,
        * and the parameter is filled a pointer computed by multiplying the index returned by
@@ -1350,8 +1359,7 @@ nir_calc_tensor_derefs(nir_builder *b, struct nir_calc_tensor_info *info,
          idx_deref = nir_build_deref_ptr_as_array(b, idx_deref, nir_u2uN(b, idx, iter_deref->def.bit_size));
          idx_def = &idx_deref->def;
       } else
-         idx_def = nir_undef(b, info->decode_fnptr->params[1].num_components,
-                             info->decode_fnptr->params[1].bit_size);
+         idx_def = nir_undef(b, decode_fn->params[1].num_components, decode_fn->params[1].bit_size);
 
       call->params[0] = nir_src_for_ssa(&decode_out_tmp_deref->def);
       call->params[1] = nir_src_for_ssa(idx_def);

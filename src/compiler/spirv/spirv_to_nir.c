@@ -59,6 +59,7 @@ static const struct spirv_capabilities implemented_capabilities = {
    .CooperativeMatrixConversionsNV = true,
    .CooperativeMatrixTensorAddressingNV = true,
    .CooperativeMatrixBlockLoadsNV = true,
+   .CooperativeMatrixDecodeVectorNV = true,
    .CoreBuiltinsARM = true,
    .CullDistance = true,
    .DemoteToHelperInvocation = true,

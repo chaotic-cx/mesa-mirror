@@ -1664,6 +1664,10 @@ write_cmat_call(write_ctx *ctx, const nir_cmat_call_instr *call)
    else
       blob_write_uint32(ctx->blob, 0);
 
+   if (call->decode_vec_fn)
+      blob_write_uint32(ctx->blob, write_lookup_object(ctx, call->decode_vec_fn));
+   else
+      blob_write_uint32(ctx->blob, 0);
    blob_write_uint32(ctx->blob, call->op);
 
    for (unsigned i = 0; i < call->num_params; i++)
@@ -1680,8 +1684,13 @@ read_cmat_call(read_ctx *ctx)
    nir_function *callee = NULL;
    if (callee_int)
       callee = read_lookup_object(ctx, callee_int);
+   uint32_t decode_int = blob_read_uint32(ctx->blob);
+   nir_function *decode_vec_fn = NULL;
+   if (decode_int)
+      decode_vec_fn = read_lookup_object(ctx, decode_int);
    nir_cmat_call_op op = blob_read_uint32(ctx->blob);
-   nir_cmat_call_instr *call = nir_cmat_call_instr_create(ctx->nir, op, callee);
+
+   nir_cmat_call_instr *call = nir_cmat_call_instr_create(ctx->nir, op, callee, decode_vec_fn);
 
    for (unsigned i = 0; i < call->num_params; i++)
       read_src(ctx, &call->params[i]);

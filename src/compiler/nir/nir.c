@@ -937,7 +937,8 @@ nir_cmat_call_op_params(nir_cmat_call_op op, nir_function *callee)
 }
 
 nir_cmat_call_instr *
-nir_cmat_call_instr_create(nir_shader *shader, nir_cmat_call_op op, nir_function *callee)
+nir_cmat_call_instr_create(nir_shader *shader, nir_cmat_call_op op, nir_function *callee,
+			   nir_function *decode_vec_fn)
 {
    const unsigned num_params = nir_cmat_call_op_params(op, callee);
    nir_cmat_call_instr *instr =
@@ -945,6 +946,7 @@ nir_cmat_call_instr_create(nir_shader *shader, nir_cmat_call_op op, nir_function
                        sizeof(nir_cmat_call_instr) + sizeof(nir_src) * num_params);
 
    instr->callee = callee;
+   instr->decode_vec_fn = decode_vec_fn;
    instr->op = op;
    instr->num_params = num_params;
    for (unsigned i = 0; i < num_params; i++)

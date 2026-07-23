@@ -319,6 +319,8 @@ typedef enum {
 } nir_tensor_view_fields;
 
 #define NIR_TENSOR_VIEW_MAX_PERMUTATIONS 5
+/* maximum value of V in the tensor decode vector spec */
+#define NIR_CMAT_VECTOR_DECODE_MAX_V 8
 
 /**
  * tensor load cmat call information.
@@ -2071,6 +2073,8 @@ typedef struct nir_cmat_call_instr {
    nir_cmat_call_op op;
 
    nir_function *callee;
+   nir_function *decode_vec_fn;
+
    int const_index[NIR_CMAT_CALL_MAX_CONST_INDEX];
 
    unsigned num_params;
@@ -4712,7 +4716,8 @@ nir_call_instr *nir_call_instr_create(nir_shader *shader,
 int nir_cmat_call_op_params(nir_cmat_call_op op, nir_function *callee);
 nir_cmat_call_instr *nir_cmat_call_instr_create(nir_shader *shader,
                                                 nir_cmat_call_op op,
-                                                nir_function *callee);
+                                                nir_function *callee,
+                                                nir_function *decode_vec_fn);
 
 /** Creates a NIR texture instruction */
 nir_tex_instr *nir_tex_instr_create(nir_shader *shader, unsigned num_srcs);
@@ -7716,11 +7721,13 @@ struct nir_calc_tensor_info {
    uint32_t col_imm_offset;
    uint8_t view_permutations[NIR_TENSOR_VIEW_MAX_PERMUTATIONS];
    bool view_has_dims;
+   bool use_vec_decode;
    struct glsl_cmat_description desc;
    nir_tensor_clamp_mode clamp_mode;
    nir_if *clipped_if;
    nir_def *do_clamp;
    nir_function *decode_fnptr;
+   nir_function *decode_vec_fnptr;
 };
 
 void nir_calc_tensor_derefs_init(nir_builder *b, struct nir_calc_tensor_info *info,

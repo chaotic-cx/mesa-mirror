@@ -268,7 +268,8 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
       reduce_fn->referenced = true;
       reduce_fn->nir_func->cmat_call = true;
       nir_deref_instr *dst = vtn_create_cmat_temporary(b, dst_type->type, "cmat_reduce");
-      nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, nir_cmat_call_op_reduce, reduce_fn->nir_func);
+      nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, nir_cmat_call_op_reduce,
+                                                             reduce_fn->nir_func, NULL);
       call->params[0] = nir_src_for_ssa(&dst->def);
       call->params[1] = nir_src_for_ssa(&src->def);
       call->const_index[0] = w[4];
@@ -287,7 +288,8 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
       per_element_fn->nir_func->cmat_call = true;
       nir_deref_instr *dst = vtn_create_cmat_temporary(b, dst_type->type, "cmat_per_element");
 
-      nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, nir_cmat_call_op_per_element_op, per_element_fn->nir_func);
+      nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, nir_cmat_call_op_per_element_op,
+                                                             per_element_fn->nir_func, NULL);
       call->params[0] = nir_src_for_ssa(&dst->def);
       call->params[1] = nir_src_for_ssa(nir_imm_zero(&b->nb, 1, 32));
       call->params[2] = nir_src_for_ssa(nir_imm_zero(&b->nb, 1, 32));
@@ -319,7 +321,7 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
       struct vtn_pointer *src_p = vtn_value_to_pointer(b, src_val);
       nir_deref_instr *clip_src = vtn_get_cmat_deref(b, w[4]);
       nir_def *view = NULL;
-      struct vtn_function *decode_fn = NULL;
+      struct vtn_function *decode_fn = NULL, *decode_vec_fn = NULL;
       SpvMemoryAccessMask access = SpvMemoryAccessMaskNone;
       unsigned idx = 6;
       if (count > 6) {
@@ -350,6 +352,12 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
          decode_fn->nir_func->cmat_call = true;
          idx++;
       }
+      if (tensor_addressing & SpvTensorAddressingOperandsDecodeVectorFuncMask) {
+         decode_vec_fn = vtn_value(b, w[idx], vtn_value_type_function)->func;
+         decode_vec_fn->referenced = true;
+         decode_vec_fn->nir_func->cmat_call = true;
+         idx++;
+      }
       assert(idx == count);
       if (!view) {
          view = nir_undef(&b->nb, 1, 32);
@@ -366,7 +374,8 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
 
       nir_cmat_call_op op = nir_cmat_call_op_tensor_load;
       nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, op,
-                                                             decode_fn ? decode_fn->nir_func : NULL);
+                                                             decode_fn ? decode_fn->nir_func : NULL,
+                                                             decode_vec_fn ? decode_vec_fn->nir_func : NULL);
 
       call->params[0] = nir_src_for_ssa(&dst->def);
       call->params[1] = nir_src_for_ssa(vtn_pointer_to_ssa(b, src_p));
@@ -420,7 +429,7 @@ vtn_handle_cooperative_instruction(struct vtn_builder *b, SpvOp opcode,
       struct vtn_type *layout_type = vtn_get_value_type(b, w[3]);
       tensor_load.layout_clamp_mode = layout_type->tensor_layout_clamp_mode;
       nir_cmat_call_op op = nir_cmat_call_op_tensor_store;
-      nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, op, NULL);
+      nir_cmat_call_instr *call = nir_cmat_call_instr_create(b->nb.shader, op, NULL, NULL);
 
       call->params[0] = nir_src_for_ssa(vtn_pointer_to_ssa(b, dest));
       call->params[1] = nir_src_for_ssa(&src->def);
