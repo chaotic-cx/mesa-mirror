@@ -130,8 +130,8 @@ find_matching_paren(std::string_view s)
    if (s.empty() || s[0] != '(')
       return {};
 
-   unsigned depth = 0;
-   for (size_t i = 0; i < s.size(); i++) {
+   unsigned depth = 1;
+   for (size_t i = 1; i < s.size(); i++) {
       if (s[i] == '(') {
          depth++;
       } else if (s[i] == ')') {
