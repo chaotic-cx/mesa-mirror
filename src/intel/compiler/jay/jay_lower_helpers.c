@@ -36,8 +36,6 @@ list_partition(struct list_head *src,
 
    /* src runs from pivot[1:] to end of src */
    src->next = pivot->next;
-   src->prev = src->prev;
-
    src->next->prev = src;
    pivot->next = dst;
 
