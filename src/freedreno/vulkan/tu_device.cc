@@ -428,7 +428,7 @@ get_device_extensions(const struct tu_physical_device *device,
       .QCOM_multiview_per_view_viewports =
          device->info->props.has_per_view_viewport,
       .QCOM_render_pass_shader_resolve = true,
-      .VALVE_fragment_density_map_layered = true,
+      .VALVE_fragment_density_map_layered = tu_is_vk_1_1(device),
       .VALVE_mutable_descriptor_type = true,
    } };
 }
