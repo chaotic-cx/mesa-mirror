@@ -6150,16 +6150,18 @@ void
 tu_blit_subsampled_apron(struct tu_cmd_buffer *cmd,
                          struct tu_cs *cs,
                          const struct tu_image_view *iview,
+                         bool store,
+                         bool store_stencil,
                          unsigned layer,
                          const VkRect2D *dst_coord,
                          const tu_rect2d_float *src_coord,
                          unsigned count)
 {
    if (iview->image->vk.format == VK_FORMAT_D32_SFLOAT_S8_UINT) {
-      blit_subsampled_apron<CHIP>(cmd, cs, iview, VK_FORMAT_D32_SFLOAT, layer,
-                                  dst_coord, src_coord, count);
-      blit_subsampled_apron<CHIP>(cmd, cs, iview, VK_FORMAT_S8_UINT, layer,
-                                  dst_coord, src_coord, count);
+      if (store)
+         blit_subsampled_apron<CHIP>(cmd, cs, iview, VK_FORMAT_D32_SFLOAT, layer, dst_coord, src_coord, count);
+      if (store_stencil)
+         blit_subsampled_apron<CHIP>(cmd, cs, iview, VK_FORMAT_S8_UINT, layer, dst_coord, src_coord, count);
    } else {
       blit_subsampled_apron<CHIP>(cmd, cs, iview, iview->vk.format, layer,
                                   dst_coord, src_coord, count);

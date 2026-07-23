@@ -3313,7 +3313,7 @@ tu6_sysmem_render_end(struct tu_cmd_buffer *cmd, struct tu_cs *cs,
    if (cmd->state.fdm_subsampled) {
       for (unsigned i = 0; i < cmd->state.pass->attachment_count; i++) {
          if (i != cmd->state.pass->fragment_density_map.attachment &&
-             cmd->state.pass->attachments[i].store) {
+             (cmd->state.pass->attachments[i].store || cmd->state.pass->attachments[i].store_stencil)) {
             /* emit dummy subsampled metadata since we didn't use FDM */
             tu_emit_subsampled_metadata(cmd, &cmd->cs, i,
                                         NULL, NULL, NULL,
@@ -3821,7 +3821,7 @@ tu_emit_subsampled(struct tu_cmd_buffer *cmd,
 
    for (unsigned i = 0; i < cmd->state.pass->attachment_count; i++) {
       if (i != cmd->state.pass->fragment_density_map.attachment &&
-          cmd->state.pass->attachments[i].store) {
+          (cmd->state.pass->attachments[i].store || cmd->state.pass->attachments[i].store_stencil)) {
          tu_emit_subsampled_metadata(cmd, cs, i,
                                      tiles, tiling, vsc,
                                      cmd->state.framebuffer,
@@ -3861,12 +3861,11 @@ tu_emit_subsampled(struct tu_cmd_buffer *cmd,
       if (count != 0) {
          for (unsigned i = 0; i < cmd->state.pass->attachment_count; i++) {
             if (i != cmd->state.pass->fragment_density_map.attachment &&
-                cmd->state.pass->attachments[i].store &&
-                (cmd->state.pass->num_views == 0 ||
-                 (cmd->state.pass->attachments[i].used_views & (1u << layer)) ||
+                (cmd->state.pass->attachments[i].store || cmd->state.pass->attachments[i].store_stencil) &&
+                (cmd->state.pass->num_views == 0 || (cmd->state.pass->attachments[i].used_views & (1u << layer)) ||
                  (cmd->state.pass->attachments[i].resolve_views & (1u << layer)))) {
-               tu_blit_subsampled_apron<CHIP>(cmd, cs, cmd->state.attachments[i],
-                                              layer, dst, src, count);
+               tu_blit_subsampled_apron<CHIP>(cmd, cs, cmd->state.attachments[i], cmd->state.pass->attachments[i].store,
+                                              cmd->state.pass->attachments[i].store_stencil, layer, dst, src, count);
             }
          }
       }
