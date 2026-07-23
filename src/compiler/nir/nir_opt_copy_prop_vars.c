@@ -233,6 +233,13 @@ gather_vars_written(struct copy_prop_var_state *state,
                               nir_var_shader_call_data;
             break;
 
+         case nir_intrinsic_cmat_store:
+            /* Be conservative: src[0] only refers to the base element, but
+             * cmat_store may write beyond it.
+             */
+            written->modes |= nir_src_as_deref(intrin->src[0])->modes;
+            break;
+
          case nir_intrinsic_deref_atomic:
          case nir_intrinsic_deref_atomic_swap:
          case nir_intrinsic_store_deref:
@@ -1087,6 +1094,14 @@ copy_prop_vars_block(struct copy_prop_var_state *state,
 
          if (nir_intrinsic_memory_semantics(intrin) & (NIR_MEMORY_ACQUIRE | NIR_MEMORY_MAKE_VISIBLE))
             apply_barrier_for_modes(state, copies, nir_intrinsic_memory_modes(intrin));
+         break;
+
+      case nir_intrinsic_cmat_store:
+         if (debug)
+            dump_instr(instr);
+
+         apply_barrier_for_modes(state, copies,
+                                 nir_src_as_deref(intrin->src[0])->modes);
          break;
 
       case nir_intrinsic_emit_vertex:
