@@ -495,6 +495,24 @@ lower_cmat_tensor_load_store(nir_builder *b, nir_cmat_call_instr *call, const lo
          deref = convert_ssbo_to_global(b, deref, elem_bits);
       }
    }
+
+   /*
+    * For use_A, after the row/col SWAP, col_offset = base_row + i,
+    * so consecutive iterations have consecutive columns.  The vector decode
+    * function covers vec_width consecutive columns in one call, so we can call
+    * it once per group and extract individual elements.
+    */
+   unsigned vec_width = 0;
+   if (info.decode_vec_fnptr) {
+      const struct glsl_type *out_type =
+         glsl_get_bare_type(info.decode_vec_fnptr->params[0].type);
+      vec_width = glsl_get_vector_elements(out_type);
+   }
+   info.use_vec_decode = is_load && desc.use == GLSL_CMAT_USE_A &&
+                         vec_width > 0 &&
+                         (length / mul) % vec_width == 0;
+   nir_def *vec_decoded = NULL;
+
    for (unsigned i = 0; i < length / mul; ++i) {
       nir_deref_instr *iter_deref = deref;
       nir_def *col_offset = inner_idx;
@@ -512,30 +530,48 @@ lower_cmat_tensor_load_store(nir_builder *b, nir_cmat_call_instr *call, const lo
          SWAP(row_offset, col_offset);
       }
 
-      nir_def *idx = nir_calc_tensor_derefs(b, &info, row_offset, col_offset, &iter_deref);
+      if (info.use_vec_decode) {
+         if (i % vec_width == 0) {
+            vec_decoded = nir_calc_tensor_derefs(b, &info, row_offset, col_offset, &iter_deref);
 
-      if (!info.decode_fnptr) {
-         if (is_load) {
-            if (info.clamp_value) {
-               vars[i * mul] = nir_bcsel(b, info.do_clamp, nir_u2uN(b, info.clamp_value, radv_nir_cmat_bits(desc)),
-                                         nir_load_deref(b, iter_deref));
+            if (info.clipped_if) {
+               nir_push_else(b, info.clipped_if);
+               nir_def *clip_elems[NIR_CMAT_VECTOR_DECODE_MAX_V];
+               for (unsigned v = 0; v < vec_width; v++)
+                  clip_elems[v] = clips[(i + v) * mul];
+               nir_pop_if(b, info.clipped_if);
+               vec_decoded = nir_if_phi(b, vec_decoded, nir_vec(b, clip_elems, vec_width));
+               info.clipped_if = NULL;
+            }
+         }
+         vars[i * mul] = nir_channel(b, vec_decoded, i % vec_width);
+      } else {
+         nir_def *idx = nir_calc_tensor_derefs(b, &info, row_offset, col_offset, &iter_deref);
+
+         if (!info.decode_fnptr) {
+            if (is_load) {
+               if (info.clamp_value) {
+                  vars[i * mul] = nir_bcsel(b, info.do_clamp,
+                                            nir_u2uN(b, info.clamp_value, radv_nir_cmat_bits(desc)),
+                                            nir_load_deref(b, iter_deref));
+               } else {
+                  vars[i * mul] = nir_load_deref(b, iter_deref);
+               }
             } else {
-               vars[i * mul] = nir_load_deref(b, iter_deref);
+               nir_if *store_if_inner = nir_push_if(b, nir_inot(b, info.do_clamp));
+               nir_store_deref(b, iter_deref, vars[i * mul], 1);
+               nir_pop_if(b, store_if_inner);
             }
          } else {
-            nir_if *store_if_inner = nir_push_if(b, nir_inot(b, info.do_clamp));
-            nir_store_deref(b, iter_deref, vars[i * mul], 1);
-            nir_pop_if(b, store_if_inner);
+            vars[i * mul] = idx;
          }
-      } else {
-         vars[i * mul] = idx;
-      }
 
-      if (info.clipped_if) {
-         nir_push_else(b, info.clipped_if);
-         nir_pop_if(b, info.clipped_if);
-         if (is_load)
-            vars[i * mul] = nir_if_phi(b, vars[i * mul], clips[i * mul]);
+         if (info.clipped_if) {
+            nir_push_else(b, info.clipped_if);
+            nir_pop_if(b, info.clipped_if);
+            if (is_load)
+               vars[i * mul] = nir_if_phi(b, vars[i * mul], clips[i * mul]);
+         }
       }
    }
 

@@ -990,6 +990,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .MESA_image_alignment_control = pdev->info.gfx_level >= GFX9,
       .NV_compute_shader_derivatives = true,
       .NV_cooperative_matrix2 = radv_cooperative_matrix2_nv_enabled(pdev),
+      .NV_cooperative_matrix_decode_vector = radv_cooperative_matrix2_nv_enabled(pdev),
       .VALVE_mutable_descriptor_type = true,
       .VALVE_shader_mixed_float_dot_product = pdev->info.compiler_info.has_accelerated_dot_product,
       .VALVE_video_encode_rgb_conversion =
@@ -1600,6 +1601,9 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
       .cooperativeMatrixPerElementOperationsNV = true,
       .cooperativeMatrixTensorAddressing = true,
       .cooperativeMatrixBlockLoads = true,
+
+      /* VK_NV_cooperative_matrix_decode_vector */
+      .cooperativeMatrixDecodeVector = true,
 
       /* VK_KHR_video_encode_av1 */
       .videoEncodeAV1 = true,
