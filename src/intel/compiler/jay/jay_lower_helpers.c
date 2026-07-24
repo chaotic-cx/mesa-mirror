@@ -21,7 +21,7 @@ struct ctx {
 /*
  * Takes src, a linked list containing the element pivot in the middle, and dst
  * an empty list. Moves all elements up to and including pivot from src to dst,
- * leaving the rest in dst. Semantically equivalent to a loop of list_move but
+ * leaving the rest in src. Semantically equivalent to a loop of list_move but
  * O(1) time regardless of the position of pivot in the list.
  */
 static void
