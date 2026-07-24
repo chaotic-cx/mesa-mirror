@@ -322,6 +322,7 @@ ethosu_register_tensor(struct ethosu_subgraph *subgraph,
 
    if ((tensor = ethosu_find_tensor(subgraph, ptensor->index))) {
       tensor->users++;
+      tensor->is_external_output |= ptensor->is_external_output;
       return;
    }
 
@@ -334,6 +335,7 @@ ethosu_register_tensor(struct ethosu_subgraph *subgraph,
    new_tensor.layout = ETHOSU_LAYOUT_NHWC;
    new_tensor.batches = subgraph->batches;
    new_tensor.type_size = ptensor->type_size;
+   new_tensor.is_external_output = ptensor->is_external_output;
    util_dynarray_append(&subgraph->tensors, new_tensor);
 }
 

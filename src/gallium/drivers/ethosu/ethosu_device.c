@@ -27,6 +27,8 @@ static const struct debug_named_value ethosu_debug_options[] = {
    {"dump_perf", ETHOSU_DBG_DUMP_PERF, "Dump performance counters for each submit"},
    {"dump_lowering", ETHOSU_DBG_DUMP_LOWERING, "Dump the operation list after each lowering pass"},
    {"mem", ETHOSU_DBG_MEM, "Print memory usage"},
+   {"disable_io_reuse", ETHOSU_DBG_DISABLE_IO_REUSE,
+    "Disable IO buffer reuse"},
    DEBUG_NAMED_VALUE_END};
 
 DEBUG_GET_ONCE_FLAGS_OPTION(ethosu_debug, "ETHOSU_DEBUG", ethosu_debug_options, 0)

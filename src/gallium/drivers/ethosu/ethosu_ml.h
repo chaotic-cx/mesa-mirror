@@ -285,6 +285,7 @@ struct ethosu_tensor {
    unsigned batches;
    uint8_t type_size;
    uint8_t users;
+   bool is_external_output;
    struct ethosu_block shape;
    enum ethosu_layout layout;
 };

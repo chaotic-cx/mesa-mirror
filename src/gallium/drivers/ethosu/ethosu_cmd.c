@@ -1464,7 +1464,7 @@ fill_memory_accesses(struct ethosu_subgraph *subgraph)
                ethosu_feature_map_span(&operation->ifm);
          }
 
-         if (!operation->ifm2.has_scalar &&
+         if (operation->ifm2.tensor && !operation->ifm2.has_scalar &&
              !u85_fm_chained(subgraph, &operation->ifm2)) {
             operation->read_accesses[1].region = operation->ifm2.region;
             operation->read_accesses[1].address =

@@ -46,6 +46,7 @@ struct ethosu_io_interval {
    bool active;
    bool has_producer;
    bool has_consumer;
+   bool is_external_output;
 };
 
 struct ethosu_io_free_block {
@@ -92,6 +93,108 @@ ethosu_union_intervals(struct ethosu_io_interval *intervals, unsigned a,
    intervals[a].size = MAX2(intervals[a].size, intervals[b].size);
    intervals[a].has_producer |= intervals[b].has_producer;
    intervals[a].has_consumer |= intervals[b].has_consumer;
+   intervals[a].is_external_output |= intervals[b].is_external_output;
+}
+
+static bool
+ethosu_feature_maps_match(const struct ethosu_subgraph *subgraph,
+                          const unsigned *required_sizes,
+                          const struct ethosu_feature_map *ifm,
+                          const struct ethosu_feature_map *ofm)
+{
+   if (!ethosu_is_feature_map_in_io(ifm) || !ethosu_is_feature_map_in_io(ofm))
+      return false;
+
+   return ifm->tensor->layout == ofm->tensor->layout &&
+          ifm->tensor->type_size == ofm->tensor->type_size &&
+          ifm->precision == ofm->precision && ifm->is_signed == ofm->is_signed &&
+          ifm->shape.height == ofm->shape.height &&
+          ifm->shape.width == ofm->shape.width &&
+          ifm->shape.depth == ofm->shape.depth &&
+          ifm->stride.x == ofm->stride.x && ifm->stride.y == ofm->stride.y &&
+          ifm->stride.c == ofm->stride.c &&
+          ifm->tiles.height_0 == ofm->tiles.height_0 &&
+          ifm->tiles.height_1 == ofm->tiles.height_1 &&
+          ifm->tiles.width_0 == ofm->tiles.width_0 &&
+          ethosu_feature_map_span(ifm) == ethosu_feature_map_span(ofm) &&
+          ethosu_tensor_storage_size(subgraph, required_sizes, ifm->tensor) ==
+             ethosu_tensor_storage_size(subgraph, required_sizes, ofm->tensor);
+}
+
+static bool
+ethosu_operation_is_one_to_one(const struct ethosu_operation *operation)
+{
+   if (operation->type == ETHOSU_OPERATION_TYPE_ELTWISE)
+      return true;
+
+   if (operation->type != ETHOSU_OPERATION_TYPE_POOLING)
+      return false;
+
+   if (operation->pooling.nop)
+      return true;
+
+   return operation->kernel.height == 1 && operation->kernel.width == 1 &&
+          operation->kernel.stride_y == 1 && operation->kernel.stride_x == 1 &&
+          operation->pad.top == 0 && operation->pad.bottom == 0 &&
+          operation->pad.left == 0 && operation->pad.right == 0 &&
+          operation->upscale == ETHOSU_UPSCALE_NONE;
+}
+
+static void
+ethosu_tensor_operation_counts(struct ethosu_subgraph *subgraph,
+                               const struct ethosu_tensor *tensor,
+                               unsigned *producers, unsigned *consumers)
+{
+   *producers = 0;
+   *consumers = 0;
+
+   util_dynarray_foreach (&subgraph->operations, struct ethosu_operation, operation) {
+      if (operation->type == ETHOSU_OPERATION_TYPE_DMA)
+         continue;
+
+      if (operation->ofm.tensor == tensor)
+         (*producers)++;
+
+      if (operation->ifm.tensor == tensor)
+         (*consumers)++;
+
+      if (operation->ifm2.tensor == tensor)
+         (*consumers)++;
+   }
+}
+
+static bool
+ethosu_can_reuse_ifm(struct ethosu_subgraph *subgraph,
+                     const unsigned *required_sizes,
+                     struct ethosu_io_interval *intervals,
+                     unsigned interval_count,
+                     const struct ethosu_operation *operation,
+                     const struct ethosu_feature_map *ifm)
+{
+   unsigned ifm_producers, ifm_consumers;
+   unsigned ofm_producers, ofm_consumers;
+   unsigned ifm_idx;
+
+   /* Elementwise OFM writes can overtake reads from IFM2.  Reusing the
+    * second input would overwrite data needed by a later block. */
+   if (ifm == &operation->ifm2)
+      return false;
+
+   if (!ethosu_operation_is_one_to_one(operation) ||
+       !ethosu_feature_maps_match(subgraph, required_sizes, ifm, &operation->ofm) ||
+       ifm->tensor == operation->ofm.tensor)
+      return false;
+
+   ifm_idx = ethosu_find_interval(intervals, interval_count, ifm->tensor);
+   if (intervals[ethosu_interval_root(intervals, ifm_idx)].is_external_output)
+      return false;
+
+   ethosu_tensor_operation_counts(subgraph, ifm->tensor,
+                                  &ifm_producers, &ifm_consumers);
+   ethosu_tensor_operation_counts(subgraph, operation->ofm.tensor,
+                                  &ofm_producers, &ofm_consumers);
+
+   return ifm_consumers == 1 && ofm_producers == 1;
 }
 
 static void
@@ -228,6 +331,7 @@ ethosu_allocate_tensors(struct ethosu_subgraph *subgraph,
       intervals[i].size = ALIGN_POT(ethosu_tensor_storage_size(subgraph, required_sizes, tensor), 16);
       intervals[i].offset = UINT_MAX;
       intervals[i].active = false;
+      intervals[i].is_external_output = tensor->is_external_output;
       tensor->size = 0;
    }
 
@@ -239,6 +343,29 @@ ethosu_allocate_tensors(struct ethosu_subgraph *subgraph,
           operation->ifm.tensor && operation->ofm.tensor) {
          unsigned ifm_idx = ethosu_find_interval(intervals, tensor_count,
                                                  operation->ifm.tensor);
+         unsigned ofm_idx = ethosu_find_interval(intervals, tensor_count,
+                                                 operation->ofm.tensor);
+         ethosu_union_intervals(intervals, ifm_idx, ofm_idx);
+      }
+   }
+
+   for (unsigned i = 0; i < op_count; i++) {
+      struct ethosu_operation *operation =
+         util_dynarray_element(&subgraph->operations, struct ethosu_operation, i);
+
+      if (!DBG_ENABLED(ETHOSU_DBG_DISABLE_IO_REUSE) &&
+          ethosu_can_reuse_ifm(subgraph, required_sizes, intervals, tensor_count, operation,
+                               &operation->ifm)) {
+         unsigned ifm_idx = ethosu_find_interval(intervals, tensor_count,
+                                                 operation->ifm.tensor);
+         unsigned ofm_idx = ethosu_find_interval(intervals, tensor_count,
+                                                 operation->ofm.tensor);
+         ethosu_union_intervals(intervals, ifm_idx, ofm_idx);
+      } else if (!DBG_ENABLED(ETHOSU_DBG_DISABLE_IO_REUSE) &&
+                 ethosu_can_reuse_ifm(subgraph, required_sizes, intervals, tensor_count,
+                                      operation, &operation->ifm2)) {
+         unsigned ifm_idx = ethosu_find_interval(intervals, tensor_count,
+                                                 operation->ifm2.tensor);
          unsigned ofm_idx = ethosu_find_interval(intervals, tensor_count,
                                                  operation->ofm.tensor);
          ethosu_union_intervals(intervals, ifm_idx, ofm_idx);
@@ -294,6 +421,9 @@ ethosu_allocate_tensors(struct ethosu_subgraph *subgraph,
           intervals[i].first_use == UINT_MAX)
          continue;
 
+      if (intervals[i].is_external_output)
+         intervals[i].last_use = op_count;
+
       if (!intervals[i].has_producer && intervals[i].has_consumer)
          intervals[i].first_use = 0;
 
@@ -309,8 +439,9 @@ ethosu_allocate_tensors(struct ethosu_subgraph *subgraph,
              intervals[i].last_use >= op_idx)
             continue;
 
-         ethosu_free_io_block(free_blocks, &free_count, intervals[i].offset,
-                              intervals[i].size);
+         if (!DBG_ENABLED(ETHOSU_DBG_DISABLE_IO_REUSE))
+            ethosu_free_io_block(free_blocks, &free_count,
+                                 intervals[i].offset, intervals[i].size);
          intervals[i].active = false;
       }
 
@@ -345,6 +476,8 @@ ethosu_allocate_tensors(struct ethosu_subgraph *subgraph,
       if (operation->type == ETHOSU_OPERATION_TYPE_NONE) {
          ethosu_add_feature_map_offset(&operation->ifm);
          operation->ofm.tiles.addresses[0] = operation->ifm.tiles.addresses[0];
+         operation->ofm.tensor->offset = operation->ifm.tensor->offset;
+         operation->ofm.tensor->size = operation->ifm.tensor->size;
       } else {
          ethosu_add_feature_map_offset(&operation->ifm);
          ethosu_add_feature_map_offset(&operation->ifm2);
