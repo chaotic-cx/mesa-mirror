@@ -1321,7 +1321,7 @@ load("per_primitive_input", [1], [BASE, COMPONENT, DEST_TYPE, IO_SEMANTICS], [CA
 # src[] = { buffer_index, offset }.
 load("ssbo", [-1, 1], [ACCESS, ALIGN_MUL, ALIGN_OFFSET, OFFSET_SHIFT], [CAN_ELIMINATE])
 # src[] = { buffer_index, offset }
-load("ssbo_address", [1, 1], [], [CAN_ELIMINATE, CAN_REORDER])
+load("ssbo_address", [-1, 1], [], [CAN_ELIMINATE, CAN_REORDER])
 # src[] = { offset }.
 load("output", [1], [BASE, RANGE, COMPONENT, DEST_TYPE, IO_SEMANTICS], flags=[CAN_ELIMINATE])
 # src[] = { offset }.
