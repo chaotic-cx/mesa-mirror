@@ -195,9 +195,6 @@
          <stat name="Source hash" hash="true" type="u64">
             Hash generated from shader source or vkd3d-proton provided.
          </stat>
-         <stat name="Scheduler mode" type="str">
-            Scheduling mode selected for this binary.
-         </stat>
        </isa>
     </family>
 

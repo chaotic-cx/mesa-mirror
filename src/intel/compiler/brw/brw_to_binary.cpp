@@ -2247,7 +2247,6 @@ brw_generator::generate_code(const brw_shader &s,
       stats->non_ssa_regs_after_nir = shader_stats.non_ssa_registers_after_nir;
       stats->source_hash = prog_data->source_hash;
       stats->grf_registers = devinfo->ver >= 30 ? s.grf_used : 0;
-      stats->scheduler_mode = shader_stats.scheduler_mode;
 
       switch (stage) {
       case MESA_SHADER_VERTEX:

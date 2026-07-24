@@ -449,11 +449,6 @@ enum mesa_prim vk_topology_to_mesa(VkPrimitiveTopology topology);
 #define vk_add_exec_statistic_bool(out, name, description, value)               \
    vk_add_exec_statistic(out, name, description, BOOL32, b32, value)
 
-#define vk_add_exec_statistic_str(out, name, description, value)               \
-   do {                                                                        \
-      /* Ignore string statistics in Vulkan drivers, at least for now */       \
-   } while(0)
-
 #ifdef __cplusplus
 }
 #endif
