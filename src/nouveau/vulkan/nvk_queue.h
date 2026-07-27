@@ -18,11 +18,16 @@ struct nvk_device;
 struct nvkmd_mem;
 struct nvkmd_ctx;
 
-struct nvk_queue_heap_state {
+struct nvk_queue_engine_heap_state {
    uint64_t image_heap_addr;
    uint64_t sampler_heap_addr;
    uint32_t image_count;
    uint32_t sampler_count;
+};
+
+struct nvk_queue_heap_state {
+   struct nvk_queue_engine_heap_state cs;
+   struct nvk_queue_engine_heap_state gfx;
 };
 
 struct nvk_queue_slm_state {

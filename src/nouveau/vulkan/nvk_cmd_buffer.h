@@ -229,10 +229,36 @@ struct nvk_video_state {
    struct vk_video_session_parameters *params;
 };
 
+enum ENUM_PACKED nvk_cmd_push_type {
+   /** A normal push */
+   NVK_CMD_PUSH_PUSH = 0,
+
+   /** Re-bind the device heaps
+    *
+    * No command data is pushed (addr, range, and map are all zero) but the
+    * queue may implicitly push a re-bind of the device heaps, if needed.
+    */
+   NVK_CMD_PUSH_BIND_DEVICE_HEAPS,
+
+   /** Bind the image heap, using addr and range */
+   NVK_CMD_PUSH_BIND_IMAGE_HEAP,
+
+   /** Bind the sampler heap, using addr and range */
+   NVK_CMD_PUSH_BIND_SAMPLER_HEAP,
+};
+
+enum ENUM_PACKED nvk_cmd_push_bind_types {
+   NVK_CMD_PUSH_BIND_NONE = 0,
+   NVK_CMD_PUSH_BIND_GRAPHICS = BITFIELD_BIT(0),
+   NVK_CMD_PUSH_BIND_COMPUTE = BITFIELD_BIT(1),
+};
+
 struct nvk_cmd_push {
    void *map;
    uint64_t addr;
    uint32_t range;
+   enum nvk_cmd_push_type type;
+   enum nvk_cmd_push_bind_types bind_type;
    bool incomplete;
    bool no_prefetch;
 };

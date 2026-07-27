@@ -193,6 +193,7 @@ nvk_cmd_buffer_flush_push(struct nvk_cmd_buffer *cmd, bool incomplete)
          (char *)cmd->push.start - (char *)cmd->push_mem->mem->map;
 
       struct nvk_cmd_push push = {
+         .type = NVK_CMD_PUSH_PUSH,
          .map = cmd->push.start,
          .addr = cmd->push_mem->mem->va->addr + mem_offset,
          .range = nv_push_dw_count(&cmd->push) * 4,
@@ -238,6 +239,7 @@ nvk_cmd_buffer_push_indirect(struct nvk_cmd_buffer *cmd,
    nvk_cmd_buffer_flush_push(cmd, true);
 
    struct nvk_cmd_push push = {
+      .type = NVK_CMD_PUSH_PUSH,
       .addr = addr,
       .range = range,
       .no_prefetch = true,

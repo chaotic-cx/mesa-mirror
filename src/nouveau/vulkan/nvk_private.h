@@ -46,6 +46,7 @@
 #define NVK_HW_ROOT_TABLE_COUNT 8
 
 #define NVK_TEXTURE_HEADER_SIZE (8 * 4)
+#define NVK_SAMPLER_HEADER_SIZE (8 * 4)
 
 /* Device Generated Commands */
 #define NVK_DGC_ALIGN 0x100
