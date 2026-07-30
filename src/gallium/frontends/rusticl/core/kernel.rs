@@ -1973,11 +1973,32 @@ impl Kernel {
 
             let (resources, mut globals) = exec_builder.get_resources_and_globals();
 
+            let mut read_barriers = 0;
+            let mut write_barriers = 0;
+            if !resources.is_empty() || !bdas.is_empty() {
+                read_barriers |= PIPE_BARRIER_MAPPED_BUFFER
+                    | PIPE_BARRIER_SHADER_BUFFER
+                    | PIPE_BARRIER_UPDATE_BUFFER;
+                write_barriers |= PIPE_BARRIER_MAPPED_BUFFER
+                    | PIPE_BARRIER_SHADER_BUFFER
+                    | PIPE_BARRIER_UPDATE_BUFFER;
+            }
+            if !sviews.is_empty() {
+                read_barriers |= PIPE_BARRIER_TEXTURE | PIPE_BARRIER_UPDATE_TEXTURE;
+            }
+            if !iviews.is_empty() {
+                // TODO: skip this if there are only write_only images
+                read_barriers |= PIPE_BARRIER_IMAGE | PIPE_BARRIER_UPDATE_TEXTURE;
+                write_barriers |= PIPE_BARRIER_IMAGE | PIPE_BARRIER_TEXTURE | PIPE_BARRIER_UPDATE_TEXTURE;
+            }
+
             ctx.bind_kernel(&nir_kernel_builds, variant)?;
             ctx.bind_sampler_states(samplers);
             ctx.bind_sampler_views(sviews);
             ctx.bind_shader_images(iviews);
             ctx.set_global_binding(resources, &mut globals);
+
+            ctx.memory_barrier(read_barriers);
 
             for z in 0..grid[2].div_ceil(hw_max_grid[2]) {
                 for y in 0..grid[1].div_ceil(hw_max_grid[1]) {
@@ -2010,9 +2031,8 @@ impl Kernel {
                 }
             }
 
+            ctx.memory_barrier(write_barriers);
             ctx.clear_global_binding(globals.len() as u32);
-
-            ctx.memory_barrier(PIPE_BARRIER_SHADER_BUFFER);
 
             if let Some(printf_buf) = &printf_buf {
                 let tx = ctx
