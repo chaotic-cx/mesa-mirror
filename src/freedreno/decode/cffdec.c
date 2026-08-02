@@ -2173,6 +2173,8 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
    uint32_t w, h, p;
    uint32_t gpuaddr, flags, mip_gpuaddr, mip_flags;
    uint32_t min, mag, swiz, clamp_x, clamp_y, clamp_z;
+   uint32_t type, tiled, stacked, depth, dimension, packed_mips;
+   uint32_t mip_min_level, mip_max_level, vol_min, vol_mag;
    static const char *filter[] = {
       "point",
       "bilinear",
@@ -2190,19 +2192,24 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
    /* Texture, FormatXYZW=Unsigned, ClampXYZ=Wrap/Repeat,
     * RFMode=ZeroClamp-1, Dim=1:2d, pitch
     */
-   p = (dwords[0] >> 22) << 5;
+   type = dwords[0] & 0x3;
    clamp_x = (dwords[0] >> 10) & 0x3;
    clamp_y = (dwords[0] >> 13) & 0x3;
    clamp_z = (dwords[0] >> 16) & 0x3;
+   p = ((dwords[0] >> 22) & 0x1ff) << 5;
+   tiled = (dwords[0] >> 31) & 0x1;
 
    /* Format=6:8888_WZYX, EndianSwap=0:None, ReqSize=0:256bit, DimHi=0,
     * NearestClamp=1:OGL Mode
     */
    parse_dword_addr(dwords[1], &gpuaddr, &flags, 0xfff);
 
-   /* Width, Height, EndianSwap=0:None */
+   stacked = (dwords[1] >> 10) & 0x1;
+
+   /* Width, Height, EndianSwap=0:None; Depth, without the 1 subtracted */
    w = (dwords[2] & 0x1fff) + 1;
    h = ((dwords[2] >> 13) & 0x1fff) + 1;
+   depth = (dwords[2] >> 26) & 0x3f;
 
    /* NumFormat=0:RF, DstSelXYZW=XYZW, ExpAdj=0, MagFilt=MinFilt=0:Point,
     * Mip=2:BaseMap
@@ -2214,11 +2221,16 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
    /* VolMag=VolMin=0:Point, MinMipLvl=0, MaxMipLvl=1, LodBiasH=V=0,
     * Dim3d=0
     */
-   // XXX
+   vol_mag = dwords[4] & 0x1;
+   vol_min = (dwords[4] >> 1) & 0x1;
+   mip_min_level = (dwords[4] >> 2) & 0xf;
+   mip_max_level = (dwords[4] >> 6) & 0xf;
 
    /* BorderColor=0:ABGRBlack, ForceBC=0:diable, TriJuice=0, Aniso=0,
     * Dim=1:2d, MipPacking=0
     */
+   dimension = (dwords[5] >> 9) & 0x3;
+   packed_mips = (dwords[5] >> 11) & 0x1;
    parse_dword_addr(dwords[5], &mip_gpuaddr, &mip_flags, 0xfff);
 
    printf("%sset texture const %04x\n", levels[level], val);
@@ -2232,6 +2244,12 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
    printf("%saddr=%08x (flags=%03x), size=%dx%d, pitch=%d, format=%s\n",
           levels[level + 1], gpuaddr, flags, w, h, p,
           rnn_enumname(rnn, "a2xx_sq_surfaceformat", flags & 0x3f));
+   printf("%sdimension=%s%s%s, depth=%u, type=%u\n", levels[level + 1],
+          rnn_enumname(rnn, "sq_tex_dimension", dimension),
+          tiled ? ", tiled" : "", stacked ? ", stacked" : "", depth, type);
+   printf("%smip levels %u..%u%s, vol filter min/mag: %s/%s\n",
+          levels[level + 1], mip_min_level, mip_max_level,
+          packed_mips ? ", packed" : "", filter[vol_min], filter[vol_mag]);
    printf("%smipaddr=%08x (flags=%03x)\n", levels[level + 1], mip_gpuaddr,
           mip_flags);
 }
