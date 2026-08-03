@@ -239,6 +239,7 @@ intel_measure_snapshot_string(enum intel_measure_snapshot_type type)
       [INTEL_SNAPSHOT_CCS_RESOLVE]         = "ccs resolve",
       [INTEL_SNAPSHOT_COMPUTE]             = "compute",
       [INTEL_SNAPSHOT_BLIT_COPY]           = "blit copy",
+      [INTEL_SNAPSHOT_MEM_COPY]            = "mem copy",
       [INTEL_SNAPSHOT_DRAW]                = "draw",
       [INTEL_SNAPSHOT_FAST_STENCIL_CLEAR]  = "fast stencil clear",
       [INTEL_SNAPSHOT_HIZ_AMBIGUATE]       = "hiz ambiguate",

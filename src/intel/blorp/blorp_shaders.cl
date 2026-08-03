@@ -22,6 +22,113 @@ void nir_image_store(uint handle, int4 coords, uint sample_index,
                      uint image_array, uint format, uint access,
                      uint range_base, uint src_type);
 
+#define BLORP_COPY_MEM2MEM_SHADER_ALIGNED_IMPL(type)               \
+void                                                               \
+blorp_copy_mem2mem_shader_aligned_##type(                          \
+   global const type *src,                                         \
+   global type *dst,                                               \
+   ulong size,                                                     \
+   uint global_id)                                                 \
+{                                                                  \
+   if (global_id * sizeof(type) < size)                            \
+      dst[global_id] = src[global_id];                             \
+}
+
+BLORP_COPY_MEM2MEM_SHADER_ALIGNED_IMPL(uchar)
+BLORP_COPY_MEM2MEM_SHADER_ALIGNED_IMPL(ulong)
+BLORP_COPY_MEM2MEM_SHADER_ALIGNED_IMPL(ulong2)
+
+#define BLORP_COPY_MEM2MEM_SHADER_SEMI_ALIGNED_IMPL(type)          \
+void                                                               \
+blorp_copy_mem2mem_shader_semi_aligned_##type(                     \
+   global const type *src,                                         \
+   global type *dst,                                               \
+   ulong size,                                                     \
+   uint global_id)                                                 \
+{                                                                  \
+   uint pos = global_id * sizeof(type);                            \
+   if (pos + (sizeof(type) - 1) < size) {                          \
+      dst[global_id] = src[global_id];                             \
+   } else {                                                        \
+      global const uchar *src1 = (global const uchar *)src;        \
+      global uchar *dst1 = (global uchar *)dst;                    \
+                                                                   \
+      for (ulong i = pos; i < size; i++)                           \
+         dst1[i] = src1[i];                                        \
+   }                                                               \
+}
+
+BLORP_COPY_MEM2MEM_SHADER_SEMI_ALIGNED_IMPL(ulong)
+BLORP_COPY_MEM2MEM_SHADER_SEMI_ALIGNED_IMPL(ulong2)
+
+/* We special-case the 4-byte aligned and semi-aligned versions: for some
+ * reason, when the copy is big (512k or more), on discrete, if we don't write
+ * 8 bytes per invocation the shader is *super* slow.
+ */
+void
+blorp_copy_mem2mem_shader_aligned_uint(
+   global const uint *src,
+   global uint *dst,
+   ulong size,
+   uint global_id)
+{
+   uint pos_bytes = global_id * 8;
+   uint pos_uints = global_id * 2;
+
+   if (pos_bytes + 7 < size) {
+      dst[pos_uints] = src[pos_uints];
+      dst[pos_uints + 1] = src[pos_uints + 1];
+   } else if (pos_bytes + 3 < size) {
+      dst[pos_uints] = src[pos_uints];
+   }
+}
+
+void
+blorp_copy_mem2mem_shader_semi_aligned_uint(
+   global const uint *src,
+   global uint *dst,
+   ulong size,
+   uint global_id)
+{
+   uint pos_bytes = global_id * 8;
+   if (pos_bytes + 7 < size) {
+      uint pos_uints = global_id * 2;
+      dst[pos_uints] = src[pos_uints];
+      dst[pos_uints + 1] = src[pos_uints + 1];
+   } else {
+      global const uchar *src1 = (global const uchar *)src;
+      global uchar *dst1 = (global uchar *)dst;
+
+      for (ulong i = pos_bytes; i < size; i++)
+         dst1[i] = src1[i];
+   }
+}
+
+/* OpenCL's vload/vstore family of functions are guaranteed to work even when
+ * access is unaligned. For Intel, on newer platforms there are no alignment
+ * requirements for scalar ugm stores (up to 64bits), so just use them.
+ */
+#define BLORP_COPY_MEM2MEM_SHADER_UNALIGNED_IMPL(width)       \
+void                                                          \
+blorp_copy_mem2mem_shader_unaligned_##width(                  \
+   global const uchar *src,                                   \
+   global uchar *dst,                                         \
+   ulong size,                                                \
+   uint global_id)                                            \
+{                                                             \
+   uint pos = global_id * width;                              \
+   if (pos + width - 1 < size) {                              \
+      for (int i = 0; i < width; i += 8)                      \
+         vstore8(vload8(0, src + pos + i), 0, dst + pos + i); \
+   } else {                                                   \
+      for (ulong i = pos; i < size; i++)                      \
+         dst[i] = src[i];                                     \
+   }                                                          \
+}
+
+BLORP_COPY_MEM2MEM_SHADER_UNALIGNED_IMPL(8)
+BLORP_COPY_MEM2MEM_SHADER_UNALIGNED_IMPL(16)
+
 /* Used by vkCmdCopyMemoryIndirectKHR. */
 void
 blorp_copy_memory_indirect_shader(

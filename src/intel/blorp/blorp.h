@@ -41,6 +41,7 @@ typedef struct nir_shader nir_shader;
 enum blorp_op {
    BLORP_OP_BLIT,
    BLORP_OP_BLIT_COPY,
+   BLORP_OP_MEM_COPY,
    BLORP_OP_COPY_INDIRECT,
    BLORP_OP_COPY_IMAGE_INDIRECT,
    BLORP_OP_CCS_AMBIGUATE,
@@ -307,6 +308,12 @@ blorp_blit_buffer_copy(struct blorp_batch *batch,
                        struct blorp_address src,
                        struct blorp_address dst,
                        uint64_t size);
+
+void
+blorp_mem_copy(struct blorp_batch *batch,
+               struct blorp_address src,
+               struct blorp_address dst,
+               uint64_t size);
 
 void
 blorp_copy_memory_indirect(struct blorp_batch *batch,

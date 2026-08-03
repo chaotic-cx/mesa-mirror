@@ -33,6 +33,7 @@ blorp_op_to_intel_measure_snapshot(enum blorp_op op)
 #define MAP(name) [BLORP_OP_##name] = INTEL_SNAPSHOT_##name
       MAP(BLIT),
       MAP(BLIT_COPY),
+      MAP(MEM_COPY),
       MAP(COPY_INDIRECT),
       MAP(COPY_IMAGE_INDIRECT),
       MAP(CCS_AMBIGUATE),
@@ -66,6 +67,7 @@ const char *blorp_op_to_name(enum blorp_op op)
 #define MAP(name) [BLORP_OP_##name] = #name
       MAP(BLIT),
       MAP(BLIT_COPY),
+      MAP(MEM_COPY),
       MAP(COPY_INDIRECT),
       MAP(COPY_IMAGE_INDIRECT),
       MAP(CCS_AMBIGUATE),
@@ -97,6 +99,7 @@ const char *
 blorp_shader_type_to_name(enum blorp_shader_type type)
 {
    static const char *shader_name[] = {
+      [BLORP_SHADER_TYPE_MEM_COPY]            = "BLORP-mem-copy",
       [BLORP_SHADER_TYPE_BLIT_COPY]           = "BLORP-blit-copy",
       [BLORP_SHADER_TYPE_BLIT]                = "BLORP-blit",
       [BLORP_SHADER_TYPE_CLEAR]               = "BLORP-clear",

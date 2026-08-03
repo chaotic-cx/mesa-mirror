@@ -550,6 +550,7 @@ get_color_aux_op(const struct blorp_params *params)
    case BLORP_OP_SLOW_COLOR_CLEAR:
    case BLORP_OP_BLIT:
    case BLORP_OP_BLIT_COPY:
+   case BLORP_OP_MEM_COPY:
    case BLORP_OP_COPY_INDIRECT:
    case BLORP_OP_COPY_IMAGE_INDIRECT:
       assert(params->fast_clear_op == ISL_AUX_OP_NONE);
