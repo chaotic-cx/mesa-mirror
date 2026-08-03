@@ -219,7 +219,7 @@ cmdstream[0]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=0111d000 (flags=820), size=64x128, pitch=64, format=FMT_1_REVERSE
+				addr=0111d000 (flags=820), size=64x128, pitch=64, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 00824800 0111d820 000fe03f 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -597,7 +597,7 @@ cmdstream[1]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01250000 (flags=820), size=32x64, pitch=32, format=FMT_1_REVERSE
+				addr=01250000 (flags=820), size=32x64, pitch=32, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 00424800 01250820 0007e01f 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -975,7 +975,7 @@ cmdstream[2]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01254000 (flags=820), size=16x32, pitch=32, format=FMT_1_REVERSE
+				addr=01254000 (flags=820), size=16x32, pitch=32, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 00424800 01254820 0003e00f 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -1353,7 +1353,7 @@ cmdstream[3]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01254000 (flags=820), size=8x16, pitch=32, format=FMT_1_REVERSE
+				addr=01254000 (flags=820), size=8x16, pitch=32, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 00424800 01254820 0001e007 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -1731,7 +1731,7 @@ cmdstream[4]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01254000 (flags=820), size=4x8, pitch=32, format=FMT_1_REVERSE
+				addr=01254000 (flags=820), size=4x8, pitch=32, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 00424800 01254820 0000e003 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -2109,7 +2109,7 @@ cmdstream[5]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01254000 (flags=820), size=2x4, pitch=32, format=FMT_1_REVERSE
+				addr=01254000 (flags=820), size=2x4, pitch=32, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 00424800 01254820 00006001 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -2487,7 +2487,7 @@ cmdstream[6]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01254000 (flags=820), size=1x2, pitch=32, format=FMT_1_REVERSE
+				addr=01254000 (flags=820), size=1x2, pitch=32, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 00424800 01254820 00002000 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -2865,7 +2865,7 @@ cmdstream[7]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01254000 (flags=820), size=1x1, pitch=32, format=FMT_1_REVERSE
+				addr=01254000 (flags=820), size=1x1, pitch=32, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 00424800 01254820 00000000 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -3243,7 +3243,7 @@ cmdstream[8]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/clamp-last-texel
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=0110d000 (flags=820), size=64x128, pitch=16448, format=FMT_1_REVERSE
+				addr=0110d000 (flags=820), size=64x128, pitch=16448, format=FMT_16_16_16_16_FLOAT
 				mipaddr=00000000 (flags=200)
 0122e1e8:			0000: c0062d00 00010000 80824800 0110d820 000fe03f 00000d11 00000000 00000200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -4177,7 +4177,7 @@ NEEDS WFI: CP_SCRATCH_REG7 (57f)
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/wrap
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_1_REVERSE
+				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_16_16_16_16_FLOAT
 				mipaddr=01240000 (flags=200)
 0110b568:			0000: c0062d00 00010000 80804800 01230820 000fe03f 00000d11 000001c0 01240200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -5242,7 +5242,7 @@ cmdstream[11]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/wrap
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_1_REVERSE
+				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_16_16_16_16_FLOAT
 				mipaddr=01240000 (flags=200)
 0110b1e8:			0000: c0062d00 00010000 80804800 01230820 000fe03f 00000d11 000001c0 01240200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -6000,7 +6000,7 @@ cmdstream[13]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/wrap
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_1_REVERSE
+				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_16_16_16_16_FLOAT
 				mipaddr=01240000 (flags=200)
 0110b1e8:			0000: c0062d00 00010000 80804800 01230820 000fe03f 00000d11 000001c0 01240200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -6758,7 +6758,7 @@ cmdstream[15]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/wrap
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_1_REVERSE
+				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_16_16_16_16_FLOAT
 				mipaddr=01240000 (flags=200)
 0110b1e8:			0000: c0062d00 00010000 80804800 01230820 000fe03f 00000d11 000001c0 01240200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)
@@ -7516,7 +7516,7 @@ cmdstream[17]: 124 dwords
 				clamp x/y/z: clamp-last-texel/clamp-last-texel/wrap
 				filter min/mag: point/point
 				swizzle: xyzw
-				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_1_REVERSE
+				addr=01230000 (flags=820), size=64x128, pitch=16448, format=FMT_16_16_16_16_FLOAT
 				mipaddr=01240000 (flags=200)
 0110b1e8:			0000: c0062d00 00010000 80804800 01230820 000fe03f 00000d11 000001c0 01240200
 			opcode: CP_SET_CONSTANT (2d) (3 dwords)

@@ -2231,7 +2231,7 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
           swiznames[(swiz >> 6) & 0x7], swiznames[(swiz >> 9) & 0x7]);
    printf("%saddr=%08x (flags=%03x), size=%dx%d, pitch=%d, format=%s\n",
           levels[level + 1], gpuaddr, flags, w, h, p,
-          rnn_enumname(rnn, "a2xx_sq_surfaceformat", flags & 0xf));
+          rnn_enumname(rnn, "a2xx_sq_surfaceformat", flags & 0x3f));
    printf("%smipaddr=%08x (flags=%03x)\n", levels[level + 1], mip_gpuaddr,
           mip_flags);
 }
@@ -2248,7 +2248,7 @@ dump_a2xx_shader_const(const uint32_t *dwords, uint32_t sizedwords,
       void *addr = hostptr(gpuaddr);
       if (addr) {
          const char *fmt =
-            rnn_enumname(rnn, "a2xx_sq_surfaceformat", flags & 0xf);
+            rnn_enumname(rnn, "a2xx_sq_surfaceformat", flags & 0x3f);
          uint32_t size = dwords[i++];
          printf("%saddr=%08x, size=%d, format=%s\n", levels[level + 1], gpuaddr,
                 size, fmt);
