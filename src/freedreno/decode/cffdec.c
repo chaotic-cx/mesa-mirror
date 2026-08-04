@@ -2206,10 +2206,26 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
 
    stacked = (dwords[1] >> 10) & 0x1;
 
-   /* Width, Height, EndianSwap=0:None; Depth, without the 1 subtracted */
-   w = (dwords[2] & 0x1fff) + 1;
-   h = ((dwords[2] >> 13) & 0x1fff) + 1;
-   depth = (dwords[2] >> 26) & 0x3f;
+   /* dword 5's dimension picks how this splits; stack depth has no 1 subtracted */
+   dimension = (dwords[5] >> 9) & 0x3;
+
+   switch (dimension) {
+   case 0: /* 1D */
+      w = (dwords[2] & 0xffffff) + 1;
+      h = 1;
+      depth = 0;
+      break;
+   case 2: /* 3D */
+      w = (dwords[2] & 0x7ff) + 1;
+      h = ((dwords[2] >> 11) & 0x7ff) + 1;
+      depth = ((dwords[2] >> 22) & 0x3ff) + 1;
+      break;
+   default:
+      w = (dwords[2] & 0x1fff) + 1;
+      h = ((dwords[2] >> 13) & 0x1fff) + 1;
+      depth = (dwords[2] >> 26) & 0x3f;
+      break;
+   }
 
    /* NumFormat=0:RF, DstSelXYZW=XYZW, ExpAdj=0, MagFilt=MinFilt=0:Point,
     * Mip=2:BaseMap
@@ -2229,7 +2245,6 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
    /* BorderColor=0:ABGRBlack, ForceBC=0:diable, TriJuice=0, Aniso=0,
     * Dim=1:2d, MipPacking=0
     */
-   dimension = (dwords[5] >> 9) & 0x3;
    packed_mips = (dwords[5] >> 11) & 0x1;
    parse_dword_addr(dwords[5], &mip_gpuaddr, &mip_flags, 0xfff);
 
