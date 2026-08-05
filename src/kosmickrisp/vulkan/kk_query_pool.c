@@ -133,6 +133,7 @@ kk_CreateQueryPool(VkDevice device, const VkQueryPoolCreateInfo *pCreateInfo,
                    VkQueryPool *pQueryPool)
 {
    VK_FROM_HANDLE(kk_device, dev, device);
+   struct kk_physical_device *pdev = kk_device_physical(dev);
    struct kk_query_pool *pool;
    VkResult result = VK_SUCCESS;
 
@@ -196,13 +197,19 @@ kk_CreateQueryPool(VkDevice device, const VkQueryPoolCreateInfo *pCreateInfo,
          remap_index[pool->oq.queries++] = index;
       }
    } else if (kk_pool_is_ts(pool)) {
-      /* Timestamps are sampled into a Metal counter heap (one entry per query)
-       * and resolved into `bo` after the GPU writes them. */
-      pool->ts.heap =
-         mtl_new_timestamp_counter_heap(dev->mtl_handle, pool->vk.query_count);
-      if (pool->ts.heap == NULL) {
-         kk_DestroyQueryPool(device, kk_query_pool_to_handle(pool), pAllocator);
-         return vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+      if (!pdev->settings.gpu_capture_enabled) {
+         /* Timestamps are sampled into a Metal counter heap (one entry per query)
+          * and resolved into `bo` after the GPU writes them. */
+         pool->ts.heap = mtl_new_timestamp_counter_heap(dev->mtl_handle,
+                                                        pool->vk.query_count);
+         if (pool->ts.heap == NULL) {
+            kk_DestroyQueryPool(device, kk_query_pool_to_handle(pool),
+                                pAllocator);
+            return vk_error(dev, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+         }
+      } else {
+         mesa_logw(
+            "Using stub query pool because Metal GPU captures don't support counter pools\n");
       }
    }
 
@@ -358,8 +365,19 @@ kk_CmdWriteTimestamp2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(kk_query_pool, pool, queryPool);
    struct kk_device *dev = kk_cmd_buffer_device(cmd);
-   assert(kk_pool_is_ts(pool) && pool->ts.heap);
+   struct kk_physical_device *pdev = kk_device_physical(dev);
+   assert(kk_pool_is_ts(pool));
 
+   if (pdev->settings.gpu_capture_enabled) {
+      /* There is no counter heap because we are capturing. */
+      libkk_write_u32(cmd, kk_grid_1d(1), true,
+                      kk_query_report_addr(dev, pool, query),
+                      0u);
+
+      return;
+   }
+
+   assert(pool->ts.heap);
    uint32_t count = kk_mv_query_count(cmd);
    enum mtl_render_stages mtl_stage =
       kk_pipeline_stages_to_mtl_render_stage(stage);
