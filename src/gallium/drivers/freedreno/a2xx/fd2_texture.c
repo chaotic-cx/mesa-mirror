@@ -137,7 +137,6 @@ tex_dimension(unsigned target)
    default:
       UNREACHABLE("Unsupported target");
    case PIPE_TEXTURE_1D:
-      assert(0); /* TODO */
       return SQ_TEX_DIMENSION_1D;
    case PIPE_TEXTURE_RECT:
    case PIPE_TEXTURE_2D:
@@ -174,7 +173,9 @@ fd2_sampler_view_create(struct pipe_context *pctx, struct pipe_resource *prsc,
               COND(rsc->layout.tile_mode, A2XX_SQ_TEX_0_TILED);
    so->tex1 = A2XX_SQ_TEX_1_FORMAT(fmt.format) |
               A2XX_SQ_TEX_1_CLAMP_POLICY(SQ_TEX_CLAMP_POLICY_OGL);
-   if (prsc->target == PIPE_TEXTURE_3D) {
+   if (prsc->target == PIPE_TEXTURE_1D) {
+      so->tex2 = A2XX_SQ_TEX_2_1D_WIDTH(prsc->width0 - 1);
+   } else if (prsc->target == PIPE_TEXTURE_3D) {
       so->tex2 = A2XX_SQ_TEX_2_3D_WIDTH(prsc->width0 - 1) |
                  A2XX_SQ_TEX_2_3D_HEIGHT(prsc->height0 - 1) |
                  A2XX_SQ_TEX_2_3D_DEPTH(prsc->depth0 - 1);

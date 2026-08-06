@@ -722,6 +722,7 @@ emit_tex(struct ir2_context *ctx, nir_tex_instr *tex)
    }
 
    switch (tex->sampler_dim) {
+   case GLSL_SAMPLER_DIM_1D:
    case GLSL_SAMPLER_DIM_2D:
    case GLSL_SAMPLER_DIM_EXTERNAL:
       break;
