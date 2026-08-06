@@ -4521,6 +4521,74 @@ impl SM70Op for OpMatch {
     }
 }
 
+impl SM70Op for OpTtuOpen {
+    fn legalize(&mut self, _b: &mut LegalizeBuilder) {
+        // Nothing to do
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        e.set_opcode(0x3d0);
+        e.set_bit(72, self.dual);
+    }
+}
+
+impl SM70Op for OpTtuSt {
+    fn legalize(&mut self, b: &mut LegalizeBuilder) {
+        b.copy_src_if_uniform(&mut self.srcs[0]);
+        b.copy_src_if_uniform(&mut self.srcs[1]);
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        e.set_opcode(0x3d1);
+        e.set_reg_src(32..40, &self.srcs[1]);
+        e.set_reg_src(64..72, &self.srcs[0]);
+        e.set_field(40..56, self.offset);
+    }
+}
+
+impl SM70Op for OpTtuLd {
+    fn legalize(&mut self, _b: &mut LegalizeBuilder) {
+        // Nothing to do
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        e.set_opcode(0x3d2);
+
+        e.set_dst(&self.dsts[0]);
+        if let Dst::Reg(reg) = self.dsts[1] {
+            e.set_reg(64..72, reg);
+        } else {
+            e.set_field(64..72, 255_u8);
+        }
+        // TODO: unknown predicate, seems to always set to PT
+        e.set_pred_dst(81..84, &Dst::None);
+
+        e.set_field(40..56, self.offset);
+        e.set_bit(74, self.close);
+    }
+}
+
+impl SM70Op for OpTtuGo {
+    fn legalize(&mut self, _b: &mut LegalizeBuilder) {
+        // Nothing to do
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        e.set_opcode(0x3d3);
+    }
+}
+
+impl SM70Op for OpTtuMacroFuse {
+    fn legalize(&mut self, _b: &mut LegalizeBuilder) {
+        // Nothing to do
+    }
+
+    fn encode(&self, e: &mut SM70Encoder<'_>) {
+        e.set_opcode(0x9d4);
+        e.set_field(40..45, self.imm);
+    }
+}
+
 impl SM70Op for OpImma {
     fn legalize(&mut self, b: &mut LegalizeBuilder) {
         b.copy_src_if_uniform(&mut self.srcs[0]);
@@ -4787,6 +4855,11 @@ macro_rules! sm70_op_match {
             Op::OutFinal($x) => $y,
             Op::Vote($x) => $y,
             Op::Match($x) => $y,
+            Op::TtuOpen($x) => $y,
+            Op::TtuSt($x) => $y,
+            Op::TtuLd($x) => $y,
+            Op::TtuGo($x) => $y,
+            Op::TtuMacroFuse($x) => $y,
             Op::Hmma($x) => $y,
             Op::Imma($x) => $y,
             Op::Ldsm($x) => $y,

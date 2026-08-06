@@ -208,6 +208,13 @@ pub fn side_effect_type(op: &Op) -> SideEffect {
         // Geometry ops
         Op::Out(_) | Op::OutFinal(_) => SideEffect::Barrier,
 
+        // TTU ops
+        Op::TtuOpen(_)
+        | Op::TtuMacroFuse(_)
+        | Op::TtuGo(_)
+        | Op::TtuLd(_)
+        | Op::TtuSt(_) => SideEffect::Barrier,
+
         // Miscellaneous ops
         Op::Bar(_)
         | Op::TexDepBar(_)
@@ -339,6 +346,16 @@ pub fn estimate_variable_latency(sm: &ShaderModelInfo, op: &Op) -> u32 {
         | Op::Match(_) => 16,
 
         Op::Hmma(_) | Op::Imma(_) => 22,
+
+        // TTU ops
+        Op::TtuSt(_) => 1,
+        Op::TtuLd(op) => {
+            if op.close {
+                2
+            } else {
+                1
+            }
+        }
 
         _ => panic!("Unknown variable latency op {op}"),
     }

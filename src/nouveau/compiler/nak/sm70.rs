@@ -190,6 +190,16 @@ impl ShaderModel for ShaderModel70 {
                 }
             }
             Op::Nanosleep(_) => 5,
+            Op::TtuOpen(_) => 6,
+            Op::TtuMacroFuse(_) => 4,
+            Op::TtuSt(_) | Op::TtuGo(_) => 1,
+            Op::TtuLd(op) => {
+                if op.close {
+                    2
+                } else {
+                    1
+                }
+            }
             Op::CCtl(_op) => {
                 // CCTL.C needs 8, CCTL.I needs 11
                 11

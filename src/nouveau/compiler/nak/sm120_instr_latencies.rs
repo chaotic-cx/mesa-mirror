@@ -165,6 +165,11 @@ fn op_reg_latency(op: &Op, reader: bool, op_reg_idx: usize) -> RegLatencySM100 {
         Op::Shfl(_) => DecoupledAgu,
         Op::Ldsm(_) => DecoupledAgu,
         Op::Nanosleep(_) => Decoupled,
+
+        Op::TtuOpen(_) | Op::TtuGo(_) | Op::TtuLd(_) | Op::TtuSt(_) => {
+            DecoupledAgu
+        }
+        Op::TtuMacroFuse(_) => Alu,
         x => {
             panic!("Illegal instuction in reg category {}", x);
         }

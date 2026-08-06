@@ -4191,6 +4191,41 @@ impl<'a> ShaderFromNir<'a> {
 
                 self.set_dst(&intrin.def, dst);
             }
+            nir_intrinsic_ttuopen_nv => {
+                let flags = intrin.flags();
+                debug_assert!(flags == 0 || flags == 1);
+
+                b.push_op(OpTtuOpen { dual: flags != 0 });
+            }
+            nir_intrinsic_ttust_nv => {
+                let data_low = self.get_src(&srcs[0]);
+                let data_high = self.get_src(&srcs[1]);
+                let offset = u16::try_from(intrin.base()).unwrap();
+
+                b.push_op(OpTtuSt {
+                    srcs: [data_low, data_high],
+                    offset,
+                });
+            }
+            nir_intrinsic_ttuld_nv => {
+                let dst = b.alloc_ssa_vec(RegFile::GPR, 4);
+                let offset = u16::try_from(intrin.base()).unwrap();
+                let flags = intrin.flags();
+                debug_assert!(flags == 0 || flags == 1);
+
+                b.push_op(OpTtuLd {
+                    dsts: [
+                        SSARef::try_from(&dst[0..2]).unwrap().into(),
+                        SSARef::try_from(&dst[2..4]).unwrap().into(),
+                    ],
+                    offset,
+                    close: flags != 0,
+                });
+                self.set_dst(&intrin.def, dst);
+            }
+            nir_intrinsic_ttugo_nv => {
+                b.push_op(OpTtuGo {});
+            }
             _ => panic!(
                 "Unsupported intrinsic instruction: {}",
                 intrin.info().name()

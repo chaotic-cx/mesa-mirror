@@ -195,6 +195,10 @@ impl RegLatencySM75 {
             Op::Shfl(_) => Decoupled,
             Op::Ldsm(_) => Decoupled,
             Op::Nanosleep(_) => Decoupled,
+            Op::TtuOpen(_) | Op::TtuGo(_) | Op::TtuLd(_) | Op::TtuSt(_) => {
+                Decoupled
+            }
+            Op::TtuMacroFuse(_) => CoupledAlu,
             x => {
                 panic!("Illegal instuction in reg category {}", x);
             }

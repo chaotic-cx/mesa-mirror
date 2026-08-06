@@ -1043,11 +1043,16 @@ fn calc_delays(f: &mut Function, sm: &ShaderModelInfo) -> u64 {
         } else if matches!(instr.op, Op::SrcBar(_)) {
             instr.op = Op::Nop(OpNop { label: None });
             [instr].into()
-        } else if sm.exec_latency(&instr.op) > 1 {
+        } else if sm.exec_latency(&instr.op) > 1
+            && !matches!(instr.op, Op::TtuMacroFuse(_))
+        {
             // It's unclear exactly why but the blob inserts a Nop with a delay
             // of 2 after every instruction which has an exec latency.  Perhaps
             // it has something to do with .yld?  In any case, the extra 2
             // cycles aren't worth the chance of weird bugs.
+            // However, in case of TTUMACROFUSE we cannot insert anything that
+            // isn't TTU related in that "section" so let's not do that like
+            // the blobs.
             let mut nop = Instr::new(OpNop { label: None });
             nop.deps.set_delay(2);
             [instr, nop].into()
