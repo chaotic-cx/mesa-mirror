@@ -2862,14 +2862,18 @@ pub struct OpFMnMx {
     pub min: Src,
 
     pub ftz: bool,
+    pub nan: bool,
+    pub xorsign: bool,
 }
 
 impl DisplayOp for OpFMnMx {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ftz = if self.ftz { ".ftz" } else { "" };
+        let nan = if self.nan { ".nan" } else { "" };
+        let xorsign = if self.xorsign { ".xorsign" } else { "" };
         write!(
             f,
-            "fmnmx{ftz} {} {} {}",
+            "fmnmx{ftz}{nan}{xorsign} {} {} {}",
             self.srcs[0], self.srcs[1], self.min
         )
     }
@@ -3633,14 +3637,18 @@ pub struct OpHMnMx2 {
     pub min: Src,
 
     pub ftz: bool,
+    pub nan: bool,
+    pub xorsign: bool,
 }
 
 impl DisplayOp for OpHMnMx2 {
     fn fmt_op(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let ftz = if self.ftz { ".ftz" } else { "" };
+        let nan = if self.nan { ".nan" } else { "" };
+        let xorsign = if self.xorsign { ".xorsign" } else { "" };
         write!(
             f,
-            "hmnmx2{ftz} {} {} {}",
+            "hmnmx2{ftz}{nan}{xorsign} {} {} {}",
             self.srcs[0], self.srcs[1], self.min
         )
     }

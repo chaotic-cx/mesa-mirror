@@ -1506,14 +1506,27 @@ pub fn test_float_ops() {
 
         for (ftz, ftz_str) in [(false, ""), (true, ".ftz")] {
             for (dst, (srcs, srcs_str)) in &test_two_src_cases {
-                let instr = OpFMnMx {
-                    dst: dst.clone(),
-                    srcs: srcs.clone(),
-                    min: p4.into(),
-                    ftz,
-                };
-                let disasm = format!("fmnmx{ftz_str} {dst}, {srcs_str}, p4;");
-                c.push(instr, disasm);
+                for (nan, nan_str) in [(false, ""), (true, ".nan")] {
+                    for (xorsign, xorsign_str) in
+                        [(false, ""), (true, ".xorsign")]
+                    {
+                        if sm < 80 && nan || sm < 86 && xorsign {
+                            continue;
+                        }
+                        let instr = OpFMnMx {
+                            dst: dst.clone(),
+                            srcs: srcs.clone(),
+                            min: p4.into(),
+                            nan: nan,
+                            xorsign: xorsign,
+                            ftz,
+                        };
+                        let disasm = format!(
+                            "fmnmx{ftz_str}{nan_str}{xorsign_str} {dst}, {srcs_str}, p4;"
+                        );
+                        c.push(instr, disasm);
+                    }
+                }
 
                 for cmp_op in &float_cmp_ops {
                     let instr = OpFSet {
@@ -1546,15 +1559,24 @@ pub fn test_float_ops() {
 
             if sm >= 120 {
                 for (dst, (srcs, srcs_str)) in &test_uniform_two_src_cases {
-                    let instr = OpFMnMx {
-                        dst: dst.clone(),
-                        srcs: srcs.clone(),
-                        min: up4.into(),
-                        ftz,
-                    };
-                    let disasm =
-                        format!("ufmnmx{ftz_str} {dst}, {srcs_str}, up4;");
-                    c.push(instr, disasm);
+                    for (nan, nan_str) in [(false, ""), (true, ".nan")] {
+                        for (xorsign, xorsign_str) in
+                            [(false, ""), (true, ".xorsign")]
+                        {
+                            let instr = OpFMnMx {
+                                dst: dst.clone(),
+                                srcs: srcs.clone(),
+                                min: up4.into(),
+                                nan: nan,
+                                xorsign: xorsign,
+                                ftz,
+                            };
+                            let disasm = format!(
+                                "ufmnmx{ftz_str}{nan_str}{xorsign_str} {dst}, {srcs_str}, up4;"
+                            );
+                            c.push(instr, disasm);
+                        }
+                    }
 
                     for cmp_op in &float_cmp_ops {
                         let instr = OpFSet {

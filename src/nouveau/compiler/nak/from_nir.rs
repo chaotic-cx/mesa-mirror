@@ -1218,6 +1218,8 @@ impl<'a> ShaderFromNir<'a> {
                         srcs: [srcs(0), srcs(1)],
                         min: (alu.op == nir_op_fmin).into(),
                         ftz: self.float_ctl.fp32.ftz,
+                        nan: false,
+                        xorsign: false,
                     });
                 } else if alu.def.bit_size() == 16 {
                     dst = b.alloc_ssa_vec(RegFile::GPR, 1);
@@ -1229,6 +1231,8 @@ impl<'a> ShaderFromNir<'a> {
                         ],
                         min: (alu.op == nir_op_fmin).into(),
                         ftz: self.float_ctl.fp16.ftz,
+                        nan: false,
+                        xorsign: false,
                     });
                 } else {
                     panic!("Unsupported float type: f{}", alu.def.bit_size());
