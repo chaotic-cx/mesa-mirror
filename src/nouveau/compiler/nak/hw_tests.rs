@@ -2905,3 +2905,149 @@ fn test_max_ugpr() -> io::Result<()> {
 
     Ok(())
 }
+
+/// Verifies that we can implement fmax(fmin(a, b(is_not_negative)), -b) patterns with fmnmx.xorsign
+/// (fmax, (fmin, a, b(is_not_negative)), -b) -> (fmnmx_xorsign_nv, fabs(a), b, true)
+#[test]
+pub fn test_xorsign() {
+    let run = &RunSingleton::get();
+    if run.sm.sm() < 86 {
+        return;
+    }
+
+    let mut b = TestShaderBuilder::new(&run.sm);
+
+    let src_a: Src = b.ld_test_data(0, MemType::B32).into();
+    let src_b: Src = b.ld_test_data(4, MemType::B32).into();
+
+    let dst = b.fclamp(src_a.clone(), src_b.clone(), false);
+    b.st_test_data(0x0c, MemType::B32, dst.into());
+
+    // fmax(fmin(a, b), -b)
+    let tmp = b.alloc_ssa(RegFile::GPR);
+    let dst = b.alloc_ssa(RegFile::GPR);
+    b.push_op(OpFMnMx {
+        dst: tmp.into(),
+        srcs: [src_a.clone(), src_b.clone()],
+        ftz: false,
+        nan: false,
+        xorsign: false,
+        min: true.into(),
+    });
+    b.push_op(OpFMnMx {
+        dst: dst.into(),
+        srcs: [tmp.into(), src_b.clone().fneg()],
+        ftz: false,
+        nan: false,
+        xorsign: false,
+        min: false.into(),
+    });
+    b.st_test_data(0x10, MemType::B32, dst.into());
+
+    // fmin(fmax(a, b), -b)
+    let tmp = b.alloc_ssa(RegFile::GPR);
+    let dst = b.alloc_ssa(RegFile::GPR);
+    b.push_op(OpFMnMx {
+        dst: tmp.into(),
+        srcs: [src_a, src_b.clone().fneg()],
+        ftz: false,
+        nan: false,
+        xorsign: false,
+        min: false.into(),
+    });
+    b.push_op(OpFMnMx {
+        dst: dst.into(),
+        srcs: [tmp.into(), src_b],
+        ftz: false,
+        nan: false,
+        xorsign: false,
+        min: true.into(),
+    });
+    b.st_test_data(0x14, MemType::B32, dst.into());
+
+    let bin = b.compile();
+
+    // Src_a gets clamped to +- src_b.
+    let mut data: Vec<[u32; 6]> = vec![
+        // fmax(fmin(1.0, 5.0), -5.0) == 1.0
+        [
+            0x3f800000, 0x40a00000, 0x3f800000, 0x00000000, 0x00000000,
+            0x00000000,
+        ],
+        // fmax(fmin(-1.0, 5.0), -5.0) == -1.0
+        [
+            0xbf800000, 0x40a00000, 0xbf800000, 0x00000000, 0x00000000,
+            0x00000000,
+        ],
+        // fmax(fmin(-100.0, 5.0), -5.0) == -5.0
+        [
+            0xc2c80000, 0x40a00000, 0xc0a00000, 0x00000000, 0x00000000,
+            0x00000000,
+        ],
+    ];
+
+    let mut a = Acorn::new();
+    for _ in 0..100000 {
+        let src_au = a.get_u32();
+        let src_bu = a.get_u32();
+
+        let src_af = f32::from_bits(src_au);
+        let src_bf = f32::from_bits(src_bu);
+        let resf = src_af.min(src_bf).max(-src_bf);
+        let mut resu = resf.to_bits();
+
+        if src_bf.is_sign_negative() {
+            continue;
+        }
+
+        // If both inputs are NaN the returned value is a canonical NaN.
+        // Also .xorsign behavior is ignored.
+        if src_af.is_nan() && src_bf.is_nan() {
+            resu = 0x7fffffff;
+        } else {
+            if src_af.is_nan() {
+                resu = src_bu;
+            } else if src_bf.is_nan() {
+                resu = src_au;
+            }
+
+            // .xorsign: xors the sign bits of both pre modified inputs
+            let sign = (src_au & 0x80000000) ^ (src_bu & 0x80000000);
+            resu &= 0x7fffffff;
+            resu |= sign;
+        }
+
+        data.push([src_au, src_bu, resu, 0x00000000, 0x00000000, 0x00000000]);
+    }
+
+    run.run.run(&bin, &mut data).unwrap();
+
+    for [src_au, src_bu, expected, res, res_fmin_fmax, res_fmax_fmin] in data {
+        assert_eq!(
+            expected, res,
+            "{src_au:x}, {src_bu:x}, expected: {expected:x} got: {res:x}"
+        );
+
+        let src_af = f32::from_bits(src_au);
+        let src_bf = f32::from_bits(src_bu);
+        let fres = f32::from_bits(res);
+        let fres_fmin_fmax = f32::from_bits(res_fmin_fmax);
+        let fres_fmax_fmin = f32::from_bits(res_fmax_fmin);
+
+        // Let's compare the fmin(fmax) and fmax(fmin) patterns which should be equal unless a is
+        // NaN, in which case we end up with a negative opposite.
+        assert!(
+            f32_eq(fres_fmin_fmax, fres_fmax_fmin)
+                || src_af.is_nan() && f32_eq(fres_fmin_fmax, -fres_fmax_fmin),
+            "{res_fmin_fmax:x} vs {res_fmax_fmin:x}, inputs: {src_af:e} ({src_au:x}), {src_bf:e} ({src_bu:x})",
+        );
+
+        // The xorsign pattern is equal to fmax(fmin(a, b), -b) or fmin(fmax(a, -b), b) except when
+        // a is NaN, where it is equal to the negative of the result.
+        assert!(
+            (f32_eq(fres, fres_fmax_fmin) || src_af.is_nan() && f32_eq(fres, -fres_fmax_fmin)) &&
+            (f32_eq(fres, fres_fmin_fmax) || src_af.is_nan() && f32_eq(fres, -fres_fmin_fmax)),
+            "expected: {fres_fmax_fmin:e} ({res_fmax_fmin:x}) got: {fres:e} ({res:x}), inputs: {src_af:e} ({src_au:x}), {src_bf:e} ({src_bu:x})"
+        );
+    }
+}

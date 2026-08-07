@@ -313,6 +313,20 @@ pub trait SSABuilder: Builder {
         dst
     }
 
+    fn fclamp(&mut self, x: Src, y: Src, ftz: bool) -> SSAValue {
+        assert!(self.sm() >= 86);
+        let dst = self.alloc_ssa(RegFile::GPR);
+        self.push_op(OpFMnMx {
+            dst: dst.into(),
+            srcs: [x.fabs(), y],
+            ftz: ftz,
+            nan: false,
+            xorsign: true,
+            min: true.into(),
+        });
+        dst
+    }
+
     fn hadd2(&mut self, x: Src, y: Src) -> SSAValue {
         let dst = self.alloc_ssa(RegFile::GPR);
         self.push_op(OpHAdd2 {
@@ -336,6 +350,20 @@ pub trait SSABuilder: Builder {
             accum: SrcRef::True.into(),
         });
         dst.into()
+    }
+
+    fn hclamp2(&mut self, x: Src, y: Src, ftz: bool) -> SSAValue {
+        assert!(self.sm() >= 86);
+        let dst = self.alloc_ssa(RegFile::GPR);
+        self.push_op(OpHMnMx2 {
+            dst: dst.into(),
+            srcs: [x.fabs(), y],
+            ftz: ftz,
+            nan: false,
+            xorsign: true,
+            min: true.into(),
+        });
+        dst
     }
 
     fn dsetp(&mut self, cmp_op: FloatCmpOp, x: Src, y: Src) -> SSAValue {
