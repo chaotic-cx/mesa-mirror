@@ -1090,6 +1090,14 @@ kk_parse_environment_options(struct kk_physical_device *pdev)
    settings->gpu_capture_enabled =
       debug_get_bool_option("MESA_KK_GPU_CAPTURE", false);
 
+   if (settings->gpu_capture_enabled) {
+      settings->gpu_capture_dir =
+         debug_get_option("MESA_KK_GPU_CAPTURE_DIRECTORY", NULL);
+
+      settings->gpu_capture_immediately =
+         debug_get_bool_option("MESA_KK_GPU_CAPTURE_IMMEDIATELY", false);
+   }
+
    const char *list = debug_get_option("MESA_KK_DISABLE_WORKAROUNDS", "");
    const char *all_workarounds = "all";
    const size_t all_len = strlen(all_workarounds);

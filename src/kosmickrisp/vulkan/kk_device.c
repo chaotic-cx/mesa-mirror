@@ -331,10 +331,9 @@ kk_CreateDevice(VkPhysicalDevice physicalDevice,
    if (result != VK_SUCCESS)
       goto fail_sampler_heap;
 
-   if (pdev->settings.gpu_capture_enabled) {
-      const char *capture_directory =
-         debug_get_option("MESA_KK_GPU_CAPTURE_DIRECTORY", NULL);
-      mtl_start_gpu_capture(dev->mtl_handle, capture_directory);
+   if (pdev->settings.gpu_capture_immediately) {
+      mtl_start_gpu_capture(dev->mtl_handle, pdev->settings.gpu_capture_dir);
+      dev->gpu_capture_active = true;
    }
 
    *pDevice = kk_device_to_handle(dev);
@@ -368,14 +367,13 @@ VKAPI_ATTR void VKAPI_CALL
 kk_DestroyDevice(VkDevice _device, const VkAllocationCallbacks *pAllocator)
 {
    VK_FROM_HANDLE(kk_device, dev, _device);
-   struct kk_physical_device *pdev = kk_device_physical(dev);
 
    if (!dev)
       return;
 
    /* End capture before we start releasing resources. Otherwise, Metal capture
     * may run into issues. */
-   if (pdev->settings.gpu_capture_enabled) {
+   if (dev->gpu_capture_active) {
       mtl_stop_gpu_capture();
    }
 

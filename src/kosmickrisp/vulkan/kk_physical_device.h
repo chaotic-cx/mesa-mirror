@@ -51,6 +51,7 @@ struct kk_device_info {
 struct kk_env_settings {
    bool experimental_enabled;
    bool gpu_capture_enabled;
+   bool gpu_capture_immediately;
    const char *gpu_capture_dir;
    uint64_t disabled_workarounds;
 };
