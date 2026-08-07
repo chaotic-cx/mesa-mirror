@@ -850,22 +850,11 @@ impl<'a> CopyPropPass<'a> {
                     CBufRule::Yes
                 };
 
-                // Carry-out and overflow interact funny with SrcMod::INeg so we
-                // can only propagate with modifiers if no carry/overflow is
-                // written.
-                let force_alu_src_type = match &instr.op {
-                    Op::IAdd2(add) => !add.carry_out.is_none(),
-                    Op::IAdd2X(add) => !add.carry_out.is_none(),
-                    Op::IAdd3(add) => {
-                        !add.overflow[0].is_none() || !add.overflow[1].is_none()
-                    }
-                    Op::IAdd3X(add) => {
-                        !add.overflow[0].is_none() || !add.overflow[1].is_none()
-                    }
-                    Op::Lea(lea) => !lea.overflow.is_none(),
-                    Op::LeaX(lea) => !lea.overflow.is_none(),
-                    _ => false,
-                };
+                // We disable modifier propagation for all instructions that
+                // operate visibly on pre modified source values, that means
+                // propagating a modifier can change the result of the
+                // instruction.
+                let force_alu_src_type = instr.result_depends_on_pre_mod_srcs();
 
                 let src_types = instr.src_types();
                 let ftz = instr.ftz();
@@ -873,9 +862,13 @@ impl<'a> CopyPropPass<'a> {
                     let mut src_type = src_types[i];
                     if force_alu_src_type {
                         src_type = match src_type {
-                            SrcType::ALU | SrcType::B32 | SrcType::I32 => {
-                                SrcType::ALU
-                            }
+                            SrcType::ALU
+                            | SrcType::B32
+                            | SrcType::I32
+                            | SrcType::F16
+                            | SrcType::F16v2
+                            | SrcType::F32
+                            | SrcType::F64 => SrcType::ALU,
                             SrcType::Carry | SrcType::Pred => src_type,
                             _ => panic!("Unhandled src_type"),
                         };

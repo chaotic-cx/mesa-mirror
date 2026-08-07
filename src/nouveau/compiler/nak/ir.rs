@@ -9145,6 +9145,32 @@ impl Instr {
             | Op::Annotate(_) => false,
         }
     }
+
+    /// Returns true if the operations output depends on any pre modified
+    /// input.
+    ///
+    /// This indicates that e.g. merging a modifier with a constant source
+    /// could change the result of this instruction.
+    pub fn result_depends_on_pre_mod_srcs(&self) -> bool {
+        match &self.op {
+            // modifier overflowing the source is returned as an overflow
+            // through the carry/predicate out.
+            Op::IAdd2(op) => !op.carry_out.is_none(),
+            Op::IAdd2X(op) => !op.carry_out.is_none(),
+            Op::IAdd3(op) => {
+                !op.overflow[0].is_none() || !op.overflow[1].is_none()
+            }
+            Op::IAdd3X(op) => {
+                !op.overflow[0].is_none() || !op.overflow[1].is_none()
+            }
+            Op::Lea(op) => !op.overflow.is_none(),
+            Op::LeaX(op) => !op.overflow.is_none(),
+            // .xorsign takes the sign bit of the unmodified sources
+            Op::FMnMx(op) => op.xorsign,
+            Op::HMnMx2(op) => op.xorsign,
+            _ => false,
+        }
+    }
 }
 
 impl fmt::Display for Instr {
