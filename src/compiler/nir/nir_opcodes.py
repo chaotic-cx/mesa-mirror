@@ -1691,6 +1691,14 @@ opcode("prmt_nv", 0, tuint32, [0, 0, 0], [tuint32, tuint32, tuint32],
 opcode("lea_nv", 0, tuint, [0, 0, 0], [tuint, tuint, tuint32], False,
        "", "src0 + (src1 << (src2 % bit_size))")
 
+# Clamps src0 to src1. src1 must be positive otherwise the result is considered undefined.
+opcode("fclamp_nv", 0, tfloat, [0, 0], [tfloat, tfloat], False, "",
+"""
+bool sign = signbit(src0);
+double res = util_min_num(fabs(src0), src1);
+dst = copysign(res, sign ? -1.0 : 0.0);
+""")
+
 # 24b multiply into 32b result (with sign extension)
 binop("imul24", tint32, _2src_commutative,
       "util_mask_sign_extend(src0, 24) * util_mask_sign_extend(src1, 24)")
