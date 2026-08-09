@@ -1239,6 +1239,19 @@ impl<'a> ShaderFromNir<'a> {
                 }
                 dst
             }
+            nir_op_fclamp_nv => match alu.def.bit_size() {
+                32 => {
+                    b.fclamp(srcs(0), srcs(1), self.float_ctl.fp32.ftz).into()
+                }
+                16 => b
+                    .hclamp2(
+                        restrict_f16v2_src(srcs(0)),
+                        restrict_f16v2_src(srcs(1)),
+                        self.float_ctl.fp16.ftz,
+                    )
+                    .into(),
+                bit_size => panic!("Unsupported float type: f{bit_size}"),
+            },
             nir_op_fmul | nir_op_fmul_rtz => {
                 let ftype = FloatType::from_bits(alu.def.bit_size().into());
                 let dst;

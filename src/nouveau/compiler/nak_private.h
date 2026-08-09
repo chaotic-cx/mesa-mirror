@@ -8,6 +8,7 @@
 
 #include "nak.h"
 #include "nir.h"
+#include "nir_search.h"
 #include "nv_device_info.h"
 
 #ifdef __cplusplus
@@ -457,6 +458,42 @@ bool nak_nir_lower_cmat(nir_shader *shader, const struct nak_compiler *nak);
 bool nak_block_is_divergent(const nir_block *block);
 
 void nak_optimize_nir(nir_shader *nir, const struct nak_compiler *nak);
+
+/**
+ * Pattern matcher to find fmin/fmax patterns we can optimize to fclamp_nv.
+ *
+ * The selected source is the const value of the outer operation.
+ */
+static inline bool
+fclamp_nv_neg_const(UNUSED const nir_search_state *state, const nir_alu_instr *outer,
+                    unsigned src, unsigned num_components,
+                    const uint8_t *swizzle)
+{
+   assert(nir_src_is_const(outer->src[src].src));
+   assert(outer->op == nir_op_fmax || outer->op == nir_op_fmin);
+
+   nir_alu_src outer_alu_src = outer->src[src ^ 1];
+   nir_alu_instr *inner = nir_def_as_alu(outer_alu_src.src.ssa);
+   assert(inner->op == nir_op_fmax || inner->op == nir_op_fmin);
+   assert(outer->op != inner->op);
+
+   nir_alu_src inner_const_src =
+      nir_src_is_const(inner->src[0].src) ? inner->src[0] : inner->src[1];
+   assert(nir_src_is_const(inner_const_src.src));
+
+   for (unsigned c = 0; c < num_components; c++) {
+      double outer_val = nir_alu_src_comp_as_float(outer->src[src], c);
+      double inner_val = nir_alu_src_comp_as_float(inner_const_src, outer_alu_src.swizzle[c]);
+      if (outer_val != -inner_val)
+         return false;
+
+      /* Shouldn't really happen but let's be safe */
+      if ((outer_val < 0.0) == (outer->op == nir_op_fmin))
+         return false;
+   }
+
+   return true;
+}
 
 #ifdef __cplusplus
 }

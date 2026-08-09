@@ -55,6 +55,11 @@ algebraic_lowering = [
         ('lea_nv', a, b, s), 'nak->sm >= 70'),
     (('iadd', 'a@64', ('ishl', 'b@64', '#s@32')),
         ('lea_nv', a, b, s), 'nak->sm >= 70'),
+
+    (('fmin', ('fmax(is_used_once,nnan)', 'a(is_not_const)', '#b(is_a_number)'), '#c(fclamp_nv_neg_const)'),
+        ('fclamp_nv', a, c), 'nak->sm >= 86'),
+    (('fmax', ('fmin(is_used_once,nnan)', 'a(is_not_const)', '#b(is_a_number)'), '#c(fclamp_nv_neg_const)'),
+        ('fclamp_nv', a, b), 'nak->sm >= 86'),
 ]
 
 for f2f16 in ['f2f16', 'f2f16_rtz', 'f2f16_rtne']:
