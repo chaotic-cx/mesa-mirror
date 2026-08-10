@@ -250,6 +250,7 @@ impl<'a> TestShaderBuilder<'a> {
         s.assign_regs();
         s.lower_par_copies();
         s.lower_copy_swap();
+        s.add_ttu_macrofuse_instrs();
         s.calc_instr_deps();
 
         if DEBUG.print() {
@@ -2169,6 +2170,142 @@ fn test_op_f2i_immediate_nan() {
     // TODO: Make the expected result depend on the QMD setting for
     //       `FP32_F2I_NAN_BEHAVIOR`
     assert!([0, 0x80000000].contains(&data[0]));
+}
+
+fn push_ttu_store(b: &mut TestShaderBuilder, offset: u16, values: [Src; 4]) {
+    let src0 = b.alloc_ssa_vec(RegFile::GPR, 2);
+    b.copy_to(src0[0].into(), values[0].clone());
+    b.copy_to(src0[1].into(), values[1].clone());
+
+    let src1 = b.alloc_ssa_vec(RegFile::GPR, 2);
+    b.copy_to(src1[0].into(), values[2].clone());
+    b.copy_to(src1[1].into(), values[3].clone());
+
+    b.push_op(OpTtuSt {
+        srcs: [src0.into(), src1.into()],
+        offset,
+    });
+}
+
+/// This is a very simple test of the TTU coprocessor.
+/// For now, as we do not know much about the actual top/bottom BVH structure, we only try to prove that:
+/// - we can communicate with it and get a "no hit" reply.
+/// - TTUMACROFUSE immediate is encoded on 5-bits.
+#[test]
+fn test_op_ttu_simple() {
+    let run = &RunSingleton::get();
+    let dev = run.run.device();
+
+    if dev.dev_info().cls_compute < TURING_COMPUTE_A {
+        return;
+    }
+
+    let mut b = TestShaderBuilder::new(&run.sm);
+
+    // Those control flags seems to configure the inputs of a ray operation in some ways:
+    // - 0x4 means true
+    // - 0x5 means false
+    // The 0x4 between bits 20 to 24 is related to the triangle matching part.
+    // We effectively setup two ray operations here so the "dual" flag needs to be set when opening
+    // TTU session.
+    let unk_ray_control_flags = 0x50400400u32;
+
+    let cull_mask = 0xff;
+    let unk000 = 0x00030207u32 | cull_mask << 24;
+    let unk004 = 0x00055000u32 | (unk_ray_control_flags & 0x5FF00FFF);
+    let unk008 = cull_mask << 16;
+    let unk00C = cull_mask << 16;
+    let origin_x = 0.0f32;
+    let origin_y = -1000.0f32;
+    let origin_z = 0.0f32;
+    let direction_x = 0.0f32;
+    let direction_y = 1.0f32;
+    let direction_z = 0.0f32;
+    let tmin = 0.01f32;
+    let tmax = 1000.0f32;
+    let unk080 = 0x00030407u32 | cull_mask << 24;
+    let unk084 = unk_ray_control_flags;
+    let unk088 = cull_mask << 16;
+    let unk08C = 0u32;
+
+    let dst0 = b.alloc_ssa_vec(RegFile::GPR, 2);
+    let dst1 = b.alloc_ssa_vec(RegFile::GPR, 2);
+    b.push_op(OpTtuOpen { dual: true });
+
+    push_ttu_store(
+        &mut b,
+        0x000,
+        [unk000.into(), unk004.into(), unk008.into(), unk00C.into()],
+    );
+    push_ttu_store(
+        &mut b,
+        0x040,
+        [
+            origin_x.into(),
+            origin_y.into(),
+            origin_z.into(),
+            tmin.into(),
+        ],
+    );
+    push_ttu_store(
+        &mut b,
+        0x050,
+        [
+            direction_x.into(),
+            direction_y.into(),
+            direction_z.into(),
+            tmax.into(),
+        ],
+    );
+    push_ttu_store(
+        &mut b,
+        0x080,
+        [unk080.into(), unk084.into(), unk088.into(), unk08C.into()],
+    );
+    // We explicitly do not store any address at 0x200 to ensure TTU coprocessor directly
+    // terminate traversal.
+    b.push_op(OpTtuGo {});
+    b.push_op(OpTtuLd {
+        dsts: [dst0.clone().into(), dst1.clone().into()],
+        offset: 0x300,
+        close: true,
+    });
+    b.st_test_data(0x0, MemType::B32, dst0[0].into());
+    b.st_test_data(0x4, MemType::B32, dst0[1].into());
+    b.st_test_data(0x8, MemType::B32, dst1[0].into());
+    b.st_test_data(0xC, MemType::B32, dst1[1].into());
+
+    // Create a no op situation to test TTUMACROFUSE limits
+    // If we were outside of the limits, we would end up with an
+    // illegal encoding exception on the instructions out of the
+    // "section" range.
+    b.push_op(OpTtuOpen { dual: true });
+    for _ in 0..30 {
+        push_ttu_store(
+            &mut b,
+            0x0,
+            [Src::ZERO, Src::ZERO, Src::ZERO, Src::ZERO],
+        );
+    }
+    b.push_op(OpTtuLd {
+        dsts: [Dst::None, Dst::None],
+        offset: 0x0,
+        close: true,
+    });
+
+    let bin = b.compile();
+    let mut data = vec![0u32; 4];
+    run.run.run(&bin, &mut data).unwrap();
+
+    // No match is actually defined by bit 31 at offset 0x30C and if it's not one of the following:
+    // - 0xa0000000 (AABB match)
+    // - 0xde000000 (Blackwell+, triangle match related, possibly compression)
+    // - 0xe0000000 (error?)
+    // However, with this configuration 0xffffffff is expected on every generations so keep it simple.
+    assert_eq!(data[3], u32::MAX);
+    assert_eq!(data[2], u32::MAX);
+    assert_eq!(data[1], u32::MAX);
+    assert_eq!(data[0], u32::MAX);
 }
 
 #[test]
