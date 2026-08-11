@@ -1572,6 +1572,16 @@ impl<'a> ShaderFromNir<'a> {
                 let signed = alu.op == nir_op_imul_2x32_64;
                 b.imul_2x32_64(srcs(0), srcs(1), signed)
             }
+            nir_op_umad_2x32_64 => {
+                assert!(self.sm.sm() >= 70);
+                let dst = b.alloc_ssa_vec(RegFile::GPR, 2);
+                b.push_op(OpIMad64 {
+                    dst: dst.clone().into(),
+                    srcs: [srcs(0), srcs(1), srcs(2)],
+                    signed: false,
+                });
+                dst.into()
+            }
             nir_op_imul_high | nir_op_umul_high => {
                 let signed = alu.op == nir_op_imul_high;
                 let dst64 = b.imul_2x32_64(srcs(0), srcs(1), signed);
