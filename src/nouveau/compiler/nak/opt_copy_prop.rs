@@ -538,8 +538,18 @@ impl<'a> CopyPropPass<'a> {
             SrcType::GPR => {
                 self.prop_to_gpr_src(src);
             }
-            SrcType::ALU
-            | SrcType::F16
+            SrcType::ALU => {
+                if let SrcRef::SSA(src_ssa) = &src.src_ref {
+                    if src_ssa.comps() == 1 {
+                        self.prop_to_scalar_src(
+                            src_type, cbuf_rule, src, instr_ftz,
+                        );
+                    } else {
+                        self.prop_to_64_src(cbuf_rule, src, SrcType::ALU);
+                    }
+                };
+            }
+            SrcType::F16
             | SrcType::F16v2
             | SrcType::F32
             | SrcType::I32
