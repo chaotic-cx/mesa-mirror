@@ -289,6 +289,20 @@ intel_has_vrt(const struct intel_device_info *devinfo)
    return devinfo->ver >= 30 && !unlikely(INTEL_DEBUG(DEBUG_NO_VRT));
 }
 
+static inline uint32_t
+intel_device_info_memory_urb_size_per_slice(const struct intel_device_info *devinfo)
+{
+   /* Return 1MB when supported */
+   return devinfo->verx10 >= 350 ? 1024 * 1024 : 0;
+}
+
+static inline bool
+intel_device_info_memory_urb_is_allocated_in_stolen(const struct intel_device_info *devinfo)
+{
+   /* Future platforms will support it */
+   return false;
+}
+
 #ifdef __cplusplus
 }
 #endif

@@ -819,6 +819,19 @@ init_render_queue_state(struct anv_queue *queue, bool is_companion_rcs_batch)
    }
 #endif
 
+#if GFX_VERx10 >= 350
+   const uint32_t memory_urb_size_per_slice = intel_device_info_memory_urb_size_per_slice(device->info);
+   struct anv_address urb_memory_addr = { .bo = device->urb_memory_bo };
+
+   anv_batch_emit(batch, GENX(3DSTATE_URB_MEMORY), urb_memory) {
+      urb_memory.body.VertexMemoryURBmodeEnable = true;
+      urb_memory.body.MemoryinStolenMemoryDisable = !intel_device_info_memory_urb_is_allocated_in_stolen(device->info);
+      urb_memory.body.VertexMemoryURBsizeperslice = (memory_urb_size_per_slice / (256 * 1024)) - 1;
+      urb_memory.body.MemoryURBStartingAddress = urb_memory_addr;
+      urb_memory.body.MOCS = anv_mocs(device, urb_memory_addr.bo, 0);
+   }
+#endif
+
    if (pdevice->drirc.perf.disable_push_const_alloc) {
       genX(batch_emit_push_constants_alloc)(
          batch, device,

@@ -1067,6 +1067,19 @@ VkResult anv_CreateDevice(
          goto fail_alloc_device_bo;
    }
 
+   if (intel_device_info_memory_urb_size_per_slice(device->info) &&
+       !intel_device_info_memory_urb_is_allocated_in_stolen(device->info)) {
+      const uint64_t buffer_size = intel_device_info_memory_urb_size_per_slice(device->info) *
+                                   device->info->subslice_total;
+
+      result = anv_device_alloc_bo(device, "urb_memory", buffer_size,
+                                   ANV_BO_ALLOC_INTERNAL, 0,
+                                   &device->urb_memory_bo);
+      ANV_DMR_BO_ALLOC(&device->vk.base, device->urb_memory_bo, result);
+      if (result != VK_SUCCESS)
+         goto fail_alloc_device_bo;
+   }
+
    struct anv_address wa_addr = (struct anv_address) {
       .bo = device->workaround_bo,
    };
@@ -1430,6 +1443,10 @@ VkResult anv_CreateDevice(
       }
    }
  fail_alloc_device_bo:
+   if (device->urb_memory_bo) {
+      ANV_DMR_BO_FREE(&device->vk.base, device->urb_memory_bo);
+      anv_device_release_bo(device, device->urb_memory_bo);
+   }
    if (device->mem_fence_bo) {
       ANV_DMR_BO_FREE(&device->vk.base, device->mem_fence_bo);
       anv_device_release_bo(device, device->mem_fence_bo);
@@ -1579,6 +1596,10 @@ void anv_DestroyDevice(
    }
    ANV_DMR_BO_FREE(&device->vk.base, device->workaround_bo);
    anv_device_release_bo(device, device->workaround_bo);
+   if (device->urb_memory_bo) {
+      ANV_DMR_BO_FREE(&device->vk.base, device->urb_memory_bo);
+      anv_device_release_bo(device, device->urb_memory_bo);
+   }
    if (device->dummy_aux_bo) {
       ANV_DMR_BO_FREE(&device->vk.base, device->dummy_aux_bo);
       anv_device_release_bo(device, device->dummy_aux_bo);
