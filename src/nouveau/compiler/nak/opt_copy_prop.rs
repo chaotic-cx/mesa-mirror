@@ -419,7 +419,12 @@ impl<'a> CopyPropPass<'a> {
         }
     }
 
-    fn prop_to_f64_src(&self, cbuf_rule: &CBufRule, src: &mut Src) {
+    fn prop_to_64_src(
+        &self,
+        cbuf_rule: &CBufRule,
+        src: &mut Src,
+        src_type: SrcType,
+    ) {
         loop {
             let src_ssa = match &mut src.src_ref {
                 SrcRef::SSA(ssa) => ssa,
@@ -444,8 +449,7 @@ impl<'a> CopyPropPass<'a> {
 
             let hi_entry_or_none = self.get_copy(&src_ssa[1]);
             if let Some(CopyPropEntry::Copy(hi_entry)) = hi_entry_or_none {
-                if hi_entry.src.is_unmodified()
-                    || hi_entry.src_type == SrcType::F64
+                if hi_entry.src.is_unmodified() || hi_entry.src_type == src_type
                 {
                     if let SrcRef::SSA(hi_entry_ssa) = &hi_entry.src.src_ref {
                         src_ssa[1] = hi_entry_ssa[0];
@@ -467,9 +471,7 @@ impl<'a> CopyPropPass<'a> {
                 return;
             }
 
-            if !hi_entry.src.is_unmodified()
-                && hi_entry.src_type != SrcType::F64
-            {
+            if !hi_entry.src.is_unmodified() && hi_entry.src_type != src_type {
                 return;
             }
 
@@ -487,8 +489,14 @@ impl<'a> CopyPropPass<'a> {
                 SrcRef::Imm32(i) => {
                     // 32-bit immediates for f64 srouces are the top 32 bits
                     // with zero in the lower 32.
-                    match lo_entry.src.src_ref {
-                        SrcRef::Zero | SrcRef::Imm32(0) => SrcRef::Imm32(*i),
+                    match (
+                        &lo_entry.src.src_ref,
+                        &hi_entry.src.src_ref,
+                        src_type,
+                    ) {
+                        (SrcRef::Zero | SrcRef::Imm32(0), _, SrcType::F64) => {
+                            SrcRef::Imm32(*i)
+                        }
                         _ => return,
                     }
                 }
@@ -540,7 +548,7 @@ impl<'a> CopyPropPass<'a> {
                 self.prop_to_scalar_src(src_type, cbuf_rule, src, instr_ftz);
             }
             SrcType::F64 => {
-                self.prop_to_f64_src(cbuf_rule, src);
+                self.prop_to_64_src(cbuf_rule, src, SrcType::F64);
             }
             SrcType::Carry | SrcType::Bar => (),
         }
