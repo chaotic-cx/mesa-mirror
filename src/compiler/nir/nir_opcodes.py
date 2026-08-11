@@ -812,6 +812,11 @@ binop_convert("umul_2x32_64", tuint64, tuint32, _2src_commutative,
               "(uint64_t)src0 * (uint64_t)src1",
               description = "Multiply unsigned 32-bit integers, 64-bit result")
 
+opcode("umad_2x32_64", 0, tuint64, [0, 0, 0], [tuint32, tuint32, tuint64], False, _2src_commutative, """
+   /* Use 64-bit multiplies to prevent overflow of signed arithmetic */
+   dst = (uint64_t)src0 * (uint64_t)src1 + src2;
+""", description = "Low 32-bits of signed/unsigned integer multiply plus 64 addition")
+
 binop("imul_high", tint, _2src_commutative, """
 if (bit_size == 64) {
    /* We need to do a full 128-bit x 128-bit multiply in order for the sign

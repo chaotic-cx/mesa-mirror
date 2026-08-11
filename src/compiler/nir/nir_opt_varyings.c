@@ -5846,6 +5846,7 @@ default_varying_estimate_instr_cost(nir_instr *instr)
       case nir_op_umul_16x16:
       case nir_op_imul_2x32_64:
       case nir_op_umul_2x32_64:
+      case nir_op_umad_2x32_64:
          return dst_bit_size <= 16 ? 1 : 4 * num_dst_dwords;
 
       /* High bits of 64-bit multiplications. */
