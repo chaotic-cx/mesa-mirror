@@ -40,6 +40,13 @@
     <value name="Encodes 14K" value="25" />
     <value name="Encodes 15K" value="26" />
   </enum>
+  <struct name="3DSTATE_URB_MEMORY_BODY" length="4">
+    <field name="Vertex Memory URB mode Enable" dword="0" bits="0:0" type="bool" />
+    <field name="Memory in Stolen Memory Disable" dword="0" bits="2:2" type="bool" />
+    <field name="Vertex Memory URB size perslice" dword="0" bits="19:16" type="uint" />
+    <field name="Memory URB Starting Address" dword="1" bits="63:0" type="address" />
+    <field name="MOCS" dword="3" bits="6:0" type="uint" nonzero="true" />
+  </struct>
   <struct name="INTERFACE_DESCRIPTOR_DATA_2" length="8">
     <field name="Kernel Start Pointer" dword="0" bits="63:6" type="offset" />
     <field name="EU Thread Scheduling Mode Override" dword="2" bits="1:0" type="uint" />
@@ -709,6 +716,14 @@
     <field name="TBIMR Batch Size" dword="3" bits="5:3" type="uint" />
     <field name="Poly Trigger Width" dword="3" bits="9:6" type="uint" />
     <field name="Poly Trigger Height" dword="3" bits="13:10" type="uint" />
+  </instruction>
+  <instruction name="3DSTATE_URB_MEMORY" bias="2" length="5" engine="render">
+    <field name="DWord Length" dword="0" bits="7:0" type="uint" default="3" />
+    <field name="3D Command Sub Opcode" dword="0" bits="23:16" type="uint" default="1" />
+    <field name="3D Command Opcode" dword="0" bits="26:24" type="uint" default="1" />
+    <field name="Command SubType" dword="0" bits="28:27" type="uint" default="3" />
+    <field name="Command Type" dword="0" bits="31:29" type="uint" default="3" />
+    <field name="body" dword="1" bits="127:0" type="3DSTATE_URB_MEMORY_BODY" />
   </instruction>
   <instruction name="3DSTATE_VIEWPORT_STATE_POINTERS_CC_2" bias="2" length="3" engine="render">
     <field name="DWord Length" dword="0" bits="7:0" type="uint" default="1" />
