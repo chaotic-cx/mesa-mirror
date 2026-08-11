@@ -666,6 +666,7 @@ rra_map_accel_struct_data(struct rra_copy_context *ctx, uint32_t i)
       return mapped_data;
    }
 
+   VK_FROM_HANDLE(vk_buffer, dst_buffer, ctx->buffer.buffer);
    const struct vk_acceleration_structure *accel_struct = ctx->entries[i]->key;
    VkResult result;
 
@@ -676,21 +677,27 @@ rra_map_accel_struct_data(struct rra_copy_context *ctx, uint32_t i)
    if (result != VK_SUCCESS)
       return NULL;
 
-   VkBufferCopy2 copy = {
-      .sType = VK_STRUCTURE_TYPE_BUFFER_COPY_2,
-      .srcOffset = accel_struct->offset,
-      .size = accel_struct->size,
+   VkDeviceMemoryCopyKHR copy = {
+      .sType = VK_STRUCTURE_TYPE_DEVICE_MEMORY_COPY_KHR,
+      .srcRange =
+         {
+            .address = vk_acceleration_structure_get_va(accel_struct),
+            .size = accel_struct->size,
+         },
+      .dstRange =
+         {
+            .address = vk_buffer_address(dst_buffer, 0),
+            .size = accel_struct->size,
+         },
    };
 
-   VkCopyBufferInfo2 copy_info = {
-      .sType = VK_STRUCTURE_TYPE_COPY_BUFFER_INFO_2,
-      .srcBuffer = vk_buffer_to_handle(accel_struct->buffer),
-      .dstBuffer = ctx->buffer.buffer,
+   VkCopyDeviceMemoryInfoKHR copy_info = {
+      .sType = VK_STRUCTURE_TYPE_COPY_DEVICE_MEMORY_INFO_KHR,
       .regionCount = 1,
       .pRegions = &copy,
    };
 
-   radv_CmdCopyBuffer2(ctx->cmd_buffer, &copy_info);
+   radv_CmdCopyMemoryKHR(ctx->cmd_buffer, &copy_info);
 
    result = radv_EndCommandBuffer(ctx->cmd_buffer);
    if (result != VK_SUCCESS)
