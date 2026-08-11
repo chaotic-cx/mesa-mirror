@@ -97,6 +97,11 @@ for op in ['fcos_normalized_2_pi', 'fexp2', 'flog2', 'frcp', 'frsq', 'fsin_norma
             (('f2f32(contract)', (op + '(is_used_once)', (f2f16, 'a@32'))), (op, a)),
     ]
 
+# We have a dedicated imad_2x32_64
+int64_opts = [
+    (('iadd@64', ('imul(is_only_used_by_iadd)', a, b), c), ('imad', a, b, c), 'nak->sm >= 70'),
+]
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--out', required=True, help='Output file.')
@@ -112,6 +117,12 @@ def main():
             f.write(nir_algebraic.AlgebraicPass(
                 "nak_nir_lower_algebraic_late",
                 algebraic_lowering,
+                [
+                    ("const struct nak_compiler *", "nak"),
+                ]).render())
+            f.write(nir_algebraic.AlgebraicPass(
+                "nak_nir_opt_int64",
+                int64_opts,
                 [
                     ("const struct nak_compiler *", "nak"),
                 ]).render())

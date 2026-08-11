@@ -209,6 +209,7 @@ bool nak_nir_lower_algebraic_late(nir_shader *nir, const struct nak_compiler *na
 bool nak_nir_lower_kepler_shared_atomics(nir_shader *shader);
 bool nak_nir_lower_mesh_stages_shared_atomics(nir_shader *nir);
 bool nak_nir_lower_f16vec2_shared_atomics(nir_shader *nir);
+bool nak_nir_opt_int64(nir_shader *nir, const struct nak_compiler *nak);
 
 struct nak_nir_attr_io_flags {
    bool output : 1;

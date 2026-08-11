@@ -1812,6 +1812,8 @@ nak_postprocess_nir(nir_shader *nir,
       OPT(nir, nak_nir_opt_offset_shift_nv, nak);
 
    OPT(nir, nir_lower_doubles, NULL, nak->nir_options.lower_doubles_options);
+   /* Create 64 bit imads first */
+   OPT(nir, nak_nir_opt_int64, nak);
    OPT(nir, nir_lower_int64);
 
    if (nak->sm >= 70)
