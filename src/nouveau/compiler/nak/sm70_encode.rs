@@ -1790,6 +1790,7 @@ impl SM70Op for OpIMad64 {
     }
 
     fn encode(&self, e: &mut SM70Encoder<'_>) {
+        assert!(!self.srcs[2].is_immediate());
         if self.is_uniform() {
             e.encode_ualu(
                 0x0a5,
