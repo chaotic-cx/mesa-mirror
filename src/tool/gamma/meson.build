@@ -48,3 +48,13 @@ executable(
   include_directories: gamma_includes,
   dependencies: [idep_mesautil, libimgui_sdl3_vulkan_dep, dep_sdl3, dep_vulkan],
 )
+
+executable(
+  'gamma_replay',
+  [ 'main_replay.cpp', 'gamma_replayer.cpp' ],
+  cpp_args: cpp_msvc_compat_args,
+  gnu_symbol_visibility: 'hidden',
+  link_with: [gamma_lib],
+  include_directories: gamma_includes,
+  dependencies: [idep_mesautil, libimgui_sdl3_vulkan_dep, dep_sdl3, dep_vulkan],
+)
