@@ -368,6 +368,8 @@ gamma_file_view::begin()
       ImGui::SetWindowFocus();
       ui.request_focus = false;
    }
+   if (ImGui::IsWindowFocused())
+      app->selected_file = this;
 
    ImGui::DockSpace(ui.dockspace_id, ImVec2(0, 0), ImGuiDockNodeFlags_NoWindowMenuButton, &ui.dockspace_class);
 

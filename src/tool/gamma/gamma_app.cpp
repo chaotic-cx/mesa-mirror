@@ -528,6 +528,59 @@ gamma_open_file_cb(void *userdata, const char *const *filelist, int filter)
    }
 }
 
+static SDLCALL void
+gamma_export_file_cb(void *userdata, const char *const *filelist, int filter)
+{
+   gamma_app *app = (gamma_app *)userdata;
+
+   if (!filelist || !filelist[0] || !app->selected_file)
+      return;
+
+   FILE *dst_file = fopen(filelist[0], "wb");
+   if (!dst_file)
+      return;
+
+   struct gamma_header file_header = {
+      .version = 0,
+      .driver = gamma_driver_radv,
+      .chunk_count = app->selected_file->acceleration_structures.size(),
+   };
+   fwrite(&file_header, 1, sizeof(file_header), dst_file);
+
+   size_t build_info_size = 0;
+   for (auto &structure : app->selected_file->acceleration_structures) {
+      build_info_size += sizeof(gamma_chunk_header) + sizeof(gamma_acceleration_structure_build_info_header);
+      for (uint32_t i = 0; i < structure->header.geometry_count; ++i) {
+         build_info_size += sizeof(gamma_acceleration_structure_geometry_info);
+         switch (structure->header.geometry_type) {
+         case VK_GEOMETRY_TYPE_TRIANGLES_KHR:
+            build_info_size +=
+               structure->geometry_infos[i].primitive_count * sizeof(gamma_acceleration_structure_triangle_primitive);
+            break;
+         case VK_GEOMETRY_TYPE_AABBS_KHR:
+            build_info_size +=
+               structure->geometry_infos[i].primitive_count * sizeof(gamma_acceleration_structure_aabb_primitive);
+            break;
+         case VK_GEOMETRY_TYPE_INSTANCES_KHR:
+            build_info_size +=
+               structure->geometry_infos[i].primitive_count * sizeof(VkAccelerationStructureInstanceKHR);
+            break;
+         default:
+            assert(!"gamma/radv: Unhandled primitive type!\n");
+         }
+      }
+   }
+
+   char *build_info_data = (char *)malloc(build_info_size);
+   char *dst = build_info_data;
+   for (auto &structure : app->selected_file->acceleration_structures)
+      dst = structure->write_build_info(dst);
+
+   fwrite(build_info_data, 1, build_info_size, dst_file);
+   free(build_info_data);
+   fclose(dst_file);
+}
+
 static const SDL_DialogFileFilter gamma_file_filters[] = {
    {"gamma file", "gamma"},
 };
@@ -576,6 +629,10 @@ gamma_app_run(gamma_app *app)
          if (ImGui::MenuItem("Open", ImGui::GetKeyChordName(open_chord))) {
             SDL_ShowOpenFileDialog(gamma_open_file_cb, app, app->window, gamma_file_filters,
                                    ARRAY_SIZE(gamma_file_filters), nullptr, false);
+         }
+         if (ImGui::MenuItem("Export", nullptr, false, !!app->selected_file)) {
+            SDL_ShowSaveFileDialog(gamma_export_file_cb, app, app->window, gamma_file_filters,
+                                   ARRAY_SIZE(gamma_file_filters), nullptr);
          }
          if (ImGui::MenuItem("Exit", ImGui::GetKeyChordName(exit_chord)))
             return true;

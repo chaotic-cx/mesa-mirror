@@ -28,6 +28,8 @@ struct gamma_app : gamma_device {
    ImGui_ImplVulkanH_Window imgui_window;
    std::vector<std::unique_ptr<gamma_file_view>> open_files;
 
+   gamma_file_view *selected_file = nullptr;
+
    PFN_vkCmdDrawMultiEXT vkCmdDrawMultiEXT;
 
    VkDescriptorSetLayout renderer_set_layout;
