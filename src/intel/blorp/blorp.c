@@ -33,6 +33,8 @@ blorp_op_to_intel_measure_snapshot(enum blorp_op op)
 #define MAP(name) [BLORP_OP_##name] = INTEL_SNAPSHOT_##name
       MAP(BLIT),
       MAP(BLIT_COPY),
+      MAP(COPY_INDIRECT),
+      MAP(COPY_IMAGE_INDIRECT),
       MAP(CCS_AMBIGUATE),
       MAP(CCS_COLOR_CLEAR),
       MAP(CCS_PARTIAL_RESOLVE),
@@ -64,6 +66,8 @@ const char *blorp_op_to_name(enum blorp_op op)
 #define MAP(name) [BLORP_OP_##name] = #name
       MAP(BLIT),
       MAP(BLIT_COPY),
+      MAP(COPY_INDIRECT),
+      MAP(COPY_IMAGE_INDIRECT),
       MAP(CCS_AMBIGUATE),
       MAP(CCS_COLOR_CLEAR),
       MAP(CCS_PARTIAL_RESOLVE),
@@ -99,6 +103,7 @@ blorp_shader_type_to_name(enum blorp_shader_type type)
       [BLORP_SHADER_TYPE_MCS_PARTIAL_RESOLVE] = "BLORP-mcs-partial-resolve",
       [BLORP_SHADER_TYPE_LAYER_OFFSET_VS]     = "BLORP-layer-offset-vs",
       [BLORP_SHADER_TYPE_GFX4_SF]             = "BLORP-gfx4-sf",
+      [BLORP_SHADER_TYPE_COPY_INDIRECT]       = "BLORP-copy-indirect",
    };
    assert(type < ARRAY_SIZE(shader_name));
 
