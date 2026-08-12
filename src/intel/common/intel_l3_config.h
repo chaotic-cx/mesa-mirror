@@ -100,7 +100,7 @@ intel_get_l3_partition_size(const struct intel_device_info *devinfo,
 void intel_dump_l3_config(const struct intel_l3_config *cfg, FILE *fp);
 
 enum intel_urb_deref_block_size {
-   INTEL_URB_DEREF_BLOCK_SIZE_32         = 0,
+   INTEL_URB_DEREF_BLOCK_SIZE_32         = 0,/* Size value depends on the stage but could be 32 or 64 */
    INTEL_URB_DEREF_BLOCK_SIZE_PER_POLY   = 1,
    INTEL_URB_DEREF_BLOCK_SIZE_8          = 2,
    INTEL_URB_DEREF_BLOCK_SIZE_MESH       = 3,

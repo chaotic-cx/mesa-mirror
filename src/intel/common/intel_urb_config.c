@@ -254,7 +254,31 @@ intel_get_urb_config(const struct intel_device_info *devinfo,
    urb_cfg->start[MESA_SHADER_MESH] = 0;
    urb_cfg->start[MESA_SHADER_TASK] = 0;
 
-   if (devinfo->ver >= 12) {
+   if (intel_device_info_memory_urb_size_per_slice(devinfo)) {
+      /* This block will take care of 'If 3DSTATE_URB_MEMORY:: Vertex Memory URB
+       * mode Enable ==1' rules while the else block will handle the
+       * 'If 3DSTATE_URB_MEMORY::Vertex Memory URB mode Enable == 0' block.
+       */
+      if (gs_present) {
+         unsigned lower_limit = 81;
+         if (urb_cfg->entries[MESA_SHADER_GEOMETRY] < lower_limit)
+            urb_cfg->deref_block_size = INTEL_URB_DEREF_BLOCK_SIZE_PER_POLY;
+         else
+            urb_cfg->deref_block_size = INTEL_URB_DEREF_BLOCK_SIZE_32;
+      } else if (tess_present) {
+         unsigned lower_limit = 1312;
+         if (urb_cfg->entries[MESA_SHADER_TESS_EVAL] < lower_limit)
+            urb_cfg->deref_block_size = INTEL_URB_DEREF_BLOCK_SIZE_PER_POLY;
+         else
+            urb_cfg->deref_block_size = INTEL_URB_DEREF_BLOCK_SIZE_32;
+      } else {
+         unsigned lower_limit = 768;
+         if (urb_cfg->entries[MESA_SHADER_TESS_EVAL] < lower_limit)
+            urb_cfg->deref_block_size = INTEL_URB_DEREF_BLOCK_SIZE_PER_POLY;
+         else
+            urb_cfg->deref_block_size = INTEL_URB_DEREF_BLOCK_SIZE_32;
+      }
+   } else if (devinfo->ver >= 12) {
       /* From the Gfx12 BSpec:
        *
        *    "Deref Block size depends on the last enabled shader and number
@@ -423,10 +447,14 @@ intel_get_mesh_urb_config(const struct intel_device_info *devinfo,
       urb_cfg->entries[MESA_SHADER_TASK] = 0;
    }
 
-   urb_cfg->deref_block_size =
-      urb_cfg->entries[MESA_SHADER_MESH] > 32 ?
-      INTEL_URB_DEREF_BLOCK_SIZE_MESH :
-      INTEL_URB_DEREF_BLOCK_SIZE_PER_POLY;
+   if (intel_device_info_memory_urb_size_per_slice(devinfo)) {
+      urb_cfg->deref_block_size = INTEL_URB_DEREF_BLOCK_SIZE_32;
+   } else {
+      urb_cfg->deref_block_size =
+         urb_cfg->entries[MESA_SHADER_MESH] > 32 ?
+         INTEL_URB_DEREF_BLOCK_SIZE_MESH :
+         INTEL_URB_DEREF_BLOCK_SIZE_PER_POLY;
+   }
 
    assert(mesh_urb_kb + task_urb_kb <= total_urb_avail_mesh_task_kb);
    assert(mesh_urb_kb >= min_mesh_urb_kb);
