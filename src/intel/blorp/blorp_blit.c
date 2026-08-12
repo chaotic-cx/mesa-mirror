@@ -3504,7 +3504,7 @@ blorp_copy(struct blorp_batch *batch,
       return;
 
    blorp_params_init(&params, batch->blorp);
-   params.op = BLORP_OP_COPY;
+   params.op = BLORP_OP_BLIT_COPY;
 
    const bool compute = batch->flags & BLORP_BATCH_USE_COMPUTE;
    if (compute) {
@@ -3524,7 +3524,7 @@ blorp_copy(struct blorp_batch *batch,
                            dst_layer, ISL_FORMAT_UNSUPPORTED, true);
 
    struct blorp_blit_prog_key key;
-   BLORP_KEY_INIT(key, batch->blorp, BLORP_SHADER_TYPE_COPY,
+   BLORP_KEY_INIT(key, batch->blorp, BLORP_SHADER_TYPE_BLIT_COPY,
                   (compute ? BLORP_SHADER_PIPELINE_COMPUTE :
                              BLORP_SHADER_PIPELINE_RENDER));
    key.filter = BLORP_FILTER_NONE;

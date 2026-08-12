@@ -296,7 +296,7 @@ struct blorp_vs_inputs {
 };
 
 enum blorp_shader_type {
-   BLORP_SHADER_TYPE_COPY,
+   BLORP_SHADER_TYPE_BLIT_COPY,
    BLORP_SHADER_TYPE_BLIT,
    BLORP_SHADER_TYPE_CLEAR,
    BLORP_SHADER_TYPE_MCS_PARTIAL_RESOLVE,
@@ -492,7 +492,7 @@ blorp_op_type_is_blit(enum blorp_op op)
 {
    switch (op) {
    case BLORP_OP_BLIT:
-   case BLORP_OP_COPY:
+   case BLORP_OP_BLIT_COPY:
       return true;
    default:
       return false;

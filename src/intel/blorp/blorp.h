@@ -40,7 +40,7 @@ typedef struct nir_shader nir_shader;
 
 enum blorp_op {
    BLORP_OP_BLIT,
-   BLORP_OP_COPY,
+   BLORP_OP_BLIT_COPY,
    BLORP_OP_COPY_INDIRECT,
    BLORP_OP_COPY_IMAGE_INDIRECT,
    BLORP_OP_CCS_AMBIGUATE,

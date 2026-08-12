@@ -32,7 +32,7 @@ blorp_op_to_intel_measure_snapshot(enum blorp_op op)
    enum intel_measure_snapshot_type vals[] = {
 #define MAP(name) [BLORP_OP_##name] = INTEL_SNAPSHOT_##name
       MAP(BLIT),
-      MAP(COPY),
+      MAP(BLIT_COPY),
       MAP(CCS_AMBIGUATE),
       MAP(CCS_COLOR_CLEAR),
       MAP(CCS_PARTIAL_RESOLVE),
@@ -63,7 +63,7 @@ const char *blorp_op_to_name(enum blorp_op op)
    const char *names[] = {
 #define MAP(name) [BLORP_OP_##name] = #name
       MAP(BLIT),
-      MAP(COPY),
+      MAP(BLIT_COPY),
       MAP(CCS_AMBIGUATE),
       MAP(CCS_COLOR_CLEAR),
       MAP(CCS_PARTIAL_RESOLVE),
@@ -93,7 +93,7 @@ const char *
 blorp_shader_type_to_name(enum blorp_shader_type type)
 {
    static const char *shader_name[] = {
-      [BLORP_SHADER_TYPE_COPY]                = "BLORP-copy",
+      [BLORP_SHADER_TYPE_BLIT_COPY]           = "BLORP-blit-copy",
       [BLORP_SHADER_TYPE_BLIT]                = "BLORP-blit",
       [BLORP_SHADER_TYPE_CLEAR]               = "BLORP-clear",
       [BLORP_SHADER_TYPE_MCS_PARTIAL_RESOLVE] = "BLORP-mcs-partial-resolve",
