@@ -3487,14 +3487,14 @@ format_scale_copy(const struct isl_device *isl_dev,
 }
 
 void
-blorp_copy(struct blorp_batch *batch,
-           const struct blorp_surf *src_surf,
-           unsigned src_level, unsigned src_layer,
-           const struct blorp_surf *dst_surf,
-           unsigned dst_level, unsigned dst_layer,
-           uint32_t src_x, uint32_t src_y,
-           uint32_t dst_x, uint32_t dst_y,
-           uint32_t src_width, uint32_t src_height)
+blorp_blit_copy(struct blorp_batch *batch,
+                const struct blorp_surf *src_surf,
+                unsigned src_level, unsigned src_layer,
+                const struct blorp_surf *dst_surf,
+                unsigned dst_level, unsigned dst_layer,
+                uint32_t src_x, uint32_t src_y,
+                uint32_t dst_x, uint32_t dst_y,
+                uint32_t src_width, uint32_t src_height)
 {
    const struct isl_device *isl_dev = batch->blorp->isl_dev;
    const struct intel_device_info *devinfo = isl_dev->info;
@@ -3677,10 +3677,10 @@ blorp_copy(struct blorp_batch *batch,
 }
 
 void
-blorp_buffer_copy(struct blorp_batch *batch,
-                  struct blorp_address src,
-                  struct blorp_address dst,
-                  uint64_t size)
+blorp_blit_buffer_copy(struct blorp_batch *batch,
+                       struct blorp_address src,
+                       struct blorp_address dst,
+                       uint64_t size)
 {
    struct isl_surf surf;
    struct blorp_surf src_blorp_surf = {
@@ -3699,11 +3699,11 @@ blorp_buffer_copy(struct blorp_batch *batch,
                         dst_blorp_surf.addr.offset, size, ISL_TILING_LINEAR);
 
       for (int i = 0; i < surf.logical_level0_px.a; i++) {
-         blorp_copy(batch,
-                    &src_blorp_surf, 0, i,
-                    &dst_blorp_surf, 0, i, 0, 0, 0, 0,
-                    surf.logical_level0_px.w,
-                    surf.logical_level0_px.h);
+         blorp_blit_copy(batch,
+                         &src_blorp_surf, 0, i,
+                         &dst_blorp_surf, 0, i, 0, 0, 0, 0,
+                         surf.logical_level0_px.w,
+                         surf.logical_level0_px.h);
       }
 
       size -= surf.size_B;

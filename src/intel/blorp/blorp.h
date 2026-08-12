@@ -293,20 +293,20 @@ blorp_copy_get_formats(const struct isl_device *isl_dev,
                        enum isl_format *dst_view_format);
 
 void
-blorp_copy(struct blorp_batch *batch,
-           const struct blorp_surf *src_surf,
-           unsigned src_level, unsigned src_layer,
-           const struct blorp_surf *dst_surf,
-           unsigned dst_level, unsigned dst_layer,
-           uint32_t src_x, uint32_t src_y,
-           uint32_t dst_x, uint32_t dst_y,
-           uint32_t src_width, uint32_t src_height);
+blorp_blit_copy(struct blorp_batch *batch,
+                const struct blorp_surf *src_surf,
+                unsigned src_level, unsigned src_layer,
+                const struct blorp_surf *dst_surf,
+                unsigned dst_level, unsigned dst_layer,
+                uint32_t src_x, uint32_t src_y,
+                uint32_t dst_x, uint32_t dst_y,
+                uint32_t src_width, uint32_t src_height);
 
 void
-blorp_buffer_copy(struct blorp_batch *batch,
-                  struct blorp_address src,
-                  struct blorp_address dst,
-                  uint64_t size);
+blorp_blit_buffer_copy(struct blorp_batch *batch,
+                       struct blorp_address src,
+                       struct blorp_address dst,
+                       uint64_t size);
 
 void
 blorp_copy_memory_indirect(struct blorp_batch *batch,

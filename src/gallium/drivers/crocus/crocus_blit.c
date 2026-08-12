@@ -713,7 +713,7 @@ crocus_copy_region(struct blorp_context *blorp,
       crocus_batch_maybe_flush(batch, 1500);
 
       blorp_batch_init(&ice->blorp, &blorp_batch, batch, 0);
-      blorp_buffer_copy(&blorp_batch, src_addr, dst_addr, src_box->width);
+      blorp_blit_buffer_copy(&blorp_batch, src_addr, dst_addr, src_box->width);
       blorp_batch_finish(&blorp_batch);
    } else {
       // XXX: what about one surface being a buffer and not the other?
@@ -736,10 +736,11 @@ crocus_copy_region(struct blorp_context *blorp,
       for (int slice = 0; slice < src_box->depth; slice++) {
          crocus_batch_maybe_flush(batch, 1500);
 
-         blorp_copy(&blorp_batch, &src_surf, src_level, src_box->z + slice,
-                    &dst_surf, dst_level, dstz + slice,
-                    src_box->x, src_box->y, dstx, dsty,
-                    src_box->width, src_box->height);
+         blorp_blit_copy(&blorp_batch,
+                         &src_surf, src_level, src_box->z + slice,
+                         &dst_surf, dst_level, dstz + slice,
+                         src_box->x, src_box->y, dstx, dsty,
+                         src_box->width, src_box->height);
       }
       blorp_batch_finish(&blorp_batch);
 

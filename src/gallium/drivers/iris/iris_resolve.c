@@ -585,9 +585,9 @@ iris_mcs_exec(struct iris_context *ice,
       iris_blorp_surf_for_resource(batch, &dst_surf, &res->base.b,
                                    ISL_AUX_USAGE_NONE, 0, true);
 
-      blorp_copy(&blorp_batch, &src_surf, 0, 0, &dst_surf, 0, 0,
-                 0, 0, 0, 0, surf.surf->logical_level0_px.width,
-                 surf.surf->logical_level0_px.height);
+      blorp_blit_copy(&blorp_batch, &src_surf, 0, 0, &dst_surf, 0, 0,
+                      0, 0, 0, 0, surf.surf->logical_level0_px.width,
+                      surf.surf->logical_level0_px.height);
    } else {
       assert(op == ISL_AUX_OP_AMBIGUATE);
       blorp_mcs_ambiguate(&blorp_batch, &surf, start_layer, num_layers);
