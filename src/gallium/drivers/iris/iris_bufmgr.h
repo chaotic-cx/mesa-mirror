@@ -697,6 +697,7 @@ struct intel_bind_timeline *iris_bufmgr_get_bind_timeline(struct iris_bufmgr *bu
 bool iris_bufmgr_compute_engine_supported(struct iris_bufmgr *bufmgr);
 uint64_t iris_bufmgr_get_dummy_aux_address(struct iris_bufmgr *bufmgr);
 struct iris_bo *iris_bufmgr_get_mem_fence_bo(struct iris_bufmgr *bufmgr);
+struct iris_bo *iris_bufmgr_get_urb_memory_bo(struct iris_bufmgr *bufmgr);
 
 bool iris_bufmgr_alloc_heap(struct iris_bufmgr *bufmgr, uint64_t start, uint64_t size);
 void iris_bufmgr_free_heap(struct iris_bufmgr *bufmgr, uint64_t start, uint64_t size);

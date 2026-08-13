@@ -1556,6 +1556,19 @@ iris_init_render_context(struct iris_batch *batch)
    init_aux_map_state(batch);
 #endif
 
+#if GFX_VERx10 >= 350
+   const uint32_t memory_urb_size_per_slice = intel_device_info_memory_urb_size_per_slice(devinfo);
+   struct iris_address urb_memory_addr = { .bo = iris_bufmgr_get_urb_memory_bo(batch->screen->bufmgr) };
+
+   iris_emit_cmd(batch, GENX(3DSTATE_URB_MEMORY), urb_memory) {
+      urb_memory.body.VertexMemoryURBmodeEnable = true;
+      urb_memory.body.MemoryinStolenMemoryDisable = !intel_device_info_memory_urb_is_allocated_in_stolen(devinfo);
+      urb_memory.body.VertexMemoryURBsizeperslice = (memory_urb_size_per_slice / (256 * 1024)) - 1;
+      urb_memory.body.MemoryURBStartingAddress = urb_memory_addr;
+      urb_memory.body.MOCS = iris_mocs(urb_memory_addr.bo, &batch->screen->isl_dev, 0);
+   }
+#endif
+
    iris_batch_sync_region_end(batch);
 }
 
