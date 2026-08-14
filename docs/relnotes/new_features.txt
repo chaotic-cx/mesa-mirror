@@ -17,3 +17,4 @@ GL, GLES, EGL, GLX, and WGL call tracing with apitrace, MESA_APITRACE=1 in build
 VK_{KHR,EXT}_load_store_op_none on pvr
 GL_NV_alpha_to_coverage_dither_control on all r600 devices
 VK_{ARM,EXT}_rasterization_order_attachment_access on v3dv
+VK_KHR_maintenance12 on RADV

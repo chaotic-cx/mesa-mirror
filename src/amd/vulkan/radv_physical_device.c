@@ -750,6 +750,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .KHR_maintenance9 = true,
       .KHR_maintenance10 = true,
       .KHR_maintenance11 = true,
+      .KHR_maintenance12 = true,
       .KHR_map_memory2 = true,
       .KHR_multiview = true,
       .KHR_performance_query = radv_perf_query_supported(pdev),
@@ -1697,6 +1698,9 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
 
       /* VK_AMD_anti_lag */
       .antiLag = true,
+
+      /* VK_KHR_maintenance12 */
+      .maintenance12 = true,
    };
 }
 
@@ -2416,6 +2420,9 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
 
       /* VK_EXT_shader_split_barrier */
       .splitBarrierReservedSharedMemory = 0,
+
+      /* VK_KHR_maintenance12 */
+      .maxInputAttachmentIndex = ~0,
    };
 
    struct vk_properties *p = &pdev->vk.properties;
