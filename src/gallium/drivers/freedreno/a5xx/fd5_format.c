@@ -324,6 +324,22 @@ static struct fd5_format formats[PIPE_FORMAT_COUNT] = {
    _T(ASTC_10x10_SRGB, ASTC_10x10, NONE, WZYX),
    _T(ASTC_12x10_SRGB, ASTC_12x10, NONE, WZYX),
    _T(ASTC_12x12_SRGB, ASTC_12x12, NONE, WZYX),
+
+   /* the block header selects LDR/HDR, so HDR reuses the LDR format */
+   _T(ASTC_4x4_FLOAT, ASTC_4x4,    NONE, WZYX),
+   _T(ASTC_5x4_FLOAT, ASTC_5x4,    NONE, WZYX),
+   _T(ASTC_5x5_FLOAT, ASTC_5x5,    NONE, WZYX),
+   _T(ASTC_6x5_FLOAT, ASTC_6x5,    NONE, WZYX),
+   _T(ASTC_6x6_FLOAT, ASTC_6x6,    NONE, WZYX),
+   _T(ASTC_8x5_FLOAT, ASTC_8x5,    NONE, WZYX),
+   _T(ASTC_8x6_FLOAT, ASTC_8x6,    NONE, WZYX),
+   _T(ASTC_8x8_FLOAT, ASTC_8x8,    NONE, WZYX),
+   _T(ASTC_10x5_FLOAT, ASTC_10x5,   NONE, WZYX),
+   _T(ASTC_10x6_FLOAT, ASTC_10x6,   NONE, WZYX),
+   _T(ASTC_10x8_FLOAT, ASTC_10x8,   NONE, WZYX),
+   _T(ASTC_10x10_FLOAT, ASTC_10x10,  NONE, WZYX),
+   _T(ASTC_12x10_FLOAT, ASTC_12x10,  NONE, WZYX),
+   _T(ASTC_12x12_FLOAT, ASTC_12x12,  NONE, WZYX),
 };
 /* clang-format on */
 
