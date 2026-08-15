@@ -55,13 +55,6 @@ glx@glx-swap-pixmap-bad,Fail
 glx@glx_arb_sync_control@swapbuffersmsc-divisor-zero,Fail
 glx@glx_arb_sync_control@waitformsc,Fail
 
-shaders@point-vertex-id divisor,Crash
-shaders@point-vertex-id gl_instanceid,Crash
-shaders@point-vertex-id gl_instanceid divisor,Crash
-shaders@point-vertex-id gl_vertexid,Crash
-shaders@point-vertex-id gl_vertexid divisor,Crash
-shaders@point-vertex-id gl_vertexid gl_instanceid,Crash
-shaders@point-vertex-id gl_vertexid gl_instanceid divisor,Crash
 
 spec@!opengl 1.0@depth-clear-precision-check@depth24,Fail
 spec@!opengl 1.0@depth-clear-precision-check@depth32,Fail

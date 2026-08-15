@@ -5380,6 +5380,8 @@ setup_output(struct ir3_context *ctx, nir_intrinsic_instr *intr)
       case VARYING_SLOT_CLIP_DIST1:
       case VARYING_SLOT_CLIP_VERTEX:
       case VARYING_SLOT_LAYER:
+      /* no hw edge flags, and gallium has no way to decline the output */
+      case VARYING_SLOT_EDGE:
          break;
       default:
          if (slot >= VARYING_SLOT_VAR0)
