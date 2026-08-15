@@ -73,13 +73,11 @@ spec@!opengl 1.0@gl-1.0-no-op-paths,Fail
 
 spec@!opengl 1.1@polygon-mode,Fail
 spec@!opengl 1.4@gl-1.4-polygon-offset,Fail
-spec@!opengl 1.1@ppgtt_memory_alignment,Crash
 
 spec@!opengl 2.1@pbo,Fail
 spec@!opengl 2.1@pbo@test_polygon_stip,Fail
 spec@!opengl 3.1@primitive-restart-xfb generated,Fail
 spec@!opengl 3.1@primitive-restart-xfb written,Fail
-spec@!opengl 3.1@vao-broken-attrib,Crash
 
 spec@arb_depth_buffer_float@fbo-clear-formats stencil,Fail
 spec@arb_depth_buffer_float@fbo-clear-formats stencil@GL_DEPTH32F_STENCIL8,Fail

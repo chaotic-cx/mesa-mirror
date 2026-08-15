@@ -175,7 +175,6 @@ spec@!opengl 3.1@primitive-restart-xfb flush,Fail
 spec@!opengl 3.1@primitive-restart-xfb generated,Fail
 spec@!opengl 3.1@primitive-restart-xfb written,Fail
 spec@!opengl 3.1@required-texture-attachment-formats,Fail
-spec@!opengl 3.1@vao-broken-attrib,Crash
 spec@!opengl es 3.0@minmax,Fail
 spec@amd_seamless_cubemap_per_texture@amd_seamless_cubemap_per_texture,Fail
 spec@arb_clip_control@arb_clip_control-depth-precision,Fail

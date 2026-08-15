@@ -462,11 +462,17 @@ fd5_emit_vertex_bufs(struct fd_ringbuffer *ring, struct fd5_emit *emit)
          enum a5xx_vtx_fmt fmt = fd5_pipe2vtx(pfmt);
          bool isint = util_format_is_pure_integer(pfmt);
          uint32_t off = vb->buffer_offset + elem->src_offset;
-         uint32_t size = vb->buffer.resource->width0 - off;
+         uint32_t size = rsc ? vb->buffer.resource->width0 - off : 0;
          assert(fmt != VFMT5_NONE);
 
          OUT_PKT4(ring, REG_A5XX_VFD_FETCH(j), 4);
-         OUT_RELOC(ring, rsc->bo, off, 0, 0);
+         /* undefined results are allowed here, a crash is not */
+         if (rsc) {
+            OUT_RELOC(ring, rsc->bo, off, 0, 0);
+         } else {
+            OUT_RING(ring, 0); /* VFD_FETCH[j].BASE_LO */
+            OUT_RING(ring, 0); /* VFD_FETCH[j].BASE_HI */
+         }
          OUT_RING(ring, size);       /* VFD_FETCH[j].SIZE */
          OUT_RING(ring, elem->src_stride); /* VFD_FETCH[j].STRIDE */
 

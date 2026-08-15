@@ -419,7 +419,11 @@ fd3_emit_vertex_bufs(struct fd_ringbuffer *ring, struct fd3_emit *emit)
                                 A3XX_VFD_FETCH_INSTR_0_INSTANCED) |
                            A3XX_VFD_FETCH_INSTR_0_STEPRATE(
                               MAX2(1, elem->instance_divisor)));
-         OUT_RELOC(ring, rsc->bo, off, 0, 0);
+         /* undefined results are allowed here, a crash is not */
+         if (rsc)
+            OUT_RELOC(ring, rsc->bo, off, 0, 0);
+         else
+            OUT_RING(ring, 0); /* VFD_FETCH_INSTR_1 */
 
          OUT_PKT0(ring, REG_A3XX_VFD_DECODE_INSTR(j), 1);
          OUT_RING(ring,

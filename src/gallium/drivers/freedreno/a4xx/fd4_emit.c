@@ -555,7 +555,7 @@ fd4_emit_vertex_bufs(struct fd_ringbuffer *ring, struct fd4_emit *emit)
          bool isint = util_format_is_pure_integer(pfmt);
          uint32_t fs = util_format_get_blocksize(pfmt);
          uint32_t off = vb->buffer_offset + elem->src_offset;
-         uint32_t size = vb->buffer.resource->width0 - off;
+         uint32_t size = rsc ? vb->buffer.resource->width0 - off : 0;
          assert(fmt != VFMT4_NONE);
 
          OUT_PKT0(ring, REG_A4XX_VFD_FETCH(j), 4);
@@ -564,7 +564,11 @@ fd4_emit_vertex_bufs(struct fd_ringbuffer *ring, struct fd4_emit *emit)
                            COND(elem->instance_divisor,
                                 A4XX_VFD_FETCH_INSTR_0_INSTANCED) |
                            COND(switchnext, A4XX_VFD_FETCH_INSTR_0_SWITCHNEXT));
-         OUT_RELOC(ring, rsc->bo, off, 0, 0);
+         /* undefined results are allowed here, a crash is not */
+         if (rsc)
+            OUT_RELOC(ring, rsc->bo, off, 0, 0);
+         else
+            OUT_RING(ring, 0); /* VFD_FETCH_INSTR_1 */
          OUT_RING(ring, A4XX_VFD_FETCH_INSTR_2_SIZE(size));
          OUT_RING(ring, A4XX_VFD_FETCH_INSTR_3_STEPRATE(
                            MAX2(1, elem->instance_divisor)));
