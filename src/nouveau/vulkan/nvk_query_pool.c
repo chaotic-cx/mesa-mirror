@@ -35,20 +35,92 @@
 #include "nv_push_clc86f.h"
 #include "nv_push_clcb97.h"
 
+struct nvk_perf_counter {
+   const char *name;
+   const char *desc;
+   const char *category;
+   uint32_t location;
+   uint32_t report;
+   uint8_t sub_report;
+   uint8_t structure_size;
+   VkPerformanceCounterStorageKHR storage;
+
+   /**
+    * This uuid should never change, not even across driver versions. This
+    * allows us to change other metadata while allowing applications to still
+    * map counter values across driver versions.
+    *
+    * Generate with e.g. this python script:
+    *   ```python
+    *   import uuid
+    *   ", ".join(hex(b) for b in uuid.uuid4().bytes)
+    *   ```
+    */
+   uint8_t uuid[VK_UUID_SIZE];
+} nvk_perf_counters[] = {
+   {
+      .name = "Zcull0",
+      .desc = "Zcull0",
+      .category = "Performance",
+      .location = NV9097_SET_REPORT_SEMAPHORE_D_PIPELINE_LOCATION_ZCULL,
+      .report = NV9097_SET_REPORT_SEMAPHORE_D_REPORT_ZCULL_STATS0,
+      .sub_report = 0,
+      .structure_size = NV9097_SET_REPORT_SEMAPHORE_D_STRUCTURE_SIZE_ONE_WORD,
+      .storage = VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR,
+      .uuid = { 0x0a, 0x83, 0xe4, 0xf3, 0xba, 0xe3, 0x48, 0xc3, 0x90, 0xbf, 0x8d, 0x6c, 0xfb, 0x1c, 0x0b, 0xe5 },
+   },
+   {
+      .name = "Zcull1",
+      .desc = "Zcull1",
+      .category = "Performance",
+      .location = NV9097_SET_REPORT_SEMAPHORE_D_PIPELINE_LOCATION_ZCULL,
+      .report = NV9097_SET_REPORT_SEMAPHORE_D_REPORT_ZCULL_STATS1,
+      .sub_report = 0,
+      .structure_size = NV9097_SET_REPORT_SEMAPHORE_D_STRUCTURE_SIZE_ONE_WORD,
+      .storage = VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR,
+      .uuid = { 0xf9, 0x68, 0x28, 0xc7, 0x0c, 0x6f, 0x4e, 0xfa, 0xa2, 0x15, 0xc3, 0x45, 0x43, 0xea, 0xd6, 0x4b },
+   },
+   {
+      .name = "Zcull2",
+      .desc = "Zcull2",
+      .category = "Performance",
+      .location = NV9097_SET_REPORT_SEMAPHORE_D_PIPELINE_LOCATION_ZCULL,
+      .report = NV9097_SET_REPORT_SEMAPHORE_D_REPORT_ZCULL_STATS2,
+      .sub_report = 0,
+      .structure_size = NV9097_SET_REPORT_SEMAPHORE_D_STRUCTURE_SIZE_ONE_WORD,
+      .storage = VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR,
+      .uuid = { 0xa2, 0x54, 0xfe, 0xb3, 0xfa, 0xd2, 0x4e, 0xaf, 0xb4, 0x3f, 0x57, 0x75, 0x8e, 0x92, 0x8d, 0xb1 },
+   },
+   {
+      .name = "Zcull3",
+      .desc = "Zcull3",
+      .category = "Performance",
+      .location = NV9097_SET_REPORT_SEMAPHORE_D_PIPELINE_LOCATION_ZCULL,
+      .report = NV9097_SET_REPORT_SEMAPHORE_D_REPORT_ZCULL_STATS3,
+      .sub_report = 0,
+      .structure_size = NV9097_SET_REPORT_SEMAPHORE_D_STRUCTURE_SIZE_ONE_WORD,
+      .storage = VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR,
+      .uuid = { 0x18, 0x35, 0xed, 0xba, 0xfc, 0x55, 0x48, 0x93, 0x8f, 0xaf, 0x11, 0x53, 0x5f, 0xfe, 0xc0, 0xb0 },
+   },
+};
+
 static uint32_t
-vk_query_pool_report_count(const struct vk_query_pool *vk_pool)
+nvk_query_pool_report_count(const struct nvk_query_pool *pool)
 {
-   switch (vk_pool->query_type) {
+   switch (pool->vk.query_type) {
    case VK_QUERY_TYPE_OCCLUSION:
    case VK_QUERY_TYPE_PRIMITIVES_GENERATED_EXT:
    case VK_QUERY_TYPE_TIMESTAMP:
       return 1;
 
    case VK_QUERY_TYPE_PIPELINE_STATISTICS:
-      return util_bitcount(vk_pool->pipeline_statistics);
+      return util_bitcount(pool->vk.pipeline_statistics);
 
    case VK_QUERY_TYPE_TRANSFORM_FEEDBACK_STREAM_EXT:
       return 2;
+
+   case VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR:
+      return pool->perf_counters.counterIndexCount;
 
    default:
       UNREACHABLE("Unsupported query type");
@@ -63,6 +135,7 @@ vk_query_pool_statistics_counter_mask(const struct vk_query_pool *vk_pool)
    switch (vk_pool->query_type) {
    case VK_QUERY_TYPE_OCCLUSION:
    case VK_QUERY_TYPE_TIMESTAMP:
+   case VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR:
       break;
 
    case VK_QUERY_TYPE_PIPELINE_STATISTICS: {
@@ -128,10 +201,33 @@ nvk_CreateQueryPool(VkDevice device,
    else
       pool->layout = NVK_QUERY_POOL_LAYOUT_SEPARATE;
 
+   if (pool->vk.query_type == VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR) {
+      const VkQueryPoolPerformanceCreateInfoKHR *perf_query_info
+         = vk_find_struct_const(pCreateInfo->pNext, QUERY_POOL_PERFORMANCE_CREATE_INFO_KHR);
+      const uint32_t size = sizeof(*perf_query_info->pCounterIndices);
+
+      pool->perf_counters.counterIndexCount = perf_query_info->counterIndexCount;
+      pool->perf_counters.pCounterIndices =
+         vk_zalloc2(&dev->vk.alloc, pAllocator, size * perf_query_info->counterIndexCount, size,
+                    VK_SYSTEM_ALLOCATION_SCOPE_OBJECT);
+      if (!pool->perf_counters.pCounterIndices) {
+         vk_query_pool_destroy(&dev->vk, pAllocator, &pool->vk);
+         return vk_error(dev, VK_ERROR_OUT_OF_HOST_MEMORY);
+      }
+      memcpy(pool->perf_counters.pCounterIndices, perf_query_info->pCounterIndices,
+             perf_query_info->counterIndexCount * size);
+
+      for (unsigned i = 0; i < pool->perf_counters.counterIndexCount; i++) {
+         struct nvk_perf_counter *perf_counter = &nvk_perf_counters[pool->perf_counters.pCounterIndices[i]];
+         if (perf_counter->location == NV9097_SET_REPORT_SEMAPHORE_D_PIPELINE_LOCATION_ZCULL)
+            pool->perf_counters.zcull = true;
+      }
+   }
+
    pool->statistics_counter_mask = vk_query_pool_statistics_counter_mask(&pool->vk);
 
    /* Everything is a single query per report */
-   uint32_t reports_per_query = vk_query_pool_report_count(&pool->vk);
+   uint32_t reports_per_query = nvk_query_pool_report_count(pool);
 
    uint64_t mem_size = 0;
    switch (pool->layout) {
@@ -199,6 +295,7 @@ nvk_DestroyQueryPool(VkDevice device,
    if (!pool)
       return;
 
+   vk_free2(&dev->vk.alloc, pAllocator, pool->perf_counters.pCounterIndices);
    if (pool->mem)
       nvkmd_mem_unref(pool->mem);
    vk_query_pool_destroy(&dev->vk, pAllocator, &pool->vk);
@@ -646,6 +743,13 @@ nvk_cmd_clear_report_value(struct nvk_cmd_buffer *cmd,
       break;
    }
 
+   case VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR: {
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 2);
+      if (pool->perf_counters.zcull)
+         P_IMMD(p, NV9097, CLEAR_REPORT_VALUE, TYPE_ZCULL_STATS);
+      break;
+   }
+
    default:
       UNREACHABLE("Unsupported query type");
    }
@@ -674,6 +778,11 @@ nvk_cmd_set_statistics_counters(struct nvk_cmd_buffer *cmd,
                     VK_QUERY_PIPELINE_STATISTIC_COMPUTE_SHADER_INVOCATIONS_BIT) {
          cmd->state.cs.active_compute_invocations_query = enable;
       }
+      break;
+   }
+
+   case VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR: {
+      /* Nothing to do for zcull */
       break;
    }
 
@@ -828,6 +937,30 @@ nvk_CmdEndQueryIndexedEXT(VkCommandBuffer commandBuffer,
       break;
    }
 
+   case VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR: {
+      struct nv_push *p = nvk_cmd_buffer_push(cmd, 5 * pool->perf_counters.counterIndexCount);
+      for (uint32_t i = 0; i < pool->perf_counters.counterIndexCount; ++i) {
+         struct nvk_perf_counter *perf_counter =
+            &nvk_perf_counters[pool->perf_counters.pCounterIndices[i]];
+
+         P_MTHD(p, NV9097, SET_REPORT_SEMAPHORE_A);
+         P_NV9097_SET_REPORT_SEMAPHORE_A(p, report_addr >> 32);
+         P_NV9097_SET_REPORT_SEMAPHORE_B(p, report_addr);
+         P_NV9097_SET_REPORT_SEMAPHORE_C(p, 0);
+         P_NV9097_SET_REPORT_SEMAPHORE_D(p, {
+            .operation = OPERATION_REPORT_ONLY,
+            .pipeline_location = perf_counter->location,
+            .report = perf_counter->report,
+            .sub_report = perf_counter->sub_report,
+            .structure_size = perf_counter->structure_size,
+            .flush_disable = true,
+         });
+         report_addr += sizeof(struct nvk_query_report);
+      }
+
+      break;
+   }
+
    default:
       UNREACHABLE("Unsupported query type");
    }
@@ -958,18 +1091,40 @@ nvk_GetQueryPoolResults(VkDevice device,
       assert(i * stride < dataSize);
       void *dst = (char *)pData + i * stride;
 
-      const uint32_t report_count = vk_query_pool_report_count(&pool->vk);
-      if (pool->vk.query_type == VK_QUERY_TYPE_TIMESTAMP) {
+      const uint32_t report_count = nvk_query_pool_report_count(pool);
+      switch (pool->vk.query_type) {
+      case VK_QUERY_TYPE_TIMESTAMP:
          /* Timestamps are just a single query */
          assert(report_count == 1);
          if (write_results)
             cpu_write_query_result(dst, 0, flags, src->timestamp);
-      } else {
+         break;
+      case VK_QUERY_TYPE_PERFORMANCE_QUERY_KHR: {
+         if (!write_results)
+            break;
+
+         VkPerformanceCounterResultKHR *perf_result = dst;
+         for (uint32_t j = 0; j < report_count; j++) {
+            struct nvk_perf_counter *perf_counter =
+               &nvk_perf_counters[pool->perf_counters.pCounterIndices[j]];
+            switch (perf_counter->storage) {
+            case VK_PERFORMANCE_COUNTER_STORAGE_UINT32_KHR:
+               perf_result[j].uint32 = src[j].value;
+               break;
+            default:
+               UNREACHABLE("unknown query result type");
+               break;
+            }
+         }
+         break;
+      }
+      default:
          /* For everything else, we can just write it */
          if (write_results) {
             for (uint32_t j = 0; j < report_count; j++)
                cpu_write_query_result(dst, j, flags, src[j].value);
          }
+         break;
       }
 
       if (!write_results)
@@ -1097,7 +1252,7 @@ nvk_meta_copy_query_pool_results(struct nvk_cmd_buffer *cmd,
       .pool_addr = pool->mem->va->addr,
       .available_stride = nvk_query_available_stride_B(pool),
       .reports_start = reports_start,
-      .report_count = vk_query_pool_report_count(&pool->vk),
+      .report_count = nvk_query_pool_report_count(pool),
       .query_stride = pool->query_stride,
       .first_query = first_query,
       .query_count = query_count,
@@ -1204,3 +1359,75 @@ const struct nvk_mme_test_case nvk_mme_set_statistics_counters_tests[] = {{
          {NV9097_SET_STATISTICS_COUNTER, 0x100},
          {}},
 }, {}};
+
+VKAPI_ATTR VkResult VKAPI_CALL
+nvk_EnumeratePhysicalDeviceQueueFamilyPerformanceQueryCountersKHR(
+   VkPhysicalDevice physicalDevice,
+   uint32_t queueFamilyIndex,
+   uint32_t *pCounterCount,
+   VkPerformanceCounterKHR *pCounters,
+   VkPerformanceCounterDescriptionKHR *pCounterDescriptions)
+{
+   VK_FROM_HANDLE(nvk_physical_device, pdev, physicalDevice);
+
+   uint32_t desc_count = *pCounterCount;
+   VK_OUTARRAY_MAKE_TYPED(VkPerformanceCounterKHR, outCounter, pCounters, pCounterCount);
+   VK_OUTARRAY_MAKE_TYPED(VkPerformanceCounterDescriptionKHR, outDesc, pCounterDescriptions, &desc_count);
+
+   const struct nvk_queue_family *queue_family =
+      &pdev->queue_families[queueFamilyIndex];
+
+   /* We only support 3D related counters for now */
+   if (!(queue_family->queue_flags & VK_QUEUE_GRAPHICS_BIT))
+      return vk_outarray_status(&outCounter);
+
+   for (unsigned i = 0; i < ARRAY_SIZE(nvk_perf_counters); i++) {
+      struct nvk_perf_counter *counter = &nvk_perf_counters[i];
+
+      vk_outarray_append_typed(VkPerformanceCounterKHR, &outCounter, p)
+      {
+         *p = (VkPerformanceCounterKHR) {
+            .sType = VK_STRUCTURE_TYPE_PERFORMANCE_COUNTER_KHR,
+            .unit = VK_PERFORMANCE_COUNTER_UNIT_GENERIC_KHR,
+            .scope = VK_PERFORMANCE_COUNTER_SCOPE_COMMAND_KHR,
+            .storage = counter->storage,
+         };
+         memcpy(p->uuid, counter->uuid, sizeof(p->uuid));
+      }
+
+      vk_outarray_append_typed(VkPerformanceCounterDescriptionKHR, &outDesc, p)
+      {
+         *p = (VkPerformanceCounterDescriptionKHR) {
+            .sType = VK_STRUCTURE_TYPE_PERFORMANCE_COUNTER_DESCRIPTION_KHR,
+            .flags = 0,
+         };
+
+         strlcpy(p->name, counter->name, sizeof(p->name));
+         strlcpy(p->category, counter->category, sizeof(p->category));
+         strlcpy(p->description, counter->desc, sizeof(p->description));
+      }
+   }
+
+   return vk_outarray_status(&outCounter);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_GetPhysicalDeviceQueueFamilyPerformanceQueryPassesKHR(
+   VkPhysicalDevice physicalDevice,
+   const VkQueryPoolPerformanceCreateInfoKHR *pPerformanceQueryCreateInfo,
+   uint32_t *pNumPasses)
+{
+   *pNumPasses = 1;
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+nvk_AcquireProfilingLockKHR(VkDevice device,
+                            const VkAcquireProfilingLockInfoKHR *pInfo)
+{
+   return VK_SUCCESS;
+}
+
+VKAPI_ATTR void VKAPI_CALL
+nvk_ReleaseProfilingLockKHR(VkDevice device)
+{
+}

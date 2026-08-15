@@ -173,6 +173,7 @@ nvk_get_device_extensions(const struct nvk_instance *instance,
       .KHR_maintenance11 = true,
       .KHR_map_memory2 = true,
       .KHR_multiview = true,
+      .KHR_performance_query = true,
       .KHR_pipeline_binary = true,
       .KHR_pipeline_executable_properties = true,
       .KHR_pipeline_library = true,
@@ -847,6 +848,10 @@ nvk_get_device_features(const struct nv_device_info *info,
       .shaderFmaFloat16 = info->sm >= 70,
       .shaderFmaFloat32 = true,
       .shaderFmaFloat64 = true,
+
+      /* VK_KHR_performance_query */
+      .performanceCounterQueryPools = true,
+      .performanceCounterMultipleQueryPools = false,
    };
 }
 
@@ -1360,6 +1365,9 @@ nvk_get_device_properties(const struct nvk_instance *instance,
       /* VK_NV_shader_sm_builtins */
       .shaderSMCount = (uint32_t)info->tpc_count * info->mp_per_tpc,
       .shaderWarpsPerSM = info->max_warps_per_mp,
+
+      /* VK_KHR_performance_query */
+      .allowCommandBufferQueryCopies = false,
    };
 
    /* Add the driver to the device name (like other Mesa drivers do) */
