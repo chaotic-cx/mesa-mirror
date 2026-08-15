@@ -75,6 +75,13 @@ can_do_blit(const struct pipe_blit_info *info)
    if (!ok_format(info->src.format))
       return false;
 
+   /* a converting blit that changes the pixel size reads the source at the
+    * wrong stride
+    */
+   if (util_format_get_blocksize(info->dst.format) !=
+       util_format_get_blocksize(info->src.format))
+      return false;
+
    /* hw ignores {SRC,DST}_INFO.COLOR_SWAP if {SRC,DST}_INFO.TILE_MODE
     * is set (not linear).  We can kind of get around that when tiling/
     * untiling by setting both src and dst COLOR_SWAP=WZYX, but that
