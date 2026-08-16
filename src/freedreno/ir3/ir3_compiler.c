@@ -325,6 +325,10 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
       compiler->max_const_frag = 512;
       compiler->max_const_compute = 512;
 
+      /* a5xx CONSTOBJECTOFFSET is 7 bits in units of 4 vec4 */
+      if (compiler->gen == 5)
+         compiler->max_const_geom = 508;
+
       /* Note: this will have to change if/when we support tess+GS on
        * earlier gen's.
        */
