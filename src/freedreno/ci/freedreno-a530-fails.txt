@@ -22,7 +22,6 @@ dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_min_reverse_src_dst_y,Fa
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_min_reverse_src_x,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_min_reverse_src_y,Fail
 dEQP-GLES3.functional.fbo.invalidate.whole.unbind_blit_depth,Fail
-dEQP-GLES3.functional.fbo.msaa.2_samples.depth32f_stencil8,Fail
 dEQP-GLES3.functional.polygon_offset.float32_displacement_with_units,Fail
 dEQP-GLES3.functional.shaders.texture_functions.textureprojgradoffset.sampler3d_float_vertex,Fail
 dEQP-GLES3.functional.texture.specification.texstorage3d.size.3d_2x2x2_2_levels,Fail
@@ -54,26 +53,9 @@ KHR-GLES3.copy_tex_image_conversions.required.texture2d_texture2d,Fail
 KHR-GLES3.copy_tex_image_conversions.required.texture3d_cubemap_posx,Fail
 KHR-GLES3.copy_tex_image_conversions.required.texture3d_texture2d,Fail
 
-# "Non-integer comparison: 1, 0, 18, 1e-05: 0.142857 == 0: not equal.
-#  Copy stage: Gradient comparison failed during ReadPixels for input = [GL_RG, GL_FLOAT] output = [GL_RED, GL_FLOAT]"
-KHR-GLES3.packed_pixels.pbo_rectangle.rg32f,Fail
-# " Integer comparison: 1, 0, 18: 306783392 == 0: not equal.
-#   Copy stage: Gradient comparison failed during ReadPixels for input = [GL_RG_INTEGER, GL_INT] output = [GL_RED_INTEGER, GL_INT]"
-KHR-GLES3.packed_pixels.pbo_rectangle.rg32i,Fail
-KHR-GLES3.packed_pixels.pbo_rectangle.rg32ui,Fail
-
-KHR-GLES3.packed_pixels.rectangle.rg32f,Fail
-KHR-GLES3.packed_pixels.rectangle.rg32i,Fail
-KHR-GLES3.packed_pixels.rectangle.rg32ui,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rg32f,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rg32i,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rg32ui,Fail
-
-
 glx@glx-make-current,Fail
 glx@glx-multi-window-single-context,Fail
 glx@glx-swap-pixmap-bad,Fail
-glx@glx-visuals-stencil -pixmap,Crash
 glx@glx_arb_sync_control@swapbuffersmsc-divisor-zero,Fail
 glx@glx_arb_sync_control@waitformsc,Fail
 
@@ -126,7 +108,6 @@ spec@arb_transform_feedback3@gl_skipcomponents2,Fail
 spec@arb_transform_feedback3@gl_skipcomponents3,Fail
 spec@arb_transform_feedback3@gl_skipcomponents4,Fail
 spec@arb_transform_feedback_instanced@draw-auto instanced,Fail
-spec@arb_vertex_type_2_10_10_10_rev@attrib-p-type-size-match,Fail
 spec@egl 1.4@eglterminate then unbind context,Fail
 spec@egl_khr_surfaceless_context@viewport,Fail
 spec@egl_mesa_configless_context@basic,Fail
@@ -146,9 +127,6 @@ spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_uyvy,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_yuyv,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_vyuy,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_yvyu,Fail
-spec@ext_render_snorm@render@format 0x8f94 read fail,Fail
-spec@ext_render_snorm@render@format 0x8f95 read fail,Fail
-spec@ext_render_snorm@render@format 0x8f97 read fail,Fail
 spec@ext_transform_feedback2@draw-auto,Fail
 
 spec@ext_transform_feedback@generatemipmap prims_generated,Fail
@@ -287,30 +265,9 @@ dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_mag_revers
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_min_reverse_src_y,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_min_reverse_src_x,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_min_reverse_dst_x,Fail
-KHR-GLES3.packed_pixels.pbo_rectangle.rgba16i,Fail
-KHR-GLES3.packed_pixels.pbo_rectangle.rgb16f,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rgb16f,Fail
-KHR-GLES3.packed_pixels.pbo_rectangle.rgba32i,Fail
-KHR-GLES3.packed_pixels.rectangle.rgba32i,Fail
-KHR-GLES3.packed_pixels.rectangle.rgba16i,Fail
-KHR-GLES3.packed_pixels.rectangle.rgba16ui,Fail
-KHR-GLES3.packed_pixels.rectangle.rgba32ui,Fail
-KHR-GLES3.packed_pixels.pbo_rectangle.rgba32f,Fail
-KHR-GLES3.packed_pixels.pbo_rectangle.rgba16f,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rgba16i,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rgba32i,Fail
-KHR-GLES3.packed_pixels.rectangle.rgb16f,Fail
-KHR-GLES3.packed_pixels.pbo_rectangle.rgba16ui,Fail
-KHR-GLES3.packed_pixels.pbo_rectangle.rgba32ui,Fail
-KHR-GLES3.packed_pixels.rectangle.rgba32f,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rgba32f,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_mag,Fail
 dEQP-GLES2.functional.clipping.line.wide_line_clip_viewport_corner,Fail
-KHR-GLES3.packed_pixels.rectangle.rgba16f,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rgba32ui,Fail
 dEQP-GLES2.functional.clipping.line.wide_line_clip_viewport_center,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rgba16f,Fail
-KHR-GLES3.packed_pixels.varied_rectangle.rgba16ui,Fail
 
 spec@ext_transform_feedback@max-varyings,Fail
 spec@ext_transform_feedback@max-varyings@max-varying-arrays-of-arrays,Fail
@@ -318,7 +275,11 @@ spec@ext_transform_feedback@max-varyings@max-varying-single-dimension-array,Fail
 spec@ext_transform_feedback@structs_gles3 basic-struct run,Fail
 
 # New failures with ES CTS 3.2.12.0
+# "Non-integer comparison: 1, 0, 18, 1e-05: 0.142857 == 0: not equal.
+#  Copy stage: Gradient comparison failed during ReadPixels for input = [GL_RG, GL_FLOAT] output = [GL_RED, GL_FLOAT]"
 KHR-GLES3.packed_pixels.pbo_rectangle.rg32f_format_rg,Fail
+# " Integer comparison: 1, 0, 18: 306783392 == 0: not equal.
+#   Copy stage: Gradient comparison failed during ReadPixels for input = [GL_RG_INTEGER, GL_INT] output = [GL_RED_INTEGER, GL_INT]"
 KHR-GLES3.packed_pixels.pbo_rectangle.rg32i_format_rg_integer,Fail
 KHR-GLES3.packed_pixels.pbo_rectangle.rg32ui_format_rg_integer,Fail
 KHR-GLES3.packed_pixels.pbo_rectangle.rgb16f_format_rgb,Fail
