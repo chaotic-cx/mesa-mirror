@@ -842,7 +842,10 @@ trim_constlens(unsigned *constlens, unsigned first_stage, unsigned last_stage,
          }
       }
 
-      assert(max_const > safe_limit);
+      /* nothing left above the safe size, so no further progress is possible */
+      if (max_const <= safe_limit)
+         break;
+
       trimmed |= 1 << max_stage;
       cur_total = cur_total - max_const + safe_limit;
       constlens[max_stage] = safe_limit;
