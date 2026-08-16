@@ -76,8 +76,6 @@ spec@arb_texture_gather@texturegather.*
 spec@arb_uniform_buffer_object@execution@shared-array-struct-array-struct
 spec@arb_uniform_buffer_object@execution@std140-array-struct-array-struct
 
-# offending task: fbo-clear-forma (/piglit/bin/fbo-clear-formats GL_ARB_depth_buffer_float -auto -fbo
-spec@arb_depth_buffer_float@fbo-clear-formats.*
 # resets the board: texelFetch fs sampler3d 98x129x1-98x129x9
 spec@glsl-1.30@execution@texelfetch fs sampler3d.*
 

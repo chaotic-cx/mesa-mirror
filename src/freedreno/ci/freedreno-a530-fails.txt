@@ -72,8 +72,7 @@ spec@!opengl 2.1@pbo@test_polygon_stip,Fail
 spec@!opengl 3.1@primitive-restart-xfb generated,Fail
 spec@!opengl 3.1@primitive-restart-xfb written,Fail
 
-spec@arb_depth_buffer_float@fbo-clear-formats stencil,Fail
-spec@arb_depth_buffer_float@fbo-clear-formats stencil@GL_DEPTH32F_STENCIL8,Fail
+spec@arb_depth_buffer_float@fbo-clear-formats,Fail
 spec@arb_draw_indirect@gl_vertexid used with gldrawarraysindirect,Fail
 spec@arb_draw_indirect@gl_vertexid used with gldrawelementsindirect,Fail
 spec@arb_enhanced_layouts@linker@component-layout@intrastage-vs,Fail

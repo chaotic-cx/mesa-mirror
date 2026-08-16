@@ -463,6 +463,10 @@ fd_try_shadow_resource(struct fd_context *ctx, struct fd_resource *rsc,
    blit.mask = util_format_get_mask(prsc->format);
    blit.filter = PIPE_TEX_FILTER_NEAREST;
 
+   /* a separate stencil is not part of what was shadowed */
+   if (rsc->stencil)
+      blit.mask &= ~PIPE_MASK_S;
+
 #define set_box(field, val)                                                    \
    do {                                                                        \
       blit.dst.field = (val);                                                  \
