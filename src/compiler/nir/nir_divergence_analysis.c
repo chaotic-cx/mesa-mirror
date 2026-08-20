@@ -1207,7 +1207,7 @@ visit_tex(nir_tex_instr *instr, struct divergence_state *state)
 
    if (instr->op == nir_texop_sparse_residency_intel ||
        instr->op == nir_texop_sparse_residency_txf_intel)
-      return true;
+      return false;
 
    bool is_divergent = false;
 
