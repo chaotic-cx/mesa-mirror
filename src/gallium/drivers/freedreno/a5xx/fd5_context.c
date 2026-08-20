@@ -46,9 +46,6 @@ fd5_context_create(struct pipe_screen *pscreen, void *priv,
 {
    struct fd_screen *screen = fd_screen(pscreen);
 
-   if (flags & PIPE_CONTEXT_COMPUTE_ONLY)
-      return NULL;
-
    struct fd5_context *fd5_ctx = CALLOC_STRUCT(fd5_context);
    struct pipe_context *pctx;
 

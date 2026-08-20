@@ -916,7 +916,7 @@ Rusticl extensions:
   cl_khr_initialize_memory                              not started
   cl_khr_int64_base_atomics                             not started
   cl_khr_int64_extended_atomics                         not started
-  cl_khr_kernel_clock                                   DONE (freedreno, iris, llvmpipe, nvc0, panfrost, radeonsi, zink, needs llvm-19)
+  cl_khr_kernel_clock                                   DONE (freedreno/a6xx, iris, llvmpipe, nvc0, panfrost, radeonsi, zink, needs llvm-19)
   cl_khr_mipmap_image                                   not started
   cl_khr_mipmap_image_writes                            not started
   cl_khr_pci_bus_info                                   DONE (iris, nvc0, radeonsi, zink)
