@@ -532,8 +532,8 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
       }
       break;
    case nir_intrinsic_load_per_view_output:
-      is_divergent = instr->src[0].ssa->divergent ||
-                     instr->src[1].ssa->divergent ||
+      is_divergent = src_divergent(instr->src[0], state) ||
+                     src_divergent(instr->src[1], state) ||
                      (stage == MESA_SHADER_TESS_CTRL &&
                       !(options & nir_divergence_single_patch_per_tcs_subgroup));
       break;
