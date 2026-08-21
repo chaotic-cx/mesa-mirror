@@ -405,14 +405,15 @@ lower_mul_2x32_64(nir_builder *b, nir_def *x, nir_def *y,
 }
 
 static nir_def *
-lower_imul64(nir_builder *b, nir_def *x, nir_def *y)
+lower_imad64(nir_builder *b, nir_def *x, nir_def *y, nir_def *z)
 {
    nir_def *x_lo = nir_unpack_64_2x32_split_x(b, x);
    nir_def *x_hi = nir_unpack_64_2x32_split_y(b, x);
    nir_def *y_lo = nir_unpack_64_2x32_split_x(b, y);
    nir_def *y_hi = nir_unpack_64_2x32_split_y(b, y);
 
-   nir_def *mul_lo = nir_umul_2x32_64(b, x_lo, y_lo);
+   nir_def *mul_lo = z ? nir_umad_2x32_64(b, x_lo, y_lo, z)
+                       : nir_umul_2x32_64(b, x_lo, y_lo);
    nir_def *res_hi = nir_iadd(b, nir_unpack_64_2x32_split_y(b, mul_lo),
                               nir_iadd(b, nir_imul(b, x_lo, y_hi),
                                        nir_imul(b, x_hi, y_lo)));
@@ -891,6 +892,8 @@ nir_lower_int64_op_to_options_mask(nir_op opcode)
    case nir_op_imul:
    case nir_op_amul:
       return nir_lower_imul64;
+   case nir_op_imad:
+      return nir_lower_imad64;
    case nir_op_imul_2x32_64:
    case nir_op_umul_2x32_64:
       return nir_lower_imul_2x32_64;
@@ -982,7 +985,9 @@ lower_int64_alu_instr(nir_builder *b, nir_alu_instr *alu)
    switch (alu->op) {
    case nir_op_imul:
    case nir_op_amul:
-      return lower_imul64(b, src[0], src[1]);
+      return lower_imad64(b, src[0], src[1], NULL);
+   case nir_op_imad:
+      return lower_imad64(b, src[0], src[1], src[2]);
    case nir_op_imul_2x32_64:
       return lower_mul_2x32_64(b, src[0], src[1], true);
    case nir_op_umul_2x32_64:

@@ -46,6 +46,7 @@ typedef enum {
    nir_lower_iadd3_64 = (1 << 25),
    nir_lower_bitfield_reverse64 = (1 << 26),
    nir_lower_bitfield_extract64 = (1 << 27),
+   nir_lower_imad64 = (1 << 28),
 } nir_lower_int64_options;
 
 typedef enum {
