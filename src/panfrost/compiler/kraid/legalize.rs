@@ -20,14 +20,28 @@ fn move_src_to_tmp(b: &mut impl SSABuilder, src: &mut Src, bytes: u8) {
     b.copy_to(tmp.into(), DataType::i(bytes * 8), src_ref.into());
 }
 
+/// Legalizes immediate sources by ensuring the following:
+///
+///  1. For 32-bit immediates, ensure that the instruction supports it.
+///
+///  2. For 64-bit immediates, only OpCopy supports them.
 fn legalize_imm_src(b: &mut impl SSABuilder, op: &mut Op, src_idx: usize) {
     let src = &op.srcs()[src_idx];
-    let SrcRef::Imm32(imm32) = &src.src_ref else {
-        return;
-    };
-    if !b.model().op_src_supports_imm32(op, src, (*imm32).into()) {
-        let bytes = src.src_ref.bytes_read();
-        move_src_to_tmp(b, &mut op.srcs_mut()[src_idx], bytes);
+
+    match &src.src_ref {
+        SrcRef::Imm32(imm32) => {
+            if !b.model().op_src_supports_imm32(op, src, (*imm32).into()) {
+                let bytes = src.src_ref.bytes_read();
+                move_src_to_tmp(b, &mut op.srcs_mut()[src_idx], bytes);
+            }
+        }
+        SrcRef::Imm64(_) if !matches!(op, Op::Copy(_)) => {
+            // No real instruction can read 64-bit immediates.  If any
+            // instruction is left reading them, lower it into a copy.
+            let bytes = src.src_ref.bytes_read();
+            move_src_to_tmp(b, &mut op.srcs_mut()[src_idx], bytes);
+        }
+        _ => {}
     }
 }
 

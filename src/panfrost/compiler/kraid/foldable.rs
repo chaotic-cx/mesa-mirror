@@ -53,6 +53,7 @@ impl<'a, O: Opcode> FoldDataView for FoldData<'a, O> {
         let data = match &src.src_ref {
             SrcRef::Zero => 0u64,
             SrcRef::Imm32(i) => i.get() as u64,
+            SrcRef::Imm64(i) => i.get(),
             SrcRef::FAU(fauref) => {
                 assert!(fauref.page == FAUPage::SmallConst);
                 todo!();

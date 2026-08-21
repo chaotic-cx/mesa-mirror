@@ -483,6 +483,13 @@ impl ByteCopy {
                     swiz_byte: SwizzleByte::Byte0,
                 }
             }
+            SrcRef::Imm64(imm) => {
+                let imm64 = src.swizzle.fold_u64(imm.get()).unwrap();
+                ByteCopy {
+                    byte_ref: ByteRef::Imm8((imm64 >> (byte * 8)) as u8),
+                    swiz_byte: SwizzleByte::Byte0,
+                }
+            }
             SrcRef::FAU(fau) => {
                 let swiz_byte = src.swizzle.byte(byte).unwrap();
                 debug_assert!(!swiz_byte.is_fext());

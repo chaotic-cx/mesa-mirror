@@ -35,6 +35,7 @@ fn validate_instr(instr: &Instr, ssa_vals: &mut FxHashSet<SSAValue>) {
             let src_ref_byte_mask = match &src.src_ref {
                 SrcRef::Zero => 0xff,
                 SrcRef::Imm32(_) => 0xf,
+                SrcRef::Imm64(_) => 0xff,
                 SrcRef::FAU(fau) => {
                     if fau.load64 {
                         0xff

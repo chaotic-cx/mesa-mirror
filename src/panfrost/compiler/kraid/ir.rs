@@ -24,7 +24,7 @@ use kraid_proc_macros::EnumAsU8;
 use mesa_util::bitview::BitViewable;
 
 use std::fmt;
-use std::num::NonZeroU32;
+use std::num::{NonZeroU32, NonZeroU64};
 use std::ops::{Deref, DerefMut, Range};
 
 pub struct SmallConstant {
@@ -608,6 +608,7 @@ pub enum SrcRef {
     Zero,
     /// A 32-bit immediate
     Imm32(NonZeroU32),
+    Imm64(NonZeroU64),
     FAU(FAURef),
     SSA(SSARef),
     Reg(RegRef),
@@ -619,6 +620,7 @@ impl fmt::Display for SrcRef {
         match self {
             SrcRef::Zero => write!(f, "k0"),
             SrcRef::Imm32(u) => write!(f, "{u:#x}"),
+            SrcRef::Imm64(u) => write!(f, "{u:#x}"),
             SrcRef::FAU(fau) => fau.fmt(f),
             SrcRef::SSA(ssa) => ssa.fmt(f),
             SrcRef::Reg(reg) => reg.fmt(f),
@@ -660,6 +662,7 @@ impl SrcRef {
         match self {
             SrcRef::Zero => 4,
             SrcRef::Imm32(_) => 4,
+            SrcRef::Imm64(_) => 8,
             SrcRef::FAU(fau) => {
                 if fau.load64 {
                     8
@@ -690,6 +693,10 @@ impl SrcRef {
                 assert!(word == 0);
                 SrcRef::Imm32(u)
             }
+            SrcRef::Imm64(u) => {
+                assert!(word < 2);
+                SrcRef::from((u.get() >> (word * 32)) as u32)
+            }
             SrcRef::FAU(fau) => fau.word(word).into(),
             SrcRef::SSA(ssa) => ssa[usize::from(word)].into(),
             SrcRef::Reg(reg) => reg.word(word).into(),
@@ -708,9 +715,32 @@ impl From<u32> for SrcRef {
     }
 }
 
+impl From<u64> for SrcRef {
+    fn from(u: u64) -> SrcRef {
+        if let Some(nz) = NonZeroU64::new(u) {
+            SrcRef::Imm64(nz)
+        } else {
+            SrcRef::Zero
+        }
+    }
+}
+
 impl From<f32> for SrcRef {
     fn from(u: f32) -> SrcRef {
         SrcRef::from(u.to_bits())
+    }
+}
+
+impl TryFrom<&SrcRef> for u64 {
+    type Error = &'static str;
+
+    fn try_from(src_ref: &SrcRef) -> Result<u64, Self::Error> {
+        match src_ref {
+            SrcRef::Zero => Ok(0),
+            SrcRef::Imm32(nz) => Ok(nz.get().into()),
+            SrcRef::Imm64(nz) => Ok(nz.get()),
+            _ => Err("Value not known at compile time"),
+        }
     }
 }
 
@@ -718,11 +748,9 @@ impl TryFrom<&SrcRef> for u32 {
     type Error = &'static str;
 
     fn try_from(src_ref: &SrcRef) -> Result<u32, Self::Error> {
-        match src_ref {
-            SrcRef::Zero => Ok(0),
-            SrcRef::Imm32(nz) => Ok((*nz).into()),
-            _ => Err("Value not known at compile time"),
-        }
+        u64::try_from(src_ref)?
+            .try_into()
+            .map_err(|_| "Value cannot fit in u32")
     }
 }
 
@@ -1127,11 +1155,13 @@ impl Src {
     }
 
     pub fn is_zero(&self) -> bool {
-        if matches!(self.src_mod, SrcMod::BNot) {
-            matches!(self.src_ref, SrcRef::Imm32(NonZeroU32::MAX))
-        } else {
-            matches!(self.src_ref, SrcRef::Zero)
+        if !matches!(self.src_mod, SrcMod::BNot | SrcMod::None) {
+            return false;
         }
+        // Always assume we are 64-bits, 32-bit swizzles sign-extend to 64-bits
+        // before applying .bnot anyways.  u32::MAX.bnot might not be 0 if read
+        // from a 64-bit source (unless specifically sign-extended)
+        matches!(self.resolve_imm(DataType::U64), Some(0))
     }
 
     pub fn is_fneg_zero(&self, src_type: DataType) -> bool {
@@ -1168,6 +1198,12 @@ impl Src {
                     b[0] == b[1] && b[0] == b[2] && b[0] == b[3]
                 })
             }
+            SrcRef::Imm64(u) => {
+                self.swizzle.fold_u64(u.into()).is_some_and(|u| {
+                    let b = u.to_le_bytes();
+                    b[1..].iter().all(|e| *e == b[0])
+                })
+            }
             _ => self.swizzle.replicates_byte(),
         }
     }
@@ -1179,6 +1215,11 @@ impl Src {
                 .swizzle
                 .fold_u32(u.into())
                 .is_some_and(|u| (u & 0xffff) == (u >> 16)),
+            SrcRef::Imm64(u) => {
+                self.swizzle.fold_u64(u.into()).is_some_and(|u| {
+                    (1..4).all(|i| ((u >> (16 * i)) & 0xffff) == (u & 0xffff))
+                })
+            }
             _ => self.swizzle.replicates_half(),
         }
     }
@@ -1198,17 +1239,17 @@ impl Src {
     }
 
     pub fn resolve_imm(&self, src_type: DataType) -> Option<u64> {
-        let imm32 = u32::try_from(&self.src_ref).ok()?;
+        let imm64 = u64::try_from(&self.src_ref).ok()?;
 
         match src_type.total_bits() {
             i if i <= 32 => self
                 .swizzle
-                .fold_u32(imm32)
+                .fold_u32(imm64 as u32)
                 .and_then(|tmp| self.src_mod.fold_u32(src_type, tmp))
-                .map(|v| u64::from(v)),
+                .map(u64::from),
             64 => self
                 .swizzle
-                .fold_u64(u64::from(imm32))
+                .fold_u64(imm64)
                 .and_then(|tmp| self.src_mod.fold_u64(tmp)),
             _ => panic!("Invalid source width"),
         }
@@ -1219,7 +1260,10 @@ impl<T: Into<SrcRef>> From<T> for Src {
     fn from(src_ref: T) -> Src {
         let src_ref = src_ref.into();
         let swizzle = match &src_ref {
-            SrcRef::Zero | SrcRef::Imm32(_) | SrcRef::FAU(_) => Swizzle::NONE,
+            SrcRef::Zero
+            | SrcRef::Imm32(_)
+            | SrcRef::Imm64(_)
+            | SrcRef::FAU(_) => Swizzle::NONE,
             SrcRef::SSA(vec) => match vec.bytes() {
                 1 => Swizzle::B0000,
                 2 => Swizzle::H00,

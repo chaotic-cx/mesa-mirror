@@ -127,8 +127,22 @@ fn lower_copy(b: &mut impl Builder, copy: OpCopy) {
         debug_assert!(copy.dst_type.total_bits() >= 16);
         debug_assert!(!copy.dst.lanes.is_byte());
 
-        // Handle non-zero immediates with MOV.i32
-        if let SrcRef::Imm32(imm) = copy.src.src_ref {
+        if let SrcRef::Imm64(imm) = copy.src.src_ref {
+            // Handle non-zero 64-bit immediates with two MOV.i32
+            assert!(copy.dst_type == DataType::I64);
+            let imm = copy.src.swizzle.fold_u64(imm.get()).unwrap();
+            b.push_op(OpMov {
+                dst: copy.dst.clone().word(0),
+                dst_type: DataType::I32,
+                src: (imm as u32).into(),
+            });
+            b.push_op(OpMov {
+                dst: copy.dst.word(1),
+                dst_type: DataType::I32,
+                src: ((imm >> 32) as u32).into(),
+            });
+        } else if let SrcRef::Imm32(imm) = copy.src.src_ref {
+            // Handle non-zero 32-bit immediates with MOV.i32
             assert!(copy.dst_type.total_bits() <= 32);
             let imm = copy.src.swizzle.fold_u32(imm.get()).unwrap();
             let mov_type = if copy.dst.lanes.is_half() {
