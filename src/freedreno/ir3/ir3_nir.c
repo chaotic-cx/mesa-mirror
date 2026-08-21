@@ -1501,10 +1501,19 @@ ir3_nir_set_threadsize(struct ir3_shader_variant *v, const nir_shader *s)
        * worry about the workgroup fitting.
        */
       if (compiler->gen < 6 &&
-          (info->workgroup_size_variable ||
-           threads_per_wg > compiler->info->threadsize_base * compiler->info->max_waves)) {
+          threads_per_wg > compiler->info->threadsize_base * compiler->info->max_waves) {
          v->shader_options.real_wavesize = IR3_DOUBLE_ONLY;
-      };
+      } else if (compiler->gen < 6 && info->workgroup_size_variable) {
+         /* A variable workgroup size cannot force the doubled threadsize: a
+          * register-hungry kernel does not fit in the file once it is doubled,
+          * and the hardware faults.  Let the register heuristic choose, and
+          * let the workgroup size follow -- get_compute_state_info() already
+          * reports a max_threads clamped by the register footprint, so a
+          * workgroup that needs the doubled threadsize cannot be launched
+          * against a variant that did not get it.
+          */
+         v->shader_options.real_wavesize = IR3_SINGLE_OR_DOUBLE;
+      }
    }
 }
 
