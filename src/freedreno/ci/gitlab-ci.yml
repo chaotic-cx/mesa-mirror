@@ -100,10 +100,12 @@ a530-piglit:
     - .lava-dragonboard-820c:arm64
     - .test-piglit
     - .collabora-freedreno-rules
+  rules:
+    - !reference [.collabora-freedreno-rules, rules]
+    - !reference [.rusticl-rules, rules]
   parallel: 2
   variables:
     DEQP_SUITE: freedreno-a530-piglit
-    DEQP_FRACTION: 2
     HWCI_START_WESTON: 1
 
 a530-piglit-full:
@@ -111,7 +113,7 @@ a530-piglit-full:
     - a530-piglit
     - .collabora-freedreno-manual-rules
   variables:
-    DEQP_FRACTION: 1
+    DEQP_SUITE: freedreno-a530-piglit-full
 
 a618-angle:
   extends:

@@ -259,3 +259,49 @@ spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_yuv420,Fail
 # New failures with ES CTS 3.2.13.0
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_mag_reverse_src_dst_y,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_min,Fail
+
+#
+# OpenCL (piglit "cl" profile), measured on a db820c
+#
+
+#Unexpected CL error: CL_SUCCESS 0
+#Expected CL error: CL_LINK_PROGRAM_FAILURE -17
+api@cllinkprogram,Fail
+
+#
+## freedreno issues:
+#
+#Error at data[0]
+custom@r600 create release buffer bug,Fail
+
+#Failed: return NULL if platform is not a valid platform
+api@clgetextensionfunctionaddressforplatform,Fail
+
+#
+## Not our problem:
+#
+# piglit asserts the full-profile minimums even on an EMBEDDED_PROFILE device:
+# CL_DEVICE_MAX_READ_IMAGE_ARGS: failed, expected at least 128, got 16
+# CL_DEVICE_IMAGE_MAX_ARRAY_SIZE: failed, expected at least 2048, got 256
+api@clgetdeviceinfo,Fail
+
+# broken piglit test (doesn't account for FTZ)
+program@execute@builtin@builtin-float-nextafter-1.0.generated,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float1,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float16,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float2,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float4,Fail
+program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float8,Fail
+
+# (file=input,line=0,column=0,index=0): Unresolved external reference to "_Z21convert_char4_sat_rteDv4_i".
+program@execute@vector-conversion,Fail
+
+# broken piglit test (doesn't account for FTZ): a530 has no CL_FP_DENORM, so
+# the as_half((short)64) subnormal is flushed to zero
+program@execute@amdgcn-f16-inline-immediates,Fail
+program@execute@amdgcn-f16-inline-immediates@add integer 64,Fail
+
+# piglit runs at CL_DEVICE_MAX_WORK_GROUP_SIZE without checking the kernel's
+# CL_KERNEL_WORK_GROUP_SIZE, which its register footprint holds below that:
+# Unexpected CL error: CL_INVALID_WORK_GROUP_SIZE -54
+program@run kernel with max work item sizes,Fail

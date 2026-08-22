@@ -1,0 +1,34 @@
+# piglit CL tests taking over 40 s each; a530-piglit-full still runs them
+program@execute@builtin@builtin-float-sincos-1.0.generated
+program@execute@builtin@builtin-long-abs_diff-1.0.generated
+program@execute@builtin@builtin-uint-mad24-1.0.generated
+program@execute@atomic_sub-global$
+program@execute@i32-stack-array
+api@clenqueuereadbuffer and clenqueuewritebuffer
+
+# expensive piglit CL tests with little a530-specific coverage
+program@execute@builtin@builtin-int-clz-1.0.generated
+program@execute@builtin@builtin-uchar-popcount-1.2.generated
+program@execute@builtin@builtin-uint-mul_hi-1.0.generated
+program@execute@builtin@builtin-shuffle-half-ushort
+program@execute@builtin@builtin-shuffle2-half-ushort
+program@execute@scalar-arithmetic-char
+program@execute@scalar-arithmetic-uint
+program@execute@scalar-comparison-ushort
+program@execute@vload@vload-long-constant
+program@execute@vstore@vstore-uchar-global
+program@execute@reserved-words
+program@build@mixed-macro-definitions
+program@run kernel with max work item sizes
+
+# piglit CL tests that always skip on a530
+program@execute@atomic_int64_
+program@execute@.*double
+program@execute@.*f64
+program@execute@amdgcn-callee-saved-registers
+program@execute@call-clobbers-amdgcn
+program@execute@load-hi16-generic
+program@execute@load-lo16-generic
+program@execute@store-hi16-generic
+program@execute@non-entry-block-alloca
+program@execute@program-tester-check-local-size-test-should-skip
