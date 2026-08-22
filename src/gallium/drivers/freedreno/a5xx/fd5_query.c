@@ -171,7 +171,7 @@ timestamp_resume(struct fd_acc_query *aq, struct fd_batch *batch) assert_dt
 }
 
 static void
-timestamp_pause(struct fd_acc_query *aq, struct fd_batch *batch) assert_dt
+time_elapsed_pause(struct fd_acc_query *aq, struct fd_batch *batch) assert_dt
 {
    struct fd_ringbuffer *ring = batch->draw;
 
@@ -194,6 +194,12 @@ timestamp_pause(struct fd_acc_query *aq, struct fd_batch *batch) assert_dt
 }
 
 static void
+timestamp_pause(struct fd_acc_query *aq, struct fd_batch *batch) assert_dt
+{
+   /* We captured a timestamp in timestamp_resume(), nothing to do here. */
+}
+
+static void
 time_elapsed_accumulate_result(struct fd_acc_query *aq,
                                struct fd_acc_query_sample *s,
                                union pipe_query_result *result)
@@ -208,7 +214,7 @@ timestamp_accumulate_result(struct fd_acc_query *aq,
                             union pipe_query_result *result)
 {
    struct fd5_query_sample *sp = fd5_query_sample(s);
-   result->u64 = fd_ticks_to_ns(sp->result);
+   result->u64 = fd_ticks_to_ns(sp->start);
 }
 
 static const struct fd_acc_sample_provider time_elapsed = {
@@ -216,7 +222,7 @@ static const struct fd_acc_sample_provider time_elapsed = {
    .always = true,
    .size = sizeof(struct fd5_query_sample),
    .resume = timestamp_resume,
-   .pause = timestamp_pause,
+   .pause = time_elapsed_pause,
    .result = time_elapsed_accumulate_result,
 };
 

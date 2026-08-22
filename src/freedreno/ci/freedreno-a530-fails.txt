@@ -41,7 +41,6 @@ spec@arb_enhanced_layouts@linker@component-layout@vs-to-fs,Fail
 spec@arb_map_buffer_alignment@arb_map_buffer_alignment-map-invalidate-range,Fail
 spec@arb_point_sprite@arb_point_sprite-interactions 1.0,Fail
 spec@arb_texture_rectangle@1-1-linear-texture,Fail
-spec@arb_timer_query@query gl_timestamp,Fail
 spec@ext_framebuffer_object@fbo-alphatest-nocolor,Fail
 spec@ext_framebuffer_object@fbo-alphatest-nocolor-ff,Fail
 spec@ext_framebuffer_object@fbo-blending-snorm,Fail
