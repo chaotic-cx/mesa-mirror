@@ -88,7 +88,6 @@ spec@arb_map_buffer_alignment@arb_map_buffer_alignment-map-invalidate-range,Fail
 spec@arb_occlusion_query@occlusion_query_order,Fail
 spec@arb_point_sprite@arb_point_sprite-interactions 1.0,Fail
 spec@arb_texture_rectangle@1-1-linear-texture,Fail
-spec@arb_timer_query@query gl_timestamp,Fail
 spec@arb_transform_feedback_instanced@draw-auto instanced,Fail
 spec@arb_vertex_type_2_10_10_10_rev@attrib-p-type-size-match,Fail
 spec@egl 1.4@eglterminate then unbind context,Fail

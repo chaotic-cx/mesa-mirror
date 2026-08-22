@@ -924,7 +924,7 @@
         "description": "freedreno/a5xx: return an absolute value from the timestamp query",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "76214b99193a117290be9880a83e5ca9d7ec6f36",
         "notes": null
