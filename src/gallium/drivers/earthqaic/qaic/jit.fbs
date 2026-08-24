@@ -1,0 +1,168 @@
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: MIT
+ */
+
+namespace AicJit;
+enum AicMemType: byte {
+    NONE = 0,  // Treat as error
+    DDR  = 1,
+    TCM  = 2,
+    HOST = 3
+}
+enum AicBufferResidency : byte {
+    BUF_RESIDENT_CMD = 0,      // Unmap after a command is complete
+    BUF_RESIDENT_CMD_BUF = 1,  // Unmape after a command buffer is complete
+    BUF_RESIDENT_KEEP = 2,     // Keep the buffer mapped till the either of the two
+                               // previous options is specified
+}
+enum AicBufferMappingRule : byte {
+    BUF_MAPPING_AUTO = 0,    // QShim maps the buffer at cmd buffer init.
+    BUF_MAPPING_BY_OPS = 1,  // QShim skips mapping of buffer at init state, buffer will be mapped by Operator on need bases.
+}
+enum AicExecutableType : byte {
+    SHARED_LIB
+}
+struct AicBufferDescriptor {
+    type: AicMemType;
+    residency: AicBufferResidency;
+    mappingRule: AicBufferMappingRule;
+    addr: ulong;   // For both DDR and TCM buffer the address is the base address
+                   // of the allocated device buffer. Note that this address is different
+                   // from the base address of the memory chunk represented by bufId.
+    offset: ulong; // The offset is from the base address (addr) of the allocated device buffer.
+    size: ulong;
+    bufId: uint;
+}
+enum AicParameterType : byte {
+    BUFFER_DESCRIPTOR,
+    LOCAL_STORAGE
+}
+struct AicParameter {
+    type: AicParameterType;
+    index: uint; // For LocalStorage the index is the first byte into the local storage
+                 // for this parameter. For BufferDescriptor the index is the index
+                 // of the descriptor.
+}
+enum AicSemaphoreCheck : byte {
+   SEM_CHK_EQ,
+   SEM_CHK_GT,
+   SEM_CHK_GE,
+   SEM_CHK_LT,
+   SEM_CHK_LE
+}
+enum AicSemaphoreOp : byte {
+   SEM_OP_INIT,
+   SEM_OP_INC,
+   SEM_OP_DEC
+}
+struct AicInitSemaphore {
+   index: uint;      // For ai100, multiply by 4 to get the offset from L2TCM base
+   initValue: uint;
+}
+struct AicSemaphoreWait {
+   index: uint;      // For ai100, multiply by 4 to get the offset from L2TCM base
+   check: AicSemaphoreCheck;
+   checkValue: uint;
+}
+enum AicSemaphoreSignalType: byte {
+   SIGNAL_INTRA_NSP,
+   SIGNAL_INTER_NSP,
+   SIGNAL_GSM
+}
+struct AicSemaphoreSignal {
+   type: AicSemaphoreSignalType;
+   index: uint;        // INTRA_NSP: doorbell index
+                       // INTER_NSP: remote doorbell index
+                       // GSM: HW/Global Semaphoare #
+   mcID: uint;         // INTER_NSP only
+   op: AicSemaphoreOp; // Only support INIT for INTER_NSP
+   opValue: uint;
+}
+struct AicBuffer {
+    addr: ulong;
+    size: ulong;
+}
+struct AicResponseInfo {
+    offset: ulong; // Offset in bytes from the commandset response offset.
+    size: ulong; // size of response
+}
+// The command handler puts a Command Response TLV (defined in jit_common.h)
+// in resultAddr.
+table AicCmdAllocBuf {
+    size: ulong;
+    pid: uint; // host process id for buffer cleanup
+}
+// The command handler puts a Command Response TLV (defined in jit_common.h)
+// in resultAddr.
+table AicCmdFreeBuf {
+    bufferIdList: [uint];
+}
+enum AicDir : byte {
+    FROM_DEVICE,
+    TO_DEVICE
+}
+// Profiling configuration for this cmd buffer
+table ProfilingConfiguration {
+    // Each bit specifies the metric to be collected. Refer to JITProfilingMetricBitPosition in jit_device_stats.h for bit position and their interpretation.
+    profilingMetricBitMap: ulong;
+    // Location to place profiling data for this command set
+    profilingRespInfo: AicResponseInfo;
+}
+struct DevDdrBuf {
+    offset: ulong;  // This is the offset from the base address of the memory
+                    // chunk represented by bufId below
+    size: ulong;
+    bufId: uint;
+}
+table ExecInfo {
+    exeName: string;
+    exeType: AicExecutableType;
+    isCommonLib: bool = false;
+    gotPltOffsets: [uint];    // Entries in .got.plt section to be updated by QShim.
+    roSegmentBuf: DevDdrBuf;
+    rwSegmentBuf: DevDdrBuf;
+    goldenRWsegmentBuf: DevDdrBuf;
+}
+// Some of the elements of the table are optional depending on the cmd type.
+table AicInit{
+    execInfoList: [ExecInfo];
+    initSemaphores: [AicInitSemaphore];
+    // Profiling enabled or not
+    profilingConfig: ProfilingConfiguration;
+}
+table AicCmdDispatch {
+    funcOffset: ulong;    // function address/offset from the shared lib
+    exeIndex: uint;       // Index into AicInit::executables
+    threadBitmap: uint;
+    numCores: uint;
+    argList: [AicParameter];
+}
+union AicCmdUnion {
+    AicCmdDispatch,
+    AicCmdAllocBuf,
+    AicCmdFreeBuf,
+}
+table AicCommand {
+    commandID: uint;  // To put into output header. 0 if no output is to be generated
+    cmd: AicCmdUnion;
+    // Location to place response for this command
+    cmdRespInfo: AicResponseInfo;
+    waitSemList: [AicSemaphoreWait];
+    signalSemList: [AicSemaphoreSignal];
+}
+table AicCommandSetSemaphores {
+    entryWaitSemList: [AicSemaphoreWait];
+    entrySignalSemList: [AicSemaphoreSignal];
+    exitWaitSemList: [AicSemaphoreWait];     // Master waiting on slaves
+    exitSignalSemList: [AicSemaphoreSignal]; // Slave notifies master
+}
+table AicCommandSet {
+    commandSetID: uint;
+    init: AicInit;
+    localStorage: [ubyte];
+    bufferDescriptors: [AicBufferDescriptor];
+    commands: [AicCommand];
+    semaphoares: AicCommandSetSemaphores;
+}
+root_type AicCommandSet;

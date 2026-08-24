@@ -25,6 +25,7 @@ libdriver_dirs = static_library(
 
 ### Bindgen targets
 _compiler_bindgen_args = [
+  '--allowlist-type', 'drm_gem_close',
   '--allowlist-type', 'pipe.*',
   '--allowlist-type', 'renderonly',
   '--allowlist-function', 'u_default.*',
@@ -47,6 +48,31 @@ _bindings_rs = rust.bindgen(
   args : _compiler_bindgen_args,
 )
 
+_qaic_bindgen_args = [
+  '--allowlist-file', '.*/HostApiInfo.h',
+  '--allowlist-file', '.*/NspCmdProtocol.h',
+  '--allowlist-file', '.*/hostNncActivateDeactivateMessages.h',
+  '--allowlist-file', '.*/hostNncLoadUnloadMessages.h',
+  '--allowlist-file', '.*/hostNncResourceGroupMessages.h',
+  '--allowlist-file', '.*/hostNncResourceReservationMessages.h',
+  '--allowlist-file', '.*/hostNncTransactionMessages.h',
+  '--allowlist-file', '.*/nncErrors.h',
+  '--allowlist-file', '.*/qaic_accel.h',
+  '--allowlist-var', '_DRM_.*',
+  '--with-derive-default',
+]
+
+_qaic_bindings_rs = rust.bindgen(
+  input : ['qaic/qaic_bindings.h'],
+  output : 'qaic_bindings.rs',
+  dependencies : [
+    idep_mesautil,
+    dep_libdrm,
+  ],
+  include_directories : [inc_gallium_aux, inc_gallium, inc_include, inc_src],
+  args : _qaic_bindgen_args,
+)
+
 # To suppress warnings from bindgen
 bindgen_args = [
   '-Anon_snake_case',
@@ -63,13 +89,29 @@ _libearthqaic_rs_bindings = static_library(
   rust_args : bindgen_args,
 )
 
+_libqaic_rs_bindings = static_library(
+  'qaic_rs_bindings',
+  _qaic_bindings_rs,
+  gnu_symbol_visibility : 'hidden',
+  rust_abi : 'rust',
+  rust_args : bindgen_args,
+)
+
+### Rust dependencies
+dep_rustlibc = dependency('libc',
+  version : '>= 0.2.168',
+  fallback : ['libc-0.2-rs', 'dep_libc'],
+  required : true,
+)
+
+### Earthqaic driver
 libearthqaic = static_library(
     'earthqaic',
     files('lib.rs'),
     gnu_symbol_visibility : 'hidden',
     rust_abi : 'c',
-    dependencies : [],
-    link_with : [_libearthqaic_rs_bindings, libdriver_dirs],
+    dependencies : [dep_rustlibc],
+    link_with : [_libearthqaic_rs_bindings, _libqaic_rs_bindings, libdriver_dirs],
 )
 
 driver_earthqaic = declare_dependency(

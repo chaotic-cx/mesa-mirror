@@ -4,6 +4,7 @@
  */
 
 extern crate earthqaic_rs_bindings;
+extern crate libc;
 
 // Tags every error/failure message with the driver name so it's easy to
 // grep/filter this driver's output from Mesa's shared stderr.
@@ -57,3 +58,5 @@ pub fn qshim_path(file: &str) -> String {
 }
 
 pub mod earthqaic_device;
+
+mod qaic;
