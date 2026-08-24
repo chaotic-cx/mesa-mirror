@@ -23,6 +23,12 @@ libdriver_dirs = static_library(
   gnu_symbol_visibility : 'hidden',
 )
 
+### Qshim
+qshim_src_dir = meson.current_source_dir() / 'qshim'
+qshim_out_dir = meson.current_build_dir()
+platform_defs_dir = meson.current_source_dir() / 'qaic/c_inc'
+jit_fbs_dir = meson.current_source_dir() / 'qaic'
+
 ### Bindgen targets
 _compiler_bindgen_args = [
   '--allowlist-type', 'drm_gem_close',
@@ -103,6 +109,27 @@ dep_rustlibc = dependency('libc',
   fallback : ['libc-0.2-rs', 'dep_libc'],
   required : true,
 )
+
+# The flatc that ships with Ubuntu 26 (v23.5.26) is too outdated.
+prog_flatc = find_program('flatc', version : '>= 25.2.10', required : true)
+
+if 'clang' in cc.get_id()
+  prog_clang = cc.cmd_array()
+else
+  prog_clang = find_program('clang')
+endif
+
+if 'clang' in cpp.get_id()
+  prog_clangxx = cpp.cmd_array()
+else
+  prog_clangxx = find_program('clang++')
+endif
+
+prog_ar = find_program('ar', required: true)
+
+### Qshim device executable + artifacts (network.elf, constants.bin,
+### constantsdesc.bin, md_struct.bin). Needs clang/clang++/flatc above.
+subdir('qshim')
 
 ### Earthqaic driver
 libearthqaic = static_library(

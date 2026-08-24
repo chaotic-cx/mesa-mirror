@@ -1,0 +1,185 @@
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: MIT
+ */
+
+namespace ExecContext;
+/*
+typedef struct AICExecContext_ {
+
+  /// ExecCtx Major and Minor Version for version compliance check
+  uint16_t execContextMajorVersion;
+  uint16_t execContextMinorVersion;
+
+  uint8_t virtualNSPId;
+
+  /// L2TCM base virtual address
+  uint8_t *baseL2TCM;
+  ///< DirectApi: -aic-l2tcm-size DDR alloc\n
+  ///<  r/w cacheable align=4kB CCCC=0x7\n
+  ///<  AICMetadata.L2TCMSize\n
+  ///<  Persistent across activations. Current recommendation is 512kB though
+  ///<  this may change.
+
+  /// VTCM base virtual address
+  uint8_t *baseVTCM;
+  ///< r/w uncached align=2048 CCCC=0x6\n
+  ///< AICMetadata.VTCMSize\n
+  ///< DirectApi: All networks MUST map to the start of VTCM.
+  ///<  Any carve-out for CV MUST be at the top end of VTCM space.
+  ///<  This requirement derives from HMX HW requirements related to TLB entry
+  ///<  crossings.
+
+  /// Constant data base virtual address
+  uint8_t *baseConstantDataMem;
+  ///< Base address for statically mapped constant weights memory block.
+  ///< Includes constants and static placeholders.\n
+  ///< r/o uncached align=2048 CCCC=0x6
+
+  /// Shared DDR data base virtual address
+  uint8_t *baseSharedDDR;
+  ///< Mutable weights memory block, Inputs and Outputs as well
+  ///< as intermediate activations that don't end up in VTCM.\n
+  ///< r/w uncached align=2048 CCCC=0x6
+
+  /// L2 cacheable only base virtual address
+  uint8_t *baseL2CachedDDR;
+  ///< cccc=0xf (L1 uncached, L2 cached WB). size=4kB\n
+  ///< The first 64B cache line will be locked in the L2 to guarantee latency.
+
+  /// Pointer to array of virtual addresses to use for multicasts.
+  void **mcAddresses;
+  ///< Indexed by virtual multicast id.\n
+  ///< DirectApi: nullptr
+
+  uint64_t startTimeStamp;
+  ///< DirectApi: startTimeStamp=0\n
+  ///< NOTE: Firmware needs to sync UTIMER with system TOD
+
+  /// Log function pointer. Should be set appropriately for each path.
+  nnc_log_fp logFuncPtr;
+  /// Function used to exit thread execution
+  nnc_exit_fp exitThread;
+  ///< See 'exitDoorbellOffset description.\n
+  ///< DirectApi: nullptr
+
+  /// Function for setting PMU specific registers
+  nnc_pmu_set setPMUReg;
+  /// Error handling function
+  nnc_err_fatal_fp errFuncPtr;
+  /// Report network hang
+  nnc_notify_hang_fp notifyHangPtr;
+  /// UDMA register reader function
+  nnc_udma_read_fp udmaReadFuncPtr;
+  /// Memory Map functions
+  nnc_mmap_fp mmapFuncPtr;
+  ///< DirectApi: nullptr
+  nnc_munmap_fp munmapFuncPtr;
+  ///< DirectApi: nullptr
+
+  /// Network QDSS STM Port virtual address
+  uint8_t *qdssSTMPortVaddr;
+
+  /// Function to get all PMU count registers
+  nnc_pmu_get readPMUCnt;
+
+  /// DDR Bandwidth Monitor virtual address
+  uint8_t *ddrBWMonRegVaddr;
+
+  /// Pointer to array[32] of virtual semaphore information
+  SemaphoreInfo *semaphoreListPtr;
+
+  /// Network heap
+  uint8_t *networkHeapAddr;
+  uint64_t networkHeapSize;
+
+  /// Function to support MCID reprogramming
+  nnc_reprog_mcid_fp reprogMcidFuncPtr;
+
+  /// RTLD APIs related to dynamic loading
+  dlopen_fp dlOpenPtr;
+  dlopenbuf_fp dlOpenbufPtr;
+  dlclose_fp dlClosePtr;
+  dlsym_fp dlSymPtr;
+  dladdr_fp dlAddrPtr;
+  dlerror_fp dlErrorPtr;
+  dlinfo_fp dlInfoPtr;
+
+  /// UTC offset DDR data (input) base virtual address
+  uint64_t *baseUtcOffsetDDR;
+
+  /// Predicate
+  predicate_update_fp predicateUpdateFuncPtr;
+  uint8_t *predicateBufferPtr;
+  uint32_t predicateBufferSize;
+
+  /// Secure Static shared DDR region. This region is secure and not mapped to Host/P2P access
+  uint8_t *baseSecureStaticSharedDDR;
+
+  // Function to get random numbers
+  nnc_get_randNum_fp getRandNumFuncPtr;
+
+} AICExecContext;
+*/
+
+enum execContextVariables : uint32 {
+    execContextMajorVersion = 0,
+    execContextMinorVersion = 1,
+    virtualNSPId = 2,
+    baseL2TCM = 3,
+    baseVTCM = 4,
+    baseConstantDataMem = 5,
+    baseSharedDDR = 6,
+    baseL2CachedDDR = 7,
+    mcAddresses = 8,
+    startTimeStamp = 9,
+    logFuncPtr = 10,
+    exitThread = 11,
+    setPMUReg = 12,
+    errFuncPtr = 13,
+    notifyHangPtr = 14,
+    udmaReadFuncPtr = 15,
+    mmapFuncPtr = 16,
+    munmapFuncPtr = 17,
+    qdssSTMPortVaddr = 18,
+    readPMUCnt = 19,
+    ddrBWMonRegVaddr = 20,
+    semaphoreListPtr = 21,
+    networkHeapAddr = 22,
+    networkHeapSize = 23,
+    reprogMcidFuncPtr = 24,
+    dlOpenPtr = 25,
+    dlOpenbufPtr = 26,
+    dlClosePtr = 27,
+    dlSymPtr = 28,
+    dlAddrPtr = 29,
+    dlErrorPtr = 30,
+    dlInfoPtr = 31,
+    baseUtcOffsetDDR = 32,
+    predicateUpdateFuncPtr = 33,
+    predicateBufferPtr = 34,
+    predicateBufferSize = 35,
+    userkeyPtr = 36,
+    userkeySize = 37,
+    baseSecureStaticSharedDDR = 38,
+    getRandNumFuncPtr = 39,
+}
+
+enum requiredDef : uint32 {
+    required = 0,
+    optional = 1,
+}
+
+table execContextField {
+    variableNeeded:execContextVariables; //the specific variable needed
+    variableSize:uint32;                 //the bytes occupied by the variable
+    execContextOffset:uint64;            //the offset of the variable in the execContext
+    isRequired:requiredDef;                     //whether the variable is required
+}
+
+table execContext {
+    execContextSize:uint32;
+    execContextFields:[execContextField];
+}
+
+root_type execContext;

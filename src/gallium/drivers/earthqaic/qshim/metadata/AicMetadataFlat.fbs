@@ -1,0 +1,364 @@
+// Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+// SPDX-License-Identifier: MIT
+
+namespace AicMetadataFlat;
+
+enum AICHardwareVersion : long {  AIC_HW_VER_1_0 = 0x10000, AIC_HW_VER_2_0 = 0x20000 }
+
+enum AICMDSemaphoreOpcode : byte {
+  AICMDSemaphoreCmdNOP = 0,    // nop.
+  AICMDSemaphoreCmdINIT = 1,   // Set sem to val.
+  AICMDSemaphoreCmdINC = 2,    // Increment sem.
+  AICMDSemaphoreCmdDEC = 3,    // Decrement sem.
+  AICMDSemaphoreCmdWAITEQ = 4, // Wait for sem to be == val.
+  AICMDSemaphoreCmdWAITGE = 5, // Wait for sem to be >= val.
+  AICMDSemaphoreCmdP = 6,      // Wait for sem to be > 0 and decrement.
+}
+
+enum AICMDSemaphoreSync : byte {
+  AICMDSemaphoreSyncPost = 0,
+  AICMDSemaphoreSyncPre = 1,
+}
+
+table AICMDSemaphoreOp {
+  semNum:uint16;   // Which semaphore does this operation use?
+  semValue:uint16; // Command immediate value (e.g., value to store)
+  // Is this semaphore operation done before or after the DMA data
+  // transfer?
+  semOp:uint8;     // AICMDSemaphoreOpcode
+  preOrPost:uint8; // AICMDSemaphoreSync: Wait for all previous inbound
+                     // transfers to complete before beginning processing
+                     // this transfer.
+  inSyncFence:uint8;
+  // Wait for all previous outbound transfers to complete before
+  // beginning processing this transfer.
+  outSyncFence:uint8;
+}
+
+// Size of data to be written to doorbell
+enum AICMDDoorbellOpSize : byte {
+  AICMDDoorballOpSize8,
+  AICMDDoorballOpSize16,
+  AICMDDoorballOpSize32
+}
+
+table AICMDDoorbellOp {
+  offset:uint64; // base address offset to data start
+  data:uint32;   // value to be written to doorbell
+  mcId:uint16;   // reference to host multicast table entry
+  size:uint8;    // AICMDDoorbellOpSize
+}
+
+enum AICMDDMAEntryAddrSpace : byte {
+  AICMDDMAAddrSpaceMC,  // Multicast address
+  AICMDDMAAddrSpaceDDR, // DDR virtual address, static shared DDR only
+  AICMDDMAAddrSpaceDDRDynamicShared, // dynamic shared DDR only
+}
+
+enum AICMDDMADirection : byte {
+  AICMDDMAIn = 0,
+  AICMDDMAOut = 1,
+}
+
+enum AICMDPortType : byte {
+  AICMDPortUserIO = 0, // User IO data to/from host
+  AICMDPortP2P = 1,    // Peer-to-peer
+  AICMDPortTH = 2,   // Routing peer-to-peer data through host
+}
+
+enum AICMDDMAReserved : uint32 {
+  AICMDDMABufNumNone = 0xFFFF,
+  AICMDDMATransactionIdNone = 0xFFFFFFFF, // Used for TransactionIDs of UserIO
+}
+
+struct AICMDPortEntry {
+  portId: uint16;
+  portType: AICMDPortType;
+}
+
+table AICMDDMARequest {
+  semaphoreOps:[AICMDSemaphoreOp];
+  doorbellOps:[AICMDDoorbellOp];
+  hostOffset:uint64; // offset into host-side buffer to data start
+  devOffset:uint64;  // offset into device-side buffer to data start
+  size:uint32;       // size of data to be transferred
+  num:uint16;  // input number that corresponds to host buffer argument list
+                 // position. The value is fixed at AICMDDMABufNumNone for
+                 // P2P and TH connections.
+  mcId:uint16; // Multicast ID; only used if devAddrSpace ==
+                 // AICMDDMAAddrSpaceMC
+  devAddrSpace:uint8; // AICMDDMAEntryAddrSpace
+  inOut:uint8;        // AICMDDMADirection: inbound or outbound (from AIC
+                        // device perspective).
+  portId:uint16;   // This portId is global, ie, a producer's portId in one
+                   // device should be same as the consumer's portId in another
+                   // device. Each port is uni-directional. There are different
+                   // types of ports. The port type for each portId is defined
+                   // in portTable.
+  transactionId:uint32; // TransactionId is used to correlate consumer(input) and
+                       // producer(output) DMA requests. A TransactionId may only
+                       // appear once in a producer. For P2P and TH connections
+                       // there is one and only one producer for a TransactionId.
+                       // For P2P connections, a TID must appear once, in the one
+                       // unique consumer. For TH connections, a TID must appear
+                       // once in each consumer. TransactionIds are not reusable
+                       // and must be unique within a network"s metadata. User IO
+                       // connections have nothing to match with so the
+                       // transactionIds for these connections are fixed at
+                       // AICMDDMATransactionIdNone. Producers and
+                       // consumers for P2P and TH connections must have the
+                       // same portIds.
+  predicateId:uint32;  // Platform uses predicateId and its states to determine
+                       // whether to enqueue a DMA request. A predicateId has two
+                       // states: unset and set. The set state has two values: 0
+                       // for Off and 1 for ON.  For each inference all
+                       // predicateIds except 0 are reset to unset state at the
+                       // start. Platform must wait till network updates the state
+                       // to set with value ON before enqueuing it. DMA requests
+                       // with predicateId in set state with OFF value are not
+                       // enqueued. DMA requests with predicateId of 0 stay in
+                       // constant set state with value ON, and platform can
+                       // enqueue them directly. Multiple DMA requests can share
+                       // one predicateId. PredicateId is gloal for all partitions.
+  predicateUpdate:uint8; // When set to 1, platform uses this DMA request to retrieve
+                         // the predicate buffer from network which contains predicateIds
+                         // and predicate values. The update may also include updates to
+                         // dmaSizeIds and their related sizes depends on configuration.
+                         // This update mechanism is only applicable to TH , not P2P.
+                         // Only producers can send predicate udpates.
+  dmaSizeId:uint32; // dmaSizeId is used to tag DMA requests with the same size
+                    // attributes. DMA requests with dmaSizeId of 0 have the size
+                    // specified in the size field, or a lesser value if partial tensor
+                    // or network specialization applies. For each inference DMA requests
+                    // with non-zero dmaSizeId must have their sizes updated by network
+                    // before platform can enqueue them. The update should happen exactly
+                    // once per inference. The updated size must be no greater than the
+                    // original size in the DMA request. dmaSizeIds and related sizes are
+                    // updated with the same mechanism to update predicateIds.
+}
+
+enum AICMDMulticastEntryAddrSpace : byte {
+  AICMDAddrSpaceL2TCM,
+  AICMDAddrSpaceVTCM,
+}
+
+table AICMDNSPMulticastEntry {
+  baseAddrOffset:uint64; // Offset from the VTCM/L2TCM base address.  The
+                           // offset should be 4k aligned.
+  mask:uint32; // Bitvector used by the sender to specify the NSP virtual ids
+                 // of the receivers.
+  size:uint32; // Size of region targeted using this multicast id.
+  addrSpace:uint8; // AICMDMulticastEntryAddrSpace: Specifies base
+                     // address, vTCM or L2TCM, used by the receiver.
+  dynamic:uint8;   // When set indicates entry is dynamically mapped.
+}
+
+table AICMDNSPMulticastEntryTable {
+  multicastEntries:[AICMDNSPMulticastEntry];
+}
+
+// Host multicast entry. Host entries are special because the host can only send
+// multicasts, not receive.
+table AICMDHostMulticastEntry {
+  mask:uint32; // Bitvector used by host specify the NSP virtual ids of the
+                 // receivers.
+  size:uint32; // Size of region targeted using this multicast id.
+  exposedSize:uint32; // Size of exposed region targeted using this multicast id.
+}
+
+table AICMDHostMulticastEntryTable {
+  multicastEntries:[AICMDHostMulticastEntry];
+}
+
+enum AICMDThreadType : byte {
+  AICMDThreadHMX = 1,
+  AICMDThreadHVX = 2,
+}
+
+// Description of threads to be setup and where to transfer control for each
+// thread upon start.
+table AICMDThreadDescriptor{
+  // This 'entryPoint' function expects to be passed a const pointer to a
+  // AICExecContext via the standard ABI mechanism:
+  //   void entryPoint(const AICExecContext*, uint8_t virtualThreadId,
+  //                   uint32_t stid);
+  entryPoint:uint64;
+  typeMask:uint8; // AICMDThreadType mask
+  // Note: For v68 we need HVX threads to be divided evenly between HW threads
+  // 0,1,2 and 3,4,5. This will be handled by the QuRT scheduler.
+}
+
+table AICMDConstantMapping {
+  constantDataBaseOffset:uint64; // offset from constant data buffer base (EA =
+                              // constantDataBase + constantDataBaseoffset)
+  coreMask:uint32;
+  size:uint32;
+}
+
+enum cacheableConstants : byte {
+  CACHE_DISABLED = 1,
+  CACHE_ENABLED = 2,
+}
+
+table QNNConfigDef {
+  Constants:cacheableConstants = CACHE_DISABLED;
+}
+
+enum networkDeactivateAction: byte {
+  freeNetworkHeap = 1,
+  preserveNetworkHeap = 2,
+}
+
+table networkHeapBehaviorDef {
+  onNetworkDeactivate:networkDeactivateAction = freeNetworkHeap;
+}
+
+table NonZeroRegion {
+  start:uint64;
+  end:uint64;
+  size:uint64;
+}
+
+table Metadata {
+
+   versionMajor:uint16;
+   versionMinor:uint16;
+// Use ONNX/whatever metadata domain, version, graph name to encode unique
+// name for AIC runtime.
+   networkName:string;
+//required fields the firmware must be able to parse in the format <lineage>|name:position:type
+   requiredFields:[string];
+
+// Init state of semaphores.  Number of elements in array == numSemaphores.
+	semaphoreInitState:[uint32];
+  // Before any NSP is activated, the L2TCM of all NSPs must be initialized to
+  // some known state.  This buffer contains the initial values that need to be
+  // copied into each NSPs L2TCM.  The size of the buffer == L2TCMInitSize.
+	L2TCMInitState:[uint8];
+// AICMDDMARequest[]
+	dmaRequests:[AICMDDMARequest];
+// AICMDNSPMulticastEntryTable[]: One AICMDNSPMulticastEntryTable per
+// NSP.
+	nspMulticastTables:[AICMDNSPMulticastEntryTable];
+// AICMDHostMulticastEntryTable[]: Host-side multicast table.
+   hostMulticastTable:AICMDHostMulticastEntryTable;
+// AICMDThreadDescriptor[]
+   threadDescriptors:[AICMDThreadDescriptor];
+
+// AICMDConstantMapping[]: This table is used to specify the static mapping of
+// the constant shared buffer into the NSPs virtual address space. There is a
+// single mapping for each NSP. Each entry in the table can map one or more
+// NSPs based on the mask bits. The common case will be a single table entry
+// that maps all NSPs. If multiple entries exist the mask bit for any NSP must
+// not be set in more than one entry (otherwise, the NSP has multiple
+// mappings). These regions are uncached and read-only. The firmware provides
+// the base address of the region in the execution context. This region needs
+// to be aligned to 256 bytes.
+
+   constantMappings:[AICMDConstantMapping];
+
+  // The staticSharedDDRSize specifies the size of a statically mapped shared
+  // region of DDR memory. The dynamicSharedDDRSize specifies the size of a
+  // dynamically mapped shared region of DDR memory. Thus, the total size of the
+  // shared DDR region is staticSharedDDRSize + dynamicSharedDDRSize. This
+  // region is uncached and readable/writable by all NSPs. The firmware provides
+  // the base address of the statically mapped region in the execution context.
+  // The entire region needs to be aligned to 2048 bytes. All other writable
+  // memory regions specified in the network ELF (i.e.  .data/.bss/ etc.) are
+  // not shared across NSPs.  A separate copy of these data sections is
+  // allocated for each NSP the network is activated on.
+  staticSharedDDRSize:uint64;
+  dynamicSharedDDRSize:uint64;
+
+  // The staticConstantsSize specifies the size of the statically mapped region
+  // of the constant shared buffer. The dynamicConstantsSize specifies the size
+  // of the dynamically mapped region of the constant shared buffer. Thus, the
+  // total size of the constant shared buffer is staticConstantsSize +
+  // dynamicConstantsSize. The constants are laid out in the input buffer such
+  // that the first constantsSize bytes are statically mapped (as defined by the
+  // constantMappings). The remaining dynamicConstantsSize bytes are dynamically
+  // mapped by the compiler.
+  staticConstantsSize:uint64;
+  dynamicConstantsSize:uint64;
+
+  // Exit doorbell offset: This is an offset into the network's L2TCM memory
+  // that is used to signal the network image that it should terminate
+  // execution.  The offset refers to one byte of memory, that when set to 1
+  // signals the threads of the network image that they should exit at the next
+  // synchronization point.  The network image threads exit by means of calling
+  // the 'exitThread' function passed in via the AICExecContext.
+  exitDoorbellOffset:uint64;
+
+  // This is a tiny DDR region used a workaround for NSP pause errata.
+  // https://qti-jira.qualcomm.com/jira/browse/QDSP-31616
+  // It is mapped as cccc=0xf (L1 uncached, L2 cached WB).
+  // The first 64B cache line will be locked in the L2 to guarantee latency.
+  l2CachedDDRSize:uint32;
+
+  // Describes the size of the initialization data for L2TCM.  Irrespective of
+  // this size, the assumption is that all of L2TCM is made available for the
+  // network to use.  The L2TCM allocation needs to be aligned to 4k bytes.
+  // NOTE: Slave port writes to the range [L2TCM_Base, L2TCM_Base+64kB) will
+  // cause a wake from pause event as programmed by root-image.
+  // (Event_Reg_High/Lo)
+  L2TCMInitSize:uint32;
+
+  // Execution context version - This allows LRT/QSM not to have to change when
+  // a new OS interface function is added.
+  execContextMajorVersion:uint16;
+
+  // Number of NSPs network is compiled for.
+  numNSPs:uint16;
+
+  // Number of virtual semaphores 0..N-1.  The translation from virtual to
+  // physical semaphore number is done by the GSM.
+  numSemaphores:uint16;
+
+  // Hardware version.
+  hwVersionMajor:uint8;
+  hwVersionMinor:uint8;
+
+  // Is hardware ECC enabled?
+   staticSharedDDRECCEnabled:uint8;
+   dynamicSharedDDRECCEnabled:uint8;
+   staticConstantsECCEnabled:uint8;
+   dynamicConstantsECCEnabled:uint8;
+
+  // When non-zero the network has been compiled using a single VTCM page.  When
+  // zero the network has been compiled using 2 VTCM pages.
+  singleVTCMPage:uint8;
+
+  // Indicate the presence of FP instructions
+  hasHvxFP:uint8;
+  hasHmxFP:uint8;
+
+  // VTCM size required for this network.
+  VTCMSize:uint32;
+
+  // Describes the size of the L2TCM.
+  L2TCMSize:uint32;
+
+  // Size of the network heap
+  networkHeapSize:uint64;
+  //size of the total raw metadata struct encoded version
+  raw_struct_version_length:uint64;
+  QNNConfig:QNNConfigDef;
+
+  // Port table
+  portTable: [AICMDPortEntry];
+  execContext:[uint8];
+  L2TCMInitStateNonZeroRegions:[NonZeroRegion];
+
+  // Indicate this network supports full dynamic shared DDR features including
+  // allocation, mmap and DMA transfer.
+  dynamicSharedDDRSupported: uint8;
+  networkHeapBehavior:networkHeapBehaviorDef;
+
+  // Secure DDR regions
+  secureStaticSharedDDRSize:uint64;
+  secureStaticSharedDDRECCEnabled:uint8;
+  secureDynamicSharedDDRSize:uint64;
+  secureDynamicSharedDDRECCEnabled:uint8;
+}
+
+root_type Metadata;

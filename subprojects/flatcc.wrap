@@ -1,0 +1,9 @@
+[wrap-file]
+directory = flatcc-0.6.4
+source_url = https://github.com/dvidelabs/flatcc/archive/refs/tags/v0.6.4.tar.gz
+source_filename = flatcc-0.6.4.tar.gz
+source_hash = 463c1cbc95777a01e103a6c961325f28e8876cb44a195b5c0f8d1117ae019580
+patch_directory = flatcc
+
+[provide]
+program_names = flatcc

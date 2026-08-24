@@ -1,0 +1,20 @@
+{
+    "name": "qpc-shim",
+    "hwVersionMajor":2,
+    "hwVersionMinor":0,
+    "numThreads":6,
+    "numHMXThreads":1,
+    "numNSPs":1,
+    "heapSize":4194304,
+    "qpcShim":"true",
+    "inputs":[
+        {
+            "type":"Int8Ty","dims":8192,"hostOffset":0,"devOffset":0,"baseAddrOffset":131072,"dest":"L2TCM","inSyncFence":0,"allowPartial":"true"
+        }
+    ],
+    "outputs":[
+        {
+            "type":"Int8Ty","dims":8388608,"hostOffset":0,"devOffset":0,"baseAddrOffset":0,"dest":"DDR","inSyncFence":0,"outSyncFence":0
+        }
+    ]
+}
