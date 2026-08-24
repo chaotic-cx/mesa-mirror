@@ -2496,6 +2496,19 @@ IR3 shader debug environment variables
    ``noaliasrt``
       Don't use alias.rt
 
+Earthqaic driver environment variables
+--------------------------------------
+
+.. envvar:: EARTHQAIC_DEBUG
+
+   Debug flags for the Earthqaic driver.
+
+.. envvar:: EARTHQAIC_PATH
+
+   Earthqaic contains build artifacts that are required at runtime. These
+   artifacts are stored in the build directoy: build/src/gallium/drivers/earthqaic.
+   This environment variable overrides the baked-in build directory.
+
 ----
 
 Other Gallium drivers have their own environment variables. These may

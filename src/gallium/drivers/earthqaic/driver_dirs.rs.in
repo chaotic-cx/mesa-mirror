@@ -1,0 +1,7 @@
+/*
+ * Copyright (c) Qualcomm Technologies, Inc. and/or its subsidiaries.
+ * SPDX-License-Identifier: MIT
+ */
+
+pub const DRIVER_BUILD_DIR: &str = @DRIVER_BUILD_DIR@;
+pub const DRIVER_INSTALL_DIR: &str = @DRIVER_INSTALL_DIR@;

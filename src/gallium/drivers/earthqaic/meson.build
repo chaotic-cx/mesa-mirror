@@ -3,6 +3,27 @@
 # SPDX-License-Identifier: MIT
 #
 
+### Determine build and install directories
+driver_install_dir = get_option('prefix') / get_option('datadir') / 'earthqaic'
+
+conf = configuration_data()
+conf.set_quoted('DRIVER_BUILD_DIR', meson.current_build_dir())
+conf.set_quoted('DRIVER_INSTALL_DIR', driver_install_dir)
+
+driver_dirs_rs = configure_file(
+  input: 'driver_dirs.rs.in',
+  output: 'driver_dirs.rs',
+  configuration: conf,
+)
+
+libdriver_dirs = static_library(
+  'earthqaic_driver_dirs',
+  driver_dirs_rs,
+  rust_abi : 'rust',
+  gnu_symbol_visibility : 'hidden',
+)
+
+### Bindgen targets
 _compiler_bindgen_args = [
   '--allowlist-type', 'pipe.*',
   '--allowlist-type', 'renderonly',
@@ -48,7 +69,7 @@ libearthqaic = static_library(
     gnu_symbol_visibility : 'hidden',
     rust_abi : 'c',
     dependencies : [],
-    link_with : [_libearthqaic_rs_bindings],
+    link_with : [_libearthqaic_rs_bindings, libdriver_dirs],
 )
 
 driver_earthqaic = declare_dependency(
