@@ -90,6 +90,7 @@ static const struct drm_driver_descriptor *driver_descriptors[] = {
    &lima_driver_descriptor,
    &zink_driver_descriptor,
    &kmsro_driver_descriptor,
+   &qaic_driver_descriptor,
 };
 
 static const struct drm_driver_descriptor *
@@ -368,6 +369,9 @@ pipe_loader_get_compatible_render_capable_device_fds(int kms_only_fd, unsigned i
    const char * const drivers[] = {
 #if defined GALLIUM_ASAHI
       "asahi",
+#endif
+#if defined GALLIUM_EARTHQAIC
+      "qaic",
 #endif
 #if defined GALLIUM_ETNAVIV
       "etnaviv",

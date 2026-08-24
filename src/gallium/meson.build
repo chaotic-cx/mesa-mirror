@@ -216,6 +216,12 @@ if with_gallium_d3d12
 else
   driver_d3d12 = declare_dependency()
 endif
+if with_gallium_earthqaic
+  subdir('winsys/earthqaic')
+  subdir('drivers/earthqaic')
+else
+  driver_earthqaic = declare_dependency()
+endif
 if with_gallium_rusticl
   subdir('frontends/rusticl')
   subdir('targets/rusticl')

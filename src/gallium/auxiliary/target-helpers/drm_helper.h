@@ -53,6 +53,7 @@ const struct drm_driver_descriptor descriptor_name = {         \
 #undef GALLIUM_ASAHI
 #undef GALLIUM_ROCKET
 #undef GALLIUM_ETHOSU
+#undef GALLIUM_EARTHQAIC
 #endif
 
 #ifdef GALLIUM_I915
@@ -483,6 +484,24 @@ DRM_DRIVER_DESCRIPTOR(ethosu, NULL, 0)
 
 #else
 DRM_DRIVER_DESCRIPTOR_STUB(ethosu)
+#endif
+
+#ifdef GALLIUM_EARTHQAIC
+#include "earthqaic/earthqaic_drm_public.h"
+
+static struct pipe_screen *
+pipe_qaic_create_screen(int fd, const struct pipe_screen_config *config)
+{
+   struct pipe_screen *screen;
+
+   screen = earthqaic_drm_screen_create(fd, config);
+   return screen ? debug_screen_wrap(screen) : NULL;
+}
+
+DRM_DRIVER_DESCRIPTOR(qaic, NULL, 0)
+
+#else
+DRM_DRIVER_DESCRIPTOR_STUB(qaic)
 #endif
 
 #ifdef GALLIUM_KMSRO

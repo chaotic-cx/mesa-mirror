@@ -48,6 +48,9 @@ endif
 if with_gallium_zink
   renderonly_drivers_c_args += '-DGALLIUM_ZINK'
 endif
+if with_gallium_earthqaic
+  renderonly_drivers_c_args += '-DGALLIUM_EARTHQAIC'
+endif
 
 libpipe_loader_static = static_library(
   'pipe_loader_static',

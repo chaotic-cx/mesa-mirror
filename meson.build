@@ -207,7 +207,7 @@ elif gallium_drivers.contains('all')
    gallium_drivers = [
      'r300', 'r600', 'radeonsi', 'crocus', 'v3d', 'vc4', 'freedreno', 'etnaviv', 'i915',
      'nouveau', 'svga', 'tegra', 'virgl', 'lima', 'panfrost', 'llvmpipe', 'softpipe', 'iris',
-     'zink', 'd3d12', 'asahi', 'rocket', 'ethosu'
+     'zink', 'd3d12', 'asahi', 'rocket', 'ethosu', 'earthqaic_experimental'
    ]
 endif
 
@@ -237,6 +237,7 @@ with_gallium_d3d12 = gallium_drivers.contains('d3d12')
 with_gallium_asahi = gallium_drivers.contains('asahi')
 with_gallium_rocket = gallium_drivers.contains('rocket')
 with_gallium_ethosu = gallium_drivers.contains('ethosu')
+with_gallium_earthqaic = gallium_drivers.contains('earthqaic_experimental')
 foreach gallium_driver : gallium_drivers
   pre_args += '-DHAVE_@0@'.format(gallium_driver.to_upper())
 endforeach
@@ -249,7 +250,8 @@ with_llvm = with_llvm \
   .enable_if(with_gallium_i915, error_message : 'i915 Gallium driver requires LLVM for vertex shaders') \
   .enable_if(with_gallium_llvmpipe, error_message : 'LLVMPipe Gallium driver requires LLVM') \
   .enable_if(with_gallium_r300 and r300_needs_draw and draw_with_llvm, error_message : 'R300 Gallium driver requires LLVM for vertex shaders on IGP parts') \
-  .enable_if(with_gallium_radeonsi and amd_with_llvm, error_message : 'RadeonSI Gallium driver configured to require LLVM')
+  .enable_if(with_gallium_radeonsi and amd_with_llvm, error_message : 'RadeonSI Gallium driver configured to require LLVM') \
+  .enable_if(with_gallium_earthqaic, error_message : 'Earthqaic Gallium driver requires LLVM')
 
 # compatibility for "swrast" as an internal-ish driver name
 with_gallium_swrast = with_gallium_softpipe or with_gallium_llvmpipe
@@ -940,6 +942,7 @@ with_any_rust = [
   with_panfrost_rust,
   with_tools.contains('etnaviv'),
   with_virtgpu_kumquat,
+  with_gallium_earthqaic,
 ].contains(true)
 
 if with_any_rust
