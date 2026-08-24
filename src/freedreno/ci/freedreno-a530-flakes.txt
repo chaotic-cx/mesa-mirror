@@ -26,3 +26,8 @@ glx@glx_ext_no_config_context@no fbconfig
 KHR-GLES31.core.compute_shader.simple-compute-shared_context-persistent-buffer
 spec@egl 1.4@egl-arb-sync-shared-context threaded
 
+# OpenCL-CTS
+C11 Atomics@atomic_fetch_sub
+# fails single-process, passed at concurrency 4
+Device timer
+Device timer@device_and_host_timers

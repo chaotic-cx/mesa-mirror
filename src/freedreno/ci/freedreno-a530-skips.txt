@@ -49,3 +49,6 @@ KHR-GLES31.core.texture_buffer.texture_buffer_atomic_functions
 spec@.*line.*stipple.*
 # uses edgeflags:
 shaders@point-vertex-id.*
+
+# OpenCL-CTS: the 3D image kernel suites never finish (>600 s each measured)
+^Images \(Kernel 3D .*

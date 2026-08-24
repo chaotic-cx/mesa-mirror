@@ -305,3 +305,40 @@ program@execute@amdgcn-f16-inline-immediates@add integer 64,Fail
 # CL_KERNEL_WORK_GROUP_SIZE, which its register footprint holds below that:
 # Unexpected CL error: CL_INVALID_WORK_GROUP_SIZE -54
 program@run kernel with max work item sizes,Fail
+
+#
+# OpenCL-CTS (quick profile), measured on a db820c
+#
+
+API,Fail
+API@get_image1d_array_info,Fail
+
+# https://github.com/KhronosGroup/OpenCL-CTS/issues/2765
+Basic,Fail
+Basic@bufferreadwriterect,Fail
+
+# 1D and 2D image kernels partially fail
+Images (Kernel 1D float),Fail
+Images (Kernel 1D float)@1D,Fail
+Images (Kernel 1D float)@1Darray,Fail
+Images (Kernel 1D int),Fail
+Images (Kernel 1D int)@1D,Fail
+Images (Kernel 1D int)@1Darray,Fail
+Images (Kernel 1D uint),Fail
+Images (Kernel 1D uint)@1D,Fail
+Images (Kernel 1D uint)@1Darray,Fail
+Images (Kernel 2D float),Fail
+Images (Kernel 2D float)@2D,Fail
+Images (Kernel 2D float)@2Darray,Fail
+Images (Kernel 2D int),Fail
+Images (Kernel 2D int)@2D,Fail
+Images (Kernel 2D int)@2Darray,Fail
+Images (Kernel 2D uint),Fail
+Images (Kernel 2D uint)@2D,Fail
+Images (Kernel 2D uint)@2Darray,Fail
+
+
+# float controls?  (same three on a618 and a660)
+SPIRV new,Fail
+SPIRV new@op_neg_half,Fail
+SPIRV new@op_spec_constant_half_simple,Fail

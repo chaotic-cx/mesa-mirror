@@ -115,6 +115,18 @@ a530-piglit-full:
   variables:
     DEQP_SUITE: freedreno-a530-piglit-full
 
+a530-opencl-cts-quick:
+  extends:
+    - .lava-arm64-test-gl
+    - .lava-dragonboard-820c:arm64
+    - .freedreno-opencl-cts
+    - .collabora-freedreno-manual-rules
+  rules:
+    - !reference [.collabora-freedreno-manual-rules, rules]
+    - !reference [.rusticl-manual-rules, rules]
+  variables:
+    FDO_CI_CONCURRENT: 4
+
 a618-angle:
   extends:
     - .lava-arm64-test-gl
