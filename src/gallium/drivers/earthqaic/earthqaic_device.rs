@@ -6,6 +6,7 @@
 use std::ffi::{c_void, CString};
 use std::mem::offset_of;
 
+use crate::earthqaic_compute::*;
 use crate::earthqaic_ml::*;
 use crate::earthqaic_rs_bindings::*;
 use crate::jit::device::JitDevice;
@@ -26,6 +27,8 @@ pub struct EarthqaicScreen {
 #[repr(C)]
 pub struct EarthqaicContext {
     pub base: pipe_context,
+    pub shader: *mut EarthqaicComputeShader,
+    pub global_buffers: *mut *mut pipe_resource,
 }
 
 #[repr(C)]
@@ -195,8 +198,33 @@ pub extern "C" fn c_earthqaic_context_create(
             ml_subgraph_invoke: Some(earthqaic_ml_subgraph_invoke),
             ml_subgraph_read_output: Some(earthqaic_ml_subgraph_read_output),
 
+            // Compute API
+            create_compute_state: Some(earthqaic_create_compute_state),
+            bind_compute_state: Some(earthqaic_bind_compute_state),
+            delete_compute_state: Some(earthqaic_delete_compute_state),
+            get_compute_state_info: Some(earthqaic_get_compute_state_info),
+            get_compute_state_subgroup_size: Some(earthqaic_get_compute_state_subgroup_size),
+            set_global_binding: Some(earthqaic_set_global_binding),
+            bind_sampler_states: Some(earthqaic_bind_sampler_states),
+            create_query: Some(earthqaic_create_query),
+            delete_sampler_state: Some(earthqaic_delete_sampler_state),
+            destroy_query: Some(earthqaic_destroy_query),
+            end_query: Some(earthqaic_end_query),
+            flush: Some(earthqaic_flush),
+            launch_grid: Some(earthqaic_launch_grid),
+            memory_barrier: Some(earthqaic_memory_barrier),
+            sampler_view_destroy: Some(earthqaic_sampler_view_destroy),
+            set_constant_buffer: Some(earthqaic_set_constant_buffer),
+            set_sampler_views: Some(earthqaic_set_sampler_views),
+            sampler_view_release: Some(earthqaic_sampler_view_release),
+            set_shader_images: Some(earthqaic_set_shader_images),
+            texture_map: Some(earthqaic_texture_map),
+            texture_subdata: Some(earthqaic_texture_subdata),
+            texture_unmap: Some(earthqaic_texture_unmap),
             ..Default::default()
         },
+        shader: std::ptr::null_mut(),
+        global_buffers: std::ptr::null_mut(),
     });
 
     ectx_to_pctx!(ectx)
@@ -259,6 +287,11 @@ pub extern "C" fn c_earthqaic_resource_create(
 
 #[no_mangle]
 pub extern "C" fn c_earthqaic_screen_destroy(pscreen: *mut pipe_screen) {
+    let _ = unsafe {
+        drop(Box::from_raw(
+            (*pscreen).nir_options[0] as *mut nir_shader_compiler_options,
+        ))
+    };
     let escreen = unsafe { Box::from_raw(pscreen as *mut EarthqaicScreen) };
     qaic::network::deactivate_and_unload_network(escreen.fd, &escreen.network, true);
     // The fd is dup'd by earthqaic_winsys.c before earthqaic_screen_create is
@@ -273,6 +306,37 @@ pub extern "C" fn c_earthqaic_screen_destroy(pscreen: *mut pipe_screen) {
 pub extern "C" fn c_earthqaic_get_screen_fd(pscreen: *mut pipe_screen) -> i32 {
     let escreen: &EarthqaicScreen = get_earthqaic_screen!(pscreen);
     (*escreen).fd
+}
+
+// MESA_SHADER_MESH_STAGES = MESA_SHADER_MESH + 1, = 8
+// defined in src/compiler/shader_enums.h
+fn init_shader_caps() -> [pipe_shader_caps; 8] {
+    let arr = [pipe_shader_caps {
+        supported_irs: 1 << pipe_shader_ir_PIPE_SHADER_IR_NIR,
+        max_const_buffer0_size: 128, // required by Device::check_valid in rusticl/core/device.rs
+        ..Default::default()
+    }; 8];
+
+    arr
+}
+
+fn init_compute_caps() -> pipe_compute_caps {
+    pipe_compute_caps {
+        address_bits: 64,
+        max_global_size: 1 << 31,
+        max_mem_alloc_size: 1 << 31,
+        subgroup_sizes: 1,
+        max_block_size: [1024; 3],
+        max_grid_size: [1 << 20; 3],
+        ..Default::default()
+    }
+}
+
+fn init_screen_caps() -> pipe_caps {
+    pipe_caps {
+        compute: true,
+        ..Default::default()
+    }
 }
 
 #[no_mangle]
@@ -307,15 +371,38 @@ fn screen_create(fd: i32) -> Result<Box<EarthqaicScreen>, String> {
         _ => return Err("Invalid fw!".to_string()),
     }
 
-    let pscreen = pipe_screen {
+    let mut pscreen = pipe_screen {
         get_screen_fd: Some(c_earthqaic_get_screen_fd),
         destroy: Some(c_earthqaic_screen_destroy),
         context_create: Some(c_earthqaic_context_create),
+        fence_finish: Some(earthqaic_fence_finish),
+        fence_reference: Some(earthqaic_fence_reference),
+        get_name: Some(earthqaic_get_name),
+        get_vendor: Some(earthqaic_get_vendor),
+        get_device_vendor: Some(earthqaic_get_vendor),
+        is_format_supported: Some(earthqaic_is_format_supported),
         resource_create: Some(c_earthqaic_resource_create),
         resource_destroy: Some(c_earthqaic_resource_destroy),
         get_ml_device: Some(earthqaic_get_ml_device),
         ..Default::default()
     };
+
+    let earthqaic_nir_options: Box<nir_shader_compiler_options> =
+        Box::new(nir_shader_compiler_options {
+            ..Default::default()
+        });
+
+    // MESA_SHADER_MESH_STAGES = MESA_SHADER_MESH + 1, = 8
+    // defined in src/compiler/shader_enums.h
+    let opt_ptr = Box::into_raw(earthqaic_nir_options);
+    for i in 0..8 {
+        pscreen.nir_options[i] = opt_ptr;
+    }
+
+    pscreen.shader_caps = init_shader_caps();
+    pscreen.compute_caps = init_compute_caps();
+    unsafe { u_init_pipe_screen_caps(&mut pscreen, 1) };
+    pscreen.caps = init_screen_caps();
 
     let network = qaic::network::load_and_activate_network(fd, true).unwrap();
 

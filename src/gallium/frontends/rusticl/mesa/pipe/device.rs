@@ -51,12 +51,19 @@ impl Drop for PipeLoaderDevice {
 }
 
 fn load_devs() -> impl Iterator<Item = PipeLoaderDevice> {
+    let n_accel = unsafe { pipe_loader_accel_probe(ptr::null_mut(), 0) };
+    let mut accel_devices: Vec<*mut pipe_loader_device> = vec![ptr::null_mut(); n_accel as usize];
+    unsafe {
+        pipe_loader_accel_probe(accel_devices.as_mut_ptr(), n_accel);
+    }
+
     let n = unsafe { pipe_loader_probe(ptr::null_mut(), 0, true) };
     let mut devices: Vec<*mut pipe_loader_device> = vec![ptr::null_mut(); n as usize];
     unsafe {
         pipe_loader_probe(devices.as_mut_ptr(), n, true);
     }
 
+    devices.append(&mut accel_devices);
     devices.into_iter().filter_map(PipeLoaderDevice::new)
 }
 
@@ -102,6 +109,7 @@ fn get_enabled_devs() -> HashMap<String, u32> {
             let driver_str = match driver_str[0] {
                 "llvmpipe" | "lp" => "swrast",
                 "freedreno" => "msm",
+                "earthqaic" => "qaic",
                 a => a,
             };
 

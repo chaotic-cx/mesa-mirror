@@ -11,7 +11,7 @@ The driver also relies on rusticl and LLVM.
 To build the driver, configure your build directory as follows (along with any other desired meson options):
 
 ```
-meson setup build -Dgallium-drivers=earthqaic_experimental
+meson setup build -Dgallium-drivers=earthqaic_experimental -Dgallium-rusticl=true
 ```
 ## Running the driver
 
