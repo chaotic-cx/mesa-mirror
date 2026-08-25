@@ -1,0 +1,9 @@
+[wrap-file]
+directory = flatbuffers-25.2.10
+source_url = https://crates.io/api/v1/crates/flatbuffers/25.2.10/download
+source_filename = flatbuffers-25.2.10.tar.gz
+source_hash = 1045398c1bfd89168b5fd3f1fc11f6e70b34f6f66300c87d44d3de849463abf1
+patch_directory = flatbuffers-25-rs
+
+[provide]
+flatbuffers = dep_flatbuffers_rust

@@ -7,6 +7,7 @@ use std::ffi::{c_void, CString};
 use std::mem::offset_of;
 
 use crate::earthqaic_rs_bindings::*;
+use crate::jit::device::JitDevice;
 use crate::qaic;
 use crate::qaic::qaic_rs_bindings::*;
 
@@ -17,6 +18,7 @@ pub struct EarthqaicScreen {
     pub vendor: CString,
     pub fd: i32,
     pub network: qaic::network::Network,
+    pub jitdev: JitDevice,
 }
 
 #[repr(C)]
@@ -49,6 +51,15 @@ macro_rules! get_earthqaic_resource {
         unsafe { &*($presource as *const pipe_resource as *const EarthqaicResource) }
     };
 }
+
+#[macro_export]
+macro_rules! get_jitdev {
+    ($pcontext:expr) => {{
+        let econtext = unsafe { &mut *($pcontext as *mut EarthqaicContext) };
+        &mut (*get_earthqaic_screen!(econtext.base.screen)).jitdev
+    }};
+}
+pub use crate::get_jitdev;
 
 macro_rules! ectx_to_pctx {
     ($ectx:expr) => {{
@@ -286,13 +297,15 @@ fn screen_create(fd: i32) -> Result<Box<EarthqaicScreen>, String> {
 
     let network = qaic::network::load_and_activate_network(fd, true).unwrap();
 
-    let escreen = Box::new(EarthqaicScreen {
+    let mut escreen = Box::new(EarthqaicScreen {
         name: dev_str.into(),
         vendor: c"Qualcomm".into(),
         pscreen: pscreen,
         fd: fd,
         network: network,
+        jitdev: JitDevice::default(),
     });
+    escreen.jitdev = JitDevice::init(fd, &escreen.network).unwrap();
 
     Ok(escreen)
 }

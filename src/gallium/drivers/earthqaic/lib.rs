@@ -59,4 +59,5 @@ pub fn qshim_path(file: &str) -> String {
 
 pub mod earthqaic_device;
 
+mod jit;
 mod qaic;

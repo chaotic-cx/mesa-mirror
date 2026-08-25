@@ -124,6 +124,18 @@ _libqaic_rs_bindings = static_library(
 )
 
 ### Rust dependencies
+dep_elf_rs = dependency('elf',
+  version : '>= 0.8.0',
+  fallback : ['elf-0.8-rs', 'dep_elf_rs'],
+  required: true,
+)
+
+dep_flatbuffers_rust = dependency('flatbuffers_rust',
+  version : '>= 25.2.10',
+  fallback : ['flatbuffers-25-rs', 'dep_flatbuffers_rust'],
+  required : true,
+)
+
 dep_rustlibc = dependency('libc',
   version : '>= 0.2.168',
   fallback : ['libc-0.2-rs', 'dep_libc'],
@@ -132,6 +144,34 @@ dep_rustlibc = dependency('libc',
 
 # The flatc that ships with Ubuntu 26 (v23.5.26) is too outdated.
 prog_flatc = find_program('flatc', version : '>= 25.2.10', required : true)
+
+### JIT flatbuffers schema
+_jit_generated_rs = custom_target(
+  'jit_generated_rs',
+  input : 'qaic/jit.fbs',
+  output : 'jit_generated.rs',
+  command : [
+    prog_flatc,
+    '--rust',
+    '--no-warnings',
+    '-o', '@OUTDIR@',
+    '@INPUT@',
+  ],
+)
+
+_libjit_generated = static_library(
+  'jit_generated',
+  _jit_generated_rs,
+  gnu_symbol_visibility : 'hidden',
+  rust_abi : 'rust',
+  rust_args : [
+    '-Anon_snake_case',
+    '-Amismatched_lifetime_syntaxes',
+    '-Aunused_imports',
+  ],
+  dependencies : [dep_flatbuffers_rust],
+  rust_dependency_map : {'flatbuffers_rust' : 'flatbuffers'},
+)
 
 if 'clang' in cc.get_id()
   prog_clang = cc.cmd_array()
@@ -157,8 +197,8 @@ libearthqaic = static_library(
     files('lib.rs'),
     gnu_symbol_visibility : 'hidden',
     rust_abi : 'c',
-    dependencies : [dep_rustlibc],
-    link_with : [_libearthqaic_rs_bindings, _libqaic_rs_bindings, libdriver_dirs],
+    dependencies : [dep_elf_rs, dep_flatbuffers_rust, dep_rustlibc],
+    link_with : [_libearthqaic_rs_bindings, _libqaic_rs_bindings, _libjit_generated, libdriver_dirs],
 )
 
 driver_earthqaic = declare_dependency(

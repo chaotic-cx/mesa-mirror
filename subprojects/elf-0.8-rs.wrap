@@ -1,0 +1,9 @@
+[wrap-file]
+directory = elf-0.8.0
+source_url = https://crates.io/api/v1/crates/elf/0.8.0/download
+source_filename = elf-0.8.0.tar.gz
+source_hash = 55dd888a213fc57e957abf2aa305ee3e8a28dbe05687a251f33b637cd46b0070
+patch_directory = elf-0.8-rs
+
+[provide]
+elf = dep_elf_rs
