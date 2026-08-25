@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+use crate::earthqaic_compute::EarthqaicComputeShader;
 use crate::earthqaic_device::EarthqaicResource;
 use crate::earthqaic_ml::EarthqaicMLSubgraph;
 use crate::jit;
@@ -150,6 +151,18 @@ impl JitDevice {
     ) -> Result<(Vec<u8>, ElfData, String), JitError> {
         let (mut operator_buf, exe_name) = jit::compiler::compile_subgraph(&subgraph)?;
         let (operator_buf, elf_data) = self.compile_operator(&mut operator_buf, "subgraph")?;
+        Ok((operator_buf, elf_data, exe_name))
+    }
+
+    pub fn compile_nir(
+        &mut self,
+        shader: &EarthqaicComputeShader,
+    ) -> Result<(Vec<u8>, ElfData, String), JitError> {
+        let (mut operator_buf, exe_name) = jit::compiler::compile_nir(shader)?;
+        if operator_buf.len() == 0 {
+            return Ok((operator_buf, ElfData::default(), exe_name));
+        }
+        let (operator_buf, elf_data) = self.compile_operator(&mut operator_buf, "harness")?;
         Ok((operator_buf, elf_data, exe_name))
     }
 

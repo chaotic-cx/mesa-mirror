@@ -11,5 +11,6 @@ pub mod device;
 mod error;
 mod flatbuf;
 mod mem;
+mod nir;
 mod operators;
 mod subgraph_llvm;

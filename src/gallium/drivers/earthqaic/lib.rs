@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: MIT
  */
 
+#![allow(non_upper_case_globals)]
 extern crate earthqaic_rs_bindings;
 extern crate libc;
 
@@ -59,6 +60,7 @@ pub fn qshim_path(file: &str) -> String {
 
 pub mod earthqaic_device;
 
+mod earthqaic_compute;
 mod earthqaic_ml;
 mod jit;
 mod qaic;

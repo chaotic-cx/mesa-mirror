@@ -18,8 +18,10 @@ use llvm_sys::target_machine::LLVMCodeGenFileType;
 use llvm_sys::target_machine::*;
 
 use crate::driver_dir;
+use crate::earthqaic_compute::EarthqaicComputeShader;
 use crate::earthqaic_ml::EarthqaicMLSubgraph;
 use crate::jit::error::JitError;
+use crate::jit::nir::*;
 use crate::jit::subgraph_llvm::*;
 
 pub fn link_to_so(objs: &[&str], shared: &str) -> bool {
@@ -220,5 +222,14 @@ pub fn compile_subgraph(subgraph: &EarthqaicMLSubgraph) -> Result<(Vec<u8>, Stri
         let context = LLVMContextCreate();
         let module = lower_subgraph(context, subgraph);
         build_and_link(context, module, &[tfl_ops_file, hexagon_lib_file])
+    }
+}
+
+pub fn compile_nir(shader: &EarthqaicComputeShader) -> Result<(Vec<u8>, String), JitError> {
+    let nir = unsafe { (*shader).base.ir.nir };
+    unsafe {
+        let context = LLVMContextCreate();
+        let module = lower_nir(context, nir);
+        build_and_link(context, module, &[])
     }
 }

@@ -32,9 +32,15 @@ jit_fbs_dir = meson.current_source_dir() / 'qaic'
 ### Bindgen targets
 _compiler_bindgen_args = [
   '--allowlist-type', 'drm_gem_close',
+  '--allowlist-type', 'nir.*',
   '--allowlist-type', 'pipe.*',
   '--allowlist-type', 'renderonly',
   '--allowlist-function', 'drmIoctl',
+  '--allowlist-function', 'nir_block_cf_tree_next',
+  '--allowlist-function', 'nir_index_blocks',
+  '--allowlist-function', 'nir_index_ssa_defs',
+  '--allowlist-function', 'nir_print_shader_stdout',
+  '--allowlist-function', 'nir_shader_get_entrypoint',
   '--allowlist-function', 'pipe_buffer_write',
   '--allowlist-function', 'pipe_reference_init',
   '--allowlist-function', 'pipe_resource_reference',
@@ -42,6 +48,7 @@ _compiler_bindgen_args = [
   '--allowlist-function', 'u_default_clear_buffer',
   '--allowlist-function', 'u_init_pipe_screen_caps',
   '--allowlist-function', 'util_resource_copy_region',
+  '--allowlist-var', 'nir.*',
   '--with-derive-default',
   '--impl-debug',
   '--wrap-static-fns-suffix', '_earthqaic_extern',

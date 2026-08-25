@@ -20,5 +20,7 @@
 #include "util/u_surface.h"
 #include "util/u_transfer.h"
 
+#include "nir.h"
+
 /* Earthqaic headers */
 #include "earthqaic_device.h"
