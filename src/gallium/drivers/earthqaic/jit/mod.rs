@@ -6,8 +6,10 @@
 extern crate elf;
 extern crate jit_generated;
 
+mod compiler;
 pub mod device;
 mod error;
 mod flatbuf;
 mod mem;
 mod operators;
+mod subgraph_llvm;

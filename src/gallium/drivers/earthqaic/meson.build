@@ -136,6 +136,12 @@ dep_flatbuffers_rust = dependency('flatbuffers_rust',
   required : true,
 )
 
+dep_llvm_sys = dependency('llvm_sys',
+  version : '>= 201.0.1',
+  fallback : ['llvm-sys-201-rs', 'dep_llvm_sys'],
+  required : true,
+)
+
 dep_rustlibc = dependency('libc',
   version : '>= 0.2.168',
   fallback : ['libc-0.2-rs', 'dep_libc'],
@@ -191,13 +197,83 @@ prog_ar = find_program('ar', required: true)
 ### constantsdesc.bin, md_struct.bin). Needs clang/clang++/flatc above.
 subdir('qshim')
 
+### Hexagon library
+hexagon_args = [
+    '--target=hexagon-unknown-elf',
+    '-ffreestanding',
+    '-fno-builtin',
+    '-nostdlib',
+    '-mv68',
+    '-mhvx=v68',
+    '-mllvm', '--disable-hexagon-amodeopt',
+    '-mllvm', '-hexagon-commgep=false',
+    '-mhvx-ieee-fp',
+    '-fPIC',
+]
+
+hexagon_dfdiv_o = custom_target(
+  'hexagon_dfdiv_o',
+  input: [
+    'hexagon/dfdiv.S',
+  ],
+  output: 'dfdiv.o',
+  command: [
+    prog_clang,
+    hexagon_args,
+    '-c', '@INPUT@',
+    '-o', '@OUTPUT@',
+  ],
+)
+
+hexagon_libm_o = custom_target(
+  'hexagon_libm_o',
+  input: [
+    'hexagon/libm.c',
+  ],
+  output: 'libm.o',
+  command: [
+    prog_clang,
+    hexagon_args,
+    '-c', '@INPUT@',
+    '-o', '@OUTPUT@',
+  ],
+)
+
+libhexagon_a = custom_target(
+  'libhexagon_a',
+  input: [hexagon_dfdiv_o, hexagon_libm_o],
+  output: 'libhexagon.a',
+  command: [prog_ar, 'rcs', '@OUTPUT@', '@INPUT@'],
+  build_by_default: true,
+  install: true,
+  install_dir: driver_install_dir,
+)
+
+### Teflon operations
+tensor_ops_o = custom_target(
+  'tensor_ops_o',
+  input: 'teflon_ops/tensor_ops.cpp',
+  output: 'tensor_ops.o',
+  command: [
+    prog_clangxx,
+    hexagon_args,
+    '-I' + meson.current_source_dir() / 'qaic/c_inc/jit',
+    '-I' + meson.current_source_dir() / 'teflon_ops',
+    '-c', '@INPUT@',
+    '-o', '@OUTPUT@',
+  ],
+  build_by_default: true,
+  install: true,
+  install_dir: driver_install_dir,
+)
+
 ### Earthqaic driver
 libearthqaic = static_library(
     'earthqaic',
     files('lib.rs'),
     gnu_symbol_visibility : 'hidden',
     rust_abi : 'c',
-    dependencies : [dep_elf_rs, dep_flatbuffers_rust, dep_rustlibc],
+    dependencies : [dep_elf_rs, dep_flatbuffers_rust, dep_llvm_sys, dep_rustlibc],
     link_with : [_libearthqaic_rs_bindings, _libqaic_rs_bindings, _libjit_generated, libdriver_dirs],
 )
 

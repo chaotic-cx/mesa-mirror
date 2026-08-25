@@ -4,6 +4,7 @@
  */
 
 use crate::earthqaic_device::EarthqaicResource;
+use crate::earthqaic_ml::EarthqaicMLSubgraph;
 use crate::jit;
 use crate::jit::error::JitError;
 use crate::jit::flatbuf::*;
@@ -118,6 +119,38 @@ impl JitDevice {
                 self.mem.base + self.mem.size,
             );
         }
+    }
+
+    fn compile_operator(
+        &mut self,
+        operator_buf: &mut Vec<u8>,
+        entry_symbol: &str,
+    ) -> Result<(Vec<u8>, ElfData), JitError> {
+        let qsymtab = read_qshim_symbols();
+        let mut updated_operator_buf = operator_buf.clone();
+        let elf_data = patch_qshim_symbols(
+            operator_buf,
+            &mut updated_operator_buf,
+            qsymtab,
+            entry_symbol,
+        )?;
+
+        if operator_buf.len() != updated_operator_buf.len() {
+            return Err(JitError::MiscError(
+                "Operator compilation failed.".to_string(),
+            ));
+        }
+
+        Ok((updated_operator_buf, elf_data))
+    }
+
+    pub fn compile_subgraph(
+        &mut self,
+        subgraph: &EarthqaicMLSubgraph,
+    ) -> Result<(Vec<u8>, ElfData, String), JitError> {
+        let (mut operator_buf, exe_name) = jit::compiler::compile_subgraph(&subgraph)?;
+        let (operator_buf, elf_data) = self.compile_operator(&mut operator_buf, "subgraph")?;
+        Ok((operator_buf, elf_data, exe_name))
     }
 
     /*

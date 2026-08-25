@@ -1,0 +1,9 @@
+[wrap-file]
+directory = llvm-sys-201.0.1
+source_url = https://crates.io/api/v1/crates/llvm-sys/201.0.1/download
+source_filename = llvm-sys-201.0.1.tar.gz
+source_hash = 9bb947e8b79254ca10d496d0798a9ba1287dcf68e50a92b016fec1cc45bef447
+patch_directory = llvm-sys-201-rs
+
+[provide]
+llvm_sys = dep_llvm_sys
