@@ -34,17 +34,23 @@ _compiler_bindgen_args = [
   '--allowlist-type', 'drm_gem_close',
   '--allowlist-type', 'pipe.*',
   '--allowlist-type', 'renderonly',
-  '--allowlist-function', 'u_default.*',
-  '--allowlist-function', 'util.*',
+  '--allowlist-function', 'drmIoctl',
+  '--allowlist-function', 'pipe_buffer_write',
+  '--allowlist-function', 'pipe_reference_init',
+  '--allowlist-function', 'pipe_resource_reference',
+  '--allowlist-function', 'u_default_buffer_subdata',
+  '--allowlist-function', 'u_default_clear_buffer',
   '--allowlist-function', 'u_init_pipe_screen_caps',
+  '--allowlist-function', 'util_resource_copy_region',
   '--with-derive-default',
-  '--wrap-static-fns',
   '--impl-debug',
+  '--wrap-static-fns-suffix', '_earthqaic_extern',
 ]
 
 _bindings_rs = rust.bindgen(
   input : ['bindings.h'],
   output : 'bindings.rs',
+  output_inline_wrapper : 'inline_wrapper.c',
   dependencies : [
     idep_mesautil,
     idep_nir_headers,
@@ -87,12 +93,26 @@ bindgen_args = [
   '-Aunnecessary_transmutes',
 ]
 
+_libearthqaic_binding_wrappers = static_library(
+  'earthqaic_binding_wrappers',
+  ['bindings.h', _bindings_rs[1]],
+  gnu_symbol_visibility : 'hidden',
+  dependencies: [
+    idep_mesautilformat,
+    idep_nir_headers,
+    dep_libdrm,
+  ],
+  include_directories : [inc_gallium_aux, inc_gallium, inc_include, inc_src],
+  c_args: ['-Wno-missing-prototypes'],
+)
+
 _libearthqaic_rs_bindings = static_library(
   'earthqaic_rs_bindings',
-  _bindings_rs,
+  _bindings_rs[0],
   gnu_symbol_visibility : 'hidden',
   rust_abi : 'rust',
   rust_args : bindgen_args,
+  link_with : [_libearthqaic_binding_wrappers],
 )
 
 _libqaic_rs_bindings = static_library(

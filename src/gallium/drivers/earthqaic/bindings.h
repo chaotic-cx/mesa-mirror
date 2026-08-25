@@ -10,6 +10,7 @@
 #include "pipe/p_context.h"
 #include "pipe/p_defines.h"
 #include "pipe/p_screen.h"
+#include "pipe/p_state.h"
 #include "renderonly/renderonly.h"
 #include "util/ralloc.h"
 #include "util/u_atomic.h"
