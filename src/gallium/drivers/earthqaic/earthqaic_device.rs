@@ -6,6 +6,7 @@
 use std::ffi::{c_void, CString};
 use std::mem::offset_of;
 
+use crate::earthqaic_ml::*;
 use crate::earthqaic_rs_bindings::*;
 use crate::jit::device::JitDevice;
 use crate::qaic;
@@ -19,11 +20,20 @@ pub struct EarthqaicScreen {
     pub fd: i32,
     pub network: qaic::network::Network,
     pub jitdev: JitDevice,
+    pub ml_device: EarthqaicMlDev,
 }
 
 #[repr(C)]
 pub struct EarthqaicContext {
     pub base: pipe_context,
+}
+
+#[repr(C)]
+#[derive(Default)]
+pub struct EarthqaicMlDev {
+    pub base: pipe_ml_device,
+    pub context: *mut EarthqaicContext,
+    pub screen: *mut EarthqaicScreen,
 }
 
 #[repr(C)]
@@ -180,6 +190,11 @@ pub extern "C" fn c_earthqaic_context_create(
             resource_copy_region: Some(util_resource_copy_region),
             buffer_subdata: Some(u_default_buffer_subdata),
             clear_buffer: Some(u_default_clear_buffer),
+
+            // Teflon API
+            ml_subgraph_invoke: Some(earthqaic_ml_subgraph_invoke),
+            ml_subgraph_read_output: Some(earthqaic_ml_subgraph_read_output),
+
             ..Default::default()
         },
     });
@@ -260,6 +275,12 @@ pub extern "C" fn c_earthqaic_get_screen_fd(pscreen: *mut pipe_screen) -> i32 {
     (*escreen).fd
 }
 
+#[no_mangle]
+pub extern "C" fn earthqaic_get_ml_device(pscreen: *mut pipe_screen) -> *mut pipe_ml_device {
+    let escreen: &mut EarthqaicScreen = get_earthqaic_screen!(pscreen);
+    &mut (*escreen).ml_device.base
+}
+
 fn screen_create(fd: i32) -> Result<Box<EarthqaicScreen>, String> {
     let mut status_resp = nnc_cmd_status_query_response_t {
         ..Default::default()
@@ -292,6 +313,7 @@ fn screen_create(fd: i32) -> Result<Box<EarthqaicScreen>, String> {
         context_create: Some(c_earthqaic_context_create),
         resource_create: Some(c_earthqaic_resource_create),
         resource_destroy: Some(c_earthqaic_resource_destroy),
+        get_ml_device: Some(earthqaic_get_ml_device),
         ..Default::default()
     };
 
@@ -304,7 +326,11 @@ fn screen_create(fd: i32) -> Result<Box<EarthqaicScreen>, String> {
         fd: fd,
         network: network,
         jitdev: JitDevice::default(),
+        ml_device: EarthqaicMlDev::default(),
     });
+    escreen.ml_device.base.ml_operation_supported = Some(earthqaic_ml_operation_supported);
+    escreen.ml_device.base.ml_subgraph_create = Some(earthqaic_ml_subgraph_create);
+    escreen.ml_device.base.ml_subgraph_destroy = Some(earthqaic_ml_subgraph_destroy);
     escreen.jitdev = JitDevice::init(fd, &escreen.network).unwrap();
 
     Ok(escreen)
@@ -319,6 +345,7 @@ pub unsafe extern "C" fn earthqaic_screen_create(
     match screen_create(fd) {
         Ok(escreen) => {
             let ptr = Box::into_raw(escreen);
+            (*ptr).ml_device.screen = ptr;
             return &mut (*ptr).pscreen;
         }
         Err(e) => {

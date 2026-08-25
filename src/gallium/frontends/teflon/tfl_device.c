@@ -1753,7 +1753,8 @@ find_accel_device()
 
    for (int i = 0; i < n; i++) {
       if (strstr("rocket", devs[i]->driver_name) ||
-          strstr("ethosu", devs[i]->driver_name))
+          strstr("ethosu", devs[i]->driver_name) ||
+          strstr("qaic", devs[i]->driver_name))
          device = devs[i];
       else
          pipe_loader_release(&devs[i], 1);

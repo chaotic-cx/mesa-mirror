@@ -10,6 +10,7 @@ libteflon = shared_library(
     driver_etnaviv,
     driver_rocket,
     driver_ethosu,
+    driver_earthqaic,
     idep_nir,
     idep_mesautil,
   ],
