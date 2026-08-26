@@ -128,7 +128,7 @@ struct gamma_acceleration_structure {
    char *name = nullptr;
    void *data = nullptr;
 
-   uint32_t *primitive_counts = nullptr;
+   struct gamma_acceleration_structure_geometry_info *geometry_infos = nullptr;
    uint32_t *primitive_counts_exclusive_sum = nullptr;
    uint32_t primitive_count = 0;
 

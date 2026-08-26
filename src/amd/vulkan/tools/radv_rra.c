@@ -1173,10 +1173,12 @@ gamma_dump_acceleration_structure(const struct radv_physical_device *pdev,
    const char *name = vk_object_base_name(&accel_struct->base);
 
    uint64_t bvh_size = radv_header->compacted_size - radv_header->bvh_offset;
+   uint64_t geometry_info_size =
+      radv_header->geometry_count * sizeof(struct gamma_acceleration_structure_geometry_info);
 
    struct gamma_chunk_header chunk_header = {
       .type = gamma_chunk_type_acceleration_structure,
-      .size = sizeof(struct gamma_acceleration_structure_header) + strlen(name) + bvh_size,
+      .size = sizeof(struct gamma_acceleration_structure_header) + geometry_info_size + strlen(name) + bvh_size,
    };
    fwrite(&chunk_header, sizeof(chunk_header), 1, output);
 
@@ -1191,9 +1193,20 @@ gamma_dump_acceleration_structure(const struct radv_physical_device *pdev,
    };
    fwrite(&header, sizeof(header), 1, output);
 
-   struct radv_accel_struct_geometry_info *geometry_infos = (void *)(data + sizeof(struct radv_accel_struct_header));
-   for (uint32_t i = 0; i < radv_header->geometry_count; i++)
-      fwrite(&geometry_infos[i].primitive_count, sizeof(geometry_infos[i].primitive_count), 1, output);
+   uint32_t geometry_infos_offset = 0;
+   if (radv_use_bvh8(pdev))
+      geometry_infos_offset = sizeof(struct radv_accel_struct_header_gfx12);
+   else
+      geometry_infos_offset = sizeof(struct radv_accel_struct_header);
+
+   struct radv_accel_struct_geometry_info *geometry_infos = (void *)(data + geometry_infos_offset);
+   for (uint32_t i = 0; i < radv_header->geometry_count; i++) {
+      struct gamma_acceleration_structure_geometry_info geom_info = {
+         .geometry_flags = geometry_infos[i].flags,
+         .primitive_count = geometry_infos[i].primitive_count,
+      };
+      fwrite(&geom_info, sizeof(geom_info), 1, output);
+   }
 
    fwrite(name, strlen(name), 1, output);
 

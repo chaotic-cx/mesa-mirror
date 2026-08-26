@@ -41,3 +41,8 @@ struct gamma_acceleration_structure_header {
    uint32_t geometry_count;
    uint32_t name_size;
 };
+
+struct gamma_acceleration_structure_geometry_info {
+   uint32_t primitive_count;
+   VkGeometryFlagsKHR geometry_flags;
+};

@@ -101,12 +101,13 @@ gamma_acceleration_structure::load(FILE *file, uint32_t chunk_size)
 {
    fread(&header, sizeof(header), 1, file);
 
-   primitive_counts = (uint32_t *)malloc(header.geometry_count * sizeof(uint32_t));
+   geometry_infos = (gamma_acceleration_structure_geometry_info *)malloc(
+      header.geometry_count * sizeof(gamma_acceleration_structure_geometry_info));
    primitive_counts_exclusive_sum = (uint32_t *)malloc(header.geometry_count * sizeof(uint32_t));
-   fread(primitive_counts, header.geometry_count * sizeof(uint32_t), 1, file);
+   fread(geometry_infos, header.geometry_count * sizeof(gamma_acceleration_structure_geometry_info), 1, file);
    for (uint32_t i = 0; i < header.geometry_count; i++) {
       primitive_counts_exclusive_sum[i] = primitive_count;
-      primitive_count += primitive_counts[i];
+      primitive_count += geometry_infos[i].primitive_count;
    }
 
    name = (char *)malloc(header.name_size + 1);
