@@ -152,6 +152,7 @@ compile_shader(struct anv_device *device,
     */
    struct brw_nir_vectorize_mem_cb_data vectorize_cb_data = {
       .devinfo = device->info,
+      .info = &nir->info,
    };
    nir_load_store_vectorize_options options = {
       .modes = nir_var_mem_ubo | nir_var_mem_ssbo | nir_var_mem_global,
@@ -347,7 +348,7 @@ anv_device_get_internal_shader(struct anv_device *device,
             .name    = "anv-dgc-postprocess-compute",
          },
          .stage      = MESA_SHADER_COMPUTE,
-         .send_count = device->info->verx10 >= 125 ? 11 : 8,
+         .send_count = device->info->verx10 >= 125 ? 14 : 8,
       },
       [ANV_INTERNAL_KERNEL_DGC_RT_COMPUTE] = {
          .key        = {

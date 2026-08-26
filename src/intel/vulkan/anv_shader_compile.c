@@ -1095,6 +1095,7 @@ populate_compile_params_bs(union brw_any_compile_params *params,
    if (nir->info.stage != MESA_SHADER_COMPUTE) {
       struct brw_nir_vectorize_mem_cb_data vectorize_cb_data = {
          .devinfo = devinfo,
+         .info = &nir->info,
       };
       const nir_lower_shader_calls_options opts = {
          .address_format = nir_address_format_64bit_global,

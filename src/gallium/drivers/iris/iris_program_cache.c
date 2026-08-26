@@ -440,6 +440,7 @@ iris_ensure_indirect_generation_shader(struct iris_batch *batch)
     */
    struct brw_nir_vectorize_mem_cb_data cb_data = {
       .devinfo = screen->devinfo,
+      .info = &nir->info,
    };
    nir_load_store_vectorize_options options = {
       .modes = nir_var_mem_ubo | nir_var_mem_ssbo | nir_var_mem_global,

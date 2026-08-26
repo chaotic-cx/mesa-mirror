@@ -357,6 +357,7 @@ enum brw_reg_type brw_type_for_nir_type(const struct intel_device_info *devinfo,
 
 struct brw_nir_vectorize_mem_cb_data {
    const struct intel_device_info *devinfo;
+   const struct shader_info *info;
 };
 
 bool brw_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,

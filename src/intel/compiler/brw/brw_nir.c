@@ -2930,6 +2930,153 @@ brw_nir_link_shaders(const struct brw_compiler *compiler,
    }
 }
 
+static inline bool
+brw_nir_is_stateless_mem_access(nir_intrinsic_op intrin) {
+   switch (intrin) {
+   case nir_intrinsic_load_global:
+   case nir_intrinsic_load_global_intel:
+   case nir_intrinsic_load_global_constant:
+   case nir_intrinsic_load_global_constant_uniform_block_intel:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static inline bool
+brw_nir_is_uniform_block_mem_access(nir_intrinsic_op intrin) {
+   switch (intrin) {
+   case nir_intrinsic_load_ubo_uniform_block_intel:
+   case nir_intrinsic_load_ssbo_uniform_block_intel:
+   case nir_intrinsic_load_shared_uniform_block_intel:
+   case nir_intrinsic_load_global_constant_uniform_block_intel:
+   case nir_intrinsic_load_shader_indirect_data_intel:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static inline bool
+brw_nir_is_urb_mem_access(nir_intrinsic_op intrin) {
+   switch (intrin) {
+   case nir_intrinsic_load_task_payload:
+   case nir_intrinsic_store_task_payload:
+      return true;
+   default:
+      return false;
+   }
+}
+
+struct brw_nir_mem_access_requirements {
+   unsigned scalar_alignment;
+   unsigned vector_alignment;
+   unsigned component_size;
+   unsigned max_components;
+   bool needs_bounds_check;
+   bool uniform_block_access;
+   bool urb_access;
+   bool scratch_access;
+   bool via_lsc;
+   bool is_load;
+};
+
+static inline struct brw_nir_mem_access_requirements
+brw_nir_get_mem_access_requirements(nir_intrinsic_op intrin,
+                                    unsigned byte_size,
+                                    unsigned simd_width,
+                                    const struct intel_device_info *devinfo) {
+   struct brw_nir_mem_access_requirements output;
+
+   output.needs_bounds_check =
+      brw_nir_is_stateless_mem_access(intrin);
+   output.uniform_block_access =
+      brw_nir_is_uniform_block_mem_access(intrin);
+   output.urb_access =
+      brw_nir_is_urb_mem_access(intrin);
+   output.scratch_access =
+      intrin == nir_intrinsic_load_scratch ||
+      intrin == nir_intrinsic_store_scratch;
+   output.via_lsc =
+      output.urb_access ? devinfo->ver >= 20 : devinfo->has_lsc;
+
+   const bool uniform_slm_access =
+      intrin == nir_intrinsic_load_shared_uniform_block_intel;
+   const unsigned scratch_stride = 4 /* TODO */;
+
+   /* The maximum payload size allowed by the hardware. */
+   const unsigned max_payload_size = 256 * reg_unit(devinfo);
+
+   /* The minimum execution size allowed by the hardware. */
+   const unsigned min_execution_size = output.via_lsc ? 16 : 8;
+
+   /* The maximum execution size allowed by the hardware. */
+   const unsigned max_execution_size = output.via_lsc ? 32 : 16;
+
+   /* The maximum number of components allowed by the message type. */
+   const unsigned max_components =
+      byte_size < 4 ? 1 :
+      output.scratch_access ? scratch_stride / byte_size :
+      output.uniform_block_access ? 32 :
+      output.via_lsc ? 8 :
+      output.needs_bounds_check ? 4 : /* A64 messages */
+      output.urb_access ? 4 : /* Legacy task payloads */
+      1;
+
+   /* The execution size for the split message. */
+   const unsigned execution_size =
+      output.uniform_block_access ? 1 :
+      CLAMP(simd_width, min_execution_size, max_execution_size);
+
+   /* The size of each component in the message payload. */
+   output.component_size = MAX2(byte_size, 4) * execution_size;
+
+   /* The maximum number of components that can be used by the message type
+    * with the selected data type at the selected execution size.
+    */
+   output.max_components =
+      MIN2(DIV_ROUND_UP(max_payload_size, output.component_size),
+           max_components);
+
+   /* The address alignment required when loading a single component. */
+   output.scalar_alignment =
+      output.scratch_access ? 1 :
+      output.via_lsc ? (output.uniform_block_access ? byte_size : 1) :
+                       (uniform_slm_access ? 16 :
+                        output.uniform_block_access ? 4 :
+                        1);
+
+   /* The address alignment required when loading multiple components. */
+   output.vector_alignment =
+      output.scratch_access ? scratch_stride :
+      output.urb_access ? 1 : /* TODO: Actually support Xe2 */
+      output.uniform_block_access ? output.scalar_alignment :
+                                    MAX2(output.scalar_alignment, byte_size);
+
+   /* The component size is always aligned to a GRF for non-block loads. */
+   ASSERTED const unsigned grf_size = REG_SIZE * reg_unit(devinfo);
+   assert(!(output.component_size % grf_size) || output.uniform_block_access);
+
+   /* Skip bounds checking if the hardware does not support page faults */
+   output.needs_bounds_check &= devinfo->ver >= 20;
+   output.is_load = nir_intrinsic_infos[intrin].has_dest;
+
+   return output;
+}
+
+static inline bool
+brw_nir_check_mem_access_bounds(const struct intel_device_info *devinfo,
+                                unsigned current_align_mul,
+                                unsigned current_align_offset,
+                                unsigned current_size,
+                                unsigned updated_align_offset,
+                                unsigned updated_size) {
+   assert(updated_align_offset <= current_align_offset);
+   uint32_t mul = MIN2(current_align_mul, devinfo->mem_alignment);
+   unsigned end = current_align_offset + current_size;
+   return updated_align_offset + updated_size <= align(end, mul);
+}
+
 bool
 brw_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
                              unsigned bit_size,
@@ -2948,54 +3095,43 @@ brw_nir_should_vectorize_mem(unsigned align_mul, unsigned align_offset,
    if (bit_size > 32)
       return false;
 
-   bool convergent_block_load =
-      low->intrinsic == nir_intrinsic_load_ubo_uniform_block_intel ||
-      low->intrinsic == nir_intrinsic_load_ssbo_uniform_block_intel ||
-      low->intrinsic == nir_intrinsic_load_shared_uniform_block_intel ||
-      low->intrinsic == nir_intrinsic_load_global_constant_uniform_block_intel ||
-      (low->intrinsic == nir_intrinsic_load_shader_indirect_data_intel &&
-       low->src[0].ssa == high->src[0].ssa);
-
-   unsigned unaligned_size = num_components * bit_size;
-   unsigned aligned_size = convergent_block_load ?
-      brw_uniform_block_size(data->devinfo, num_components) * bit_size :
-      nir_round_up_components(num_components) * bit_size;
-   hole_size += (aligned_size - unaligned_size) / 8;
-
-   if (convergent_block_load) {
-      if (num_components > 4) {
-         if (bit_size != 32)
-            return false;
-
-         if (num_components > 32)
-            return false;
-
-         if (hole_size >= 8 * 4)
-            return false;
-      }
-   } else {
-      /* We can handle at most a vec4 right now.  Anything bigger would get
-       * immediately split by brw_nir_lower_mem_access_bit_sizes anyway.
-       */
-      if (num_components > 4)
-         return false;
-
-      if (hole_size > 4)
-         return false;
-   }
-
-   if (nir_combined_align(align_mul, align_offset) < bit_size / 8)
+   if (low->intrinsic == nir_intrinsic_load_shader_indirect_data_intel &&
+       low->src[0].ssa != high->src[0].ssa)
       return false;
 
-   if (low->intrinsic == nir_intrinsic_load_global ||
-       low->intrinsic == nir_intrinsic_load_global_intel ||
-       low->intrinsic == nir_intrinsic_load_global_constant ||
-       low->intrinsic == nir_intrinsic_load_global_constant_uniform_block_intel) {
-      /* Only increase the size of loads if doing so doesn't extend into a new page. */
-      uint32_t mul = MIN2(align_mul, data->devinfo->mem_alignment);
-      unsigned end = align_offset + unaligned_size / 8;
-      if ((aligned_size - unaligned_size) / 8 > (align(end, mul) - end))
-         return false;
+   assert(bit_size % 8 == 0);
+   const unsigned byte_size = bit_size / 8;
+   const struct brw_nir_mem_access_requirements reqs =
+      brw_nir_get_mem_access_requirements(low->intrinsic, byte_size,
+                                          data->info->min_subgroup_size,
+                                          data->devinfo);
+
+   const unsigned unaligned_size = num_components * byte_size;
+   const unsigned aligned_size = reqs.uniform_block_access ?
+      brw_uniform_block_size(data->devinfo, num_components) * byte_size :
+      nir_round_up_components(num_components) * byte_size;
+   hole_size += aligned_size - unaligned_size;
+
+   const unsigned min_alignment =
+      aligned_size <= byte_size ? reqs.scalar_alignment :
+                                  reqs.vector_alignment;
+   if (nir_combined_align(align_mul, align_offset) < min_alignment)
+      return false;
+
+   /* XXX: The pass can't make progress vectorizing smaller types into larger
+    * ones when we always restrict the number of components to the HW limit.
+    */
+   if (aligned_size >= 4 && aligned_size / byte_size > reqs.max_components)
+      return false;
+
+   if (hole_size > MAX2(aligned_size / 4, 4))
+      return false;
+
+   if (reqs.needs_bounds_check &&
+       !brw_nir_check_mem_access_bounds(data->devinfo, align_mul,
+                                        align_offset, unaligned_size,
+                                        align_offset, aligned_size)) {
+      return false;
    }
 
    return true;
@@ -3042,173 +3178,93 @@ static nir_mem_access_size_align
 get_mem_access_size_align(nir_intrinsic_op intrin, uint8_t bytes,
                           uint8_t bit_size, uint32_t align_mul, uint32_t align_offset,
                           bool offset_is_const, enum gl_access_qualifier access,
-                          const void *cb_data)
+                          const void *_data)
 {
-   const uint32_t align = nir_combined_align(align_mul, align_offset);
-   const struct brw_mem_access_cb_data *mem_cb_data =
-      (struct brw_mem_access_cb_data *)cb_data;
-   const struct intel_device_info *devinfo = mem_cb_data->devinfo;
+   const struct brw_mem_access_cb_data *data = _data;
+   uint32_t combined_align = nir_combined_align(align_mul, align_offset);
 
-   switch (intrin) {
-   case nir_intrinsic_load_ssbo:
-   case nir_intrinsic_load_shared:
-   case nir_intrinsic_load_scratch:
-      /* The offset is constant so we can use a 32-bit load and just shift it
-       * around as needed.
-       */
-      if (align < 4 && offset_is_const) {
-         assert(util_is_power_of_two_nonzero(align_mul) && align_mul >= 4);
-         const unsigned pad = align_offset % 4;
-         const unsigned comps32 = MIN2(DIV_ROUND_UP(bytes + pad, 4), 4);
-         return (nir_mem_access_size_align) {
-            .bit_size = 32,
-            .num_components = comps32,
-            .align = 4,
-            .shift = nir_mem_access_shift_method_scalar,
-         };
+   assert(bit_size % 8 == 0);
+   unsigned byte_size = bit_size / 8;
+
+   /* Any data size below a DWORD can never load/store more than one component
+    * at a time on any of our hardware, so always convert any incoming vector
+    * of several bytes or words into larger scalars.
+    */
+   if (byte_size < 4) {
+      if (combined_align % 4 && bytes > 4) {
+         byte_size = 1 << util_logbase2(combined_align % 4);
+         bytes = byte_size;
+      } else {
+         byte_size = MIN2(1 << util_logbase2(bytes), 4);
+         bytes = ROUND_DOWN_TO(bytes, byte_size);
       }
-      break;
-
-   case nir_intrinsic_load_task_payload:
-      if (bytes < 4 || align < 4) {
-         return (nir_mem_access_size_align) {
-            .bit_size = 32,
-            .num_components = 1,
-            .align = 4,
-            .shift = nir_mem_access_shift_method_scalar,
-         };
-      }
-      break;
-
-   default:
-      break;
    }
 
-   const bool is_load = nir_intrinsic_infos[intrin].has_dest;
-   const bool is_scratch = intrin == nir_intrinsic_load_scratch ||
-                           intrin == nir_intrinsic_store_scratch;
+   for (;;) {
+      const struct brw_nir_mem_access_requirements reqs =
+         brw_nir_get_mem_access_requirements(intrin, byte_size,
+                                             data->info->min_subgroup_size,
+                                             data->devinfo);
+      assert(!reqs.uniform_block_access);
 
-   /* On older platforms, we have URB messages routing through HDC with LSC
-    * support in place. So make sure to use older code path for URB accesses.
-    */
-   const bool urb_access =
-      (intrin == nir_intrinsic_load_task_payload ||
-       intrin == nir_intrinsic_store_task_payload ||
-       intrin == nir_intrinsic_load_urb_lsc_intel ||
-       intrin == nir_intrinsic_store_urb_lsc_intel ||
-       intrin == nir_intrinsic_load_urb_vec4_intel ||
-       intrin == nir_intrinsic_store_urb_vec4_intel);
-   const bool via_lsc = urb_access ? devinfo->ver >= 20 : devinfo->has_lsc;
+      nir_mem_access_size_align output = {
+         .bit_size = byte_size * 8,
+         .num_components = MIN2(DIV_ROUND_UP(bytes, byte_size),
+                                reqs.max_components),
+         .align = bytes <= byte_size ? reqs.scalar_alignment :
+                                       reqs.vector_alignment,
+         .shift = nir_mem_access_shift_method_scalar,
+      };
 
-   if (via_lsc) {
-      /* Data size:           D64
-       * Address alignment:   8
-       * Vector size allowed: 2/3/4/8
+      /* We need a special case for legacy URB access to first maximize
+       * vectorization and then force DWORD access for all reads and writes,
+       * because that's the only size the hardware supports before Xe2. Any
+       * smaller writes to the same DWORD must be vectorized first to not
+       * overwrite each other.
+       *
+       * TODO: Actually support Xe2
        */
-      if (align == 8 && bit_size == 64 && bytes >= 8) {
-         bytes = MIN2(bytes, 64);
-         uint32_t comps = bytes / 8;
+      if (reqs.urb_access) {
+         assert(util_is_power_of_two_nonzero(align_mul) && align_mul >= 4);
 
-         /* We would need to SIMD split for dvec3+ */
-         if (mem_cb_data->info->max_subgroup_size > 16)
-            comps = MIN2(comps, 2);
-
-         return (nir_mem_access_size_align) {
-            .bit_size = 64,
-            .num_components = comps,
-            .align = 8,
-            .shift = nir_mem_access_shift_method_scalar,
-         };
-      }
-
-      if (align < 4 || bytes < 8) {
-         /* Data size:           D8D32,D16D32,D32,D64
-          * Address alignment:   1
-          * Vector size allowed: 1
-          *
-          * When we have bytes 3 or greater than 4 and less than 8, for load,
-          * we can overfetch data but for store, we have only respect what HW
-          * allow us to write at once. For example, for 3 bytes store, we split
-          * it into 2 and next iteration of pass will take care of 1 byte.
-          */
-         bytes = MIN2(bytes, 8);
-         if (bytes == 3)
-            bytes = (is_load && align >= 4) ? 4 : 2;
-         if (bytes > 4 && bytes < 8)
-            bytes = (is_load && align >= 8) ? 8 : 4;
-
-         return (nir_mem_access_size_align) {
-            .bit_size = bytes * 8,
-            .num_components = 1,
-            .align = 1,
-            .shift = nir_mem_access_shift_method_scalar,
-         };
-      } else {
-         /* Data size:           D32
-          * Address alignment:   4
-          * Vector size allowed: 2/3/4/8
-          */
-         bytes = MIN2(bytes, 32);
-         uint32_t comps = bytes / 4;
-
-         /* Reject V5/V6/V7 components and clamp it to supported size. */
-         if (comps > 4 && comps < 8)
-            comps = is_load ? 8 : 4;
-
-         /* We would need to SIMD split for vec8+ */
-         if (mem_cb_data->info->max_subgroup_size > 16)
-            comps = MIN2(4, comps);
-
-         return (nir_mem_access_size_align) {
-            .bit_size = 32,
-            .num_components = is_scratch ? 1 : comps,
-            .align = 4,
-            .shift = nir_mem_access_shift_method_scalar,
-         };
-      }
-   } else {
-      if (align < 4 || bytes < 4) {
-         /* Choose a byte, word, or dword */
-         bytes = MIN2(bytes, 4);
-         if (bytes == 3)
-            bytes = (is_load && align >= 4) ? 4 : 2;
-
-         /* Ensure we split into aligned pieces. We cannot blindly turn an i8vec4
-          * into i32 due to the alignment requirements. It might be possible to
-          * relax this later, though.
-          */
-         bytes = MIN2(bytes, align);
-
-         if (is_scratch) {
-            /* The way scratch address swizzling works in the back-end, it
-             * happens at a DWORD granularity so we can't have a single load
-             * or store cross a DWORD boundary.
-             */
-            if ((align_offset % 4) + bytes > MIN2(align_mul, 4))
-               bytes = MIN2(align_mul, 4) - (align_offset % 4);
-
-            /* Must be a power of two */
-            if (bytes == 3)
-               bytes = 2;
+         if (combined_align < 4 || byte_size != 4) {
+            byte_size = 4;
+            bytes = align(bytes + align_offset % 4, 4);
+            combined_align = MAX2(combined_align, 4);
+            continue;
          }
 
-         return (nir_mem_access_size_align) {
-            .bit_size = bytes * 8,
-            .num_components = 1,
-            .align = MIN2(align, 4),
-            .shift = nir_mem_access_shift_method_scalar,
-         };
-      } else {
-         bytes = MIN2(bytes, 16);
-
-         return (nir_mem_access_size_align) {
-            .bit_size = 32,
-            .num_components = is_scratch ? 1 :
-                              is_load ? DIV_ROUND_UP(bytes, 4) : bytes / 4,
-            .align = 4,
-            .shift = nir_mem_access_shift_method_scalar,
-         };
+         output.align = MAX2(output.align, 4);
       }
+
+      /* We need a special case for scratch access because of the way scratch
+       * address swizzling works in the back-end, its at DWORD granularity so
+       * we can't have a single load or store cross a DWORD boundary.
+       */
+      if (reqs.scratch_access &&
+          (align_offset % 4) + bytes > MIN2(align_mul, 4)) {
+         bytes = MIN2(align_mul, 4) - (align_offset % 4);
+         byte_size = MIN2(1 << util_logbase2(bytes), byte_size);
+         continue;
+      }
+
+      unsigned rounded_components =
+         output.num_components <= 4 ? output.num_components :
+         output.num_components == 5 ? 4 : /* Reject V5->V8 promotions */
+         reqs.is_load ? util_next_power_of_two(output.num_components) :
+                        1 << util_logbase2(output.num_components);
+
+      if (rounded_components > output.num_components &&
+          reqs.needs_bounds_check &&
+          !brw_nir_check_mem_access_bounds(data->devinfo, align_mul,
+                                           align_offset, bytes, align_offset,
+                                           rounded_components * byte_size)) {
+         rounded_components = 1 << util_logbase2(output.num_components);
+      }
+
+      output.num_components = rounded_components;
+
+      return output;
    }
 }
 
@@ -3306,6 +3362,7 @@ brw_vectorize_lower_mem_access(brw_pass_tracker *pt)
 
    struct brw_nir_vectorize_mem_cb_data vectorize_cb_data = {
       .devinfo = devinfo,
+      .info = &pt->nir->info,
    };
    nir_load_store_vectorize_options options = {
       .modes = nir_var_mem_ubo | nir_var_mem_ssbo |
