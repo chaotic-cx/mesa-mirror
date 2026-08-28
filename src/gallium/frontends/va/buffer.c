@@ -204,8 +204,10 @@ VAStatus vlVaMapBuffer2(VADriverContextP ctx, VABufferID buf_id,
 
          if ((buf->extended_metadata.present_metadata & PIPE_VIDEO_FEEDBACK_METADATA_TYPE_ENCODE_RESULT) &&
              (buf->extended_metadata.encode_result & PIPE_VIDEO_FEEDBACK_METADATA_ENCODE_FLAG_FAILED)) {
+            *pbuff = buf->data;
             curr_buf_ptr->status = VA_CODED_BUF_STATUS_BAD_BITSTREAM;
-            return VA_STATUS_ERROR_OPERATION_FAILED;
+            vlVaUnmapBuffer(ctx, buf_id);
+            return VA_STATUS_ERROR_ENCODING_ERROR;
          }
 
          curr_buf_ptr->status = (buf->extended_metadata.average_frame_qp & VA_CODED_BUF_STATUS_PICTURE_AVE_QP_MASK);
