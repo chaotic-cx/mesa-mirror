@@ -692,13 +692,12 @@ emit(struct jay_codegen *jc,
 
 intel_shader_bin *
 jay_to_binary(jay_shader *s,
-              const struct intel_shader_info *info,
               void *const_data,
               size_t const_data_size,
               bool debug)
 {
    intel_shader_bin *bin = rzalloc(s, intel_shader_bin);
-   bin->info = *info;
+   bin->info = s->info;
    void *mem_ctx = ralloc_context(NULL);
 
    int total_gen_insts = 0;

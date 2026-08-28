@@ -2663,10 +2663,16 @@ brw_to_binary(const brw_to_binary_params *p)
    brw_generator g(p->compiler, p->params, prog_data, prog_data->stage);
 
    struct genisa_stats *stats = p->params->stats;
+   const brw_shader *first_shader = NULL;
    for (unsigned i = 0; i < BRW_TO_BINARY_MAX_SHADERS; i++) {
       brw_shader *shader = p->shaders[i];
       if (shader == NULL)
          continue;
+
+      if (first_shader == NULL)
+         first_shader = shader;
+      else
+         assert(shader->info.stage == first_shader->info.stage);
 
       brw_to_binary_emit_shader(g, p, shader, stats, NULL);
 
@@ -2718,7 +2724,9 @@ brw_to_binary(const brw_to_binary_params *p)
 
    intel_shader_bin *bin =
       rzalloc(p->params->mem_ctx, intel_shader_bin);
-   bin->info.stage = prog_data->stage;
+   assert(first_shader != NULL);
+   assert(first_shader->info.stage == prog_data->stage);
+   bin->info = first_shader->info;
    ralloc_steal(bin, (void *)code);
    bin->code = code;
    bin->code_size = prog_data->program_size;

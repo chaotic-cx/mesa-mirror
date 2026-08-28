@@ -155,6 +155,7 @@ brw_shader::brw_shader(const brw_shader_params *params)
      mem_ctx(params->compile_params->mem_ctx),
      cfg(NULL),
      stage(params->nir->info.stage),
+     info(params->info),
      debug_enabled(params->debug_enabled),
      key(params->compile_params->key),
      prog_data(params->compile_params->prog_data),
@@ -170,6 +171,8 @@ brw_shader::brw_shader(const brw_shader_params *params)
      uses_btd_stack_ids(params->compile_params->cs.uses_btd_stack_ids),
      api_subgroup_size(brw_nir_api_subgroup_size(params->nir, dispatch_width))
 {
+   info.stage = stage;
+
    assert(api_subgroup_size == 0 ||
          api_subgroup_size == 8 ||
          api_subgroup_size == 16 ||

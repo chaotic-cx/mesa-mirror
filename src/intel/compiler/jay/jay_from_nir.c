@@ -4979,7 +4979,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
 {
    nir_shader *nir = params->nir;
    union brw_any_prog_data *prog_data = params->prog_data;
-   struct intel_shader_info info = *base_info;
 
    jay_debug = debug_get_option_jay_debug();
    bool debug =
@@ -4999,6 +4998,7 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    }
 
    jay_shader *s = jay_new_shader(NULL, nir->info.stage);
+   s->info = *base_info;
    s->dispatch_width = simd_width;
    s->scratch_size = align(nir->scratch_size, 4) * s->dispatch_width;
    s->devinfo = devinfo;
@@ -5175,8 +5175,7 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    }
 
    intel_shader_bin *bin =
-      jay_to_binary(s, &info, nir->constant_data, nir->constant_data_size,
-                    debug);
+      jay_to_binary(s, nir->constant_data, nir->constant_data_size, debug);
    assert(bin->code);
    ralloc_steal(params->mem_ctx, bin);
    bin->prog_data = &prog_data->base;

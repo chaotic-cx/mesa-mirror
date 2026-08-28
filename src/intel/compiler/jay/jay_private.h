@@ -129,7 +129,6 @@ unsigned jay_latency(jay_shader *s, jay_inst *I, bool bias_acc);
 unsigned jay_estimate_cycles(jay_function *f);
 
 intel_shader_bin *jay_to_binary(jay_shader *s,
-                                const struct intel_shader_info *info,
                                 void *const_data,
                                 size_t const_data_size,
                                 bool debug);

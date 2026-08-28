@@ -56,6 +56,7 @@ struct brw_shader_params
 
    /* This is the NIR specific to the variant being compiled. */
    const nir_shader *nir;
+   struct intel_shader_info info;
    unsigned dispatch_width;
 
    /* Fragment shader. */
@@ -108,6 +109,7 @@ public:
    cfg_t *cfg;
 
    mesa_shader_stage stage;
+   struct intel_shader_info info;
    bool debug_enabled;
 
    /* VGRF allocation. */

@@ -866,6 +866,7 @@ jay_lookup_block(const struct jay_partition *p,
  */
 typedef struct jay_shader {
    mesa_shader_stage stage;
+   struct intel_shader_info info;
    struct list_head functions;
    const struct intel_device_info *devinfo;
    union brw_any_prog_data *prog_data;
