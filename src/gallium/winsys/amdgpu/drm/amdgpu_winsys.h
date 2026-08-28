@@ -126,6 +126,22 @@ enum amdgpu_queue_index {
    AMDGPU_QUEUE_USES_ALT_FENCE = INT_MAX,
 };
 
+static inline enum amdgpu_queue_index amdgpu_ip_to_queue_index(enum amd_ip_type type, unsigned ctx_flags)
+{
+   switch (type) {
+   case AMD_IP_GFX:
+      return  (ctx_flags & (PIPE_CONTEXT_HIGH_PRIORITY | PIPE_CONTEXT_REALTIME_PRIORITY)) ?
+         AMDGPU_QUEUE_GFX_HIGH_PRIO : AMDGPU_QUEUE_GFX;
+   case AMD_IP_COMPUTE:
+      return AMDGPU_QUEUE_COMPUTE;
+   case AMD_IP_SDMA:
+      return AMDGPU_QUEUE_SDMA;
+   default:
+      UNREACHABLE("invalid IP type");
+      return AMDGPU_MAX_QUEUES;
+   }
+}
+
 extern char amdgpu_userq_str[AMDGPU_MAX_QUEUES][8];
 
 /* This can use any integer type because the logic handles integer wraparounds robustly, but

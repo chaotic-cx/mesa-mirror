@@ -878,24 +878,10 @@ amdgpu_cs_create(struct radeon_cmdbuf *rcs,
       acs->queue_index = AMDGPU_QUEUE_USES_ALT_FENCE;
       acs->uses_alt_fence = true;
    } else {
-      switch (ip_type) {
-      case AMD_IP_GFX:
-         if (ctx->flags & (PIPE_CONTEXT_HIGH_PRIORITY | PIPE_CONTEXT_REALTIME_PRIORITY))
-            acs->queue_index = AMDGPU_QUEUE_GFX_HIGH_PRIO;
-         else
-            acs->queue_index = AMDGPU_QUEUE_GFX;
-         break;
-      case AMD_IP_COMPUTE:
-         acs->queue_index = AMDGPU_QUEUE_COMPUTE;
-         break;
-      case AMD_IP_SDMA:
-         acs->queue_index = AMDGPU_QUEUE_SDMA;
-         break;
-      default:
-         UNREACHABLE("invalid IP type");
-      }
 
-      assert(acs->queue_index < AMDGPU_MAX_QUEUES);
+      acs->queue_index = amdgpu_ip_to_queue_index(ip_type, ctx->flags);
+      if (acs->queue_index == AMDGPU_MAX_QUEUES)
+         return false;
    }
 
    ac_drm_cs_chunk_fence_info_to_data(acs->ctx->user_fence_bo_kms_handle, acs->ip_type * 4,
