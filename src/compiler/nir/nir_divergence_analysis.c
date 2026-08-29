@@ -235,6 +235,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
 
    /* Intrinsics which are always uniform */
    case nir_intrinsic_load_preamble:
+   case nir_intrinsic_load_provoking_last:
    case nir_intrinsic_load_push_constant_zink:
    case nir_intrinsic_load_work_dim:
    case nir_intrinsic_load_num_workgroups:
@@ -402,6 +403,12 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_ttmp_register_amd:
    case nir_intrinsic_load_scalar_arg_amd:
    case nir_intrinsic_load_ro_sink_address_poly:
+   case nir_intrinsic_load_input_topology_poly:
+   case nir_intrinsic_load_vs_outputs_poly:
+   case nir_intrinsic_load_vertex_param_buffer_poly:
+   case nir_intrinsic_load_geometry_param_buffer_poly:
+   case nir_intrinsic_load_tess_param_buffer_poly:
+   case nir_intrinsic_load_stat_query_address_poly:
    case nir_intrinsic_load_frame_arg_pan:
    case nir_intrinsic_load_noperspective_varyings_pan:
    case nir_intrinsic_load_multisampled_pan:
@@ -840,6 +847,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_texc2_pan:
    case nir_intrinsic_load_tex_pan:
    case nir_intrinsic_lea_tex_pan:
+   case nir_intrinsic_ro_to_rw_poly:
    case nir_intrinsic_atomic_counter_read:
    case nir_intrinsic_atomic_counter_read_deref:
    case nir_intrinsic_is_sparse_texels_resident:
