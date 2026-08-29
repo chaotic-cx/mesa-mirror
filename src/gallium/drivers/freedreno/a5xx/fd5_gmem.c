@@ -372,6 +372,43 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
    OUT_RING(ring, 0x0);
 }
 
+static void
+patch_fb_read(struct fd_batch *batch)
+{
+   const struct fd_gmem_stateobj *gmem = batch->gmem_state;
+   struct pipe_framebuffer_state *pfb = &batch->framebuffer;
+
+   for (unsigned i = 0; i < fd_patch_num_elements(&batch->fb_read_patches); i++) {
+      struct fd_cs_patch *patch = fd_patch_element(&batch->fb_read_patches, i);
+      unsigned rt = patch->val;
+      struct pipe_surface *psurf = &pfb->cbufs[rt];
+      enum pipe_format format = psurf->format;
+      uint64_t base = batch->ctx->screen->gmem_base + gmem->cbuf_base[rt];
+      uint32_t *d = patch->cs;
+
+      if (!psurf->texture)
+         continue;
+
+      /* gmem holds what the RB wrote, in its own channel order */
+      d[0] = A5XX_TEX_CONST_0_FMT(fd5_pipe2tex(format)) |
+             A5XX_TEX_CONST_0_SAMPLES(fd_msaa_samples(pfb->samples)) |
+             COND(util_format_is_srgb(format), A5XX_TEX_CONST_0_SRGB) |
+             A5XX_TEX_CONST_0_TILE_MODE(TILE5_2) |
+             A5XX_TEX_CONST_0_SWIZ_X(A5XX_TEX_X) |
+             A5XX_TEX_CONST_0_SWIZ_Y(A5XX_TEX_Y) |
+             A5XX_TEX_CONST_0_SWIZ_Z(A5XX_TEX_Z) |
+             A5XX_TEX_CONST_0_SWIZ_W(A5XX_TEX_W);
+      d[1] = A5XX_TEX_CONST_1_WIDTH(pfb->width) |
+             A5XX_TEX_CONST_1_HEIGHT(pfb->height);
+      d[2] = A5XX_TEX_CONST_2_TYPE(A5XX_TEX_2D) |
+             A5XX_TEX_CONST_2_PITCH(gmem->bin_w * gmem->cbuf_cpp[rt]);
+      d[3] = 0;
+      d[4] = (uint32_t)base;
+      d[5] = (uint32_t)(base >> 32) | A5XX_TEX_CONST_5_DEPTH(1);
+   }
+   util_dynarray_clear(&batch->fb_read_patches);
+}
+
 /* before first tile */
 static void
 fd5_emit_tile_init(struct fd_batch *batch) assert_dt
@@ -405,6 +442,7 @@ fd5_emit_tile_init(struct fd_batch *batch) assert_dt
 
    emit_zs(ring, &pfb->zsbuf, batch->gmem_state);
    emit_mrt(ring, pfb->nr_cbufs, pfb->cbufs, batch->gmem_state);
+   patch_fb_read(batch);
 
    /* Enable stream output for the first pass (likely the binning). */
    OUT_PKT4(ring, REG_A5XX_VPC_SO_OVERRIDE, 1);
@@ -544,7 +582,7 @@ emit_mem2gmem_surf(struct fd_batch *batch, uint32_t base,
 }
 
 static void
-fd5_emit_tile_mem2gmem(struct fd_batch *batch, const struct fd_tile *tile)
+fd5_emit_tile_mem2gmem(struct fd_batch *batch, const struct fd_tile *tile) assert_dt
 {
    struct fd_ringbuffer *ring = batch->gmem;
    const struct fd_gmem_stateobj *gmem = batch->gmem_state;
@@ -583,6 +621,10 @@ fd5_emit_tile_mem2gmem(struct fd_batch *batch, const struct fd_tile *tile)
          emit_mem2gmem_surf(batch, gmem->zsbuf_base[0], &pfb->zsbuf, BLIT_ZS);
       if (rsc->stencil && fd_gmem_needs_restore(batch, tile, FD_BUFFER_STENCIL))
          emit_mem2gmem_surf(batch, gmem->zsbuf_base[1], &pfb->zsbuf, BLIT_S);
+   }
+   if (batch->gmem_reason & FD_GMEM_FB_READ) {
+      fd5_event_write(batch, ring, PC_CCU_FLUSH_COLOR_TS, true);
+      fd_wfi(batch, ring);
    }
 }
 

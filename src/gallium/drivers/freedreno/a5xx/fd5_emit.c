@@ -341,14 +341,120 @@ fill_tex_const(const struct fd5_pipe_sampler_view *view, uint32_t *d)
 }
 
 static bool
+emit_textures_indirect(struct fd_context *ctx, struct fd_ringbuffer *ring,
+                       enum a4xx_state_block sb,
+                       struct fd_texture_stateobj *tex, int fb_read_base) assert_dt
+{
+   bool needs_border = false;
+   struct fd5_context *fd5_ctx = fd5_context(ctx);
+   struct pipe_framebuffer_state *pfb = &ctx->batch->framebuffer;
+   /* twelve-dword descriptors at a sixteen-dword stride, 64-byte aligned */
+   const unsigned tex_dwords = 16, samp_dwords = 4;
+   const unsigned fb_slots = fb_read_base >= 0 ? fb_read_base + pfb->nr_cbufs : 0;
+   const unsigned num_textures = MAX2(tex->num_textures, fb_slots);
+   const unsigned con_bytes = align(num_textures * tex_dwords * 4, 64);
+   /* at least one entry, so that TEX_SAMP points inside the buffer */
+   const unsigned samp_bytes =
+      align(MAX2(tex->num_samplers, 1) * samp_dwords * 4, 64);
+   struct pipe_resource *buf = NULL;
+   unsigned off;
+   uint32_t *ptr;
+
+   u_upload_alloc_ref(fd5_ctx->border_color_uploader, 0,
+                      con_bytes + samp_bytes, 64, &off, &buf, (void **)&ptr);
+   memset(ptr, 0, con_bytes + samp_bytes);
+
+   unsigned bcolor_offset =
+      (sb == SB4_FS_TEX) ? ctx->tex[MESA_SHADER_VERTEX].num_samplers : 0;
+
+   uint32_t *con = ptr;
+   uint32_t *samp = ptr + con_bytes / 4;
+   for (unsigned i = 0; i < tex->num_samplers; i++) {
+      static const struct fd5_sampler_stateobj dummy_sampler = {};
+      const struct fd5_sampler_stateobj *s =
+         tex->samplers[i] ? fd5_sampler_stateobj(tex->samplers[i])
+                          : &dummy_sampler;
+      uint32_t *d = samp + i * samp_dwords;
+
+      d[0] = s->texsamp0;
+      d[1] = s->texsamp1;
+      d[2] = s->texsamp2 | A5XX_TEX_SAMP_2_BCOLOR_OFFSET(bcolor_offset + i);
+      d[3] = s->texsamp3;
+      needs_border |= s->needs_border;
+   }
+
+   for (unsigned i = 0; i < tex->num_textures; i++) {
+      static const struct fd5_pipe_sampler_view dummy_view = {};
+      const struct fd5_pipe_sampler_view *view =
+         tex->textures[i] ? fd5_pipe_sampler_view(tex->textures[i])
+                          : &dummy_view;
+      uint32_t *d = con + i * tex_dwords;
+
+      fill_tex_const(view, d);
+      if (view->base.texture) {
+         struct fd_bo *tex_bo = tex_const_bo(view);
+         uint64_t iova = fd_bo_get_iova(tex_bo) + view->offset;
+
+         d[4] = (uint32_t)iova;
+         d[5] |= (uint32_t)(iova >> 32);
+         fd_ringbuffer_attach_bo(ring, tex_bo);
+      }
+   }
+
+   for (unsigned i = fb_read_base; i < fb_slots; i++) {
+      util_dynarray_append_typed(&ctx->batch->fb_read_patches,
+                                 struct fd_cs_patch,
+                                 ((struct fd_cs_patch){
+                                    .cs = con + i * tex_dwords,
+                                    .val = i - fb_read_base,
+                                 }));
+   }
+
+   struct fd_bo *bo = fd_resource(buf)->bo;
+
+   unsigned samp_reg, con_reg;
+   switch (sb) {
+   case SB4_VS_TEX:
+      samp_reg = REG_A5XX_TPL1_VS_TEX_SAMP;
+      con_reg = REG_A5XX_TPL1_VS_TEX_CONST;
+      break;
+   case SB4_FS_TEX:
+      samp_reg = REG_A5XX_TPL1_FS_TEX_SAMP;
+      con_reg = REG_A5XX_TPL1_FS_TEX_CONST;
+      break;
+   case SB4_CS_TEX:
+      samp_reg = REG_A5XX_TPL1_CS_TEX_SAMP;
+      con_reg = REG_A5XX_TPL1_CS_TEX_CONST;
+      break;
+   default:
+      UNREACHABLE("unsupported texture state block");
+   }
+
+   OUT_PKT4(ring, con_reg, 2);
+   OUT_RELOC(ring, bo, off, 0, 0);
+
+   OUT_PKT4(ring, samp_reg, 2);
+   OUT_RELOC(ring, bo, off + con_bytes, 0, 0);
+
+   u_upload_unmap(fd5_ctx->border_color_uploader);
+   pipe_resource_reference(&buf, NULL);
+
+   return needs_border;
+}
+
+static bool
 emit_textures(struct fd_context *ctx, struct fd_ringbuffer *ring,
-              enum a4xx_state_block sb,
-              struct fd_texture_stateobj *tex) assert_dt
+              enum a4xx_state_block sb, struct fd_texture_stateobj *tex,
+              int fb_read_base) assert_dt
 {
    bool needs_border = false;
    unsigned bcolor_offset =
       (sb == SB4_FS_TEX) ? ctx->tex[MESA_SHADER_VERTEX].num_samplers : 0;
    unsigned i;
+
+   /* ir3 fetches the fb with sam.s2en, which reads the table in memory */
+   if (fb_read_base >= 0)
+      return emit_textures_indirect(ctx, ring, sb, tex, fb_read_base);
 
    if (tex->num_samplers > 0) {
       /* output sampler state: */
@@ -908,20 +1014,27 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
 
    if (reload || (ctx->dirty_shader[MESA_SHADER_VERTEX] & FD_DIRTY_SHADER_TEX)) {
       needs_border |=
-         emit_textures(ctx, ring, SB4_VS_TEX, &ctx->tex[MESA_SHADER_VERTEX]);
+         emit_textures(ctx, ring, SB4_VS_TEX, &ctx->tex[MESA_SHADER_VERTEX],
+                       -1);
       OUT_PKT4(ring, REG_A5XX_TPL1_VS_TEX_COUNT, 1);
       OUT_RING(ring, ctx->tex[MESA_SHADER_VERTEX].num_textures);
    }
 
+   if (fp->fb_read)
+      ctx->batch->gmem_reason |= FD_GMEM_FB_READ;
+
+   int fb_read_base = fp->fb_read ? fp->fb_read_base : -1;
+   unsigned fb_slots = fp->fb_read ? fp->fb_read_base + pfb->nr_cbufs : 0;
+
    if (reload || (ctx->dirty_shader[MESA_SHADER_FRAGMENT] & FD_DIRTY_SHADER_TEX)) {
-      needs_border |=
-         emit_textures(ctx, ring, SB4_FS_TEX, &ctx->tex[MESA_SHADER_FRAGMENT]);
+      needs_border |= emit_textures(ctx, ring, SB4_FS_TEX,
+                                    &ctx->tex[MESA_SHADER_FRAGMENT], fb_read_base);
    }
 
    OUT_PKT4(ring, REG_A5XX_TPL1_FS_TEX_COUNT, 1);
    OUT_RING(ring, ctx->shaderimg[MESA_SHADER_FRAGMENT].enabled_mask
                      ? ~0
-                     : ctx->tex[MESA_SHADER_FRAGMENT].num_textures);
+                     : MAX2(ctx->tex[MESA_SHADER_FRAGMENT].num_textures, fb_slots));
 
    OUT_PKT4(ring, REG_A5XX_TPL1_CS_TEX_COUNT, 1);
    OUT_RING(ring, 0);
@@ -948,7 +1061,8 @@ fd5_emit_cs_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
    if (dirty & FD_DIRTY_SHADER_TEX) {
       bool needs_border = false;
       needs_border |=
-         emit_textures(ctx, ring, SB4_CS_TEX, &ctx->tex[MESA_SHADER_COMPUTE]);
+         emit_textures(ctx, ring, SB4_CS_TEX, &ctx->tex[MESA_SHADER_COMPUTE],
+                       -1);
 
       if (needs_border)
          emit_border_color(ctx, ring);

@@ -2641,9 +2641,12 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 	<reg64 offset="0xe706" name="TPL1_TP_BORDER_COLOR_BASE_ADDR" type="address"/>
 
 	<!--
-	so these have the same info that is normally in the CP_LOAD_STATE
-	packets.. not sure if they are normally written by pm4/me or if the
-	CP_LOAD_STATE mechanism is deprecated?
+	These carry the same information as the CP_LOAD_STATE4 packets, but as
+	a pointer to a table in memory rather than a payload: the texture pipe
+	fetches descriptors itself.
+
+	A TEX_CONST entry is twelve dwords but the table strides by sixteen,
+	and the table address is taken at a 64 byte granularity.
 	 -->
 	<reg32 offset="0xe700" name="TPL1_VS_TEX_COUNT" type="uint"/>
 	<reg32 offset="0xe701" name="TPL1_HS_TEX_COUNT" type="uint"/>
