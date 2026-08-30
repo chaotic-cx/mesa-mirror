@@ -65,20 +65,22 @@ typedef enum {
    nir_var_image                 = (1 << 4),
    /** Incoming call or ray payload data for ray-tracing shaders */
    nir_var_shader_call_data_in   = (1 << 5),
+   /** Outgoing call or ray payload data for ray-tracing shaders */
+   nir_var_shader_call_data_out  = (1 << 6),
    /** Ray hit attributes */
-   nir_var_ray_hit_attrib        = (1 << 6),
+   nir_var_ray_hit_attrib        = (1 << 7),
 
    /* Modes named nir_var_mem_* have explicit data layout */
-   nir_var_mem_ubo               = (1 << 7),
-   nir_var_mem_push_const        = (1 << 8),
-   nir_var_mem_ssbo              = (1 << 9),
-   nir_var_mem_constant          = (1 << 10),
-   nir_var_mem_task_payload      = (1 << 11),
-   nir_var_mem_node_payload      = (1 << 12),
-   nir_var_mem_node_payload_in   = (1 << 13),
-   nir_var_mem_pixel_local_in    = (1 << 14),
-   nir_var_mem_pixel_local_out   = (1 << 15),
-   nir_var_mem_pixel_local_inout = (1 << 16),
+   nir_var_mem_ubo               = (1 << 8),
+   nir_var_mem_push_const        = (1 << 9),
+   nir_var_mem_ssbo              = (1 << 10),
+   nir_var_mem_constant          = (1 << 11),
+   nir_var_mem_task_payload      = (1 << 12),
+   nir_var_mem_node_payload      = (1 << 13),
+   nir_var_mem_node_payload_in   = (1 << 14),
+   nir_var_mem_pixel_local_in    = (1 << 15),
+   nir_var_mem_pixel_local_out   = (1 << 16),
+   nir_var_mem_pixel_local_inout = (1 << 17),
 
    nir_var_resource_heap         = (1 << 20),
    nir_var_sampler_heap          = (1 << 21),

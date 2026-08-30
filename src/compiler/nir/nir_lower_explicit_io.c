@@ -151,6 +151,7 @@ build_addr_for_var(nir_builder *b, nir_variable *var,
                             nir_var_mem_task_payload |
                             nir_var_mem_global |
                             nir_var_shader_temp | nir_var_function_temp |
+                            nir_var_shader_call_data_in | nir_var_shader_call_data_out |
                             nir_var_mem_push_const | nir_var_mem_constant));
 
    const nir_address_format base_addr_format =
@@ -709,6 +710,8 @@ build_explicit_io_load(nir_builder *b, nir_intrinsic_instr *intrin,
          break;
       case nir_var_shader_temp:
       case nir_var_function_temp:
+      case nir_var_shader_call_data_in:
+      case nir_var_shader_call_data_out:
          if (addr_format_is_offset(addr_format, mode)) {
             op = nir_intrinsic_load_scratch;
          } else {
@@ -959,6 +962,8 @@ build_explicit_io_store(nir_builder *b, nir_intrinsic_instr *intrin,
          break;
       case nir_var_shader_temp:
       case nir_var_function_temp:
+      case nir_var_shader_call_data_in:
+      case nir_var_shader_call_data_out:
          if (addr_format_is_offset(addr_format, mode)) {
             op = nir_intrinsic_store_scratch;
          } else {
@@ -2006,6 +2011,7 @@ lower_vars_to_explicit(nir_shader *shader,
       break;
    case nir_var_function_temp:
    case nir_var_shader_temp:
+   case nir_var_shader_call_data_out:
       offset = shader->scratch_size;
       break;
    case nir_var_mem_shared:
@@ -2065,6 +2071,7 @@ lower_vars_to_explicit(nir_shader *shader,
       break;
    case nir_var_shader_temp:
    case nir_var_function_temp:
+   case nir_var_shader_call_data_out:
       shader->scratch_size = offset;
       break;
    case nir_var_mem_shared:
@@ -2169,7 +2176,7 @@ nir_lower_vars_to_explicit_types(nir_shader *shader,
    ASSERTED nir_variable_mode supported =
       nir_var_mem_shared | nir_var_mem_global | nir_var_mem_constant |
       nir_var_shader_temp | nir_var_function_temp | nir_var_uniform |
-      nir_var_shader_call_data_in | nir_var_ray_hit_attrib |
+      nir_var_shader_call_data_in | nir_var_shader_call_data_out | nir_var_ray_hit_attrib |
       nir_var_mem_task_payload | nir_var_mem_node_payload |
       nir_var_mem_node_payload_in;
    assert(!(modes & ~supported) && "unsupported");
@@ -2197,6 +2204,8 @@ nir_lower_vars_to_explicit_types(nir_shader *shader,
       progress |= lower_vars_to_explicit(shader, &shader->variables, nir_var_mem_constant, type_info);
    if (modes & nir_var_shader_call_data_in)
       progress |= lower_vars_to_explicit(shader, &shader->variables, nir_var_shader_call_data_in, type_info);
+   if (modes & nir_var_shader_call_data_out)
+      progress |= lower_vars_to_explicit(shader, &shader->variables, nir_var_shader_call_data_out, type_info);
    if (modes & nir_var_ray_hit_attrib)
       progress |= lower_vars_to_explicit(shader, &shader->variables, nir_var_ray_hit_attrib, type_info);
    if (modes & nir_var_mem_task_payload)
