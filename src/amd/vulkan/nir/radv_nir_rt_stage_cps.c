@@ -489,7 +489,7 @@ lower_rt_derefs_cps(nir_shader *shader)
             continue;
 
          nir_deref_instr *deref = nir_instr_as_deref(instr);
-         if (!nir_deref_mode_is(deref, nir_var_shader_call_data))
+         if (!nir_deref_mode_is(deref, nir_var_shader_call_data_in))
             continue;
 
          deref->modes = nir_var_function_temp;
@@ -515,7 +515,7 @@ lower_rt_derefs_cps(nir_shader *shader)
 void
 radv_nir_lower_rt_io_cps(nir_shader *nir)
 {
-   NIR_PASS(_, nir, nir_lower_vars_to_explicit_types, nir_var_function_temp | nir_var_shader_call_data,
+   NIR_PASS(_, nir, nir_lower_vars_to_explicit_types, nir_var_function_temp | nir_var_shader_call_data_in,
             glsl_get_natural_size_align_bytes);
 
    NIR_PASS(_, nir, lower_rt_derefs_cps);

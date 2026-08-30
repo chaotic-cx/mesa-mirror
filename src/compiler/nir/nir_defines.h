@@ -64,7 +64,7 @@ typedef enum {
    nir_var_shader_out            = (1 << 3),
    nir_var_image                 = (1 << 4),
    /** Incoming call or ray payload data for ray-tracing shaders */
-   nir_var_shader_call_data      = (1 << 5),
+   nir_var_shader_call_data_in   = (1 << 5),
    /** Ray hit attributes */
    nir_var_ray_hit_attrib        = (1 << 6),
 

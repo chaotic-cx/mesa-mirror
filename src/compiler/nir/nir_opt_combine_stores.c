@@ -326,7 +326,7 @@ combine_stores_block(struct combine_stores_state *state, nir_block *block)
       case nir_intrinsic_report_ray_intersection:
          combine_stores_with_modes(state, nir_var_mem_ssbo |
                                              nir_var_mem_global |
-                                             nir_var_shader_call_data |
+                                             nir_var_shader_call_data_in |
                                              nir_var_ray_hit_attrib);
          break;
 
@@ -334,7 +334,7 @@ combine_stores_block(struct combine_stores_state *state, nir_block *block)
       case nir_intrinsic_terminate_ray:
          combine_stores_with_modes(state, nir_var_mem_ssbo |
                                              nir_var_mem_global |
-                                             nir_var_shader_call_data);
+                                             nir_var_shader_call_data_in);
          break;
 
       case nir_intrinsic_load_deref: {

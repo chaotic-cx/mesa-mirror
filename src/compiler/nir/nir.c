@@ -251,7 +251,7 @@ nir_shader_add_variable(nir_shader *shader, nir_variable *var)
    case nir_var_system_value:
    case nir_var_mem_push_const:
    case nir_var_mem_constant:
-   case nir_var_shader_call_data:
+   case nir_var_shader_call_data_in:
    case nir_var_ray_hit_attrib:
    case nir_var_mem_task_payload:
    case nir_var_mem_node_payload:

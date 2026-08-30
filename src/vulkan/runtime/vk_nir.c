@@ -329,7 +329,7 @@ vk_spirv_to_nir(struct vk_device *device,
    };
    NIR_PASS(_, nir, nir_remove_dead_variables,
               nir_var_shader_in | nir_var_shader_out | nir_var_system_value |
-              nir_var_shader_call_data | nir_var_ray_hit_attrib,
+              nir_var_shader_call_data_in | nir_var_ray_hit_attrib,
               &dead_vars_opts);
 
    /* This needs to happen after remove_dead_vars because GLSLang likes to

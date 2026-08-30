@@ -624,7 +624,7 @@ lower_rt_instruction(nir_builder *b, nir_instr *instr, void *_vars)
       for (unsigned i = 0; i < DIV_ROUND_UP(vars->payload_size, 4); ++i) {
          args[CHIT_MISS_ARG_PAYLOAD_BASE + i] =
             nir_instr_def(&nir_build_deref_cast(b, nir_load_param(b, TRAVERSAL_ARG_PAYLOAD_BASE + i),
-                                                nir_var_shader_call_data, glsl_uint_type(), 4)
+                                                nir_var_shader_call_data_in, glsl_uint_type(), 4)
                               ->instr);
       }
       nir_build_indirect_call(b, vars->chit_miss_func, sbt_data.shader_addr, param_count, args);
@@ -675,7 +675,7 @@ lower_rt_instruction(nir_builder *b, nir_instr *instr, void *_vars)
       for (unsigned i = 0; i < DIV_ROUND_UP(vars->payload_size, 4); ++i) {
          args[CHIT_MISS_ARG_PAYLOAD_BASE + i] =
             nir_instr_def(&nir_build_deref_cast(b, nir_load_param(b, TRAVERSAL_ARG_PAYLOAD_BASE + i),
-                                                nir_var_shader_call_data, glsl_uint_type(), 4)
+                                                nir_var_shader_call_data_in, glsl_uint_type(), 4)
                               ->instr);
       }
       nir_build_indirect_call(b, vars->chit_miss_func, sbt_data.shader_addr, param_count, args);
@@ -910,7 +910,7 @@ radv_nir_lower_rt_abi_functions(nir_shader *shader, const struct radv_shader_inf
    if (vars.in_payload_base_param != -1u) {
       for (unsigned i = 0; i < DIV_ROUND_UP(payload_size, 4); ++i) {
          payload_in_storage[i] = nir_build_deref_cast(&b, nir_load_param(&b, vars.in_payload_base_param + i),
-                                                      nir_var_shader_call_data, glsl_uint_type(), 4);
+                                                      nir_var_shader_call_data_in, glsl_uint_type(), 4);
       }
    }
    if ((shader->info.stage == MESA_SHADER_INTERSECTION || shader->info.stage == MESA_SHADER_ANY_HIT) &&
@@ -928,7 +928,7 @@ radv_nir_lower_rt_abi_functions(nir_shader *shader, const struct radv_shader_inf
    NIR_PASS(_, shader, radv_nir_lower_rt_storage, hit_attrib_storage, payload_in_storage, vars.out_payload_storage,
             info->wave_size);
    NIR_PASS(_, shader, nir_remove_dead_derefs);
-   NIR_PASS(_, shader, nir_remove_dead_variables, nir_var_function_temp | nir_var_shader_call_data, NULL);
+   NIR_PASS(_, shader, nir_remove_dead_variables, nir_var_function_temp | nir_var_shader_call_data_in, NULL);
    NIR_PASS(_, shader, nir_lower_global_vars_to_local);
    NIR_PASS(_, shader, nir_lower_vars_to_ssa);
 }

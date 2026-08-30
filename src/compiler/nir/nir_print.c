@@ -812,8 +812,8 @@ get_variable_mode_str(nir_variable_mode mode, bool want_local_global_mode)
       return want_local_global_mode ? "shader_temp" : "";
    case nir_var_function_temp:
       return want_local_global_mode ? "function_temp" : "";
-   case nir_var_shader_call_data:
-      return "shader_call_data";
+   case nir_var_shader_call_data_in:
+      return "shader_call_data_in";
    case nir_var_ray_hit_attrib:
       return "ray_hit_attrib";
    case nir_var_mem_task_payload:

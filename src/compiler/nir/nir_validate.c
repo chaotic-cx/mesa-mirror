@@ -2493,7 +2493,7 @@ nir_validate_shader(nir_shader *shader, const char *when)
       nir_var_sampler_heap;
 
    if (mesa_shader_stage_is_callable(shader->info.stage))
-      valid_modes |= nir_var_shader_call_data;
+      valid_modes |= nir_var_shader_call_data_in;
 
    if (shader->info.stage == MESA_SHADER_ANY_HIT ||
        shader->info.stage == MESA_SHADER_CLOSEST_HIT ||

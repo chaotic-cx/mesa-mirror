@@ -222,7 +222,7 @@ gather_vars_written(struct copy_prop_var_state *state,
          case nir_intrinsic_report_ray_intersection:
             written->modes |= nir_var_mem_ssbo |
                               nir_var_mem_global |
-                              nir_var_shader_call_data |
+                              nir_var_shader_call_data_in |
                               nir_var_ray_hit_attrib;
             break;
 
@@ -230,7 +230,7 @@ gather_vars_written(struct copy_prop_var_state *state,
          case nir_intrinsic_terminate_ray:
             written->modes |= nir_var_mem_ssbo |
                               nir_var_mem_global |
-                              nir_var_shader_call_data;
+                              nir_var_shader_call_data_in;
             break;
 
          case nir_intrinsic_cmat_store:
@@ -1113,12 +1113,12 @@ copy_prop_vars_block(struct copy_prop_var_state *state,
          break;
 
       case nir_intrinsic_report_ray_intersection:
-         apply_barrier_for_modes(state, copies, nir_var_mem_ssbo | nir_var_mem_global | nir_var_shader_call_data | nir_var_ray_hit_attrib);
+         apply_barrier_for_modes(state, copies, nir_var_mem_ssbo | nir_var_mem_global | nir_var_shader_call_data_in | nir_var_ray_hit_attrib);
          break;
 
       case nir_intrinsic_ignore_ray_intersection:
       case nir_intrinsic_terminate_ray:
-         apply_barrier_for_modes(state, copies, nir_var_mem_ssbo | nir_var_mem_global | nir_var_shader_call_data);
+         apply_barrier_for_modes(state, copies, nir_var_mem_ssbo | nir_var_mem_global | nir_var_shader_call_data_in);
          break;
 
       case nir_intrinsic_load_deref: {

@@ -112,11 +112,11 @@ lvp_lower_ray_tracing_derefs(nir_shader *shader)
             continue;
 
          nir_deref_instr *deref = nir_instr_as_deref(instr);
-         if (!nir_deref_mode_is_one_of(deref, nir_var_shader_call_data |
+         if (!nir_deref_mode_is_one_of(deref, nir_var_shader_call_data_in |
                                        nir_var_ray_hit_attrib))
             continue;
 
-         bool is_shader_call_data = nir_deref_mode_is(deref, nir_var_shader_call_data);
+         bool is_shader_call_data = nir_deref_mode_is(deref, nir_var_shader_call_data_in);
 
          deref->modes = nir_var_function_temp;
          progress = true;
@@ -173,7 +173,7 @@ lvp_compile_ray_tracing_stages(struct lvp_pipeline *pipeline,
          nir->scratch_size = LVP_RAY_HIT_ATTRIBS_SIZE;
 
       NIR_PASS(_, nir, nir_lower_vars_to_explicit_types,
-               nir_var_function_temp | nir_var_shader_call_data | nir_var_ray_hit_attrib,
+               nir_var_function_temp | nir_var_shader_call_data_in | nir_var_ray_hit_attrib,
                glsl_get_natural_size_align_bytes);
 
       NIR_PASS(_, nir, lvp_lower_ray_tracing_derefs);

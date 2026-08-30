@@ -204,7 +204,7 @@ radv_nir_lower_ray_payload_derefs(nir_shader *shader, uint32_t offset)
 {
    bool progress = radv_nir_lower_rt_vars(shader, nir_var_function_temp, load_outgoing_payload_cb,
                                           store_outgoing_payload_cb, offset);
-   progress |= radv_nir_lower_rt_vars(shader, nir_var_shader_call_data, load_incoming_payload_cb,
+   progress |= radv_nir_lower_rt_vars(shader, nir_var_shader_call_data_in, load_incoming_payload_cb,
                                       store_incoming_payload_cb, offset);
    return progress;
 }

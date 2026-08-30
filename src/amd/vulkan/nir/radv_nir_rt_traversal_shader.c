@@ -1001,7 +1001,7 @@ handle_candidate_triangle(nir_builder *b, struct radv_triangle_intersection *int
          for (unsigned i = 0; i < payload_param_count; ++i) {
             unsigned param_idx = AHIT_ISEC_ARG_HIT_ATTRIB_PAYLOAD_BASE + hit_attrib_param_count + i;
             params[param_idx] = nir_instr_def(&nir_build_deref_cast(b, nir_load_ray_payload_ptr_amd(b, 32, .base = i),
-                                                                    nir_var_shader_call_data, glsl_uint_type(), 4)
+                                                                    nir_var_shader_call_data_in, glsl_uint_type(), 4)
                                                   ->instr);
          }
          nir_build_indirect_call(b, data->ahit_isec_func, sbt_data.shader_addr, param_count, params);
@@ -1168,7 +1168,7 @@ handle_candidate_aabb(nir_builder *b, struct radv_leaf_intersection *intersectio
       for (unsigned i = 0; i < payload_param_count; ++i) {
          unsigned param_idx = AHIT_ISEC_ARG_HIT_ATTRIB_PAYLOAD_BASE + hit_attrib_param_count + i;
          params[param_idx] = nir_instr_def(&nir_build_deref_cast(b, nir_load_ray_payload_ptr_amd(b, 32, .base = i),
-                                                                 nir_var_shader_call_data, glsl_uint_type(), 4)
+                                                                 nir_var_shader_call_data_in, glsl_uint_type(), 4)
                                                ->instr);
       }
       nir_build_indirect_call(b, data->ahit_isec_func, sbt_data.shader_addr, param_count, params);

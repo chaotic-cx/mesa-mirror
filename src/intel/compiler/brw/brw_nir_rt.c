@@ -44,7 +44,7 @@ lower_rt_io_derefs(nir_shader *shader, const struct intel_device_info *devinfo)
    nir_metadata metadata = nir_metadata_all;
 
    unsigned num_shader_call_vars = 0;
-   nir_foreach_variable_with_modes(var, shader, nir_var_shader_call_data)
+   nir_foreach_variable_with_modes(var, shader, nir_var_shader_call_data_in)
       num_shader_call_vars++;
 
    unsigned num_ray_hit_attrib_vars = 0;
@@ -106,7 +106,7 @@ lower_rt_io_derefs(nir_shader *shader, const struct intel_device_info *devinfo)
             continue;
 
          nir_deref_instr *deref = nir_instr_as_deref(instr);
-         if (nir_deref_mode_is(deref, nir_var_shader_call_data)) {
+         if (nir_deref_mode_is(deref, nir_var_shader_call_data_in)) {
             deref->modes = nir_var_function_temp;
             if (deref->deref_type == nir_deref_type_var) {
                b.cursor = nir_before_instr(&deref->instr);
@@ -187,7 +187,7 @@ lower_rt_io_and_scratch(nir_shader *nir, const struct intel_device_info *devinfo
     */
    NIR_PASS(_, nir, nir_lower_vars_to_explicit_types,
               nir_var_function_temp |
-              nir_var_shader_call_data |
+              nir_var_shader_call_data_in |
               nir_var_ray_hit_attrib,
               glsl_get_natural_size_align_bytes);
 
