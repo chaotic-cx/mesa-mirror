@@ -671,17 +671,10 @@ radv_rt_spirv_to_nir(const struct radv_compiler_info *compiler_info, struct radv
 
    NIR_PASS(_, stage->nir, radv_nir_lower_hit_attrib_derefs);
 
-   nir_foreach_variable_with_modes (var, stage->nir, nir_var_shader_call_data_in) {
+   nir_foreach_variable_with_modes (var, stage->nir, nir_var_shader_call_data_in | nir_var_shader_call_data_out) {
       unsigned size, alignment;
       glsl_get_natural_size_align_bytes(var->type, &size, &alignment);
       *payload_size = MAX2(*payload_size, size);
-   }
-   nir_foreach_function_impl (impl, stage->nir) {
-      nir_foreach_variable_in_list (var, &impl->locals) {
-         unsigned size, alignment;
-         glsl_get_natural_size_align_bytes(var->type, &size, &alignment);
-         *payload_size = MAX2(*payload_size, size);
-      }
    }
 
    *info = radv_gather_ray_tracing_stage_info(stage->nir);

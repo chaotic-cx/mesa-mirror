@@ -492,7 +492,6 @@ lower_rt_derefs_cps(nir_shader *shader)
          if (!nir_deref_mode_is(deref, nir_var_shader_call_data_in))
             continue;
 
-         deref->modes = nir_var_function_temp;
          progress = true;
 
          if (deref->deref_type == nir_deref_type_var) {
@@ -503,7 +502,7 @@ lower_rt_derefs_cps(nir_shader *shader)
 
             b.cursor = nir_before_instr(&deref->instr);
             nir_deref_instr *replacement =
-               nir_build_deref_cast(&b, arg_offset, nir_var_function_temp, deref->var->type, 0);
+               nir_build_deref_cast(&b, arg_offset, nir_var_shader_call_data_in, deref->var->type, 0);
             nir_def_replace(&deref->def, &replacement->def);
          }
       }
@@ -515,12 +514,12 @@ lower_rt_derefs_cps(nir_shader *shader)
 void
 radv_nir_lower_rt_io_cps(nir_shader *nir)
 {
-   NIR_PASS(_, nir, nir_lower_vars_to_explicit_types, nir_var_function_temp | nir_var_shader_call_data_in,
+   NIR_PASS(_, nir, nir_lower_vars_to_explicit_types, nir_var_shader_call_data_out | nir_var_shader_call_data_in,
             glsl_get_natural_size_align_bytes);
 
    NIR_PASS(_, nir, lower_rt_derefs_cps);
 
-   NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_function_temp, nir_address_format_32bit_offset);
+   NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_shader_call_data_out | nir_var_shader_call_data_in, nir_address_format_32bit_offset);
 }
 
 void

@@ -134,7 +134,7 @@ radv_nir_lower_rt_vars(nir_shader *shader, nir_variable_mode mode, load_intrin_c
 
    progress |= nir_lower_indirect_derefs_to_if_else_trees(shader, mode, UINT32_MAX);
 
-   if (shader->info.stage == MESA_SHADER_RAYGEN && mode == nir_var_function_temp)
+   if (shader->info.stage == MESA_SHADER_RAYGEN && mode == nir_var_shader_call_data_out)
       progress |= nir_shader_intrinsics_pass(shader, radv_lower_payload_arg_to_offset, nir_metadata_control_flow, NULL);
 
    struct lower_hit_attrib_deref_args args = {
@@ -202,7 +202,7 @@ store_outgoing_payload_cb(nir_builder *b, nir_def *val, unsigned base)
 bool
 radv_nir_lower_ray_payload_derefs(nir_shader *shader, uint32_t offset)
 {
-   bool progress = radv_nir_lower_rt_vars(shader, nir_var_function_temp, load_outgoing_payload_cb,
+   bool progress = radv_nir_lower_rt_vars(shader, nir_var_shader_call_data_out, load_outgoing_payload_cb,
                                           store_outgoing_payload_cb, offset);
    progress |= radv_nir_lower_rt_vars(shader, nir_var_shader_call_data_in, load_incoming_payload_cb,
                                       store_incoming_payload_cb, offset);

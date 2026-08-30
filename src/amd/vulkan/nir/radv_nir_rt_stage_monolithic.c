@@ -225,8 +225,8 @@ preprocess_shader_cb_monolithic(nir_shader *nir, void *_data)
     * space in the register storage. Call nir_lower_vars_to_explicit_types to assign separate locations to payload
     * variables, then lower to load/store instructions which will later be lowered to variable loads/stores.
     */
-   nir_lower_vars_to_explicit_types(nir, nir_var_function_temp, glsl_get_natural_size_align_bytes);
-   nir_lower_vars_to_explicit_types(nir, nir_var_shader_temp, glsl_get_natural_size_align_bytes);
+   nir_lower_vars_to_explicit_types(nir, nir_var_shader_call_data_in, glsl_get_natural_size_align_bytes);
+   nir_lower_vars_to_explicit_types(nir, nir_var_shader_call_data_out, glsl_get_natural_size_align_bytes);
    radv_nir_lower_ray_payload_derefs(nir, *payload_offset);
 }
 

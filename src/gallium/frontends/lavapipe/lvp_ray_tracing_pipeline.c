@@ -173,12 +173,15 @@ lvp_compile_ray_tracing_stages(struct lvp_pipeline *pipeline,
          nir->scratch_size = LVP_RAY_HIT_ATTRIBS_SIZE;
 
       NIR_PASS(_, nir, nir_lower_vars_to_explicit_types,
-               nir_var_function_temp | nir_var_shader_call_data_in | nir_var_ray_hit_attrib,
+               nir_var_function_temp | nir_var_shader_call_data_out | nir_var_shader_call_data_in |
+               nir_var_ray_hit_attrib,
                glsl_get_natural_size_align_bytes);
 
       NIR_PASS(_, nir, lvp_lower_ray_tracing_derefs);
 
-      NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_function_temp, nir_address_format_32bit_offset);
+      NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_function_temp | nir_var_shader_call_data_out, nir_address_format_32bit_offset);
+
+      NIR_PASS(_, nir, nir_remove_dead_variables, nir_var_function_temp | nir_var_shader_call_data_out, NULL);
 
       NIR_PASS(_, nir, nir_shader_intrinsics_pass, lvp_move_ray_tracing_intrinsic,
                nir_metadata_control_flow, NULL);
@@ -385,10 +388,6 @@ lvp_call_ray_tracing_stage(nir_builder *b, struct lvp_ray_tracing_pipeline_compi
                continue;
 
             nir_deref_instr *deref = nir_instr_as_deref(instr);
-            if (deref->deref_type != nir_deref_type_var ||
-                deref->var->data.mode == nir_var_function_temp)
-               continue;
-
             struct hash_entry *entry =
                _mesa_hash_table_search(var_remap, deref->var);
             if (!entry) {
