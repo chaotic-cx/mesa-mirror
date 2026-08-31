@@ -494,8 +494,6 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
       } else {
          is_divergent = true;
       }
-      if (options & nir_divergence_across_subgroups)
-         is_divergent = true;
       break;
    case nir_intrinsic_load_per_vertex_input:
       is_divergent = src_divergent(instr->src[0], state) ||
@@ -505,8 +503,6 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
       if (stage == MESA_SHADER_TESS_EVAL)
          is_divergent |= !(options & nir_divergence_single_patch_per_tes_subgroup);
       else
-         is_divergent = true;
-      if (options & nir_divergence_across_subgroups)
          is_divergent = true;
       break;
    case nir_intrinsic_load_input_vertex:
