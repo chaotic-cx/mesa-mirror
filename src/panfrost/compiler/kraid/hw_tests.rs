@@ -13,9 +13,10 @@ use crate::ir::*;
 use crate::model::{Model, model_for_gpu_id};
 use crate::ops::*;
 use crate::ssa_value::{AllocSSA, SSAValueAllocator};
-use crate::swizzle::AsmSwizzleWiden;
+use crate::swizzle::{AsmSwizzleWiden, SwizzleByte, SwizzleWord};
 use acorn::Acorn;
 use compiler::cfg::CFGBuilder;
+use compiler::enum_as_u8::EnumAsU8;
 use compiler::float16::F16;
 use kraid_hw_runner::{HwError, InvocationInfo, TestRunner};
 use mesa_util::bitview::BitViewable;
@@ -1733,8 +1734,8 @@ fn test_op_iadd() {
         AsmSwizzleWiden::H10,
         AsmSwizzleWiden::H0,
         AsmSwizzleWiden::H1,
-        // AsmSwizzleWiden::W0, // TODO: 64-bit swizzles
-        // AsmSwizzleWiden::W1,
+        AsmSwizzleWiden::W0,
+        // w1 is not supported on src0
     ];
 
     let run = RunSingleton::get();
@@ -1743,7 +1744,7 @@ fn test_op_iadd() {
         if dst_type.bits() == 8 && run.model.arch() > 10 {
             continue;
         }
-        for widen in WIDENS {
+        for &widen in WIDENS {
             let Some(src0_swizzle) = widen.to_swizzle(dst_type) else {
                 continue;
             };
@@ -1925,6 +1926,8 @@ fn test_op_imul() {
         DataType::V2U16,
         DataType::S32,
         DataType::U32,
+        DataType::S64,
+        DataType::U64,
     ];
 
     const WIDENS: &[AsmSwizzleWiden] = &[
@@ -1936,22 +1939,28 @@ fn test_op_imul() {
         AsmSwizzleWiden::H10,
         AsmSwizzleWiden::H0,
         AsmSwizzleWiden::H1,
-        // AsmSwizzleWiden::W0, // TODO: 64-bit swizzles
-        // AsmSwizzleWiden::W1,
+        AsmSwizzleWiden::W0,
+        // w1 is not supported
     ];
 
     for &dst_type in DATA_TYPES {
-        for widen in WIDENS {
+        for &widen in WIDENS {
             let Some(src0_swizzle) = widen.to_swizzle(dst_type) else {
                 continue;
             };
             for saturate in [false, true] {
+                let mut src1 = Src::from(0_u32);
+                // IMUL.64 is a 32x32->64 multiply, None swizzle is not supported
+                if dst_type.bits() == 64 {
+                    if saturate || widen == AsmSwizzleWiden::None {
+                        continue;
+                    }
+                    src1 = src1.swizzle(Swizzle::widen_wx(dst_type, 0));
+                }
+
                 let op = OpIMul {
                     dst: DstRef::None.into(),
-                    srcs: [
-                        Src::from(0_u32).swizzle(src0_swizzle),
-                        0_u32.into(),
-                    ],
+                    srcs: [Src::from(0_u32).swizzle(src0_swizzle), src1],
                     dst_type,
                     saturate,
                 };
@@ -1981,12 +1990,12 @@ fn test_op_isub() {
         AsmSwizzleWiden::H10,
         AsmSwizzleWiden::H0,
         AsmSwizzleWiden::H1,
-        // AsmSwizzleWiden::W0, // TODO: 64-bit swizzles
-        // AsmSwizzleWiden::W1,
+        AsmSwizzleWiden::W0,
+        // w1 is not supported on src0
     ];
 
     for &dst_type in DATA_TYPES {
-        for widen in WIDENS {
+        for &widen in WIDENS {
             let Some(src0_swizzle) = widen.to_swizzle(dst_type) else {
                 continue;
             };
@@ -2095,6 +2104,97 @@ fn test_op_shift_lop() {
                     }
                 }
             }
+        }
+    }
+}
+
+fn sample_swizzle(rng: &mut Acorn, src_type: DataType) -> Option<Swizzle> {
+    let sample_swizzle_byte = |rng: &mut Acorn| match rng.get_u32() % 9 {
+        0 => SwizzleByte::Zero,
+        n @ 1..=4 => SwizzleByte::byte((n - 1) as u8),
+        n => SwizzleByte::sign((n - 5) as u8),
+    };
+
+    let swizzle = match src_type.total_bits() {
+        8 => Swizzle::from_swizzle_bytes([sample_swizzle_byte(rng); 4])?,
+        16 => {
+            let [b0, b1] = std::array::from_fn(|_| sample_swizzle_byte(rng));
+            Swizzle::from_swizzle_bytes([b0, b1, b0, b1])?
+        }
+        32 => Swizzle::from_swizzle_bytes(std::array::from_fn(|_| {
+            sample_swizzle_byte(rng)
+        }))?,
+        64 => {
+            if rng.get_u32() % 2 == 0 {
+                // Word swizzles
+                Swizzle::from_swizzle_words(std::array::from_fn(|_| {
+                    let i =
+                        rng.get_u32() as usize % SwizzleWord::VARIANTS.len();
+                    SwizzleWord::VARIANTS.iter().nth(i).unwrap()
+                }))
+            } else {
+                // Byte swizzles
+                Swizzle::from_swizzle_bytes(std::array::from_fn(|_| {
+                    sample_swizzle_byte(rng)
+                }))?
+            }
+        }
+        _ => panic!("Invalid src_type"),
+    };
+
+    // Swizzle::ZERO is never legal
+    Some(swizzle).filter(|x| *x != Swizzle::ZERO)
+}
+
+#[test]
+fn test_op_swz() {
+    const DATA_TYPES: &[DataType] = &[
+        DataType::I8,
+        DataType::V2I8,
+        DataType::V4I8,
+        DataType::F16,
+        DataType::I16,
+        DataType::V2F16,
+        DataType::V2I16,
+        DataType::F32,
+        DataType::I32,
+        DataType::I64,
+        DataType::S64,
+        DataType::U64,
+    ];
+    const SAMPLES: usize = 64;
+
+    let mut rng = Acorn::new();
+    for &src_type in DATA_TYPES {
+        // OpSwz must be able to handle all hw variants
+        let mut cases: Vec<Swizzle> = AsmSwizzleWiden::VARIANTS
+            .iter()
+            .filter_map(|widen| widen.to_swizzle(src_type))
+            .collect();
+
+        // It should also be able to encode all "weird" variants, let's sample
+        // some at random
+        cases.extend(
+            std::iter::repeat_with(|| sample_swizzle(&mut rng, src_type))
+                .flatten()
+                .take(SAMPLES),
+        );
+
+        if src_type == DataType::F32 {
+            cases.push(Swizzle::HF0);
+            cases.push(Swizzle::HF1);
+        }
+
+        for swizzle in cases {
+            let op = OpSwz {
+                dst: DstRef::None.into(),
+                src_type,
+                src: Src::from(0_u32).swizzle(swizzle),
+            };
+            if !op.src_supports_swizzle(&op.src, swizzle) {
+                continue;
+            }
+            test_foldable_op(op, Precision::Exact);
         }
     }
 }

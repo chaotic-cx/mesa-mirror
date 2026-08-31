@@ -4200,9 +4200,11 @@ impl VirtualOpcode for OpSwz {
         } else if swizzle.is_none() {
             true
         } else if swizzle.is_word_swizzle() {
+            // Word swizzles only exist for 64-bit sources
             self.src_type.bits() == 64
         } else {
-            self.src_type.bits() <= 32
+            // A byte swizzle applies to the low word and extends from there
+            true
         }
     }
 
@@ -4212,6 +4214,13 @@ impl VirtualOpcode for OpSwz {
             16 => DstLanes::ALL_H,
             _ => DstLanesSet::from_array([DstLanes::All]),
         }
+    }
+}
+
+impl Foldable for OpSwz {
+    fn fold(&self, _model: &dyn Model, f: &mut impl FoldDataView) {
+        // get_src() already applies the swizzle
+        f.set_dst(&self.dst, f.get_src(&self.src));
     }
 }
 
