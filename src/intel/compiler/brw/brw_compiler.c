@@ -209,7 +209,7 @@ brw_compiler_create(void *mem_ctx, const struct intel_device_info *devinfo)
 
    if (devinfo->ver < 12)
       nir_options->divergence_analysis_options |=
-         nir_divergence_single_prim_per_subgroup;
+         nir_divergence_single_prim_per_fs_subgroup;
 
    nir_options->has_tanh = devinfo->ver >= 35;
 
@@ -226,7 +226,7 @@ brw_compiler_create(void *mem_ctx, const struct intel_device_info *devinfo)
    compiler->nir_options_fs_single_prim =
       compiler->nir_options[MESA_SHADER_FRAGMENT];
    compiler->nir_options_fs_single_prim.divergence_analysis_options |=
-      nir_divergence_single_prim_per_subgroup;
+      nir_divergence_single_prim_per_fs_subgroup;
 
    compiler->nir_options_cs_uniform_local_id_z =
       compiler->nir_options[MESA_SHADER_COMPUTE];

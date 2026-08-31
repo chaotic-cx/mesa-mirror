@@ -68,7 +68,7 @@ typedef enum {
 } nir_lower_doubles_options;
 
 typedef enum {
-   nir_divergence_single_prim_per_subgroup = (1 << 0),
+   nir_divergence_single_prim_per_fs_subgroup = (1 << 0),
    nir_divergence_single_patch_per_tcs_subgroup = (1 << 1),
    nir_divergence_single_patch_per_tes_subgroup = (1 << 2),
    nir_divergence_view_index_uniform = (1 << 3),
