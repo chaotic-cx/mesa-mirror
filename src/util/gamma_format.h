@@ -38,6 +38,7 @@ struct gamma_acceleration_structure_header {
    uint64_t compacted_size;
    VkAccelerationStructureTypeKHR type;
    VkGeometryTypeKHR geometry_type;
+   VkBuildAccelerationStructureFlagsKHR build_flags;
    uint32_t geometry_count;
    uint32_t name_size;
 };

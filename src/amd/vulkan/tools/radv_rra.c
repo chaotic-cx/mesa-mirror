@@ -1189,6 +1189,7 @@ gamma_dump_acceleration_structure(const struct radv_physical_device *pdev,
       .type = radv_header->type,
       .geometry_type = radv_header->geometry_type,
       .geometry_count = radv_header->geometry_count,
+      .build_flags = radv_header->build_flags,
       .name_size = strlen(name),
    };
    fwrite(&header, sizeof(header), 1, output);
