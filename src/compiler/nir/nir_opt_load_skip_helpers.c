@@ -280,5 +280,9 @@ nir_opt_load_skip_helpers(nir_shader *shader, nir_opt_load_skip_helpers_options 
    nir_instr_worklist_fini(&hs.worklist);
    ralloc_free(hs.needs_helpers);
 
-   return nir_progress(progress, impl, nir_metadata_all);
+   nir_metadata preserved = nir_metadata_all;
+   if (!options->no_add_divergence)
+      preserved &= ~nir_metadata_divergence;
+
+   return nir_progress(progress, impl, preserved);
 }
