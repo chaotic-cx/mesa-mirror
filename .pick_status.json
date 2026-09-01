@@ -524,7 +524,7 @@
         "description": "freedreno/a5xx: don't write a magic 1 to HLSQ_CS_CNTL_1",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "7b55a05159cb1df9a0bc8333360fa583e0715377",
         "notes": null
