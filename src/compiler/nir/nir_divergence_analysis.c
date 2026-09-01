@@ -68,7 +68,7 @@ static bool
 visit_cf_list(struct exec_list *list, struct divergence_state *state);
 
 bool
-nir_def_is_divergent_at_use_block(nir_def *def, nir_block *block)
+nir_def_is_divergent_at_use_block(const nir_def *def, const nir_block *block)
 {
    if (def->divergent)
       return true;

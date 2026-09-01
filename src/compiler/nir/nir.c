@@ -1662,7 +1662,7 @@ nir_src_is_always_uniform(nir_src src)
 }
 
 nir_block *
-nir_src_get_block(nir_src *src)
+nir_src_get_block(const nir_src *src)
 {
    if (nir_src_is_if(src))
       return nir_cf_node_cf_tree_prev(&nir_src_use_if(src)->cf_node);

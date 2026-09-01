@@ -1267,12 +1267,12 @@ nir_src_num_components(nir_src src)
    return src.ssa->num_components;
 }
 
-nir_block *nir_src_get_block(nir_src *src);
+nir_block *nir_src_get_block(const nir_src *src);
 
-bool nir_def_is_divergent_at_use_block(nir_def *def, nir_block *block);
+bool nir_def_is_divergent_at_use_block(const nir_def *def, const nir_block *block);
 
 static inline bool
-nir_src_is_divergent(nir_src *src)
+nir_src_is_divergent(const nir_src *src)
 {
    return nir_def_is_divergent_at_use_block(src->ssa, nir_src_get_block(src));
 }
@@ -3246,7 +3246,7 @@ nir_def_instr(const nir_def *def)
 #endif
 
 static inline nir_block *
-nir_def_block(nir_def *def)
+nir_def_block(const nir_def *def)
 {
    return nir_def_instr(def)->block;
 }
