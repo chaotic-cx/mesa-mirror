@@ -31,6 +31,8 @@ struct jay_compile_params {
    } fs;
 
    debug_archiver *archiver;
+
+   char **error_str;
 };
 
 struct jay_shader_bin *jay_compile(const struct intel_device_info *devinfo,

@@ -5133,6 +5133,11 @@ jay_compile(const struct intel_device_info *devinfo,
    jay_process_nir(devinfo, params, &fs_perprim);
 
    unsigned modes = jay_select_simd(devinfo, nir);
+   if (modes == 0) {
+      *params->error_str =
+         ralloc_strdup(mem_ctx, "No supported SIMD mode for shader");
+      return NULL;
+   }
 
    if (util_bitcount(modes) == 1) {
       return jay_compile_simd(devinfo, params, modes, false, &fs_perprim);

@@ -455,6 +455,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
          .uses_btd_stack_ids = true,
       };
 
+      char *error_str = NULL;
       const unsigned *tramp_data = NULL;
       if (intel_use_jay(device->info, trampoline_nir)) {
          struct jay_compile_params params = {
@@ -463,9 +464,10 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .prog_data = (union brw_any_prog_data *)&trampoline_prog_data,
             .key = (union brw_any_prog_key *)&trampoline_key.key,
             .archiver = debug_archiver,
+            .error_str = &error_str,
          };
          struct jay_shader_bin *bin = jay_compile(device->info, &params);
-         tramp_data = bin->kernel;
+         tramp_data = bin ? bin->kernel : NULL;
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -477,6 +479,16 @@ anv_device_init_rt_shaders(struct anv_device *device)
          };
 
          tramp_data = brw_compile(device->physical->compiler, &params);
+         error_str = params.error_str;
+      }
+
+      if (!tramp_data) {
+         VkResult result =
+            vk_errorf(device, VK_ERROR_UNKNOWN, "%s",
+                      error_str ?: "Shader compilation failed");
+         debug_archiver_close(debug_archiver);
+         ralloc_free(tmp_ctx);
+         return result;
       }
 
       struct anv_shader_upload_params upload_params = {
@@ -531,6 +543,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
                  &return_key.key.base, device->info);
 
       struct brw_bs_prog_data return_prog_data = { 0, };
+      char *error_str = NULL;
       const unsigned *return_data = NULL;
       if (intel_use_jay(device->info, trivial_return_nir)) {
          struct jay_compile_params params = {
@@ -539,9 +552,10 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .key = (union brw_any_prog_key *)&return_key.key,
             .prog_data = (union brw_any_prog_data *)&return_prog_data,
             .archiver = debug_archiver,
+            .error_str = &error_str,
          };
          struct jay_shader_bin *bin = jay_compile(device->info, &params);
-         return_data = bin->kernel;
+         return_data = bin ? bin->kernel : NULL;
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -553,6 +567,16 @@ anv_device_init_rt_shaders(struct anv_device *device)
          };
 
          return_data = brw_compile(device->physical->compiler, &params);
+         error_str = params.error_str;
+      }
+
+      if (!return_data) {
+         VkResult result =
+            vk_errorf(device, VK_ERROR_UNKNOWN, "%s",
+                      error_str ?: "Shader compilation failed");
+         debug_archiver_close(debug_archiver);
+         ralloc_free(tmp_ctx);
+         return result;
       }
 
       struct anv_shader_upload_params upload_params = {
@@ -606,6 +630,7 @@ anv_device_init_rt_shaders(struct anv_device *device)
                  &null_return_key.key.base, device->info);
 
       struct brw_bs_prog_data return_prog_data = { 0, };
+      char *error_str = NULL;
       const unsigned *return_data = NULL;
       if (intel_use_jay(device->info, null_ahs_nir)) {
          struct jay_compile_params params = {
@@ -614,9 +639,10 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .key = (union brw_any_prog_key *)&null_return_key.key,
             .prog_data = (union brw_any_prog_data *)&return_prog_data,
             .archiver = debug_archiver,
+            .error_str = &error_str,
          };
          struct jay_shader_bin *bin = jay_compile(device->info, &params);
-         return_data = bin->kernel;
+         return_data = bin ? bin->kernel : NULL;
       } else {
          struct brw_compile_params params = {
             .mem_ctx = tmp_ctx,
@@ -626,8 +652,17 @@ anv_device_init_rt_shaders(struct anv_device *device)
             .log_data = device,
          };
          return_data = brw_compile(device->physical->compiler, &params);
+         error_str = params.error_str;
       }
 
+      if (!return_data) {
+         VkResult result =
+            vk_errorf(device, VK_ERROR_UNKNOWN, "%s",
+                      error_str ?: "Shader compilation failed");
+         debug_archiver_close(debug_archiver);
+         ralloc_free(tmp_ctx);
+         return result;
+      }
 
       struct anv_shader_upload_params upload_params = {
          .stage               = MESA_SHADER_CALLABLE,

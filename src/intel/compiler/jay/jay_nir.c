@@ -1094,7 +1094,6 @@ jay_select_simd(const struct intel_device_info *devinfo, nir_shader *nir)
    }
 
    unsigned modes = (32 | 16 | 8) & ~unsupported_modes;
-   assert(modes && "some SIMD mode must be supported");
 
    /* Skip undesirable modes when possible */
    if (modes & ~undesirable_modes) {

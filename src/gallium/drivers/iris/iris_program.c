@@ -92,10 +92,11 @@ iris_backend_compile(const struct iris_screen *screen,
          .key = (union brw_any_prog_key *)params->key,
          .prog_data = (union brw_any_prog_data *)params->prog_data,
          .archiver = params->archiver,
+         .error_str = &params->error_str,
       };
       struct jay_shader_bin *bin = jay_compile(devinfo, &jc_params);
 
-      return bin->kernel;
+      return bin ? bin->kernel : NULL;
    } else {
       return brw_compile(screen->brw, params);
    }
