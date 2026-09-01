@@ -80,7 +80,7 @@ cs_program_emit(struct fd_context *ctx, struct fd_ringbuffer *ring, struct ir3_s
                      A5XX_HLSQ_CS_CNTL_0_UNK0(regid(63, 0)) |
                      A5XX_HLSQ_CS_CNTL_0_UNK1(regid(63, 0)) |
                      A5XX_HLSQ_CS_CNTL_0_LOCALIDREGID(local_invocation_id));
-   OUT_RING(ring, 0x1); /* HLSQ_CS_CNTL_1 */
+   OUT_RING(ring, A5XX_HLSQ_CS_CNTL_1_WORKITEMRASTORDER(WORKITEMRASTORDER_LINEAR));
 
    if (instrlen > 0)
       fd5_emit_shader(ring, v);
