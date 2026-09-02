@@ -79,12 +79,6 @@ ok_format_pair(enum pipe_format src, enum pipe_format dst)
    if (src == dst)
       return true;
 
-   /* Above a dword the channel selection stops working: rgba8 -> r8 is
-    * correct but rgba32f -> r32f is not, and neither is r32f -> rg32f.
-    */
-   if (util_format_get_blocksize(src) > 4 || util_format_get_blocksize(dst) > 4)
-      return false;
-
    if (sd->layout != UTIL_FORMAT_LAYOUT_PLAIN ||
        dd->layout != UTIL_FORMAT_LAYOUT_PLAIN)
       return false;
@@ -115,6 +109,71 @@ ok_format_pair(enum pipe_format src, enum pipe_format dst)
    }
 
    return true;
+}
+
+static enum adreno_2d_ifmt
+fd5_ifmt(enum a5xx_color_fmt fmt)
+{
+   switch (fmt) {
+   case RB5_A8_UNORM:
+   case RB5_R8_UNORM:
+   case RB5_R8_SNORM:
+   case RB5_R8G8_UNORM:
+   case RB5_R8G8_SNORM:
+   case RB5_R8G8B8_UNORM:
+   case RB5_R8G8B8A8_UNORM:
+   case RB5_R8G8B8A8_SNORM:
+   case RB5_R4G4B4A4_UNORM:
+   case RB5_R5G5B5A1_UNORM:
+   case RB5_R5G6B5_UNORM:
+   case RB5_R10G10B10A2_UNORM:
+      return R2D_UNORM8;
+
+   case RB5_R32_UINT:
+   case RB5_R32_SINT:
+   case RB5_R32G32_UINT:
+   case RB5_R32G32_SINT:
+   case RB5_R32G32B32A32_UINT:
+   case RB5_R32G32B32A32_SINT:
+      return R2D_INT32;
+
+   case RB5_R16_UINT:
+   case RB5_R16_SINT:
+   case RB5_R16G16_UINT:
+   case RB5_R16G16_SINT:
+   case RB5_R16G16B16A16_UINT:
+   case RB5_R16G16B16A16_SINT:
+   case RB5_R10G10B10A2_UINT:
+      return R2D_INT16;
+
+   case RB5_R8_UINT:
+   case RB5_R8_SINT:
+   case RB5_R8G8_UINT:
+   case RB5_R8G8_SINT:
+   case RB5_R8G8B8A8_UINT:
+   case RB5_R8G8B8A8_SINT:
+      return R2D_INT8;
+
+   case RB5_R16_UNORM:
+   case RB5_R16_SNORM:
+   case RB5_R16G16_UNORM:
+   case RB5_R16G16_SNORM:
+   case RB5_R16G16B16A16_UNORM:
+   case RB5_R16G16B16A16_SNORM:
+   case RB5_R32_FLOAT:
+   case RB5_R32G32_FLOAT:
+   case RB5_R32G32B32A32_FLOAT:
+      return R2D_FLOAT32;
+
+   case RB5_R16_FLOAT:
+   case RB5_R16G16_FLOAT:
+   case RB5_R16G16B16A16_FLOAT:
+   case RB5_R11G11B10_FLOAT:
+      return R2D_FLOAT16;
+
+   default:
+      return R2D_UNORM8;
+   }
 }
 
 static bool
@@ -183,16 +242,21 @@ can_do_blit(const struct pipe_blit_info *info)
 }
 
 static void
-emit_setup(struct fd_ringbuffer *ring)
+emit_setup(struct fd_ringbuffer *ring, enum pipe_format dst_format)
 {
+   enum a5xx_color_fmt dfmt = fd5_pipe2color(dst_format);
+   uint32_t blit_cntl = A5XX_RB_2D_BLIT_CNTL_ROP(ROP_COPY) |
+                        A5XX_RB_2D_BLIT_CNTL_IFMT(fd5_ifmt(dfmt)) |
+                        A5XX_RB_2D_BLIT_CNTL_UNK31;
+
    OUT_PKT4(ring, REG_A5XX_RB_RENDER_CNTL, 1);
    OUT_RING(ring, 0x00000008);
 
    OUT_PKT4(ring, REG_A5XX_RB_2D_BLIT_CNTL, 1);
-   OUT_RING(ring, 0x86000000); /* RB_2D_BLIT_CNTL */
+   OUT_RING(ring, blit_cntl); /* RB_2D_BLIT_CNTL */
 
    OUT_PKT4(ring, REG_A5XX_GRAS_2D_BLIT_CNTL, 1);
-   OUT_RING(ring, 0x86000000); /* 2D_BLIT_CNTL */
+   OUT_RING(ring, blit_cntl); /* 2D_BLIT_CNTL */
 
    OUT_PKT4(ring, REG_A5XX_UNKNOWN_2184, 1);
    OUT_RING(ring, 0x00000009); /* UNKNOWN_2184 */
@@ -478,7 +542,7 @@ fd5_blitter_blit(struct fd_context *ctx,
 
    fd_batch_update_queries(batch);
 
-   emit_setup(batch->draw);
+   emit_setup(batch->draw, info->dst.format);
 
    if ((info->src.resource->target == PIPE_BUFFER) &&
        (info->dst.resource->target == PIPE_BUFFER)) {
