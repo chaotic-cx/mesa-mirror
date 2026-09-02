@@ -26,7 +26,7 @@
 #include "fd6_pack.h"
 #include "fd6_resource.h"
 
-static inline enum a6xx_2d_ifmt
+static inline enum adreno_2d_ifmt
 fd6_ifmt(enum a6xx_format fmt)
 {
    switch (fmt) {
@@ -318,7 +318,7 @@ emit_blit_setup(fd_ncrb<CHIP> &ncrb, enum pipe_format pfmt,
 {
    enum a6xx_format fmt = fd6_color_format(pfmt, TILE6_LINEAR);
    bool is_srgb = util_format_is_srgb(pfmt);
-   enum a6xx_2d_ifmt ifmt = fd6_ifmt(fmt);
+   enum adreno_2d_ifmt ifmt = fd6_ifmt(fmt);
 
    if (is_srgb) {
       assert(ifmt == R2D_UNORM8);
@@ -363,7 +363,7 @@ emit_blit_setup(fd_ncrb<CHIP> &ncrb, enum pipe_format pfmt,
       fmt = FMT6_8_8_8_8_UNORM;
 
 
-   enum a6xx_sp_a2d_output_ifmt_type output_ifmt_type;
+   enum adreno_2d_output_ifmt_type output_ifmt_type;
    if (util_format_is_pure_uint(pfmt))
       output_ifmt_type = OUTPUT_IFMT_2D_UINT;
    else if (util_format_is_pure_sint(pfmt))

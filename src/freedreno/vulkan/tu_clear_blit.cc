@@ -175,7 +175,7 @@ tu_pack_float32_for_d32(float val)
 
 /* r2d_ = BLIT_OP_SCALE operations */
 
-static enum a6xx_2d_ifmt
+static enum adreno_2d_ifmt
 format_to_ifmt(enum pipe_format format)
 {
    if (format == PIPE_FORMAT_Z24_UNORM_S8_UINT ||
@@ -457,7 +457,7 @@ r2d_clear_value(struct tu_cmd_buffer *cmd,
    default:
       assert(!util_format_is_depth_or_stencil(format));
       const struct util_format_description *desc = util_format_description(format);
-      enum a6xx_2d_ifmt ifmt = format_to_ifmt(format);
+      enum adreno_2d_ifmt ifmt = format_to_ifmt(format);
 
       assert(desc->layout == UTIL_FORMAT_LAYOUT_PLAIN ||
              format == PIPE_FORMAT_R11G11B10_FLOAT);
@@ -688,7 +688,7 @@ r2d_setup_common(struct tu_cmd_buffer *cmd,
 
    enum a6xx_format fmt = blit_base_format<CHIP>(dst_format, ubwc, false);
    fixup_dst_format(src_format, &dst_format, &fmt);
-   enum a6xx_2d_ifmt ifmt = format_to_ifmt(dst_format);
+   enum adreno_2d_ifmt ifmt = format_to_ifmt(dst_format);
 
    enum a6xx_a2d_pixel_op pixel_op = PIXEL_OP_DISABLED;
    enum adreno_rb_blend_factor color_src_factor = FACTOR_ZERO;
@@ -748,7 +748,7 @@ r2d_setup_common(struct tu_cmd_buffer *cmd,
    if (fmt == FMT6_10_10_10_2_UNORM_DEST)
       fmt = FMT6_16_16_16_16_FLOAT;
 
-   enum a6xx_sp_a2d_output_ifmt_type output_ifmt_type;
+   enum adreno_2d_output_ifmt_type output_ifmt_type;
    if (util_format_is_pure_uint(dst_format))
       output_ifmt_type = OUTPUT_IFMT_2D_UINT;
    else if (util_format_is_pure_sint(dst_format))
