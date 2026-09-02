@@ -209,6 +209,8 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_warp_id_arm:
    case nir_intrinsic_load_ttmp_register_wg_div_amd:
    case nir_intrinsic_load_scalar_arg_wg_div_amd:
+   case nir_intrinsic_load_gs_wave_id_amd:
+   case nir_intrinsic_load_merged_wave_info_amd:
       /* VS/TES/GS invocations of the same primitive can be in different
        * subgroups, so subgroup ops are always divergent between vertices of
        * the same primitive.
@@ -308,7 +310,6 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_pipeline_stat_query_enabled_amd:
    case nir_intrinsic_load_prim_gen_query_enabled_amd:
    case nir_intrinsic_load_prim_xfb_query_enabled_amd:
-   case nir_intrinsic_load_merged_wave_info_amd:
    case nir_intrinsic_load_clamp_vertex_color_amd:
    case nir_intrinsic_load_cull_face_negative_determinant_enabled_amd:
    case nir_intrinsic_load_cull_face_positive_determinant_enabled_amd:
@@ -335,7 +336,6 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_num_vertices_per_primitive_amd:
    case nir_intrinsic_load_streamout_buffer_amd:
    case nir_intrinsic_load_ordered_id_amd:
-   case nir_intrinsic_load_gs_wave_id_amd:
    case nir_intrinsic_load_provoking_vtx_in_prim_amd:
    case nir_intrinsic_load_lds_ngg_gs_out_vertex_base_amd:
    case nir_intrinsic_load_btd_shader_type_intel:
