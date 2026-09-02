@@ -124,21 +124,22 @@ class Opcode(object):
       return self.const_expr
 
 # helper variables for strings
-tfloat = "float"
-tint = "int"
 tbool = "bool"
+tuint = "uint"
+tint = "int"
+tfloat = "float"
 tbool1 = "bool1"
 tbool32 = "bool32"
-tuint = "uint"
 tuint8 = "uint8"
-tint16 = "int16"
 tuint16 = "uint16"
+tuint32 = "uint32"
+tuint64 = "uint64"
+tint8 = "int8"
+tint16 = "int16"
+tint32 = "int32"
+tint64 = "int64"
 tfloat16 = "float16"
 tfloat32 = "float32"
-tint32 = "int32"
-tuint32 = "uint32"
-tint64 = "int64"
-tuint64 = "uint64"
 tfloat64 = "float64"
 
 _TYPE_SPLIT_RE = re.compile(r'(?P<type>int|uint|float|bool)(?P<bits>\d+)?')
