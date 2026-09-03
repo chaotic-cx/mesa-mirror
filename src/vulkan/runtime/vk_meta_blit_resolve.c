@@ -31,6 +31,7 @@
 #include "vk_render_pass.h"
 
 #include "nir_builder.h"
+#include "nir_format_convert.h"
 
 struct vk_meta_blit_key {
    enum vk_meta_object_key_type key_type;
@@ -39,6 +40,7 @@ struct vk_meta_blit_key {
    VkResolveModeFlagBits resolve_mode;
    VkResolveModeFlagBits stencil_resolve_mode;
    bool stencil_as_discard;
+   bool need_int_clamp;
    VkFormat dst_format;
    VkImageAspectFlags aspects;
 };
@@ -321,6 +323,25 @@ build_blit_shader(const struct vk_meta_blit_key *key)
                                  key->src_samples, resolve_mode);
       }
       val = nir_trim_vector(b, val, out_comps);
+      if (key->need_int_clamp) {
+         enum pipe_format dst_pfmt = vk_format_to_pipe_format(key->dst_format);
+         const struct util_format_description *dst_desc =
+            util_format_description(dst_pfmt);
+         unsigned bits[4];
+         for (int i = 0; i < 4; i++) {
+            bits[i] = dst_desc->channel[i].size;
+            /* empty channels are rejected by nir_format_clamp_*int,
+             * so mark this as having the same number of bits as
+             * the first channel
+             */
+            if (bits[i] == 0)
+               bits[i] = dst_desc->channel[0].size;
+         }
+         if (util_format_is_pure_uint(dst_pfmt))
+            val = nir_format_clamp_uint(b, val, bits);
+         else if (util_format_is_pure_sint(dst_pfmt))
+            val = nir_format_clamp_sint(b, val, bits);
+      }
 
       if (key->stencil_as_discard) {
          assert(key->aspects == VK_IMAGE_ASPECT_STENCIL_BIT);
@@ -750,6 +771,7 @@ vk_meta_blit_image(struct vk_command_buffer *cmd,
    key.src_samples = src_image->samples;
    key.dim = vk_image_sampler_dim(src_image);
    key.dst_format = dst_format;
+   key.need_int_clamp = meta->sw_clamp_int_blits && dst_format != src_format;
 
    for (uint32_t r = 0; r < region_count; r++) {
       struct vk_meta_blit_push_data push = {0};

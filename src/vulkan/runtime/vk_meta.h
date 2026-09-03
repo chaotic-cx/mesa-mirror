@@ -114,6 +114,7 @@ struct vk_meta_device {
    bool use_stencil_export;
 
    bool use_rect_list_pipeline;
+   bool sw_clamp_int_blits;
 
    struct {
       /* Optimal workgroup size for each possible chunk size. This should be
