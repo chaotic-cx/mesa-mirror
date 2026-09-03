@@ -498,12 +498,14 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_per_vertex_input:
       is_divergent = src_divergent(instr->src[0], state) ||
                      src_divergent(instr->src[1], state);
-      if (stage == MESA_SHADER_TESS_CTRL)
+      if (stage == MESA_SHADER_TESS_CTRL) {
          is_divergent |= !(options & nir_divergence_single_patch_per_tcs_subgroup);
-      if (stage == MESA_SHADER_TESS_EVAL)
-         is_divergent |= !(options & nir_divergence_single_patch_per_tes_subgroup);
-      else
+      } else if (stage == MESA_SHADER_TESS_EVAL) {
+         is_divergent |= !(options & nir_divergence_single_patch_per_tes_subgroup) &&
+                         !(options & nir_divergence_vertex);
+      } else {
          is_divergent = true;
+      }
       break;
    case nir_intrinsic_load_input_vertex:
    case nir_intrinsic_load_input_vertex_amd:
@@ -602,12 +604,14 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
       break;
    case nir_intrinsic_load_tess_level_inner:
    case nir_intrinsic_load_tess_level_outer:
-      if (stage == MESA_SHADER_TESS_CTRL)
+      if (stage == MESA_SHADER_TESS_CTRL) {
          is_divergent = !(options & nir_divergence_single_patch_per_tcs_subgroup);
-      else if (stage == MESA_SHADER_TESS_EVAL)
-         is_divergent = !(options & nir_divergence_single_patch_per_tes_subgroup);
-      else
+      } else if (stage == MESA_SHADER_TESS_EVAL) {
+         is_divergent = !(options & nir_divergence_single_patch_per_tes_subgroup) &&
+                        !(options & nir_divergence_vertex);
+      } else {
          UNREACHABLE("Invalid stage for load_primitive_tess_level_*");
+      }
       break;
 
    case nir_intrinsic_load_shared_base_ptr:
