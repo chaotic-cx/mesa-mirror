@@ -661,7 +661,9 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_ldc_nv:
    case nir_intrinsic_ldcx_nv:
       is_divergent = (src_divergent(instr->src[0], state) &&
-                      (nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM)) ||
+                      ((nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM) ||
+                       (state->options & nir_divergence_vertex) ||
+                       (state->options & nir_divergence_across_subgroups))) ||
                      src_divergent(instr->src[1], state);
       break;
 
@@ -670,7 +672,9 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_load_uav_ir3:
    case nir_intrinsic_load_ssbo_intel:
       is_divergent = (src_divergent(instr->src[0], state) &&
-                      (nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM)) ||
+                      ((nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM) ||
+                       (state->options & nir_divergence_vertex) ||
+                       (state->options & nir_divergence_across_subgroups))) ||
                      src_divergent(instr->src[1], state) ||
                      load_may_tear(state, instr);
       break;
@@ -709,7 +713,9 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_deref_buffer_array_length:
    case nir_intrinsic_deref_buffer_address:
       is_divergent = src_divergent(instr->src[0], state) &&
-                     (nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM);
+                     ((nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM) ||
+                      (state->options & nir_divergence_vertex) ||
+                      (state->options & nir_divergence_across_subgroups));
       break;
 
    case nir_intrinsic_image_samples_identical:
@@ -721,7 +727,9 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_bindless_image_fragment_mask_load_amd:
    case nir_intrinsic_image_heap_fragment_mask_load_amd:
       is_divergent = (src_divergent(instr->src[0], state) &&
-                      (nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM)) ||
+                      ((nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM) ||
+                       (state->options & nir_divergence_vertex) ||
+                       (state->options & nir_divergence_across_subgroups))) ||
                      src_divergent(instr->src[1], state) ||
                      load_may_tear(state, instr);
       break;
@@ -731,7 +739,9 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_bindless_image_texel_address:
    case nir_intrinsic_image_heap_texel_address:
       is_divergent = (src_divergent(instr->src[0], state) &&
-                      (nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM)) ||
+                      ((nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM) ||
+                       (state->options & nir_divergence_vertex) ||
+                       (state->options & nir_divergence_across_subgroups))) ||
                      src_divergent(instr->src[1], state) ||
                      src_divergent(instr->src[2], state);
       break;
@@ -746,7 +756,9 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_bindless_image_sparse_load:
    case nir_intrinsic_image_heap_sparse_load:
       is_divergent = (src_divergent(instr->src[0], state) &&
-                      (nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM)) ||
+                      ((nir_intrinsic_access(instr) & ACCESS_NON_UNIFORM) ||
+                       (state->options & nir_divergence_vertex) ||
+                       (state->options & nir_divergence_across_subgroups))) ||
                      src_divergent(instr->src[1], state) ||
                      src_divergent(instr->src[2], state) ||
                      src_divergent(instr->src[3], state) ||
@@ -1218,14 +1230,18 @@ visit_tex(nir_tex_instr *instr, struct divergence_state *state)
       case nir_tex_src_sampler_handle:
       case nir_tex_src_sampler_offset:
          is_divergent |= src_divergent(instr->src[i].src, state) &&
-                         instr->sampler_non_uniform;
+                         (instr->sampler_non_uniform ||
+                          (state->options & nir_divergence_vertex) ||
+                          (state->options & nir_divergence_across_subgroups));
          break;
       case nir_tex_src_texture_deref:
       case nir_tex_src_texture_2_deref:
       case nir_tex_src_texture_handle:
       case nir_tex_src_texture_offset:
          is_divergent |= src_divergent(instr->src[i].src, state) &&
-                         instr->texture_non_uniform;
+                         (instr->texture_non_uniform ||
+                          (state->options & nir_divergence_vertex) ||
+                          (state->options & nir_divergence_across_subgroups));
          break;
       default:
          is_divergent |= src_divergent(instr->src[i].src, state);
