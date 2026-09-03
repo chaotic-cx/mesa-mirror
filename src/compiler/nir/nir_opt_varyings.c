@@ -1722,11 +1722,13 @@ gather_outputs(struct nir_builder *builder, nir_intrinsic_instr *intr, void *cb_
       /* If the store instruction is executed in a divergent block, the value
        * that's stored in the output becomes divergent.
        *
-       * For all shaders except mesh shaders, "divergent" is vertex divergence.
-       * For mesh shaders, it's workgroup divergence.
+       * For all shaders except mesh and geometry shaders, "divergent" is
+       * vertex divergence. For geometry shaders, it's always uniform. For
+       * mesh shaders, it's workgroup divergence.
        */
-      const bool divergent = intr->instr.block->divergent ||
-                             nir_src_is_divergent(&intr->src[0]);
+      const bool divergent = linkage->producer_stage != MESA_SHADER_GEOMETRY &&
+                             (intr->instr.block->divergent ||
+                              nir_src_is_divergent(&intr->src[0]));
 
       if (!out->producer.value.def) {
          /* This is the first store to this output. */
@@ -6072,11 +6074,17 @@ nir_opt_varyings(nir_shader *producer, nir_shader *consumer, bool spirv,
     * divergence information.
     */
    if (consumer->info.stage == MESA_SHADER_FRAGMENT) {
-      nir_divergence_options divergence_options =
-         producer->info.stage == MESA_SHADER_MESH ?
-               nir_divergence_across_subgroups : nir_divergence_vertex;
-
-      nir_custom_divergence_analysis(producer, divergence_options);
+      switch (producer->info.stage) {
+      case MESA_SHADER_MESH:
+         nir_custom_divergence_analysis(producer, nir_divergence_across_subgroups);
+         break;
+      case MESA_SHADER_VERTEX:
+      case MESA_SHADER_TESS_EVAL:
+         nir_custom_divergence_analysis(producer, nir_divergence_vertex);
+         break;
+      default:
+         break;
+      }
    }
 
    /* This also removes dead varyings. */
