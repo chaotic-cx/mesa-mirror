@@ -29,7 +29,7 @@ import mako.template
 import re
 import traceback
 
-from nir_opcodes import opcodes, type_sizes
+from nir_opcodes import opcodes, type_sizes, type_size, type_has_size
 from enum import Enum
 
 
@@ -95,17 +95,8 @@ def is_2src_commutative(op, num_srcs):
            "2src_commutative" in opcodes[op].algebraic_properties
 
 
-_type_re = re.compile(r"(?P<type>int|uint|bool|float)?(?P<bits>\d+)?")
-
-
 def type_bits(type_str):
-    m = _type_re.match(type_str)
-    assert m.group('type')
-
-    if m.group('bits') is None:
-        return 0
-    else:
-        return int(m.group('bits'))
+    return type_size(type_str) if type_has_size(type_str) else 0
 
 # Represents a set of variables, each with a unique id
 
