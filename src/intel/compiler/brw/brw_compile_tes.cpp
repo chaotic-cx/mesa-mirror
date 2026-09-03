@@ -150,15 +150,11 @@ brw_compile_tes(const struct brw_compiler *compiler,
 
    const brw_shader_params shader_params = {
       .compiler                = compiler,
-      .mem_ctx                 = params->mem_ctx,
+      .compile_params          = params,
       .nir                     = nir,
-      .key                     = &key->base,
-      .prog_data               = &prog_data->base.base,
       .dispatch_width          = dispatch_width,
       .needs_register_pressure = params->stats != NULL,
-      .log_data                = params->log_data,
       .debug_enabled           = debug_enabled,
-      .archiver                = params->archiver,
    };
    brw_shader v(&shader_params);
    if (!run_tes(v)) {

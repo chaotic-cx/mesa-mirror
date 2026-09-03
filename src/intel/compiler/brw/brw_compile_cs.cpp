@@ -207,15 +207,11 @@ brw_compile_cs(const struct brw_compiler *compiler,
 
       const brw_shader_params shader_params = {
          .compiler                = compiler,
-         .mem_ctx                 = params->mem_ctx,
+         .compile_params          = params,
          .nir                     = shader,
-         .key                     = &key->base,
-         .prog_data               = &prog_data->base,
          .dispatch_width          = dispatch_width,
          .needs_register_pressure = params->stats != NULL,
-         .log_data                = params->log_data,
          .debug_enabled           = debug_enabled,
-         .archiver                = params->archiver,
       };
       v[simd] = std::make_unique<brw_shader>(&shader_params);
 

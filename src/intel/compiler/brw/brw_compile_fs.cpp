@@ -1354,15 +1354,11 @@ brw_compile_fs(const struct brw_compiler *compiler,
 
    const brw_shader_params base_shader_params = {
       .compiler                = compiler,
-      .mem_ctx                 = params->mem_ctx,
+      .compile_params          = params,
       .nir                     = nir,
-      .key                     = &key->base,
-      .prog_data               = &prog_data->base,
       .per_primitive_offsets   = per_primitive_offsets,
       .needs_register_pressure = params->stats != NULL,
-      .log_data                = params->log_data,
       .debug_enabled           = debug_enabled,
-      .archiver                = params->archiver,
    };
 
    if (min_dispatch_width == 8) {

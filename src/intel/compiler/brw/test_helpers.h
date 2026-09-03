@@ -151,11 +151,17 @@ protected:
       brw_stage_prog_data *pd =
          (struct brw_stage_prog_data *)rzalloc(mem_ctx, brw_any_prog_data);
 
+      /* Owned by mem_ctx, since brw_shader keeps a pointer to it. */
+      brw_compile_params *compile_params =
+         rzalloc(mem_ctx, brw_compile_params);
+      compile_params->mem_ctx   = mem_ctx;
+      compile_params->nir       = nir;
+      compile_params->prog_data = pd;
+
       const brw_shader_params shader_params = {
          .compiler       = compiler,
-         .mem_ctx        = mem_ctx,
+         .compile_params = compile_params,
          .nir            = nir,
-         .prog_data      = pd,
          .dispatch_width = dispatch_width,
       };
       shaders.push_back(std::make_unique<brw_shader>(&shader_params));

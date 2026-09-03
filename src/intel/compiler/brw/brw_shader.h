@@ -52,11 +52,10 @@ enum brw_shader_phase {
 struct brw_shader_params
 {
    const struct brw_compiler *compiler;
-   void *mem_ctx;
+   const struct brw_compile_params *compile_params;
 
+   /* This is the NIR specific to the variant being compiled. */
    const nir_shader *nir;
-   const brw_base_prog_key *key;
-   brw_stage_prog_data *prog_data;
    unsigned dispatch_width;
 
    /* Fragment shader. */
@@ -64,10 +63,7 @@ struct brw_shader_params
    const int *per_primitive_offsets;
 
    bool needs_register_pressure;
-   void *log_data;
    bool debug_enabled;
-
-   debug_archiver *archiver;
 };
 
 struct brw_shader
@@ -94,7 +90,11 @@ public:
    void emit_cs_terminate();
 
    const struct brw_compiler *compiler;
-   void *log_data; /* Passed to compiler->*_log functions */
+
+   /* Parameters for the whole compilation, shared by all the variants.
+    * Valid during the lifetime of this shader.
+    */
+   const struct brw_compile_params * const compile_params;
 
    const struct intel_device_info * const devinfo;
    const nir_shader *nir;
@@ -227,8 +227,6 @@ public:
    unsigned next_address_register_nr;
 
    struct brw_shader_stats shader_stats;
-
-   debug_archiver *archiver;
 
    void debug_optimizer(const nir_shader *nir,
                         const char *pass_name,

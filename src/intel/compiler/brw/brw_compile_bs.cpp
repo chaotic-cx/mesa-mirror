@@ -81,15 +81,11 @@ compile_single_bs(const struct brw_compiler *compiler,
 
    const brw_shader_params shader_params = {
       .compiler                = compiler,
-      .mem_ctx                 = params->mem_ctx,
+      .compile_params          = params,
       .nir                     = shader,
-      .key                     = &key->base,
-      .prog_data               = &prog_data->base,
       .dispatch_width          = required_width,
       .needs_register_pressure = needs_register_pressure,
-      .log_data                = params->log_data,
       .debug_enabled           = debug_enabled,
-      .archiver                = params->archiver,
    };
    auto s = std::make_unique<brw_shader>(&shader_params);
 
