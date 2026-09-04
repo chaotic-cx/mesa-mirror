@@ -59,7 +59,8 @@ draw_impl(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_PKT7(ring, CP_WAIT_FOR_IDLE, 0);
    }
 
-   fd5_emit_render_cntl(ctx, false, emit->binning_pass);
+   fd5_emit_render_cntl(ctx, false, emit->binning_pass,
+                        fd5_emit_get_fp(emit)->fb_read);
    fd5_draw_emit(ctx->batch, ring, primtype,
                  emit->binning_pass ? IGNORE_VISIBILITY : USE_VISIBILITY, info,
                  emit->indirect, emit->draw, index_offset);
@@ -245,7 +246,7 @@ fd5_clear(struct fd_context *ctx, enum fd_buffer_mask buffers,
        is_z32(pfb->zsbuf.format))
       return false;
 
-   fd5_emit_render_cntl(ctx, true, false);
+   fd5_emit_render_cntl(ctx, true, false, false);
 
    if (buffers & FD_BUFFER_COLOR) {
       for (int i = 0; i < pfb->nr_cbufs; i++) {

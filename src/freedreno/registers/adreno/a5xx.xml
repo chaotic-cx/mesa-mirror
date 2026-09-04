@@ -1897,6 +1897,7 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 	 -->
 	<reg32 offset="0xe0a0" name="GRAS_SC_CNTL">
 		<bitfield name="BINNING_PASS" pos="0" type="boolean"/>
+		<bitfield name="FLUSH_PER_OVERLAP" pos="6" type="boolean"/>
 		<bitfield name="SAMPLES_PASSED" pos="15" type="boolean"/>
 	</reg32>
 	<!-- note, 0x4 for binning pass when frag writes z?? -->

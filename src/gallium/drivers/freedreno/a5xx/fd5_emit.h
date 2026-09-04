@@ -171,7 +171,8 @@ fd5_emit_blit(struct fd_batch *batch, struct fd_ringbuffer *ring)
 }
 
 static inline void
-fd5_emit_render_cntl(struct fd_context *ctx, bool blit, bool binning) assert_dt
+fd5_emit_render_cntl(struct fd_context *ctx, bool blit, bool binning,
+                     bool fb_read) assert_dt
 {
    struct fd_ringbuffer *ring =
       binning ? ctx->batch->binning : ctx->batch->draw;
@@ -195,6 +196,7 @@ fd5_emit_render_cntl(struct fd_context *ctx, bool blit, bool binning) assert_dt
    OUT_PKT4(ring, REG_A5XX_GRAS_SC_CNTL, 1);
    OUT_RING(ring, 0x00000008 | /* GRAS_SC_CNTL */
                      COND(binning, A5XX_GRAS_SC_CNTL_BINNING_PASS) |
+                     COND(fb_read, A5XX_GRAS_SC_CNTL_FLUSH_PER_OVERLAP) |
                      COND(samples_passed, A5XX_GRAS_SC_CNTL_SAMPLES_PASSED));
 }
 
