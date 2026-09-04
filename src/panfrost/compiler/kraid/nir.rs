@@ -337,6 +337,16 @@ impl<'a> ShaderFromNir<'a> {
         } else if bits == 16 {
             let ssa = b.copy_i16((imm_u32[0] as u16).into());
             self.set_ssa(&load.def, vec![ssa]);
+        } else if load.def.bit_size == 64 {
+            let mut ssa = Vec::new();
+            for i in 0..load.def.num_components {
+                let off = usize::from(i * 2);
+                let n = u64::from(imm_u32[off])
+                    | (u64::from(imm_u32[off + 1]) << 32);
+                ssa.extend(b.copy_i64(n.into()).iter().copied());
+            }
+
+            self.set_ssa(&load.def, ssa);
         } else {
             self.set_ssa(
                 &load.def,
