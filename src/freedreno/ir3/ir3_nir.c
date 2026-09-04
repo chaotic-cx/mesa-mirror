@@ -599,6 +599,36 @@ ir3_nir_lower_image_processing(nir_shader *shader)
 }
 
 static bool
+lower_fb_read_offset(struct nir_builder *b, nir_instr *instr, void *data)
+{
+   if (instr->type != nir_instr_type_tex)
+      return false;
+
+   nir_tex_instr *tex = nir_instr_as_tex(instr);
+   if (tex->op != nir_texop_txf_ms_fb)
+      return false;
+
+   int coord_idx = nir_tex_instr_src_index(tex, nir_tex_src_coord);
+   b->cursor = nir_before_instr(instr);
+
+   nir_def *coord = tex->src[coord_idx].src.ssa;
+   nir_def *offset = nir_load_frag_offset_ir3(b, nir_imm_int(b, 0), .range = 1);
+   nir_def *xy = nir_isub(b, nir_trim_vector(b, coord, 2), offset);
+   nir_def *comps[3] = { nir_channel(b, xy, 0), nir_channel(b, xy, 1),
+                         nir_channel(b, coord, 2) };
+   nir_src_rewrite(&tex->src[coord_idx].src,
+                   nir_vec(b, comps, coord->num_components));
+   return true;
+}
+
+bool
+ir3_nir_lower_fb_read_offset(nir_shader *shader)
+{
+   return nir_shader_instructions_pass(shader, lower_fb_read_offset,
+                                       nir_metadata_control_flow, NULL);
+}
+
+static bool
 lower_shader_clock(struct nir_builder *b, nir_intrinsic_instr *instr, void *data)
 {
    if (instr->intrinsic != nir_intrinsic_shader_clock)
@@ -1016,6 +1046,8 @@ ir3_nir_post_finalize(struct ir3_shader *shader)
       NIR_PASS(_, s, ir3_nir_lower_load_sample_pos);
       NIR_PASS(_, s, ir3_nir_lower_load_barycentric_at_offset);
       NIR_PASS(_, s, nir_lower_fb_read);
+      if (compiler->gen == 5)
+         NIR_PASS(_, s, ir3_nir_lower_fb_read_offset);
       NIR_PASS(_, s, ir3_nir_lower_layer_id);
       if (!compiler->info->props.shading_rate_matches_vk)
          NIR_PASS(_, s, ir3_nir_lower_frag_shading_rate);
