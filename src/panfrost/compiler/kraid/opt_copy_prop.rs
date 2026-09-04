@@ -392,7 +392,7 @@ impl WordCopies<'_> {
             && words[1].src_ref == words[0].src_ref
         {
             if words[0].swizzle.is_none() {
-                Swizzle::widen_u32(0)
+                Swizzle::widen_s32(0)
             } else {
                 // Byte swizzles are sign-extended when used in 64-bit sources
                 debug_assert!(src.swizzle.is_byte_swizzle());
