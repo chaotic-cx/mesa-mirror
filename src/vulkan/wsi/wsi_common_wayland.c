@@ -1496,7 +1496,11 @@ static const struct wp_presentation_listener presentation_listener = {
 #define MESA_WL_FIXES_VERSION 1
 #endif
 
+#if defined(WP_PRESENTATION_FEEDBACK_KIND_FIXED_RATE_SINCE_VERSION)
+#define MESA_WP_PRESENTATION_VERSION 3
+#else
 #define MESA_WP_PRESENTATION_VERSION 2
+#endif
 
 static void
 registry_handle_global(void *data, struct wl_registry *registry,
@@ -3114,14 +3118,23 @@ presentation_handle_presented(void *data,
    struct wsi_wl_swapchain *chain = id->chain;
    uint64_t target_time = id->target_time;
 
-   /* In v1 of presentation time, we can know if we're likely running VRR, given refresh is 0.
-    * However, we cannot know what the base refresh rate is without some kind of external information.
-    * We also cannot know if we're actually driving the display in a VRR fashion.
-    * In v2, we should always know the "base refresh" rate, but that means we cannot know if we're driving
-    * the display VRR or FRR. We could try to deduce it based on timestamps, but that is too brittle.
-    * There is a v3 proposal that adds this information more formally so we don't have to guess.
-    * Knowing VRR or FRR is not mission critical for most use cases, so just report "Unknown" for now. */
-   wsi_swapchain_present_timing_update_refresh_rate(&chain->base, refresh, 0, 0);
+#if MESA_WP_PRESENTATION_VERSION >= 3
+   if (wp_presentation_get_version(chain->wsi_wl_surface->display->wp_presentation_notwrapped) >= 3) {
+      if (flags & WP_PRESENTATION_FEEDBACK_KIND_FIXED_RATE) {
+         wsi_swapchain_present_timing_update_refresh_rate(&chain->base, refresh, refresh, 1000);
+      } else if (flags & WP_PRESENTATION_FEEDBACK_KIND_VARIABLE_RATE) {
+         wsi_swapchain_present_timing_update_refresh_rate(&chain->base, refresh, UINT64_MAX, 0);
+      } else {
+         /* Just report Unknown if compositor doesn't tell us what kind of refresh rate we're running at. */
+         wsi_swapchain_present_timing_update_refresh_rate(&chain->base, refresh, 0, 0);
+      }
+   } else
+#endif
+   {
+      /* Prior to v3 of presentation time, we can't know if we're running VRR
+       * or FRR so just report "Unknown" instead. */
+      wsi_swapchain_present_timing_update_refresh_rate(&chain->base, refresh, 0, 0);
+   }
 
    /* Convert whatever Wayland provides to swapchain time domain. */
    presentation_time = wsi_wl_convert_wayland_to_swapchain_time(chain, presentation_time, false);
