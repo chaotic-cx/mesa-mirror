@@ -43,7 +43,7 @@ fn src_as_bytes<const N: usize>(src: &Src) -> [Byte; N] {
     } else if N == 2 {
         assert!(src.replicates_half());
     } else if N != 4 {
-        panic!("Invalid mkvec sizze");
+        panic!("Invalid mkvec size");
     }
 
     let mut bytes = [const { Byte::Imm8(0) }; N];
@@ -53,6 +53,12 @@ fn src_as_bytes<const N: usize>(src: &Src) -> [Byte; N] {
             let imm32 = src.swizzle.fold_u32(imm32.get()).unwrap();
             for b in 0..N {
                 bytes[b] = Byte::Imm8((imm32 >> (b * 8)) as u8)
+            }
+        }
+        SrcRef::Imm64(imm64) => {
+            let imm64 = src.swizzle.fold_u64(imm64.get()).unwrap();
+            for b in 0..N {
+                bytes[b] = Byte::Imm8((imm64 >> (b * 8)) as u8)
             }
         }
         _ => {
@@ -420,6 +426,80 @@ fn lower_mkvec_v4i8(b: &mut impl SSABuilder, op: Box<OpMkVecV4I8>) {
     mkvec_vni8(b, op.dst, bytes);
 }
 
+fn lower_swz_64(b: &mut impl SSABuilder, dst: Dst, src: Src) {
+    debug_assert_eq!(dst.lanes, DstLanes::All);
+
+    if let Some(x) = src.resolve_imm(DataType::U64) {
+        // A constant that round-trips through 32 bits is a single widening add
+        let widen = if u32::try_from(x).is_ok() {
+            Some((DataType::U64, Swizzle::widen_u32(0)))
+        } else if i32::try_from(x as i64).is_ok() {
+            Some((DataType::S64, Swizzle::widen_s32(0)))
+        } else {
+            None
+        };
+
+        if let Some((dst_type, swizzle)) = widen {
+            // If this gets promoted, it remains 1 instr (maybe even copy-prop)
+            // Otherwise it'll get legalized.
+            b.push_op(OpIAdd {
+                dst,
+                dst_type,
+                saturate: false,
+                srcs: [0u32.into(), Src::from(x as u32).swizzle(swizzle)],
+            });
+        } else {
+            b.copy_i64_to(dst, x.into());
+        }
+        return;
+    }
+
+    // Lower what we can using IADDs and Copies
+    if try_swizzle_with_copy(b, dst.clone(), src.clone())
+        || try_swizzle_with_iadd(b, dst.clone(), src.clone())
+    {
+        return;
+    }
+
+    // Ok, out of tricks, software implementation:
+    if src.swizzle.is_byte_swizzle() {
+        // Byte swizzle the low word, then widen it.  A byte swizzle on a
+        // 64-bit source sign-extends, see Swizzle::fold_u64().
+        let tmp = b.alloc_ssa(32);
+        mkvec_vni8::<4>(b, tmp.into(), src_as_bytes(&src.word(0)));
+        b.push_op(OpIAdd {
+            dst,
+            dst_type: DataType::S64,
+            saturate: false,
+            srcs: [Src::from(tmp).swizzle(Swizzle::widen_s32(0)), 0u32.into()],
+        });
+        return;
+    }
+    debug_assert!(src.swizzle.is_word_swizzle());
+
+    let words = src.swizzle.as_words().unwrap();
+    let dst_vec = dst.dst_ref.as_ssa().unwrap();
+
+    // Src::word() resolves Zero/WordN to a plain copy and SignN to a Swizzle::S3
+    // that only the ARShift path accepts.
+    for i in 0..2 {
+        let wdst = dst_vec[i];
+
+        // Both halves reading the same thing is one op and a copy
+        if i == 1 && words[1] == words[0] {
+            b.copy_i32_to(wdst.into(), dst_vec[0].into());
+            continue;
+        }
+
+        let wsrc = src.clone().word(i as u8);
+        if !try_swizzle_with_copy(b, wdst.into(), wsrc.clone())
+            && !try_sign_extend_with_arshift(b, wdst.into(), wsrc)
+        {
+            unreachable!("32-bit word swizzle should always lower");
+        }
+    }
+}
+
 fn lower_swz(b: &mut impl SSABuilder, op: Box<OpSwz>) {
     // Handle float widens separately
     if op.src.swizzle == Swizzle::HF0 || op.src.swizzle == Swizzle::HF1 {
@@ -437,7 +517,7 @@ fn lower_swz(b: &mut impl SSABuilder, op: Box<OpSwz>) {
         8 => mkvec_vni8::<1>(b, op.dst, src_as_bytes(&op.src)),
         16 => mkvec_vni8::<2>(b, op.dst, src_as_bytes(&op.src)),
         32 => mkvec_vni8::<4>(b, op.dst, src_as_bytes(&op.src)),
-        64 => todo!("SWZ.i64"),
+        64 => lower_swz_64(b, op.dst, op.src),
         _ => panic!("Invalid OpSwz::src_type: {}", op.src_type),
     }
 }
