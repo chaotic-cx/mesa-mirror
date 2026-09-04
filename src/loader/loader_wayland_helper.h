@@ -55,7 +55,7 @@ struct loader_wayland_presentation {
    struct wp_presentation *presentation;
    clockid_t clock_id;
    struct loader_wayland_surface *wayland_surface;
-   void (*presented_callback)(void *data, uint64_t pres_time, uint32_t refresh);
+   void (*presented_callback)(void *data, uint64_t pres_time, uint32_t refresh, uint32_t flags);
    void (*discarded_callback)(void *data);
    void (*teardown_callback)(void *data);
    struct list_head outstanding_list;
@@ -104,7 +104,7 @@ loader_wayland_wrap_presentation(struct loader_wayland_presentation *lwp,
                                  struct wl_event_queue *queue,
                                  clockid_t presentation_clock_id,
                                  struct loader_wayland_surface *lws,
-                                 void (*presented_callback)(void *data, uint64_t pres_time, uint32_t refresh),
+                                 void (*presented_callback)(void *data, uint64_t pres_time, uint32_t refresh, uint32_t flags),
                                  void (*discarded_callback)(void *data),
                                  void (*teardown_callback)(void *data));
 

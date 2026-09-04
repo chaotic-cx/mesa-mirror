@@ -334,7 +334,7 @@ presentation_handle_presented(void *data,
 
    loader_wayland_trace_present(fd, presentation_time);
    if (pres->presented_callback) {
-      pres->presented_callback(fd->callback_data, presentation_time, refresh);
+      pres->presented_callback(fd->callback_data, presentation_time, refresh, flags);
    }
 
    feedback_fini(fd);
@@ -368,7 +368,7 @@ loader_wayland_wrap_presentation(struct loader_wayland_presentation *lpf,
                                  struct wl_event_queue *queue,
                                  clockid_t presentation_clock_id,
                                  struct loader_wayland_surface *lws,
-                                 void (*presented_callback)(void *data, uint64_t pres_time, uint32_t refresh),
+                                 void (*presented_callback)(void *data, uint64_t pres_time, uint32_t refresh, uint32_t flags),
                                  void (*discarded_callback)(void *data),
                                  void (*teardown_callback)(void *data))
 

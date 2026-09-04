@@ -3107,7 +3107,8 @@ wsi_wl_presentation_update_present_id_locked(struct wsi_wl_present_id *id)
 static void
 presentation_handle_presented(void *data,
                               uint64_t presentation_time,
-                              uint32_t refresh)
+                              uint32_t refresh,
+                              uint32_t flags)
 {
    struct wsi_wl_present_id *id = data;
    struct wsi_wl_swapchain *chain = id->chain;
