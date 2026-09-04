@@ -44,6 +44,21 @@ draw_impl(struct fd_context *ctx, struct fd_ringbuffer *ring,
                      info->restart_index
                                           : 0xffffffff);
 
+   /* in sysmem the fetch reads memory behind the colour cache */
+   if (fd5_emit_get_fp(emit)->fb_read && !emit->binning_pass) {
+      struct fd5_context *fd5_ctx = fd5_context(ctx);
+
+      OUT_PKT7(ring, CP_COND_EXEC, 6);
+      OUT_RELOC(ring, fd5_ctx->fb_read_params,
+                offsetof(struct fd5_fb_read_params, sysmem), 0, 0);
+      OUT_RELOC(ring, fd5_ctx->fb_read_params,
+                offsetof(struct fd5_fb_read_params, timestamp), 0, 0);
+      OUT_RING(ring, 1);
+      OUT_RING(ring, 6);
+      fd5_event_write(ctx->batch, ring, PC_CCU_FLUSH_COLOR_TS, true);
+      OUT_PKT7(ring, CP_WAIT_FOR_IDLE, 0);
+   }
+
    fd5_emit_render_cntl(ctx, false, emit->binning_pass);
    fd5_draw_emit(ctx->batch, ring, primtype,
                  emit->binning_pass ? IGNORE_VISIBILITY : USE_VISIBILITY, info,

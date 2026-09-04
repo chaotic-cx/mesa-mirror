@@ -17,6 +17,8 @@
 
 struct fd5_fb_read_params {
    struct ir3_driver_params_fs dp;
+   uint32_t sysmem;
+   uint32_t timestamp;
 };
 
 struct fd5_context {
