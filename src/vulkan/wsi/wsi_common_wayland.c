@@ -122,7 +122,6 @@ struct wsi_wl_display {
 
    /* users want per-chain wsi_wl_swapchain->present_ids.wp_presentation */
    struct wp_presentation *wp_presentation_notwrapped;
-   uint32_t wp_presentation_version;
 
    struct wp_fifo_manager_v1 *fifo_manager;
    struct wp_commit_timing_manager_v1 *commit_timing_manager;
@@ -1497,6 +1496,8 @@ static const struct wp_presentation_listener presentation_listener = {
 #define MESA_WL_FIXES_VERSION 1
 #endif
 
+#define MESA_WP_PRESENTATION_VERSION 2
+
 static void
 registry_handle_global(void *data, struct wl_registry *registry,
                        uint32_t name, const char *interface, uint32_t version)
@@ -1527,14 +1528,9 @@ registry_handle_global(void *data, struct wl_registry *registry,
    }
 
    if (strcmp(interface, wp_presentation_interface.name) == 0) {
-      if (version > 1)
-         display->wp_presentation_version = 2;
-      else
-         display->wp_presentation_version = 1;
-
       display->wp_presentation_notwrapped =
          wl_registry_bind(registry, name, &wp_presentation_interface,
-                          display->wp_presentation_version);
+                          MIN2(version, MESA_WP_PRESENTATION_VERSION));
       wp_presentation_add_listener(display->wp_presentation_notwrapped, &presentation_listener, display);
    } else if (strcmp(interface, wp_tearing_control_manager_v1_interface.name) == 0) {
       display->tearing_control_manager =
