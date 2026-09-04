@@ -515,15 +515,17 @@ ir3_screen_init(struct pipe_screen *pscreen)
    struct fd_screen *screen = fd_screen(pscreen);
 
    struct ir3_compiler_options options = {
-      .bindless_fb_read_descriptor =
-         ir3_shader_descriptor_set(MESA_SHADER_FRAGMENT),
-      .bindless_fb_read_slot = IR3_BINDLESS_IMAGE_OFFSET +
-                               IR3_BINDLESS_IMAGE_COUNT - 1 - screen->max_rts,
+      .bindless_fb_read_descriptor = -1,
+      .bindless_fb_read_slot = -1,
       .dual_color_blend_by_location = screen->driconf.dual_color_blend_by_location,
       .uche_trap_base = screen->uche_trap_base,
    };
 
    if (screen->gen >= 6) {
+      options.bindless_fb_read_descriptor =
+         ir3_shader_descriptor_set(MESA_SHADER_FRAGMENT);
+      options.bindless_fb_read_slot = IR3_BINDLESS_IMAGE_OFFSET +
+                                      IR3_BINDLESS_IMAGE_COUNT - 1 - screen->max_rts;
       options.lower_base_vertex = true;
    }
 
