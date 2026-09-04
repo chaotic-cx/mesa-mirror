@@ -4008,7 +4008,6 @@ emit_tex(struct ir3_context *ctx, nir_tex_instr *tex)
    if (tex->op == nir_texop_txf_ms_fb) {
       compile_assert(ctx, ctx->so->type == MESA_SHADER_FRAGMENT);
 
-      ctx->so->fb_read = true;
       if (ctx->compiler->options.bindless_fb_read_descriptor >= 0) {
          ctx->so->bindless_tex = true;
          info.flags = IR3_INSTR_B;
@@ -4036,17 +4035,27 @@ emit_tex(struct ir3_context *ctx, nir_tex_instr *tex)
          if (tex->texture_non_uniform) {
             info.flags |= IR3_INSTR_NONUNIF;
          }
+         ctx->so->num_samp++;
       } else {
-         /* Otherwise append a sampler to be patched into the texture
-          * state:
+         /* Otherwise append a sampler per render target to be patched into
+          * the texture state:
           */
-         info.samp_tex =
-            ir3_collect(b, create_immed_typed(b, ctx->so->num_samp, TYPE_U16),
-                        create_immed_typed(b, ctx->so->num_samp, TYPE_U16));
+         int base_index =
+            nir_tex_instr_src_index(tex, nir_tex_src_texture_handle);
+         compile_assert(ctx, nir_src_is_const(tex->src[base_index].src));
+
+         if (!ctx->so->fb_read)
+            ctx->so->fb_read_base = ctx->so->num_samp;
+
+         unsigned slot = ctx->so->fb_read_base +
+                         nir_src_as_uint(tex->src[base_index].src);
+         info.samp_tex = ir3_collect(b, create_immed_typed(b, slot, TYPE_U16),
+                                     create_immed_typed(b, slot, TYPE_U16));
          info.flags = IR3_INSTR_S2EN;
+         ctx->so->num_samp = MAX2(ctx->so->num_samp, (int)slot + 1);
       }
 
-      ctx->so->num_samp++;
+      ctx->so->fb_read = true;
    } else {
       info = get_tex_samp_tex_src(ctx, tex);
    }

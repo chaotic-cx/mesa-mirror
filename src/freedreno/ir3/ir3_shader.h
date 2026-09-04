@@ -868,6 +868,9 @@ struct ir3_shader_variant {
     */
    bool fb_read;
 
+   /* without bindless, the fb-read slots: fb_read_base + render target */
+   int fb_read_base;
+
    /* do we have one or more SSBO instructions: */
    bool has_ssbo;
 
