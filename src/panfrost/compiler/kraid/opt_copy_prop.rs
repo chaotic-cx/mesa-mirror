@@ -369,7 +369,14 @@ impl WordCopies<'_> {
                 }
             }
 
-            // TODO: Check for 64-bit immediates as well
+            // Check for 64-bit immediates
+            if let (Ok(lo), Ok(hi)) = (
+                u32::try_from(&words[0].src_ref),
+                u32::try_from(&words[1].src_ref),
+            ) {
+                let imm64 = (u64::from(hi) << 32) | u64::from(lo);
+                return Some(imm64.into());
+            }
         }
 
         // In theory, we could construct a widen that sign-extends the bottom
