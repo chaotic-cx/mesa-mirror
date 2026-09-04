@@ -15,6 +15,10 @@
 
 #include "ir3/ir3_shader.h"
 
+struct fd5_fb_read_params {
+   struct ir3_driver_params_fs dp;
+};
+
 struct fd5_context {
    struct fd_context base;
 
@@ -22,6 +26,8 @@ struct fd5_context {
     * could combine it with another allocation.
     */
    struct fd_bo *vsc_size_mem;
+
+   struct fd_bo *fb_read_params;
 
    /* TODO not sure what this is for.. probably similar to
     * CACHE_FLUSH_TS on kernel side, where value gets written

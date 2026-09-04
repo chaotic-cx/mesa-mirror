@@ -882,8 +882,19 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
    }
 
    ir3_emit_vs_consts(vp, ring, ctx, emit->info, emit->indirect, emit->draw);
-   if (!emit->binning_pass)
+   if (!emit->binning_pass) {
       ir3_emit_fs_consts(fp, ring, ctx);
+
+      if (fp->fb_read && fp->need_driver_params) {
+         const struct ir3_const_state *cs = ir3_const_state(fp);
+         const struct ir3_const_allocation *dp =
+            &cs->allocs.consts[IR3_CONST_ALLOC_DRIVER_PARAMS];
+         fd5_emit_const_bo(ring, fp, dp->offset_vec4 * 4,
+                           offsetof(struct fd5_fb_read_params, dp),
+                           dp->size_vec4 * 4,
+                           fd5_context(ctx)->fb_read_params);
+      }
+   }
 
    const struct ir3_stream_output_info *info = &vp->stream_output;
    if (info->num_outputs) {

@@ -32,6 +32,7 @@ fd5_context_destroy(struct pipe_context *pctx) in_dt
    fd_context_destroy(pctx);
 
    fd_bo_del(fd5_ctx->vsc_size_mem);
+   fd_bo_del(fd5_ctx->fb_read_params);
    fd_bo_del(fd5_ctx->blit_mem);
 
    fd_context_cleanup_common_vbos(&fd5_ctx->base);
@@ -88,6 +89,10 @@ fd5_context_create(struct pipe_screen *pscreen, void *priv,
 
    fd5_ctx->blit_mem =
       fd_bo_new(screen->dev, 0x1000, 0, "blit");
+
+   fd5_ctx->fb_read_params =
+      fd_bo_new(screen->dev, 0x1000, 0, "fb_read_params");
+   memset(fd_bo_map(fd5_ctx->fb_read_params), 0, 0x1000);
 
    fd_context_setup_common_vbos(&fd5_ctx->base);
 

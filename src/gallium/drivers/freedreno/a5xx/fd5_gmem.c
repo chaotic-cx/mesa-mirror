@@ -373,6 +373,29 @@ emit_binning_pass(struct fd_batch *batch) assert_dt
 }
 
 static void
+emit_fb_read_offset(struct fd_batch *batch, struct fd_ringbuffer *ring,
+                    uint32_t x, uint32_t y) assert_dt
+{
+   struct fd5_context *fd5_ctx = fd5_context(batch->ctx);
+
+   if (!(batch->gmem_reason & FD_GMEM_FB_READ))
+      return;
+
+   OUT_PKT7(ring, CP_MEM_WRITE, 4);
+   OUT_RELOC(ring, fd5_ctx->fb_read_params,
+             offsetof(struct fd5_fb_read_params, dp.frag_offset), 0, 0);
+   OUT_RING(ring, x);
+   OUT_RING(ring, y);
+
+   OUT_PKT7(ring, CP_WAIT_MEM_WRITES, 0);
+   /* the draw's indirect const load must not be prefetched past this */
+   OUT_PKT7(ring, CP_WAIT_FOR_ME, 0);
+
+   /* the shader reads these through UCHE, which the CP write does not update */
+   fd5_cache_flush(batch, ring);
+}
+
+static void
 patch_fb_read(struct fd_batch *batch)
 {
    const struct fd_gmem_stateobj *gmem = batch->gmem_state;
@@ -516,6 +539,8 @@ fd5_emit_tile_prep(struct fd_batch *batch, const struct fd_tile *tile) assert_dt
 
    OUT_PKT4(ring, REG_A5XX_RB_WINDOW_OFFSET, 1);
    OUT_RING(ring, A5XX_RB_WINDOW_OFFSET_X(x1) | A5XX_RB_WINDOW_OFFSET_Y(y1));
+
+   emit_fb_read_offset(batch, ring, x1, y1);
 }
 
 /*
