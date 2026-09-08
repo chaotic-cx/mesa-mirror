@@ -1454,7 +1454,7 @@
         "description": "ir3: count half registers when deciding to double the thread size",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "fd7960e1915dd43f42478cb165cd5367459a8629",
         "notes": null

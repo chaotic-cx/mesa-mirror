@@ -583,12 +583,7 @@ ir3_collect_info(struct ir3_shader_variant *v)
       }
    }
 
-   /* TODO: for a5xx and below, is there a separate regfile for
-    * half-registers?
-    */
-   unsigned regs_count =
-      info->max_reg + 1 +
-      (compiler->gen >= 6 ? ((info->max_half_reg + 2) / 2) : 0);
+   unsigned regs_count = info->max_reg + 1 + (info->max_half_reg + 2) / 2;
 
    info->double_threadsize = ir3_should_double_threadsize(v, regs_count);
 
