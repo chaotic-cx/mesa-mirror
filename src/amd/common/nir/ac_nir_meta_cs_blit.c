@@ -353,6 +353,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
    /* The workgroup size varies depending on the tiling layout and blit dimensions. */
    b.shader->info.workgroup_size_variable = true;
+   b.shader->info.cs.num_invocations_per_variable_workgroup = 64;
    b.shader->info.cs.user_data_components_amd = get_num_user_data_terms(key);
 
    nir_variable *img_src = NULL, *img_dst = NULL, *fmask_dst = NULL;
