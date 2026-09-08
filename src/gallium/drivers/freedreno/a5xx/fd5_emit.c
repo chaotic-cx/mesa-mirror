@@ -10,6 +10,7 @@
 #include "util/format/u_format.h"
 #include "util/u_helpers.h"
 #include "util/u_memory.h"
+#include "util/u_prim.h"
 #include "util/u_string.h"
 #include "util/u_viewport.h"
 
@@ -611,13 +612,6 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_RING(ring, A5XX_GRAS_SC_SCREEN_SCISSOR_TL_0_X(scissor->maxx) |
                         A5XX_GRAS_SC_SCREEN_SCISSOR_TL_0_Y(scissor->maxy));
 
-      OUT_PKT4(ring, REG_A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0, 2);
-      OUT_RING(ring, A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0_X(scissor->minx) |
-                        A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0_Y(scissor->miny));
-      OUT_RING(ring,
-               A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0_X(scissor->maxx) |
-                  A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0_Y(scissor->maxy));
-
       ctx->batch->max_scissor.minx =
          MIN2(ctx->batch->max_scissor.minx, scissor->minx);
       ctx->batch->max_scissor.miny =
@@ -640,6 +634,14 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_RING(ring, A5XX_GRAS_CL_VPORT_YSCALE_0(vp->scale[1]));
       OUT_RING(ring, A5XX_GRAS_CL_VPORT_ZOFFSET_0(vp->translate[2]));
       OUT_RING(ring, A5XX_GRAS_CL_VPORT_ZSCALE_0(vp->scale[2]));
+
+      /* with the clip codes ignored this scissor is what bounds the viewport */
+      struct pipe_scissor_state *vscissor = &ctx->viewport_scissor[0];
+      OUT_PKT4(ring, REG_A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0, 2);
+      OUT_RING(ring, A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0_X(vscissor->minx) |
+                        A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0_Y(vscissor->miny));
+      OUT_RING(ring, A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0_X(vscissor->maxx) |
+                        A5XX_GRAS_SC_VIEWPORT_SCISSOR_TL_0_Y(vscissor->maxy));
    }
 
    if ((dirty & (FD_DIRTY_VIEWPORT | FD_DIRTY_RASTERIZER)) &&
@@ -683,9 +685,6 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
 
       OUT_PKT4(ring, REG_A5XX_PC_RASTER_CNTL, 1);
       OUT_RING(ring, rasterizer->pc_raster_cntl);
-
-      OUT_PKT4(ring, REG_A5XX_GRAS_CL_CNTL, 1);
-      OUT_RING(ring, rasterizer->gras_cl_clip_cntl);
    }
 
    /* note: must come after program emit.. because there is some overlap
@@ -707,6 +706,18 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
                   A5XX_PC_PRIMITIVE_CNTL_STRIDE_IN_VPC(max_loc) |
                   COND(emit->info->primitive_restart && emit->info->index_size,
                        A5XX_PC_PRIMITIVE_CNTL_PRIMITIVE_RESTART));
+
+      enum mesa_prim prim = u_reduced_prim(emit->info->mode);
+      bool guardband = prim == MESA_PRIM_POINTS || prim == MESA_PRIM_LINES;
+
+      OUT_PKT4(ring, REG_A5XX_GRAS_CL_CNTL, 1);
+      OUT_RING(ring, rasterizer->gras_cl_clip_cntl |
+                        COND(guardband, A5XX_GRAS_CL_CNTL_VP_CLIP_CODE_IGNORE));
+
+      OUT_PKT4(ring, REG_A5XX_GRAS_CL_GUARDBAND_CLIP_ADJ, 1);
+      OUT_RING(ring, COND(guardband,
+                          A5XX_GRAS_CL_GUARDBAND_CLIP_ADJ_HORZ(ctx->guardband.x) |
+                          A5XX_GRAS_CL_GUARDBAND_CLIP_ADJ_VERT(ctx->guardband.y)));
    }
 
    if (dirty & (FD_DIRTY_FRAMEBUFFER | FD_DIRTY_RASTERIZER | FD_DIRTY_PROG)) {

@@ -525,7 +525,7 @@ traces:
     freedreno-a306:
       checksum: d44fdd0c4f5afe5ce7697b7c67dff6a0
     freedreno-a530:
-      checksum: 8fade25941ec15172f0d2ee50ff9c5c5
+      checksum: da3cf87ea3f62d67771a63f24a7eccff
     freedreno-a618:
       checksum: da3cf87ea3f62d67771a63f24a7eccff
     zink-a618:

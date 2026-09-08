@@ -1810,6 +1810,7 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 		<bitfield name="ZFAR_CLIP_DISABLE" pos="2" type="boolean"/>
 		<bitfield name="Z_CLAMP_ENABLE" pos="5" type="boolean"/>
 		<bitfield name="ZERO_GB_SCALE_Z" pos="6" type="boolean"/>
+		<bitfield name="VP_CLIP_CODE_IGNORE" pos="7" type="boolean"/>
 	</reg32>
 	<bitset name="a5xx_gras_xs_cl_cntl" inline="yes">
 		<bitfield name="CLIP_MASK" low="0" high="7"/>

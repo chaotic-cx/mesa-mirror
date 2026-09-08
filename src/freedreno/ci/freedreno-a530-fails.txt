@@ -1,12 +1,3 @@
-dEQP-GLES2.functional.clipping.point.wide_point_clip,Fail
-dEQP-GLES2.functional.clipping.point.wide_point_clip_viewport_center,Fail
-dEQP-GLES2.functional.clipping.point.wide_point_clip_viewport_corner,Fail
-
-dEQP-GLES3.functional.clipping.line.wide_line_clip_viewport_center,Fail
-dEQP-GLES3.functional.clipping.line.wide_line_clip_viewport_corner,Fail
-dEQP-GLES3.functional.clipping.point.wide_point_clip,Fail
-dEQP-GLES3.functional.clipping.point.wide_point_clip_viewport_center,Fail
-dEQP-GLES3.functional.clipping.point.wide_point_clip_viewport_corner,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_mag,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_mag_reverse_dst_x,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_mag_reverse_dst_y,Fail
@@ -150,8 +141,6 @@ dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_min_revers
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_min_reverse_src_x,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_min_reverse_dst_x,Fail
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_mag,Fail
-dEQP-GLES2.functional.clipping.line.wide_line_clip_viewport_corner,Fail
-dEQP-GLES2.functional.clipping.line.wide_line_clip_viewport_center,Fail
 
 # Regressions while the device was offline
 
