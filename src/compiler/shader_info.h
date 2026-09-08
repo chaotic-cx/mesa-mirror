@@ -582,6 +582,13 @@ typedef struct shader_info {
       struct {
          uint16_t workgroup_size_hint[3];
 
+         /* If non-zero, this specifies the fixed number of invocations per
+          * workgroup when the workgroup size is variable but the number of
+          * invocations per workgroup doesn't change, i.e. only the shape
+          * of the workgroup changes.
+          */
+         uint16_t num_invocations_per_variable_workgroup;
+
          uint8_t user_data_components_amd:4;
 
          /*
