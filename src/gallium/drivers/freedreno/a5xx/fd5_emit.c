@@ -312,6 +312,34 @@ emit_border_color(struct fd_context *ctx, struct fd_ringbuffer *ring) assert_dt
    u_upload_unmap(fd5_ctx->border_color_uploader);
 }
 
+static struct fd_bo *
+tex_const_bo(const struct fd5_pipe_sampler_view *view)
+{
+   struct fd_resource *rsc = fd_resource(view->base.texture);
+
+   if (view->base.format == PIPE_FORMAT_X32_S8X24_UINT)
+      rsc = rsc->stencil;
+
+   return rsc->bo;
+}
+
+static void
+fill_tex_const(const struct fd5_pipe_sampler_view *view, uint32_t *d)
+{
+   enum a5xx_tile_mode tile_mode = TILE5_LINEAR;
+
+   if (view->base.texture)
+      tile_mode = fd_resource(view->base.texture)->layout.tile_mode;
+
+   d[0] = view->texconst0 | A5XX_TEX_CONST_0_TILE_MODE(tile_mode);
+   d[1] = view->texconst1;
+   d[2] = view->texconst2;
+   d[3] = view->texconst3;
+   d[4] = 0;
+   d[5] = view->texconst5;
+   memset(&d[6], 0, 6 * sizeof(*d));
+}
+
 static bool
 emit_textures(struct fd_context *ctx, struct fd_ringbuffer *ring,
               enum a4xx_state_block sb,
@@ -364,32 +392,20 @@ emit_textures(struct fd_context *ctx, struct fd_ringbuffer *ring,
          const struct fd5_pipe_sampler_view *view =
             tex->textures[i] ? fd5_pipe_sampler_view(tex->textures[i])
                              : &dummy_view;
-         enum a5xx_tile_mode tile_mode = TILE5_LINEAR;
+         uint32_t d[12];
 
-         if (view->base.texture)
-            tile_mode = fd_resource(view->base.texture)->layout.tile_mode;
-
-         OUT_RING(ring,
-                  view->texconst0 | A5XX_TEX_CONST_0_TILE_MODE(tile_mode));
-         OUT_RING(ring, view->texconst1);
-         OUT_RING(ring, view->texconst2);
-         OUT_RING(ring, view->texconst3);
+         fill_tex_const(view, d);
+         for (unsigned j = 0; j < 4; j++)
+            OUT_RING(ring, d[j]);
          if (view->base.texture) {
-            struct fd_resource *rsc = fd_resource(view->base.texture);
-            if (view->base.format == PIPE_FORMAT_X32_S8X24_UINT)
-               rsc = rsc->stencil;
-            OUT_RELOC(ring, rsc->bo, view->offset,
-                      (uint64_t)view->texconst5 << 32, 0);
+            OUT_RELOC(ring, tex_const_bo(view), view->offset,
+                      (uint64_t)d[5] << 32, 0);
          } else {
-            OUT_RING(ring, 0x00000000);
-            OUT_RING(ring, view->texconst5);
+            OUT_RING(ring, d[4]);
+            OUT_RING(ring, d[5]);
          }
-         OUT_RING(ring, view->texconst6);
-         OUT_RING(ring, view->texconst7);
-         OUT_RING(ring, view->texconst8);
-         OUT_RING(ring, view->texconst9);
-         OUT_RING(ring, view->texconst10);
-         OUT_RING(ring, view->texconst11);
+         for (unsigned j = 6; j < ARRAY_SIZE(d); j++)
+            OUT_RING(ring, d[j]);
       }
    }
 
