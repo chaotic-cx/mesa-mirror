@@ -2286,6 +2286,13 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 		<bitfield name="STRIDE_IN_VPC" low="0" high="6" type="uint"/>
 		<bitfield name="VARYING" pos="11" type="boolean"/>
 	</reg32>
+	<enum name="a5xx_varying_interp_mode">
+		<value value="0" name="INTERP_SMOOTH"/>
+		<value value="1" name="INTERP_FLAT"/>
+		<value value="2" name="INTERP_ZERO"/>
+		<value value="3" name="INTERP_ONE"/>
+	</enum>
+
 	<array offset="0xe282" name="VPC_VARYING_INTERP" stride="1" length="8">
 		<reg32 offset="0x0" name="MODE"/>
 	</array>

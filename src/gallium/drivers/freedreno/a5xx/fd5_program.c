@@ -241,6 +241,14 @@ next_regid(uint32_t reg, uint32_t increment)
    else
       return regid(63, 0);
 }
+
+static void
+set_interp_mode(uint32_t *vinterp, unsigned loc,
+                enum a5xx_varying_interp_mode mode)
+{
+   vinterp[loc / 16] |= mode << ((loc % 16) * 2);
+}
+
 void
 fd5_program_emit(struct fd_context *ctx, struct fd_ringbuffer *ring,
                  struct fd5_emit *emit)
@@ -668,7 +676,7 @@ fd5_program_emit(struct fd_context *ctx, struct fd_ringbuffer *ring,
 
             for (i = 0; i < 4; i++) {
                if (compmask & (1 << i)) {
-                  vinterp[loc / 16] |= 1 << ((loc % 16) * 2);
+                  set_interp_mode(vinterp, loc, INTERP_FLAT);
                   // flatshade[loc / 32] |= 1 << (loc % 32);
                   loc++;
                }
@@ -694,13 +702,11 @@ fd5_program_emit(struct fd_context *ctx, struct fd_ringbuffer *ring,
                loc++;
             }
             if (compmask & 0x4) {
-               /* .z <- 0.0f */
-               vinterp[loc / 16] |= 0b10 << ((loc % 16) * 2);
+               set_interp_mode(vinterp, loc, INTERP_ZERO);
                loc++;
             }
             if (compmask & 0x8) {
-               /* .w <- 1.0f */
-               vinterp[loc / 16] |= 0b11 << ((loc % 16) * 2);
+               set_interp_mode(vinterp, loc, INTERP_ONE);
                loc++;
             }
          }
