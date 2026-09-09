@@ -670,8 +670,14 @@ fd5_program_emit(struct fd_context *ctx, struct fd_ringbuffer *ring,
 
          uint32_t inloc = s[FS].v->inputs[j].inloc;
 
-         if (s[FS].v->inputs[j].flat ||
-             (s[FS].v->inputs[j].rasterflat && emit->rasterflat)) {
+         gl_varying_slot slot = (gl_varying_slot)s[FS].v->inputs[j].slot;
+         if (slot == VARYING_SLOT_LAYER || slot == VARYING_SLOT_VIEWPORT) {
+            if (ir3_find_output(s[VS].v, slot) < 0 && (compmask & 0x1))
+               set_interp_mode(vinterp, inloc, INTERP_ZERO);
+            else
+               set_interp_mode(vinterp, inloc, INTERP_FLAT);
+         } else if (s[FS].v->inputs[j].flat ||
+                    (s[FS].v->inputs[j].rasterflat && emit->rasterflat)) {
             uint32_t loc = inloc;
 
             for (i = 0; i < 4; i++) {
