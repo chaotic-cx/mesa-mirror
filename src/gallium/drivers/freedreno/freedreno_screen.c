@@ -436,7 +436,7 @@ fd_init_screen_caps(struct fd_screen *screen)
    caps->texture_mirror_clamp_to_edge = true;
    caps->gl_spirv = true;
    caps->cl_gl_sharing = true;
-   caps->fbfetch_coherent = true;
+   caps->fbfetch_coherent = is_a5xx(screen) || is_a6xx(screen);
    caps->has_const_bw = true;
 
    caps->copy_between_compressed_and_plain_formats =
@@ -593,8 +593,9 @@ fd_init_screen_caps(struct fd_screen *screen)
    caps->force_persample_interp = false;
 
    caps->fbfetch =
-      fd_device_version(screen->dev) >= FD_VERSION_GMEM_BASE && is_a6xx(screen) ?
-      screen->max_rts : 0;
+      fd_device_version(screen->dev) >= FD_VERSION_GMEM_BASE &&
+            (is_a5xx(screen) || is_a6xx(screen)) ?
+         screen->max_rts : 0;
    caps->sample_shading = is_a5xx(screen) || is_a6xx(screen);
 
    caps->context_priority_mask = screen->priority_mask;
