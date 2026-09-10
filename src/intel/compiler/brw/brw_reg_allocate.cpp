@@ -1010,6 +1010,98 @@ brw_reg_alloc::build_legacy_scratch_header(const brw_builder &bld,
    return header;
 }
 
+struct unspill_range {
+   brw_range unspill_range;
+   brw_range spill_range;
+   brw_reg reg;
+
+   /* Bit mask of instruction sources that map to this range. */
+   uint32_t src;
+
+   bool no_mask;
+   uint8_t width;
+};
+
+unsigned
+calculate_unspill_ranges(const struct intel_device_info *devinfo,
+                         brw_shader *shader, brw_inst *inst,
+                         unsigned spill_reg, unspill_range *ranges)
+{
+   unsigned num_ranges = 0;
+
+   for (unsigned i = 0; i < inst->sources; i++) {
+      if (inst->src[i].file == VGRF && inst->src[i].nr == spill_reg) {
+         const unsigned bytes_read =
+            align(regs_read(devinfo, inst, i), reg_unit(devinfo)) * REG_SIZE;
+
+         const unsigned offset =
+            ROUND_DOWN_TO(inst->src[i].offset, REG_SIZE * reg_unit(devinfo));
+
+         brw_range range = { int(offset), int(offset + bytes_read) };
+
+         ranges[num_ranges].unspill_range = range;
+         ranges[num_ranges].spill_range = { -1, -1 };
+         ranges[num_ranges].reg = brw_reg();
+         ranges[num_ranges].src = 1U << i;
+         num_ranges++;
+      }
+   }
+
+   if (inst->dst.file == VGRF &&
+       inst->dst.nr == spill_reg &&
+       inst->opcode != SHADER_OPCODE_UNDEF) {
+      const unsigned bytes_written =
+         align(regs_written(inst), reg_unit(devinfo)) * REG_SIZE;
+
+      const unsigned offset =
+         ROUND_DOWN_TO(inst->dst.offset, REG_SIZE * reg_unit(devinfo));
+
+      /* Calculate the execution width of the scratch messages (which work in
+       * terms of 32 bit components so we have a fixed number of eight
+       * channels per spilled register).  We attempt to write one
+       * exec_size-wide component of the variable at a time without exceeding
+       * the maximum number of (fake) MRF registers reserved for spills.
+       */
+      unsigned width = 8 * reg_unit(devinfo) *
+         DIV_ROUND_UP(MIN2(inst->dst.component_size(inst->exec_size),
+                           spill_max_size(shader) * REG_SIZE),
+                      reg_unit(devinfo) * REG_SIZE);
+
+      /* Spills should only write data initialized by the instruction for
+       * whichever channels are enabled in the execution mask.  If that's not
+       * possible we'll have to emit a matching unspill before the instruction
+       * and set force_writemask_all on the spill.
+       */
+      bool per_channel = inst->dst.is_contiguous() &&
+         brw_type_size_bytes(inst->dst.type) == 4 &&
+         inst->exec_size == width;
+
+      /* If our write is going to affect just part of the regs_written(inst),
+       * then we need to unspill the destination since we write back out all
+       * of the regs_written().  If the original instruction had
+       * force_writemask_all set and is not a partial write, there should be
+       * no need for the unspill since the instruction will be overwriting the
+       * whole destination in any case.
+       */
+      const bool need_unspill = inst->is_partial_write(reg_unit(devinfo) * REG_SIZE) ||
+         (!inst->force_writemask_all && !per_channel);
+
+      brw_range range = { int(offset), int(offset + bytes_written) };
+
+      ranges[num_ranges].spill_range = range;
+      ranges[num_ranges].unspill_range = need_unspill ?
+         range : (brw_range) { -1, -1 };
+
+      ranges[num_ranges].no_mask = !per_channel;
+      ranges[num_ranges].width = width;
+
+      ranges[num_ranges].reg = brw_reg();
+      num_ranges++;
+   }
+
+   return num_ranges;
+}
+
 void
 brw_reg_alloc::emit_unspill(const brw_builder &bld,
                            struct brw_shader_stats *stats,
@@ -1438,121 +1530,148 @@ brw_reg_alloc::spill_reg(unsigned spill_reg)
          }
       }
 
+      struct unspill_range ranges[32];
+      unsigned num_ranges = calculate_unspill_ranges(devinfo, fs, inst,
+                                                     spill_reg, ranges);
+
       for (unsigned int i = 0; i < inst->sources; i++) {
 	 if (inst->src[i].file == VGRF &&
              inst->src[i].nr == spill_reg) {
-            /* Count registers needed in units of physical registers */
-            int count = align(regs_read(devinfo, inst, i), reg_unit(devinfo));
-            /* Align the spilling offset the physical register size */
+            unsigned j;
+            for (j = 0; j < num_ranges; j++) {
+               if ((ranges[j].src & (1U << i)) != 0)
+                  break;
+            }
+
+#ifndef NDEBUG
+            assert(j < num_ranges);
+
+            const unsigned bytes_read =
+               align(regs_read(devinfo, inst, i), reg_unit(devinfo)) * REG_SIZE;
+
             const unsigned aligned_offset =
                ROUND_DOWN_TO(inst->src[i].offset, REG_SIZE * reg_unit(devinfo));
-            const spill_scratch_slot subset_slot =
-               offset_spill_slot(spill_slot, aligned_offset);
-            brw_reg unspill_dst = alloc_spill_reg(count, ip);
 
-            inst->src[i].nr = unspill_dst.nr;
+            const brw_range range = { int(aligned_offset), int(aligned_offset + bytes_read) };
+
+            assert(ranges[j].unspill_range.contains(range));
+#endif
+
+            int count = ranges[j].unspill_range.len() / REG_SIZE;
+            bool need_unspill = false;
+
+            if (ranges[j].reg.file == BAD_FILE) {
+               need_unspill = true;
+               ranges[j].reg = alloc_spill_reg(count, ip);
+            }
+
+            inst->src[i].nr = ranges[j].reg.nr;
+
             /* The unspilled register is aligned to physical register, so
              * adjust the offset to the remaining within the physical register
              * size.
              */
-            inst->src[i].offset %= REG_SIZE * reg_unit(devinfo);
+            inst->src[i].offset -= ranges[j].unspill_range.start;
 
-            /* We read the largest power-of-two divisor of the register count
-             * (because only POT scratch read blocks are allowed by the
-             * hardware) up to the maximum supported block size.
-             */
-            const unsigned width =
-               MIN2(32, 1u << (ffs(MAX2(1, count) * 8) - 1));
+            if (need_unspill) {
+               const spill_scratch_slot subset_slot =
+                  offset_spill_slot(spill_slot, ranges[j].unspill_range.start);
 
-            /* Set exec_all() on unspill messages under the (rather
-             * pessimistic) assumption that there is no one-to-one
-             * correspondence between channels of the spilled variable in
-             * scratch space and the scratch read message, which operates on
-             * 32 bit channels.  It shouldn't hurt in any case because the
-             * unspill destination is a block-local temporary.
-             *
-             * FINIHSME: However, this will prevent brw_opt_fill_and_spill
-             * from making progress if the lsc_fill is NoMask and the
-             * lsc_spill is not.
-             */
-            emit_unspill(ibld.exec_all().group(width, 0), &fs->shader_stats,
-                         unspill_dst, subset_slot, count, ip);
-	 }
+               /* We read the largest power-of-two divisor of the register
+                * count (because only POT scratch read blocks are allowed by
+                * the hardware) up to the maximum supported block size.
+                */
+               const unsigned width =
+                  MIN2(32, 1u << (ffs(MAX2(1, count) * 8) - 1));
+
+               /* Set exec_all() on unspill messages under the (rather
+                * pessimistic) assumption that there is no one-to-one
+                * correspondence between channels of the spilled variable in
+                * scratch space and the scratch read message, which operates
+                * on 32 bit channels.  It shouldn't hurt in any case because
+                * the unspill destination is a block-local temporary.
+                *
+                * FINIHSME: However, this will prevent brw_opt_fill_and_spill
+                * from making progress if the lsc_fill is NoMask and the
+                * lsc_spill is not.
+                */
+               emit_unspill(ibld.exec_all().group(width, 0), &fs->shader_stats,
+                            ranges[j].reg, subset_slot, count, ip);
+            }
+         }
       }
 
       if (inst->dst.file == VGRF &&
           inst->dst.nr == spill_reg &&
           inst->opcode != SHADER_OPCODE_UNDEF) {
-         /* Count registers needed in units of physical registers */
-         int count = align(regs_written(inst), reg_unit(devinfo));
-         /* Align the spilling offset the physical register size */
-         const unsigned aligned_offset =
-            ROUND_DOWN_TO(inst->dst.offset, reg_unit(devinfo) * REG_SIZE);
          /* Taken before inst->dst.offset is adjusted below. */
          const unsigned dst_first_reg = inst->dst.offset / REG_SIZE;
          assert(dst_first_reg < vgrf_size);
-         const spill_scratch_slot subset_slot =
-            offset_spill_slot(spill_slot, aligned_offset);
-         brw_reg spill_src = alloc_spill_reg(count, ip);
 
-         inst->dst.nr = spill_src.nr;
+         unsigned j;
+         for (j = 0; j < num_ranges; j++) {
+            if (!ranges[j].spill_range.is_empty())
+               break;
+         }
+
+#ifndef NDEBUG
+         assert(j < num_ranges);
+
+         /* Align the spilling offset the physical register size */
+         const unsigned aligned_offset =
+            ROUND_DOWN_TO(inst->dst.offset, reg_unit(devinfo) * REG_SIZE);
+
+         const unsigned bytes_written =
+            align(regs_written(inst), reg_unit(devinfo)) * REG_SIZE;
+
+         const brw_range range = { int(aligned_offset), int(aligned_offset + bytes_written) };
+
+         assert(ranges[j].spill_range.contains(range));
+#endif
+
+         /* Only unspill the partially written destination if it wasn't
+          * already unspilled with the sources.
+          */
+         const bool need_unspill = ranges[j].reg.file == BAD_FILE &&
+            !ranges[j].unspill_range.is_empty();
+
+         /* Count registers needed in units of physical registers */
+         int count = align(ranges[j].spill_range.len() / REG_SIZE,
+                           reg_unit(devinfo));
+
+         if (ranges[j].reg.file == BAD_FILE)
+            ranges[j].reg = alloc_spill_reg(count, ip);
+
+         inst->dst.nr = ranges[j].reg.nr;
+
          /* The spilled register is aligned to physical register, so adjust
           * the offset to the remaining within the physical register size.
           */
-         inst->dst.offset %= REG_SIZE * reg_unit(devinfo);
-
-         /* Calculate the execution width of the scratch messages (which work
-          * in terms of 32 bit components so we have a fixed number of eight
-          * channels per spilled register).  We attempt to write one
-          * exec_size-wide component of the variable at a time without
-          * exceeding the maximum number of (fake) MRF registers reserved for
-          * spills.
-          */
-         const unsigned width = 8 * reg_unit(devinfo) *
-            DIV_ROUND_UP(MIN2(inst->dst.component_size(inst->exec_size),
-                              spill_max_size(fs) * REG_SIZE),
-                         reg_unit(devinfo) * REG_SIZE);
-
-         /* Spills should only write data initialized by the instruction for
-          * whichever channels are enabled in the execution mask.  If that's
-          * not possible we'll have to emit a matching unspill before the
-          * instruction and set force_writemask_all on the spill.
-          */
-         const bool per_channel =
-            inst->dst.is_contiguous() &&
-            brw_type_size_bytes(inst->dst.type) == 4 &&
-            inst->exec_size == width;
+         inst->dst.offset -= ranges[j].spill_range.start;
 
          /* Builder used to emit the scratch messages. */
-         const brw_builder ubld = ibld.exec_all(!per_channel).group(width, 0);
+         const brw_builder ubld = ibld.exec_all(ranges[j].no_mask)
+                                      .group(ranges[j].width, 0);
 
-	 /* If our write is going to affect just part of the
-          * regs_written(inst), then we need to unspill the destination since
-          * we write back out all of the regs_written().  If the original
-          * instruction had force_writemask_all set and is not a partial
-          * write, there should be no need for the unspill since the
-          * instruction will be overwriting the whole destination in any case.
-          *
-          * A masked instruction whose spill cannot be per-channel also needs
-          * to preserve inactive channels whenever a definition can reach it.
-          *
-          * When no definition can reach the write, the scratch contents are
-          * undefined and the unspill can be skipped.
-	  */
-         const unsigned first_reg = aligned_offset / REG_SIZE;
+         /* When no definition can reach the write, the scratch contents
+          * are undefined and the unspill can be skipped.
+          */
+         const unsigned first_reg = ranges[j].spill_range.start / REG_SIZE;
          assert(first_reg < vgrf_size);
          const bool dst_defined =
             (defined_regs & reg_range(first_reg,
                                       MIN2((unsigned)count,
                                            vgrf_size - first_reg))) != 0;
 
-         if (dst_defined &&
-             (inst->is_partial_write(reg_unit(devinfo) * REG_SIZE) ||
-              (!inst->force_writemask_all && !per_channel)))
-            emit_unspill(ubld, &fs->shader_stats, spill_src, subset_slot,
-                         regs_written(inst), ip);
+         const spill_scratch_slot subset_slot =
+            offset_spill_slot(spill_slot, ranges[j].spill_range.start);
 
-         emit_spill(ubld.after(inst), &fs->shader_stats, spill_src,
+         if (need_unspill && dst_defined) {
+            emit_unspill(ubld, &fs->shader_stats, ranges[j].reg, subset_slot,
+                         regs_written(inst), ip);
+         }
+
+         emit_spill(ubld.after(inst), &fs->shader_stats, ranges[j].reg,
                     subset_slot, regs_written(inst), ip);
 
          defined_regs |= reg_range(dst_first_reg,
