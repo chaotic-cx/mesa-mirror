@@ -52,6 +52,7 @@ ok_format(enum pipe_format fmt)
    case PIPE_FORMAT_R10SG10SB10SA2U_NORM:
    case PIPE_FORMAT_B10G10R10A2_UINT:
    case PIPE_FORMAT_R10G10B10A2_UINT:
+   case PIPE_FORMAT_B10G10R10X2_UNORM:
       return false;
    default:
       break;
@@ -381,11 +382,24 @@ emit_blit_buffer(struct fd_ringbuffer *ring, const struct pipe_blit_info *info)
       OUT_RING(ring, A5XX_GRAS_2D_DST_INFO_COLOR_FORMAT(RB5_R8_UNORM) |
                         A5XX_GRAS_2D_DST_INFO_COLOR_SWAP(WZYX));
 
+      OUT_PKT4(ring, REG_A5XX_TPL1_A2D_SRC_TEXTURE_INFO, 5);
+      OUT_RING(ring, A5XX_TPL1_A2D_SRC_TEXTURE_INFO_COLOR_FORMAT(RB5_R8_UNORM) |
+                        A5XX_TPL1_A2D_SRC_TEXTURE_INFO_TILE_MODE(TILE5_LINEAR) |
+                        A5XX_TPL1_A2D_SRC_TEXTURE_INFO_COLOR_SWAP(WZYX));
+      OUT_RING(ring, A5XX_TPL1_A2D_SRC_TEXTURE_SIZE_WIDTH(sshift + w) |
+                        A5XX_TPL1_A2D_SRC_TEXTURE_SIZE_HEIGHT(1));
+      OUT_RELOC(ring, src->bo, soff, 0, 0);
+      OUT_RING(ring, A5XX_TPL1_A2D_SRC_TEXTURE_PITCH_PITCH(p));
+
+      OUT_PKT4(ring, REG_A5XX_SP_A2D_OUTPUT_INFO, 1);
+      OUT_RING(ring, A5XX_SP_A2D_OUTPUT_INFO_IFMT_TYPE(OUTPUT_IFMT_2D_FLOAT) |
+                        A5XX_SP_A2D_OUTPUT_INFO_COLOR_FORMAT(RB5_R8_UNORM));
+
       /*
        * Blit command:
        */
       OUT_PKT7(ring, CP_BLIT, 5);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_COPY));
+      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
       OUT_RING(ring, CP_BLIT_1_SRC_X1(sshift) | CP_BLIT_1_SRC_Y1(0));
       OUT_RING(ring, CP_BLIT_2_SRC_X2(sshift + w - 1) | CP_BLIT_2_SRC_Y2(0));
       OUT_RING(ring, CP_BLIT_3_DST_X1(dshift) | CP_BLIT_3_DST_Y1(0));
@@ -407,6 +421,7 @@ emit_blit(struct fd_ringbuffer *ring, const struct pipe_blit_info *info)
    enum a5xx_color_fmt sfmt, dfmt;
    enum a5xx_tile_mode stile, dtile;
    enum a3xx_color_swap sswap, dswap;
+   bool ssrgb, dsrgb;
    unsigned spitch, dpitch;
    unsigned sx1, sy1, sx2, sy2;
    unsigned dx1, dy1, dx2, dy2;
@@ -422,6 +437,11 @@ emit_blit(struct fd_ringbuffer *ring, const struct pipe_blit_info *info)
 
    sswap = fd5_pipe2swap(info->src.format);
    dswap = fd5_pipe2swap(info->dst.format);
+
+   ssrgb = util_format_is_srgb(info->src.format);
+   dsrgb = util_format_is_srgb(info->dst.format);
+   if (ssrgb == dsrgb)
+      ssrgb = dsrgb = false;
 
    spitch = fd_resource_pitch(src, info->src.level);
    dpitch = fd_resource_pitch(dst, info->dst.level);
@@ -465,7 +485,8 @@ emit_blit(struct fd_ringbuffer *ring, const struct pipe_blit_info *info)
       OUT_PKT4(ring, REG_A5XX_RB_2D_SRC_INFO, 9);
       OUT_RING(ring, A5XX_RB_2D_SRC_INFO_COLOR_FORMAT(sfmt) |
                         A5XX_RB_2D_SRC_INFO_TILE_MODE(stile) |
-                        A5XX_RB_2D_SRC_INFO_COLOR_SWAP(sswap));
+                        A5XX_RB_2D_SRC_INFO_COLOR_SWAP(sswap) |
+                        COND(ssrgb, A5XX_RB_2D_SRC_INFO_SRGB));
       OUT_RELOC(ring, src->bo, soff, 0, 0); /* RB_2D_SRC_LO/HI */
       OUT_RING(ring, A5XX_RB_2D_SRC_SIZE_PITCH(spitch) |
                         A5XX_RB_2D_SRC_SIZE_ARRAY_PITCH(sarray_pitch));
@@ -478,7 +499,8 @@ emit_blit(struct fd_ringbuffer *ring, const struct pipe_blit_info *info)
       OUT_PKT4(ring, REG_A5XX_GRAS_2D_SRC_INFO, 1);
       OUT_RING(ring, A5XX_GRAS_2D_SRC_INFO_COLOR_FORMAT(sfmt) |
                         A5XX_GRAS_2D_SRC_INFO_TILE_MODE(stile) |
-                        A5XX_GRAS_2D_SRC_INFO_COLOR_SWAP(sswap));
+                        A5XX_GRAS_2D_SRC_INFO_COLOR_SWAP(sswap) |
+                        COND(ssrgb, A5XX_GRAS_2D_SRC_INFO_SRGB));
 
       /*
        * Emit destination:
@@ -486,7 +508,8 @@ emit_blit(struct fd_ringbuffer *ring, const struct pipe_blit_info *info)
       OUT_PKT4(ring, REG_A5XX_RB_2D_DST_INFO, 9);
       OUT_RING(ring, A5XX_RB_2D_DST_INFO_COLOR_FORMAT(dfmt) |
                         A5XX_RB_2D_DST_INFO_TILE_MODE(dtile) |
-                        A5XX_RB_2D_DST_INFO_COLOR_SWAP(dswap));
+                        A5XX_RB_2D_DST_INFO_COLOR_SWAP(dswap) |
+                        COND(dsrgb, A5XX_RB_2D_DST_INFO_SRGB));
       OUT_RELOC(ring, dst->bo, doff, 0, 0); /* RB_2D_DST_LO/HI */
       OUT_RING(ring, A5XX_RB_2D_DST_SIZE_PITCH(dpitch) |
                         A5XX_RB_2D_DST_SIZE_ARRAY_PITCH(darray_pitch));
@@ -499,13 +522,42 @@ emit_blit(struct fd_ringbuffer *ring, const struct pipe_blit_info *info)
       OUT_PKT4(ring, REG_A5XX_GRAS_2D_DST_INFO, 1);
       OUT_RING(ring, A5XX_GRAS_2D_DST_INFO_COLOR_FORMAT(dfmt) |
                         A5XX_GRAS_2D_DST_INFO_TILE_MODE(dtile) |
-                        A5XX_GRAS_2D_DST_INFO_COLOR_SWAP(dswap));
+                        A5XX_GRAS_2D_DST_INFO_COLOR_SWAP(dswap) |
+                        COND(dsrgb, A5XX_GRAS_2D_DST_INFO_SRGB));
+
+      OUT_PKT4(ring, REG_A5XX_TPL1_A2D_SRC_TEXTURE_INFO, 5);
+      OUT_RING(ring, A5XX_TPL1_A2D_SRC_TEXTURE_INFO_COLOR_FORMAT(sfmt) |
+                        A5XX_TPL1_A2D_SRC_TEXTURE_INFO_TILE_MODE(stile) |
+                        A5XX_TPL1_A2D_SRC_TEXTURE_INFO_COLOR_SWAP(sswap) |
+                        COND(ssrgb, A5XX_TPL1_A2D_SRC_TEXTURE_INFO_SRGB));
+      OUT_RING(ring, A5XX_TPL1_A2D_SRC_TEXTURE_SIZE_WIDTH(
+                        u_minify(src->b.b.width0, info->src.level)) |
+                        A5XX_TPL1_A2D_SRC_TEXTURE_SIZE_HEIGHT(
+                           u_minify(src->b.b.height0, info->src.level)));
+      OUT_RELOC(ring, src->bo, soff, 0, 0);
+      OUT_RING(ring, A5XX_TPL1_A2D_SRC_TEXTURE_PITCH_PITCH(spitch));
+
+      enum adreno_2d_output_ifmt_type ifmt_type = OUTPUT_IFMT_2D_FLOAT;
+      if (util_format_is_depth_or_stencil(info->dst.format))
+         ifmt_type = OUTPUT_IFMT_2D_FLOAT;
+      else if (util_format_is_pure_uint(info->dst.format))
+         ifmt_type = OUTPUT_IFMT_2D_UINT;
+      else if (util_format_is_pure_sint(info->dst.format))
+         ifmt_type = OUTPUT_IFMT_2D_SINT;
+
+      OUT_PKT4(ring, REG_A5XX_SP_A2D_OUTPUT_INFO, 1);
+      OUT_RING(ring, COND(util_format_is_float16(info->src.format) ||
+                             info->src.format == PIPE_FORMAT_R11G11B10_FLOAT,
+                          A5XX_SP_A2D_OUTPUT_INFO_HALF_PRECISION) |
+                        A5XX_SP_A2D_OUTPUT_INFO_IFMT_TYPE(ifmt_type) |
+                        A5XX_SP_A2D_OUTPUT_INFO_COLOR_FORMAT(dfmt) |
+                        COND(dsrgb, A5XX_SP_A2D_OUTPUT_INFO_SRGB));
 
       /*
        * Blit command:
        */
       OUT_PKT7(ring, CP_BLIT, 5);
-      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_COPY));
+      OUT_RING(ring, CP_BLIT_0_OP(BLIT_OP_SCALE));
       OUT_RING(ring, CP_BLIT_1_SRC_X1(sx1) | CP_BLIT_1_SRC_Y1(sy1));
       OUT_RING(ring, CP_BLIT_2_SRC_X2(sx2) | CP_BLIT_2_SRC_Y2(sy2));
       OUT_RING(ring, CP_BLIT_3_DST_X1(dx1) | CP_BLIT_3_DST_Y1(dy1));
@@ -520,10 +572,20 @@ bool
 fd5_blitter_blit(struct fd_context *ctx,
                  const struct pipe_blit_info *info) assert_dt
 {
+   struct pipe_blit_info unorm_info;
    struct fd_batch *batch;
 
    if (!can_do_blit(info)) {
       return false;
+   }
+
+   /* An snorm blit would turn -128 into -127; copy the bits instead. */
+   if (info->src.format == info->dst.format &&
+       util_format_is_snorm(info->src.format)) {
+      unorm_info = *info;
+      unorm_info.src.format = unorm_info.dst.format =
+         util_format_snorm_to_unorm(info->src.format);
+      info = &unorm_info;
    }
 
    struct fd_resource *src = fd_resource(info->src.resource);

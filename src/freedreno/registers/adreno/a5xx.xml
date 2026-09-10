@@ -2777,6 +2777,36 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 		src via sampler, to enable scaling??)  0x2040 also used in this
 		case.
 	 -->
+	<bitset name="a5xx_2d_surf_info" inline="yes">
+		<bitfield name="COLOR_FORMAT" low="0" high="7" type="a5xx_color_fmt"/>
+		<bitfield name="TILE_MODE" low="8" high="9" type="a5xx_tile_mode"/>
+		<bitfield name="COLOR_SWAP" low="10" high="11" type="a3xx_color_swap"/>
+		<!-- b12 seems to be set when UBWC "FLAGS" buffer enabled -->
+		<bitfield name="FLAGS" pos="12" type="boolean"/>
+		<bitfield name="SRGB" pos="13" type="boolean"/>
+	</bitset>
+
+	<bitset name="a5xx_sp_a2d_output_info" inline="yes">
+		<bitfield name="HALF_PRECISION" pos="0" type="boolean"/>
+		<bitfield name="IFMT_TYPE" low="1" high="2" type="adreno_2d_output_ifmt_type"/>
+		<bitfield name="COLOR_FORMAT" low="3" high="10" type="a5xx_color_fmt"/>
+		<bitfield name="SRGB" pos="11" type="boolean"/>
+	</bitset>
+
+	<!-- The source the 2D core samples through, the same block as a6xx's
+	     TPL1_A2D_SRC_TEXTURE_*: -->
+	<reg32 offset="0x2000" name="TPL1_A2D_SRC_TEXTURE_INFO" type="a5xx_2d_surf_info"/>
+	<reg32 offset="0x2001" name="TPL1_A2D_SRC_TEXTURE_SIZE">
+		<bitfield name="WIDTH" low="0" high="14" type="uint"/>
+		<bitfield name="HEIGHT" low="15" high="29" type="uint"/>
+	</reg32>
+	<reg64 offset="0x2002" name="TPL1_A2D_SRC_TEXTURE_BASE" type="address"/>
+	<reg32 offset="0x2004" name="TPL1_A2D_SRC_TEXTURE_PITCH">
+		<bitfield name="PITCH" low="9" high="23" shr="6" type="uint"/>
+	</reg32>
+
+	<reg32 offset="0x2040" name="SP_A2D_OUTPUT_INFO" type="a5xx_sp_a2d_output_info"/>
+
 	<bitset name="a5xx_2d_blit_cntl" inline="yes">
 		<bitfield name="ROP" low="23" high="26" type="a3xx_rop_code"/>
 		<bitfield name="IFMT" low="28" high="30" type="adreno_2d_ifmt"/>
@@ -2789,14 +2819,6 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 	<reg32 offset="0x2103" name="RB_2D_SRC_SOLID_DW2"/>
 	<reg32 offset="0x2104" name="RB_2D_SRC_SOLID_DW3"/>
 
-	<bitset name="a5xx_2d_surf_info" inline="yes">
-		<bitfield name="COLOR_FORMAT" low="0" high="7" type="a5xx_color_fmt"/>
-		<bitfield name="TILE_MODE" low="8" high="9" type="a5xx_tile_mode"/>
-		<bitfield name="COLOR_SWAP" low="10" high="11" type="a3xx_color_swap"/>
-		<!-- b12 seems to be set when UBWC "FLAGS" buffer enabled -->
-		<bitfield name="FLAGS" pos="12" type="boolean"/>
-		<bitfield name="SRGB" pos="13" type="boolean"/>
-	</bitset>
 
 	<reg32 offset="0x2107" name="RB_2D_SRC_INFO" type="a5xx_2d_surf_info"/>
 	<reg64 offset="0x2108" name="RB_2D_SRC" type="address"/>
