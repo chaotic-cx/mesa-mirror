@@ -6764,6 +6764,12 @@ typedef struct nir_lower_idiv_options {
     * division lowering
     */
    bool allow_fp16;
+
+   /* Correct 32-bit udiv in fp32.  For hardware where umul_high
+    * expands and frcp/ffma are one instruction.  Reciprocal nudged
+    * down 8 ulp.  Holds for rcp error in [-128, +8] ulp.
+    */
+   bool fp32_udiv_correction;
 } nir_lower_idiv_options;
 
 bool nir_lower_idiv(nir_shader *shader, const nir_lower_idiv_options *options);

@@ -64,9 +64,58 @@ emit_udiv(nir_builder *bld, nir_def *numer, nir_def *denom, bool modulo)
    }
 }
 
+/* 32-bit udiv when fp32 rcp and fma are cheaper than umul_high.
+ *
+ * emit_udiv() builds a 32.32 reciprocal and applies it with two
+ * umul_high.  Where that expands, it is most of the sequence.  This
+ * path stays in fp32.  Integer multiplies left are low-32.
+ *
+ * Needs an under-estimate.  Otherwise the two steps do not converge.
+ * Step one can recover any shortfall.  Step two can only add 1.
+ *
+ *   1. Reciprocal nudged down 8 ulp.  Holds for rcp error in
+ *      [-128, +8] ulp. Vulkan allows 2.5.
+ *   2. -512.0 covers rounding of u2f32(numer).  ulp reaches 512
+ *      near 2^32.
+ */
+static nir_def *
+emit_udiv_fp32(nir_builder *bld, nir_def *numer, nir_def *denom, bool modulo)
+{
+   nir_def *rcp = nir_frcp(bld, nir_u2f32(bld, denom));
+
+   /* An integer subtract on a positive float's bit pattern steps it down by
+    * that many ulp.  The same trick convert_instr_small() uses.
+    */
+   rcp = nir_iadd_imm(bld, rcp, -8);
+
+   nir_def *quotient =
+      nir_f2u32(bld, nir_ffma_weak_imm2(bld, rcp, nir_u2f32(bld, numer),
+                                        -512.0));
+
+   nir_def *remainder = nir_isub(bld, numer, nir_imul(bld, quotient, denom));
+
+   /* First correction: divide the remainder the same way.  The bias is one
+    * ulp of a small remainder in fp32 and keeps this step from overshooting
+    * by one.
+    */
+   nir_def *step =
+      nir_f2u32(bld, nir_ffma_weak_imm2(bld, rcp, nir_u2f32(bld, remainder),
+                                        -6.103515625e-05));
+   quotient = nir_uadd_sat(bld, quotient, step);
+   remainder = nir_isub(bld, numer, nir_imul(bld, quotient, denom));
+
+   /* Second correction: at most one off now. */
+   nir_def *ge = nir_uge(bld, remainder, denom);
+   if (modulo)
+      return nir_bcsel(bld, ge, nir_isub(bld, remainder, denom), remainder);
+
+   return nir_uadd_sat(bld, quotient, nir_b2i32(bld, ge));
+}
+
 /* ported from LLVM's AMDGPUTargetLowering::LowerSDIVREM */
 static nir_def *
-emit_idiv(nir_builder *bld, nir_def *numer, nir_def *denom, nir_op op)
+emit_idiv(nir_builder *bld, nir_def *numer, nir_def *denom, nir_op op,
+          const nir_lower_idiv_options *options)
 {
    nir_def *lhs = nir_iabs(bld, numer);
    nir_def *rhs = nir_iabs(bld, denom);
@@ -76,13 +125,17 @@ emit_idiv(nir_builder *bld, nir_def *numer, nir_def *denom, nir_op op)
        * and since XOR is bitwise, that's the sign bit of the XOR.
        */
       nir_def *d_sign = nir_ilt_imm(bld, nir_ixor(bld, numer, denom), 0);
-      nir_def *res = emit_udiv(bld, lhs, rhs, false);
+      nir_def *res = options->fp32_udiv_correction
+                        ? emit_udiv_fp32(bld, lhs, rhs, false)
+                        : emit_udiv(bld, lhs, rhs, false);
       return nir_bcsel(bld, d_sign, nir_ineg(bld, res), res);
    } else {
       nir_def *lh_sign = nir_ilt_imm(bld, numer, 0);
       nir_def *rh_sign = nir_ilt_imm(bld, denom, 0);
 
-      nir_def *res = emit_udiv(bld, lhs, rhs, true);
+      nir_def *res = options->fp32_udiv_correction
+                        ? emit_udiv_fp32(bld, lhs, rhs, true)
+                        : emit_udiv(bld, lhs, rhs, true);
       res = nir_bcsel(bld, lh_sign, nir_ineg(bld, res), res);
       if (op == nir_op_imod) {
          nir_def *cond = nir_ieq_imm(bld, res, 0);
@@ -147,9 +200,11 @@ lower_idiv(nir_builder *b, nir_instr *instr, void *_data)
    if (numer->bit_size < 32)
       return convert_instr_small(b, alu->op, numer, denom, options);
    else if (alu->op == nir_op_udiv || alu->op == nir_op_umod)
-      return emit_udiv(b, numer, denom, alu->op == nir_op_umod);
+      return options->fp32_udiv_correction
+                ? emit_udiv_fp32(b, numer, denom, alu->op == nir_op_umod)
+                : emit_udiv(b, numer, denom, alu->op == nir_op_umod);
    else
-      return emit_idiv(b, numer, denom, alu->op);
+      return emit_idiv(b, numer, denom, alu->op, options);
 }
 
 static bool
