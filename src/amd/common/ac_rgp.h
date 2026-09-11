@@ -35,6 +35,16 @@ enum elf_gfxip_level
    EF_AMDGPU_MACH_AMDGCN_GFX1200 = 0x04e,
 };
 
+enum sqtt_version
+{
+   SQTT_VERSION_NONE = 0x0,
+   SQTT_VERSION_2_2 = 0x5, /* GFX8 */
+   SQTT_VERSION_2_3 = 0x6, /* GFX9 */
+   SQTT_VERSION_2_4 = 0x7, /* GFX10+ */
+   SQTT_VERSION_3_2 = 0xb, /* GFX11+ */
+   SQTT_VERSION_3_3 = 0xc, /* GFX12+ */
+};
+
 enum rgp_hardware_stages {
    RGP_HW_STAGE_VS = 0,
    RGP_HW_STAGE_LS,
@@ -236,6 +246,8 @@ int ac_dump_rgp_capture(const struct radeon_info *info, struct ac_sqtt_trace *sq
 
 
 enum elf_gfxip_level ac_gfx_level_to_elf_gfxip_level(enum amd_gfx_level gfx_level);
+
+enum sqtt_version ac_gfx_level_to_sqtt_version(enum amd_gfx_level gfx_level);
 
 void ac_rgp_file_write_elf_object(FILE *output, size_t file_elf_start,
                                   struct rgp_code_object_record *record,

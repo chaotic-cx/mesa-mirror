@@ -31,16 +31,6 @@
 #define SQTT_SA_PER_SE         2
 #define SQTT_ACTIVE_PIXEL_PACKER_MASK_DWORDS 4
 
-enum sqtt_version
-{
-   SQTT_VERSION_NONE = 0x0,
-   SQTT_VERSION_2_2 = 0x5, /* GFX8 */
-   SQTT_VERSION_2_3 = 0x6, /* GFX9 */
-   SQTT_VERSION_2_4 = 0x7, /* GFX10+ */
-   SQTT_VERSION_3_2 = 0xb, /* GFX11+ */
-   SQTT_VERSION_3_3 = 0xc, /* GFX12+ */
-};
-
 /**
  * SQTT chunks.
  */
@@ -712,7 +702,7 @@ struct sqtt_file_chunk_sqtt_desc {
 static_assert(sizeof(struct sqtt_file_chunk_sqtt_desc) == 32,
               "sqtt_file_chunk_sqtt_desc doesn't match RGP spec");
 
-static enum sqtt_version ac_gfx_level_to_sqtt_version(enum amd_gfx_level gfx_level)
+enum sqtt_version ac_gfx_level_to_sqtt_version(enum amd_gfx_level gfx_level)
 {
    switch (gfx_level) {
    case GFX8:
