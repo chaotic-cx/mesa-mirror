@@ -3013,8 +3013,7 @@ radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
    if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_5)
       radv_enc_qp_map_input(cmd_buffer, enc_info);
 
-   if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_2)
-      radv_vcn_sq_header(cs, &cmd_buffer->video.sq, RADEON_VCN_ENGINE_TYPE_ENCODE);
+   radv_vcn_sq_header(cs, &cmd_buffer->video.sq, RADEON_VCN_ENGINE_TYPE_ENCODE);
 
    const struct VkVideoInlineQueryInfoKHR *inline_queries = NULL;
    if (vid->vk.flags & VK_VIDEO_SESSION_CREATE_INLINE_QUERIES_BIT_KHR) {
@@ -3110,13 +3109,10 @@ radv_vcn_encode_video(struct radv_cmd_buffer *cmd_buffer, const VkVideoEncodeInf
 
    *enc->p_task_size = enc->total_task_size;
 
-   if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_2) {
-      radv_vcn_sq_tail(cs, &cmd_buffer->video.sq);
-      if (feedback_query_va &&
-          pdev->info.video_caps.queue[AMD_IP_VCN_ENC].write_memory == AC_VIDEO_WRITE_MEMORY_SUPPORT_FULL)
-         ac_emit_video_write_memory(cs->b, &pdev->info, cs->hw_ip, feedback_query_va + cmd_buffer->video.status_offset,
-                                    1);
-   }
+   radv_vcn_sq_tail(cs, &cmd_buffer->video.sq);
+   if (feedback_query_va &&
+       pdev->info.video_caps.queue[AMD_IP_VCN_ENC].write_memory == AC_VIDEO_WRITE_MEMORY_SUPPORT_FULL)
+      ac_emit_video_write_memory(cs->b, &pdev->info, cs->hw_ip, feedback_query_va + cmd_buffer->video.status_offset, 1);
 }
 
 void
@@ -3134,7 +3130,6 @@ void
 radv_video_enc_control_video_coding(struct radv_cmd_buffer *cmd_buffer, const VkVideoCodingControlInfoKHR *control_info)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
-   struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_video_session *vid = cmd_buffer->video.vid;
 
    bool session_init = false;
@@ -3284,8 +3279,7 @@ radv_video_enc_control_video_coding(struct radv_cmd_buffer *cmd_buffer, const Vk
 
    radeon_check_space(device->ws, cmd_buffer->cs->b, 256);
 
-   if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_2)
-      radv_vcn_sq_header(cmd_buffer->cs, &cmd_buffer->video.sq, RADEON_VCN_ENGINE_TYPE_ENCODE);
+   radv_vcn_sq_header(cmd_buffer->cs, &cmd_buffer->video.sq, RADEON_VCN_ENGINE_TYPE_ENCODE);
 
    radv_enc_session_info(cmd_buffer);
    cmd_buffer->video.enc.total_task_size = 0;
@@ -3316,8 +3310,7 @@ radv_video_enc_control_video_coding(struct radv_cmd_buffer *cmd_buffer, const Vk
 
    *cmd_buffer->video.enc.p_task_size = cmd_buffer->video.enc.total_task_size;
 
-   if (pdev->enc_hw_ver >= RADV_VIDEO_ENC_HW_2)
-      radv_vcn_sq_tail(cmd_buffer->cs, &cmd_buffer->video.sq);
+   radv_vcn_sq_tail(cmd_buffer->cs, &cmd_buffer->video.sq);
 }
 
 void
