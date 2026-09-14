@@ -408,6 +408,18 @@ util_widen_mask(uint32_t mask, unsigned multiplier)
    return new_mask;
 }
 
+/**
+ * 64-bit version of util_widen_mask
+ */
+static inline uint64_t
+util_widen_mask64(uint64_t mask, unsigned multiplier)
+{
+   uint64_t new_mask = 0;
+   u_foreach_bit64(i, mask)
+      new_mask |= ((1ull << multiplier) - 1ull) << (i * multiplier);
+   return new_mask;
+}
+
 #ifdef __cplusplus
 }
 
