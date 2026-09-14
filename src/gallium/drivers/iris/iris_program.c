@@ -4518,19 +4518,18 @@ iris_get_cs_dispatch_info(const struct intel_device_info *devinfo,
                           const struct iris_compiled_shader *shader,
                           const uint32_t block[3])
 {
-   if (shader->brw_prog_data) {
-      return brw_cs_get_dispatch_info(devinfo,
-                                      brw_cs_prog_data(shader->brw_prog_data),
-                                      block);
-   } else {
+   if (shader->elk_prog_data) {
 #ifdef INTEL_USE_ELK
-      assert(shader->elk_prog_data);
       return elk_cs_get_dispatch_info(devinfo,
                                       elk_cs_prog_data(shader->elk_prog_data),
                                       block);
 #else
       UNREACHABLE("no elk support");
 #endif
+   } else {
+      return brw_cs_get_dispatch_info(devinfo,
+                                      brw_cs_prog_data(shader->brw_prog_data),
+                                      block);
    }
 }
 
@@ -4538,17 +4537,16 @@ unsigned
 iris_cs_push_const_total_size(const struct iris_compiled_shader *shader,
                               unsigned threads)
 {
-   if (shader->brw_prog_data) {
-      return brw_cs_push_const_total_size(brw_cs_prog_data(shader->brw_prog_data),
-                                          threads);
-   } else {
+   if (shader->elk_prog_data) {
 #ifdef INTEL_USE_ELK
-      assert(shader->elk_prog_data);
       return elk_cs_push_const_total_size(elk_cs_prog_data(shader->elk_prog_data),
                                           threads);
 #else
       UNREACHABLE("no elk support");
 #endif
+   } else {
+      return brw_cs_push_const_total_size(brw_cs_prog_data(shader->brw_prog_data),
+                                          threads);
    }
 }
 
@@ -4556,16 +4554,15 @@ uint32_t
 iris_fs_barycentric_modes(const struct iris_compiled_shader *shader,
                           enum intel_fs_config pushed_fs_config)
 {
-   if (shader->brw_prog_data) {
-      return brw_fs_prog_data(shader->brw_prog_data)->barycentric_interp_modes;
-   } else {
+   if (shader->elk_prog_data) {
 #ifdef INTEL_USE_ELK
-      assert(shader->elk_prog_data);
       return elk_fs_prog_data_barycentric_modes(elk_fs_prog_data(shader->elk_prog_data),
                                                 pushed_fs_config);
 #else
       UNREACHABLE("no elk support");
 #endif
+   } else {
+      return brw_fs_prog_data(shader->brw_prog_data)->barycentric_interp_modes;
    }
 }
 

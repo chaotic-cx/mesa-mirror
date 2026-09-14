@@ -177,10 +177,10 @@ iris_disk_cache_store(struct disk_cache *cache,
 
 #ifdef INTEL_USE_ELK
    assert((shader->brw_prog_data == NULL) != (shader->elk_prog_data == NULL));
-   if (shader->brw_prog_data)
-      iris_disk_cache_store_brw(cache, ish, shader, cache_key);
-   else
+   if (shader->elk_prog_data)
       iris_disk_cache_store_elk(cache, ish, shader, cache_key);
+   else
+      iris_disk_cache_store_brw(cache, ish, shader, cache_key);
 #else
    assert(shader->brw_prog_data);
    iris_disk_cache_store_brw(cache, ish, shader, cache_key);
