@@ -55,6 +55,8 @@
 #define XXH_INLINE_ALL
 #include "util/xxhash.h"
 
+#define MAX_PARTIAL_STORE_COMPONENTS 64
+
 struct intrinsic_info {
    nir_variable_mode mode; /* 0 if the mode is obtained from the deref. */
    nir_intrinsic_op op;
@@ -871,6 +873,19 @@ calc_new_num_components(const struct vectorize_ctx *ctx,
    return new_num_components;
 }
 
+static unsigned
+calc_common_bit_size(struct entry *low, struct entry *high,
+                     unsigned new_bit_size, unsigned high_offset)
+{
+   unsigned common_bit_size = MIN2(get_bit_size(low), get_bit_size(high));
+   common_bit_size = MIN2(common_bit_size, new_bit_size);
+
+   if (high_offset > 0)
+      common_bit_size = MIN2(common_bit_size, (1u << (ffs(high_offset) - 1)));
+
+   return common_bit_size;
+}
+
 /* Return true if "new_bit_size" is a usable bit size for a vectorized load/store
  * of "low" and "high". */
 static bool
@@ -888,15 +903,9 @@ new_bitsize_acceptable(struct vectorize_ctx *ctx, unsigned new_bit_size,
 
    unsigned high_offset = get_offset_diff(low, high);
 
-   /* This can cause issues when combining store data. */
-   if (low->is_store && (high_offset % (new_bit_size / 8) != 0))
-      return false;
-
    /* check nir_extract_bits limitations */
-   unsigned common_bit_size = MIN2(get_bit_size(low), get_bit_size(high));
-   common_bit_size = MIN2(common_bit_size, new_bit_size);
-   if (high_offset > 0)
-      common_bit_size = MIN2(common_bit_size, (1u << (ffs(high_offset * 8) - 1)));
+   unsigned common_bit_size = calc_common_bit_size(low, high, new_bit_size,
+                                                   high_offset * 8u);
    if (new_bit_size / common_bit_size > NIR_MAX_VEC_COMPONENTS)
       return false;
 
@@ -912,21 +921,26 @@ new_bitsize_acceptable(struct vectorize_ctx *ctx, unsigned new_bit_size,
       return false;
 
    if (low->is_store) {
-      unsigned low_size = low->num_components * get_bit_size(low);
-      unsigned high_size = high->num_components * get_bit_size(high);
-
-      if (low_size % new_bit_size != 0)
-         return false;
-      if (high_size % new_bit_size != 0)
+      if (size / common_bit_size > MAX_PARTIAL_STORE_COMPONENTS)
          return false;
 
-      unsigned write_mask = get_write_mask(low->intrin);
-      if (!nir_component_mask_can_reinterpret(write_mask, get_bit_size(low), new_bit_size))
-         return false;
+      if (common_bit_size != new_bit_size) {
+         uint64_t combined_mask =
+            util_widen_mask64(get_write_mask(high->intrin),
+                              get_bit_size(high) / common_bit_size);
+         combined_mask <<= high_offset * 8 / common_bit_size;
+         combined_mask |=
+            util_widen_mask64(get_write_mask(low->intrin),
+                              get_bit_size(low) / common_bit_size);
 
-      write_mask = get_write_mask(high->intrin);
-      if (!nir_component_mask_can_reinterpret(write_mask, get_bit_size(high), new_bit_size))
-         return false;
+         for (unsigned i = 0; i < sizeof(combined_mask);
+              i += sizeof(nir_component_mask_t)) {
+            nir_component_mask_t mask_part = combined_mask >> (i * 8ull);
+            if (!nir_component_mask_can_reinterpret(mask_part, common_bit_size,
+                                                    new_bit_size))
+               return false;
+         }
+      }
    }
 
    return true;
@@ -1120,23 +1134,19 @@ vectorize_stores(nir_builder *b, struct vectorize_ctx *ctx,
                  unsigned new_bit_size, unsigned new_num_components,
                  unsigned high_start)
 {
-   ASSERTED unsigned low_size = low->num_components * get_bit_size(low);
-   assert(low_size % new_bit_size == 0);
-
    b->cursor = nir_before_instr(second->instr);
 
    /* get new writemasks */
-   uint32_t low_write_mask = get_write_mask(low->intrin);
-   uint32_t high_write_mask = get_write_mask(high->intrin);
-   low_write_mask = nir_component_mask_reinterpret(low_write_mask,
-                                                   get_bit_size(low),
-                                                   new_bit_size);
-   high_write_mask = nir_component_mask_reinterpret(high_write_mask,
-                                                    get_bit_size(high),
-                                                    new_bit_size);
-   high_write_mask <<= high_start / new_bit_size;
-
-   uint32_t write_mask = low_write_mask | high_write_mask;
+   unsigned common_bit_size =
+      calc_common_bit_size(low, high, new_bit_size, high_start);
+   uint64_t low_write_mask =
+      util_widen_mask64(get_write_mask(low->intrin),
+                        get_bit_size(low) / common_bit_size);
+   uint64_t high_write_mask =
+      util_widen_mask64(get_write_mask(high->intrin),
+                        get_bit_size(high) / common_bit_size);
+   high_write_mask <<= high_start / common_bit_size;
+   uint64_t combined_mask = high_write_mask | low_write_mask;
 
    /* convert booleans */
    nir_def *low_val = low->intrin->src[low->info->value_src].ssa;
@@ -1144,24 +1154,50 @@ vectorize_stores(nir_builder *b, struct vectorize_ctx *ctx,
    low_val = low_val->bit_size == 1 ? nir_b2iN(b, low_val, 32) : low_val;
    high_val = high_val->bit_size == 1 ? nir_b2iN(b, high_val, 32) : high_val;
 
-   /* combine the data */
-   nir_def *data_channels[NIR_MAX_VEC_COMPONENTS];
-   for (unsigned i = 0; i < new_num_components; i++) {
-      bool set_low = low_write_mask & (1 << i);
-      bool set_high = high_write_mask & (1 << i);
+   /* extract the data */
+   nir_def *source_channels[MAX_PARTIAL_STORE_COMPONENTS];
+   unsigned num_source_channels = new_num_components * new_bit_size / common_bit_size;
+   for (unsigned i = 0; i < num_source_channels; i++) {
+      bool set_low = low_write_mask & BITFIELD64_BIT(i);
+      bool set_high = high_write_mask & BITFIELD64_BIT(i);
 
       if (set_low && (!set_high || low == second)) {
-         unsigned offset = i * new_bit_size;
-         data_channels[i] = nir_extract_bits(b, &low_val, 1, offset, 1, new_bit_size);
+         unsigned offset = i * common_bit_size;
+         source_channels[i] = nir_extract_bits(b, &low_val, 1, offset, 1, common_bit_size);
       } else if (set_high) {
          assert(!set_low || high == second);
-         unsigned offset = i * new_bit_size - high_start;
-         data_channels[i] = nir_extract_bits(b, &high_val, 1, offset, 1, new_bit_size);
+         unsigned offset = i * common_bit_size - high_start;
+         source_channels[i] = nir_extract_bits(b, &high_val, 1, offset, 1, common_bit_size);
       } else {
-         data_channels[i] = nir_undef(b, 1, new_bit_size);
+         source_channels[i] = nir_undef(b, 1, common_bit_size);
       }
    }
-   nir_def *data = nir_vec(b, data_channels, new_num_components);
+
+   /* combine the data */
+   nir_def *data;
+   nir_component_mask_t write_mask;
+   if (common_bit_size == new_bit_size) {
+      data = nir_vec(b, source_channels, new_num_components);
+      write_mask = combined_mask & BITFIELD64_MASK(new_num_components);
+   } else {
+      assert(common_bit_size < new_bit_size);
+      unsigned stride = new_bit_size / common_bit_size;
+      nir_def *packed_channels[NIR_MAX_VEC_COMPONENTS];
+      write_mask = 0;
+
+      for (unsigned i = 0; i < new_num_components; i++) {
+         packed_channels[i] =
+            nir_pack_bits(b, nir_vec(b, &source_channels[i * stride], stride),
+                          new_bit_size);
+
+         uint64_t wm_mask = BITFIELD64_MASK(stride);
+         uint64_t wm_bits = (combined_mask >> (i * stride)) & wm_mask;
+         assert(wm_bits == 0ull || wm_bits == wm_mask);
+         write_mask |= wm_bits ? BITFIELD_BIT(i) : 0;
+      }
+
+      data = nir_vec(b, packed_channels, new_num_components);
+   }
 
    /* update the intrinsic */
    set_write_mask(b, second->intrin, write_mask);
