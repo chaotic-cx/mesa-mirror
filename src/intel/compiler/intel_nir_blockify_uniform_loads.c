@@ -156,6 +156,9 @@ intel_nir_blockify_uniform_loads_intr(nir_builder *b,
       if (intrin->def.bit_size != 32)
          return false;
 
+      if (nir_intrinsic_align(intrin) < 4)
+         return false;
+
       /* Without the LSC, we can only do block loads of at least 4dwords (1
        * oword).
        */
@@ -204,6 +207,9 @@ intel_nir_blockify_uniform_loads_intr(nir_builder *b,
       if (intrin->def.bit_size != 32)
          return false;
 
+      if (nir_intrinsic_align(intrin) < 4)
+         return false;
+
       /* Without the LSC, we have to use OWord Block Load messages (the one
        * that requires OWord aligned offsets, too).
        */
@@ -220,6 +226,9 @@ intel_nir_blockify_uniform_loads_intr(nir_builder *b,
          return false;
 
       if (intrin->def.bit_size != 32)
+         return false;
+
+      if (nir_intrinsic_align(intrin) < 4)
          return false;
 
       /* Without the LSC, we can only do block loads of at least 4dwords (1
