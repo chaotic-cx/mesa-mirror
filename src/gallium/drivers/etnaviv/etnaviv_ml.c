@@ -489,7 +489,6 @@ lower_operations(struct etna_ml_subgraph *subgraph,
             break;
          }
          case PIPE_ML_OPERATION_TYPE_SUBTRACT: {
-            struct etna_operation *operation = calloc(1, sizeof(*operation));
             etna_ml_lower_add(subgraph, poperation, operation);
             operation->input_tensors[0] = input_tensors[0];
             operation->input_tensors[1] = input_tensors[1];
