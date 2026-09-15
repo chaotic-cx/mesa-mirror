@@ -69,6 +69,10 @@ impl FAUModel {
     pub fn special(&self, special: SpecialFAU) -> Option<FAURef> {
         (self.special_fn)(special)
     }
+
+    pub fn user_page_words(&self) -> usize {
+        self.user_fau_page_words.into()
+    }
 }
 
 pub trait Model {
