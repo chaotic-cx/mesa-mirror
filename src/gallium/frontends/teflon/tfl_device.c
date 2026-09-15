@@ -873,13 +873,13 @@ dump_used_tensors(struct pipe_tensor *tensors, unsigned tensor_count,
          used[operations[i].output_tensors[j]->index] = true;
    }
 
-   teflon_debug("%3s %-8s %3s %s %-12s\n", "idx", "scale", "zp", "has_data", "size");
+   teflon_debug("%3s %-8s %4s %s %-12s\n", "idx", "scale", "zp", "has_data", "size");
    teflon_debug("=======================================\n");
    for (unsigned i = 0; i < tensor_count; i++) {
       if (!used[i])
          continue;
 
-      teflon_debug("%3d %6f %3x %-8s %dx%dx%dx%d\n",
+      teflon_debug("%3d %6f %4d %-8s %dx%dx%dx%d\n",
                    tensors[i].index,
                    tensors[i].scale,
                    tensors[i].zero_point,
