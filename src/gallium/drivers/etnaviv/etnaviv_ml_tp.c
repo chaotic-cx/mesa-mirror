@@ -622,10 +622,10 @@ create_pad_config(struct etna_ml_subgraph *subgraph, const struct etna_operation
 
    if (tp_cores_used > 1) {
       if (pad_before_z)
-         map->in_window_z_start_overfetch = tp_core == 0;
+         map->in_window_z_start_overfetch = (tp_core == 0) ? pad_before_z : 0;
 
       if (pad_after_z)
-         map->in_window_z_end_overfetch = tp_core == tp_cores_used - 1;
+         map->in_window_z_end_overfetch = (tp_core == tp_cores_used - 1) ? pad_after_z : 0;
    }
 
    map->in_tile_x_size = out_dims[0];

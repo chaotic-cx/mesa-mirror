@@ -713,12 +713,12 @@ etna_ml_operation_supported(struct pipe_ml_device *pdevice,
          break;
       }
       case PIPE_ML_OPERATION_TYPE_PAD: {
-         supported = operation->pad.before_x <= 2 &&
-                     operation->pad.after_x <= 2 &&
-                     operation->pad.before_y <= 2 &&
-                     operation->pad.after_y <= 2 &&
-                     operation->pad.before_z <= 2 &&
-                     operation->pad.after_z <= 2;
+         supported = operation->pad.before_x <= 3 &&
+                     operation->pad.after_x <= 3 &&
+                     operation->pad.before_y <= 3 &&
+                     operation->pad.after_y <= 3 &&
+                     operation->pad.before_z <= 3 &&
+                     operation->pad.after_z <= 3;
          break;
       }
       case PIPE_ML_OPERATION_TYPE_FULLY_CONNECTED: {
