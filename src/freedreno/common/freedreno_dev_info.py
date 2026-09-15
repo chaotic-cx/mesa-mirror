@@ -77,6 +77,14 @@ class State(object):
 
 s = State()
 
+def id_wildcards(id):
+    wildcards = 0
+    if (id.chip_id & 0xff) == 0xff:
+        wildcards += 1
+    if ((id.chip_id >> 32) & 0xffff) == 0xffff:
+        wildcards += 1
+    return wildcards
+
 def add_gpus(ids, info):
     for id in ids:
         s.gpus[id] = info
@@ -349,6 +357,8 @@ def print_quirk_report():
     print(yaml.dump(quirk_report))
 
 def main():
+    s.gpus = dict(sorted(s.gpus.items(), key=lambda gpu: id_wildcards(gpu[0])))
+
     if args.nvtop:
         print(Template(nvtop_template).render(s=s, unique_props=GPUProps.unique_props))
     elif args.quirks:
