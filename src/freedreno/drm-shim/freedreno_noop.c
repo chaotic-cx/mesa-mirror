@@ -216,7 +216,7 @@ static const struct msm_device_info device_infos[] = {
    {
       /* First entry is default */
       .gpu_id = 630,
-      .chip_id = CHIPID(6, 3, 0, 0xff),
+      .chip_id = CHIPID(6, 3, 0, 1),
       .gmem_size = 1024 * 1024,
    },
    {
@@ -231,17 +231,17 @@ static const struct msm_device_info device_infos[] = {
    },
    {
       .gpu_id = 220,
-      .chip_id = CHIPID(2, 2, 0, 0xff),
+      .chip_id = CHIPID(2, 2, 0, 0),
       .gmem_size = 512 * 1024,
    },
    {
       .gpu_id = 225,
-      .chip_id = CHIPID(2, 2, 5, 0xff),
+      .chip_id = CHIPID(2, 2, 5, 6),
       .gmem_size = 512 * 1024,
    },
    {
       .gpu_id = 305,
-      .chip_id = CHIPID(3, 0, 5, 0xff),
+      .chip_id = CHIPID(3, 0, 5, 0x20),
       .gmem_size = 256 * 1024,
    },
    {
@@ -251,27 +251,27 @@ static const struct msm_device_info device_infos[] = {
    },
    {
       .gpu_id = 320,
-      .chip_id = CHIPID(3, 2, 0xff, 0xff),
+      .chip_id = CHIPID(3, 2, 0, 0),
       .gmem_size = 512 * 1024,
    },
    {
       .gpu_id = 330,
-      .chip_id = CHIPID(3, 3, 0, 0xff),
+      .chip_id = CHIPID(3, 3, 0, 0),
       .gmem_size = 1024 * 1024,
    },
    {
       .gpu_id = 420,
-      .chip_id = CHIPID(4, 2, 0, 0xff),
+      .chip_id = CHIPID(4, 2, 0, 0),
       .gmem_size = 1536 * 1024,
    },
    {
       .gpu_id = 430,
-      .chip_id = CHIPID(4, 3, 0, 0xff),
+      .chip_id = CHIPID(4, 3, 0, 2),
       .gmem_size = 1536 * 1024,
    },
    {
       .gpu_id = 510,
-      .chip_id = CHIPID(5, 1, 0, 0xff),
+      .chip_id = CHIPID(5, 1, 0, 0),
       .gmem_size = 256 * 1024,
    },
    {
@@ -291,17 +291,17 @@ static const struct msm_device_info device_infos[] = {
    },
    {
       .gpu_id = 618,
-      .chip_id = CHIPID(6, 1, 8, 0xff),
+      .chip_id = CHIPID(6, 1, 8, 0),
       .gmem_size = 512 * 1024,
    },
    {
       .gpu_id = 650,
-      .chip_id = CHIPID(6, 5, 0, 0xff),
+      .chip_id = CHIPID(6, 5, 0, 2),
       .gmem_size = 1024 * 1024 + 128 * 1024,
    },
    {
       .gpu_id = 660,
-      .chip_id = CHIPID(6, 6, 0, 0xff),
+      .chip_id = CHIPID(6, 6, 0, 1),
       .gmem_size = 1024 * 1024 + 512 * 1024,
    },
    {
