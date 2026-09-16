@@ -55,6 +55,12 @@ struct ethosu_io_free_block {
    unsigned size;
 };
 
+struct ethosu_sram_coefficient {
+   struct ethosu_operation *dma;
+   struct ethosu_operation *conv;
+   unsigned size;
+};
+
 static unsigned
 ethosu_find_interval(struct ethosu_io_interval *intervals, unsigned count,
                      struct ethosu_tensor *tensor)
@@ -317,6 +323,15 @@ ethosu_allocate_sram_coefficients(struct ethosu_subgraph *subgraph)
    unsigned sram_size = device->sram_size;
    unsigned op_count =
       util_dynarray_num_elements(&subgraph->operations, struct ethosu_operation);
+   struct ethosu_sram_coefficient *coefficients;
+   unsigned coefficient_count = 0;
+   bool double_buffered = true;
+
+   if (!op_count)
+      return;
+
+   coefficients = calloc(op_count, sizeof(*coefficients));
+   assert(coefficients);
 
    for (unsigned i = 0; i < op_count; i++) {
       struct ethosu_operation *dma =
@@ -358,18 +373,59 @@ ethosu_allocate_sram_coefficients(struct ethosu_subgraph *subgraph)
 
       assert(size <= sram_size);
 
-      unsigned sram_address = sram_size - size;
-
-      dma->dma.dst_address = sram_address;
-      dma->dma.dst_region = SCRATCH_REGION;
-
-      conv->conv.scales.region = SCRATCH_REGION;
-      conv->conv.scales.address = sram_address;
-
-      conv->conv.weights.region = SCRATCH_REGION;
-      conv->conv.weights.address =
-         conv->conv.scales.address + conv->conv.scales.size;
+      coefficients[coefficient_count++] = (struct ethosu_sram_coefficient){
+         .dma = dma,
+         .conv = conv,
+         .size = size,
+      };
    }
+
+   for (unsigned i = 0; i < coefficient_count; i++) {
+      unsigned adjacent_size = 0;
+
+      if (i > 0)
+         adjacent_size = coefficients[i - 1].size;
+      if (i + 1 < coefficient_count)
+         adjacent_size = MAX2(adjacent_size, coefficients[i + 1].size);
+
+      if (coefficients[i].size + adjacent_size > sram_size) {
+         double_buffered = false;
+         break;
+      }
+   }
+
+   for (unsigned i = 0; i < coefficient_count; i++) {
+      struct ethosu_sram_coefficient *coefficient = &coefficients[i];
+      unsigned sram_address;
+
+      if (!double_buffered) {
+         sram_address = sram_size - coefficient->size;
+      } else if (i & 1) {
+         sram_address = sram_size - coefficient->size;
+      } else {
+         unsigned adjacent_size = 0;
+
+         if (i > 0)
+            adjacent_size = coefficients[i - 1].size;
+         if (i + 1 < coefficient_count)
+            adjacent_size = MAX2(adjacent_size, coefficients[i + 1].size);
+
+         sram_address = sram_size - coefficient->size - adjacent_size;
+      }
+
+      coefficient->dma->dma.dst_address = sram_address;
+      coefficient->dma->dma.dst_region = SCRATCH_REGION;
+
+      coefficient->conv->conv.scales.region = SCRATCH_REGION;
+      coefficient->conv->conv.scales.address = sram_address;
+
+      coefficient->conv->conv.weights.region = SCRATCH_REGION;
+      coefficient->conv->conv.weights.address =
+         coefficient->conv->conv.scales.address +
+         coefficient->conv->conv.scales.size;
+   }
+
+   free(coefficients);
 }
 
 void
