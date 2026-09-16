@@ -34,7 +34,7 @@
         "description": "agx: fix phi register shuffling order",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "106da137e37ce2120ae922740bf985213870d885",
         "notes": null
