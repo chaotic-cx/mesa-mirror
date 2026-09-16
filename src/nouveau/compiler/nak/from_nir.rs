@@ -3541,7 +3541,7 @@ impl<'a> ShaderFromNir<'a> {
                         buf: CBuf::Binding(idx_imm),
                         offset: off_imm,
                     };
-                    if srcs[1].is_zero() {
+                    if srcs[1].is_zero() && size_B >= 4 {
                         for (i, comp) in dst.iter().enumerate() {
                             let i = u16::try_from(i).unwrap();
                             b.copy_to(
@@ -3596,7 +3596,7 @@ impl<'a> ShaderFromNir<'a> {
                 };
 
                 let dst = b.alloc_ssa_vec(RegFile::GPR, size_B.div_ceil(4));
-                if srcs[1].is_zero() {
+                if srcs[1].is_zero() && size_B >= 4 {
                     for (i, comp) in dst.iter().enumerate() {
                         let i = u16::try_from(i).unwrap();
                         b.copy_to(
