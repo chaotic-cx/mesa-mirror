@@ -12,6 +12,7 @@ ethosu_registers = custom_target(
 )
 
 files_ethosu = files(
+  'ethosu_alloc.c',
   'ethosu_cmd.c',
   'ethosu_coefs.c',
   'ethosu_device.c',
