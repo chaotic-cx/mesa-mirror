@@ -55,6 +55,22 @@ struct ethosu_io_free_block {
    unsigned size;
 };
 
+#define ETHOSU_SRAM_REUSE_DELAY 1
+
+struct ethosu_sram_interval {
+   struct ethosu_tensor *tensor;
+   unsigned parent;
+   unsigned first_use;
+   unsigned last_use;
+   unsigned size;
+   unsigned offset;
+   unsigned limit;
+   unsigned producers;
+   unsigned consumers;
+   bool active;
+   bool is_external_output;
+};
+
 struct ethosu_sram_coefficient {
    struct ethosu_operation *dma;
    struct ethosu_operation *conv;
@@ -249,6 +265,38 @@ ethosu_alloc_io_block(struct ethosu_io_free_block *free_blocks,
    return offset;
 }
 
+static bool
+ethosu_alloc_sram_block(struct ethosu_io_free_block *free_blocks,
+                        unsigned *free_count, unsigned *high_water,
+                        unsigned limit, unsigned size, unsigned *offset)
+{
+   if (size > limit)
+      return false;
+
+   for (unsigned i = 0; i < *free_count; i++) {
+      if (free_blocks[i].size >= size &&
+          free_blocks[i].offset <= limit - size) {
+         *offset = free_blocks[i].offset;
+         free_blocks[i].offset += size;
+         free_blocks[i].size -= size;
+         if (free_blocks[i].size == 0) {
+            memmove(&free_blocks[i], &free_blocks[i + 1],
+                    (*free_count - i - 1) * sizeof(free_blocks[0]));
+            (*free_count)--;
+         }
+
+         return true;
+      }
+   }
+
+   if (*high_water > limit || size > limit - *high_water)
+      return false;
+
+   *offset = *high_water;
+   *high_water += size;
+   return true;
+}
+
 static void
 ethosu_free_io_block(struct ethosu_io_free_block *free_blocks,
                      unsigned *free_count, unsigned offset, unsigned size)
@@ -425,7 +473,272 @@ ethosu_allocate_sram_coefficients(struct ethosu_subgraph *subgraph)
          coefficient->conv->conv.scales.size;
    }
 
+   /* Unrolled convolutions share the coefficient upload of their owner. */
+   struct ethosu_operation *owner = NULL;
+   util_dynarray_foreach (&subgraph->operations, struct ethosu_operation,
+                          operation) {
+      if (operation->type != ETHOSU_OPERATION_TYPE_CONVOLUTION)
+         continue;
+
+      if (!operation->reuses_coefs) {
+         owner = operation;
+         continue;
+      }
+
+      assert(owner);
+      operation->conv.scales = owner->conv.scales;
+      operation->conv.weights = owner->conv.weights;
+   }
+
    free(coefficients);
+}
+
+static unsigned
+ethosu_find_sram_interval(struct ethosu_sram_interval *intervals,
+                          unsigned count, struct ethosu_tensor *tensor)
+{
+   for (unsigned i = 0; i < count; i++) {
+      if (intervals[i].tensor == tensor)
+         return i;
+   }
+
+   UNREACHABLE("Tensor missing from SRAM allocator");
+}
+
+static unsigned
+ethosu_sram_interval_root(struct ethosu_sram_interval *intervals,
+                          unsigned idx)
+{
+   while (intervals[idx].parent != idx) {
+      intervals[idx].parent = intervals[intervals[idx].parent].parent;
+      idx = intervals[idx].parent;
+   }
+
+   return idx;
+}
+
+static void
+ethosu_union_sram_intervals(struct ethosu_sram_interval *intervals,
+                            unsigned a, unsigned b)
+{
+   a = ethosu_sram_interval_root(intervals, a);
+   b = ethosu_sram_interval_root(intervals, b);
+
+   if (a == b)
+      return;
+
+   intervals[b].parent = a;
+   intervals[a].size = MAX2(intervals[a].size, intervals[b].size);
+   intervals[a].is_external_output |= intervals[b].is_external_output;
+}
+
+static void
+ethosu_mark_sram_interval_access(struct ethosu_sram_interval *intervals,
+                                 unsigned count,
+                                 const struct ethosu_feature_map *fm,
+                                 unsigned op_idx, bool write)
+{
+   unsigned idx;
+
+   if (!ethosu_is_feature_map_in_io(fm))
+      return;
+
+   idx = ethosu_find_sram_interval(intervals, count, fm->tensor);
+   idx = ethosu_sram_interval_root(intervals, idx);
+   intervals[idx].first_use = MIN2(intervals[idx].first_use, op_idx);
+   intervals[idx].last_use = MAX2(intervals[idx].last_use, op_idx);
+   if (write)
+      intervals[idx].producers++;
+   else
+      intervals[idx].consumers++;
+}
+
+static void
+ethosu_mark_sram_feature_map(struct ethosu_sram_interval *intervals,
+                             unsigned count, struct ethosu_feature_map *fm)
+{
+   unsigned idx;
+
+   if (!ethosu_is_feature_map_in_io(fm))
+      return;
+
+   idx = ethosu_find_sram_interval(intervals, count, fm->tensor);
+   idx = ethosu_sram_interval_root(intervals, idx);
+   if (intervals[idx].offset == UINT_MAX)
+      return;
+
+   fm->region = SCRATCH_REGION;
+   fm->tiles.addresses[0] += intervals[idx].offset;
+}
+
+static void
+ethosu_allocate_sram_feature_maps(struct ethosu_subgraph *subgraph,
+                                  const unsigned *required_sizes)
+{
+   const unsigned op_count =
+      util_dynarray_num_elements(&subgraph->operations,
+                                 struct ethosu_operation);
+   const unsigned tensor_count =
+      util_dynarray_num_elements(&subgraph->tensors, struct ethosu_tensor);
+   struct ethosu_sram_interval *intervals;
+   struct ethosu_io_free_block *free_blocks;
+   unsigned *coefficient_limits;
+   unsigned free_count = 0;
+   unsigned high_water = 0;
+   unsigned npu_index = 0;
+   unsigned npu_count = 0;
+   unsigned sram_size = ethosu_ml_device(subgraph->base.device)->sram_size;
+
+   if (!op_count || !tensor_count)
+      return;
+
+   util_dynarray_foreach (&subgraph->operations, struct ethosu_operation,
+                          operation) {
+      if (operation->type != ETHOSU_OPERATION_TYPE_NONE &&
+          operation->type != ETHOSU_OPERATION_TYPE_DMA)
+         npu_count++;
+   }
+
+   if (!npu_count)
+      return;
+
+   intervals = calloc(tensor_count, sizeof(*intervals));
+   free_blocks = calloc(tensor_count + 1, sizeof(*free_blocks));
+   assert(intervals && free_blocks);
+
+   coefficient_limits = malloc(npu_count * sizeof(*coefficient_limits));
+   assert(coefficient_limits);
+   for (unsigned i = 0; i < npu_count; i++)
+      coefficient_limits[i] = sram_size;
+
+   for (unsigned i = 0; i < tensor_count; i++) {
+      struct ethosu_tensor *tensor =
+         util_dynarray_element(&subgraph->tensors, struct ethosu_tensor, i);
+
+      intervals[i].tensor = tensor;
+      intervals[i].parent = i;
+      intervals[i].first_use = UINT_MAX;
+      intervals[i].offset = UINT_MAX;
+      intervals[i].size =
+         ALIGN_POT(ethosu_tensor_storage_size(subgraph, required_sizes, tensor),
+                   16);
+      intervals[i].is_external_output = tensor->is_external_output;
+   }
+
+   for (unsigned i = 0; i < op_count; i++) {
+      struct ethosu_operation *operation =
+         util_dynarray_element(&subgraph->operations,
+                               struct ethosu_operation, i);
+
+      if (operation->type != ETHOSU_OPERATION_TYPE_NONE ||
+          !operation->ifm.tensor || !operation->ofm.tensor)
+         continue;
+
+      ethosu_union_sram_intervals(
+         intervals,
+         ethosu_find_sram_interval(intervals, tensor_count,
+                                   operation->ifm.tensor),
+         ethosu_find_sram_interval(intervals, tensor_count,
+                                   operation->ofm.tensor));
+   }
+
+   for (unsigned i = 0; i < tensor_count; i++) {
+      unsigned root = ethosu_sram_interval_root(intervals, i);
+
+      if (root == i)
+         continue;
+
+      intervals[root].size = MAX2(intervals[root].size, intervals[i].size);
+      intervals[root].is_external_output |= intervals[i].is_external_output;
+   }
+
+   for (unsigned i = 0; i < op_count; i++) {
+      struct ethosu_operation *operation =
+         util_dynarray_element(&subgraph->operations,
+                               struct ethosu_operation, i);
+
+      if (operation->type == ETHOSU_OPERATION_TYPE_NONE ||
+          operation->type == ETHOSU_OPERATION_TYPE_DMA)
+         continue;
+
+      if (operation->type == ETHOSU_OPERATION_TYPE_CONVOLUTION &&
+          operation->conv.scales.region == SCRATCH_REGION) {
+         coefficient_limits[npu_index] =
+            MIN2(coefficient_limits[npu_index], operation->conv.scales.address);
+         if (npu_index > 0)
+            coefficient_limits[npu_index - 1] =
+               MIN2(coefficient_limits[npu_index - 1],
+                    operation->conv.scales.address);
+      }
+
+      ethosu_mark_sram_interval_access(intervals, tensor_count,
+                                       &operation->ifm, npu_index, false);
+      ethosu_mark_sram_interval_access(intervals, tensor_count,
+                                       &operation->ifm2, npu_index, false);
+      ethosu_mark_sram_interval_access(intervals, tensor_count,
+                                       &operation->ofm, npu_index, true);
+      npu_index++;
+   }
+
+   for (unsigned i = 0; i < tensor_count; i++) {
+      struct ethosu_sram_interval *interval = &intervals[i];
+      unsigned last_use;
+
+      if (ethosu_sram_interval_root(intervals, i) != i ||
+          interval->first_use == UINT_MAX)
+         continue;
+
+      last_use = MIN2(interval->last_use + ETHOSU_SRAM_REUSE_DELAY,
+                      npu_count - 1);
+      interval->limit = sram_size;
+      for (unsigned time = interval->first_use; time <= last_use; time++)
+         interval->limit = MIN2(interval->limit,
+                                coefficient_limits[time]);
+   }
+
+   for (unsigned time = 0; time < npu_count; time++) {
+      for (unsigned i = 0; i < tensor_count; i++) {
+         struct ethosu_sram_interval *interval = &intervals[i];
+
+         if (ethosu_sram_interval_root(intervals, i) != i ||
+             !interval->active ||
+             interval->last_use + ETHOSU_SRAM_REUSE_DELAY >= time)
+            continue;
+
+         ethosu_free_io_block(free_blocks, &free_count, interval->offset,
+                              interval->size);
+         interval->active = false;
+      }
+
+      for (unsigned i = 0; i < tensor_count; i++) {
+         struct ethosu_sram_interval *interval = &intervals[i];
+         unsigned offset;
+
+         if (ethosu_sram_interval_root(intervals, i) != i ||
+             interval->first_use != time || interval->is_external_output ||
+             interval->producers != 1 || !interval->consumers)
+            continue;
+
+         if (!ethosu_alloc_sram_block(free_blocks, &free_count, &high_water,
+                                      interval->limit, interval->size,
+                                      &offset))
+            continue;
+
+         interval->offset = offset;
+         interval->active = true;
+      }
+   }
+
+   util_dynarray_foreach (&subgraph->operations, struct ethosu_operation,
+                          operation) {
+      ethosu_mark_sram_feature_map(intervals, tensor_count, &operation->ifm);
+      ethosu_mark_sram_feature_map(intervals, tensor_count, &operation->ifm2);
+      ethosu_mark_sram_feature_map(intervals, tensor_count, &operation->ofm);
+   }
+
+   free(free_blocks);
+   free(intervals);
+   free(coefficient_limits);
 }
 
 void
@@ -433,6 +746,7 @@ ethosu_allocate_tensors(struct ethosu_subgraph *subgraph,
                         const unsigned *required_sizes)
 {
    ethosu_allocate_sram_coefficients(subgraph);
+   ethosu_allocate_sram_feature_maps(subgraph, required_sizes);
 
    const unsigned op_count =
       util_dynarray_num_elements(&subgraph->operations, struct ethosu_operation);

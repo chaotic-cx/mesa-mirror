@@ -1243,10 +1243,11 @@ ethosu_ml_subgraph_invoke(struct pipe_context *pcontext,
 
    if (subgraph->coefs_rsrc) {
       job.region_bo_handles[COEFS_REGION] = ethosu_resource(subgraph->coefs_rsrc)->handle;
-      if (!DBG_ENABLED(ETHOSU_DBG_DISABLE_SRAM)) {
-         job.region_bo_handles[SCRATCH_REGION] = 0;
-         job.sram_size = ethosu_ml_device(subgraph->base.device)->sram_size;
-      }
+   }
+
+   if (!DBG_ENABLED(ETHOSU_DBG_DISABLE_SRAM)) {
+      job.region_bo_handles[SCRATCH_REGION] = 0;
+      job.sram_size = ethosu_ml_device(subgraph->base.device)->sram_size;
    }
 
    job.region_bo_handles[IO_REGION] = ethosu_resource(subgraph->io_rsrc)->handle;
