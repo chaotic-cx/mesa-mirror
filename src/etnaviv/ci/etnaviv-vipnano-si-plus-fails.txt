@@ -57,4 +57,3 @@ teflon/ssd_mobilenet_v2.0052,Fail
 teflon/ssd_mobilenet_v2.whole,Fail
 
 teflon/ssd_mobilenet_v3.whole,Fail
-teflon/micronet_vww.whole,Fail

@@ -247,6 +247,13 @@ recreate_tensor(struct etna_ml_subgraph *subgraph, unsigned idx, unsigned size)
 }
 
 static void
+resize_tensor(struct etna_ml_subgraph *subgraph, unsigned idx, unsigned size)
+{
+   struct etna_ml_tensor *tensor = etna_ml_get_tensor(subgraph, idx);
+   tensor->size = size;
+}
+
+static void
 dump_graph(struct list_head *etna_operations)
 {
    ML_DBG("\n");
@@ -559,6 +566,7 @@ lower_operations(struct etna_ml_subgraph *subgraph,
       } else if (operation->type == ETNA_JOB_TYPE_NN && operation->input_count > 1) { /* Add or Subtraction */
          recreate_tensor(subgraph, operation->input_tensors[0], operation->input_tensor_sizes[0] +
                                                                         operation->input_tensor_sizes[1]);
+         resize_tensor(subgraph, operation->input_tensors[0], operation->input_tensor_sizes[0]);
          reference_tensor_with_offset(subgraph,
                                       operation->input_tensors[0],
                                       operation->input_tensors[1],
