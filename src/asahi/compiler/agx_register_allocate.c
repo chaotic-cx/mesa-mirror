@@ -621,7 +621,11 @@ find_regs(struct ra_ctx *rctx, agx_instr *I, unsigned dest_idx, unsigned count,
        * insert instructions before the phi.
        */
       if (I->op == AGX_OPCODE_PHI) {
-         util_dynarray_foreach(&copies, struct agx_copy, copy) {
+         /* Move evicted values before the values taking their registers.
+          * Otherwise, a later copy can match a phi we already moved into its
+          * source register and move that phi again instead of the evicted one.
+          */
+         util_dynarray_foreach_reverse(&copies, struct agx_copy, copy) {
             agx_emit_move_before_phi(rctx->shader, rctx->block, copy);
          }
       } else {
