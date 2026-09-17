@@ -3800,7 +3800,8 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
       val->image = vtn_alloc(b, struct vtn_image_pointer);
 
       val->image->image = vtn_nir_deref(b, w[3]);
-      val->image->coord = get_image_coord(b, w[4], val->image->image->type);
+      val->image->type = type->pointed->glsl_image;
+      val->image->coord = get_image_coord(b, w[4], type->pointed->glsl_image);
       val->image->sample = vtn_get_nir_ssa(b, w[5]);
       val->image->lod = nir_imm_int(&b->nb, 0);
       val->image->format = type->pointed->image_format;
@@ -3814,6 +3815,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
       val->image->image = nir_build_deref_cast(&b->nb, vtn_get_nir_ssa(b, w[4]),
                                                nir_var_image,
                                                type->glsl_image, 0);
+      val->image->type = type->glsl_image;
       val->image->coord = get_image_coord(b, w[5], val->image->image->type);
       val->image->sample = vtn_get_nir_ssa(b, w[6]);
       val->image->lod = nir_imm_int(&b->nb, 0);
@@ -3869,6 +3871,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
    case SpvOpImageQuerySizeLod:
       res_val = vtn_untyped_value(b, w[3]);
       image.image = vtn_get_image(b, w[3], &access, &image_format);
+      image.type = image.image->type;
       image.format = image_format;
       image.coord = NULL;
       image.sample = NULL;
@@ -3882,6 +3885,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
    case SpvOpImageQuerySize:
       res_val = vtn_untyped_value(b, w[3]);
       image.image = vtn_get_image(b, w[3], &access, &image_format);
+      image.type = image.image->type;
       image.format = image_format;
       image.coord = NULL;
       image.sample = NULL;
@@ -3892,6 +3896,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
    case SpvOpImageSparseRead: {
       res_val = vtn_untyped_value(b, w[3]);
       image.image = vtn_get_image(b, w[3], &access, &image_format);
+      image.type = image.image->type;
       image.format = image_format;
       image.coord = get_image_coord(b, w[4], image.image->type);
 
@@ -3933,6 +3938,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
    case SpvOpImageWrite: {
       res_val = vtn_untyped_value(b, w[1]);
       image.image = vtn_get_image(b, w[1], &access, &image_format);
+      image.type = image.image->type;
       image.format = image_format;
       image.coord = get_image_coord(b, w[2], image.image->type);
 
@@ -4027,10 +4033,10 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
       nir_intrinsic_set_atomic_op(intrin, translate_atomic_op(opcode));
 
    intrin->src[0] = nir_src_for_ssa(&image.image->def);
-   nir_intrinsic_set_image_dim(intrin, glsl_get_sampler_dim(image.image->type));
-   nir_intrinsic_set_image_array(intrin,
-      glsl_sampler_type_is_array(image.image->type));
+   nir_intrinsic_set_image_dim(intrin, glsl_get_sampler_dim(image.type));
+   nir_intrinsic_set_image_array(intrin, glsl_sampler_type_is_array(image.type));
    nir_intrinsic_set_format(intrin, image.format);
+   b->wa_image_function_vars |= nir_deref_mode_is(image.image, nir_var_function_temp);
 
    switch (opcode) {
    case SpvOpImageQueryLevels:
@@ -7171,6 +7177,66 @@ create_shader_name(struct vtn_builder *b)
    b->shader->info.name = ralloc_strdup(b->shader, b->source_file);
 }
 
+/* DXC has a bug which can cause it to create Function variables and store
+ * OpTypeImage values to them and pass that variable's pointer to
+ * OpImageTexelPointer.
+ *
+ * We rewrite stores to this variable to store the descriptor index instead.
+ *
+ * This pass assumes that the stores are before the atomics, and that only one
+ * nir_var_image variable is used for each nir_var_function_temp variable.
+ */
+static bool
+fixup_dxc_image_derefs(nir_builder *b, nir_intrinsic_instr *intrin, void *ht)
+{
+   struct hash_table *image_stores = ht;
+
+   if (intrin->intrinsic == nir_intrinsic_store_deref) {
+      nir_deref_instr *img = nir_src_as_deref(intrin->src[1]);
+      if (!img || !nir_deref_mode_is(img, nir_var_image))
+         return false;
+
+      nir_variable *var = nir_intrinsic_get_var(intrin, 0);
+      if (!var || var->data.mode != nir_var_function_temp)
+         return false;
+
+      assert(var->type == &glsl_type_builtin_uint);
+
+      if (img->deref_type == nir_deref_type_array)
+         nir_src_rewrite(&intrin->src[1], img->arr.index.ssa);
+      else
+         assert(img->deref_type == nir_deref_type_var);
+
+      nir_variable *img_var = nir_deref_instr_get_variable(img);
+      struct hash_entry *entry = _mesa_hash_table_search(image_stores, var);
+      if (entry)
+         assert(entry->data == img_var);
+      _mesa_hash_table_insert(image_stores, var, img_var);
+   } else if (intrin->intrinsic == nir_intrinsic_image_deref_atomic ||
+              intrin->intrinsic == nir_intrinsic_image_deref_atomic_swap) {
+      nir_variable *var = nir_intrinsic_get_var(intrin, 0);
+      if (!var || var->data.mode != nir_var_function_temp)
+         return false;
+
+      struct hash_entry *entry = _mesa_hash_table_search(image_stores, var);
+      assert(entry);
+
+      b->cursor = nir_before_instr(&intrin->instr);
+
+      nir_variable *img_var = entry->data;
+      nir_deref_instr *deref = nir_build_deref_var(b, img_var);
+      if (glsl_type_is_array(img_var->type)) {
+         nir_def *idx = nir_load_deref(b, nir_src_as_deref(intrin->src[0]));
+         deref = nir_build_deref_array(b, deref, idx);
+      }
+
+      nir_src_rewrite(&intrin->src[0], &deref->def);
+      return true;
+   }
+
+   return false;
+}
+
 nir_shader *
 spirv_to_nir(const uint32_t *words, size_t word_count,
              struct nir_spirv_specialization *spec,
@@ -7432,6 +7498,14 @@ spirv_to_nir(const uint32_t *words, size_t word_count,
    if (mesa_shader_stage_is_rt(b->shader->info.stage)) {
       NIR_PASS(_, b->shader, nir_remove_dead_variables, nir_var_shader_call_data,
                NULL);
+   }
+
+   if (b->wa_image_function_vars) {
+      struct hash_table image_stores;
+      _mesa_pointer_hash_table_init(&image_stores, NULL);
+      nir_shader_intrinsics_pass(b->shader, &fixup_dxc_image_derefs,
+                                 nir_metadata_none, &image_stores);
+      _mesa_hash_table_fini(&image_stores, NULL);
    }
 
    nir_validate_shader(b->shader, "after spirv cfg");

@@ -565,6 +565,7 @@ vtn_translate_scope(struct vtn_builder *b, SpvScope scope);
 
 struct vtn_image_pointer {
    nir_deref_instr *image;
+   const struct glsl_type *type;
    unsigned format;
    nir_def *coord;
    nir_def *sample;
@@ -698,6 +699,9 @@ struct vtn_builder {
 
    /* True if we need to ignore OpReturn after OpEmitMeshTasksEXT. */
    bool wa_ignore_return_after_emit_mesh_tasks;
+
+   /* True if we need to fixup image derefs stored to nir_var_function_temp. */
+   bool wa_image_function_vars;
 
    /* Workaround discard bugs in HLSL -> SPIR-V compilers */
    bool convert_discard_to_demote;
