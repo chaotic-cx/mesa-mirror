@@ -1091,9 +1091,11 @@ kk_CmdBeginDebugUtilsLabelEXT(VkCommandBuffer _commandBuffer,
 
    if (cmd->metal.render)
       mtl_encoder_push_debug_group(cmd->metal.render, pLabelInfo->pLabelName);
-
-   if (cmd->metal.compute)
+   else if (cmd->metal.compute)
       mtl_encoder_push_debug_group(cmd->metal.compute, pLabelInfo->pLabelName);
+   else
+      mtl_command_buffer_push_debug_group(cmd->metal.cmd_buf,
+                                          pLabelInfo->pLabelName);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -1104,9 +1106,10 @@ kk_CmdEndDebugUtilsLabelEXT(VkCommandBuffer _commandBuffer)
 
    if (cmd->metal.render)
       mtl_encoder_pop_debug_group(cmd->metal.render);
-
-   if (cmd->metal.compute)
+   else if (cmd->metal.compute)
       mtl_encoder_pop_debug_group(cmd->metal.compute);
+   else
+      mtl_command_buffer_pop_debug_group(cmd->metal.cmd_buf);
 }
 
 VKAPI_ATTR void VKAPI_CALL
