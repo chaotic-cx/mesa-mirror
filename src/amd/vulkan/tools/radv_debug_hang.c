@@ -285,10 +285,13 @@ radv_dump_debug_registers(const struct radv_device *device, FILE *f)
 }
 
 static void
-radv_dump_buffer_descriptor(enum amd_gfx_level gfx_level, enum radeon_family family, const uint32_t *desc, FILE *f)
+radv_dump_buffer_descriptor(enum amd_gfx_level gfx_level, enum radeon_family family, const uint32_t *desc,
+                            bool is_texel_buffer, FILE *f)
 {
+   unsigned num_dwords = 4 + (gfx_level >= GFX13 && is_texel_buffer);
+
    fprintf(f, COLOR_CYAN "Buffer:" COLOR_RESET "\n");
-   for (unsigned j = 0; j < 4; j++)
+   for (unsigned j = 0; j < num_dwords; j++)
       ac_dump_reg(f, gfx_level, family, R_008F00_SQ_BUF_RSRC_WORD0 + j * 4, desc[j], 0xffffffff);
 }
 
@@ -344,9 +347,11 @@ radv_dump_descriptor_set(const struct radv_device *device, const struct radv_des
       switch (layout->binding[i].type) {
       case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
       case VK_DESCRIPTOR_TYPE_STORAGE_BUFFER:
+         radv_dump_buffer_descriptor(gfx_level, family, desc, false, f);
+         break;
       case VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER:
       case VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER:
-         radv_dump_buffer_descriptor(gfx_level, family, desc, f);
+         radv_dump_buffer_descriptor(gfx_level, family, desc, true, f);
          break;
       case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
       case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
@@ -486,6 +491,7 @@ radv_dump_shader(struct radv_device *device, struct radv_pipeline *pipeline, str
 static void
 radv_dump_vertex_descriptors(const struct radv_device *device, const struct radv_graphics_pipeline *pipeline, FILE *f)
 {
+   const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_shader *vs = radv_get_shader(pipeline->base.shaders, MESA_SHADER_VERTEX);
 
    if (!vs)
@@ -499,16 +505,26 @@ radv_dump_vertex_descriptors(const struct radv_device *device, const struct radv
 
    fprintf(f, "Num vertex %s: %d\n", vs->info.vs.use_per_attribute_vb_descs ? "attributes" : "bindings", count);
    for (uint32_t i = 0; i < count; i++) {
-      uint32_t *desc = &((uint32_t *)vb_ptr)[i * 4];
-      uint64_t va = 0;
+      uint32_t *desc;
+      uint64_t va, num_records;
+      uint32_t stride;
 
-      va |= desc[0];
-      va |= (uint64_t)G_008F04_BASE_ADDRESS_HI(desc[1]) << 32;
+      if (pdev->info.gfx_level >= GFX13 && vs->info.vs.dynamic_inputs) {
+         /* Format dwords are packed in groups of 4 before each group of 4 descriptors. */
+         unsigned desc_load_index = 1 + i + i / 4;
+         desc = &vb_ptr[desc_load_index * 4];
+      } else {
+         desc = &vb_ptr[i * 4];
+      }
+
+      va = desc[0] | ((uint64_t)G_008F04_BASE_ADDRESS_HI(desc[1]) << 32);
+      stride = pdev->info.gfx_level >= GFX13 ? G_008F0C_STRIDE(desc[3]) : G_008F04_STRIDE(desc[1]);
+      num_records = ac_get_buffer_num_records(pdev->info.gfx_level, desc);
 
       fprintf(f, "VBO#%d:\n", i);
       fprintf(f, "\tVA: 0x%" PRIx64 "\n", va);
-      fprintf(f, "\tStride: %d\n", G_008F04_STRIDE(desc[1]));
-      fprintf(f, "\tNum records: %d (0x%x)\n", desc[2], desc[2]);
+      fprintf(f, "\tStride: %u\n", stride);
+      fprintf(f, "\tNum records: %" PRIu64 " (0x%" PRIx64 ")\n", num_records, num_records);
    }
 }
 

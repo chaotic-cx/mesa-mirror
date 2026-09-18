@@ -38,7 +38,8 @@ static void si_dump_debug_log(struct si_context *sctx, bool sync)
       return;
 
    struct pipe_transfer *transfer = NULL;
-   unsigned size = sctx->descriptors[SI_DESCS_INTERNAL].list[SI_RING_SHADER_LOG * 4 + 2];
+   const uint32_t *desc = sctx->descriptors[SI_DESCS_INTERNAL].list + SI_RING_SHADER_LOG * 4;
+   unsigned size = (unsigned)ac_get_buffer_num_records(sctx->gfx_level, desc);
    unsigned max_entries = (size - 4) / 16;
 
    /* If not syncing (e.g. expecting a GPU hang), wait some time and then just print

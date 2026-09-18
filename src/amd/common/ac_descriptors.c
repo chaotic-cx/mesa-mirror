@@ -970,6 +970,18 @@ ac_build_attr_ring_descriptor(const enum amd_gfx_level gfx_level, bool has_desc_
    ac_build_buffer_descriptor(gfx_level, &ac_state, desc);
 }
 
+uint64_t
+ac_get_buffer_num_records(const enum amd_gfx_level gfx_level, const uint32_t desc[4])
+{
+   if (gfx_level >= GFX13) {
+      /* GFX13 has NUM_RECORDS across WORD1/WORD2/WORD3. */
+      return (uint64_t)G_008F04_NUM_RECORDS_1(desc[1]) | ((uint64_t)desc[2] << 7) |
+             ((uint64_t)G_008F0C_NUM_RECORDS_3(desc[3]) << 39);
+   } else {
+      return desc[2];
+   }
+}
+
 static void
 ac_init_gfx6_ds_surface(const struct radeon_info *info, const struct ac_ds_state *state,
                         uint32_t db_format, uint32_t stencil_format, struct ac_ds_surface *ds)

@@ -319,13 +319,14 @@ ac_nir_lower_indirect_derefs(nir_shader *shader)
  *   the oldest entries.
  */
 void
-ac_nir_store_debug_log_amd(nir_builder *b, nir_def *uvec4)
+ac_nir_store_debug_log_amd(nir_builder *b, enum amd_gfx_level gfx_level, nir_def *uvec4)
 {
    nir_def *buf = nir_load_debug_log_desc_amd(b);
    nir_def *zero = nir_imm_int(b, 0);
+   nir_def *size = ac_nir_get_buffer_num_records(b, 32, buf, gfx_level);
 
    nir_def *max_index =
-      nir_iadd_imm(b, nir_ushr_imm(b, nir_iadd_imm(b, nir_channel(b, buf, 2), -4), 4), -1);
+      nir_iadd_imm(b, nir_ushr_imm(b, nir_iadd_imm(b, size, -4), 4), -1);
    nir_def *index = nir_ssbo_atomic(b, 32, buf, zero, nir_imm_int(b, 1),
                                     .atomic_op = nir_atomic_op_iadd);
    index = nir_iand(b, index, max_index);

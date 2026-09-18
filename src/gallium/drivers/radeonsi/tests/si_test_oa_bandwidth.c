@@ -57,8 +57,8 @@ si_test_oa_bandwidth(struct si_screen *sscreen)
                                                          ordered_id, atomic_src);
 
          if (SHADER_DEBUG_LOG) {
-            ac_nir_store_debug_log_amd(&b, nir_vec4(&b, ordered_id, count,
-                                                    nir_imm_int(&b, 0), nir_imm_int(&b, 0)));
+            ac_nir_store_debug_log_amd(&b, sctx->gfx_level, nir_vec4(&b, ordered_id, count,
+                                                                     nir_imm_int(&b, 0), nir_imm_int(&b, 0)));
          }
 
          nir_store_shared(&b, nir_imm_int(&b, 0), nir_imm_int(&b, 0));

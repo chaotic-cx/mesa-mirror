@@ -264,6 +264,7 @@ static void si_log_chunk_desc_list_print(void *data, FILE *f)
    struct si_log_chunk_desc_list *chunk = data;
    unsigned sq_img_rsrc_word0 =
       chunk->gfx_level >= GFX10 ? R_00A000_SQ_IMG_RSRC_WORD0 : R_008F10_SQ_IMG_RSRC_WORD0;
+   unsigned buf_desc_num_dwords = si_buffer_desc_size_in_dw(chunk->gfx_level);
 
    for (unsigned i = 0; i < chunk->num_elements; i++) {
       unsigned cpu_dw_offset = i * chunk->element_dw_size;
@@ -287,7 +288,7 @@ static void si_log_chunk_desc_list_print(void *data, FILE *f)
                         sq_img_rsrc_word0 + j * 4, gpu_list[j], 0xffffffff);
 
          fprintf(f, COLOR_CYAN "    Buffer:" COLOR_RESET "\n");
-         for (unsigned j = 0; j < 4; j++)
+         for (unsigned j = 0; j < buf_desc_num_dwords; j++)
             ac_dump_reg(f, chunk->gfx_level, chunk->family,
                         R_008F00_SQ_BUF_RSRC_WORD0 + j * 4, gpu_list[j], 0xffffffff);
          break;
@@ -297,7 +298,7 @@ static void si_log_chunk_desc_list_print(void *data, FILE *f)
                         sq_img_rsrc_word0 + j * 4, gpu_list[j], 0xffffffff);
 
          fprintf(f, COLOR_CYAN "    Buffer:" COLOR_RESET "\n");
-         for (unsigned j = 0; j < 4; j++)
+         for (unsigned j = 0; j < buf_desc_num_dwords; j++)
             ac_dump_reg(f, chunk->gfx_level, chunk->family,
                         R_008F00_SQ_BUF_RSRC_WORD0 + j * 4, gpu_list[j], 0xffffffff);
 

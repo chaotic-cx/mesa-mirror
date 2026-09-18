@@ -468,7 +468,7 @@ bool
 ac_nir_lower_image_tex(nir_shader *nir, const ac_nir_lower_image_tex_options *options);
 
 void
-ac_nir_store_debug_log_amd(nir_builder *b, nir_def *uvec4);
+ac_nir_store_debug_log_amd(nir_builder *b, enum amd_gfx_level gfx_level, nir_def *uvec4);
 
 unsigned
 ac_nir_varying_expression_max_cost(nir_shader *producer, nir_shader *consumer);

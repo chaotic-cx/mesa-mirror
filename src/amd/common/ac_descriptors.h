@@ -510,6 +510,9 @@ ac_build_attr_ring_descriptor(const enum amd_gfx_level gfx_level,
                               uint32_t stride,
                               uint32_t desc[4]);
 
+uint64_t
+ac_get_buffer_num_records(const enum amd_gfx_level gfx_level, const uint32_t desc[4]);
+
 struct ac_ds_state {
    const struct radeon_surf *surf;
    uint64_t va;
