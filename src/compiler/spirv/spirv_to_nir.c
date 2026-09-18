@@ -3803,7 +3803,7 @@ vtn_handle_image(struct vtn_builder *b, SpvOp opcode,
       val->image->coord = get_image_coord(b, w[4], val->image->image->type);
       val->image->sample = vtn_get_nir_ssa(b, w[5]);
       val->image->lod = nir_imm_int(&b->nb, 0);
-      val->image->format = type->image_format;
+      val->image->format = type->pointed->image_format;
       return;
    } else if (opcode == SpvOpUntypedImageTexelPointerEXT) {
       struct vtn_type *type = vtn_get_value_type(b, w[3]);
