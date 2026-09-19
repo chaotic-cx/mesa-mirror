@@ -1360,7 +1360,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf,
    if (dri2_surf->base.ProtectedContent) {
       /* Protected buffers can't be read from another GPU */
       if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu)
-         return -1;
+         goto fail;
       use_flags |= __DRI_IMAGE_USE_PROTECTED;
    }
 
@@ -1428,7 +1428,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf,
                         close(buffer_fds[i]);
                   } while (--i >= 0);
                   dri2_destroy_image(linear_copy_display_gpu_image);
-                  return -1;
+                  goto fail;
                }
             }
 
@@ -1441,7 +1441,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf,
                      close(buffer_fds[i]);
                } while (--i >= 0);
                dri2_destroy_image(linear_copy_display_gpu_image);
-               return -1;
+               goto fail;
             }
 
             /* The linear buffer was created in the display GPU's vram, so we
@@ -1475,7 +1475,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf,
       }
 
       if (dri2_surf->back->linear_copy == NULL)
-         return -1;
+         goto fail;
    }
 
    if (dri2_surf->back->dri_image == NULL) {
@@ -1495,12 +1495,16 @@ get_back_bo(struct dri2_egl_surface *dri2_surf,
    }
 
    if (dri2_surf->back->dri_image == NULL)
-      return -1;
+      goto fail;
 
    loader_wayland_buffer_set_flow(&dri2_surf->back->wayland_buffer, flow);
    dri2_surf->back->locked = true;
 
    return 0;
+
+fail:
+   dri2_surf->back = NULL;
+   return -1;
 }
 
 /* Value chosen empirically as a compromise between avoiding frequent
