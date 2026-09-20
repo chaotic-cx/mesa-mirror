@@ -1368,6 +1368,7 @@ tu_knl_drm_virtio_load(struct tu_instance *instance,
    device->ubwc_config.bank_swizzle_levels = bank_swizzle_levels;
    device->ubwc_config.macrotile_mode = macrotile_mode;
 
+   fd_dev_check_gmem_size(&device->dev_id, device->gmem_size);
    device->gmem_size = debug_get_num_option("TU_GMEM", device->gmem_size);
 
    device->has_cached_coherent_memory = caps.u.msm.has_cached_coherent;

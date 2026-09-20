@@ -602,6 +602,9 @@ fd_dev_gpu_id(const struct fd_dev_id *id)
 /* Unmodified dev info as defined in freedreno_devices.py */
 const struct fd_dev_info *fd_dev_info_raw(const struct fd_dev_id *id);
 
+/* Complain where the table disagrees with the kernel, which knows. */
+void fd_dev_check_gmem_size(const struct fd_dev_id *id, uint32_t gmem_size);
+
 /* Helper to check if GPU is known before going any further */
 static inline uint8_t
 fd_dev_is_supported(const struct fd_dev_id *id) {

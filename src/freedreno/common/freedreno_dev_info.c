@@ -5,6 +5,7 @@
  */
 
 #include "freedreno_dev_info.h"
+#include "util/log.h"
 #include "util/macros.h"
 
 /**
@@ -109,4 +110,14 @@ fd_dev_name(const struct fd_dev_id *id)
       }
    }
    return NULL;
+}
+
+void
+fd_dev_check_gmem_size(const struct fd_dev_id *id, uint32_t gmem_size)
+{
+   const struct fd_dev_info *info = fd_dev_info_raw(id);
+
+   if (info && info->gmem_size && info->gmem_size != gmem_size)
+      mesa_logw("kernel reports %u bytes of GMEM for %s, the device table "
+                "says %u", gmem_size, fd_dev_name(id), info->gmem_size);
 }

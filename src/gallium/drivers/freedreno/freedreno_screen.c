@@ -1017,6 +1017,7 @@ fd_screen_create(int fd,
       DBG("could not get GMEM size");
       goto fail;
    }
+   uint32_t kernel_gmem_size = val;
    screen->gmemsize_bytes = debug_get_num_option("FD_MESA_GMEM", val);
 
    if (fd_device_version(dev) >= FD_VERSION_GMEM_BASE) {
@@ -1037,6 +1038,7 @@ fd_screen_create(int fd,
       screen->has_timestamp = true;
 
    screen->dev_id = fd_pipe_dev_id(screen->pipe);
+   fd_dev_check_gmem_size(screen->dev_id, kernel_gmem_size);
 
    if (fd_pipe_get_param(screen->pipe, FD_GPU_ID, &val)) {
       DBG("could not get gpu-id");
