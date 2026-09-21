@@ -41,7 +41,8 @@ lower(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 {
    b->cursor = nir_before_instr(&intr->instr);
 
-   if (intr->intrinsic == nir_intrinsic_load_vertex_id) {
+   if (intr->intrinsic == nir_intrinsic_load_vertex_id ||
+       intr->intrinsic == nir_intrinsic_load_raw_vertex_id) {
       nir_def *id = nir_channel(b, nir_load_global_invocation_id(b, 32), 0);
       nir_def_replace(&intr->def, poly_nir_load_vertex_id(b, id));
       return true;
