@@ -241,3 +241,162 @@ TEST_F(Workarounds, lower_terminate_to_discard)
    nir_intrinsic_instr *intrinsic = find_intrinsic(nir_intrinsic_demote, 0);
    ASSERT_NE(intrinsic, nullptr);
 }
+
+/* Test fixup_dxc_image_derefs(). */
+TEST_F(Workarounds, image_function_vars_simple)
+{
+   /*
+               OpCapability Shader
+               OpCapability ImageBuffer
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint GLCompute %1 "main" %2
+               OpExecutionMode %1 LocalSize 8 8 1
+               OpDecorate %2 DescriptorSet 0
+               OpDecorate %2 Binding 0
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+     %uint_2 = OpConstant %uint 2
+          %7 = OpTypeImage %uint Buffer 2 0 0 2 R32ui
+%_ptr_UniformConstant_7 = OpTypePointer UniformConstant %7
+       %void = OpTypeVoid
+         %10 = OpTypeFunction %void
+%_ptr_Function_7 = OpTypePointer Function %7
+%_ptr_Image_uint = OpTypePointer Image %uint
+          %2 = OpVariable %_ptr_UniformConstant_7 UniformConstant
+          %1 = OpFunction %void None %10
+         %13 = OpLabel
+         %14 = OpVariable %_ptr_Function_7 Function
+         %15 = OpLoad %7 %2
+               OpStore %14 %15
+         %16 = OpImageTexelPointer %_ptr_Image_uint %14 %uint_2 %uint_0
+         %17 = OpAtomicIAdd %uint %16 %uint_1 %uint_0 %uint_1
+               OpReturn
+               OpFunctionEnd
+   */
+   static const uint32_t words[] = {
+      0x07230203, 0x00010600, 0x00070000, 0x00000012, 0x00000000, 0x00020011,
+      0x00000001, 0x00020011, 0x0000002f, 0x0003000e, 0x00000000, 0x00000001,
+      0x0006000f, 0x00000005, 0x00000001, 0x6e69616d, 0x00000000, 0x00000002,
+      0x00060010, 0x00000001, 0x00000011, 0x00000008, 0x00000008, 0x00000001,
+      0x00040047, 0x00000002, 0x00000022, 0x00000000, 0x00040047, 0x00000002,
+      0x00000021, 0x00000000, 0x00040015, 0x00000003, 0x00000020, 0x00000000,
+      0x0004002b, 0x00000003, 0x00000004, 0x00000000, 0x0004002b, 0x00000003,
+      0x00000005, 0x00000001, 0x0004002b, 0x00000003, 0x00000006, 0x00000002,
+      0x00090019, 0x00000007, 0x00000003, 0x00000005, 0x00000002, 0x00000000,
+      0x00000000, 0x00000002, 0x00000021, 0x00040020, 0x00000008, 0x00000000,
+      0x00000007, 0x00020013, 0x00000009, 0x00030021, 0x0000000a, 0x00000009,
+      0x00040020, 0x0000000b, 0x00000007, 0x00000007, 0x00040020, 0x0000000c,
+      0x0000000b, 0x00000003, 0x0004003b, 0x00000008, 0x00000002, 0x00000000,
+      0x00050036, 0x00000009, 0x00000001, 0x00000000, 0x0000000a, 0x000200f8,
+      0x0000000d, 0x0004003b, 0x0000000b, 0x0000000e, 0x00000007, 0x0004003d,
+      0x00000007, 0x0000000f, 0x00000002, 0x0003003e, 0x0000000e, 0x0000000f,
+      0x0006003c, 0x0000000c, 0x00000010, 0x0000000e, 0x00000006, 0x00000004,
+      0x000700ea, 0x00000003, 0x00000011, 0x00000010, 0x00000005, 0x00000004,
+      0x00000005, 0x000100fd, 0x00010038,
+   };
+
+   get_nir(sizeof(words) / sizeof(words[0]), words, MESA_SHADER_COMPUTE);
+   nir_validate_shader(shader, "after get_nir");
+
+   nir_intrinsic_instr *atomic = find_intrinsic(nir_intrinsic_image_deref_atomic);
+   ASSERT_NE(atomic, nullptr);
+   EXPECT_EQ(nir_intrinsic_image_dim(atomic), GLSL_SAMPLER_DIM_BUF);
+   EXPECT_FALSE(nir_intrinsic_image_array(atomic));
+   EXPECT_EQ(nir_intrinsic_format(atomic), PIPE_FORMAT_R32_UINT);
+
+   ASSERT_NE(nir_src_as_deref(atomic->src[0]), nullptr);
+   EXPECT_EQ(nir_src_as_deref(atomic->src[0])->modes, nir_var_image);
+
+   for (unsigned i = 1; i < 4; i++)
+      EXPECT_TRUE(nir_def_is_undef(nir_scalar_resolved(atomic->src[1].ssa, i).def));
+}
+
+TEST_F(Workarounds, image_function_vars_array)
+{
+   /*
+               OpCapability Shader
+               OpCapability ImageBuffer
+               OpMemoryModel Logical GLSL450
+               OpEntryPoint GLCompute %1 "main" %2
+               OpExecutionMode %1 LocalSize 8 8 1
+               OpDecorate %2 DescriptorSet 0
+               OpDecorate %2 Binding 0
+       %uint = OpTypeInt 32 0
+     %uint_0 = OpConstant %uint 0
+     %uint_1 = OpConstant %uint 1
+     %uint_2 = OpConstant %uint 2
+          %7 = OpTypeImage %uint Buffer 2 0 0 2 R32ui
+%_runtimearr_7 = OpTypeRuntimeArray %7
+%_ptr_UniformConstant__runtimearr_7 = OpTypePointer UniformConstant %_runtimearr_7
+%_ptr_Function_7 = OpTypePointer Function %7
+       %void = OpTypeVoid
+         %12 = OpTypeFunction %void
+%_ptr_Function_7_0 = OpTypePointer Function %7
+%_ptr_Image_uint = OpTypePointer Image %uint
+          %2 = OpVariable %_ptr_UniformConstant__runtimearr_7 UniformConstant
+          %1 = OpFunction %void None %12
+         %15 = OpLabel
+         %16 = OpVariable %_ptr_Function_7_0 Function
+         %17 = OpAccessChain %_ptr_Function_7 %2 %uint_2
+         %18 = OpLoad %7 %17
+               OpStore %16 %18
+         %19 = OpImageTexelPointer %_ptr_Image_uint %16 %uint_2 %uint_0
+         %20 = OpAtomicIAdd %uint %19 %uint_1 %uint_0 %uint_1
+               OpReturn
+               OpFunctionEnd
+   */
+   static const uint32_t words[] = {
+      0x07230203, 0x00010600, 0x00070000, 0x00000015, 0x00000000, 0x00020011,
+      0x00000001, 0x00020011, 0x0000002f, 0x0003000e, 0x00000000, 0x00000001,
+      0x0006000f, 0x00000005, 0x00000001, 0x6e69616d, 0x00000000, 0x00000002,
+      0x00060010, 0x00000001, 0x00000011, 0x00000008, 0x00000008, 0x00000001,
+      0x00040047, 0x00000002, 0x00000022, 0x00000000, 0x00040047, 0x00000002,
+      0x00000021, 0x00000000, 0x00040015, 0x00000003, 0x00000020, 0x00000000,
+      0x0004002b, 0x00000003, 0x00000004, 0x00000000, 0x0004002b, 0x00000003,
+      0x00000005, 0x00000001, 0x0004002b, 0x00000003, 0x00000006, 0x00000002,
+      0x00090019, 0x00000007, 0x00000003, 0x00000005, 0x00000002, 0x00000000,
+      0x00000000, 0x00000002, 0x00000021, 0x0003001d, 0x00000008, 0x00000007,
+      0x00040020, 0x00000009, 0x00000000, 0x00000008, 0x00040020, 0x0000000a,
+      0x00000007, 0x00000007, 0x00020013, 0x0000000b, 0x00030021, 0x0000000c,
+      0x0000000b, 0x00040020, 0x0000000d, 0x00000007, 0x00000007, 0x00040020,
+      0x0000000e, 0x0000000b, 0x00000003, 0x0004003b, 0x00000009, 0x00000002,
+      0x00000000, 0x00050036, 0x0000000b, 0x00000001, 0x00000000, 0x0000000c,
+      0x000200f8, 0x0000000f, 0x0004003b, 0x0000000d, 0x00000010, 0x00000007,
+      0x00050041, 0x0000000a, 0x00000011, 0x00000002, 0x00000006, 0x0004003d,
+      0x00000007, 0x00000012, 0x00000011, 0x0003003e, 0x00000010, 0x00000012,
+      0x0006003c, 0x0000000e, 0x00000013, 0x00000010, 0x00000006, 0x00000004,
+      0x000700ea, 0x00000003, 0x00000014, 0x00000013, 0x00000005, 0x00000004,
+      0x00000005, 0x000100fd, 0x00010038,
+   };
+
+   get_nir(sizeof(words) / sizeof(words[0]), words, MESA_SHADER_COMPUTE);
+   nir_validate_shader(shader, "after get_nir");
+   nir_opt_cse(shader);
+
+   nir_intrinsic_instr *store = find_intrinsic(nir_intrinsic_store_deref);
+   nir_intrinsic_instr *load = find_intrinsic(nir_intrinsic_load_deref);
+
+   nir_deref_instr *tmp_deref = nir_src_as_deref(store->src[0]);
+   EXPECT_EQ(store->src[0].ssa, load->src[0].ssa);
+   EXPECT_EQ(tmp_deref->modes, nir_var_function_temp);
+   EXPECT_EQ(tmp_deref->type, &glsl_type_builtin_uint);
+
+   ASSERT_TRUE(nir_src_is_const(store->src[1]));
+   EXPECT_EQ(nir_src_as_uint(store->src[1]), 2);
+
+   nir_intrinsic_instr *atomic = find_intrinsic(nir_intrinsic_image_deref_atomic);
+   ASSERT_NE(atomic, nullptr);
+   EXPECT_EQ(nir_intrinsic_image_dim(atomic), GLSL_SAMPLER_DIM_BUF);
+   EXPECT_FALSE(nir_intrinsic_image_array(atomic));
+   EXPECT_EQ(nir_intrinsic_format(atomic), PIPE_FORMAT_R32_UINT);
+
+   nir_deref_instr *deref = nir_src_as_deref(atomic->src[0]);
+   ASSERT_NE(deref, nullptr);
+   EXPECT_EQ(deref->modes, nir_var_image);
+   ASSERT_EQ(deref->deref_type, nir_deref_type_array);
+   EXPECT_EQ(deref->arr.index.ssa, &load->def);
+
+   for (unsigned i = 1; i < 4; i++)
+      EXPECT_TRUE(nir_def_is_undef(nir_scalar_resolved(atomic->src[1].ssa, i).def));
+}

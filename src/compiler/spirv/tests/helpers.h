@@ -21,6 +21,8 @@ protected:
       spirv_caps.Shader = true;
       spirv_caps.VulkanMemoryModel = true;
       spirv_caps.VulkanMemoryModelDeviceScope = true;
+      spirv_caps.SampledBuffer = true;
+      spirv_caps.ImageBuffer = true;
 
       memset(&spirv_options, 0, sizeof(spirv_options));
       spirv_options.environment = NIR_SPIRV_VULKAN;
