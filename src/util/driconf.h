@@ -292,6 +292,11 @@
    DRI_CONF_OPT_I(override_vram_size, -1, -1, 2147483647, \
                   "Override the VRAM size advertised to the application in MiB (-1 = default)")
 
+/* 65536 is the largest size core Mesa can represent (MAX_TEXTURE_LEVELS). */
+#define DRI_CONF_LIMIT_MAX_TEXTURE_SIZE() \
+   DRI_CONF_OPT_I(limit_max_texture_size, 0, 0, 65536, \
+                  "Limit the maximum texture size advertised to the application (0 = no limit)")
+
 #define DRI_CONF_FORCE_GL_MAP_BUFFER_SYNCHRONIZED(def) \
    DRI_CONF_OPT_B(force_gl_map_buffer_synchronized, def, "Override GL_MAP_UNSYNCHRONIZED_BIT.")
 

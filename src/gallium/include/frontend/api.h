@@ -225,6 +225,7 @@ struct st_config_options
    char *mesa_extension_override;
    bool allow_multisampled_copyteximage;
    bool vertex_program_default_out;
+   unsigned limit_max_texture_size;
 
    unsigned char config_options_blake3[BLAKE3_KEY_LEN];
 };

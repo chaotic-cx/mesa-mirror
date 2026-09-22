@@ -48,6 +48,7 @@ u_driconf_fill_st_options(struct st_config_options *options,
    query_bool_option(force_glsl_extensions_warn);
    query_int_option(force_glsl_version);
    query_int_option(default_glsl_version);
+   query_int_option(limit_max_texture_size);
    query_bool_option(allow_extra_pp_tokens);
    query_bool_option(allow_glsl_extension_directive_midshader);
    query_bool_option(allow_glsl_120_subset_in_110);

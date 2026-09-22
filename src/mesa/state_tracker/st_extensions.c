@@ -115,7 +115,7 @@ static unsigned mesa_to_gl_stages(unsigned stages)
  */
 void st_init_limits(struct pipe_screen *screen,
                     struct gl_constants *c, struct gl_extensions *extensions,
-                    gl_api api)
+                    struct st_config_options *options, gl_api api)
 {
    mesa_shader_stage sh;
    bool can_ubo = true;
@@ -123,6 +123,14 @@ void st_init_limits(struct pipe_screen *screen,
 
    c->MaxTextureSize = screen->caps.max_texture_2d_size;
    c->MaxTextureSize = MIN2(c->MaxTextureSize, 1 << (MAX_TEXTURE_LEVELS - 1));
+
+   /* Some applications can't cope with the texture size we advertise, e.g. by
+    * storing it in a 16-bit type, where 65536 becomes 0. Let drirc lower it.
+    * The rectangle, viewport and renderbuffer limits are derived from this
+    * below, so they are limited as well.
+    */
+   if (options->limit_max_texture_size)
+      c->MaxTextureSize = MIN2(c->MaxTextureSize, options->limit_max_texture_size);
 
    c->Max3DTextureLevels
       = _min(screen->caps.max_texture_3d_levels,
@@ -132,6 +140,12 @@ void st_init_limits(struct pipe_screen *screen,
    c->MaxCubeTextureLevels
       = _min(screen->caps.max_texture_cube_levels,
             MAX_TEXTURE_LEVELS);
+
+   if (options->limit_max_texture_size) {
+      c->MaxCubeTextureLevels =
+         _min(c->MaxCubeTextureLevels,
+              util_logbase2(options->limit_max_texture_size) + 1);
+   }
 
    c->MaxTextureRectSize = _min(c->MaxTextureSize, MAX_TEXTURE_RECT_SIZE);
 

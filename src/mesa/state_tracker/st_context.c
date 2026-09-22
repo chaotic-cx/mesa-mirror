@@ -616,7 +616,7 @@ st_create_context_priv(struct gl_context *ctx, struct pipe_context *pipe,
                       screen->caps.max_texture_upload_memory_budget);
 
    /* GL limits and extensions */
-   st_init_limits(screen, &ctx->Const, &ctx->Extensions, ctx->API);
+   st_init_limits(screen, &ctx->Const, &ctx->Extensions, &st->options, ctx->API);
    st_init_extensions(screen, &ctx->Const,
                       &ctx->Extensions, &st->options, ctx->API);
 

@@ -36,6 +36,7 @@ struct pipe_screen;
 extern void st_init_limits(struct pipe_screen *screen,
                            struct gl_constants *c,
                            struct gl_extensions *extensions,
+                           struct st_config_options *options,
                            gl_api api);
 
 extern void st_init_extensions(struct pipe_screen *screen,
