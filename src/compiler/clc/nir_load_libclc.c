@@ -145,20 +145,18 @@ map_clc_data(struct clc_data *clc)
    }
 
 #ifdef DYNAMIC_LIBCLC_PATH
-   if (clc->file->sys_path != NULL) {
-      if (clc->size % SPIRV_WORD_SIZE != 0) {
-         fprintf(stderr, "File length isn't a multiple of the word size\n");
-         return false;
-      }
-
-      clc->data = mmap(NULL, clc->size, PROT_READ, MAP_PRIVATE, clc->fd, 0);
-      if (clc->data == MAP_FAILED) {
-         fprintf(stderr, "Failed to mmap libclc SPIR-V: %m\n");
-         return false;
-      }
-
-      return true;
+   if (clc->size % SPIRV_WORD_SIZE != 0) {
+      fprintf(stderr, "File length isn't a multiple of the word size\n");
+      return false;
    }
+
+   clc->data = mmap(NULL, clc->size, PROT_READ, MAP_PRIVATE, clc->fd, 0);
+   if (clc->data == MAP_FAILED) {
+      fprintf(stderr, "Failed to mmap libclc SPIR-V: %m\n");
+      return false;
+   }
+
+   return true;
 #endif
 
    return true;
@@ -175,12 +173,10 @@ close_clc_data(struct clc_data *clc)
    }
 
 #ifdef DYNAMIC_LIBCLC_PATH
-   if (clc->file->sys_path != NULL) {
-      if (clc->data)
-         munmap((void *)clc->data, clc->size);
-      clc->data = NULL;
-      close(clc->fd);
-   }
+   if (clc->data)
+      munmap((void *)clc->data, clc->size);
+   clc->data = NULL;
+   close(clc->fd);
 #endif
 }
 
@@ -198,34 +194,32 @@ open_clc_data(struct clc_data *clc, unsigned ptr_bit_size)
    }
 
 #ifdef DYNAMIC_LIBCLC_PATH
-   if (clc->file->sys_path != NULL) {
-      int fd = open(clc->file->sys_path, O_RDONLY);
-      if (fd < 0)
-         return false;
+   int fd = open(clc->file->sys_path, O_RDONLY);
+   if (fd < 0)
+      return false;
 
-      struct stat stat;
-      int ret = fstat(fd, &stat);
-      if (ret < 0) {
-         fprintf(stderr, "fstat failed on %s: %m\n", clc->file->sys_path);
-         close(fd);
-         return false;
-      }
-
-      clc->fd = fd;
-      clc->size = stat.st_size;
-
-      if (!map_clc_data(clc)) {
-         close_clc_data(clc);
-         return false;
-      }
-
-      blake3_hasher ctx;
-      _mesa_blake3_init(&ctx);
-      _mesa_blake3_update(&ctx, clc->data, clc->size);
-      _mesa_blake3_final(&ctx, clc->cache_key);
-
-      return true;
+   struct stat stat;
+   int ret = fstat(fd, &stat);
+   if (ret < 0) {
+      fprintf(stderr, "fstat failed on %s: %m\n", clc->file->sys_path);
+      close(fd);
+      return false;
    }
+
+   clc->fd = fd;
+   clc->size = stat.st_size;
+
+   if (!map_clc_data(clc)) {
+      close_clc_data(clc);
+      return false;
+   }
+
+   blake3_hasher ctx;
+   _mesa_blake3_init(&ctx);
+   _mesa_blake3_update(&ctx, clc->data, clc->size);
+   _mesa_blake3_final(&ctx, clc->cache_key);
+
+   return true;
 #endif
 
    return false;
