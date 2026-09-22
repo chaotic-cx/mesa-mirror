@@ -52,7 +52,7 @@ struct clc_file {
    unsigned bit_size;
    const char *static_data;
    size_t static_data_size;
-   const char *sys_paths[1];
+   const char *sys_paths[2];
 };
 
 static const struct clc_file libclc_files[] = {
@@ -65,6 +65,7 @@ static const struct clc_file libclc_files[] = {
 #ifdef DYNAMIC_LIBCLC_PATH
       .sys_paths = {
          DYNAMIC_LIBCLC_PATH "spirv-mesa3d-.spv",
+         DYNAMIC_LIBCLC_PATH "spirv32-unknown-unknown/libclc.spv",
       },
 #endif
    },
@@ -77,6 +78,7 @@ static const struct clc_file libclc_files[] = {
 #ifdef DYNAMIC_LIBCLC_PATH
       .sys_paths = {
          DYNAMIC_LIBCLC_PATH "spirv64-mesa3d-.spv",
+         DYNAMIC_LIBCLC_PATH "spirv64-unknown-unknown/libclc.spv",
       },
 #endif
    },
