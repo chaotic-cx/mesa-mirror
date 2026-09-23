@@ -172,9 +172,9 @@ fd2_sampler_view_create(struct pipe_context *pctx, struct pipe_resource *prsc,
               COND(rsc->layout.tile_mode, A2XX_SQ_TEX_0_TILED);
    so->tex1 = A2XX_SQ_TEX_1_FORMAT(fmt.format) |
               A2XX_SQ_TEX_1_CLAMP_POLICY(SQ_TEX_CLAMP_POLICY_OGL);
-   so->tex2 = A2XX_SQ_TEX_2_HEIGHT(prsc->height0 - 1) |
-              A2XX_SQ_TEX_2_WIDTH(prsc->width0 - 1) |
-              COND(prsc->target == PIPE_TEXTURE_CUBE, A2XX_SQ_TEX_2_DEPTH(6));
+   so->tex2 = A2XX_SQ_TEX_2_2D_HEIGHT(prsc->height0 - 1) |
+              A2XX_SQ_TEX_2_2D_WIDTH(prsc->width0 - 1) |
+              COND(prsc->target == PIPE_TEXTURE_CUBE, A2XX_SQ_TEX_2_2D_DEPTH(6));
    so->tex3 = A2XX_SQ_TEX_3_NUM_FORMAT(fmt.num_format) |
               fd2_tex_swiz(cso->format, cso->swizzle_r, cso->swizzle_g,
                            cso->swizzle_b, cso->swizzle_a) |

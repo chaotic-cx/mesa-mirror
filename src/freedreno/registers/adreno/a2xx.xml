@@ -1826,11 +1826,14 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 		<bitfield name="CLAMP_POLICY" pos="11" type="sq_tex_clamp_policy"/>
 		<bitfield name="BASE_ADDRESS" low="12" high="31" type="uint" shr="12"/>
 	</reg32>
-	<reg32 offset="2" name="2">
-		<bitfield name="WIDTH" low="0" high="12" type="uint"/>
-		<bitfield name="HEIGHT" low="13" high="25" type="uint"/>
-		<bitfield name="DEPTH" low="26" high="31" type="uint"/>
-		<!-- 1d/3d have different bit configurations -->
+	<reg32 offset="2" name="2" varset="sq_tex_dimension">
+		<bitfield name="1D_WIDTH" low="0" high="23" type="uint" variants="SQ_TEX_DIMENSION_1D"/>
+		<bitfield name="2D_WIDTH" low="0" high="12" type="uint" variants="SQ_TEX_DIMENSION_2D SQ_TEX_DIMENSION_CUBE"/>
+		<bitfield name="2D_HEIGHT" low="13" high="25" type="uint" variants="SQ_TEX_DIMENSION_2D SQ_TEX_DIMENSION_CUBE"/>
+		<bitfield name="2D_DEPTH" low="26" high="31" type="uint" variants="SQ_TEX_DIMENSION_2D SQ_TEX_DIMENSION_CUBE"/>
+		<bitfield name="3D_WIDTH" low="0" high="10" type="uint" variants="SQ_TEX_DIMENSION_3D"/>
+		<bitfield name="3D_HEIGHT" low="11" high="21" type="uint" variants="SQ_TEX_DIMENSION_3D"/>
+		<bitfield name="3D_DEPTH" low="22" high="31" type="uint" variants="SQ_TEX_DIMENSION_3D"/>
 	</reg32>
 	<reg32 offset="3" name="3">
 		<bitfield name="NUM_FORMAT" pos="0" type="sq_tex_num_format"/>
