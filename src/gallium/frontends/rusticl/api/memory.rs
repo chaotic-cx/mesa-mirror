@@ -18,6 +18,7 @@ use crate::core::platform::Platform;
 use crate::core::queue::*;
 use crate::rusticl_warn_once;
 
+use libc_rust_gen::{lseek, SEEK_END};
 use mesa_rust::pipe::fence::FenceFd;
 use mesa_rust_gen::pipe_fd_type;
 use mesa_rust_util::conversion::TryFromWithErr;
@@ -3569,4 +3570,135 @@ fn enqueue_release_external_mem_objects(
         false,
         None,
     )
+}
+
+#[cl_entrypoint(clImportMemoryARM)]
+pub unsafe fn import_memory_arm(
+    context: cl_context,
+    mut flags: cl_mem_flags,
+    properties: *const cl_import_properties_arm,
+    memory: *mut ::std::os::raw::c_void,
+    size: usize,
+) -> CLResult<cl_mem> {
+    let c = Context::arc_from_raw(context)?;
+
+    // CL_INVALID_BUFFER_SIZE when size is 0.
+    if size == 0 {
+        return Err(CL_INVALID_BUFFER_SIZE);
+    }
+    // CL_INVALID_VALUE if memory is NULL.
+    if memory.is_null() {
+        return Err(CL_INVALID_VALUE);
+    }
+
+    // The subset of flags accepted by clImportMemoryARM
+    let valid_flags = cl_bitfield::from(
+        CL_MEM_READ_WRITE
+            | CL_MEM_WRITE_ONLY
+            | CL_MEM_READ_ONLY
+            | CL_MEM_HOST_WRITE_ONLY
+            | CL_MEM_HOST_READ_ONLY
+            | CL_MEM_HOST_NO_ACCESS
+            | CL_MEM_USE_HOST_PTR,
+    );
+    if flags & !valid_flags != 0 {
+        return Err(CL_INVALID_VALUE);
+    }
+    validate_mem_flags_create(flags, MemFlagValidationType::Plain)?;
+
+    // properties can be NULL or point to a single zero value if the default
+    // behaviour is desired.
+    let mut import_type = CL_IMPORT_TYPE_HOST_ARM;
+    // CL_IMPORT_DMA_BUF_DATA_CONSISTENCY_WITH_HOST_ARM is ensured with
+    // p_screen$resource_from_handle
+    let mut _import_consistency = false;
+
+    // NOTE: The spec does not say what to do on multiple of the same arguments
+    // SAFETY: properties is a 0 terminated array by spec.
+    let props = unsafe { Properties::new(properties) }.ok_or(CL_INVALID_PROPERTY)?;
+    for (&key, &val) in props.iter() {
+        let key = u32::try_from(key).or(Err(CL_INVALID_PROPERTY))?;
+        let val = u32::try_from(val).or(Err(CL_INVALID_PROPERTY))?;
+        match key {
+            CL_IMPORT_TYPE_ARM => {
+                if !matches!(
+                    val,
+                    CL_IMPORT_TYPE_HOST_ARM
+                        | CL_IMPORT_TYPE_DMA_BUF_ARM
+                        | CL_IMPORT_TYPE_ANDROID_HARDWARE_BUFFER_ARM
+                ) {
+                    return Err(CL_INVALID_PROPERTY);
+                }
+
+                import_type = val;
+            }
+            CL_IMPORT_DMA_BUF_DATA_CONSISTENCY_WITH_HOST_ARM => {
+                _import_consistency = check_cl_bool(val).ok_or(CL_INVALID_PROPERTY)?;
+            }
+
+            // cl_arm_import_memory_protected is currently unimplemented
+            CL_IMPORT_TYPE_PROTECTED_ARM => return Err(CL_INVALID_PROPERTY),
+
+            // Android is currently unsupported
+            CL_IMPORT_ANDROID_HARDWARE_BUFFER_PLANE_INDEX_ARM => return Err(CL_INVALID_PROPERTY),
+            CL_IMPORT_ANDROID_HARDWARE_BUFFER_LAYER_INDEX_ARM => return Err(CL_INVALID_PROPERTY),
+
+            // CL_INVALID_PROPERTY when invalid properties [...] are passed.
+            _ => return Err(CL_INVALID_PROPERTY),
+        }
+    }
+
+    // CL_MEM_USE_HOST_PTR is ignored by spec.
+    flags &= !cl_bitfield::from(CL_MEM_USE_HOST_PTR);
+
+    match import_type {
+        CL_IMPORT_TYPE_DMA_BUF_ARM => {
+            for dev in &c.devs {
+                // While not stated in the spec, all devices need to be checked
+                // to ensure they support importing external memory objects.
+                // The cl_khr_external_memory spec is followed instead to return
+                // CL_INVALID_DEVICE if a device cannot import the requested
+                // external memory object type.
+                if !dev.memory_sharing_supported() {
+                    return Err(CL_INVALID_DEVICE);
+                }
+            }
+
+            // SAFETY: Pointer is non-null by spec.
+            // The spec leaves the type ambigous, however it should point to a
+            // dma_buf hadle, which is a c_int on UNIX platforms.
+            let fd_raw = unsafe { *(memory as *mut _) };
+            let fd = FenceFd { fd: fd_raw };
+
+            // Get a rough upper-bound for the size of the DMA buffer.
+            // SAFETY: Always safe as long as the underlying C API is safe.
+            let fd_size = unsafe { lseek(fd.fd, 0, SEEK_END.try_into().unwrap()) };
+            // When lseek fails and returns a -1, the fd is assumed invalid.
+            if fd_size == -1 {
+                return Err(CL_INVALID_OPERATION);
+            }
+
+            // CL_INVALID_BUFFER_SIZE when size is greater than the size of the
+            // allocation being imported.
+            if i64::try_from_with_err(size, CL_INVALID_BUFFER_SIZE)? > fd_size {
+                return Err(CL_INVALID_BUFFER_SIZE);
+            }
+
+            let mem = MemBase::new_buffer(
+                c,
+                flags,
+                size,
+                ptr::null_mut(),
+                MultiValProperties::default(),
+                Some(fd),
+            )?;
+
+            Ok(mem.into_cl())
+        }
+        // cl_arm_import_memory_host is currently unimplemented
+        CL_IMPORT_TYPE_HOST_ARM => Err(CL_INVALID_PROPERTY),
+        // Android is currently unsupported
+        CL_IMPORT_TYPE_ANDROID_HARDWARE_BUFFER_ARM => Err(CL_INVALID_PROPERTY),
+        _ => unreachable!(),
+    }
 }

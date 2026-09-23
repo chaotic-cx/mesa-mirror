@@ -21,3 +21,4 @@ VK_KHR_maintenance12 on RADV
 cl_khr_external_memory on iris, radeonsi, zink
 cl_khr_external_memory_dma_buf on iris, radeonsi, zink
 cl_khr_external_memory_opaque_fd on iris, radeonsi, zink
+cl_arm_memory_import_dma_buf on rusticl

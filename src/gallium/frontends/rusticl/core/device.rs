@@ -818,6 +818,11 @@ impl DeviceBase {
             }
         }
 
+        if self.memory_sharing_supported() {
+            add_ext(1, 1, 0, "cl_arm_import_memory");
+            add_ext(1, 1, 0, "cl_arm_import_memory_dma_buf");
+        }
+
         if self.svm_supported() {
             add_ext(1, 0, 0, "cl_arm_shared_virtual_memory");
         }

@@ -583,6 +583,9 @@ pub extern "C" fn clGetExtensionFunctionAddress(
         // cl_ext_buffer_device_address
         "clSetKernelArgDevicePointerEXT" => cl_ext_func!(clSetKernelArgDevicePointerEXT: clSetKernelArgDevicePointerEXT_fn),
 
+        // cl_arm_import_memory
+        "clImportMemoryARM" => cl_ext_func!(clImportMemoryARM: clImportMemoryARM_fn),
+
         // cl_arm_shared_virtual_memory
         "clEnqueueSVMFreeARM" => cl_ext_func!(clEnqueueSVMFreeARM: clEnqueueSVMFreeARM_fn),
         "clEnqueueSVMMapARM" => cl_ext_func!(clEnqueueSVMMapARM: clEnqueueSVMMapARM_fn),

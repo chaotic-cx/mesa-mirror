@@ -237,6 +237,8 @@ rusticl_libc_bindings_rs = rust.bindgen(
     '--allowlist-function',     'dlsym',
     '--allowlist-function',     'free',
     '--allowlist-function',     'malloc',
+    '--allowlist-var',          'SEEK_END',
+    '--allowlist-function',     'lseek',
   ]
 )
 
