@@ -291,6 +291,14 @@ typedef enum {
    SAMPLE_CENTER = 1,
 } instr_sample_loc_t;
 
+/* not sq_tex_dimension: that orders 2D and 3D the other way around */
+typedef enum {
+   DIMENSION_1D = 0,
+   DIMENSION_2D = 1,
+   DIMENSION_3D = 2,
+   DIMENSION_CUBE = 3,
+} instr_dimension_t;
+
 typedef enum a2xx_sq_surfaceformat instr_surf_fmt_t;
 
 typedef struct PACKED {
@@ -320,7 +328,8 @@ typedef struct PACKED {
    uint8_t use_reg_gradients : 1;
    instr_sample_loc_t sample_location : 1;
    uint32_t lod_bias : 7;
-   uint8_t unused : 7;
+   uint8_t unused : 5;
+   instr_dimension_t dimension : 2;
    uint8_t offset_x : 5;
    uint32_t offset_y : 5;
    uint8_t offset_z : 5;

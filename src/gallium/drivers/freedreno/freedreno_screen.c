@@ -684,7 +684,8 @@ fd_init_screen_caps(struct fd_screen *screen)
    caps->max_texture_cube_levels =
       is_a6xx(screen) || is_a5xx(screen) || is_a4xx(screen) ? 15 : 14;
 
-   caps->max_texture_3d_levels = is_a3xx(screen) ? 11 : 12;
+   caps->max_texture_3d_levels =
+      is_a2xx(screen) || is_a3xx(screen) ? 11 : 12;
 
    caps->max_texture_array_layers = is_a6xx(screen) ? 2048 :
       (is_a3xx(screen) || is_a4xx(screen) || is_a5xx(screen) ? 256 : 0);

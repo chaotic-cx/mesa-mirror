@@ -96,6 +96,7 @@ struct ir2_instr {
             struct {
                bool is_cube : 1;
                bool is_rect : 1;
+               bool is_3d : 1;
                uint8_t samp_id;
             } tex;
          };
@@ -365,7 +366,7 @@ src_ncomp(struct ir2_instr *instr)
       case VTX_FETCH:
          return 1;
       case TEX_FETCH:
-         return instr->fetch.tex.is_cube ? 3 : 2;
+         return instr->fetch.tex.is_cube || instr->fetch.tex.is_3d ? 3 : 2;
       case TEX_SET_TEX_LOD:
          return 1;
       default:

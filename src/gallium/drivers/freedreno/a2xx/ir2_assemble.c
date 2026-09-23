@@ -205,6 +205,8 @@ fill_instr(struct ir2_context *ctx, struct ir2_sched_instr *sched, instr_t *bc,
          tex->use_reg_lod = instr->src_count == 2;
          tex->sample_location = SAMPLE_CENTER;
          tex->tx_coord_denorm = instr->fetch.tex.is_rect;
+         if (instr->fetch.tex.is_3d)
+            tex->dimension = DIMENSION_3D;
       } else if (instr->fetch.opc == TEX_SET_TEX_LOD) {
          instr_fetch_tex_t *tex = &bc->fetch.tex;
 

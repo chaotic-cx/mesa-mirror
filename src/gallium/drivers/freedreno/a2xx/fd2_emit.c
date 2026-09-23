@@ -124,7 +124,11 @@ emit_texture(struct fd_ringbuffer *ring, struct fd_context *ctx,
 
    OUT_RING(ring, view->tex2);
    OUT_RING(ring, sampler->tex3 | view->tex3);
-   OUT_RING(ring, sampler->tex4 | view->tex4);
+
+   uint32_t tex4 = sampler->tex4 | view->tex4;
+   if (rsc && rsc->b.b.target == PIPE_TEXTURE_3D)
+      tex4 |= sampler->tex4_vol;
+   OUT_RING(ring, tex4);
 
    if (rsc && rsc->b.b.last_level)
       OUT_RELOC(ring, rsc->bo, fd_resource_offset(rsc, 1, 0), view->tex5, 0);

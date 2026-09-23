@@ -19,7 +19,7 @@
 
 struct fd2_sampler_stateobj {
    struct pipe_sampler_state base;
-   uint32_t tex0, tex3, tex4;
+   uint32_t tex0, tex3, tex4, tex4_vol;
 };
 
 static inline struct fd2_sampler_stateobj *

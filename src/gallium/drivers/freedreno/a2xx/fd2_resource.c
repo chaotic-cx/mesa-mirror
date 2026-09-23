@@ -48,6 +48,9 @@ fd2_tile_mode(const struct pipe_resource *tmpl)
     */
    if (tmpl->target == PIPE_TEXTURE_CUBE)
       return 0;
+   /* the tiled layout of a 3D texture is not implemented */
+   if (tmpl->target == PIPE_TEXTURE_3D)
+      return 0;
    /* we can enable tiling for any resource we can render to */
    return (tmpl->bind & PIPE_BIND_RENDER_TARGET) ? 1 : 0;
 }

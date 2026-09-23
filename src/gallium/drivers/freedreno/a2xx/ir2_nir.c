@@ -688,7 +688,7 @@ emit_intrinsic(struct ir2_context *ctx, nir_intrinsic_instr *intr)
 static void
 emit_tex(struct ir2_context *ctx, nir_tex_instr *tex)
 {
-   bool is_rect = false, is_cube = false;
+   bool is_rect = false, is_cube = false, is_3d = false;
    struct ir2_instr *instr;
    nir_src *coord, *lod_bias;
 
@@ -730,6 +730,9 @@ emit_tex(struct ir2_context *ctx, nir_tex_instr *tex)
       break;
    case GLSL_SAMPLER_DIM_CUBE:
       is_cube = true;
+      break;
+   case GLSL_SAMPLER_DIM_3D:
+      is_3d = true;
       break;
    default:
       compile_error(ctx, "unimplemented sampler %d\n", tex->sampler_dim);
@@ -773,6 +776,7 @@ emit_tex(struct ir2_context *ctx, nir_tex_instr *tex)
    instr->src[0].swizzle = is_cube ? IR2_SWIZZLE_YXW : 0;
    instr->fetch.tex.is_cube = is_cube;
    instr->fetch.tex.is_rect = is_rect;
+   instr->fetch.tex.is_3d = is_3d;
    instr->fetch.tex.samp_id = tex->sampler_index;
 
    /* for lod/bias, we insert an extra src for the backend to deal with */
