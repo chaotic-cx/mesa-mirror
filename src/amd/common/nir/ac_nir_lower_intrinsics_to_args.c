@@ -281,7 +281,10 @@ lower_intrinsic_to_arg(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
       replacement = ac_nir_load_arg(b, s->args, s->args->gs_vtx_offset[0]);
       break;
    case nir_intrinsic_load_ordered_id_amd:
-      replacement = ac_nir_unpack_arg_wg_div(b, s->args, s->args->gs_tg_info, 0, 12);
+      /* It's possible for the hardware to make this workgroup-divergent, but
+       * it should be workgroup-uniform for how we use it.
+       */
+      replacement = ac_nir_unpack_arg(b, s->args, s->args->gs_tg_info, 0, 12);
       break;
    case nir_intrinsic_load_ring_tess_offchip_offset_amd:
       replacement = ac_nir_load_arg(b, s->args, s->args->tess_offchip_offset);
