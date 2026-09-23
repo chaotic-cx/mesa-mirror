@@ -2208,6 +2208,8 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
 
    /* dword 5's dimension picks how this splits; stack depth has no 1 subtracted */
    dimension = (dwords[5] >> 9) & 0x3;
+   rnn_varadd(rnn, "sq_tex_dimension",
+              rnn_enumname(rnn, "sq_tex_dimension", dimension));
 
    switch (dimension) {
    case 0: /* 1D */
@@ -2267,6 +2269,9 @@ dump_a2xx_tex_const(const uint32_t *dwords, uint32_t sizedwords, uint32_t val,
           packed_mips ? ", packed" : "", filter[vol_min], filter[vol_mag]);
    printf("%smipaddr=%08x (flags=%03x)\n", levels[level + 1], mip_gpuaddr,
           mip_flags);
+
+   dump_domain(dwords, 6, level + 1, "A2XX_SQ_TEX");
+   rnn_varadd(rnn, "sq_tex_dimension", "SQ_TEX_DIMENSION_2D");
 }
 
 static void
