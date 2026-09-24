@@ -213,6 +213,15 @@ tu_spirv_to_nir(struct tu_device *dev,
    if (result != VK_SUCCESS)
       return NULL;
 
+   if (stage == MESA_SHADER_FRAGMENT) {
+      bool progress = false;
+      NIR_PASS(progress, nir, nir_lower_terminate_to_demote);
+      if (progress) {
+         NIR_PASS(_, nir, nir_lower_halt_to_return);
+         NIR_PASS(_, nir, nir_lower_returns);
+      }
+   }
+
    /* ir3 uses num_ubos and num_ssbos to track the number of *bindful*
     * UBOs/SSBOs, but spirv_to_nir sets them to the total number of objects
     * which is useless for us, so reset them here.
