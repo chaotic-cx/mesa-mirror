@@ -342,6 +342,30 @@ shader_contains_undef(nir_builder *b, unsigned bit_size)
    return false;
 }
 
+static inline unsigned
+count_num_loads(nir_builder *b, unsigned vert)
+{
+   unsigned count = 0;
+   nir_foreach_block(block, b->impl) {
+      nir_foreach_instr(instr, block) {
+         if (instr->type != nir_instr_type_intrinsic)
+            continue;
+
+         nir_intrinsic_instr *intrin = nir_instr_as_intrinsic(instr);
+         if (!nir_intrinsic_has_io_semantics(intrin) ||
+             !nir_intrinsic_infos[intrin->intrinsic].has_dest)
+            continue;
+
+         if (intrin->intrinsic == nir_intrinsic_load_per_vertex_input &&
+             (!nir_src_is_const(intrin->src[0]) || nir_src_as_uint(intrin->src[0]) != vert))
+            continue;
+
+         count++;
+      }
+   }
+   return count;
+}
+
 static inline bool
 is_patch(gl_varying_slot slot)
 {
