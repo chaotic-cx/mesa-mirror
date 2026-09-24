@@ -33,7 +33,7 @@ class nir_opt_varyings_test_dedup : public nir_opt_varyings_test {
 
       create_shaders(producer, consumer);
       for (unsigned s = 0; s < 2; s++) {
-         nir_def *input = load_input(b1, (gl_varying_slot)0, 0, ty, 0, 0);
+         nir_def *input = load_input(b1, (gl_varying_slot)0, 0, ty, -1, 0);
          for (unsigned v = 0; v < (is_per_vertex(b1, (gl_varying_slot)pslot[s], false) ? 3 : 1); v++) {
             store[s][v] =
                store_output(b1, (gl_varying_slot)pslot[s], s, ty, input, v, false);

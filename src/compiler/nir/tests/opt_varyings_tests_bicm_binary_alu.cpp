@@ -60,7 +60,7 @@ public:
          if (!divergent[s])
             input = load_uniform(b1, bitsize, 0);
          else
-            input = load_input(b1, (gl_varying_slot)0, s, ty, 0, 0);
+            input = load_input(b1, (gl_varying_slot)0, s, ty, -1, 0);
          store[s] = store_output(b1, (gl_varying_slot)pslot[s], s,
                                  ty, input, -1, false);
       }

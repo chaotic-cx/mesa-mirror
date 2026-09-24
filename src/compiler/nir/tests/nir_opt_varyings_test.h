@@ -388,7 +388,8 @@ load_input_output(nir_builder *b, gl_varying_slot slot, unsigned component,
          def = nir_load_per_vertex_output(b, 1, bit_size,
                                           nir_imm_int(b, vertex_index), zero);
       } else {
-         if (b->shader->info.stage == MESA_SHADER_TESS_CTRL && vertex_index < 0)
+         if ((b->shader->info.stage == MESA_SHADER_TESS_CTRL ||
+              b->shader->info.stage == MESA_SHADER_TESS_EVAL) && vertex_index < 0)
             vertex_index_def = nir_load_invocation_id(b);
          else
             vertex_index_def = nir_imm_int(b, vertex_index);
