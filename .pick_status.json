@@ -1814,7 +1814,7 @@
         "description": "freedreno/ir3: wait for the indirect grid copy before loading it",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "e7b2719f69a77b9daad5c17d651b54d98720669f",
         "notes": null

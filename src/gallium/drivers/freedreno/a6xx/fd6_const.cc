@@ -547,7 +547,7 @@ fd6_emit_cs_driver_params(struct fd_context *ctx, fd_cs &cs,
 
       pipe_resource_reference(&buffer, NULL);
    } else {
-      ir3_emit_cs_driver_params(v, cs, ctx, info);
+      ir3_emit_cs_driver_params(v, cs, ctx, info, false);
       if (info->indirect)
          wait_mem_writes(ctx);
    }
