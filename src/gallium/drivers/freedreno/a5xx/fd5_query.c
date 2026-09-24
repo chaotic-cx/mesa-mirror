@@ -217,6 +217,25 @@ timestamp_accumulate_result(struct fd_acc_query *aq,
    result->u64 = fd_ticks_to_ns(sp->start);
 }
 
+static void
+timestamp_raw_accumulate_result(struct fd_acc_query *aq,
+                                struct fd_acc_query_sample *s,
+                                union pipe_query_result *result)
+{
+   struct fd5_query_sample *sp = fd5_query_sample(s);
+   result->u64 = sp->start;
+}
+
+static void
+timestamp_raw_result_resource(struct fd_acc_query *aq, struct fd_ringbuffer *ring,
+                              enum pipe_query_value_type result_type,
+                              int index, struct fd_resource *dst,
+                              unsigned offset)
+{
+   copy_result(ring, result_type, dst, offset, fd_resource(aq->prsc),
+               offsetof(struct fd5_query_sample, start));
+}
+
 static const struct fd_acc_sample_provider time_elapsed = {
    .query_type = PIPE_QUERY_TIME_ELAPSED,
    .always = true,
@@ -240,6 +259,16 @@ static const struct fd_acc_sample_provider timestamp = {
    .resume = timestamp_resume,
    .pause = timestamp_pause,
    .result = timestamp_accumulate_result,
+};
+
+static const struct fd_acc_sample_provider timestamp_raw = {
+   .query_type = PIPE_QUERY_TIMESTAMP_RAW,
+   .always = true,
+   .size = sizeof(struct fd5_query_sample),
+   .resume = timestamp_resume,
+   .pause = timestamp_pause,
+   .result = timestamp_raw_accumulate_result,
+   .result_resource = timestamp_raw_result_resource,
 };
 
 /*
@@ -453,4 +482,5 @@ fd5_query_context_init(struct pipe_context *pctx) disable_thread_safety_analysis
 
    fd_acc_query_register_provider(pctx, &time_elapsed);
    fd_acc_query_register_provider(pctx, &timestamp);
+   fd_acc_query_register_provider(pctx, &timestamp_raw);
 }

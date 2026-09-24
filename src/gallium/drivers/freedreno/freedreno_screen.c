@@ -1200,7 +1200,7 @@ fd_screen_create(int fd,
 
    pscreen->get_timestamp = fd_screen_get_timestamp;
 
-   if (is_a6xx(screen))
+   if (is_a5xx(screen) || is_a6xx(screen))
       pscreen->convert_timestamp = fd_screen_convert_timestamp;
 
    pscreen->fence_reference = _fd_fence_ref;
