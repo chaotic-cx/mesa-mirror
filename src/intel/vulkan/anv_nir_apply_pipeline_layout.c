@@ -239,10 +239,11 @@ add_tex_src_binding(struct apply_pipeline_layout_state *state,
                             deref_src_type == nir_tex_src_sampler_deref);
 
    /* Track input attachments use */
-   nir_variable *var =
-      nir_deref_instr_get_variable(
-         nir_src_as_deref(tex->src[deref_src_idx].src));
-   if (var->data.fb_fetch_output) {
+   if (tex->sampler_dim == GLSL_SAMPLER_DIM_SUBPASS ||
+       tex->sampler_dim == GLSL_SAMPLER_DIM_SUBPASS_MS) {
+      nir_variable *var =
+         nir_deref_instr_get_variable(
+            nir_src_as_deref(tex->src[deref_src_idx].src));
       assert(var->data.index == NIR_VARIABLE_NO_INDEX ||
              var->data.index < MAX_DESCRIPTOR_SET_INPUT_ATTACHMENTS);
       const uint32_t index = var->data.index == NIR_VARIABLE_NO_INDEX ?
