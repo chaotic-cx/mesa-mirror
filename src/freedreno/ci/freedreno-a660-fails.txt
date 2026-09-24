@@ -76,5 +76,4 @@ Basic@bufferreadwriterect,Fail
 
 # Nightly run expectations update
 dEQP-VK.info.device_extension_dependencies,Fail
-dEQP-VK.subgroups.shader_quad_control.terminated_invocation,Fail
 
