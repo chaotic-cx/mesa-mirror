@@ -5354,7 +5354,7 @@
         "description": "nir/opt_varyings: clear output_equal_mask when GS has looped output stores",
         "nominated": true,
         "nomination_type": 4,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
