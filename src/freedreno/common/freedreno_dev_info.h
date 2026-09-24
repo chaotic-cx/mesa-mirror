@@ -459,9 +459,6 @@ struct fd_dev_info {
        */
       bool has_sw_fuse;
 
-      /* a750-specific HW bug workaround for ray tracing */
-      bool has_rt_workaround;
-
       /* Whether alias.rt is supported. */
       bool has_alias_rt;
 
@@ -547,6 +544,8 @@ struct fd_dev_info {
       bool QCTDD09112208_cmdbuf_start_cs : 1;
       /* Need fake bary.f for (ei) if last input is flat: */
       bool QCTDD10204462_flat_ei : 1;
+      /* a750-specific HW bug workaround for ray tracing */
+      bool QCTDD10497382_rt_workaround;
       /* Do not use a0 in early preamble. */
       bool QCTDD10789828_no_a0_ep : 1;
       /* On a7xx alias.tex may hang when in between mova and (ul). */

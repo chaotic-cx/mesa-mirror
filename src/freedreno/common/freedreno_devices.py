@@ -831,6 +831,8 @@ a7xx_gen2 = GPUProps(
         QCTDD08049535 = True,
         QCTDD08901551 = True,
         QCTDD08517960 = True,
+        # TODO we might need to check if fw supports the w/a:
+        # QCTDD10497382 = True,
     )
 
 a7xx_gen3 = GPUProps(
@@ -852,7 +854,6 @@ a7xx_gen3 = GPUProps(
         has_primitive_shading_rate = True,
         has_ray_intersection = True,
         has_sw_fuse = True,
-        has_rt_workaround = True,
         has_alias_rt = True,
         has_abs_bin_mask = True,
         new_control_regs = True,
@@ -864,6 +865,7 @@ a7xx_gen3 = GPUProps(
         subpass_fence_cleans_resolve = True,
 
         QCTDD08901551 = False,
+        QCTDD10497382 = True,
         QCTDD12766770 = True,
         QCTDD13523866 = True,
     )
@@ -1387,7 +1389,6 @@ add_gpus([
 a8xx_base = GPUProps(
         has_dp2acc = False,
         reg_size_vec4 = 96,
-        has_rt_workaround = False,
         supports_double_threadsize = False,
         has_dual_wave_dispatch = True,
         round_robin_errata = False,
@@ -1395,6 +1396,7 @@ a8xx_base = GPUProps(
         max_storage_buffer_range_bytes = (1 << 31) - 1,
 
         QCTDD10204462 = False,
+        QCTDD10497382 = False,
         QCTDD11147232 = False,
     )
 

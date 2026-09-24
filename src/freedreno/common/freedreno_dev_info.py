@@ -47,6 +47,7 @@ quirk_names = {
     "QCTDD08901551": "stsc_ss",
     "QCTDD09112208": "cmdbuf_start_cs",
     "QCTDD10204462": "flat_ei",
+    "QCTDD10497382": "rt_workaround",
     "QCTDD10789828": "no_a0_ep",
     "QCTDD11147232": "alias_mova",
     "QCTDD11183148": "alias_pred",

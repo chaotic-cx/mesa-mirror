@@ -436,7 +436,7 @@ tu6_emit_flushes(struct tu_cmd_buffer *cmd_buffer,
       tu_cs_emit_pkt7(cs, CP_CCHE_INVALIDATE, 0);
    }
    if (CHIP == A7XX && (flushes & TU_CMD_FLAG_RTU_INVALIDATE) &&
-       cmd_buffer->device->physical_device->info->props.has_rt_workaround)
+       FD_QUIRK(cmd_buffer->device->physical_device->info, QCTDD10497382_rt_workaround))
       tu_emit_rt_workaround<CHIP>(cmd_buffer, cs);
    if (flushes & TU_CMD_FLAG_WAIT_MEM_WRITES)
       tu_cs_emit_pkt7(cs, CP_WAIT_MEM_WRITES, 0);
@@ -8706,7 +8706,7 @@ tu6_draw_common(struct tu_cmd_buffer *cmd,
          cmd->vk.dynamic_graphics_state.ia.primitive_restart_index));
    }
 
-   if (cmd->device->physical_device->info->props.has_rt_workaround &&
+   if (FD_QUIRK(cmd->device->physical_device->info, QCTDD10497382_rt_workaround) &&
        cmd->state.program.uses_ray_intersection) {
       tu_set_render_mode<CHIP>(cs, { .shader_uses_rt = true });
    }
@@ -10265,7 +10265,7 @@ tu_dispatch(struct tu_cmd_buffer *cmd,
       }
    }
 
-   if (cmd->device->physical_device->info->props.has_rt_workaround &&
+   if (FD_QUIRK(cmd->device->physical_device->info, QCTDD10497382_rt_workaround) &&
        shader->variant->info.uses_ray_intersection) {
       tu_set_render_mode<CHIP>(cs, { .shader_uses_rt = true });
    }
