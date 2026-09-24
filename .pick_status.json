@@ -1224,7 +1224,7 @@
         "description": "tu: Advertise VK_KHR_shader_maximal_reconvergence",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "825523d2eacd66b1179c5d744772adefa0550bd3",
         "notes": null

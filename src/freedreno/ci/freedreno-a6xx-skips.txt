@@ -86,8 +86,11 @@ spec@.*line.*stipple.*
 # uses edgeflags:
 shaders@point-vertex-id.*
 
-# Some reconvergence tests are very slow:
+# Some reconvergence tests are very slow, especially with large subgoup sizes:
 (gmem-|stale-regs-)?dEQP-VK.reconvergence.(sub|work)group_uniform_control_flow_(ballot|elect).compute.nesting4.(0.40|7.10)
+dEQP-VK.reconvergence.maximal.compute.nesting4.7.10
+dEQP-VK.reconvergence.maximal.compute.nesting5.0.11
+dEQP-VK.reconvergence.maximal.compute.nesting6.2.9
 
 # Piglit assumes fp16 denorms are supported, which the driver doesn't.
 program@execute@amdgcn-f16-inline-immediates
