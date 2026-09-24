@@ -129,9 +129,6 @@ Profiling@write_image_uchar,Fail
 Basic,Fail
 Basic@bufferreadwriterect,Fail
 
-# https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/44724
-dEQP-VK.subgroups.shader_quad_control.terminated_invocation,Fail
-
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
 dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_frag.case_1,Fail
 dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_frag.case_4,Fail
