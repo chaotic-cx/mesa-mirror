@@ -24,8 +24,6 @@
 #include <unistd.h>
 #include <poll.h>
 
-#include "common/intel_gem.h"
-
 #include "dev/intel_debug.h"
 #include "dev/intel_device_info.h"
 
