@@ -4619,13 +4619,16 @@ lsc_fence_descriptor_for_intrinsic(const struct intel_device_info *devinfo,
             break;
          case SCOPE_WORKGROUP:
             /* On Xe2 and Xe3 we need the eviction due to aliasing of TGM data
-             * in L1 (HSD 14020414266). On Xe3p we need this due to how data
-             * post-format conversion happens (HSD 22020984324).
+             * in L1 (HSD 14020414266). On NVL-P (pre-B0) we need this due to
+             * how data post-format conversion happens (HSD 22020984324).
              * Also, we have to upgrade the scope to TILE since flush_type is
              * ignored for threadgroup fences, which means we'll use the
-             * values alaready initialized.
+             * values already initialized.
              */
-            if (devinfo->ver < 20 || !is_tgm) {
+            if (!(devinfo->ver == 20 || devinfo->ver == 30 ||
+                  (devinfo->platform == INTEL_PLATFORM_NVL_P &&
+                   devinfo->revision < 4)) ||
+                !is_tgm) {
                scope = LSC_FENCE_THREADGROUP;
                flush_type = LSC_FLUSH_TYPE_NONE;
             }
