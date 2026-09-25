@@ -68,8 +68,11 @@ static bool pvr_is_subpass_initops_flush_needed(
    uint32_t color_attachment_mask;
 
    for (uint32_t i = 0; i < hw_render->color_init_count; i++) {
-      if (hw_render->color_init[i].op != VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+      VkAttachmentLoadOp op = hw_render->color_init[i].op;
+      if (op != VK_ATTACHMENT_LOAD_OP_DONT_CARE &&
+          op != VK_ATTACHMENT_LOAD_OP_NONE) {
          render_loadop_mask |= (1 << hw_render->color_init[i].index);
+      }
    }
 
    /* If there are no load ops then there's nothing to flush. */

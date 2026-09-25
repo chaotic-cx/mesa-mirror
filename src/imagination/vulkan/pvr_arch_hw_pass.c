@@ -436,8 +436,10 @@ pvr_surface_setup_render_init(struct pvr_renderpass_context *ctx,
       buffer->used[start + i] = true;
    }
 
-   if (load_op == VK_ATTACHMENT_LOAD_OP_DONT_CARE)
+   if (load_op == VK_ATTACHMENT_LOAD_OP_DONT_CARE ||
+       load_op == VK_ATTACHMENT_LOAD_OP_NONE) {
       *use_render_init = false;
+   }
 
    if (*use_render_init) {
       struct pvr_renderpass_colorinit *new_color_init;

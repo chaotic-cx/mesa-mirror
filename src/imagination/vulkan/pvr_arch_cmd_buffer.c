@@ -4579,7 +4579,8 @@ static VkResult pvr_dynamic_rendering_output_attachments_setup(
          surface->need_resolve = true;
          surface->attachment_idx = attachment->resolve_target;
 
-         if (attachment->store_op == VK_ATTACHMENT_STORE_OP_DONT_CARE &&
+         if ((attachment->store_op == VK_ATTACHMENT_STORE_OP_DONT_CARE ||
+              attachment->store_op == VK_ATTACHMENT_STORE_OP_NONE) &&
              attachment->is_pbe_downscalable) {
             surface->resolve_type = PVR_RESOLVE_TYPE_PBE;
             pbe_emits++;
