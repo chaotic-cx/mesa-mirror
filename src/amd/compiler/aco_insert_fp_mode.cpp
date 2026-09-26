@@ -286,7 +286,7 @@ alu_default_needs(aco_opcode opcode)
          res |= BITFIELD_BIT(mode_fp16_ovfl);
    }
 
-   if (opcode == aco_opcode::v_fma_mixlo_f16 || opcode == aco_opcode::v_fma_mixlo_f16) {
+   if (opcode == aco_opcode::v_fma_mixlo_f16 || opcode == aco_opcode::v_fma_mixhi_f16) {
       res |= BITFIELD_BIT(mode_round32);
    } else if (opcode == aco_opcode::v_fma_mix_f32) {
       /* In theory, this is only needed with opsel_hi, but v_fma_mix_f32 without
