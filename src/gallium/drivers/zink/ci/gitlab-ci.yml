@@ -307,7 +307,7 @@ zink-radv-navi31-valve-asan:
     GPU_VERSION: zink-radv-navi31
     CI_TRON_TIMEOUT__OVERALL__MINUTES: 10
 
-.zink-radv-gfx1201-valve:
+zink-radv-gfx1201-valve:
   extends:
     - .radv-zink-test-valve
     - .gfx1201-test-valve
@@ -318,9 +318,9 @@ zink-radv-navi31-valve-asan:
     GPU_VERSION: zink-radv-gfx1201
     CI_TRON_TIMEOUT__OVERALL__MINUTES: 10
 
-.zink-radv-gfx1201-traces:
+zink-radv-gfx1201-traces:
   extends:
-    - .zink-radv-gfx1201-valve
+    - zink-radv-gfx1201-valve
     - .zink-radv-valve-rules
     - .zink-trace-test
     - .piglit-traces-test

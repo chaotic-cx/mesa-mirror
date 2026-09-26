@@ -247,7 +247,7 @@ radv-navi10-vkcts-full:
     CI_TRON_TIMEOUT__OVERALL__MINUTES: 28
     RADV_EXPERIMENTAL: transfer_queue,hic,msrtss
 
-.radv-navi21-vkcts:
+radv-navi21-vkcts:
   timeout: 18m
   parallel: 3
   extends:
@@ -335,7 +335,7 @@ radv-navi31-vkcts-full:
     RADV_EXPERIMENTAL: transfer_queue,msrtss
     CI_TRON_TIMEOUT__OVERALL__MINUTES: 25
 
-.radv-gfx1201-vkcts:
+radv-gfx1201-vkcts:
   timeout: 18m
   parallel: 2
   extends:
