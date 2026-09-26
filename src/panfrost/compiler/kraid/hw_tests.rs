@@ -1066,11 +1066,9 @@ pub fn test_foldable_op_with(
         let write_bits = dst_type.total_bits();
         dst.dst_ref = b.alloc_ref(write_bits.into()).into();
         dst.lanes = match (dst.lanes, write_bits) {
-            (DstLanes::None | DstLanes::All, 8) => DstLanes::B0,
-            (DstLanes::None | DstLanes::All, 16) => DstLanes::H0,
+            (DstLanes::None | DstLanes::All, 8) => DstLanes::AnyB,
+            (DstLanes::None | DstLanes::All, 16) => DstLanes::AnyH,
             (DstLanes::None | DstLanes::All, _) => DstLanes::All,
-            (DstLanes::AnyB, _) => DstLanes::B0,
-            (DstLanes::AnyH, _) => DstLanes::H0,
             (lanes, _) => lanes,
         };
     }

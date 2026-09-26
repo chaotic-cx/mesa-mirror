@@ -86,7 +86,12 @@ impl<'a, O: Opcode> FoldDataView for FoldData<'a, O> {
 
         self.dsts[dst_idx] = match dst_type.total_bits() {
             8 | 16 | 32 => {
-                let mask = dst.lanes.u32_mask().unwrap();
+                let lanes = match dst.lanes {
+                    DstLanes::AnyB => DstLanes::B0,
+                    DstLanes::AnyH => DstLanes::H0,
+                    lanes => lanes,
+                };
+                let mask = lanes.u32_mask().unwrap();
                 ((data as u32) & mask) as u64
             }
             64 => {
