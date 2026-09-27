@@ -1194,7 +1194,7 @@
         "description": "agx: Skip signext optimisation in case of absolute",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "200d0794e274ec3de88dc0eb998b3912deba5872",
         "notes": null
