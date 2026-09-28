@@ -1588,52 +1588,50 @@ blorp_setup_binding_table(struct blorp_batch *batch,
    const struct isl_device *isl_dev = batch->blorp->isl_dev;
    uint32_t surface_offsets[BLORP_NUM_BT_ENTRIES], bind_offset = 0;
    void *surface_maps[BLORP_NUM_BT_ENTRIES];
+   unsigned num_surfaces = blorp_get_num_surfaces(params);
 
-   /* There's nothing to bind here. */
-   if (params->op == BLORP_OP_COPY_INDIRECT)
+   if (params->use_pre_baked_binding_table)
+      return params->pre_baked_binding_table_offset;
+
+   if (num_surfaces == 0)
       return 0;
 
-   if (params->use_pre_baked_binding_table) {
-      bind_offset = params->pre_baked_binding_table_offset;
-   } else {
-      unsigned num_surfaces = 1 + params->src.enabled + params->src.buffer;
-      if (!blorp_alloc_binding_table(batch, num_surfaces,
-                                     isl_dev->ss.size, isl_dev->ss.align,
-                                     &bind_offset, surface_offsets, surface_maps))
-         return 0;
+   if (!blorp_alloc_binding_table(batch, num_surfaces,
+                                  isl_dev->ss.size, isl_dev->ss.align,
+                                  &bind_offset, surface_offsets, surface_maps))
+      return 0;
 
-      if (params->dst.enabled) {
-         blorp_emit_surface_state(batch, &params->dst,
-                                  params->fast_clear_op,
-                                  surface_maps[BLORP_RENDERBUFFER_BT_INDEX],
-                                  surface_offsets[BLORP_RENDERBUFFER_BT_INDEX],
-                                  params->color_write_disable, true);
+   if (params->dst.enabled) {
+      blorp_emit_surface_state(batch, &params->dst,
+                               params->fast_clear_op,
+                               surface_maps[BLORP_RENDERBUFFER_BT_INDEX],
+                               surface_offsets[BLORP_RENDERBUFFER_BT_INDEX],
+                               params->color_write_disable, true);
+   } else {
+      assert(params->depth.enabled || params->stencil.enabled);
+      const struct blorp_surface_info *surface =
+         params->depth.enabled ? &params->depth : &params->stencil;
+      blorp_emit_null_surface_state(batch, surface,
+                                    surface_maps[BLORP_RENDERBUFFER_BT_INDEX]);
+   }
+
+   if (params->src.enabled) {
+      if (params->src.surf.size_B != 0) {
+         blorp_emit_surface_state(batch, &params->src,
+                                 params->fast_clear_op,
+                                 surface_maps[BLORP_TEXTURE_BT_INDEX],
+                                 surface_offsets[BLORP_TEXTURE_BT_INDEX],
+                                 0, false);
       } else {
-         assert(params->depth.enabled || params->stencil.enabled);
-         const struct blorp_surface_info *surface =
-            params->depth.enabled ? &params->depth : &params->stencil;
-         blorp_emit_null_surface_state(batch, surface,
-                                       surface_maps[BLORP_RENDERBUFFER_BT_INDEX]);
+         /* Nothing to do, the entire surface got converted to a buffer */
+         blorp_emit_null_surface_state(batch, &params->src,
+                                       surface_maps[BLORP_TEXTURE_BT_INDEX]);
       }
 
-      if (params->src.enabled) {
-         if (params->src.surf.size_B != 0) {
-            blorp_emit_surface_state(batch, &params->src,
-                                    params->fast_clear_op,
-                                    surface_maps[BLORP_TEXTURE_BT_INDEX],
-                                    surface_offsets[BLORP_TEXTURE_BT_INDEX],
-                                    0, false);
-         } else {
-            /* Nothing to do, the entire surface got converted to a buffer */
-            blorp_emit_null_surface_state(batch, &params->src,
-                                          surface_maps[BLORP_TEXTURE_BT_INDEX]);
-         }
-
-         if (params->src.buffer) {
-            blorp_emit_buffer_surface_state(batch, &params->src,
-                                            surface_maps[BLORP_TEXBUF_BT_INDEX],
-                                            surface_offsets[BLORP_TEXBUF_BT_INDEX]);
-         }
+      if (params->src.buffer) {
+         blorp_emit_buffer_surface_state(batch, &params->src,
+                                         surface_maps[BLORP_TEXBUF_BT_INDEX],
+                                         surface_offsets[BLORP_TEXBUF_BT_INDEX]);
       }
    }
 
