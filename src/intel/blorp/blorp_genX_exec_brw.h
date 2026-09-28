@@ -1432,7 +1432,8 @@ blorp_get_num_surfaces(const struct blorp_params *params)
       return 0;
 
    return params->src.enabled + params->src.buffer +
-          (params->op != BLORP_OP_COPY_INDIRECT);
+          (params->dst.enabled || params->depth.enabled ||
+           params->stencil.enabled);
 }
 
 static void
