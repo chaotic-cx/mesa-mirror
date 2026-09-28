@@ -1425,6 +1425,16 @@ blorp_emit_null_surface_state(struct blorp_batch *batch,
    blorp_flush_range(batch, state, GENX(RENDER_SURFACE_STATE_length) * 4);
 }
 
+static unsigned
+blorp_get_num_surfaces(const struct blorp_params *params)
+{
+   if (params->use_pre_baked_binding_table)
+      return 0;
+
+   return params->src.enabled + params->src.buffer +
+          (params->op != BLORP_OP_COPY_INDIRECT);
+}
+
 static void
 blorp_get_efficient_64bit_io_size(struct blorp_batch *batch,
                                   const struct blorp_params *params,
@@ -1434,8 +1444,7 @@ blorp_get_efficient_64bit_io_size(struct blorp_batch *batch,
                                   uint32_t *out_push_offset)
 {
    const struct isl_device *isl_dev = batch->blorp->isl_dev;
-   const unsigned num_surfaces = params->use_pre_baked_binding_table ? 0 :
-      ((params->op != BLORP_OP_COPY_INDIRECT) + params->src.enabled + params->src.buffer);
+   const unsigned num_surfaces = blorp_get_num_surfaces(params);
    const unsigned surfaces_size = align(num_surfaces * isl_dev->ss.size, 32);
    const unsigned sampler_size = (params->src.enabled && !batch->blorp->config.use_cached_dynamic_states) ? 32 : 0;
    const unsigned push_size = params->shader_pipeline == BLORP_SHADER_PIPELINE_COMPUTE ? 0 : 32;
@@ -1455,8 +1464,7 @@ blorp_emit_efficient_64bit_io(struct blorp_batch *batch,
 {
 #if GFX_VERx10 >= 350
    const struct isl_device *isl_dev = batch->blorp->isl_dev;
-   const unsigned num_surfaces = (params->op != BLORP_OP_COPY_INDIRECT) +
-      params->src.enabled + params->src.buffer;
+   const unsigned num_surfaces = blorp_get_num_surfaces(params);
 
    void *surface_maps[BLORP_NUM_BT_ENTRIES];
    uint32_t surface_offsets[BLORP_NUM_BT_ENTRIES];
