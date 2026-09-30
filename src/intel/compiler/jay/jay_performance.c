@@ -123,7 +123,9 @@ static unsigned
 jay_send_src_latency(jay_shader *s, jay_inst *I)
 {
    /* ARB cycle + GRF read lengths */
-   return XE_LATENCY_SEND_ARB + jay_send_mlen(I) + jay_send_ex_mlen(I);
+   return XE_LATENCY_SEND_ARB +
+      gen_message_desc_decode(s->devinfo, jay_send_desc_imm(I)).msg_length +
+      gen_message_ex_desc_ex_mlen(s->devinfo, jay_send_ex_desc_imm(I));
 }
 
 static unsigned

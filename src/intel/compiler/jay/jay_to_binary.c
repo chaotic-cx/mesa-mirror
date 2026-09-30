@@ -533,16 +533,14 @@ emit(struct jay_codegen *jc,
          gen->send.desc_is_reg = true;
 
       if (ex_desc.file == GEN_IMM) {
-         assert(jay_send_ex_desc_imm(I) == 0);
          gen->send.ex_desc_imm = ex_desc.imm;
       } else {
+         uint32_t ex_imm = jay_send_ex_desc_imm(I);
          gen->send.ex_desc_is_reg = true;
          gen->send.ex_desc_subnr = ex_desc.subnr;
-         gen->send.ex_desc_imm_extra = jay_send_ex_desc_imm(I);
+         gen->send.ex_desc_imm_extra = ex_imm & INTEL_MASK(31, 12);
+         gen->send.src1_len = gen_message_ex_desc_ex_mlen(jc->devinfo, ex_imm);
       }
-
-      if (jay_send_bindless(I) || gen->send.sfid == GEN_SFID_UGM)
-         gen->send.src1_len = jay_send_ex_mlen(I) / reg_unit(jc->devinfo);
 
       break;
    }

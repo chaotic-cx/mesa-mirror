@@ -36,6 +36,7 @@ is_single_index_ugpr_vector(jay_shader *s, jay_def d)
  * - has one source, which is 1 UGPR padded out to a GRF
  * - operates on 32-bit data
  * - does not skip helpers
+ * - does not have a header
  */
 static bool
 is_candidate(jay_shader *s, jay_inst *I)
@@ -45,11 +46,12 @@ is_candidate(jay_shader *s, jay_inst *I)
           !I->predication &&
           jay_is_uniform(I->dst) &&
           jay_num_values(I->dst) == jay_ugpr_per_gpr(s) &&
-          jay_is_imm(I->src[0]) &&
+          jay_is_null(I->src[0]) &&
           jay_is_null(I->src[3]) &&
           is_single_index_ugpr_vector(s, I->src[2]) &&
           jay_type_size_bits(I->type) == 32 &&
-          !jay_send_skip_helpers(I);
+          !jay_send_skip_helpers(I) &&
+          !jay_send_has_header(I);
 }
 
 static void
@@ -77,11 +79,11 @@ merge_to_one(jay_function *f, jay_inst **sends, jay_def *srcs, unsigned count)
    jay_def dst = jay_alloc_def(&b, UGPR, count_roundup * values_per_send);
 
    jay_SEND(&b, .sfid = GEN_SFID_SAMPLER,
-            .msg_desc = jay_as_uint(sends[0]->src[0]), .desc = jay_null(),
-            .ex_desc = sends[0]->src[1], .header = jay_null(), .srcs = &src,
-            .nr_srcs = 1, .type = sends[0]->type,
-            .src_type = { jay_src_type(sends[0], 2) }, .dst = dst,
-            .bindless = jay_send_bindless(sends[0]), .pure = true,
+            .msg_desc = (uint64_t) jay_send_desc_imm(sends[0]) |
+                        (uint64_t) jay_send_ex_desc_imm(sends[0]) << 32,
+            .ex_desc = sends[0]->src[1], .srcs = &src, .nr_srcs = 1,
+            .type = sends[0]->type, .src_type = { jay_src_type(sends[0], 2) },
+            .dst = dst, .bindless = jay_send_bindless(sends[0]), .pure = true,
             .explicit_simd_width = count_roundup, .uniform = true);
 
    for (unsigned i = 0; i < count; i++) {
@@ -133,7 +135,6 @@ pass(jay_function *f)
          assert(jay_send_pure(I));
          assert(!jay_send_eot(I));
          assert(!jay_send_check_tdr(I));
-         assert(!jay_send_ex_desc_imm(I));
 
          if (count == 0) {
             srcs[count] = (src_imm)->src[0];
@@ -144,7 +145,9 @@ pass(jay_function *f)
          }
 
          if (jay_num_values(sends[0]->dst) != jay_num_values(I->dst) ||
-             jay_as_uint(sends[0]->src[0]) != jay_as_uint(I->src[0]) ||
+             jay_send_desc_imm(sends[0]) != jay_send_desc_imm(I) ||
+             jay_send_ex_desc_imm(sends[0]) != jay_send_ex_desc_imm(I) ||
+             jay_send_bindless(sends[0]) != jay_send_bindless(I) ||
              !jay_defs_equivalent(sends[0]->src[1], I->src[1]))
             continue;
 

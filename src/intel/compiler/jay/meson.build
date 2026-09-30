@@ -57,6 +57,7 @@ libintel_compiler_jay_files = files(
   'jay_lower_post_sched.c',
   'jay_lower_pre_ra.c',
   'jay_lower_scoreboard.c',
+  'jay_lower_send.c',
   'jay_lower_spill.c',
   'jay_nir.c',
   'jay_opt_dead_code.c',

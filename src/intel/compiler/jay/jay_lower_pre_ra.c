@@ -189,7 +189,7 @@ lower_immediates(jay_builder *b, jay_inst *I, struct hash_table_u64 *constants)
 }
 
 static void
-lower_bf16_restrictions(jay_inst *I, jay_function *f)
+lower_bf16_restrictions(jay_builder *b, jay_inst *I)
 {
    /* BSpec 56640 disallows broadcast of bfloat16 scalar.
     * Insert a MOV to eliminate bfloat scalar broadcast.
@@ -198,9 +198,9 @@ lower_bf16_restrictions(jay_inst *I, jay_function *f)
       bool is_bf16 = jay_src_type(I, s) == JAY_TYPE_BF16;
       bool is_broadcast = I->src[s].file == UGPR;
       if (is_bf16 && is_broadcast && I->dst.file != UGPR) {
-         jay_builder b = jay_init_builder(f, jay_before_inst(I));
-         jay_def tmp = jay_alloc_def(&b, GPR, 1);
-         jay_MOV(&b, tmp, I->src[s]);
+         b->cursor = jay_before_inst(I);
+         jay_def tmp = jay_alloc_def(b, GPR, 1);
+         jay_MOV(b, tmp, I->src[s]);
          jay_replace_src(&I->src[s], tmp);
       }
    }
@@ -240,21 +240,36 @@ lower_repeated_phi_srcs(jay_function *f,
 }
 
 static void
-lower_ex_desc_address_registers(jay_inst *I, jay_function *f)
+lower_send_desc_address_registers(jay_builder *b, jay_inst *I)
 {
    if (I->op != JAY_OPCODE_SEND)
       return;
-   if (jay_is_null(I->src[1]) || jay_is_imm(I->src[1]))
-      return;
-   /* ex_desc should have been in a UGPR so we could have more easily performed
-    * optimizations with it. It doesn't need to be an address register yet since
-    * we're moving it to one here.
-    */
-   assert(I->src[1].file == UGPR);
-   jay_builder b = jay_init_builder(f, jay_before_inst(I));
-   jay_def tmp = jay_alloc_def(&b, J_ADDRESS, 1);
-   jay_MOV(&b, tmp, I->src[1]);
-   jay_replace_src(&I->src[1], tmp);
+
+   for (unsigned i = 0; i < 2; ++i) {
+      if (jay_is_null(I->src[i]))
+         continue;
+
+      /* desc/ex_desc should have been in a UGPR so we could have more easily
+       * performed optimizations with it. It doesn't need to be an address
+       * register yet since we're moving it to one here.
+       */
+      assert(jay_is_uniform(I->src[i]));
+
+      b->cursor = jay_before_inst(I);
+      jay_def tmp = jay_alloc_def(b, J_ADDRESS, 1);
+
+      if (i == 0 || !jay_send_bindless(I)) {
+         jay_PACK_MLEN(b, tmp, I->src[i], jay_null());
+      } else {
+         /* We are using both an address register and the immediate portion of
+          * the SEND instruction. The message length will be packed into the
+          * immediate, so no PACK_MLEN is needed for the address register.
+          */
+         jay_MOV(b, tmp, I->src[i]);
+      }
+
+      jay_replace_src(&I->src[i], tmp);
+   }
 }
 
 void
@@ -279,11 +294,11 @@ jay_lower_pre_ra(jay_shader *s)
          }
 
          jay_foreach_inst_in_block(block, I) {
-            lower_ex_desc_address_registers(I, f);
-
             jay_builder b = { .shader = s, .func = f };
 
-            lower_bf16_restrictions(I, f);
+            lower_send_desc_address_registers(&b, I);
+
+            lower_bf16_restrictions(&b, I);
 
             /* We use predicated-default with flags to optimize OR/AND of
              * booleans. RA forcibly ties the flags for this case, so insert

@@ -1594,7 +1594,6 @@ jay_emit_mem_access_lsc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
    }
 
    jay_def ex_desc = jay_null();
-   uint32_t ex_desc_imm = 0;
    if (scratch) {
       /* TODO: Once we have an address register RA, we should CSE these */
       ex_desc = jay_alloc_def(b, UGPR, 1);
@@ -1639,7 +1638,9 @@ jay_emit_mem_access_lsc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
                .base_offset = base_offset,
             },
          };
-         gen_lsc_ex_desc_encode(devinfo, op, &gen_ex_desc, &ex_desc_imm);
+         desc |=
+            ((uint64_t) gen_lsc_ex_desc_imm_encode(devinfo, op, &gen_ex_desc)
+            << 32);
       } else {
          /* TODO: Move the SHL to NIR for CSE? */
          assert(surf_type == LSC_ADDR_SURFTYPE_BTI);
@@ -1653,9 +1654,9 @@ jay_emit_mem_access_lsc(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
             .nr_srcs = jay_is_null(data) ? 1 : 2, .dst = tmp, .type = data_type,
             .src_type = { offset_type, data_type }, .uniform = uniform,
             .pure = nir_intrinsic_can_reorder(intr),
-            .bindless = surf_type == LSC_ADDR_SURFTYPE_BSS, .ex_desc = ex_desc,
-            .ex_desc_imm = ex_desc_imm, .skip_helpers = skip_helpers,
-            .use_raw_ex_desc = surf_type == LSC_ADDR_SURFTYPE_SS);
+            .bindless = surf_type == LSC_ADDR_SURFTYPE_BSS ||
+                        surf_type == LSC_ADDR_SURFTYPE_SS,
+            .ex_desc = ex_desc, .skip_helpers = skip_helpers);
 
    if (has_dest && !jay_defs_equivalent(tmp, dst)) {
       unsigned src_stride = transpose ? 1 : jay_ugpr_per_grf(b->shader);
@@ -4994,6 +4995,8 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    if (s->stage == MESA_SHADER_FRAGMENT && s->helpers_tracked) {
       JAY_PASS(s, jay_lower_helpers);
    }
+
+   JAY_PASS(s, jay_lower_send);
 
    if (!(jay_debug & JAY_DBG_NOOPT)) {
       /* jay_assign_accumulators uses a conservative liveness analysis for
