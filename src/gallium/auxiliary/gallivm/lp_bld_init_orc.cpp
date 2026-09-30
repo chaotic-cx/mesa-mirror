@@ -341,6 +341,13 @@ LPJit::LPJit() :jit_dylib_count(0) {
          .setJITTargetMachineBuilder(std::move(JTMB))
 #ifdef USE_JITLINK
          .setObjectLinkingLayerCreator(
+#if LLVM_VERSION_MAJOR >= 23
+            /* LLVM 23 added a JITLinkMemoryManager argument, use it as our
+             * JITLinkMemoryManager. */
+            [&](ExecutionSession &ES, llvm::jitlink::JITLinkMemoryManager &MM) {
+               return std::make_unique<ObjectLinkingLayer>(ES, MM);
+            })
+#else
 #if LLVM_VERSION_MAJOR >= 21
             /* LLVM 21 removed the Triple argument */
             [&](ExecutionSession &ES) {
@@ -350,6 +357,7 @@ LPJit::LPJit() :jit_dylib_count(0) {
                return std::make_unique<ObjectLinkingLayer>(
                   ES, ExitOnErr(llvm::jitlink::InProcessMemoryManager::Create()));
             })
+#endif
 #else
 #if LLVM_USE_INTEL_JITEVENTS
          .RegisterJITEventListener(
