@@ -178,10 +178,10 @@ pass(jay_function *func)
             if (!jay_is_null(I->cond_flag) && I->uniform) {
                BITSET_CLEAR(inactive_are_0, I->cond_flag.reg);
             }
+         }
 
-            if (lower(&b, I)) {
-               jay_remove_instruction(I);
-            }
+         if (lower(&b, I)) {
+            jay_remove_instruction(I);
          }
       }
    }
