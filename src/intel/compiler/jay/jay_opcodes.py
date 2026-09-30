@@ -148,20 +148,24 @@ for n in ['brd', 'illegal', 'goto', 'join', 'if', 'else',
 op('halt', 0, None, Props.NO_DEST, ['bool predicate_all'])
 
 op('send', 4, None, Props.SIDE_EFFECTS, [
+    'uint32_t desc_imm',
+    'uint32_t ex_desc_imm',
     'gen_sfid sfid',
     'bool eot',
     'bool check_tdr',
     'bool bindless',
     'bool pure',
     'bool skip_helpers',
+    'bool has_header',
     'enum jay_type type_0',
     'enum jay_type type_1',
-    'uint8_t mlen',
-    'uint8_t ex_mlen',
     'uint8_t explicit_simd_width',
-    'bool pad[1]',
-    'uint32_t ex_desc_imm',
+    'bool pad[2]',
 ])
+
+# Used during RA to model the register cost for packing mlen/ex_mlen
+# src0 = indirect descriptor, src1 = null
+op('pack_mlen', 2, 'u32', Props.NEGATE)
 
 op('reloc',   0, 'u32 u64', 0, ['unsigned param', 'unsigned base'])
 op('preload', 0, 'u32',     0, ['unsigned reg'])
