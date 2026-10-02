@@ -5555,6 +5555,24 @@ anv_av1_emit_avp_pipeline_flush(struct anv_cmd_buffer *cmd)
    };
 }
 
+static struct mi_value
+anv_av1_mi_leb128_4bytes(struct mi_builder *b, struct mi_value value)
+{
+   struct mi_value leb128 = mi_imm(0);
+
+   for (uint32_t i = 0; i < 4; i++) {
+      struct mi_value byte =
+         mi_iand(b, mi_ushr32_imm(b, mi_value_ref(b, value), 7 * i), mi_imm(0x7f));
+      if (i < 3)
+         byte = mi_ior(b, byte, mi_imm(0x80));
+      byte = mi_ishl_imm(b, byte, 8 * i);
+      leb128 = i == 0 ? byte : mi_ior(b, leb128, byte);
+   }
+   mi_value_unref(b, value);
+
+   return leb128;
+}
+
 /* Tile group obu_size back-annotation:
  * media-driver does this with the HuC Av1BackAnnotation packet.
  * Without HuC, encode the tile bytecount PAK wrote into a
@@ -5583,29 +5601,8 @@ anv_av1_patch_tile_group_obu_size(struct anv_cmd_buffer *cmd,
       tile_bytes =
          mi_value_to_gpr(&b, mi_reg32(AVP_BITSTREAM_BYTECOUNT_TILE_NOHEADER_REG));
    }
-   struct mi_value leb0 =
-      mi_ior(&b, mi_iand(&b, mi_value_ref(&b, tile_bytes), mi_imm(0x7f)),
-             mi_imm(0x80));
-   struct mi_value leb1 =
-      mi_ishl_imm(&b,
-                  mi_ior(&b,
-                         mi_iand(&b,
-                                 mi_ushr32_imm(&b, mi_value_ref(&b, tile_bytes), 7),
-                                 mi_imm(0x7f)),
-                         mi_imm(0x80)), 8);
-   struct mi_value leb2 =
-      mi_ishl_imm(&b,
-                  mi_ior(&b,
-                         mi_iand(&b,
-                                 mi_ushr32_imm(&b, mi_value_ref(&b, tile_bytes), 14),
-                                 mi_imm(0x7f)),
-                         mi_imm(0x80)), 16);
-   struct mi_value leb3 =
-      mi_ishl_imm(&b, mi_ushr32_imm(&b, tile_bytes, 21), 24);
 
-   struct mi_value leb128 =
-      mi_ior(&b, mi_ior(&b, leb0, leb1), mi_ior(&b, leb2, leb3));
-   mi_store(&b, mi_mem32(tg_leb128_addr), leb128);
+   mi_store(&b, mi_mem32(tg_leb128_addr), anv_av1_mi_leb128_4bytes(&b, tile_bytes));
 }
 #endif
 
