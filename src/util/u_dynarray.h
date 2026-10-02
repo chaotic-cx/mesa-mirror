@@ -256,6 +256,17 @@ util_dynarray_append_dynarray(struct util_dynarray *buf,
            elem;                                                \
            elem = elem > (type *)(buf)->data ? elem - 1 : NULL)
 
+#define util_dynarray_delete_unordered_ptr(buf, type, ptr)              \
+   do {                                                                 \
+      type *__v2 = util_dynarray_pop_ptr((buf), type);                  \
+      if (ptr != __v2)                                                  \
+         memcpy(ptr, __v2, sizeof(type));                               \
+   } while (0)
+
+#define util_dynarray_delete_unordered_element(buf, type, elem)         \
+   util_dynarray_delete_unordered_ptr((buf), type,                      \
+      util_dynarray_element((buf), type, (elem)));
+
 #define util_dynarray_delete_unordered(buf, type, v)                    \
    do {                                                                 \
       unsigned num_elements = (buf)->size / sizeof(type);               \
@@ -263,8 +274,7 @@ util_dynarray_append_dynarray(struct util_dynarray *buf,
       for (i = 0; i < num_elements; i++) {                              \
          type __v = *util_dynarray_element((buf), type, (i));           \
          if (v == __v) {                                                \
-            memcpy(util_dynarray_element((buf), type, (i)),             \
-                   util_dynarray_pop_ptr((buf), type), sizeof(type));   \
+            util_dynarray_delete_unordered_element((buf), type, (i));   \
             break;                                                      \
          }                                                              \
       }                                                                 \
