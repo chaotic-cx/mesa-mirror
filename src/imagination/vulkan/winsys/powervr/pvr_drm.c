@@ -341,6 +341,27 @@ out:
 }
 
 static VkResult
+pvr_drm_override_features(struct pvr_drm_winsys *drm_ws,
+                          struct pvr_device_info *dev_info,
+                          const struct pvr_device_fw_info *fw_info)
+{
+   VkResult result = VK_SUCCESS;
+
+   /* GS RTA support requires support in the FW */
+   uint32_t fw_gs_rta_support_min_version = PVR_FW_VERSION_PACK(1, 1);
+   if (PVR_HAS_FEATURE(dev_info, gs_rta_support) &&
+       fw_info->fw_version < fw_gs_rta_support_min_version) {
+      mesa_logw("Missing FW support for GS RTA support, feature disabled. "
+                "Upgrade to a newer FW version. Min Required %d.%d",
+                PVR_FW_VERSION_UNPACK_MAJOR(fw_gs_rta_support_min_version),
+                PVR_FW_VERSION_UNPACK_MINOR(fw_gs_rta_support_min_version));
+      dev_info->features.has_gs_rta_support = false;
+   }
+
+   return result;
+}
+
+static VkResult
 pvr_drm_get_runtime_info(struct pvr_drm_winsys *drm_ws,
                          struct drm_pvr_dev_query_runtime_info *const value)
 {
@@ -410,6 +431,14 @@ pvr_drm_winsys_device_info_init(struct pvr_winsys *ws,
    result = pvr_drm_get_fw_info(drm_ws, &runtime_info->fw_info);
    if (result != VK_SUCCESS) {
       mesa_logw("Failed to check FW feature support for this GPU\n");
+      goto err_out;
+   }
+
+   result = pvr_drm_override_features(drm_ws,
+                                      dev_info,
+                                      &runtime_info->fw_info);
+   if (result != VK_SUCCESS) {
+      mesa_logw("Failed to check FW feature support for this GPU");
       goto err_out;
    }
 
