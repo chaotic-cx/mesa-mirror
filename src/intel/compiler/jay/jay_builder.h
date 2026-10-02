@@ -312,6 +312,18 @@ jay_shrink_sources(jay_inst *I, uint8_t new_num_srcs)
    I->num_srcs = new_num_srcs;
 }
 
+static inline void
+jay_shrink_isa_sources(jay_inst *I, uint8_t new_num_srcs)
+{
+   assert(new_num_srcs < jay_num_isa_srcs(I));
+   unsigned trailing_srcs = I->num_srcs - jay_num_isa_srcs(I);
+   unsigned trailer_size = trailing_srcs * sizeof(jay_def) +
+                           jay_inst_info_size(I);
+
+   memmove(&I->src[new_num_srcs], &I->src[jay_num_isa_srcs(I)], trailer_size);
+   I->num_srcs = new_num_srcs + trailing_srcs;
+}
+
 static inline jay_inst *
 jay_clone_inst(jay_builder *b, jay_inst *I, uint8_t new_num_srcs)
 {
