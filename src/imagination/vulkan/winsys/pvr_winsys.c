@@ -96,7 +96,7 @@ VkResult pvr_winsys_create(const char *render_path,
    }
 
    if (strcmp(version->name, PVR_DRM_DRIVER_NAME) == 0) {
-      result = pvr_drm_winsys_create(render_fd, display_fd, alloc, ws_out);
+      result = pvr_drm_winsys_create(render_fd, display_fd, version, alloc, ws_out);
 #if defined(PVR_SUPPORT_SERVICES_DRIVER)
    } else if (strcmp(version->name, PVR_SRV_DRIVER_NAME) == 0) {
       result = pvr_srv_winsys_create(render_fd, display_fd, alloc, ws_out);

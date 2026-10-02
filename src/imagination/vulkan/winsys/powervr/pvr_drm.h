@@ -43,6 +43,9 @@ struct pvr_drm_winsys {
    /* Packed bvnc */
    uint64_t bvnc;
 
+   /* Packed drm version */
+   uint32_t drm_version;
+
    /* Protects imported BOs creation/freeing, which includes the bo_map member
     * below.
     */

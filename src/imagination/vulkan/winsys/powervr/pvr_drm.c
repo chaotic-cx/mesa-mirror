@@ -43,6 +43,39 @@
 #include "vk_drm_syncobj.h"
 #include "vk_log.h"
 
+#define PVR_DRM_VERSION_MAJOR_SHIFT    20
+#define PVR_DRM_VERSION_MINOR_SHIFT    10
+#define PVR_DRM_VERSION_PATCH_SHIFT    0
+
+#define PVR_DRM_VERSION_MAJOR_MASK     UINT32_C(0xFFF00000)
+#define PVR_DRM_VERSION_MINOR_MASK     UINT32_C(0x000FFC00)
+#define PVR_DRM_VERSION_PATCH_MASK     UINT32_C(0x000003FF)
+
+/**
+ * Packs the drm version.
+ *
+ * The packed layout is as follows:
+ *
+ * \verbatim
+ *    +--------+--------+--------+
+ *    | 31..20 | 19..10 | 9..0   |
+ *    +========+========+========+
+ *    | MAJOR  | MINOR  | PATCH  |
+ *    +--------+--------+--------+
+ * \endverbatim
+ *
+ */
+
+#define PVR_DRM_VERSION_PACK(major, minor, patch) \
+   ((((major) << PVR_DRM_VERSION_MAJOR_SHIFT) & PVR_DRM_VERSION_MAJOR_MASK) | \
+    (((minor) << PVR_DRM_VERSION_MINOR_SHIFT) & PVR_DRM_VERSION_MINOR_MASK) | \
+    (((patch) << PVR_DRM_VERSION_PATCH_SHIFT) & PVR_DRM_VERSION_PATCH_MASK))
+
+#define PVR_DRM_VERSION_VALID(major, minor, patch) \
+   ((((major) & ~(PVR_DRM_VERSION_MAJOR_MASK >> PVR_DRM_VERSION_MAJOR_SHIFT)) == 0) && \
+    (((minor) & ~(PVR_DRM_VERSION_MINOR_MASK >> PVR_DRM_VERSION_MINOR_SHIFT)) == 0) && \
+    (((patch) & ~(PVR_DRM_VERSION_PATCH_MASK >> PVR_DRM_VERSION_PATCH_SHIFT)) == 0))
+
 static void pvr_drm_finish_heaps(struct pvr_drm_winsys *const drm_ws)
 {
    if (!pvr_winsys_helper_winsys_heap_finish(
@@ -677,6 +710,7 @@ err_pvr_drm_heap_finish_all_heaps:
 
 VkResult pvr_drm_winsys_create(const int render_fd,
                                const int display_fd,
+                               drmVersionPtr version,
                                const VkAllocationCallbacks *alloc,
                                struct pvr_winsys **const ws_out)
 {
@@ -694,6 +728,14 @@ VkResult pvr_drm_winsys_create(const int render_fd,
       result = vk_error(NULL, VK_ERROR_OUT_OF_HOST_MEMORY);
       goto err_out;
    }
+
+   assert(PVR_DRM_VERSION_VALID(version->version_major,
+                                version->version_minor,
+                                version->version_patchlevel));
+
+   drm_ws->drm_version = PVR_DRM_VERSION_PACK(version->version_major,
+                                              version->version_minor,
+                                              version->version_patchlevel);
 
    drm_ws->base.ops = &drm_winsys_ops;
    drm_ws->base.render_fd = render_fd;
