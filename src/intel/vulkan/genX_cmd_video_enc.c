@@ -4129,6 +4129,22 @@ anv_av1_get_ref_lists(struct anv_cmd_buffer *cmd,
    }
 }
 
+static const struct anv_image_view *
+anv_av1_ref_slot_iv(const VkVideoEncodeInfoKHR *enc_info, int32_t slot,
+                    uint32_t *layer)
+{
+   for (uint32_t i = 0; i < enc_info->referenceSlotCount; i++) {
+      if (enc_info->pReferenceSlots[i].slotIndex != slot)
+         continue;
+      *layer = enc_info->pReferenceSlots[i].pPictureResource->baseArrayLayer;
+      return anv_image_view_from_handle(
+         enc_info->pReferenceSlots[i].pPictureResource->imageViewBinding);
+   }
+
+   *layer = 0;
+   return NULL;
+}
+
 struct anv_av1_tile_layout {
    uint32_t num_tile_cols;
    uint32_t num_tile_rows;
@@ -4290,6 +4306,19 @@ anv_av1_emit_vdenc_ref_surface_state(struct anv_cmd_buffer *cmd,
 }
 
 static void
+anv_av1_emit_vdenc_ds_ref_surface_state(struct anv_cmd_buffer *cmd,
+                                        const VkVideoEncodeInfoKHR *enc_info)
+{
+   uint32_t base_ref_array_layer;
+   const struct anv_image *base_ref_img =
+      anv_video_enc_base_ref(enc_info, &base_ref_array_layer)->image;
+
+   anv_vdenc_emit_ds_ref_surface_state(cmd,
+      anv_video_get_enc_ds_layout(base_ref_img->vk.extent.width,
+                                  base_ref_img->vk.extent.height), true);
+}
+
+static void
 anv_av1_emit_vdenc_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
                                        const VkVideoEncodeInfoKHR *enc_info)
 {
@@ -4301,11 +4330,53 @@ anv_av1_emit_vdenc_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
    uint32_t primary_ref_layer;
    const struct anv_image_view *primary_ref_iv =
       anv_av1_primary_ref(enc_info, &refs, &primary_ref_layer);
+   uint32_t base_ref_array_layer;
+   const struct anv_image_view *base_ref_iv =
+      anv_video_enc_base_ref(enc_info, &base_ref_array_layer);
+   struct anv_av1_ref_lists lists;
+   anv_av1_get_ref_lists(cmd, enc_info, &lists);
+
+   struct anv_address fwd_ref[3] = { ANV_NULL_ADDRESS, ANV_NULL_ADDRESS, ANV_NULL_ADDRESS };
+   struct anv_address bwd_ref = ANV_NULL_ADDRESS;
+   struct anv_address ds_fwd_ref[2] = { ANV_NULL_ADDRESS, ANV_NULL_ADDRESS };
+   struct anv_address ds_fwd_ref_4x[3] = { ANV_NULL_ADDRESS, ANV_NULL_ADDRESS, ANV_NULL_ADDRESS };
+   struct anv_address ds_bwd_ref = ANV_NULL_ADDRESS;
+   struct anv_address ds_bwd_ref_4x = ANV_NULL_ADDRESS;
+
+   for (uint32_t i = 0; i < lists.num_ref_l0; i++) {
+      uint32_t layer;
+      const struct anv_image_view *ref_iv =
+         anv_av1_ref_slot_iv(enc_info, lists.frame_idx_l0[i], &layer);
+      if (!ref_iv)
+         continue;
+
+      fwd_ref[i] = anv_image_dpb_address(ref_iv, layer);
+      if (i < 2)
+         ds_fwd_ref[i] = anv_image_ds_8x_address(ref_iv, layer);
+      ds_fwd_ref_4x[i] = anv_image_ds_4x_address(ref_iv, layer);
+   }
+
+   if (lists.num_ref_l0 == 2 && lists.num_ref_l1 == 1)
+      ds_fwd_ref_4x[2] = ds_fwd_ref_4x[1];
+
+   if (lists.num_ref_l1 > 0) {
+      uint32_t layer;
+      const struct anv_image_view *ref_iv =
+         anv_av1_ref_slot_iv(enc_info, lists.frame_idx_l1, &layer);
+      if (ref_iv) {
+         bwd_ref = anv_image_dpb_address(ref_iv, layer);
+         ds_bwd_ref = anv_image_ds_8x_address(ref_iv, layer);
+         ds_bwd_ref_4x = anv_image_ds_4x_address(ref_iv, layer);
+      }
+   }
 
    anv_batch_emit(&cmd->batch, GENX(VDENC_PIPE_BUF_ADDR_STATE), vdenc_buf) {
-      vdenc_buf.DSFWDREF0.PictureFields = ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.DSFWDREF1.PictureFields = ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.DSBWDREF0.PictureFields = ANV_VID_PIC(cmd->device, NULL);
+      vdenc_buf.DSFWDREF0.Address = ds_fwd_ref[0];
+      vdenc_buf.DSFWDREF0.PictureFields = ANV_VID_PIC(cmd->device, ds_fwd_ref[0].bo);
+      vdenc_buf.DSFWDREF1.Address = ds_fwd_ref[1];
+      vdenc_buf.DSFWDREF1.PictureFields = ANV_VID_PIC(cmd->device, ds_fwd_ref[1].bo);
+      vdenc_buf.DSBWDREF0.Address = ds_bwd_ref;
+      vdenc_buf.DSBWDREF0.PictureFields = ANV_VID_PIC(cmd->device, ds_bwd_ref.bo);
 
       vdenc_buf.OriginalUncompressedPicture.Address =
          anv_image_dpb_address(iv, enc_info->srcPictureResource.baseArrayLayer);
@@ -4326,21 +4397,32 @@ anv_av1_emit_vdenc_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
       }
       vdenc_buf.ColocatedMVReadBuffer.PictureFields =
          ANV_VID_PIC(cmd->device, vdenc_buf.ColocatedMVReadBuffer.Address.bo);
-      vdenc_buf.FWDREF0.PictureFields = ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.FWDREF1.PictureFields = ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.FWDREF2.PictureFields = ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.BWDREF0.PictureFields = ANV_VID_PIC(cmd->device, NULL);
+      vdenc_buf.FWDREF0.Address = fwd_ref[0];
+      vdenc_buf.FWDREF0.PictureFields = ANV_VID_PIC(cmd->device, fwd_ref[0].bo);
+      vdenc_buf.FWDREF1.Address = fwd_ref[1];
+      vdenc_buf.FWDREF1.PictureFields = ANV_VID_PIC(cmd->device, fwd_ref[1].bo);
+      vdenc_buf.FWDREF2.Address = fwd_ref[2];
+      vdenc_buf.FWDREF2.PictureFields = ANV_VID_PIC(cmd->device, fwd_ref[2].bo);
+      vdenc_buf.BWDREF0.Address = bwd_ref;
+      vdenc_buf.BWDREF0.PictureFields = ANV_VID_PIC(cmd->device, bwd_ref.bo);
       vdenc_buf.VDEncStatisticsStreamOut.PictureFields =
          ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.DSFWDREF04X.PictureFields = ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.DSFWDREF14X.PictureFields = ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.DSBWDREF04X.PictureFields = ANV_VID_PIC(cmd->device, NULL);
+      vdenc_buf.DSFWDREF04X.Address = ds_fwd_ref_4x[0];
+      vdenc_buf.DSFWDREF04X.PictureFields = ANV_VID_PIC(cmd->device, ds_fwd_ref_4x[0].bo);
+      vdenc_buf.DSFWDREF14X.Address = ds_fwd_ref_4x[1];
+      vdenc_buf.DSFWDREF14X.PictureFields = ANV_VID_PIC(cmd->device, ds_fwd_ref_4x[1].bo);
+      vdenc_buf.DSBWDREF04X.Address = ds_bwd_ref_4x;
+      vdenc_buf.DSBWDREF04X.PictureFields = ANV_VID_PIC(cmd->device, ds_bwd_ref_4x.bo);
       vdenc_buf.VDEncLCUPAK_OBJ_CMDBuffer.PictureFields =
          ANV_VID_PIC(cmd->device, NULL);
+      vdenc_buf.ScaledReferenceSurface8X.Address =
+         anv_image_ds_8x_address(base_ref_iv, base_ref_array_layer);
       vdenc_buf.ScaledReferenceSurface8X.PictureFields =
-         ANV_VID_PIC(cmd->device, NULL);
+         ANV_VID_PIC(cmd->device, vdenc_buf.ScaledReferenceSurface8X.Address.bo);
+      vdenc_buf.ScaledReferenceSurface4X.Address =
+         anv_image_ds_4x_address(base_ref_iv, base_ref_array_layer);
       vdenc_buf.ScaledReferenceSurface4X.PictureFields =
-         ANV_VID_PIC(cmd->device, NULL);
+         ANV_VID_PIC(cmd->device, vdenc_buf.ScaledReferenceSurface4X.Address.bo);
       vdenc_buf.VP9SegmentationMapStreamInBuffer.PictureFields =
          ANV_VID_PIC(cmd->device, NULL);
       vdenc_buf.VP9SegmentationMapStreamOutBuffer.PictureFields =
@@ -4361,8 +4443,8 @@ anv_av1_emit_vdenc_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
 
       vdenc_buf.ColocatedMVAVCWriteBuffer.PictureFields =
          ANV_VID_PIC(cmd->device, NULL);
-      vdenc_buf.Additional4XDSFWDREF.PictureFields =
-         ANV_VID_PIC(cmd->device, NULL);
+      vdenc_buf.Additional4XDSFWDREF.Address = ds_fwd_ref_4x[2];
+      vdenc_buf.Additional4XDSFWDREF.PictureFields = ANV_VID_PIC(cmd->device, ds_fwd_ref_4x[2].bo);
    }
 }
 
@@ -5543,7 +5625,7 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
    anv_av1_emit_vdenc_pipe_mode_select(cmd);
    anv_av1_emit_vdenc_src_surface_state(cmd, enc_info);
    anv_av1_emit_vdenc_ref_surface_state(cmd, enc_info);
-   /* TODO: VDENC_DS_REF_SURFACE_STATE (8X/4X downscaled) - needs DS scratch surface allocation */
+   anv_av1_emit_vdenc_ds_ref_surface_state(cmd, enc_info);
    anv_av1_emit_vdenc_pipe_buf_addr_state(cmd, enc_info);
 
    struct anv_address tg_leb128_addr = ANV_NULL_ADDRESS;
