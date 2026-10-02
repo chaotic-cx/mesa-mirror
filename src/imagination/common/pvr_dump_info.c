@@ -58,6 +58,17 @@ static inline void pvr_dump_field_drm_version(struct pvr_dump_ctx *ctx,
                   drm_date);
 }
 
+static inline void pvr_dump_field_fw_version(struct pvr_dump_ctx *ctx,
+                                             const char *const name,
+                                             uint32_t fw_version)
+{
+   pvr_dump_field(ctx,
+                  name,
+                  "(%d.%d)",
+                  PVR_FW_VERSION_UNPACK_MAJOR(fw_version),
+                  PVR_FW_VERSION_UNPACK_MINOR(fw_version));
+}
+
 static inline void pvr_dump_field_compatible_strings(struct pvr_dump_ctx *ctx,
                                                      char *const *comp)
 {
@@ -84,6 +95,7 @@ void pvr_dump_physical_device_info(const struct pvr_device_dump_info *dump_info)
 {
    const struct pvr_device_runtime_info *run_info =
       dump_info->device_runtime_info;
+   const struct pvr_device_fw_info *fw_info = &run_info->fw_info;
    const struct pvr_device_info *dev_info = dump_info->device_info;
    struct pvr_dump_ctx ctx;
 
@@ -140,6 +152,12 @@ void pvr_dump_physical_device_info(const struct pvr_device_dump_info *dump_info)
    pvr_dump_field_member_u32(&ctx, run_info, core_count);
    pvr_dump_field_member_u64(&ctx, run_info, max_coeffs);
    pvr_dump_field_member_u64(&ctx, run_info, num_phantoms);
+   pvr_dump_dedent(&ctx);
+   pvr_dump_print_eol(&ctx);
+
+   pvr_dump_mark_section(&ctx, "FW Info");
+   pvr_dump_indent(&ctx);
+   pvr_dump_field_fw_version(&ctx, "FW Version", fw_info->fw_version);
    pvr_dump_dedent(&ctx);
    pvr_dump_print_eol(&ctx);
 

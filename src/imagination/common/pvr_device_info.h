@@ -379,6 +379,46 @@ struct pvr_device_quirks {
    bool has_brn74056 : 1;
 };
 
+#define PVR_FW_VERSION_MAJOR_SHIFT     16
+#define PVR_FW_VERSION_MINOR_SHIFT     0
+
+#define PVR_FW_VERSION_MAJOR_MASK      UINT32_C(0xFFFF0000)
+#define PVR_FW_VERSION_MINOR_MASK      UINT32_C(0x0000FFFF)
+
+/**
+ * Packs the FW major and minor version.
+ *
+ * The packed layout is as follows:
+ *
+ * \verbatim
+ *    +--------+--------+
+ *    | 31..16 | 15..0  |
+ *    +========+========+
+ *    | MAJOR  | MINOR  |
+ *    +--------+--------+
+ * \endverbatim
+ *
+ * \sa #PVR_FW_VERSION_UNPACK_MAJOR(), #PVR_FW_VERSION_UNPACK_MINOR()
+ */
+
+#define PVR_FW_VERSION_PACK(major, minor) \
+   ((((major) << PVR_FW_VERSION_MAJOR_SHIFT) & PVR_FW_VERSION_MAJOR_MASK) | \
+    (((minor) << PVR_FW_VERSION_MINOR_SHIFT) & PVR_FW_VERSION_MINOR_MASK))
+
+#define PVR_FW_VERSION_UNPACK_MAJOR(version) \
+   (((version) & PVR_FW_VERSION_MAJOR_MASK) >> PVR_FW_VERSION_MAJOR_SHIFT)
+
+#define PVR_FW_VERSION_UNPACK_MINOR(version) \
+   (((version) & PVR_FW_VERSION_MINOR_MASK) >> PVR_FW_VERSION_MINOR_SHIFT)
+
+#define PVR_FW_VERSION_VALID(major, minor) \
+   ((((major) & ~(PVR_FW_VERSION_MAJOR_MASK >> PVR_FW_VERSION_MAJOR_SHIFT)) == 0) && \
+    (((minor) & ~(PVR_FW_VERSION_MINOR_MASK >> PVR_FW_VERSION_MINOR_SHIFT)) == 0))
+
+struct pvr_device_fw_info {
+   uint32_t fw_version;
+};
+
 struct pvr_device_info {
    struct pvr_device_ident ident;
    struct pvr_device_features features;
@@ -395,6 +435,7 @@ struct pvr_device_runtime_info {
    uint64_t max_coeffs;
    uint64_t cdm_max_local_mem_size_regs;
    uint32_t core_count;
+   struct pvr_device_fw_info fw_info;
 };
 
 /**

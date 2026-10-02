@@ -154,6 +154,41 @@ pvr_u32_in_array(const uint32_t *array, const size_t len, const uint32_t val)
    return false;
 }
 
+static VkResult pvr_drm_get_fw_info(struct pvr_drm_winsys *drm_ws,
+                                    struct pvr_device_fw_info *fw_info)
+{
+   /* Default to oldest firmware version when FW info dev query is unsupported. */
+   struct drm_pvr_dev_query_fw_info query_fw_info = {
+      .major_version = 1,
+      .minor_version = 0,
+   };
+
+   VkResult result = VK_SUCCESS;
+
+   if (drm_ws->drm_version >= PVR_DRM_VERSION_PACK(1, 1, 0)) {
+      struct drm_pvr_ioctl_dev_query_args args = {
+         .type = DRM_PVR_DEV_QUERY_FW_INFO_GET,
+         .size = sizeof(query_fw_info),
+         .pointer = (__u64)&query_fw_info
+      };
+
+      result = pvr_ioctl(drm_ws->base.render_fd,
+                         DRM_IOCTL_PVR_DEV_QUERY,
+                         &args,
+                         VK_ERROR_INITIALIZATION_FAILED);
+      if (result != VK_SUCCESS)
+         return result;
+   }
+
+   assert(PVR_FW_VERSION_VALID(query_fw_info.major_version,
+                               query_fw_info.minor_version));
+
+   fw_info->fw_version =
+      PVR_FW_VERSION_PACK(query_fw_info.major_version, query_fw_info.minor_version);
+
+   return result;
+}
+
 static VkResult pvr_drm_override_quirks(struct pvr_drm_winsys *drm_ws,
                                         struct pvr_device_info *dev_info)
 {
@@ -369,6 +404,12 @@ pvr_drm_winsys_device_info_init(struct pvr_winsys *ws,
    result = pvr_drm_override_enhancements(drm_ws, dev_info);
    if (result != VK_SUCCESS) {
       mesa_logw("Failed to get enhancements for this GPU\n");
+      goto err_out;
+   }
+
+   result = pvr_drm_get_fw_info(drm_ws, &runtime_info->fw_info);
+   if (result != VK_SUCCESS) {
+      mesa_logw("Failed to check FW feature support for this GPU\n");
       goto err_out;
    }
 
