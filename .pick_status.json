@@ -874,7 +874,7 @@
         "description": "freedreno/a5xx: stop undoing the kernel's DBG_ECO workarounds",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "f9f89df8bc75d4446c6d6aa12d9390f72313cca7",
         "notes": null
