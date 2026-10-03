@@ -1005,6 +1005,7 @@ void
 fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
 {
    struct fd_context *ctx = batch->ctx;
+   uint32_t hbb = ctx->screen->highest_bank_bit - 13;
 
    fd5_set_render_mode(ctx, ring, BYPASS);
    fd5_cache_flush(batch, ring);
@@ -1050,7 +1051,7 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    OUT_RING(ring, 0x00000000); /* UNKNOWN_E293 */
 
    OUT_PKT4(ring, REG_A5XX_RB_MODE_CNTL, 1);
-   OUT_RING(ring, 0x00000044); /* RB_MODE_CNTL */
+   OUT_RING(ring, 0x00000040 | A5XX_RB_MODE_CNTL_HIGHESTBANKBIT(hbb));
 
    OUT_PKT4(ring, REG_A5XX_RB_DBG_ECO_CNTL, 1);
    OUT_RING(ring, 0x00100000 |
@@ -1077,7 +1078,7 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    }
 
    OUT_PKT4(ring, REG_A5XX_TPL1_MODE_CNTL, 1);
-   OUT_RING(ring, 0x00000544); /* TPL1_MODE_CNTL */
+   OUT_RING(ring, 0x00000444 | A5XX_TPL1_MODE_CNTL_HIGHESTBANKBIT(hbb));
 
    OUT_PKT4(ring, REG_A5XX_HLSQ_TIMEOUT_THRESHOLD_0, 2);
    OUT_RING(ring, 0x00000080); /* HLSQ_TIMEOUT_THRESHOLD_0 */

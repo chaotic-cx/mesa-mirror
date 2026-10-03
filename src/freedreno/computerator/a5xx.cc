@@ -21,6 +21,7 @@ struct a5xx_backend {
 
    const struct fd_dev_id *dev_id;
    const struct fd_dev_info *info;
+   uint32_t hbb;
 
    unsigned seqno;
    struct fd_bo *control_mem;
@@ -140,7 +141,7 @@ cs_restore_emit(struct fd_ringbuffer *ring, struct a5xx_backend *a5xx_backend)
    OUT_RING(ring, 0x000fffff);
 
    OUT_PKT4(ring, REG_A5XX_RB_MODE_CNTL, 1);
-   OUT_RING(ring, 0x00000044);
+   OUT_RING(ring, 0x00000040 | A5XX_RB_MODE_CNTL_HIGHESTBANKBIT(a5xx_backend->hbb));
 
    OUT_PKT4(ring, REG_A5XX_RB_DBG_ECO_CNTL, 1);
    OUT_RING(ring, 0x00100000 |
@@ -164,7 +165,7 @@ cs_restore_emit(struct fd_ringbuffer *ring, struct a5xx_backend *a5xx_backend)
    }
 
    OUT_PKT4(ring, REG_A5XX_TPL1_MODE_CNTL, 1);
-   OUT_RING(ring, 0x00000544);
+   OUT_RING(ring, 0x00000444 | A5XX_TPL1_MODE_CNTL_HIGHESTBANKBIT(a5xx_backend->hbb));
 
    OUT_PKT4(ring, REG_A5XX_HLSQ_TIMEOUT_THRESHOLD_0, 2);
    OUT_RING(ring, 0x00000080); /* HLSQ_TIMEOUT_THRESHOLD_0 */
@@ -570,6 +571,13 @@ a5xx_init(struct fd_device *dev, const struct fd_dev_id *dev_id)
 
    a5xx_backend->dev_id = dev_id;
    a5xx_backend->info = fd_dev_info_raw(dev_id);
+
+   uint64_t hbb = 0;
+   struct fd_pipe *pipe = fd_pipe_new(dev, FD_PIPE_3D);
+   if (fd_pipe_get_param(pipe, FD_HIGHEST_BANK_BIT, &hbb) || !hbb)
+      hbb = a5xx_backend->info->highest_bank_bit;
+   fd_pipe_del(pipe);
+   a5xx_backend->hbb = hbb - 13;
 
    a5xx_backend->control_mem = fd_bo_new(dev, 0x1000, 0, "control");
 

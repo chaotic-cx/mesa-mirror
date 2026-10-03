@@ -1467,7 +1467,9 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 
 	<reg32 offset="0x0cc4" name="RB_DBG_ECO_CNTL"/> <!-- always 00100000? -->
 	<reg32 offset="0x0cc5" name="RB_ADDR_MODE_CNTL" type="a5xx_address_mode"/>
-	<reg32 offset="0x0cc6" name="RB_MODE_CNTL"/> <!-- always 00000044? -->
+	<reg32 offset="0x0cc6" name="RB_MODE_CNTL">
+		<bitfield name="HIGHESTBANKBIT" low="1" high="2" type="uint"/>
+	</reg32>
 	<reg32 offset="0x0cc7" name="RB_CCU_CNTL"/> <!-- always b0056080 or 10000000? -->
 	<reg32 offset="0x0cd0" name="RB_PERFCTR_RB_SEL_0" type="a5xx_rb_perfcounter_select"/>
 	<reg32 offset="0x0cd1" name="RB_PERFCTR_RB_SEL_1" type="a5xx_rb_perfcounter_select"/>
@@ -1602,7 +1604,9 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 	<reg32 offset="0x0edf" name="SP_POWERCTR_SP_SEL_3"/>
 
 	<reg32 offset="0x0f01" name="TPL1_ADDR_MODE_CNTL" type="a5xx_address_mode"/>
-	<reg32 offset="0x0f02" name="TPL1_MODE_CNTL"/> <!-- always 00000544? -->
+	<reg32 offset="0x0f02" name="TPL1_MODE_CNTL">
+		<bitfield name="HIGHESTBANKBIT" low="7" high="8" type="uint"/>
+	</reg32>
 	<reg32 offset="0x0f10" name="TPL1_PERFCTR_TP_SEL_0" type="a5xx_tp_perfcounter_select"/>
 	<reg32 offset="0x0f11" name="TPL1_PERFCTR_TP_SEL_1" type="a5xx_tp_perfcounter_select"/>
 	<reg32 offset="0x0f12" name="TPL1_PERFCTR_TP_SEL_2" type="a5xx_tp_perfcounter_select"/>
