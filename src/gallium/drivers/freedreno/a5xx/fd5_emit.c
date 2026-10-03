@@ -966,6 +966,38 @@ fd5_emit_cs_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       fd5_emit_images(ctx, ring, MESA_SHADER_COMPUTE, cp);
 }
 
+/* Workaround bits the kernel sets in hw_init, which the restore rewrites */
+static bool
+fd5_rb_dp2_clock_gating_disabled(const struct fd_screen *screen)
+{
+   switch (screen->gpu_id) {
+   case 505:
+   case 506:
+   case 508:
+   case 509:
+   case 512:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static bool
+fd5_lm_load_kill_disabled(const struct fd_screen *screen)
+{
+   switch (screen->gpu_id) {
+   case 505:
+   case 506:
+   case 508:
+   case 509:
+   case 512:
+   case 540:
+      return true;
+   default:
+      return false;
+   }
+}
+
 /* emit setup at begin of new cmdstream buffer (don't rely on previous
  * state, there could have been a context switch between ioctls):
  */
@@ -1021,7 +1053,8 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    OUT_RING(ring, 0x00000044); /* RB_MODE_CNTL */
 
    OUT_PKT4(ring, REG_A5XX_RB_DBG_ECO_CNTL, 1);
-   OUT_RING(ring, 0x00100000); /* RB_DBG_ECO_CNTL */
+   OUT_RING(ring, 0x00100000 |
+            COND(fd5_rb_dp2_clock_gating_disabled(ctx->screen), BIT(9)));
 
    OUT_PKT4(ring, REG_A5XX_VFD_MODE_CNTL, 1);
    OUT_RING(ring, 0x00000000); /* VFD_MODE_CNTL */
@@ -1038,9 +1071,6 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
 
       OUT_PKT4(ring, REG_A5XX_HLSQ_DBG_ECO_CNTL, 1);
       OUT_RING(ring, 0x0);
-
-      OUT_PKT4(ring, REG_A5XX_VPC_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0x800400);
    } else {
       OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
       OUT_RING(ring, 0x40000800); /* SP_DBG_ECO_CNTL */
@@ -1054,7 +1084,9 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    OUT_RING(ring, 0x00000000); /* HLSQ_TIMEOUT_THRESHOLD_1 */
 
    OUT_PKT4(ring, REG_A5XX_VPC_DBG_ECO_CNTL, 1);
-   OUT_RING(ring, 0x00000400); /* VPC_DBG_ECO_CNTL */
+   OUT_RING(ring, A5XX_VPC_DBG_ECO_CNTL_ALLFLATOPTDIS |
+            /* referenced as LMLOADKILLDIS in msm-4.4/kgsl */
+            COND(fd5_lm_load_kill_disabled(ctx->screen), BIT(23)));
 
    OUT_PKT4(ring, REG_A5XX_HLSQ_MODE_CNTL, 1);
    OUT_RING(ring, 0x00000001); /* HLSQ_MODE_CNTL */

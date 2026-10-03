@@ -82,10 +82,44 @@ a5xx_disassemble(struct kernel *kernel, struct ir3_disasm_options *options)
    ir3_asm_disassemble(to_ir3_kernel(kernel), options);
 }
 
+/* Workaround bits the kernel sets in hw_init, which the restore rewrites */
+static bool
+rb_dp2_clock_gating_disabled(uint32_t gpu_id)
+{
+   switch (gpu_id) {
+   case 505:
+   case 506:
+   case 508:
+   case 509:
+   case 512:
+      return true;
+   default:
+      return false;
+   }
+}
+
+static bool
+lm_load_kill_disabled(uint32_t gpu_id)
+{
+   switch (gpu_id) {
+   case 505:
+   case 506:
+   case 508:
+   case 509:
+   case 512:
+   case 540:
+      return true;
+   default:
+      return false;
+   }
+}
+
 /* The compute-relevant subset of fd5_emit_restore(). */
 static void
 cs_restore_emit(struct fd_ringbuffer *ring, struct a5xx_backend *a5xx_backend)
 {
+   uint32_t gpu_id = fd_dev_gpu_id(a5xx_backend->dev_id);
+
    OUT_PKT7(ring, CP_SET_RENDER_MODE, 5);
    OUT_RING(ring, CP_SET_RENDER_MODE_0_MODE(BYPASS));
    OUT_RING(ring, 0x00000000); /* ADDR_LO */
@@ -109,7 +143,8 @@ cs_restore_emit(struct fd_ringbuffer *ring, struct a5xx_backend *a5xx_backend)
    OUT_RING(ring, 0x00000044);
 
    OUT_PKT4(ring, REG_A5XX_RB_DBG_ECO_CNTL, 1);
-   OUT_RING(ring, 0x00100000);
+   OUT_RING(ring, 0x00100000 |
+            COND(rb_dp2_clock_gating_disabled(gpu_id), BIT(9)));
 
    OUT_PKT4(ring, REG_A5XX_PC_MODE_CNTL, 1);
    OUT_RING(ring, 0x0000001f);
@@ -117,7 +152,7 @@ cs_restore_emit(struct fd_ringbuffer *ring, struct a5xx_backend *a5xx_backend)
    OUT_PKT4(ring, REG_A5XX_SP_MODE_CNTL, 1);
    OUT_RING(ring, 0x0000001e);
 
-   if (fd_dev_gpu_id(a5xx_backend->dev_id) == 540) {
+   if (gpu_id == 540) {
       OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
       OUT_RING(ring, 0x00000800);
 
@@ -136,7 +171,9 @@ cs_restore_emit(struct fd_ringbuffer *ring, struct a5xx_backend *a5xx_backend)
    OUT_RING(ring, 0x00000000); /* HLSQ_TIMEOUT_THRESHOLD_1 */
 
    OUT_PKT4(ring, REG_A5XX_VPC_DBG_ECO_CNTL, 1);
-   OUT_RING(ring, 0x00000400);
+   OUT_RING(ring, A5XX_VPC_DBG_ECO_CNTL_ALLFLATOPTDIS |
+            /* referenced as LMLOADKILLDIS in msm-4.4/kgsl */
+            COND(lm_load_kill_disabled(gpu_id), BIT(23)));
 
    OUT_PKT4(ring, REG_A5XX_HLSQ_MODE_CNTL, 1);
    OUT_RING(ring, 0x00000001);
