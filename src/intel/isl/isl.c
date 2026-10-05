@@ -654,25 +654,6 @@ static const uint8_t skl_std_y_3d_miptail_offset_el[][5][3] = {
    { {0, 0, 0}, { 0, 0, 0}, { 0,  0, 0}, { 0,  0,  0}, { 0,  0,  0} },
 };
 
-static const uint8_t icl_std_y_3d_miptail_offset_el[][5][3] = {
-/*    128 bpb     64 bpb      32 bpb        16 bpb        8 bpb      */
-   { {8, 0, 0}, {16, 0, 0}, {16,  0, 0}, {16,  0,  0}, {32,  0,  0} },
-   { {0, 8, 0}, { 0, 8, 0}, { 0, 16, 0}, { 0, 16,  0}, { 0, 16,  0} },
-   { {0, 0, 8}, { 0, 0, 8}, { 0,  0, 8}, { 0,  0, 16}, { 0,  0, 16} },
-   { {4, 0, 0}, { 8, 0, 0}, { 8,  0, 0}, { 8,  0,  0}, {16,  0,  0} },
-   { {0, 4, 0}, { 0, 4, 0}, { 0,  8, 0}, { 0,  8,  0}, { 0,  8,  0} },
-   { {2, 0, 4}, { 4, 0, 4}, { 4,  0, 4}, { 4,  0,  8}, { 8,  0,  8} },
-   { {0, 2, 4}, { 0, 2, 4}, { 0,  4, 4}, { 0,  4,  8}, { 0,  4,  8} },
-   { {0, 0, 4}, { 0, 0, 4}, { 0,  0, 4}, { 0,  0,  8}, { 0,  0,  8} },
-   { {2, 2, 0}, { 4, 2, 0}, { 4,  4, 0}, { 4,  4,  0}, { 8,  4,  0} },
-   { {2, 0, 0}, { 4, 0, 0}, { 4,  0, 0}, { 4,  0,  0}, { 8,  0,  0} },
-   { {0, 2, 0}, { 0, 2, 0}, { 0,  4, 0}, { 0,  4,  0}, { 0,  4,  0} },
-   { {1, 0, 2}, { 2, 0, 2}, { 2,  0, 2}, { 2,  0,  4}, { 4,  0,  4} },
-   { {0, 0, 2}, { 0, 0, 2}, { 0,  0, 2}, { 0,  0,  4}, { 0,  0,  4} },
-   { {1, 0, 0}, { 2, 0, 0}, { 2,  0, 0}, { 2,  0,  0}, { 4,  0,  0} },
-   { {0, 0, 0}, { 0, 0, 0}, { 0,  0, 0}, { 0,  0,  0}, { 0,  0,  0} },
-};
-
 static const uint8_t acm_tile64_3d_miptail_offset_el[][5][3] = {
 /*    128 bpb     64 bpb      32 bpb        16 bpb        8 bpb      */
    { {8, 0, 0}, {16, 0, 0}, {16,  0, 0}, {16,  0,  0}, {32,  0,  0}, },
@@ -843,6 +824,14 @@ static const uint8_t tile_ys_2d_8bpp_16msaa_swiz[16] = REV16(
  * Surfaces
  *
  * BSpec 774
+ *
+ * From the ICL PRM, "3D Surfaces":
+ *
+ *    The table below is enabled by use of the Tile Address Mapping Mode
+ *    bi [sic] in RENDER_SURFACE_STATE. This mapping must never be used.
+ *
+ * We don't set this bit for 3D surfaces. So, use the SKL tables instead of
+ * the ICL tables.
  */
 
 static const uint8_t skl_tile_ysyf_3d_128_64bpp_swiz[16] = REV16(
@@ -855,18 +844,6 @@ static const uint8_t skl_tile_ysyf_3d_32bpp_swiz[16] = REV16(
 
 static const uint8_t skl_tile_ysyf_3d_16_8bpp_swiz[16] = REV16(
    U(5), V(4), R(4), U(4), V(3), R(3), V(2), R(2), R(1), R(0), V(1), V(0), U(3), U(2), U(1), U(0)
-);
-
-static const uint8_t icl_tile_ysyf_3d_128_64bpp_swiz[16] = REV16(
-   U(7), V(3), R(3), U(6), V(2), R(2), U(5), V(1), R(1), U(4), R(0), V(0), U(3), U(2), U(1), U(0)
-);
-
-static const uint8_t icl_tile_ysyf_3d_32bpp_swiz[16] = REV16(
-   U(6), V(4), R(3), U(5), V(3), R(2), U(4), V(2), R(1), U(3), V(1), V(0), R(0), U(2), U(1), U(0)
-);
-
-static const uint8_t icl_tile_ysyf_3d_16_8bpp_swiz[16] = REV16(
-   U(5), V(4), R(4), U(4), V(3), R(3), U(3), V(2), R(2), U(2), V(1), V(0), R(1), R(0), U(1), U(0)
 );
 
 /* The following swizzles are described in :
@@ -1030,6 +1007,8 @@ tiling_max_mip_tail(enum isl_tiling tiling,
       /* There is no miptail for those tilings */
       return 0;
 
+   case ISL_TILING_ICL_Yf:
+   case ISL_TILING_ICL_Ys:
    case ISL_TILING_SKL_Yf:
    case ISL_TILING_SKL_Ys:
       /* SKL PRMs, Volume 5: Memory Views :
@@ -1042,20 +1021,6 @@ tiling_max_mip_tail(enum isl_tiling tiling,
        */
       num_2d_table_rows = ARRAY_SIZE(skl_std_y_2d_miptail_offset_el);
       num_3d_table_rows = ARRAY_SIZE(skl_std_y_3d_miptail_offset_el);
-      break;
-
-   case ISL_TILING_ICL_Yf:
-   case ISL_TILING_ICL_Ys:
-      /* ICL PRMs, Volume 5: Memory Views :
-       *
-       *    - Tiling and Mip Tail for 1D Surfaces :
-       *        "There is no MIP Tail allowed for 1D surfaces because they are
-       *         not allowed to be tiled. They must be declared as linear."
-       *    - Tiling and Mip Tail for 2D Surfaces
-       *    - Tiling and Mip Tail for 3D Surfaces
-       */
-      num_2d_table_rows = ARRAY_SIZE(icl_std_y_2d_miptail_offset_el);
-      num_3d_table_rows = ARRAY_SIZE(icl_std_y_3d_miptail_offset_el);
       break;
 
    case ISL_TILING_64:
@@ -1215,49 +1180,6 @@ isl_tiling_get_info(enum isl_tiling tiling,
       break;
 
    case ISL_TILING_SKL_Yf:
-      switch (dim) {
-      case ISL_SURF_DIM_2D:
-         switch (format_bpb) {
-         case 128:
-         case 64:
-            SET_SWIZ(tile_ysyf_2d_128_64bpp_swiz, 12);
-            break;
-         case 32:
-         case 16:
-            SET_SWIZ(tile_ysyf_2d_32_16bpp_swiz, 12);
-            break;
-         case 8:
-            SET_SWIZ(tile_ysyf_2d_8bpp_swiz, 12);
-            break;
-         default:
-            UNREACHABLE("Unsupported format size");
-         }
-         break;
-      case ISL_SURF_DIM_3D:
-         switch (format_bpb) {
-         case 128:
-         case 64:
-            SET_SWIZ(skl_tile_ysyf_3d_128_64bpp_swiz, 12);
-            break;
-         case 32:
-            SET_SWIZ(skl_tile_ysyf_3d_32bpp_swiz, 12);
-            break;
-         case 16:
-         case 8:
-            SET_SWIZ(skl_tile_ysyf_3d_16_8bpp_swiz, 12);
-            break;
-         default:
-            UNREACHABLE("Unsupported format size");
-         }
-         break;
-      default:
-         UNREACHABLE("Invalid dimension");
-      }
-
-      phys_B.w = logical_el.width * bs;
-      phys_B.h = 4096 / phys_B.w;
-      break;
-
    case ISL_TILING_SKL_Ys:
    case ISL_TILING_ICL_Yf:
    case ISL_TILING_ICL_Ys: {
@@ -1316,7 +1238,8 @@ isl_tiling_get_info(enum isl_tiling tiling,
           * IMS surfaces don't use the MSAA swizzles for Yf/Ys.
           */
          const uint32_t sample_idx =
-            (msaa_layout == ISL_MSAA_LAYOUT_INTERLEAVED) ? 0 :
+            (msaa_layout == ISL_MSAA_LAYOUT_INTERLEAVED ||
+             tiling == ISL_TILING_SKL_Yf) ? 0 :
             (ffs(samples) - 1);
 
          switch (format_bpb) {
@@ -1338,26 +1261,21 @@ isl_tiling_get_info(enum isl_tiling tiling,
       }
 
       case ISL_SURF_DIM_3D:
-#define ICL_OR_SKL(_name) \
-         ((tiling == ISL_TILING_SKL_Ys || \
-           tiling == ISL_TILING_SKL_Yf) ? \
-          skl_##_name : icl_##_name)
          switch (format_bpb) {
          case 128:
          case 64:
-            SET_SWIZ(ICL_OR_SKL(tile_ysyf_3d_128_64bpp_swiz), tiling_bits);
+            SET_SWIZ(skl_tile_ysyf_3d_128_64bpp_swiz, tiling_bits);
             break;
          case 32:
-            SET_SWIZ(ICL_OR_SKL(tile_ysyf_3d_32bpp_swiz), tiling_bits);
+            SET_SWIZ(skl_tile_ysyf_3d_32bpp_swiz, tiling_bits);
             break;
          case 16:
          case 8:
-            SET_SWIZ(ICL_OR_SKL(tile_ysyf_3d_16_8bpp_swiz), tiling_bits);
+            SET_SWIZ(skl_tile_ysyf_3d_16_8bpp_swiz, tiling_bits);
             break;
          default:
             UNREACHABLE("Unsupported format size");
          }
-#undef ICL_OR_SKL
          break;
 
       default:
@@ -2181,12 +2099,6 @@ isl_get_miptail_level_offset_el(enum isl_tiling tiling,
          break;
       case ISL_TILING_ICL_Yf:
       case ISL_TILING_ICL_Ys:
-         assert(row < ARRAY_SIZE(icl_std_y_3d_miptail_offset_el));
-         assert(col < ARRAY_SIZE(icl_std_y_3d_miptail_offset_el[0]));
-         *x_offset_el = icl_std_y_3d_miptail_offset_el[row][col][0];
-         *y_offset_el = icl_std_y_3d_miptail_offset_el[row][col][1];
-         *z_offset_el = icl_std_y_3d_miptail_offset_el[row][col][2];
-         break;
       case ISL_TILING_SKL_Yf:
       case ISL_TILING_SKL_Ys:
          assert(row < ARRAY_SIZE(skl_std_y_3d_miptail_offset_el));
