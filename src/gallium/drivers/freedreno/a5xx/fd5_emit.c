@@ -966,6 +966,18 @@ fd5_emit_cs_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       fd5_emit_images(ctx, ring, MESA_SHADER_COMPUTE, cp);
 }
 
+static uint32_t
+fd5_sp_dbg_eco_cntl(const struct fd_screen *screen)
+{
+   switch (screen->gpu_id) {
+   case 510:
+   case 530:
+      return 0x40000800;
+   default:
+      return 0x00000800;
+   }
+}
+
 /* Workaround bits the kernel sets in hw_init, which the restore rewrites */
 static bool
 fd5_rb_dp2_clock_gating_disabled(const struct fd_screen *screen)
@@ -1066,15 +1078,12 @@ fd5_emit_restore(struct fd_batch *batch, struct fd_ringbuffer *ring)
    OUT_PKT4(ring, REG_A5XX_SP_MODE_CNTL, 1);
    OUT_RING(ring, 0x0000001c); /* SP_MODE_CNTL */
 
-   if (ctx->screen->gpu_id == 540) {
-      OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0x800); /* SP_DBG_ECO_CNTL */
+   OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
+   OUT_RING(ring, fd5_sp_dbg_eco_cntl(ctx->screen));
 
+   if (ctx->screen->gpu_id == 540) {
       OUT_PKT4(ring, REG_A5XX_HLSQ_DBG_ECO_CNTL, 1);
       OUT_RING(ring, 0x0);
-   } else {
-      OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0x40000800); /* SP_DBG_ECO_CNTL */
    }
 
    OUT_PKT4(ring, REG_A5XX_TPL1_MODE_CNTL, 1);

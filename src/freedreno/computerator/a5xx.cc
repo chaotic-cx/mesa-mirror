@@ -83,6 +83,18 @@ a5xx_disassemble(struct kernel *kernel, struct ir3_disasm_options *options)
    ir3_asm_disassemble(to_ir3_kernel(kernel), options);
 }
 
+static uint32_t
+sp_dbg_eco_cntl(uint32_t gpu_id)
+{
+   switch (gpu_id) {
+   case 510:
+   case 530:
+      return 0x40000800;
+   default:
+      return 0x00000800;
+   }
+}
+
 /* Workaround bits the kernel sets in hw_init, which the restore rewrites */
 static bool
 rb_dp2_clock_gating_disabled(uint32_t gpu_id)
@@ -153,15 +165,12 @@ cs_restore_emit(struct fd_ringbuffer *ring, struct a5xx_backend *a5xx_backend)
    OUT_PKT4(ring, REG_A5XX_SP_MODE_CNTL, 1);
    OUT_RING(ring, 0x0000001e);
 
-   if (gpu_id == 540) {
-      OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0x00000800);
+   OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
+   OUT_RING(ring, sp_dbg_eco_cntl(gpu_id));
 
+   if (gpu_id == 540) {
       OUT_PKT4(ring, REG_A5XX_HLSQ_DBG_ECO_CNTL, 1);
       OUT_RING(ring, 0x00000000);
-   } else {
-      OUT_PKT4(ring, REG_A5XX_SP_DBG_ECO_CNTL, 1);
-      OUT_RING(ring, 0x40000800);
    }
 
    OUT_PKT4(ring, REG_A5XX_TPL1_MODE_CNTL, 1);
