@@ -61,6 +61,12 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 	<value name="TILE5_3" value="3"/>
 </enum>
 
+<enum name="a5xx_ccu_cache_size">
+	<value value="0x0" name="CCU_CACHE_SIZE_FULL"/>
+	<value value="0x1" name="CCU_CACHE_SIZE_HALF"/>
+	<value value="0x2" name="CCU_CACHE_SIZE_QUARTER"/>
+</enum>
+
 <enum name="a5xx_vtx_fmt" prefix="chipset">
 	<value value="0x03" name="VFMT5_8_UNORM"/>
 	<value value="0x04" name="VFMT5_8_SNORM"/>
@@ -1470,7 +1476,12 @@ xsi:schemaLocation="https://gitlab.freedesktop.org/freedreno/ rules-fd.xsd">
 	<reg32 offset="0x0cc6" name="RB_MODE_CNTL">
 		<bitfield name="HIGHESTBANKBIT" low="1" high="2" type="uint"/>
 	</reg32>
-	<reg32 offset="0x0cc7" name="RB_CCU_CNTL"/> <!-- always b0056080 or 10000000? -->
+	<reg32 offset="0x0cc7" name="RB_CCU_CNTL">
+		<bitfield name="DEPTH_CACHE_SIZE" low="6" high="7" type="a5xx_ccu_cache_size"/>
+		<bitfield name="DEPTH_OFFSET" low="8" high="18" type="uint"/>
+		<bitfield name="COLOR_CACHE_SIZE" low="19" high="20" type="a5xx_ccu_cache_size"/>
+		<bitfield name="COLOR_OFFSET" low="21" high="31" type="uint"/>
+	</reg32>
 	<reg32 offset="0x0cd0" name="RB_PERFCTR_RB_SEL_0" type="a5xx_rb_perfcounter_select"/>
 	<reg32 offset="0x0cd1" name="RB_PERFCTR_RB_SEL_1" type="a5xx_rb_perfcounter_select"/>
 	<reg32 offset="0x0cd2" name="RB_PERFCTR_RB_SEL_2" type="a5xx_rb_perfcounter_select"/>

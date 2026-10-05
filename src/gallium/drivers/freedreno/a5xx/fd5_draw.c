@@ -159,7 +159,7 @@ fd5_clear_lrz(struct fd_batch *batch, struct fd_resource *zsbuf, double depth)
    OUT_WFI5(ring);
 
    OUT_PKT4(ring, REG_A5XX_RB_CCU_CNTL, 1);
-   OUT_RING(ring, 0x10000000);
+   OUT_RING(ring, fd5_ccu_cntl_bypass(batch->ctx->screen));
 
    OUT_PKT4(ring, REG_A5XX_HLSQ_UPDATE_CNTL, 1);
    OUT_RING(ring, 0x20fffff);

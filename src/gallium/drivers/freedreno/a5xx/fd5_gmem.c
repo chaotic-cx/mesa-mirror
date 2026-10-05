@@ -399,10 +399,9 @@ fd5_emit_tile_init(struct fd_batch *batch) assert_dt
    OUT_PKT4(ring, REG_A5XX_VFD_POWER_CNTL, 1);
    OUT_RING(ring, ctx->screen->info->num_sp_cores - 1); /* VFD_POWER_CNTL */
 
-   /* 0x10000000 for BYPASS.. 0x7c13c080 for GMEM: */
    fd_wfi(batch, ring);
    OUT_PKT4(ring, REG_A5XX_RB_CCU_CNTL, 1);
-   OUT_RING(ring, 0x7c13c080); /* RB_CCU_CNTL */
+   OUT_RING(ring, fd5_ccu_cntl_gmem(ctx->screen));
 
    emit_zs(ring, &pfb->zsbuf, batch->gmem_state);
    emit_mrt(ring, pfb->nr_cbufs, pfb->cbufs, batch->gmem_state);
@@ -721,10 +720,9 @@ fd5_emit_sysmem_prep(struct fd_batch *batch) assert_dt
    OUT_PKT4(ring, REG_A5XX_VFD_POWER_CNTL, 1);
    OUT_RING(ring, ctx->screen->info->num_sp_cores - 1); /* VFD_POWER_CNTL */
 
-   /* 0x10000000 for BYPASS.. 0x7c13c080 for GMEM: */
    fd_wfi(batch, ring);
    OUT_PKT4(ring, REG_A5XX_RB_CCU_CNTL, 1);
-   OUT_RING(ring, 0x10000000); /* RB_CCU_CNTL */
+   OUT_RING(ring, fd5_ccu_cntl_bypass(ctx->screen));
 
    OUT_PKT4(ring, REG_A5XX_RB_CNTL, 1);
    OUT_RING(ring, A5XX_RB_CNTL_WIDTH(0) | A5XX_RB_CNTL_HEIGHT(0) |
