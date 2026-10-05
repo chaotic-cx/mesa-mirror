@@ -1789,4 +1789,494 @@ anv_h265_brc_emit_huc_update(struct anv_cmd_buffer *cmd,
    anv_h265_brc_emit_huc_tail(cmd);
 }
 
+/* AV1 encoding from here */
+#if GFX_VERx10 == 125
+#define ANV_HUC_AV1_BRC_INIT_KERNEL_DESCRIPTOR   18
+#define ANV_HUC_AV1_BRC_UPDATE_KERNEL_DESCRIPTOR 19
+#define ANV_HUC_AV1_BRC_REENCODE_MASK            (1u << 31)
+#define ANV_HUC_AV1_BRC_FLAG_CBR                 0x10
+#define ANV_HUC_AV1_BRC_FLAG_VBR                 0x20
+
+#define ANV_AV1_BRC_SLB_INLOOP_FILTER_OFFSET 16
+#define ANV_AV1_BRC_SLB_CMD1_OFFSET          80
+#define ANV_AV1_BRC_SLB_CMD2_OFFSET          216
+#define ANV_AV1_BRC_SLB_PIC_STATE_OFFSET     468
+#define ANV_AV1_BRC_SLB_SIZE                 832
+
+struct anv_huc_av1_brc_init_dmem {
+   uint32_t BRCFunc;
+   uint32_t INIT_ProfileLevelMaxFrame;
+   uint32_t INIT_InitBufFullness;
+   uint32_t INIT_BufSize;
+   uint32_t INIT_TargetBitrate;
+   uint32_t INIT_MaxRate;
+   uint32_t INIT_MinRate;
+   uint32_t INIT_FrameRateM;
+   uint32_t INIT_FrameRateD;
+   uint32_t RSVD32[8];
+   uint16_t INIT_BRCFlag;
+   uint16_t Reserved1;
+   uint16_t INIT_GopP;
+   uint16_t INIT_GopB;
+   uint16_t INIT_FrameWidth;
+   uint16_t INIT_FrameHeight;
+   uint16_t INIT_MinQP;
+   uint16_t INIT_MaxQP;
+   uint16_t INIT_LevelQP;
+   uint16_t INIT_GoldenFrameInterval;
+   uint16_t INIT_EnableScaling;
+   uint16_t INIT_OvershootCBR_pct;
+   uint16_t INIT_GopB1;
+   uint16_t INIT_GopB2;
+   uint16_t INIT_GopB3;
+   uint16_t INIT_GopPicSize;
+   uint16_t RSVD16[6];
+   int8_t   INIT_InstRateThreshP0[4];
+   int8_t   Reserved2[4];
+   int8_t   INIT_InstRateThreshI0[4];
+   int8_t   INIT_DevThreshPB0[8];
+   int8_t   INIT_DevThreshVBR0[8];
+   int8_t   INIT_DevThreshI0[8];
+   uint8_t  INIT_InitQPP;
+   uint8_t  INIT_InitQPI;
+   uint8_t  INIT_SegMapGenerating;
+   uint8_t  INIT_Total_Level;
+   uint8_t  INIT_MaxLevel_Ratio[16];
+   uint8_t  INIT_SLIDINGWINDOW_ENABLE;
+   uint8_t  INIT_SLIDINGWINDOW_SIZE;
+   uint8_t  RSVD8[22];
+};
+
+struct anv_huc_av1_brc_update_dmem {
+   int32_t  UPD_TARGET_BUF_FULLNESS;
+   uint32_t UPD_FRAMENUM;
+   int32_t  UPD_HRD_BUFF_FULLNESS;
+   int32_t  UPD_HRD_BUFF_FULLNESS_UPPER;
+   int32_t  UPD_HRD_BUFF_FULLNESS_LOWER;
+   uint32_t UPD_UserMaxFrame;
+   uint32_t UPD_TR_TargetSize;
+   uint32_t UPD_LA_TargetFULNESS;
+   uint32_t UPD_CDF_BufferSize;
+   uint32_t UPD_UserMaxFramePB;
+   uint32_t RSVD32[14];
+   uint16_t UPD_startGAdjFrame[4];
+   uint16_t UPD_CurWidth;
+   uint16_t UPD_CurHeight;
+   uint16_t UPD_Asyn;
+   uint16_t UPD_SLBBSize;
+   uint16_t UPD_AVPPiCStateCmdNum;
+   uint16_t UPD_AVPSegmentStateOffset;
+   uint16_t UPD_AVPInloopFilterStateOffset;
+   uint16_t UPD_VDEncCmd1Offset;
+   uint16_t UPD_VDEncCmd2Offset;
+   uint16_t UPD_AVPPicStateOffset;
+   uint16_t UPD_MaxBRCLevel;
+   uint16_t UPD_AdditionalHrdSizeByteCount;
+   uint16_t UPD_VDEncTileSliceStateOffset;
+   uint16_t UPD_TileNum;
+   uint16_t RSVD16[10];
+   uint16_t UPD_LoopFilterParamsBitOffset;
+   uint16_t UPD_QIndexBitOffset;
+   uint16_t UPD_SegmentationBitOffset;
+   uint16_t UPD_CDEFParamsBitOffset;
+   uint16_t UPD_CDEFParamsSizeInBits;
+   uint16_t UPD_FrameHdrOBUSizeInBits;
+   uint16_t UPD_FrameHdrOBUSizeByteOffset;
+   uint16_t UPD_FrameHdrOBUSizeInBytes;
+   uint16_t RSVD16_1[8];
+   uint8_t  UPD_FrameType;
+   uint8_t  UPD_ErrorResilientMode;
+   uint8_t  UPD_IntraOnly;
+   uint8_t  UPD_PrimaryRefFrame;
+   uint8_t  UPD_SegOn;
+   uint8_t  UPD_SegMapUpdate;
+   uint8_t  UPD_SegTemporalUpdate;
+   uint8_t  UPD_SegUpdateData;
+   uint8_t  UPD_IsFrameOBU;
+   uint8_t  UPD_EnableCDEFUpdate;
+   uint8_t  UPD_EnableLFUpdate;
+   uint8_t  UPD_PaletteOn;
+   uint8_t  RSVD8_1[20];
+   uint8_t  UPD_OverflowFlag;
+   uint8_t  UPD_MaxNumPAKs;
+   int8_t   UPD_CurrFrameType;
+   uint8_t  UPD_QPThreshold[4];
+   uint8_t  UPD_gRateRatioThreshold[6];
+   int8_t   UPD_startGAdjMult[5];
+   int8_t   UPD_startGAdjDiv[5];
+   int8_t   UPD_gRateRatioThresholdQP[7];
+   uint8_t  UPD_DistThreshldI[9];
+   uint8_t  UPD_DistThreshldP[9];
+   uint8_t  UPD_DistThreshldB[9];
+   int8_t   UPD_MaxFrameThreshI[5];
+   int8_t   UPD_MaxFrameThreshP[5];
+   int8_t   UPD_MaxFrameThreshB[5];
+   uint8_t  UPD_PAKPassNum;
+   int8_t   UPD_DeltaQPForSadZone0;
+   int8_t   UPD_DeltaQPForSadZone1;
+   int8_t   UPD_DeltaQPForSadZone2;
+   int8_t   UPD_DeltaQPForSadZone3;
+   int8_t   UPD_DeltaQPForMvZero;
+   int8_t   UPD_DeltaQPForMvZone0;
+   int8_t   UPD_DeltaQPForMvZone1;
+   int8_t   UPD_DeltaQPForMvZone2;
+   int8_t   UPD_DeltaQPForAvgLuminZone0;
+   int8_t   UPD_DeltaQPForAvgLuminZone1;
+   int8_t   UPD_DeltaQPForAvgLuminZone2;
+   int8_t   UPD_DeltaQPForAvgLuminZone3;
+   int8_t   UPD_DeltaQPForAvgLuminZone4;
+   int8_t   UPD_DeltaQPForAvgLuminZone5;
+   int8_t   UPD_DeltaQPForAvgLuminZone6;
+   int8_t   UPD_DeltaQPForAvgLuminZone7;
+   int8_t   UPD_DeltaQPForAvgLuminZone8;
+   int8_t   UPD_DeltaQPForAvgLuminZone9;
+   uint8_t  UPD_Temporal_Level;
+   uint8_t  UPD_SegMapGenerating;
+   uint8_t  UPD_Lowdelay;
+   uint8_t  UPD_Delta;
+   uint8_t  UPD_LALength;
+   uint8_t  UPD_DisableCdfUpdate;
+   uint8_t  UPD_EnableDMAForCdf;
+   uint8_t  UPD_EnableAdaptiveRounding;
+   uint8_t  UPD_TCBRC_SCENARIO;
+   uint8_t  UPD_TCBRC_REPEAT;
+   uint8_t  UPD_ROM_CURRENT;
+   uint8_t  UPD_ROM_ZERO;
+   uint8_t  UPD_CQMEnabled;
+   uint8_t  UPD_TempCurrentlayer;
+   uint8_t  UPD_TempScalable;
+   uint8_t  UPD_AdaptiveTUEnabled;
+   uint8_t  UPD_EnableDeltaQP;
+   uint8_t  UPD_QMatrixEnabled;
+   uint8_t  UPD_LADsRatio;
+   uint8_t  RSVD8[58];
+};
+
+struct anv_huc_av1_brc_mode_cost {
+   uint8_t RSVD[24];
+};
+
+struct anv_huc_av1_brc_const_data {
+   struct anv_huc_av1_brc_mode_cost CONST_ModeCosts[52];
+   int8_t  CONST_QPAdjTabI[45];
+   int8_t  CONST_QPAdjTabP[45];
+   int8_t  CONST_QPAdjTabB[45];
+   int8_t  CONST_DistQPAdjTabI[81];
+   int8_t  CONST_DistQPAdjTabP[81];
+   int8_t  CONST_DistQPAdjTabB[81];
+   uint8_t CONST_LoopFilterLevelTabLuma[256];
+   uint8_t CONST_LoopFilterLevelTabChroma[256];
+   uint8_t RSVD[38];
+};
+
+static_assert(sizeof(struct anv_huc_av1_brc_init_dmem) == 192, "huc av1 brc init dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_init_dmem, INIT_BRCFlag) == 0x44, "huc av1 brc init dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_init_dmem, INIT_GopPicSize) == 0x62, "huc av1 brc init dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_init_dmem, INIT_InstRateThreshP0) == 0x70, "huc av1 brc init dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_init_dmem, INIT_InitQPP) == 0x94, "huc av1 brc init dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_init_dmem, INIT_SLIDINGWINDOW_ENABLE) == 0xa8, "huc av1 brc init dmem layout");
+static_assert(sizeof(struct anv_huc_av1_brc_update_dmem) == 384, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_startGAdjFrame) == 0x60, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_SLBBSize) == 0x6e, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_TileNum) == 0x82, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_LoopFilterParamsBitOffset) == 0x98, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_FrameType) == 0xb8, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_OverflowFlag) == 0xd8, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_PAKPassNum) == 0x120, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_Temporal_Level) == 0x133, "huc av1 brc update dmem layout");
+static_assert(offsetof(struct anv_huc_av1_brc_update_dmem, UPD_LADsRatio) == 0x145, "huc av1 brc update dmem layout");
+static_assert(sizeof(struct anv_huc_av1_brc_const_data) == 2176, "huc av1 brc const data layout");
+static_assert(offsetof(struct anv_huc_av1_brc_const_data, CONST_QPAdjTabI) == 0x4e0, "huc av1 brc const data layout");
+static_assert(offsetof(struct anv_huc_av1_brc_const_data, CONST_DistQPAdjTabI) == 0x567, "huc av1 brc const data layout");
+static_assert(offsetof(struct anv_huc_av1_brc_const_data, CONST_LoopFilterLevelTabLuma) == 0x65a, "huc av1 brc const data layout");
+
+static_assert(ANV_AV1_BRC_SLB_INLOOP_FILTER_OFFSET ==
+              GENX(AVP_SEGMENT_STATE_length) * 4, "huc av1 brc slb layout");
+static_assert(ANV_AV1_BRC_SLB_CMD1_OFFSET ==
+              ANV_AV1_BRC_SLB_INLOOP_FILTER_OFFSET +
+              (GENX(AVP_INLOOP_FILTER_STATE_length) + GENX(MI_BATCH_BUFFER_END_length)) * 4,
+              "huc av1 brc slb layout");
+static_assert(ANV_AV1_BRC_SLB_CMD2_OFFSET ==
+              ANV_AV1_BRC_SLB_CMD1_OFFSET +
+              (GENX(VDENC_CMD1_length) + GENX(MI_BATCH_BUFFER_END_length)) * 4,
+              "huc av1 brc slb layout");
+static_assert(ANV_AV1_BRC_SLB_PIC_STATE_OFFSET ==
+              ANV_AV1_BRC_SLB_CMD2_OFFSET +
+              (GENX(VDENC_CMD2_length) + GENX(MI_BATCH_BUFFER_END_length)) * 4,
+              "huc av1 brc slb layout");
+static_assert(ANV_AV1_BRC_SLB_SIZE ==
+              ALIGN_POT(ANV_AV1_BRC_SLB_PIC_STATE_OFFSET +
+                    (GENX(AVP_PIC_STATE_length) + GENX(MI_BATCH_BUFFER_END_length)) * 4, 64),
+              "huc av1 brc slb layout");
+
+static const int8_t anv_av1_brc_inst_rate_thresh_i[4] = {
+    30,  50,  90, 115,
+};
+
+static const int8_t anv_av1_brc_inst_rate_thresh_p[4] = {
+    30,  50,  70, 120,
+};
+
+static const double anv_av1_brc_dev_thresh_i_neg[4] = {
+   0.80, 0.60, 0.34,  0.2,
+};
+
+static const double anv_av1_brc_dev_thresh_i_pos[4] = {
+    0.2,  0.4, 0.66,  0.9,
+};
+
+static const double anv_av1_brc_dev_thresh_pb_neg[4] = {
+   0.90, 0.66, 0.46,  0.3,
+};
+
+static const double anv_av1_brc_dev_thresh_pb_pos[4] = {
+    0.3, 0.46, 0.70, 0.90,
+};
+
+static const double anv_av1_brc_dev_thresh_vbr_neg[4] = {
+   0.90, 0.70, 0.50,  0.3,
+};
+
+static const double anv_av1_brc_dev_thresh_vbr_pos[4] = {
+    0.4,  0.5, 0.75, 0.90,
+};
+
+static const uint8_t anv_av1_brc_qp_threshold[4] = {
+    40,  80, 120, 180,
+};
+
+static const uint16_t anv_av1_brc_start_gadj_frame[4] = {
+    10,  50, 100, 150,
+};
+
+static const uint8_t anv_av1_brc_rate_ratio_threshold[6] = {
+    40,  75,  97, 103, 125, 160,
+};
+
+static const int8_t anv_av1_brc_rate_ratio_threshold_qp[7] = {
+   -6, -4, -2,  0,  2,  4,  6,
+};
+
+static const int8_t anv_av1_brc_start_gadj_mult[5] = {
+    1,  1,  3,  2,  1,
+};
+
+static const int8_t anv_av1_brc_start_gadj_div[5] = {
+   40,  5,  5,  3,  1,
+};
+
+static const uint8_t anv_av1_brc_dist_threshold[9] = {
+     4,  30,  60,  80, 120, 140, 200, 255,   0,
+};
+
+static const uint8_t anv_av1_brc_dist_threshold_b[9] = {
+     2,  20,  40,  70, 130, 160, 200, 255,   0,
+};
+
+static const int8_t anv_av1_brc_max_frame_mult_i[5] = {
+    8,  9, 10, 11, 12,
+};
+
+static const int8_t anv_av1_brc_max_frame_mult_p[5] = {
+    4,  5,  6,  6,  7,
+};
+
+static const int8_t anv_av1_brc_delta_qp_i[45] = {
+     2,   6,  10,  14,  18,
+     2,   4,   6,  10,  14,
+     0,   0,   2,   4,   8,
+     0,   0,   0,   2,   4,
+    -2,   0,   0,   0,   2,
+    -6,  -4,  -2,   0,   0,
+   -10,  -8,  -4,  -2,   0,
+   -14, -12,  -8,  -4,  -2,
+   -18, -14, -10,  -4,  -2,
+};
+
+static const int8_t anv_av1_brc_delta_qp_p[45] = {
+     2,   4,  10,  16,  20,
+     2,   4,   8,  12,  16,
+     0,   2,   4,   8,  12,
+     0,   0,   0,   2,   4,
+    -2,   0,   0,   0,   2,
+    -4,  -2,  -2,   0,   0,
+    -6,  -4,  -2,  -2,   0,
+   -10,  -6,  -4,  -2,   0,
+   -14, -12,  -8,  -4,  -2,
+};
+
+static const int8_t anv_av1_brc_dist_delta_qp_i[81] = {
+     0,   0,   0,   0,   0,   8,  12,  16,  20,
+     0,   0,   0,   0,   0,   6,  10,  14,  18,
+    -2,   0,   0,   0,   0,   6,   8,  12,  14,
+    -4,  -2,   0,   0,   0,   2,   4,   6,  10,
+    -6,  -4,  -2,   0,   0,   0,   2,   6,  10,
+    -8,  -4,  -2,   0,   0,   0,   2,   6,  10,
+   -10,  -6,  -4,  -2,   0,   0,   2,   6,  10,
+   -12,  -8,  -4,  -2,   0,   0,   2,   6,  10,
+   -12,  -8,  -4,  -2,   0,   0,   2,   6,  10,
+};
+
+static const int8_t anv_av1_brc_dist_delta_qp_p[81] = {
+     0,   0,   0,   0,   0,   6,  10,  14,  18,
+     0,   0,   0,   0,   0,   6,  10,  12,  16,
+    -2,   0,   0,   0,   0,   6,  10,  14,  16,
+    -4,  -2,   0,   0,   0,   4,   8,  10,  12,
+    -6,  -4,  -2,   0,   0,   0,   2,   8,  10,
+    -8,  -4,  -2,   0,   0,   0,   2,   8,  10,
+    -8,  -4,  -2,  -2,   0,   0,   0,   8,  10,
+    -8,  -6,  -4,  -2,   0,   0,   0,   2,  10,
+   -10,  -8,  -4,  -2,   0,   0,   0,   2,   8,
+};
+
+static const uint8_t anv_av1_brc_loop_filter_level_luma[256] = {
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,  1,  1,  2,
+    2,  2,  2,  2,  2,  2,  3,  3,  3,  3,  3,  3,  3,  4,  4,  4,
+    4,  4,  4,  4,  5,  5,  5,  5,  5,  5,  5,  6,  6,  6,  6,  6,
+    6,  7,  7,  7,  8,  8,  8,  8,  9,  9,  9,  9, 10, 10, 10, 10,
+   11, 11, 11, 11, 12, 12, 12, 12, 13, 13, 13, 14, 14, 14, 15, 15,
+   15, 16, 16, 16, 17, 17, 17, 17, 18, 18, 18, 19, 19, 20, 20, 20,
+   21, 21, 21, 22, 22, 22, 23, 23, 24, 24, 24, 25, 25, 25, 26, 26,
+   27, 27, 27, 28, 28, 29, 29, 29, 30, 30, 31, 31, 31, 32, 32, 33,
+   33, 34, 34, 34, 35, 35, 36, 36, 37, 37, 38, 38, 39, 39, 40, 41,
+   41, 42, 42, 43, 44, 45, 45, 46, 47, 48, 49, 50, 51, 52, 53, 55,
+   56, 58, 59, 61, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63,
+   63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63,
+   63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63, 63,
+};
+
+static const uint8_t anv_av1_brc_loop_filter_level_chroma[256] = {
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
+    0,  0,  0,  0,  0,  0,  0,  1,  1,  1,  1,  1,  1,  1,  1,  2,
+    2,  2,  2,  2,  2,  2,  2,  2,  2,  3,  3,  3,  3,  3,  3,  3,
+    3,  3,  3,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,
+    5,  5,  5,  5,  5,  5,  5,  5,  6,  6,  6,  6,  6,  6,  6,  6,
+    6,  6,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  7,  8,  8,
+    8,  8,  8,  8,  8,  8,  8,  8,  9,  9,  9,  9,  9,  9,  9, 10,
+   10, 10, 10, 10, 11, 11, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15,
+   16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 28, 30, 31, 31, 31, 31,
+   31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+   31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+   31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+   31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+   31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31, 31,
+};
+
+static const uint32_t anv_av1_brc_mode_costs_i[52 * 6] = {
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+};
+
+static const uint32_t anv_av1_brc_mode_costs_p[52 * 6] = {
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+   0x10102f1e, 0x001e1515, 0x00000000, 0x00000000, 0x00000000, 0x00000000,
+};
+
+#endif /* GFX_VERx10 == 125 */
+
 #endif /* GENX_HUC_BRC_H */
