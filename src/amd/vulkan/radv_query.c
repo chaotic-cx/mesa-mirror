@@ -2488,6 +2488,7 @@ radv_CmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uin
     */
    cmd_buffer->state.flush_bits |= cmd_buffer->active_query_flush_bits;
 
+   radv_suspend_conditional_rendering(cmd_buffer);
    radv_meta_begin(cmd_buffer);
 
    flush_bits |= radv_fill_buffer(cmd_buffer, pool->bo, radv_buffer_get_va(pool->bo) + firstQuery * pool->stride,
@@ -2501,6 +2502,7 @@ radv_CmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool, uin
    }
 
    radv_meta_end(cmd_buffer);
+   radv_resume_conditional_rendering(cmd_buffer);
 
    if (flush_bits) {
       cmd_buffer->pending_reset_query = true;
