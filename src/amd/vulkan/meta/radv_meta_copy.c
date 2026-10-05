@@ -197,6 +197,39 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
       .layerCount = vk_image_subresource_layer_count(&image->vk, subresource),
    };
 
+   const bool is_partial_region = offset->x || offset->y || offset->z || extent->width != image->vk.extent.width ||
+                                  extent->height != image->vk.extent.height || extent->depth != image->vk.extent.depth;
+   const uint32_t queue_mask = radv_image_queue_family_mask(image, cmd_buffer->qf);
+
+   if (vk_format_is_color(image->vk.format)) {
+      if (!radv_layout_dcc_compressed(device, image, subresource->mipLevel, image_layout, queue_mask))
+         return;
+
+      /* Nothing to do when compressed DCC writes are supported. */
+      if (radv_image_compress_dcc_on_image_stores(device, image))
+         return;
+
+      /* This only executes on GFX8-9 where image stores with DCC are unsupported. */
+      if (before) {
+         /* For partial regions, DCC is decompressed before because image stores don't write the
+          * uncompressed byte to DCC. And then it's needed to re-initialize DCC to its uncompressed
+          * state after the copy.
+          */
+         if (is_partial_region)
+            radv_decompress_dcc(cmd_buffer, image, &range);
+      } else {
+         /* Fixup DCC after a copy on compute, but not for partial copies because decompressing the
+          * image also means that DCC is re-initialized to its uncompressed state.
+          */
+         if (!is_partial_region) {
+            cmd_buffer->state.flush_bits |= radv_clear_dcc(cmd_buffer, image, &range, DCC_UNCOMPRESSED);
+
+            radv_update_dcc_metadata(cmd_buffer, image, &range, false);
+         }
+      }
+      return;
+   }
+
    if (pdev->info.gfx_level >= GFX12) {
       /* Expand HiZ to [0,1] because image stores to the Z image have no access to HiZ data. This
        * executes in parallel with the caller's dispatch.
@@ -207,10 +240,6 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
       if (!radv_htile_enabled(image, subresource->mipLevel))
          return;
 
-      const bool is_partial_region = offset->x || offset->y || offset->z || extent->width != image->vk.extent.width ||
-                                     extent->height != image->vk.extent.height ||
-                                     extent->depth != image->vk.extent.depth;
-      const uint32_t queue_mask = radv_image_queue_family_mask(image, cmd_buffer->qf);
       const bool has_zs_compression =
          radv_layout_is_htile_compressed(device, image, subresource->mipLevel, image_layout, queue_mask);
       const bool image_stores_decompress = radv_image_decompress_htile_on_image_stores(device, image);
@@ -311,14 +340,21 @@ gfx_or_compute_copy_memory_to_image(struct radv_cmd_buffer *cmd_buffer, VkAddres
                                      queue_mask)) {
          radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
 
-         radv_decompress_dcc(cmd_buffer, image,
-                             &(VkImageSubresourceRange){
-                                .aspectMask = region->imageSubresource.aspectMask,
-                                .baseMipLevel = region->imageSubresource.mipLevel,
-                                .levelCount = 1,
-                                .baseArrayLayer = region->imageSubresource.baseArrayLayer,
-                                .layerCount = vk_image_subresource_layer_count(&image->vk, &region->imageSubresource),
-                             });
+         /* DCC decompression is done by radv_meta_fixup_dst_metadata for compute when image stores with DCC
+          * are unsupported. radv_meta_fixup_dst_metadata doesn't currently handle incompatible DCC formats,
+          * so we need to decompress for those. (TODO: do that in radv_meta_fixup_dst_metadata too)
+          */
+         if (!use_compute || radv_image_compress_dcc_on_image_stores(device, image)) {
+            radv_decompress_dcc(
+               cmd_buffer, image,
+               &(VkImageSubresourceRange){
+                  .aspectMask = region->imageSubresource.aspectMask,
+                  .baseMipLevel = region->imageSubresource.mipLevel,
+                  .levelCount = 1,
+                  .baseArrayLayer = region->imageSubresource.baseArrayLayer,
+                  .layerCount = vk_image_subresource_layer_count(&image->vk, &region->imageSubresource),
+               });
+         }
          img_bsurf.disable_compression = true;
 
          radv_describe_barrier_end(cmd_buffer);
@@ -846,7 +882,11 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
       dst_format = radv_get_compat_color_ds_format(dst_image->vk.format);
    }
 
-   if (dst_needs_dcc_decompress) {
+   /* DCC decompression is done by radv_meta_fixup_dst_metadata for compute when image stores with DCC
+    * are unsupported. radv_meta_fixup_dst_metadata doesn't currently handle incompatible DCC formats,
+    * so we need to decompress for those. (TODO: do that in radv_meta_fixup_dst_metadata too)
+    */
+   if (dst_needs_dcc_decompress && (!use_compute || radv_image_compress_dcc_on_image_stores(device, dst_image))) {
       radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
       radv_decompress_dcc(cmd_buffer, dst_image,
                           &(VkImageSubresourceRange){
