@@ -666,26 +666,13 @@ brw_generator::generate_shuffle(brw_inst *inst,
          lower_width == dispatch_width;
       gen_inst *gen;
 
-      /* Due to a hardware bug some platforms (particularly Gfx11+) seem
-       * to require the address components of all channels to be valid
-       * whether or not they're active, which causes issues if we use VxH
-       * addressing under non-uniform control-flow.  We can easily work
-       * around that by initializing the whole address register with a
-       * pipelined NoMask MOV instruction.
-       */
-      gen = append_MOV(addr, brw_imm_uw(src_start_offset));
-      gen->no_mask = true;
-      gen->pred_control = GEN_PREDICATE_NONE;
-      if (devinfo->ver >= 12)
-         current_state()->swsb = gen_swsb_null();
-      else
-         gen->no_dd_clear = use_dep_ctrl;
-
       /* Take into account the component size and horizontal stride. */
       assert(src.vstride == src.hstride + src.width);
       gen = append(BRW_OPCODE_SHL, addr, group_idx,
                    brw_imm_uw(util_logbase2(brw_type_size_bytes(src.type)) +
                               src.hstride - 1));
+      gen->no_mask = true;
+      gen->pred_control = GEN_PREDICATE_NONE;
       if (devinfo->ver >= 12)
          current_state()->swsb = gen_swsb_regdist(1);
       else

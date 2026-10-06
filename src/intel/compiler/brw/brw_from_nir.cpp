@@ -5516,15 +5516,13 @@ brw_from_nir_emit_intrinsic(nir_to_brw_state &ntb,
       const brw_reg value = get_nir_src(ntb, instr->src[0], 0);
       brw_reg index = get_nir_src(ntb, instr->src[1], 0);
 
-      if (devinfo->ver >= 30) {
-         /* Mask index to constrain it to be within the valid range in
-          * order to avoid potentially reading past the end of the GRF
-          * file, which can lead to hangs on Xe3+ with VRT enabled.
-          */
-         const brw_reg tmp = bld.vgrf(BRW_TYPE_UD);
-         bld.AND(tmp, index, brw_imm_ud(s.dispatch_width - 1));
-         index = tmp;
-      }
+      /* Mask index to constrain it to be within the valid range. This allows
+       * MOVI promotions without risking hangs.
+       */
+      const brw_builder ubld = bld.exec_all();
+      const brw_reg tmp = ubld.vgrf(BRW_TYPE_UD);
+      ubld.AND(tmp, index, brw_imm_ud(s.dispatch_width - 1));
+      index = tmp;
 
       bld.emit(SHADER_OPCODE_SHUFFLE, retype(dest, value.type), value, index);
       break;
