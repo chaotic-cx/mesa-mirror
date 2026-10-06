@@ -260,7 +260,7 @@ kk_get_device_features(
       .shaderUniformBufferArrayDynamicIndexing = true,
       .tessellationShader = true,
       .textureCompressionASTC_LDR = true,
-      .textureCompressionBC = true,
+      .textureCompressionBC = pdev->info.supports_bc_texture_compression,
       .textureCompressionETC2 = true,
       .vertexPipelineStoresAndAtomics = true,
 
@@ -1054,6 +1054,8 @@ get_metal_limits(struct kk_physical_device *pdev)
       mtl_device_max_buffer_length(pdev->mtl_dev_handle);
    pdev->info.max_sampler_count =
       mtl_device_max_argument_buffer_sampler_count(pdev->mtl_dev_handle);
+   pdev->info.supports_bc_texture_compression =
+      mtl_device_supports_bc_texture_compression(pdev->mtl_dev_handle);
    pdev->info.gpu_apple_family =
       mtl_device_get_gpu_apple_family(pdev->mtl_dev_handle);
 

@@ -89,6 +89,12 @@ mtl_device_max_argument_buffer_sampler_count(mtl_device *dev)
    return 0u;
 }
 
+bool
+mtl_device_supports_bc_texture_compression(mtl_device *dev)
+{
+   return false;
+}
+
 /* Timestamp query */
 uint64_t
 mtl_device_get_gpu_timestamp(mtl_device *dev)

@@ -46,6 +46,7 @@ struct kk_device_info {
    uint32_t rendering_tile_width;
    uint32_t rendering_tile_height;
    VkSampleCountFlags supported_sample_counts;
+   bool supports_bc_texture_compression;
 };
 
 struct kk_env_settings {

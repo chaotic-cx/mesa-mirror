@@ -21,12 +21,42 @@
 #include "vk_format.h"
 #include "wsi_common_private.h"
 
+static bool
+vk_format_is_bc(VkFormat format)
+{
+   switch (format) {
+   case VK_FORMAT_BC1_RGB_SRGB_BLOCK:
+   case VK_FORMAT_BC1_RGB_UNORM_BLOCK:
+   case VK_FORMAT_BC1_RGBA_SRGB_BLOCK:
+   case VK_FORMAT_BC1_RGBA_UNORM_BLOCK:
+   case VK_FORMAT_BC2_SRGB_BLOCK:
+   case VK_FORMAT_BC2_UNORM_BLOCK:
+   case VK_FORMAT_BC3_UNORM_BLOCK:
+   case VK_FORMAT_BC3_SRGB_BLOCK:
+   case VK_FORMAT_BC4_UNORM_BLOCK:
+   case VK_FORMAT_BC4_SNORM_BLOCK:
+   case VK_FORMAT_BC5_UNORM_BLOCK:
+   case VK_FORMAT_BC5_SNORM_BLOCK:
+   case VK_FORMAT_BC6H_UFLOAT_BLOCK:
+   case VK_FORMAT_BC6H_SFLOAT_BLOCK:
+   case VK_FORMAT_BC7_UNORM_BLOCK:
+   case VK_FORMAT_BC7_SRGB_BLOCK:
+      return true;
+   default:
+      return false;
+   }
+}
+
 static VkFormatFeatureFlags2
 kk_get_image_plane_format_features(struct kk_physical_device *pdev,
                                    VkFormat vk_format, VkImageTiling tiling,
                                    uint64_t drm_format_mod)
 {
    VkFormatFeatureFlags2 features = 0;
+
+   if (!pdev->info.supports_bc_texture_compression &&
+       vk_format_is_bc(vk_format))
+      return 0;
 
    /* Metal does not support linear tiling for compressed formats */
    if (tiling == VK_IMAGE_TILING_LINEAR && vk_format_is_compressed(vk_format))

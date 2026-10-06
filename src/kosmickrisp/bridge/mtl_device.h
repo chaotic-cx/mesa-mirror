@@ -36,6 +36,7 @@ uint64_t mtl_device_max_buffer_length(mtl_device *dev);
 uint64_t mtl_device_recommended_max_working_set_size(mtl_device *dev);
 uint64_t mtl_device_current_allocated_size(mtl_device *dev);
 uint32_t mtl_device_max_argument_buffer_sampler_count(mtl_device *dev);
+bool mtl_device_supports_bc_texture_compression(mtl_device *dev);
 
 /* Timestamp query */
 uint64_t mtl_device_get_gpu_timestamp(mtl_device *dev);
