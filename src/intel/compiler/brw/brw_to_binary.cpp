@@ -622,91 +622,79 @@ brw_generator::generate_shuffle(brw_inst *inst,
    for (unsigned group = 0; group < inst->exec_size; group += lower_width) {
       current_state()->chan_offset = group;
 
-      if ((src.vstride == 0 && src.hstride == 0) ||
-          idx.file == IMM) {
-         /* Trivial, the source is already uniform or the index is a constant.
-          * We will typically not get here if the optimizer is doing its job,
-          * but asserting would be mean.
-          */
-         const unsigned i = idx.file == IMM ? idx.ud : 0;
-         struct brw_reg group_src = stride(suboffset(src, i), 0, 1, 0);
-         struct brw_reg group_dst = suboffset(dst, group << (dst.hstride - 1));
-         append_MOV(group_dst, group_src);
-      } else {
-         /* We use VxH indirect addressing, clobbering a0.0 through a0.7. */
-         struct brw_reg addr = vec8(brw_address_reg(0));
+      /* We use VxH indirect addressing, clobbering a0.0 through a0.7. */
+      struct brw_reg addr = vec8(brw_address_reg(0));
 
-         struct brw_reg group_idx = idx.is_scalar || is_uniform(idx) ?
-            component(idx, 0) : suboffset(idx, group);
+      struct brw_reg group_idx = idx.is_scalar || is_uniform(idx) ?
+         component(idx, 0) : suboffset(idx, group);
 
-         if (lower_width == 8 && group_idx.width == BRW_WIDTH_16) {
-            /* Things get grumpy if the register is too wide. */
-            group_idx.width--;
-            group_idx.vstride--;
-         }
-
-         assert(brw_type_size_bytes(group_idx.type) <= 4);
-         if (brw_type_size_bytes(group_idx.type) == 4) {
-            /* The destination stride of an instruction (in bytes) must be
-             * greater than or equal to the size of the rest of the
-             * instruction.  Since the address register is of type UW, we
-             * can't use a D-type instruction.  In order to get around this,
-             * re retype to UW and use a stride.
-             */
-            group_idx = retype(spread(group_idx, 2), BRW_TYPE_W);
-         }
-
-         uint32_t src_start_offset = src.nr * REG_SIZE + src.subnr;
-
-         /* From the Haswell PRM:
-          *
-          *    "When a sequence of NoDDChk and NoDDClr are used, the last
-          *    instruction that completes the scoreboard clear must have a
-          *    non-zero execution mask. This means, if any kind of predication
-          *    can change the execution mask or channel enable of the last
-          *    instruction, the optimization must be avoided.  This is to
-          *    avoid instructions being shot down the pipeline when no writes
-          *    are required."
-          *
-          * Whenever predication is enabled or the instructions being emitted
-          * aren't the full width, it's possible that it will be run with zero
-          * channels enabled so we can't use dependency control without
-          * running the risk of a hang if an instruction gets shot down.
-          */
-         const bool use_dep_ctrl = !inst->predicate &&
-                                   lower_width == dispatch_width;
-         gen_inst *gen;
-
-         /* Due to a hardware bug some platforms (particularly Gfx11+) seem
-          * to require the address components of all channels to be valid
-          * whether or not they're active, which causes issues if we use VxH
-          * addressing under non-uniform control-flow.  We can easily work
-          * around that by initializing the whole address register with a
-          * pipelined NoMask MOV instruction.
-          */
-         gen = append_MOV(addr, brw_imm_uw(src_start_offset));
-         gen->no_mask = true;
-         gen->pred_control = GEN_PREDICATE_NONE;
-         if (devinfo->ver >= 12)
-            current_state()->swsb = gen_swsb_null();
-         else
-            gen->no_dd_clear = use_dep_ctrl;
-
-         /* Take into account the component size and horizontal stride. */
-         assert(src.vstride == src.hstride + src.width);
-         gen = append(BRW_OPCODE_SHL, addr, group_idx,
-                      brw_imm_uw(util_logbase2(brw_type_size_bytes(src.type)) +
-                                 src.hstride - 1));
-         if (devinfo->ver >= 12)
-            current_state()->swsb = gen_swsb_regdist(1);
-         else
-            gen->no_dd_check = use_dep_ctrl;
-
-         /* Add on the register start offset */
-         append(BRW_OPCODE_ADD, addr, addr, brw_imm_uw(src_start_offset));
-         append(BRW_OPCODE_MOV, suboffset(dst, group << (dst.hstride - 1)),
-                                retype(brw_VxH_indirect(0, 0), src.type));
+      if (lower_width == 8 && group_idx.width == BRW_WIDTH_16) {
+         /* Things get grumpy if the register is too wide. */
+         group_idx.width--;
+         group_idx.vstride--;
       }
+
+      assert(brw_type_size_bytes(group_idx.type) <= 4);
+      if (brw_type_size_bytes(group_idx.type) == 4) {
+         /* The destination stride of an instruction (in bytes) must be
+          * greater than or equal to the size of the rest of the
+          * instruction.  Since the address register is of type UW, we
+          * can't use a D-type instruction.  In order to get around this,
+          * re retype to UW and use a stride.
+          */
+         group_idx = retype(spread(group_idx, 2), BRW_TYPE_W);
+      }
+
+      uint32_t src_start_offset = src.nr * REG_SIZE + src.subnr;
+
+      /* From the Haswell PRM:
+       *
+       *    "When a sequence of NoDDChk and NoDDClr are used, the last
+       *    instruction that completes the scoreboard clear must have a
+       *    non-zero execution mask. This means, if any kind of predication
+       *    can change the execution mask or channel enable of the last
+       *    instruction, the optimization must be avoided.  This is to
+       *    avoid instructions being shot down the pipeline when no writes
+       *    are required."
+       *
+       * Whenever predication is enabled or the instructions being emitted
+       * aren't the full width, it's possible that it will be run with zero
+       * channels enabled so we can't use dependency control without
+       * running the risk of a hang if an instruction gets shot down.
+       */
+      const bool use_dep_ctrl = !inst->predicate &&
+         lower_width == dispatch_width;
+      gen_inst *gen;
+
+      /* Due to a hardware bug some platforms (particularly Gfx11+) seem
+       * to require the address components of all channels to be valid
+       * whether or not they're active, which causes issues if we use VxH
+       * addressing under non-uniform control-flow.  We can easily work
+       * around that by initializing the whole address register with a
+       * pipelined NoMask MOV instruction.
+       */
+      gen = append_MOV(addr, brw_imm_uw(src_start_offset));
+      gen->no_mask = true;
+      gen->pred_control = GEN_PREDICATE_NONE;
+      if (devinfo->ver >= 12)
+         current_state()->swsb = gen_swsb_null();
+      else
+         gen->no_dd_clear = use_dep_ctrl;
+
+      /* Take into account the component size and horizontal stride. */
+      assert(src.vstride == src.hstride + src.width);
+      gen = append(BRW_OPCODE_SHL, addr, group_idx,
+                   brw_imm_uw(util_logbase2(brw_type_size_bytes(src.type)) +
+                              src.hstride - 1));
+      if (devinfo->ver >= 12)
+         current_state()->swsb = gen_swsb_regdist(1);
+      else
+         gen->no_dd_check = use_dep_ctrl;
+
+      /* Add on the register start offset */
+      append(BRW_OPCODE_ADD, addr, addr, brw_imm_uw(src_start_offset));
+      append(BRW_OPCODE_MOV, suboffset(dst, group << (dst.hstride - 1)),
+             retype(brw_VxH_indirect(0, 0), src.type));
 
       current_state()->swsb = gen_swsb_null();
    }
