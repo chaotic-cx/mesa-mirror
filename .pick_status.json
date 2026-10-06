@@ -604,7 +604,7 @@
         "description": "panvk: fix null pointer dereference in shader variant helpers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ff9907927fe06d0247e24c9e804444325168ee8e",
         "notes": null
