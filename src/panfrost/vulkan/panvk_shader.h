@@ -508,13 +508,15 @@ panvk_shader_variant_get_dev_addr(const struct panvk_shader_variant *shader)
 }
 
 #define panvk_shader_foreach_variant(__shader, __var)                          \
-   for (struct panvk_shader_variant *__var = (__shader)->variants;             \
+   for (struct panvk_shader_variant *__var = (__shader) ?                      \
+                                             (__shader)->variants : NULL;      \
         (__shader) && __var < (__shader)->variants +                           \
                    panvk_shader_num_variants((__shader)->vk.stage);            \
         ++__var)
 
 #define panvk_shader_foreach_variant_const(__shader, __var)                    \
-   for (const struct panvk_shader_variant *__var = (__shader)->variants;       \
+   for (const struct panvk_shader_variant *__var = (__shader) ?                \
+                                                   (__shader)->variants : NULL;\
         (__shader) && __var < (__shader)->variants +                           \
                    panvk_shader_num_variants((__shader)->vk.stage);            \
         ++__var)
