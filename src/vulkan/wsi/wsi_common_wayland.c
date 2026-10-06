@@ -146,6 +146,8 @@ struct wsi_wl_display {
    struct {
       bool mastering_display_primaries;
       bool extended_target_volume;
+      bool windows_scrgb;
+      bool windows_bt2100;
    } color_features;
 };
 
@@ -1049,6 +1051,8 @@ struct Colorspace {
    enum wp_color_manager_v1_transfer_function tf;
    bool should_use_hdr_metadata;
    bool needs_extended_range;
+   bool windows_scrgb;
+   bool windows_bt2100;
 };
 struct Colorspace colorspace_mapping[] = {
    {
@@ -1057,6 +1061,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
       .should_use_hdr_metadata = false,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = false,
    },
    {
       .colorspace = VK_COLOR_SPACE_DISPLAY_P3_NONLINEAR_EXT,
@@ -1064,6 +1070,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_SRGB,
       .should_use_hdr_metadata = false,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = false,
    },
    {
       .colorspace = VK_COLOR_SPACE_EXTENDED_SRGB_LINEAR_EXT,
@@ -1071,6 +1079,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR,
       .should_use_hdr_metadata = true,
       .needs_extended_range = true,
+      .windows_scrgb = true,
+      .windows_bt2100 = false,
    },
    {
       .colorspace = VK_COLOR_SPACE_DISPLAY_P3_LINEAR_EXT,
@@ -1078,6 +1088,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR,
       .should_use_hdr_metadata = false,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = false,
    },
    {
       .colorspace = VK_COLOR_SPACE_BT709_LINEAR_EXT,
@@ -1085,6 +1097,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR,
       .should_use_hdr_metadata = false,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = false,
    },
    {
       .colorspace = VK_COLOR_SPACE_BT709_NONLINEAR_EXT,
@@ -1092,6 +1106,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_BT1886,
       .should_use_hdr_metadata = false,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = false,
    },
    {
       .colorspace = VK_COLOR_SPACE_BT2020_LINEAR_EXT,
@@ -1099,6 +1115,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR,
       .should_use_hdr_metadata = false,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = false,
    },
    {
       .colorspace = VK_COLOR_SPACE_HDR10_ST2084_EXT,
@@ -1106,6 +1124,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_ST2084_PQ,
       .should_use_hdr_metadata = true,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = true,
    },
    /* VK_COLOR_SPACE_DOLBYVISION_EXT is left out because it's deprecated */
    {
@@ -1114,6 +1134,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_HLG,
       .should_use_hdr_metadata = true,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = false,
    },
    {
       .colorspace = VK_COLOR_SPACE_ADOBERGB_LINEAR_EXT,
@@ -1121,6 +1143,8 @@ struct Colorspace colorspace_mapping[] = {
       .tf = WP_COLOR_MANAGER_V1_TRANSFER_FUNCTION_EXT_LINEAR,
       .should_use_hdr_metadata = false,
       .needs_extended_range = false,
+      .windows_scrgb = false,
+      .windows_bt2100 = false,
    },
    /* VK_COLOR_SPACE_ADOBERGB_NONLINEAR_EXT is left out because there's no
     * exactly matching transfer function in the Wayland protocol */
@@ -1196,6 +1220,12 @@ color_management_handle_supported_features(void *data,
    case WP_COLOR_MANAGER_V1_FEATURE_EXTENDED_TARGET_VOLUME:
       display->color_features.extended_target_volume = true;
       break;
+   case WP_COLOR_MANAGER_V1_FEATURE_WINDOWS_SCRGB:
+      display->color_features.windows_scrgb = true;
+      break;
+   case WP_COLOR_MANAGER_V1_FEATURE_WINDOWS_BT2100:
+      display->color_features.windows_bt2100 = true;
+      break;
    default:
       break;
    }
@@ -1262,9 +1292,20 @@ color_management_handle_image_desc_ready(void *data,
    *status = ready;
 }
 
+static void
+color_management_handle_image_desc_ready2(void *data,
+                                          struct wp_image_description_v1 *desc,
+                                          uint32_t identity_hi,
+                                          uint32_t identity_lo)
+{
+   enum image_description_status *status = data;
+   *status = ready;
+}
+
 static const struct wp_image_description_v1_listener image_description_listener = {
    .failed = color_management_handle_image_desc_failed,
    .ready = color_management_handle_image_desc_ready,
+   .ready2 = color_management_handle_image_desc_ready2,
 };
 
 static bool
@@ -1339,6 +1380,7 @@ wsi_wl_swapchain_update_colorspace(struct wsi_wl_swapchain *chain)
 {
    struct wsi_wl_surface *surface = chain->wsi_wl_surface;
    struct wsi_wl_display *display = surface->display;
+   struct wp_image_description_v1 *image_desc = NULL;
 
    /* we need the color management extension for
     * everything except sRGB and PASS_THROUGH */
@@ -1357,6 +1399,8 @@ wsi_wl_swapchain_update_colorspace(struct wsi_wl_swapchain *chain)
       .max_cll = round(chain->color.pending.hdr_metadata.maxContentLightLevel),
    };
    bool should_use_hdr_metadata = chain->color.pending.has_hdr_metadata;
+   bool windows_scrgb = false;
+   bool windows_bt2100 = false;
    if (should_use_hdr_metadata) {
       should_use_hdr_metadata &= is_hdr_metadata_legal(&wayland_hdr_metadata);
       if (!should_use_hdr_metadata)
@@ -1364,7 +1408,10 @@ wsi_wl_swapchain_update_colorspace(struct wsi_wl_swapchain *chain)
    }
    for (int i = 0; i < ARRAY_SIZE(colorspace_mapping); i++) {
       if (colorspace_mapping[i].colorspace == chain->color.colorspace) {
+         windows_scrgb = display->color_features.windows_scrgb && colorspace_mapping[i].windows_scrgb;
+         windows_bt2100 = display->color_features.windows_bt2100 && colorspace_mapping[i].windows_bt2100;
          should_use_hdr_metadata &= colorspace_mapping[i].should_use_hdr_metadata;
+         should_use_hdr_metadata &= !windows_scrgb && !windows_bt2100;
          break;
       }
    }
@@ -1386,58 +1433,62 @@ wsi_wl_swapchain_update_colorspace(struct wsi_wl_swapchain *chain)
    if (!chain->color.color_surface)
       return VK_ERROR_SURFACE_LOST_KHR;
 
-   struct wp_image_description_creator_params_v1 *creator =
-      wp_color_manager_v1_create_parametric_creator(display->color_manager);
+   if (windows_scrgb) {
+      image_desc = wp_color_manager_v1_create_windows_scrgb(display->color_manager);
+   } else if (windows_bt2100) {
+      image_desc = wp_color_manager_v1_create_windows_bt2100(display->color_manager);
+   } else {
+      struct wp_image_description_creator_params_v1 *creator =
+         wp_color_manager_v1_create_parametric_creator(display->color_manager);
 
-   if (!creator)
-      return VK_ERROR_SURFACE_LOST_KHR;
+      if (!creator)
+         return VK_ERROR_SURFACE_LOST_KHR;
 
-   unsigned int primaries = 0;
-   unsigned int tf = 0;
-   for (int i = 0; i < ARRAY_SIZE(colorspace_mapping); i++) {
-      if (colorspace_mapping[i].colorspace == chain->color.colorspace) {
-         primaries = colorspace_mapping[i].primaries;
-         tf = colorspace_mapping[i].tf;
-      }
-   }
-
-   if (!primaries)
-      return VK_ERROR_SURFACE_LOST_KHR;
-
-   wp_image_description_creator_params_v1_set_primaries_named(creator, primaries);
-   wp_image_description_creator_params_v1_set_tf_named(creator, tf);
-   if (should_use_hdr_metadata) {
-      wp_image_description_creator_params_v1_set_max_cll(creator, wayland_hdr_metadata.max_cll);
-      wp_image_description_creator_params_v1_set_max_fall(creator, wayland_hdr_metadata.max_fall);
-      if (display->color_features.mastering_display_primaries) {
-         uint32_t red_x = round(chain->color.current.hdr_metadata.displayPrimaryRed.x * 1000000);
-         uint32_t red_y = round(chain->color.current.hdr_metadata.displayPrimaryRed.y * 1000000);
-         uint32_t green_x = round(chain->color.current.hdr_metadata.displayPrimaryGreen.x * 1000000);
-         uint32_t green_y = round(chain->color.current.hdr_metadata.displayPrimaryGreen.y * 1000000);
-         uint32_t blue_x = round(chain->color.current.hdr_metadata.displayPrimaryBlue.x * 1000000);
-         uint32_t blue_y = round(chain->color.current.hdr_metadata.displayPrimaryBlue.y * 1000000);
-         uint32_t white_x = round(chain->color.current.hdr_metadata.whitePoint.x * 1000000);
-         uint32_t white_y = round(chain->color.current.hdr_metadata.whitePoint.y * 1000000);
-         wp_image_description_creator_params_v1_set_mastering_display_primaries(creator, red_x, red_y,
-                                                                                green_x, green_y,
-                                                                                blue_x, blue_y,
-                                                                                white_x, white_y);
-
-         /* A max_luminance of 0 is legal by spec and means "undefined", but would cause a
-          * Wayland protocol error, so skip setting mastering luminance for zero value.
-          */
-         if (wayland_hdr_metadata.max_luminance != 0) {
-            wp_image_description_creator_params_v1_set_mastering_luminance(creator,
-                                                                           wayland_hdr_metadata.min_luminance,
-                                                                           wayland_hdr_metadata.max_luminance);
+      unsigned int primaries = 0;
+      unsigned int tf = 0;
+      for (int i = 0; i < ARRAY_SIZE(colorspace_mapping); i++) {
+         if (colorspace_mapping[i].colorspace == chain->color.colorspace) {
+            primaries = colorspace_mapping[i].primaries;
+            tf = colorspace_mapping[i].tf;
          }
       }
+
+      if (!primaries)
+         return VK_ERROR_SURFACE_LOST_KHR;
+
+      wp_image_description_creator_params_v1_set_primaries_named(creator, primaries);
+      wp_image_description_creator_params_v1_set_tf_named(creator, tf);
+      if (should_use_hdr_metadata) {
+         wp_image_description_creator_params_v1_set_max_cll(creator, wayland_hdr_metadata.max_cll);
+         wp_image_description_creator_params_v1_set_max_fall(creator, wayland_hdr_metadata.max_fall);
+         if (display->color_features.mastering_display_primaries) {
+            uint32_t red_x = round(chain->color.current.hdr_metadata.displayPrimaryRed.x * 1000000);
+            uint32_t red_y = round(chain->color.current.hdr_metadata.displayPrimaryRed.y * 1000000);
+            uint32_t green_x = round(chain->color.current.hdr_metadata.displayPrimaryGreen.x * 1000000);
+            uint32_t green_y = round(chain->color.current.hdr_metadata.displayPrimaryGreen.y * 1000000);
+            uint32_t blue_x = round(chain->color.current.hdr_metadata.displayPrimaryBlue.x * 1000000);
+            uint32_t blue_y = round(chain->color.current.hdr_metadata.displayPrimaryBlue.y * 1000000);
+            uint32_t white_x = round(chain->color.current.hdr_metadata.whitePoint.x * 1000000);
+            uint32_t white_y = round(chain->color.current.hdr_metadata.whitePoint.y * 1000000);
+            wp_image_description_creator_params_v1_set_mastering_display_primaries(creator, red_x, red_y,
+                                                                                   green_x, green_y,
+                                                                                   blue_x, blue_y,
+                                                                                   white_x, white_y);
+
+            /* A max_luminance of 0 is legal by spec and means "undefined", but would cause a
+             * Wayland protocol error, so skip setting mastering luminance for zero value.
+             */
+            if (wayland_hdr_metadata.max_luminance != 0) {
+               wp_image_description_creator_params_v1_set_mastering_luminance(creator,
+                                                                              wayland_hdr_metadata.min_luminance,
+                                                                              wayland_hdr_metadata.max_luminance);
+            }
+         }
+      }
+
+      image_desc = wp_image_description_creator_params_v1_create(creator);
    }
 
-   wl_proxy_set_queue((struct wl_proxy *) creator, display->queue);
-
-   struct wp_image_description_v1 *image_desc =
-      wp_image_description_creator_params_v1_create(creator);
    if (!image_desc)
       return VK_ERROR_SURFACE_LOST_KHR;
 
@@ -1544,8 +1595,9 @@ registry_handle_global(void *data, struct wl_registry *registry,
    }
 
    if (strcmp(interface, wp_color_manager_v1_interface.name) == 0) {
+      const uint32_t color_version = version >= 3 ? 3 : 1;
       display->color_manager =
-         wl_registry_bind(registry, name, &wp_color_manager_v1_interface, 1);
+         wl_registry_bind(registry, name, &wp_color_manager_v1_interface, color_version);
 
       u_vector_init(&display->color_primaries, 8, sizeof(uint32_t));
       u_vector_init(&display->color_transfer_funcs, 8, sizeof(uint32_t));
