@@ -96,6 +96,7 @@ struct egl_device_info {
 /**
  * The API dispatcher jumps through these functions
  */
+extern const struct _egl_driver _eglDriver;
 struct _egl_driver {
    /* driver funcs */
    EGLBoolean (*Initialize)(_EGLDisplay *disp);

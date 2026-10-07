@@ -116,7 +116,6 @@ _EGLDevice _eglSoftwareDevice = {
 };
 
 #ifdef HAVE_LIBDRM
-extern const _EGLDriver _eglDriver;
 /*
  * Negative value on error, zero if newly added, one if already in list.
  */

@@ -197,8 +197,6 @@ _egl_relax_end(_EGLDisplay *disp, _EGLResource **rs, unsigned rs_count)
                           _egl_relax_begin(disp, __rs, ARRAY_SIZE(__rs));      \
         __rsp; __rsp = _egl_relax_end(disp, __rs, ARRAY_SIZE(__rs)))
 
-extern const _EGLDriver _eglDriver;
-
 struct _egl_entrypoint {
    const char *name;
    _EGLProc function;
