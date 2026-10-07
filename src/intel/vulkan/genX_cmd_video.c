@@ -129,7 +129,18 @@ genX(CmdControlVideoCodingKHR)(VkCommandBuffer commandBuffer,
             vk_find_struct_const(layer->pNext, VIDEO_ENCODE_H265_RATE_CONTROL_LAYER_INFO_KHR);
          const VkVideoEncodeH264RateControlLayerInfoKHR *h264_layer =
             vk_find_struct_const(layer->pNext, VIDEO_ENCODE_H264_RATE_CONTROL_LAYER_INFO_KHR);
-         if (h265_layer) {
+         const VkVideoEncodeAV1RateControlLayerInfoKHR *av1_layer =
+            vk_find_struct_const(layer->pNext, VIDEO_ENCODE_AV1_RATE_CONTROL_LAYER_INFO_KHR);
+         if (av1_layer) {
+            if (av1_layer->useMinQIndex)
+               rc->min_qp = MIN3(av1_layer->minQIndex.intraQIndex,
+                                 av1_layer->minQIndex.predictiveQIndex,
+                                 av1_layer->minQIndex.bipredictiveQIndex);
+            if (av1_layer->useMaxQIndex)
+               rc->max_qp = MAX3(av1_layer->maxQIndex.intraQIndex,
+                                 av1_layer->maxQIndex.predictiveQIndex,
+                                 av1_layer->maxQIndex.bipredictiveQIndex);
+         } else if (h265_layer) {
             if (h265_layer->useMinQp)
                rc->min_qp = MIN3(h265_layer->minQp.qpI, h265_layer->minQp.qpP, h265_layer->minQp.qpB);
             if (h265_layer->useMaxQp)
@@ -146,7 +157,13 @@ genX(CmdControlVideoCodingKHR)(VkCommandBuffer commandBuffer,
          vk_find_struct_const(pCodingControlInfo->pNext, VIDEO_ENCODE_H265_RATE_CONTROL_INFO_KHR);
       const VkVideoEncodeH264RateControlInfoKHR *h264_rc =
          vk_find_struct_const(pCodingControlInfo->pNext, VIDEO_ENCODE_H264_RATE_CONTROL_INFO_KHR);
-      if (h265_rc) {
+      const VkVideoEncodeAV1RateControlInfoKHR *av1_rc =
+         vk_find_struct_const(pCodingControlInfo->pNext, VIDEO_ENCODE_AV1_RATE_CONTROL_INFO_KHR);
+      if (av1_rc) {
+         rc->gop_frame_count = av1_rc->gopFrameCount;
+         rc->idr_period = av1_rc->keyFramePeriod;
+         rc->consecutive_b_frames = av1_rc->consecutiveBipredictiveFrameCount;
+      } else if (h265_rc) {
          rc->gop_frame_count = h265_rc->gopFrameCount;
          rc->idr_period = h265_rc->idrPeriod;
          rc->consecutive_b_frames = h265_rc->consecutiveBFrameCount;
