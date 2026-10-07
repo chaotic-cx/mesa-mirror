@@ -438,7 +438,8 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
                                    VK_VIDEO_ENCODE_RATE_CONTROL_MODE_DISABLED_BIT_KHR;
 
       if (((pVideoProfile->videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR) ||
-           (pVideoProfile->videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR)) &&
+           (pVideoProfile->videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR) ||
+           (pVideoProfile->videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR)) &&
             anv_video_encode_brc_supported(pdevice)) {
          enc_caps->rateControlModes |= VK_VIDEO_ENCODE_RATE_CONTROL_MODE_CBR_BIT_KHR |
                                        VK_VIDEO_ENCODE_RATE_CONTROL_MODE_VBR_BIT_KHR;
