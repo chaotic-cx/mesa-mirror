@@ -5253,6 +5253,7 @@ jay_compile(const struct intel_device_info *devinfo,
       prog_data->cs.generate_local_id = params->cs.dispatch.generate_local_id;
       prog_data->cs.push = params->cs.push;
       prog_data->cs.uses_btd_stack_ids = params->cs.uses_btd_stack_ids;
+      prog_data->cs.force_simd32 = params->cs.force_simd32;
    }
 
    jay_process_nir(devinfo, params, &fs_perprim);

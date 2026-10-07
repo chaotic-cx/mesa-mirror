@@ -1314,6 +1314,7 @@ struct brw_compile_params {
    struct {
       struct intel_cs_dispatch_params dispatch;
       bool uses_btd_stack_ids;
+      bool force_simd32;
       struct brw_cs_push_const_info push;
    } cs;
 

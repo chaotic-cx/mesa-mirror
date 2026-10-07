@@ -35,6 +35,7 @@ struct jay_compile_params {
       bool uses_btd_stack_ids;
       struct intel_cs_dispatch_params dispatch;
       struct brw_cs_push_const_info push;
+      bool force_simd32;
    } cs;
 
    struct {

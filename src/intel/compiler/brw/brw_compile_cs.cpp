@@ -139,6 +139,7 @@ brw_compile_cs(const struct brw_compiler *compiler,
    prog_data->walk_order = params->cs.dispatch.walk_order;
    prog_data->push = params->cs.push;
    prog_data->uses_btd_stack_ids = params->cs.uses_btd_stack_ids;
+   prog_data->force_simd32 = params->cs.force_simd32;
 
    if (!nir->info.workgroup_size_variable) {
       prog_data->local_size[0] = nir->info.workgroup_size[0];

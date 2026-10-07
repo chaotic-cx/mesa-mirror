@@ -2080,6 +2080,7 @@ anv_shader_compile_jay(const struct intel_device_info *devinfo, void *mem_ctx,
    if (mesa_shader_stage_is_compute(nir->info.stage)) {
       jc_params.cs.dispatch = params->cs.dispatch;
       jc_params.cs.push = params->cs.push;
+      jc_params.cs.force_simd32 = params->cs.force_simd32;
    }
 
    struct jay_shader_bin *main_bin = jay_compile(devinfo, &jc_params);
@@ -2389,10 +2390,6 @@ anv_shader_compile(struct vk_device *vk_device,
       case MESA_SHADER_COMPUTE:
          populate_cs_prog_key(&shader_data->key.cs, vk_device->physical,
                               info->robustness);
-         shader_data->prog_data.cs.force_simd32 =
-            device->info->ver >= 20 &&
-            shader_data->workaround != NULL &&
-            shader_data->workaround->force_xe2_simd32_cs;
          break;
       case MESA_SHADER_RAYGEN:
       case MESA_SHADER_ANY_HIT:
@@ -2486,6 +2483,10 @@ anv_shader_compile(struct vk_device *vk_device,
       case MESA_SHADER_COMPUTE:
          params.cs.dispatch = shader_data->cs_dispatch;
          params.cs.push = shader_data->cs_push;
+         params.cs.force_simd32 =
+            device->info->ver >= 20 &&
+            shader_data->workaround != NULL &&
+            shader_data->workaround->force_xe2_simd32_cs;
          break;
       case MESA_SHADER_TESS_CTRL:
          shader_data->key.tcs.outputs_written = nir->info.outputs_written;
