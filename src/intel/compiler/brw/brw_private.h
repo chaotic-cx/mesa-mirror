@@ -128,8 +128,6 @@ pass_tracker_new_iteration(brw_pass_tracker *pt)
 
 #ifdef __cplusplus
 
-#include <variant>
-
 unsigned brw_required_dispatch_width(const struct shader_info *info);
 
 static constexpr int SIMD_COUNT = 3;
@@ -137,8 +135,12 @@ static constexpr int SIMD_COUNT = 3;
 struct brw_simd_selection_state {
    const struct intel_device_info *devinfo;
 
-   std::variant<struct brw_cs_prog_data *,
-                struct brw_bs_prog_data *> prog_data;
+   mesa_shader_stage stage;
+
+   /* Local workgroup size for compute-family stages (all zero when the
+    * workgroup size is variable), NULL otherwise.
+    */
+   const uint32_t *cs_local_size;
 
    unsigned required_width;
 
@@ -175,7 +177,7 @@ void brw_simd_mark_failed(brw_simd_selection_state &state, unsigned simd, const 
 int brw_simd_select(const brw_simd_selection_state &state);
 
 int brw_simd_select_for_workgroup_size(const struct intel_device_info *devinfo,
-                                       const struct brw_cs_prog_data *prog_data,
+                                       const struct intel_shader_info *info,
                                        const unsigned *sizes);
 
 bool brw_should_print_shader(const nir_shader *shader, uint64_t debug_flag, uint64_t source_hash);

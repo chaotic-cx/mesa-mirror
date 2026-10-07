@@ -576,7 +576,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
       const struct brw_cs_prog_data *prog_data =
          (const struct brw_cs_prog_data *) state->kernel->prog_data;
       const struct intel_cs_dispatch_info dispatch =
-         brw_cs_get_dispatch_info(devinfo, prog_data, NULL);
+         brw_cs_get_dispatch_info(devinfo, &bin->info, NULL);
 
       if (GFX_VERx10 >= 350 && device->physical->uses_efficient_64bit) {
 #if GFX_VERx10 >= 350
@@ -584,7 +584,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
          uint8_t z_pass_async_compute_thread_limit;
          uint8_t np_z_async_throttle_settings;
          const bool slm_or_barrier_enabled =
-            bin->info.total_shared != 0 || prog_data->uses_barrier;
+            bin->info.total_shared != 0 || bin->info.wg.uses_barrier;
 
          intel_compute_engine_async_threads_limit(device->info, dispatch.threads,
                                                   slm_or_barrier_enabled,
@@ -612,9 +612,9 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             .DispatchWalkOrder         = prog_data->uses_sampler ? DWO_Morton2x2XYWalk : DWO_LinearWalk,
             .ThreadGroupBatchSize      = prog_data->uses_sampler ? TGBS_TG_BATCH_4 : TGBS_TG_BATCH_1,
             .ExecutionMask             = dispatch.right_mask,
-            .LocalXMaximum             = prog_data->local_size[0] - 1,
-            .LocalYMaximum             = prog_data->local_size[1] - 1,
-            .LocalZMaximum             = prog_data->local_size[2] - 1,
+            .LocalXMaximum             = bin->info.wg.local_size[0] - 1,
+            .LocalYMaximum             = bin->info.wg.local_size[1] - 1,
+            .LocalZMaximum             = bin->info.wg.local_size[2] - 1,
             .ThreadGroupIDXDimension   = DIV_ROUND_UP(num_threads, dispatch.simd_size),
             .ThreadGroupIDYDimension   = 1,
             .ThreadGroupIDZDimension   = 1,
@@ -625,10 +625,10 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA_2)) {
                .KernelStartPointer                 =
                   anv_shader_get_pointer(device, &state->kernel->kernel) +
-                  brw_cs_prog_data_prog_offset(prog_data, dispatch.simd_size),
+                  brw_cs_prog_data_prog_offset(&bin->info, dispatch.simd_size),
                .RegistersPerThread                 =
                   intel_register_blocks(devinfo, bin->info.grf_used),
-               .NumberOfBarriers                   = prog_data->uses_barrier,
+               .NumberOfBarriers                   = bin->info.wg.uses_barrier,
                .NumberofThreadsinGPGPUThreadGroup  = dispatch.threads,
                .ThreadGroupDispatchSize            = intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
                .PreferredSLMAllocationSize         = SLM_ENCODES_0K,
@@ -655,7 +655,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             uint8_t pixel_async_compute_thread_limit, z_pass_async_compute_thread_limit,
                np_z_async_throttle_settings;
             bool slm_or_barrier_enabled =
-               bin->info.total_shared != 0 || prog_data->uses_barrier;
+               bin->info.total_shared != 0 || bin->info.wg.uses_barrier;
 
             intel_compute_engine_async_threads_limit(devinfo, dispatch.threads,
                                                      slm_or_barrier_enabled,
@@ -691,9 +691,9 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
          struct GENX(COMPUTE_WALKER_BODY) body = {
             .SIMDSize                       = dispatch.simd_size / 16,
             .MessageSIMD                    = dispatch.simd_size / 16,
-            .LocalXMaximum                  = prog_data->local_size[0] - 1,
-            .LocalYMaximum                  = prog_data->local_size[1] - 1,
-            .LocalZMaximum                  = prog_data->local_size[2] - 1,
+            .LocalXMaximum                  = bin->info.wg.local_size[0] - 1,
+            .LocalYMaximum                  = bin->info.wg.local_size[1] - 1,
+            .LocalZMaximum                  = bin->info.wg.local_size[2] - 1,
             .ThreadGroupIDXDimension        = DIV_ROUND_UP(num_threads,
                                                            dispatch.simd_size),
             .ThreadGroupIDYDimension        = 1,
@@ -708,8 +708,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
 
             .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
                .KernelStartPointer                = state->kernel->kernel.offset +
-               brw_cs_prog_data_prog_offset(prog_data,
-                                            dispatch.simd_size),
+                  brw_cs_prog_data_prog_offset(&bin->info, dispatch.simd_size),
                .SamplerStatePointer               = 0,
                .BindingTablePointer               = 0,
                .BindingTableEntryCount            = 0,
@@ -717,7 +716,7 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
                .ThreadGroupDispatchSize           = intel_compute_threads_group_dispatch_size(dispatch.threads),
                .SharedLocalMemorySize             = intel_compute_slm_encode_size(
                   GFX_VER, bin->info.total_shared),
-               .NumberOfBarriers                  = prog_data->uses_barrier,
+               .NumberOfBarriers                  = bin->info.wg.uses_barrier,
 #if GFX_VER >= 30
                .RegistersPerThread =
                   intel_register_blocks(devinfo, bin->info.grf_used),
@@ -784,12 +783,11 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
 
          struct GENX(INTERFACE_DESCRIPTOR_DATA) iface_desc = {
             .KernelStartPointer                    = state->kernel->kernel.offset +
-            brw_cs_prog_data_prog_offset(prog_data,
-                                         dispatch.simd_size),
+               brw_cs_prog_data_prog_offset(&bin->info, dispatch.simd_size),
 
             .SamplerCount                          = 0,
             .BindingTableEntryCount                = 0,
-            .BarrierEnable                         = prog_data->uses_barrier,
+            .BarrierEnable                         = bin->info.wg.uses_barrier,
             .SharedLocalMemorySize                 = intel_compute_slm_encode_size(
                GFX_VER, bin->info.total_shared),
 

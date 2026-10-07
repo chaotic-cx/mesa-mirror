@@ -316,18 +316,18 @@ brw_compile_task(const struct brw_compiler *compiler,
 
    const unsigned ray_queries = nir->info.ray_queries;
 
-   prog_data->base.local_size[0] = nir->info.workgroup_size[0];
-   prog_data->base.local_size[1] = nir->info.workgroup_size[1];
-   prog_data->base.local_size[2] = nir->info.workgroup_size[2];
-
    prog_data->uses_drawid =
       BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID);
 
    brw_postprocess_nir_opts(pt);
 
+   const uint32_t local_size[3] = { nir->info.workgroup_size[0],
+                                    nir->info.workgroup_size[1],
+                                    nir->info.workgroup_size[2] };
    brw_simd_selection_state simd_state{
       .devinfo = compiler->devinfo,
-      .prog_data = &prog_data->base,
+      .stage = nir->info.stage,
+      .cs_local_size = local_size,
       .required_width = brw_required_dispatch_width(&nir->info),
    };
 
@@ -377,6 +377,9 @@ brw_compile_task(const struct brw_compiler *compiler,
          .info = {
             .source_hash = params->source_hash,
             .ray_queries = ray_queries,
+            .wg = {
+               .local_size = { local_size[0], local_size[1], local_size[2] },
+            },
          },
          .dispatch_width          = dispatch_width,
          .needs_register_pressure = params->collect_register_pressure,
@@ -410,7 +413,10 @@ brw_compile_task(const struct brw_compiler *compiler,
    }
 
    brw_shader &selected = *v[selected_simd];
-   prog_data->base.prog_mask = 1 << selected_simd;
+   const uint8_t prog_mask = 1 << selected_simd;
+   selected.info.wg.prog_mask = prog_mask;
+   selected.info.wg.prog_spilled =
+      simd_state.spilled[selected_simd] ? prog_mask : 0;
 
    if (unlikely(debug_enabled)) {
       fprintf(stderr, "Task Output ");
@@ -978,10 +984,6 @@ brw_compile_mesh(const struct brw_compiler *compiler,
 
    const unsigned ray_queries = nir->info.ray_queries;
 
-   prog_data->base.local_size[0] = nir->info.workgroup_size[0];
-   prog_data->base.local_size[1] = nir->info.workgroup_size[1];
-   prog_data->base.local_size[2] = nir->info.workgroup_size[2];
-
    prog_data->primitive_type = nir->info.mesh.primitive_type;
 
    /* Apply this workaround before trying to pack indices because this can
@@ -1058,9 +1060,13 @@ brw_compile_mesh(const struct brw_compiler *compiler,
                    pt->key->use_efficient_64bit);
    }
 
+   const uint32_t local_size[3] = { nir->info.workgroup_size[0],
+                                    nir->info.workgroup_size[1],
+                                    nir->info.workgroup_size[2] };
    brw_simd_selection_state simd_state{
       .devinfo = compiler->devinfo,
-      .prog_data = &prog_data->base,
+      .stage = nir->info.stage,
+      .cs_local_size = local_size,
       .required_width = brw_required_dispatch_width(&nir->info),
    };
 
@@ -1106,6 +1112,9 @@ brw_compile_mesh(const struct brw_compiler *compiler,
          .info = {
             .source_hash = params->source_hash,
             .ray_queries = ray_queries,
+            .wg = {
+               .local_size = { local_size[0], local_size[1], local_size[2] },
+            },
          },
          .dispatch_width          = dispatch_width,
          .needs_register_pressure = params->collect_register_pressure,
@@ -1139,7 +1148,10 @@ brw_compile_mesh(const struct brw_compiler *compiler,
    }
 
    brw_shader &selected = *v[selected_simd];
-   prog_data->base.prog_mask = 1 << selected_simd;
+   const uint8_t prog_mask = 1 << selected_simd;
+   selected.info.wg.prog_mask = prog_mask;
+   selected.info.wg.prog_spilled =
+      simd_state.spilled[selected_simd] ? prog_mask : 0;
 
    if (unlikely(debug_enabled)) {
       if (params->mesh.tue_map) {

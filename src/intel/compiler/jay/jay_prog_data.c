@@ -603,7 +603,7 @@ jay_populate_prog_data(const struct intel_device_info *devinfo,
                        union brw_any_prog_key *key,
                        struct jay_fs_perprim_data *fs_perprim)
 {
-   prog_data->base.is_jay = true;
+   info->is_jay = true;
 
    if (nir->info.stage == MESA_SHADER_VERTEX) {
       populate_vs_prog_data(nir, devinfo, info);

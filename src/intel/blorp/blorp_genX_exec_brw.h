@@ -2088,7 +2088,6 @@ blorp_indirect_buffer_get_dispatch_size(struct blorp_batch *batch,
                                         struct mi_value *size_z)
 {
    struct blorp_context *blorp = batch->blorp;
-   const struct brw_cs_prog_data *cs_prog_data = params->cs_prog_data;
 
    uint64_t indirect_buf_addr = params->wm_inputs.indirect.indirect_buf_addr;
    uint64_t stride = params->wm_inputs.indirect.indirect_buf_stride;
@@ -2114,12 +2113,12 @@ blorp_indirect_buffer_get_dispatch_size(struct blorp_batch *batch,
    }
 
    /* Each shader invocation writes an uint32_t. */
-   int divisor = cs_prog_data->local_size[0] * sizeof(uint32_t);
+   int divisor = params->cs_info->wg.local_size[0] * sizeof(uint32_t);
    *size_x = mi_udiv32_imm(b, mi_iadd_imm(b, biggest_copy_size, divisor - 1),
                            divisor);
 
-   assert(cs_prog_data->local_size[1] == 1);
-   assert(cs_prog_data->local_size[2] == 1);
+   assert(params->cs_info->wg.local_size[1] == 1);
+   assert(params->cs_info->wg.local_size[2] == 1);
    *size_y = mi_imm(1);
    *size_z = mi_imm(1);
 }
@@ -2133,7 +2132,6 @@ blorp_indirect_buf2img_get_dispatch_size(struct blorp_batch *batch,
                                          struct mi_value *size_z)
 {
    struct blorp_context *blorp = batch->blorp;
-   const struct brw_cs_prog_data *cs_prog_data = params->cs_prog_data;
 
    uint64_t indirect_buf_addr = params->wm_inputs.indirect.indirect_buf_addr;
    uint64_t stride = params->wm_inputs.indirect.indirect_buf_stride;
@@ -2203,9 +2201,9 @@ blorp_indirect_buf2img_get_dispatch_size(struct blorp_batch *batch,
          z_extent = mi_imm(params->num_layers);
    }
 
-   int divisor_x = cs_prog_data->local_size[0];
-   int divisor_y = cs_prog_data->local_size[1];
-   int divisor_z = cs_prog_data->local_size[2];
+   int divisor_x = params->cs_info->wg.local_size[0];
+   int divisor_y = params->cs_info->wg.local_size[1];
+   int divisor_z = params->cs_info->wg.local_size[2];
 
    assert(divisor_x != 1 && divisor_y != 1 && divisor_z == 1);
    *size_x = mi_udiv32_imm(b, mi_iadd_imm(b, x_extent, divisor_x - 1),
@@ -2254,21 +2252,21 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
    const struct intel_device_info *devinfo = batch->blorp->compiler->brw->devinfo;
    const struct brw_cs_prog_data *cs_prog_data = params->cs_prog_data;
    const struct intel_cs_dispatch_info dispatch =
-      brw_cs_get_dispatch_info(devinfo, cs_prog_data, NULL);
+      brw_cs_get_dispatch_info(devinfo, params->cs_info, NULL);
 
    bool use_indirect = blorp_op_type_is_indirect(params->op);
 
    if (use_indirect)
       blorp_indirect_write_gpgpu_dispatch_regs(batch, params);
 
-   uint32_t group_x0 = params->x0 / cs_prog_data->local_size[0];
-   uint32_t group_y0 = params->y0 / cs_prog_data->local_size[1];
+   uint32_t group_x0 = params->x0 / params->cs_info->wg.local_size[0];
+   uint32_t group_y0 = params->y0 / params->cs_info->wg.local_size[1];
    uint32_t group_z0 = params->dst.z_offset;
-   uint32_t group_x1 = DIV_ROUND_UP(params->x1, cs_prog_data->local_size[0]);
-   uint32_t group_y1 = DIV_ROUND_UP(params->y1, cs_prog_data->local_size[1]);
+   uint32_t group_x1 = DIV_ROUND_UP(params->x1, params->cs_info->wg.local_size[0]);
+   uint32_t group_y1 = DIV_ROUND_UP(params->y1, params->cs_info->wg.local_size[1]);
    assert(params->num_layers >= 1);
    uint32_t group_z1 = params->num_samples * params->num_layers;
-   assert(cs_prog_data->local_size[2] == 1);
+   assert(params->cs_info->wg.local_size[2] == 1);
    uint32_t push_const_offset;
    uint32_t push_const_size;
    uint32_t surfaces_offset = 0;
@@ -2288,7 +2286,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
       uint8_t np_z_async_throttle_settings;
       const bool slm_or_barrier_enabled =
          params->cs_info->total_shared != 0 ||
-         cs_prog_data->uses_barrier;
+         params->cs_info->wg.uses_barrier;
 
       blorp_emit_efficient_64bit_io(batch, params,
                                     push_const_ptr + surfaces_offset,
@@ -2318,9 +2316,9 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          .MaximumNumberofThreads         = devinfo->max_cs_threads * devinfo->subslice_total,
          .SIMDSize                       = dispatch.simd_size / 16,
          .MessageSIMD                    = dispatch.simd_size / 16,
-         .LocalXMaximum                  = cs_prog_data->local_size[0] - 1,
-         .LocalYMaximum                  = cs_prog_data->local_size[1] - 1,
-         .LocalZMaximum                  = cs_prog_data->local_size[2] - 1,
+         .LocalXMaximum                  = params->cs_info->wg.local_size[0] - 1,
+         .LocalYMaximum                  = params->cs_info->wg.local_size[1] - 1,
+         .LocalZMaximum                  = params->cs_info->wg.local_size[2] - 1,
          .ThreadGroupIDStartingX         = group_x0,
          .ThreadGroupIDStartingY         = group_y0,
          .ThreadGroupIDStartingZ         = group_z0,
@@ -2359,7 +2357,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
          .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA_2)) {
             .KernelStartPointer = params->cs_prog_kernel +
-               brw_cs_prog_data_prog_offset(cs_prog_data, dispatch.simd_size),
+               brw_cs_prog_data_prog_offset(params->cs_info,
+                                            dispatch.simd_size),
             .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
             .ThreadGroupDispatchSize =
                intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
@@ -2371,7 +2370,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
                                                             params->cs_info->total_shared,
                                                             dispatch.group_size,
                                                             dispatch.simd_size),
-            .NumberOfBarriers = cs_prog_data->uses_barrier,
+            .NumberOfBarriers = params->cs_info->wg.uses_barrier,
             .RegistersPerThread =
                intel_register_blocks(devinfo, params->cs_info->grf_used),
             .PSAsyncThreadLimit = pixel_async_compute_thread_limit,
@@ -2398,7 +2397,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          uint8_t pixel_async_compute_thread_limit, z_pass_async_compute_thread_limit,
             np_z_async_throttle_settings;
          bool slm_or_barrier_enabled =
-            params->cs_info->total_shared != 0 || cs_prog_data->uses_barrier;
+            params->cs_info->total_shared != 0 ||
+            params->cs_info->wg.uses_barrier;
 
          intel_compute_engine_async_threads_limit(devinfo, dispatch.threads,
                                                   slm_or_barrier_enabled,
@@ -2430,9 +2430,9 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
       struct GENX(COMPUTE_WALKER_BODY) body = {
          .SIMDSize                       = dispatch.simd_size / 16,
          .MessageSIMD                    = dispatch.simd_size / 16,
-         .LocalXMaximum                  = cs_prog_data->local_size[0] - 1,
-         .LocalYMaximum                  = cs_prog_data->local_size[1] - 1,
-         .LocalZMaximum                  = cs_prog_data->local_size[2] - 1,
+         .LocalXMaximum                  = params->cs_info->wg.local_size[0] - 1,
+         .LocalYMaximum                  = params->cs_info->wg.local_size[1] - 1,
+         .LocalZMaximum                  = params->cs_info->wg.local_size[2] - 1,
          .ThreadGroupIDStartingX         = group_x0,
          .ThreadGroupIDStartingY         = group_y0,
          .ThreadGroupIDStartingZ         = group_z0,
@@ -2465,7 +2465,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
          .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
             .KernelStartPointer = params->cs_prog_kernel +
-               brw_cs_prog_data_prog_offset(cs_prog_data, dispatch.simd_size),
+               brw_cs_prog_data_prog_offset(params->cs_info,
+                                            dispatch.simd_size),
             .SamplerStatePointer = samplers_offset,
             .SamplerCount = params->src.enabled ? 1 : 0,
             .BindingTableEntryCount = params->src.enabled ? 2 : 1,
@@ -2481,7 +2482,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
                                                          params->cs_info->total_shared,
                                                          dispatch.group_size,
                                                          dispatch.simd_size),
-            .NumberOfBarriers = cs_prog_data->uses_barrier,
+            .NumberOfBarriers = params->cs_info->wg.uses_barrier,
 #if GFX_VER >= 30
             .RegistersPerThread =
                intel_register_blocks(devinfo, params->cs_info->grf_used),
@@ -2537,7 +2538,8 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
 
       struct GENX(INTERFACE_DESCRIPTOR_DATA) idd = {
          .KernelStartPointer = params->cs_prog_kernel +
-            brw_cs_prog_data_prog_offset(cs_prog_data, dispatch.simd_size),
+            brw_cs_prog_data_prog_offset(params->cs_info,
+                                         dispatch.simd_size),
          .SamplerStatePointer = samplers_offset,
          .SamplerCount = params->src.enabled ? 1 : 0,
          .BindingTableEntryCount = params->src.enabled ? 2 : 1,
@@ -2546,7 +2548,7 @@ blorp_exec_compute(struct blorp_batch *batch, const struct blorp_params *params)
          .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
          .SharedLocalMemorySize = intel_compute_slm_encode_size(GFX_VER,
                                                                 params->cs_info->total_shared),
-         .BarrierEnable = cs_prog_data->uses_barrier,
+         .BarrierEnable = params->cs_info->wg.uses_barrier,
          .CrossThreadConstantDataReadLength =
          cs_prog_data->push.cross_thread.regs,
       };

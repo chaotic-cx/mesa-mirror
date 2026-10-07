@@ -32,30 +32,6 @@ test_bit(unsigned mask, unsigned bit) {
    return mask & (1u << bit);
 }
 
-namespace {
-
-struct brw_cs_prog_data *
-get_cs_prog_data(brw_simd_selection_state &state)
-{
-   if (std::holds_alternative<struct brw_cs_prog_data *>(state.prog_data))
-      return std::get<struct brw_cs_prog_data *>(state.prog_data);
-   else
-      return nullptr;
-}
-
-struct brw_stage_prog_data *
-get_prog_data(brw_simd_selection_state &state)
-{
-   if (std::holds_alternative<struct brw_cs_prog_data *>(state.prog_data))
-      return &std::get<struct brw_cs_prog_data *>(state.prog_data)->base;
-   else if (std::holds_alternative<struct brw_bs_prog_data *>(state.prog_data))
-      return &std::get<struct brw_bs_prog_data *>(state.prog_data)->base;
-   else
-      return nullptr;
-}
-
-}
-
 /**
  * Return true if INTEL_SIMD_DEBUG allows the given SIMD mode.
  */
@@ -81,8 +57,6 @@ brw_simd_should_compile(brw_simd_selection_state &state, unsigned simd)
    assert(!state.compiled[simd]);
    assert(!state.failed[simd]);
 
-   const auto cs_prog_data = get_cs_prog_data(state);
-   const auto prog_data = get_prog_data(state);
    const unsigned width = 8u << simd;
 
    /* Hard requirements */
@@ -116,10 +90,11 @@ brw_simd_should_compile(brw_simd_selection_state &state, unsigned simd)
     * all the variants (exceptions are bindless dispatch & ray queries), since
     * the choice will happen only at dispatch time.
     */
-   const bool workgroup_size_variable = cs_prog_data && cs_prog_data->local_size[0] == 0;
+   const bool workgroup_size_variable =
+      state.cs_local_size && state.cs_local_size[0] == 0;
 
    if (!workgroup_size_variable &&
-       likely(!simd_debug_forced(prog_data->stage, simd))) {
+       likely(!simd_debug_forced(state.stage, simd))) {
       if (state.spilled[simd]) {
          state.error[simd] = "Would spill";
          return false;
@@ -134,10 +109,10 @@ brw_simd_should_compile(brw_simd_selection_state &state, unsigned simd)
          return false;
       }
 
-      if (cs_prog_data) {
-         const unsigned workgroup_size = cs_prog_data->local_size[0] *
-                                         cs_prog_data->local_size[1] *
-                                         cs_prog_data->local_size[2];
+      if (state.cs_local_size != NULL) {
+         const unsigned workgroup_size = state.cs_local_size[0] *
+                                         state.cs_local_size[1] *
+                                         state.cs_local_size[2];
 
          unsigned max_threads = state.devinfo->max_cs_workgroup_threads;
 
@@ -163,7 +138,7 @@ brw_simd_should_compile(brw_simd_selection_state &state, unsigned simd)
       }
    }
 
-   if (unlikely(!simd_debug_allowed(prog_data->stage, simd))) {
+   if (unlikely(!simd_debug_allowed(state.stage, simd))) {
       state.error[simd] = "Disabled by INTEL_SIMD_DEBUG environment variable";
       return false;
    }
@@ -177,19 +152,12 @@ brw_simd_mark_compiled(brw_simd_selection_state &state, unsigned simd, bool spil
    assert(simd < SIMD_COUNT);
    assert(!state.compiled[simd]);
 
-   auto cs_prog_data = get_cs_prog_data(state);
-
    state.compiled[simd] = true;
-   if (cs_prog_data)
-      cs_prog_data->prog_mask |= 1u << simd;
 
    /* If a SIMD spilled, all the larger ones would spill too. */
    if (spilled) {
-      for (unsigned i = simd; i < SIMD_COUNT; i++) {
+      for (unsigned i = simd; i < SIMD_COUNT; i++)
          state.spilled[i] = true;
-         if (cs_prog_data)
-            cs_prog_data->prog_spilled |= 1u << i;
-      }
    }
 }
 
@@ -219,39 +187,38 @@ brw_simd_select(const struct brw_simd_selection_state &state)
 
 int
 brw_simd_select_for_workgroup_size(const struct intel_device_info *devinfo,
-                                   const struct brw_cs_prog_data *prog_data,
+                                   const struct intel_shader_info *info,
                                    const unsigned *sizes)
 {
-   if (!sizes || (prog_data->local_size[0] == sizes[0] &&
-                  prog_data->local_size[1] == sizes[1] &&
-                  prog_data->local_size[2] == sizes[2])) {
+   const bool uses_btd_stack_ids =
+      mesa_shader_stage_is_compute(info->stage) &&
+      info->cs.uses_btd_stack_ids;
+
+   if (!sizes || (info->wg.local_size[0] == sizes[0] &&
+                  info->wg.local_size[1] == sizes[1] &&
+                  info->wg.local_size[2] == sizes[2])) {
       brw_simd_selection_state simd_state{
-         .prog_data = const_cast<struct brw_cs_prog_data *>(prog_data),
-         .uses_btd_stack_ids = prog_data->uses_btd_stack_ids,
+         .stage = info->stage,
+         .cs_local_size = info->wg.local_size,
+         .uses_btd_stack_ids = uses_btd_stack_ids,
       };
 
-      /* Propagate the prog_data information back to the simd_state,
-       * so we can use select() directly.
+      /* Propagate the bin information back to the simd_state, so we can use
+       * select() directly.
        */
       for (int i = 0; i < SIMD_COUNT; i++) {
-         simd_state.compiled[i] = test_bit(prog_data->prog_mask, i);
-         simd_state.spilled[i] = test_bit(prog_data->prog_spilled, i);
+         simd_state.compiled[i] = test_bit(info->wg.prog_mask, i);
+         simd_state.spilled[i] = test_bit(info->wg.prog_spilled, i);
       }
 
       return brw_simd_select(simd_state);
    }
 
-   struct brw_cs_prog_data cloned = *prog_data;
-   for (unsigned i = 0; i < 3; i++)
-      cloned.local_size[i] = sizes[i];
-
-   cloned.prog_mask = 0;
-   cloned.prog_spilled = 0;
-
    brw_simd_selection_state simd_state{
       .devinfo = devinfo,
-      .prog_data = &cloned,
-      .uses_btd_stack_ids = prog_data->uses_btd_stack_ids,
+      .stage = info->stage,
+      .cs_local_size = sizes,
+      .uses_btd_stack_ids = uses_btd_stack_ids,
    };
 
    for (unsigned simd = 0; simd < SIMD_COUNT; simd++) {
@@ -259,8 +226,9 @@ brw_simd_select_for_workgroup_size(const struct intel_device_info *devinfo,
        * prog_spilled as they will already contain all possible compilations.
        */
       if (brw_simd_should_compile(simd_state, simd) &&
-          test_bit(prog_data->prog_mask, simd)) {
-         brw_simd_mark_compiled(simd_state, simd, test_bit(prog_data->prog_spilled, simd));
+          test_bit(info->wg.prog_mask, simd)) {
+         brw_simd_mark_compiled(simd_state, simd,
+                                test_bit(info->wg.prog_spilled, simd));
       }
    }
 

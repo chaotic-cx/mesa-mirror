@@ -1012,39 +1012,38 @@ brw_cs_push_const_total_size(const struct brw_cs_prog_data *cs_prog_data,
 
 struct intel_cs_dispatch_info
 brw_cs_get_dispatch_info(const struct intel_device_info *devinfo,
-                         const struct brw_cs_prog_data *prog_data,
+                         const struct intel_shader_info *info,
                          const unsigned *override_local_size)
 {
-   struct intel_cs_dispatch_info info = {};
+   struct intel_cs_dispatch_info dispatch = {};
 
    const unsigned *sizes =
-      override_local_size ? override_local_size :
-                            prog_data->local_size;
+      override_local_size ? override_local_size : info->wg.local_size;
 
    int simd = -1;
-   if (prog_data->base.is_jay) {
+   if (info->is_jay) {
       /* Currently Jay compiles only a single binary, just select that. In the
        * future this needs to get smarter.
        */
-      assert(util_is_power_of_two_nonzero(prog_data->prog_mask));
-      simd = util_logbase2(prog_data->prog_mask);
+      assert(util_is_power_of_two_nonzero(info->wg.prog_mask));
+      simd = util_logbase2(info->wg.prog_mask);
    } else {
-      simd = brw_simd_select_for_workgroup_size(devinfo, prog_data, sizes);
+      simd = brw_simd_select_for_workgroup_size(devinfo, info, sizes);
    }
 
    assert(simd >= 0 && simd < 3);
 
-   info.group_size = sizes[0] * sizes[1] * sizes[2];
-   info.simd_size = 8u << simd;
-   info.threads = DIV_ROUND_UP(info.group_size, info.simd_size);
+   dispatch.group_size = sizes[0] * sizes[1] * sizes[2];
+   dispatch.simd_size = 8u << simd;
+   dispatch.threads = DIV_ROUND_UP(dispatch.group_size, dispatch.simd_size);
 
-   const uint32_t remainder = info.group_size & (info.simd_size - 1);
+   const uint32_t remainder = dispatch.group_size & (dispatch.simd_size - 1);
    if (remainder > 0)
-      info.right_mask = ~0u >> (32 - remainder);
+      dispatch.right_mask = ~0u >> (32 - remainder);
    else
-      info.right_mask = ~0u >> (32 - info.simd_size);
+      dispatch.right_mask = ~0u >> (32 - dispatch.simd_size);
 
-   return info;
+   return dispatch;
 }
 
 void

@@ -641,14 +641,16 @@ preprocess_rt_sequences(struct anv_cmd_buffer *cmd_buffer,
    const struct brw_cs_prog_data *cs_prog_data =
       brw_cs_prog_data_const(device->rt_trampoline->prog_data);
    struct intel_cs_dispatch_info dispatch =
-      brw_cs_get_dispatch_info(device->info, cs_prog_data, NULL);
+      brw_cs_get_dispatch_info(device->info,
+                               &device->rt_trampoline->bin->info, NULL);
 
    if (GFX_VERx10 >= 350 && device->physical->uses_efficient_64bit) {
 #if GFX_VERx10 >= 350
       uint8_t pixel_async_compute_thread_limit, z_pass_async_compute_thread_limit,
          np_z_async_throttle_settings;
-      const bool slm_or_barrier_enabled = cs_prog_data->base.total_shared != 0 ||
-                                          cs_prog_data->uses_barrier;
+      const bool slm_or_barrier_enabled =
+         device->rt_trampoline->bin->info.total_shared != 0 ||
+         device->rt_trampoline->bin->info.wg.uses_barrier;
 
       intel_compute_engine_async_threads_limit(device->info, dispatch.threads,
                                                slm_or_barrier_enabled,
@@ -674,7 +676,7 @@ preprocess_rt_sequences(struct anv_cmd_buffer *cmd_buffer,
             .Post_sync_opn3.MOCS            = anv_mocs(device, NULL, 0),
             .InterfaceDescriptor            = (struct GENX(INTERFACE_DESCRIPTOR_DATA_2)) {
                .KernelStartPointer                = anv_shader_get_pointer(device, &device->rt_trampoline->kernel),
-               .RegistersPerThread                = intel_register_blocks(device->info, cs_prog_data->base.grf_used),
+               .RegistersPerThread                = intel_register_blocks(device->info, device->rt_trampoline->bin->info.grf_used),
                .NumberofThreadsinGPGPUThreadGroup = dispatch.threads,
                .ThreadGroupDispatchSize           = intel_compute_threads_group_dispatch_size_walker_2(dispatch.threads),
                .BTDmode                           = true,

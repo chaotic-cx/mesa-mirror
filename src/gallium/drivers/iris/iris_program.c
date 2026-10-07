@@ -184,6 +184,7 @@ static void
 iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader,
                             const struct brw_cs_prog_data *brw)
 {
+   const struct intel_shader_info *info = &shader->info;
    assert(shader->stage == MESA_SHADER_COMPUTE);
    struct iris_cs_data *iris = &shader->cs;
 
@@ -195,19 +196,19 @@ iris_apply_brw_cs_prog_data(struct iris_compiled_shader *shader,
    iris->push.per_thread.regs   = brw->push.per_thread.regs;
    iris->push.per_thread.size   = brw->push.per_thread.size;
 
-   iris->local_size[0]  = brw->local_size[0];
-   iris->local_size[1]  = brw->local_size[1];
-   iris->local_size[2]  = brw->local_size[2];
-   iris->prog_offset[0] = brw->prog_offset[0];
-   iris->prog_offset[1] = brw->prog_offset[1];
-   iris->prog_offset[2] = brw->prog_offset[2];
+   iris->local_size[0]  = info->wg.local_size[0];
+   iris->local_size[1]  = info->wg.local_size[1];
+   iris->local_size[2]  = info->wg.local_size[2];
+   iris->prog_offset[0] = info->wg.prog_offset[0];
+   iris->prog_offset[1] = info->wg.prog_offset[1];
+   iris->prog_offset[2] = info->wg.prog_offset[2];
 
    iris->generate_local_id = brw->generate_local_id;
    iris->walk_order        = brw->walk_order;
-   iris->uses_barrier      = brw->uses_barrier;
+   iris->uses_barrier      = info->wg.uses_barrier;
    iris->uses_fence        = brw->uses_fence;
    iris->uses_sampler      = brw->uses_sampler;
-   iris->prog_mask         = brw->prog_mask;
+   iris->prog_mask         = info->wg.prog_mask;
 
    /* The pushed constants only contain the subgroup_id */
    iris->first_param_is_builtin_subgroup_id =
@@ -4557,7 +4558,7 @@ iris_get_cs_dispatch_info(const struct intel_device_info *devinfo,
 #endif
    } else {
       return brw_cs_get_dispatch_info(devinfo,
-                                      brw_cs_prog_data(shader->brw_prog_data),
+                                      &shader->info,
                                       block);
    }
 }

@@ -620,6 +620,9 @@ struct intel_shader_info {
 
    struct intel_push_layout push_layout;
 
+   /* Was this shader compiled with Jay? */
+   bool is_jay;
+
    /** Does this shader pull from any UBO or other constant buffers? */
    bool has_ubo_pull;
 
@@ -642,6 +645,24 @@ struct intel_shader_info {
          /** Should the hardware deliver input VUE handles for URB pull loads? */
          bool include_vue_handles;
       } vue; /* VS, TES, TCS, GS */
+      struct {
+         uint32_t local_size[3];
+
+         /* Program offsets for the 8/16/32 SIMD variants.  Multiple variants are
+          * kept when using variable group size, and the right one can only be
+          * decided at dispatch time.
+          */
+         uint32_t prog_offset[3];
+
+         /* Bitmask indicating which program offsets are valid. */
+         uint8_t prog_mask;
+
+         /* Bitmask indicating which programs have spilled. */
+         uint8_t prog_spilled;
+
+         bool uses_barrier;
+         bool uses_systolic;
+      } wg; /* CS, KERNEL, TASK, MESH */
    };
 
    /* Extra stage-specific fields. */
@@ -656,6 +677,9 @@ struct intel_shader_info {
          bool uses_baseinstance;
          bool uses_drawid;
       } vs;
+      struct {
+         bool uses_btd_stack_ids;
+      } cs;
       struct {
          struct brw_tess_info tess_info;
 

@@ -473,9 +473,6 @@ PRAGMA_DIAGNOSTIC_POP
 
 struct brw_stage_prog_data {
    mesa_shader_stage stage;
-
-   /* Was this shader compiled with Jay? */
-   bool is_jay;
 };
 
 enum brw_pixel_shader_computed_depth_mode {
@@ -766,24 +763,7 @@ struct brw_cs_push_const_info {
 struct brw_cs_prog_data {
    struct brw_stage_prog_data base;
 
-   unsigned local_size[3];
-
-   /* Program offsets for the 8/16/32 SIMD variants.  Multiple variants are
-    * kept when using variable group size, and the right one can only be
-    * decided at dispatch time.
-    */
-   unsigned prog_offset[3];
-
-   /* Bitmask indicating which program offsets are valid. */
-   unsigned prog_mask;
-
-   /* Bitmask indicating which programs have spilled. */
-   unsigned prog_spilled;
-
-   bool uses_barrier;
    bool uses_fence;
-   bool uses_btd_stack_ids;
-   bool uses_systolic;
    uint8_t generate_local_id;
    enum intel_compute_walk_order walk_order;
 
@@ -797,15 +777,15 @@ struct brw_cs_prog_data {
 };
 
 static inline uint32_t
-brw_cs_prog_data_prog_offset(const struct brw_cs_prog_data *prog_data,
+brw_cs_prog_data_prog_offset(const struct intel_shader_info *info,
                              unsigned dispatch_width)
 {
    assert(dispatch_width == 8 ||
           dispatch_width == 16 ||
           dispatch_width == 32);
    const unsigned index = dispatch_width / 16;
-   assert(prog_data->prog_mask & (1 << index));
-   return prog_data->prog_offset[index];
+   assert(info->wg.prog_mask & (1 << index));
+   return info->wg.prog_offset[index];
 }
 
 struct brw_bs_prog_data {
@@ -1218,13 +1198,13 @@ brw_write_shader_relocs(const struct brw_isa_info *isa,
  * similar instructions.
  *
  * If override_local_size is not NULL, it must to point to a 3-element that
- * will override the value from prog_data->local_size.  This is used by
+ * will override the value from info->wg.local_size.  This is used by
  * ARB_compute_variable_group_size, where the size is set only at dispatch
- * time (so prog_data is outdated).
+ * time.
  */
 struct intel_cs_dispatch_info
 brw_cs_get_dispatch_info(const struct intel_device_info *devinfo,
-                         const struct brw_cs_prog_data *prog_data,
+                         const struct intel_shader_info *info,
                          const unsigned *override_local_size);
 
 /**

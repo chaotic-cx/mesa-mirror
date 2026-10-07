@@ -859,7 +859,7 @@ emit_task_shader(struct anv_batch *batch,
    const struct brw_task_prog_data *task_prog_data =
       get_shader_task_prog_data(shader);
    const struct intel_cs_dispatch_info task_dispatch =
-      brw_cs_get_dispatch_info(devinfo, &task_prog_data->base, NULL);
+      brw_cs_get_dispatch_info(devinfo, &shader->bin->info, NULL);
 
    uint32_t task_control_dwords[GENX(3DSTATE_TASK_CONTROL_length)];
    anv_shader_emit_tmp(batch, task_control_dwords, GENX(3DSTATE_TASK_CONTROL), tc) {
@@ -888,7 +888,7 @@ emit_task_shader(struct anv_batch *batch,
       task.LocalXMaximum                     = task_dispatch.group_size - 1;
       task.EmitLocalIDX                      = true;
 
-      task.NumberofBarriers                  = task_prog_data->base.uses_barrier;
+      task.NumberofBarriers                  = shader->bin->info.wg.uses_barrier;
       task.SharedLocalMemorySize             =
          intel_compute_slm_encode_size(GFX_VER, shader->bin->info.total_shared);
       task.PreferredSLMAllocationSize        =
@@ -928,7 +928,7 @@ emit_mesh_shader(struct anv_batch *batch,
    const struct brw_mesh_prog_data *mesh_prog_data =
       get_shader_mesh_prog_data(shader);
    const struct intel_cs_dispatch_info mesh_dispatch =
-      brw_cs_get_dispatch_info(devinfo, &mesh_prog_data->base, NULL);
+      brw_cs_get_dispatch_info(devinfo, &shader->bin->info, NULL);
 
    uint32_t mesh_control_dwords[GENX(3DSTATE_MESH_CONTROL_length)];
    anv_shader_emit_tmp(batch, mesh_control_dwords, GENX(3DSTATE_MESH_CONTROL), mc) {
@@ -984,7 +984,7 @@ emit_mesh_shader(struct anv_batch *batch,
       mesh.PerPrimitiveDataPitch             = mesh_prog_data->map.per_primitive_stride / 32;
       mesh.IndexFormat                       = index_format;
 
-      mesh.NumberofBarriers                  = mesh_prog_data->base.uses_barrier;
+      mesh.NumberofBarriers                  = shader->bin->info.wg.uses_barrier;
       mesh.SharedLocalMemorySize             =
          intel_compute_slm_encode_size(GFX_VER, shader->bin->info.total_shared);
       mesh.PreferredSLMAllocationSize        =
@@ -1136,7 +1136,7 @@ emit_cs_shader(struct anv_batch *batch,
    const struct brw_cs_prog_data *cs_prog_data =
       get_shader_cs_prog_data(shader);
    const struct intel_cs_dispatch_info dispatch =
-      brw_cs_get_dispatch_info(devinfo, cs_prog_data, NULL);
+      brw_cs_get_dispatch_info(devinfo, &bin->info, NULL);
    UNUSED const enum intel_compute_walk_order walk_order =
       anv_compute_walk_order(device->physical->drirc.perf.force_preferred_walk_order,
                              cs_prog_data->walk_order);
@@ -1147,7 +1147,7 @@ emit_cs_shader(struct anv_batch *batch,
       uint8_t z_pass_async_compute_thread_limit;
       uint8_t np_z_async_throttle_settings;
       const bool slm_or_barrier_enabled =
-         bin->info.total_shared != 0 || cs_prog_data->uses_barrier;
+         bin->info.total_shared != 0 || bin->info.wg.uses_barrier;
 
       intel_compute_engine_async_threads_limit(device->info, dispatch.threads,
                                                slm_or_barrier_enabled,
@@ -1170,9 +1170,9 @@ emit_cs_shader(struct anv_batch *batch,
          .DispatchWalkOrder      = cs_prog_data->uses_sampler ? DWO_Morton2x2XYWalk : DWO_LinearWalk,
          .ThreadGroupBatchSize   = cs_prog_data->uses_sampler ? TGBS_TG_BATCH_4 : TGBS_TG_BATCH_1,
          .ExecutionMask          = dispatch.right_mask,
-         .LocalXMaximum          = cs_prog_data->local_size[0] - 1,
-         .LocalYMaximum          = cs_prog_data->local_size[1] - 1,
-         .LocalZMaximum          = cs_prog_data->local_size[2] - 1,
+         .LocalXMaximum          = bin->info.wg.local_size[0] - 1,
+         .LocalYMaximum          = bin->info.wg.local_size[1] - 1,
+         .LocalZMaximum          = bin->info.wg.local_size[2] - 1,
          .Post_sync_opn0.MOCS    = anv_mocs(device, NULL, 0),
          .Post_sync_opn1.MOCS    = anv_mocs(device, NULL, 0),
          .Post_sync_opn2.MOCS    = anv_mocs(device, NULL, 0),
@@ -1188,7 +1188,7 @@ emit_cs_shader(struct anv_batch *batch,
             .PreferredSLMAllocationSize         = intel_compute_preferred_slm_calc_encode_size(
                devinfo, bin->info.total_shared,
                dispatch.group_size, dispatch.simd_size),
-            .NumberOfBarriers                   = cs_prog_data->uses_barrier,
+            .NumberOfBarriers                   = bin->info.wg.uses_barrier,
             .PSAsyncThreadLimit                 = pixel_async_compute_thread_limit,
             .ZPassAsyncComputeThreadLimit       = z_pass_async_compute_thread_limit,
             .NP_ZAsyncThrottlesettings          = np_z_async_throttle_settings,
@@ -1221,9 +1221,9 @@ emit_cs_shader(struct anv_batch *batch,
          .WalkOrder                      = walk_order,
          .TileLayout                     = walk_order == INTEL_WALK_ORDER_YXZ ?
          TileY32bpe : Linear,
-         .LocalXMaximum                  = cs_prog_data->local_size[0] - 1,
-         .LocalYMaximum                  = cs_prog_data->local_size[1] - 1,
-         .LocalZMaximum                  = cs_prog_data->local_size[2] - 1,
+         .LocalXMaximum                  = bin->info.wg.local_size[0] - 1,
+         .LocalYMaximum                  = bin->info.wg.local_size[1] - 1,
+         .LocalZMaximum                  = bin->info.wg.local_size[2] - 1,
          .PostSync                       = {
             .MOCS                        = anv_mocs(device, NULL, 0),
          },
@@ -1237,7 +1237,7 @@ emit_cs_shader(struct anv_batch *batch,
             .PreferredSLMAllocationSize        = intel_compute_preferred_slm_calc_encode_size(
                devinfo, bin->info.total_shared,
                dispatch.group_size, dispatch.simd_size),
-            .NumberOfBarriers                  = cs_prog_data->uses_barrier,
+            .NumberOfBarriers                  = bin->info.wg.uses_barrier,
 #if GFX_VER >= 30
             .RegistersPerThread                =
                intel_register_blocks(devinfo, bin->info.grf_used),
@@ -1278,11 +1278,11 @@ emit_cs_shader(struct anv_batch *batch,
       struct GENX(INTERFACE_DESCRIPTOR_DATA) desc = {
          .KernelStartPointer     =
             anv_shader_get_pointer(device, &shader->kernel) +
-            brw_cs_prog_data_prog_offset(cs_prog_data, dispatch.simd_size),
+            brw_cs_prog_data_prog_offset(&bin->info, dispatch.simd_size),
 
          .SamplerCount           = get_sampler_count(device, shader),
          .BindingTableEntryCount = MIN2(get_surface_count(device, shader), 31),
-         .BarrierEnable          = cs_prog_data->uses_barrier,
+         .BarrierEnable          = bin->info.wg.uses_barrier,
          .SharedLocalMemorySize  = intel_compute_slm_encode_size(
             GFX_VER, bin->info.total_shared),
 
@@ -1332,7 +1332,7 @@ genX(write_cs_descriptor)(struct anv_dgc_cs_descriptor *desc,
    const struct brw_cs_prog_data *prog_data =
       brw_cs_prog_data_const(shader->prog_data);
    const struct intel_cs_dispatch_info dispatch =
-      brw_cs_get_dispatch_info(device->info, prog_data, NULL);
+      brw_cs_get_dispatch_info(device->info, &shader->bin->info, NULL);
 
    desc->right_mask = dispatch.right_mask;
    desc->threads = dispatch.threads;

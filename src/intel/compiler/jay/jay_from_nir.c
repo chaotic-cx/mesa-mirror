@@ -1004,9 +1004,8 @@ jay_emit_signal_barrier(jay_builder *b, struct nir_to_jay_state *nj)
             .msg_desc = GEN_MESSAGE_GATEWAY_SFID_BARRIER_MSG, .srcs = &zipped,
             .nr_srcs = 1, .type = JAY_TYPE_U32, .uniform = true);
 
-   /* Task/mesh inherit cs_prog_data */
    if (mesa_shader_stage_uses_workgroup(nj->s->stage)) {
-      nj->s->prog_data->cs.uses_barrier = true;
+      nj->s->info.wg.uses_barrier = true;
    }
 }
 
@@ -2197,7 +2196,7 @@ jay_emit_dpas(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
             jay_type_for_glsl_base_type(nir_intrinsic_src_base_type(intr)))
       ->saturate = nir_intrinsic_saturate(intr);
 
-   nj->s->prog_data->cs.uses_systolic = true;
+   nj->s->info.wg.uses_systolic = true;
 }
 
 static void
@@ -5176,6 +5175,13 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    /* Scratch is allocated in 1KiB increments. */
    s->info.total_scratch = align(s->info.total_scratch, 1024);
 
+   if (mesa_shader_stage_uses_workgroup(s->stage)) {
+      unsigned i = simd_width == 8 ? 0 : simd_width == 16 ? 1 : 2;
+      s->info.wg.prog_offset[i] = 0;
+      s->info.wg.prog_mask = BITFIELD_BIT(i);
+      s->info.wg.prog_spilled = uses_scratch; /* XXX */
+   }
+
    intel_shader_bin *bin =
       jay_to_binary(s, nir->constant_data, nir->constant_data_size, debug);
    assert(bin->code);
@@ -5210,14 +5216,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
          prog_data->fs.dispatch_32 = true;
          prog_data->fs.prog_offset_32 = 0;
       }
-
-   } else if (mesa_shader_stage_is_compute(s->stage) ||
-              s->stage == MESA_SHADER_MESH ||
-              s->stage == MESA_SHADER_TASK) {
-      unsigned i = simd_width == 8 ? 0 : simd_width == 16 ? 1 : 2;
-      prog_data->cs.prog_offset[i] = 0;
-      prog_data->cs.prog_mask = BITFIELD_BIT(i);
-      prog_data->cs.prog_spilled = uses_scratch; /* XXX */
    } else if (brw_shader_stage_is_bindless(s->stage)) {
       prog_data->bs.simd_size = simd_width;
       prog_data->bs.max_stack_size =
@@ -5256,7 +5254,6 @@ jay_compile(const struct intel_device_info *devinfo,
       prog_data->cs.walk_order = params->cs.dispatch.walk_order;
       prog_data->cs.generate_local_id = params->cs.dispatch.generate_local_id;
       prog_data->cs.push = params->cs.push;
-      prog_data->cs.uses_btd_stack_ids = params->cs.uses_btd_stack_ids;
       prog_data->cs.force_simd32 = params->cs.force_simd32;
    }
 
@@ -5267,6 +5264,17 @@ jay_compile(const struct intel_device_info *devinfo,
       /* nir_shader_gather_info() clears this once ray queries are lowered. */
       .ray_queries = nir->info.ray_queries,
    };
+
+   if (mesa_shader_stage_is_compute(nir->info.stage))
+      info.cs.uses_btd_stack_ids = params->cs.uses_btd_stack_ids;
+
+   if (mesa_shader_stage_uses_workgroup(nir->info.stage) &&
+       !nir->info.workgroup_size_variable) {
+      info.wg.local_size[0] = nir->info.workgroup_size[0];
+      info.wg.local_size[1] = nir->info.workgroup_size[1];
+      info.wg.local_size[2] = nir->info.workgroup_size[2];
+   }
+
    jay_process_nir(devinfo, params, &fs_perprim, &info);
 
    unsigned modes = jay_select_simd(devinfo, nir);
@@ -5395,8 +5403,6 @@ jay_compile(const struct intel_device_info *devinfo,
       prog_data->fs.dispatch_8 = false;
       prog_data->fs.dispatch_16 = false;
       prog_data->fs.dispatch_32 = false;
-   } else if (mesa_shader_stage_uses_workgroup(orig_nir->info.stage)) {
-      prog_data->cs.prog_mask = 0;
    }
 
    struct intel_shader_reloc *relocs = NULL;
@@ -5433,8 +5439,6 @@ jay_compile(const struct intel_device_info *devinfo,
             prog_data->fs.dispatch_32 = true;
             prog_data->fs.prog_offset_32 = offset;
          }
-      } else if (mesa_shader_stage_uses_workgroup(orig_nir->info.stage)) {
-         prog_data->cs.prog_mask |= BITFIELD_BIT(i);
       } else if (brw_shader_stage_is_bindless(orig_nir->info.stage)) {
          prog_data->bs.simd_size = 8 << i;
       }

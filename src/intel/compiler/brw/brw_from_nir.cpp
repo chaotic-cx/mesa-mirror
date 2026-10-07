@@ -4173,8 +4173,8 @@ brw_workgroup_size(brw_shader &s)
 {
    assert(mesa_shader_stage_uses_workgroup(s.stage));
    assert(!s.nir->info.workgroup_size_variable);
-   const struct brw_cs_prog_data *cs = brw_cs_prog_data(s.prog_data);
-   return cs->local_size[0] * cs->local_size[1] * cs->local_size[2];
+   return s.nir->info.workgroup_size[0] * s.nir->info.workgroup_size[1] *
+          s.nir->info.workgroup_size[2];
 }
 
 static void
@@ -4186,7 +4186,6 @@ brw_from_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
    brw_shader &s = ntb.s;
 
    assert(mesa_shader_stage_uses_workgroup(s.stage));
-   struct brw_cs_prog_data *cs_prog_data = brw_cs_prog_data(s.prog_data);
 
    brw_reg dest;
    if (nir_intrinsic_infos[instr->intrinsic].has_dest)
@@ -4208,7 +4207,7 @@ brw_from_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
          }
 
          emit_barrier(ntb);
-         cs_prog_data->uses_barrier = true;
+         s.info.wg.uses_barrier = true;
       }
       break;
 
@@ -4225,7 +4224,7 @@ brw_from_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
 
    case nir_intrinsic_load_local_invocation_id:
       /* This is only used for hardware generated local IDs. */
-      assert(cs_prog_data->generate_local_id);
+      assert(brw_cs_prog_data(s.prog_data)->generate_local_id);
 
       dest.type = BRW_TYPE_UD;
 
@@ -4307,7 +4306,7 @@ brw_from_nir_emit_cs_intrinsic(nir_to_brw_state &ntb,
          ->saturate = nir_intrinsic_saturate(instr);
 
       if (!ntb.s.compiler->lower_dpas)
-         cs_prog_data->uses_systolic = true;
+         s.info.wg.uses_systolic = true;
 
       break;
    }

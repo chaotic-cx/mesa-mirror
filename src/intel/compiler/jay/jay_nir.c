@@ -889,10 +889,6 @@ jay_process_nir(const struct intel_device_info *devinfo,
       brw_fill_tess_info_from_shader_info(&info->tes.tess_info,
                                           &nir->info);
    } else if (stage == MESA_SHADER_MESH) {
-      prog_data->mesh.base.local_size[0] = nir->info.workgroup_size[0];
-      prog_data->mesh.base.local_size[1] = nir->info.workgroup_size[1];
-      prog_data->mesh.base.local_size[2] = nir->info.workgroup_size[2];
-
       prog_data->mesh.primitive_type = nir->info.mesh.primitive_type;
 
       struct index_packing_state index_packing_state = {};
@@ -926,10 +922,6 @@ jay_process_nir(const struct intel_device_info *devinfo,
          brw_mesh_autostrip_enable(&compiler, nir, &prog_data->mesh.map);
 
    } else if (stage == MESA_SHADER_TASK) {
-      prog_data->task.base.local_size[0] = nir->info.workgroup_size[0];
-      prog_data->task.base.local_size[1] = nir->info.workgroup_size[1];
-      prog_data->task.base.local_size[2] = nir->info.workgroup_size[2];
-
       prog_data->task.uses_drawid =
          BITSET_TEST(nir->info.system_values_read, SYSTEM_VALUE_DRAW_ID);
 

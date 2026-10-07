@@ -140,13 +140,13 @@ brw_compile_cs(const struct brw_compiler *compiler,
    prog_data->generate_local_id = params->cs.dispatch.generate_local_id;
    prog_data->walk_order = params->cs.dispatch.walk_order;
    prog_data->push = params->cs.push;
-   prog_data->uses_btd_stack_ids = params->cs.uses_btd_stack_ids;
    prog_data->force_simd32 = params->cs.force_simd32;
 
+   uint32_t local_size[3] = {};
    if (!nir->info.workgroup_size_variable) {
-      prog_data->local_size[0] = nir->info.workgroup_size[0];
-      prog_data->local_size[1] = nir->info.workgroup_size[1];
-      prog_data->local_size[2] = nir->info.workgroup_size[2];
+      local_size[0] = nir->info.workgroup_size[0];
+      local_size[1] = nir->info.workgroup_size[1];
+      local_size[2] = nir->info.workgroup_size[2];
    }
 
    brw_nir_select_divergence_options(compiler, nir, false);
@@ -164,7 +164,8 @@ brw_compile_cs(const struct brw_compiler *compiler,
 
    brw_simd_selection_state simd_state{
       .devinfo = compiler->devinfo,
-      .prog_data = prog_data,
+      .stage = nir->info.stage,
+      .cs_local_size = local_size,
       .required_width = brw_required_dispatch_width(&nir->info),
       .uses_btd_stack_ids = params->cs.uses_btd_stack_ids,
    };
@@ -214,6 +215,12 @@ brw_compile_cs(const struct brw_compiler *compiler,
          .info = {
             .source_hash = params->source_hash,
             .ray_queries = ray_queries,
+            .wg = {
+               .local_size = { local_size[0], local_size[1], local_size[2] },
+            },
+            .cs = {
+               .uses_btd_stack_ids = params->cs.uses_btd_stack_ids,
+            },
          },
          .dispatch_width          = dispatch_width,
          .needs_register_pressure = params->collect_register_pressure,
@@ -261,8 +268,16 @@ brw_compile_cs(const struct brw_compiler *compiler,
 
    assert(selected_simd < 3);
 
+   uint8_t prog_mask = 0;
+   uint8_t prog_spilled = 0;
+   for (unsigned i = 0; i < SIMD_COUNT; i++) {
+      if (simd_state.compiled[i])
+         prog_mask |= 1u << i;
+      if (simd_state.spilled[i])
+         prog_spilled |= 1u << i;
+   }
    if (!nir->info.workgroup_size_variable)
-      prog_data->prog_mask = 1 << selected_simd;
+      prog_mask = 1 << selected_simd;
 
    brw_to_binary_params to_binary_params = {
       .compiler = compiler,
@@ -271,22 +286,19 @@ brw_compile_cs(const struct brw_compiler *compiler,
    };
 
    for (unsigned simd = 0; simd < 3; simd++) {
-      if (prog_data->prog_mask & (1u << simd)) {
+      if (prog_mask & (1u << simd)) {
          assert(v[simd]);
+         v[simd]->info.wg.prog_mask = 1u << simd;
+         v[simd]->info.wg.prog_spilled = prog_spilled & (1u << simd);
          to_binary_params.shaders[simd] = v[simd].get();
       }
    }
 
    intel_shader_bin *bin = brw_to_binary(&to_binary_params);
 
-   for (unsigned simd = 0; simd < 3; simd++) {
-      if (prog_data->prog_mask & (1u << simd))
-         prog_data->prog_offset[simd] = v[simd]->start_offset;
-   }
-
    /* Override per-variant max_dispatch_width to make reports more useful. */
    const uint32_t max_dispatch_width =
-      8u << (util_last_bit(prog_data->prog_mask) - 1);
+      8u << (util_last_bit(prog_mask) - 1);
    for (unsigned i = 0; i < bin->num_stats; i++)
       bin->stats[i].max_dispatch_width = max_dispatch_width;
 

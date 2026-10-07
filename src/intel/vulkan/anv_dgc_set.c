@@ -166,16 +166,14 @@ write_cs_set_entry(struct anv_device *device,
    struct anv_dgc_cs_descriptor descriptor;
    anv_genX(device->info, write_cs_descriptor)(&descriptor, device, shader);
 
-   const struct brw_cs_prog_data *prog_data =
-      brw_cs_prog_data_const(shader->prog_data);
-
    if (device->info->verx10 < 125)
       anv_reloc_list_append(&indirect_set->relocs, &shader->relocs);
 
    memcpy(indirect_set->bo->map + entry * indirect_set->stride,
           &descriptor, sizeof(descriptor));
 
-   indirect_set->uses_systolic |= prog_data->uses_systolic;
+   indirect_set->uses_systolic |=
+      shader->bin->info.wg.uses_systolic;
    indirect_set->max_scratch = MAX2(indirect_set->max_scratch,
                                     shader->bin->info.total_scratch);
    indirect_set->max_ray_queries = MAX2(indirect_set->max_ray_queries,

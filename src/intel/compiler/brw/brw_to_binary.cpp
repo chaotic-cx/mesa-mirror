@@ -2744,6 +2744,25 @@ brw_to_binary(const brw_to_binary_params *p)
          MAX2(bin->info.total_shared, shader->info.total_shared);
       bin->info.grf_used = MAX2(bin->info.grf_used,
                                 shader->info.grf_used);
+
+      if (mesa_shader_stage_uses_workgroup(bin->info.stage)) {
+         auto *dst = &bin->info.wg;
+         const auto *src = &shader->info.wg;
+         assert(memcmp(dst->local_size, src->local_size,
+                       sizeof(dst->local_size)) == 0);
+         dst->prog_mask |= src->prog_mask;
+         dst->prog_spilled |= src->prog_spilled;
+         dst->uses_barrier |= src->uses_barrier;
+         dst->uses_systolic |= src->uses_systolic;
+         u_foreach_bit(simd, src->prog_mask)
+            dst->prog_offset[simd] = shader->start_offset;
+      }
+
+      if (mesa_shader_stage_is_compute(bin->info.stage)) {
+         auto *dst = &bin->info.cs;
+         const auto *src = &shader->info.cs;
+         assert(dst->uses_btd_stack_ids == src->uses_btd_stack_ids);
+      }
    }
    for (unsigned i = 0; i < p->num_resume_shaders; i++) {
       bin->info.has_ubo_pull |= p->resume_shaders[i]->info.has_ubo_pull;
