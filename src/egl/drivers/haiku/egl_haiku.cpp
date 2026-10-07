@@ -509,7 +509,7 @@ haiku_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
    return EGL_TRUE;
 }
 
-extern "C" const _EGLDriver _eglDriver = {
+extern "C" const struct _egl_driver _eglDriver = {
    .Initialize = haiku_initialize,
    .Terminate = haiku_terminate,
    .CreateContext = haiku_create_context,

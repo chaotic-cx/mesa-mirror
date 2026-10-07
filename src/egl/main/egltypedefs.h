@@ -49,8 +49,6 @@ typedef struct _egl_device _EGLDevice;
 
 typedef struct _egl_display _EGLDisplay;
 
-typedef struct _egl_driver _EGLDriver;
-
 typedef struct _egl_extensions _EGLExtensions;
 
 typedef struct _egl_image _EGLImage;
