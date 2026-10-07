@@ -4236,11 +4236,12 @@ anv_av1_get_tile_geom(const VkVideoEncodeInfoKHR *enc_info,
 }
 
 static void
-anv_av1_emit_vdenc_pipe_mode_select(struct anv_cmd_buffer *cmd)
+anv_av1_emit_vdenc_pipe_mode_select(struct anv_cmd_buffer *cmd, bool brc)
 {
    const bool is_10bit = anv_av1_is_10bit(anv_av1_seq_hdr(cmd));
 
    anv_batch_emit(&cmd->batch, GENX(VDENC_PIPE_MODE_SELECT), vdenc_pipe_mode) {
+      vdenc_pipe_mode.FrameStatisticsStreamOutEnable = brc;
       vdenc_pipe_mode.StandardSelect = 3; /* TODO: SS_AV1 */
       vdenc_pipe_mode.BitDepth = is_10bit ? 2 : 0;
       vdenc_pipe_mode.PAKChromaSubSamplingType = _420;
@@ -4320,9 +4321,15 @@ anv_av1_emit_vdenc_ds_ref_surface_state(struct anv_cmd_buffer *cmd,
 
 static void
 anv_av1_emit_vdenc_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
-                                       const VkVideoEncodeInfoKHR *enc_info)
+                                       const VkVideoEncodeInfoKHR *enc_info,
+                                       bool brc)
 {
    struct anv_video_session *vid = cmd->video.vid;
+   struct anv_address stats = ANV_NULL_ADDRESS;
+
+   if (brc)
+      stats = anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_VDENC_STATS),
+                              (vid->rc.frame_counter & 1) * 4096);
    const struct anv_image_view *iv =
       anv_image_view_from_handle(enc_info->srcPictureResource.imageViewBinding);
    struct anv_av1_ref_names refs;
@@ -4405,8 +4412,10 @@ anv_av1_emit_vdenc_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
       vdenc_buf.FWDREF2.PictureFields = ANV_VID_PIC(cmd->device, fwd_ref[2].bo);
       vdenc_buf.BWDREF0.Address = bwd_ref;
       vdenc_buf.BWDREF0.PictureFields = ANV_VID_PIC(cmd->device, bwd_ref.bo);
+      vdenc_buf.VDEncStatisticsStreamOut.Address = stats;
       vdenc_buf.VDEncStatisticsStreamOut.PictureFields =
-         ANV_VID_PIC(cmd->device, NULL);
+         ANV_VID_PIC(cmd->device, stats.bo);
+      vdenc_buf.WeightsHistogramStreamOutOffset = 3 * 64;
       vdenc_buf.DSFWDREF04X.Address = ds_fwd_ref_4x[0];
       vdenc_buf.DSFWDREF04X.PictureFields = ANV_VID_PIC(cmd->device, ds_fwd_ref_4x[0].bo);
       vdenc_buf.DSFWDREF14X.Address = ds_fwd_ref_4x[1];
@@ -4543,7 +4552,8 @@ anv_av1_emit_avp_surface_state(struct anv_cmd_buffer *cmd,
 static void
 anv_av1_emit_avp_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
                                      const VkVideoEncodeInfoKHR *enc_info,
-                                     uint32_t tile_idx)
+                                     uint32_t tile_idx,
+                                     bool brc)
 {
    struct anv_video_session *vid = cmd->video.vid;
    const struct VkVideoEncodeAV1PictureInfoKHR *frame_info = anv_av1_frame_info(enc_info);
@@ -4686,6 +4696,9 @@ anv_av1_emit_avp_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
       if (primary_ref_iv && !pic_info->flags.disable_frame_end_update_cdf) {
          buf.CDFTablesInitializationBufferAddress =
             anv_image_av1_table_address(primary_ref_iv, primary_ref_layer);
+      } else if (brc && anv_av1_brc_primary_ref_none(pic_info)) {
+         buf.CDFTablesInitializationBufferAddress =
+            ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_AV1_BRC_CDF_ACTIVE);
       } else {
          uint32_t cdf_qindex = anv_video_encode_quantizer(vid, frame_info->constantQIndex,
             pic_info->pQuantization ? pic_info->pQuantization->base_q_idx : 0);
@@ -5663,6 +5676,16 @@ anv_av1_patch_tile_group_obu_size(struct anv_cmd_buffer *cmd,
 
    mi_store(&b, mi_mem32(tg_leb128_addr), anv_av1_mi_leb128_4bytes(&b, tile_bytes));
 }
+
+static void
+anv_av1_brc_emit_slb_jump(struct anv_cmd_buffer *cmd, struct anv_address addr)
+{
+   anv_batch_emit(&cmd->batch, GENX(MI_BATCH_BUFFER_START), bbs) {
+      bbs.SecondLevelBatchBuffer = Secondlevelbatch;
+      bbs.AddressSpaceIndicator = ASI_PPGTT;
+      bbs.BatchBufferStartAddress = addr;
+   }
+}
 #endif
 
 static void
@@ -5670,65 +5693,185 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
 {
    /* TODO: AV1 VDEnc encoding is only validated on DG2 (gfx 12.5) for now */
 #if GFX_VERx10 == 125
+   struct anv_video_session *vid = cmd->video.vid;
+   bool brc_enabled =
+      vid->rc_mode == VK_VIDEO_ENCODE_RATE_CONTROL_MODE_CBR_BIT_KHR ||
+      vid->rc_mode == VK_VIDEO_ENCODE_RATE_CONTROL_MODE_VBR_BIT_KHR;
+   bool brc_init = brc_enabled && (vid->rc.frame_counter == 0 || vid->rc.brc_reset);
+   uint32_t num_passes = brc_enabled ? 2 : 1;
    struct anv_av1_tile_layout layout;
    anv_av1_get_tile_layout(cmd, enc_info, &layout);
+
+   struct vk_video_av1_frame_hdr_offsets brc_hdr = { 0 };
+   size_t brc_hdr_size = 0;
+   struct anv_state brc_pak_insert = ANV_STATE_NULL;
+   struct anv_state brc_init_dmem = ANV_STATE_NULL;
+   struct anv_state brc_const_data = ANV_STATE_NULL;
+   struct anv_state brc_update_dmem[2] = { ANV_STATE_NULL, ANV_STATE_NULL };
+   struct anv_state brc_input_slb[2] = { ANV_STATE_NULL, ANV_STATE_NULL };
+
+   if (brc_enabled) {
+      /* TODO: multiple tiles with HuC BRC */
+      assert(layout.num_tiles == 1);
+
+      struct anv_av1_ref_lists lists;
+      anv_av1_get_ref_lists(cmd, enc_info, &lists);
+
+      brc_pak_insert = anv_cmd_buffer_alloc_temporary_state(cmd, 4096, 4096);
+      brc_const_data =
+         anv_cmd_buffer_alloc_temporary_state(cmd,
+            align(sizeof(struct anv_huc_av1_brc_const_data), 4096), 4096);
+      if (brc_pak_insert.map == NULL || brc_const_data.map == NULL)
+         return;
+
+      brc_hdr_size = anv_av1_brc_build_pak_insert(cmd, enc_info, brc_pak_insert, &brc_hdr);
+
+      memset(brc_const_data.map, 0, sizeof(struct anv_huc_av1_brc_const_data));
+      anv_av1_brc_fill_const_data(anv_av1_is_intra(anv_av1_pic_info(enc_info)),
+                                  brc_const_data.map);
+
+      if (brc_init) {
+         brc_init_dmem =
+            anv_cmd_buffer_alloc_temporary_state(cmd,
+               sizeof(struct anv_huc_av1_brc_init_dmem), 4096);
+         if (brc_init_dmem.map == NULL)
+            return;
+
+         memset(brc_init_dmem.map, 0, sizeof(struct anv_huc_av1_brc_init_dmem));
+         anv_av1_brc_fill_init_dmem(cmd, enc_info, brc_init_dmem.map);
+      }
+
+      for (uint32_t pass = 0; pass < num_passes; pass++) {
+         brc_input_slb[pass] =
+            anv_cmd_buffer_alloc_temporary_state(cmd,
+               align(ANV_AV1_BRC_SLB_SIZE, 4096), 4096);
+         brc_update_dmem[pass] =
+            anv_cmd_buffer_alloc_temporary_state(cmd,
+               sizeof(struct anv_huc_av1_brc_update_dmem), 4096);
+         if (brc_input_slb[pass].map == NULL || brc_update_dmem[pass].map == NULL)
+            return;
+
+         anv_av1_brc_build_input_slb(cmd, enc_info, &layout, pass, brc_input_slb[pass]);
+
+         memset(brc_update_dmem[pass].map, 0, sizeof(struct anv_huc_av1_brc_update_dmem));
+         anv_av1_brc_fill_update_dmem(cmd, enc_info, pass, lists.low_delay, &brc_hdr,
+                                      brc_update_dmem[pass].map);
+      }
+   }
 
    anv_video_emit_mi_flush_dw(cmd, true);
    /* TODO: confirm AV1/VDEnc power well control bits */
    anv_video_emit_force_wakeup(cmd, false);
-   anv_vdenc_emit_control_state(cmd);
 
-   anv_av1_emit_vdenc_pipe_mode_select(cmd);
-   anv_av1_emit_vdenc_src_surface_state(cmd, enc_info);
-   anv_av1_emit_vdenc_ref_surface_state(cmd, enc_info);
-   anv_av1_emit_vdenc_ds_ref_surface_state(cmd, enc_info);
-   anv_av1_emit_vdenc_pipe_buf_addr_state(cmd, enc_info);
+   for (uint32_t pass = 0; pass < num_passes; pass++) {
+      if (brc_enabled) {
+         if (pass == 0 && brc_init)
+            anv_av1_brc_emit_huc_init(cmd, brc_init_dmem);
 
-   struct anv_address tg_leb128_addr = ANV_NULL_ADDRESS;
-   uint32_t tg_payload_prefix = 0;
-   uint32_t cu_tile_offset = 0;
-   uint32_t lcu_tile_offset = 0;
+         anv_av1_brc_emit_huc_update(cmd, pass, brc_update_dmem[pass],
+                                     brc_input_slb[pass], brc_const_data,
+                                     brc_pak_insert);
 
-   for (uint32_t tile_idx = 0; tile_idx < layout.num_tiles; tile_idx++) {
-      struct anv_av1_tile_geom geom;
-      anv_av1_get_tile_geom(enc_info, &layout, tile_idx, &geom);
-
-      anv_av1_emit_avp_vd_control_state(cmd);
-      anv_video_emit_mfx_wait(cmd, NULL);
-      anv_av1_emit_avp_pipe_mode_select(cmd, enc_info);
-      anv_video_emit_mfx_wait(cmd, NULL);
-
-      anv_av1_emit_avp_surface_state(cmd, enc_info);
-      anv_av1_emit_avp_pipe_buf_addr_state(cmd, enc_info, tile_idx);
-      anv_av1_emit_avp_ind_obj_base_addr_state(cmd, enc_info);
-      anv_av1_emit_avp_pic_state(cmd, NULL, enc_info, &layout, tile_idx, false);
-      anv_av1_emit_avp_inter_pred_state(cmd);
-      anv_av1_emit_avp_segment_state(cmd, NULL, enc_info);
-      anv_av1_emit_avp_inloop_filter_state(cmd, NULL, enc_info, false);
-      anv_av1_emit_avp_tile_coding(cmd, enc_info, &layout, &geom);
-
-      if (tile_idx == 0) {
-         size_t hdr_size = anv_av1_emit_frame_header(cmd, NULL, enc_info, false, NULL);
-         anv_av1_emit_tile_group_header(cmd, enc_info, &layout, hdr_size,
-                                        &tg_leb128_addr, &tg_payload_prefix);
+         /* TODO: skip the second pass with MI_CONDITIONAL_BATCH_BUFFER_END
+          * on HUC_STATUS like media-driver, see the HEVC BRC path */
       }
 
-      anv_vdenc_emit_weightsoffsets_state(cmd, NULL, true);
-      anv_av1_emit_vdenc_cmd1(cmd, NULL, enc_info);
-      anv_av1_emit_vdenc_tile_slice_state(cmd, enc_info, &layout, &geom,
-                                          cu_tile_offset, lcu_tile_offset);
-      cu_tile_offset += DIV_ROUND_UP(geom.tile_w_sb * geom.tile_h_sb * 2, 64);
-      uint32_t max_cu = (layout.sb_size / 8) * (layout.sb_size / 8);
-      lcu_tile_offset += DIV_ROUND_UP(2 * 4 * geom.tile_w_sb * geom.tile_h_sb * (5 + max_cu * 8), 64);
-      anv_av1_emit_vdenc_cmd2(cmd, NULL, enc_info);
-      anv_av1_emit_vdenc_walker_state(cmd, &geom);
-      anv_av1_emit_vdenc_pipeline_flush(cmd);
+      anv_vdenc_emit_control_state(cmd);
 
-      anv_av1_store_tile_bitstream_size(cmd, tile_idx);
+      anv_av1_emit_vdenc_pipe_mode_select(cmd, brc_enabled);
+      anv_av1_emit_vdenc_src_surface_state(cmd, enc_info);
+      anv_av1_emit_vdenc_ref_surface_state(cmd, enc_info);
+      anv_av1_emit_vdenc_ds_ref_surface_state(cmd, enc_info);
+      anv_av1_emit_vdenc_pipe_buf_addr_state(cmd, enc_info, brc_enabled);
+
+      struct anv_address tg_leb128_addr = ANV_NULL_ADDRESS;
+      uint32_t tg_payload_prefix = 0;
+      uint32_t cu_tile_offset = 0;
+      uint32_t lcu_tile_offset = 0;
+
+      for (uint32_t tile_idx = 0; tile_idx < layout.num_tiles; tile_idx++) {
+         struct anv_av1_tile_geom geom;
+         anv_av1_get_tile_geom(enc_info, &layout, tile_idx, &geom);
+
+         anv_av1_emit_avp_vd_control_state(cmd);
+         anv_video_emit_mfx_wait(cmd, NULL);
+         anv_av1_emit_avp_pipe_mode_select(cmd, enc_info);
+         anv_video_emit_mfx_wait(cmd, NULL);
+
+         anv_av1_emit_avp_surface_state(cmd, enc_info);
+         anv_av1_emit_avp_pipe_buf_addr_state(cmd, enc_info, tile_idx, brc_enabled);
+         anv_av1_emit_avp_ind_obj_base_addr_state(cmd, enc_info);
+
+         if (brc_enabled) {
+            anv_av1_brc_emit_slb_jump(cmd,
+               anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB),
+                               ANV_AV1_BRC_SLB_PIC_STATE_OFFSET));
+         } else {
+            anv_av1_emit_avp_pic_state(cmd, NULL, enc_info, &layout, tile_idx, false);
+         }
+
+         anv_av1_emit_avp_inter_pred_state(cmd);
+
+         if (brc_enabled) {
+            anv_av1_brc_emit_slb_jump(cmd, ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB));
+         } else {
+            anv_av1_emit_avp_segment_state(cmd, NULL, enc_info);
+            anv_av1_emit_avp_inloop_filter_state(cmd, NULL, enc_info, false);
+         }
+
+         anv_av1_emit_avp_tile_coding(cmd, enc_info, &layout, &geom);
+
+         if (tile_idx == 0) {
+            size_t hdr_size;
+
+            if (brc_enabled) {
+               anv_av1_brc_emit_slb_jump(cmd,
+                  ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_AV1_BRC_PAK_INSERT_OUT));
+               hdr_size = brc_hdr_size;
+            } else {
+               hdr_size = anv_av1_emit_frame_header(cmd, NULL, enc_info, false, NULL);
+            }
+
+            anv_av1_emit_tile_group_header(cmd, enc_info, &layout, hdr_size,
+                                           &tg_leb128_addr, &tg_payload_prefix);
+         }
+
+         anv_vdenc_emit_weightsoffsets_state(cmd, NULL, true);
+
+         if (brc_enabled) {
+            anv_av1_brc_emit_slb_jump(cmd,
+               anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB),
+                               ANV_AV1_BRC_SLB_CMD1_OFFSET));
+         } else {
+            anv_av1_emit_vdenc_cmd1(cmd, NULL, enc_info);
+         }
+
+         anv_av1_emit_vdenc_tile_slice_state(cmd, enc_info, &layout, &geom,
+                                             cu_tile_offset, lcu_tile_offset);
+         cu_tile_offset += DIV_ROUND_UP(geom.tile_w_sb * geom.tile_h_sb * 2, 64);
+         uint32_t max_cu = (layout.sb_size / 8) * (layout.sb_size / 8);
+         lcu_tile_offset += DIV_ROUND_UP(2 * 4 * geom.tile_w_sb * geom.tile_h_sb * (5 + max_cu * 8), 64);
+
+         if (brc_enabled) {
+            anv_av1_brc_emit_slb_jump(cmd,
+               anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB),
+                               ANV_AV1_BRC_SLB_CMD2_OFFSET));
+         } else {
+            anv_av1_emit_vdenc_cmd2(cmd, NULL, enc_info);
+         }
+
+         anv_av1_emit_vdenc_walker_state(cmd, &geom);
+         anv_av1_emit_vdenc_pipeline_flush(cmd);
+
+         anv_av1_store_tile_bitstream_size(cmd, tile_idx);
+      }
+
+      anv_av1_emit_avp_pipeline_flush(cmd);
+      anv_av1_patch_tile_group_obu_size(cmd, &layout, tg_leb128_addr, tg_payload_prefix);
    }
 
-   anv_av1_emit_avp_pipeline_flush(cmd);
-   anv_av1_patch_tile_group_obu_size(cmd, &layout, tg_leb128_addr, tg_payload_prefix);
+   if (brc_enabled)
+      vid->rc.frame_counter++;
 #endif // GFX_VERx10 == 125
 }
 
