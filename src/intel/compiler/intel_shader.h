@@ -561,6 +561,7 @@ struct intel_push_layout {
 
    /** Bitmask of push ranges requiring robust UBO bounds checks. */
    uint8_t robust_ubo_ranges;
+   uint8_t pad0[3];
 
    /**
     * Dword index of four packed 8-bit UBO limits, in 16-byte units.
@@ -631,6 +632,7 @@ struct brw_mue_map {
    bool has_per_primitive_header;
 
    bool wa_18019110168_active;
+   uint8_t pad0[6];
 };
 
 enum brw_mesh_index_format {
@@ -681,6 +683,8 @@ struct intel_shader_info {
    /** Does this shader pull from any UBO or other constant buffers? */
    bool has_ubo_pull;
 
+   uint8_t pad0[6];
+
    /* Fields common to subset of stages */
    union {
       struct {
@@ -699,6 +703,8 @@ struct intel_shader_info {
 
          /** Should the hardware deliver input VUE handles for URB pull loads? */
          bool include_vue_handles;
+
+         uint8_t pad0[3];
       } vue; /* VS, TES, TCS, GS */
       struct {
          uint32_t local_size[3];
@@ -717,6 +723,8 @@ struct intel_shader_info {
 
          bool uses_barrier;
          bool uses_systolic;
+
+         uint8_t pad0[252];
       } wg; /* CS, KERNEL, TASK, MESH */
    };
 
@@ -731,6 +739,8 @@ struct intel_shader_info {
          bool uses_firstvertex;
          bool uses_baseinstance;
          bool uses_drawid;
+
+         uint8_t pad0[539];
       } vs;
       struct {
          enum intel_compute_walk_order walk_order;
@@ -746,6 +756,8 @@ struct intel_shader_info {
          bool force_simd32;
 
          uint8_t generate_local_id;
+
+         uint8_t pad0[543];
       } cs;
       struct {
          struct brw_tess_info tess_info;
@@ -764,10 +776,14 @@ struct intel_shader_info {
 
          /** Should the non-SINGLE_PATCH payload provide primitive ID? */
          bool include_primitive_id;
+
+         uint8_t pad0[555];
       } tcs;
       struct {
          struct brw_tess_info tess_info;
          bool include_primitive_id;
+
+         uint8_t pad0[571];
       } tes;
       struct {
          uint32_t vertices_in;
@@ -800,6 +816,8 @@ struct intel_shader_info {
 
          uint32_t invocations;
          bool include_primitive_id;
+
+         uint8_t pad0[547];
       } gs;
       struct {
          bool dispatch_8;
@@ -953,10 +971,14 @@ struct intel_shader_info {
 
          /** Whether the shader was compiled with a preference for SIMD32. */
          bool prefer_simd32;
+
+         uint8_t pad0[170];
       } fs;
       struct {
          struct brw_tue_map map;
          bool uses_drawid;
+
+         uint8_t pad0[571];
       } task;
       struct {
          struct brw_mue_map map;
@@ -976,6 +998,8 @@ struct intel_shader_info {
          uint16_t primitive_type;
          bool uses_drawid;
          bool autostrip_enable;
+
+         uint8_t pad0[4];
       } mesh;
       struct {
          /** Maximum stack size of all shaders */
@@ -986,9 +1010,22 @@ struct intel_shader_info {
 
          /** SIMD size of the root shader */
          uint8_t simd_size;
+
+         uint8_t pad0[567];
       } bs;
    };
 };
+
+#ifdef __cplusplus
+static_assert(__has_unique_object_representations(struct intel_push_layout),
+              "intel_push_layout");
+static_assert(__has_unique_object_representations(struct intel_vue_map),
+              "intel_vue_map");
+static_assert(__has_unique_object_representations(struct brw_mue_map),
+              "brw_mue_map");
+static_assert(__has_unique_object_representations(struct intel_shader_info),
+              "intel_shader_info");
+#endif
 
 #define INTEL_SHADER_BIN_MAX_STATS 3
 
