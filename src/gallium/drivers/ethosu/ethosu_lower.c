@@ -2896,6 +2896,11 @@ ethosu_lower_resize_bilinear(struct ethosu_subgraph *subgraph,
    set_feature_map(subgraph, input, &ifm);
    set_feature_map(subgraph, output, &ofm);
 
+   if (!memcmp(input->dims, output->dims, sizeof(input->dims))) {
+      ethosu_append_pool_nop(subgraph, &ifm, &ofm);
+      return;
+   }
+
    if (input->dims[1] == 1 && input->dims[2] == 1) {
       struct pipe_tensor scalar = {
          .dims = {1, 1, 1, 1},
