@@ -2809,7 +2809,7 @@ _eglLockDisplayInterop(EGLDisplay dpy, EGLContext context, _EGLDisplay **disp,
 {
 
    *disp = _eglLockDisplay(dpy);
-   if (!*disp || !(*disp)->Initialized || !(*disp)->Driver) {
+   if (!*disp || !(*disp)->Initialized) {
       if (*disp)
          _eglUnlockDisplay(*disp);
       return MESA_GLINTEROP_INVALID_DISPLAY;
