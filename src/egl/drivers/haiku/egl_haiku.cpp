@@ -340,7 +340,7 @@ haiku_initialize_impl(_EGLDisplay *disp, void *platformDisplay)
       return _eglError(EGL_BAD_ALLOC, "eglInitialize");
 
    hgl_dpy->ref_count = 1;
-   disp->DriverData = (void *)hgl_dpy;
+   disp->DriverDisplay = (void *)hgl_dpy;
 
    struct sw_winsys *winsys = hgl_create_sw_winsys();
    struct pipe_screen *screen = sw_screen_create(winsys);

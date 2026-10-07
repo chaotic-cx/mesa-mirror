@@ -206,7 +206,7 @@ struct _egl_display {
    } Options;
 
    /* these fields are set by the driver during init */
-   void *DriverData;          /**< Driver private data */
+   void *DriverDisplay;       /**< Driver private display object */
    EGLint Version;            /**< EGL version major*10+minor */
    EGLint ClientAPIs;         /**< Bitmask of APIs supported (EGL_xxx_BIT) */
    _EGLExtensions Extensions; /**< Extensions supported */

@@ -1036,7 +1036,7 @@ dri2_display_destroy(_EGLDisplay *disp)
       driDestroyConfigs(dri2_dpy->driver_configs);
    mtx_destroy(&dri2_dpy->lock);
    free(dri2_dpy);
-   disp->DriverData = NULL;
+   disp->DriverDisplay = NULL;
 }
 
 struct dri2_egl_display *
@@ -1053,7 +1053,7 @@ dri2_display_create(_EGLDisplay *disp)
    dri2_dpy->fd_render_gpu = -1;
    dri2_dpy->fd_display_gpu = -1;
    dri2_dpy->multibuffers_available = true;
-   disp->DriverData = (void *)dri2_dpy;
+   disp->DriverDisplay = (void *)dri2_dpy;
 
    return dri2_dpy;
 }

@@ -234,7 +234,7 @@ wgl_initialize_impl(_EGLDisplay *disp, HDC hdc)
    if (!wgl_dpy)
       return _eglError(EGL_BAD_ALLOC, "eglInitialize");
 
-   disp->DriverData = (void *)wgl_dpy;
+   disp->DriverDisplay = (void *)wgl_dpy;
    wgl_dpy->parent = disp;
 
    if (!stw_init_screen(hdc)) {

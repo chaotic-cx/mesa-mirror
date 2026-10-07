@@ -59,7 +59,7 @@ extern "C" {
  */
 #define _EGL_DRIVER_STANDARD_TYPECASTS(drvname)                                \
    /* note that this is not a direct cast */                                   \
-   _EGL_DRIVER_TYPECAST(drvname##_display, _EGLDisplay, obj->DriverData)       \
+   _EGL_DRIVER_TYPECAST(drvname##_display, _EGLDisplay, obj->DriverDisplay)    \
    _EGL_DRIVER_TYPECAST(drvname##_context, _EGLContext, obj)                   \
    _EGL_DRIVER_TYPECAST(drvname##_surface, _EGLSurface, obj)                   \
    _EGL_DRIVER_TYPECAST(drvname##_config, _EGLConfig, obj)
