@@ -115,8 +115,8 @@ impl WaitSlots {
     }
 }
 
-fn dce_flow(shader: &mut Shader) {
-    let cfg = &shader.blocks;
+fn dce_flow(f: &mut Function, shader_info: &ShaderInfo) {
+    let cfg = &f.blocks;
     // First pass: gather waits per-block
     let block_usage: Vec<_> = cfg
         .iter()
@@ -134,7 +134,7 @@ fn dce_flow(shader: &mut Shader) {
     let mut reg_in = vec![WaitSlots::unknown(); cfg.len()];
     let mut reg_out = vec![WaitSlots::unknown(); cfg.len()];
     reg_in[0] = WaitSlots::signaled();
-    if shader.info.is_blend {
+    if shader_info.is_blend {
         // blend shaders come from a BLEND call, those require a zs + barrier
         // wait, so we can clear those slots
         reg_in[0].wait_bit(FlowWaitBit::Barrier);
@@ -156,7 +156,7 @@ fn dce_flow(shader: &mut Shader) {
     .solve();
 
     // Third pass: Remove useless waits
-    for (bi, block) in shader.blocks.iter_mut().enumerate() {
+    for (bi, block) in f.blocks.iter_mut().enumerate() {
         let mut state = reg_in[bi];
         for instr in &mut block.instrs {
             state.issue(instr);
@@ -172,8 +172,8 @@ fn dce_flow(shader: &mut Shader) {
     }
 }
 
-fn merge_waits(shader: &mut Shader) {
-    for block in &mut shader.blocks {
+fn merge_waits(f: &mut Function) {
+    for block in &mut f.blocks {
         for i in (1..block.instrs.len()).rev() {
             if !matches!(block.instrs[i].op, Op::Nop(_)) {
                 continue;
@@ -217,8 +217,17 @@ fn has_nop_end(block: &BasicBlock) -> bool {
 /// This pass will remove NOP.end instructions if the .end modifier can
 /// be encoded on the instruction before. Barriers at the end of shaders
 /// are also safe to remove.
-fn merge_end(shader: &mut Shader) {
-    for block in &mut shader.blocks {
+fn merge_end(f: &mut Function) {
+    if !f.is_entrypoint {
+        if cfg!(debug_assertions) {
+            for block in &f.blocks {
+                debug_assert!(!has_nop_end(block));
+            }
+        }
+        return;
+    }
+
+    for block in &mut f.blocks {
         if !has_nop_end(block) || block.instrs.len() == 0 {
             continue;
         }
@@ -246,15 +255,23 @@ fn merge_end(shader: &mut Shader) {
     }
 }
 
-impl Shader<'_> {
+impl Function {
     /// This pass optimizes and merges flow wait bits.
     ///
     /// 1. Performs data-flow analysis to remove waits on already waited slots
     /// 2. Merges NOP waits into previous instructions where possible
     /// 3. Merges NOP.end with the previous instructions
-    pub fn opt_flow(&mut self) {
-        dce_flow(self);
+    pub fn opt_flow(&mut self, shader_info: &ShaderInfo) {
+        dce_flow(self, shader_info);
         merge_waits(self);
         merge_end(self);
+    }
+}
+
+impl Shader<'_> {
+    pub fn opt_flow(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.opt_flow(&self.info);
+        }
     }
 }

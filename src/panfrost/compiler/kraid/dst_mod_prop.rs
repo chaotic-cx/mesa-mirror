@@ -580,7 +580,7 @@ impl<A: AllocSSA> DstModProp<'_, A> {
     }
 }
 
-impl Shader<'_> {
+impl Function {
     pub fn opt_dst_mod_prop(&mut self) -> bool {
         let mut mod_prop = DstModProp::new(&mut self.ssa_alloc);
 
@@ -595,6 +595,16 @@ impl Shader<'_> {
             for instr in block.instrs.iter_mut() {
                 progress |= mod_prop.try_fold_instr(instr);
             }
+        }
+        progress
+    }
+}
+
+impl Shader<'_> {
+    pub fn opt_dst_mod_prop(&mut self) -> bool {
+        let mut progress = false;
+        for f in self.functions.iter_mut() {
+            progress |= f.opt_dst_mod_prop();
         }
         progress
     }

@@ -219,8 +219,8 @@ fn lower_instr(instr: &mut Instr, model: &dyn Model, ctx: &mut VecCtx) {
     }
 }
 
-impl Shader<'_> {
-    pub fn lower_small_constants(&mut self) {
+impl Function {
+    pub fn lower_small_constants(&mut self, model: &dyn Model) {
         let mut vec_ctx: VecCtx = Default::default();
 
         for b in self.blocks.iter_mut() {
@@ -228,8 +228,16 @@ impl Shader<'_> {
                 if !any_imm_srcs(instr) {
                     continue;
                 }
-                lower_instr(instr, self.model, &mut vec_ctx);
+                lower_instr(instr, model, &mut vec_ctx);
             }
+        }
+    }
+}
+
+impl Shader<'_> {
+    pub fn lower_small_constants(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.lower_small_constants(self.model);
         }
     }
 }

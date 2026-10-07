@@ -19,7 +19,7 @@ enum Jump {
     Branch(Label),
 }
 
-impl Shader<'_> {
+impl Function {
     /// This pass replaces jumps to empty blocks with a single successor with
     /// jumps to the successor.  This is especially common with if ladders
     /// where we go 2 or 3 ifs deep and then everyone reconverges at the end.
@@ -166,6 +166,20 @@ impl Shader<'_> {
                 }
                 _ => panic!("All blocks must end in BRANCH or NOP.end"),
             }
+        }
+    }
+}
+
+impl Shader<'_> {
+    pub fn opt_jump_thread(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.opt_jump_thread();
+        }
+    }
+
+    pub fn opt_fall_through(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.opt_fall_through();
         }
     }
 }

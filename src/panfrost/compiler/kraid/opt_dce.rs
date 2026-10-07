@@ -10,7 +10,7 @@ fn can_eliminate_instr(instr: &Instr) -> bool {
     instr.flow == FlowCtrl::NONE && instr.op.can_eliminate()
 }
 
-impl Shader<'_> {
+impl Function {
     pub fn opt_dce(&mut self) {
         // TODO: optimize the case when the shader has no loops
         // TODO: can these be Vec<Option<&Instr>>?
@@ -88,5 +88,13 @@ impl Shader<'_> {
 
             if live { [instr].into() } else { [].into() }
         });
+    }
+}
+
+impl Shader<'_> {
+    pub fn opt_dce(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.opt_dce();
+        }
     }
 }

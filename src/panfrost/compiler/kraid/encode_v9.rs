@@ -4197,7 +4197,7 @@ fn encode_instr(
 pub fn encode_v9(s: &Shader<'_>, arch: u8) -> Vec<u32> {
     let mut labels = FxHashMap::default();
     let mut ip = 0_i64;
-    for b in &s.blocks {
+    for b in s.iter_blocks() {
         labels.insert(b.label, ip);
         ip += i64::try_from(b.instrs.len()).unwrap() * INSTR_SIZE;
     }
@@ -4211,7 +4211,7 @@ pub fn encode_v9(s: &Shader<'_>, arch: u8) -> Vec<u32> {
 
     let mut enc = Vec::new();
     let mut ip = 0_i64;
-    for b in &s.blocks {
+    for b in s.iter_blocks() {
         for i in &b.instrs {
             enc.extend(encode_instr(ip, i, arch, &labels));
             ip += INSTR_SIZE;

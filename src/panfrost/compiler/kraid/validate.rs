@@ -6,7 +6,8 @@ use crate::ir::*;
 use rustc_hash::FxHashSet;
 
 fn validate_instr(
-    s: &Shader,
+    model: &dyn Model,
+    shader_info: &ShaderInfo,
     instr: &Instr,
     ssa_vals: &mut FxHashSet<SSAValue>,
 ) {
@@ -24,9 +25,9 @@ fn validate_instr(
             assert!(src.src_ref.bytes_read() <= 4);
         }
 
-        if s.info.src_swizzles_legal {
+        if shader_info.src_swizzles_legal {
             assert!(
-                s.model.op_src_supports_swizzle(&instr.op, src, src.swizzle),
+                model.op_src_supports_swizzle(&instr.op, src, src.swizzle),
                 "{instr} uses an unsupported swizzles for {src:?}"
             );
         }
@@ -115,8 +116,8 @@ fn validate_instr(
     }
 }
 
-impl Shader<'_> {
-    pub fn validate(&self) {
+impl Function {
+    pub fn validate(&self, model: &dyn Model, shader_info: &ShaderInfo) {
         if !cfg!(debug_assertions) && !DEBUG.contains(DebugFlags::VALIDATE) {
             return;
         }
@@ -144,7 +145,7 @@ impl Shader<'_> {
                     is_prelude = false;
                 }
 
-                validate_instr(self, instr, &mut ssa_vals);
+                validate_instr(model, shader_info, instr, &mut ssa_vals);
             }
 
             let mut is_postlude = true;
@@ -160,5 +161,22 @@ impl Shader<'_> {
                 }
             }
         }
+    }
+}
+
+impl Shader<'_> {
+    pub fn validate(&self) {
+        let mut entrypoint_count = 0;
+        for f in self.functions.iter() {
+            f.validate(self.model, &self.info);
+            if f.is_entrypoint {
+                entrypoint_count += 1;
+            }
+        }
+
+        assert!(
+            entrypoint_count == 1,
+            "We must have exactly one entrypoint per shader"
+        );
     }
 }

@@ -516,11 +516,10 @@ fn legalize_fau_srcs(
     ctx.apply_legalization(b, op);
 }
 
-impl Shader<'_> {
-    pub fn legalize(&mut self) {
-        let live = Liveness::for_shader(self);
+impl Function {
+    pub fn legalize(&mut self, model: &dyn Model) {
+        let live = Liveness::for_function(self, model);
 
-        let model = self.model;
         let fau = model.fau();
         let mut ssa_used = SSAValueSet::new();
         for (bi, block) in self.blocks.iter_mut().enumerate() {
@@ -538,6 +537,14 @@ impl Shader<'_> {
                 b.push_instr(instr);
                 b.into_mapped()
             });
+        }
+    }
+}
+
+impl Shader<'_> {
+    pub fn legalize(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.legalize(self.model);
         }
     }
 }

@@ -424,12 +424,18 @@ impl<'a> TestShaderBuilder<'a> {
             CFGBuilder::new();
         cfg.add_node(start_block.label, start_block);
 
-        let mut s = Shader {
-            model,
+        let entrypoint = Function {
+            is_entrypoint: true,
+            name: "main".to_string(),
+            blocks: cfg.as_cfg(false),
             ssa_alloc,
             phi_alloc: Default::default(),
-            blocks: cfg.as_cfg(false),
+        };
+
+        let mut s = Shader {
+            model,
             info,
+            functions: vec![entrypoint],
             constant_pool: Default::default(),
         };
         s.validate();
@@ -602,12 +608,18 @@ impl<'a> RawTestShaderBuilder<'a> {
             CFGBuilder::new();
         cfg.add_node(start_block.label, start_block);
 
-        let mut s = Shader {
-            model,
+        let entrypoint = Function {
+            is_entrypoint: true,
+            name: "main".to_string(),
+            blocks: cfg.as_cfg(false),
             ssa_alloc: Default::default(),
             phi_alloc: Default::default(),
-            blocks: cfg.as_cfg(false),
+        };
+
+        let mut s = Shader {
+            model,
             info,
+            functions: vec![entrypoint],
             constant_pool: Default::default(),
         };
 

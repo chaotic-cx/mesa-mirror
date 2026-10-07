@@ -528,7 +528,7 @@ fn promote_source(
 
 fn promote_consts(s: &mut Shader, fau: &mut pan_fau_layout) {
     let mut const_table = ConstTable::default();
-    for block in s.blocks.iter() {
+    for block in s.iter_blocks() {
         for instr in block.instrs.iter() {
             for src in instr.srcs() {
                 const_table.add_op_src(s.model, instr, src);
@@ -571,13 +571,14 @@ fn promote_consts(s: &mut Shader, fau: &mut pan_fau_layout) {
         }
     }
 
-    for block in s.blocks.iter_mut() {
+    let model = s.model;
+    for block in s.iter_blocks_mut() {
         for instr in block.instrs.iter_mut() {
             for src_idx in 0..instr.srcs().len() {
                 let src = &instr.srcs()[src_idx];
 
                 let Some(entry) =
-                    ConstEntry::from_src_promotable(s.model, &instr.op, src)
+                    ConstEntry::from_src_promotable(model, &instr.op, src)
                 else {
                     continue;
                 };

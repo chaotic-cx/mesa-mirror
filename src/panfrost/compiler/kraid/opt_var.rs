@@ -3,7 +3,7 @@
 
 use compiler::dataflow::ForwardDataflow;
 
-use crate::ir::{BasicBlock, Instr, Op, Shader, SrcRef};
+use crate::ir::{BasicBlock, Function, Instr, Op, Shader, SrcRef};
 use crate::ops::{SamplePosition, VaryingUpdateMode};
 
 #[derive(PartialEq, Clone)]
@@ -113,7 +113,7 @@ fn last_reg_set(b: &BasicBlock) -> Option<HiddenRegister> {
         .next_back()
 }
 
-impl Shader<'_> {
+impl Function {
     pub fn opt_var(&mut self) {
         let cfg = &self.blocks;
         // First pass: gather the last register set by each block
@@ -161,6 +161,14 @@ impl Shader<'_> {
                 }
                 current_reg = reg_usage;
             }
+        }
+    }
+}
+
+impl Shader<'_> {
+    pub fn opt_var(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.opt_var();
         }
     }
 }

@@ -71,9 +71,8 @@ fn remat_copies(
     }
 }
 
-impl Shader<'_> {
-    pub fn remat_constants(&mut self) {
-        let model = self.model;
+impl Function {
+    pub fn remat_constants(&mut self, model: &dyn Model) {
         let mut ssa_const: FxHashMap<SSAValue, u32> = Default::default();
 
         self.map_instrs(|mut instr, ssa_alloc| {
@@ -98,6 +97,14 @@ impl Shader<'_> {
                 remat_copies(&mut b, &ssa_const, &mut instr.op);
             }
             block.insert_before_postlude(b.into_mapped())
+        }
+    }
+}
+
+impl Shader<'_> {
+    pub fn remat_constants(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.remat_constants(self.model);
         }
     }
 }

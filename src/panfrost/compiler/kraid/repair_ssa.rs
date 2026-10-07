@@ -114,7 +114,7 @@ fn get_ssa_or_phi(
     }
 }
 
-impl Shader<'_> {
+impl Function {
     /// Repairs SSA form
     ///
     /// Certain passes such as register spilling may produce a program that is
@@ -324,6 +324,14 @@ impl Shader<'_> {
                     }));
                 }
             }
+        }
+    }
+}
+
+impl Shader<'_> {
+    pub fn repair_ssa(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.repair_ssa();
         }
     }
 }

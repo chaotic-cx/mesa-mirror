@@ -808,15 +808,16 @@ struct AffinityMap {
 }
 
 impl AffinityMap {
-    fn for_shader(
-        s: &Shader,
+    fn for_function(
+        f: &Function,
+        model: &dyn Model,
         arena: &Arena,
         live: &Liveness,
         phi_map: &PhiMap,
     ) -> AffinityMap {
-        let ssa_count = s.ssa_alloc.count();
+        let ssa_count = f.ssa_alloc.count();
         let mut b = AffinityMapBuilder {
-            model: s.model,
+            model,
             arena,
             phi_map,
             ssa_affinities: SSAValueIndexedVec::with_count(ssa_count),
@@ -825,7 +826,7 @@ impl AffinityMap {
         };
 
         let mut def_idx = (1_u32..).into_iter();
-        for (bi, block) in s.blocks.iter().enumerate() {
+        for (bi, block) in f.blocks.iter().enumerate() {
             let bl = live.block(bi);
 
             for instr in &block.instrs {
@@ -839,7 +840,7 @@ impl AffinityMap {
 
         // Flatten the UnionFind to an SSAValueIndexedVec for efficiency
         let mut phi_webs: SSAValueIndexedVec<Option<SSAValue>> =
-            SSAValueIndexedVec::with_count(s.ssa_alloc.count());
+            SSAValueIndexedVec::with_count(f.ssa_alloc.count());
         for (k, v) in b.phi_webs.into_iter() {
             debug_assert_eq!(k.bits(), v.bits());
             phi_webs[k] = Some(v);
@@ -2499,17 +2500,23 @@ impl GlobalRegAlloc<'_> {
     }
 }
 
-fn alloc_regs(s: &mut Shader, arena: &Arena, live: Liveness) {
-    let phi_map = PhiMap::for_shader(s);
-    let affinities = AffinityMap::for_shader(s, arena, &live, &phi_map);
+fn alloc_regs(
+    f: &mut Function,
+    model: &dyn Model,
+    arena: &Arena,
+    live: Liveness,
+) {
+    let phi_map = PhiMap::for_function(f);
+    let affinities =
+        AffinityMap::for_function(f, model, arena, &live, &phi_map);
 
-    let mut ra = GlobalRegAlloc::new(s.model, arena, &affinities);
-    ra.live_out.resize_with(s.blocks.len(), Default::default);
-    for bi in 0..s.blocks.len() {
+    let mut ra = GlobalRegAlloc::new(model, arena, &affinities);
+    ra.live_out.resize_with(f.blocks.len(), Default::default);
+    for bi in 0..f.blocks.len() {
         ra.alloc_regs_block(
-            &mut s.blocks,
+            &mut f.blocks,
             &live,
-            &mut s.ssa_alloc,
+            &mut f.ssa_alloc,
             bi,
             &phi_map,
         );
@@ -2555,9 +2562,11 @@ impl Shader<'_> {
     ///
     /// This is less heavyhanded than a full CSSA lowering.
     fn lower_repeated_phi_srcs(&mut self) {
+        let model = self.model;
+        let f = self.entrypoint_mut();
         let mut seen = BitSet::new();
-        for block in &mut self.blocks {
-            let mut b = SSAInstrBuilder::new(self.model, &mut self.ssa_alloc);
+        for block in &mut f.blocks {
+            let mut b = SSAInstrBuilder::new(model, &mut f.ssa_alloc);
             for op in block.iter_phi_srcs_mut() {
                 let SrcRef::SSA(vec) = &mut op.src.src_ref else {
                     continue;
@@ -2582,7 +2591,6 @@ impl Shader<'_> {
     /// for blend shaders where we want to keep everything inside the first 16
     /// registers but most of the preloads live in R48..64.
     fn prop_oob_reg_in(&mut self, arena: &Arena) {
-        let model = self.model;
         let mut map = SSARegMap::new();
         self.map_instrs(|mut instr, _| {
             if let Op::RegIn(op) = &instr.op {
@@ -2610,7 +2618,8 @@ impl Shader<'_> {
                     let swz = Swizzle::from(reg.range)
                         .swizzle(src.swizzle)
                         .expect("16-bit and smaller sources have to swizzle");
-                    if !model.op_src_supports_swizzle(&instr.op, src, swz) {
+                    if !self.model.op_src_supports_swizzle(&instr.op, src, swz)
+                    {
                         continue;
                     }
 
@@ -2624,6 +2633,11 @@ impl Shader<'_> {
     }
 
     pub fn assign_registers(&mut self) {
+        let model = self.model;
+
+        // We only support one function per shader (the entrypoint) right now. This needs to be
+        // revisted when function call support is introduced.
+        assert_eq!(self.functions.len(), 1);
         pass!(self.lower_repeated_phi_srcs());
 
         if self.info.is_blend {
@@ -2631,14 +2645,14 @@ impl Shader<'_> {
 
             pass!(self.prop_oob_reg_in(&arena));
 
-            let live = Liveness::for_shader(self);
+            let live = Liveness::for_function(self.entrypoint(), model);
             assert!(
                 live.max_live_bytes().reg <= u32::from(arena.limit()),
                 "Blend shaders cannot spill"
             );
 
             self.run_pass("allocating registers", |s| {
-                alloc_regs(s, &arena, live);
+                alloc_regs(s.entrypoint_mut(), self.model, &arena, live);
             });
             self.info.registers_used = arena.regs_used(self.model);
             return;
@@ -2647,10 +2661,10 @@ impl Shader<'_> {
         let mut reg_limit: u16 = if DEBUG.contains(DebugFlags::SPILL) {
             16 * 4
         } else {
-            u16::from(self.model.max_reg_count()) * 4
+            u16::from(model.max_reg_count()) * 4
         };
 
-        let mut live = Liveness::for_shader(self);
+        let mut live = Liveness::for_function(self.entrypoint(), model);
         let max_live = live.max_live_bytes();
         assert_eq!(max_live.mem, 0);
         if max_live.reg > u32::from(reg_limit) {
@@ -2658,7 +2672,8 @@ impl Shader<'_> {
             // parallel copying memory
             reg_limit -= 8;
 
-            self.spill_values(live, reg_limit.into());
+            self.entrypoint_mut()
+                .spill_values(model, live, reg_limit.into());
             if DEBUG.contains(DebugFlags::PRINT) {
                 eprintln!("Kraid shader after spill_values:\n{self}");
             }
@@ -2667,7 +2682,7 @@ impl Shader<'_> {
             pass!(self.repair_ssa());
             pass!(self.opt_dce());
 
-            live = Liveness::for_shader(self)
+            live = Liveness::for_function(self.entrypoint(), model)
         }
 
         let max_live = live.max_live_bytes();
@@ -2678,23 +2693,21 @@ impl Shader<'_> {
         );
 
         if max_live.mem > 0 {
-            let mem_arena = Arena::new_mem(
-                self.model,
-                self.info.tls_size.try_into().unwrap(),
-            );
+            let mem_arena =
+                Arena::new_mem(model, self.info.tls_size.try_into().unwrap());
             self.run_pass("allocating spills", |s| {
-                alloc_regs(s, &mem_arena, live);
+                alloc_regs(s.entrypoint_mut(), model, &mem_arena, live);
             });
             self.info.tls_size = mem_arena.bytes_used().into();
 
-            live = Liveness::for_shader(self)
+            live = Liveness::for_function(self.entrypoint(), model)
         }
 
         let live_reg_bytes = max_live.reg.try_into().unwrap();
-        let reg_arena = Arena::new_reg(self.model, live_reg_bytes);
+        let reg_arena = Arena::new_reg(model, live_reg_bytes);
         self.run_pass("allocating registers", |s| {
-            alloc_regs(s, &reg_arena, live);
+            alloc_regs(s.entrypoint_mut(), model, &reg_arena, live);
         });
-        self.info.registers_used = reg_arena.regs_used(self.model);
+        self.info.registers_used = reg_arena.regs_used(model);
     }
 }

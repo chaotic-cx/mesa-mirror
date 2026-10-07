@@ -56,15 +56,15 @@ impl Fuse {
     /// Get the res_type of the compare instruction
     fn cmp_res_type(
         &self,
-        s: &Shader,
+        f: &Function,
         ssa: SSAValue,
     ) -> Option<(CmpResultType, u8)> {
         let entry = &self.ssa_map[ssa];
         let def = entry.def_site;
-        let i = &s.blocks[def.block_idx].instrs[def.instr_idx];
+        let i = &f.blocks[def.block_idx].instrs[def.instr_idx];
 
-        if let Op::Cmp(f) = &i.op {
-            Some((f.res_type, f.src_type.bits()))
+        if let Op::Cmp(op) = &i.op {
+            Some((op.res_type, op.src_type.bits()))
         } else {
             None
         }
@@ -73,7 +73,7 @@ impl Fuse {
     /// Returns a FCmp/ICmp entry only when its result is used once
     fn get_foldable_cmp<'a>(
         &self,
-        s: &'a Shader,
+        f: &'a Function,
         ssa: SSAValue,
     ) -> Option<&'a OpCmp> {
         let entry = &self.ssa_map[ssa];
@@ -83,7 +83,7 @@ impl Fuse {
         }
 
         let def = entry.def_site;
-        let i = &s.blocks[def.block_idx].instrs[def.instr_idx];
+        let i = &f.blocks[def.block_idx].instrs[def.instr_idx];
 
         let Op::Cmp(cmp) = &i.op else {
             return None;
@@ -99,7 +99,7 @@ impl Fuse {
     // DISCARD.f32.ne y.h0 0
     //      =>
     // DISCARD.f32.lt x.h0 0
-    fn fuse_discard(&self, s: &Shader, op: &OpDiscard) -> Option<Op> {
+    fn fuse_discard(&self, f: &Function, op: &OpDiscard) -> Option<Op> {
         let cond_src = if op.srcs[0].is_zero() {
             &op.srcs[1]
         } else if op.srcs[1].is_zero() {
@@ -117,7 +117,7 @@ impl Fuse {
         debug_assert_eq!(cond_vec.len(), 1);
         let cond_ssa = cond_vec[0];
 
-        let cmp = self.get_foldable_cmp(s, cond_ssa)?;
+        let cmp = self.get_foldable_cmp(f, cond_ssa)?;
         if !cmp.src_type.is_float_type() || cmp.accum_op != CmpAccumOp::None {
             return None;
         }
@@ -147,7 +147,7 @@ impl Fuse {
     // d = CSEL.f32.lt a, b, x, y
     // This actually upsets the spiller, presumably because we increase the max
     // register pressure.  It is still a (small) win with small shaders though
-    fn fuse_mux_csel(&self, s: &Shader, mux: &OpMux) -> Option<Op> {
+    fn fuse_mux_csel(&self, f: &Function, mux: &OpMux) -> Option<Op> {
         if mux.mux_op != MuxOp::IntZero || !mux.sel.src_mod.is_none() {
             return None;
         }
@@ -157,7 +157,7 @@ impl Fuse {
             return None;
         };
         let sel_ssa = sel_ssa[0];
-        let cmp = self.get_foldable_cmp(s, sel_ssa)?;
+        let cmp = self.get_foldable_cmp(f, sel_ssa)?;
         if cmp.accum_op != CmpAccumOp::None
             || cmp.src_type.bits() != mux.dst_type.bits()
         {
@@ -185,7 +185,11 @@ impl Fuse {
     //      =>
     // c = FCMP.f32.lt a, b
     // g = FCMP_OR.f32.lt d, e, c
-    fn fuse_shift_lop_accum(&self, s: &Shader, lop: &OpShiftLop) -> Option<Op> {
+    fn fuse_shift_lop_accum(
+        &self,
+        f: &Function,
+        lop: &OpShiftLop,
+    ) -> Option<Op> {
         if lop.not_result
             || lop.shift_op != ShiftOp::None
             || lop.dst_type.total_bits() > 32
@@ -204,11 +208,11 @@ impl Fuse {
 
         let no_accum = |x: &&OpCmp| x.accum_op == CmpAccumOp::None;
         let (cmp_entry, accum_src) = if let Some(cmp) =
-            self.get_foldable_cmp(s, src0_ssa).filter(no_accum)
+            self.get_foldable_cmp(f, src0_ssa).filter(no_accum)
         {
             (cmp, src2_ssa)
         } else if let Some(cmp) =
-            self.get_foldable_cmp(s, src2_ssa).filter(no_accum)
+            self.get_foldable_cmp(f, src2_ssa).filter(no_accum)
         {
             (cmp, src0_ssa)
         } else {
@@ -217,7 +221,7 @@ impl Fuse {
 
         // Check if the other source is a cmp-result with the same type
         if (cmp_entry.res_type, cmp_entry.src_type.bits())
-            != self.cmp_res_type(s, accum_src)?
+            != self.cmp_res_type(f, accum_src)?
         {
             return None;
         }
@@ -243,7 +247,7 @@ impl Fuse {
     //      =>
     // BRANCH c
     // TODO: Needs support for swizzles as combine ops
-    fn fuse_branch(&self, s: &Shader, branch: &OpBranch) -> Option<Op> {
+    fn fuse_branch(&self, f: &Function, branch: &OpBranch) -> Option<Op> {
         if branch.combine_op != BranchCombineOp::None
             || !branch.cond.src_mod.is_none()
         {
@@ -256,7 +260,7 @@ impl Fuse {
         debug_assert_eq!(cond_vec.len(), 1);
         let cond_ssa = cond_vec[0];
 
-        let cmp = self.get_foldable_cmp(s, cond_ssa)?;
+        let cmp = self.get_foldable_cmp(f, cond_ssa)?;
         if cmp.src_type.is_float_type() || cmp.accum_op != CmpAccumOp::None {
             return None;
         }
@@ -285,12 +289,12 @@ impl Fuse {
         }))
     }
 
-    pub fn visit(&self, s: &Shader, i: &Instr) -> Option<Op> {
+    pub fn visit(&self, f: &Function, i: &Instr) -> Option<Op> {
         match &i.op {
-            Op::Discard(op) => self.fuse_discard(s, op),
-            Op::Mux(op) => self.fuse_mux_csel(s, op),
-            Op::ShiftLop(op) => self.fuse_shift_lop_accum(s, op),
-            Op::Branch(op) => self.fuse_branch(s, op),
+            Op::Discard(op) => self.fuse_discard(f, op),
+            Op::Mux(op) => self.fuse_mux_csel(f, op),
+            Op::ShiftLop(op) => self.fuse_shift_lop_accum(f, op),
+            Op::Branch(op) => self.fuse_branch(f, op),
             _ => None,
         }
     }
@@ -303,8 +307,8 @@ impl Fuse {
 /// (FCMP_OR A B ACCUM).
 ///
 /// TODO: Unit tests
-impl Shader<'_> {
-    pub fn opt_fuse(&mut self) -> bool {
+impl Function {
+    pub fn opt_fuse(&mut self, model: &dyn Model) -> bool {
         let mut ctx = Fuse::new(self.ssa_alloc.count());
 
         // Pass 1: gather SSA use_count and def_site
@@ -323,9 +327,8 @@ impl Shader<'_> {
         for block_idx in 0..self.blocks.len() {
             for instr_idx in 0..self.blocks[block_idx].instrs.len() {
                 let i = &self.blocks[block_idx].instrs[instr_idx];
-                let repl = ctx
-                    .visit(self, i)
-                    .filter(|op| op_supports_srcs(self.model, op));
+                let repl =
+                    ctx.visit(self, i).filter(|op| op_supports_srcs(model, op));
                 let Some(repl_op) = repl else {
                     continue;
                 };
@@ -333,6 +336,17 @@ impl Shader<'_> {
                 // No need to update the prepass map
                 self.blocks[block_idx].instrs[instr_idx].op = repl_op;
             }
+        }
+        progress
+    }
+}
+
+impl Shader<'_> {
+    pub fn opt_fuse(&mut self) -> bool {
+        let mut progress = false;
+
+        for f in self.functions.iter_mut() {
+            progress |= f.opt_fuse(self.model);
         }
         progress
     }

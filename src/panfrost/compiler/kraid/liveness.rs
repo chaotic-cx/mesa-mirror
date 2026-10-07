@@ -394,13 +394,13 @@ pub struct Liveness {
 }
 
 impl Liveness {
-    pub fn for_shader(s: &Shader) -> Liveness {
+    pub fn for_function(f: &Function, model: &dyn Model) -> Liveness {
         let mut l = Liveness {
             blocks: Vec::new(),
             max_live: Default::default(),
         };
 
-        for b in s.blocks.iter() {
+        for b in f.blocks.iter() {
             let mut bl = BlockLiveness::new();
 
             for (ip, instr) in b.instrs.iter().enumerate() {
@@ -414,14 +414,14 @@ impl Liveness {
 
             l.blocks.push(bl);
         }
-        assert!(l.blocks.len() == s.blocks.len());
+        assert!(l.blocks.len() == f.blocks.len());
 
         let mut live_in: Vec<BitSet<u32>> =
-            (0..s.blocks.len()).map(|_| Default::default()).collect();
+            (0..f.blocks.len()).map(|_| Default::default()).collect();
         let mut live_out: Vec<BitSet<u32>> =
-            (0..s.blocks.len()).map(|_| Default::default()).collect();
+            (0..f.blocks.len()).map(|_| Default::default()).collect();
         BackwardDataflow {
-            cfg: &s.blocks,
+            cfg: &f.blocks,
             block_in: &mut live_in[..],
             block_out: &mut live_out[..],
             transfer: |block_idx, _, live_in, live_out| {
@@ -449,13 +449,13 @@ impl Liveness {
         // Now that we have live sets, compute the max live per-block and
         // for the whold shader.
         let mut block_live_out: Vec<LiveSet> = Vec::new();
-        for (bi, bb) in s.blocks.iter().enumerate() {
+        for (bi, bb) in f.blocks.iter().enumerate() {
             let bl = &mut l.blocks[bi];
             let mut live = LiveSet::new();
 
             // Predecessors are added block order so we can just grab the first
             // one (if any) and it will be a block we've processed.
-            if let Some(pred_idx) = s.blocks.pred_indices(bi).first() {
+            if let Some(pred_idx) = f.blocks.pred_indices(bi).first() {
                 let pred_out = &block_live_out[*pred_idx];
                 live = pred_out
                     .iter()
@@ -466,7 +466,7 @@ impl Liveness {
 
             for (ip, instr) in bb.instrs.iter().enumerate() {
                 let live_at_instr =
-                    live.insert_instr_top_down(s.model, ip, instr, bl);
+                    live.insert_instr_top_down(model, ip, instr, bl);
                 bl.max_live = bl.max_live.max(live_at_instr);
             }
             l.max_live = l.max_live.max(bl.max_live);

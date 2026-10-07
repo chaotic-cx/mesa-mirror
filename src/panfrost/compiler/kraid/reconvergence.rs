@@ -14,7 +14,7 @@ fn needs_reconverge(cfg: &CFG<BasicBlock>, bi: usize) -> bool {
     false
 }
 
-impl Shader<'_> {
+impl Function {
     pub fn mark_reconvergence(&mut self) {
         for bi in 0..self.blocks.len() {
             if needs_reconverge(&self.blocks, bi) {
@@ -27,6 +27,14 @@ impl Shader<'_> {
                     block.instrs.push(nop);
                 }
             }
+        }
+    }
+}
+
+impl Shader<'_> {
+    pub fn mark_reconvergence(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.mark_reconvergence();
         }
     }
 }

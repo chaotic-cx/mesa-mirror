@@ -16,7 +16,7 @@ pub use crate::ssa_value::{SSARef, SSAValue};
 pub use crate::swizzle::Swizzle;
 use crate::swizzle::*;
 use compiler::as_slice::*;
-use compiler::cfg::CFG;
+use compiler::cfg::{CFG, CFGNode};
 use compiler::float16::F16;
 use compiler::smallvec::*;
 use mesa_util::bitview::BitViewable;
@@ -2013,6 +2013,105 @@ impl LabelAllocator {
     }
 }
 
+pub struct Function {
+    pub is_entrypoint: bool,
+    pub name: String,
+    pub blocks: CFG<BasicBlock>,
+    pub ssa_alloc: SSAValueAllocator,
+    pub phi_alloc: PhiAllocator,
+}
+
+impl Function {
+    pub fn map_instrs(
+        &mut self,
+        mut map: impl FnMut(Instr, &mut SSAValueAllocator) -> MappedInstrs,
+    ) {
+        let alloc = &mut self.ssa_alloc;
+        for b in &mut self.blocks {
+            b.map_instrs(|i| map(i, alloc));
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.blocks.len() == 1
+            && self.blocks[0].instrs.len() == 1
+            && matches!(self.blocks[0].instrs[0].op, Op::Nop(_))
+    }
+
+    pub fn fmt_annotate(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+        mut annotator: impl FnMut(usize, usize, &Instr) -> String,
+    ) -> fmt::Result {
+        enum Line {
+            Empty,
+            Label(String),
+            Instr {
+                dst: String,
+                body: String,
+                annot: String,
+            },
+        }
+        let mut max_dst_len = 0usize;
+        let mut max_body_len = 0usize;
+        let space_before_instr = 4;
+
+        let mut rows = vec![];
+        for (bi, block) in self.blocks.iter().enumerate() {
+            rows.push(Line::Label(block.label.to_string()));
+
+            for (ip, instr) in block.instrs.iter().enumerate() {
+                let mut dst = format!("{}", Fmt(|f| instr.fmt_dsts(f)));
+                if !dst.is_empty() {
+                    dst = format!("{dst} = ");
+                }
+
+                let body = format!(
+                    "{}{}{}",
+                    Fmt(|f| instr.fmt_name(f)),
+                    instr.flow,
+                    Fmt(|f| instr.fmt_body(f)),
+                );
+                let annot = annotator(bi, ip, instr);
+
+                max_dst_len = max_dst_len.max(dst.chars().count());
+                max_body_len = max_body_len.max(body.chars().count());
+
+                rows.push(Line::Instr { dst, body, annot });
+            }
+            rows.push(Line::Empty);
+        }
+
+        let dst_align = space_before_instr + max_dst_len;
+        let body_align = max_body_len;
+
+        writeln!(f, "{}() {{", self.name)?;
+        for row in rows {
+            match row {
+                Line::Empty => writeln!(f)?,
+                Line::Label(l) => writeln!(f, "{l}:")?,
+                Line::Instr { dst, body, annot } => {
+                    write!(f, "{dst:>dst_align$}")?;
+                    if annot.is_empty() {
+                        writeln!(f, "{body}")?;
+                    } else {
+                        writeln!(f, "{body:<body_align$} # {annot}")?;
+                    }
+                }
+            }
+        }
+        writeln!(f, "}}")?;
+
+        Ok(())
+    }
+}
+
+impl fmt::Display for Function {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.fmt_annotate(f, |_, _, _| String::new())
+    }
+}
+
 pub struct BasicBlock {
     pub label: Label,
     pub instrs: Vec<Instr>,
@@ -2220,21 +2319,42 @@ pub struct ConstantPool {
 
 pub struct Shader<'a> {
     pub model: &'a dyn Model,
-    pub ssa_alloc: SSAValueAllocator,
-    pub phi_alloc: PhiAllocator,
-    pub blocks: CFG<BasicBlock>,
     pub info: ShaderInfo,
+    pub functions: Vec<Function>,
     pub constant_pool: Option<ConstantPool>,
 }
 
 impl Shader<'_> {
+    pub fn entrypoint(&self) -> &Function {
+        self.functions
+            .iter()
+            .find(|f| f.is_entrypoint)
+            .expect("Shader must have an entrypoint")
+    }
+
+    pub fn entrypoint_mut(&mut self) -> &mut Function {
+        self.functions
+            .iter_mut()
+            .find(|f| f.is_entrypoint)
+            .expect("Shader must have an entrypoint")
+    }
+
+    pub fn iter_blocks(&self) -> impl Iterator<Item = &CFGNode<BasicBlock>> {
+        self.functions.iter().flat_map(|f| f.blocks.iter())
+    }
+
+    pub fn iter_blocks_mut(
+        &mut self,
+    ) -> impl Iterator<Item = &mut CFGNode<BasicBlock>> + use<'_> {
+        self.functions.iter_mut().flat_map(|f| f.blocks.iter_mut())
+    }
+
     pub fn map_instrs(
         &mut self,
         mut map: impl FnMut(Instr, &mut SSAValueAllocator) -> MappedInstrs,
     ) {
-        let alloc = &mut self.ssa_alloc;
-        for b in &mut self.blocks {
-            b.map_instrs(|i| map(i, alloc));
+        for f in self.functions.iter_mut() {
+            f.map_instrs(&mut map);
         }
     }
 
@@ -2252,80 +2372,17 @@ impl Shader<'_> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.blocks.len() == 1
-            && self.blocks[0].instrs.len() == 1
-            && matches!(self.blocks[0].instrs[0].op, Op::Nop(_))
-    }
-
-    pub fn fmt_annotate(
-        &self,
-        f: &mut fmt::Formatter<'_>,
-        mut annotator: impl FnMut(usize, usize, &Instr) -> String,
-    ) -> fmt::Result {
-        enum Line {
-            Empty,
-            Label(String),
-            Instr {
-                dst: String,
-                body: String,
-                annot: String,
-            },
-        }
-        let mut max_dst_len = 0usize;
-        let mut max_body_len = 0usize;
-        let space_before_instr = 4;
-
-        let mut rows = vec![];
-        for (bi, block) in self.blocks.iter().enumerate() {
-            rows.push(Line::Label(block.label.to_string()));
-
-            for (ip, instr) in block.instrs.iter().enumerate() {
-                let mut dst = format!("{}", Fmt(|f| instr.fmt_dsts(f)));
-                if !dst.is_empty() {
-                    dst = format!("{dst} = ");
-                }
-
-                let body = format!(
-                    "{}{}{}",
-                    Fmt(|f| instr.fmt_name(f)),
-                    instr.flow,
-                    Fmt(|f| instr.fmt_body(f)),
-                );
-                let annot = annotator(bi, ip, instr);
-
-                max_dst_len = max_dst_len.max(dst.chars().count());
-                max_body_len = max_body_len.max(body.chars().count());
-
-                rows.push(Line::Instr { dst, body, annot });
-            }
-            rows.push(Line::Empty);
-        }
-
-        let dst_align = space_before_instr + max_dst_len;
-        let body_align = max_body_len;
-
-        for row in rows {
-            match row {
-                Line::Empty => writeln!(f)?,
-                Line::Label(l) => writeln!(f, "{l}:")?,
-                Line::Instr { dst, body, annot } => {
-                    write!(f, "{dst:>dst_align$}")?;
-                    if annot.is_empty() {
-                        writeln!(f, "{body}")?;
-                    } else {
-                        writeln!(f, "{body:<body_align$} # {annot}")?;
-                    }
-                }
-            }
-        }
-
-        Ok(())
+        self.entrypoint().is_empty()
     }
 }
 
 impl fmt::Display for Shader<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        self.fmt_annotate(f, |_, _, _| String::new())
+        for func in &self.functions {
+            func.fmt(f)?;
+            writeln!(f)?;
+        }
+        Ok(())
     }
 }
 

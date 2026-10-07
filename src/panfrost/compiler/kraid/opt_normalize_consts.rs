@@ -262,20 +262,22 @@ fn normalize_consts_instr(
     }
 }
 
-fn normalize_consts(s: &mut Shader) {
+fn normalize_consts(f: &mut Function, model: &dyn Model) {
     let mut swizzles = Default::default();
     let mut mods = Default::default();
 
-    let instrs = s.blocks.iter_mut().flat_map(|b| b.instrs.iter_mut());
+    let instrs = f.blocks.iter_mut().flat_map(|b| b.instrs.iter_mut());
 
     for instr in instrs {
-        normalize_consts_instr(instr, &mut swizzles, &mut mods, s.model);
+        normalize_consts_instr(instr, &mut swizzles, &mut mods, model);
     }
 }
 
 impl Shader<'_> {
     pub fn opt_normalize_consts(&mut self) {
-        normalize_consts(self);
+        for f in self.functions.iter_mut() {
+            normalize_consts(f, self.model);
+        }
     }
 }
 

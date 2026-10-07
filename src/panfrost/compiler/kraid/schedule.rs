@@ -283,16 +283,24 @@ fn pressure_schedule_block(
     }
 }
 
-impl Shader<'_> {
-    pub fn schedule_for_pressure(&mut self) {
-        let live = Liveness::for_shader(self);
+impl Function {
+    pub fn schedule_for_pressure(&mut self, model: &dyn Model) {
+        let live = Liveness::for_function(self, model);
         for (bi, block) in self.blocks.iter_mut().enumerate() {
             pressure_schedule_block(
-                self.model,
+                model,
                 &self.ssa_alloc,
                 block,
                 live.block(bi),
             );
+        }
+    }
+}
+
+impl Shader<'_> {
+    pub fn schedule_for_pressure(&mut self) {
+        for f in self.functions.iter_mut() {
+            f.schedule_for_pressure(self.model);
         }
     }
 }

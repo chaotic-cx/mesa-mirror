@@ -3058,18 +3058,22 @@ impl<'a> ShaderFromNir<'a> {
             .collect()
     }
 
-    fn parse_shader(mut self) -> Shader<'a> {
-        let nfi = self.nir.get_entrypoint().unwrap();
-        let mut ssa_alloc = Default::default();
+    fn parse_func(
+        &mut self,
+        label_alloc: &mut LabelAllocator,
+        nf: &nir_function,
+    ) -> Function {
+        // All function calls should have been inlined, and functions
+        // eliminated in the process. This won't stand once we introduce
+        // function call support, which we intend to do.
+        assert!(nf.is_entrypoint);
 
+        let nfi = nf.get_impl().unwrap();
+        let mut ssa_alloc = Default::default();
         let mut phi_alloc = Default::default();
         let mut phi_map = PhiAllocMap::new(&mut phi_alloc);
 
-        // Pre-populate the block table so we have the same numbering as NIR
-        let mut label_alloc: LabelAllocator = Default::default();
-        if self.nir.constant_data_size > 0 {
-            self.constant_pool_label = Some(label_alloc.alloc());
-        }
+        // Pre-populate the block table to allow forward block referencing.
         let mut block_map: BlockLabelMap = Default::default();
         for nb in nfi.iter_blocks() {
             block_map.add(nb, label_alloc.alloc());
@@ -3088,9 +3092,30 @@ impl<'a> ShaderFromNir<'a> {
         let mut blocks = cfg.as_cfg(false);
 
         // If there are any preload registers, splice them before the
-        // starting block
-        if !self.preload_map.is_empty() {
+        // starting block. Only applicable to the entrypoint.
+        if nf.is_entrypoint && !self.preload_map.is_empty() {
             blocks[0].instrs.splice(..0, self.create_preload_instrs());
+        }
+
+        Function {
+            is_entrypoint: nf.is_entrypoint,
+            name: nf.name().unwrap_or_else(|| "noname").to_string(),
+            blocks,
+            ssa_alloc,
+            phi_alloc,
+        }
+    }
+
+    fn parse_shader(mut self) -> Shader<'a> {
+        let mut funcs = Vec::new();
+
+        let mut label_alloc: LabelAllocator = Default::default();
+        if self.nir.constant_data_size > 0 {
+            self.constant_pool_label = Some(label_alloc.alloc());
+        }
+
+        for nf in self.nir.iter_functions() {
+            funcs.push(self.parse_func(&mut label_alloc, nf));
         }
 
         let constant_pool = self.constant_pool_used.then(|| ConstantPool {
@@ -3110,9 +3135,7 @@ impl<'a> ShaderFromNir<'a> {
 
         Shader {
             model: self.model,
-            ssa_alloc,
-            phi_alloc,
-            blocks,
+            functions: funcs,
             info: self.info,
             constant_pool,
         }

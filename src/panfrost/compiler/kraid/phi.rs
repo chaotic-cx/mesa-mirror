@@ -71,12 +71,12 @@ pub struct PhiMap {
 }
 
 impl PhiMap {
-    pub fn for_shader(s: &Shader) -> PhiMap {
+    pub fn for_function(f: &Function) -> PhiMap {
         let mut map = PhiMap {
             phi_dst_ssa: Default::default(),
         };
 
-        for bb in &s.blocks {
+        for bb in &f.blocks {
             for op in bb.iter_phi_dsts() {
                 let ssa = op.dst.dst_ref.as_ssa().unwrap();
                 map.phi_dst_ssa.insert(op.phi, ssa.clone());

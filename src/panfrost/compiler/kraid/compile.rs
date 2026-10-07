@@ -217,6 +217,7 @@ fn encode_no_psiz_variant(
     info.__bindgen_anon_1.vs.no_psiz_offset = binary.size;
     // Find the store with is_psiz set
     let store = s
+        .entrypoint_mut()
         .blocks
         .iter_mut()
         .rev()
