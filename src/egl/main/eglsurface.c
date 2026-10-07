@@ -560,7 +560,7 @@ _eglQuerySurface(_EGLDisplay *disp, _EGLSurface *surface, EGLint attribute,
           ctx->DrawSurface != surface)
          return _eglError(EGL_BAD_SURFACE, "eglQuerySurface");
 
-      EGLint result = disp->Driver->QueryBufferAge(disp, surface);
+      EGLint result = _eglDriver.QueryBufferAge(disp, surface);
       if (result < 0)
          return EGL_FALSE;
 

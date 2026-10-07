@@ -326,7 +326,6 @@ void
 _eglReleaseDisplayResources(_EGLDisplay *display)
 {
    _EGLResource *list;
-   const _EGLDriver *drv = display->Driver;
 
    simple_mtx_assert_locked(&display->Mutex);
 
@@ -336,7 +335,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
       list = list->Next;
 
       _eglUnlinkContext(ctx);
-      drv->DestroyContext(display, ctx);
+      _eglDriver.DestroyContext(display, ctx);
    }
    assert(!display->ResourceLists[_EGL_RESOURCE_CONTEXT]);
 
@@ -346,7 +345,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
       list = list->Next;
 
       _eglUnlinkSurface(surf);
-      drv->DestroySurface(display, surf);
+      _eglDriver.DestroySurface(display, surf);
    }
    assert(!display->ResourceLists[_EGL_RESOURCE_SURFACE]);
 
@@ -356,7 +355,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
       list = list->Next;
 
       _eglUnlinkImage(image);
-      drv->DestroyImageKHR(display, image);
+      _eglDriver.DestroyImageKHR(display, image);
    }
    assert(!display->ResourceLists[_EGL_RESOURCE_IMAGE]);
 
@@ -366,7 +365,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
       list = list->Next;
 
       _eglUnlinkSync(sync);
-      drv->DestroySyncKHR(display, sync);
+      _eglDriver.DestroySyncKHR(display, sync);
    }
    assert(!display->ResourceLists[_EGL_RESOURCE_SYNC]);
 }
