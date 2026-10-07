@@ -5137,7 +5137,7 @@ anv_av1_emit_frame_header(struct anv_cmd_buffer *cmd,
                                     false /* restoration_support */,
                                     frame_info->generateObuExtensionHeader,
                                     src_img->vk.extent.width, src_img->vk.extent.height,
-                                    sizeof(frame_hdr), &hdr_size, frame_hdr);
+                                    2, sizeof(frame_hdr), &hdr_size, frame_hdr, NULL);
    assert(result == VK_SUCCESS);
    assert(hdr_size <= sizeof(frame_hdr));
    uint32_t num_dw = DIV_ROUND_UP(hdr_size, 4);

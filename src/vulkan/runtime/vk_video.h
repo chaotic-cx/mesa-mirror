@@ -377,6 +377,16 @@ vk_video_encode_av1_seq_hdr(const struct vk_video_session_parameters *params,
                             size_t *data_size_ptr,
                             void *data_ptr);
 
+struct vk_video_av1_frame_hdr_offsets {
+   uint32_t obu_size_byte_offset;
+   uint32_t base_q_idx_bit_offset;
+   uint32_t segmentation_bit_offset;
+   uint32_t loop_filter_params_bit_offset;
+   uint32_t cdef_params_bit_offset;
+   uint32_t cdef_params_size_in_bits;
+   uint32_t size_in_bits;
+};
+
 VkResult
 vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
                               const StdVideoEncodeAV1PictureInfo *pic_info,
@@ -384,9 +394,11 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
                               bool reference_select, bool restoration_support,
                               bool generate_obu_extension,
                               uint32_t frame_width, uint32_t frame_height,
+                              uint32_t obu_size_bytes,
                               size_t size_limit,
                               size_t *data_size_ptr,
-                              void *data_ptr);
+                              void *data_ptr,
+                              struct vk_video_av1_frame_hdr_offsets *offsets);
 
 VkResult
 vk_video_is_profile_supported(const VkVideoProfileInfoKHR *video_profile);

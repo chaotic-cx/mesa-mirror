@@ -2955,6 +2955,12 @@ av1_write_ns(struct vl_bitstream_encoder *enc, uint32_t v, uint32_t n)
    }
 }
 
+static uint32_t
+av1_bit_pos(const struct vl_bitstream_encoder *enc)
+{
+   return enc->offset * 8 + (32 - enc->bits_to_go);
+}
+
 static int32_t
 vk_video_av1_relative_dist(uint32_t order_hint_bits_minus_1, uint32_t a, uint32_t b)
 {
@@ -2971,19 +2977,22 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
                               bool reference_select, bool restoration_support,
                               bool generate_obu_extension,
                               uint32_t frame_width, uint32_t frame_height,
+                              uint32_t obu_size_bytes,
                               size_t size_limit,
                               size_t *data_size_ptr,
-                              void *data_ptr)
+                              void *data_ptr,
+                              struct vk_video_av1_frame_hdr_offsets *offsets)
 {
    struct vl_bitstream_encoder enc;
+   struct vk_video_av1_frame_hdr_offsets offs = { 0 };
    const StdVideoAV1SequenceHeader *seq = &params->av1_enc.seq_hdr.base;
    const StdVideoAV1ColorConfig *color = &params->av1_enc.seq_hdr.color_config;
    const StdVideoAV1Quantization *quant = pic_info->pQuantization;
    const StdVideoEncodeAV1ExtensionHeader *ext =
       generate_obu_extension ? pic_info->pExtensionHeader : NULL;
    uint8_t *size_offset;
-   uint8_t obu_size_bin[2];
-   const int num_obu_size_bytes = 2;
+   uint8_t obu_size_bin[4];
+   const uint32_t num_obu_size_bytes = obu_size_bytes;
    uint32_t obu_extension_flag = generate_obu_extension;
    uint32_t temporal_id = ext ? ext->temporal_id : 0;
    uint32_t spatial_id = ext ? ext->spatial_id : 0;
@@ -3011,6 +3020,7 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
    bool all_lossless = coded_lossless && !pic_info->flags.use_superres;
 
    assert(params->op == VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR);
+   assert(num_obu_size_bytes == 2 || num_obu_size_bytes == 4);
 
    if (seq->flags.reduced_still_picture_header ||
        seq->flags.timing_info_present_flag) {
@@ -3024,7 +3034,8 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
 
    emit_obu_av1_header(&enc, OBU_FRAME_HEADER, obu_extension_flag, temporal_id, spatial_id);
 
-   /* obu_size, use two bytes for header, the size will be written in afterwards */
+   /* obu_size will be written in afterwards */
+   offs.obu_size_byte_offset = av1_bit_pos(&enc) / 8;
    size_offset = vl_bitstream_get_byte_offset(&enc);
    vl_bitstream_put_bits(&enc, num_obu_size_bytes * 8, 0);
 
@@ -3251,6 +3262,7 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
    bool diff_uv_delta = false;
 
    /* base_q_idx */
+   offs.base_q_idx_bit_offset = av1_bit_pos(&enc);
    vl_bitstream_put_bits(&enc, 8, base_q_idx);
    av1_write_delta_q(&enc, y_dc_delta);
    if (num_planes > 1) {
@@ -3278,6 +3290,7 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
    /* segmentation_params() (5.9.14) */
    bool enabled = pic_info->flags.segmentation_enabled;
 
+   offs.segmentation_bit_offset = av1_bit_pos(&enc);
    vl_bitstream_put_bits(&enc, 1, enabled);
    if (enabled) {
       bool update_data = true;
@@ -3338,6 +3351,7 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
       uint8_t level0 = lf ? lf->loop_filter_level[0] : 0;
       uint8_t level1 = lf ? lf->loop_filter_level[1] : 0;
 
+      offs.loop_filter_params_bit_offset = av1_bit_pos(&enc);
       vl_bitstream_put_bits(&enc, 6, level0);
       vl_bitstream_put_bits(&enc, 6, level1);
       if (num_planes > 1 && (level0 || level1)) {
@@ -3378,6 +3392,7 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
       const StdVideoAV1CDEF *cdef = pic_info->pCDEF;
       uint32_t cdef_bits = cdef ? cdef->cdef_bits : 0;
 
+      offs.cdef_params_bit_offset = av1_bit_pos(&enc);
       vl_bitstream_put_bits(&enc, 2, cdef ? cdef->cdef_damping_minus_3 : 0);
       vl_bitstream_put_bits(&enc, 2, cdef_bits);
       for (uint32_t i = 0; i < (1u << cdef_bits); i++) {
@@ -3388,6 +3403,7 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
             vl_bitstream_put_bits(&enc, 2, cdef ? cdef->cdef_uv_sec_strength[i] : 0);
          }
       }
+      offs.cdef_params_size_in_bits = av1_bit_pos(&enc) - offs.cdef_params_bit_offset;
    }
 
    /* lr_params() (5.9.20) */
@@ -3521,6 +3537,7 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
 
    /* trailing_one_bit */
    vl_bitstream_rbsp_trailing(&enc);
+   offs.size_in_bits = av1_bit_pos(&enc);
 
    /* obu_size doesn't include the bytes within obu_header or obu_size syntax
     * element (6.2.1), here we use num_obu_size_bytes for obu_size syntax
@@ -3528,15 +3545,18 @@ vk_video_encode_av1_frame_hdr(const struct vk_video_session_parameters *params,
     */
    uint32_t obu_size = (uint32_t)(vl_bitstream_get_byte_offset(&enc) -
                                   size_offset - num_obu_size_bytes);
-   vk_video_encode_av1_code_leb128(obu_size_bin, 2, obu_size);
+   vk_video_encode_av1_code_leb128(obu_size_bin, num_obu_size_bytes, obu_size);
 
    /* update obu_size */
-   for (int i = 0; i < sizeof(obu_size_bin); i++) {
+   for (uint32_t i = 0; i < num_obu_size_bytes; i++) {
       *(size_offset++) = obu_size_bin[i];
    }
 
    vl_bitstream_flush(&enc);
    *data_size_ptr += vl_bitstream_get_byte_count(&enc);
+
+   if (offsets)
+      *offsets = offs;
 
    return VK_SUCCESS;
 }
