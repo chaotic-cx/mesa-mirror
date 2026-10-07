@@ -850,6 +850,8 @@ get_brc_video_mem_size(struct anv_video_session *vid, uint32_t mem_idx)
    case ANV_VID_MEM_BRC_HISTORY:
       return align64(6080, 4096);
    case ANV_VID_MEM_BRC_VDENC_STATS:
+      if (vid->vk.op & VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR)
+         return 2 * align64(1216, 4096);
       return align64(1216, 4096);
    case ANV_VID_MEM_BRC_EXEC_SLB:
       /* - gen12:  MFX_AVC_IMG_STATE(84) + VDENC_IMG_STATE(140) + BBE(4) = 228
@@ -859,6 +861,8 @@ get_brc_video_mem_size(struct anv_video_session *vid, uint32_t mem_idx)
        */
       if (vid->vk.op & VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR)
          return align64(260, 4096);
+      if (vid->vk.op & VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR)
+         return 4096;
       /* HEVC (HCP) slice layout, choose gen125 worst case. */
       return align64(64 + 576 + 70 * 1152, 4096);
    case ANV_VID_MEM_BRC_WP_DATA:
@@ -1151,6 +1155,11 @@ get_av1_video_session_mem_reqs(struct anv_device *dev,
    uint32_t width_in_sb, height_in_sb;
    get_av1_sb_size(&width_in_sb, &height_in_sb);
 
+   bool brc = (vid->vk.op & VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR) &&
+              anv_video_encode_brc_supported(dev->physical);
+
+   assert(align(av1_cdf_max_num_bytes, 64) == ANV_AV1_CDF_TABLE_SIZE);
+
    uint32_t max_tile_width_sb = DIV_ROUND_UP(4096, 1 << (av1_max_mib_size_log2 + av1_mi_size_log2));
    uint32_t max_tile_cols = 16; /* TODO. get the profile to work this out */
 
@@ -1251,6 +1260,22 @@ get_av1_video_session_mem_reqs(struct anv_device *dev,
       case ANV_VID_MEM_AV1_ENCODE_TILE_BITSTREAM_ACCUM:
          buffer_size = 1;
          break;
+      case ANV_VID_MEM_AV1_BRC_PAK_INSERT_OUT:
+      case ANV_VID_MEM_AV1_BRC_DATA:
+         if (!brc)
+            continue;
+         buffer_size = 4096;
+         break;
+      case ANV_VID_MEM_AV1_BRC_CDF_TABLES:
+         if (!brc)
+            continue;
+         buffer_size = 4 * ANV_AV1_CDF_TABLE_SIZE;
+         break;
+      case ANV_VID_MEM_AV1_BRC_CDF_ACTIVE:
+         if (!brc)
+            continue;
+         buffer_size = ANV_AV1_CDF_TABLE_SIZE;
+         break;
       default:
          assert(0);
          break;
@@ -1261,6 +1286,10 @@ get_av1_video_session_mem_reqs(struct anv_device *dev,
       case ANV_VID_MEM_AV1_CDF_DEFAULTS_1:
       case ANV_VID_MEM_AV1_CDF_DEFAULTS_2:
       case ANV_VID_MEM_AV1_CDF_DEFAULTS_3:
+      case ANV_VID_MEM_AV1_BRC_PAK_INSERT_OUT:
+      case ANV_VID_MEM_AV1_BRC_CDF_TABLES:
+      case ANV_VID_MEM_AV1_BRC_CDF_ACTIVE:
+      case ANV_VID_MEM_AV1_BRC_DATA:
          break;
       default:
          buffer_size *= 64;
@@ -1273,6 +1302,9 @@ get_av1_video_session_mem_reqs(struct anv_device *dev,
          p->memoryRequirements.memoryTypeBits = memory_types;
       }
    }
+
+   if (brc)
+      get_brc_video_session_mem_reqs(vid, &out.base, memory_types);
 }
 
 VkResult
@@ -1650,6 +1682,23 @@ anv_init_av1_cdf_tables(struct anv_cmd_buffer *cmd,
                           vid->vid_mem[ANV_VID_MEM_AV1_CDF_DEFAULTS_0 + i].size, NULL);
 
    }
+
+   struct anv_vid_mem *brc_cdf = &vid->vid_mem[ANV_VID_MEM_AV1_BRC_CDF_TABLES];
+
+   if (!(vid->vk.op & VK_VIDEO_CODEC_OPERATION_ENCODE_AV1_BIT_KHR) || !brc_cdf->mem)
+      return;
+
+   VkResult result = anv_device_map_bo(cmd->device, brc_cdf->mem->bo, brc_cdf->offset,
+                                       brc_cdf->size, NULL, &ptr);
+   if (result != VK_SUCCESS) {
+      anv_batch_set_error(&cmd->batch, result);
+      return;
+   }
+
+   for (unsigned i = 0; i < 4; i++)
+      init_all_av1_entry((uint16_t *)((uint8_t *)ptr + i * ANV_AV1_CDF_TABLE_SIZE), i);
+
+   anv_device_unmap_bo(cmd->device, brc_cdf->mem->bo, ptr, brc_cdf->size, NULL);
 }
 
 void
