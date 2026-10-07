@@ -2404,7 +2404,7 @@
         "description": "ethosu: Fix same-size RESIZE_BILINEAR case",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "82250b19e70aefab4cc5232bad625e9edf282260",
         "notes": null
