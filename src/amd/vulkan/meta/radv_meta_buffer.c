@@ -87,9 +87,12 @@ radv_clear_copy_buffer_options(const struct radv_cmd_buffer *const cmd_buffer)
       .nir_options = &device->compiler_info.nir_options[MESA_SHADER_COMPUTE],
       .addr_user_data = true,
       .is_compute_queue = cmd_buffer->qf == RADV_QUEUE_COMPUTE,
-      /* Don't fail if CP DMA can't use L2. We prefer to use the compute path in that case. */
+      /* Don't fail if CP DMA can't use L2. We prefer to use the compute path in that case.
+       * CP DMA (the fallback) doesn't support conditional rendering.
+       */
       .fail_if_slow =
-         pdev->drirc.performance.buffer_meta_path == RADV_BUFFER_META_PATH_AUTO && pdev->info.cp_dma_use_L2,
+         (pdev->drirc.performance.buffer_meta_path == RADV_BUFFER_META_PATH_AUTO && pdev->info.cp_dma_use_L2) &&
+         (!cmd_buffer->state.cond_render.enabled || cmd_buffer->state.cond_render.suspended),
    };
 
    return options;
@@ -175,7 +178,8 @@ radv_prepare_cs_clear_copy_buffer(const struct radv_cmd_buffer *cmd_buffer,
    const struct radv_physical_device *const pdev = radv_device_physical(device);
    const bool use_compute = ac_prepare_cs_clear_copy_buffer(options, info, out);
 
-   if (pdev->drirc.performance.buffer_meta_path == RADV_BUFFER_META_PATH_CP_DMA && out->cpdma_supported)
+   if (pdev->drirc.performance.buffer_meta_path == RADV_BUFFER_META_PATH_CP_DMA && out->cpdma_supported &&
+       (!cmd_buffer->state.cond_render.enabled || cmd_buffer->state.cond_render.suspended))
       return false;
 
    assert(use_compute || !radv_buffer_meta_path_forces_compute(pdev->drirc.performance.buffer_meta_path));
@@ -215,6 +219,7 @@ radv_fill_memory_internal(struct radv_cmd_buffer *cmd_buffer, const struct radv_
                    radv_src_access_flush(cmd_buffer, VK_PIPELINE_STAGE_2_COMPUTE_SHADER_BIT,
                                          VK_ACCESS_2_SHADER_WRITE_BIT, 0, image, NULL);
    } else if (size) {
+      assert(!cmd_buffer->state.cond_render.enabled || cmd_buffer->state.cond_render.suspended);
       radv_cp_dma_fill_memory(cmd_buffer, dst_va, size, value, image || cp_coherent);
       flush_bits = AC_BARRIER_SYNC_CP_DMA;
    }
@@ -317,6 +322,7 @@ radv_copy_memory(struct radv_cmd_buffer *cmd_buffer, uint64_t src_va, uint64_t d
    if (use_compute) {
       radv_compute_copy_memory(cmd_buffer, &options, &dispatch, size);
    } else if (size) {
+      assert(!cmd_buffer->state.cond_render.enabled || cmd_buffer->state.cond_render.suspended);
       radv_cp_dma_copy_memory(cmd_buffer, src_va, dst_va, size);
    }
 }
