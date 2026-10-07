@@ -291,6 +291,7 @@ brw_generator::to_gen(const brw_reg &r, bool align16)
 
    if (o.indirect) {
       o.region = gen_region_from_reg(r);
+      o.subnr = phys_subnr(devinfo, r);
       o.addr_imm = r.indirect_offset;
    } else {
       if (r.file == IMM) {
