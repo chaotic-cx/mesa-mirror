@@ -809,7 +809,7 @@ BEGIN_TEST(optimizer_postRA.scc_nocmp_across_cf)
    //! /* logical preds: BB1, BB4, / linear preds: BB4, BB5, / kind: uniform, top-level, merge, */
    //! s2: %0:exec = p_parallelcopy %saved_exec:s[84-85]
 
-   //! s2: %tmp_salu:s[8-9], s1: %br_scc:scc = s_and_b64 %a:s[2-3], 0x40018
+   //! s2: %0:null, s1: %br_scc:scc = s_and_b64 %a:s[2-3], 0x40018
    //! p_cbranch_z %br_scc:scc
    //! p_unit_test 5
    auto scmp = bld.sopc(aco_opcode::s_cmp_lg_u64, bld.def(s1, scc), Operand(tmp_salu, reg_s8),

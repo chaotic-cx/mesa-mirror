@@ -1277,6 +1277,28 @@ try_skip_const_branch(pr_opt_ctx& ctx, aco_ptr<Instruction>& branch)
 }
 
 void
+set_dead_defs_to_null(pr_opt_ctx& ctx, aco_ptr<Instruction>& instr)
+{
+   /* NULL sgpr was a GFX10 addition. */
+   if (ctx.program->gfx_level < GFX10 || instr->definitions.empty())
+      return;
+
+   Definition* def;
+   if (instr->isVOP3() && instr->definitions.size() >= 2)
+      def = &instr->definitions[1];
+   else if (instr->isSOP1() || instr->isSOP2())
+      def = &instr->definitions[0];
+   else
+      return;
+
+   if (!def->isTemp() || ctx.uses[def->tempId()] > 0 || def->physReg() == scc ||
+       def->regClass().type() != RegType::sgpr)
+      return;
+
+   *def = Definition(sgpr_null, def->regClass());
+}
+
+void
 process_instruction(pr_opt_ctx& ctx, aco_ptr<Instruction>& instr)
 {
    /* Don't try to optimize instructions which are already dead. */
@@ -1341,6 +1363,8 @@ optimize_postRA(Program* program)
       for (aco_ptr<Instruction>& instr : block.instructions) {
          if (!instr || is_dead(ctx.uses, instr.get()))
             continue;
+
+         set_dead_defs_to_null(ctx, instr);
 
          instructions.emplace_back(std::move(instr));
       }
