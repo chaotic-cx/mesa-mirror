@@ -271,8 +271,8 @@ struct NOP_ctx_gfx11 {
    std::bitset<256> vgpr_written_by_wmma;
 
    /* VALUReadSGPRHazard */
-   std::bitset<m0.reg() / 2> sgpr_read_by_valu; /* SGPR pairs, excluding null, exec, m0 and scc */
-   std::bitset<m0.reg()> sgpr_read_by_valu_then_wr_by_valu;
+   std::bitset<sgpr_null / 2> sgpr_read_by_valu; /* SGPR pairs, excluding null, exec, m0 and scc */
+   std::bitset<sgpr_null> sgpr_read_by_valu_then_wr_by_valu;
    RegCounterMap<11> sgpr_read_by_valu_then_wr_by_salu;
    /* Force emitting a wait mitigating VALUReadSGPRHazard before the next ALU instruction. */
    bool force_valu_read_sgpr_wait = false;
@@ -1618,7 +1618,7 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
          }
 
          for (Operand& op : instr->operands) {
-            if (op.physReg() >= m0)
+            if (op.physReg() >= sgpr_null)
                continue;
 
             for (unsigned i = 0; i < op.size(); i++) {
@@ -1656,7 +1656,7 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
          ctx.sgpr_read_by_valu_then_wr_by_salu.inc();
 
       if (wait.va_sdst == 0) {
-         std::bitset<m0.reg()> old = ctx.sgpr_read_by_valu_then_wr_by_valu;
+         std::bitset<sgpr_null.reg()> old = ctx.sgpr_read_by_valu_then_wr_by_valu;
          ctx.sgpr_read_by_valu_then_wr_by_valu.reset();
          ctx.sgpr_read_by_valu_then_wr_by_valu[vcc] = old[vcc];
          ctx.sgpr_read_by_valu_then_wr_by_valu[vcc_hi] = old[vcc_hi];

@@ -98,7 +98,7 @@ get_vopd_opy_start(const Instruction* instr)
 uint32_t
 reg(asm_context& ctx, PhysReg reg)
 {
-   if (ctx.gfx_level >= GFX11) {
+   if (ctx.gfx_level < GFX11) {
       if (reg == m0)
          return sgpr_null.reg();
       else if (reg == sgpr_null)

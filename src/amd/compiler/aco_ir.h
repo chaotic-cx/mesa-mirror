@@ -435,7 +435,6 @@ struct PhysReg {
 };
 
 /* helper expressions for special registers */
-static constexpr PhysReg m0{124};
 static constexpr PhysReg flat_scr_lo{102}; /* GFX8-GFX9, encoded differently on GFX6-7 */
 static constexpr PhysReg flat_scr_hi{103}; /* GFX8-GFX9, encoded differently on GFX6-7 */
 static constexpr PhysReg vcc{106};
@@ -456,7 +455,8 @@ static constexpr PhysReg ttmp8{120};
 static constexpr PhysReg ttmp9{121};
 static constexpr PhysReg ttmp10{122};
 static constexpr PhysReg ttmp11{123};
-static constexpr PhysReg sgpr_null{125}; /* GFX10+ */
+static constexpr PhysReg sgpr_null{124}; /* GFX10+, uses GFX11 encoding */
+static constexpr PhysReg m0{125};        /* uses GFX11 encoding */
 static constexpr PhysReg exec{126};
 static constexpr PhysReg exec_lo{126};
 static constexpr PhysReg exec_hi{127};
