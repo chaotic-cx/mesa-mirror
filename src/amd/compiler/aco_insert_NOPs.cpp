@@ -807,6 +807,8 @@ check_written_regs(const aco_ptr<Instruction>& instr, const std::bitset<N>& chec
    return std::any_of(instr->definitions.begin(), instr->definitions.end(),
                       [&check_regs](const Definition& def) -> bool
                       {
+                         if (def.physReg() == sgpr_null)
+                            return false;
                          bool writes_any = false;
                          for (unsigned i = 0; i < def.size(); i++) {
                             unsigned def_reg = def.physReg() + i;
@@ -845,7 +847,7 @@ VALU_writes_sgpr(aco_ptr<Instruction>& instr)
    if (instr->isVOPC())
       return true;
    if (instr->isVOP3() && instr->definitions.size() == 2)
-      return true;
+      return instr->definitions[1].physReg() != sgpr_null;
    if (instr->opcode == aco_opcode::v_readfirstlane_b32 ||
        instr->opcode == aco_opcode::v_readlane_b32 ||
        instr->opcode == aco_opcode::v_readlane_b32_e64)
@@ -856,9 +858,9 @@ VALU_writes_sgpr(aco_ptr<Instruction>& instr)
 bool
 instr_writes_sgpr(const aco_ptr<Instruction>& instr)
 {
-   return std::any_of(instr->definitions.begin(), instr->definitions.end(),
-                      [](const Definition& def) -> bool
-                      { return def.getTemp().type() == RegType::sgpr; });
+   return std::any_of(
+      instr->definitions.begin(), instr->definitions.end(), [](const Definition& def) -> bool
+      { return def.getTemp().type() == RegType::sgpr && def.physReg() != sgpr_null; });
 }
 
 inline bool
@@ -1563,6 +1565,9 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
 
          if (is_trans) {
             for (Definition& def : instr->definitions) {
+               if (def.physReg() == sgpr_null)
+                  continue;
+
                for (unsigned i = 0; i < def.size(); i++) {
                   PhysReg reg = def.physReg().advance(i * 4);
                   ctx.valu_since_wr_by_trans.set(reg);
@@ -1580,6 +1585,7 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
 
             if (!instr->definitions.empty() &&
                 instr->definitions.back().getTemp().type() == RegType::sgpr &&
+                instr->definitions.back().physReg() != sgpr_null &&
                 check_written_regs(instr, ctx.sgpr_read_by_valu_as_lanemask)) {
                unsigned reg = instr->definitions.back().physReg().reg();
                for (unsigned i = 0; i < instr->definitions.back().size(); i++)
@@ -1668,13 +1674,13 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
 
       if (instr->isVALU() && !instr->definitions.empty()) {
          PhysReg reg = instr->definitions.back().physReg();
-         if (reg < m0 && ctx.sgpr_read_by_valu[reg / 2]) {
+         if (reg < sgpr_null && ctx.sgpr_read_by_valu[reg / 2]) {
             for (unsigned i = 0; i < instr->definitions.back().size(); i++)
                ctx.sgpr_read_by_valu_then_wr_by_valu.set(reg + i);
          }
       } else if (instr->isSALU() && !instr->definitions.empty()) {
          PhysReg reg = instr->definitions[0].physReg();
-         if (reg < m0 && ctx.sgpr_read_by_valu[reg / 2]) {
+         if (reg < sgpr_null && ctx.sgpr_read_by_valu[reg / 2]) {
             for (unsigned i = 0; i < instr->definitions[0].size(); i++)
                ctx.sgpr_read_by_valu_then_wr_by_salu.set(reg.advance(i * 4));
          }
