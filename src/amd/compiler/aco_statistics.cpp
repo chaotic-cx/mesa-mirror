@@ -482,6 +482,9 @@ BlockCycleEstimator::add(aco_ptr<Instruction>& instr)
 
    int32_t result_available = start + perf.latency;
    for (Definition& def : instr->definitions) {
+      if (def.physReg() == sgpr_null)
+         continue;
+
       int32_t* available = &reg_available[def.physReg().reg()];
       for (unsigned i = 0; i < def.size(); i++)
          available[i] = MAX2(available[i], result_available);

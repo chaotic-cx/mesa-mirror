@@ -69,7 +69,7 @@ add_instr(spill_preserved_ctx& ctx, unsigned block_index, bool seen_reload,
           const aco_ptr<Instruction>& instr)
 {
    for (auto& def : instr->definitions) {
-      if (ctx.input_temps.count(def.tempId()))
+      if (ctx.input_temps.count(def.tempId()) || def.physReg() == sgpr_null)
          continue;
 
       assert(def.isFixed());

@@ -605,6 +605,9 @@ add_entry(SchedILPContext& ctx, Instruction* const instr, const uint32_t idx)
 
    mask_t write_dep_mask = 0;
    for (const Definition& def : instr->definitions) {
+      if (def.physReg() == sgpr_null)
+         continue;
+
       for (unsigned i = 0; i < def.size(); i++) {
          unsigned reg = def.physReg().reg() + i;
 
@@ -705,6 +708,9 @@ remove_entry(SchedILPContext& ctx, const Instruction* const instr, const uint32_
    }
 
    for (const Definition& def : instr->definitions) {
+      if (def.physReg() == sgpr_null)
+         continue;
+
       for (unsigned i = 0; i < def.size(); i++) {
          unsigned reg = def.physReg().reg() + i;
          ctx.regs.read_mask[reg] &= mask;

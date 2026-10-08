@@ -725,6 +725,8 @@ disable_wqm_block(Program* program, Block* block)
                local_wqm_mov = nullptr;
             } else if (def.physReg() == scc) {
                local_exact_and = nullptr;
+            } else if (def.physReg() == sgpr_null) {
+               continue;
             } else if (local_exact_and && regs_intersect(def, local_exact_and->operands[0])) {
                local_exact_and = nullptr;
             } else if (local_exact_and && regs_intersect(def, local_exact_and->definitions[0])) {

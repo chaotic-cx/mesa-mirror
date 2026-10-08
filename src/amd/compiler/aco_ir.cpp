@@ -1787,7 +1787,7 @@ parse_depctr_wait(const Instruction* instr)
    } else if (instr->isVALU()) {
       res.sa_exec = 0;
       for (const Definition& def : instr->definitions) {
-         if (def.regClass().type() == RegType::sgpr) {
+         if (def.regClass().type() == RegType::sgpr && def.physReg() != sgpr_null) {
             res.sa_sdst = 0;
             /* Notably, this is the only exception, even VALU that
              * reads exec doesn't implicitly wait for va_exec.

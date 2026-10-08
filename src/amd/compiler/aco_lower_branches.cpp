@@ -150,7 +150,10 @@ bool
 instr_uses_reg(aco_ptr<Instruction>& instr, PhysReg reg, uint32_t size)
 {
    auto intersects = [=](auto src) -> bool
-   { return src.physReg() + src.size() > reg && reg + size > src.physReg(); };
+   {
+      return src.physReg() != sgpr_null && src.physReg() + src.size() > reg &&
+             reg + size > src.physReg();
+   };
 
    return std::any_of(instr->definitions.begin(), instr->definitions.end(),
                       [=](Definition def) { return intersects(def); }) ||

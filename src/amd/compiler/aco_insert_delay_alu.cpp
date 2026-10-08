@@ -249,6 +249,9 @@ gen_alu(Instruction* instr, delay_ctx& ctx)
       }
 
       for (Definition& def : instr->definitions) {
+         if (def.physReg() == sgpr_null)
+            continue;
+
          if (is_valu && def.regClass() == ctx.program->lane_mask) {
             delay.lane_mask_forwarding = instr->opcode != aco_opcode::v_readlane_b32_e64 &&
                                          instr->opcode != aco_opcode::v_readfirstlane_b32;

@@ -403,6 +403,9 @@ check_instr(wait_ctx& ctx, wait_imm& wait, Instruction* instr)
    }
 
    for (const Definition& def : instr->definitions) {
+      if (def.physReg() == sgpr_null)
+         continue;
+
       /* check consecutively written gprs */
       for (unsigned j = 0; j < def.getTemp().size(); j++) {
          PhysReg reg{def.physReg() + j};
