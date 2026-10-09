@@ -9811,6 +9811,7 @@ pub struct ShaderInfo {
     pub uses_global_mem: bool,
     pub writes_global_mem: bool,
     pub uses_fp64: bool,
+    pub uses_ttu: bool,
     pub stage: ShaderStageInfo,
     pub io: ShaderIoInfo,
 }

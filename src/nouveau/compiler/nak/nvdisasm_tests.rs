@@ -84,6 +84,7 @@ fn disassemble_instrs(instrs: Vec<Instr>, sm: u8) -> Vec<String> {
         uses_global_mem: true,
         writes_global_mem: true,
         uses_fp64: false,
+        uses_ttu: false,
         stage: ShaderStageInfo::Compute(cs_info),
         io: ShaderIoInfo::None,
     };

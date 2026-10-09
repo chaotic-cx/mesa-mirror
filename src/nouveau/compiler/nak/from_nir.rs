@@ -43,6 +43,16 @@ fn init_info_from_nir(
             point_mode: info_tess.point_mode(),
             ccw: info_tess.ccw(),
         };
+    let uses_ttu = nir.info.ray_queries > 0
+        || matches!(
+            nir.info.stage(),
+            MESA_SHADER_RAYGEN
+                | MESA_SHADER_ANY_HIT
+                | MESA_SHADER_CLOSEST_HIT
+                | MESA_SHADER_MISS
+                | MESA_SHADER_INTERSECTION
+                | MESA_SHADER_CALLABLE
+        );
     ShaderInfo {
         max_warps_per_sm: 0,
         num_gprs: 0,
@@ -59,6 +69,7 @@ fn init_info_from_nir(
         writes_global_mem: false,
         // TODO: handle this.
         uses_fp64: false,
+        uses_ttu,
         stage: match nir.info.stage() {
             MESA_SHADER_COMPUTE => {
                 ShaderStageInfo::Compute(ComputeShaderInfo {

@@ -1,6 +1,7 @@
 // Copyright © 2023 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
+mod add_ttu_macrofuse_instrs;
 mod api;
 mod assign_regs;
 mod builder;
