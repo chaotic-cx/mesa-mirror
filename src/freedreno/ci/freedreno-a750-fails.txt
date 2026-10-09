@@ -128,3 +128,31 @@ Profiling@write_image_uchar,Fail
 # https://github.com/KhronosGroup/OpenCL-CTS/issues/2765
 Basic,Fail
 Basic@bufferreadwriterect,Fail
+
+# https://gitlab.freedesktop.org/mesa/mesa/-/merge_requests/44724
+dEQP-VK.subgroups.shader_quad_control.terminated_invocation,Fail
+
+# VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_frag.case_1,Fail
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_frag.case_4,Fail
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_frag.case_4_io_ssbo_first,Fail
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_tesc_tese_frag.case_1,Fail
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_tesc_tese_frag.case_4,Fail
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_tesc_tese_frag.case_5,Fail
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_tesc_tese_frag.case_8,Fail
+dEQP-VK.pipeline.pipeline_library.graphics_library.independent_sets_random.fast_lib.vert_tesc_tese_frag.case_8_io_ssbo_first,Fail
+dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.1_view.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.complete_secondary_cmd_buff.fragment_density_map.2_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.partial_secondary_cmd_buff.fragment_density_map.1_view.render.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.partial_secondary_cmd_buff.fragment_density_map.2_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.fragment_density_map.2_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.fragment_density_map.2_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.fragment_density_map.4_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.fragment_density_map.4_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.fragment_density_map.6_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.dynamic_rendering.primary_cmd_buff.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.renderpass2.fragment_density_map.1_view.render.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.renderpass2.fragment_density_map.2_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
+dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
+gmem-dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail

@@ -857,9 +857,6 @@ nir-stress=dEQP-VK.dynamic_rendering.primary_cmd_buff.suballocation.unused_attac
 # New fails in 1.4.3.3
 dEQP-VK.dynamic_rendering.primary_cmd_buff.suballocation.formats.b8g8r8a8_unorm.input.load.store.self_dep_clear_draw,Fail
 
-# New failures with VKCTS 1.4.4.0
-dEQP-VK.sparse_resources.image_block_shapes.2d.b8g8r8g8_422_unorm.samples_1,Fail
-
 # VKCTS 1.4.5.3 -> 1.4.6.1 uprev
 dEQP-VK.multiview.multisample_resolve.no_queries.15,Crash
 dEQP-VK.multiview.multisample_resolve.no_queries.15_15_15_15,Crash
@@ -877,9 +874,14 @@ dEQP-VK.multiview.renderpass2.multisample_resolve.no_queries.max_multi_view_view
 
 # Nightly run expectations update
 dEQP-VK.pipeline.fast_linked_library.extended_dynamic_state.two_draws_dynamic.stride_with_offset_and_padding,Fail
-dEQP-VK.pipeline.monolithic.extended_dynamic_state.after_pipelines.tess_domain_origin_lower_left,Fail
 dEQP-VK.pipeline.monolithic.extended_dynamic_state.two_draws_dynamic.stride_with_offset_and_padding,Fail
-dEQP-VK.shader_object.misc.state.pipeline.vert_tess_geom_frag.depth.clip_control,Fail
-dEQP-VK.tessellation.tesscoord.triangles_fractional_even_spacing_execution_mode_in_tesc,Fail
 
 dEQP-VK.api.driver_properties.conformance_version,Fail
+
+# VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+dEQP-VK.binding_model.descriptor_heap.binding_mapping.heap_with_constant_offset.fragment.acceleration_structure,Crash
+dEQP-VK.binding_model.descriptor_heap.binding_mapping.heap_with_indirect_index.fragment.storage_buffer,Crash
+dEQP-VK.binding_model.descriptor_heap.binding_mapping.heap_with_push_index.fragment.storage_buffer,Crash
+dEQP-VK.multiview.multisample_resolve.no_queries.5_10_5_10,Crash
+dEQP-VK.multiview.renderpass2.multisample_resolve.no_queries.1_2_4_8,Crash
+dEQP-VK.multiview.renderpass2.multisample_resolve.no_queries.8_1_1_8,Crash

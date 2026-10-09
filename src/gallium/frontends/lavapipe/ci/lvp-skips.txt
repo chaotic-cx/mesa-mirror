@@ -103,6 +103,17 @@ nir-stress=dEQP-VK.ray_query.builtin.instanceid.tese.triangles
 dEQP-VK.compute.pipeline.cooperative_matrix.khr_a.subgroupscope.tensorlayout4d.float16_float16.buffer.rowmajor.tensorlayout
 dEQP-VK.compute.shader_object_binary.cooperative_matrix.khr_b.subgroupscope.tensorlayout1d.float16_float16.buffer.rowmajor.tensorlayout
 dEQP-VK.compute.shader_object_spirv.cooperative_matrix.khr_a.subgroupscope.tensorlayout1dclip.sint8_sint8.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.shader_object_spirv.cooperative_matrix.khr_a.subgroupscope.tensorlayout4dclip.sint8_sint8.buffer.rowmajor.tensorlayout
 dEQP-VK.compute.shader_object_spirv.cooperative_matrix.khr_r.subgroupscope.tensorlayout2d.float16_float16.buffer.rowmajor.tensorlayout
 dEQP-VK.compute.shader_object_spirv.cooperative_matrix.khr_r.subgroupscope.tensorlayout2dclip.float16_float16.buffer.rowmajor.tensorlayout
 
+# New timeouts with VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+dEQP-VK.compute.pipeline.cooperative_matrix.khr_b.subgroupscope.spacetodepth.float16_float16.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.pipeline.cooperative_matrix.khr_b.subgroupscope.spacetodepth.sint8_sint8.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.pipeline.cooperative_matrix.khr_r.subgroupscope.spacetodepth.float16_float16.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.shader_object_binary.cooperative_matrix.khr_r.subgroupscope.spacetodepth.uint32_uint32.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.shader_object_binary.cooperative_matrix.khr_r.subgroupscope.tensorlayout2dclip.float16_float16.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.shader_object_binary.cooperative_matrix.khr_b.subgroupscope.tensorlayout2dclip.uint8_uint8.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.shader_object_binary.cooperative_matrix.khr_b.subgroupscope.tensorlayout4dclip.float16_float16.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.shader_object_spirv.cooperative_matrix.khr_r.subgroupscope.tensorlayout1d.float16_float16.buffer.rowmajor.tensorlayout
+dEQP-VK.memory.pageable_allocation.basic.percent_1.reverse.count_12

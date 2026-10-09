@@ -86,3 +86,10 @@ dEQP-VK.graphicsfuzz.spv-composites
 # Sometimes times out
 spec@egl_ext_surface_compression@create
 spec@arb_framebuffer_object@framebuffer-blit-oblong wide
+
+# New flakes after the VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+dEQP-VK.api.object_management.multithreaded_per_thread_resources.device_group
+dEQP-VK.api.object_management.multithreaded_per_thread_resources.device
+dEQP-VK.api.object_management.multithreaded_shared_resources.device_group
+dEQP-VK.api.object_management.multithreaded_shared_resources.device
+dEQP-VK.synchronization2.cross_instance.dedicated.write_copy_buffer_to_image_read_copy_image_to_buffer.image_128x128_d32_sfloat_binary_semaphore_fd

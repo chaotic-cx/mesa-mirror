@@ -47,3 +47,9 @@ spec@!opengl 1.1@streaming-texture-leak
 # These tests don't actually validate anything relevant, but are still resource-intensive,
 # especially when run in parallel, so skip them.
 dEQP-VK.wsi.android.maintenance1.*resize_window*
+
+# Broken tests in 1.4.7.0, see https://gitlab.freedesktop.org/mesa/mesa/-/work_items/16646
+dEQP-VK.spirv_assembly.constant_data.*.*_262128*
+dEQP-VK.spirv_assembly.constant_data.*.*_131064*
+dEQP-VK.spirv_assembly.constant_data.*.*_65532*
+dEQP-VK.spirv_assembly.constant_data.*.*_32766*

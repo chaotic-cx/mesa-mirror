@@ -14,3 +14,8 @@ dEQP-VK.ssbo.phys.layout.unsized_struct_array.per_block_buffer.*_instance_array_
 
 # Leaky in VKCTS 1.4.1.1
 dEQP-VK.video.*
+
+# New timeouts with VKCTS 1.4.6.2 -> 1.4.7.0 uprev
+dEQP-VK.compute.pipeline.cooperative_matrix.khr_a.subgroupscope.spacetodepth.sint8_sint8.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.pipeline.cooperative_matrix.khr_r.subgroupscope.spacetodepth.float16_float16.buffer.rowmajor.tensorlayout
+dEQP-VK.compute.shader_object_binary.cooperative_matrix.khr_a.subgroupscope.spacetodepth.uint8_uint8.buffer.rowmajor.tensorlayout
