@@ -3399,10 +3399,6 @@ get_max_format_scale(const struct isl_device *isl_dev,
       if (memcmp(surf_tile_info.swiz, tile_info.swiz, tile_info.swiz_count))
          continue;
 
-      if (info->surf.miptail_start_level < info->view.base_level &&
-          surf_tile_info.max_miptail_levels != tile_info.max_miptail_levels)
-         continue;
-
       return max_bpb / surf_fmtl->bpb;
    }
 
