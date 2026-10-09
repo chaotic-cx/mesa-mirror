@@ -1977,9 +1977,15 @@ blorp_surf_convert_to_single_level_tile(const struct isl_device *isl_dev,
    isl_surf_get_image_offset_B_tile_el(surf, base_level, 0, 0,
                                        &offset_B, &x_offset_el, &y_offset_el);
 
-   /* Tile64, Ys and Yf should have no intratile X or Y offset */
-   assert(x_offset_el == 0 && y_offset_el == 0);
+   /* The byte offset will get us to the miptail page.  The other offsets
+    * are to the actual level within the miptail.  We'll set up a texture
+    * with a miptail and use the hardware to handle offseting inside the
+    * miptail.
+    */
    assert(info->tile_x_sa == 0 && info->tile_y_sa == 0);
+   x_offset_el = 0;
+   y_offset_el = 0;
+
    info->addr.offset += offset_B;
 
    /* Save off the array pitch */

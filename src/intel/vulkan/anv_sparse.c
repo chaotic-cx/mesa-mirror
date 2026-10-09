@@ -1302,7 +1302,6 @@ anv_sparse_calc_miptail_properties(struct anv_device *device,
    isl_surf_get_image_offset_B_tile_sa(surf, miptail_first_level, 0, 0,
                                        &miptail_offset,
                                        &x_off, &y_off);
-   assert(x_off == 0 && y_off == 0);
    assert(miptail_offset % ANV_SPARSE_BLOCK_SIZE == 0);
 
    *imageMipTailFirstLod = miptail_first_level;

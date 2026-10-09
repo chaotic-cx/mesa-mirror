@@ -5128,20 +5128,7 @@ isl_surf_get_image_offset_B_tile_el(const struct isl_surf *surf,
                                       y_offset_el,
                                       &z_offset_el,
                                       &array_offset);
-   if (level >= surf->miptail_start_level) {
-      /* We can do a byte offset to the first level of a miptail but we cannot
-       * offset into a miptail.
-       */
-      assert(level == surf->miptail_start_level);
-
-      /* The byte offset will get us to the miptail page.  The other offsets
-       * are to the actual level within the miptail.  It is assumed that the
-       * caller will set up a texture with a miptail and use the hardware to
-       * handle offseting inside the miptail.
-       */
-      *x_offset_el = 0;
-      *y_offset_el = 0;
-   } else {
+   if (level < surf->miptail_start_level) {
       assert(z_offset_el == 0);
       assert(array_offset == 0);
    }
@@ -5378,8 +5365,14 @@ isl_surf_get_uncompressed_surf(const struct isl_device *dev,
 
       isl_surf_get_image_offset_B_tile_el(surf, base_level, 0, 0,
                                           offset_B, x_offset_el, y_offset_el);
-      /* Tile64, Ys and Yf should have no intratile X or Y offset */
-      assert(*x_offset_el == 0 && *y_offset_el == 0);
+
+      /* The byte offset will get us to the miptail page.  The other offsets
+       * are to the actual level within the miptail.  We'll set up a texture
+       * with a miptail and use the hardware to handle offseting inside the
+       * miptail.
+       */
+      *x_offset_el = 0;
+      *y_offset_el = 0;
 
       /* Save off the array pitch */
       const uint32_t array_pitch_el_rows = surf->array_pitch_el_rows;
