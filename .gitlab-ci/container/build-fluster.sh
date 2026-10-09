@@ -18,15 +18,20 @@ section_start fluster "Installing Fluster"
 # setting up the environment variables locally
 ci_tag_build_time_check "FLUSTER_TAG"
 
-FLUSTER_REVISION="1864188e358464e77c889390fff259ef3b2c1159"
+FLUSTER_REVISION="v0.8.0"
 
 git clone https://github.com/fluendo/fluster.git --single-branch --no-checkout
 
 pushd fluster || exit
 git checkout "${FLUSTER_REVISION}"
+# The Argon vectors (~7 GB) are not downloaded, but deqp-runner lists tests from
+# every suite JSON. Drop this line and add the suites to AV1_TEST_SUITES to enable them.
+rm test_suites/av1/AV1-ARGON-*.json
 popd || exit
 
 ARTIFACT_PATH="${DATA_STORAGE_PATH}/fluster/${FLUSTER_TAG}/vectors.tar.zst"
+VP9_TEST_SUITES="VP9-TEST-VECTORS VP9-TEST-VECTORS-HIGH"
+AV1_TEST_SUITES="AV1-TEST-VECTORS CHROMIUM-8bit-AV1-TEST-VECTORS CHROMIUM-10bit-AV1-TEST-VECTORS"
 
 if FOUND_ARTIFACT_URL="$(find_s3_project_artifact "${ARTIFACT_PATH}")"; then
     echo "Found fluster vectors at: ${FOUND_ARTIFACT_URL}"
@@ -35,7 +40,7 @@ if FOUND_ARTIFACT_URL="$(find_s3_project_artifact "${ARTIFACT_PATH}")"; then
 else
     echo "No cached vectors found, rebuilding..."
     # Download the necessary vectors
-    fluster/fluster.py download -j ${FDO_CI_CONCURRENT:-4} --codec H.264,H.265,VP9
+    fluster/fluster.py download -j ${FDO_CI_CONCURRENT:-4} --codec H.264,H.265 $VP9_TEST_SUITES $AV1_TEST_SUITES
 
     # Build fluster vectors archive and upload it
     tar --zstd -cf "vectors.tar.zst" fluster/resources/

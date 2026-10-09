@@ -17,6 +17,19 @@ dEQP-VK.video.capabilities.av1_decode_dst_video_format_support_query,Fail
 dEQP-VK.api.driver_properties.conformance_version,Fail
 
 # fluster
+GStreamer-AV1-Vulkan@00000527.ivf,Fail
+GStreamer-AV1-Vulkan@00000535.ivf,Fail
+GStreamer-AV1-Vulkan@00000548.ivf,Fail
+GStreamer-AV1-Vulkan@48delayed.ivf,Crash
+GStreamer-AV1-Vulkan@av1-1-b10-23-film_grain-50,Fail
+GStreamer-AV1-Vulkan@av1-1-b10-24-monochrome,Crash
+GStreamer-AV1-Vulkan@av1-1-b8-03-sizeup,Crash
+GStreamer-AV1-Vulkan@av1-1-b8-03-sizeup.ivf,Crash
+GStreamer-AV1-Vulkan@av1-1-b8-22-svc-L2T1,Crash
+GStreamer-AV1-Vulkan@av1-1-b8-22-svc-L2T2,Crash
+GStreamer-AV1-Vulkan@av1-1-b8-23-film_grain-50,Fail
+GStreamer-AV1-Vulkan@av1-1-b8-24-monochrome,Crash
+GStreamer-AV1-Vulkan@ccvbfilmgrain.ivf,Fail
 GStreamer-H.264-Vulkan@CVFC1_Sony_C,Fail
 GStreamer-H.264-Vulkan@FM1_BT_B,Fail
 GStreamer-H.264-Vulkan@FM1_FT_E,Fail
@@ -276,6 +289,18 @@ GStreamer-H.264-Vulkan@freh1_b,Fail
 GStreamer-H.264-Vulkan@freh2_b,Fail
 GStreamer-H.264-Vulkan@freh7_b,Fail
 GStreamer-H.264-Vulkan@sp2_bt_b,Fail
+GStreamer-H.264-Vulkan@y444p10le_4096x1714_g30_bf6,Crash
+GStreamer-H.264-Vulkan@y444p10le_642x358_g30_bf6,Crash
+GStreamer-H.264-Vulkan@y444p10le_642x358_lossless,Crash
+GStreamer-H.264-Vulkan@y444p12le_1920x1080_fake_lossless,Crash
+GStreamer-H.264-Vulkan@y444p12le_1920x1080_lossless,Crash
+GStreamer-H.264-Vulkan@y444p12le_1920x1080_stress,Crash
+GStreamer-H.264-Vulkan@y444p_4096x1714_g15_bf3,Crash
+GStreamer-H.264-Vulkan@y444p_630x360_g1,Crash
+GStreamer-H.264-Vulkan@y444p_630x360_g12_bf0,Crash
+GStreamer-H.264-Vulkan@y444p_lossless,Crash
+GStreamer-H.264-Vulkan@y444p_lossless_642x358,Crash
+GStreamer-H.264-Vulkan@y444p_stress,Crash
 GStreamer-H.265-Vulkan@3DHC_C_A_HHI_3,Crash
 GStreamer-H.265-Vulkan@3DHC_C_B_HHI_3,Crash
 GStreamer-H.265-Vulkan@3DHC_C_C_Sharp_3,Crash
@@ -459,10 +484,4 @@ GStreamer-H.265-Vulkan@Zero_and_One_Palette_Size_A_Canon_2,Crash
 GStreamer-VP9-Vulkan@vp90-2-05-resize.ivf,Fail
 GStreamer-VP9-Vulkan@vp90-2-18-resize.ivf,Fail
 GStreamer-VP9-Vulkan@vp90-2-22-svc_1280x720_3.ivf,Crash
-GStreamer-VP9-Vulkan@vp91-2-04-yuv422.webm,Crash
-GStreamer-VP9-Vulkan@vp91-2-04-yuv444.webm,Crash
 GStreamer-VP9-Vulkan@vp92-2-20-12bit-yuv420.webm,Crash
-GStreamer-VP9-Vulkan@vp93-2-20-10bit-yuv422.webm,Crash
-GStreamer-VP9-Vulkan@vp93-2-20-10bit-yuv444.webm,Crash
-GStreamer-VP9-Vulkan@vp93-2-20-12bit-yuv422.webm,Crash
-GStreamer-VP9-Vulkan@vp93-2-20-12bit-yuv444.webm,Crash
