@@ -40,7 +40,7 @@
 #include "egldriver.h"
 
 struct _egl_device {
-   _EGLDevice *Next;
+   struct _egl_device *Next;
 
    const char *extensions;
 
@@ -62,7 +62,7 @@ struct _egl_device {
 void
 _eglFiniDevice(void)
 {
-   _EGLDevice *dev_list, *dev;
+   struct _egl_device *dev_list, *dev;
 
    /* atexit function is called with global mutex locked */
 
@@ -94,12 +94,12 @@ _eglFiniDevice(void)
 EGLBoolean
 _eglCheckDeviceHandle(EGLDeviceEXT device)
 {
-   _EGLDevice *cur;
+   struct _egl_device *cur;
 
    simple_mtx_lock(_eglGlobal.Mutex);
    cur = _eglGlobal.DeviceList;
    while (cur) {
-      if (cur == (_EGLDevice *)device)
+      if (cur == (struct _egl_device *)device)
          break;
       cur = cur->Next;
    }
@@ -107,7 +107,7 @@ _eglCheckDeviceHandle(EGLDeviceEXT device)
    return (cur != NULL);
 }
 
-_EGLDevice _eglSoftwareDevice = {
+struct _egl_device _eglSoftwareDevice = {
    /* TODO: EGL_EXT_device_drm support for KMS + llvmpipe */
    .extensions = "EGL_MESA_device_software EGL_EXT_device_drm_render_node EGL_EXT_device_type",
    .MESA_device_software = EGL_TRUE,
@@ -122,7 +122,7 @@ _EGLDevice _eglSoftwareDevice = {
 static int
 _eglAddDRMDevice(drmDevicePtr device)
 {
-   _EGLDevice *dev;
+   struct _egl_device *dev;
 
    assert(device->available_nodes & ((1 << DRM_NODE_RENDER)));
 
@@ -149,7 +149,7 @@ _eglAddDRMDevice(drmDevicePtr device)
          return 1;
    }
 
-   dev->Next = calloc(1, sizeof(_EGLDevice));
+   dev->Next = calloc(1, sizeof(struct _egl_device));
    if (!dev->Next)
       return -1;
 
@@ -186,10 +186,10 @@ _eglAddDRMDevice(drmDevicePtr device)
  *
  * If a software device, the fd is ignored.
  */
-_EGLDevice *
+struct _egl_device *
 _eglFindDevice(int fd, bool software)
 {
-   _EGLDevice *dev;
+   struct _egl_device *dev;
 
    simple_mtx_lock(_eglGlobal.Mutex);
    dev = _eglGlobal.DeviceList;
@@ -236,7 +236,7 @@ out:
 
 #ifdef HAVE_LIBDRM
 drmDevicePtr
-_eglDeviceDrm(_EGLDevice *dev)
+_eglDeviceDrm(struct _egl_device *dev)
 {
    if (!dev)
       return NULL;
@@ -245,8 +245,8 @@ _eglDeviceDrm(_EGLDevice *dev)
 }
 #endif
 
-_EGLDevice *
-_eglDeviceNext(_EGLDevice *dev)
+struct _egl_device *
+_eglDeviceNext(struct _egl_device *dev)
 {
    if (!dev)
       return NULL;
@@ -255,7 +255,7 @@ _eglDeviceNext(_EGLDevice *dev)
 }
 
 EGLBoolean
-_eglDeviceSupports(_EGLDevice *dev, _EGLDeviceExtension ext)
+_eglDeviceSupports(struct _egl_device *dev, _EGLDeviceExtension ext)
 {
    switch (ext) {
    case _EGL_DEVICE_SOFTWARE:
@@ -277,7 +277,7 @@ _eglDeviceSupports(_EGLDevice *dev, _EGLDeviceExtension ext)
 }
 
 EGLBoolean
-_eglQueryDeviceAttribEXT(_EGLDevice *dev, EGLint attribute, EGLAttrib *value)
+_eglQueryDeviceAttribEXT(struct _egl_device *dev, EGLint attribute, EGLAttrib *value)
 {
    switch (attribute) {
    case EGL_DEVICE_TYPE_EXT:
@@ -305,7 +305,7 @@ _eglQueryDeviceAttribEXT(_EGLDevice *dev, EGLint attribute, EGLAttrib *value)
 }
 
 EGLBoolean
-_eglQueryDeviceBinaryEXT(_EGLDevice *dev, EGLint name, EGLint max_size,
+_eglQueryDeviceBinaryEXT(struct _egl_device *dev, EGLint name, EGLint max_size,
                          void *value, EGLint *size)
 {
    if (!_eglDeviceSupports(dev, _EGL_DEVICE_DRM) ||
@@ -346,7 +346,7 @@ _eglQueryDeviceBinaryEXT(_EGLDevice *dev, EGLint name, EGLint max_size,
 }
 
 const char *
-_eglQueryDeviceStringEXT(_EGLDevice *dev, EGLint name)
+_eglQueryDeviceStringEXT(struct _egl_device *dev, EGLint name)
 {
 #ifdef HAVE_LIBDRM
    drmDevicePtr device = _eglDeviceDrm(dev);
@@ -446,7 +446,7 @@ _eglQueryDeviceStringEXT(_EGLDevice *dev, EGLint name)
 int
 _eglDeviceRefreshList(void)
 {
-   ASSERTED _EGLDevice *dev;
+   ASSERTED struct _egl_device *dev;
    int count = 0;
 
    dev = _eglGlobal.DeviceList;
@@ -482,10 +482,10 @@ _eglDeviceRefreshList(void)
 }
 
 EGLBoolean
-_eglQueryDevicesEXT(EGLint max_devices, _EGLDevice **devices,
+_eglQueryDevicesEXT(EGLint max_devices, struct _egl_device **devices,
                     EGLint *num_devices)
 {
-   _EGLDevice *dev, *devs, *swrast;
+   struct _egl_device *dev, *devs, *swrast;
    int i = 0, num_devs;
    bool request_software =
       debug_get_bool_option("LIBGL_ALWAYS_SOFTWARE", false);

@@ -51,7 +51,7 @@ struct _egl_global {
    /* the list of all displays */
    _EGLDisplay *DisplayList;
 
-   _EGLDevice *DeviceList;
+   struct _egl_device *DeviceList;
 
    /*
     * Under libglvnd, the client extension string has to be split into two

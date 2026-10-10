@@ -213,7 +213,7 @@ static const struct dri_loader_funcs swrast_loader_funcs = {
 };
 
 static int
-device_get_fd(_EGLDisplay *disp, _EGLDevice *dev)
+device_get_fd(_EGLDisplay *disp, struct _egl_device *dev)
 {
 #ifdef HAVE_LIBDRM
    int fd = disp->Options.fd;

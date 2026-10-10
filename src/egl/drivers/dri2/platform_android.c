@@ -1094,7 +1094,7 @@ droid_open_device(_EGLDisplay *disp, bool swrast)
 {
 #define MAX_DRM_DEVICES 64
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   _EGLDevice *dev_list = _eglGlobal.DeviceList;
+   struct _egl_device *dev_list = _eglGlobal.DeviceList;
    drmDevicePtr device;
 
    char *vendor_name = NULL;

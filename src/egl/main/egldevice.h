@@ -43,7 +43,7 @@
 extern "C" {
 #endif
 
-extern _EGLDevice _eglSoftwareDevice;
+extern struct _egl_device _eglSoftwareDevice;
 
 void
 _eglFiniDevice(void);
@@ -51,16 +51,16 @@ _eglFiniDevice(void);
 EGLBoolean
 _eglCheckDeviceHandle(EGLDeviceEXT device);
 
-static inline _EGLDevice *
+static inline struct _egl_device *
 _eglLookupDevice(EGLDeviceEXT device)
 {
-   _EGLDevice *dev = (_EGLDevice *)device;
+   struct _egl_device *dev = (struct _egl_device *)device;
    if (!_eglCheckDeviceHandle(device))
       dev = NULL;
    return dev;
 }
 
-_EGLDevice *
+struct _egl_device *
 _eglFindDevice(int fd, bool software);
 
 enum _egl_device_extension {
@@ -76,32 +76,32 @@ typedef enum _egl_device_extension _EGLDeviceExtension;
 
 #ifdef HAVE_LIBDRM
 drmDevicePtr
-_eglDeviceDrm(_EGLDevice *dev);
+_eglDeviceDrm(struct _egl_device *dev);
 #else
 #define _eglDeviceDrm(dev) NULL
 #endif
 
-_EGLDevice *
-_eglDeviceNext(_EGLDevice *dev);
+struct _egl_device *
+_eglDeviceNext(struct _egl_device *dev);
 
 EGLBoolean
-_eglDeviceSupports(_EGLDevice *dev, _EGLDeviceExtension ext);
+_eglDeviceSupports(struct _egl_device *dev, _EGLDeviceExtension ext);
 
 int
 _eglDeviceRefreshList(void);
 
 EGLBoolean
-_eglQueryDeviceAttribEXT(_EGLDevice *dev, EGLint attribute, EGLAttrib *value);
+_eglQueryDeviceAttribEXT(struct _egl_device *dev, EGLint attribute, EGLAttrib *value);
 
 const char *
-_eglQueryDeviceStringEXT(_EGLDevice *dev, EGLint name);
+_eglQueryDeviceStringEXT(struct _egl_device *dev, EGLint name);
 
 EGLBoolean
-_eglQueryDevicesEXT(EGLint max_devices, _EGLDevice **devices,
+_eglQueryDevicesEXT(EGLint max_devices, struct _egl_device **devices,
                     EGLint *num_devices);
 
 EGLBoolean
-_eglQueryDeviceBinaryEXT(_EGLDevice* dev,
+_eglQueryDeviceBinaryEXT(struct _egl_device* dev,
                          EGLint name,
                          EGLint max_size,
                          void *value,

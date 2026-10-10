@@ -195,7 +195,7 @@ struct _egl_display {
    _EGLPlatformType Platform; /**< The type of the platform display */
    void *PlatformDisplay;     /**< A pointer to the platform display */
 
-   _EGLDevice *Device;       /**< Device backing the display */
+   struct _egl_device *Device;       /**< Device backing the display */
    EGLBoolean Initialized;   /**< True if the display is initialized */
 
    /* options that affect how the driver initializes the display */

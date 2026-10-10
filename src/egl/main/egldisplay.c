@@ -313,7 +313,7 @@ out:
  * rest of the display's lifetime.
  */
 static void
-_eglSetExplicitDevice(_EGLDisplay *dpy, _EGLDevice *dev)
+_eglSetExplicitDevice(_EGLDisplay *dpy, struct _egl_device *dev)
 {
    if (dpy && !dpy->Initialized)
       dpy->Device = dev;
@@ -496,7 +496,7 @@ _EGLDisplay *
 _eglGetX11Display(Display *native_display, const EGLAttrib *attrib_list)
 {
    _EGLDisplay *dpy;
-   _EGLDevice *dev = NULL;
+   struct _egl_device *dev = NULL;
 
    /* EGL_EXT_platform_x11 adds EGL_PLATFORM_X11_SCREEN_EXT,
     * which is optional.
@@ -541,7 +541,7 @@ _eglGetXcbDisplay(xcb_connection_t *native_display,
                   const EGLAttrib *attrib_list)
 {
    _EGLDisplay *dpy;
-   _EGLDevice *dev = NULL;
+   struct _egl_device *dev = NULL;
 
    /* EGL_EXT_platform_xcb recognizes exactly one attribute,
     * EGL_PLATFORM_XCB_SCREEN_EXT, which is optional.
@@ -583,7 +583,7 @@ _eglGetGbmDisplay(struct gbm_device *native_display,
                   const EGLAttrib *attrib_list)
 {
    _EGLDisplay *dpy;
-   _EGLDevice *dev = NULL;
+   struct _egl_device *dev = NULL;
 
    /* This platform recognizes only EXT_explicit_device */
    if (attrib_list) {
@@ -620,7 +620,7 @@ _eglGetWaylandDisplay(struct wl_display *native_display,
                       const EGLAttrib *attrib_list)
 {
    _EGLDisplay *dpy;
-   _EGLDevice *dev = NULL;
+   struct _egl_device *dev = NULL;
 
    /* This platform recognizes only EXT_explicit_device */
    if (attrib_list) {
@@ -655,7 +655,7 @@ _EGLDisplay *
 _eglGetSurfacelessDisplay(void *native_display, const EGLAttrib *attrib_list)
 {
    _EGLDisplay *dpy;
-   _EGLDevice *dev = NULL;
+   struct _egl_device *dev = NULL;
 
    /* Any native display must be an EGLDeviceEXT we know about */
    if (native_display != NULL) {
@@ -709,7 +709,7 @@ _eglGetAndroidDisplay(void *native_display, const EGLAttrib *attrib_list)
 _EGLDisplay *
 _eglGetDeviceDisplay(void *native_display, const EGLAttrib *attrib_list)
 {
-   _EGLDevice *dev;
+   struct _egl_device *dev;
    _EGLDisplay *display;
    int fd = -1;
 

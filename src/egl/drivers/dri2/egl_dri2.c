@@ -847,7 +847,7 @@ EGLBoolean
 dri2_setup_device(_EGLDisplay *disp, EGLBoolean software)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   _EGLDevice *dev;
+   struct _egl_device *dev;
    int render_fd;
 
    /* If we're not software, we need a DRM node FD */

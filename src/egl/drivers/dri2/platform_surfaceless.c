@@ -225,7 +225,7 @@ surfaceless_probe_device(_EGLDisplay *disp, bool swrast, bool zink)
 {
    const unsigned node_type = swrast ? DRM_NODE_PRIMARY : DRM_NODE_RENDER;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   _EGLDevice *dev_list = _eglGlobal.DeviceList;
+   struct _egl_device *dev_list = _eglGlobal.DeviceList;
    drmDevicePtr device;
 
    while (dev_list) {

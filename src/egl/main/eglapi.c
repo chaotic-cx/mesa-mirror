@@ -2671,7 +2671,7 @@ eglSetBlobCacheFuncsANDROID(EGLDisplay *dpy, EGLSetBlobFuncANDROID set,
 static EGLBoolean EGLAPIENTRY
 eglQueryDeviceAttribEXT(EGLDeviceEXT device, EGLint attribute, EGLAttrib *value)
 {
-   _EGLDevice *dev = _eglLookupDevice(device);
+   struct _egl_device *dev = _eglLookupDevice(device);
    EGLBoolean ret;
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
@@ -2689,7 +2689,7 @@ eglQueryDeviceBinaryEXT(EGLDeviceEXT device,
                         void *value,
                         EGLint *size)
 {
-   _EGLDevice *dev = _eglLookupDevice(device);
+   struct _egl_device *dev = _eglLookupDevice(device);
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
    if (!dev)
@@ -2701,7 +2701,7 @@ eglQueryDeviceBinaryEXT(EGLDeviceEXT device,
 static const char *EGLAPIENTRY
 eglQueryDeviceStringEXT(EGLDeviceEXT device, EGLint name)
 {
-   _EGLDevice *dev = _eglLookupDevice(device);
+   struct _egl_device *dev = _eglLookupDevice(device);
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
    if (!dev)
@@ -2717,7 +2717,7 @@ eglQueryDevicesEXT(EGLint max_devices, EGLDeviceEXT *devices,
    EGLBoolean ret;
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
-   ret = _eglQueryDevicesEXT(max_devices, (_EGLDevice **)devices, num_devices);
+   ret = _eglQueryDevicesEXT(max_devices, (struct _egl_device **)devices, num_devices);
    RETURN_EGL_EVAL(NULL, ret);
 }
 

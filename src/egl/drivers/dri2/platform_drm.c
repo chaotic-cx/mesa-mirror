@@ -638,7 +638,7 @@ dri2_initialize_drm(_EGLDisplay *disp)
          dri2_dpy->fd_display_gpu =
             loader_open_device(drm->nodes[DRM_NODE_PRIMARY]);
       } else {
-         _EGLDevice *dev_list = _eglGlobal.DeviceList;
+         struct _egl_device *dev_list = _eglGlobal.DeviceList;
          drmDevicePtr drm;
          while (dev_list) {
             if (!_eglDeviceSupports(dev_list, _EGL_DEVICE_DRM))
