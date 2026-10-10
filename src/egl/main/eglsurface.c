@@ -555,7 +555,7 @@ _eglQuerySurface(_EGLDisplay *disp, _EGLSurface *surface, EGLint attribute,
           !disp->Extensions.KHR_partial_update)
          return _eglError(EGL_BAD_ATTRIBUTE, "eglQuerySurface");
 
-      _EGLContext *ctx = _eglGetCurrentContext();
+      struct _egl_context *ctx = _eglGetCurrentContext();
       if (_eglGetContextHandle(ctx) == EGL_NO_CONTEXT ||
           ctx->DrawSurface != surface)
          return _eglError(EGL_BAD_SURFACE, "eglQuerySurface");

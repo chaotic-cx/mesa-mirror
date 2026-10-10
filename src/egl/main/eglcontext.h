@@ -66,25 +66,25 @@ struct _egl_context {
 };
 
 extern EGLBoolean
-_eglInitContext(_EGLContext *ctx, _EGLDisplay *disp, struct _egl_config *config,
-                _EGLContext *share_list, const EGLint *attrib_list);
+_eglInitContext(struct _egl_context *ctx, _EGLDisplay *disp, struct _egl_config *config,
+                struct _egl_context *share_list, const EGLint *attrib_list);
 
 extern EGLBoolean
-_eglQueryContext(_EGLContext *ctx, EGLint attribute, EGLint *value);
+_eglQueryContext(struct _egl_context *ctx, EGLint attribute, EGLint *value);
 
 extern EGLBoolean
-_eglBindContext(_EGLContext *ctx, _EGLSurface *draw, _EGLSurface *read,
-                _EGLContext **old_ctx, _EGLSurface **old_draw,
+_eglBindContext(struct _egl_context *ctx, _EGLSurface *draw, _EGLSurface *read,
+                struct _egl_context **old_ctx, _EGLSurface **old_draw,
                 _EGLSurface **old_read);
 
-extern _EGLContext *
-_eglBindContextToThread(_EGLContext *ctx, _EGLThreadInfo *t);
+extern struct _egl_context *
+_eglBindContextToThread(struct _egl_context *ctx, _EGLThreadInfo *t);
 
 /**
  * Increment reference count for the context.
  */
-static inline _EGLContext *
-_eglGetContext(_EGLContext *ctx)
+static inline struct _egl_context *
+_eglGetContext(struct _egl_context *ctx)
 {
    if (ctx)
       _eglGetResource(&ctx->Resource);
@@ -95,7 +95,7 @@ _eglGetContext(_EGLContext *ctx)
  * Decrement reference count for the context.
  */
 static inline EGLBoolean
-_eglPutContext(_EGLContext *ctx)
+_eglPutContext(struct _egl_context *ctx)
 {
    return (ctx) ? _eglPutResource(&ctx->Resource) : EGL_FALSE;
 }
@@ -105,7 +105,7 @@ _eglPutContext(_EGLContext *ctx)
  * The handle can be passed to client directly.
  */
 static inline EGLContext
-_eglLinkContext(_EGLContext *ctx)
+_eglLinkContext(struct _egl_context *ctx)
 {
    _eglLinkResource(&ctx->Resource, _EGL_RESOURCE_CONTEXT);
    return (EGLContext)ctx;
@@ -116,7 +116,7 @@ _eglLinkContext(_EGLContext *ctx)
  * Accessing an unlinked context should generate EGL_BAD_CONTEXT error.
  */
 static inline void
-_eglUnlinkContext(_EGLContext *ctx)
+_eglUnlinkContext(struct _egl_context *ctx)
 {
    _eglUnlinkResource(&ctx->Resource, _EGL_RESOURCE_CONTEXT);
 }
@@ -125,10 +125,10 @@ _eglUnlinkContext(_EGLContext *ctx)
  * Lookup a handle to find the linked context.
  * Return NULL if the handle has no corresponding linked context.
  */
-static inline _EGLContext *
+static inline struct _egl_context *
 _eglLookupContext(EGLContext context, _EGLDisplay *disp)
 {
-   _EGLContext *ctx = (_EGLContext *)context;
+   struct _egl_context *ctx = (struct _egl_context *)context;
    if (!disp || !_eglCheckResource((void *)ctx, _EGL_RESOURCE_CONTEXT, disp))
       ctx = NULL;
    return ctx;
@@ -138,7 +138,7 @@ _eglLookupContext(EGLContext context, _EGLDisplay *disp)
  * Return the handle of a linked context, or EGL_NO_CONTEXT.
  */
 static inline EGLContext
-_eglGetContextHandle(_EGLContext *ctx)
+_eglGetContextHandle(struct _egl_context *ctx)
 {
    _EGLResource *res = (_EGLResource *)ctx;
    return (res && _eglIsResourceLinked(res)) ? (EGLContext)ctx : EGL_NO_CONTEXT;

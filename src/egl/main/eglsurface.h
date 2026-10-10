@@ -61,7 +61,7 @@ struct _egl_surface {
    _EGLResource Resource;
 
    /* The context that is currently bound to the surface */
-   _EGLContext *CurrentContext;
+   struct _egl_context *CurrentContext;
 
    struct _egl_config *Config;
 

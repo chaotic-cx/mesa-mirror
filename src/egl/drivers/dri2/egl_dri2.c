@@ -1213,9 +1213,9 @@ dri2_fill_context_attribs(struct dri2_egl_context *dri2_ctx,
 /**
  * Called via eglCreateContext(), drv->CreateContext().
  */
-static _EGLContext *
+static struct _egl_context *
 dri2_create_context(_EGLDisplay *disp, struct _egl_config *conf,
-                    _EGLContext *share_list, const EGLint *attrib_list)
+                    struct _egl_context *share_list, const EGLint *attrib_list)
 {
    struct dri2_egl_context *dri2_ctx;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
@@ -1328,7 +1328,7 @@ cleanup:
  * Called via eglDestroyContext(), drv->DestroyContext().
  */
 static EGLBoolean
-dri2_destroy_context(_EGLDisplay *disp, _EGLContext *ctx)
+dri2_destroy_context(_EGLDisplay *disp, struct _egl_context *ctx)
 {
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
 
@@ -1389,7 +1389,7 @@ dri2_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static void
-dri2_surf_update_fence_fd(_EGLContext *ctx, _EGLDisplay *disp,
+dri2_surf_update_fence_fd(struct _egl_context *ctx, _EGLDisplay *disp,
                           _EGLSurface *surf)
 {
    struct dri_context *dri_ctx = dri2_egl_context(ctx)->dri_context;
@@ -1428,13 +1428,13 @@ dri2_create_drawable(struct dri2_egl_display *dri2_dpy,
  */
 static EGLBoolean
 dri2_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
-                  _EGLContext *ctx)
+                  struct _egl_context *ctx)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
    _EGLDisplay *old_disp = NULL;
    struct dri2_egl_display *old_dri2_dpy = NULL;
-   _EGLContext *old_ctx;
+   struct _egl_context *old_ctx;
    _EGLSurface *old_dsurf, *old_rsurf;
    _EGLSurface *tmp_dsurf, *tmp_rsurf;
    struct dri_drawable *ddraw, *rdraw;
@@ -1478,7 +1478,7 @@ dri2_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
 
    if (cctx) {
       if (!driBindContext(cctx, ddraw, rdraw)) {
-         _EGLContext *tmp_ctx;
+         struct _egl_context *tmp_ctx;
 
          /* driBindContext failed. We cannot tell for sure why, but
           * setting the error to EGL_BAD_MATCH is surely better than leaving it
@@ -1651,7 +1651,7 @@ dri2_flush_drawable_for_swapbuffers_flags(
       *     "If surface is not bound to the calling thread’s current
       *      context, an EGL_BAD_SURFACE error is generated."
       */
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
 
    /* From the EGL 1.4 spec (page 52):
@@ -1677,7 +1677,7 @@ dri2_swap_buffers_with_damage(_EGLDisplay *disp, _EGLSurface *surf,
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri_drawable *dri_drawable = dri2_surface_get_dri_drawable(surf);
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    EGLBoolean ret;
 
    if (ctx && surf)
@@ -1740,7 +1740,7 @@ dri2_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static EGLBoolean
-dri2_wait_client(_EGLDisplay *disp, _EGLContext *ctx)
+dri2_wait_client(_EGLDisplay *disp, struct _egl_context *ctx)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    _EGLSurface *surf = ctx->DrawSurface;
@@ -1770,7 +1770,7 @@ dri2_bind_tex_image(_EGLDisplay *disp, _EGLSurface *surf, EGLint buffer)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct dri2_egl_context *dri2_ctx;
-   _EGLContext *ctx;
+   struct _egl_context *ctx;
    GLint format, target;
    struct dri_drawable *dri_drawable = dri2_surface_get_dri_drawable(surf);
 
@@ -1826,7 +1826,7 @@ dri2_release_tex_image(_EGLDisplay *disp, _EGLSurface *surf, EGLint buffer)
 }
 
 static _EGLImage *
-dri2_create_image(_EGLDisplay *disp, _EGLContext *ctx, EGLenum target,
+dri2_create_image(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum target,
                   EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
@@ -1883,7 +1883,7 @@ egl_error_from_dri_image_error(int dri_error)
 }
 
 static _EGLImage *
-dri2_create_image_khr_renderbuffer(_EGLDisplay *disp, _EGLContext *ctx,
+dri2_create_image_khr_renderbuffer(_EGLDisplay *disp, struct _egl_context *ctx,
                                    EGLClientBuffer buffer,
                                    const EGLint *attr_list)
 {
@@ -1917,7 +1917,7 @@ dri2_create_image_khr_renderbuffer(_EGLDisplay *disp, _EGLContext *ctx,
 
 #ifdef HAVE_BIND_WL_DISPLAY
 static _EGLImage *
-dri2_create_image_wayland_wl_buffer(_EGLDisplay *disp, _EGLContext *ctx,
+dri2_create_image_wayland_wl_buffer(_EGLDisplay *disp, struct _egl_context *ctx,
                                     EGLClientBuffer _buffer,
                                     const EGLint *attr_list)
 {
@@ -1987,7 +1987,7 @@ dri2_create_image_khr_texture_error(int dri_error)
 }
 
 static _EGLImage *
-dri2_create_image_khr_texture(_EGLDisplay *disp, _EGLContext *ctx,
+dri2_create_image_khr_texture(_EGLDisplay *disp, struct _egl_context *ctx,
                               EGLenum target, EGLClientBuffer buffer,
                               const EGLint *attr_list)
 {
@@ -2430,7 +2430,7 @@ dri2_query_dma_buf_modifiers(_EGLDisplay *disp, EGLint format, EGLint max,
  * Therefore we must never close or otherwise modify the file descriptors.
  */
 _EGLImage *
-dri2_create_image_dma_buf(_EGLDisplay *disp, _EGLContext *ctx,
+dri2_create_image_dma_buf(_EGLDisplay *disp, struct _egl_context *ctx,
                           EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -2630,7 +2630,7 @@ dri2_export_dma_buf_image_mesa(_EGLDisplay *disp, _EGLImage *img, int *fds,
 #endif
 
 _EGLImage *
-dri2_create_image_khr(_EGLDisplay *disp, _EGLContext *ctx, EGLenum target,
+dri2_create_image_khr(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list)
 {
    switch (target) {
@@ -2817,7 +2817,7 @@ dri2_egl_unref_sync(struct dri2_egl_display *dri2_dpy,
 static _EGLSync *
 dri2_create_sync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
    struct dri2_egl_sync *dri2_sync;
@@ -2985,7 +2985,7 @@ static EGLint
 dri2_client_wait_sync(_EGLDisplay *disp, _EGLSync *sync, EGLint flags,
                       EGLTime timeout)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
    struct dri2_egl_sync *dri2_sync = dri2_egl_sync(sync);
@@ -3102,7 +3102,7 @@ dri2_signal_sync(_EGLDisplay *disp, _EGLSync *sync, EGLenum mode)
 static EGLint
 dri2_server_wait_sync(_EGLDisplay *disp, _EGLSync *sync)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
    struct dri2_egl_sync *dri2_sync = dri2_egl_sync(sync);
 
@@ -3112,7 +3112,7 @@ dri2_server_wait_sync(_EGLDisplay *disp, _EGLSync *sync)
 }
 
 static int
-dri2_interop_query_device_info(_EGLDisplay *disp, _EGLContext *ctx,
+dri2_interop_query_device_info(_EGLDisplay *disp, struct _egl_context *ctx,
                                struct mesa_glinterop_device_info *out)
 {
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
@@ -3121,7 +3121,7 @@ dri2_interop_query_device_info(_EGLDisplay *disp, _EGLContext *ctx,
 }
 
 static int
-dri2_interop_export_object(_EGLDisplay *disp, _EGLContext *ctx,
+dri2_interop_export_object(_EGLDisplay *disp, struct _egl_context *ctx,
                            struct mesa_glinterop_export_in *in,
                            struct mesa_glinterop_export_out *out)
 {
@@ -3131,7 +3131,7 @@ dri2_interop_export_object(_EGLDisplay *disp, _EGLContext *ctx,
 }
 
 static int
-dri2_interop_flush_objects(_EGLDisplay *disp, _EGLContext *ctx, unsigned count,
+dri2_interop_flush_objects(_EGLDisplay *disp, struct _egl_context *ctx, unsigned count,
                            struct mesa_glinterop_export_in *objects,
                            struct mesa_glinterop_flush_out *out)
 {

@@ -78,7 +78,7 @@ struct haiku_egl_config {
 };
 
 struct haiku_egl_context {
-   _EGLContext base;
+   struct _egl_context base;
    struct hgl_context *ctx;
 };
 
@@ -422,9 +422,9 @@ haiku_terminate(_EGLDisplay *disp)
 
 // #pragma mark EGLContext
 
-static _EGLContext *
+static struct _egl_context *
 haiku_create_context(_EGLDisplay *disp, struct _egl_config *conf,
-                     _EGLContext *share_list, const EGLint *attrib_list)
+                     struct _egl_context *share_list, const EGLint *attrib_list)
 {
    CALLED();
 
@@ -457,7 +457,7 @@ cleanup:
 }
 
 static EGLBoolean
-haiku_destroy_context(_EGLDisplay *disp, _EGLContext *ctx)
+haiku_destroy_context(_EGLDisplay *disp, struct _egl_context *ctx)
 {
    if (_eglPutContext(ctx)) {
       struct haiku_egl_context *hgl_ctx = haiku_egl_context(ctx);
@@ -470,14 +470,14 @@ haiku_destroy_context(_EGLDisplay *disp, _EGLContext *ctx)
 
 static EGLBoolean
 haiku_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
-                   _EGLContext *ctx)
+                   struct _egl_context *ctx)
 {
    CALLED();
 
    struct haiku_egl_context *hgl_ctx = haiku_egl_context(ctx);
    struct haiku_egl_surface *hgl_dsurf = haiku_egl_surface(dsurf);
    struct haiku_egl_surface *hgl_rsurf = haiku_egl_surface(rsurf);
-   _EGLContext *old_ctx;
+   struct _egl_context *old_ctx;
    _EGLSurface *old_dsurf, *old_rsurf;
 
    if (!_eglBindContext(ctx, dsurf, rsurf, &old_ctx, &old_dsurf, &old_rsurf))

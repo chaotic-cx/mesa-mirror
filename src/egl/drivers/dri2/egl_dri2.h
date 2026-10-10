@@ -127,7 +127,7 @@ struct dri2_egl_display_vtbl {
                                EGLint interval);
 
    /* mandatory */
-   _EGLImage *(*create_image)(_EGLDisplay *disp, _EGLContext *ctx,
+   _EGLImage *(*create_image)(_EGLDisplay *disp, struct _egl_context *ctx,
                               EGLenum target, EGLClientBuffer buffer,
                               const EGLint *attr_list);
 
@@ -295,7 +295,7 @@ struct dri2_egl_display {
 };
 
 struct dri2_egl_context {
-   _EGLContext base;
+   struct _egl_context base;
    struct dri_context *dri_context;
 };
 
@@ -481,11 +481,11 @@ enum __DRIFixedRateCompression
 dri2_to_dri_compression_rate(EGLint rate);
 
 _EGLImage *
-dri2_create_image_khr(_EGLDisplay *disp, _EGLContext *ctx, EGLenum target,
+dri2_create_image_khr(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list);
 
 _EGLImage *
-dri2_create_image_dma_buf(_EGLDisplay *disp, _EGLContext *ctx,
+dri2_create_image_dma_buf(_EGLDisplay *disp, struct _egl_context *ctx,
                           EGLClientBuffer buffer, const EGLint *attr_list);
 
 _EGLImage *

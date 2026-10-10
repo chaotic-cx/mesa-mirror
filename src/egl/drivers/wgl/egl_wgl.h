@@ -45,7 +45,7 @@ struct wgl_egl_config {
 };
 
 struct wgl_egl_context {
-   _EGLContext base;
+   struct _egl_context base;
    struct stw_context *ctx;
 };
 

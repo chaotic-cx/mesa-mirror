@@ -80,7 +80,7 @@ _eglDestroyCurrentThread(void)
 /**
  * Return the currently bound context of the current API, or NULL.
  */
-_EGLContext *
+struct _egl_context *
 _eglGetCurrentContext(void)
 {
    _EGLThreadInfo *t = _eglGetCurrentThread();

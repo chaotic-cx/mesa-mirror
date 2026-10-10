@@ -1945,7 +1945,7 @@ dri2_wl_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
                         INT32_MAX);
 
    if (dri2_dpy->fd_render_gpu != dri2_dpy->fd_display_gpu) {
-      _EGLContext *ctx = _eglGetCurrentContext();
+      struct _egl_context *ctx = _eglGetCurrentContext();
       struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
       struct dri_drawable *dri_drawable = dri2_surface_get_dri_drawable(draw);
       dri2_blit_image(

@@ -705,7 +705,7 @@ droid_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
 }
 
 static _EGLImage *
-dri2_create_image_android_native_buffer(_EGLDisplay *disp, _EGLContext *ctx,
+dri2_create_image_android_native_buffer(_EGLDisplay *disp, struct _egl_context *ctx,
                                         struct ANativeWindowBuffer *buf)
 {
    if (ctx != NULL) {
@@ -741,7 +741,7 @@ dri2_create_image_android_native_buffer(_EGLDisplay *disp, _EGLContext *ctx,
 }
 
 static _EGLImage *
-droid_create_image_khr(_EGLDisplay *disp, _EGLContext *ctx, EGLenum target,
+droid_create_image_khr(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum target,
                        EGLClientBuffer buffer, const EGLint *attr_list)
 {
    switch (target) {

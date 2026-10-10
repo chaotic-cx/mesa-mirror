@@ -331,7 +331,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
 
    list = display->ResourceLists[_EGL_RESOURCE_CONTEXT];
    while (list) {
-      _EGLContext *ctx = (_EGLContext *)list;
+      struct _egl_context *ctx = (struct _egl_context *)list;
       list = list->Next;
 
       _eglUnlinkContext(ctx);

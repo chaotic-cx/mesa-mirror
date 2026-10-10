@@ -61,7 +61,7 @@ extern "C" {
 
 /**
  * Define the driver typecast functions for _EGLDisplay,
- * _EGLContext, _EGLSurface, and struct _egl_config.
+ * struct _egl_context, _EGLSurface, and struct _egl_config.
  *
  * Note that this macro defines several functions and should not be ended with
  * a semicolon when used.
@@ -69,7 +69,7 @@ extern "C" {
 #define _EGL_DRIVER_STANDARD_TYPECASTS(drvname)                                \
    /* note that this is not a direct cast */                                   \
    _EGL_DRIVER_TYPECAST(drvname##_display, _EGLDisplay, obj->DriverDisplay)    \
-   _EGL_DRIVER_TYPECAST(drvname##_context, _EGLContext, obj)                   \
+   _EGL_DRIVER_TYPECAST(drvname##_context, struct _egl_context, obj)           \
    _EGL_DRIVER_TYPECAST(drvname##_surface, _EGLSurface, obj)                   \
    _EGL_DRIVER_TYPECAST(drvname##_config, struct _egl_config, obj)
 
@@ -112,15 +112,15 @@ struct _egl_driver {
    EGLBoolean (*Terminate)(_EGLDisplay *disp);
 
    /* context funcs */
-   _EGLContext *(*CreateContext)(_EGLDisplay *disp, struct _egl_config *config,
-                                 _EGLContext *share_list,
+   struct _egl_context *(*CreateContext)(_EGLDisplay *disp, struct _egl_config *config,
+                                 struct _egl_context *share_list,
                                  const EGLint *attrib_list);
-   EGLBoolean (*DestroyContext)(_EGLDisplay *disp, _EGLContext *ctx);
+   EGLBoolean (*DestroyContext)(_EGLDisplay *disp, struct _egl_context *ctx);
    /* this is the only function (other than Initialize) that may be called
     * with an uninitialized display
     */
    EGLBoolean (*MakeCurrent)(_EGLDisplay *disp, _EGLSurface *draw,
-                             _EGLSurface *read, _EGLContext *ctx);
+                             _EGLSurface *read, struct _egl_context *ctx);
 
    /* surface funcs */
    _EGLSurface *(*CreateWindowSurface)(_EGLDisplay *disp, struct _egl_config *config,
@@ -149,11 +149,11 @@ struct _egl_driver {
                                  EGLint *rects, EGLint n_rects);
 
    /* misc functions */
-   EGLBoolean (*WaitClient)(_EGLDisplay *disp, _EGLContext *ctx);
+   EGLBoolean (*WaitClient)(_EGLDisplay *disp, struct _egl_context *ctx);
    EGLBoolean (*WaitNative)(EGLint engine);
 
    /* for EGL_KHR_image_base */
-   _EGLImage *(*CreateImageKHR)(_EGLDisplay *disp, _EGLContext *ctx,
+   _EGLImage *(*CreateImageKHR)(_EGLDisplay *disp, struct _egl_context *ctx,
                                 EGLenum target, EGLClientBuffer buffer,
                                 const EGLint *attr_list);
    EGLBoolean (*DestroyImageKHR)(_EGLDisplay *disp, _EGLImage *image);
@@ -219,12 +219,12 @@ struct _egl_driver {
                            struct egl_device_info *device_info);
 
    /* for OpenGL-OpenCL interop; see include/GL/mesa_glinterop.h */
-   int (*GLInteropQueryDeviceInfo)(_EGLDisplay *disp, _EGLContext *ctx,
+   int (*GLInteropQueryDeviceInfo)(_EGLDisplay *disp, struct _egl_context *ctx,
                                    struct mesa_glinterop_device_info *out);
-   int (*GLInteropExportObject)(_EGLDisplay *disp, _EGLContext *ctx,
+   int (*GLInteropExportObject)(_EGLDisplay *disp, struct _egl_context *ctx,
                                 struct mesa_glinterop_export_in *in,
                                 struct mesa_glinterop_export_out *out);
-   int (*GLInteropFlushObjects)(_EGLDisplay *disp, _EGLContext *ctx,
+   int (*GLInteropFlushObjects)(_EGLDisplay *disp, struct _egl_context *ctx,
                                 unsigned count,
                                 struct mesa_glinterop_export_in *in,
                                 struct mesa_glinterop_flush_out *out);

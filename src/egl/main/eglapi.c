@@ -232,7 +232,7 @@ _eglCheckSurface(_EGLDisplay *disp, _EGLSurface *surf, const char *msg)
 }
 
 static inline bool
-_eglCheckContext(_EGLDisplay *disp, _EGLContext *context, const char *msg)
+_eglCheckContext(_EGLDisplay *disp, struct _egl_context *context, const char *msg)
 {
    if (!_eglCheckDisplay(disp, msg))
       return false;
@@ -883,8 +883,8 @@ eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_list,
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
    struct _egl_config *conf = _eglLookupConfig(config, disp);
-   _EGLContext *share = _eglLookupContext(share_list, disp);
-   _EGLContext *context;
+   struct _egl_context *share = _eglLookupContext(share_list, disp);
+   struct _egl_context *context;
    EGLContext ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -920,7 +920,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLContext *context = _eglLookupContext(ctx, disp);
+   struct _egl_context *context = _eglLookupContext(ctx, disp);
    EGLBoolean ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_CONTEXT_KHR, context);
@@ -936,7 +936,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLContext *context = _eglLookupContext(ctx, disp);
+   struct _egl_context *context = _eglLookupContext(ctx, disp);
    _EGLSurface *draw_surf = _eglLookupSurface(draw, disp);
    _EGLSurface *read_surf = _eglLookupSurface(read, disp);
    EGLBoolean ret = EGL_FALSE;
@@ -1001,7 +1001,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglQueryContext(EGLDisplay dpy, EGLContext ctx, EGLint attribute, EGLint *value)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLContext *context = _eglLookupContext(ctx, disp);
+   struct _egl_context *context = _eglLookupContext(ctx, disp);
    EGLBoolean ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_CONTEXT_KHR, context);
@@ -1389,7 +1389,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglSwapInterval(EGLDisplay dpy, EGLint interval)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    _EGLSurface *surf = ctx ? ctx->DrawSurface : NULL;
    EGLBoolean ret = EGL_FALSE;
 
@@ -1426,7 +1426,7 @@ eglSwapInterval(EGLDisplay dpy, EGLint interval)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    _EGLDisplay *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
@@ -1472,7 +1472,7 @@ static EGLBoolean
 _eglSwapBuffersWithDamageCommon(_EGLDisplay *disp, _EGLSurface *surf,
                                 const EGLint *rects, EGLint n_rects)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_CHECK_SURFACE(disp, surf, EGL_FALSE);
@@ -1556,7 +1556,7 @@ eglSetDamageRegionKHR(EGLDisplay dpy, EGLSurface surface, EGLint *rects,
    _EGLDisplay *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    EGLBoolean ret;
    _EGL_CHECK_SURFACE(disp, surf, EGL_FALSE);
 
@@ -1608,7 +1608,7 @@ eglCopyBuffers(EGLDisplay dpy, EGLSurface surface, EGLNativePixmapType target)
 static EGLBoolean
 _eglWaitClientCommon(void)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    _EGLDisplay *disp;
    EGLBoolean ret = EGL_FALSE;
 
@@ -1651,7 +1651,7 @@ eglWaitGL(void)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglWaitNative(EGLint engine)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    _EGLDisplay *disp;
    EGLBoolean ret = EGL_FALSE;
 
@@ -1680,7 +1680,7 @@ eglWaitNative(EGLint engine)
 PUBLIC EGLDisplay EGLAPIENTRY
 eglGetCurrentDisplay(void)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    EGLDisplay ret;
 
    ret = (ctx) ? _eglGetDisplayHandle(ctx->Resource.Display) : EGL_NO_DISPLAY;
@@ -1691,7 +1691,7 @@ eglGetCurrentDisplay(void)
 PUBLIC EGLContext EGLAPIENTRY
 eglGetCurrentContext(void)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    EGLContext ret;
 
    ret = _eglGetContextHandle(ctx);
@@ -1702,7 +1702,7 @@ eglGetCurrentContext(void)
 PUBLIC EGLSurface EGLAPIENTRY
 eglGetCurrentSurface(EGLint readdraw)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    EGLint err = EGL_SUCCESS;
    _EGLSurface *surf;
    EGLSurface ret;
@@ -1807,7 +1807,7 @@ eglReleaseThread(void)
 {
    /* unbind current contexts */
    _EGLThreadInfo *t = _eglGetCurrentThread();
-   _EGLContext *ctx = t->CurrentContext;
+   struct _egl_context *ctx = t->CurrentContext;
 
    _EGL_FUNC_START(NULL, EGL_OBJECT_THREAD_KHR, NULL);
 
@@ -1828,7 +1828,7 @@ static EGLImage
 _eglCreateImageCommon(_EGLDisplay *disp, EGLContext ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list)
 {
-   _EGLContext *context = _eglLookupContext(ctx, disp);
+   struct _egl_context *context = _eglLookupContext(ctx, disp);
    _EGLImage *img = NULL;
    EGLImage ret;
 
@@ -1920,7 +1920,7 @@ static EGLSync
 _eglCreateSync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list,
                EGLBoolean orig_is_EGLAttrib, EGLenum invalid_type_error)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    _EGLSync *sync = NULL;
    EGLSync ret;
 
@@ -2103,7 +2103,7 @@ eglClientWaitSyncKHR(EGLDisplay dpy, EGLSync sync, EGLint flags,
 static EGLint
 _eglWaitSyncCommon(_EGLDisplay *disp, _EGLSync *s, EGLint flags)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    EGLint ret = EGL_FALSE;
 
    _EGL_CHECK_SYNC(disp, s, EGL_FALSE);
@@ -2802,7 +2802,7 @@ eglGetProcAddress(const char *procname)
 
 static int
 _eglLockDisplayInterop(EGLDisplay dpy, EGLContext context, _EGLDisplay **disp,
-                       _EGLContext **ctx)
+                       struct _egl_context **ctx)
 {
 
    *disp = _eglLockDisplay(dpy);
@@ -2826,7 +2826,7 @@ MesaGLInteropEGLQueryDeviceInfo(EGLDisplay dpy, EGLContext context,
                                 struct mesa_glinterop_device_info *out)
 {
    _EGLDisplay *disp;
-   _EGLContext *ctx;
+   struct _egl_context *ctx;
    int ret;
 
    ret = _eglLockDisplayInterop(dpy, context, &disp, &ctx);
@@ -2848,7 +2848,7 @@ MesaGLInteropEGLExportObject(EGLDisplay dpy, EGLContext context,
                              struct mesa_glinterop_export_out *out)
 {
    _EGLDisplay *disp;
-   _EGLContext *ctx;
+   struct _egl_context *ctx;
    int ret;
 
    ret = _eglLockDisplayInterop(dpy, context, &disp, &ctx);
@@ -2870,7 +2870,7 @@ MesaGLInteropEGLFlushObjects(EGLDisplay dpy, EGLContext context, unsigned count,
                              struct mesa_glinterop_flush_out *out)
 {
    _EGLDisplay *disp;
-   _EGLContext *ctx;
+   struct _egl_context *ctx;
    int ret;
 
    ret = _eglLockDisplayInterop(dpy, context, &disp, &ctx);

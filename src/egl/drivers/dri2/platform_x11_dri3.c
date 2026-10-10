@@ -64,7 +64,7 @@ static bool
 egl_dri3_in_current_context(struct loader_dri3_drawable *draw)
 {
    struct dri3_egl_surface *dri3_surf = loader_drawable_to_egl_surface(draw);
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
 
    return ctx->Resource.Display == dri3_surf->surf.base.Resource.Display;
 }
@@ -72,7 +72,7 @@ egl_dri3_in_current_context(struct loader_dri3_drawable *draw)
 static struct dri_context *
 egl_dri3_get_dri_context(struct loader_dri3_drawable *draw)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    struct dri2_egl_context *dri2_ctx;
    if (!ctx)
       return NULL;
@@ -83,7 +83,7 @@ egl_dri3_get_dri_context(struct loader_dri3_drawable *draw)
 static struct dri_screen *
 egl_dri3_get_dri_screen(void)
 {
-   _EGLContext *ctx = _eglGetCurrentContext();
+   struct _egl_context *ctx = _eglGetCurrentContext();
    struct dri2_egl_context *dri2_ctx;
    if (!ctx)
       return NULL;
@@ -289,7 +289,7 @@ dri3_get_sync_values(_EGLDisplay *display, _EGLSurface *surface,
 }
 
 static _EGLImage *
-dri3_create_image_khr_pixmap(_EGLDisplay *disp, _EGLContext *ctx,
+dri3_create_image_khr_pixmap(_EGLDisplay *disp, struct _egl_context *ctx,
                              EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -335,7 +335,7 @@ dri3_create_image_khr_pixmap(_EGLDisplay *disp, _EGLContext *ctx,
 }
 
 static _EGLImage *
-dri3_create_image_khr_pixmap_from_buffers(_EGLDisplay *disp, _EGLContext *ctx,
+dri3_create_image_khr_pixmap_from_buffers(_EGLDisplay *disp, struct _egl_context *ctx,
                                           EGLClientBuffer buffer,
                                           const EGLint *attr_list)
 {
@@ -388,7 +388,7 @@ dri3_create_image_khr_pixmap_from_buffers(_EGLDisplay *disp, _EGLContext *ctx,
 }
 
 static _EGLImage *
-dri3_create_image_khr(_EGLDisplay *disp, _EGLContext *ctx, EGLenum target,
+dri3_create_image_khr(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
