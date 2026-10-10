@@ -3882,6 +3882,76 @@ ethosu_duplicate_batch_operations(struct ethosu_subgraph *subgraph)
    }
 }
 
+static void
+ethosu_dump_feature_map(const char *name, const struct ethosu_feature_map *fm)
+{
+   const struct ethosu_tile_box *tiles = &fm->tiles;
+
+   if (!fm->tensor)
+      return;
+
+   fprintf(stderr, "    %s: tensor=%u [h=%u,w=%u,d=%u] layout=%s region=%u "
+                   "tiles=[h0=%u,h1=%u,w0=%u] addr=[0x%x,0x%x,0x%x,0x%x] "
+                   "stride=[x=%u,y=%u,c=%u]\n",
+           name, fm->tensor->index, fm->shape.height, fm->shape.width,
+           fm->shape.depth,
+           fm->tensor->layout == ETHOSU_LAYOUT_NHCWB16 ? "NHCWB16" : "NHWC",
+           fm->region, tiles->height_0, tiles->height_1, tiles->width_0,
+           tiles->addresses[0], tiles->addresses[1], tiles->addresses[2],
+           tiles->addresses[3], fm->stride.x, fm->stride.y, fm->stride.c);
+}
+
+static void
+ethosu_dump_operations(struct ethosu_subgraph *subgraph, const char *label)
+{
+   unsigned count = util_dynarray_num_elements(&subgraph->operations,
+                                               struct ethosu_operation);
+
+   DBG("Operations after %s: %u\n", label, count);
+
+   for (unsigned i = 0; i < count; i++) {
+      const struct ethosu_operation *operation =
+         util_dynarray_element(&subgraph->operations,
+                               struct ethosu_operation, i);
+      const struct ethosu_block_config *config = &operation->block_config;
+
+      switch (operation->type) {
+      case ETHOSU_OPERATION_TYPE_NONE:
+         fprintf(stderr, "  [%u] NONE\n", i);
+         break;
+      case ETHOSU_OPERATION_TYPE_CONVOLUTION:
+         fprintf(stderr, "  [%u] CONV: depthwise=%d weights=0x%x+%ld scales=0x%x+%ld\n",
+                 i, operation->conv.depthwise, operation->conv.weights.address,
+                 operation->conv.weights.size, operation->conv.scales.address,
+                 operation->conv.scales.size);
+         break;
+      case ETHOSU_OPERATION_TYPE_POOLING:
+         fprintf(stderr, "  [%u] POOL: type=%d nop=%d\n", i, operation->pooling.type,
+                 operation->pooling.nop);
+         break;
+      case ETHOSU_OPERATION_TYPE_ELTWISE:
+         fprintf(stderr, "  [%u] ELTWISE: type=%d\n", i, operation->eltwise.type);
+         break;
+      case ETHOSU_OPERATION_TYPE_DMA:
+         fprintf(stderr, "  [%u] DMA: src=0x%x dst=0x%x size=%ld dst_region=%u\n", i,
+                 operation->dma.address, operation->dma.dst_address,
+                 operation->dma.size, operation->dma.dst_region);
+         break;
+      }
+
+      if (operation->type == ETHOSU_OPERATION_TYPE_DMA)
+         continue;
+
+      ethosu_dump_feature_map("IFM", &operation->ifm);
+      ethosu_dump_feature_map("IFM2", &operation->ifm2);
+      ethosu_dump_feature_map("OFM", &operation->ofm);
+      fprintf(stderr, "    block: ifm=[h=%u,w=%u,d=%u] ofm=[h=%u,w=%u,d=%u]\n",
+              config->ifm_block.height, config->ifm_block.width,
+              config->ifm_block.depth, config->ofm_block.height,
+              config->ofm_block.width, config->ofm_block.depth);
+   }
+}
+
 void
 ethosu_lower_graph(struct ethosu_subgraph *subgraph,
                    const struct pipe_ml_operation *poperations, unsigned count)
@@ -4264,4 +4334,7 @@ ethosu_lower_graph(struct ethosu_subgraph *subgraph,
    }
 
    ethosu_duplicate_batch_operations(subgraph);
+
+   if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
+      ethosu_dump_operations(subgraph, "ethosu_lower_graph");
 }
