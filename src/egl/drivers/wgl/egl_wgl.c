@@ -213,7 +213,7 @@ wgl_validate_egl_image(struct pipe_frontend_screen *fscreen, void *image)
 {
    struct wgl_egl_display *wgl_dpy = (struct wgl_egl_display *)fscreen;
    struct _egl_display *disp = _eglLockDisplay(wgl_dpy->parent);
-   _EGLImage *img = _eglLookupImage(image, disp);
+   struct _egl_image *img = _eglLookupImage(image, disp);
    _eglUnlockDisplay(disp);
 
    if (img == NULL) {
@@ -814,7 +814,7 @@ egl_error_from_stw_image_error(enum stw_image_error err)
    }
 }
 
-static _EGLImage *
+static struct _egl_image *
 wgl_create_image_khr_texture(struct _egl_display *disp, struct _egl_context *ctx,
                              EGLenum target, EGLClientBuffer buffer,
                              const EGLint *attr_list)
@@ -878,7 +878,7 @@ wgl_create_image_khr_texture(struct _egl_display *disp, struct _egl_context *ctx
    return &wgl_img->base;
 }
 
-static _EGLImage *
+static struct _egl_image *
 wgl_create_image_khr_renderbuffer(struct _egl_display *disp, struct _egl_context *ctx,
                                   EGLClientBuffer buffer,
                                   const EGLint *attr_list)
@@ -914,7 +914,7 @@ wgl_create_image_khr_renderbuffer(struct _egl_display *disp, struct _egl_context
    return &wgl_img->base;
 }
 
-static _EGLImage *
+static struct _egl_image *
 wgl_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                      EGLClientBuffer buffer, const EGLint *attr_list)
 {
@@ -937,7 +937,7 @@ wgl_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenu
 }
 
 static EGLBoolean
-wgl_destroy_image_khr(struct _egl_display *disp, _EGLImage *img)
+wgl_destroy_image_khr(struct _egl_display *disp, struct _egl_image *img)
 {
    struct wgl_egl_image *wgl_img = wgl_egl_image(img);
    stw_destroy_image(wgl_img->img);

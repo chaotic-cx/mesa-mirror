@@ -153,10 +153,10 @@ struct _egl_driver {
    EGLBoolean (*WaitNative)(EGLint engine);
 
    /* for EGL_KHR_image_base */
-   _EGLImage *(*CreateImageKHR)(struct _egl_display *disp, struct _egl_context *ctx,
+   struct _egl_image *(*CreateImageKHR)(struct _egl_display *disp, struct _egl_context *ctx,
                                 EGLenum target, EGLClientBuffer buffer,
                                 const EGLint *attr_list);
-   EGLBoolean (*DestroyImageKHR)(struct _egl_display *disp, _EGLImage *image);
+   EGLBoolean (*DestroyImageKHR)(struct _egl_display *disp, struct _egl_image *image);
 
    /* for EGL_KHR_reusable_sync/EGL_KHR_fence_sync */
    _EGLSync *(*CreateSyncKHR)(struct _egl_display *disp, EGLenum type,
@@ -183,7 +183,7 @@ struct _egl_driver {
 
    /* for EGL_WL_create_wayland_buffer_from_image */
    struct wl_buffer *(*CreateWaylandBufferFromImageWL)(struct _egl_display *disp,
-                                                       _EGLImage *img);
+                                                       struct _egl_image *img);
 #endif
 
    /* for EGL_EXT_swap_buffers_with_damage */
@@ -203,10 +203,10 @@ struct _egl_driver {
                                  EGLint *numerator, EGLint *denominator);
 
    /* for EGL_MESA_image_dma_buf_export */
-   EGLBoolean (*ExportDMABUFImageQueryMESA)(struct _egl_display *disp, _EGLImage *img,
+   EGLBoolean (*ExportDMABUFImageQueryMESA)(struct _egl_display *disp, struct _egl_image *img,
                                             EGLint *fourcc, EGLint *nplanes,
                                             EGLuint64KHR *modifiers);
-   EGLBoolean (*ExportDMABUFImageMESA)(struct _egl_display *disp, _EGLImage *img,
+   EGLBoolean (*ExportDMABUFImageMESA)(struct _egl_display *disp, struct _egl_image *img,
                                        EGLint *fds, EGLint *strides,
                                        EGLint *offsets);
 

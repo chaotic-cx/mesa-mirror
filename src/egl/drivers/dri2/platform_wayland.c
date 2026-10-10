@@ -1998,7 +1998,7 @@ dri2_wl_query_buffer_age(struct _egl_display *disp, _EGLSurface *surface)
 
 #ifdef HAVE_BIND_WL_DISPLAY
 static struct wl_buffer *
-dri2_wl_create_wayland_buffer_from_image(struct _egl_display *disp, _EGLImage *img)
+dri2_wl_create_wayland_buffer_from_image(struct _egl_display *disp, struct _egl_image *img)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_image *dri2_img = dri2_egl_image(img);

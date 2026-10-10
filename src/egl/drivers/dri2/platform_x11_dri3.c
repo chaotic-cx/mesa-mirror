@@ -288,7 +288,7 @@ dri3_get_sync_values(struct _egl_display *display, _EGLSurface *surface,
              : EGL_FALSE;
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri3_create_image_khr_pixmap(struct _egl_display *disp, struct _egl_context *ctx,
                              EGLClientBuffer buffer, const EGLint *attr_list)
 {
@@ -334,7 +334,7 @@ dri3_create_image_khr_pixmap(struct _egl_display *disp, struct _egl_context *ctx
    return &dri2_img->base;
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri3_create_image_khr_pixmap_from_buffers(struct _egl_display *disp, struct _egl_context *ctx,
                                           EGLClientBuffer buffer,
                                           const EGLint *attr_list)
@@ -387,7 +387,7 @@ dri3_create_image_khr_pixmap_from_buffers(struct _egl_display *disp, struct _egl
    return &dri2_img->base;
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri3_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list)
 {

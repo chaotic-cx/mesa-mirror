@@ -407,7 +407,7 @@ dri2_drm_query_buffer_age(struct _egl_display *disp, _EGLSurface *surface)
    return dri2_surf->back->age;
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri2_drm_create_image_khr_pixmap(struct _egl_display *disp, struct _egl_context *ctx,
                                  EGLClientBuffer buffer,
                                  const EGLint *attr_list)
@@ -433,7 +433,7 @@ dri2_drm_create_image_khr_pixmap(struct _egl_display *disp, struct _egl_context 
    return &dri2_img->base;
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri2_drm_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                           EGLClientBuffer buffer, const EGLint *attr_list)
 {

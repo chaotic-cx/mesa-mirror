@@ -536,7 +536,7 @@ GLboolean
 dri2_validate_egl_image(void *image, void *data)
 {
    struct _egl_display *disp = _eglLockDisplay(data);
-   _EGLImage *img = _eglLookupImage(image, disp);
+   struct _egl_image *img = _eglLookupImage(image, disp);
    _eglUnlockDisplay(disp);
 
    if (img == NULL) {
@@ -1825,18 +1825,18 @@ dri2_release_tex_image(struct _egl_display *disp, _EGLSurface *surf, EGLint buff
    return EGL_TRUE;
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri2_create_image(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                   EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
-   _EGLImage *ret =
+   struct _egl_image *ret =
       dri2_dpy->vtbl->create_image(disp, ctx, target, buffer, attr_list);
    mtx_unlock(&dri2_dpy->lock);
    return ret;
 }
 
-_EGLImage *
+struct _egl_image *
 dri2_create_image_from_dri(struct _egl_display *disp, struct dri_image *dri_image)
 {
    struct dri2_egl_image *dri2_img;
@@ -1882,7 +1882,7 @@ egl_error_from_dri_image_error(int dri_error)
    }
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri2_create_image_khr_renderbuffer(struct _egl_display *disp, struct _egl_context *ctx,
                                    EGLClientBuffer buffer,
                                    const EGLint *attr_list)
@@ -1916,7 +1916,7 @@ dri2_create_image_khr_renderbuffer(struct _egl_display *disp, struct _egl_contex
 }
 
 #ifdef HAVE_BIND_WL_DISPLAY
-static _EGLImage *
+static struct _egl_image *
 dri2_create_image_wayland_wl_buffer(struct _egl_display *disp, struct _egl_context *ctx,
                                     EGLClientBuffer _buffer,
                                     const EGLint *attr_list)
@@ -1986,7 +1986,7 @@ dri2_create_image_khr_texture_error(int dri_error)
       _eglError(egl_error, "dri2_create_image_khr_texture");
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri2_create_image_khr_texture(struct _egl_display *disp, struct _egl_context *ctx,
                               EGLenum target, EGLClientBuffer buffer,
                               const EGLint *attr_list)
@@ -2081,7 +2081,7 @@ dri2_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribut
 }
 
 static struct wl_buffer *
-dri2_create_wayland_buffer_from_image(struct _egl_display *disp, _EGLImage *img)
+dri2_create_wayland_buffer_from_image(struct _egl_display *disp, struct _egl_image *img)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct wl_buffer *ret = NULL;
@@ -2429,12 +2429,12 @@ dri2_query_dma_buf_modifiers(struct _egl_display *disp, EGLint format, EGLint ma
  *
  * Therefore we must never close or otherwise modify the file descriptors.
  */
-_EGLImage *
+struct _egl_image *
 dri2_create_image_dma_buf(struct _egl_display *disp, struct _egl_context *ctx,
                           EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   _EGLImage *res;
+   struct _egl_image *res;
    _EGLImageAttribs attrs;
    struct dri_image *dri_image;
    unsigned num_fds;
@@ -2514,7 +2514,7 @@ dri2_create_image_dma_buf(struct _egl_display *disp, struct _egl_context *ctx,
  * now, we just fail if we don't have a DRM fourcc for the format.
  */
 static bool
-dri2_can_export_dma_buf_image(struct _egl_display *disp, _EGLImage *img)
+dri2_can_export_dma_buf_image(struct _egl_display *disp, struct _egl_image *img)
 {
    struct dri2_egl_image *dri2_img = dri2_egl_image(img);
    EGLint fourcc;
@@ -2528,7 +2528,7 @@ dri2_can_export_dma_buf_image(struct _egl_display *disp, _EGLImage *img)
 }
 
 static EGLBoolean
-dri2_export_dma_buf_image_query_mesa(struct _egl_display *disp, _EGLImage *img,
+dri2_export_dma_buf_image_query_mesa(struct _egl_display *disp, struct _egl_image *img,
                                      EGLint *fourcc, EGLint *nplanes,
                                      EGLuint64KHR *modifiers)
 {
@@ -2572,7 +2572,7 @@ dri2_export_dma_buf_image_query_mesa(struct _egl_display *disp, _EGLImage *img,
 }
 
 static EGLBoolean
-dri2_export_dma_buf_image_mesa(struct _egl_display *disp, _EGLImage *img, int *fds,
+dri2_export_dma_buf_image_mesa(struct _egl_display *disp, struct _egl_image *img, int *fds,
                                EGLint *strides, EGLint *offsets)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
@@ -2629,7 +2629,7 @@ dri2_export_dma_buf_image_mesa(struct _egl_display *disp, _EGLImage *img, int *f
 
 #endif
 
-_EGLImage *
+struct _egl_image *
 dri2_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list)
 {
@@ -2661,7 +2661,7 @@ dri2_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLen
 }
 
 static EGLBoolean
-dri2_destroy_image_khr(struct _egl_display *disp, _EGLImage *image)
+dri2_destroy_image_khr(struct _egl_display *disp, struct _egl_image *image)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct dri2_egl_image *dri2_img = dri2_egl_image(image);

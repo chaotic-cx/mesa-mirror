@@ -127,7 +127,7 @@ struct dri2_egl_display_vtbl {
                                EGLint interval);
 
    /* mandatory */
-   _EGLImage *(*create_image)(struct _egl_display *disp, struct _egl_context *ctx,
+   struct _egl_image *(*create_image)(struct _egl_display *disp, struct _egl_context *ctx,
                               EGLenum target, EGLClientBuffer buffer,
                               const EGLint *attr_list);
 
@@ -149,7 +149,7 @@ struct dri2_egl_display_vtbl {
 
    /* optional */
    struct wl_buffer *(*create_wayland_buffer_from_image)(struct _egl_display *disp,
-                                                         _EGLImage *img);
+                                                         struct _egl_image *img);
 
    /* optional */
    EGLBoolean (*get_sync_values)(struct _egl_display *display, _EGLSurface *surface,
@@ -394,7 +394,7 @@ struct dri2_egl_config {
 };
 
 struct dri2_egl_image {
-   _EGLImage base;
+   struct _egl_image base;
    struct dri_image *dri_image;
 };
 
@@ -408,7 +408,7 @@ struct dri2_egl_sync {
 
 /* standard typecasts */
 _EGL_DRIVER_STANDARD_TYPECASTS(dri2_egl)
-_EGL_DRIVER_TYPECAST(dri2_egl_image, _EGLImage, obj)
+_EGL_DRIVER_TYPECAST(dri2_egl_image, struct _egl_image, obj)
 _EGL_DRIVER_TYPECAST(dri2_egl_sync, _EGLSync, obj)
 
 static inline struct dri2_egl_display *
@@ -480,15 +480,15 @@ dri2_from_dri_compression_rate(enum __DRIFixedRateCompression rate);
 enum __DRIFixedRateCompression
 dri2_to_dri_compression_rate(EGLint rate);
 
-_EGLImage *
+struct _egl_image *
 dri2_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list);
 
-_EGLImage *
+struct _egl_image *
 dri2_create_image_dma_buf(struct _egl_display *disp, struct _egl_context *ctx,
                           EGLClientBuffer buffer, const EGLint *attr_list);
 
-_EGLImage *
+struct _egl_image *
 dri2_create_image_from_dri(struct _egl_display *disp, struct dri_image *dri_image);
 
 #ifdef HAVE_X11_PLATFORM

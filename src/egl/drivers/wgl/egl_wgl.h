@@ -55,7 +55,7 @@ struct wgl_egl_surface {
 };
 
 struct wgl_egl_image {
-   _EGLImage base;
+   struct _egl_image base;
    struct stw_image *img;
 };
 
@@ -67,5 +67,5 @@ struct wgl_egl_sync {
 };
 
 _EGL_DRIVER_STANDARD_TYPECASTS(wgl_egl)
-_EGL_DRIVER_TYPECAST(wgl_egl_image, _EGLImage, obj)
+_EGL_DRIVER_TYPECAST(wgl_egl_image, struct _egl_image, obj)
 _EGL_DRIVER_TYPECAST(wgl_egl_sync, _EGLSync, obj)

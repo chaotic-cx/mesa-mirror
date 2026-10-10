@@ -704,7 +704,7 @@ droid_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribu
    return _eglQuerySurface(disp, surf, attribute, value);
 }
 
-static _EGLImage *
+static struct _egl_image *
 dri2_create_image_android_native_buffer(struct _egl_display *disp, struct _egl_context *ctx,
                                         struct ANativeWindowBuffer *buf)
 {
@@ -740,7 +740,7 @@ dri2_create_image_android_native_buffer(struct _egl_display *disp, struct _egl_c
    return NULL;
 }
 
-static _EGLImage *
+static struct _egl_image *
 droid_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                        EGLClientBuffer buffer, const EGLint *attr_list)
 {

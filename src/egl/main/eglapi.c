@@ -1829,7 +1829,7 @@ _eglCreateImageCommon(struct _egl_display *disp, EGLContext ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct _egl_context *context = _eglLookupContext(ctx, disp);
-   _EGLImage *img = NULL;
+   struct _egl_image *img = NULL;
    EGLImage ret;
 
    _EGL_CHECK_DISPLAY(disp, EGL_NO_IMAGE_KHR);
@@ -1882,7 +1882,7 @@ eglCreateImage(EGLDisplay dpy, EGLContext ctx, EGLenum target,
 }
 
 static EGLBoolean
-_eglDestroyImageCommon(struct _egl_display *disp, _EGLImage *img)
+_eglDestroyImageCommon(struct _egl_display *disp, struct _egl_image *img)
 {
    EGLBoolean ret;
 
@@ -1902,7 +1902,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglDestroyImage(EGLDisplay dpy, EGLImage image)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLImage *img = _eglLookupImage(image, disp);
+   struct _egl_image *img = _eglLookupImage(image, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_IMAGE_KHR, img);
    return _eglDestroyImageCommon(disp, img);
 }
@@ -1911,7 +1911,7 @@ static EGLBoolean EGLAPIENTRY
 eglDestroyImageKHR(EGLDisplay dpy, EGLImage image)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLImage *img = _eglLookupImage(image, disp);
+   struct _egl_image *img = _eglLookupImage(image, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_IMAGE_KHR, img);
    return _eglDestroyImageCommon(disp, img);
 }
@@ -2319,7 +2319,7 @@ static struct wl_buffer *EGLAPIENTRY
 eglCreateWaylandBufferFromImageWL(EGLDisplay dpy, EGLImage image)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLImage *img;
+   struct _egl_image *img;
    struct wl_buffer *ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -2390,7 +2390,7 @@ eglExportDMABUFImageQueryMESA(EGLDisplay dpy, EGLImage image, EGLint *fourcc,
                               EGLint *nplanes, EGLuint64KHR *modifiers)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLImage *img = _eglLookupImage(image, disp);
+   struct _egl_image *img = _eglLookupImage(image, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_IMAGE_KHR, img);
@@ -2414,7 +2414,7 @@ eglExportDMABUFImageMESA(EGLDisplay dpy, EGLImage image, int *fds,
                          EGLint *strides, EGLint *offsets)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLImage *img = _eglLookupImage(image, disp);
+   struct _egl_image *img = _eglLookupImage(image, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_IMAGE_KHR, img);

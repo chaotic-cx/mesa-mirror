@@ -351,7 +351,7 @@ _eglReleaseDisplayResources(struct _egl_display *display)
 
    list = display->ResourceLists[_EGL_RESOURCE_IMAGE];
    while (list) {
-      _EGLImage *image = (_EGLImage *)list;
+      struct _egl_image *image = (struct _egl_image *)list;
       list = list->Next;
 
       _eglUnlinkImage(image);

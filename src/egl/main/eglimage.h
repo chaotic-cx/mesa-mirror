@@ -86,7 +86,7 @@ _eglParseImageAttribList(_EGLImageAttribs *attrs, struct _egl_display *disp,
                          const EGLint *attrib_list);
 
 static inline void
-_eglInitImage(_EGLImage *img, struct _egl_display *disp)
+_eglInitImage(struct _egl_image *img, struct _egl_display *disp)
 {
    _eglInitResource(&img->Resource, sizeof(*img), disp);
 }
@@ -94,8 +94,8 @@ _eglInitImage(_EGLImage *img, struct _egl_display *disp)
 /**
  * Increment reference count for the image.
  */
-static inline _EGLImage *
-_eglGetImage(_EGLImage *img)
+static inline struct _egl_image *
+_eglGetImage(struct _egl_image *img)
 {
    if (img)
       _eglGetResource(&img->Resource);
@@ -106,7 +106,7 @@ _eglGetImage(_EGLImage *img)
  * Decrement reference count for the image.
  */
 static inline EGLBoolean
-_eglPutImage(_EGLImage *img)
+_eglPutImage(struct _egl_image *img)
 {
    return (img) ? _eglPutResource(&img->Resource) : EGL_FALSE;
 }
@@ -116,7 +116,7 @@ _eglPutImage(_EGLImage *img)
  * The handle can be passed to client directly.
  */
 static inline EGLImage
-_eglLinkImage(_EGLImage *img)
+_eglLinkImage(struct _egl_image *img)
 {
    _eglLinkResource(&img->Resource, _EGL_RESOURCE_IMAGE);
    return (EGLImage)img;
@@ -127,7 +127,7 @@ _eglLinkImage(_EGLImage *img)
  * Accessing an unlinked image should generate EGL_BAD_PARAMETER error.
  */
 static inline void
-_eglUnlinkImage(_EGLImage *img)
+_eglUnlinkImage(struct _egl_image *img)
 {
    _eglUnlinkResource(&img->Resource, _EGL_RESOURCE_IMAGE);
 }
@@ -136,10 +136,10 @@ _eglUnlinkImage(_EGLImage *img)
  * Lookup a handle to find the linked image.
  * Return NULL if the handle has no corresponding linked image.
  */
-static inline _EGLImage *
+static inline struct _egl_image *
 _eglLookupImage(EGLImage image, struct _egl_display *disp)
 {
-   _EGLImage *img = (_EGLImage *)image;
+   struct _egl_image *img = (struct _egl_image *)image;
    if (!disp || !_eglCheckResource((void *)img, _EGL_RESOURCE_IMAGE, disp))
       img = NULL;
    return img;
@@ -149,7 +149,7 @@ _eglLookupImage(EGLImage image, struct _egl_display *disp)
  * Return the handle of a linked image, or EGL_NO_IMAGE_KHR.
  */
 static inline EGLImage
-_eglGetImageHandle(_EGLImage *img)
+_eglGetImageHandle(struct _egl_image *img)
 {
    _EGLResource *res = (_EGLResource *)img;
    return (res && _eglIsResourceLinked(res)) ? (EGLImage)img : EGL_NO_IMAGE_KHR;
