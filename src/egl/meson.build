@@ -46,7 +46,6 @@ files_egl = files(
   'main/eglsync.c',
   'main/eglsync.h',
   'main/eglentrypoint.h',
-  'main/egltypedefs.h',
 )
 
 # Remove the argument parsing from gen_egl_dispatch.py when removing this

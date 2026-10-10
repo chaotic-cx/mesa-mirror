@@ -38,7 +38,6 @@
 
 #include "eglarray.h"
 #include "egldefines.h"
-#include "egltypedefs.h"
 
 #ifdef HAVE_X11_PLATFORM
 #include <X11/Xlib.h>
@@ -72,7 +71,6 @@ enum _egl_resource_type {
 
    _EGL_NUM_RESOURCES
 };
-/* this cannot and need not go into egltypedefs.h */
 typedef enum _egl_resource_type _EGLResourceType;
 
 /**

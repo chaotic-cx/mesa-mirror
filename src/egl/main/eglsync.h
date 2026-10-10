@@ -29,7 +29,6 @@
 #define EGLSYNC_INCLUDED
 
 #include "egldisplay.h"
-#include "egltypedefs.h"
 
 /**
  * "Base" class for device driver syncs.

@@ -30,7 +30,6 @@
 #define EGLIMAGE_INCLUDED
 
 #include "egldisplay.h"
-#include "egltypedefs.h"
 
 #ifdef __cplusplus
 extern "C" {

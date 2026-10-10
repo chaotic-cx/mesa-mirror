@@ -31,7 +31,6 @@
 extern "C" {
 #endif
 
-#include "egltypedefs.h"
 
 /**
  * Print the list of configs and the associated attributes.

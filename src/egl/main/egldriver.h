@@ -38,7 +38,6 @@
 #include <EGL/eglext_angle.h>
 #include <EGL/eglmesaext.h>
 
-#include "egltypedefs.h"
 #include "eglconfig.h"
 #include "egldisplay.h"
 #include "eglsurface.h"

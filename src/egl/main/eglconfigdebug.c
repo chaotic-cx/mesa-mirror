@@ -34,7 +34,6 @@
 #include "eglconfigdebug.h"
 #include "egldisplay.h"
 #include "egllog.h"
-#include "egltypedefs.h"
 
 /* Max debug message length */
 #define CONFIG_DEBUG_MSG_MAX 1000

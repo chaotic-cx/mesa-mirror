@@ -40,7 +40,6 @@
 #include "eglimage.h"
 #include "egllog.h"
 #include "eglsurface.h"
-#include "egltypedefs.h"
 
 #include "pipe/p_context.h"
 #include "pipe/p_defines.h"

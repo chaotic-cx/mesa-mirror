@@ -76,8 +76,7 @@
  * EGLDatatype  - public EGL datatype
  *
  * _eglFooBar   - private EGL function
- * _EGLDatatype - private EGL datatype, typedef'd struct
- * _egl_struct  - private EGL struct, non-typedef'd
+ * _egl_struct  - private EGL struct
  *
  */
 
@@ -106,7 +105,6 @@
 #include "egllog.h"
 #include "eglsurface.h"
 #include "eglsync.h"
-#include "egltypedefs.h"
 
 #include "GL/mesa_glinterop.h"
 

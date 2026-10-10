@@ -33,7 +33,6 @@
 #include <EGL/egl.h>
 
 #include "egldisplay.h"
-#include "egltypedefs.h"
 
 #ifdef __cplusplus
 extern "C" {

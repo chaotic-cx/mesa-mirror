@@ -33,7 +33,6 @@
 #include <stdbool.h>
 #include "util/simple_mtx.h"
 
-#include "egltypedefs.h"
 
 enum {
    _EGL_DEBUG_BIT_CRITICAL = 0x1,

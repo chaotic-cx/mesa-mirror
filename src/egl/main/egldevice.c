@@ -36,7 +36,6 @@
 #include "egldevice.h"
 #include "eglglobals.h"
 #include "egllog.h"
-#include "egltypedefs.h"
 #include "egldriver.h"
 
 struct _egl_device {
