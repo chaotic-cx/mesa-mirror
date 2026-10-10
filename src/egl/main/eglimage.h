@@ -78,7 +78,7 @@ struct _egl_image_attribs {
  */
 struct _egl_image {
    /* An image is a display resource */
-   _EGLResource Resource;
+   struct _egl_resource Resource;
 };
 
 EGLBoolean
@@ -151,7 +151,7 @@ _eglLookupImage(EGLImage image, struct _egl_display *disp)
 static inline EGLImage
 _eglGetImageHandle(struct _egl_image *img)
 {
-   _EGLResource *res = (_EGLResource *)img;
+   struct _egl_resource *res = (struct _egl_resource *)img;
    return (res && _eglIsResourceLinked(res)) ? (EGLImage)img : EGL_NO_IMAGE_KHR;
 }
 

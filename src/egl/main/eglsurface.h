@@ -58,7 +58,7 @@ struct _egl_hdr_metadata {
  */
 struct _egl_surface {
    /* A surface is a display resource */
-   _EGLResource Resource;
+   struct _egl_resource Resource;
 
    /* The context that is currently bound to the surface */
    struct _egl_context *CurrentContext;
@@ -259,7 +259,7 @@ _eglLookupSurface(EGLSurface surface, struct _egl_display *disp)
 static inline EGLSurface
 _eglGetSurfaceHandle(_EGLSurface *surf)
 {
-   _EGLResource *res = (_EGLResource *)surf;
+   struct _egl_resource *res = (struct _egl_resource *)surf;
    return (res && _eglIsResourceLinked(res)) ? (EGLSurface)surf
                                              : EGL_NO_SURFACE;
 }

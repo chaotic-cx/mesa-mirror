@@ -325,7 +325,7 @@ _eglSetExplicitDevice(struct _egl_display *dpy, struct _egl_device *dev)
 void
 _eglReleaseDisplayResources(struct _egl_display *display)
 {
-   _EGLResource *list;
+   struct _egl_resource *list;
 
    simple_mtx_assert_locked(&display->Mutex);
 
@@ -392,7 +392,7 @@ _eglCleanupDisplay(struct _egl_display *disp)
 EGLBoolean
 _eglCheckResource(void *res, _EGLResourceType type, struct _egl_display *disp)
 {
-   _EGLResource *list = disp->ResourceLists[type];
+   struct _egl_resource *list = disp->ResourceLists[type];
 
    simple_mtx_assert_locked(&disp->Mutex);
 
@@ -418,7 +418,7 @@ _eglCheckResource(void *res, _EGLResourceType type, struct _egl_display *disp)
  * _eglInitContext or _eglInitSurface.
  */
 void
-_eglInitResource(_EGLResource *res, EGLint size, struct _egl_display *disp)
+_eglInitResource(struct _egl_resource *res, EGLint size, struct _egl_display *disp)
 {
    memset(res, 0, size);
    res->Display = disp;
@@ -429,7 +429,7 @@ _eglInitResource(_EGLResource *res, EGLint size, struct _egl_display *disp)
  * Increment reference count for the resource.
  */
 void
-_eglGetResource(_EGLResource *res)
+_eglGetResource(struct _egl_resource *res)
 {
    assert(res && res->RefCount > 0);
    p_atomic_inc(&res->RefCount);
@@ -439,7 +439,7 @@ _eglGetResource(_EGLResource *res)
  * Decrement reference count for the resource.
  */
 EGLBoolean
-_eglPutResource(_EGLResource *res)
+_eglPutResource(struct _egl_resource *res)
 {
    assert(res && res->RefCount > 0);
    return p_atomic_dec_zero(&res->RefCount);
@@ -449,7 +449,7 @@ _eglPutResource(_EGLResource *res)
  * Link a resource to its display.
  */
 void
-_eglLinkResource(_EGLResource *res, _EGLResourceType type)
+_eglLinkResource(struct _egl_resource *res, _EGLResourceType type)
 {
    assert(res->Display);
    simple_mtx_assert_locked(&res->Display->Mutex);
@@ -464,9 +464,9 @@ _eglLinkResource(_EGLResource *res, _EGLResourceType type)
  * Unlink a linked resource from its display.
  */
 void
-_eglUnlinkResource(_EGLResource *res, _EGLResourceType type)
+_eglUnlinkResource(struct _egl_resource *res, _EGLResourceType type)
 {
-   _EGLResource *prev;
+   struct _egl_resource *prev;
 
    simple_mtx_assert_locked(&res->Display->Mutex);
 

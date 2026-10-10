@@ -44,7 +44,7 @@ extern "C" {
  */
 struct _egl_context {
    /* A context is a display resource */
-   _EGLResource Resource;
+   struct _egl_resource Resource;
 
    /* The bound status of the context */
    _EGLThreadInfo *Binding;
@@ -140,7 +140,7 @@ _eglLookupContext(EGLContext context, struct _egl_display *disp)
 static inline EGLContext
 _eglGetContextHandle(struct _egl_context *ctx)
 {
-   _EGLResource *res = (_EGLResource *)ctx;
+   struct _egl_resource *res = (struct _egl_resource *)ctx;
    return (res && _eglIsResourceLinked(res)) ? (EGLContext)ctx : EGL_NO_CONTEXT;
 }
 

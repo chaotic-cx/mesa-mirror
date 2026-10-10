@@ -36,7 +36,7 @@
  */
 struct _egl_sync {
    /* A sync is a display resource */
-   _EGLResource Resource;
+   struct _egl_resource Resource;
 
    EGLenum Type;
    EGLenum SyncStatus;
@@ -112,7 +112,7 @@ _eglLookupSync(EGLSync handle, struct _egl_display *disp)
 static inline EGLSync
 _eglGetSyncHandle(_EGLSync *sync)
 {
-   _EGLResource *res = (_EGLResource *)sync;
+   struct _egl_resource *res = (struct _egl_resource *)sync;
    return (res && _eglIsResourceLinked(res)) ? (EGLSync)sync : EGL_NO_SYNC_KHR;
 }
 

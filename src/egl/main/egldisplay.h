@@ -87,7 +87,7 @@ struct _egl_resource {
    EGLLabelKHR Label;
 
    /* used to link resources of the same type */
-   _EGLResource *Next;
+   struct _egl_resource *Next;
 };
 
 /**
@@ -222,7 +222,7 @@ struct _egl_display {
    struct _egl_array *Configs;
 
    /* lists of resources */
-   _EGLResource *ResourceLists[_EGL_NUM_RESOURCES];
+   struct _egl_resource *ResourceLists[_EGL_NUM_RESOURCES];
 
    EGLLabelKHR Label;
 
@@ -281,25 +281,25 @@ _eglHasAttrib(struct _egl_display *disp, EGLAttrib attrib)
 }
 
 extern void
-_eglInitResource(_EGLResource *res, EGLint size, struct _egl_display *disp);
+_eglInitResource(struct _egl_resource *res, EGLint size, struct _egl_display *disp);
 
 extern void
-_eglGetResource(_EGLResource *res);
+_eglGetResource(struct _egl_resource *res);
 
 extern EGLBoolean
-_eglPutResource(_EGLResource *res);
+_eglPutResource(struct _egl_resource *res);
 
 extern void
-_eglLinkResource(_EGLResource *res, _EGLResourceType type);
+_eglLinkResource(struct _egl_resource *res, _EGLResourceType type);
 
 extern void
-_eglUnlinkResource(_EGLResource *res, _EGLResourceType type);
+_eglUnlinkResource(struct _egl_resource *res, _EGLResourceType type);
 
 /**
  * Return true if the resource is linked.
  */
 static inline EGLBoolean
-_eglIsResourceLinked(_EGLResource *res)
+_eglIsResourceLinked(struct _egl_resource *res)
 {
    return res->IsLinked;
 }

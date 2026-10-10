@@ -39,8 +39,6 @@
 extern "C" {
 #endif
 
-typedef struct _egl_resource _EGLResource;
-
 typedef struct _egl_surface _EGLSurface;
 
 typedef struct _egl_sync _EGLSync;

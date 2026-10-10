@@ -169,8 +169,8 @@ _eglFuncName(const char *funcName)
 
 #define _EGL_CHECK_SYNC(disp, s, ret) _EGL_CHECK_OBJECT(disp, Sync, s, ret)
 
-static _EGLResource **
-_egl_relax_begin(struct _egl_display *disp, _EGLResource **rs, unsigned rs_count)
+static struct _egl_resource **
+_egl_relax_begin(struct _egl_display *disp, struct _egl_resource **rs, unsigned rs_count)
 {
    for (unsigned i = 0; i < rs_count; i++)
       if (rs[i])
@@ -179,8 +179,8 @@ _egl_relax_begin(struct _egl_display *disp, _EGLResource **rs, unsigned rs_count
    return rs;
 }
 
-static _EGLResource **
-_egl_relax_end(struct _egl_display *disp, _EGLResource **rs, unsigned rs_count)
+static struct _egl_resource **
+_egl_relax_end(struct _egl_display *disp, struct _egl_resource **rs, unsigned rs_count)
 {
    simple_mtx_lock(&disp->Mutex);
    for (unsigned i = 0; i < rs_count; i++)
@@ -191,11 +191,11 @@ _egl_relax_end(struct _egl_display *disp, _EGLResource **rs, unsigned rs_count)
 
 /**
  * Helper to relax (drop) the EGL BDL over it's body, optionally holding
- * a reference to a list of _EGLResource's until the lock is re-acquired,
+ * a reference to a list of struct _egl_resource's until the lock is re-acquired,
  * protecting the resources from destruction while the BDL is dropped.
  */
 #define egl_relax(disp, ...)                                                   \
-   for (_EGLResource * __rs[] = {NULL /* for vs2019 */, __VA_ARGS__},          \
+   for (struct _egl_resource * __rs[] = {NULL /* for vs2019 */, __VA_ARGS__},          \
                        **__rsp =                                               \
                           _egl_relax_begin(disp, __rs, ARRAY_SIZE(__rs));      \
         __rsp; __rsp = _egl_relax_end(disp, __rs, ARRAY_SIZE(__rs)))
@@ -328,7 +328,7 @@ _eglUnlockDisplay(struct _egl_display *disp)
 
 static void
 _eglSetFuncName(const char *funcName, struct _egl_display *disp, EGLenum objectType,
-                _EGLResource *object)
+                struct _egl_resource *object)
 {
    _EGLThreadInfo *thr = _eglGetCurrentThread();
    thr->CurrentFuncName = funcName;
@@ -346,7 +346,7 @@ _eglSetFuncName(const char *funcName, struct _egl_display *disp, EGLenum objectT
    do {                                                                        \
       MESA_TRACE_FUNC();                                                       \
       _eglSetFuncName(_eglFuncName(__func__), disp, objectType,                \
-                      (_EGLResource *)object);                                 \
+                      (struct _egl_resource *)object);                         \
    } while (0)
 
 /**
@@ -1020,7 +1020,7 @@ eglQueryContext(EGLDisplay dpy, EGLContext ctx, EGLint attribute, EGLint *value)
 static bool
 _eglNativeSurfaceAlreadyUsed(struct _egl_display *disp, void *native_surface)
 {
-   _EGLResource *list;
+   struct _egl_resource *list;
 
    simple_mtx_assert_locked(&disp->Mutex);
 
@@ -2480,7 +2480,7 @@ eglLabelObjectKHR(EGLDisplay dpy, EGLenum objectType, EGLObjectKHR object,
    }
 
    if (_eglCheckResource(object, type, disp)) {
-      _EGLResource *res = (_EGLResource *)object;
+      struct _egl_resource *res = (struct _egl_resource *)object;
 
       res->Label = label;
       RETURN_EGL_EVAL(disp, EGL_SUCCESS);
