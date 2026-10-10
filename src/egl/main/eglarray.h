@@ -46,31 +46,31 @@ struct _egl_array {
    EGLint Size;
 };
 
-extern _EGLArray *
+extern struct _egl_array *
 _eglCreateArray(const char *name, EGLint init_size);
 
 extern void
-_eglDestroyArray(_EGLArray *array, void (*free_cb)(void *));
+_eglDestroyArray(struct _egl_array *array, void (*free_cb)(void *));
 
 extern void
-_eglAppendArray(_EGLArray *array, void *elem);
+_eglAppendArray(struct _egl_array *array, void *elem);
 
 extern void
-_eglEraseArray(_EGLArray *array, EGLint i, void (*free_cb)(void *));
+_eglEraseArray(struct _egl_array *array, EGLint i, void (*free_cb)(void *));
 
 void *
-_eglFindArray(_EGLArray *array, void *elem);
+_eglFindArray(struct _egl_array *array, void *elem);
 
 extern EGLint
-_eglFilterArray(_EGLArray *array, void **data, EGLint size,
+_eglFilterArray(struct _egl_array *array, void **data, EGLint size,
                 _EGLArrayForEach filter, void *filter_data);
 
 EGLint
-_eglFlattenArray(_EGLArray *array, void *buffer, EGLint elem_size, EGLint size,
+_eglFlattenArray(struct _egl_array *array, void *buffer, EGLint elem_size, EGLint size,
                  _EGLArrayForEach flatten);
 
 static inline EGLint
-_eglGetArraySize(_EGLArray *array)
+_eglGetArraySize(struct _egl_array *array)
 {
    return (array) ? array->Size : 0;
 }

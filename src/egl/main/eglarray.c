@@ -36,7 +36,7 @@
  * Grow the size of the array.
  */
 static EGLBoolean
-_eglGrowArray(_EGLArray *array)
+_eglGrowArray(struct _egl_array *array)
 {
    EGLint new_size;
    void **elems;
@@ -61,10 +61,10 @@ _eglGrowArray(_EGLArray *array)
 /**
  * Create an array.
  */
-_EGLArray *
+struct _egl_array *
 _eglCreateArray(const char *name, EGLint init_size)
 {
-   _EGLArray *array;
+   struct _egl_array *array;
 
    array = calloc(1, sizeof(*array));
    if (array) {
@@ -83,7 +83,7 @@ _eglCreateArray(const char *name, EGLint init_size)
  * Destroy an array, optionally free the data.
  */
 void
-_eglDestroyArray(_EGLArray *array, void (*free_cb)(void *))
+_eglDestroyArray(struct _egl_array *array, void (*free_cb)(void *))
 {
    if (free_cb) {
       EGLint i;
@@ -98,7 +98,7 @@ _eglDestroyArray(_EGLArray *array, void (*free_cb)(void *))
  * Append a element to an array.
  */
 void
-_eglAppendArray(_EGLArray *array, void *elem)
+_eglAppendArray(struct _egl_array *array, void *elem)
 {
    if (array->Size >= array->MaxSize && !_eglGrowArray(array))
       return;
@@ -110,7 +110,7 @@ _eglAppendArray(_EGLArray *array, void *elem)
  * Erase an element from an array.
  */
 void
-_eglEraseArray(_EGLArray *array, EGLint i, void (*free_cb)(void *))
+_eglEraseArray(struct _egl_array *array, EGLint i, void (*free_cb)(void *))
 {
    if (free_cb)
       free_cb(array->Elements[i]);
@@ -125,7 +125,7 @@ _eglEraseArray(_EGLArray *array, EGLint i, void (*free_cb)(void *))
  * Find in an array for the given element.
  */
 void *
-_eglFindArray(_EGLArray *array, void *elem)
+_eglFindArray(struct _egl_array *array, void *elem)
 {
    EGLint i;
 
@@ -142,7 +142,7 @@ _eglFindArray(_EGLArray *array, void *elem)
  * Filter an array and return the number of filtered elements.
  */
 EGLint
-_eglFilterArray(_EGLArray *array, void **data, EGLint size,
+_eglFilterArray(struct _egl_array *array, void **data, EGLint size,
                 _EGLArrayForEach filter, void *filter_data)
 {
    EGLint count = 0, i;
@@ -169,7 +169,7 @@ _eglFilterArray(_EGLArray *array, void **data, EGLint size,
  * them in a buffer.
  */
 EGLint
-_eglFlattenArray(_EGLArray *array, void *buffer, EGLint elem_size, EGLint size,
+_eglFlattenArray(struct _egl_array *array, void *buffer, EGLint elem_size, EGLint size,
                  _EGLArrayForEach flatten)
 {
    EGLint i, count;

@@ -709,7 +709,7 @@ _eglSortConfigs(const _EGLConfig **configs, EGLint count,
  * _eglSortConfigs for the meanings of match and compare.
  */
 static EGLBoolean
-_eglFilterConfigArray(_EGLArray *array, EGLConfig *configs, EGLint config_size,
+_eglFilterConfigArray(struct _egl_array *array, EGLConfig *configs, EGLint config_size,
                       EGLint *num_configs,
                       EGLBoolean (*match)(const _EGLConfig *,
                                           const _EGLConfig *),

@@ -219,7 +219,7 @@ struct _egl_display {
    char ClientAPIsString[100];                     /**< EGL_CLIENT_APIS */
    char ExtensionsString[_EGL_MAX_EXTENSIONS_LEN]; /**< EGL_EXTENSIONS */
 
-   _EGLArray *Configs;
+   struct _egl_array *Configs;
 
    /* lists of resources */
    _EGLResource *ResourceLists[_EGL_NUM_RESOURCES];
