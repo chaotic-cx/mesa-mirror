@@ -60,7 +60,7 @@ struct wgl_egl_image {
 };
 
 struct wgl_egl_sync {
-   _EGLSync base;
+   struct _egl_sync base;
    int refcount;
    struct pipe_fence_handle *fence;
    HANDLE event;
@@ -68,4 +68,4 @@ struct wgl_egl_sync {
 
 _EGL_DRIVER_STANDARD_TYPECASTS(wgl_egl)
 _EGL_DRIVER_TYPECAST(wgl_egl_image, struct _egl_image, obj)
-_EGL_DRIVER_TYPECAST(wgl_egl_sync, _EGLSync, obj)
+_EGL_DRIVER_TYPECAST(wgl_egl_sync, struct _egl_sync, obj)

@@ -256,7 +256,7 @@ _eglCheckConfig(struct _egl_display *disp, struct _egl_config *conf, const char 
 }
 
 static inline bool
-_eglCheckSync(struct _egl_display *disp, _EGLSync *s, const char *msg)
+_eglCheckSync(struct _egl_display *disp, struct _egl_sync *s, const char *msg)
 {
    if (!_eglCheckDisplay(disp, msg))
       return false;
@@ -1921,7 +1921,7 @@ _eglCreateSync(struct _egl_display *disp, EGLenum type, const EGLAttrib *attrib_
                EGLBoolean orig_is_EGLAttrib, EGLenum invalid_type_error)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
-   _EGLSync *sync = NULL;
+   struct _egl_sync *sync = NULL;
    EGLSync ret;
 
    _EGL_CHECK_DISPLAY(disp, EGL_NO_SYNC_KHR);
@@ -2024,7 +2024,7 @@ eglCreateSync(EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list)
 }
 
 static EGLBoolean
-_eglDestroySync(struct _egl_display *disp, _EGLSync *s)
+_eglDestroySync(struct _egl_display *disp, struct _egl_sync *s)
 {
    EGLBoolean ret = EGL_FALSE;
 
@@ -2046,7 +2046,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglDestroySync(EGLDisplay dpy, EGLSync sync)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglDestroySync(disp, s);
 }
@@ -2055,13 +2055,13 @@ static EGLBoolean EGLAPIENTRY
 eglDestroySyncKHR(EGLDisplay dpy, EGLSync sync)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglDestroySync(disp, s);
 }
 
 static EGLint
-_eglClientWaitSyncCommon(struct _egl_display *disp, _EGLSync *s, EGLint flags,
+_eglClientWaitSyncCommon(struct _egl_display *disp, struct _egl_sync *s, EGLint flags,
                          EGLTime timeout)
 {
    EGLint ret = EGL_FALSE;
@@ -2085,7 +2085,7 @@ PUBLIC EGLint EGLAPIENTRY
 eglClientWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTime timeout)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglClientWaitSyncCommon(disp, s, flags, timeout);
 }
@@ -2095,13 +2095,13 @@ eglClientWaitSyncKHR(EGLDisplay dpy, EGLSync sync, EGLint flags,
                      EGLTime timeout)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglClientWaitSyncCommon(disp, s, flags, timeout);
 }
 
 static EGLint
-_eglWaitSyncCommon(struct _egl_display *disp, _EGLSync *s, EGLint flags)
+_eglWaitSyncCommon(struct _egl_display *disp, struct _egl_sync *s, EGLint flags)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
    EGLint ret = EGL_FALSE;
@@ -2127,7 +2127,7 @@ static EGLint EGLAPIENTRY
 eglWaitSyncKHR(EGLDisplay dpy, EGLSync sync, EGLint flags)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglWaitSyncCommon(disp, s, flags);
 }
@@ -2140,7 +2140,7 @@ eglWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags)
     * EGL_TRUE.
     */
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglWaitSyncCommon(disp, s, flags);
 }
@@ -2149,7 +2149,7 @@ static EGLBoolean EGLAPIENTRY
 eglSignalSyncKHR(EGLDisplay dpy, EGLSync sync, EGLenum mode)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
@@ -2165,7 +2165,7 @@ eglSignalSyncKHR(EGLDisplay dpy, EGLSync sync, EGLenum mode)
 }
 
 static EGLBoolean
-_eglGetSyncAttribCommon(struct _egl_display *disp, _EGLSync *s, EGLint attribute,
+_eglGetSyncAttribCommon(struct _egl_display *disp, struct _egl_sync *s, EGLint attribute,
                         EGLAttrib *value)
 {
    EGLBoolean ret;
@@ -2185,7 +2185,7 @@ eglGetSyncAttrib(EGLDisplay dpy, EGLSync sync, EGLint attribute,
                  EGLAttrib *value)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
 
    if (!value)
@@ -2199,7 +2199,7 @@ eglGetSyncAttribKHR(EGLDisplay dpy, EGLSync sync, EGLint attribute,
                     EGLint *value)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    EGLAttrib attrib;
    EGLBoolean result;
 
@@ -2226,7 +2226,7 @@ static EGLint EGLAPIENTRY
 eglDupNativeFenceFDANDROID(EGLDisplay dpy, EGLSync sync)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSync *s = _eglLookupSync(sync, disp);
+   struct _egl_sync *s = _eglLookupSync(sync, disp);
    EGLint ret = EGL_NO_NATIVE_FENCE_FD_ANDROID;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);

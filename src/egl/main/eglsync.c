@@ -38,7 +38,7 @@
  * Parse the list of sync attributes and return the proper error code.
  */
 static EGLint
-_eglParseSyncAttribList(_EGLSync *sync, const EGLAttrib *attrib_list)
+_eglParseSyncAttribList(struct _egl_sync *sync, const EGLAttrib *attrib_list)
 {
    EGLint i;
 
@@ -81,7 +81,7 @@ _eglParseSyncAttribList(_EGLSync *sync, const EGLAttrib *attrib_list)
 }
 
 EGLBoolean
-_eglInitSync(_EGLSync *sync, struct _egl_display *disp, EGLenum type,
+_eglInitSync(struct _egl_sync *sync, struct _egl_display *disp, EGLenum type,
              const EGLAttrib *attrib_list)
 {
    EGLint err;
@@ -117,7 +117,7 @@ _eglInitSync(_EGLSync *sync, struct _egl_display *disp, EGLenum type,
 }
 
 EGLBoolean
-_eglGetSyncAttrib(struct _egl_display *disp, _EGLSync *sync, EGLint attribute,
+_eglGetSyncAttrib(struct _egl_display *disp, struct _egl_sync *sync, EGLint attribute,
                   EGLAttrib *value)
 {
    switch (attribute) {

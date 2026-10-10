@@ -945,7 +945,7 @@ wgl_destroy_image_khr(struct _egl_display *disp, struct _egl_image *img)
    return EGL_TRUE;
 }
 
-static _EGLSync *
+static struct _egl_sync *
 wgl_create_sync_khr(struct _egl_display *disp, EGLenum type,
                     const EGLAttrib *attrib_list)
 {
@@ -1005,7 +1005,7 @@ wgl_egl_unref_sync(struct wgl_egl_display *wgl_dpy,
 }
 
 static EGLBoolean
-wgl_destroy_sync_khr(struct _egl_display *disp, _EGLSync *sync)
+wgl_destroy_sync_khr(struct _egl_display *disp, struct _egl_sync *sync)
 {
    struct wgl_egl_display *wgl_dpy = wgl_egl_display(disp);
    struct wgl_egl_sync *wgl_sync = wgl_egl_sync(sync);
@@ -1014,7 +1014,7 @@ wgl_destroy_sync_khr(struct _egl_display *disp, _EGLSync *sync)
 }
 
 static EGLint
-wgl_client_wait_sync_khr(struct _egl_display *disp, _EGLSync *sync, EGLint flags,
+wgl_client_wait_sync_khr(struct _egl_display *disp, struct _egl_sync *sync, EGLint flags,
                          EGLTime timeout)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
@@ -1068,7 +1068,7 @@ wgl_client_wait_sync_khr(struct _egl_display *disp, _EGLSync *sync, EGLint flags
 }
 
 static EGLint
-wgl_wait_sync_khr(struct _egl_display *disp, _EGLSync *sync)
+wgl_wait_sync_khr(struct _egl_display *disp, struct _egl_sync *sync)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
    struct wgl_egl_context *wgl_ctx = wgl_egl_context(ctx);
@@ -1085,7 +1085,7 @@ wgl_wait_sync_khr(struct _egl_display *disp, _EGLSync *sync)
 }
 
 static EGLBoolean
-wgl_signal_sync_khr(struct _egl_display *disp, _EGLSync *sync, EGLenum mode)
+wgl_signal_sync_khr(struct _egl_display *disp, struct _egl_sync *sync, EGLenum mode)
 {
    struct wgl_egl_sync *wgl_sync = wgl_egl_sync(sync);
 

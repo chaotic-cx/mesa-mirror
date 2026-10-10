@@ -2814,7 +2814,7 @@ dri2_egl_unref_sync(struct dri2_egl_display *dri2_dpy,
    }
 }
 
-static _EGLSync *
+static struct _egl_sync *
 dri2_create_sync(struct _egl_display *disp, EGLenum type, const EGLAttrib *attrib_list)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
@@ -2913,7 +2913,7 @@ fail:
 }
 
 static EGLBoolean
-dri2_destroy_sync(struct _egl_display *disp, _EGLSync *sync)
+dri2_destroy_sync(struct _egl_display *disp, struct _egl_sync *sync)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct dri2_egl_sync *dri2_sync = dri2_egl_sync(sync);
@@ -2944,7 +2944,7 @@ dri2_destroy_sync(struct _egl_display *disp, _EGLSync *sync)
 }
 
 static EGLint
-dri2_dup_native_fence_fd(struct _egl_display *disp, _EGLSync *sync)
+dri2_dup_native_fence_fd(struct _egl_display *disp, struct _egl_sync *sync)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct dri2_egl_sync *dri2_sync = dri2_egl_sync(sync);
@@ -2982,7 +2982,7 @@ dri2_set_blob_cache_funcs(struct _egl_display *disp, EGLSetBlobFuncANDROID set,
 }
 
 static EGLint
-dri2_client_wait_sync(struct _egl_display *disp, _EGLSync *sync, EGLint flags,
+dri2_client_wait_sync(struct _egl_display *disp, struct _egl_sync *sync, EGLint flags,
                       EGLTime timeout)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
@@ -3075,7 +3075,7 @@ dri2_client_wait_sync(struct _egl_display *disp, _EGLSync *sync, EGLint flags,
 }
 
 static EGLBoolean
-dri2_signal_sync(struct _egl_display *disp, _EGLSync *sync, EGLenum mode)
+dri2_signal_sync(struct _egl_display *disp, struct _egl_sync *sync, EGLenum mode)
 {
    struct dri2_egl_sync *dri2_sync = dri2_egl_sync(sync);
    EGLint ret;
@@ -3100,7 +3100,7 @@ dri2_signal_sync(struct _egl_display *disp, _EGLSync *sync, EGLenum mode)
 }
 
 static EGLint
-dri2_server_wait_sync(struct _egl_display *disp, _EGLSync *sync)
+dri2_server_wait_sync(struct _egl_display *disp, struct _egl_sync *sync)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);

@@ -361,7 +361,7 @@ _eglReleaseDisplayResources(struct _egl_display *display)
 
    list = display->ResourceLists[_EGL_RESOURCE_SYNC];
    while (list) {
-      _EGLSync *sync = (_EGLSync *)list;
+      struct _egl_sync *sync = (struct _egl_sync *)list;
       list = list->Next;
 
       _eglUnlinkSync(sync);

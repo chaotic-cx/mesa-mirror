@@ -159,17 +159,17 @@ struct _egl_driver {
    EGLBoolean (*DestroyImageKHR)(struct _egl_display *disp, struct _egl_image *image);
 
    /* for EGL_KHR_reusable_sync/EGL_KHR_fence_sync */
-   _EGLSync *(*CreateSyncKHR)(struct _egl_display *disp, EGLenum type,
+   struct _egl_sync *(*CreateSyncKHR)(struct _egl_display *disp, EGLenum type,
                               const EGLAttrib *attrib_list);
-   EGLBoolean (*DestroySyncKHR)(struct _egl_display *disp, _EGLSync *sync);
-   EGLint (*ClientWaitSyncKHR)(struct _egl_display *disp, _EGLSync *sync, EGLint flags,
+   EGLBoolean (*DestroySyncKHR)(struct _egl_display *disp, struct _egl_sync *sync);
+   EGLint (*ClientWaitSyncKHR)(struct _egl_display *disp, struct _egl_sync *sync, EGLint flags,
                                EGLTime timeout);
-   EGLint (*WaitSyncKHR)(struct _egl_display *disp, _EGLSync *sync);
+   EGLint (*WaitSyncKHR)(struct _egl_display *disp, struct _egl_sync *sync);
    /* for EGL_KHR_reusable_sync */
-   EGLBoolean (*SignalSyncKHR)(struct _egl_display *disp, _EGLSync *sync, EGLenum mode);
+   EGLBoolean (*SignalSyncKHR)(struct _egl_display *disp, struct _egl_sync *sync, EGLenum mode);
 
    /* for EGL_ANDROID_native_fence_sync */
-   EGLint (*DupNativeFenceFDANDROID)(struct _egl_display *disp, _EGLSync *sync);
+   EGLint (*DupNativeFenceFDANDROID)(struct _egl_display *disp, struct _egl_sync *sync);
 
 #ifdef HAVE_BIND_WL_DISPLAY
    /* for EGL_WL_bind_wayland_display */

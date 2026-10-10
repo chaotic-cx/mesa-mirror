@@ -399,7 +399,7 @@ struct dri2_egl_image {
 };
 
 struct dri2_egl_sync {
-   _EGLSync base;
+   struct _egl_sync base;
    mtx_t mutex;
    cnd_t cond;
    int refcount;
@@ -409,7 +409,7 @@ struct dri2_egl_sync {
 /* standard typecasts */
 _EGL_DRIVER_STANDARD_TYPECASTS(dri2_egl)
 _EGL_DRIVER_TYPECAST(dri2_egl_image, struct _egl_image, obj)
-_EGL_DRIVER_TYPECAST(dri2_egl_sync, _EGLSync, obj)
+_EGL_DRIVER_TYPECAST(dri2_egl_sync, struct _egl_sync, obj)
 
 static inline struct dri2_egl_display *
 dri2_egl_display_lock(struct _egl_display *disp)
