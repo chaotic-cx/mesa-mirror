@@ -744,7 +744,7 @@
         "description": "kopper: fix unused and uninitialized warnings on macOS",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "191d7c6cb617a3f5ea85d98ae0b8640d0ba60a75",
         "notes": null
