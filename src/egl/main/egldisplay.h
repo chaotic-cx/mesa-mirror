@@ -211,7 +211,7 @@ struct _egl_display {
    void *DriverDisplay;       /**< Driver private display object */
    EGLint Version;            /**< EGL version major*10+minor */
    EGLint ClientAPIs;         /**< Bitmask of APIs supported (EGL_xxx_BIT) */
-   _EGLExtensions Extensions; /**< Extensions supported */
+   struct _egl_extensions Extensions; /**< Extensions supported */
    EGLBoolean RobustBufferAccess; /**< Supports robust buffer access behavior */
 
    /* these fields are derived from above */

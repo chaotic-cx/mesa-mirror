@@ -39,8 +39,6 @@
 extern "C" {
 #endif
 
-typedef struct _egl_extensions _EGLExtensions;
-
 typedef struct _egl_image _EGLImage;
 
 typedef struct _egl_image_attribs _EGLImageAttribs;
