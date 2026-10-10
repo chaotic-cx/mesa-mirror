@@ -79,7 +79,7 @@ _eglGetContextAPIBit(struct _egl_context *ctx)
  * Parse the list of context attributes and return the proper error code.
  */
 static EGLint
-_eglParseContextAttribList(struct _egl_context *ctx, _EGLDisplay *disp,
+_eglParseContextAttribList(struct _egl_context *ctx, struct _egl_display *disp,
                            const EGLint *attrib_list)
 {
    EGLenum api = ctx->ClientAPI;
@@ -655,7 +655,7 @@ _eglParseContextAttribList(struct _egl_context *ctx, _EGLDisplay *disp,
  * responsible for determining whether that's an API it supports.
  */
 EGLBoolean
-_eglInitContext(struct _egl_context *ctx, _EGLDisplay *disp, struct _egl_config *conf,
+_eglInitContext(struct _egl_context *ctx, struct _egl_display *disp, struct _egl_config *conf,
                 struct _egl_context *share_list, const EGLint *attrib_list)
 {
    const EGLenum api = eglQueryAPI();
@@ -764,7 +764,7 @@ _eglQueryContextRenderBuffer(struct _egl_context *ctx)
 EGLBoolean
 _eglQueryContext(struct _egl_context *c, EGLint attribute, EGLint *value)
 {
-   _EGLDisplay *disp = c->Resource.Display;
+   struct _egl_display *disp = c->Resource.Display;
    EGLenum api = c->ClientAPI;
 
    if (!value)
@@ -847,7 +847,7 @@ static EGLBoolean
 _eglCheckMakeCurrent(struct _egl_context *ctx, _EGLSurface *draw, _EGLSurface *read)
 {
    _EGLThreadInfo *t = _eglGetCurrentThread();
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
 
    /* this is easy */
    if (!ctx) {

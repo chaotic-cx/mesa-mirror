@@ -140,7 +140,7 @@ dri2_drm_config_is_compatible(struct dri2_egl_display *dri2_dpy,
 }
 
 static _EGLSurface *
-dri2_drm_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri2_drm_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                                void *native_surface, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -192,7 +192,7 @@ cleanup_surf:
 }
 
 static _EGLSurface *
-dri2_drm_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri2_drm_create_pixmap_surface(struct _egl_display *disp, struct _egl_config *conf,
                                void *native_window, const EGLint *attrib_list)
 {
    /* From the EGL_MESA_platform_gbm spec, version 5:
@@ -206,7 +206,7 @@ dri2_drm_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static EGLBoolean
-dri2_drm_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
+dri2_drm_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -358,7 +358,7 @@ dri2_drm_flush_front_buffer(struct dri_drawable *driDrawable, void *loaderPrivat
 /* Damage is ignored for this SwapBuffers implementation, as it does not
  * actually post any updates. */
 static EGLBoolean
-dri2_drm_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
+dri2_drm_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
 		      const EGLint *rects, EGLint n_rects)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -395,7 +395,7 @@ dri2_drm_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
 }
 
 static EGLint
-dri2_drm_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surface)
+dri2_drm_query_buffer_age(struct _egl_display *disp, _EGLSurface *surface)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surface);
 
@@ -408,7 +408,7 @@ dri2_drm_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surface)
 }
 
 static _EGLImage *
-dri2_drm_create_image_khr_pixmap(_EGLDisplay *disp, struct _egl_context *ctx,
+dri2_drm_create_image_khr_pixmap(struct _egl_display *disp, struct _egl_context *ctx,
                                  EGLClientBuffer buffer,
                                  const EGLint *attr_list)
 {
@@ -434,7 +434,7 @@ dri2_drm_create_image_khr_pixmap(_EGLDisplay *disp, struct _egl_context *ctx,
 }
 
 static _EGLImage *
-dri2_drm_create_image_khr(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum target,
+dri2_drm_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                           EGLClientBuffer buffer, const EGLint *attr_list)
 {
    switch (target) {
@@ -446,7 +446,7 @@ dri2_drm_create_image_khr(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum t
 }
 
 static int
-dri2_drm_authenticate(_EGLDisplay *disp, uint32_t id)
+dri2_drm_authenticate(struct _egl_display *disp, uint32_t id)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -538,7 +538,7 @@ swrast_get_image(struct dri_drawable *driDrawable, int x, int y, int width,
 }
 
 static void
-drm_add_configs_for_visuals(_EGLDisplay *disp)
+drm_add_configs_for_visuals(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    const struct gbm_dri_visual *visuals = dri2_dpy->gbm_dri->visual_table;
@@ -614,7 +614,7 @@ get_fd_render_gpu_drm(struct gbm_dri_device *gbm_dri, int fd_display_gpu)
 }
 
 EGLBoolean
-dri2_initialize_drm(_EGLDisplay *disp)
+dri2_initialize_drm(struct _egl_display *disp)
 {
    struct gbm_device *gbm;
    const char *err;

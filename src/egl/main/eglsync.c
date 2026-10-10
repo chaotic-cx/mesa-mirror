@@ -81,7 +81,7 @@ _eglParseSyncAttribList(_EGLSync *sync, const EGLAttrib *attrib_list)
 }
 
 EGLBoolean
-_eglInitSync(_EGLSync *sync, _EGLDisplay *disp, EGLenum type,
+_eglInitSync(_EGLSync *sync, struct _egl_display *disp, EGLenum type,
              const EGLAttrib *attrib_list)
 {
    EGLint err;
@@ -117,7 +117,7 @@ _eglInitSync(_EGLSync *sync, _EGLDisplay *disp, EGLenum type,
 }
 
 EGLBoolean
-_eglGetSyncAttrib(_EGLDisplay *disp, _EGLSync *sync, EGLint attribute,
+_eglGetSyncAttrib(struct _egl_display *disp, _EGLSync *sync, EGLint attribute,
                   EGLAttrib *value)
 {
    switch (attribute) {

@@ -49,7 +49,7 @@ struct _egl_global {
    simple_mtx_t *Mutex;
 
    /* the list of all displays */
-   _EGLDisplay *DisplayList;
+   struct _egl_display *DisplayList;
 
    struct _egl_device *DeviceList;
 

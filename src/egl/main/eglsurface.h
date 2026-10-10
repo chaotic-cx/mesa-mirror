@@ -175,23 +175,23 @@ struct _egl_surface {
 };
 
 extern EGLBoolean
-_eglInitSurface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
+_eglInitSurface(_EGLSurface *surf, struct _egl_display *disp, EGLint type,
                 struct _egl_config *config, const EGLint *attrib_list,
                 void *native_surface);
 
 extern EGLBoolean
-_eglQuerySurface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
+_eglQuerySurface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
                  EGLint *value);
 
 extern EGLBoolean
-_eglSurfaceAttrib(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
+_eglSurfaceAttrib(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
                   EGLint value);
 
 extern EGLBoolean
-_eglBindTexImage(_EGLDisplay *disp, _EGLSurface *surf, EGLint buffer);
+_eglBindTexImage(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer);
 
 extern EGLBoolean
-_eglReleaseTexImage(_EGLDisplay *disp, _EGLSurface *surf, EGLint buffer);
+_eglReleaseTexImage(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer);
 
 extern EGLBoolean
 _eglSurfaceHasMutableRenderBuffer(_EGLSurface *surf);
@@ -245,7 +245,7 @@ _eglUnlinkSurface(_EGLSurface *surf)
  * Return NULL if the handle has no corresponding linked surface.
  */
 static inline _EGLSurface *
-_eglLookupSurface(EGLSurface surface, _EGLDisplay *disp)
+_eglLookupSurface(EGLSurface surface, struct _egl_display *disp)
 {
    _EGLSurface *surf = (_EGLSurface *)surface;
    if (!disp || !_eglCheckResource((void *)surf, _EGL_RESOURCE_SURFACE, disp))

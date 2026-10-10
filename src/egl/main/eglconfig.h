@@ -45,7 +45,7 @@ extern "C" {
 /* update _eglValidationTable and _eglOffsetOfConfig before updating this
  * struct */
 struct _egl_config {
-   _EGLDisplay *Display;
+   struct _egl_display *Display;
 
    /* core */
    EGLint BufferSize;
@@ -173,13 +173,13 @@ _eglGetConfigKey(const struct _egl_config *conf, EGLint key)
 }
 
 extern void
-_eglInitConfig(struct _egl_config *config, _EGLDisplay *disp, EGLint id);
+_eglInitConfig(struct _egl_config *config, struct _egl_display *disp, EGLint id);
 
 extern EGLConfig
 _eglLinkConfig(struct _egl_config *conf);
 
 extern struct _egl_config *
-_eglLookupConfig(EGLConfig config, _EGLDisplay *disp);
+_eglLookupConfig(EGLConfig config, struct _egl_display *disp);
 
 /**
  * Return the handle of a linked config.
@@ -197,7 +197,7 @@ extern EGLBoolean
 _eglMatchConfig(const struct _egl_config *conf, const struct _egl_config *criteria);
 
 extern EGLBoolean
-_eglParseConfigAttribList(struct _egl_config *conf, _EGLDisplay *disp,
+_eglParseConfigAttribList(struct _egl_config *conf, struct _egl_display *disp,
                           const EGLint *attrib_list);
 
 extern EGLint
@@ -205,15 +205,15 @@ _eglCompareConfigs(const struct _egl_config *conf1, const struct _egl_config *co
                    const struct _egl_config *criteria, EGLBoolean compare_id);
 
 extern EGLBoolean
-_eglChooseConfig(_EGLDisplay *disp, const EGLint *attrib_list,
+_eglChooseConfig(struct _egl_display *disp, const EGLint *attrib_list,
                  EGLConfig *configs, EGLint config_size, EGLint *num_config);
 
 extern EGLBoolean
-_eglGetConfigAttrib(const _EGLDisplay *disp, const struct _egl_config *conf,
+_eglGetConfigAttrib(const struct _egl_display *disp, const struct _egl_config *conf,
                     EGLint attribute, EGLint *value);
 
 extern EGLBoolean
-_eglGetConfigs(_EGLDisplay *disp, EGLConfig *configs, EGLint config_size,
+_eglGetConfigs(struct _egl_display *disp, EGLConfig *configs, EGLint config_size,
                EGLint *num_config);
 
 #ifdef __cplusplus

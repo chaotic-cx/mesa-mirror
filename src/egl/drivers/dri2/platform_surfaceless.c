@@ -107,7 +107,7 @@ surfaceless_image_get_buffers(struct dri_drawable *driDrawable, unsigned int for
 }
 
 static _EGLSurface *
-dri2_surfaceless_create_surface(_EGLDisplay *disp, EGLint type,
+dri2_surfaceless_create_surface(struct _egl_display *disp, EGLint type,
                                 struct _egl_config *conf, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -152,7 +152,7 @@ cleanup_surface:
 }
 
 static EGLBoolean
-surfaceless_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
+surfaceless_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -166,7 +166,7 @@ surfaceless_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static _EGLSurface *
-dri2_surfaceless_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri2_surfaceless_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                                         const EGLint *attrib_list)
 {
    return dri2_surfaceless_create_surface(disp, EGL_PBUFFER_BIT, conf,
@@ -187,7 +187,7 @@ surfaceless_flush_front_buffer(struct dri_drawable *driDrawable, void *loaderPri
 static unsigned
 surfaceless_get_capability(void *loaderPrivate, enum dri_loader_cap cap)
 {
-   /* Note: loaderPrivate is _EGLDisplay* */
+   /* Note: loaderPrivate is struct _egl_display* */
    switch (cap) {
    case DRI_LOADER_CAP_FP16:
       return 1;
@@ -221,7 +221,7 @@ static const struct dri_loader_funcs kopper_loader_funcs = {
 };
 
 static bool
-surfaceless_probe_device(_EGLDisplay *disp, bool swrast, bool zink)
+surfaceless_probe_device(struct _egl_display *disp, bool swrast, bool zink)
 {
    const unsigned node_type = swrast ? DRM_NODE_PRIMARY : DRM_NODE_RENDER;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -340,7 +340,7 @@ surfaceless_probe_device(_EGLDisplay *disp, bool swrast, bool zink)
 }
 
 static bool
-surfaceless_probe_device_sw(_EGLDisplay *disp)
+surfaceless_probe_device_sw(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct _egl_device *device = _eglFindDevice(dri2_dpy->fd_render_gpu, true);
@@ -378,7 +378,7 @@ surfaceless_probe_device_sw(_EGLDisplay *disp)
 }
 
 EGLBoolean
-dri2_initialize_surfaceless(_EGLDisplay *disp)
+dri2_initialize_surfaceless(struct _egl_display *disp)
 {
    const char *err;
    bool driver_loaded = false;

@@ -106,7 +106,7 @@ device_image_get_buffers(struct dri_drawable *driDrawable, unsigned int format,
 }
 
 static _EGLSurface *
-dri2_device_create_surface(_EGLDisplay *disp, EGLint type, struct _egl_config *conf,
+dri2_device_create_surface(struct _egl_display *disp, EGLint type, struct _egl_config *conf,
                            const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -151,7 +151,7 @@ cleanup_surface:
 }
 
 static EGLBoolean
-device_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
+device_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -165,7 +165,7 @@ device_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static _EGLSurface *
-dri2_device_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri2_device_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                                    const EGLint *attrib_list)
 {
    return dri2_device_create_surface(disp, EGL_PBUFFER_BIT, conf, attrib_list);
@@ -185,7 +185,7 @@ device_flush_front_buffer(struct dri_drawable *driDrawable, void *loaderPrivate)
 static unsigned
 device_get_capability(void *loaderPrivate, enum dri_loader_cap cap)
 {
-   /* Note: loaderPrivate is _EGLDisplay* */
+   /* Note: loaderPrivate is struct _egl_display* */
    switch (cap) {
    case DRI_LOADER_CAP_FP16:
       return 1;
@@ -213,7 +213,7 @@ static const struct dri_loader_funcs swrast_loader_funcs = {
 };
 
 static int
-device_get_fd(_EGLDisplay *disp, struct _egl_device *dev)
+device_get_fd(struct _egl_display *disp, struct _egl_device *dev)
 {
 #ifdef HAVE_LIBDRM
    int fd = disp->Options.fd;
@@ -253,7 +253,7 @@ device_get_fd(_EGLDisplay *disp, struct _egl_device *dev)
 }
 
 static bool
-device_probe_device(_EGLDisplay *disp)
+device_probe_device(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -296,7 +296,7 @@ err_name:
 }
 
 static bool
-device_probe_device_sw(_EGLDisplay *disp)
+device_probe_device_sw(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -314,7 +314,7 @@ device_probe_device_sw(_EGLDisplay *disp)
 }
 
 EGLBoolean
-dri2_initialize_device(_EGLDisplay *disp)
+dri2_initialize_device(struct _egl_display *disp)
 {
    const char *err;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);

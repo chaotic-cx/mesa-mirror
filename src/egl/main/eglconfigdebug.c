@@ -162,7 +162,7 @@ _eglPrintConfig(struct _egl_config *const conf, const int chosenIndex)
 }
 
 void
-eglPrintConfigDebug(const _EGLDisplay *const disp,
+eglPrintConfigDebug(const struct _egl_display *const disp,
                     const EGLConfig *const configs, const EGLint numConfigs,
                     const EGLBoolean printChosen)
 {

@@ -97,7 +97,7 @@ dri_flush_front_buffer(struct dri_drawable * driDrawable, void *data)
 static unsigned
 dri_get_capability(void *loaderPrivate, enum dri_loader_cap cap)
 {
-   /* Note: loaderPrivate is _EGLDisplay* */
+   /* Note: loaderPrivate is struct _egl_display* */
    switch (cap) {
    case DRI_LOADER_CAP_FP16:
       return 1;

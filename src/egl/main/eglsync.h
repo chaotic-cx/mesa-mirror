@@ -46,11 +46,11 @@ struct _egl_sync {
 };
 
 extern EGLBoolean
-_eglInitSync(_EGLSync *sync, _EGLDisplay *disp, EGLenum type,
+_eglInitSync(_EGLSync *sync, struct _egl_display *disp, EGLenum type,
              const EGLAttrib *attrib_list);
 
 extern EGLBoolean
-_eglGetSyncAttrib(_EGLDisplay *disp, _EGLSync *sync, EGLint attribute,
+_eglGetSyncAttrib(struct _egl_display *disp, _EGLSync *sync, EGLint attribute,
                   EGLAttrib *value);
 
 /**
@@ -98,7 +98,7 @@ _eglUnlinkSync(_EGLSync *sync)
  * Return NULL if the handle has no corresponding linked sync.
  */
 static inline _EGLSync *
-_eglLookupSync(EGLSync handle, _EGLDisplay *disp)
+_eglLookupSync(EGLSync handle, struct _egl_display *disp)
 {
    _EGLSync *sync = (_EGLSync *)handle;
    if (!disp || !_eglCheckResource((void *)sync, _EGL_RESOURCE_SYNC, disp))

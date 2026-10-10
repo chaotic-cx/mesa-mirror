@@ -51,7 +51,7 @@
 static EGLint
 _eglParseSurfaceAttribList(_EGLSurface *surf, const EGLint *attrib_list)
 {
-   _EGLDisplay *disp = surf->Resource.Display;
+   struct _egl_display *disp = surf->Resource.Display;
    EGLint type = surf->Type;
    EGLint texture_type = EGL_PBUFFER_BIT;
    EGLint i, err = EGL_SUCCESS;
@@ -357,7 +357,7 @@ _eglParseSurfaceAttribList(_EGLSurface *surf, const EGLint *attrib_list)
  * \return EGL_TRUE if no errors, EGL_FALSE otherwise.
  */
 EGLBoolean
-_eglInitSurface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
+_eglInitSurface(_EGLSurface *surf, struct _egl_display *disp, EGLint type,
                 struct _egl_config *conf, const EGLint *attrib_list,
                 void *native_surface)
 {
@@ -454,7 +454,7 @@ _eglInitSurface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
 }
 
 EGLBoolean
-_eglQuerySurface(_EGLDisplay *disp, _EGLSurface *surface, EGLint attribute,
+_eglQuerySurface(struct _egl_display *disp, _EGLSurface *surface, EGLint attribute,
                  EGLint *value)
 {
    switch (attribute) {
@@ -637,7 +637,7 @@ _eglQuerySurface(_EGLDisplay *disp, _EGLSurface *surface, EGLint attribute,
  * Default fallback routine - drivers might override this.
  */
 EGLBoolean
-_eglSurfaceAttrib(_EGLDisplay *disp, _EGLSurface *surface, EGLint attribute,
+_eglSurfaceAttrib(struct _egl_display *disp, _EGLSurface *surface, EGLint attribute,
                   EGLint value)
 {
    EGLint confval;
@@ -760,7 +760,7 @@ _eglSurfaceAttrib(_EGLDisplay *disp, _EGLSurface *surface, EGLint attribute,
 }
 
 EGLBoolean
-_eglBindTexImage(_EGLDisplay *disp, _EGLSurface *surface, EGLint buffer)
+_eglBindTexImage(struct _egl_display *disp, _EGLSurface *surface, EGLint buffer)
 {
    EGLint texture_type = EGL_PBUFFER_BIT;
 
@@ -789,7 +789,7 @@ _eglBindTexImage(_EGLDisplay *disp, _EGLSurface *surface, EGLint buffer)
 }
 
 EGLBoolean
-_eglReleaseTexImage(_EGLDisplay *disp, _EGLSurface *surf, EGLint buffer)
+_eglReleaseTexImage(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer)
 {
    /* Just do basic error checking and return success/fail.
     * Drivers must implement the real stuff.

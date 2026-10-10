@@ -13,7 +13,7 @@ uint32_t
 dri2_fourcc_for_depth(struct dri2_egl_display *dri2_dpy, uint32_t depth);
 
 EGLBoolean
-dri2_x11_get_msc_rate(_EGLDisplay *display, _EGLSurface *surface,
+dri2_x11_get_msc_rate(struct _egl_display *display, _EGLSurface *surface,
                       EGLint *numerator, EGLint *denominator);
 
 #endif

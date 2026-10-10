@@ -96,7 +96,7 @@ static void
 egl_dri3_flush_drawable(struct loader_dri3_drawable *draw, unsigned flags)
 {
    struct dri3_egl_surface *dri3_surf = loader_drawable_to_egl_surface(draw);
-   _EGLDisplay *disp = dri3_surf->surf.base.Resource.Display;
+   struct _egl_display *disp = dri3_surf->surf.base.Resource.Display;
 
    dri2_flush_drawable_for_swapbuffers(disp, &dri3_surf->surf.base);
 }
@@ -110,7 +110,7 @@ static const struct loader_dri3_vtable egl_dri3_vtable = {
 };
 
 static EGLBoolean
-dri3_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
+dri3_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri3_egl_surface *dri3_surf = dri3_egl_surface(surf);
@@ -128,7 +128,7 @@ dri3_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static EGLBoolean
-dri3_set_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
+dri3_set_swap_interval(struct _egl_display *disp, _EGLSurface *surf, EGLint interval)
 {
    struct dri3_egl_surface *dri3_surf = dri3_egl_surface(surf);
 
@@ -154,7 +154,7 @@ egl_to_loader_dri3_drawable_type(EGLint type)
 }
 
 static _EGLSurface *
-dri3_create_surface(_EGLDisplay *disp, EGLint type, struct _egl_config *conf,
+dri3_create_surface(struct _egl_display *disp, EGLint type, struct _egl_config *conf,
                     void *native_surface, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -224,7 +224,7 @@ cleanup_surf:
 }
 
 static int
-dri3_authenticate(_EGLDisplay *disp, uint32_t id)
+dri3_authenticate(struct _egl_display *disp, uint32_t id)
 {
 #ifdef HAVE_WAYLAND_PLATFORM
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -246,7 +246,7 @@ dri3_authenticate(_EGLDisplay *disp, uint32_t id)
  * Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
  */
 static _EGLSurface *
-dri3_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri3_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                            void *native_window, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -261,7 +261,7 @@ dri3_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static _EGLSurface *
-dri3_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri3_create_pixmap_surface(struct _egl_display *disp, struct _egl_config *conf,
                            void *native_pixmap, const EGLint *attrib_list)
 {
    return dri3_create_surface(disp, EGL_PIXMAP_BIT, conf, native_pixmap,
@@ -269,14 +269,14 @@ dri3_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static _EGLSurface *
-dri3_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri3_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                             const EGLint *attrib_list)
 {
    return dri3_create_surface(disp, EGL_PBUFFER_BIT, conf, NULL, attrib_list);
 }
 
 static EGLBoolean
-dri3_get_sync_values(_EGLDisplay *display, _EGLSurface *surface,
+dri3_get_sync_values(struct _egl_display *display, _EGLSurface *surface,
                      EGLuint64KHR *ust, EGLuint64KHR *msc, EGLuint64KHR *sbc)
 {
    struct dri3_egl_surface *dri3_surf = dri3_egl_surface(surface);
@@ -289,7 +289,7 @@ dri3_get_sync_values(_EGLDisplay *display, _EGLSurface *surface,
 }
 
 static _EGLImage *
-dri3_create_image_khr_pixmap(_EGLDisplay *disp, struct _egl_context *ctx,
+dri3_create_image_khr_pixmap(struct _egl_display *disp, struct _egl_context *ctx,
                              EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -335,7 +335,7 @@ dri3_create_image_khr_pixmap(_EGLDisplay *disp, struct _egl_context *ctx,
 }
 
 static _EGLImage *
-dri3_create_image_khr_pixmap_from_buffers(_EGLDisplay *disp, struct _egl_context *ctx,
+dri3_create_image_khr_pixmap_from_buffers(struct _egl_display *disp, struct _egl_context *ctx,
                                           EGLClientBuffer buffer,
                                           const EGLint *attr_list)
 {
@@ -388,7 +388,7 @@ dri3_create_image_khr_pixmap_from_buffers(_EGLDisplay *disp, struct _egl_context
 }
 
 static _EGLImage *
-dri3_create_image_khr(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum target,
+dri3_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -429,7 +429,7 @@ const __DRIimageLoaderExtension dri3_image_loader_extension = {
 };
 
 static EGLBoolean
-dri3_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
+dri3_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
                   const EGLint *rects, EGLint n_rects)
 {
    struct dri3_egl_surface *dri3_surf = dri3_egl_surface(draw);
@@ -440,7 +440,7 @@ dri3_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
 }
 
 static EGLBoolean
-dri3_copy_buffers(_EGLDisplay *disp, _EGLSurface *surf,
+dri3_copy_buffers(struct _egl_display *disp, _EGLSurface *surf,
                   void *native_pixmap_target)
 {
    struct dri3_egl_surface *dri3_surf = dri3_egl_surface(surf);
@@ -456,7 +456,7 @@ dri3_copy_buffers(_EGLDisplay *disp, _EGLSurface *surf,
 }
 
 static int
-dri3_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
+dri3_query_buffer_age(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri3_egl_surface *dri3_surf = dri3_egl_surface(surf);
 
@@ -464,7 +464,7 @@ dri3_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static EGLBoolean
-dri3_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
+dri3_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
                    EGLint *value)
 {
    struct dri3_egl_surface *dri3_surf = dri3_egl_surface(surf);
@@ -482,7 +482,7 @@ dri3_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
 }
 
 static void
-dri3_close_screen_notify(_EGLDisplay *disp)
+dri3_close_screen_notify(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 

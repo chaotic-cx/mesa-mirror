@@ -92,7 +92,7 @@ struct haiku_egl_surface {
 
 // Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
 static _EGLSurface *
-haiku_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
+haiku_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                             void *native_window, const EGLint *attrib_list)
 {
    printf("haiku_create_window_surface\n");
@@ -126,7 +126,7 @@ haiku_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static _EGLSurface *
-haiku_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
+haiku_create_pixmap_surface(struct _egl_display *disp, struct _egl_config *conf,
                             void *native_pixmap, const EGLint *attrib_list)
 {
    printf("haiku_create_pixmap_surface\n");
@@ -134,7 +134,7 @@ haiku_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static _EGLSurface *
-haiku_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
+haiku_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                              const EGLint *attrib_list)
 {
    printf("haiku_create_pbuffer_surface\n");
@@ -168,7 +168,7 @@ haiku_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static EGLBoolean
-haiku_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
+haiku_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct haiku_egl_display *hgl_dpy = haiku_egl_display(disp);
    if (_eglPutSurface(surf)) {
@@ -201,7 +201,7 @@ update_size(struct hgl_buffer *buffer)
 }
 
 static EGLBoolean
-haiku_swap_buffers(_EGLDisplay *disp, _EGLSurface *surf)
+haiku_swap_buffers(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct haiku_egl_display *hgl_dpy = haiku_egl_display(disp);
    struct haiku_egl_surface *hgl_surf = haiku_egl_surface(surf);
@@ -251,7 +251,7 @@ haiku_swap_buffers(_EGLDisplay *disp, _EGLSurface *surf)
 // #pragma mark EGLDisplay
 
 static EGLBoolean
-haiku_add_configs_for_visuals(_EGLDisplay *disp)
+haiku_add_configs_for_visuals(struct _egl_display *disp)
 {
    CALLED();
 
@@ -312,7 +312,7 @@ cleanup:
 }
 
 static void
-haiku_display_destroy(_EGLDisplay *disp)
+haiku_display_destroy(struct _egl_display *disp)
 {
    if (!disp)
       return;
@@ -332,7 +332,7 @@ haiku_display_destroy(_EGLDisplay *disp)
 }
 
 static EGLBoolean
-haiku_initialize_impl(_EGLDisplay *disp, void *platformDisplay)
+haiku_initialize_impl(struct _egl_display *disp, void *platformDisplay)
 {
    struct haiku_egl_display *hgl_dpy;
 
@@ -382,7 +382,7 @@ haiku_initialize_impl(_EGLDisplay *disp, void *platformDisplay)
 }
 
 static EGLBoolean
-haiku_initialize(_EGLDisplay *disp)
+haiku_initialize(struct _egl_display *disp)
 {
    EGLBoolean ret = EGL_FALSE;
    struct haiku_egl_display *hgl_dpy = haiku_egl_display(disp);
@@ -414,7 +414,7 @@ haiku_initialize(_EGLDisplay *disp)
 }
 
 static EGLBoolean
-haiku_terminate(_EGLDisplay *disp)
+haiku_terminate(struct _egl_display *disp)
 {
    haiku_display_destroy(disp);
    return EGL_TRUE;
@@ -423,7 +423,7 @@ haiku_terminate(_EGLDisplay *disp)
 // #pragma mark EGLContext
 
 static struct _egl_context *
-haiku_create_context(_EGLDisplay *disp, struct _egl_config *conf,
+haiku_create_context(struct _egl_display *disp, struct _egl_config *conf,
                      struct _egl_context *share_list, const EGLint *attrib_list)
 {
    CALLED();
@@ -457,7 +457,7 @@ cleanup:
 }
 
 static EGLBoolean
-haiku_destroy_context(_EGLDisplay *disp, struct _egl_context *ctx)
+haiku_destroy_context(struct _egl_display *disp, struct _egl_context *ctx)
 {
    if (_eglPutContext(ctx)) {
       struct haiku_egl_context *hgl_ctx = haiku_egl_context(ctx);
@@ -469,7 +469,7 @@ haiku_destroy_context(_EGLDisplay *disp, struct _egl_context *ctx)
 }
 
 static EGLBoolean
-haiku_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
+haiku_make_current(struct _egl_display *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
                    struct _egl_context *ctx)
 {
    CALLED();

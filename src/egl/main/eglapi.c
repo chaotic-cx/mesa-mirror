@@ -170,7 +170,7 @@ _eglFuncName(const char *funcName)
 #define _EGL_CHECK_SYNC(disp, s, ret) _EGL_CHECK_OBJECT(disp, Sync, s, ret)
 
 static _EGLResource **
-_egl_relax_begin(_EGLDisplay *disp, _EGLResource **rs, unsigned rs_count)
+_egl_relax_begin(struct _egl_display *disp, _EGLResource **rs, unsigned rs_count)
 {
    for (unsigned i = 0; i < rs_count; i++)
       if (rs[i])
@@ -180,7 +180,7 @@ _egl_relax_begin(_EGLDisplay *disp, _EGLResource **rs, unsigned rs_count)
 }
 
 static _EGLResource **
-_egl_relax_end(_EGLDisplay *disp, _EGLResource **rs, unsigned rs_count)
+_egl_relax_end(struct _egl_display *disp, _EGLResource **rs, unsigned rs_count)
 {
    simple_mtx_lock(&disp->Mutex);
    for (unsigned i = 0; i < rs_count; i++)
@@ -206,7 +206,7 @@ struct _egl_entrypoint {
 };
 
 static inline bool
-_eglCheckDisplay(_EGLDisplay *disp, const char *msg)
+_eglCheckDisplay(struct _egl_display *disp, const char *msg)
 {
    if (!disp) {
       _eglError(EGL_BAD_DISPLAY, msg);
@@ -220,7 +220,7 @@ _eglCheckDisplay(_EGLDisplay *disp, const char *msg)
 }
 
 static inline bool
-_eglCheckSurface(_EGLDisplay *disp, _EGLSurface *surf, const char *msg)
+_eglCheckSurface(struct _egl_display *disp, _EGLSurface *surf, const char *msg)
 {
    if (!_eglCheckDisplay(disp, msg))
       return false;
@@ -232,7 +232,7 @@ _eglCheckSurface(_EGLDisplay *disp, _EGLSurface *surf, const char *msg)
 }
 
 static inline bool
-_eglCheckContext(_EGLDisplay *disp, struct _egl_context *context, const char *msg)
+_eglCheckContext(struct _egl_display *disp, struct _egl_context *context, const char *msg)
 {
    if (!_eglCheckDisplay(disp, msg))
       return false;
@@ -244,7 +244,7 @@ _eglCheckContext(_EGLDisplay *disp, struct _egl_context *context, const char *ms
 }
 
 static inline bool
-_eglCheckConfig(_EGLDisplay *disp, struct _egl_config *conf, const char *msg)
+_eglCheckConfig(struct _egl_display *disp, struct _egl_config *conf, const char *msg)
 {
    if (!_eglCheckDisplay(disp, msg))
       return false;
@@ -256,7 +256,7 @@ _eglCheckConfig(_EGLDisplay *disp, struct _egl_config *conf, const char *msg)
 }
 
 static inline bool
-_eglCheckSync(_EGLDisplay *disp, _EGLSync *s, const char *msg)
+_eglCheckSync(struct _egl_display *disp, _EGLSync *s, const char *msg)
 {
    if (!_eglCheckDisplay(disp, msg))
       return false;
@@ -271,14 +271,14 @@ _eglCheckSync(_EGLDisplay *disp, _EGLSync *s, const char *msg)
  * Lookup a handle to find the linked display.
  * Return NULL if the handle has no corresponding linked display.
  */
-static _EGLDisplay *
+static struct _egl_display *
 _eglLookupDisplay(EGLDisplay dpy)
 {
    simple_mtx_lock(_eglGlobal.Mutex);
 
-   _EGLDisplay *cur = _eglGlobal.DisplayList;
+   struct _egl_display *cur = _eglGlobal.DisplayList;
    while (cur) {
-      if (cur == (_EGLDisplay *)dpy)
+      if (cur == (struct _egl_display *)dpy)
          break;
       cur = cur->Next;
    }
@@ -290,10 +290,10 @@ _eglLookupDisplay(EGLDisplay dpy)
 /**
  * Lookup and lock a display.
  */
-_EGLDisplay *
+struct _egl_display *
 _eglLockDisplay(EGLDisplay dpy)
 {
-   _EGLDisplay *disp = _eglLookupDisplay(dpy);
+   struct _egl_display *disp = _eglLookupDisplay(dpy);
    if (disp) {
       u_rwlock_rdlock(&disp->TerminateLock);
       simple_mtx_lock(&disp->Mutex);
@@ -305,10 +305,10 @@ _eglLockDisplay(EGLDisplay dpy)
  * Lookup and write-lock a display. Should only be called from
  * eglTerminate.
  */
-static _EGLDisplay *
+static struct _egl_display *
 _eglWriteLockDisplay(EGLDisplay dpy)
 {
-   _EGLDisplay *disp = _eglLookupDisplay(dpy);
+   struct _egl_display *disp = _eglLookupDisplay(dpy);
    if (disp) {
       u_rwlock_wrlock(&disp->TerminateLock);
       simple_mtx_lock(&disp->Mutex);
@@ -320,14 +320,14 @@ _eglWriteLockDisplay(EGLDisplay dpy)
  * Unlock a display.
  */
 void
-_eglUnlockDisplay(_EGLDisplay *disp)
+_eglUnlockDisplay(struct _egl_display *disp)
 {
    simple_mtx_unlock(&disp->Mutex);
    u_rwlock_rdunlock(&disp->TerminateLock);
 }
 
 static void
-_eglSetFuncName(const char *funcName, _EGLDisplay *disp, EGLenum objectType,
+_eglSetFuncName(const char *funcName, struct _egl_display *disp, EGLenum objectType,
                 _EGLResource *object)
 {
    _EGLThreadInfo *thr = _eglGetCurrentThread();
@@ -409,13 +409,13 @@ _eglConvertAttribsToInt(const EGLAttrib *attr_list)
 
 /**
  * This is typically the first EGL function that an application calls.
- * It associates a private _EGLDisplay object to the native display.
+ * It associates a private struct _egl_display object to the native display.
  */
 PUBLIC EGLDisplay EGLAPIENTRY
 eglGetDisplay(EGLNativeDisplayType nativeDisplay)
 {
    _EGLPlatformType plat;
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
    void *native_display_ptr;
 
 #ifndef HAVE_ANDROID_PLATFORM
@@ -435,7 +435,7 @@ static EGLDisplay
 _eglGetPlatformDisplayCommon(EGLenum platform, void *native_display,
                              const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
 
    switch (platform) {
 #ifdef HAVE_X11_PLATFORM
@@ -536,7 +536,7 @@ _eglAppendExtension(char **str, const char *ext)
  * the driver's Extensions string.
  */
 static void
-_eglCreateExtensionsString(_EGLDisplay *disp)
+_eglCreateExtensionsString(struct _egl_display *disp)
 {
 #define _EGL_CHECK_EXTENSION(ext)                                              \
    do {                                                                        \
@@ -619,7 +619,7 @@ _eglCreateExtensionsString(_EGLDisplay *disp)
 }
 
 static void
-_eglCreateAPIsString(_EGLDisplay *disp)
+_eglCreateAPIsString(struct _egl_display *disp)
 {
 #define addstr(str)                                                            \
    {                                                                           \
@@ -648,7 +648,7 @@ _eglCreateAPIsString(_EGLDisplay *disp)
 }
 
 static void
-_eglComputeVersion(_EGLDisplay *disp)
+_eglComputeVersion(struct _egl_display *disp)
 {
    disp->Version = 14;
 
@@ -676,7 +676,7 @@ _eglComputeVersion(_EGLDisplay *disp)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglInitialize(EGLDisplay dpy, EGLint *major, EGLint *minor)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
 
    util_cpu_trace_init();
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -770,7 +770,7 @@ eglInitialize(EGLDisplay dpy, EGLint *major, EGLint *minor)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglTerminate(EGLDisplay dpy)
 {
-   _EGLDisplay *disp = _eglWriteLockDisplay(dpy);
+   struct _egl_display *disp = _eglWriteLockDisplay(dpy);
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
 
@@ -796,7 +796,7 @@ eglTerminate(EGLDisplay dpy)
 PUBLIC const char *EGLAPIENTRY
 eglQueryString(EGLDisplay dpy, EGLint name)
 {
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
 
 #if !USE_LIBGLVND
    if (dpy == EGL_NO_DISPLAY && name == EGL_EXTENSIONS) {
@@ -826,7 +826,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglGetConfigs(EGLDisplay dpy, EGLConfig *configs, EGLint config_size,
               EGLint *num_config)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLBoolean ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -845,7 +845,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglChooseConfig(EGLDisplay dpy, const EGLint *attrib_list, EGLConfig *configs,
                 EGLint config_size, EGLint *num_config)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLBoolean ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -864,7 +864,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config, EGLint attribute,
                    EGLint *value)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_config *conf = _eglLookupConfig(config, disp);
    EGLBoolean ret;
 
@@ -881,7 +881,7 @@ PUBLIC EGLContext EGLAPIENTRY
 eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_list,
                  const EGLint *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_config *conf = _eglLookupConfig(config, disp);
    struct _egl_context *share = _eglLookupContext(share_list, disp);
    struct _egl_context *context;
@@ -919,7 +919,7 @@ eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_list,
 PUBLIC EGLBoolean EGLAPIENTRY
 eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_context *context = _eglLookupContext(ctx, disp);
    EGLBoolean ret;
 
@@ -935,7 +935,7 @@ eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_context *context = _eglLookupContext(ctx, disp);
    _EGLSurface *draw_surf = _eglLookupSurface(draw, disp);
    _EGLSurface *read_surf = _eglLookupSurface(read, disp);
@@ -1000,7 +1000,7 @@ eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglQueryContext(EGLDisplay dpy, EGLContext ctx, EGLint attribute, EGLint *value)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_context *context = _eglLookupContext(ctx, disp);
    EGLBoolean ret;
 
@@ -1018,7 +1018,7 @@ eglQueryContext(EGLDisplay dpy, EGLContext ctx, EGLint attribute, EGLint *value)
  * can't create a new one. This is what this function checks for.
  */
 static bool
-_eglNativeSurfaceAlreadyUsed(_EGLDisplay *disp, void *native_surface)
+_eglNativeSurfaceAlreadyUsed(struct _egl_display *disp, void *native_surface)
 {
    _EGLResource *list;
 
@@ -1041,7 +1041,7 @@ _eglNativeSurfaceAlreadyUsed(_EGLDisplay *disp, void *native_surface)
 }
 
 static EGLSurface
-_eglCreateWindowSurfaceCommon(_EGLDisplay *disp, EGLConfig config,
+_eglCreateWindowSurfaceCommon(struct _egl_display *disp, EGLConfig config,
                               void *native_window, const EGLint *attrib_list)
 {
    struct _egl_config *conf = _eglLookupConfig(config, disp);
@@ -1089,7 +1089,7 @@ PUBLIC EGLSurface EGLAPIENTRY
 eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config,
                        EGLNativeWindowType window, const EGLint *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
    STATIC_ASSERT(sizeof(void *) == sizeof(window));
@@ -1098,7 +1098,7 @@ eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config,
 }
 
 static void *
-_fixupNativeWindow(_EGLDisplay *disp, void *native_window)
+_fixupNativeWindow(struct _egl_display *disp, void *native_window)
 {
 #ifdef HAVE_X11_PLATFORM
    if (disp && disp->Platform == _EGL_PLATFORM_X11 && native_window != NULL) {
@@ -1129,7 +1129,7 @@ eglCreatePlatformWindowSurfaceEXT(EGLDisplay dpy, EGLConfig config,
                                   void *native_window,
                                   const EGLint *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
 
    native_window = _fixupNativeWindow(disp, native_window);
 
@@ -1143,7 +1143,7 @@ eglCreatePlatformWindowSurface(EGLDisplay dpy, EGLConfig config,
                                void *native_window,
                                const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLSurface surface;
    EGLint *int_attribs;
 
@@ -1161,7 +1161,7 @@ eglCreatePlatformWindowSurface(EGLDisplay dpy, EGLConfig config,
 }
 
 static void *
-_fixupNativePixmap(_EGLDisplay *disp, void *native_pixmap)
+_fixupNativePixmap(struct _egl_display *disp, void *native_pixmap)
 {
 #ifdef HAVE_X11_PLATFORM
    /* The `native_pixmap` parameter for the X11 platform differs between
@@ -1187,7 +1187,7 @@ _fixupNativePixmap(_EGLDisplay *disp, void *native_pixmap)
 }
 
 static EGLSurface
-_eglCreatePixmapSurfaceCommon(_EGLDisplay *disp, EGLConfig config,
+_eglCreatePixmapSurfaceCommon(struct _egl_display *disp, EGLConfig config,
                               void *native_pixmap, const EGLint *attrib_list)
 {
    struct _egl_config *conf = _eglLookupConfig(config, disp);
@@ -1233,7 +1233,7 @@ PUBLIC EGLSurface EGLAPIENTRY
 eglCreatePixmapSurface(EGLDisplay dpy, EGLConfig config,
                        EGLNativePixmapType pixmap, const EGLint *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
    STATIC_ASSERT(sizeof(void *) == sizeof(pixmap));
@@ -1246,7 +1246,7 @@ eglCreatePlatformPixmapSurfaceEXT(EGLDisplay dpy, EGLConfig config,
                                   void *native_pixmap,
                                   const EGLint *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
    native_pixmap = _fixupNativePixmap(disp, native_pixmap);
@@ -1259,7 +1259,7 @@ eglCreatePlatformPixmapSurface(EGLDisplay dpy, EGLConfig config,
                                void *native_pixmap,
                                const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLSurface surface;
    EGLint *int_attribs;
 
@@ -1280,7 +1280,7 @@ PUBLIC EGLSurface EGLAPIENTRY
 eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config,
                         const EGLint *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_config *conf = _eglLookupConfig(config, disp);
    _EGLSurface *surf = NULL;
    EGLSurface ret;
@@ -1302,7 +1302,7 @@ eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config,
 PUBLIC EGLBoolean EGLAPIENTRY
 eglDestroySurface(EGLDisplay dpy, EGLSurface surface)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -1320,7 +1320,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglQuerySurface(EGLDisplay dpy, EGLSurface surface, EGLint attribute,
                 EGLint *value)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret;
 
@@ -1339,7 +1339,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surface, EGLint attribute,
                  EGLint value)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret;
 
@@ -1354,7 +1354,7 @@ eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surface, EGLint attribute,
 PUBLIC EGLBoolean EGLAPIENTRY
 eglBindTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -1371,7 +1371,7 @@ eglBindTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglReleaseTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -1388,7 +1388,7 @@ eglReleaseTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglSwapInterval(EGLDisplay dpy, EGLint interval)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_context *ctx = _eglGetCurrentContext();
    _EGLSurface *surf = ctx ? ctx->DrawSurface : NULL;
    EGLBoolean ret = EGL_FALSE;
@@ -1427,7 +1427,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -1469,7 +1469,7 @@ eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
 }
 
 static EGLBoolean
-_eglSwapBuffersWithDamageCommon(_EGLDisplay *disp, _EGLSurface *surf,
+_eglSwapBuffersWithDamageCommon(struct _egl_display *disp, _EGLSurface *surf,
                                 const EGLint *rects, EGLint n_rects)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
@@ -1507,7 +1507,7 @@ static EGLBoolean EGLAPIENTRY
 eglSwapBuffersWithDamageEXT(EGLDisplay dpy, EGLSurface surface,
                             const EGLint *rects, EGLint n_rects)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
    return _eglSwapBuffersWithDamageCommon(disp, surf, rects, n_rects);
@@ -1517,7 +1517,7 @@ static EGLBoolean EGLAPIENTRY
 eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface surface,
                             const EGLint *rects, EGLint n_rects)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
    return _eglSwapBuffersWithDamageCommon(disp, surf, rects, n_rects);
@@ -1553,7 +1553,7 @@ static EGLBoolean EGLAPIENTRY
 eglSetDamageRegionKHR(EGLDisplay dpy, EGLSurface surface, EGLint *rects,
                       EGLint n_rects)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
    struct _egl_context *ctx = _eglGetCurrentContext();
@@ -1585,7 +1585,7 @@ eglSetDamageRegionKHR(EGLDisplay dpy, EGLSurface surface, EGLint *rects,
 PUBLIC EGLBoolean EGLAPIENTRY
 eglCopyBuffers(EGLDisplay dpy, EGLSurface surface, EGLNativePixmapType target)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
    void *native_pixmap_ptr;
@@ -1609,7 +1609,7 @@ static EGLBoolean
 _eglWaitClientCommon(void)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
    EGLBoolean ret = EGL_FALSE;
 
    if (!ctx)
@@ -1652,7 +1652,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglWaitNative(EGLint engine)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
    EGLBoolean ret = EGL_FALSE;
 
    if (!ctx)
@@ -1791,7 +1791,7 @@ eglCreatePbufferFromClientBuffer(EGLDisplay dpy, EGLenum buftype,
                                  EGLClientBuffer buffer, EGLConfig config,
                                  const EGLint *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_config *conf = _eglLookupConfig(config, disp);
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -1812,7 +1812,7 @@ eglReleaseThread(void)
    _EGL_FUNC_START(NULL, EGL_OBJECT_THREAD_KHR, NULL);
 
    if (ctx) {
-      _EGLDisplay *disp = ctx->Resource.Display;
+      struct _egl_display *disp = ctx->Resource.Display;
 
       u_rwlock_rdlock(&disp->TerminateLock);
       (void)Driver.MakeCurrent(disp, NULL, NULL, NULL);
@@ -1825,7 +1825,7 @@ eglReleaseThread(void)
 }
 
 static EGLImage
-_eglCreateImageCommon(_EGLDisplay *disp, EGLContext ctx, EGLenum target,
+_eglCreateImageCommon(struct _egl_display *disp, EGLContext ctx, EGLenum target,
                       EGLClientBuffer buffer, const EGLint *attr_list)
 {
    struct _egl_context *context = _eglLookupContext(ctx, disp);
@@ -1857,7 +1857,7 @@ static EGLImage EGLAPIENTRY
 eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target,
                   EGLClientBuffer buffer, const EGLint *attr_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
    return _eglCreateImageCommon(disp, ctx, target, buffer, attr_list);
 }
@@ -1866,7 +1866,7 @@ PUBLIC EGLImage EGLAPIENTRY
 eglCreateImage(EGLDisplay dpy, EGLContext ctx, EGLenum target,
                EGLClientBuffer buffer, const EGLAttrib *attr_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLImage image;
    EGLint *int_attribs;
 
@@ -1882,7 +1882,7 @@ eglCreateImage(EGLDisplay dpy, EGLContext ctx, EGLenum target,
 }
 
 static EGLBoolean
-_eglDestroyImageCommon(_EGLDisplay *disp, _EGLImage *img)
+_eglDestroyImageCommon(struct _egl_display *disp, _EGLImage *img)
 {
    EGLBoolean ret;
 
@@ -1901,7 +1901,7 @@ _eglDestroyImageCommon(_EGLDisplay *disp, _EGLImage *img)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglDestroyImage(EGLDisplay dpy, EGLImage image)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLImage *img = _eglLookupImage(image, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_IMAGE_KHR, img);
    return _eglDestroyImageCommon(disp, img);
@@ -1910,14 +1910,14 @@ eglDestroyImage(EGLDisplay dpy, EGLImage image)
 static EGLBoolean EGLAPIENTRY
 eglDestroyImageKHR(EGLDisplay dpy, EGLImage image)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLImage *img = _eglLookupImage(image, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_IMAGE_KHR, img);
    return _eglDestroyImageCommon(disp, img);
 }
 
 static EGLSync
-_eglCreateSync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list,
+_eglCreateSync(struct _egl_display *disp, EGLenum type, const EGLAttrib *attrib_list,
                EGLBoolean orig_is_EGLAttrib, EGLenum invalid_type_error)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
@@ -1983,7 +1983,7 @@ _eglCreateSync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list,
 static EGLSync EGLAPIENTRY
 eglCreateSyncKHR(EGLDisplay dpy, EGLenum type, const EGLint *int_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
 
    EGLSync sync;
@@ -2010,7 +2010,7 @@ eglCreateSyncKHR(EGLDisplay dpy, EGLenum type, const EGLint *int_list)
 static EGLSync EGLAPIENTRY
 eglCreateSync64KHR(EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
    return _eglCreateSync(disp, type, attrib_list, EGL_TRUE, EGL_BAD_ATTRIBUTE);
 }
@@ -2018,13 +2018,13 @@ eglCreateSync64KHR(EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list)
 PUBLIC EGLSync EGLAPIENTRY
 eglCreateSync(EGLDisplay dpy, EGLenum type, const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
    return _eglCreateSync(disp, type, attrib_list, EGL_TRUE, EGL_BAD_PARAMETER);
 }
 
 static EGLBoolean
-_eglDestroySync(_EGLDisplay *disp, _EGLSync *s)
+_eglDestroySync(struct _egl_display *disp, _EGLSync *s)
 {
    EGLBoolean ret = EGL_FALSE;
 
@@ -2045,7 +2045,7 @@ _eglDestroySync(_EGLDisplay *disp, _EGLSync *s)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglDestroySync(EGLDisplay dpy, EGLSync sync)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglDestroySync(disp, s);
@@ -2054,14 +2054,14 @@ eglDestroySync(EGLDisplay dpy, EGLSync sync)
 static EGLBoolean EGLAPIENTRY
 eglDestroySyncKHR(EGLDisplay dpy, EGLSync sync)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglDestroySync(disp, s);
 }
 
 static EGLint
-_eglClientWaitSyncCommon(_EGLDisplay *disp, _EGLSync *s, EGLint flags,
+_eglClientWaitSyncCommon(struct _egl_display *disp, _EGLSync *s, EGLint flags,
                          EGLTime timeout)
 {
    EGLint ret = EGL_FALSE;
@@ -2084,7 +2084,7 @@ _eglClientWaitSyncCommon(_EGLDisplay *disp, _EGLSync *s, EGLint flags,
 PUBLIC EGLint EGLAPIENTRY
 eglClientWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTime timeout)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglClientWaitSyncCommon(disp, s, flags, timeout);
@@ -2094,14 +2094,14 @@ static EGLint EGLAPIENTRY
 eglClientWaitSyncKHR(EGLDisplay dpy, EGLSync sync, EGLint flags,
                      EGLTime timeout)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglClientWaitSyncCommon(disp, s, flags, timeout);
 }
 
 static EGLint
-_eglWaitSyncCommon(_EGLDisplay *disp, _EGLSync *s, EGLint flags)
+_eglWaitSyncCommon(struct _egl_display *disp, _EGLSync *s, EGLint flags)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
    EGLint ret = EGL_FALSE;
@@ -2126,7 +2126,7 @@ _eglWaitSyncCommon(_EGLDisplay *disp, _EGLSync *s, EGLint flags)
 static EGLint EGLAPIENTRY
 eglWaitSyncKHR(EGLDisplay dpy, EGLSync sync, EGLint flags)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglWaitSyncCommon(disp, s, flags);
@@ -2139,7 +2139,7 @@ eglWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags)
     * EGLBoolean. In both cases, the return values can only be EGL_FALSE and
     * EGL_TRUE.
     */
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
    return _eglWaitSyncCommon(disp, s, flags);
@@ -2148,7 +2148,7 @@ eglWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags)
 static EGLBoolean EGLAPIENTRY
 eglSignalSyncKHR(EGLDisplay dpy, EGLSync sync, EGLenum mode)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -2165,7 +2165,7 @@ eglSignalSyncKHR(EGLDisplay dpy, EGLSync sync, EGLenum mode)
 }
 
 static EGLBoolean
-_eglGetSyncAttribCommon(_EGLDisplay *disp, _EGLSync *s, EGLint attribute,
+_eglGetSyncAttribCommon(struct _egl_display *disp, _EGLSync *s, EGLint attribute,
                         EGLAttrib *value)
 {
    EGLBoolean ret;
@@ -2184,7 +2184,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglGetSyncAttrib(EGLDisplay dpy, EGLSync sync, EGLint attribute,
                  EGLAttrib *value)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SYNC_KHR, s);
 
@@ -2198,7 +2198,7 @@ static EGLBoolean EGLAPIENTRY
 eglGetSyncAttribKHR(EGLDisplay dpy, EGLSync sync, EGLint attribute,
                     EGLint *value)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    EGLAttrib attrib;
    EGLBoolean result;
@@ -2225,7 +2225,7 @@ eglGetSyncAttribKHR(EGLDisplay dpy, EGLSync sync, EGLint attribute,
 static EGLint EGLAPIENTRY
 eglDupNativeFenceFDANDROID(EGLDisplay dpy, EGLSync sync)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSync *s = _eglLookupSync(sync, disp);
    EGLint ret = EGL_NO_NATIVE_FENCE_FD_ANDROID;
 
@@ -2254,7 +2254,7 @@ struct wl_display;
 static EGLBoolean EGLAPIENTRY
 eglBindWaylandDisplayWL(EGLDisplay dpy, struct wl_display *display)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -2275,7 +2275,7 @@ eglBindWaylandDisplayWL(EGLDisplay dpy, struct wl_display *display)
 static EGLBoolean EGLAPIENTRY
 eglUnbindWaylandDisplayWL(EGLDisplay dpy, struct wl_display *display)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -2297,7 +2297,7 @@ static EGLBoolean EGLAPIENTRY
 eglQueryWaylandBufferWL(EGLDisplay dpy, struct wl_resource *buffer,
                         EGLint attribute, EGLint *value)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -2318,7 +2318,7 @@ eglQueryWaylandBufferWL(EGLDisplay dpy, struct wl_resource *buffer,
 static struct wl_buffer *EGLAPIENTRY
 eglCreateWaylandBufferFromImageWL(EGLDisplay dpy, EGLImage image)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLImage *img;
    struct wl_buffer *ret;
 
@@ -2343,7 +2343,7 @@ static EGLBoolean EGLAPIENTRY
 eglGetSyncValuesCHROMIUM(EGLDisplay dpy, EGLSurface surface, EGLuint64KHR *ust,
                          EGLuint64KHR *msc, EGLuint64KHR *sbc)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -2367,7 +2367,7 @@ static EGLBoolean EGLAPIENTRY
 eglGetMscRateANGLE(EGLDisplay dpy, EGLSurface surface, EGLint *numerator,
                    EGLint *denominator)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLSurface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret;
 
@@ -2389,7 +2389,7 @@ static EGLBoolean EGLAPIENTRY
 eglExportDMABUFImageQueryMESA(EGLDisplay dpy, EGLImage image, EGLint *fourcc,
                               EGLint *nplanes, EGLuint64KHR *modifiers)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLImage *img = _eglLookupImage(image, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -2413,7 +2413,7 @@ static EGLBoolean EGLAPIENTRY
 eglExportDMABUFImageMESA(EGLDisplay dpy, EGLImage image, int *fds,
                          EGLint *strides, EGLint *offsets)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGLImage *img = _eglLookupImage(image, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -2437,7 +2437,7 @@ static EGLint EGLAPIENTRY
 eglLabelObjectKHR(EGLDisplay dpy, EGLenum objectType, EGLObjectKHR object,
                   EGLLabelKHR label)
 {
-   _EGLDisplay *disp = NULL;
+   struct _egl_display *disp = NULL;
    _EGLResourceType type;
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
@@ -2582,7 +2582,7 @@ static EGLBoolean EGLAPIENTRY
 eglQueryDmaBufFormatsEXT(EGLDisplay dpy, EGLint max_formats, EGLint *formats,
                          EGLint *num_formats)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
@@ -2602,7 +2602,7 @@ eglQueryDmaBufModifiersEXT(EGLDisplay dpy, EGLint format, EGLint max_modifiers,
                            EGLuint64KHR *modifiers, EGLBoolean *external_only,
                            EGLint *num_modifiers)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
@@ -2623,7 +2623,7 @@ eglQuerySupportedCompressionRatesEXT(EGLDisplay dpy, EGLConfig config,
                                      EGLint *rates, EGLint rate_size,
                                      EGLint *num_rates)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_config *conf = _eglLookupConfig(config, disp);
    EGLBoolean ret = EGL_FALSE;
 
@@ -2649,7 +2649,7 @@ static void EGLAPIENTRY
 eglSetBlobCacheFuncsANDROID(EGLDisplay *dpy, EGLSetBlobFuncANDROID set,
                             EGLGetBlobFuncANDROID get)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    _EGL_FUNC_START(disp, EGL_NONE, NULL);
 
    _EGL_CHECK_DISPLAY(disp, /* void */);
@@ -2724,7 +2724,7 @@ eglQueryDevicesEXT(EGLint max_devices, EGLDeviceEXT *devices,
 static EGLBoolean EGLAPIENTRY
 eglQueryDisplayAttribEXT(EGLDisplay dpy, EGLint attribute, EGLAttrib *value)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
    _EGL_CHECK_DISPLAY(disp, EGL_FALSE);
@@ -2742,7 +2742,7 @@ eglQueryDisplayAttribEXT(EGLDisplay dpy, EGLint attribute, EGLAttrib *value)
 static char *EGLAPIENTRY
 eglGetDisplayDriverConfig(EGLDisplay dpy)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    char *ret;
 
    _EGL_FUNC_START(disp, EGL_NONE, NULL);
@@ -2757,7 +2757,7 @@ eglGetDisplayDriverConfig(EGLDisplay dpy)
 static const char *EGLAPIENTRY
 eglGetDisplayDriverName(EGLDisplay dpy)
 {
-   _EGLDisplay *disp = _eglLockDisplay(dpy);
+   struct _egl_display *disp = _eglLockDisplay(dpy);
    const char *ret;
 
    _EGL_FUNC_START(disp, EGL_NONE, NULL);
@@ -2801,7 +2801,7 @@ eglGetProcAddress(const char *procname)
 }
 
 static int
-_eglLockDisplayInterop(EGLDisplay dpy, EGLContext context, _EGLDisplay **disp,
+_eglLockDisplayInterop(EGLDisplay dpy, EGLContext context, struct _egl_display **disp,
                        struct _egl_context **ctx)
 {
 
@@ -2825,7 +2825,7 @@ PUBLIC int
 MesaGLInteropEGLQueryDeviceInfo(EGLDisplay dpy, EGLContext context,
                                 struct mesa_glinterop_device_info *out)
 {
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
    struct _egl_context *ctx;
    int ret;
 
@@ -2847,7 +2847,7 @@ MesaGLInteropEGLExportObject(EGLDisplay dpy, EGLContext context,
                              struct mesa_glinterop_export_in *in,
                              struct mesa_glinterop_export_out *out)
 {
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
    struct _egl_context *ctx;
    int ret;
 
@@ -2869,7 +2869,7 @@ MesaGLInteropEGLFlushObjects(EGLDisplay dpy, EGLContext context, unsigned count,
                              struct mesa_glinterop_export_in *objects,
                              struct mesa_glinterop_flush_out *out)
 {
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
    struct _egl_context *ctx;
    int ret;
 

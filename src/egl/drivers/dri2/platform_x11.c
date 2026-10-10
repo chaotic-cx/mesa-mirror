@@ -407,7 +407,7 @@ dri2_x11_get_red_mask_for_depth(struct dri2_egl_display *dri2_dpy, int depth)
  * Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
  */
 static _EGLSurface *
-dri2_x11_create_surface(_EGLDisplay *disp, EGLint type, struct _egl_config *conf,
+dri2_x11_create_surface(struct _egl_display *disp, EGLint type, struct _egl_config *conf,
                         void *native_surface, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -496,7 +496,7 @@ cleanup_surf:
  * Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
  */
 static _EGLSurface *
-dri2_x11_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri2_x11_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                                void *native_window, const EGLint *attrib_list)
 {
    _EGLSurface *surf;
@@ -514,7 +514,7 @@ dri2_x11_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static _EGLSurface *
-dri2_x11_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri2_x11_create_pixmap_surface(struct _egl_display *disp, struct _egl_config *conf,
                                void *native_pixmap, const EGLint *attrib_list)
 {
    return dri2_x11_create_surface(disp, EGL_PIXMAP_BIT, conf, native_pixmap,
@@ -522,7 +522,7 @@ dri2_x11_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static _EGLSurface *
-dri2_x11_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri2_x11_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                                 const EGLint *attrib_list)
 {
    return dri2_x11_create_surface(disp, EGL_PBUFFER_BIT, conf, NULL,
@@ -530,7 +530,7 @@ dri2_x11_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static EGLBoolean
-dri2_x11_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
+dri2_x11_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
@@ -558,7 +558,7 @@ dri2_x11_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
  * have.
  */
 static EGLBoolean
-dri2_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
+dri2_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
                    EGLint *value)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -586,7 +586,7 @@ dri2_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
 
 static void
 dri2_x11_add_configs_for_visuals(struct dri2_egl_display *dri2_dpy,
-                                 _EGLDisplay *disp, bool supports_preserved)
+                                 struct _egl_display *disp, bool supports_preserved)
 {
    xcb_depth_iterator_t d;
    xcb_visualtype_t *visuals;
@@ -685,7 +685,7 @@ dri2_x11_add_configs_for_visuals(struct dri2_egl_display *dri2_dpy,
 }
 
 static EGLBoolean
-dri2_x11_kopper_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
+dri2_x11_kopper_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
                              const EGLint *rects, EGLint numRects)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
@@ -705,7 +705,7 @@ dri2_x11_kopper_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
 }
 
 static EGLBoolean
-dri2_x11_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
+dri2_x11_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
                       const EGLint *rects, EGLint numRects)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
@@ -714,7 +714,7 @@ dri2_x11_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
 }
 
 static EGLBoolean
-dri2_x11_copy_buffers(_EGLDisplay *disp, _EGLSurface *surf,
+dri2_x11_copy_buffers(struct _egl_display *disp, _EGLSurface *surf,
                       void *native_pixmap_target)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -768,7 +768,7 @@ dri2_fourcc_for_depth(struct dri2_egl_display *dri2_dpy, uint32_t depth)
 }
 
 EGLBoolean
-dri2_x11_get_msc_rate(_EGLDisplay *display, _EGLSurface *surface,
+dri2_x11_get_msc_rate(struct _egl_display *display, _EGLSurface *surface,
                       EGLint *numerator, EGLint *denominator)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(display);
@@ -843,7 +843,7 @@ dri2_x11_get_msc_rate(_EGLDisplay *display, _EGLSurface *surface,
 }
 
 static EGLBoolean
-dri2_kopper_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
+dri2_kopper_swap_interval(struct _egl_display *disp, _EGLSurface *surf, EGLint interval)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -853,7 +853,7 @@ dri2_kopper_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
 }
 
 static _EGLSurface *
-dri2_kopper_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
+dri2_kopper_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                                   void *native_window,
                                   const EGLint *attrib_list)
 {
@@ -876,7 +876,7 @@ dri2_kopper_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static EGLint
-dri2_kopper_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
+dri2_kopper_query_buffer_age(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -884,7 +884,7 @@ dri2_kopper_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static EGLint
-dri2_swrast_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surf)
+dri2_swrast_query_buffer_age(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -1002,7 +1002,7 @@ static const struct dri_loader_funcs swrast_loader_shm_funcs = {
 };
 
 static int
-dri2_find_screen_for_display(const _EGLDisplay *disp, int fallback_screen)
+dri2_find_screen_for_display(const struct _egl_display *disp, int fallback_screen)
 {
    const EGLAttrib *attr;
 
@@ -1019,7 +1019,7 @@ dri2_find_screen_for_display(const _EGLDisplay *disp, int fallback_screen)
 }
 
 static EGLBoolean
-dri2_get_xcb_connection(_EGLDisplay *disp, struct dri2_egl_display *dri2_dpy)
+dri2_get_xcb_connection(struct _egl_display *disp, struct dri2_egl_display *dri2_dpy)
 {
    xcb_screen_iterator_t s;
    int screen;
@@ -1060,7 +1060,7 @@ disconnect:
 }
 
 static void
-dri2_x11_setup_swap_interval(_EGLDisplay *disp)
+dri2_x11_setup_swap_interval(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    int arbitrary_max_interval = 1000;
@@ -1085,7 +1085,7 @@ dri2_x11_setup_swap_interval(_EGLDisplay *disp)
 }
 
 static bool
-platform_x11_finalize(_EGLDisplay *disp, bool force_zink)
+platform_x11_finalize(struct _egl_display *disp, bool force_zink)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -1128,7 +1128,7 @@ platform_x11_finalize(_EGLDisplay *disp, bool force_zink)
 }
 
 static EGLBoolean
-dri2_initialize_x11_kopper(_EGLDisplay *disp, bool force_zink)
+dri2_initialize_x11_kopper(struct _egl_display *disp, bool force_zink)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -1146,7 +1146,7 @@ dri2_initialize_x11_kopper(_EGLDisplay *disp, bool force_zink)
 }
 
 static EGLBoolean
-dri2_initialize_x11_swrast(_EGLDisplay *disp)
+dri2_initialize_x11_swrast(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -1174,7 +1174,7 @@ static const struct dri_loader_funcs dri3_image_loader_funcs = {
 };
 
 static EGLBoolean
-dri2_initialize_x11_dri3(_EGLDisplay *disp)
+dri2_initialize_x11_dri3(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -1198,7 +1198,7 @@ dri2_initialize_x11_dri3(_EGLDisplay *disp)
 #endif
 
 EGLBoolean
-dri2_initialize_x11(_EGLDisplay *disp)
+dri2_initialize_x11(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 

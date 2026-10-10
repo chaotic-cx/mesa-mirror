@@ -51,7 +51,7 @@
  * IDs are from 1 to N respectively.
  */
 void
-_eglInitConfig(struct _egl_config *conf, _EGLDisplay *disp, EGLint id)
+_eglInitConfig(struct _egl_config *conf, struct _egl_display *disp, EGLint id)
 {
    memset(conf, 0, sizeof(*conf));
 
@@ -75,7 +75,7 @@ _eglInitConfig(struct _egl_config *conf, _EGLDisplay *disp, EGLint id)
 EGLConfig
 _eglLinkConfig(struct _egl_config *conf)
 {
-   _EGLDisplay *disp = conf->Display;
+   struct _egl_display *disp = conf->Display;
 
    /* sanity check */
    assert(disp);
@@ -97,7 +97,7 @@ _eglLinkConfig(struct _egl_config *conf)
  * Return NULL if the handle has no corresponding linked config.
  */
 struct _egl_config *
-_eglLookupConfig(EGLConfig config, _EGLDisplay *disp)
+_eglLookupConfig(EGLConfig config, struct _egl_display *disp)
 {
    struct _egl_config *conf;
 
@@ -266,7 +266,7 @@ static const struct {
 EGLBoolean
 _eglValidateConfig(const struct _egl_config *conf, EGLBoolean for_matching)
 {
-   _EGLDisplay *disp = conf->Display;
+   struct _egl_display *disp = conf->Display;
    EGLint i, attr, val;
    EGLBoolean valid = EGL_TRUE;
 
@@ -512,7 +512,7 @@ _eglIsConfigAttribValid(const struct _egl_config *conf, EGLint attr)
  * Return EGL_FALSE if any of the attribute is invalid.
  */
 EGLBoolean
-_eglParseConfigAttribList(struct _egl_config *conf, _EGLDisplay *disp,
+_eglParseConfigAttribList(struct _egl_config *conf, struct _egl_display *disp,
                           const EGLint *attrib_list)
 {
    EGLint attr, val, i;
@@ -763,7 +763,7 @@ _eglFallbackCompare(const struct _egl_config *conf1, const struct _egl_config *c
  * Typical fallback routine for eglChooseConfig
  */
 EGLBoolean
-_eglChooseConfig(_EGLDisplay *disp, const EGLint *attrib_list,
+_eglChooseConfig(struct _egl_display *disp, const EGLint *attrib_list,
                  EGLConfig *configs, EGLint config_size, EGLint *num_configs)
 {
    struct _egl_config criteria;
@@ -786,7 +786,7 @@ _eglChooseConfig(_EGLDisplay *disp, const EGLint *attrib_list,
  * Fallback for eglGetConfigAttrib.
  */
 EGLBoolean
-_eglGetConfigAttrib(const _EGLDisplay *disp, const struct _egl_config *conf,
+_eglGetConfigAttrib(const struct _egl_display *disp, const struct _egl_config *conf,
                     EGLint attribute, EGLint *value)
 {
    if (!_eglIsConfigAttribValid(conf, attribute))
@@ -821,7 +821,7 @@ _eglFlattenConfig(void *elem, void *buffer)
  * Fallback for eglGetConfigs.
  */
 EGLBoolean
-_eglGetConfigs(_EGLDisplay *disp, EGLConfig *configs, EGLint config_size,
+_eglGetConfigs(struct _egl_display *disp, EGLConfig *configs, EGLint config_size,
                EGLint *num_config)
 {
    *num_config =

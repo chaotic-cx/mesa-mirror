@@ -80,7 +80,7 @@ typedef enum _egl_resource_type _EGLResourceType;
  */
 struct _egl_resource {
    /* which display the resource belongs to */
-   _EGLDisplay *Display;
+   struct _egl_display *Display;
    EGLBoolean IsLinked;
    EGLint RefCount;
 
@@ -162,7 +162,7 @@ struct _egl_extensions {
 
 struct _egl_display {
    /* used to link displays */
-   _EGLDisplay *Next;
+   struct _egl_display *Next;
 
    /**
     * The big-display-lock (BDL) which protects our internal state.  EGL
@@ -230,11 +230,11 @@ struct _egl_display {
    EGLGetBlobFuncANDROID BlobCacheGet;
 };
 
-extern _EGLDisplay *
+extern struct _egl_display *
 _eglLockDisplay(EGLDisplay dpy);
 
 extern void
-_eglUnlockDisplay(_EGLDisplay *disp);
+_eglUnlockDisplay(struct _egl_display *disp);
 
 extern _EGLPlatformType
 _eglGetNativePlatform(void *nativeDisplay);
@@ -242,29 +242,29 @@ _eglGetNativePlatform(void *nativeDisplay);
 extern void
 _eglFiniDisplay(void);
 
-extern _EGLDisplay *
+extern struct _egl_display *
 _eglFindDisplay(_EGLPlatformType plat, void *plat_dpy, const EGLAttrib *attr);
 
 extern void
-_eglReleaseDisplayResources(_EGLDisplay *disp);
+_eglReleaseDisplayResources(struct _egl_display *disp);
 
 extern void
-_eglCleanupDisplay(_EGLDisplay *disp);
+_eglCleanupDisplay(struct _egl_display *disp);
 
 extern EGLBoolean
-_eglCheckResource(void *res, _EGLResourceType type, _EGLDisplay *disp);
+_eglCheckResource(void *res, _EGLResourceType type, struct _egl_display *disp);
 
 /**
  * Return the handle of a linked display, or EGL_NO_DISPLAY.
  */
 static inline EGLDisplay
-_eglGetDisplayHandle(_EGLDisplay *disp)
+_eglGetDisplayHandle(struct _egl_display *disp)
 {
    return (EGLDisplay)((disp) ? disp : EGL_NO_DISPLAY);
 }
 
 static inline EGLBoolean
-_eglHasAttrib(_EGLDisplay *disp, EGLAttrib attrib)
+_eglHasAttrib(struct _egl_display *disp, EGLAttrib attrib)
 {
    EGLAttrib *attribs = disp->Options.Attribs;
 
@@ -281,7 +281,7 @@ _eglHasAttrib(_EGLDisplay *disp, EGLAttrib attrib)
 }
 
 extern void
-_eglInitResource(_EGLResource *res, EGLint size, _EGLDisplay *disp);
+_eglInitResource(_EGLResource *res, EGLint size, struct _egl_display *disp);
 
 extern void
 _eglGetResource(_EGLResource *res);
@@ -318,13 +318,13 @@ _eglNumAttribs(const EGLAttrib *attribs)
 }
 
 #ifdef HAVE_X11_PLATFORM
-_EGLDisplay *
+struct _egl_display *
 _eglGetX11Display(Display *native_display, const EGLAttrib *attrib_list);
 #endif
 
 #ifdef HAVE_XCB_PLATFORM
 typedef struct xcb_connection_t xcb_connection_t;
-_EGLDisplay *
+struct _egl_display *
 _eglGetXcbDisplay(xcb_connection_t *native_display,
                   const EGLAttrib *attrib_list);
 #endif
@@ -332,7 +332,7 @@ _eglGetXcbDisplay(xcb_connection_t *native_display,
 #ifdef HAVE_DRM_PLATFORM
 struct gbm_device;
 
-_EGLDisplay *
+struct _egl_display *
 _eglGetGbmDisplay(struct gbm_device *native_display,
                   const EGLAttrib *attrib_list);
 #endif
@@ -340,20 +340,20 @@ _eglGetGbmDisplay(struct gbm_device *native_display,
 #ifdef HAVE_WAYLAND_PLATFORM
 struct wl_display;
 
-_EGLDisplay *
+struct _egl_display *
 _eglGetWaylandDisplay(struct wl_display *native_display,
                       const EGLAttrib *attrib_list);
 #endif
 
-_EGLDisplay *
+struct _egl_display *
 _eglGetSurfacelessDisplay(void *native_display, const EGLAttrib *attrib_list);
 
 #ifdef HAVE_ANDROID_PLATFORM
-_EGLDisplay *
+struct _egl_display *
 _eglGetAndroidDisplay(void *native_display, const EGLAttrib *attrib_list);
 #endif
 
-_EGLDisplay *
+struct _egl_display *
 _eglGetDeviceDisplay(void *native_display, const EGLAttrib *attrib_list);
 
 #ifdef __cplusplus

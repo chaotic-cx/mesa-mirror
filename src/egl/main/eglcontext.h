@@ -66,7 +66,7 @@ struct _egl_context {
 };
 
 extern EGLBoolean
-_eglInitContext(struct _egl_context *ctx, _EGLDisplay *disp, struct _egl_config *config,
+_eglInitContext(struct _egl_context *ctx, struct _egl_display *disp, struct _egl_config *config,
                 struct _egl_context *share_list, const EGLint *attrib_list);
 
 extern EGLBoolean
@@ -126,7 +126,7 @@ _eglUnlinkContext(struct _egl_context *ctx)
  * Return NULL if the handle has no corresponding linked context.
  */
 static inline struct _egl_context *
-_eglLookupContext(EGLContext context, _EGLDisplay *disp)
+_eglLookupContext(EGLContext context, struct _egl_display *disp)
 {
    struct _egl_context *ctx = (struct _egl_context *)context;
    if (!disp || !_eglCheckResource((void *)ctx, _EGL_RESOURCE_CONTEXT, disp))

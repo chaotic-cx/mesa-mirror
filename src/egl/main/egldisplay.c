@@ -188,7 +188,7 @@ _eglGetNativePlatform(void *nativeDisplay)
 void
 _eglFiniDisplay(void)
 {
-   _EGLDisplay *dispList, *disp;
+   struct _egl_display *dispList, *disp;
 
    /* atexit function is called with global mutex locked */
    dispList = _eglGlobal.DisplayList;
@@ -249,11 +249,11 @@ _eglSameAttribs(const EGLAttrib *a, const EGLAttrib *b)
  * identical, different attribute orders will be considered different
  * parameters.
  */
-_EGLDisplay *
+struct _egl_display *
 _eglFindDisplay(_EGLPlatformType plat, void *plat_dpy,
                 const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *disp;
+   struct _egl_display *disp;
    size_t num_attribs;
 
    if (plat == _EGL_INVALID_PLATFORM)
@@ -270,7 +270,7 @@ _eglFindDisplay(_EGLPlatformType plat, void *plat_dpy,
 
    /* create a new display */
    assert(!disp);
-   disp = calloc(1, sizeof(_EGLDisplay));
+   disp = calloc(1, sizeof(struct _egl_display));
    if (!disp)
       goto out;
 
@@ -313,7 +313,7 @@ out:
  * rest of the display's lifetime.
  */
 static void
-_eglSetExplicitDevice(_EGLDisplay *dpy, struct _egl_device *dev)
+_eglSetExplicitDevice(struct _egl_display *dpy, struct _egl_device *dev)
 {
    if (dpy && !dpy->Initialized)
       dpy->Device = dev;
@@ -323,7 +323,7 @@ _eglSetExplicitDevice(_EGLDisplay *dpy, struct _egl_device *dev)
  * Destroy the contexts and surfaces that are linked to the display.
  */
 void
-_eglReleaseDisplayResources(_EGLDisplay *display)
+_eglReleaseDisplayResources(struct _egl_display *display)
 {
    _EGLResource *list;
 
@@ -371,11 +371,11 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
 }
 
 /**
- * Free all the data hanging of an _EGLDisplay object, but not
+ * Free all the data hanging of an struct _egl_display object, but not
  * the object itself.
  */
 void
-_eglCleanupDisplay(_EGLDisplay *disp)
+_eglCleanupDisplay(struct _egl_display *disp)
 {
    if (disp->Configs) {
       _eglDestroyArray(disp->Configs, free);
@@ -390,7 +390,7 @@ _eglCleanupDisplay(_EGLDisplay *disp)
  * own the resource.
  */
 EGLBoolean
-_eglCheckResource(void *res, _EGLResourceType type, _EGLDisplay *disp)
+_eglCheckResource(void *res, _EGLResourceType type, struct _egl_display *disp)
 {
    _EGLResource *list = disp->ResourceLists[type];
 
@@ -418,7 +418,7 @@ _eglCheckResource(void *res, _EGLResourceType type, _EGLDisplay *disp)
  * _eglInitContext or _eglInitSurface.
  */
 void
-_eglInitResource(_EGLResource *res, EGLint size, _EGLDisplay *disp)
+_eglInitResource(_EGLResource *res, EGLint size, struct _egl_display *disp)
 {
    memset(res, 0, size);
    res->Display = disp;
@@ -492,10 +492,10 @@ _eglUnlinkResource(_EGLResource *res, _EGLResourceType type)
 }
 
 #ifdef HAVE_X11_PLATFORM
-_EGLDisplay *
+struct _egl_display *
 _eglGetX11Display(Display *native_display, const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *dpy;
+   struct _egl_display *dpy;
    struct _egl_device *dev = NULL;
 
    /* EGL_EXT_platform_x11 adds EGL_PLATFORM_X11_SCREEN_EXT,
@@ -536,11 +536,11 @@ _eglGetX11Display(Display *native_display, const EGLAttrib *attrib_list)
 #endif /* HAVE_X11_PLATFORM */
 
 #ifdef HAVE_XCB_PLATFORM
-_EGLDisplay *
+struct _egl_display *
 _eglGetXcbDisplay(xcb_connection_t *native_display,
                   const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *dpy;
+   struct _egl_display *dpy;
    struct _egl_device *dev = NULL;
 
    /* EGL_EXT_platform_xcb recognizes exactly one attribute,
@@ -578,11 +578,11 @@ _eglGetXcbDisplay(xcb_connection_t *native_display,
 #endif /* HAVE_XCB_PLATFORM */
 
 #ifdef HAVE_DRM_PLATFORM
-_EGLDisplay *
+struct _egl_display *
 _eglGetGbmDisplay(struct gbm_device *native_display,
                   const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *dpy;
+   struct _egl_display *dpy;
    struct _egl_device *dev = NULL;
 
    /* This platform recognizes only EXT_explicit_device */
@@ -615,11 +615,11 @@ _eglGetGbmDisplay(struct gbm_device *native_display,
 #endif /* HAVE_DRM_PLATFORM */
 
 #ifdef HAVE_WAYLAND_PLATFORM
-_EGLDisplay *
+struct _egl_display *
 _eglGetWaylandDisplay(struct wl_display *native_display,
                       const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *dpy;
+   struct _egl_display *dpy;
    struct _egl_device *dev = NULL;
 
    /* This platform recognizes only EXT_explicit_device */
@@ -651,10 +651,10 @@ _eglGetWaylandDisplay(struct wl_display *native_display,
 }
 #endif /* HAVE_WAYLAND_PLATFORM */
 
-_EGLDisplay *
+struct _egl_display *
 _eglGetSurfacelessDisplay(void *native_display, const EGLAttrib *attrib_list)
 {
-   _EGLDisplay *dpy;
+   struct _egl_display *dpy;
    struct _egl_device *dev = NULL;
 
    /* Any native display must be an EGLDeviceEXT we know about */
@@ -692,7 +692,7 @@ _eglGetSurfacelessDisplay(void *native_display, const EGLAttrib *attrib_list)
 }
 
 #ifdef HAVE_ANDROID_PLATFORM
-_EGLDisplay *
+struct _egl_display *
 _eglGetAndroidDisplay(void *native_display, const EGLAttrib *attrib_list)
 {
 
@@ -706,11 +706,11 @@ _eglGetAndroidDisplay(void *native_display, const EGLAttrib *attrib_list)
 }
 #endif /* HAVE_ANDROID_PLATFORM */
 
-_EGLDisplay *
+struct _egl_display *
 _eglGetDeviceDisplay(void *native_display, const EGLAttrib *attrib_list)
 {
    struct _egl_device *dev;
-   _EGLDisplay *display;
+   struct _egl_display *display;
    int fd = -1;
 
    dev = _eglLookupDevice(native_display);

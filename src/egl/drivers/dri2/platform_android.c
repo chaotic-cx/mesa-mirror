@@ -68,7 +68,7 @@ droid_create_image_from_buffer_info(
 }
 
 static struct dri_image *
-droid_create_image_from_native_buffer(_EGLDisplay *disp,
+droid_create_image_from_native_buffer(struct _egl_display *disp,
                                       struct ANativeWindowBuffer *buf,
                                       void *priv)
 {
@@ -111,7 +111,7 @@ droid_create_image_from_native_buffer(_EGLDisplay *disp,
 static void
 handle_in_fence_fd(struct dri2_egl_surface *dri2_surf, struct dri_image *img)
 {
-   _EGLDisplay *disp = dri2_surf->base.Resource.Display;
+   struct _egl_display *disp = dri2_surf->base.Resource.Display;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
    if (dri2_surf->in_fence_fd < 0)
@@ -181,7 +181,7 @@ droid_window_dequeue_buffer(struct dri2_egl_surface *dri2_surf)
 }
 
 static EGLBoolean
-droid_window_enqueue_buffer(_EGLDisplay *disp,
+droid_window_enqueue_buffer(struct _egl_display *disp,
                             struct dri2_egl_surface *dri2_surf)
 {
    /* Queue the buffer with stored out fence fd. The ANativeWindow or buffer
@@ -228,7 +228,7 @@ droid_window_cancel_buffer(struct dri2_egl_surface *dri2_surf)
 }
 
 static bool
-droid_set_shared_buffer_mode(_EGLDisplay *disp, _EGLSurface *surf, bool mode)
+droid_set_shared_buffer_mode(struct _egl_display *disp, _EGLSurface *surf, bool mode)
 {
 #if ANDROID_API_LEVEL >= 24
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -269,7 +269,7 @@ droid_set_shared_buffer_mode(_EGLDisplay *disp, _EGLSurface *surf, bool mode)
 }
 
 static _EGLSurface *
-droid_create_surface(_EGLDisplay *disp, EGLint type, struct _egl_config *conf,
+droid_create_surface(struct _egl_display *disp, EGLint type, struct _egl_config *conf,
                      void *native_window, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -373,7 +373,7 @@ cleanup_surface:
 }
 
 static _EGLSurface *
-droid_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
+droid_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                             void *native_window, const EGLint *attrib_list)
 {
    return droid_create_surface(disp, EGL_WINDOW_BIT, conf, native_window,
@@ -381,14 +381,14 @@ droid_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
 }
 
 static _EGLSurface *
-droid_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
+droid_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                              const EGLint *attrib_list)
 {
    return droid_create_surface(disp, EGL_PBUFFER_BIT, conf, NULL, attrib_list);
 }
 
 static EGLBoolean
-droid_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
+droid_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -424,7 +424,7 @@ droid_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static EGLBoolean
-droid_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
+droid_swap_interval(struct _egl_display *disp, _EGLSurface *surf, EGLint interval)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
    struct ANativeWindow *window = dri2_surf->window;
@@ -496,7 +496,7 @@ get_front_bo(struct dri2_egl_surface *dri2_surf, unsigned int format)
 static int
 get_back_bo(struct dri2_egl_surface *dri2_surf)
 {
-   _EGLDisplay *disp = dri2_surf->base.Resource.Display;
+   struct _egl_display *disp = dri2_surf->base.Resource.Display;
 
    if (dri2_surf->dri_image_back)
       return 0;
@@ -598,7 +598,7 @@ droid_image_get_buffers(struct dri_drawable *driDrawable, unsigned int format,
 }
 
 static EGLint
-droid_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surface)
+droid_query_buffer_age(struct _egl_display *disp, _EGLSurface *surface)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surface);
 
@@ -613,7 +613,7 @@ droid_query_buffer_age(_EGLDisplay *disp, _EGLSurface *surface)
 /* The damage regions are unused; the Android EGL framework already takes
  * care of pushing them into ANativeWindow. */
 static EGLBoolean
-droid_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
+droid_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
 		   const EGLint *rects, EGLint n_rects)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -679,7 +679,7 @@ droid_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw,
 }
 
 static EGLBoolean
-droid_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
+droid_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
                     EGLint *value)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
@@ -705,7 +705,7 @@ droid_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
 }
 
 static _EGLImage *
-dri2_create_image_android_native_buffer(_EGLDisplay *disp, struct _egl_context *ctx,
+dri2_create_image_android_native_buffer(struct _egl_display *disp, struct _egl_context *ctx,
                                         struct ANativeWindowBuffer *buf)
 {
    if (ctx != NULL) {
@@ -741,7 +741,7 @@ dri2_create_image_android_native_buffer(_EGLDisplay *disp, struct _egl_context *
 }
 
 static _EGLImage *
-droid_create_image_khr(_EGLDisplay *disp, struct _egl_context *ctx, EGLenum target,
+droid_create_image_khr(struct _egl_display *disp, struct _egl_context *ctx, EGLenum target,
                        EGLClientBuffer buffer, const EGLint *attr_list)
 {
    switch (target) {
@@ -761,7 +761,7 @@ droid_flush_front_buffer(struct dri_drawable *driDrawable, void *loaderPrivate)
 static unsigned
 droid_get_capability(void *loaderPrivate, enum dri_loader_cap cap)
 {
-   /* Note: loaderPrivate is _EGLDisplay* */
+   /* Note: loaderPrivate is struct _egl_display* */
    switch (cap) {
    case DRI_LOADER_CAP_RGBA_ORDERING:
       return 1;
@@ -782,7 +782,7 @@ droid_destroy_loader_image_state(void *loaderPrivate)
 }
 
 static void
-droid_add_configs_for_visuals(_EGLDisplay *disp)
+droid_add_configs_for_visuals(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    static const struct {
@@ -1010,7 +1010,7 @@ static const struct dri_loader_funcs droid_swrast_image_loader_funcs = {
 };
 
 static EGLBoolean
-droid_load_driver(_EGLDisplay *disp, bool swrast)
+droid_load_driver(struct _egl_display *disp, bool swrast)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -1047,7 +1047,7 @@ error:
 }
 
 static void
-droid_unload_driver(_EGLDisplay *disp)
+droid_unload_driver(struct _egl_display *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
@@ -1056,7 +1056,7 @@ droid_unload_driver(_EGLDisplay *disp)
 }
 
 static int
-droid_filter_device(_EGLDisplay *disp, int fd, const char *vendor)
+droid_filter_device(struct _egl_display *disp, int fd, const char *vendor)
 {
    drmVersionPtr ver = drmGetVersion(fd);
    if (!ver)
@@ -1072,7 +1072,7 @@ droid_filter_device(_EGLDisplay *disp, int fd, const char *vendor)
 }
 
 static EGLBoolean
-droid_probe_device(_EGLDisplay *disp, bool swrast)
+droid_probe_device(struct _egl_display *disp, bool swrast)
 {
    /* Check that the device is supported, by attempting to:
     * - load the dri module
@@ -1090,7 +1090,7 @@ droid_probe_device(_EGLDisplay *disp, bool swrast)
 }
 
 static EGLBoolean
-droid_open_device(_EGLDisplay *disp, bool swrast)
+droid_open_device(struct _egl_display *disp, bool swrast)
 {
 #define MAX_DRM_DEVICES 64
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -1167,7 +1167,7 @@ droid_open_device(_EGLDisplay *disp, bool swrast)
 }
 
 EGLBoolean
-dri2_initialize_android(_EGLDisplay *disp)
+dri2_initialize_android(struct _egl_display *disp)
 {
    bool device_opened = false;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
