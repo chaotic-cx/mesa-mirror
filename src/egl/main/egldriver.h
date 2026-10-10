@@ -61,7 +61,7 @@ extern "C" {
 
 /**
  * Define the driver typecast functions for struct _egl_display,
- * struct _egl_context, _EGLSurface, and struct _egl_config.
+ * struct _egl_context, struct _egl_surface, and struct _egl_config.
  *
  * Note that this macro defines several functions and should not be ended with
  * a semicolon when used.
@@ -70,7 +70,7 @@ extern "C" {
    /* note that this is not a direct cast */                                   \
    _EGL_DRIVER_TYPECAST(drvname##_display, struct _egl_display, obj->DriverDisplay) \
    _EGL_DRIVER_TYPECAST(drvname##_context, struct _egl_context, obj)           \
-   _EGL_DRIVER_TYPECAST(drvname##_surface, _EGLSurface, obj)                   \
+   _EGL_DRIVER_TYPECAST(drvname##_surface, struct _egl_surface, obj)           \
    _EGL_DRIVER_TYPECAST(drvname##_config, struct _egl_config, obj)
 
 /**
@@ -119,33 +119,33 @@ struct _egl_driver {
    /* this is the only function (other than Initialize) that may be called
     * with an uninitialized display
     */
-   EGLBoolean (*MakeCurrent)(struct _egl_display *disp, _EGLSurface *draw,
-                             _EGLSurface *read, struct _egl_context *ctx);
+   EGLBoolean (*MakeCurrent)(struct _egl_display *disp, struct _egl_surface *draw,
+                             struct _egl_surface *read, struct _egl_context *ctx);
 
    /* surface funcs */
-   _EGLSurface *(*CreateWindowSurface)(struct _egl_display *disp, struct _egl_config *config,
+   struct _egl_surface *(*CreateWindowSurface)(struct _egl_display *disp, struct _egl_config *config,
                                        void *native_window,
                                        const EGLint *attrib_list);
-   _EGLSurface *(*CreatePixmapSurface)(struct _egl_display *disp, struct _egl_config *config,
+   struct _egl_surface *(*CreatePixmapSurface)(struct _egl_display *disp, struct _egl_config *config,
                                        void *native_pixmap,
                                        const EGLint *attrib_list);
-   _EGLSurface *(*CreatePbufferSurface)(struct _egl_display *disp, struct _egl_config *config,
+   struct _egl_surface *(*CreatePbufferSurface)(struct _egl_display *disp, struct _egl_config *config,
                                         const EGLint *attrib_list);
-   EGLBoolean (*DestroySurface)(struct _egl_display *disp, _EGLSurface *surface);
-   EGLBoolean (*QuerySurface)(struct _egl_display *disp, _EGLSurface *surface,
+   EGLBoolean (*DestroySurface)(struct _egl_display *disp, struct _egl_surface *surface);
+   EGLBoolean (*QuerySurface)(struct _egl_display *disp, struct _egl_surface *surface,
                               EGLint attribute, EGLint *value);
-   EGLBoolean (*BindTexImage)(struct _egl_display *disp, _EGLSurface *surface,
+   EGLBoolean (*BindTexImage)(struct _egl_display *disp, struct _egl_surface *surface,
                               EGLint buffer);
-   EGLBoolean (*ReleaseTexImage)(struct _egl_display *disp, _EGLSurface *surface,
+   EGLBoolean (*ReleaseTexImage)(struct _egl_display *disp, struct _egl_surface *surface,
                                  EGLint buffer);
-   EGLBoolean (*SwapInterval)(struct _egl_display *disp, _EGLSurface *surf,
+   EGLBoolean (*SwapInterval)(struct _egl_display *disp, struct _egl_surface *surf,
                               EGLint interval);
-   EGLBoolean (*SwapBuffers)(struct _egl_display *disp, _EGLSurface *draw);
-   EGLBoolean (*CopyBuffers)(struct _egl_display *disp, _EGLSurface *surface,
+   EGLBoolean (*SwapBuffers)(struct _egl_display *disp, struct _egl_surface *draw);
+   EGLBoolean (*CopyBuffers)(struct _egl_display *disp, struct _egl_surface *surface,
                              void *native_pixmap_target);
 
    /* for EGL_KHR_partial_update */
-   EGLBoolean (*SetDamageRegion)(struct _egl_display *disp, _EGLSurface *surface,
+   EGLBoolean (*SetDamageRegion)(struct _egl_display *disp, struct _egl_surface *surface,
                                  EGLint *rects, EGLint n_rects);
 
    /* misc functions */
@@ -188,18 +188,18 @@ struct _egl_driver {
 
    /* for EGL_EXT_swap_buffers_with_damage */
    EGLBoolean (*SwapBuffersWithDamageEXT)(struct _egl_display *disp,
-                                          _EGLSurface *surface,
+                                          struct _egl_surface *surface,
                                           const EGLint *rects, EGLint n_rects);
 
    /* for EGL_EXT_buffer_age/EGL_KHR_partial_update */
-   EGLint (*QueryBufferAge)(struct _egl_display *disp, _EGLSurface *surface);
+   EGLint (*QueryBufferAge)(struct _egl_display *disp, struct _egl_surface *surface);
 
    /* for EGL_CHROMIUM_sync_control */
-   EGLBoolean (*GetSyncValuesCHROMIUM)(struct _egl_display *disp, _EGLSurface *surface,
+   EGLBoolean (*GetSyncValuesCHROMIUM)(struct _egl_display *disp, struct _egl_surface *surface,
                                        EGLuint64KHR *ust, EGLuint64KHR *msc,
                                        EGLuint64KHR *sbc);
 
-   EGLBoolean (*GetMscRateANGLE)(struct _egl_display *disp, _EGLSurface *surface,
+   EGLBoolean (*GetMscRateANGLE)(struct _egl_display *disp, struct _egl_surface *surface,
                                  EGLint *numerator, EGLint *denominator);
 
    /* for EGL_MESA_image_dma_buf_export */

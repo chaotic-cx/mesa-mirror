@@ -341,7 +341,7 @@ _eglReleaseDisplayResources(struct _egl_display *display)
 
    list = display->ResourceLists[_EGL_RESOURCE_SURFACE];
    while (list) {
-      _EGLSurface *surf = (_EGLSurface *)list;
+      struct _egl_surface *surf = (struct _egl_surface *)list;
       list = list->Next;
 
       _eglUnlinkSurface(surf);

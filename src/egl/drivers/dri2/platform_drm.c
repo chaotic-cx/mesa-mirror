@@ -139,7 +139,7 @@ dri2_drm_config_is_compatible(struct dri2_egl_display *dri2_dpy,
    return false;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 dri2_drm_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                                void *native_surface, const EGLint *attrib_list)
 {
@@ -191,7 +191,7 @@ cleanup_surf:
    return NULL;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 dri2_drm_create_pixmap_surface(struct _egl_display *disp, struct _egl_config *conf,
                                void *native_window, const EGLint *attrib_list)
 {
@@ -206,7 +206,7 @@ dri2_drm_create_pixmap_surface(struct _egl_display *disp, struct _egl_config *co
 }
 
 static EGLBoolean
-dri2_drm_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
+dri2_drm_destroy_surface(struct _egl_display *disp, struct _egl_surface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -358,7 +358,7 @@ dri2_drm_flush_front_buffer(struct dri_drawable *driDrawable, void *loaderPrivat
 /* Damage is ignored for this SwapBuffers implementation, as it does not
  * actually post any updates. */
 static EGLBoolean
-dri2_drm_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
+dri2_drm_swap_buffers(struct _egl_display *disp, struct _egl_surface *draw,
 		      const EGLint *rects, EGLint n_rects)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -395,7 +395,7 @@ dri2_drm_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
 }
 
 static EGLint
-dri2_drm_query_buffer_age(struct _egl_display *disp, _EGLSurface *surface)
+dri2_drm_query_buffer_age(struct _egl_display *disp, struct _egl_surface *surface)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surface);
 

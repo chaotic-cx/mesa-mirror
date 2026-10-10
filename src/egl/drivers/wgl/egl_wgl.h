@@ -50,7 +50,7 @@ struct wgl_egl_context {
 };
 
 struct wgl_egl_surface {
-   _EGLSurface base;
+   struct _egl_surface base;
    struct stw_framebuffer *fb;
 };
 

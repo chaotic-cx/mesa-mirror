@@ -27,7 +27,7 @@
 #if !defined(HAVE_LIBDRM)
 #include "loader_dri3_helper.h"
 #endif
-_EGL_DRIVER_TYPECAST(dri3_egl_surface, _EGLSurface, obj)
+_EGL_DRIVER_TYPECAST(dri3_egl_surface, struct _egl_surface, obj)
 
 struct dri3_egl_surface {
    struct dri2_egl_surface surf;

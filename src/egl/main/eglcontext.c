@@ -722,7 +722,7 @@ _eglInitContext(struct _egl_context *ctx, struct _egl_display *disp, struct _egl
 static EGLint
 _eglQueryContextRenderBuffer(struct _egl_context *ctx)
 {
-   _EGLSurface *surf = ctx->DrawSurface;
+   struct _egl_surface *surf = ctx->DrawSurface;
 
    /* From the EGL 1.5 spec:
     *
@@ -844,7 +844,7 @@ _eglBindContextToThread(struct _egl_context *ctx, _EGLThreadInfo *t)
  * Return true if the given context and surfaces can be made current.
  */
 static EGLBoolean
-_eglCheckMakeCurrent(struct _egl_context *ctx, _EGLSurface *draw, _EGLSurface *read)
+_eglCheckMakeCurrent(struct _egl_context *ctx, struct _egl_surface *draw, struct _egl_surface *read)
 {
    _EGLThreadInfo *t = _eglGetCurrentThread();
    struct _egl_display *disp;
@@ -909,13 +909,13 @@ _eglCheckMakeCurrent(struct _egl_context *ctx, _EGLSurface *draw, _EGLSurface *r
  * counts.
  */
 EGLBoolean
-_eglBindContext(struct _egl_context *ctx, _EGLSurface *draw, _EGLSurface *read,
-                struct _egl_context **old_ctx, _EGLSurface **old_draw,
-                _EGLSurface **old_read)
+_eglBindContext(struct _egl_context *ctx, struct _egl_surface *draw, struct _egl_surface *read,
+                struct _egl_context **old_ctx, struct _egl_surface **old_draw,
+                struct _egl_surface **old_read)
 {
    _EGLThreadInfo *t = _eglGetCurrentThread();
    struct _egl_context *prev_ctx;
-   _EGLSurface *prev_draw, *prev_read;
+   struct _egl_surface *prev_draw, *prev_read;
 
    if (!_eglCheckMakeCurrent(ctx, draw, read))
       return EGL_FALSE;

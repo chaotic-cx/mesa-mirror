@@ -175,35 +175,35 @@ struct _egl_surface {
 };
 
 extern EGLBoolean
-_eglInitSurface(_EGLSurface *surf, struct _egl_display *disp, EGLint type,
+_eglInitSurface(struct _egl_surface *surf, struct _egl_display *disp, EGLint type,
                 struct _egl_config *config, const EGLint *attrib_list,
                 void *native_surface);
 
 extern EGLBoolean
-_eglQuerySurface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
+_eglQuerySurface(struct _egl_display *disp, struct _egl_surface *surf, EGLint attribute,
                  EGLint *value);
 
 extern EGLBoolean
-_eglSurfaceAttrib(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
+_eglSurfaceAttrib(struct _egl_display *disp, struct _egl_surface *surf, EGLint attribute,
                   EGLint value);
 
 extern EGLBoolean
-_eglBindTexImage(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer);
+_eglBindTexImage(struct _egl_display *disp, struct _egl_surface *surf, EGLint buffer);
 
 extern EGLBoolean
-_eglReleaseTexImage(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer);
+_eglReleaseTexImage(struct _egl_display *disp, struct _egl_surface *surf, EGLint buffer);
 
 extern EGLBoolean
-_eglSurfaceHasMutableRenderBuffer(_EGLSurface *surf);
+_eglSurfaceHasMutableRenderBuffer(struct _egl_surface *surf);
 
 extern EGLBoolean
-_eglSurfaceInSharedBufferMode(_EGLSurface *surf);
+_eglSurfaceInSharedBufferMode(struct _egl_surface *surf);
 
 /**
  * Increment reference count for the surface.
  */
-static inline _EGLSurface *
-_eglGetSurface(_EGLSurface *surf)
+static inline struct _egl_surface *
+_eglGetSurface(struct _egl_surface *surf)
 {
    if (surf)
       _eglGetResource(&surf->Resource);
@@ -214,7 +214,7 @@ _eglGetSurface(_EGLSurface *surf)
  * Decrement reference count for the surface.
  */
 static inline EGLBoolean
-_eglPutSurface(_EGLSurface *surf)
+_eglPutSurface(struct _egl_surface *surf)
 {
    return (surf) ? _eglPutResource(&surf->Resource) : EGL_FALSE;
 }
@@ -224,7 +224,7 @@ _eglPutSurface(_EGLSurface *surf)
  * The handle can be passed to client directly.
  */
 static inline EGLSurface
-_eglLinkSurface(_EGLSurface *surf)
+_eglLinkSurface(struct _egl_surface *surf)
 {
    _eglLinkResource(&surf->Resource, _EGL_RESOURCE_SURFACE);
    return (EGLSurface)surf;
@@ -235,7 +235,7 @@ _eglLinkSurface(_EGLSurface *surf)
  * Accessing an unlinked surface should generate EGL_BAD_SURFACE error.
  */
 static inline void
-_eglUnlinkSurface(_EGLSurface *surf)
+_eglUnlinkSurface(struct _egl_surface *surf)
 {
    _eglUnlinkResource(&surf->Resource, _EGL_RESOURCE_SURFACE);
 }
@@ -244,10 +244,10 @@ _eglUnlinkSurface(_EGLSurface *surf)
  * Lookup a handle to find the linked surface.
  * Return NULL if the handle has no corresponding linked surface.
  */
-static inline _EGLSurface *
+static inline struct _egl_surface *
 _eglLookupSurface(EGLSurface surface, struct _egl_display *disp)
 {
-   _EGLSurface *surf = (_EGLSurface *)surface;
+   struct _egl_surface *surf = (struct _egl_surface *)surface;
    if (!disp || !_eglCheckResource((void *)surf, _EGL_RESOURCE_SURFACE, disp))
       surf = NULL;
    return surf;
@@ -257,7 +257,7 @@ _eglLookupSurface(EGLSurface surface, struct _egl_display *disp)
  * Return the handle of a linked surface, or EGL_NO_SURFACE.
  */
 static inline EGLSurface
-_eglGetSurfaceHandle(_EGLSurface *surf)
+_eglGetSurfaceHandle(struct _egl_surface *surf)
 {
    struct _egl_resource *res = (struct _egl_resource *)surf;
    return (res && _eglIsResourceLinked(res)) ? (EGLSurface)surf

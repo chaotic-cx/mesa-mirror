@@ -48,8 +48,8 @@ struct _egl_context {
 
    /* The bound status of the context */
    _EGLThreadInfo *Binding;
-   _EGLSurface *DrawSurface;
-   _EGLSurface *ReadSurface;
+   struct _egl_surface *DrawSurface;
+   struct _egl_surface *ReadSurface;
 
    struct _egl_config *Config;
 
@@ -73,9 +73,9 @@ extern EGLBoolean
 _eglQueryContext(struct _egl_context *ctx, EGLint attribute, EGLint *value);
 
 extern EGLBoolean
-_eglBindContext(struct _egl_context *ctx, _EGLSurface *draw, _EGLSurface *read,
-                struct _egl_context **old_ctx, _EGLSurface **old_draw,
-                _EGLSurface **old_read);
+_eglBindContext(struct _egl_context *ctx, struct _egl_surface *draw, struct _egl_surface *read,
+                struct _egl_context **old_ctx, struct _egl_surface **old_draw,
+                struct _egl_surface **old_read);
 
 extern struct _egl_context *
 _eglBindContextToThread(struct _egl_context *ctx, _EGLThreadInfo *t);

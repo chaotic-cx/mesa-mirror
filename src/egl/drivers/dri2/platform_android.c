@@ -228,7 +228,7 @@ droid_window_cancel_buffer(struct dri2_egl_surface *dri2_surf)
 }
 
 static bool
-droid_set_shared_buffer_mode(struct _egl_display *disp, _EGLSurface *surf, bool mode)
+droid_set_shared_buffer_mode(struct _egl_display *disp, struct _egl_surface *surf, bool mode)
 {
 #if ANDROID_API_LEVEL >= 24
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -268,7 +268,7 @@ droid_set_shared_buffer_mode(struct _egl_display *disp, _EGLSurface *surf, bool 
 #endif
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 droid_create_surface(struct _egl_display *disp, EGLint type, struct _egl_config *conf,
                      void *native_window, const EGLint *attrib_list)
 {
@@ -372,7 +372,7 @@ cleanup_surface:
    return NULL;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 droid_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                             void *native_window, const EGLint *attrib_list)
 {
@@ -380,7 +380,7 @@ droid_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                                attrib_list);
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 droid_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                              const EGLint *attrib_list)
 {
@@ -388,7 +388,7 @@ droid_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf
 }
 
 static EGLBoolean
-droid_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
+droid_destroy_surface(struct _egl_display *disp, struct _egl_surface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -424,7 +424,7 @@ droid_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 }
 
 static EGLBoolean
-droid_swap_interval(struct _egl_display *disp, _EGLSurface *surf, EGLint interval)
+droid_swap_interval(struct _egl_display *disp, struct _egl_surface *surf, EGLint interval)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
    struct ANativeWindow *window = dri2_surf->window;
@@ -598,7 +598,7 @@ droid_image_get_buffers(struct dri_drawable *driDrawable, unsigned int format,
 }
 
 static EGLint
-droid_query_buffer_age(struct _egl_display *disp, _EGLSurface *surface)
+droid_query_buffer_age(struct _egl_display *disp, struct _egl_surface *surface)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surface);
 
@@ -613,7 +613,7 @@ droid_query_buffer_age(struct _egl_display *disp, _EGLSurface *surface)
 /* The damage regions are unused; the Android EGL framework already takes
  * care of pushing them into ANativeWindow. */
 static EGLBoolean
-droid_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
+droid_swap_buffers(struct _egl_display *disp, struct _egl_surface *draw,
 		   const EGLint *rects, EGLint n_rects)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -679,7 +679,7 @@ droid_swap_buffers(struct _egl_display *disp, _EGLSurface *draw,
 }
 
 static EGLBoolean
-droid_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
+droid_query_surface(struct _egl_display *disp, struct _egl_surface *surf, EGLint attribute,
                     EGLint *value)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);

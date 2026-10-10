@@ -106,7 +106,7 @@ surfaceless_image_get_buffers(struct dri_drawable *driDrawable, unsigned int for
    return 1;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 dri2_surfaceless_create_surface(struct _egl_display *disp, EGLint type,
                                 struct _egl_config *conf, const EGLint *attrib_list)
 {
@@ -152,7 +152,7 @@ cleanup_surface:
 }
 
 static EGLBoolean
-surfaceless_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
+surfaceless_destroy_surface(struct _egl_display *disp, struct _egl_surface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -165,7 +165,7 @@ surfaceless_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
    return EGL_TRUE;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 dri2_surfaceless_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                                         const EGLint *attrib_list)
 {

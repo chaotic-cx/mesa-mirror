@@ -480,7 +480,7 @@ wgl_destroy_context(struct _egl_display *disp, struct _egl_context *ctx)
 }
 
 static EGLBoolean
-wgl_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
+wgl_destroy_surface(struct _egl_display *disp, struct _egl_surface *surf)
 {
    struct wgl_egl_surface *wgl_surf = wgl_egl_surface(surf);
 
@@ -507,15 +507,15 @@ wgl_gl_flush()
  * Called via eglMakeCurrent(), drv->MakeCurrent().
  */
 static EGLBoolean
-wgl_make_current(struct _egl_display *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
+wgl_make_current(struct _egl_display *disp, struct _egl_surface *dsurf, struct _egl_surface *rsurf,
                  struct _egl_context *ctx)
 {
    struct wgl_egl_display *wgl_dpy = wgl_egl_display(disp);
    struct wgl_egl_context *wgl_ctx = wgl_egl_context(ctx);
    struct _egl_display *old_disp = NULL;
    struct _egl_context *old_ctx;
-   _EGLSurface *old_dsurf, *old_rsurf;
-   _EGLSurface *tmp_dsurf, *tmp_rsurf;
+   struct _egl_surface *old_dsurf, *old_rsurf;
+   struct _egl_surface *tmp_dsurf, *tmp_rsurf;
    struct stw_framebuffer *ddraw, *rdraw;
    struct stw_context *cctx;
    EGLint egl_error = EGL_SUCCESS;
@@ -611,7 +611,7 @@ wgl_make_current(struct _egl_display *disp, _EGLSurface *dsurf, _EGLSurface *rsu
    return EGL_TRUE;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 wgl_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                           void *native_window, const EGLint *attrib_list)
 {
@@ -644,7 +644,7 @@ wgl_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
    return &wgl_surf->base;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 wgl_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                            const EGLint *attrib_list)
 {
@@ -678,7 +678,7 @@ wgl_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
 }
 
 static EGLBoolean
-wgl_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
+wgl_query_surface(struct _egl_display *disp, struct _egl_surface *surf, EGLint attribute,
                   EGLint *value)
 {
    struct wgl_egl_surface *wgl_surf = wgl_egl_surface(surf);
@@ -699,7 +699,7 @@ wgl_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute
 }
 
 static EGLBoolean
-wgl_bind_tex_image(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer)
+wgl_bind_tex_image(struct _egl_display *disp, struct _egl_surface *surf, EGLint buffer)
 {
    struct wgl_egl_surface *wgl_surf = wgl_egl_surface(surf);
 
@@ -754,7 +754,7 @@ wgl_bind_tex_image(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer)
 }
 
 static EGLBoolean
-wgl_swap_interval(struct _egl_display *disp, _EGLSurface *surf, EGLint interval)
+wgl_swap_interval(struct _egl_display *disp, struct _egl_surface *surf, EGLint interval)
 {
    struct wgl_egl_surface *wgl_surf = wgl_egl_surface(surf);
    wgl_surf->fb->swap_interval = interval;
@@ -762,7 +762,7 @@ wgl_swap_interval(struct _egl_display *disp, _EGLSurface *surf, EGLint interval)
 }
 
 static EGLBoolean
-wgl_swap_buffers(struct _egl_display *disp, _EGLSurface *draw)
+wgl_swap_buffers(struct _egl_display *disp, struct _egl_surface *draw)
 {
    struct wgl_egl_surface *wgl_surf = wgl_egl_surface(draw);
 

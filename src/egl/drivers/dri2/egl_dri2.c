@@ -1341,7 +1341,7 @@ dri2_destroy_context(struct _egl_display *disp, struct _egl_context *ctx)
 }
 
 EGLBoolean
-dri2_init_surface(_EGLSurface *surf, struct _egl_display *disp, EGLint type,
+dri2_init_surface(struct _egl_surface *surf, struct _egl_display *disp, EGLint type,
                   struct _egl_config *conf, const EGLint *attrib_list,
                   EGLBoolean enable_out_fence, void *native_surface)
 {
@@ -1357,7 +1357,7 @@ dri2_init_surface(_EGLSurface *surf, struct _egl_display *disp, EGLint type,
 }
 
 static void
-dri2_surface_set_out_fence_fd(_EGLSurface *surf, int fence_fd)
+dri2_surface_set_out_fence_fd(struct _egl_surface *surf, int fence_fd)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -1368,7 +1368,7 @@ dri2_surface_set_out_fence_fd(_EGLSurface *surf, int fence_fd)
 }
 
 void
-dri2_fini_surface(_EGLSurface *surf)
+dri2_fini_surface(struct _egl_surface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
@@ -1377,7 +1377,7 @@ dri2_fini_surface(_EGLSurface *surf)
 }
 
 static EGLBoolean
-dri2_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
+dri2_destroy_surface(struct _egl_display *disp, struct _egl_surface *surf)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    EGLBoolean ret = EGL_TRUE;
@@ -1390,7 +1390,7 @@ dri2_destroy_surface(struct _egl_display *disp, _EGLSurface *surf)
 
 static void
 dri2_surf_update_fence_fd(struct _egl_context *ctx, struct _egl_display *disp,
-                          _EGLSurface *surf)
+                          struct _egl_surface *surf)
 {
    struct dri_context *dri_ctx = dri2_egl_context(ctx)->dri_context;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -1427,7 +1427,7 @@ dri2_create_drawable(struct dri2_egl_display *dri2_dpy,
  * Called via eglMakeCurrent(), drv->MakeCurrent().
  */
 static EGLBoolean
-dri2_make_current(struct _egl_display *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
+dri2_make_current(struct _egl_display *disp, struct _egl_surface *dsurf, struct _egl_surface *rsurf,
                   struct _egl_context *ctx)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -1435,8 +1435,8 @@ dri2_make_current(struct _egl_display *disp, _EGLSurface *dsurf, _EGLSurface *rs
    struct _egl_display *old_disp = NULL;
    struct dri2_egl_display *old_dri2_dpy = NULL;
    struct _egl_context *old_ctx;
-   _EGLSurface *old_dsurf, *old_rsurf;
-   _EGLSurface *tmp_dsurf, *tmp_rsurf;
+   struct _egl_surface *old_dsurf, *old_rsurf;
+   struct _egl_surface *tmp_dsurf, *tmp_rsurf;
    struct dri_drawable *ddraw, *rdraw;
    struct dri_context *cctx;
    EGLint egl_error = EGL_SUCCESS;
@@ -1567,30 +1567,30 @@ dri2_make_current(struct _egl_display *disp, _EGLSurface *dsurf, _EGLSurface *rs
 }
 
 struct dri_drawable *
-dri2_surface_get_dri_drawable(_EGLSurface *surf)
+dri2_surface_get_dri_drawable(struct _egl_surface *surf)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
 
    return dri2_surf->dri_drawable;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 dri2_create_window_surface(struct _egl_display *disp, struct _egl_config *conf,
                            void *native_window, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
-   _EGLSurface *ret = dri2_dpy->vtbl->create_window_surface(
+   struct _egl_surface *ret = dri2_dpy->vtbl->create_window_surface(
       disp, conf, native_window, attrib_list);
    mtx_unlock(&dri2_dpy->lock);
    return ret;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 dri2_create_pixmap_surface(struct _egl_display *disp, struct _egl_config *conf,
                            void *native_pixmap, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
-   _EGLSurface *ret = NULL;
+   struct _egl_surface *ret = NULL;
 
    if (dri2_dpy->vtbl->create_pixmap_surface)
       ret = dri2_dpy->vtbl->create_pixmap_surface(disp, conf, native_pixmap,
@@ -1601,12 +1601,12 @@ dri2_create_pixmap_surface(struct _egl_display *disp, struct _egl_config *conf,
    return ret;
 }
 
-static _EGLSurface *
+static struct _egl_surface *
 dri2_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
                             const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
-   _EGLSurface *ret = NULL;
+   struct _egl_surface *ret = NULL;
 
    if (dri2_dpy->vtbl->create_pbuffer_surface)
       ret = dri2_dpy->vtbl->create_pbuffer_surface(disp, conf, attrib_list);
@@ -1617,7 +1617,7 @@ dri2_create_pbuffer_surface(struct _egl_display *disp, struct _egl_config *conf,
 }
 
 static EGLBoolean
-dri2_swap_interval(struct _egl_display *disp, _EGLSurface *surf, EGLint interval)
+dri2_swap_interval(struct _egl_display *disp, struct _egl_surface *surf, EGLint interval)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    EGLBoolean ret = EGL_TRUE;
@@ -1636,7 +1636,7 @@ dri2_swap_interval(struct _egl_display *disp, _EGLSurface *surf, EGLint interval
  */
 void
 dri2_flush_drawable_for_swapbuffers_flags(
-   struct _egl_display *disp, _EGLSurface *draw,
+   struct _egl_display *disp, struct _egl_surface *draw,
    enum __DRI2throttleReason throttle_reason)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -1665,14 +1665,14 @@ dri2_flush_drawable_for_swapbuffers_flags(
 }
 
 void
-dri2_flush_drawable_for_swapbuffers(struct _egl_display *disp, _EGLSurface *draw)
+dri2_flush_drawable_for_swapbuffers(struct _egl_display *disp, struct _egl_surface *draw)
 {
    dri2_flush_drawable_for_swapbuffers_flags(disp, draw,
                                              __DRI2_THROTTLE_SWAPBUFFER);
 }
 
 static EGLBoolean
-dri2_swap_buffers_with_damage(struct _egl_display *disp, _EGLSurface *surf,
+dri2_swap_buffers_with_damage(struct _egl_display *disp, struct _egl_surface *surf,
                               const EGLint *rects, EGLint n_rects)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -1694,13 +1694,13 @@ dri2_swap_buffers_with_damage(struct _egl_display *disp, _EGLSurface *surf,
 }
 
 static EGLBoolean
-dri2_swap_buffers(struct _egl_display *disp, _EGLSurface *surf)
+dri2_swap_buffers(struct _egl_display *disp, struct _egl_surface *surf)
 {
    return dri2_swap_buffers_with_damage(disp, surf, NULL, 0);
 }
 
 static EGLBoolean
-dri2_set_damage_region(struct _egl_display *disp, _EGLSurface *surf, EGLint *rects,
+dri2_set_damage_region(struct _egl_display *disp, struct _egl_surface *surf, EGLint *rects,
                        EGLint n_rects)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
@@ -1717,7 +1717,7 @@ dri2_set_damage_region(struct _egl_display *disp, _EGLSurface *surf, EGLint *rec
 }
 
 static EGLBoolean
-dri2_copy_buffers(struct _egl_display *disp, _EGLSurface *surf,
+dri2_copy_buffers(struct _egl_display *disp, struct _egl_surface *surf,
                   void *native_pixmap_target)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
@@ -1731,7 +1731,7 @@ dri2_copy_buffers(struct _egl_display *disp, _EGLSurface *surf,
 }
 
 static EGLint
-dri2_query_buffer_age(struct _egl_display *disp, _EGLSurface *surf)
+dri2_query_buffer_age(struct _egl_display *disp, struct _egl_surface *surf)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    if (!dri2_dpy->vtbl->query_buffer_age)
@@ -1743,7 +1743,7 @@ static EGLBoolean
 dri2_wait_client(struct _egl_display *disp, struct _egl_context *ctx)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   _EGLSurface *surf = ctx->DrawSurface;
+   struct _egl_surface *surf = ctx->DrawSurface;
    struct dri_drawable *dri_drawable = dri2_surface_get_dri_drawable(surf);
 
    /* FIXME: If EGL allows frontbuffer rendering for window surfaces,
@@ -1766,7 +1766,7 @@ dri2_wait_native(EGLint engine)
 }
 
 static EGLBoolean
-dri2_bind_tex_image(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer)
+dri2_bind_tex_image(struct _egl_display *disp, struct _egl_surface *surf, EGLint buffer)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
    struct dri2_egl_context *dri2_ctx;
@@ -1811,7 +1811,7 @@ dri2_bind_tex_image(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer)
 }
 
 static EGLBoolean
-dri2_release_tex_image(struct _egl_display *disp, _EGLSurface *surf, EGLint buffer)
+dri2_release_tex_image(struct _egl_display *disp, struct _egl_surface *surf, EGLint buffer)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
 
@@ -1950,7 +1950,7 @@ dri2_create_image_wayland_wl_buffer(struct _egl_display *disp, struct _egl_conte
 #endif
 
 static EGLBoolean
-dri2_get_sync_values_chromium(struct _egl_display *disp, _EGLSurface *surf,
+dri2_get_sync_values_chromium(struct _egl_display *disp, struct _egl_surface *surf,
                               EGLuint64KHR *ust, EGLuint64KHR *msc,
                               EGLuint64KHR *sbc)
 {
@@ -1964,7 +1964,7 @@ dri2_get_sync_values_chromium(struct _egl_display *disp, _EGLSurface *surf,
 }
 
 static EGLBoolean
-dri2_get_msc_rate_angle(struct _egl_display *disp, _EGLSurface *surf, EGLint *numerator,
+dri2_get_msc_rate_angle(struct _egl_display *disp, struct _egl_surface *surf, EGLint *numerator,
                         EGLint *denominator)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -2065,7 +2065,7 @@ dri2_create_image_khr_texture(struct _egl_display *disp, struct _egl_context *ct
 }
 
 static EGLBoolean
-dri2_query_surface(struct _egl_display *disp, _EGLSurface *surf, EGLint attribute,
+dri2_query_surface(struct _egl_display *disp, struct _egl_surface *surf, EGLint attribute,
                    EGLint *value)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);

@@ -106,24 +106,24 @@ struct dri2_egl_display_vtbl {
    int (*authenticate)(struct _egl_display *disp, uint32_t id);
 
    /* mandatory */
-   _EGLSurface *(*create_window_surface)(struct _egl_display *disp, struct _egl_config *config,
+   struct _egl_surface *(*create_window_surface)(struct _egl_display *disp, struct _egl_config *config,
                                          void *native_window,
                                          const EGLint *attrib_list);
 
    /* optional */
-   _EGLSurface *(*create_pixmap_surface)(struct _egl_display *disp, struct _egl_config *config,
+   struct _egl_surface *(*create_pixmap_surface)(struct _egl_display *disp, struct _egl_config *config,
                                          void *native_pixmap,
                                          const EGLint *attrib_list);
 
    /* optional */
-   _EGLSurface *(*create_pbuffer_surface)(struct _egl_display *disp, struct _egl_config *config,
+   struct _egl_surface *(*create_pbuffer_surface)(struct _egl_display *disp, struct _egl_config *config,
                                           const EGLint *attrib_list);
 
    /* mandatory */
-   EGLBoolean (*destroy_surface)(struct _egl_display *disp, _EGLSurface *surface);
+   EGLBoolean (*destroy_surface)(struct _egl_display *disp, struct _egl_surface *surface);
 
    /* optional */
-   EGLBoolean (*swap_interval)(struct _egl_display *disp, _EGLSurface *surf,
+   EGLBoolean (*swap_interval)(struct _egl_display *disp, struct _egl_surface *surf,
                                EGLint interval);
 
    /* mandatory */
@@ -133,18 +133,18 @@ struct dri2_egl_display_vtbl {
 
    /* mandatory */
    EGLBoolean (*swap_buffers)(struct _egl_display *disp,
-                              _EGLSurface *surface,
+                              struct _egl_surface *surface,
                               const EGLint *rects, EGLint n_rects);
 
    /* optional */
-   EGLBoolean (*copy_buffers)(struct _egl_display *disp, _EGLSurface *surf,
+   EGLBoolean (*copy_buffers)(struct _egl_display *disp, struct _egl_surface *surf,
                               void *native_pixmap_target);
 
    /* optional */
-   EGLint (*query_buffer_age)(struct _egl_display *disp, _EGLSurface *surf);
+   EGLint (*query_buffer_age)(struct _egl_display *disp, struct _egl_surface *surf);
 
    /* optional */
-   EGLBoolean (*query_surface)(struct _egl_display *disp, _EGLSurface *surf,
+   EGLBoolean (*query_surface)(struct _egl_display *disp, struct _egl_surface *surf,
                                EGLint attribute, EGLint *value);
 
    /* optional */
@@ -152,12 +152,12 @@ struct dri2_egl_display_vtbl {
                                                          struct _egl_image *img);
 
    /* optional */
-   EGLBoolean (*get_sync_values)(struct _egl_display *display, _EGLSurface *surface,
+   EGLBoolean (*get_sync_values)(struct _egl_display *display, struct _egl_surface *surface,
                                  EGLuint64KHR *ust, EGLuint64KHR *msc,
                                  EGLuint64KHR *sbc);
 
    /* optional */
-   EGLBoolean (*get_msc_rate)(struct _egl_display *display, _EGLSurface *surface,
+   EGLBoolean (*get_msc_rate)(struct _egl_display *display, struct _egl_surface *surface,
                               EGLint *numerator, EGLint *denominator);
 
    /* optional */
@@ -167,7 +167,7 @@ struct dri2_egl_display_vtbl {
     * shared buffer mode.
     * optional
     */
-   bool (*set_shared_buffer_mode)(struct _egl_display *disp, _EGLSurface *surf,
+   bool (*set_shared_buffer_mode)(struct _egl_display *disp, struct _egl_surface *surf,
                                   bool mode);
 };
 
@@ -300,7 +300,7 @@ struct dri2_egl_context {
 };
 
 struct dri2_egl_surface {
-   _EGLSurface base;
+   struct _egl_surface base;
    struct dri_drawable *dri_drawable;
 
 #ifdef HAVE_X11_PLATFORM
@@ -451,7 +451,7 @@ EGLBoolean
 dri2_setup_device(struct _egl_display *disp, EGLBoolean software);
 
 struct dri_drawable *
-dri2_surface_get_dri_drawable(_EGLSurface *surf);
+dri2_surface_get_dri_drawable(struct _egl_surface *surf);
 
 GLboolean
 dri2_validate_egl_image(void *image, void *data);
@@ -574,10 +574,10 @@ dri2_teardown_device(struct dri2_egl_display *dri2_dpy)
 
 void
 dri2_flush_drawable_for_swapbuffers_flags(
-   struct _egl_display *disp, _EGLSurface *draw,
+   struct _egl_display *disp, struct _egl_surface *draw,
    enum __DRI2throttleReason throttle_reason);
 void
-dri2_flush_drawable_for_swapbuffers(struct _egl_display *disp, _EGLSurface *draw);
+dri2_flush_drawable_for_swapbuffers(struct _egl_display *disp, struct _egl_surface *draw);
 
 const struct dri_config *
 dri2_get_dri_config(struct dri2_egl_config *conf, EGLint surface_type,
@@ -602,12 +602,12 @@ struct dri2_egl_display *
 dri2_display_create(struct _egl_display *disp);
 
 EGLBoolean
-dri2_init_surface(_EGLSurface *surf, struct _egl_display *disp, EGLint type,
+dri2_init_surface(struct _egl_surface *surf, struct _egl_display *disp, EGLint type,
                   struct _egl_config *conf, const EGLint *attrib_list,
                   EGLBoolean enable_out_fence, void *native_surface);
 
 void
-dri2_fini_surface(_EGLSurface *surf);
+dri2_fini_surface(struct _egl_surface *surf);
 
 EGLBoolean
 dri2_create_drawable(struct dri2_egl_display *dri2_dpy,

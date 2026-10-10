@@ -220,7 +220,7 @@ _eglCheckDisplay(struct _egl_display *disp, const char *msg)
 }
 
 static inline bool
-_eglCheckSurface(struct _egl_display *disp, _EGLSurface *surf, const char *msg)
+_eglCheckSurface(struct _egl_display *disp, struct _egl_surface *surf, const char *msg)
 {
    if (!_eglCheckDisplay(disp, msg))
       return false;
@@ -937,8 +937,8 @@ eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_context *context = _eglLookupContext(ctx, disp);
-   _EGLSurface *draw_surf = _eglLookupSurface(draw, disp);
-   _EGLSurface *read_surf = _eglLookupSurface(read, disp);
+   struct _egl_surface *draw_surf = _eglLookupSurface(draw, disp);
+   struct _egl_surface *read_surf = _eglLookupSurface(read, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_CONTEXT_KHR, context);
@@ -1026,7 +1026,7 @@ _eglNativeSurfaceAlreadyUsed(struct _egl_display *disp, void *native_surface)
 
    list = disp->ResourceLists[_EGL_RESOURCE_SURFACE];
    while (list) {
-      _EGLSurface *surf = (_EGLSurface *)list;
+      struct _egl_surface *surf = (struct _egl_surface *)list;
 
       list = list->Next;
 
@@ -1045,7 +1045,7 @@ _eglCreateWindowSurfaceCommon(struct _egl_display *disp, EGLConfig config,
                               void *native_window, const EGLint *attrib_list)
 {
    struct _egl_config *conf = _eglLookupConfig(config, disp);
-   _EGLSurface *surf = NULL;
+   struct _egl_surface *surf = NULL;
    EGLSurface ret;
 
    if (native_window == NULL)
@@ -1191,7 +1191,7 @@ _eglCreatePixmapSurfaceCommon(struct _egl_display *disp, EGLConfig config,
                               void *native_pixmap, const EGLint *attrib_list)
 {
    struct _egl_config *conf = _eglLookupConfig(config, disp);
-   _EGLSurface *surf = NULL;
+   struct _egl_surface *surf = NULL;
    EGLSurface ret;
 
    if (disp && (disp->Platform == _EGL_PLATFORM_SURFACELESS ||
@@ -1282,7 +1282,7 @@ eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config,
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_config *conf = _eglLookupConfig(config, disp);
-   _EGLSurface *surf = NULL;
+   struct _egl_surface *surf = NULL;
    EGLSurface ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -1303,7 +1303,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglDestroySurface(EGLDisplay dpy, EGLSurface surface)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
@@ -1321,7 +1321,7 @@ eglQuerySurface(EGLDisplay dpy, EGLSurface surface, EGLint attribute,
                 EGLint *value)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
@@ -1340,7 +1340,7 @@ eglSurfaceAttrib(EGLDisplay dpy, EGLSurface surface, EGLint attribute,
                  EGLint value)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
@@ -1355,7 +1355,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglBindTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
@@ -1372,7 +1372,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglReleaseTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
@@ -1390,7 +1390,7 @@ eglSwapInterval(EGLDisplay dpy, EGLint interval)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
    struct _egl_context *ctx = _eglGetCurrentContext();
-   _EGLSurface *surf = ctx ? ctx->DrawSurface : NULL;
+   struct _egl_surface *surf = ctx ? ctx->DrawSurface : NULL;
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
@@ -1428,7 +1428,7 @@ eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
@@ -1469,7 +1469,7 @@ eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
 }
 
 static EGLBoolean
-_eglSwapBuffersWithDamageCommon(struct _egl_display *disp, _EGLSurface *surf,
+_eglSwapBuffersWithDamageCommon(struct _egl_display *disp, struct _egl_surface *surf,
                                 const EGLint *rects, EGLint n_rects)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
@@ -1508,7 +1508,7 @@ eglSwapBuffersWithDamageEXT(EGLDisplay dpy, EGLSurface surface,
                             const EGLint *rects, EGLint n_rects)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
    return _eglSwapBuffersWithDamageCommon(disp, surf, rects, n_rects);
 }
@@ -1518,7 +1518,7 @@ eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface surface,
                             const EGLint *rects, EGLint n_rects)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
    return _eglSwapBuffersWithDamageCommon(disp, surf, rects, n_rects);
 }
@@ -1528,7 +1528,7 @@ eglSwapBuffersWithDamageKHR(EGLDisplay dpy, EGLSurface surface,
  */
 
 static void
-_eglSetDamageRegionKHRClampRects(_EGLSurface *surf, EGLint *rects,
+_eglSetDamageRegionKHRClampRects(struct _egl_surface *surf, EGLint *rects,
                                  EGLint n_rects)
 {
    EGLint i;
@@ -1554,7 +1554,7 @@ eglSetDamageRegionKHR(EGLDisplay dpy, EGLSurface surface, EGLint *rects,
                       EGLint n_rects)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
    struct _egl_context *ctx = _eglGetCurrentContext();
    EGLBoolean ret;
@@ -1586,7 +1586,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglCopyBuffers(EGLDisplay dpy, EGLSurface surface, EGLNativePixmapType target)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
    void *native_pixmap_ptr;
 
@@ -1704,7 +1704,7 @@ eglGetCurrentSurface(EGLint readdraw)
 {
    struct _egl_context *ctx = _eglGetCurrentContext();
    EGLint err = EGL_SUCCESS;
-   _EGLSurface *surf;
+   struct _egl_surface *surf;
    EGLSurface ret;
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
@@ -2344,7 +2344,7 @@ eglGetSyncValuesCHROMIUM(EGLDisplay dpy, EGLSurface surface, EGLuint64KHR *ust,
                          EGLuint64KHR *msc, EGLuint64KHR *sbc)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
@@ -2368,7 +2368,7 @@ eglGetMscRateANGLE(EGLDisplay dpy, EGLSurface surface, EGLint *numerator,
                    EGLint *denominator)
 {
    struct _egl_display *disp = _eglLockDisplay(dpy);
-   _EGLSurface *surf = _eglLookupSurface(surface, disp);
+   struct _egl_surface *surf = _eglLookupSurface(surface, disp);
    EGLBoolean ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
