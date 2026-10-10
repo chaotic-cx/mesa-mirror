@@ -79,7 +79,7 @@ _eglIsApiValid(EGLenum api)
    return false;
 }
 
-extern _EGLThreadInfo *
+extern struct _egl_thread_info *
 _eglGetCurrentThread(void);
 
 extern void

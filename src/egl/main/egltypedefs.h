@@ -39,8 +39,6 @@
 extern "C" {
 #endif
 
-typedef struct _egl_thread_info _EGLThreadInfo;
-
 #ifdef __cplusplus
 }
 #endif

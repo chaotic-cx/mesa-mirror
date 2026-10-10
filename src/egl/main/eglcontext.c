@@ -823,7 +823,7 @@ _eglQueryContext(struct _egl_context *c, EGLint attribute, EGLint *value)
  * Note that the context may be NULL.
  */
 struct _egl_context *
-_eglBindContextToThread(struct _egl_context *ctx, _EGLThreadInfo *t)
+_eglBindContextToThread(struct _egl_context *ctx, struct _egl_thread_info *t)
 {
    struct _egl_context *oldCtx;
 
@@ -846,7 +846,7 @@ _eglBindContextToThread(struct _egl_context *ctx, _EGLThreadInfo *t)
 static EGLBoolean
 _eglCheckMakeCurrent(struct _egl_context *ctx, struct _egl_surface *draw, struct _egl_surface *read)
 {
-   _EGLThreadInfo *t = _eglGetCurrentThread();
+   struct _egl_thread_info *t = _eglGetCurrentThread();
    struct _egl_display *disp;
 
    /* this is easy */
@@ -913,7 +913,7 @@ _eglBindContext(struct _egl_context *ctx, struct _egl_surface *draw, struct _egl
                 struct _egl_context **old_ctx, struct _egl_surface **old_draw,
                 struct _egl_surface **old_read)
 {
-   _EGLThreadInfo *t = _eglGetCurrentThread();
+   struct _egl_thread_info *t = _eglGetCurrentThread();
    struct _egl_context *prev_ctx;
    struct _egl_surface *prev_draw, *prev_read;
 

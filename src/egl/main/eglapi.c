@@ -330,7 +330,7 @@ static void
 _eglSetFuncName(const char *funcName, struct _egl_display *disp, EGLenum objectType,
                 struct _egl_resource *object)
 {
-   _EGLThreadInfo *thr = _eglGetCurrentThread();
+   struct _egl_thread_info *thr = _eglGetCurrentThread();
    thr->CurrentFuncName = funcName;
    thr->CurrentObjectLabel = NULL;
 
@@ -1733,7 +1733,7 @@ eglGetCurrentSurface(EGLint readdraw)
 PUBLIC EGLint EGLAPIENTRY
 eglGetError(void)
 {
-   _EGLThreadInfo *t = _eglGetCurrentThread();
+   struct _egl_thread_info *t = _eglGetCurrentThread();
    EGLint e = t->LastError;
    t->LastError = EGL_SUCCESS;
    return e;
@@ -1757,7 +1757,7 @@ eglGetError(void)
 PUBLIC EGLBoolean EGLAPIENTRY
 eglBindAPI(EGLenum api)
 {
-   _EGLThreadInfo *t;
+   struct _egl_thread_info *t;
 
    _EGL_FUNC_START(NULL, EGL_OBJECT_THREAD_KHR, NULL);
 
@@ -1777,7 +1777,7 @@ eglBindAPI(EGLenum api)
 PUBLIC EGLenum EGLAPIENTRY
 eglQueryAPI(void)
 {
-   _EGLThreadInfo *t = _eglGetCurrentThread();
+   struct _egl_thread_info *t = _eglGetCurrentThread();
    EGLenum ret;
 
    /* returns one of EGL_OPENGL_API, EGL_OPENGL_ES_API or EGL_OPENVG_API */
@@ -1806,7 +1806,7 @@ PUBLIC EGLBoolean EGLAPIENTRY
 eglReleaseThread(void)
 {
    /* unbind current contexts */
-   _EGLThreadInfo *t = _eglGetCurrentThread();
+   struct _egl_thread_info *t = _eglGetCurrentThread();
    struct _egl_context *ctx = t->CurrentContext;
 
    _EGL_FUNC_START(NULL, EGL_OBJECT_THREAD_KHR, NULL);
@@ -2443,7 +2443,7 @@ eglLabelObjectKHR(EGLDisplay dpy, EGLenum objectType, EGLObjectKHR object,
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);
 
    if (objectType == EGL_OBJECT_THREAD_KHR) {
-      _EGLThreadInfo *t = _eglGetCurrentThread();
+      struct _egl_thread_info *t = _eglGetCurrentThread();
 
       t->Label = label;
       return EGL_SUCCESS;

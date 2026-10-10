@@ -47,7 +47,7 @@ struct _egl_context {
    struct _egl_resource Resource;
 
    /* The bound status of the context */
-   _EGLThreadInfo *Binding;
+   struct _egl_thread_info *Binding;
    struct _egl_surface *DrawSurface;
    struct _egl_surface *ReadSurface;
 
@@ -78,7 +78,7 @@ _eglBindContext(struct _egl_context *ctx, struct _egl_surface *draw, struct _egl
                 struct _egl_surface **old_read);
 
 extern struct _egl_context *
-_eglBindContextToThread(struct _egl_context *ctx, _EGLThreadInfo *t);
+_eglBindContextToThread(struct _egl_context *ctx, struct _egl_thread_info *t);
 
 /**
  * Increment reference count for the context.

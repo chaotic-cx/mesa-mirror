@@ -38,12 +38,12 @@
 #include "eglglobals.h"
 #include "egllog.h"
 
-static __THREAD_INITIAL_EXEC _EGLThreadInfo _egl_TLS = {
+static __THREAD_INITIAL_EXEC struct _egl_thread_info _egl_TLS = {
    .inited = false,
 };
 
 static void
-_eglInitThreadInfo(_EGLThreadInfo *t)
+_eglInitThreadInfo(struct _egl_thread_info *t)
 {
    t->LastError = EGL_SUCCESS;
    /* default, per EGL spec */
@@ -55,10 +55,10 @@ _eglInitThreadInfo(_EGLThreadInfo *t)
  * If the calling thread never calls this function before, or if its thread
  * info was destroyed, reinitialize it.  This function never returns NULL.
  */
-_EGLThreadInfo *
+struct _egl_thread_info *
 _eglGetCurrentThread(void)
 {
-   _EGLThreadInfo *current = &_egl_TLS;
+   struct _egl_thread_info *current = &_egl_TLS;
    if (unlikely(!current->inited)) {
       memset(current, 0, sizeof(current[0]));
       _eglInitThreadInfo(current);
@@ -73,7 +73,7 @@ _eglGetCurrentThread(void)
 void
 _eglDestroyCurrentThread(void)
 {
-   _EGLThreadInfo *t = _eglGetCurrentThread();
+   struct _egl_thread_info *t = _eglGetCurrentThread();
    t->inited = false;
 }
 
@@ -83,7 +83,7 @@ _eglDestroyCurrentThread(void)
 struct _egl_context *
 _eglGetCurrentContext(void)
 {
-   _EGLThreadInfo *t = _eglGetCurrentThread();
+   struct _egl_thread_info *t = _eglGetCurrentThread();
    return t->CurrentContext;
 }
 
@@ -93,7 +93,7 @@ _eglGetCurrentContext(void)
 static EGLBoolean
 _eglInternalError(EGLint errCode, const char *msg)
 {
-   _EGLThreadInfo *t = _eglGetCurrentThread();
+   struct _egl_thread_info *t = _eglGetCurrentThread();
 
    t->LastError = errCode;
 
@@ -170,7 +170,7 @@ void
 _eglDebugReport(EGLenum error, const char *funcName, EGLint type,
                 const char *message, ...)
 {
-   _EGLThreadInfo *thr = _eglGetCurrentThread();
+   struct _egl_thread_info *thr = _eglGetCurrentThread();
    EGLDEBUGPROCKHR callback = NULL;
    va_list args;
 
