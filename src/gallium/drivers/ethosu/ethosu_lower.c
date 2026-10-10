@@ -3952,16 +3952,11 @@ ethosu_dump_operations(struct ethosu_subgraph *subgraph, const char *label)
    }
 }
 
-void
-ethosu_lower_graph(struct ethosu_subgraph *subgraph,
-                   const struct pipe_ml_operation *poperations, unsigned count)
+static void
+ethosu_lower_from_gallium(struct ethosu_subgraph *subgraph,
+                          const struct pipe_ml_operation *poperations,
+                          unsigned count)
 {
-   register_tensors(subgraph, poperations, count);
-   ethosu_require_softmax_spans(subgraph, poperations, count);
-   ethosu_reserve_internal_tensors(subgraph, count);
-   if (subgraph->failed)
-      return;
-
    /* Lower */
    for (int i = 0; i < count; i++) {
       struct ethosu_operation operation;
@@ -4332,9 +4327,25 @@ ethosu_lower_graph(struct ethosu_subgraph *subgraph,
          UNREACHABLE("Unsupported ML operation type");
       }
    }
+}
+
+void
+ethosu_lower_graph(struct ethosu_subgraph *subgraph,
+                   const struct pipe_ml_operation *poperations, unsigned count)
+{
+   register_tensors(subgraph, poperations, count);
+   ethosu_require_softmax_spans(subgraph, poperations, count);
+   ethosu_reserve_internal_tensors(subgraph, count);
+   if (subgraph->failed)
+      return;
+
+   ethosu_lower_from_gallium(subgraph, poperations, count);
+
+   if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
+      ethosu_dump_operations(subgraph, "ethosu_lower_from_gallium");
 
    ethosu_duplicate_batch_operations(subgraph);
 
    if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
-      ethosu_dump_operations(subgraph, "ethosu_lower_graph");
+      ethosu_dump_operations(subgraph, "ethosu_duplicate_batch_operations");
 }
