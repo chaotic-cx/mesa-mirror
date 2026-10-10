@@ -3167,7 +3167,7 @@ dri2_query_supported_compression_rates(_EGLDisplay *disp, _EGLConfig *config,
    return EGL_TRUE;
 }
 
-const struct _egl_driver _eglDriver = {
+const struct _egl_driver Driver = {
    .Initialize = dri2_initialize,
    .Terminate = dri2_terminate,
    .CreateContext = dri2_create_context,

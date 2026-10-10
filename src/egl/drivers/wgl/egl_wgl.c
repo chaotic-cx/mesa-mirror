@@ -1146,7 +1146,7 @@ wgl_interop_flush_objects(_EGLDisplay *disp, _EGLContext *ctx, unsigned count,
    return stw_interop_flush_objects(wgl_ctx->ctx, count, objects, out);
 }
 
-const struct _egl_driver _eglDriver = {
+const struct _egl_driver Driver = {
    .Initialize = wgl_initialize,
    .Terminate = wgl_terminate,
    .CreateContext = wgl_create_context,

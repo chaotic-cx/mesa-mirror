@@ -335,7 +335,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
       list = list->Next;
 
       _eglUnlinkContext(ctx);
-      _eglDriver.DestroyContext(display, ctx);
+      Driver.DestroyContext(display, ctx);
    }
    assert(!display->ResourceLists[_EGL_RESOURCE_CONTEXT]);
 
@@ -345,7 +345,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
       list = list->Next;
 
       _eglUnlinkSurface(surf);
-      _eglDriver.DestroySurface(display, surf);
+      Driver.DestroySurface(display, surf);
    }
    assert(!display->ResourceLists[_EGL_RESOURCE_SURFACE]);
 
@@ -355,7 +355,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
       list = list->Next;
 
       _eglUnlinkImage(image);
-      _eglDriver.DestroyImageKHR(display, image);
+      Driver.DestroyImageKHR(display, image);
    }
    assert(!display->ResourceLists[_EGL_RESOURCE_IMAGE]);
 
@@ -365,7 +365,7 @@ _eglReleaseDisplayResources(_EGLDisplay *display)
       list = list->Next;
 
       _eglUnlinkSync(sync);
-      _eglDriver.DestroySyncKHR(display, sync);
+      Driver.DestroySyncKHR(display, sync);
    }
    assert(!display->ResourceLists[_EGL_RESOURCE_SYNC]);
 }

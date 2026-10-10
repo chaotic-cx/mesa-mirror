@@ -706,19 +706,19 @@ eglInitialize(EGLDisplay dpy, EGLint *major, EGLint *minor)
        * Initialize the display using the driver's function.
        * If the initialisation fails, try again using only software rendering.
        */
-      if (!_eglDriver.Initialize(disp)) {
+      if (!Driver.Initialize(disp)) {
          if (disp->Options.ForceSoftware)
             RETURN_EGL_ERROR(disp, EGL_NOT_INITIALIZED, EGL_FALSE);
          else {
             bool success = false;
             if (!disp->Options.Zink && !os_get_option("GALLIUM_DRIVER")) {
                disp->Options.Zink = EGL_TRUE;
-               success = _eglDriver.Initialize(disp);
+               success = Driver.Initialize(disp);
             }
             if (!success) {
                disp->Options.Zink = EGL_FALSE;
                disp->Options.ForceSoftware = EGL_TRUE;
-               if (!_eglDriver.Initialize(disp))
+               if (!Driver.Initialize(disp))
                   RETURN_EGL_ERROR(disp, EGL_NOT_INITIALIZED, EGL_FALSE);
             }
          }
@@ -778,7 +778,7 @@ eglTerminate(EGLDisplay dpy)
       RETURN_EGL_ERROR(NULL, EGL_BAD_DISPLAY, EGL_FALSE);
 
    if (disp->Initialized) {
-      _eglDriver.Terminate(disp);
+      Driver.Terminate(disp);
       disp->ClientAPIsString[0] = 0;
       disp->Initialized = EGL_FALSE;
 
@@ -910,7 +910,7 @@ eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_list,
       RETURN_EGL_ERROR(disp, EGL_BAD_MATCH, EGL_NO_CONTEXT);
    }
 
-   context = _eglDriver.CreateContext(disp, conf, share, attrib_list);
+   context = Driver.CreateContext(disp, conf, share, attrib_list);
    ret = (context) ? _eglLinkContext(context) : EGL_NO_CONTEXT;
 
    RETURN_EGL_EVAL(disp, ret);
@@ -927,7 +927,7 @@ eglDestroyContext(EGLDisplay dpy, EGLContext ctx)
 
    _EGL_CHECK_CONTEXT(disp, context, EGL_FALSE);
    _eglUnlinkContext(context);
-   ret = _eglDriver.DestroyContext(disp, context);
+   ret = Driver.DestroyContext(disp, context);
 
    RETURN_EGL_EVAL(disp, ret);
 }
@@ -991,7 +991,7 @@ eglMakeCurrent(EGLDisplay dpy, EGLSurface draw, EGLSurface read, EGLContext ctx)
               draw_surf ? &draw_surf->Resource : NULL,
               read_surf ? &read_surf->Resource : NULL,
               context ? &context->Resource : NULL) {
-      ret = _eglDriver.MakeCurrent(disp, draw_surf, read_surf, context);
+      ret = Driver.MakeCurrent(disp, draw_surf, read_surf, context);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -1077,7 +1077,7 @@ _eglCreateWindowSurfaceCommon(_EGLDisplay *disp, EGLConfig config,
       RETURN_EGL_ERROR(disp, EGL_BAD_ALLOC, EGL_NO_SURFACE);
 
    egl_relax (disp) {
-      surf = _eglDriver.CreateWindowSurface(disp, conf, native_window,
+      surf = Driver.CreateWindowSurface(disp, conf, native_window,
                                                attrib_list);
    }
    ret = (surf) ? _eglLinkSurface(surf) : EGL_NO_SURFACE;
@@ -1221,7 +1221,7 @@ _eglCreatePixmapSurfaceCommon(_EGLDisplay *disp, EGLConfig config,
       RETURN_EGL_ERROR(disp, EGL_BAD_ALLOC, EGL_NO_SURFACE);
 
    egl_relax (disp) {
-      surf = _eglDriver.CreatePixmapSurface(disp, conf, native_pixmap,
+      surf = Driver.CreatePixmapSurface(disp, conf, native_pixmap,
                                                attrib_list);
    }
    ret = (surf) ? _eglLinkSurface(surf) : EGL_NO_SURFACE;
@@ -1292,7 +1292,7 @@ eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config,
       RETURN_EGL_ERROR(disp, EGL_BAD_MATCH, EGL_NO_SURFACE);
 
    egl_relax (disp) {
-      surf = _eglDriver.CreatePbufferSurface(disp, conf, attrib_list);
+      surf = Driver.CreatePbufferSurface(disp, conf, attrib_list);
    }
    ret = (surf) ? _eglLinkSurface(surf) : EGL_NO_SURFACE;
 
@@ -1310,7 +1310,7 @@ eglDestroySurface(EGLDisplay dpy, EGLSurface surface)
    _EGL_CHECK_SURFACE(disp, surf, EGL_FALSE);
    _eglUnlinkSurface(surf);
    egl_relax (disp) {
-      ret = _eglDriver.DestroySurface(disp, surf);
+      ret = Driver.DestroySurface(disp, surf);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -1327,8 +1327,8 @@ eglQuerySurface(EGLDisplay dpy, EGLSurface surface, EGLint attribute,
    _EGL_FUNC_START(disp, EGL_OBJECT_SURFACE_KHR, surf);
    _EGL_CHECK_SURFACE(disp, surf, EGL_FALSE);
 
-   if (_eglDriver.QuerySurface)
-      ret = _eglDriver.QuerySurface(disp, surf, attribute, value);
+   if (Driver.QuerySurface)
+      ret = Driver.QuerySurface(disp, surf, attribute, value);
    else
       ret = _eglQuerySurface(disp, surf, attribute, value);
 
@@ -1362,7 +1362,7 @@ eglBindTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer)
    _EGL_CHECK_SURFACE(disp, surf, EGL_FALSE);
 
    egl_relax (disp, &surf->Resource) {
-      ret = _eglDriver.BindTexImage(disp, surf, buffer);
+      ret = Driver.BindTexImage(disp, surf, buffer);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -1379,7 +1379,7 @@ eglReleaseTexImage(EGLDisplay dpy, EGLSurface surface, EGLint buffer)
    _EGL_CHECK_SURFACE(disp, surf, EGL_FALSE);
 
    egl_relax (disp) {
-      ret = _eglDriver.ReleaseTexImage(disp, surf, buffer);
+      ret = Driver.ReleaseTexImage(disp, surf, buffer);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -1409,9 +1409,9 @@ eglSwapInterval(EGLDisplay dpy, EGLint interval)
    interval = CLAMP(interval, surf->Config->MinSwapInterval,
                     surf->Config->MaxSwapInterval);
 
-   if (surf->SwapInterval != interval && _eglDriver.SwapInterval) {
+   if (surf->SwapInterval != interval && Driver.SwapInterval) {
       egl_relax (disp, &surf->Resource) {
-         ret = _eglDriver.SwapInterval(disp, surf, interval);
+         ret = Driver.SwapInterval(disp, surf, interval);
       }
    } else {
       ret = EGL_TRUE;
@@ -1453,7 +1453,7 @@ eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
       RETURN_EGL_ERROR(disp, EGL_BAD_NATIVE_WINDOW, EGL_FALSE);
 
    egl_relax (disp, &surf->Resource) {
-      ret = _eglDriver.SwapBuffers(disp, surf);
+      ret = Driver.SwapBuffers(disp, surf);
    }
 
    /* EGL_KHR_partial_update
@@ -1488,7 +1488,7 @@ _eglSwapBuffersWithDamageCommon(_EGLDisplay *disp, _EGLSurface *surf,
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
    egl_relax (disp, &surf->Resource) {
-      ret = _eglDriver.SwapBuffersWithDamageEXT(disp, surf, rects, n_rects);
+      ret = Driver.SwapBuffersWithDamageEXT(disp, surf, rects, n_rects);
    }
 
    /* EGL_KHR_partial_update
@@ -1574,7 +1574,7 @@ eglSetDamageRegionKHR(EGLDisplay dpy, EGLSurface surface, EGLint *rects,
       RETURN_EGL_ERROR(disp, EGL_BAD_ACCESS, EGL_FALSE);
 
    _eglSetDamageRegionKHRClampRects(surf, rects, n_rects);
-   ret = _eglDriver.SetDamageRegion(disp, surf, rects, n_rects);
+   ret = Driver.SetDamageRegion(disp, surf, rects, n_rects);
 
    if (ret)
       surf->SetDamageRegionCalled = EGL_TRUE;
@@ -1599,7 +1599,7 @@ eglCopyBuffers(EGLDisplay dpy, EGLSurface surface, EGLNativePixmapType target)
       RETURN_EGL_ERROR(disp, EGL_BAD_ACCESS, EGL_FALSE);
 
    egl_relax (disp, &surf->Resource) {
-      ret = _eglDriver.CopyBuffers(disp, surf, native_pixmap_ptr);
+      ret = Driver.CopyBuffers(disp, surf, native_pixmap_ptr);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -1626,7 +1626,7 @@ _eglWaitClientCommon(void)
    assert(disp->Initialized);
 
    egl_relax (disp, &ctx->Resource) {
-      ret = _eglDriver.WaitClient(disp, ctx);
+      ret = Driver.WaitClient(disp, ctx);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -1671,7 +1671,7 @@ eglWaitNative(EGLint engine)
    assert(disp->Initialized);
 
    egl_relax (disp) {
-      ret = _eglDriver.WaitNative(engine);
+      ret = Driver.WaitNative(engine);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -1815,7 +1815,7 @@ eglReleaseThread(void)
       _EGLDisplay *disp = ctx->Resource.Display;
 
       u_rwlock_rdlock(&disp->TerminateLock);
-      (void)_eglDriver.MakeCurrent(disp, NULL, NULL, NULL);
+      (void)Driver.MakeCurrent(disp, NULL, NULL, NULL);
       u_rwlock_rdunlock(&disp->TerminateLock);
    }
 
@@ -1845,7 +1845,7 @@ _eglCreateImageCommon(_EGLDisplay *disp, EGLContext ctx, EGLenum target,
 
    egl_relax (disp, context ? &context->Resource : NULL) {
       img =
-         _eglDriver.CreateImageKHR(disp, context, target, buffer, attr_list);
+         Driver.CreateImageKHR(disp, context, target, buffer, attr_list);
    }
 
    ret = (img) ? _eglLinkImage(img) : EGL_NO_IMAGE_KHR;
@@ -1893,7 +1893,7 @@ _eglDestroyImageCommon(_EGLDisplay *disp, _EGLImage *img)
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
    _eglUnlinkImage(img);
-   ret = _eglDriver.DestroyImageKHR(disp, img);
+   ret = Driver.DestroyImageKHR(disp, img);
 
    RETURN_EGL_EVAL(disp, ret);
 }
@@ -1972,7 +1972,7 @@ _eglCreateSync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list,
    }
 
    egl_relax (disp) {
-      sync = _eglDriver.CreateSyncKHR(disp, type, attrib_list);
+      sync = Driver.CreateSyncKHR(disp, type, attrib_list);
    }
 
    ret = (sync) ? _eglLinkSync(sync) : EGL_NO_SYNC_KHR;
@@ -2036,7 +2036,7 @@ _eglDestroySync(_EGLDisplay *disp, _EGLSync *s)
    _eglUnlinkSync(s);
 
    egl_relax (disp) {
-      ret = _eglDriver.DestroySyncKHR(disp, s);
+      ret = Driver.DestroySyncKHR(disp, s);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2075,7 +2075,7 @@ _eglClientWaitSyncCommon(_EGLDisplay *disp, _EGLSync *s, EGLint flags,
       RETURN_EGL_EVAL(disp, EGL_CONDITION_SATISFIED_KHR);
 
    egl_relax (disp, &s->Resource) {
-      ret = _eglDriver.ClientWaitSyncKHR(disp, s, flags, timeout);
+      ret = Driver.ClientWaitSyncKHR(disp, s, flags, timeout);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2117,7 +2117,7 @@ _eglWaitSyncCommon(_EGLDisplay *disp, _EGLSync *s, EGLint flags)
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
    egl_relax (disp, &s->Resource) {
-      ret = _eglDriver.WaitSyncKHR(disp, s);
+      ret = Driver.WaitSyncKHR(disp, s);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2158,7 +2158,7 @@ eglSignalSyncKHR(EGLDisplay dpy, EGLSync sync, EGLenum mode)
    assert(disp->Extensions.KHR_reusable_sync);
 
    egl_relax (disp, &s->Resource) {
-      ret = _eglDriver.SignalSyncKHR(disp, s, mode);
+      ret = Driver.SignalSyncKHR(disp, s, mode);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2242,7 +2242,7 @@ eglDupNativeFenceFDANDROID(EGLDisplay dpy, EGLSync sync)
    assert(disp->Extensions.ANDROID_native_fence_sync);
 
    egl_relax (disp, &s->Resource) {
-      ret = _eglDriver.DupNativeFenceFDANDROID(disp, s);
+      ret = Driver.DupNativeFenceFDANDROID(disp, s);
    }
 
    RETURN_EGL_SUCCESS(disp, ret);
@@ -2266,7 +2266,7 @@ eglBindWaylandDisplayWL(EGLDisplay dpy, struct wl_display *display)
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
    egl_relax (disp) {
-      ret = _eglDriver.BindWaylandDisplayWL(disp, display);
+      ret = Driver.BindWaylandDisplayWL(disp, display);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2287,7 +2287,7 @@ eglUnbindWaylandDisplayWL(EGLDisplay dpy, struct wl_display *display)
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
    egl_relax (disp) {
-      ret = _eglDriver.UnbindWaylandDisplayWL(disp, display);
+      ret = Driver.UnbindWaylandDisplayWL(disp, display);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2309,7 +2309,7 @@ eglQueryWaylandBufferWL(EGLDisplay dpy, struct wl_resource *buffer,
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
    egl_relax (disp) {
-      ret = _eglDriver.QueryWaylandBufferWL(disp, buffer, attribute, value);
+      ret = Driver.QueryWaylandBufferWL(disp, buffer, attribute, value);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2333,7 +2333,7 @@ eglCreateWaylandBufferFromImageWL(EGLDisplay dpy, EGLImage image)
    if (!img)
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, NULL);
 
-   ret = _eglDriver.CreateWaylandBufferFromImageWL(disp, img);
+   ret = Driver.CreateWaylandBufferFromImageWL(disp, img);
 
    RETURN_EGL_EVAL(disp, ret);
 }
@@ -2357,7 +2357,7 @@ eglGetSyncValuesCHROMIUM(EGLDisplay dpy, EGLSurface surface, EGLuint64KHR *ust,
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
    egl_relax (disp, &surf->Resource) {
-      ret = _eglDriver.GetSyncValuesCHROMIUM(disp, surf, ust, msc, sbc);
+      ret = Driver.GetSyncValuesCHROMIUM(disp, surf, ust, msc, sbc);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2380,7 +2380,7 @@ eglGetMscRateANGLE(EGLDisplay dpy, EGLSurface surface, EGLint *numerator,
    if (!numerator || !denominator)
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
-   ret = _eglDriver.GetMscRateANGLE(disp, surf, numerator, denominator);
+   ret = Driver.GetMscRateANGLE(disp, surf, numerator, denominator);
 
    RETURN_EGL_EVAL(disp, ret);
 }
@@ -2402,7 +2402,7 @@ eglExportDMABUFImageQueryMESA(EGLDisplay dpy, EGLImage image, EGLint *fourcc,
       RETURN_EGL_ERROR(disp, EGL_BAD_PARAMETER, EGL_FALSE);
 
    egl_relax (disp, &img->Resource) {
-      ret = _eglDriver.ExportDMABUFImageQueryMESA(disp, img, fourcc, nplanes,
+      ret = Driver.ExportDMABUFImageQueryMESA(disp, img, fourcc, nplanes,
                                                      modifiers);
    }
 
@@ -2427,7 +2427,7 @@ eglExportDMABUFImageMESA(EGLDisplay dpy, EGLImage image, int *fds,
 
    egl_relax (disp, &img->Resource) {
       ret =
-         _eglDriver.ExportDMABUFImageMESA(disp, img, fds, strides, offsets);
+         Driver.ExportDMABUFImageMESA(disp, img, fds, strides, offsets);
    }
 
    RETURN_EGL_EVAL(disp, ret);
@@ -2590,7 +2590,7 @@ eglQueryDmaBufFormatsEXT(EGLDisplay dpy, EGLint max_formats, EGLint *formats,
    _EGL_CHECK_DISPLAY(disp, EGL_FALSE);
 
    egl_relax (disp) {
-      ret = _eglDriver.QueryDmaBufFormatsEXT(disp, max_formats, formats,
+      ret = Driver.QueryDmaBufFormatsEXT(disp, max_formats, formats,
                                                 num_formats);
    }
 
@@ -2610,7 +2610,7 @@ eglQueryDmaBufModifiersEXT(EGLDisplay dpy, EGLint format, EGLint max_modifiers,
    _EGL_CHECK_DISPLAY(disp, EGL_FALSE);
 
    egl_relax (disp) {
-      ret = _eglDriver.QueryDmaBufModifiersEXT(
+      ret = Driver.QueryDmaBufModifiersEXT(
          disp, format, max_modifiers, modifiers, external_only, num_modifiers);
    }
 
@@ -2633,8 +2633,8 @@ eglQuerySupportedCompressionRatesEXT(EGLDisplay dpy, EGLConfig config,
    _EGL_CHECK_CONFIG(disp, conf, EGL_FALSE);
 
    egl_relax (disp) {
-      if (_eglDriver.QuerySupportedCompressionRatesEXT) {
-         ret = _eglDriver.QuerySupportedCompressionRatesEXT(
+      if (Driver.QuerySupportedCompressionRatesEXT) {
+         ret = Driver.QuerySupportedCompressionRatesEXT(
             disp, conf, attrib_list, rates, rate_size, num_rates);
       } else {
          *num_rates = 0;
@@ -2663,7 +2663,7 @@ eglSetBlobCacheFuncsANDROID(EGLDisplay *dpy, EGLSetBlobFuncANDROID set,
    disp->BlobCacheSet = set;
    disp->BlobCacheGet = get;
 
-   _eglDriver.SetBlobCacheFuncsANDROID(disp, set, get);
+   Driver.SetBlobCacheFuncsANDROID(disp, set, get);
 
    RETURN_EGL_SUCCESS(disp, /* void */);
 }
@@ -2750,7 +2750,7 @@ eglGetDisplayDriverConfig(EGLDisplay dpy)
 
    assert(disp->Extensions.MESA_query_driver);
 
-   ret = _eglDriver.QueryDriverConfig(disp);
+   ret = Driver.QueryDriverConfig(disp);
    RETURN_EGL_EVAL(disp, ret);
 }
 
@@ -2765,7 +2765,7 @@ eglGetDisplayDriverName(EGLDisplay dpy)
 
    assert(disp->Extensions.MESA_query_driver);
 
-   ret = _eglDriver.QueryDriverName(disp);
+   ret = Driver.QueryDriverName(disp);
    RETURN_EGL_EVAL(disp, ret);
 }
 
@@ -2833,8 +2833,8 @@ MesaGLInteropEGLQueryDeviceInfo(EGLDisplay dpy, EGLContext context,
    if (ret != MESA_GLINTEROP_SUCCESS)
       return ret;
 
-   if (_eglDriver.GLInteropQueryDeviceInfo)
-      ret = _eglDriver.GLInteropQueryDeviceInfo(disp, ctx, out);
+   if (Driver.GLInteropQueryDeviceInfo)
+      ret = Driver.GLInteropQueryDeviceInfo(disp, ctx, out);
    else
       ret = MESA_GLINTEROP_UNSUPPORTED;
 
@@ -2855,8 +2855,8 @@ MesaGLInteropEGLExportObject(EGLDisplay dpy, EGLContext context,
    if (ret != MESA_GLINTEROP_SUCCESS)
       return ret;
 
-   if (_eglDriver.GLInteropExportObject)
-      ret = _eglDriver.GLInteropExportObject(disp, ctx, in, out);
+   if (Driver.GLInteropExportObject)
+      ret = Driver.GLInteropExportObject(disp, ctx, in, out);
    else
       ret = MESA_GLINTEROP_UNSUPPORTED;
 
@@ -2877,8 +2877,8 @@ MesaGLInteropEGLFlushObjects(EGLDisplay dpy, EGLContext context, unsigned count,
    if (ret != MESA_GLINTEROP_SUCCESS)
       return ret;
 
-   if (_eglDriver.GLInteropFlushObjects)
-      ret = _eglDriver.GLInteropFlushObjects(disp, ctx, count, objects, out);
+   if (Driver.GLInteropFlushObjects)
+      ret = Driver.GLInteropFlushObjects(disp, ctx, count, objects, out);
    else
       ret = MESA_GLINTEROP_UNSUPPORTED;
 

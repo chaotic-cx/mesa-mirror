@@ -158,7 +158,7 @@ _eglAddDRMDevice(drmDevicePtr device)
    /* Need to have render node for query to work. */
    bool supports_info_query =
       device->available_nodes & (1 << DRM_NODE_RENDER) &&
-      _eglDriver.QueryDeviceInfo;
+      Driver.QueryDeviceInfo;
 
    if (supports_info_query)
       dev->extensions =
@@ -290,7 +290,7 @@ _eglQueryDeviceAttribEXT(_EGLDevice *dev, EGLint attribute, EGLAttrib *value)
 #ifdef HAVE_LIBDRM
       drmDevice *device = _eglDeviceDrm(dev);
       const char *render_node = device->nodes[DRM_NODE_RENDER];
-      if (!_eglDriver.QueryDeviceInfo(render_node, &dev->device_info)) {
+      if (!Driver.QueryDeviceInfo(render_node, &dev->device_info)) {
          _eglError(EGL_BAD_DEVICE_EXT, "eglQueryDeviceAttribEXT");
          return EGL_FALSE;
       }
@@ -323,7 +323,7 @@ _eglQueryDeviceBinaryEXT(_EGLDevice *dev, EGLint name, EGLint max_size,
    const char *render_node =
       _eglDeviceSupports(dev, _EGL_DEVICE_SOFTWARE) ?
       "" : device->nodes[DRM_NODE_RENDER];
-   if (!_eglDriver.QueryDeviceInfo(render_node, &dev->device_info)) {
+   if (!Driver.QueryDeviceInfo(render_node, &dev->device_info)) {
       _eglError(EGL_BAD_DEVICE_EXT, "eglQueryDeviceBinaryEXT");
       return EGL_FALSE;
    }
@@ -392,7 +392,7 @@ _eglQueryDeviceStringEXT(_EGLDevice *dev, EGLint name)
       if (!_eglDeviceSupports(dev, _EGL_DEVICE_QUERY_NAME))
          break;
 #ifdef HAVE_LIBDRM
-      if (!_eglDriver.QueryDeviceInfo(render_node, &dev->device_info)) {
+      if (!Driver.QueryDeviceInfo(render_node, &dev->device_info)) {
          _eglError(EGL_BAD_DEVICE_EXT, "eglQueryDeviceStringEXT");
          return NULL;
       }
@@ -406,7 +406,7 @@ _eglQueryDeviceStringEXT(_EGLDevice *dev, EGLint name)
       if (!_eglDeviceSupports(dev, _EGL_DEVICE_QUERY_NAME))
          break;
 #ifdef HAVE_LIBDRM
-      if (!_eglDriver.QueryDeviceInfo(render_node, &dev->device_info)) {
+      if (!Driver.QueryDeviceInfo(render_node, &dev->device_info)) {
          _eglError(EGL_BAD_DEVICE_EXT, "eglQueryDeviceStringEXT");
          return NULL;
       }
@@ -421,7 +421,7 @@ _eglQueryDeviceStringEXT(_EGLDevice *dev, EGLint name)
       if (!_eglDeviceSupports(dev, _EGL_DEVICE_PERSISTENT_ID))
          break;
 #ifdef HAVE_LIBDRM
-      if (!_eglDriver.QueryDeviceInfo(render_node, &dev->device_info)) {
+      if (!Driver.QueryDeviceInfo(render_node, &dev->device_info)) {
          _eglError(EGL_BAD_DEVICE_EXT, "eglQueryDeviceStringEXT");
          return NULL;
       }
