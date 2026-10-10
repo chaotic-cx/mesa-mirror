@@ -32,7 +32,16 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+#include <EGL/eglext_angle.h>
+#include <EGL/eglmesaext.h>
+
 #include "egltypedefs.h"
+#include "eglconfig.h"
+#include "egldisplay.h"
+#include "eglsurface.h"
 
 #ifdef __cplusplus
 extern "C" {

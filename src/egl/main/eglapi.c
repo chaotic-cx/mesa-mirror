@@ -85,6 +85,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include <EGL/egl.h>
+
 #include "c11/threads.h"
 #include "mesa/glapi/glapi/glapi.h"
 #include "util/macros.h"

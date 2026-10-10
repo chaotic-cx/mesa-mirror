@@ -28,6 +28,8 @@
 #ifndef EGLARRAY_INCLUDED
 #define EGLARRAY_INCLUDED
 
+#include <EGL/egl.h>
+
 #include "egltypedefs.h"
 
 #ifdef __cplusplus

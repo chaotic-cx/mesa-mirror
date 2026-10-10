@@ -29,6 +29,8 @@
 #ifndef EGLLOG_INCLUDED
 #define EGLLOG_INCLUDED
 
+#include <EGL/egl.h>
+
 #include "egltypedefs.h"
 
 #ifdef __cplusplus

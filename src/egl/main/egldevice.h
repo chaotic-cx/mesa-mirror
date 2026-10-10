@@ -34,6 +34,9 @@
 #include <xf86drm.h>
 #endif
 
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+
 #include "egltypedefs.h"
 
 #ifdef __cplusplus

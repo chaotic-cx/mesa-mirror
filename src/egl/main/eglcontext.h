@@ -30,6 +30,8 @@
 #ifndef EGLCONTEXT_INCLUDED
 #define EGLCONTEXT_INCLUDED
 
+#include <EGL/egl.h>
+
 #include "egldisplay.h"
 #include "egltypedefs.h"
 

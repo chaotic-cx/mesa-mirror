@@ -29,6 +29,8 @@
 
 #include <algorithm>
 
+#include <EGL/egl.h>
+
 #include "eglconfig.h"
 #include "eglcontext.h"
 #include "eglcurrent.h"

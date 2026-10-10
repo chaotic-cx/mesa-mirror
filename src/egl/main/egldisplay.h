@@ -30,6 +30,9 @@
 #ifndef EGLDISPLAY_INCLUDED
 #define EGLDISPLAY_INCLUDED
 
+#include <EGL/egl.h>
+#include <EGL/eglext.h>
+
 #include "util/rwlock.h"
 #include "util/simple_mtx.h"
 

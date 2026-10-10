@@ -30,6 +30,7 @@
 
 #include "eglcurrent.h"
 #include "egldriver.h"
+#include "egldisplay.h"
 #include "egllog.h"
 #include "eglsync.h"
 
