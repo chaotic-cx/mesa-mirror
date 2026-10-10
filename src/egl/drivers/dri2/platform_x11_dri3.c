@@ -154,7 +154,7 @@ egl_to_loader_dri3_drawable_type(EGLint type)
 }
 
 static _EGLSurface *
-dri3_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
+dri3_create_surface(_EGLDisplay *disp, EGLint type, struct _egl_config *conf,
                     void *native_surface, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -246,7 +246,7 @@ dri3_authenticate(_EGLDisplay *disp, uint32_t id)
  * Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
  */
 static _EGLSurface *
-dri3_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri3_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                            void *native_window, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -261,7 +261,7 @@ dri3_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-dri3_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri3_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
                            void *native_pixmap, const EGLint *attrib_list)
 {
    return dri3_create_surface(disp, EGL_PIXMAP_BIT, conf, native_pixmap,
@@ -269,7 +269,7 @@ dri3_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-dri3_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri3_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
                             const EGLint *attrib_list)
 {
    return dri3_create_surface(disp, EGL_PBUFFER_BIT, conf, NULL, attrib_list);

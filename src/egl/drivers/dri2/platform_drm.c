@@ -140,7 +140,7 @@ dri2_drm_config_is_compatible(struct dri2_egl_display *dri2_dpy,
 }
 
 static _EGLSurface *
-dri2_drm_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_drm_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                                void *native_surface, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -192,7 +192,7 @@ cleanup_surf:
 }
 
 static _EGLSurface *
-dri2_drm_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_drm_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
                                void *native_window, const EGLint *attrib_list)
 {
    /* From the EGL_MESA_platform_gbm spec, version 5:

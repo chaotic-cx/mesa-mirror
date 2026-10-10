@@ -106,17 +106,17 @@ struct dri2_egl_display_vtbl {
    int (*authenticate)(_EGLDisplay *disp, uint32_t id);
 
    /* mandatory */
-   _EGLSurface *(*create_window_surface)(_EGLDisplay *disp, _EGLConfig *config,
+   _EGLSurface *(*create_window_surface)(_EGLDisplay *disp, struct _egl_config *config,
                                          void *native_window,
                                          const EGLint *attrib_list);
 
    /* optional */
-   _EGLSurface *(*create_pixmap_surface)(_EGLDisplay *disp, _EGLConfig *config,
+   _EGLSurface *(*create_pixmap_surface)(_EGLDisplay *disp, struct _egl_config *config,
                                          void *native_pixmap,
                                          const EGLint *attrib_list);
 
    /* optional */
-   _EGLSurface *(*create_pbuffer_surface)(_EGLDisplay *disp, _EGLConfig *config,
+   _EGLSurface *(*create_pbuffer_surface)(_EGLDisplay *disp, struct _egl_config *config,
                                           const EGLint *attrib_list);
 
    /* mandatory */
@@ -389,7 +389,7 @@ struct dri2_egl_surface {
 };
 
 struct dri2_egl_config {
-   _EGLConfig base;
+   struct _egl_config base;
    const struct dri_config *dri_config[2][2];
 };
 
@@ -603,7 +603,7 @@ dri2_display_create(_EGLDisplay *disp);
 
 EGLBoolean
 dri2_init_surface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
-                  _EGLConfig *conf, const EGLint *attrib_list,
+                  struct _egl_config *conf, const EGLint *attrib_list,
                   EGLBoolean enable_out_fence, void *native_surface);
 
 void

@@ -655,7 +655,7 @@ _eglParseContextAttribList(_EGLContext *ctx, _EGLDisplay *disp,
  * responsible for determining whether that's an API it supports.
  */
 EGLBoolean
-_eglInitContext(_EGLContext *ctx, _EGLDisplay *disp, _EGLConfig *conf,
+_eglInitContext(_EGLContext *ctx, _EGLDisplay *disp, struct _egl_config *conf,
                 _EGLContext *share_list, const EGLint *attrib_list)
 {
    const EGLenum api = eglQueryAPI();

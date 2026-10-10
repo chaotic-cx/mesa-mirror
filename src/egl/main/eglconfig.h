@@ -91,7 +91,7 @@ struct _egl_config {
 };
 
 /**
- * Map an EGL attribute enum to the offset of the member in _EGLConfig.
+ * Map an EGL attribute enum to the offset of the member in struct _egl_config.
  */
 static inline EGLint
 _eglOffsetOfConfig(EGLint attr)
@@ -99,7 +99,7 @@ _eglOffsetOfConfig(EGLint attr)
    switch (attr) {
 #define ATTRIB_MAP(attr, memb)                                                 \
    case attr:                                                                  \
-      return offsetof(_EGLConfig, memb)
+      return offsetof(struct _egl_config, memb)
       /* core */
       ATTRIB_MAP(EGL_BUFFER_SIZE, BufferSize);
       ATTRIB_MAP(EGL_ALPHA_SIZE, AlphaSize);
@@ -154,7 +154,7 @@ _eglOffsetOfConfig(EGLint attr)
  * Drivers should never set a key that is an invalid attribute.
  */
 static inline void
-_eglSetConfigKey(_EGLConfig *conf, EGLint key, EGLint val)
+_eglSetConfigKey(struct _egl_config *conf, EGLint key, EGLint val)
 {
    EGLint offset = _eglOffsetOfConfig(key);
    assert(offset >= 0);
@@ -165,7 +165,7 @@ _eglSetConfigKey(_EGLConfig *conf, EGLint key, EGLint val)
  * Return the value for a given key.
  */
 static inline EGLint
-_eglGetConfigKey(const _EGLConfig *conf, EGLint key)
+_eglGetConfigKey(const struct _egl_config *conf, EGLint key)
 {
    EGLint offset = _eglOffsetOfConfig(key);
    assert(offset >= 0);
@@ -173,43 +173,43 @@ _eglGetConfigKey(const _EGLConfig *conf, EGLint key)
 }
 
 extern void
-_eglInitConfig(_EGLConfig *config, _EGLDisplay *disp, EGLint id);
+_eglInitConfig(struct _egl_config *config, _EGLDisplay *disp, EGLint id);
 
 extern EGLConfig
-_eglLinkConfig(_EGLConfig *conf);
+_eglLinkConfig(struct _egl_config *conf);
 
-extern _EGLConfig *
+extern struct _egl_config *
 _eglLookupConfig(EGLConfig config, _EGLDisplay *disp);
 
 /**
  * Return the handle of a linked config.
  */
 static inline EGLConfig
-_eglGetConfigHandle(_EGLConfig *conf)
+_eglGetConfigHandle(struct _egl_config *conf)
 {
    return (EGLConfig)conf;
 }
 
 extern EGLBoolean
-_eglValidateConfig(const _EGLConfig *conf, EGLBoolean for_matching);
+_eglValidateConfig(const struct _egl_config *conf, EGLBoolean for_matching);
 
 extern EGLBoolean
-_eglMatchConfig(const _EGLConfig *conf, const _EGLConfig *criteria);
+_eglMatchConfig(const struct _egl_config *conf, const struct _egl_config *criteria);
 
 extern EGLBoolean
-_eglParseConfigAttribList(_EGLConfig *conf, _EGLDisplay *disp,
+_eglParseConfigAttribList(struct _egl_config *conf, _EGLDisplay *disp,
                           const EGLint *attrib_list);
 
 extern EGLint
-_eglCompareConfigs(const _EGLConfig *conf1, const _EGLConfig *conf2,
-                   const _EGLConfig *criteria, EGLBoolean compare_id);
+_eglCompareConfigs(const struct _egl_config *conf1, const struct _egl_config *conf2,
+                   const struct _egl_config *criteria, EGLBoolean compare_id);
 
 extern EGLBoolean
 _eglChooseConfig(_EGLDisplay *disp, const EGLint *attrib_list,
                  EGLConfig *configs, EGLint config_size, EGLint *num_config);
 
 extern EGLBoolean
-_eglGetConfigAttrib(const _EGLDisplay *disp, const _EGLConfig *conf,
+_eglGetConfigAttrib(const _EGLDisplay *disp, const struct _egl_config *conf,
                     EGLint attribute, EGLint *value);
 
 extern EGLBoolean

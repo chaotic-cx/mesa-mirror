@@ -39,8 +39,6 @@
 extern "C" {
 #endif
 
-typedef struct _egl_config _EGLConfig;
-
 typedef struct _egl_context _EGLContext;
 
 typedef struct _egl_device _EGLDevice;

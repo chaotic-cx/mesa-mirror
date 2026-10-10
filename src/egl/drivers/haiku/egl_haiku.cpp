@@ -74,7 +74,7 @@ struct haiku_egl_display {
 };
 
 struct haiku_egl_config {
-   _EGLConfig base;
+   struct _egl_config base;
 };
 
 struct haiku_egl_context {
@@ -92,7 +92,7 @@ struct haiku_egl_surface {
 
 // Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
 static _EGLSurface *
-haiku_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+haiku_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                             void *native_window, const EGLint *attrib_list)
 {
    printf("haiku_create_window_surface\n");
@@ -126,7 +126,7 @@ haiku_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-haiku_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
+haiku_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
                             void *native_pixmap, const EGLint *attrib_list)
 {
    printf("haiku_create_pixmap_surface\n");
@@ -134,7 +134,7 @@ haiku_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-haiku_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
+haiku_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
                              const EGLint *attrib_list)
 {
    printf("haiku_create_pbuffer_surface\n");
@@ -423,7 +423,7 @@ haiku_terminate(_EGLDisplay *disp)
 // #pragma mark EGLContext
 
 static _EGLContext *
-haiku_create_context(_EGLDisplay *disp, _EGLConfig *conf,
+haiku_create_context(_EGLDisplay *disp, struct _egl_config *conf,
                      _EGLContext *share_list, const EGLint *attrib_list)
 {
    CALLED();

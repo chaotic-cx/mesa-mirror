@@ -358,7 +358,7 @@ _eglParseSurfaceAttribList(_EGLSurface *surf, const EGLint *attrib_list)
  */
 EGLBoolean
 _eglInitSurface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
-                _EGLConfig *conf, const EGLint *attrib_list,
+                struct _egl_config *conf, const EGLint *attrib_list,
                 void *native_surface)
 {
    const char *func;

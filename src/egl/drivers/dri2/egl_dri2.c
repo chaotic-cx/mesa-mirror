@@ -241,7 +241,7 @@ dri2_get_dri_config(struct dri2_egl_config *conf, EGLint surface_type,
 }
 
 static EGLBoolean
-dri2_match_config(const _EGLConfig *conf, const _EGLConfig *criteria)
+dri2_match_config(const struct _egl_config *conf, const struct _egl_config *criteria)
 {
 #ifdef HAVE_X11_PLATFORM
    if (conf->Display->Platform == _EGL_PLATFORM_X11 &&
@@ -291,11 +291,11 @@ dri2_add_config(_EGLDisplay *disp, const struct dri_config *dri_config,
 {
    struct dri2_egl_config *conf;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
-   _EGLConfig base;
+   struct _egl_config base;
    unsigned int attrib, value, double_buffer;
    bool srgb = false;
    EGLint key, bind_to_texture_rgb, bind_to_texture_rgba;
-   _EGLConfig *matching_config;
+   struct _egl_config *matching_config;
    EGLint num_configs = 0;
    EGLint config_id;
 
@@ -1214,7 +1214,7 @@ dri2_fill_context_attribs(struct dri2_egl_context *dri2_ctx,
  * Called via eglCreateContext(), drv->CreateContext().
  */
 static _EGLContext *
-dri2_create_context(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_create_context(_EGLDisplay *disp, struct _egl_config *conf,
                     _EGLContext *share_list, const EGLint *attrib_list)
 {
    struct dri2_egl_context *dri2_ctx;
@@ -1342,7 +1342,7 @@ dri2_destroy_context(_EGLDisplay *disp, _EGLContext *ctx)
 
 EGLBoolean
 dri2_init_surface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
-                  _EGLConfig *conf, const EGLint *attrib_list,
+                  struct _egl_config *conf, const EGLint *attrib_list,
                   EGLBoolean enable_out_fence, void *native_surface)
 {
    struct dri2_egl_surface *dri2_surf = dri2_egl_surface(surf);
@@ -1575,7 +1575,7 @@ dri2_surface_get_dri_drawable(_EGLSurface *surf)
 }
 
 static _EGLSurface *
-dri2_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                            void *native_window, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
@@ -1586,7 +1586,7 @@ dri2_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-dri2_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
                            void *native_pixmap, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
@@ -1602,7 +1602,7 @@ dri2_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-dri2_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
                             const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display_lock(disp);
@@ -3142,7 +3142,7 @@ dri2_interop_flush_objects(_EGLDisplay *disp, _EGLContext *ctx, unsigned count,
 }
 
 static EGLBoolean
-dri2_query_supported_compression_rates(_EGLDisplay *disp, _EGLConfig *config,
+dri2_query_supported_compression_rates(_EGLDisplay *disp, struct _egl_config *config,
                                        const EGLAttrib *attr_list,
                                        EGLint *rates, EGLint rate_size,
                                        EGLint *num_rate)

@@ -63,7 +63,7 @@ struct _egl_surface {
    /* The context that is currently bound to the surface */
    _EGLContext *CurrentContext;
 
-   _EGLConfig *Config;
+   struct _egl_config *Config;
 
    EGLint Type; /* one of EGL_WINDOW_BIT, EGL_PIXMAP_BIT or EGL_PBUFFER_BIT */
 
@@ -176,7 +176,7 @@ struct _egl_surface {
 
 extern EGLBoolean
 _eglInitSurface(_EGLSurface *surf, _EGLDisplay *disp, EGLint type,
-                _EGLConfig *config, const EGLint *attrib_list,
+                struct _egl_config *config, const EGLint *attrib_list,
                 void *native_surface);
 
 extern EGLBoolean

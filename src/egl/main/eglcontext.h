@@ -51,7 +51,7 @@ struct _egl_context {
    _EGLSurface *DrawSurface;
    _EGLSurface *ReadSurface;
 
-   _EGLConfig *Config;
+   struct _egl_config *Config;
 
    EGLint ClientAPI; /**< EGL_OPENGL_ES_API, EGL_OPENGL_API, EGL_OPENVG_API */
    EGLint ClientMajorVersion;
@@ -66,7 +66,7 @@ struct _egl_context {
 };
 
 extern EGLBoolean
-_eglInitContext(_EGLContext *ctx, _EGLDisplay *disp, _EGLConfig *config,
+_eglInitContext(_EGLContext *ctx, _EGLDisplay *disp, struct _egl_config *config,
                 _EGLContext *share_list, const EGLint *attrib_list);
 
 extern EGLBoolean

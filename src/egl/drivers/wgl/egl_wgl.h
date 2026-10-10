@@ -40,7 +40,7 @@ struct wgl_egl_display {
 };
 
 struct wgl_egl_config {
-   _EGLConfig base;
+   struct _egl_config base;
    const struct stw_pixelformat_info *stw_config[2];
 };
 

@@ -106,7 +106,7 @@ device_image_get_buffers(struct dri_drawable *driDrawable, unsigned int format,
 }
 
 static _EGLSurface *
-dri2_device_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
+dri2_device_create_surface(_EGLDisplay *disp, EGLint type, struct _egl_config *conf,
                            const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -165,7 +165,7 @@ device_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
 }
 
 static _EGLSurface *
-dri2_device_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_device_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
                                    const EGLint *attrib_list)
 {
    return dri2_device_create_surface(disp, EGL_PBUFFER_BIT, conf, attrib_list);

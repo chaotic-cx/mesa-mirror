@@ -269,7 +269,7 @@ droid_set_shared_buffer_mode(_EGLDisplay *disp, _EGLSurface *surf, bool mode)
 }
 
 static _EGLSurface *
-droid_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
+droid_create_surface(_EGLDisplay *disp, EGLint type, struct _egl_config *conf,
                      void *native_window, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -373,7 +373,7 @@ cleanup_surface:
 }
 
 static _EGLSurface *
-droid_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+droid_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                             void *native_window, const EGLint *attrib_list)
 {
    return droid_create_surface(disp, EGL_WINDOW_BIT, conf, native_window,
@@ -381,7 +381,7 @@ droid_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-droid_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
+droid_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
                              const EGLint *attrib_list)
 {
    return droid_create_surface(disp, EGL_PBUFFER_BIT, conf, NULL, attrib_list);

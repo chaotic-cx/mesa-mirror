@@ -407,7 +407,7 @@ dri2_x11_get_red_mask_for_depth(struct dri2_egl_display *dri2_dpy, int depth)
  * Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
  */
 static _EGLSurface *
-dri2_x11_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
+dri2_x11_create_surface(_EGLDisplay *disp, EGLint type, struct _egl_config *conf,
                         void *native_surface, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -496,7 +496,7 @@ cleanup_surf:
  * Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
  */
 static _EGLSurface *
-dri2_x11_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_x11_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                                void *native_window, const EGLint *attrib_list)
 {
    _EGLSurface *surf;
@@ -514,7 +514,7 @@ dri2_x11_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-dri2_x11_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_x11_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
                                void *native_pixmap, const EGLint *attrib_list)
 {
    return dri2_x11_create_surface(disp, EGL_PIXMAP_BIT, conf, native_pixmap,
@@ -522,7 +522,7 @@ dri2_x11_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-dri2_x11_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_x11_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
                                 const EGLint *attrib_list)
 {
    return dri2_x11_create_surface(disp, EGL_PBUFFER_BIT, conf, NULL,
@@ -853,7 +853,7 @@ dri2_kopper_swap_interval(_EGLDisplay *disp, _EGLSurface *surf, EGLint interval)
 }
 
 static _EGLSurface *
-dri2_kopper_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_kopper_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                                   void *native_window,
                                   const EGLint *attrib_list)
 {

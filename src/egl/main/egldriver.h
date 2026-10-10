@@ -61,7 +61,7 @@ extern "C" {
 
 /**
  * Define the driver typecast functions for _EGLDisplay,
- * _EGLContext, _EGLSurface, and _EGLConfig.
+ * _EGLContext, _EGLSurface, and struct _egl_config.
  *
  * Note that this macro defines several functions and should not be ended with
  * a semicolon when used.
@@ -71,7 +71,7 @@ extern "C" {
    _EGL_DRIVER_TYPECAST(drvname##_display, _EGLDisplay, obj->DriverDisplay)    \
    _EGL_DRIVER_TYPECAST(drvname##_context, _EGLContext, obj)                   \
    _EGL_DRIVER_TYPECAST(drvname##_surface, _EGLSurface, obj)                   \
-   _EGL_DRIVER_TYPECAST(drvname##_config, _EGLConfig, obj)
+   _EGL_DRIVER_TYPECAST(drvname##_config, struct _egl_config, obj)
 
 /**
  * A generic function ptr type
@@ -112,7 +112,7 @@ struct _egl_driver {
    EGLBoolean (*Terminate)(_EGLDisplay *disp);
 
    /* context funcs */
-   _EGLContext *(*CreateContext)(_EGLDisplay *disp, _EGLConfig *config,
+   _EGLContext *(*CreateContext)(_EGLDisplay *disp, struct _egl_config *config,
                                  _EGLContext *share_list,
                                  const EGLint *attrib_list);
    EGLBoolean (*DestroyContext)(_EGLDisplay *disp, _EGLContext *ctx);
@@ -123,13 +123,13 @@ struct _egl_driver {
                              _EGLSurface *read, _EGLContext *ctx);
 
    /* surface funcs */
-   _EGLSurface *(*CreateWindowSurface)(_EGLDisplay *disp, _EGLConfig *config,
+   _EGLSurface *(*CreateWindowSurface)(_EGLDisplay *disp, struct _egl_config *config,
                                        void *native_window,
                                        const EGLint *attrib_list);
-   _EGLSurface *(*CreatePixmapSurface)(_EGLDisplay *disp, _EGLConfig *config,
+   _EGLSurface *(*CreatePixmapSurface)(_EGLDisplay *disp, struct _egl_config *config,
                                        void *native_pixmap,
                                        const EGLint *attrib_list);
-   _EGLSurface *(*CreatePbufferSurface)(_EGLDisplay *disp, _EGLConfig *config,
+   _EGLSurface *(*CreatePbufferSurface)(_EGLDisplay *disp, struct _egl_config *config,
                                         const EGLint *attrib_list);
    EGLBoolean (*DestroySurface)(_EGLDisplay *disp, _EGLSurface *surface);
    EGLBoolean (*QuerySurface)(_EGLDisplay *disp, _EGLSurface *surface,
@@ -245,7 +245,7 @@ struct _egl_driver {
 
    /* for EGL_EXT_surface_compression */
    EGLBoolean (*QuerySupportedCompressionRatesEXT)(_EGLDisplay *disp,
-                                                   _EGLConfig *config,
+                                                   struct _egl_config *config,
                                                    const EGLAttrib *attr_list,
                                                    EGLint *rates,
                                                    EGLint rate_size,

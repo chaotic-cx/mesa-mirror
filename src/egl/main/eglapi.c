@@ -244,7 +244,7 @@ _eglCheckContext(_EGLDisplay *disp, _EGLContext *context, const char *msg)
 }
 
 static inline bool
-_eglCheckConfig(_EGLDisplay *disp, _EGLConfig *conf, const char *msg)
+_eglCheckConfig(_EGLDisplay *disp, struct _egl_config *conf, const char *msg)
 {
    if (!_eglCheckDisplay(disp, msg))
       return false;
@@ -865,7 +865,7 @@ eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config, EGLint attribute,
                    EGLint *value)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLConfig *conf = _eglLookupConfig(config, disp);
+   struct _egl_config *conf = _eglLookupConfig(config, disp);
    EGLBoolean ret;
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
@@ -882,7 +882,7 @@ eglCreateContext(EGLDisplay dpy, EGLConfig config, EGLContext share_list,
                  const EGLint *attrib_list)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLConfig *conf = _eglLookupConfig(config, disp);
+   struct _egl_config *conf = _eglLookupConfig(config, disp);
    _EGLContext *share = _eglLookupContext(share_list, disp);
    _EGLContext *context;
    EGLContext ret;
@@ -1044,7 +1044,7 @@ static EGLSurface
 _eglCreateWindowSurfaceCommon(_EGLDisplay *disp, EGLConfig config,
                               void *native_window, const EGLint *attrib_list)
 {
-   _EGLConfig *conf = _eglLookupConfig(config, disp);
+   struct _egl_config *conf = _eglLookupConfig(config, disp);
    _EGLSurface *surf = NULL;
    EGLSurface ret;
 
@@ -1190,7 +1190,7 @@ static EGLSurface
 _eglCreatePixmapSurfaceCommon(_EGLDisplay *disp, EGLConfig config,
                               void *native_pixmap, const EGLint *attrib_list)
 {
-   _EGLConfig *conf = _eglLookupConfig(config, disp);
+   struct _egl_config *conf = _eglLookupConfig(config, disp);
    _EGLSurface *surf = NULL;
    EGLSurface ret;
 
@@ -1281,7 +1281,7 @@ eglCreatePbufferSurface(EGLDisplay dpy, EGLConfig config,
                         const EGLint *attrib_list)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLConfig *conf = _eglLookupConfig(config, disp);
+   struct _egl_config *conf = _eglLookupConfig(config, disp);
    _EGLSurface *surf = NULL;
    EGLSurface ret;
 
@@ -1792,7 +1792,7 @@ eglCreatePbufferFromClientBuffer(EGLDisplay dpy, EGLenum buftype,
                                  const EGLint *attrib_list)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLConfig *conf = _eglLookupConfig(config, disp);
+   struct _egl_config *conf = _eglLookupConfig(config, disp);
 
    _EGL_FUNC_START(disp, EGL_OBJECT_DISPLAY_KHR, NULL);
 
@@ -2624,7 +2624,7 @@ eglQuerySupportedCompressionRatesEXT(EGLDisplay dpy, EGLConfig config,
                                      EGLint *num_rates)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
-   _EGLConfig *conf = _eglLookupConfig(config, disp);
+   struct _egl_config *conf = _eglLookupConfig(config, disp);
    EGLBoolean ret = EGL_FALSE;
 
    _EGL_FUNC_START(NULL, EGL_NONE, NULL);

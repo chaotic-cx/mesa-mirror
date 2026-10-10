@@ -52,7 +52,7 @@
 #include <GL/mesa_glinterop.h>
 
 static EGLBoolean
-wgl_match_config(const _EGLConfig *conf, const _EGLConfig *criteria)
+wgl_match_config(const struct _egl_config *conf, const struct _egl_config *criteria)
 {
    if (_eglCompareConfigs(conf, criteria, NULL, EGL_FALSE) != 0)
       return EGL_FALSE;
@@ -68,9 +68,9 @@ wgl_add_config(_EGLDisplay *disp, const struct stw_pixelformat_info *stw_config,
                int id, EGLint surface_type)
 {
    struct wgl_egl_config *conf;
-   _EGLConfig base;
+   struct _egl_config base;
    unsigned int double_buffer;
-   _EGLConfig *matching_config;
+   struct _egl_config *matching_config;
    EGLint num_configs = 0;
    EGLint config_id;
 
@@ -383,7 +383,7 @@ wgl_terminate(_EGLDisplay *disp)
  * Called via eglCreateContext(), drv->CreateContext().
  */
 static _EGLContext *
-wgl_create_context(_EGLDisplay *disp, _EGLConfig *conf, _EGLContext *share_list,
+wgl_create_context(_EGLDisplay *disp, struct _egl_config *conf, _EGLContext *share_list,
                    const EGLint *attrib_list)
 {
    struct wgl_egl_context *wgl_ctx;
@@ -612,7 +612,7 @@ wgl_make_current(_EGLDisplay *disp, _EGLSurface *dsurf, _EGLSurface *rsurf,
 }
 
 static _EGLSurface *
-wgl_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+wgl_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                           void *native_window, const EGLint *attrib_list)
 {
    struct wgl_egl_display *wgl_dpy = wgl_egl_display(disp);
@@ -645,7 +645,7 @@ wgl_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
 }
 
 static _EGLSurface *
-wgl_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
+wgl_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
                            const EGLint *attrib_list)
 {
    struct wgl_egl_display *wgl_dpy = wgl_egl_display(disp);

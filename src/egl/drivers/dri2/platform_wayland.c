@@ -715,7 +715,7 @@ dri2_wl_modifiers_have_common(struct u_vector *modifiers1,
  * Called via eglCreateWindowSurface(), drv->CreateWindowSurface().
  */
 static _EGLSurface *
-dri2_wl_create_window_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_wl_create_window_surface(_EGLDisplay *disp, struct _egl_config *conf,
                               void *native_window, const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -897,7 +897,7 @@ cleanup_surf:
 }
 
 static _EGLSurface *
-dri2_wl_create_pbuffer_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_wl_create_pbuffer_surface(_EGLDisplay *disp, struct _egl_config *conf,
                                const EGLint *attrib_list)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
@@ -948,7 +948,7 @@ cleanup_surface:
 }
 
 static _EGLSurface *
-dri2_wl_create_pixmap_surface(_EGLDisplay *disp, _EGLConfig *conf,
+dri2_wl_create_pixmap_surface(_EGLDisplay *disp, struct _egl_config *conf,
                               void *native_window, const EGLint *attrib_list)
 {
    /* From the EGL_EXT_platform_wayland spec, version 3:
