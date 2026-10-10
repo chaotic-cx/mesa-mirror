@@ -1604,7 +1604,7 @@
         "description": "util/u_trace: Fix UtilPerfTraceTest.EndOfFrameOnce unit test on macOS",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "781cc9e3afe8a68a24d9b9cb1fee71a14c5d0496",
         "notes": null

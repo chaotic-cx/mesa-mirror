@@ -193,6 +193,7 @@ u_trace_flush_destroy(struct u_trace_flush *flush)
 
    u_trace_fini(ut);
 
+   util_queue_fence_destroy(&flush->fence);
    free(flush);
 }
 
@@ -1375,6 +1376,7 @@ u_trace_flush(struct u_trace *ut,
 {
 
    struct u_trace_flush *flush = calloc(1, sizeof(struct u_trace_flush));
+   util_queue_fence_init(&flush->fence);
    flush->flush_data = flush_data;
    flush->free_flush_data = free_data;
    flush->frame_nr = frame_nr;
