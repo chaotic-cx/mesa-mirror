@@ -822,7 +822,7 @@ wgl_create_image_khr_texture(struct _egl_display *disp, struct _egl_context *ctx
    struct wgl_egl_context *wgl_ctx = wgl_egl_context(ctx);
    struct wgl_egl_image *wgl_img;
    GLuint texture = (GLuint)(uintptr_t)buffer;
-   _EGLImageAttribs attrs;
+   struct _egl_image_attribs attrs;
    GLuint depth;
    GLenum gl_target;
    enum stw_image_error error;

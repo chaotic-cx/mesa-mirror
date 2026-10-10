@@ -82,7 +82,7 @@ struct _egl_image {
 };
 
 EGLBoolean
-_eglParseImageAttribList(_EGLImageAttribs *attrs, struct _egl_display *disp,
+_eglParseImageAttribList(struct _egl_image_attribs *attrs, struct _egl_display *disp,
                          const EGLint *attrib_list);
 
 static inline void

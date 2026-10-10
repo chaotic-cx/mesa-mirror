@@ -1924,7 +1924,7 @@ dri2_create_image_wayland_wl_buffer(struct _egl_display *disp, struct _egl_conte
    struct wl_drm_buffer *buffer;
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct dri_image *dri_image;
-   _EGLImageAttribs attrs;
+   struct _egl_image_attribs attrs;
    int32_t plane;
 
    buffer = wayland_drm_buffer_get(dri2_dpy->wl_server_drm,
@@ -1994,7 +1994,7 @@ dri2_create_image_khr_texture(struct _egl_display *disp, struct _egl_context *ct
    struct dri2_egl_context *dri2_ctx = dri2_egl_context(ctx);
    struct dri2_egl_image *dri2_img;
    GLuint texture = (GLuint)(uintptr_t)buffer;
-   _EGLImageAttribs attrs;
+   struct _egl_image_attribs attrs;
    GLuint depth;
    GLenum gl_target;
    unsigned error = __DRI_IMAGE_ERROR_SUCCESS;
@@ -2096,7 +2096,7 @@ dri2_create_wayland_buffer_from_image(struct _egl_display *disp, struct _egl_ima
 
 #ifdef HAVE_LIBDRM
 static EGLBoolean
-dri2_check_dma_buf_attribs(const _EGLImageAttribs *attrs)
+dri2_check_dma_buf_attribs(const struct _egl_image_attribs *attrs)
 {
    /**
     * The spec says:
@@ -2285,7 +2285,7 @@ dri2_num_fourcc_format_planes(EGLint format)
 
 /* Returns the total number of file descriptors. Zero indicates an error. */
 static unsigned
-dri2_check_dma_buf_format(const _EGLImageAttribs *attrs)
+dri2_check_dma_buf_format(const struct _egl_image_attribs *attrs)
 {
    unsigned plane_n = dri2_num_fourcc_format_planes(attrs->DMABufFourCC.Value);
    if (plane_n == 0) {
@@ -2435,7 +2435,7 @@ dri2_create_image_dma_buf(struct _egl_display *disp, struct _egl_context *ctx,
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
    struct _egl_image *res;
-   _EGLImageAttribs attrs;
+   struct _egl_image_attribs attrs;
    struct dri_image *dri_image;
    unsigned num_fds;
    int fds[DMA_BUF_MAX_PLANES];

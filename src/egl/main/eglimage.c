@@ -34,7 +34,7 @@
 #include "egllog.h"
 
 static EGLint
-_eglParseKHRImageAttribs(_EGLImageAttribs *attrs, struct _egl_display *disp,
+_eglParseKHRImageAttribs(struct _egl_image_attribs *attrs, struct _egl_display *disp,
                          EGLint attr, EGLint val)
 {
    switch (attr) {
@@ -73,7 +73,7 @@ _eglParseKHRImageAttribs(_EGLImageAttribs *attrs, struct _egl_display *disp,
 
 #ifdef HAVE_BIND_WL_DISPLAY
 static EGLint
-_eglParseWLBindWaylandDisplayAttribs(_EGLImageAttribs *attrs, struct _egl_display *disp,
+_eglParseWLBindWaylandDisplayAttribs(struct _egl_image_attribs *attrs, struct _egl_display *disp,
                                      EGLint attr, EGLint val)
 {
    if (!disp->Extensions.WL_bind_wayland_display)
@@ -92,7 +92,7 @@ _eglParseWLBindWaylandDisplayAttribs(_EGLImageAttribs *attrs, struct _egl_displa
 #endif
 
 static EGLint
-_eglParseEXTImageDmaBufImportAttribs(_EGLImageAttribs *attrs, struct _egl_display *disp,
+_eglParseEXTImageDmaBufImportAttribs(struct _egl_image_attribs *attrs, struct _egl_display *disp,
                                      EGLint attr, EGLint val)
 {
    if (!disp->Extensions.EXT_image_dma_buf_import)
@@ -184,7 +184,7 @@ _eglParseEXTImageDmaBufImportAttribs(_EGLImageAttribs *attrs, struct _egl_displa
 }
 
 static EGLint
-_eglParseEXTImageDmaBufImportModifiersAttribs(_EGLImageAttribs *attrs,
+_eglParseEXTImageDmaBufImportModifiersAttribs(struct _egl_image_attribs *attrs,
                                               struct _egl_display *disp, EGLint attr,
                                               EGLint val)
 {
@@ -250,7 +250,7 @@ _eglParseEXTImageDmaBufImportModifiersAttribs(_EGLImageAttribs *attrs,
  * Function calls _eglError to set the correct error code.
  */
 EGLBoolean
-_eglParseImageAttribList(_EGLImageAttribs *attrs, struct _egl_display *disp,
+_eglParseImageAttribList(struct _egl_image_attribs *attrs, struct _egl_display *disp,
                          const EGLint *attrib_list)
 {
    EGLint i, err;
