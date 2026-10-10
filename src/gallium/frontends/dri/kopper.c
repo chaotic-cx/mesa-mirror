@@ -128,6 +128,9 @@ static struct pipe_resource *
 kopper_get_pixmap_buffer(struct dri_drawable *drawable,
                          enum pipe_format pf)
 {
+#ifdef GLX_USE_APPLEGL
+   return drawable->image ? drawable->image->texture : NULL;
+#else
    xcb_drawable_t                       pixmap;
    int                                  width;
    int                                  height;
@@ -146,12 +149,8 @@ kopper_get_pixmap_buffer(struct dri_drawable *drawable,
     */
    struct dri_screen *screen = drawable->screen;
 
-#ifndef GLX_USE_APPLEGL
    drawable->image = loader_dri3_get_pixmap_buffer(conn, pixmap, screen,
                                                    fourcc, drawable->screen->has_multibuffer, &width, &height, drawable);
-#else
-   drawable->image = NULL;
-#endif
    if (!drawable->image)
       return NULL;
 
@@ -159,6 +158,7 @@ kopper_get_pixmap_buffer(struct dri_drawable *drawable,
    drawable->h = height;
 
    return drawable->image->texture;
+#endif
 }
 #endif //VK_USE_PLATFORM_XCB_KHR
 
