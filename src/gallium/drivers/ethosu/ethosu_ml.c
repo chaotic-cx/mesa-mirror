@@ -556,6 +556,17 @@ ethosu_ml_operation_supported(struct pipe_ml_device *pdevice,
    return supported;
 }
 
+static void
+ethosu_ml_operation_free(struct ethosu_operation *operation)
+{
+   free(operation->kernel.scales);
+   free(operation->kernel.zero_points);
+   if (operation->type == ETHOSU_OPERATION_TYPE_CONVOLUTION) {
+      free(operation->conv.weight_data);
+      free(operation->conv.bias_data);
+   }
+}
+
 struct pipe_ml_subgraph *
 ethosu_ml_subgraph_create(struct pipe_ml_device *pdevice,
                           const struct pipe_ml_operation *poperations,
@@ -588,10 +599,8 @@ ethosu_ml_subgraph_create(struct pipe_ml_device *pdevice,
 
    if (subgraph->failed) {
       util_dynarray_foreach (&subgraph->operations,
-                             struct ethosu_operation, operation) {
-         free(operation->kernel.scales);
-         free(operation->kernel.zero_points);
-      }
+                             struct ethosu_operation, operation)
+         ethosu_ml_operation_free(operation);
       util_dynarray_fini(&subgraph->operations);
       free(subgraph->cmd0_state);
       free(subgraph->cmd1_state);
@@ -605,10 +614,8 @@ ethosu_ml_subgraph_create(struct pipe_ml_device *pdevice,
 
    if (subgraph->failed) {
       util_dynarray_foreach (&subgraph->operations,
-                             struct ethosu_operation, operation) {
-         free(operation->kernel.scales);
-         free(operation->kernel.zero_points);
-      }
+                             struct ethosu_operation, operation)
+         ethosu_ml_operation_free(operation);
       util_dynarray_fini(&subgraph->operations);
       free(subgraph->cmd0_state);
       free(subgraph->cmd1_state);
@@ -618,10 +625,8 @@ ethosu_ml_subgraph_create(struct pipe_ml_device *pdevice,
       return NULL;
    }
 
-   util_dynarray_foreach (&subgraph->operations, struct ethosu_operation, operation) {
-      free(operation->kernel.scales);
-      free(operation->kernel.zero_points);
-   }
+   util_dynarray_foreach (&subgraph->operations, struct ethosu_operation, operation)
+      ethosu_ml_operation_free(operation);
    util_dynarray_fini(&subgraph->operations);
 
    free(subgraph->cmd0_state);

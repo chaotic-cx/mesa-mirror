@@ -793,6 +793,8 @@ ethosu_append_strided_conv_unroll(struct ethosu_subgraph *subgraph,
          if (x || y) {
             unrolled.kernel.scales = NULL;
             unrolled.kernel.zero_points = NULL;
+            unrolled.conv.weight_data = NULL;
+            unrolled.conv.bias_data = NULL;
             unrolled.reuses_coefs = true;
          }
 
@@ -1012,6 +1014,23 @@ set_sparse_weight_format(struct ethosu_subgraph *subgraph,
 }
 
 static void
+set_weights_and_biases(struct ethosu_operation *operation,
+                       const uint8_t *weight_data, unsigned weight_data_size,
+                       const int32_t *bias_data)
+{
+   operation->conv.weight_data = malloc(weight_data_size);
+   memcpy(operation->conv.weight_data, weight_data, weight_data_size);
+   operation->conv.weight_data_size = weight_data_size;
+
+   if (bias_data) {
+      size_t bias_data_size = operation->ofm.shape.depth * sizeof(*bias_data);
+
+      operation->conv.bias_data = malloc(bias_data_size);
+      memcpy(operation->conv.bias_data, bias_data, bias_data_size);
+   }
+}
+
+static void
 lower_conv_common(struct ethosu_subgraph *subgraph,
                   const struct pipe_ml_operation *poperation,
                   struct pipe_tensor *input_tensor,
@@ -1038,8 +1057,10 @@ lower_conv_common(struct ethosu_subgraph *subgraph,
 
    set_sparse_weight_format(subgraph, operation, weight);
    ethosu_sched_operation(subgraph, operation);
-   fill_coefs(subgraph, operation, bias_data, weight->data,
-              weight->dims[0] * weight->dims[1] * weight->dims[2] * weight->dims[3]);
+   set_weights_and_biases(operation, weight->data,
+                          weight->dims[0] * weight->dims[1] *
+                             weight->dims[2] * weight->dims[3],
+                          bias_data);
 }
 
 static void
@@ -1361,7 +1382,7 @@ ethosu_lower_argmax_u65(struct ethosu_subgraph *subgraph,
    operation.kernel.is_signed = false;
    set_full_activation_range(&operation);
    ethosu_sched_operation(subgraph, &operation);
-   fill_coefs(subgraph, &operation, biases, weights, sizeof(weights));
+   set_weights_and_biases(&operation, weights, sizeof(weights), biases);
    util_dynarray_append(&subgraph->operations, operation);
 
    for (unsigned i = 0; i < ARRAY_SIZE(lut); i++)
@@ -1745,7 +1766,7 @@ ethosu_lower_mean(struct ethosu_subgraph *subgraph,
    sum_operation.round_mode = ETHOSU_ROUNDING_DOUBLE;
    set_full_activation_range(&sum_operation);
    ethosu_sched_operation(subgraph, &sum_operation);
-   fill_coefs(subgraph, &sum_operation, biases, weights, weights_size);
+   set_weights_and_biases(&sum_operation, weights, weights_size, biases);
    util_dynarray_append(&subgraph->operations, sum_operation);
 
    set_internal_feature_map(sum_tensor, sum_shape, input->scale, 0, true,
@@ -3752,6 +3773,33 @@ ethosu_allocate_feature_maps(struct ethosu_subgraph *subgraph)
    }
 }
 
+static void
+ethosu_encode_weights(struct ethosu_subgraph *subgraph)
+{
+   struct ethosu_operation *owner = NULL;
+
+   util_dynarray_foreach (&subgraph->operations, struct ethosu_operation,
+                          operation) {
+      if (operation->type != ETHOSU_OPERATION_TYPE_CONVOLUTION)
+         continue;
+
+      if (operation->reuses_coefs) {
+         assert(owner);
+         operation->conv.weights = owner->conv.weights;
+         operation->conv.scales = owner->conv.scales;
+         operation->conv.scale = owner->conv.scale;
+         operation->conv.shift = owner->conv.shift;
+         continue;
+      }
+
+      fill_coefs(subgraph, operation, operation->conv.bias_data,
+                 operation->conv.weight_data,
+                 operation->conv.weight_data_size);
+
+      owner = operation;
+   }
+}
+
 static bool
 ethosu_weights_in_sram(struct ethosu_subgraph *subgraph,
                        const struct ethosu_operation *operation)
@@ -3824,6 +3872,10 @@ ethosu_duplicate_batch_operations(struct ethosu_subgraph *subgraph)
 
          operation.kernel.scales = NULL;
          operation.kernel.zero_points = NULL;
+         if (operation.type == ETHOSU_OPERATION_TYPE_CONVOLUTION) {
+            operation.conv.weight_data = NULL;
+            operation.conv.bias_data = NULL;
+         }
          util_dynarray_append(&subgraph->operations, operation);
       }
    }
@@ -4259,6 +4311,11 @@ ethosu_lower_graph(struct ethosu_subgraph *subgraph,
 
    if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
       ethosu_dump_operations(subgraph, "ethosu_allocate_feature_maps");
+
+   ethosu_encode_weights(subgraph);
+
+   if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
+      ethosu_dump_operations(subgraph, "ethosu_encode_weights");
 
    ethosu_insert_dma_operations(subgraph);
 

@@ -217,6 +217,9 @@ struct ethosu_operation {
       struct {
          struct ethosu_address_range weights;
          struct ethosu_address_range scales;
+         uint8_t *weight_data;
+         unsigned weight_data_size;
+         int32_t *bias_data;
          bool depthwise;
          bool weight_sparse;
          bool weights_in_sram;
