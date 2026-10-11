@@ -731,7 +731,6 @@ static void
 ethosu_append_operation(struct ethosu_subgraph *subgraph,
                         struct ethosu_operation *operation)
 {
-   ethosu_sched_operation(subgraph, operation);
    util_dynarray_append(&subgraph->operations, *operation);
 }
 
@@ -1056,7 +1055,6 @@ lower_conv_common(struct ethosu_subgraph *subgraph,
    }
 
    set_sparse_weight_format(subgraph, operation, weight);
-   ethosu_sched_operation(subgraph, operation);
    set_weights_and_biases(operation, weight->data,
                           weight->dims[0] * weight->dims[1] *
                              weight->dims[2] * weight->dims[3],
@@ -1251,8 +1249,6 @@ ethosu_lower_pooling(struct ethosu_subgraph *subgraph,
    operation->pad.bottom = poperation->pooling.padding_bottom;
    operation->pad.left = poperation->pooling.padding_left;
    operation->pad.right = poperation->pooling.padding_right;
-
-   ethosu_sched_operation(subgraph, operation);
 }
 
 static void
@@ -1381,7 +1377,6 @@ ethosu_lower_argmax_u65(struct ethosu_subgraph *subgraph,
    operation.kernel.zero_point = 0;
    operation.kernel.is_signed = false;
    set_full_activation_range(&operation);
-   ethosu_sched_operation(subgraph, &operation);
    set_weights_and_biases(&operation, weights, sizeof(weights), biases);
    util_dynarray_append(&subgraph->operations, operation);
 
@@ -1765,7 +1760,6 @@ ethosu_lower_mean(struct ethosu_subgraph *subgraph,
    sum_operation.kernel.is_signed = true;
    sum_operation.round_mode = ETHOSU_ROUNDING_DOUBLE;
    set_full_activation_range(&sum_operation);
-   ethosu_sched_operation(subgraph, &sum_operation);
    set_weights_and_biases(&sum_operation, weights, weights_size, biases);
    util_dynarray_append(&subgraph->operations, sum_operation);
 
@@ -2781,8 +2775,6 @@ ethosu_lower_quantize(struct ethosu_subgraph *subgraph,
       operation->ifm.tiles.height_1 = operation->ifm.shape.height;
       operation->ifm.tiles.width_0 = operation->ifm.shape.width;
    }
-
-   ethosu_sched_operation(subgraph, operation);
 }
 
 static void
@@ -2854,7 +2846,6 @@ ethosu_lower_split(struct ethosu_subgraph *subgraph,
    }
 
    operation->ifm.tiles.addresses[0] += address_offset;
-   ethosu_sched_operation(subgraph, operation);
 }
 
 static void
@@ -2905,8 +2896,6 @@ ethosu_lower_concatenation(struct ethosu_subgraph *subgraph,
    default:
       assert(0 && "Unsupported layout");
    }
-
-   ethosu_sched_operation(subgraph, operation);
 }
 
 static void
@@ -2958,8 +2947,6 @@ ethosu_lower_unpack(struct ethosu_subgraph *subgraph,
    default:
       assert(0 && "Unsupported axis");
    }
-
-   ethosu_sched_operation(subgraph, operation);
 }
 
 static void
@@ -2973,8 +2960,6 @@ ethosu_lower_resize(struct ethosu_subgraph *subgraph,
    set_feature_maps(subgraph, poperation->input_tensors[0], poperation->output_tensors[0], operation);
 
    operation->upscale = ETHOSU_UPSCALE_NEAREST;
-
-   ethosu_sched_operation(subgraph, operation);
 }
 
 static void
@@ -3382,8 +3367,6 @@ ethosu_lower_strided_slice(struct ethosu_subgraph *subgraph,
    }
 
    operation->ifm.tiles.addresses[0] += address_offset;
-
-   ethosu_sched_operation(subgraph, operation);
 }
 
 static bool
@@ -3497,8 +3480,6 @@ ethosu_lower_eltwise_with_lut(struct ethosu_subgraph *subgraph,
 
    if (lut)
       ethosu_fuse_lut(subgraph, lut, operation);
-
-   ethosu_sched_operation(subgraph, operation);
 }
 
 static void
@@ -3770,6 +3751,19 @@ ethosu_allocate_feature_maps(struct ethosu_subgraph *subgraph)
 
       ethosu_add_feature_map_base(subgraph, &operation->ifm2);
       ethosu_add_feature_map_base(subgraph, &operation->ofm);
+   }
+}
+
+static void
+ethosu_search_block_configs(struct ethosu_subgraph *subgraph)
+{
+   util_dynarray_foreach (&subgraph->operations, struct ethosu_operation,
+                          operation) {
+      if (operation->type == ETHOSU_OPERATION_TYPE_NONE ||
+          operation->type == ETHOSU_OPERATION_TYPE_DMA)
+         continue;
+
+      ethosu_sched_operation(subgraph, operation);
    }
 }
 
@@ -4311,6 +4305,11 @@ ethosu_lower_graph(struct ethosu_subgraph *subgraph,
 
    if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
       ethosu_dump_operations(subgraph, "ethosu_allocate_feature_maps");
+
+   ethosu_search_block_configs(subgraph);
+
+   if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
+      ethosu_dump_operations(subgraph, "ethosu_search_block_configs");
 
    ethosu_encode_weights(subgraph);
 
