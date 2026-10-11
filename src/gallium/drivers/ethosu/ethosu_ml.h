@@ -219,6 +219,7 @@ struct ethosu_operation {
          struct ethosu_address_range scales;
          bool depthwise;
          bool weight_sparse;
+         bool weights_in_sram;
          unsigned scale;
          unsigned shift;
          int activation_min;
@@ -252,6 +253,7 @@ struct ethosu_operation {
    struct ethosu_feature_map ifm2;
    struct ethosu_feature_map ofm;
    struct ethosu_address_range lut;
+   bool reuses_coefs;
 
    struct ethosu_kernel kernel;
    struct ethosu_padding pad;

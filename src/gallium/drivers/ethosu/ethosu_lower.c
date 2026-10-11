@@ -793,6 +793,7 @@ ethosu_append_strided_conv_unroll(struct ethosu_subgraph *subgraph,
          if (x || y) {
             unrolled.kernel.scales = NULL;
             unrolled.kernel.zero_points = NULL;
+            unrolled.reuses_coefs = true;
          }
 
          util_dynarray_append(&subgraph->operations, unrolled);
@@ -835,12 +836,6 @@ ethosu_append_pool(struct ethosu_subgraph *subgraph,
                    struct ethosu_feature_map *ofm,
                    unsigned kernel_width,
                    enum ethosu_rounding_mode round_mode);
-
-static void
-ethosu_lower_lut_dma(struct ethosu_subgraph *subgraph,
-                     const struct pipe_ml_operation *poperation,
-                     struct ethosu_operation *pool_operation,
-                     struct ethosu_operation *operation);
 
 static void
 set_constant_tensor_data_feature_map(struct ethosu_subgraph *subgraph,
@@ -1128,6 +1123,7 @@ ethosu_lower_convolution(struct ethosu_subgraph *subgraph,
    unsigned dilation_x = poperation->conv.dilation_width_factor;
 
    operation->conv.depthwise = is_depthwise(poperation);
+   operation->conv.weights_in_sram = true;
 
    if (poperation->conv.depthwise && !operation->conv.depthwise) {
       unsigned height = conv_weight.dims[1];
@@ -1318,7 +1314,6 @@ ethosu_lower_argmax_u65(struct ethosu_subgraph *subgraph,
    struct ethosu_feature_map output_fm = {0};
    struct ethosu_feature_map zero_fm = {0};
    struct ethosu_operation operation;
-   struct ethosu_operation dma_operation;
    struct pipe_tensor zero = {
       .dims = {1, 1, 1, 1},
       .scale = 1.0f,
@@ -1409,9 +1404,6 @@ ethosu_lower_argmax_u65(struct ethosu_subgraph *subgraph,
          ethosu_lut_activation(subgraph, &operation.ifm, &operation.ofm,
                                sizeof(lut), false);
       fill_lut(subgraph, &operation, lut, sizeof(lut));
-      operation_set_defaults(&dma_operation);
-      ethosu_lower_lut_dma(subgraph, NULL, &operation, &dma_operation);
-      util_dynarray_append(&subgraph->operations, dma_operation);
       ethosu_append_operation(subgraph, &operation);
 
       ethosu_append_eltwise(subgraph, ETHOSU_ELTWISE_TYPE_ADD,
@@ -2132,23 +2124,6 @@ ethos_create_leakyrelu_lut(struct ethosu_operation *operation, uint8_t *lut, flo
    }
 }
 
-static void
-ethosu_lower_lut_dma(struct ethosu_subgraph *subgraph,
-                     const struct pipe_ml_operation *poperation,
-                     struct ethosu_operation *pool_operation,
-                     struct ethosu_operation *operation)
-{
-   struct ethosu_address_range *range = &pool_operation->lut;
-   unsigned activation = pool_operation->activation;
-
-   operation->type = ETHOSU_OPERATION_TYPE_DMA;
-   operation->dma.address = range->address;
-   operation->dma.size = range->size;
-   operation->dma.dst_region = ethosu_lut_region();
-   operation->dma.dst_address =
-      ethosu_lut_address(subgraph, activation, range->size);
-}
-
 static unsigned
 ethosu_alloc_lut_slot(struct ethosu_subgraph *subgraph, unsigned size)
 {
@@ -2358,21 +2333,6 @@ ethosu_lower_leakyrelu(struct ethosu_subgraph *subgraph,
 }
 
 static void
-ethosu_append_lut_pool(struct ethosu_subgraph *subgraph,
-                       const struct pipe_ml_operation *poperation,
-                       struct ethosu_operation *operation)
-{
-   struct ethosu_operation dma_operation;
-
-   operation_set_defaults(&dma_operation);
-   ethosu_lower_lut_dma(subgraph, poperation, operation, &dma_operation);
-   util_dynarray_append(&subgraph->operations, dma_operation);
-
-   ethosu_sched_operation(subgraph, operation);
-   util_dynarray_append(&subgraph->operations, *operation);
-}
-
-static void
 ethos_create_softmax_exp_lut(float beta, float input_scale, int32_t *lut)
 {
    const int k_integer_bits = 5;
@@ -2501,7 +2461,6 @@ ethosu_append_softmax_lut_sub(struct ethosu_subgraph *subgraph,
                               int32_t *lut)
 {
    struct ethosu_operation operation;
-   struct ethosu_operation dma_operation;
    struct ethosu_feature_map lut_ifm = *ifm;
 
    operation_set_defaults(&operation);
@@ -2518,10 +2477,6 @@ ethosu_append_softmax_lut_sub(struct ethosu_subgraph *subgraph,
    operation.ifm2 = *ifm2;
    operation.ofm = *ofm;
    fill_lut(subgraph, &operation, lut, LUT8_SIZE * sizeof(*lut));
-
-   operation_set_defaults(&dma_operation);
-   ethosu_lower_lut_dma(subgraph, NULL, &operation, &dma_operation);
-   util_dynarray_append(&subgraph->operations, dma_operation);
    ethosu_append_operation(subgraph, &operation);
 }
 
@@ -3519,22 +3474,14 @@ ethosu_lower_eltwise_with_lut(struct ethosu_subgraph *subgraph,
    ethosu_lower_eltwise(subgraph, poperation, operation);
    operation->eltwise.type = type;
 
-   if (lut) {
-      struct ethosu_operation dma_operation;
-
+   if (lut)
       ethosu_fuse_lut(subgraph, lut, operation);
-      operation_set_defaults(&dma_operation);
-      ethosu_lower_lut_dma(subgraph, lut, operation, &dma_operation);
-      util_dynarray_append(&subgraph->operations, dma_operation);
-   }
 
    ethosu_sched_operation(subgraph, operation);
 }
 
 static void
-ethosu_lower_dma(struct ethosu_subgraph *subgraph,
-                 const struct pipe_ml_operation *poperation,
-                 struct ethosu_operation *conv_operation,
+ethosu_lower_dma(struct ethosu_operation *conv_operation,
                  struct ethosu_operation *operation)
 {
    operation->type = ETHOSU_OPERATION_TYPE_DMA;
@@ -3548,6 +3495,22 @@ ethosu_lower_dma(struct ethosu_subgraph *subgraph,
 
    conv_operation->conv.weights.region = SCRATCH_REGION;
    conv_operation->conv.weights.address = conv_operation->conv.scales.size;
+}
+
+static void
+ethosu_lower_lut_dma(struct ethosu_subgraph *subgraph,
+                     struct ethosu_operation *lut_operation,
+                     struct ethosu_operation *operation)
+{
+   struct ethosu_address_range *range = &lut_operation->lut;
+   unsigned activation = lut_operation->activation;
+
+   operation->type = ETHOSU_OPERATION_TYPE_DMA;
+   operation->dma.address = range->address;
+   operation->dma.size = range->size;
+   operation->dma.dst_region = ethosu_lut_region();
+   operation->dma.dst_address =
+      ethosu_lut_address(subgraph, activation, range->size);
 }
 
 static bool
@@ -3789,6 +3752,47 @@ ethosu_allocate_feature_maps(struct ethosu_subgraph *subgraph)
    }
 }
 
+static bool
+ethosu_weights_in_sram(struct ethosu_subgraph *subgraph,
+                       const struct ethosu_operation *operation)
+{
+   return operation->type == ETHOSU_OPERATION_TYPE_CONVOLUTION &&
+          operation->conv.weights_in_sram &&
+          operation->conv.scales.size + operation->conv.weights.size <=
+             ethosu_ml_device(subgraph->base.device)->sram_size;
+}
+
+static void
+ethosu_insert_dma_operations(struct ethosu_subgraph *subgraph)
+{
+   struct util_dynarray lowered = subgraph->operations;
+
+   subgraph->operations = UTIL_DYNARRAY_INIT;
+
+   util_dynarray_foreach (&lowered, struct ethosu_operation,
+                          lowered_operation) {
+      struct ethosu_operation operation = *lowered_operation;
+      struct ethosu_operation dma_operation;
+
+      if (ethosu_weights_in_sram(subgraph, &operation)) {
+         operation_set_defaults(&dma_operation);
+         ethosu_lower_dma(&operation, &dma_operation);
+         if (!operation.reuses_coefs)
+            util_dynarray_append(&subgraph->operations, dma_operation);
+      }
+
+      if (operation.lut.size && !operation.reuses_coefs) {
+         operation_set_defaults(&dma_operation);
+         ethosu_lower_lut_dma(subgraph, &operation, &dma_operation);
+         util_dynarray_append(&subgraph->operations, dma_operation);
+      }
+
+      util_dynarray_append(&subgraph->operations, operation);
+   }
+
+   util_dynarray_fini(&lowered);
+}
+
 static void
 ethosu_offset_feature_map_batch(struct ethosu_feature_map *fm, unsigned batch)
 {
@@ -3915,14 +3919,8 @@ ethosu_lower_from_gallium(struct ethosu_subgraph *subgraph,
                                     poperations[i].output_tensors[0]->index);
 
          ethosu_lower_fully_connected(subgraph, &poperations[i], input_tensor, &operation);
-         if (lut) {
-            struct ethosu_operation dma_operation;
-
+         if (lut)
             ethosu_fuse_lut(subgraph, lut, &operation);
-            operation_set_defaults(&dma_operation);
-            ethosu_lower_lut_dma(subgraph, lut, &operation, &dma_operation);
-            util_dynarray_append(&subgraph->operations, dma_operation);
-         }
          util_dynarray_append(&subgraph->operations, operation);
          break;
       }
@@ -4010,40 +4008,10 @@ ethosu_lower_from_gallium(struct ethosu_subgraph *subgraph,
          }
 
          if (ethosu_needs_strided_conv_unroll(&operation)) {
-            if (operation.conv.scales.size + operation.conv.weights.size <=
-                ethosu_ml_device(subgraph->base.device)->sram_size) {
-               struct ethosu_operation dma_operation = {0};
-
-               ethosu_lower_dma(subgraph, conv, &operation,
-                                &dma_operation);
-               util_dynarray_append(&subgraph->operations, dma_operation);
-            }
-            if (lut) {
-               struct ethosu_operation dma_operation = {0};
-
-               ethosu_lower_lut_dma(subgraph, lut, &operation,
-                                    &dma_operation);
-               util_dynarray_append(&subgraph->operations, dma_operation);
-            }
-
             ethosu_append_strided_conv_unroll(subgraph, &operation);
             break;
          }
 
-         if (operation.conv.scales.size + operation.conv.weights.size <=
-             ethosu_ml_device(subgraph->base.device)->sram_size) {
-            struct ethosu_operation dma_operation = {0};
-            ethosu_lower_dma(subgraph, conv, &operation, &dma_operation);
-
-            util_dynarray_append(&subgraph->operations, dma_operation);
-         }
-         if (lut) {
-            struct ethosu_operation dma_operation = {0};
-
-            ethosu_lower_lut_dma(subgraph, lut, &operation,
-                                 &dma_operation);
-            util_dynarray_append(&subgraph->operations, dma_operation);
-         }
          util_dynarray_append(&subgraph->operations, operation);
          break;
       }
@@ -4127,7 +4095,7 @@ ethosu_lower_from_gallium(struct ethosu_subgraph *subgraph,
          }
 
          ethosu_lower_lut(subgraph, &poperations[i], &operation, clamp_sigmoid8);
-         ethosu_append_lut_pool(subgraph, &poperations[i], &operation);
+         ethosu_append_operation(subgraph, &operation);
          break;
       }
 
@@ -4139,7 +4107,7 @@ ethosu_lower_from_gallium(struct ethosu_subgraph *subgraph,
          }
 
          ethosu_lower_lut(subgraph, &poperations[i], &operation, tanh);
-         ethosu_append_lut_pool(subgraph, &poperations[i], &operation);
+         ethosu_append_operation(subgraph, &operation);
          break;
       }
 
@@ -4151,7 +4119,7 @@ ethosu_lower_from_gallium(struct ethosu_subgraph *subgraph,
          }
 
          ethosu_lower_rsqrt(subgraph, &poperations[i], &operation);
-         ethosu_append_lut_pool(subgraph, &poperations[i], &operation);
+         ethosu_append_operation(subgraph, &operation);
          break;
       }
 
@@ -4163,7 +4131,7 @@ ethosu_lower_from_gallium(struct ethosu_subgraph *subgraph,
          }
 
          ethosu_lower_hswish(subgraph, &poperations[i], &operation);
-         ethosu_append_lut_pool(subgraph, &poperations[i], &operation);
+         ethosu_append_operation(subgraph, &operation);
          break;
       }
 
@@ -4244,7 +4212,7 @@ ethosu_lower_from_gallium(struct ethosu_subgraph *subgraph,
          }
 
          ethosu_lower_leakyrelu(subgraph, &poperations[i], &operation);
-         ethosu_append_lut_pool(subgraph, &poperations[i], &operation);
+         ethosu_append_operation(subgraph, &operation);
          break;
       }
 
@@ -4291,6 +4259,11 @@ ethosu_lower_graph(struct ethosu_subgraph *subgraph,
 
    if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
       ethosu_dump_operations(subgraph, "ethosu_allocate_feature_maps");
+
+   ethosu_insert_dma_operations(subgraph);
+
+   if (DBG_ENABLED(ETHOSU_DBG_DUMP_LOWERING))
+      ethosu_dump_operations(subgraph, "ethosu_insert_dma_operations");
 
    ethosu_duplicate_batch_operations(subgraph);
 
