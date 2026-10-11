@@ -106,6 +106,13 @@ enum ethosu_upscale_mode {
    ETHOSU_UPSCALE_ZEROS = 2,
 };
 
+enum ethosu_transpose_type {
+   ETHOSU_TRANSPOSE_NONE = 0,
+   ETHOSU_TRANSPOSE_HEIGHT_WIDTH,
+   ETHOSU_TRANSPOSE_WIDTH_DEPTH,
+   ETHOSU_TRANSPOSE_HEIGHT_DEPTH,
+};
+
 struct ethosu_stride {
    unsigned x;
    unsigned y;
@@ -232,6 +239,7 @@ struct ethosu_operation {
       struct {
          enum ethosu_pooling_type type;
          bool nop;
+         enum ethosu_transpose_type transpose;
       } pooling;
 
       struct {
