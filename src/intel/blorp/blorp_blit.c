@@ -1968,147 +1968,6 @@ blorp_surf_convert_to_single_slice(const struct isl_device *isl_dev,
    info->tile_z_sa = 0;
 }
 
-/* Convert a Tile64/Yf/Ys surface to a single level or a single miptail. */
-static void
-blorp_surf_convert_to_single_level_tile(const struct isl_device *isl_dev,
-                                        struct blorp_surface_info *info,
-                                        bool with_scaling)
-{
-   if (!isl_tiling_is_standard(info->surf.tiling)) {
-      UNREACHABLE("Use blorp_surf_convert_to_single_slice() instead");
-   }
-
-   /* If the requested level is not part of the miptail, we just offset to the
-    * requested level. Because we're using standard tilings and aren't in the
-    * miptail, arrays and 3D textures should just work so long as we have the
-    * right array stride in the end.
-    *
-    * If the requested level is in the miptail, we instead offset to the base
-    * of the miptail.  Because offsets into the miptail are fixed by the
-    * tiling and don't depend on the actual size of the image, we can set the
-    * level in the view to offset into the miptail regardless of the fact
-    * minification yields different results for the unscaled and scaled
-    * surface.
-    */
-   const struct isl_surf *surf = &info->surf;
-   const struct isl_view *view = &info->view;
-   const uint32_t base_level =
-      MIN2(view->base_level, surf->miptail_start_level);
-   assert(view->levels == 1);
-
-   uint64_t offset_B;
-   uint32_t x_offset_el;
-   uint32_t y_offset_el;
-   uint32_t z_offset_el;
-   isl_surf_get_image_offset_B_tile_el(surf, base_level, 0, 0,
-                                       &offset_B, &x_offset_el, &y_offset_el,
-                                       &z_offset_el);
-
-   /* The byte offset will get us to the miptail page.  The other offsets
-    * are to the actual level within the miptail.  We'll set up a texture
-    * with a miptail and use the hardware to handle offseting inside the
-    * miptail.
-    */
-   assert(info->tile_x_sa == 0 && info->tile_y_sa == 0);
-   x_offset_el = 0;
-   y_offset_el = 0;
-   z_offset_el = 0;
-
-   info->addr.offset += offset_B;
-
-   /* Save off the array pitch */
-   const uint32_t array_pitch_el_rows = surf->array_pitch_el_rows;
-
-   const struct isl_format_layout *surf_fmtl =
-      isl_format_get_layout(surf->format);
-   const struct isl_format_layout *view_fmtl =
-      isl_format_get_layout(view->format);
-   assert(isl_format_block_is_1x1x1(view->format));
-   assert(isl_format_block_is_1x1x1(surf->format));
-
-   const uint32_t view_height_el =
-      u_minify(surf->logical_level0_px.height, view->base_level);
-   const uint32_t view_depth_el =
-      u_minify(surf->logical_level0_px.depth, view->base_level);
-   uint32_t view_width_el =
-      u_minify(surf->logical_level0_px.width, view->base_level);
-
-   if (with_scaling) {
-      const int scale = view_fmtl->bpb / surf_fmtl->bpb;
-      view_width_el = DIV_ROUND_UP(view_width_el, scale);
-   } else {
-      assert(view_fmtl->bpb == surf_fmtl->bpb);
-   }
-
-   /* We need to compute the size of the scaled surface we will create. If
-    * we're not in the miptail, it is just the view size in surface
-    * elements. If we are in a miptail, we need a size that will minify to
-    * the view size in surface elements. This may not be the same as the
-    * size of base_level, but that's not a problem. Slot offsets are fixed
-    * in HW (see the tables used in isl_get_miptail_level_offset_el).
-    */
-   const uint32_t scaled_level = view->base_level - base_level;
-
-   /* The > 1 check is here to prevent a change in the surface's overall
-    * dimension (e.g. 2D->3D).
-    *
-    * Also having a base_level dimension = 1 doesn´t mean the HW will
-    * ignore higher mip level. Once the dimension has reached 1, it'll stay
-    * at 1 in the higher mip levels.
-    */
-   struct isl_extent3d scaled_surf_extent_el = {
-      .w = view_width_el  > 1 ? view_width_el  << scaled_level : 1,
-      .h = view_height_el > 1 ? view_height_el << scaled_level : 1,
-      .d = view_depth_el  > 1 ? view_depth_el  << scaled_level : 1,
-   };
-
-   isl_surf_usage_flags_t usage = surf->usage;
-   /* CCS-enabled surfaces can have different layout requirements than
-    * surfaces without CCS support. Disable CCS support if the original
-    * surface lacked it.
-    */
-   if (info->aux_usage == ISL_AUX_USAGE_NONE)
-      usage |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
-
-   /* Aux-tt alignment only applies to the beginning of the resource. We
-    * might be pointing to some other subresource however.
-    */
-   if (offset_B > 0)
-      usage |= ISL_SURF_USAGE_NO_AUX_TT_ALIGNMENT_BIT;
-
-   struct isl_surf *scaled_surf = &info->surf;
-   struct isl_view *scaled_view = &info->view;
-   bool ok UNUSED;
-   ok = isl_surf_init(isl_dev, scaled_surf,
-                      .dim = surf->dim,
-                      .format = view->format,
-                      .width = scaled_surf_extent_el.width,
-                      .height = scaled_surf_extent_el.height,
-                      .depth = scaled_surf_extent_el.depth,
-                      .levels = scaled_level + 1,
-                      .array_len = surf->logical_level0_px.array_len,
-                      .samples = surf->samples,
-                      .min_miptail_start_level =
-                         (int) (view->base_level < surf->miptail_start_level),
-                      .row_pitch_B = surf->row_pitch_B,
-                      .usage = usage,
-                      .tiling_flags = (1u << surf->tiling));
-   assert(ok);
-
-   /* Use the array pitch from the original surface.  This way 2D arrays and
-    * 3D textures should work properly, just with one LOD.
-    */
-   assert(scaled_surf->array_pitch_el_rows <= array_pitch_el_rows);
-   scaled_surf->array_pitch_el_rows = array_pitch_el_rows;
-
-   /* The newly created image represents only the one miplevel so we need to
-    * adjust the view accordingly.  Because we offset it to miplevel but used
-    * a Z and array slice of 0, the array range can be left alone.
-    */
-   *scaled_view = *view;
-   scaled_view->base_level -= base_level;
-}
-
 void
 blorp_surf_fake_interleaved_msaa(const struct isl_device *isl_dev,
                                  struct blorp_surface_info *info)
@@ -3555,21 +3414,78 @@ format_scale_copy(const struct isl_device *isl_dev,
                   struct blorp_surface_info *info,
                   uint32_t *x, uint32_t *width, int scale)
 {
-   uint32_t orig_fmt_bpb = isl_format_get_layout(info->surf.format)->bpb;
-   info->view.format = get_copy_format_for_bpb(isl_dev, orig_fmt_bpb * scale);
+   blorp_surf_convert_to_single_slice(isl_dev, info);
 
-   if (isl_tiling_is_standard(info->surf.tiling)) {
-      blorp_surf_convert_to_single_level_tile(isl_dev, info, true);
+   struct isl_tile_info tile_info[2];
+   isl_tiling_get_info(info->surf.tiling, info->surf.dim,
+                       info->surf.msaa_layout,
+                       isl_format_get_layout(info->surf.format)->bpb,
+                       info->surf.samples, &tile_info[0]);
+   isl_tiling_get_info(info->surf.tiling, info->surf.dim,
+                       info->surf.msaa_layout,
+                       tile_info[0].format_bpb * scale,
+                       info->surf.samples, &tile_info[1]);
+
+   info->view.format =
+      get_copy_format_for_bpb(isl_dev, tile_info[1].format_bpb);
+
+   int rp_B = info->surf.row_pitch_B;
+   int w_el = info->surf.logical_level0_px.width;
+   int h_el = info->surf.logical_level0_px.height;
+   int d_el = info->surf.logical_level0_px.depth;
+   int p_tl = rp_B / tile_info[0].phys_extent_B.w;
+   int w_tl = DIV_ROUND_UP(w_el, tile_info[0].logical_extent_el.w);
+   int h_tl = DIV_ROUND_UP(h_el, tile_info[0].logical_extent_el.h);
+   int d_tl = DIV_ROUND_UP(d_el, tile_info[0].logical_extent_el.d);
+   if (info->surf.tiling == ISL_TILING_LINEAR) {
+      w_el /= scale;
+      assert(h_el == h_tl);
+      assert(d_el == d_tl);
    } else {
-      blorp_surf_convert_to_single_slice(isl_dev, info);
-
-      assert(info->surf.logical_level0_px.w == info->surf.phys_level0_sa.w);
-      info->surf.logical_level0_px.w = info->surf.phys_level0_sa.w =
-         DIV_ROUND_UP(info->surf.logical_level0_px.w, scale);
-      info->tile_x_sa /= scale;
-      info->surf.format = info->view.format;
+      rp_B = p_tl * tile_info[1].phys_extent_B.w;
+      w_el = w_tl * tile_info[1].logical_extent_el.w;
+      h_el = h_tl * tile_info[1].logical_extent_el.h;
+      d_el = d_tl * tile_info[1].logical_extent_el.d;
    }
 
+   /* Even for cube maps there will be only single face, therefore drop the
+    * corresponding flag if present.
+    */
+   isl_surf_usage_flags_t usage = info->surf.usage & ~ISL_SURF_USAGE_CUBE_BIT;
+
+   /* Ensure the flags don't conflict with the ones set by
+    * blorp_surface_info_init().
+    */
+   usage &= ~ISL_SURF_USAGE_STORAGE_BIT;
+   usage &= ~ISL_SURF_USAGE_RENDER_TARGET_BIT;
+   usage &= ~ISL_SURF_USAGE_TEXTURE_BIT;
+   usage |= info->view.usage;
+
+   /* CCS-enabled surfaces can have different layout requirements than
+    * surfaces without CCS support. So, disable CCS support if the original
+    * surface lacked it.
+    */
+   if (info->aux_usage == ISL_AUX_USAGE_NONE)
+      usage |= ISL_SURF_USAGE_DISABLE_AUX_BIT;
+
+   bool ok UNUSED;
+   ok = isl_surf_init(isl_dev, &info->surf,
+                      .dim = info->surf.dim,
+                      .format = info->view.format,
+                      .width = w_el,
+                      .height = h_el,
+                      .depth = d_el,
+                      .levels = 1,
+                      .array_len = 1,
+                      .samples = info->surf.samples,
+                      .min_miptail_start_level = 1,
+                      .row_pitch_B = rp_B,
+                      .usage = usage,
+                      .tiling_flags = (1u << tile_info[1].tiling));
+
+   assert(ok);
+
+   info->tile_x_sa /= scale;
    *x /= scale;
    *width = DIV_ROUND_UP(*width, scale);
 }
