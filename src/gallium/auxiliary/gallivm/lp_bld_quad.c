@@ -184,6 +184,73 @@ lp_bld_quad_twiddle(struct gallivm_state *gallivm,
    LLVMTypeRef dst_type_ref = lp_build_vec_type(gallivm, lp_dst_type);
    LLVMBuilderRef builder = gallivm->builder;
 
+   if (lp_dst_type.width == 32 && lp_dst_type.length == 16) {
+      assert(src_count == 2 || src_count == 4);
+      if (src_count == 2) {
+         LLVMValueRef shuffles0[8];
+         LLVMValueRef shuffles1[8];
+         LLVMValueRef src0, src1, dst0, dst1;
+         const unsigned shuffle0[] = { 0, 4, 1, 5, 8, 12, 9, 13 };
+         const unsigned shuffle1[] = { 2, 6, 3, 7, 10, 14, 11, 15 };
+
+         type2.width = 64;
+         type2.length = 8;
+         type2_ref = lp_build_vec_type(gallivm, type2);
+
+         for (unsigned i = 0; i < ARRAY_SIZE(shuffles0); i++) {
+            shuffles0[i] = lp_build_const_int32(gallivm, shuffle0[i]);
+            shuffles1[i] = lp_build_const_int32(gallivm, shuffle1[i]);
+         }
+
+         src0 = LLVMBuildBitCast(builder, src[0], type2_ref, "");
+         src1 = LLVMBuildBitCast(builder, src[1], type2_ref, "");
+         dst0 = LLVMBuildShuffleVector(builder, src0, src1,
+                                       LLVMConstVector(shuffles0, 8), "");
+         dst1 = LLVMBuildShuffleVector(builder, src0, src1,
+                                       LLVMConstVector(shuffles1, 8), "");
+         dst[0] = LLVMBuildBitCast(builder, dst0, dst_type_ref, "");
+         dst[1] = LLVMBuildBitCast(builder, dst1, dst_type_ref, "");
+         return;
+      }
+
+      LLVMValueRef shuffles0[4];
+      LLVMValueRef shuffles1[4];
+      LLVMValueRef tmp[4];
+
+      type2.width = 128;
+      type2.length = 4;
+      type2_ref = lp_build_vec_type(gallivm, type2);
+
+      for (unsigned i = 0; i < 2; i++) {
+         shuffles0[i * 2] = lp_build_const_int32(gallivm, i);
+         shuffles0[i * 2 + 1] = lp_build_const_int32(gallivm, i + 4);
+         shuffles1[i * 2] = lp_build_const_int32(gallivm, i + 2);
+         shuffles1[i * 2 + 1] = lp_build_const_int32(gallivm, i + 6);
+      }
+
+      for (unsigned i = 0; i < 4; i += 2) {
+         LLVMValueRef src0, src1;
+
+         src0 = LLVMBuildBitCast(builder, src[i + 0], type2_ref, "");
+         src1 = LLVMBuildBitCast(builder, src[i + 1], type2_ref, "");
+
+         tmp[i + 0] = LLVMBuildShuffleVector(builder, src0, src1,
+                                              LLVMConstVector(shuffles0, 4), "");
+         tmp[i + 1] = LLVMBuildShuffleVector(builder, src0, src1,
+                                              LLVMConstVector(shuffles1, 4), "");
+
+         tmp[i + 0] = LLVMBuildBitCast(builder, tmp[i + 0], dst_type_ref, "");
+         tmp[i + 1] = LLVMBuildBitCast(builder, tmp[i + 1], dst_type_ref, "");
+      }
+
+      /* The pairwise shuffles produce rows 0, 2, 1, 3. */
+      dst[0] = tmp[0];
+      dst[1] = tmp[2];
+      dst[2] = tmp[1];
+      dst[3] = tmp[3];
+      return;
+   }
+
    for (unsigned i = 0; i < src_count; i += 2) {
       LLVMValueRef src0, src1;
 
