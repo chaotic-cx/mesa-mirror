@@ -5216,13 +5216,21 @@ isl_surf_get_image_surf(const struct isl_device *dev,
 
    usage |= ISL_SURF_USAGE_NO_OVERFETCH_PADDING_BIT;
 
+   /* With standard tiling, the surface dimension determines the swizzle. So,
+    * it must not change. We technically could do the same for other tilings,
+    * but we prefer 2D to maintain support for the RENDER_SURFACE_STATE
+    * X/YOffset fields.
+    */
+   const enum isl_surf_dim dim =
+      isl_tiling_is_standard(surf->tiling) ? surf->dim : ISL_SURF_DIM_2D;
+
    bool ok UNUSED;
    ok = isl_surf_init(dev, image_surf,
-                      .dim = ISL_SURF_DIM_2D,
+                      .dim = dim,
                       .format = surf->format,
                       .width = isl_minify(surf->logical_level0_px.w, level),
                       .height = isl_minify(surf->logical_level0_px.h, level),
-                      .depth = 1,
+                      .depth = z_offset_sa ? *z_offset_sa + 1 : 1,
                       .levels = 1,
                       .array_len = 1,
                       .samples = surf->samples,
