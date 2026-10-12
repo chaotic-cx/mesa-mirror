@@ -76,6 +76,11 @@
    .bit_widths = width, .filter = 0u, .write = 0u, .color = 0u, .blend = 0u,   \
    .msaa = 1u, .resolve = 0u, .sparse = 0u, .atomic = 0u
 
+// None
+#define MTL_FMT_NONE(width)                                                    \
+   .bit_widths = width, .filter = 0u, .write = 0u, .color = 0u, .blend = 0u,   \
+   .msaa = 0u, .resolve = 0u, .sparse = 0u, .atomic = 0u
+
 #define MTL_FMT_TB_ALL                                                         \
    .texel_buffer = {                                                           \
       .write = 1u,                                                             \
@@ -145,20 +150,31 @@
    }
 
 #define MTL_FMT(pipe_format, mtl_format, swizzle, capabilities,                \
-                texel_buffer_capabilities, native)                             \
+                texel_buffer_capabilities, native, family)                     \
    [PIPE_FORMAT_##                                                             \
       pipe_format] = {.mtl_pixel_format = MTL_PIXEL_FORMAT_##mtl_format,       \
                       swizzle,                                                 \
                       capabilities,                                            \
                       texel_buffer_capabilities,                               \
-                      .is_native = native}
+                      .is_native = native,                                     \
+                      .gpu_family = family}
 
 #define MTL_FMT_NATIVE(format, capabilities, texel_buffer_capabilities)        \
    [PIPE_FORMAT_##format] = {.mtl_pixel_format = MTL_PIXEL_FORMAT_##format,    \
                              MTL_SWIZZLE_IDENTITY,                             \
                              capabilities,                                     \
                              texel_buffer_capabilities,                        \
-                             .is_native = 1}
+                             .is_native = 1,                                   \
+                             .gpu_family = 7}
+
+#define MTL_FMT_NATIVE_FAMILY(format, capabilities, texel_buffer_capabilities, \
+                              family)                                          \
+   [PIPE_FORMAT_##format] = {.mtl_pixel_format = MTL_PIXEL_FORMAT_##format,    \
+                             MTL_SWIZZLE_IDENTITY,                             \
+                             capabilities,                                     \
+                             texel_buffer_capabilities,                        \
+                             .is_native = 1,                                   \
+                             .gpu_family = family}
 
 /* TODO_KOSMICKRISP: This is based on the Apple 7 GPU family, dynamically add
  * newly supported capabilities on newer gens. */
@@ -186,6 +202,12 @@ static const struct kk_va_format kk_vf_formats[] = {
    MTL_FMT_NATIVE(R8G8_UINT, MTL_FMT_WCMS(16), MTL_FMT_TB_WR),
    MTL_FMT_NATIVE(R8G8_SINT, MTL_FMT_WCMS(16), MTL_FMT_TB_WR),
 
+   // 24-bit formats
+   MTL_FMT_NATIVE_FAMILY(R8G8B8_UNORM, MTL_FMT_NONE(24), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R8G8B8_SNORM, MTL_FMT_NONE(24), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R8G8B8_UINT, MTL_FMT_NONE(24), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R8G8B8_SINT, MTL_FMT_NONE(24), MTL_FMT_TB_R, 11),
+
    // 32-bit formats
    MTL_FMT_NATIVE(R32_UINT, MTL_FMT_WCSA(32), MTL_FMT_TB_ALL),
    MTL_FMT_NATIVE(R32_SINT, MTL_FMT_WCSA(32), MTL_FMT_TB_ALL),
@@ -203,6 +225,13 @@ static const struct kk_va_format kk_vf_formats[] = {
    MTL_FMT_NATIVE(B8G8R8A8_UNORM, MTL_FMT_ALL_NO_ATOMIC(32), MTL_FMT_TB_R),
    MTL_FMT_NATIVE(B8G8R8A8_SRGB, MTL_FMT_ALL_NO_ATOMIC(32), MTL_FMT_TB_NONE),
 
+   // 48-bit formats
+   MTL_FMT_NATIVE_FAMILY(R16G16B16_UNORM, MTL_FMT_NONE(48), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R16G16B16_SNORM, MTL_FMT_NONE(48), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R16G16B16_UINT, MTL_FMT_NONE(48), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R16G16B16_SINT, MTL_FMT_NONE(48), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R16G16B16_FLOAT, MTL_FMT_NONE(48), MTL_FMT_TB_R, 11),
+
    // 64-bit formats
    MTL_FMT_NATIVE(R32G32_UINT, MTL_FMT_WCMS(64), MTL_FMT_TB_WR),
    MTL_FMT_NATIVE(R32G32_SINT, MTL_FMT_WCMS(64), MTL_FMT_TB_WR),
@@ -213,6 +242,11 @@ static const struct kk_va_format kk_vf_formats[] = {
    MTL_FMT_NATIVE(R16G16B16A16_SINT, MTL_FMT_WCMS(64), MTL_FMT_TB_ALL),
    MTL_FMT_NATIVE(R16G16B16A16_FLOAT, MTL_FMT_ALL_NO_ATOMIC(64),
                   MTL_FMT_TB_ALL),
+
+   // 96-bit formats
+   MTL_FMT_NATIVE_FAMILY(R32G32B32_UINT, MTL_FMT_NONE(96), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R32G32B32_SINT, MTL_FMT_NONE(96), MTL_FMT_TB_R, 11),
+   MTL_FMT_NATIVE_FAMILY(R32G32B32_FLOAT, MTL_FMT_NONE(96), MTL_FMT_TB_R, 11),
 
    // 128-bit formats
    MTL_FMT_NATIVE(R32G32B32A32_UINT, MTL_FMT_WCS(128), MTL_FMT_TB_ALL),
@@ -229,11 +263,11 @@ static const struct kk_va_format kk_vf_formats[] = {
    MTL_FMT_NATIVE(B5G5R5A1_UNORM, MTL_FMT_FCBMRS(16), MTL_FMT_TB_NONE),
    MTL_FMT_NATIVE(A4B4G4R4_UNORM, MTL_FMT_FCBMRS(16), MTL_FMT_TB_NONE),
    MTL_FMT(R4G4B4A4_UNORM, A4B4G4R4_UNORM, MTL_SWIZZLE_ABGR, MTL_FMT_FCBMRS(16),
-           MTL_FMT_TB_NONE, false),
+           MTL_FMT_TB_NONE, false, 7),
    MTL_FMT(A4R4G4B4_UNORM, A4B4G4R4_UNORM, MTL_SWIZZLE_BGRA, MTL_FMT_FCBMRS(16),
-           MTL_FMT_TB_NONE, false),
+           MTL_FMT_TB_NONE, false, 7),
    MTL_FMT(B4G4R4A4_UNORM, A4B4G4R4_UNORM, MTL_SWIZZLE_GBAR, MTL_FMT_FCBMRS(16),
-           MTL_FMT_TB_NONE, false),
+           MTL_FMT_TB_NONE, false, 7),
 
    // 32-bit packed formats
    MTL_FMT_NATIVE(R10G10B10A2_UNORM, MTL_FMT_ALL_NO_ATOMIC(32), MTL_FMT_TB_WR),
@@ -304,9 +338,9 @@ static const struct kk_va_format kk_vf_formats[] = {
 
    // BC/DXT formats
    MTL_FMT(DXT1_RGB, DXT1_RGBA, MTL_SWIZZLE_RGB1, MTL_FMT_FS(64),
-           MTL_FMT_TB_NONE, true),
+           MTL_FMT_TB_NONE, true, 7),
    MTL_FMT(DXT1_SRGB, DXT1_SRGBA, MTL_SWIZZLE_RGB1, MTL_FMT_FS(64),
-           MTL_FMT_TB_NONE, true),
+           MTL_FMT_TB_NONE, true, 7),
    MTL_FMT_NATIVE(DXT1_RGBA, MTL_FMT_FS(64), MTL_FMT_TB_NONE),
    MTL_FMT_NATIVE(DXT1_SRGBA, MTL_FMT_FS(64), MTL_FMT_TB_NONE),
    MTL_FMT_NATIVE(DXT3_RGBA, MTL_FMT_FS(128), MTL_FMT_TB_NONE),

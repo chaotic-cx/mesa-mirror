@@ -31,7 +31,7 @@ kk_get_buffer_format_features(struct kk_physical_device *pdev,
       return 0;
 
    const struct kk_va_format *format = kk_get_va_format(p_format);
-   if (format) {
+   if (format && pdev->info.gpu_apple_family >= format->gpu_family) {
       if (format->texel_buffer.read)
          features |= VK_FORMAT_FEATURE_2_UNIFORM_TEXEL_BUFFER_BIT;
 

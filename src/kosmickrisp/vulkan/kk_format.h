@@ -33,20 +33,26 @@ struct kk_va_format {
    } unswizzle;
    uint32_t mtl_pixel_format;
    uint8_t bit_widths;
-   uint8_t filter  : 1;
-   uint8_t write   : 1;
-   uint8_t color   : 1;
-   uint8_t blend   : 1;
-   uint8_t msaa    : 1;
-   uint8_t resolve : 1;
-   uint8_t sparse  : 1;
-   uint8_t atomic  : 1;
+   union {
+      uint8_t image_feats;
+      struct {
+         uint8_t filter  : 1;
+         uint8_t write   : 1;
+         uint8_t color   : 1;
+         uint8_t blend   : 1;
+         uint8_t msaa    : 1;
+         uint8_t resolve : 1;
+         uint8_t sparse  : 1;
+         uint8_t atomic  : 1;
+      };
+   };
    struct {
       uint8_t write      : 1;
       uint8_t read       : 1;
       uint8_t read_write : 1;
    } texel_buffer;
-   uint8_t is_native : 1;
+   uint8_t is_native  : 1;
+   uint8_t gpu_family : 5;
 };
 
 const struct kk_va_format *kk_get_va_format(enum pipe_format format);
