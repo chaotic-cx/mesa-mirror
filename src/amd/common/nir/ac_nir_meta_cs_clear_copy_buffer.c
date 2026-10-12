@@ -264,8 +264,11 @@ ac_create_clear_copy_buffer_cs(const ac_cs_clear_copy_buffer_options *const opti
                            (unsigned)realign_offset % 2 == 0 ? 2 : 1;
       unsigned bit_size = alignment * 8;
       unsigned num_comps = key->dwords_per_thread * 4 / alignment;
+      const unsigned last_thread_num_comps = DIV_ROUND_UP(key->dst_last_thread_bytes, alignment);
       nir_if *if_first_thread = NULL;
+      nir_if *if_last_thread = NULL;
       nir_def *value0 = NULL;
+      nir_def *value_last = NULL;
       nir_def *src_buf;
 
       if (key->addr_user_data)
@@ -296,8 +299,26 @@ ac_create_clear_copy_buffer_cs(const ac_cs_clear_copy_buffer_options *const opti
          nir_push_else(&b, if_first_thread);
       }
 
+      if (key->dst_last_thread_bytes && key->addr_user_data && last_thread_num_comps != num_comps) {
+         nir_def *last_thread_id = nir_channel(&b, user_data, last_thread_user_data_index);
+         if_last_thread = nir_push_if(&b, nir_ieq(&b, thread_id, last_thread_id));
+         {
+            /* Emit a separate load for the last thread to make sure it doesn't load out of bounds. */
+            value_last = load_buffer_sparse_split(&b, key, num_comps, 0, last_thread_num_comps, bit_size,
+                                                  src_buf, nir_iadd_imm(&b, offset, realign_offset),
+                                                  ACCESS_RESTRICT, 4, (unsigned)(realign_offset) % 4,
+                                                  key->src_scalarize_for_sparse);
+         }
+         nir_push_else(&b, if_last_thread);
+      }
+
       value = load_buffer_sparse(&b, key, num_comps, bit_size, src_buf, nir_iadd_imm(&b, offset, realign_offset),
                                  ACCESS_RESTRICT, 4, (unsigned)realign_offset % 4, key->src_scalarize_for_sparse);
+
+      if (if_last_thread) {
+         nir_pop_if(&b, if_last_thread);
+         value = nir_if_phi(&b, value_last, value);
+      }
 
       if (if_first_thread) {
          nir_pop_if(&b, if_first_thread);
