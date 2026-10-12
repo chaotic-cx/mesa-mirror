@@ -97,6 +97,8 @@ radv_device_init_border_color(struct radv_device *device)
 
    radv_rmv_log_border_color_palette_create(device, device->border_color_data.bo);
 
+   mtx_init(&device->border_color_data.mutex, mtx_plain);
+
    result = device->ws->buffer_make_resident(device->ws, device->border_color_data.bo, true);
    if (result != VK_SUCCESS)
       return vk_error(device, result);
@@ -104,7 +106,6 @@ radv_device_init_border_color(struct radv_device *device)
    device->border_color_data.colors_gpu_ptr = radv_buffer_map(device->ws, device->border_color_data.bo);
    if (!device->border_color_data.colors_gpu_ptr)
       return vk_error(device, VK_ERROR_OUT_OF_DEVICE_MEMORY);
-   mtx_init(&device->border_color_data.mutex, mtx_plain);
 
    return VK_SUCCESS;
 }
