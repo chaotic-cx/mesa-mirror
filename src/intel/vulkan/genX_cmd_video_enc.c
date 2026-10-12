@@ -4444,11 +4444,9 @@ anv_av1_emit_vdenc_pipe_buf_addr_state(struct anv_cmd_buffer *cmd,
          ANV_VID_PIC(cmd->device, NULL);
 
       vdenc_buf.IntraPredictionRowStoreBuffer.Address =
-         ANV_VID_MEM_ADDR(vid,
-                          ANV_VID_MEM_AV1_INTRA_PREDICTION_LINE_ROWSTORE);
+         (struct anv_address) { NULL, ANV_AV1_ROWSTORE_IPDL_OFFSET };
       vdenc_buf.IntraPredictionRowStoreBuffer.PictureFields =
-         ANV_VID_PIC(cmd->device,
-            vid->vid_mem[ANV_VID_MEM_AV1_INTRA_PREDICTION_LINE_ROWSTORE].mem->bo);
+         ANV_VID_PIC(cmd->device, NULL, .CacheSelect = 1);
 
       vdenc_buf.ColocatedMVAVCWriteBuffer.PictureFields =
          ANV_VID_PIC(cmd->device, NULL);
