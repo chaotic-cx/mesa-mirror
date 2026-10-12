@@ -1528,16 +1528,20 @@ generate_fs_twiddle(struct gallivm_state *gallivm,
    bool swizzle_pad = false;
    bool twiddle = false;
    bool split = false;
+   bool split_twiddled_rows = false;
    unsigned reorder_group = 0;
 
    if (dst_channels == 1) {
       twiddle = true;
-      if (pixels == 2) {
+      if (pixels > 1) {
          split = true;
       }
    } else if (dst_channels == 2) {
       if (pixels == 1) {
          reorder_group = 1;
+      } else if (pixels == 4) {
+         twiddle = true;
+         split_twiddled_rows = true;
       }
    } else if (dst_channels > 2) {
       if (pixels == 1) {
@@ -1551,16 +1555,15 @@ generate_fs_twiddle(struct gallivm_state *gallivm,
       }
    }
 
-   /*
-    * Split the src in half
-    */
    if (split) {
       for (unsigned i = num_fs; i > 0; --i) {
-         src[(i - 1)*2 + 1] = lp_build_extract_range(gallivm, src[i - 1], 4, 4);
-         src[(i - 1)*2 + 0] = lp_build_extract_range(gallivm, src[i - 1], 0, 4);
+         for (unsigned j = pixels; j > 0; --j) {
+            src[(i - 1) * pixels + j - 1] =
+               lp_build_extract_range(gallivm, src[i - 1], (j - 1) * 4, 4);
+         }
       }
 
-      src_count *= 2;
+      src_count *= pixels;
       type.length = 4;
    }
 
@@ -1588,6 +1591,15 @@ generate_fs_twiddle(struct gallivm_state *gallivm,
        * lp_build_conv to reorder (or deal with it ourselves).
        */
       lp_bld_quad_twiddle(gallivm, type, src, src_count, dst);
+
+      if (split_twiddled_rows) {
+         dst[3] = lp_build_extract_range(gallivm, dst[1], 8, 8);
+         dst[2] = lp_build_extract_range(gallivm, dst[1], 0, 8);
+         dst[1] = lp_build_extract_range(gallivm, dst[0], 8, 8);
+         dst[0] = lp_build_extract_range(gallivm, dst[0], 0, 8);
+         src_count *= 2;
+         type.length /= 2;
+      }
    } else {
       /* Do nothing */
       memcpy(dst, src, sizeof(LLVMValueRef) * src_count);
