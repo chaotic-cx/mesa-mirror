@@ -496,6 +496,10 @@ bool
 ac_nir_might_lower_bit_size(const nir_shader *shader);
 
 bool
+ac_nir_can_increase_load_size(uint32_t align_mul, uint32_t align_offset, unsigned old_size,
+                              unsigned new_size);
+
+bool
 ac_nir_mem_vectorize_callback(unsigned align_mul, unsigned align_offset, unsigned bit_size,
                               unsigned num_components, int64_t hole_size,
                               nir_intrinsic_instr *low, nir_intrinsic_instr *high, void *data);

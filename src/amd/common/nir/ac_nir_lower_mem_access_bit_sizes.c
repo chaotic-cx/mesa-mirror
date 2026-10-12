@@ -298,6 +298,11 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
                                       intrin != nir_intrinsic_load_push_constant &&
                                       (!cb_data->use_llvm || intrin != nir_intrinsic_load_ubo);
 
+      /* We might increase the bytes with the expectation that res.align is increased too.
+       * When using align_mul/align_offset, we need to use the original byte size.
+       */
+      const unsigned original_bytes = bytes;
+
       /* Round up subdword loads if unsupported. */
       if (bytes <= 2 && combined_align % bytes == 0 && supported_subdword) {
          bit_size = bytes * 8;
@@ -319,7 +324,6 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
       if (!util_is_power_of_two_nonzero(bytes) && (cb_data->gfx_level < GFX12 || bytes != 12)) {
          const uint8_t larger = util_next_power_of_two(bytes);
          const uint8_t smaller = larger / 2;
-         const bool is_aligned = align_mul % smaller == 0;
 
          const bool can_align_down = align_mul % smaller == 0;
 
@@ -332,7 +336,7 @@ lower_mem_access_cb(nir_intrinsic_op intrin, uint8_t bytes, uint8_t bit_size, ui
          } else if (can_align_down || is_buffer_load) {
             /* Bounds checking or rounding the address down makes this safe. */
             bytes = larger;
-         } else if (is_aligned) {
+         } else if (ac_nir_can_increase_load_size(align_mul, align_offset, original_bytes, larger)) {
             /* Additional trailing bytes stay within an accessible page. */
             bytes = larger;
          } else {
