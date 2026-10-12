@@ -693,6 +693,13 @@ ac_nir_mem_vectorize_callback(unsigned align_mul, unsigned align_offset, unsigne
       return false;
    }
 
+   /* There are no 8<->16 packing ALU opcodes, so these vectorizations can create a lot of ALU. */
+   unsigned old_bit_size =
+      is_store ? (low->src[low->intrinsic == nir_intrinsic_store_deref ? 1 : 0].ssa->bit_size)
+               : low->def.bit_size;
+   if (bit_size < 32 && old_bit_size < 32 && bit_size != old_bit_size)
+      return false;
+
    /* Align the size to what the hw supports. */
    unsigned unaligned_new_size = num_components * bit_size;
    unsigned aligned_new_size = nir_round_up_components(num_components) * bit_size;
