@@ -1908,15 +1908,23 @@ blorp_surf_convert_to_single_slice(const struct isl_device *isl_dev,
    assert(info->aux_surf.size_B == 0);
 
    /* Just bail if we have nothing to do. */
-   if (info->surf.dim == ISL_SURF_DIM_2D &&
-       info->view.base_level == 0 && info->view.base_array_layer == 0 &&
-       info->surf.levels == 1 && info->surf.logical_level0_px.array_len == 1)
+   if (info->surf.dim != ISL_SURF_DIM_1D &&
+       info->surf.logical_level0_px.depth <=
+       info->surf.image_alignment_el.d && info->view.array_len == 1 &&
+       info->surf.logical_level0_px.array_len == 1 &&
+       info->surf.miptail_start_level > info->view.base_level &&
+       info->view.base_level == 0 && info->surf.levels == 1)
       return;
 
    /* If this gets triggered then we've gotten here twice which.  This
     * shouldn't happen thanks to the above early return.
     */
    assert(!info->tile_x_sa && !info->tile_y_sa && !info->tile_z_sa);
+
+   /* Determine if the z_offset is used before possibly changing the dimension
+    * of the image.
+    */
+   const bool use_z_offset = surf_uses_z_offset(info);
 
    uint32_t layer = 0, z = 0;
    if (info->surf.dim == ISL_SURF_DIM_3D)
@@ -1949,9 +1957,15 @@ blorp_surf_convert_to_single_slice(const struct isl_device *isl_dev,
    /* The view is also different now. */
    info->view.base_level = 0;
    info->view.levels = 1;
-   info->view.base_array_layer = 0;
    info->view.array_len = 1;
-   info->z_offset = 0;
+   if (use_z_offset) {
+      assert(info->view.base_array_layer == 0);
+      info->z_offset = info->tile_z_sa;
+   } else {
+      assert(info->z_offset == 0);
+      info->view.base_array_layer = info->tile_z_sa;
+   }
+   info->tile_z_sa = 0;
 }
 
 /* Convert a Tile64/Yf/Ys surface to a single level or a single miptail. */
