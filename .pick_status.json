@@ -584,7 +584,7 @@
         "description": "meson: fix GNU qsort_r detection for GCC",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "2905dd7951a5990be815cec46435b651db5cc43f",
         "notes": null
