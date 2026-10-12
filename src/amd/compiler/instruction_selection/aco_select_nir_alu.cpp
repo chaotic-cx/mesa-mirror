@@ -3272,6 +3272,12 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
             bld.pseudo(aco_opcode::p_insert, Definition(dst), bld.def(s1, scc), src1,
                        Operand::c32(1), Operand::c32(16));
          }
+      } else if (instr->src[0].src.ssa == instr->src[1].src.ssa &&
+                 (instr->src[0].swizzle[0] & 0x1) == 0 && (instr->src[1].swizzle[0] & 0x1) == 1 &&
+                 (instr->src[0].swizzle[0] & ~0x1) == (instr->src[1].swizzle[0] & ~0x1)) {
+         bld.copy(Definition(dst),
+                  emit_extract_vector(ctx, get_ssa_temp(ctx, instr->src[0].src.ssa),
+                                      instr->src[0].swizzle[0] / 2, s1));
       } else if (ctx->program->gfx_level >= GFX9) {
          bld.sop2(aco_opcode::s_pack_ll_b32_b16, Definition(dst), src0, src1);
       } else {
