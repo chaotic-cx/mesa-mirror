@@ -1910,8 +1910,13 @@ radv_GetDeviceImageMemoryRequirements(VkDevice device, const VkDeviceImageMemory
       radv_image_create(device, &(struct radv_image_create_info){.vk_info = pInfo->pCreateInfo}, NULL, &image, true);
    assert(result == VK_SUCCESS);
 
+   VkImagePlaneMemoryRequirementsInfo plane_info = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_PLANE_MEMORY_REQUIREMENTS_INFO,
+      .planeAspect = pInfo->planeAspect,
+   };
    VkImageMemoryRequirementsInfo2 info2 = {
       .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2,
+      .pNext = radv_image_from_handle(image)->disjoint ? &plane_info : NULL,
       .image = image,
    };
 
