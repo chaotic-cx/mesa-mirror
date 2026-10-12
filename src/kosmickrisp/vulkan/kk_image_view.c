@@ -54,6 +54,7 @@ kk_image_view_init(struct kk_device *dev, struct kk_image_view *view,
                    const VkImageViewCreateInfo *pCreateInfo)
 {
    VK_FROM_HANDLE(kk_image, image, pCreateInfo->image);
+   struct kk_physical_device *pdev = kk_device_physical(dev);
 
    memset(view, 0, sizeof(*view));
 
@@ -117,7 +118,9 @@ kk_image_view_init(struct kk_device *dev, struct kk_image_view *view,
          .num_levels = view->vk.level_count,
          .base_array_layer = view->vk.base_array_layer,
          .array_len = view->vk.layer_count,
-         .min_lod_clamp = view->vk.min_lod,
+         /* Metal only allows non-zero for supported GPUs */
+         .min_lod_clamp =
+            pdev->info.gpu_apple_family >= 11 ? view->vk.min_lod : 0.0f,
       };
       uint8_t view_swizzle[4] = {vk_swizzle_to_pipe(view->vk.swizzle.r),
                                  vk_swizzle_to_pipe(view->vk.swizzle.g),
@@ -186,7 +189,7 @@ kk_image_view_init(struct kk_device *dev, struct kk_image_view *view,
 
       if (view->vk.usage & VK_IMAGE_USAGE_SAMPLED_BIT) {
          view->planes[view_plane].mtl_handle_sampled =
-            mtl_new_texture_view_with(mtl_handle, &view_layout);
+            mtl_new_texture_view_with(mtl_handle, &view_layout, true);
          view->planes[view_plane].sampled_gpu_resource_id =
             mtl_texture_get_gpu_resource_id(
                view->planes[view_plane].mtl_handle_sampled);
@@ -199,7 +202,7 @@ kk_image_view_init(struct kk_device *dev, struct kk_image_view *view,
             view_layout.view_type = VK_IMAGE_VIEW_TYPE_2D_ARRAY;
 
          view->planes[view_plane].mtl_handle_storage =
-            mtl_new_texture_view_with(mtl_handle, &view_layout);
+            mtl_new_texture_view_with(mtl_handle, &view_layout, true);
          view->planes[view_plane].storage_gpu_resource_id =
             mtl_texture_get_gpu_resource_id(
                view->planes[view_plane].mtl_handle_storage);
@@ -227,7 +230,7 @@ kk_image_view_init(struct kk_device *dev, struct kk_image_view *view,
                                           ? VK_IMAGE_VIEW_TYPE_2D_ARRAY
                                           : original_type;
                view->planes[view_plane].mtl_handle_input =
-                  mtl_new_texture_view_with(mtl_handle, &view_layout);
+                  mtl_new_texture_view_with(mtl_handle, &view_layout, true);
             } else
                view->planes[view_plane].mtl_handle_input =
                   mtl_retain(mtl_handle);
@@ -243,8 +246,7 @@ kk_image_view_init(struct kk_device *dev, struct kk_image_view *view,
             view->planes[view_plane].render_is_view = requires_format_change;
             if (requires_format_change) {
                view->planes[view_plane].mtl_handle_render =
-                  mtl_new_texture_view_with_no_swizzle(mtl_handle,
-                                                       &view_layout);
+                  mtl_new_texture_view_with(mtl_handle, &view_layout, false);
             } else /* Subresource indices will be set in attachment descriptor */
                view->planes[view_plane].mtl_handle_render =
                   mtl_retain(mtl_handle);

@@ -10,6 +10,7 @@
 #include "mtl_types.h"
 
 #include <inttypes.h>
+#include <stdbool.h>
 
 /* TODO_KOSMICKRISP Move this to bridge. */
 struct kk_view_layout;
@@ -21,10 +22,8 @@ uint32_t mtl_texture_first_mipmap_in_tail(mtl_texture *texture);
 
 /* Texture view creation */
 mtl_texture *mtl_new_texture_view_with(mtl_texture *texture,
-                                       const struct kk_view_layout *layout);
-mtl_texture *
-mtl_new_texture_view_with_no_swizzle(mtl_texture *texture,
-                                     const struct kk_view_layout *layout);
+                                       const struct kk_view_layout *layout,
+                                       bool swizzle);
 
 void mtl_texture_get_bytes(mtl_texture *texture, void *host_ptr,
                            struct mtl_texture_memory_copy *data);

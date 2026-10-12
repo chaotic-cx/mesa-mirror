@@ -138,7 +138,7 @@ struct kk_view_layout {
    /** Number of miplevels. 1 if no mipmapping is used. */
    uint8_t num_levels;
 
-   uint16_t min_lod_clamp;
+   float min_lod_clamp;
 };
 
 static inline bool

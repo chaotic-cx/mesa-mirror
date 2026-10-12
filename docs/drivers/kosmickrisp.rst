@@ -82,7 +82,7 @@ KosmicKrisp specific environment variables:
 - ``MESA_KK_DISABLE_WORKAROUNDS``: Provide ``all`` to disable all workarounds. Otherwise, provide a comma separated list to disable wanted workarounds e.g. ``1,3,4`` to disable workaround 1, 3 and 4.
 - ``MESA_KK_EXPERIMENTAL``: Enables advertising experimental features which may not provide full correctness or may negatively impact performance when enabled. Provide ``all`` to advertise all listed features.
   - ``custom_border`` to advertise ``VK_EXT_custom_border_color`` and ``VK_EXT_border_color_swizzle``.
-  - ``image_view_min_lod`` to advertise ``VK_EXT_image_view_min_lod``.
+  - ``image_view_min_lod`` to advertise ``VK_EXT_image_view_min_lod`` for M1-M5 GPUs.
   - ``optimize_e5r9g9b9`` to use allowGPUOptimizedContents with this format, which causes some CTS tests for vkCmdCopyImage() to fail
 
 Metal workarounds

@@ -22,14 +22,7 @@ mtl_texture_first_mipmap_in_tail(mtl_texture *texture)
 /* Texture view creation */
 mtl_texture *
 mtl_new_texture_view_with(mtl_texture *texture,
-                          const struct kk_view_layout *layout)
-{
-   return NULL;
-}
-
-mtl_texture *
-mtl_new_texture_view_with_no_swizzle(mtl_texture *texture,
-                                     const struct kk_view_layout *layout)
+                          const struct kk_view_layout *layout, bool swizzle)
 {
    return NULL;
 }
