@@ -724,7 +724,7 @@
         "description": "ac/nir/clear_copy_buffer: Emit separate load for last thread, if necessary",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "19a1102ecbe8157f7492dfb6569939e2252af992",
         "notes": null
