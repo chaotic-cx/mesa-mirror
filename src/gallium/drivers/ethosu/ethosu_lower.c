@@ -133,19 +133,28 @@ trim_padding_to_output(struct ethosu_operation *operation,
 }
 
 static void
-set_feature_map_strides(struct ethosu_feature_map *fm, bool is_nhcwb16)
+set_feature_map_strides(struct ethosu_feature_map *fm,
+                        struct ethosu_block read_shape)
 {
    unsigned elem_size = 1 << fm->precision;
 
-   if (is_nhcwb16) {
+   if (fm->tensor->layout == ETHOSU_LAYOUT_NHCWB16) {
       fm->stride.x = 16 * elem_size;
-      fm->stride.c = fm->stride.x * fm->shape.width;
-      fm->stride.y = elem_size * fm->shape.width * align(fm->shape.depth, 16);
+      fm->stride.c = fm->stride.x * read_shape.width;
+      fm->stride.y =
+         elem_size * read_shape.width * align(read_shape.depth, 16);
    } else {
       fm->stride.c = elem_size;
-      fm->stride.x = fm->shape.depth * fm->stride.c;
-      fm->stride.y = fm->shape.width * fm->stride.x;
+      fm->stride.x = read_shape.depth * fm->stride.c;
+      fm->stride.y = read_shape.width * fm->stride.x;
    }
+
+   if (read_shape.height == 1 && fm->shape.height > 1)
+      fm->stride.y = 0;
+   if (read_shape.width == 1 && fm->shape.width > 1)
+      fm->stride.x = 0;
+   if (read_shape.depth == 1 && fm->shape.depth > 1)
+      fm->stride.c = 0;
 }
 
 static void
@@ -163,7 +172,7 @@ set_feature_map(struct ethosu_subgraph *subgraph,
    fm->is_signed = tensor->is_signed;
    fm->precision = log2(tensor->type_size);
 
-   set_feature_map_strides(fm, fm->tensor->layout == ETHOSU_LAYOUT_NHCWB16);
+   set_feature_map_strides(fm, fm->shape);
 }
 
 static void
@@ -632,7 +641,7 @@ set_internal_feature_map(struct ethosu_tensor *tensor,
    fm->is_signed = is_signed;
    fm->precision = log2(tensor->type_size);
 
-   set_feature_map_strides(fm, tensor->layout == ETHOSU_LAYOUT_NHCWB16);
+   set_feature_map_strides(fm, fm->shape);
 }
 
 static void
@@ -665,7 +674,7 @@ set_constant_feature_map(struct ethosu_subgraph *subgraph,
    fm->tiles.height_1 = scalar_shape.height;
    fm->tiles.width_0 = scalar_shape.width;
 
-   set_feature_map_strides(fm, false);
+   set_feature_map_strides(fm, fm->shape);
 }
 
 static void
@@ -1225,15 +1234,11 @@ ethosu_lower_argmax_u85(struct ethosu_subgraph *subgraph,
       struct ethosu_feature_map chunk_output_fm = output_fm;
 
       chunk_input_fm.shape = (struct ethosu_block){channels, count, 1};
-      chunk_input_fm.stride.y = channels * input->type_size;
-      chunk_input_fm.stride.x = input->type_size;
-      chunk_input_fm.stride.c = input->type_size;
+      set_feature_map_strides(&chunk_input_fm, chunk_input_fm.shape);
       chunk_input_fm.tiles.addresses[0] += offset * channels * input->type_size;
 
       chunk_output_fm.shape = (struct ethosu_block){1, count, 1};
-      chunk_output_fm.stride.y = output->type_size;
-      chunk_output_fm.stride.x = output->type_size;
-      chunk_output_fm.stride.c = output->type_size;
+      set_feature_map_strides(&chunk_output_fm, chunk_output_fm.shape);
       chunk_output_fm.tiles.addresses[0] += offset * output->type_size;
 
       ethosu_append_pool(subgraph, ETHOSU_POOLING_TYPE_ARGMAX_X,
@@ -1327,16 +1332,12 @@ ethosu_lower_argmax_u65(struct ethosu_subgraph *subgraph,
       struct ethosu_feature_map chunk_output_fm = output_fm;
 
       vector_fm.shape = vector_shape;
-      vector_fm.stride.y = channels * 2;
-      vector_fm.stride.x = 2;
-      vector_fm.stride.c = 2;
+      set_feature_map_strides(&vector_fm, vector_fm.shape);
       vector_fm.tiles.addresses[0] += offset * channels * 2;
       chunk_max_fm.shape = chunk_shape;
       chunk_lut_fm.shape = chunk_shape;
       chunk_output_fm.shape = chunk_shape;
-      chunk_output_fm.stride.y = 4;
-      chunk_output_fm.stride.x = 4;
-      chunk_output_fm.stride.c = 4;
+      set_feature_map_strides(&chunk_output_fm, chunk_output_fm.shape);
       chunk_output_fm.tiles.addresses[0] += offset * 4;
 
       ethosu_append_pool(subgraph, ETHOSU_POOLING_TYPE_MAX, &vector_fm,
@@ -2376,10 +2377,11 @@ ethosu_append_eltwise(struct ethosu_subgraph *subgraph,
        operation.ifm.shape.width == 1 &&
        operation.ifm.shape.depth == operation.ofm.shape.depth &&
        (operation.ofm.shape.height != 1 || operation.ofm.shape.width != 1)) {
+      struct ethosu_block read_shape = operation.ifm.shape;
+
       operation.ifm.shape.height = operation.ofm.shape.height;
       operation.ifm.shape.width = operation.ofm.shape.width;
-      operation.ifm.stride.y = 0;
-      operation.ifm.stride.x = 0;
+      set_feature_map_strides(&operation.ifm, read_shape);
       operation.ifm.tiles.height_0 = operation.ifm.shape.height;
       operation.ifm.tiles.height_1 = operation.ifm.shape.height;
       operation.ifm.tiles.width_0 = operation.ifm.shape.width;
@@ -3058,7 +3060,8 @@ ethosu_lower_batch_matmul(struct ethosu_subgraph *subgraph,
    unsigned rows = input->dims[2];
    unsigned depth = input->dims[3];
    unsigned columns = output->dims[3];
-   struct ethosu_block product_shape = {rows, batches, depth};
+   /* An odd int32 depth gets an even-depth stride, as Vela lays it out. */
+   struct ethosu_block product_shape = {rows, batches, align(depth, 2)};
    struct ethosu_tensor *product_tensor;
    struct ethosu_tensor *input2_transposed_tensor;
    struct ethosu_feature_map input_fm = {0};
@@ -3097,25 +3100,17 @@ ethosu_lower_batch_matmul(struct ethosu_subgraph *subgraph,
    input2_fm.shape.height = batches;
    input2_fm.shape.width = 1;
    input2_fm.shape.depth = depth;
-   input2_fm.stride.y = columns * depth * input2->type_size;
-   input2_fm.stride.x = input2->type_size;
-   input2_fm.stride.c = input2->type_size;
    input2_fm.tiles.height_0 = input2_fm.shape.height;
    input2_fm.tiles.height_1 = input2_fm.shape.height;
    input2_fm.tiles.width_0 = input2_fm.shape.width;
 
    set_internal_feature_map(product_tensor, product_shape, product_scale, 0,
                             true, &product_fm);
-   /* An odd int32 depth gets an even-depth stride, as Vela lays it out. */
-   product_fm.stride.x = ALIGN_POT(depth, 2) * product_tensor->type_size;
-   product_fm.stride.y = rows * product_fm.stride.x;
+   product_fm.shape.depth = depth;
 
    for (unsigned column = 0; column < columns; column++) {
       set_feature_map(subgraph, output, &output_fm);
       output_fm.shape = (struct ethosu_block){rows, batches, 1};
-      output_fm.stride.y = rows * columns * output->type_size;
-      output_fm.stride.x = columns * output->type_size;
-      output_fm.stride.c = output->type_size;
       output_fm.tiles.addresses[0] = column * output->type_size;
       output_fm.tiles.height_0 = output_fm.shape.height;
       output_fm.tiles.height_1 = output_fm.shape.height;
