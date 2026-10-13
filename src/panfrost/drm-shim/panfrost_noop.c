@@ -203,7 +203,7 @@ panthor_ioctl_dev_query(int fd, unsigned long request, void *arg)
       csif_info->csg_slot_count = 8;
       csif_info->cs_slot_count = 8;
       csif_info->cs_reg_count = arch >= 12 ? 128 : 96;
-      csif_info->scoreboard_slot_count = 8;
+      csif_info->scoreboard_slot_count = arch >= 11 ? 16 : 8;
       csif_info->unpreserved_cs_reg_count = 4;
       return 0;
    }

@@ -554,6 +554,8 @@ panvk_per_arch(create_device)(struct panvk_physical_device *physical_device,
    device->csf.sb.count = csif_info->scoreboard_slot_count;
    device->csf.sb.all_mask = (uint16_t)BITFIELD_MASK(csif_info->scoreboard_slot_count);
 
+   static_assert(PANVK_SB_ITER_START < CS_MAX_SB_COUNT,
+                 "Insufficient SB count");
    assert(device->csf.sb.count > PANVK_SB_ITER_START);
    device->csf.sb.iter_count = device->csf.sb.count - PANVK_SB_ITER_START;
 
