@@ -1802,6 +1802,8 @@ anv_h265_brc_emit_huc_update(struct anv_cmd_buffer *cmd,
 #define ANV_AV1_BRC_SLB_CMD2_OFFSET          216
 #define ANV_AV1_BRC_SLB_PIC_STATE_OFFSET     468
 #define ANV_AV1_BRC_SLB_SIZE                 832
+#define ANV_AV1_BRC_SLB_PIC_STATE2_OFFSET    776
+#define ANV_AV1_BRC_SLB_SIZE_MULTI_TILE      1088
 
 struct anv_huc_av1_brc_init_dmem {
    uint32_t BRCFunc;
@@ -2006,6 +2008,14 @@ static_assert(ANV_AV1_BRC_SLB_PIC_STATE_OFFSET ==
               "huc av1 brc slb layout");
 static_assert(ANV_AV1_BRC_SLB_SIZE ==
               ALIGN_POT(ANV_AV1_BRC_SLB_PIC_STATE_OFFSET +
+                    (GENX(AVP_PIC_STATE_length) + GENX(MI_BATCH_BUFFER_END_length)) * 4, 64),
+              "huc av1 brc slb layout");
+static_assert(ANV_AV1_BRC_SLB_PIC_STATE2_OFFSET ==
+              ANV_AV1_BRC_SLB_PIC_STATE_OFFSET +
+              (GENX(AVP_PIC_STATE_length) + GENX(MI_BATCH_BUFFER_END_length)) * 4,
+              "huc av1 brc slb layout");
+static_assert(ANV_AV1_BRC_SLB_SIZE_MULTI_TILE ==
+              ALIGN_POT(ANV_AV1_BRC_SLB_PIC_STATE2_OFFSET +
                     (GENX(AVP_PIC_STATE_length) + GENX(MI_BATCH_BUFFER_END_length)) * 4, 64),
               "huc av1 brc slb layout");
 
@@ -2500,6 +2510,7 @@ anv_av1_brc_fill_update_dmem(struct anv_cmd_buffer *cmd,
                              uint32_t pass,
                              bool low_delay,
                              const struct vk_video_av1_frame_hdr_offsets *hdr,
+                             uint32_t num_tiles,
                              struct anv_huc_av1_brc_update_dmem *dmem)
 {
    struct anv_video_session *vid = cmd->video.vid;
@@ -2577,14 +2588,14 @@ anv_av1_brc_fill_update_dmem(struct anv_cmd_buffer *cmd,
 
    dmem->UPD_Lowdelay = rc->vbv_initial_fullness_bits <= bits_per_frame * 2;
 
-   dmem->UPD_SLBBSize = ANV_AV1_BRC_SLB_SIZE;
-   dmem->UPD_AVPPiCStateCmdNum = 1;
+   dmem->UPD_SLBBSize = num_tiles > 1 ? ANV_AV1_BRC_SLB_SIZE_MULTI_TILE : ANV_AV1_BRC_SLB_SIZE;
+   dmem->UPD_AVPPiCStateCmdNum = num_tiles > 1 ? 2 : 1;
    dmem->UPD_AVPSegmentStateOffset = 0;
    dmem->UPD_AVPInloopFilterStateOffset = ANV_AV1_BRC_SLB_INLOOP_FILTER_OFFSET;
    dmem->UPD_VDEncCmd1Offset = ANV_AV1_BRC_SLB_CMD1_OFFSET;
    dmem->UPD_VDEncCmd2Offset = ANV_AV1_BRC_SLB_CMD2_OFFSET;
    dmem->UPD_AVPPicStateOffset = ANV_AV1_BRC_SLB_PIC_STATE_OFFSET;
-   dmem->UPD_TileNum = 1;
+   dmem->UPD_TileNum = num_tiles;
 
    dmem->UPD_LoopFilterParamsBitOffset = hdr->loop_filter_params_bit_offset;
    dmem->UPD_QIndexBitOffset = hdr->base_q_idx_bit_offset;
@@ -2653,6 +2664,7 @@ static void
 anv_av1_brc_build_input_slb(struct anv_cmd_buffer *cmd,
                             const VkVideoEncodeInfoKHR *enc_info,
                             const struct anv_av1_tile_layout *layout,
+                            uint32_t num_tiles,
                             uint32_t pass,
                             struct anv_state slb_state)
 {
@@ -2680,7 +2692,14 @@ anv_av1_brc_build_input_slb(struct anv_cmd_buffer *cmd,
    anv_av1_emit_avp_pic_state(cmd, &slb, enc_info, layout, 0, pass > 0);
    anv_batch_emit(&slb, GENX(MI_BATCH_BUFFER_END), bbe);
 
-   anv_av1_brc_slb_pad_to(&slb, ANV_AV1_BRC_SLB_SIZE);
+   if (num_tiles > 1) {
+      assert((uint32_t)(slb.next - slb.start) == ANV_AV1_BRC_SLB_PIC_STATE2_OFFSET);
+      anv_av1_emit_avp_pic_state(cmd, &slb, enc_info, layout, 1, pass > 0);
+      anv_batch_emit(&slb, GENX(MI_BATCH_BUFFER_END), bbe);
+      anv_av1_brc_slb_pad_to(&slb, ANV_AV1_BRC_SLB_SIZE_MULTI_TILE);
+   } else {
+      anv_av1_brc_slb_pad_to(&slb, ANV_AV1_BRC_SLB_SIZE);
+   }
 }
 
 static size_t

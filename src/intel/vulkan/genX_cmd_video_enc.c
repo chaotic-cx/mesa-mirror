@@ -5709,9 +5709,6 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
    struct anv_state brc_input_slb[2] = { ANV_STATE_NULL, ANV_STATE_NULL };
 
    if (brc_enabled) {
-      /* TODO: multiple tiles with HuC BRC */
-      assert(layout.num_tiles == 1);
-
       struct anv_av1_ref_lists lists;
       anv_av1_get_ref_lists(cmd, enc_info, &lists);
 
@@ -5742,18 +5739,19 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
       for (uint32_t pass = 0; pass < num_passes; pass++) {
          brc_input_slb[pass] =
             anv_cmd_buffer_alloc_temporary_state(cmd,
-               align(ANV_AV1_BRC_SLB_SIZE, 4096), 4096);
+               align(ANV_AV1_BRC_SLB_SIZE_MULTI_TILE, 4096), 4096);
          brc_update_dmem[pass] =
             anv_cmd_buffer_alloc_temporary_state(cmd,
                sizeof(struct anv_huc_av1_brc_update_dmem), 4096);
          if (brc_input_slb[pass].map == NULL || brc_update_dmem[pass].map == NULL)
             return;
 
-         anv_av1_brc_build_input_slb(cmd, enc_info, &layout, pass, brc_input_slb[pass]);
+         anv_av1_brc_build_input_slb(cmd, enc_info, &layout, layout.num_tiles, pass,
+                                     brc_input_slb[pass]);
 
          memset(brc_update_dmem[pass].map, 0, sizeof(struct anv_huc_av1_brc_update_dmem));
          anv_av1_brc_fill_update_dmem(cmd, enc_info, pass, lists.low_delay, &brc_hdr,
-                                      brc_update_dmem[pass].map);
+                                      layout.num_tiles, brc_update_dmem[pass].map);
       }
    }
 
@@ -5803,7 +5801,8 @@ anv_av1_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *enc
          if (brc_enabled) {
             anv_av1_brc_emit_slb_jump(cmd,
                anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB),
-                               ANV_AV1_BRC_SLB_PIC_STATE_OFFSET));
+                               tile_idx == 0 ? ANV_AV1_BRC_SLB_PIC_STATE_OFFSET :
+                                               ANV_AV1_BRC_SLB_PIC_STATE2_OFFSET));
          } else {
             anv_av1_emit_avp_pic_state(cmd, NULL, enc_info, &layout, tile_idx, false);
          }
