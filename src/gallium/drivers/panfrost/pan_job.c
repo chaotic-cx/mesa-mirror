@@ -224,6 +224,9 @@ panfrost_get_fresh_render_batch(struct panfrost_context *ctx,
    struct panfrost_batch *batch;
 
    batch = find_best_render_batch(ctx);
+   if (!batch)
+      return NULL;
+
    panfrost_dirty_state_all(ctx);
 
    /* We only need to submit and get a fresh batch if there is no
@@ -233,6 +236,8 @@ panfrost_get_fresh_render_batch(struct panfrost_context *ctx,
       perf_debug(ctx, "Flushing the current FBO due to: %s", reason);
       panfrost_batch_submit(ctx, batch);
       batch = find_best_render_batch(ctx);
+      if (!batch)
+         return NULL;
    }
 
    ctx->batch[PANFROST_BATCH_RENDER] = batch;
