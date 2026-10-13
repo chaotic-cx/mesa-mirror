@@ -135,6 +135,9 @@ gitlab-ci*.yml @eric
 /src/gallium/drivers/v3d/ @chema @jasuarez @itoral @apinheiro
 /src/gallium/drivers/vc4/ @chema @jasuarez @itoral @apinheiro
 
+# Earthqaic
+/src/gallium/drivers/earthqaic/ @zmckevitt-qcom @jhugo
+
 # Freedreno
 /src/gallium/drivers/freedreno/ @robclark
 
