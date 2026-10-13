@@ -181,7 +181,7 @@ isl_gfx125_choose_image_alignment_el(const struct isl_device *dev,
        */
       *image_align_el = isl_extent3d(tile_info->logical_extent_el.w,
                                      tile_info->logical_extent_el.h,
-                                     1);
+                                     tile_info->logical_extent_el.d);
    } else if (isl_surf_usage_is_depth(info->usage)) {
       /* From RENDER_SURFACE_STATE::SurfaceHorizontalAlignment,
        *
@@ -293,7 +293,7 @@ isl_gfx12_choose_image_alignment_el(const struct isl_device *dev,
        */
       *image_align_el = isl_extent3d(tile_info->logical_extent_el.w,
                                      tile_info->logical_extent_el.h,
-                                     1);
+                                     tile_info->logical_extent_el.d);
    } else if (isl_surf_usage_is_depth(info->usage)) {
       /* The alignment parameters for depth buffers are summarized in the
        * following table:
