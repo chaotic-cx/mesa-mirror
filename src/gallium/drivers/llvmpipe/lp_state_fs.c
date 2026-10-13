@@ -2093,7 +2093,7 @@ convert_to_blend_type(struct gallivm_state *gallivm,
          /* expand 4x16bit values to 4x32bit */
          struct lp_type type32x4 = src_type;
          LLVMTypeRef ltype32x4;
-         unsigned num_fetch = dst_type.length == 8 ? num_srcs / 2 : num_srcs / 4;
+         unsigned num_fetch = num_srcs * dst_type.length / 16;
          type32x4.width = 32;
          ltype32x4 = lp_build_vec_type(gallivm, type32x4);
          for (i = 0; i < num_fetch; i++) {
@@ -2107,7 +2107,15 @@ convert_to_blend_type(struct gallivm_state *gallivm,
       for (i = 0; i < num_srcs / 4; i++) {
          LLVMValueRef tmpsoa[4];
          LLVMValueRef tmps = tmpsrc[i];
-         if (dst_type.length == 8) {
+         if (dst_type.length == 16) {
+            LLVMValueRef shuffles[16];
+            tmps = lp_build_concat(gallivm, &tmpsrc[i * 4], src_type, 4);
+            for (unsigned j = 0; j < 16; j++) {
+               shuffles[j] = lp_build_const_int32(gallivm, (j % 4) * 4 + j / 4);
+            }
+            tmps = LLVMBuildShuffleVector(builder, tmps, tmps,
+                                          LLVMConstVector(shuffles, 16), "");
+         } else if (dst_type.length == 8) {
             LLVMValueRef shuffles[8];
             unsigned j;
             /* fetch was 4 values but need 8-wide output values */
@@ -2267,7 +2275,18 @@ convert_from_blend_type(struct gallivm_state *gallivm,
                                                    src_type, tmpsoa);
          }
 
-         if (src_type.length == 8) {
+         if (src_type.length == 16) {
+            LLVMValueRef shuffles[16];
+            for (unsigned j = 0; j < 16; j++) {
+               shuffles[j] = lp_build_const_int32(gallivm, (j % 4) * 4 + j / 4);
+            }
+            tmpdst = LLVMBuildShuffleVector(builder, tmpdst, tmpdst,
+                                            LLVMConstVector(shuffles, 16), "");
+            for (unsigned j = 0; j < 4; j++) {
+               src[i * 4 + j] = lp_build_extract_range(gallivm, tmpdst,
+                                                        j * 4, 4);
+            }
+         } else if (src_type.length == 8) {
             LLVMValueRef tmpaos, shuffles[8];
             unsigned j;
             /*
@@ -2291,7 +2310,7 @@ convert_from_blend_type(struct gallivm_state *gallivm,
          struct lp_type type16x8 = dst_type;
          struct lp_type type32x4 = dst_type;
          LLVMTypeRef ltype16x4, ltypei64, ltypei128;
-         unsigned num_fetch = src_type.length == 8 ? num_srcs / 2 : num_srcs / 4;
+         unsigned num_fetch = num_srcs * src_type.length / 16;
          type16x8.length = 8;
          type32x4.width = 32;
          ltypei128 = LLVMIntTypeInContext(gallivm->context, 128);
@@ -2327,12 +2346,14 @@ convert_from_blend_type(struct gallivm_state *gallivm,
       is_arith = false;
    }
 
-   /* Remove any padding */
-   if (!is_arith && (src_type.length % mem_type.length)) {
-      src_type.length -= (src_type.length % mem_type.length);
-
+   /* Each blend vector holds 'pixels' pixels, possibly spanning multiple
+    * memory rows. Remove channel padding without truncating those rows;
+    * the caller splits combined vectors into individual rows afterwards.
+    */
+   unsigned mem_length = mem_type.length * pixels;
+   if (!is_arith && src_type.length > mem_length) {
       for (i = 0; i < num_srcs; ++i) {
-         dst[i] = lp_build_extract_range(gallivm, dst[i], 0, src_type.length);
+         dst[i] = lp_build_extract_range(gallivm, dst[i], 0, mem_length);
       }
    }
 
