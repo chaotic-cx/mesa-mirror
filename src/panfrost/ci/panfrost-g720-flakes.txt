@@ -26,7 +26,6 @@ dEQP-VK.api.image_clearing.core.clear_color_image.2d.optimal.remaining_array_lay
 dEQP-VK.api.image_clearing.dedicated_allocation.clear_color_image.2d.linear.remaining_array_layers_twostep.a2b10g10r10_sint_pack32_33x128
 
 dEQP-VK.binding_model.buffer_device_address.set3.depth3.basessbo.load.nostore.single.std140.frag
-dEQP-VK.binding_model.mutable_descriptor.single.switches.acceleration_structure_khr_uniform_texel_buffer.update_write.no_source.no_source.pool_no_types.pre_update.no_array.rgen
 dEQP-VK.binding_model.shader_access.primary_cmd_buf.bind.sampler_immutable.fragment.multiple_descriptor_sets.multiple_discontiguous_descriptors.1d_array_base_slice
 dEQP-VK.binding_model.shader_access.primary_cmd_buf.bind.with_template.sampler_immutable.tess_eval.multiple_arbitrary_descriptors.2d
 dEQP-VK.binding_model.shader_access.secondary_cmd_buf.bind.sampler_immutable.vertex_fragment.single_descriptor.1d_base_mip
