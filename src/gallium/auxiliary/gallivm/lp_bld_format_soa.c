@@ -55,7 +55,8 @@ convert_to_soa(struct gallivm_state *gallivm,
 
    assert((soa_type.length % 4) == 0);
 
-   aos_channel_type.length >>= 1;
+   /* Each fallback fetch supplies one RGBA pixel. */
+   aos_channel_type.length = 4;
 
    for (j = 0; j < 4; ++j) {
       LLVMValueRef channel[LP_MAX_VECTOR_LENGTH] = { 0 };
