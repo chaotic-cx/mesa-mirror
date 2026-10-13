@@ -1184,7 +1184,7 @@
         "description": "panfrost: handle a NULL batch in the remaining callers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "56abe1e472fe5364bfff2be0796396c35c91edf5",
         "notes": null

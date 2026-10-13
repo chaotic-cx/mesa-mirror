@@ -3835,6 +3835,11 @@ panfrost_launch_grid(struct pipe_context *pipe,
    panfrost_flush_all_batches(ctx, "Launch grid pre-barrier");
 
    struct panfrost_batch *batch = panfrost_get_compute_batch(ctx);
+   if (!batch) {
+      mesa_loge("panfrost_launch_grid failed");
+      return;
+   }
+
    panfrost_launch_grid_on_batch(pipe, batch, info);
 
    panfrost_flush_all_batches(ctx, "Launch grid post-barrier");
@@ -3976,6 +3981,10 @@ panfrost_compute_copy_buffer(struct pipe_context *pctx,
    panfrost_flush_all_batches(ctx, "Compute buffer copy pre-barrier");
 
    struct panfrost_batch *batch = panfrost_get_compute_batch(ctx);
+   if (!batch) {
+      mesa_loge("panfrost_compute_copy_buffer failed");
+      return;
+   }
 
    panfrost_batch_read_rsrc(batch, src);
    panfrost_batch_write_rsrc(batch, dst);
@@ -4096,6 +4105,11 @@ panfrost_mtk_detile_compute(struct panfrost_context *ctx, struct pipe_blit_info 
    panfrost_flush_all_batches(ctx, "mtk_detile pre-barrier");
 
    struct panfrost_batch *batch = panfrost_get_compute_batch(ctx);
+   if (!batch) {
+      mesa_loge("panfrost_mtk_detile_compute failed");
+      goto out_restore_res;
+   }
+
    pipe->set_shader_images(pipe, MESA_SHADER_COMPUTE, 0, 4, 0, image);
 
    /* launch the compute shader */
@@ -4132,6 +4146,7 @@ panfrost_mtk_detile_compute(struct panfrost_context *ctx, struct pipe_blit_info 
    pipe->bind_compute_state(pipe, saved_cso);
    pipe->set_constant_buffer(pipe, MESA_SHADER_COMPUTE, 0, &saved_const);
 
+out_restore_res:
    panfrost_resource_restore_format(pan_resource(y_src), &y_src_save);
    panfrost_resource_restore_format(pan_resource(uv_src), &uv_src_save);
    panfrost_resource_restore_format(pan_resource(y_dst), &y_dst_save);

@@ -708,6 +708,10 @@ panfrost_emit_write_timestamp(struct panfrost_context *ctx,
    struct panfrost_screen *screen = pan_screen(ctx->base.screen);
    struct panfrost_batch *batch =
       panfrost_get_fresh_render_batch(ctx, reason);
+   if (!batch) {
+      mesa_loge("panfrost_emit_write_timestamp failed");
+      return;
+   }
 
    screen->vtbl.emit_write_timestamp(batch, rsrc, offset);
 }

@@ -2033,9 +2033,15 @@ pan_resource_afbcp_get_payload_sizes(struct panfrost_context *ctx,
    if (!pan_screen(ctx->base.screen)->afbcp_gpu_payload_sizes)
       return true;
 
+   struct panfrost_batch *batch = panfrost_get_compute_batch(ctx);
+   if (!batch) {
+      mesa_loge("pan_resource_afbcp_get_payload_sizes: failed to get a "
+                "compute batch");
+      return false;
+   }
+
    prsrc->afbcp->skip_access_updates = true;
 
-   struct panfrost_batch *batch = panfrost_get_compute_batch(ctx);
    for (unsigned level = 0; level <= last_level; ++level)
       screen->vtbl.afbc_size(batch, prsrc, prsrc->afbcp->layout_bo,
                              prsrc->afbcp->layout_offsets[level], level);
@@ -2183,9 +2189,14 @@ pan_resource_afbcp_pack(struct panfrost_context *ctx,
       return false;
    }
 
+   struct panfrost_batch *batch = panfrost_get_compute_batch(ctx);
+   if (!batch) {
+      mesa_loge("pan_resource_afbcp_pack: failed to get a compute batch");
+      return false;
+   }
+
    prsrc->afbcp->skip_access_updates = true;
 
-   struct panfrost_batch *batch = panfrost_get_compute_batch(ctx);
    for (unsigned level = 0; level <= last_level; ++level)
       screen->vtbl.afbc_pack(batch, prsrc, prsrc->afbcp->packed_bo,
                              &prsrc->afbcp->plane.layout.slices[level],
