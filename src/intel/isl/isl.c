@@ -5227,6 +5227,7 @@ isl_surf_get_image_surf(const struct isl_device *dev,
                       .array_len = 1,
                       .samples = surf->samples,
                       .row_pitch_B = surf->row_pitch_B,
+                      .min_miptail_start_level = 1,
                       .usage = usage,
                       .tiling_flags = (1 << surf->tiling));
    assert(ok);
