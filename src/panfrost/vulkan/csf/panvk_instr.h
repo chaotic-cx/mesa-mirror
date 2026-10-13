@@ -24,7 +24,7 @@ struct panvk_instr_end_args {
    /* Depending on which work type is ended, one of the options below is valid. */
    union {
       struct {
-         uint8_t wait_sb_mask;
+         uint16_t wait_sb_mask;
          uint8_t wait_subqueue_mask;
       } barrier;
 
