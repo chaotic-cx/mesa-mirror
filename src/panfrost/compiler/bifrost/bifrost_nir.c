@@ -1102,6 +1102,30 @@ lower_buf_image_access(nir_builder *b, nir_intrinsic_instr *intr, void *data)
 
    nir_def *res_handle = intr->src[0].ssa;
    nir_def *buf_index = nir_channel(b, intr->src[1].ssa, 0);
+
+   /* On pre-Valhall, LEA_ATTR encodes the register format in the conversion
+    * descriptor; the LOAD_CVT and ST_CVT format fields are not encoded.
+    *
+    * Use F16 for 16-bit float operations, while 32-bit operations use
+    * auto32 to avoid clamping.  Due to SPIR-V limitations, the source type
+    * is not fully reliable: it reports uint32 even for write_imagei,
+    * causing a u32 -> s32 -> u32 roundtrip.
+    */
+   nir_alu_type cvt_type = 32; /* auto32 */
+   if (intr->intrinsic == nir_intrinsic_image_store &&
+       intr->src[3].ssa->bit_size == 16) {
+      ASSERTED nir_alu_type T = nir_intrinsic_src_type(intr);
+
+      assert(nir_alu_type_get_base_type(T) == nir_type_float);
+      cvt_type = nir_type_float16;
+   } else if (intr->intrinsic == nir_intrinsic_image_load &&
+              intr->def.bit_size == 16) {
+      ASSERTED nir_alu_type T = nir_intrinsic_dest_type(intr);
+
+      assert(nir_alu_type_get_base_type(T) == nir_type_float);
+      cvt_type = nir_type_float16;
+   }
+
    nir_def *texel_addr, *icd;
    if (*arch >= 9) {
       texel_addr = nir_lea_buf_pan(b, res_handle, buf_index);
@@ -1109,7 +1133,7 @@ lower_buf_image_access(nir_builder *b, nir_intrinsic_instr *intr, void *data)
    } else {
       nir_def *attr = nir_lea_attr_pan(b, res_handle, buf_index,
                                        nir_imm_int(b, 0),
-                                       .src_type = 32,
+                                       .src_type = cvt_type,
                                        .desc_set = BI_TABLE_ATTRIBUTE_1);
       texel_addr = nir_channels(b, attr, BITFIELD_MASK(2));
       icd = nir_channel(b, attr, 2);
@@ -1128,17 +1152,9 @@ lower_buf_image_access(nir_builder *b, nir_intrinsic_instr *intr, void *data)
       break;
    }
    case nir_intrinsic_image_store: {
-      /* Due to SPIR-V limitations, the source type is not fully reliable: it
-       * reports uint32 even for write_imagei. This causes an incorrect
-       * u32->s32->u32 roundtrip which incurs an unwanted clamping. Use auto32
-       * instead, which will match per the OpenCL spec. Of course this does
-       * not work for 16-bit stores, but those are not available in OpenCL.
-       */
-      ASSERTED nir_alu_type T = nir_intrinsic_src_type(intr);
-      assert(nir_alu_type_get_type_size(T) == 32);
-
       nir_def *value = intr->src[3].ssa;
-      nir_store_global_cvt_pan(b, value, texel_addr, icd, .src_type = 32);
+      nir_store_global_cvt_pan(b, value, texel_addr, icd,
+                               .src_type = cvt_type);
       nir_instr_remove(&intr->instr);
       break;
    }

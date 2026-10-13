@@ -189,16 +189,6 @@ lower_image_store(nir_builder *b, nir_intrinsic_instr *intr, unsigned arch)
    enum glsl_sampler_dim dim = nir_intrinsic_image_dim(intr);
    bool image_array = nir_intrinsic_image_array(intr);
 
-   /* Due to SPIR-V limitations, the source type is not fully reliable: it
-    * reports uint32 even for write_imagei.  This causes an incorrect
-    * u32->s32->u32 roundtrip which incurs an unwanted clamping.  Use auto32
-    * instead, which will match per the OpenCL spec.  Of course this does
-    * not work for 16-bit stores, but those are not available in OpenCL.
-    */
-   ASSERTED nir_alu_type orig_type = nir_intrinsic_src_type(intr);
-   assert(nir_alu_type_get_type_size(orig_type) == 32);
-   nir_alu_type src_type = 32;
-
    nir_def *handle = intr->src[0].ssa;
    nir_def *coords = intr->src[1].ssa;
    nir_def *msaa_idx = intr->src[2].ssa;
@@ -206,6 +196,27 @@ lower_image_store(nir_builder *b, nir_intrinsic_instr *intr, unsigned arch)
 
    enum pipe_format format = nir_intrinsic_format(intr);
 
+   /* Select the register format from the store bit size.  16-bit float stores
+    * use F16, while 32-bit stores use auto32 to avoid clamping.  Due to SPIR-V
+    * limitations, the source type is not fully reliable: it reports uint32 even
+    * for write_imagei causing a u32->s32->u32 roundtrip.
+    */
+   ASSERTED nir_alu_type orig_type = nir_intrinsic_src_type(intr);
+   nir_alu_type src_type;
+
+   switch (data->bit_size) {
+   case 16:
+      assert(nir_alu_type_get_base_type(orig_type) == nir_type_float);
+      src_type = nir_type_float16;
+      break;
+   case 32:
+      src_type = 32; /* auto32 */
+      break;
+   default:
+      UNREACHABLE("unexpected image store data bit size");
+   }
+
+   /* LEA_TEX and ST_CVT must use the same register format. */
    b->cursor = nir_before_instr(&intr->instr);
 
    nir_def *packed = pack_image_coords(b, coords, msaa_idx, dim, image_array,
