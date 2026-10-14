@@ -2910,7 +2910,7 @@ crocus_create_surface(struct pipe_context *ctx,
       isl_surf_get_image_offset_B_tile_sa(&res->surf, tmpl->level,
                                           res->base.b.target == PIPE_TEXTURE_3D ? 0 : tmpl->first_layer,
                                           res->base.b.target == PIPE_TEXTURE_3D ? tmpl->first_layer : 0,
-                                          &temp_offset, &temp_x, &temp_y);
+                                          &temp_offset, &temp_x, &temp_y, NULL);
       if (devinfo->verx10 == 40 && (temp_x || temp_y)) {
          /* Original gfx4 hardware couldn't draw to a non-tile-aligned
           * destination.
@@ -2980,7 +2980,7 @@ crocus_create_surface(struct pipe_context *ctx,
                               is_3d ? 0 : view->base_array_layer,
                               is_3d ? view->base_array_layer : 0,
                               &surf->surf,
-                              &offset_B, &tile_x_sa, &tile_y_sa);
+                              &offset_B, &tile_x_sa, &tile_y_sa, NULL);
 
       /* We use address and tile offsets to access a single level/layer
        * as a subimage, so reset level/layer so it doesn't offset again.
@@ -5012,7 +5012,7 @@ emit_surface_state(struct crocus_batch *batch,
                                  view.base_level, 0,
                                  view.base_array_layer,
                                  &surf, &offset_B,
-                                 &tile_x_sa, &tile_y_sa);
+                                 &tile_x_sa, &tile_y_sa, NULL);
          view.base_array_layer = 0;
          view.base_level = 0;
       } else if (res->base.b.target == PIPE_TEXTURE_CUBE && GFX_VER == 4) {
@@ -5020,7 +5020,7 @@ emit_surface_state(struct crocus_batch *batch,
                                  view.base_level, view.base_array_layer,
                                  0,
                                  &surf, &offset_B,
-                                 &tile_x_sa, &tile_y_sa);
+                                 &tile_x_sa, &tile_y_sa, NULL);
          view.base_array_layer = 0;
          view.base_level = 0;
       } else if (res->base.b.target == PIPE_TEXTURE_1D_ARRAY)
@@ -7506,7 +7506,8 @@ crocus_upload_dirty_render_state(struct crocus_context *ice,
                 */
                isl_surf_get_image_offset_B_tile_sa(&zres->aux.surf,
                                                    view.base_level, 0, 0,
-                                                   &hiz_offset, NULL, NULL);
+                                                   &hiz_offset, NULL, NULL,
+                                                   NULL);
 #endif
                info.hiz_address = crocus_command_reloc(batch,
                                                        (batch_ptr - batch->command.map) + isl_dev->ds.hiz_offset,
@@ -7530,7 +7531,8 @@ crocus_upload_dirty_render_state(struct crocus_context *ice,
              */
             isl_surf_get_image_offset_B_tile_sa(&sres->surf,
                                                 view.base_level, 0, 0,
-                                                &stencil_offset, NULL, NULL);
+                                                &stencil_offset, NULL, NULL,
+                                                NULL);
 #endif
 
             info.stencil_address = crocus_command_reloc(batch,

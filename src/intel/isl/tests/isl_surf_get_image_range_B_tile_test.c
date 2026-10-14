@@ -105,7 +105,7 @@ test_2d_r8g8b8a8_unorm_256x256x1_levels05_array01_samples01_noaux(const char *pl
                            &sub_surf,
                            &offset_B,
                            &x_offset_sa,
-                           &y_offset_sa);
+                           &y_offset_sa, NULL);
 
    uint64_t start_tile_B, end_tile_B;
    isl_surf_get_image_range_B_tile(&surf, &tile_info, 4, 0, 0, &start_tile_B,
@@ -153,7 +153,7 @@ test_2d_astc_ldr_4x4_u8srgb_unorm_256x256x1_levels05_array01_samples01_noaux(con
                            &sub_surf,
                            &offset_B,
                            &x_offset_sa,
-                           &y_offset_sa);
+                           &y_offset_sa, NULL);
 
    uint64_t start_tile_B, end_tile_B;
    isl_surf_get_image_range_B_tile(&surf, &tile_info, 4, 0, 0, &start_tile_B,

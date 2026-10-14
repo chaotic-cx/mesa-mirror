@@ -4760,17 +4760,19 @@ isl_surf_get_image_offset_B_tile_sa(const struct isl_surf *surf,
                                     uint32_t logical_z_offset_px,
                                     uint64_t *offset_B,
                                     uint32_t *x_offset_sa,
-                                    uint32_t *y_offset_sa)
+                                    uint32_t *y_offset_sa,
+                                    uint32_t *z_offset_sa)
 {
    const struct isl_format_layout *fmtl = isl_format_get_layout(surf->format);
 
-   uint32_t x_offset_el, y_offset_el;
+   uint32_t x_offset_el, y_offset_el, z_offset_el;
    isl_surf_get_image_offset_B_tile_el(surf, level,
                                        logical_array_layer,
                                        logical_z_offset_px,
                                        offset_B,
                                        &x_offset_el,
-                                       &y_offset_el);
+                                       &y_offset_el,
+                                       &z_offset_el);
 
    if (x_offset_sa) {
       *x_offset_sa = x_offset_el * fmtl->bw;
@@ -4782,6 +4784,12 @@ isl_surf_get_image_offset_B_tile_sa(const struct isl_surf *surf,
       *y_offset_sa = y_offset_el * fmtl->bh;
    } else {
       assert(y_offset_el == 0);
+   }
+
+   if (z_offset_sa) {
+      *z_offset_sa = z_offset_el * fmtl->bd;
+   } else {
+      assert(z_offset_el == 0);
    }
 }
 
@@ -5012,7 +5020,8 @@ isl_surf_get_image_offset_B_tile_el(const struct isl_surf *surf,
                                     uint32_t logical_z_offset_px,
                                     uint64_t *offset_B,
                                     uint32_t *x_offset_el,
-                                    uint32_t *y_offset_el)
+                                    uint32_t *y_offset_el,
+                                    uint32_t *z_offset_el)
 {
    const struct isl_format_layout *fmtl = isl_format_get_layout(surf->format);
 
@@ -5025,7 +5034,7 @@ isl_surf_get_image_offset_B_tile_el(const struct isl_surf *surf,
                                 &total_z_offset_el,
                                 &total_array_offset);
 
-   uint32_t z_offset_el, array_offset;
+   uint32_t array_offset;
    isl_tiling_get_intratile_offset_el(surf->tiling, surf->dim,
                                       surf->msaa_layout, fmtl->bpb,
                                       surf->samples,
@@ -5038,12 +5047,9 @@ isl_surf_get_image_offset_B_tile_el(const struct isl_surf *surf,
                                       offset_B,
                                       x_offset_el,
                                       y_offset_el,
-                                      &z_offset_el,
+                                      z_offset_el,
                                       &array_offset);
-   if (level < surf->miptail_start_level) {
-      assert(z_offset_el == 0);
-      assert(array_offset == 0);
-   }
+   assert(array_offset == 0);
 }
 
 bool
@@ -5177,7 +5183,8 @@ isl_surf_get_image_surf(const struct isl_device *dev,
                         struct isl_surf *image_surf,
                         uint64_t *offset_B,
                         uint32_t *x_offset_sa,
-                        uint32_t *y_offset_sa)
+                        uint32_t *y_offset_sa,
+                        uint32_t *z_offset_sa)
 {
    isl_surf_get_image_offset_B_tile_sa(surf,
                                        level,
@@ -5185,7 +5192,8 @@ isl_surf_get_image_surf(const struct isl_device *dev,
                                        logical_z_offset_px,
                                        offset_B,
                                        x_offset_sa,
-                                       y_offset_sa);
+                                       y_offset_sa,
+                                       z_offset_sa);
 
    /* Even for cube maps there will be only single face, therefore drop the
     * corresponding flag if present.
@@ -5275,8 +5283,10 @@ isl_surf_get_uncompressed_surf(const struct isl_device *dev,
       const uint32_t base_level =
          MIN(view->base_level, surf->miptail_start_level);
 
+      uint32_t z_offset_el;
       isl_surf_get_image_offset_B_tile_el(surf, base_level, 0, 0,
-                                          offset_B, x_offset_el, y_offset_el);
+                                          offset_B, x_offset_el, y_offset_el,
+                                          &z_offset_el);
 
       /* The byte offset will get us to the miptail page.  The other offsets
        * are to the actual level within the miptail.  We'll set up a texture
@@ -5285,6 +5295,7 @@ isl_surf_get_uncompressed_surf(const struct isl_device *dev,
        */
       *x_offset_el = 0;
       *y_offset_el = 0;
+      z_offset_el = 0;
 
       /* Save off the array pitch */
       const uint32_t array_pitch_el_rows = surf->array_pitch_el_rows;
@@ -5416,6 +5427,7 @@ isl_surf_get_uncompressed_surf(const struct isl_device *dev,
           * BLORP isn't prepared for this and everyone who calls this function
           * should be prepared to handle an X/Y offset.
           */
+         uint32_t z_offset_el;
          isl_surf_get_image_offset_B_tile_el(surf,
                                              view->base_level,
                                              surf->dim == ISL_SURF_DIM_3D ?
@@ -5424,7 +5436,9 @@ isl_surf_get_uncompressed_surf(const struct isl_device *dev,
                                              view->base_array_layer : 0,
                                              offset_B,
                                              x_offset_el,
-                                             y_offset_el);
+                                             y_offset_el,
+                                             &z_offset_el);
+         assert(z_offset_el == 0);
 
          isl_surf_usage_flags_t usage = surf->usage;
 

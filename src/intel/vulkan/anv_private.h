@@ -7339,6 +7339,7 @@ anv_image_dpb_address(const struct anv_image_view *iv,
                                        0,
                                        &offset_B,
                                        NULL,
+                                       NULL,
                                        NULL);
 
    return anv_address_add(addr, offset_B);

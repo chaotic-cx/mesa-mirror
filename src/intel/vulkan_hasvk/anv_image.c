@@ -1801,7 +1801,7 @@ anv_get_image_subresource_layout(const struct anv_image *image,
                                           subresource->imageSubresource.mipLevel,
                                           subresource->imageSubresource.arrayLayer,
                                           0 /* logical_z_offset_px */,
-                                          &offset_B, NULL, NULL);
+                                          &offset_B, NULL, NULL, NULL);
 
       layout->subresourceLayout.offset += offset_B;
       layout->subresourceLayout.size =

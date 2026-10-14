@@ -1262,7 +1262,7 @@ anv_sparse_calc_miptail_properties(struct anv_device *device,
    struct isl_tile_info tile_info;
    isl_surf_get_tile_info(surf, &tile_info);
    uint64_t layer1_offset;
-   uint32_t x_off, y_off;
+   uint32_t x_off, y_off, z_off;
 
    /* Treat the whole thing as a single miptail. We should have already
     * reported this image as VK_SPARSE_IMAGE_FORMAT_SINGLE_MIPTAIL_BIT.
@@ -1282,8 +1282,8 @@ anv_sparse_calc_miptail_properties(struct anv_device *device,
       layer1_offset = surf->size_B;
    } else {
       isl_surf_get_image_offset_B_tile_sa(surf, 0, 1, 0, &layer1_offset,
-                                          &x_off, &y_off);
-      if (x_off || y_off)
+                                          &x_off, &y_off, &z_off);
+      if (x_off || y_off || z_off)
          goto out_everything_is_miptail;
    }
    assert(layer1_offset % ANV_SPARSE_BLOCK_SIZE == 0);
@@ -1301,7 +1301,7 @@ anv_sparse_calc_miptail_properties(struct anv_device *device,
    uint64_t miptail_offset = 0;
    isl_surf_get_image_offset_B_tile_sa(surf, miptail_first_level, 0, 0,
                                        &miptail_offset,
-                                       &x_off, &y_off);
+                                       &x_off, &y_off, &z_off);
    assert(miptail_offset % ANV_SPARSE_BLOCK_SIZE == 0);
 
    *imageMipTailFirstLod = miptail_first_level;
@@ -1519,12 +1519,13 @@ anv_sparse_bind_image_memory(struct anv_queue *queue,
         z < bind_offset_el.z + bind_extent_el.depth;
         z += block_shape_el.depth) {
       uint64_t subresource_offset_B;
-      uint32_t subresource_x_offset, subresource_y_offset;
+      uint32_t subresource_x_offset, subresource_y_offset,
+               subresource_z_offset;
       isl_surf_get_image_offset_B_tile_sa(surf, mip_level, array_layer, z,
                                           &subresource_offset_B,
                                           &subresource_x_offset,
-                                          &subresource_y_offset);
-      assert(subresource_x_offset == 0 && subresource_y_offset == 0);
+                                          &subresource_y_offset,
+                                          &subresource_z_offset);
       assert(subresource_offset_B % ANV_SPARSE_BLOCK_SIZE == 0);
 
       for (uint32_t y = bind_offset_el.y;

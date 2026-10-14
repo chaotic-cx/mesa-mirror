@@ -116,7 +116,7 @@ struct blorp_surface_info
    /* Z offset into a 3-D texture or slice of a 2-D array texture. */
    float z_offset;
 
-   uint32_t tile_x_sa, tile_y_sa;
+   uint32_t tile_x_sa, tile_y_sa, tile_z_sa;
 };
 
 void

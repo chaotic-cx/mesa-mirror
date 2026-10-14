@@ -1907,7 +1907,7 @@ blorp_surf_convert_to_single_slice(const struct isl_device *isl_dev,
    /* If this gets triggered then we've gotten here twice which.  This
     * shouldn't happen thanks to the above early return.
     */
-   assert(info->tile_x_sa == 0 && info->tile_y_sa == 0);
+   assert(!info->tile_x_sa && !info->tile_y_sa && !info->tile_z_sa);
 
    uint32_t layer = 0, z = 0;
    if (info->surf.dim == ISL_SURF_DIM_3D)
@@ -1918,8 +1918,10 @@ blorp_surf_convert_to_single_slice(const struct isl_device *isl_dev,
    uint64_t offset_B;
    isl_surf_get_image_surf(isl_dev, &info->surf,
                            info->view.base_level, layer, z,
-                           &info->surf,
-                           &offset_B, &info->tile_x_sa, &info->tile_y_sa);
+                           &info->surf, &offset_B,
+                           &info->tile_x_sa,
+                           &info->tile_y_sa,
+                           &info->tile_z_sa);
    info->addr.offset += offset_B;
 
    uint32_t tile_x_px, tile_y_px;
@@ -1974,8 +1976,10 @@ blorp_surf_convert_to_single_level_tile(const struct isl_device *isl_dev,
    uint64_t offset_B;
    uint32_t x_offset_el;
    uint32_t y_offset_el;
+   uint32_t z_offset_el;
    isl_surf_get_image_offset_B_tile_el(surf, base_level, 0, 0,
-                                       &offset_B, &x_offset_el, &y_offset_el);
+                                       &offset_B, &x_offset_el, &y_offset_el,
+                                       &z_offset_el);
 
    /* The byte offset will get us to the miptail page.  The other offsets
     * are to the actual level within the miptail.  We'll set up a texture
@@ -1985,6 +1989,7 @@ blorp_surf_convert_to_single_level_tile(const struct isl_device *isl_dev,
    assert(info->tile_x_sa == 0 && info->tile_y_sa == 0);
    x_offset_el = 0;
    y_offset_el = 0;
+   z_offset_el = 0;
 
    info->addr.offset += offset_B;
 
@@ -3265,7 +3270,7 @@ blorp_surf_convert_to_uncompressed(const struct isl_device *isl_dev,
    assert(fmtl->bw > 1 || fmtl->bh > 1);
 
    /* This should be the first modification made to the surface */
-   assert(info->tile_x_sa == 0 && info->tile_y_sa == 0);
+   assert(!info->tile_x_sa && !info->tile_y_sa && !info->tile_z_sa);
 
    if (width && height) {
       ASSERTED const uint32_t level_width =
@@ -3309,7 +3314,7 @@ blorp_surf_convert_to_uncompressed(const struct isl_device *isl_dev,
     * to a bpb-based tile boundary or miptail slot offset.
     */
   if (isl_tiling_is_standard(info->surf.tiling)) {
-      assert(info->tile_x_sa == 0 && info->tile_y_sa == 0);
+      assert(!info->tile_x_sa && !info->tile_y_sa && !info->tile_z_sa);
    } else {
       assert(info->surf.dim == ISL_SURF_DIM_2D);
       assert(info->surf.logical_level0_px.array_len == 1);

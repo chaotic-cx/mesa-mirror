@@ -619,12 +619,12 @@ blorp_fast_clear(struct blorp_batch *batch,
           * that tile which marks the first row.
           */
          uint64_t offset_B;
-         uint32_t x0_offset_el, y0_offset_el;
+         uint32_t x0_offset_el, y0_offset_el, z0_offset_el;
          isl_surf_get_image_offset_B_tile_el(surf->surf, level,
             surf->surf->dim == ISL_SURF_DIM_3D ? 0 : start_layer,
             surf->surf->dim == ISL_SURF_DIM_3D ? start_layer : 0,
-            &offset_B, &x0_offset_el, &y0_offset_el);
-         assert(x0_offset_el == 0);
+            &offset_B, &x0_offset_el, &y0_offset_el, &z0_offset_el);
+         assert(x0_offset_el == 0 && z0_offset_el == 0);
          assert(y0_offset_el < 32);
 
          /* Get the y-offset of the last row. Include as much padding as
@@ -1800,9 +1800,11 @@ blorp_ccs_ambiguate(struct blorp_batch *batch,
    }
 
    uint64_t offset_B;
-   uint32_t x_offset_el, y_offset_el;
+   uint32_t x_offset_el, y_offset_el, z_offset_el;
    isl_surf_get_image_offset_B_tile_el(surf->aux_surf, level, layer, z,
-                                       &offset_B, &x_offset_el, &y_offset_el);
+                                       &offset_B, &x_offset_el, &y_offset_el,
+                                       &z_offset_el);
+   assert(z_offset_el == 0);
    params.dst.addr.offset += offset_B;
 
    const uint32_t width_px =

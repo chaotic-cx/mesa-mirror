@@ -65,7 +65,7 @@ do this as an example:
    uint32_t offset_B;
    isl_surf_get_image_offset_B_tile_sa(info.hiz_surf,
                                        info.view->base_level, 0, 0,
-                                       &offset_B, NULL, NULL);
+                                       &offset_B, NULL, NULL, NULL);
    hiz_address.offset += offset_B;
    #endif
 

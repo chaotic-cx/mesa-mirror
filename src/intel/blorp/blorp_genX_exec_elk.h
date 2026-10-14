@@ -1662,7 +1662,7 @@ blorp_emit_depth_stencil_config(struct blorp_batch *batch,
          uint64_t offset_B;
          isl_surf_get_image_offset_B_tile_sa(info.hiz_surf,
                                              info.view->base_level, 0, 0,
-                                             &offset_B, NULL, NULL);
+                                             &offset_B, NULL, NULL, NULL);
          hiz_address.offset += offset_B;
 #endif
 
@@ -1688,7 +1688,7 @@ blorp_emit_depth_stencil_config(struct blorp_batch *batch,
       uint64_t offset_B;
       isl_surf_get_image_offset_B_tile_sa(info.stencil_surf,
                                           info.view->base_level, 0, 0,
-                                          &offset_B, NULL, NULL);
+                                          &offset_B, NULL, NULL, NULL);
       stencil_address.offset += offset_B;
 #endif
 

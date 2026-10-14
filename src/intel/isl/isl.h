@@ -3108,7 +3108,8 @@ isl_surf_get_image_offset_B_tile_sa(const struct isl_surf *surf,
                                     uint32_t logical_z_offset_px,
                                     uint64_t *offset_B,
                                     uint32_t *x_offset_sa,
-                                    uint32_t *y_offset_sa);
+                                    uint32_t *y_offset_sa,
+                                    uint32_t *z_offset_sa);
 
 /**
  * Calculate the offset, in bytes and intratile surface elements, to a
@@ -3128,7 +3129,8 @@ isl_surf_get_image_offset_B_tile_el(const struct isl_surf *surf,
                                     uint32_t logical_z_offset_px,
                                     uint64_t *offset_B,
                                     uint32_t *x_offset_el,
-                                    uint32_t *y_offset_el);
+                                    uint32_t *y_offset_el,
+                                    uint32_t *z_offset_el);
 
 /* Returns whether or not a subresource range maps to a tile-aligned memory
  * range which doesn't overlap other subresources.
@@ -3184,7 +3186,8 @@ isl_surf_get_image_surf(const struct isl_device *dev,
                         struct isl_surf *image_surf,
                         uint64_t *offset_B,
                         uint32_t *x_offset_sa,
-                        uint32_t *y_offset_sa);
+                        uint32_t *y_offset_sa,
+                        uint32_t *z_offset_sa);
 
 /**
  * Create an isl_surf that is an uncompressed view of a compressed isl_surf
