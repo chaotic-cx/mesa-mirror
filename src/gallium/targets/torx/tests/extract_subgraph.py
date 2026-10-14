@@ -25,6 +25,13 @@ def is_dequantize(n):
     return _is_dq_tensor(n) or _is_dq_channel(n)
 
 
+def _is_quantized_constant(gm, n):
+    if not isinstance(n, torch.fx.Node) or n.op != 'get_attr':
+        return False
+    val = get_attr_val(gm, n.target)
+    return isinstance(val, torch.Tensor) and not val.is_floating_point()
+
+
 def get_attr_val(gm, target):
     obj = gm
     for part in target.split('.'):
@@ -116,26 +123,25 @@ def build_subgraph(gm, selected):
         if is_quantize(node):
             env[node] = _resolve(node.args[0])
 
-        elif _is_dq_channel(node):
-            w_n, sc_n, zp_n = node.args[0], node.args[1], node.args[2]
-            axis, qmin, qmax, dtype = node.args[3], node.args[4], node.args[5], node.args[6]
-            with torch.no_grad():
-                fw = torch.ops.quantized_decomposed.dequantize_per_channel.default(
-                    get_attr_val(gm, w_n.target),
-                    get_attr_val(gm, sc_n.target),
-                    get_attr_val(gm, zp_n.target),
-                    axis, qmin, qmax, dtype,
-                )
-            buf = _fresh(f"w_{node.name}")
-            new_root.register_buffer(buf, fw)
-            ga = new_graph.get_attr(buf)
-            env[node] = ga
-
-        elif _is_dq_tensor(node):
+        elif is_dequantize(node):
             inp = node.args[0]
             while isinstance(inp, torch.fx.Node) and is_quantize(inp):
                 inp = inp.args[0]
-            env[node] = _resolve(inp)
+            if _is_quantized_constant(gm, inp):
+                def qparam(n):
+                    if n.op == 'get_attr':
+                        return get_attr_val(gm, n.target)
+                    return n
+                qargs = torch.fx.node.map_arg(node.args[1:], qparam)
+                qkwargs = torch.fx.node.map_arg(node.kwargs, qparam)
+                with torch.no_grad():
+                    fw = node.target(get_attr_val(gm, inp.target),
+                                     *qargs, **qkwargs)
+                buf = _fresh(f"w_{node.name}")
+                new_root.register_buffer(buf, fw)
+                env[node] = new_graph.get_attr(buf)
+            else:
+                env[node] = _resolve(inp)
 
         else:
             new_node = new_graph.node_copy(node, _resolve)
