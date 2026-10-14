@@ -952,6 +952,15 @@ zink_init_screen_caps(struct zink_screen *screen)
          quirk |= PIPE_QUIRK_TEXTURE_BORDER_COLOR_SWIZZLE_NV50;
       caps->texture_border_color_quirk = quirk;
    }
+
+   /* On PVR HW that have a small custom border colour table disable the caching
+    * of samplers that use custom border color.
+    */
+   if (zink_driverid(screen) == VK_DRIVER_ID_IMAGINATION_OPEN_SOURCE_MESA &&
+       screen->info.border_color_props.maxCustomBorderColorSamplers < 64) {
+      caps->disable_custom_border_color_caching = true;
+   }
+
    /* TODO: 32K textures are broken */
    caps->max_texture_2d_size =
       MIN3(screen->info.props.limits.maxImageDimension1D,

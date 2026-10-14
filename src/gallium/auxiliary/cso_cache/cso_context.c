@@ -394,12 +394,53 @@ cso_create_context(struct pipe_context *pipe, unsigned flags)
    return &ctx->base;
 }
 
+static inline bool
+has_border_color(unsigned wrap)
+{
+   return (wrap == PIPE_TEX_WRAP_CLAMP_TO_BORDER ||
+           wrap == PIPE_TEX_WRAP_MIRROR_CLAMP_TO_BORDER ||
+           wrap == PIPE_TEX_WRAP_CLAMP ||
+           wrap == PIPE_TEX_WRAP_MIRROR_CLAMP);
+}
+
+static inline bool
+sampler_has_border_color(const struct pipe_sampler_state *templ)
+{
+   return has_border_color(templ->wrap_s) ||
+          has_border_color(templ->wrap_t) ||
+          has_border_color(templ->wrap_r);
+}
+
+static inline bool
+sampler_requires_custom_border_color(const struct pipe_sampler_state *templ)
+{
+   const union pipe_color_union *colour = &templ->border_color;
+
+   /* Check if the sampler has one of the border color texture address wrap modes */
+   if (!sampler_has_border_color(templ))
+      return false;
+
+   /* Check if the sampler border color is one of the built in values */
+   if (templ->border_color_is_integer) {
+      if ((colour->ui[0] == 0 && colour->ui[1] == 0 && colour->ui[2] == 0 && colour->ui[3] == 0) ||
+          (colour->ui[0] == 0 && colour->ui[1] == 0 && colour->ui[2] == 0 && colour->ui[3] == 1) ||
+          (colour->ui[0] == 1 && colour->ui[1] == 1 && colour->ui[2] == 1 && colour->ui[3] == 1))
+            return false;
+      return true;
+   }
+
+   if ((colour->f[0] == 0 && colour->f[1] == 0 && colour->f[2] == 0 && colour->f[3] == 0) ||
+       (colour->f[0] == 0 && colour->f[1] == 0 && colour->f[2] == 0 && colour->f[3] == 1) ||
+       (colour->f[0] == 1 && colour->f[1] == 1 && colour->f[2] == 1 && colour->f[3] == 1))
+      return false;
+   return true;
+}
 
 void
 cso_unbind_context(struct cso_context *cso)
 {
    struct cso_context_priv *ctx = (struct cso_context_priv *)cso;
-   unsigned i;
+   unsigned i, j;
 
    bool dumping = trace_dumping_enabled_locked();
    if (dumping)
@@ -503,6 +544,19 @@ cso_unbind_context(struct cso_context *cso)
    for (i = 0; i < PIPE_MAX_SO_BUFFERS; i++) {
       pipe_so_target_reference(&ctx->so_targets[i], NULL);
       pipe_so_target_reference(&ctx->so_targets_saved[i], NULL);
+   }
+
+   /* Check the bound samplers for entries not in the cache and free them */
+   if (ctx->base.pipe->screen->caps.disable_custom_border_color_caching) {
+      for (i = 0; i < MESA_SHADER_MESH_STAGES; i++) {
+         for (j = 0; j < PIPE_MAX_SAMPLERS; j++) {
+            if (ctx->samplers[i].cso_samplers[j] &&
+               sampler_requires_custom_border_color(&ctx->samplers[i].cso_samplers[j]->state)) {
+               delete_cso(ctx, ctx->samplers[i].cso_samplers[j], CSO_SAMPLER);
+               ctx->samplers[i].cso_samplers[j] = NULL;
+            }
+         }
+      }
    }
 
    memset(&ctx->samplers, 0, sizeof(ctx->samplers));
@@ -1537,6 +1591,11 @@ set_sampler(struct cso_context_priv *ctx, mesa_shader_stage shader_stage,
       cso->data = ctx->base.pipe->create_sampler_state(ctx->base.pipe, &cso->state);
       cso->hash_key = hash_key;
 
+      if (ctx->base.pipe->screen->caps.disable_custom_border_color_caching &&
+          sampler_requires_custom_border_color(templ)) {
+         return cso;
+      }
+
       iter = cso_insert_state(&ctx->cache, hash_key, CSO_SAMPLER, cso);
       if (cso_hash_iter_is_null(iter)) {
          FREE(cso);
@@ -1555,6 +1614,16 @@ cso_set_sampler(struct cso_context_priv *ctx, mesa_shader_stage shader_stage,
                 size_t size)
 {
    struct cso_sampler *cso = set_sampler(ctx, shader_stage, idx, templ, size);
+
+   /* If the currently bound sampler is not in the cache free it now */
+   if (ctx->base.pipe->screen->caps.disable_custom_border_color_caching) {
+      if (ctx->samplers[shader_stage].cso_samplers[idx] &&
+          sampler_requires_custom_border_color(&ctx->samplers[shader_stage].cso_samplers[idx]->state)) {
+         delete_cso(ctx, ctx->samplers[shader_stage].cso_samplers[idx], CSO_SAMPLER);
+         ctx->samplers[shader_stage].cso_samplers[idx] = NULL;
+      }
+   }
+
    ctx->samplers[shader_stage].cso_samplers[idx] = cso;
    ctx->samplers[shader_stage].samplers[idx] = cso->data;
    return true;
