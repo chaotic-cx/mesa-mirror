@@ -1190,7 +1190,8 @@ decode(void)
             break;
          }
 
-         printf("Got chip_id=0x%"PRIx64"\n", options.dev_id.chip_id);
+         printf("Got chip_id=0x%"PRIx64" (%s)\n",
+                options.dev_id.chip_id, fd_dev_name(&options.dev_id));
 
          cffdec_init(&options);
 

@@ -6,7 +6,7 @@ comm: computeraytraci
 cmdline: ./computeraytracing
 gpu-initialized: 1
 revision: 0 (7.0.4.0)
-Got chip_id=0x7000400
+Got chip_id=0x7000400 (Adreno (TM) 704)
 rbbm-status: 0x00000000
 ringbuffer:
   - id: 0
