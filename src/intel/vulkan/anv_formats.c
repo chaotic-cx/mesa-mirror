@@ -851,8 +851,17 @@ anv_get_color_format_features(const struct anv_physical_device *physical_device,
                             VK_IMAGE_CREATE_2_SPARSE_RESIDENCY_BIT_KHR |
                             VK_IMAGE_CREATE_2_SPARSE_ALIASED_BIT_KHR)) != 0;
 
+   /* Support DRM modifier tiling with TILING_Y0/4 for video */
+   const bool video_tiling_supported =
+         vk_tiling == VK_IMAGE_TILING_LINEAR ||
+         vk_tiling == VK_IMAGE_TILING_OPTIMAL ||
+         (vk_tiling == VK_IMAGE_TILING_DRM_FORMAT_MODIFIER_EXT &&
+          (isl_mod_info->tiling == ISL_TILING_Y0 ||
+           isl_mod_info->tiling == ISL_TILING_4));
+
    if (anv_format->flags & ANV_FORMAT_FLAG_CAN_VIDEO &&
-         !(create_flags & VK_IMAGE_CREATE_2_DISJOINT_BIT_KHR)) {
+         !(create_flags & VK_IMAGE_CREATE_2_DISJOINT_BIT_KHR) &&
+         video_tiling_supported) {
       flags |= ANV_DEBUG(VIDEO_DECODE) ?
                   VK_FORMAT_FEATURE_2_VIDEO_DECODE_OUTPUT_BIT_KHR |
                   VK_FORMAT_FEATURE_2_VIDEO_DECODE_DPB_BIT_KHR : 0;
