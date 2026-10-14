@@ -209,11 +209,15 @@ could_be_mac(const jay_shader *s, const jay_inst *I)
    /* The bspec says "Instructions that specify an implicit accumulator
     * source cannot specify an explicit accumulator source operand.". But
     * it works fine on Lunar Lake so ¯\_(ツ)_/¯ ... gate on !strict.
+    *
+    * Older platforms seem to actually need that restriction.
     */
    return (I->op == JAY_OPCODE_MAD && I->type == JAY_TYPE_F32) &&
           !jay_simd_split(s, I) &&
           !(I->src[0].negate || I->src[0].abs) &&
-          !(jay_debug & JAY_DBG_STRICT);
+          !(jay_debug & JAY_DBG_STRICT) &&
+          (s->devinfo->verx10 >= 125 ||
+           (I->src[1].file != ACCUM && I->src[2].file != ACCUM));
 }
 
 static inline void
@@ -224,6 +228,52 @@ substitute_acc(jay_def *x, unsigned acc_p1)
 
       x->file = ACCUM;
       x->reg = (acc_p1 - 1) * 2;
+   }
+}
+
+/* Do not mix different accumulator sources before XeHP. Repeated uses of
+ * the same definition may share an accumulator. Do this before rewriting
+ * operands, so canceling an assignment also preserves earlier uses.
+ *
+ * TODO: Consider operand restrictions during allocation so rejected
+ * assignments do not reserve accumulator slots. When candidates conflict,
+ * consider their expected benefit instead of keeping the first source.
+ */
+static void
+limit_accumulator_sources(jay_block *block, uint8_t *ra, uint32_t ip)
+{
+   uint32_t def_ip[JAY_MAX_PHYS_GRF] = { 0 };
+
+   jay_foreach_inst_in_block(block, I) {
+      bool has_acc = false;
+      uint32_t acc_def = 0;
+
+      jay_foreach_src(I, s) {
+         if (I->src[s].file == ACCUM) {
+            /* Keep pre-existing sources, including implicit MAC sources. */
+            ra[acc_def] = 0;
+            acc_def = 0;
+            has_acc = true;
+         } else if (I->src[s].file == GPR) {
+            uint32_t def = def_ip[I->src[s].reg];
+            if (ra[def]) {
+               if (has_acc && def != acc_def) {
+                  ra[def] = 0;
+               } else {
+                  has_acc = true;
+                  acc_def = def;
+               }
+            }
+         }
+      }
+
+      if (I->dst.file == GPR) {
+         jay_foreach_comp(I->dst, c) {
+            def_ip[I->dst.reg + c] = ip;
+         }
+      }
+
+      ++ip;
    }
 }
 
@@ -355,6 +405,9 @@ pass(jay_function *func)
       }
 
       uint32_t min_ip = ip;
+      if (func->shader->devinfo->verx10 < 125)
+         limit_accumulator_sources(block, ra, min_ip);
+
       uint8_t gpr_to_acc_p1[JAY_MAX_PHYS_GRF] = { 0 };
 
       jay_foreach_inst_in_block_safe(block, I) {
@@ -366,6 +419,19 @@ pass(jay_function *func)
          }
 
          if (I->dst.file == GPR) {
+            /* TGL PRM Vol. 9, p. 371: Explicit accumulator sources and
+             * destination must use the same accumulator register.
+             */
+            if (func->shader->devinfo->verx10 < 125 && ra[ip]) {
+               jay_foreach_src(I, s) {
+                  if (I->src[s].file == ACCUM &&
+                      I->src[s].reg != (ra[ip] - 1) * 2) {
+                     ra[ip] = 0;
+                     break;
+                  }
+               }
+            }
+
             jay_foreach_comp(I->dst, c) {
                gpr_to_acc_p1[I->dst.reg + c] = ra[ip];
             }
