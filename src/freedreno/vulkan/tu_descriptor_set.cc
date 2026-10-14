@@ -1424,7 +1424,8 @@ tu_update_descriptor_sets(const struct tu_device *device,
          uint32_t dst_offset = writeset->dstArrayElement;
          do {
             uint8_t *dst = reinterpret_cast<uint8_t *>(ptr) + dst_offset;
-            uint32_t binding_size = binding_layout->size - dst_offset;
+            bool is_reserved = binding_layout->array_size == 0;
+            uint32_t binding_size = is_reserved ? 0 : (binding_layout->size - dst_offset);
             uint32_t to_write = MIN2(remaining, binding_size);
             memcpy(dst, src, to_write);
 
@@ -1533,10 +1534,12 @@ tu_update_descriptor_sets(const struct tu_device *device,
          uint32_t dst_start = copyset->dstArrayElement;
          uint8_t *src = reinterpret_cast<uint8_t *>(src_ptr) + src_start;
          uint8_t *dst = reinterpret_cast<uint8_t *>(dst_ptr) + dst_start;
+         bool src_is_reserved = src_binding_layout->array_size == 0;
+         bool dst_is_reserved = dst_binding_layout->array_size == 0;
          uint32_t src_remaining =
-            src_binding_layout->size - src_start;
+            src_is_reserved ? 0 : (src_binding_layout->size - src_start);
          uint32_t dst_remaining =
-            dst_binding_layout->size - dst_start;
+            dst_is_reserved ? 0 : (dst_binding_layout->size - dst_start);
          do {
             uint32_t to_write = MIN3(remaining, src_remaining, dst_remaining);
             memcpy(dst, src, to_write);
@@ -1553,14 +1556,16 @@ tu_update_descriptor_sets(const struct tu_device *device,
                src_binding_layout++;
                src_ptr = src_set->mapped_ptr + src_binding_layout->offset / 4;
                src = reinterpret_cast<uint8_t *>(src_ptr);
-               src_remaining = src_binding_layout->size;
+               src_is_reserved = src_binding_layout->array_size == 0;
+               src_remaining = src_is_reserved ? 0 : src_binding_layout->size;
             }
 
             if (dst_remaining == 0) {
                dst_binding_layout++;
                dst_ptr = dst_set->mapped_ptr + dst_binding_layout->offset / 4;
                dst = reinterpret_cast<uint8_t *>(dst_ptr);
-               dst_remaining = dst_binding_layout->size;
+               dst_is_reserved = dst_binding_layout->array_size == 0;
+               dst_remaining = dst_is_reserved ? 0 : dst_binding_layout->size;
             }
          } while (remaining > 0);
 
@@ -1649,7 +1654,8 @@ tu_CreateDescriptorUpdateTemplate(
       uint32_t remaining = entry->descriptorCount;
       uint32_t dst_start = entry->dstArrayElement;
       do {
-         uint32_t size = binding_layout->size;
+         bool is_reserved = binding_layout->array_size == 0;
+         uint32_t size = is_reserved ? 0 : binding_layout->size;
          uint32_t count = MIN2(remaining, size - dst_start);
          remaining -= count;
          binding_layout++;
@@ -1705,7 +1711,8 @@ tu_CreateDescriptorUpdateTemplate(
          do {
             dst_offset =
                binding_layout->offset + dst_start;
-            uint32_t size = binding_layout->size;
+            bool is_reserved = binding_layout->array_size == 0;
+            uint32_t size = is_reserved ? 0 : binding_layout->size;
             uint32_t count = MIN2(remaining, size - dst_start);
             templ->entry[j++] = (struct tu_descriptor_update_template_entry) {
                .descriptor_type = entry->descriptorType,
