@@ -264,7 +264,7 @@
         "description": "frontends/va: parse VP9 chroma delta-q in spec order",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ef52ba8aa09214041f91c203eba2563e6e61aef3",
         "notes": null
