@@ -212,43 +212,43 @@ def main():
     stamp_file = cli.stamp_file
 
     pt2_files = sorted(models_dir.glob("*.pt2"))
-    if not pt2_files:
-        print(f"No .pt2 files found in {models_dir}", file=sys.stderr)
+    if len(pt2_files) != 1:
+        print(f"Expected one .pt2 file in {models_dir}, found "
+              f"{len(pt2_files)}", file=sys.stderr)
         sys.exit(1)
+    pt2_file = pt2_files[0]
+    model_name = models_dir.name
 
-    for pt2_file in pt2_files:
-        model_name = pt2_file.stem
+    ops = split_model(pt2_file)
+    model_out_dir = output_root / model_name
 
-        ops = split_model(pt2_file)
-        model_out_dir = output_root / model_name
+    _remove_stale_cases(model_out_dir, {op_name for op_name, _, _ in ops})
 
-        _remove_stale_cases(model_out_dir, {op_name for op_name, _, _ in ops})
+    for op_name, mod, example_inputs in ops:
+        output_dir = model_out_dir / op_name
+        if output_dir.exists():
+            shutil.rmtree(output_dir)
+        output_dir.mkdir(parents=True)
 
-        for op_name, mod, example_inputs in ops:
-            output_dir = model_out_dir / op_name
-            if output_dir.exists():
-                shutil.rmtree(output_dir)
-            output_dir.mkdir(parents=True)
+        try:
+            ep = export(mod, example_inputs, strict=False)
+        except Exception as e:
+            print(f"    SKIP {model_name}/{op_name}: export failed: {e}",
+                  file=sys.stderr)
+            shutil.rmtree(output_dir)
+            continue
 
-            try:
-                ep = export(mod, example_inputs, strict=False)
-            except Exception as e:
-                print(f"    SKIP {model_name}/{op_name}: export failed: {e}",
-                      file=sys.stderr)
-                shutil.rmtree(output_dir)
-                continue
+        # Save per-op .pt2 and example input(s) (consumed by compile step).
+        torch.export.save(ep, str(output_dir / "op.pt2"))
+        torch.save(example_inputs, str(output_dir / "example_input.pt"))
 
-            # Save per-op .pt2 and example input(s) (consumed by compile step).
-            torch.export.save(ep, str(output_dir / "op.pt2"))
-            torch.save(example_inputs, str(output_dir / "example_input.pt"))
-
-            # Compute float CPU reference output(s).
-            module = ep.module()
-            with torch.no_grad():
-                float_output = module(*example_inputs)
-            flat_outs = _flatten_outputs(float_output)
-            for i, out in enumerate(flat_outs):
-                out.numpy().tofile(str(output_dir / f"float-output-{i}.data"))
+        # Compute float CPU reference output(s).
+        module = ep.module()
+        with torch.no_grad():
+            float_output = module(*example_inputs)
+        flat_outs = _flatten_outputs(float_output)
+        for i, out in enumerate(flat_outs):
+            out.numpy().tofile(str(output_dir / f"float-output-{i}.data"))
 
     stamp_file.parent.mkdir(parents=True, exist_ok=True)
     stamp_file.write_text("done\n")
