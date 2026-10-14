@@ -1899,7 +1899,7 @@ get_fb_descs(struct panvk_cmd_buffer *cmdbuf)
    fbd_info.store = &render->fb.store;
 
    /* Wait for IR info push to complete */
-   cs_wait_slot(b, SB_ID(LS));
+   cs_wait_ls(b);
 
    if (copy_fbds) {
       struct cs_index cur_tiler = cs_reg64(b, PANVK_CS_REG_TILER_DESC_PTR);

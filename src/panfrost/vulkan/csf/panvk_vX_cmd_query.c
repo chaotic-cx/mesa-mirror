@@ -359,7 +359,7 @@ panvk_cmd_reset_timestamp_queries(struct panvk_cmd_buffer *cmd,
       cs_move64_to(b, addr, panvk_query_report_dev_addr(pool, first_query));
 
       /* Wait for timestamp writes. */
-      cs_wait_slot(b, SB_ID(LS));
+      cs_wait_ls(b);
 
       cs_while(b, MALI_CS_CONDITION_GREATER, counter) {
          /* If the info subqueue is the last one, it can reset the info field in
@@ -540,7 +540,7 @@ panvk_cs_write_timestamp(struct panvk_cmd_buffer *cmd,
 
       for (uint32_t q = query; q < query + n_views; ++q) {
          /* Wait for prev. timestamp so they increase monotonically. */
-         cs_wait_slot(b, SB_ID(LS));
+         cs_wait_ls(b);
          cs_move64_to(b, addr, panvk_query_report_dev_addr(pool, q));
          cs_store_state(b, addr, offset, MALI_CS_STATE_TIMESTAMP,
                         cs_defer(dev->csf.sb.all_iters_mask, SB_ID(LS)));
@@ -608,7 +608,7 @@ panvk_copy_timestamp_query_results(struct panvk_cmd_buffer *cmd,
       struct cs_index tmp2 = cs_scratch_reg64(b, 6);
 
       /* Wait for STORE_STATEs to finish. */
-      cs_wait_slot(b, SB_ID(LS));
+      cs_wait_ls(b);
 
       cs_move64_to(b, src, panvk_query_report_dev_addr(pool, first_query));
       cs_move64_to(b, dst, intermediate_buf.gpu);

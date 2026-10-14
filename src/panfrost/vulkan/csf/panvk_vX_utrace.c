@@ -68,7 +68,7 @@ cmd_copy_data(struct cs_builder *b, uint64_t dst_addr, uint64_t src_addr,
          const struct cs_index reg = cs_scratch_reg_tuple(b, 4, count);
 
          cs_load_to(b, reg, src_addr_reg, BITFIELD_MASK(count), offset);
-         cs_wait_slot(b, SB_ID(LS));
+         cs_wait_ls(b);
          cs_store(b, reg, dst_addr_reg, BITFIELD_MASK(count), offset);
 
          copy_count -= count;

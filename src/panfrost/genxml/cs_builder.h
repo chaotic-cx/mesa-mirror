@@ -957,6 +957,13 @@ cs_wait_slot(struct cs_builder *b, unsigned slot)
    cs_wait_slots(b, BITFIELD_BIT(slot));
 }
 
+/* Shorthand for `cs_wait_slot(b, b->conf.ls_sb_slot)` */
+static inline void
+cs_wait_ls(struct cs_builder *b)
+{
+   cs_wait_slot(b, b->conf.ls_sb_slot);
+}
+
 static inline void
 cs_flush_load_to(struct cs_builder *b, struct cs_index to, uint16_t mask)
 {
@@ -969,7 +976,7 @@ cs_flush_load_to(struct cs_builder *b, struct cs_index to, uint16_t mask)
    for (unsigned i = reg; i < reg + count; i++) {
       if ((mask & BITFIELD_BIT(i - reg)) &&
           BITSET_TEST(ls_tracker->pending_loads, i)) {
-         cs_wait_slots(b, BITFIELD_BIT(b->conf.ls_sb_slot));
+         cs_wait_ls(b);
          break;
       }
    }
@@ -982,7 +989,7 @@ cs_flush_loads(struct cs_builder *b)
    assert(ls_tracker != NULL);
 
    if (!BITSET_IS_EMPTY(ls_tracker->pending_loads))
-      cs_wait_slots(b, BITFIELD_BIT(b->conf.ls_sb_slot));
+      cs_wait_ls(b);
 }
 
 static inline void
@@ -992,7 +999,7 @@ cs_flush_stores(struct cs_builder *b)
    assert(ls_tracker != NULL);
 
    if (ls_tracker->pending_stores)
-      cs_wait_slots(b, BITFIELD_BIT(b->conf.ls_sb_slot));
+      cs_wait_ls(b);
 }
 
 static inline void
@@ -1414,7 +1421,7 @@ cs_maybe_end(struct cs_builder *b, struct cs_maybe_state *state,
    bool new_stores =
       b->cur_ls_tracker->pending_stores && !state->orig_ls_state->pending_stores;
    if (!BITSET_IS_EMPTY(new_loads) || new_stores)
-      cs_wait_slots(b, BITFIELD_BIT(b->conf.ls_sb_slot));
+      cs_wait_ls(b);
 
    /* Restore the original ls tracker state */
    b->cur_ls_tracker = state->orig_ls_state;

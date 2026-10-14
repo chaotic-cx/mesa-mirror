@@ -262,7 +262,7 @@ generate_tiler_oom_handler(struct panvk_device *dev,
             TILER_OOM_CTX_FIELD_OFFSET(ir_descs[PANVK_IR_FIRST_PASS]));
       }
 
-      cs_wait_slot(&b, SB_ID(LS));
+      cs_wait_ls(&b);
 
       cs_while(&b, MALI_CS_CONDITION_GREATER, layer_count) {
          cs_add_imm32(&b, layer_count, layer_count, -1);
