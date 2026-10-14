@@ -4561,7 +4561,7 @@ issue_fragment_jobs(struct panvk_cmd_buffer *cmdbuf)
    if (PANVK_DEBUG(IMPLICIT_OTHERS_INV)) {
       cs_flush_caches(b, MALI_CS_FLUSH_MODE_NONE, MALI_CS_FLUSH_MODE_NONE,
                       MALI_CS_OTHER_FLUSH_MODE_INVALIDATE, length_reg,
-                      cs_defer(0x0, SB_ID(IMM_FLUSH)));
+                      cs_defer(SB_IMM_MASK, SB_ID(IMM_FLUSH)));
       cs_wait_slot(b, SB_ID(IMM_FLUSH));
    }
 
