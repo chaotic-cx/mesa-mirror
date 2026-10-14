@@ -1050,6 +1050,12 @@ enumval(const char *enumname, const char *enumval)
    return rnn_enumval(rnn, enumname, enumval);
 }
 
+const char *
+enumname(const char *enumname, int val)
+{
+   return rnn_enumname(rnn, enumname, val);
+}
+
 static int
 regname_endswith(uint32_t regbase, const char *suffix)
 {

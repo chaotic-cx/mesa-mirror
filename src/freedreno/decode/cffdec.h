@@ -103,6 +103,7 @@ void printl(int lvl, const char *fmt, ...);
 const char *pktname(unsigned opc);
 uint32_t regbase(const char *name);
 int enumval(const char *enumname, const char *enumval);
+const char *enumname(const char *enumname, int val);
 const char *regname(uint32_t regbase, int color);
 bool reg_written(uint32_t regbase);
 uint32_t reg_lastval(uint32_t regbase);
