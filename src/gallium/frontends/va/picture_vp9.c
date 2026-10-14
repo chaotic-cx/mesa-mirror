@@ -374,8 +374,8 @@ void vlVaDecoderVP9BitstreamHeader(vlVaContext *context, vlVaBuffer *buf)
 
    context->desc.vp9.picture_parameter.base_qindex = vp9_u(&vlc, 8);
    context->desc.vp9.picture_parameter.y_dc_delta_q = vp9_u(&vlc, 1) ? vp9_s(&vlc, 4) : 0;
-   context->desc.vp9.picture_parameter.uv_ac_delta_q = vp9_u(&vlc, 1) ? vp9_s(&vlc, 4) : 0;
    context->desc.vp9.picture_parameter.uv_dc_delta_q = vp9_u(&vlc, 1) ? vp9_s(&vlc, 4) : 0;
+   context->desc.vp9.picture_parameter.uv_ac_delta_q = vp9_u(&vlc, 1) ? vp9_s(&vlc, 4) : 0;
 
    /* segmentation */
 
