@@ -103,7 +103,8 @@ if with_tests
         output : 'compile_@0@_@1@.stamp'.format(device, model),
         build_by_default : true,
         depends : [libtorx, torx_abi_check, torx_split_targets[model]],
-        depend_files : [torx_py_sources, files('tests/compile_torx_common.py', 'tests/compile_torx_tests.py')],
+        depend_files : [torx_py_sources, files('tests/compile_torx_common.py', 'tests/compile_torx_tests.py',
+                                               'tests/extract_subgraph.py')],
         env : {
           'LD_LIBRARY_PATH' : meson.current_build_dir(),
           'MESA_ML_DEVICE' : device,
@@ -122,7 +123,8 @@ if with_tests
         output : 'compile_model_@0@_@1@.stamp'.format(device, model),
         build_by_default : true,
         depends : [libtorx, torx_abi_check, torx_split_targets[model]],
-        depend_files : [torx_py_sources, files('tests/compile_torx_common.py', 'tests/compile_torx_tests.py')],
+        depend_files : [torx_py_sources, files('tests/compile_torx_common.py', 'tests/compile_torx_tests.py',
+                                               'tests/extract_subgraph.py')],
         env : {
           'LD_LIBRARY_PATH' : meson.current_build_dir(),
           'MESA_ML_DEVICE' : device,

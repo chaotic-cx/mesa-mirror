@@ -40,6 +40,9 @@ _script_dir = Path(__file__).resolve().parent
 if str(_script_dir) not in sys.path:
     sys.path.insert(0, str(_script_dir))
 
+import torch.ao.quantization.fx._decomposed  # noqa: F401
+
+from extract_subgraph import is_dequantize, is_quantize  # noqa: E402
 from compile_torx_common import (
     QuantisationError,
     check_quantisation,
@@ -69,6 +72,17 @@ def _collect_tensors(obj):
 def _run(module, example_inputs):
     with torch.no_grad():
         return _collect_tensors(module(*example_inputs))
+
+
+def _example_inputs(ep, input_shapes):
+    if ep.example_inputs is not None and ep.example_inputs[0]:
+        if ep.example_inputs[1]:
+            print("Keyword example inputs are not supported",
+                  file=sys.stderr)
+            sys.exit(1)
+        return tuple(ep.example_inputs[0])
+    torch.manual_seed(42)
+    return tuple(torch.randn(s) for s in input_shapes)
 
 
 def _write_artifacts(out_dir, module, example_inputs, quant_outputs,
@@ -171,10 +185,10 @@ def compile_model(pt2_path, out_dir, device):
         print("Could not determine input shape", file=sys.stderr)
         sys.exit(1)
 
-    # Generate deterministic example inputs and re-export with concrete
-    # shapes to remove shape guards from the loaded .pt2.
-    torch.manual_seed(42)
-    example_inputs = tuple(torch.randn(s) for s in input_shapes)
+    example_inputs = _example_inputs(ep, input_shapes)
+
+    # Re-export with concrete shapes to remove shape guards from the
+    # loaded .pt2.
     ep = torch.export.export(module, example_inputs, strict=False)
     module = ep.module()
 
@@ -184,7 +198,10 @@ def compile_model(pt2_path, out_dir, device):
 
     torch.save(example_inputs, str(out_dir / "example_input.pt"))
 
-    module = quantize_module(module, example_inputs)
+    is_quantized = any(is_quantize(node) or is_dequantize(node)
+                       for node in module.graph.nodes)
+    if not is_quantized:
+        module = quantize_module(module, example_inputs)
 
     output_qparams = extract_quant_output_params(module)
     if not output_qparams:
@@ -192,8 +209,13 @@ def compile_model(pt2_path, out_dir, device):
         sys.exit(1)
 
     quant_outputs = _run(module, example_inputs)
-    check_quantisation(float_outputs, quant_outputs, output_qparams,
-                       out_dir.name)
+    if is_quantized:
+        print(f"    {out_dir.name}: the exported program is already "
+              "quantised, the quantisation check does not apply",
+              file=sys.stderr)
+    else:
+        check_quantisation(float_outputs, quant_outputs, output_qparams,
+                           out_dir.name)
 
     _write_artifacts(out_dir, module, example_inputs, quant_outputs,
                      output_qparams, device)
