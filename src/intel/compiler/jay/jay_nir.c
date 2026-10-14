@@ -938,14 +938,6 @@ jay_process_nir(const struct intel_device_info *devinfo,
                     !(nir->info.outputs_written & BITFIELD64_BIT(FRAG_RESULT_SAMPLE_MASK))),
                    NULL, NULL);
 
-      /* nir_lower_terminate_to_demote will hamper our ability to schedule
-       * terminates (since it turns them into real control flow), so run
-       * nir_opt_move_discards_to_top first as a prepass. That should help
-       * scheduling demotes too (which is more important).
-       */
-      JAY_NIR_PASS(nir_opt_move_discards_to_top);
-      JAY_NIR_PASS(nir_lower_terminate_to_demote);
-
       brw_nir_cleanup_pre_fs_prog_data(pt);
 
       // TODO
@@ -955,6 +947,14 @@ jay_process_nir(const struct intel_device_info *devinfo,
        * information.
        */
       jay_populate_prog_data(devinfo, nir, prog_data, key, fs_perprim);
+
+      /* nir_lower_terminate_to_demote will hamper our ability to schedule
+       * terminates (since it turns them into real control flow), so run
+       * nir_opt_move_discards_to_top first as a prepass. That should help
+       * scheduling demotes too (which is more important).
+       */
+      JAY_NIR_PASS(nir_opt_move_discards_to_top);
+      JAY_NIR_PASS(nir_lower_terminate_to_demote);
 
       JAY_NIR_PASS(nir_shader_intrinsics_pass, lower_load_barycentric_at_offset,
                    0, NULL);
