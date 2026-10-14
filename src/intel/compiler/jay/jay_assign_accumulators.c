@@ -219,6 +219,10 @@ substitute_acc(jay_def *x, unsigned acc_p1)
 static void
 pass(jay_function *func)
 {
+   unsigned nr_accums = jay_num_accums(func->shader);
+   if (!nr_accums)
+      return;
+
    void *memctx = ralloc_context(NULL);
    void *linctx = linear_context(memctx);
 
@@ -234,8 +238,6 @@ pass(jay_function *func)
 
    /* in_use[acc][IP] set if acc is in-use /before/ executing instruction IP */
    BITSET_WORD *in_use[JAY_MAX_ACCUMS];
-   unsigned nr_accums = jay_num_accums(func->shader);
-
    for (unsigned i = 0; i < nr_accums; ++i) {
       in_use[i] = BITSET_LINEAR_ZALLOC(linctx, ip_bound);
    }
@@ -297,7 +299,7 @@ pass(jay_function *func)
          if (I->op == JAY_OPCODE_MUL_32) {
             unsigned n = func->shader->dispatch_width < 32 ? 2 : 1;
 
-            for (unsigned i = 0; i < n; ++i) {
+            for (unsigned i = 0; i < MIN2(n, nr_accums); ++i) {
                BITSET_SET(in_use[i], ip);
             }
          }

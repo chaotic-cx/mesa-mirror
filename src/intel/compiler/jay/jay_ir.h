@@ -1145,8 +1145,7 @@ jay_num_flags(jay_shader *shader)
 static inline unsigned
 jay_num_accums(jay_shader *shader)
 {
-   /* TODO: Adjust for older platforms */
-   unsigned total_grf = 4;
+   unsigned total_grf = shader->devinfo->verx10 < 125 ? 2 : 4;
    return total_grf / jay_grf_per_gpr(shader);
 }
 
