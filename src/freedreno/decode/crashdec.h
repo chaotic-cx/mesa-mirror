@@ -48,6 +48,12 @@ has_a7xx_gen3_control_regs(void)
 }
 
 static inline bool
+is_a8xx(void)
+{
+   return options.info->chip == 8;
+}
+
+static inline bool
 is_a7xx(void)
 {
    return options.info->chip == 7;

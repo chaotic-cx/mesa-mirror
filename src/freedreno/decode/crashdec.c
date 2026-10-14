@@ -1197,7 +1197,17 @@ decode(void)
 
          const char *variant = NULL;
 
-         if (is_a7xx()) {
+         if (is_a8xx()) {
+            rnn_gmu = rnn_new(!options.color);
+            rnn_load_file(rnn_gmu, "adreno/a6xx_gmu.xml", "A6XX");
+            rnn_control = rnn_new(!options.color);
+            rnn_load_file(rnn_control, "adreno/adreno_control_regs.xml",
+                          "A7XX_GEN3_CONTROL_REG");
+            rnn_pipe = rnn_new(!options.color);
+            rnn_load_file(rnn_pipe, "adreno/adreno_pipe_regs.xml",
+                          "A7XX_PIPE_REG");
+            variant = "A8XX";
+         } else if (is_a7xx()) {
             rnn_gmu = rnn_new(!options.color);
             rnn_load_file(rnn_gmu, "adreno/a6xx_gmu.xml", "A6XX");
             rnn_control = rnn_new(!options.color);
