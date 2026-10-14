@@ -1575,6 +1575,9 @@ tu_lower_io(nir_shader *shader, struct tu_device *dev,
                mesa_to_vk_shader_stage(shader->info.stage)))
             continue;
 
+         if (binding->size == 0)
+            continue;
+
          /* If we don't know the size at compile time due to a variable
           * descriptor count, then with descriptor buffers we cannot know
           * how much space the real inline uniform has. In this case we fall
