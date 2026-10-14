@@ -154,6 +154,17 @@ can_access_accum(jay_shader *shader, jay_inst *I, signed src)
       return false;
    }
 
+   if (shader->devinfo->verx10 < 125) {
+      /* TGL PRM Vol. 9, p. 371 limits explicit ACC sources to src0, although
+       * p. 493 appears to allow src1 for MUL/MAC. IGC restricts two-source
+       * instructions to src0 before XeHP; RPL MUL/ADD src1 tests also fail.
+       * For three-source instructions, p. 493 rule 5 forbids ACC in src2.
+       */
+      unsigned nr_srcs = jay_num_isa_srcs(I);
+      if ((nr_srcs == 2 || nr_srcs == 3) && src == nr_srcs - 1)
+         return false;
+   }
+
    /* TODO: Many, many more restrictions on non-f32 */
    if (!(jay_operand_type(I, src) == JAY_TYPE_F32 && I->type == JAY_TYPE_F32)) {
       return false;
