@@ -465,6 +465,12 @@ populate_fs_prog_data(nir_shader *shader,
    if (intel_nir_pulls_at_sample(shader))
       prog_data->coarse_pixel_dispatch = false;
 
+   /* TODO: Proprietary compilers are probably bloated with passes to
+    * aggressively eliminate any instruction that computes derivatives from a
+    * convergent source, we need to factor that into our decision here if we
+    * want to guarantee that helper lane behavior matches the expectations of
+    * broken apps.
+    */
    prog_data->uses_vmask =
       shader->info.fs.needs_coarse_quad_helper_invocations ||
       shader->info.uses_wide_subgroup_intrinsics;
