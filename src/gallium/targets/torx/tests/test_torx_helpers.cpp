@@ -163,7 +163,7 @@ run_on_npu(const std::filesystem::path &work_dir,
    }
 
    size_t num_inputs = meta->num_inputs();
-   std::vector<std::vector<float>> input_datas(num_inputs);
+   std::vector<std::vector<uint8_t>> input_datas(num_inputs);
    std::vector<::executorch::extension::TensorPtr> inputs;
 
    for (size_t i = 0; i < num_inputs; i++) {
@@ -180,8 +180,11 @@ run_on_npu(const std::filesystem::path &work_dir,
          numel *= input_meta->sizes()[d];
       }
 
+      auto scalar_type = input_meta->scalar_type();
+      size_t size = numel * ::executorch::runtime::elementSize(scalar_type);
+
       auto input_path = work_dir / (device_id + "-input-" + std::to_string(i) + ".data");
-      input_datas[i].resize(numel);
+      input_datas[i].resize(size);
       {
          std::ifstream in(input_path, std::ios::binary);
          if (!in.is_open()) {
@@ -189,11 +192,15 @@ run_on_npu(const std::filesystem::path &work_dir,
             return 1;
          }
          in.read(reinterpret_cast<char *>(input_datas[i].data()),
-                 (std::streamsize)(numel * sizeof(float)));
+                 (std::streamsize)size);
+         if ((size_t)in.gcount() != size) {
+            fprintf(stderr, "%s holds %lld bytes, expected %zu\n",
+                    input_path.c_str(), (long long)in.gcount(), size);
+            return 1;
+         }
       }
 
-      inputs.push_back(from_blob(input_datas[i].data(), shape,
-                                 exec_aten::ScalarType::Float));
+      inputs.push_back(from_blob(input_datas[i].data(), shape, scalar_type));
    }
 
    /* Run inference. */
