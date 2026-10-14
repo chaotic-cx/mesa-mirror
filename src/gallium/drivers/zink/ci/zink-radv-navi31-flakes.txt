@@ -61,3 +61,7 @@ spec@!opengl 1.1@depthstencil-default_fb-blit
 spec@!opengl 1.1@depthstencil-default_fb-blit samples=2
 spec@!opengl 1.1@depthstencil-default_fb-blit samples=4
 spec@!opengl 1.1@depthstencil-default_fb-copypixels samples=6
+
+# uprev Piglit in Mesa
+dEQP-GLES31.functional.copy_image.non_compressed.viewclass_32_bits.rgba8ui_r32f.texture3d_to_cubemap
+

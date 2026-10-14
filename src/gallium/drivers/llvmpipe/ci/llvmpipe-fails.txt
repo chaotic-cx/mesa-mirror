@@ -41,9 +41,6 @@ spec@arb_shader_texture_lod@execution@arb_shader_texture_lod-texgrad,Fail
 
 spec@egl_khr_gl_image@egl_khr_gl_renderbuffer_image-clear-shared-image gl_depth_component24,Fail
 
-# "eglChooseConfig failed"
-spec@egl_mesa_configless_context@basic,Fail
-
 spec@ext_framebuffer_multisample@interpolation 2 centroid-edges,Fail
 spec@ext_framebuffer_multisample@interpolation 4 centroid-edges,Fail
 spec@ext_framebuffer_multisample@interpolation 6 centroid-edges,Fail
@@ -91,3 +88,9 @@ spec@ovr_multiview@compiler@multiple-num-views-in-single-declaration-mismatch.ve
 
 # Nightly run expectations update
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-transcode-nv12-as-r8-gr88,Fail
+
+# uprev Piglit in Mesa
+glx@glx-front-flush-after-swap,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
+

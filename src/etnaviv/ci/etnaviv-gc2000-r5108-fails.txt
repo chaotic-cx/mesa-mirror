@@ -571,16 +571,27 @@ spec@glsl-1.10@execution@variable-indexing@fs-input-array-float-index-rd,Fail
 spec@glsl-1.10@execution@variable-indexing@fs-input-array-vec2-index-rd,Fail
 
 # uprev Piglit in Mesa
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
 spec@!opengl 1.1@polygon-mode-offset@config 3: Expected blue pixel in center,Fail
 spec@!opengl 1.1@polygon-mode-offset@config 4: Expected blue pixel in center,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_fragment_program@sparse-samplers,Fail
 spec@ext_framebuffer_object@fbo-readpixels-depth-formats,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr1616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
 spec@glsl-1.10@execution@built-in-functions@vs-sign-vec4,Fail
-spec@glsl-1.10@execution@glsl-fs-texture2d-mipmap-const-bias-03,Fail
+spec@glsl-1.20@execution@tex-miplevel-selection gl2:textureproj 1d_projvec4,Fail
 
 # Nightly run expectations update
 hiz@hiz-stencil-read-fbo-d0-s8,Fail
-spec@!opengl 1.1@copyteximage 2d,Fail
 spec@!opengl 1.4@tex-miplevel-selection-lod,Fail
 spec@!opengl 1.4@tex-miplevel-selection-lod-bias,Fail
 spec@arb_depth_texture@fbo-generatemipmap-formats,Fail

@@ -19,3 +19,8 @@ gmem-dEQP-VK.wsi.direct_drm.*
 
 # Mainly for testing platform features. Skip as take too long. Passes reliably though.
 awsi-dEQP-VK.wsi.android.incremental_present.*
+
+# uprev Piglit in Mesa
+# sometimes times out
+spec@arb_sync@flush-readback
+

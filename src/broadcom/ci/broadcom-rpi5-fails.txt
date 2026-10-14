@@ -383,3 +383,7 @@ Profiling,Fail
 
 # https://gitlab.khronos.org/Tracker/vk-gl-cts/-/work_items/7122
 KHR-GLES31.core.geometry_shader.layered_fbo.fb_texture_invalid_level_number,Fail
+
+# uprev Piglit in Mesa
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
+

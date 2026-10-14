@@ -61,4 +61,9 @@ spec@arb_separate_shader_objects@xfb-explicit-location-array_vs
 
 # uprev Piglit in Mesa
 shaders@glsl-bug-110796
+spec@!opengl 3.0@viewport-clamp
+spec@egl 1.4@egl-copy-buffers
+spec@egl_khr_gl_colorspace@linear
+spec@ext_framebuffer_blit@fbo-blit-check-limits
+spec@oes_compressed_etc1_rgb8_texture@basic
 

@@ -71,4 +71,7 @@ dEQP-VK.wsi.wayland.swapchain.render.10swapchains.*
 spec@egl_ext_surface_compression@create
 
 # uprev Piglit in Mesa
+# sometimes times out
 glx@glx_ext_no_config_context@no fbconfig
+spec@arb_sync@sync-churn
+

@@ -174,9 +174,6 @@ spec@arb_depth_buffer_float@fbo-clear-formats stencil@GL_DEPTH32F_STENCIL8,Fail
 spec@arb_depth_buffer_float@fbo-clear-formats@GL_DEPTH32F_STENCIL8,Fail
 spec@arb_depth_buffer_float@fbo-depthstencil-gl_depth32f_stencil8-blit,Fail
 spec@arb_depth_buffer_float@fbo-depthstencil-gl_depth32f_stencil8-copypixels,Fail
-spec@arb_depth_buffer_float@fbo-generatemipmap-formats,Fail
-spec@arb_depth_buffer_float@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT32F,Fail
-spec@arb_depth_buffer_float@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT32F NPOT,Fail
 spec@arb_depth_buffer_float@fbo-stencil-gl_depth32f_stencil8-blit,Fail
 spec@arb_depth_buffer_float@fbo-stencil-gl_depth32f_stencil8-copypixels,Fail
 spec@arb_depth_buffer_float@texwrap formats bordercolor,Fail
@@ -185,15 +182,6 @@ spec@arb_depth_buffer_float@texwrap formats bordercolor-swizzled@GL_DEPTH32F_STE
 spec@arb_depth_buffer_float@texwrap formats bordercolor-swizzled@GL_DEPTH_COMPONENT32F- swizzled- border color only,Fail
 spec@arb_depth_buffer_float@texwrap formats bordercolor@GL_DEPTH32F_STENCIL8- border color only,Fail
 spec@arb_depth_buffer_float@texwrap formats bordercolor@GL_DEPTH_COMPONENT32F- border color only,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT NPOT,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT16,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT16 NPOT,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT24,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT24 NPOT,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT32,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT32 NPOT,Fail
 spec@arb_depth_texture@texwrap formats bordercolor,Fail
 spec@arb_depth_texture@texwrap formats bordercolor-swizzled,Fail
 spec@arb_depth_texture@texwrap formats bordercolor-swizzled@GL_DEPTH_COMPONENT16- swizzled- border color only,Fail
@@ -474,9 +462,32 @@ spec@arb_texture_buffer_object@texture-buffer-size-clamp@rg8ui_texture_buffer_si
 spec@arb_texture_buffer_object@texture-buffer-size-clamp@rgba8ui_texture_buffer_size_via_sampler,Fail
 
 # uprev Piglit in Mesa
+glx@glx-front-flush-after-swap,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_texture_rg@fbo-blending-formats,Fail
 spec@arb_texture_rg@fbo-blending-formats@GL_R8,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-refcount,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr8888,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr1616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr88,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_rgb565,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr8888,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
 
 # new failures since 2023/02/08 (CTS uprevs, regressions etc.)

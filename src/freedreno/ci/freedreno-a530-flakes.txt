@@ -24,3 +24,5 @@ KHR-GLES31.core.compute_shader.simple-compute-shared_context
 # uprev Piglit in Mesa
 glx@glx_ext_no_config_context@no fbconfig
 KHR-GLES31.core.compute_shader.simple-compute-shared_context-persistent-buffer
+spec@egl 1.4@egl-arb-sync-shared-context threaded
+

@@ -303,15 +303,6 @@ spec@arb_depth_texture@fbo-clear-formats@GL_DEPTH_COMPONENT,Fail
 spec@arb_depth_texture@fbo-clear-formats@GL_DEPTH_COMPONENT16,Fail
 spec@arb_depth_texture@fbo-clear-formats@GL_DEPTH_COMPONENT24,Fail
 spec@arb_depth_texture@fbo-clear-formats@GL_DEPTH_COMPONENT32,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT NPOT,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT16,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT16 NPOT,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT24,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT24 NPOT,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT32,Fail
-spec@arb_depth_texture@fbo-generatemipmap-formats@GL_DEPTH_COMPONENT32 NPOT,Fail
 spec@arb_depth_texture@texdepth,Fail
 
 # https://gitlab.freedesktop.org/mesa/mesa/-/issues/4985
@@ -1005,7 +996,27 @@ spec@nv_primitive_restart@primitive-restart-draw-mode-quad_strip,Fail
 spec@nv_primitive_restart@primitive-restart-draw-mode-quads,Fail
 
 # uprev Piglit in Mesa
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_texture_cube_map@copyteximage cube,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr1616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr88,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_rgb565,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
 
 # Nightly run expectations update
 spec@glsl-1.10@execution@samplers@glsl-fs-shadow2d-consecutive-draws,Fail

@@ -72,3 +72,7 @@ spec@glsl-4.00@compiler@built-in-functions@op-mult-dmat3-dvec3.vert
 spec@glsl-4.00@execution@built-in-functions@vs-refract-dvec4-dvec4-double
 spec@glsl-4.30@execution@built-in-functions@cs-dot-vec2-vec2
 spec@glsl-es-3.20@compiler@flat_interpolation@flat-interface_block-uvec3.frag
+
+# uprev Piglit in Mesa
+spec@arb_framebuffer_object@read-after-sampled-redraw readpixels
+

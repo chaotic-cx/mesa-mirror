@@ -74,14 +74,19 @@ spec@!opengl 1.1@line-smooth-stipple,Fail
 
 # Uprev Piglit in Mesa
 glx@glx-multithread-buffer-busy-tracking-bug,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 spec@!opengl 1.1@large-tex,Fail
 spec@!opengl 1.1@large-tex@test_image_load_store,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one_write-z,Fail
 spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one,Fail
 spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage,Fail
 spec@ext_external_objects@vk-image-display,Crash
 spec@ext_external_objects@vk-semaphores-2,Crash
 spec@ext_external_objects@vk-semaphores,Crash
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr4444,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
 spec@khr_shader_subgroup@execution@bitonic_sort,Fail
 
@@ -93,4 +98,7 @@ spec@khr_shader_subgroup@execution@bitonic_sort,Fail
 #   Current serial number in output stream:  1181
 glx@glx-visuals-depth -pixmap,Fail
 glx@glx-visuals-stencil -pixmap,Fail
+
+# uprev Piglit in Mesa
+
 

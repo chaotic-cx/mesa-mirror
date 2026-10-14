@@ -138,6 +138,9 @@ KHR-GLES3.clip_distance.coverage,Fail
 KHR-GLES3.cull_distance.functional,Fail
 
 # uprev Piglit in Mesa
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@ext_external_objects@vk-ping-pong-multi-sem,Fail
 spec@ext_external_objects@vk-ping-pong-single-sem,Crash
 spec@ext_transform_feedback2@draw-auto offset,Fail

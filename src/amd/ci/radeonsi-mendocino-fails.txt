@@ -406,5 +406,10 @@ spec@!opengl 1.0@rasterpos@glsl_vs_tes_linked,Fail
 spec@!opengl 1.1@line-smooth-stipple,Fail
 
 # uprev Piglit in Mesa
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@ext_transform_feedback2@draw-auto offset,Fail
 

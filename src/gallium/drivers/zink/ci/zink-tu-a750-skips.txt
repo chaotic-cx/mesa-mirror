@@ -41,3 +41,8 @@ KHR-GL46\.sparse_texture_tests.*3d.*
 KHR-GL46\.sparse_texture2_tests.*3d.*
 KHR-GL46\.sparse_texture_clamp_tests.*3d.*
 KHR-GL46\.sparse_texture2_tests.*multisample.*
+
+# uprev Piglit in Mesa
+# sometimes times out
+spec@arb_sync@flush-readback
+

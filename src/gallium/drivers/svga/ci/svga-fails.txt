@@ -149,7 +149,6 @@ spec@arb_copy_image@arb_copy_image-formats,Crash
 spec@arb_copy_image@arb_copy_image-formats --samples=2,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=2@Source: GL_RGB32I/Destination: GL_RGB32F,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=2@Source: GL_RGB32UI/Destination: GL_RGB32F,Fail
-spec@arb_copy_image@arb_copy_image-formats --samples=2@Source: GL_R32F/Destination: GL_RG16,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=4,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=4@Source: GL_RGB32I/Destination: GL_RGB32F,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=4@Source: GL_RGB32UI/Destination: GL_RGB32F,Fail
@@ -689,8 +688,6 @@ spec@ext_packed_depth_stencil@texwrap formats bordercolor,Fail
 spec@ext_packed_depth_stencil@texwrap formats bordercolor@GL_DEPTH24_STENCIL8- border color only,Fail
 spec@ext_packed_depth_stencil@texwrap formats bordercolor-swizzled,Fail
 spec@ext_packed_depth_stencil@texwrap formats bordercolor-swizzled@GL_DEPTH24_STENCIL8- swizzled- border color only,Fail
-spec@ext_packed_float@fbo-generatemipmap-formats,Fail
-spec@ext_packed_float@fbo-generatemipmap-formats@GL_R11F_G11F_B10F NPOT,Fail
 spec@ext_packed_float@texwrap formats bordercolor,Fail
 spec@ext_packed_float@texwrap formats bordercolor@GL_R11F_G11F_B10F- border color only,Fail
 spec@ext_packed_float@texwrap formats bordercolor-swizzled,Fail
@@ -998,6 +995,8 @@ spec@nv_copy_image@nv_copy_image-formats --samples=8@Source: GL_RGB32UI/Destinat
 # uprev Piglit in Mesa
 spec@!opengl 1.1@large-tex,Fail
 spec@!opengl 1.1@large-tex@test_clear_and_read_pixels,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
+spec@!opengl es 3.0@gles-3.0-subdata-after-orphan,Crash
 spec@arb_copy_image@arb_copy_image-formats --samples=2@Source: GL_RGB32F/Destination: GL_RGB32I,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=2@Source: GL_RGB32F/Destination: GL_RGB32UI,Fail
 spec@arb_copy_image@arb_copy_image-formats --samples=2@Source: GL_RGB32I/Destination: GL_RGB32I,Fail
@@ -1019,6 +1018,9 @@ spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_RGB32UI/Destin
 spec@arb_copy_image@arb_copy_image-formats --samples=8@Source: GL_RGB32UI/Destination: GL_RGB32UI,Fail
 spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one_write-z,Fail
 spec@arb_framebuffer_object@execution@msaa-alpha-to-coverage_alpha-to-one,Fail
+spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-tf-fs-varyings,Fail
+spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-tf-fs-varyings@sso-location,Fail
+spec@arb_gpu_shader_fp64@shader_storage@layout-std140-fp64-shader,Fail
 spec@arb_gpu_shader5@execution@precise@saturate-min-nan,Fail
 spec@arb_point_parameters@arb_point_parameters-point-attenuation@Antialiased combinations,Fail
 spec@arb_sample_shading@samplemask 2@0.500000 mask_in_one,Fail
@@ -1036,8 +1038,8 @@ spec@arb_sample_shading@samplemask 8 all@0.500000 mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8 all@1.000000 mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8 all@noms mask_in_one,Fail
 spec@arb_sample_shading@samplemask 8 all@sample mask_in_one,Fail
-spec@arb_tessellation_shader@execution@tcs-input@tcs-input-uvec4_2,Fail
-spec@arb_texture_buffer_range@ranges-2 compat,Fail
+spec@arb_shader_image_load_store@execution@image_checkerboard,Fail
+spec@arb_tessellation_shader@execution@tcs-input@tcs-input-ivec4,Fail
 spec@arb_texture_cube_map@copyteximage cube samples=2,Fail
 spec@arb_texture_cube_map@copyteximage cube samples=4,Fail
 spec@arb_texture_cube_map@copyteximage cube samples=6,Fail
@@ -1049,6 +1051,23 @@ spec@arb_texture_rectangle@copyteximage rect samples=8,Fail
 spec@arb_texture_view@tex-view,Fail
 spec@egl_chromium_sync_control@conformance,Fail
 spec@egl_chromium_sync_control@conformance@eglGetSyncValuesCHROMIUM_msc_and_sbc_test,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-export-tex,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr8888,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr1616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_rgb565,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr8888,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-tex-modifier,Fail
 spec@ext_packed_depth_stencil@fbo-blit-d24s8,Fail
 spec@ext_texture_array@copyteximage 1d_array samples=2,Fail
@@ -1060,6 +1079,14 @@ spec@ext_texture_array@copyteximage 2d_array samples=4,Fail
 spec@ext_texture_array@copyteximage 2d_array samples=6,Fail
 spec@ext_texture_array@copyteximage 2d_array samples=8,Fail
 spec@ext_texture_integer@fbo-integer-attachments,Fail
+spec@ext_transform_feedback@primgen-clear scissor-clear,Fail
+spec@ext_transform_feedback@primgen-clear scissor-clear@scissored clear during primgen query,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
 spec@glsl-1.30@execution@glsl-packed-colors-clamping,Fail
+spec@glsl-1.50@execution@geometry@primitive-types gl_lines_adjacency,Fail
+spec@glsl-1.50@execution@geometry@primitive-types gl_points,Fail
+spec@glsl-1.50@execution@interface-vs-named-to-gs-array,Fail
+spec@glsl-1.50@execution@primitive-id-no-gs-line,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 

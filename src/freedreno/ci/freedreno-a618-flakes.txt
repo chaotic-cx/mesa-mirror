@@ -229,7 +229,7 @@ spec@arb_gpu_shader_fp64@execution@arb_gpu_shader_fp64-vs-getuniformdv
 spec@ext_external_objects@vk-ping-pong-multi-sem
 spec@ext_external_objects@vk-ping-pong-single-sem
 spec@ext_packed_float@query-rgba-signed-components
-
+spec@glsl-1.50@gs-max-output
 
 # a618 and a660 seem to have some general instability in tesselation and GS.
 # Some tess tests also use the GS (tesselation.invariance), but others

@@ -423,8 +423,82 @@ spec@ext_framebuffer_multisample@sample-alpha-to-coverage 6 color,Fail
 spec@ext_framebuffer_multisample@sample-alpha-to-coverage 8 color,Fail
 
 # uprev Piglit in Mesa
+afbcp-spec@ext_multisampled_render_to_texture2@mrt,Fail
+glx@glx-front-flush-after-swap,Fail
+glx@glx-read-back-after-swap -rgba,Fail
+glx@glx-read-back-after-swap,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
 spec@!opengl 1.1@large-tex,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_framebuffer_object@framebuffer-blit-oblong tall,Fail
 spec@arb_framebuffer_object@framebuffer-blit-oblong wide,Fail
+spec@ext_multisampled_render_to_texture2@mrt,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
+spec@arb_shader_image_load_store@invalid,Crash
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image1D/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image1DArray/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r11f_g11f_b10f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r16,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r16_snorm,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r16f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r16i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r16ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r32i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r32ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r8,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r8_snorm,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r8i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/r8ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg16,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg16_snorm,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg16f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg16i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg16ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg32i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg32ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg8,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg8_snorm,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg8i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rg8ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgb10_a2,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgb10_a2ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba16,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba16_snorm,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba16f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba16i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba16ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba32i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba32ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba8,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba8_snorm,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba8i,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba8ui,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2DArray/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2DMS/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2DMSArray/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2DRect/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image3D/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/imageBuffer/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/imageCube/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/imageCubeArray/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageStore/address bounds test/image2DMS/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageStore/address bounds test/image2DMSArray/rgba32f,Fail
+spec@arb_shader_image_load_store@layer,Fail
+spec@arb_shader_image_load_store@layer@image2DMS/layered binding test,Fail
+spec@arb_shader_image_load_store@layer@image2DMS/non-layered binding test,Fail
+spec@arb_shader_image_load_store@layer@image2DMSArray/layered binding test,Fail
+spec@arb_shader_image_load_store@layer@image2DMSArray/non-layered binding test,Fail
+spec@arb_shader_image_load_store@max-size,Fail
+spec@arb_shader_image_load_store@max-size@image2DMS max size test/8x16384x8x1,Fail
+spec@arb_shader_image_load_store@max-size@image2DMS max size test/8x8x16384x1,Fail
+spec@arb_shader_image_load_store@max-size@image2DMSArray max size test/8x8x8x2048,Fail
+spec@arb_shader_image_load_store@semantics,Fail
+spec@arb_shader_image_load_store@semantics@imageLoad/Fragment shader/rgba32f/image2DMS test,Fail
+spec@arb_shader_image_load_store@semantics@imageLoad/Fragment shader/rgba32f/image2DMSArray test,Fail
 

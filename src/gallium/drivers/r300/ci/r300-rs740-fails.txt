@@ -603,6 +603,12 @@ spec@nv_primitive_restart@primitive-restart-draw-mode-quad_strip,Fail
 spec@nv_primitive_restart@primitive-restart-draw-mode-quads,Fail
 
 # uprev Piglit in Mesa
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_texture_cube_map@copyteximage cube samples=2,Fail
 spec@arb_texture_cube_map@copyteximage cube samples=4,Fail
 spec@arb_texture_cube_map@copyteximage cube samples=6,Fail

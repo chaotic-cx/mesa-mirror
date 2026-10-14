@@ -87,3 +87,14 @@ spec@arb_timer_query@query gl_timestamp,Fail
 spec@ext_framebuffer_blit@fbo-blit-check-limits,Crash
 spec@ext_framebuffer_blit@fbo-sys-blit,Crash
 spec@ext_framebuffer_blit@fbo-sys-sub-blit,Crash
+
+# uprev Piglit in Mesa
+glx@glx-front-flush-after-swap,Fail
+glx@glx-read-back-after-swap -rgba,Fail
+glx@glx-read-back-after-swap,Fail
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Crash
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Crash
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+

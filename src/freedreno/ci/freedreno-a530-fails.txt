@@ -81,8 +81,27 @@ spec@khr_texture_compression_astc@miptree-gl srgb-sd@sRGB skip decode,Fail
 spec@khr_texture_compression_astc@miptree-gl srgb-sd,Fail
 
 # uprev Piglit in Mesa
+glx@glx-front-flush-after-swap,Fail
+glx@glx-read-back-after-swap -rgba,Fail
+glx@glx-read-back-after-swap,Fail
 spec@!opengl 1.1@large-tex,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-refcount,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_abgr8888,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb1555,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_argb4444,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr1616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_gr88,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr2101010,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr8888,Fail
+spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
 spec@khr_texture_compression_astc@miptree-gl srgb,Fail
 spec@khr_texture_compression_astc@miptree-gl srgb@sRGB decode,Fail
@@ -92,6 +111,105 @@ spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb@sRGB decode,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb@sRGB decode,Fail
+spec@arb_shader_image_load_store@invalid,Crash
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@arb_shader_image_load_store@early-z,Fail
+spec@arb_shader_image_load_store@early-z@image access test/early-z fail,Fail
+spec@arb_shader_image_load_store@early-z@occlusion query test/early-z fail,Fail
+spec@arb_shader_image_load_store@early-z@occlusion query test/early-z pass,Fail
+spec@arb_shader_image_load_store@qualifiers,Fail
+spec@arb_shader_image_load_store@qualifiers@r11f_g11f_b10f/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r11f_g11f_b10f/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r11f_g11f_b10f/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r11f_g11f_b10f/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r16/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r16/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r16/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r16/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r16_snorm/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r16_snorm/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r16_snorm/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r16_snorm/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r8_snorm/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r8_snorm/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r8_snorm/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@r8_snorm/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16_snorm/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16_snorm/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16_snorm/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16_snorm/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16f/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16f/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16f/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16f/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16i/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16i/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16i/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16i/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16ui/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16ui/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16ui/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg16ui/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32f/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32f/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32f/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32f/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32i/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32i/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32i/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32i/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32ui/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32ui/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32ui/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg32ui/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8_snorm/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8_snorm/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8_snorm/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8_snorm/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8i/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8i/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8i/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8i/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8ui/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8ui/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8ui/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rg8ui/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgb10_a2/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgb10_a2/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgb10_a2/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgb10_a2/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgb10_a2ui/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgb10_a2ui/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgb10_a2ui/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgb10_a2ui/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba16/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba16/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba16/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba16/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba16_snorm/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba16_snorm/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba16_snorm/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba16_snorm/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba8_snorm/permissive layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba8_snorm/permissive layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba8_snorm/strict layout qualifiers/permissive access qualifiers/permissive binding test,Fail
+spec@arb_shader_image_load_store@qualifiers@rgba8_snorm/strict layout qualifiers/permissive access qualifiers/strict binding test,Fail
+spec@arb_shader_image_load_store@indexing,Crash
+spec@arb_shader_image_load_store@max-size,Fail
+spec@arb_shader_image_load_store@max-size@image1DArray max size test/16384x8x1x1,Fail
+spec@arb_shader_image_load_store@max-size@image2DArray max size test/16384x8x8x1,Fail
+spec@arb_shader_image_load_store@max-size@image2DArray max size test/8x16384x8x1,Fail
 
 spec@!opengl 1.1@polygon-mode-facing,Fail
 spec@!opengl 1.1@polygon-mode-offset,Fail

@@ -708,3 +708,12 @@ spec@arb_texture_cube_map@copyteximage cube samples=6,Fail
 spec@arb_texture_rectangle@copyteximage rect samples=2,Fail
 spec@arb_texture_rectangle@copyteximage rect samples=4,Fail
 spec@arb_texture_rectangle@copyteximage rect samples=6,Fail
+
+# uprev Piglit in Mesa
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
+

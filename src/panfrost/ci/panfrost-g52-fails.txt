@@ -268,10 +268,46 @@ afbcp-spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb-fp,Fail
 afbcp-spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb-fp@sRGB decode full precision,Fail
 
 # uprev Piglit in Mesa
+afbcp-spec@ext_multisampled_render_to_texture2@mrt,Fail
 glx@glx-copy-sub-buffer,Fail
+glx@glx-front-flush-after-swap,Fail
+glx@glx-read-back-after-swap -rgba,Fail
+glx@glx-read-back-after-swap,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
 spec@!opengl 1.1@large-tex,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@arb_framebuffer_object@framebuffer-blit-oblong tall,Fail
+spec@ext_multisampled_render_to_texture2@mrt,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
+spec@arb_shader_image_load_store@invalid,Crash
+spec@arb_shader_image_load_store@early-z,Fail
+spec@arb_shader_image_load_store@early-z@image access test/early-z fail,Fail
+spec@arb_shader_image_load_store@early-z@occlusion query test/early-z fail,Fail
+spec@arb_shader_image_load_store@early-z@occlusion query test/early-z pass,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image1D/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image1DArray/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2D/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2DArray/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2DMS/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image2DRect/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/image3D/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/imageBuffer/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/imageCube/rgba32f,Fail
+spec@arb_shader_image_load_store@invalid@imageLoad/address bounds test/imageCubeArray/rgba32f,Fail
+spec@arb_shader_image_load_store@layer,Fail
+spec@arb_shader_image_load_store@layer@image2DMSArray/non-layered binding test,Fail
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
+spec@arb_shader_image_size@builtin,Fail
+spec@arb_shader_image_size@builtin@rgba16f/Fragment/imageCubeArray size test/16x16x6x1,Fail
+spec@arb_shader_image_size@builtin@rgba16i/Fragment/imageCubeArray size test/16x16x6x1,Fail
+spec@arb_shader_image_size@builtin@rgba16ui/Fragment/imageCubeArray size test/16x16x6x1,Fail
+spec@arb_shader_image_size@builtin@rgba32f/Fragment/imageCubeArray size test/16x16x6x1,Fail
+spec@arb_shader_image_size@builtin@rgba32i/Fragment/imageCubeArray size test/16x16x6x1,Fail
+spec@arb_shader_image_size@builtin@rgba32ui/Fragment/imageCubeArray size test/16x16x6x1,Fail
+spec@arb_shader_image_size@builtin@rgba8i/Fragment/imageCubeArray size test/16x16x6x1,Fail
+spec@arb_shader_image_size@builtin@rgba8ui/Fragment/imageCubeArray size test/16x16x6x1,Fail
 
 # Piglit tests require too much precision in alpha-to-coverage higher sample-counts
 spec@ext_framebuffer_multisample@alpha-to-coverage-dual-src-blend 6,Fail

@@ -126,8 +126,15 @@ spec@ext_transform_feedback@tessellation quads wireframe,Fail
 spec@ext_transform_feedback@tessellation quad_strip wireframe,Fail
 
 # uprev Piglit in Mesa
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
+spec@ext_multisampled_render_to_texture@render,Crash
+spec@ext_multisampled_render_to_texture@render@mipmap level 1,Fail
+spec@ext_multisampled_render_to_texture@valid-usage,Crash
+spec@ext_multisampled_render_to_texture2@valid-usage,Crash
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb-fp,Fail
 spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb-fp@sRGB decode full precision,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 
 # New failures after freedesktop gitlab-runner update from bookworm to trixie
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-transcode-nv12-as-r8-gr88,Fail

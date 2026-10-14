@@ -275,6 +275,9 @@ spec@khr_texture_compression_astc@basic-gles,Fail
 spec@khr_texture_compression_astc@miptree-gl srgb-fp@sRGB decode full precision,Fail
 
 # uprev Piglit in Mesa
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@ext_framebuffer_multisample@accuracy all_samples color depthstencil linear,Fail
 spec@ext_framebuffer_multisample@accuracy all_samples color depthstencil,Fail
 spec@ext_framebuffer_multisample@accuracy all_samples color small depthstencil linear,Fail
@@ -290,6 +293,9 @@ spec@ext_framebuffer_multisample@accuracy all_samples stencil_resolve small dept
 spec@ext_framebuffer_multisample@alpha-to-coverage-no-draw-buffer-zero 2,Fail
 spec@ext_framebuffer_multisample@alpha-to-coverage-no-draw-buffer-zero 4,Fail
 spec@ext_framebuffer_multisample@alpha-to-coverage-no-draw-buffer-zero 6,Fail
+spec@!opengl 1.0@rasterpos,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_inputs_linked,Fail
+spec@!opengl 1.0@rasterpos@glsl_vs_fs_linked,Fail
 
 spec@glsl-1.10@execution@glsl-fs-texture2d-mipmap-const-bias-01,Fail
 spec@glsl-1.10@execution@glsl-fs-texture2d-mipmap-const-bias-04,Fail

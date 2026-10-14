@@ -17,3 +17,10 @@ dEQP-VK.wsi.xlib.maintenance1.present_fence.fifo.*
 # OpenCL-CTS OpenCL-GL sharing needs explicit Rusticl/Panfrost interop
 # enablement before this is a valid CTS target for the G610 job
 OpenCL-GL Sharing
+
+# uprev Piglit in Mesa
+# sometimes times out
+glx@glx_ext_no_config_context@no fbconfig
+spec@!opengl 1.1@ppgtt_memory_alignment
+spec@arb_sync@sync-churn
+

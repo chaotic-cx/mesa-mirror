@@ -859,14 +859,9 @@ glx@glx-tfp,Crash
 #   Major opcode of failed request:  130 (MIT-SHM)
 #   Minor opcode of failed request:  3 (X_ShmPutImage)
 glx@glx-visuals-depth -pixmap,Crash
-glx@glx-visuals-stencil,Crash
 glx@glx-visuals-stencil -pixmap,Crash
 
-
-glx@glx_ext_import_context@free context,Fail
 glx@glx_ext_import_context@get context id,Fail
-glx@glx_ext_import_context@make current- multi process,Fail
-glx@glx_ext_import_context@make current- single process,Fail
 hiz@hiz-depth-read-window-stencil0,Fail
 hiz@hiz-depth-read-window-stencil1,Fail
 hiz@hiz-depth-test-window-stencil0,Fail
@@ -978,7 +973,6 @@ spec@arb_depth_texture@texwrap formats@GL_DEPTH_COMPONENT32- NPOT,Fail
 
 spec@arb_direct_state_access@gettextureimage-formats,Crash
 spec@arb_direct_state_access@texture-buffer,Fail
-spec@arb_enhanced_layouts@arb_enhanced_layouts-transform-feedback-layout-qualifiers_gs,Crash
 spec@arb_enhanced_layouts@arb_enhanced_layouts-transform-feedback-layout-qualifiers_gs_max,Crash
 spec@arb_enhanced_layouts@arb_enhanced_layouts-transform-feedback-layout-qualifiers_vs,Crash
 
@@ -1065,16 +1059,10 @@ spec@arb_texture_rg@texwrap formats@GL_R8- NPOT,Fail
 spec@arb_texture_rg@texwrap formats@GL_RG16- NPOT,Fail
 spec@arb_texture_rg@texwrap formats@GL_RG8- NPOT,Fail
 
-spec@arb_transform_feedback3@arb_transform_feedback3-ext_interleaved_two_bufs_gs_max,Crash
-
 # error: main:90: eglChooseConfig() returned no configs
 spec@egl 1.4@eglterminate then unbind context,Fail
 
-# "eglChooseConfig() failed"
-spec@egl_mesa_configless_context@basic,Fail
-
 spec@egl_khr_gl_image@egl_khr_gl_renderbuffer_image-clear-shared-image gl_depth_component24,Fail
-spec@ext_framebuffer_blit@fbo-blit-check-limits,Fail
 spec@ext_framebuffer_object@fbo-blending-snorm,Fail
 
 spec@ext_packed_depth_stencil@texwrap formats,Fail
@@ -1218,9 +1206,12 @@ spec@arb_texture_buffer_object@texture-buffer-size-clamp@rgba8ui_texture_buffer_
 spec@arb_texture_buffer_object@texture-buffer-size-clamp@rgba8ui_texture_buffer_size_via_sampler,Fail
 
 # uprev Piglit in Mesa
+glx@glx-visuals-stencil,Fail
 spec@!opengl 1.0@depth-clear-precision-check@depth16,Fail
 spec@!opengl 1.0@depth-clear-precision-check@depth24_stencil8,Fail
 spec@!opengl 1.0@depth-clear-precision-check@depth24,Fail
+spec@!opengl 1.1@large-tex,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
 spec@!opengl 2.0@vertex-program-two-side enabled front back front2 back2,Fail
 spec@!opengl 2.0@vertex-program-two-side enabled front back front2 back2@gs-out and fs,Fail
 spec@!opengl 2.0@vertex-program-two-side enabled front back front2,Fail
@@ -1229,6 +1220,7 @@ spec@!opengl 2.0@vertex-program-two-side enabled front back,Fail
 spec@!opengl 2.0@vertex-program-two-side enabled front back@gs-out and fs,Fail
 spec@!opengl 2.0@vertex-program-two-side enabled front2 back2,Fail
 spec@!opengl 2.0@vertex-program-two-side enabled front2 back2@gs-out and fs,Fail
+spec@!opengl 2.1@polygon-stipple-fs,Fail
 spec@!opengl 3.0@clearbuffer-depth-cs-probe,Fail
 spec@arb_internalformat_query2@all internalformat_<x>_type pname checks,Fail
 spec@arb_internalformat_query2@all internalformat_<x>_type pname checks@GL_INTERNALFORMAT_ALPHA_TYPE,Fail
@@ -1244,6 +1236,8 @@ spec@arb_internalformat_query2@max dimensions related pname checks@GL_MAX_DEPTH,
 spec@arb_internalformat_query2@max dimensions related pname checks@GL_MAX_HEIGHT,Fail
 spec@arb_internalformat_query2@max dimensions related pname checks@GL_MAX_LAYERS,Fail
 spec@arb_internalformat_query2@max dimensions related pname checks@GL_MAX_WIDTH,Fail
+spec@ext_transform_feedback@primgen-clear draw,Fail
+spec@ext_transform_feedback@primgen-clear draw@clear and draw during primgen query,Fail
 spec@glsl-1.50@execution@primitive-id-no-gs-varying,Fail
 
 dEQP-GLES3.functional.fbo.blit.rect.nearest_consistency_out_of_bounds_min,Fail
@@ -1316,7 +1310,6 @@ spec@arb_internalformat_query2@all internalformat_<x>_size pname checks@GL_INTER
 spec@arb_internalformat_query2@all internalformat_<x>_size pname checks@GL_INTERNALFORMAT_GREEN_SIZE,Fail
 spec@arb_internalformat_query2@all internalformat_<x>_size pname checks@GL_INTERNALFORMAT_RED_SIZE,Fail
 spec@arb_occlusion_query@occlusion_query_meta_save,Fail
-shaders@glsl-fs-fogscale@vs and fs,Fail
 spec@arb_texture_rectangle@texwrap rect proj bordercolor,Fail
 spec@arb_texture_rectangle@texwrap rect proj bordercolor@GL_RGBA8- projected- border color only,Fail
 

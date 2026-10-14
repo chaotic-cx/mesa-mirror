@@ -23,3 +23,9 @@ program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float2,F
 program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float4,Fail
 program@execute@builtin@builtin-float-nextafter-1.0.generated@nextafter float8,Fail
 program@execute@vector-conversion,Fail
+
+# uprev Piglit in Mesa
+spec@!opengl 1.0@gl-1.0-front-back-interleave,Fail
+spec@!opengl 1.0@gl-1.0-read-front-after-swap,Fail
+spec@!opengl 1.5@gl-1.5-gen-buffers-unique,Crash
+
