@@ -3094,7 +3094,7 @@ lp_build_pack(struct lp_build_context *bld, LLVMValueRef src0,
       src1 = LLVMBuildBitCast(builder, src1, vec_type, "");
    }
 
-   LLVMValueRef shuffle[LP_MAX_VECTOR_WIDTH / 32];
+   LLVMValueRef shuffle[2 * (LP_MAX_VECTOR_WIDTH / 32)];
    for (unsigned i = 0; i < length; i++) {
 #if UTIL_ARCH_LITTLE_ENDIAN
       shuffle[i * 2] = lp_build_const_int32(gallivm, i);
