@@ -1958,6 +1958,7 @@
     <field name="Values21" dword="21" bits="31:0" type="uint" />
     <field name="Intra Refresh MB Size Minus One" dword="21" bits="23:16" type="uint" />
     <field name="Intra Refresh Mode" dword="21" bits="24:24" type="uint" />
+    <field name="Intra Refresh Enable" dword="21" bits="25:25" type="bool" />
     <field name="QP Adjustment For Rolling I" dword="21" bits="31:28" type="uint" />
     <field name="Values22" dword="22" bits="31:0" type="uint" />
     <field name="Values23" dword="23" bits="31:0" type="uint" />
