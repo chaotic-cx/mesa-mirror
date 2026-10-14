@@ -465,14 +465,9 @@ populate_fs_prog_data(nir_shader *shader,
    if (intel_nir_pulls_at_sample(shader))
       prog_data->coarse_pixel_dispatch = false;
 
-   /* We choose to always enable VMask prior to XeHP, as it would cause
-    * us to lose out on the eliminate_find_live_channel() optimization.
-    */
    prog_data->uses_vmask =
-      devinfo->verx10 < 125 ||
       shader->info.fs.needs_coarse_quad_helper_invocations ||
-      shader->info.uses_wide_subgroup_intrinsics ||
-      prog_data->coarse_pixel_dispatch;
+      shader->info.uses_wide_subgroup_intrinsics;
 
    prog_data->uses_depth_w_coefficients = prog_data->uses_pc_bary_coefficients;
 
