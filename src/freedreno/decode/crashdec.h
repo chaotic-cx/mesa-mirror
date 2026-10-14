@@ -38,7 +38,7 @@ extern struct cffdec_options options;
 static inline bool
 have_rem_info(void)
 {
-   return options.info->chip == 6 || options.info->chip == 7;
+   return options.info->chip >= 6;
 }
 
 static inline bool

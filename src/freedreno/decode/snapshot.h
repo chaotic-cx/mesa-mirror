@@ -222,6 +222,9 @@ struct snapshot_mvc_regs_v3 {
 #define SNAPSHOT_DEBUG_GMU_HFI_VERSION 19
 #define SNAPSHOT_DEBUG_AQE_VERSION 20
 
+/* Slice mask info */
+#define SNAPSHOT_DEBUG_SLICE_MASK 32
+
 struct snapshot_debug {
 	int type;    /* Type identifier for the attached tata */
 	int size;   /* Size of the section in dwords */

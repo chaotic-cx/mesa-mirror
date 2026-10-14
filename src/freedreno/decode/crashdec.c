@@ -389,13 +389,16 @@ decode_gmu_log(void)
 
 /*
  * Decode HFI queues
+ *
+ * NOTE starting with gen8, the hfi.history is decoded here, but the queue
+ * contents arrives in decode_snapshot_gmu_memory().
  */
+
+static struct a6xx_hfi_state hfi;
 
 static void
 decode_gmu_hfi(void)
 {
-   struct a6xx_hfi_state hfi = {};
-
    /* Initialize the history buffers with invalid entries (-1): */
    memset(&hfi.history, 0xff, sizeof(hfi.history));
 
@@ -1134,6 +1137,377 @@ decode_debugbus(void)
 }
 
 /*
+ * Decode 'snapshot' sections, consisting of one or more ascii85 encoded snapshot
+ * buffers, each containing one or more snapshot sections.
+ */
+
+static void
+decode_snapshot_regs_v2(const uint32_t *buf, uint32_t len)
+{
+   /* GPU and GMU regs are treated the same in snapshot, so we need to look
+    * at the offset to figure out _how_ to decode.
+    *
+    * The offset of the GMU is at (byte address) 0x6c000 relative to the
+    * GPU base, in existing things.  (At least for gen8?)
+    */
+   static uint32_t gmu_offset = 0x6c000 / 4;
+
+   for (uint32_t off = 0; off < len/4; ) {
+      uint32_t reg = buf[off++];
+      uint32_t count;
+
+      if (reg & BITFIELD_BIT(31)) {
+         count = 1;
+         reg &= ~BITFIELD_BIT(31);
+      } else {
+         count = buf[off++];
+      }
+
+      /* We expect 64b regs are not going to be grouped together: */
+      struct regacc r = regacc((reg > gmu_offset) ? rnn_gmu : NULL);
+
+      for (uint32_t i = 0; i < count; i++) {
+         uint32_t value = buf[off++];
+
+         reg_set(reg + i, value);
+
+         if (regacc_push(&r, reg + i, value)) {
+            printf("\t%08"PRIx64"\t", r.value);
+            dump_register(&r);
+         }
+      }
+   }
+}
+
+static void
+decode_snapshot_indexed_regs_v2(const struct snapshot_indexed_regs_v2 *hdr, uint32_t len)
+{
+   const char *name = regname(hdr->data_reg, false);
+   const char *pipe = enumname("adreno_pipe", hdr->pipe_id);
+   printf("      name: %s\n", name);
+   printf("      pipe-id: %s (%u)\n", pipe, hdr->pipe_id);
+   if (hdr->slice_id != UINT_MAX)
+      printf("      slice-id: %u\n", hdr->slice_id);
+
+   void *buf  = (void *)&hdr[1];
+
+   assert(len > sizeof(*hdr));
+
+   /* some of the sections are pretty large, and are (at least
+    * so far) not useful, so skip them if not in verbose mode:
+    */
+   bool dump = verbose || !strcmp(name, "CP_SQE_STAT_DATA_PIPE") ||
+               !strcmp(name, "CP_DRAW_STATE_DATA_PIPE") ||
+               !strcmp(name, "CP_ROQ_DBG_DATA_PIPE") || 0;
+
+   if (!strcmp(name, "CP_SQE_STAT_DATA_PIPE"))
+      dump_cp_sqe_stat(buf);
+
+   if (!strcmp(name, "CP_SQE_UCODE_DBG_DATA_PIPE"))
+      dump_cp_ucode_dbg(buf);
+
+// TODO
+//   if (!strcmp(name, "CP_SLICE_MEM_POOL_DBG_DATA_PIPE"))
+//      dump_cp_mem_pool(buf, !strcmp(pipe, "PIPE_BV"));
+
+   if (dump)
+      dump_hex_ascii(buf, 4 * hdr->count, 1);
+}
+
+static void
+decode_snapshot_debug(const struct snapshot_debug *hdr, uint32_t len)
+{
+   static const char *names[] = {
+#define N(x) [SNAPSHOT_DEBUG_ ## x] = #x
+      N(CP_MEQ),
+      N(CP_PM4_RAM),
+      N(CP_PFP_RAM),
+      N(CP_ROQ),
+      N(SHADER_MEMORY),
+      N(CP_MERCIU),
+      N(SQE_VERSION),
+      N(GMU_CORE_VERSION),
+      N(GMU_CORE_DEV_VERSION),
+      N(GMU_PWR_VERSION),
+      N(GMU_PWR_DEV_VERSION),
+      N(GMU_HFI_VERSION),
+      N(AQE_VERSION),
+      N(SLICE_MASK),
+#undef N
+   };
+
+   const char *name = (hdr->type < ARRAY_SIZE(names)) ? names[hdr->type] : "INVALID";
+   const void *mem  = &hdr[1];
+   uint32_t mem_len = len - sizeof(*hdr);
+
+   assert(len > sizeof(*hdr));
+
+   printf("      type: %s\n", name);
+   dump_hex_ascii(mem, mem_len, 1);
+}
+
+static void
+decode_snapshot_gmu_memory(const struct snapshot_gmu_mem *hdr, uint32_t len)
+{
+   static const char *names[] = {
+#define N(x) [SNAPSHOT_GMU_MEM_ ## x] = #x
+      N(UNKNOWN),
+      N(HFI),
+      N(LOG),
+      N(BWTABLE),
+      N(DEBUG),
+      N(BIN_BLOCK),
+      N(CONTEXT_QUEUE),
+      N(HW_FENCE),
+      N(WARMBOOT),
+      N(VRB),
+      N(TRACE),
+#undef N
+   };
+   const char *name = (hdr->type < ARRAY_SIZE(names)) ? names[hdr->type] : "INVALID";
+   const void *mem  = &hdr[1];
+   uint32_t mem_len = len - sizeof(*hdr);
+
+   assert(len > sizeof(*hdr));
+
+   printf("      type: %s\n", name);
+
+   switch (hdr->type) {
+   case SNAPSHOT_GMU_MEM_HFI:
+      if (verbose)
+         dump_hex_ascii(mem, mem_len, 1);
+
+      /* hfi queue history decoded in decode_gmu_hfi(), but BO contents are here. */
+      hfi.iova = hdr->gmuaddr;
+      hfi.size = mem_len;
+      hfi.buf  = (void *)mem;
+
+      dump_gmu_hfi(&hfi);
+
+      break;
+   default:
+      if (verbose)
+         dump_hex_ascii(mem, mem_len, 1);
+      break;
+   }
+}
+
+static void
+decode_snapshot_gpu_object_v2(const struct snapshot_gpu_object_v2 *hdr, uint32_t len)
+{
+   static const char *names[] = {
+#define N(x) [SNAPSHOT_GPU_OBJECT_ ## x] = #x
+      N(SHADER),
+      N(IB),
+      N(GENERIC),
+      N(DRAW),
+      N(GLOBAL),
+#undef N
+   };
+   const char *name = (hdr->type < ARRAY_SIZE(names)) ? names[hdr->type] : "INVALID";
+   const void *mem  = &hdr[1];
+   uint32_t mem_len = len - sizeof(*hdr);
+
+   assert(len > sizeof(*hdr));
+
+   printf("      type: %s\n", name);
+   printf("      iova: 0x%016" PRIx64 "\n", hdr->gpuaddr);
+   printf("      size: 0x%016" PRIx64 "\n", hdr->size);
+
+   if (verbose)
+      dump_hex_ascii(mem, mem_len, 1);
+}
+
+static void
+decode_snapshot_debugbus(const struct snapshot_debugbus *hdr, uint32_t len)
+{
+   const void *mem  = &hdr[1];
+   uint32_t mem_len = len - sizeof(*hdr);
+
+   printf("      id: %d\n", hdr->id);
+
+   if (verbose)
+      dump_hex_ascii(mem, mem_len, 1);
+}
+
+static void
+decode_snapshot_side_debugbus(const struct snapshot_side_debugbus *hdr, uint32_t len)
+{
+   const void *mem  = &hdr[1];
+   uint32_t mem_len = len - sizeof(*hdr);
+
+   printf("      id: %d\n", hdr->id);
+   printf("      valid-data: 0x%x\n", hdr->valid_data);
+
+   if (verbose)
+      dump_hex_ascii(mem, mem_len, 1);
+}
+
+static void
+decode_snapshot_mvc_v3(const struct snapshot_mvc_regs_v3 *hdr, uint32_t len)
+{
+   const char *pipe = enumname("adreno_pipe", hdr->pipe_id);
+   const char *cluster = enumname("a8xx_cluster", hdr->cluster_id);
+
+   printf("      ctx-id: %u\n", hdr->ctxt_id);
+   printf("      cluster-id: %s (%u)\n", cluster, hdr->cluster_id);
+   printf("      pipe-id: %s (%u)\n", pipe, hdr->pipe_id);
+   if (hdr->location_id != UINT_MAX) {
+      const char *location = enumname("a8xx_state_location", hdr->location_id);
+      printf("      location-id: %s (%u)\n", location, hdr->location_id);
+   }
+   if (hdr->slice_id != UINT_MAX)
+      printf("      slice-id: %u\n", hdr->slice_id);
+   if (hdr->sp_id != UINT_MAX)
+      printf("      sp-id: %u\n", hdr->sp_id);
+   if (hdr->usptp_id != UINT_MAX)
+      printf("      usptp-id: %u\n", hdr->usptp_id);
+   printf("      regs:\n");
+
+   const uint32_t *buf  = (uint32_t *)&hdr[1];
+   uint32_t buf_len = (len - sizeof(*hdr));
+
+   /* We aren't expecting any GMU regs here: */
+   struct regacc r = regacc(NULL);
+
+   for (uint32_t off = 0; off < buf_len/4; ) {
+      uint32_t start = buf[off++];
+      uint32_t end;
+
+      if (start & BITFIELD_BIT(31)) {
+         start &= ~BITFIELD_BIT(31);
+         end = buf[off++];
+      } else {
+         end = start;
+      }
+
+      for (uint32_t reg = start; reg <= end; reg++ ) {
+         uint32_t value = buf[off++];
+
+         /* We don't track last reg values per-pipe, so only record
+          * values from the BR pipe:
+          */
+         if (!strcmp(pipe, "PIPE_BR") ||
+             !strcmp(pipe, "PIPE_NONE"))
+            reg_set(reg, value);
+
+         if (regacc_push(&r, reg, value)) {
+            printf("\t%08"PRIx64"\t", r.value);
+            dump_register(&r);
+         }
+      }
+   }
+
+   if (verbose)
+      dump_hex_ascii(buf, buf_len, 1);
+}
+
+static void
+decode_snapshot_shader_v3(const struct snapshot_shader_v3 *hdr, uint32_t len)
+{
+   printf("      type: %s (%u)\n",
+          enumname("a8xx_statetype_id", hdr->type), hdr->type);
+   if (hdr->slice_id != UINT_MAX)
+      printf("      slice-id: %u\n", hdr->slice_id);
+   printf("      sp-id: %d\n", hdr->sp_index);
+   printf("      usptp-id: %d\n", hdr->usptp);
+   printf("      pipe-id: %s (%u)\n",
+          enumname("adreno_pipe", hdr->pipe_id),
+          hdr->pipe_id);
+   printf("      location-id: %u\n", hdr->location);
+   printf("      ctx-id: %u\n", hdr->ctxt_id);
+   printf("      size: %u\n", hdr->size);
+   printf("      regs:\n");
+
+   const uint32_t *buf  = (uint32_t *)&hdr[1];
+   uint32_t buf_len = (len - sizeof(*hdr));
+
+   dump_hex_ascii(buf, buf_len, 1);
+}
+
+static void
+decode_snapshot_section(const struct snapshot_section_header *hdr)
+{
+   const void *payload = &hdr[1];
+   unsigned len = hdr->size - sizeof(*hdr);
+
+   switch (hdr->id) {
+   case SNAPSHOT_SECTION_REGS_V2:
+      printf("    - section: REGS_V2\n");
+      decode_snapshot_regs_v2(payload, len);
+      break;
+   case SNAPSHOT_SECTION_INDEXED_REGS_V2:
+      printf("    - section: INDEXED_REGS_V2\n");
+      decode_snapshot_indexed_regs_v2(payload, len);
+      break;
+   case SNAPSHOT_SECTION_DEBUG:
+      printf("    - section: DEBUG\n");
+      decode_snapshot_debug(payload, len);
+      break;
+   case SNAPSHOT_SECTION_GMU_MEMORY:
+      printf("    - section: GMU_MEMORY\n");
+      decode_snapshot_gmu_memory(payload, len);
+      break;
+   case SNAPSHOT_SECTION_GPU_OBJECT_V2:
+      printf("    - section: GPU_OBJECT_V2\n");
+      decode_snapshot_gpu_object_v2(payload, len);
+      break;
+   case SNAPSHOT_SECTION_DEBUGBUS:
+      printf("    - section: DEBUGBUS\n");
+      decode_snapshot_debugbus(payload, len);
+      break;
+   case SNAPSHOT_SECTION_SIDE_DEBUGBUS:
+      printf("    - section: SIDE_DEBUGBUS\n");
+      decode_snapshot_side_debugbus(payload, len);
+      break;
+   case SNAPSHOT_SECTION_MVC_V3:
+      printf("    - section: MVC_V3\n");
+      decode_snapshot_mvc_v3(payload, len);
+      break;
+   case SNAPSHOT_SECTION_SHADER_V3:
+      printf("    - section: SHADER_V3\n");
+      decode_snapshot_shader_v3(payload, len);
+      break;
+   default:
+      printf("    unhandled: %04x\n", hdr->id);
+   }
+}
+
+static void
+decode_snapshot(void)
+{
+   uint32_t size = 0;
+
+   foreach_line_in_section (line) {
+      if (startswith(line, "    size:")) {
+         parseline(line, "    size: %u", &size);
+         printf("    size: %u (0x%x)\n", size, size);
+      } else if (startswith(line, "    data: !!ascii85 |")) {
+         uint32_t *buf = popline_ascii85(size / 4);
+
+         if (verbose)
+            dump_hex_ascii(buf, size, 1);
+
+         /* Pass straight thru if converting devcoredump to snapshot: */
+         if (snapshot)
+            snapshot_write(buf, size);
+
+         uint8_t *ptr = (uint8_t *)buf;
+         uint8_t *end = &ptr[size];
+         while (ptr < end) {
+            const struct snapshot_section_header *hdr = (void *)ptr;
+
+            decode_snapshot_section(hdr);
+
+            ptr += hdr->size;
+         }
+
+         free(buf);
+      }
+   }
+}
+
+/*
  * Main crashdump decode loop:
  */
 
@@ -1251,6 +1625,8 @@ decode(void)
          decode_fault_info();
       } else if (startswith(line, "bos:")) {
          decode_bos();
+      } else if (startswith(line, "snapshot:")) {
+         decode_snapshot();
       } else if (startswith(line, "ringbuffer:")) {
          decode_ringbuffer();
       } else if (startswith(line, "gmu-log:")) {
