@@ -684,7 +684,7 @@
         "description": "jay: Lower terminate to demote after jay_populate_prog_data",
         "nominated": true,
         "nomination_type": 4,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
