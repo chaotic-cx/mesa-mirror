@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 use std::cmp::Reverse;
-use std::num::{NonZeroU32, NonZeroU64};
+use std::num::{NonZeroU8, NonZeroU16, NonZeroU32, NonZeroU64};
 
 use crate::ir::*;
 use compiler::smallvec::SmallVec;
@@ -361,8 +361,20 @@ impl std::fmt::Display for FauAlloc {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum ConstEntry {
+    I8(NonZeroU8),
+    I16(NonZeroU16),
     I32(NonZeroU32),
     I64(NonZeroU64),
+}
+
+fn bitmask32_from_byte(bytes_read: u8) -> u32 {
+    let mut acc = 0;
+    for idx in 0..8 {
+        if (1 << idx) & bytes_read > 0 {
+            acc |= 0xff << (idx * 8);
+        }
+    }
+    acc
 }
 
 impl ConstEntry {
@@ -377,7 +389,19 @@ impl ConstEntry {
                 if model.op_src_supports_imm32(op, src, v.get()) {
                     None
                 } else {
-                    Some(ConstEntry::I32(*v))
+                    let t = op.src_type(src);
+                    let read_mask = src.swizzle.bytes_read(t.total_bytes());
+                    let v = v.get() & bitmask32_from_byte(read_mask);
+                    match u8::BITS - read_mask.leading_zeros() {
+                        1 => {
+                            Some(ConstEntry::I8((v as u8).try_into().unwrap()))
+                        }
+                        2 => Some(ConstEntry::I16(
+                            (v as u16).try_into().unwrap(),
+                        )),
+                        3 | 4 => Some(ConstEntry::I32(v.try_into().unwrap())),
+                        _ => unreachable!("must be Imm64"),
+                    }
                 }
             }
             SrcRef::Imm64(v) => Some(ConstEntry::I64(*v)),
@@ -385,10 +409,12 @@ impl ConstEntry {
         }
     }
 
-    fn words(self) -> u8 {
+    fn bytes(self) -> u8 {
         match self {
-            ConstEntry::I32(_) => 1,
-            ConstEntry::I64(_) => 2,
+            ConstEntry::I8(_) => 1,
+            ConstEntry::I16(_) => 2,
+            ConstEntry::I32(_) => 4,
+            ConstEntry::I64(_) => 8,
         }
     }
 }
@@ -432,6 +458,8 @@ fn fau_emit_const(fau: &mut pan_fau_layout, imm: u32) -> u16 {
 impl From<ConstEntry> for Val {
     fn from(value: ConstEntry) -> Self {
         match value {
+            ConstEntry::I8(imm8) => Val::new(1, imm8.get().into()),
+            ConstEntry::I16(imm16) => Val::new(2, imm16.get().into()),
             ConstEntry::I32(imm32) => Val::new(4, imm32.get().into()),
             ConstEntry::I64(imm64) => Val::new(8, imm64.get()),
         }
@@ -441,6 +469,12 @@ impl From<ConstEntry> for Val {
 impl From<Val> for ConstEntry {
     fn from(value: Val) -> Self {
         match value.byte_size {
+            1 => ConstEntry::I8(
+                NonZeroU8::new(value.val.try_into().unwrap()).unwrap(),
+            ),
+            2 => ConstEntry::I16(
+                NonZeroU16::new(value.val.try_into().unwrap()).unwrap(),
+            ),
             4 => ConstEntry::I32(
                 NonZeroU32::new(value.val.try_into().unwrap()).unwrap(),
             ),
@@ -560,7 +594,7 @@ fn promote_consts(s: &mut Shader, fau: &mut pan_fau_layout) {
                     continue;
                 };
 
-                let align = entry.words() * 4;
+                let align = entry.bytes();
                 let offset_in_word = (byte_idx as u8) % 4;
                 let extract_swizzle = match (align, offset_in_word) {
                     (1, offset) => Swizzle::replicate_byte(offset),
@@ -579,7 +613,9 @@ fn promote_consts(s: &mut Shader, fau: &mut pan_fau_layout) {
                 debug_assert!(align < 8 || fau_word_idx % 2 == 0);
 
                 let fau_ref = match entry {
-                    ConstEntry::I32(_) => FAURef::user_i32(fau_word_idx),
+                    ConstEntry::I8(_)
+                    | ConstEntry::I16(_)
+                    | ConstEntry::I32(_) => FAURef::user_i32(fau_word_idx),
                     ConstEntry::I64(_) => FAURef::user_i64(fau_word_idx),
                 };
 
