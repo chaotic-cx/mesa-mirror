@@ -1484,7 +1484,7 @@
         "description": "tu: Skip zero sized inline uniform blocks",
         "nominated": true,
         "nomination_type": 3,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "7bdcbe11ac507b0b96d2333aaeab5cf63de9ad10",
         "notes": null
