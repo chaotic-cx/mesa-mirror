@@ -584,7 +584,7 @@
         "description": "pan: avoid 0/0 with null texel buffer sizes",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "e3fcc704ab172cf2275d973c2e122d4348aaa1c1",
         "notes": null

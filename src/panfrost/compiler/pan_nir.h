@@ -99,7 +99,8 @@ pan_nir_load_va_buf_size_el(nir_builder *b, nir_def *handle)
 {
    nir_def *size = pan_nir_load_va_desc(b, 1, 32, handle, 1 * 4);
    nir_def *stride = pan_nir_load_va_desc(b, 1, 32, handle, 4 * 4);
-   return nir_udiv(b, size, stride);
+   nir_def *zero = nir_imm_int(b, 0);
+   return nir_bcsel(b, nir_ieq(b, size, zero), zero, nir_udiv(b, size, stride));
 }
 
 static inline nir_def *
