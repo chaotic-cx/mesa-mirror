@@ -44,6 +44,8 @@ struct amdvgpu_host_blob *create_host_blob(uint32_t kms_handle,
                                            struct amdgpu_ccmd_gem_new_req *req)
 {
    struct amdvgpu_host_blob *hb = calloc(1, sizeof(*hb));
+   if (!hb)
+      return NULL;
    hb->handle = kms_handle;
    hb->res_id = res_id;
    hb->alloc_size = size;
@@ -90,6 +92,10 @@ alloc_host_blob(amdvgpu_bo_handle bo,
       res_id = vdrm_handle_to_res_id(bo->dev->vdev, kms_handle);
 
       bo->host_blob = create_host_blob(kms_handle, res_id, req->r.alloc_size, req);
+      if (!bo->host_blob) {
+         vdrm_bo_close(bo->dev->vdev, kms_handle);
+         return -1;
+      }
 
       simple_mtx_lock(&bo->dev->handle_to_vbo_mutex);
       _mesa_hash_table_u64_insert(bo->dev->handle_to_vbo, bo->host_blob->handle, bo);
@@ -184,6 +190,8 @@ int amdvgpu_bo_alloc(amdvgpu_device_handle dev,
    assert(req.blob_id > 0);
 
    amdvgpu_bo_handle out = calloc(1, sizeof(struct amdvgpu_bo));
+   if (out == NULL)
+      return -1;
    out->dev = dev;
    out->size = request->alloc_size;
 
@@ -274,6 +282,11 @@ int amdvgpu_bo_import(amdvgpu_device_handle dev, enum amdgpu_bo_handle_type type
    bo->dev = dev;
    bo->size = size;
    bo->host_blob = create_host_blob(kms_handle, res_id, size, NULL);
+   if (!bo->host_blob) {
+      vdrm_bo_close(dev->vdev, kms_handle);
+      free(bo);
+      return -1;
+   }
    p_atomic_set(&bo->refcount, 1);
 
    result->buf_handle = bo;

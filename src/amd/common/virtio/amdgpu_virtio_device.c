@@ -129,6 +129,12 @@ int amdvgpu_device_initialize(int fd, uint32_t *drm_major, uint32_t *drm_minor,
    }
 
    dev = calloc(1, sizeof(struct amdvgpu_device));
+   if (!dev) {
+      vdrm_device_close(vdev);
+      close(fd);
+      simple_mtx_unlock(&dev_mutex);
+      return -1;
+   }
    dev->refcount = 1;
    dev->next = dev_list;
    dev_list = dev;
