@@ -77,6 +77,10 @@ def get_cond_index(conds, cond):
         return -1
 
 
+def op_num_srcs(op):
+    return 1 if op in conv_opcode_types else opcodes[op].num_inputs
+
+
 def get_c_opcode(op):
     if op in conv_opcode_types:
         return 'nir_search_op_' + op
@@ -887,7 +891,7 @@ class TreeAutomaton(object):
     + 1 table lookups for each n-source operation. The implementation is based
     on the theory described in "Tree Automatons: Two Taxonomies and a Toolkit."
     In the language of that reference, this is a frontier-to-root deterministic
-    automaton using only symbol filtering. The filtering is crucial to reduce
+    automaton using symbol and operand-position filtering. Filtering reduces
     both the time taken to generate the tables and the size of the tables.
     """
 
@@ -896,6 +900,7 @@ class TreeAutomaton(object):
         self._compute_items()
         self._build_table()
         assert all(len(rep) <= 256 for rep in self.rep.values())
+        self._flatten_tables()
         # print('num items: {}'.format(len(set(self.items.values()))))
         # print('num states: {}'.format(len(self.states)))
         # for state, patterns in zip(self.states, self.patterns):
@@ -958,8 +963,7 @@ class TreeAutomaton(object):
             self.children = children
             # These are the indices of patterns for which this item is the root node.
             self.patterns = []
-            # This the set of opcodes for parents of this item. Used to speed up
-            # filtering.
+            # Parent opcode/source positions at which this item is relevant.
             self.parent_ops = set()
 
         def __str__(self):
@@ -1020,7 +1024,10 @@ class TreeAutomaton(object):
                 children = tuple(process_subpattern(c) for c in src.sources)
                 item = get_item(opcode, children, pattern)
                 for i, child in enumerate(children):
-                    child.parent_ops.add(opcode)
+                    child.parent_ops.add((opcode, i))
+                    # The aliases above swap only the first two sources.
+                    if i < 2 and src.is_2src_commutative():
+                        child.parent_ops.add((opcode, 1 - i))
                 return item
 
         for i, pattern in enumerate(self.patterns):
@@ -1043,19 +1050,18 @@ class TreeAutomaton(object):
         self.state_patterns = [None]
         # Offset in the ->transforms table for each state index
         self.state_pattern_offsets = []
-        # Map from state index to filtered state index for each opcode.
+        # Map from state index to filtered state index for each (opcode, source).
         self.filter = defaultdict(list)
         # Bijections from filtered state to filtered state index for each
-        # opcode, called the "representor sets" in the original algorithm.
-        # q_{a,j} in the original algorithm is len(self.rep[op]).
+        # operand position, called the "representor sets" in the original algorithm.
+        # q_{a,j} in the original algorithm is len(self.rep[op, j]).
         self.rep = defaultdict(self.IndexMap)
 
         # Everything in self.states with a index at least worklist_index is part
         # of the worklist of newly created states. There is also a worklist of
         # newly fitered states for each opcode, for which worklist_indices
         # serves a similar purpose. worklist_index corresponds to p in the
-        # original algorithm, while worklist_indices is p_{a,j} (although since
-        # we only filter by opcode/symbol, it's really just p_a).
+        # original algorithm, while worklist_indices is p_{a,j}.
         self.worklist_index = 0
         worklist_indices = defaultdict(lambda: 0)
 
@@ -1092,17 +1098,18 @@ class TreeAutomaton(object):
                 # calculate filter table for this state, and update filtered
                 # worklists.
                 for op in self.opcodes:
-                    filt = self.filter[op]
-                    rep = self.rep[op]
-                    filtered = frozenset(item for item in state if
-                                         op in item.parent_ops)
-                    if filtered in rep:
-                        rep_index = rep.index(filtered)
-                    else:
-                        rep_index = rep.add(filtered)
-                        new_opcodes.add(op)
-                    assert len(filt) == self.worklist_index
-                    filt.append(rep_index)
+                    for i in range(op_num_srcs(op)):
+                        filt = self.filter[op, i]
+                        rep = self.rep[op, i]
+                        filtered = frozenset(item for item in state if
+                                             (op, i) in item.parent_ops)
+                        if filtered in rep:
+                            rep_index = rep.index(filtered)
+                        else:
+                            rep_index = rep.add(filtered)
+                            new_opcodes.add(op)
+                        assert len(filt) == self.worklist_index
+                        filt.append(rep_index)
                 self.worklist_index += 1
 
         # There are two start states: one which can only match as a wildcard,
@@ -1117,21 +1124,17 @@ class TreeAutomaton(object):
 
         while len(new_opcodes) > 0:
             for op in new_opcodes:
-                rep = self.rep[op]
+                reps = [self.rep[op, i] for i in range(op_num_srcs(op))]
                 table = self.table[op]
-                op_worklist_index = worklist_indices[op]
-                if op in conv_opcode_types:
-                    num_srcs = 1
-                else:
-                    num_srcs = opcodes[op].num_inputs
 
                 # Iterate over all possible source combinations where at least one
                 # is on the worklist.
-                for src_indices in itertools.product(range(len(rep)), repeat=num_srcs):
-                    if all(src_idx < op_worklist_index for src_idx in src_indices):
+                for src_indices in itertools.product(*(range(len(rep)) for rep in reps)):
+                    if all(src_idx < worklist_indices[op, i]
+                           for i, src_idx in enumerate(src_indices)):
                         continue
 
-                    srcs = tuple(rep[src_idx] for src_idx in src_indices)
+                    srcs = tuple(rep[src_idx] for rep, src_idx in zip(reps, src_indices))
 
                     # Try all possible pairings of source items and add the
                     # corresponding parent items. This is Comp_a from the paper.
@@ -1143,9 +1146,38 @@ class TreeAutomaton(object):
                     parent.add(self.wildcard)
 
                     table[src_indices] = self.states.add(frozenset(parent))
-                worklist_indices[op] = len(rep)
+                for i, rep in enumerate(reps):
+                    worklist_indices[op, i] = len(rep)
             new_opcodes.clear()
             process_new_states()
+
+    def _flatten_tables(self):
+        """Fill in self.src_filters[op], a list with one
+        (filter, num_filtered_states) pair per source where filter is None if
+        every state maps to 0, and self.op_table[op], the dense transition
+        table in itertools.product() order.
+        """
+        self.src_filters = {}
+        self.op_table = {}
+        for op in self.opcodes:
+            table = self.table[op]
+            srcs = range(op_num_srcs(op))
+            dims = [len(self.rep[op, i]) for i in srcs]
+            self.src_filters[op] = [
+                (self.filter[op, i] if any(self.filter[op, i]) else None,
+                 dims[i]) for i in srcs]
+            self.op_table[op] = [table[indices] for indices in
+                                 itertools.product(*(range(n) for n in dims))]
+
+    def filter_arrays(self):
+        """Return the distinct non-NULL source filters, so that sources and
+        opcodes which share a filter can share the array that holds it."""
+        arrays = self.IndexMap()
+        for op in self.opcodes:
+            for filt, _ in self.src_filters[op]:
+                if filt is not None:
+                    arrays.add(tuple(filt))
+        return arrays
 
 
 _algebraic_pass_template = mako.template.Template("""
@@ -1197,28 +1229,30 @@ static const struct transform ${pass_name}_transforms[] = {
 % endfor
 };
 
+<% filter_arrays = automaton.filter_arrays() %>
+% for i, filt in enumerate(filter_arrays):
+static const uint8_t ${pass_name}_filter_${i}[] = {
+% for e in filt:
+   ${e},
+% endfor
+};
+% endfor
+
 static const struct per_op_table ${pass_name}_pass_op_table[nir_num_search_ops] = {
 % for op in automaton.opcodes:
    [${get_c_opcode(op)}] = {
-% if all(e == 0 for e in automaton.filter[op]):
-      .filter = NULL,
+      .srcs = (const struct per_src_filter []) {
+% for filt, num_filtered in automaton.src_filters[op]:
+% if filt is None:
+         { NULL, ${num_filtered} },
 % else:
-      .filter = (const uint8_t []) {
-      % for e in automaton.filter[op]:
-         ${e},
-      % endfor
-      },
+         { ${pass_name}_filter_${filter_arrays.index(tuple(filt))}, ${num_filtered} },
 % endif
-      <%
-        num_filtered = len(automaton.rep[op])
-      %>
-      .num_filtered_states = ${num_filtered},
+% endfor
+      },
       .table = (const uint16_t []) {
-      <%
-        num_srcs = len(next(iter(automaton.table[op])))
-      %>
-      % for indices in itertools.product(range(num_filtered), repeat=num_srcs):
-         ${automaton.table[op][indices]},
+      % for e in automaton.op_table[op]:
+         ${e},
       % endfor
       },
    },

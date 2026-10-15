@@ -158,9 +158,25 @@ typedef struct {
    int16_t cond_index;
 } nir_search_expression;
 
-struct per_op_table {
+struct per_src_filter {
+   /* Maps an automaton state to a filtered state index for this source, or
+    * NULL if every state maps to 0.
+    */
    const uint8_t *filter;
+   /* The size of this source's dimension in per_op_table::table.
+    * If filter != NULL, this is also the length of the filter array.
+    */
    unsigned num_filtered_states;
+};
+
+struct per_op_table {
+   /* One filter per source, giving the dimensions of the rectangular
+    * transition table. Sources may share the same filter.
+    */
+   const struct per_src_filter *srcs;
+   /* Transition table, indexed by the filtered state of each source in
+    * row-major order, or NULL if the opcode isn't used by the pass.
+    */
    const uint16_t *table;
 };
 
