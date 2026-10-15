@@ -1806,9 +1806,9 @@ static void amdgpu_cs_submit_ib(void *job, void *gdata, int thread_index)
             amdgpu_do_add_buffer(csc, &backing->bo->b, &csc->buffer_lists[AMDGPU_BO_REAL], true);
          if (!real_buffer) {
             mesa_loge("%s: failed to add sparse backing buffer\n", __func__);
-            simple_mtx_unlock(&sparse_bo->commit_lock);
             r = -ENOMEM;
             out_of_memory = true;
+            break;
          }
 
          real_buffer->usage = buffer->usage;
