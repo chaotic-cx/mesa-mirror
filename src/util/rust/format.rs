@@ -180,4 +180,47 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn formats_compatible() {
+        for i in 0..PIPE_FORMAT_COUNT {
+            let src = pipe_format::try_from(i).unwrap();
+            for j in 0..PIPE_FORMAT_COUNT {
+                let dst = pipe_format::try_from(j).unwrap();
+
+                let expected = match (src, dst) {
+                    (PIPE_FORMAT_A8R8G8B8_UNORM, PIPE_FORMAT_R8G8B8A8_UNORM) => Some(false),
+                    (PIPE_FORMAT_R8G8B8X8_UNORM, PIPE_FORMAT_R8G8B8A8_UNORM) => Some(false),
+                    (PIPE_FORMAT_R8G8B8A8_UNORM, PIPE_FORMAT_R8G8B8X8_SRGB) => Some(false),
+
+                    (PIPE_FORMAT_R8G8B8A8_UNORM, PIPE_FORMAT_R8G8B8X8_UNORM) => Some(true),
+                    (PIPE_FORMAT_L8_UNORM, PIPE_FORMAT_A8_UNORM) => Some(false),
+                    (PIPE_FORMAT_L8_UNORM, PIPE_FORMAT_R8_UNORM) => Some(true),
+                    (PIPE_FORMAT_I8_UNORM, PIPE_FORMAT_R8_UNORM) => Some(true),
+                    (PIPE_FORMAT_I8_UNORM, PIPE_FORMAT_A8_UNORM) => Some(true),
+                    (PIPE_FORMAT_I8_UNORM, PIPE_FORMAT_L8_UNORM) => Some(true),
+                    (PIPE_FORMAT_I16_UNORM, PIPE_FORMAT_L16_UNORM) => Some(true),
+                    (PIPE_FORMAT_Z24_UNORM_S8_UINT, PIPE_FORMAT_Z24X8_UNORM) => Some(true),
+                    (PIPE_FORMAT_S8_UINT_Z24_UNORM, PIPE_FORMAT_X8Z24_UNORM) => Some(true),
+                    (PIPE_FORMAT_R8G8B8A8_SRGB, PIPE_FORMAT_R8G8B8X8_SRGB) => Some(true),
+                    (PIPE_FORMAT_R10G10B10A2_USCALED, PIPE_FORMAT_R10G10B10X2_USCALED) => {
+                        Some(true)
+                    }
+                    (PIPE_FORMAT_R10SG10SB10SA2U_NORM, PIPE_FORMAT_R10G10B10X2_SNORM) => Some(true),
+                    _ => None,
+                };
+
+                let compatible = src.compatible(dst);
+
+                // note: run test with --no-capture to see this output.
+                if compatible {
+                    println!("{} -> {}", src, dst);
+                }
+
+                if let Some(expected) = expected {
+                    assert_eq!(compatible, expected, "{} -> {}", src, dst);
+                }
+            }
+        }
+    }
 }
