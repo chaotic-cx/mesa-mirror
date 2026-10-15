@@ -455,7 +455,10 @@ radv_decompress_depth_stencil(struct radv_cmd_buffer *cmd_buffer, struct radv_im
    barrier.layout_transitions.depth_stencil_expand = 1;
    radv_describe_layout_transition(cmd_buffer, &barrier);
 
-   if (cmd_buffer->qf == RADV_QUEUE_GENERAL) {
+   /* We can only do draw-based decompression outside render passes. */
+   const bool use_draw_based_decompression = cmd_buffer->qf == RADV_QUEUE_GENERAL && !cmd_buffer->state.render.active;
+
+   if (use_draw_based_decompression) {
       radv_process_depth_stencil(cmd_buffer, image, subresourceRange, sample_locs);
 
       cmd_buffer->state.flush_bits |=
@@ -475,7 +478,7 @@ radv_decompress_depth_stencil(struct radv_cmd_buffer *cmd_buffer, struct radv_im
 
    enum radv_meta_htile_preserve_flags preserve = RADV_HTILE_PRESERVE_VRS | RADV_HTILE_DYNAMIC_ZRANGE_PRECISION;
 
-   if (cmd_buffer->qf == RADV_QUEUE_GENERAL) {
+   if (use_draw_based_decompression) {
       /* Z/S decompression via DB always sets the compression bits. */
       preserve |= RADV_HTILE_PRESERVE_Z_COMPRESSION | RADV_HTILE_PRESERVE_STENCIL_COMPRESSION;
    } else if (radv_image_decompress_htile_on_image_stores(device, image)) {

@@ -582,7 +582,8 @@ radv_decompress_dcc(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image
    barrier.layout_transitions.dcc_decompress = 1;
    radv_describe_layout_transition(cmd_buffer, &barrier);
 
-   if (cmd_buffer->qf == RADV_QUEUE_GENERAL) {
+   /* We can only do draw-based decompression outside render passes. */
+   if (cmd_buffer->qf == RADV_QUEUE_GENERAL && !cmd_buffer->state.render.active) {
       radv_process_color_image(cmd_buffer, image, subresourceRange, DCC_DECOMPRESS);
 
       cmd_buffer->state.flush_bits |= AC_BARRIER_SYNC_AND_INV_CB | AC_BARRIER_SYNC_AND_INV_CB_META;
