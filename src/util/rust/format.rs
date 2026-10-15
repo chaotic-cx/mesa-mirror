@@ -154,3 +154,15 @@ impl PipeFormat for pipe_format {
         unsafe { util_is_format_compatible(self.description(), dst.description()) }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pipe_format::*;
+
+    #[test]
+    fn is_srgb() {
+        assert!(PIPE_FORMAT_R8G8B8A8_SRGB.is_srgb());
+        assert!(!PIPE_FORMAT_R8G8B8A8_UNORM.is_srgb());
+    }
+}

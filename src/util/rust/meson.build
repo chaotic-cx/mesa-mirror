@@ -99,3 +99,17 @@ util_rs_bindgen_args = [
 foreach type : _util_binding_types
   util_rs_bindgen_args += ['--blocklist-type', type]
 endforeach
+
+if with_tests and get_option('b_sanitize') == 'none'
+  rust.test(
+    'util_rs',
+    _libmesa_util_rs,
+    suite : ['util'],
+    dependencies : [
+      idep_mesautil.partial_dependency(link_args : true, links : true),
+    ],
+    # This is needed to ensure we link against glibc
+    # See also https://gitlab.freedesktop.org/mesa/mesa/-/issues/11632
+    rust_args: ['-C', 'default-linker-libraries'],
+  )
+endif
