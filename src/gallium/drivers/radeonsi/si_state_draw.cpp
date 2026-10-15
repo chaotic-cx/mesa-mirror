@@ -374,47 +374,52 @@ static bool si_update_shaders_shared_by_vertex_and_mesh_pipe(struct si_context *
             pipeline = (struct si_sqtt_fake_pipeline *)
                CALLOC(1, sizeof(struct si_sqtt_fake_pipeline));
 
-            pipeline->code_hash = pipeline_code_hash;
-            pipeline->bo = bo;
+            if (pipeline) {
+               pipeline->code_hash = pipeline_code_hash;
+               pipeline->bo = bo;
 
-            /* Re-upload all gfx shaders and init PM4. */
-            si_pm4_clear_state(&pipeline->pm4, sctx->screen, false);
+               /* Re-upload all gfx shaders and init PM4. */
+               si_pm4_clear_state(&pipeline->pm4, sctx->screen, false);
 
-            uint32_t offset = 0;
-            uint64_t scratch_va = sctx->scratch_buffer ? sctx->scratch_buffer->gpu_address : 0;
-            uint32_t gfx_sh_offsets[SI_NUM_SHADERS] = { 0 };
-            if (HAS_MS) {
-               if (sctx->ts_shader_state.program) {
-                  struct si_shader *shader = &sctx->ts_shader_state.program->shader;
-                  gfx_sh_offsets[MESA_SHADER_TASK] = offset;
-                  offset += upload_shader_for_sqtt(sctx, pipeline, shader, offset, scratch_va);
-               }
-
-               gfx_sh_offsets[MESA_SHADER_MESH] = offset;
-               struct si_shader *shader = sctx->ms_shader_state.current;
-               offset += upload_shader_for_sqtt(sctx, pipeline, shader, offset, scratch_va);
-
-               shader = sctx->shader.ps.current;
-               if (sctx->shader.ps.cso && shader) {
-                  gfx_sh_offsets[MESA_SHADER_FRAGMENT] = offset;
-                  offset += upload_shader_for_sqtt(sctx, pipeline, shader, offset, scratch_va);
-               }
-            } else {
-               for (int i = 0; i < SI_NUM_GRAPHICS_SHADERS; i++) {
-                  struct si_shader *shader = sctx->shaders[i].current;
-                  if (sctx->shaders[i].cso && shader) {
-                     gfx_sh_offsets[i] = offset;
+               uint32_t offset = 0;
+               uint64_t scratch_va = sctx->scratch_buffer ? sctx->scratch_buffer->gpu_address : 0;
+               uint32_t gfx_sh_offsets[SI_NUM_SHADERS] = { 0 };
+               if (HAS_MS) {
+                  if (sctx->ts_shader_state.program) {
+                     struct si_shader *shader = &sctx->ts_shader_state.program->shader;
+                     gfx_sh_offsets[MESA_SHADER_TASK] = offset;
                      offset += upload_shader_for_sqtt(sctx, pipeline, shader, offset, scratch_va);
                   }
+
+                  gfx_sh_offsets[MESA_SHADER_MESH] = offset;
+                  struct si_shader *shader = sctx->ms_shader_state.current;
+                  offset += upload_shader_for_sqtt(sctx, pipeline, shader, offset, scratch_va);
+
+                  shader = sctx->shader.ps.current;
+                  if (sctx->shader.ps.cso && shader) {
+                     gfx_sh_offsets[MESA_SHADER_FRAGMENT] = offset;
+                     offset += upload_shader_for_sqtt(sctx, pipeline, shader, offset, scratch_va);
+                  }
+               } else {
+                  for (int i = 0; i < SI_NUM_GRAPHICS_SHADERS; i++) {
+                     struct si_shader *shader = sctx->shaders[i].current;
+                     if (sctx->shaders[i].cso && shader) {
+                        gfx_sh_offsets[i] = offset;
+                        offset += upload_shader_for_sqtt(sctx, pipeline, shader, offset, scratch_va);
+                     }
+                  }
                }
+               ac_pm4_finalize(&pipeline->pm4.base);
+               sctx->screen->ws->buffer_unmap(sctx->screen->ws, bo->buf);
+
+               _mesa_hash_table_u64_insert(sctx->sqtt.data->pipeline_bos,
+                                          pipeline_code_hash, pipeline);
+
+               si_sqtt_register_pipeline(sctx, pipeline, gfx_sh_offsets);
+            } else {
+               sctx->screen->ws->buffer_unmap(sctx->screen->ws, bo->buf);
+               si_resource_reference(&bo, NULL);
             }
-            ac_pm4_finalize(&pipeline->pm4.base);
-            sctx->screen->ws->buffer_unmap(sctx->screen->ws, bo->buf);
-
-            _mesa_hash_table_u64_insert(sctx->sqtt.data->pipeline_bos,
-                                        pipeline_code_hash, pipeline);
-
-            si_sqtt_register_pipeline(sctx, pipeline, gfx_sh_offsets);
          } else {
             if (bo)
                si_resource_reference(&bo, NULL);

@@ -634,6 +634,8 @@ si_spm_init(struct si_context *sctx, struct ac_spm *spm)
    const struct radeon_info *info = &sctx->screen->info;
 
    sctx->screen->perfcounters = CALLOC_STRUCT(si_perfcounters);
+   if (!sctx->screen->perfcounters)
+      return false;
    sctx->screen->perfcounters->num_stop_cs_dwords = 14 + si_cp_write_fence_dwords(sctx->screen);
    sctx->screen->perfcounters->num_instance_cs_dwords = 3;
 
