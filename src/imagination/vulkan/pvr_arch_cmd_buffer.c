@@ -9409,6 +9409,12 @@ pvr_update_indirect_draw_byte_count_ext(struct pvr_cmd_buffer *cmd_buffer,
    pdsc_program **draw_program;
    VkResult result;
 
+   const pvr_dev_addr_t counter_addr =
+      PVR_DEV_ADDR_OFFSET(counter_buffer->dev_addr, counter_buffer_offset);
+
+   /* PDS LD needs 16-byte alignment; select the dword in the program. */
+   const uint32_t dword_select = (counter_addr.addr & 0xF) / sizeof(uint32_t);
+
    struct pvr_pds_xfb_draw_program_input input = {
       .first_instance = first_instance,
       .instance_count = instance_count,
@@ -9416,8 +9422,7 @@ pvr_update_indirect_draw_byte_count_ext(struct pvr_cmd_buffer *cmd_buffer,
       .vertex_stride = vertex_stride,
       .data = {
          .counter_buffer_addr =
-            PVR_DEV_ADDR_OFFSET(counter_buffer->dev_addr,
-                                counter_buffer_offset),
+            PVR_DEV_ADDR(counter_addr.addr & ~UINT64_C(0xF)),
          .output_count_buffer_addr =
             xfb_shader_state->indirect_byte_count->dev_addr,
       },
@@ -9437,7 +9442,7 @@ pvr_update_indirect_draw_byte_count_ext(struct pvr_cmd_buffer *cmd_buffer,
       .dest = pdsc_load_ref(*draw_program,
                             PVR_XFB_VERTEX_COUNT_REF_ID_COUNTER_BUFFER_LD_DEST),
       .cmode = PDSC_CMODE_LD_CACHED,
-      .count8 = 1, /* the 64-bit byte counter */
+      .count8 = 2, /* 16 aligned bytes containing the 32-bit counter */
       .srcadd = input.data.counter_buffer_addr.addr,
    };
 
@@ -9456,7 +9461,7 @@ pvr_update_indirect_draw_byte_count_ext(struct pvr_cmd_buffer *cmd_buffer,
 
    pdsc_patch patches[] = {
       { .patch_id = PVR_XFB_VERTEX_COUNT_PATCH_ID_NEGATIVE_COUNTER_OFFSET,
-        .value = input.counter_offset },
+        .value = (uint64_t)(-(int64_t)input.counter_offset) },
       /* Reciprocal for magic-number multiply division in the pdsc program.
        * GPU computes: vertex_count = hi32(byte_count * recip).
        */
@@ -9474,6 +9479,10 @@ pvr_update_indirect_draw_byte_count_ext(struct pvr_cmd_buffer *cmd_buffer,
       { .patch_id = PVR_XFB_VERTEX_COUNT_PATCH_ID_OUTPUT_COUNT_BUFFER_ST_SRC0,
         .value =
            pdsc_st32_src0_pack(*draw_program, &output_count_buffer_st_src0) },
+      { .patch_id = PVR_XFB_VERTEX_COUNT_PATCH_ID_COUNTER_DWORD_SELECT,
+        .value = dword_select },
+      { .patch_id = PVR_XFB_VERTEX_COUNT_PATCH_ID_DIVIDE_ENABLE,
+        .value = input.vertex_stride > 1 },
    };
 
    assert(ARRAY_SIZE(patches) < pdsc_program_data_size(*draw_program));

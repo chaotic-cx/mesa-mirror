@@ -297,6 +297,12 @@ enum pvr_xfb_vertex_count_patch_id {
 
    /** Patch ID for output count buffer store source 0 */
    PVR_XFB_VERTEX_COUNT_PATCH_ID_OUTPUT_COUNT_BUFFER_ST_SRC0,
+
+   /** Patch ID for counter dword select within the 16-byte aligned load */
+   PVR_XFB_VERTEX_COUNT_PATCH_ID_COUNTER_DWORD_SELECT,
+
+   /** Patch ID for divide enable (0 when vertex stride == 1) */
+   PVR_XFB_VERTEX_COUNT_PATCH_ID_DIVIDE_ENABLE,
 };
 
 /* PDSC XFB vertex count reference IDs */

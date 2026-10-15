@@ -3114,7 +3114,7 @@
         "description": "pvr: fix XFB byte-count draw with unaligned counter offsets",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "cf7c43d4dce0c6b6307075b0fa194f61fdf0f359",
         "notes": null
