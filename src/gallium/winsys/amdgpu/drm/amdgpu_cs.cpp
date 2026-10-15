@@ -1073,7 +1073,8 @@ static void amdgpu_add_slab_backing_buffers(struct amdgpu_cs_context *csc)
        * Mask out the SYNCHRONIZED flag because the backing buffer of slabs shouldn't add its
        * BO fences to fence dependencies. Only the slab entries should do that.
        */
-      real_buffer->usage |= slab_buffer->usage & ~RADEON_USAGE_SYNCHRONIZED;
+      if (real_buffer)
+         real_buffer->usage |= slab_buffer->usage & ~RADEON_USAGE_SYNCHRONIZED;
    }
 }
 
@@ -1734,6 +1735,8 @@ static void amdgpu_cs_submit_ib(void *job, void *gdata, int thread_index)
       }
    }
 
+   bool out_of_memory = false;
+
    /* Since the kernel driver doesn't synchronize execution between different
     * rings automatically, we have to add fence dependencies manually. This gathers sequence
     * numbers from BOs and sets the next sequence number in the BOs.
@@ -1765,14 +1768,18 @@ static void amdgpu_cs_submit_ib(void *job, void *gdata, int thread_index)
                                      &csc->buffer_lists[AMDGPU_BO_REAL], false);
 
       /* We need to set the usage because it determines the BO priority. */
-      real_buffer->usage |= buffer->usage;
+      if (real_buffer) {
+         real_buffer->usage |= buffer->usage;
+      } else {
+         out_of_memory = true;
+         break;
+      }
    }
 
    /* Sparse BOs: Add fence dependencies, update seq_no in BOs, add real buffers. */
    unsigned num_real_buffers_except_sparse = csc->buffer_lists[AMDGPU_BO_REAL].num_buffers;
    struct amdgpu_cs_buffer *sparse_buffers = csc->buffer_lists[AMDGPU_BO_SPARSE].buffers;
    unsigned num_sparse_buffers = csc->buffer_lists[AMDGPU_BO_SPARSE].num_buffers;
-   bool out_of_memory = false;
 
    for (unsigned i = 0; i < num_sparse_buffers; i++) {
       struct amdgpu_cs_buffer *buffer = &sparse_buffers[i];
