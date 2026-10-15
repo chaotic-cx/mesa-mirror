@@ -15,6 +15,7 @@ use compiler::bindings::*;
 use compiler::cfg::CFGBuilder;
 use compiler::nir::*;
 use compiler::nir_instr_printer::NirInstrPrinter;
+use mesa_util::format::pipe_format::*;
 use rustc_hash::{FxBuildHasher, FxHashMap, FxHashSet};
 use std::cmp::max;
 use std::ops::Index;
