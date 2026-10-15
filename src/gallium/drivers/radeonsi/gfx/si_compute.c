@@ -342,8 +342,11 @@ static bool si_switch_compute_shader(struct si_context *sctx, struct si_compute 
 
       if (!si_setup_compute_scratch_buffer(sctx->screen, shader,
                                            &sctx->compute_scratch_buffer,
-                                           sctx->max_seen_compute_scratch_bytes_per_wave))
+                                           sctx->max_seen_compute_scratch_bytes_per_wave)) {
+         if (!sctx->screen->info.has_scratch_base_registers)
+            simple_mtx_unlock(&shader->selector->mutex);
          return false;
+      }
 
       radeon_add_to_buffer_list(sctx, &sctx->gfx_cs, sctx->compute_scratch_buffer,
                                 RADEON_USAGE_READWRITE | RADEON_PRIO_SCRATCH_BUFFER);
