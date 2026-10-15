@@ -421,11 +421,14 @@ pass(jay_function *func)
          if (I->dst.file == GPR) {
             /* TGL PRM Vol. 9, p. 371: Explicit accumulator sources and
              * destination must use the same accumulator register.
+             * p. 495 forbids simultaneous ACC source/destination for MOV,
+             * which is also the native instruction for MODIFIER.
              */
             if (func->shader->devinfo->verx10 < 125 && ra[ip]) {
                jay_foreach_src(I, s) {
                   if (I->src[s].file == ACCUM &&
-                      I->src[s].reg != (ra[ip] - 1) * 2) {
+                      (I->src[s].reg != (ra[ip] - 1) * 2 ||
+                       I->op == JAY_OPCODE_MODIFIER)) {
                      ra[ip] = 0;
                      break;
                   }
