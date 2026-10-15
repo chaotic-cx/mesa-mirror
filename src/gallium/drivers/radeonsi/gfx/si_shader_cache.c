@@ -324,8 +324,12 @@ bool si_shader_cache_load_shader(struct si_screen *sscreen, unsigned char ir_bla
       unsigned gs_copy_binary_size = 0;
 
       /* The GS copy shader binary is after the GS binary. */
-      if (shader->selector->stage == MESA_SHADER_GEOMETRY && !shader->key.ge.as_ngg)
-         gs_copy_binary_size = buffer[size / 4];
+      if (shader->selector->stage == MESA_SHADER_GEOMETRY && !shader->key.ge.as_ngg) {
+         if (size + 4 <= total_size)
+            gs_copy_binary_size = buffer[size / 4];
+         else
+            goto error;
+      }
 
       if (total_size >= sizeof(uint32_t) && size + gs_copy_binary_size == total_size) {
          if (si_load_shader_binary(shader, buffer)) {
@@ -334,13 +338,13 @@ bool si_shader_cache_load_shader(struct si_screen *sscreen, unsigned char ir_bla
             p_atomic_inc(&sscreen->num_disk_shader_cache_hits);
             return true;
          }
-      } else {
-         /* Something has gone wrong discard the item from the cache and
-          * rebuild/link from source.
-          */
-         assert(!"Invalid radeonsi shader disk cache item!");
-         disk_cache_remove(sscreen->disk_shader_cache, blake3);
       }
+
+   error:
+      /* Something has gone wrong discard the item from the cache and
+       * rebuild/link from source.
+       */
+      disk_cache_remove(sscreen->disk_shader_cache, blake3);
    }
 
    free(buffer);
