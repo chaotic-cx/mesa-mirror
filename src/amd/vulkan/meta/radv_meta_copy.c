@@ -187,7 +187,7 @@ transfer_copy_memory_image(struct radv_cmd_buffer *cmd_buffer, VkAddressCopyFlag
 void
 radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkImageLayout layout,
                              VkImageLayout stencil_layout, const VkImageSubresourceLayers *subresource,
-                             const VkOffset3D *offset, const VkExtent3D *extent, bool before)
+                             const VkOffset3D *offset, const VkExtent3D *extent, VkFormat view_format, bool before)
 {
    const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -214,11 +214,15 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
       if (!radv_layout_dcc_compressed(device, image, subresource->mipLevel, layout, queue_mask))
          return;
 
-      /* Nothing to do when compressed DCC writes are supported. */
-      if (radv_image_compress_dcc_on_image_stores(device, image))
+      bool sign_reinterpret = false;
+
+      /* Nothing to do when compressed DCC writes are supported and the view format is compatible. */
+      if (radv_image_compress_dcc_on_image_stores(device, image) &&
+          radv_dcc_formats_compatible(pdev->info.gfx_level, radv_get_aspect_format(image, subresource->aspectMask),
+                                      view_format, &sign_reinterpret) &&
+          !sign_reinterpret)
          return;
 
-      /* This only executes on GFX8-9 where image stores with DCC are unsupported. */
       if (before) {
          /* For partial regions, DCC is decompressed before because image stores don't write the
           * uncompressed byte to DCC. And then it's needed to re-initialize DCC to its uncompressed
@@ -323,11 +327,6 @@ gfx_or_compute_copy_memory_to_image(struct radv_cmd_buffer *cmd_buffer, VkAddres
     */
    assert(image->vk.samples == 1);
 
-   if (use_compute) {
-      radv_meta_fixup_dst_metadata(cmd_buffer, image, region->imageLayout, region->imageLayout,
-                                   &region->imageSubresource, &region->imageOffset, &region->imageExtent, true);
-   }
-
    /**
     * From the Vulkan 1.0.6 spec: 18.3 Copying Data Between Images
     *    extent is the size in texels of the source image to copy in width,
@@ -357,10 +356,9 @@ gfx_or_compute_copy_memory_to_image(struct radv_cmd_buffer *cmd_buffer, VkAddres
          radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
 
          /* DCC decompression is done by radv_meta_fixup_dst_metadata for compute when image stores with DCC
-          * are unsupported. radv_meta_fixup_dst_metadata doesn't currently handle incompatible DCC formats,
-          * so we need to decompress for those. (TODO: do that in radv_meta_fixup_dst_metadata too)
+          * are unsupported and when the DCC formats are incompatible.
           */
-         if (!use_compute || radv_image_compress_dcc_on_image_stores(device, image)) {
+         if (!use_compute) {
             radv_decompress_dcc(
                cmd_buffer, image,
                &(VkImageSubresourceRange){
@@ -377,6 +375,12 @@ gfx_or_compute_copy_memory_to_image(struct radv_cmd_buffer *cmd_buffer, VkAddres
       }
 
       img_bsurf.format = raw_format;
+   }
+
+   if (use_compute) {
+      radv_meta_fixup_dst_metadata(cmd_buffer, image, region->imageLayout, region->imageLayout,
+                                   &region->imageSubresource, &region->imageOffset, &region->imageExtent,
+                                   img_bsurf.format, true);
    }
 
    const struct vk_image_buffer_layout buf_layout = vk_image_memory_copy_layout(&image->vk, region);
@@ -418,7 +422,8 @@ gfx_or_compute_copy_memory_to_image(struct radv_cmd_buffer *cmd_buffer, VkAddres
 
    if (use_compute) {
       radv_meta_fixup_dst_metadata(cmd_buffer, image, region->imageLayout, region->imageLayout,
-                                   &region->imageSubresource, &region->imageOffset, &region->imageExtent, false);
+                                   &region->imageSubresource, &region->imageOffset, &region->imageExtent,
+                                   img_bsurf.format, false);
    }
 }
 
@@ -899,10 +904,9 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
    }
 
    /* DCC decompression is done by radv_meta_fixup_dst_metadata for compute when image stores with DCC
-    * are unsupported. radv_meta_fixup_dst_metadata doesn't currently handle incompatible DCC formats,
-    * so we need to decompress for those. (TODO: do that in radv_meta_fixup_dst_metadata too)
+    * are unsupported and when the DCC formats are incompatible.
     */
-   if (dst_needs_dcc_decompress && (!use_compute || radv_image_compress_dcc_on_image_stores(device, dst_image))) {
+   if (dst_needs_dcc_decompress && !use_compute) {
       radv_describe_barrier_start(cmd_buffer, RGP_BARRIER_UNKNOWN_REASON);
       radv_decompress_dcc(cmd_buffer, dst_image,
                           &(VkImageSubresourceRange){
@@ -917,7 +921,7 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
 
    if (use_compute) {
       radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, dst_image_layout, &region->dstSubresource,
-                                   &region->dstOffset, &region->extent, true);
+                                   &region->dstOffset, &region->extent, dst_format, true);
    }
 
    /* Create blit surfaces */
@@ -954,7 +958,7 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
 
    if (use_compute) {
       radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, dst_image_layout, &region->dstSubresource,
-                                   &region->dstOffset, &region->extent, false);
+                                   &region->dstOffset, &region->extent, dst_format, false);
    }
 }
 
