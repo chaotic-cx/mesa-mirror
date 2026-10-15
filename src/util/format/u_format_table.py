@@ -305,8 +305,14 @@ def write_format_enum(formats):
     print('   /* Formats with a fixed little-endian byte order. */', file=sys.stdout3)
     write_le_byte_order_enum_section(le_formats)
 
-    print('   PIPE_FORMAT_COUNT,', file=sys.stdout3)
     print('};', file=sys.stdout3)
+    print('', file=sys.stdout3)
+
+    print('#if UTIL_ARCH_BIG_ENDIAN', file=sys.stdout3)
+    print('#define PIPE_FORMAT_COUNT %d' % (len(formats)), file=sys.stdout3)
+    print('#else', file=sys.stdout3)
+    print('#define PIPE_FORMAT_COUNT %d' % (len(formats) - len(le_formats)), file=sys.stdout3)
+    print('#endif', file=sys.stdout3)
 
 def write_format_aliases(formats):
     for f in formats:

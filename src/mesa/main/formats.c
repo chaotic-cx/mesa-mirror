@@ -1089,9 +1089,6 @@ _mesa_uncompressed_format_to_type(mesa_format format)
    case MESA_FORMAT_R11G11B10_FLOAT:
       return GL_UNSIGNED_INT_10F_11F_11F_REV;
 
-   case MESA_FORMAT_COUNT:
-      assert(0);
-      return GL_NONE;
    default: {
       const char *name = _mesa_get_format_name(format);
       /* Warn if any formats are not handled */

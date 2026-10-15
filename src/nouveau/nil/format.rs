@@ -17,9 +17,7 @@ impl TryFrom<pipe_format> for Format {
 
     fn try_from(p_format: pipe_format) -> Result<Self, Self::Error> {
         unsafe {
-            if p_format >= PIPE_FORMAT_COUNT {
-                Err("pipe_format is out-of-bounds")
-            } else if nil_format_table[p_format as usize].support() == 0 {
+            if nil_format_table[p_format as usize].support() == 0 {
                 Err("Unsupported pipe_format")
             } else {
                 Ok(Format { p_format })

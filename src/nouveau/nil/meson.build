@@ -60,6 +60,7 @@ _nil_bindings_rs = rust.bindgen(
     '--allowlist-type', 'nv_zcull_device_info',
     '--allowlist-type', 'pipe_format',
     '--allowlist-type', 'pipe_swizzle',
+    '--allowlist-var', 'PIPE_FORMAT_COUNT',
     '--allowlist-var', 'nil_format_table',
     '--allowlist-var', 'drm_format_mod_invalid',
     '--allowlist-var', 'drm_format_mod_linear',
