@@ -120,7 +120,8 @@ class TorxTest : public testing::Test {
          << ": " << meta.error;
 
       /* 2. Run inference on the local NPU */
-      int rc = run_on_npu(work_dir, pte_path, device_id_);
+      std::vector<std::vector<float>> outputs;
+      int rc = run_on_npu(work_dir, pte_path, device_id_, outputs);
       ASSERT_EQ(rc, 0)
          << "NPU inference failed for " << test_name_;
 
@@ -133,8 +134,10 @@ class TorxTest : public testing::Test {
             << "Metadata has only " << meta.output_scales.size()
             << " output(s) but output-" << i << ".data exists"
             << " — rebuild with fixed run_on_cpu.py / compile_torx_tests.py";
-         auto npu_float = load_tensor_float(
-            work_dir / ("output_" + std::to_string(i) + ".bin"));
+         ASSERT_LT(i, outputs.size())
+            << "The NPU returned only " << outputs.size()
+            << " output(s) but output-" << i << ".data exists";
+         const auto &npu_float = outputs[i];
          auto expected = load_tensor_float(ref_path);
 
           /* Dump for offline analysis */

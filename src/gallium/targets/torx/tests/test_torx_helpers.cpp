@@ -146,10 +146,24 @@ load_meta(const std::filesystem::path &meta_path)
 /* run_on_npu — local ExecuTorch inference                             */
 /* ------------------------------------------------------------------ */
 
+static std::vector<float>
+float_output(const ::executorch::aten::Tensor &tensor)
+{
+   std::vector<float> output;
+
+   if (tensor.scalar_type() == ::executorch::aten::ScalarType::Float) {
+      const float *data = tensor.const_data_ptr<float>();
+      output.assign(data, data + tensor.numel());
+   }
+
+   return output;
+}
+
 int
 run_on_npu(const std::filesystem::path &work_dir,
            const std::filesystem::path &pte_path,
-           const std::string &device_id)
+           const std::string &device_id,
+           std::vector<std::vector<float>> &outputs)
 {
    using namespace ::executorch::extension;
 
@@ -213,19 +227,9 @@ run_on_npu(const std::filesystem::path &work_dir,
       return 1;
    }
 
-   /* Write outputs. */
-   for (size_t i = 0; i < result->size(); i++) {
-      const auto &out_t = result->at(i).toTensor();
-      const void *out_ptr = out_t.const_data_ptr();
-      auto out_path = work_dir / ("output_" + std::to_string(i) + ".bin");
-      std::ofstream out(out_path, std::ios::binary);
-      if (!out.is_open()) {
-         fprintf(stderr, "Cannot open %s\n", out_path.c_str());
-         return 1;
-      }
-      out.write(static_cast<const char *>(out_ptr),
-                out_t.numel() * out_t.element_size());
-   }
+   outputs.clear();
+   for (size_t i = 0; i < result->size(); i++)
+      outputs.push_back(float_output(result->at(i).toTensor()));
 
    return 0;
 }

@@ -58,16 +58,16 @@ load_meta(const std::filesystem::path &meta_path);
 /**
  * Run inference on the local NPU.
  *
- * Loads the .pte model from pte_path and device-specific float input from
- * work_dir, runs ExecuTorch inference, and writes output to
- * work_dir/output_0.bin.
+ * Loads the .pte model from pte_path and the device-specific inputs from
+ * work_dir, runs ExecuTorch inference, and returns the output tensors.
  *
  * Returns 0 on success.
  */
 int
 run_on_npu(const std::filesystem::path &work_dir,
            const std::filesystem::path &pte_path,
-           const std::string &device_id);
+           const std::string &device_id,
+           std::vector<std::vector<float>> &outputs);
 
 /**
  * Load a raw binary file as a vector of float32 values.
