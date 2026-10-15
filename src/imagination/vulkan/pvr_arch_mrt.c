@@ -328,6 +328,11 @@ static VkResult pvr_mrt_load_op_init(struct pvr_device *device,
          load_op->clears_loads_state.rt_2d_view_3d_mask |= BITFIELD_BIT(i);
       }
 
+      if (dr_info->hw_render.view_mask == 1 &&
+          rp_info->attachments[color_init->index]->vk.layer_count > 1) {
+         load_op->clears_loads_state.rta_load_clear = true;
+      }
+
       switch (color_init->op) {
       case VK_ATTACHMENT_LOAD_OP_CLEAR:
          load_op->clears_loads_state.rt_clear_mask |= BITFIELD_BIT(i);

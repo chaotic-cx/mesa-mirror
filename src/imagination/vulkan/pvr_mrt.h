@@ -127,6 +127,8 @@ struct pvr_load_op {
       uint16_t rt_load_mask;
       uint16_t rt_2d_view_3d_mask;
 
+      bool rta_load_clear;
+
       uint16_t unresolved_msaa_mask;
 
       /* The format to write to the output regs. */

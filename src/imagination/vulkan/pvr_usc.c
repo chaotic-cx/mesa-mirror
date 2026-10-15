@@ -1230,6 +1230,25 @@ pco_shader *pvr_uscgen_loadop(pco_ctx *ctx, struct pvr_load_op *load_op)
          assert(var);
          unsigned chans = glsl_get_vector_elements(var->type);
 
+         /* If this is for a rta then need to load the rta index and override
+          * the texture address to the required layer.
+          */
+         nir_def *addr_override = NULL;
+         if (load_op->clears_loads_state.rta_load_clear) {
+            nir_def *array_index = nir_load_layer_id(&b);
+            nir_def *array_stride =
+               nir_channel(&b, tex_meta, PCO_IMAGE_META_LAYER_SIZE);
+
+            nir_def *array_offset = nir_imul(&b, array_index, array_stride);
+
+            nir_def *base_addr = usclib_tex_state_address(&b, tex_state);
+            nir_def *base_addr_lo = nir_channel(&b, base_addr, 0);
+            nir_def *base_addr_hi = nir_channel(&b, base_addr, 1);
+
+            addr_override =
+               nir_uadd64_32(&b, base_addr_lo, base_addr_hi, array_offset);
+         }
+
          pco_smp_params params = {
             .tex_state = tex_state,
             .smp_state = smp_state,
@@ -1242,6 +1261,9 @@ pco_shader *pvr_uscgen_loadop(pco_ctx *ctx, struct pvr_load_op *load_op)
             .sampler_dim = msaa ? GLSL_SAMPLER_DIM_MS : GLSL_SAMPLER_DIM_2D,
 
             .ms_index = msaa ? nir_load_sample_id(&b) : NULL,
+
+            .addr_lo = addr_override ? nir_channel(&b, addr_override, 0) : NULL,
+            .addr_hi = addr_override ? nir_channel(&b, addr_override, 1) : NULL,
          };
 
          if (load_op->clears_loads_state.rt_2d_view_3d_mask & BITFIELD_BIT(rt_idx)) {
