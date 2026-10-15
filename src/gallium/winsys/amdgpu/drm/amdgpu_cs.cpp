@@ -375,95 +375,6 @@ static void amdgpu_pad_gfx_compute_ib(struct amdgpu_winsys *aws, enum amd_ip_typ
    assert(((*num_dw + leave_dw_space) & pad_dw_mask) == 0);
 }
 
-static int amdgpu_submit_gfx_nop(struct amdgpu_ctx *ctx)
-{
-   struct amdgpu_bo_alloc_request request = {0};
-   struct drm_amdgpu_bo_list_in bo_list_in;
-   struct drm_amdgpu_cs_chunk_ib ib_in = {0};
-   ac_drm_bo bo;
-   amdgpu_va_handle va_handle = NULL;
-   struct drm_amdgpu_cs_chunk chunks[2];
-   struct drm_amdgpu_bo_list_entry list;
-   unsigned noop_dw_size;
-   void *cpu = NULL;
-   uint64_t seq_no;
-   uint64_t va;
-   int r;
-
-   /* Older amdgpu doesn't report if the reset is complete or not. Detect
-    * it by submitting a no-op job. If it reports an error, then assume
-    * that the reset is not complete.
-    */
-   uint32_t temp_ctx_handle;
-   r = ac_drm_cs_ctx_create2(ctx->aws->dev, AMDGPU_CTX_PRIORITY_NORMAL, &temp_ctx_handle);
-   if (r)
-      return r;
-
-   request.preferred_heap = AMDGPU_GEM_DOMAIN_VRAM;
-   request.alloc_size = 4096;
-   request.phys_alignment = 4096;
-   r = ac_drm_bo_alloc(ctx->aws->dev, &request, &bo);
-   if (r)
-      goto destroy_ctx;
-
-   r = ac_drm_va_range_alloc(ctx->aws->dev, amdgpu_gpu_va_range_general,
-                             request.alloc_size, request.phys_alignment,
-                             0, &va, &va_handle,
-                             AMDGPU_VA_RANGE_32_BIT | AMDGPU_VA_RANGE_HIGH);
-   if (r)
-      goto destroy_bo;
-
-   uint32_t kms_handle;
-   ac_drm_bo_export(ctx->aws->dev, bo, amdgpu_bo_handle_type_kms, &kms_handle);
-
-   r = ac_drm_bo_va_op_raw(ctx->aws->dev, kms_handle, 0, request.alloc_size, va,
-                           AMDGPU_VM_PAGE_READABLE | AMDGPU_VM_PAGE_WRITEABLE | AMDGPU_VM_PAGE_EXECUTABLE,
-                           AMDGPU_VA_OP_MAP);
-   if (r)
-      goto destroy_bo;
-
-   r = ac_drm_bo_cpu_map(ctx->aws->dev, bo, &cpu);
-   if (r)
-      goto destroy_bo;
-
-   noop_dw_size = ctx->aws->info.ip[AMD_IP_GFX].ib_pad_dw_mask + 1;
-   ((uint32_t*)cpu)[0] = PKT3(PKT3_NOP, noop_dw_size - 2, 0);
-
-   ac_drm_bo_cpu_unmap(ctx->aws->dev, bo);
-
-   list.bo_handle = kms_handle;
-   ac_drm_bo_export(ctx->aws->dev, bo, amdgpu_bo_handle_type_kms, &list.bo_handle);
-   list.bo_priority = 0;
-
-   bo_list_in.list_handle = ~0;
-   bo_list_in.bo_number = 1;
-   bo_list_in.bo_info_size = sizeof(struct drm_amdgpu_bo_list_entry);
-   bo_list_in.bo_info_ptr = (uint64_t)(uintptr_t)&list;
-
-   ib_in.ip_type = AMD_IP_GFX;
-   ib_in.ib_bytes = noop_dw_size * 4;
-   ib_in.va_start = va;
-
-   chunks[0].chunk_id = AMDGPU_CHUNK_ID_BO_HANDLES;
-   chunks[0].length_dw = sizeof(struct drm_amdgpu_bo_list_in) / 4;
-   chunks[0].chunk_data = (uintptr_t)&bo_list_in;
-
-   chunks[1].chunk_id = AMDGPU_CHUNK_ID_IB;
-   chunks[1].length_dw = sizeof(struct drm_amdgpu_cs_chunk_ib) / 4;
-   chunks[1].chunk_data = (uintptr_t)&ib_in;
-
-   r = ac_drm_cs_submit_raw2(ctx->aws->dev, temp_ctx_handle, 0, 2, chunks, &seq_no);
-
-destroy_bo:
-   if (va_handle)
-      ac_drm_va_range_free(va_handle);
-   ac_drm_bo_free(ctx->aws->dev, bo);
-destroy_ctx:
-   ac_drm_cs_ctx_free(ctx->aws->dev, temp_ctx_handle);
-
-   return r;
-}
-
 static void
 amdgpu_ctx_set_sw_reset_status(struct radeon_winsys_ctx *rwctx, enum pipe_reset_status status,
                                const char *format, ...)
@@ -529,16 +440,9 @@ amdgpu_ctx_query_reset_status(struct radeon_winsys_ctx *rwctx, bool full_reset_o
                *    calls return NO_ERROR, the context reset was encountered and
                *    completed. If a reset status is repeatedly returned, the context may
                *    be in the process of resetting.
-               *
-               * Starting with drm_minor >= 54 amdgpu reports if the reset is complete,
-               * so don't do anything special. On older kernels, submit a no-op cs. If it
-               * succeeds then assume the reset is complete.
                */
                if (!(flags & AMDGPU_CTX_QUERY2_FLAGS_RESET_IN_PROGRESS))
                   *reset_completed = true;
-
-               if (ctx->aws->info.drm_minor < 54 && ctx->aws->info.has_graphics)
-                  *reset_completed = amdgpu_submit_gfx_nop(ctx) == 0;
             }
          }
       } else {
