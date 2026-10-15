@@ -199,9 +199,15 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
       .baseArrayLayer = subresource->baseArrayLayer,
       .layerCount = vk_image_subresource_layer_count(&image->vk, subresource),
    };
+   const bool is_3d = image->vk.image_type == VK_IMAGE_TYPE_3D;
+   const VkExtent3D mip_extent = {
+      u_minify(image->vk.extent.width, subresource->mipLevel),
+      u_minify(image->vk.extent.height, subresource->mipLevel),
+      is_3d ? u_minify(image->vk.extent.depth, subresource->mipLevel) : 1,
+   };
 
-   const bool is_partial_region = offset->x || offset->y || offset->z || extent->width != image->vk.extent.width ||
-                                  extent->height != image->vk.extent.height || extent->depth != image->vk.extent.depth;
+   const bool is_partial_region = offset->x || offset->y || (is_3d && offset->z) || extent->width != mip_extent.width ||
+                                  extent->height != mip_extent.height || (is_3d && extent->depth != mip_extent.depth);
    const uint32_t queue_mask = radv_image_queue_family_mask(image, cmd_buffer->qf);
 
    if (vk_format_is_color(image->vk.format)) {
