@@ -41,3 +41,9 @@ spec@!opengl 1.1@streaming-texture-leak
 
 # Skip CPU tests (ie. CL_FILTER_LINEAR) that are only required to pass on CPU:
 ^CL_DEVICE_TYPE_CPU,.*$
+
+# On Android, resize is a no-op for both the regular ANativeWindow and the AImageReader fallback we use.
+# https://github.com/KhronosGroup/VK-GL-CTS/blob/bee83722547054754049485ae6ae8344496c02a6/framework/platform/android/tcuAndroidPlatform.cpp#L462
+# These tests don't actually validate anything relevant, but are still resource-intensive,
+# especially when run in parallel, so skip them.
+dEQP-VK.wsi.android.maintenance1.*resize_window*
