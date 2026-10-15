@@ -1508,58 +1508,11 @@ isl_tiling_get_info(enum isl_tiling tiling,
 
 #undef SET_SWIZ
 
-   uint32_t max_miptail_levels = tiling_max_mip_tail(tiling, dim, samples);
-   if (dim == ISL_SURF_DIM_3D && format_bpb == 64) {
-      /* Apply a workaround from isl_choose_miptail_start_level() more
-       * broadly. Enables tests with block compressed images to pass. A number
-       * of these tests simply perform uploads and downloads, so presumably
-       * this issue affects uncompressed formats as well.
-       */
-      if (tiling == ISL_TILING_SKL_Yf) {
-         max_miptail_levels = MIN2(max_miptail_levels, 2);
-      } else if (tiling == ISL_TILING_SKL_Ys) {
-         max_miptail_levels = MIN2(max_miptail_levels, 6);
-      }
-   }
-
-   if (dim == ISL_SURF_DIM_3D && format_bpb == 128) {
-      /* Apply a workaround from isl_choose_miptail_start_level() more
-       * broadly. Enables tests with block compressed images to pass. A number
-       * of these tests simply perform uploads and downloads, so presumably
-       * this issue affects uncompressed formats as well.
-       *
-       * Enables other tests to pass when compression is disabled.
-       */
-      if (tiling == ISL_TILING_SKL_Yf ||
-          tiling == ISL_TILING_ICL_Yf) {
-         max_miptail_levels = MIN2(max_miptail_levels, 2);
-      } else if (tiling == ISL_TILING_SKL_Ys ||
-                 tiling == ISL_TILING_ICL_Ys) {
-         max_miptail_levels = MIN2(max_miptail_levels, 6);
-      }
-   }
-
-   if (dim == ISL_SURF_DIM_2D && format_bpb == 128) {
-      /* Apply a workaround from isl_choose_miptail_start_level() more
-       * broadly. Enables tests with block compressed images to pass. A number
-       * of these tests simply perform uploads and downloads, so presumably
-       * this issue affects uncompressed formats as well.
-       */
-      if (tiling == ISL_TILING_SKL_Yf ||
-          tiling == ISL_TILING_ICL_Yf) {
-        max_miptail_levels = MIN2(max_miptail_levels, 7);
-      } else if (tiling == ISL_TILING_SKL_Ys ||
-                 tiling == ISL_TILING_ICL_Ys) {
-        max_miptail_levels = MIN2(max_miptail_levels, 11);
-      }
-   }
-
    *tile_info = (struct isl_tile_info) {
       .tiling = tiling,
       .format_bpb = format_bpb,
       .logical_extent_el = logical_el,
       .phys_extent_B = phys_B,
-      .max_miptail_levels = max_miptail_levels,
       .swiz = swiz,
       .swiz_count = swiz_count,
    };
@@ -2124,7 +2077,9 @@ isl_choose_miptail_start_level(const struct isl_device *dev,
 {
    const struct isl_format_layout *fmtl = isl_format_get_layout(info->format);
 
-   if (tile_info->max_miptail_levels == 0)
+   uint32_t max_miptail_levels =
+      tiling_max_mip_tail(tile_info->tiling, info->dim, info->samples);
+   if (max_miptail_levels == 0)
       return info->levels;
 
    /* SKL PRMs, Volume 5: Memory Views, YUV 4:2:0 Format Memory Organization :
@@ -2161,8 +2116,6 @@ isl_choose_miptail_start_level(const struct isl_device *dev,
    assert(isl_tiling_is_standard(tile_info->tiling));
    assert(info->samples == 1);
 
-   uint32_t max_miptail_levels = tile_info->max_miptail_levels;
-
    if ((ISL_GFX_VER(dev) == 9 ||
         intel_needs_workaround(dev->info, 1207137018)) &&
        info->dim == ISL_SURF_DIM_3D &&
@@ -2191,6 +2144,36 @@ isl_choose_miptail_start_level(const struct isl_device *dev,
       }
    }
 
+   if (info->dim == ISL_SURF_DIM_3D && fmtl->bpb == 64) {
+      /* More broadly apply the workaround from above. Enables tests with
+       * block compressed images to pass. A number of these tests simply
+       * perform uploads and downloads, so presumably this issue affects
+       * uncompressed formats as well.
+       */
+      if (tile_info->tiling == ISL_TILING_SKL_Yf) {
+         max_miptail_levels = MIN2(max_miptail_levels, 2);
+      } else if (tile_info->tiling == ISL_TILING_SKL_Ys) {
+         max_miptail_levels = MIN2(max_miptail_levels, 6);
+      }
+   }
+
+   if (info->dim == ISL_SURF_DIM_3D && fmtl->bpb == 128) {
+      /* More broadly apply the workaround from above. Enables tests with
+       * block compressed images to pass. A number of these tests simply
+       * perform uploads and downloads, so presumably this issue
+       * affects uncompressed formats as well.
+       *
+       * This also fixes test failures when compression is disabled.
+       */
+      if (tile_info->tiling == ISL_TILING_SKL_Yf ||
+          tile_info->tiling == ISL_TILING_ICL_Yf) {
+         max_miptail_levels = MIN2(max_miptail_levels, 2);
+      } else if (tile_info->tiling == ISL_TILING_SKL_Ys ||
+                 tile_info->tiling == ISL_TILING_ICL_Ys) {
+         max_miptail_levels = MIN2(max_miptail_levels, 6);
+      }
+   }
+
    if (info->dim != ISL_SURF_DIM_3D &&
        _isl_surf_info_supports_ccs(dev, info->format, info->usage)) {
       /* SKL PRMs, Volume 5: Memory Views, Tiling and Mip Tails for 2D
@@ -2206,6 +2189,21 @@ isl_choose_miptail_start_level(const struct isl_device *dev,
          max_miptail_levels = MIN2(max_miptail_levels, 7);
       } else {
          max_miptail_levels = MIN2(max_miptail_levels, 11);
+      }
+   }
+
+   if (info->dim == ISL_SURF_DIM_2D && fmtl->bpb == 128) {
+      /* More broadly apply the workaround from above. Enables tests with
+       * block compressed images to pass. A number of these tests simply
+       * perform uploads and downloads, so presumably this issue
+       * affects uncompressed formats as well.
+       */
+      if (tile_info->tiling == ISL_TILING_SKL_Yf ||
+          tile_info->tiling == ISL_TILING_ICL_Yf) {
+        max_miptail_levels = MIN2(max_miptail_levels, 7);
+      } else if (tile_info->tiling == ISL_TILING_SKL_Ys ||
+                 tile_info->tiling == ISL_TILING_ICL_Ys) {
+        max_miptail_levels = MIN2(max_miptail_levels, 11);
       }
    }
 
