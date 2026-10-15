@@ -432,13 +432,13 @@ static bool si_query_sw_get_result(struct si_context *sctx, struct si_query *squ
    }
 
    case SI_QUERY_GFX_BO_LIST_SIZE:
-      result->u64 =
-         (query->end_result - query->begin_result) / (query->end_time - query->begin_time);
+      result->u64 = query->end_time != query->begin_time ?
+         (query->end_result - query->begin_result) / (query->end_time - query->begin_time) : 0;
       return true;
    case SI_QUERY_CS_THREAD_BUSY:
    case SI_QUERY_GALLIUM_THREAD_BUSY:
-      result->u64 =
-         (query->end_result - query->begin_result) * 100 / (query->end_time - query->begin_time);
+      result->u64 = query->end_time != query->begin_time ?
+         (query->end_result - query->begin_result) * 100 / (query->end_time - query->begin_time) : 0;
       return true;
    case SI_QUERY_GPIN_ASIC_ID:
       result->u32 = 0;
