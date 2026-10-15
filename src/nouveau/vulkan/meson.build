@@ -187,6 +187,7 @@ nvk_bindings_rs_gen = rust.bindgen(
   ],
   args: [
     bindgen_output_args,
+    util_rs_bindgen_args,
     '--no-prepend-enum-name',
     '--with-derive-default',
     '--allowlist-type', 'Std.*|vk_video.*|.*nv.*|Vk.*|vk.*',
@@ -215,6 +216,7 @@ libnvk_bindings_rs = static_library(
   link_with : [libnvk_bindings_rs_extern],
   gnu_symbol_visibility: 'hidden',
   rust_abi: 'rust',
+  dependencies: idep_mesa_util_rs,
 )
 
 libnvk_rs = static_library(
