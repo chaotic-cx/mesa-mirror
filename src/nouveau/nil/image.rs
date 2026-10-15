@@ -7,7 +7,8 @@ use crate::modifiers::*;
 use crate::tiling::Tiling;
 use crate::Minify;
 
-use nil_rs_bindings::*;
+use mesa_util::format::pipe_format::*;
+use mesa_util::format::*;
 use nvidia_headers::classes::{cl9097, cla097, clb197, clc597, clcd97};
 
 use std::panic;

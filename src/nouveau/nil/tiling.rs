@@ -9,6 +9,8 @@ use crate::image::{
 };
 use crate::ILog2Ceil;
 
+use mesa_util::format::pipe_format::*;
+use mesa_util::format::*;
 use nil_rs_bindings::*;
 use nvidia_headers::classes::{cl9097, clc597, clcd97};
 

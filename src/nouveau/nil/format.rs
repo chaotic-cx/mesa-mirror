@@ -1,6 +1,9 @@
 // Copyright © 2024 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
+use mesa_util::format::pipe_format::*;
+use mesa_util::format::util_format_layout::*;
+use mesa_util::format::*;
 use nil_rs_bindings::*;
 use nvidia_headers::classes::{cla297, clb097, clb197};
 
@@ -33,18 +36,14 @@ impl From<Format> for pipe_format {
 }
 
 impl Format {
-    fn description(&self) -> &'static util_format_description {
-        unsafe { &*util_format_description((*self).into()) }
-    }
-
     pub(crate) fn el_size_B(&self) -> u32 {
-        let bits = self.description().block.bits;
+        let bits = self.p_format.blocksizebits();
         debug_assert!(bits % 8 == 0);
         bits / 8
     }
 
     pub(crate) fn el_extent_sa(&self) -> Extent4D<units::Samples> {
-        let desc = self.description();
+        let desc = self.p_format.description();
         Extent4D::new(desc.block.width, desc.block.height, desc.block.depth, 1)
     }
 
@@ -53,25 +52,15 @@ impl Format {
     }
 
     pub(crate) fn is_integer(&self) -> bool {
-        unsafe { util_format_is_pure_integer((*self).into()) }
-    }
-
-    pub(crate) fn has_depth(&self) -> bool {
-        self.description().colorspace == UTIL_FORMAT_COLORSPACE_ZS
-            && u32::from(self.description().swizzle[0]) != PIPE_SWIZZLE_NONE
-    }
-
-    pub(crate) fn has_stencil(&self) -> bool {
-        self.description().colorspace == UTIL_FORMAT_COLORSPACE_ZS
-            && u32::from(self.description().swizzle[1]) != PIPE_SWIZZLE_NONE
+        self.p_format.is_integer()
     }
 
     pub(crate) fn is_depth_or_stencil(&self) -> bool {
-        self.has_depth() || self.has_stencil()
+        self.p_format.is_depth_or_stencil()
     }
 
     pub(crate) fn is_srgb(&self) -> bool {
-        self.description().colorspace == UTIL_FORMAT_COLORSPACE_SRGB
+        self.p_format.is_srgb()
     }
 
     pub fn supports_texturing(&self, dev: &nv_device_info) -> bool {
@@ -79,9 +68,8 @@ impl Format {
             return false;
         }
 
-        let desc = self.description();
-        if desc.layout == UTIL_FORMAT_LAYOUT_ETC
-            || desc.layout == UTIL_FORMAT_LAYOUT_ASTC
+        if self.p_format.layout() == UTIL_FORMAT_LAYOUT_ETC
+            || self.p_format.layout() == UTIL_FORMAT_LAYOUT_ASTC
         {
             return dev.type_ == NV_DEVICE_TYPE_SOC
                 && dev.cls_eng3d >= cla297::KEPLER_C;

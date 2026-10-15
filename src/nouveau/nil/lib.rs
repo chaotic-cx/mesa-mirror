@@ -1,6 +1,7 @@
 // Copyright © 2024 Collabora, Ltd.
 // SPDX-License-Identifier: MIT
 
+extern crate mesa_util;
 extern crate nil_rs_bindings;
 extern crate nvidia_headers;
 

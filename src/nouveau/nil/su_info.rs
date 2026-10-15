@@ -8,7 +8,8 @@ use crate::format::Format;
 use crate::image::ViewType;
 use crate::image::{Image, SampleLayout, View, ViewAccess};
 use mesa_util::bitview::{BitMutView, SetField};
-use nil_rs_bindings::*;
+use mesa_util::format::pipe_format::*;
+use mesa_util::format::*;
 
 fn format_info(fmt: Format) -> Option<(u8, u8)> {
     let fmt: pipe_format = fmt.into();

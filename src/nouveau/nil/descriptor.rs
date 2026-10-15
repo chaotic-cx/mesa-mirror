@@ -7,6 +7,7 @@ extern crate mesa_util;
 extern crate nvidia_headers;
 
 use mesa_util::bitview::*;
+use mesa_util::format::pipe_format::*;
 use nil_rs_bindings::*;
 use nvidia_headers::classes::cl9097::tex as cl9097;
 use nvidia_headers::classes::cl9097::FERMI_A;
