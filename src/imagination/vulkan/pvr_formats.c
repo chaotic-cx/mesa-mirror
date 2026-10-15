@@ -265,7 +265,12 @@ pvr_get_image_format_features2(struct pvr_physical_device *pdevice,
       const uint32_t first_component_size =
          vk_format_get_component_bits(vk_format, UTIL_FORMAT_COLORSPACE_RGB, 0);
 
-      if (vk_tiling == VK_IMAGE_TILING_OPTIMAL) {
+      if (vk_tiling == VK_IMAGE_TILING_LINEAR &&
+          vk_format_is_block_compressed(vk_format)) {
+         flags |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT |
+                  VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT |
+                  VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
+      } else if (vk_tiling == VK_IMAGE_TILING_OPTIMAL) {
          flags |= VK_FORMAT_FEATURE_2_SAMPLED_IMAGE_BIT |
                   VK_FORMAT_FEATURE_2_TRANSFER_SRC_BIT |
                   VK_FORMAT_FEATURE_2_TRANSFER_DST_BIT;
