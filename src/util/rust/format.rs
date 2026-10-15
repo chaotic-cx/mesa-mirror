@@ -165,4 +165,19 @@ mod tests {
         assert!(PIPE_FORMAT_R8G8B8A8_SRGB.is_srgb());
         assert!(!PIPE_FORMAT_R8G8B8A8_UNORM.is_srgb());
     }
+
+    #[test]
+    fn srgb_roundtrip() {
+        for i in 0..PIPE_FORMAT_COUNT {
+            let format = pipe_format::try_from(i).unwrap();
+
+            if format.is_srgb() {
+                let linear = format.to_linear();
+                assert!(format != linear);
+                assert_eq!(format, linear.to_srgb());
+            } else {
+                assert_eq!(format.to_linear(), format);
+            }
+        }
+    }
 }
