@@ -185,9 +185,9 @@ transfer_copy_memory_image(struct radv_cmd_buffer *cmd_buffer, VkAddressCopyFlag
 }
 
 void
-radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkImageLayout image_layout,
-                             const VkImageSubresourceLayers *subresource, const VkOffset3D *offset,
-                             const VkExtent3D *extent, bool before)
+radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkImageLayout layout,
+                             VkImageLayout stencil_layout, const VkImageSubresourceLayers *subresource,
+                             const VkOffset3D *offset, const VkExtent3D *extent, bool before)
 {
    const struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
    const struct radv_physical_device *pdev = radv_device_physical(device);
@@ -205,7 +205,7 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
    const uint32_t queue_mask = radv_image_queue_family_mask(image, cmd_buffer->qf);
 
    if (vk_format_is_color(image->vk.format)) {
-      if (!radv_layout_dcc_compressed(device, image, subresource->mipLevel, image_layout, queue_mask))
+      if (!radv_layout_dcc_compressed(device, image, subresource->mipLevel, layout, queue_mask))
          return;
 
       /* Nothing to do when compressed DCC writes are supported. */
@@ -243,8 +243,12 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
       if (!radv_htile_enabled(image, subresource->mipLevel))
          return;
 
-      const bool has_zs_compression =
-         radv_layout_is_htile_compressed(device, image, subresource->mipLevel, image_layout, queue_mask);
+      const bool has_z_compression =
+         subresource->aspectMask & VK_IMAGE_ASPECT_DEPTH_BIT &&
+         radv_layout_is_htile_compressed(device, image, subresource->mipLevel, layout, queue_mask);
+      const bool has_stencil_compression =
+         subresource->aspectMask & VK_IMAGE_ASPECT_STENCIL_BIT &&
+         radv_layout_is_htile_compressed(device, image, subresource->mipLevel, stencil_layout, queue_mask);
       const bool image_stores_decompress = radv_image_decompress_htile_on_image_stores(device, image);
 
       /* To keep it simple, we just decompress if the region is not the whole subresource.
@@ -252,7 +256,8 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
        * no pixels to preserve, so we just clear HTILE to uncompressed after the caller's
        * dispatch.
        */
-      const bool decompress_before = is_partial_region && has_zs_compression && !image_stores_decompress;
+      const bool decompress_before =
+         is_partial_region && (has_z_compression || has_stencil_compression) && !image_stores_decompress;
 
       if (before) {
          if (decompress_before) {
@@ -275,8 +280,10 @@ radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_ima
          enum radv_meta_htile_preserve_flags preserve = RADV_HTILE_PRESERVE_VRS | RADV_HTILE_DYNAMIC_ZRANGE_PRECISION;
 
          /* The tiles outside the region may still be compressed, so we must preserve that. */
-         if (has_zs_compression && image_stores_decompress)
-            preserve |= RADV_HTILE_PRESERVE_Z_COMPRESSION | RADV_HTILE_PRESERVE_STENCIL_COMPRESSION;
+         if (image_stores_decompress) {
+            preserve |= (has_z_compression ? RADV_HTILE_PRESERVE_Z_COMPRESSION : 0) |
+                        (has_stencil_compression ? RADV_HTILE_PRESERVE_STENCIL_COMPRESSION : 0);
+         }
 
          /* If image stores update HTILE, we must wait before clearing, otherwise image stores
           * from the caller's dispatch updating HTILE would race with this HTILE clear.
@@ -311,8 +318,8 @@ gfx_or_compute_copy_memory_to_image(struct radv_cmd_buffer *cmd_buffer, VkAddres
    assert(image->vk.samples == 1);
 
    if (use_compute) {
-      radv_meta_fixup_dst_metadata(cmd_buffer, image, region->imageLayout, &region->imageSubresource,
-                                   &region->imageOffset, &region->imageExtent, true);
+      radv_meta_fixup_dst_metadata(cmd_buffer, image, region->imageLayout, region->imageLayout,
+                                   &region->imageSubresource, &region->imageOffset, &region->imageExtent, true);
    }
 
    /**
@@ -404,8 +411,8 @@ gfx_or_compute_copy_memory_to_image(struct radv_cmd_buffer *cmd_buffer, VkAddres
    }
 
    if (use_compute) {
-      radv_meta_fixup_dst_metadata(cmd_buffer, image, region->imageLayout, &region->imageSubresource,
-                                   &region->imageOffset, &region->imageExtent, false);
+      radv_meta_fixup_dst_metadata(cmd_buffer, image, region->imageLayout, region->imageLayout,
+                                   &region->imageSubresource, &region->imageOffset, &region->imageExtent, false);
    }
 }
 
@@ -903,8 +910,8 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
    }
 
    if (use_compute) {
-      radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, &region->dstSubresource, &region->dstOffset,
-                                   &region->extent, true);
+      radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, dst_image_layout, &region->dstSubresource,
+                                   &region->dstOffset, &region->extent, true);
    }
 
    /* Create blit surfaces */
@@ -940,8 +947,8 @@ gfx_or_compute_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
    }
 
    if (use_compute) {
-      radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, &region->dstSubresource, &region->dstOffset,
-                                   &region->extent, false);
+      radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, dst_image_layout, &region->dstSubresource,
+                                   &region->dstOffset, &region->extent, false);
    }
 }
 

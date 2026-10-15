@@ -310,8 +310,8 @@ VkFormat vk_format_for_size(int bs);
 struct radv_meta_blit2d_surf radv_blit_surf_for_image_level_layer(struct radv_image *image, VkImageLayout layout,
                                                                   const VkImageSubresourceLayers *subres);
 
-void radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image,
-                                  VkImageLayout image_layout, const VkImageSubresourceLayers *subresource,
+void radv_meta_fixup_dst_metadata(struct radv_cmd_buffer *cmd_buffer, struct radv_image *image, VkImageLayout layout,
+                                  VkImageLayout stencil_layout, const VkImageSubresourceLayers *subresource,
                                   const VkOffset3D *offset, const VkExtent3D *extent, bool before);
 
 void radv_gfx_copy_image(struct radv_cmd_buffer *cmd_buffer, struct radv_meta_blit2d_surf *src,

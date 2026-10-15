@@ -152,8 +152,8 @@ radv_compute_resolve_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image
       return;
    }
 
-   radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, &region->dstSubresource, &region->dstOffset,
-                                &region->extent, true);
+   radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, dst_image_layout, &region->dstSubresource,
+                                &region->dstOffset, &region->extent, true);
 
    assert(vk_image_subresource_layer_count(&src_image->vk, &region->srcSubresource) ==
           vk_image_subresource_layer_count(&dst_image->vk, &region->dstSubresource));
@@ -249,6 +249,6 @@ radv_compute_resolve_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image
    radv_image_view_finish(&src_iview);
    radv_image_view_finish(&dst_iview);
 
-   radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, &region->dstSubresource, &region->dstOffset,
-                                &region->extent, false);
+   radv_meta_fixup_dst_metadata(cmd_buffer, dst_image, dst_image_layout, dst_image_layout, &region->dstSubresource,
+                                &region->dstOffset, &region->extent, false);
 }
