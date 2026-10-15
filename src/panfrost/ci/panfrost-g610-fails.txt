@@ -277,6 +277,15 @@ spec@!opengl 1.1@large-tex,Fail
 spec@arb_framebuffer_object@framebuffer-blit-oblong tall,Fail
 spec@arb_framebuffer_object@framebuffer-blit-oblong wide,Fail
 spec@ext_transform_feedback2@draw-auto offset,Fail
+# Added 2026‑11‑13: expected failures until the Piglit uprev lands
+afbcp-spec@arb_texture_buffer_object@texture-buffer-size-clamp,Fail
+afbcp-spec@arb_texture_buffer_object@texture-buffer-size-clamp@r8ui_texture_buffer_size_via_image,Fail
+afbcp-spec@arb_texture_buffer_object@texture-buffer-size-clamp@rg8ui_texture_buffer_size_via_image,Fail
+afbcp-spec@arb_texture_buffer_object@texture-buffer-size-clamp@rgba8ui_texture_buffer_size_via_image,Fail
+spec@arb_texture_buffer_object@texture-buffer-size-clamp,Fail
+spec@arb_texture_buffer_object@texture-buffer-size-clamp@r8ui_texture_buffer_size_via_image,Fail
+spec@arb_texture_buffer_object@texture-buffer-size-clamp@rg8ui_texture_buffer_size_via_image,Fail
+spec@arb_texture_buffer_object@texture-buffer-size-clamp@rgba8ui_texture_buffer_size_via_image,Fail
 
 # OpenCL (rusticl) failures
 api@clgetextensionfunctionaddressforplatform,Fail
