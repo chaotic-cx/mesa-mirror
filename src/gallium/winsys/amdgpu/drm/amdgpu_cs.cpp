@@ -44,6 +44,9 @@ amdgpu_fence_create(struct amdgpu_cs *acs)
    struct amdgpu_fence *fence = CALLOC_STRUCT(amdgpu_fence);
    struct amdgpu_ctx *ctx = acs->ctx;
 
+   if (!fence)
+      return NULL;
+
    fence->reference.count = 1;
    fence->aws = ctx->aws;
    amdgpu_ctx_reference(&fence->ctx, ctx);
@@ -2217,6 +2220,8 @@ static int amdgpu_cs_flush(struct radeon_cmdbuf *rcs,
          acs->next_fence = NULL;
       } else {
          csc_current->fence = amdgpu_fence_create(acs);
+         if (!csc_current->fence)
+            return -1;
       }
       if (fence)
          amdgpu_fence_reference(fence, csc_current->fence);
