@@ -2,3 +2,4 @@
 // SPDX-License-Identifier: MIT
 
 pub mod bitview;
+pub mod format;
