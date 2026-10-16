@@ -889,6 +889,7 @@ class TreeAutomaton(object):
         self.patterns = [t.search for t in transforms]
         self._compute_items()
         self._build_table()
+        assert all(len(rep) <= 256 for rep in self.rep.values())
         # print('num items: {}'.format(len(set(self.items.values()))))
         # print('num states: {}'.format(len(self.states)))
         # for state, patterns in zip(self.states, self.patterns):
@@ -1197,7 +1198,7 @@ static const struct per_op_table ${pass_name}_pass_op_table[nir_num_search_ops] 
 % if all(e == 0 for e in automaton.filter[op]):
       .filter = NULL,
 % else:
-      .filter = (const uint16_t []) {
+      .filter = (const uint8_t []) {
       % for e in automaton.filter[op]:
          ${e},
       % endfor
