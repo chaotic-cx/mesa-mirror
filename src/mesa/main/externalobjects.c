@@ -624,7 +624,7 @@ semaphoreobj_alloc(struct gl_context *ctx, GLuint name)
    return obj;
 }
 
-static void
+static bool
 import_semaphoreobj_fd(struct gl_context *ctx,
                           struct gl_semaphore_object *semObj,
                           int fd)
@@ -633,13 +633,17 @@ import_semaphoreobj_fd(struct gl_context *ctx,
 
    pipe->create_fence_fd(pipe, &semObj->fence, fd, semObj->type);
 
+   if (!semObj->fence)
+      return false;
+
 #if !defined(_WIN32)
    /* We own fd, but we no longer need it. So get rid of it */
    close(fd);
 #endif
+   return true;
 }
 
-static void
+static bool
 import_semaphoreobj_win32(struct gl_context *ctx,
                           struct gl_semaphore_object *semObj,
                           void *handle,
@@ -649,6 +653,7 @@ import_semaphoreobj_win32(struct gl_context *ctx,
    struct pipe_context *pipe = ctx->pipe;
 
    pipe->screen->create_fence_win32(pipe->screen, &semObj->fence, handle, name, type);
+   return semObj->fence;
 }
 
 static void
@@ -1266,7 +1271,8 @@ _mesa_ImportSemaphoreFdEXT(GLuint semaphore,
    if (!semObj)
       return;
 
-   import_semaphoreobj_fd(ctx, semObj, fd);
+   if (!import_semaphoreobj_fd(ctx, semObj, fd))
+      _mesa_error(ctx, GL_INVALID_VALUE, "%s(import failed)", func);
 }
 
 void GLAPIENTRY
@@ -1305,7 +1311,8 @@ _mesa_ImportSemaphoreWin32HandleEXT(GLuint semaphore,
    if (!semObj)
       return;
 
-   import_semaphoreobj_win32(ctx, semObj, handle, NULL, type);
+   if (!import_semaphoreobj_win32(ctx, semObj, handle, NULL, type))
+      _mesa_error(ctx, GL_INVALID_VALUE, "%s(import failed)", func);
 }
 
 void GLAPIENTRY
@@ -1344,5 +1351,6 @@ _mesa_ImportSemaphoreWin32NameEXT(GLuint semaphore,
    if (!semObj)
       return;
 
-   import_semaphoreobj_win32(ctx, semObj, NULL, name, type);
+   if (!import_semaphoreobj_win32(ctx, semObj, NULL, name, type))
+      _mesa_error(ctx, GL_INVALID_VALUE, "%s(import failed)", func);
 }
