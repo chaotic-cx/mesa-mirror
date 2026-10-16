@@ -64,8 +64,34 @@ kk_cmd_release_resources(struct kk_device *dev, struct kk_cmd_buffer *cmd)
 static void
 end_recording(struct kk_cmd_buffer *cmd)
 {
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+
    if (cmd->vk.state != MESA_VK_COMMAND_BUFFER_STATE_RECORDING)
       return;
+
+   /* Add a barrier for all dependency chain stages for which we haven't seen
+    * actual work because we can only track within the command buffer. */
+   enum mtl_stages chained_stages_after = 0u;
+   for (uint i = 0u; i < ARRAY_SIZE(cmd->barrier.chained_stages); i++) {
+      if (!cmd->barrier.chained_stages[i])
+         continue;
+
+      chained_stages_after |= cmd->barrier.chained_stages[i];
+   }
+
+   enum mtl_stages enabled_stages = kk_enabled_stages(dev);
+   if ((chained_stages_after & enabled_stages) != 0u) {
+      if (cmd->metal.compute != NULL) {
+         mtl_barrier_after_stages(
+            cmd->metal.compute, chained_stages_after,
+            enabled_stages, MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+      } else {
+         /* Start a new compute encoder which will flush the pending barrier. */
+         cmd->barrier.pending.after = chained_stages_after;
+         cmd->barrier.pending.before = enabled_stages;
+         cs_get_compute(cmd);
+      }
+   }
 
    cs_end(cmd);
    mtl_end_command_buffer(cmd->metal.cmd_buf);
@@ -172,6 +198,12 @@ kk_reset_cmd_buffer_internal(struct kk_cmd_buffer *cmd)
 
    memset(&cmd->state, 0, sizeof(cmd->state));
    cmd->uses_heap = false;
+
+   cmd->barrier.pending.after = 0u;
+   cmd->barrier.pending.before = 0u;
+   memset(cmd->barrier.chained_stages, 0, sizeof(cmd->barrier.chained_stages));
+   memset(cmd->barrier.needs_consumer_barrier, 0,
+          sizeof(cmd->barrier.needs_consumer_barrier));
 }
 
 static void
@@ -259,6 +291,34 @@ kk_encoder_update_debug(struct kk_cmd_buffer *cmd, mtl_command_encoder *encoder)
       mtl_encoder_push_debug_group(encoder, label->pLabelName);
 }
 
+static void
+kk_cmd_flush_pending_barriers(struct kk_cmd_buffer *cmd,
+                              mtl_command_encoder *encoder)
+{
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+   enum mtl_stages enabled_stages = kk_enabled_stages(dev);
+
+   cmd->barrier.pending.after &= enabled_stages;
+   cmd->barrier.pending.before &= enabled_stages;
+
+   if (cmd->barrier.pending.before != 0u && cmd->barrier.pending.after != 0u) {
+      mtl_barrier_after_queue_stages(encoder, cmd->barrier.pending.after,
+                                     cmd->barrier.pending.before,
+                                     MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+      u_foreach_bit(i, (uint32_t)cmd->barrier.pending.before) {
+         /* We won't need consumer barriers for these stages in the future. */
+         enum mtl_stages stage = (enum mtl_stages)(1u << i);
+         uint index = mtl_stage_to_index(stage);
+         cmd->barrier.needs_consumer_barrier[index] &=
+            ~cmd->barrier.pending.after;
+      }
+   }
+
+   cmd->barrier.pending.before = 0u;
+   cmd->barrier.pending.after = 0u;
+}
+
 void
 cs_start_render(struct kk_cmd_buffer *cmd)
 {
@@ -272,6 +332,7 @@ cs_start_render(struct kk_cmd_buffer *cmd)
    cmd->metal.render = mtl_new_render_command_encoder_with_descriptor(
       cmd->metal.cmd_buf, state->render_pass_descriptor);
 
+   kk_cmd_flush_pending_barriers(cmd, cmd->metal.render);
    kk_encoder_update_debug(cmd, cmd->metal.render);
    /* Starting a new render pass means we already flushed and no barrier is
     * needed. */
@@ -309,6 +370,9 @@ cs_get_render(struct kk_cmd_buffer *cmd)
       cs_start_render(cmd);
    }
 
+   assert(cmd->barrier.pending.after == 0u);
+   assert(cmd->barrier.pending.before == 0u);
+
    return cmd->metal.render;
 }
 
@@ -318,6 +382,9 @@ cs_get_compute(struct kk_cmd_buffer *cmd)
    /* If we are inside render, we need to force a restart later */
    if (cmd->metal.render) {
       kk_apply_attachment_store_ops(cmd, true);
+      mtl_barrier_after_stages(cmd->metal.render, MTL_STAGE_FRAGMENT,
+                               MTL_STAGE_FRAGMENT,
+                               MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
       cs_end(cmd);
       kk_cmd_buffer_dirty_all_gfx(cmd);
       cmd->state.gfx.need_to_start_render_pass = true;
@@ -327,7 +394,17 @@ cs_get_compute(struct kk_cmd_buffer *cmd)
       cmd->metal.compute = mtl_new_compute_command_encoder(cmd->metal.cmd_buf);
       mtl_compute_set_argument_table(cmd->metal.compute, cmd->argument_table);
       kk_encoder_update_debug(cmd, cmd->metal.compute);
+
+      for (uint i = 0u; i < ARRAY_SIZE(cmd->barrier.needs_consumer_barrier);
+           i++) {
+         cmd->barrier.needs_consumer_barrier[i] = MTL_STAGE_ALL;
+      }
+
+      kk_cmd_flush_pending_barriers(cmd, cmd->metal.compute);
    }
+
+   assert(cmd->barrier.pending.after == 0u);
+   assert(cmd->barrier.pending.before == 0u);
 
    return cmd->metal.compute;
 }
@@ -335,9 +412,13 @@ cs_get_compute(struct kk_cmd_buffer *cmd)
 static void
 end_encoder(struct kk_cmd_buffer *cmd, mtl_command_encoder *encoder)
 {
-   /* TODO_KOSMICKRISP This is probably overkill */
-   mtl_barrier_after_stages(encoder, MTL_STAGE_ALL, MTL_STAGE_ALL,
-                            MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+
+   /* Resolving the counter heap is part of MTL_STAGE_BLIT. */
+   if (util_dynarray_num_elements(&cmd->ts_resolves, struct kk_ts_resolve) > 0u)
+      mtl_barrier_after_stages(encoder, kk_enabled_stages(dev), MTL_STAGE_BLIT,
+                               MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
    mtl_end_encoding(encoder);
    mtl_release(encoder);
 
@@ -350,14 +431,127 @@ end_encoder(struct kk_cmd_buffer *cmd, mtl_command_encoder *encoder)
    util_dynarray_clear(&cmd->ts_resolves);
 }
 
+void
+kk_cmd_barrier(struct kk_cmd_buffer *cmd, enum mtl_stages after_stages,
+               enum mtl_stages before_stages)
+{
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+   assert(cmd->metal.render == NULL);
+
+   enum mtl_stages enabled_stages = kk_enabled_stages(dev);
+   after_stages &= enabled_stages;
+   before_stages &= enabled_stages;
+
+   if (after_stages == 0u || before_stages == 0u)
+      return;
+
+   if (cmd->metal.compute) {
+      enum mtl_stages used_stages = mtl_compute_used_stages(cmd->metal.compute);
+
+      /* If we emit a producer barrier, we handle the stages of previous
+       * encoders there. That way we can hopefully omit the consumer barrier
+       * here more often. */
+      enum mtl_stages consumer_before_stages =
+         (used_stages & after_stages)
+            ? (before_stages & MTL_STAGES_ALL_COMPUTE_ENCODER)
+            : before_stages;
+      enum mtl_stages producer_after_stages = (used_stages & after_stages)
+                                                 ? after_stages
+                                                 : (after_stages & used_stages);
+
+      enum mtl_stages consumer_after_stages = 0u;
+      u_foreach_bit(i, (uint32_t)consumer_before_stages) {
+         /* Look for stage->stage combinations for which we haven't emitted a
+          * consumer barrier in this encoder. */
+         enum mtl_stages stage = (enum mtl_stages)(1u << i);
+         uint index = mtl_stage_to_index(stage);
+         consumer_after_stages |=
+            after_stages & cmd->barrier.needs_consumer_barrier[index];
+         cmd->barrier.needs_consumer_barrier[index] &= ~after_stages;
+      }
+      if (consumer_after_stages) {
+         /* Make work from previous encoders available for commands in this
+          * and subsequent encoders. */
+         mtl_barrier_after_queue_stages(
+            cmd->metal.compute, consumer_after_stages, consumer_before_stages,
+            MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+      }
+
+      if (producer_after_stages) {
+         /* Make work from this and previous encoders available for subsequent
+          * encoders. */
+         mtl_barrier_after_stages(cmd->metal.compute, producer_after_stages,
+                                  before_stages,
+                                  MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+         if (before_stages & MTL_STAGES_ALL_COMPUTE_ENCODER) {
+            /* Make work from this encoder available for future commands in this
+             * encoder. */
+            mtl_barrier_after_encoder_stages(
+               cmd->metal.compute, after_stages & used_stages,
+               before_stages & MTL_STAGES_ALL_COMPUTE_ENCODER,
+               MTL_VISIBILITY_OPTION_DEVICE);
+         }
+      }
+   } else {
+      /* Don't start a compute encoder for the barrier, let the next encoder
+       * flush it using a consumer barrier. */
+      cmd->barrier.pending.before |= before_stages;
+      cmd->barrier.pending.after |= after_stages;
+   }
+}
+
+enum mtl_stages
+kk_cmd_add_chained_barrier_stages(struct kk_cmd_buffer *cmd,
+                                  enum mtl_stages after_stages,
+                                  enum mtl_stages before_stages)
+{
+   /*
+    * Vulkan execution dependency chains:
+    * There's two pipeline barriers: STAGE A -> STAGE B + STAGE B -> STAGE C
+    * STAGE C is guaranteed to wait for STAGE A even if there was never any work
+    * that fits STAGE B.
+    * Metal doesn't guarantee this and will just drop the barrier if there's no
+    * work for a stage. So we need to work around that.
+    */
+
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+
+   enum mtl_stages enabled_stages = kk_enabled_stages(dev);
+   after_stages &= enabled_stages;
+   before_stages &= enabled_stages;
+
+   /* Collect all chained stages for the stages we need to wait for */
+   enum mtl_stages chained_stages = 0u;
+   u_foreach_bit(i, (uint32_t)after_stages) {
+      enum mtl_stages stage = (enum mtl_stages)(1u << i);
+      uint index = mtl_stage_to_index(stage);
+      chained_stages |= cmd->barrier.chained_stages[index];
+   }
+
+   /* Add all chained stages to each of the stage we delay */
+   u_foreach_bit(i, (uint32_t)before_stages) {
+      enum mtl_stages stage = (enum mtl_stages)(1u << i);
+      uint index = mtl_stage_to_index(stage);
+      cmd->barrier.chained_stages[index] |=
+         (after_stages | chained_stages) & ~stage;
+   }
+   return chained_stages;
+}
+
 static void
 flush_post_render_writes(struct kk_cmd_buffer *cmd)
 {
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
    assert(cmd->metal.render == NULL);
 
    if (!util_dynarray_num_elements(&cmd->post_render_writes,
                                    struct libkk_imm_write))
       return;
+
+   cmd->barrier.pending.after |=
+      MTL_STAGES_ALL_RENDER_ENCODER & kk_enabled_stages(dev);
+   cmd->barrier.pending.before |= MTL_STAGE_DISPATCH;
 
    util_dynarray_foreach(&cmd->post_render_writes, struct libkk_imm_write, w) {
       libkk_write_u32(cmd, kk_grid_1d(1), true, (uint64_t)w->address, w->value);
@@ -463,11 +657,27 @@ kk_CmdPipelineBarrier2(VkCommandBuffer commandBuffer,
                        const VkDependencyInfo *pDependencyInfo)
 {
    VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+
+   enum mtl_stages after_stages = 0u;
+   enum mtl_stages before_stages = 0u;
+   vk_dependency_info_to_mtl(pDependencyInfo, &after_stages, &before_stages,
+                             dev->vk.enabled_features.conditionalRendering);
+
+   enum mtl_stages enabled_stages = kk_enabled_stages(dev);
+   after_stages &= enabled_stages;
+   before_stages &= enabled_stages;
+
+   after_stages |=
+      kk_cmd_add_chained_barrier_stages(cmd, after_stages, before_stages);
 
    /* TODO_KOSMICKRISP Lighten barriers according to the actual requested
     * barrier. To take advantage of this we need to remove the chaining of
     * encoders. */
    if (cmd->metal.render) {
+      after_stages &= MTL_STAGES_ALL_RENDER_ENCODER;
+      before_stages &= MTL_STAGES_ALL_RENDER_ENCODER;
+
       /* Multisample attachments require render pass split always. Then based on
        * the barrier and if we are using depth/stencil or not, we may have to
        * break the render pass. See comment in kk_barrier_requires_encoder_split
@@ -475,20 +685,29 @@ kk_CmdPipelineBarrier2(VkCommandBuffer commandBuffer,
       if (cmd->state.gfx.render.samples > 1 ||
           kk_barrier_requires_encoder_split(cmd, pDependencyInfo)) {
          kk_apply_attachment_store_ops(cmd, true);
+         mtl_barrier_after_stages(cmd->metal.render,
+                                  after_stages | MTL_STAGE_FRAGMENT,
+                                  before_stages | MTL_STAGE_FRAGMENT,
+                                  MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
          cs_end(cmd);
          cs_start_render(cmd);
-      } else
-         mtl_barrier_after_encoder_stages(cmd->metal.render, MTL_STAGE_VERTEX,
-                                          MTL_STAGE_FRAGMENT,
-                                          MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
-   } else if (cmd->metal.compute) {
-      /* We chain encoders, so an intra-encoder barrier is enough here:
-       * no need to tear down and recreate the encoder.
-       */
-      mtl_barrier_after_encoder_stages(cmd->metal.compute,
-                                       MTL_STAGE_DISPATCH | MTL_STAGE_BLIT,
-                                       MTL_STAGE_DISPATCH | MTL_STAGE_BLIT,
-                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+      } else {
+         /* Metal doesn't require a barrier for framebuffer fetch.
+          * So if the barrier was just for that, we can drop it.
+          * Metal allows only the pre-raster stages for `afterStages` in
+          * an intra-render-encoder barrier. */
+         after_stages &= MTL_STAGE_VERTEX | MTL_STAGE_OBJECTS | MTL_STAGE_MESH;
+         if (after_stages != 0u) {
+            /* Barriers in Vulkan render passes only support stages related to
+             * render passes. So we can just use the intra-encoder barrier here.
+             */
+            mtl_barrier_after_encoder_stages(
+               cmd->metal.render, after_stages, before_stages,
+               MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+         }
+      }
+   } else {
+      kk_cmd_barrier(cmd, after_stages, before_stages);
    }
 }
 
@@ -815,9 +1034,6 @@ kk_dispatch_precomp(struct kk_cmd_buffer *cmd, struct kk_grid grid,
    struct kk_precompiled_shader *prog = &dev->precompiled_cache.shaders[idx];
 
    mtl_compute_encoder *encoder = cs_get_compute(cmd);
-   mtl_barrier_after_encoder_stages(encoder, MTL_STAGE_DISPATCH,
-                                    MTL_STAGE_DISPATCH,
-                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    struct kk_ptr data_gpu = kk_pool_upload(cmd, data, data_size, 8u);
    if (unlikely(!data_gpu.gpu))
@@ -837,9 +1053,8 @@ kk_dispatch_precomp(struct kk_cmd_buffer *cmd, struct kk_grid grid,
    else
       mtl_dispatch_threadgroups_with_indirect_buffer(encoder, grid.addr,
                                                      local_size);
-   mtl_barrier_after_encoder_stages(encoder, MTL_STAGE_DISPATCH,
-                                    MTL_STAGE_DISPATCH,
-                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_DISPATCH);
 
    /* Rebind the existing root. */
    mtl_set_address(cmd->argument_table, cmd->state.root_addr, 0u);
@@ -1058,22 +1273,32 @@ VKAPI_ATTR void VKAPI_CALL
 kk_CmdWriteMarkerToMemoryAMD(VkCommandBuffer commandBuffer,
                              const VkMemoryMarkerInfoAMD *pInfo)
 {
-   VK_FROM_HANDLE(kk_cmd_buffer, cmd_buffer, commandBuffer);
+   VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
    struct libkk_imm_write write;
 
-   /* If we are inside a compute encoder, we can directly encode the write but
-    * we need the barrier. If we are mid render, we will queue it for when it is
-    * closed. */
-   if (cmd_buffer->metal.compute) {
-      mtl_barrier_after_encoder_stages(cmd_buffer->metal.compute,
-                                       MTL_STAGE_DISPATCH | MTL_STAGE_BLIT,
-                                       MTL_STAGE_DISPATCH | MTL_STAGE_BLIT,
-                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
-   }
+   /* We accept breaking render passes here because this is a debugging tool.
+    * Batching writes to execute them at the end of the render pass would defeat
+    * the purpose. */
+   struct mtl_compute_encoder *enc = cs_get_compute(cmd);
+
+   enum mtl_stages marker_stages = vk_pipeline_stages_to_mtl_stages(
+      pInfo->stage, true, dev->vk.enabled_features.conditionalRendering);
+   marker_stages |= MTL_STAGE_DISPATCH; // The order between marker writes needs
+                                        // to be preserved
+
+   enum mtl_stages used_stages = mtl_compute_used_stages(enc);
+   if (used_stages & marker_stages)
+      mtl_barrier_after_encoder_stages(
+         enc, marker_stages & MTL_STAGES_ALL_COMPUTE_ENCODER,
+         MTL_STAGE_DISPATCH, MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+   mtl_barrier_after_queue_stages(enc, marker_stages, MTL_STAGE_DISPATCH,
+                                  MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    write.value = pInfo->marker;
    write.address = pInfo->dstRange.address;
-   kk_cmd_write(cmd_buffer, write);
+   kk_cmd_write(cmd, write);
 }
 
 void

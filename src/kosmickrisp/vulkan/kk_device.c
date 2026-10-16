@@ -466,6 +466,13 @@ kk_device_make_resources_resident(struct kk_device *dev)
    simple_mtx_unlock(&dev->residency_set.mutex);
 }
 
+enum mtl_stages
+kk_enabled_stages(struct kk_device *dev)
+{
+   /* Check whether ray tracing, mesh shaders or sparse are enabled when we support those. */
+   return MTL_STAGE_VERTEX | MTL_STAGE_FRAGMENT | MTL_STAGE_DISPATCH | MTL_STAGE_BLIT;
+}
+
 /* VK_EXT_debug_utils */
 VKAPI_ATTR VkResult VKAPI_CALL
 kk_SetDebugUtilsObjectNameEXT(VkDevice device,

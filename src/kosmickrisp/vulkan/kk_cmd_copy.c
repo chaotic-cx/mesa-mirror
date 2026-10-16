@@ -26,6 +26,8 @@ kk_CmdCopyBuffer2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(kk_buffer, src, pCopyBufferInfo->srcBuffer);
    VK_FROM_HANDLE(kk_buffer, dst, pCopyBufferInfo->dstBuffer);
 
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_BLIT);
+
    mtl_compute_encoder *encoder = cs_get_compute(cmd);
    for (uint32_t i = 0; i < pCopyBufferInfo->regionCount; i++) {
       const VkBufferCopy2 *region = &pCopyBufferInfo->pRegions[i];
@@ -91,6 +93,8 @@ kk_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(kk_buffer, buffer, pCopyBufferToImageInfo->srcBuffer);
    VK_FROM_HANDLE(kk_image, image, pCopyBufferToImageInfo->dstImage);
 
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_BLIT);
+
    mtl_compute_encoder *encoder = cs_get_compute(cmd);
    for (int r = 0; r < pCopyBufferToImageInfo->regionCount; r++) {
       const VkBufferImageCopy2 *region = &pCopyBufferToImageInfo->pRegions[r];
@@ -120,6 +124,8 @@ kk_CmdCopyImageToBuffer2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(kk_image, image, pCopyImageToBufferInfo->srcImage);
    VK_FROM_HANDLE(kk_buffer, buffer, pCopyImageToBufferInfo->dstBuffer);
+
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_BLIT);
 
    mtl_compute_encoder *encoder = cs_get_compute(cmd);
    for (unsigned r = 0; r < pCopyImageToBufferInfo->regionCount; r++) {
@@ -260,6 +266,8 @@ copy_through_buffer(struct kk_cmd_buffer *cmd, struct kk_image *src,
       buffer_offset += info.buffer_slice_size_B;
    }
 
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_BLIT);
+
    return buffer_offset;
 }
 
@@ -356,6 +364,8 @@ kk_CmdCopyImage2(VkCommandBuffer commandBuffer,
    VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
    VK_FROM_HANDLE(kk_image, src, pCopyImageInfo->srcImage);
    VK_FROM_HANDLE(kk_image, dst, pCopyImageInfo->dstImage);
+
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_BLIT);
 
    size_t buffer_size = 0u;
 

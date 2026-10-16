@@ -6,6 +6,9 @@
 #ifndef KK_MTL_TO_VK_MAP_H
 #define KK_MTL_TO_VK_MAP_H 1
 
+#include <stdbool.h>
+#include <stdint.h>
+
 struct mtl_origin;
 struct mtl_size;
 enum mtl_primitive_type;
@@ -24,9 +27,11 @@ enum mtl_index_type;
 enum mtl_command_queue_error;
 enum mtl_depth_resolve_filter;
 enum mtl_stencil_resolve_filter;
+enum mtl_stages;
 
 struct VkOffset3D;
 struct VkExtent3D;
+struct VkDependencyInfo;
 union VkClearColorValue;
 enum VkPrimitiveTopology;
 enum VkAttachmentLoadOp;
@@ -40,6 +45,7 @@ enum VkCompareOp;
 enum VkFrontFace;
 enum VkCullModeFlagBits;
 enum VkResolveModeFlagBits;
+typedef uint64_t VkPipelineStageFlagBits2;
 
 /* STRUCTS */
 struct mtl_origin vk_offset_3d_to_mtl_origin(const struct VkOffset3D *offset);
@@ -98,5 +104,14 @@ unsigned mtl_index_type_to_size_B(enum mtl_index_type type);
 
 const char *
 mtl_command_queue_error_to_string(enum mtl_command_queue_error error);
+
+enum mtl_stages
+vk_pipeline_stages_to_mtl_stages(VkPipelineStageFlagBits2 stages, bool is_src,
+                                 bool cond_rendering_ext_enabled);
+
+void vk_dependency_info_to_mtl(const struct VkDependencyInfo *pDependencyInfo,
+                               enum mtl_stages *after_stages,
+                               enum mtl_stages *before_stages,
+                               bool cond_rendering_ext_enabled);
 
 #endif /* KK_MTL_TO_VK_MAP_H */

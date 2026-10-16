@@ -279,6 +279,15 @@ struct kk_cmd_buffer {
    /* Metal command buffers are single-shot: a resubmission must re-record
     * by replaying the enqueued commands (see rerecord_cmd_buffer). */
    bool submitted;
+
+   struct {
+      struct {
+         enum mtl_stages before;
+         enum mtl_stages after;
+      } pending;
+      enum mtl_stages needs_consumer_barrier[10];
+      enum mtl_stages chained_stages[10];
+   } barrier;
 };
 
 VK_DEFINE_HANDLE_CASTS(kk_cmd_buffer, vk.base, VkCommandBuffer,
@@ -318,6 +327,56 @@ mtl_compute_encoder *cs_get_compute(struct kk_cmd_buffer *cmd);
 void cs_end(struct kk_cmd_buffer *cmd);
 void kk_cmd_bind_root_to_argument_table(struct kk_cmd_buffer *cmd,
                                         uint64_t addr);
+
+/**
+ * Emits a simple pipeline barrier with Metal stage flags
+ * It takes care of Metal barrier types and works both with or without an active
+ * compute encoder. It must not be called with an active render encoder (inside
+ * a render pass). It also does not follow the rules for Vulkan execution
+ * dependency chains.
+ */
+void kk_cmd_barrier(struct kk_cmd_buffer *cmd, enum mtl_stages after_stages,
+                    enum mtl_stages before_stages);
+
+/**
+ * Turns a single MTLStage into an index.
+ */
+static inline uint
+mtl_stage_to_index(enum mtl_stages stage)
+{
+   assert(__builtin_popcount(stage) == 1u);
+   uint index = ffs(stage) - 1u;
+   /* The MTLStage bit mask has a large gap. MTL_STAGE_RESOURCE_STATE is bit 27
+    * and there are no entries for bits 5-26. So subtract those 21 bits. */
+   if (index >= 26u)
+      index -= 21;
+   return index;
+}
+
+/**
+ * There has been work for the given Metal stage.
+ * Clear the mask of stages we'd otherwise have to wait for in the next barrier.
+ */
+static inline void
+kk_cmd_barrier_chain_clear_stage(struct kk_cmd_buffer *cmd,
+                                 enum mtl_stages stage)
+{
+   /* We have seen work for the given stage.
+    * Clear the mask of stages which we'd have to wait for otherwise. */
+   uint index = mtl_stage_to_index(stage);
+   cmd->barrier.chained_stages[index] = 0u;
+}
+
+/**
+ * Add `after_stages` to the mask of stages a future barrier, that waits for
+ * `before_stages` will also need to wait for.
+ * Also returns the mask of additional stages the current barrier
+ * (`after_stages` -> `before_stages`) also needs to wait for.
+ */
+enum mtl_stages
+kk_cmd_add_chained_barrier_stages(struct kk_cmd_buffer *cmd,
+                                  enum mtl_stages after_stages,
+                                  enum mtl_stages before_stages);
 
 static void
 kk_cmd_buffer_dirty_all_gfx(struct kk_cmd_buffer *cmd)

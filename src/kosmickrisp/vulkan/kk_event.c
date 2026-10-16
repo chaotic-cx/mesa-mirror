@@ -7,6 +7,8 @@
 
 #include "kk_event.h"
 
+#include "kosmickrisp/bridge/mtl_encoder.h"
+#include "kosmickrisp/bridge/vk_to_mtl_map.h"
 #include "kk_bo.h"
 #include "kk_cmd_buffer.h"
 #include "kk_device.h"
@@ -95,7 +97,25 @@ kk_CmdSetEvent2(VkCommandBuffer commandBuffer, VkEvent _event,
 {
    VK_FROM_HANDLE(kk_event, event, _event);
    VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
-   kk_cmd_write(cmd, (struct libkk_imm_write){event->addr, VK_EVENT_SET});
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+
+   enum mtl_stages after_stages = 0u;
+   enum mtl_stages before_stages = 0u;
+   vk_dependency_info_to_mtl(pDependencyInfo, &after_stages, &before_stages,
+                             dev->vk.enabled_features.conditionalRendering);
+
+   if (pDependencyInfo->dependencyFlags &
+          VK_DEPENDENCY_ASYMMETRIC_EVENT_BIT_KHR ||
+       before_stages == 0u) {
+      /* Second half runs in CmdWaitEvents with the write in the middle. */
+      before_stages = MTL_STAGE_DISPATCH;
+   }
+
+   after_stages |=
+      kk_cmd_add_chained_barrier_stages(cmd, after_stages, before_stages);
+   kk_cmd_barrier(cmd, after_stages, before_stages);
+
+   libkk_write_u32(cmd, kk_grid_1d(1), true, event->addr, VK_EVENT_SET);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -104,7 +124,14 @@ kk_CmdResetEvent2(VkCommandBuffer commandBuffer, VkEvent _event,
 {
    VK_FROM_HANDLE(kk_event, event, _event);
    VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
-   kk_cmd_write(cmd, (struct libkk_imm_write){event->addr, VK_EVENT_RESET});
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+
+   enum mtl_stages stages = vk_pipeline_stages_to_mtl_stages(
+      stageMask, true, dev->vk.enabled_features.conditionalRendering);
+   stages |= kk_cmd_add_chained_barrier_stages(cmd, stages, MTL_STAGE_DISPATCH);
+   kk_cmd_barrier(cmd, stages, MTL_STAGE_DISPATCH);
+
+   libkk_write_u32(cmd, kk_grid_1d(1), true, event->addr, VK_EVENT_RESET);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -112,5 +139,22 @@ kk_CmdWaitEvents2(VkCommandBuffer commandBuffer, uint32_t eventCount,
                   const VkEvent *pEvents,
                   const VkDependencyInfo *pDependencyInfos)
 {
-   /* We do nothing, event should already be set by the time we are here. */
+   VK_FROM_HANDLE(kk_cmd_buffer, cmd, commandBuffer);
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
+   enum mtl_stages before_stages = 0u;
+
+   for (uint i = 0u; i < eventCount; i++) {
+      if (!(pDependencyInfos[i].dependencyFlags &
+            VK_DEPENDENCY_ASYMMETRIC_EVENT_BIT_KHR))
+         continue;
+
+      enum mtl_stages before_stages_event = 0u;
+      vk_dependency_info_to_mtl(&pDependencyInfos[i], NULL,
+                                &before_stages_event,
+                                dev->vk.enabled_features.conditionalRendering);
+      before_stages |= before_stages_event;
+   }
+
+   if (before_stages != 0u)
+      kk_cmd_barrier(cmd, MTL_STAGE_DISPATCH, before_stages);
 }

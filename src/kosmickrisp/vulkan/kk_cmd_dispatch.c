@@ -55,6 +55,11 @@ kk_predicate_compute(struct kk_cmd_buffer *cmd, uint64_t indirect_addr_out,
       libkk_predicate_indirect_neq_zero(cmd, grid, false, indirect_addr_out,
                                         indirect_addr_in, cond_addr, 3u, 3u);
    }
+
+   /* Make indirect count visible. */
+   mtl_barrier_after_encoder_stages(cmd->metal.compute, MTL_STAGE_DISPATCH,
+                                    MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -110,6 +115,8 @@ kk_CmdDispatchBase(VkCommandBuffer commandBuffer, uint32_t baseGroupX,
       kk_flush_compute_state(cmd);
       mtl_dispatch_threads(encoder, grid_size, local_size);
    }
+
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_DISPATCH);
 }
 
 VKAPI_ATTR void VKAPI_CALL
@@ -148,4 +155,6 @@ kk_CmdDispatchIndirect2KHR(VkCommandBuffer commandBuffer,
       mtl_dispatch_threadgroups_with_indirect_buffer(
          encoder, pInfo->addressRange.address, local_size);
    }
+
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_DISPATCH);
 }

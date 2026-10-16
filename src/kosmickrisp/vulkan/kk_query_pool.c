@@ -198,8 +198,8 @@ kk_CreateQueryPool(VkDevice device, const VkQueryPoolCreateInfo *pCreateInfo,
       }
    } else if (kk_pool_is_ts(pool)) {
       if (!pdev->settings.gpu_capture_enabled) {
-         /* Timestamps are sampled into a Metal counter heap (one entry per query)
-          * and resolved into `bo` after the GPU writes them. */
+         /* Timestamps are sampled into a Metal counter heap (one entry per
+          * query) and resolved into `bo` after the GPU writes them. */
          pool->ts.heap = mtl_new_timestamp_counter_heap(dev->mtl_handle,
                                                         pool->vk.query_count);
          if (pool->ts.heap == NULL) {
@@ -284,6 +284,27 @@ kk_mv_query_count(struct kk_cmd_buffer *cmd)
    return render->view_mask ? util_bitcount(render->view_mask) : 1;
 }
 
+static enum mtl_stages
+kk_query_stages(struct kk_query_pool *pool)
+{
+   enum mtl_stages stages = 0u;
+
+   /* The resolveCounterHeap runs on the blit stage and it needs to be available
+    * for the compute job to copy results to the bo. */
+   if (kk_pool_is_ts(pool))
+      stages |= MTL_STAGE_BLIT;
+
+   /* kk_cmd_write executions for query availability, timestamps or
+    * CopyQueryResults. */
+   stages |= MTL_STAGE_DISPATCH;
+
+   /* Occlusion queries */
+   if (kk_pool_is_oq(pool))
+      stages |= MTL_STAGE_FRAGMENT;
+
+   return stages;
+}
+
 VKAPI_ATTR void VKAPI_CALL
 kk_CmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
                      uint32_t firstQuery, uint32_t queryCount)
@@ -299,7 +320,45 @@ kk_CmdResetQueryPool(VkCommandBuffer commandBuffer, VkQueryPool queryPool,
    if (util_dynarray_num_elements(&cmd->ts_resolves, struct kk_ts_resolve) > 0)
       cs_end(cmd);
 
+   /* The Vulkan spec section on vkCmdResetQueryPool states:
+    * This command defines an execution dependency between other query commands
+    * that reference the same query.
+    *
+    * The first synchronization scope includes all commands which reference
+    * the queries in queryPool indicated by firstQuery and queryCount that
+    * occur earlier in submission order.
+    *
+    * The second synchronization scope includes all commands which reference
+    * the queries in queryPool indicated by firstQuery and queryCount that
+    * occur later in submission order.
+    *
+    * The operation of this command happens after the first scope and happens
+    * before the second scope. */
+
+   struct mtl_compute_encoder *encoder = cs_get_compute(cmd);
+   enum mtl_stages used_stages = mtl_compute_used_stages(cmd->metal.compute);
+   enum mtl_stages query_stages = kk_query_stages(pool);
+
+   mtl_barrier_after_queue_stages(encoder, query_stages, MTL_STAGE_DISPATCH,
+                                  MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+   if (query_stages & used_stages) {
+      mtl_barrier_after_encoder_stages(encoder, query_stages & used_stages,
+                                       MTL_STAGE_DISPATCH,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+   }
+
    emit_zero_queries(cmd, pool, firstQuery, queryCount, false);
+
+   if (query_stages & MTL_STAGES_ALL_COMPUTE_ENCODER) {
+      mtl_barrier_after_encoder_stages(
+         encoder, MTL_STAGE_DISPATCH,
+         query_stages & MTL_STAGES_ALL_COMPUTE_ENCODER,
+         MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+   }
+
+   mtl_barrier_after_stages(encoder, MTL_STAGE_DISPATCH, query_stages,
+                            MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 }
 
 typedef struct {
@@ -371,8 +430,7 @@ kk_CmdWriteTimestamp2(VkCommandBuffer commandBuffer,
    if (pdev->settings.gpu_capture_enabled) {
       /* There is no counter heap because we are capturing. */
       libkk_write_u32(cmd, kk_grid_1d(1), true,
-                      kk_query_report_addr(dev, pool, query),
-                      0u);
+                      kk_query_report_addr(dev, pool, query), 0u);
 
       return;
    }
@@ -588,10 +646,18 @@ kk_CmdCopyQueryPoolResultsToMemoryKHR(
    if (util_dynarray_num_elements(&cmd->ts_resolves, struct kk_ts_resolve) > 0)
       cs_end(cmd);
 
+   enum mtl_stages after_stages = kk_query_stages(pool);
+
+   /* We have no way to check availability of query results, so always sync. */
    mtl_compute_encoder *encoder = cs_get_compute(cmd);
-   /* The resolveCounterHeap runs on the blit stage and it needs to be available
-    * for the compute job to copy results to the bo. */
-   mtl_barrier_after_queue_stages(encoder, MTL_STAGE_BLIT, MTL_STAGE_DISPATCH, MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+   mtl_barrier_after_queue_stages(encoder, after_stages, MTL_STAGE_DISPATCH,
+                                  MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+   enum mtl_stages used_stages = mtl_compute_used_stages(cmd->metal.compute);
+   if (used_stages & after_stages)
+      mtl_barrier_after_encoder_stages(
+         encoder, after_stages & MTL_STAGES_ALL_COMPUTE_ENCODER,
+         MTL_STAGE_DISPATCH, MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    struct kk_bo *results_bo =
       kk_pool_is_oq(pool) ? dev->occlusion_queries.bo : pool->bo;
@@ -607,4 +673,13 @@ kk_CmdCopyQueryPoolResultsToMemoryKHR(
       .reports_per_query = kk_reports_per_query(pool),
    };
    libkk_copy_queries_struct(cmd, kk_grid_1d(queryCount), false, args);
+
+   enum mtl_stages enabled_stages = kk_enabled_stages(dev);
+   mtl_barrier_after_encoder_stages(
+      cmd->metal.compute, MTL_STAGE_DISPATCH,
+      enabled_stages & MTL_STAGES_ALL_COMPUTE_ENCODER,
+      MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+   mtl_barrier_after_stages(cmd->metal.compute, MTL_STAGE_DISPATCH,
+                            enabled_stages,
+                            MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 }

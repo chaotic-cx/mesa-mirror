@@ -129,6 +129,8 @@ void kk_device_remove_buffer_from_residency_set(struct kk_device *dev,
                                                 mtl_buffer *buffer);
 void kk_device_make_resources_resident(struct kk_device *dev);
 
+enum mtl_stages kk_enabled_stages(struct kk_device *dev);
+
 /* Required to create a sampler */
 mtl_sampler *kk_sampler_create(struct kk_device *dev,
                                const struct mtl_sampler_packed *packed);

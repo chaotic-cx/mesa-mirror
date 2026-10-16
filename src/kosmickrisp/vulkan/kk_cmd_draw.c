@@ -362,6 +362,16 @@ kk_CmdBeginRendering(VkCommandBuffer commandBuffer,
 
    render->rendering_to_whole_framebuffer = is_whole_framebuffer;
 
+   if (!is_whole_framebuffer) {
+      /* Vulkan allows overlapping render passes with the same images as long
+       * as their render areas don't overlap.
+       * Metal does not.
+       * The render pass can also overlap with other work if that's outside
+       * the render area so we need a barrier for all stages unfortunately. */
+      cmd->barrier.pending.after |= MTL_STAGE_ALL;
+      cmd->barrier.pending.before |= MTL_STAGE_FRAGMENT;
+   }
+
    /* renderTargetWidth/Height doesn't seem to guarantee
     * that the attachments won't get touched outside the area
     * so just checking for offset = 0 doesn't cut it. */
@@ -628,6 +638,16 @@ kk_CmdEndRendering2KHR(VkCommandBuffer commandBuffer,
 
    kk_apply_attachment_store_ops(cmd, false);
 
+   if (render->flags & VK_RENDERING_SUSPENDING_BIT) {
+      /* We assume suspending render passes are at the end of the command buffer
+       * so avoid adding pending stages which would force us to create a compute
+       * encoder. Hopefully we'll be able to properly support suspend+resume at
+       * some point which will make this barrier obsolete. */
+      mtl_barrier_after_stages(cmd->metal.render, MTL_STAGE_FRAGMENT,
+                               MTL_STAGE_FRAGMENT,
+                               MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+   }
+
    /* Clean up previous encoder */
    cs_end(cmd);
    mtl_release(cmd->state.gfx.render_pass_descriptor);
@@ -637,10 +657,25 @@ kk_CmdEndRendering2KHR(VkCommandBuffer commandBuffer,
        (VK_RENDERING_SUSPENDING_BIT | VK_RENDERING_CUSTOM_RESOLVE_BIT_EXT))
       need_meta_resolve = false;
 
+   if (need_meta_resolve ||
+       (render->flags & VK_RENDERING_CUSTOM_RESOLVE_BIT_EXT)) {
+      cmd->barrier.pending.after |= MTL_STAGE_FRAGMENT;
+      cmd->barrier.pending.before |= MTL_STAGE_FRAGMENT;
+   }
+
+   bool rendering_to_whole_framebuffer = render->rendering_to_whole_framebuffer;
    memset(render, 0, sizeof(*render));
 
    if (need_meta_resolve) {
       kk_meta_resolve_rendering(cmd, &vk_render);
+   }
+
+   if (!rendering_to_whole_framebuffer) {
+      /* The render pass could overlap with other work as long as the render
+       * area doesn't overlap with read/writes from that work.
+       * We need a barrier in Metal. */
+      cmd->barrier.pending.after |= MTL_STAGE_FRAGMENT;
+      cmd->barrier.pending.before |= MTL_STAGE_ALL;
    }
 }
 
@@ -967,6 +1002,9 @@ kk_flush_render_pass(struct kk_cmd_buffer *cmd)
          kk_apply_attachment_store_ops(cmd, true);
       }
 
+      mtl_barrier_after_stages(cmd->metal.render, MTL_STAGE_FRAGMENT,
+                               MTL_STAGE_FRAGMENT,
+                               MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
       cs_end(cmd);
       kk_cmd_buffer_dirty_all_gfx(cmd);
       cmd->state.gfx.need_to_start_render_pass = true;
@@ -1053,19 +1091,34 @@ kk_heap(struct kk_cmd_buffer *cmd)
 
    /* We need to free all allocations after each command buffer execution */
    if (!cmd->uses_heap) {
+      /* Wait for the stages that use the heap in other command buffers. */
+      struct mtl_compute_encoder *enc = cs_get_compute(cmd);
+      mtl_barrier_after_queue_stages(enc, MTL_STAGE_DISPATCH | MTL_STAGE_VERTEX,
+                                     MTL_STAGE_DISPATCH,
+                                     MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+      enum mtl_stages used_stages = mtl_compute_used_stages(cmd->metal.compute);
+      if (used_stages & MTL_STAGE_DISPATCH)
+         mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
+                                          MTL_STAGE_DISPATCH,
+                                          MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
       uint64_t addr = dev->heap->gpu;
 
       /* Zeroing the allocated index frees everything. Force compute encoder
        * since this path is only taken by tessellation, GS and unroll, which
        * already force a compute encoder break */
-      mtl_compute_encoder *encoder = cs_get_compute(cmd);
-      kk_cmd_write(cmd, (struct libkk_imm_write){
-                           addr + offsetof(struct poly_heap, bottom), 0});
+      libkk_write_u32(cmd, kk_grid_1d(1), true,
+                      addr + offsetof(struct poly_heap, bottom), 0u);
 
-      /* Ensure heap is set to 0 before we allocate anything. */
-      mtl_barrier_after_encoder_stages(encoder, MTL_STAGE_DISPATCH,
+      mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
                                        MTL_STAGE_DISPATCH,
                                        MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+      /* Ensure heap is set to 0 before we allocate anything. */
+      mtl_barrier_after_stages(enc, MTL_STAGE_DISPATCH,
+                               MTL_STAGE_DISPATCH | MTL_STAGE_VERTEX,
+                               MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
       cmd->uses_heap = true;
    }
@@ -1617,6 +1670,13 @@ kk_predicate_draws(struct kk_cmd_buffer *cmd, struct kk_draw_command *data)
          in_addr = patched.gpu;
          in_stride_el = out_stride_el;
       }
+
+      /* Make the indirect commands visible for future compute work.
+       * There will be a future barrier that makes it visible for the vertex
+       * stage. */
+      mtl_barrier_after_encoder_stages(cmd->metal.compute, MTL_STAGE_DISPATCH,
+                                       MTL_STAGE_DISPATCH,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
    }
 
    data->indirect_command.addr = patched.gpu;
@@ -1682,6 +1742,12 @@ kk_unroll_geometry(struct kk_cmd_buffer *cmd, struct kk_draw_command *data)
    kk_set_unrolled_draw(cmd, data, u_decomposed_prim(data->prim),
                         out_draws.gpu);
 
+   /* Intra-encoder barrier in case there's more pre-draw compute work after
+    * this. */
+   mtl_barrier_after_encoder_stages(cmd->metal.compute, MTL_STAGE_DISPATCH,
+                                    MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
    return true;
 }
 
@@ -1716,6 +1782,12 @@ kk_unroll_adjacency(struct kk_cmd_buffer *cmd, struct kk_draw_command *data)
                                  info);
 
    kk_set_unrolled_draw(cmd, data, u_reduced_prim(data->prim), out_draws.gpu);
+
+   /* Intra-encoder barrier in case there's more pre-draw compute work after
+    * this. */
+   mtl_barrier_after_encoder_stages(cmd->metal.compute, MTL_STAGE_DISPATCH,
+                                    MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    return true;
 }
@@ -2098,6 +2170,8 @@ kk_launch_tess(struct kk_cmd_buffer *cmd, struct kk_draw_data draw)
    uint64_t state = gfx->per_draw_data.tess_params;
    struct kk_tess_info info = gfx->tess.info;
 
+   mtl_compute_encoder *enc = cs_get_compute(cmd);
+
    /* Setup grids */
    if (kk_grid_is_indirect(draw.grid)) {
       struct libkk_tess_setup_indirect_args args = {
@@ -2117,6 +2191,9 @@ kk_launch_tess(struct kk_cmd_buffer *cmd, struct kk_draw_data draw)
       }
 
       libkk_tess_setup_indirect_struct(cmd, kk_grid_1d(1), true, args);
+      mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
+                                       MTL_STAGE_DISPATCH,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
       uint32_t grid_stride = sizeof(uint32_t) * 3;
       grid_vs = kk_grid_indirect(gfx->tess.indirect_ptr.gpu + 0u * grid_stride);
@@ -2133,16 +2210,14 @@ kk_launch_tess(struct kk_cmd_buffer *cmd, struct kk_draw_data draw)
    }
 
    /* First launch the VS and TCS */
-
-   mtl_compute_encoder *enc = cs_get_compute(cmd);
    {
       mtl_compute_pipeline_state *pipeline = vs->pipeline.gfx.pre_render[0];
       struct mtl_size local_size = {KK_POLY_WG_SIZE, 1, 1};
+      mtl_compute_set_pipeline_state(enc, pipeline);
+      kk_dispatch_compute(enc, grid_vs, local_size);
       mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
                                        MTL_STAGE_DISPATCH,
                                        MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
-      mtl_compute_set_pipeline_state(enc, pipeline);
-      kk_dispatch_compute(enc, grid_vs, local_size);
    }
    {
       mtl_compute_pipeline_state *pipeline = vs->pipeline.gfx.pre_render[1];
@@ -2151,18 +2226,23 @@ kk_launch_tess(struct kk_cmd_buffer *cmd, struct kk_draw_data draw)
        * empty data. We set restart to true to avoid unroll. */
       if (grid_tcs.mode == KK_GRID_DIRECT && grid_tcs.size.x == 0u)
          return (struct kk_draw_data){.grid = kk_grid_1d(0u)};
+
+      mtl_compute_set_pipeline_state(enc, pipeline);
+      kk_dispatch_compute(enc, grid_tcs, local_size);
       mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
                                        MTL_STAGE_DISPATCH,
                                        MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
-      mtl_compute_set_pipeline_state(enc, pipeline);
-      kk_dispatch_compute(enc, grid_tcs, local_size);
    }
 
    /* First generate counts, then prefix sum them, and then tessellate. */
    libkk_tessellate(cmd, grid_tess, true, info.mode, POLY_TESS_MODE_COUNT,
                     state);
+   mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH, MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    libkk_prefix_sum_tess(cmd, kk_grid_1d(1024u), true, state);
+   mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH, MTL_STAGE_DISPATCH,
+                                    MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
 
    libkk_tessellate(cmd, grid_tess, true, info.mode, POLY_TESS_MODE_WITH_COUNTS,
                     state);
@@ -2225,9 +2305,15 @@ kk_launch_gs_prerast(struct kk_cmd_buffer *cmd,
 
    enum mesa_prim mode = kk_gs_in_prim(cmd);
 
+   mtl_compute_encoder *enc = cs_get_compute(cmd);
+
    if (restart) {
       draw = kk_draw_without_restart(cmd, data, draw);
       mode = u_decomposed_prim(mode);
+
+      mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
+                                       MTL_STAGE_DISPATCH,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
    }
 
    if (kk_grid_is_indirect(draw.grid)) {
@@ -2268,7 +2354,6 @@ kk_launch_gs_prerast(struct kk_cmd_buffer *cmd,
     * pipelines */
    uint32_t pre_render_count = vs->pipeline.gfx.pre_render_count;
    struct mtl_size local_size = {KK_POLY_WG_SIZE, 1, 1};
-   mtl_compute_encoder *enc = cs_get_compute(cmd);
 
    /* KK_WORKAROUND_19 */
    if (!(pdev->settings.disabled_workarounds & BITFIELD64_BIT(19)))
@@ -2353,6 +2438,7 @@ static void
 kk_draw(struct kk_cmd_buffer *cmd, struct kk_draw_command *data)
 {
    struct vk_dynamic_graphics_state *dyn = &cmd->vk.dynamic_graphics_state;
+   struct kk_device *dev = kk_cmd_buffer_device(cmd);
 
    kk_flush_gfx_state(cmd);
 
@@ -2362,25 +2448,79 @@ kk_draw(struct kk_cmd_buffer *cmd, struct kk_draw_command *data)
       dyn->rs.provoking_vertex == VK_PROVOKING_VERTEX_MODE_FIRST_VERTEX_EXT;
 
    /* Convert to indirect and process predicates. Skip draw if we fail. */
+   bool draw_was_predicated = data->predicate_count > 0;
    if (data->predicate_count > 0 && !kk_predicate_draws(cmd, data))
       return;
 
    bool tess = cmd->state.shaders[MESA_SHADER_TESS_EVAL];
    bool geom = cmd->state.shaders[MESA_SHADER_GEOMETRY];
+   bool fs = cmd->state.shaders[MESA_SHADER_FRAGMENT];
+
+   bool draw_requires_unroll = requires_unroll(cmd, data);
+   if (draw_requires_unroll || mesa_prim_has_adjacency(data->prim) || tess ||
+       geom) {
+      /* Do a barrier here because the vertex shader is now executed as a
+       * compute shader or relies on work that comes from a compute shader.
+       * We want to avoid emitting MTL_STAGE_DISPATCH for regular
+       * VK_PIPELINE_STAGE_VERTEX_SHADER and
+       * VK_PIPELINE_STAGE_VERTEX_ATTRIBUTE_BIT barriers. Make sure any changes
+       * to the vertex/index buffers are visible to compute shaders. We can use
+       * the emulated dependency chains here. */
+
+      /* Make sure we have interrupted the render pass. */
+      struct mtl_compute_encoder *enc = cs_get_compute(cmd);
+
+      enum mtl_stages stages =
+         MTL_STAGE_VERTEX |
+         cmd->barrier.chained_stages[mtl_stage_to_index(MTL_STAGE_VERTEX)];
+      mtl_barrier_after_queue_stages(enc, stages, MTL_STAGE_DISPATCH,
+                                     MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+
+      enum mtl_stages used_stages = mtl_compute_used_stages(cmd->metal.compute);
+      if (stages & used_stages) {
+         /* Compute or copy was in the chained stages, and we had compute/copy
+          * work in the encoder. */
+         mtl_barrier_after_encoder_stages(enc, stages & used_stages,
+                                          MTL_STAGE_DISPATCH,
+                                          MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+      }
+   }
 
    /* Unroll geometry. Skip draw if we fail. */
-   if (requires_unroll(cmd, data) && !kk_unroll_geometry(cmd, data))
+   if (draw_requires_unroll && !kk_unroll_geometry(cmd, data))
       return;
 
    if (!geom && mesa_prim_has_adjacency(data->prim) &&
        !kk_unroll_adjacency(cmd, data))
       return;
 
+   if (draw_requires_unroll || mesa_prim_has_adjacency(data->prim) ||
+       draw_was_predicated) {
+      /* Make the unrolled geometry or the indirect command visible to the
+       * vertex stage. Do this even when TESS/GS is active because that might
+       * execute as a Metal VS. */
+      struct mtl_compute_encoder *enc = cs_get_compute(cmd);
+      mtl_barrier_after_stages(enc, MTL_STAGE_DISPATCH,
+                               MTL_STAGE_VERTEX | MTL_STAGE_DISPATCH,
+                               MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+      /* There might be more compute work because of tess or geometry shaders. */
+      mtl_barrier_after_encoder_stages(enc, MTL_STAGE_DISPATCH,
+                                       MTL_STAGE_DISPATCH,
+                                       MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+   }
+
    /* Patch lists do not restart, so only a GS fed by the input assembly needs
     * its restarts unrolled. The unroll kernel reads an indirect draw. */
    bool gs_restart = geom && !tess && data->restart && data->indexed;
    if (gs_restart && !kk_convert_to_indirect_draw(cmd, data))
       return;
+
+   if (fs)
+      kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_FRAGMENT);
+
+   /* Only clear VERTEX chain stages after unroll and emulated stage barrier.
+    * So we can use the chained stages there. */
+   kk_cmd_barrier_chain_clear_stage(cmd, MTL_STAGE_VERTEX);
 
    for (uint32_t i = 0; i < data->draw_count; i++) {
       struct kk_draw_data draw_data = build_draw_data(cmd, data, i);
@@ -2393,6 +2533,13 @@ kk_draw(struct kk_cmd_buffer *cmd, struct kk_draw_command *data)
          draw_data = kk_launch_tess(cmd, draw_data);
       if (geom)
          draw_data = kk_launch_gs_prerast(cmd, data, draw_data, gs_restart);
+
+      if (tess || geom) {
+         mtl_compute_encoder *enc = cs_get_compute(cmd);
+         mtl_barrier_after_stages(enc, MTL_STAGE_DISPATCH,
+                                  kk_enabled_stages(dev),
+                                  MTL_VISIBILITY_OPTION_RESOURCE_ALIAS);
+      }
 
       /* TODO_KOSMICKRISP Remove this once unroll, tess and any compute does not
        * split render pass */
