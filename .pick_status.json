@@ -4,7 +4,7 @@
         "description": "vulkan: initialize swapchain private mutex properly",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "710d4780663aac597d88364a76e828bcbf1c7e8e",
         "notes": null
