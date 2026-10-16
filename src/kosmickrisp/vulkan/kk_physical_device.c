@@ -219,7 +219,7 @@ kk_get_device_extensions(const struct kk_instance *instance,
 
 static void
 kk_get_device_features(
-   const struct kk_physical_device *pdev,
+   const struct kk_device_info *info, const struct kk_instance *instance,
    const struct vk_device_extension_table *supported_extensions,
    struct vk_features *features)
 {
@@ -227,7 +227,8 @@ kk_get_device_features(
       /* Vulkan 1.0 */
       .alphaToOne = true,
       .depthBiasClamp = true,
-      .depthBounds = pdev->info.gpu_apple_family >= 10,
+      .depthBounds = kk_gpu_supports_depth_bounds(info) ||
+                     instance->drirc.misc.fake_depth_bounds,
       .depthClamp = true,
       .drawIndirectFirstInstance = true,
       .dualSrcBlend = true,
@@ -260,7 +261,7 @@ kk_get_device_features(
       .shaderUniformBufferArrayDynamicIndexing = true,
       .tessellationShader = true,
       .textureCompressionASTC_LDR = true,
-      .textureCompressionBC = pdev->info.supports_bc_texture_compression,
+      .textureCompressionBC = info->supports_bc_texture_compression,
       .textureCompressionETC2 = true,
       .vertexPipelineStoresAndAtomics = true,
 
@@ -509,7 +510,7 @@ kk_get_device_features(
       .shaderBufferFloat32AtomicAdd = true,
       .shaderSharedFloat32Atomics = true,
       .shaderSharedFloat32AtomicAdd =
-         pdev->info.msl_version >= MTL_LANGUAGE_VERSION_4_1,
+         info->msl_version >= MTL_LANGUAGE_VERSION_4_1,
 
       /* VK_EXT_vertex_attribute_robustness */
       .vertexAttributeRobustness = true,
@@ -1172,7 +1173,8 @@ kk_enumerate_physical_devices(struct vk_instance *_instance)
    kk_get_device_extensions(instance, pdev, &supported_extensions);
 
    struct vk_features supported_features;
-   kk_get_device_features(pdev, &supported_extensions, &supported_features);
+   kk_get_device_features(&pdev->info, instance, &supported_extensions,
+                          &supported_features);
 
    struct vk_properties properties;
    kk_get_device_properties(pdev, instance, &supported_extensions, &properties);

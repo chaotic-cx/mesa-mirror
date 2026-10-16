@@ -1460,7 +1460,7 @@ kk_flush_dynamic_state(struct kk_cmd_buffer *cmd)
 
    if ((IS_DIRTY(DS_DEPTH_BOUNDS_TEST_ENABLE) ||
         IS_DIRTY(DS_DEPTH_BOUNDS_TEST_BOUNDS)) &&
-       pdev->vk.supported_features.depthBounds) {
+       kk_gpu_supports_depth_bounds(&pdev->info)) {
       /* Metal does not expose a separate flag for enabling the depth bounds
        * test. Instead, it treats [0, 1] as disabled. */
       bool bounds_enable = dyn->ds.depth.bounds_test.enable;

@@ -15,7 +15,11 @@ def declare_options():
 
     B = drirc_gen.DrircBool
 
-    misc_options = []
+    misc_options = [
+        B("kk_fake_depth_bounds", False,
+          "Reports support for depth bounds test even if the hardware does not support it",
+          c_name="fake_depth_bounds"),
+    ]
     debug_options = []
     features_options = []
     performance_options = []

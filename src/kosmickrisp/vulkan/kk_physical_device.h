@@ -101,6 +101,12 @@ kk_physical_device_instance(struct kk_physical_device *pdev)
 VkResult kk_enumerate_physical_devices(struct vk_instance *_instance);
 void kk_physical_device_destroy(struct vk_physical_device *vk_device);
 
+static inline bool
+kk_gpu_supports_depth_bounds(const struct kk_device_info *info)
+{
+   return info->gpu_apple_family >= 10;
+}
+
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR) ||                                    \
    defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_XLIB_KHR) ||    \
    defined(VK_USE_PLATFORM_DISPLAY_KHR) || defined(VK_USE_PLATFORM_METAL_EXT)
