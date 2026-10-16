@@ -59,7 +59,7 @@ memoryobj_alloc(struct gl_context *ctx, GLuint name)
    return obj;
 }
 
-static void
+static bool
 import_memoryobj_fd(struct gl_context *ctx,
                     struct gl_memory_object *obj,
                     GLuint64 size,
@@ -79,12 +79,17 @@ import_memoryobj_fd(struct gl_context *ctx,
                                                    &whandle,
                                                    obj->Dedicated);
 
-   /* We own fd, but we no longer need it. So get rid of it */
-   close(fd);
+   if (obj->memory) {
+      /* We own fd, but we no longer need it. So get rid of it */
+      close(fd);
+      return true;
+   }
 #endif
+
+   return false;
 }
 
-static void
+static bool
 import_memoryobj_win32(struct gl_context *ctx,
                        struct gl_memory_object *obj,
                        GLuint64 size,
@@ -108,6 +113,7 @@ import_memoryobj_win32(struct gl_context *ctx,
    obj->memory = screen->memobj_create_from_handle(screen,
                                                    &whandle,
                                                    obj->Dedicated);
+   return obj->memory;
 }
 
 /**
@@ -1154,7 +1160,11 @@ _mesa_ImportMemoryFdEXT(GLuint memory,
    if (!memObj)
       return;
 
-   import_memoryobj_fd(ctx, memObj, size, fd);
+   if (!import_memoryobj_fd(ctx, memObj, size, fd)) {
+      _mesa_error(ctx, GL_INVALID_VALUE, "%s(import failed)", func);
+      return;
+   }
+
    memObj->Immutable = GL_TRUE;
 }
 
@@ -1185,7 +1195,11 @@ _mesa_ImportMemoryWin32HandleEXT(GLuint memory,
    if (!memObj)
       return;
 
-   import_memoryobj_win32(ctx, memObj, size, handle, NULL);
+   if (!import_memoryobj_win32(ctx, memObj, size, handle, NULL)) {
+      _mesa_error(ctx, GL_INVALID_VALUE, "%s(import failed)", func);
+      return;
+   }
+
    memObj->Immutable = GL_TRUE;
 }
 
@@ -1216,7 +1230,11 @@ _mesa_ImportMemoryWin32NameEXT(GLuint memory,
    if (!memObj)
       return;
 
-   import_memoryobj_win32(ctx, memObj, size, NULL, name);
+   if (!import_memoryobj_win32(ctx, memObj, size, NULL, name)) {
+      _mesa_error(ctx, GL_INVALID_VALUE, "%s(import failed)", func);
+      return;
+   }
+
    memObj->Immutable = GL_TRUE;
 }
 
