@@ -301,6 +301,10 @@ uint32_t gen_lsc_ex_desc_encode(const struct intel_device_info *devinfo,
                                 const gen_lsc_ex_desc *ex_desc,
                                 uint32_t *ex_desc_imm_extra_out);
 
+uint32_t gen_lsc_ex_desc_imm_encode(const struct intel_device_info *devinfo,
+                                    enum lsc_opcode op,
+                                    const gen_lsc_ex_desc *ex_desc);
+
 gen_urb_desc gen_urb_desc_decode(const struct intel_device_info *devinfo,
                                  uint32_t desc);
 
