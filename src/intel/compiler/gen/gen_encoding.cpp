@@ -486,6 +486,17 @@ gen_lsc_ex_desc_encode(const struct intel_device_info *devinfo,
    return result;
 }
 
+uint32_t
+gen_lsc_ex_desc_imm_encode(const struct intel_device_info *devinfo,
+                           enum lsc_opcode op,
+                           const gen_lsc_ex_desc *ex_desc)
+{
+   uint32_t imm;
+   ASSERTED uint32_t addr = gen_lsc_ex_desc_encode(devinfo, op, ex_desc, &imm);
+   assert(addr == 0);
+   return imm;
+}
+
 /**
  * Convert the provided binary representation of an SWSB annotation to a
  * gen_swsb.
