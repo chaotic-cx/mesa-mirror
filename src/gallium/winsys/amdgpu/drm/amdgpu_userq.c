@@ -69,7 +69,7 @@ amdgpu_userq_ring_init(struct amdgpu_winsys *aws, struct amdgpu_userq *userq,
 
    /* Allocate memory for rptr. */
    userq->vram_bo = amdgpu_bo_create(aws, aws->info.gart_page_size, 256, RADEON_DOMAIN_VRAM,
-                                     RADEON_FLAG_CLEAR_VRAM | RADEON_FLAG_GL2_BYPASS |
+                                        RADEON_FLAG_GL2_BYPASS |
                                         RADEON_FLAG_NO_SUBALLOC |
                                         RADEON_FLAG_NO_INTERPROCESS_SHARING);
    if (!userq->vram_bo)
@@ -187,8 +187,7 @@ amdgpu_userq_init(struct amdgpu_winsys *aws, struct amdgpu_userq *userq, enum am
       userq->gfx_data.shadow_bo = amdgpu_bo_create(aws, aws->info.fw_based_mcbp.shadow_size,
                                                    aws->info.fw_based_mcbp.shadow_alignment,
                                                    RADEON_DOMAIN_VRAM,
-                                                   RADEON_FLAG_NO_INTERPROCESS_SHARING |
-                                                      RADEON_FLAG_CLEAR_VRAM);
+                                                   RADEON_FLAG_NO_INTERPROCESS_SHARING);
       if (!userq->gfx_data.shadow_bo)
          goto fail;
 

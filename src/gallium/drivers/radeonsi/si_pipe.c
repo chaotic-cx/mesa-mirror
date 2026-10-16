@@ -313,8 +313,6 @@ struct pipe_screen *radeonsi_screen_create(int fd, const struct pipe_screen_conf
       .reserve_vmid = debug_flags & (DBG(RESERVE_VMID) | DBG(SQTT)),
       .userq_job_log = debug_flags & DBG(USERQ_JOB_LOG),
       .noop_cs = debug_get_bool_option("RADEON_NOOP", false),
-      .zero_vram = driQueryOptionb(config->options, "radeonsi_zerovram") ||
-                   (debug_flags & DBG(SAFE)),
       .ib_caches_flush = debug_flags & DBG(IB_CACHES_FLUSH),
    };
 

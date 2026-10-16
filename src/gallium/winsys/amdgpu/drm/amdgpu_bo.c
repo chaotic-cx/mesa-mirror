@@ -644,10 +644,6 @@ static struct amdgpu_winsys_bo *amdgpu_create_bo(struct amdgpu_winsys *aws,
    if (flags & RADEON_FLAG_DISCARDABLE)
       request.flags |= AMDGPU_GEM_CREATE_DISCARDABLE;
 
-   if ((flags & RADEON_FLAG_CLEAR_VRAM) || (aws->zero_all_vram_allocs &&
-        (request.preferred_heap & AMDGPU_GEM_DOMAIN_VRAM)))
-      request.flags |= AMDGPU_GEM_CREATE_VRAM_CLEARED;
-
    if ((flags & RADEON_FLAG_ENCRYPTED) &&
        aws->info.has_tmz_support) {
       request.flags |= AMDGPU_GEM_CREATE_ENCRYPTED;
@@ -1511,7 +1507,7 @@ no_slab:
 
    bool use_reusable_pool = !(domain & RADEON_DOMAIN_DOORBELL) &&
       (flags & RADEON_FLAG_NO_INTERPROCESS_SHARING) &&
-      !(flags & (RADEON_FLAG_DISCARDABLE | RADEON_FLAG_CLEAR_VRAM));
+      !(flags & (RADEON_FLAG_DISCARDABLE));
 
    if (use_reusable_pool) {
        /* RADEON_FLAG_NO_SUBALLOC is irrelevant for the cache. */
