@@ -1047,6 +1047,12 @@ _mesa_WaitSemaphoreEXT(GLuint semaphore,
    if (!semObj)
       return;
 
+   if (!semObj->fence) {
+      _mesa_error(ctx, GL_INVALID_OPERATION, "%s(no associated semaphore)",
+                  func);
+      return;
+   }
+
    FLUSH_VERTICES(ctx, 0, 0);
 
    bufObjs = malloc(sizeof(struct gl_buffer_object *) * numBufferBarriers);
@@ -1106,6 +1112,12 @@ _mesa_SignalSemaphoreEXT(GLuint semaphore,
    semObj = _mesa_lookup_semaphore_object(ctx, semaphore);
    if (!semObj)
       return;
+
+   if (!semObj->fence) {
+      _mesa_error(ctx, GL_INVALID_OPERATION, "%s(no associated semaphore)",
+                  func);
+      return;
+   }
 
    FLUSH_VERTICES(ctx, 0, 0);
 
