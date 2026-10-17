@@ -644,7 +644,7 @@
         "description": "nv50,nvc0: don't read pipe_surface templates as nv50_surface in clears",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "718e277ab56e52c9a8d23c3ea4cb0eca038de630",
         "notes": null
