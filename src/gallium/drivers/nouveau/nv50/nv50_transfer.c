@@ -540,16 +540,27 @@ nv50_cb_push(struct nouveau_context *nv,
    struct nv50_context *nv50 = nv50_context(&nv->pipe);
    struct nv50_constbuf *cb = NULL;
    int s, bufid;
+   /* CB_DATA writes through a binding point, not to the buffer's address,
+    * and res->cb_bindings is shared by all contexts. Only use a binding
+    * point that this context has emitted, that is still on the hardware and
+    * that still points at this buffer: another context may have bound a
+    * different buffer to the same slot since.
+    */
+   const bool hw_state_ours = nv50->screen->cur_ctx == nv50;
+
    /* Go through all the constbuf binding points of this buffer and try to
     * find one which contains the region to be updated.
     */
-   for (s = 0; s < NV50_MAX_SHADER_STAGES && !cb; s++) {
-      uint16_t bindings = res->cb_bindings[s];
+   for (s = 0; hw_state_ours && s < NV50_MAX_SHADER_STAGES && !cb; s++) {
+      uint16_t bindings = res->cb_bindings[s] & ~nv50->constbuf_dirty[s];
       while (bindings) {
          int i = ffs(bindings) - 1;
          uint32_t cb_offset = nv50->constbuf[s][i].offset;
 
          bindings &= ~(1 << i);
+         if (nv50->constbuf[s][i].user ||
+             nv50->constbuf[s][i].u.buf != &res->base)
+            continue;
          if (cb_offset <= offset &&
              cb_offset + nv50->constbuf[s][i].size >= offset + words * 4) {
             cb = &nv50->constbuf[s][i];
