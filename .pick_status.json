@@ -8034,7 +8034,7 @@
         "description": "nv50: only push constant buffer updates through a current binding",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "3f48548a6f65fe90b97956c7be73268917c6f2f9",
         "notes": null
