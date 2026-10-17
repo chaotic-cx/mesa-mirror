@@ -229,6 +229,7 @@ nouveau_object_channel_del(struct nouveau_object *obj)
 static void
 nouveau_object_subchan_del(struct nouveau_object *obj)
 {
+   struct nouveau_drm *drm = nouveau_drm(obj->parent);
    struct {
       struct nvif_ioctl_v0 ioctl;
       struct nvif_ioctl_del del;
@@ -242,7 +243,7 @@ nouveau_object_subchan_del(struct nouveau_object *obj)
       },
    };
 
-   drmCommandWrite(obj->parent->handle, DRM_NOUVEAU_NVIF, &args, sizeof(args));
+   drmCommandWrite(drm->fd, DRM_NOUVEAU_NVIF, &args, sizeof(args));
 }
 
 static void
