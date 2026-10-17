@@ -754,7 +754,7 @@
         "description": "vbo: Fix extra vertex drawn on line loop end after buffer wrap",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ac838c1c5c2d9514ff214449510315692d49b30d",
         "notes": null
