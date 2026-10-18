@@ -1372,3 +1372,5 @@ glXWaitX
 MesaGLInteropGLXExportObject
 MesaGLInteropGLXFlushObjects
 MesaGLInteropGLXQueryDeviceInfo
+(optional) _glapi_create_table_from_handle
+(optional) _glapi_table_patch

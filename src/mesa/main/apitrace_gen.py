@@ -725,7 +725,8 @@ def exported_symbols():
     symbols = []
     for path in args.symbols:
         with open(path) as f:
-            symbols += [line.split()[-1] for line in f if line.strip()]
+            symbols += [line.split()[-1] for line in f
+                        if line.strip() and not line.strip().startswith('(optional)')]
     return symbols
 
 
