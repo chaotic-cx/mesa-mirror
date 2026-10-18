@@ -7,7 +7,9 @@
 #include "aco_builder.h"
 #include "aco_ir.h"
 
-#include <map>
+#include "util/bitset.h"
+
+#include <array>
 #include <vector>
 
 namespace aco {
@@ -106,17 +108,18 @@ struct alu_delay_info {
 
 struct delay_ctx {
    Program* program;
-   std::map<PhysReg, alu_delay_info> gpr_map;
+   std::array<alu_delay_info, 512> gpr_delay;
+   BITSET_DECLARE(active_gprs, 512) = {};
 
    delay_ctx() {}
    delay_ctx(Program* program_) : program(program_) {}
 
    UNUSED void print(FILE* output) const
    {
-      for (const auto& entry : gpr_map) {
-         fprintf(output, "gpr_map[%c%u] = {\n", entry.first.reg() >= 256 ? 'v' : 's',
-                 entry.first.reg() & 0xff);
-         entry.second.print(output);
+      unsigned reg;
+      BITSET_FOREACH_SET (reg, active_gprs, 512) {
+         fprintf(output, "gpr_delay[%c%u] = {\n", reg >= 256 ? 'v' : 's', reg & 0xff);
+         gpr_delay[reg].print(output);
          fprintf(output, "}\n");
       }
    }
@@ -133,10 +136,9 @@ check_alu(delay_ctx& ctx, alu_delay_info& delay, Instruction* instr)
 
       /* check consecutively read gprs */
       for (unsigned j = 0; j < op.size(); j++) {
-         std::map<PhysReg, alu_delay_info>::iterator it =
-            ctx.gpr_map.find(PhysReg{op.physReg() + j});
-         if (it != ctx.gpr_map.end())
-            op_delay.combine(it->second);
+         unsigned reg = op.physReg() + j;
+         if (BITSET_TEST(ctx.active_gprs, reg))
+            op_delay.combine(ctx.gpr_delay[reg]);
       }
 
       bool fast_forward = (instr->opcode == aco_opcode::v_cndmask_b32 ||
@@ -153,15 +155,16 @@ check_alu(delay_ctx& ctx, alu_delay_info& delay, Instruction* instr)
 void
 update_alu(delay_ctx& ctx, bool is_valu, bool is_trans, int cycles)
 {
-   std::map<PhysReg, alu_delay_info>::iterator it = ctx.gpr_map.begin();
-   while (it != ctx.gpr_map.end()) {
-      alu_delay_info& entry = it->second;
+   unsigned reg;
+   BITSET_FOREACH_SET (reg, ctx.active_gprs, 512) {
+      alu_delay_info& entry = ctx.gpr_delay[reg];
       entry.valu_instrs += is_valu ? 1 : 0;
       entry.trans_instrs += is_trans ? 1 : 0;
       entry.salu_cycles -= cycles;
       entry.valu_cycles -= cycles;
       entry.trans_cycles -= cycles;
-      it = it->second.fixup() ? ctx.gpr_map.erase(it) : std::next(it);
+      if (entry.fixup())
+         BITSET_CLEAR(ctx.active_gprs, reg);
    }
 }
 
@@ -178,24 +181,25 @@ kill_alu(alu_delay_info& delay, Instruction* instr, delay_ctx& ctx)
    int8_t implict_cycles = 0;
    if (!wait.va_vdst || !wait.va_sdst || !wait.va_vcc || !wait.sa_sdst || !wait.sa_exec ||
        !wait.va_exec) {
-      std::map<PhysReg, alu_delay_info>::iterator it = ctx.gpr_map.begin();
-      while (it != ctx.gpr_map.end()) {
-         alu_delay_info& entry = it->second;
-         bool wait_valu = !wait.va_vdst || (it->first < vcc && !wait.va_sdst) ||
-                          (it->first >= vcc && it->first <= vcc_hi && !wait.va_vcc) ||
-                          (it->first >= exec && it->first <= exec_hi && !wait.va_exec);
+      unsigned reg;
+      BITSET_FOREACH_SET (reg, ctx.active_gprs, 512) {
+         alu_delay_info& entry = ctx.gpr_delay[reg];
+         bool wait_valu = !wait.va_vdst || (reg < vcc && !wait.va_sdst) ||
+                          (reg >= vcc && reg <= vcc_hi && !wait.va_vcc) ||
+                          (reg >= exec && reg <= exec_hi && !wait.va_exec);
          if (wait_valu) {
             implict_cycles = MAX3(implict_cycles, entry.valu_cycles, entry.trans_cycles);
             entry.valu_cycles = 0;
             entry.trans_cycles = 0;
          }
-         bool wait_salu = ((it->first <= vcc_hi || it->first == scc) && !wait.sa_sdst) ||
-                          (it->first >= exec && it->first <= exec_hi && !wait.sa_exec);
+         bool wait_salu = ((reg <= vcc_hi || reg == scc) && !wait.sa_sdst) ||
+                          (reg >= exec && reg <= exec_hi && !wait.sa_exec);
          if (wait_salu) {
             implict_cycles = MAX2(implict_cycles, entry.salu_cycles);
             entry.salu_cycles = 0;
          }
-         it = it->second.fixup() ? ctx.gpr_map.erase(it) : std::next(it);
+         if (entry.fixup())
+            BITSET_CLEAR(ctx.active_gprs, reg);
       }
    }
 
@@ -209,14 +213,16 @@ kill_alu(alu_delay_info& delay, Instruction* instr, delay_ctx& ctx)
    if (!delay.empty()) {
       update_alu(ctx, false, false, MAX3(delay.salu_cycles, delay.valu_cycles, delay.trans_cycles));
 
-      /* remove all gprs with higher counter from map */
-      std::map<PhysReg, alu_delay_info>::iterator it = ctx.gpr_map.begin();
-      while (it != ctx.gpr_map.end()) {
-         if (delay.valu_instrs <= it->second.valu_instrs)
-            it->second.valu_instrs = alu_delay_info::valu_nop;
-         if (delay.trans_instrs <= it->second.trans_instrs)
-            it->second.trans_instrs = alu_delay_info::trans_nop;
-         it = it->second.fixup() ? ctx.gpr_map.erase(it) : std::next(it);
+      /* Remove all gprs with higher counters. */
+      unsigned reg;
+      BITSET_FOREACH_SET (reg, ctx.active_gprs, 512) {
+         alu_delay_info& entry = ctx.gpr_delay[reg];
+         if (delay.valu_instrs <= entry.valu_instrs)
+            entry.valu_instrs = alu_delay_info::valu_nop;
+         if (delay.trans_instrs <= entry.trans_instrs)
+            entry.trans_instrs = alu_delay_info::trans_nop;
+         if (entry.fixup())
+            BITSET_CLEAR(ctx.active_gprs, reg);
       }
    }
 }
@@ -249,9 +255,13 @@ gen_alu(Instruction* instr, delay_ctx& ctx)
          }
 
          for (unsigned j = 0; j < def.size(); j++) {
-            auto it = ctx.gpr_map.emplace(PhysReg{def.physReg().reg() + j}, delay);
-            if (!it.second)
-               it.first->second.combine(delay);
+            unsigned reg = def.physReg().reg() + j;
+            if (BITSET_TEST(ctx.active_gprs, reg)) {
+               ctx.gpr_delay[reg].combine(delay);
+            } else {
+               ctx.gpr_delay[reg] = delay;
+               BITSET_SET(ctx.active_gprs, reg);
+            }
          }
       }
    }
