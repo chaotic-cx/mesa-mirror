@@ -980,8 +980,7 @@ radv_image_use_comp_to_single(const struct radv_device *device, const struct rad
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   /* comp-to-single is only available for GFX10+. */
-   if (pdev->info.gfx_level < GFX10)
+   if (!pdev->info.has_dcc_constant_encode)
       return false;
 
    /* If the image can't be fast cleared, comp-to-single can't be used. */
