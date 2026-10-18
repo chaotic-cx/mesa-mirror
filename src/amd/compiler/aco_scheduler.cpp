@@ -658,6 +658,17 @@ add_to_hazard_query(hazard_query* query, Instruction* instr)
          query->writes_exec = true;
    }
 
+   /* Vector ALU instructions have no memory or control-barrier events. */
+   if (instr->isVALU() || instr->isVINTRP()) {
+#ifndef NDEBUG
+      memory_sync_info sync = get_sync_info_with_hack(instr);
+      assert(!sync.storage && !sync.semantics);
+      assert(!is_atomic_or_control_instr(query->program, instr, sync,
+                                         semantic_acquire | semantic_release));
+#endif
+      return;
+   }
+
    memory_sync_info sync = get_sync_info_with_hack(instr);
 
    add_memory_event(query->program, &query->mem_events, instr, &sync);
@@ -690,46 +701,9 @@ enum HazardResult {
 };
 
 HazardResult
-perform_hazard_query(hazard_query* query, Instruction* instr, bool upwards)
+perform_hazard_query_non_valu(hazard_query* query, Instruction* instr, bool upwards)
 {
-   /* don't schedule discards downwards */
-   if (!upwards && instr->opcode == aco_opcode::p_exit_early_if_not)
-      return hazard_fail_unreorderable;
-
-   /* In Primitive Ordered Pixel Shading, await overlapped waves as late as possible, and notify
-    * overlapping waves that they can continue execution as early as possible.
-    */
-   if (upwards) {
-      if (instr->opcode == aco_opcode::p_pops_gfx9_add_exiting_wave_id ||
-          is_wait_export_ready(query->gfx_level, instr)) {
-         return hazard_fail_unreorderable;
-      }
-   } else {
-      if (instr->opcode == aco_opcode::p_pops_gfx9_ordered_section_done) {
-         return hazard_fail_unreorderable;
-      }
-   }
-
-   if (query->uses_exec || query->writes_exec) {
-      for (const Definition& def : instr->definitions) {
-         if (def.isFixed() && def.physReg() == exec)
-            return hazard_fail_exec;
-      }
-   }
-   if (query->writes_exec && needs_exec_mask(instr))
-      return hazard_fail_exec;
-
-   /* Don't move exports so that they stay closer together.
-    * Since GFX11, export order matters. MRTZ must come first,
-    * then color exports sorted from first to last.
-    * Also, with Primitive Ordered Pixel Shading on GFX11+, the `done` export must not be moved
-    * above the memory accesses before the queue family scope (more precisely, fragment interlock
-    * scope, but it's not available in ACO) release barrier that is expected to be inserted before
-    * the export, as well as before any `s_wait_event export_ready` which enters the ordered
-    * section, because the `done` export exits the ordered section.
-    */
-   if (instr->isEXP() || instr->opcode == aco_opcode::p_dual_src_export_gfx11)
-      return hazard_fail_export;
+   assert(!instr->isVALU() && !instr->isVINTRP());
 
    memory_event_set instr_set;
    memset(&instr_set, 0, sizeof(instr_set));
@@ -797,6 +771,55 @@ perform_hazard_query(hazard_query* query, Instruction* instr, bool upwards)
       return hazard_fail_barrier;
 
    return hazard_success;
+}
+
+HazardResult
+perform_hazard_query(hazard_query* query, Instruction* instr, bool upwards)
+{
+   /* don't schedule discards downwards */
+   if (!upwards && instr->opcode == aco_opcode::p_exit_early_if_not)
+      return hazard_fail_unreorderable;
+
+   /* In Primitive Ordered Pixel Shading, await overlapped waves as late as possible, and notify
+    * overlapping waves that they can continue execution as early as possible.
+    */
+   if (upwards) {
+      if (instr->opcode == aco_opcode::p_pops_gfx9_add_exiting_wave_id ||
+          is_wait_export_ready(query->gfx_level, instr)) {
+         return hazard_fail_unreorderable;
+      }
+   } else {
+      if (instr->opcode == aco_opcode::p_pops_gfx9_ordered_section_done) {
+         return hazard_fail_unreorderable;
+      }
+   }
+
+   if (query->uses_exec || query->writes_exec) {
+      for (const Definition& def : instr->definitions) {
+         if (def.isFixed() && def.physReg() == exec)
+            return hazard_fail_exec;
+      }
+   }
+   if (query->writes_exec && needs_exec_mask(instr))
+      return hazard_fail_exec;
+
+   /* Don't move exports so that they stay closer together.
+    * Since GFX11, export order matters. MRTZ must come first,
+    * then color exports sorted from first to last.
+    * Also, with Primitive Ordered Pixel Shading on GFX11+, the `done` export must not be moved
+    * above the memory accesses before the queue family scope (more precisely, fragment interlock
+    * scope, but it's not available in ACO) release barrier that is expected to be inserted before
+    * the export, as well as before any `s_wait_event export_ready` which enters the ordered
+    * section, because the `done` export exits the ordered section.
+    */
+   if (instr->isEXP() || instr->opcode == aco_opcode::p_dual_src_export_gfx11)
+      return hazard_fail_export;
+
+   /* Exec hazards were checked above; vector ALU has no remaining hazards. */
+   if (instr->isVALU() || instr->isVINTRP())
+      return hazard_success;
+
+   return perform_hazard_query_non_valu(query, instr, upwards);
 }
 
 unsigned
