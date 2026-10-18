@@ -82,7 +82,6 @@ struct UpwardsCursor {
 };
 
 struct MoveState {
-   monotonic_buffer_resource m;
    RegisterDemand max_registers;
 
    Block* block;
@@ -90,10 +89,27 @@ struct MoveState {
    bool improved_rar;
 
    std::vector<bool> depends_on;
-   aco::unordered_map<uint32_t, int> rar_dependencies; /* temp-id -> index relative to insert_idx */
-   MoveState() : rar_dependencies(m) {}
+   /* temp-id -> index relative to insert_idx, or INT16_MIN if absent */
+   std::vector<int16_t> rar_dependencies;
+   std::vector<uint32_t> rar_dependency_ids;
 
-   bool has_rar_dependency(uint32_t id) const { return rar_dependencies.count(id); }
+   void clear_rar_dependencies()
+   {
+      /* Only reset entries touched by the previous scan. */
+      for (uint32_t id : rar_dependency_ids)
+         rar_dependencies[id] = INT16_MIN;
+      rar_dependency_ids.clear();
+   }
+
+   bool has_rar_dependency(uint32_t id) const { return rar_dependencies[id] != INT16_MIN; }
+
+   void set_rar_dependency(uint32_t id, int index)
+   {
+      assert(index > INT16_MIN && index <= INT16_MAX);
+      if (!has_rar_dependency(id))
+         rar_dependency_ids.push_back(id);
+      rar_dependencies[id] = index;
+   }
 
    /* for moving instructions before the current instruction to after it */
    DownwardsCursor downwards_init(int current_idx, bool improved_rar);
@@ -169,13 +185,13 @@ MoveState::downwards_init(int current_idx, bool improved_rar_)
 
    std::fill(depends_on.begin(), depends_on.end(), false);
    if (improved_rar)
-      rar_dependencies.clear();
+      clear_rar_dependencies();
 
    for (const Operand& op : current->operands) {
       if (op.isTemp()) {
          depends_on[op.tempId()] = true;
          if (improved_rar && op.isFirstKill())
-            rar_dependencies[op.tempId()] = -1;
+            set_rar_dependency(op.tempId(), -1);
       }
    }
 
@@ -286,7 +302,7 @@ MoveState::downwards_move_clause(DownwardsCursor& cursor)
    /* Remove instruction operands from rar_dependencies as the clause won't be moved further. */
    for (const Operand& op : current->operands) {
       if (op.isTemp() && op.isFirstKill())
-         rar_dependencies.erase(op.tempId());
+         rar_dependencies[op.tempId()] = INT16_MIN;
    }
 
    /* Check if one of candidates' operands is killed by depending instruction. */
@@ -393,7 +409,7 @@ MoveState::downwards_skip(DownwardsCursor& cursor)
       if (op.isTemp()) {
          depends_on[op.tempId()] = true;
          if (improved_rar && op.isFirstKill())
-            rar_dependencies[op.tempId()] = cursor.source_idx - cursor.insert_idx;
+            set_rar_dependency(op.tempId(), cursor.source_idx - cursor.insert_idx);
       }
    }
    cursor.total_demand.update(instr->register_demand);
@@ -425,7 +441,7 @@ MoveState::upwards_init(int source_idx, bool improved_rar_)
    improved_rar = improved_rar_;
 
    std::fill(depends_on.begin(), depends_on.end(), false);
-   rar_dependencies.clear();
+   clear_rar_dependencies();
 
    for (const Definition& def : current->definitions) {
       if (def.isTemp())
@@ -511,7 +527,7 @@ MoveState::upwards_skip(UpwardsCursor& cursor)
       }
       for (const Operand& op : instr->operands) {
          if (op.isTemp())
-            rar_dependencies[op.tempId()] = cursor.source_idx - cursor.insert_idx;
+            set_rar_dependency(op.tempId(), cursor.source_idx - cursor.insert_idx);
       }
       cursor.total_demand.update(instr->register_demand);
    }
@@ -1424,6 +1440,7 @@ schedule_program(Program* program)
    ctx.gfx_level = program->gfx_level;
    ctx.program = program;
    ctx.mv.depends_on.resize(program->peekAllocationId());
+   ctx.mv.rar_dependencies.resize(program->peekAllocationId(), INT16_MIN);
 
    const int wave_factor = program->gfx_level >= GFX10 ? 2 : 1;
    const int wave_minimum = std::max<int>(program->min_waves, 4 * wave_factor);
