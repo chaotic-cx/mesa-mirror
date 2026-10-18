@@ -485,6 +485,19 @@ nv50_surface_from_miptree(struct nv50_miptree *mt,
    ns->depth = ps->last_layer - ps->first_layer + 1;
    ns->offset = mt->level[templ->level].offset;
 
+   /* A view in a format with another block size, such as RGBA8 on a
+    * subsampled R8G8_R8B8 video buffer, covers the same blocks.
+    */
+   if (util_format_get_blockwidth(ps->format) !=
+       util_format_get_blockwidth(mt->base.base.format) ||
+       util_format_get_blockheight(ps->format) !=
+       util_format_get_blockheight(mt->base.base.format)) {
+      ns->width = util_format_get_nblocksx(mt->base.base.format, ns->width) *
+                  util_format_get_blockwidth(ps->format);
+      ns->height = util_format_get_nblocksy(mt->base.base.format, ns->height) *
+                   util_format_get_blockheight(ps->format);
+   }
+
    ns->width <<= mt->ms_x;
    ns->height <<= mt->ms_y;
 
