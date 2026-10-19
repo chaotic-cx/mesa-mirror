@@ -110,8 +110,22 @@ lp_build_half_to_float(struct gallivm_state *gallivm,
    LLVMTypeRef ext_int_vec_type = lp_build_vec_type(gallivm, i32_type);
    LLVMValueRef h;
 
-   if (lp_has_fp16() && (src_length == 4 || src_length == 8)) {
+   if (lp_has_fp16() &&
+       (src_length == 4 || src_length == 8 ||
+        (src_length == 16 && util_get_cpu_caps()->has_avx512f))) {
       if (util_get_cpu_caps()->has_f16c && LLVM_VERSION_MAJOR < 11) {
+         if (src_length == 16) {
+            LLVMTypeRef ret_type = lp_build_vec_type(gallivm, f32_type);
+            LLVMValueRef args[] = {
+               LLVMBuildBitCast(builder, src, int_vec_type, ""),
+               LLVMGetUndef(ret_type),
+               LLVMConstInt(LLVMInt16TypeInContext(gallivm->context), 0xffff, 0),
+               lp_build_const_int32(gallivm, 4),
+            };
+            return lp_build_intrinsic(builder, "llvm.x86.avx512.mask.vcvtph2ps.512",
+                                       ret_type, args, ARRAY_SIZE(args), 0);
+         }
+
          const char *intrinsic = NULL;
          if (src_length == 4) {
             src = lp_build_pad_vector(gallivm, src, 8);
