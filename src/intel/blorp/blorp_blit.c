@@ -1889,6 +1889,15 @@ surf_get_intratile_offset_px(struct blorp_surface_info *info,
    }
 }
 
+/* Whether or not blorp_surface_info_init() assigns info->z_offset. */
+static bool
+surf_uses_z_offset(struct blorp_surface_info *info)
+{
+   return (info->view.usage & ISL_SURF_USAGE_TEXTURE_BIT) &&
+          (info->surf.dim == ISL_SURF_DIM_3D ||
+           info->surf.msaa_layout == ISL_MSAA_LAYOUT_ARRAY);
+}
+
 void
 blorp_surf_convert_to_single_slice(const struct isl_device *isl_dev,
                                    struct blorp_surface_info *info)
@@ -3315,6 +3324,11 @@ blorp_surf_convert_to_uncompressed(const struct isl_device *isl_dev,
     */
   if (isl_tiling_is_standard(info->surf.tiling)) {
       assert(!info->tile_x_sa && !info->tile_y_sa && !info->tile_z_sa);
+      if (surf_uses_z_offset(info)) {
+         /* Restore the Z offset. */
+         info->z_offset = info->view.base_array_layer;
+         info->view.base_array_layer = 0;
+      }
    } else {
       assert(info->surf.dim == ISL_SURF_DIM_2D);
       assert(info->surf.logical_level0_px.array_len == 1);
