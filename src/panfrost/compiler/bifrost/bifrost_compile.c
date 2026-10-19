@@ -4215,10 +4215,8 @@ bi_pack_clauses(bi_context *ctx, struct util_dynarray *binary, unsigned offset)
     * so the size remains 0) */
    unsigned prefetch_size = BIFROST_SHADER_PREFETCH - final_clause;
 
-   if (binary->size - offset) {
-      memset(util_dynarray_grow(binary, uint8_t, prefetch_size), 0,
-             prefetch_size);
-   }
+   if (binary->size - offset)
+      util_dynarray_grow_zero(binary, uint8_t, prefetch_size);
 }
 
 static int

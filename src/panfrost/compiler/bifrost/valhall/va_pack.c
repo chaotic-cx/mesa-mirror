@@ -1252,7 +1252,7 @@ bi_pack_valhall(bi_context *ctx, struct util_dynarray *emission)
 
    if (has_pool) {
       unsigned pad = (orig_size + pool_offset) - emission->size;
-      memset(util_dynarray_grow(emission, uint8_t, pad), 0, pad);
+      util_dynarray_grow_zero(emission, uint8_t, pad);
       memcpy(
          util_dynarray_grow(emission, uint8_t, ctx->nir->constant_data_size),
          ctx->nir->constant_data, ctx->nir->constant_data_size);
@@ -1273,6 +1273,6 @@ bi_pack_valhall(bi_context *ctx, struct util_dynarray *emission)
       unsigned aligned = ALIGN_POT(emission->size + 16, 128);
       unsigned count = aligned - emission->size;
 
-      memset(util_dynarray_grow(emission, uint8_t, count), 0, count);
+      util_dynarray_grow_zero(emission, uint8_t, count);
    }
 }

@@ -3143,7 +3143,7 @@ midgard_compile_shader_nir(nir_shader *nir,
     * workaround by adding some padding to the end of the shader. (The
     * kernel makes sure shader BOs can't cross 16MB boundaries.) */
    if (binary->size)
-      memset(util_dynarray_grow(binary, uint8_t, 16), 0, 16);
+      util_dynarray_grow_zero(binary, uint8_t, 16);
 
    struct midgard_stats stats = {
       .quadwords = ctx->quadword_count,

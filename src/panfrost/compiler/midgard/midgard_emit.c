@@ -857,10 +857,8 @@ emit_alu_bundle(compiler_context *ctx, midgard_block *block,
    }
 
    /* Emit padding (all zero) */
-   if (bundle->padding) {
-      memset(util_dynarray_grow_bytes(emission, bundle->padding, 1), 0,
-             bundle->padding);
-   }
+   if (bundle->padding)
+      util_dynarray_grow_zero(emission, uint8_t, bundle->padding);
 
    /* Tack on constants */
 
