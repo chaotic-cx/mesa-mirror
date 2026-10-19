@@ -35,25 +35,7 @@ _script_dir = Path(__file__).resolve().parent
 if str(_script_dir) not in sys.path:
     sys.path.insert(0, str(_script_dir))
 
-from extract_subgraph import build_subgraph, get_attr_val  # noqa: E402
-
-# Ops with no standalone hardware equivalent, skipped when numbering range
-# extractions: training/bookkeeping ops, ops fused into conv at lowering,
-# and shape-only ops.
-_RANGES_EXCLUDED_OPS = {
-    "aten.clone.default",
-    "aten.contiguous.default",
-    "aten.new_zeros.default",
-    "aten.full.default",
-    "aten.dropout.default",
-    "aten.slice.Tensor",
-    "aten.view_as.default",
-    "aten.detach.default",
-    "aten.batch_norm.default",
-    "aten.hardtanh_.default",
-    "aten.adaptive_avg_pool2d.default",
-    "aten.flatten.using_ints",
-}
+from extract_subgraph import get_attr_val  # noqa: E402
 
 
 def _configure_known_warning_filters() -> None:
@@ -530,48 +512,12 @@ def split_model(pt2_path, torch):
     return ops
 
 
-def split_model_ranges(pt2_path, torch):
-    """Split a whole-model .pt2 into prefix ranges [0..0], [0..1], ..., [0..N-1].
-
-    Returns a list of ``(range_name, module, example_inputs)`` tuples, where
-    *range_name* is the zero-padded end index. Ops in _RANGES_EXCLUDED_OPS are
-    skipped when numbering.
-    """
-    ep = torch.export.load(str(pt2_path))
-    gm = ep.module()
-
-    # Endpoints are numbered by the ops with hardware compute, but every
-    # call_function up to an endpoint is selected, so the prefix reproduces
-    # the model's real dataflow through bn/activation/layout ops too.
-    prefixes = []
-    prefix = []
-    for node in gm.graph.nodes:
-        if node.op != "call_function":
-            continue
-        prefix.append(node)
-        target = str(node.target)
-        if target.startswith("aten.") and target not in _RANGES_EXCLUDED_OPS:
-            prefixes.append(list(prefix))
-
-    if not prefixes:
-        print("  No target ops found - nothing to extract ranges from.",
-              file=sys.stderr)
-        return []
-
-    total = len(prefixes)
-    print(f"  Extracting {total} prefix ranges...", file=sys.stderr)
-
-    ranges = []
-    for end, nodes in enumerate(prefixes):
-        torch.manual_seed(42)
-        try:
-            new_gm, example_inputs, _ = build_subgraph(gm, set(nodes))
-        except Exception as e:
-            print(f"  SKIP range [0..{end}]: {e}", file=sys.stderr)
-            continue
-        ranges.append((f"{end:03d}", new_gm, tuple(example_inputs)))
-
-    return ranges
+def _remove_stale_cases(model_out_dir, op_names):
+    if not model_out_dir.exists():
+        return
+    for entry in model_out_dir.iterdir():
+        if entry.is_dir() and entry.name.isdigit() and entry.name not in op_names:
+            shutil.rmtree(entry)
 
 
 def main():
@@ -579,13 +525,10 @@ def main():
 
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("--ranges", action="store_true",
-                        help="extract prefix ranges instead of per-op tests")
     parser.add_argument("models_dir", type=Path)
     parser.add_argument("output_dir", type=Path)
     parser.add_argument("stamp_file", type=Path)
     cli = parser.parse_args()
-    ranges_mode = cli.ranges
     models_dir = cli.models_dir
     output_root = cli.output_dir
     stamp_file = cli.stamp_file
@@ -601,31 +544,17 @@ def main():
     for pt2_file in pt2_files:
         model_name = pt2_file.stem
 
-        if ranges_mode:
-            ops = split_model_ranges(pt2_file, torch)
-            model_out_dir = output_root / model_name / "ranges"
-        else:
-            ops = split_model(pt2_file, torch)
-            model_out_dir = output_root / model_name
+        ops = split_model(pt2_file, torch)
+        model_out_dir = output_root / model_name
 
-        # Remove stale numbered directories left over from a previous run
-        # that produced a different op or range count; whole-model artifacts
-        # are files and are left untouched.
-        op_names = {op_name for op_name, _, _ in ops}
-        if model_out_dir.exists():
-            for entry in model_out_dir.iterdir():
-                if entry.is_dir() and entry.name.isdigit() and entry.name not in op_names:
-                    shutil.rmtree(entry)
+        _remove_stale_cases(model_out_dir, {op_name for op_name, _, _ in ops})
 
         for op_name, mod, example_inputs in ops:
             output_dir = model_out_dir / op_name
             output_dir.mkdir(parents=True, exist_ok=True)
 
-            # Range modules are fx-stitched GraphModules, which only export
-            # non-strict; don't pay a doomed strict trace for each one.
-            strictness = (False,) if ranges_mode else (True, False)
             ep = None
-            for strict in strictness:
+            for strict in (True, False):
                 try:
                     ep = export(mod, example_inputs, strict=strict)
                     break

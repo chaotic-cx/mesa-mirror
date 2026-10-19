@@ -81,15 +81,6 @@ To run a single test case:
    Directory containing pre-built test artefacts. Defaults to
    ``src/gallium/targets/torx/tests`` under the current directory.
 
-Bisecting a whole-model failure
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-``split_torx_tests.py --ranges`` splits a model into cumulative prefix
-subgraphs [0..0] .. [0..N-1] instead of individual ops. Compiling and
-running these with the same pipeline lets a whole-model accuracy
-failure be binary-searched down to the op that introduces it, while
-reproducing the real partitioning decisions for every prefix.
-
 Adding a New Model
 ~~~~~~~~~~~~~~~~~~
 
