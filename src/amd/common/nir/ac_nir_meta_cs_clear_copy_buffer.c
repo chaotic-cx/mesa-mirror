@@ -74,6 +74,54 @@ load_buffer_sparse(nir_builder *b, const ac_cs_clear_copy_buffer_key *const key,
 }
 
 static nir_def *
+load_buffer_sparse_split(nir_builder *b, const ac_cs_clear_copy_buffer_key *const key,
+                         const unsigned num_vec_components, const unsigned num_removed_components,
+                         const unsigned num_load_components, const unsigned bit_size, nir_def *buf,
+                         nir_def *offset, const enum gl_access_qualifier access, const unsigned align_mul,
+                         const unsigned align_offset, const bool sparse)
+{
+   nir_def *values[16] = {0};
+   unsigned num_values = 0;
+
+   assert(nir_num_components_valid(num_vec_components));
+   assert(num_removed_components < num_vec_components);
+   assert(num_load_components <= num_vec_components);
+
+   const unsigned num_pad_components =
+      (num_removed_components + num_load_components) > num_vec_components ? 0 :
+      (num_vec_components - num_removed_components - num_load_components);
+   assert(num_pad_components < num_vec_components);
+
+   /* Fill the "removed" components at the beginning with undef. */
+   if (num_removed_components) {
+      for (unsigned i = 0; i < num_removed_components; ++i)
+         values[num_values++] = nir_undef(b, 1, bit_size);
+   }
+
+   /* Split the load into multiple instructions because NIR doesn't support arbitrary vector sizes. */
+   for (unsigned remaining = num_load_components; remaining; ) {
+      const unsigned comps = MIN2(16, util_is_power_of_two_nonzero(remaining) ? remaining : (util_next_power_of_two(remaining) / 2));
+      const unsigned byte_offset = (num_load_components - remaining) * bit_size / 8;
+      assert(nir_num_components_valid(comps));
+      remaining -= comps;
+      values[num_values++] = load_buffer_sparse(b, key, comps, bit_size, buf,
+                                                nir_iadd_imm(b, offset, byte_offset),
+                                                ACCESS_RESTRICT, 4, (align_offset + byte_offset) % 4,
+                                                key->src_scalarize_for_sparse);
+   }
+
+   /* Fill the "padding" components at the end with undef. */
+   if (num_pad_components) {
+      for (unsigned i = 0; i < num_pad_components; ++i)
+         values[num_values++] = nir_undef(b, 1, bit_size);
+   }
+
+   assert(num_values <= ARRAY_SIZE(values));
+
+   return nir_extract_bits(b, values, num_values, 0, num_vec_components, bit_size);
+}
+
+static nir_def *
 load_buffer_addr_from_user_data(nir_builder *b,
                 nir_def *user_data, const unsigned user_data_index)
 {
@@ -241,19 +289,9 @@ ac_create_clear_copy_buffer_cs(const ac_cs_clear_copy_buffer_options *const opti
             while (!nir_num_components_valid(num_inbounds_comps))
                num_inbounds_comps = util_next_power_of_two(num_inbounds_comps);
 
-            value0 = load_buffer_sparse(&b, key, num_inbounds_comps, bit_size, src_buf, offset,
-                                        ACCESS_RESTRICT, 4, 0, key->src_scalarize_for_sparse);
-
-            /* Add the components that we didn't load as undef. */
-            nir_def *comps[16];
-            assert(num_comps <= ARRAY_SIZE(comps));
-            for (unsigned i = 0; i < num_comps; i++) {
-               if (i < num_removed_comps)
-                  comps[i] = nir_undef(&b, 1, bit_size);
-               else
-                  comps[i] = nir_channel(&b, value0, i - num_removed_comps);
-            }
-            value0 = nir_vec(&b, comps, num_comps);
+            value0 = load_buffer_sparse_split(&b, key, num_comps, num_removed_comps, num_inbounds_comps,
+                                              bit_size, src_buf, offset, ACCESS_RESTRICT, 4, 0,
+                                              key->src_scalarize_for_sparse);
          }
          nir_push_else(&b, if_first_thread);
       }
