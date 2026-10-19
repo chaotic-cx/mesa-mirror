@@ -292,10 +292,9 @@ bool si_init_gfx_context(struct si_screen *sscreen, struct si_context *sctx, uns
 
    if (sscreen->info.gfx_level >= GFX9 && sscreen->debug_flags & DBG(SQTT)) {
       /* Auto-enable stable performance profile if possible. */
-      if (sscreen->b.num_contexts == 0)
-         ws->cs_set_pstate(&sctx->gfx_cs, RADEON_CTX_PSTATE_PEAK);
-
-      if (ac_check_profile_state(&sscreen->info)) {
+      if (!ws->cs_set_pstate(&sctx->gfx_cs, RADEON_CTX_PSTATE_PEAK) ||
+          ac_check_profile_state(&sscreen->info)) {
+         sscreen->debug_flags &= DBG(SQTT);
          mesa_loge("Canceling RGP trace request as a hang condition has been "
                   "detected. Force the GPU into a profiling mode with e.g. "
                   "\"echo profile_peak  > "
@@ -375,12 +374,7 @@ void si_fini_gfx_context(struct si_context *sctx) {
       si_gfx11_destroy_query(sctx);
 
    if (sctx->sqtt.data) {
-      struct si_screen *sscreen = sctx->screen;
-
       si_sqtt_finish_capture(sctx);
-
-      if (sscreen->b.num_contexts == 1 && !(sctx->context_flags & SI_CONTEXT_FLAG_AUX))
-          sscreen->ws->cs_set_pstate(&sctx->gfx_cs, RADEON_CTX_PSTATE_NONE);
 
       si_destroy_sqtt(sctx);
    }

@@ -297,6 +297,9 @@ struct amdgpu_winsys {
    uint32_t vm_timeline_syncobj;
    uint64_t vm_timeline_seq_num;
    simple_mtx_t vm_ioctl_lock;
+
+   /* The ctx that was used to set pstate. */
+   struct amdgpu_ctx *pstate_ctx;
 };
 
 static inline struct amdgpu_screen_winsys *

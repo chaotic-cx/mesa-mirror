@@ -148,6 +148,8 @@ static void amdgpu_winsys_destroy_locked(struct radeon_winsys *rws, struct amdgp
       }
    }
 
+   amdgpu_ctx_reference(&aws->pstate_ctx, NULL);
+
    if (!locked)
       simple_mtx_unlock(&dev_tab_mutex);
 
@@ -347,6 +349,12 @@ static bool
 amdgpu_cs_set_pstate(struct radeon_cmdbuf *rcs, enum radeon_ctx_pstate pstate)
 {
    struct amdgpu_cs *acs = amdgpu_cs(rcs);
+   struct amdgpu_winsys *aws = acs->aws;
+
+   if (aws->pstate_ctx && aws->pstate_ctx != acs->ctx)
+      return true;
+
+   amdgpu_ctx_reference(&aws->pstate_ctx, acs->ctx);
 
    uint32_t amdgpu_pstate = radeon_to_amdgpu_pstate(pstate);
    return ac_drm_cs_ctx_stable_pstate(acs->aws->dev, acs->ctx->ctx_handle,
