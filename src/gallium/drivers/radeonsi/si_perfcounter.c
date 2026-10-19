@@ -507,15 +507,19 @@ error:
    return NULL;
 }
 
+static bool si_init_perfcounters(struct si_screen *screen);
+
 int si_get_perfcounter_info(struct si_screen *screen, unsigned index,
                             struct pipe_driver_query_info *info)
 {
-   struct si_perfcounters *pc = screen->perfcounters;
+   struct si_perfcounters *pc;
    struct ac_pc_block *block;
    unsigned base_gid, sub;
 
-   if (!pc)
+   if (!si_init_perfcounters(screen))
       return 0;
+
+   pc = screen->perfcounters;
 
    if (!info) {
       unsigned bid, num_queries = 0;
@@ -550,11 +554,13 @@ int si_get_perfcounter_info(struct si_screen *screen, unsigned index,
 int si_get_perfcounter_group_info(struct si_screen *screen, unsigned index,
                                   struct pipe_driver_query_group_info *info)
 {
-   struct si_perfcounters *pc = screen->perfcounters;
+   struct si_perfcounters *pc;
    struct ac_pc_block *block;
 
-   if (!pc)
+   if (!si_init_perfcounters(screen))
       return 0;
+
+   pc = screen->perfcounters;
 
    if (!info)
       return pc->base.num_groups;
@@ -585,16 +591,19 @@ void si_destroy_perfcounters(struct si_screen *screen)
    screen->perfcounters = NULL;
 }
 
-void si_init_perfcounters(struct si_screen *screen)
+static bool si_init_perfcounters(struct si_screen *screen)
 {
    bool separate_se, separate_instance;
+
+   if (screen->perfcounters)
+      return true;
 
    separate_se = debug_get_bool_option("RADEON_PC_SEPARATE_SE", false);
    separate_instance = debug_get_bool_option("RADEON_PC_SEPARATE_INSTANCE", false);
 
    screen->perfcounters = CALLOC_STRUCT(si_perfcounters);
    if (!screen->perfcounters)
-      return;
+      return false;
 
    screen->perfcounters->num_stop_cs_dwords = 14 + si_cp_write_fence_dwords(screen);
    screen->perfcounters->num_instance_cs_dwords = 3;
@@ -602,7 +611,9 @@ void si_init_perfcounters(struct si_screen *screen)
    if (!ac_init_perfcounters(&screen->info, separate_se, separate_instance,
                              &screen->perfcounters->base)) {
       si_destroy_perfcounters(screen);
+      return false;
    }
+   return true;
 }
 
 static bool
@@ -633,18 +644,10 @@ si_spm_init(struct si_context *sctx, struct ac_spm *spm)
 {
    const struct radeon_info *info = &sctx->screen->info;
 
-   sctx->screen->perfcounters = CALLOC_STRUCT(si_perfcounters);
-   if (!sctx->screen->perfcounters)
-      return false;
-   sctx->screen->perfcounters->num_stop_cs_dwords = 14 + si_cp_write_fence_dwords(sctx->screen);
-   sctx->screen->perfcounters->num_instance_cs_dwords = 3;
-
-   struct ac_perfcounters *pc = &sctx->screen->perfcounters->base;
-
-   if (!ac_init_perfcounters(info, false, false, pc))
+   if (!si_init_perfcounters(sctx->screen))
       return false;
 
-   if (!ac_init_spm(info, pc, spm))
+   if (!ac_init_spm(info, &sctx->screen->perfcounters->base, spm))
       return false;
 
    if (!si_spm_init_bo(sctx, spm))

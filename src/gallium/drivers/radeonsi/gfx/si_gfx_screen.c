@@ -1023,9 +1023,6 @@ bool si_init_gfx_screen(struct si_screen *sscreen) {
       return false;
    }
 
-   if (!debug_get_bool_option("RADEON_DISABLE_PERFCOUNTERS", false))
-      si_init_perfcounters(sscreen);
-
    if (sscreen->debug_flags & DBG(NO_OUT_OF_ORDER))
       sscreen->info.has_out_of_order_rast = false;
 
