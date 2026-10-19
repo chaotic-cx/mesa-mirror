@@ -82,7 +82,8 @@ if with_tests
       ],
       output : 'split_torx_@0@.stamp'.format(model),
       build_by_default : true,
-      depend_files : [files('tests/split_torx_tests.py'), torx_model_pt2[model]],
+      depend_files : [files('tests/split_torx_tests.py', 'tests/extract_subgraph.py'),
+                      torx_model_pt2[model]],
     )}
   endforeach
 
