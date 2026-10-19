@@ -57,3 +57,26 @@ TEST(util_dynarray, grow_overflow)
    EXPECT_EQ(array.size, 0);
    EXPECT_EQ(array.capacity, 0);
 }
+
+TEST(util_dynarray, grow_zero_after_clear)
+{
+   struct util_dynarray array;
+   util_dynarray_init(&array, nullptr);
+
+   uint8_t *first = static_cast<uint8_t *>(
+      util_dynarray_grow_zero(&array, uint8_t, 16));
+   ASSERT_NE(first, nullptr);
+   for (unsigned i = 0; i < 16; i++)
+      EXPECT_EQ(first[i], 0);
+
+   memset(first, 0xff, 16);
+   util_dynarray_clear(&array);
+
+   uint8_t *second = static_cast<uint8_t *>(
+      util_dynarray_grow_zero(&array, uint8_t, 16));
+   ASSERT_EQ(second, first);
+   for (unsigned i = 0; i < 16; i++)
+      EXPECT_EQ(second[i], 0);
+
+   util_dynarray_fini(&array);
+}
