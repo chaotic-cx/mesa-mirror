@@ -77,6 +77,10 @@
 #define _MM_FLUSH_ZERO_MASK 0x8000
 #endif
 
+#ifndef _MM_FROUND_NO_EXC
+#define _MM_FROUND_NO_EXC 0x08
+#endif
+
 #define EXP_POLY_DEGREE 5
 
 #define LOG_POLY_DEGREE 4
@@ -97,6 +101,7 @@ lp_build_min_simple(struct lp_build_context *bld,
    const struct lp_type type = bld->type;
    const char *intrinsic = NULL;
    unsigned intr_size = 0;
+   int sae = 0;
    LLVMValueRef cond;
 
    assert(lp_check_value(type, a));
@@ -114,9 +119,14 @@ lp_build_min_simple(struct lp_build_context *bld,
             intrinsic = "llvm.x86.sse.min.ps";
             intr_size = 128;
          }
-         else {
+         else if (type.length <= 8 || !util_get_cpu_caps()->has_avx512f) {
             intrinsic = "llvm.x86.avx.min.ps.256";
             intr_size = 256;
+         }
+         else {
+            intrinsic = "llvm.x86.avx512.min.ps.512";
+            intr_size = 512;
+            sae = _MM_FROUND_NO_EXC;
          }
       }
       if (type.width == 64 && util_get_cpu_caps()->has_sse2) {
@@ -128,9 +138,13 @@ lp_build_min_simple(struct lp_build_context *bld,
             intrinsic = "llvm.x86.sse2.min.pd";
             intr_size = 128;
          }
-         else {
+         else if (type.length == 4 || !util_get_cpu_caps()->has_avx512f) {
             intrinsic = "llvm.x86.avx.min.pd.256";
             intr_size = 256;
+         } else {
+            intrinsic = "llvm.x86.avx512.min.pd.512";
+            intr_size = 512;
+            sae = _MM_FROUND_NO_EXC;
          }
       }
    }
@@ -177,13 +191,13 @@ lp_build_min_simple(struct lp_build_context *bld,
          LLVMValueRef isnan, min;
          min = lp_build_intrinsic_binary_anylength_sae(bld->gallivm, intrinsic,
                                                        type,
-                                                       intr_size, a, b, 0);
+                                                       intr_size, a, b, sae);
          isnan = lp_build_isnan(bld, b);
          return lp_build_select(bld, isnan, a, min);
       } else {
          return lp_build_intrinsic_binary_anylength_sae(bld->gallivm, intrinsic,
                                                         type,
-                                                        intr_size, a, b, 0);
+                                                        intr_size, a, b, sae);
       }
    }
 
@@ -250,6 +264,7 @@ lp_build_max_simple(struct lp_build_context *bld,
    const struct lp_type type = bld->type;
    const char *intrinsic = NULL;
    unsigned intr_size = 0;
+   int sae = 0;
    LLVMValueRef cond;
 
    assert(lp_check_value(type, a));
@@ -267,9 +282,14 @@ lp_build_max_simple(struct lp_build_context *bld,
             intrinsic = "llvm.x86.sse.max.ps";
             intr_size = 128;
          }
-         else {
+         else if (type.length <= 8 || !util_get_cpu_caps()->has_avx512f) {
             intrinsic = "llvm.x86.avx.max.ps.256";
             intr_size = 256;
+         }
+         else {
+            intrinsic = "llvm.x86.avx512.max.ps.512";
+            intr_size = 512;
+            sae = _MM_FROUND_NO_EXC;
          }
       }
       if (type.width == 64 && util_get_cpu_caps()->has_sse2) {
@@ -281,9 +301,14 @@ lp_build_max_simple(struct lp_build_context *bld,
             intrinsic = "llvm.x86.sse2.max.pd";
             intr_size = 128;
          }
-         else {
+         else if (type.length == 4 || !util_get_cpu_caps()->has_avx512f) {
             intrinsic = "llvm.x86.avx.max.pd.256";
             intr_size = 256;
+         }
+         else {
+            intrinsic = "llvm.x86.avx512.max.pd.512";
+            intr_size = 512;
+            sae = _MM_FROUND_NO_EXC;
          }
       }
    }
@@ -324,13 +349,13 @@ lp_build_max_simple(struct lp_build_context *bld,
          LLVMValueRef isnan, max;
          max = lp_build_intrinsic_binary_anylength_sae(bld->gallivm, intrinsic,
                                                        type,
-                                                       intr_size, a, b, 0);
+                                                       intr_size, a, b, sae);
          isnan = lp_build_isnan(bld, b);
          return lp_build_select(bld, isnan, a, max);
       } else {
          return lp_build_intrinsic_binary_anylength_sae(bld->gallivm, intrinsic,
                                                         type,
-                                                        intr_size, a, b, 0);
+                                                        intr_size, a, b, sae);
       }
    }
 
