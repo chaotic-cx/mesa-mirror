@@ -117,6 +117,46 @@ anv_vdenc_h265_picture_type(StdVideoH265PictureType pic_type)
    }
 }
 
+struct anv_intra_refresh {
+   bool enable;
+   bool column;
+   uint32_t cycle;
+   uint32_t blocks;
+   uint32_t region_size;
+   uint32_t pos;
+   uint32_t size;
+};
+
+static struct anv_intra_refresh
+anv_video_intra_refresh(const struct anv_cmd_buffer *cmd,
+                        const VkVideoEncodeInfoKHR *enc_info,
+                        uint32_t width_in_blocks, uint32_t height_in_blocks,
+                        uint32_t align_blocks)
+{
+   struct anv_intra_refresh ir = { 0 };
+   const VkVideoEncodeIntraRefreshInfoKHR *info =
+      vk_find_struct_const(enc_info->pNext, VIDEO_ENCODE_INTRA_REFRESH_INFO_KHR);
+   VkVideoEncodeIntraRefreshModeFlagBitsKHR mode = cmd->video.vid->vk.intra_refresh_mode;
+
+   if (!(enc_info->flags & VK_VIDEO_ENCODE_INTRA_REFRESH_BIT_KHR) || !info ||
+       mode == VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_NONE_KHR ||
+       info->intraRefreshCycleDuration == 0)
+      return ir;
+
+   ir.column = mode == VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_BLOCK_COLUMN_BASED_BIT_KHR;
+   ir.cycle = info->intraRefreshCycleDuration;
+   ir.blocks = ir.column ? width_in_blocks : height_in_blocks;
+   ir.region_size = align(DIV_ROUND_UP(ir.blocks, info->intraRefreshCycleDuration),
+                          align_blocks);
+   ir.pos = ir.region_size * info->intraRefreshIndex;
+   if (ir.pos >= ir.blocks)
+      return ir;
+
+   ir.size = MIN2(ir.region_size + align_blocks, ir.blocks - ir.pos);
+   ir.enable = true;
+   return ir;
+}
+
 static uint32_t
 anv_video_encode_quantizer(const struct anv_video_session *vid,
                            uint32_t constant, uint32_t driver_default)
@@ -1210,6 +1250,11 @@ anv_h264_emit_vdenc_avc_img_state(struct anv_cmd_buffer *cmd,
    bool is_bframe = pic_type == STD_VIDEO_H264_PICTURE_TYPE_B;
    bool is_inter = is_bframe || pic_type == STD_VIDEO_H264_PICTURE_TYPE_P;
 
+   struct anv_intra_refresh ir = { 0 };
+   if (pic_type == STD_VIDEO_H264_PICTURE_TYPE_P)
+      ir = anv_video_intra_refresh(cmd, enc_info, sps->pic_width_in_mbs_minus1 + 1,
+                                   sps->pic_height_in_map_units_minus1 + 1, 1);
+
    if (!batch)
       batch = &cmd->batch;
 
@@ -1264,16 +1309,23 @@ anv_h264_emit_vdenc_avc_img_state(struct anv_cmd_buffer *cmd,
       }
    }
 
+   if (ir.enable) {
+      img.IntraRefreshMBPos = ir.pos;
+      img.IntraRefreshMBSizeMinusOne = ir.size - 1;
+      img.IntraRefreshEnableRollingIEnable = true;
+      img.IntraRefreshMode = ir.column;
+   }
+
    /* h264_vdenc_avc_img_state[targetUsage - 1][type][...];
     * TargetUsage is fixed to 4 (Normal/Balanced; 1 = Quality, 7 = Speed).
     * type 0 = I, 1 = P, 2 = B non-ref, 3 = B ref.
     *
-    * TODO: the rest, intra-refresh / A-stepping / Wa_18011246551 / stream-in
-    * are all 0 for now.
+    * TODO: the rest, A-stepping / Wa_18011246551 / stream-in are all 0 for now.
     */
    uint8_t img_type = !is_inter ? 0 : !is_bframe ? 1 :
                       (enc_info->pSetupReferenceSlot ? 3 : 2);
-   const uint32_t *cost = h264_vdenc_avc_img_state[4 - 1][img_type][0][0][0][0];
+   uint8_t ir_type = !ir.enable ? 0 : ir.column ? 1 : 2;
+   const uint32_t *cost = h264_vdenc_avc_img_state[4 - 1][img_type][ir_type][0][0][0];
 
    uint32_t *dw = anv_batch_emitn(batch, 20, GENX(VDENC_AVC_IMG_STATE));
    GENX(VDENC_AVC_IMG_STATE_pack)(batch, dw, &img);
@@ -1297,6 +1349,11 @@ anv_h264_emit_vdenc_img_state(struct anv_cmd_buffer *cmd,
    const StdVideoH264PictureParameterSet *pps = anv_h264_pps(cmd, enc_info);
    const StdVideoEncodeH264ReferenceListsInfo *ref_list_info = frame_info->pStdPictureInfo->pRefLists;
    StdVideoH264PictureType pic_type = frame_info->pStdPictureInfo->primary_pic_type;
+
+   struct anv_intra_refresh ir = { 0 };
+   if (pic_type == STD_VIDEO_H264_PICTURE_TYPE_P)
+      ir = anv_video_intra_refresh(cmd, enc_info, sps->pic_width_in_mbs_minus1 + 1,
+                                   sps->pic_height_in_map_units_minus1 + 1, 1);
 
    uint8_t     mode_cost[12];
    uint8_t     mv_cost[8];
@@ -1407,6 +1464,20 @@ anv_h264_emit_vdenc_img_state(struct anv_cmd_buffer *cmd,
       vdenc_img.Mode9Cost = mode_cost[9];
       vdenc_img.RefIDCost = mode_cost[10];
       vdenc_img.ChromaIntraModeCost = mode_cost[11];
+
+      if (ir.enable) {
+         vdenc_img.IntraRefreshMBPosition = ir.pos;
+         vdenc_img.IntraRefreshMBSize = ir.size - 1;
+         vdenc_img.IntraRefreshEnableRollingIEnable = true;
+         vdenc_img.IntraRefreshMode = ir.column;
+#if GFX_VER == 12
+         /* Wa_18011246551 */
+         if (ir.column) {
+            vdenc_img.AVCIntra4x4ModeMask = 0x88;
+            vdenc_img.AVCIntra8x8ModeMask = 0xbd;
+         }
+#endif
+      }
    }
 }
 #endif
