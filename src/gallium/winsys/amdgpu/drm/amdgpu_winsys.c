@@ -124,10 +124,9 @@ static void do_winsys_deinit(struct amdgpu_winsys *aws)
    FREE(aws);
 }
 
-static void amdgpu_winsys_destroy_locked(struct radeon_winsys *rws, bool locked)
+static void amdgpu_winsys_destroy_locked(struct radeon_winsys *rws, struct amdgpu_winsys *aws, bool locked)
 {
    struct amdgpu_screen_winsys *sws = amdgpu_screen_winsys(rws);
-   struct amdgpu_winsys *aws = sws->aws;
    bool destroy;
 
    /* When the reference counter drops to zero, remove the device pointer
@@ -152,7 +151,7 @@ static void amdgpu_winsys_destroy_locked(struct radeon_winsys *rws, bool locked)
    if (!locked)
       simple_mtx_unlock(&dev_tab_mutex);
 
-   if (sws->fd != aws->fd)
+   if (sws->fd != aws->fd && sws->fd >= 0)
       close(sws->fd);
 
    if (destroy)
@@ -163,7 +162,7 @@ static void amdgpu_winsys_destroy_locked(struct radeon_winsys *rws, bool locked)
 
 static void amdgpu_winsys_destroy(struct radeon_winsys *rws)
 {
-   amdgpu_winsys_destroy_locked(rws, false);
+   amdgpu_winsys_destroy_locked(rws, amdgpu_screen_winsys(rws)->aws, false);
 }
 
 static void amdgpu_winsys_query_info(struct radeon_winsys *rws, struct radeon_info *info)
@@ -525,7 +524,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
                          /* Cast to void* because one of the function parameters
                           * is a struct pointer instead of void*. */
                          (void*)amdgpu_bo_slab_free)) {
-         amdgpu_winsys_destroy_locked(&sws->base, true);
+         amdgpu_winsys_destroy_locked(&sws->base, aws, true);
          simple_mtx_unlock(&dev_tab_mutex);
          return NULL;
       }
@@ -549,7 +548,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
 
       if (!util_queue_init(&aws->cs_queue, "cs", 8, 1,
                            UTIL_QUEUE_INIT_RESIZE_IF_FULL, NULL)) {
-         amdgpu_winsys_destroy_locked(&sws->base, true);
+         amdgpu_winsys_destroy_locked(&sws->base, aws, true);
          simple_mtx_unlock(&dev_tab_mutex);
          return NULL;
       }
@@ -559,7 +558,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
       if (aws->reserve_vmid) {
          r = ac_drm_vm_reserve_vmid(aws->dev, 0);
          if (r) {
-            amdgpu_winsys_destroy_locked(&sws->base, true);
+            amdgpu_winsys_destroy_locked(&sws->base, aws,true);
             simple_mtx_unlock(&dev_tab_mutex);
             return NULL;
          }
@@ -600,7 +599,7 @@ amdgpu_winsys_create(int fd, const struct pipe_screen_config *config,
     * and link all drivers into one binary blob. */
    sws->base.screen = screen_create(&sws->base, config, debug_flags);
    if (!sws->base.screen) {
-      amdgpu_winsys_destroy_locked(&sws->base, true);
+      amdgpu_winsys_destroy_locked(&sws->base, sws->aws, true);
       simple_mtx_unlock(&dev_tab_mutex);
       return NULL;
    }
