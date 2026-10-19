@@ -334,41 +334,57 @@ lp_build_gather_avx2(struct gallivm_state *gallivm,
 
       res = lp_build_intrinsic(builder, intrinsic, src_vec_type, args, 4, 0);
    } else {
+      LLVMTypeRef i32_type = LLVMIntTypeInContext(gallivm->context, 32);
       LLVMTypeRef i8_type = LLVMIntTypeInContext(gallivm->context, 8);
       const char *intrinsic = NULL;
       unsigned l_idx = 0;
 
       assert(src_width == 32 || src_width == 64);
       if (src_width == 32) {
-         assert(length == 4 || length == 8);
+         assert(length == 4 || length == 8 || length == 16);
       } else {
-         assert(length == 2 || length == 4);
+         assert(length == 2 || length == 4 || length == 8);
       }
 
-      static const char *intrinsics[2][2][2] = {
+      static const char *intrinsics[2][2][3] = {
 
          {{"llvm.x86.avx2.gather.d.d",
-           "llvm.x86.avx2.gather.d.d.256"},
+           "llvm.x86.avx2.gather.d.d.256",
+           "llvm.x86.avx512.mask.gather.dpi.512"},
           {"llvm.x86.avx2.gather.d.q",
-           "llvm.x86.avx2.gather.d.q.256"}},
+           "llvm.x86.avx2.gather.d.q.256",
+           "llvm.x86.avx512.mask.gather.dpq.512"}},
 
          {{"llvm.x86.avx2.gather.d.ps",
-           "llvm.x86.avx2.gather.d.ps.256"},
+           "llvm.x86.avx2.gather.d.ps.256",
+           "llvm.x86.avx512.mask.gather.dps.512"},
           {"llvm.x86.avx2.gather.d.pd",
-           "llvm.x86.avx2.gather.d.pd.256"}},
+           "llvm.x86.avx2.gather.d.pd.256",
+           "llvm.x86.avx512.mask.gather.dpd.512"}},
       };
 
-      if ((src_width == 32 && length == 8) ||
+      if ((src_width == 32 && length == 16) ||
+          (src_width == 64 && length == 8)) {
+         l_idx = 2;
+      } else if ((src_width == 32 && length == 8) ||
           (src_width == 64 && length == 4)) {
          l_idx = 1;
       }
       intrinsic = intrinsics[dst_type.floating][src_width == 64][l_idx];
 
       LLVMValueRef passthru = LLVMGetUndef(src_vec_type);
-      LLVMValueRef mask = LLVMConstAllOnes(src_vec_type);
-      mask = LLVMConstBitCast(mask, src_vec_type);
-      LLVMValueRef scale = LLVMConstInt(i8_type, 1, 0);
 
+      LLVMValueRef mask;
+      LLVMValueRef scale;
+      if (l_idx == 2) {
+         LLVMTypeRef mask_vec_type = LLVMVectorType(LLVMIntTypeInContext(gallivm->context, 1), length);
+         mask = LLVMConstAllOnes(mask_vec_type);
+         scale = LLVMConstInt(i32_type, 1, 0);
+      } else {
+         mask = LLVMConstAllOnes(src_vec_type);
+         mask = LLVMConstBitCast(mask, src_vec_type);
+         scale = LLVMConstInt(i8_type, 1, 0);
+      }
       LLVMValueRef args[] = { passthru, base_ptr, offsets, mask, scale };
 
       res = lp_build_intrinsic(builder, intrinsic, src_vec_type, args, 5, 0);
@@ -486,7 +502,7 @@ lp_build_gather(struct gallivm_state *gallivm,
        * conversion) and it would be awkward for floats.
        */
    } else if (util_get_cpu_caps()->has_avx2 && !need_expansion &&
-              src_width == 32 && (length == 4 || length == 8)) {
+              src_width == 32 && (length == 4 || length == 8 || (util_get_cpu_caps()->has_avx512f && length == 16))) {
       return lp_build_gather_avx2(gallivm, length, src_width, dst_type,
                                   base_ptr, offsets);
    /*
