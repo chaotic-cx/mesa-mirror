@@ -1,35 +1,14 @@
-#!/usr/bin/env python3
-"""Extract a node-range subgraph from a quantized .pt2 file, stripping q/dq nodes.
+"""Extract a portion of a module into its own module.
 
-Usage:
-    python3 extract_subgraph.py <src.pt2> <dst.pt2> <range> [<range> ...]
-
-<range> is N or N-M (inclusive), using absolute graph.nodes indices.
-
-All quantize_* / dequantize_* nodes are stripped:
-  - dequantize_per_channel  -> precomputed float weight buffer
-  - dequantize_per_tensor   -> float placeholder (external) or q->dq passthrough
-  - quantize_per_tensor     -> dropped; float input used in place of int8 output
+If the module was already quantized, undo the quantization.
 """
 
-import sys
 import torch
 import torch.fx
 import torch.ao.quantization.fx._decomposed  # noqa: F401 – registers quantized_decomposed ops
 
 
-def _parse_ranges(args):
-    indices = set()
-    for arg in args:
-        if '-' in arg:
-            a, b = arg.split('-', 1)
-            indices.update(range(int(a), int(b) + 1))
-        else:
-            indices.add(int(arg))
-    return indices
-
-
-def _is_q(n):
+def is_quantize(n):
     t = str(n.target)
     return n.op == 'call_function' and 'quantize' in t and 'dequantize' not in t
 
@@ -42,11 +21,11 @@ def _is_dq_channel(n):
     return n.op == 'call_function' and 'dequantize_per_channel' in str(n.target)
 
 
-def _is_dq(n):
+def is_dequantize(n):
     return _is_dq_tensor(n) or _is_dq_channel(n)
 
 
-def _get_attr_val(gm, target):
+def get_attr_val(gm, target):
     obj = gm
     for part in target.split('.'):
         obj = getattr(obj, part)
@@ -70,10 +49,10 @@ def _set_attr(module, target, value):
 # Core extraction
 # ---------------------------------------------------------------------------
 
-def _build_subgraph(gm, selected):
+def build_subgraph(gm, selected):
     """Extract *selected* call_function nodes from *gm*.
 
-    Returns ``(new_gm, example_inputs)`` ready for ``torch.export.export``.
+    Returns ``(new_gm, example_inputs, outputs)`` ready for ``torch.export.export``.
     """
     nodes = list(gm.graph.nodes)
 
@@ -101,7 +80,7 @@ def _build_subgraph(gm, selected):
             return env[x]
 
         if x.op == 'get_attr':
-            val = _get_attr_val(gm, x.target)
+            val = get_attr_val(gm, x.target)
             if isinstance(val, torch.Tensor):
                 t = val.detach().clone()
                 # Biases are sometimes stored as int32 in quantized models; promote
@@ -134,7 +113,7 @@ def _build_subgraph(gm, selected):
         if node.op in ('placeholder', 'get_attr', 'output'):
             continue
 
-        if _is_q(node):
+        if is_quantize(node):
             env[node] = _resolve(node.args[0])
 
         elif _is_dq_channel(node):
@@ -142,9 +121,9 @@ def _build_subgraph(gm, selected):
             axis, qmin, qmax, dtype = node.args[3], node.args[4], node.args[5], node.args[6]
             with torch.no_grad():
                 fw = torch.ops.quantized_decomposed.dequantize_per_channel.default(
-                    _get_attr_val(gm, w_n.target),
-                    _get_attr_val(gm, sc_n.target),
-                    _get_attr_val(gm, zp_n.target),
+                    get_attr_val(gm, w_n.target),
+                    get_attr_val(gm, sc_n.target),
+                    get_attr_val(gm, zp_n.target),
                     axis, qmin, qmax, dtype,
                 )
             buf = _fresh(f"w_{node.name}")
@@ -154,7 +133,7 @@ def _build_subgraph(gm, selected):
 
         elif _is_dq_tensor(node):
             inp = node.args[0]
-            while isinstance(inp, torch.fx.Node) and _is_q(inp):
+            while isinstance(inp, torch.fx.Node) and is_quantize(inp):
                 inp = inp.args[0]
             env[node] = _resolve(inp)
 
@@ -175,7 +154,7 @@ def _build_subgraph(gm, selected):
         for u in node.users:
             if u not in selected:
                 return True
-            if (_is_q(u) or _is_dq_tensor(u)) and _consumed_outside(u, _vis):
+            if (is_quantize(u) or _is_dq_tensor(u)) and _consumed_outside(u, _vis):
                 return True
         return False
 
@@ -184,7 +163,7 @@ def _build_subgraph(gm, selected):
     for node in nodes:
         if node not in selected or node.op != 'call_function':
             continue
-        if _is_q(node) or _is_dq(node):
+        if is_quantize(node) or is_dequantize(node):
             continue
         if _consumed_outside(node):
             mapped = env.get(node)
@@ -220,47 +199,3 @@ def _build_subgraph(gm, selected):
             example_inputs.append(torch.zeros(tuple(fake.shape), dtype=dt))
 
     return new_gm, example_inputs, out_vals
-
-
-def extract(src_pt2, dst_pt2, range_args):
-    print(f"Loading {src_pt2} ...")
-    ep = torch.export.load(src_pt2)
-    gm = ep.module()
-    nodes = list(gm.graph.nodes)
-
-    selected = {nodes[i] for i in _parse_ranges(range_args) if i < len(nodes)}
-    print(f"Selected {len(selected)} nodes from range(s): {' '.join(range_args)}")
-
-    new_gm, example_inputs, out_vals = _build_subgraph(gm, selected)
-
-    # --- Print summary -------------------------------------------------------
-    call_nodes = [n for n in new_gm.graph.nodes if n.op == 'call_function']
-    print(f"\n{len(example_inputs)} input(s)  |  "
-          f"{len(call_nodes)} call_function ops  |  "
-          f"{len(out_vals)} output(s)\n")
-    for n in call_nodes:
-        fv = n.meta.get('val')
-        shape = str(tuple(fv.shape)) if fv is not None and hasattr(fv, 'shape') else '?'
-        print(f"  {n.name:50s}  {str(n.target)[:45]:45s}  {shape}")
-
-    # --- Export and save -----------------------------------------------------
-    print(f"\nExporting ...")
-    ep_new = torch.export.export(new_gm, tuple(example_inputs), strict=False)
-    torch.export.save(ep_new, dst_pt2)
-    print(f"Saved -> {dst_pt2}")
-
-
-# ---------------------------------------------------------------------------
-
-def main():
-    if len(sys.argv) < 4:
-        print(
-            f"Usage: {sys.argv[0]} <src.pt2> <dst.pt2> <range> [<range> ...]",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    extract(sys.argv[1], sys.argv[2], sys.argv[3:])
-
-
-if __name__ == '__main__':
-    main()

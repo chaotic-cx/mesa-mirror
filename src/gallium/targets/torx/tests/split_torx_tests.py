@@ -35,7 +35,7 @@ _script_dir = Path(__file__).resolve().parent
 if str(_script_dir) not in sys.path:
     sys.path.insert(0, str(_script_dir))
 
-from extract_subgraph import _build_subgraph, _get_attr_val as _get_attr  # noqa: E402
+from extract_subgraph import build_subgraph, get_attr_val  # noqa: E402
 
 # Ops with no standalone hardware equivalent, skipped when numbering range
 # extractions: training/bookkeeping ops, ops fused into conv at lowering,
@@ -101,7 +101,7 @@ def _build_module(torch, gm, conv_node, chain_nodes):
     Parameters are copied from the ExportedProgram's GraphModule.
     """
     # --- Conv2d ---------------------------------------------------------
-    weight = _get_attr(gm, str(conv_node.args[1].target))
+    weight = get_attr_val(gm, str(conv_node.args[1].target))
     out_ch, in_ch_over_groups, *kernel = weight.shape
     bias_arg = conv_node.args[2] if len(conv_node.args) > 2 else None
     has_bias = isinstance(bias_arg, torch.fx.Node)
@@ -117,17 +117,17 @@ def _build_module(torch, gm, conv_node, chain_nodes):
     )
     conv.weight.data.copy_(weight)
     if has_bias:
-        conv.bias.data.copy_(_get_attr(gm, str(bias_arg.target)))
+        conv.bias.data.copy_(get_attr_val(gm, str(bias_arg.target)))
 
     layers = [conv]
 
     # --- BatchNorm2d (optional) -----------------------------------------
     if len(chain_nodes) >= 2:
         bn_node = chain_nodes[1]
-        bn_weight = _get_attr(gm, str(bn_node.args[1].target))
-        bn_bias = _get_attr(gm, str(bn_node.args[2].target))
-        bn_mean = _get_attr(gm, str(bn_node.args[3].target))
-        bn_var = _get_attr(gm, str(bn_node.args[4].target))
+        bn_weight = get_attr_val(gm, str(bn_node.args[1].target))
+        bn_bias = get_attr_val(gm, str(bn_node.args[2].target))
+        bn_mean = get_attr_val(gm, str(bn_node.args[3].target))
+        bn_var = get_attr_val(gm, str(bn_node.args[4].target))
         eps = bn_node.args[7]
         bn = torch.nn.BatchNorm2d(out_ch, eps=eps)
         bn.weight.data.copy_(bn_weight)
@@ -565,7 +565,7 @@ def split_model_ranges(pt2_path, torch):
     for end, nodes in enumerate(prefixes):
         torch.manual_seed(42)
         try:
-            new_gm, example_inputs, _ = _build_subgraph(gm, set(nodes))
+            new_gm, example_inputs, _ = build_subgraph(gm, set(nodes))
         except Exception as e:
             print(f"  SKIP range [0..{end}]: {e}", file=sys.stderr)
             continue
