@@ -292,9 +292,33 @@ ac_create_clear_copy_buffer_cs(const ac_cs_clear_copy_buffer_options *const opti
             while (!nir_num_components_valid(num_inbounds_comps))
                num_inbounds_comps = util_next_power_of_two(num_inbounds_comps);
 
+            nir_if *if_first_last_thread = NULL;
+            nir_def *value0_last = NULL;
+
+            if (key->dst_last_thread_bytes && key->addr_user_data && last_thread_num_comps != num_comps) {
+               /* Emit a separate load when the first thread is the last to prevent out of bounds reads. */
+               nir_def *last_thread_id = nir_channel(&b, user_data, last_thread_user_data_index);
+               if_first_last_thread = nir_push_if(&b, nir_ieq(&b, thread_id, last_thread_id));
+               {
+                  assert(nir_num_components_valid(num_comps));
+                  if (last_thread_num_comps <= num_removed_comps)
+                     value0_last = nir_undef(&b, num_comps, bit_size);
+                  else
+                     value0_last = load_buffer_sparse_split(&b, key, num_comps, num_removed_comps, last_thread_num_comps - num_removed_comps,
+                                                            bit_size, src_buf, offset, ACCESS_RESTRICT, 4, 0,
+                                                            key->src_scalarize_for_sparse);
+               }
+               nir_push_else(&b, if_first_last_thread);
+            }
+
             value0 = load_buffer_sparse_split(&b, key, num_comps, num_removed_comps, num_inbounds_comps,
                                               bit_size, src_buf, offset, ACCESS_RESTRICT, 4, 0,
                                               key->src_scalarize_for_sparse);
+
+            if (if_first_last_thread) {
+               nir_pop_if(&b, if_first_last_thread);
+               value0 = nir_if_phi(&b, value0_last, value0);
+            }
          }
          nir_push_else(&b, if_first_thread);
       }
