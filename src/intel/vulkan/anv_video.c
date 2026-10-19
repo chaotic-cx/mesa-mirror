@@ -455,6 +455,29 @@ anv_GetPhysicalDeviceVideoCapabilitiesKHR(VkPhysicalDevice physicalDevice,
          VK_VIDEO_ENCODE_FEEDBACK_BITSTREAM_BYTES_WRITTEN_BIT_KHR;
    }
 
+   struct VkVideoEncodeIntraRefreshCapabilitiesKHR *ir_caps =
+      (struct VkVideoEncodeIntraRefreshCapabilitiesKHR *)
+      vk_find_struct(pCapabilities->pNext, VIDEO_ENCODE_INTRA_REFRESH_CAPABILITIES_KHR);
+
+   if (ir_caps) {
+      if (pdevice->info.ver >= 12 &&
+          (pVideoProfile->videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR ||
+           pVideoProfile->videoCodecOperation == VK_VIDEO_CODEC_OPERATION_ENCODE_H265_BIT_KHR)) {
+         ir_caps->intraRefreshModes = VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_BLOCK_BASED_BIT_KHR |
+                                      VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_BLOCK_ROW_BASED_BIT_KHR |
+                                      VK_VIDEO_ENCODE_INTRA_REFRESH_MODE_BLOCK_COLUMN_BASED_BIT_KHR;
+         ir_caps->maxIntraRefreshCycleDuration = 256;
+         ir_caps->maxIntraRefreshActiveReferencePictures = 1;
+         ir_caps->partitionIndependentIntraRefreshRegions = true;
+      } else {
+         ir_caps->intraRefreshModes = 0;
+         ir_caps->maxIntraRefreshCycleDuration = 0;
+         ir_caps->maxIntraRefreshActiveReferencePictures = 0;
+         ir_caps->partitionIndependentIntraRefreshRegions = false;
+      }
+      ir_caps->nonRectangularIntraRefreshRegions = false;
+   }
+
    switch (pVideoProfile->videoCodecOperation) {
    case VK_VIDEO_CODEC_OPERATION_ENCODE_H264_BIT_KHR: {
       struct VkVideoEncodeH264CapabilitiesKHR *ext = (struct VkVideoEncodeH264CapabilitiesKHR *)

@@ -502,6 +502,8 @@ get_device_extensions(const struct anv_physical_device *device,
       .KHR_video_encode_h264                 = VIDEO_CODEC_H264ENC && video_encode_enabled,
       .KHR_video_encode_h265                 = device->info.ver >= 12 && VIDEO_CODEC_H265ENC && video_encode_enabled,
       .KHR_video_encode_av1                  = device->info.verx10 == 125 && VIDEO_CODEC_AV1ENC && video_encode_enabled,
+      .KHR_video_encode_intra_refresh        = device->info.ver >= 12 && video_encode_enabled &&
+                                               (VIDEO_CODEC_H264ENC || VIDEO_CODEC_H265ENC),
       .KHR_video_maintenance1                = (video_decode_enabled &&
                                                (VIDEO_CODEC_H264DEC || VIDEO_CODEC_H265DEC)) ||
                                                (video_encode_enabled &&
@@ -1194,6 +1196,9 @@ get_features(const struct anv_physical_device *pdevice,
 
       /* VK_KHR_video_encode_av1 */
       .videoEncodeAV1 = true,
+
+      /* VK_KHR_video_encode_intra_refresh */
+      .videoEncodeIntraRefresh = true,
 
       /* VK_EXT_image_compression_control */
       .imageCompressionControl = pdevice->expose_compression_control,
