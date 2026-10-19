@@ -134,6 +134,18 @@ TEST(FormatTable, get_entry_pe_gate)
    EXPECT_EQ(ETNA_FEATURE_HALTI5, r8_unorm->pe_gate);
 }
 
+TEST(FormatTable, get_entry_zs_gate)
+{
+   auto z16_unorm = eil_get_format_entry(PIPE_FORMAT_Z16_UNORM);
+   EXPECT_TRUE(z16_unorm->has_zs);
+   EXPECT_FALSE(z16_unorm->zs_gated);
+
+   auto s8_uint = eil_get_format_entry(PIPE_FORMAT_S8_UINT);
+   EXPECT_TRUE(s8_uint->has_zs);
+   EXPECT_TRUE(s8_uint->zs_gated);
+   EXPECT_EQ(ETNA_FEATURE_S8, s8_uint->zs_gate);
+}
+
 TEST(Format, is_emulated_z32f)
 {
    /* not defined */
@@ -229,4 +241,22 @@ TEST(Format, format_supports_rendering)
    /* feature set */
    BITSET_SET(info.feature, ETNA_FEATURE_HALTI5);
    EXPECT_TRUE(eil_format_supports_rendering(&info, PIPE_FORMAT_R8_UINT));
+}
+
+TEST(Format, format_supports_depth_stencil)
+{
+   etna_core_info info = {};
+
+   /* not supported */
+   EXPECT_FALSE(eil_format_supports_depth_stencil(&info, PIPE_FORMAT_R8_UNORM));
+   /* no gate */
+   EXPECT_TRUE(eil_format_supports_depth_stencil(&info, PIPE_FORMAT_Z16_UNORM));
+   /* feature not set */
+   EXPECT_FALSE(eil_format_supports_depth_stencil(&info, PIPE_FORMAT_S8_UINT));
+   /* wrong feature */
+   BITSET_SET(info.feature, ETNA_FEATURE_HALTI0);
+   EXPECT_FALSE(eil_format_supports_depth_stencil(&info, PIPE_FORMAT_S8_UINT));
+   /* feature set */
+   BITSET_SET(info.feature, ETNA_FEATURE_S8);
+   EXPECT_TRUE(eil_format_supports_depth_stencil(&info, PIPE_FORMAT_S8_UINT));
 }

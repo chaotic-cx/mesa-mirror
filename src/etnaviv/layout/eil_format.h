@@ -32,16 +32,20 @@ struct eil_format {
    enum etna_feature tex_gate;
    uint8_t pe; /* PE_FORMAT_* */
    enum etna_feature pe_gate;
+   uint8_t zs; /* VIVS_PE_DEPTH_CONFIG_DEPTH_FORMAT_* */
+   enum etna_feature zs_gate;
 
    bool has_vtx    : 1;
    bool has_tex    : 1;
    bool has_pe     : 1;
+   bool has_zs     : 1;
    bool vtx_gated  : 1;
    bool tex_ext    : 1; /* TEXTURE_FORMAT_EXT_* space */
    bool tex_astc   : 1; /* TEXTURE_FORMAT_ASTC_* space */
    bool tex_gated  : 1;
    bool pe_rb_swap : 1;
    bool pe_gated   : 1;
+   bool zs_gated   : 1;
 };
 
 extern const struct eil_format eil_format_table[PIPE_FORMAT_COUNT];
@@ -104,6 +108,13 @@ eil_format_supports_rendering(const struct etna_core_info *info, enum pipe_forma
 {
    const struct eil_format *f = eil_get_format_entry(fmt);
    return f->has_pe && eil_gate_ok(info, f->pe_gated, f->pe_gate);
+}
+
+static inline bool
+eil_format_supports_depth_stencil(const struct etna_core_info *info, enum pipe_format fmt)
+{
+   const struct eil_format *f = eil_get_format_entry(fmt);
+   return f->has_zs && eil_gate_ok(info, f->zs_gated, f->zs_gate);
 }
 
 #ifdef __cplusplus

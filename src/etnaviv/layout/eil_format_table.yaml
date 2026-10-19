@@ -9,6 +9,8 @@
 # tex_gate: GPU feature required to support the format as texture, prefixed with ETNA_FEATURE_.
 # pe: PE format that get's mapped, prefixed with PE_FORMAT_.
 # pe_gate: GPU feature required to support the format as render target, prefixed with ETNA_FEATURE_.
+# zs: PE depth format that gets mapped, prefixed with VIVS_PE_DEPTH_CONFIG_DEPTH_FORMAT_.
+# zs_gate: GPU feature required to support the format as depth/stencil buffer, prefixed with ETNA_FEATURE_.
 # rb_swap: true if the format needs red and blue channel swapped.
 # emulated: If a given format is emulated, specifies the pipe format used as replacement, prefixed with PIPE_FORMAT_.
 # emulation: Name of the emulation.
@@ -109,6 +111,7 @@
 
 - pipe: Z16_UNORM
   tex: D16
+  zs: D16
 
 - pipe: B5G6R5_UNORM
   tex: R5G6B5
@@ -219,12 +222,14 @@
 - pipe: Z32_FLOAT
   tex: EXT_R32F
   tex_gate: HALTI2                      # float needs HALTI2
+  zs: D24S8
   emulated: S8_UINT_Z24_UNORM
   emulation: DEPTH32F
 
 - pipe: Z32_FLOAT_S8X24_UINT
   tex: EXT_R32F
   tex_gate: HALTI2                      # pure int needs HALTI2
+  zs: D24S8
   emulated: S8_UINT_Z24_UNORM
   emulation: DEPTH32F
 
@@ -370,13 +375,17 @@
 
 - pipe: X8Z24_UNORM
   tex: D24X8
+  zs: D24S8
 
 - pipe: S8_UINT_Z24_UNORM
   tex: D24X8
+  zs: D24S8
 
 - pipe: S8_UINT
   tex: EXT_R8I
   tex_gate: S8                          # S8 needs S8
+  zs: D24S8
+  zs_gate: S8                           # S8 needs S8
 
 - pipe: S8X24_UINT
   tex: EXT_D24S8
