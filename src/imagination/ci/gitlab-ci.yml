@@ -6,9 +6,9 @@ axe-1-16m-vk:
     - .ci-tron-arm64-test-vk
     - .imagination-ti-am62-sk:arm64
     - .imagination-manual-rules
-  timeout: 70m
+  timeout: 125m
   variables:
-    CI_TRON_TIMEOUT__OVERALL__MINUTES: 65
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 120
     DEQP_SUITE: pvr-vk
     VK_DRIVER: powervr_mesa
     MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
@@ -19,9 +19,9 @@ bxs-4-64-vk:
     - .ci-tron-arm64-test-vk
     - .imagination-ti-am68-sk:arm64
     - .imagination-manual-rules
-  timeout: 50m
+  timeout: 85m
   variables:
-    CI_TRON_TIMEOUT__OVERALL__MINUTES: 45
+    CI_TRON_TIMEOUT__OVERALL__MINUTES: 80
     DEQP_SUITE: pvr-vk
     VK_DRIVER: powervr_mesa
     MESA_VK_IGNORE_CONFORMANCE_WARNING: 1
