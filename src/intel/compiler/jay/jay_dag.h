@@ -45,8 +45,7 @@ jay_dag_transpose(struct jay_dag *out, const struct jay_dag *in)
    jay_dag_init(out, in->edges.mem_ctx, in->node_count);
 
    /* Initialize the output edge array so we can do random access writes */
-   memset(util_dynarray_grow_bytes(&out->edges, in->edges.size, 1), 0,
-          in->edges.size);
+   util_dynarray_grow_zero(&out->edges, uint8_t, in->edges.size);
 
    /* Determine the number of edges for each node after transpose */
    uint32_t *count = calloc(in->node_count, sizeof(uint32_t));
