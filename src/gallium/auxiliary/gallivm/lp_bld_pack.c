@@ -102,53 +102,43 @@ lp_build_const_unpack_shuffle(struct gallivm_state *gallivm,
 }
 
 /**
- * Similar to lp_build_const_unpack_shuffle but for special AVX 256bit unpack.
+ * Similar to lp_build_const_unpack_shuffle but for special AVX 256bit
+ * and AVX512 unpacks, which treat 256bit vectors as 2 and 512 bit vectors
+ * as 4 concatenated 128bit vectors. This means only the lower (or upper,
+ * for lo_hi) half of each lane is used.
  * See comment above lp_build_interleave2_half for more details.
  */
 static LLVMValueRef
 lp_build_const_unpack_shuffle_half(struct gallivm_state *gallivm,
-                                   unsigned n, unsigned lo_hi)
+                                   struct lp_type type, unsigned lo_hi)
 {
    LLVMValueRef elems[LP_MAX_VECTOR_LENGTH];
+   const unsigned n = type.length;
+   const unsigned lanes = (type.width * type.length) / 128;
+   const unsigned lane_pairs = n / (2 * lanes);
+   const unsigned lane_elems = 2 * lane_pairs;
    unsigned i, j;
 
    assert(n <= LP_MAX_VECTOR_LENGTH);
    assert(lo_hi < 2);
+   assert(n == 2 * lane_pairs * lanes);
+   assert(lanes == 2 || lanes == 4);
 
-   for (i = 0, j = lo_hi*(n/4); i < n; i += 2, ++j) {
-      if (i == (n / 2))
-         j += n / 4;
+   /* for the following lo_hi setting, der 0 -> f (with n = 16, i.e. dwords
+    * in a 512bit vector) to:
+    * 0: a0 b0 a1 b1  a4 b4 a5 b5  a8 b8 a9 b9  aC bC aD bD
+    * 1: a2 b2 a3 b3  a6 b6 a7 b7  aA bA aB bB  aE bE aF bF
+    */
+   for (i = 0, j = lo_hi * lane_pairs; i < n; i += 2, ++j) {
+      /* skip to the start of the next lane */
+      if (i != 0 && (i % lane_elems) == 0)
+         j += lane_pairs;
 
-      elems[i + 0] = lp_build_const_int32(gallivm, 0 + j);
+      elems[i]     = lp_build_const_int32(gallivm, 0 + j);
       elems[i + 1] = lp_build_const_int32(gallivm, n + j);
    }
 
    return LLVMConstVector(elems, n);
-}
-
-/**
- * Similar to lp_build_const_unpack_shuffle_half, but for AVX512
- * See comment above lp_build_interleave2_half for more details.
- */
-static LLVMValueRef
-lp_build_const_unpack_shuffle_16wide(struct gallivm_state *gallivm,
-                                     unsigned lo_hi)
-{
-   LLVMValueRef elems[LP_MAX_VECTOR_LENGTH];
-   unsigned i, j;
-
-   assert(lo_hi < 2);
-
-   // for the following lo_hi setting, convert 0 -> f to:
-   // 0: 0 16 4 20  8 24 12 28 1 17 5 21  9 25 13 29
-   // 1: 2 18 6 22 10 26 14 30 3 19 7 23 11 27 15 31
-   for (i = 0; i < 16; i++) {
-      j = ((i&0x06)<<1) + ((i&1)<<4) + (i>>3) + (lo_hi<<1);
-
-      elems[i] = lp_build_const_int32(gallivm, j);
-   }
-
-   return LLVMConstVector(elems, 16);
 }
 
 /**
@@ -382,11 +372,9 @@ lp_build_interleave2_half(struct gallivm_state *gallivm,
                           LLVMValueRef b,
                           unsigned lo_hi)
 {
-   if (type.length * type.width == 256) {
-      LLVMValueRef shuffle = lp_build_const_unpack_shuffle_half(gallivm, type.length, lo_hi);
-      return LLVMBuildShuffleVector(gallivm->builder, a, b, shuffle, "");
-   } else if ((type.length == 16) && (type.width == 32)) {
-      LLVMValueRef shuffle = lp_build_const_unpack_shuffle_16wide(gallivm, lo_hi);
+   if (type.length * type.width == 256 ||
+       type.length * type.width == 512) {
+      LLVMValueRef shuffle = lp_build_const_unpack_shuffle_half(gallivm, type, lo_hi);
       return LLVMBuildShuffleVector(gallivm->builder, a, b, shuffle, "");
    } else {
       return lp_build_interleave2(gallivm, type, a, b, lo_hi);
@@ -482,10 +470,17 @@ lp_build_unpack2_native(struct gallivm_state *gallivm,
 
    /* Interleave bits */
 #if UTIL_ARCH_LITTLE_ENDIAN
-   if (src_type.length * src_type.width == 256 &&
-       (dst_type.width == 16 || dst_type.width == 32) &&
-       util_get_cpu_caps()->has_avx2) {
-      /* This has to match the intrinsics in lp_build_pack2_native() */
+   if (((src_type.length * src_type.width == 256 &&
+         util_get_cpu_caps()->has_avx2) ||
+        (src_type.length * src_type.width == 512 &&
+         util_get_cpu_caps()->has_avx512bw)) &&
+       (dst_type.width == 16 || dst_type.width == 32)) {
+      /* This has to match the intrinsics in lp_build_pack2_native().
+       * For 512 bit vectors only the 8/16 bit sources pair with a 512 bit
+       * pack intrinsic, the 32 bit ones unpack to 64 bit values which are
+       * packed with the generic shuffle, so they keep the sequential
+       * ordering.
+       */
       *dst_lo = lp_build_interleave2_half(gallivm, src_type, src, msb, 0);
       *dst_hi = lp_build_interleave2_half(gallivm, src_type, src, msb, 1);
    } else {
@@ -740,7 +735,25 @@ lp_build_pack2_native(struct gallivm_state *gallivm,
    assert(src_type.length * 2 == dst_type.length);
 
    /* At this point only have special case for avx2 */
-   if (src_type.length * src_type.width == 256 &&
+   if (src_type.length * src_type.width == 512 &&
+       util_get_cpu_caps()->has_avx512bw) {
+      switch(src_type.width) {
+      case 32:
+         if (dst_type.sign) {
+            intrinsic = "llvm.x86.avx512.packssdw.512";
+         } else {
+            intrinsic = "llvm.x86.avx512.packusdw.512";
+         }
+         break;
+      case 16:
+         if (dst_type.sign) {
+            intrinsic = "llvm.x86.avx512.packsswb.512";
+         } else {
+            intrinsic = "llvm.x86.avx512.packuswb.512";
+         }
+         break;
+      }
+   } else if (src_type.length * src_type.width == 256 &&
        util_get_cpu_caps()->has_avx2) {
       switch(src_type.width) {
       case 32:
