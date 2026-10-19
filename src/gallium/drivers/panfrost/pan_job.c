@@ -312,12 +312,9 @@ panfrost_batch_get_bo_access(struct panfrost_batch *batch, unsigned handle)
 {
    unsigned size = util_dynarray_num_elements(&batch->bos, pan_bo_access);
 
-   if (handle >= size) {
-      unsigned grow = handle + 1 - size;
-
-      memset(util_dynarray_grow(&batch->bos, pan_bo_access, grow), 0,
-             grow * sizeof(pan_bo_access));
-   }
+   if (handle >= size &&
+       !util_dynarray_grow_zero(&batch->bos, pan_bo_access, handle + 1 - size))
+      return NULL;
 
    return util_dynarray_element(&batch->bos, pan_bo_access, handle);
 }
