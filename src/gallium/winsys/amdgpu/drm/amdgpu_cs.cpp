@@ -50,7 +50,6 @@ amdgpu_fence_create(struct amdgpu_cs *acs)
    fence->reference.count = 1;
    fence->aws = ctx->aws;
    amdgpu_ctx_reference(&fence->ctx, ctx);
-   fence->ctx = ctx;
    fence->ip_type = acs->ip_type;
    if (ac_drm_cs_create_syncobj2(ctx->aws->dev, 0, &fence->syncobj)) {
       free(fence);
