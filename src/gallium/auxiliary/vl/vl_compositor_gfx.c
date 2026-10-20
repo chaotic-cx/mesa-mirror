@@ -302,7 +302,7 @@ create_frag_shader_weave_rgb(struct vl_compositor *c)
 }
 
 void *
-create_frag_shader_deint_yuv(struct vl_compositor *c, bool y, bool w)
+create_frag_shader_deint_yuv(struct vl_compositor *c, enum vl_compositor_plane plane, bool w)
 {
    struct ureg_program *shader;
    struct ureg_dst texel, fragment;
@@ -319,8 +319,11 @@ create_frag_shader_deint_yuv(struct vl_compositor *c, bool y, bool w)
    else
       create_frag_shader_yuv(shader, texel);
 
-   if (y)
+   if (plane == VL_COMPOSITOR_PLANE_Y)
       ureg_MOV(shader, ureg_writemask(fragment, TGSI_WRITEMASK_X), ureg_src(texel));
+   else if (plane == VL_COMPOSITOR_PLANE_V)
+      ureg_MOV(shader, ureg_writemask(fragment, TGSI_WRITEMASK_X),
+               ureg_scalar(ureg_src(texel), TGSI_SWIZZLE_Z));
    else
       ureg_MOV(shader, ureg_writemask(fragment, TGSI_WRITEMASK_XY),
                        ureg_swizzle(ureg_src(texel), TGSI_SWIZZLE_Y,
@@ -425,7 +428,7 @@ create_frag_shader_rgba(struct vl_compositor *c)
 }
 
 void *
-create_frag_shader_rgb_yuv(struct vl_compositor *c, bool y)
+create_frag_shader_rgb_yuv(struct vl_compositor *c, enum vl_compositor_plane plane)
 {
    struct ureg_program *shader;
    struct ureg_src tc, sampler;
@@ -448,8 +451,10 @@ create_frag_shader_rgb_yuv(struct vl_compositor *c, bool y)
 
    ureg_TEX(shader, texel, TGSI_TEXTURE_2D, tc, sampler);
 
-   if (y) {
+   if (plane == VL_COMPOSITOR_PLANE_Y) {
       ureg_DP4(shader, ureg_writemask(fragment, TGSI_WRITEMASK_X), csc[0], ureg_src(texel));
+   } else if (plane == VL_COMPOSITOR_PLANE_V) {
+      ureg_DP4(shader, ureg_writemask(fragment, TGSI_WRITEMASK_X), csc[2], ureg_src(texel));
    } else {
       for (i = 0; i < 2; ++i)
          ureg_DP4(shader, ureg_writemask(fragment, TGSI_WRITEMASK_X << i), csc[i + 1], ureg_src(texel));

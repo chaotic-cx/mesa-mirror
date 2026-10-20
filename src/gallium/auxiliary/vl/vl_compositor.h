@@ -176,10 +176,12 @@ struct vl_compositor
       struct {
          void *y;
          void *uv;
+         void *v;
       } weave;
       struct {
          void *y;
          void *uv;
+         void *v;
       } bob;
    } fs_yuv;
 
@@ -204,6 +206,7 @@ struct vl_compositor
    struct {
       void *y;
       void *uv;
+      void *v;
    } fs_rgb_yuv;
 
    struct {
