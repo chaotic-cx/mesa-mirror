@@ -233,6 +233,7 @@ lp_scene_end_rasterization(struct lp_scene *scene)
    /* Reset all command lists:
     */
    memset(scene->tiles, 0, sizeof(struct cmd_bin) * scene->num_alloced_tiles);
+   scene->num_timestamp_queries = 0;
 
    /* Decrement texture ref counts
     */

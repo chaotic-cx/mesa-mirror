@@ -72,6 +72,7 @@ struct cmd_bin;
 #define LP_RASTER_BLOCK_SIZE 4
 
 #define LP_MAX_ACTIVE_BINNED_QUERIES 64
+#define LP_MAX_SCENE_TIMESTAMP_QUERIES 16
 
 #define TO_FIXED64(a) (((int64_t)a) << FIXED_ORDER)
 

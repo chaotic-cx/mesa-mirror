@@ -1537,6 +1537,22 @@ lp_setup_end_query(struct lp_setup_context *setup, struct llvmpipe_query *pq)
             pq->end[0] = os_time_get_nano();
          }
 
+         if (pq->type == PIPE_QUERY_TIMESTAMP &&
+             setup->scene->num_timestamp_queries < LP_MAX_SCENE_TIMESTAMP_QUERIES) {
+            /*
+             * The timestamp is when all prior rendering is done: let each
+             * rasterizer thread record it once after its last bin (see
+             * rasterize_scene()) rather than reading the clock in every bin,
+             * which also made every bin non-empty. End the scene here so that
+             * no later rendering is included.
+             */
+            struct lp_scene *scene = setup->scene;
+            scene->timestamp_queries[scene->num_timestamp_queries++] = pq;
+            scene->had_queries = true;
+            lp_setup_flush(setup, "timestamp query");
+            return;
+         }
+
          if (!lp_scene_bin_everywhere(setup->scene,
                                       LP_RAST_OP_END_QUERY,
                                       lp_rast_arg_query(pq))) {

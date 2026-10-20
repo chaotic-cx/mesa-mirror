@@ -152,6 +152,12 @@ struct lp_scene {
    /* If queries were either active or there were begin/end query commands */
    bool had_queries;
 
+   /* TIMESTAMP queries ended in this scene. Each rasterizer thread records the
+    * time once, after its last bin, instead of an END_QUERY command in every bin.
+    */
+   struct llvmpipe_query *timestamp_queries[LP_MAX_SCENE_TIMESTAMP_QUERIES];
+   unsigned num_timestamp_queries;
+
    /* Framebuffer mappings - valid only between begin_rasterization()
     * and end_rasterization().
     */

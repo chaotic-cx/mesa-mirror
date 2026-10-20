@@ -1079,6 +1079,12 @@ rasterize_scene(struct lp_rasterizer_task *task,
       }
    }
 
+   if (scene->num_timestamp_queries) {
+      const uint64_t now = os_time_get_nano();
+      for (unsigned i = 0; i < scene->num_timestamp_queries; i++)
+         scene->timestamp_queries[i]->end[task->thread_index] = now;
+   }
+
 #if LP_BUILD_FORMAT_CACHE_DEBUG
    {
       uint64_t total, miss;
