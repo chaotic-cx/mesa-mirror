@@ -862,6 +862,7 @@ _mesa_free_dispatch_tables(struct gl_dispatch *d)
    free(d->HWSelectModeBeginEnd);
    free(d->Save);
    free(d->ContextLost);
+   free(d->Trace);
 }
 
 void
