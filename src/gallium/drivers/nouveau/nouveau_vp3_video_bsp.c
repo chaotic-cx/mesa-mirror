@@ -189,7 +189,8 @@ nouveau_vp3_fill_picparm_h264_bsp(struct nouveau_vp3_decoder *dec,
    h->deblocking_filter_control_present_flag = d->pps->deblocking_filter_control_present_flag;
    h->redundant_pic_cnt_present_flag = d->pps->redundant_pic_cnt_present_flag;
    h->transform_8x8_mode_flag = d->pps->transform_8x8_mode_flag;
-   h->mb_adaptive_frame_field_flag = d->pps->sps->mb_adaptive_frame_field_flag;
+   h->mb_adaptive_frame_field_flag = d->pps->sps->mb_adaptive_frame_field_flag &&
+                                     !d->field_pic_flag;
    h->field_pic_flag = d->field_pic_flag;
    h->bottom_field_flag = d->bottom_field_flag;
    memset(h->real_pad, 0, sizeof(h->real_pad));
