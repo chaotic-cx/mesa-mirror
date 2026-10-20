@@ -1,11 +1,29 @@
 # Copyright © 2017 Intel Corporation
 # SPDX-License-Identifier: MIT
 
+glapi_mapi_skip_aliases = []
+if with_apitrace and not with_glvnd and with_glx == 'dri'
+  apitrace_gl_aliases = custom_target(
+    'apitrace_gl_aliases.txt',
+    input : [apitrace_gen_py, 'gl_and_es_API.xml', '../../../../glx/libgl-symbols.txt'],
+    output : 'apitrace_gl_aliases.txt',
+    command : [
+      prog_python, '@INPUT0@', apitrace_source_dir, 'aliases', '--glx',
+      '--mesa-xml', '@INPUT1@', '--symbols', '@INPUT2@',
+    ],
+    capture : true,
+  )
+  glapi_mapi_skip_aliases = ['--skip-aliases', apitrace_gl_aliases]
+endif
+
 glapi_mapi_tmp_h = custom_target(
   'glapi_mapi_tmp.h',
   input : ['../../mapi_abi.py', 'gl_and_es_API.xml', '../../../../glx/libgl-symbols.txt'],
   output : 'glapi_mapi_tmp.h',
-  command : [prog_python, '@INPUT0@', '--printer', 'glapi', '--gl_symbols', '@INPUT2@', '@INPUT1@'],
+  command : [
+    prog_python, '@INPUT0@', '--printer', 'glapi', '--gl_symbols', '@INPUT2@',
+    glapi_mapi_skip_aliases, '@INPUT1@',
+  ],
   depend_files : glapi_xml_py_deps,
   capture : true,
 )

@@ -129,7 +129,7 @@ if with_apitrace and not with_glvnd
     output : 'apitrace_glx_wrap.cpp',
     command : [
       prog_python, '@INPUT0@', apitrace_source_dir, 'wrap', '--glx',
-      '--symbols', '@INPUT1@',
+      '--symbols', '@INPUT1@', '--gl-aliases', '--mesa-xml', apitrace_mesa_xml,
     ],
     capture : true,
   )

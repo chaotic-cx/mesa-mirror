@@ -221,11 +221,16 @@ class ABIPrinter(object):
         # sort entries by their names
         self.entries_sorted_by_names = sorted(self.entries, key=attrgetter('name'))
         self.indent = ' ' * 3
+        self.skip_aliases = set()
 
     def need_entry_point(self, ent):
         """Return True if an entry point is needed for the entry."""
         # non-handcode hidden aliases may share the entry they alias
         return not (ent.hidden and ent.alias and not ent.handcode)
+
+    def _skip_alias(self, ent):
+        """Return True if the apitrace wrapper exports this alias instead."""
+        return ent.alias and self.prefix + ent.name in self.skip_aliases
 
     def c_public_declarations(self):
         """Return the declarations of public entry points."""
@@ -282,6 +287,9 @@ class ABIPrinter(object):
                 continue
 
             if not self.need_entry_point(ent):
+                continue
+
+            if self._skip_alias(ent):
                 continue
 
             if0 = '#if 0\n' if ent.handcode else ''
@@ -383,6 +391,9 @@ class ABIPrinter(object):
                 continue
 
             if not self.need_entry_point(ent):
+                continue
+
+            if self._skip_alias(ent):
                 continue
 
             name = self._c_function(ent, self.prefix, True, True)
@@ -525,6 +536,8 @@ def parse_args():
             help='printer to use: %s' % (", ".join(printers)))
     parser.add_option('-s', '--gl_symbols', dest='gl_symbols_filename',
                       help='Path to libgl-symbols.txt')
+    parser.add_option('--skip-aliases', dest='skip_aliases_filename',
+                      help='Path to a list of alias entry points to omit')
 
     options, args = parser.parse_args()
     if not args or options.printer not in printers or not os.path.exists(options.gl_symbols_filename):
@@ -549,6 +562,9 @@ def main():
     abi_sanity_check(entries)
 
     printer = printers[options.printer](entries)
+    if options.skip_aliases_filename:
+        with open(options.skip_aliases_filename) as f:
+            printer.skip_aliases = set(f.read().split())
     printer.output_for_lib()
 
 if __name__ == '__main__':

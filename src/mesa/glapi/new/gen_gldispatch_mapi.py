@@ -38,14 +38,23 @@ import xml.etree.ElementTree as etree
 import genCommon
 
 def _main():
-    target = sys.argv[1]
-    xmlFiles = sys.argv[2:]
+    skip = set()
+    argv = []
+    for arg in sys.argv[1:]:
+        if arg.startswith('--skip='):
+            with open(arg[len('--skip='):]) as f:
+                skip.update(f.read().split())
+        else:
+            argv.append(arg)
+
+    target = argv[0]
+    xmlFiles = argv[1:]
 
     roots = [ etree.parse(filename).getroot() for filename in xmlFiles ]
     allFunctions = genCommon.getFunctionsFromRoots(roots)
 
     names = genCommon.getExportNamesFromRoots(target, roots)
-    functions = [f for f in allFunctions if(f.name in names)]
+    functions = [f for f in allFunctions if(f.name in names and f.name not in skip)]
 
     if (target in ("gl", "gldispatch")):
         assert(len(functions) == len(allFunctions))
