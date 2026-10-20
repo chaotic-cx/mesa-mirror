@@ -46,7 +46,7 @@ if typing.TYPE_CHECKING:
         resolution: int | None
         main_sha: str | None
         because_sha: str | None
-        notes: str | None = attr.ib(None)
+        notes: str | None
 
 IS_FIX = re.compile(r'^\s*fixes:\s*([a-f0-9]{6,40})', flags=re.MULTILINE | re.IGNORECASE)
 # FIXME: I dislike the duplication in this regex, but I couldn't get it to work otherwise
