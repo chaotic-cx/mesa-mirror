@@ -24,8 +24,8 @@ import asyncio
 import itertools
 import textwrap
 import typing
+from dataclasses import dataclass, field
 
-import attr
 import urwid
 
 from . import core
@@ -126,7 +126,7 @@ class FocusAwareEdit(urwid.Edit):
         return super().render(size, focus)
 
 
-@attr.s(slots=True)
+@dataclass(slots=True)
 class UI:
 
     """Main management object.
@@ -135,18 +135,26 @@ class UI:
     :new_commits: Commits added to main since the last time this script was run
     """
 
-    commit_list: list['urwid.Button'] = attr.ib(factory=lambda: urwid.SimpleFocusListWalker([]), init=False)
-    feedback_box: list['urwid.Text'] = attr.ib(factory=lambda: urwid.SimpleFocusListWalker([]), init=False)
-    notes: 'FocusAwareEdit' = attr.ib(factory=lambda: FocusAwareEdit('', multiline=True), init=False)
-    header: 'urwid.Text' = attr.ib(factory=lambda: urwid.Text('Mesa Stable Picker', align='center'), init=False)
-    body: 'urwid.Columns' = attr.ib(attr.Factory(lambda s: s._make_body(), True), init=False)
-    footer: 'urwid.Columns' = attr.ib(attr.Factory(lambda s: s._make_footer(), True), init=False)
-    root: RootWidget = attr.ib(attr.Factory(lambda s: s._make_root(), True), init=False)
-    mainloop: urwid.MainLoop = attr.ib(None, init=False)
+    commit_list: list['urwid.Button'] = field(
+        default_factory=lambda: urwid.SimpleFocusListWalker([]), init=False)
+    feedback_box: list['urwid.Text'] = field(
+        default_factory=lambda: urwid.SimpleFocusListWalker([]), init=False)
+    notes: 'FocusAwareEdit' = field(default_factory=lambda: FocusAwareEdit('', multiline=True), init=False)
+    header: 'urwid.Text' = field(
+        default_factory=lambda: urwid.Text('Mesa Stable Picker', align='center'), init=False)
+    body: 'urwid.Columns' = field(init=False)
+    footer: 'urwid.Columns' = field(init=False)
+    root: RootWidget = field(init=False)
+    mainloop: urwid.MainLoop = field(default=None, init=False)
 
-    previous_commits: list['core.Commit'] = attr.ib(factory=list, init=False)
-    new_commits: list['core.Commit'] = attr.ib(factory=list, init=False)
-    git_lock: asyncio.Lock = attr.ib(factory=asyncio.Lock, init=False)
+    previous_commits: list['core.Commit'] = field(default_factory=list, init=False)
+    new_commits: list['core.Commit'] = field(default_factory=list, init=False)
+    git_lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
+
+    def __post_init__(self) -> None:
+        self.body = self._make_body()
+        self.footer = self._make_footer()
+        self.root = self._make_root()
 
     def _get_current_commit(self) -> typing.Optional['core.Commit']:
         entry = self.commit_list.get_focus()[0]

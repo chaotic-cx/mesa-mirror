@@ -27,9 +27,9 @@ import pathlib
 import re
 import subprocess
 import typing
+from dataclasses import asdict, dataclass
 from functools import cached_property
 
-import attr
 from packaging.version import Version
 
 if typing.TYPE_CHECKING:
@@ -116,20 +116,20 @@ async def commit_state(*, amend: bool = False, message: str = 'Update') -> bool:
     return True
 
 
-@attr.s(slots=True)
+@dataclass
 class Commit:
 
-    sha: str = attr.ib()
-    description: str = attr.ib()
-    nominated: bool = attr.ib(False)
-    nomination_type: NominationType = attr.ib(NominationType.NONE)
-    resolution: Resolution = attr.ib(Resolution.UNRESOLVED)
-    main_sha: str | None = attr.ib(None)
-    because_sha: str | None = attr.ib(None)
-    notes: str | None = attr.ib(None)
+    sha: str
+    description: str
+    nominated: bool = False
+    nomination_type: NominationType = NominationType.NONE
+    resolution: Resolution = Resolution.UNRESOLVED
+    main_sha: str | None = None
+    because_sha: str | None = None
+    notes: str | None = None
 
     def to_json(self) -> 'CommitDict':
-        d: dict[str, typing.Any] = attr.asdict(self)
+        d: dict[str, typing.Any] = asdict(self)
         d['nomination_type'] = self.nomination_type.value
         if self.resolution is not None:
             d['resolution'] = self.resolution.value
