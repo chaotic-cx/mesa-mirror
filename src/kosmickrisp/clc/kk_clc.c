@@ -162,7 +162,10 @@ compile(void *memctx, const uint32_t *spirv, size_t spirv_size)
    NIR_PASS(_, nir, nir_opt_if, 0);
    NIR_PASS(_, nir, nir_opt_idiv_const, 16);
 
-   msl_lower_textures(nir);
+   /* LOD bias is lowered unconditionally, we won't know until runtime if it
+    * is natively supported. This is safe as we can just pass in 0.0 for the
+    * bias lowering on natively supported hardware. */
+   msl_lower_textures(nir, true);
 
    optimize(nir);
 

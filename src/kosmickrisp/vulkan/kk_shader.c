@@ -726,7 +726,7 @@ kk_lower_nir(struct kk_device *dev, nir_shader *nir, bool emulated_stage,
 
    /* Common msl texture lowering needs to happen after ycbcr lowering and
     * before descriptor lowering. */
-   NIR_PASS(_, nir, msl_lower_textures);
+   NIR_PASS(_, nir, msl_lower_textures, pdev->info.gpu_apple_family < 10);
 
    /* Lower push constants before lower_descriptors */
    NIR_PASS(_, nir, nir_lower_explicit_io, nir_var_mem_push_const,

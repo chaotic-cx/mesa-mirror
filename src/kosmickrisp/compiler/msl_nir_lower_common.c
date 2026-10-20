@@ -220,12 +220,12 @@ msl_lower_robustness2_images(nir_shader *nir)
 }
 
 bool
-msl_lower_textures(nir_shader *nir)
+msl_lower_textures(nir_shader *nir, bool lower_lod_bias)
 {
    bool progress = false;
    nir_lower_tex_options lower_tex_options = {
       .lower_txp = ~0u,
-      .lower_sampler_lod_bias = true,
+      .lower_sampler_lod_bias = lower_lod_bias,
 
       /* We don't use 1D textures because they are really limited in Metal */
       .lower_1d = true,

@@ -40,7 +40,8 @@ is_border_color_custom(VkBorderColor color)
 }
 
 static struct mtl_sampler_packed
-pack_sampler_info(const struct VkSamplerCreateInfo *sampler_info,
+pack_sampler_info(const struct kk_physical_device *pdev,
+                  const struct VkSamplerCreateInfo *sampler_info,
                   bool custom_border)
 {
    /* Vulkan disallows unnormalized coordinates to sample 3D images in
@@ -73,15 +74,20 @@ pack_sampler_info(const struct VkSamplerCreateInfo *sampler_info,
       sampler_info->anisotropyEnable
          ? util_next_power_of_two(MAX2(sampler_info->maxAnisotropy, 1))
          : 1u;
+   float lod_bias =
+      pdev->info.gpu_apple_family >= 10 ? sampler_info->mipLodBias : 0.0f;
 
    enum mtl_sampler_reduction_mode reduction_mode =
       MTL_SAMPLER_REDUCTION_MODE_WEIGHTED_AVERAGE;
-   const VkSamplerReductionModeCreateInfo *reduction_info =
-      vk_find_struct_const(sampler_info->pNext,
-                           SAMPLER_REDUCTION_MODE_CREATE_INFO);
-   if (reduction_info)
-      reduction_mode = vk_sampler_reduction_mode_to_mtl_sampler_reduction_mode(
-         reduction_info->reductionMode);
+   if (pdev->vk.supported_extensions.EXT_sampler_filter_minmax) {
+      const VkSamplerReductionModeCreateInfo *reduction_info =
+         vk_find_struct_const(sampler_info->pNext,
+                              SAMPLER_REDUCTION_MODE_CREATE_INFO);
+      if (reduction_info)
+         reduction_mode =
+            vk_sampler_reduction_mode_to_mtl_sampler_reduction_mode(
+               reduction_info->reductionMode);
+   }
 
    return (struct mtl_sampler_packed){
       .mode_u = vk_sampler_address_mode_to_mtl_sampler_address_mode(
@@ -98,6 +104,7 @@ pack_sampler_info(const struct VkSamplerCreateInfo *sampler_info,
       .mip_filter = mip_filter,
       .reduction_mode = reduction_mode,
       .compare_func = compare,
+      .lod_bias = lod_bias,
       .min_lod = sampler_info->minLod,
       .max_lod = sampler_info->maxLod,
       .max_anisotropy = max_anisotropy,
@@ -126,6 +133,9 @@ create_sampler_descriptor(const struct kk_device *dev,
    mtl_sampler_descriptor_set_compare_function(descriptor,
                                                packed->compare_func);
 
+   if (pdev->info.gpu_apple_family >= 10)
+      mtl_sampler_descriptor_set_lod_bias(descriptor, packed->lod_bias);
+
    if (pdev->vk.supported_extensions.EXT_sampler_filter_minmax)
       mtl_sampler_descriptor_set_reduction_mode(descriptor,
                                                 packed->reduction_mode);
@@ -148,6 +158,7 @@ kk_CreateSampler(VkDevice device, const VkSamplerCreateInfo *pCreateInfo,
                  const VkAllocationCallbacks *pAllocator, VkSampler *pSampler)
 {
    VK_FROM_HANDLE(kk_device, dev, device);
+   struct kk_physical_device *pdev = kk_device_physical(dev);
    VkResult result = VK_SUCCESS;
    struct kk_sampler *sampler;
 
@@ -161,7 +172,7 @@ kk_CreateSampler(VkDevice device, const VkSamplerCreateInfo *pCreateInfo,
                         is_border_color_custom(pCreateInfo->borderColor);
 
    struct mtl_sampler_packed packed =
-      pack_sampler_info(pCreateInfo, custom_border);
+      pack_sampler_info(pdev, pCreateInfo, custom_border);
    result = kk_sampler_heap_add(dev, packed, &sampler->planes[0].hw);
    if (result != VK_SUCCESS) {
       kk_DestroySampler(device, kk_sampler_to_handle(sampler), pAllocator);
@@ -233,9 +244,14 @@ kk_CreateSampler(VkDevice device, const VkSamplerCreateInfo *pCreateInfo,
    }
 
    /* LOD data passed in the descriptor set */
-   sampler->lod_bias_fp16 = _mesa_float_to_half(pCreateInfo->mipLodBias);
    sampler->lod_min_fp16 = _mesa_float_to_half(pCreateInfo->minLod);
    sampler->lod_max_fp16 = _mesa_float_to_half(pCreateInfo->maxLod);
+
+   /* When LOD bias is natively supported, pass 0 for any pre-compiled shaders
+    * that still lower it */
+   sampler->lod_bias_fp16 = pdev->info.gpu_apple_family < 10
+                               ? _mesa_float_to_half(pCreateInfo->mipLodBias)
+                               : 0;
 
    *pSampler = kk_sampler_to_handle(sampler);
 

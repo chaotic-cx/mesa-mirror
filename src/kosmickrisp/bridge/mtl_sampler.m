@@ -99,6 +99,16 @@ mtl_sampler_descriptor_set_compare_function(mtl_sampler_descriptor *descriptor,
 }
 
 void
+mtl_sampler_descriptor_set_lod_bias(mtl_sampler_descriptor *descriptor,
+                                    float lod_bias)
+{
+   @autoreleasepool {
+      MTLSamplerDescriptor *desc = (MTLSamplerDescriptor *)descriptor;
+      desc.lodBias = lod_bias;
+   }
+}
+
+void
 mtl_sampler_descriptor_set_reduction_mode(mtl_sampler_descriptor *descriptor,
                                           enum mtl_sampler_reduction_mode mode)
 {

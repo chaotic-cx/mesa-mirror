@@ -1988,8 +1988,11 @@ tex_to_msl(struct nir_to_msl_ctx *ctx, nir_tex_instr *tex)
       src_to_msl(ctx, sampler);
       P(ctx, ", ");
       src_to_msl(ctx, coord);
-      P(ctx, ") + ");
-      src_to_msl(ctx, bias);
+      P(ctx, ")");
+      if (bias) {
+         P(ctx, " + ");
+         src_to_msl(ctx, bias);
+      }
       P(ctx, ", ");
       src_to_msl(ctx, min);
       P(ctx, ", ");
