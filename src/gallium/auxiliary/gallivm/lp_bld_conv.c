@@ -801,6 +801,34 @@ lp_build_conv(struct gallivm_state *gallivm,
       return;
    }
 
+   /* avx512 16xf32 -> 16unorm8 */
+   else if (util_get_cpu_caps()->has_avx512f &&
+            src_type.floating && src_type.sign &&
+            !src_type.norm && !src_type.fixed &&
+            src_type.width == 32 && src_type.length == 16 &&
+            !dst_type.floating && !dst_type.fixed && !dst_type.sign &&
+            dst_type.norm && dst_type.width == 8 && dst_type.length == 16 &&
+            num_srcs == num_dsts) {
+      struct lp_build_context bld, int_bld;
+      struct lp_type int_type = lp_int_type(src_type);
+      LLVMTypeRef dst_vec_type = lp_build_vec_type(gallivm, dst_type);
+
+      lp_build_context_init(&bld, gallivm, src_type);
+      lp_build_context_init(&int_bld, gallivm, int_type);
+      LLVMValueRef scale = lp_build_const_vec(gallivm, src_type,
+                                             lp_const_scale(dst_type));
+
+      for (i = 0; i < num_dsts; i++) {
+         LLVMValueRef a = lp_build_min_ext(&bld, bld.one, src[i],
+                                          GALLIVM_NAN_RETURN_NAN_FIRST_NONNAN);
+         a = LLVMBuildFMul(builder, a, scale, "");
+         a = lp_build_iround(&bld, a);
+         a = lp_build_max(&int_bld, a, int_bld.zero);
+         dst[i] = LLVMBuildTrunc(builder, a, dst_vec_type, "");
+      }
+      return;
+   }
+
    /* Special case -> 16bit half-float
     */
    else if (dst_type.floating && dst_type.width == 16)

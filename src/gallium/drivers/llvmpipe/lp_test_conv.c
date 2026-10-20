@@ -354,6 +354,8 @@ const struct lp_type conv_types[] = {
    {   true, false, false,  true, false,       false,        32,   8 },
    {   true, false, false, false, false,       false,        32,   8 },
 
+   {   true, false,  true, false, false,       false,        32,  16 },
+
    /* Fixed */
    {  false,  true,  true,  true, false,       false,        32,   4 },
    {  false,  true,  true, false, false,       false,        32,   4 },
