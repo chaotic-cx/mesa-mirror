@@ -7206,8 +7206,8 @@ typedef enum {
    nir_move_load_frag_coord =          BITFIELD_BIT(22),
 
    /* The following options only impact load_global/ubo/ssbo. */
-   nir_move_only_convergent =          BITFIELD_BIT(30),
-   nir_move_only_divergent =           BITFIELD_BIT(31),
+   nir_move_only_convergent =          BITFIELD_BIT(23),
+   nir_move_only_divergent =           BITFIELD_BIT(24),
 
    nir_move_all =
       nir_move_const_undef | nir_move_alu | nir_move_copies |
