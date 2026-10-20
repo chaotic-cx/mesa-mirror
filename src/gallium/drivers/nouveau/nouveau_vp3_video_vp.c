@@ -261,7 +261,7 @@ nouveau_vp3_fill_picparm_h264_vp(struct nouveau_vp3_decoder *dec,
    h->second_field = 0; // set in nouveau_vp3_fill_picparm_h264_vp_refs
 
    h->log2_max_frame_num_minus4 = d->pps->sps->log2_max_frame_num_minus4;
-   h->chroma_format_idc = 1;
+   h->chroma_format_idc = d->pps->sps->chroma_format_idc;
 
    h->pic_order_cnt_type = d->pps->sps->pic_order_cnt_type;
    h->pic_init_qp_minus26 = d->pps->pic_init_qp_minus26;

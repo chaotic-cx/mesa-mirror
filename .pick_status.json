@@ -7304,7 +7304,7 @@
         "description": "nouveau: pass chroma_format_idc to the vp3 H.264 decoder",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
