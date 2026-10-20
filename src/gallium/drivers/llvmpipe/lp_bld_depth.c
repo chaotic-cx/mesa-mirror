@@ -457,6 +457,14 @@ lp_build_occlusion_count(struct gallivm_state *gallivm,
       count = lp_build_intrinsic_unary(builder, popcntintr,
                                        LLVMInt32TypeInContext(context), bits);
       count = LLVMBuildZExt(builder, count, LLVMIntTypeInContext(context, 64), "");
+   } else if (util_get_cpu_caps()->has_avx512f && type.length == 16) {
+      LLVMValueRef bits = LLVMBuildICmp(builder, LLVMIntNE, maskvalue,
+                                      LLVMConstNull(LLVMTypeOf(maskvalue)), "");
+      bits = LLVMBuildBitCast(builder, bits, LLVMInt16TypeInContext(context), "");
+      bits = LLVMBuildZExt(builder, bits, LLVMInt32TypeInContext(context), "");
+      count = lp_build_intrinsic_unary(builder, "llvm.ctpop.i32",
+                                      LLVMInt32TypeInContext(context), bits);
+      count = LLVMBuildZExt(builder, count, LLVMInt64TypeInContext(context), "");
    } else {
       LLVMValueRef countv = LLVMBuildAnd(builder, maskvalue, countmask, "countv");
       LLVMTypeRef counttype = LLVMIntTypeInContext(context, type.length * 8);
