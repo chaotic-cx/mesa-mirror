@@ -22,7 +22,6 @@
 
 from unittest import mock
 import textwrap
-import typing
 
 import attr
 import pytest
