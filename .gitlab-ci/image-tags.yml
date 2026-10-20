@@ -32,7 +32,7 @@ variables:
 
   FEDORA_X86_64_BUILD_TAG: "20261016-wlproto149"
 
-  KERNEL_TAG: "v7.1-mesa-3b43"
+  KERNEL_TAG: "v7.1-mesa-cb36"
   KERNEL_REPO: "gfx-ci/linux"
   PKG_REPO_REV: "e7741972"
   FIRMWARE_TAG: "0cfe64f2"
