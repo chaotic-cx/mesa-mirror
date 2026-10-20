@@ -1,0 +1,15 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index f7ecf5cf..dec9e99d 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -46,10 +46,6 @@ option (BUILD_TESTING "Enable unit tests" ON)
+ 
+ option (ENABLE_TESTS "Enable additional tests" OFF)
+ 
+-if (ANDROID)
+-    message (FATAL_ERROR "Android is no longer supported (https://git.io/vH2gW)")
+-endif ()
+-
+ # Proprietary Linux games often ship their own libraries (zlib, libstdc++,
+ # etc.) in order to ship a single set of binaries across multiple
+ # distributions.  Given that apitrace wrapper modules will be loaded into those

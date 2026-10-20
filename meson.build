@@ -2431,6 +2431,38 @@ if with_apitrace
   # apitrace enables LTO by default; the objects can't be linked into Mesa's
   # non-LTO libraries (see cmake-lto-optout.patch)
   apitrace_opts.add_cmake_defines({'CMAKE_INTERPROCEDURAL_OPTIMIZATION': false})
+  if meson.is_cross_build()
+    apitrace_opts.add_cmake_defines({
+      'CMAKE_C_FLAGS' : '',
+      'CMAKE_CXX_FLAGS' : '',
+      'CMAKE_EXE_LINKER_FLAGS' : '',
+      'CMAKE_MODULE_LINKER_FLAGS' : '',
+      'CMAKE_SHARED_LINKER_FLAGS' : '',
+      'CMAKE_DISABLE_FIND_PACKAGE_PkgConfig' : true,
+    })
+  endif
+  if with_platform_android
+    apitrace_ndk = ''
+    foreach arg : cc.cmd_array()
+      if arg.contains('/toolchains/llvm/')
+        apitrace_ndk = arg.split('/toolchains/llvm/')[0]
+      endif
+    endforeach
+    if apitrace_ndk == ''
+      error('The apitrace option needs an NDK compiler to locate the NDK')
+    endif
+    apitrace_android_abi = {
+      'aarch64' : 'arm64-v8a',
+      'arm' : 'armeabi-v7a',
+      'x86' : 'x86',
+      'x86_64' : 'x86_64',
+    }
+    apitrace_opts.add_cmake_defines({
+      'CMAKE_ANDROID_NDK' : apitrace_ndk,
+      'CMAKE_ANDROID_ARCH_ABI' : apitrace_android_abi[host_machine.cpu_family()],
+      'CMAKE_SYSTEM_VERSION' : get_option('platform-sdk-version').to_string(),
+    })
+  endif
   apitrace_opts.set_install(false)
   apitrace = cmake.subproject('apitrace', options: apitrace_opts)
   pre_args += '-DHAVE_APITRACE'

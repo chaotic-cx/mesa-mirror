@@ -99,6 +99,32 @@ For drm drivers, ``-Dallow-fallback-for=libdrm`` is needed. Besides,
 ``-Dallow-fallback-for=libdrm -Dmesa-clc=system`` is needed by nvk, and
 ``-Dprecomp-compiler=system`` is additionally needed by panvk.
 
+Tracing GL calls with apitrace
+------------------------------
+
+Mesa built with ``-Dapitrace=true`` records the GL, GLES, and EGL calls
+of apps in `apitrace <https://github.com/apitrace/apitrace>`__ traces,
+without changes to the apps. The build needs ``cmake`` and an NDK
+compiler, from which it finds the NDK for apitrace.
+
+Tracing is turned on with the system properties of
+:envvar:`MESA_APITRACE` and :envvar:`MESA_GL_TRACE_FILE`, see
+:ref:`android-android-system-properties`. Each app process reads them
+when it first sets up GL, so they apply to apps started after they are
+set:
+
+.. code-block:: sh
+
+   $ adb shell setprop debug.mesa.apitrace 1
+   $ adb shell setprop debug.mesa.gl.trace.file <directory>
+
+If :envvar:`MESA_GL_TRACE_FILE` names a directory, each process writes
+``<process>.<pid>.trace`` there, so the directory has to exist and be
+writable by the traced apps. Traces are flushed every 100 milliseconds
+by default, see :envvar:`MESA_APITRACE_FLUSH_MS`, so that the traces
+of apps that the system kills keep the calls up to the last flush.
+They replay with ``eglretrace``.
+
 Replacing Android drivers on stock Android
 ------------------------------------------
 
