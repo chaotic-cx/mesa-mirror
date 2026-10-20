@@ -131,6 +131,10 @@ split_tex_residency(nir_builder *b, nir_tex_instr *tex, bool jay)
    if (!jay && compare_idx == -1)
       return false;
 
+   /* For Jay, don't split sparse tg4 - handle it natively with PNM */
+   if (jay && tex->op == nir_texop_tg4)
+      return false;
+
    b->cursor = nir_after_instr(&tex->instr);
 
    /* Clone the original instruction */
@@ -145,34 +149,6 @@ split_tex_residency(nir_builder *b, nir_tex_instr *tex, bool jay)
                        nir_texop_sparse_residency_txf_intel :
                        nir_texop_sparse_residency_intel;
       sparse_tex->def.num_components = 2;
-   }
-
-   /* txl/txb/tex and tg4 both access the same pixels for residency checking
-    * purposes, but using the former for residency-only queries lets us mask
-    * out unwanted color components, using fewer registers.
-    */
-   if (tex->op == nir_texop_tg4) {
-      if (sparse_tex->is_gather_implicit_lod) {
-         assert(nir_tex_instr_src_index(sparse_tex, nir_tex_src_lod) == -1);
-      } else if (nir_tex_instr_src_index(sparse_tex, nir_tex_src_lod) == -1 &&
-                 nir_tex_instr_src_index(sparse_tex, nir_tex_src_bias) == -1) {
-         /* Add explicit LOD 0 */
-         nir_builder bb = nir_builder_at(nir_after_instr(&tex->instr));
-         nir_tex_instr_add_src(sparse_tex, nir_tex_src_lod,
-                            nir_imm_int(&bb, 0));
-      }
-
-      if (jay)
-         ;
-      else if (nir_tex_instr_src_index(sparse_tex, nir_tex_src_bias) >= 0)
-         sparse_tex->op = nir_texop_txb;
-      else if (sparse_tex->is_gather_implicit_lod)
-         sparse_tex->op = nir_texop_tex;
-      else
-         sparse_tex->op = nir_texop_txl;
-
-      sparse_tex->component = 0;
-      sparse_tex->is_gather_implicit_lod = false;
    }
 
    /* Drop the compare source on the cloned instruction */
