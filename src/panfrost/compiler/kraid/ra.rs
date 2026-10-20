@@ -1384,7 +1384,8 @@ impl LocalRegAlloc<'_> {
                     // Increment the round-robin past the whole vector
                     if self.arena.round_robin {
                         self.search_start.set(
-                            bytes.start + u16::from(a.vec_size) - vec_offset,
+                            (bytes.start + u16::from(a.vec_size) - vec_offset)
+                                .min(self.arena.limit()),
                         );
                     }
 
