@@ -26,7 +26,6 @@ maxsize
 spec@arb_compute_shader@local-id-explosion
 
 # Unreliable on shared runners due to timing
-ext_timer_query@time-elapsed
 spec@arb_timer_query@query gl_timestamp
 
 # These tests started hitting timeouts when we upgraded LLVM from v11 to 13
