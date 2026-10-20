@@ -195,7 +195,7 @@ SOFTWARE.
 	</encode>
 </bitset>
 
-<!-- TODO check on pre a6xx gens -->
+<!-- TODO check on pre a5xx gens -->
 <bitset name="#instruction-cat3-alt" extends="#instruction-cat3-base">
 	<doc>
 		The difference is that this cat3 version does not support plain
@@ -203,7 +203,7 @@ SOFTWARE.
 		On the other hand it still supports relative gpr and consts.
 	</doc>
 
-	<gen min="600"/>
+	<gen min="500"/>
 
 	<derived name="IMMED_ENCODING" expr="#true" type="bool" display="h"/>
 	<derived name="SAT" expr="#false" type="bool" display=""/>

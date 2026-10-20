@@ -168,6 +168,14 @@ static const struct test {
    INSTR_6XX(64818802_0002e003, "(nop3) shlm hr0.z, (neg)hr0.w, hr0.w, hr0.z"),
    INSTR_6XX(65018802_0002e003, "(nop3) shrg hr0.z, (neg)hr0.w, hr0.w, hr0.z"),
    INSTR_6XX(66018802_0002e003, "(nop3) andg hr0.z, (neg)hr0.w, hr0.w, hr0.z"),
+
+   /* Never seen emitted by the a530 blob; the comments are its disassembler's
+    * decodes.  Does not decode on a418 blob.
+    */
+   INSTR_5XX(65900820_0c0aac05, "(nop3) shlg hr8.x, hc<a0.x + 5>, hr8.x, hc<a0.x + 10>"), /* (nop3) shlg.b16 hr8.x, (r)hc<a0.x + 5>, (r)hr8.x, hc<a0.x + 10>; */
+   INSTR_5XX(646084c3_1fff300a, "shrm r48.w, 10, r48.y, 4095"), /* shrm.b32 sr48.w, 10, sr48.y, 4095; */
+   INSTR_5XX(66018802_0002e003, "(nop3) andg hr0.z, (neg)hr0.w, hr0.w, hr0.z"), /* (nop3) andg.b16 hr0.z, (neg)(r)hr0.w, (r)hr0.w, hr0.z; */
+
    INSTR_6XX(67018802_1002e003, "(nop3) wmm hr0.z, (neg)hr0.w, hr0.w, 2"), /* (nop3) wmm.f16f16 hr0.z, (abs)(r)hr0.w, (r)hr0.w, 2 */
    INSTR_6XX(67018c02_1002e003, "(nop3) wmm.accu hr0.z, (neg)hr0.w, hr0.w, 2"),
    INSTR_6XX(6701c802_9002a003, "(nop3) wmm r0.z, r0.w, r0.w, 2"), /* (nop3) wmm.f32f32 r0.z, (r)r0.w, (r)r0.w, 2 */
