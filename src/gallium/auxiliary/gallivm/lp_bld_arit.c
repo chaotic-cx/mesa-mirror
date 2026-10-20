@@ -1745,6 +1745,18 @@ lp_build_iround_nearest_sse2(struct lp_build_context *bld,
       res = lp_build_intrinsic_unary(builder, intrinsic,
                                      ret_type, arg);
    }
+   else if (type.width * type.length == 512) {
+      /* can't use unary path as intrinsic needs more args */
+      assert(util_get_cpu_caps()->has_avx512f);
+      LLVMValueRef args[] = {
+         a,
+         LLVMGetUndef(ret_type),
+         LLVMConstInt(LLVMInt16TypeInContext(bld->gallivm->context), 0xffff, 0),
+         LLVMConstInt(i32t, 4, 0),
+      };
+      res = lp_build_intrinsic(builder, "llvm.x86.avx512.mask.cvtps2dq.512",
+                               ret_type, args, ARRAY_SIZE(args), 0);
+   }
    else {
       if (type.width* type.length == 128) {
          intrinsic = "llvm.x86.sse2.cvtps2dq";
@@ -2216,7 +2228,8 @@ lp_build_iround(struct lp_build_context *bld,
 
    if ((util_get_cpu_caps()->has_sse2 &&
        ((type.width == 32) && (type.length == 1 || type.length == 4))) ||
-       (util_get_cpu_caps()->has_avx && type.width == 32 && type.length == 8)) {
+       (util_get_cpu_caps()->has_avx && type.width == 32 && type.length == 8) ||
+       (util_get_cpu_caps()->has_avx512f && type.width == 32 && type.length == 16)) {
       return lp_build_iround_nearest_sse2(bld, a);
    }
    if (arch_rounding_available(type)) {
