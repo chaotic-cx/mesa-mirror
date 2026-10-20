@@ -1,0 +1,315 @@
+diff --git a/lib/trace/trace_writer_local.cpp b/lib/trace/trace_writer_local.cpp
+index 5e353b46..6d36e4f8 100644
+--- a/lib/trace/trace_writer_local.cpp
++++ b/lib/trace/trace_writer_local.cpp
+@@ -30,6 +30,12 @@
+ #include <stdlib.h>
+ #include <string.h>
+ 
++#ifdef _WIN32
++#include <windows.h>
++#else
++#include <sys/stat.h>
++#endif
++
+ #include "os.hpp"
+ #include "os_thread.hpp"
+ #include "os_string.hpp"
+@@ -67,16 +73,56 @@ static void exceptionCallback(void)
+ }
+ 
+ 
++bool localWriterExceptionCallback = true;
++const char *localWriterFileName = NULL;
++unsigned localWriterFlushIntervalMs = 0;
++
++namespace {
++    class NullOutStream : public OutStream {
++    public:
++        bool write(const void *, size_t) override { return true; }
++        void flush(void) override {}
++    };
++}
++
++static bool
++localWriterFileNameIsDirectory(void)
++{
++    if (!localWriterFileName) {
++        return false;
++    }
++#ifdef _WIN32
++    DWORD attributes = GetFileAttributesA(localWriterFileName);
++    return attributes != INVALID_FILE_ATTRIBUTES &&
++           (attributes & FILE_ATTRIBUTE_DIRECTORY);
++#else
++    struct stat st;
++    return stat(localWriterFileName, &st) == 0 && S_ISDIR(st.st_mode);
++#endif
++}
++
++static os::String
++localWriterProcessName(void)
++{
++#ifdef __ANDROID__
++    char name[256];
++    FILE *file = fopen("/proc/self/cmdline", "rb");
++    if (file) {
++        size_t len = fread(name, 1, sizeof(name) - 1, file);
++        fclose(file);
++        name[len] = 0;
++        if (name[0]) {
++            return os::String(name);
++        }
++    }
++#endif
++    return os::getProcessName();
++}
++
+ LocalWriter::LocalWriter() :
+     acquired(0),
+     sharedPtrThis(std::make_shared<LocalWriter*>(this))
+ {
+-    os::String process = os::getProcessName();
+-    os::log("apitrace: loaded into %s\n", process.str());
+-
+-    // Install the signal handlers as early as possible, to prevent
+-    // interfering with the application's signal handling.
+-    os::setExceptionCallback(exceptionCallback);
+ }
+ 
+ static void FlushLocalWriterThread(const std::weak_ptr<LocalWriter*> writerWeakPtr,
+@@ -98,9 +144,6 @@ LocalWriter::~LocalWriter()
+ {
+     os::resetExceptionCallback();
+     checkProcessId();
+-
+-    os::String process = os::getProcessName();
+-    os::log("apitrace: unloaded from %s\n", process.str());
+ }
+ 
+ void
+@@ -117,11 +160,21 @@ LocalWriter::open(void) {
+         strftime(suffix, sizeof(suffix), ".%Y%m%dT%H%M%S", std::localtime(&time));
+     }
+ 
+-    lpFileName = getenv("TRACE_FILE");
+-    if (!lpFileName) {
++    lpFileName = localWriterFileName;
++    openedFileName = lpFileName ? lpFileName : "";
++    if (localWriterFileNameIsDirectory()) {
++        os::String process = localWriterProcessName();
++        process.trimDirectory();
++#ifdef _WIN32
++        process.trimExtension();
++#endif
++        szFileName = os::String::format("%s/%s.%lu%s.trace", lpFileName, process.str(),
++                                        (unsigned long)os::getCurrentProcessId(), suffix);
++        lpFileName = szFileName;
++    } else if (!lpFileName) {
+         static unsigned dwCounter = 0;
+ 
+-        os::String process = os::getProcessName();
++        os::String process = localWriterProcessName();
+ #ifdef _WIN32
+         process.trimExtension();
+ #endif
+@@ -167,14 +220,21 @@ LocalWriter::open(void) {
+     os::log("apitrace: tracing to %s\n", lpFileName);
+ 
+     Properties properties;
+-    os::String processName = os::getProcessName();
++    os::String processName = localWriterProcessName();
+     properties["process.name"] = processName;
+     os::String processCommandLine = os::getProcessCommandLine();
+     properties["process.commandLine"] = processCommandLine;
+ 
+-    if (!Writer::open(lpFileName, TRACE_VERSION, properties)) {
+-        os::log("apitrace: error: failed to open %s\n", lpFileName);
+-        os::abort();
++    failed = !Writer::open(lpFileName, TRACE_VERSION, properties);
++    if (failed) {
++        os::log("apitrace: error: failed to open %s, not tracing\n", lpFileName);
++        m_file = new NullOutStream;
++    }
++
++    static bool exceptionCallbackSet = false;
++    if (localWriterExceptionCallback && !failed && !exceptionCallbackSet) {
++        exceptionCallbackSet = true;
++        os::setExceptionCallback(exceptionCallback);
+     }
+ 
+     pid = os::getCurrentProcessId();
+@@ -184,9 +244,9 @@ LocalWriter::open(void) {
+         const auto intervalMs = atoi(flushIntervalStr);
+         if (intervalMs < 0) {
+             os::log("apitrace: error: invalid FLUSH_EVERY_MS: %s\n", flushIntervalStr);
+-            os::abort();
++        } else if (!failed) {
++            std::thread(FlushLocalWriterThread, this->sharedPtrThis, uint32_t(intervalMs)).detach();
+         }
+-        std::thread(FlushLocalWriterThread, this->sharedPtrThis, uint32_t(intervalMs)).detach();
+     }
+ 
+ #if 0
+@@ -207,8 +267,12 @@ void LocalWriter::checkProcessId(void) {
+         // file, as it may cause it to flush and corrupt the parent's
+         // trace, so we effectively leak the old file object.
+         m_file = nullptr;
+-        // Don't want to open the same file again
+-        os::unsetEnvironment("TRACE_FILE");
++        // Don't want to open the same file again, but keep a file name
++        // that the child configured
++        if (!localWriterFileNameIsDirectory() && localWriterFileName &&
++            openedFileName == localWriterFileName) {
++            localWriterFileName = NULL;
++        }
+         open();
+     }
+ }
+@@ -256,12 +320,47 @@ void LocalWriter::beginLeave(unsigned call) {
+     Writer::beginLeave(call);
+ }
+ 
++bool LocalWriter::flushDue(void) {
++    if (!localWriterFlushIntervalMs) {
++        return false;
++    }
++    auto now = std::chrono::steady_clock::now();
++    if (now - lastFlush < std::chrono::milliseconds(localWriterFlushIntervalMs)) {
++        return false;
++    }
++    lastFlush = now;
++    return true;
++}
++
+ void LocalWriter::endLeave(void) {
+     Writer::endLeave();
++    if (m_file && (exiting || flushDue())) {
++        m_file->flush();
++    }
+     --acquired;
+     mutex.unlock();
+ }
+ 
++bool LocalWriter::start(void) {
++    mutex.lock();
++    checkProcessId();
++    if (!m_file) {
++        open();
++    }
++    bool ok = !failed;
++    mutex.unlock();
++    return ok;
++}
++
++void LocalWriter::sync(void) {
++    mutex.lock();
++    if (!acquired && m_file && os::getCurrentProcessId() == pid) {
++        m_file->flush();
++        lastFlush = std::chrono::steady_clock::now();
++    }
++    mutex.unlock();
++}
++
+ void LocalWriter::flush(void) {
+     /*
+      * Do nothing if the mutex is already acquired (e.g., if a segfault happen
+@@ -288,7 +387,26 @@ void LocalWriter::flush(void) {
+ }
+ 
+ 
+-LocalWriter localWriter;
++void LocalWriter::atExit(void) {
++    mutex.lock();
++    checkProcessId();
++    exiting = true;
++    if (m_file) {
++        m_file->flush();
++    }
++    mutex.unlock();
++}
++
++LocalWriter &localWriter = *new LocalWriter;
++
++namespace {
++    struct LocalWriterExit {
++        ~LocalWriterExit() {
++            localWriter.atExit();
++        }
++    };
++    LocalWriterExit localWriterExit;
++}
+ 
+ 
+ void fakeMemcpy(const void *ptr, size_t size) {
+diff --git a/lib/trace/trace_writer_local.hpp b/lib/trace/trace_writer_local.hpp
+index c698a859..c8433bad 100644
+--- a/lib/trace/trace_writer_local.hpp
++++ b/lib/trace/trace_writer_local.hpp
+@@ -30,8 +30,10 @@
+ #pragma once
+ 
+ 
++#include <chrono>
+ #include <stdint.h>
+ #include <memory>
++#include <string>
+ 
+ #include "os_thread.hpp"
+ #include "os_process.hpp"
+@@ -54,6 +56,10 @@ namespace trace {
+      * - flushes the output to ensure the last call is traced in event of
+      *   abnormal termination
+      */
++    extern bool localWriterExceptionCallback;
++    extern const char *localWriterFileName;
++    extern unsigned localWriterFlushIntervalMs;
++
+     class LocalWriter : public Writer {
+     protected:
+         /**
+@@ -70,6 +76,11 @@ namespace trace {
+          */
+         std::recursive_mutex mutex;
+         int acquired;
++        bool exiting = false;
++        bool failed = false;
++        std::chrono::steady_clock::time_point lastFlush;
++
++        bool flushDue(void);
+ 
+         /// For getenv("FLUSH_EVERY_MS")
+         const std::shared_ptr<LocalWriter*> sharedPtrThis;
+@@ -79,6 +90,12 @@ namespace trace {
+          */
+         os::ProcessId pid;
+ 
++        /**
++         * localWriterFileName when the trace file was opened, which a forked
++         * child must not open again.
++         */
++        std::string openedFileName;
++
+         void checkProcessId();
+ 
+     public:
+@@ -112,12 +129,18 @@ namespace trace {
+         void endLeave(void);
+ 
+         void flush(void);
++
++        void atExit(void);
++
++        void sync(void);
++
++        bool start(void);
+     };
+ 
+     /**
+      * Singleton.
+      */
+-    extern LocalWriter localWriter;
++    extern LocalWriter &localWriter;
+ 
+     void fakeMemcpy(const void *ptr, size_t size);
+ 

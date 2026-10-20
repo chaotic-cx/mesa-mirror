@@ -12,6 +12,7 @@ files_libmesa = files(
   'main/api_arrayelt.h',
   'main/api_trace_helpers.c',
   'main/api_trace_helpers.h',
+  'main/apitrace.h',
   'main/arbprogram.c',
   'main/arrayobj.c',
   'main/arrayobj.h',
@@ -454,6 +455,61 @@ if with_platform_windows
   ]
 endif
 
+libmesa_apitrace = []
+if with_apitrace
+  files_libmesa += files('main/apitrace.c')
+  main_apitrace_gen_cpp = custom_target(
+    'apitrace_gen.cpp',
+    input : apitrace_gen_py,
+    output : 'apitrace_gen.cpp',
+    command : [
+      prog_python, '@INPUT@', apitrace_source_dir, 'trace', apitrace_gen_args,
+      '--mesa-xml', apitrace_mesa_xml,
+    ],
+    depend_files : glapi_xml_py_deps,
+    capture : true,
+  )
+  apitrace_check_symbols = []
+  if with_egl
+    apitrace_check_symbols += ['--symbols', files('../egl/egl-symbols.txt')]
+  endif
+  if with_glx == 'dri'
+    apitrace_check_symbols += ['--symbols', files('../glx/libgl-symbols.txt')]
+  endif
+  main_apitrace_check_cpp = custom_target(
+    'apitrace_check.cpp',
+    input : [apitrace_gen_py, 'glapi/glapi/gen/gl_and_es_API.xml'],
+    output : 'apitrace_check.cpp',
+    command : [
+      prog_python, '@INPUT0@', apitrace_source_dir, 'check', apitrace_gen_args,
+      '--mesa-xml', '@INPUT1@', apitrace_check_symbols,
+    ],
+    depend_files : glapi_xml_py_deps,
+    capture : true,
+  )
+  libmesa_apitrace_check = static_library(
+    'mesa_apitrace_check',
+    [main_apitrace_check_cpp, main_dispatch_h, apitrace_glproc_h],
+    cpp_args : apitrace_cpp_args,
+    gnu_symbol_visibility : 'hidden',
+    include_directories : [inc_include, inc_src, inc_mesa],
+    dependencies : [dep_apitrace_headers, dep_x11],
+    override_options : apitrace_override_options,
+    build_by_default : false,
+  )
+  libmesa_apitrace = static_library(
+    'mesa_apitrace',
+    [main_apitrace_gen_cpp, 'main/apitrace_glue.cpp', apitrace_glproc_h],
+    cpp_args : apitrace_cpp_args,
+    gnu_symbol_visibility : 'hidden',
+    include_directories : [inc_include, inc_src, inc_mesa],
+    dependencies : dep_apitrace,
+    link_with : libmesa_apitrace_check,
+    override_options : apitrace_override_options,
+    build_by_default : false,
+  )
+endif
+
 libmesa = static_library(
   'mesa',
   files_libmesa,
@@ -464,7 +520,7 @@ libmesa = static_library(
     inc_include, inc_src, inc_mesa, inc_gallium, inc_gallium_aux,
     inc_libmesa_asm, include_directories('main'),
   ],
-  link_with : [libmesa_sse41],
+  link_with : [libmesa_sse41, libmesa_apitrace],
   dependencies : [idep_libglsl, idep_nir, idep_vtn, idep_mesautil],
   build_by_default : false,
 )

@@ -80,6 +80,7 @@
 #include "util/u_thread.h"
 
 #include "accum.h"
+#include "apitrace.h"
 #include "arrayobj.h"
 #include "attrib.h"
 #include "bbox.h"
@@ -905,9 +906,13 @@ _mesa_initialize_dispatch_tables(struct gl_context *ctx)
       _mesa_init_dispatch_save_begin_end(ctx);
    }
 
-   if ((MESA_VERBOSE & VERBOSE_API) &&
+   bool apitrace = _mesa_apitrace_enabled();
+   if (((MESA_VERBOSE & VERBOSE_API) || apitrace) &&
        !_mesa_init_dispatch_trace(ctx))
       return false;
+
+   if (apitrace)
+      _mesa_apitrace_init_dispatch(ctx);
 
    /* This binds the dispatch table to the context, but MakeCurrent will
     * bind it for the user. If glthread is enabled, it will override it.

@@ -28,11 +28,25 @@
 #ifndef ST_CB_EGLIMAGE_H
 #define ST_CB_EGLIMAGE_H
 
+#include "util/format/u_formats.h"
 
 struct dd_function_table;
+struct st_context;
 
 bool
 st_validate_egl_image(struct gl_context *ctx, GLeglImageOES image_handle);
+
+bool
+st_get_egl_image_info(struct gl_context *ctx, GLeglImageOES image_handle,
+                      unsigned *width, unsigned *height,
+                      enum pipe_format *format);
+
+bool
+st_read_egl_image(struct gl_context *ctx, GLeglImageOES image_handle,
+                  enum pipe_format format, void *data, unsigned stride);
+
+void
+st_destroy_egl_image_read(struct st_context *st);
 
 bool st_get_egl_image(struct gl_context *ctx, GLeglImageOES image_handle,
                       unsigned usage, bool tex_compression, const char *error,

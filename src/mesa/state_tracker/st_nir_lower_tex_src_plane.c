@@ -72,6 +72,7 @@ add_sampler(lower_tex_src_state *state, unsigned orig_binding,
    free(name);
 
    new_sampler->data.binding = new_binding;
+   new_sampler->data.explicit_binding = true;
 }
 
 static void

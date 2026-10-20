@@ -369,6 +369,9 @@ struct st_context
    /** passthrough vertex shader matching the util_velem attributes */
    void *passthrough_vs;
 
+   /** fragment shaders that st_read_egl_image samples YUV images with */
+   struct hash_table *egl_image_read_shaders;
+
    enum pipe_texture_target internal_target;
 
    void *winsys_drawable_handle;

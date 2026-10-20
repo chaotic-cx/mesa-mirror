@@ -8,6 +8,19 @@ Development Utilities
 `ApiTrace <https://github.com/apitrace/apitrace>`__
    is a project to trace, analyze, and debug OpenGL, Direct3D, and
    DirectDraw APIs.
+Built-in apitrace tracing
+   Mesa built with ``-Dapitrace=true`` builds apitrace as a subproject
+   and puts its tracers in Mesa's own dispatch, so no wrapper library
+   has to be loaded in front of Mesa, which makes tracing work where
+   that isn't possible, like for Android apps. With
+   :envvar:`MESA_APITRACE` set to 1, each process records its GL, GLES,
+   EGL, and GLX calls before glthread and the driver see them, to the
+   file that :envvar:`MESA_GL_TRACE_FILE` names. Calls that stock
+   apitrace can't replay, like EGLImage and memory object imports, are
+   recorded with equivalents that it can replay, and apps that render
+   only to shared textures get presents, so the traces replay with
+   ``glretrace`` and ``eglretrace``. :doc:`envvars` lists the other
+   options, and :doc:`android` describes tracing Android apps.
 `GFXReconstruct <https://github.com/LunarG/gfxreconstruct>`__
    is a project to trace and replay Vulkan API calls.
 `Valgrind <https://valgrind.org/>`__

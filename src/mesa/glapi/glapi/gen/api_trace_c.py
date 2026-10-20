@@ -233,14 +233,16 @@ class PrintCode(gl_XML.gl_print_base):
         print('_mesa_trace_{name}({ps})'.format(name=f.name, ps=param_string))
         print('{')
         print('   GET_CURRENT_CONTEXT(ctx);')
+        print('   if (MESA_VERBOSE & VERBOSE_API) {')
         for stmt in prelude:
-            print('   {0}'.format(stmt))
+            print('      {0}'.format(stmt))
         if args:
             fmt_body = 'gl{0}({1})\\n'.format(f.name, ', '.join(specs))
-            print('   _mesa_debug(ctx, "{fmt}", {args});'
+            print('      _mesa_debug(ctx, "{fmt}", {args});'
                   .format(fmt=fmt_body, args=', '.join(args)))
         else:
-            print('   _mesa_debug(ctx, "gl{0}()\\n");'.format(f.name))
+            print('      _mesa_debug(ctx, "gl{0}()\\n");'.format(f.name))
+        print('   }')
         call = 'CALL_{name}(ctx->Dispatch.RealPublished, ({ca}));'.format(
             name=f.name, ca=called if called else '')
         if ret != 'void':

@@ -1,0 +1,32 @@
+diff --git a/wrappers/glmemshadow.cpp b/wrappers/glmemshadow.cpp
+index ffe33865..5b3c5e16 100644
+--- a/wrappers/glmemshadow.cpp
++++ b/wrappers/glmemshadow.cpp
+@@ -46,10 +46,10 @@
+ 
+ static bool sInitialized = false;
+ 
+-static std::unordered_map<size_t, GLMemoryShadow*> sPages;
++static std::unordered_map<size_t, GLMemoryShadow*> &sPages = *new std::unordered_map<size_t, GLMemoryShadow*>;
+ static size_t sPageSize;
+ 
+-static std::mutex mutex;
++static std::mutex &mutex = *new std::mutex;
+ 
+ enum class MemProtection {
+ #ifdef _WIN32
+diff --git a/wrappers/gltrace_state.cpp b/wrappers/gltrace_state.cpp
+index 15145d6b..dea83b30 100644
+--- a/wrappers/gltrace_state.cpp
++++ b/wrappers/gltrace_state.cpp
+@@ -38,8 +38,8 @@
+ namespace gltrace {
+ 
+ typedef std::shared_ptr<Context> context_ptr_t;
+-static std::map<uintptr_t, context_ptr_t> context_map;
+-static std::recursive_mutex context_map_mutex;
++static std::map<uintptr_t, context_ptr_t> &context_map = *new std::map<uintptr_t, context_ptr_t>;
++static std::recursive_mutex &context_map_mutex = *new std::recursive_mutex;
+ 
+ class ThreadState {
+ public:

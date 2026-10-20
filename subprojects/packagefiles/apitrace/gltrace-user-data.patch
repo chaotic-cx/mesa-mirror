@@ -1,0 +1,14 @@
+Give code built on the tracer, like the mesa synthetic presents, state that
+lives as long as a context.
+--- a/wrappers/gltrace.hpp
++++ b/wrappers/gltrace.hpp
+@@ -73,6 +73,9 @@
+     // the data which can be shared between shared contexts
+     std::shared_ptr<ShareableContextResources> sharedRes;
+ 
++    // state of code built on the tracer, freed with the context
++    std::shared_ptr<void> userData;
++
+     Context(void) :
+         profile(glfeatures::API_GL, 1, 0),
+         sharedRes(std::make_shared<ShareableContextResources>())

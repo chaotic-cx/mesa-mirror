@@ -1,0 +1,18 @@
+Let a parent project opt out of the LTO default, since Mesa does not build
+with LTO and a non-LTO link cannot use the resulting objects. Drop this
+patch once apitrace has this change.
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 6d88987a..62990b13 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -24,7 +24,8 @@ project (apitrace)
+ # command so that we can default to auto-detecting optional depencies, while
+ # still providing a mechanism to force/disable these optional dependencies, as
+ # prescribed in http://www.gentoo.org/proj/en/qa/automagic.xml
+-if (NOT MINGW)
++# Enable LTO by default, but let a parent project or the command line opt out.
++if (NOT MINGW AND NOT DEFINED CMAKE_INTERPROCEDURAL_OPTIMIZATION)
+     set (CMAKE_INTERPROCEDURAL_OPTIMIZATION True)
+ endif ()
+ set (ENABLE_GUI "AUTO" CACHE STRING "Enable Qt GUI.")

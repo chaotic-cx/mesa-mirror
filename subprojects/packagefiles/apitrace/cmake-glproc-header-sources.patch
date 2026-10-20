@@ -1,0 +1,31 @@
+Work around a meson bug: meson drops add_dependencies() ordering between
+cmake targets, so list the generated glproc.hpp as a source of its users.
+Drop this patch once this is fixed:
+https://github.com/mesonbuild/meson/issues/16275
+
+diff --git a/helpers/CMakeLists.txt b/helpers/CMakeLists.txt
+index b4e96481..6b73efd6 100644
+--- a/helpers/CMakeLists.txt
++++ b/helpers/CMakeLists.txt
+@@ -12,6 +12,8 @@ add_convenience_library (glhelpers
+     eglsize.cpp
+ )
+ add_dependencies (glhelpers glproc)
++target_sources (glhelpers PRIVATE ${CMAKE_BINARY_DIR}/dispatch/glproc.hpp)
++set_source_files_properties (${CMAKE_BINARY_DIR}/dispatch/glproc.hpp PROPERTIES GENERATED TRUE)
+ 
+ 
+ if (WIN32)
+diff --git a/wrappers/CMakeLists.txt b/wrappers/CMakeLists.txt
+index 8bcd2498..47facc5e 100644
+--- a/wrappers/CMakeLists.txt
++++ b/wrappers/CMakeLists.txt
+@@ -92,6 +92,8 @@ add_convenience_library (gltrace_common
+     gltrace_unpack_compressed.cpp
+ )
+ add_dependencies (gltrace_common glproc)
++target_sources (gltrace_common PRIVATE ${CMAKE_BINARY_DIR}/dispatch/glproc.hpp)
++set_source_files_properties (${CMAKE_BINARY_DIR}/dispatch/glproc.hpp PROPERTIES GENERATED TRUE)
+ target_link_libraries (gltrace_common
+     glhelpers
+     trace

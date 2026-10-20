@@ -1,0 +1,7 @@
+[wrap-git]
+directory = apitrace
+url = https://github.com/apitrace/apitrace.git
+revision = d4dd8ec97d9bbe2b0bf0a9ae5129ec811da2286e
+depth = 1
+clone-recursive = true
+diff_files = apitrace/local-writer.patch, apitrace/gltrace-statics.patch, apitrace/cmake-glproc-header-sources.patch, apitrace/gltrace-user-data.patch, apitrace/cmake-lto-optout.patch

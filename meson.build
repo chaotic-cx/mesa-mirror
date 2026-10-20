@@ -2404,6 +2404,84 @@ else
   pre_args += '-DCUSTOM_SHADER_REPLACEMENT'
 endif
 
+with_apitrace = get_option('apitrace')
+dep_apitrace = []
+if with_apitrace
+  if with_platform_windows or host_machine.system() == 'darwin'
+    error('The apitrace option is not supported on this platform')
+  endif
+  if with_glx == 'xlib'
+    error('The apitrace option is not supported with xlib-based GLX')
+  endif
+  cmake = import('cmake')
+  apitrace_opts = cmake.subproject_options()
+  apitrace_opts.add_cmake_defines({'ENABLE_TESTS': false})
+  apitrace_opts.add_cmake_defines({'ENABLE_WAFFLE': false})
+  apitrace_opts.add_cmake_defines({'ENABLE_CLI': false})
+  apitrace_opts.add_cmake_defines({'ENABLE_GUI': false})
+  apitrace_opts.add_cmake_defines({'ENABLE_X11': with_glx == 'dri'})
+  apitrace_opts.add_cmake_defines({'ENABLE_EGL': with_egl})
+  apitrace_opts.add_cmake_defines({'CMAKE_POSITION_INDEPENDENT_CODE': true})
+  # apitrace enables LTO by default; the objects can't be linked into Mesa's
+  # non-LTO libraries (see cmake-lto-optout.patch)
+  apitrace_opts.add_cmake_defines({'CMAKE_INTERPROCEDURAL_OPTIMIZATION': false})
+  apitrace_opts.set_install(false)
+  apitrace = cmake.subproject('apitrace', options: apitrace_opts)
+  pre_args += '-DHAVE_APITRACE'
+  dep_apitrace_headers = []
+  foreach t : ['gltrace_common', 'glproc']
+    dep_apitrace += apitrace.dependency(t)
+    dep_apitrace_headers += apitrace.dependency(t).partial_dependency(includes : true)
+  endforeach
+  apitrace_libs = ['glhelpers', 'trace', 'common', 'os', 'crc32c', 'snappy',
+                   'guids', 'highlight', 'zstd_seekable']
+  # apitrace builds libbacktrace only for ELF
+  if not with_platform_windows
+    apitrace_libs += 'backtrace'
+  endif
+  # apitrace uses the system Brotli when pkg-config finds it, otherwise it
+  # builds its bundled copy, which has to be linked explicitly
+  dep_brotlidec = dependency('libbrotlidec', version : '>= 1.0.7', required : false)
+  if dep_brotlidec.found()
+    dep_apitrace += dep_brotlidec
+  else
+    apitrace_libs += ['brotli_dec', 'brotli_common']
+  endif
+  foreach t : apitrace_libs
+    dep_apitrace += apitrace.dependency(t)
+  endforeach
+  # meson doesn't order users of a cmake dependency after the targets that
+  # generate its headers, so depend on glproc here; drop this and
+  # cmake-glproc-header-sources.patch once this is fixed:
+  # https://github.com/mesonbuild/meson/issues/16275
+  apitrace_glproc_h = custom_target(
+    'apitrace_glproc.h',
+    output : 'apitrace_glproc.h',
+    command : [
+      prog_python, '-c', 'import sys; open(sys.argv[1], "w").close()',
+      '@OUTPUT@',
+    ],
+    depends : apitrace.target('glproc'),
+  )
+  apitrace_gen_py = files('src/mesa/main/apitrace_gen.py')
+  apitrace_mesa_xml = files('src/mesa/glapi/glapi/gen/gl_and_es_API.xml')
+  apitrace_source_dir = meson.project_source_root() / 'subprojects' / 'apitrace'
+  apitrace_gen_args = []
+  apitrace_cpp_args = ['-DNDEBUG'] + cpp.get_supported_arguments(
+    '-Wno-sign-compare', '-fno-strict-aliasing')
+  # msvc has no gnu++17
+  apitrace_override_options = ['cpp_std=gnu++17,c++17']
+  if with_egl
+    apitrace_gen_args += '--egl'
+  endif
+  if with_glx == 'dri'
+    apitrace_gen_args += '--glx'
+    apitrace_cpp_args += '-DHAVE_X11'
+  else
+    apitrace_cpp_args += '-DEGL_NO_X11'
+  endif
+endif
+
 allow_fallback_for_perfetto = get_option('allow-fallback-for').contains('perfetto')
 with_perfetto = get_option('perfetto')
 with_datasources = get_option('datasources')

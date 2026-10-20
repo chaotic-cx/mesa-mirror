@@ -650,6 +650,13 @@ option(
 )
 
 option(
+  'apitrace',
+  type : 'boolean',
+  value : false,
+  description : 'Build in apitrace GL call tracing, enabled at run time with MESA_APITRACE=1. Default: false'
+)
+
+option(
   'perfetto',
   type : 'boolean',
   value : false,
