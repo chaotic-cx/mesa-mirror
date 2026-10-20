@@ -717,8 +717,7 @@ agx_writer_add(struct agx_context *ctx, uint8_t batch_index, unsigned handle)
          MAX2(ctx->writer.capacity * 2, util_next_power_of_two(handle + 1));
       unsigned grow = new_size - ctx->writer.size;
 
-      memset(util_dynarray_grow(&ctx->writer, uint8_t, grow), 0,
-             grow * sizeof(uint8_t));
+      util_dynarray_grow_zero(&ctx->writer, uint8_t, grow);
    }
 
    /* There is now room */
