@@ -647,7 +647,9 @@ lp_rast_begin_query(struct lp_rasterizer_task *task,
       pq->start[task->thread_index] = task->thread_data.ps_invocations;
       break;
    case PIPE_QUERY_TIME_ELAPSED:
-      pq->start[task->thread_index] = os_time_get_nano();
+      /* Every bin begins the query: keep the time of the thread's first one. */
+      if (!pq->start[task->thread_index])
+         pq->start[task->thread_index] = os_time_get_nano();
       break;
    default:
       assert(0);
