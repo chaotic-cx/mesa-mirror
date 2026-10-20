@@ -22,8 +22,7 @@
 import asyncio
 
 import urwid
-
-from pick.ui import UI, PALETTE
+from pick.ui import PALETTE, UI
 
 if __name__ == "__main__":
     u = UI()

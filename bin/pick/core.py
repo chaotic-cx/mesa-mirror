@@ -33,9 +33,9 @@ import attr
 from packaging.version import Version
 
 if typing.TYPE_CHECKING:
-    from .ui import UI
-
     import typing_extensions
+
+    from .ui import UI
 
     class CommitDict(typing_extensions.TypedDict):
 

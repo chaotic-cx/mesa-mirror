@@ -20,8 +20,8 @@
 
 """Tests for pick's core data structures and routines."""
 
-from unittest import mock
 import textwrap
+from unittest import mock
 
 import attr
 import pytest
