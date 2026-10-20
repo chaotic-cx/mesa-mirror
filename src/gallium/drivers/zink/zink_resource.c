@@ -3821,7 +3821,7 @@ zink_transfer_unmap_clientptr_range(struct pipe_context *pctx, struct pipe_trans
    struct zink_resource *res = trans->staging_res ? zink_resource(trans->staging_res) :
                                                     zink_resource(trans->base.b.resource);
 
-   if (!res->obj->coherent) {
+   if (!res->obj->coherent && !(trans->base.b.usage & PIPE_MAP_FLUSH_EXPLICIT)) {
       VkMappedMemoryRange range = zink_resource_init_mem_range(screen, res->obj, res->obj->offset, res->obj->size);
       if (VKSCR(FlushMappedMemoryRanges)(screen->dev, 1, &range) != VK_SUCCESS) {
          mesa_loge("ZINK: vkFlushMappedMemoryRanges failed");
