@@ -3770,9 +3770,19 @@ zink_transfer_map_clientptr_range(struct pipe_context *pctx, struct pipe_transfe
    if (!(res->base.b.clientptr_heap))
       return NULL;
 
-   if (!trans->clientptr) {
-      assert(trans->clientptr_refcnt == 0);
+   if (trans->clientptr) {
+      trans->clientptr_refcnt++;
+      return trans->clientptr;
+   }
 
+   if (trans->clientptr_upload) {
+      uint8_t *ptr = zink_transfer_map_clientptr_range(pctx, trans->clientptr_upload, clientptr_range, size);
+
+      if (!ptr)
+         return NULL;
+
+      return trans->clientptr = ptr + trans->offset;
+   } else {
       /* In order to ensure that the potential remap into the client range succeeds,
        * make sure there are no current (short lived) direct
        */
@@ -3803,11 +3813,8 @@ zink_transfer_map_clientptr_range(struct pipe_context *pctx, struct pipe_transfe
          }
       }
 
-      trans->clientptr = ptr + trans->offset;
+      return trans->clientptr = ptr + trans->offset;
    }
-
-   trans->clientptr_refcnt++;
-   return trans->clientptr;
 }
 
 static void
