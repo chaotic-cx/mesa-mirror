@@ -20,24 +20,24 @@ struct ctx {
 
 /*
  * Takes src, a linked list containing the element pivot in the middle, and dst
- * an empty list. Moves all elements up to and including pivot from src to dst,
- * leaving the rest in src. Semantically equivalent to a loop of list_move but
- * O(1) time regardless of the position of pivot in the list.
+ * an empty list. Moves all elements after pivot up to the end of src to dst.
+ * Semantically equivalent to a loop of list_move but O(1) time regardless of
+ * the position of pivot in the list.
  */
 static void
 list_partition(struct list_head *src,
                struct list_head *dst,
                struct list_head *pivot)
 {
-   /* dst runs from src[0] to pivot */
-   dst->next = src->next;
-   dst->prev = pivot;
+   /* dst runs from pivot[1:] to end of src */
+   dst->prev = src->prev;
+   dst->prev->next = dst;
+   dst->next = pivot->next;
    dst->next->prev = dst;
 
-   /* src runs from pivot[1:] to end of src */
-   src->next = pivot->next;
-   src->next->prev = src;
-   pivot->next = dst;
+   /* src runs from src[0] to pivot */
+   src->prev = pivot;
+   src->prev->next = src;
 
    list_validate(dst);
    list_validate(src);
@@ -149,30 +149,29 @@ process_block(struct ctx *ctx, jay_builder *b, jay_block *block)
             jay_block *split = jay_new_block(b->func, block->weight);
             list_partition(&block->instructions, &split->instructions,
                            &halt->link);
-            list_addtail(&split->link, &block->link);
+            list_add(&split->link, &block->link);
 
             /* The split block either falls through or jumps to the exit */
             for (unsigned file = GPR; file <= UGPR; ++file) {
-               jay_foreach_predecessor(block, pred, file) {
-                  jay_foreach_successor(*pred, succ, file) {
-                     if (block == *succ) {
-                        *succ = split;
+               jay_foreach_successor(block, succ, file) {
+                  jay_foreach_predecessor(*succ, pred, file) {
+                     if (block == *pred) {
+                        *pred = split;
                         break;
                      }
                   }
                }
             }
 
-            util_dynarray_append_dynarray(jay_predecessors(split, UGPR),
-                                          jay_predecessors(block, UGPR));
-            util_dynarray_append_dynarray(jay_predecessors(split, GPR),
-                                          jay_predecessors(block, GPR));
-            util_dynarray_clear(jay_predecessors(block, UGPR));
-            util_dynarray_clear(jay_predecessors(block, GPR));
+            util_dynarray_append_dynarray(jay_successors(split, UGPR),
+                                          jay_successors(block, UGPR));
+            util_dynarray_append_dynarray(jay_successors(split, GPR),
+                                          jay_successors(block, GPR));
+            util_dynarray_clear(jay_successors(block, UGPR));
+            util_dynarray_clear(jay_successors(block, GPR));
 
-            jay_block_add_successor(split, block, GPR);
-            jay_block_add_successor(split, jay_last_block(b->func), GPR);
-            return;
+            jay_block_add_successor(block, split, GPR);
+            jay_block_add_successor(block, jay_last_block(b->func), GPR);
          }
       } else if (I->op == JAY_OPCODE_IS_HELPER) {
          jay_inst *mov = jay_MOV(b, I->dst, ctx->helper_flag);
