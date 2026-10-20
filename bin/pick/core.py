@@ -43,10 +43,10 @@ if typing.TYPE_CHECKING:
         description: str
         nominated: bool
         nomination_type: int
-        resolution: typing.Optional[int]
-        main_sha: typing.Optional[str]
-        because_sha: typing.Optional[str]
-        notes: typing.Optional[str] = attr.ib(None)
+        resolution: int | None
+        main_sha: str | None
+        because_sha: str | None
+        notes: str | None = attr.ib(None)
 
 IS_FIX = re.compile(r'^\s*fixes:\s*([a-f0-9]{6,40})', flags=re.MULTILINE | re.IGNORECASE)
 # FIXME: I dislike the duplication in this regex, but I couldn't get it to work otherwise
@@ -124,12 +124,12 @@ class Commit:
     nominated: bool = attr.ib(False)
     nomination_type: NominationType = attr.ib(NominationType.NONE)
     resolution: Resolution = attr.ib(Resolution.UNRESOLVED)
-    main_sha: typing.Optional[str] = attr.ib(None)
-    because_sha: typing.Optional[str] = attr.ib(None)
-    notes: typing.Optional[str] = attr.ib(None)
+    main_sha: str | None = attr.ib(None)
+    because_sha: str | None = attr.ib(None)
+    notes: str | None = attr.ib(None)
 
     def to_json(self) -> 'CommitDict':
-        d: typing.Dict[str, typing.Any] = attr.asdict(self)
+        d: dict[str, typing.Any] = attr.asdict(self)
         d['nomination_type'] = self.nomination_type.value
         if self.resolution is not None:
             d['resolution'] = self.resolution.value
@@ -173,7 +173,7 @@ class Commit:
             return url.rsplit('/', maxsplit=1)[1]
         return None
 
-    async def apply(self, ui: 'UI') -> typing.Tuple[bool, str]:
+    async def apply(self, ui: 'UI') -> tuple[bool, str]:
         # FIXME: This isn't really enough if we fail to cherry-pick because the
         # git tree will still be dirty
         async with COMMIT_LOCK:
@@ -229,7 +229,7 @@ class Commit:
         assert v
         await ui.feedback(f'{self.sha} ({self.description}) committed successfully')
 
-    async def update_notes(self, ui: 'UI', notes: typing.Optional[str]) -> None:
+    async def update_notes(self, ui: 'UI', notes: str | None) -> None:
         self.notes = notes
         async with ui.git_lock:
             ui.save()
@@ -238,7 +238,7 @@ class Commit:
         await ui.feedback(f'{self.sha} ({self.description}) notes updated successfully')
 
 
-async def get_new_commits(sha: str) -> typing.List[typing.Tuple[str, str]]:
+async def get_new_commits(sha: str) -> list[tuple[str, str]]:
     # Try to get the authoritative upstream main
     p = await asyncio.create_subprocess_exec(
         'git', 'for-each-ref', '--format=%(upstream)', 'refs/heads/main',
@@ -256,13 +256,13 @@ async def get_new_commits(sha: str) -> typing.List[typing.Tuple[str, str]]:
     return list(split_commit_list(out.decode().strip()))
 
 
-def split_commit_list(commits: str) -> typing.Generator[typing.Tuple[str, str], None, None]:
+def split_commit_list(commits: str) -> typing.Generator[tuple[str, str], None, None]:
     if not commits:
         return
     for line in commits.split('\n'):
         v = tuple(line.split(' ', 1))
         assert len(v) == 2, 'this is really just for mypy'
-        yield typing.cast(typing.Tuple[str, str], v)
+        yield typing.cast(tuple[str, str], v)
 
 
 async def is_commit_in_branch(sha: str) -> bool:
@@ -330,7 +330,7 @@ async def resolve_nomination(commit: 'Commit', version: str) -> 'Commit':
     return commit
 
 
-async def resolve_fixes(commits: typing.List['Commit'], previous: typing.List['Commit']) -> None:
+async def resolve_fixes(commits: list['Commit'], previous: list['Commit']) -> None:
     """Determine if any of the undecided commits fix a staged commit.
 
     The are still needed if they apply to a commit that is staged for
@@ -339,7 +339,7 @@ async def resolve_fixes(commits: typing.List['Commit'], previous: typing.List['C
     This must be done in order, because a commit 3 might fix commit 2 which
     fixes commit 1.
     """
-    shas: typing.Set[str] = set(c.sha for c in previous if c.nominated)
+    shas: set[str] = set(c.sha for c in previous if c.nominated)
     assert None not in shas, 'None in shas'
 
     for commit in reversed(commits):
@@ -350,18 +350,18 @@ async def resolve_fixes(commits: typing.List['Commit'], previous: typing.List['C
             shas.add(commit.sha)
 
 
-async def gather_commits(version: str, previous: typing.List['Commit'],
-                         new: typing.List[typing.Tuple[str, str]], cb) -> typing.List['Commit']:
+async def gather_commits(version: str, previous: list['Commit'],
+                         new: list[tuple[str, str]], cb) -> list['Commit']:
     # We create an array of the final size up front, then we pass that array
     # to the "inner" co-routine, which is turned into a list of tasks and
     # collected by asyncio.gather. We do this to allow the tasks to be
     # asynchronously gathered, but to also ensure that the commits list remains
     # in order.
-    m_commits: typing.List[typing.Optional['Commit']] = [None] * len(new)
+    m_commits: list[Commit | None] = [None] * len(new)
     tasks = []
 
     async def inner(commit: 'Commit', version: str,
-                    commits: typing.List[typing.Optional['Commit']],
+                    commits: list[typing.Optional['Commit']],
                     index: int, cb) -> None:
         commits[index] = await resolve_nomination(commit, version)
         cb()
@@ -372,7 +372,7 @@ async def gather_commits(version: str, previous: typing.List['Commit'],
 
     await asyncio.gather(*tasks)
     assert None not in m_commits
-    commits = typing.cast(typing.List[Commit], m_commits)
+    commits = typing.cast(list[Commit], m_commits)
 
     await resolve_fixes(commits, previous)
 
@@ -383,7 +383,7 @@ async def gather_commits(version: str, previous: typing.List['Commit'],
     return commits
 
 
-def load() -> typing.List['Commit']:
+def load() -> list['Commit']:
     if not pick_status_json.exists():
         return []
     with pick_status_json.open('r') as f:
