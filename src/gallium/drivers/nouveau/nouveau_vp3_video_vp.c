@@ -251,7 +251,8 @@ nouveau_vp3_fill_picparm_h264_vp(struct nouveau_vp3_decoder *dec,
    nouveau_vp3_inter_sizes(dec, d->slice_count, &ring, &h->bucket_size, &h->inter_ring_data_size);
 
    h->u220 = 0;
-   h->mb_adaptive_frame_field_flag = d->pps->sps->mb_adaptive_frame_field_flag;
+   h->mb_adaptive_frame_field_flag = d->pps->sps->mb_adaptive_frame_field_flag &&
+                                     !d->field_pic_flag;
    h->direct_8x8_inference_flag = d->pps->sps->direct_8x8_inference_flag;
    h->weighted_pred_flag = d->pps->weighted_pred_flag;
    h->constrained_intra_pred_flag = d->pps->constrained_intra_pred_flag;
