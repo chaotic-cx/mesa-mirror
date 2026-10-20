@@ -38,6 +38,7 @@
 #include "stw_gdishim.h"
 #include "gldrv.h"
 #include "stw_nopfuncs.h"
+#include "stw_apitrace.h"
 
 #include "util/u_debug.h"
 
@@ -92,9 +93,8 @@ static const struct stw_extension_entry stw_extension_entries[] = {
    { NULL, NULL }
 };
 
-PROC APIENTRY
-DrvGetProcAddress(
-   LPCSTR lpszProc )
+PROC WINAPI
+stw_wglGetProcAddress(LPCSTR lpszProc)
 {
    const struct stw_extension_entry *entry;
    PROC p;
@@ -126,4 +126,11 @@ DrvGetProcAddress(
 
    debug_printf("wglGetProcAddress(\"%s\") returning NULL\n", lpszProc);
    return NULL;
+}
+
+
+PROC APIENTRY
+DrvGetProcAddress(LPCSTR lpszProc)
+{
+   return STW_WGL(wglGetProcAddress)(lpszProc);
 }

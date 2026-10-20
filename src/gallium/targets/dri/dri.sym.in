@@ -9,6 +9,8 @@
                 _mesa_glapi_tls_Context;
                 _mesa_glapi_tls_Dispatch;
 
+		@apitrace_symbols@
+
 		ddebug_screen_create;
 		noop_screen_create;
 		util_run_tests;

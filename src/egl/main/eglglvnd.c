@@ -34,6 +34,8 @@
 #include "egldispatchstubs.h"
 #include "eglglobals.h"
 
+#include "mesa/main/apitrace.h"
+
 static const __EGLapiExports *__eglGLVNDApiExports = NULL;
 
 static const char *EGLAPIENTRY
@@ -73,10 +75,21 @@ __eglGLVNDGetPlatformDisplay(EGLenum platform, void *native_display,
 static void *
 __eglGLVNDGetProcAddress(const char *procName)
 {
-   if (strcmp(procName, "eglQueryString") == 0)
-      return (void *)__eglGLVNDQueryString;
+   void *proc;
 
-   return (void *)eglGetProcAddress(procName);
+   if (strcmp(procName, "eglQueryString") == 0)
+      proc = (void *)__eglGLVNDQueryString;
+   else
+      proc = (void *)eglGetProcAddress(procName);
+
+#ifdef HAVE_APITRACE
+   _mesa_apitrace_winsys_wrap("eglGetProcAddress",
+                              (_mesa_apitrace_proc)eglGetProcAddress);
+   proc = (void *)_mesa_apitrace_winsys_wrap(procName,
+                                             (_mesa_apitrace_proc)proc);
+#endif
+
+   return proc;
 }
 
 PUBLIC EGLAPI EGLBoolean

@@ -35,6 +35,7 @@
 #include "stw_context.h"
 #include "stw_device.h"
 #include "stw_ext_context.h"
+#include "stw_apitrace.h"
 
 #include "util/u_debug.h"
 
@@ -68,9 +69,11 @@ stw_override_opengl32_entry_points(wglCreateContext_t create, wglDeleteContext_t
  * the regular wglCreateContext() function.  Then, we replace the newly-
  * created stw_context with a new stw_context that reflects the arguments
  * to this function.
+ *
+ * The share context and the result are driver handles, see stw_apitrace.h.
  */
 HGLRC WINAPI
-wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList)
+stw_wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList)
 {
    HGLRC context;
 
@@ -207,19 +210,8 @@ wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList)
       /* Now replace the context we just created with a new one that reflects
        * the attributes passed to this function.
        */
-      DHGLRC dhglrc, c, share_dhglrc = 0;
-
-      /* Convert public HGLRC to driver DHGLRC */
-      if (stw_dev && stw_dev->callbacks.pfnGetDhglrc) {
-         dhglrc = stw_dev->callbacks.pfnGetDhglrc(context);
-         if (hShareContext)
-            share_dhglrc = stw_dev->callbacks.pfnGetDhglrc(hShareContext);
-      }
-      else {
-         /* not using ICD */
-         dhglrc = (DHGLRC)(INT_PTR)context;
-         share_dhglrc = (DHGLRC)(INT_PTR)hShareContext;
-      }
+      DHGLRC dhglrc = stw_dhglrc(context), c;
+      DHGLRC share_dhglrc = (DHGLRC)(UINT_PTR)hShareContext;
 
       struct stw_context *share_stw = stw_lookup_context(share_dhglrc);
 
@@ -238,15 +230,39 @@ wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList)
          return NULL;
       }
 
+      stw_ctx->hglrc = context;
       c = stw_create_context_handle(stw_ctx, dhglrc);
       if (!c) {
          stw_destroy_context(stw_ctx);
          pfnwglDeleteContext(context);
-         context = NULL;
+         return NULL;
       }
+      return (HGLRC)(UINT_PTR)c;
    }
 
-   return context;
+   return NULL;
+}
+
+
+HGLRC WINAPI
+wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList)
+{
+   HGLRC hglrc = STW_WGL(wglCreateContextAttribsARB)(
+      hDC, (HGLRC)(UINT_PTR)stw_dhglrc(hShareContext), attribList);
+   if (!hglrc)
+      return NULL;
+
+   struct stw_context *ctx = stw_lookup_context((DHGLRC)(UINT_PTR)hglrc);
+   return ctx ? ctx->hglrc : NULL;
+}
+
+
+/* the context is a driver handle, see stw_apitrace.h */
+BOOL WINAPI
+stw_wglMakeContextCurrentARB(HDC hDrawDC, HDC hReadDC, HGLRC hglrc)
+{
+   return stw_make_current_by_handles(hDrawDC, hReadDC,
+                                      (DHGLRC)(UINT_PTR)hglrc);
 }
 
 
@@ -254,17 +270,8 @@ wglCreateContextAttribsARB(HDC hDC, HGLRC hShareContext, const int *attribList)
 BOOL APIENTRY
 wglMakeContextCurrentARB(HDC hDrawDC, HDC hReadDC, HGLRC hglrc)
 {
-   DHGLRC dhglrc = 0;
-
-   if (stw_dev && stw_dev->callbacks.pfnGetDhglrc) {
-      /* Convert HGLRC to DHGLRC */
-      dhglrc = stw_dev->callbacks.pfnGetDhglrc(hglrc);
-   } else {
-      /* not using ICD */
-      dhglrc = (DHGLRC)(INT_PTR)hglrc;
-   }
-
-   return stw_make_current_by_handles(hDrawDC, hReadDC, dhglrc);
+   return STW_WGL(wglMakeContextCurrentARB)(
+      hDrawDC, hReadDC, (HGLRC)(UINT_PTR)stw_dhglrc(hglrc));
 }
 
 HDC APIENTRY

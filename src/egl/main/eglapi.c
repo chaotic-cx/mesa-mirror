@@ -113,13 +113,24 @@
  *
  * These macros will unlock the display and record the error code.
  */
+static inline const char *
+_eglFuncName(const char *funcName)
+{
+#ifdef HAVE_APITRACE
+   static const char prefix[] = "_mesa_real_";
+   if (!strncmp(funcName, prefix, sizeof(prefix) - 1))
+      funcName += sizeof(prefix) - 1;
+#endif
+   return funcName;
+}
+
 #define RETURN_EGL_ERROR(disp, err, ret)                                       \
    do {                                                                        \
       if (disp)                                                                \
          _eglUnlockDisplay(disp);                                              \
       /* EGL error codes are non-zero */                                       \
       if (err)                                                                 \
-         _eglError(err, __func__);                                             \
+         _eglError(err, _eglFuncName(__func__));                               \
       return ret;                                                              \
    } while (0)
 
@@ -135,13 +146,13 @@
 
 #define _EGL_CHECK_DISPLAY(disp, ret)                                          \
    do {                                                                        \
-      if (!_eglCheckDisplay(disp, __func__))                                   \
+      if (!_eglCheckDisplay(disp, _eglFuncName(__func__)))                     \
          RETURN_EGL_ERROR(disp, 0, ret);                                       \
    } while (0)
 
 #define _EGL_CHECK_OBJECT(disp, type, obj, ret)                                \
    do {                                                                        \
-      if (!_eglCheck##type(disp, obj, __func__))                               \
+      if (!_eglCheck##type(disp, obj, _eglFuncName(__func__)))                 \
          RETURN_EGL_ERROR(disp, 0, ret);                                       \
    } while (0)
 
@@ -334,7 +345,8 @@ _eglSetFuncName(const char *funcName, _EGLDisplay *disp, EGLenum objectType,
 #define _EGL_FUNC_START(disp, objectType, object)                              \
    do {                                                                        \
       MESA_TRACE_FUNC();                                                       \
-      _eglSetFuncName(__func__, disp, objectType, (_EGLResource *)object);     \
+      _eglSetFuncName(_eglFuncName(__func__), disp, objectType,                \
+                      (_EGLResource *)object);                                 \
    } while (0)
 
 /**

@@ -137,6 +137,17 @@ stw_lookup_context( DHGLRC dhglrc )
    return ret;
 }
 
+/* opengl32 gives apps its own context handles in ICD mode */
+static inline DHGLRC
+stw_dhglrc(HGLRC hglrc)
+{
+   if (!hglrc)
+      return 0;
+   if (stw_dev && stw_dev->callbacks.pfnGetDhglrc)
+      return stw_dev->callbacks.pfnGetDhglrc(hglrc);
+   return (DHGLRC)(INT_PTR)hglrc;
+}
+
 
 static inline void
 stw_lock_framebuffers(struct stw_device *stw_dev)

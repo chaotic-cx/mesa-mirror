@@ -2406,12 +2406,18 @@ endif
 
 with_apitrace = get_option('apitrace')
 dep_apitrace = []
+# the tracer keeps pointers into the libraries with traced entry points, which
+# must not be unloaded
+ld_args_apitrace = with_apitrace and not with_platform_windows ? ['-Wl,-z,nodelete'] : []
 if with_apitrace
-  if with_platform_windows or host_machine.system() == 'darwin'
+  if host_machine.system() == 'darwin'
     error('The apitrace option is not supported on this platform')
   endif
   if with_glx == 'xlib'
     error('The apitrace option is not supported with xlib-based GLX')
+  endif
+  if with_platform_windows and with_egl
+    error('The apitrace option traces only WGL on Windows, build with -Degl=disabled')
   endif
   cmake = import('cmake')
   apitrace_opts = cmake.subproject_options()
@@ -2479,6 +2485,9 @@ if with_apitrace
     apitrace_cpp_args += '-DHAVE_X11'
   else
     apitrace_cpp_args += '-DEGL_NO_X11'
+  endif
+  if with_platform_windows
+    apitrace_gen_args += '--wgl'
   endif
 endif
 

@@ -110,6 +110,54 @@ endif
 if with_platform_windows
   glx_gallium_link += libgallium_wgl
 endif
+link_whole_libgl_apitrace = []
+link_depends_libgl_apitrace = []
+if with_apitrace and not with_glvnd
+  apitrace_glx_rename_h = custom_target(
+    'apitrace_glx_rename.h',
+    input : [apitrace_gen_py, 'libgl-symbols.txt'],
+    output : 'apitrace_glx_rename.h',
+    command : [
+      prog_python, '@INPUT0@', apitrace_source_dir, 'rename', '--glx',
+      '--symbols', '@INPUT1@',
+    ],
+    capture : true,
+  )
+  apitrace_glx_wrap_cpp = custom_target(
+    'apitrace_glx_wrap.cpp',
+    input : [apitrace_gen_py, 'libgl-symbols.txt'],
+    output : 'apitrace_glx_wrap.cpp',
+    command : [
+      prog_python, '@INPUT0@', apitrace_source_dir, 'wrap', '--glx',
+      '--symbols', '@INPUT1@',
+    ],
+    capture : true,
+  )
+  link_whole_libgl_apitrace += static_library(
+    'glx_apitrace',
+    [apitrace_glx_wrap_cpp, apitrace_glproc_h],
+    cpp_args : apitrace_cpp_args,
+    gnu_symbol_visibility : 'hidden',
+    include_directories : [inc_include, inc_src, inc_mesa],
+    dependencies : [dep_apitrace_headers, dep_x11],
+    override_options : apitrace_override_options,
+  )
+  files_libglx += apitrace_glx_rename_h
+  c_args_libglx += ['-include', apitrace_glx_rename_h.full_path()]
+  apitrace_glx_version = custom_target(
+    'apitrace_glx.version',
+    input : [apitrace_gen_py, 'libgl-symbols.txt'],
+    output : 'apitrace_glx.version',
+    command : [
+      prog_python, '@INPUT0@', apitrace_source_dir, 'version',
+      '--symbols', '@INPUT1@',
+    ],
+    capture : true,
+  )
+  extra_ld_args_libgl += '-Wl,--version-script=' + apitrace_glx_version.full_path()
+  link_depends_libgl_apitrace = apitrace_glx_version
+endif
+
 libglx = static_library(
   'glx',
   [files_libglx, glx_generated, main_dispatch_h],
@@ -135,8 +183,9 @@ libgl_link = with_glvnd ? [] : [libglapi_bridge]
 libgl = shared_library(
   gl_lib_name,
   [],
-  link_whole : [libglx, libgl_link],
-  link_args : [ld_args_bsymbolic, ld_args_gc_sections, extra_ld_args_libgl],
+  link_whole : [libglx, libgl_link, link_whole_libgl_apitrace],
+  link_depends : link_depends_libgl_apitrace,
+  link_args : [ld_args_bsymbolic, ld_args_gc_sections, ld_args_apitrace, extra_ld_args_libgl],
   dependencies : [
     dep_libdrm, dep_dl, dep_m, dep_thread, dep_x11, dep_xcb_glx, dep_xcb,
     dep_x11_xcb, dep_xext, dep_xxf86vm, dep_xcb_shm, extra_deps_libgl,

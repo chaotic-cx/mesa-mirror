@@ -32,6 +32,29 @@ if target_machine.system().startswith('Gaming.Xbox')
   files_libwgl += files('stw_gdishim.c')
 endif
 
+libwgl_apitrace = []
+if with_apitrace
+  wgl_apitrace_wrap_cpp = custom_target(
+    'wgl_apitrace_wrap.cpp',
+    input : apitrace_gen_py,
+    output : 'wgl_apitrace_wrap.cpp',
+    command : [
+      prog_python, '@INPUT@', apitrace_source_dir, 'wrap', '--wgl',
+      '--real-prefix', 'stw_', '--wrap-prefix', 'stw_apitrace_',
+      '--include', 'stw_apitrace.h',
+    ],
+    capture : true,
+  )
+  libwgl_apitrace = static_library(
+    'wgl_apitrace',
+    [wgl_apitrace_wrap_cpp, apitrace_glproc_h],
+    cpp_args : apitrace_cpp_args,
+    include_directories : [inc_include, inc_src, inc_mesa, inc_wgl],
+    dependencies : dep_apitrace_headers,
+    override_options : apitrace_override_options,
+  )
+endif
+
 libwgl = static_library(
   'wgl',
   files_libwgl,
@@ -41,5 +64,6 @@ libwgl = static_library(
   include_directories : [
     inc_include, inc_src, inc_gallium, inc_gallium_aux, inc_mesa,
   ],
+  link_whole : libwgl_apitrace,
   dependencies : _wgl_deps,
 )

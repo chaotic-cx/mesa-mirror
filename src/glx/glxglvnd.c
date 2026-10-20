@@ -6,6 +6,8 @@
 
 #include "glxglvnd.h"
 
+#include "main/apitrace.h"
+
 static Bool __glXGLVNDIsScreenSupported(Display *dpy, int screen)
 {
     /* TODO: Think of a better heuristic... */
@@ -14,7 +16,16 @@ static Bool __glXGLVNDIsScreenSupported(Display *dpy, int screen)
 
 static void *__glXGLVNDGetProcAddress(const GLubyte *procName)
 {
-    return glXGetProcAddressARB(procName);
+    void *proc = glXGetProcAddressARB(procName);
+
+#ifdef HAVE_APITRACE
+    _mesa_apitrace_winsys_wrap("glXGetProcAddressARB",
+                               (_mesa_apitrace_proc)glXGetProcAddressARB);
+    proc = (void *)_mesa_apitrace_winsys_wrap((const char *)procName,
+                                              (_mesa_apitrace_proc)proc);
+#endif
+
+    return proc;
 }
 
 static int

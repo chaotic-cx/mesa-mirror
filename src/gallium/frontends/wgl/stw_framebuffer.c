@@ -46,6 +46,7 @@
 #include "stw_tls.h"
 #include "stw_context.h"
 #include "stw_st.h"
+#include "stw_apitrace.h"
 
 
 /**
@@ -766,8 +767,8 @@ stw_framebuffer_swap_locked(HDC hdc, struct stw_framebuffer *fb)
    return stw_st_swap_framebuffer_locked(ctx ? ctx->st : NULL, hdc, fb->drawable);
 }
 
-BOOL APIENTRY
-DrvSwapBuffers(HDC hdc)
+BOOL WINAPI
+stw_wglSwapBuffers(HDC hdc)
 {
    struct stw_framebuffer *fb;
 
@@ -790,10 +791,24 @@ DrvSwapBuffers(HDC hdc)
 
 
 BOOL APIENTRY
-DrvSwapLayerBuffers(HDC hdc, UINT fuPlanes)
+DrvSwapBuffers(HDC hdc)
+{
+   return STW_WGL(wglSwapBuffers)(hdc);
+}
+
+
+BOOL WINAPI
+stw_wglSwapLayerBuffers(HDC hdc, UINT fuPlanes)
 {
    if (fuPlanes & WGL_SWAP_MAIN_PLANE)
-      return DrvSwapBuffers(hdc);
+      return stw_wglSwapBuffers(hdc);
 
    return false;
+}
+
+
+BOOL APIENTRY
+DrvSwapLayerBuffers(HDC hdc, UINT fuPlanes)
+{
+   return STW_WGL(wglSwapLayerBuffers)(hdc, fuPlanes);
 }

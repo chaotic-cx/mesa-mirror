@@ -16,9 +16,13 @@ parser.add_argument('apitrace')
 parser.add_argument('mode', choices=['trace', 'wrap', 'rename', 'version', 'check', 'aliases'])
 parser.add_argument('--egl', action='store_true')
 parser.add_argument('--glx', action='store_true')
+parser.add_argument('--wgl', action='store_true')
 parser.add_argument('--symbols', action='append', default=[])
 parser.add_argument('--mesa-xml')
 parser.add_argument('--gl-aliases', action='store_true')
+parser.add_argument('--real-prefix', default=REAL_PREFIX)
+parser.add_argument('--wrap-prefix', default='')
+parser.add_argument('--include', action='append', default=[])
 args = parser.parse_args()
 
 sys.path.insert(0, os.path.join(args.apitrace, 'wrappers'))
@@ -26,11 +30,13 @@ sys.path.insert(0, os.path.join(args.apitrace, 'wrappers'))
 from gltrace import GlTracer
 from egltrace import EglTracer
 from glxtrace import GlxTracer
+from wgltrace import WglTracer
 from trace import Tracer
 from specs.stdapi import API, Module, Void
 from specs.glapi import glapi
 from specs.eglapi import eglapi
 from specs.glxapi import glxapi
+from specs.wglapi import wglapi
 from dispatch import function_pointer_type
 
 
@@ -109,8 +115,34 @@ PRESENT_HOOKS = {
 }
 
 
+# the WGL calls that Mesa's ICD entry points trace, and the ones that the
+# tracer itself makes
+WGL_FUNCTIONS = [
+    'wglCreateContext',
+    'wglCreateContextAttribsARB',
+    'wglCreateLayerContext',
+    'wglDeleteContext',
+    'wglGetCurrentContext',
+    'wglGetCurrentDC',
+    'wglGetProcAddress',
+    'wglMakeContextCurrentARB',
+    'wglMakeCurrent',
+    'wglShareLists',
+    'wglSwapBuffers',
+    'wglSwapLayerBuffers',
+]
+
+
+# traced by Mesa with its own context handles, which the other WGL calls see in
+# ICD mode, so wglGetProcAddress hands out Mesa's entry points for them
+WGL_SELF_TRACED = [
+    'wglCreateContextAttribsARB',
+    'wglMakeContextCurrentARB',
+]
+
+
 def is_winsys(function):
-    return function.name.startswith(('egl', 'glX'))
+    return function.name.startswith(('egl', 'glX', 'wgl'))
 
 
 def mesa_gl_functions():
@@ -148,9 +180,17 @@ def arg_names(function):
     return ', '.join(str(arg.name) for arg in function.args)
 
 
-class MesaTracer(GlxTracer, EglTracer):
+class MesaTracer(GlxTracer, EglTracer, WglTracer):
 
     getProcAddressFunctionNames = []
+
+    # each window system's tracer only looks up its own functions in these
+    createContextFunctionNames = (GlxTracer.createContextFunctionNames +
+                                  WglTracer.createContextFunctionNames)
+    destroyContextFunctionNames = (GlxTracer.destroyContextFunctionNames +
+                                   WglTracer.destroyContextFunctionNames)
+    makeCurrentFunctionNames = (GlxTracer.makeCurrentFunctionNames +
+                                WglTracer.makeCurrentFunctionNames)
 
     fake_function_names = GlTracer.fake_function_names + [
         'glBufferStorage',
@@ -189,7 +229,7 @@ class MesaTracer(GlxTracer, EglTracer):
     ]
 
     def traceFunctionDecl(self, function):
-        if function.name not in self.unrecorded_function_names:
+        if not args.egl or function.name not in self.unrecorded_function_names:
             GlTracer.traceFunctionDecl(self, function)
 
     swap_function_names = [
@@ -198,6 +238,8 @@ class MesaTracer(GlxTracer, EglTracer):
         'eglSwapBuffersWithDamageKHR',
         'glXSwapBuffers',
         'glXSwapBuffersMscOML',
+        'wglSwapBuffers',
+        'wglSwapLayerBuffers',
     ]
 
     def isFunctionPublic(self, function):
@@ -215,7 +257,10 @@ class MesaTracer(GlxTracer, EglTracer):
         if function.name in self.swap_function_names:
             print('    _mesa_apitrace_present_real_swap();')
 
-        if function.name == 'glEGLImageTargetTexture2DOES':
+        # EGLImages only exist with EGL, whose helpers the capture needs
+        if not args.egl and function.name.startswith('glEGLImageTarget'):
+            GlTracer.traceFunctionImplBody(self, function)
+        elif function.name == 'glEGLImageTargetTexture2DOES':
             self.emitPendingError()
             GlTracer.traceFunctionImplBody(self, function)
             self.emitImageUpload(
@@ -265,6 +310,8 @@ class MesaTracer(GlxTracer, EglTracer):
             EglTracer.traceFunctionImplBody(self, function)
         elif function.name.startswith('glX'):
             GlxTracer.traceFunctionImplBody(self, function)
+        elif function.name.startswith('wgl'):
+            WglTracer.traceFunctionImplBody(self, function)
         else:
             EglTracer.traceFunctionImplBody(self, function)
 
@@ -343,6 +390,7 @@ class MesaTracer(GlxTracer, EglTracer):
         GlTracer.footer(self, api)
 
         functions = sorted(api.getAllFunctions(), key=lambda f: f.name)
+        names = set(f.name for f in functions)
 
         print('void')
         print('_mesa_apitrace_fake_gen_framebuffer(unsigned name)')
@@ -363,18 +411,32 @@ class MesaTracer(GlxTracer, EglTracer):
         print('    trace::localWriter.endLeave();')
         print('}')
         print()
-        swap = [f for f in functions if f.name == 'eglSwapBuffers']
+        egl_swap = [f for f in functions if f.name == 'eglSwapBuffers']
+        wgl_swap = [f for f in functions if f.name == 'wglSwapBuffers']
         print('void')
         print('_mesa_apitrace_fake_swap(void *_dpy, void *_surface)')
         print('{')
-        if swap:
+        # Windows builds have no EGL
+        if egl_swap:
             print('    EGLDisplay dpy = (EGLDisplay)_dpy;')
             print('    EGLSurface surface = (EGLSurface)_surface;')
-            self.fake_call(swap[0], swap[0].argNames())
+            self.fake_call(egl_swap[0], egl_swap[0].argNames())
+        if wgl_swap:
+            print('    HDC hdc = (HDC)_surface;')
+            self.fake_call(wgl_swap[0], wgl_swap[0].argNames())
         print('}')
         print()
 
-        names = set(f.name for f in functions)
+        print('static bool')
+        print('_mesa_apitrace_self_traced(const char *name)')
+        print('{')
+        for name in WGL_SELF_TRACED:
+            if name in names:
+                print('    if (!strcmp(name, "%s"))' % name)
+                print('        return true;')
+        print('    return false;')
+        print('}')
+        print()
 
         def emit_lookups(lookups):
             for name in lookups:
@@ -462,7 +524,6 @@ TRACE_HEADER = r'''
 
 #include "glproc.hpp"
 #include "glsize.hpp"
-#include "eglsize.hpp"
 #include "cxx_compat.hpp"
 #include "gltrace.hpp"
 #include "gltrace_arrays.hpp"
@@ -491,6 +552,11 @@ public:
             _mesa_apitrace_debug_output_on();
     }
 };
+'''
+
+
+EGL_TRACE_HEADER = r'''
+#include "eglsize.hpp"
 
 /* the EGLImage as Mesa reads it, in a format that keeps it exactly */
 static image_info *
@@ -509,6 +575,21 @@ _mesa_apitrace_read_image(void *image)
     info->pixels = read.pixels;
     return info;
 }
+'''
+
+
+# WglTracer skips the WGL calls that WGL functions make
+WGL_TRACE_HEADER = r'''
+#include <sstream>
+
+#include "os_thread.hpp"
+
+static OS_THREAD_LOCAL uintptr_t _reentrant;
+
+struct ReentryScope {
+    inline ReentryScope() { _reentrant = 1; }
+    inline ~ReentryScope() { _reentrant = 0; }
+};
 '''
 
 
@@ -577,8 +658,8 @@ _mesa_apitrace_wrap(const char *name, void *proc)
     _mesa_apitrace_proc only = _mesa_apitrace_tracer_only(name, !proc);
     if (only)
         return (void *)only;
-    if (!proc)
-        return NULL;
+    if (!proc || _mesa_apitrace_self_traced(name))
+        return proc;
 
     _mesa_apitrace_proc entry = _mesa_apitrace_tracer(name);
     return entry ? (void *)entry : proc;
@@ -630,6 +711,13 @@ def winsys_module():
         module.mergeModule(glxapi)
     if args.egl:
         module.mergeModule(eglapi)
+    if args.wgl:
+        # what Mesa's ICD entry points call, and the extension functions that
+        # apps get from wglGetProcAddress
+        wgl = Module()
+        wgl.addFunctions([f for f in wglapi.functions
+                          if f.name in WGL_FUNCTIONS or f.name.endswith(('ARB', 'EXT'))])
+        module.mergeModule(wgl)
     return module
 
 
@@ -643,6 +731,8 @@ def exported_symbols():
 
 def exported_functions():
     symbols = set(exported_symbols())
+    if args.wgl:
+        symbols.update(WGL_FUNCTIONS)
     return [f for f in winsys_module().functions if f.name in symbols]
 
 
@@ -658,8 +748,14 @@ def print_trace():
         tracer.getProcAddressFunctionNames += GlxTracer.getProcAddressFunctionNames
     if args.egl:
         tracer.getProcAddressFunctionNames += EglTracer.getProcAddressFunctionNames
+    if args.wgl:
+        tracer.getProcAddressFunctionNames += WglTracer.getProcAddressFunctionNames
 
     print(TRACE_HEADER)
+    if args.egl:
+        print(EGL_TRACE_HEADER)
+    if args.wgl:
+        print(WGL_TRACE_HEADER)
     for function in api.getAllFunctions():
         print('#define %s %s%s' % (function.name, TRACE_PREFIX, function.name))
     print()
@@ -689,7 +785,7 @@ def print_aliases():
 
 
 def print_wrap():
-    real = [(f, f.prototype(REAL_PREFIX + f.name), REAL_PREFIX + f.name)
+    real = [(f, f.prototype(args.real_prefix + f.name), args.real_prefix + f.name)
             for f in exported_functions()]
     if args.gl_aliases:
         real += [(f, owner.prototype() if owner else None,
@@ -698,6 +794,8 @@ def print_wrap():
     functions = [f for f, decl, name in real]
 
     print(WRAP_HEADER)
+    for include in args.include:
+        print('#include "%s"' % include)
     print('extern "C" {')
     for function, decl, name in real:
         if decl:
@@ -720,8 +818,8 @@ def print_wrap():
 
     for i, function in enumerate(functions):
         ret = '' if function.type is Void else 'return '
-        print('extern "C" __attribute__((visibility("default")))')
-        print(function.prototype())
+        print('extern "C" PUBLIC' if not args.wrap_prefix else 'extern "C"')
+        print(function.prototype(args.wrap_prefix + function.name))
         print('{')
         print('    %s((%s)_mesa_apitrace_get(%u))(%s);' %
               (ret, function_pointer_type(function), i, arg_names(function)))
@@ -816,7 +914,10 @@ def print_check():
         print('CHECK("%s", %s, _glptr_%s);' %
               (function.name, function_pointer_type(function),
                slots[function.name]))
+    # the WGL wrappers declare Mesa's functions next to stw_apitrace.h
     for function in exported_functions():
+        if function.name.startswith('wgl'):
+            continue
         print('CHECK("%s", %s, decltype(&%s));' %
               (function.name, function_pointer_type(function), function.name))
 

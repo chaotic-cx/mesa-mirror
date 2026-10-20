@@ -42,6 +42,8 @@ struct stw_context
 {
    struct st_context *st;
    DHGLRC dhglrc;
+   /* what wglCreateContextAttribsARB returned, opengl32's handle in ICD mode */
+   HGLRC hglrc;
    const struct stw_pixelformat_info *pfi;
    HDC hDrawDC;
    HDC hReadDC;

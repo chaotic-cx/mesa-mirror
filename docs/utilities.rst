@@ -14,8 +14,10 @@ Built-in apitrace tracing
    has to be loaded in front of Mesa, which makes tracing work where
    that isn't possible, like for Android apps. With
    :envvar:`MESA_APITRACE` set to 1, each process records its GL, GLES,
-   EGL, and GLX calls before glthread and the driver see them, to the
-   file that :envvar:`MESA_GL_TRACE_FILE` names. Calls that stock
+   EGL, GLX, and WGL calls before glthread and the driver see them, to
+   the file that :envvar:`MESA_GL_TRACE_FILE` names. On Windows, where
+   builds with apitrace leave out EGL, this covers apps that load Mesa
+   as ``opengl32.dll`` and as an ICD. Calls that stock
    apitrace can't replay, like EGLImage and memory object imports, are
    recorded with equivalents that it can replay, and apps that render
    only to shared textures get presents, so the traces replay with

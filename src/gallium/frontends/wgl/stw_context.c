@@ -50,6 +50,7 @@
 #include "stw_pixelformat.h"
 #include "stw_context.h"
 #include "stw_tls.h"
+#include "stw_apitrace.h"
 
 #include "main/context.h"
 #include "main/glthread.h"
@@ -95,9 +96,11 @@ DrvCopyContext(DHGLRC dhrcSource, DHGLRC dhrcDest, UINT fuMask)
 }
 
 
-BOOL APIENTRY
-DrvShareLists(DHGLRC dhglrc1, DHGLRC dhglrc2)
+BOOL WINAPI
+stw_wglShareLists(HGLRC hglrc1, HGLRC hglrc2)
 {
+   DHGLRC dhglrc1 = (DHGLRC)(UINT_PTR)hglrc1;
+   DHGLRC dhglrc2 = (DHGLRC)(UINT_PTR)hglrc2;
    struct stw_context *ctx1;
    struct stw_context *ctx2;
    BOOL ret = false;
@@ -124,34 +127,56 @@ DrvShareLists(DHGLRC dhglrc1, DHGLRC dhglrc2)
 }
 
 
+BOOL APIENTRY
+DrvShareLists(DHGLRC dhglrc1, DHGLRC dhglrc2)
+{
+   return STW_WGL(wglShareLists)((HGLRC)(UINT_PTR)dhglrc1,
+                                 (HGLRC)(UINT_PTR)dhglrc2);
+}
+
+
+HGLRC WINAPI
+stw_wglCreateContext(HDC hdc)
+{
+   return stw_wglCreateLayerContext(hdc, 0);
+}
+
+
 DHGLRC APIENTRY
 DrvCreateContext(HDC hdc)
 {
-   return DrvCreateLayerContext( hdc, 0 );
+   return (DHGLRC)(UINT_PTR)STW_WGL(wglCreateContext)(hdc);
+}
+
+
+HGLRC WINAPI
+stw_wglCreateLayerContext(HDC hdc, int iLayerPlane)
+{
+   if (!stw_dev)
+      return NULL;
+
+   const struct stw_pixelformat_info *pfi = stw_pixelformat_get_info_from_hdc(hdc);
+   if (!pfi)
+      return NULL;
+
+   struct stw_context *ctx = stw_create_context_attribs(hdc, iLayerPlane, NULL, stw_dev->fscreen, 1, 0, 0,
+                                                        WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
+                                                        pfi, WGL_NO_RESET_NOTIFICATION_ARB);
+   if (!ctx)
+      return NULL;
+
+   DHGLRC ret = stw_create_context_handle(ctx, 0);
+   if (!ret)
+      stw_destroy_context(ctx);
+
+   return (HGLRC)(UINT_PTR)ret;
 }
 
 
 DHGLRC APIENTRY
 DrvCreateLayerContext(HDC hdc, INT iLayerPlane)
 {
-   if (!stw_dev)
-      return 0;
-
-   const struct stw_pixelformat_info *pfi = stw_pixelformat_get_info_from_hdc(hdc);
-   if (!pfi)
-      return 0;
-
-   struct stw_context *ctx = stw_create_context_attribs(hdc, iLayerPlane, NULL, stw_dev->fscreen, 1, 0, 0,
-                                                        WGL_CONTEXT_COMPATIBILITY_PROFILE_BIT_ARB,
-                                                        pfi, WGL_NO_RESET_NOTIFICATION_ARB);
-   if (!ctx)
-      return 0;
-
-   DHGLRC ret = stw_create_context_handle(ctx, 0);
-   if (!ret)
-      stw_destroy_context(ctx);
-
-   return ret;
+   return (DHGLRC)(UINT_PTR)STW_WGL(wglCreateLayerContext)(hdc, iLayerPlane);
 }
 
 /**
@@ -318,9 +343,10 @@ stw_destroy_context(struct stw_context *ctx)
 }
 
 
-BOOL APIENTRY
-DrvDeleteContext(DHGLRC dhglrc)
+BOOL WINAPI
+stw_wglDeleteContext(HGLRC hglrc)
 {
+   DHGLRC dhglrc = (DHGLRC)(UINT_PTR)hglrc;
    struct stw_context *ctx ;
    BOOL ret = false;
 
@@ -348,6 +374,17 @@ DrvDeleteContext(DHGLRC dhglrc)
    return ret;
 }
 
+
+BOOL APIENTRY
+DrvDeleteContext(DHGLRC dhglrc)
+{
+   /* opengl32 deletes leftover contexts at exit, after the tracer may be gone */
+   if (!stw_dev)
+      return false;
+
+   return STW_WGL(wglDeleteContext)((HGLRC)(UINT_PTR)dhglrc);
+}
+
 BOOL
 stw_unbind_context(struct stw_context *ctx)
 {
@@ -361,10 +398,8 @@ stw_unbind_context(struct stw_context *ctx)
    if (ctx != stw_current_context())
       return false;
 
-   if (stw_make_current( NULL, NULL, NULL ) == false)
-      return false;
-
-   return true;
+   /* traced as wglMakeCurrent(NULL, NULL) */
+   return STW_WGL(wglMakeCurrent)(NULL, NULL);
 }
 
 BOOL APIENTRY
@@ -407,6 +442,20 @@ stw_get_current_dc( void )
 
    return ctx->hDrawDC;
 }
+
+HGLRC WINAPI
+stw_wglGetCurrentContext(void)
+{
+   return (HGLRC)(UINT_PTR)stw_get_current_context();
+}
+
+
+HDC WINAPI
+stw_wglGetCurrentDC(void)
+{
+   return stw_get_current_dc();
+}
+
 
 HDC
 stw_get_current_read_dc( void )
@@ -986,12 +1035,19 @@ static const GLCLTPROCTABLE cpt =
 };
 
 
+BOOL WINAPI
+stw_wglMakeCurrent(HDC hdc, HGLRC hglrc)
+{
+   return stw_make_current_by_handles(hdc, hdc, (DHGLRC)(UINT_PTR)hglrc);
+}
+
+
 PGLCLTPROCTABLE APIENTRY
 DrvSetContext(HDC hdc, DHGLRC dhglrc, PFN_SETPROCTABLE pfnSetProcTable)
 {
    PGLCLTPROCTABLE r = (PGLCLTPROCTABLE)&cpt;
 
-   if (!stw_make_current_by_handles(hdc, hdc, dhglrc))
+   if (!STW_WGL(wglMakeCurrent)(hdc, (HGLRC)(UINT_PTR)dhglrc))
       r = NULL;
 
    return r;

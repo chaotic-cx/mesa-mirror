@@ -4,6 +4,13 @@
 
 sym_config = configuration_data()
 
+if with_apitrace
+  sym_config.set('apitrace_symbols',
+                 '_mesa_apitrace_winsys_init; _mesa_apitrace_winsys_wrap;')
+else
+  sym_config.set('apitrace_symbols', '')
+endif
+
 foreach d : [[with_gallium_r300 or with_gallium_radeonsi or with_gallium_r600, 'radeon_drm_winsys_create'],
              [with_gallium_radeonsi, 'amdgpu_winsys_create'],
              [with_gallium_nouveau, 'nouveau_drm_screen_create'],

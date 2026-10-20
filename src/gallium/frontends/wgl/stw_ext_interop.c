@@ -31,17 +31,7 @@ int
 wglMesaGLInteropQueryDeviceInfo(HDC dpy, HGLRC context,
                                 struct mesa_glinterop_device_info *out)
 {
-   DHGLRC dhglrc = 0;
-
-   if (stw_dev && stw_dev->callbacks.pfnGetDhglrc) {
-      /* Convert HGLRC to DHGLRC */
-      dhglrc = stw_dev->callbacks.pfnGetDhglrc(context);
-   } else {
-      /* not using ICD */
-      dhglrc = (DHGLRC)(INT_PTR)context;
-   }
-
-   struct stw_context *ctx = stw_lookup_context(dhglrc);
+   struct stw_context *ctx = stw_lookup_context(stw_dhglrc(context));
    if (!ctx)
       return MESA_GLINTEROP_INVALID_CONTEXT;
 
@@ -60,17 +50,7 @@ wglMesaGLInteropExportObject(HDC dpy, HGLRC context,
                              struct mesa_glinterop_export_in *in,
                              struct mesa_glinterop_export_out *out)
 {
-   DHGLRC dhglrc = 0;
-
-   if (stw_dev && stw_dev->callbacks.pfnGetDhglrc) {
-      /* Convert HGLRC to DHGLRC */
-      dhglrc = stw_dev->callbacks.pfnGetDhglrc(context);
-   } else {
-      /* not using ICD */
-      dhglrc = (DHGLRC)(INT_PTR)context;
-   }
-
-   struct stw_context *ctx = stw_lookup_context(dhglrc);
+   struct stw_context *ctx = stw_lookup_context(stw_dhglrc(context));
    if (!ctx)
       return MESA_GLINTEROP_INVALID_CONTEXT;
 
@@ -90,17 +70,7 @@ wglMesaGLInteropFlushObjects(HDC dpy, HGLRC context,
                              unsigned count, struct mesa_glinterop_export_in *resources,
                              struct mesa_glinterop_flush_out *out)
 {
-   DHGLRC dhglrc = 0;
-
-   if (stw_dev && stw_dev->callbacks.pfnGetDhglrc) {
-      /* Convert HGLRC to DHGLRC */
-      dhglrc = stw_dev->callbacks.pfnGetDhglrc(context);
-   } else {
-      /* not using ICD */
-      dhglrc = (DHGLRC)(INT_PTR)context;
-   }
-
-   struct stw_context *ctx = stw_lookup_context(dhglrc);
+   struct stw_context *ctx = stw_lookup_context(stw_dhglrc(context));
    if (!ctx)
       return MESA_GLINTEROP_INVALID_CONTEXT;
 

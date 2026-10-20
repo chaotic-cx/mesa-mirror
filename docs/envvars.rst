@@ -338,8 +338,8 @@ Core Mesa environment variables
 
 .. envvar:: MESA_APITRACE
 
-   if set to 1, records the GL, GLES, EGL, and GLX calls of the process
-   in an apitrace trace. Needs a build with ``-Dapitrace=true``. The
+   if set to 1, records the GL, GLES, EGL, GLX, and WGL calls of the
+   process in an apitrace trace. Needs a build with ``-Dapitrace=true``. The
    decision is made per process, so a forked child decides again, and
    Android zygote processes are never traced.
 
@@ -358,8 +358,9 @@ Core Mesa environment variables
 
 .. envvar:: MESA_APITRACE_SIGNALS
 
-   if set to 0, apitrace installs no signal handlers, so the trace isn't
-   flushed when the process crashes. The default is 1.
+   if set to 0, apitrace installs no signal handlers, or exception
+   handler on Windows, so the trace isn't flushed when the process
+   crashes. The default is 1.
 
 .. envvar:: MESA_APITRACE_IMAGE_DEDUP
 
@@ -371,9 +372,9 @@ Core Mesa environment variables
 
    if set to 0, doesn't record presents for processes that never swap.
    By default, until the first real swap, a blit of the largest shared
-   texture to the window and an ``eglSwapBuffers`` are recorded each time
-   the process stops drawing to the framebuffer holding it, so replays
-   show what was drawn.
+   texture to the window and an ``eglSwapBuffers`` or ``wglSwapBuffers``
+   are recorded each time the process stops drawing to the framebuffer
+   holding it, so replays show what was drawn.
 
 .. envvar:: MESA_VK_VERSION_OVERRIDE
 

@@ -13,3 +13,4 @@ VK_KHR_maintenance7 on v3dv
 VK_KHR_maintenance8 on v3dv
 VK_KHR_shader_constant_data on HK
 GL, GLES, EGL, and GLX call tracing with apitrace, MESA_APITRACE=1 in builds with -Dapitrace=true
+GL, GLES, EGL, GLX, and WGL call tracing with apitrace, MESA_APITRACE=1 in builds with -Dapitrace=true

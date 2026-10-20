@@ -88,6 +88,8 @@ _mesa_apitrace_winsys_real(const char *name)
       get = (get_proc_address)winsys_find("eglGetProcAddress");
    else if (!strncmp(name, "glX", 3))
       get = (get_proc_address)winsys_find("glXGetProcAddressARB");
+   else if (!strncmp(name, "wgl", 3))
+      get = (get_proc_address)winsys_find("wglGetProcAddress");
 
    return get ? get(name) : NULL;
 }
@@ -292,10 +294,23 @@ present_current(void)
    return *static_cast<present_context *>(slot.get());
 }
 
-/* the EGL display and draw surface that a present goes to */
+/*
+ * the EGL display and draw surface that a present goes to, or no display and
+ * the WGL device context on Windows
+ */
 static bool
 present_surface(void **dpy, void **draw)
 {
+#ifdef _WIN32
+   typedef void *(APIENTRY *get_dc)(void);
+   get_dc dc = (get_dc)_mesa_apitrace_winsys_real("wglGetCurrentDC");
+   if (!dc)
+      return false;
+
+   *dpy = NULL;
+   *draw = dc();
+   return *draw;
+#else
    typedef void *(*get_display)(void);
    typedef void *(*get_surface)(EGLint);
    get_display display =
@@ -308,6 +323,7 @@ present_surface(void **dpy, void **draw)
    *dpy = display();
    *draw = surface(EGL_DRAW);
    return *dpy && *draw;
+#endif
 }
 
 /* the scissor test of viewport 0, which the blit uses, and no other */
