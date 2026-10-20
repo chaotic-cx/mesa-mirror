@@ -63,7 +63,7 @@ agx_pad_binary(struct util_dynarray *dyn, uint32_t align)
 {
    if (dyn->size % align) {
       unsigned ngrow = align - (dyn->size % align);
-      memset(util_dynarray_grow_bytes(dyn, ngrow, 1), 0, ngrow);
+      util_dynarray_grow_zero(dyn, uint8_t, ngrow);
    }
 
    assert((dyn->size % align) == 0);
