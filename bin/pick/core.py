@@ -339,7 +339,7 @@ async def resolve_fixes(commits: list['Commit'], previous: list['Commit']) -> No
     This must be done in order, because a commit 3 might fix commit 2 which
     fixes commit 1.
     """
-    shas: set[str] = set(c.sha for c in previous if c.nominated)
+    shas: set[str] = {c.sha for c in previous if c.nominated}
     assert None not in shas, 'None in shas'
 
     for commit in reversed(commits):
