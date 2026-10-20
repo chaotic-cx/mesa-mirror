@@ -244,6 +244,21 @@ lp_build_intrinsic_unary(LLVMBuilderRef builder,
    return lp_build_intrinsic(builder, name, ret_type, &a, 1, 0);
 }
 
+static LLVMValueRef
+lp_build_intrinsic_binary_sae(struct gallivm_state *gallivm,
+                              const char *name,
+                              LLVMTypeRef ret_type,
+                              LLVMValueRef a,
+                              LLVMValueRef b, int sae)
+{
+   LLVMValueRef args[3];
+
+   args[0] = a;
+   args[1] = b;
+   args[2] = lp_build_const_int32(gallivm, sae);
+
+   return lp_build_intrinsic(gallivm->builder, name, ret_type, args, 3, 0);
+}
 
 LLVMValueRef
 lp_build_intrinsic_binary(LLVMBuilderRef builder,
@@ -270,12 +285,12 @@ lp_build_intrinsic_binary(LLVMBuilderRef builder,
  * This only supports intrinsics where src and dst types match.
  */
 LLVMValueRef
-lp_build_intrinsic_binary_anylength(struct gallivm_state *gallivm,
-                                    const char *name,
-                                    struct lp_type src_type,
-                                    unsigned intr_size,
-                                    LLVMValueRef a,
-                                    LLVMValueRef b)
+lp_build_intrinsic_binary_anylength_sae(struct gallivm_state *gallivm,
+                                        const char *name,
+                                        struct lp_type src_type,
+                                        unsigned intr_size,
+                                        LLVMValueRef a,
+                                        LLVMValueRef b, int sae)
 {
    unsigned i;
    struct lp_type intrin_type = src_type;
@@ -304,9 +319,9 @@ lp_build_intrinsic_binary_anylength(struct gallivm_state *gallivm,
       constvec = LLVMConstVector(elems, intrin_length);
       anative = LLVMBuildShuffleVector(builder, a, a, constvec, "");
       bnative = LLVMBuildShuffleVector(builder, b, b, constvec, "");
-      tmp = lp_build_intrinsic_binary(builder, name,
-                                      lp_build_vec_type(gallivm, intrin_type),
-                                      anative, bnative);
+      tmp = lp_build_intrinsic_binary_anylength_sae(gallivm, name,
+                                                   intrin_type, intr_size,
+                                                   anative, bnative, sae);
       if (src_type.length > 1) {
          constvec = LLVMConstVector(elems, src_type.length);
          return LLVMBuildShuffleVector(builder, tmp, tmp, constvec, "");
@@ -336,16 +351,22 @@ lp_build_intrinsic_binary_anylength(struct gallivm_state *gallivm,
                                         intrin_length);
          bnative = lp_build_extract_range(gallivm, b, i*intrin_length,
                                         intrin_length);
-         tmp[i] = lp_build_intrinsic_binary(builder, name,
-                                            lp_build_vec_type(gallivm, intrin_type),
-                                            anative, bnative);
+         tmp[i] = lp_build_intrinsic_binary_anylength_sae(gallivm, name,
+                                                         intrin_type, intr_size,
+                                                         anative, bnative, sae);
       }
       return lp_build_concat(gallivm, tmp, intrin_type, num_vec);
    }
    else {
-      return lp_build_intrinsic_binary(builder, name,
-                                       lp_build_vec_type(gallivm, src_type),
-                                       a, b);
+      if (intr_size == 512) {
+         return lp_build_intrinsic_binary_sae(gallivm, name,
+                                              lp_build_vec_type(gallivm, src_type),
+                                              a, b, sae);
+      } else {
+         return lp_build_intrinsic_binary(builder, name,
+                                          lp_build_vec_type(gallivm, src_type),
+                                          a, b);
+      }
    }
 }
 

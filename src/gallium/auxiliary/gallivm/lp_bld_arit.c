@@ -175,15 +175,15 @@ lp_build_min_simple(struct lp_build_context *bld,
       if (util_get_cpu_caps()->has_sse && type.floating &&
           nan_behavior == GALLIVM_NAN_RETURN_OTHER) {
          LLVMValueRef isnan, min;
-         min = lp_build_intrinsic_binary_anylength(bld->gallivm, intrinsic,
-                                                   type,
-                                                   intr_size, a, b);
+         min = lp_build_intrinsic_binary_anylength_sae(bld->gallivm, intrinsic,
+                                                       type,
+                                                       intr_size, a, b, 0);
          isnan = lp_build_isnan(bld, b);
          return lp_build_select(bld, isnan, a, min);
       } else {
-         return lp_build_intrinsic_binary_anylength(bld->gallivm, intrinsic,
-                                                    type,
-                                                    intr_size, a, b);
+         return lp_build_intrinsic_binary_anylength_sae(bld->gallivm, intrinsic,
+                                                        type,
+                                                        intr_size, a, b, 0);
       }
    }
 
@@ -322,15 +322,15 @@ lp_build_max_simple(struct lp_build_context *bld,
       if (util_get_cpu_caps()->has_sse && type.floating &&
           nan_behavior == GALLIVM_NAN_RETURN_OTHER) {
          LLVMValueRef isnan, max;
-         max = lp_build_intrinsic_binary_anylength(bld->gallivm, intrinsic,
-                                                   type,
-                                                   intr_size, a, b);
+         max = lp_build_intrinsic_binary_anylength_sae(bld->gallivm, intrinsic,
+                                                       type,
+                                                       intr_size, a, b, 0);
          isnan = lp_build_isnan(bld, b);
          return lp_build_select(bld, isnan, a, max);
       } else {
-         return lp_build_intrinsic_binary_anylength(bld->gallivm, intrinsic,
-                                                    type,
-                                                    intr_size, a, b);
+         return lp_build_intrinsic_binary_anylength_sae(bld->gallivm, intrinsic,
+                                                        type,
+                                                        intr_size, a, b, 0);
       }
    }
 

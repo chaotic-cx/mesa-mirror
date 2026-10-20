@@ -109,13 +109,15 @@ lp_build_intrinsic_binary(LLVMBuilderRef builder,
                           LLVMValueRef b);
 
 
+/* SAE is an AVX512 rounding/exception variable */
 LLVMValueRef
-lp_build_intrinsic_binary_anylength(struct gallivm_state *gallivm,
-                                    const char *name,
-                                    struct lp_type src_type,
-                                    unsigned intr_size,
-                                    LLVMValueRef a,
-                                    LLVMValueRef b);
+lp_build_intrinsic_binary_anylength_sae(struct gallivm_state *gallivm,
+                                        const char *name,
+                                        struct lp_type src_type,
+                                        unsigned intr_size,
+                                        LLVMValueRef a,
+                                        LLVMValueRef b,
+                                        int sae);
 
 
 LLVMValueRef
