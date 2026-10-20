@@ -4284,7 +4284,7 @@
         "description": "mesa: free the trace dispatch table with the other tables",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "9f7f5a27a7edc49487af3cd10633896934a47295",
         "notes": null
