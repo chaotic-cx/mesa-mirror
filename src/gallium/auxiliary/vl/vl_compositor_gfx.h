@@ -52,9 +52,9 @@ create_frag_shader_weave_rgb(struct vl_compositor *c);
  * create YCbCr i-to-YCbCr p deint fragment shader
  */
 void *
-create_frag_shader_deint_yuv(struct vl_compositor *c,
-                             bool                  y,
-                             bool                  w);
+create_frag_shader_deint_yuv(struct vl_compositor    *c,
+                             enum vl_compositor_plane plane,
+                             bool                     w);
 
 /**
  * create YUV/RGB-Palette-to-RGB fragment shader
@@ -73,8 +73,8 @@ create_frag_shader_rgba(struct vl_compositor *c);
  * create RGB-to-YUV fragment shader
  */
 void *
-create_frag_shader_rgb_yuv(struct vl_compositor *c,
-                           bool                  y);
+create_frag_shader_rgb_yuv(struct vl_compositor    *c,
+                           enum vl_compositor_plane plane);
 
 /**
  * render the layers to the frontbuffer with graphic shader

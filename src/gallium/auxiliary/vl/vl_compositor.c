@@ -55,19 +55,22 @@ init_shaders(struct vl_compositor *c)
          return false;
       }
 
-      c->fs_yuv.weave.y = create_frag_shader_deint_yuv(c, true, true);
-      c->fs_yuv.weave.uv = create_frag_shader_deint_yuv(c, false, true);
-      c->fs_yuv.bob.y = create_frag_shader_deint_yuv(c, true, false);
-      c->fs_yuv.bob.uv = create_frag_shader_deint_yuv(c, false, false);
-      if (!c->fs_yuv.weave.y || !c->fs_yuv.weave.uv ||
-          !c->fs_yuv.bob.y || !c->fs_yuv.bob.uv) {
+      c->fs_yuv.weave.y = create_frag_shader_deint_yuv(c, VL_COMPOSITOR_PLANE_Y, true);
+      c->fs_yuv.weave.uv = create_frag_shader_deint_yuv(c, VL_COMPOSITOR_PLANE_UV, true);
+      c->fs_yuv.weave.v = create_frag_shader_deint_yuv(c, VL_COMPOSITOR_PLANE_V, true);
+      c->fs_yuv.bob.y = create_frag_shader_deint_yuv(c, VL_COMPOSITOR_PLANE_Y, false);
+      c->fs_yuv.bob.uv = create_frag_shader_deint_yuv(c, VL_COMPOSITOR_PLANE_UV, false);
+      c->fs_yuv.bob.v = create_frag_shader_deint_yuv(c, VL_COMPOSITOR_PLANE_V, false);
+      if (!c->fs_yuv.weave.y || !c->fs_yuv.weave.uv || !c->fs_yuv.weave.v ||
+          !c->fs_yuv.bob.y || !c->fs_yuv.bob.uv || !c->fs_yuv.bob.v) {
          debug_printf("Unable to create YCbCr i-to-YCbCr p deint fragment shader.\n");
          return false;
       }
 
-      c->fs_rgb_yuv.y = create_frag_shader_rgb_yuv(c, true);
-      c->fs_rgb_yuv.uv = create_frag_shader_rgb_yuv(c, false);
-      if (!c->fs_rgb_yuv.y || !c->fs_rgb_yuv.uv) {
+      c->fs_rgb_yuv.y = create_frag_shader_rgb_yuv(c, VL_COMPOSITOR_PLANE_Y);
+      c->fs_rgb_yuv.uv = create_frag_shader_rgb_yuv(c, VL_COMPOSITOR_PLANE_UV);
+      c->fs_rgb_yuv.v = create_frag_shader_rgb_yuv(c, VL_COMPOSITOR_PLANE_V);
+      if (!c->fs_rgb_yuv.y || !c->fs_rgb_yuv.uv || !c->fs_rgb_yuv.v) {
          debug_printf("Unable to create RGB-to-YUV fragment shader.\n");
          return false;
       }
@@ -118,10 +121,13 @@ static void cleanup_shaders(struct vl_compositor *c)
       c->pipe->delete_fs_state(c->pipe, c->fs_weave_rgb);
       c->pipe->delete_fs_state(c->pipe, c->fs_yuv.weave.y);
       c->pipe->delete_fs_state(c->pipe, c->fs_yuv.weave.uv);
+      c->pipe->delete_fs_state(c->pipe, c->fs_yuv.weave.v);
       c->pipe->delete_fs_state(c->pipe, c->fs_yuv.bob.y);
       c->pipe->delete_fs_state(c->pipe, c->fs_yuv.bob.uv);
+      c->pipe->delete_fs_state(c->pipe, c->fs_yuv.bob.v);
       c->pipe->delete_fs_state(c->pipe, c->fs_rgb_yuv.y);
       c->pipe->delete_fs_state(c->pipe, c->fs_rgb_yuv.uv);
+      c->pipe->delete_fs_state(c->pipe, c->fs_rgb_yuv.v);
    }
 
    if (c->pipe_gfx_supported) {
@@ -336,6 +342,7 @@ set_yuv_layer(struct vl_compositor_state *s, struct vl_compositor *c,
    float half_a_line;
    unsigned i;
    bool y = plane == VL_COMPOSITOR_PLANE_Y;
+   bool v = plane == VL_COMPOSITOR_PLANE_V;
 
    assert(s && c && buffer);
 
@@ -363,7 +370,7 @@ set_yuv_layer(struct vl_compositor_state *s, struct vl_compositor *c,
       s->layers[layer].src.tl.y += half_a_line;
       s->layers[layer].src.br.y += half_a_line;
       if (c->pipe_gfx_supported)
-          s->layers[layer].fs = (y) ? c->fs_yuv.bob.y : c->fs_yuv.bob.uv;
+          s->layers[layer].fs = y ? c->fs_yuv.bob.y : v ? c->fs_yuv.bob.v : c->fs_yuv.bob.uv;
       if (c->pipe_cs_composit_supported)
           s->layers[layer].cs = (y) ? c->cs_yuv.progressive.y : c->cs_yuv.progressive.uv;
       break;
@@ -373,7 +380,7 @@ set_yuv_layer(struct vl_compositor_state *s, struct vl_compositor *c,
       s->layers[layer].src.tl.y -= half_a_line;
       s->layers[layer].src.br.y -= half_a_line;
       if (c->pipe_gfx_supported)
-          s->layers[layer].fs = (y) ? c->fs_yuv.bob.y : c->fs_yuv.bob.uv;
+          s->layers[layer].fs = y ? c->fs_yuv.bob.y : v ? c->fs_yuv.bob.v : c->fs_yuv.bob.uv;
       if (c->pipe_cs_composit_supported)
           s->layers[layer].cs = (y) ? c->cs_yuv.progressive.y : c->cs_yuv.progressive.uv;
       break;
@@ -394,7 +401,7 @@ set_yuv_layer(struct vl_compositor_state *s, struct vl_compositor *c,
 
    default:
       if (c->pipe_gfx_supported)
-          s->layers[layer].fs = (y) ? c->fs_yuv.weave.y : c->fs_yuv.weave.uv;
+          s->layers[layer].fs = y ? c->fs_yuv.weave.y : v ? c->fs_yuv.weave.v : c->fs_yuv.weave.uv;
       if (c->pipe_cs_composit_supported)
           s->layers[layer].cs = (y) ? c->cs_yuv.weave.y : c->cs_yuv.weave.uv;
       break;
@@ -427,7 +434,8 @@ set_rgb_to_yuv_layer(struct vl_compositor_state *s, struct vl_compositor *c,
       else if (plane == VL_COMPOSITOR_PLANE_UV)
          s->layers[layer].cs = c->cs_rgb_yuv.uv;
    } else if (c->pipe_gfx_supported)
-      s->layers[layer].fs = y ? c->fs_rgb_yuv.y : c->fs_rgb_yuv.uv;
+      s->layers[layer].fs = y ? c->fs_rgb_yuv.y :
+                            plane == VL_COMPOSITOR_PLANE_V ? c->fs_rgb_yuv.v : c->fs_rgb_yuv.uv;
 
    s->layers[layer].samplers[0] = c->sampler_linear;
    s->layers[layer].samplers[1] = NULL;
