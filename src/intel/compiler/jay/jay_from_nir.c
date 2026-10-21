@@ -4592,16 +4592,16 @@ jay_insert_payload_swizzle(jay_shader *s)
    jay_function *func = jay_shader_get_entrypoint(s);
    jay_builder b = jay_init_builder(func, jay_before_function(func));
 
-   unsigned size = s->payload_gprs;
+   unsigned size_dw = s->payload_gprs;
 
    /* Odd: copy both halves to contiguous pair after payload */
-   for (unsigned i = 0; i < (size / 2); ++i) {
+   for (unsigned i = 0; i < (size_dw / 2); ++i) {
       for (unsigned j = 0; j < 2; ++j) {
          jay_inst *I =
-            jay_DESWIZZLE_ODD(&b, jay_bare_reg(GPR, size + i),
-                              jay_bare_reg(GPR, i),
-                              jay_bare_reg(GPR, i + ((size + 1) / 2)),
-                              !(size & 1));
+            jay_DESWIZZLE_ODD(&b, jay_bare_reg(GPR, (size_dw + i) * 2),
+                              jay_bare_reg(GPR, i * 2),
+                              jay_bare_reg(GPR, (i + ((size_dw + 1) / 2)) * 2),
+                              !(size_dw & 1));
          I->simd_split = 1;
          I->simd_offs = j;
       }
@@ -4610,10 +4610,11 @@ jay_insert_payload_swizzle(jay_shader *s)
    /* Even: leave the bottom half in place, copy top half. If size=1 (rare
     * but possible), this would be a no-op move so skip it.
     */
-   if (size > 1) {
-      for (unsigned i = 0; i < DIV_ROUND_UP(size, 2); ++i) {
-         jay_DESWIZZLE_EVEN(&b, jay_bare_reg(GPR, i),
-                            jay_bare_reg(GPR, (size / 2) + i), size & 1);
+   if (size_dw > 1) {
+      for (unsigned i = 0; i < DIV_ROUND_UP(size_dw, 2); ++i) {
+         jay_DESWIZZLE_EVEN(&b, jay_bare_reg(GPR, i * 2),
+                            jay_bare_reg(GPR, ((size_dw / 2) + i) * 2),
+                            size_dw & 1);
       }
    }
 }
@@ -5044,11 +5045,11 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    JAY_PASS(s, jay_lower_post_sched, nir->info.float_controls_execution_mode,
             nir->info.bit_sizes_float);
 
+   JAY_PASS(s, jay_reg_unit_old_to_new);
+
    if (s->dispatch_width == 32 && s->stage == MESA_SHADER_FRAGMENT) {
       JAY_PASS(s, jay_insert_payload_swizzle);
    }
-
-   JAY_PASS(s, jay_reg_unit_old_to_new);
 
    if (jay_debug & JAY_DBG_SYNC) {
       JAY_PASS(s, jay_lower_scoreboard_trivial);
