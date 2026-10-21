@@ -636,21 +636,18 @@ jay_reg_unit_old_to_new(jay_shader *s)
       jay_foreach_block(f, block) {
          jay_foreach_inst_in_block_safe(block, I) {
             if (I->dst.file == GPR || I->dst.file == UGPR) {
-               I->dst.reg = (I->dst.reg * 2) + I->dst.hi;
+               I->dst.reg *= 2;
             } else if (I->dst.file == FLAG) {
-               I->dst.reg =
-                  (I->dst.reg * jay_phys_flag_per_virt(s)) + I->dst.hi;
+               I->dst.reg *= jay_phys_flag_per_virt(s);
             }
 
-            I->cond_flag.reg =
-               (I->cond_flag.reg * jay_phys_flag_per_virt(s)) + I->cond_flag.hi;
+            I->cond_flag.reg *= jay_phys_flag_per_virt(s);
 
             jay_foreach_src(I, i) {
                if (I->src[i].file == GPR || I->src[i].file == UGPR) {
-                  I->src[i].reg = (I->src[i].reg * 2) + I->src[i].hi;
+                  I->src[i].reg *= 2;
                } else if (I->src[i].file == FLAG) {
-                  I->src[i].reg =
-                     (I->src[i].reg * jay_phys_flag_per_virt(s)) + I->src[i].hi;
+                  I->src[i].reg *= jay_phys_flag_per_virt(s);
                }
             }
          }

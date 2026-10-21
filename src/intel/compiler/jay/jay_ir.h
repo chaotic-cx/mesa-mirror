@@ -86,7 +86,7 @@ jay_normalize_uflag(enum jay_file x)
 #define JAY_MAX_ACCUMS               (4)
 #define JAY_NR_POSTRA_LIVE           (JAY_MAX_ACCUMS + (JAY_MAX_PHYS_GRF * 2))
 #define JAY_NUM_UGPR                 (1024)
-#define JAY_REG_BITS                 (16)
+#define JAY_REG_BITS                 (17)
 
 /*
  * Represents the size of a single Jay index.
@@ -124,9 +124,6 @@ typedef struct jay_def {
     * this is as large as it is. Could be shrunk with more pointer compression.
     */
    unsigned reg:JAY_REG_BITS;
-
-   /* (Post-RA) only, access only the top half of the indexed 32-bit register */
-   bool hi:1;
 
    /** The associated file (must be < JAY_NUM_SSA_FILES for SSA) */
    enum jay_file file:4;

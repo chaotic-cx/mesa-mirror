@@ -194,7 +194,7 @@ validate_def(struct validate_state *validate,
       CHECK(!def.num_values_m1);
       CHECK(!def.negate);
       CHECK(!def.abs);
-   } else if (def.file == ACCUM || def.hi) {
+   } else if (def.file == ACCUM) {
       CHECK(validate->post_ra);
    } else {
       CHECK(jay_base_index(def) != JAY_SENTINEL || validate->post_ra);
