@@ -3520,10 +3520,12 @@ VkResult PVR_PER_ARCH(GetPipelineExecutableStatisticsKHR)(
          to_pvr_graphics_pipeline(pipeline);
 
       if (pExecutableInfo->executableIndex == 0) {
-         vk_add_pvr_stats(out, gfx_pipeline->vs_stats);
+         if (gfx_pipeline->vs_stats)
+            vk_add_pvr_stats(out, gfx_pipeline->vs_stats);
       } else {
          assert(pExecutableInfo->executableIndex == 1);
-         vk_add_pvr_stats(out, gfx_pipeline->fs_stats);
+         if (gfx_pipeline->fs_stats)
+            vk_add_pvr_stats(out, gfx_pipeline->fs_stats);
       }
       break;
    }
@@ -3533,7 +3535,8 @@ VkResult PVR_PER_ARCH(GetPipelineExecutableStatisticsKHR)(
          to_pvr_compute_pipeline(pipeline);
 
       assert(pExecutableInfo->executableIndex == 0);
-      vk_add_pvr_stats(out, compute_pipeline->cs_stats);
+      if (compute_pipeline->cs_stats)
+         vk_add_pvr_stats(out, compute_pipeline->cs_stats);
       break;
    }
 
