@@ -56,7 +56,6 @@ void jay_print_partition(FILE *fp, jay_shader *s);
 void jay_register_allocate(jay_shader *s);
 void jay_assign_flags(jay_shader *s);
 void jay_assign_accumulators(jay_shader *s);
-void jay_reg_unit_old_to_new(jay_shader *s);
 
 const char *jay_file_prefix(enum jay_file file);
 void jay_print_type(FILE *f, enum jay_type t);

@@ -1514,8 +1514,22 @@ jay_register_allocate_function(jay_function *f)
    jay_foreach_inst_in_func(f, block, I) {
       map_gpr_to_acc(shader, &I->dst);
 
+      if (I->dst.file == GPR || I->dst.file == UGPR) {
+         I->dst.reg *= 2;
+      } else if (I->dst.file == FLAG) {
+         I->dst.reg *= jay_phys_flag_per_virt(shader);
+      }
+
+      I->cond_flag.reg *= jay_phys_flag_per_virt(shader);
+
       jay_foreach_src(I, s) {
          map_gpr_to_acc(shader, &I->src[s]);
+
+         if (I->src[s].file == GPR || I->src[s].file == UGPR) {
+            I->src[s].reg *= 2;
+         } else if (I->src[s].file == FLAG) {
+            I->src[s].reg *= jay_phys_flag_per_virt(shader);
+         }
       }
    }
 }
@@ -1528,4 +1542,15 @@ jay_register_allocate(jay_shader *s)
    }
 
    s->post_ra = true;
+
+   jay_foreach_ra_file(file) {
+      unsigned factor = file == FLAG ? jay_phys_flag_per_virt(s) : 2;
+
+      for (unsigned i = 0; i < s->partition.nr_blocks[file]; ++i) {
+         s->partition.blocks[file][i].len_gpr *= factor;
+         s->partition.blocks[file][i].start_gpr *= factor;
+      }
+
+      s->num_regs[file] *= factor;
+   }
 }
