@@ -875,10 +875,15 @@ panvk_per_arch(get_physical_device_properties)(
       .maxImageDimensionCube = (1 << 16),
       .maxImageArrayLayers = (1 << 16),
       .maxTexelBufferElements = UINT64_C(1) << (util_logbase2(panvk_get_max_buffer_size(device) / 16)),
-      /* Each uniform entry is 16-byte and the number of entries is encoded in a
-       * 12-bit field, with the minus(1) modifier, which gives 2^16.
+      /* PAN_ARCH < 9:
+       *   Each uniform entry is 16-byte and the number of entries is encoded in a
+       *   12-bit field, with the minus(1) modifier, which gives 2^16.
+       * PAN_ARCH >= 9:
+       *   A UBO is a generic Buffer descriptor with a 32-bit size field and loads
+       *   use a 32-bit offset. Use 2^31 as descriptor writes do align(range, 16),
+       *   which would overflow if UINT32_MAX is used.
        */
-      .maxUniformBufferRange = 1 << 16,
+      .maxUniformBufferRange = PAN_ARCH >= 9 ? (1u << 31) : (1 << 16),
       /* Storage buffer access is lowered to globals, so there's no limit here,
        * except for the SW-descriptor we use to encode storage buffer
        * descriptors, where the size is a 32-bit field.
