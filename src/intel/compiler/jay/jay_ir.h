@@ -91,8 +91,8 @@ jay_normalize_uflag(enum jay_file x)
  * Represents the size of a single Jay index.
  */
 enum jay_size {
-   JAY_SIZE_16,
-   JAY_SIZE_32,
+   JAY_SIZE_16 = 0,
+   JAY_SIZE_32 = 1,
 };
 
 /*
@@ -226,12 +226,32 @@ jay_is_flag(jay_def d)
 }
 
 /**
- * Return the number of SSA indices referenced by an jay_def.
+ * Return the number of SSA indices referenced by a jay_def.
  */
 static inline unsigned
 jay_num_values(jay_def d)
 {
    return jay_is_imm(d) || jay_is_null(d) ? 0 : (d.num_values_m1 + 1);
+}
+
+/**
+ * Convert a size enum to a size in ISA registers. This is just powers of two
+ * by construction.
+ */
+static inline unsigned
+jay_size_regs(enum jay_size size)
+{
+   return 1u << size;
+}
+
+/**
+ * Return the number of ISA registers referenced by a jay_def. ISA registers are
+ * 16-bit in the new data model.
+ */
+static inline unsigned
+jay_num_regs(jay_def d)
+{
+   return jay_size_regs(d.size) * jay_num_values(d);
 }
 
 /**
