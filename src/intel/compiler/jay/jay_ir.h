@@ -818,6 +818,8 @@ struct jay_partition {
     * UGPRs). 8 encodes SIMD32 32-bit GPRs on Xe2 (2 GRF = 1 GPR).
     */
    unsigned units_x16[JAY_NUM_RA_FILES];
+
+   bool new_units;
 };
 
 static inline struct jay_register_block

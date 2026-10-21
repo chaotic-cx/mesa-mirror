@@ -624,3 +624,49 @@ jay_print_partition(FILE *fp, jay_shader *s)
 
    fprintf(fp, "\n");
 }
+
+/*
+ * Temporary kludge to change register units in the IR to let us gradually
+ * migrate to true 16-bit support.
+ */
+void
+jay_reg_unit_old_to_new(jay_shader *s)
+{
+   jay_foreach_function(s, f) {
+      jay_foreach_block(f, block) {
+         jay_foreach_inst_in_block_safe(block, I) {
+            if (I->dst.file == GPR || I->dst.file == UGPR) {
+               I->dst.reg = (I->dst.reg * 2) + I->dst.hi;
+            } else if (I->dst.file == FLAG) {
+               I->dst.reg =
+                  (I->dst.reg * jay_phys_flag_per_virt(s)) + I->dst.hi;
+            }
+
+            I->cond_flag.reg =
+               (I->cond_flag.reg * jay_phys_flag_per_virt(s)) + I->cond_flag.hi;
+
+            jay_foreach_src(I, i) {
+               if (I->src[i].file == GPR || I->src[i].file == UGPR) {
+                  I->src[i].reg = (I->src[i].reg * 2) + I->src[i].hi;
+               } else if (I->src[i].file == FLAG) {
+                  I->src[i].reg =
+                     (I->src[i].reg * jay_phys_flag_per_virt(s)) + I->src[i].hi;
+               }
+            }
+         }
+      }
+   }
+
+   jay_foreach_ra_file(file) {
+      unsigned factor = file == FLAG ? jay_phys_flag_per_virt(s) : 2;
+
+      for (unsigned i = 0; i < s->partition.nr_blocks[file]; ++i) {
+         s->partition.blocks[file][i].len_gpr *= factor;
+         s->partition.blocks[file][i].start_gpr *= factor;
+      }
+
+      s->num_regs[file] *= factor;
+   }
+
+   s->partition.new_units = true;
+}
