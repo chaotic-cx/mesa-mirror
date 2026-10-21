@@ -5025,6 +5025,7 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    }
 
    JAY_PASS(s, jay_lower_send);
+   JAY_PASS(s, jay_reg_unit_old_to_new);
 
    if (!(jay_debug & JAY_DBG_NOOPT)) {
       /* jay_assign_accumulators uses a conservative liveness analysis for
@@ -5036,7 +5037,6 @@ jay_compile_simd(const struct intel_device_info *devinfo,
          s->post_acc = true;
       }
 
-      JAY_PASS(s, jay_reg_unit_old_to_new);
       JAY_PASS(s, jay_opt_predicate);
    }
 

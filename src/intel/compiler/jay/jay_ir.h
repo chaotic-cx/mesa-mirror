@@ -84,6 +84,7 @@ jay_normalize_uflag(enum jay_file x)
 #define JAY_MAX_SAMPLER_MESSAGE_SIZE (11)
 #define JAY_MAX_PHYS_GRF             (256)
 #define JAY_MAX_ACCUMS               (4)
+#define JAY_NR_POSTRA_LIVE           (JAY_MAX_ACCUMS + (JAY_MAX_PHYS_GRF * 2))
 #define JAY_NUM_UGPR                 (1024)
 #define JAY_REG_BITS                 (16)
 
@@ -265,6 +266,9 @@ jay_is_ssa(jay_def d)
 
 #define jay_foreach_comp(def, c)                                               \
    for (unsigned c = 0; c < jay_num_values(def); ++c)
+
+#define jay_foreach_reg(def, c)                                                \
+   for (unsigned c = def.reg; c < def.reg + jay_num_regs(def); ++c)
 
 #define jay_foreach_comp_rev(def, c)                                           \
    for (signed c = jay_num_values(def) - 1; c >= 0; --c)
@@ -1246,8 +1250,8 @@ typedef struct jay_block {
    struct u_sparse_bitset live_in;
    struct u_sparse_bitset live_out;
 
-   BITSET_DECLARE(postra_gpr_live_in, JAY_MAX_ACCUMS + JAY_MAX_PHYS_GRF);
-   BITSET_DECLARE(postra_gpr_live_out, JAY_MAX_ACCUMS + JAY_MAX_PHYS_GRF);
+   BITSET_DECLARE(postra_gpr_live_in, JAY_NR_POSTRA_LIVE);
+   BITSET_DECLARE(postra_gpr_live_out, JAY_NR_POSTRA_LIVE);
 
    /* Last-use bit for each non-null index in each source in each instruction in
     * the block, source order, left-to-right.

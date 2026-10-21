@@ -19,23 +19,36 @@ tracked(jay_def x)
    return x.file == GPR || x.file == ACCUM;
 }
 
+/*
+ * Track individual 16-bit GPRs but whole 32-bit accumulators. This is
+ * convenient but should probably be unified at some point.
+ *
+ * We do not track UGPRs in this pass, as uniform accumulators introduce
+ * considerable complexity for marginal benefit.
+ */
 static unsigned
 liveness_key(jay_def x)
 {
    return x.file == GPR ? (x.reg + JAY_MAX_ACCUMS) : (x.reg / 2);
 }
 
+static unsigned
+liveness_width(jay_def x)
+{
+   return x.file == GPR ? jay_num_regs(x) : jay_num_values(x);
+}
+
 static void
 postra_liveness_ins(BITSET_WORD *live, jay_inst *I)
 {
    if (tracked(I->dst) && !I->predication) {
-      BITSET_CLEAR_COUNT(live, liveness_key(I->dst), jay_num_values(I->dst));
+      BITSET_CLEAR_COUNT(live, liveness_key(I->dst), liveness_width(I->dst));
    }
 
    jay_foreach_src(I, s) {
       if (tracked(I->src[s])) {
          BITSET_SET_COUNT(live, liveness_key(I->src[s]),
-                          jay_num_values(I->src[s]));
+                          liveness_width(I->src[s]));
       }
    }
 }
@@ -69,7 +82,7 @@ postra_liveness(jay_function *func)
                    (*succ)->postra_gpr_live_in);
       }
 
-      BITSET_DECLARE(live, JAY_MAX_ACCUMS + JAY_MAX_PHYS_GRF);
+      BITSET_DECLARE(live, JAY_NR_POSTRA_LIVE);
       memcpy(live, blk->postra_gpr_live_out, sizeof(live));
 
       jay_foreach_inst_in_block_rev(blk, ins) {
@@ -100,7 +113,7 @@ source_killed(BITSET_WORD *live, const jay_inst *I, unsigned s)
    return !BITSET_TEST(live, liveness_key(I->src[s])) ||
           (I->dst.file == GPR &&
            I->src[s].reg >= I->dst.reg &&
-           (I->src[s].reg - I->dst.reg) < jay_num_values(I->dst));
+           (I->src[s].reg - I->dst.reg) < jay_num_regs(I->dst));
 }
 
 /* We assign accumulators with a simple heuristic: promote registers with the
@@ -255,7 +268,7 @@ limit_accumulator_sources(jay_block *block, uint8_t *ra, uint32_t ip)
             acc_def = 0;
             has_acc = true;
          } else if (I->src[s].file == GPR) {
-            uint32_t def = def_ip[I->src[s].reg];
+            uint32_t def = def_ip[I->src[s].reg / 2];
             if (ra[def]) {
                if (has_acc && def != acc_def) {
                   ra[def] = 0;
@@ -268,8 +281,8 @@ limit_accumulator_sources(jay_block *block, uint8_t *ra, uint32_t ip)
       }
 
       if (I->dst.file == GPR) {
-         jay_foreach_comp(I->dst, c) {
-            def_ip[I->dst.reg + c] = ip;
+         jay_foreach_reg(I->dst, r) {
+            def_ip[r / 2] = ip;
          }
       }
 
@@ -310,7 +323,7 @@ pass(jay_function *func)
       util_dynarray_clear(&candidates);
 
       /* Live-set at each point in the program */
-      BITSET_DECLARE(live, JAY_MAX_ACCUMS + JAY_MAX_PHYS_GRF);
+      BITSET_DECLARE(live, JAY_NR_POSTRA_LIVE);
       memcpy(live, block->postra_gpr_live_out, sizeof(live));
 
       uint32_t ip = ip_bound;
@@ -322,21 +335,21 @@ pass(jay_function *func)
          assert(ip > 0 && "invariant");
 
          /* Collect candidates */
-         if (I->dst.file == GPR && last_use_ip[I->dst.reg]) {
+         if (I->dst.file == GPR && last_use_ip[I->dst.reg / 2]) {
             if (can_access_accum(func->shader, I, -1)) {
-               struct candidate c = { ip, last_use_ip[I->dst.reg],
-                                      mac_candidates[I->dst.reg] };
+               struct candidate c = { ip, last_use_ip[I->dst.reg / 2],
+                                      mac_candidates[I->dst.reg / 2] };
                util_dynarray_append(&candidates, c);
             }
 
-            last_use_ip[I->dst.reg] = 0;
-            mac_candidates[I->dst.reg] = 0;
+            last_use_ip[I->dst.reg / 2] = 0;
+            mac_candidates[I->dst.reg / 2] = 0;
          }
 
          jay_foreach_src(I, s) {
             if (I->src[s].file == GPR && source_killed(live, I, s)) {
-               last_use_ip[I->src[s].reg] = ip;
-               mac_candidates[I->src[s].reg] |=
+               last_use_ip[I->src[s].reg / 2] = ip;
+               mac_candidates[I->src[s].reg / 2] |=
                   s == 0 && could_be_mac(func->shader, I);
             }
          }
@@ -346,9 +359,9 @@ pass(jay_function *func)
             if (I->src[s].file == GPR &&
                 !can_access_accum(func->shader, I, s)) {
 
-               jay_foreach_comp(I->src[s], c) {
-                  last_use_ip[I->src[s].reg + c] = 0;
-                  mac_candidates[I->src[s].reg + c] = false;
+               jay_foreach_reg(I->src[s], r) {
+                  last_use_ip[r / 2] = 0;
+                  mac_candidates[r / 2] = false;
                }
             }
          }
@@ -414,7 +427,7 @@ pass(jay_function *func)
          /* Rewrite operands using accumulators */
          jay_foreach_src(I, s) {
             if (I->src[s].file == GPR) {
-               substitute_acc(&I->src[s], gpr_to_acc_p1[I->src[s].reg]);
+               substitute_acc(&I->src[s], gpr_to_acc_p1[I->src[s].reg / 2]);
             }
          }
 
@@ -435,8 +448,8 @@ pass(jay_function *func)
                }
             }
 
-            jay_foreach_comp(I->dst, c) {
-               gpr_to_acc_p1[I->dst.reg + c] = ra[ip];
+            jay_foreach_reg(I->dst, r) {
+               gpr_to_acc_p1[r / 2] = ra[ip];
             }
 
             substitute_acc(&I->dst, ra[ip]);
