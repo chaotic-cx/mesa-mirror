@@ -884,8 +884,8 @@ validate_ir(Program* program)
                      "VMEM definitions[0] (VDATA) must be VGPR", instr.get());
                check(d16 || !instr->definitions[0].regClass().is_subdword(),
                      "Only D16 opcodes can load subdword values.", instr.get());
-               check(instr->definitions[0].bytes() <= 8 || !d16,
-                     "D16 opcodes can only load up to 8 bytes.", instr.get());
+               check(instr->definitions[0].bytes() <= 8 || !d16 || program->dev.has_unpacked_d16,
+                     "Packed D16 opcodes can only load up to 8 bytes.", instr.get());
             }
             break;
          }
@@ -957,8 +957,9 @@ validate_ir(Program* program)
                      "MIMG definitions[0] (VDATA) must be VGPR", instr.get());
                check(instr->mimg().d16 || !instr->definitions[0].regClass().is_subdword(),
                      "Only D16 MIMG instructions can load subdword values.", instr.get());
-               check(instr->definitions[0].bytes() <= 8 || !instr->mimg().d16,
-                     "D16 MIMG instructions can only load up to 8 bytes.", instr.get());
+               check(instr->definitions[0].bytes() <= 8 || !instr->mimg().d16 ||
+                        program->dev.has_unpacked_d16,
+                     "Packed D16 MIMG instructions can only load up to 8 bytes.", instr.get());
             }
             break;
          }
@@ -1499,7 +1500,7 @@ get_subdword_bytes_written(Program* program, const aco_ptr<Instruction>& instr, 
       return {0, 4};
    }
 
-   if (program->dev.sram_ecc_enabled)
+   if (program->dev.sram_ecc_enabled || gfx_level < GFX9)
       return {0, def.size() * 4};
 
    if (instr->isMIMG() && instr->mimg().d16)

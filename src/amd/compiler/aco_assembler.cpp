@@ -791,7 +791,7 @@ emit_mimg_instruction(asm_context& ctx, std::vector<uint32_t>& out, const Instru
    }
    encoding |= (0x1F & (reg(ctx, instr->operands[0]) >> 2)) << 16; /* T# (resource) */
 
-   assert(!mimg.d16 || ctx.gfx_level >= GFX9);
+   assert(!mimg.d16 || ctx.gfx_level >= GFX8);
    if (ctx.gfx_level >= GFX11) {
       if (!instr->operands[1].isUndefined())
          encoding |= (0x1F & (reg(ctx, instr->operands[1]) >> 2)) << 26; /* sampler */

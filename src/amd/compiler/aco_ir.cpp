@@ -114,6 +114,7 @@ init_program(Program* program, Stage stage, const struct aco_shader_info* info,
    program->dev.sram_ecc_enabled = options->compiler_info->has_sram_ecc_enabled;
    program->dev.has_point_sample_accel = options->compiler_info->has_point_sample_accel;
    program->dev.has_gfx6_mrt_export_bug = options->compiler_info->has_gfx6_mrt_export_bug;
+   program->dev.has_unpacked_d16 = options->compiler_info->has_unpacked_d16;
 
    program->dev.has_fast_fma32 = options->compiler_info->has_fast_fma32;
    program->dev.has_mac_legacy32 = program->gfx_level <= GFX7 || program->gfx_level == GFX10;
@@ -979,6 +980,8 @@ get_subdword_definition_caps(Program* program, const Instruction* instr, unsigne
       return caps;
    }
 
+   bool d16_full_vgpr_writes = program->dev.sram_ecc_enabled || gfx_level < GFX9;
+
    switch (instr->opcode) {
    case aco_opcode::v_interp_p2_f16: assert(rc.bytes() == 2); return caps;
    /* D16 loads with _hi version */
@@ -996,18 +999,16 @@ get_subdword_definition_caps(Program* program, const Instruction* instr, unsigne
    case aco_opcode::scratch_load_short_d16:
    case aco_opcode::buffer_load_ubyte_d16:
    case aco_opcode::buffer_load_sbyte_d16:
-   case aco_opcode::buffer_load_short_d16:
+   case aco_opcode::buffer_load_short_d16: assert(gfx_level >= GFX9); FALLTHROUGH;
    case aco_opcode::buffer_load_format_d16_x: {
-      assert(gfx_level >= GFX9);
-      caps.overwrite_bytes = program->dev.sram_ecc_enabled ? 4 : 2;
-      caps.placement_stride = 2;
+      caps.overwrite_bytes = d16_full_vgpr_writes ? 4 : 2;
+      caps.placement_stride = gfx_level < GFX9 ? 4 : 2;
       return caps;
    }
    /* 3-component D16 loads */
    case aco_opcode::buffer_load_format_d16_xyz:
    case aco_opcode::tbuffer_load_format_d16_xyz: {
-      assert(gfx_level >= GFX9);
-      caps.overwrite_bytes = program->dev.sram_ecc_enabled ? 8 : 6;
+      caps.overwrite_bytes = d16_full_vgpr_writes ? 8 : 6;
       caps.placement_stride = 4;
       return caps;
    }
@@ -1015,8 +1016,8 @@ get_subdword_definition_caps(Program* program, const Instruction* instr, unsigne
    }
 
    caps.placement_stride = 4;
-   if (instr->isMIMG() && instr->mimg().d16 && !program->dev.sram_ecc_enabled)
-      assert(gfx_level >= GFX9);
+   if (instr->isMIMG() && instr->mimg().d16 && !d16_full_vgpr_writes)
+      assert(rc.bytes() % 2 == 0);
    else
       caps.overwrite_bytes = rc.size() * 4;
    return caps;

@@ -271,10 +271,10 @@ get_reg_bounds(ra_ctx& ctx, RegClass rc)
 unsigned
 get_overestimated_reg_count(ra_ctx& ctx, Instruction* instr, int operand)
 {
-   if (ctx.program->gfx_level > GFX9)
+   if (ctx.program->gfx_level > GFX9 || ctx.program->dev.has_unpacked_d16)
       return 0;
 
-   /* Workaround GFX9 hardware bug for D16 image instructions: FeatureImageGather4D16Bug
+   /* Work around GFX8-9 hardware bug for D16 image instructions: FeatureImageGather4D16Bug
     *
     * The register use is not calculated correctly, and the hardware assumes a
     * full dword per component. Don't use the last registers of the register file.
@@ -286,7 +286,6 @@ get_overestimated_reg_count(ra_ctx& ctx, Instruction* instr, int operand)
       return 0;
 
    assert(!instr->mimg().tfe && "D16 with TFE not supported.");
-   assert(ctx.program->gfx_level == GFX9 && "Image D16 on GFX8 not supported.");
 
    /* Only gather instructions are affected on GFX9 */
    if (operand != -1 || instr->definitions[0].bytes() != 8 || instr->mimg().dmask == 0xF)
