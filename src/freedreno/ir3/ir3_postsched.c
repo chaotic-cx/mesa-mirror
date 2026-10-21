@@ -799,7 +799,7 @@ sched_block(struct ir3_postsched_ctx *ctx, struct ir3_block *block)
 static bool
 is_self_mov(struct ir3_instruction *instr)
 {
-   if (!is_same_type_mov(instr))
+   if (!is_same_type_mov(instr, false))
       return false;
 
    if (instr->dsts[0]->num != instr->srcs[0]->num)
@@ -812,7 +812,7 @@ is_self_mov(struct ir3_instruction *instr)
       return false;
 
    if (instr->srcs[0]->flags &
-       (IR3_REG_CONST | IR3_REG_IMMED | IR3_REG_RELATIV | IR3_REG_SRC_MODS))
+       (IR3_REG_CONST | IR3_REG_IMMED | IR3_REG_RELATIV))
       return false;
 
    return true;

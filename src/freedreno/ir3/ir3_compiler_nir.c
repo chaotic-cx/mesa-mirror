@@ -1276,7 +1276,8 @@ emit_intrinsic_load_ubo(struct ir3_context *ctx, nir_intrinsic_instr *intr,
 
    /* First src is ubo index, which could either be an immed or not: */
    src0 = ir3_get_src(ctx, &intr->src[0])[0];
-   if (is_same_type_mov(src0) && (src0->srcs[0]->flags & IR3_REG_IMMED)) {
+   if (is_same_type_mov(src0, false) &&
+       (src0->srcs[0]->flags & IR3_REG_IMMED)) {
       base_lo = create_uniform(b, ubo + (src0->srcs[0]->iim_val * ptrsz));
       base_hi = create_uniform(b, ubo + (src0->srcs[0]->iim_val * ptrsz) + 1);
    } else {

@@ -44,7 +44,7 @@ static bool
 is_eligible_mov(struct ir3_instruction *instr,
                 struct ir3_instruction *dst_instr, bool allow_flags)
 {
-   if (is_same_type_mov(instr)) {
+   if (is_same_type_mov(instr, allow_flags)) {
       struct ir3_register *dst = instr->dsts[0];
       struct ir3_register *src = instr->srcs[0];
       struct ir3_instruction *src_instr = ssa(src);
@@ -61,10 +61,6 @@ is_eligible_mov(struct ir3_instruction *instr,
 
       if (src->flags & IR3_REG_ARRAY)
          return false;
-
-      if (!allow_flags)
-         if (src->flags & IR3_REG_SRC_MODS)
-            return false;
 
       return true;
    }
@@ -351,7 +347,8 @@ reg_cp(struct ir3_cp_ctx *ctx, struct ir3_instruction *instr,
       } else if (try_swap_cat3_two_srcs(instr, n, new_flags)) {
          return true;
       }
-   } else if ((is_same_type_mov(src) || is_const_mov(src) || is_const_vec(src)) &&
+   } else if ((is_same_type_mov(src, true) || is_const_mov(src) ||
+               is_const_vec(src)) &&
               /* cannot collapse const/immed/etc into control flow: */
               opc_cat(instr->opc) != 0) {
       /* immed/const/etc cases, which require some special handling: */

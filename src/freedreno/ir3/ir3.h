@@ -1289,10 +1289,10 @@ is_same_type_reg(struct ir3_register *dst, struct ir3_register *src)
 
 /* Is it a non-transformative (ie. not type changing) mov?  This can
  * also include absneg.s/absneg.f, which for the most part can be
- * treated as a mov (single src argument).
+ * treated as a mov (single src argument) with source modifiers.
  */
 static inline bool
-is_same_type_mov(struct ir3_instruction *instr)
+is_same_type_mov(struct ir3_instruction *instr, bool allow_src_mods)
 {
    struct ir3_register *dst;
 
@@ -1308,6 +1308,8 @@ is_same_type_mov(struct ir3_instruction *instr)
       break;
    case OPC_ABSNEG_F:
    case OPC_ABSNEG_S:
+      if (!allow_src_mods)
+         return false;
       if (instr->flags & IR3_INSTR_SAT)
          return false;
       /* If the type of dest reg and src reg are different,

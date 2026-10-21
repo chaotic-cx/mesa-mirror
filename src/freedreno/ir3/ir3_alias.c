@@ -43,16 +43,12 @@ can_alias_srcs_of_def(struct ir3_register *src)
    if (def_instr->opc == OPC_META_COLLECT) {
       return true;
    }
-   if (def_instr->opc == OPC_MOV) {
-      /* We haven't seen any indication that aliasing supports the address
-       * register, nor does it seem important to do so based on how many fossils
-       * it took to find a case of it being attempted during alias setup.
-       */
-      return is_same_type_mov(def_instr) &&
-             !(def_instr->srcs[0]->flags & (IR3_REG_SHARED | IR3_REG_RELATIV));
-   }
-
-   return false;
+   /* We haven't seen any indication that aliasing supports the address
+    * register, nor does it seem important to do so based on how many fossils
+    * it took to find a case of it being attempted during alias setup.
+    */
+   return is_same_type_mov(def_instr, false) &&
+          !(def_instr->srcs[0]->flags & (IR3_REG_SHARED | IR3_REG_RELATIV));
 }
 
 static bool
