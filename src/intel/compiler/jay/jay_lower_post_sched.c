@@ -53,12 +53,12 @@ insert_dummy_mov(jay_builder *b, jay_inst *u, jay_inst *v)
    bool issue_1 = ((is_mul(u) && is_mul(v)) || (is_maclh(u) && is_maclh(v))) &&
                   (u->src[1].file == UGPR && jay_num_values(u->src[1]) > 1) &&
                   (v->src[1].file == UGPR && jay_num_values(v->src[1]) == 1) &&
-                  u->src[1].reg == v->src[1].reg;
+                  (u->src[1].reg >> 1) == (v->src[1].reg >> 1);
 
    bool issue_2 = !(is_mul(u) || is_maclh(u)) &&
                   jay_num_isa_srcs(u) > 1 && is_maclh(v) &&
                   u->src[1].file == v->src[1].file &&
-                  u->src[1].reg == v->src[1].reg;
+                  (u->src[1].reg >> 1) == (v->src[1].reg >> 1);
 
    if (issue_1 || issue_2) {
       jay_MOV(b, jay_null(), 0);
