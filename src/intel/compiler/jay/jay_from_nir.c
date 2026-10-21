@@ -5040,9 +5040,8 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    }
 
    JAY_PASS(s, jay_lower_simd_width);
-   JAY_PASS(s, jay_schedule);
-
    JAY_PASS(s, jay_reg_unit_old_to_new);
+   JAY_PASS(s, jay_schedule);
 
    JAY_PASS(s, jay_lower_post_sched, nir->info.float_controls_execution_mode,
             nir->info.bit_sizes_float);
