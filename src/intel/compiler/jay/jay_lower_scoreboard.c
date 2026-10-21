@@ -21,20 +21,13 @@
 static inline struct jay_footprint
 def_to_sbid_key(jay_function *func, jay_inst *I, jay_def x)
 {
-   if (x.file == GPR) {
+   /* SEND instructions can only use GRF-aligned multiples of whole
+    * registers. However, unordered ALU should be tracked finely.
+    *
+    * TODO: Optimize this for Xe2 perhaps.
+    */
+   if (x.file == GPR || x.file == UGPR) {
       return jay_def_to_footprint(func, I, x, JAY_TYPE_U32);
-   } else if (x.file == UGPR) {
-      /* SEND instructions can only use GRF-aligned multiples of whole
-       * registers, so there's no point tracking UGPRs at a finer granularity.
-       */
-      return (struct jay_footprint){
-         .base = jay_footprint_base(func->shader, UGPR) +
-                 x.reg / jay_ugpr_per_grf(func->shader),
-         .count =
-            DIV_ROUND_UP(jay_num_values(x), jay_ugpr_per_grf(func->shader)),
-         .width = 1,
-         .stride = 1,
-      };
    } else {
       return (struct jay_footprint){ 0 };
    }
@@ -750,10 +743,7 @@ jay_lower_scoreboard(jay_shader *shader)
    jay_foreach_function(shader, f)
       max_blocks = MAX2(max_blocks, f->num_blocks);
 
-   uint32_t nr_sbid_keys =
-      (shader->num_regs[GPR] * jay_grf_per_gpr(shader)) +
-      DIV_ROUND_UP(shader->num_regs[UGPR], jay_ugpr_per_grf(shader));
-
+   uint32_t nr_sbid_keys = jay_footprint_base(shader, UGPR + 1);
    unsigned max_sbids = intel_device_info_max_sbids(shader->devinfo);
 
    struct swsb_sbid_state sbid_state;

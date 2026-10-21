@@ -1670,7 +1670,7 @@ jay_footprint_base(jay_shader *shader, enum jay_file file)
    return (file > GPR ? (shader->num_regs[GPR] * jay_grf_per_gpr(shader)) : 0) +
           (file > UGPR ? shader->num_regs[UGPR] : 0) +
           (file > FLAG ? shader->num_regs[FLAG] : 0) +
-          (file > ACCUM ? 4 : 0);
+          (file > ACCUM ? 2 * JAY_MAX_ACCUMS : 0);
 }
 
 static inline struct jay_footprint
@@ -1680,19 +1680,39 @@ jay_def_to_footprint(jay_function *func,
                      enum jay_type type)
 {
    struct jay_footprint r = { 0 };
+   bool nu = func->shader->partition.new_units;
 
    if (x.file == GPR || x.file == UGPR || x.file == ACCUM || x.file == FLAG) {
       r.base = jay_footprint_base(func->shader, x.file);
-      r.base += (x.file == ACCUM) ? (x.reg / 2) :
-                (x.file == GPR)   ? (x.reg * jay_grf_per_gpr(func->shader)) :
+      r.base +=
+         (x.file == ACCUM && !nu) ? (x.reg / 2) :
+         (x.file == GPR && !nu)   ? (x.reg * jay_grf_per_gpr(func->shader)) :
                                     x.reg;
-      r.width = 1;
-      r.stride = 1;
-      r.count = jay_num_values(x);
+
+      if (nu) {
+         r.count = 1;
+         r.width = jay_num_regs(x);
+      } else {
+         r.width = 1;
+         r.stride = 1;
+         r.count = jay_num_values(x);
+      }
+
+      if (x.file == FLAG && nu) {
+         assert(jay_num_values(x) == 1 && "no flag vectors");
+         r.width = jay_phys_flag_per_virt(func->shader);
+      }
 
       if (x.file == ACCUM && !jay_type_is_any_float(type)) {
-         assert(x.reg == 0 && r.width == 1 && "only acc0 used with integers");
-         r.count = (func->shader->dispatch_width < 32) ? 2 : 1;
+         if (nu) {
+            assert(
+               x.reg == 0 && r.width == 2 && "only acc0 used with integers");
+            r.width = (func->shader->dispatch_width < 32) ? 4 : 2;
+         } else {
+            assert(
+               x.reg == 0 && r.width == 1 && "only acc0 used with integers");
+            r.count = (func->shader->dispatch_width < 32) ? 2 : 1;
+         }
       }
 
       if (x.file == GPR) {
@@ -1704,9 +1724,23 @@ jay_def_to_footprint(jay_function *func,
             offs = 0;
          }
 
-         r.stride = jay_grf_per_gpr(func->shader);
-         r.width = MAX2(r.stride >> split, 1);
-         r.base += (r.stride * offs) >> split;
+         unsigned grf_per_gpr = jay_grf_per_gpr(func->shader);
+
+         /* With "new" registers, model the GPR block logically from the
+          * perspective of a single lane, with the entire block duplicated for
+          * each modelled SIMD. This could be optimized later but it's simple
+          * and obviously correct.
+          */
+         if (nu) {
+            r.stride = func->shader->num_regs[GPR];
+            r.count = MAX2(grf_per_gpr >> split, 1);
+            r.base += (r.stride * r.count * offs);
+            r.width = jay_num_regs(x);
+         } else {
+            r.stride = grf_per_gpr;
+            r.width = MAX2(r.stride >> split, 1);
+            r.base += (r.stride * offs) >> split;
+         }
       }
    }
 

@@ -5048,13 +5048,13 @@ jay_compile_simd(const struct intel_device_info *devinfo,
       JAY_PASS(s, jay_insert_payload_swizzle);
    }
 
+   JAY_PASS(s, jay_reg_unit_old_to_new);
+
    if (jay_debug & JAY_DBG_SYNC) {
       JAY_PASS(s, jay_lower_scoreboard_trivial);
    } else {
       JAY_PASS(s, jay_lower_scoreboard);
    }
-
-   JAY_PASS(s, jay_reg_unit_old_to_new);
 
    if (debug) {
       fprintf(stderr, "Jay shader (post-RA):\n\n");
