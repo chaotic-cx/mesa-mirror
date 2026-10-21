@@ -197,7 +197,7 @@ pass(jay_function *func)
             jay_lookup_block(&func->shader->partition, I->src[0].reg,
                              I->src[0].file);
          unsigned reg_width =
-            4 * (I->src[0].file == UGPR ? 1 : func->shader->dispatch_width);
+            2 * (I->src[0].file == UGPR ? 1 : func->shader->dispatch_width);
          unsigned offset_B = block.start_grf * func->shader->devinfo->grf_size +
                              (I->src[0].reg - block.start_gpr) * reg_width;
 
