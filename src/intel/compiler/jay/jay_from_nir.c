@@ -5019,13 +5019,13 @@ jay_compile_simd(const struct intel_device_info *devinfo,
    }
 
    JAY_PASS(s, jay_schedule);
+   JAY_PASS(s, jay_reg_unit_old_to_new);
 
    if (s->stage == MESA_SHADER_FRAGMENT && s->helpers_tracked) {
       JAY_PASS(s, jay_lower_helpers);
    }
 
    JAY_PASS(s, jay_lower_send);
-   JAY_PASS(s, jay_reg_unit_old_to_new);
 
    if (!(jay_debug & JAY_DBG_NOOPT)) {
       /* jay_assign_accumulators uses a conservative liveness analysis for

@@ -80,7 +80,7 @@ setup_exit_block(jay_builder *b, struct ctx *ctx)
          B = b->shader->partition.blocks[GPR][i];
          bool late_eot = !jay_has_early_eot(b->shader);
 
-         if (B.len_gpr >= 4 &&
+         if (B.len_gpr >= 8 &&
              (B.type == JAY_BLOCK_EOT || (B.type == JAY_BLOCK_NORMAL &&
                                           late_eot &&
                                           B.stride == JAY_STRIDE_4))) {
@@ -199,7 +199,8 @@ jay_lower_helpers(jay_shader *shader)
 
    /* By ABI with jay_assign_flags, the last flag is used to track helpers */
    assert(shader->helpers_tracked);
-   unsigned helper_flag_no = shader->num_regs[FLAG] - 1;
+   unsigned helper_flag_no =
+      shader->num_regs[FLAG] - jay_phys_flag_per_virt(shader);
    struct ctx ctx = { .helper_flag = jay_bare_reg(FLAG, helper_flag_no) };
 
    /* Initialize the helper flag sensibly based on the dispatch mask (sr0.2) */
