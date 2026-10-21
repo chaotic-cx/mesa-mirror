@@ -16,8 +16,9 @@ vectorize(jay_function *f, jay_inst **vec, unsigned n)
       while (i < n) {
          unsigned simd = 1 << util_logbase2(n - i);
          jay_inst *clone = jay_clone_inst(&b, vec[0], vec[0]->num_srcs);
-         clone->dst = jay_bare_regs(UGPR, vec[0]->dst.reg + i, simd);
-         clone->src[0] = jay_bare_regs(UGPR, vec[0]->src[0].reg + i, simd);
+         clone->dst = jay_bare_regs(UGPR, vec[0]->dst.reg + (i * 2), simd);
+         clone->src[0] =
+            jay_bare_regs(UGPR, vec[0]->src[0].reg + (i * 2), simd);
          jay_builder_insert(&b, clone);
          i += simd;
       }
@@ -29,10 +30,10 @@ vectorize(jay_function *f, jay_inst **vec, unsigned n)
 }
 
 static bool
-compatible_regs(jay_def xI, jay_def x0, unsigned n, unsigned ugpr_per_grf_log2)
+compatible_regs(jay_def xI, jay_def x0, unsigned n, unsigned reg_per_grf_log2)
 {
-   return xI.reg == x0.reg + n &&
-          (xI.reg >> ugpr_per_grf_log2) == (x0.reg >> ugpr_per_grf_log2);
+   return xI.reg == x0.reg + (n * 2) &&
+          (xI.reg >> reg_per_grf_log2) == (x0.reg >> reg_per_grf_log2);
 }
 
 static bool
@@ -63,9 +64,9 @@ is_compatible(jay_shader *s, jay_inst **vec, unsigned n, const jay_inst *I)
    /* We must access consecutive channels from the same GRF without overlap on
     * the source/destination regions.
     */
-   unsigned ugpr_per_grf_log2 = util_logbase2(jay_ugpr_per_grf(s));
-   return compatible_regs(I->dst, vec[0]->dst, n, ugpr_per_grf_log2) &&
-          compatible_regs(I->src[0], vec[0]->src[0], n, ugpr_per_grf_log2) &&
+   unsigned reg_per_grf_log2 = util_logbase2(jay_grf_size_B(s) / 2);
+   return compatible_regs(I->dst, vec[0]->dst, n, reg_per_grf_log2) &&
+          compatible_regs(I->src[0], vec[0]->src[0], n, reg_per_grf_log2) &&
           !reg_in_range(I->dst, vec[0]->dst, n) &&
           !reg_in_range(I->src[0], vec[0]->dst, n) &&
           !reg_in_range(I->dst, vec[0]->src[0], n) &&
