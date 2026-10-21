@@ -26,6 +26,40 @@ namespace {
              !inst->src[0].abs;
    }
 
+   bool
+   is_format_conversion(const brw_inst *inst)
+   {
+      return (inst->opcode == BRW_OPCODE_MOV || inst->opcode == BRW_OPCODE_SRND) &&
+             inst->sources > 0 && inst->src[0].type != inst->dst.type;
+   }
+
+   /*
+    * Whether the Gfx35+ "BF16 Mixed mode Operations" regioning rules apply
+    * to the instruction, i.e. it has bf16 and fp32 operands.  MUL and MAD are
+    * excluded since brw_lower_alu_restrictions() converts all of their bf16
+    * operands to F after this pass.
+    */
+   bool
+   is_gfx35_bfloat_mixed_mode(const intel_device_info *devinfo,
+                              const brw_inst *inst)
+   {
+      if (devinfo->ver < 35 || !devinfo->has_bfloat16 ||
+          !has_bfloat_operands(inst) || inst->is_math() ||
+          is_format_conversion(inst) ||
+          inst->opcode == BRW_OPCODE_MUL || inst->opcode == BRW_OPCODE_MAD)
+         return false;
+
+      if (inst->dst.type == BRW_TYPE_F)
+         return true;
+
+      for (unsigned i = 0; i < inst->sources; i++) {
+         if (inst->src[i].type == BRW_TYPE_F)
+            return true;
+      }
+
+      return false;
+   }
+
    /*
     * Return an acceptable byte stride for the specified source of an
     * instruction affected by a regioning restriction.
@@ -34,7 +68,16 @@ namespace {
    required_src_byte_stride(const intel_device_info *devinfo, const brw_inst *inst,
                             unsigned i)
    {
-      if (devinfo->ver >= 35 && inst->opcode < NUM_BRW_OPCODES &&
+      if (devinfo->ver >= 35 && devinfo->has_bfloat16 &&
+          brw_type_is_bfloat(inst->src[i].type)) {
+         /* "BF16 Mixed mode Operations": bf16 on source must be strided to one
+          * element per fp32 execution channel.  Extended math allows packed or
+          * strided bf16 ("FP16/BF16 Operations"), so use packed there.
+          */
+         return is_gfx35_bfloat_mixed_mode(devinfo, inst) ? 4 :
+                brw_type_size_bytes(inst->src[i].type);
+
+      } else if (devinfo->ver >= 35 && inst->opcode < NUM_BRW_OPCODES &&
           i >= 1) {
          unsigned src_byte_stride = byte_stride(inst->src[i]);
          unsigned dst_byte_stride =
@@ -75,7 +118,19 @@ namespace {
    required_src_byte_offset(const intel_device_info *devinfo, const brw_inst *inst,
                             unsigned i)
    {
-      if (devinfo->ver >= 35 && inst->opcode < NUM_BRW_OPCODES &&
+      if (is_gfx35_bfloat_mixed_mode(devinfo, inst)) {
+         /* "BF16 Mixed mode Operations": bf16 on source must be strided to
+          * align to the second lowest bf16 of the fp32 execution channel.
+          * Sources are aligned to the first channel of the register, where
+          * the destination is by the time sources are lowered.
+          */
+         return brw_type_is_bfloat(inst->src[i].type) ? 2 : 0;
+
+      } else if (devinfo->ver >= 35 && devinfo->has_bfloat16 &&
+                 brw_type_is_bfloat(inst->src[i].type)) {
+         return reg_offset(inst->src[i]) % (reg_unit(devinfo) * REG_SIZE);
+
+      } else if (devinfo->ver >= 35 && inst->opcode < NUM_BRW_OPCODES &&
           i >= 1) {
          const unsigned src_byte_stride = required_src_byte_stride(devinfo, inst, i);
          const unsigned dst_byte_offset =
@@ -87,6 +142,12 @@ namespace {
             return src_byte_offset;
          else
             return dst_byte_offset; /* src offset must match dst */
+
+      } else if (i == 0 && devinfo->ver >= 35 && devinfo->has_bfloat16 &&
+                 is_format_conversion(inst) && inst->dst.type == BRW_TYPE_BF &&
+                 byte_stride(inst->dst) == 2) {
+         /* Src0 fp32 offset must be .0 for packed down conversions. */
+         return 0;
 
       } else if (has_dst_aligned_region_restriction(devinfo, inst)) {
          return reg_offset(inst->dst) % (reg_unit(devinfo) * REG_SIZE);
@@ -170,6 +231,13 @@ namespace {
          return inst->dst.hstride * brw_type_size_bytes(inst->dst.type);
 
       } else if (devinfo->has_bfloat16 && has_bfloat_operands(inst)) {
+         /* "BF16 Mixed mode Operations": bf16 on destination must be strided
+          * to one element per fp32 execution channel.
+          */
+         if (inst->dst.type == BRW_TYPE_BF &&
+             is_gfx35_bfloat_mixed_mode(devinfo, inst))
+            return 4;
+
          /* Prefer packed since it can be used as a source. */
          return brw_type_size_bytes(inst->dst.type);
 
@@ -215,7 +283,12 @@ namespace {
    unsigned
    required_dst_byte_offset(const intel_device_info *devinfo, const brw_inst *inst)
    {
-      assert(!brw_type_is_bfloat(inst->dst.type));
+      if (brw_type_is_bfloat(inst->dst.type)) {
+         /* "bf16 on destination must be strided to align all to the second
+          *  lowest bf16 of the fp32 execution channel."
+          */
+         return is_gfx35_bfloat_mixed_mode(devinfo, inst) ? 2 : 0;
+      }
 
       for (unsigned i = 0; i < inst->sources; i++) {
          if (!is_uniform(inst->src[i]) && !inst->is_control_source(i))
@@ -332,18 +405,69 @@ namespace {
 
       if (devinfo->has_bfloat16 && has_bfloat_operands(inst)) {
          if (brw_type_is_bfloat(inst->src[i].type)) {
-            const unsigned half_register = REG_SIZE * reg_unit(devinfo) / 2;
-            const unsigned offset = reg_offset(inst->src[i]);
+            if (devinfo->ver < 35) {
+               const unsigned half_register = REG_SIZE * reg_unit(devinfo) / 2;
+               const unsigned offset = reg_offset(inst->src[i]);
 
-            /* Region restrictions described by PRM
-             *
-             *   Bfloat16 source must be packed.
-             *
-             *   Bfloat16 source must have register offset 0 or half of GRF register.
-             */
-            return !(byte_stride(inst->src[i]) == 2 && (offset == 0 || offset == half_register));
+               /* Region restrictions described by PRM
+                *
+                *   Bfloat16 source must be packed.
+                *
+                *   Bfloat16 source must have register offset 0 or half of GRF register.
+                */
+               return !(byte_stride(inst->src[i]) == 2 && (offset == 0 || offset == half_register));
+            } else {
+               if (is_uniform(inst->src[i]))
+                  return false;
+               const unsigned src_byte_stride = byte_stride(inst->src[i]);
+
+               if (inst->is_math()) {
+                  /* Extended math: bf16 sources may be packed or strided.
+                   * Strided sources must align to the lowest bf16 of the fp32
+                   * execution channel, except that Src0 may also access the
+                   * upper bf16 of the channel.
+                   */
+                  return !(src_byte_stride == 2 ||
+                           (src_byte_stride == 4 &&
+                            (src_byte_offset == 0 ||
+                             (i == 0 && src_byte_offset == 2))));
+               } else if (is_gfx35_bfloat_mixed_mode(devinfo, inst)) {
+                  /* "bf16 on source must be strided to align all to the
+                   *  second lowest bf16 of the fp32 execution channel."
+                   */
+                  return !(src_byte_stride == 4 && src_byte_offset == 2);
+               } else {
+                  /* The remaining bf16 operations are format conversions
+                   * from bf16, which follow the integer regioning rules
+                   * (one element per dword channel for an fp32 destination),
+                   * raw moves, which brw_lower_bfloat_conversion() turns into
+                   * UW moves, and MUL/MAD, whose bf16 operands
+                   * brw_lower_alu_restrictions() converts to F.
+                   */
+                  return false;
+               }
+            }
          } else {
             assert(inst->src[i].type == BRW_TYPE_F);
+
+            if (devinfo->ver >= 35 && is_format_conversion(inst) &&
+                inst->dst.type == BRW_TYPE_BF && byte_stride(inst->dst) == 2) {
+               /* "Register Alignment Rules for Format convert instructions",
+                * Src0 Restrictions:
+                *
+                *   "For down conversions to fp16/bf16, if destination is
+                *    packed (stride is 1), Src0 must be packed GRF register
+                *    (stride is 1) with fp16 offset to be .0 or .16 and fp32
+                *    offset to be .0 only, and must not span more than 1
+                *    register."
+                */
+               return !(inst->src[0].is_grf() &&
+                        byte_stride(inst->src[0]) == 4 &&
+                        src_byte_offset == 0 &&
+                        inst->size_read(devinfo, 0) <=
+                           reg_unit(devinfo) * REG_SIZE);
+            }
+
             /* Restrict Floats sources mixed with BFloats to also be aligned and packed. */
             return !is_uniform(inst->src[i]) && src_byte_offset != 0 && byte_stride(inst->src[i]) != 4;
          }
@@ -378,17 +502,67 @@ namespace {
          const unsigned offset = reg_offset(inst->dst);
          const unsigned half_register = REG_SIZE * reg_unit(devinfo) / 2;
 
-         /* Region restrictions described by PRM
-          *
-          *   Packed bfloat16 destination must have register offset of 0 or half of GRF register.
-          *
-          *   Unpacked bfloat16 destination must have stride 2 and register offset 0 or 1.
-          *
-          * Note numbers above are in terms of elements (2 bytes).
-          */
          if (inst->dst.type == BRW_TYPE_BF) {
-            return !(stride == 2 && (offset == 0 || offset == half_register)) &&
-                   !(stride == 4 && (offset == 0 || offset == 2));
+            if (devinfo->ver < 35) {
+               /* Region restrictions described by PRM
+                *
+                *   Packed bfloat16 destination must have register offset of 0 or half of GRF register.
+                *
+                *   Unpacked bfloat16 destination must have stride 2 and register offset 0 or 1.
+                *
+                * Note numbers above are in terms of elements (2 bytes).
+                */
+               return !(stride == 2 && (offset == 0 || offset == half_register)) &&
+                      !(stride == 4 && (offset == 0 || offset == 2));
+            } else {
+               const unsigned dst_byte_offset =
+                  reg_offset(inst->dst) % (reg_unit(devinfo) * REG_SIZE);
+
+               if (inst->is_math()) {
+                  /* Extended math: bf16 destination may be packed or strided.
+                   * Strided destination must align to either the lowest or the
+                   * second lowest bf16 of the fp32 execution channel.
+                   */
+                  return !(stride == 2 ||
+                           (stride == 4 &&
+                            (dst_byte_offset == 0 || dst_byte_offset == 2)));
+               } else if (is_format_conversion(inst) &&
+                          inst->src[0].type == BRW_TYPE_F) {
+                  /* "Register Alignment Rules for Format convert
+                   * instructions", Dst Restrictions:
+                   *
+                   *   "For down conversions to fp16/bf16, if destination is
+                   *    packed (stride is 1), Dst must be a GRF register and
+                   *    16bits elements must use offsets .0 or .16."
+                   */
+                  const unsigned dst_subreg =
+                     dst_byte_offset / brw_type_size_bytes(inst->dst.type);
+                  if (stride == 2)
+                     return !(inst->dst.is_grf() &&
+                              (dst_subreg == 0 || dst_subreg == 16));
+
+                  /* Otherwise the integer regioning rules apply: a word
+                   * destination can be aligned to word 0 or 1 of the dword
+                   * execution channel.
+                   */
+                  return !(stride == 4 &&
+                           (dst_byte_offset == 0 || dst_byte_offset == 2));
+               } else if (is_gfx35_bfloat_mixed_mode(devinfo, inst)) {
+                  /* "bf16 on destination must be strided to align all to the
+                   *  second lowest bf16 of the fp32 execution channel."
+                   */
+                  return !(stride == 4 &&
+                           dst_byte_offset ==
+                              required_dst_byte_offset(devinfo, inst));
+               } else {
+                  /* The remaining bf16 operations are raw moves, which
+                   * brw_lower_bfloat_conversion() turns into UW moves, and
+                   * MUL/MAD, whose bf16 operands brw_lower_alu_restrictions()
+                   * converts to F.
+                   */
+                  return false;
+               }
+            }
          } else {
             assert(inst->dst.type == BRW_TYPE_F);
             /* Restrict Floats sources mixed with BFloats to also be aligned and packed. */
@@ -688,9 +862,15 @@ namespace {
       const unsigned stride = required_dst_byte_stride(v->devinfo, inst) /
                               brw_type_size_bytes(inst->dst.type);
       assert(stride > 0);
-      brw_reg tmp = ibld.vgrf(inst->dst.type, stride);
+      const unsigned offset = brw_type_is_bfloat(inst->dst.type) ?
+         required_dst_byte_offset(v->devinfo, inst) : 0;
+      const unsigned size =
+         DIV_ROUND_UP(offset + inst->exec_size * stride *
+                      brw_type_size_bytes(inst->dst.type),
+                      reg_unit(v->devinfo) * REG_SIZE) * reg_unit(v->devinfo);
+      brw_reg tmp = retype(brw_allocate_vgrf_units(*v, size), inst->dst.type);
       ibld.UNDEF(tmp);
-      tmp = horiz_stride(tmp, stride);
+      tmp = byte_offset(horiz_stride(tmp, stride), offset);
 
       if (!inst->dst.is_null()) {
          /* Emit a series of 32-bit integer copies from the temporary into the
