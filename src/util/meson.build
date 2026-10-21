@@ -392,7 +392,11 @@ _libmesa_util = static_library(
 # hashed, and in practice it did in Freedreno and Intel drivers.
 # Forcing 2 flags below prevents it.
 idep_mesautil = declare_dependency(
-  sources : [shader_stats_h],
+  # While C targets pick up a dependency on u_format_gen.h from
+  # deps_for_libmesa_util -> idep_mesautilformat, rust targets don't recurse, so
+  # each user would each have to add idep_mesautilformat to their dependencies.
+  # Add it to the sources here so rust targets pick up the dep automatically.
+  sources : [shader_stats_h, u_format_gen_h],
   link_with : _libmesa_util,
   compile_args : [ '-DXXH_FORCE_ALIGN_CHECK=0', '-DXXH_FORCE_MEMORY_ACCESS=0' ],
   include_directories : [inc_util],
