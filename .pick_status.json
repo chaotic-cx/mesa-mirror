@@ -1494,7 +1494,7 @@
         "description": "pvr: Support pipeline executable properties VkPipelineCreateFlags2 flags",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ad14a81cc7b92c9572cfec5b1ada82135c954ff0",
         "notes": null
