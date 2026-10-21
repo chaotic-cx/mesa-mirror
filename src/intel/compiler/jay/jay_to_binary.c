@@ -207,7 +207,7 @@ to_gen_operand(
       unsigned offs_in_subblock_lanes = simd_offs_lanes % simd_width_block;
       unsigned subblock_idx = simd_offs_lanes / simd_width_block;
 
-      unsigned grf_size_B = jay_ugpr_per_grf(f->shader) * 4;
+      unsigned grf_size_B = jay_grf_size_B(f->shader);
       unsigned subblock_B = block.len_gpr * subblock_grf * grf_size_B;
       unsigned subblock_offs_B = subblock_idx * subblock_B;
       unsigned local_offs_B = offs_in_subblock_lanes * (stride_bits / 8);
@@ -422,18 +422,17 @@ emit(struct jay_codegen *jc,
       break;
 
    case JAY_OPCODE_DESWIZZLE_ODD: {
-      unsigned stride = jay_ugpr_per_grf(f->shader) * 4;
       bool hi = I->simd_offs == 0 ? true : jay_deswizzle_odd_src2_hi(I);
       gen->chan_offset = 0;
       gen->src[0] =
          gen_byte_offset(jc->devinfo,
                          to_gen_operand(f, I, I->simd_offs, 0, false),
-                         hi ? stride : 0);
+                         hi ? jay_grf_size_B(f->shader) : 0);
       break;
    }
 
    case JAY_OPCODE_DESWIZZLE_EVEN: {
-      unsigned stride = jay_ugpr_per_grf(f->shader) * 4;
+      unsigned stride = jay_grf_size_B(f->shader);
       gen->exec_size = jc->devinfo->ver < 20 ? 8 : 16;
       gen->dst = gen_byte_offset(jc->devinfo, gen->dst, stride);
       gen->src[0] = gen_byte_offset(jc->devinfo, gen->src[0],

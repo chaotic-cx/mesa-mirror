@@ -2834,8 +2834,7 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
          assert(intr->def.bit_size == 32 && "todo");
 
          assert(nir_src_is_const(intr->src[0]));
-         unsigned offs =
-            nir_src_as_uint(intr->src[0]) / (4 * jay_ugpr_per_grf(nj->s));
+         unsigned offs = nir_src_as_uint(intr->src[0]) / jay_grf_size_B(nj->s);
          jay_copy(b, dst,
                   jay_collect_vectors(b, nj->payload.vs.attributes + offs,
                                       intr->def.num_components));
@@ -4204,7 +4203,7 @@ setup_payload_push(struct nir_to_jay_state *nj, struct payload_builder *p)
       nj->payload.push_data[i] = read_payload(p, UGPR);
    }
 
-   nj->s->push_grfs = push_size_B / (4 * jay_ugpr_per_grf(nj->s));
+   nj->s->push_grfs = push_size_B / jay_grf_size_B(nj->s);
 }
 
 static void

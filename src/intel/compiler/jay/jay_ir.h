@@ -875,12 +875,15 @@ jay_new_shader(void *memctx, mesa_shader_stage stage)
 }
 
 static inline unsigned
+jay_grf_size_B(jay_shader *s)
+{
+   return reg_unit(s->devinfo) * 32;
+}
+
+static inline unsigned
 jay_ugpr_per_grf(jay_shader *s)
 {
-   unsigned B_per_unit = 32 /* see reg_unit */;
-   unsigned B_per_ugpr = 4;
-
-   return reg_unit(s->devinfo) * (B_per_unit / B_per_ugpr);
+   return jay_grf_size_B(s) / 4;
 }
 
 static inline unsigned
