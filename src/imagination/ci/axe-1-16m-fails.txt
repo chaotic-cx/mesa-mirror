@@ -50,4 +50,3 @@ dEQP-VK.transform_feedback.simple.draw_indirect_counter_buffer_offset_508,Fail
 dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_16,Fail
 dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_244,Fail
 dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_508,Fail
-dEQP-VK.transform_feedback.simple.max_output_components_64,Crash
