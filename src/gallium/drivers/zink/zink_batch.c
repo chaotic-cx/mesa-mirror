@@ -619,7 +619,7 @@ post_submit(struct zink_batch_state *bs, struct zink_screen *screen)
    if (bs->is_device_lost) {
       if (bs->ctx->reset.reset)
          bs->ctx->reset.reset(bs->ctx->reset.data, PIPE_GUILTY_CONTEXT_RESET);
-      else if (screen->abort_on_hang && !screen->robust_ctx_count)
+      else if (screen->abort_on_hang && !p_atomic_read_relaxed(&screen->robust_ctx_count))
          /* if nothing can save us, abort */
          abort();
       screen->device_lost = true;

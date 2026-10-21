@@ -91,7 +91,7 @@ zink_screen_handle_vkresult(struct zink_screen *screen, VkResult ret)
       screen->device_lost = true;
       mesa_loge("zink: DEVICE LOST!\n");
       /* if nothing can save us, abort */
-      if (screen->abort_on_hang && !screen->robust_ctx_count)
+      if (screen->abort_on_hang && !p_atomic_read_relaxed(&screen->robust_ctx_count))
          abort();
       FALLTHROUGH;
    default:
