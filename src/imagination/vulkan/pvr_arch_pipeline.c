@@ -1055,7 +1055,9 @@ static VkResult pvr_compute_pipeline_compile(
 
    pvr_compute_state_save(compute_pipeline, cs);
 
-   if (pCreateInfo->flags & VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR) {
+   if (pCreateInfo->flags & VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR ||
+       compute_pipeline->base.pipeline_flags &
+          VK_PIPELINE_CREATE_2_CAPTURE_STATISTICS_BIT_KHR) {
       struct pvr_stats stats = pco_get_pvr_stats(cs);
       compute_pipeline->cs_stats =
          vk_zalloc2(&device->vk.alloc,
@@ -1071,7 +1073,9 @@ static VkResult pvr_compute_pipeline_compile(
    }
 
    if (pCreateInfo->flags &
-       VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR) {
+          VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR ||
+       compute_pipeline->base.pipeline_flags &
+          VK_PIPELINE_CREATE_2_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR) {
       compute_pipeline->cs_nir_str = nir_shader_as_str(nir, NULL);
    }
 
@@ -1149,6 +1153,9 @@ pvr_compute_pipeline_init(struct pvr_device *device,
                           struct pvr_compute_pipeline *compute_pipeline)
 {
    VkResult result;
+
+   compute_pipeline->base.pipeline_flags =
+      vk_compute_pipeline_create_flags(pCreateInfo);
 
    pvr_pipeline_init(device,
                      PVR_PIPELINE_TYPE_COMPUTE,
@@ -3281,7 +3288,9 @@ pvr_graphics_pipeline_compile(struct pvr_device *const device,
 
    pvr_vertex_state_save(gfx_pipeline, *vs);
 
-   if (pCreateInfo->flags & VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR) {
+   if (pCreateInfo->flags & VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR ||
+       gfx_pipeline->base.pipeline_flags &
+          VK_PIPELINE_CREATE_2_CAPTURE_STATISTICS_BIT_KHR) {
       struct pvr_stats stats = pco_get_pvr_stats(*vs);
       gfx_pipeline->vs_stats = vk_zalloc2(&device->vk.alloc,
                                           allocator,
@@ -3296,7 +3305,9 @@ pvr_graphics_pipeline_compile(struct pvr_device *const device,
    }
 
    if (pCreateInfo->flags &
-       VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR) {
+          VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR ||
+       gfx_pipeline->base.pipeline_flags &
+          VK_PIPELINE_CREATE_2_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR) {
       gfx_pipeline->vs_nir_str =
          nir_shader_as_str(nir_shaders[MESA_SHADER_VERTEX], NULL);
    }
@@ -3323,7 +3334,9 @@ pvr_graphics_pipeline_compile(struct pvr_device *const device,
       pvr_fragment_state_save(gfx_pipeline, *fs);
       fragment_state->is_passthrough = build_fs_passthrough;
 
-      if (pCreateInfo->flags & VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR) {
+      if (pCreateInfo->flags & VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR ||
+          gfx_pipeline->base.pipeline_flags &
+             VK_PIPELINE_CREATE_2_CAPTURE_STATISTICS_BIT_KHR) {
          struct pvr_stats stats = pco_get_pvr_stats(*fs);
          gfx_pipeline->fs_stats = vk_zalloc2(&device->vk.alloc,
                                              allocator,
@@ -3338,7 +3351,9 @@ pvr_graphics_pipeline_compile(struct pvr_device *const device,
       }
 
       if (pCreateInfo->flags &
-          VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR) {
+             VK_PIPELINE_CREATE_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR ||
+          gfx_pipeline->base.pipeline_flags &
+             VK_PIPELINE_CREATE_2_CAPTURE_INTERNAL_REPRESENTATIONS_BIT_KHR) {
          gfx_pipeline->fs_nir_str =
             nir_shader_as_str(nir_shaders[MESA_SHADER_FRAGMENT], NULL);
       }
@@ -3550,6 +3565,9 @@ pvr_graphics_pipeline_init(struct pvr_device *device,
    struct vk_multiview_state mv_state;
    struct vk_render_pass_state rp_state;
    VkResult result;
+
+   gfx_pipeline->base.pipeline_flags =
+      vk_graphics_pipeline_create_flags(pCreateInfo);
 
    pvr_create_renderpass_state(pCreateInfo, &mv_state, &rp_state);
 

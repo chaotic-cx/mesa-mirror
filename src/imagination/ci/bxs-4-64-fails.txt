@@ -10,7 +10,6 @@ dEQP-VK.transform_feedback.simple.draw_indirect_multiview_counter_buffer_offset_
 dEQP-VK.transform_feedback.simple.max_output_components_64,Crash
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
-dEQP-VK.api.array.oversized_array.core.get_pipeline_executable_statistics,Crash
 dEQP-VK.api.object_management.alloc_callback_fail.buffer_storage_large,Fail
 dEQP-VK.api.object_management.alloc_callback_fail.buffer_storage_small,Fail
 dEQP-VK.api.object_management.alloc_callback_fail.buffer_uniform_large,Fail
