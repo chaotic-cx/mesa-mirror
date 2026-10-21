@@ -120,6 +120,10 @@ jay_print_def(FILE *fp,
       if (has_index)
          fprintf(fp, ")");
    }
+
+   if (def.size != JAY_SIZE_32) {
+      fprintf(fp, "ₕ");
+   }
 }
 
 static void

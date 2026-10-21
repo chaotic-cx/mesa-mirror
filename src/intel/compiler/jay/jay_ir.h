@@ -85,7 +85,15 @@ jay_normalize_uflag(enum jay_file x)
 #define JAY_MAX_PHYS_GRF             (256)
 #define JAY_MAX_ACCUMS               (4)
 #define JAY_NUM_UGPR                 (1024)
-#define JAY_REG_BITS                 (17)
+#define JAY_REG_BITS                 (16)
+
+/*
+ * Represents the size of a single Jay index.
+ */
+enum jay_size {
+   JAY_SIZE_16,
+   JAY_SIZE_32,
+};
 
 /*
  * An jay_def represents a contiguous array of registers or a 32-bit immediate.
@@ -142,6 +150,9 @@ typedef struct jay_def {
     * maintaining the canonical form.
     */
    bool collect:1;
+
+   /* The size of the individual SSA values. Unit for num_values_m1 */
+   enum jay_size size:1;
 } jay_def;
 static_assert(sizeof(jay_def) == 8, "packed");
 
@@ -158,6 +169,7 @@ jay_bare_regs(enum jay_file file, uint16_t reg, unsigned count)
       .reg = reg,
       .file = file,
       .num_values_m1 = count - 1,
+      .size = JAY_SIZE_32,
    };
 }
 
@@ -290,6 +302,7 @@ jay_contiguous_def(enum jay_file file, uint32_t index, unsigned count)
       ._payload = index,
       .file = file,
       .num_values_m1 = count - 1,
+      .size = JAY_SIZE_32,
    };
 }
 
@@ -357,7 +370,8 @@ jay_defs_equivalent(jay_def a, jay_def b)
 {
    if (a.file != b.file ||
        a.num_values_m1 != b.num_values_m1 ||
-       a.collect != b.collect)
+       a.collect != b.collect ||
+       a.size != b.size)
       return false;
 
    if (likely(!a.collect)) {
@@ -378,6 +392,7 @@ jay_regs_equal(jay_def a, jay_def b)
 {
    return a.file == b.file &&
           a.num_values_m1 == b.num_values_m1 &&
+          a.size == b.size &&
           a.reg == b.reg;
 }
 

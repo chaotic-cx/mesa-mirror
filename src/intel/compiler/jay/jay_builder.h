@@ -213,6 +213,7 @@ jay_collect(jay_builder *b,
             .file = file,
             .num_values_m1 = nr - 1,
             .collect = true,
+            .size = JAY_SIZE_32 /* TODO */,
          };
       }
    }
