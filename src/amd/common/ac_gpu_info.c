@@ -335,6 +335,7 @@ ac_fill_compiler_info(struct radeon_info *info, const struct drm_amdgpu_info_dev
    out->has_mad32 =
       info->gfx_level == GFX9 ? info->family <= CHIP_MI200 : info->gfx_level < GFX10_3;
    out->has_packed_math_16bit = info->gfx_level >= GFX9;
+   out->has_unpacked_d16 = info->gfx_level == GFX8 && info->family != CHIP_STONEY;
    out->has_accelerated_dot_product =
       info->family == CHIP_VEGA20 ||
       (info->family >= CHIP_MI100 && info->family != CHIP_NAVI10 && info->family != CHIP_GFX1013);
@@ -2190,6 +2191,7 @@ void ac_print_gpu_info(FILE *f, const struct radeon_info *info, int fd)
    fprintf(f, "    has_fma_mix = %i\n", info->compiler_info.has_fma_mix);
    fprintf(f, "    has_mad32 = %i\n", info->compiler_info.has_mad32);
    fprintf(f, "    has_packed_math_16bit = %i\n", info->compiler_info.has_packed_math_16bit);
+   fprintf(f, "    has_unpacked_d16 = %i\n", info->compiler_info.has_unpacked_d16);
    fprintf(f, "    has_accelerated_dot_product = %i\n", info->compiler_info.has_accelerated_dot_product);
    fprintf(f, "    has_image_bvh_intersect_ray = %i\n", info->compiler_info.has_image_bvh_intersect_ray);
    fprintf(f, "    has_ngg_passthru_no_msg = %i\n", info->compiler_info.has_ngg_passthru_no_msg);
