@@ -5036,10 +5036,10 @@ jay_compile_simd(const struct intel_device_info *devinfo,
          s->post_acc = true;
       }
 
+      JAY_PASS(s, jay_reg_unit_old_to_new);
       JAY_PASS(s, jay_opt_predicate);
    }
 
-   JAY_PASS(s, jay_reg_unit_old_to_new);
    JAY_PASS(s, jay_lower_simd_width);
    JAY_PASS(s, jay_schedule);
 
