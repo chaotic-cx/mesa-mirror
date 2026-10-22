@@ -1019,11 +1019,36 @@ ac_nir_repack_invocations_in_workgroup(nir_builder *b, nir_def **input_bool,
 }
 
 uint8_t
-ac_nir_lower_phis_to_scalar_cb(const nir_instr *instr, const void *_)
+ac_nir_lower_phis_to_scalar_cb(const nir_instr *instr, const void *_compiler_info)
 {
+   const struct ac_compiler_info *compiler_info = _compiler_info;
+
    nir_phi_instr *phi = nir_instr_as_phi(instr);
    if (phi->def.bit_size == 1 || phi->def.bit_size >= 32)
       return 1;
+
+   /* Split phis that use unpacked D16 results, otherwise they create movs. */
+   if (compiler_info && compiler_info->has_unpacked_d16 && phi->def.bit_size == 16) {
+      nir_foreach_phi_src(src, phi) {
+         nir_scalar scalar = nir_scalar_resolved(src->src.ssa, 0);
+
+         if (nir_scalar_is_tex(scalar)) {
+            return 1;
+         } else if (nir_scalar_is_intrinsic(scalar)) {
+            nir_intrinsic_instr *intrin = nir_scalar_as_intrinsic(scalar);
+
+            switch (intrin->intrinsic) {
+            case nir_intrinsic_image_load: return 1;
+            case nir_intrinsic_load_buffer_amd:
+               if (nir_intrinsic_access(intrin) & ACCESS_USES_FORMAT_AMD)
+                  return 1;
+               break;
+            default:
+               break;
+            }
+         }
+      }
+   }
 
    return 32 / phi->def.bit_size;
 }
