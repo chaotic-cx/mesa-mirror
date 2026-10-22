@@ -1741,9 +1741,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
                      !util_format_is_pure_integer(blit->dst.format);
    key.last_dst_channel = key.format_is_96bit ? 0 : util_format_get_last_component(blit->dst.format);
 
-   /* ACO doesn't support D16 on GFX8 */
-   bool has_d16 = info->gfx_level >= (key.use_aco || options->use_aco ? GFX9 : GFX8) &&
-                  !key.dst_is_rgb5;
+   bool has_d16 = info->gfx_level >= GFX8 && !key.dst_is_rgb5;
 
    if (is_clear) {
       assert(dst_samples <= 8);
