@@ -564,7 +564,7 @@ radv_postprocess_nir(const struct radv_compiler_info *compiler_info, const struc
 
       NIR_PASS(_, stage->nir, nir_lower_bit_size, ac_nir_lower_bit_size_callback, &gfx_level);
    }
-   if (gfx_level >= GFX9) {
+   if (gfx_level >= GFX8) {
       bool run_copy_prop = false;
       NIR_PASS(run_copy_prop, stage->nir, ac_nir_opt_16bit_tex_image, gfx_level);
 
@@ -578,7 +578,7 @@ radv_postprocess_nir(const struct radv_compiler_info *compiler_info, const struc
          NIR_PASS(_, stage->nir, nir_opt_dce);
       }
 
-      if (!stage->key.optimisations_disabled) {
+      if (!stage->key.optimisations_disabled && compiler_info->ac->has_packed_math_16bit) {
          NIR_PASS(_, stage->nir, nir_opt_vectorize, ac_nir_opt_vectorize_cb, &gfx_level);
       }
    }
