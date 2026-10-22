@@ -694,7 +694,7 @@
         "description": "panvk: Correct maxUniformBufferRange for older archs",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "d5ed77800e04fee670dbc1091d98490e4fa470ce",
         "notes": null
