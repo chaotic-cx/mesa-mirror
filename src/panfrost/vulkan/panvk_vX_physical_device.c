@@ -876,9 +876,9 @@ panvk_per_arch(get_physical_device_properties)(
       .maxImageArrayLayers = (1 << 16),
       .maxTexelBufferElements = UINT64_C(1) << (util_logbase2(panvk_get_max_buffer_size(device) / 16)),
       /* Each uniform entry is 16-byte and the number of entries is encoded in a
-       * 12-bit field, with the minus(1) modifier, which gives 2^20.
+       * 12-bit field, with the minus(1) modifier, which gives 2^16.
        */
-      .maxUniformBufferRange = 1 << 20,
+      .maxUniformBufferRange = 1 << 16,
       /* Storage buffer access is lowered to globals, so there's no limit here,
        * except for the SW-descriptor we use to encode storage buffer
        * descriptors, where the size is a 32-bit field.
