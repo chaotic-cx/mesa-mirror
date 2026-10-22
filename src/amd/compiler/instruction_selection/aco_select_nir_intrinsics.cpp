@@ -679,6 +679,8 @@ mubuf_load_format_callback(Builder& bld, const LoadEmitInfo& info, unsigned byte
       }
    }
 
+   bool unpacked_d16 = info.component_size == 2 && bld.program->dev.has_unpacked_d16;
+
    aco_ptr<Instruction> mubuf{
       create_instruction(op, Format::MUBUF, 3 + info.tfe + 2 * info.disable_wqm, 1)};
    mubuf->operands[0] = Operand(info.resource);
@@ -690,13 +692,37 @@ mubuf_load_format_callback(Builder& bld, const LoadEmitInfo& info, unsigned byte
    mubuf->mubuf().sync = info.sync;
    mubuf->mubuf().offset = info.const_offset;
    mubuf->mubuf().tfe = info.tfe;
-   RegClass rc = RegClass::get(RegType::vgpr, bytes_needed);
-   Temp val = rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
+   RegClass rc = RegClass::get(RegType::vgpr, bytes_needed * (unpacked_d16 ? 2 : 1));
+   Temp val = !unpacked_d16 && rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
    if (info.tfe)
       mubuf->operands[3] = emit_tfe_init(bld, val);
    init_disable_wqm(bld, mubuf->mubuf(), info.disable_wqm);
    mubuf->definitions[0] = Definition(val);
    bld.insert(std::move(mubuf));
+
+   if (unpacked_d16) {
+      rc = RegClass::get(RegType::vgpr, bytes_needed);
+      Temp unpacked_val = val;
+      val = rc == info.dst.regClass() ? info.dst : bld.tmp(rc);
+
+      unsigned num_components = bytes_needed / 2;
+      aco_ptr<Instruction> split{
+         create_instruction(aco_opcode::p_split_vector, Format::PSEUDO, 1, num_components * 2)};
+      split->operands[0] = Operand(unpacked_val);
+
+      aco_ptr<Instruction> vec{
+         create_instruction(aco_opcode::p_create_vector, Format::PSEUDO, num_components, 1)};
+      vec->definitions[0] = Definition(val);
+
+      for (unsigned i = 0; i < num_components; i++) {
+         split->definitions[i * 2] = bld.def(v2b);
+         split->definitions[i * 2 + 1] = bld.def(v2b);
+         vec->operands[i] = Operand(split->definitions[i * 2].getTemp());
+      }
+
+      bld.insert(std::move(split));
+      bld.insert(std::move(vec));
+   }
 
    return val;
 }
