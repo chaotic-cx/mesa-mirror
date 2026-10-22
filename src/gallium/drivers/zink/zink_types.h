@@ -643,7 +643,6 @@ struct zink_batch_state {
    struct util_dynarray fences; //zink_tc_fence refs
 
    VkSemaphore present;
-   struct zink_resource *swapchain;
    struct util_dynarray acquires;
    struct util_dynarray acquire_flags;
 

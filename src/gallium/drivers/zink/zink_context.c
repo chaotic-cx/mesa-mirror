@@ -176,6 +176,7 @@ zink_context_destroy(struct pipe_context *pctx)
       util_blitter_destroy(ctx->blitter);
 
    pipe_resource_reference(&ctx->dummy_xfb_buffer, NULL);
+   zink_resource_reference(&ctx->swapchain, NULL);
 
    zink_descriptors_deinit_bindless(ctx);
 
@@ -4902,7 +4903,7 @@ zink_flush_resource(struct pipe_context *pctx,
       } else {
          zink_resource_reference(&ctx->needs_present, res);
       }
-      ctx->swapchain = res;
+      zink_resource_reference(&ctx->swapchain, res);
    } else if (res->dmabuf)
       res->queue = VK_QUEUE_FAMILY_FOREIGN_EXT;
 }

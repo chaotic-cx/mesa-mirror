@@ -139,7 +139,6 @@ reset_batch_state_internal(struct zink_screen *screen, struct zink_batch_state *
       util_dynarray_clear(&bs->fd_wait_semaphores);
       simple_mtx_unlock(&screen->semaphores_lock);
    }
-   bs->swapchain = NULL;
 
    util_dynarray_foreach(&bs->fences, struct zink_tc_fence*, mfence)
       zink_fence_reference(screen, mfence, NULL);
@@ -909,11 +908,9 @@ zink_end_batch(struct zink_context *ctx)
 
    /* this is swapchain presentation semaphore handling */
    if (ctx->swapchain) {
-      if (zink_kopper_acquired(ctx->swapchain->obj->dt, zink_kopper_get_dt_idx(ctx->swapchain)) && !ctx->swapchain->obj->present) {
+      if (zink_kopper_acquired(ctx->swapchain->obj->dt, zink_kopper_get_dt_idx(ctx->swapchain)) && !ctx->swapchain->obj->present)
          bs->present = zink_kopper_present(screen, ctx->swapchain);
-         bs->swapchain = ctx->swapchain;
-      }
-      ctx->swapchain = NULL;
+      zink_resource_reference(&ctx->swapchain, NULL);
    }
 
    if (screen->device_lost)
