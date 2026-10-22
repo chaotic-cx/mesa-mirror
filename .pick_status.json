@@ -484,7 +484,7 @@
         "description": "st/mesa: use a new pixel map texture for each update",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "25b97a3a96aa5937fbbbe5ac114f73b1340ff49e",
         "notes": null

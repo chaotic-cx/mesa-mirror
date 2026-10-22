@@ -90,13 +90,14 @@ st_update_pixel_transfer(struct st_context *st)
    struct gl_context *ctx = st->ctx;
 
    if (ctx->Pixel.MapColorFlag) {
-      /* create the colormap/texture now if not already done */
-      if (!st->pixel_xfer.pixelmap_texture) {
-         st->pixel_xfer.pixelmap_texture = st_create_color_map_texture(ctx);
-         st->pixel_xfer.pixelmap_sampler_view =
-            st_create_texture_sampler_view(st->pipe,
-                                           st->pixel_xfer.pixelmap_texture);
-      }
+      /* draws in flight may still sample the old map, so use a new texture */
+      st->pipe->sampler_view_release(st->pipe,
+                                     st->pixel_xfer.pixelmap_sampler_view);
+      pipe_resource_reference(&st->pixel_xfer.pixelmap_texture, NULL);
+      st->pixel_xfer.pixelmap_texture = st_create_color_map_texture(ctx);
+      st->pixel_xfer.pixelmap_sampler_view =
+         st_create_texture_sampler_view(st->pipe,
+                                        st->pixel_xfer.pixelmap_texture);
       load_color_map_texture(ctx, st->pixel_xfer.pixelmap_texture);
    }
 }
