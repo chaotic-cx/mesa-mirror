@@ -1381,8 +1381,10 @@ st_DrawPixels(struct gl_context *ctx, GLint x, GLint y,
                             ctx->Current.RasterColor,
                             GL_FALSE, write_depth, write_stencil);
 
-         for (int i = 0; i < num_sampler_view; i++)
-            st->pipe->sampler_view_release(st->pipe, sv[i]);
+         /* sv[1] is the shared pixel map view unless it's a stencil view */
+         st->pipe->sampler_view_release(st->pipe, sv[0]);
+         if (write_stencil)
+            st->pipe->sampler_view_release(st->pipe, sv[1]);
          pipe_resource_reference(&pt, NULL);
       }
    }
