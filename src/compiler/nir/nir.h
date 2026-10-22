@@ -3541,6 +3541,13 @@ nir_alu_src_comp_get_uint(nir_alu_src src, unsigned comp, uint64_t *value)
    return false;
 }
 
+static inline double
+nir_alu_src_comp_as_float(nir_alu_src src, unsigned comp)
+{
+   nir_scalar scalar = nir_scalar_resolved(src.src.ssa, src.swizzle[comp]);
+   return nir_scalar_as_float(scalar);
+}
+
 typedef struct nir_binding {
    bool success;
 
