@@ -49,6 +49,45 @@ vn_descriptor_set_destroy(struct vn_device *dev,
 
 /* descriptor set layout commands */
 
+static const VkDescriptorSetLayoutCreateInfo *
+vn_descriptor_set_layout_fix_create_info(
+   const VkDescriptorSetLayoutCreateInfo *info,
+   VkDescriptorSetLayoutCreateInfo *local_info,
+   VkDescriptorSetLayoutBinding *local_bindings,
+   uint32_t *out_last_binding)
+{
+   uint32_t last_binding = 0;
+
+   if (info->bindingCount) {
+      typed_memcpy(local_bindings, info->pBindings, info->bindingCount);
+
+      for (uint32_t i = 0; i < info->bindingCount; i++) {
+         VkDescriptorSetLayoutBinding *binding = &local_bindings[i];
+
+         if (last_binding < binding->binding)
+            last_binding = binding->binding;
+
+         switch (binding->descriptorType) {
+         case VK_DESCRIPTOR_TYPE_SAMPLER:
+         case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+            break;
+         default:
+            binding->pImmutableSamplers = NULL;
+            break;
+         }
+      }
+
+      *local_info = *info;
+      local_info->pBindings = local_bindings;
+      info = local_info;
+   }
+
+   if (out_last_binding)
+      *out_last_binding = last_binding;
+
+   return info;
+}
+
 VKAPI_ATTR void VKAPI_CALL
 vn_GetDescriptorSetLayoutSupport(
    VkDevice device,
@@ -168,31 +207,9 @@ vn_CreateDescriptorSetLayout(
                pCreateInfo->bindingCount);
 
    uint32_t last_binding = 0;
-   VkDescriptorSetLayoutCreateInfo local_create_info;
-   if (pCreateInfo->bindingCount) {
-      typed_memcpy(bindings, pCreateInfo->pBindings,
-                   pCreateInfo->bindingCount);
-
-      for (uint32_t i = 0; i < pCreateInfo->bindingCount; i++) {
-         VkDescriptorSetLayoutBinding *binding = &bindings[i];
-
-         if (last_binding < binding->binding)
-            last_binding = binding->binding;
-
-         switch (binding->descriptorType) {
-         case VK_DESCRIPTOR_TYPE_SAMPLER:
-         case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-            break;
-         default:
-            binding->pImmutableSamplers = NULL;
-            break;
-         }
-      }
-
-      local_create_info = *pCreateInfo;
-      local_create_info.pBindings = bindings;
-      pCreateInfo = &local_create_info;
-   }
+   VkDescriptorSetLayoutCreateInfo local_info;
+   pCreateInfo = vn_descriptor_set_layout_fix_create_info(
+      pCreateInfo, &local_info, bindings, &last_binding);
 
    const size_t layout_size =
       offsetof(struct vn_descriptor_set_layout, bindings[last_binding + 1]);
