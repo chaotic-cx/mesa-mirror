@@ -215,8 +215,11 @@ is_pos_prim_export(amd_gfx_level gfx_level, const Instruction* instr)
 static bool
 is_pops_end_export(Program* program, const Instruction* instr)
 {
-   return program->gfx_level >= GFX11 && instr->opcode == aco_opcode::exp &&
-          instr->exp().dest <= V_008DFC_SQ_EXP_NULL && program->has_pops_overlapped_waves_wait;
+   if (program->gfx_level < GFX11 || !program->has_pops_overlapped_waves_wait ||
+       program->stage.hw != AC_HW_PIXEL_SHADER)
+      return false;
+   return (instr->opcode == aco_opcode::exp && instr->exp().dest <= V_008DFC_SQ_EXP_NULL) ||
+          instr->opcode == aco_opcode::p_jump_to_epilog || instr->opcode == aco_opcode::s_setpc_b64;
 }
 
 static bool
