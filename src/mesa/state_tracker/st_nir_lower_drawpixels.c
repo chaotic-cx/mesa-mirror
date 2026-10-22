@@ -146,8 +146,8 @@ lower_color(nir_builder *b, lower_drawpixels_state *state, nir_intrinsic_instr *
       def = nir_vec4(b,
                      nir_channel(b, def_xy, 0),
                      nir_channel(b, def_xy, 1),
-                     nir_channel(b, def_zw, 0),
-                     nir_channel(b, def_zw, 1));
+                     nir_channel(b, def_zw, 2),
+                     nir_channel(b, def_zw, 3));
    }
 
    nir_def_rewrite_uses(&intr->def, def);

@@ -494,7 +494,7 @@
         "description": "st/mesa: read the b and a pixel maps from the right channels",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "12c18ce4763d3982a52318365f45c4535aac0567",
         "notes": null
