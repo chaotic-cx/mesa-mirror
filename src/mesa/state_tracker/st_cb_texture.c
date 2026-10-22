@@ -3842,9 +3842,13 @@ st_SetTextureStorageForMemoryObject(struct gl_context *ctx,
                                     GLsizei height, GLsizei depth,
                                     GLuint64 offset, const char *func)
 {
-   return st_texture_storage(ctx, texObj, levels,
-                             width, height, depth,
-                             memObj, offset, func);
+   if (!st_texture_storage(ctx, texObj, levels,
+                           width, height, depth,
+                           memObj, offset, func))
+      return GL_FALSE;
+
+   texObj->FromMemoryObject = true;
+   return GL_TRUE;
 }
 
 GLboolean

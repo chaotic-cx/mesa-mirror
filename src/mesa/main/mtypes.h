@@ -948,6 +948,7 @@ struct gl_texture_object
 
    /** GL_EXT_memory_object */
    GLenum16 TextureTiling;
+   bool FromMemoryObject; /**< the storage is a memory object's */
 
    /** GL_ARB_texture_buffer_object */
    GLenum16 BufferObjectFormat;
