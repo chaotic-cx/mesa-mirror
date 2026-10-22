@@ -31,11 +31,30 @@ extern "C" {
 
 #include <vulkan/vulkan_core.h>
 
+struct vk_sorted_bindings {
+   uint32_t count;
+   const VkDescriptorSetLayoutBinding *bindings;
+   /* 0 if not provided by VkDescriptorSetLayoutBindingFlagsCreateInfo */
+   const VkDescriptorBindingFlags *flags;
+   /* Only valid for VK_DESCRIPTOR_TYPE_MUTABLE_EXT bindings, empty otherwise */
+   const VkMutableDescriptorTypeListEXT *mutable_type_lists;
+};
+
+struct vk_device;
+
+/* alloc may be NULL, in which case device->alloc is used. The result must be
+ * freed with vk_destroy_sorted_bindings() using the same alloc.
+ */
 VkResult
-vk_create_sorted_bindings(const VkDescriptorSetLayoutBinding *bindings, unsigned count,
-                          VkDescriptorSetLayoutBinding **sorted_bindings,
-                          const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags_info,
-                          VkDescriptorBindingFlags **sorted_binding_flags);
+vk_create_sorted_bindings(struct vk_device *device,
+                          const VkDescriptorSetLayoutCreateInfo *create_info,
+                          const VkAllocationCallbacks *alloc,
+                          struct vk_sorted_bindings **sorted);
+
+void
+vk_destroy_sorted_bindings(struct vk_device *device,
+                           const VkAllocationCallbacks *alloc,
+                           struct vk_sorted_bindings *sorted);
 
 #ifdef __cplusplus
 }

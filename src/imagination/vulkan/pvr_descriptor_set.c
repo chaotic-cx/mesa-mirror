@@ -119,29 +119,12 @@ VkResult pvr_CreateDescriptorSetLayout(
    VkDescriptorSetLayout *pSetLayout)
 {
    VK_FROM_HANDLE(pvr_device, device, _device);
-   VkDescriptorSetLayoutBinding *bindings;
    uint32_t binding_count = 0;
    uint32_t immutable_sampler_count = 0;
    uint32_t dynamic_buffer_count = 0;
    uint32_t descriptor_count = 0;
    VkResult result = VK_SUCCESS;
-   const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags_create_info =
-      NULL;
-   VkDescriptorBindingFlags *binding_flags = NULL;
-
-   assert(pCreateInfo->sType ==
-          VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
-
-   vk_foreach_struct_const (sType, ext, pCreateInfo->pNext) {
-      switch (sType) {
-      case VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO:
-         binding_flags_create_info =
-            (const VkDescriptorSetLayoutBindingFlagsCreateInfo *)ext;
-         break;
-      default:
-         vk_debug_ignored_stype(sType);
-      }
-   }
+   struct vk_sorted_bindings *sorted;
 
    for (unsigned u = 0; u < pCreateInfo->bindingCount; ++u) {
       const VkDescriptorSetLayoutBinding *binding = &pCreateInfo->pBindings[u];
@@ -154,15 +137,12 @@ VkResult pvr_CreateDescriptorSetLayout(
          dynamic_buffer_count += binding->descriptorCount;
    }
 
-   result = vk_create_sorted_bindings(pCreateInfo->pBindings,
-                                      pCreateInfo->bindingCount,
-                                      &bindings,
-                                      binding_flags_create_info,
-                                      &binding_flags);
+   result = vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
 
    if (result != VK_SUCCESS)
       return vk_error(device, result);
 
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
    if (bindings)
       binding_count = bindings[pCreateInfo->bindingCount - 1].binding + 1;
 
@@ -219,7 +199,7 @@ VkResult pvr_CreateDescriptorSetLayout(
 
       layout_binding->type = binding->descriptorType;
 
-      layout_binding->flags = binding_flags ? binding_flags[b] : 0;
+      layout_binding->flags = sorted->flags[b];
 
       layout_binding->descriptor_count = binding->descriptorCount;
       layout_binding->stage_flags = binding->stageFlags;
@@ -242,15 +222,14 @@ VkResult pvr_CreateDescriptorSetLayout(
 
    assert(dynamic_buffer_count == dynamic_buffer_idx);
 
-   free(bindings);
-   free(binding_flags);
+   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
 
    *pSetLayout = pvr_descriptor_set_layout_to_handle(layout);
 
    return VK_SUCCESS;
 
 err_free_bindings:
-   free(bindings);
+   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
 
    return result;
 }

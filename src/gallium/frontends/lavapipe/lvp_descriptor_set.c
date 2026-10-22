@@ -150,14 +150,15 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
    set_layout->shader_stages = 0;
    set_layout->size = 0;
 
-   VkDescriptorSetLayoutBinding *bindings = NULL;
-   VkResult result = vk_create_sorted_bindings(pCreateInfo->pBindings,
-                                               pCreateInfo->bindingCount,
-                                               &bindings, NULL, NULL);
+   struct vk_sorted_bindings *sorted;
+   VkResult result =
+      vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
    if (result != VK_SUCCESS) {
       vk_descriptor_set_layout_unref(&device->vk, &set_layout->vk);
       return vk_error(device, result);
    }
+
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
 
    uint32_t uniform_block_size = 0;
 
@@ -228,7 +229,7 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
    for (uint32_t i = 0; i < pCreateInfo->bindingCount; i++)
       set_layout->binding[i].uniform_block_offset += set_layout->size;
 
-   free(bindings);
+   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
 
    set_layout->dynamic_offset_count = dynamic_offset_count;
 

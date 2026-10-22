@@ -261,15 +261,15 @@ dzn_descriptor_set_layout_create(struct dzn_device *device,
       }
    }
 
-   VkDescriptorSetLayoutBinding *ordered_bindings;
+   struct vk_sorted_bindings *sorted;
    VkResult ret =
-      vk_create_sorted_bindings(pCreateInfo->pBindings,
-                                pCreateInfo->bindingCount,
-                                &ordered_bindings, NULL, NULL);
+      vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
    if (ret != VK_SUCCESS) {
       vk_descriptor_set_layout_destroy(&device->vk, &set_layout->vk);
       return ret;
    }
+
+   const VkDescriptorSetLayoutBinding *ordered_bindings = sorted->bindings;
 
    assert(binding_count ==
           (pCreateInfo->bindingCount ?
@@ -443,7 +443,7 @@ dzn_descriptor_set_layout_create(struct dzn_device *device,
       }
    }
 
-   free(ordered_bindings);
+   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
 
    *out = dzn_descriptor_set_layout_to_handle(set_layout);
    return VK_SUCCESS;

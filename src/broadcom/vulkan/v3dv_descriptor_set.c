@@ -720,14 +720,15 @@ v3dv_CreateDescriptorSetLayout(VkDevice _device,
 
    assert(pCreateInfo->bindingCount == 0 || num_bindings > 0);
 
-   VkDescriptorSetLayoutBinding *bindings = NULL;
-   VkResult result = vk_create_sorted_bindings(pCreateInfo->pBindings,
-                                               pCreateInfo->bindingCount, &bindings,
-                                               NULL, NULL);
+   struct vk_sorted_bindings *sorted;
+   VkResult result =
+      vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
    if (result != VK_SUCCESS) {
       v3dv_descriptor_set_layout_destroy(device, set_layout);
       return vk_error(device, result);
    }
+
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
 
    set_layout->binding_count = num_bindings;
    set_layout->flags = pCreateInfo->flags;
@@ -825,7 +826,7 @@ v3dv_CreateDescriptorSetLayout(VkDevice _device,
       }
    }
 
-   free(bindings);
+   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
 
    set_layout->descriptor_count = descriptor_count;
    set_layout->dynamic_offset_count = dynamic_offset_count;
@@ -1404,13 +1405,15 @@ v3dv_GetDescriptorSetLayoutSupport(
    VkDescriptorSetLayoutSupport *pSupport)
 {
    V3DV_FROM_HANDLE(v3dv_device, device, _device);
-   VkDescriptorSetLayoutBinding *bindings = NULL;
-   VkResult result = vk_create_sorted_bindings(
-      pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
+   struct vk_sorted_bindings *sorted;
+   VkResult result =
+      vk_create_sorted_bindings(&device->vk, pCreateInfo, NULL, &sorted);
    if (result != VK_SUCCESS) {
       pSupport->supported = false;
       return;
    }
+
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
 
    bool supported = true;
 
@@ -1436,7 +1439,7 @@ v3dv_GetDescriptorSetLayoutSupport(
       bo_size += binding->descriptorCount * desc_bo_size;
    }
 
-   free(bindings);
+   vk_destroy_sorted_bindings(&device->vk, NULL, sorted);
 
    pSupport->supported = supported;
 }

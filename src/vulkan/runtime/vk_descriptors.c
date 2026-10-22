@@ -27,85 +27,89 @@
 #include "vk_descriptors.h"
 #include "vk_common_entrypoints.h"
 #include "util/macros.h"
-
-struct binding_with_flags {
-   VkDescriptorSetLayoutBinding binding;
-   VkDescriptorBindingFlags flags;
-};
+#include "util/u_qsort.h"
+#include "vk_alloc.h"
+#include "vk_device.h"
+#include "vk_util.h"
 
 static int
-binding_compare(const void* av, const void *bv)
+binding_index_compare(const void *av, const void *bv, void *data)
 {
-   const struct binding_with_flags *a = (const struct binding_with_flags*)av;
-   const struct binding_with_flags *b = (const struct binding_with_flags*)bv;
- 
-   return (a->binding.binding < b->binding.binding) ? -1 :
-          (a->binding.binding > b->binding.binding) ? 1 : 0;
+   const VkDescriptorSetLayoutBinding *bindings = data;
+   uint32_t a = bindings[*(const uint32_t *)av].binding;
+   uint32_t b = bindings[*(const uint32_t *)bv].binding;
+
+   return (a > b) - (a < b);
 }
- 
+
 VkResult
-vk_create_sorted_bindings(const VkDescriptorSetLayoutBinding *bindings, unsigned count,
-                          VkDescriptorSetLayoutBinding **sorted_bindings,
-                          const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags_info,
-                          VkDescriptorBindingFlags **sorted_binding_flags)
+vk_create_sorted_bindings(struct vk_device *device,
+                          const VkDescriptorSetLayoutCreateInfo *create_info,
+                          const VkAllocationCallbacks *alloc,
+                          struct vk_sorted_bindings **sorted_out)
 {
-   struct binding_with_flags *bwfs;
-   unsigned index;
+   const uint32_t count = create_info->bindingCount;
+   const VkDescriptorSetLayoutBindingFlagsCreateInfo *flags_info =
+      vk_find_struct_const(create_info->pNext,
+                           DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
+   const VkMutableDescriptorTypeCreateInfoEXT *mutable_info =
+      vk_find_struct_const(create_info->pNext,
+                           MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
 
-   if (!count) {
-      *sorted_bindings = NULL;
-      if (sorted_binding_flags)
-         *sorted_binding_flags = NULL;
-      return VK_SUCCESS;
-   }
+   assert(!flags_info || !flags_info->bindingCount ||
+          flags_info->bindingCount == count);
 
-   *sorted_bindings = malloc(count * sizeof(VkDescriptorSetLayoutBinding));
-   if (!*sorted_bindings)
+   VK_MULTIALLOC(ma);
+   VK_MULTIALLOC_DECL(&ma, struct vk_sorted_bindings, sorted, 1);
+   VK_MULTIALLOC_DECL(&ma, VkDescriptorSetLayoutBinding, bindings, count);
+   VK_MULTIALLOC_DECL(&ma, VkDescriptorBindingFlags, flags, count);
+   VK_MULTIALLOC_DECL(&ma, VkMutableDescriptorTypeListEXT, mutable_type_lists,
+                      count);
+   VK_MULTIALLOC_DECL(&ma, uint32_t, indices, count);
+
+   *sorted_out = NULL;
+   if (!vk_multialloc_zalloc2(&ma, &device->alloc, alloc,
+                              VK_SYSTEM_ALLOCATION_SCOPE_COMMAND))
       return VK_ERROR_OUT_OF_HOST_MEMORY;
 
-   if (binding_flags_info && !binding_flags_info->bindingCount)
-      binding_flags_info = NULL;
+   for (uint32_t i = 0; i < count; i++)
+      indices[i] = i;
 
-   if (binding_flags_info) {
-      assert(sorted_binding_flags);
-      assert(binding_flags_info->bindingCount == count);
+   if (count > 1)
+      util_qsort_r(indices, count, sizeof(*indices), binding_index_compare,
+                   (void *)create_info->pBindings);
 
-      *sorted_binding_flags = malloc(count * sizeof(VkDescriptorBindingFlags));
-      if (!*sorted_binding_flags) {
-         free(*sorted_bindings);
-         return VK_ERROR_OUT_OF_HOST_MEMORY;
+   for (uint32_t i = 0; i < count; i++) {
+      const uint32_t pbindings_idx = indices[i];
+
+      bindings[i] = create_info->pBindings[pbindings_idx];
+
+      if (flags_info && pbindings_idx < flags_info->bindingCount)
+         flags[i] = flags_info->pBindingFlags[pbindings_idx];
+
+      if (bindings[i].descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
+         assert(mutable_info &&
+                pbindings_idx < mutable_info->mutableDescriptorTypeListCount);
+         mutable_type_lists[i] =
+            mutable_info->pMutableDescriptorTypeLists[pbindings_idx];
       }
    }
 
-   bwfs = malloc(count * sizeof(struct binding_with_flags));
-   if (!bwfs) {
-      if (binding_flags_info)
-         free(*sorted_binding_flags);
-      free(*sorted_bindings);
-      return VK_ERROR_OUT_OF_HOST_MEMORY;
-   }
+   sorted->count = count;
+   sorted->bindings = bindings;
+   sorted->flags = flags;
+   sorted->mutable_type_lists = mutable_type_lists;
+   *sorted_out = sorted;
 
-   for (index = 0; index < count; index++) {
-      memcpy(&bwfs[index].binding, &bindings[index],
-             sizeof(VkDescriptorSetLayoutBinding));
-      if (binding_flags_info)
-         bwfs[index].flags = binding_flags_info->pBindingFlags[index];
-      else
-         bwfs[index].flags = 0;
-   }
-
-   qsort(bwfs, count, sizeof(struct binding_with_flags), binding_compare);
-
-   for (index = 0; index < count; index++) {
-      memcpy(&(*sorted_bindings)[index], &bwfs[index].binding,
-             sizeof(VkDescriptorSetLayoutBinding));
-      if (binding_flags_info)
-         (*sorted_binding_flags)[index] = bwfs[index].flags;
-   }
-
-   free(bwfs);
- 
    return VK_SUCCESS;
+}
+
+void
+vk_destroy_sorted_bindings(struct vk_device *device,
+                           const VkAllocationCallbacks *alloc,
+                           struct vk_sorted_bindings *sorted)
+{
+   vk_free2(&device->alloc, alloc, sorted);
 }
 
 /*

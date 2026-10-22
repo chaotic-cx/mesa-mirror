@@ -93,18 +93,22 @@ panvk_per_arch(CreateDescriptorSetLayout)(
    const VkAllocationCallbacks *pAllocator, VkDescriptorSetLayout *pSetLayout)
 {
    VK_FROM_HANDLE(panvk_device, device, _device);
-   VkDescriptorSetLayoutBinding *bindings = NULL;
    unsigned num_bindings = 0;
    VkResult result;
-   const VkDescriptorSetLayoutBindingFlagsCreateInfo *binding_flags_info =
-      vk_find_struct_const(pCreateInfo->pNext,
-                           DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
-   VkDescriptorBindingFlags *sorted_binding_flags = NULL;
+   struct vk_sorted_bindings *sorted;
+
+   result = vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
+   if (result != VK_SUCCESS)
+      return panvk_error(device, result);
+
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
+   if (sorted->count) {
+      num_bindings = bindings[sorted->count - 1].binding + 1;
+   }
 
    unsigned immutable_sampler_count = 0;
-   for (uint32_t j = 0; j < pCreateInfo->bindingCount; j++) {
-      const VkDescriptorSetLayoutBinding *binding = &pCreateInfo->pBindings[j];
-      num_bindings = MAX2(num_bindings, binding->binding + 1);
+   for (uint32_t j = 0; j < sorted->count; j++) {
+      const VkDescriptorSetLayoutBinding *binding = &bindings[j];
 
       /* From the Vulkan 1.1.97 spec for VkDescriptorSetLayoutBinding:
        *
@@ -121,17 +125,6 @@ panvk_per_arch(CreateDescriptorSetLayout)(
          immutable_sampler_count += binding->descriptorCount;
    }
 
-   if (pCreateInfo->bindingCount) {
-      result = vk_create_sorted_bindings(pCreateInfo->pBindings,
-                                         pCreateInfo->bindingCount, &bindings,
-                                         binding_flags_info,
-                                         &sorted_binding_flags);
-      if (result != VK_SUCCESS)
-         return panvk_error(device, result);
-
-      num_bindings = bindings[pCreateInfo->bindingCount - 1].binding + 1;
-   }
-
    VK_MULTIALLOC(ma);
    VK_MULTIALLOC_DECL(&ma, struct panvk_descriptor_set_layout, layout, 1);
    VK_MULTIALLOC_DECL(&ma, struct panvk_descriptor_set_binding_layout,
@@ -140,7 +133,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
                       immutable_sampler_count);
 
    if (!vk_descriptor_set_layout_multizalloc(&device->vk, &ma, pCreateInfo)) {
-      free(bindings);
+      vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
       return panvk_error(device, VK_ERROR_OUT_OF_HOST_MEMORY);
    }
 
@@ -151,7 +144,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
    unsigned desc_idx = 0;
    unsigned dyn_buf_idx = 0;
    uint32_t dyn_ssbos = 0;
-   for (unsigned i = 0; i < pCreateInfo->bindingCount; i++) {
+   for (unsigned i = 0; i < sorted->count; i++) {
       const VkDescriptorSetLayoutBinding *binding = &bindings[i];
       struct panvk_descriptor_set_binding_layout *binding_layout =
          &layout->bindings[binding->binding];
@@ -160,10 +153,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
          continue;
 
       binding_layout->type = binding->descriptorType;
-
-      if (sorted_binding_flags) {
-         binding_layout->flags = sorted_binding_flags[i];
-      }
+      binding_layout->flags = sorted->flags[i];
 
       if (binding_layout->type == VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK) {
          binding_layout->desc_count =
@@ -242,8 +232,7 @@ panvk_per_arch(CreateDescriptorSetLayout)(
 
    _mesa_blake3_final(&hash_ctx, layout->vk.blake3);
 
-   free(bindings);
-   free(sorted_binding_flags);
+   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
    *pSetLayout = panvk_descriptor_set_layout_to_handle(layout);
 
    return VK_SUCCESS;

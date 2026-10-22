@@ -83,13 +83,14 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
    } else
       set_layout->ycbcr_sampler_offsets_offset = 0;
 
-   VkDescriptorSetLayoutBinding *bindings = NULL;
-   VkResult result =
-      vk_create_sorted_bindings(pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
+   struct vk_sorted_bindings *sorted;
+   VkResult result = vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
    if (result != VK_SUCCESS) {
       vk_descriptor_set_layout_unref(&device->vk, &set_layout->vk);
       return vk_error(device, result);
    }
+
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
 
    set_layout->binding_count = num_bindings;
    set_layout->dynamic_shader_stages = 0;
@@ -233,7 +234,7 @@ radv_CreateDescriptorSetLayout(VkDevice _device, const VkDescriptorSetLayoutCrea
       }
    }
 
-   free(bindings);
+   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
 
    set_layout->dynamic_offset_count = dynamic_offset_count;
 
@@ -256,13 +257,14 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
    VK_FROM_HANDLE(radv_device, device, _device);
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   VkDescriptorSetLayoutBinding *bindings = NULL;
-   VkResult result =
-      vk_create_sorted_bindings(pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
+   struct vk_sorted_bindings *sorted;
+   VkResult result = vk_create_sorted_bindings(&device->vk, pCreateInfo, NULL, &sorted);
    if (result != VK_SUCCESS) {
       pSupport->supported = false;
       return;
    }
+
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
 
    const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
       vk_find_struct_const(pCreateInfo->pNext, DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO);
@@ -363,7 +365,7 @@ radv_GetDescriptorSetLayoutSupport(VkDevice _device, const VkDescriptorSetLayout
       }
    }
 
-   free(bindings);
+   vk_destroy_sorted_bindings(&device->vk, NULL, sorted);
 
    pSupport->supported = supported;
 }

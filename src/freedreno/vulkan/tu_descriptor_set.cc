@@ -169,13 +169,15 @@ tu_CreateDescriptorSetLayout(
    struct vk_ycbcr_conversion_state *ycbcr_samplers =
       reinterpret_cast<struct vk_ycbcr_conversion_state *>(&samplers[immutable_sampler_count]);
 
-   VkDescriptorSetLayoutBinding *bindings = NULL;
-   VkResult result = vk_create_sorted_bindings(
-      pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
+   struct vk_sorted_bindings *sorted;
+   VkResult result =
+      vk_create_sorted_bindings(&device->vk, pCreateInfo, pAllocator, &sorted);
    if (result != VK_SUCCESS) {
       vk_descriptor_set_layout_unref(&device->vk, &set_layout->vk);
       return vk_error(device, result);
    }
+
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
 
    set_layout->binding_count = num_bindings;
    set_layout->shader_stages = 0;
@@ -284,7 +286,7 @@ tu_CreateDescriptorSetLayout(
       set_layout->shader_stages |= binding->stageFlags;
    }
 
-   free(bindings);
+   vk_destroy_sorted_bindings(&device->vk, pAllocator, sorted);
 
    set_layout->dynamic_offset_size = dynamic_offset_size;
 
@@ -335,13 +337,15 @@ tu_GetDescriptorSetLayoutSupport(
 {
    VK_FROM_HANDLE(tu_device, device, _device);
 
-   VkDescriptorSetLayoutBinding *bindings = NULL;
-   VkResult result = vk_create_sorted_bindings(
-      pCreateInfo->pBindings, pCreateInfo->bindingCount, &bindings, NULL, NULL);
+   struct vk_sorted_bindings *sorted;
+   VkResult result =
+      vk_create_sorted_bindings(&device->vk, pCreateInfo, NULL, &sorted);
    if (result != VK_SUCCESS) {
       pSupport->supported = false;
       return;
    }
+
+   const VkDescriptorSetLayoutBinding *bindings = sorted->bindings;
 
    const VkDescriptorSetLayoutBindingFlagsCreateInfo *variable_flags =
       vk_find_struct_const(
@@ -434,7 +438,7 @@ tu_GetDescriptorSetLayoutSupport(
    }
 
 out:
-   free(bindings);
+   vk_destroy_sorted_bindings(&device->vk, NULL, sorted);
 
    pSupport->supported = supported;
 }
