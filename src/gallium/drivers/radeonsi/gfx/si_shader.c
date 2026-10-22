@@ -1223,8 +1223,7 @@ static void si_postprocess_nir(struct si_nir_shader_ctx *ctx)
 
    si_nir_late_opts(nir);
 
-   /* Only do this for GPUs supporting 16-bit packed math. */
-   if (sel->screen->info.compiler_info.has_packed_math_16bit) {
+   if (sel->screen->info.gfx_level >= GFX8) {
       bool run_copy_prop = false;
       NIR_PASS(run_copy_prop, nir, ac_nir_opt_16bit_tex_image, sel->screen->info.gfx_level);
 
@@ -1236,7 +1235,9 @@ static void si_postprocess_nir(struct si_nir_shader_ctx *ctx)
          NIR_PASS(_, nir, nir_opt_dce);
       }
 
-      NIR_PASS(_, nir, nir_opt_vectorize, ac_nir_opt_vectorize_cb, &sel->screen->info.gfx_level);
+      /* Only do this for GPUs supporting 16-bit packed math. */
+      if (sel->screen->info.compiler_info.has_packed_math_16bit)
+         NIR_PASS(_, nir, nir_opt_vectorize, ac_nir_opt_vectorize_cb, &sel->screen->info.gfx_level);
    }
 
    NIR_PASS(_, nir, nir_lower_alu_width, ac_nir_opt_vectorize_cb, &sel->screen->info.gfx_level);
