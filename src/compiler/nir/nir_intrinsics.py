@@ -3171,6 +3171,31 @@ intrinsic("cmat_load_shared_nv", src_comp=[1, 1], dest_comp=0, indices=[NUM_MATR
 # Moves a 8x8 16bit matrix with transposition within a subgroup
 intrinsic("cmat_mov_transpose_nv", src_comp=[2], dest_comp=2, bit_sizes=[16], flags=[CAN_ELIMINATE, CAN_REORDER, SUBGROUP])
 
+# NVIDIA-specific ray traversal intrinsics.
+# Most of the ray traversal is handled by the TTU (Tree Traversal Unit) coprocessor.
+# A typical interaction with it involves the following:
+# - Opening a session with the TTU via ttuopen
+# - Writing TTU configuration via ttust
+# - Starting coprocessor work via ttugo
+# - Reading the result via ttuld and closing the session on the last read
+
+# Open a session with the TTU coprocessor
+# FLAGS is 1 if opening the session in dual mode, otherwise 0
+intrinsic("ttuopen_nv", indices=[FLAGS])
+
+# Store 128-bit in the TTU shared space
+# src[] = { data_low, data_high }.
+# BASE is the offset
+intrinsic("ttust_nv", src_comp=[2, 2], bit_sizes=[32], indices=[BASE, ACCESS], flags=[])
+
+# Load 128-bit from the TTU shared space
+# BASE is the offset
+# FLAGS is 1 if closing the session with this read, otherwise 0
+intrinsic("ttuld_nv", dest_comp=4, bit_sizes=[32], indices=[BASE, ACCESS, FLAGS], flags=[])
+
+# Instruct the TTU coprocessor to start its works
+intrinsic("ttugo_nv")
+
 # NVIDIA-specific system values
 system_value("warps_per_sm_nv", 1, bit_sizes=[32])
 system_value("sm_count_nv", 1, bit_sizes=[32])

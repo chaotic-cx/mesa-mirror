@@ -1143,6 +1143,7 @@ visit_intrinsic(nir_intrinsic_instr *instr, struct divergence_state *state)
    case nir_intrinsic_ipa_nv:
    case nir_intrinsic_ldtram_nv:
    case nir_intrinsic_cmat_muladd_nv:
+   case nir_intrinsic_ttuld_nv:
    case nir_intrinsic_printf:
    case nir_intrinsic_abort:
    case nir_intrinsic_load_gs_header_ir3:
