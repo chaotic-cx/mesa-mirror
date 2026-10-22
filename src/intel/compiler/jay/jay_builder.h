@@ -57,14 +57,17 @@ jay_op_starts_block(enum jay_opcode op)
 {
    return op == JAY_OPCODE_PHI_DST ||
           op == JAY_OPCODE_PRELOAD ||
-          op == JAY_OPCODE_ELSE;
+          op == JAY_OPCODE_ELSE ||
+          op == JAY_OPCODE_HALT_TARGET;
 }
 
 static inline bool
 jay_op_ends_block(enum jay_opcode op)
 {
    return op == JAY_OPCODE_PHI_SRC ||
-          (jay_op_is_control_flow(op) && op != JAY_OPCODE_ELSE);
+          (jay_op_is_control_flow(op) &&
+           op != JAY_OPCODE_ELSE &&
+           op != JAY_OPCODE_HALT_TARGET);
 }
 
 static inline jay_cursor
