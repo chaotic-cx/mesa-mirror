@@ -262,7 +262,7 @@ radv_image_decompress_htile_on_image_stores(const struct radv_device *device, co
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   if (!radv_image_has_htile(image))
+   if (!radv_image_is_tc_compat_htile(image))
       return false;
 
    /* This is supported on GFX10-10.3 but according to PAL there are issues. */
