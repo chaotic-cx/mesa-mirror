@@ -133,39 +133,14 @@ lower_color(nir_builder *b, lower_drawpixels_state *state, nir_intrinsic_instr *
       nir_def *def_xy, *def_zw;
 
       /* TEX def.xy, def.xyyy, pixelmap_sampler, 2D; */
-      nir_tex_instr *tex = nir_tex_instr_create(state->shader, 3);
-      tex->op = nir_texop_tex;
-      tex->sampler_dim = GLSL_SAMPLER_DIM_2D;
-      tex->coord_components = 2;
-      tex->sampler_index = state->options->pixelmap_sampler;
-      tex->texture_index = state->options->pixelmap_sampler;
-      tex->can_speculate = true;
-      tex->dest_type = nir_type_float32;
-      tex->src[0] = nir_tex_src_for_ssa(nir_tex_src_texture_deref,
-                                        &pixelmap_deref->def);
-      tex->src[1] = nir_tex_src_for_ssa(nir_tex_src_sampler_deref,
-                                        &pixelmap_deref->def);
-      tex->src[2] = nir_tex_src_for_ssa(nir_tex_src_coord,
-                                        nir_trim_vector(b, def, 2));
-
-      nir_def_init(&tex->instr, &tex->def, 4, 32);
-      nir_builder_instr_insert(b, &tex->instr);
-      def_xy = &tex->def;
+      def_xy = nir_tex(b, nir_trim_vector(b, def, 2),
+                       .texture_deref = pixelmap_deref,
+                       .sampler_deref = pixelmap_deref, .can_speculate = true);
 
       /* TEX def.zw, def.zwww, pixelmap_sampler, 2D; */
-      tex = nir_tex_instr_create(state->shader, 1);
-      tex->op = nir_texop_tex;
-      tex->sampler_dim = GLSL_SAMPLER_DIM_2D;
-      tex->coord_components = 2;
-      tex->sampler_index = state->options->pixelmap_sampler;
-      tex->can_speculate = true;
-      tex->dest_type = nir_type_float32;
-      tex->src[0] = nir_tex_src_for_ssa(nir_tex_src_coord,
-                                        nir_channels(b, def, 0xc));
-
-      nir_def_init(&tex->instr, &tex->def, 4, 32);
-      nir_builder_instr_insert(b, &tex->instr);
-      def_zw = &tex->def;
+      def_zw = nir_tex(b, nir_channels(b, def, 0xc),
+                       .texture_deref = pixelmap_deref,
+                       .sampler_deref = pixelmap_deref, .can_speculate = true);
 
       /* def = vec4(def.xy, def.zw); */
       def = nir_vec4(b,
