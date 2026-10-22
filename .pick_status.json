@@ -504,7 +504,7 @@
         "description": "st/mesa: add deref sources to the second pixel map lookup",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "120f9b8362284e6e8ad62aa85a9e2578db73f272",
         "notes": null
