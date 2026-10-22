@@ -274,7 +274,7 @@ Temp as_vgpr(isel_context* ctx, Temp val);
 Temp emit_extract_vector(isel_context* ctx, Temp src, uint32_t idx, RegClass dst_rc);
 void emit_split_vector(isel_context* ctx, Temp vec_src, unsigned num_components);
 void expand_vector(isel_context* ctx, Temp vec_src, Temp dst, unsigned num_components,
-                   unsigned mask, bool zero_padding = false);
+                   unsigned mask, bool zero_padding = false, bool unpacked_d16 = false);
 Temp convert_int(isel_context* ctx, Builder& bld, Temp src, unsigned src_bits, unsigned dst_bits,
                  bool sign_extend, Temp dst = Temp());
 Temp convert_pointer_to_64_bit(isel_context* ctx, Temp ptr, bool non_uniform = false);

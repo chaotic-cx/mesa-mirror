@@ -303,6 +303,7 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
       dmask = MAX2(dmask, 1) | 0x10;
 
    bool d16 = instr->def.bit_size == 16;
+   bool unpacked_d16 = d16 && ctx->program->dev.has_unpacked_d16;
    Temp dst = get_ssa_temp(ctx, &instr->def);
    Temp tmp_dst = dst;
 
@@ -313,12 +314,13 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
          dmask = 1;
       else
          dmask = 1 << instr->component;
-      if (tg4_integer_cube_workaround || dst.type() == RegType::sgpr)
-         tmp_dst = bld.tmp(instr->is_sparse ? v5 : (d16 ? v2 : v4));
+      if (tg4_integer_cube_workaround || dst.type() == RegType::sgpr || unpacked_d16)
+         tmp_dst = bld.tmp(instr->is_sparse ? v5 : (d16 && !unpacked_d16 ? v2 : v4));
    } else if (instr->op == nir_texop_fragment_mask_fetch_amd) {
       tmp_dst = bld.tmp(v1);
-   } else if (util_bitcount(dmask) != instr->def.num_components || dst.type() == RegType::sgpr) {
-      unsigned bytes = util_bitcount(dmask) * instr->def.bit_size / 8;
+   } else if (util_bitcount(dmask) != instr->def.num_components || dst.type() == RegType::sgpr ||
+              unpacked_d16) {
+      unsigned bytes = util_bitcount(dmask) * instr->def.bit_size / 8 * (unpacked_d16 ? 2 : 1);
       tmp_dst = bld.tmp(RegClass::get(RegType::vgpr, bytes));
    }
 
@@ -480,7 +482,7 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
                      bld.copy(bld.def(v1), Operand::c32(0x76543210)), tmp_dst, is_not_null);
          }
       } else {
-         expand_vector(ctx, tmp_dst, dst, instr->def.num_components, dmask);
+         expand_vector(ctx, tmp_dst, dst, instr->def.num_components, dmask, false, unpacked_d16);
       }
       return;
    }
@@ -643,28 +645,65 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
 
    if (tg4_integer_cube_workaround) {
       assert(tmp_dst.id() != dst.id());
-      assert(tmp_dst.size() == dst.size());
 
-      emit_split_vector(ctx, tmp_dst, tmp_dst.size());
-      Temp val[4];
-      for (unsigned i = 0; i < 4; i++) {
-         val[i] = emit_extract_vector(ctx, tmp_dst, i, v1);
-         Temp cvt_val;
-         if (instr->dest_type & nir_type_uint)
-            cvt_val = bld.vop1(aco_opcode::v_cvt_u32_f32, bld.def(v1), val[i]);
-         else
-            cvt_val = bld.vop1(aco_opcode::v_cvt_i32_f32, bld.def(v1), val[i]);
-         val[i] = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), val[i], cvt_val,
-                           tg4_compare_cube_wa64);
+      emit_split_vector(ctx, tmp_dst, 4 * (unpacked_d16 ? 2 : 1) + instr->is_sparse);
+      Temp tmp = dst.regClass().type() == RegType::vgpr
+                    ? dst
+                    : bld.tmp(RegClass::get(RegType::vgpr, dst.bytes()));
+
+      if (d16) {
+         Temp packed_val[2];
+
+         for (unsigned i = 0; i < 2; i++) {
+            Temp val[2];
+            Temp cvt_val[2];
+
+            for (unsigned j = 0; j < 2; j++) {
+               val[j] =
+                  emit_extract_vector(ctx, tmp_dst, (i * 2 + j) * (unpacked_d16 ? 2 : 1), v2b);
+
+               if (instr->dest_type & nir_type_uint)
+                  cvt_val[j] = bld.vop1(aco_opcode::v_cvt_u16_f16, bld.def(v2b), val[j]);
+               else
+                  cvt_val[j] = bld.vop1(aco_opcode::v_cvt_i16_f16, bld.def(v2b), val[j]);
+            }
+
+            packed_val[i] = bld.pseudo(aco_opcode::p_create_vector, bld.def(v1), val[0], val[1]);
+            Temp packed_cvt =
+               bld.pseudo(aco_opcode::p_create_vector, bld.def(v1), cvt_val[0], cvt_val[1]);
+            packed_val[i] = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), packed_val[i],
+                                     packed_cvt, tg4_compare_cube_wa64);
+         }
+
+         /* Don't repeat the packing */
+         unpacked_d16 = false;
+
+         assert(!instr->is_sparse);
+         tmp_dst =
+            bld.pseudo(aco_opcode::p_create_vector, Definition(tmp), packed_val[0], packed_val[1]);
+      } else {
+         Temp val[4];
+         for (unsigned i = 0; i < 4; i++) {
+            val[i] = emit_extract_vector(ctx, tmp_dst, i, v1);
+
+            Temp cvt_val;
+            if (instr->dest_type & nir_type_uint)
+               cvt_val = bld.vop1(aco_opcode::v_cvt_u32_f32, bld.def(v1), val[i]);
+            else
+               cvt_val = bld.vop1(aco_opcode::v_cvt_i32_f32, bld.def(v1), val[i]);
+
+            val[i] = bld.vop2(aco_opcode::v_cndmask_b32, bld.def(v1), val[i], cvt_val,
+                              tg4_compare_cube_wa64);
+         }
+
+         if (instr->is_sparse) {
+            tmp_dst = bld.pseudo(aco_opcode::p_create_vector, Definition(tmp), val[0], val[1],
+                                 val[2], val[3], emit_extract_vector(ctx, tmp_dst, 4, v1));
+         } else {
+            tmp_dst = bld.pseudo(aco_opcode::p_create_vector, Definition(tmp), val[0], val[1],
+                                 val[2], val[3]);
+         }
       }
-
-      Temp tmp = dst.regClass() == tmp_dst.regClass() ? dst : bld.tmp(tmp_dst.regClass());
-      if (instr->is_sparse)
-         tmp_dst = bld.pseudo(aco_opcode::p_create_vector, Definition(tmp), val[0], val[1], val[2],
-                              val[3], emit_extract_vector(ctx, tmp_dst, 4, v1));
-      else
-         tmp_dst = bld.pseudo(aco_opcode::p_create_vector, Definition(tmp), val[0], val[1], val[2],
-                              val[3]);
    }
    unsigned mask = instr->op == nir_texop_tg4 ? (instr->is_sparse ? 0x1F : 0xF) : dmask;
 
@@ -674,7 +713,7 @@ visit_tex(isel_context* ctx, nir_tex_instr* instr)
       mask |= 1u << (instr->def.num_components - 1);
    }
 
-   expand_vector(ctx, tmp_dst, dst, instr->def.num_components, mask);
+   expand_vector(ctx, tmp_dst, dst, instr->def.num_components, mask, false, unpacked_d16);
 }
 
 Operand

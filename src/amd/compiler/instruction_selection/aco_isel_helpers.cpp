@@ -184,29 +184,31 @@ emit_split_vector(isel_context* ctx, Temp vec_src, unsigned num_components)
  * come from the original vector. The other elements are undefined. */
 void
 expand_vector(isel_context* ctx, Temp vec_src, Temp dst, unsigned num_components, unsigned mask,
-              bool zero_padding)
+              bool zero_padding, bool unpacked_d16)
 {
    assert(vec_src.type() == RegType::vgpr);
    Builder bld(ctx->program, ctx->block);
 
    if (dst.type() == RegType::sgpr && num_components > dst.size()) {
       Temp tmp_dst = bld.tmp(RegClass::get(RegType::vgpr, 2 * num_components));
-      expand_vector(ctx, vec_src, tmp_dst, num_components, mask, zero_padding);
+      expand_vector(ctx, vec_src, tmp_dst, num_components, mask, zero_padding, unpacked_d16);
       bld.pseudo(aco_opcode::p_as_uniform, Definition(dst), tmp_dst);
       ctx->allocated_vec[dst.id()] = ctx->allocated_vec[tmp_dst.id()];
       return;
    }
 
-   emit_split_vector(ctx, vec_src, util_bitcount(mask));
+   emit_split_vector(ctx, vec_src, util_bitcount(mask) * (unpacked_d16 ? 2 : 1));
 
    if (vec_src == dst)
       return;
 
    if (num_components == 1) {
-      if (dst.type() == RegType::sgpr)
+      if (dst.type() == RegType::sgpr) {
          bld.pseudo(aco_opcode::p_as_uniform, Definition(dst), vec_src);
-      else
+      } else {
+         vec_src = emit_extract_vector(ctx, vec_src, 0, dst.regClass());
          bld.copy(Definition(dst), vec_src);
+      }
       return;
    }
 
@@ -226,7 +228,7 @@ expand_vector(isel_context* ctx, Temp vec_src, Temp dst, unsigned num_components
    unsigned k = 0;
    for (unsigned i = 0; i < num_components; i++) {
       if (mask & (1 << i)) {
-         Temp src = emit_extract_vector(ctx, vec_src, k++, src_rc);
+         Temp src = emit_extract_vector(ctx, vec_src, k++ * (unpacked_d16 ? 2 : 1), src_rc);
          if (dst.type() == RegType::sgpr)
             src = bld.as_uniform(src);
          vec->operands[i] = Operand(src);
