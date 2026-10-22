@@ -1812,12 +1812,13 @@ visit_image_load(isel_context* ctx, nir_intrinsic_instr* instr)
       expand_mask |= 1 << result_size;
 
    bool d16 = instr->def.bit_size == 16;
+   bool unpacked_d16 = d16 && ctx->program->dev.has_unpacked_d16;
    assert(!d16 || !is_sparse);
 
-   unsigned num_bytes = util_bitcount(dmask) * (d16 ? 2 : 4) + is_sparse * 4;
+   unsigned num_bytes = util_bitcount(dmask) * (d16 && !unpacked_d16 ? 2 : 4) + is_sparse * 4;
 
    Temp tmp;
-   if (num_bytes == dst.bytes() && dst.type() == RegType::vgpr)
+   if (num_bytes == dst.bytes() && dst.type() == RegType::vgpr && !unpacked_d16)
       tmp = dst;
    else
       tmp = bld.tmp(RegClass::get(RegType::vgpr, num_bytes));
@@ -1866,7 +1867,8 @@ visit_image_load(isel_context* ctx, nir_intrinsic_instr* instr)
                        Operand::zero());
    }
 
-   expand_vector(ctx, tmp, dst, instr->def.num_components, expand_mask, instr->def.bit_size == 64);
+   expand_vector(ctx, tmp, dst, instr->def.num_components, expand_mask, instr->def.bit_size == 64,
+                 unpacked_d16);
 }
 
 void
