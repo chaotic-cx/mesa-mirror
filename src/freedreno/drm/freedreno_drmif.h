@@ -48,6 +48,7 @@ enum fd_param_id {
    FD_SYSPROF,       /* Settable (for CAP_SYS_ADMIN) param for system profiling */
    FD_VA_SIZE,       /* GPU virtual address size */
    FD_UCHE_TRAP_BASE,
+   FD_HIGHEST_BANK_BIT,
 };
 
 /**

@@ -1118,6 +1118,10 @@ fd_screen_create(int fd,
    screen->dev_info = info;
    screen->info = &screen->dev_info;
 
+   if (fd_pipe_get_param(screen->pipe, FD_HIGHEST_BANK_BIT, &val) || !val)
+      val = screen->info->highest_bank_bit;
+   screen->highest_bank_bit = val;
+
    switch (screen->gen) {
    case 2:
       fd2_screen_init(pscreen);
