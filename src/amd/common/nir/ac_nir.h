@@ -526,6 +526,9 @@ ac_nir_fixup_smem_loads_null_prt(nir_shader *shader, uint8_t address_prt_wa_cont
 bool
 ac_nir_lower_fs_input_loads(nir_shader *nir, const struct ac_shader_args *args);
 
+bool
+ac_nir_opt_16bit_tex_image(nir_shader *shader, enum amd_gfx_level gfx_level);
+
 #ifdef __cplusplus
 }
 #endif

@@ -565,31 +565,8 @@ radv_postprocess_nir(const struct radv_compiler_info *compiler_info, const struc
       NIR_PASS(_, stage->nir, nir_lower_bit_size, ac_nir_lower_bit_size_callback, &gfx_level);
    }
    if (gfx_level >= GFX9) {
-      bool separate_g16 = gfx_level >= GFX10;
-      struct nir_opt_tex_srcs_options opt_srcs_options[] = {
-         {
-            .sampler_dims = ~(BITFIELD_BIT(GLSL_SAMPLER_DIM_CUBE) | BITFIELD_BIT(GLSL_SAMPLER_DIM_BUF)),
-            .src_types = (1 << nir_tex_src_coord) | (1 << nir_tex_src_lod) | (1 << nir_tex_src_bias) |
-                         (1 << nir_tex_src_min_lod) | (1 << nir_tex_src_ms_index) |
-                         (separate_g16 ? 0 : (1 << nir_tex_src_ddx) | (1 << nir_tex_src_ddy)),
-         },
-         {
-            .sampler_dims = ~BITFIELD_BIT(GLSL_SAMPLER_DIM_CUBE),
-            .src_types = (1 << nir_tex_src_ddx) | (1 << nir_tex_src_ddy),
-         },
-      };
-      struct nir_opt_16bit_tex_image_options opt_16bit_options = {
-         .rounding_mode = nir_rounding_mode_undef,
-         .opt_tex_dest_types = nir_type_float | nir_type_int | nir_type_uint,
-         .opt_image_dest_types = nir_type_float | nir_type_int | nir_type_uint,
-         .integer_dest_saturates = true,
-         .opt_image_store_data = true,
-         .opt_image_srcs = true,
-         .opt_srcs_options_count = separate_g16 ? 2 : 1,
-         .opt_srcs_options = opt_srcs_options,
-      };
       bool run_copy_prop = false;
-      NIR_PASS(run_copy_prop, stage->nir, nir_opt_16bit_tex_image, &opt_16bit_options);
+      NIR_PASS(run_copy_prop, stage->nir, ac_nir_opt_16bit_tex_image, gfx_level);
 
       /* Optimizing 16bit texture/image dests leaves scalar moves that need to be removed
        * before the next alu nir_lower_alu_width, otherwise we might end up with invalid swizzles
