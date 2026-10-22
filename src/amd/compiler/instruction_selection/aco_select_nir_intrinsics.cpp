@@ -1879,6 +1879,7 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
    bool is_array = nir_intrinsic_image_array(instr);
    Temp data = get_ssa_temp(ctx, instr->src[3].ssa);
    bool d16 = instr->src[3].ssa->bit_size == 16;
+   bool unpacked_d16 = d16 && ctx->program->dev.has_unpacked_d16;
 
    /* only R64_UINT and R64_SINT supported */
    if (instr->src[3].ssa->bit_size == 64 && data.bytes() > 8)
@@ -1918,8 +1919,8 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
       if (dim == GLSL_SAMPLER_DIM_BUF)
          dmask = BITFIELD_MASK(util_last_bit(dmask));
 
-      if (dmask != BITFIELD_MASK(num_components)) {
-         uint32_t dmask_count = util_bitcount(dmask);
+      if (dmask != BITFIELD_MASK(num_components) || unpacked_d16) {
+         uint32_t dmask_count = util_bitcount(dmask) * (unpacked_d16 ? 2 : 1);
          RegClass rc = d16 ? v2b : v1;
          if (dmask_count == 1) {
             data = emit_extract_vector(ctx, data, ffs(dmask) - 1, rc);
@@ -1929,6 +1930,9 @@ visit_image_store(isel_context* ctx, nir_intrinsic_instr* instr)
             uint32_t index = 0;
             u_foreach_bit (bit, dmask) {
                vec->operands[index++] = Operand(emit_extract_vector(ctx, data, bit, rc));
+
+               if (unpacked_d16)
+                  vec->operands[index++] = Operand(rc);
             }
             data = bld.tmp(RegClass::get(RegType::vgpr, dmask_count * rc.bytes()));
             vec->definitions[0] = Definition(data);
