@@ -96,9 +96,18 @@ vn_GetDescriptorSetLayoutSupport(
 {
    struct vn_device *dev = vn_device_from_handle(device);
 
+   STACK_ARRAY(VkDescriptorSetLayoutBinding, bindings,
+               pCreateInfo->bindingCount);
+
+   VkDescriptorSetLayoutCreateInfo local_info;
+   pCreateInfo = vn_descriptor_set_layout_fix_create_info(
+      pCreateInfo, &local_info, bindings, NULL);
+
    /* TODO per-device cache */
    vn_call_vkGetDescriptorSetLayoutSupport(dev->primary_ring, device,
                                            pCreateInfo, pSupport);
+
+   STACK_ARRAY_FINISH(bindings);
 }
 
 static void
