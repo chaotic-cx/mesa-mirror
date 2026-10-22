@@ -3903,11 +3903,22 @@ brw_postprocess_nir_opts(brw_pass_tracker *pt)
       .lower_boolean_shuffle = jay,
    };
 
-   if (OPT(nir_opt_uniform_atomics, false))
-      OPT(nir_lower_subgroups, &subgroups_options);
+   /* TODO: Unify this with the logic in jay_prog_data somehow */
+   const bool uses_helpers =
+      pt->nir->info.stage == MESA_SHADER_FRAGMENT &&
+      (pt->nir->info.fs.needs_coarse_quad_helper_invocations ||
+       pt->nir->info.uses_wide_subgroup_intrinsics ||
+       pt->nir->info.maximally_reconverges ||
+       !jay);
 
-   if (pt->key->divergent_atomics_flags)
-      OPT(brw_nir_opt_divergent_atomics, pt->key->divergent_atomics_flags, false);
+   if (OPT(nir_opt_uniform_atomics, !uses_helpers)) {
+      OPT(nir_lower_subgroups, &subgroups_options);
+   }
+
+   if (pt->key->divergent_atomics_flags) {
+      OPT(brw_nir_opt_divergent_atomics, pt->key->divergent_atomics_flags,
+          !uses_helpers);
+   }
 
    /* nir_opt_uniform_subgroup can create some operations (e.g.,
     * load_subgroup_lt_mask) that need to be lowered again.

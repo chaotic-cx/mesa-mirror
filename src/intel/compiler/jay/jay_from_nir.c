@@ -2527,15 +2527,20 @@ jay_emit_intrinsic(struct nir_to_jay_state *nj, nir_intrinsic_instr *intr)
       break;
 
    case nir_intrinsic_demote:
-      jay_DEMOTE_u32(b, jay_null(), jay_null());
+      if (s->helpers_tracked) {
+         jay_DEMOTE_u32(b, jay_null(), jay_null());
+      }
       break;
    case nir_intrinsic_demote_if:
-      jay_DEMOTE(b, JAY_TYPE_U1, nj_src(intr->src[0]), 0)->conditional_mod =
-         GEN_CONDITION_NE;
+      if (s->helpers_tracked) {
+         jay_DEMOTE(b, JAY_TYPE_U1, nj_src(intr->src[0]), 0)->conditional_mod =
+            GEN_CONDITION_NE;
+      }
       break;
 
    case nir_intrinsic_load_helper_invocation:
    case nir_intrinsic_is_helper_invocation:
+      assert(s->helpers_tracked);
       jay_IS_HELPER(b, dst);
       break;
 
@@ -4056,18 +4061,100 @@ jay_emit_eot(struct nir_to_jay_state *nj)
    const struct intel_device_info *devinfo = b->shader->devinfo;
 
    /* Jump target for HALT */
-   if (nj->needs_final_halt) {
-      if (nj->s->stage == MESA_SHADER_FRAGMENT) {
-         assert(nj->s->helpers_tracked);
-      } else {
-         jay_HALT_TARGET(&nj->bld);
-      }
+   if (nj->needs_final_halt && !nj->s->helpers_tracked) {
+      jay_HALT_TARGET(&nj->bld);
    }
 
-   if (mesa_shader_stage_is_compute(nj->nir->info.stage) ||
-       mesa_shader_stage_is_rt(nj->nir->info.stage) ||
-       nj->nir->info.stage == MESA_SHADER_MESH ||
-       nj->nir->info.stage == MESA_SHADER_TASK) {
+   if (nj->nir->info.stage == MESA_SHADER_FRAGMENT) {
+      /* There should already be an EOT in pretty much any shader, so we don't
+       * want to double up on EOT writes everywhere.
+       */
+      jay_inst *I = jay_last_inst(jay_last_source_block(nj->f));
+      bool needs_eot = !(I && I->op == JAY_OPCODE_SEND && jay_send_eot(I));
+
+      /* In cases where we don't track helpers separately from control flow,
+       * we still need a jump target for when all lanes get demoted and EOT
+       * the thread without a RT write.
+       */
+      bool needs_halt = nj->needs_final_halt && !nj->s->helpers_tracked;
+
+      if (needs_eot || needs_halt) {
+         unsigned width = MIN2(b->shader->dispatch_width,
+                               reg_unit(b->shader->devinfo) * 16);
+         unsigned op =
+            width == 32 ?
+               XE2_DATAPORT_RENDER_TARGET_WRITE_SIMD32_SINGLE_SOURCE :
+            width == 16 ?
+               BRW_DATAPORT_RENDER_TARGET_WRITE_SIMD16_SINGLE_SOURCE :
+               BRW_DATAPORT_RENDER_TARGET_WRITE_SIMD8_SINGLE_SOURCE_SUBSPAN01;
+         uint64_t desc = brw_fb_write_desc(b->shader->devinfo, 0, op, true, false);
+         uint64_t ex_desc = (1 << 20) /* null rt */;
+         unsigned gprs = 4;
+         unsigned ugprs = 0;
+
+         struct brw_fs_prog_data *prog_data = &b->shader->prog_data->fs;
+
+         /* We seem to hang unless the payload size matches the state that was
+          * programmed in 3DSTATE_PS_EXTRA.
+          */
+         gprs += (prog_data->computed_depth_mode ? 1 : 0);
+         ugprs += (prog_data->computed_stencil ? 1 : 0) +
+                  (prog_data->uses_omask       ? 1 : 0);
+
+         if (prog_data->computed_stencil && prog_data->uses_omask) {
+            /* match demand with the existing RT writes */
+            ugprs += gprs * jay_grf_per_gpr_at_width(b->shader, width);
+            gprs = 0;
+         }
+
+         ugprs *= jay_ugpr_per_grf(b->shader);
+
+         if (devinfo->ver >= 20) {
+            ex_desc |=
+               (prog_data->computed_stencil    ? (1 << 14) : 0) |
+               (prog_data->computed_depth_mode ? (1 << 13) : 0) |
+               (prog_data->uses_omask          ? (1 << 12) : 0);
+         }
+
+         jay_def pred = jay_null();
+         
+         if (!nj->s->helpers_tracked) {
+            /* There's no flag register being initialized to predicate the
+             * instruction, we have to prepare one ourselves.
+             */
+            pred = jay_alloc_def(b, FLAG, 32, 1);
+            jay_MOV(b, pred, 0);
+         }
+
+         unsigned srcs = 0;
+         jay_def dummy_pld[2];
+
+         if (gprs) {
+            dummy_pld[srcs++] = jay_alloc_def(b, GPR, 32, gprs);
+         }
+
+         if (ugprs) {
+            dummy_pld[srcs++] = jay_alloc_def(b, UGPR, 32, ugprs);
+         }
+
+         for (unsigned i = 0; i < srcs; ++i) {
+            jay_UNDEF(b, dummy_pld[i]);
+         }
+
+         jay_inst *send =
+            jay_SEND(b, .sfid = GEN_SFID_RENDER_CACHE,
+                     .msg_desc = desc | (ex_desc << 32), .nr_srcs = srcs,
+                     .srcs = dummy_pld, .type = JAY_TYPE_U32, .eot = true,
+                     .skip_helpers = jay_is_null(pred), .simd_width = width);
+
+         if (!jay_is_null(pred)) {
+            send = jay_add_predicate(b, send, pred, jay_null());
+         }
+      }
+   } else if (mesa_shader_stage_is_compute(nj->nir->info.stage) ||
+              mesa_shader_stage_is_rt(nj->nir->info.stage) ||
+              nj->nir->info.stage == MESA_SHADER_MESH ||
+              nj->nir->info.stage == MESA_SHADER_TASK) {
       jay_def u0 = nj->payload.u0;
 
       /* Vectorized copy into the EOT register. Not necessary for correctness

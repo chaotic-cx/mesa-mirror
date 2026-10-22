@@ -55,60 +55,18 @@ list_partition(struct list_head *src,
  * the exit block. In that case, it doesn't matter what contents we write, but
  * we do need a valid message descriptor to avoid hangs. In particular: the
  * message opcode matters (since it affects message length) but the coarse bit
- * does not matter. Refusing to pluck out sends with indirect descriptors
- * suffices to make dynamic coarse shading work with demote.
- *
- * When we find no such send, we insert a null RT write to use for EOT. This can
- * only execute if all lanes halt (and therefore it is fully predicated out). If
- * any lane does not halt, the EOT send in the last block will execute instead
- * and end those lanes early. Hence there is no real performance loss here, just
- * a slight i-cache inflation and uglier asm.
+ * does not matter.
  */
 static void
 setup_exit_block(jay_builder *b, struct ctx *ctx)
 {
    jay_inst *send = jay_last_inst(jay_last_source_block(b->func));
-   if ((send && send->op == JAY_OPCODE_SEND && jay_send_eot(send)) &&
-       !send->simd_split &&
-       (jay_is_null(send->src[0]) && jay_is_null(send->src[1]))) {
-      jay_remove_instruction(send);
-      jay_builder_insert(b, send);
-   } else {
-      signed gpr = -1;
-      struct jay_register_block B;
-      for (unsigned i = 0; i < b->shader->partition.nr_blocks[GPR]; ++i) {
-         B = b->shader->partition.blocks[GPR][i];
-         bool late_eot = !jay_has_early_eot(b->shader);
+   assert(send && send->op == JAY_OPCODE_SEND && jay_send_eot(send));
+   assert(jay_is_null(send->src[0]) && jay_is_null(send->src[1]));
+   assert(jay_send_skip_helpers(send));
 
-         if (B.len_gpr >= 8 &&
-             (B.type == JAY_BLOCK_EOT || (B.type == JAY_BLOCK_NORMAL &&
-                                          late_eot &&
-                                          B.stride == JAY_STRIDE_4))) {
-            gpr = B.start_gpr;
-            break;
-         }
-      }
-
-      assert(gpr >= 0 && "must have a suitable gpr block");
-      jay_def dummy = jay_bare_regs(GPR, gpr, 4);
-      unsigned width = b->shader->dispatch_width >> B.split;
-
-      unsigned op =
-         width == 32 ?
-            XE2_DATAPORT_RENDER_TARGET_WRITE_SIMD32_SINGLE_SOURCE :
-         width == 16 ?
-            BRW_DATAPORT_RENDER_TARGET_WRITE_SIMD16_SINGLE_SOURCE :
-            BRW_DATAPORT_RENDER_TARGET_WRITE_SIMD8_SINGLE_SOURCE_SUBSPAN01;
-      uint64_t desc = brw_fb_write_desc(b->shader->devinfo, 0, op, true, false);
-      uint64_t ex_desc = (1 << 20) /* null rt */;
-
-      send = jay_SEND(b, .sfid = GEN_SFID_RENDER_CACHE,
-                      .msg_desc = desc | (ex_desc << 32), .nr_srcs = 1,
-                      .srcs = &dummy, .type = JAY_TYPE_U32, .eot = true,
-                      .simd_width = b->shader->dispatch_width >> B.split);
-      send =
-         jay_add_predicate(b, send, jay_negate(ctx->helper_flag), jay_null());
-   }
+   jay_remove_instruction(send);
+   jay_builder_insert(b, send);
 }
 
 static void
