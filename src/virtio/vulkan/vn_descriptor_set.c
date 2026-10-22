@@ -946,7 +946,8 @@ vn_CreateDescriptorUpdateTemplate(
       struct vn_pipeline_layout *pipeline_layout =
          vn_pipeline_layout_from_handle(pCreateInfo->pipelineLayout);
       templ->push.pipeline_bind_point = pCreateInfo->pipelineBindPoint;
-      templ->push.set_layout = pipeline_layout->push_descriptor_set_layout;
+      templ->push.set_layout = vn_descriptor_set_layout_ref(
+         dev, pipeline_layout->push_descriptor_set_layout);
    }
 
    vn_descriptor_update_template_init(templ, pCreateInfo);
@@ -973,6 +974,9 @@ vn_DestroyDescriptorUpdateTemplate(
 
    if (!templ)
       return;
+
+   if (templ->push.set_layout)
+      vn_descriptor_set_layout_unref(dev, templ->push.set_layout);
 
    /* no host object */
    vn_object_base_fini(&templ->base);
