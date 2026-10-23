@@ -47,7 +47,7 @@ predicate_block(jay_builder *b,
       if (I->op != JAY_OPCODE_ENDIF && I->op != JAY_OPCODE_ELSE) {
          I = jay_add_predicate(b, I, condition, jay_null());
 
-         if (I->op == JAY_OPCODE_BREAK) {
+         if (I->op == JAY_OPCODE_BREAK || I->op == JAY_OPCODE_HALT) {
             return false;
          }
 
