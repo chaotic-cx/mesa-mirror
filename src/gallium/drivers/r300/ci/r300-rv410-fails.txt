@@ -480,7 +480,6 @@ dEQP-GLES2.functional.uniform_api.value.assigned.by_pointer.render.nested_struct
 
 shaders@glsl-arb-fragment-coord-conventions,Fail
 shaders@glsl-derivs,Fail
-shaders@glsl-fs-fogscale@vs and fs,Fail
 shaders@glsl-fs-loop,Fail
 shaders@glsl-fs-loop-nested,Fail
 shaders@glsl-fwidth,Fail
@@ -772,10 +771,6 @@ spec@ext_texture_srgb@texwrap formats@GL_SRGB8_ALPHA8- NPOT,Fail
 spec@ext_texture_srgb@texwrap formats@GL_SRGB8_ALPHA8- swizzled,Fail
 
 # Precision issues in fs
-spec@glsl-1.10@execution@built-in-functions@fs-atan-float-float,Fail
-spec@glsl-1.10@execution@built-in-functions@fs-atan-vec2-vec2,Fail
-spec@glsl-1.10@execution@built-in-functions@fs-atan-vec3-vec3,Fail
-spec@glsl-1.10@execution@built-in-functions@fs-atan-vec4-vec4,Fail
 spec@glsl-1.10@execution@built-in-functions@fs-degrees-float,Fail
 spec@glsl-1.10@execution@built-in-functions@fs-degrees-vec2,Fail
 spec@glsl-1.10@execution@built-in-functions@fs-degrees-vec3,Fail
@@ -961,10 +956,6 @@ spec@glsl-1.10@execution@derivatives@glsl-derivs-sign,Fail
 spec@glsl-1.10@execution@derivatives@glsl-derivs-swizzle,Fail
 spec@glsl-1.10@execution@derivatives@glsl-derivs-varyings,Fail
 spec@glsl-1.10@execution@discard@glsl-fs-discard-04,Fail
-spec@glsl-1.10@execution@fs-sign-times-abs,Fail
-spec@glsl-1.10@execution@fs-sign-times-neg,Fail
-spec@glsl-1.10@execution@fs-sign-times-neg-abs,Fail
-spec@glsl-1.10@execution@fs-sign-times-sign,Fail
 spec@glsl-1.10@execution@glsl-1.10-built-in-matrix-state,Fail
 spec@glsl-1.10@execution@glsl-fs-convolution-2,Fail
 spec@glsl-1.10@execution@glsl-fs-if-nested-loop,Fail
@@ -1043,8 +1034,6 @@ spec@glsl-1.20@execution@const-builtin@glsl-const-builtin-normalize,Fail
 spec@glsl-1.20@execution@fs-function-inout-array-of-structs,Fail
 
 # https://gitlab.freedesktop.org/mesa/mesa/-/issues/8618
-spec@glsl-1.20@execution@fs-nan-builtin-max,Fail
-spec@glsl-1.20@execution@fs-nan-builtin-min,Fail
 spec@glsl-1.20@execution@vs-nan-builtin-min,Fail
 spec@glsl-1.20@execution@vs-nan-builtin-max,Fail
 

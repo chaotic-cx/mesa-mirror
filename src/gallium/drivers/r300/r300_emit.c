@@ -206,6 +206,14 @@ uint32_t pack_float24(float f)
     }
     /* Handle exponent, bias of 63 */
     exponent += 62;
+    /* FP24 has no subnormals. Flush values below 2^-62 to zero instead
+     * of letting the exponent underflow into the sign and exponent bits.
+     */
+    if (exponent <= 0)
+        return 0;
+    /* Clamp overflowing values to the largest finite FP24 value. */
+    if (exponent >= 127)
+        return float24 | 0x7effff;
     float24 |= (exponent << 16);
     /* Kill 7 LSB of mantissa */
     float24 |= (u.u & 0x7FFFFF) >> 7;
