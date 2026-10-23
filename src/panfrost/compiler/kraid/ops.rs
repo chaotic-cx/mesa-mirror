@@ -5407,6 +5407,36 @@ impl Op {
             _ => false,
         }
     }
+
+    pub fn needs_discarded_threads(&self) -> bool {
+        let lod_computed = |m: TexLodMode| {
+            // TODO: implement forced delta
+            let is_forced_delta = m == TexLodMode::ComputedForceDelta
+                || m == TexLodMode::ComputedBiasForceDelta;
+            debug_assert!(!is_forced_delta);
+            matches!(m, TexLodMode::Computed | TexLodMode::ComputedBias)
+        };
+
+        match self {
+            // Texture ops have a .skip modifier which tells them to return
+            // zero in helper lanes as an optimization
+            Op::TexDual(op) => lod_computed(op.lod_mode),
+            Op::TexGradient(op) => {
+                op.coord_mode != TexGradientCoordMode::Derivative
+            }
+            Op::TexSingle(op) => lod_computed(op.lod_mode),
+            Op::VarTexBufDual(op) => lod_computed(op.lod_mode),
+            Op::VarTexBufGradient(_) => true,
+            Op::VarTexBufSingle(op) => lod_computed(op.lod_mode),
+            Op::VarTexDual(op) => lod_computed(op.lod_mode),
+            Op::VarTexGradient(_) => true,
+            Op::VarTexSingle(op) => lod_computed(op.lod_mode),
+
+            Op::Clper(_) => true,
+            Op::WMask(_) => true,
+            _ => false,
+        }
+    }
 }
 
 #[cfg(test)]

@@ -89,7 +89,6 @@ impl FlowCtrl {
         self.get_ctrl_bit(FlowCtrlBit::Discard)
     }
 
-    #[allow(dead_code)]
     pub fn set_discard(&mut self) {
         self.set_ctrl_bit(FlowCtrlBit::Discard)
     }
