@@ -11,6 +11,22 @@
 
 #include "intel/compiler/brw/brw_rt.h"
 
+static bool
+movi_promotable(const jay_shader *shader, const jay_inst *I)
+{
+   assert(I->op == JAY_OPCODE_SHUFFLE);
+
+   return shader->devinfo->ver >= 20 &&
+          I->type == JAY_TYPE_U32 &&
+          I->src[0].file == GPR &&
+          jay_num_values(I->src[0]) == 1 &&
+          !jay_is_uniform(I->src[1]) &&
+          I->dst.file == GPR &&
+          jay_def_stride(shader, I->dst) == JAY_STRIDE_4 &&
+          !jay_lookup_block(&shader->partition, I->src[0].reg, GPR).split &&
+          4 * shader->dispatch_width <= shader->devinfo->grf_size;
+}
+
 /*
  * Return the maximum SIMD width that can operate on a given operand.
  */
@@ -189,20 +205,66 @@ pass(jay_function *func)
           * interfering with a0.0 and a0.2 users. This affects UGPR spilling.
           */
          bool VxH = !jay_is_uniform(I->src[1]);
-         unsigned addr = VxH ? 0 : 4;
+         bool use_movi = movi_promotable(func->shader, I);
          unsigned nr = VxH ? jay_simd_width_physical(func->shader, I) : 1;
+         unsigned addr = VxH ? 0 : 4;
+
          jay_def a0 = jay_bare_regs(J_ADDRESS, 32, addr, DIV_ROUND_UP(nr, 2));
 
-         unsigned offset_B = jay_reg_offset_B(func->shader, I->src[0]);
-
          b.cursor = jay_before_inst(I);
-         jay_inst *add = jay_ADD(&b, JAY_TYPE_U16, a0, I->src[1], offset_B);
-         add->uniform = !VxH;
-         add->simd_split = I->simd_split;
-         add->simd_offs = I->simd_offs;
 
-         I->op = JAY_OPCODE_MOV_INDIRECT;
-         I->src[1] = a0;
+         if (use_movi) {
+            /* Writes to the address register are uniform, so this AND is
+             * NoMask and covers disabled channels too.
+             */
+            jay_inst *mask =
+               jay_AND(&b, JAY_TYPE_U16, a0, I->src[1],
+                       jay_imm(func->shader->devinfo->grf_size - 1));
+            mask->simd_split = I->simd_split;
+            mask->simd_offs = I->simd_offs;
+
+            I->op = JAY_OPCODE_MOVI;
+            I->src[1] = a0;
+
+            /* MOVI does not pick its per-channel address register up from
+             * the channel offset, and on Xe2/Xe3 uses only 8 address
+             * subregisters starting at a0.0 or a0.8.
+             */
+            unsigned movi_width = MIN2(8, nr);
+            unsigned pieces = nr / movi_width;
+
+            assert(nr >= movi_width && util_is_power_of_two_nonzero(pieces));
+            assert(addr + nr <= 16);
+
+            if (pieces > 1) {
+               unsigned extra = util_logbase2(pieces);
+               b.cursor = jay_after_inst(I);
+
+               for (unsigned i = 1; i < pieces; ++i) {
+                  jay_inst *clone = jay_clone_inst(&b, I, I->num_srcs);
+                  clone->simd_split = I->simd_split + extra;
+                  clone->simd_offs = I->simd_offs * pieces + i;
+                  clone->src[1] =
+                     jay_bare_regs(J_ADDRESS, 32, addr + i * movi_width,
+                                   movi_width / 2);
+                  jay_builder_insert(&b, clone);
+               }
+
+               I->simd_split += extra;
+               I->simd_offs *= pieces;
+               I->src[1] = jay_bare_regs(J_ADDRESS, 32, addr, movi_width / 2);
+            }
+         } else {
+            unsigned offset_B = jay_reg_offset_B(func->shader, I->src[0]);
+
+            jay_inst *add = jay_ADD(&b, JAY_TYPE_U16, a0, I->src[1], offset_B);
+            add->uniform = !VxH;
+            add->simd_split = I->simd_split;
+            add->simd_offs = I->simd_offs;
+
+            I->op = JAY_OPCODE_MOV_INDIRECT;
+            I->src[1] = a0;
+         }
       } else if (I->op == JAY_OPCODE_SLICE_REPACK) {
          b.cursor = jay_after_inst(I);
          for (unsigned i = 1; i < (1 << jay_slice_repack_factor_log2(I)); ++i) {
