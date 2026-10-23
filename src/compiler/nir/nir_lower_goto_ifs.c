@@ -78,6 +78,34 @@ struct strct_lvl {
    bool irreducible;
 };
 
+static void
+validate_path(const struct path *path)
+{
+#ifndef NDEBUG
+   assert(path->reachable != NULL);
+   assert(path->reachable->entries > 0);
+   assert((path->fork == NULL) == (path->reachable->entries == 1));
+
+   if (!path->fork)
+      return;
+
+   for (unsigned i = 0; i < 2; i++) {
+      validate_path(&path->fork->paths[i]);
+      set_foreach(path->fork->paths[i].reachable, entry) {
+         assert(_mesa_set_search_pre_hashed(path->reachable,
+                                            entry->hash, entry->key));
+      }
+   }
+
+   set_foreach(path->reachable, entry) {
+      assert(_mesa_set_search_pre_hashed(path->fork->paths[0].reachable,
+                                         entry->hash, entry->key) ||
+             _mesa_set_search_pre_hashed(path->fork->paths[1].reachable,
+                                         entry->hash, entry->key));
+   }
+#endif
+}
+
 static int
 nir_block_ptr_cmp(const void *_a, const void *_b)
 {
@@ -347,6 +375,7 @@ loop_routing_start(struct routes *routing, nir_builder *b,
       routing->brk.fork = fork;
       routing->brk.reachable = fork_reachable(fork);
    }
+   validate_path(&routing->brk);
 
    nir_loop *loop = nir_push_loop(b);
    nir_loop_add_continue_construct(loop);
@@ -780,6 +809,7 @@ organize_levels(struct list_head *levels, struct set *remaining,
          routing->regular.fork = fork;
          routing->regular.reachable = fork_reachable(fork);
       }
+      validate_path(&routing->regular);
    }
 }
 
