@@ -3174,7 +3174,7 @@
         "description": "nir/lower_goto_ifs: Track outside blocks separately from break",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "b273611bb177b1a00d292f4d7df55efdf0f4ad61",
         "notes": null
