@@ -2464,7 +2464,7 @@
         "description": "r300: skip constant attributes when splitting a negative index bias",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "eb2a1521cfa1e56f462f035f482e7a99c18a4b5f",
         "notes": null
