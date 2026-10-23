@@ -3433,23 +3433,13 @@ zink_resource_copies_reset(struct zink_resource *res)
 }
 
 static void
-do_unmap_clientptr_resource(struct zink_screen *screen, struct zink_transfer *trans);
-
-static void
 transfer_unmap(struct pipe_context *pctx, struct pipe_transfer *ptrans)
 {
    struct zink_context *ctx = zink_context(pctx);
+   struct zink_resource *res = zink_resource(ptrans->resource);
    struct zink_screen *screen = zink_screen(ptrans->resource->screen);
    struct zink_transfer *trans = (struct zink_transfer *)ptrans;
-   struct zink_clientptr_heap *clientptr_heap = zink_clientptr_heap(trans->base.b.resource->clientptr_heap);
-
-   assert(trans->clientptr_refcnt == 0);
-
-   if (trans->short_lived) {
-      do_unmap_clientptr_resource(screen, trans);
-      u_rwlock_rdunlock(&clientptr_heap->short_lived_lock);
-      assert(!trans->staging_res);
-   }
+   struct zink_clientptr_heap *clientptr_heap = zink_clientptr_heap(res->base.b.clientptr_heap);
 
    assert(trans->clientptr_refcnt == 0);
 
@@ -3458,10 +3448,15 @@ transfer_unmap(struct pipe_context *pctx, struct pipe_transfer *ptrans)
       struct pipe_box box = ptrans->box;
       box.x = box.y = box.z = 0;
       /* only subdata calls can potentially trigger an unmap directly from the frontend */
-      struct zink_resource *res = zink_resource(trans->base.b.resource);
       if (!res->subdata)
          trans->base.b.usage &= ~PIPE_MAP_UNSYNCHRONIZED;
       zink_transfer_flush_region(pctx, ptrans, &box);
+   }
+
+   if (trans->short_lived) {
+      assert(!trans->staging_res);
+      unmap_resource(screen, res);
+      u_rwlock_rdunlock(&clientptr_heap->short_lived_lock);
    }
 
    if (trans->staging_res)
@@ -3818,25 +3813,6 @@ zink_transfer_map_clientptr_range(struct pipe_context *pctx, struct pipe_transfe
 }
 
 static void
-do_unmap_clientptr_resource(struct zink_screen *screen, struct zink_transfer *trans)
-{
-   struct zink_resource *res = zink_resource(trans->staging_res);
-   if (!res)
-      res = zink_resource(trans->base.b.resource);
-
-   assert(res->base.b.clientptr_heap);
-
-   if (!res->obj->coherent) {
-      VkMappedMemoryRange range = zink_resource_init_mem_range(screen, res->obj, res->obj->offset, res->obj->size);
-      if (VKSCR(FlushMappedMemoryRanges)(screen->dev, 1, &range) != VK_SUCCESS) {
-         mesa_loge("ZINK: vkFlushMappedMemoryRanges failed");
-      }
-   }
-
-   unmap_resource(screen, res);
-}
-
-static void
 zink_transfer_unmap_clientptr_range(struct pipe_context *pctx, struct pipe_transfer *ptrans)
 {
    struct zink_screen *screen = zink_screen(pctx->screen);
@@ -3844,10 +3820,26 @@ zink_transfer_unmap_clientptr_range(struct pipe_context *pctx, struct pipe_trans
 
    assert(trans->clientptr_refcnt);
    if (!(--trans->clientptr_refcnt)) {
+      struct zink_resource *res = trans->staging_res ? zink_resource(trans->staging_res)
+                                                     : zink_resource(trans->base.b.resource);
+      assert(res->base.b.clientptr_heap);
+
+      if (!res->obj->coherent) {
+         VkMappedMemoryRange range = zink_resource_init_mem_range(screen, res->obj, res->obj->offset, res->obj->size);
+         if (VKSCR(FlushMappedMemoryRanges)(screen->dev, 1, &range) != VK_SUCCESS) {
+            mesa_loge("ZINK: vkFlushMappedMemoryRanges failed");
+         }
+      }
+
       if (trans->clientptr_upload) {
-         zink_transfer_unmap_clientptr_range(pctx, trans->clientptr_upload);
+         struct zink_transfer *upload = (struct zink_transfer *)trans->clientptr_upload;
+         res = upload->staging_res ? zink_resource(upload->staging_res)
+                                   : zink_resource(upload->base.b.resource);
+
+         if (!(--upload->clientptr_refcnt))
+            unmap_resource(screen, res);
       } else {
-         do_unmap_clientptr_resource(screen, trans);
+         unmap_resource(screen, res);
       }
       trans->clientptr = NULL;
    }
