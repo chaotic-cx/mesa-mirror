@@ -29,3 +29,4 @@ GL_OES_sample_variables on v3d
 GL_OES_shader_multisample_interpolation on v3d
 GL_OES_texture_buffer on v3d
 GL_ARB_texture_buffer_object_rgb32 on v3d
+VK_KHR_zero_initialize_workgroup_memory on pvr

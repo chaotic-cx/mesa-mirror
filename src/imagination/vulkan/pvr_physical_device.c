@@ -192,6 +192,7 @@ static void pvr_physical_device_get_supported_extensions(
       .KHR_uniform_buffer_standard_layout = true,
       .KHR_vertex_attribute_divisor = true,
       .KHR_workgroup_memory_explicit_layout = true,
+      .KHR_zero_initialize_workgroup_memory = true,
       .EXT_border_color_swizzle = true,
       .EXT_color_write_enable = true,
       .EXT_custom_border_color = true,
@@ -553,7 +554,7 @@ static void pvr_physical_device_get_supported_features(
       .workgroupMemoryExplicitLayout16BitAccess = false,
 
       /* Vulkan 1.3 / VK_KHR_zero_initialize_workgroup_memory */
-      .shaderZeroInitializeWorkgroupMemory = false,
+      .shaderZeroInitializeWorkgroupMemory = true,
 
       /* VK_EXT_border_color_swizzle */
       .borderColorSwizzle = true,
