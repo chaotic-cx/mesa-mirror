@@ -705,7 +705,6 @@ void r300_emit_query_start(struct r300_context *r300, unsigned size, void*state)
         (struct pipe_framebuffer_state *)r300->fb_state.state;
     struct r300_surface *surf = NULL;
     bool use_dummy_z = false;
-    unsigned dwords = 4;
     CS_LOCALS(r300);
 
     if (!query)
@@ -723,11 +722,7 @@ void r300_emit_query_start(struct r300_context *r300, unsigned size, void*state)
         }
     }
 
-    if (use_dummy_z) {
-        dwords += 10;
-    }
-
-    BEGIN_CS(dwords);
+    BEGIN_CS(4 + (use_dummy_z ? 10 : 0));
     if (r300->screen->caps.family == CHIP_RV530) {
         OUT_CS_REG(RV530_FG_ZBREG_DEST, RV530_FG_ZBREG_DEST_PIPE_SELECT_ALL);
     } else {
