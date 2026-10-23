@@ -89,10 +89,10 @@ struct set *
 _mesa_set_create_u32_keys(void *mem_ctx);
 
 bool
-_mesa_set_copy(struct set *dst, struct set *src, void *dst_mem_ctx);
+_mesa_set_copy(struct set *dst, const struct set *src, void *dst_mem_ctx);
 
 struct set *
-_mesa_set_clone(struct set *set, void *dst_mem_ctx);
+_mesa_set_clone(const struct set *set, void *dst_mem_ctx);
 
 void
 _mesa_set_destroy(struct set *set,
