@@ -1163,7 +1163,9 @@ panfrost_upload_image_size_sysval(struct panfrost_batch *batch,
 
    if (image->resource->target == PIPE_BUFFER) {
       unsigned blocksize = util_format_get_blocksize(image->format);
-      uniform->i[0] = image->u.buf.size / blocksize;
+      uniform->i[0] =
+         MIN2(image->u.buf.size / blocksize,
+              pan_get_max_texel_buffer_elements(PAN_ARCH));
       return;
    }
 
