@@ -8,6 +8,62 @@
 
 class mac_test : public brw_shader_pass_test {};
 
+TEST_F(mac_test, path_output_remains_defined)
+{
+   for (unsigned verx10 : {90u, 125u}) {
+      SCOPED_TRACE(verx10);
+      set_gfx_verx10(verx10);
+      brw_builder bld = make_shader(MESA_SHADER_COMPUTE, 16);
+      brw_reg first = vgrf(bld, BRW_TYPE_F);
+      brw_reg shared = vgrf(bld, BRW_TYPE_F);
+      brw_reg inner = vgrf(bld, BRW_TYPE_F);
+      brw_reg head = vgrf(bld, BRW_TYPE_F);
+      brw_reg other0 = vgrf(bld, BRW_TYPE_F);
+      brw_reg other1 = vgrf(bld, BRW_TYPE_F);
+      brw_reg other2 = vgrf(bld, BRW_TYPE_F);
+      brw_reg other3 = vgrf(bld, BRW_TYPE_F);
+      brw_reg result = vgrf(bld, BRW_TYPE_F);
+
+      bld.MOV(first, brw_imm_f(1.0));
+      bld.ADD(shared, first, brw_imm_f(1.0));
+      bld.ADD(inner, shared, brw_imm_f(1.0));
+      bld.MOV(other0, brw_imm_f(2.0));
+      bld.ADD(other1, other0, brw_imm_f(1.0));
+      bld.ADD(other2, other1, brw_imm_f(1.0));
+      bld.ADD(other3, other2, brw_imm_f(1.0));
+      bld.ADD(head, inner, shared);
+      bld.MUL(result, component(other3, 0), head);
+
+      EXPECT_PROGRESS(brw_opt_mac, bld);
+
+      /* Find the MUL and verify it survived the pass. */
+      brw_inst *mul = nullptr;
+      foreach_block_and_inst(block, brw_inst, inst, bld.shader->cfg) {
+         if (inst->opcode == BRW_OPCODE_MUL &&
+             inst->dst.file == result.file && inst->dst.nr == result.nr) {
+            ASSERT_EQ(nullptr, mul);
+            mul = inst;
+         }
+      }
+      ASSERT_NE(nullptr, mul);
+
+      /* Verify that each MUL source has a preceding definition. */
+      for (unsigned i = 0; i < mul->sources; i++) {
+         bool defined = false;
+         foreach_inst_in_block(brw_inst, inst, mul->block) {
+            if (inst == mul)
+               break;
+
+            if (inst->dst.file == mul->src[i].file &&
+                inst->dst.nr == mul->src[i].nr) {
+               defined = true;
+            }
+         }
+         EXPECT_TRUE(defined) << "MUL source " << i;
+      }
+   }
+}
+
 TEST_F(mac_test, interleave)
 {
    brw_builder bld = make_shader(MESA_SHADER_FRAGMENT, 16);

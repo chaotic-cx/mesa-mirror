@@ -264,7 +264,7 @@
         "description": "brw: Preserve the VGRF result of an accumulator substitution path",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "3c285242ec395802f0647da28b81faba62c648be",
         "notes": null

@@ -1089,12 +1089,13 @@ find_optimal_path(brw_shader &s, const brw_def_analysis &defs, bblock_t *b,
       path *p = &all_paths[i];
 
       while (p && p->num_paths == 0) {
-         if (p->next != nullptr && !p->next->replace_destination) {
-            p = p->remove();
-         } else if (p->next == nullptr && p->replace_destination) {
-            /* This can occur if the user of this result selected a different
-             * source instruction as the best path.
-             */
+         /* The head must keep its VGRF dest for consumers outside this path. */
+         if (p->replace_destination) {
+            p->replace_destination = false;
+            p->num_replacements--;
+         }
+
+         if (p->next == nullptr || !p->next->replace_destination) {
             p = p->remove();
          } else {
             break;
