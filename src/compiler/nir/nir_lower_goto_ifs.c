@@ -86,21 +86,6 @@ nir_block_ptr_cmp(const void *_a, const void *_b)
    return (int)(*a)->index - (int)(*b)->index;
 }
 
-static void
-print_block_set(const struct set *set)
-{
-   printf("{ ");
-   if (set != NULL) {
-      unsigned count = 0;
-      set_foreach(set, entry) {
-         if (count++)
-            printf(", ");
-         printf("%u", ((nir_block *)entry->key)->index);
-      }
-   }
-   printf(" }\n");
-}
-
 /** Return a sorted array of blocks for a set
  *
  * Hash set ordering is non-deterministic.  We hash based on pointers and so,
@@ -120,6 +105,22 @@ sorted_block_arr_for_set(const struct set *block_set, void *mem_ctx)
    assert(i == num_blocks);
    qsort(block_arr, num_blocks, sizeof(*block_arr), nir_block_ptr_cmp);
    return block_arr;
+}
+
+static void
+print_block_set(const struct set *set)
+{
+   printf("{ ");
+   if (set != NULL) {
+      nir_block **arr = sorted_block_arr_for_set(set, NULL);
+      for (unsigned i = 0; i < set->entries; i++) {
+         if (i)
+            printf(", ");
+         printf("%u", arr[i]->index);
+      }
+      ralloc_free(arr);
+   }
+   printf(" }\n");
 }
 
 static nir_block *
