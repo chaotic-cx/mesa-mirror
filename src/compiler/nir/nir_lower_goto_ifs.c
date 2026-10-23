@@ -298,10 +298,8 @@ route_to_cond(nir_builder *b, struct routes *routing, nir_def *condition,
 static struct set *
 fork_reachable(struct path_fork *fork)
 {
-   struct set *reachable = _mesa_set_clone(fork->paths[0].reachable, fork);
-   set_foreach(fork->paths[1].reachable, entry)
-      _mesa_set_add_pre_hashed(reachable, entry->hash, entry->key);
-   return reachable;
+   return _mesa_set_union(fork->paths[0].reachable,
+                          fork->paths[1].reachable, fork);
 }
 
 /**
@@ -502,8 +500,7 @@ inside_outside(nir_block *block, struct set *loop_heads, struct set *outside,
    }
 
    /* Add everything remaining to loop_heads */
-   set_foreach(remaining, entry)
-      _mesa_set_add_pre_hashed(loop_heads, entry->hash, entry->key);
+   _mesa_set_add_set(loop_heads, remaining);
 
    /* Recurse for each remaining */
    set_foreach(remaining, entry) {
@@ -751,9 +748,7 @@ organize_levels(struct list_head *levels, struct set *remaining,
             prev_frontier =
                _mesa_set_clone(&level_block->dom_frontier, curr_level);
          } else {
-            set_foreach(&level_block->dom_frontier, entry)
-               _mesa_set_add_pre_hashed(prev_frontier, entry->hash,
-                                        entry->key);
+            _mesa_set_add_set(prev_frontier, &level_block->dom_frontier);
          }
       }
 
