@@ -1023,8 +1023,13 @@ static LLVMValueRef ac_build_tbuffer_load(struct ac_llvm_context *ctx, LLVMValue
                                           LLVMValueRef vindex, LLVMValueRef voffset,
                                           LLVMValueRef soffset, unsigned num_channels,
                                           unsigned tbuffer_format, LLVMTypeRef channel_type,
-                                          enum gl_access_qualifier access, bool can_speculate)
+                                          enum gl_access_qualifier access, bool can_speculate,
+                                          bool is_volatile)
 {
+   unsigned cache_flags = ac_get_llvm_cache_flags(ctx, access, ac_access_type_load);
+   if (is_volatile)
+      cache_flags |= 1u << 31;
+
    LLVMValueRef args[6];
    int idx = 0;
    args[idx++] = LLVMBuildBitCast(ctx->builder, rsrc, ctx->v4i32, "");
@@ -1033,7 +1038,7 @@ static LLVMValueRef ac_build_tbuffer_load(struct ac_llvm_context *ctx, LLVMValue
    args[idx++] = voffset ? voffset : ctx->i32_0;
    args[idx++] = soffset ? soffset : ctx->i32_0;
    args[idx++] = LLVMConstInt(ctx->i32, tbuffer_format, 0);
-   args[idx++] = LLVMConstInt(ctx->i32, ac_get_llvm_cache_flags(ctx, access, ac_access_type_load), 0);
+   args[idx++] = LLVMConstInt(ctx->i32, cache_flags, 0);
    const char *indexing_kind = vindex ? "struct" : "raw";
    char name[256], type_name[8];
 
@@ -1064,6 +1069,15 @@ LLVMValueRef ac_build_safe_tbuffer_load(struct ac_llvm_context *ctx, LLVMValueRe
    LLVMValueRef voffset_plus_const =
       LLVMBuildAdd(ctx->builder, base_voffset, LLVMConstInt(ctx->i32, const_offset, 0), "");
 
+   /* LLVM 22 and 23 can merge adjacent 8-bit and 16-bit typed loads into
+    * wider ones. It only checks the alignment of the immediate offset, not of
+    * the whole address, which undoes the splitting below. This has been
+    * functionally hidden since LLVM 2b46188f7805 ("[AMDGPU] Gate TBUFFER
+    * merging on relaxed OOB mode").
+    */
+   const bool no_merge = LLVM_VERSION_MAJOR >= 22 && LLVM_VERSION_MAJOR <= 23 &&
+                         vtx_info->chan_byte_size && vtx_info->chan_byte_size < 4;
+
    /* Split the specified load into several MTBUF instructions,
     * according to a safe fetch size determined by aligmnent information.
     */
@@ -1086,7 +1100,7 @@ LLVMValueRef ac_build_safe_tbuffer_load(struct ac_llvm_context *ctx, LLVMValueRe
       LLVMValueRef item =
          ac_build_tbuffer_load(ctx, rsrc, vidx, fetch_voffset, soffset,
                                fetch_num_channels, fetch_format, ctx->i32,
-                               access, can_speculate);
+                               access, can_speculate, no_merge);
       result = ac_build_concat(ctx, result, item);
    }
 
