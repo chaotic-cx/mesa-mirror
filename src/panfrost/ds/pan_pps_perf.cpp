@@ -116,6 +116,8 @@ convert_pan_units(enum mali_perf_counter_units unit)
       return Counter::Units::Byte;
    case MALI_PERF_COUNTER_UNITS_PIXELS:
       return Counter::Units::Pixel;
+   case MALI_PERF_COUNTER_UNITS_PERCENT:
+      return Counter::Units::Percent;
    default:
       return Counter::Units::None;
    }
