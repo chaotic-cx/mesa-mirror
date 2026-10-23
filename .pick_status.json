@@ -3544,7 +3544,7 @@
         "description": "radv/llvm: keep the ring offsets in s[0:1] for GFX11+ compute shaders",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c0aabb5dd50cb1b570cf577afcc6573e90b93f57",
         "notes": null
