@@ -1174,7 +1174,7 @@
         "description": "pan/perf: Fix swapped block counts",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c81802cf0890d43597d0725cec44d1bf016687ef",
         "notes": null
