@@ -1412,10 +1412,10 @@ struct zink_transfer {
    unsigned offset;
    unsigned depthPitch;
    bool unsync_upload;
-   uint8_t *clientptr;
-   unsigned clientptr_refcnt;
+   unsigned clientptr_maps;
    struct pipe_transfer *clientptr_upload;
    bool short_lived;
+   bool invalidated;
 };
 
 
