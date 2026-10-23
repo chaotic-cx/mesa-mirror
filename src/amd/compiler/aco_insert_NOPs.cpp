@@ -1917,14 +1917,12 @@ handle_block(Program* program, Ctx& ctx, Block& block)
    block.instructions.clear(); // Silence clang-analyzer-cplusplus.Move warning
    block.instructions.reserve(state.old_instructions.size());
 
-   bool found_end = false;
    for (aco_ptr<Instruction>& instr : state.old_instructions) {
       Handle(state, ctx, instr, block.instructions);
 
       /* Resolve all possible hazards (we don't know what s_setpc_b64 jumps to). */
       if (instr->opcode == aco_opcode::s_setpc_b64 || instr->opcode == aco_opcode::s_swappc_b64 ||
-          instr->opcode == aco_opcode::s_call_b64) {
-         found_end |= instr->opcode == aco_opcode::s_setpc_b64;
+          instr->opcode == aco_opcode::s_call_b64 || instr->opcode == aco_opcode::p_end_with_regs) {
          block.instructions.emplace_back(std::move(instr));
 
          std::vector<aco_ptr<Instruction>> resolve_instrs;
@@ -1935,13 +1933,8 @@ handle_block(Program* program, Ctx& ctx, Block& block)
          continue;
       }
 
-      found_end |= instr->opcode == aco_opcode::s_endpgm;
       block.instructions.emplace_back(std::move(instr));
    }
-
-   /* Resolve all possible hazards (we don't know what the shader is concatenated with). */
-   if (block.linear_succs.empty() && !found_end)
-      Resolve(state, ctx, block.instructions);
 }
 
 template <typename Ctx, HandleInstr<Ctx> Handle, ResolveAll<Ctx> Resolve>

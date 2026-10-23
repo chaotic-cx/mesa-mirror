@@ -3072,6 +3072,10 @@ lower_to_hw_instr(Program* program)
       exit_block->linear_preds.push_back(end_with_regs_block->index);
       end_with_regs_block->linear_succs.push_back(exit_block->index);
 
+      assert(end_with_regs_block->instructions.back()->opcode == aco_opcode::p_end_with_regs);
+      exit_block->instructions.push_back(std::move(end_with_regs_block->instructions.back()));
+      end_with_regs_block->instructions.pop_back();
+
       Builder bld(program, end_with_regs_block);
       bld.sopp(aco_opcode::s_branch, exit_block->index);
 

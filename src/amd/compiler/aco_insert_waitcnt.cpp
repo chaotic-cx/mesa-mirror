@@ -605,7 +605,8 @@ kill(wait_imm& imm, depctr_wait& depctr, Instruction* instr, wait_ctx& ctx,
        */
       force_waitcnt(ctx, imm);
    }
-   if (instr->opcode == aco_opcode::s_setpc_b64 || instr->opcode == aco_opcode::s_swappc_b64) {
+   if (instr->opcode == aco_opcode::s_setpc_b64 || instr->opcode == aco_opcode::s_swappc_b64 ||
+       instr->opcode == aco_opcode::p_end_with_regs) {
       for (std::pair<const PhysReg, wait_entry>& e : ctx.gpr_map)
          imm.combine(e.second.imm);
    }
@@ -1077,14 +1078,6 @@ handle_block(Program* program, Block& block, wait_ctx& ctx)
          if (is_ordered_count_acquire)
             queued_imm.combine(ctx.bar[barrier_info_release_dep].imm[ffs(storage_gds) - 1]);
       }
-   }
-
-   /* For last block of a program which has succeed shader part, wait all memory ops done
-    * before go to next shader part.
-    */
-   if (block.kind & block_kind_end_with_regs) {
-      for (std::pair<const PhysReg, wait_entry>& e : ctx.gpr_map)
-         queued_imm.combine(e.second.imm);
    }
 
    if (!queued_imm.empty())

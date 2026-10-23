@@ -312,6 +312,7 @@ instr_default_needs(const fp_mode_ctx* ctx, const Instruction* instr)
    case aco_opcode::s_swappc_b64:
    case aco_opcode::s_setpc_b64:
    case aco_opcode::s_call_b64:
+   case aco_opcode::p_end_with_regs:
       /* Restore defaults on calls. */
       return BITFIELD_MASK(mode_field_count);
    case aco_opcode::ds_cmpst_f32:
@@ -360,23 +361,17 @@ emit_set_mode_block(fp_mode_ctx* ctx, Block* block)
    const fp_mode_state default_state(block->fp_mode);
    fp_mode_state fp_state = default_state;
 
-   if (block->kind & block_kind_end_with_regs) {
-      /* Restore default. */
-      fp_state.required = BITFIELD_MASK(mode_field_count);
-      assert(block->linear_succs.empty());
-   } else {
-      for (unsigned succ : block->linear_succs) {
-         /* Skip loop headers, they are handled at the end. */
-         if (succ <= block->index)
-            continue;
+   for (unsigned succ : block->linear_succs) {
+      /* Skip loop headers, they are handled at the end. */
+      if (succ <= block->index)
+         continue;
 
-         fp_mode_state& other = ctx->block_states[succ];
-         mode_mask to_set = fp_state.join(other);
+      fp_mode_state& other = ctx->block_states[succ];
+      mode_mask to_set = fp_state.join(other);
 
-         if (to_set) {
-            Block* succ_block = &ctx->program->blocks[succ];
-            set_mode(ctx, succ_block, other, 0, to_set);
-         }
+      if (to_set) {
+         Block* succ_block = &ctx->program->blocks[succ];
+         set_mode(ctx, succ_block, other, 0, to_set);
       }
    }
 

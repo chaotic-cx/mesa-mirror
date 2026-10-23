@@ -1817,6 +1817,7 @@ BEGIN_TEST(insert_nops.setpc_gfx6)
    bld.pseudo(aco_opcode::p_unit_test, Operand::c32(2));
    bld.vintrp(aco_opcode::v_interp_mov_f32, Definition(PhysReg(256), v1), Operand::c32(2u),
               Operand(m0, s1), 0, 0);
+   bld.pseudo(aco_opcode::p_end_with_regs);
    finish_insert_nops_test(false);
 END_TEST
 
@@ -1897,6 +1898,7 @@ BEGIN_TEST(insert_nops.setpc_gfx7)
       bld.pseudo(aco_opcode::p_unit_test, Operand::c32(7));
       bld.mubuf(aco_opcode::buffer_store_dwordx3, Operand(PhysReg(0), s4),
                 Operand(PhysReg(256), v1), Operand::zero(), Operand(PhysReg(256), v3), 0, true);
+      bld.pseudo(aco_opcode::p_end_with_regs);
       finish_insert_nops_test(false);
 
       //>> p_unit_test 8
@@ -1905,6 +1907,7 @@ BEGIN_TEST(insert_nops.setpc_gfx7)
       create_program(gfx, compute_cs, 64, CHIP_UNKNOWN);
       bld.pseudo(aco_opcode::p_unit_test, Operand::c32(8));
       bld.sop1(aco_opcode::s_mov_b32, Definition(PhysReg(m0), s1), Operand::zero());
+      bld.pseudo(aco_opcode::p_end_with_regs);
       finish_insert_nops_test(false);
 
       /* Break up SMEM clauses */
@@ -1914,6 +1917,7 @@ BEGIN_TEST(insert_nops.setpc_gfx7)
       create_program(gfx, compute_cs, 64, CHIP_UNKNOWN);
       bld.pseudo(aco_opcode::p_unit_test, Operand::c32(9));
       bld.smem(aco_opcode::s_load_dword, Definition(PhysReg(0), s1), Operand(PhysReg(0), s2));
+      bld.pseudo(aco_opcode::p_end_with_regs);
       finish_insert_nops_test(false);
    }
 END_TEST
@@ -2001,6 +2005,7 @@ BEGIN_TEST(insert_nops.setpc_gfx10)
    create_program(GFX10, compute_cs, 64, CHIP_UNKNOWN);
    bld.pseudo(aco_opcode::p_unit_test, Operand::c32(7));
    bld.smem(aco_opcode::s_load_dword, Definition(PhysReg(0), s1), Operand(PhysReg(0), s2));
+   bld.pseudo(aco_opcode::p_end_with_regs);
    finish_insert_nops_test(false);
 
    /* NSAToVMEMBug is already resolved indirectly through VMEMtoScalarWriteHazard and
@@ -2012,6 +2017,7 @@ BEGIN_TEST(insert_nops.setpc_gfx10)
    create_program(GFX10, compute_cs, 64, CHIP_UNKNOWN);
    bld.pseudo(aco_opcode::p_unit_test, Operand::c32(8));
    create_mimg(true, 6, 4);
+   bld.pseudo(aco_opcode::p_end_with_regs);
    finish_insert_nops_test(false);
 
    /* waNsaCannotFollowWritelane */
@@ -2022,6 +2028,7 @@ BEGIN_TEST(insert_nops.setpc_gfx10)
    bld.pseudo(aco_opcode::p_unit_test, Operand::c32(9));
    bld.vop3(aco_opcode::v_writelane_b32_e64, Definition(PhysReg(256), v1),
             Operand(PhysReg(257), v1), Operand::zero(4), Operand(PhysReg(256), v1));
+   bld.pseudo(aco_opcode::p_end_with_regs);
    finish_insert_nops_test(false);
 
    /* FPAtomicToDenormModeHazard */
@@ -2033,6 +2040,7 @@ BEGIN_TEST(insert_nops.setpc_gfx10)
    bld.pseudo(aco_opcode::p_unit_test, Operand::c32(10));
    bld.flat(aco_opcode::flat_atomic_fmin, Operand(PhysReg(256), v2), Operand(s1),
             Operand(PhysReg(256), v1));
+   bld.pseudo(aco_opcode::p_end_with_regs);
    finish_insert_nops_test(false);
 END_TEST
 

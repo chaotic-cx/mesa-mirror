@@ -1142,6 +1142,7 @@ needs_exec_mask(const Instruction* instr)
       case aco_opcode::p_end_wqm:
       case aco_opcode::p_init_scratch: return instr->reads_exec();
       case aco_opcode::p_start_linear_vgpr: return instr->operands.size();
+      case aco_opcode::p_end_with_regs: return true;
       default: break;
       }
    }
