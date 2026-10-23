@@ -3129,7 +3129,7 @@ x11_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
       if (x11_requires_mailbox_image_count(wsi_device, wsi_conn, present_mode) ||
           wsi_device->x11.ensure_minImageCount) {
          unsigned present_mode_images = x11_get_min_image_count_for_present_mode(
-               wsi_device, wsi_conn, pCreateInfo->presentMode);
+               wsi_device, wsi_conn, present_mode);
          num_images = MAX2(num_images, present_mode_images);
       }
    }
