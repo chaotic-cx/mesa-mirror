@@ -587,6 +587,9 @@ radv_vcn_av1_film_grain_init_scaling(uint8_t scaling_points[][2], uint8_t num, s
       delta_y = scaling_points[i + 1][1] - scaling_points[i][1];
       delta_x = scaling_points[i + 1][0] - scaling_points[i][0];
 
+      if (delta_x == 0)
+         continue;
+
       delta = delta_y * (int64_t)((65536 + (delta_x >> 1)) / delta_x);
 
       for (x = 0; x < delta_x; x++)
