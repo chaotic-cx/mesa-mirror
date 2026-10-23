@@ -4978,6 +4978,12 @@ jay_compile_simd(const struct intel_device_info *devinfo,
 
    JAY_PASS(s, jay_lower_flags);
    JAY_PASS(s, jay_opt_dead_code);
+
+   if (!(jay_debug & JAY_DBG_NOOPT)) {
+      JAY_PASS(s, jay_opt_bfn);
+      JAY_PASS(s, jay_opt_dead_code);
+   }
+
    JAY_PASS(s, jay_opt_sampler_vectorize);
 
    if (s->stage == MESA_SHADER_FRAGMENT && s->helpers_tracked) {

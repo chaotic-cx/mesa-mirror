@@ -60,6 +60,7 @@ libintel_compiler_jay_files = files(
   'jay_lower_send.c',
   'jay_lower_spill.c',
   'jay_nir.c',
+  'jay_opt_bfn.c',
   'jay_opt_dead_code.c',
   'jay_opt_postra_vectorize.c',
   'jay_opt_predicate.c',
