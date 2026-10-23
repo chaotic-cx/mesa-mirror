@@ -2454,7 +2454,7 @@
         "description": "r300: clamp sampler LOD bounds before converting to integers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "b7078a88119e248b0196f7446abe029c22f1ee28",
         "notes": null

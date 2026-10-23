@@ -1756,8 +1756,11 @@ static void*
 
     /* Unfortunately, r300-r500 don't support floating-point mipmap lods. */
     /* We must pass these to the merge function to clamp them properly. */
-    sampler->min_lod = (unsigned)MAX2(state->min_lod, 0);
-    sampler->max_lod = (unsigned)MAX2(ceilf(state->max_lod), 0);
+    /* Clamp before conversion because GL allows LOD values beyond UINT_MAX. */
+    sampler->min_lod = (unsigned)CLAMP(state->min_lod, 0,
+                                      R300_MAX_TEXTURE_LEVELS - 1);
+    sampler->max_lod = (unsigned)CLAMP(ceilf(state->max_lod), 0,
+                                      R300_MAX_TEXTURE_LEVELS - 1);
 
     lod_bias = CLAMP((int)(state->lod_bias * 32 + 1), -(1 << 9), (1 << 9) - 1);
 
