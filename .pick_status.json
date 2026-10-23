@@ -2324,7 +2324,7 @@
         "description": "nir: use dst_access for the store",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "6f20643b471a851c936fc8b569cf05dcd6e6e7fe",
         "notes": null
