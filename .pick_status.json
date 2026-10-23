@@ -1584,7 +1584,7 @@
         "description": "freedreno/a5xx: Program the stream output buffer stride",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "d10c5a24818b39585acfa60ceb6dbbae22b5be09",
         "notes": null

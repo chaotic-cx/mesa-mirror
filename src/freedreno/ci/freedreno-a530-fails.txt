@@ -52,14 +52,6 @@ spec@arb_occlusion_query@occlusion_query_order,Fail
 spec@arb_point_sprite@arb_point_sprite-interactions 1.0,Fail
 spec@arb_texture_rectangle@1-1-linear-texture,Fail
 spec@arb_timer_query@query gl_timestamp,Fail
-spec@arb_transform_feedback3@gl_skipcomponents1-1,Fail
-spec@arb_transform_feedback3@gl_skipcomponents1-2,Fail
-spec@arb_transform_feedback3@gl_skipcomponents1-3,Fail
-spec@arb_transform_feedback3@gl_skipcomponents1-gl_nextbuffer,Fail
-spec@arb_transform_feedback3@gl_skipcomponents1234,Fail
-spec@arb_transform_feedback3@gl_skipcomponents2,Fail
-spec@arb_transform_feedback3@gl_skipcomponents3,Fail
-spec@arb_transform_feedback3@gl_skipcomponents4,Fail
 spec@arb_transform_feedback_instanced@draw-auto instanced,Fail
 spec@ext_framebuffer_object@fbo-alphatest-nocolor,Fail
 spec@ext_framebuffer_object@fbo-alphatest-nocolor-ff,Fail
