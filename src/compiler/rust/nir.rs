@@ -717,6 +717,13 @@ impl nir_function_impl {
 }
 
 impl nir_function {
+    pub fn name(&self) -> Option<&str> {
+        if self.name.is_null() {
+            return None;
+        }
+        unsafe { CStr::from_ptr(self.name).to_str().ok() }
+    }
+
     pub fn get_impl(&self) -> Option<&nir_function_impl> {
         unsafe { self.impl_.as_ref() }
     }
