@@ -145,6 +145,9 @@ static void r300_split_index_bias(struct r300_context *r300, int index_bias,
          * by the DRM API. */
         max_neg_bias = INT_MAX;
         for (i = 0; i < r300->velems->count; i++) {
+            /* Constant attributes don't constrain the buffer offset. */
+            if (!velem[i].src_stride)
+                continue;
             vb = &vbufs[velem[i].vertex_buffer_index];
             size = (vb->buffer_offset + velem[i].src_offset) / velem[i].src_stride;
             max_neg_bias = MIN2(max_neg_bias, size);
