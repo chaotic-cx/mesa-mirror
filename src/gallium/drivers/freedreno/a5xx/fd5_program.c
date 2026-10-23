@@ -100,7 +100,6 @@ emit_stream_out(struct fd_ringbuffer *ring, const struct ir3_shader_variant *v,
                 struct ir3_shader_linkage *l)
 {
    const struct ir3_stream_output_info *strmout = &v->stream_output;
-   unsigned ncomp[PIPE_MAX_SO_BUFFERS] = {0};
    unsigned prog[align(l->max_loc, 2) / 2];
 
    memset(prog, 0, sizeof(prog));
@@ -109,8 +108,6 @@ emit_stream_out(struct fd_ringbuffer *ring, const struct ir3_shader_variant *v,
       const struct ir3_stream_output *out = &strmout->output[i];
       gl_varying_slot slot = out->location;
       unsigned idx;
-
-      ncomp[out->output_buffer] += out->num_components;
 
       /* linkage map sorted by order frag shader wants things, so
        * a bit less ideal here..
@@ -141,18 +138,18 @@ emit_stream_out(struct fd_ringbuffer *ring, const struct ir3_shader_variant *v,
    OUT_PKT7(ring, CP_CONTEXT_REG_BUNCH, 12 + (2 * ARRAY_SIZE(prog)));
    OUT_RING(ring, REG_A5XX_VPC_SO_BUF_CNTL);
    OUT_RING(ring, A5XX_VPC_SO_BUF_CNTL_ENABLE |
-                     COND(ncomp[0] > 0, A5XX_VPC_SO_BUF_CNTL_BUF0) |
-                     COND(ncomp[1] > 0, A5XX_VPC_SO_BUF_CNTL_BUF1) |
-                     COND(ncomp[2] > 0, A5XX_VPC_SO_BUF_CNTL_BUF2) |
-                     COND(ncomp[3] > 0, A5XX_VPC_SO_BUF_CNTL_BUF3));
-   OUT_RING(ring, REG_A5XX_VPC_SO_NCOMP(0));
-   OUT_RING(ring, ncomp[0]);
-   OUT_RING(ring, REG_A5XX_VPC_SO_NCOMP(1));
-   OUT_RING(ring, ncomp[1]);
-   OUT_RING(ring, REG_A5XX_VPC_SO_NCOMP(2));
-   OUT_RING(ring, ncomp[2]);
-   OUT_RING(ring, REG_A5XX_VPC_SO_NCOMP(3));
-   OUT_RING(ring, ncomp[3]);
+                     COND(strmout->stride[0] > 0, A5XX_VPC_SO_BUF_CNTL_BUF0) |
+                     COND(strmout->stride[1] > 0, A5XX_VPC_SO_BUF_CNTL_BUF1) |
+                     COND(strmout->stride[2] > 0, A5XX_VPC_SO_BUF_CNTL_BUF2) |
+                     COND(strmout->stride[3] > 0, A5XX_VPC_SO_BUF_CNTL_BUF3));
+   OUT_RING(ring, REG_A5XX_VPC_SO_BUFFER_STRIDE(0));
+   OUT_RING(ring, strmout->stride[0]);
+   OUT_RING(ring, REG_A5XX_VPC_SO_BUFFER_STRIDE(1));
+   OUT_RING(ring, strmout->stride[1]);
+   OUT_RING(ring, REG_A5XX_VPC_SO_BUFFER_STRIDE(2));
+   OUT_RING(ring, strmout->stride[2]);
+   OUT_RING(ring, REG_A5XX_VPC_SO_BUFFER_STRIDE(3));
+   OUT_RING(ring, strmout->stride[3]);
    OUT_RING(ring, REG_A5XX_VPC_SO_CNTL);
    OUT_RING(ring, A5XX_VPC_SO_CNTL_ENABLE);
    for (unsigned i = 0; i < ARRAY_SIZE(prog); i++) {

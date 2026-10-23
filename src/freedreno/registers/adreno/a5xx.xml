@@ -2340,7 +2340,7 @@ bit 7 for RECTLIST (clear) when z32s8 (used for clear of depth32?  not set
 	<array offset="0xe2a7" name="VPC_SO" stride="7" length="4">
 		<reg64 offset="0" name="BUFFER_BASE" type="waddress"/>
 		<reg32 offset="2" name="BUFFER_SIZE"/>
-		<reg32 offset="3" name="NCOMP"/>  <!-- component count -->
+		<reg32 offset="3" name="BUFFER_STRIDE"/>
 		<reg32 offset="4" name="BUFFER_OFFSET"/>
 		<reg64 offset="5" name="FLUSH_BASE" type="waddress"/>
 	</array>
