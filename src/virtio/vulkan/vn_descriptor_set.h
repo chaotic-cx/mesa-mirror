@@ -58,11 +58,17 @@ enum vn_async_set_alloc_state {
     * freeing up any descriptor set and that will change the state to NONE.
     */
    VN_ASYNC_SET_ALLOC_BEFORE_FREE,
-   /* Can still do async set alloc, and the sets allocated are with the same
-    * number of descriptors and types. Allocating a set with different number
-    * of descriptors or types will change the state to BEFORE_FREE.
+   /* Can still do async set alloc with the same layout, but the pool might
+    * have become fragmented already. Requesting to allocate a different set
+    * will change the state to NONE before making the allocation.
     */
    VN_ASYNC_SET_ALLOC_SAME_ALLOC,
+   /* Can still do async set alloc, and the sets allocated are with the same
+    * number of descriptors and types without any sets freed yet.
+    * - Allocating a different set will change the state to BEFORE_FREE.
+    * - Freeing a set will change the state to SAME_ALLOC.
+    */
+   VN_ASYNC_SET_ALLOC_SAME_ALLOC_BEFORE_FREE,
    /* Will always do async set alloc, since the pool is not created with
     * VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT.
     */
