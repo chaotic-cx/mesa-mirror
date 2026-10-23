@@ -52,7 +52,7 @@ v3d_load_utile(void *cpu, uint32_t cpu_stride,
                         : [cpu]         "+r"(cpu)
                         : [gpu]         "r"(gpu),
                           [cpu_stride]  "r"(cpu_stride)
-                        : "q0", "q1", "q2", "q3");
+                        : "q0", "q1", "q2", "q3", "memory");
                 return;
         } else if (gpu_stride == 16) {
                 void *cpu2 = cpu + 8;
@@ -77,7 +77,23 @@ v3d_load_utile(void *cpu, uint32_t cpu_stride,
                           [cpu2]        "+r"(cpu2)
                         : [gpu]         "r"(gpu),
                           [cpu_stride]  "r"(cpu_stride)
-                        : "q0", "q1", "q2", "q3");
+                        : "q0", "q1", "q2", "q3", "memory");
+                return;
+        } else if (gpu_stride == 32) {
+                __asm__ volatile (
+                        /* Load from the GPU in one shot, no interleave, to
+                         * d0-d7.
+                         */
+                        "vldm %[gpu], {q0, q1, q2, q3}\n"
+                        /* Store each 32-byte line to the cpu-side
+                         * destination.
+                         */
+                        "vst1.8 {d0, d1, d2, d3}, [%[cpu]], %[cpu_stride]\n"
+                        "vst1.8 {d4, d5, d6, d7}, [%[cpu]]\n"
+                        : [cpu]         "+r"(cpu)
+                        : [gpu]         "r"(gpu),
+                          [cpu_stride]  "r"(cpu_stride)
+                        : "q0", "q1", "q2", "q3", "memory");
                 return;
         }
 #elif DETECT_ARCH_AARCH64
@@ -159,9 +175,11 @@ v3d_store_utile(void *gpu, uint32_t gpu_stride,
                          * d0-d7.
                          */
                         "vstm %[gpu], {q0, q1, q2, q3}\n"
-                        : [cpu]         "+r"(cpu)
+                        : [cpu]         "+r"(cpu),
+                          [gpu_mem]     "=m"(*(uint8_t (*)[64])gpu)
                         : [gpu]         "r"(gpu),
-                          [cpu_stride]  "r"(cpu_stride)
+                          [cpu_stride]  "r"(cpu_stride),
+                          [cpu_mem]     "m"(*(const uint8_t (*)[7 * cpu_stride + 8])cpu)
                         : "q0", "q1", "q2", "q3");
                 return;
         } else if (gpu_stride == 16) {
@@ -182,9 +200,27 @@ v3d_store_utile(void *gpu, uint32_t gpu_stride,
                         /* Store to the GPU in one shot, no interleave. */
                         "vstm %[gpu], {q0, q1, q2, q3}\n"
                         : [cpu]         "+r"(cpu),
-                          [cpu2]        "+r"(cpu2)
+                          [cpu2]        "+r"(cpu2),
+                          [gpu_mem]     "=m"(*(uint8_t (*)[64])gpu)
                         : [gpu]         "r"(gpu),
-                          [cpu_stride]  "r"(cpu_stride)
+                          [cpu_stride]  "r"(cpu_stride),
+                          [cpu_mem]     "m"(*(const uint8_t (*)[3 * cpu_stride + 16])cpu)
+                        : "q0", "q1", "q2", "q3");
+                return;
+        } else if (gpu_stride == 32) {
+                __asm__ volatile (
+                        /* Load each 32-byte line from the cpu-side
+                         * source.
+                         */
+                        "vld1.8 {d0, d1, d2, d3}, [%[cpu]], %[cpu_stride]\n"
+                        "vld1.8 {d4, d5, d6, d7}, [%[cpu]]\n"
+                        /* Store to the GPU in one shot, no interleave. */
+                        "vstm %[gpu], {q0, q1, q2, q3}\n"
+                        : [cpu]         "+r"(cpu),
+                          [gpu_mem]     "=m"(*(uint8_t (*)[64])gpu)
+                        : [gpu]         "r"(gpu),
+                          [cpu_stride]  "r"(cpu_stride),
+                          [cpu_mem]     "m"(*(const uint8_t (*)[cpu_stride + 32])cpu)
                         : "q0", "q1", "q2", "q3");
                 return;
         }
