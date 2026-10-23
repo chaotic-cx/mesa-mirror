@@ -1276,6 +1276,8 @@ emit_instruction(asm_context& ctx, std::vector<uint32_t>& out, Instruction* inst
       uint32_t index = instr->operands[0].constantValue();
       ctx.program->debug_info[index].offset = out.size() * 4;
       return;
+   } else if (instr->opcode == aco_opcode::p_end_with_regs) {
+      return;
    }
 
    /* Promote VOP12C to VOP3 if necessary. */

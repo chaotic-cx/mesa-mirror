@@ -2917,6 +2917,7 @@ lower_to_hw_instr(Program* program)
                break;
             }
             case aco_opcode::p_end_with_regs: {
+               bld.insert(std::move(instr));
                end_with_regs_block_index = block->index;
                break;
             }
