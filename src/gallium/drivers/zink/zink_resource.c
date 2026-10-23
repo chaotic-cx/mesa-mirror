@@ -2869,7 +2869,7 @@ overwrite:
             trans->short_lived = true;
             u_rwlock_rdlock(&clientptr_heap->short_lived_lock);
 
-            ptr = trans->clientptr = map_resource(screen, res);
+            ptr = map_resource(screen, res);
          } else {
             UNREACHABLE("zink: expected staging buffer for resource in client pointer heap");
          }
@@ -3182,7 +3182,7 @@ zink_transfer_flush_region(struct pipe_context *pctx,
                   util_format_get_stride(m->base.b.format, box->x);
          assert(src_offset + size <= res->obj->size);
       }
-      if (!m->obj->coherent && (!m->base.b.clientptr_heap || trans->clientptr)) {
+      if (!m->obj->coherent && (!m->base.b.clientptr_heap || p_atomic_read(&trans->clientptr_maps) || trans->short_lived)) {
          VkMappedMemoryRange range = zink_resource_init_mem_range(screen, m->obj, m->obj->offset, m->obj->size);
          if (VKSCR(FlushMappedMemoryRanges)(screen->dev, 1, &range) != VK_SUCCESS) {
             mesa_loge("ZINK: vkFlushMappedMemoryRanges failed");
@@ -3441,7 +3441,7 @@ transfer_unmap(struct pipe_context *pctx, struct pipe_transfer *ptrans)
    struct zink_transfer *trans = (struct zink_transfer *)ptrans;
    struct zink_clientptr_heap *clientptr_heap = zink_clientptr_heap(res->base.b.clientptr_heap);
 
-   assert(trans->clientptr_refcnt == 0);
+   assert(!trans->clientptr_maps);
 
    if (!(trans->base.b.usage & (PIPE_MAP_FLUSH_EXPLICIT | PIPE_MAP_COHERENT))) {
       /* flush_region is relative to the mapped region: use only the extents */
@@ -3475,7 +3475,7 @@ do_transfer_unmap(struct zink_screen *screen, struct zink_transfer *trans)
 
    if (res->base.b.clientptr_heap) {
       /* unmap_clientptr_range must be called before unmap */
-      assert(!trans->clientptr);
+      assert(!trans->clientptr_maps);
       return;
    }
 
@@ -3765,18 +3765,14 @@ zink_transfer_map_clientptr_range(struct pipe_context *pctx, struct pipe_transfe
    if (!(res->base.b.clientptr_heap))
       return NULL;
 
-   if (trans->clientptr) {
-      trans->clientptr_refcnt++;
-      return trans->clientptr;
-   }
-
    if (trans->clientptr_upload) {
       uint8_t *ptr = zink_transfer_map_clientptr_range(pctx, trans->clientptr_upload, clientptr_range, size);
 
       if (!ptr)
          return NULL;
 
-      return trans->clientptr = ptr + trans->offset;
+      p_atomic_inc(&trans->clientptr_maps);
+      return ptr + trans->offset;
    } else {
       /* In order to ensure that the potential remap into the client range succeeds,
        * make sure there are no current (short lived) direct
@@ -3799,16 +3795,21 @@ zink_transfer_map_clientptr_range(struct pipe_context *pctx, struct pipe_transfe
          return NULL;
       }
 
-      if (!res->obj->coherent) {
+      /* for non coherent uploader memory, we:
+       * 1) invalidate once on the inner transfer, to prevent discarding upload data
+       * 2) always flush on the outer transfer, to ensure the data can be used */
+      if (!res->obj->coherent && !trans->invalidated) {
          VkDeviceSize size = trans->base.b.box.width;
          VkDeviceSize offset = res->obj->offset + trans->offset;
          VkMappedMemoryRange range = zink_resource_init_mem_range(screen, res->obj, offset, size);
          if (VKSCR(InvalidateMappedMemoryRanges)(screen->dev, 1, &range) != VK_SUCCESS) {
             mesa_loge("ZINK: vkInvalidateMappedMemoryRanges failed");
          }
+         trans->invalidated = true;
       }
 
-      return trans->clientptr = ptr + trans->offset;
+      p_atomic_inc(&trans->clientptr_maps);
+      return ptr + trans->offset;
    }
 }
 
@@ -3817,32 +3818,31 @@ zink_transfer_unmap_clientptr_range(struct pipe_context *pctx, struct pipe_trans
 {
    struct zink_screen *screen = zink_screen(pctx->screen);
    struct zink_transfer *trans = (struct zink_transfer *)ptrans;
+   struct zink_resource *res = trans->staging_res ? zink_resource(trans->staging_res) :
+                                                    zink_resource(trans->base.b.resource);
 
-   assert(trans->clientptr_refcnt);
-   if (!(--trans->clientptr_refcnt)) {
-      struct zink_resource *res = trans->staging_res ? zink_resource(trans->staging_res)
-                                                     : zink_resource(trans->base.b.resource);
-      assert(res->base.b.clientptr_heap);
-
-      if (!res->obj->coherent) {
-         VkMappedMemoryRange range = zink_resource_init_mem_range(screen, res->obj, res->obj->offset, res->obj->size);
-         if (VKSCR(FlushMappedMemoryRanges)(screen->dev, 1, &range) != VK_SUCCESS) {
-            mesa_loge("ZINK: vkFlushMappedMemoryRanges failed");
-         }
+   if (!res->obj->coherent) {
+      VkMappedMemoryRange range = zink_resource_init_mem_range(screen, res->obj, res->obj->offset, res->obj->size);
+      if (VKSCR(FlushMappedMemoryRanges)(screen->dev, 1, &range) != VK_SUCCESS) {
+         mesa_loge("ZINK: vkFlushMappedMemoryRanges failed");
       }
-
-      if (trans->clientptr_upload) {
-         struct zink_transfer *upload = (struct zink_transfer *)trans->clientptr_upload;
-         res = upload->staging_res ? zink_resource(upload->staging_res)
-                                   : zink_resource(upload->base.b.resource);
-
-         if (!(--upload->clientptr_refcnt))
-            unmap_resource(screen, res);
-      } else {
-         unmap_resource(screen, res);
-      }
-      trans->clientptr = NULL;
    }
+
+   assert(res->base.b.clientptr_heap);
+   assert(trans->clientptr_maps);
+   p_atomic_dec(&trans->clientptr_maps);
+
+   if (trans->clientptr_upload) {
+      struct zink_transfer *upload = (struct zink_transfer *)trans->clientptr_upload;
+      res = upload->staging_res ? zink_resource(upload->staging_res) :
+                                  zink_resource(upload->base.b.resource);
+
+      assert(res->base.b.clientptr_heap);
+      assert(upload->clientptr_maps);
+      p_atomic_dec(&upload->clientptr_maps);
+   }
+
+   unmap_resource(screen, res);
 }
 
 static const struct u_transfer_vtbl transfer_vtbl = {
