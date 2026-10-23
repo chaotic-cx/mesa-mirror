@@ -29,6 +29,28 @@
 
 #if DETECT_ARCH_AARCH64
 #include <arm_neon.h>
+
+/* Writes the 64 bytes of a utile to its rows of gpu_stride bytes at cpu. */
+static inline void
+v3d_neon_utile_to_cpu(void *cpu, uint32_t cpu_stride, uint8x16x4_t v,
+                      uint32_t gpu_stride)
+{
+#pragma GCC unroll 4
+        for (int i = 0; i < 4; i++) {
+                if (gpu_stride == 8) {
+                        vst1_u8(cpu, vget_low_u8(v.val[i]));
+                        vst1_u8(cpu + cpu_stride, vget_high_u8(v.val[i]));
+                        cpu += 2 * cpu_stride;
+                } else if (gpu_stride == 16) {
+                        vst1q_u8(cpu, v.val[i]);
+                        cpu += cpu_stride;
+                } else if (i % 2 == 0) {
+                        vst1q_u8(cpu, v.val[i]);
+                        vst1q_u8(cpu + 16, v.val[i + 1]);
+                        cpu += cpu_stride;
+                }
+        }
+}
 #endif
 
 static inline void
@@ -102,24 +124,8 @@ v3d_load_utile(void *cpu, uint32_t cpu_stride,
         }
 #elif DETECT_ARCH_AARCH64
         if (gpu_stride == 8 || gpu_stride == 16 || gpu_stride == 32) {
-                uint8x16x4_t v = vld1q_u8_x4(gpu);
-
-#pragma GCC unroll 4
-                for (int i = 0; i < 4; i++) {
-                        if (gpu_stride == 8) {
-                                vst1_u8(cpu, vget_low_u8(v.val[i]));
-                                vst1_u8(cpu + cpu_stride,
-                                        vget_high_u8(v.val[i]));
-                                cpu += 2 * cpu_stride;
-                        } else if (gpu_stride == 16) {
-                                vst1q_u8(cpu, v.val[i]);
-                                cpu += cpu_stride;
-                        } else if (i % 2 == 0) {
-                                vst1q_u8(cpu, v.val[i]);
-                                vst1q_u8(cpu + 16, v.val[i + 1]);
-                                cpu += cpu_stride;
-                        }
-                }
+                v3d_neon_utile_to_cpu(cpu, cpu_stride, vld1q_u8_x4(gpu),
+                                      gpu_stride);
                 return;
         }
 #endif
@@ -128,6 +134,30 @@ v3d_load_utile(void *cpu, uint32_t cpu_stride,
                 memcpy(cpu, gpu + gpu_offset, gpu_stride);
                 cpu += cpu_stride;
         }
+}
+
+/* Like v3d_load_utile(), but on aarch64 reads the BO with pairs of q loads.
+ * Cortex-A53, which the vc4 boards use, reads its BOs several times faster
+ * that way than with ld1 of four registers, while Cortex-A72 is slower.
+ */
+static inline void
+v3d_load_utile_paired(void *cpu, uint32_t cpu_stride,
+                      void *gpu, uint32_t gpu_stride)
+{
+#if DETECT_ARCH_AARCH64
+        if (gpu_stride == 8 || gpu_stride == 16 || gpu_stride == 32) {
+                uint8x16x4_t v;
+
+                __asm__ ("ldp %q0, %q1, [%4]\n"
+                         "ldp %q2, %q3, [%4, #32]\n"
+                         : "=w"(v.val[0]), "=w"(v.val[1]),
+                           "=w"(v.val[2]), "=w"(v.val[3])
+                         : "r"(gpu), "m"(*(const uint8_t (*)[64])gpu));
+                v3d_neon_utile_to_cpu(cpu, cpu_stride, v, gpu_stride);
+                return;
+        }
+#endif
+        v3d_load_utile(cpu, cpu_stride, gpu, gpu_stride);
 }
 
 static inline void

@@ -142,11 +142,11 @@ vc4_lt_image_aligned(void *gpu, uint32_t gpu_stride,
                         void *gpu_tile = gpu + ((ystart + y) * gpu_stride +
                                                 (xstart + x) * 64 / utile_w);
                         if (to_cpu) {
-                                v3d_load_utile(cpu + (cpu_stride * y +
-                                                      x * cpp),
-                                               cpu_stride,
-                                               gpu_tile,
-                                               utile_stride);
+                                v3d_load_utile_paired(cpu + (cpu_stride * y +
+                                                             x * cpp),
+                                                      cpu_stride,
+                                                      gpu_tile,
+                                                      utile_stride);
                         } else {
                                 v3d_store_utile(gpu_tile,
                                                 utile_stride,
