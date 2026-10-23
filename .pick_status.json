@@ -834,7 +834,7 @@
         "description": "venus: properly fail mutable descriptor alloc",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "21dee4d463cee507f6ce1cb0064b2d6735fe47f9",
         "notes": null

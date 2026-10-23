@@ -440,7 +440,7 @@ vn_get_mutable_state(const struct vn_descriptor_pool *pool,
       if (BITSET_EQUAL(shared_types, binding->mutable_descriptor_types))
          return mutable_state;
    }
-   UNREACHABLE("bad mutable descriptor binding");
+   return NULL;
 }
 
 static inline void
@@ -496,8 +496,8 @@ vn_descriptor_pool_alloc_descriptors(
           */
          struct vn_descriptor_pool_state_mutable *mutable_state =
             vn_get_mutable_state(pool, binding);
-         assert(mutable_state);
-         if (mutable_state->used + count > mutable_state->max)
+         if (!mutable_state ||
+             mutable_state->used + count > mutable_state->max)
             goto restore;
 
          mutable_state->used += count;
