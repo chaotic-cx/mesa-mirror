@@ -45,12 +45,6 @@ int pan_perf_disable(struct pan_perf *perf);
 
 int pan_perf_dump(struct pan_perf *perf);
 
-static inline clockid_t
-pan_perf_gpu_clock_id(const struct pan_perf *perf)
-{
-   return CLOCK_MONOTONIC_RAW;
-}
-
 static inline uint64_t
 pan_perf_get_gpu_timestamp(const struct pan_perf *perf)
 {

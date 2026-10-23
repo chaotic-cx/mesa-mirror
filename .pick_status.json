@@ -1134,7 +1134,7 @@
         "description": "pan/ds: Report correct gpu_clock_id",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "b9d4b7a5cdf1d726ab57d43dca9714b926364aec",
         "notes": null
