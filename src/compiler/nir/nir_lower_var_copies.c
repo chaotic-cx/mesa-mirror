@@ -124,7 +124,7 @@ emit_deref_copy_load_store(nir_builder *b,
 
       nir_store_deref_with_access(b, dst_deref,
                                   nir_load_deref_with_access(b, src_deref, src_access),
-                                  ~0, src_access);
+                                  ~0, dst_access);
    }
 }
 
