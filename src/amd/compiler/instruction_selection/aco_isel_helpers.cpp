@@ -720,8 +720,6 @@ build_end_with_regs(isel_context* ctx, std::vector<Operand>& regs)
       end->operands[1 + i] = regs[i];
 
    ctx->block->instructions.emplace_back(std::move(end));
-
-   ctx->block->kind |= block_kind_end_with_regs;
 }
 
 Instruction*

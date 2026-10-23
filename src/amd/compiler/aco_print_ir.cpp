@@ -865,8 +865,6 @@ print_block_kind(uint32_t kind, FILE* output)
       fprintf(output, "resume, ");
    if (kind & block_kind_export_end)
       fprintf(output, "export_end, ");
-   if (kind & block_kind_end_with_regs)
-      fprintf(output, "end_with_regs, ");
    if (kind & block_kind_contains_call)
       fprintf(output, "contains_call, ");
 }
