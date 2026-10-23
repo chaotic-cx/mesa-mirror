@@ -104,6 +104,7 @@ void jay_lower_flags(jay_shader *s);
 void jay_lower_pre_ra(jay_shader *s);
 void jay_lower_post_ra(jay_shader *s);
 void jay_lower_helpers(jay_shader *s);
+void jay_lower_helpers_pre_ra(jay_shader *s);
 void jay_lower_spill(jay_function *func);
 void jay_lower_simd_width(jay_shader *s);
 void jay_lower_scoreboard(jay_shader *s);
