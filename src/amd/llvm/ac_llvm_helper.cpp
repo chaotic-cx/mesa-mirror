@@ -133,9 +133,13 @@ LLVMModuleRef ac_create_module(LLVMTargetMachineRef tm, LLVMContextRef ctx)
    return module;
 }
 
-LLVMBuilderRef ac_create_builder(LLVMContextRef ctx, enum ac_float_mode float_mode)
+LLVMBuilderRef ac_create_builder(LLVMModuleRef module, enum ac_float_mode float_mode)
 {
-   LLVMBuilderRef builder = LLVMCreateBuilderInContext(ctx);
+#if LLVM_VERSION_MAJOR >= 24
+   LLVMBuilderRef builder = LLVMCreateBuilderForModule(module);
+#else
+   LLVMBuilderRef builder = LLVMCreateBuilderInContext(LLVMGetModuleContext(module));
+#endif
 
    FastMathFlags flags;
 

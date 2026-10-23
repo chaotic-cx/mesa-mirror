@@ -48,7 +48,7 @@ void ac_llvm_context_init(struct ac_llvm_context *ctx, struct ac_llvm_compiler *
    ctx->exports_color_null = exports_color_null;
    ctx->exports_mrtz = exports_mrtz;
    ctx->module = ac_create_module(compiler->tm, ctx->context);
-   ctx->builder = ac_create_builder(ctx->context, float_mode);
+   ctx->builder = ac_create_builder(ctx->module, float_mode);
 
    ctx->voidt = LLVMVoidTypeInContext(ctx->context);
    ctx->i1 = LLVMInt1TypeInContext(ctx->context);
@@ -2383,7 +2383,11 @@ LLVMValueRef ac_build_alloca_undef(struct ac_llvm_context *ac, LLVMTypeRef type,
    LLVMValueRef function = LLVMGetBasicBlockParent(current_block);
    LLVMBasicBlockRef first_block = LLVMGetEntryBasicBlock(function);
    LLVMValueRef first_instr = LLVMGetFirstInstruction(first_block);
+#if LLVM_VERSION_MAJOR >= 24
+   LLVMBuilderRef first_builder = LLVMCreateBuilderForModule(ac->module);
+#else
    LLVMBuilderRef first_builder = LLVMCreateBuilderInContext(ac->context);
+#endif
    LLVMValueRef res;
 
    if (first_instr) {

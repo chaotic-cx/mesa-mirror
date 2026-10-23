@@ -65,7 +65,7 @@ void ac_add_function_attr(LLVMContextRef ctx, LLVMValueRef function, int attr_id
                           const char *attr);
 void ac_dump_module(LLVMModuleRef module);
 LLVMModuleRef ac_create_module(LLVMTargetMachineRef tm, LLVMContextRef ctx);
-LLVMBuilderRef ac_create_builder(LLVMContextRef ctx, enum ac_float_mode float_mode);
+LLVMBuilderRef ac_create_builder(LLVMModuleRef module, enum ac_float_mode float_mode);
 void ac_enable_signed_zeros(struct ac_llvm_context *ctx);
 void ac_disable_signed_zeros(struct ac_llvm_context *ctx);
 
