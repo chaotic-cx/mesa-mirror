@@ -618,6 +618,19 @@ brw_generator::generate_shuffle(brw_inst *inst,
       lower_width = 8;
    }
 
+   /* MOVI (indexed move) is faster than a VxH MOV but requires every channel
+    * to address the same GRF, so only use it when the whole 32-bit value
+    * being shuffled fits in one GRF.
+    */
+   const unsigned grf_size_B = REG_SIZE * reg_unit(devinfo);
+   const bool use_movi =
+      devinfo->ver >= 20 &&
+      inst->exec_size >= 8 &&
+      brw_type_size_bytes(src.type) == 4 &&
+      byte_stride(dst) == brw_type_size_bytes(dst.type) &&
+      phys_subnr(devinfo, src) % grf_size_B +
+         src.component_size(inst->exec_size) <= grf_size_B;
+
    current_state()->exec_size = lower_width;
    for (unsigned group = 0; group < inst->exec_size; group += lower_width) {
       current_state()->chan_offset = group;
@@ -678,10 +691,30 @@ brw_generator::generate_shuffle(brw_inst *inst,
       else
          gen->no_dd_check = use_dep_ctrl;
 
-      /* Add on the register start offset */
-      append(BRW_OPCODE_ADD, addr, addr, brw_imm_uw(src_start_offset));
-      append(BRW_OPCODE_MOV, suboffset(dst, group << (dst.hstride - 1)),
-             retype(brw_VxH_indirect(0, 0), src.type));
+      if (use_movi) {
+         /* MOVI does not derive its address subregister from the channel
+          * offset, and on Xe2/Xe3 uses only 8 address subregisters starting
+          * at a0.0 or a0.8, so each SIMD8 piece reads its own window
+          * a0.<i * movi_width>. The source base offset is the src1 immediate.
+          */
+         const unsigned movi_width = MIN2(8, lower_width);
+         for (unsigned i = 0; i < lower_width / movi_width; i++) {
+            const unsigned chan = group + i * movi_width;
+            struct brw_reg movi_src = brw_VxH_indirect(i * movi_width, 0);
+            movi_src.vstride = BRW_VERTICAL_STRIDE_1;
+            gen = append(BRW_OPCODE_MOVI,
+                         suboffset(dst, chan << (dst.hstride - 1)),
+                         retype(movi_src, src.type),
+                         brw_imm_uw(src_start_offset));
+            gen->chan_offset = chan;
+            gen->exec_size = movi_width;
+         }
+      } else {
+         /* Add on the register start offset */
+         append(BRW_OPCODE_ADD, addr, addr, brw_imm_uw(src_start_offset));
+         append(BRW_OPCODE_MOV, suboffset(dst, group << (dst.hstride - 1)),
+                retype(brw_VxH_indirect(0, 0), src.type));
+      }
 
       current_state()->swsb = gen_swsb_null();
    }
