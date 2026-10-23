@@ -27,6 +27,10 @@
  * stayed the same, though the way utiles get laid out has changed.
  */
 
+#if DETECT_ARCH_AARCH64
+#include <arm_neon.h>
+#endif
+
 static inline void
 v3d_load_utile(void *cpu, uint32_t cpu_stride,
                void *gpu, uint32_t gpu_stride)
@@ -97,52 +101,25 @@ v3d_load_utile(void *cpu, uint32_t cpu_stride,
                 return;
         }
 #elif DETECT_ARCH_AARCH64
-        if (gpu_stride == 8) {
-                __asm__ volatile (
-                        /* Load from the GPU in one shot, no interleave, to
-                         * d0-d7.
-                         */
-                        "ld1 {v0.2d, v1.2d, v2.2d, v3.2d}, [%[gpu]]\n"
-                        /* Store each 8-byte line to cpu-side destination,
-                         * incrementing it by the stride each time.
-                         */
-                        "st1 {v0.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v0.D}[1], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v1.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v1.D}[1], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v2.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v2.D}[1], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v3.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v3.D}[1], [%[cpu]]\n"
-                        : [cpu]         "+r"(cpu)
-                        : [gpu]         "r"(gpu),
-                          [cpu_stride]  "r"(cpu_stride)
-                        : "v0", "v1", "v2", "v3");
-                return;
-        } else if (gpu_stride == 16) {
-                void *cpu2 = cpu + 8;
-                __asm__ volatile (
-                        /* Load from the GPU in one shot, no interleave, to
-                         * d0-d7.
-                         */
-                        "ld1 {v0.2d, v1.2d, v2.2d, v3.2d}, [%[gpu]]\n"
-                        /* Store each 16-byte line in 2 parts to the cpu-side
-                         * destination.  (vld1 can only store one d-register
-                         * at a time).
-                         */
-                        "st1 {v0.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v0.D}[1], [%[cpu2]],%[cpu_stride]\n"
-                        "st1 {v1.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v1.D}[1], [%[cpu2]],%[cpu_stride]\n"
-                        "st1 {v2.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "st1 {v2.D}[1], [%[cpu2]],%[cpu_stride]\n"
-                        "st1 {v3.D}[0], [%[cpu]]\n"
-                        "st1 {v3.D}[1], [%[cpu2]]\n"
-                        : [cpu]         "+r"(cpu),
-                          [cpu2]        "+r"(cpu2)
-                        : [gpu]         "r"(gpu),
-                          [cpu_stride]  "r"(cpu_stride)
-                        : "v0", "v1", "v2", "v3");
+        if (gpu_stride == 8 || gpu_stride == 16 || gpu_stride == 32) {
+                uint8x16x4_t v = vld1q_u8_x4(gpu);
+
+#pragma GCC unroll 4
+                for (int i = 0; i < 4; i++) {
+                        if (gpu_stride == 8) {
+                                vst1_u8(cpu, vget_low_u8(v.val[i]));
+                                vst1_u8(cpu + cpu_stride,
+                                        vget_high_u8(v.val[i]));
+                                cpu += 2 * cpu_stride;
+                        } else if (gpu_stride == 16) {
+                                vst1q_u8(cpu, v.val[i]);
+                                cpu += cpu_stride;
+                        } else if (i % 2 == 0) {
+                                vst1q_u8(cpu, v.val[i]);
+                                vst1q_u8(cpu + 16, v.val[i + 1]);
+                                cpu += cpu_stride;
+                        }
+                }
                 return;
         }
 #endif
@@ -225,48 +202,25 @@ v3d_store_utile(void *gpu, uint32_t gpu_stride,
                 return;
         }
 #elif DETECT_ARCH_AARCH64
-        if (gpu_stride == 8) {
-                __asm__ volatile (
-                        /* Load each 8-byte line from cpu-side source,
-                         * incrementing it by the stride each time.
-                         */
-                        "ld1 {v0.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v0.D}[1], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v1.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v1.D}[1], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v2.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v2.D}[1], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v3.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v3.D}[1], [%[cpu]]\n"
-                        /* Store to the GPU in one shot, no interleave. */
-                        "st1 {v0.2d, v1.2d, v2.2d, v3.2d}, [%[gpu]]\n"
-                        : [cpu]         "+r"(cpu)
-                        : [gpu]         "r"(gpu),
-                          [cpu_stride]  "r"(cpu_stride)
-                        : "v0", "v1", "v2", "v3");
-                return;
-        } else if (gpu_stride == 16) {
-                void *cpu2 = cpu + 8;
-                __asm__ volatile (
-                        /* Load each 16-byte line in 2 parts from the cpu-side
-                         * destination.  (vld1 can only store one d-register
-                         * at a time).
-                         */
-                        "ld1 {v0.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v0.D}[1], [%[cpu2]],%[cpu_stride]\n"
-                        "ld1 {v1.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v1.D}[1], [%[cpu2]],%[cpu_stride]\n"
-                        "ld1 {v2.D}[0], [%[cpu]], %[cpu_stride]\n"
-                        "ld1 {v2.D}[1], [%[cpu2]],%[cpu_stride]\n"
-                        "ld1 {v3.D}[0], [%[cpu]]\n"
-                        "ld1 {v3.D}[1], [%[cpu2]]\n"
-                        /* Store to the GPU in one shot, no interleave. */
-                        "st1 {v0.2d, v1.2d, v2.2d, v3.2d}, [%[gpu]]\n"
-                        : [cpu]         "+r"(cpu),
-                          [cpu2]        "+r"(cpu2)
-                        : [gpu]         "r"(gpu),
-                          [cpu_stride]  "r"(cpu_stride)
-                        : "v0", "v1", "v2", "v3");
+        if (gpu_stride == 8 || gpu_stride == 16 || gpu_stride == 32) {
+                uint8x16x4_t v;
+
+#pragma GCC unroll 4
+                for (int i = 0; i < 4; i++) {
+                        if (gpu_stride == 8) {
+                                v.val[i] = vcombine_u8(vld1_u8(cpu),
+                                                       vld1_u8(cpu + cpu_stride));
+                                cpu += 2 * cpu_stride;
+                        } else if (gpu_stride == 16) {
+                                v.val[i] = vld1q_u8(cpu);
+                                cpu += cpu_stride;
+                        } else if (i % 2 == 0) {
+                                v.val[i] = vld1q_u8(cpu);
+                                v.val[i + 1] = vld1q_u8(cpu + 16);
+                                cpu += cpu_stride;
+                        }
+                }
+                vst1q_u8_x4(gpu, v);
                 return;
         }
 #endif
