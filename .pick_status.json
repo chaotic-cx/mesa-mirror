@@ -1154,7 +1154,7 @@
         "description": "pan/ds: Add missing percent unit",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "afaa1b6d333b15cd75730e6494cf24190a44b9a1",
         "notes": null
