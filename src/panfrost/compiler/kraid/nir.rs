@@ -119,7 +119,7 @@ impl<'a> ShaderFromNir<'a> {
     fn new(
         model: &'a dyn Model,
         nir: &'a nir_shader,
-        inputs: &pan_compile_inputs,
+        stage: ShaderStage,
     ) -> Self {
         let fc = nir.info.float_controls_execution_mode;
         let rtz_fp16 = (fc & FLOAT_CONTROLS_ROUNDING_MODE_RTZ_FP16) != 0;
@@ -136,7 +136,7 @@ impl<'a> ShaderFromNir<'a> {
             ftz_fp32,
             info: ShaderInfo {
                 tls_size: nir.scratch_size,
-                is_blend: inputs.is_blend,
+                stage,
                 ..ShaderInfo::default()
             },
             constant_pool_label: None,
@@ -2795,7 +2795,7 @@ impl<'a> ShaderFromNir<'a> {
                     );
                 }
 
-                if self.info.is_blend {
+                if self.info.stage == ShaderStage::Blend {
                     assert!(second_color.is_zero());
                     b.push_op(OpBlend {
                         color_type,
@@ -2806,6 +2806,7 @@ impl<'a> ShaderFromNir<'a> {
                         offset: 0,
                     });
                 } else {
+                    assert_eq!(self.info.stage, ShaderStage::Fragment);
                     let sample_id =
                         self.preload(b, PreloadReg::SampleCentroidId);
                     b.push_op(OpBlendCall {
@@ -3146,8 +3147,8 @@ impl<'a> Shader<'a> {
     pub fn from_nir(
         model: &'a dyn Model,
         nir: &'a nir_shader,
-        inputs: &pan_compile_inputs,
+        stage: ShaderStage,
     ) -> Self {
-        ShaderFromNir::new(model, nir, inputs).parse_shader()
+        ShaderFromNir::new(model, nir, stage).parse_shader()
     }
 }

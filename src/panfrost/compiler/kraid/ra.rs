@@ -2640,7 +2640,7 @@ impl Shader<'_> {
         assert_eq!(self.functions.len(), 1);
         pass!(self.lower_repeated_phi_srcs());
 
-        if self.info.is_blend {
+        if self.info.stage == ShaderStage::Blend {
             let arena = Arena::new_blend();
 
             pass!(self.prop_oob_reg_in(&arena));

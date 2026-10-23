@@ -134,7 +134,8 @@ fn dce_flow(f: &mut Function, shader_info: &ShaderInfo) {
     let mut reg_in = vec![WaitSlots::unknown(); cfg.len()];
     let mut reg_out = vec![WaitSlots::unknown(); cfg.len()];
     reg_in[0] = WaitSlots::signaled();
-    if shader_info.is_blend {
+
+    if shader_info.stage == ShaderStage::Blend {
         // blend shaders come from a BLEND call, those require a zs + barrier
         // wait, so we can clear those slots
         reg_in[0].wait_bit(FlowWaitBit::Barrier);

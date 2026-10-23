@@ -2278,6 +2278,21 @@ impl fmt::Display for BasicBlock {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum ShaderStage {
+    #[default]
+    Compute,
+
+    IdvsPosition,
+    IdvsVarying,
+    // No IDVS or IDVS2
+    Vertex,
+    Fragment,
+
+    // Internal types
+    Blend,
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct ShaderInfo {
     /// Number of registers used
@@ -2294,11 +2309,11 @@ pub struct ShaderInfo {
     /// Fragment shaders blend (and blend2) types
     pub blend_types: [Option<DataType>; 8],
     pub blend1_type: Option<DataType>,
-    /// Is this a blend shader?
-    pub is_blend: bool,
 
     /// Src swizzles must always be legal (set after legalize_src_swizzles)
     pub src_swizzles_legal: bool,
+    /// Shader stage
+    pub stage: ShaderStage,
 }
 
 impl ShaderInfo {

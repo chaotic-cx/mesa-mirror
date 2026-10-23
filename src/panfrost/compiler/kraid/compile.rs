@@ -11,6 +11,7 @@ use compiler::memstream::MemStream;
 use kraid_bindings::*;
 
 use std::collections::HashMap;
+use std::ffi::CStr;
 use std::sync::OnceLock;
 
 fn nir_opts(arch: u8, merge_wg: bool) -> nir_shader_compiler_options {
@@ -136,6 +137,32 @@ fn dynarray_append_vec<T: Copy>(buf: &mut util_dynarray, vec: Vec<T>) {
         );
         assert!(!p.is_null(), "util_dynarray_grow_bytes() failed");
         std::ptr::copy_nonoverlapping(vec.as_ptr(), p as *mut T, vec.len());
+    }
+}
+
+pub fn stage_from_nir(
+    stage: mesa_shader_stage,
+    is_blend: bool,
+    idvs: u32,
+) -> ShaderStage {
+    match stage {
+        MESA_SHADER_COMPUTE => ShaderStage::Compute,
+        MESA_SHADER_KERNEL => ShaderStage::Compute,
+        MESA_SHADER_VERTEX => match idvs {
+            KRAID_IDVS_POSITION => ShaderStage::IdvsPosition,
+            KRAID_IDVS_VARYING => ShaderStage::IdvsVarying,
+            KRAID_IDVS_ALL | KRAID_IDVS_NONE => ShaderStage::Vertex,
+            _ => panic!("Unknown IDVS variant {idvs}"),
+        },
+        MESA_SHADER_FRAGMENT if is_blend => ShaderStage::Blend,
+        MESA_SHADER_FRAGMENT => ShaderStage::Fragment,
+        _ => {
+            let name = unsafe {
+                CStr::from_ptr(_mesa_shader_stage_to_string(stage as u32))
+            };
+            let name = name.to_str().unwrap_or("Invalid name");
+            panic!("Unknown shader stage {name}");
+        }
     }
 }
 
@@ -267,7 +294,8 @@ pub extern "C" fn kraid_compile_nir(
         eprint!("{}", nir.to_string().unwrap());
     }
 
-    let mut s = Shader::from_nir(model.as_ref(), nir, inputs);
+    let stage = stage_from_nir(nir.info.stage(), inputs.is_blend, idvs);
+    let mut s = Shader::from_nir(model.as_ref(), nir, stage);
     s.run_pass("after translation from NIR", |_| {});
 
     pass!(s.remat_constants());
@@ -304,7 +332,9 @@ pub extern "C" fn kraid_compile_nir(
     // These have to happen last since we can't remove any instructions after
     // they've completed.
     pass!(s.assign_message_slots());
-    pass!(s.insert_required_waits());
+    if stage == ShaderStage::Fragment {
+        pass!(s.insert_required_waits());
+    }
     pass!(s.mark_reconvergence());
     pass!(s.opt_flow());
 
