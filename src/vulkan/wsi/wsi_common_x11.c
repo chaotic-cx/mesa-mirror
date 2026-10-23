@@ -2057,46 +2057,6 @@ x11_swapchain_present_timing_is_out_of_order_completion(
 /* This matches Wayland. */
 #define X11_SWAPCHAIN_MAILBOX_IMAGES 4
 
-static bool
-x11_requires_mailbox_image_count(const struct wsi_device *device,
-                                 struct wsi_x11_connection *wsi_conn,
-                                 VkPresentModeKHR present_mode)
-{
-   /* One potential concern here is IMMEDIATE mode on Wayland.
-    * This situation could arise:
-    * - Fullscreen FLIP mode
-    * - Compositor does not support tearing protocol (we cannot know this here)
-    *
-    * With 3 images, during the window between latch and flip, there is only one image left to app,
-    * so peak FPS may not be reached if the window between latch and flip is large,
-    * but tests on contemporary compositors suggest this effect is minor.
-    * Frame rate in the thousands can easily be reached.
-    *
-    * There are pragmatic reasons to expose 3 images for IMMEDIATE on Xwl.
-    * - minImageCount is not intended as a tool to tune performance, its intent is to signal forward progress.
-    *   Our X11 and WL implementations do so for pragmatic reasons due to sync acquire interacting poorly with 2 images.
-    *   A jump from 3 to 4 is at best a minor improvement which only affects applications
-    *   running at extremely high frame rates, way beyond the monitor refresh rate.
-    *   On the other hand, lowering minImageCount to 2 would break the fundamental idea of MAILBOX
-    *   (and IMMEDIATE without tear), since FPS > refresh rate would not be possible.
-    *
-    * - Several games developed for other platforms and other Linux WSI implementations
-    *   do not expect that image counts arbitrarily change when changing present mode,
-    *   and will crash when Mesa does so.
-    *   There are several games using the strict_image_count drirc to work around this,
-    *   and it would be good to be friendlier in the first place, so we don't have to work around more games.
-    *   IMMEDIATE is a common presentation mode on those platforms, but MAILBOX is more Wayland-centric in nature,
-    *   so increasing image count for that mode is more reasonable.
-    *
-    * - IMMEDIATE expects tearing, and when tearing, 3 images are more than enough.
-    *
-    * - With KHR_swapchain_maintenance1, toggling between FIFO / IMMEDIATE (used extensively by D3D layering)
-    *   would require application to allocate >3 images which is unfortunate for memory usage,
-    *   and potentially disastrous for latency unless KHR_present_wait is used.
-    */
-   return present_mode == VK_PRESENT_MODE_MAILBOX_KHR;
-}
-
 /**
  * Send image to the X server for presentation at target_msc.
  */
@@ -3257,7 +3217,7 @@ x11_get_min_image_count_for_present_mode(struct wsi_device *wsi_device,
                                          VkPresentModeKHR present_mode)
 {
    uint32_t min_image_count = x11_get_min_image_count(wsi_device, wsi_conn->is_xwayland);
-   if (x11_requires_mailbox_image_count(wsi_device, wsi_conn, present_mode))
+   if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR)
       return MAX2(min_image_count, X11_SWAPCHAIN_MAILBOX_IMAGES);
    else
       return min_image_count;
@@ -3306,7 +3266,7 @@ x11_surface_create_swapchain(VkIcdSurfaceBase *icd_surface,
     */
    unsigned num_images = pCreateInfo->minImageCount;
    if (!wsi_device->x11.strict_imageCount) {
-      if (x11_requires_mailbox_image_count(wsi_device, wsi_conn, present_mode) ||
+      if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR ||
           wsi_device->x11.ensure_minImageCount) {
          unsigned present_mode_images = x11_get_min_image_count_for_present_mode(
                wsi_device, wsi_conn, present_mode);
