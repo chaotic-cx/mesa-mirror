@@ -1691,9 +1691,9 @@ build_av1_msg(struct cmd_buffer *cmd_buf, struct ac_video_dec_decode_cmd *cmd, r
       fg->grain_scale_shift = av1->film_grain.grain_scale_shift;
       fg->scaling_shift = av1->film_grain.grain_scaling_minus8 + 8;
       fg->chroma_scaling_from_luma = av1->film_grain.flags.chroma_scaling_from_luma;
-      fg->num_y_points = av1->film_grain.num_y_points;
-      fg->num_cb_points = av1->film_grain.num_cb_points;
-      fg->num_cr_points = av1->film_grain.num_cr_points;
+      fg->num_y_points = MIN2(AV1_MAX_NUM_Y_POINTS, av1->film_grain.num_y_points);
+      fg->num_cb_points = MIN2(AV1_MAX_NUM_CB_POINTS, av1->film_grain.num_cb_points);
+      fg->num_cr_points = MIN2(AV1_MAX_NUM_CR_POINTS, av1->film_grain.num_cr_points);
       fg->cb_mult = av1->film_grain.cb_mult;
       fg->cb_luma_mult = av1->film_grain.cb_luma_mult;
       fg->cb_offset = av1->film_grain.cb_offset;
@@ -1717,7 +1717,7 @@ build_av1_msg(struct cmd_buffer *cmd_buf, struct ac_video_dec_decode_cmd *cmd, r
          fg->scaling_points_cr[i][1] = av1->film_grain.point_cr_scaling[i];
       }
 
-      fg->ar_coeff_lag = av1->film_grain.ar_coeff_lag;
+      fg->ar_coeff_lag = MIN2(3, av1->film_grain.ar_coeff_lag);
       fg->ar_coeff_shift = av1->film_grain.ar_coeff_shift_minus6 + 6;
 
       for (uint32_t i = 0; i < AV1_MAX_NUM_POS_LUMA; i++)
