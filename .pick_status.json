@@ -954,7 +954,7 @@
         "description": "vulkan/wsi/x11: use resolved present mode to calculate image count",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "bd2375399180198b777d0dc9da4eba660b5e2afb",
         "notes": null
