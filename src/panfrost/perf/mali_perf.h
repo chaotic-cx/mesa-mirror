@@ -135,9 +135,9 @@ mali_perf_block_count(enum mali_perf_block_type block_type,
 {
    switch (block_type) {
    case MALI_PERF_BLOCK_MEMSYS:
-      return constants->shader_core_count;
-   case MALI_PERF_BLOCK_SHADER_CORE:
       return constants->l2_cache_count;
+   case MALI_PERF_BLOCK_SHADER_CORE:
+      return constants->shader_core_count;
    case MALI_PERF_BLOCK_GPU_FRONT_END:
    case MALI_PERF_BLOCK_TILER:
    case MALI_PERF_BLOCK_NONE:
