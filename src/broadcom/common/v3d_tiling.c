@@ -75,7 +75,7 @@ v3d_utile_height(int cpp)
  * Utiles are 64b blocks of pixels in raster order, with 32bpp being a 4x4
  * arrangement.
  */
-static inline uint32_t
+static ALWAYS_INLINE uint32_t
 v3d_get_utile_pixel_offset(uint32_t cpp, uint32_t x, uint32_t y)
 {
         uint32_t utile_w = v3d_utile_width(cpp);
@@ -90,7 +90,7 @@ v3d_get_utile_pixel_offset(uint32_t cpp, uint32_t x, uint32_t y)
  *
  * LINEARTILE is a single line of utiles in either the X or Y direction.
  */
-static inline uint32_t
+static ALWAYS_INLINE uint32_t
 v3d_get_lt_pixel_offset(uint32_t cpp, uint32_t image_h, uint32_t x, uint32_t y)
 {
         uint32_t utile_w = v3d_utile_width(cpp);
@@ -112,7 +112,7 @@ v3d_get_lt_pixel_offset(uint32_t cpp, uint32_t image_h, uint32_t x, uint32_t y)
  * UBLINEAR is the layout where pixels are arranged in UIF blocks (2x2
  * utiles), and the UIF blocks are in 1 or 2 columns in raster order.
  */
-static inline uint32_t
+static ALWAYS_INLINE uint32_t
 v3d_get_ublinear_pixel_offset(uint32_t cpp, uint32_t x, uint32_t y,
                               int ublinear_number)
 {
@@ -132,14 +132,14 @@ v3d_get_ublinear_pixel_offset(uint32_t cpp, uint32_t x, uint32_t y,
                                              y & (utile_h - 1)));
 }
 
-static inline uint32_t
+static ALWAYS_INLINE uint32_t
 v3d_get_ublinear_2_column_pixel_offset(uint32_t cpp, uint32_t image_h,
                                        uint32_t x, uint32_t y)
 {
         return v3d_get_ublinear_pixel_offset(cpp, x, y, 2);
 }
 
-static inline uint32_t
+static ALWAYS_INLINE uint32_t
 v3d_get_ublinear_1_column_pixel_offset(uint32_t cpp, uint32_t image_h,
                                        uint32_t x, uint32_t y)
 {
@@ -153,7 +153,7 @@ v3d_get_ublinear_1_column_pixel_offset(uint32_t cpp, uint32_t image_h,
  * It stores pixels in UIF blocks (2x2 utiles), and UIF blocks are stored in
  * 4x4 groups, and those 4x4 groups are then stored in raster order.
  */
-static inline uint32_t
+static ALWAYS_INLINE uint32_t
 v3d_get_uif_pixel_offset(uint32_t cpp, uint32_t image_h, uint32_t x, uint32_t y,
                          bool do_xor)
 {
@@ -197,14 +197,14 @@ v3d_get_uif_pixel_offset(uint32_t cpp, uint32_t image_h, uint32_t x, uint32_t y,
         return mb_pixel_address;
 }
 
-static inline uint32_t
+static ALWAYS_INLINE uint32_t
 v3d_get_uif_xor_pixel_offset(uint32_t cpp, uint32_t image_h,
                              uint32_t x, uint32_t y)
 {
         return v3d_get_uif_pixel_offset(cpp, image_h, x, y, true);
 }
 
-static inline uint32_t
+static ALWAYS_INLINE uint32_t
 v3d_get_uif_no_xor_pixel_offset(uint32_t cpp, uint32_t image_h,
                                 uint32_t x, uint32_t y)
 {
@@ -215,7 +215,7 @@ v3d_get_uif_no_xor_pixel_offset(uint32_t cpp, uint32_t image_h,
  * rectangle, computing the address on the GPU, and storing/loading a pixel at
  * a time.
  */
-static inline void
+static ALWAYS_INLINE void
 v3d_move_pixels_unaligned(void *gpu, uint32_t gpu_stride,
                           void *cpu, uint32_t cpu_stride,
                           int cpp, uint32_t image_h,
@@ -255,7 +255,7 @@ v3d_move_pixels_unaligned(void *gpu, uint32_t gpu_stride,
 /* Breaks the image down into utiles and calls either the fast whole-utile
  * load/store functions, or the unaligned fallback case.
  */
-static inline void
+static ALWAYS_INLINE void
 v3d_move_pixels_general_percpp(void *gpu, uint32_t gpu_stride,
                                void *cpu, uint32_t cpu_stride,
                                int cpp, uint32_t image_h,
@@ -353,7 +353,7 @@ v3d_move_pixels_general_percpp(void *gpu, uint32_t gpu_stride,
         }
 }
 
-static inline void
+static ALWAYS_INLINE void
 v3d_move_pixels_general(void *gpu, uint32_t gpu_stride,
                                void *cpu, uint32_t cpu_stride,
                                int cpp, uint32_t image_h,
@@ -402,7 +402,7 @@ v3d_move_pixels_general(void *gpu, uint32_t gpu_stride,
         }
 }
 
-static inline void
+static ALWAYS_INLINE void
 v3d_move_tiled_image(void *gpu, uint32_t gpu_stride,
                      void *cpu, uint32_t cpu_stride,
                      enum v3d_tiling_mode tiling_format,
