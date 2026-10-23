@@ -145,6 +145,12 @@ _mesa_set_intersects(struct set *a, struct set *b);
 bool
 _mesa_set_equal(const struct set *a, const struct set *b);
 
+void
+_mesa_set_add_set(struct set *set, const struct set *other);
+
+struct set *
+_mesa_set_union(const struct set *a, const struct set *b, void *dst_mem_ctx);
+
 /**
  * This foreach function is safe against deletion, but not against
  * insertion (which may rehash the set, making entry a dangling
