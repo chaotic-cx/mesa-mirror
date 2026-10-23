@@ -844,7 +844,7 @@
         "description": "venus: amend a missing state in async set alloc",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "0543c3a8865cc1173b6edcabf642918033d51600",
         "notes": null
