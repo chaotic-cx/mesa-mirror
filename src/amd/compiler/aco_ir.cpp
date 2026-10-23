@@ -219,7 +219,8 @@ is_pops_end_export(Program* program, const Instruction* instr)
        program->stage.hw != AC_HW_PIXEL_SHADER)
       return false;
    return (instr->opcode == aco_opcode::exp && instr->exp().dest <= V_008DFC_SQ_EXP_NULL) ||
-          instr->opcode == aco_opcode::p_jump_to_epilog || instr->opcode == aco_opcode::s_setpc_b64;
+          instr->opcode == aco_opcode::p_jump_to_epilog ||
+          instr->opcode == aco_opcode::p_end_with_regs || instr->opcode == aco_opcode::s_setpc_b64;
 }
 
 static bool
