@@ -121,7 +121,7 @@ unsigned
 rc_constants_add_immediate_scalar(struct rc_constant_list *c, float data, unsigned *swizzle,
                                   unsigned *negate)
 {
-   unsigned index, free_comp;
+   unsigned index, free_comp = 0;
    int free_index = -1;
    struct rc_constant constant;
 
