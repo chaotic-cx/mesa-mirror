@@ -180,16 +180,7 @@ process_block(struct ctx *ctx, jay_builder *b, jay_block *block)
          mov->type = jay_flag_type(b->func);
          jay_remove_instruction(I);
       } else if (I->op == JAY_OPCODE_SEND && jay_send_skip_helpers(I)) {
-         if (I->uniform) {
-            /* I->cond_flag has been reserved for our use */
-            jay_inst *not = jay_NOT(b, jay_null(), ctx->helper_flag);
-            not->type = jay_flag_type(b->func);
-            not->uniform = true;
-            jay_set_conditional_mod(b, not, I->cond_flag, GEN_CONDITION_NE);
-            jay_add_predicate(b, I, I->cond_flag, jay_null());
-         } else {
-            jay_add_predicate(b, I, jay_negate(ctx->helper_flag), jay_null());
-         }
+         jay_add_predicate(b, I, jay_negate(ctx->helper_flag), jay_null());
       }
 
       ++ctx->instr_left;
@@ -223,3 +214,54 @@ jay_lower_helpers(jay_shader *shader)
 
    setup_exit_block(&b, &ctx);
 }
+
+/*
+ * The above post-RA pass handles predication of non-uniform SENDs efficiently.
+ * However, uniform (SIMD1) sends are trickier, since we need to predicate with
+ * the uniform condition: any(!gl_HelperInvocation).
+ *
+ * We implement as (ballot(true) & ~ballot_relaxed(gl_HelperInvocation)) != 0.
+ * This correctly handles control flow, although it could be optimized.
+ * We do this with a pre-RA pass since the register/scheduling requirements are
+ * nontrivial.
+ */
+static void
+pre_ra(jay_function *f)
+{
+   jay_foreach_block(f, block) {
+      jay_def predicate = jay_null();
+
+      jay_foreach_inst_in_block_safe(block, I) {
+         if (I->op == JAY_OPCODE_SEND &&
+             I->uniform &&
+             jay_send_skip_helpers(I)) {
+
+            jay_builder b = jay_init_builder(f, jay_before_inst(I));
+
+            if (jay_is_null(predicate)) {
+               predicate = jay_alloc_def(&b, FLAG, 1);
+
+               jay_def helper = jay_alloc_def(&b, UGPR, 1);
+               jay_IS_HELPER(&b, helper);
+
+               jay_def ballot = jay_alloc_def(&b, FLAG, 1);
+               jay_inst *mov = jay_MOV(&b, jay_null(), 1);
+               jay_set_conditional_mod(&b, mov, ballot, GEN_CONDITION_NE);
+               mov->zero_inactive = true;
+
+               jay_inst *and = jay_AND(&b, jay_flag_type(f), jay_null(), ballot,
+                                       jay_negate(helper));
+               and->uniform = true;
+               jay_set_conditional_mod(&b, and, predicate, GEN_CONDITION_NE);
+            }
+
+            jay_set_send_skip_helpers(I, false);
+            jay_add_predicate(&b, I, predicate, jay_null());
+         } else if (I->op == JAY_OPCODE_DEMOTE) {
+            predicate = jay_null();
+         }
+      }
+   }
+}
+
+JAY_DEFINE_FUNCTION_PASS(jay_lower_helpers_pre_ra, pre_ra)
