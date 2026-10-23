@@ -2306,6 +2306,9 @@ pub struct ShaderInfo {
     /// True if we have any flat load
     pub uses_flat_shading: bool,
 
+    /// True if we have ZS_EMIT
+    pub has_zs_emit: bool,
+
     /// Fragment shaders blend (and blend2) types
     pub blend_types: [Option<DataType>; 8],
     pub blend1_type: Option<DataType>,

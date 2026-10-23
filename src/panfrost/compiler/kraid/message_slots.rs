@@ -116,7 +116,11 @@ fn calc_message_deadlines_in_bb(
 }
 
 impl Function {
-    pub fn assign_message_slots(&mut self, model: &dyn Model) {
+    pub fn assign_message_slots(
+        &mut self,
+        model: &dyn Model,
+        shader_info: &ShaderInfo,
+    ) {
         if DEBUG.contains(DebugFlags::SERIAL) {
             for b in self.blocks.iter_mut() {
                 for i in b.instrs.iter_mut() {
@@ -184,7 +188,7 @@ impl Function {
                 }
 
                 // Prefer a slot with the same wait point, otherwise choose the least-used slot.
-                let deadline = deadlines[ip];
+                let mut deadline = deadlines[ip];
                 let slot_idx = fixed_wait_slot(&block.instrs[ip])
                     .unwrap_or_else(|| {
                         slots
@@ -198,6 +202,17 @@ impl Function {
                     });
 
                 block.instrs[ip].flow.set_msg_slot_idx(slot_idx as u8);
+
+                // ATest needs a .wait0 right after, unless the shader has a
+                // ZS_EMIT, in which case no message will be sent.
+                if let Op::ATest(_) = block.instrs[ip].op {
+                    if shader_info.has_zs_emit {
+                        // Not a real message, no need to update deadlines
+                        continue;
+                    }
+
+                    deadline = Some(ip + 1);
+                }
 
                 let slot = &mut slots[slot_idx];
                 slot.count += 1;
@@ -232,7 +247,7 @@ impl Function {
 impl Shader<'_> {
     pub fn assign_message_slots(&mut self) {
         for f in self.functions.iter_mut() {
-            f.assign_message_slots(self.model);
+            f.assign_message_slots(self.model, &self.info);
         }
     }
 }

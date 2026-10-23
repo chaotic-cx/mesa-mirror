@@ -2715,6 +2715,8 @@ impl<'a> ShaderFromNir<'a> {
                 });
             }
             nir_intrinsic_zs_emit_pan => {
+                self.info.has_zs_emit = true;
+
                 let coverage = self.get_src(&srcs[0]);
                 let flags = intrin.flags();
                 let use_depth = (flags & (1 << FRAG_RESULT_DEPTH)) != 0;
