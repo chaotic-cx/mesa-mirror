@@ -108,9 +108,6 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
    VK_FROM_HANDLE(lvp_device, device, _device);
    struct lvp_descriptor_set_layout *set_layout;
 
-   const VkMutableDescriptorTypeCreateInfoEXT *mutable_info =
-      vk_find_struct_const(pCreateInfo->pNext, MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
-
    assert(pCreateInfo->sType == VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO);
    uint32_t num_bindings = 0;
    uint32_t immutable_sampler_count = 0;
@@ -207,9 +204,9 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_CreateDescriptorSetLayout(
       set_layout->binding[b].max_plane_count = max_plane_count;
 
       uint32_t descriptor_size = lvp_get_descriptor_size(binding->descriptorType);
-      if (binding->descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT && mutable_info) {
+      if (binding->descriptorType == VK_DESCRIPTOR_TYPE_MUTABLE_EXT) {
          descriptor_size = 0;
-         const VkMutableDescriptorTypeListEXT *type_list = &mutable_info->pMutableDescriptorTypeLists[j];
+         const VkMutableDescriptorTypeListEXT *type_list = &sorted->mutable_type_lists[j];
          for (uint32_t k = 0; k < type_list->descriptorTypeCount; k++)
             descriptor_size = MAX2(descriptor_size, lvp_get_descriptor_size(type_list->pDescriptorTypes[k]));
       }
