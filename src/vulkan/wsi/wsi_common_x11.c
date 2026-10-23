@@ -2035,32 +2035,6 @@ static VkResult x11_swapchain_read_status_atomic(struct x11_swapchain *chain)
    return chain->status;
 }
 
-/**
- * Decides if an early wait on buffer fences before buffer submission is required.
- * That is for mailbox mode, as otherwise the latest image in the queue might not be fully rendered at
- * present time, which could lead to missing a frame. This is an Xorg issue.
- * On Wayland, we don't know at this point if tearing protocol is/can be used by Xwl,
- * so we have to make the MAILBOX assumption.
- */
-static bool
-x11_needs_wait_for_fences(const struct wsi_device *wsi_device,
-                          struct wsi_x11_connection *wsi_conn,
-                          VkPresentModeKHR present_mode)
-{
-   if (wsi_conn->is_xwayland) {
-      return false;
-   }
-
-   switch (present_mode) {
-      case VK_PRESENT_MODE_MAILBOX_KHR:
-         return true;
-      case VK_PRESENT_MODE_IMMEDIATE_KHR:
-         return wsi_conn->is_xwayland;
-      default:
-         return false;
-   }
-}
-
 static bool
 x11_swapchain_present_timing_is_out_of_order_completion(
       const struct x11_swapchain *chain,
@@ -2088,10 +2062,7 @@ x11_requires_mailbox_image_count(const struct wsi_device *device,
                                  struct wsi_x11_connection *wsi_conn,
                                  VkPresentModeKHR present_mode)
 {
-   /* If we're resorting to wait for fences, we're assuming a MAILBOX-like model,
-    * and we should allocate accordingly.
-    *
-    * One potential concern here is IMMEDIATE mode on Wayland.
+   /* One potential concern here is IMMEDIATE mode on Wayland.
     * This situation could arise:
     * - Fullscreen FLIP mode
     * - Compositor does not support tearing protocol (we cannot know this here)
@@ -2123,8 +2094,7 @@ x11_requires_mailbox_image_count(const struct wsi_device *device,
     *   would require application to allocate >3 images which is unfortunate for memory usage,
     *   and potentially disastrous for latency unless KHR_present_wait is used.
     */
-   return x11_needs_wait_for_fences(device, wsi_conn, present_mode) ||
-          present_mode == VK_PRESENT_MODE_MAILBOX_KHR;
+   return present_mode == VK_PRESENT_MODE_MAILBOX_KHR;
 }
 
 /**
@@ -2586,10 +2556,13 @@ x11_manage_present_queue(void *state)
 
       VkPresentModeKHR present_mode = chain->images[image_index].present_mode;
 
-      /* Not necessary to block when we have explicit sync */
-      bool need_fence_wait =
-            x11_needs_wait_for_fences(chain->base.wsi, wsi_conn, present_mode) &&
-            !chain->base.image_info.explicit_sync;
+      /* Not necessary to block when we have explicit sync. Otherwise, block
+       * for MAILBOX present mode on Xorg (the latest image in the queue might
+       * not be fully rendered at present time).
+       */
+      bool need_fence_wait = !chain->base.image_info.explicit_sync &&
+                             !wsi_conn->is_xwayland &&
+                             present_mode == VK_PRESENT_MODE_MAILBOX_KHR;
 
       bool need_timing_fence_wait = x11_swapchain_present_timing_is_out_of_order_completion(
             chain, wsi_conn, &chain->images[image_index].timing_request);
