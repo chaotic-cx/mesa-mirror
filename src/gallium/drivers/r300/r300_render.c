@@ -495,13 +495,13 @@ static void r300_draw_elements_immediate(struct r300_context *r300,
     unsigned i;
 #endif
     unsigned index_size = info->index_size;
-    bool use_32bit_indices = index_size == 4;
-    unsigned count_dwords;
-#if UTIL_ARCH_BIG_ENDIAN
     /* R500 applies draw->index_bias in hardware via R500_VAP_INDEX_OFFSET. */
     int index_bias = draw->index_bias && !r300->screen->caps.is_r500 ?
                      draw->index_bias : 0;
-#endif
+    /* Applying a bias can make 8- and 16-bit indices exceed 65535. */
+    /* TODO: Keep 16-bit packing when all biased indices fit in 16 bits. */
+    bool use_32bit_indices = index_size == 4 || index_bias;
+    unsigned count_dwords;
     CS_LOCALS(r300);
 
 #if UTIL_ARCH_BIG_ENDIAN
@@ -525,11 +525,11 @@ static void r300_draw_elements_immediate(struct r300_context *r300,
 
     BEGIN_CS(2 + count_dwords);
     OUT_CS_PKT3(R300_PACKET3_3D_DRAW_INDX_2, count_dwords);
+    OUT_CS(R300_VAP_VF_CNTL__PRIM_WALK_INDICES | (draw->count << 16) |
+           (use_32bit_indices ? R300_VAP_VF_CNTL__INDEX_SIZE_32bit : 0) |
+           r300_translate_primitive(info->mode));
 
 #if UTIL_ARCH_BIG_ENDIAN
-    OUT_CS(R300_VAP_VF_CNTL__PRIM_WALK_INDICES | (draw->count << 16) |
-           R300_VAP_VF_CNTL__INDEX_SIZE_32bit |
-           r300_translate_primitive(info->mode));
     OUT_CS_TABLE(indices, count_dwords);
 #else
     switch (index_size) {
@@ -537,16 +537,9 @@ static void r300_draw_elements_immediate(struct r300_context *r300,
         ptr1 = (uint8_t*)info->index.user;
         ptr1 += draw->start;
 
-        OUT_CS(R300_VAP_VF_CNTL__PRIM_WALK_INDICES | (draw->count << 16) |
-               r300_translate_primitive(info->mode));
-
-        if (draw->index_bias && !r300->screen->caps.is_r500) {
-            for (i = 0; i < draw->count-1; i += 2)
-                OUT_CS(((ptr1[i+1] + draw->index_bias) << 16) |
-                        (ptr1[i]   + draw->index_bias));
-
-            if (draw->count & 1)
-                OUT_CS(ptr1[i] + draw->index_bias);
+        if (index_bias) {
+            for (i = 0; i < draw->count; i++)
+                OUT_CS(ptr1[i] + (uint32_t)index_bias);
         } else {
             for (i = 0; i < draw->count-1; i += 2)
                 OUT_CS(((ptr1[i+1]) << 16) |
@@ -561,16 +554,9 @@ static void r300_draw_elements_immediate(struct r300_context *r300,
         ptr2 = (uint16_t*)info->index.user;
         ptr2 += draw->start;
 
-        OUT_CS(R300_VAP_VF_CNTL__PRIM_WALK_INDICES | (draw->count << 16) |
-               r300_translate_primitive(info->mode));
-
-        if (draw->index_bias && !r300->screen->caps.is_r500) {
-            for (i = 0; i < draw->count-1; i += 2)
-                OUT_CS(((ptr2[i+1] + draw->index_bias) << 16) |
-                        (ptr2[i]   + draw->index_bias));
-
-            if (draw->count & 1)
-                OUT_CS(ptr2[i] + draw->index_bias);
+        if (index_bias) {
+            for (i = 0; i < draw->count; i++)
+                OUT_CS(ptr2[i] + (uint32_t)index_bias);
         } else {
             /* OUT_CS_TABLE expects full dwords so pack the odd tail manually. */
             if (draw->count & 1) {
@@ -587,13 +573,9 @@ static void r300_draw_elements_immediate(struct r300_context *r300,
         ptr4 = (uint32_t*)info->index.user;
         ptr4 += draw->start;
 
-        OUT_CS(R300_VAP_VF_CNTL__PRIM_WALK_INDICES | (draw->count << 16) |
-               R300_VAP_VF_CNTL__INDEX_SIZE_32bit |
-               r300_translate_primitive(info->mode));
-
-        if (draw->index_bias && !r300->screen->caps.is_r500) {
+        if (index_bias) {
             for (i = 0; i < draw->count; i++)
-                OUT_CS(ptr4[i] + draw->index_bias);
+                OUT_CS(ptr4[i] + (uint32_t)index_bias);
         } else {
             OUT_CS_TABLE(ptr4, count_dwords);
         }
