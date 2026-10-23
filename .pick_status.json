@@ -5584,7 +5584,7 @@
         "description": "r300: use 32-bit immediate indices when applying an index bias",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a0c293ec117c8a6f471061076ba87e245759e0f6",
         "notes": null
