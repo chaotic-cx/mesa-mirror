@@ -1067,6 +1067,53 @@ set_trimmed_blit(const ac_cs_blit_description *old, const struct pipe_box *box,
 }
 
 typedef struct {
+   bool is_clear;
+   bool dst_is_stencil;
+   bool src_is_stencil;
+   ac_block_extent dst_block256B_extent;
+   ac_block_extent src_block256B_extent;
+   unsigned dst_tiling_dim;
+   unsigned src_tiling_dim;
+   unsigned dst_samples;
+   unsigned src_samples;
+   bool is_resolve;
+   bool is_upsampling;
+   bool sample0_only;
+   unsigned max_dst_chan_size;
+   unsigned max_src_chan_size;
+   unsigned dst_bpe;
+} ac_cs_blit_derived_info;
+
+static void
+get_derived_info(const ac_cs_blit_description *blit, ac_cs_blit_derived_info *out)
+{
+   out->is_clear = !blit->src.surf;
+   out->dst_is_stencil = util_format_is_stencil_only(blit->dst.format);
+   out->src_is_stencil = util_format_is_stencil_only(blit->src.format);
+   out->dst_block256B_extent =
+      out->dst_is_stencil ? blit->dst.surf->stencil_block256B_extent : blit->dst.surf->block256B_extent;
+   out->src_block256B_extent =
+      out->is_clear ? (ac_block_extent){}
+                    : out->src_is_stencil ? blit->src.surf->stencil_block256B_extent
+                                          : blit->src.surf->block256B_extent;
+   out->dst_tiling_dim = blit->dst.surf->is_linear ? 1 : out->dst_block256B_extent.depth == 1 ? 2 : 3;
+   out->src_tiling_dim =
+      out->is_clear ? 0 : blit->src.surf->is_linear ? 1 : out->src_block256B_extent.depth == 1 ? 2 : 3;
+   out->dst_samples = MAX2(1, blit->dst.num_samples);
+   out->src_samples = out->is_clear ? 1 : MAX2(1, blit->src.num_samples);
+   out->is_resolve = !out->is_clear && out->dst_samples == 1 && out->src_samples >= 2 &&
+                     !util_format_is_pure_integer(blit->dst.format);
+   out->is_upsampling = !out->is_clear && out->src_samples == 1 && out->dst_samples >= 2;
+   out->sample0_only = (out->is_clear && out->dst_samples >= 2 && blit->sample0_only) ||
+                       (!out->is_clear && out->src_samples >= 2 && out->dst_samples == 1 &&
+                        (blit->sample0_only || util_format_is_pure_integer(blit->dst.format)));
+   /* Get the channel sizes. */
+   out->max_dst_chan_size = util_format_get_max_channel_size(blit->dst.format);
+   out->max_src_chan_size = out->is_clear ? 0 : util_format_get_max_channel_size(blit->src.format);
+   out->dst_bpe = blit->format_is_96bit ? 4 : out->dst_is_stencil ? 1 : blit->dst.surf->bpe;
+}
+
+typedef struct {
    unsigned x, y, z;
 } uvec3;
 
@@ -1082,31 +1129,8 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
                         ac_cs_blit_dispatches *out)
 {
    const struct radeon_info *info = options->info;
-   const bool is_clear = !blit->src.surf;
-   const bool dst_is_stencil = util_format_is_stencil_only(blit->dst.format);
-   const bool src_is_stencil = util_format_is_stencil_only(blit->src.format);
-   const ac_block_extent dst_block256B_extent =
-      dst_is_stencil ? blit->dst.surf->stencil_block256B_extent : blit->dst.surf->block256B_extent;
-   const ac_block_extent src_block256B_extent =
-      is_clear ? (ac_block_extent){}
-               : src_is_stencil ? blit->src.surf->stencil_block256B_extent
-                                : blit->src.surf->block256B_extent;
-   const unsigned dst_tiling_dim = blit->dst.surf->is_linear ? 1 :
-                                   dst_block256B_extent.depth == 1 ? 2 : 3;
-   const unsigned src_tiling_dim = is_clear ? 0 : blit->src.surf->is_linear ? 1 :
-                                                  src_block256B_extent.depth == 1 ? 2 : 3;
-   const unsigned dst_samples = MAX2(1, blit->dst.num_samples);
-   const unsigned src_samples = is_clear ? 1 : MAX2(1, blit->src.num_samples);
-   const bool is_resolve = !is_clear && dst_samples == 1 && src_samples >= 2 &&
-                           !util_format_is_pure_integer(blit->dst.format);
-   const bool is_upsampling = !is_clear && src_samples == 1 && dst_samples >= 2;
-   const bool sample0_only = (is_clear && dst_samples >= 2 && blit->sample0_only) ||
-                             (!is_clear && src_samples >= 2 && dst_samples == 1 &&
-                              (blit->sample0_only || util_format_is_pure_integer(blit->dst.format)));
-   /* Get the channel sizes. */
-   const unsigned max_dst_chan_size = util_format_get_max_channel_size(blit->dst.format);
-   const unsigned max_src_chan_size = is_clear ? 0 : util_format_get_max_channel_size(blit->src.format);
-   const unsigned dst_bpe = blit->format_is_96bit ? 4 : dst_is_stencil ? 1 : blit->dst.surf->bpe;
+   ac_cs_blit_derived_info d;
+   get_derived_info(blit, &d);
 
    if (!options->is_nested)
       memset(out, 0, sizeof(*out));
@@ -1125,43 +1149,43 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
 
    /* Skip zero-area blits. */
    if (!blit->dst.box.width || !blit->dst.box.height || !blit->dst.box.depth ||
-       (!is_clear && (!blit->src.box.width || !blit->src.box.height || !blit->src.box.depth)))
+       (!d.is_clear && (!blit->src.box.width || !blit->src.box.height || !blit->src.box.depth)))
       return true;
 
    if (blit->dst.format == PIPE_FORMAT_A8R8_UNORM || /* This format fails AMD_TEST=imagecopy. */
        /* GFX8 doesn't seem to support R4G4B4A4_UINT and R5G5B5A1_UINT. VK doesn't have these formats. */
-       (info->gfx_level <= GFX8 && max_dst_chan_size <= 6 &&
+       (info->gfx_level <= GFX8 && d.max_dst_chan_size <= 6 &&
         util_format_is_pure_integer(blit->dst.format)) ||
-       dst_samples > SI_MAX_COMPUTE_BLIT_SAMPLES ||
-       (!is_clear &&
+       d.dst_samples > SI_MAX_COMPUTE_BLIT_SAMPLES ||
+       (!d.is_clear &&
         /* Scaling is not implemented by the compute shader. */
         (blit->dst.box.width != abs(blit->src.box.width) ||
          blit->dst.box.height != abs(blit->src.box.height) ||
          blit->dst.box.depth != abs(blit->src.box.depth) ||
-         src_samples > SI_MAX_COMPUTE_BLIT_SAMPLES)))
+         d.src_samples > SI_MAX_COMPUTE_BLIT_SAMPLES)))
       return false;
 
    /* Return a failure if a compute blit is slower than a gfx blit. */
    if (options->fail_if_slow) {
       /* TODO: This block is no longer up to date since the last rewrite. */
-      if (is_clear) {
+      if (d.is_clear) {
          /* Verified on: Tahiti, Hawaii, Tonga, Vega10, Navi10, Navi21, Navi31 */
-         if (dst_tiling_dim == 3) {
-            if (info->gfx_level == GFX6 && dst_bpe == 8)
+         if (d.dst_tiling_dim == 3) {
+            if (info->gfx_level == GFX6 && d.dst_bpe == 8)
                return false;
-         } else if (dst_tiling_dim == 2) {
+         } else if (d.dst_tiling_dim == 2) {
             /* Each condition inside the parentheses enables the compute clear for that case. */
-            if (!(info->gfx_level == GFX6 && dst_bpe <= 4 && dst_samples == 1) &&
-                !(info->gfx_level == GFX7 && dst_bpe == 1 && dst_samples == 1) &&
+            if (!(info->gfx_level == GFX6 && d.dst_bpe <= 4 && d.dst_samples == 1) &&
+                !(info->gfx_level == GFX7 && d.dst_bpe == 1 && d.dst_samples == 1) &&
                 !(info->gfx_level == GFX12 &&
-                  (dst_bpe <= 2 ||
-                   (dst_bpe == 4 && dst_samples == 8) ||
-                   (dst_bpe == 16 && dst_samples <= 2))))
+                  (d.dst_bpe <= 2 ||
+                   (d.dst_bpe == 4 && d.dst_samples == 8) ||
+                   (d.dst_bpe == 16 && d.dst_samples <= 2))))
                return false;
          }
       } else {
          /* TODO: Optionally add an MSAA upsampling path for OpenGL. */
-         if (is_upsampling)
+         if (d.is_upsampling)
             return false;
 
          switch (info->gfx_level) {
@@ -1172,40 +1196,40 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
          case GFX10:
          case GFX10_3:
             /* Verified on: Tahiti, Hawaii, Tonga, Vega10, Navi10, Navi21 */
-            if (is_resolve) {
-               if (!(info->gfx_level == GFX7 && dst_bpe == 16))
+            if (d.is_resolve) {
+               if (!(info->gfx_level == GFX7 && d.dst_bpe == 16))
                   return false;
             } else if (!blit->copy_physical_samples) {
-               assert(dst_samples == src_samples || sample0_only);
+               assert(d.dst_samples == d.src_samples || d.sample0_only);
 
-               if (dst_tiling_dim == 2) {
-                  if (dst_samples == 1) {
-                     if (dst_bpe <= 8 &&
-                         !(info->gfx_level <= GFX7 && dst_bpe == 1) &&
-                         !(info->gfx_level == GFX6 && dst_bpe == 2 &&
+               if (d.dst_tiling_dim == 2) {
+                  if (d.dst_samples == 1) {
+                     if (d.dst_bpe <= 8 &&
+                         !(info->gfx_level <= GFX7 && d.dst_bpe == 1) &&
+                         !(info->gfx_level == GFX6 && d.dst_bpe == 2 &&
                            blit->src.surf->is_linear) &&
-                         !(info->gfx_level == GFX7 && dst_bpe >= 2 &&
+                         !(info->gfx_level == GFX7 && d.dst_bpe >= 2 &&
                            blit->src.surf->is_linear) &&
                          !((info->gfx_level == GFX8 || info->gfx_level == GFX9) &&
-                           dst_bpe >= 2 && blit->src.surf->is_linear) &&
-                         !(info->gfx_level == GFX10 && dst_bpe <= 2 &&
+                           d.dst_bpe >= 2 && blit->src.surf->is_linear) &&
+                         !(info->gfx_level == GFX10 && d.dst_bpe <= 2 &&
                            blit->src.surf->is_linear) &&
-                         !(info->gfx_level == GFX10_3 && dst_bpe == 8 &&
+                         !(info->gfx_level == GFX10_3 && d.dst_bpe == 8 &&
                            blit->src.surf->is_linear))
                         return false;
 
-                     if (info->gfx_level == GFX6 && dst_bpe == 16 &&
+                     if (info->gfx_level == GFX6 && d.dst_bpe == 16 &&
                          blit->src.surf->is_linear && blit->dst.dim != 3)
                         return false;
 
-                     if (dst_bpe == 16 && !blit->src.surf->is_linear &&
+                     if (d.dst_bpe == 16 && !blit->src.surf->is_linear &&
                          /* Only GFX6 selects 2D tiling for 128bpp 3D textures. */
                          !(info->gfx_level == GFX6 && blit->dst.dim == 3) &&
                          info->gfx_level != GFX7)
                         return false;
                   } else {
                      /* MSAA copies - tested only without FMASK on Navi21. */
-                     if (dst_bpe >= 4)
+                     if (d.dst_bpe >= 4)
                         return false;
                   }
                }
@@ -1216,22 +1240,22 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
          case GFX11_5:
          case GFX11_7:
             /* Verified on Navi31. */
-            if (is_resolve) {
-               if (!((dst_bpe <= 2 && src_samples == 2) ||
-                     (dst_bpe == 2 && src_samples == 4) ||
-                     (dst_bpe == 16 && src_samples == 4)))
+            if (d.is_resolve) {
+               if (!((d.dst_bpe <= 2 && d.src_samples == 2) ||
+                     (d.dst_bpe == 2 && d.src_samples == 4) ||
+                     (d.dst_bpe == 16 && d.src_samples == 4)))
                   return false;
             } else if (!blit->copy_physical_samples) {
-               assert(dst_samples == src_samples || sample0_only);
+               assert(d.dst_samples == d.src_samples || d.sample0_only);
 
-               if (dst_tiling_dim == 2) {
-                  if (dst_bpe == 2 && blit->src.surf->is_linear && dst_samples == 1)
+               if (d.dst_tiling_dim == 2) {
+                  if (d.dst_bpe == 2 && blit->src.surf->is_linear && d.dst_samples == 1)
                      return false;
 
-                  if (dst_bpe >= 4 && dst_samples == 1 && !blit->src.surf->is_linear)
+                  if (d.dst_bpe >= 4 && d.dst_samples == 1 && !blit->src.surf->is_linear)
                      return false;
 
-                  if (dst_bpe == 16 && dst_samples == 8)
+                  if (d.dst_bpe == 16 && d.dst_samples == 8)
                      return false;
                }
             }
@@ -1247,10 +1271,10 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
 
    /* Determine bytes per lane, which is the main tunable. */
    /* TODO: retune everything with RADV, especially MSAA copies on GFX10.3 */
-   unsigned bytes_per_lane = dst_bpe;
+   unsigned bytes_per_lane = d.dst_bpe;
 
    if (info->gfx_level >= GFX11) {
-      if (is_resolve) {
+      if (d.is_resolve) {
          static const unsigned resolve_bpl[][3] = {
             /* This performs best maybe due to interleaved samples, not sure. */
             /* 2, 4, 8 samples */
@@ -1261,9 +1285,9 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
             {16, 16, 16}, /* 16 bpe */
          };
 
-         bytes_per_lane = resolve_bpl[util_logbase2(dst_bpe)][util_logbase2(src_samples) - 1];
+         bytes_per_lane = resolve_bpl[util_logbase2(d.dst_bpe)][util_logbase2(d.src_samples) - 1];
 
-         if (info->gfx_level >= GFX12 && dst_bpe == 8 && src_samples == 2)
+         if (info->gfx_level >= GFX12 && d.dst_bpe == 8 && d.src_samples == 2)
             bytes_per_lane = 16;
       } else {
          static const unsigned bpl[][4] = {
@@ -1276,27 +1300,27 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
             {16, 32, 64, 128}, /* 16 bpe */
          };
 
-         bytes_per_lane = bpl[util_logbase2(dst_bpe)][util_logbase2(dst_samples)];
+         bytes_per_lane = bpl[util_logbase2(d.dst_bpe)][util_logbase2(d.dst_samples)];
 
-         if (info->gfx_level >= GFX12 && dst_bpe == 4 && src_samples == 2)
+         if (info->gfx_level >= GFX12 && d.dst_bpe == 4 && d.src_samples == 2)
             bytes_per_lane = 16;
       }
    } else if (info->gfx_level >= GFX10) {
       bytes_per_lane = MAX2(bytes_per_lane, 4);
 
       /* Special cases that were found to perform better than the default. */
-      if (is_resolve && dst_bpe == 1 && src_samples >= 4)
+      if (d.is_resolve && d.dst_bpe == 1 && d.src_samples >= 4)
          bytes_per_lane = 2;
 
-      bytes_per_lane = MAX2(bytes_per_lane, dst_bpe * dst_samples);
+      bytes_per_lane = MAX2(bytes_per_lane, d.dst_bpe * d.dst_samples);
    } else {
       /* GFX6-9. */
-      bytes_per_lane = MAX3(bytes_per_lane, 8, dst_bpe * dst_samples);
+      bytes_per_lane = MAX3(bytes_per_lane, 8, d.dst_bpe * d.dst_samples);
 
-      if (is_clear && dst_bpe >= 4 && dst_tiling_dim == 3)
+      if (d.is_clear && d.dst_bpe >= 4 && d.dst_tiling_dim == 3)
          bytes_per_lane = 16;
 
-      if (info->gfx_level <= GFX7 && is_resolve) {
+      if (info->gfx_level <= GFX7 && d.is_resolve) {
          static const unsigned resolve_bpl[][3] = {
             /* 2, 4, 8 samples */
             {4, 4, 2}, /* 1 bpe */
@@ -1306,7 +1330,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
             {16, 16, 16}, /* 16 bpe */
          };
 
-         bytes_per_lane = resolve_bpl[util_logbase2(dst_bpe)][util_logbase2(src_samples) - 1];
+         bytes_per_lane = resolve_bpl[util_logbase2(d.dst_bpe)][util_logbase2(d.src_samples) - 1];
       }
    }
 
@@ -1315,29 +1339,29 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       bytes_per_lane = 16;
 
    uvec3 tile_size = {
-      dst_block256B_extent.width,
-      dst_block256B_extent.height,
-      dst_block256B_extent.depth,
+      d.dst_block256B_extent.width,
+      d.dst_block256B_extent.height,
+      d.dst_block256B_extent.depth,
    };
 
    /* Tuning for tiled<->linear copies. */
    /* TODO: This is only flyby tuning. More careful tuning is needed if this is important. */
-   if (dst_tiling_dim == 1 || src_tiling_dim == 1) {
+   if (d.dst_tiling_dim == 1 || d.src_tiling_dim == 1) {
       /* 2D->linear. */
-      if (dst_tiling_dim == 1 && src_tiling_dim == 2) {
+      if (d.dst_tiling_dim == 1 && d.src_tiling_dim == 2) {
          /* Make the tile (N/4, 4) instead of (N, 1). */
-         if (info->gfx_level >= GFX9 || dst_bpe <= 1) {
+         if (info->gfx_level >= GFX9 || d.dst_bpe <= 1) {
             assert(tile_size.x >= 4);
             tile_size.x /= 4;
             tile_size.y *= 4;
-         } else if (dst_bpe == 2) {
+         } else if (d.dst_bpe == 2) {
             assert(tile_size.x >= 2);
             tile_size.x /= 2;
             tile_size.y *= 2;
             bytes_per_lane = 4;
          }
 
-         if (info->gfx_level <= GFX7 && dst_bpe == 8) {
+         if (info->gfx_level <= GFX7 && d.dst_bpe == 8) {
             assert(tile_size.x >= 2);
             tile_size.x /= 2;
             tile_size.y *= 2;
@@ -1345,8 +1369,8 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       }
 
       /* 3D->linear. */
-      if (dst_tiling_dim == 1 && src_tiling_dim == 3) {
-         if (info->gfx_level >= GFX9 || dst_bpe == 1) {
+      if (d.dst_tiling_dim == 1 && d.src_tiling_dim == 3) {
+         if (info->gfx_level >= GFX9 || d.dst_bpe == 1) {
             /* Make the tile (N/4, 2, 2) instead of (N, 1, 1). */
             assert(tile_size.x >= 4);
             tile_size.x /= 4;
@@ -1355,7 +1379,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
             bytes_per_lane = MAX2(bytes_per_lane, 8);
          }
 
-         if (info->gfx_level <= GFX7 && dst_bpe == 2) {
+         if (info->gfx_level <= GFX7 && d.dst_bpe == 2) {
             assert(tile_size.x >= 2);
             tile_size.x /= 2;
             tile_size.y *= 2;
@@ -1363,14 +1387,14 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       }
 
       /* Linear->2D. */
-      if (info->gfx_level <= GFX7 && dst_bpe >= 2 && dst_tiling_dim == 2 && src_tiling_dim == 1) {
+      if (info->gfx_level <= GFX7 && d.dst_bpe >= 2 && d.dst_tiling_dim == 2 && d.src_tiling_dim == 1) {
          assert(tile_size.y >= 2);
          tile_size.y /= 2;
          tile_size.x *= 2;
       }
 
       /* Linear->3D. */
-      if (dst_tiling_dim == 3 && src_tiling_dim == 1) {
+      if (d.dst_tiling_dim == 3 && d.src_tiling_dim == 1) {
          if (info->gfx_level >= GFX11) {
             assert(tile_size.y >= 2 && tile_size.z >= 2);
             tile_size.y /= 2;
@@ -1392,7 +1416,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       }
    }
 
-   const unsigned dst_element_size = dst_bpe * dst_samples;
+   const unsigned dst_element_size = d.dst_bpe * d.dst_samples;
    assert(bytes_per_lane >= dst_element_size);
 
    /* Determine the tile shape of each lane. */
@@ -1477,25 +1501,25 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
        * This was fine-tuned for Navi31, and might be suboptimal on different generations.
        */
       /* TODO: Retune this with RADV to improve perf of partial/unaligned ops. */
-      bool slow = (blit->dst.surf->is_linear && !is_clear && blit->src.surf->is_linear &&
+      bool slow = (blit->dst.surf->is_linear && !d.is_clear && blit->src.surf->is_linear &&
                    blit->dst.box.depth > 1) ||
-                  (dst_tiling_dim == 3 &&
-                   ((dst_bpe == 8 && is_clear) ||
-                    (dst_bpe == 4 &&
-                     (blit->dst.surf->is_linear || (!is_clear && blit->src.surf->is_linear))) ||
-                    (dst_bpe == 2 && blit->dst.surf->is_linear && !is_clear &&
+                  (d.dst_tiling_dim == 3 &&
+                   ((d.dst_bpe == 8 && d.is_clear) ||
+                    (d.dst_bpe == 4 &&
+                     (blit->dst.surf->is_linear || (!d.is_clear && blit->src.surf->is_linear))) ||
+                    (d.dst_bpe == 2 && blit->dst.surf->is_linear && !d.is_clear &&
                      blit->src.surf->is_linear))) ||
-                  (dst_tiling_dim != 3 &&
-                   ((dst_bpe == 4 && blit->dst.surf->is_linear && !is_clear &&
+                  (d.dst_tiling_dim != 3 &&
+                   ((d.dst_bpe == 4 && blit->dst.surf->is_linear && !d.is_clear &&
                      blit->src.surf->is_linear) ||
-                    (dst_bpe == 8 && !is_clear &&
+                    (d.dst_bpe == 8 && !d.is_clear &&
                      blit->dst.surf->is_linear != blit->src.surf->is_linear) ||
-                    (is_resolve && dst_bpe == 4 && src_samples == 4) ||
-                    (is_resolve && dst_bpe == 8 && src_samples == 2)));
+                    (d.is_resolve && d.dst_bpe == 4 && d.src_samples == 4) ||
+                    (d.is_resolve && d.dst_bpe == 8 && d.src_samples == 2)));
 
       /* Only use this if the middle blit is large enough. */
       if (!slow && middle.width > 0 && middle.height > 0 && middle.depth > 0 &&
-          (uint64_t)middle.width * middle.height * middle.depth * dst_bpe * dst_samples >
+          (uint64_t)middle.width * middle.height * middle.depth * d.dst_bpe * d.dst_samples >
           128 * 1024) {
          /* Compute the size of unaligned regions on all sides of the box. */
          struct pipe_box top, left, right, bottom, front, back;
@@ -1566,7 +1590,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
                ac_cs_blit_description new_blit;
                ASSERTED bool ok;
 
-               set_trimmed_blit(blit, &boxes[i], is_clear, &new_blit);
+               set_trimmed_blit(blit, &boxes[i], d.is_clear, &new_blit);
                ok = ac_prepare_compute_blit(&nested_options, &new_blit, out);
                assert(ok);
             }
@@ -1715,7 +1739,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
    const unsigned dst_dword_stride =
       ac_surface_get_plane_stride(options->info->gfx_level, blit->dst.surf, 0, 0) / 4;
    const unsigned src_dword_stride =
-      is_clear ? 0 : ac_surface_get_plane_stride(options->info->gfx_level, blit->src.surf, 0, 0) / 4;
+      d.is_clear ? 0 : ac_surface_get_plane_stride(options->info->gfx_level, blit->src.surf, 0, 0) / 4;
 
    /* Get the shader key. */
    ac_cs_blit_key key;
@@ -1723,7 +1747,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
 
    /* Only ACO can form VMEM clauses for image stores, which is a requirement for performance. */
    key.use_aco = true;
-   key.is_clear = is_clear;
+   key.is_clear = d.is_clear;
    key.wg_dim = wg_dim;
    key.has_start_xyz = start_x || start_y || start_z;
    key.format_is_96bit = blit->format_is_96bit;
@@ -1734,24 +1758,24 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
    key.log_lane_height = util_logbase2(lane_tile.y);
    key.log_lane_depth = util_logbase2(lane_tile.z);
    key.dst_is_1d = blit->dst.dim == 1;
-   key.dst_is_msaa = dst_samples > 1;
+   key.dst_is_msaa = d.dst_samples > 1;
    key.dst_has_z = blit->dst.dim == 3 || blit->dst.is_array;
    key.dst_store_fmask = blit->dst_store_fmask;
    key.copy_physical_samples = blit->copy_physical_samples;
-   key.dst_is_rgb5 = max_dst_chan_size <= 6 &&
+   key.dst_is_rgb5 = d.max_dst_chan_size <= 6 &&
                      !util_format_is_pure_integer(blit->dst.format);
    key.last_dst_channel = key.format_is_96bit ? 0 : util_format_get_last_component(blit->dst.format);
 
    bool has_d16 = info->gfx_level >= GFX8 && !key.dst_is_rgb5;
 
-   if (is_clear) {
-      assert(dst_samples <= 8);
-      key.log_samples = sample0_only ? 0 : util_logbase2(dst_samples);
+   if (d.is_clear) {
+      assert(d.dst_samples <= 8);
+      key.log_samples = d.sample0_only ? 0 : util_logbase2(d.dst_samples);
       key.a16 = !key.format_is_96bit && info->gfx_level >= GFX9 && util_is_box_sint16(&blit->dst.box);
       key.d16 = has_d16 &&
-                max_dst_chan_size <= (util_format_is_float(blit->dst.format) ||
+                d.max_dst_chan_size <= (util_format_is_float(blit->dst.format) ||
                                       util_format_is_pure_integer(blit->dst.format) ? 16 : 11);
-      key.sample0_only = sample0_only;
+      key.sample0_only = d.sample0_only;
    } else {
       /* src.box.height is clamped to 0 because it's negative and src.box.y contains the upper
        * bound when the Y axis is flipped.
@@ -1761,14 +1785,14 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
                              src_dword_stride * 4 > UINT32_MAX;
       key.src_is_sampler = blit->src_is_sampler;
       key.src_is_1d = blit->src.dim == 1;
-      key.src_is_msaa = src_samples > 1;
+      key.src_is_msaa = d.src_samples > 1;
       key.src_has_z = blit->src.dim == 3 || blit->src.is_array;
-      key.src_has_non_identity_fmask = src_samples > 1 && blit->src_has_non_identity_fmask;
+      key.src_has_non_identity_fmask = d.src_samples > 1 && blit->src_has_non_identity_fmask;
       /* Resolving integer formats only copies sample 0. log_samples is then unused. */
-      key.sample0_only = sample0_only;
-      unsigned num_samples = MAX2(src_samples, dst_samples);
+      key.sample0_only = d.sample0_only;
+      unsigned num_samples = MAX2(d.src_samples, d.dst_samples);
       assert(num_samples <= 8);
-      key.log_samples = sample0_only ? 0 : util_logbase2(num_samples);
+      key.log_samples = d.sample0_only ? 0 : util_logbase2(num_samples);
       key.x_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(0));
       key.y_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(1));
       key.flip_x = blit->src.box.width < 0;
@@ -1789,10 +1813,10 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       key.d16 = has_d16 &&
                 /* Blitting FP16 using D16 has precision issues. Resolving has precision
                  * issues all the way down to R11G11B10_FLOAT. */
-                MIN2(max_dst_chan_size, max_src_chan_size) <=
+                MIN2(d.max_dst_chan_size, d.max_src_chan_size) <=
                 (util_format_is_pure_integer(blit->dst.format) ?
                     (key.sint_to_uint || key.uint_to_sint ? 10 : 16) :
-                    (is_resolve ? 10 : 11));
+                    (d.is_resolve ? 10 : 11));
    }
 
    dispatch->shader_key = key;
@@ -1830,7 +1854,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
                                    ((log_block_x & 0x7) << 18) | ((log_block_y & 0x7) << 21);
       dispatch->user_data[num++] = (blit->src.box.y & 0xffff) | (((uint32_t)blit->dst.box.y & 0xffff) << 16);
 
-      if (!is_clear) {
+      if (!d.is_clear) {
          dispatch->user_data[num++] = blit->src.box.x;
          dispatch->user_data[num++] = src_dword_stride;
       } else {
@@ -1846,7 +1870,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       if (key.dst_has_z || key.src_has_z)
          dispatch->user_data[num++] = (blit->dst.box.z & 0xffff) | ((uint32_t)(blit->src.box.z & 0xffff) << 16);
 
-      if (!is_clear) {
+      if (!d.is_clear) {
          dispatch->user_data[num++] = (blit->src.box.x & 0xffff) | ((uint32_t)(blit->src.box.y & 0xffff) << 16);
       } else {
          union pipe_color_union final_value;
