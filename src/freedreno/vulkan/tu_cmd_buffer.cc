@@ -9202,6 +9202,16 @@ template <chip CHIP>
 static void
 tu6_emit_empty_vs_params(struct tu_cmd_buffer *cmd)
 {
+   if (cmd->state.sw_multiview && vs_params_offset(cmd)) {
+      /* We still have to upload the view index of the current replay. Skip the
+       * VFD registers though: CP_DRAW_INDIRECT_MULTI sources VFD_INDEX_OFFSET
+       * and VFD_INSTANCE_START_OFFSET from the indirect buffer, and a draw
+       * state writing them would clobber those values.
+       */
+      tu6_emit_vs_params(cmd, NULL, 0, 0, 0, 0, /* indirect = */ true);
+      return;
+   }
+
    if (cmd->state.last_vs_params.empty)
       return;
 
