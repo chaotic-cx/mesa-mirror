@@ -290,6 +290,14 @@ st_update_single_texture(struct st_context *st,
                          const struct pipe_sampler_view **norelease_views);
 
 unsigned
+st_add_yuv_plane_views(struct pipe_context *pipe,
+                       struct gl_texture_object *stObj,
+                       const struct pipe_sampler_view *view,
+                       GLbitfield used_slots,
+                       struct pipe_sampler_view **sampler_views,
+                       unsigned *extra_sampler_views);
+
+unsigned
 st_get_sampler_views(struct st_context *st,
                      mesa_shader_stage shader_stage,
                      const struct gl_program *prog,

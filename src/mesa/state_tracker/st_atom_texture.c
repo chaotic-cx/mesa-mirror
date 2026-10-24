@@ -103,6 +103,196 @@ packed_yuv_chroma_resource(struct gl_texture_object *texObj)
 }
 
 
+/**
+ * Create the views of the extra YUV planes that sampling stObj through an
+ * external sampler needs, with view, the view of its first plane, as the
+ * template. They take the lowest slots in neither used_slots nor
+ * extra_sampler_views and are added to extra_sampler_views.
+ *
+ * Returns the number of slots needed to include the views it created, or 0 if
+ * it created none.
+ */
+unsigned
+st_add_yuv_plane_views(struct pipe_context *pipe,
+                       struct gl_texture_object *stObj,
+                       const struct pipe_sampler_view *view,
+                       GLbitfield used_slots,
+                       struct pipe_sampler_view **sampler_views,
+                       unsigned *extra_sampler_views)
+{
+   /* use original view as template: */
+   struct pipe_sampler_view tmpl = *view;
+   GLbitfield free_slots = ~(used_slots | *extra_sampler_views);
+   GLuint extra = 0;
+
+   /* if no extra YUV plane views are needed, skip */
+   if (!stObj->needs_yuv_plane_views)
+      return 0;
+
+   switch (st_get_view_format(stObj)) {
+   case PIPE_FORMAT_NV16:
+      if (stObj->pt->format == PIPE_FORMAT_R8_G8B8_422_UNORM)
+         /* no additional views needed */
+         break;
+
+      /* we need one additional R8G8 view: */
+      tmpl.format = PIPE_FORMAT_R8G8_UNORM;
+      tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R8 */
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_NV12:
+      if (stObj->pt->format == PIPE_FORMAT_R8_G8B8_420_UNORM)
+         /* no additional views needed */
+         break;
+
+      /* we need one additional R8G8 view: */
+      tmpl.format = PIPE_FORMAT_R8G8_UNORM;
+      tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R8 */
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_NV21:
+      if (stObj->pt->format == PIPE_FORMAT_R8_B8G8_420_UNORM)
+         /* no additional views needed */
+         break;
+
+      /* we need one additional R8G8 view: */
+      tmpl.format = PIPE_FORMAT_R8G8_UNORM;
+      tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R8 */
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_NV61:
+   case PIPE_FORMAT_NV24:
+   case PIPE_FORMAT_NV42:
+      /* we need one additional R8G8 view: */
+      tmpl.format = PIPE_FORMAT_R8G8_UNORM;
+      tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R8 */
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_P010:
+   case PIPE_FORMAT_P012:
+   case PIPE_FORMAT_P016:
+   case PIPE_FORMAT_P030:
+      /* we need one additional R16G16 view: */
+      tmpl.format = stObj->pt->next->format;
+      tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R16 */
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_IYUV:
+      if (stObj->pt->format == PIPE_FORMAT_R8_G8_B8_420_UNORM ||
+          stObj->pt->format == PIPE_FORMAT_R8_B8_G8_420_UNORM)
+         /* no additional views needed */
+         break;
+
+      /* we need two additional R8 views: */
+      tmpl.format = PIPE_FORMAT_R8_UNORM;
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_Y10X6_U10X6_V10X6_420_UNORM:
+   case PIPE_FORMAT_Y10X6_U10X6_V10X6_422_UNORM:
+   case PIPE_FORMAT_Y10X6_U10X6_V10X6_444_UNORM:
+   case PIPE_FORMAT_Y12X4_U12X4_V12X4_420_UNORM:
+   case PIPE_FORMAT_Y12X4_U12X4_V12X4_422_UNORM:
+   case PIPE_FORMAT_Y12X4_U12X4_V12X4_444_UNORM:
+   case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
+   case PIPE_FORMAT_Y16_U16_V16_422_UNORM:
+   case PIPE_FORMAT_Y16_U16_V16_444_UNORM:
+      /* we need two additional R16 views: */
+      tmpl.format = stObj->pt->next->format;
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      tmpl.format = stObj->pt->next->next->format;
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe, stObj->pt->next->next, &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_YUYV:
+   case PIPE_FORMAT_YVYU:
+      if (stObj->pt->format == PIPE_FORMAT_R8G8_R8B8_UNORM ||
+          stObj->pt->format == PIPE_FORMAT_R8B8_R8G8_UNORM)
+         /* no additional views needed */
+         break;
+
+      /* we need one additional B8G8R8A8 view of the chroma samples: */
+      tmpl.format = PIPE_FORMAT_B8G8R8A8_UNORM;
+      tmpl.swizzle_b = PIPE_SWIZZLE_Z;
+      tmpl.swizzle_a = PIPE_SWIZZLE_W;
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe,
+                                      packed_yuv_chroma_resource(stObj),
+                                      &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_UYVY:
+   case PIPE_FORMAT_VYUY:
+      if (stObj->pt->format == PIPE_FORMAT_G8R8_B8R8_UNORM ||
+          stObj->pt->format == PIPE_FORMAT_B8R8_G8R8_UNORM)
+         /* no additional views needed */
+         break;
+
+      /* we need one additional R8G8B8A8 view of the chroma samples: */
+      tmpl.format = PIPE_FORMAT_R8G8B8A8_UNORM;
+      tmpl.swizzle_b = PIPE_SWIZZLE_Z;
+      tmpl.swizzle_a = PIPE_SWIZZLE_W;
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe,
+                                      packed_yuv_chroma_resource(stObj),
+                                      &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   case PIPE_FORMAT_Y210:
+   case PIPE_FORMAT_Y212:
+   case PIPE_FORMAT_Y216:
+      if (stObj->pt->format == PIPE_FORMAT_R16G16_R16B16_422_UNORM ||
+          stObj->pt->format == PIPE_FORMAT_X6R10X6G10_X6R10X6B10_422_UNORM)
+         /* no additional views needed */
+         break;
+
+      /* we need one additional R16G16B16A16 view of the chroma samples: */
+      tmpl.format = packed_yuv_chroma_resource(stObj)->format;
+      tmpl.swizzle_b = PIPE_SWIZZLE_Z;
+      tmpl.swizzle_a = PIPE_SWIZZLE_W;
+      extra = u_bit_scan(&free_slots);
+      sampler_views[extra] =
+            pipe->create_sampler_view(pipe,
+                                      packed_yuv_chroma_resource(stObj),
+                                      &tmpl);
+      (*extra_sampler_views) |= 1 << extra;
+      break;
+   default:
+      break;
+   }
+
+   return extra ? extra + 1 : 0;
+}
+
+
 unsigned
 st_get_sampler_views(struct st_context *st,
                      mesa_shader_stage shader_stage,
@@ -114,7 +304,6 @@ st_get_sampler_views(struct st_context *st,
    const GLuint old_max = st->state.num_sampler_views[shader_stage];
    GLbitfield samplers_used = prog->SamplersUsed;
    GLbitfield texel_fetch_samplers = prog->info.textures_used_by_txf[0];
-   GLbitfield free_slots = ~prog->SamplersUsed;
    GLbitfield external_samplers_used = prog->ExternalSamplersUsed;
    *extra_sampler_views = 0;
 
@@ -178,182 +367,20 @@ st_get_sampler_views(struct st_context *st,
     */
    while (unlikely(external_samplers_used)) {
       GLuint unit = u_bit_scan(&external_samplers_used);
-      GLuint extra = 0;
       struct gl_texture_object *stObj =
             st_get_texture_object(st->ctx, prog, unit);
-      struct pipe_sampler_view tmpl;
 
       if (!stObj)
          continue;
 
-      /* use original view as template: */
-      tmpl = *sampler_views[unit];
+      /* MAX2 evaluates its arguments twice, and this call has side effects */
+      unsigned needed = st_add_yuv_plane_views(pipe, stObj,
+                                               sampler_views[unit],
+                                               prog->SamplersUsed,
+                                               sampler_views,
+                                               extra_sampler_views);
 
-      /* if no extra YUV plane views are needed, skip */
-      if (!stObj->needs_yuv_plane_views)
-         continue;
-
-      switch (st_get_view_format(stObj)) {
-      case PIPE_FORMAT_NV16:
-         if (stObj->pt->format == PIPE_FORMAT_R8_G8B8_422_UNORM)
-            /* no additional views needed */
-            break;
-
-         /* we need one additional R8G8 view: */
-         tmpl.format = PIPE_FORMAT_R8G8_UNORM;
-         tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R8 */
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_NV12:
-         if (stObj->pt->format == PIPE_FORMAT_R8_G8B8_420_UNORM)
-            /* no additional views needed */
-            break;
-
-         /* we need one additional R8G8 view: */
-         tmpl.format = PIPE_FORMAT_R8G8_UNORM;
-         tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R8 */
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_NV21:
-         if (stObj->pt->format == PIPE_FORMAT_R8_B8G8_420_UNORM)
-            /* no additional views needed */
-            break;
-
-         /* we need one additional R8G8 view: */
-         tmpl.format = PIPE_FORMAT_R8G8_UNORM;
-         tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R8 */
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_NV61:
-      case PIPE_FORMAT_NV24:
-      case PIPE_FORMAT_NV42:
-         /* we need one additional R8G8 view: */
-         tmpl.format = PIPE_FORMAT_R8G8_UNORM;
-         tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R8 */
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_P010:
-      case PIPE_FORMAT_P012:
-      case PIPE_FORMAT_P016:
-      case PIPE_FORMAT_P030:
-         /* we need one additional R16G16 view: */
-         tmpl.format = stObj->pt->next->format;
-         tmpl.swizzle_g = PIPE_SWIZZLE_Y;   /* tmpl from Y plane is R16 */
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_IYUV:
-         if (stObj->pt->format == PIPE_FORMAT_R8_G8_B8_420_UNORM ||
-             stObj->pt->format == PIPE_FORMAT_R8_B8_G8_420_UNORM)
-            /* no additional views needed */
-            break;
-
-         /* we need two additional R8 views: */
-         tmpl.format = PIPE_FORMAT_R8_UNORM;
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_Y10X6_U10X6_V10X6_420_UNORM:
-      case PIPE_FORMAT_Y10X6_U10X6_V10X6_422_UNORM:
-      case PIPE_FORMAT_Y10X6_U10X6_V10X6_444_UNORM:
-      case PIPE_FORMAT_Y12X4_U12X4_V12X4_420_UNORM:
-      case PIPE_FORMAT_Y12X4_U12X4_V12X4_422_UNORM:
-      case PIPE_FORMAT_Y12X4_U12X4_V12X4_444_UNORM:
-      case PIPE_FORMAT_Y16_U16_V16_420_UNORM:
-      case PIPE_FORMAT_Y16_U16_V16_422_UNORM:
-      case PIPE_FORMAT_Y16_U16_V16_444_UNORM:
-         /* we need two additional R16 views: */
-         tmpl.format = stObj->pt->next->format;
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         tmpl.format = stObj->pt->next->next->format;
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe, stObj->pt->next->next, &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_YUYV:
-      case PIPE_FORMAT_YVYU:
-         if (stObj->pt->format == PIPE_FORMAT_R8G8_R8B8_UNORM ||
-             stObj->pt->format == PIPE_FORMAT_R8B8_R8G8_UNORM)
-            /* no additional views needed */
-            break;
-
-         /* we need one additional B8G8R8A8 view of the chroma samples: */
-         tmpl.format = PIPE_FORMAT_B8G8R8A8_UNORM;
-         tmpl.swizzle_b = PIPE_SWIZZLE_Z;
-         tmpl.swizzle_a = PIPE_SWIZZLE_W;
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe,
-                                         packed_yuv_chroma_resource(stObj),
-                                         &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_UYVY:
-      case PIPE_FORMAT_VYUY:
-         if (stObj->pt->format == PIPE_FORMAT_G8R8_B8R8_UNORM ||
-             stObj->pt->format == PIPE_FORMAT_B8R8_G8R8_UNORM)
-            /* no additional views needed */
-            break;
-
-         /* we need one additional R8G8B8A8 view of the chroma samples: */
-         tmpl.format = PIPE_FORMAT_R8G8B8A8_UNORM;
-         tmpl.swizzle_b = PIPE_SWIZZLE_Z;
-         tmpl.swizzle_a = PIPE_SWIZZLE_W;
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe,
-                                         packed_yuv_chroma_resource(stObj),
-                                         &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      case PIPE_FORMAT_Y210:
-      case PIPE_FORMAT_Y212:
-      case PIPE_FORMAT_Y216:
-         if (stObj->pt->format == PIPE_FORMAT_R16G16_R16B16_422_UNORM ||
-             stObj->pt->format == PIPE_FORMAT_X6R10X6G10_X6R10X6B10_422_UNORM)
-            /* no additional views needed */
-            break;
-
-         /* we need one additional R16G16B16A16 view of the chroma samples: */
-         tmpl.format = packed_yuv_chroma_resource(stObj)->format;
-         tmpl.swizzle_b = PIPE_SWIZZLE_Z;
-         tmpl.swizzle_a = PIPE_SWIZZLE_W;
-         extra = u_bit_scan(&free_slots);
-         sampler_views[extra] =
-               pipe->create_sampler_view(pipe,
-                                         packed_yuv_chroma_resource(stObj),
-                                         &tmpl);
-         (*extra_sampler_views) |= 1 << extra;
-         break;
-      default:
-         break;
-      }
-
-      num_textures = MAX2(num_textures, extra + 1);
+      num_textures = MAX2(num_textures, needed);
    }
 
    return num_textures;
