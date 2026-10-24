@@ -3082,6 +3082,12 @@ vn_GetPhysicalDeviceDescriptorSizeEXT(VkPhysicalDevice physicalDevice,
          struct vn_ring *ring = physical_dev->instance->ring.ring;
 
          for (uint32_t i = 0; i < ARRAY_SIZE(vn_descriptor_heap_types); i++) {
+            if (vn_descriptor_heap_types[i] ==
+                   VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR &&
+                !physical_dev->base.vk.supported_extensions
+                    .KHR_acceleration_structure)
+               continue;
+
             const enum vn_descriptor_type type =
                vn_descriptor_type(vn_descriptor_heap_types[i]);
             physical_dev->descriptor_sizes[type] =

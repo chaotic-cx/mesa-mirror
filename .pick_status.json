@@ -804,7 +804,7 @@
         "description": "venus: descriptor size cache to only query supported types",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "1d779f5af1875192f441dae404863f3d89cb4be1",
         "notes": null
