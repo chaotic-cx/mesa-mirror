@@ -741,12 +741,6 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
       .info = &sctx->screen->info,
       .use_aco = sctx->screen->use_aco,
       .print_key = si_can_dump_shader(sctx->screen, MESA_SHADER_COMPUTE, SI_DUMP_SHADER_KEY),
-      /* Compute queues can't fail because there is no alternative. */
-      .fail_if_slow = sctx->is_gfx_queue && fail_if_slow &&
-                      /* Compressed and subsampled image blits can't fail because
-                       * the gfx (pixel shader) blit doesn't support them. */
-                      !((src_access | dst_access) & SI_IMAGE_ACCESS_BLOCK_FORMAT_AS_UINT) &&
-                      !(sctx->screen->debug_flags & DBG(FORCE_COMPUTE_BLIT)),
    };
 
    ac_cs_blit_description blit = {
@@ -774,6 +768,12 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
       },
       .src_has_non_identity_fmask = ssrc && ssrc->surface.fmask_size,
       .sample0_only = info->sample0_only,
+      /* Compute queues can't fail because there is no alternative. */
+      .fail_if_slow = sctx->is_gfx_queue && fail_if_slow &&
+                      /* Compressed and subsampled image blits can't fail because
+                       * the gfx (pixel shader) blit doesn't support them. */
+                      !((src_access | dst_access) & SI_IMAGE_ACCESS_BLOCK_FORMAT_AS_UINT) &&
+                      !(sctx->screen->debug_flags & DBG(FORCE_COMPUTE_BLIT)),
    };
 
    if (clear_color)

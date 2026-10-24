@@ -1158,7 +1158,7 @@ ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_d
       return false;
 
    /* Return a failure if a compute blit is slower than a gfx blit. */
-   if (options->fail_if_slow) {
+   if (blit->fail_if_slow) {
       /* TODO: This block is no longer up to date since the last rewrite. */
       if (d.is_clear) {
          /* Verified on: Tahiti, Hawaii, Tonga, Vega10, Navi10, Navi21, Navi31 */
