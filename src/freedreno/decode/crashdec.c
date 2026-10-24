@@ -1195,6 +1195,8 @@ decode(void)
 
          cffdec_init(&options);
 
+         const char *variant = NULL;
+
          if (is_a7xx()) {
             rnn_gmu = rnn_new(!options.color);
             rnn_load_file(rnn_gmu, "adreno/a6xx_gmu.xml", "A6XX");
@@ -1209,6 +1211,7 @@ decode(void)
             rnn_pipe = rnn_new(!options.color);
             rnn_load_file(rnn_pipe, "adreno/adreno_pipe_regs.xml",
                           "A7XX_PIPE_REG");
+            variant = "A7XX";
          } else if (is_a6xx()) {
             rnn_gmu = rnn_new(!options.color);
             rnn_load_file(rnn_gmu, "adreno/a6xx_gmu.xml", "A6XX");
@@ -1218,12 +1221,19 @@ decode(void)
             rnn_pipe = rnn_new(!options.color);
             rnn_load_file(rnn_pipe, "adreno/adreno_pipe_regs.xml",
                           "A6XX_PIPE_REG");
+            variant = "A6XX";
          } else if (is_a5xx()) {
             rnn_control = rnn_new(!options.color);
             rnn_load_file(rnn_control, "adreno/adreno_control_regs.xml",
                           "A5XX_CONTROL_REG");
          } else {
             rnn_control = NULL;
+         }
+
+         if (variant) {
+            rnn_varadd(rnn_gmu, "chip", variant);
+            rnn_varadd(rnn_control, "chip", variant);
+            rnn_varadd(rnn_pipe, "chip", variant);
          }
 
          snapshot_write_header(options.dev_id.chip_id);
