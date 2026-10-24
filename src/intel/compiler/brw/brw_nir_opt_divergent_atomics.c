@@ -5,6 +5,7 @@
 
 #include "compiler/nir/nir_builder.h"
 
+#include "brw_compiler.h"
 #include "brw_nir.h"
 
 /**
@@ -50,6 +51,11 @@
  *    x = phi(fixed_result, atomic_result)
  */
 
+struct brw_nir_opt_divergent_atomics_state {
+   enum brw_divergent_atomics_flags flags;
+   bool helpers_masked;
+};
+
 static bool
 supported_atomic_reduction(nir_atomic_op op)
 {
@@ -72,7 +78,8 @@ supported_atomic_reduction(nir_atomic_op op)
 }
 
 static void
-opt_divergent_atomic_single_message(nir_builder *b, nir_intrinsic_instr *intrin)
+opt_divergent_atomic_single_message(nir_builder *b, nir_intrinsic_instr *intrin,
+                                    struct brw_nir_opt_divergent_atomics_state *state)
 {
    bool is_result_used = !nir_def_is_unused(&intrin->def);
 
@@ -86,15 +93,27 @@ opt_divergent_atomic_single_message(nir_builder *b, nir_intrinsic_instr *intrin)
 
    b->cursor = nir_after_instr(&intrin->instr);
 
-   nir_def *lane_id = nir_load_subgroup_invocation(b);
+   nir_def *is_active_lane, *first_lane_id;
+   if (state->helpers_masked) {
+      is_active_lane = nir_imm_true(b);
+      first_lane_id = nir_first_invocation(b);
+   } else {
+      static_assert(BRW_SUBGROUP_SIZE == 32, "ballot");
+      is_active_lane = nir_inot(b, nir_is_helper_invocation(b, 1));
+      nir_def *active_lanes = nir_ballot(b, 1, 32, is_active_lane);
+      first_lane_id = nir_imax_imm(b, nir_find_lsb(b, active_lanes), 0);
+   }
 
-   nir_def *first_lane_id = nir_read_first_invocation(b, lane_id);
-   nir_def *first_lane_addr = nir_read_first_invocation(b, addr);
-   nir_def *is_first_lane = nir_ieq(b, lane_id, first_lane_id);
-   nir_def *fusing_cond = nir_ball_iequal(b, first_lane_addr, addr);
-   nir_def *should_do_atomic = nir_ior(b,
-                                       is_first_lane,
-                                       nir_inot(b, fusing_cond));
+   nir_def *lane_id = nir_load_subgroup_invocation(b);
+   nir_def *first_lane_addr = nir_read_invocation(b, addr, first_lane_id);
+   nir_def *equals_first = nir_ball_iequal(b, first_lane_addr, addr);
+   nir_def *fusing_cond = nir_iand(b, equals_first, is_active_lane);
+   nir_def *should_do_atomic =
+      nir_iand(b,
+               nir_ior(b,
+                       nir_ieq(b, first_lane_id, lane_id),
+                       nir_inot(b, equals_first)),
+               is_active_lane);
 
    nir_def *undef_phi_value = nir_undef(b, 1, intrin->def.bit_size);
 
@@ -119,6 +138,11 @@ opt_divergent_atomic_single_message(nir_builder *b, nir_intrinsic_instr *intrin)
       atomic_clone = nir_instr_as_intrinsic(nir_instr_clone(b->shader, &intrin->instr));
       nir_instr_insert(b->cursor, &atomic_clone->instr);
       nir_src_rewrite(nir_get_io_data_src(atomic_clone), atomic_data);
+      /* Force helpers enabled so the final SEND does not use a flag register, this gives
+       * the backend an opportunity to convert the enclosing IF statement to predication.
+       */
+      nir_intrinsic_set_access(atomic_clone,
+                               nir_intrinsic_access(atomic_clone) | ACCESS_INCLUDE_HELPERS);
    }
    nir_pop_if(b, NULL);
 
@@ -144,24 +168,26 @@ opt_divergent_atomic_single_message(nir_builder *b, nir_intrinsic_instr *intrin)
 static bool
 opt_divergent_atomic_instr(nir_builder *b, nir_intrinsic_instr *intrin, void *cb_data)
 {
-   enum brw_divergent_atomics_flags flags =
-      *((enum brw_divergent_atomics_flags *)cb_data);
+   struct brw_nir_opt_divergent_atomics_state *state =
+      (struct brw_nir_opt_divergent_atomics_state *) cb_data;
 
    switch (intrin->intrinsic) {
    case nir_intrinsic_ssbo_atomic:
    case nir_intrinsic_shared_atomic:
    case nir_intrinsic_global_atomic:
-      if (flags & BRW_OPT_DIVERGENT_ATOMICS_BUFFER)
+      if (state->flags & BRW_OPT_DIVERGENT_ATOMICS_BUFFER)
          break;
       return false;
    case nir_intrinsic_image_atomic:
    case nir_intrinsic_bindless_image_atomic:
-      if (flags & BRW_OPT_DIVERGENT_ATOMICS_IMAGE)
+      if (state->flags & BRW_OPT_DIVERGENT_ATOMICS_IMAGE)
          break;
       return false;
    default:
       return false;
    }
+
+   nir_metadata_require(b->impl, nir_metadata_block_index | nir_metadata_divergence);
 
    /* The address/offset should be non-uniform */
    if (!nir_src_is_divergent(nir_get_io_offset_src(intrin)))
@@ -174,7 +200,7 @@ opt_divergent_atomic_instr(nir_builder *b, nir_intrinsic_instr *intrin, void *cb
    if ((atomic_op == nir_atomic_op_iadd) ||
        (nir_def_is_unused(&intrin->def) && supported_atomic_reduction(atomic_op)))
    {
-      opt_divergent_atomic_single_message(b, intrin);
+      opt_divergent_atomic_single_message(b, intrin, state);
       return true;
    }
 
@@ -182,12 +208,14 @@ opt_divergent_atomic_instr(nir_builder *b, nir_intrinsic_instr *intrin, void *cb
 }
 
 bool brw_nir_opt_divergent_atomics(nir_shader *shader,
-                                   enum brw_divergent_atomics_flags flags)
+                                   enum brw_divergent_atomics_flags flags,
+                                   bool helpers_masked)
 {
-   nir_foreach_function_impl(impl, shader) {
-      nir_metadata_require(impl, nir_metadata_block_index | nir_metadata_divergence);
-   }
-
+   struct brw_nir_opt_divergent_atomics_state state = {
+      .flags = flags,
+      .helpers_masked = helpers_masked ||
+                        shader->info.stage != MESA_SHADER_FRAGMENT,
+   };
    return nir_shader_intrinsics_pass(shader, opt_divergent_atomic_instr,
-                                     nir_metadata_none, &flags);
+                                     nir_metadata_none, &state);
 }
