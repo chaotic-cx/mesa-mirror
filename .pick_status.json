@@ -994,7 +994,7 @@
         "description": "lavapipe: Fix DGC + conditional rendering",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "8097a8e81e7c558472882618b4838574cee4c4c6",
         "notes": null

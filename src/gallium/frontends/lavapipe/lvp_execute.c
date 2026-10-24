@@ -29,9 +29,12 @@
 #include "pipe/p_context.h"
 #include "pipe/p_state.h"
 #include "lvp_conv.h"
+#include "lp_context.h"
+#include "lp_query.h"
 #include "lp_state.h"
 #include "lp_texture.h"
 #include "driver_trace/tr_context.h"
+
 
 #include "util/blend.h"
 #include "util/format/u_format.h"
@@ -4778,7 +4781,7 @@ handle_execute_generated_commands_ext(struct vk_cmd_queue_entry *cmd, struct ren
    struct list_head *list = (void*)p;
 
    struct vk_cmd_queue_entry *exec_cmd = list_first_entry(list, struct vk_cmd_queue_entry, cmd_link);
-   if (exec_cmd)
+   if (exec_cmd && llvmpipe_check_render_cond(llvmpipe_context(state->pctx)))
       lvp_execute_cmd_buffer(list, state, print_cmds);
 }
 
