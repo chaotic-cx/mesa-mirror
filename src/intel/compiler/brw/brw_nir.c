@@ -3867,7 +3867,7 @@ brw_postprocess_nir_opts(brw_pass_tracker *pt)
       OPT(nir_lower_subgroups, &subgroups_options);
 
    if (pt->key->divergent_atomics_flags)
-      OPT(brw_nir_opt_divergent_atomics, pt->key->divergent_atomics_flags);
+      OPT(brw_nir_opt_divergent_atomics, pt->key->divergent_atomics_flags, false);
 
    /* nir_opt_uniform_subgroup can create some operations (e.g.,
     * load_subgroup_lt_mask) that need to be lowered again.
