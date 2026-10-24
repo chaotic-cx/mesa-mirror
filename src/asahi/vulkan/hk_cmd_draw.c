@@ -3947,6 +3947,9 @@ hk_begin_end_xfb(VkCommandBuffer commandBuffer, uint32_t firstCounterBuffer,
       }
    }
 
+   if (pCounterBuffers == NULL)
+      counterBufferCount = 0;
+
    for (unsigned i = 0; i < counterBufferCount; ++i) {
       if (pCounterBuffers[i] == VK_NULL_HANDLE)
          continue;
