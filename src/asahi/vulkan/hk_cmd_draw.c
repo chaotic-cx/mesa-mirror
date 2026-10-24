@@ -3387,10 +3387,6 @@ hk_CmdBindIndexBuffer2KHR(VkCommandBuffer commandBuffer, VkBuffer _buffer,
       .size = agx_translate_index_size(vk_index_type_to_bytes(indexType)),
       .restart = vk_index_to_restart(indexType),
    };
-
-   /* TODO: check if necessary, blob does this */
-   cmd->state.gfx.index.buffer.range =
-      align(cmd->state.gfx.index.buffer.range, 4);
 }
 
 void
