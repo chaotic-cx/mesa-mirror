@@ -256,6 +256,17 @@ st_get_external_sampler_key(struct st_context *st, struct gl_program *prog)
    return key;
 }
 
+struct nir_shader;
+
+void
+st_nir_lower_external_samplers(struct nir_shader *nir,
+                               const struct st_external_sampler_key *key);
+
+void
+st_nir_lower_external_sampler_planes(struct nir_shader *nir,
+                                     const struct st_external_sampler_key *key,
+                                     unsigned free_slots);
+
 /** Fragment program variant key
  *
  * Please update st_get_fp_variant() perf_debug() when adding fields.

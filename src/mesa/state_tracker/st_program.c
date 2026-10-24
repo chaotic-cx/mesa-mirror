@@ -1104,6 +1104,54 @@ st_translate_fragment_program(struct st_context *st,
    return true;
 }
 
+/**
+ * Lower the sampling of the external samplers in key to their YUV planes.
+ */
+void
+st_nir_lower_external_samplers(nir_shader *nir,
+                               const struct st_external_sampler_key *key)
+{
+   nir_lower_tex_options options = {0};
+   options.lower_y_uv_external = key->lower_nv12;
+   options.lower_y_vu_external = key->lower_nv21;
+   options.lower_y_u_v_external = key->lower_iyuv;
+   options.lower_xy_uxvx_external = key->lower_xy_uxvx;
+   options.lower_xy_vxux_external = key->lower_xy_vxux;
+   options.lower_yx_xuxv_external = key->lower_yx_xuxv;
+   options.lower_yx_xvxu_external = key->lower_yx_xvxu;
+   options.lower_ayuv_external = key->lower_ayuv;
+   options.lower_xyuv_external = key->lower_xyuv;
+   options.lower_yuv_external = key->lower_yuv;
+   options.lower_yu_yv_external = key->lower_yu_yv;
+   options.lower_yv_yu_external = key->lower_yv_yu;
+   options.lower_y41x_external = key->lower_y41x;
+   options.lower_sx10_external = key->lower_sx10;
+   options.lower_sx12_external = key->lower_sx12;
+   options.bt709_external = key->bt709;
+   options.bt2020_external = key->bt2020;
+   options.yuv_full_range_external = key->yuv_full_range;
+   options.bypass_csc_external = key->external_y2y;
+   NIR_PASS(_, nir, nir_lower_tex, &options);
+}
+
+/**
+ * Move the samples of the extra planes that st_nir_lower_external_samplers
+ * adds to the sampler slots that st_add_yuv_plane_views gives their views,
+ * taken from free_slots in the same order. Runs once the bindings of the
+ * sampler variables are final.
+ */
+void
+st_nir_lower_external_sampler_planes(nir_shader *nir,
+                                     const struct st_external_sampler_key *key,
+                                     unsigned free_slots)
+{
+   NIR_PASS(_, nir, st_nir_lower_tex_src_plane, free_slots,
+            key->lower_nv12 | key->lower_nv21 |
+               key->lower_xy_uxvx | key->lower_xy_vxux |
+               key->lower_yx_xuxv | key->lower_yx_xvxu,
+            key->lower_iyuv);
+}
+
 static struct st_fp_variant *
 st_create_fp_variant(struct st_context *st,
                      struct gl_program *fp,
@@ -1270,27 +1318,7 @@ st_create_fp_variant(struct st_context *st,
       st_nir_lower_samplers(st->screen, state.ir.nir,
                               fp->shader_program, fp);
 
-      nir_lower_tex_options options = {0};
-      options.lower_y_uv_external = key->external.lower_nv12;
-      options.lower_y_vu_external = key->external.lower_nv21;
-      options.lower_y_u_v_external = key->external.lower_iyuv;
-      options.lower_xy_uxvx_external = key->external.lower_xy_uxvx;
-      options.lower_xy_vxux_external = key->external.lower_xy_vxux;
-      options.lower_yx_xuxv_external = key->external.lower_yx_xuxv;
-      options.lower_yx_xvxu_external = key->external.lower_yx_xvxu;
-      options.lower_ayuv_external = key->external.lower_ayuv;
-      options.lower_xyuv_external = key->external.lower_xyuv;
-      options.lower_yuv_external = key->external.lower_yuv;
-      options.lower_yu_yv_external = key->external.lower_yu_yv;
-      options.lower_yv_yu_external = key->external.lower_yv_yu;
-      options.lower_y41x_external = key->external.lower_y41x;
-      options.lower_sx10_external = key->external.lower_sx10;
-      options.lower_sx12_external = key->external.lower_sx12;
-      options.bt709_external = key->external.bt709;
-      options.bt2020_external = key->external.bt2020;
-      options.yuv_full_range_external = key->external.yuv_full_range;
-      options.bypass_csc_external = key->external.external_y2y;
-      NIR_PASS(_, state.ir.nir, nir_lower_tex, &options);
+      st_nir_lower_external_samplers(state.ir.nir, &key->external);
       finalize = true;
       need_lower_tex_src_plane = true;
    }
@@ -1300,12 +1328,8 @@ st_create_fp_variant(struct st_context *st,
 
    /* This pass needs to happen *after* nir_lower_sampler */
    if (unlikely(need_lower_tex_src_plane)) {
-      NIR_PASS(_, state.ir.nir, st_nir_lower_tex_src_plane,
-                  ~fp->SamplersUsed,
-                  key->external.lower_nv12 | key->external.lower_nv21 |
-                     key->external.lower_xy_uxvx | key->external.lower_xy_vxux |
-                     key->external.lower_yx_xuxv | key->external.lower_yx_xvxu,
-                  key->external.lower_iyuv);
+      st_nir_lower_external_sampler_planes(state.ir.nir, &key->external,
+                                           ~fp->SamplersUsed);
       finalize = true;
    }
 
