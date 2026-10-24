@@ -85,6 +85,7 @@ libagx_memcpy_to_aligned(global uint *dst, constant uchar *src, uint len,
       uint need = 4 - start_unaligned;
       libagx_memcpy_small((global uchar *)dst, src, need, tid);
       src += need;
+      dst = (global uint *)((global uchar *)dst + need);
       len -= need;
    }
 

@@ -1024,7 +1024,7 @@
         "description": "libagx: Fix libagx_memcpy_to_aligned handling of unaligned start",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "872487919b14b384782882ebca2ebf58093f42ed",
         "notes": null
