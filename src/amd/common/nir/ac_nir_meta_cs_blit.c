@@ -1113,28 +1113,9 @@ get_derived_info(const ac_cs_blit_description *blit, ac_cs_blit_derived_info *ou
    out->dst_bpe = blit->format_is_96bit ? 4 : out->dst_is_stencil ? 1 : blit->dst.surf->bpe;
 }
 
-typedef struct {
-   unsigned x, y, z;
-} uvec3;
-
-/* This function uses the blit description to generate the shader key, prepare user SGPR constants,
- * and determine the parameters for up to 7 compute dispatches.
- *
- * The driver should use the shader key to create the shader, set the SGPR constants, and launch
- * compute dispatches.
- */
-bool
-ac_prepare_compute_blit(const ac_cs_blit_options *options,
-                        const ac_cs_blit_description *blit,
-                        ac_cs_blit_dispatches *out)
+static bool
+has_errors(const ac_cs_blit_description *blit)
 {
-   const struct radeon_info *info = options->info;
-   ac_cs_blit_derived_info d;
-   get_derived_info(blit, &d);
-
-   if (!options->is_nested)
-      memset(out, 0, sizeof(*out));
-
    /* Reject blits with invalid parameters. */
    if (blit->dst.box.x < 0 || blit->dst.box.y < 0 || blit->dst.box.z < 0 ||
        blit->dst.box.width < 0 || blit->dst.box.height < 0 || blit->dst.box.depth < 0 ||
@@ -1143,14 +1124,25 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       return true;
    }
 
+   return false;
+}
+
+bool
+ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_description *blit)
+{
+   const struct radeon_info *info = options->info;
+   ac_cs_blit_derived_info d;
+   get_derived_info(blit, &d);
+
+   /* We don't want the errors to cause the driver to use the gfx path, so return success, so that
+    * the errors are contained. Then ac_prepare_compute_blit will skip everything.
+    */
+   if (has_errors(blit))
+      return true;
+
    /* Negative src is possible with piglit/copyteximage-clipping, but it's very rare. */
    if (blit->src.box.x < 0 || blit->src.box.y < 0 || blit->src.box.z < 0)
       return false;
-
-   /* Skip zero-area blits. */
-   if (!blit->dst.box.width || !blit->dst.box.height || !blit->dst.box.depth ||
-       (!d.is_clear && (!blit->src.box.width || !blit->src.box.height || !blit->src.box.depth)))
-      return true;
 
    if (blit->dst.format == PIPE_FORMAT_A8R8_UNORM || /* This format fails AMD_TEST=imagecopy. */
        /* GFX8 doesn't seem to support R4G4B4A4_UINT and R5G5B5A1_UINT. VK doesn't have these formats. */
@@ -1268,6 +1260,39 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
          }
       }
    }
+
+   return true;
+}
+
+typedef struct {
+   unsigned x, y, z;
+} uvec3;
+
+/* This function uses the blit description to generate the shader key, prepare user SGPR constants,
+ * and determine the parameters for up to 7 compute dispatches.
+ *
+ * The driver should use the shader key to create the shader, set the SGPR constants, and launch
+ * compute dispatches.
+ */
+bool
+ac_prepare_compute_blit(const ac_cs_blit_options *options,
+                        const ac_cs_blit_description *blit,
+                        ac_cs_blit_dispatches *out)
+{
+   const struct radeon_info *info = options->info;
+   ac_cs_blit_derived_info d;
+   get_derived_info(blit, &d);
+
+   if (!options->is_nested)
+      memset(out, 0, sizeof(*out));
+
+   if (has_errors(blit))
+      return true;
+
+   /* Skip zero-area blits. */
+   if (!blit->dst.box.width || !blit->dst.box.height || !blit->dst.box.depth ||
+       (!d.is_clear && (!blit->src.box.width || !blit->src.box.height || !blit->src.box.depth)))
+      return true;
 
    /* Determine bytes per lane, which is the main tunable. */
    /* TODO: retune everything with RADV, especially MSAA copies on GFX10.3 */

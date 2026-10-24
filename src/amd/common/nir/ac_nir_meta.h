@@ -165,6 +165,9 @@ nir_shader *
 ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key);
 
 bool
+ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_description *blit);
+
+bool
 ac_prepare_compute_blit(const ac_cs_blit_options *options,
                         const ac_cs_blit_description *blit,
                         ac_cs_blit_dispatches *dispatches);
