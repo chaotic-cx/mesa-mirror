@@ -459,7 +459,9 @@ brw_nir_vs_compute_payload_size(nir_shader *nir,
 unsigned
 brw_nir_pack_vs_input(nir_shader *nir, struct brw_vs_prog_data *prog_data);
 
-bool brw_nir_opt_divergent_atomics(nir_shader *shader, enum brw_divergent_atomics_flags flags);
+bool brw_nir_opt_divergent_atomics(nir_shader *shader,
+                                   enum brw_divergent_atomics_flags flags,
+                                   bool helpers_masked);
 
 #ifdef __cplusplus
 }

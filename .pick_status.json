@@ -14,7 +14,7 @@
         "description": "intel: Exclude helper lanes for optimized divergent atomics",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "7f7ba20cca9b20f29554f35a3551eea20c2c604e",
         "notes": null
