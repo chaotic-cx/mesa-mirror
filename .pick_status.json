@@ -824,7 +824,7 @@
         "description": "venus: respect descriptor template entry stride for accel struct",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "4cb0f9937933314b157d7839bb30e38c68abcef6",
         "notes": null

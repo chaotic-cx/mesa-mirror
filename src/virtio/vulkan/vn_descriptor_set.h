@@ -124,6 +124,7 @@ struct vn_descriptor_update_template {
    uint32_t bview_count;
    uint32_t iub_count;
    uint32_t accel_count;
+   uint32_t accel_handle_count;
    VkDescriptorUpdateTemplateEntry entries[];
 };
 VK_DEFINE_NONDISP_HANDLE_CASTS(vn_descriptor_update_template,
@@ -144,6 +145,7 @@ struct vn_descriptor_set_update {
    VkBufferView *bview_handles;
    VkWriteDescriptorSetInlineUniformBlock *iubs;
    VkWriteDescriptorSetAccelerationStructureKHR *accels;
+   VkAccelerationStructureKHR *accel_handles;
 };
 
 uint32_t

@@ -945,6 +945,7 @@ vn_descriptor_update_template_init(
          break;
       case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
          templ->accel_count += 1;
+         templ->accel_handle_count += entry->descriptorCount;
          break;
       case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
          break;
@@ -1038,6 +1039,7 @@ vn_descriptor_set_fill_update_with_template(
    uint32_t bview_offset = 0;
    uint32_t iub_offset = 0;
    uint32_t accel_offset = 0;
+   uint32_t accel_handle_offset = 0;
 
    for (uint32_t i = 0; i < templ->entry_count; i++) {
       const VkDescriptorUpdateTemplateEntry *entry = &templ->entries[i];
@@ -1050,6 +1052,7 @@ vn_descriptor_set_fill_update_with_template(
       VkBufferView *bview_handles = NULL;
       VkWriteDescriptorSetInlineUniformBlock *iub = NULL;
       VkWriteDescriptorSetAccelerationStructureKHR *accel = NULL;
+      VkAccelerationStructureKHR *accel_handles = NULL;
 
       switch (entry->descriptorType) {
       case VK_DESCRIPTOR_TYPE_SAMPLER:
@@ -1107,15 +1110,20 @@ vn_descriptor_set_fill_update_with_template(
          break;
       case VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR:
          accel = &update->accels[accel_offset];
+         accel_handles = &update->accel_handles[accel_handle_offset];
+         for (uint32_t j = 0; j < entry->descriptorCount; j++) {
+            accel_handles[j] = *(const VkAccelerationStructureKHR *)ptr;
+            ptr += entry->stride;
+         }
          *accel = (VkWriteDescriptorSetAccelerationStructureKHR){
             .sType =
                VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_KHR,
             .accelerationStructureCount = entry->descriptorCount,
-            .pAccelerationStructures =
-               (const VkAccelerationStructureKHR *)ptr,
+            .pAccelerationStructures = accel_handles,
          };
          pnext = accel;
          accel_offset++;
+         accel_handle_offset += entry->descriptorCount;
          break;
       case VK_DESCRIPTOR_TYPE_MUTABLE_EXT:
          break;
@@ -1157,6 +1165,8 @@ vn_UpdateDescriptorSetWithTemplate(
                templ->iub_count);
    STACK_ARRAY(VkWriteDescriptorSetAccelerationStructureKHR, accels,
                templ->accel_count);
+   STACK_ARRAY(VkAccelerationStructureKHR, accel_handles,
+               templ->accel_handle_count);
    struct vn_descriptor_set_update update = {
       .writes = writes,
       .img_infos = img_infos,
@@ -1164,6 +1174,7 @@ vn_UpdateDescriptorSetWithTemplate(
       .bview_handles = bview_handles,
       .iubs = iubs,
       .accels = accels,
+      .accel_handles = accel_handles,
    };
    vn_descriptor_set_fill_update_with_template(templ, descriptorSet, pData,
                                                &update);
@@ -1177,4 +1188,5 @@ vn_UpdateDescriptorSetWithTemplate(
    STACK_ARRAY_FINISH(bview_handles);
    STACK_ARRAY_FINISH(iubs);
    STACK_ARRAY_FINISH(accels);
+   STACK_ARRAY_FINISH(accel_handles);
 }
