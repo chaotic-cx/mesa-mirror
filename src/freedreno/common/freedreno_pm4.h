@@ -51,7 +51,7 @@ pm4_pkt3_hdr(uint8_t opcode, uint16_t cnt)
 }
 
 static inline uint32_t
-pm4_pkt4_hdr(uint16_t regindx, uint16_t cnt)
+pm4_pkt4_hdr(uint32_t regindx, uint16_t cnt)
 {
    assert(cnt < 0x7f);
    assert (cnt > 0);
@@ -100,7 +100,7 @@ pm4_calc_odd_parity_bit(unsigned val)
      pm4_calc_odd_parity_bit(type4_pkt_offset(pkt))) &&                        \
     ((((pkt) >> 7) & 0x1) == pm4_calc_odd_parity_bit(type4_pkt_size(pkt))))
 
-#define type4_pkt_offset(pkt) (((pkt) >> 8) & 0x7FFFF)
+#define type4_pkt_offset(pkt) (((pkt) >> 8) & 0x3FFFF)
 #define type4_pkt_size(pkt)   ((pkt)&0x7F)
 
 #define pkt_is_type7(pkt)                                                      \
