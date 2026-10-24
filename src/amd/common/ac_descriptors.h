@@ -212,7 +212,14 @@ enum {
    #define FMASK_EQAA_16S_8F_EXPANDED 0x8888888876543210ull /* 8-byte clear value */
 };
 
-/* HTILE definitions:
+/* Each tile represented by one HTILE dword is always 8x8 pixels regardless of bpp and the number of
+ * samples. Tiles can be in 3 states: cleared, compressed, and uncompressed. "TC-compatible HTILE"
+ * allows shaders to read (and sometimes write) cleared/compressed Z/S, while TC-incompatible HTILE
+ * requires executing a decompression pass before shader access. When image stores (and atomics)
+ * with HTILE are supported, they invoke decompression of any tiles they touch and store only
+ * uncompressed Z/S.
+ *
+ * HTILE transitions:
  * - Z/S decompression: Read compressed tiles and write them uncompressed. zmask (for Z) and smem
  *   (for stencil) are cleared to ~0 in HTILE, meaning "uncompressed". This is what Z/S decompression
  *   via DB seems to do. It doesn't seem to change any other HTILE fields.
@@ -222,6 +229,20 @@ enum {
  *   Z tests makes the HW ignore the Z bounds in HTILE.
  * - Stencil expansion (for HiS): Set sr0 and sr1 to neutral values in HTILE. No change to image
  *   data. It only affects subsequent stencil tests. (note that we don't use this in Mesa)
+ *
+ * Note that the Z range of TC-compatible cleared tiles (zmask == 0) should never be expanded
+ * to [0, 1]. That's because the last bit of the HTILE dword determines whether the clear value is
+ * 0 or 1 for cleared tiles of TC-compatible HTILE, which happens to be the last bit of zbase and
+ * maxz fields (so the clear value is consistent with [0, 0] and [1, 1] Z ranges). The effect of
+ * expanding the Z range of TC-compatible cleared tiles to [0, 1] changes the clear value of those
+ * tiles to:
+ * - 1 if the Z-only encoding (minz/maxz) is used, or
+ * - the value of the ZRANGE_PRECISION state if the Z/S encoding (zbase/zdelta) is used, e.g.
+ *   if ZRANGE_PRECISION == 1, the clear value is changed to 1, else it's changed to 0.
+ *
+ * If the tiles had originally been cleared to the opposite clear value, later image loads will
+ * return the wrong clear value, and decompression through image stores/atomics will write the wrong
+ * clear value to the image.
  *
  * When image stores ignore HTILE and such image stores touch any compressed 8x8 tile
  * (represented by 1 HTILE dword), that whole 8x8 tile can get corrupted because even one
