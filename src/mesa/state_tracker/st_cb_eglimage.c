@@ -337,6 +337,21 @@ is_i420_as_r8_g8_b8_420_supported(struct pipe_screen *screen,
    return false;
 }
 
+/* whether the screen can use an EGLImage, natively or through lowering */
+static bool
+is_egl_image_supported(struct pipe_screen *screen, struct st_egl_image *out,
+                       unsigned usage, bool *native_supported)
+{
+   return is_fmt_as_r8_g8b8_supported(screen, out, usage, native_supported) ||
+          is_fmt_as_r10_g10b10_supported(screen, out, usage, native_supported) ||
+          is_i420_as_r8_g8_b8_420_supported(screen, out, usage, native_supported) ||
+          is_yuv420_as_r8g8b8_supported(screen, out, usage, native_supported) ||
+          is_yuv420_as_r10g10b10_supported(screen, out, usage, native_supported) ||
+          is_format_supported(screen, out->format, out->texture->nr_samples,
+                              out->texture->nr_storage_samples, usage,
+                              native_supported);
+}
+
 /**
  * Return the gallium texture of an EGLImage.
  */
@@ -359,14 +374,7 @@ st_get_egl_image(struct gl_context *ctx, GLeglImageOES image_handle,
       return false;
    }
 
-   if (!is_fmt_as_r8_g8b8_supported(screen, out, usage, native_supported) &&
-       !is_fmt_as_r10_g10b10_supported(screen, out, usage, native_supported) &&
-       !is_i420_as_r8_g8_b8_420_supported(screen, out, usage, native_supported) &&
-       !is_yuv420_as_r8g8b8_supported(screen, out, usage, native_supported) &&
-       !is_yuv420_as_r10g10b10_supported(screen, out, usage, native_supported) &&
-       !is_format_supported(screen, out->format, out->texture->nr_samples,
-                            out->texture->nr_storage_samples, usage,
-                            native_supported)) {
+   if (!is_egl_image_supported(screen, out, usage, native_supported)) {
       /* unable to specify a texture object using the specified EGL image */
       pipe_resource_reference(&out->texture, NULL);
       _mesa_error(ctx, GL_INVALID_OPERATION, "%s(format not supported)", error);
