@@ -814,7 +814,7 @@
         "description": "venus: fix missed cases in vn_descriptor_heap_get_descriptor_count",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "dea6221a65800c1d015effa20cffdd4fa57d7784",
         "notes": null

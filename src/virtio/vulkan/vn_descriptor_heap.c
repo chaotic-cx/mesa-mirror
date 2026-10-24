@@ -56,7 +56,7 @@ vn_descriptor_heap_get_descriptor_count(
 
    const VkSamplerYcbcrConversionInfo *ycbcr = vk_find_struct_const(
       resource->data.pImage->pView->pNext, SAMPLER_YCBCR_CONVERSION_INFO);
-   if (!ycbcr)
+   if (!ycbcr || ycbcr->conversion == VK_NULL_HANDLE)
       return 1;
 
    VkImage img_handle = resource->data.pImage->pView->image;
@@ -75,9 +75,17 @@ vn_descriptor_heap_get_descriptor_count(
       mod = mod_props.drmFormatModifier;
    }
 
+   const bool is_mutable =
+      img->create_flags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
+   const VkImageFormatListCreateInfo list_info = {
+      .sType = VK_STRUCTURE_TYPE_IMAGE_FORMAT_LIST_CREATE_INFO,
+      .viewFormatCount = 1,
+      .pViewFormats = &img->format,
+   };
    const VkPhysicalDeviceImageDrmFormatModifierInfoEXT mod_info = {
       .sType =
          VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_IMAGE_DRM_FORMAT_MODIFIER_INFO_EXT,
+      .pNext = is_mutable ? &list_info : NULL,
       .drmFormatModifier = mod,
       .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
    };
