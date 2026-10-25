@@ -65,6 +65,10 @@
 #include "drm-uapi/drm_fourcc.h"
 #endif
 
+#if DETECT_OS_LINUX
+#include <fcntl.h>
+#endif
+
 #if defined(HAVE_LIBDRM) && defined(HAVE_LINUX_UDMABUF_H)
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -1385,6 +1389,8 @@ llvmpipe_free_memory(struct pipe_screen *pscreen,
    if (mem->fd >= 0) {
       mtx_lock(&screen->mem_mutex);
       util_vma_heap_free(&screen->mem_heap, mem->offset, mem->size);
+      fallocate(screen->fd_mem_alloc, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE,
+                mem->offset, mem->size);
       mtx_unlock(&screen->mem_mutex);
    }
 
