@@ -428,9 +428,14 @@ public:
       if (!has_lshl_add)
          shift_add_cost += util_bitcount(imm) - 1; /* additions */
 
-      /* v_mul_lo_u32 has 1.6x the latency of most VALU on GFX10 (8 vs 5 cycles),
-       * compared to 4x the latency on <GFX10. */
-      unsigned mul_cost = program->gfx_level >= GFX10 ? 1 : (4 + Operand::c32(imm).isLiteral());
+      /* v_mul_lo_u32 has 1/4th the throughput of most VALU.
+       * On GFX10+, in addition to the cycles taken to issue the instruction,
+       * each VALU has an additional 4 cycles of latency. So only allow 2 VALU
+       * to replace one v_mul_lo_u32 which doubles throughput while keeping
+       * total latency similar (10 vs 8 cycles).
+       */
+      unsigned mul_cost = program->gfx_level >= GFX10 ? 3 : (4 + Operand::c32(imm).isLiteral());
+
       if (imm == 0) {
          return copy(dst, Operand::zero());
       } else if (imm == 1) {

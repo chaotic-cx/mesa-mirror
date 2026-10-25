@@ -37,10 +37,9 @@ BEGIN_TEST(builder.v_mul_imm)
       //! p_unit_test 4, %res4
       writeout(4, bld.v_mul_imm(bld.def(v1), inputs[0], 9));
 
-      //~gfx[89]! v1: %res5_tmp = v_lshlrev_b32 3, %a
+      //! v1: %res5_tmp = v_lshlrev_b32 3, %a
       //~gfx8! v1: %res5,  s2: %_ = v_sub_co_u32 %res5_tmp, %a
-      //~gfx9! v1: %res5 = v_sub_u32 %res5_tmp, %a
-      //~gfx10! v1: %res5 = v_mul_lo_u32 7, %a
+      //~gfx(9|10)! v1: %res5 = v_sub_u32 %res5_tmp, %a
       //! p_unit_test 5, %res5
       writeout(5, bld.v_mul_imm(bld.def(v1), inputs[0], 7));
 
@@ -49,9 +48,8 @@ BEGIN_TEST(builder.v_mul_imm)
       //~gfx8! v1: %res6_tmp0 = v_lshlrev_b32 2, %a
       //~gfx8! v1: %res6_tmp1 = v_lshlrev_b32 6, %a
       //~gfx8! v1: %res6,  s2: %_ = v_add_co_u32 %res6_tmp1, %res6_tmp0
-      //~gfx9! v1: %res6_tmp = v_lshlrev_b32 2, %a
-      //~gfx9! v1: %res6 = v_lshl_add_u32 %a, 6, %res6_tmp
-      //~gfx10! v1: %res6 = v_mul_lo_u32 0x44, %a
+      //~gfx(9|10)! v1: %res6_tmp = v_lshlrev_b32 2, %a
+      //~gfx(9|10)! v1: %res6 = v_lshl_add_u32 %a, 6, %res6_tmp
       //! p_unit_test 6, %res6
       writeout(6, bld.v_mul_imm(bld.def(v1), inputs[0], 4 | 64));
 
@@ -79,9 +77,8 @@ BEGIN_TEST(builder.v_mul_imm)
       //~gfx8! v1: %res9_tmp0 = v_lshlrev_b32 1, %a
       //~gfx8! v1: %res9_tmp1 = v_lshlrev_b32 2, %a
       //~gfx8! v1: %res9,  s2: %_ = v_add_co_u32 %res9_tmp1, %res9_tmp0
-      //~gfx9! v1: %res9_tmp0 = v_lshlrev_b32 1, %a
-      //~gfx9! v1: %res9 = v_lshl_add_u32 %a, 2, %res9_tmp0
-      //~gfx10! v1: %res9 = v_mul_lo_u32 6, %a
+      //~gfx(9|10)! v1: %res9_tmp0 = v_lshlrev_b32 1, %a
+      //~gfx(9|10)! v1: %res9 = v_lshl_add_u32 %a, 2, %res9_tmp0
       //! p_unit_test 9, %res9
       writeout(9, bld.v_mul_imm(bld.def(v1), inputs[0], 2 | 4));
 
