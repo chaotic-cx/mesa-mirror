@@ -2954,7 +2954,7 @@
         "description": "freedreno: keep the real subgroup size for OpenCL kernels",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "97abe5b847b594e6d751783504b1a1e2990507d9",
         "notes": null

@@ -273,10 +273,12 @@ ir3_shader_compute_state_create(struct pipe_context *pctx,
       if (!ctx->screen->info->props.supports_double_threadsize) {
          api_wavesize = IR3_SINGLE_ONLY;
          real_wavesize = IR3_SINGLE_ONLY;
-      } else {
+      } else if (cso->ir_type != PIPE_SHADER_IR_NIR ||
+                 ((nir_shader *)cso->prog)->info.stage != MESA_SHADER_KERNEL) {
          /* GL has no ALLOW_VARYING_SUBGROUP_SIZE_BIT. Match Turnip's fixed-
           * subgroup-size path: set api_wavesize to IR3_DOUBLE_ONLY so
           * nir_lower_subgroups bakes GL_SUBGROUP_SIZE_KHR as a constant.
+          * CL's get_sub_group_size() must be the real wave size instead.
           */
          api_wavesize = IR3_DOUBLE_ONLY;
       }
