@@ -4019,6 +4019,10 @@ ntq_emit_intrinsic(struct v3d_compile *c, nir_intrinsic_instr *instr)
         }
 
         case nir_intrinsic_load_interpolated_input: {
+                nir_intrinsic_instr *bary = nir_src_as_intrinsic(instr->src[0]);
+                const bool at_offset =
+                        bary && bary->intrinsic == nir_intrinsic_load_barycentric_at_offset;
+
                 assert(nir_src_is_const(instr->src[1]));
                 const uint32_t offset = nir_src_as_uint(instr->src[1]);
 
@@ -4027,11 +4031,12 @@ ntq_emit_intrinsic(struct v3d_compile *c, nir_intrinsic_instr *instr)
                                 (nir_intrinsic_base(instr) + offset) * 4 +
                                 nir_intrinsic_component(instr) + i;
 
-                        /* If we are not in MSAA or if we are not interpolating
-                         * a user varying, just return the pre-computed
-                         * interpolated input.
+                        /* If we are not in MSAA (and not interpolating at an
+                         * offset), or if we are not interpolating a user
+                         * varying, just return the pre-computed interpolated
+                         * input.
                          */
-                        if (!c->fs_key->msaa ||
+                        if ((!c->fs_key->msaa && !at_offset) ||
                             c->interp[input_idx].vp.file == QFILE_NULL) {
                                 ntq_store_def(c, &instr->def, i,
                                               vir_MOV(c, c->inputs[input_idx]));

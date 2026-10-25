@@ -94,7 +94,7 @@
         "description": "v3d: Fix interpolateAtOffset without MSAA",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "442f48f27b666cd2183d4ce27977da045ee34b0f",
         "notes": null
