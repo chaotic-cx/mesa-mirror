@@ -258,6 +258,105 @@ anv_video_emit_vd_control_state(struct anv_cmd_buffer *cmd)
       v.PipelineInitialization = true;
    }
 }
+
+#define ANV_H265_REENCODE_FIRST_SEGMENT_SIZE 16384
+#define ANV_H265_REENCODE_SEGMENT_SIZE       2048
+
+struct anv_h265_reencode {
+   struct anv_batch parent;
+   bool in_segment;
+};
+
+static VkResult
+anv_h265_reencode_extend(struct anv_batch *batch, uint32_t size, void *data)
+{
+   struct anv_cmd_buffer *cmd = data;
+
+   assert(!"HEVC re-encode segment overflow");
+   return vk_error(cmd, VK_ERROR_OUT_OF_DEVICE_MEMORY);
+}
+
+static void
+anv_h265_reencode_begin(struct anv_cmd_buffer *cmd,
+                        struct anv_h265_reencode *reencode,
+                        uint32_t size)
+{
+   struct anv_video_session *vid = cmd->video.vid;
+   struct anv_state state = anv_cmd_buffer_alloc_temporary_state(cmd, size, 64);
+
+   reencode->in_segment = state.map != NULL;
+   if (!reencode->in_segment)
+      return;
+
+   reencode->parent = cmd->batch;
+   anv_batch_set_storage(&cmd->batch,
+                         anv_cmd_buffer_temporary_state_address(cmd, state),
+                         state.map, state.alloc_size);
+   cmd->batch.extend_cb = anv_h265_reencode_extend;
+   cmd->batch.user_data = cmd;
+
+   anv_batch_emit(&cmd->batch, GENX(MI_CONDITIONAL_BATCH_BUFFER_END), cbbe) {
+      cbbe.CompareOperation = MADGreaterThanIDD;
+      cbbe.EndCurrentBatchBufferLevel = true;
+      cbbe.CompareSemaphore = 1;
+      cbbe.CompareMaskMode = CompareMaskModeEnabled;
+      cbbe.CompareDataDword = 0;
+      cbbe.CompareAddress = ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_PAK_MMIO_SEM);
+   }
+}
+
+static void
+anv_h265_reencode_end(struct anv_cmd_buffer *cmd,
+                      struct anv_h265_reencode *reencode)
+{
+   if (!reencode->in_segment)
+      return;
+
+   anv_batch_emit(&cmd->batch, GENX(MI_BATCH_BUFFER_END), bbe);
+
+   struct anv_address segment_addr = cmd->batch.start_addr;
+   VkResult status = cmd->batch.status;
+
+   cmd->batch = reencode->parent;
+   reencode->in_segment = false;
+
+   if (status != VK_SUCCESS) {
+      anv_batch_set_error(&cmd->batch, status);
+      return;
+   }
+
+   anv_batch_emit(&cmd->batch, GENX(MI_BATCH_BUFFER_START), bbs) {
+      bbs.SecondLevelBatchBuffer = Secondlevelbatch;
+      bbs.AddressSpaceIndicator = ASI_PPGTT;
+      bbs.BatchBufferStartAddress = segment_addr;
+   }
+}
+
+static void
+anv_video_emit_brc_slb_jump(struct anv_cmd_buffer *cmd, uint32_t offset)
+{
+   const struct anv_video_session *vid = cmd->video.vid;
+
+   anv_batch_emit(&cmd->batch, GENX(MI_BATCH_BUFFER_START), bbs) {
+      bbs.SecondLevelBatchBuffer = Secondlevelbatch;
+      bbs.AddressSpaceIndicator = ASI_PPGTT;
+      bbs.BatchBufferStartAddress =
+         anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB), offset);
+   }
+}
+
+static void
+anv_h265_emit_slb_jump(struct anv_cmd_buffer *cmd,
+                       struct anv_h265_reencode *reencode,
+                       uint32_t offset)
+{
+   anv_video_emit_brc_slb_jump(cmd, offset);
+
+   if (reencode) {
+      anv_h265_reencode_end(cmd, reencode);
+      anv_h265_reencode_begin(cmd, reencode, ANV_H265_REENCODE_SEGMENT_SIZE);
+   }
+}
 #endif
 
 static struct GENX(VDENC_SURFACE_STATE_FIELDS)
@@ -1781,12 +1880,7 @@ anv_h264_brc_init_update(struct anv_cmd_buffer *cmd,
    anv_h264_brc_emit_huc_update(cmd, frame_info, 0, brc_input_slb);
 
    /* The encode PAK reads the HuC-patched image state from the SLBB. */
-   anv_batch_emit(&cmd->batch, GENX(MI_BATCH_BUFFER_START), bbs) {
-      bbs.SecondLevelBatchBuffer = Secondlevelbatch;
-      bbs.AddressSpaceIndicator = ASI_PPGTT;
-      bbs.BatchBufferStartAddress =
-         ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB);
-   }
+   anv_video_emit_brc_slb_jump(cmd, 0);
 }
 
 static void
@@ -3720,6 +3814,9 @@ anv_h265_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
    anv_video_emit_mi_flush_dw(cmd, true);
    anv_video_emit_force_wakeup(cmd, true);
    for (uint32_t pass = 0; pass < num_passes; pass++) {
+      struct anv_h265_reencode reencode_state;
+      struct anv_h265_reencode *reencode = NULL;
+
       if (brc_enabled) {
          if (pass == 0 && (vid->rc.frame_counter == 0 || vid->rc.brc_reset))
             anv_h265_brc_emit_huc_init(cmd, sps, is_low_delay);
@@ -3729,11 +3826,6 @@ anv_h265_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
                                       brc_input_slb[pass], brc_const_data[pass]);
 
          if (pass > 0) {
-            /* TODO: media-driver gates the re-encode pass on HUC_STATUS bit 31
-             * with MI_CONDITIONAL_BATCH_BUFFER_END, but that terminates the whole
-             * batch including the query writes emitted after the encode in the
-             * same command buffer; always run the PAK only pass instead until
-             * this is reworked as a predicated batch buffer jump */
 #if GFX_VERx10 < 125
             struct anv_address pak_stats_addr =
                ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_PAK_STATS);
@@ -3750,6 +3842,19 @@ anv_h265_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
                srm.MemoryAddress = anv_address_add(pak_stats_addr, 12);
             }
 #endif
+
+            /* The PAK only pass must only run when the HuC sets the
+             * re-encode bit, otherwise the SLB has no usable QP. A
+             * MI_CONDITIONAL_BATCH_BUFFER_END in the first level batch would
+             * also skip the commands recorded after the encode, so the pass
+             * is recorded into second level segments that each start with
+             * the check. Each SLB jump ends a segment, because without nested
+             * batch buffers (disabled by i915) the SLB's MI_BATCH_BUFFER_END
+             * returns to the first level batch.
+             */
+            reencode = &reencode_state;
+            anv_h265_reencode_begin(cmd, reencode,
+                                    ANV_H265_REENCODE_FIRST_SEGMENT_SIZE);
          }
       }
 
@@ -3772,13 +3877,7 @@ anv_h265_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
       anv_h265_emit_vdenc_pipe_buf_addr_state(cmd, enc_info, is_low_delay);
 
       if (brc_enabled) {
-         anv_batch_emit(&cmd->batch, GENX(MI_BATCH_BUFFER_START), bbs) {
-            bbs.SecondLevelBatchBuffer = Secondlevelbatch;
-            bbs.AddressSpaceIndicator = ASI_PPGTT;
-            bbs.BatchBufferStartAddress =
-               anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB),
-                               ANV_H265_BRC_SLB_GROUP1_SIZE);
-         }
+         anv_h265_emit_slb_jump(cmd, reencode, ANV_H265_BRC_SLB_GROUP1_SIZE);
       } else {
          anv_h265_emit_vdenc_cmd1(cmd, NULL, enc_info);
          anv_h265_emit_hcp_pic_state(cmd, NULL, enc_info);
@@ -3801,21 +3900,9 @@ anv_h265_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
          anv_h265_emit_hcp_ref_idx_state(cmd, enc_info, slice_id, dpb_idx);
 
          if (brc_enabled) {
-            anv_batch_emit(&cmd->batch, GENX(MI_BATCH_BUFFER_START), bbs) {
-               bbs.SecondLevelBatchBuffer = Secondlevelbatch;
-               bbs.AddressSpaceIndicator = ASI_PPGTT;
-               bbs.BatchBufferStartAddress =
-                  anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB),
-                                  slb_layout.slice_start[slice_id]);
-            }
+            anv_h265_emit_slb_jump(cmd, reencode, slb_layout.slice_start[slice_id]);
 #if GFX_VERx10 >= 125
-            anv_batch_emit(&cmd->batch, GENX(MI_BATCH_BUFFER_START), bbs) {
-               bbs.SecondLevelBatchBuffer = Secondlevelbatch;
-               bbs.AddressSpaceIndicator = ASI_PPGTT;
-               bbs.BatchBufferStartAddress =
-                  anv_address_add(ANV_VID_MEM_ADDR(vid, ANV_VID_MEM_BRC_EXEC_SLB),
-                                  slb_layout.slice_data_start[slice_id]);
-            }
+            anv_h265_emit_slb_jump(cmd, reencode, slb_layout.slice_data_start[slice_id]);
 #endif
          } else {
             anv_h265_emit_hcp_weightoffset_state(cmd, NULL, enc_info, slice_id);
@@ -3838,6 +3925,9 @@ anv_h265_encode_video(struct anv_cmd_buffer *cmd, const VkVideoEncodeInfoKHR *en
          anv_h265_brc_store_pak_stats(cmd);
          vid->rc.frame_counter++;
       }
+
+      if (reencode)
+         anv_h265_reencode_end(cmd, reencode);
    }
 #endif // GFX_VER >= 12
 }
