@@ -326,7 +326,7 @@ Khronos, ARB, and OES extensions that are not part of any OpenGL or OpenGL ES ve
   GL_EXT_clear_texture                                  DONE (all drivers)
   GL_EXT_color_buffer_half_float                        DONE (freedreno, iris, llvmpipe, nv50, nvc0, radeonsi, virgl, zink, crocus, asahi, v3d, panfrost)
   GL_EXT_conservative_depth                             DONE (all drivers that support GLES 3.0+)
-  GL_EXT_demote_to_helper_invocation                    DONE (crocus, freedreno/a6xx, iris, nvc0, radeonsi, zink)
+  GL_EXT_demote_to_helper_invocation                    DONE (crocus, freedreno/a5xx+, iris, nvc0, radeonsi, zink)
   GL_EXT_depth_bounds_test                              DONE (freedreno/a6xx, nv50, nvc0, radeonsi, softpipe, zink, iris/gen12+)
   GL_EXT_memory_object                                  DONE (freedreno, radeonsi, llvmpipe, zink, d3d12, iris, crocus/gen7+)
   GL_EXT_memory_object_fd                               DONE (freedreno, radeonsi, llvmpipe, zink, iris, crocus/gen7+)
