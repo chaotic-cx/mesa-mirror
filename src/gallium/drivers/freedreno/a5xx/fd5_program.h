@@ -37,6 +37,8 @@ void fd5_emit_shader_obj(struct fd_context *ctx, struct fd_ringbuffer *ring,
                          const struct ir3_shader_variant *so,
                          uint32_t shader_obj_reg) assert_dt;
 
+void fd5_program_emit_streamout(struct fd_ringbuffer *ring,
+                                struct fd5_emit *emit);
 void fd5_program_emit(struct fd_context *ctx, struct fd_ringbuffer *ring,
                       struct fd5_emit *emit) assert_dt;
 

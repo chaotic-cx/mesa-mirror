@@ -116,7 +116,6 @@ spec@ext_render_snorm@render@format 0x8f97 read fail,Fail
 spec@ext_transform_feedback2@draw-auto,Fail
 
 spec@ext_transform_feedback@generatemipmap prims_generated,Fail
-spec@ext_transform_feedback@immediate-reuse-uniform-buffer,Fail
 spec@ext_transform_feedback@tessellation triangle_fan flat_first,Fail
 spec@ext_transform_feedback@tessellation triangle_strip flat_first,Fail
 

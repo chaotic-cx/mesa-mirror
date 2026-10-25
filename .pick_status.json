@@ -2754,7 +2754,7 @@
         "description": "freedreno/a5xx: Re-enable stream output without re-emitting the program",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c20287f8e4d66814cde89a771f843066ad4ead20",
         "notes": null
