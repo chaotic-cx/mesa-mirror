@@ -445,9 +445,11 @@ public:
       } else if (util_is_power_of_two_or_zero(imm)) {
          return vop2(aco_opcode::v_lshlrev_b32, dst, Operand::c32(ffs(imm) - 1u), tmp);
       } else if (tmpu24) {
-        return vop2(aco_opcode::v_mul_u32_u24, dst, Operand::c32(imm), tmp);
+        Temp imm_tmp = copy(def(s1), Operand::c32(imm));
+        return vop2(aco_opcode::v_mul_u32_u24, dst, imm_tmp, tmp);
       } else if (tmpi24) {
-        return vop2(aco_opcode::v_mul_i32_i24, dst, Operand::c32(imm), tmp);
+        Temp imm_tmp = copy(def(s1), Operand::c32(imm));
+        return vop2(aco_opcode::v_mul_i32_i24, dst, imm_tmp, tmp);
       } else if (util_is_power_of_two_nonzero(imm - 1u)) {
          return vadd32(dst, vop2(aco_opcode::v_lshlrev_b32, def(v1), Operand::c32(ffs(imm - 1u) - 1u), tmp), tmp);
       } else if (MIN2(mul_cost, shift_add_cost) > 1 && util_is_power_of_two_nonzero(imm + 1u)) {
