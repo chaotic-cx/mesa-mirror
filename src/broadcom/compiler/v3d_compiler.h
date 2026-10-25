@@ -624,6 +624,7 @@ struct v3d_interp_input {
    struct qreg vp;
    struct qreg C;
    unsigned mode; /* interpolation mode */
+   bool centroid;
 };
 
 struct v3d_ra_node_info {
