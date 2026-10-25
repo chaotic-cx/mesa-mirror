@@ -245,29 +245,32 @@ vn_image_init_reqs_from_cache(struct vn_device *dev,
    return !!hash_entry;
 }
 
-static struct vn_image_memory_requirements *
-vn_image_get_reqs_from_cache(struct vn_device *dev,
-                             uint8_t *key,
-                             uint32_t plane)
+static bool
+vn_image_fill_reqs_from_cache(struct vn_device *dev,
+                              uint8_t *key,
+                              uint32_t plane,
+                              VkMemoryRequirements2 *out_reqs)
 {
-   struct vn_image_memory_requirements *requirements = NULL;
    struct vn_image_reqs_cache *cache = &dev->image_reqs_cache;
+   bool cache_hit;
 
    assert(cache->ht);
 
    simple_mtx_lock(&cache->mutex);
    struct hash_entry *hash_entry = _mesa_hash_table_search(cache->ht, key);
    if (hash_entry) {
+      cache_hit = true;
       struct vn_image_reqs_cache_entry *cache_entry = hash_entry->data;
-      requirements = &cache_entry->requirements[plane];
+      vn_image_fill_reqs(&cache_entry->requirements[plane], out_reqs);
       list_move_to(&cache_entry->head, &dev->image_reqs_cache.lru);
       p_atomic_inc(&cache->debug.cache_hit_count);
    } else {
+      cache_hit = false;
       p_atomic_inc(&cache->debug.cache_miss_count);
    }
    simple_mtx_unlock(&cache->mutex);
 
-   return requirements;
+   return cache_hit;
 }
 
 static void
@@ -990,12 +993,8 @@ vn_GetDeviceImageMemoryRequirements(
       if (pInfo->pCreateInfo->flags & VK_IMAGE_CREATE_DISJOINT_BIT)
          plane = vn_image_get_plane(pInfo->planeAspect);
 
-      const struct vn_image_memory_requirements *cached_reqs =
-         vn_image_get_reqs_from_cache(dev, key, plane);
-      if (cached_reqs) {
-         vn_image_fill_reqs(cached_reqs, pMemoryRequirements);
+      if (vn_image_fill_reqs_from_cache(dev, key, plane, pMemoryRequirements))
          return;
-      }
 
       const uint32_t plane_count =
          vn_image_get_plane_count(pInfo->pCreateInfo);
