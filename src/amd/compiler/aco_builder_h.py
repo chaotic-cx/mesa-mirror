@@ -424,6 +424,10 @@ public:
       tmpu24 &= imm <= 0xffffffu;
       tmpi24 &= imm <= 0x7fffffu || imm >= 0xff800000u;
       bool has_lshl_add = program->gfx_level >= GFX9;
+      unsigned shift_add_cost = util_bitcount(imm & ~0x1);
+      if (!has_lshl_add)
+         shift_add_cost += util_bitcount(imm) - 1; /* additions */
+
       /* v_mul_lo_u32 has 1.6x the latency of most VALU on GFX10 (8 vs 5 cycles),
        * compared to 4x the latency on <GFX10. */
       unsigned mul_cost = program->gfx_level >= GFX10 ? 1 : (4 + Operand::c32(imm).isLiteral());
@@ -441,16 +445,9 @@ public:
         return vop2(aco_opcode::v_mul_i32_i24, dst, Operand::c32(imm), tmp);
       } else if (util_is_power_of_two_nonzero(imm - 1u)) {
          return vadd32(dst, vop2(aco_opcode::v_lshlrev_b32, def(v1), Operand::c32(ffs(imm - 1u) - 1u), tmp), tmp);
-      } else if (mul_cost > 2 && util_is_power_of_two_nonzero(imm + 1u)) {
+      } else if (MIN2(mul_cost, shift_add_cost) > 1 && util_is_power_of_two_nonzero(imm + 1u)) {
          return vsub32(dst, vop2(aco_opcode::v_lshlrev_b32, def(v1), Operand::c32(ffs(imm + 1u) - 1u), tmp), tmp);
-      }
-
-      unsigned instrs_required = util_bitcount(imm);
-      if (!has_lshl_add) {
-         instrs_required = util_bitcount(imm) - (imm & 0x1); /* shifts */
-         instrs_required += util_bitcount(imm) - 1; /* additions */
-      }
-      if (instrs_required < mul_cost) {
+      } else if (shift_add_cost < mul_cost) {
          Result res(NULL);
          Temp cur;
          while (imm) {
