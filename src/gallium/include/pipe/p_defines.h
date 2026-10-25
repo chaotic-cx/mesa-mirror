@@ -943,6 +943,8 @@ struct pipe_caps {
    bool fake_sw_msaa;
    bool texture_query_lod;
    bool sample_shading;
+   /* Fragment shader support for the GLES sample-variable extensions. */
+   bool fs_sample_variables;
    bool texture_gather_offsets;
    bool vs_window_space_position;
    bool draw_indirect;
