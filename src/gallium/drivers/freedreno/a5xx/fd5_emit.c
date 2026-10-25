@@ -1007,6 +1007,9 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
          if (!target)
             continue;
 
+         /* for glDrawTransformFeedback(), see fd5_draw_emit(): */
+         target->stride = info->stride[i];
+
          OUT_PKT4(ring, REG_A5XX_VPC_SO_BUFFER_BASE(i), 3);
          /* VPC_SO[i].BUFFER_BASE_LO: */
          OUT_RELOC(ring, fd_resource(target->base.buffer)->bo, 0, 0, 0);

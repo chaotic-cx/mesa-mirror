@@ -71,6 +71,36 @@ fd5_draw_emit(struct fd_batch *batch, struct fd_ringbuffer *ring,
    enum pc_di_src_sel src_sel;
    uint32_t max_indices, idx_offset;
 
+   if (indirect && indirect->count_from_stream_output) {
+      struct fd_stream_output_target *target =
+         fd_stream_output_target(indirect->count_from_stream_output);
+
+      /* Wait for the counter writes before CP_DRAW_AUTO reads the counter: */
+      OUT_PKT7(ring, CP_WAIT_MEM_WRITES, 0);
+      OUT_PKT7(ring, CP_WAIT_FOR_ME, 0);
+
+      emit_marker5(ring, 7);
+
+      OUT_PKT7(ring, CP_DRAW_AUTO, 6);
+      if (vismode == USE_VISIBILITY) {
+         /* patched up when we know if we are binning or not, as fd5_draw(): */
+         OUT_RINGP(ring, DRAW4(primtype, DI_SRC_SEL_AUTO_XFB, 0, 0),
+                   &batch->draw_patches);
+      } else {
+         OUT_RING(ring, DRAW4(primtype, DI_SRC_SEL_AUTO_XFB, 0, vismode));
+      }
+      OUT_RING(ring, CP_DRAW_AUTO_1_NUM_INSTANCES(info->instance_count));
+      OUT_RELOC(ring, fd_resource(target->offset_buf)->bo, 0, 0, 0);
+      /* the counter and the stride in dwords, the offset in bytes: */
+      OUT_RING(ring,
+               CP_DRAW_AUTO_4_NUM_VERTICES_OFFSET(target->base.buffer_offset));
+      OUT_RING(ring, CP_DRAW_AUTO_5_STRIDE(target->stride));
+
+      emit_marker5(ring, 7);
+      fd_reset_wfi(batch);
+      return;
+   }
+
    if (indirect && indirect->buffer) {
       struct fd_resource *ind = fd_resource(indirect->buffer);
 

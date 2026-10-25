@@ -42,7 +42,6 @@ spec@arb_map_buffer_alignment@arb_map_buffer_alignment-map-invalidate-range,Fail
 spec@arb_point_sprite@arb_point_sprite-interactions 1.0,Fail
 spec@arb_texture_rectangle@1-1-linear-texture,Fail
 spec@arb_timer_query@query gl_timestamp,Fail
-spec@arb_transform_feedback_instanced@draw-auto instanced,Fail
 spec@ext_framebuffer_object@fbo-alphatest-nocolor,Fail
 spec@ext_framebuffer_object@fbo-alphatest-nocolor-ff,Fail
 spec@ext_framebuffer_object@fbo-blending-snorm,Fail
@@ -59,7 +58,6 @@ spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_uyvy,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_yuyv,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_vyuy,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_yvyu,Fail
-spec@ext_transform_feedback2@draw-auto,Fail
 
 spec@glsl-1.30@execution@texelfetch fs sampler3d 1x129x9-98x129x9,Fail
 spec@glsl-1.30@execution@texelfetch fs sampler3d 98x129x1-98x129x9,Fail
@@ -100,7 +98,6 @@ spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr16161616f,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr2101010,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xbgr8888,Fail
 spec@ext_image_dma_buf_import@ext_image_dma_buf_import-sample_xrgb2101010,Fail
-spec@ext_transform_feedback2@draw-auto offset,Fail
 spec@khr_texture_compression_astc@miptree-gl srgb,Fail
 spec@khr_texture_compression_astc@miptree-gl srgb@sRGB decode,Fail
 spec@khr_texture_compression_astc@miptree-gles srgb,Fail
