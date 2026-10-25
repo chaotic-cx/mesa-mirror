@@ -98,6 +98,7 @@ vn_image_get_image_reqs_key(struct vn_device *dev,
 
    /* Hash relevant fields in the pNext chain */
    vk_foreach_struct_const(sType, src, create_info->pNext) {
+      _mesa_blake3_update(&blake3_ctx, &sType, sizeof(sType));
       switch (sType) {
       case VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_IMAGE_CREATE_INFO: {
          struct VkExternalMemoryImageCreateInfo *ext_mem =

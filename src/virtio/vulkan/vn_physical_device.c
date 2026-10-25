@@ -2379,6 +2379,7 @@ vn_image_get_image_format_key(
     */
    if (format_info->pNext) {
       vk_foreach_struct_const(sType, src, format_info->pNext) {
+         _mesa_blake3_update(&blake3_ctx, &sType, sizeof(sType));
          switch (sType) {
          case VK_STRUCTURE_TYPE_IMAGE_COMPRESSION_CONTROL_EXT: {
             VkImageCompressionControlEXT *compression_control =
