@@ -1283,7 +1283,7 @@ typedef struct {
  * The driver should use the shader key to create the shader, set the SGPR constants, and launch
  * compute dispatches.
  */
-bool
+void
 ac_prepare_compute_blit(const ac_cs_blit_options *options,
                         const ac_cs_blit_description *blit,
                         ac_cs_blit_dispatches *out)
@@ -1296,12 +1296,12 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       memset(out, 0, sizeof(*out));
 
    if (has_errors(blit))
-      return true;
+      return;
 
    /* Skip zero-area blits. */
    if (!blit->dst.box.width || !blit->dst.box.height || !blit->dst.box.depth ||
        (!d.is_clear && (!blit->src.box.width || !blit->src.box.height || !blit->src.box.depth)))
-      return true;
+      return;
 
    assert(boxes_are_supported(blit));
 
@@ -1619,14 +1619,12 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
          for (unsigned i = 0; i < ARRAY_SIZE(boxes); i++) {
             if (boxes[i].width > 0 && boxes[i].height > 0 && boxes[i].depth > 0) {
                ac_cs_blit_description new_blit;
-               ASSERTED bool ok;
 
                set_trimmed_blit(blit, &boxes[i], d.is_clear, &new_blit);
-               ok = ac_prepare_compute_blit(&nested_options, &new_blit, out);
-               assert(ok);
+               ac_prepare_compute_blit(&nested_options, &new_blit, out);
             }
          }
-         return true;
+         return;
       }
    }
 
@@ -1935,5 +1933,4 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
 
    assert(get_num_user_data_terms(&dispatch->shader_key) == num);
    dispatch->num_user_data_terms = num;
-   return true;
 }

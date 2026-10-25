@@ -783,8 +783,7 @@ bool si_compute_blit(struct si_context *sctx, const struct pipe_blit_info *info,
       return false;
 
    ac_cs_blit_dispatches out;
-   if (!ac_prepare_compute_blit(&options, &blit, &out))
-      return false;
+   ac_prepare_compute_blit(&options, &blit, &out);
 
    if (!out.num_dispatches)
       return true;
