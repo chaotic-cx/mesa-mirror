@@ -1078,6 +1078,13 @@ LLVMValueRef ac_build_safe_tbuffer_load(struct ac_llvm_context *ctx, LLVMValueRe
    const bool no_merge = LLVM_VERSION_MAJOR >= 22 && LLVM_VERSION_MAJOR <= 23 &&
                          vtx_info->chan_byte_size && vtx_info->chan_byte_size < 4;
 
+   /* LLVM can only select 16-bit integer typed loads since LLVM 95ffe166e19a ("[AMDGPU] Support
+    * i16 element types for tbuffer D16 load/store"). 16-bit vertex inputs are only supported
+    * on chips with D16.
+    */
+   assert(channel_bit_size != 16 || ctx->gfx_level >= GFX8);
+   const bool use_d16 = LLVM_VERSION_MAJOR >= 24 && channel_bit_size == 16;
+
    /* Split the specified load into several MTBUF instructions,
     * according to a safe fetch size determined by aligmnent information.
     */
@@ -1099,20 +1106,16 @@ LLVMValueRef ac_build_safe_tbuffer_load(struct ac_llvm_context *ctx, LLVMValueRe
                          LLVMConstInt(ctx->i32, i * vtx_info->chan_byte_size, 0), "");
       LLVMValueRef item =
          ac_build_tbuffer_load(ctx, rsrc, vidx, fetch_voffset, soffset,
-                               fetch_num_channels, fetch_format, ctx->i32,
+                               fetch_num_channels, fetch_format, use_d16 ? ctx->i16 : ctx->i32,
                                access, can_speculate, no_merge);
       result = ac_build_concat(ctx, result, item);
    }
 
-   /* 
-    * LLVM is not able to select 16-bit typed loads. Load 32-bit values instead and
-    * manually truncate them to the required size.
-    * TODO: Do this in NIR instead.
-    */
+   /* Without D16, load 32-bit values and manually truncate them to the required size. */
    const struct util_format_description *desc = util_format_description(format);
    bool is_float = !desc->channel[0].pure_integer;
 
-   if (channel_bit_size == 16) {
+   if (channel_bit_size == 16 && !use_d16) {
       LLVMValueRef channels[4];
       for (unsigned i = 0; i < num_channels; i++) {
          LLVMValueRef channel = result;
