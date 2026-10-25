@@ -1526,8 +1526,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
                    blit->dst.box.depth > 1) ||
                   (d.dst_tiling_dim == 3 &&
                    ((d.dst_bpe == 8 && d.is_clear) ||
-                    (d.dst_bpe == 4 && (d.dst_tiling_dim == 1 || (!d.is_clear && d.src_tiling_dim == 1))) ||
-                    (d.dst_bpe == 2 && d.dst_tiling_dim == 1 && !d.is_clear && d.src_tiling_dim == 1))) ||
+                    (d.dst_bpe == 4 && !d.is_clear && d.src_tiling_dim == 1))) ||
                   (d.dst_tiling_dim != 3 &&
                    ((d.dst_bpe == 4 && d.dst_tiling_dim == 1 && !d.is_clear && d.src_tiling_dim == 1) ||
                     (d.dst_bpe == 8 && !d.is_clear && (d.dst_tiling_dim == 1) != (d.src_tiling_dim == 1)) ||
