@@ -4569,21 +4569,54 @@ analyze_io(struct zink_shader *zs, nir_shader *shader)
 }
 
 struct zink_bindless_info {
+   /* storage images and storage texel buffers, indexed by binding */
    nir_variable *bindless[4];
+   /* combined image samplers (binding 0) and uniform texel buffers (binding 1), one variable
+    * per exact sampler type so that every texture instr sees the sampler type it expects
+    */
+   struct util_dynarray samplers;
    unsigned bindless_set;
 };
 
-/* this is a "default" bindless texture used if the shader has no texture variables */
 static nir_variable *
-create_bindless_texture(nir_shader *nir, nir_tex_instr *tex, unsigned descriptor_set)
+find_bindless_sampler(const struct zink_bindless_info *bindless, const struct glsl_type *sampler_type)
+{
+   util_dynarray_foreach(&bindless->samplers, nir_variable *, var) {
+      if (glsl_without_array((*var)->type) == sampler_type)
+         return *var;
+   }
+   return NULL;
+}
+
+/* this is a "default" bindless texture used if the shader has no matching texture variable */
+static nir_variable *
+create_bindless_texture(nir_shader *nir, nir_tex_instr *tex, struct zink_bindless_info *bindless)
 {
    unsigned binding = tex->sampler_dim == GLSL_SAMPLER_DIM_BUF ? 1 : 0;
    nir_variable *var;
 
-   const struct glsl_type *sampler_type = glsl_sampler_type(tex->sampler_dim, tex->is_shadow, tex->is_array, GLSL_TYPE_FLOAT);
+   /* only instrs which read the texture have a sampled type */
+   enum glsl_base_type base_type = GLSL_TYPE_FLOAT;
+   if (!nir_tex_instr_is_query(tex) && !tex->is_shadow) {
+      switch (nir_alu_type_get_base_type(tex->dest_type)) {
+      case nir_type_int:
+         base_type = GLSL_TYPE_INT;
+         break;
+      case nir_type_uint:
+         base_type = GLSL_TYPE_UINT;
+         break;
+      default:
+         break;
+      }
+   }
+   const struct glsl_type *sampler_type = glsl_sampler_type(tex->sampler_dim, tex->is_shadow, tex->is_array, base_type);
+   var = find_bindless_sampler(bindless, sampler_type);
+   if (var)
+      return var;
    var = nir_variable_create(nir, nir_var_uniform, glsl_array_type(sampler_type, ZINK_MAX_BINDLESS_HANDLES, 0), "bindless_texture");
-   var->data.descriptor_set = descriptor_set;
+   var->data.descriptor_set = bindless->bindless_set;
    var->data.driver_location = var->data.binding = binding;
+   util_dynarray_append(&bindless->samplers, var);
    return var;
 }
 
@@ -4622,14 +4655,7 @@ lower_bindless_instr(nir_builder *b, nir_instr *in, void *data)
       if (idx == -1)
          return false;
 
-      nir_variable *var = tex->sampler_dim == GLSL_SAMPLER_DIM_BUF ? bindless->bindless[1] : bindless->bindless[0];
-      if (!var) {
-         var = create_bindless_texture(b->shader, tex, bindless->bindless_set);
-         if (tex->sampler_dim == GLSL_SAMPLER_DIM_BUF)
-            bindless->bindless[1] = var;
-         else
-            bindless->bindless[0] = var;
-      }
+      nir_variable *var = create_bindless_texture(b->shader, tex, bindless);
       b->cursor = nir_before_instr(in);
       nir_deref_instr *deref = nir_build_deref_var(b, var);
       if (glsl_type_is_array(var->type))
@@ -4815,17 +4841,24 @@ handle_bindless_var(nir_shader *nir, nir_variable *var, const struct glsl_type *
       default:
          UNREACHABLE("unknown");
    }
-   if (!bindless->bindless[binding]) {
-      bindless->bindless[binding] = nir_variable_clone(var, nir);
-      bindless->bindless[binding]->data.bindless = 0;
-      bindless->bindless[binding]->data.descriptor_set = bindless->bindless_set;
-      bindless->bindless[binding]->type = glsl_array_type(type, ZINK_MAX_BINDLESS_HANDLES, 0);
-      bindless->bindless[binding]->data.driver_location = bindless->bindless[binding]->data.binding = binding;
-      if (!bindless->bindless[binding]->data.image.format)
-         bindless->bindless[binding]->data.image.format = PIPE_FORMAT_R8G8B8A8_UNORM;
-      nir_shader_add_variable(nir, bindless->bindless[binding]);
+   bool is_sampler = vktype == VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER ||
+                     vktype == VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER;
+   nir_variable *existing = is_sampler ? find_bindless_sampler(bindless, type) : bindless->bindless[binding];
+   if (!existing) {
+      nir_variable *bvar = nir_variable_clone(var, nir);
+      bvar->data.bindless = 0;
+      bvar->data.descriptor_set = bindless->bindless_set;
+      bvar->type = glsl_array_type(type, ZINK_MAX_BINDLESS_HANDLES, 0);
+      bvar->data.driver_location = bvar->data.binding = binding;
+      if (glsl_type_is_image(type) && !bvar->data.image.format)
+         bvar->data.image.format = PIPE_FORMAT_R8G8B8A8_UNORM;
+      nir_shader_add_variable(nir, bvar);
+      if (is_sampler)
+         util_dynarray_append(&bindless->samplers, bvar);
+      else
+         bindless->bindless[binding] = bvar;
    } else {
-      assert(glsl_get_sampler_dim(glsl_without_array(bindless->bindless[binding]->type)) == glsl_get_sampler_dim(glsl_without_array(var->type)));
+      assert(glsl_get_sampler_dim(glsl_without_array(existing->type)) == glsl_get_sampler_dim(type));
    }
    var->data.mode = nir_var_shader_temp;
 }
@@ -5887,6 +5920,7 @@ zink_shader_init(struct zink_screen *screen, struct zink_shader *zs)
    }
    bool bindless_lowered = false;
    NIR_PASS(bindless_lowered, nir, lower_bindless, &bindless);
+   util_dynarray_fini(&bindless.samplers);
    zs->bindless |= bindless_lowered;
 
    if (!screen->info.feats.features.shaderInt64 || !screen->info.feats.features.shaderFloat64)
