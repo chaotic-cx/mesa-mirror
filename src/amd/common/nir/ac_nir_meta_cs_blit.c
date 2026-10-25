@@ -1522,13 +1522,13 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
        * This was fine-tuned for Navi31, and might be suboptimal on different generations.
        */
       /* TODO: Retune this with RADV to improve perf of partial/unaligned ops. */
-      bool slow = (d.dst_tiling_dim == 1 && !d.is_clear && d.src_tiling_dim == 1 &&
+      bool slow = (d.dst_tiling_dim == 1 && d.src_tiling_dim == 1 &&
                    blit->dst.box.depth > 1) ||
                   (d.dst_tiling_dim == 3 &&
                    ((d.dst_bpe == 8 && d.is_clear) ||
-                    (d.dst_bpe == 4 && !d.is_clear && d.src_tiling_dim == 1))) ||
+                    (d.dst_bpe == 4 && d.src_tiling_dim == 1))) ||
                   (d.dst_tiling_dim != 3 &&
-                   ((d.dst_bpe == 4 && d.dst_tiling_dim == 1 && !d.is_clear && d.src_tiling_dim == 1) ||
+                   ((d.dst_bpe == 4 && d.dst_tiling_dim == 1 && d.src_tiling_dim == 1) ||
                     (d.dst_bpe == 8 && !d.is_clear && (d.dst_tiling_dim == 1) != (d.src_tiling_dim == 1)) ||
                     (d.is_resolve && d.dst_bpe == 4 && d.src_samples == 4) ||
                     (d.is_resolve && d.dst_bpe == 8 && d.src_samples == 2)));
