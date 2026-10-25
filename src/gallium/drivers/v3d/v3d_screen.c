@@ -394,6 +394,7 @@ v3d_init_screen_caps(struct v3d_screen *screen)
         caps->robust_buffer_access_behavior = true;
 
         caps->sample_shading = true;
+        caps->fs_sample_variables = true;
 
         /* FIXME: same settings as v3dv, maybe put them in a common place. */
         if (screen->devinfo.ver >= 71) {
