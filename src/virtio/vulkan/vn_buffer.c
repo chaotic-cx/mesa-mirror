@@ -546,10 +546,17 @@ vn_GetDeviceBufferMemoryRequirements(
    }
 
    /* Make the host call if not found in cache or not cacheable */
-   vn_call_vkGetDeviceBufferMemoryRequirements(dev->primary_ring, device,
-                                               pInfo, pMemoryRequirements);
+   if (entry) {
+      reqs.memory.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+      reqs.memory.pNext = &reqs.dedicated;
+      reqs.dedicated.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS;
+      vn_call_vkGetDeviceBufferMemoryRequirements(dev->primary_ring, device,
+                                                  pInfo, &reqs.memory);
 
-   /* If cacheable, store mem requirements from the host call */
-   if (entry)
-      vn_buffer_reqs_cache_entry_init(cache, entry, pMemoryRequirements);
+      vn_buffer_reqs_cache_entry_init(cache, entry, &reqs.memory);
+      vn_copy_cached_memory_requirements(&reqs, pMemoryRequirements);
+   } else {
+      vn_call_vkGetDeviceBufferMemoryRequirements(dev->primary_ring, device,
+                                                  pInfo, pMemoryRequirements);
+   }
 }
