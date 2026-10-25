@@ -1127,6 +1127,25 @@ has_errors(const ac_cs_blit_description *blit)
    return false;
 }
 
+static bool
+boxes_are_supported(const ac_cs_blit_description *blit)
+{
+   const bool is_clear = !blit->src.surf;
+
+   /* Negative src is possible with piglit/copyteximage-clipping, but it's very rare. */
+   if (blit->src.box.x < 0 || blit->src.box.y < 0 || blit->src.box.z < 0)
+      return false;
+
+   if (!is_clear &&
+       /* Scaling is not implemented by the compute shader. */
+       (blit->dst.box.width != abs(blit->src.box.width) ||
+        blit->dst.box.height != abs(blit->src.box.height) ||
+        blit->dst.box.depth != abs(blit->src.box.depth)))
+      return false;
+
+   return true;
+}
+
 bool
 ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_description *blit)
 {
@@ -1140,8 +1159,7 @@ ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_d
    if (has_errors(blit))
       return true;
 
-   /* Negative src is possible with piglit/copyteximage-clipping, but it's very rare. */
-   if (blit->src.box.x < 0 || blit->src.box.y < 0 || blit->src.box.z < 0)
+   if (!boxes_are_supported(blit))
       return false;
 
    if (blit->dst.format == PIPE_FORMAT_A8R8_UNORM || /* This format fails AMD_TEST=imagecopy. */
@@ -1149,12 +1167,7 @@ ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_d
        (info->gfx_level <= GFX8 && d.max_dst_chan_size <= 6 &&
         util_format_is_pure_integer(blit->dst.format)) ||
        d.dst_samples > SI_MAX_COMPUTE_BLIT_SAMPLES ||
-       (!d.is_clear &&
-        /* Scaling is not implemented by the compute shader. */
-        (blit->dst.box.width != abs(blit->src.box.width) ||
-         blit->dst.box.height != abs(blit->src.box.height) ||
-         blit->dst.box.depth != abs(blit->src.box.depth) ||
-         d.src_samples > SI_MAX_COMPUTE_BLIT_SAMPLES)))
+       (!d.is_clear && d.src_samples > SI_MAX_COMPUTE_BLIT_SAMPLES))
       return false;
 
    /* Return a failure if a compute blit is slower than a gfx blit. */
@@ -1289,6 +1302,8 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
    if (!blit->dst.box.width || !blit->dst.box.height || !blit->dst.box.depth ||
        (!d.is_clear && (!blit->src.box.width || !blit->src.box.height || !blit->src.box.depth)))
       return true;
+
+   assert(boxes_are_supported(blit));
 
    /* Determine bytes per lane, which is the main tunable. */
    /* TODO: retune everything with RADV, especially MSAA copies on GFX10.3 */
