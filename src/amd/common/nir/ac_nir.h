@@ -428,8 +428,6 @@ bool
 ac_nir_lower_ps_late(nir_shader *nir, const ac_nir_lower_ps_late_options *options);
 
 typedef struct {
-   enum amd_gfx_level gfx_level;
-
    /* If true, round the layer component of the coordinates source to the nearest
     * integer for all array ops. This is always done for cube array ops.
     */

@@ -75,8 +75,7 @@ build_cube_select(nir_builder *b, nir_def *ma, nir_def *id, nir_def *deriv,
 }
 
 static void
-prepare_cube_coords(nir_builder *b, nir_tex_instr *tex, nir_def **coord, nir_src *ddx,
-                    nir_src *ddy, const ac_nir_lower_tex_coords_options *options)
+prepare_cube_coords(nir_builder *b, nir_tex_instr *tex, nir_def **coord, nir_src *ddx, nir_src *ddy)
 {
    nir_def *coords[NIR_MAX_VEC_COMPONENTS] = {0};
    for (unsigned i = 0; i < (*coord)->num_components; i++)
@@ -94,15 +93,21 @@ prepare_cube_coords(nir_builder *b, nir_tex_instr *tex, nir_def **coord, nir_src
     *     helper invocation which happens to fall on a different
     *     layer due to extrapolation."
     *
-    * GFX8 and earlier attempt to implement this in hardware by
-    * clamping the value of coords[2] = (8 * layer) + face.
-    * Unfortunately, this means that the we end up with the wrong
-    * face when clamping occurs.
-    *
-    * Clamp the layer earlier to work around the issue.
+    * The hardware clamps the array layer, however, it accepts both the layer and the face as
+    * `(8.0 * layer) + face`. With this encoding, a 32-bit floating-point number can represent the
+    * face index exactly only for layers in the [-(2^21), 2^21) range.
+    * Clamp to an even more precise upper bound, which is the last cube array layer for the largest
+    * 2D array layer count supported by hardware texture sampling.
+    * Also, the hardware array layer clamping doesn't work correctly for negative layer indices on
+    * GFX8 and earlier.
     */
-   if (tex->is_array && options->gfx_level <= GFX8 && coords[3])
-      coords[3] = nir_fmax(b, coords[3], nir_imm_float(b, 0.0));
+   if (tex->is_array && coords[3]) {
+      uint32_t old_fp_math_ctrl = b->fp_math_ctrl;
+      b->fp_math_ctrl |= nir_fp_preserve_inf;
+      coords[3] = nir_fclamp(b, coords[3], nir_imm_float(b, 0.0f),
+                             nir_imm_float(b, (float)(8192 / 6 - 1)));
+      b->fp_math_ctrl = old_fp_math_ctrl;
+   }
 
    nir_def *cube_coords = nir_cube_amd(b, nir_vec(b, coords, 3));
    nir_def *sc = nir_channel(b, cube_coords, 1);
@@ -194,7 +199,7 @@ lower_tex_coords(nir_builder *b, nir_tex_instr *tex, nir_def **coords,
    nir_src *ddx = ddx_idx >= 0 ? &tex->src[ddx_idx].src : NULL;
    nir_src *ddy = ddy_idx >= 0 ? &tex->src[ddy_idx].src : NULL;
 
-   prepare_cube_coords(b, tex, coords, ddx, ddy, options);
+   prepare_cube_coords(b, tex, coords, ddx, ddy);
 
    return true;
 }

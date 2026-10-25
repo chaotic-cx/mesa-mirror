@@ -976,7 +976,6 @@ static void si_postprocess_nir(struct si_nir_shader_ctx *ctx)
 
    NIR_PASS(progress, nir, ac_nir_lower_tex_coords,
             &(ac_nir_lower_tex_coords_options){
-               .gfx_level = sel->screen->info.gfx_level,
                .lower_array_layer_round_even = !sel->screen->info.compiler_info.conformant_trunc_coord,
             });
 

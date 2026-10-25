@@ -176,7 +176,6 @@ TEST_F(lower_tex_coords_test, multiple_strict_wqm_coord_with_terminate_if)
    create_shader(&b);
 
    ac_nir_lower_tex_coords_options opts = {};
-   opts.gfx_level = GFX8;
    opts.lower_array_layer_round_even = true;
    opts.fix_derivs_in_divergent_cf = true;
    opts.max_wqm_vgprs = 64;
