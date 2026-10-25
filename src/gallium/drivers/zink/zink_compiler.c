@@ -4645,7 +4645,10 @@ lower_bindless_instr(nir_builder *b, nir_instr *in, void *data)
        * - Warhammer 40k: Dawn of War III
        */
       unsigned needed_components = glsl_get_sampler_coordinate_components(glsl_without_array(var->type));
-      unsigned c = nir_tex_instr_src_index(tex, nir_tex_src_coord);
+      int c = nir_tex_instr_src_index(tex, nir_tex_src_coord);
+      /* txs and query_levels have no coord src */
+      if (c == -1)
+         return true;
       unsigned coord_components = nir_src_num_components(tex->src[c].src);
       if (coord_components < needed_components) {
          nir_def *def = nir_pad_vector(b, tex->src[c].src.ssa, needed_components);
