@@ -1050,12 +1050,8 @@ fd5_emit_state(struct fd_context *ctx, struct fd_ringbuffer *ring,
       OUT_RING(ring, REG_A5XX_VPC_SO_BUF_CNTL);
       OUT_RING(ring, 0);
    } else if (emit->streamout_mask && !(dirty & FD_DIRTY_PROG)) {
-      /* reemit the program (if we haven't already) to re-enable streamout.  We
-       * really should switch to setting up program state at compile time so we
-       * can separate the SO state from the rest, and not recompute all the
-       * time.
-       */
-      fd5_program_emit(ctx, ring, emit);
+      /* re-enable streamout, if the program has not done it already */
+      fd5_program_emit_streamout(ring, emit);
    }
 
    if (dirty & FD_DIRTY_BLEND) {
