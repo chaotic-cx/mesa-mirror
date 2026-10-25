@@ -1198,23 +1198,19 @@ ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_d
                   if (d.dst_samples == 1) {
                      if (d.dst_bpe <= 8 &&
                          !(info->gfx_level <= GFX7 && d.dst_bpe == 1) &&
-                         !(info->gfx_level == GFX6 && d.dst_bpe == 2 &&
-                           blit->src.surf->is_linear) &&
-                         !(info->gfx_level == GFX7 && d.dst_bpe >= 2 &&
-                           blit->src.surf->is_linear) &&
-                         !((info->gfx_level == GFX8 || info->gfx_level == GFX9) &&
-                           d.dst_bpe >= 2 && blit->src.surf->is_linear) &&
-                         !(info->gfx_level == GFX10 && d.dst_bpe <= 2 &&
-                           blit->src.surf->is_linear) &&
-                         !(info->gfx_level == GFX10_3 && d.dst_bpe == 8 &&
-                           blit->src.surf->is_linear))
+                         !(info->gfx_level == GFX6 && d.dst_bpe == 2 && d.src_tiling_dim == 1) &&
+                         !(info->gfx_level == GFX7 && d.dst_bpe >= 2 && d.src_tiling_dim == 1) &&
+                         !((info->gfx_level == GFX8 || info->gfx_level == GFX9) && d.dst_bpe >= 2 &&
+                           d.src_tiling_dim == 1) &&
+                         !(info->gfx_level == GFX10 && d.dst_bpe <= 2 && d.src_tiling_dim == 1) &&
+                         !(info->gfx_level == GFX10_3 && d.dst_bpe == 8 && d.src_tiling_dim == 1))
                         return false;
 
-                     if (info->gfx_level == GFX6 && d.dst_bpe == 16 &&
-                         blit->src.surf->is_linear && blit->dst.dim != 3)
+                     if (info->gfx_level == GFX6 && d.dst_bpe == 16 && d.src_tiling_dim == 1 &&
+                         blit->dst.dim != 3)
                         return false;
 
-                     if (d.dst_bpe == 16 && !blit->src.surf->is_linear &&
+                     if (d.dst_bpe == 16 && d.src_tiling_dim >= 2 &&
                          /* Only GFX6 selects 2D tiling for 128bpp 3D textures. */
                          !(info->gfx_level == GFX6 && blit->dst.dim == 3) &&
                          info->gfx_level != GFX7)
@@ -1241,10 +1237,10 @@ ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_d
                assert(d.dst_samples == d.src_samples || d.sample0_only);
 
                if (d.dst_tiling_dim == 2) {
-                  if (d.dst_bpe == 2 && blit->src.surf->is_linear && d.dst_samples == 1)
+                  if (d.dst_bpe == 2 && d.src_tiling_dim == 1 && d.dst_samples == 1)
                      return false;
 
-                  if (d.dst_bpe >= 4 && d.dst_samples == 1 && !blit->src.surf->is_linear)
+                  if (d.dst_bpe >= 4 && d.dst_samples == 1 && d.src_tiling_dim >= 2)
                      return false;
 
                   if (d.dst_bpe == 16 && d.dst_samples == 8)
@@ -1526,19 +1522,15 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
        * This was fine-tuned for Navi31, and might be suboptimal on different generations.
        */
       /* TODO: Retune this with RADV to improve perf of partial/unaligned ops. */
-      bool slow = (blit->dst.surf->is_linear && !d.is_clear && blit->src.surf->is_linear &&
+      bool slow = (d.dst_tiling_dim == 1 && !d.is_clear && d.src_tiling_dim == 1 &&
                    blit->dst.box.depth > 1) ||
                   (d.dst_tiling_dim == 3 &&
                    ((d.dst_bpe == 8 && d.is_clear) ||
-                    (d.dst_bpe == 4 &&
-                     (blit->dst.surf->is_linear || (!d.is_clear && blit->src.surf->is_linear))) ||
-                    (d.dst_bpe == 2 && blit->dst.surf->is_linear && !d.is_clear &&
-                     blit->src.surf->is_linear))) ||
+                    (d.dst_bpe == 4 && (d.dst_tiling_dim == 1 || (!d.is_clear && d.src_tiling_dim == 1))) ||
+                    (d.dst_bpe == 2 && d.dst_tiling_dim == 1 && !d.is_clear && d.src_tiling_dim == 1))) ||
                   (d.dst_tiling_dim != 3 &&
-                   ((d.dst_bpe == 4 && blit->dst.surf->is_linear && !d.is_clear &&
-                     blit->src.surf->is_linear) ||
-                    (d.dst_bpe == 8 && !d.is_clear &&
-                     blit->dst.surf->is_linear != blit->src.surf->is_linear) ||
+                   ((d.dst_bpe == 4 && d.dst_tiling_dim == 1 && !d.is_clear && d.src_tiling_dim == 1) ||
+                    (d.dst_bpe == 8 && !d.is_clear && (d.dst_tiling_dim == 1) != (d.src_tiling_dim == 1)) ||
                     (d.is_resolve && d.dst_bpe == 4 && d.src_samples == 4) ||
                     (d.is_resolve && d.dst_bpe == 8 && d.src_samples == 2)));
 
