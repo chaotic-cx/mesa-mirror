@@ -436,6 +436,7 @@ opcode_supports_dpp(amd_gfx_level gfx_level, aco_opcode opcode, bool vop3p)
    case aco_opcode::v_pk_fmac_f16: return gfx_level < GFX11;
    /* there are more cases but those all take 64-bit inputs */
    case aco_opcode::p_v_mad_u32_u32_u16:
+   case aco_opcode::p_v_mad_u32:
    case aco_opcode::v_madmk_f32:
    case aco_opcode::v_madak_f32:
    case aco_opcode::v_madmk_f16:

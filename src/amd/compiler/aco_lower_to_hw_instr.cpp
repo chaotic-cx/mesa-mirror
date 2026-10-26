@@ -3012,9 +3012,13 @@ lower_to_hw_instr(Program* program)
                            Operand(rsrc_dword1, s1), Operand::c32(0), Operand(scc, s1));
                }
             }
-         } else if (instr->opcode == aco_opcode::p_v_mad_u32_u32_u16) {
+         } else if (instr->opcode == aco_opcode::p_v_mad_u32_u32_u16 ||
+                    instr->opcode == aco_opcode::p_v_mad_u32) {
             /* Decompose dst = src0 * src1 + src2
-             * as            = (src0.lo * src1 + src2) + (src0.hi * src1) << 16
+             * as            = (src0.lo * src1.lo + src2) + (src0.hi * src1.lo) << 16
+             *                                            + (src0.lo * src1.hi) << 16
+             *
+             * For p_v_mad_u32_u32_u16 we know that src1.hi is 0, so we can skip the last step.
              */
             const Operand& op0 = instr->operands[0];
             const Operand& op1 = instr->operands[1];
@@ -3030,6 +3034,14 @@ lower_to_hw_instr(Program* program)
             mad_u16->valu().opsel[1] = instr->valu().opsel[1];
             mad_u16->valu().opsel[2] = true;
             mad_u16->valu().opsel[3] = true;
+
+            if (instr->opcode == aco_opcode::p_v_mad_u32) {
+               Builder::Result mad_u16_2 =
+                  bld.vop3(aco_opcode::v_mad_u16, def, op0, op1, def_as_op);
+               mad_u16_2->valu().opsel[1] = true;
+               mad_u16_2->valu().opsel[2] = true;
+               mad_u16_2->valu().opsel[3] = true;
+            }
          } else {
             ctx.instructions.emplace_back(std::move(instr));
          }
