@@ -1795,7 +1795,8 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
             Temp src1 = get_alu_src(ctx, instr->src[!swap]);
             bld.vop3(aco_opcode::p_v_mad_u32_u32_u16, Definition(dst), src0, src1, Operand::c32(0));
          } else {
-            emit_vop3a_instruction(ctx, instr, aco_opcode::v_mul_lo_u32, dst);
+            bld.v_mul_u32(Definition(dst), get_alu_src(ctx, instr->src[0]),
+                          get_alu_src(ctx, instr->src[1]));
          }
       } else if (dst.regClass() == s1) {
          emit_sop2_instruction(ctx, instr, aco_opcode::s_mul_i32, dst, false, 0x3);

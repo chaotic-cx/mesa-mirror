@@ -413,6 +413,14 @@ public:
          return op.op.getTemp();
    }
 
+   Result v_mul_u32(Definition dst, Op op1, Op op2)
+   {
+      if (program->gfx_level >= GFX9)
+         return vop3(aco_opcode::p_v_mad_u32, dst, op1, op2, Operand::c32(0));
+      else
+         return vop3(aco_opcode::v_mul_lo_u32, dst, op1, op2);
+   }
+
    Result v_mul_imm(Definition dst, Temp tmp, uint32_t imm, bool tmpu24=false, bool tmpi24=false)
    {
       assert(tmp.type() == RegType::vgpr);
@@ -429,12 +437,11 @@ public:
          shift_add_cost += util_bitcount(imm) - 1; /* additions */
 
       /* v_mul_lo_u32 has 1/4th the throughput of most VALU.
-       * On GFX10+, in addition to the cycles taken to issue the instruction,
-       * each VALU has an additional 4 cycles of latency. So only allow 2 VALU
-       * to replace one v_mul_lo_u32 which doubles throughput while keeping
-       * total latency similar (10 vs 8 cycles).
+       * On GFX9+, we use p_v_mad_u32 which consists of 3 VALU instructions instead.
        */
-      unsigned mul_cost = program->gfx_level >= GFX10 ? 3 : (4 + Operand::c32(imm).isLiteral());
+      unsigned mul_cost = program->gfx_level >= GFX9 ? 3 : 4;
+      if (program->gfx_level < GFX10 && Operand::c32(imm).isLiteral())
+         mul_cost += 1;
 
       if (imm == 0) {
          return copy(dst, Operand::zero());
@@ -479,7 +486,7 @@ public:
       }
 
       Temp imm_tmp = copy(def(s1), Operand::c32(imm));
-      return vop3(aco_opcode::v_mul_lo_u32, dst, imm_tmp, tmp);
+      return v_mul_u32(dst, imm_tmp, tmp);
    }
 
    Result v_mul24_imm(Definition dst, Temp tmp, uint32_t imm)
