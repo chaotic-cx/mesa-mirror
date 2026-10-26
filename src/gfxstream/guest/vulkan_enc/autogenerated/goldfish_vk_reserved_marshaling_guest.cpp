@@ -56,68 +56,50 @@ namespace vk {
 void reservedmarshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                       const void* structExtension, uint8_t** ptr);
 
-void reservedunmarshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureType rootType,
-                                        void* structExtension_out, uint8_t** ptr);
-
 #ifdef VK_BASE_VERSION_1_0
 void reservedmarshal_VkExtent2D(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                 const VkExtent2D* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->width, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->height, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->width, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->height, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkExtent3D(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                 const VkExtent3D* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->width, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->height, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->depth, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->width, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->height, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->depth, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkOffset2D(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                 const VkOffset2D* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (int32_t*)&forMarshaling->x, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
-    memcpy(*ptr, (int32_t*)&forMarshaling->y, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
+    writeStreamBytes(ptr, &forMarshaling->x, sizeof(int32_t));
+    writeStreamBytes(ptr, &forMarshaling->y, sizeof(int32_t));
 }
 
 void reservedmarshal_VkOffset3D(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                 const VkOffset3D* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (int32_t*)&forMarshaling->x, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
-    memcpy(*ptr, (int32_t*)&forMarshaling->y, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
-    memcpy(*ptr, (int32_t*)&forMarshaling->z, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
+    writeStreamBytes(ptr, &forMarshaling->x, sizeof(int32_t));
+    writeStreamBytes(ptr, &forMarshaling->y, sizeof(int32_t));
+    writeStreamBytes(ptr, &forMarshaling->z, sizeof(int32_t));
 }
 
 void reservedmarshal_VkRect2D(VulkanStreamGuest* vkStream, VkStructureType rootType,
                               const VkRect2D* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkOffset2D(vkStream, rootType, (VkOffset2D*)(&forMarshaling->offset), ptr);
     reservedmarshal_VkExtent2D(vkStream, rootType, (VkExtent2D*)(&forMarshaling->extent), ptr);
 }
 
 void reservedmarshal_VkBaseInStructure(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkBaseInStructure* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -126,10 +108,7 @@ void reservedmarshal_VkBaseInStructure(VulkanStreamGuest* vkStream, VkStructureT
 
 void reservedmarshal_VkBaseOutStructure(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkBaseOutStructure* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -141,229 +120,100 @@ void reservedmarshal_VkAllocationCallbacks(VulkanStreamGuest* vkStream, VkStruct
                                            uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pUserData;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pUserData);
     if (forMarshaling->pUserData) {
-        memcpy(*ptr, (void*)forMarshaling->pUserData, sizeof(uint8_t));
-        *ptr += sizeof(uint8_t);
+        writeStreamBytes(ptr, forMarshaling->pUserData, sizeof(uint8_t));
     }
-    uint64_t cgen_var_1 = (uint64_t)forMarshaling->pfnAllocation;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    uint64_t cgen_var_2 = (uint64_t)forMarshaling->pfnReallocation;
-    memcpy((*ptr), &cgen_var_2, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    uint64_t cgen_var_3 = (uint64_t)forMarshaling->pfnFree;
-    memcpy((*ptr), &cgen_var_3, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    uint64_t cgen_var_4 = (uint64_t)forMarshaling->pfnInternalAllocation;
-    memcpy((*ptr), &cgen_var_4, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    uint64_t cgen_var_5 = (uint64_t)forMarshaling->pfnInternalFree;
-    memcpy((*ptr), &cgen_var_5, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->pfnAllocation);
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->pfnReallocation);
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->pfnFree);
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->pfnInternalAllocation);
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->pfnInternalFree);
 }
 
 void reservedmarshal_VkApplicationInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkApplicationInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT) {
-        // WARNING PTR CHECK
-        uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pApplicationName;
-        memcpy((*ptr), &cgen_var_0, 8);
-        gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-        *ptr += 8;
+        putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pApplicationName);
         if (forMarshaling->pApplicationName) {
-            {
-                uint32_t l =
-                    forMarshaling->pApplicationName ? strlen(forMarshaling->pApplicationName) : 0;
-                memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-                gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-                *ptr += sizeof(uint32_t);
-                memcpy(*ptr, (char*)forMarshaling->pApplicationName, l);
-                *ptr += l;
-            }
+            putStringWithStreamPtr(ptr, forMarshaling->pApplicationName);
         }
     } else {
-        {
-            uint32_t l =
-                forMarshaling->pApplicationName ? strlen(forMarshaling->pApplicationName) : 0;
-            memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
-            memcpy(*ptr, (char*)forMarshaling->pApplicationName, l);
-            *ptr += l;
-        }
+        putStringWithStreamPtr(ptr, forMarshaling->pApplicationName);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->applicationVersion, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->applicationVersion, sizeof(uint32_t));
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT) {
-        // WARNING PTR CHECK
-        uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pEngineName;
-        memcpy((*ptr), &cgen_var_0, 8);
-        gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-        *ptr += 8;
+        putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pEngineName);
         if (forMarshaling->pEngineName) {
-            {
-                uint32_t l = forMarshaling->pEngineName ? strlen(forMarshaling->pEngineName) : 0;
-                memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-                gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-                *ptr += sizeof(uint32_t);
-                memcpy(*ptr, (char*)forMarshaling->pEngineName, l);
-                *ptr += l;
-            }
+            putStringWithStreamPtr(ptr, forMarshaling->pEngineName);
         }
     } else {
-        {
-            uint32_t l = forMarshaling->pEngineName ? strlen(forMarshaling->pEngineName) : 0;
-            memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
-            memcpy(*ptr, (char*)forMarshaling->pEngineName, l);
-            *ptr += l;
-        }
+        putStringWithStreamPtr(ptr, forMarshaling->pEngineName);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->engineVersion, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->apiVersion, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->engineVersion, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->apiVersion, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkFormatProperties(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkFormatProperties* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkFormatFeatureFlags*)&forMarshaling->linearTilingFeatures,
-           sizeof(VkFormatFeatureFlags));
-    *ptr += sizeof(VkFormatFeatureFlags);
-    memcpy(*ptr, (VkFormatFeatureFlags*)&forMarshaling->optimalTilingFeatures,
-           sizeof(VkFormatFeatureFlags));
-    *ptr += sizeof(VkFormatFeatureFlags);
-    memcpy(*ptr, (VkFormatFeatureFlags*)&forMarshaling->bufferFeatures,
-           sizeof(VkFormatFeatureFlags));
-    *ptr += sizeof(VkFormatFeatureFlags);
+    writeStreamBytes(ptr, &forMarshaling->linearTilingFeatures, sizeof(VkFormatFeatureFlags));
+    writeStreamBytes(ptr, &forMarshaling->optimalTilingFeatures, sizeof(VkFormatFeatureFlags));
+    writeStreamBytes(ptr, &forMarshaling->bufferFeatures, sizeof(VkFormatFeatureFlags));
 }
 
 void reservedmarshal_VkImageFormatProperties(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkImageFormatProperties* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkExtent3D(vkStream, rootType, (VkExtent3D*)(&forMarshaling->maxExtent), ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxMipLevels, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxArrayLayers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->sampleCounts, sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->maxResourceSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->maxMipLevels, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxArrayLayers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->sampleCounts, sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->maxResourceSize, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkInstanceCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkInstanceCreateInfo* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkInstanceCreateFlags*)&forMarshaling->flags, sizeof(VkInstanceCreateFlags));
-    *ptr += sizeof(VkInstanceCreateFlags);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pApplicationInfo;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkInstanceCreateFlags));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pApplicationInfo);
     if (forMarshaling->pApplicationInfo) {
         reservedmarshal_VkApplicationInfo(
             vkStream, rootType, (const VkApplicationInfo*)(forMarshaling->pApplicationInfo), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->enabledLayerCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    {
-        uint32_t c = 0;
-        if (forMarshaling) {
-            c = forMarshaling->enabledLayerCount;
-        }
-        memcpy(*ptr, (uint32_t*)&c, sizeof(uint32_t));
-        gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-        *ptr += sizeof(uint32_t);
-        for (uint32_t i = 0; i < c; ++i) {
-            uint32_t l = forMarshaling->ppEnabledLayerNames
-                             ? strlen(forMarshaling->ppEnabledLayerNames[i])
-                             : 0;
-            memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
-            if (l) {
-                memcpy(*ptr, (char*)(forMarshaling->ppEnabledLayerNames[i]), l);
-                *ptr += l;
-            }
-        }
-    }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->enabledExtensionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    {
-        uint32_t c = 0;
-        if (forMarshaling) {
-            c = forMarshaling->enabledExtensionCount;
-        }
-        memcpy(*ptr, (uint32_t*)&c, sizeof(uint32_t));
-        gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-        *ptr += sizeof(uint32_t);
-        for (uint32_t i = 0; i < c; ++i) {
-            uint32_t l = forMarshaling->ppEnabledExtensionNames
-                             ? strlen(forMarshaling->ppEnabledExtensionNames[i])
-                             : 0;
-            memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
-            if (l) {
-                memcpy(*ptr, (char*)(forMarshaling->ppEnabledExtensionNames[i]), l);
-                *ptr += l;
-            }
-        }
-    }
+    writeStreamBytes(ptr, &forMarshaling->enabledLayerCount, sizeof(uint32_t));
+    putStringArrayWithStreamPtr(ptr, forMarshaling->ppEnabledLayerNames,
+                                forMarshaling ? forMarshaling->enabledLayerCount : 0);
+    writeStreamBytes(ptr, &forMarshaling->enabledExtensionCount, sizeof(uint32_t));
+    putStringArrayWithStreamPtr(ptr, forMarshaling->ppEnabledExtensionNames,
+                                forMarshaling ? forMarshaling->enabledExtensionCount : 0);
 }
 
 void reservedmarshal_VkMemoryHeap(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                   const VkMemoryHeap* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkMemoryHeapFlags*)&forMarshaling->flags, sizeof(VkMemoryHeapFlags));
-    *ptr += sizeof(VkMemoryHeapFlags);
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkMemoryHeapFlags));
 }
 
 void reservedmarshal_VkMemoryType(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                   const VkMemoryType* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkMemoryPropertyFlags*)&forMarshaling->propertyFlags,
-           sizeof(VkMemoryPropertyFlags));
-    *ptr += sizeof(VkMemoryPropertyFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->heapIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->propertyFlags, sizeof(VkMemoryPropertyFlags));
+    writeStreamBytes(ptr, &forMarshaling->heapIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceFeatures(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -371,121 +221,63 @@ void reservedmarshal_VkPhysicalDeviceFeatures(VulkanStreamGuest* vkStream, VkStr
                                               uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkBool32*)&forMarshaling->robustBufferAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fullDrawIndexUint32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->imageCubeArray, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->independentBlend, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->geometryShader, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->tessellationShader, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sampleRateShading, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->dualSrcBlend, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->logicOp, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->multiDrawIndirect, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->drawIndirectFirstInstance, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthClamp, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthBiasClamp, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fillModeNonSolid, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthBounds, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->wideLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->largePoints, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->alphaToOne, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->multiViewport, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->samplerAnisotropy, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->textureCompressionETC2, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->textureCompressionASTC_LDR, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->textureCompressionBC, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->occlusionQueryPrecise, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pipelineStatisticsQuery, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vertexPipelineStoresAndAtomics, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fragmentStoresAndAtomics, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderTessellationAndGeometryPointSize,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderImageGatherExtended, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageExtendedFormats, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageMultisample, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageReadWithoutFormat, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageWriteWithoutFormat, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformBufferArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSampledImageArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageBufferArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderClipDistance, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderCullDistance, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInt64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInt16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderResourceResidency, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderResourceMinLod, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseBinding, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseResidencyBuffer, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseResidencyImage2D, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseResidencyImage3D, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseResidency2Samples, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseResidency4Samples, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseResidency8Samples, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseResidency16Samples, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sparseResidencyAliased, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->variableMultisampleRate, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->inheritedQueries, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->robustBufferAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->fullDrawIndexUint32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->imageCubeArray, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->independentBlend, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->geometryShader, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->tessellationShader, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sampleRateShading, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->dualSrcBlend, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->logicOp, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->multiDrawIndirect, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->drawIndirectFirstInstance, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->depthClamp, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->depthBiasClamp, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->fillModeNonSolid, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->depthBounds, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->wideLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->largePoints, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->alphaToOne, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->multiViewport, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->samplerAnisotropy, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->textureCompressionETC2, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->textureCompressionASTC_LDR, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->textureCompressionBC, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->occlusionQueryPrecise, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->pipelineStatisticsQuery, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vertexPipelineStoresAndAtomics, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->fragmentStoresAndAtomics, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderTessellationAndGeometryPointSize, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderImageGatherExtended, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageExtendedFormats, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageMultisample, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageReadWithoutFormat, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageWriteWithoutFormat, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformBufferArrayDynamicIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSampledImageArrayDynamicIndexing, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageBufferArrayDynamicIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageArrayDynamicIndexing, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderClipDistance, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderCullDistance, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInt64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInt16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderResourceResidency, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderResourceMinLod, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseBinding, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseResidencyBuffer, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseResidencyImage2D, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseResidencyImage3D, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseResidency2Samples, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseResidency4Samples, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseResidency8Samples, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseResidency16Samples, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->sparseResidencyAliased, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->variableMultisampleRate, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->inheritedQueries, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceLimits(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -493,258 +285,135 @@ void reservedmarshal_VkPhysicalDeviceLimits(VulkanStreamGuest* vkStream, VkStruc
                                             uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxImageDimension1D, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxImageDimension2D, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxImageDimension3D, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxImageDimensionCube, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxImageArrayLayers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTexelBufferElements, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxUniformBufferRange, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxStorageBufferRange, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPushConstantsSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxMemoryAllocationCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxSamplerAllocationCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->bufferImageGranularity, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->sparseAddressSpaceSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxBoundDescriptorSets, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorSamplers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUniformBuffers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorStorageBuffers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorSampledImages, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorStorageImages, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorInputAttachments,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageResources, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetSamplers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUniformBuffers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUniformBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetStorageBuffers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetStorageBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetSampledImages, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetStorageImages, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetInputAttachments, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVertexInputAttributes, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVertexInputBindings, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVertexInputAttributeOffset, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVertexInputBindingStride, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVertexOutputComponents, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTessellationGenerationLevel, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTessellationPatchSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTessellationControlPerVertexInputComponents,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTessellationControlPerVertexOutputComponents,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTessellationControlPerPatchOutputComponents,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTessellationControlTotalOutputComponents,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTessellationEvaluationInputComponents,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTessellationEvaluationOutputComponents,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxGeometryShaderInvocations, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxGeometryInputComponents, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxGeometryOutputComponents, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxGeometryOutputVertices, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxGeometryTotalOutputComponents, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxFragmentInputComponents, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxFragmentOutputAttachments, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxFragmentDualSrcAttachments, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxFragmentCombinedOutputResources, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxComputeSharedMemorySize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)forMarshaling->maxComputeWorkGroupCount, 3 * sizeof(uint32_t));
-    *ptr += 3 * sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxComputeWorkGroupInvocations, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)forMarshaling->maxComputeWorkGroupSize, 3 * sizeof(uint32_t));
-    *ptr += 3 * sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subPixelPrecisionBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subTexelPrecisionBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->mipmapPrecisionBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDrawIndexedIndexValue, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDrawIndirectCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (float*)&forMarshaling->maxSamplerLodBias, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->maxSamplerAnisotropy, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxViewports, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)forMarshaling->maxViewportDimensions, 2 * sizeof(uint32_t));
-    *ptr += 2 * sizeof(uint32_t);
-    memcpy(*ptr, (float*)forMarshaling->viewportBoundsRange, 2 * sizeof(float));
-    *ptr += 2 * sizeof(float);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewportSubPixelBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_0 = (uint64_t)forMarshaling->minMemoryMapAlignment;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->minTexelBufferOffsetAlignment,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->minUniformBufferOffsetAlignment,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->minStorageBufferOffsetAlignment,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (int32_t*)&forMarshaling->minTexelOffset, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTexelOffset, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (int32_t*)&forMarshaling->minTexelGatherOffset, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTexelGatherOffset, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (float*)&forMarshaling->minInterpolationOffset, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->maxInterpolationOffset, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subPixelInterpolationOffsetBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxFramebufferWidth, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxFramebufferHeight, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxFramebufferLayers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->framebufferColorSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->framebufferDepthSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->framebufferStencilSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->framebufferNoAttachmentsSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxColorAttachments, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->sampledImageColorSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->sampledImageIntegerSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->sampledImageDepthSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->sampledImageStencilSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->storageImageSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxSampleMaskWords, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->timestampComputeAndGraphics, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (float*)&forMarshaling->timestampPeriod, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxClipDistances, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxCullDistances, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxCombinedClipAndCullDistances, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->discreteQueuePriorities, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (float*)forMarshaling->pointSizeRange, 2 * sizeof(float));
-    *ptr += 2 * sizeof(float);
-    memcpy(*ptr, (float*)forMarshaling->lineWidthRange, 2 * sizeof(float));
-    *ptr += 2 * sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->pointSizeGranularity, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->lineWidthGranularity, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->strictLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->standardSampleLocations, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->optimalBufferCopyOffsetAlignment,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->optimalBufferCopyRowPitchAlignment,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->nonCoherentAtomSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->maxImageDimension1D, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxImageDimension2D, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxImageDimension3D, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxImageDimensionCube, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxImageArrayLayers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTexelBufferElements, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxUniformBufferRange, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxStorageBufferRange, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPushConstantsSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxMemoryAllocationCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxSamplerAllocationCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->bufferImageGranularity, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->sparseAddressSpaceSize, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->maxBoundDescriptorSets, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorSamplers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUniformBuffers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorStorageBuffers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorSampledImages, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorStorageImages, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorInputAttachments, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageResources, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetSamplers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUniformBuffers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUniformBuffersDynamic, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetStorageBuffers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetStorageBuffersDynamic, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetSampledImages, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetStorageImages, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetInputAttachments, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxVertexInputAttributes, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxVertexInputBindings, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxVertexInputAttributeOffset, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxVertexInputBindingStride, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxVertexOutputComponents, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTessellationGenerationLevel, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTessellationPatchSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTessellationControlPerVertexInputComponents,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTessellationControlPerVertexOutputComponents,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTessellationControlPerPatchOutputComponents,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTessellationControlTotalOutputComponents,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTessellationEvaluationInputComponents,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTessellationEvaluationOutputComponents,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxGeometryShaderInvocations, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxGeometryInputComponents, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxGeometryOutputComponents, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxGeometryOutputVertices, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxGeometryTotalOutputComponents, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxFragmentInputComponents, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxFragmentOutputAttachments, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxFragmentDualSrcAttachments, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxFragmentCombinedOutputResources, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxComputeSharedMemorySize, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->maxComputeWorkGroupCount, 3 * sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxComputeWorkGroupInvocations, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->maxComputeWorkGroupSize, 3 * sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->subPixelPrecisionBits, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->subTexelPrecisionBits, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->mipmapPrecisionBits, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDrawIndexedIndexValue, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDrawIndirectCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxSamplerLodBias, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->maxSamplerAnisotropy, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->maxViewports, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->maxViewportDimensions, 2 * sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->viewportBoundsRange, 2 * sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->viewportSubPixelBits, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->minMemoryMapAlignment);
+    writeStreamBytes(ptr, &forMarshaling->minTexelBufferOffsetAlignment, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->minUniformBufferOffsetAlignment, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->minStorageBufferOffsetAlignment, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->minTexelOffset, sizeof(int32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTexelOffset, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->minTexelGatherOffset, sizeof(int32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTexelGatherOffset, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->minInterpolationOffset, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->maxInterpolationOffset, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->subPixelInterpolationOffsetBits, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxFramebufferWidth, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxFramebufferHeight, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxFramebufferLayers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->framebufferColorSampleCounts, sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->framebufferDepthSampleCounts, sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->framebufferStencilSampleCounts,
+                     sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->framebufferNoAttachmentsSampleCounts,
+                     sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->maxColorAttachments, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->sampledImageColorSampleCounts,
+                     sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->sampledImageIntegerSampleCounts,
+                     sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->sampledImageDepthSampleCounts,
+                     sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->sampledImageStencilSampleCounts,
+                     sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->storageImageSampleCounts, sizeof(VkSampleCountFlags));
+    writeStreamBytes(ptr, &forMarshaling->maxSampleMaskWords, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->timestampComputeAndGraphics, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->timestampPeriod, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->maxClipDistances, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxCullDistances, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxCombinedClipAndCullDistances, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->discreteQueuePriorities, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->pointSizeRange, 2 * sizeof(float));
+    writeStreamBytes(ptr, forMarshaling->lineWidthRange, 2 * sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->pointSizeGranularity, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->lineWidthGranularity, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->strictLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->standardSampleLocations, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->optimalBufferCopyOffsetAlignment, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->optimalBufferCopyRowPitchAlignment, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->nonCoherentAtomSize, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkPhysicalDeviceMemoryProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMemoryProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryTypeCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->memoryTypeCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)VK_MAX_MEMORY_TYPES; ++i) {
         reservedmarshal_VkMemoryType(vkStream, rootType,
                                      (VkMemoryType*)(forMarshaling->memoryTypes + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryHeapCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->memoryHeapCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)VK_MAX_MEMORY_HEAPS; ++i) {
         reservedmarshal_VkMemoryHeap(vkStream, rootType,
                                      (VkMemoryHeap*)(forMarshaling->memoryHeaps + i), ptr);
@@ -756,39 +425,26 @@ void reservedmarshal_VkPhysicalDeviceSparseProperties(
     const VkPhysicalDeviceSparseProperties* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkBool32*)&forMarshaling->residencyStandard2DBlockShape, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->residencyStandard2DMultisampleBlockShape,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->residencyStandard3DBlockShape, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->residencyAlignedMipSize, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->residencyNonResidentStrict, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->residencyStandard2DBlockShape, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->residencyStandard2DMultisampleBlockShape,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->residencyStandard3DBlockShape, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->residencyAlignedMipSize, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->residencyNonResidentStrict, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceProperties(VulkanStreamGuest* vkStream,
                                                 VkStructureType rootType,
                                                 const VkPhysicalDeviceProperties* forMarshaling,
                                                 uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->apiVersion, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->driverVersion, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->vendorID, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceID, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkPhysicalDeviceType*)&forMarshaling->deviceType, sizeof(VkPhysicalDeviceType));
-    *ptr += sizeof(VkPhysicalDeviceType);
-    memcpy(*ptr, (char*)forMarshaling->deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char);
-    memcpy(*ptr, (uint8_t*)forMarshaling->pipelineCacheUUID, VK_UUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_UUID_SIZE * sizeof(uint8_t);
+    writeStreamBytes(ptr, &forMarshaling->apiVersion, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->driverVersion, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->vendorID, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceID, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceType, sizeof(VkPhysicalDeviceType));
+    writeStreamBytes(ptr, forMarshaling->deviceName,
+                     VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char));
+    writeStreamBytes(ptr, forMarshaling->pipelineCacheUUID, VK_UUID_SIZE * sizeof(uint8_t));
     reservedmarshal_VkPhysicalDeviceLimits(vkStream, rootType,
                                            (VkPhysicalDeviceLimits*)(&forMarshaling->limits), ptr);
     reservedmarshal_VkPhysicalDeviceSparseProperties(
@@ -799,14 +455,9 @@ void reservedmarshal_VkPhysicalDeviceProperties(VulkanStreamGuest* vkStream,
 void reservedmarshal_VkQueueFamilyProperties(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkQueueFamilyProperties* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkQueueFlags*)&forMarshaling->queueFlags, sizeof(VkQueueFlags));
-    *ptr += sizeof(VkQueueFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->timestampValidBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->queueFlags, sizeof(VkQueueFlags));
+    writeStreamBytes(ptr, &forMarshaling->queueCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->timestampValidBits, sizeof(uint32_t));
     reservedmarshal_VkExtent3D(vkStream, rootType,
                                (VkExtent3D*)(&forMarshaling->minImageTransferGranularity), ptr);
 }
@@ -814,98 +465,41 @@ void reservedmarshal_VkQueueFamilyProperties(VulkanStreamGuest* vkStream, VkStru
 void reservedmarshal_VkDeviceQueueCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkDeviceQueueCreateInfo* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceQueueCreateFlags*)&forMarshaling->flags,
-           sizeof(VkDeviceQueueCreateFlags));
-    *ptr += sizeof(VkDeviceQueueCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkDeviceQueueCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->queueFamilyIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->queueCount, sizeof(uint32_t));
     if (forMarshaling->queueCount > 0) {
-        memcpy(*ptr, (const float*)forMarshaling->pQueuePriorities,
-               forMarshaling->queueCount * sizeof(const float));
-        *ptr += forMarshaling->queueCount * sizeof(const float);
+        writeStreamBytes(ptr, forMarshaling->pQueuePriorities,
+                         forMarshaling->queueCount * sizeof(const float));
     }
 }
 
 void reservedmarshal_VkDeviceCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkDeviceCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceCreateFlags*)&forMarshaling->flags, sizeof(VkDeviceCreateFlags));
-    *ptr += sizeof(VkDeviceCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueCreateInfoCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkDeviceCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->queueCreateInfoCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->queueCreateInfoCount; ++i) {
         reservedmarshal_VkDeviceQueueCreateInfo(
             vkStream, rootType,
             (const VkDeviceQueueCreateInfo*)(forMarshaling->pQueueCreateInfos + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->enabledLayerCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    {
-        uint32_t c = 0;
-        if (forMarshaling) {
-            c = forMarshaling->enabledLayerCount;
-        }
-        memcpy(*ptr, (uint32_t*)&c, sizeof(uint32_t));
-        gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-        *ptr += sizeof(uint32_t);
-        for (uint32_t i = 0; i < c; ++i) {
-            uint32_t l = forMarshaling->ppEnabledLayerNames
-                             ? strlen(forMarshaling->ppEnabledLayerNames[i])
-                             : 0;
-            memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
-            if (l) {
-                memcpy(*ptr, (char*)(forMarshaling->ppEnabledLayerNames[i]), l);
-                *ptr += l;
-            }
-        }
-    }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->enabledExtensionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    {
-        uint32_t c = 0;
-        if (forMarshaling) {
-            c = forMarshaling->enabledExtensionCount;
-        }
-        memcpy(*ptr, (uint32_t*)&c, sizeof(uint32_t));
-        gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-        *ptr += sizeof(uint32_t);
-        for (uint32_t i = 0; i < c; ++i) {
-            uint32_t l = forMarshaling->ppEnabledExtensionNames
-                             ? strlen(forMarshaling->ppEnabledExtensionNames[i])
-                             : 0;
-            memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
-            if (l) {
-                memcpy(*ptr, (char*)(forMarshaling->ppEnabledExtensionNames[i]), l);
-                *ptr += l;
-            }
-        }
-    }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pEnabledFeatures;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->enabledLayerCount, sizeof(uint32_t));
+    putStringArrayWithStreamPtr(ptr, forMarshaling->ppEnabledLayerNames,
+                                forMarshaling ? forMarshaling->enabledLayerCount : 0);
+    writeStreamBytes(ptr, &forMarshaling->enabledExtensionCount, sizeof(uint32_t));
+    putStringArrayWithStreamPtr(ptr, forMarshaling->ppEnabledExtensionNames,
+                                forMarshaling ? forMarshaling->enabledExtensionCount : 0);
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pEnabledFeatures);
     if (forMarshaling->pEnabledFeatures) {
         reservedmarshal_VkPhysicalDeviceFeatures(
             vkStream, rootType, (const VkPhysicalDeviceFeatures*)(forMarshaling->pEnabledFeatures),
@@ -918,117 +512,76 @@ void reservedmarshal_VkExtensionProperties(VulkanStreamGuest* vkStream, VkStruct
                                            uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (char*)forMarshaling->extensionName, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_EXTENSION_NAME_SIZE * sizeof(char);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->specVersion, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, forMarshaling->extensionName, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
+    writeStreamBytes(ptr, &forMarshaling->specVersion, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkLayerProperties(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkLayerProperties* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (char*)forMarshaling->layerName, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_EXTENSION_NAME_SIZE * sizeof(char);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->specVersion, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->implementationVersion, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (char*)forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
-    *ptr += VK_MAX_DESCRIPTION_SIZE * sizeof(char);
+    writeStreamBytes(ptr, forMarshaling->layerName, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
+    writeStreamBytes(ptr, &forMarshaling->specVersion, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->implementationVersion, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
 }
 
 void reservedmarshal_VkSubmitInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                   const VkSubmitInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->waitSemaphoreCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->waitSemaphoreCount, sizeof(uint32_t));
     if (forMarshaling->waitSemaphoreCount) {
-        uint8_t* cgen_var_0_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->waitSemaphoreCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_semaphore_to_host_u64(forMarshaling->pWaitSemaphores[k]);
-                memcpy(cgen_var_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->waitSemaphoreCount; ++k) {
+            writeStreamVal(ptr,
+                           gfxstream_vk_semaphore_to_host_u64(forMarshaling->pWaitSemaphores[k]));
         }
-        *ptr += 8 * forMarshaling->waitSemaphoreCount;
     }
     if (forMarshaling->waitSemaphoreCount > 0) {
-        memcpy(*ptr, (const VkPipelineStageFlags*)forMarshaling->pWaitDstStageMask,
-               forMarshaling->waitSemaphoreCount * sizeof(const VkPipelineStageFlags));
-        *ptr += forMarshaling->waitSemaphoreCount * sizeof(const VkPipelineStageFlags);
+        writeStreamBytes(ptr, forMarshaling->pWaitDstStageMask,
+                         forMarshaling->waitSemaphoreCount * sizeof(const VkPipelineStageFlags));
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->commandBufferCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->commandBufferCount, sizeof(uint32_t));
     if (forMarshaling->commandBufferCount) {
-        uint8_t* cgen_var_1_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->commandBufferCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_command_buffer_to_host_u64(forMarshaling->pCommandBuffers[k]);
-                memcpy(cgen_var_1_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->commandBufferCount; ++k) {
+            writeStreamVal(
+                ptr, gfxstream_vk_command_buffer_to_host_u64(forMarshaling->pCommandBuffers[k]));
         }
-        *ptr += 8 * forMarshaling->commandBufferCount;
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->signalSemaphoreCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->signalSemaphoreCount, sizeof(uint32_t));
     if (forMarshaling->signalSemaphoreCount) {
-        uint8_t* cgen_var_2_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->signalSemaphoreCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_semaphore_to_host_u64(forMarshaling->pSignalSemaphores[k]);
-                memcpy(cgen_var_2_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->signalSemaphoreCount; ++k) {
+            writeStreamVal(ptr,
+                           gfxstream_vk_semaphore_to_host_u64(forMarshaling->pSignalSemaphores[k]));
         }
-        *ptr += 8 * forMarshaling->signalSemaphoreCount;
     }
 }
 
 void reservedmarshal_VkMappedMemoryRange(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkMappedMemoryRange* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_device_memory_to_host_u64((*&forMarshaling->memory));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->offset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamVal(ptr, gfxstream_vk_device_memory_to_host_u64(forMarshaling->memory));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkMemoryAllocateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkMemoryAllocateInfo* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->allocationSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryTypeIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->allocationSize, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->memoryTypeIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkMemoryRequirements(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -1036,71 +589,47 @@ void reservedmarshal_VkMemoryRequirements(VulkanStreamGuest* vkStream, VkStructu
                                           uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->alignment, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryTypeBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->alignment, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->memoryTypeBits, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkImageSubresource(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkImageSubresource* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkImageAspectFlags*)&forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
-    *ptr += sizeof(VkImageAspectFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->mipLevel, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->arrayLayer, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
+    writeStreamBytes(ptr, &forMarshaling->mipLevel, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->arrayLayer, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkSparseImageFormatProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSparseImageFormatProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkImageAspectFlags*)&forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
-    *ptr += sizeof(VkImageAspectFlags);
+    writeStreamBytes(ptr, &forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
     reservedmarshal_VkExtent3D(vkStream, rootType, (VkExtent3D*)(&forMarshaling->imageGranularity),
                                ptr);
-    memcpy(*ptr, (VkSparseImageFormatFlags*)&forMarshaling->flags,
-           sizeof(VkSparseImageFormatFlags));
-    *ptr += sizeof(VkSparseImageFormatFlags);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSparseImageFormatFlags));
 }
 
 void reservedmarshal_VkSparseImageMemoryBind(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkSparseImageMemoryBind* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkImageSubresource(vkStream, rootType,
                                        (VkImageSubresource*)(&forMarshaling->subresource), ptr);
     reservedmarshal_VkOffset3D(vkStream, rootType, (VkOffset3D*)(&forMarshaling->offset), ptr);
     reservedmarshal_VkExtent3D(vkStream, rootType, (VkExtent3D*)(&forMarshaling->extent), ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_device_memory_to_host_u64((*&forMarshaling->memory));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->memoryOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkSparseMemoryBindFlags*)&forMarshaling->flags, sizeof(VkSparseMemoryBindFlags));
-    *ptr += sizeof(VkSparseMemoryBindFlags);
+    writeStreamVal(ptr, gfxstream_vk_device_memory_to_host_u64(forMarshaling->memory));
+    writeStreamBytes(ptr, &forMarshaling->memoryOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSparseMemoryBindFlags));
 }
 
 void reservedmarshal_VkSparseImageMemoryBindInfo(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkSparseImageMemoryBindInfo* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bindCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
+    writeStreamBytes(ptr, &forMarshaling->bindCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->bindCount; ++i) {
         reservedmarshal_VkSparseImageMemoryBind(
             vkStream, rootType, (const VkSparseImageMemoryBind*)(forMarshaling->pBinds + i), ptr);
@@ -1110,51 +639,32 @@ void reservedmarshal_VkSparseImageMemoryBindInfo(VulkanStreamGuest* vkStream,
 void reservedmarshal_VkSparseImageMemoryRequirements(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSparseImageMemoryRequirements* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkSparseImageFormatProperties(
         vkStream, rootType, (VkSparseImageFormatProperties*)(&forMarshaling->formatProperties),
         ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->imageMipTailFirstLod, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->imageMipTailSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->imageMipTailOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->imageMipTailStride, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->imageMipTailFirstLod, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->imageMipTailSize, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->imageMipTailOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->imageMipTailStride, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkSparseMemoryBind(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkSparseMemoryBind* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->resourceOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_device_memory_to_host_u64((*&forMarshaling->memory));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->memoryOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkSparseMemoryBindFlags*)&forMarshaling->flags, sizeof(VkSparseMemoryBindFlags));
-    *ptr += sizeof(VkSparseMemoryBindFlags);
+    writeStreamBytes(ptr, &forMarshaling->resourceOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
+    writeStreamVal(ptr, gfxstream_vk_device_memory_to_host_u64(forMarshaling->memory));
+    writeStreamBytes(ptr, &forMarshaling->memoryOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSparseMemoryBindFlags));
 }
 
 void reservedmarshal_VkSparseBufferMemoryBindInfo(VulkanStreamGuest* vkStream,
                                                   VkStructureType rootType,
                                                   const VkSparseBufferMemoryBindInfo* forMarshaling,
                                                   uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bindCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
+    writeStreamBytes(ptr, &forMarshaling->bindCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->bindCount; ++i) {
         reservedmarshal_VkSparseMemoryBind(
             vkStream, rootType, (const VkSparseMemoryBind*)(forMarshaling->pBinds + i), ptr);
@@ -1164,14 +674,8 @@ void reservedmarshal_VkSparseBufferMemoryBindInfo(VulkanStreamGuest* vkStream,
 void reservedmarshal_VkSparseImageOpaqueMemoryBindInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSparseImageOpaqueMemoryBindInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bindCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
+    writeStreamBytes(ptr, &forMarshaling->bindCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->bindCount; ++i) {
         reservedmarshal_VkSparseMemoryBind(
             vkStream, rootType, (const VkSparseMemoryBind*)(forMarshaling->pBinds + i), ptr);
@@ -1180,223 +684,149 @@ void reservedmarshal_VkSparseImageOpaqueMemoryBindInfo(
 
 void reservedmarshal_VkBindSparseInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                       const VkBindSparseInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->waitSemaphoreCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->waitSemaphoreCount, sizeof(uint32_t));
     if (forMarshaling->waitSemaphoreCount) {
-        uint8_t* cgen_var_0_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->waitSemaphoreCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_semaphore_to_host_u64(forMarshaling->pWaitSemaphores[k]);
-                memcpy(cgen_var_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->waitSemaphoreCount; ++k) {
+            writeStreamVal(ptr,
+                           gfxstream_vk_semaphore_to_host_u64(forMarshaling->pWaitSemaphores[k]));
         }
-        *ptr += 8 * forMarshaling->waitSemaphoreCount;
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bufferBindCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->bufferBindCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->bufferBindCount; ++i) {
         reservedmarshal_VkSparseBufferMemoryBindInfo(
             vkStream, rootType,
             (const VkSparseBufferMemoryBindInfo*)(forMarshaling->pBufferBinds + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->imageOpaqueBindCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->imageOpaqueBindCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->imageOpaqueBindCount; ++i) {
         reservedmarshal_VkSparseImageOpaqueMemoryBindInfo(
             vkStream, rootType,
             (const VkSparseImageOpaqueMemoryBindInfo*)(forMarshaling->pImageOpaqueBinds + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->imageBindCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->imageBindCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->imageBindCount; ++i) {
         reservedmarshal_VkSparseImageMemoryBindInfo(
             vkStream, rootType,
             (const VkSparseImageMemoryBindInfo*)(forMarshaling->pImageBinds + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->signalSemaphoreCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->signalSemaphoreCount, sizeof(uint32_t));
     if (forMarshaling->signalSemaphoreCount) {
-        uint8_t* cgen_var_1_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->signalSemaphoreCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_semaphore_to_host_u64(forMarshaling->pSignalSemaphores[k]);
-                memcpy(cgen_var_1_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->signalSemaphoreCount; ++k) {
+            writeStreamVal(ptr,
+                           gfxstream_vk_semaphore_to_host_u64(forMarshaling->pSignalSemaphores[k]));
         }
-        *ptr += 8 * forMarshaling->signalSemaphoreCount;
     }
 }
 
 void reservedmarshal_VkFenceCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkFenceCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkFenceCreateFlags*)&forMarshaling->flags, sizeof(VkFenceCreateFlags));
-    *ptr += sizeof(VkFenceCreateFlags);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkFenceCreateFlags));
 }
 
 void reservedmarshal_VkSemaphoreCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkSemaphoreCreateInfo* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSemaphoreCreateFlags*)&forMarshaling->flags, sizeof(VkSemaphoreCreateFlags));
-    *ptr += sizeof(VkSemaphoreCreateFlags);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSemaphoreCreateFlags));
 }
 
 void reservedmarshal_VkQueryPoolCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkQueryPoolCreateInfo* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkQueryPoolCreateFlags*)&forMarshaling->flags, sizeof(VkQueryPoolCreateFlags));
-    *ptr += sizeof(VkQueryPoolCreateFlags);
-    memcpy(*ptr, (VkQueryType*)&forMarshaling->queryType, sizeof(VkQueryType));
-    *ptr += sizeof(VkQueryType);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queryCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkQueryPipelineStatisticFlags*)&forMarshaling->pipelineStatistics,
-           sizeof(VkQueryPipelineStatisticFlags));
-    *ptr += sizeof(VkQueryPipelineStatisticFlags);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkQueryPoolCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->queryType, sizeof(VkQueryType));
+    writeStreamBytes(ptr, &forMarshaling->queryCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->pipelineStatistics,
+                     sizeof(VkQueryPipelineStatisticFlags));
 }
 
 void reservedmarshal_VkBufferCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkBufferCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBufferCreateFlags*)&forMarshaling->flags, sizeof(VkBufferCreateFlags));
-    *ptr += sizeof(VkBufferCreateFlags);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkBufferUsageFlags*)&forMarshaling->usage, sizeof(VkBufferUsageFlags));
-    *ptr += sizeof(VkBufferUsageFlags);
-    memcpy(*ptr, (VkSharingMode*)&forMarshaling->sharingMode, sizeof(VkSharingMode));
-    *ptr += sizeof(VkSharingMode);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueFamilyIndexCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pQueueFamilyIndices;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkBufferCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkBufferUsageFlags));
+    writeStreamBytes(ptr, &forMarshaling->sharingMode, sizeof(VkSharingMode));
+    writeStreamBytes(ptr, &forMarshaling->queueFamilyIndexCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pQueueFamilyIndices);
     if (forMarshaling->pQueueFamilyIndices) {
         if (forMarshaling->queueFamilyIndexCount > 0) {
-            memcpy(*ptr, (const uint32_t*)forMarshaling->pQueueFamilyIndices,
-                   forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t));
-            *ptr += forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t);
+            writeStreamBytes(ptr, forMarshaling->pQueueFamilyIndices,
+                             forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t));
         }
     }
 }
 
 void reservedmarshal_VkImageCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkImageCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageCreateFlags*)&forMarshaling->flags, sizeof(VkImageCreateFlags));
-    *ptr += sizeof(VkImageCreateFlags);
-    memcpy(*ptr, (VkImageType*)&forMarshaling->imageType, sizeof(VkImageType));
-    *ptr += sizeof(VkImageType);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkImageCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->imageType, sizeof(VkImageType));
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
     reservedmarshal_VkExtent3D(vkStream, rootType, (VkExtent3D*)(&forMarshaling->extent), ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->mipLevels, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->arrayLayers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkSampleCountFlagBits*)&forMarshaling->samples, sizeof(VkSampleCountFlagBits));
-    *ptr += sizeof(VkSampleCountFlagBits);
-    memcpy(*ptr, (VkImageTiling*)&forMarshaling->tiling, sizeof(VkImageTiling));
-    *ptr += sizeof(VkImageTiling);
-    memcpy(*ptr, (VkImageUsageFlags*)&forMarshaling->usage, sizeof(VkImageUsageFlags));
-    *ptr += sizeof(VkImageUsageFlags);
-    memcpy(*ptr, (VkSharingMode*)&forMarshaling->sharingMode, sizeof(VkSharingMode));
-    *ptr += sizeof(VkSharingMode);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueFamilyIndexCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pQueueFamilyIndices;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->mipLevels, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->arrayLayers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->samples, sizeof(VkSampleCountFlagBits));
+    writeStreamBytes(ptr, &forMarshaling->tiling, sizeof(VkImageTiling));
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkImageUsageFlags));
+    writeStreamBytes(ptr, &forMarshaling->sharingMode, sizeof(VkSharingMode));
+    writeStreamBytes(ptr, &forMarshaling->queueFamilyIndexCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pQueueFamilyIndices);
     if (forMarshaling->pQueueFamilyIndices) {
         if (forMarshaling->queueFamilyIndexCount > 0) {
-            memcpy(*ptr, (const uint32_t*)forMarshaling->pQueueFamilyIndices,
-                   forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t));
-            *ptr += forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t);
+            writeStreamBytes(ptr, forMarshaling->pQueueFamilyIndices,
+                             forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t));
         }
     }
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->initialLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamBytes(ptr, &forMarshaling->initialLayout, sizeof(VkImageLayout));
 }
 
 void reservedmarshal_VkSubresourceLayout(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkSubresourceLayout* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->offset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->rowPitch, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->arrayPitch, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->depthPitch, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->rowPitch, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->arrayPitch, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->depthPitch, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkComponentMapping(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkComponentMapping* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkComponentSwizzle*)&forMarshaling->r, sizeof(VkComponentSwizzle));
-    *ptr += sizeof(VkComponentSwizzle);
-    memcpy(*ptr, (VkComponentSwizzle*)&forMarshaling->g, sizeof(VkComponentSwizzle));
-    *ptr += sizeof(VkComponentSwizzle);
-    memcpy(*ptr, (VkComponentSwizzle*)&forMarshaling->b, sizeof(VkComponentSwizzle));
-    *ptr += sizeof(VkComponentSwizzle);
-    memcpy(*ptr, (VkComponentSwizzle*)&forMarshaling->a, sizeof(VkComponentSwizzle));
-    *ptr += sizeof(VkComponentSwizzle);
+    writeStreamBytes(ptr, &forMarshaling->r, sizeof(VkComponentSwizzle));
+    writeStreamBytes(ptr, &forMarshaling->g, sizeof(VkComponentSwizzle));
+    writeStreamBytes(ptr, &forMarshaling->b, sizeof(VkComponentSwizzle));
+    writeStreamBytes(ptr, &forMarshaling->a, sizeof(VkComponentSwizzle));
 }
 
 void reservedmarshal_VkImageSubresourceRange(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -1404,39 +834,25 @@ void reservedmarshal_VkImageSubresourceRange(VulkanStreamGuest* vkStream, VkStru
                                              uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkImageAspectFlags*)&forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
-    *ptr += sizeof(VkImageAspectFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->baseMipLevel, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->levelCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->baseArrayLayer, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->layerCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
+    writeStreamBytes(ptr, &forMarshaling->baseMipLevel, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->levelCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->baseArrayLayer, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->layerCount, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkImageViewCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkImageViewCreateInfo* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageViewCreateFlags*)&forMarshaling->flags, sizeof(VkImageViewCreateFlags));
-    *ptr += sizeof(VkImageViewCreateFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageViewType*)&forMarshaling->viewType, sizeof(VkImageViewType));
-    *ptr += sizeof(VkImageViewType);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkImageViewCreateFlags));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
+    writeStreamBytes(ptr, &forMarshaling->viewType, sizeof(VkImageViewType));
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
     reservedmarshal_VkComponentMapping(vkStream, rootType,
                                        (VkComponentMapping*)(&forMarshaling->components), ptr);
     reservedmarshal_VkImageSubresourceRange(
@@ -1446,92 +862,56 @@ void reservedmarshal_VkImageViewCreateInfo(VulkanStreamGuest* vkStream, VkStruct
 void reservedmarshal_VkCommandPoolCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkCommandPoolCreateInfo* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkCommandPoolCreateFlags*)&forMarshaling->flags,
-           sizeof(VkCommandPoolCreateFlags));
-    *ptr += sizeof(VkCommandPoolCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkCommandPoolCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->queueFamilyIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkCommandBufferAllocateInfo(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkCommandBufferAllocateInfo* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_command_pool_to_host_u64((*&forMarshaling->commandPool));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkCommandBufferLevel*)&forMarshaling->level, sizeof(VkCommandBufferLevel));
-    *ptr += sizeof(VkCommandBufferLevel);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->commandBufferCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_command_pool_to_host_u64(forMarshaling->commandPool));
+    writeStreamBytes(ptr, &forMarshaling->level, sizeof(VkCommandBufferLevel));
+    writeStreamBytes(ptr, &forMarshaling->commandBufferCount, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkCommandBufferInheritanceInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkCommandBufferInheritanceInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_render_pass_to_host_u64((*&forMarshaling->renderPass));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subpass, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_framebuffer_to_host_u64((*&forMarshaling->framebuffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkBool32*)&forMarshaling->occlusionQueryEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkQueryControlFlags*)&forMarshaling->queryFlags, sizeof(VkQueryControlFlags));
-    *ptr += sizeof(VkQueryControlFlags);
-    memcpy(*ptr, (VkQueryPipelineStatisticFlags*)&forMarshaling->pipelineStatistics,
-           sizeof(VkQueryPipelineStatisticFlags));
-    *ptr += sizeof(VkQueryPipelineStatisticFlags);
+    writeStreamVal(ptr, gfxstream_vk_render_pass_to_host_u64(forMarshaling->renderPass));
+    writeStreamBytes(ptr, &forMarshaling->subpass, sizeof(uint32_t));
+    writeStreamVal(ptr, gfxstream_vk_framebuffer_to_host_u64(forMarshaling->framebuffer));
+    writeStreamBytes(ptr, &forMarshaling->occlusionQueryEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->queryFlags, sizeof(VkQueryControlFlags));
+    writeStreamBytes(ptr, &forMarshaling->pipelineStatistics,
+                     sizeof(VkQueryPipelineStatisticFlags));
 }
 
 void reservedmarshal_VkCommandBufferBeginInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                               const VkCommandBufferBeginInfo* forMarshaling,
                                               uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkCommandBufferUsageFlags*)&forMarshaling->flags,
-           sizeof(VkCommandBufferUsageFlags));
-    *ptr += sizeof(VkCommandBufferUsageFlags);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pInheritanceInfo;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkCommandBufferUsageFlags));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pInheritanceInfo);
     if (forMarshaling->pInheritanceInfo) {
         reservedmarshal_VkCommandBufferInheritanceInfo(
             vkStream, rootType,
@@ -1543,12 +923,9 @@ void reservedmarshal_VkBufferCopy(VulkanStreamGuest* vkStream, VkStructureType r
                                   const VkBufferCopy* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->srcOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->dstOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->srcOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->dstOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkImageSubresourceLayers(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -1556,26 +933,17 @@ void reservedmarshal_VkImageSubresourceLayers(VulkanStreamGuest* vkStream, VkStr
                                               uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkImageAspectFlags*)&forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
-    *ptr += sizeof(VkImageAspectFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->mipLevel, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->baseArrayLayer, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->layerCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
+    writeStreamBytes(ptr, &forMarshaling->mipLevel, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->baseArrayLayer, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->layerCount, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkBufferImageCopy(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkBufferImageCopy* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->bufferOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bufferRowLength, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bufferImageHeight, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->bufferOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->bufferRowLength, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->bufferImageHeight, sizeof(uint32_t));
     reservedmarshal_VkImageSubresourceLayers(
         vkStream, rootType, (VkImageSubresourceLayers*)(&forMarshaling->imageSubresource), ptr);
     reservedmarshal_VkOffset3D(vkStream, rootType, (VkOffset3D*)(&forMarshaling->imageOffset), ptr);
@@ -1584,8 +952,6 @@ void reservedmarshal_VkBufferImageCopy(VulkanStreamGuest* vkStream, VkStructureT
 
 void reservedmarshal_VkImageCopy(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                  const VkImageCopy* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkImageSubresourceLayers(
         vkStream, rootType, (VkImageSubresourceLayers*)(&forMarshaling->srcSubresource), ptr);
     reservedmarshal_VkOffset3D(vkStream, rootType, (VkOffset3D*)(&forMarshaling->srcOffset), ptr);
@@ -1598,77 +964,48 @@ void reservedmarshal_VkImageCopy(VulkanStreamGuest* vkStream, VkStructureType ro
 void reservedmarshal_VkBufferMemoryBarrier(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkBufferMemoryBarrier* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->srcQueueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstQueueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->offset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->srcQueueFamilyIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstQueueFamilyIndex, sizeof(uint32_t));
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkImageMemoryBarrier(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkImageMemoryBarrier* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->oldLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->newLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->srcQueueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstQueueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->oldLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->newLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->srcQueueFamilyIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstQueueFamilyIndex, sizeof(uint32_t));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
     reservedmarshal_VkImageSubresourceRange(
         vkStream, rootType, (VkImageSubresourceRange*)(&forMarshaling->subresourceRange), ptr);
 }
 
 void reservedmarshal_VkMemoryBarrier(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                      const VkMemoryBarrier* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
 }
 
 #endif
@@ -1679,12 +1016,9 @@ void reservedmarshal_VkDispatchIndirectCommand(VulkanStreamGuest* vkStream,
                                                uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->x, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->y, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->z, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->x, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->y, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->z, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPipelineCacheHeaderVersionOne(
@@ -1692,80 +1026,51 @@ void reservedmarshal_VkPipelineCacheHeaderVersionOne(
     const VkPipelineCacheHeaderVersionOne* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->headerSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkPipelineCacheHeaderVersion*)&forMarshaling->headerVersion,
-           sizeof(VkPipelineCacheHeaderVersion));
-    *ptr += sizeof(VkPipelineCacheHeaderVersion);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->vendorID, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceID, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint8_t*)forMarshaling->pipelineCacheUUID, VK_UUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_UUID_SIZE * sizeof(uint8_t);
+    writeStreamBytes(ptr, &forMarshaling->headerSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->headerVersion, sizeof(VkPipelineCacheHeaderVersion));
+    writeStreamBytes(ptr, &forMarshaling->vendorID, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceID, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->pipelineCacheUUID, VK_UUID_SIZE * sizeof(uint8_t));
 }
 
 void reservedmarshal_VkEventCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkEventCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkEventCreateFlags*)&forMarshaling->flags, sizeof(VkEventCreateFlags));
-    *ptr += sizeof(VkEventCreateFlags);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkEventCreateFlags));
 }
 
 void reservedmarshal_VkBufferViewCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                             const VkBufferViewCreateInfo* forMarshaling,
                                             uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBufferViewCreateFlags*)&forMarshaling->flags, sizeof(VkBufferViewCreateFlags));
-    *ptr += sizeof(VkBufferViewCreateFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->offset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->range, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkBufferViewCreateFlags));
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->range, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkShaderModuleCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                               const VkShaderModuleCreateInfo* forMarshaling,
                                               uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkShaderModuleCreateFlags*)&forMarshaling->flags,
-           sizeof(VkShaderModuleCreateFlags));
-    *ptr += sizeof(VkShaderModuleCreateFlags);
-    uint64_t cgen_var_0 = (uint64_t)forMarshaling->codeSize;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkShaderModuleCreateFlags));
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->codeSize);
     if ((forMarshaling->codeSize / 4) > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pCode,
-               (forMarshaling->codeSize / 4) * sizeof(const uint32_t));
-        *ptr += (forMarshaling->codeSize / 4) * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pCode,
+                         (forMarshaling->codeSize / 4) * sizeof(const uint32_t));
     }
 }
 
@@ -1773,25 +1078,16 @@ void reservedmarshal_VkPipelineCacheCreateInfo(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkPipelineCacheCreateInfo* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineCacheCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineCacheCreateFlags));
-    *ptr += sizeof(VkPipelineCacheCreateFlags);
-    uint64_t cgen_var_0 = (uint64_t)forMarshaling->initialDataSize;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineCacheCreateFlags));
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->initialDataSize);
     if (forMarshaling->initialDataSize > 0) {
-        memcpy(*ptr, (const void*)forMarshaling->pInitialData,
-               forMarshaling->initialDataSize * sizeof(const uint8_t));
-        *ptr += forMarshaling->initialDataSize * sizeof(const uint8_t);
+        writeStreamBytes(ptr, forMarshaling->pInitialData,
+                         forMarshaling->initialDataSize * sizeof(const uint8_t));
     }
 }
 
@@ -1800,72 +1096,40 @@ void reservedmarshal_VkSpecializationMapEntry(VulkanStreamGuest* vkStream, VkStr
                                               uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->constantID, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->offset, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_0 = (uint64_t)forMarshaling->size;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->constantID, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->size);
 }
 
 void reservedmarshal_VkSpecializationInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkSpecializationInfo* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->mapEntryCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->mapEntryCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->mapEntryCount; ++i) {
         reservedmarshal_VkSpecializationMapEntry(
             vkStream, rootType, (const VkSpecializationMapEntry*)(forMarshaling->pMapEntries + i),
             ptr);
     }
-    uint64_t cgen_var_0 = (uint64_t)forMarshaling->dataSize;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->dataSize);
     if (forMarshaling->dataSize > 0) {
-        memcpy(*ptr, (const void*)forMarshaling->pData,
-               forMarshaling->dataSize * sizeof(const uint8_t));
-        *ptr += forMarshaling->dataSize * sizeof(const uint8_t);
+        writeStreamBytes(ptr, forMarshaling->pData,
+                         forMarshaling->dataSize * sizeof(const uint8_t));
     }
 }
 
 void reservedmarshal_VkPipelineShaderStageCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineShaderStageCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineShaderStageCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineShaderStageCreateFlags));
-    *ptr += sizeof(VkPipelineShaderStageCreateFlags);
-    memcpy(*ptr, (VkShaderStageFlagBits*)&forMarshaling->stage, sizeof(VkShaderStageFlagBits));
-    *ptr += sizeof(VkShaderStageFlagBits);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_shader_module_to_host_u64((*&forMarshaling->module));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    {
-        uint32_t l = forMarshaling->pName ? strlen(forMarshaling->pName) : 0;
-        memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-        gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-        *ptr += sizeof(uint32_t);
-        memcpy(*ptr, (char*)forMarshaling->pName, l);
-        *ptr += l;
-    }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pSpecializationInfo;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineShaderStageCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->stage, sizeof(VkShaderStageFlagBits));
+    writeStreamVal(ptr, gfxstream_vk_shader_module_to_host_u64(forMarshaling->module));
+    putStringWithStreamPtr(ptr, forMarshaling->pName);
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pSpecializationInfo);
     if (forMarshaling->pSpecializationInfo) {
         reservedmarshal_VkSpecializationInfo(
             vkStream, rootType, (const VkSpecializationInfo*)(forMarshaling->pSpecializationInfo),
@@ -1877,72 +1141,46 @@ void reservedmarshal_VkComputePipelineCreateInfo(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkComputePipelineCreateInfo* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineCreateFlags*)&forMarshaling->flags, sizeof(VkPipelineCreateFlags));
-    *ptr += sizeof(VkPipelineCreateFlags);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineCreateFlags));
     reservedmarshal_VkPipelineShaderStageCreateInfo(
         vkStream, rootType, (VkPipelineShaderStageCreateInfo*)(&forMarshaling->stage), ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->layout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_pipeline_to_host_u64((*&forMarshaling->basePipelineHandle));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (int32_t*)&forMarshaling->basePipelineIndex, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->layout));
+    writeStreamVal(ptr, gfxstream_vk_pipeline_to_host_u64(forMarshaling->basePipelineHandle));
+    writeStreamBytes(ptr, &forMarshaling->basePipelineIndex, sizeof(int32_t));
 }
 
 void reservedmarshal_VkPushConstantRange(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkPushConstantRange* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->offset, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->size, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPipelineLayoutCreateInfo(VulkanStreamGuest* vkStream,
                                                 VkStructureType rootType,
                                                 const VkPipelineLayoutCreateInfo* forMarshaling,
                                                 uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineLayoutCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineLayoutCreateFlags));
-    *ptr += sizeof(VkPipelineLayoutCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->setLayoutCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineLayoutCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->setLayoutCount, sizeof(uint32_t));
     if (forMarshaling->setLayoutCount) {
-        uint8_t* cgen_var_0_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->setLayoutCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_descriptor_set_layout_to_host_u64(forMarshaling->pSetLayouts[k]);
-                memcpy(cgen_var_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->setLayoutCount; ++k) {
+            writeStreamVal(
+                ptr, gfxstream_vk_descriptor_set_layout_to_host_u64(forMarshaling->pSetLayouts[k]));
         }
-        *ptr += 8 * forMarshaling->setLayoutCount;
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->pushConstantRangeCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->pushConstantRangeCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->pushConstantRangeCount; ++i) {
         reservedmarshal_VkPushConstantRange(
             vkStream, rootType,
@@ -1952,76 +1190,43 @@ void reservedmarshal_VkPipelineLayoutCreateInfo(VulkanStreamGuest* vkStream,
 
 void reservedmarshal_VkSamplerCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkSamplerCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSamplerCreateFlags*)&forMarshaling->flags, sizeof(VkSamplerCreateFlags));
-    *ptr += sizeof(VkSamplerCreateFlags);
-    memcpy(*ptr, (VkFilter*)&forMarshaling->magFilter, sizeof(VkFilter));
-    *ptr += sizeof(VkFilter);
-    memcpy(*ptr, (VkFilter*)&forMarshaling->minFilter, sizeof(VkFilter));
-    *ptr += sizeof(VkFilter);
-    memcpy(*ptr, (VkSamplerMipmapMode*)&forMarshaling->mipmapMode, sizeof(VkSamplerMipmapMode));
-    *ptr += sizeof(VkSamplerMipmapMode);
-    memcpy(*ptr, (VkSamplerAddressMode*)&forMarshaling->addressModeU, sizeof(VkSamplerAddressMode));
-    *ptr += sizeof(VkSamplerAddressMode);
-    memcpy(*ptr, (VkSamplerAddressMode*)&forMarshaling->addressModeV, sizeof(VkSamplerAddressMode));
-    *ptr += sizeof(VkSamplerAddressMode);
-    memcpy(*ptr, (VkSamplerAddressMode*)&forMarshaling->addressModeW, sizeof(VkSamplerAddressMode));
-    *ptr += sizeof(VkSamplerAddressMode);
-    memcpy(*ptr, (float*)&forMarshaling->mipLodBias, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->anisotropyEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (float*)&forMarshaling->maxAnisotropy, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->compareEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkCompareOp*)&forMarshaling->compareOp, sizeof(VkCompareOp));
-    *ptr += sizeof(VkCompareOp);
-    memcpy(*ptr, (float*)&forMarshaling->minLod, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->maxLod, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (VkBorderColor*)&forMarshaling->borderColor, sizeof(VkBorderColor));
-    *ptr += sizeof(VkBorderColor);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->unnormalizedCoordinates, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSamplerCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->magFilter, sizeof(VkFilter));
+    writeStreamBytes(ptr, &forMarshaling->minFilter, sizeof(VkFilter));
+    writeStreamBytes(ptr, &forMarshaling->mipmapMode, sizeof(VkSamplerMipmapMode));
+    writeStreamBytes(ptr, &forMarshaling->addressModeU, sizeof(VkSamplerAddressMode));
+    writeStreamBytes(ptr, &forMarshaling->addressModeV, sizeof(VkSamplerAddressMode));
+    writeStreamBytes(ptr, &forMarshaling->addressModeW, sizeof(VkSamplerAddressMode));
+    writeStreamBytes(ptr, &forMarshaling->mipLodBias, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->anisotropyEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxAnisotropy, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->compareEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->compareOp, sizeof(VkCompareOp));
+    writeStreamBytes(ptr, &forMarshaling->minLod, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->maxLod, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->borderColor, sizeof(VkBorderColor));
+    writeStreamBytes(ptr, &forMarshaling->unnormalizedCoordinates, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkCopyDescriptorSet(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkCopyDescriptorSet* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_descriptor_set_to_host_u64((*&forMarshaling->srcSet));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->srcBinding, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->srcArrayElement, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_descriptor_set_to_host_u64((*&forMarshaling->dstSet));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstBinding, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstArrayElement, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_descriptor_set_to_host_u64(forMarshaling->srcSet));
+    writeStreamBytes(ptr, &forMarshaling->srcBinding, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->srcArrayElement, sizeof(uint32_t));
+    writeStreamVal(ptr, gfxstream_vk_descriptor_set_to_host_u64(forMarshaling->dstSet));
+    writeStreamBytes(ptr, &forMarshaling->dstBinding, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstArrayElement, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->descriptorCount, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkDescriptorBufferInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -2029,14 +1234,9 @@ void reservedmarshal_VkDescriptorBufferInfo(VulkanStreamGuest* vkStream, VkStruc
                                             uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->offset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->range, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->range, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkDescriptorImageInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -2044,16 +1244,9 @@ void reservedmarshal_VkDescriptorImageInfo(VulkanStreamGuest* vkStream, VkStruct
                                            uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_sampler_to_host_u64((*&forMarshaling->sampler));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_image_view_to_host_u64((*&forMarshaling->imageView));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->imageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamVal(ptr, gfxstream_vk_sampler_to_host_u64(forMarshaling->sampler));
+    writeStreamVal(ptr, gfxstream_vk_image_view_to_host_u64(forMarshaling->imageView));
+    writeStreamBytes(ptr, &forMarshaling->imageLayout, sizeof(VkImageLayout));
 }
 
 void reservedmarshal_VkDescriptorPoolSize(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -2061,31 +1254,22 @@ void reservedmarshal_VkDescriptorPoolSize(VulkanStreamGuest* vkStream, VkStructu
                                           uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkDescriptorType*)&forMarshaling->type, sizeof(VkDescriptorType));
-    *ptr += sizeof(VkDescriptorType);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->type, sizeof(VkDescriptorType));
+    writeStreamBytes(ptr, &forMarshaling->descriptorCount, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkDescriptorPoolCreateInfo(VulkanStreamGuest* vkStream,
                                                 VkStructureType rootType,
                                                 const VkDescriptorPoolCreateInfo* forMarshaling,
                                                 uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDescriptorPoolCreateFlags*)&forMarshaling->flags,
-           sizeof(VkDescriptorPoolCreateFlags));
-    *ptr += sizeof(VkDescriptorPoolCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxSets, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->poolSizeCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkDescriptorPoolCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->maxSets, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->poolSizeCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->poolSizeCount; ++i) {
         reservedmarshal_VkDescriptorPoolSize(
             vkStream, rootType, (const VkDescriptorPoolSize*)(forMarshaling->pPoolSizes + i), ptr);
@@ -2096,30 +1280,18 @@ void reservedmarshal_VkDescriptorSetAllocateInfo(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkDescriptorSetAllocateInfo* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_descriptor_pool_to_host_u64((*&forMarshaling->descriptorPool));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorSetCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_descriptor_pool_to_host_u64(forMarshaling->descriptorPool));
+    writeStreamBytes(ptr, &forMarshaling->descriptorSetCount, sizeof(uint32_t));
     if (forMarshaling->descriptorSetCount) {
-        uint8_t* cgen_var_1_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->descriptorSetCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_descriptor_set_layout_to_host_u64(forMarshaling->pSetLayouts[k]);
-                memcpy(cgen_var_1_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->descriptorSetCount; ++k) {
+            writeStreamVal(
+                ptr, gfxstream_vk_descriptor_set_layout_to_host_u64(forMarshaling->pSetLayouts[k]));
         }
-        *ptr += 8 * forMarshaling->descriptorSetCount;
     }
 }
 
@@ -2129,30 +1301,17 @@ void reservedmarshal_VkDescriptorSetLayoutBinding(VulkanStreamGuest* vkStream,
                                                   uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->binding, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkDescriptorType*)&forMarshaling->descriptorType, sizeof(VkDescriptorType));
-    *ptr += sizeof(VkDescriptorType);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pImmutableSamplers;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->binding, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->descriptorType, sizeof(VkDescriptorType));
+    writeStreamBytes(ptr, &forMarshaling->descriptorCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pImmutableSamplers);
     if (forMarshaling->pImmutableSamplers) {
         if (forMarshaling->descriptorCount) {
-            uint8_t* cgen_var_0_0_ptr = (uint8_t*)(*ptr);
-            if (forMarshaling) {
-                for (uint32_t k = 0; k < forMarshaling->descriptorCount; ++k) {
-                    uint64_t tmpval =
-                        gfxstream_vk_sampler_to_host_u64(forMarshaling->pImmutableSamplers[k]);
-                    memcpy(cgen_var_0_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-                }
+            for (uint32_t k = 0; k < forMarshaling->descriptorCount; ++k) {
+                writeStreamVal(
+                    ptr, gfxstream_vk_sampler_to_host_u64(forMarshaling->pImmutableSamplers[k]));
             }
-            *ptr += 8 * forMarshaling->descriptorCount;
         }
     }
 }
@@ -2160,19 +1319,13 @@ void reservedmarshal_VkDescriptorSetLayoutBinding(VulkanStreamGuest* vkStream,
 void reservedmarshal_VkDescriptorSetLayoutCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDescriptorSetLayoutCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDescriptorSetLayoutCreateFlags*)&forMarshaling->flags,
-           sizeof(VkDescriptorSetLayoutCreateFlags));
-    *ptr += sizeof(VkDescriptorSetLayoutCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bindingCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkDescriptorSetLayoutCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->bindingCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->bindingCount; ++i) {
         reservedmarshal_VkDescriptorSetLayoutBinding(
             vkStream, rootType, (const VkDescriptorSetLayoutBinding*)(forMarshaling->pBindings + i),
@@ -2183,31 +1336,17 @@ void reservedmarshal_VkDescriptorSetLayoutCreateInfo(
 void reservedmarshal_VkWriteDescriptorSet(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkWriteDescriptorSet* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_descriptor_set_to_host_u64((*&forMarshaling->dstSet));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstBinding, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstArrayElement, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkDescriptorType*)&forMarshaling->descriptorType, sizeof(VkDescriptorType));
-    *ptr += sizeof(VkDescriptorType);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pImageInfo;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamVal(ptr, gfxstream_vk_descriptor_set_to_host_u64(forMarshaling->dstSet));
+    writeStreamBytes(ptr, &forMarshaling->dstBinding, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstArrayElement, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->descriptorCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->descriptorType, sizeof(VkDescriptorType));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pImageInfo);
     if (forMarshaling->pImageInfo) {
         if ((!(vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) ||
              ((VK_DESCRIPTOR_TYPE_SAMPLER == forMarshaling->descriptorType) ||
@@ -2222,11 +1361,7 @@ void reservedmarshal_VkWriteDescriptorSet(VulkanStreamGuest* vkStream, VkStructu
             }
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_2 = (uint64_t)(uintptr_t)forMarshaling->pBufferInfo;
-    memcpy((*ptr), &cgen_var_2, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pBufferInfo);
     if (forMarshaling->pBufferInfo) {
         if ((!(vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) ||
              ((VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER == forMarshaling->descriptorType) ||
@@ -2240,25 +1375,16 @@ void reservedmarshal_VkWriteDescriptorSet(VulkanStreamGuest* vkStream, VkStructu
             }
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_3 = (uint64_t)(uintptr_t)forMarshaling->pTexelBufferView;
-    memcpy((*ptr), &cgen_var_3, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pTexelBufferView);
     if (forMarshaling->pTexelBufferView) {
         if ((!(vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) ||
              ((VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER == forMarshaling->descriptorType) ||
               (VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER == forMarshaling->descriptorType)))) {
             if (forMarshaling->descriptorCount) {
-                uint8_t* cgen_var_3_0_ptr = (uint8_t*)(*ptr);
-                if (forMarshaling) {
-                    for (uint32_t k = 0; k < forMarshaling->descriptorCount; ++k) {
-                        uint64_t tmpval = gfxstream_vk_buffer_view_to_host_u64(
-                            forMarshaling->pTexelBufferView[k]);
-                        memcpy(cgen_var_3_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-                    }
+                for (uint32_t k = 0; k < forMarshaling->descriptorCount; ++k) {
+                    writeStreamVal(ptr, gfxstream_vk_buffer_view_to_host_u64(
+                                            forMarshaling->pTexelBufferView[k]));
                 }
-                *ptr += 8 * forMarshaling->descriptorCount;
             }
         }
     }
@@ -2268,8 +1394,7 @@ void reservedmarshal_VkClearColorValue(VulkanStreamGuest* vkStream, VkStructureT
                                        const VkClearColorValue* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (float*)forMarshaling->float32, 4 * sizeof(float));
-    *ptr += 4 * sizeof(float);
+    writeStreamBytes(ptr, forMarshaling->float32, 4 * sizeof(float));
 }
 
 #endif
@@ -2280,16 +1405,11 @@ void reservedmarshal_VkDrawIndexedIndirectCommand(VulkanStreamGuest* vkStream,
                                                   uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->indexCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->instanceCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->firstIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (int32_t*)&forMarshaling->vertexOffset, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->firstInstance, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->indexCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->instanceCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->firstIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->vertexOffset, sizeof(int32_t));
+    writeStreamBytes(ptr, &forMarshaling->firstInstance, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkDrawIndirectCommand(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -2297,34 +1417,23 @@ void reservedmarshal_VkDrawIndirectCommand(VulkanStreamGuest* vkStream, VkStruct
                                            uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->vertexCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->instanceCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->firstVertex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->firstInstance, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->vertexCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->instanceCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->firstVertex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->firstInstance, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkStencilOpState(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                       const VkStencilOpState* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkStencilOp*)&forMarshaling->failOp, sizeof(VkStencilOp));
-    *ptr += sizeof(VkStencilOp);
-    memcpy(*ptr, (VkStencilOp*)&forMarshaling->passOp, sizeof(VkStencilOp));
-    *ptr += sizeof(VkStencilOp);
-    memcpy(*ptr, (VkStencilOp*)&forMarshaling->depthFailOp, sizeof(VkStencilOp));
-    *ptr += sizeof(VkStencilOp);
-    memcpy(*ptr, (VkCompareOp*)&forMarshaling->compareOp, sizeof(VkCompareOp));
-    *ptr += sizeof(VkCompareOp);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->compareMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->writeMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->reference, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->failOp, sizeof(VkStencilOp));
+    writeStreamBytes(ptr, &forMarshaling->passOp, sizeof(VkStencilOp));
+    writeStreamBytes(ptr, &forMarshaling->depthFailOp, sizeof(VkStencilOp));
+    writeStreamBytes(ptr, &forMarshaling->compareOp, sizeof(VkCompareOp));
+    writeStreamBytes(ptr, &forMarshaling->compareMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->writeMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->reference, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkVertexInputAttributeDescription(
@@ -2332,14 +1441,10 @@ void reservedmarshal_VkVertexInputAttributeDescription(
     const VkVertexInputAttributeDescription* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->location, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->binding, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->offset, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->location, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->binding, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkVertexInputBindingDescription(
@@ -2347,30 +1452,21 @@ void reservedmarshal_VkVertexInputBindingDescription(
     const VkVertexInputBindingDescription* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->binding, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->stride, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkVertexInputRate*)&forMarshaling->inputRate, sizeof(VkVertexInputRate));
-    *ptr += sizeof(VkVertexInputRate);
+    writeStreamBytes(ptr, &forMarshaling->binding, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->stride, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->inputRate, sizeof(VkVertexInputRate));
 }
 
 void reservedmarshal_VkViewport(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                 const VkViewport* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (float*)&forMarshaling->x, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->y, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->width, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->height, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->minDepth, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->maxDepth, sizeof(float));
-    *ptr += sizeof(float);
+    writeStreamBytes(ptr, &forMarshaling->x, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->y, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->width, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->height, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->minDepth, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->maxDepth, sizeof(float));
 }
 
 void reservedmarshal_VkPipelineColorBlendAttachmentState(
@@ -2378,250 +1474,161 @@ void reservedmarshal_VkPipelineColorBlendAttachmentState(
     const VkPipelineColorBlendAttachmentState* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkBool32*)&forMarshaling->blendEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBlendFactor*)&forMarshaling->srcColorBlendFactor, sizeof(VkBlendFactor));
-    *ptr += sizeof(VkBlendFactor);
-    memcpy(*ptr, (VkBlendFactor*)&forMarshaling->dstColorBlendFactor, sizeof(VkBlendFactor));
-    *ptr += sizeof(VkBlendFactor);
-    memcpy(*ptr, (VkBlendOp*)&forMarshaling->colorBlendOp, sizeof(VkBlendOp));
-    *ptr += sizeof(VkBlendOp);
-    memcpy(*ptr, (VkBlendFactor*)&forMarshaling->srcAlphaBlendFactor, sizeof(VkBlendFactor));
-    *ptr += sizeof(VkBlendFactor);
-    memcpy(*ptr, (VkBlendFactor*)&forMarshaling->dstAlphaBlendFactor, sizeof(VkBlendFactor));
-    *ptr += sizeof(VkBlendFactor);
-    memcpy(*ptr, (VkBlendOp*)&forMarshaling->alphaBlendOp, sizeof(VkBlendOp));
-    *ptr += sizeof(VkBlendOp);
-    memcpy(*ptr, (VkColorComponentFlags*)&forMarshaling->colorWriteMask,
-           sizeof(VkColorComponentFlags));
-    *ptr += sizeof(VkColorComponentFlags);
+    writeStreamBytes(ptr, &forMarshaling->blendEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->srcColorBlendFactor, sizeof(VkBlendFactor));
+    writeStreamBytes(ptr, &forMarshaling->dstColorBlendFactor, sizeof(VkBlendFactor));
+    writeStreamBytes(ptr, &forMarshaling->colorBlendOp, sizeof(VkBlendOp));
+    writeStreamBytes(ptr, &forMarshaling->srcAlphaBlendFactor, sizeof(VkBlendFactor));
+    writeStreamBytes(ptr, &forMarshaling->dstAlphaBlendFactor, sizeof(VkBlendFactor));
+    writeStreamBytes(ptr, &forMarshaling->alphaBlendOp, sizeof(VkBlendOp));
+    writeStreamBytes(ptr, &forMarshaling->colorWriteMask, sizeof(VkColorComponentFlags));
 }
 
 void reservedmarshal_VkPipelineColorBlendStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineColorBlendStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineColorBlendStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineColorBlendStateCreateFlags));
-    *ptr += sizeof(VkPipelineColorBlendStateCreateFlags);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->logicOpEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkLogicOp*)&forMarshaling->logicOp, sizeof(VkLogicOp));
-    *ptr += sizeof(VkLogicOp);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineColorBlendStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->logicOpEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->logicOp, sizeof(VkLogicOp));
+    writeStreamBytes(ptr, &forMarshaling->attachmentCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->attachmentCount; ++i) {
         reservedmarshal_VkPipelineColorBlendAttachmentState(
             vkStream, rootType,
             (const VkPipelineColorBlendAttachmentState*)(forMarshaling->pAttachments + i), ptr);
     }
-    memcpy(*ptr, (float*)forMarshaling->blendConstants, 4 * sizeof(float));
-    *ptr += 4 * sizeof(float);
+    writeStreamBytes(ptr, forMarshaling->blendConstants, 4 * sizeof(float));
 }
 
 void reservedmarshal_VkPipelineDepthStencilStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineDepthStencilStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineDepthStencilStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineDepthStencilStateCreateFlags));
-    *ptr += sizeof(VkPipelineDepthStencilStateCreateFlags);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthTestEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthWriteEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkCompareOp*)&forMarshaling->depthCompareOp, sizeof(VkCompareOp));
-    *ptr += sizeof(VkCompareOp);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthBoundsTestEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->stencilTestEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineDepthStencilStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->depthTestEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->depthWriteEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->depthCompareOp, sizeof(VkCompareOp));
+    writeStreamBytes(ptr, &forMarshaling->depthBoundsTestEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->stencilTestEnable, sizeof(VkBool32));
     reservedmarshal_VkStencilOpState(vkStream, rootType, (VkStencilOpState*)(&forMarshaling->front),
                                      ptr);
     reservedmarshal_VkStencilOpState(vkStream, rootType, (VkStencilOpState*)(&forMarshaling->back),
                                      ptr);
-    memcpy(*ptr, (float*)&forMarshaling->minDepthBounds, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->maxDepthBounds, sizeof(float));
-    *ptr += sizeof(float);
+    writeStreamBytes(ptr, &forMarshaling->minDepthBounds, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->maxDepthBounds, sizeof(float));
 }
 
 void reservedmarshal_VkPipelineDynamicStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineDynamicStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineDynamicStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineDynamicStateCreateFlags));
-    *ptr += sizeof(VkPipelineDynamicStateCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dynamicStateCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineDynamicStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->dynamicStateCount, sizeof(uint32_t));
     if (forMarshaling->dynamicStateCount > 0) {
-        memcpy(*ptr, (const VkDynamicState*)forMarshaling->pDynamicStates,
-               forMarshaling->dynamicStateCount * sizeof(const VkDynamicState));
-        *ptr += forMarshaling->dynamicStateCount * sizeof(const VkDynamicState);
+        writeStreamBytes(ptr, forMarshaling->pDynamicStates,
+                         forMarshaling->dynamicStateCount * sizeof(const VkDynamicState));
     }
 }
 
 void reservedmarshal_VkPipelineInputAssemblyStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineInputAssemblyStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineInputAssemblyStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineInputAssemblyStateCreateFlags));
-    *ptr += sizeof(VkPipelineInputAssemblyStateCreateFlags);
-    memcpy(*ptr, (VkPrimitiveTopology*)&forMarshaling->topology, sizeof(VkPrimitiveTopology));
-    *ptr += sizeof(VkPrimitiveTopology);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->primitiveRestartEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineInputAssemblyStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->topology, sizeof(VkPrimitiveTopology));
+    writeStreamBytes(ptr, &forMarshaling->primitiveRestartEnable, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineMultisampleStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineMultisampleStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineMultisampleStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineMultisampleStateCreateFlags));
-    *ptr += sizeof(VkPipelineMultisampleStateCreateFlags);
-    memcpy(*ptr, (VkSampleCountFlagBits*)&forMarshaling->rasterizationSamples,
-           sizeof(VkSampleCountFlagBits));
-    *ptr += sizeof(VkSampleCountFlagBits);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sampleShadingEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (float*)&forMarshaling->minSampleShading, sizeof(float));
-    *ptr += sizeof(float);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pSampleMask;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineMultisampleStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->rasterizationSamples, sizeof(VkSampleCountFlagBits));
+    writeStreamBytes(ptr, &forMarshaling->sampleShadingEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->minSampleShading, sizeof(float));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pSampleMask);
     if (forMarshaling->pSampleMask) {
         if ((((forMarshaling->rasterizationSamples) + 31) / 32) > 0) {
-            memcpy(
-                *ptr, (const VkSampleMask*)forMarshaling->pSampleMask,
+            writeStreamBytes(
+                ptr, forMarshaling->pSampleMask,
                 (((forMarshaling->rasterizationSamples) + 31) / 32) * sizeof(const VkSampleMask));
-            *ptr +=
-                (((forMarshaling->rasterizationSamples) + 31) / 32) * sizeof(const VkSampleMask);
         }
     }
-    memcpy(*ptr, (VkBool32*)&forMarshaling->alphaToCoverageEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->alphaToOneEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->alphaToCoverageEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->alphaToOneEnable, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineRasterizationStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineRasterizationStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineRasterizationStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineRasterizationStateCreateFlags));
-    *ptr += sizeof(VkPipelineRasterizationStateCreateFlags);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthClampEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->rasterizerDiscardEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkPolygonMode*)&forMarshaling->polygonMode, sizeof(VkPolygonMode));
-    *ptr += sizeof(VkPolygonMode);
-    memcpy(*ptr, (VkCullModeFlags*)&forMarshaling->cullMode, sizeof(VkCullModeFlags));
-    *ptr += sizeof(VkCullModeFlags);
-    memcpy(*ptr, (VkFrontFace*)&forMarshaling->frontFace, sizeof(VkFrontFace));
-    *ptr += sizeof(VkFrontFace);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthBiasEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (float*)&forMarshaling->depthBiasConstantFactor, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->depthBiasClamp, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->depthBiasSlopeFactor, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (float*)&forMarshaling->lineWidth, sizeof(float));
-    *ptr += sizeof(float);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineRasterizationStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->depthClampEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->rasterizerDiscardEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->polygonMode, sizeof(VkPolygonMode));
+    writeStreamBytes(ptr, &forMarshaling->cullMode, sizeof(VkCullModeFlags));
+    writeStreamBytes(ptr, &forMarshaling->frontFace, sizeof(VkFrontFace));
+    writeStreamBytes(ptr, &forMarshaling->depthBiasEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->depthBiasConstantFactor, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->depthBiasClamp, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->depthBiasSlopeFactor, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->lineWidth, sizeof(float));
 }
 
 void reservedmarshal_VkPipelineTessellationStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineTessellationStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineTessellationStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineTessellationStateCreateFlags));
-    *ptr += sizeof(VkPipelineTessellationStateCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->patchControlPoints, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineTessellationStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->patchControlPoints, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPipelineVertexInputStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineVertexInputStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineVertexInputStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineVertexInputStateCreateFlags));
-    *ptr += sizeof(VkPipelineVertexInputStateCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->vertexBindingDescriptionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineVertexInputStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->vertexBindingDescriptionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->vertexBindingDescriptionCount; ++i) {
         reservedmarshal_VkVertexInputBindingDescription(
             vkStream, rootType,
             (const VkVertexInputBindingDescription*)(forMarshaling->pVertexBindingDescriptions + i),
             ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->vertexAttributeDescriptionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->vertexAttributeDescriptionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->vertexAttributeDescriptionCount; ++i) {
         reservedmarshal_VkVertexInputAttributeDescription(
             vkStream, rootType,
@@ -2634,37 +1641,22 @@ void reservedmarshal_VkPipelineVertexInputStateCreateInfo(
 void reservedmarshal_VkPipelineViewportStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineViewportStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineViewportStateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineViewportStateCreateFlags));
-    *ptr += sizeof(VkPipelineViewportStateCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewportCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pViewports;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineViewportStateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->viewportCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pViewports);
     if (forMarshaling->pViewports) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->viewportCount; ++i) {
             reservedmarshal_VkViewport(vkStream, rootType,
                                        (const VkViewport*)(forMarshaling->pViewports + i), ptr);
         }
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->scissorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pScissors;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->scissorCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pScissors);
     if (forMarshaling->pScissors) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->scissorCount; ++i) {
             reservedmarshal_VkRect2D(vkStream, rootType,
@@ -2677,8 +1669,6 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
                                                   VkStructureType rootType,
                                                   const VkGraphicsPipelineCreateInfo* forMarshaling,
                                                   uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     uint32_t hasRasterization = 1;
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
         hasRasterization =
@@ -2692,10 +1682,7 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
                               [](VkDynamicState s) {
                                   return (s == VK_DYNAMIC_STATE_RASTERIZER_DISCARD_ENABLE);
                               }))));
-        uint32_t cgen_var_0 = (uint32_t)hasRasterization;
-        memcpy((*ptr), &cgen_var_0, 4);
-        gfxstream::aemu::Stream::toBe32((uint8_t*)(*ptr));
-        *ptr += 4;
+        putBe32WithStreamPtr(ptr, (uint32_t)hasRasterization);
     }
     uint32_t hasTessellation = 1;
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
@@ -2705,32 +1692,22 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
                          return ((s.stage == VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT) ||
                                  (s.stage == VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT));
                      });
-        uint32_t cgen_var_0 = (uint32_t)hasTessellation;
-        memcpy((*ptr), &cgen_var_0, 4);
-        gfxstream::aemu::Stream::toBe32((uint8_t*)(*ptr));
-        *ptr += 4;
+        putBe32WithStreamPtr(ptr, (uint32_t)hasTessellation);
     }
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineCreateFlags*)&forMarshaling->flags, sizeof(VkPipelineCreateFlags));
-    *ptr += sizeof(VkPipelineCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->stageCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->stageCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->stageCount; ++i) {
         reservedmarshal_VkPipelineShaderStageCreateInfo(
             vkStream, rootType,
             (const VkPipelineShaderStageCreateInfo*)(forMarshaling->pStages + i), ptr);
     }
-    // WARNING PTR CHECK
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
-        uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pVertexInputState;
-        memcpy((*ptr), &cgen_var_0, 8);
-        gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-        *ptr += 8;
+        putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pVertexInputState);
     }
     if ((!(vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) ||
          forMarshaling->pVertexInputState)) {
@@ -2738,12 +1715,8 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
             vkStream, rootType,
             (const VkPipelineVertexInputStateCreateInfo*)(forMarshaling->pVertexInputState), ptr);
     }
-    // WARNING PTR CHECK
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
-        uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pInputAssemblyState;
-        memcpy((*ptr), &cgen_var_0, 8);
-        gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-        *ptr += 8;
+        putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pInputAssemblyState);
     }
     if ((!(vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) ||
          forMarshaling->pInputAssemblyState)) {
@@ -2752,11 +1725,7 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
             (const VkPipelineInputAssemblyStateCreateInfo*)(forMarshaling->pInputAssemblyState),
             ptr);
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pTessellationState;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pTessellationState);
     if (forMarshaling->pTessellationState) {
         if (hasTessellation) {
             reservedmarshal_VkPipelineTessellationStateCreateInfo(
@@ -2765,11 +1734,7 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
                 ptr);
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pViewportState;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pViewportState);
     if (forMarshaling->pViewportState) {
         if (hasRasterization) {
             reservedmarshal_VkPipelineViewportStateCreateInfo(
@@ -2777,12 +1742,8 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
                 (const VkPipelineViewportStateCreateInfo*)(forMarshaling->pViewportState), ptr);
         }
     }
-    // WARNING PTR CHECK
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) {
-        uint64_t cgen_var_1_0 = (uint64_t)(uintptr_t)forMarshaling->pRasterizationState;
-        memcpy((*ptr), &cgen_var_1_0, 8);
-        gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-        *ptr += 8;
+        putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pRasterizationState);
     }
     if ((!(vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) ||
          forMarshaling->pRasterizationState)) {
@@ -2791,11 +1752,7 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
             (const VkPipelineRasterizationStateCreateInfo*)(forMarshaling->pRasterizationState),
             ptr);
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_2 = (uint64_t)(uintptr_t)forMarshaling->pMultisampleState;
-    memcpy((*ptr), &cgen_var_2, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pMultisampleState);
     if (forMarshaling->pMultisampleState) {
         if (hasRasterization) {
             reservedmarshal_VkPipelineMultisampleStateCreateInfo(
@@ -2804,11 +1761,7 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
                 ptr);
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_3 = (uint64_t)(uintptr_t)forMarshaling->pDepthStencilState;
-    memcpy((*ptr), &cgen_var_3, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDepthStencilState);
     if (forMarshaling->pDepthStencilState) {
         if (hasRasterization) {
             reservedmarshal_VkPipelineDepthStencilStateCreateInfo(
@@ -2817,11 +1770,7 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
                 ptr);
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_4 = (uint64_t)(uintptr_t)forMarshaling->pColorBlendState;
-    memcpy((*ptr), &cgen_var_4, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pColorBlendState);
     if (forMarshaling->pColorBlendState) {
         if (hasRasterization) {
             reservedmarshal_VkPipelineColorBlendStateCreateInfo(
@@ -2829,32 +1778,17 @@ void reservedmarshal_VkGraphicsPipelineCreateInfo(VulkanStreamGuest* vkStream,
                 (const VkPipelineColorBlendStateCreateInfo*)(forMarshaling->pColorBlendState), ptr);
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_5 = (uint64_t)(uintptr_t)forMarshaling->pDynamicState;
-    memcpy((*ptr), &cgen_var_5, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDynamicState);
     if (forMarshaling->pDynamicState) {
         reservedmarshal_VkPipelineDynamicStateCreateInfo(
             vkStream, rootType,
             (const VkPipelineDynamicStateCreateInfo*)(forMarshaling->pDynamicState), ptr);
     }
-    uint64_t cgen_var_6;
-    *&cgen_var_6 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->layout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_6, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_7;
-    *&cgen_var_7 = gfxstream_vk_render_pass_to_host_u64((*&forMarshaling->renderPass));
-    memcpy(*ptr, (uint64_t*)&cgen_var_7, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subpass, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_8;
-    *&cgen_var_8 = gfxstream_vk_pipeline_to_host_u64((*&forMarshaling->basePipelineHandle));
-    memcpy(*ptr, (uint64_t*)&cgen_var_8, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (int32_t*)&forMarshaling->basePipelineIndex, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->layout));
+    writeStreamVal(ptr, gfxstream_vk_render_pass_to_host_u64(forMarshaling->renderPass));
+    writeStreamBytes(ptr, &forMarshaling->subpass, sizeof(uint32_t));
+    writeStreamVal(ptr, gfxstream_vk_pipeline_to_host_u64(forMarshaling->basePipelineHandle));
+    writeStreamBytes(ptr, &forMarshaling->basePipelineIndex, sizeof(int32_t));
 }
 
 void reservedmarshal_VkAttachmentDescription(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -2862,25 +1796,15 @@ void reservedmarshal_VkAttachmentDescription(VulkanStreamGuest* vkStream, VkStru
                                              uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkAttachmentDescriptionFlags*)&forMarshaling->flags,
-           sizeof(VkAttachmentDescriptionFlags));
-    *ptr += sizeof(VkAttachmentDescriptionFlags);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkSampleCountFlagBits*)&forMarshaling->samples, sizeof(VkSampleCountFlagBits));
-    *ptr += sizeof(VkSampleCountFlagBits);
-    memcpy(*ptr, (VkAttachmentLoadOp*)&forMarshaling->loadOp, sizeof(VkAttachmentLoadOp));
-    *ptr += sizeof(VkAttachmentLoadOp);
-    memcpy(*ptr, (VkAttachmentStoreOp*)&forMarshaling->storeOp, sizeof(VkAttachmentStoreOp));
-    *ptr += sizeof(VkAttachmentStoreOp);
-    memcpy(*ptr, (VkAttachmentLoadOp*)&forMarshaling->stencilLoadOp, sizeof(VkAttachmentLoadOp));
-    *ptr += sizeof(VkAttachmentLoadOp);
-    memcpy(*ptr, (VkAttachmentStoreOp*)&forMarshaling->stencilStoreOp, sizeof(VkAttachmentStoreOp));
-    *ptr += sizeof(VkAttachmentStoreOp);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->initialLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->finalLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkAttachmentDescriptionFlags));
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->samples, sizeof(VkSampleCountFlagBits));
+    writeStreamBytes(ptr, &forMarshaling->loadOp, sizeof(VkAttachmentLoadOp));
+    writeStreamBytes(ptr, &forMarshaling->storeOp, sizeof(VkAttachmentStoreOp));
+    writeStreamBytes(ptr, &forMarshaling->stencilLoadOp, sizeof(VkAttachmentLoadOp));
+    writeStreamBytes(ptr, &forMarshaling->stencilStoreOp, sizeof(VkAttachmentStoreOp));
+    writeStreamBytes(ptr, &forMarshaling->initialLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->finalLayout, sizeof(VkImageLayout));
 }
 
 void reservedmarshal_VkAttachmentReference(VulkanStreamGuest* vkStream, VkStructureType rootType,
@@ -2888,104 +1812,66 @@ void reservedmarshal_VkAttachmentReference(VulkanStreamGuest* vkStream, VkStruct
                                            uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachment, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->layout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamBytes(ptr, &forMarshaling->attachment, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->layout, sizeof(VkImageLayout));
 }
 
 void reservedmarshal_VkFramebufferCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkFramebufferCreateInfo* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkFramebufferCreateFlags*)&forMarshaling->flags,
-           sizeof(VkFramebufferCreateFlags));
-    *ptr += sizeof(VkFramebufferCreateFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_render_pass_to_host_u64((*&forMarshaling->renderPass));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkFramebufferCreateFlags));
+    writeStreamVal(ptr, gfxstream_vk_render_pass_to_host_u64(forMarshaling->renderPass));
+    writeStreamBytes(ptr, &forMarshaling->attachmentCount, sizeof(uint32_t));
     if ((!(vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_IGNORED_HANDLES_BIT) ||
          (((forMarshaling->flags & VK_FRAMEBUFFER_CREATE_IMAGELESS_BIT) == 0)))) {
         if (forMarshaling->attachmentCount) {
-            uint8_t* cgen_var_0_0_ptr = (uint8_t*)(*ptr);
-            if (forMarshaling) {
-                for (uint32_t k = 0; k < forMarshaling->attachmentCount; ++k) {
-                    uint64_t tmpval =
-                        gfxstream_vk_image_view_to_host_u64(forMarshaling->pAttachments[k]);
-                    memcpy(cgen_var_0_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-                }
+            for (uint32_t k = 0; k < forMarshaling->attachmentCount; ++k) {
+                writeStreamVal(ptr,
+                               gfxstream_vk_image_view_to_host_u64(forMarshaling->pAttachments[k]));
             }
-            *ptr += 8 * forMarshaling->attachmentCount;
         }
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->width, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->height, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->layers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->width, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->height, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->layers, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkSubpassDependency(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkSubpassDependency* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->srcSubpass, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstSubpass, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkPipelineStageFlags*)&forMarshaling->srcStageMask, sizeof(VkPipelineStageFlags));
-    *ptr += sizeof(VkPipelineStageFlags);
-    memcpy(*ptr, (VkPipelineStageFlags*)&forMarshaling->dstStageMask, sizeof(VkPipelineStageFlags));
-    *ptr += sizeof(VkPipelineStageFlags);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (VkDependencyFlags*)&forMarshaling->dependencyFlags, sizeof(VkDependencyFlags));
-    *ptr += sizeof(VkDependencyFlags);
+    writeStreamBytes(ptr, &forMarshaling->srcSubpass, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstSubpass, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->srcStageMask, sizeof(VkPipelineStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->dstStageMask, sizeof(VkPipelineStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->dependencyFlags, sizeof(VkDependencyFlags));
 }
 
 void reservedmarshal_VkSubpassDescription(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkSubpassDescription* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkSubpassDescriptionFlags*)&forMarshaling->flags,
-           sizeof(VkSubpassDescriptionFlags));
-    *ptr += sizeof(VkSubpassDescriptionFlags);
-    memcpy(*ptr, (VkPipelineBindPoint*)&forMarshaling->pipelineBindPoint,
-           sizeof(VkPipelineBindPoint));
-    *ptr += sizeof(VkPipelineBindPoint);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->inputAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSubpassDescriptionFlags));
+    writeStreamBytes(ptr, &forMarshaling->pipelineBindPoint, sizeof(VkPipelineBindPoint));
+    writeStreamBytes(ptr, &forMarshaling->inputAttachmentCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->inputAttachmentCount; ++i) {
         reservedmarshal_VkAttachmentReference(
             vkStream, rootType,
             (const VkAttachmentReference*)(forMarshaling->pInputAttachments + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->colorAttachmentCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->colorAttachmentCount; ++i) {
         reservedmarshal_VkAttachmentReference(
             vkStream, rootType,
             (const VkAttachmentReference*)(forMarshaling->pColorAttachments + i), ptr);
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pResolveAttachments;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pResolveAttachments);
     if (forMarshaling->pResolveAttachments) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->colorAttachmentCount; ++i) {
             reservedmarshal_VkAttachmentReference(
@@ -2993,53 +1879,40 @@ void reservedmarshal_VkSubpassDescription(VulkanStreamGuest* vkStream, VkStructu
                 (const VkAttachmentReference*)(forMarshaling->pResolveAttachments + i), ptr);
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pDepthStencilAttachment;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDepthStencilAttachment);
     if (forMarshaling->pDepthStencilAttachment) {
         reservedmarshal_VkAttachmentReference(
             vkStream, rootType,
             (const VkAttachmentReference*)(forMarshaling->pDepthStencilAttachment), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->preserveAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->preserveAttachmentCount, sizeof(uint32_t));
     if (forMarshaling->preserveAttachmentCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pPreserveAttachments,
-               forMarshaling->preserveAttachmentCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->preserveAttachmentCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pPreserveAttachments,
+                         forMarshaling->preserveAttachmentCount * sizeof(const uint32_t));
     }
 }
 
 void reservedmarshal_VkRenderPassCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                             const VkRenderPassCreateInfo* forMarshaling,
                                             uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkRenderPassCreateFlags*)&forMarshaling->flags, sizeof(VkRenderPassCreateFlags));
-    *ptr += sizeof(VkRenderPassCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkRenderPassCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->attachmentCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->attachmentCount; ++i) {
         reservedmarshal_VkAttachmentDescription(
             vkStream, rootType, (const VkAttachmentDescription*)(forMarshaling->pAttachments + i),
             ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subpassCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->subpassCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->subpassCount; ++i) {
         reservedmarshal_VkSubpassDescription(
             vkStream, rootType, (const VkSubpassDescription*)(forMarshaling->pSubpasses + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dependencyCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->dependencyCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->dependencyCount; ++i) {
         reservedmarshal_VkSubpassDependency(
             vkStream, rootType, (const VkSubpassDependency*)(forMarshaling->pDependencies + i),
@@ -3052,47 +1925,33 @@ void reservedmarshal_VkClearDepthStencilValue(VulkanStreamGuest* vkStream, VkStr
                                               uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (float*)&forMarshaling->depth, sizeof(float));
-    *ptr += sizeof(float);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->stencil, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->depth, sizeof(float));
+    writeStreamBytes(ptr, &forMarshaling->stencil, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkClearRect(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                  const VkClearRect* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkRect2D(vkStream, rootType, (VkRect2D*)(&forMarshaling->rect), ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->baseArrayLayer, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->layerCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->baseArrayLayer, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->layerCount, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkClearValue(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                   const VkClearValue* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkClearColorValue(vkStream, rootType,
                                       (VkClearColorValue*)(&forMarshaling->color), ptr);
 }
 
 void reservedmarshal_VkClearAttachment(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkClearAttachment* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkImageAspectFlags*)&forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
-    *ptr += sizeof(VkImageAspectFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachment, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
+    writeStreamBytes(ptr, &forMarshaling->colorAttachment, sizeof(uint32_t));
     reservedmarshal_VkClearValue(vkStream, rootType, (VkClearValue*)(&forMarshaling->clearValue),
                                  ptr);
 }
 
 void reservedmarshal_VkImageBlit(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                  const VkImageBlit* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkImageSubresourceLayers(
         vkStream, rootType, (VkImageSubresourceLayers*)(&forMarshaling->srcSubresource), ptr);
     for (uint32_t i = 0; i < (uint32_t)2; ++i) {
@@ -3109,8 +1968,6 @@ void reservedmarshal_VkImageBlit(VulkanStreamGuest* vkStream, VkStructureType ro
 
 void reservedmarshal_VkImageResolve(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                     const VkImageResolve* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkImageSubresourceLayers(
         vkStream, rootType, (VkImageSubresourceLayers*)(&forMarshaling->srcSubresource), ptr);
     reservedmarshal_VkOffset3D(vkStream, rootType, (VkOffset3D*)(&forMarshaling->srcOffset), ptr);
@@ -3123,30 +1980,16 @@ void reservedmarshal_VkImageResolve(VulkanStreamGuest* vkStream, VkStructureType
 void reservedmarshal_VkRenderPassBeginInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkRenderPassBeginInfo* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_render_pass_to_host_u64((*&forMarshaling->renderPass));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_framebuffer_to_host_u64((*&forMarshaling->framebuffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr, gfxstream_vk_render_pass_to_host_u64(forMarshaling->renderPass));
+    writeStreamVal(ptr, gfxstream_vk_framebuffer_to_host_u64(forMarshaling->framebuffer));
     reservedmarshal_VkRect2D(vkStream, rootType, (VkRect2D*)(&forMarshaling->renderArea), ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->clearValueCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_2 = (uint64_t)(uintptr_t)forMarshaling->pClearValues;
-    memcpy((*ptr), &cgen_var_2, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->clearValueCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pClearValues);
     if (forMarshaling->pClearValues) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->clearValueCount; ++i) {
             reservedmarshal_VkClearValue(
@@ -3160,151 +2003,99 @@ void reservedmarshal_VkRenderPassBeginInfo(VulkanStreamGuest* vkStream, VkStruct
 void reservedmarshal_VkBindBufferMemoryInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                             const VkBindBufferMemoryInfo* forMarshaling,
                                             uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_device_memory_to_host_u64((*&forMarshaling->memory));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->memoryOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
+    writeStreamVal(ptr, gfxstream_vk_device_memory_to_host_u64(forMarshaling->memory));
+    writeStreamBytes(ptr, &forMarshaling->memoryOffset, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkBindImageMemoryInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkBindImageMemoryInfo* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_device_memory_to_host_u64((*&forMarshaling->memory));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->memoryOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
+    writeStreamVal(ptr, gfxstream_vk_device_memory_to_host_u64(forMarshaling->memory));
+    writeStreamBytes(ptr, &forMarshaling->memoryOffset, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkMemoryDedicatedRequirements(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkMemoryDedicatedRequirements* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->prefersDedicatedAllocation, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->requiresDedicatedAllocation, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->prefersDedicatedAllocation, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->requiresDedicatedAllocation, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkMemoryDedicatedAllocateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkMemoryDedicatedAllocateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
 }
 
 void reservedmarshal_VkMemoryAllocateFlagsInfo(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkMemoryAllocateFlagsInfo* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkMemoryAllocateFlags*)&forMarshaling->flags, sizeof(VkMemoryAllocateFlags));
-    *ptr += sizeof(VkMemoryAllocateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkMemoryAllocateFlags));
+    writeStreamBytes(ptr, &forMarshaling->deviceMask, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkDeviceGroupCommandBufferBeginInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceGroupCommandBufferBeginInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->deviceMask, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkDeviceGroupSubmitInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkDeviceGroupSubmitInfo* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->waitSemaphoreCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->waitSemaphoreCount, sizeof(uint32_t));
     if (forMarshaling->waitSemaphoreCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pWaitSemaphoreDeviceIndices,
-               forMarshaling->waitSemaphoreCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->waitSemaphoreCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pWaitSemaphoreDeviceIndices,
+                         forMarshaling->waitSemaphoreCount * sizeof(const uint32_t));
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->commandBufferCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->commandBufferCount, sizeof(uint32_t));
     if (forMarshaling->commandBufferCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pCommandBufferDeviceMasks,
-               forMarshaling->commandBufferCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->commandBufferCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pCommandBufferDeviceMasks,
+                         forMarshaling->commandBufferCount * sizeof(const uint32_t));
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->signalSemaphoreCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->signalSemaphoreCount, sizeof(uint32_t));
     if (forMarshaling->signalSemaphoreCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pSignalSemaphoreDeviceIndices,
-               forMarshaling->signalSemaphoreCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->signalSemaphoreCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pSignalSemaphoreDeviceIndices,
+                         forMarshaling->signalSemaphoreCount * sizeof(const uint32_t));
     }
 }
 
@@ -3312,60 +2103,44 @@ void reservedmarshal_VkDeviceGroupBindSparseInfo(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkDeviceGroupBindSparseInfo* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->resourceDeviceIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryDeviceIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->resourceDeviceIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->memoryDeviceIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkBindBufferMemoryDeviceGroupInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkBindBufferMemoryDeviceGroupInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceIndexCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->deviceIndexCount, sizeof(uint32_t));
     if (forMarshaling->deviceIndexCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pDeviceIndices,
-               forMarshaling->deviceIndexCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->deviceIndexCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pDeviceIndices,
+                         forMarshaling->deviceIndexCount * sizeof(const uint32_t));
     }
 }
 
 void reservedmarshal_VkBindImageMemoryDeviceGroupInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkBindImageMemoryDeviceGroupInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceIndexCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->deviceIndexCount, sizeof(uint32_t));
     if (forMarshaling->deviceIndexCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pDeviceIndices,
-               forMarshaling->deviceIndexCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->deviceIndexCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pDeviceIndices,
+                         forMarshaling->deviceIndexCount * sizeof(const uint32_t));
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->splitInstanceBindRegionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->splitInstanceBindRegionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->splitInstanceBindRegionCount; ++i) {
         reservedmarshal_VkRect2D(vkStream, rootType,
                                  (const VkRect2D*)(forMarshaling->pSplitInstanceBindRegions + i),
@@ -3376,107 +2151,71 @@ void reservedmarshal_VkBindImageMemoryDeviceGroupInfo(
 void reservedmarshal_VkPhysicalDeviceGroupProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceGroupProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->physicalDeviceCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkPhysicalDevice*)forMarshaling->physicalDevices,
-           VK_MAX_DEVICE_GROUP_SIZE * sizeof(VkPhysicalDevice));
-    *ptr += VK_MAX_DEVICE_GROUP_SIZE * sizeof(VkPhysicalDevice);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->subsetAllocation, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->physicalDeviceCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->physicalDevices,
+                     VK_MAX_DEVICE_GROUP_SIZE * sizeof(VkPhysicalDevice));
+    writeStreamBytes(ptr, &forMarshaling->subsetAllocation, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkDeviceGroupDeviceCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceGroupDeviceCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->physicalDeviceCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->physicalDeviceCount, sizeof(uint32_t));
     if (forMarshaling->physicalDeviceCount) {
-        uint8_t* cgen_var_0_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->physicalDeviceCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_physical_device_to_host_u64(forMarshaling->pPhysicalDevices[k]);
-                memcpy(cgen_var_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->physicalDeviceCount; ++k) {
+            writeStreamVal(
+                ptr, gfxstream_vk_physical_device_to_host_u64(forMarshaling->pPhysicalDevices[k]));
         }
-        *ptr += 8 * forMarshaling->physicalDeviceCount;
     }
 }
 
 void reservedmarshal_VkBufferMemoryRequirementsInfo2(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkBufferMemoryRequirementsInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
 }
 
 void reservedmarshal_VkImageMemoryRequirementsInfo2(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImageMemoryRequirementsInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
 }
 
 void reservedmarshal_VkImageSparseMemoryRequirementsInfo2(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImageSparseMemoryRequirementsInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
 }
 
 void reservedmarshal_VkMemoryRequirements2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkMemoryRequirements2* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3488,10 +2227,7 @@ void reservedmarshal_VkMemoryRequirements2(VulkanStreamGuest* vkStream, VkStruct
 void reservedmarshal_VkSparseImageMemoryRequirements2(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSparseImageMemoryRequirements2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3505,10 +2241,7 @@ void reservedmarshal_VkPhysicalDeviceFeatures2(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkPhysicalDeviceFeatures2* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3521,10 +2254,7 @@ void reservedmarshal_VkPhysicalDeviceProperties2(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkPhysicalDeviceProperties2* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3535,10 +2265,7 @@ void reservedmarshal_VkPhysicalDeviceProperties2(VulkanStreamGuest* vkStream,
 
 void reservedmarshal_VkFormatProperties2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkFormatProperties2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3550,10 +2277,7 @@ void reservedmarshal_VkFormatProperties2(VulkanStreamGuest* vkStream, VkStructur
 void reservedmarshal_VkImageFormatProperties2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                               const VkImageFormatProperties2* forMarshaling,
                                               uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3565,33 +2289,22 @@ void reservedmarshal_VkImageFormatProperties2(VulkanStreamGuest* vkStream, VkStr
 void reservedmarshal_VkPhysicalDeviceImageFormatInfo2(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceImageFormatInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkImageType*)&forMarshaling->type, sizeof(VkImageType));
-    *ptr += sizeof(VkImageType);
-    memcpy(*ptr, (VkImageTiling*)&forMarshaling->tiling, sizeof(VkImageTiling));
-    *ptr += sizeof(VkImageTiling);
-    memcpy(*ptr, (VkImageUsageFlags*)&forMarshaling->usage, sizeof(VkImageUsageFlags));
-    *ptr += sizeof(VkImageUsageFlags);
-    memcpy(*ptr, (VkImageCreateFlags*)&forMarshaling->flags, sizeof(VkImageCreateFlags));
-    *ptr += sizeof(VkImageCreateFlags);
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->type, sizeof(VkImageType));
+    writeStreamBytes(ptr, &forMarshaling->tiling, sizeof(VkImageTiling));
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkImageUsageFlags));
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkImageCreateFlags));
 }
 
 void reservedmarshal_VkQueueFamilyProperties2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                               const VkQueueFamilyProperties2* forMarshaling,
                                               uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3603,10 +2316,7 @@ void reservedmarshal_VkQueueFamilyProperties2(VulkanStreamGuest* vkStream, VkStr
 void reservedmarshal_VkPhysicalDeviceMemoryProperties2(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMemoryProperties2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3619,10 +2329,7 @@ void reservedmarshal_VkPhysicalDeviceMemoryProperties2(
 void reservedmarshal_VkSparseImageFormatProperties2(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSparseImageFormatProperties2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3634,137 +2341,96 @@ void reservedmarshal_VkSparseImageFormatProperties2(
 void reservedmarshal_VkPhysicalDeviceSparseImageFormatInfo2(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceSparseImageFormatInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkImageType*)&forMarshaling->type, sizeof(VkImageType));
-    *ptr += sizeof(VkImageType);
-    memcpy(*ptr, (VkSampleCountFlagBits*)&forMarshaling->samples, sizeof(VkSampleCountFlagBits));
-    *ptr += sizeof(VkSampleCountFlagBits);
-    memcpy(*ptr, (VkImageUsageFlags*)&forMarshaling->usage, sizeof(VkImageUsageFlags));
-    *ptr += sizeof(VkImageUsageFlags);
-    memcpy(*ptr, (VkImageTiling*)&forMarshaling->tiling, sizeof(VkImageTiling));
-    *ptr += sizeof(VkImageTiling);
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->type, sizeof(VkImageType));
+    writeStreamBytes(ptr, &forMarshaling->samples, sizeof(VkSampleCountFlagBits));
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkImageUsageFlags));
+    writeStreamBytes(ptr, &forMarshaling->tiling, sizeof(VkImageTiling));
 }
 
 void reservedmarshal_VkImageViewUsageCreateInfo(VulkanStreamGuest* vkStream,
                                                 VkStructureType rootType,
                                                 const VkImageViewUsageCreateInfo* forMarshaling,
                                                 uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageUsageFlags*)&forMarshaling->usage, sizeof(VkImageUsageFlags));
-    *ptr += sizeof(VkImageUsageFlags);
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkImageUsageFlags));
 }
 
 void reservedmarshal_VkPhysicalDeviceProtectedMemoryFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceProtectedMemoryFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->protectedMemory, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->protectedMemory, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceProtectedMemoryProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceProtectedMemoryProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->protectedNoFault, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->protectedNoFault, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkDeviceQueueInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkDeviceQueueInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceQueueCreateFlags*)&forMarshaling->flags,
-           sizeof(VkDeviceQueueCreateFlags));
-    *ptr += sizeof(VkDeviceQueueCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkDeviceQueueCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->queueFamilyIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->queueIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkProtectedSubmitInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkProtectedSubmitInfo* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->protectedSubmit, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->protectedSubmit, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkBindImagePlaneMemoryInfo(VulkanStreamGuest* vkStream,
                                                 VkStructureType rootType,
                                                 const VkBindImagePlaneMemoryInfo* forMarshaling,
                                                 uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageAspectFlagBits*)&forMarshaling->planeAspect,
-           sizeof(VkImageAspectFlagBits));
-    *ptr += sizeof(VkImageAspectFlagBits);
+    writeStreamBytes(ptr, &forMarshaling->planeAspect, sizeof(VkImageAspectFlagBits));
 }
 
 void reservedmarshal_VkImagePlaneMemoryRequirementsInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImagePlaneMemoryRequirementsInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageAspectFlagBits*)&forMarshaling->planeAspect,
-           sizeof(VkImageAspectFlagBits));
-    *ptr += sizeof(VkImageAspectFlagBits);
+    writeStreamBytes(ptr, &forMarshaling->planeAspect, sizeof(VkImageAspectFlagBits));
 }
 
 void reservedmarshal_VkExternalMemoryProperties(VulkanStreamGuest* vkStream,
@@ -3773,40 +2439,29 @@ void reservedmarshal_VkExternalMemoryProperties(VulkanStreamGuest* vkStream,
                                                 uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkExternalMemoryFeatureFlags*)&forMarshaling->externalMemoryFeatures,
-           sizeof(VkExternalMemoryFeatureFlags));
-    *ptr += sizeof(VkExternalMemoryFeatureFlags);
-    memcpy(*ptr, (VkExternalMemoryHandleTypeFlags*)&forMarshaling->exportFromImportedHandleTypes,
-           sizeof(VkExternalMemoryHandleTypeFlags));
-    *ptr += sizeof(VkExternalMemoryHandleTypeFlags);
-    memcpy(*ptr, (VkExternalMemoryHandleTypeFlags*)&forMarshaling->compatibleHandleTypes,
-           sizeof(VkExternalMemoryHandleTypeFlags));
-    *ptr += sizeof(VkExternalMemoryHandleTypeFlags);
+    writeStreamBytes(ptr, &forMarshaling->externalMemoryFeatures,
+                     sizeof(VkExternalMemoryFeatureFlags));
+    writeStreamBytes(ptr, &forMarshaling->exportFromImportedHandleTypes,
+                     sizeof(VkExternalMemoryHandleTypeFlags));
+    writeStreamBytes(ptr, &forMarshaling->compatibleHandleTypes,
+                     sizeof(VkExternalMemoryHandleTypeFlags));
 }
 
 void reservedmarshal_VkPhysicalDeviceExternalImageFormatInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceExternalImageFormatInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalMemoryHandleTypeFlagBits*)&forMarshaling->handleType,
-           sizeof(VkExternalMemoryHandleTypeFlagBits));
-    *ptr += sizeof(VkExternalMemoryHandleTypeFlagBits);
+    writeStreamBytes(ptr, &forMarshaling->handleType, sizeof(VkExternalMemoryHandleTypeFlagBits));
 }
 
 void reservedmarshal_VkExternalImageFormatProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkExternalImageFormatProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3819,31 +2474,21 @@ void reservedmarshal_VkExternalImageFormatProperties(
 void reservedmarshal_VkPhysicalDeviceExternalBufferInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceExternalBufferInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBufferCreateFlags*)&forMarshaling->flags, sizeof(VkBufferCreateFlags));
-    *ptr += sizeof(VkBufferCreateFlags);
-    memcpy(*ptr, (VkBufferUsageFlags*)&forMarshaling->usage, sizeof(VkBufferUsageFlags));
-    *ptr += sizeof(VkBufferUsageFlags);
-    memcpy(*ptr, (VkExternalMemoryHandleTypeFlagBits*)&forMarshaling->handleType,
-           sizeof(VkExternalMemoryHandleTypeFlagBits));
-    *ptr += sizeof(VkExternalMemoryHandleTypeFlagBits);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkBufferCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkBufferUsageFlags));
+    writeStreamBytes(ptr, &forMarshaling->handleType, sizeof(VkExternalMemoryHandleTypeFlagBits));
 }
 
 void reservedmarshal_VkExternalBufferProperties(VulkanStreamGuest* vkStream,
                                                 VkStructureType rootType,
                                                 const VkExternalBufferProperties* forMarshaling,
                                                 uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -3857,183 +2502,129 @@ void reservedmarshal_VkPhysicalDeviceIDProperties(VulkanStreamGuest* vkStream,
                                                   VkStructureType rootType,
                                                   const VkPhysicalDeviceIDProperties* forMarshaling,
                                                   uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint8_t*)forMarshaling->deviceUUID, VK_UUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_UUID_SIZE * sizeof(uint8_t);
-    memcpy(*ptr, (uint8_t*)forMarshaling->driverUUID, VK_UUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_UUID_SIZE * sizeof(uint8_t);
-    memcpy(*ptr, (uint8_t*)forMarshaling->deviceLUID, VK_LUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_LUID_SIZE * sizeof(uint8_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceNodeMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->deviceLUIDValid, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, forMarshaling->deviceUUID, VK_UUID_SIZE * sizeof(uint8_t));
+    writeStreamBytes(ptr, forMarshaling->driverUUID, VK_UUID_SIZE * sizeof(uint8_t));
+    writeStreamBytes(ptr, forMarshaling->deviceLUID, VK_LUID_SIZE * sizeof(uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceNodeMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceLUIDValid, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkExternalMemoryImageCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkExternalMemoryImageCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalMemoryHandleTypeFlags*)&forMarshaling->handleTypes,
-           sizeof(VkExternalMemoryHandleTypeFlags));
-    *ptr += sizeof(VkExternalMemoryHandleTypeFlags);
+    writeStreamBytes(ptr, &forMarshaling->handleTypes, sizeof(VkExternalMemoryHandleTypeFlags));
 }
 
 void reservedmarshal_VkExternalMemoryBufferCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkExternalMemoryBufferCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalMemoryHandleTypeFlags*)&forMarshaling->handleTypes,
-           sizeof(VkExternalMemoryHandleTypeFlags));
-    *ptr += sizeof(VkExternalMemoryHandleTypeFlags);
+    writeStreamBytes(ptr, &forMarshaling->handleTypes, sizeof(VkExternalMemoryHandleTypeFlags));
 }
 
 void reservedmarshal_VkExportMemoryAllocateInfo(VulkanStreamGuest* vkStream,
                                                 VkStructureType rootType,
                                                 const VkExportMemoryAllocateInfo* forMarshaling,
                                                 uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalMemoryHandleTypeFlags*)&forMarshaling->handleTypes,
-           sizeof(VkExternalMemoryHandleTypeFlags));
-    *ptr += sizeof(VkExternalMemoryHandleTypeFlags);
+    writeStreamBytes(ptr, &forMarshaling->handleTypes, sizeof(VkExternalMemoryHandleTypeFlags));
 }
 
 void reservedmarshal_VkPhysicalDeviceExternalFenceInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceExternalFenceInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalFenceHandleTypeFlagBits*)&forMarshaling->handleType,
-           sizeof(VkExternalFenceHandleTypeFlagBits));
-    *ptr += sizeof(VkExternalFenceHandleTypeFlagBits);
+    writeStreamBytes(ptr, &forMarshaling->handleType, sizeof(VkExternalFenceHandleTypeFlagBits));
 }
 
 void reservedmarshal_VkExternalFenceProperties(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkExternalFenceProperties* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalFenceHandleTypeFlags*)&forMarshaling->exportFromImportedHandleTypes,
-           sizeof(VkExternalFenceHandleTypeFlags));
-    *ptr += sizeof(VkExternalFenceHandleTypeFlags);
-    memcpy(*ptr, (VkExternalFenceHandleTypeFlags*)&forMarshaling->compatibleHandleTypes,
-           sizeof(VkExternalFenceHandleTypeFlags));
-    *ptr += sizeof(VkExternalFenceHandleTypeFlags);
-    memcpy(*ptr, (VkExternalFenceFeatureFlags*)&forMarshaling->externalFenceFeatures,
-           sizeof(VkExternalFenceFeatureFlags));
-    *ptr += sizeof(VkExternalFenceFeatureFlags);
+    writeStreamBytes(ptr, &forMarshaling->exportFromImportedHandleTypes,
+                     sizeof(VkExternalFenceHandleTypeFlags));
+    writeStreamBytes(ptr, &forMarshaling->compatibleHandleTypes,
+                     sizeof(VkExternalFenceHandleTypeFlags));
+    writeStreamBytes(ptr, &forMarshaling->externalFenceFeatures,
+                     sizeof(VkExternalFenceFeatureFlags));
 }
 
 void reservedmarshal_VkExportFenceCreateInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkExportFenceCreateInfo* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalFenceHandleTypeFlags*)&forMarshaling->handleTypes,
-           sizeof(VkExternalFenceHandleTypeFlags));
-    *ptr += sizeof(VkExternalFenceHandleTypeFlags);
+    writeStreamBytes(ptr, &forMarshaling->handleTypes, sizeof(VkExternalFenceHandleTypeFlags));
 }
 
 void reservedmarshal_VkExportSemaphoreCreateInfo(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkExportSemaphoreCreateInfo* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalSemaphoreHandleTypeFlags*)&forMarshaling->handleTypes,
-           sizeof(VkExternalSemaphoreHandleTypeFlags));
-    *ptr += sizeof(VkExternalSemaphoreHandleTypeFlags);
+    writeStreamBytes(ptr, &forMarshaling->handleTypes, sizeof(VkExternalSemaphoreHandleTypeFlags));
 }
 
 void reservedmarshal_VkPhysicalDeviceExternalSemaphoreInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceExternalSemaphoreInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalSemaphoreHandleTypeFlagBits*)&forMarshaling->handleType,
-           sizeof(VkExternalSemaphoreHandleTypeFlagBits));
-    *ptr += sizeof(VkExternalSemaphoreHandleTypeFlagBits);
+    writeStreamBytes(ptr, &forMarshaling->handleType,
+                     sizeof(VkExternalSemaphoreHandleTypeFlagBits));
 }
 
 void reservedmarshal_VkExternalSemaphoreProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkExternalSemaphoreProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkExternalSemaphoreHandleTypeFlags*)&forMarshaling->exportFromImportedHandleTypes,
-           sizeof(VkExternalSemaphoreHandleTypeFlags));
-    *ptr += sizeof(VkExternalSemaphoreHandleTypeFlags);
-    memcpy(*ptr, (VkExternalSemaphoreHandleTypeFlags*)&forMarshaling->compatibleHandleTypes,
-           sizeof(VkExternalSemaphoreHandleTypeFlags));
-    *ptr += sizeof(VkExternalSemaphoreHandleTypeFlags);
-    memcpy(*ptr, (VkExternalSemaphoreFeatureFlags*)&forMarshaling->externalSemaphoreFeatures,
-           sizeof(VkExternalSemaphoreFeatureFlags));
-    *ptr += sizeof(VkExternalSemaphoreFeatureFlags);
+    writeStreamBytes(ptr, &forMarshaling->exportFromImportedHandleTypes,
+                     sizeof(VkExternalSemaphoreHandleTypeFlags));
+    writeStreamBytes(ptr, &forMarshaling->compatibleHandleTypes,
+                     sizeof(VkExternalSemaphoreHandleTypeFlags));
+    writeStreamBytes(ptr, &forMarshaling->externalSemaphoreFeatures,
+                     sizeof(VkExternalSemaphoreFeatureFlags));
 }
 
 #endif
@@ -4041,61 +2632,41 @@ void reservedmarshal_VkExternalSemaphoreProperties(
 void reservedmarshal_VkPhysicalDeviceSubgroupProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceSubgroupProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subgroupSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->supportedStages, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    memcpy(*ptr, (VkSubgroupFeatureFlags*)&forMarshaling->supportedOperations,
-           sizeof(VkSubgroupFeatureFlags));
-    *ptr += sizeof(VkSubgroupFeatureFlags);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->quadOperationsInAllStages, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->subgroupSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->supportedStages, sizeof(VkShaderStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->supportedOperations, sizeof(VkSubgroupFeatureFlags));
+    writeStreamBytes(ptr, &forMarshaling->quadOperationsInAllStages, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDevice16BitStorageFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevice16BitStorageFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storageBuffer16BitAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->uniformAndStorageBuffer16BitAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storagePushConstant16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storageInputOutput16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->storageBuffer16BitAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->uniformAndStorageBuffer16BitAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->storagePushConstant16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->storageInputOutput16, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceVariablePointersFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVariablePointersFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->variablePointersStorageBuffer, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->variablePointers, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->variablePointersStorageBuffer, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->variablePointers, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkDescriptorUpdateTemplateEntry(
@@ -4103,174 +2674,114 @@ void reservedmarshal_VkDescriptorUpdateTemplateEntry(
     const VkDescriptorUpdateTemplateEntry* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstBinding, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstArrayElement, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkDescriptorType*)&forMarshaling->descriptorType, sizeof(VkDescriptorType));
-    *ptr += sizeof(VkDescriptorType);
-    uint64_t cgen_var_0 = (uint64_t)forMarshaling->offset;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    uint64_t cgen_var_1 = (uint64_t)forMarshaling->stride;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->dstBinding, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstArrayElement, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->descriptorCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->descriptorType, sizeof(VkDescriptorType));
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->offset);
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->stride);
 }
 
 void reservedmarshal_VkDescriptorUpdateTemplateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDescriptorUpdateTemplateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDescriptorUpdateTemplateCreateFlags*)&forMarshaling->flags,
-           sizeof(VkDescriptorUpdateTemplateCreateFlags));
-    *ptr += sizeof(VkDescriptorUpdateTemplateCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorUpdateEntryCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkDescriptorUpdateTemplateCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->descriptorUpdateEntryCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->descriptorUpdateEntryCount; ++i) {
         reservedmarshal_VkDescriptorUpdateTemplateEntry(
             vkStream, rootType,
             (const VkDescriptorUpdateTemplateEntry*)(forMarshaling->pDescriptorUpdateEntries + i),
             ptr);
     }
-    memcpy(*ptr, (VkDescriptorUpdateTemplateType*)&forMarshaling->templateType,
-           sizeof(VkDescriptorUpdateTemplateType));
-    *ptr += sizeof(VkDescriptorUpdateTemplateType);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 =
-        gfxstream_vk_descriptor_set_layout_to_host_u64((*&forMarshaling->descriptorSetLayout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkPipelineBindPoint*)&forMarshaling->pipelineBindPoint,
-           sizeof(VkPipelineBindPoint));
-    *ptr += sizeof(VkPipelineBindPoint);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->pipelineLayout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->set, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->templateType, sizeof(VkDescriptorUpdateTemplateType));
+    writeStreamVal(
+        ptr, gfxstream_vk_descriptor_set_layout_to_host_u64(forMarshaling->descriptorSetLayout));
+    writeStreamBytes(ptr, &forMarshaling->pipelineBindPoint, sizeof(VkPipelineBindPoint));
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->pipelineLayout));
+    writeStreamBytes(ptr, &forMarshaling->set, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance3Properties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance3Properties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerSetDescriptors, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->maxMemoryAllocationSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->maxPerSetDescriptors, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxMemoryAllocationSize, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkDescriptorSetLayoutSupport(VulkanStreamGuest* vkStream,
                                                   VkStructureType rootType,
                                                   const VkDescriptorSetLayoutSupport* forMarshaling,
                                                   uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->supported, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->supported, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkSamplerYcbcrConversionCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSamplerYcbcrConversionCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkSamplerYcbcrModelConversion*)&forMarshaling->ycbcrModel,
-           sizeof(VkSamplerYcbcrModelConversion));
-    *ptr += sizeof(VkSamplerYcbcrModelConversion);
-    memcpy(*ptr, (VkSamplerYcbcrRange*)&forMarshaling->ycbcrRange, sizeof(VkSamplerYcbcrRange));
-    *ptr += sizeof(VkSamplerYcbcrRange);
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->ycbcrModel, sizeof(VkSamplerYcbcrModelConversion));
+    writeStreamBytes(ptr, &forMarshaling->ycbcrRange, sizeof(VkSamplerYcbcrRange));
     reservedmarshal_VkComponentMapping(vkStream, rootType,
                                        (VkComponentMapping*)(&forMarshaling->components), ptr);
-    memcpy(*ptr, (VkChromaLocation*)&forMarshaling->xChromaOffset, sizeof(VkChromaLocation));
-    *ptr += sizeof(VkChromaLocation);
-    memcpy(*ptr, (VkChromaLocation*)&forMarshaling->yChromaOffset, sizeof(VkChromaLocation));
-    *ptr += sizeof(VkChromaLocation);
-    memcpy(*ptr, (VkFilter*)&forMarshaling->chromaFilter, sizeof(VkFilter));
-    *ptr += sizeof(VkFilter);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->forceExplicitReconstruction, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->xChromaOffset, sizeof(VkChromaLocation));
+    writeStreamBytes(ptr, &forMarshaling->yChromaOffset, sizeof(VkChromaLocation));
+    writeStreamBytes(ptr, &forMarshaling->chromaFilter, sizeof(VkFilter));
+    writeStreamBytes(ptr, &forMarshaling->forceExplicitReconstruction, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkSamplerYcbcrConversionInfo(VulkanStreamGuest* vkStream,
                                                   VkStructureType rootType,
                                                   const VkSamplerYcbcrConversionInfo* forMarshaling,
                                                   uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_sampler_ycbcr_conversion_to_host_u64((*&forMarshaling->conversion));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr,
+                   gfxstream_vk_sampler_ycbcr_conversion_to_host_u64(forMarshaling->conversion));
 }
 
 void reservedmarshal_VkPhysicalDeviceSamplerYcbcrConversionFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceSamplerYcbcrConversionFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->samplerYcbcrConversion, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->samplerYcbcrConversion, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkSamplerYcbcrConversionImageFormatProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSamplerYcbcrConversionImageFormatProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->combinedImageSamplerDescriptorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->combinedImageSamplerDescriptorCount, sizeof(uint32_t));
 }
 
 #endif
@@ -4278,18 +2789,13 @@ void reservedmarshal_VkSamplerYcbcrConversionImageFormatProperties(
 void reservedmarshal_VkDeviceGroupRenderPassBeginInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceGroupRenderPassBeginInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceRenderAreaCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->deviceMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceRenderAreaCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->deviceRenderAreaCount; ++i) {
         reservedmarshal_VkRect2D(vkStream, rootType,
                                  (const VkRect2D*)(forMarshaling->pDeviceRenderAreas + i), ptr);
@@ -4299,17 +2805,12 @@ void reservedmarshal_VkDeviceGroupRenderPassBeginInfo(
 void reservedmarshal_VkPhysicalDevicePointClippingProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePointClippingProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPointClippingBehavior*)&forMarshaling->pointClippingBehavior,
-           sizeof(VkPointClippingBehavior));
-    *ptr += sizeof(VkPointClippingBehavior);
+    writeStreamBytes(ptr, &forMarshaling->pointClippingBehavior, sizeof(VkPointClippingBehavior));
 }
 
 void reservedmarshal_VkInputAttachmentAspectReference(
@@ -4317,27 +2818,20 @@ void reservedmarshal_VkInputAttachmentAspectReference(
     const VkInputAttachmentAspectReference* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subpass, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->inputAttachmentIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkImageAspectFlags*)&forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
-    *ptr += sizeof(VkImageAspectFlags);
+    writeStreamBytes(ptr, &forMarshaling->subpass, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->inputAttachmentIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
 }
 
 void reservedmarshal_VkRenderPassInputAttachmentAspectCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkRenderPassInputAttachmentAspectCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->aspectReferenceCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->aspectReferenceCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->aspectReferenceCount; ++i) {
         reservedmarshal_VkInputAttachmentAspectReference(
             vkStream, rootType,
@@ -4348,102 +2842,73 @@ void reservedmarshal_VkRenderPassInputAttachmentAspectCreateInfo(
 void reservedmarshal_VkPipelineTessellationDomainOriginStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineTessellationDomainOriginStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkTessellationDomainOrigin*)&forMarshaling->domainOrigin,
-           sizeof(VkTessellationDomainOrigin));
-    *ptr += sizeof(VkTessellationDomainOrigin);
+    writeStreamBytes(ptr, &forMarshaling->domainOrigin, sizeof(VkTessellationDomainOrigin));
 }
 
 void reservedmarshal_VkRenderPassMultiviewCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkRenderPassMultiviewCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subpassCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->subpassCount, sizeof(uint32_t));
     if (forMarshaling->subpassCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pViewMasks,
-               forMarshaling->subpassCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->subpassCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pViewMasks,
+                         forMarshaling->subpassCount * sizeof(const uint32_t));
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dependencyCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->dependencyCount, sizeof(uint32_t));
     if (forMarshaling->dependencyCount > 0) {
-        memcpy(*ptr, (const int32_t*)forMarshaling->pViewOffsets,
-               forMarshaling->dependencyCount * sizeof(const int32_t));
-        *ptr += forMarshaling->dependencyCount * sizeof(const int32_t);
+        writeStreamBytes(ptr, forMarshaling->pViewOffsets,
+                         forMarshaling->dependencyCount * sizeof(const int32_t));
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->correlationMaskCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->correlationMaskCount, sizeof(uint32_t));
     if (forMarshaling->correlationMaskCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pCorrelationMasks,
-               forMarshaling->correlationMaskCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->correlationMaskCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pCorrelationMasks,
+                         forMarshaling->correlationMaskCount * sizeof(const uint32_t));
     }
 }
 
 void reservedmarshal_VkPhysicalDeviceMultiviewFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMultiviewFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->multiview, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->multiviewGeometryShader, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->multiviewTessellationShader, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->multiview, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->multiviewGeometryShader, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->multiviewTessellationShader, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceMultiviewProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMultiviewProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxMultiviewViewCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxMultiviewInstanceIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->maxMultiviewViewCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxMultiviewInstanceIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderDrawParametersFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderDrawParametersFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDrawParameters, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderDrawParameters, sizeof(VkBool32));
 }
 
 #endif
@@ -4453,33 +2918,23 @@ void reservedmarshal_VkConformanceVersion(VulkanStreamGuest* vkStream, VkStructu
                                           uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint8_t*)&forMarshaling->major, sizeof(uint8_t));
-    *ptr += sizeof(uint8_t);
-    memcpy(*ptr, (uint8_t*)&forMarshaling->minor, sizeof(uint8_t));
-    *ptr += sizeof(uint8_t);
-    memcpy(*ptr, (uint8_t*)&forMarshaling->subminor, sizeof(uint8_t));
-    *ptr += sizeof(uint8_t);
-    memcpy(*ptr, (uint8_t*)&forMarshaling->patch, sizeof(uint8_t));
-    *ptr += sizeof(uint8_t);
+    writeStreamBytes(ptr, &forMarshaling->major, sizeof(uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->minor, sizeof(uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->subminor, sizeof(uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->patch, sizeof(uint8_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceDriverProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceDriverProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDriverId*)&forMarshaling->driverID, sizeof(VkDriverId));
-    *ptr += sizeof(VkDriverId);
-    memcpy(*ptr, (char*)forMarshaling->driverName, VK_MAX_DRIVER_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_DRIVER_NAME_SIZE * sizeof(char);
-    memcpy(*ptr, (char*)forMarshaling->driverInfo, VK_MAX_DRIVER_INFO_SIZE * sizeof(char));
-    *ptr += VK_MAX_DRIVER_INFO_SIZE * sizeof(char);
+    writeStreamBytes(ptr, &forMarshaling->driverID, sizeof(VkDriverId));
+    writeStreamBytes(ptr, forMarshaling->driverName, VK_MAX_DRIVER_NAME_SIZE * sizeof(char));
+    writeStreamBytes(ptr, forMarshaling->driverInfo, VK_MAX_DRIVER_INFO_SIZE * sizeof(char));
     reservedmarshal_VkConformanceVersion(
         vkStream, rootType, (VkConformanceVersion*)(&forMarshaling->conformanceVersion), ptr);
 }
@@ -4487,634 +2942,403 @@ void reservedmarshal_VkPhysicalDeviceDriverProperties(
 void reservedmarshal_VkPhysicalDeviceVulkan11Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkan11Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storageBuffer16BitAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->uniformAndStorageBuffer16BitAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storagePushConstant16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storageInputOutput16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->multiview, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->multiviewGeometryShader, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->multiviewTessellationShader, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->variablePointersStorageBuffer, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->variablePointers, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->protectedMemory, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->samplerYcbcrConversion, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDrawParameters, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->storageBuffer16BitAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->uniformAndStorageBuffer16BitAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->storagePushConstant16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->storageInputOutput16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->multiview, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->multiviewGeometryShader, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->multiviewTessellationShader, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->variablePointersStorageBuffer, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->variablePointers, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->protectedMemory, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->samplerYcbcrConversion, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDrawParameters, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceVulkan11Properties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkan11Properties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint8_t*)forMarshaling->deviceUUID, VK_UUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_UUID_SIZE * sizeof(uint8_t);
-    memcpy(*ptr, (uint8_t*)forMarshaling->driverUUID, VK_UUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_UUID_SIZE * sizeof(uint8_t);
-    memcpy(*ptr, (uint8_t*)forMarshaling->deviceLUID, VK_LUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_LUID_SIZE * sizeof(uint8_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceNodeMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->deviceLUIDValid, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subgroupSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->subgroupSupportedStages,
-           sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    memcpy(*ptr, (VkSubgroupFeatureFlags*)&forMarshaling->subgroupSupportedOperations,
-           sizeof(VkSubgroupFeatureFlags));
-    *ptr += sizeof(VkSubgroupFeatureFlags);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->subgroupQuadOperationsInAllStages, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkPointClippingBehavior*)&forMarshaling->pointClippingBehavior,
-           sizeof(VkPointClippingBehavior));
-    *ptr += sizeof(VkPointClippingBehavior);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxMultiviewViewCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxMultiviewInstanceIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->protectedNoFault, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerSetDescriptors, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->maxMemoryAllocationSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, forMarshaling->deviceUUID, VK_UUID_SIZE * sizeof(uint8_t));
+    writeStreamBytes(ptr, forMarshaling->driverUUID, VK_UUID_SIZE * sizeof(uint8_t));
+    writeStreamBytes(ptr, forMarshaling->deviceLUID, VK_LUID_SIZE * sizeof(uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceNodeMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceLUIDValid, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->subgroupSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->subgroupSupportedStages, sizeof(VkShaderStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->subgroupSupportedOperations,
+                     sizeof(VkSubgroupFeatureFlags));
+    writeStreamBytes(ptr, &forMarshaling->subgroupQuadOperationsInAllStages, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->pointClippingBehavior, sizeof(VkPointClippingBehavior));
+    writeStreamBytes(ptr, &forMarshaling->maxMultiviewViewCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxMultiviewInstanceIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->protectedNoFault, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxPerSetDescriptors, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxMemoryAllocationSize, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkPhysicalDeviceVulkan12Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkan12Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->samplerMirrorClampToEdge, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->drawIndirectCount, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storageBuffer8BitAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->uniformAndStorageBuffer8BitAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storagePushConstant8, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderBufferInt64Atomics, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSharedInt64Atomics, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInt8, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorIndexing, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInputAttachmentArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformTexelBufferArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageTexelBufferArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformBufferArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSampledImageArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageBufferArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInputAttachmentArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformTexelBufferArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageTexelBufferArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingUniformBufferUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingSampledImageUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingStorageImageUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingStorageBufferUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingUniformTexelBufferUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingStorageTexelBufferUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingUpdateUnusedWhilePending,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingPartiallyBound, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingVariableDescriptorCount,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->runtimeDescriptorArray, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->samplerFilterMinmax, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->scalarBlockLayout, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->imagelessFramebuffer, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->uniformBufferStandardLayout, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSubgroupExtendedTypes, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->separateDepthStencilLayouts, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->hostQueryReset, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->timelineSemaphore, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->bufferDeviceAddress, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->bufferDeviceAddressCaptureReplay, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->bufferDeviceAddressMultiDevice, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vulkanMemoryModel, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vulkanMemoryModelDeviceScope, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vulkanMemoryModelAvailabilityVisibilityChains,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderOutputViewportIndex, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderOutputLayer, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->subgroupBroadcastDynamicId, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->samplerMirrorClampToEdge, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->drawIndirectCount, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->storageBuffer8BitAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->uniformAndStorageBuffer8BitAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->storagePushConstant8, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderBufferInt64Atomics, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSharedInt64Atomics, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInt8, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorIndexing, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInputAttachmentArrayDynamicIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformTexelBufferArrayDynamicIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageTexelBufferArrayDynamicIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformBufferArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSampledImageArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageBufferArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInputAttachmentArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformTexelBufferArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageTexelBufferArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingUniformBufferUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingSampledImageUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingStorageImageUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingStorageBufferUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingUniformTexelBufferUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingStorageTexelBufferUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingUpdateUnusedWhilePending,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingPartiallyBound, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingVariableDescriptorCount,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->runtimeDescriptorArray, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->samplerFilterMinmax, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->scalarBlockLayout, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->imagelessFramebuffer, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->uniformBufferStandardLayout, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSubgroupExtendedTypes, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->separateDepthStencilLayouts, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->hostQueryReset, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->timelineSemaphore, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->bufferDeviceAddress, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->bufferDeviceAddressCaptureReplay, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->bufferDeviceAddressMultiDevice, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vulkanMemoryModel, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vulkanMemoryModelDeviceScope, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vulkanMemoryModelAvailabilityVisibilityChains,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderOutputViewportIndex, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderOutputLayer, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->subgroupBroadcastDynamicId, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceVulkan12Properties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkan12Properties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDriverId*)&forMarshaling->driverID, sizeof(VkDriverId));
-    *ptr += sizeof(VkDriverId);
-    memcpy(*ptr, (char*)forMarshaling->driverName, VK_MAX_DRIVER_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_DRIVER_NAME_SIZE * sizeof(char);
-    memcpy(*ptr, (char*)forMarshaling->driverInfo, VK_MAX_DRIVER_INFO_SIZE * sizeof(char));
-    *ptr += VK_MAX_DRIVER_INFO_SIZE * sizeof(char);
+    writeStreamBytes(ptr, &forMarshaling->driverID, sizeof(VkDriverId));
+    writeStreamBytes(ptr, forMarshaling->driverName, VK_MAX_DRIVER_NAME_SIZE * sizeof(char));
+    writeStreamBytes(ptr, forMarshaling->driverInfo, VK_MAX_DRIVER_INFO_SIZE * sizeof(char));
     reservedmarshal_VkConformanceVersion(
         vkStream, rootType, (VkConformanceVersion*)(&forMarshaling->conformanceVersion), ptr);
-    memcpy(*ptr, (VkShaderFloatControlsIndependence*)&forMarshaling->denormBehaviorIndependence,
-           sizeof(VkShaderFloatControlsIndependence));
-    *ptr += sizeof(VkShaderFloatControlsIndependence);
-    memcpy(*ptr, (VkShaderFloatControlsIndependence*)&forMarshaling->roundingModeIndependence,
-           sizeof(VkShaderFloatControlsIndependence));
-    *ptr += sizeof(VkShaderFloatControlsIndependence);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSignedZeroInfNanPreserveFloat16,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSignedZeroInfNanPreserveFloat32,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSignedZeroInfNanPreserveFloat64,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormPreserveFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormPreserveFloat32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormPreserveFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormFlushToZeroFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormFlushToZeroFloat32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormFlushToZeroFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTEFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTEFloat32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTEFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTZFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTZFloat32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTZFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxUpdateAfterBindDescriptorsInAllPools,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformBufferArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSampledImageArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageBufferArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInputAttachmentArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->robustBufferAccessUpdateAfterBind, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->quadDivergentImplicitLod, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindSamplers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindUniformBuffers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindStorageBuffers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindSampledImages,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindStorageImages,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindInputAttachments,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageUpdateAfterBindResources, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindSamplers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindUniformBuffers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindStorageBuffers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindSampledImages,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindStorageImages,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindInputAttachments,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkResolveModeFlags*)&forMarshaling->supportedDepthResolveModes,
-           sizeof(VkResolveModeFlags));
-    *ptr += sizeof(VkResolveModeFlags);
-    memcpy(*ptr, (VkResolveModeFlags*)&forMarshaling->supportedStencilResolveModes,
-           sizeof(VkResolveModeFlags));
-    *ptr += sizeof(VkResolveModeFlags);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->independentResolveNone, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->independentResolve, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->filterMinmaxSingleComponentFormats, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->filterMinmaxImageComponentMapping, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->maxTimelineSemaphoreValueDifference, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (VkSampleCountFlags*)&forMarshaling->framebufferIntegerColorSampleCounts,
-           sizeof(VkSampleCountFlags));
-    *ptr += sizeof(VkSampleCountFlags);
+    writeStreamBytes(ptr, &forMarshaling->denormBehaviorIndependence,
+                     sizeof(VkShaderFloatControlsIndependence));
+    writeStreamBytes(ptr, &forMarshaling->roundingModeIndependence,
+                     sizeof(VkShaderFloatControlsIndependence));
+    writeStreamBytes(ptr, &forMarshaling->shaderSignedZeroInfNanPreserveFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSignedZeroInfNanPreserveFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSignedZeroInfNanPreserveFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormPreserveFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormPreserveFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormPreserveFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormFlushToZeroFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormFlushToZeroFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormFlushToZeroFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTEFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTEFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTEFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTZFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTZFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTZFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxUpdateAfterBindDescriptorsInAllPools,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformBufferArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSampledImageArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageBufferArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInputAttachmentArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->robustBufferAccessUpdateAfterBind, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->quadDivergentImplicitLod, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindSamplers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindUniformBuffers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindStorageBuffers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindSampledImages,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindStorageImages,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindInputAttachments,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageUpdateAfterBindResources, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindSamplers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindUniformBuffers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindStorageBuffers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindSampledImages,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindStorageImages,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindInputAttachments,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->supportedDepthResolveModes, sizeof(VkResolveModeFlags));
+    writeStreamBytes(ptr, &forMarshaling->supportedStencilResolveModes, sizeof(VkResolveModeFlags));
+    writeStreamBytes(ptr, &forMarshaling->independentResolveNone, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->independentResolve, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->filterMinmaxSingleComponentFormats, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->filterMinmaxImageComponentMapping, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxTimelineSemaphoreValueDifference, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->framebufferIntegerColorSampleCounts,
+                     sizeof(VkSampleCountFlags));
 }
 
 void reservedmarshal_VkImageFormatListCreateInfo(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkImageFormatListCreateInfo* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewFormatCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->viewFormatCount, sizeof(uint32_t));
     if (forMarshaling->viewFormatCount > 0) {
-        memcpy(*ptr, (const VkFormat*)forMarshaling->pViewFormats,
-               forMarshaling->viewFormatCount * sizeof(const VkFormat));
-        *ptr += forMarshaling->viewFormatCount * sizeof(const VkFormat);
+        writeStreamBytes(ptr, forMarshaling->pViewFormats,
+                         forMarshaling->viewFormatCount * sizeof(const VkFormat));
     }
 }
 
 void reservedmarshal_VkPhysicalDeviceVulkanMemoryModelFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkanMemoryModelFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vulkanMemoryModel, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vulkanMemoryModelDeviceScope, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vulkanMemoryModelAvailabilityVisibilityChains,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->vulkanMemoryModel, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vulkanMemoryModelDeviceScope, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vulkanMemoryModelAvailabilityVisibilityChains,
+                     sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceHostQueryResetFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceHostQueryResetFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->hostQueryReset, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->hostQueryReset, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceTimelineSemaphoreFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceTimelineSemaphoreFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->timelineSemaphore, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->timelineSemaphore, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceTimelineSemaphoreProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceTimelineSemaphoreProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->maxTimelineSemaphoreValueDifference, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->maxTimelineSemaphoreValueDifference, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkSemaphoreTypeCreateInfo(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkSemaphoreTypeCreateInfo* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSemaphoreType*)&forMarshaling->semaphoreType, sizeof(VkSemaphoreType));
-    *ptr += sizeof(VkSemaphoreType);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->initialValue, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->semaphoreType, sizeof(VkSemaphoreType));
+    writeStreamBytes(ptr, &forMarshaling->initialValue, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkTimelineSemaphoreSubmitInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkTimelineSemaphoreSubmitInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->waitSemaphoreValueCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pWaitSemaphoreValues;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->waitSemaphoreValueCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pWaitSemaphoreValues);
     if (forMarshaling->pWaitSemaphoreValues) {
         if (forMarshaling->waitSemaphoreValueCount > 0) {
-            memcpy(*ptr, (const uint64_t*)forMarshaling->pWaitSemaphoreValues,
-                   forMarshaling->waitSemaphoreValueCount * sizeof(const uint64_t));
-            *ptr += forMarshaling->waitSemaphoreValueCount * sizeof(const uint64_t);
+            writeStreamBytes(ptr, forMarshaling->pWaitSemaphoreValues,
+                             forMarshaling->waitSemaphoreValueCount * sizeof(const uint64_t));
         }
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->signalSemaphoreValueCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pSignalSemaphoreValues;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->signalSemaphoreValueCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pSignalSemaphoreValues);
     if (forMarshaling->pSignalSemaphoreValues) {
         if (forMarshaling->signalSemaphoreValueCount > 0) {
-            memcpy(*ptr, (const uint64_t*)forMarshaling->pSignalSemaphoreValues,
-                   forMarshaling->signalSemaphoreValueCount * sizeof(const uint64_t));
-            *ptr += forMarshaling->signalSemaphoreValueCount * sizeof(const uint64_t);
+            writeStreamBytes(ptr, forMarshaling->pSignalSemaphoreValues,
+                             forMarshaling->signalSemaphoreValueCount * sizeof(const uint64_t));
         }
     }
 }
 
 void reservedmarshal_VkSemaphoreWaitInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkSemaphoreWaitInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSemaphoreWaitFlags*)&forMarshaling->flags, sizeof(VkSemaphoreWaitFlags));
-    *ptr += sizeof(VkSemaphoreWaitFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->semaphoreCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSemaphoreWaitFlags));
+    writeStreamBytes(ptr, &forMarshaling->semaphoreCount, sizeof(uint32_t));
     if (forMarshaling->semaphoreCount) {
-        uint8_t* cgen_var_0_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->semaphoreCount; ++k) {
-                uint64_t tmpval = gfxstream_vk_semaphore_to_host_u64(forMarshaling->pSemaphores[k]);
-                memcpy(cgen_var_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->semaphoreCount; ++k) {
+            writeStreamVal(ptr, gfxstream_vk_semaphore_to_host_u64(forMarshaling->pSemaphores[k]));
         }
-        *ptr += 8 * forMarshaling->semaphoreCount;
     }
     if (forMarshaling->semaphoreCount > 0) {
-        memcpy(*ptr, (const uint64_t*)forMarshaling->pValues,
-               forMarshaling->semaphoreCount * sizeof(const uint64_t));
-        *ptr += forMarshaling->semaphoreCount * sizeof(const uint64_t);
+        writeStreamBytes(ptr, forMarshaling->pValues,
+                         forMarshaling->semaphoreCount * sizeof(const uint64_t));
     }
 }
 
 void reservedmarshal_VkSemaphoreSignalInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkSemaphoreSignalInfo* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_semaphore_to_host_u64((*&forMarshaling->semaphore));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint64_t*)&forMarshaling->value, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamVal(ptr, gfxstream_vk_semaphore_to_host_u64(forMarshaling->semaphore));
+    writeStreamBytes(ptr, &forMarshaling->value, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceBufferDeviceAddressFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceBufferDeviceAddressFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->bufferDeviceAddress, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->bufferDeviceAddressCaptureReplay, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->bufferDeviceAddressMultiDevice, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->bufferDeviceAddress, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->bufferDeviceAddressCaptureReplay, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->bufferDeviceAddressMultiDevice, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkBufferDeviceAddressInfo(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkBufferDeviceAddressInfo* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
 }
 
 void reservedmarshal_VkBufferOpaqueCaptureAddressCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkBufferOpaqueCaptureAddressCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->opaqueCaptureAddress, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->opaqueCaptureAddress, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkMemoryOpaqueCaptureAddressAllocateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkMemoryOpaqueCaptureAddressAllocateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->opaqueCaptureAddress, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->opaqueCaptureAddress, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkDeviceMemoryOpaqueCaptureAddressInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceMemoryOpaqueCaptureAddressInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_device_memory_to_host_u64((*&forMarshaling->memory));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr, gfxstream_vk_device_memory_to_host_u64(forMarshaling->memory));
 }
 
 #endif
@@ -5122,131 +3346,83 @@ void reservedmarshal_VkDeviceMemoryOpaqueCaptureAddressInfo(
 void reservedmarshal_VkPhysicalDevice8BitStorageFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevice8BitStorageFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storageBuffer8BitAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->uniformAndStorageBuffer8BitAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storagePushConstant8, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->storageBuffer8BitAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->uniformAndStorageBuffer8BitAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->storagePushConstant8, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderAtomicInt64Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderAtomicInt64Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderBufferInt64Atomics, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSharedInt64Atomics, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderBufferInt64Atomics, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSharedInt64Atomics, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderFloat16Int8Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderFloat16Int8Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInt8, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInt8, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceFloatControlsProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceFloatControlsProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkShaderFloatControlsIndependence*)&forMarshaling->denormBehaviorIndependence,
-           sizeof(VkShaderFloatControlsIndependence));
-    *ptr += sizeof(VkShaderFloatControlsIndependence);
-    memcpy(*ptr, (VkShaderFloatControlsIndependence*)&forMarshaling->roundingModeIndependence,
-           sizeof(VkShaderFloatControlsIndependence));
-    *ptr += sizeof(VkShaderFloatControlsIndependence);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSignedZeroInfNanPreserveFloat16,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSignedZeroInfNanPreserveFloat32,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSignedZeroInfNanPreserveFloat64,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormPreserveFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormPreserveFloat32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormPreserveFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormFlushToZeroFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormFlushToZeroFloat32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDenormFlushToZeroFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTEFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTEFloat32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTEFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTZFloat16, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTZFloat32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderRoundingModeRTZFloat64, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->denormBehaviorIndependence,
+                     sizeof(VkShaderFloatControlsIndependence));
+    writeStreamBytes(ptr, &forMarshaling->roundingModeIndependence,
+                     sizeof(VkShaderFloatControlsIndependence));
+    writeStreamBytes(ptr, &forMarshaling->shaderSignedZeroInfNanPreserveFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSignedZeroInfNanPreserveFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSignedZeroInfNanPreserveFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormPreserveFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormPreserveFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormPreserveFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormFlushToZeroFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormFlushToZeroFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDenormFlushToZeroFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTEFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTEFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTEFloat64, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTZFloat16, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTZFloat32, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderRoundingModeRTZFloat64, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkDescriptorSetLayoutBindingFlagsCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDescriptorSetLayoutBindingFlagsCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bindingCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pBindingFlags;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->bindingCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pBindingFlags);
     if (forMarshaling->pBindingFlags) {
         if (forMarshaling->bindingCount > 0) {
-            memcpy(*ptr, (const VkDescriptorBindingFlags*)forMarshaling->pBindingFlags,
-                   forMarshaling->bindingCount * sizeof(const VkDescriptorBindingFlags));
-            *ptr += forMarshaling->bindingCount * sizeof(const VkDescriptorBindingFlags);
+            writeStreamBytes(ptr, forMarshaling->pBindingFlags,
+                             forMarshaling->bindingCount * sizeof(const VkDescriptorBindingFlags));
         }
     }
 }
@@ -5254,264 +3430,184 @@ void reservedmarshal_VkDescriptorSetLayoutBindingFlagsCreateInfo(
 void reservedmarshal_VkPhysicalDeviceDescriptorIndexingFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceDescriptorIndexingFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInputAttachmentArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformTexelBufferArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageTexelBufferArrayDynamicIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformBufferArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSampledImageArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageBufferArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInputAttachmentArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformTexelBufferArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageTexelBufferArrayNonUniformIndexing,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingUniformBufferUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingSampledImageUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingStorageImageUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingStorageBufferUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingUniformTexelBufferUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingStorageTexelBufferUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingUpdateUnusedWhilePending,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingPartiallyBound, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingVariableDescriptorCount,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->runtimeDescriptorArray, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderInputAttachmentArrayDynamicIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformTexelBufferArrayDynamicIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageTexelBufferArrayDynamicIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformBufferArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSampledImageArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageBufferArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInputAttachmentArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformTexelBufferArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageTexelBufferArrayNonUniformIndexing,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingUniformBufferUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingSampledImageUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingStorageImageUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingStorageBufferUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingUniformTexelBufferUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingStorageTexelBufferUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingUpdateUnusedWhilePending,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingPartiallyBound, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingVariableDescriptorCount,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->runtimeDescriptorArray, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceDescriptorIndexingProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceDescriptorIndexingProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxUpdateAfterBindDescriptorsInAllPools,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderUniformBufferArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSampledImageArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageBufferArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderStorageImageArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderInputAttachmentArrayNonUniformIndexingNative,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->robustBufferAccessUpdateAfterBind, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->quadDivergentImplicitLod, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindSamplers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindUniformBuffers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindStorageBuffers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindSampledImages,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindStorageImages,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindInputAttachments,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageUpdateAfterBindResources, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindSamplers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindUniformBuffers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindStorageBuffers,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindSampledImages,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindStorageImages,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindInputAttachments,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->maxUpdateAfterBindDescriptorsInAllPools,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->shaderUniformBufferArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSampledImageArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageBufferArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderStorageImageArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderInputAttachmentArrayNonUniformIndexingNative,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->robustBufferAccessUpdateAfterBind, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->quadDivergentImplicitLod, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindSamplers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindUniformBuffers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindStorageBuffers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindSampledImages,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindStorageImages,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindInputAttachments,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageUpdateAfterBindResources, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindSamplers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindUniformBuffers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindUniformBuffersDynamic,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindStorageBuffers,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindStorageBuffersDynamic,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindSampledImages,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindStorageImages,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindInputAttachments,
+                     sizeof(uint32_t));
 }
 
 void reservedmarshal_VkDescriptorSetVariableDescriptorCountAllocateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDescriptorSetVariableDescriptorCountAllocateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorSetCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->descriptorSetCount, sizeof(uint32_t));
     if (forMarshaling->descriptorSetCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pDescriptorCounts,
-               forMarshaling->descriptorSetCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->descriptorSetCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pDescriptorCounts,
+                         forMarshaling->descriptorSetCount * sizeof(const uint32_t));
     }
 }
 
 void reservedmarshal_VkDescriptorSetVariableDescriptorCountLayoutSupport(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDescriptorSetVariableDescriptorCountLayoutSupport* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVariableDescriptorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->maxVariableDescriptorCount, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceScalarBlockLayoutFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceScalarBlockLayoutFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->scalarBlockLayout, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->scalarBlockLayout, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkSamplerReductionModeCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSamplerReductionModeCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSamplerReductionMode*)&forMarshaling->reductionMode,
-           sizeof(VkSamplerReductionMode));
-    *ptr += sizeof(VkSamplerReductionMode);
+    writeStreamBytes(ptr, &forMarshaling->reductionMode, sizeof(VkSamplerReductionMode));
 }
 
 void reservedmarshal_VkPhysicalDeviceSamplerFilterMinmaxProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceSamplerFilterMinmaxProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->filterMinmaxSingleComponentFormats, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->filterMinmaxImageComponentMapping, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->filterMinmaxSingleComponentFormats, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->filterMinmaxImageComponentMapping, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceUniformBufferStandardLayoutFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceUniformBufferStandardLayoutFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->uniformBufferStandardLayout, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->uniformBufferStandardLayout, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSubgroupExtendedTypes, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderSubgroupExtendedTypes, sizeof(VkBool32));
 }
 
 #endif
@@ -5519,92 +3615,59 @@ void reservedmarshal_VkPhysicalDeviceShaderSubgroupExtendedTypesFeatures(
 void reservedmarshal_VkAttachmentDescription2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                               const VkAttachmentDescription2* forMarshaling,
                                               uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkAttachmentDescriptionFlags*)&forMarshaling->flags,
-           sizeof(VkAttachmentDescriptionFlags));
-    *ptr += sizeof(VkAttachmentDescriptionFlags);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkSampleCountFlagBits*)&forMarshaling->samples, sizeof(VkSampleCountFlagBits));
-    *ptr += sizeof(VkSampleCountFlagBits);
-    memcpy(*ptr, (VkAttachmentLoadOp*)&forMarshaling->loadOp, sizeof(VkAttachmentLoadOp));
-    *ptr += sizeof(VkAttachmentLoadOp);
-    memcpy(*ptr, (VkAttachmentStoreOp*)&forMarshaling->storeOp, sizeof(VkAttachmentStoreOp));
-    *ptr += sizeof(VkAttachmentStoreOp);
-    memcpy(*ptr, (VkAttachmentLoadOp*)&forMarshaling->stencilLoadOp, sizeof(VkAttachmentLoadOp));
-    *ptr += sizeof(VkAttachmentLoadOp);
-    memcpy(*ptr, (VkAttachmentStoreOp*)&forMarshaling->stencilStoreOp, sizeof(VkAttachmentStoreOp));
-    *ptr += sizeof(VkAttachmentStoreOp);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->initialLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->finalLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkAttachmentDescriptionFlags));
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->samples, sizeof(VkSampleCountFlagBits));
+    writeStreamBytes(ptr, &forMarshaling->loadOp, sizeof(VkAttachmentLoadOp));
+    writeStreamBytes(ptr, &forMarshaling->storeOp, sizeof(VkAttachmentStoreOp));
+    writeStreamBytes(ptr, &forMarshaling->stencilLoadOp, sizeof(VkAttachmentLoadOp));
+    writeStreamBytes(ptr, &forMarshaling->stencilStoreOp, sizeof(VkAttachmentStoreOp));
+    writeStreamBytes(ptr, &forMarshaling->initialLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->finalLayout, sizeof(VkImageLayout));
 }
 
 void reservedmarshal_VkAttachmentReference2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                             const VkAttachmentReference2* forMarshaling,
                                             uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachment, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->layout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkImageAspectFlags*)&forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
-    *ptr += sizeof(VkImageAspectFlags);
+    writeStreamBytes(ptr, &forMarshaling->attachment, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->layout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->aspectMask, sizeof(VkImageAspectFlags));
 }
 
 void reservedmarshal_VkSubpassDescription2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkSubpassDescription2* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSubpassDescriptionFlags*)&forMarshaling->flags,
-           sizeof(VkSubpassDescriptionFlags));
-    *ptr += sizeof(VkSubpassDescriptionFlags);
-    memcpy(*ptr, (VkPipelineBindPoint*)&forMarshaling->pipelineBindPoint,
-           sizeof(VkPipelineBindPoint));
-    *ptr += sizeof(VkPipelineBindPoint);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->inputAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSubpassDescriptionFlags));
+    writeStreamBytes(ptr, &forMarshaling->pipelineBindPoint, sizeof(VkPipelineBindPoint));
+    writeStreamBytes(ptr, &forMarshaling->viewMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->inputAttachmentCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->inputAttachmentCount; ++i) {
         reservedmarshal_VkAttachmentReference2(
             vkStream, rootType,
             (const VkAttachmentReference2*)(forMarshaling->pInputAttachments + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->colorAttachmentCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->colorAttachmentCount; ++i) {
         reservedmarshal_VkAttachmentReference2(
             vkStream, rootType,
             (const VkAttachmentReference2*)(forMarshaling->pColorAttachments + i), ptr);
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pResolveAttachments;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pResolveAttachments);
     if (forMarshaling->pResolveAttachments) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->colorAttachmentCount; ++i) {
             reservedmarshal_VkAttachmentReference2(
@@ -5612,74 +3675,50 @@ void reservedmarshal_VkSubpassDescription2(VulkanStreamGuest* vkStream, VkStruct
                 (const VkAttachmentReference2*)(forMarshaling->pResolveAttachments + i), ptr);
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pDepthStencilAttachment;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDepthStencilAttachment);
     if (forMarshaling->pDepthStencilAttachment) {
         reservedmarshal_VkAttachmentReference2(
             vkStream, rootType,
             (const VkAttachmentReference2*)(forMarshaling->pDepthStencilAttachment), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->preserveAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->preserveAttachmentCount, sizeof(uint32_t));
     if (forMarshaling->preserveAttachmentCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pPreserveAttachments,
-               forMarshaling->preserveAttachmentCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->preserveAttachmentCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pPreserveAttachments,
+                         forMarshaling->preserveAttachmentCount * sizeof(const uint32_t));
     }
 }
 
 void reservedmarshal_VkSubpassDependency2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkSubpassDependency2* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->srcSubpass, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstSubpass, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkPipelineStageFlags*)&forMarshaling->srcStageMask, sizeof(VkPipelineStageFlags));
-    *ptr += sizeof(VkPipelineStageFlags);
-    memcpy(*ptr, (VkPipelineStageFlags*)&forMarshaling->dstStageMask, sizeof(VkPipelineStageFlags));
-    *ptr += sizeof(VkPipelineStageFlags);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (VkAccessFlags*)&forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
-    *ptr += sizeof(VkAccessFlags);
-    memcpy(*ptr, (VkDependencyFlags*)&forMarshaling->dependencyFlags, sizeof(VkDependencyFlags));
-    *ptr += sizeof(VkDependencyFlags);
-    memcpy(*ptr, (int32_t*)&forMarshaling->viewOffset, sizeof(int32_t));
-    *ptr += sizeof(int32_t);
+    writeStreamBytes(ptr, &forMarshaling->srcSubpass, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstSubpass, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->srcStageMask, sizeof(VkPipelineStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->dstStageMask, sizeof(VkPipelineStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask, sizeof(VkAccessFlags));
+    writeStreamBytes(ptr, &forMarshaling->dependencyFlags, sizeof(VkDependencyFlags));
+    writeStreamBytes(ptr, &forMarshaling->viewOffset, sizeof(int32_t));
 }
 
 void reservedmarshal_VkSubpassBeginInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkSubpassBeginInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSubpassContents*)&forMarshaling->contents, sizeof(VkSubpassContents));
-    *ptr += sizeof(VkSubpassContents);
+    writeStreamBytes(ptr, &forMarshaling->contents, sizeof(VkSubpassContents));
 }
 
 void reservedmarshal_VkSubpassEndInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                       const VkSubpassEndInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -5689,67 +3728,47 @@ void reservedmarshal_VkSubpassEndInfo(VulkanStreamGuest* vkStream, VkStructureTy
 void reservedmarshal_VkRenderPassCreateInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkRenderPassCreateInfo2* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkRenderPassCreateFlags*)&forMarshaling->flags, sizeof(VkRenderPassCreateFlags));
-    *ptr += sizeof(VkRenderPassCreateFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkRenderPassCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->attachmentCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->attachmentCount; ++i) {
         reservedmarshal_VkAttachmentDescription2(
             vkStream, rootType, (const VkAttachmentDescription2*)(forMarshaling->pAttachments + i),
             ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subpassCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->subpassCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->subpassCount; ++i) {
         reservedmarshal_VkSubpassDescription2(
             vkStream, rootType, (const VkSubpassDescription2*)(forMarshaling->pSubpasses + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dependencyCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->dependencyCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->dependencyCount; ++i) {
         reservedmarshal_VkSubpassDependency2(
             vkStream, rootType, (const VkSubpassDependency2*)(forMarshaling->pDependencies + i),
             ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->correlatedViewMaskCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->correlatedViewMaskCount, sizeof(uint32_t));
     if (forMarshaling->correlatedViewMaskCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pCorrelatedViewMasks,
-               forMarshaling->correlatedViewMaskCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->correlatedViewMaskCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pCorrelatedViewMasks,
+                         forMarshaling->correlatedViewMaskCount * sizeof(const uint32_t));
     }
 }
 
 void reservedmarshal_VkSubpassDescriptionDepthStencilResolve(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSubpassDescriptionDepthStencilResolve* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkResolveModeFlagBits*)&forMarshaling->depthResolveMode,
-           sizeof(VkResolveModeFlagBits));
-    *ptr += sizeof(VkResolveModeFlagBits);
-    memcpy(*ptr, (VkResolveModeFlagBits*)&forMarshaling->stencilResolveMode,
-           sizeof(VkResolveModeFlagBits));
-    *ptr += sizeof(VkResolveModeFlagBits);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pDepthStencilResolveAttachment;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->depthResolveMode, sizeof(VkResolveModeFlagBits));
+    writeStreamBytes(ptr, &forMarshaling->stencilResolveMode, sizeof(VkResolveModeFlagBits));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDepthStencilResolveAttachment);
     if (forMarshaling->pDepthStencilResolveAttachment) {
         reservedmarshal_VkAttachmentReference2(
             vkStream, rootType,
@@ -5760,125 +3779,85 @@ void reservedmarshal_VkSubpassDescriptionDepthStencilResolve(
 void reservedmarshal_VkPhysicalDeviceDepthStencilResolveProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceDepthStencilResolveProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkResolveModeFlags*)&forMarshaling->supportedDepthResolveModes,
-           sizeof(VkResolveModeFlags));
-    *ptr += sizeof(VkResolveModeFlags);
-    memcpy(*ptr, (VkResolveModeFlags*)&forMarshaling->supportedStencilResolveModes,
-           sizeof(VkResolveModeFlags));
-    *ptr += sizeof(VkResolveModeFlags);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->independentResolveNone, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->independentResolve, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->supportedDepthResolveModes, sizeof(VkResolveModeFlags));
+    writeStreamBytes(ptr, &forMarshaling->supportedStencilResolveModes, sizeof(VkResolveModeFlags));
+    writeStreamBytes(ptr, &forMarshaling->independentResolveNone, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->independentResolve, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkImageStencilUsageCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImageStencilUsageCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageUsageFlags*)&forMarshaling->stencilUsage, sizeof(VkImageUsageFlags));
-    *ptr += sizeof(VkImageUsageFlags);
+    writeStreamBytes(ptr, &forMarshaling->stencilUsage, sizeof(VkImageUsageFlags));
 }
 
 void reservedmarshal_VkPhysicalDeviceImagelessFramebufferFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceImagelessFramebufferFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->imagelessFramebuffer, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->imagelessFramebuffer, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkFramebufferAttachmentImageInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkFramebufferAttachmentImageInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageCreateFlags*)&forMarshaling->flags, sizeof(VkImageCreateFlags));
-    *ptr += sizeof(VkImageCreateFlags);
-    memcpy(*ptr, (VkImageUsageFlags*)&forMarshaling->usage, sizeof(VkImageUsageFlags));
-    *ptr += sizeof(VkImageUsageFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->width, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->height, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->layerCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewFormatCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkImageCreateFlags));
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkImageUsageFlags));
+    writeStreamBytes(ptr, &forMarshaling->width, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->height, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->layerCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->viewFormatCount, sizeof(uint32_t));
     if (forMarshaling->viewFormatCount > 0) {
-        memcpy(*ptr, (const VkFormat*)forMarshaling->pViewFormats,
-               forMarshaling->viewFormatCount * sizeof(const VkFormat));
-        *ptr += forMarshaling->viewFormatCount * sizeof(const VkFormat);
+        writeStreamBytes(ptr, forMarshaling->pViewFormats,
+                         forMarshaling->viewFormatCount * sizeof(const VkFormat));
     }
 }
 
 void reservedmarshal_VkRenderPassAttachmentBeginInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkRenderPassAttachmentBeginInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->attachmentCount, sizeof(uint32_t));
     if (forMarshaling->attachmentCount) {
-        uint8_t* cgen_var_0_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->attachmentCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_image_view_to_host_u64(forMarshaling->pAttachments[k]);
-                memcpy(cgen_var_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->attachmentCount; ++k) {
+            writeStreamVal(ptr,
+                           gfxstream_vk_image_view_to_host_u64(forMarshaling->pAttachments[k]));
         }
-        *ptr += 8 * forMarshaling->attachmentCount;
     }
 }
 
 void reservedmarshal_VkFramebufferAttachmentsCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkFramebufferAttachmentsCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachmentImageInfoCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->attachmentImageInfoCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->attachmentImageInfoCount; ++i) {
         reservedmarshal_VkFramebufferAttachmentImageInfo(
             vkStream, rootType,
@@ -5890,48 +3869,35 @@ void reservedmarshal_VkFramebufferAttachmentsCreateInfo(
 void reservedmarshal_VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceSeparateDepthStencilLayoutsFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->separateDepthStencilLayouts, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->separateDepthStencilLayouts, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkAttachmentReferenceStencilLayout(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkAttachmentReferenceStencilLayout* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->stencilLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamBytes(ptr, &forMarshaling->stencilLayout, sizeof(VkImageLayout));
 }
 
 void reservedmarshal_VkAttachmentDescriptionStencilLayout(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkAttachmentDescriptionStencilLayout* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->stencilInitialLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->stencilFinalLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamBytes(ptr, &forMarshaling->stencilInitialLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->stencilFinalLayout, sizeof(VkImageLayout));
 }
 
 #endif
@@ -5939,405 +3905,259 @@ void reservedmarshal_VkAttachmentDescriptionStencilLayout(
 void reservedmarshal_VkPhysicalDeviceVulkan13Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkan13Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->robustImageAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->inlineUniformBlock, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingInlineUniformBlockUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pipelineCreationCacheControl, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->privateData, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDemoteToHelperInvocation, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderTerminateInvocation, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->subgroupSizeControl, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->computeFullSubgroups, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->synchronization2, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->textureCompressionASTC_HDR, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderZeroInitializeWorkgroupMemory, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->dynamicRendering, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderIntegerDotProduct, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance4, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->robustImageAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->inlineUniformBlock, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingInlineUniformBlockUpdateAfterBind,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->pipelineCreationCacheControl, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->privateData, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderDemoteToHelperInvocation, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderTerminateInvocation, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->subgroupSizeControl, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->computeFullSubgroups, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->synchronization2, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->textureCompressionASTC_HDR, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderZeroInitializeWorkgroupMemory, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->dynamicRendering, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderIntegerDotProduct, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maintenance4, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceVulkan13Properties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkan13Properties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->minSubgroupSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxSubgroupSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxComputeWorkgroupSubgroups, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->requiredSubgroupSizeStages,
-           sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxInlineUniformBlockSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorInlineUniformBlocks,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindInlineUniformBlocks,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetInlineUniformBlocks, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindInlineUniformBlocks,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxInlineUniformTotalSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct8BitUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct8BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct8BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct4x8BitPackedUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct4x8BitPackedSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct4x8BitPackedMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct16BitUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct16BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct16BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct32BitUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct32BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct32BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct64BitUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct64BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct64BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(
-        *ptr,
-        (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating8BitUnsignedAccelerated,
+    writeStreamBytes(ptr, &forMarshaling->minSubgroupSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxSubgroupSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxComputeWorkgroupSubgroups, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->requiredSubgroupSizeStages, sizeof(VkShaderStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->maxInlineUniformBlockSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorInlineUniformBlocks,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindInlineUniformBlocks,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetInlineUniformBlocks, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindInlineUniformBlocks,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxInlineUniformTotalSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct8BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct8BitSignedAccelerated, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct8BitMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct4x8BitPackedUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct4x8BitPackedSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct4x8BitPackedMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct16BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct16BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct16BitMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct32BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct32BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct32BitMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct64BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct64BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct64BitMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating8BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating8BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating8BitMixedSignednessAccelerated,
         sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating8BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating8BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating4x8BitPackedUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating4x8BitPackedMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(
-        *ptr,
-        (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating16BitUnsignedAccelerated,
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating4x8BitPackedUnsignedAccelerated,
         sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating16BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating16BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(
-        *ptr,
-        (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating32BitUnsignedAccelerated,
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated,
         sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating32BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating32BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(
-        *ptr,
-        (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating64BitUnsignedAccelerated,
+    writeStreamBytes(
+        ptr,
+        &forMarshaling
+             ->integerDotProductAccumulatingSaturating4x8BitPackedMixedSignednessAccelerated,
         sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating64BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating64BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->storageTexelBufferOffsetAlignmentBytes,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storageTexelBufferOffsetSingleTexelAlignment,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->uniformTexelBufferOffsetAlignmentBytes,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->uniformTexelBufferOffsetSingleTexelAlignment,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->maxBufferSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating16BitUnsignedAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating16BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating16BitMixedSignednessAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating32BitUnsignedAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating32BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating32BitMixedSignednessAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating64BitUnsignedAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating64BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating64BitMixedSignednessAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->storageTexelBufferOffsetAlignmentBytes,
+                     sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->storageTexelBufferOffsetSingleTexelAlignment,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->uniformTexelBufferOffsetAlignmentBytes,
+                     sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->uniformTexelBufferOffsetSingleTexelAlignment,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxBufferSize, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkPhysicalDeviceToolProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceToolProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (char*)forMarshaling->name, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_EXTENSION_NAME_SIZE * sizeof(char);
-    memcpy(*ptr, (char*)forMarshaling->version, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_EXTENSION_NAME_SIZE * sizeof(char);
-    memcpy(*ptr, (VkToolPurposeFlags*)&forMarshaling->purposes, sizeof(VkToolPurposeFlags));
-    *ptr += sizeof(VkToolPurposeFlags);
-    memcpy(*ptr, (char*)forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
-    *ptr += VK_MAX_DESCRIPTION_SIZE * sizeof(char);
-    memcpy(*ptr, (char*)forMarshaling->layer, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_EXTENSION_NAME_SIZE * sizeof(char);
+    writeStreamBytes(ptr, forMarshaling->name, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
+    writeStreamBytes(ptr, forMarshaling->version, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
+    writeStreamBytes(ptr, &forMarshaling->purposes, sizeof(VkToolPurposeFlags));
+    writeStreamBytes(ptr, forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
+    writeStreamBytes(ptr, forMarshaling->layer, VK_MAX_EXTENSION_NAME_SIZE * sizeof(char));
 }
 
 void reservedmarshal_VkPhysicalDevicePrivateDataFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePrivateDataFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->privateData, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->privateData, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkDevicePrivateDataCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDevicePrivateDataCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->privateDataSlotRequestCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->privateDataSlotRequestCount, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPrivateDataSlotCreateInfo(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkPrivateDataSlotCreateInfo* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPrivateDataSlotCreateFlags*)&forMarshaling->flags,
-           sizeof(VkPrivateDataSlotCreateFlags));
-    *ptr += sizeof(VkPrivateDataSlotCreateFlags);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPrivateDataSlotCreateFlags));
 }
 
 void reservedmarshal_VkMemoryBarrier2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                       const VkMemoryBarrier2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineStageFlags2*)&forMarshaling->srcStageMask,
-           sizeof(VkPipelineStageFlags2));
-    *ptr += sizeof(VkPipelineStageFlags2);
-    memcpy(*ptr, (VkAccessFlags2*)&forMarshaling->srcAccessMask, sizeof(VkAccessFlags2));
-    *ptr += sizeof(VkAccessFlags2);
-    memcpy(*ptr, (VkPipelineStageFlags2*)&forMarshaling->dstStageMask,
-           sizeof(VkPipelineStageFlags2));
-    *ptr += sizeof(VkPipelineStageFlags2);
-    memcpy(*ptr, (VkAccessFlags2*)&forMarshaling->dstAccessMask, sizeof(VkAccessFlags2));
-    *ptr += sizeof(VkAccessFlags2);
+    writeStreamBytes(ptr, &forMarshaling->srcStageMask, sizeof(VkPipelineStageFlags2));
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask, sizeof(VkAccessFlags2));
+    writeStreamBytes(ptr, &forMarshaling->dstStageMask, sizeof(VkPipelineStageFlags2));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask, sizeof(VkAccessFlags2));
 }
 
 void reservedmarshal_VkBufferMemoryBarrier2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                             const VkBufferMemoryBarrier2* forMarshaling,
                                             uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineStageFlags2*)&forMarshaling->srcStageMask,
-           sizeof(VkPipelineStageFlags2));
-    *ptr += sizeof(VkPipelineStageFlags2);
-    memcpy(*ptr, (VkAccessFlags2*)&forMarshaling->srcAccessMask, sizeof(VkAccessFlags2));
-    *ptr += sizeof(VkAccessFlags2);
-    memcpy(*ptr, (VkPipelineStageFlags2*)&forMarshaling->dstStageMask,
-           sizeof(VkPipelineStageFlags2));
-    *ptr += sizeof(VkPipelineStageFlags2);
-    memcpy(*ptr, (VkAccessFlags2*)&forMarshaling->dstAccessMask, sizeof(VkAccessFlags2));
-    *ptr += sizeof(VkAccessFlags2);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->srcQueueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstQueueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->buffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->offset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->srcStageMask, sizeof(VkPipelineStageFlags2));
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask, sizeof(VkAccessFlags2));
+    writeStreamBytes(ptr, &forMarshaling->dstStageMask, sizeof(VkPipelineStageFlags2));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask, sizeof(VkAccessFlags2));
+    writeStreamBytes(ptr, &forMarshaling->srcQueueFamilyIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstQueueFamilyIndex, sizeof(uint32_t));
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->buffer));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkImageMemoryBarrier2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkImageMemoryBarrier2* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineStageFlags2*)&forMarshaling->srcStageMask,
-           sizeof(VkPipelineStageFlags2));
-    *ptr += sizeof(VkPipelineStageFlags2);
-    memcpy(*ptr, (VkAccessFlags2*)&forMarshaling->srcAccessMask, sizeof(VkAccessFlags2));
-    *ptr += sizeof(VkAccessFlags2);
-    memcpy(*ptr, (VkPipelineStageFlags2*)&forMarshaling->dstStageMask,
-           sizeof(VkPipelineStageFlags2));
-    *ptr += sizeof(VkPipelineStageFlags2);
-    memcpy(*ptr, (VkAccessFlags2*)&forMarshaling->dstAccessMask, sizeof(VkAccessFlags2));
-    *ptr += sizeof(VkAccessFlags2);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->oldLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->newLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->srcQueueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dstQueueFamilyIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamBytes(ptr, &forMarshaling->srcStageMask, sizeof(VkPipelineStageFlags2));
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask, sizeof(VkAccessFlags2));
+    writeStreamBytes(ptr, &forMarshaling->dstStageMask, sizeof(VkPipelineStageFlags2));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask, sizeof(VkAccessFlags2));
+    writeStreamBytes(ptr, &forMarshaling->oldLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->newLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->srcQueueFamilyIndex, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dstQueueFamilyIndex, sizeof(uint32_t));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
     reservedmarshal_VkImageSubresourceRange(
         vkStream, rootType, (VkImageSubresourceRange*)(&forMarshaling->subresourceRange), ptr);
 }
 
 void reservedmarshal_VkDependencyInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                       const VkDependencyInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDependencyFlags*)&forMarshaling->dependencyFlags, sizeof(VkDependencyFlags));
-    *ptr += sizeof(VkDependencyFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryBarrierCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->dependencyFlags, sizeof(VkDependencyFlags));
+    writeStreamBytes(ptr, &forMarshaling->memoryBarrierCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->memoryBarrierCount; ++i) {
         reservedmarshal_VkMemoryBarrier2(
             vkStream, rootType, (const VkMemoryBarrier2*)(forMarshaling->pMemoryBarriers + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bufferMemoryBarrierCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->bufferMemoryBarrierCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->bufferMemoryBarrierCount; ++i) {
         reservedmarshal_VkBufferMemoryBarrier2(
             vkStream, rootType,
             (const VkBufferMemoryBarrier2*)(forMarshaling->pBufferMemoryBarriers + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->imageMemoryBarrierCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->imageMemoryBarrierCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->imageMemoryBarrierCount; ++i) {
         reservedmarshal_VkImageMemoryBarrier2(
             vkStream, rootType,
@@ -6348,74 +4168,51 @@ void reservedmarshal_VkDependencyInfo(VulkanStreamGuest* vkStream, VkStructureTy
 void reservedmarshal_VkSemaphoreSubmitInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkSemaphoreSubmitInfo* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_semaphore_to_host_u64((*&forMarshaling->semaphore));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint64_t*)&forMarshaling->value, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (VkPipelineStageFlags2*)&forMarshaling->stageMask, sizeof(VkPipelineStageFlags2));
-    *ptr += sizeof(VkPipelineStageFlags2);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_semaphore_to_host_u64(forMarshaling->semaphore));
+    writeStreamBytes(ptr, &forMarshaling->value, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->stageMask, sizeof(VkPipelineStageFlags2));
+    writeStreamBytes(ptr, &forMarshaling->deviceIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkCommandBufferSubmitInfo(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkCommandBufferSubmitInfo* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_command_buffer_to_host_u64((*&forMarshaling->commandBuffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_command_buffer_to_host_u64(forMarshaling->commandBuffer));
+    writeStreamBytes(ptr, &forMarshaling->deviceMask, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkSubmitInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                    const VkSubmitInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSubmitFlags*)&forMarshaling->flags, sizeof(VkSubmitFlags));
-    *ptr += sizeof(VkSubmitFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->waitSemaphoreInfoCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSubmitFlags));
+    writeStreamBytes(ptr, &forMarshaling->waitSemaphoreInfoCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->waitSemaphoreInfoCount; ++i) {
         reservedmarshal_VkSemaphoreSubmitInfo(
             vkStream, rootType,
             (const VkSemaphoreSubmitInfo*)(forMarshaling->pWaitSemaphoreInfos + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->commandBufferInfoCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->commandBufferInfoCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->commandBufferInfoCount; ++i) {
         reservedmarshal_VkCommandBufferSubmitInfo(
             vkStream, rootType,
             (const VkCommandBufferSubmitInfo*)(forMarshaling->pCommandBufferInfos + i), ptr);
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->signalSemaphoreInfoCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->signalSemaphoreInfoCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->signalSemaphoreInfoCount; ++i) {
         reservedmarshal_VkSemaphoreSubmitInfo(
             vkStream, rootType,
@@ -6426,56 +4223,36 @@ void reservedmarshal_VkSubmitInfo2(VulkanStreamGuest* vkStream, VkStructureType 
 void reservedmarshal_VkPhysicalDeviceSynchronization2Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceSynchronization2Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->synchronization2, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->synchronization2, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkBufferCopy2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                    const VkBufferCopy2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->srcOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->dstOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->srcOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->dstOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkCopyBufferInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkCopyBufferInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->srcBuffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->dstBuffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->srcBuffer));
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->dstBuffer));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkBufferCopy2(vkStream, rootType,
                                       (const VkBufferCopy2*)(forMarshaling->pRegions + i), ptr);
@@ -6484,10 +4261,7 @@ void reservedmarshal_VkCopyBufferInfo2(VulkanStreamGuest* vkStream, VkStructureT
 
 void reservedmarshal_VkImageCopy2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                   const VkImageCopy2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -6503,28 +4277,16 @@ void reservedmarshal_VkImageCopy2(VulkanStreamGuest* vkStream, VkStructureType r
 
 void reservedmarshal_VkCopyImageInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                       const VkCopyImageInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->srcImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->srcImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_image_to_host_u64((*&forMarshaling->dstImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->dstImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->srcImage));
+    writeStreamBytes(ptr, &forMarshaling->srcImageLayout, sizeof(VkImageLayout));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->dstImage));
+    writeStreamBytes(ptr, &forMarshaling->dstImageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkImageCopy2(vkStream, rootType,
                                      (const VkImageCopy2*)(forMarshaling->pRegions + i), ptr);
@@ -6533,20 +4295,14 @@ void reservedmarshal_VkCopyImageInfo2(VulkanStreamGuest* vkStream, VkStructureTy
 
 void reservedmarshal_VkBufferImageCopy2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkBufferImageCopy2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->bufferOffset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bufferRowLength, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bufferImageHeight, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->bufferOffset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->bufferRowLength, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->bufferImageHeight, sizeof(uint32_t));
     reservedmarshal_VkImageSubresourceLayers(
         vkStream, rootType, (VkImageSubresourceLayers*)(&forMarshaling->imageSubresource), ptr);
     reservedmarshal_VkOffset3D(vkStream, rootType, (VkOffset3D*)(&forMarshaling->imageOffset), ptr);
@@ -6556,26 +4312,15 @@ void reservedmarshal_VkBufferImageCopy2(VulkanStreamGuest* vkStream, VkStructure
 void reservedmarshal_VkCopyBufferToImageInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                               const VkCopyBufferToImageInfo2* forMarshaling,
                                               uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->srcBuffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_image_to_host_u64((*&forMarshaling->dstImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->dstImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->srcBuffer));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->dstImage));
+    writeStreamBytes(ptr, &forMarshaling->dstImageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkBufferImageCopy2(
             vkStream, rootType, (const VkBufferImageCopy2*)(forMarshaling->pRegions + i), ptr);
@@ -6585,26 +4330,15 @@ void reservedmarshal_VkCopyBufferToImageInfo2(VulkanStreamGuest* vkStream, VkStr
 void reservedmarshal_VkCopyImageToBufferInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                               const VkCopyImageToBufferInfo2* forMarshaling,
                                               uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->srcImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->srcImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_buffer_to_host_u64((*&forMarshaling->dstBuffer));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->srcImage));
+    writeStreamBytes(ptr, &forMarshaling->srcImageLayout, sizeof(VkImageLayout));
+    writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->dstBuffer));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkBufferImageCopy2(
             vkStream, rootType, (const VkBufferImageCopy2*)(forMarshaling->pRegions + i), ptr);
@@ -6614,76 +4348,52 @@ void reservedmarshal_VkCopyImageToBufferInfo2(VulkanStreamGuest* vkStream, VkStr
 void reservedmarshal_VkPhysicalDeviceTextureCompressionASTCHDRFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceTextureCompressionASTCHDRFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->textureCompressionASTC_HDR, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->textureCompressionASTC_HDR, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkFormatProperties3(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkFormatProperties3* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkFormatFeatureFlags2*)&forMarshaling->linearTilingFeatures,
-           sizeof(VkFormatFeatureFlags2));
-    *ptr += sizeof(VkFormatFeatureFlags2);
-    memcpy(*ptr, (VkFormatFeatureFlags2*)&forMarshaling->optimalTilingFeatures,
-           sizeof(VkFormatFeatureFlags2));
-    *ptr += sizeof(VkFormatFeatureFlags2);
-    memcpy(*ptr, (VkFormatFeatureFlags2*)&forMarshaling->bufferFeatures,
-           sizeof(VkFormatFeatureFlags2));
-    *ptr += sizeof(VkFormatFeatureFlags2);
+    writeStreamBytes(ptr, &forMarshaling->linearTilingFeatures, sizeof(VkFormatFeatureFlags2));
+    writeStreamBytes(ptr, &forMarshaling->optimalTilingFeatures, sizeof(VkFormatFeatureFlags2));
+    writeStreamBytes(ptr, &forMarshaling->bufferFeatures, sizeof(VkFormatFeatureFlags2));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance4Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance4Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance4, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->maintenance4, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance4Properties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance4Properties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->maxBufferSize, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->maxBufferSize, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkDeviceBufferMemoryRequirements(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceBufferMemoryRequirements* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -6695,19 +4405,14 @@ void reservedmarshal_VkDeviceBufferMemoryRequirements(
 void reservedmarshal_VkDeviceImageMemoryRequirements(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceImageMemoryRequirements* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
     reservedmarshal_VkImageCreateInfo(vkStream, rootType,
                                       (const VkImageCreateInfo*)(forMarshaling->pCreateInfo), ptr);
-    memcpy(*ptr, (VkImageAspectFlagBits*)&forMarshaling->planeAspect,
-           sizeof(VkImageAspectFlagBits));
-    *ptr += sizeof(VkImageAspectFlagBits);
+    writeStreamBytes(ptr, &forMarshaling->planeAspect, sizeof(VkImageAspectFlagBits));
 }
 
 #endif
@@ -6718,20 +4423,14 @@ void reservedmarshal_VkPipelineCreationFeedback(VulkanStreamGuest* vkStream,
                                                 uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkPipelineCreationFeedbackFlags*)&forMarshaling->flags,
-           sizeof(VkPipelineCreationFeedbackFlags));
-    *ptr += sizeof(VkPipelineCreationFeedbackFlags);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->duration, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineCreationFeedbackFlags));
+    writeStreamBytes(ptr, &forMarshaling->duration, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkPipelineCreationFeedbackCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineCreationFeedbackCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -6739,8 +4438,7 @@ void reservedmarshal_VkPipelineCreationFeedbackCreateInfo(
     reservedmarshal_VkPipelineCreationFeedback(
         vkStream, rootType, (VkPipelineCreationFeedback*)(forMarshaling->pPipelineCreationFeedback),
         ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->pipelineStageCreationFeedbackCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->pipelineStageCreationFeedbackCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->pipelineStageCreationFeedbackCount; ++i) {
         reservedmarshal_VkPipelineCreationFeedback(
             vkStream, rootType,
@@ -6751,388 +4449,272 @@ void reservedmarshal_VkPipelineCreationFeedbackCreateInfo(
 void reservedmarshal_VkPhysicalDeviceShaderTerminateInvocationFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderTerminateInvocationFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderTerminateInvocation, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderTerminateInvocation, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderDemoteToHelperInvocationFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderDemoteToHelperInvocationFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderDemoteToHelperInvocation, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderDemoteToHelperInvocation, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDevicePipelineCreationCacheControlFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePipelineCreationCacheControlFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pipelineCreationCacheControl, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->pipelineCreationCacheControl, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceZeroInitializeWorkgroupMemoryFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceZeroInitializeWorkgroupMemoryFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderZeroInitializeWorkgroupMemory, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderZeroInitializeWorkgroupMemory, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceImageRobustnessFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceImageRobustnessFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->robustImageAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->robustImageAccess, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceSubgroupSizeControlFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceSubgroupSizeControlFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->subgroupSizeControl, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->computeFullSubgroups, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->subgroupSizeControl, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->computeFullSubgroups, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceSubgroupSizeControlProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceSubgroupSizeControlProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->minSubgroupSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxSubgroupSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxComputeWorkgroupSubgroups, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->requiredSubgroupSizeStages,
-           sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
+    writeStreamBytes(ptr, &forMarshaling->minSubgroupSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxSubgroupSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxComputeWorkgroupSubgroups, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->requiredSubgroupSizeStages, sizeof(VkShaderStageFlags));
 }
 
 void reservedmarshal_VkPipelineShaderStageRequiredSubgroupSizeCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineShaderStageRequiredSubgroupSizeCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->requiredSubgroupSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->requiredSubgroupSize, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceInlineUniformBlockFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceInlineUniformBlockFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->inlineUniformBlock, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->descriptorBindingInlineUniformBlockUpdateAfterBind,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->inlineUniformBlock, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->descriptorBindingInlineUniformBlockUpdateAfterBind,
+                     sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceInlineUniformBlockProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceInlineUniformBlockProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxInlineUniformBlockSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorInlineUniformBlocks,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPerStageDescriptorUpdateAfterBindInlineUniformBlocks,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetInlineUniformBlocks, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindInlineUniformBlocks,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->maxInlineUniformBlockSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorInlineUniformBlocks,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxPerStageDescriptorUpdateAfterBindInlineUniformBlocks,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetInlineUniformBlocks, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindInlineUniformBlocks,
+                     sizeof(uint32_t));
 }
 
 void reservedmarshal_VkWriteDescriptorSetInlineUniformBlock(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkWriteDescriptorSetInlineUniformBlock* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dataSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->dataSize, sizeof(uint32_t));
     if (forMarshaling->dataSize > 0) {
-        memcpy(*ptr, (const void*)forMarshaling->pData,
-               forMarshaling->dataSize * sizeof(const uint8_t));
-        *ptr += forMarshaling->dataSize * sizeof(const uint8_t);
+        writeStreamBytes(ptr, forMarshaling->pData,
+                         forMarshaling->dataSize * sizeof(const uint8_t));
     }
 }
 
 void reservedmarshal_VkDescriptorPoolInlineUniformBlockCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDescriptorPoolInlineUniformBlockCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxInlineUniformBlockBindings, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->maxInlineUniformBlockBindings, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderIntegerDotProductFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderIntegerDotProductFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderIntegerDotProduct, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderIntegerDotProduct, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderIntegerDotProductProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderIntegerDotProductProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct8BitUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct8BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct8BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct4x8BitPackedUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct4x8BitPackedSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct4x8BitPackedMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct16BitUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct16BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct16BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct32BitUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct32BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct32BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct64BitUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct64BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->integerDotProduct64BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(
-        *ptr,
-        (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating8BitUnsignedAccelerated,
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct8BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct8BitSignedAccelerated, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct8BitMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct4x8BitPackedUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct4x8BitPackedSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct4x8BitPackedMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct16BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct16BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct16BitMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct32BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct32BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct32BitMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct64BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct64BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->integerDotProduct64BitMixedSignednessAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating8BitUnsignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating8BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating8BitMixedSignednessAccelerated,
         sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating8BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating8BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating4x8BitPackedUnsignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating4x8BitPackedMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(
-        *ptr,
-        (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating16BitUnsignedAccelerated,
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating4x8BitPackedUnsignedAccelerated,
         sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating16BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating16BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(
-        *ptr,
-        (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating32BitUnsignedAccelerated,
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating4x8BitPackedSignedAccelerated,
         sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating32BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating32BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(
-        *ptr,
-        (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating64BitUnsignedAccelerated,
+    writeStreamBytes(
+        ptr,
+        &forMarshaling
+             ->integerDotProductAccumulatingSaturating4x8BitPackedMixedSignednessAccelerated,
         sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->integerDotProductAccumulatingSaturating64BitSignedAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling
-               ->integerDotProductAccumulatingSaturating64BitMixedSignednessAccelerated,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating16BitUnsignedAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating16BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating16BitMixedSignednessAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating32BitUnsignedAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating32BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating32BitMixedSignednessAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating64BitUnsignedAccelerated,
+        sizeof(VkBool32));
+    writeStreamBytes(ptr,
+                     &forMarshaling->integerDotProductAccumulatingSaturating64BitSignedAccelerated,
+                     sizeof(VkBool32));
+    writeStreamBytes(
+        ptr, &forMarshaling->integerDotProductAccumulatingSaturating64BitMixedSignednessAccelerated,
+        sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceTexelBufferAlignmentProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceTexelBufferAlignmentProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->storageTexelBufferOffsetAlignmentBytes,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->storageTexelBufferOffsetSingleTexelAlignment,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->uniformTexelBufferOffsetAlignmentBytes,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->uniformTexelBufferOffsetSingleTexelAlignment,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->storageTexelBufferOffsetAlignmentBytes,
+                     sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->storageTexelBufferOffsetSingleTexelAlignment,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->uniformTexelBufferOffsetAlignmentBytes,
+                     sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->uniformTexelBufferOffsetSingleTexelAlignment,
+                     sizeof(VkBool32));
 }
 
 #endif
 #ifdef VK_GRAPHICS_VERSION_1_3
 void reservedmarshal_VkImageBlit2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                   const VkImageBlit2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -7153,42 +4735,26 @@ void reservedmarshal_VkImageBlit2(VulkanStreamGuest* vkStream, VkStructureType r
 
 void reservedmarshal_VkBlitImageInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                       const VkBlitImageInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->srcImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->srcImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_image_to_host_u64((*&forMarshaling->dstImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->dstImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->srcImage));
+    writeStreamBytes(ptr, &forMarshaling->srcImageLayout, sizeof(VkImageLayout));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->dstImage));
+    writeStreamBytes(ptr, &forMarshaling->dstImageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkImageBlit2(vkStream, rootType,
                                      (const VkImageBlit2*)(forMarshaling->pRegions + i), ptr);
     }
-    memcpy(*ptr, (VkFilter*)&forMarshaling->filter, sizeof(VkFilter));
-    *ptr += sizeof(VkFilter);
+    writeStreamBytes(ptr, &forMarshaling->filter, sizeof(VkFilter));
 }
 
 void reservedmarshal_VkImageResolve2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                      const VkImageResolve2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -7204,28 +4770,16 @@ void reservedmarshal_VkImageResolve2(VulkanStreamGuest* vkStream, VkStructureTyp
 
 void reservedmarshal_VkResolveImageInfo2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkResolveImageInfo2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->srcImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->srcImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_image_to_host_u64((*&forMarshaling->dstImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->dstImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->srcImage));
+    writeStreamBytes(ptr, &forMarshaling->srcImageLayout, sizeof(VkImageLayout));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->dstImage));
+    writeStreamBytes(ptr, &forMarshaling->dstImageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkImageResolve2(vkStream, rootType,
                                         (const VkImageResolve2*)(forMarshaling->pRegions + i), ptr);
@@ -7236,76 +4790,46 @@ void reservedmarshal_VkRenderingAttachmentInfo(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkRenderingAttachmentInfo* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_view_to_host_u64((*&forMarshaling->imageView));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->imageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkResolveModeFlagBits*)&forMarshaling->resolveMode,
-           sizeof(VkResolveModeFlagBits));
-    *ptr += sizeof(VkResolveModeFlagBits);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_image_view_to_host_u64((*&forMarshaling->resolveImageView));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->resolveImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkAttachmentLoadOp*)&forMarshaling->loadOp, sizeof(VkAttachmentLoadOp));
-    *ptr += sizeof(VkAttachmentLoadOp);
-    memcpy(*ptr, (VkAttachmentStoreOp*)&forMarshaling->storeOp, sizeof(VkAttachmentStoreOp));
-    *ptr += sizeof(VkAttachmentStoreOp);
+    writeStreamVal(ptr, gfxstream_vk_image_view_to_host_u64(forMarshaling->imageView));
+    writeStreamBytes(ptr, &forMarshaling->imageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->resolveMode, sizeof(VkResolveModeFlagBits));
+    writeStreamVal(ptr, gfxstream_vk_image_view_to_host_u64(forMarshaling->resolveImageView));
+    writeStreamBytes(ptr, &forMarshaling->resolveImageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->loadOp, sizeof(VkAttachmentLoadOp));
+    writeStreamBytes(ptr, &forMarshaling->storeOp, sizeof(VkAttachmentStoreOp));
     reservedmarshal_VkClearValue(vkStream, rootType, (VkClearValue*)(&forMarshaling->clearValue),
                                  ptr);
 }
 
 void reservedmarshal_VkRenderingInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                      const VkRenderingInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkRenderingFlags*)&forMarshaling->flags, sizeof(VkRenderingFlags));
-    *ptr += sizeof(VkRenderingFlags);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkRenderingFlags));
     reservedmarshal_VkRect2D(vkStream, rootType, (VkRect2D*)(&forMarshaling->renderArea), ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->layerCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->layerCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->viewMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->colorAttachmentCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->colorAttachmentCount; ++i) {
         reservedmarshal_VkRenderingAttachmentInfo(
             vkStream, rootType,
             (const VkRenderingAttachmentInfo*)(forMarshaling->pColorAttachments + i), ptr);
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pDepthAttachment;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDepthAttachment);
     if (forMarshaling->pDepthAttachment) {
         reservedmarshal_VkRenderingAttachmentInfo(
             vkStream, rootType, (const VkRenderingAttachmentInfo*)(forMarshaling->pDepthAttachment),
             ptr);
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pStencilAttachment;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pStencilAttachment);
     if (forMarshaling->pStencilAttachment) {
         reservedmarshal_VkRenderingAttachmentInfo(
             vkStream, rootType,
@@ -7316,80 +4840,53 @@ void reservedmarshal_VkRenderingInfo(VulkanStreamGuest* vkStream, VkStructureTyp
 void reservedmarshal_VkPipelineRenderingCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineRenderingCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pColorAttachmentFormats;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->viewMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->colorAttachmentCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pColorAttachmentFormats);
     if (forMarshaling->pColorAttachmentFormats) {
         if (forMarshaling->colorAttachmentCount > 0) {
-            memcpy(*ptr, (const VkFormat*)forMarshaling->pColorAttachmentFormats,
-                   forMarshaling->colorAttachmentCount * sizeof(const VkFormat));
-            *ptr += forMarshaling->colorAttachmentCount * sizeof(const VkFormat);
+            writeStreamBytes(ptr, forMarshaling->pColorAttachmentFormats,
+                             forMarshaling->colorAttachmentCount * sizeof(const VkFormat));
         }
     }
-    memcpy(*ptr, (VkFormat*)&forMarshaling->depthAttachmentFormat, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->stencilAttachmentFormat, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
+    writeStreamBytes(ptr, &forMarshaling->depthAttachmentFormat, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->stencilAttachmentFormat, sizeof(VkFormat));
 }
 
 void reservedmarshal_VkPhysicalDeviceDynamicRenderingFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceDynamicRenderingFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->dynamicRendering, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->dynamicRendering, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkCommandBufferInheritanceRenderingInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkCommandBufferInheritanceRenderingInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkRenderingFlags*)&forMarshaling->flags, sizeof(VkRenderingFlags));
-    *ptr += sizeof(VkRenderingFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkRenderingFlags));
+    writeStreamBytes(ptr, &forMarshaling->viewMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->colorAttachmentCount, sizeof(uint32_t));
     if (forMarshaling->colorAttachmentCount > 0) {
-        memcpy(*ptr, (const VkFormat*)forMarshaling->pColorAttachmentFormats,
-               forMarshaling->colorAttachmentCount * sizeof(const VkFormat));
-        *ptr += forMarshaling->colorAttachmentCount * sizeof(const VkFormat);
+        writeStreamBytes(ptr, forMarshaling->pColorAttachmentFormats,
+                         forMarshaling->colorAttachmentCount * sizeof(const VkFormat));
     }
-    memcpy(*ptr, (VkFormat*)&forMarshaling->depthAttachmentFormat, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->stencilAttachmentFormat, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkSampleCountFlagBits*)&forMarshaling->rasterizationSamples,
-           sizeof(VkSampleCountFlagBits));
-    *ptr += sizeof(VkSampleCountFlagBits);
+    writeStreamBytes(ptr, &forMarshaling->depthAttachmentFormat, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->stencilAttachmentFormat, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->rasterizationSamples, sizeof(VkSampleCountFlagBits));
 }
 
 #endif
@@ -7397,310 +4894,194 @@ void reservedmarshal_VkCommandBufferInheritanceRenderingInfo(
 void reservedmarshal_VkPhysicalDeviceVulkan14Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkan14Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->globalPriorityQuery, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSubgroupRotate, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSubgroupRotateClustered, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderFloatControls2, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderExpectAssume, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->rectangularLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->bresenhamLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->smoothLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->stippledRectangularLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->stippledBresenhamLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->stippledSmoothLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vertexAttributeInstanceRateDivisor, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vertexAttributeInstanceRateZeroDivisor,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->indexTypeUint8, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->dynamicRenderingLocalRead, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance5, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance6, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pipelineProtectedAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pipelineRobustness, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->hostImageCopy, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pushDescriptor, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->globalPriorityQuery, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSubgroupRotate, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSubgroupRotateClustered, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderFloatControls2, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderExpectAssume, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->rectangularLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->bresenhamLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->smoothLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->stippledRectangularLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->stippledBresenhamLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->stippledSmoothLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vertexAttributeInstanceRateDivisor, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vertexAttributeInstanceRateZeroDivisor, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->indexTypeUint8, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->dynamicRenderingLocalRead, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maintenance5, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maintenance6, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->pipelineProtectedAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->pipelineRobustness, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->hostImageCopy, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->pushDescriptor, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceVulkan14Properties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVulkan14Properties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->lineSubPixelPrecisionBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVertexAttribDivisor, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->supportsNonZeroFirstInstance, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPushDescriptors, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->dynamicRenderingLocalReadDepthStencilAttachments,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->dynamicRenderingLocalReadMultisampledAttachments,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->earlyFragmentMultisampleCoverageAfterSampleCounting,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->earlyFragmentSampleMaskTestBeforeSampleCounting,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthStencilSwizzleOneSupport, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->polygonModePointSize, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->nonStrictSinglePixelWideLinesUseParallelogram,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->nonStrictWideLinesUseParallelogram, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->blockTexelViewCompatibleMultipleLayers,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxCombinedImageSamplerDescriptorCount,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fragmentShadingRateClampCombinerInputs,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkPipelineRobustnessBufferBehavior*)&forMarshaling->defaultRobustnessStorageBuffers,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr,
-           (VkPipelineRobustnessBufferBehavior*)&forMarshaling->defaultRobustnessUniformBuffers,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr, (VkPipelineRobustnessBufferBehavior*)&forMarshaling->defaultRobustnessVertexInputs,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr, (VkPipelineRobustnessImageBehavior*)&forMarshaling->defaultRobustnessImages,
-           sizeof(VkPipelineRobustnessImageBehavior));
-    *ptr += sizeof(VkPipelineRobustnessImageBehavior);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->copySrcLayoutCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pCopySrcLayouts;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->lineSubPixelPrecisionBits, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxVertexAttribDivisor, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->supportsNonZeroFirstInstance, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxPushDescriptors, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->dynamicRenderingLocalReadDepthStencilAttachments,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->dynamicRenderingLocalReadMultisampledAttachments,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->earlyFragmentMultisampleCoverageAfterSampleCounting,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->earlyFragmentSampleMaskTestBeforeSampleCounting,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->depthStencilSwizzleOneSupport, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->polygonModePointSize, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->nonStrictSinglePixelWideLinesUseParallelogram,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->nonStrictWideLinesUseParallelogram, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->blockTexelViewCompatibleMultipleLayers, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxCombinedImageSamplerDescriptorCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->fragmentShadingRateClampCombinerInputs, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->defaultRobustnessStorageBuffers,
+                     sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->defaultRobustnessUniformBuffers,
+                     sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->defaultRobustnessVertexInputs,
+                     sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->defaultRobustnessImages,
+                     sizeof(VkPipelineRobustnessImageBehavior));
+    writeStreamBytes(ptr, &forMarshaling->copySrcLayoutCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pCopySrcLayouts);
     if (forMarshaling->pCopySrcLayouts) {
         if (forMarshaling->copySrcLayoutCount > 0) {
-            memcpy(*ptr, (VkImageLayout*)forMarshaling->pCopySrcLayouts,
-                   forMarshaling->copySrcLayoutCount * sizeof(VkImageLayout));
-            *ptr += forMarshaling->copySrcLayoutCount * sizeof(VkImageLayout);
+            writeStreamBytes(ptr, forMarshaling->pCopySrcLayouts,
+                             forMarshaling->copySrcLayoutCount * sizeof(VkImageLayout));
         }
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->copyDstLayoutCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pCopyDstLayouts;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->copyDstLayoutCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pCopyDstLayouts);
     if (forMarshaling->pCopyDstLayouts) {
         if (forMarshaling->copyDstLayoutCount > 0) {
-            memcpy(*ptr, (VkImageLayout*)forMarshaling->pCopyDstLayouts,
-                   forMarshaling->copyDstLayoutCount * sizeof(VkImageLayout));
-            *ptr += forMarshaling->copyDstLayoutCount * sizeof(VkImageLayout);
+            writeStreamBytes(ptr, forMarshaling->pCopyDstLayouts,
+                             forMarshaling->copyDstLayoutCount * sizeof(VkImageLayout));
         }
     }
-    memcpy(*ptr, (uint8_t*)forMarshaling->optimalTilingLayoutUUID, VK_UUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_UUID_SIZE * sizeof(uint8_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->identicalMemoryTypeRequirements, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, forMarshaling->optimalTilingLayoutUUID, VK_UUID_SIZE * sizeof(uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->identicalMemoryTypeRequirements, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkDeviceQueueGlobalPriorityCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceQueueGlobalPriorityCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkQueueGlobalPriority*)&forMarshaling->globalPriority,
-           sizeof(VkQueueGlobalPriority));
-    *ptr += sizeof(VkQueueGlobalPriority);
+    writeStreamBytes(ptr, &forMarshaling->globalPriority, sizeof(VkQueueGlobalPriority));
 }
 
 void reservedmarshal_VkPhysicalDeviceGlobalPriorityQueryFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceGlobalPriorityQueryFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->globalPriorityQuery, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->globalPriorityQuery, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkQueueFamilyGlobalPriorityProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkQueueFamilyGlobalPriorityProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->priorityCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkQueueGlobalPriority*)forMarshaling->priorities,
-           VK_MAX_GLOBAL_PRIORITY_SIZE * sizeof(VkQueueGlobalPriority));
-    *ptr += VK_MAX_GLOBAL_PRIORITY_SIZE * sizeof(VkQueueGlobalPriority);
+    writeStreamBytes(ptr, &forMarshaling->priorityCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->priorities,
+                     VK_MAX_GLOBAL_PRIORITY_SIZE * sizeof(VkQueueGlobalPriority));
 }
 
 void reservedmarshal_VkPhysicalDeviceIndexTypeUint8Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceIndexTypeUint8Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->indexTypeUint8, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->indexTypeUint8, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkMemoryMapInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                      const VkMemoryMapInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkMemoryMapFlags*)&forMarshaling->flags, sizeof(VkMemoryMapFlags));
-    *ptr += sizeof(VkMemoryMapFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_device_memory_to_host_u64((*&forMarshaling->memory));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->offset, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkMemoryMapFlags));
+    writeStreamVal(ptr, gfxstream_vk_device_memory_to_host_u64(forMarshaling->memory));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkMemoryUnmapInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkMemoryUnmapInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkMemoryUnmapFlags*)&forMarshaling->flags, sizeof(VkMemoryUnmapFlags));
-    *ptr += sizeof(VkMemoryUnmapFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_device_memory_to_host_u64((*&forMarshaling->memory));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkMemoryUnmapFlags));
+    writeStreamVal(ptr, gfxstream_vk_device_memory_to_host_u64(forMarshaling->memory));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance5Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance5Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance5, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->maintenance5, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance5Properties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance5Properties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->earlyFragmentMultisampleCoverageAfterSampleCounting,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->earlyFragmentSampleMaskTestBeforeSampleCounting,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthStencilSwizzleOneSupport, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->polygonModePointSize, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->nonStrictSinglePixelWideLinesUseParallelogram,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->nonStrictWideLinesUseParallelogram, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->earlyFragmentMultisampleCoverageAfterSampleCounting,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->earlyFragmentSampleMaskTestBeforeSampleCounting,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->depthStencilSwizzleOneSupport, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->polygonModePointSize, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->nonStrictSinglePixelWideLinesUseParallelogram,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->nonStrictWideLinesUseParallelogram, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkSubresourceLayout2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkSubresourceLayout2* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -7711,10 +5092,7 @@ void reservedmarshal_VkSubresourceLayout2(VulkanStreamGuest* vkStream, VkStructu
 
 void reservedmarshal_VkImageSubresource2(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkImageSubresource2* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -7727,10 +5105,7 @@ void reservedmarshal_VkDeviceImageSubresourceInfo(VulkanStreamGuest* vkStream,
                                                   VkStructureType rootType,
                                                   const VkDeviceImageSubresourceInfo* forMarshaling,
                                                   uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -7744,145 +5119,97 @@ void reservedmarshal_VkDeviceImageSubresourceInfo(VulkanStreamGuest* vkStream,
 void reservedmarshal_VkBufferUsageFlags2CreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkBufferUsageFlags2CreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBufferUsageFlags2*)&forMarshaling->usage, sizeof(VkBufferUsageFlags2));
-    *ptr += sizeof(VkBufferUsageFlags2);
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkBufferUsageFlags2));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance6Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance6Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance6, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->maintenance6, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance6Properties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance6Properties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->blockTexelViewCompatibleMultipleLayers,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxCombinedImageSamplerDescriptorCount,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fragmentShadingRateClampCombinerInputs,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->blockTexelViewCompatibleMultipleLayers, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxCombinedImageSamplerDescriptorCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->fragmentShadingRateClampCombinerInputs, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkBindMemoryStatus(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkBindMemoryStatus* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkResult*)forMarshaling->pResult, sizeof(VkResult));
-    *ptr += sizeof(VkResult);
+    writeStreamBytes(ptr, forMarshaling->pResult, sizeof(VkResult));
 }
 
 void reservedmarshal_VkPhysicalDeviceHostImageCopyFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceHostImageCopyFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->hostImageCopy, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->hostImageCopy, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceHostImageCopyProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceHostImageCopyProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->copySrcLayoutCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pCopySrcLayouts;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->copySrcLayoutCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pCopySrcLayouts);
     if (forMarshaling->pCopySrcLayouts) {
         if (forMarshaling->copySrcLayoutCount > 0) {
-            memcpy(*ptr, (VkImageLayout*)forMarshaling->pCopySrcLayouts,
-                   forMarshaling->copySrcLayoutCount * sizeof(VkImageLayout));
-            *ptr += forMarshaling->copySrcLayoutCount * sizeof(VkImageLayout);
+            writeStreamBytes(ptr, forMarshaling->pCopySrcLayouts,
+                             forMarshaling->copySrcLayoutCount * sizeof(VkImageLayout));
         }
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->copyDstLayoutCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pCopyDstLayouts;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->copyDstLayoutCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pCopyDstLayouts);
     if (forMarshaling->pCopyDstLayouts) {
         if (forMarshaling->copyDstLayoutCount > 0) {
-            memcpy(*ptr, (VkImageLayout*)forMarshaling->pCopyDstLayouts,
-                   forMarshaling->copyDstLayoutCount * sizeof(VkImageLayout));
-            *ptr += forMarshaling->copyDstLayoutCount * sizeof(VkImageLayout);
+            writeStreamBytes(ptr, forMarshaling->pCopyDstLayouts,
+                             forMarshaling->copyDstLayoutCount * sizeof(VkImageLayout));
         }
     }
-    memcpy(*ptr, (uint8_t*)forMarshaling->optimalTilingLayoutUUID, VK_UUID_SIZE * sizeof(uint8_t));
-    *ptr += VK_UUID_SIZE * sizeof(uint8_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->identicalMemoryTypeRequirements, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, forMarshaling->optimalTilingLayoutUUID, VK_UUID_SIZE * sizeof(uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->identicalMemoryTypeRequirements, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkMemoryToImageCopy(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkMemoryToImageCopy* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (const void*)forMarshaling->pHostPointer, sizeof(const uint8_t));
-    *ptr += sizeof(const uint8_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryRowLength, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryImageHeight, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, forMarshaling->pHostPointer, sizeof(const uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->memoryRowLength, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->memoryImageHeight, sizeof(uint32_t));
     reservedmarshal_VkImageSubresourceLayers(
         vkStream, rootType, (VkImageSubresourceLayers*)(&forMarshaling->imageSubresource), ptr);
     reservedmarshal_VkOffset3D(vkStream, rootType, (VkOffset3D*)(&forMarshaling->imageOffset), ptr);
@@ -7891,20 +5218,14 @@ void reservedmarshal_VkMemoryToImageCopy(VulkanStreamGuest* vkStream, VkStructur
 
 void reservedmarshal_VkImageToMemoryCopy(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkImageToMemoryCopy* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (void*)forMarshaling->pHostPointer, sizeof(uint8_t));
-    *ptr += sizeof(uint8_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryRowLength, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->memoryImageHeight, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, forMarshaling->pHostPointer, sizeof(uint8_t));
+    writeStreamBytes(ptr, &forMarshaling->memoryRowLength, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->memoryImageHeight, sizeof(uint32_t));
     reservedmarshal_VkImageSubresourceLayers(
         vkStream, rootType, (VkImageSubresourceLayers*)(&forMarshaling->imageSubresource), ptr);
     reservedmarshal_VkOffset3D(vkStream, rootType, (VkOffset3D*)(&forMarshaling->imageOffset), ptr);
@@ -7914,24 +5235,15 @@ void reservedmarshal_VkImageToMemoryCopy(VulkanStreamGuest* vkStream, VkStructur
 void reservedmarshal_VkCopyMemoryToImageInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkCopyMemoryToImageInfo* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkHostImageCopyFlags*)&forMarshaling->flags, sizeof(VkHostImageCopyFlags));
-    *ptr += sizeof(VkHostImageCopyFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->dstImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->dstImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkHostImageCopyFlags));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->dstImage));
+    writeStreamBytes(ptr, &forMarshaling->dstImageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkMemoryToImageCopy(
             vkStream, rootType, (const VkMemoryToImageCopy*)(forMarshaling->pRegions + i), ptr);
@@ -7941,24 +5253,15 @@ void reservedmarshal_VkCopyMemoryToImageInfo(VulkanStreamGuest* vkStream, VkStru
 void reservedmarshal_VkCopyImageToMemoryInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkCopyImageToMemoryInfo* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkHostImageCopyFlags*)&forMarshaling->flags, sizeof(VkHostImageCopyFlags));
-    *ptr += sizeof(VkHostImageCopyFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->srcImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->srcImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkHostImageCopyFlags));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->srcImage));
+    writeStreamBytes(ptr, &forMarshaling->srcImageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkImageToMemoryCopy(
             vkStream, rootType, (const VkImageToMemoryCopy*)(forMarshaling->pRegions + i), ptr);
@@ -7968,30 +5271,17 @@ void reservedmarshal_VkCopyImageToMemoryInfo(VulkanStreamGuest* vkStream, VkStru
 void reservedmarshal_VkCopyImageToImageInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                             const VkCopyImageToImageInfo* forMarshaling,
                                             uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkHostImageCopyFlags*)&forMarshaling->flags, sizeof(VkHostImageCopyFlags));
-    *ptr += sizeof(VkHostImageCopyFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->srcImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->srcImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_image_to_host_u64((*&forMarshaling->dstImage));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->dstImageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->regionCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkHostImageCopyFlags));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->srcImage));
+    writeStreamBytes(ptr, &forMarshaling->srcImageLayout, sizeof(VkImageLayout));
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->dstImage));
+    writeStreamBytes(ptr, &forMarshaling->dstImageLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->regionCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->regionCount; ++i) {
         reservedmarshal_VkImageCopy2(vkStream, rootType,
                                      (const VkImageCopy2*)(forMarshaling->pRegions + i), ptr);
@@ -8001,22 +5291,14 @@ void reservedmarshal_VkCopyImageToImageInfo(VulkanStreamGuest* vkStream, VkStruc
 void reservedmarshal_VkHostImageLayoutTransitionInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkHostImageLayoutTransitionInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_to_host_u64((*&forMarshaling->image));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->oldLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->newLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->image));
+    writeStreamBytes(ptr, &forMarshaling->oldLayout, sizeof(VkImageLayout));
+    writeStreamBytes(ptr, &forMarshaling->newLayout, sizeof(VkImageLayout));
     reservedmarshal_VkImageSubresourceRange(
         vkStream, rootType, (VkImageSubresourceRange*)(&forMarshaling->subresourceRange), ptr);
 }
@@ -8025,33 +5307,24 @@ void reservedmarshal_VkSubresourceHostMemcpySize(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkSubresourceHostMemcpySize* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
 }
 
 void reservedmarshal_VkHostImageCopyDevicePerformanceQuery(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkHostImageCopyDevicePerformanceQuery* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->optimalDeviceAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->identicalMemoryLayout, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->optimalDeviceAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->identicalMemoryLayout, sizeof(VkBool32));
 }
 
 #endif
@@ -8059,176 +5332,115 @@ void reservedmarshal_VkHostImageCopyDevicePerformanceQuery(
 void reservedmarshal_VkPhysicalDeviceShaderSubgroupRotateFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderSubgroupRotateFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSubgroupRotate, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderSubgroupRotateClustered, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderSubgroupRotate, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->shaderSubgroupRotateClustered, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderFloatControls2Features(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderFloatControls2Features* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderFloatControls2, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderFloatControls2, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceShaderExpectAssumeFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceShaderExpectAssumeFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->shaderExpectAssume, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->shaderExpectAssume, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineCreateFlags2CreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineCreateFlags2CreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineCreateFlags2*)&forMarshaling->flags, sizeof(VkPipelineCreateFlags2));
-    *ptr += sizeof(VkPipelineCreateFlags2);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkPipelineCreateFlags2));
 }
 
 void reservedmarshal_VkPhysicalDevicePushDescriptorProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePushDescriptorProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxPushDescriptors, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->maxPushDescriptors, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkBindDescriptorSetsInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                               const VkBindDescriptorSetsInfo* forMarshaling,
                                               uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->layout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->firstSet, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorSetCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->layout));
+    writeStreamBytes(ptr, &forMarshaling->firstSet, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->descriptorSetCount, sizeof(uint32_t));
     if (forMarshaling->descriptorSetCount) {
-        uint8_t* cgen_var_1_ptr = (uint8_t*)(*ptr);
-        if (forMarshaling) {
-            for (uint32_t k = 0; k < forMarshaling->descriptorSetCount; ++k) {
-                uint64_t tmpval =
-                    gfxstream_vk_descriptor_set_to_host_u64(forMarshaling->pDescriptorSets[k]);
-                memcpy(cgen_var_1_ptr + k * 8, &tmpval, sizeof(uint64_t));
-            }
+        for (uint32_t k = 0; k < forMarshaling->descriptorSetCount; ++k) {
+            writeStreamVal(
+                ptr, gfxstream_vk_descriptor_set_to_host_u64(forMarshaling->pDescriptorSets[k]));
         }
-        *ptr += 8 * forMarshaling->descriptorSetCount;
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->dynamicOffsetCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_2 = (uint64_t)(uintptr_t)forMarshaling->pDynamicOffsets;
-    memcpy((*ptr), &cgen_var_2, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->dynamicOffsetCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDynamicOffsets);
     if (forMarshaling->pDynamicOffsets) {
         if (forMarshaling->dynamicOffsetCount > 0) {
-            memcpy(*ptr, (const uint32_t*)forMarshaling->pDynamicOffsets,
-                   forMarshaling->dynamicOffsetCount * sizeof(const uint32_t));
-            *ptr += forMarshaling->dynamicOffsetCount * sizeof(const uint32_t);
+            writeStreamBytes(ptr, forMarshaling->pDynamicOffsets,
+                             forMarshaling->dynamicOffsetCount * sizeof(const uint32_t));
         }
     }
 }
 
 void reservedmarshal_VkPushConstantsInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkPushConstantsInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->layout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->offset, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->size, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->layout));
+    writeStreamBytes(ptr, &forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
+    writeStreamBytes(ptr, &forMarshaling->offset, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(uint32_t));
     if (forMarshaling->size > 0) {
-        memcpy(*ptr, (const void*)forMarshaling->pValues,
-               forMarshaling->size * sizeof(const uint8_t));
-        *ptr += forMarshaling->size * sizeof(const uint8_t);
+        writeStreamBytes(ptr, forMarshaling->pValues, forMarshaling->size * sizeof(const uint8_t));
     }
 }
 
 void reservedmarshal_VkPushDescriptorSetInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkPushDescriptorSetInfo* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->layout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->set, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->descriptorWriteCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->layout));
+    writeStreamBytes(ptr, &forMarshaling->set, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->descriptorWriteCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->descriptorWriteCount; ++i) {
         reservedmarshal_VkWriteDescriptorSet(
             vkStream, rootType, (const VkWriteDescriptorSet*)(forMarshaling->pDescriptorWrites + i),
@@ -8239,109 +5451,72 @@ void reservedmarshal_VkPushDescriptorSetInfo(VulkanStreamGuest* vkStream, VkStru
 void reservedmarshal_VkPushDescriptorSetWithTemplateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPushDescriptorSetWithTemplateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_descriptor_update_template_to_host_u64(
-        (*&forMarshaling->descriptorUpdateTemplate));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    uint64_t cgen_var_1;
-    *&cgen_var_1 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->layout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_1, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->set, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (const void*)forMarshaling->pData, sizeof(const uint8_t));
-    *ptr += sizeof(const uint8_t);
+    writeStreamVal(ptr, gfxstream_vk_descriptor_update_template_to_host_u64(
+                            forMarshaling->descriptorUpdateTemplate));
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->layout));
+    writeStreamBytes(ptr, &forMarshaling->set, sizeof(uint32_t));
+    writeStreamBytes(ptr, forMarshaling->pData, sizeof(const uint8_t));
 }
 
 void reservedmarshal_VkPhysicalDevicePipelineProtectedAccessFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePipelineProtectedAccessFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pipelineProtectedAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->pipelineProtectedAccess, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDevicePipelineRobustnessFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePipelineRobustnessFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pipelineRobustness, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->pipelineRobustness, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDevicePipelineRobustnessProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePipelineRobustnessProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr,
-           (VkPipelineRobustnessBufferBehavior*)&forMarshaling->defaultRobustnessStorageBuffers,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr,
-           (VkPipelineRobustnessBufferBehavior*)&forMarshaling->defaultRobustnessUniformBuffers,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr, (VkPipelineRobustnessBufferBehavior*)&forMarshaling->defaultRobustnessVertexInputs,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr, (VkPipelineRobustnessImageBehavior*)&forMarshaling->defaultRobustnessImages,
-           sizeof(VkPipelineRobustnessImageBehavior));
-    *ptr += sizeof(VkPipelineRobustnessImageBehavior);
+    writeStreamBytes(ptr, &forMarshaling->defaultRobustnessStorageBuffers,
+                     sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->defaultRobustnessUniformBuffers,
+                     sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->defaultRobustnessVertexInputs,
+                     sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->defaultRobustnessImages,
+                     sizeof(VkPipelineRobustnessImageBehavior));
 }
 
 void reservedmarshal_VkPipelineRobustnessCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineRobustnessCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineRobustnessBufferBehavior*)&forMarshaling->storageBuffers,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr, (VkPipelineRobustnessBufferBehavior*)&forMarshaling->uniformBuffers,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr, (VkPipelineRobustnessBufferBehavior*)&forMarshaling->vertexInputs,
-           sizeof(VkPipelineRobustnessBufferBehavior));
-    *ptr += sizeof(VkPipelineRobustnessBufferBehavior);
-    memcpy(*ptr, (VkPipelineRobustnessImageBehavior*)&forMarshaling->images,
-           sizeof(VkPipelineRobustnessImageBehavior));
-    *ptr += sizeof(VkPipelineRobustnessImageBehavior);
+    writeStreamBytes(ptr, &forMarshaling->storageBuffers,
+                     sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->uniformBuffers,
+                     sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->vertexInputs, sizeof(VkPipelineRobustnessBufferBehavior));
+    writeStreamBytes(ptr, &forMarshaling->images, sizeof(VkPipelineRobustnessImageBehavior));
 }
 
 #endif
@@ -8349,80 +5524,54 @@ void reservedmarshal_VkPipelineRobustnessCreateInfo(
 void reservedmarshal_VkPhysicalDeviceLineRasterizationFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceLineRasterizationFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->rectangularLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->bresenhamLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->smoothLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->stippledRectangularLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->stippledBresenhamLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->stippledSmoothLines, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->rectangularLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->bresenhamLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->smoothLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->stippledRectangularLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->stippledBresenhamLines, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->stippledSmoothLines, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceLineRasterizationProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceLineRasterizationProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->lineSubPixelPrecisionBits, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->lineSubPixelPrecisionBits, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPipelineRasterizationLineStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineRasterizationLineStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkLineRasterizationMode*)&forMarshaling->lineRasterizationMode,
-           sizeof(VkLineRasterizationMode));
-    *ptr += sizeof(VkLineRasterizationMode);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->stippledLineEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->lineStippleFactor, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint16_t*)&forMarshaling->lineStipplePattern, sizeof(uint16_t));
-    *ptr += sizeof(uint16_t);
+    writeStreamBytes(ptr, &forMarshaling->lineRasterizationMode, sizeof(VkLineRasterizationMode));
+    writeStreamBytes(ptr, &forMarshaling->stippledLineEnable, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->lineStippleFactor, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->lineStipplePattern, sizeof(uint16_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceVertexAttributeDivisorProperties(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVertexAttributeDivisorProperties* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVertexAttribDivisor, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->supportsNonZeroFirstInstance, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->maxVertexAttribDivisor, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->supportsNonZeroFirstInstance, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkVertexInputBindingDivisorDescription(
@@ -8430,25 +5579,19 @@ void reservedmarshal_VkVertexInputBindingDivisorDescription(
     const VkVertexInputBindingDivisorDescription* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->binding, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->divisor, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->binding, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->divisor, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPipelineVertexInputDivisorStateCreateInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineVertexInputDivisorStateCreateInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->vertexBindingDivisorCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->vertexBindingDivisorCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->vertexBindingDivisorCount; ++i) {
         reservedmarshal_VkVertexInputBindingDivisorDescription(
             vkStream, rootType,
@@ -8461,91 +5604,60 @@ void reservedmarshal_VkPipelineVertexInputDivisorStateCreateInfo(
 void reservedmarshal_VkPhysicalDeviceVertexAttributeDivisorFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVertexAttributeDivisorFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vertexAttributeInstanceRateDivisor, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->vertexAttributeInstanceRateZeroDivisor,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->vertexAttributeInstanceRateDivisor, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->vertexAttributeInstanceRateZeroDivisor, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkRenderingAreaInfo(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkRenderingAreaInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->viewMask, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pColorAttachmentFormats;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->viewMask, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->colorAttachmentCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pColorAttachmentFormats);
     if (forMarshaling->pColorAttachmentFormats) {
         if (forMarshaling->colorAttachmentCount > 0) {
-            memcpy(*ptr, (const VkFormat*)forMarshaling->pColorAttachmentFormats,
-                   forMarshaling->colorAttachmentCount * sizeof(const VkFormat));
-            *ptr += forMarshaling->colorAttachmentCount * sizeof(const VkFormat);
+            writeStreamBytes(ptr, forMarshaling->pColorAttachmentFormats,
+                             forMarshaling->colorAttachmentCount * sizeof(const VkFormat));
         }
     }
-    memcpy(*ptr, (VkFormat*)&forMarshaling->depthAttachmentFormat, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->stencilAttachmentFormat, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
+    writeStreamBytes(ptr, &forMarshaling->depthAttachmentFormat, sizeof(VkFormat));
+    writeStreamBytes(ptr, &forMarshaling->stencilAttachmentFormat, sizeof(VkFormat));
 }
 
 void reservedmarshal_VkPhysicalDeviceDynamicRenderingLocalReadFeatures(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceDynamicRenderingLocalReadFeatures* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->dynamicRenderingLocalRead, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->dynamicRenderingLocalRead, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkRenderingAttachmentLocationInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkRenderingAttachmentLocationInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pColorAttachmentLocations;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->colorAttachmentCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pColorAttachmentLocations);
     if (forMarshaling->pColorAttachmentLocations) {
         if (forMarshaling->colorAttachmentCount > 0) {
-            memcpy(*ptr, (const uint32_t*)forMarshaling->pColorAttachmentLocations,
-                   forMarshaling->colorAttachmentCount * sizeof(const uint32_t));
-            *ptr += forMarshaling->colorAttachmentCount * sizeof(const uint32_t);
+            writeStreamBytes(ptr, forMarshaling->pColorAttachmentLocations,
+                             forMarshaling->colorAttachmentCount * sizeof(const uint32_t));
         }
     }
 }
@@ -8553,47 +5665,26 @@ void reservedmarshal_VkRenderingAttachmentLocationInfo(
 void reservedmarshal_VkRenderingInputAttachmentIndexInfo(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkRenderingInputAttachmentIndexInfo* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorAttachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pColorAttachmentInputIndices;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->colorAttachmentCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pColorAttachmentInputIndices);
     if (forMarshaling->pColorAttachmentInputIndices) {
         if (forMarshaling->colorAttachmentCount > 0) {
-            memcpy(*ptr, (const uint32_t*)forMarshaling->pColorAttachmentInputIndices,
-                   forMarshaling->colorAttachmentCount * sizeof(const uint32_t));
-            *ptr += forMarshaling->colorAttachmentCount * sizeof(const uint32_t);
+            writeStreamBytes(ptr, forMarshaling->pColorAttachmentInputIndices,
+                             forMarshaling->colorAttachmentCount * sizeof(const uint32_t));
         }
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pDepthInputAttachmentIndex;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDepthInputAttachmentIndex);
     if (forMarshaling->pDepthInputAttachmentIndex) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pDepthInputAttachmentIndex,
-               sizeof(const uint32_t));
-        *ptr += sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pDepthInputAttachmentIndex, sizeof(const uint32_t));
     }
-    // WARNING PTR CHECK
-    uint64_t cgen_var_2 = (uint64_t)(uintptr_t)forMarshaling->pStencilInputAttachmentIndex;
-    memcpy((*ptr), &cgen_var_2, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pStencilInputAttachmentIndex);
     if (forMarshaling->pStencilInputAttachmentIndex) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pStencilInputAttachmentIndex,
-               sizeof(const uint32_t));
-        *ptr += sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pStencilInputAttachmentIndex, sizeof(const uint32_t));
     }
 }
 
@@ -8603,70 +5694,44 @@ void reservedmarshal_VkImportSemaphoreFdInfoKHR(VulkanStreamGuest* vkStream,
                                                 VkStructureType rootType,
                                                 const VkImportSemaphoreFdInfoKHR* forMarshaling,
                                                 uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_semaphore_to_host_u64((*&forMarshaling->semaphore));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkSemaphoreImportFlags*)&forMarshaling->flags, sizeof(VkSemaphoreImportFlags));
-    *ptr += sizeof(VkSemaphoreImportFlags);
-    memcpy(*ptr, (VkExternalSemaphoreHandleTypeFlagBits*)&forMarshaling->handleType,
-           sizeof(VkExternalSemaphoreHandleTypeFlagBits));
-    *ptr += sizeof(VkExternalSemaphoreHandleTypeFlagBits);
-    memcpy(*ptr, (int*)&forMarshaling->fd, sizeof(int));
-    *ptr += sizeof(int);
+    writeStreamVal(ptr, gfxstream_vk_semaphore_to_host_u64(forMarshaling->semaphore));
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkSemaphoreImportFlags));
+    writeStreamBytes(ptr, &forMarshaling->handleType,
+                     sizeof(VkExternalSemaphoreHandleTypeFlagBits));
+    writeStreamBytes(ptr, &forMarshaling->fd, sizeof(int));
 }
 
 void reservedmarshal_VkSemaphoreGetFdInfoKHR(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                              const VkSemaphoreGetFdInfoKHR* forMarshaling,
                                              uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_semaphore_to_host_u64((*&forMarshaling->semaphore));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkExternalSemaphoreHandleTypeFlagBits*)&forMarshaling->handleType,
-           sizeof(VkExternalSemaphoreHandleTypeFlagBits));
-    *ptr += sizeof(VkExternalSemaphoreHandleTypeFlagBits);
+    writeStreamVal(ptr, gfxstream_vk_semaphore_to_host_u64(forMarshaling->semaphore));
+    writeStreamBytes(ptr, &forMarshaling->handleType,
+                     sizeof(VkExternalSemaphoreHandleTypeFlagBits));
 }
 
 #endif
 #ifdef VK_KHR_incremental_present
 void reservedmarshal_VkRectLayerKHR(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                     const VkRectLayerKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
     reservedmarshal_VkOffset2D(vkStream, rootType, (VkOffset2D*)(&forMarshaling->offset), ptr);
     reservedmarshal_VkExtent2D(vkStream, rootType, (VkExtent2D*)(&forMarshaling->extent), ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->layer, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->layer, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPresentRegionKHR(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkPresentRegionKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->rectangleCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pRectangles;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->rectangleCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pRectangles);
     if (forMarshaling->pRectangles) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->rectangleCount; ++i) {
             reservedmarshal_VkRectLayerKHR(
@@ -8677,21 +5742,13 @@ void reservedmarshal_VkPresentRegionKHR(VulkanStreamGuest* vkStream, VkStructure
 
 void reservedmarshal_VkPresentRegionsKHR(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkPresentRegionsKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->swapchainCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pRegions;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->swapchainCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pRegions);
     if (forMarshaling->pRegions) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->swapchainCount; ++i) {
             reservedmarshal_VkPresentRegionKHR(
@@ -8705,44 +5762,26 @@ void reservedmarshal_VkPresentRegionsKHR(VulkanStreamGuest* vkStream, VkStructur
 void reservedmarshal_VkImportFenceFdInfoKHR(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                             const VkImportFenceFdInfoKHR* forMarshaling,
                                             uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_fence_to_host_u64((*&forMarshaling->fence));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkFenceImportFlags*)&forMarshaling->flags, sizeof(VkFenceImportFlags));
-    *ptr += sizeof(VkFenceImportFlags);
-    memcpy(*ptr, (VkExternalFenceHandleTypeFlagBits*)&forMarshaling->handleType,
-           sizeof(VkExternalFenceHandleTypeFlagBits));
-    *ptr += sizeof(VkExternalFenceHandleTypeFlagBits);
-    memcpy(*ptr, (int*)&forMarshaling->fd, sizeof(int));
-    *ptr += sizeof(int);
+    writeStreamVal(ptr, gfxstream_vk_fence_to_host_u64(forMarshaling->fence));
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkFenceImportFlags));
+    writeStreamBytes(ptr, &forMarshaling->handleType, sizeof(VkExternalFenceHandleTypeFlagBits));
+    writeStreamBytes(ptr, &forMarshaling->fd, sizeof(int));
 }
 
 void reservedmarshal_VkFenceGetFdInfoKHR(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                          const VkFenceGetFdInfoKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_fence_to_host_u64((*&forMarshaling->fence));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkExternalFenceHandleTypeFlagBits*)&forMarshaling->handleType,
-           sizeof(VkExternalFenceHandleTypeFlagBits));
-    *ptr += sizeof(VkExternalFenceHandleTypeFlagBits);
+    writeStreamVal(ptr, gfxstream_vk_fence_to_host_u64(forMarshaling->fence));
+    writeStreamBytes(ptr, &forMarshaling->handleType, sizeof(VkExternalFenceHandleTypeFlagBits));
 }
 
 #endif
@@ -8750,73 +5789,49 @@ void reservedmarshal_VkFenceGetFdInfoKHR(VulkanStreamGuest* vkStream, VkStructur
 void reservedmarshal_VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePipelineExecutablePropertiesFeaturesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->pipelineExecutableInfo, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->pipelineExecutableInfo, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineInfoKHR(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                        const VkPipelineInfoKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_pipeline_to_host_u64((*&forMarshaling->pipeline));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
+    writeStreamVal(ptr, gfxstream_vk_pipeline_to_host_u64(forMarshaling->pipeline));
 }
 
 void reservedmarshal_VkPipelineExecutablePropertiesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineExecutablePropertiesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->stages, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    memcpy(*ptr, (char*)forMarshaling->name, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
-    *ptr += VK_MAX_DESCRIPTION_SIZE * sizeof(char);
-    memcpy(*ptr, (char*)forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
-    *ptr += VK_MAX_DESCRIPTION_SIZE * sizeof(char);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->subgroupSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->stages, sizeof(VkShaderStageFlags));
+    writeStreamBytes(ptr, forMarshaling->name, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
+    writeStreamBytes(ptr, forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
+    writeStreamBytes(ptr, &forMarshaling->subgroupSize, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPipelineExecutableInfoKHR(VulkanStreamGuest* vkStream,
                                                  VkStructureType rootType,
                                                  const VkPipelineExecutableInfoKHR* forMarshaling,
                                                  uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_pipeline_to_host_u64((*&forMarshaling->pipeline));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->executableIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamVal(ptr, gfxstream_vk_pipeline_to_host_u64(forMarshaling->pipeline));
+    writeStreamBytes(ptr, &forMarshaling->executableIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPipelineExecutableStatisticValueKHR(
@@ -8824,28 +5839,20 @@ void reservedmarshal_VkPipelineExecutableStatisticValueKHR(
     const VkPipelineExecutableStatisticValueKHR* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (VkBool32*)&forMarshaling->b32, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->b32, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineExecutableStatisticKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineExecutableStatisticKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (char*)forMarshaling->name, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
-    *ptr += VK_MAX_DESCRIPTION_SIZE * sizeof(char);
-    memcpy(*ptr, (char*)forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
-    *ptr += VK_MAX_DESCRIPTION_SIZE * sizeof(char);
-    memcpy(*ptr, (VkPipelineExecutableStatisticFormatKHR*)&forMarshaling->format,
-           sizeof(VkPipelineExecutableStatisticFormatKHR));
-    *ptr += sizeof(VkPipelineExecutableStatisticFormatKHR);
+    writeStreamBytes(ptr, forMarshaling->name, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
+    writeStreamBytes(ptr, forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkPipelineExecutableStatisticFormatKHR));
     reservedmarshal_VkPipelineExecutableStatisticValueKHR(
         vkStream, rootType, (VkPipelineExecutableStatisticValueKHR*)(&forMarshaling->value), ptr);
 }
@@ -8853,33 +5860,19 @@ void reservedmarshal_VkPipelineExecutableStatisticKHR(
 void reservedmarshal_VkPipelineExecutableInternalRepresentationKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineExecutableInternalRepresentationKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (char*)forMarshaling->name, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
-    *ptr += VK_MAX_DESCRIPTION_SIZE * sizeof(char);
-    memcpy(*ptr, (char*)forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
-    *ptr += VK_MAX_DESCRIPTION_SIZE * sizeof(char);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->isText, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    uint64_t cgen_var_0 = (uint64_t)forMarshaling->dataSize;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pData;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, forMarshaling->name, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
+    writeStreamBytes(ptr, forMarshaling->description, VK_MAX_DESCRIPTION_SIZE * sizeof(char));
+    writeStreamBytes(ptr, &forMarshaling->isText, sizeof(VkBool32));
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->dataSize);
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pData);
     if (forMarshaling->pData) {
         if (forMarshaling->dataSize > 0) {
-            memcpy(*ptr, (void*)forMarshaling->pData, forMarshaling->dataSize * sizeof(uint8_t));
-            *ptr += forMarshaling->dataSize * sizeof(uint8_t);
+            writeStreamBytes(ptr, forMarshaling->pData, forMarshaling->dataSize * sizeof(uint8_t));
         }
     }
 }
@@ -8889,55 +5882,36 @@ void reservedmarshal_VkPipelineExecutableInternalRepresentationKHR(
 void reservedmarshal_VkSetDescriptorBufferOffsetsInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSetDescriptorBufferOffsetsInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->layout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->firstSet, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->setCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->layout));
+    writeStreamBytes(ptr, &forMarshaling->firstSet, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->setCount, sizeof(uint32_t));
     if (forMarshaling->setCount > 0) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->pBufferIndices,
-               forMarshaling->setCount * sizeof(const uint32_t));
-        *ptr += forMarshaling->setCount * sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->pBufferIndices,
+                         forMarshaling->setCount * sizeof(const uint32_t));
     }
     if (forMarshaling->setCount > 0) {
-        memcpy(*ptr, (const VkDeviceSize*)forMarshaling->pOffsets,
-               forMarshaling->setCount * sizeof(const VkDeviceSize));
-        *ptr += forMarshaling->setCount * sizeof(const VkDeviceSize);
+        writeStreamBytes(ptr, forMarshaling->pOffsets,
+                         forMarshaling->setCount * sizeof(const VkDeviceSize));
     }
 }
 
 void reservedmarshal_VkBindDescriptorBufferEmbeddedSamplersInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkBindDescriptorBufferEmbeddedSamplersInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkShaderStageFlags*)&forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
-    *ptr += sizeof(VkShaderStageFlags);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_pipeline_layout_to_host_u64((*&forMarshaling->layout));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (uint32_t*)&forMarshaling->set, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->stageFlags, sizeof(VkShaderStageFlags));
+    writeStreamVal(ptr, gfxstream_vk_pipeline_layout_to_host_u64(forMarshaling->layout));
+    writeStreamBytes(ptr, &forMarshaling->set, sizeof(uint32_t));
 }
 
 #endif
@@ -8945,95 +5919,63 @@ void reservedmarshal_VkBindDescriptorBufferEmbeddedSamplersInfoEXT(
 void reservedmarshal_VkPhysicalDeviceMaintenance7FeaturesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance7FeaturesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance7, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->maintenance7, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance7PropertiesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance7PropertiesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->robustFragmentShadingRateAttachmentAccess,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->separateDepthStencilAttachmentAccess, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetTotalUniformBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetTotalStorageBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetTotalBuffersDynamic, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr,
-           (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindTotalUniformBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr,
-           (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindTotalStorageBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxDescriptorSetUpdateAfterBindTotalBuffersDynamic,
-           sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->robustFragmentShadingRateAttachmentAccess,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->separateDepthStencilAttachmentAccess, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetTotalUniformBuffersDynamic,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetTotalStorageBuffersDynamic,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetTotalBuffersDynamic, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindTotalUniformBuffersDynamic,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindTotalStorageBuffersDynamic,
+                     sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxDescriptorSetUpdateAfterBindTotalBuffersDynamic,
+                     sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceLayeredApiPropertiesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceLayeredApiPropertiesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->vendorID, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->deviceID, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkPhysicalDeviceLayeredApiKHR*)&forMarshaling->layeredAPI,
-           sizeof(VkPhysicalDeviceLayeredApiKHR));
-    *ptr += sizeof(VkPhysicalDeviceLayeredApiKHR);
-    memcpy(*ptr, (char*)forMarshaling->deviceName, VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char));
-    *ptr += VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char);
+    writeStreamBytes(ptr, &forMarshaling->vendorID, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->deviceID, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->layeredAPI, sizeof(VkPhysicalDeviceLayeredApiKHR));
+    writeStreamBytes(ptr, forMarshaling->deviceName,
+                     VK_MAX_PHYSICAL_DEVICE_NAME_SIZE * sizeof(char));
 }
 
 void reservedmarshal_VkPhysicalDeviceLayeredApiPropertiesListKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceLayeredApiPropertiesListKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->layeredApiCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pLayeredApis;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->layeredApiCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pLayeredApis);
     if (forMarshaling->pLayeredApis) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->layeredApiCount; ++i) {
             reservedmarshal_VkPhysicalDeviceLayeredApiPropertiesKHR(
@@ -9046,10 +5988,7 @@ void reservedmarshal_VkPhysicalDeviceLayeredApiPropertiesListKHR(
 void reservedmarshal_VkPhysicalDeviceLayeredApiVulkanPropertiesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceLayeredApiVulkanPropertiesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -9063,33 +6002,24 @@ void reservedmarshal_VkPhysicalDeviceLayeredApiVulkanPropertiesKHR(
 void reservedmarshal_VkMemoryBarrierAccessFlags3KHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkMemoryBarrierAccessFlags3KHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkAccessFlags3KHR*)&forMarshaling->srcAccessMask3, sizeof(VkAccessFlags3KHR));
-    *ptr += sizeof(VkAccessFlags3KHR);
-    memcpy(*ptr, (VkAccessFlags3KHR*)&forMarshaling->dstAccessMask3, sizeof(VkAccessFlags3KHR));
-    *ptr += sizeof(VkAccessFlags3KHR);
+    writeStreamBytes(ptr, &forMarshaling->srcAccessMask3, sizeof(VkAccessFlags3KHR));
+    writeStreamBytes(ptr, &forMarshaling->dstAccessMask3, sizeof(VkAccessFlags3KHR));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance8FeaturesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance8FeaturesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance8, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->maintenance8, sizeof(VkBool32));
 }
 
 #endif
@@ -9097,49 +6027,36 @@ void reservedmarshal_VkPhysicalDeviceMaintenance8FeaturesKHR(
 void reservedmarshal_VkPhysicalDeviceMaintenance9FeaturesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance9FeaturesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->maintenance9, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->maintenance9, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceMaintenance9PropertiesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMaintenance9PropertiesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->image2DViewOf3DSparse, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkDefaultVertexAttributeValueKHR*)&forMarshaling->defaultVertexAttributeValue,
-           sizeof(VkDefaultVertexAttributeValueKHR));
-    *ptr += sizeof(VkDefaultVertexAttributeValueKHR);
+    writeStreamBytes(ptr, &forMarshaling->image2DViewOf3DSparse, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->defaultVertexAttributeValue,
+                     sizeof(VkDefaultVertexAttributeValueKHR));
 }
 
 void reservedmarshal_VkQueueFamilyOwnershipTransferPropertiesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkQueueFamilyOwnershipTransferPropertiesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->optimalImageTransferToQueueFamilies, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->optimalImageTransferToQueueFamilies, sizeof(uint32_t));
 }
 
 #endif
@@ -9150,38 +6067,25 @@ void reservedmarshal_VkNativeBufferUsage2ANDROID(VulkanStreamGuest* vkStream,
                                                  uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint64_t*)&forMarshaling->consumer, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->producer, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->consumer, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->producer, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkNativeBufferANDROID(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkNativeBufferANDROID* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->handle;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->handle);
     if (forMarshaling->handle) {
-        memcpy(*ptr, (const uint32_t*)forMarshaling->handle, sizeof(const uint32_t));
-        *ptr += sizeof(const uint32_t);
+        writeStreamBytes(ptr, forMarshaling->handle, sizeof(const uint32_t));
     }
-    memcpy(*ptr, (int*)&forMarshaling->stride, sizeof(int));
-    *ptr += sizeof(int);
-    memcpy(*ptr, (int*)&forMarshaling->format, sizeof(int));
-    *ptr += sizeof(int);
-    memcpy(*ptr, (int*)&forMarshaling->usage, sizeof(int));
-    *ptr += sizeof(int);
+    writeStreamBytes(ptr, &forMarshaling->stride, sizeof(int));
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(int));
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(int));
     reservedmarshal_VkNativeBufferUsage2ANDROID(
         vkStream, rootType, (VkNativeBufferUsage2ANDROID*)(&forMarshaling->usage2), ptr);
 }
@@ -9189,32 +6093,23 @@ void reservedmarshal_VkNativeBufferANDROID(VulkanStreamGuest* vkStream, VkStruct
 void reservedmarshal_VkSwapchainImageCreateInfoANDROID(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSwapchainImageCreateInfoANDROID* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkSwapchainImageUsageFlagsANDROID*)&forMarshaling->usage,
-           sizeof(VkSwapchainImageUsageFlagsANDROID));
-    *ptr += sizeof(VkSwapchainImageUsageFlagsANDROID);
+    writeStreamBytes(ptr, &forMarshaling->usage, sizeof(VkSwapchainImageUsageFlagsANDROID));
 }
 
 void reservedmarshal_VkPhysicalDevicePresentationPropertiesANDROID(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePresentationPropertiesANDROID* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->sharedImage, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->sharedImage, sizeof(VkBool32));
 }
 
 #endif
@@ -9222,72 +6117,47 @@ void reservedmarshal_VkPhysicalDevicePresentationPropertiesANDROID(
 void reservedmarshal_VkPhysicalDeviceTransformFeedbackFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceTransformFeedbackFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->transformFeedback, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->geometryStreams, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->transformFeedback, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->geometryStreams, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceTransformFeedbackPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceTransformFeedbackPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTransformFeedbackStreams, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTransformFeedbackBuffers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->maxTransformFeedbackBufferSize,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTransformFeedbackStreamDataSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTransformFeedbackBufferDataSize, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxTransformFeedbackBufferDataStride, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->transformFeedbackQueries, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->transformFeedbackStreamsLinesTriangles,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->transformFeedbackRasterizationStreamSelect,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->transformFeedbackDraw, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->maxTransformFeedbackStreams, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTransformFeedbackBuffers, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTransformFeedbackBufferSize, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->maxTransformFeedbackStreamDataSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTransformFeedbackBufferDataSize, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->maxTransformFeedbackBufferDataStride, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->transformFeedbackQueries, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->transformFeedbackStreamsLinesTriangles, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->transformFeedbackRasterizationStreamSelect,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->transformFeedbackDraw, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineRasterizationStateStreamCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineRasterizationStateStreamCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineRasterizationStateStreamCreateFlagsEXT*)&forMarshaling->flags,
-           sizeof(VkPipelineRasterizationStateStreamCreateFlagsEXT));
-    *ptr += sizeof(VkPipelineRasterizationStateStreamCreateFlagsEXT);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->rasterizationStream, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags,
+                     sizeof(VkPipelineRasterizationStateStreamCreateFlagsEXT));
+    writeStreamBytes(ptr, &forMarshaling->rasterizationStream, sizeof(uint32_t));
 }
 
 #endif
@@ -9295,34 +6165,25 @@ void reservedmarshal_VkPipelineRasterizationStateStreamCreateInfoEXT(
 void reservedmarshal_VkPhysicalDeviceDepthClipEnableFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceDepthClipEnableFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthClipEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->depthClipEnable, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineRasterizationDepthClipStateCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineRasterizationDepthClipStateCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkPipelineRasterizationDepthClipStateCreateFlagsEXT*)&forMarshaling->flags,
-           sizeof(VkPipelineRasterizationDepthClipStateCreateFlagsEXT));
-    *ptr += sizeof(VkPipelineRasterizationDepthClipStateCreateFlagsEXT);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->depthClipEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->flags,
+                     sizeof(VkPipelineRasterizationDepthClipStateCreateFlagsEXT));
+    writeStreamBytes(ptr, &forMarshaling->depthClipEnable, sizeof(VkBool32));
 }
 
 #endif
@@ -9330,62 +6191,41 @@ void reservedmarshal_VkPipelineRasterizationDepthClipStateCreateInfoEXT(
 void reservedmarshal_VkPhysicalDeviceBlendOperationAdvancedFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceBlendOperationAdvancedFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->advancedBlendCoherentOperations, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->advancedBlendCoherentOperations, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceBlendOperationAdvancedPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceBlendOperationAdvancedPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->advancedBlendMaxColorAttachments, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->advancedBlendIndependentBlend, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->advancedBlendNonPremultipliedSrcColor,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->advancedBlendNonPremultipliedDstColor,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->advancedBlendCorrelatedOverlap, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->advancedBlendAllOperations, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->advancedBlendMaxColorAttachments, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->advancedBlendIndependentBlend, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->advancedBlendNonPremultipliedSrcColor, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->advancedBlendNonPremultipliedDstColor, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->advancedBlendCorrelatedOverlap, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->advancedBlendAllOperations, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineColorBlendAdvancedStateCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineColorBlendAdvancedStateCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->srcPremultiplied, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->dstPremultiplied, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBlendOverlapEXT*)&forMarshaling->blendOverlap, sizeof(VkBlendOverlapEXT));
-    *ptr += sizeof(VkBlendOverlapEXT);
+    writeStreamBytes(ptr, &forMarshaling->srcPremultiplied, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->dstPremultiplied, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->blendOverlap, sizeof(VkBlendOverlapEXT));
 }
 
 #endif
@@ -9395,33 +6235,22 @@ void reservedmarshal_VkDrmFormatModifierPropertiesEXT(
     const VkDrmFormatModifierPropertiesEXT* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint64_t*)&forMarshaling->drmFormatModifier, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->drmFormatModifierPlaneCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkFormatFeatureFlags*)&forMarshaling->drmFormatModifierTilingFeatures,
-           sizeof(VkFormatFeatureFlags));
-    *ptr += sizeof(VkFormatFeatureFlags);
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifier, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifierPlaneCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifierTilingFeatures,
+                     sizeof(VkFormatFeatureFlags));
 }
 
 void reservedmarshal_VkDrmFormatModifierPropertiesListEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDrmFormatModifierPropertiesListEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->drmFormatModifierCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pDrmFormatModifierProperties;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifierCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDrmFormatModifierProperties);
     if (forMarshaling->pDrmFormatModifierProperties) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->drmFormatModifierCount; ++i) {
             reservedmarshal_VkDrmFormatModifierPropertiesEXT(
@@ -9436,30 +6265,19 @@ void reservedmarshal_VkDrmFormatModifierPropertiesListEXT(
 void reservedmarshal_VkPhysicalDeviceImageDrmFormatModifierInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceImageDrmFormatModifierInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->drmFormatModifier, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (VkSharingMode*)&forMarshaling->sharingMode, sizeof(VkSharingMode));
-    *ptr += sizeof(VkSharingMode);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->queueFamilyIndexCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pQueueFamilyIndices;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifier, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->sharingMode, sizeof(VkSharingMode));
+    writeStreamBytes(ptr, &forMarshaling->queueFamilyIndexCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pQueueFamilyIndices);
     if (forMarshaling->pQueueFamilyIndices) {
         if (forMarshaling->queueFamilyIndexCount > 0) {
-            memcpy(*ptr, (const uint32_t*)forMarshaling->pQueueFamilyIndices,
-                   forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t));
-            *ptr += forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t);
+            writeStreamBytes(ptr, forMarshaling->pQueueFamilyIndices,
+                             forMarshaling->queueFamilyIndexCount * sizeof(const uint32_t));
         }
     }
 }
@@ -9467,38 +6285,28 @@ void reservedmarshal_VkPhysicalDeviceImageDrmFormatModifierInfoEXT(
 void reservedmarshal_VkImageDrmFormatModifierListCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImageDrmFormatModifierListCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->drmFormatModifierCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifierCount, sizeof(uint32_t));
     if (forMarshaling->drmFormatModifierCount > 0) {
-        memcpy(*ptr, (const uint64_t*)forMarshaling->pDrmFormatModifiers,
-               forMarshaling->drmFormatModifierCount * sizeof(const uint64_t));
-        *ptr += forMarshaling->drmFormatModifierCount * sizeof(const uint64_t);
+        writeStreamBytes(ptr, forMarshaling->pDrmFormatModifiers,
+                         forMarshaling->drmFormatModifierCount * sizeof(const uint64_t));
     }
 }
 
 void reservedmarshal_VkImageDrmFormatModifierExplicitCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImageDrmFormatModifierExplicitCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->drmFormatModifier, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->drmFormatModifierPlaneCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifier, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifierPlaneCount, sizeof(uint32_t));
     for (uint32_t i = 0; i < (uint32_t)forMarshaling->drmFormatModifierPlaneCount; ++i) {
         reservedmarshal_VkSubresourceLayout(
             vkStream, rootType, (const VkSubresourceLayout*)(forMarshaling->pPlaneLayouts + i),
@@ -9509,16 +6317,12 @@ void reservedmarshal_VkImageDrmFormatModifierExplicitCreateInfoEXT(
 void reservedmarshal_VkImageDrmFormatModifierPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImageDrmFormatModifierPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->drmFormatModifier, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifier, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkDrmFormatModifierProperties2EXT(
@@ -9526,33 +6330,22 @@ void reservedmarshal_VkDrmFormatModifierProperties2EXT(
     const VkDrmFormatModifierProperties2EXT* forMarshaling, uint8_t** ptr) {
     (void)vkStream;
     (void)rootType;
-    memcpy(*ptr, (uint64_t*)&forMarshaling->drmFormatModifier, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->drmFormatModifierPlaneCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (VkFormatFeatureFlags2*)&forMarshaling->drmFormatModifierTilingFeatures,
-           sizeof(VkFormatFeatureFlags2));
-    *ptr += sizeof(VkFormatFeatureFlags2);
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifier, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifierPlaneCount, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifierTilingFeatures,
+                     sizeof(VkFormatFeatureFlags2));
 }
 
 void reservedmarshal_VkDrmFormatModifierPropertiesList2EXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDrmFormatModifierPropertiesList2EXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->drmFormatModifierCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pDrmFormatModifierProperties;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->drmFormatModifierCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pDrmFormatModifierProperties);
     if (forMarshaling->pDrmFormatModifierProperties) {
         for (uint32_t i = 0; i < (uint32_t)forMarshaling->drmFormatModifierCount; ++i) {
             reservedmarshal_VkDrmFormatModifierProperties2EXT(
@@ -9569,16 +6362,12 @@ void reservedmarshal_VkDrmFormatModifierPropertiesList2EXT(
 void reservedmarshal_VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxVertexAttribDivisor, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->maxVertexAttribDivisor, sizeof(uint32_t));
 }
 
 #endif
@@ -9586,30 +6375,20 @@ void reservedmarshal_VkPhysicalDeviceVertexAttributeDivisorPropertiesEXT(
 void reservedmarshal_VkPhysicalDeviceFragmentDensityMapFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceFragmentDensityMapFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fragmentDensityMap, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fragmentDensityMapDynamic, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fragmentDensityMapNonSubsampledImages,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->fragmentDensityMap, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->fragmentDensityMapDynamic, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->fragmentDensityMapNonSubsampledImages, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceFragmentDensityMapPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceFragmentDensityMapPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -9618,17 +6397,13 @@ void reservedmarshal_VkPhysicalDeviceFragmentDensityMapPropertiesEXT(
                                (VkExtent2D*)(&forMarshaling->minFragmentDensityTexelSize), ptr);
     reservedmarshal_VkExtent2D(vkStream, rootType,
                                (VkExtent2D*)(&forMarshaling->maxFragmentDensityTexelSize), ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->fragmentDensityInvocations, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->fragmentDensityInvocations, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkRenderPassFragmentDensityMapCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkRenderPassFragmentDensityMapCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -9641,20 +6416,13 @@ void reservedmarshal_VkRenderPassFragmentDensityMapCreateInfoEXT(
 void reservedmarshal_VkRenderingFragmentDensityMapAttachmentInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkRenderingFragmentDensityMapAttachmentInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    uint64_t cgen_var_0;
-    *&cgen_var_0 = gfxstream_vk_image_view_to_host_u64((*&forMarshaling->imageView));
-    memcpy(*ptr, (uint64_t*)&cgen_var_0, 1 * 8);
-    *ptr += 1 * 8;
-    memcpy(*ptr, (VkImageLayout*)&forMarshaling->imageLayout, sizeof(VkImageLayout));
-    *ptr += sizeof(VkImageLayout);
+    writeStreamVal(ptr, gfxstream_vk_image_view_to_host_u64(forMarshaling->imageView));
+    writeStreamBytes(ptr, &forMarshaling->imageLayout, sizeof(VkImageLayout));
 }
 
 #endif
@@ -9662,20 +6430,13 @@ void reservedmarshal_VkRenderingFragmentDensityMapAttachmentInfoEXT(
 void reservedmarshal_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceMemoryBudgetPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceSize*)forMarshaling->heapBudget,
-           VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize));
-    *ptr += VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)forMarshaling->heapUsage,
-           VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize));
-    *ptr += VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, forMarshaling->heapBudget, VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, forMarshaling->heapUsage, VK_MAX_MEMORY_HEAPS * sizeof(VkDeviceSize));
 }
 
 #endif
@@ -9683,53 +6444,38 @@ void reservedmarshal_VkPhysicalDeviceMemoryBudgetPropertiesEXT(
 void reservedmarshal_VkPhysicalDeviceProvokingVertexFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceProvokingVertexFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->provokingVertexLast, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->transformFeedbackPreservesProvokingVertex,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->provokingVertexLast, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->transformFeedbackPreservesProvokingVertex,
+                     sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceProvokingVertexPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceProvokingVertexPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->provokingVertexModePerPipeline, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->transformFeedbackPreservesTriangleFanProvokingVertex,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->provokingVertexModePerPipeline, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->transformFeedbackPreservesTriangleFanProvokingVertex,
+                     sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineRasterizationProvokingVertexStateCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineRasterizationProvokingVertexStateCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkProvokingVertexModeEXT*)&forMarshaling->provokingVertexMode,
-           sizeof(VkProvokingVertexModeEXT));
-    *ptr += sizeof(VkProvokingVertexModeEXT);
+    writeStreamBytes(ptr, &forMarshaling->provokingVertexMode, sizeof(VkProvokingVertexModeEXT));
 }
 
 #endif
@@ -9737,16 +6483,12 @@ void reservedmarshal_VkPipelineRasterizationProvokingVertexStateCreateInfoEXT(
 void reservedmarshal_VkPhysicalDeviceExtendedDynamicStateFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceExtendedDynamicStateFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->extendedDynamicState, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->extendedDynamicState, sizeof(VkBool32));
 }
 
 #endif
@@ -9754,16 +6496,12 @@ void reservedmarshal_VkPhysicalDeviceExtendedDynamicStateFeaturesEXT(
 void reservedmarshal_VkPhysicalDeviceTexelBufferAlignmentFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceTexelBufferAlignmentFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->texelBufferAlignment, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->texelBufferAlignment, sizeof(VkBool32));
 }
 
 #endif
@@ -9771,67 +6509,42 @@ void reservedmarshal_VkPhysicalDeviceTexelBufferAlignmentFeaturesEXT(
 void reservedmarshal_VkPhysicalDeviceDeviceMemoryReportFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceDeviceMemoryReportFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->deviceMemoryReport, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->deviceMemoryReport, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkDeviceMemoryReportCallbackDataEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceMemoryReportCallbackDataEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceMemoryReportFlagsEXT*)&forMarshaling->flags,
-           sizeof(VkDeviceMemoryReportFlagsEXT));
-    *ptr += sizeof(VkDeviceMemoryReportFlagsEXT);
-    memcpy(*ptr, (VkDeviceMemoryReportEventTypeEXT*)&forMarshaling->type,
-           sizeof(VkDeviceMemoryReportEventTypeEXT));
-    *ptr += sizeof(VkDeviceMemoryReportEventTypeEXT);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->memoryObjectId, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->size, sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkObjectType*)&forMarshaling->objectType, sizeof(VkObjectType));
-    *ptr += sizeof(VkObjectType);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->objectHandle, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->heapIndex, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkDeviceMemoryReportFlagsEXT));
+    writeStreamBytes(ptr, &forMarshaling->type, sizeof(VkDeviceMemoryReportEventTypeEXT));
+    writeStreamBytes(ptr, &forMarshaling->memoryObjectId, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->size, sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->objectType, sizeof(VkObjectType));
+    writeStreamBytes(ptr, &forMarshaling->objectHandle, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->heapIndex, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkDeviceDeviceMemoryReportCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDeviceDeviceMemoryReportCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceMemoryReportFlagsEXT*)&forMarshaling->flags,
-           sizeof(VkDeviceMemoryReportFlagsEXT));
-    *ptr += sizeof(VkDeviceMemoryReportFlagsEXT);
-    uint64_t cgen_var_0 = (uint64_t)forMarshaling->pfnUserCallback;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    memcpy(*ptr, (void*)forMarshaling->pUserData, sizeof(uint8_t));
-    *ptr += sizeof(uint8_t);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkDeviceMemoryReportFlagsEXT));
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->pfnUserCallback);
+    writeStreamBytes(ptr, forMarshaling->pUserData, sizeof(uint8_t));
 }
 
 #endif
@@ -9839,39 +6552,28 @@ void reservedmarshal_VkDeviceDeviceMemoryReportCreateInfoEXT(
 void reservedmarshal_VkPhysicalDeviceRobustness2FeaturesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceRobustness2FeaturesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->robustBufferAccess2, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->robustImageAccess2, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->nullDescriptor, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->robustBufferAccess2, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->robustImageAccess2, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->nullDescriptor, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceRobustness2PropertiesKHR(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceRobustness2PropertiesKHR* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->robustStorageBufferAccessSizeAlignment,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
-    memcpy(*ptr, (VkDeviceSize*)&forMarshaling->robustUniformBufferAccessSizeAlignment,
-           sizeof(VkDeviceSize));
-    *ptr += sizeof(VkDeviceSize);
+    writeStreamBytes(ptr, &forMarshaling->robustStorageBufferAccessSizeAlignment,
+                     sizeof(VkDeviceSize));
+    writeStreamBytes(ptr, &forMarshaling->robustUniformBufferAccessSizeAlignment,
+                     sizeof(VkDeviceSize));
 }
 
 #endif
@@ -9879,50 +6581,37 @@ void reservedmarshal_VkPhysicalDeviceRobustness2PropertiesKHR(
 void reservedmarshal_VkSamplerCustomBorderColorCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSamplerCustomBorderColorCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
     reservedmarshal_VkClearColorValue(vkStream, rootType,
                                       (VkClearColorValue*)(&forMarshaling->customBorderColor), ptr);
-    memcpy(*ptr, (VkFormat*)&forMarshaling->format, sizeof(VkFormat));
-    *ptr += sizeof(VkFormat);
+    writeStreamBytes(ptr, &forMarshaling->format, sizeof(VkFormat));
 }
 
 void reservedmarshal_VkPhysicalDeviceCustomBorderColorPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceCustomBorderColorPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->maxCustomBorderColorSamplers, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->maxCustomBorderColorSamplers, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkPhysicalDeviceCustomBorderColorFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceCustomBorderColorFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->customBorderColors, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->customBorderColorWithoutFormat, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->customBorderColors, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->customBorderColorWithoutFormat, sizeof(VkBool32));
 }
 
 #endif
@@ -9930,51 +6619,36 @@ void reservedmarshal_VkPhysicalDeviceCustomBorderColorFeaturesEXT(
 void reservedmarshal_VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->graphicsPipelineLibrary, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->graphicsPipelineLibrary, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPhysicalDeviceGraphicsPipelineLibraryPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceGraphicsPipelineLibraryPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->graphicsPipelineLibraryFastLinking, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr,
-           (VkBool32*)&forMarshaling->graphicsPipelineLibraryIndependentInterpolationDecoration,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->graphicsPipelineLibraryFastLinking, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->graphicsPipelineLibraryIndependentInterpolationDecoration,
+                     sizeof(VkBool32));
 }
 
 void reservedmarshal_VkGraphicsPipelineLibraryCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkGraphicsPipelineLibraryCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkGraphicsPipelineLibraryFlagsEXT*)&forMarshaling->flags,
-           sizeof(VkGraphicsPipelineLibraryFlagsEXT));
-    *ptr += sizeof(VkGraphicsPipelineLibraryFlagsEXT);
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkGraphicsPipelineLibraryFlagsEXT));
 }
 
 #endif
@@ -9982,16 +6656,12 @@ void reservedmarshal_VkGraphicsPipelineLibraryCreateInfoEXT(
 void reservedmarshal_VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->ycbcr2plane444Formats, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->ycbcr2plane444Formats, sizeof(VkBool32));
 }
 
 #endif
@@ -9999,47 +6669,31 @@ void reservedmarshal_VkPhysicalDeviceYcbcr2Plane444FormatsFeaturesEXT(
 void reservedmarshal_VkPhysicalDeviceImageCompressionControlFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceImageCompressionControlFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->imageCompressionControl, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->imageCompressionControl, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkImageCompressionControlEXT(VulkanStreamGuest* vkStream,
                                                   VkStructureType rootType,
                                                   const VkImageCompressionControlEXT* forMarshaling,
                                                   uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageCompressionFlagsEXT*)&forMarshaling->flags,
-           sizeof(VkImageCompressionFlagsEXT));
-    *ptr += sizeof(VkImageCompressionFlagsEXT);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->compressionControlPlaneCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pFixedRateFlags;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkImageCompressionFlagsEXT));
+    writeStreamBytes(ptr, &forMarshaling->compressionControlPlaneCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pFixedRateFlags);
     if (forMarshaling->pFixedRateFlags) {
         if (forMarshaling->compressionControlPlaneCount > 0) {
-            memcpy(*ptr, (VkImageCompressionFixedRateFlagsEXT*)forMarshaling->pFixedRateFlags,
-                   forMarshaling->compressionControlPlaneCount *
-                       sizeof(VkImageCompressionFixedRateFlagsEXT));
-            *ptr += forMarshaling->compressionControlPlaneCount *
-                    sizeof(VkImageCompressionFixedRateFlagsEXT);
+            writeStreamBytes(ptr, forMarshaling->pFixedRateFlags,
+                             forMarshaling->compressionControlPlaneCount *
+                                 sizeof(VkImageCompressionFixedRateFlagsEXT));
         }
     }
 }
@@ -10047,21 +6701,15 @@ void reservedmarshal_VkImageCompressionControlEXT(VulkanStreamGuest* vkStream,
 void reservedmarshal_VkImageCompressionPropertiesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkImageCompressionPropertiesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkImageCompressionFlagsEXT*)&forMarshaling->imageCompressionFlags,
-           sizeof(VkImageCompressionFlagsEXT));
-    *ptr += sizeof(VkImageCompressionFlagsEXT);
-    memcpy(*ptr,
-           (VkImageCompressionFixedRateFlagsEXT*)&forMarshaling->imageCompressionFixedRateFlags,
-           sizeof(VkImageCompressionFixedRateFlagsEXT));
-    *ptr += sizeof(VkImageCompressionFixedRateFlagsEXT);
+    writeStreamBytes(ptr, &forMarshaling->imageCompressionFlags,
+                     sizeof(VkImageCompressionFlagsEXT));
+    writeStreamBytes(ptr, &forMarshaling->imageCompressionFixedRateFlags,
+                     sizeof(VkImageCompressionFixedRateFlagsEXT));
 }
 
 #endif
@@ -10069,18 +6717,13 @@ void reservedmarshal_VkImageCompressionPropertiesEXT(
 void reservedmarshal_VkPhysicalDevice4444FormatsFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevice4444FormatsFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->formatA4R4G4B4, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->formatA4B4G4R4, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->formatA4R4G4B4, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->formatA4B4G4R4, sizeof(VkBool32));
 }
 
 #endif
@@ -10088,18 +6731,13 @@ void reservedmarshal_VkPhysicalDevice4444FormatsFeaturesEXT(
 void reservedmarshal_VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->primitiveTopologyListRestart, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->primitiveTopologyPatchListRestart, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->primitiveTopologyListRestart, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->primitiveTopologyPatchListRestart, sizeof(VkBool32));
 }
 
 #endif
@@ -10107,86 +6745,48 @@ void reservedmarshal_VkPhysicalDevicePrimitiveTopologyListRestartFeaturesEXT(
 void reservedmarshal_VkPhysicalDeviceFrameBoundaryFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceFrameBoundaryFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->frameBoundary, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->frameBoundary, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkFrameBoundaryEXT(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkFrameBoundaryEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkFrameBoundaryFlagsEXT*)&forMarshaling->flags, sizeof(VkFrameBoundaryFlagsEXT));
-    *ptr += sizeof(VkFrameBoundaryFlagsEXT);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->frameID, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->imageCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pImages;
-    memcpy((*ptr), &cgen_var_0, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->flags, sizeof(VkFrameBoundaryFlagsEXT));
+    writeStreamBytes(ptr, &forMarshaling->frameID, sizeof(uint64_t));
+    writeStreamBytes(ptr, &forMarshaling->imageCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pImages);
     if (forMarshaling->pImages) {
         if (forMarshaling->imageCount) {
-            uint8_t* cgen_var_0_0_ptr = (uint8_t*)(*ptr);
-            if (forMarshaling) {
-                for (uint32_t k = 0; k < forMarshaling->imageCount; ++k) {
-                    uint64_t tmpval = gfxstream_vk_image_to_host_u64(forMarshaling->pImages[k]);
-                    memcpy(cgen_var_0_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-                }
+            for (uint32_t k = 0; k < forMarshaling->imageCount; ++k) {
+                writeStreamVal(ptr, gfxstream_vk_image_to_host_u64(forMarshaling->pImages[k]));
             }
-            *ptr += 8 * forMarshaling->imageCount;
         }
     }
-    memcpy(*ptr, (uint32_t*)&forMarshaling->bufferCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    // WARNING PTR CHECK
-    uint64_t cgen_var_1 = (uint64_t)(uintptr_t)forMarshaling->pBuffers;
-    memcpy((*ptr), &cgen_var_1, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->bufferCount, sizeof(uint32_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pBuffers);
     if (forMarshaling->pBuffers) {
         if (forMarshaling->bufferCount) {
-            uint8_t* cgen_var_1_0_ptr = (uint8_t*)(*ptr);
-            if (forMarshaling) {
-                for (uint32_t k = 0; k < forMarshaling->bufferCount; ++k) {
-                    uint64_t tmpval = gfxstream_vk_buffer_to_host_u64(forMarshaling->pBuffers[k]);
-                    memcpy(cgen_var_1_0_ptr + k * 8, &tmpval, sizeof(uint64_t));
-                }
+            for (uint32_t k = 0; k < forMarshaling->bufferCount; ++k) {
+                writeStreamVal(ptr, gfxstream_vk_buffer_to_host_u64(forMarshaling->pBuffers[k]));
             }
-            *ptr += 8 * forMarshaling->bufferCount;
         }
     }
-    memcpy(*ptr, (uint64_t*)&forMarshaling->tagName, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
-    uint64_t cgen_var_2 = (uint64_t)forMarshaling->tagSize;
-    memcpy((*ptr), &cgen_var_2, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
-    // WARNING PTR CHECK
-    uint64_t cgen_var_3 = (uint64_t)(uintptr_t)forMarshaling->pTag;
-    memcpy((*ptr), &cgen_var_3, 8);
-    gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-    *ptr += 8;
+    writeStreamBytes(ptr, &forMarshaling->tagName, sizeof(uint64_t));
+    putBe64WithStreamPtr(ptr, (uint64_t)forMarshaling->tagSize);
+    putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pTag);
     if (forMarshaling->pTag) {
         if (forMarshaling->tagSize > 0) {
-            memcpy(*ptr, (const void*)forMarshaling->pTag,
-                   forMarshaling->tagSize * sizeof(const uint8_t));
-            *ptr += forMarshaling->tagSize * sizeof(const uint8_t);
+            writeStreamBytes(ptr, forMarshaling->pTag,
+                             forMarshaling->tagSize * sizeof(const uint8_t));
         }
     }
 }
@@ -10196,21 +6796,15 @@ void reservedmarshal_VkFrameBoundaryEXT(VulkanStreamGuest* vkStream, VkStructure
 void reservedmarshal_VkPhysicalDeviceExtendedDynamicState2FeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceExtendedDynamicState2FeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->extendedDynamicState2, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->extendedDynamicState2LogicOp, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->extendedDynamicState2PatchControlPoints,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->extendedDynamicState2, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->extendedDynamicState2LogicOp, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->extendedDynamicState2PatchControlPoints,
+                     sizeof(VkBool32));
 }
 
 #endif
@@ -10218,35 +6812,26 @@ void reservedmarshal_VkPhysicalDeviceExtendedDynamicState2FeaturesEXT(
 void reservedmarshal_VkPhysicalDeviceColorWriteEnableFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceColorWriteEnableFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->colorWriteEnable, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->colorWriteEnable, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkPipelineColorWriteCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPipelineColorWriteCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->attachmentCount, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->attachmentCount, sizeof(uint32_t));
     if (forMarshaling->attachmentCount > 0) {
-        memcpy(*ptr, (const VkBool32*)forMarshaling->pColorWriteEnables,
-               forMarshaling->attachmentCount * sizeof(const VkBool32));
-        *ptr += forMarshaling->attachmentCount * sizeof(const VkBool32);
+        writeStreamBytes(ptr, forMarshaling->pColorWriteEnables,
+                         forMarshaling->attachmentCount * sizeof(const VkBool32));
     }
 }
 
@@ -10255,22 +6840,16 @@ void reservedmarshal_VkPipelineColorWriteCreateInfoEXT(
 void reservedmarshal_VkPhysicalDevicePrimitivesGeneratedQueryFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDevicePrimitivesGeneratedQueryFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->primitivesGeneratedQuery, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->primitivesGeneratedQueryWithRasterizerDiscard,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->primitivesGeneratedQueryWithNonZeroStreams,
-           sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->primitivesGeneratedQuery, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->primitivesGeneratedQueryWithRasterizerDiscard,
+                     sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->primitivesGeneratedQueryWithNonZeroStreams,
+                     sizeof(VkBool32));
 }
 
 #endif
@@ -10279,183 +6858,111 @@ void reservedmarshal_VkImportColorBufferGOOGLE(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkImportColorBufferGOOGLE* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->colorBuffer, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->colorBuffer, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkImportBufferGOOGLE(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                           const VkImportBufferGOOGLE* forMarshaling,
                                           uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->buffer, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
+    writeStreamBytes(ptr, &forMarshaling->buffer, sizeof(uint32_t));
 }
 
 void reservedmarshal_VkCreateBlobGOOGLE(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                         const VkCreateBlobGOOGLE* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->blobMem, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint32_t*)&forMarshaling->blobFlags, sizeof(uint32_t));
-    *ptr += sizeof(uint32_t);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->blobId, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->blobMem, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->blobFlags, sizeof(uint32_t));
+    writeStreamBytes(ptr, &forMarshaling->blobId, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkDebugMetadataGuestProcessNameGOOGLE(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDebugMetadataGuestProcessNameGOOGLE* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT) {
-        // WARNING PTR CHECK
-        uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pName;
-        memcpy((*ptr), &cgen_var_0, 8);
-        gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-        *ptr += 8;
+        putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pName);
         if (forMarshaling->pName) {
-            {
-                uint32_t l = forMarshaling->pName ? strlen(forMarshaling->pName) : 0;
-                memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-                gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-                *ptr += sizeof(uint32_t);
-                memcpy(*ptr, (char*)forMarshaling->pName, l);
-                *ptr += l;
-            }
+            putStringWithStreamPtr(ptr, forMarshaling->pName);
         }
     } else {
-        {
-            uint32_t l = forMarshaling->pName ? strlen(forMarshaling->pName) : 0;
-            memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
-            memcpy(*ptr, (char*)forMarshaling->pName, l);
-            *ptr += l;
-        }
+        putStringWithStreamPtr(ptr, forMarshaling->pName);
     }
 }
 
 void reservedmarshal_VkDebugMetadataGuestProcessIdGOOGLE(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDebugMetadataGuestProcessIdGOOGLE* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->id, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->id, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkDebugMetadataGuestThreadNameGOOGLE(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDebugMetadataGuestThreadNameGOOGLE* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
     if (vkStream->getFeatureBits() & VULKAN_STREAM_FEATURE_NULL_OPTIONAL_STRINGS_BIT) {
-        // WARNING PTR CHECK
-        uint64_t cgen_var_0 = (uint64_t)(uintptr_t)forMarshaling->pName;
-        memcpy((*ptr), &cgen_var_0, 8);
-        gfxstream::aemu::Stream::toBe64((uint8_t*)(*ptr));
-        *ptr += 8;
+        putBe64WithStreamPtr(ptr, (uint64_t)(uintptr_t)forMarshaling->pName);
         if (forMarshaling->pName) {
-            {
-                uint32_t l = forMarshaling->pName ? strlen(forMarshaling->pName) : 0;
-                memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-                gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-                *ptr += sizeof(uint32_t);
-                memcpy(*ptr, (char*)forMarshaling->pName, l);
-                *ptr += l;
-            }
+            putStringWithStreamPtr(ptr, forMarshaling->pName);
         }
     } else {
-        {
-            uint32_t l = forMarshaling->pName ? strlen(forMarshaling->pName) : 0;
-            memcpy(*ptr, (uint32_t*)&l, sizeof(uint32_t));
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
-            memcpy(*ptr, (char*)forMarshaling->pName, l);
-            *ptr += l;
-        }
+        putStringWithStreamPtr(ptr, forMarshaling->pName);
     }
 }
 
 void reservedmarshal_VkDebugMetadataGuestThreadIdGOOGLE(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkDebugMetadataGuestThreadIdGOOGLE* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (uint64_t*)&forMarshaling->id, sizeof(uint64_t));
-    *ptr += sizeof(uint64_t);
+    writeStreamBytes(ptr, &forMarshaling->id, sizeof(uint64_t));
 }
 
 void reservedmarshal_VkGuestCapabilitiesGOOGLE(VulkanStreamGuest* vkStream,
                                                VkStructureType rootType,
                                                const VkGuestCapabilitiesGOOGLE* forMarshaling,
                                                uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkGuestCapabilityFlagsGOOGLE*)&forMarshaling->capabilities,
-           sizeof(VkGuestCapabilityFlagsGOOGLE));
-    *ptr += sizeof(VkGuestCapabilityFlagsGOOGLE);
+    writeStreamBytes(ptr, &forMarshaling->capabilities, sizeof(VkGuestCapabilityFlagsGOOGLE));
 }
 
 void reservedmarshal_VkDebugMetadataGOOGLE(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                            const VkDebugMetadataGOOGLE* forMarshaling,
                                            uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
@@ -10467,35 +6974,26 @@ void reservedmarshal_VkDebugMetadataGOOGLE(VulkanStreamGuest* vkStream, VkStruct
 void reservedmarshal_VkPhysicalDeviceBorderColorSwizzleFeaturesEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceBorderColorSwizzleFeaturesEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->borderColorSwizzle, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->borderColorSwizzleFromImage, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->borderColorSwizzle, sizeof(VkBool32));
+    writeStreamBytes(ptr, &forMarshaling->borderColorSwizzleFromImage, sizeof(VkBool32));
 }
 
 void reservedmarshal_VkSamplerBorderColorComponentMappingCreateInfoEXT(
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkSamplerBorderColorComponentMappingCreateInfoEXT* forMarshaling, uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
     reservedmarshal_VkComponentMapping(vkStream, rootType,
                                        (VkComponentMapping*)(&forMarshaling->components), ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->srgb, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->srgb, sizeof(VkBool32));
 }
 
 #endif
@@ -10504,16 +7002,12 @@ void reservedmarshal_VkPhysicalDeviceImageCompressionControlSwapchainFeaturesEXT
     VulkanStreamGuest* vkStream, VkStructureType rootType,
     const VkPhysicalDeviceImageCompressionControlSwapchainFeaturesEXT* forMarshaling,
     uint8_t** ptr) {
-    (void)vkStream;
-    (void)rootType;
-    memcpy(*ptr, (VkStructureType*)&forMarshaling->sType, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, &forMarshaling->sType, sizeof(VkStructureType));
     if (rootType == VK_STRUCTURE_TYPE_MAX_ENUM) {
         rootType = forMarshaling->sType;
     }
     reservedmarshal_extension_struct(vkStream, rootType, forMarshaling->pNext, ptr);
-    memcpy(*ptr, (VkBool32*)&forMarshaling->imageCompressionControlSwapchain, sizeof(VkBool32));
-    *ptr += sizeof(VkBool32);
+    writeStreamBytes(ptr, &forMarshaling->imageCompressionControlSwapchain, sizeof(VkBool32));
 }
 
 #endif
@@ -10529,18 +7023,14 @@ void reservedmarshal_extension_struct(VulkanStreamGuest* vkStream, VkStructureTy
     } else {
         // known or null extension struct
         if (!currExtSize) {
-            memcpy(*ptr, &currExtSize, sizeof(uint32_t));
-            ;
-            gfxstream::aemu::Stream::toBe32((uint8_t*)*ptr);
-            *ptr += sizeof(uint32_t);
+            putBe32WithStreamPtr(ptr, 0);
             // exit if this was a null extension struct (size == 0 in this branch)
             return;
         }
     }
     uint8_t* sizePtr = *ptr;
     *ptr += sizeof(uint32_t);
-    memcpy(*ptr, structExtension, sizeof(VkStructureType));
-    *ptr += sizeof(VkStructureType);
+    writeStreamBytes(ptr, structExtension, sizeof(VkStructureType));
     uint8_t* structStartPtr = *ptr;
     if (!structExtension) {
         return;

@@ -47,6 +47,56 @@
 namespace gfxstream {
 namespace vk {
 
+inline void writeStreamBytes(uint8_t** ptr, const void* buffer, size_t size) {
+    memcpy(*ptr, buffer, size);
+    *ptr += size;
+}
+
+template <typename T>
+inline void writeStreamVal(uint8_t** ptr, const T& val) {
+    memcpy(*ptr, &val, sizeof(T));
+    *ptr += sizeof(T);
+}
+
+inline void putByteWithStreamPtr(uint8_t** ptr, uint8_t val) {
+    **ptr = val;
+    *ptr += sizeof(uint8_t);
+}
+
+inline void putBe16WithStreamPtr(uint8_t** ptr, uint16_t val) {
+    memcpy(*ptr, &val, sizeof(uint16_t));
+    gfxstream::aemu::Stream::toBe16(*ptr);
+    *ptr += sizeof(uint16_t);
+}
+
+inline void putBe32WithStreamPtr(uint8_t** ptr, uint32_t val) {
+    memcpy(*ptr, &val, sizeof(uint32_t));
+    gfxstream::aemu::Stream::toBe32(*ptr);
+    *ptr += sizeof(uint32_t);
+}
+
+inline void putBe64WithStreamPtr(uint8_t** ptr, uint64_t val) {
+    memcpy(*ptr, &val, sizeof(uint64_t));
+    gfxstream::aemu::Stream::toBe64(*ptr);
+    *ptr += sizeof(uint64_t);
+}
+
+inline void putStringWithStreamPtr(uint8_t** ptr, const char* str) {
+    uint32_t l = str ? strlen(str) : 0;
+    putBe32WithStreamPtr(ptr, l);
+    writeStreamBytes(ptr, str, l);
+}
+
+inline void putStringArrayWithStreamPtr(uint8_t** ptr, const char* const* strings, uint32_t count) {
+    putBe32WithStreamPtr(ptr, count);
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t l = strings ? strlen(strings[i]) : 0;
+        putBe32WithStreamPtr(ptr, l);
+        if (l) {
+            writeStreamBytes(ptr, strings[i], l);
+        }
+    }
+}
 #ifdef VK_BASE_VERSION_1_0
 void reservedmarshal_VkExtent2D(VulkanStreamGuest* vkStream, VkStructureType rootType,
                                 const VkExtent2D* forMarshaling, uint8_t** ptr);

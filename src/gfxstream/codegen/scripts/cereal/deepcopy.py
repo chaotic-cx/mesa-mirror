@@ -1,6 +1,8 @@
 # Copyright 2018 Google LLC
 # SPDX-License-Identifier: MIT
 
+import re
+
 from .common.codegen import CodeGen
 from .common.vulkantypes import \
         VulkanAPI, makeVulkanTypeSimple, iterateVulkanType, VulkanTypeIterator
@@ -99,7 +101,8 @@ class DeepcopyCodegen(VulkanTypeIterator):
             self.cgen.beginIf(lenAccessorGuardLhs)
 
         if isPtr:
-            self.cgen.stmt("%s = nullptr" % accessRhs)
+            if not isinstance(vulkanType.parent, VulkanAPI):
+                self.cgen.stmt("%s = nullptr" % accessRhs)
             self.cgen.beginIf(accessLhs)
 
             self.cgen.stmt( \
@@ -142,7 +145,8 @@ class DeepcopyCodegen(VulkanTypeIterator):
         accessLhs = self.exprAccessorLhs(vulkanType)
         accessRhs = self.exprAccessorRhs(vulkanType)
 
-        self.cgen.stmt("%s = nullptr" % accessRhs)
+        if not isinstance(vulkanType.parent, VulkanAPI):
+            self.cgen.stmt("%s = nullptr" % accessRhs)
         self.cgen.beginIf(accessLhs)
 
         self.cgen.stmt( \
@@ -159,7 +163,8 @@ class DeepcopyCodegen(VulkanTypeIterator):
 
         lenAccessLhs = self.lenAccessorLhs(vulkanType)
 
-        self.cgen.stmt("%s = nullptr" % accessRhs)
+        if not isinstance(vulkanType.parent, VulkanAPI):
+            self.cgen.stmt("%s = nullptr" % accessRhs)
         if lenAccessLhs is not None:
             self.cgen.beginIf("%s && %s" % (accessLhs, lenAccessLhs))
 
@@ -225,12 +230,14 @@ class DeepcopyCodegen(VulkanTypeIterator):
         accessRhs = self.exprAccessorRhs(vulkanType)
 
         if self.needSkip(vulkanType):
-            self.cgen.stmt("%s = nullptr" % accessRhs)
+            if not isinstance(vulkanType.parent, VulkanAPI):
+                self.cgen.stmt("%s = nullptr" % accessRhs)
             return
 
         lenAccessLhs = self.lenAccessorLhs(vulkanType)
 
-        self.cgen.stmt("%s = nullptr" % accessRhs)
+        if not isinstance(vulkanType.parent, VulkanAPI):
+            self.cgen.stmt("%s = nullptr" % accessRhs)
         self.cgen.beginIf(accessLhs)
 
         bytesExpr = self.makeAllocBytesExpr(lenAccessLhs, vulkanType)
@@ -246,7 +253,7 @@ class DeepcopyCodegen(VulkanTypeIterator):
         self.cgen.endIf()
 
     def onValue(self, vulkanType):
-        if self.skipValues:
+        if self.skipValues or isinstance(vulkanType.parent, VulkanAPI):
             return
 
         accessLhs = self.exprAccessorValueLhs(vulkanType)
@@ -334,15 +341,16 @@ class VulkanDeepcopy(VulkanWrapperGenerator):
                     if not member.isSimpleValueType(self.typeInfo):
                         canSimplyAssign = False
 
-                cgen.stmt("(void)%s" % self.deepcopyAllocatorVarName)
-                cgen.stmt("(void)%s" % self.deepcopyRootVarName)
                 cgen.stmt("*to = *from")
-                if canSimplyAssign:
-                    pass
-                else:
+                if not canSimplyAssign:
                     for member in structInfo.members:
                         iterateVulkanType(self.typeInfo, member,
                                           self.deepcopyCodegen)
+                bodyCode = cgen.swapCode()
+                for varName in [self.deepcopyAllocatorVarName, self.deepcopyRootVarName]:
+                    if not re.search(r'(?<![.>])\b' + re.escape(varName) + r'\b', bodyCode):
+                        cgen.stmt("(void)%s" % varName)
+                cgen.line(bodyCode.rstrip("\n"))
 
             self.module.appendHeader(
                 self.codegen.makeFuncDecl(deepcopyPrototype))

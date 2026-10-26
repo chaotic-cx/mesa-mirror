@@ -1,6 +1,8 @@
 # Copyright 2018 Google LLC
 # SPDX-License-Identifier: MIT
 
+import re
+
 from .common.codegen import CodeGen
 from .common.vulkantypes import \
         VulkanCompoundType, VulkanAPI, makeVulkanTypeSimple, vulkanTypeNeedsTransform, vulkanTypeGetNeededTransformTypes, VulkanTypeIterator, iterateVulkanType, vulkanTypeforEachSubType, TRIVIAL_TRANSFORMED_TYPES, NON_TRIVIAL_TRANSFORMED_TYPES, TRANSFORMED_TYPES
@@ -89,6 +91,34 @@ def genTransformsForVulkanType(resourceTrackerVarName, structOrApiInfo, getExpr,
                 structOrApiInfo,
                 getExpr, getLen, cgen, variant=variant)
 
+def compoundTypeNeedsTransform(typeInfo, typeName, visited=None):
+    if typeInfo is None or not typeInfo.isCompoundType(typeName):
+        return False
+    if typeName in TRANSFORMED_TYPES:
+        return True
+    if visited is None:
+        visited = set()
+    if typeName in visited:
+        return False
+    visited.add(typeName)
+    structInfo = typeInfo.structs.get(typeName)
+    if structInfo is None:
+        for suffix in ["KHR", "EXT", "NV", "AMD", "GOOGLE", "ANDROID"]:
+            if typeName.endswith(suffix) and typeName[:-len(suffix)] in typeInfo.structs:
+                structInfo = typeInfo.structs[typeName[:-len(suffix)]]
+                break
+    if structInfo is None:
+        return True
+    if vulkanTypeNeedsTransform(structInfo):
+        return True
+    for member in structInfo.members:
+        if member.isTransformed or member.isNextPointer():
+            return True
+        if typeInfo.isCompoundType(member.typeName):
+            if compoundTypeNeedsTransform(typeInfo, member.typeName, visited):
+                return True
+    return False
+
 class TransformCodegen(VulkanTypeIterator):
     def __init__(self, cgen, inputVar, resourceTrackerVarName, prefix, variant):
         self.cgen = cgen
@@ -134,6 +164,8 @@ class TransformCodegen(VulkanTypeIterator):
         pass
 
     def onCompoundType(self, vulkanType):
+        if not vulkanType.isTransformed and not compoundTypeNeedsTransform(self.typeInfo, vulkanType.typeName):
+            return
 
         access = self.exprAccessor(vulkanType)
         lenAccess = self.lenAccessor(vulkanType)
@@ -291,8 +323,6 @@ class VulkanTransform(VulkanWrapperGenerator):
 
                 def funcDefGenerator(cgen):
                     transformer.cgen = cgen
-                    for p in api.parameters:
-                        cgen.stmt("(void)%s" % p.paramName)
 
                     genTransformsForVulkanType(
                         self.resourceTrackerVarName,
@@ -306,6 +336,13 @@ class VulkanTransform(VulkanWrapperGenerator):
                         iterateVulkanType(
                             self.typeInfo, member,
                             transformer)
+
+                    bodyCode = cgen.swapCode()
+                    for p in api.parameters:
+                        if not re.search(r'(?<![.>])\b' + re.escape(p.paramName) + r'\b', bodyCode):
+                            cgen.stmt("(void)%s" % p.paramName)
+                    if bodyCode:
+                        cgen.line(bodyCode.rstrip("\n"))
 
                 self.module.appendHeader(
                     self.codegen.makeFuncDecl(api))

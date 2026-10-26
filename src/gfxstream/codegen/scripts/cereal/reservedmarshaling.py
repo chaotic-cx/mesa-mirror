@@ -92,6 +92,10 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
         self.cgen.stmt("*%s += %s" % (self.ptrVar, sizeExpr))
 
     def genMemcpyAndIncr(self, varname, cast, toStreamExpr, sizeExpr, toBe = False, actualSize = 4):
+        if self.direction == "write" and self.variant == "guest" and not toBe:
+            self.cgen.stmt("writeStreamBytes(%s, %s, %s)" % (varname, toStreamExpr, sizeExpr))
+            return
+
         if self.direction == "write":
             self.cgen.stmt("memcpy(*%s, %s%s, %s)" % (varname, cast, toStreamExpr, sizeExpr))
         else:
@@ -142,6 +146,21 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
 
     def genPrimitiveStreamCall(self, vulkanType, access):
         varname = self.ptrVar
+        if self.direction == "write" and self.variant == "guest":
+            if vulkanType.pointerIndirectionLevels > 0:
+                self.cgen.stmt("putBe64WithStreamPtr(%s, (uint64_t)(uintptr_t)%s)" % (varname, access))
+            else:
+                streamSize = self.typeInfo.getPrimitiveEncodingSize(vulkanType.typeName)
+                if streamSize == 1:
+                    self.cgen.stmt("putByteWithStreamPtr(%s, (uint8_t)%s)" % (varname, access))
+                elif streamSize == 2:
+                    self.cgen.stmt("putBe16WithStreamPtr(%s, (uint16_t)%s)" % (varname, access))
+                elif streamSize == 4:
+                    self.cgen.stmt("putBe32WithStreamPtr(%s, (uint32_t)%s)" % (varname, access))
+                elif streamSize == 8:
+                    self.cgen.stmt("putBe64WithStreamPtr(%s, (uint64_t)%s)" % (varname, access))
+            return
+
         self.cgen.memcpyPrimitive(
             self.typeInfo,
             "(*" + varname + ")",
@@ -155,24 +174,11 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
 
     def genHandleMappingCall(self, vulkanType, access, lenAccess, lenAccessGuard):
 
-        if lenAccess is None:
+        if lenAccess is None or lenAccess == "1":
             lenAccess = "1"
             handle64Bytes = "8"
         else:
             handle64Bytes = "%s * 8" % lenAccess
-
-        handle64Var = self.cgen.var()
-        if lenAccess != "1":
-            self.cgen.beginIf(lenAccess)
-            self.cgen.stmt("uint8_t* %s_ptr = (uint8_t*)(*%s)" % (handle64Var, self.ptrVar))
-            handle64VarAccess = handle64Var
-            handle64VarType = \
-                makeVulkanTypeSimple(False, "uint64_t", 1, paramName=handle64Var)
-        else:
-            self.cgen.stmt("uint64_t %s" % handle64Var)
-            handle64VarAccess = "&%s" % handle64Var
-            handle64VarType = \
-                makeVulkanTypeSimple(False, "uint64_t", 0, paramName=handle64Var)
 
         if "" == self.handlemapPrefix:
             mapFunc = ("(%s)" % vulkanType.typeName)
@@ -187,6 +193,33 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
         else:
             mapFunc = self.handlemapPrefix
             mapFunc64 = mapFunc
+
+        if self.direction == "write" and self.variant == "guest" and not self.handleMapOverwrites:
+            if "1" == lenAccess:
+                valExpr = access[1:] if access.startswith("&") else "*%s" % access
+                mapExpr = "(uint64_t)(%s)" % valExpr if "" == self.handlemapPrefix else "%s(%s)" % (mapFunc64, valExpr)
+                self.cgen.stmt("writeStreamVal(%s, %s)" % (self.ptrVar, mapExpr))
+            else:
+                mapExpr = "(uint64_t)(%s[k])" % access if "" == self.handlemapPrefix else "%s(%s[k])" % (mapFunc64, access)
+                self.cgen.beginIf(lenAccess)
+                self.cgen.beginFor("uint32_t k = 0", "k < %s" % lenAccess, "++k")
+                self.cgen.stmt("writeStreamVal(%s, %s)" % (self.ptrVar, mapExpr))
+                self.cgen.endFor()
+                self.cgen.endIf()
+            return
+
+        handle64Var = self.cgen.var()
+        if lenAccess != "1":
+            self.cgen.beginIf(lenAccess)
+            self.cgen.stmt("uint8_t* %s_ptr = (uint8_t*)(*%s)" % (handle64Var, self.ptrVar))
+            handle64VarAccess = handle64Var
+            handle64VarType = \
+                makeVulkanTypeSimple(False, "uint64_t", 1, paramName=handle64Var)
+        else:
+            self.cgen.stmt("uint64_t %s" % handle64Var)
+            handle64VarAccess = "&%s" % handle64Var
+            handle64VarType = \
+                makeVulkanTypeSimple(False, "uint64_t", 0, paramName=handle64Var)
 
         if self.direction == "write":
             if self.handleMapOverwrites:
@@ -292,7 +325,6 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
         access = self.exprAccessor(vulkanType)
         needConsistencyCheck = False
 
-        self.cgen.line("// WARNING PTR CHECK")
         if (self.dynAlloc and self.direction == "read") or self.direction == "write":
             checkAccess = self.exprAccessor(vulkanType)
             addrExpr = "&" + checkAccess
@@ -537,11 +569,14 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
         access = self.exprAccessor(vulkanType)
 
         if self.direction == "write":
-            self.cgen.beginBlock()
-            self.cgen.stmt("uint32_t l = %s ? strlen(%s): 0" % (access, access))
-            self.genMemcpyAndIncr(self.ptrVar, "(uint32_t*)" ,"&l", "sizeof(uint32_t)", toBe = True, actualSize = 4)
-            self.genMemcpyAndIncr(self.ptrVar, "(char*)", access, "l")
-            self.cgen.endBlock()
+            if self.variant == "guest":
+                self.cgen.stmt("putStringWithStreamPtr(%s, %s)" % (self.ptrVar, access))
+            else:
+                self.cgen.beginBlock()
+                self.cgen.stmt("uint32_t l = %s ? strlen(%s): 0" % (access, access))
+                self.genMemcpyAndIncr(self.ptrVar, "(uint32_t*)" ,"&l", "sizeof(uint32_t)", toBe = True, actualSize = 4)
+                self.genMemcpyAndIncr(self.ptrVar, "(char*)", access, "l")
+                self.cgen.endBlock()
         else:
             castExpr = \
                 self.makeCastExpr( \
@@ -556,24 +591,30 @@ class VulkanReservedMarshalingCodegen(VulkanTypeIterator):
         lenAccessGuard = self.lenAccessorGuard(vulkanType)
 
         if self.direction == "write":
-            self.cgen.beginBlock()
+            if self.variant == "guest":
+                countExpr = lenAccess if lenAccess is not None else "0"
+                if lenAccess is not None and lenAccessGuard is not None:
+                    countExpr = "%s ? %s : 0" % (lenAccessGuard, lenAccess)
+                self.cgen.stmt("putStringArrayWithStreamPtr(%s, %s, %s)" % (self.ptrVar, access, countExpr))
+            else:
+                self.cgen.beginBlock()
 
-            self.cgen.stmt("uint32_t c = 0")
-            if lenAccess is not None:
-                self.cgen.beginIf(lenAccessGuard)
-                self.cgen.stmt("c = %s" % (lenAccess))
+                self.cgen.stmt("uint32_t c = 0")
+                if lenAccess is not None:
+                    self.cgen.beginIf(lenAccessGuard)
+                    self.cgen.stmt("c = %s" % (lenAccess))
+                    self.cgen.endIf()
+
+                self.genMemcpyAndIncr(self.ptrVar, "(uint32_t*)" ,"&c", "sizeof(uint32_t)", toBe = True, actualSize = 4)
+                self.cgen.beginFor("uint32_t i = 0", "i < c", "++i")
+                self.cgen.stmt("uint32_t l = %s ? strlen(%s[i]): 0" % (access, access))
+                self.genMemcpyAndIncr(self.ptrVar, "(uint32_t*)" ,"&l", "sizeof(uint32_t)", toBe = True, actualSize = 4)
+                self.cgen.beginIf("l")
+                self.genMemcpyAndIncr(self.ptrVar, "(char*)", "(%s[i])" % access, "l")
                 self.cgen.endIf()
+                self.cgen.endFor()
 
-            self.genMemcpyAndIncr(self.ptrVar, "(uint32_t*)" ,"&c", "sizeof(uint32_t)", toBe = True, actualSize = 4)
-            self.cgen.beginFor("uint32_t i = 0", "i < c", "++i")
-            self.cgen.stmt("uint32_t l = %s ? strlen(%s[i]): 0" % (access, access))
-            self.genMemcpyAndIncr(self.ptrVar, "(uint32_t*)" ,"&l", "sizeof(uint32_t)", toBe = True, actualSize = 4)
-            self.cgen.beginIf("l")
-            self.genMemcpyAndIncr(self.ptrVar, "(char*)", "(%s[i])" % access, "l")
-            self.cgen.endIf()
-            self.cgen.endFor()
-
-            self.cgen.endBlock()
+                self.cgen.endBlock()
         else:
             castExpr = \
                 self.makeCastExpr( \
@@ -780,8 +821,63 @@ class VulkanReservedMarshaling(VulkanWrapperGenerator):
 
     def onBegin(self,):
         VulkanWrapperGenerator.onBegin(self)
-        self.module.appendImpl(self.cgenImpl.makeFuncDecl(self.extensionMarshalPrototype))
-        self.module.appendImpl(self.cgenImpl.makeFuncDecl(self.extensionUnmarshalPrototype))
+        if self.variant == "guest":
+            self.module.appendHeader("""
+inline void writeStreamBytes(uint8_t** ptr, const void* buffer, size_t size) {
+    memcpy(*ptr, buffer, size);
+    *ptr += size;
+}
+
+template <typename T>
+inline void writeStreamVal(uint8_t** ptr, const T& val) {
+    memcpy(*ptr, &val, sizeof(T));
+    *ptr += sizeof(T);
+}
+
+inline void putByteWithStreamPtr(uint8_t** ptr, uint8_t val) {
+    **ptr = val;
+    *ptr += sizeof(uint8_t);
+}
+
+inline void putBe16WithStreamPtr(uint8_t** ptr, uint16_t val) {
+    memcpy(*ptr, &val, sizeof(uint16_t));
+    gfxstream::aemu::Stream::toBe16(*ptr);
+    *ptr += sizeof(uint16_t);
+}
+
+inline void putBe32WithStreamPtr(uint8_t** ptr, uint32_t val) {
+    memcpy(*ptr, &val, sizeof(uint32_t));
+    gfxstream::aemu::Stream::toBe32(*ptr);
+    *ptr += sizeof(uint32_t);
+}
+
+inline void putBe64WithStreamPtr(uint8_t** ptr, uint64_t val) {
+    memcpy(*ptr, &val, sizeof(uint64_t));
+    gfxstream::aemu::Stream::toBe64(*ptr);
+    *ptr += sizeof(uint64_t);
+}
+
+inline void putStringWithStreamPtr(uint8_t** ptr, const char* str) {
+    uint32_t l = str ? strlen(str) : 0;
+    putBe32WithStreamPtr(ptr, l);
+    writeStreamBytes(ptr, str, l);
+}
+
+inline void putStringArrayWithStreamPtr(uint8_t** ptr, const char* const* strings, uint32_t count) {
+    putBe32WithStreamPtr(ptr, count);
+    for (uint32_t i = 0; i < count; ++i) {
+        uint32_t l = strings ? strlen(strings[i]) : 0;
+        putBe32WithStreamPtr(ptr, l);
+        if (l) {
+            writeStreamBytes(ptr, strings[i], l);
+        }
+    }
+}
+""")
+        if self.variant != "host":
+            self.module.appendImpl(self.cgenImpl.makeFuncDecl(self.extensionMarshalPrototype))
+        if self.variant != "guest":
+            self.module.appendImpl(self.cgenImpl.makeFuncDecl(self.extensionUnmarshalPrototype))
 
     def onBeginFeature(self, featureName, featureType):
         VulkanWrapperGenerator.onBeginFeature(self, featureName, featureType)
@@ -849,8 +945,7 @@ class VulkanReservedMarshaling(VulkanWrapperGenerator):
             def structMarshalingDef(cgen):
                 self.writeCodegen.cgen = cgen
                 self.writeCodegen.currentStructInfo = structInfo
-                self.writeCodegen.cgen.stmt("(void)%s" % VULKAN_STREAM_VAR_NAME)
-                self.writeCodegen.cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                prefixCode = cgen.swapCode()
 
                 if category == "struct":
                     # marshal 'let' parameters first
@@ -862,12 +957,18 @@ class VulkanReservedMarshaling(VulkanWrapperGenerator):
                 if category == "union":
                     iterateVulkanType(self.typeInfo, structInfo.members[0], self.writeCodegen)
 
+                bodyCode = cgen.swapCode()
+                cgen.code = prefixCode
+                for varName in [VULKAN_STREAM_VAR_NAME, ROOT_TYPE_VAR_NAME]:
+                    if not re.search(r'(?<![.>])\b' + re.escape(varName) + r'\b', bodyCode):
+                        cgen.stmt("(void)%s" % varName)
+                cgen.code += bodyCode
+
             def structMarshalingDefNoFilter(cgen):
                 self.writeCodegen.cgen = cgen
                 self.writeCodegen.currentStructInfo = structInfo
                 self.writeCodegen.doFiltering = False
-                self.writeCodegen.cgen.stmt("(void)%s" % VULKAN_STREAM_VAR_NAME)
-                self.writeCodegen.cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                prefixCode = cgen.swapCode()
 
                 if category == "struct":
                     # marshal 'let' parameters first
@@ -879,6 +980,13 @@ class VulkanReservedMarshaling(VulkanWrapperGenerator):
                 if category == "union":
                     iterateVulkanType(self.typeInfo, structInfo.members[0], self.writeCodegen)
                 self.writeCodegen.doFiltering = True
+
+                bodyCode = cgen.swapCode()
+                cgen.code = prefixCode
+                for varName in [VULKAN_STREAM_VAR_NAME, ROOT_TYPE_VAR_NAME]:
+                    if not re.search(r'(?<![.>])\b' + re.escape(varName) + r'\b', bodyCode):
+                        cgen.stmt("(void)%s" % varName)
+                cgen.code += bodyCode
 
             if self.variant != "host":
                 self.module.appendHeader(
@@ -997,8 +1105,11 @@ class VulkanReservedMarshaling(VulkanWrapperGenerator):
 
         if direction == "write":
             cgen.beginIf("!%s" % (sizeVar))
-            cgen.stmt("memcpy(*%s, &%s, sizeof(uint32_t));" % (self.ptrVarName, sizeVar))
-            cgen.stmt("%s::Stream::toBe32((uint8_t*)*%s); *%s += sizeof(uint32_t)" % (streamNamespace, self.ptrVarName, self.ptrVarName))
+            if self.variant == "guest":
+                cgen.stmt("putBe32WithStreamPtr(%s, 0)" % self.ptrVarName)
+            else:
+                cgen.stmt("memcpy(*%s, &%s, sizeof(uint32_t));" % (self.ptrVarName, sizeVar))
+                cgen.stmt("%s::Stream::toBe32((uint8_t*)*%s); *%s += sizeof(uint32_t)" % (streamNamespace, self.ptrVarName, self.ptrVarName))
             cgen.line("// exit if this was a null extension struct (size == 0 in this branch)")
             cgen.stmt("return")
             cgen.endIf()
@@ -1021,7 +1132,10 @@ class VulkanReservedMarshaling(VulkanWrapperGenerator):
         if direction == "write":
             cgen.stmt("uint8_t* sizePtr = *%s" % self.ptrVarName)
             cgen.stmt("*%s += sizeof(uint32_t)" % self.ptrVarName)
-            cgen.stmt("memcpy(*%s, %s, sizeof(VkStructureType)); *%s += sizeof(VkStructureType)" % (self.ptrVarName, extParam.paramName, self.ptrVarName))
+            if self.variant == "guest":
+                cgen.stmt("writeStreamBytes(%s, %s, sizeof(VkStructureType))" % (self.ptrVarName, extParam.paramName))
+            else:
+                cgen.stmt("memcpy(*%s, %s, sizeof(VkStructureType)); *%s += sizeof(VkStructureType)" % (self.ptrVarName, extParam.paramName, self.ptrVarName))
             cgen.stmt("uint8_t* structStartPtr = *%s" % self.ptrVarName)
         elif not self.dynAlloc:
             cgen.stmt("uint64_t pNext_placeholder")

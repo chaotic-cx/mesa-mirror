@@ -87,7 +87,10 @@ class VulkanMarshalingCodegen(VulkanTypeIterator):
     def genStreamCall(self, vulkanType, toStreamExpr, sizeExpr):
         varname = self.streamVarName
         func = self.processSimple
-        cast = self.makeCastExpr(self.getTypeForStreaming(vulkanType))
+        if self.variant == "guest" and (func == "write" or not vulkanType.isConst):
+            cast = ""
+        else:
+            cast = self.makeCastExpr(self.getTypeForStreaming(vulkanType))
 
         self.cgen.stmt(
             "%s->%s(%s%s, %s)" % (varname, func, cast, toStreamExpr, sizeExpr))
@@ -104,7 +107,7 @@ class VulkanMarshalingCodegen(VulkanTypeIterator):
 
     def genHandleMappingCall(self, vulkanType, access, lenAccess):
 
-        if lenAccess is None:
+        if lenAccess is None or lenAccess == "1":
             lenAccess = "1"
             handle64Bytes = "8"
         else:
@@ -218,22 +221,23 @@ class VulkanMarshalingCodegen(VulkanTypeIterator):
 
         access = self.exprAccessor(vulkanType)
 
-        needConsistencyCheck = False
+        if not self.dynAlloc and self.direction == "read":
+            if featureExpr is not None:
+                self.cgen.beginIf(featureExpr)
+                self.cgen.stmt("(void)%s->getBe64()" % self.streamVarName)
+                self.cgen.endIf()
+                self.cgen.beginIf("(!(%s) || %s)" % (featureExpr, access))
+            else:
+                checkName = "check_%s" % vulkanType.paramName
+                self.cgen.stmt("uint64_t %s = %s->getBe64()" % (checkName, self.streamVarName))
+                self.cgen.beginIf(access)
+                self.cgen.beginIf("!(%s)" % checkName)
+                self.cgen.stmt(
+                    "GFXSTREAM_ERROR(\"fatal: %s inconsistent between guest and host\")" % (access))
+                self.cgen.endIf()
+            return
 
-        self.cgen.line("// WARNING PTR CHECK")
-        if (self.dynAlloc and self.direction == "read") or self.direction == "write":
-            checkAccess = self.exprAccessor(vulkanType)
-            addrExpr = "&" + checkAccess
-            sizeExpr = self.cgen.sizeofExpr(vulkanType)
-        else:
-            checkName = "check_%s" % vulkanType.paramName
-            self.cgen.stmt("%s %s" % (
-                self.cgen.makeCTypeDecl(vulkanType, useParamName = False), checkName))
-            self.cgen.stmt("(void)%s" % checkName)
-            checkAccess = checkName
-            addrExpr = "&" + checkAccess
-            sizeExpr = self.cgen.sizeofExpr(vulkanType)
-            needConsistencyCheck = True
+        checkAccess = self.exprAccessor(vulkanType)
 
         if featureExpr is not None:
             self.cgen.beginIf(featureExpr)
@@ -249,12 +253,6 @@ class VulkanMarshalingCodegen(VulkanTypeIterator):
             self.cgen.beginIf("(!(%s) || %s)" % (featureExpr, access))
         else:
             self.cgen.beginIf(access)
-
-        if needConsistencyCheck and featureExpr is None:
-            self.cgen.beginIf("!(%s)" % checkName)
-            self.cgen.stmt(
-                "GFXSTREAM_ERROR(\"fatal: %s inconsistent between guest and host\")" % (access))
-            self.cgen.endIf()
 
 
     def onCheckWithNullOptionalStringFeature(self, vulkanType):
@@ -772,7 +770,7 @@ class VulkanMarshaling(VulkanWrapperGenerator):
             def structMarshalingDef(cgen):
                 self.writeCodegen.cgen = cgen
                 self.writeCodegen.currentStructInfo = structInfo
-                self.writeCodegen.cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                prefixCode = cgen.swapCode()
 
                 if category == "struct":
                     # marshal 'let' parameters first
@@ -784,11 +782,17 @@ class VulkanMarshaling(VulkanWrapperGenerator):
                 if category == "union":
                     iterateVulkanType(self.typeInfo, structInfo.members[0], self.writeCodegen)
 
+                bodyCode = cgen.swapCode()
+                cgen.code = prefixCode
+                if not re.search(r'(?<![.>])\b' + re.escape(ROOT_TYPE_VAR_NAME) + r'\b', bodyCode):
+                    cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                cgen.code += bodyCode
+
             def structMarshalingDefNoFilter(cgen):
                 self.writeCodegen.cgen = cgen
                 self.writeCodegen.currentStructInfo = structInfo
                 self.writeCodegen.doFiltering = False
-                self.writeCodegen.cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                prefixCode = cgen.swapCode()
 
                 if category == "struct":
                     # marshal 'let' parameters first
@@ -800,6 +804,12 @@ class VulkanMarshaling(VulkanWrapperGenerator):
                 if category == "union":
                     iterateVulkanType(self.typeInfo, structInfo.members[0], self.writeCodegen)
                 self.writeCodegen.doFiltering = True
+
+                bodyCode = cgen.swapCode()
+                cgen.code = prefixCode
+                if not re.search(r'(?<![.>])\b' + re.escape(ROOT_TYPE_VAR_NAME) + r'\b', bodyCode):
+                    cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                cgen.code += bodyCode
 
             if self.variant != "guest":
                 self.module.appendHeader(
@@ -849,7 +859,7 @@ class VulkanMarshaling(VulkanWrapperGenerator):
             def structUnmarshalingDef(cgen):
                 self.readCodegen.cgen = cgen
                 self.readCodegen.currentStructInfo = structInfo
-                self.readCodegen.cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                prefixCode = cgen.swapCode()
 
                 if category == "struct":
                     # unmarshal 'let' parameters first
@@ -861,11 +871,17 @@ class VulkanMarshaling(VulkanWrapperGenerator):
                 if category == "union":
                     iterateVulkanType(self.typeInfo, structInfo.members[0], self.readCodegen)
 
+                bodyCode = cgen.swapCode()
+                cgen.code = prefixCode
+                if not re.search(r'(?<![.>])\b' + re.escape(ROOT_TYPE_VAR_NAME) + r'\b', bodyCode):
+                    cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                cgen.code += bodyCode
+
             def structUnmarshalingDefNoFilter(cgen):
                 self.readCodegen.cgen = cgen
                 self.readCodegen.currentStructInfo = structInfo
                 self.readCodegen.doFiltering = False
-                self.readCodegen.cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                prefixCode = cgen.swapCode()
 
                 if category == "struct":
                     # unmarshal 'let' parameters first
@@ -876,6 +892,12 @@ class VulkanMarshaling(VulkanWrapperGenerator):
                 if category == "union":
                     iterateVulkanType(self.typeInfo, structInfo.members[0], self.readCodegen)
                 self.readCodegen.doFiltering = True
+
+                bodyCode = cgen.swapCode()
+                cgen.code = prefixCode
+                if not re.search(r'(?<![.>])\b' + re.escape(ROOT_TYPE_VAR_NAME) + r'\b', bodyCode):
+                    cgen.stmt("(void)%s" % ROOT_TYPE_VAR_NAME)
+                cgen.code += bodyCode
 
             self.module.appendHeader(
                 self.cgenHeader.makeFuncDecl(unmarshalPrototype))
@@ -1039,7 +1061,7 @@ class VulkanMarshaling(VulkanWrapperGenerator):
 
             currFeature = None
 
-            for (name, (opcodeNum, feature)) in sorted(apiOpcodes.items(), key = lambda x : x[1][0]):
+            for (name, (opcodeNum, feature)) in sorted(apiOpcodes.items(), key = lambda x : (x[1][1] or "", x[1][0])):
                 if not currFeature:
                     cgen.leftline("#ifdef %s" % feature)
                     currFeature = feature
@@ -1049,18 +1071,12 @@ class VulkanMarshaling(VulkanWrapperGenerator):
                     cgen.leftline("#ifdef %s" % feature)
                     currFeature = feature
 
-                cgen.line("case OP_%s:" % name)
-                cgen.beginBlock()
-                cgen.stmt("return \"OP_%s\"" % name)
-                cgen.endBlock()
+                cgen.stmt("case OP_%s: return \"OP_%s\"" % (name, name))
 
             if currFeature:
                 cgen.leftline("#endif")
 
-            cgen.line("default:")
-            cgen.beginBlock()
-            cgen.stmt("return \"OP_UNKNOWN_API_CALL\"")
-            cgen.endBlock()
+            cgen.stmt("default: return \"OP_UNKNOWN_API_CALL\"")
 
             cgen.endBlock()
 

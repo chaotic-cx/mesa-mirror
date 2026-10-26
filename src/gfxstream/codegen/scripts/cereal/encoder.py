@@ -9,9 +9,9 @@ from .common.vulkantypes import \
 
 from .marshaling import VulkanMarshalingCodegen
 from .reservedmarshaling import VulkanReservedMarshalingCodegen
-from .counting import VulkanCountingCodegen
+from .counting import VulkanCountingCodegen, coalesce_counts
 from .handlemap import HandleMapCodegen
-from .deepcopy import DeepcopyCodegen
+from .deepcopy import DeepcopyCodegen, VULKAN_TYPES_THAT_ARE_NEVER_TRANSMITTED
 from .transform import TransformCodegen, genTransformsForVulkanType
 
 from .wrapperdefs import API_PREFIX_RESERVEDMARSHAL
@@ -52,6 +52,36 @@ using gfxstream::aemu::BumpPool;
 #define VALIDATE_VOID(validate) \\
     VkResult goldfish_vk_validateResult = validate; \\
     if (goldfish_vk_validateResult != VK_SUCCESS) return; \\
+
+static inline uint8_t* reservePacket(VulkanStreamGuest* stream, uint32_t opcode, size_t count,
+                                     bool queueSubmitWithCommandsEnabled) {
+    uint32_t packetSize = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count;
+    uint8_t* streamPtr = stream->reserve(packetSize);
+    writeStreamVal(&streamPtr, opcode);
+    writeStreamVal(&streamPtr, packetSize);
+    if (queueSubmitWithCommandsEnabled) {
+        uint32_t seqno = ResourceTracker::nextSeqno();
+        writeStreamVal(&streamPtr, seqno);
+    }
+    return streamPtr;
+}
+
+static inline uint8_t* reserveCmdPacket(VulkanStreamGuest* stream, uint32_t opcode, size_t count,
+                                        bool queueSubmitWithCommandsEnabled) {
+    uint32_t packetSize = 4 + 4 + count - (queueSubmitWithCommandsEnabled ? 8 : 0);
+    uint8_t* streamPtr = stream->reserve(packetSize);
+    writeStreamVal(&streamPtr, opcode);
+    writeStreamVal(&streamPtr, packetSize);
+    return streamPtr;
+}
+
+static inline void clearPoolIfNeeded(uint32_t* encodeCount, BumpPool* pool,
+                                     VulkanStreamGuest* stream) {
+    if (++(*encodeCount) % POOL_CLEAR_INTERVAL == 0) {
+        pool->freeAll();
+        stream->clearPool();
+    }
+}
 
 """
 
@@ -148,33 +178,34 @@ def emit_custom_resource_postprocess(typeInfo, api, cgen):
             cgen))
 
 def emit_count_marshal(typeInfo, param, cgen):
+    if param.typeName in VULKAN_TYPES_THAT_ARE_NEVER_TRANSMITTED:
+        cgen.stmt("count += 8")
+        return
     res = \
         iterateVulkanType(
             typeInfo, param,
             VulkanCountingCodegen( \
-                cgen, "sFeatureBits", param.paramName, "countPtr", ROOT_TYPE_DEFAULT_VALUE,
+                cgen, "sFeatureBits", param.paramName, "&count", ROOT_TYPE_DEFAULT_VALUE,
                "count_"))
     if not res:
         cgen.stmt("(void)%s" % param.paramName)
 
 def emit_marshal(typeInfo, param, cgen):
+    if param.typeName in VULKAN_TYPES_THAT_ARE_NEVER_TRANSMITTED:
+        cgen.stmt("putBe64WithStreamPtr(&streamPtr, 0)")
+        return
     forOutput = param.isHandleType() and ("out" in param.inout)
-    if forOutput:
-        cgen.stmt("/* is handle, possibly out */")
 
     res = \
         iterateVulkanType(
             typeInfo, param,
             VulkanReservedMarshalingCodegen( \
-                cgen, "guest", STREAM, ROOT_TYPE_DEFAULT_VALUE, param.paramName, "streamPtrPtr",
+                cgen, "guest", STREAM, ROOT_TYPE_DEFAULT_VALUE, param.paramName, "&streamPtr",
                API_PREFIX_RESERVEDMARSHAL,
                "" if forOutput else "gfxstream_to_host_u64",
                direction="write"))
     if not res:
         cgen.stmt("(void)%s" % param.paramName)
-
-    if forOutput:
-        cgen.stmt("/* is handle, possibly out */")
 
 def get_gfxstream_vk_type_name(vk_type_name):
     return "gfxstream_" + re.sub(r'(?<!^)(?=[A-Z][a-z]|(?<=[a-z])[A-Z])', '_', vk_type_name).lower()
@@ -194,11 +225,22 @@ def emit_deepcopy(typeInfo, param, cgen):
         cgen.stmt("(void)%s" % param.paramName)
 
 def emit_transform(typeInfo, param, cgen, variant="tohost"):
-    res = \
-        iterateVulkanType(typeInfo, param, TransformCodegen( \
-            cgen, param.paramName, "sResourceTracker", "transform_%s_" % variant, variant))
-    if not res:
-        cgen.stmt("(void)%s" % param.paramName)
+    iterateVulkanType(typeInfo, param, TransformCodegen( \
+        cgen, param.paramName, "sResourceTracker", "transform_%s_" % variant, variant))
+
+def param_needs_transform(typeInfo, param):
+    if typeInfo is None:
+        return True
+    if param.pointerIndirectionLevels == 0 and not typeInfo.isCompoundType(param.typeName):
+        return False
+    testCgen = CodeGen()
+    genTransformsForVulkanType(
+        "sResourceTracker", param,
+        lambda p: testCgen.generalAccess(p, parentVarName=None, asPtr=True),
+        lambda p: testCgen.generalLengthAccess(p, parentVarName=None),
+        testCgen)
+    emit_transform(typeInfo, param, testCgen, variant="tohost")
+    return testCgen.swapCode() != ""
 
 def emit_handlemap_create(typeInfo, param, cgen):
     iterateVulkanType(typeInfo, param, HandleMapCodegen(
@@ -231,14 +273,22 @@ def emit_handlemap_destroy(typeInfo, param, cgen):
         cgen.stmt("delete_%s(%s)" % (gfxstreamType, param.paramName))
 
 class EncodingParameters(object):
-    def __init__(self, api):
+    def __init__(self, api, typeInfo=None, customUnwrap=None):
         self.localCopied = []
         self.toWrite = []
         self.toRead = []
         self.toCreate = []
         self.toDestroy = []
 
-        for param in api.parameters:
+        devMemIndices = set()
+        if api.deviceMemoryInfoParameterIndices:
+            for _, info in api.deviceMemoryInfoParameterIndices.items():
+                for k in ["handle", "offset", "size", "typeIndex", "typeBits"]:
+                    idx = info.__dict__.get(k)
+                    if idx is not None:
+                        devMemIndices.add(idx)
+
+        for i, param in enumerate(api.parameters):
             param.action = None
             param.inout = "in"
 
@@ -253,33 +303,52 @@ class EncodingParameters(object):
                     self.toCreate.append(param)
                     param.action = "create"
             else:
-
-                if param.paramName == "doLock":
-                    continue
-
                 if param.isDestroyedBy(api):
                     self.toDestroy.append(param)
                     param.action = "destroy"
-                localCopyParam = \
-                    param.getForNonConstAccess().withModifiedName( \
-                        "local_" + param.paramName)
-                self.localCopied.append((param, localCopyParam))
-                self.toWrite.append(localCopyParam)
+                needsLocalCopy = (
+                    param.typeName not in VULKAN_TYPES_THAT_ARE_NEVER_TRANSMITTED and (
+                        (customUnwrap is not None and param.paramName in customUnwrap) or
+                        (i in devMemIndices) or
+                        param_needs_transform(typeInfo, param)
+                    )
+                )
+                if needsLocalCopy:
+                    localCopyParam = \
+                        param.getForNonConstAccess().withModifiedName( \
+                            "local_" + param.paramName)
+                    self.localCopied.append((param, localCopyParam))
+                    self.toWrite.append(localCopyParam)
+                else:
+                    self.toWrite.append(param)
 
-def emit_parameter_encode_preamble_write(typeInfo, api, cgen):
-    emit_custom_pre_validate(typeInfo, api, cgen);
-    emit_custom_resource_preprocess(typeInfo, api, cgen);
+def emit_parameter_encode_preamble_write(typeInfo, api, cgen, customUnwrap=None):
+    emit_custom_pre_validate(typeInfo, api, cgen)
+    emit_custom_resource_preprocess(typeInfo, api, cgen)
 
     cgen.stmt("auto %s = mImpl->stream()" % STREAM)
-    cgen.stmt("auto %s = mImpl->pool()" % POOL)
-    # cgen.stmt("%s->setHandleMapping(%s->unwrapMapping())" % (STREAM, RESOURCES))
 
-    encodingParams = EncodingParameters(api)
-    for (_, localCopyParam) in encodingParams.localCopied:
-        cgen.stmt(cgen.makeRichCTypeDecl(localCopyParam))
+    encodingParams = EncodingParameters(api, typeInfo, customUnwrap)
+    needsPool = any(
+        orig.pointerIndirectionLevels > 0 and
+        not (customUnwrap and orig.paramName in customUnwrap and "copyOp" in customUnwrap[orig.paramName]) and
+        param_needs_transform(typeInfo, orig)
+        for (orig, _) in encodingParams.localCopied
+    )
+    if needsPool:
+        cgen.stmt("auto %s = mImpl->pool()" % POOL)
+
+    for (origParam, localCopyParam) in encodingParams.localCopied:
+        decl = cgen.makeRichCTypeDecl(localCopyParam)
+        if localCopyParam.pointerIndirectionLevels > 0:
+            cgen.stmt("%s = nullptr" % decl)
+        elif not localCopyParam.staticArrExpr:
+            cgen.stmt("%s = %s" % (decl, origParam.paramName))
+        else:
+            cgen.stmt(decl)
 
 def emit_parameter_encode_copy_unwrap_count(typeInfo, api, cgen, customUnwrap=None):
-    encodingParams = EncodingParameters(api)
+    encodingParams = EncodingParameters(api, typeInfo, customUnwrap)
 
     for (origParam, localCopyParam) in encodingParams.localCopied:
         shouldCustomCopy = \
@@ -287,28 +356,13 @@ def emit_parameter_encode_copy_unwrap_count(typeInfo, api, cgen, customUnwrap=No
             origParam.paramName in customUnwrap and \
             "copyOp" in customUnwrap[origParam.paramName]
 
-        shouldCustomMap = \
-            customUnwrap and \
-            origParam.paramName in customUnwrap and \
-            "mapOp" in customUnwrap[origParam.paramName]
-
         if shouldCustomCopy:
             customUnwrap[origParam.paramName]["copyOp"](cgen, origParam, localCopyParam)
         else:
-            # if this is a pointer type and we don't do custom copy nor unwrap,
-            # and the transform doesn't end up doing anything,
-            # don't deepcopy, just cast it.
-
             avoidDeepcopy = False
-
-            if origParam.pointerIndirectionLevels > 0:
-                testCgen = CodeGen()
-                genTransformsForVulkanType("sResourceTracker", origParam, lambda p: testCgen.generalAccess(p, parentVarName = None, asPtr = True), lambda p: testCgen.generalLengthAccess(p, parentVarName = None), testCgen)
-                emit_transform(typeInfo, origParam, testCgen, variant="tohost")
-                if "" == testCgen.swapCode():
-                    avoidDeepcopy = True
+            if origParam.pointerIndirectionLevels > 0 and not param_needs_transform(typeInfo, origParam):
+                avoidDeepcopy = True
             if avoidDeepcopy:
-                cgen.line("// Avoiding deepcopy for %s" % origParam.paramName)
                 cgen.stmt("%s = (%s%s)%s" % (localCopyParam.paramName, localCopyParam.typeName, "*" * origParam.pointerIndirectionLevels, origParam.paramName))
             else:
                 emit_deepcopy(typeInfo, origParam, cgen)
@@ -321,14 +375,8 @@ def emit_parameter_encode_copy_unwrap_count(typeInfo, api, cgen, customUnwrap=No
 
         if shouldCustomMap:
             customUnwrap[origParam.paramName]["mapOp"](cgen, origParam, localCopyParam)
-        else:
-            if localCopyParam.typeName == "VkAllocationCallbacks":
-                cgen.stmt("%s = nullptr" % localCopyParam.paramName)
 
-    apiForTransform = \
-        api.withCustomParameters( \
-            map(lambda p: p[1], \
-                encodingParams.localCopied))
+    apiForTransform = api.withCustomParameters(encodingParams.toWrite)
 
     # Apply transforms if applicable.
     # Apply transform to API itself:
@@ -340,56 +388,26 @@ def emit_parameter_encode_copy_unwrap_count(typeInfo, api, cgen, customUnwrap=No
         cgen)
 
     # For all local copied parameters, run the transforms
-    for localParam in apiForTransform.parameters:
-        if "doLock" in localParam.paramName:
-            continue
+    for (_, localParam) in encodingParams.localCopied:
         emit_transform(typeInfo, localParam, cgen, variant="tohost")
 
     cgen.stmt("size_t count = 0")
-    cgen.stmt("size_t* countPtr = &count")
-    cgen.beginBlock()
 
     # Use counting stream to calculate the packet size.
     for p in encodingParams.toWrite:
         emit_count_marshal(typeInfo, p, cgen)
 
-    cgen.endBlock()
-
 def is_cmdbuf_dispatch(api):
     return "VkCommandBuffer" == api.parameters[0].typeName
 
 def emit_parameter_encode_write_packet_info(typeInfo, api, cgen):
-    # Seqno and skipping dispatch serialize are for use with VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT
-    doSeqno = True
-    doDispatchSerialize = True
-
     if is_cmdbuf_dispatch(api):
-        doSeqno = False
-        doDispatchSerialize = False
-
-    if doSeqno:
-        cgen.stmt("uint32_t packetSize_%s = 4 + 4 + (queueSubmitWithCommandsEnabled ? 4 : 0) + count" % (api.name))
+        cgen.stmt("uint8_t* streamPtr = reserveCmdPacket(%s, OP_%s, count, queueSubmitWithCommandsEnabled)" % (STREAM, api.name))
     else:
-        cgen.stmt("uint32_t packetSize_%s = 4 + 4 + count" % (api.name))
+        cgen.stmt("uint8_t* streamPtr = reservePacket(%s, OP_%s, count, queueSubmitWithCommandsEnabled)" % (STREAM, api.name))
 
-    if not doDispatchSerialize:
-        cgen.stmt("if (queueSubmitWithCommandsEnabled) packetSize_%s -= 8" % api.name)
-
-    cgen.stmt("uint8_t* streamPtr = %s->reserve(packetSize_%s)" % (STREAM, api.name))
-    cgen.stmt("uint8_t** streamPtrPtr = &streamPtr")
-    cgen.stmt("uint32_t opcode_%s = OP_%s" % (api.name, api.name))
-
-    if doSeqno:
-        cgen.stmt("uint32_t seqno; if (queueSubmitWithCommandsEnabled) seqno = ResourceTracker::nextSeqno()")
-
-    cgen.stmt("memcpy(streamPtr, &opcode_%s, sizeof(uint32_t)); streamPtr += sizeof(uint32_t)" % api.name)
-    cgen.stmt("memcpy(streamPtr, &packetSize_%s, sizeof(uint32_t)); streamPtr += sizeof(uint32_t)" % api.name)
-
-    if doSeqno:
-        cgen.line("if (queueSubmitWithCommandsEnabled) { memcpy(streamPtr, &seqno, sizeof(uint32_t)); streamPtr += sizeof(uint32_t); }")
-
-def emit_parameter_encode_do_parameter_write(typeInfo, api, cgen):
-    encodingParams = EncodingParameters(api)
+def emit_parameter_encode_do_parameter_write(typeInfo, api, cgen, customUnwrap=None):
+    encodingParams = EncodingParameters(api, typeInfo, customUnwrap)
 
     dispatchDone = False
 
@@ -404,14 +422,14 @@ def emit_parameter_encode_do_parameter_write(typeInfo, api, cgen):
         dispatchDone = True
 
 def emit_parameter_encode_read(typeInfo, api, cgen):
-    encodingParams = EncodingParameters(api)
+    encodingParams = EncodingParameters(api, typeInfo)
 
     for p in encodingParams.toRead:
         emit_unmarshal(typeInfo, p, cgen)
         emit_transform(typeInfo, p, cgen, variant="fromhost")
 
 def emit_post(typeInfo, api, cgen):
-    encodingParams = EncodingParameters(api)
+    encodingParams = EncodingParameters(api, typeInfo)
 
     doSeqno = True
     if is_cmdbuf_dispatch(api):
@@ -432,11 +450,7 @@ def emit_post(typeInfo, api, cgen):
         emit_handlemap_destroy(typeInfo, p, cgen)
 
 def emit_pool_free(cgen):
-    cgen.stmt("++encodeCount")
-    cgen.beginIf("0 == encodeCount % POOL_CLEAR_INTERVAL")
-    cgen.stmt("pool->freeAll()")
-    cgen.stmt("%s->clearPool()" % STREAM)
-    cgen.endIf()
+    cgen.stmt("clearPoolIfNeeded(&encodeCount, mImpl->pool(), %s)" % STREAM)
 
 def emit_return_unmarshal(typeInfo, api, cgen):
 
@@ -458,7 +472,6 @@ def emit_return(typeInfo, api, cgen):
     cgen.stmt("return %s" % retVar)
 
 def emit_lock(cgen):
-    cgen.stmt("(void)doLock");
     cgen.stmt("bool queueSubmitWithCommandsEnabled = sFeatureBits & VULKAN_STREAM_FEATURE_QUEUE_SUBMIT_WITH_COMMANDS_BIT")
     cgen.stmt("if (!queueSubmitWithCommandsEnabled && doLock) this->lock()")
 
@@ -532,11 +545,11 @@ def emit_only_resource_event(typeInfo, api, cgen):
 def emit_with_custom_unwrap(custom):
     def call(typeInfo, api, cgen):
         emit_lock(cgen)
-        emit_parameter_encode_preamble_write(typeInfo, api, cgen)
+        emit_parameter_encode_preamble_write(typeInfo, api, cgen, customUnwrap=custom)
         emit_parameter_encode_copy_unwrap_count(
             typeInfo, api, cgen, customUnwrap=custom)
         emit_parameter_encode_write_packet_info(typeInfo, api, cgen)
-        emit_parameter_encode_do_parameter_write(typeInfo, api, cgen)
+        emit_parameter_encode_do_parameter_write(typeInfo, api, cgen, customUnwrap=custom)
         emit_parameter_encode_read(typeInfo, api, cgen)
         emit_return_unmarshal(typeInfo, api, cgen)
         emit_pool_free(cgen)
@@ -678,6 +691,12 @@ class VulkanEncoder(VulkanWrapperGenerator):
                 custom_encodes[api.name](self.typeInfo, api, cgen)
             else:
                 emit_default_encoding(self.typeInfo, api, cgen)
+            if api.name != "vkQueueFlushCommandsGOOGLE":
+                bodyCode = coalesce_counts(cgen.swapCode())
+                for p in api.parameters:
+                    if not re.search(r'(?<![.>])\b' + re.escape(p.paramName) + r'\b', bodyCode):
+                        cgen.stmt("(void)%s" % p.paramName)
+                cgen.line(bodyCode.rstrip("\n"))
 
         self.module.appendImpl(self.cgenImpl.makeFuncImpl(apiImpl, emit_function_impl))
 
