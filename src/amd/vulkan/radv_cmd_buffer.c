@@ -8155,6 +8155,13 @@ radv_dst_access_flush(struct radv_cmd_buffer *cmd_buffer, VkPipelineStageFlags2 
          flush_bits |= AC_BARRIER_INV_L2;
    }
 
+   /* Image stores with DCC/HTILE read metadata through L2. */
+   if (dst_flags & VK_ACCESS_2_SHADER_STORAGE_WRITE_BIT && flush_L2_metadata) {
+      flush_bits |= AC_BARRIER_INV_L2_METADATA;
+      if (!image_is_coherent)
+         flush_bits |= AC_BARRIER_INV_L2;
+   }
+
    if (dst_flags & VK_ACCESS_2_COMMAND_PREPROCESS_READ_BIT_EXT) {
       flush_bits |= AC_BARRIER_INV_VMEM;
       if (pdev->info.gfx_level < GFX9)
