@@ -692,15 +692,6 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
          }
       }
 
-      /* We don't want the computation of src coordinates to be interleaved with loads. */
-      if (lane_size > 1 || src_samples > 1) {
-         ac_optimization_barrier_vgpr_array(options->info, &b, coord_src,
-                                            lane_size * src_samples, num_src_coords);
-
-         if (key->format_is_96bit)
-            ac_optimization_barrier_vgpr_array(options->info, &b, global_addr_src, lane_size, 1);
-      }
-
       /* Use "samples_identical" for MSAA resolving if it's supported. */
       const bool is_resolve = src_samples > 1 && dst_samples == 1;
       const bool uses_samples_identical = key->src_has_non_identity_fmask && is_resolve;
@@ -815,10 +806,6 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
       /* Resolve MSAA if necessary. */
       if (is_resolve) {
-         /* We don't want the averaging of samples to be interleaved with image loads. */
-         ac_optimization_barrier_vgpr_array(options->info, &b, color, lane_size * src_samples,
-                                            key->last_src_channel + 1);
-
          /* This reduces the "color" array from "src_samples * lane_size" elements to only
           * "lane_size" elements.
           */
@@ -854,12 +841,6 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
                                            .image_array = fmask_dst->type->sampler_array);
       }
 
-      if (lane_size > 1 && !b.shader->info.use_aco_amd) {
-         img_dst_desc = nir_optimization_barrier_sgpr_amd(&b, 32, img_dst_desc);
-         if (fmask_dst_desc)
-            fmask_dst_desc = nir_optimization_barrier_sgpr_amd(&b, 32, fmask_dst_desc);
-      }
-
       /* Apply the blit output modifiers, once per sample.  */
       foreach_pixel_in_lane(src_samples, sample, x, y, z, i) {
          color[i] = apply_blit_output_modifiers(&b, color[i], key);
@@ -891,21 +872,6 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
          nir_def *coord_x = nir_channel(&b, coord_dst[i], 0);
          color[i] = nir_vector_extract(&b, clear_value, nir_umod_imm(&b, coord_x, 3));
       }
-   }
-
-   /* We don't want the computation of dst coordinates to be interleaved with stores. */
-   if (lane_size > 1 || dst_samples > 1) {
-      ac_optimization_barrier_vgpr_array(options->info, &b, coord_dst, lane_size * dst_samples,
-                                         num_dst_coords);
-
-      if (key->format_is_96bit)
-         ac_optimization_barrier_vgpr_array(options->info, &b, global_addr_dst, lane_size, 1);
-   }
-
-   /* We don't want the application of blit output modifiers to be interleaved with stores. */
-   if (!key->is_clear && (lane_size > 1 || MIN2(src_samples, dst_samples) > 1)) {
-      ac_optimization_barrier_vgpr_array(options->info, &b, color, lane_size * src_samples,
-                                         key->last_dst_channel + 1);
    }
 
    /* Store the pixels, one per sample. */
