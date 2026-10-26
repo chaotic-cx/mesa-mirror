@@ -1169,14 +1169,10 @@ radv_amdgpu_winsys_cs_submit_internal(struct radv_amdgpu_ctx *ctx, int queue_idx
          goto fail;
    }
 
-   free(request.handles);
-
-   if (result != VK_SUCCESS)
-      goto fail;
-
    radv_assign_last_submit(ctx, &request);
 
 fail:
+   free(handles);
    u_rwlock_rdunlock(&ws->global_bo_list.lock);
    STACK_ARRAY_FINISH(ibs);
    return result;
