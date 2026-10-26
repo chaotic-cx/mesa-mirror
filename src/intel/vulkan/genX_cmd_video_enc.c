@@ -3651,19 +3651,14 @@ anv_h265_emit_vdenc_walker_state(struct anv_cmd_buffer *cmd,
        sps->log2_min_luma_coding_block_size_minus3 + 3);
    uint32_t ctb_w = DIV_ROUND_UP(width_in_pix, ctb_size);
    uint32_t ctb_h = DIV_ROUND_UP(height_in_pix, ctb_size);
+   uint32_t start = slice_header->slice_segment_address;
+   uint32_t next = slice_id + 1 < frame_info->naluSliceSegmentEntryCount ?
+      nalu[1].pStdSliceSegmentHeader->slice_segment_address : ctb_w * ctb_h;
 
    anv_batch_emit(&cmd->batch, GENX(VDENC_WALKER_STATE), vdenc_walker) {
-      uint32_t slice_block_rows = DIV_ROUND_UP(height_in_pix, ANV_MAX_H265_CTB_SIZE);
-      uint32_t slice_block_cols = DIV_ROUND_UP(width_in_pix, ANV_MAX_H265_CTB_SIZE);
-      uint32_t num_ctu_in_slice = slice_block_cols * slice_block_rows;
-
-      vdenc_walker.MBLCUStartYPosition = slice_header->slice_segment_address % ctb_w;
-      vdenc_walker.NextSliceMBLCUStartXPosition =
-         (slice_header->slice_segment_address + num_ctu_in_slice) / ctb_h;
-      vdenc_walker.NextSliceMBStartYPosition =
-         (slice_header->slice_segment_address + num_ctu_in_slice) / ctb_w;
-      vdenc_walker.NextSliceMBLCUStartXPosition =
-         (slice_header->slice_segment_address + num_ctu_in_slice) / ctb_h;
+      vdenc_walker.MBLCUStartYPosition = start / ctb_w;
+      vdenc_walker.NextSliceMBLCUStartXPosition = next / ctb_h;
+      vdenc_walker.NextSliceMBStartYPosition = next / ctb_w;
 #if GFX_VERx10 < 125
       vdenc_walker.TileWidth = width_in_pix - 1;
       vdenc_walker.TileHeight = height_in_pix - 1;
