@@ -3445,6 +3445,21 @@ backpropagate_input_modifiers(opt_ctx& ctx, alu_opt_info& info, const alu_opt_op
 
 typedef bool (*combine_instr_callback)(opt_ctx& ctx, alu_opt_info& info);
 
+enum opt_policy {
+   /* If the pattern can be applied, do it. */
+   AGGRESSIVE = 0,
+
+   /* Limit unlikely patterns to not block potentially more benefical
+    * patterns that match the current instr as src_opcode.
+    */
+   CONSERVATIVE = 1,
+
+   /* Limit to single use src instruction, for cases where the resulting
+    * opcode is expensive.
+    */
+   SINGLE_USE = 2,
+};
+
 struct combine_instr_pattern {
    aco_opcode src_opcode;
    aco_opcode res_opcode;
@@ -3452,10 +3467,7 @@ struct combine_instr_pattern {
    const char* swizzle;
    combine_instr_callback callback;
 
-   /* Limit to pattern matching to avoid unlike combining for instructions
-    * that might be used as src_opcode for other patterns.
-    */
-   bool less_aggressive;
+   opt_policy policy;
 };
 
 bool
@@ -3540,8 +3552,17 @@ match_and_apply_patterns(opt_ctx& ctx, alu_opt_info& info,
              op_instr.opcode != pattern.src_opcode)
             continue;
 
-         if (pattern.less_aggressive && ctx.uses[tmp.id()] > ctx.uses[info.defs[0].tempId()])
-            continue;
+         switch (pattern.policy) {
+         case AGGRESSIVE: break;
+         case CONSERVATIVE:
+            if (ctx.uses[tmp.id()] > ctx.uses[info.defs[0].tempId()])
+               continue;
+            break;
+         case SINGLE_USE:
+            if (ctx.uses[tmp.id()] > 1)
+               continue;
+            break;
+         }
 
          alu_opt_info new_info = info;
 
@@ -4495,105 +4516,105 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       add_opt(v_mul_f16, v_pk_fma_f16, 0x3, "120", create_fma_cb);
       add_opt(s_mul_f16, v_pk_fma_f16, 0x3, "120", create_fma_cb);
    } else if (info.opcode == aco_opcode::v_max_f32) {
-      add_opt(v_max_f32, v_max3_f32, 0x3, "120", nullptr, true);
-      add_opt(s_max_f32, v_max3_f32, 0x3, "120", nullptr, true);
+      add_opt(v_max_f32, v_max3_f32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_max_f32, v_max3_f32, 0x3, "120", nullptr, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX11) {
-         add_opt(v_min_f32, v_minmax_f32, 0x3, "120", nullptr, true);
-         add_opt(s_min_f32, v_minmax_f32, 0x3, "120", nullptr, true);
+         add_opt(v_min_f32, v_minmax_f32, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_min_f32, v_minmax_f32, 0x3, "120", nullptr, CONSERVATIVE);
       } else {
-         add_opt(v_min_f32, v_med3_f32, 0x3, "012", create_med3_cb<false>, true);
+         add_opt(v_min_f32, v_med3_f32, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_min_f32) {
-      add_opt(v_min_f32, v_min3_f32, 0x3, "120", nullptr, true);
-      add_opt(s_min_f32, v_min3_f32, 0x3, "120", nullptr, true);
+      add_opt(v_min_f32, v_min3_f32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_min_f32, v_min3_f32, 0x3, "120", nullptr, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX11) {
-         add_opt(v_max_f32, v_maxmin_f32, 0x3, "120", nullptr, true);
-         add_opt(s_max_f32, v_maxmin_f32, 0x3, "120", nullptr, true);
+         add_opt(v_max_f32, v_maxmin_f32, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_max_f32, v_maxmin_f32, 0x3, "120", nullptr, CONSERVATIVE);
       } else {
-         add_opt(v_max_f32, v_med3_f32, 0x3, "012", create_med3_cb<true>, true);
+         add_opt(v_max_f32, v_med3_f32, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_max_u32) {
-      add_opt(v_max_u32, v_max3_u32, 0x3, "120", nullptr, true);
-      add_opt(s_max_u32, v_max3_u32, 0x3, "120", nullptr, true);
+      add_opt(v_max_u32, v_max3_u32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_max_u32, v_max3_u32, 0x3, "120", nullptr, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX11) {
-         add_opt(v_min_u32, v_minmax_u32, 0x3, "120", nullptr, true);
-         add_opt(s_min_u32, v_minmax_u32, 0x3, "120", nullptr, true);
+         add_opt(v_min_u32, v_minmax_u32, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_min_u32, v_minmax_u32, 0x3, "120", nullptr, CONSERVATIVE);
       } else {
-         add_opt(v_min_u32, v_med3_u32, 0x3, "012", create_med3_cb<false>, true);
-         add_opt(s_min_u32, v_med3_u32, 0x3, "012", create_med3_cb<false>, true);
+         add_opt(v_min_u32, v_med3_u32, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
+         add_opt(s_min_u32, v_med3_u32, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_min_u32) {
-      add_opt(v_min_u32, v_min3_u32, 0x3, "120", nullptr, true);
-      add_opt(s_min_u32, v_min3_u32, 0x3, "120", nullptr, true);
+      add_opt(v_min_u32, v_min3_u32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_min_u32, v_min3_u32, 0x3, "120", nullptr, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX11) {
-         add_opt(v_max_u32, v_maxmin_u32, 0x3, "120", nullptr, true);
-         add_opt(s_max_u32, v_maxmin_u32, 0x3, "120", nullptr, true);
+         add_opt(v_max_u32, v_maxmin_u32, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_max_u32, v_maxmin_u32, 0x3, "120", nullptr, CONSERVATIVE);
       } else {
-         add_opt(v_max_u32, v_med3_u32, 0x3, "012", create_med3_cb<true>, true);
-         add_opt(s_max_u32, v_med3_u32, 0x3, "012", create_med3_cb<true>, true);
+         add_opt(v_max_u32, v_med3_u32, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
+         add_opt(s_max_u32, v_med3_u32, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_max_i32) {
-      add_opt(v_max_i32, v_max3_i32, 0x3, "120", nullptr, true);
-      add_opt(s_max_i32, v_max3_i32, 0x3, "120", nullptr, true);
+      add_opt(v_max_i32, v_max3_i32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_max_i32, v_max3_i32, 0x3, "120", nullptr, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX11) {
-         add_opt(v_min_i32, v_minmax_i32, 0x3, "120", nullptr, true);
-         add_opt(s_min_i32, v_minmax_i32, 0x3, "120", nullptr, true);
+         add_opt(v_min_i32, v_minmax_i32, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_min_i32, v_minmax_i32, 0x3, "120", nullptr, CONSERVATIVE);
       } else {
-         add_opt(v_min_i32, v_med3_i32, 0x3, "012", create_med3_cb<false>, true);
-         add_opt(s_min_i32, v_med3_i32, 0x3, "012", create_med3_cb<false>, true);
+         add_opt(v_min_i32, v_med3_i32, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
+         add_opt(s_min_i32, v_med3_i32, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_min_i32) {
-      add_opt(v_min_i32, v_min3_i32, 0x3, "120", nullptr, true);
-      add_opt(s_min_i32, v_min3_i32, 0x3, "120", nullptr, true);
+      add_opt(v_min_i32, v_min3_i32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_min_i32, v_min3_i32, 0x3, "120", nullptr, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX11) {
-         add_opt(v_max_i32, v_maxmin_i32, 0x3, "120", nullptr, true);
-         add_opt(s_max_i32, v_maxmin_i32, 0x3, "120", nullptr, true);
+         add_opt(v_max_i32, v_maxmin_i32, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_max_i32, v_maxmin_i32, 0x3, "120", nullptr, CONSERVATIVE);
       } else {
-         add_opt(v_max_i32, v_med3_i32, 0x3, "012", create_med3_cb<true>, true);
-         add_opt(s_max_i32, v_med3_i32, 0x3, "012", create_med3_cb<true>, true);
+         add_opt(v_max_i32, v_med3_i32, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
+         add_opt(s_max_i32, v_med3_i32, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_max_f16 && ctx.program->gfx_level >= GFX9) {
-      add_opt(v_max_f16, v_max3_f16, 0x3, "120", nullptr, true);
-      add_opt(s_max_f16, v_max3_f16, 0x3, "120", nullptr, true);
+      add_opt(v_max_f16, v_max3_f16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_max_f16, v_max3_f16, 0x3, "120", nullptr, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX11) {
-         add_opt(v_min_f16, v_minmax_f16, 0x3, "120", nullptr, true);
-         add_opt(s_min_f16, v_minmax_f16, 0x3, "120", nullptr, true);
+         add_opt(v_min_f16, v_minmax_f16, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_min_f16, v_minmax_f16, 0x3, "120", nullptr, CONSERVATIVE);
       } else {
-         add_opt(v_min_f16, v_med3_f16, 0x3, "012", create_med3_cb<false>, true);
+         add_opt(v_min_f16, v_med3_f16, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_min_f16 && ctx.program->gfx_level >= GFX9) {
-      add_opt(v_min_f16, v_min3_f16, 0x3, "120", nullptr, true);
-      add_opt(s_min_f16, v_min3_f16, 0x3, "120", nullptr, true);
+      add_opt(v_min_f16, v_min3_f16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_min_f16, v_min3_f16, 0x3, "120", nullptr, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX11) {
-         add_opt(v_max_f16, v_maxmin_f16, 0x3, "120", nullptr, true);
-         add_opt(s_max_f16, v_maxmin_f16, 0x3, "120", nullptr, true);
+         add_opt(v_max_f16, v_maxmin_f16, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_max_f16, v_maxmin_f16, 0x3, "120", nullptr, CONSERVATIVE);
       } else {
-         add_opt(v_max_f16, v_med3_f16, 0x3, "012", create_med3_cb<true>, true);
+         add_opt(v_max_f16, v_med3_f16, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_max_u16 && ctx.program->gfx_level >= GFX9) {
-      add_opt(v_max_u16, v_max3_u16, 0x3, "120", nullptr, true);
-      add_opt(v_min_u16, v_med3_u16, 0x3, "012", create_med3_cb<false>, true);
+      add_opt(v_max_u16, v_max3_u16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_min_u16, v_med3_u16, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_min_u16 && ctx.program->gfx_level >= GFX9) {
-      add_opt(v_min_u16, v_min3_u16, 0x3, "120", nullptr, true);
-      add_opt(v_max_u16, v_med3_u16, 0x3, "012", create_med3_cb<true>, true);
+      add_opt(v_min_u16, v_min3_u16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_max_u16, v_med3_u16, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_max_i16 && ctx.program->gfx_level >= GFX9) {
-      add_opt(v_max_i16, v_max3_i16, 0x3, "120", nullptr, true);
-      add_opt(v_min_i16, v_med3_i16, 0x3, "012", create_med3_cb<false>, true);
+      add_opt(v_max_i16, v_max3_i16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_min_i16, v_med3_i16, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_min_i16 && ctx.program->gfx_level >= GFX9) {
-      add_opt(v_min_i16, v_min3_i16, 0x3, "120", nullptr, true);
-      add_opt(v_max_i16, v_med3_i16, 0x3, "012", create_med3_cb<true>, true);
+      add_opt(v_min_i16, v_min3_i16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_max_i16, v_med3_i16, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_max_u16_e64) {
-      add_opt(v_max_u16_e64, v_max3_u16, 0x3, "120", nullptr, true);
-      add_opt(v_min_u16_e64, v_med3_u16, 0x3, "012", create_med3_cb<false>, true);
+      add_opt(v_max_u16_e64, v_max3_u16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_min_u16_e64, v_med3_u16, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_min_u16_e64) {
-      add_opt(v_min_u16_e64, v_min3_u16, 0x3, "120", nullptr, true);
-      add_opt(v_max_u16_e64, v_med3_u16, 0x3, "012", create_med3_cb<true>, true);
+      add_opt(v_min_u16_e64, v_min3_u16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_max_u16_e64, v_med3_u16, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_max_i16_e64) {
-      add_opt(v_max_i16_e64, v_max3_i16, 0x3, "120", nullptr, true);
-      add_opt(v_min_i16_e64, v_med3_i16, 0x3, "012", create_med3_cb<false>, true);
+      add_opt(v_max_i16_e64, v_max3_i16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_min_i16_e64, v_med3_i16, 0x3, "012", create_med3_cb<false>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_min_i16_e64) {
-      add_opt(v_min_i16_e64, v_min3_i16, 0x3, "120", nullptr, true);
-      add_opt(v_max_i16_e64, v_med3_i16, 0x3, "012", create_med3_cb<true>, true);
+      add_opt(v_min_i16_e64, v_min3_i16, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_max_i16_e64, v_med3_i16, 0x3, "012", create_med3_cb<true>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_mul_f32 || info.opcode == aco_opcode::v_mul_legacy_f32) {
       bool legacy = info.opcode == aco_opcode::v_mul_legacy_f32;
 
@@ -4602,30 +4623,31 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
           !info.clamp && !info.omod && !ctx.fp_mode.must_flush_denorms32) {
          /* v_mul_f32(a, v_cndmask_b32(0, 1.0, cond)) -> v_cndmask_b32(0, a, cond) */
          add_opt(v_cndmask_b32, v_cndmask_b32, 0x3, "1032",
-                 and_cb<check_const_cb<0, 0>, remove_const_cb<0x3f800000>>, true);
+                 and_cb<check_const_cb<0, 0>, remove_const_cb<0x3f800000>>, CONSERVATIVE);
          /* v_mul_f32(a, v_cndmask_b32(1.0, 0, cond)) -> v_cndmask_b32(a, 0, cond) */
          add_opt(v_cndmask_b32, v_cndmask_b32, 0x3, "0231",
-                 and_cb<check_const_cb<1, 0>, remove_const_cb<0x3f800000>>, true);
+                 and_cb<check_const_cb<1, 0>, remove_const_cb<0x3f800000>>, CONSERVATIVE);
       }
 
       if (can_reassoc_omod(ctx, info, 32)) {
          if (legacy) {
-            add_opt(v_mul_f32, v_mul_legacy_f32, 0x3, "120", reassoc_omod_cb<false>, true);
-            add_opt(v_mul_legacy_f32, v_mul_legacy_f32, 0x3, "120", reassoc_omod_cb<false>, true);
-            add_opt(s_mul_f32, v_mul_legacy_f32, 0x3, "120", reassoc_omod_cb<false>, true);
+            add_opt(v_mul_f32, v_mul_legacy_f32, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
+            add_opt(v_mul_legacy_f32, v_mul_legacy_f32, 0x3, "120", reassoc_omod_cb<false>,
+                    CONSERVATIVE);
+            add_opt(s_mul_f32, v_mul_legacy_f32, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
          } else {
-            add_opt(v_mul_f32, v_mul_f32, 0x3, "120", reassoc_omod_cb<false>, true);
-            add_opt(v_mul_legacy_f32, v_mul_f32, 0x3, "120", reassoc_omod_cb<false>, true);
-            add_opt(s_mul_f32, v_mul_f32, 0x3, "120", reassoc_omod_cb<false>, true);
+            add_opt(v_mul_f32, v_mul_f32, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
+            add_opt(v_mul_legacy_f32, v_mul_f32, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
+            add_opt(s_mul_f32, v_mul_f32, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
          }
       }
    } else if (info.opcode == aco_opcode::v_mul_f16 && can_reassoc_omod(ctx, info, 16)) {
-      add_opt(v_mul_f16, v_mul_f16, 0x3, "120", reassoc_omod_cb<false>, true);
-      add_opt(s_mul_f16, v_mul_f16, 0x3, "120", reassoc_omod_cb<false>, true);
+      add_opt(v_mul_f16, v_mul_f16, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
+      add_opt(s_mul_f16, v_mul_f16, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_mul_f64 && can_reassoc_omod(ctx, info, 64)) {
-      add_opt(v_mul_f64, v_mul_f64, 0x3, "120", reassoc_omod_cb<false>, true);
+      add_opt(v_mul_f64, v_mul_f64, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_mul_f64_e64 && can_reassoc_omod(ctx, info, 64)) {
-      add_opt(v_mul_f64_e64, v_mul_f64_e64, 0x3, "120", reassoc_omod_cb<false>, true);
+      add_opt(v_mul_f64_e64, v_mul_f64_e64, 0x3, "120", reassoc_omod_cb<false>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_rcp_f32 && can_reassoc_omod(ctx, info, 32)) {
       add_opt(v_mul_f32, v_rcp_f32, 0x1, "01", reassoc_omod_cb<true>);
       add_opt(v_mul_legacy_f32, v_rcp_f32, 0x1, "01", reassoc_omod_cb<true>);
@@ -4718,48 +4740,51 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
                  and_cb<shift_to_mad_cb<16>, neg_mul_to_i16_cb>);
       }
    } else if (info.opcode == aco_opcode::v_or_b32) {
-      add_opt(v_not_b32, v_bfi_b32, 0x3, "10", insert_const_cb<2, UINT32_MAX>, true);
-      add_opt(s_not_b32, v_bfi_b32, 0x3, "10", insert_const_cb<2, UINT32_MAX>, true);
+      add_opt(v_not_b32, v_bfi_b32, 0x3, "10", insert_const_cb<2, UINT32_MAX>, CONSERVATIVE);
+      add_opt(s_not_b32, v_bfi_b32, 0x3, "10", insert_const_cb<2, UINT32_MAX>, CONSERVATIVE);
       if (ctx.program->gfx_level >= GFX9) {
-         add_opt(v_or_b32, v_or3_b32, 0x3, "012", nullptr, true);
-         add_opt(s_or_b32, v_or3_b32, 0x3, "012", nullptr, true);
-         add_opt(v_lshlrev_b32, v_lshl_or_b32, 0x3, "210", nullptr, true);
-         add_opt(s_lshl_b32, v_lshl_or_b32, 0x3, "120", nullptr, true);
-         add_opt(v_and_b32, v_and_or_b32, 0x3, "120", nullptr, true);
-         add_opt(s_and_b32, v_and_or_b32, 0x3, "120", nullptr, true);
+         add_opt(v_or_b32, v_or3_b32, 0x3, "012", nullptr, CONSERVATIVE);
+         add_opt(s_or_b32, v_or3_b32, 0x3, "012", nullptr, CONSERVATIVE);
+         add_opt(v_lshlrev_b32, v_lshl_or_b32, 0x3, "210", nullptr, CONSERVATIVE);
+         add_opt(s_lshl_b32, v_lshl_or_b32, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(v_and_b32, v_and_or_b32, 0x3, "120", nullptr, CONSERVATIVE);
+         add_opt(s_and_b32, v_and_or_b32, 0x3, "120", nullptr, CONSERVATIVE);
       }
    } else if (info.opcode == aco_opcode::v_xor_b32 && ctx.program->gfx_level >= GFX10) {
-      add_opt(v_xor_b32, v_xor3_b32, 0x3, "012", nullptr, true);
-      add_opt(s_xor_b32, v_xor3_b32, 0x3, "012", nullptr, true);
-      add_opt(v_not_b32, v_xnor_b32, 0x3, "01", nullptr, true);
-      add_opt(s_not_b32, v_xnor_b32, 0x3, "01", nullptr, true);
+      add_opt(v_xor_b32, v_xor3_b32, 0x3, "012", nullptr, CONSERVATIVE);
+      add_opt(s_xor_b32, v_xor3_b32, 0x3, "012", nullptr, CONSERVATIVE);
+      add_opt(v_not_b32, v_xnor_b32, 0x3, "01", nullptr, CONSERVATIVE);
+      add_opt(s_not_b32, v_xnor_b32, 0x3, "01", nullptr, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_add_u32 && !info.clamp) {
       assert(ctx.program->gfx_level >= GFX9);
-      add_opt(v_bcnt_u32_b32, v_bcnt_u32_b32, 0x3, "102", remove_const_cb<0>, true);
-      add_opt(s_bcnt1_i32_b32, v_bcnt_u32_b32, 0x3, "10", nullptr, true);
-      add_opt(v_mbcnt_lo_u32_b32, v_mbcnt_lo_u32_b32, 0x3, "102", remove_const_cb<0>, true);
-      add_opt(v_mbcnt_hi_u32_b32_e64, v_mbcnt_hi_u32_b32_e64, 0x3, "102", remove_const_cb<0>, true);
-      add_opt(v_mad_u32_u16, v_mad_u32_u16, 0x3, "1203", remove_const_cb<0>, true);
-      add_opt(p_v_mad_u32_u32_u16, p_v_mad_u32_u32_u16, 0x3, "1203", remove_const_cb<0>, true);
-      add_opt(p_v_mad_u32, p_v_mad_u32, 0x3, "1203", remove_const_cb<0>, true);
-      add_opt(v_mul_u32_u24, v_mad_u32_u24, 0x3, "120", nullptr, true);
-      add_opt(v_mul_i32_i24, v_mad_i32_i24, 0x3, "120", nullptr, true);
-      add_opt(v_xor_b32, v_xad_u32, 0x3, "120", nullptr, true);
-      add_opt(s_xor_b32, v_xad_u32, 0x3, "120", nullptr, true);
-      add_opt(v_add_u32, v_add3_u32, 0x3, "012", nullptr, true);
-      add_opt(s_add_u32, v_add3_u32, 0x3, "012", nullptr, true);
-      add_opt(s_add_i32, v_add3_u32, 0x3, "012", nullptr, true);
-      add_opt(v_lshlrev_b32, v_lshl_add_u32, 0x3, "210", nullptr, true);
-      add_opt(s_lshl_b32, v_lshl_add_u32, 0x3, "120", nullptr, true);
-      add_opt(s_mul_i32, v_mad_u32_u24, 0x3, "120", check_mul_u24_cb, true);
+      add_opt(v_bcnt_u32_b32, v_bcnt_u32_b32, 0x3, "102", remove_const_cb<0>, CONSERVATIVE);
+      add_opt(s_bcnt1_i32_b32, v_bcnt_u32_b32, 0x3, "10", nullptr, CONSERVATIVE);
+      add_opt(v_mbcnt_lo_u32_b32, v_mbcnt_lo_u32_b32, 0x3, "102", remove_const_cb<0>, CONSERVATIVE);
+      add_opt(v_mbcnt_hi_u32_b32_e64, v_mbcnt_hi_u32_b32_e64, 0x3, "102", remove_const_cb<0>,
+              CONSERVATIVE);
+      add_opt(v_mad_u32_u16, v_mad_u32_u16, 0x3, "1203", remove_const_cb<0>, CONSERVATIVE);
+      add_opt(p_v_mad_u32_u32_u16, p_v_mad_u32_u32_u16, 0x3, "1203", remove_const_cb<0>,
+              CONSERVATIVE);
+      add_opt(p_v_mad_u32, p_v_mad_u32, 0x3, "1203", remove_const_cb<0>, CONSERVATIVE);
+      add_opt(v_mul_u32_u24, v_mad_u32_u24, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_mul_i32_i24, v_mad_i32_i24, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_xor_b32, v_xad_u32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_xor_b32, v_xad_u32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(v_add_u32, v_add3_u32, 0x3, "012", nullptr, CONSERVATIVE);
+      add_opt(s_add_u32, v_add3_u32, 0x3, "012", nullptr, CONSERVATIVE);
+      add_opt(s_add_i32, v_add3_u32, 0x3, "012", nullptr, CONSERVATIVE);
+      add_opt(v_lshlrev_b32, v_lshl_add_u32, 0x3, "210", nullptr, CONSERVATIVE);
+      add_opt(s_lshl_b32, v_lshl_add_u32, 0x3, "120", nullptr, CONSERVATIVE);
+      add_opt(s_mul_i32, v_mad_u32_u24, 0x3, "120", check_mul_u24_cb, CONSERVATIVE);
       /* v_add_u32(a, v_cndmask_b32(0, 1, cond)) -> v_addc_co_u32(a, 0, cond) */
       add_opt(v_cndmask_b32, v_addc_co_u32, 0x3, "0132",
-              and_cb<and_cb<check_const_cb<1, 0>, remove_const_cb<1>>, add_lm_def_cb>, true);
+              and_cb<and_cb<check_const_cb<1, 0>, remove_const_cb<1>>, add_lm_def_cb>,
+              CONSERVATIVE);
       /* v_add_u32(a, v_cndmask_b32(1, 0, cond)) -> v_subb_co_u32(a, -1, cond) */
       add_opt(v_cndmask_b32, v_subb_co_u32, 0x3, "0321",
               and_cb<and_cb<remove_const_cb<1>, remove_const_cb<0>>,
                      and_cb<insert_const_cb<1, UINT32_MAX>, add_lm_def_cb>>,
-              true);
+              CONSERVATIVE);
    } else if ((info.opcode == aco_opcode::v_add_co_u32 ||
                info.opcode == aco_opcode::v_add_co_u32_e64) &&
               !info.clamp) {
@@ -4840,9 +4865,9 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       add_opt(s_lshl_b32, s_lshl3_add_u32, 0x3, "102", remove_const_cb<3>);
       add_opt(s_lshl_b32, s_lshl4_add_u32, 0x3, "102", remove_const_cb<4>);
    } else if (info.opcode == aco_opcode::v_lshlrev_b32 && ctx.program->gfx_level >= GFX9) {
-      add_opt(v_add_u32, v_add_lshl_u32, 0x2, "120", nullptr, true);
-      add_opt(s_add_u32, v_add_lshl_u32, 0x2, "120", nullptr, true);
-      add_opt(s_add_i32, v_add_lshl_u32, 0x2, "120", nullptr, true);
+      add_opt(v_add_u32, v_add_lshl_u32, 0x2, "120", nullptr, CONSERVATIVE);
+      add_opt(s_add_u32, v_add_lshl_u32, 0x2, "120", nullptr, CONSERVATIVE);
+      add_opt(s_add_i32, v_add_lshl_u32, 0x2, "120", nullptr, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::v_lshrrev_b32) {
       add_opt(v_lshlrev_b32, v_alignbyte_b32, 0x1, "021",
               and_cb<remove_const_cb<3>, insert_const_cb<0, 0>>);
@@ -4852,8 +4877,8 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       add_opt(v_lshlrev_b32, v_alignbyte_b32, 0x4, "0132", remove_const_cb<3>);
       add_opt(s_lshl_b32, v_alignbyte_b32, 0x4, "0123", remove_const_cb<3>);
    } else if (info.opcode == aco_opcode::v_and_b32) {
-      add_opt(v_not_b32, v_bfi_b32, 0x3, "10", insert_const_cb<1, 0>, true);
-      add_opt(s_not_b32, v_bfi_b32, 0x3, "10", insert_const_cb<1, 0>, true);
+      add_opt(v_not_b32, v_bfi_b32, 0x3, "10", insert_const_cb<1, 0>, CONSERVATIVE);
+      add_opt(s_not_b32, v_bfi_b32, 0x3, "10", insert_const_cb<1, 0>, CONSERVATIVE);
    } else if (info.opcode == aco_opcode::s_and_b32) {
       add_opt(s_not_b32, s_andn2_b32, 0x3, "01");
    } else if (info.opcode == aco_opcode::s_and_b64) {
