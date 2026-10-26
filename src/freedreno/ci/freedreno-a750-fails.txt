@@ -156,3 +156,9 @@ dEQP-VK.renderpasses.renderpass2.fragment_density_map.2_views.render_copy.densit
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render.density_formula.1_sample.static_subsampled_4_4,Fail
 dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
 gmem-dEQP-VK.renderpasses.renderpass2.fragment_density_map.6_views.render_copy.density_formula.1_sample.static_subsampled_4_4,Fail
+
+# CTS bug - https://gerrit.khronos.org/c/vk-gl-cts/+/21455
+dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_alpha_to_coverage_samples_2_maintenance5,Fail
+dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_alpha_to_coverage_samples_4_maintenance5,Fail
+dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_alpha_to_coverage_samples_8_maintenance5,Fail
+dEQP-VK.fragment_operations.early_fragment.sample_count_early_fragment_tests_depth_samples_4_maintenance5,Fail
