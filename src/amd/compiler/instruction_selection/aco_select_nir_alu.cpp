@@ -1788,6 +1788,12 @@ visit_alu_instr(isel_context* ctx, nir_alu_instr* instr)
             bld.v_mul_imm(Definition(dst), get_alu_src(ctx, instr->src[0]),
                           nir_src_as_uint(instr->src[1].src), src0_ub <= 0xffffff,
                           src0_ub <= 0x7fffff);
+         } else if ((src0_ub <= UINT16_MAX || src1_ub <= UINT16_MAX) &&
+                    ctx->program->gfx_level >= GFX9) {
+            bool swap = src0_ub <= UINT16_MAX;
+            Temp src0 = get_alu_src(ctx, instr->src[swap]);
+            Temp src1 = get_alu_src(ctx, instr->src[!swap]);
+            bld.vop3(aco_opcode::p_v_mad_u32_u32_u16, Definition(dst), src0, src1, Operand::c32(0));
          } else {
             emit_vop3a_instruction(ctx, instr, aco_opcode::v_mul_lo_u32, dst);
          }
