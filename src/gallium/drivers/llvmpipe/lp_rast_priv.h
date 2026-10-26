@@ -29,6 +29,7 @@
 #define LP_RAST_PRIV_H
 
 #include "util/format/u_format.h"
+#include "util/u_memory.h"
 #include "util/u_thread.h"
 #include "gallivm/lp_bld_debug.h"
 #include "lp_memory.h"
@@ -81,7 +82,7 @@ struct cmd_bin;
  */
 struct lp_rasterizer_task
 {
-   const struct cmd_bin *bin;
+   alignas(MESA_CACHE_LINE_SIZE) const struct cmd_bin *bin;
    const struct lp_rast_state *state;
 
    struct lp_scene *scene;
@@ -135,6 +136,13 @@ struct lp_rasterizer
 
    struct lp_fence *last_fence;
 };
+
+static_assert(alignof(struct lp_rasterizer_task) == MESA_CACHE_LINE_SIZE,
+              "lp_rasterizer_task must be cache-line aligned to prevent false sharing");
+static_assert(sizeof(struct lp_rasterizer_task) % MESA_CACHE_LINE_SIZE == 0,
+              "lp_rasterizer_task size must be a multiple of cache line size");
+static_assert(offsetof(struct lp_rasterizer, tasks) % MESA_CACHE_LINE_SIZE == 0,
+              "lp_rasterizer::tasks must start on a cache-line boundary");
 
 
 void

@@ -1266,7 +1266,7 @@ create_rast_threads(struct lp_rasterizer *rast)
 struct lp_rasterizer *
 lp_rast_create(unsigned num_threads)
 {
-   struct lp_rasterizer *rast = CALLOC_STRUCT(lp_rasterizer);
+   struct lp_rasterizer *rast = CALLOC_STRUCT_CL(lp_rasterizer);
    if (!rast) {
       goto no_rast;
    }
@@ -1311,7 +1311,7 @@ no_thread_data_cache:
 
    lp_scene_queue_destroy(rast->full_scenes);
 no_full_scenes:
-   FREE(rast);
+   FREE_CL(rast);
 no_rast:
    return NULL;
 }
@@ -1370,7 +1370,7 @@ lp_rast_destroy(struct lp_rasterizer *rast)
 
    lp_scene_queue_destroy(rast->full_scenes);
 
-   FREE(rast);
+   FREE_CL(rast);
 }
 
 
