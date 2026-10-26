@@ -185,14 +185,24 @@ spec@glsl-4.00@execution@built-in-functions@fs-op-div-dmat4-dmat4,Fail
 # uprev Piglit in Mesa
 glx@glx-swap-pixmap-bad,Fail
 spec@!opengl 1.0@rasterpos@glsl_vs_ssbo,Fail
-spec@arb_gpu_shader_fp64@execution@fs-indirect-temp-double-src,Crash
-spec@khr_texture_compression_astc@miptree-gles srgb-fp,Fail
-spec@khr_texture_compression_astc@miptree-gles srgb-fp@sRGB decode full precision,Fail
+spec@!opengl 1.1@getteximage-depth@GL_TEXTURE_1D_ARRAY-GL_DEPTH_COMPONENT32,Fail
+spec@!opengl 1.1@large-tex,Fail
+spec@!opengl 1.1@large-tex@test_image_load_store,Fail
 spec@arb_base_instance@arb_base_instance-baseinstance-doesnt-affect-gl-instance-id,Fail
 spec@arb_base_instance@arb_base_instance-drawarrays,Fail
+spec@arb_gpu_shader_fp64@execution@fs-indirect-temp-double-src,Crash
 spec@ext_base_instance@arb_base_instance-baseinstance-doesnt-affect-gl-instance-id_gles3,Fail
 spec@ext_base_instance@arb_base_instance-drawarrays_gles3,Fail
-spec@!opengl 1.1@getteximage-depth@GL_TEXTURE_1D_ARRAY-GL_DEPTH_COMPONENT32,Fail
+spec@khr_texture_compression_astc@miptree-gl srgb,Fail
+spec@khr_texture_compression_astc@miptree-gl srgb@sRGB decode,Fail
+spec@khr_texture_compression_astc@miptree-gles srgb-fp,Fail
+spec@khr_texture_compression_astc@miptree-gles srgb-fp@sRGB decode full precision,Fail
+spec@khr_texture_compression_astc@miptree-gles srgb,Fail
+spec@khr_texture_compression_astc@miptree-gles srgb@sRGB decode,Fail
+spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb,Fail
+spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb@sRGB decode,Fail
+spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb,Fail
+spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb@sRGB decode,Fail
 
 # New failures appeared after Piglit uprev to 28d1349844eacda869f0f82f551bcd4ac0c4edfe
 spec@arb_gl_spirv@execution@vs-instance-id,Fail
@@ -381,18 +391,6 @@ angle-dEQP-GLES2.functional.shaders.algorithm.rgb_to_hsl_vertex,Fail
 # Autotune regression
 angle-dEQP-GLES3.functional.fbo.msaa.2_samples.rg8,Fail
 angle-dEQP-GLES3.functional.fbo.msaa.4_samples.rg8,Fail
-
-# uprev Piglit in Mesa
-spec@!opengl 1.1@large-tex,Fail
-spec@!opengl 1.1@large-tex@test_image_load_store,Fail
-spec@khr_texture_compression_astc@miptree-gl srgb,Fail
-spec@khr_texture_compression_astc@miptree-gl srgb@sRGB decode,Fail
-spec@khr_texture_compression_astc@miptree-gles srgb,Fail
-spec@khr_texture_compression_astc@miptree-gles srgb@sRGB decode,Fail
-spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb,Fail
-spec@khr_texture_compression_astc@sliced-3d-miptree-gl srgb@sRGB decode,Fail
-spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb,Fail
-spec@khr_texture_compression_astc@sliced-3d-miptree-gles srgb@sRGB decode,Fail
 
 #
 # OpenCL-CTS
