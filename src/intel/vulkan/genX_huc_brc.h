@@ -1234,6 +1234,10 @@ anv_h265_emit_slice_header(struct anv_cmd_buffer *cmd,
                            struct anv_batch *batch,
                            const VkVideoEncodeInfoKHR *enc_info,
                            uint32_t slice_id);
+static StdVideoEncodeH265SliceSegmentHeader
+anv_h265_slice_segment_header(const VkVideoEncodeH265PictureInfoKHR *frame_info,
+                              const StdVideoH265SequenceParameterSet *sps,
+                              uint32_t slice_id);
 static void
 anv_vdenc_emit_weightsoffsets_state(struct anv_cmd_buffer *cmd,
                                     struct anv_batch *batch,
@@ -1262,8 +1266,12 @@ anv_h265_brc_compute_slb_layout(const VkVideoEncodeH265PictureInfoKHR *frame_inf
       if (slice_header->slice_type % 5 == STD_VIDEO_H265_SLICE_TYPE_P)
          slice_header->slice_type = STD_VIDEO_H265_SLICE_TYPE_B;
 
+      /* Size the slot for the header anv_h265_emit_slice_header() writes. */
+      StdVideoEncodeH265SliceSegmentHeader encoded_header =
+         anv_h265_slice_segment_header(frame_info, sps, slice_id);
+
       vk_video_encode_h265_slice_header(frame_info->pStdPictureInfo,
-                                        vps, sps, pps, slice_header, 0,
+                                        vps, sps, pps, &encoded_header, 0,
                                         &slice_header_data_len_in_bytes,
                                         &slice_header_data);
 
