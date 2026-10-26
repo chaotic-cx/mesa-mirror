@@ -530,10 +530,10 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
    /* Let's work with 0-based src and dst coordinates (thread IDs) first. */
    nir_def *log_workgroup_size = nir_vec3(&b, log_block_x, log_block_y, log_block_z);
-   nir_def *dst_xyz = nir_iadd_nuw(&b, nir_ishl(&b, nir_load_workgroup_id(&b), log_workgroup_size),
-                                   nir_load_local_invocation_id(&b));
-   dst_xyz = nir_u2uN(&b, nir_trim_vector(&b, dst_xyz, key->wg_dim), coord_bit_size);
-   dst_xyz = nir_pad_vector_imm_int(&b, dst_xyz, 0, 3);
+   nir_def *dispatch_xyz = nir_iadd_nuw(&b, nir_ishl(&b, nir_load_workgroup_id(&b), log_workgroup_size),
+                                        nir_load_local_invocation_id(&b));
+   dispatch_xyz = nir_u2uN(&b, nir_trim_vector(&b, dispatch_xyz, key->wg_dim), coord_bit_size);
+   dispatch_xyz = nir_pad_vector_imm_int(&b, dispatch_xyz, 0, 3);
 
    /* If the blit area is unaligned, we launched extra threads to make it aligned.
     * Skip those threads here.
@@ -543,17 +543,18 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       nir_def *start_xyz = nir_u2uN(&b, nir_vec3(&b, start_x, start_y, start_z), coord_bit_size);
       start_xyz = nir_trim_vector(&b, start_xyz, 3);
 
-      dst_xyz = nir_isub(&b, dst_xyz, start_xyz);
-      nir_def *is_positive_xyz = nir_ige_imm(&b, dst_xyz, 0);
+      dispatch_xyz = nir_isub(&b, dispatch_xyz, start_xyz);
+      nir_def *is_positive_xyz = nir_ige_imm(&b, dispatch_xyz, 0);
       nir_def *is_positive = nir_iand(&b, nir_channel(&b, is_positive_xyz, 0),
                                       nir_iand(&b, nir_channel(&b, is_positive_xyz, 1),
                                                nir_channel(&b, is_positive_xyz, 2)));
       if_positive = nir_push_if(&b, is_positive);
    }
 
-   dst_xyz = nir_imul(&b, dst_xyz, nir_imm_ivec3_intN(&b, lane_width, lane_height, lane_depth,
-                                                      coord_bit_size));
-   nir_def *src_xyz = dst_xyz;
+   dispatch_xyz = nir_imul(&b, dispatch_xyz,
+                           nir_imm_ivec3_intN(&b, lane_width, lane_height, lane_depth, coord_bit_size));
+   nir_def *dst_xyz = dispatch_xyz;
+   nir_def *src_xyz = dispatch_xyz;
 
    /* Flip src coordinates. */
    const bool flip[3] = {key->flip_x, key->flip_y, key->flip_z};
@@ -574,11 +575,12 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       }
    }
 
-   /* Add box.xyz. */
+   /* Add dst box.xyz. */
    nir_def *base_coord_dst =
       nir_pad_vector(&b, nir_iadd(&b, nir_vec3(&b, dst_x, dst_y, dst_z), dst_xyz), 4);
    nir_def *base_coord_src = NULL;
 
+   /* Add src box.xyz. */
    if (!key->is_clear) {
       base_coord_src =
          nir_pad_vector(&b, nir_iadd(&b, nir_vec3(&b, src_x, src_y, src_z), src_xyz), 4);
