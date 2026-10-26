@@ -317,6 +317,7 @@ static void *r600_create_blend_state_mode(struct pipe_context *ctx,
 {
 	struct r600_context *rctx = (struct r600_context *)ctx;
 	uint32_t color_control = 0, target_mask = 0;
+	uint32_t alpha_to_mask = 0;
 	struct r600_blend_state *blend = CALLOC_STRUCT(r600_blend_state);
 
 	if (!blend) {
@@ -365,12 +366,38 @@ static void *r600_create_blend_state_mode(struct pipe_context *ctx,
 	blend->alpha_to_one = state->alpha_to_one;
 	blend->alpha_to_one_and_coverage = state->alpha_to_one && state->alpha_to_coverage;
 
-	r600_store_context_reg(&blend->buffer, R_028D44_DB_ALPHA_TO_MASK,
-			       S_028D44_ALPHA_TO_MASK_ENABLE(state->alpha_to_coverage) |
-			       S_028D44_ALPHA_TO_MASK_OFFSET0(2) |
-			       S_028D44_ALPHA_TO_MASK_OFFSET1(2) |
-			       S_028D44_ALPHA_TO_MASK_OFFSET2(2) |
-			       S_028D44_ALPHA_TO_MASK_OFFSET3(2));
+	if (state->alpha_to_coverage) {
+		alpha_to_mask = S_028D44_ALPHA_TO_MASK_ENABLE(1);
+		if (state->alpha_to_coverage_dither) {
+			if (rctx->b.gfx_level >= R700) {
+				/* `OFFSET_ROUND` supported by the hardware (tested on RV770). */
+				alpha_to_mask |= S_028D44_ALPHA_TO_MASK_OFFSET0(3) |
+				                 S_028D44_ALPHA_TO_MASK_OFFSET1(1) |
+				                 S_028D44_ALPHA_TO_MASK_OFFSET2(0) |
+				                 S_028D44_ALPHA_TO_MASK_OFFSET3(2) |
+				                 S_028D44_OFFSET_ROUND(1);
+			} else {
+				/* `OFFSET_ROUND` not supported by the hardware (tested on RV630).
+				 * Offsets 0 and 3 correspond to 0% and 75%, not 12.5% and 87.5%.
+				 * They would produce asymmetric coverage, which is inferior to no dithering:
+				 * - Fully transparent for a wide range of alpha values;
+				 * - Fully opaque only when the alpha is exactly 1.
+				 * Use checkerboarded 25% and 75% offsets, which add fewer transparency steps,
+				 * but preserve the symmetry of the coverage function.
+				 */
+				alpha_to_mask |= S_028D44_ALPHA_TO_MASK_OFFSET0(3) |
+				                 S_028D44_ALPHA_TO_MASK_OFFSET1(1) |
+				                 S_028D44_ALPHA_TO_MASK_OFFSET2(1) |
+				                 S_028D44_ALPHA_TO_MASK_OFFSET3(3);
+			}
+		} else {
+			alpha_to_mask |= S_028D44_ALPHA_TO_MASK_OFFSET0(2) |
+			                 S_028D44_ALPHA_TO_MASK_OFFSET1(2) |
+			                 S_028D44_ALPHA_TO_MASK_OFFSET2(2) |
+			                 S_028D44_ALPHA_TO_MASK_OFFSET3(2);
+		}
+	}
+	r600_store_context_reg(&blend->buffer, R_028D44_DB_ALPHA_TO_MASK, alpha_to_mask);
 
 	/* Copy over the registers set so far into buffer_no_blend. */
 	memcpy(blend->buffer_no_blend.buf, blend->buffer.buf, blend->buffer.num_dw * 4);

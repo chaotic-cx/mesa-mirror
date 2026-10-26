@@ -15,3 +15,4 @@ VK_KHR_shader_constant_data on HK
 GL, GLES, EGL, and GLX call tracing with apitrace, MESA_APITRACE=1 in builds with -Dapitrace=true
 GL, GLES, EGL, GLX, and WGL call tracing with apitrace, MESA_APITRACE=1 in builds with -Dapitrace=true
 VK_{KHR,EXT}_load_store_op_none on pvr
+GL_NV_alpha_to_coverage_dither_control on all r600 devices
