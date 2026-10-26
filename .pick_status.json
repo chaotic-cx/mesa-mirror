@@ -3104,7 +3104,7 @@
         "description": "pvr: Validate XFB primitive topology at draw",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c374fb7308eb495887337ed65ee4ea5e7cc02929",
         "notes": null

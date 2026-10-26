@@ -758,6 +758,51 @@ static VkResult pvr_xfb_start(struct pvr_cmd_buffer *cmd_buffer)
    return VK_SUCCESS;
 }
 
+VkResult PVR_PER_ARCH(validate_xfb_state)(struct pvr_cmd_buffer *cmd_buffer)
+{
+   struct pvr_cmd_buffer_xfb_state *xfb_state = &cmd_buffer->state.xfb_state;
+   const struct pvr_graphics_pipeline *pipeline =
+      cmd_buffer->state.gfx_pipeline;
+   const struct pvr_xfb_shader_state *xfb_shader_state;
+   struct vk_dynamic_graphics_state *const dynamic_state =
+      &cmd_buffer->vk.dynamic_graphics_state;
+   uint32_t output_primitive_vertex_count;
+   VkResult result;
+
+   if (!xfb_state->is_active)
+      return VK_SUCCESS;
+
+   xfb_shader_state = &pipeline->shader_state.xfb_shader_state;
+
+   if (!xfb_shader_state->varying_count)
+      return VK_SUCCESS;
+
+   output_primitive_vertex_count = pvr_get_output_primitive_vertex_count(
+      dynamic_state->ia.primitive_topology);
+
+   /* Topology may be unset at Begin; rebuild with the real primitive type. */
+   if (xfb_state->output_primitive_vertex_count !=
+       output_primitive_vertex_count) {
+      /* TODO: handle class changes mid-segment
+       * (dynamicPrimitiveTopologyUnrestricted).
+       * TODO: this end may store to a stale last_counter_buffer_addr.
+       */
+      result = pvr_xfb_end(cmd_buffer);
+      if (result != VK_SUCCESS)
+         return result;
+
+      /* Rebuild init/stream-out with the new primitive type.
+       */
+      xfb_state->output_primitive_vertex_count = output_primitive_vertex_count;
+
+      result = pvr_xfb_start(cmd_buffer);
+      if (result != VK_SUCCESS)
+         return result;
+   }
+
+   return VK_SUCCESS;
+}
+
 void PVR_PER_ARCH(CmdBindTransformFeedbackBuffersEXT)(
    VkCommandBuffer commandBuffer,
    uint32_t firstBinding,
@@ -837,6 +882,9 @@ void PVR_PER_ARCH(CmdBeginTransformFeedbackEXT)(
 
    if (state->gfx_pipeline->shader_state.xfb_shader_state.varying_count) {
       xfb_state->is_active = true;
+      xfb_state->output_primitive_vertex_count =
+         pvr_get_output_primitive_vertex_count(
+            cmd_buffer->vk.dynamic_graphics_state.ia.primitive_topology);
       pvr_xfb_start(cmd_buffer);
    }
 }
