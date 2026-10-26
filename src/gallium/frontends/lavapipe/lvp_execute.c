@@ -100,27 +100,30 @@ struct rendering_state {
 
    struct util_dynarray releasebufs;
 
-   bool blend_dirty;
-   bool rs_dirty;
-   bool dsa_dirty;
-   bool dsa_no_stencil;
-   bool dsa_no_depth;
-   bool stencil_ref_dirty;
-   bool clip_state_dirty;
-   bool blend_color_dirty;
-   bool ve_dirty;
-   bool vb_dirty;
-   bool constbuf_dirty[LVP_SHADER_STAGES];
-   bool pcbuf_dirty[LVP_SHADER_STAGES];
-   bool has_pcbuf[LVP_SHADER_STAGES];
-   bool vp_dirty;
-   bool scissor_dirty;
-   bool ib_dirty;
-   bool sample_mask_dirty;
-   bool min_samples_dirty;
-   bool sample_locations_dirty;
-   bool poison_mem;
-   bool noop_fs_bound;
+   uint16_t constbuf_dirty;
+   uint16_t pcbuf_dirty;
+   uint16_t has_pcbuf;
+   bool blend_dirty:1;
+   bool rs_dirty:1;
+   bool dsa_dirty:1;
+   bool dsa_no_stencil:1;
+   bool dsa_no_depth:1;
+   bool stencil_ref_dirty:1;
+   bool clip_state_dirty:1;
+   bool blend_color_dirty:1;
+   bool ve_dirty:1;
+   bool vb_dirty:1;
+   bool vp_dirty:1;
+   bool scissor_dirty:1;
+   bool ib_dirty:1;
+   bool sample_mask_dirty:1;
+   bool min_samples_dirty:1;
+   bool sample_locations_dirty:1;
+   bool vb_strides_dirty:1;
+   bool compute_shader_dirty:1;
+   bool advanced_blend_dirty:1;
+   bool poison_mem:1;
+   bool noop_fs_bound:1;
    struct pipe_draw_indirect_info indirect_info;
    struct pipe_draw_info info;
 
@@ -168,7 +171,6 @@ struct rendering_state {
    int num_const_bufs[LVP_SHADER_STAGES];
    int num_vb;
    unsigned start_vb;
-   bool vb_strides_dirty;
    unsigned vb_strides[PIPE_MAX_ATTRIBS];
    struct pipe_vertex_buffer vb[PIPE_MAX_ATTRIBS];
    size_t vb_sizes[PIPE_MAX_ATTRIBS]; //UINT32_MAX for unset
@@ -216,7 +218,6 @@ struct rendering_state {
    uint32_t so_offsets[PIPE_MAX_SO_BUFFERS];
 
    struct lvp_shader *shaders[LVP_SHADER_STAGES];
-   bool compute_shader_dirty;
 
    bool tess_ccw;
 
@@ -239,10 +240,12 @@ struct rendering_state {
       bool dst_premultiplied;
       VkBlendOverlapEXT overlap;
    } advanced_blend[PIPE_MAX_COLOR_BUFS];
-   bool advanced_blend_dirty;
    void *advanced_blend_fs_variant;  /* cached lowered FS for cleanup */
    struct lvp_shader *advanced_blend_fs_shader; /* shader used to build variant */
 };
+
+static_assert(LVP_SHADER_STAGES <= 16,
+              "LVP_SHADER_STAGES must fit in uint16_t dirty bitmasks");
 
 static void
 handle_set_stage_buffer(struct rendering_state *state,
@@ -256,7 +259,7 @@ handle_set_stage_buffer(struct rendering_state *state,
    state->const_buffer[stage][index].buffer_size = bo->width0;
    state->const_buffer[stage][index].user_buffer = NULL;
 
-   state->constbuf_dirty[stage] = true;
+   state->constbuf_dirty |= BITFIELD_BIT(stage);
 
    if (state->num_const_bufs[stage] <= index)
       state->num_const_bufs[stage] = index + 1;
@@ -363,7 +366,7 @@ update_pcbuf(struct rendering_state *state, mesa_shader_stage pstage,
 {
    enum lvp_pipeline_type type =
       ffs(lvp_pipeline_types_from_shader_stages(mesa_to_vk_shader_stage(api_stage))) - 1;
-   unsigned size = state->has_pcbuf[api_stage] ? state->push_size[type] : 0;
+   unsigned size = (state->has_pcbuf & BITFIELD_BIT(api_stage)) ? state->push_size[type] : 0;
 
    if (size) {
       uint8_t *mem;
@@ -379,7 +382,7 @@ update_pcbuf(struct rendering_state *state, mesa_shader_stage pstage,
       memcpy(mem, state->push_constants, size);
       state->pctx->set_constant_buffer(state->pctx, pstage, 0, &cbuf);
    }
-   state->pcbuf_dirty[api_stage] = false;
+   state->pcbuf_dirty &= ~BITFIELD_BIT(api_stage);
    state->emitted_push_size[type] = size;
 }
 
@@ -392,15 +395,18 @@ static void emit_compute_state(struct rendering_state *state)
    if (!shader)
       return;
 
-   state->has_pcbuf[MESA_SHADER_COMPUTE] = shader->push_constant_size > 0;
-   if (state->pcbuf_dirty[MESA_SHADER_COMPUTE] && state->has_pcbuf[MESA_SHADER_COMPUTE])
+   if (shader->push_constant_size > 0)
+      state->has_pcbuf |= BITFIELD_BIT(MESA_SHADER_COMPUTE);
+   else
+      state->has_pcbuf &= ~BITFIELD_BIT(MESA_SHADER_COMPUTE);
+   if ((state->pcbuf_dirty & state->has_pcbuf) & BITFIELD_BIT(MESA_SHADER_COMPUTE))
       update_pcbuf(state, MESA_SHADER_COMPUTE, MESA_SHADER_COMPUTE);
 
-   if (state->constbuf_dirty[MESA_SHADER_COMPUTE]) {
+   if (state->constbuf_dirty & BITFIELD_BIT(MESA_SHADER_COMPUTE)) {
       for (unsigned i = 0; i < state->num_const_bufs[MESA_SHADER_COMPUTE]; i++)
          state->pctx->set_constant_buffer(state->pctx, MESA_SHADER_COMPUTE,
                                           i + 1, &state->const_buffer[MESA_SHADER_COMPUTE][i]);
-      state->constbuf_dirty[MESA_SHADER_COMPUTE] = false;
+      state->constbuf_dirty &= ~BITFIELD_BIT(MESA_SHADER_COMPUTE);
    }
 
    if (state->compute_shader_dirty)
@@ -413,8 +419,8 @@ static void emit_compute_state(struct rendering_state *state)
 
    state->compute_shader_dirty = false;
 
-   state->pcbuf_dirty[MESA_SHADER_RAYGEN] = true;
-   state->constbuf_dirty[MESA_SHADER_RAYGEN] = true;
+   state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_RAYGEN);
+   state->constbuf_dirty |= BITFIELD_BIT(MESA_SHADER_RAYGEN);
 }
 
 static void
@@ -673,16 +679,16 @@ static void emit_state(struct rendering_state *state)
    }
 
    lvp_forall_gfx_stage(sh) {
-      if (state->constbuf_dirty[sh]) {
+      if (state->constbuf_dirty & BITFIELD_BIT(sh)) {
          for (unsigned idx = 0; idx < state->num_const_bufs[sh]; idx++)
             state->pctx->set_constant_buffer(state->pctx, sh,
                                              idx + 1, &state->const_buffer[sh][idx]);
       }
-      state->constbuf_dirty[sh] = false;
+      state->constbuf_dirty &= ~BITFIELD_BIT(sh);
    }
 
    lvp_forall_gfx_stage(sh) {
-      if (state->pcbuf_dirty[sh])
+      if (state->pcbuf_dirty & BITFIELD_BIT(sh))
          update_pcbuf(state, sh, sh);
    }
 
@@ -732,10 +738,12 @@ static void handle_ray_tracing_pipeline(struct vk_cmd_queue_entry *cmd,
 
    state->shaders[MESA_SHADER_RAYGEN] = shader;
 
-   state->has_pcbuf[MESA_SHADER_RAYGEN] = shader->push_constant_size > 0;
-
-   if (!state->has_pcbuf[MESA_SHADER_RAYGEN])
-      state->pcbuf_dirty[MESA_SHADER_RAYGEN] = false;
+   if (shader->push_constant_size > 0) {
+      state->has_pcbuf |= BITFIELD_BIT(MESA_SHADER_RAYGEN);
+   } else {
+      state->has_pcbuf &= ~BITFIELD_BIT(MESA_SHADER_RAYGEN);
+      state->pcbuf_dirty &= ~BITFIELD_BIT(MESA_SHADER_RAYGEN);
+   }
 
    state->trace_rays_info.block[0] = shader->pipeline_nir->nir->info.workgroup_size[0];
    state->trace_rays_info.block[1] = shader->pipeline_nir->nir->info.workgroup_size[1];
@@ -805,7 +813,7 @@ handle_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
       VkShaderStageFlagBits vk_stage = (1 << b);
       mesa_shader_stage stage = vk_to_mesa_shader_stage(vk_stage);
 
-      state->has_pcbuf[stage] = false;
+      state->has_pcbuf &= ~BITFIELD_BIT(stage);
 
       switch (vk_stage) {
       case VK_SHADER_STAGE_FRAGMENT_BIT:
@@ -846,7 +854,7 @@ unbind_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
 {
    u_foreach_bit(vkstage, shader_stages) {
       mesa_shader_stage stage = vk_to_mesa_shader_stage(1<<vkstage);
-      state->has_pcbuf[stage] = false;
+      state->has_pcbuf &= ~BITFIELD_BIT(stage);
       switch (stage) {
       case MESA_SHADER_FRAGMENT:
          if (state->shaders[MESA_SHADER_FRAGMENT])
@@ -887,9 +895,12 @@ unbind_graphics_stages(struct rendering_state *state, VkShaderStageFlagBits shad
 static void
 handle_graphics_pushconsts(struct rendering_state *state, mesa_shader_stage stage, struct lvp_shader *shader)
 {
-   state->has_pcbuf[stage] = shader->push_constant_size > 0;
-   if (!state->has_pcbuf[stage])
-      state->pcbuf_dirty[stage] = false;
+   if (shader->push_constant_size > 0) {
+      state->has_pcbuf |= BITFIELD_BIT(stage);
+   } else {
+      state->has_pcbuf &= ~BITFIELD_BIT(stage);
+      state->pcbuf_dirty &= ~BITFIELD_BIT(stage);
+   }
 }
 
 static void handle_graphics_pipeline(struct lvp_pipeline *pipeline,
@@ -1275,8 +1286,7 @@ static void handle_pipeline(struct vk_cmd_queue_entry *cmd,
       state->push_size[pipeline->type] = MAX2(state->push_size[pipeline->type], pipeline->shaders[i].push_constant_size);
 
    if (state->push_size[pipeline->type] != state->emitted_push_size[pipeline->type]) {
-      for (unsigned i = 0; i < ARRAY_SIZE(pipeline->shaders); i++)
-         state->pcbuf_dirty[i] = true;
+      state->pcbuf_dirty = LVP_STAGE_MASK;
    }
 }
 
@@ -1407,15 +1417,15 @@ handle_descriptor_sets(VkBindDescriptorSetsInfoKHR *bds, struct rendering_state 
          if (state->desc_buffers[bds->firstSet + i]) {
             /* always unset descriptor buffers when binding sets */
             if (pipeline_type == LVP_PIPELINE_COMPUTE) {
-                  bool changed = state->const_buffer[MESA_SHADER_COMPUTE][bds->firstSet + i].buffer == state->desc_buffers[bds->firstSet + i];
-                  state->constbuf_dirty[MESA_SHADER_COMPUTE] |= changed;
+               if (state->const_buffer[MESA_SHADER_COMPUTE][bds->firstSet + i].buffer == state->desc_buffers[bds->firstSet + i])
+                  state->constbuf_dirty |= BITFIELD_BIT(MESA_SHADER_COMPUTE);
             } else if (pipeline_type == LVP_PIPELINE_RAY_TRACING) {
-                  bool changed = state->const_buffer[MESA_SHADER_RAYGEN][bds->firstSet + i].buffer == state->desc_buffers[bds->firstSet + i];
-                  state->constbuf_dirty[MESA_SHADER_RAYGEN] |= changed;
+               if (state->const_buffer[MESA_SHADER_RAYGEN][bds->firstSet + i].buffer == state->desc_buffers[bds->firstSet + i])
+                  state->constbuf_dirty |= BITFIELD_BIT(MESA_SHADER_RAYGEN);
             } else {
                lvp_forall_gfx_stage(j) {
-                  bool changed = state->const_buffer[j][bds->firstSet + i].buffer == state->desc_buffers[bds->firstSet + i];
-                  state->constbuf_dirty[j] |= changed;
+                  if (state->const_buffer[j][bds->firstSet + i].buffer == state->desc_buffers[bds->firstSet + i])
+                     state->constbuf_dirty |= BITFIELD_BIT(j);
                }
             }
          }
@@ -3346,15 +3356,24 @@ static void handle_push_constants(struct vk_cmd_queue_entry *cmd,
    memcpy(state->push_constants + pci->offset, pci->pValues, pci->size);
 
    VkShaderStageFlags stage_flags = pci->stageFlags;
-   state->pcbuf_dirty[MESA_SHADER_VERTEX] |= (stage_flags & VK_SHADER_STAGE_VERTEX_BIT) > 0;
-   state->pcbuf_dirty[MESA_SHADER_FRAGMENT] |= (stage_flags & VK_SHADER_STAGE_FRAGMENT_BIT) > 0;
-   state->pcbuf_dirty[MESA_SHADER_GEOMETRY] |= (stage_flags & VK_SHADER_STAGE_GEOMETRY_BIT) > 0;
-   state->pcbuf_dirty[MESA_SHADER_TESS_CTRL] |= (stage_flags & VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT) > 0;
-   state->pcbuf_dirty[MESA_SHADER_TESS_EVAL] |= (stage_flags & VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT) > 0;
-   state->pcbuf_dirty[MESA_SHADER_COMPUTE] |= (stage_flags & VK_SHADER_STAGE_COMPUTE_BIT) > 0;
-   state->pcbuf_dirty[MESA_SHADER_TASK] |= (stage_flags & VK_SHADER_STAGE_TASK_BIT_EXT) > 0;
-   state->pcbuf_dirty[MESA_SHADER_MESH] |= (stage_flags & VK_SHADER_STAGE_MESH_BIT_EXT) > 0;
-   state->pcbuf_dirty[MESA_SHADER_RAYGEN] |= (stage_flags & LVP_RAY_TRACING_STAGES) > 0;
+   if (stage_flags & VK_SHADER_STAGE_VERTEX_BIT)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_VERTEX);
+   if (stage_flags & VK_SHADER_STAGE_FRAGMENT_BIT)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_FRAGMENT);
+   if (stage_flags & VK_SHADER_STAGE_GEOMETRY_BIT)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_GEOMETRY);
+   if (stage_flags & VK_SHADER_STAGE_TESSELLATION_CONTROL_BIT)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_TESS_CTRL);
+   if (stage_flags & VK_SHADER_STAGE_TESSELLATION_EVALUATION_BIT)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_TESS_EVAL);
+   if (stage_flags & VK_SHADER_STAGE_COMPUTE_BIT)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_COMPUTE);
+   if (stage_flags & VK_SHADER_STAGE_TASK_BIT_EXT)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_TASK);
+   if (stage_flags & VK_SHADER_STAGE_MESH_BIT_EXT)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_MESH);
+   if (stage_flags & LVP_RAY_TRACING_STAGES)
+      state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_RAYGEN);
 }
 
 static void lvp_execute_cmd_buffer(struct list_head *cmds,
@@ -4706,7 +4725,7 @@ handle_shaders(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
       } else {
          state->push_size[LVP_PIPELINE_COMPUTE] = shader ? shader->push_constant_size : 0;
          if (state->push_size[LVP_PIPELINE_COMPUTE] != state->emitted_push_size[LVP_PIPELINE_COMPUTE])
-            state->pcbuf_dirty[MESA_SHADER_COMPUTE] = true;
+            state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_COMPUTE);
       }
    }
 
@@ -4731,7 +4750,7 @@ handle_shaders(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
       if (state->push_size[LVP_PIPELINE_GRAPHICS] != state->emitted_push_size[LVP_PIPELINE_GRAPHICS]) {
          for (unsigned i = 0; i < bind->stage_count; i++) {
             mesa_shader_stage stage = vk_to_mesa_shader_stage(bind->stages[i]);
-            state->pcbuf_dirty[stage] = true;
+            state->pcbuf_dirty |= BITFIELD_BIT(stage);
          }
       }
    }
@@ -5108,8 +5127,7 @@ bind_db_samplers(struct rendering_state *state, enum lvp_pipeline_type pipeline_
          }
       }
    }
-   u_foreach_bit(stage, did_update)
-      state->constbuf_dirty[stage] = true;
+   state->constbuf_dirty |= did_update;
 }
 
 static void
@@ -5168,8 +5186,8 @@ handle_heap(struct vk_cmd_queue_entry *cmd, struct rendering_state *state, enum 
    for (unsigned i = 0; i < MESA_SHADER_RAYGEN + 1; i++)
       if (state->desc_buffers[heap])
          handle_set_stage_buffer(state, state->desc_buffers[heap], 0, i, heap);
-   memset(state->pcbuf_dirty, 1, sizeof(state->pcbuf_dirty));
-   memset(state->constbuf_dirty, 1, sizeof(state->constbuf_dirty));
+   state->pcbuf_dirty = LVP_STAGE_MASK;
+   state->constbuf_dirty = LVP_STAGE_MASK;
 
    // uint32_t *data = (uint32_t *)state->desc_buffer_addrs[heap];
    // printf("heap[%u]:\n", heap);
@@ -5183,15 +5201,9 @@ handle_push_data(struct vk_cmd_queue_entry *cmd, struct rendering_state *state)
    VkPushDataInfoEXT *push = cmd->u.push_data_ext.push_data_info;
    memcpy(state->push_constants + push->offset, push->data.address, push->data.size);
 
-   state->pcbuf_dirty[MESA_SHADER_VERTEX] |= true;
-   state->pcbuf_dirty[MESA_SHADER_FRAGMENT] |= true;
-   state->pcbuf_dirty[MESA_SHADER_GEOMETRY] |= true;
-   state->pcbuf_dirty[MESA_SHADER_TESS_CTRL] |= true;
-   state->pcbuf_dirty[MESA_SHADER_TESS_EVAL] |= true;
-   state->pcbuf_dirty[MESA_SHADER_COMPUTE] |= true;
-   state->pcbuf_dirty[MESA_SHADER_TASK] |= true;
-   state->pcbuf_dirty[MESA_SHADER_MESH] |= true;
-   state->pcbuf_dirty[MESA_SHADER_RAYGEN] |= true;
+   state->pcbuf_dirty |= LVP_STAGE_MASK_GFX |
+                         BITFIELD_BIT(MESA_SHADER_COMPUTE) |
+                         BITFIELD_BIT(MESA_SHADER_RAYGEN);
 }
 
 static void *
@@ -5408,21 +5420,20 @@ static void
 lvp_trace_rays(struct rendering_state *state, VkTraceRaysIndirectCommand2KHR *command)
 {
    /* Emit ray tracing state. */
-   bool pcbuf_dirty = state->pcbuf_dirty[MESA_SHADER_RAYGEN];
-   if (pcbuf_dirty)
+   if (state->pcbuf_dirty & BITFIELD_BIT(MESA_SHADER_RAYGEN))
       update_pcbuf(state, MESA_SHADER_COMPUTE, MESA_SHADER_RAYGEN);
 
-   if (state->constbuf_dirty[MESA_SHADER_RAYGEN]) {
+   if (state->constbuf_dirty & BITFIELD_BIT(MESA_SHADER_RAYGEN)) {
       for (unsigned i = 0; i < state->num_const_bufs[MESA_SHADER_RAYGEN]; i++)
          state->pctx->set_constant_buffer(state->pctx, MESA_SHADER_COMPUTE,
                                           i + 1, &state->const_buffer[MESA_SHADER_RAYGEN][i]);
-      state->constbuf_dirty[MESA_SHADER_RAYGEN] = false;
+      state->constbuf_dirty &= ~BITFIELD_BIT(MESA_SHADER_RAYGEN);
    }
 
    state->pctx->bind_compute_state(state->pctx, state->shaders[MESA_SHADER_RAYGEN]->shader_cso);
 
-   state->pcbuf_dirty[MESA_SHADER_COMPUTE] = true;
-   state->constbuf_dirty[MESA_SHADER_COMPUTE] = true;
+   state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_COMPUTE);
+   state->constbuf_dirty |= BITFIELD_BIT(MESA_SHADER_COMPUTE);
    state->compute_shader_dirty = true;
 
    /* Dispatch. The spec states that conditional rendering only affects compute dispatches
@@ -5602,7 +5613,7 @@ handle_restore_state(struct vk_cmd_queue_entry *cmd, struct rendering_state *sta
       handle_compute_shader(state, state->saved.compute_shader);
 
    memcpy(state->push_constants, state->saved.push_constants, sizeof(state->push_constants));
-   state->pcbuf_dirty[MESA_SHADER_COMPUTE] = true;
+   state->pcbuf_dirty |= BITFIELD_BIT(MESA_SHADER_COMPUTE);
    lvp_resume_cond_render(state);
 }
 
