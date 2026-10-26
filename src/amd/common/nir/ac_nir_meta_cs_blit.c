@@ -313,7 +313,8 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       PRINT(a16);
       PRINT(d16);
       PRINT(log_samples);
-      PRINT(sample0_only);
+      PRINT(clear_sample0_only);
+      PRINT(resolve_mode);
       PRINT(x_clamp_to_edge);
       PRINT(y_clamp_to_edge);
       PRINT(flip_x);
@@ -600,9 +601,9 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
    unsigned num_src_coords = (key->src_is_1d ? 1 : 2) + key->src_has_z + key->src_is_msaa;
    unsigned num_dst_coords = (key->dst_is_1d ? 1 : 2) + key->dst_has_z + key->dst_is_msaa;
    unsigned num_samples = 1 << key->log_samples;
-   unsigned src_samples = key->src_is_msaa && !key->sample0_only &&
-                          !key->is_clear ? num_samples : 1;
-   unsigned dst_samples = key->dst_is_msaa && !(key->is_clear && key->sample0_only) ? num_samples : 1;
+   unsigned src_samples = key->src_is_msaa && !key->is_clear &&
+                          key->resolve_mode != AC_NIR_RESOLVE_SAMPLE_ZERO ? num_samples : 1;
+   unsigned dst_samples = key->dst_is_msaa && !key->clear_sample0_only ? num_samples : 1;
    nir_def *color[SI_MAX_COMPUTE_BLIT_LANE_SIZE * SI_MAX_COMPUTE_BLIT_SAMPLES] = {0};
    nir_def *coord_dst[SI_MAX_COMPUTE_BLIT_LANE_SIZE * SI_MAX_COMPUTE_BLIT_SAMPLES] = {0};
    nir_def *global_addr_dst[SI_MAX_COMPUTE_BLIT_LANE_SIZE] = {0};
@@ -815,7 +816,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
           * "lane_size" elements.
           */
          foreach_pixel_in_lane(1, sample, x, y, z, i) {
-            color[i] = ac_resolve_samples(&b, &color[i * src_samples], src_samples, AC_NIR_RESOLVE_AVERAGE);
+            color[i] = ac_resolve_samples(&b, &color[i * src_samples], src_samples, key->resolve_mode);
          }
          src_samples = 1;
       }
@@ -949,7 +950,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       assert(!key->format_is_96bit);
 
       if (key->is_clear) {
-         assert(key->sample0_only);
+         assert(key->clear_sample0_only);
 
          /* Clear FMASK to 0. */
          foreach_pixel_in_lane(1, sample, x, y, z, i) {
@@ -1078,7 +1079,8 @@ typedef struct {
    unsigned src_samples;
    bool is_resolve;
    bool is_upsampling;
-   bool sample0_only;
+   bool clear_sample0_only;
+   ac_nir_resolve_mode resolve_mode;
    unsigned max_dst_chan_size;
    unsigned max_src_chan_size;
    unsigned dst_bpe;
@@ -1101,12 +1103,31 @@ get_derived_info(const ac_cs_blit_description *blit, ac_cs_blit_derived_info *ou
       out->is_clear ? 0 : blit->src.surf->is_linear ? 1 : out->src_block256B_extent.depth == 1 ? 2 : 3;
    out->dst_samples = MAX2(1, blit->dst.num_samples);
    out->src_samples = out->is_clear ? 1 : MAX2(1, blit->src.num_samples);
-   out->is_resolve = !out->is_clear && out->dst_samples == 1 && out->src_samples >= 2 &&
-                     !util_format_is_pure_integer(blit->dst.format);
+   out->is_resolve = !out->is_clear && out->dst_samples == 1 && out->src_samples >= 2;
    out->is_upsampling = !out->is_clear && out->src_samples == 1 && out->dst_samples >= 2;
-   out->sample0_only = (out->is_clear && out->dst_samples >= 2 && blit->sample0_only) ||
-                       (!out->is_clear && out->src_samples >= 2 && out->dst_samples == 1 &&
-                        (blit->sample0_only || util_format_is_pure_integer(blit->dst.format)));
+   out->clear_sample0_only = out->is_clear && out->dst_samples >= 2 && blit->sample0_only;
+   out->resolve_mode = AC_NIR_RESOLVE_AVERAGE;
+
+   if (out->is_resolve) {
+      if (blit->resolve_min_mode) {
+         if (util_format_is_pure_sint(blit->src.format))
+            out->resolve_mode = AC_NIR_RESOLVE_SMIN;
+         else if (util_format_is_pure_integer(blit->src.format))
+            out->resolve_mode = AC_NIR_RESOLVE_UMIN;
+         else
+            out->resolve_mode = AC_NIR_RESOLVE_FMIN;
+      } else if (blit->resolve_max_mode) {
+         if (util_format_is_pure_sint(blit->src.format))
+            out->resolve_mode = AC_NIR_RESOLVE_SMAX;
+         else if (util_format_is_pure_integer(blit->src.format))
+            out->resolve_mode = AC_NIR_RESOLVE_UMAX;
+         else
+            out->resolve_mode = AC_NIR_RESOLVE_FMAX;
+      } else if (blit->sample0_only || util_format_is_pure_integer(blit->dst.format)) {
+         out->resolve_mode = AC_NIR_RESOLVE_SAMPLE_ZERO;
+      }
+   }
+
    /* Get the channel sizes. */
    out->max_dst_chan_size = util_format_get_max_channel_size(blit->dst.format);
    out->max_src_chan_size = out->is_clear ? 0 : util_format_get_max_channel_size(blit->src.format);
@@ -1205,7 +1226,7 @@ ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_d
                if (!(info->gfx_level == GFX7 && d.dst_bpe == 16))
                   return false;
             } else if (!blit->copy_physical_samples) {
-               assert(d.dst_samples == d.src_samples || d.sample0_only);
+               assert(d.dst_samples == d.src_samples || d.clear_sample0_only);
 
                if (d.dst_tiling_dim == 2) {
                   if (d.dst_samples == 1) {
@@ -1247,7 +1268,7 @@ ac_should_use_compute_blit(const ac_cs_blit_options *options, const ac_cs_blit_d
                      (d.dst_bpe == 16 && d.src_samples == 4)))
                   return false;
             } else if (!blit->copy_physical_samples) {
-               assert(d.dst_samples == d.src_samples || d.sample0_only);
+               assert(d.dst_samples == d.src_samples || d.clear_sample0_only);
 
                if (d.dst_tiling_dim == 2) {
                   if (d.dst_bpe == 2 && d.src_tiling_dim == 1 && d.dst_samples == 1)
@@ -1799,12 +1820,12 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
 
    if (d.is_clear) {
       assert(d.dst_samples <= 8);
-      key.log_samples = d.sample0_only ? 0 : util_logbase2(d.dst_samples);
+      key.log_samples = d.clear_sample0_only ? 0 : util_logbase2(d.dst_samples);
       key.a16 = !key.format_is_96bit && info->gfx_level >= GFX9 && util_is_box_sint16(&blit->dst.box);
       key.d16 = has_d16 &&
                 d.max_dst_chan_size <= (util_format_is_float(blit->dst.format) ||
                                       util_format_is_pure_integer(blit->dst.format) ? 16 : 11);
-      key.sample0_only = d.sample0_only;
+      key.clear_sample0_only = d.clear_sample0_only;
    } else {
       /* src.box.height is clamped to 0 because it's negative and src.box.y contains the upper
        * bound when the Y axis is flipped.
@@ -1817,11 +1838,10 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       key.src_is_msaa = d.src_samples > 1;
       key.src_has_z = blit->src.dim == 3 || blit->src.is_array;
       key.src_has_non_identity_fmask = d.src_samples > 1 && blit->src_has_non_identity_fmask;
-      /* Resolving integer formats only copies sample 0. log_samples is then unused. */
-      key.sample0_only = d.sample0_only;
+      key.resolve_mode = d.resolve_mode;
       unsigned num_samples = MAX2(d.src_samples, d.dst_samples);
       assert(num_samples <= 8);
-      key.log_samples = d.sample0_only ? 0 : util_logbase2(num_samples);
+      key.log_samples = d.resolve_mode == AC_NIR_RESOLVE_SAMPLE_ZERO ? 0 : util_logbase2(num_samples);
       key.x_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(0));
       key.y_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(1));
       key.flip_x = blit->src.box.width < 0;

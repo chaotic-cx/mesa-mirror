@@ -72,11 +72,8 @@ typedef union {
       bool a16:1;
       bool d16:1;
       uint8_t log_samples:2;
-      /* If clearing, dst is MSAA, and only sample 0 is cleared to the clear value.
-       * If resolving, src is MSAA, dst is not MSAA, and only sample 0 is copied to dst.
-       * log2_samples is set to 0 in both cases.
-       */
-      bool sample0_only:1;
+      bool clear_sample0_only:1;
+      uint8_t resolve_mode:3; /* AC_NIR_RESOLVE_* */
       /* Source coordinate modifiers. */
       bool x_clamp_to_edge:1;
       bool y_clamp_to_edge:1;
@@ -131,6 +128,10 @@ typedef struct {
     * When resolving, copy sample 0 to the single-sample destination.
     */
    bool sample0_only;
+
+   /* Whether the MIN or MAX resolve mode should be used. */
+   bool resolve_min_mode;
+   bool resolve_max_mode;
 
    /* Whether src and dst are 96-bit formats.
     * The bindings should be storage buffers, whose 64-bit address is extracted to get >4GB
