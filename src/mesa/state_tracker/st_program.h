@@ -462,6 +462,9 @@ st_serialize_nir(struct gl_program *stp);
 void
 st_serialize_base_nir(struct gl_program *prog, struct nir_shader *nir);
 
+void
+st_serialize_raster_pos_nir(struct gl_program *prog, struct nir_shader *nir);
+
 extern char *
 st_finalize_program(struct st_context *st, struct gl_program *prog,
                     bool report_compile_error);

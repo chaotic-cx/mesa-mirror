@@ -71,6 +71,12 @@ write_nir_to_cache(struct blob *blob, struct gl_program *prog)
    blob_write_intptr(blob, prog->base_serialized_nir_size);
    blob_write_bytes(blob, prog->base_serialized_nir, prog->base_serialized_nir_size);
 
+   if (prog->info.stage == MESA_SHADER_VERTEX) {
+      blob_write_intptr(blob, prog->raster_pos_serialized_nir_size);
+      blob_write_bytes(blob, prog->raster_pos_serialized_nir,
+                       prog->raster_pos_serialized_nir_size);
+   }
+
    copy_blob_to_driver_cache_blob(blob, prog);
 }
 
@@ -88,6 +94,7 @@ st_serialise_nir_program(struct gl_context *ctx, struct gl_program *prog)
 
       blob_write_uint32(&blob, vp->num_inputs);
       blob_write_uint32(&blob, vp->vert_attrib_mask);
+      blob_write_uint32(&blob, vp->raster_pos_attrib_mask);
       blob_write_bytes(&blob, vp->result_to_output,
                        sizeof(vp->result_to_output));
    }
@@ -170,6 +177,7 @@ st_deserialise_nir_program(struct gl_context *ctx,
       struct gl_vertex_program *vp = (struct gl_vertex_program *)prog;
       vp->num_inputs = blob_read_uint32(&blob_reader);
       vp->vert_attrib_mask = blob_read_uint32(&blob_reader);
+      vp->raster_pos_attrib_mask = blob_read_uint32(&blob_reader);
       blob_copy_bytes(&blob_reader, (uint8_t *) vp->result_to_output,
                       sizeof(vp->result_to_output));
    }
@@ -189,6 +197,16 @@ st_deserialise_nir_program(struct gl_context *ctx,
    prog->base_serialized_nir_size = blob_read_intptr(&blob_reader);
    prog->base_serialized_nir = malloc(prog->base_serialized_nir_size);
    blob_copy_bytes(&blob_reader, prog->base_serialized_nir, prog->base_serialized_nir_size);
+
+   if (prog->info.stage == MESA_SHADER_VERTEX) {
+      prog->raster_pos_serialized_nir_size = blob_read_intptr(&blob_reader);
+      if (prog->raster_pos_serialized_nir_size) {
+         prog->raster_pos_serialized_nir =
+            malloc(prog->raster_pos_serialized_nir_size);
+         blob_copy_bytes(&blob_reader, prog->raster_pos_serialized_nir,
+                         prog->raster_pos_serialized_nir_size);
+      }
+   }
    prog->shader_program = shProg;
 
    /* Make sure we don't try to read more data than we wrote. This should

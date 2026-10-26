@@ -252,6 +252,7 @@ _mesa_delete_program(struct gl_context *ctx, struct gl_program *prog)
 
    free(prog->serialized_nir);
    free(prog->base_serialized_nir);
+   free(prog->raster_pos_serialized_nir);
 
    if (prog == &_mesa_DummyProgram)
       return;
@@ -261,6 +262,7 @@ _mesa_delete_program(struct gl_context *ctx, struct gl_program *prog)
    }
 
    ralloc_free(prog->nir);
+   ralloc_free(prog->raster_pos_nir);
    if (!prog->is_arb_asm) {
       ralloc_free(prog->sh.BindlessSamplers);
       ralloc_free(prog->sh.BindlessImages);

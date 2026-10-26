@@ -501,6 +501,18 @@ struct gl_program
    void *base_serialized_nir;
    size_t base_serialized_nir_size;
 
+   /* Compatibility profile vertex shaders only: a copy of the vertex shader
+    * from before the linker optimized its outputs against the next stage.
+    * The raster position and feedback/select modes only execute the vertex
+    * shader, so they need the outputs that the next stage didn't read.
+    * NULL if the optimizations didn't remove any of those outputs.
+    *
+    * raster_pos_nir only lives during linking, after which it's serialized.
+    */
+   struct nir_shader *raster_pos_nir;
+   void *raster_pos_serialized_nir;
+   size_t raster_pos_serialized_nir_size;
+
    /* Saved and restored with metadata. Freed with ralloc. */
    void *driver_cache_blob;
    size_t driver_cache_blob_size;
@@ -681,6 +693,11 @@ struct gl_vertex_program
 
    uint32_t vert_attrib_mask; /**< mask of sourced vertex attribs */
    uint8_t num_inputs;
+
+   /** Vertex attribs sourced by gl_program::raster_pos_serialized_nir */
+   uint32_t raster_pos_attrib_mask;
+   /** Outputs written by gl_program::raster_pos_serialized_nir */
+   uint64_t raster_pos_outputs_written;
 
    /** Maps VARYING_SLOT_x to slot */
    uint8_t result_to_output[VARYING_SLOT_MAX];

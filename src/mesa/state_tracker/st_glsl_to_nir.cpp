@@ -373,6 +373,8 @@ st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
    struct pipe_screen *screen = st->screen;
 
    st_nir_add_builtin_state_references(st, prog, nir);
+   if (prog->raster_pos_nir)
+      st_nir_add_builtin_state_references(st, prog, prog->raster_pos_nir);
 
    /* Avoid reallocation of the program parameter list, because the uniform
     * storage is only associated with the original parameter list.
@@ -385,6 +387,27 @@ st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
    st_set_prog_affected_state_flags(st, prog);
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
    st_update_state_param_locations(st->ctx, prog, nir);
+
+   /* The raster position copy of the vertex shader is only used by the draw
+    * module, which gets it in the same state as base_serialized_nir.
+    */
+   if (prog->raster_pos_nir) {
+      nir_shader *raster_pos_nir = prog->raster_pos_nir;
+      struct gl_vertex_program *vp = (struct gl_vertex_program *)prog;
+
+      st_nir_lower_linked_program(st, prog, shader_program, raster_pos_nir);
+      nir_shader_gather_info(raster_pos_nir,
+                             nir_shader_get_entrypoint(raster_pos_nir));
+      st_update_state_param_locations(st->ctx, prog, raster_pos_nir);
+      nir_recompute_io_bases(raster_pos_nir, nir_var_shader_in);
+
+      vp->raster_pos_attrib_mask = raster_pos_nir->info.inputs_read;
+      vp->raster_pos_outputs_written = raster_pos_nir->info.outputs_written;
+      st_serialize_raster_pos_nir(prog, raster_pos_nir);
+
+      ralloc_free(raster_pos_nir);
+      prog->raster_pos_nir = NULL;
+   }
 
    if (st->screen->caps.call_finalize_nir_in_linker) {
       st_serialize_base_nir(prog, nir);
@@ -558,7 +581,20 @@ st_link_glsl_to_nir(struct gl_context *ctx,
       }
 
       nir_shader_gather_info(prog->nir, nir_shader_get_entrypoint(prog->nir));
-      if (!st->ctx->SoftFP64 && st_nir_uses_64bit(prog->nir) &&
+      bool uses_64bit = st_nir_uses_64bit(prog->nir);
+
+      /* The raster position copy of the vertex shader can use doubles that
+       * the vertex shader no longer uses.
+       */
+      if (prog->raster_pos_nir) {
+         nir_shader *raster_pos_nir = prog->raster_pos_nir;
+
+         nir_shader_gather_info(raster_pos_nir,
+                                nir_shader_get_entrypoint(raster_pos_nir));
+         uses_64bit |= st_nir_uses_64bit(raster_pos_nir);
+      }
+
+      if (!st->ctx->SoftFP64 && uses_64bit &&
           (options->lower_doubles_options & nir_lower_fp64_full_software) != 0) {
 
          /* It's not possible to use float64 on GLSL ES, so don't bother trying to
@@ -594,6 +630,10 @@ st_link_glsl_to_nir(struct gl_context *ctx,
       struct gl_program *prog = linked_shader[i]->Program;
 
       st_nir_lower_linked_shader(st, shader_program, prog, prog->nir);
+      if (prog->raster_pos_nir) {
+         st_nir_lower_linked_shader(st, shader_program, prog,
+                                    prog->raster_pos_nir);
+      }
    }
 
    struct shader_info *prev_info = NULL;
