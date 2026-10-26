@@ -791,8 +791,10 @@ llvmpipe_resource_from_handle(struct pipe_screen *_screen,
          lpr->dt = winsys->displaytarget_create_mapped(winsys, template->bind,
                                                        template->format, template->width0, template->height0,
                                                        whandle->stride, data, whandle);
-         if (!lpr->dt)
+         if (!lpr->dt) {
+            _screen->free_memory_fd(_screen, (struct pipe_memory_allocation*)alloc);
             goto no_dt;
+         }
          lpr->dmabuf_alloc = alloc;
          lpr->dmabuf = true;
          lpr->tex_data = data;
