@@ -319,6 +319,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       PRINT(y_clamp_to_edge);
       PRINT(flip_x);
       PRINT(flip_y);
+      PRINT(flip_z);
       PRINT(sint_to_uint);
       PRINT(uint_to_sint);
       PRINT(dst_is_srgb);
@@ -558,8 +559,11 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
    nir_def *src_xyz = dst_xyz;
 
    /* Flip src coordinates. */
-   for (unsigned i = 0; i < 2; i++) {
-      if (i ? key->flip_y : key->flip_x) {
+   const bool flip[3] = {key->flip_x, key->flip_y, key->flip_z};
+   const unsigned lane_dim[3] = {lane_width, lane_height, lane_depth};
+
+   for (unsigned i = 0; i < 3; i++) {
+      if (flip[i]) {
          /* A normal blit loads from (box.x + tid.x) where tid.x = 0..(width - 1).
           *
           * A flipped blit sets box.x = width, so we should make tid.x negative to load from
@@ -568,7 +572,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
           * Therefore do: x = -x - 1, which becomes (width - 1) to 0 after we add box.x = width.
           */
          nir_def *comp = nir_channel(&b, src_xyz, i);
-         comp = nir_iadd_imm(&b, nir_ineg(&b, comp), -(int)(i ? lane_height : lane_width));
+         comp = nir_iadd_imm(&b, nir_ineg(&b, comp), -(int)lane_dim[i]);
          src_xyz = nir_vector_insert_imm(&b, src_xyz, comp, i);
       }
    }
@@ -627,15 +631,18 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       foreach_pixel_in_lane(src_samples, sample, x, y, z, i) {
          unsigned tmp_x = x;
          unsigned tmp_y = y;
+         unsigned tmp_z = z;
 
          /* Change the order from 0..N to N..0 for flipped blits. */
          if (key->flip_x)
             tmp_x = lane_width - 1 - x;
          if (key->flip_y)
             tmp_y = lane_height - 1 - y;
+         if (key->flip_z)
+            tmp_z = lane_depth - 1 - z;
 
          coord_src[i] = nir_iadd(&b, base_coord_src,
-                                     nir_imm_ivec4_intN(&b, tmp_x, tmp_y, z, 0, coord_bit_size));
+                                     nir_imm_ivec4_intN(&b, tmp_x, tmp_y, tmp_z, 0, coord_bit_size));
          if (key->src_is_1d)
             coord_src[i] = nir_swizzle(&b, coord_src[i], swizzle_xz, 4);
          if (key->src_is_msaa) {
@@ -1062,8 +1069,13 @@ set_trimmed_blit(const ac_cs_blit_description *old, const struct pipe_box *box,
          out->src.box.height = -box->height;
       }
 
-      out->src.box.z += box->z - old->dst.box.z;
-      out->src.box.depth = box->depth;
+      if (out->src.box.depth > 0) {
+         out->src.box.z += box->z - old->dst.box.z;
+         out->src.box.depth = box->depth;
+      } else {
+         out->src.box.z -= box->z - old->dst.box.z;
+         out->src.box.depth = -box->depth;
+      }
    }
 }
 
@@ -1139,8 +1151,7 @@ has_errors(const ac_cs_blit_description *blit)
 {
    /* Reject blits with invalid parameters. */
    if (blit->dst.box.x < 0 || blit->dst.box.y < 0 || blit->dst.box.z < 0 ||
-       blit->dst.box.width < 0 || blit->dst.box.height < 0 || blit->dst.box.depth < 0 ||
-       blit->src.box.depth < 0) {
+       blit->dst.box.width < 0 || blit->dst.box.height < 0 || blit->dst.box.depth < 0) {
       assert(!"invalid box parameters"); /* this is reachable and prevents hangs */
       return true;
    }
@@ -1846,6 +1857,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       key.y_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(1));
       key.flip_x = blit->src.box.width < 0;
       key.flip_y = blit->src.box.height < 0;
+      key.flip_z = blit->src.box.depth < 0;
       key.sint_to_uint = util_format_is_pure_sint(blit->src.format) &&
                          util_format_is_pure_uint(blit->dst.format);
       key.uint_to_sint = util_format_is_pure_uint(blit->src.format) &&

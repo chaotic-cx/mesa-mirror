@@ -79,6 +79,7 @@ typedef union {
       bool y_clamp_to_edge:1;
       bool flip_x:1;
       bool flip_y:1;
+      bool flip_z:1;
       /* Output modifiers. */
       bool sint_to_uint:1;
       bool uint_to_sint:1;
