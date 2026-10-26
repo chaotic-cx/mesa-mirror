@@ -1054,7 +1054,7 @@
         "description": "nir: fix RANGE handling for load_ubo in lower_mem_access_bit_sizes",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "4c4edb82d8caeb49d18e5daeca673714b162aa88",
         "notes": null
