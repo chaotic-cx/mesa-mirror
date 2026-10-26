@@ -4741,6 +4741,7 @@ combine_instruction(opt_ctx& ctx, aco_ptr<Instruction>& instr)
       add_opt(v_mbcnt_hi_u32_b32_e64, v_mbcnt_hi_u32_b32_e64, 0x3, "102", remove_const_cb<0>, true);
       add_opt(v_mad_u32_u16, v_mad_u32_u16, 0x3, "1203", remove_const_cb<0>, true);
       add_opt(p_v_mad_u32_u32_u16, p_v_mad_u32_u32_u16, 0x3, "1203", remove_const_cb<0>, true);
+      add_opt(p_v_mad_u32, p_v_mad_u32, 0x3, "1203", remove_const_cb<0>, true);
       add_opt(v_mul_u32_u24, v_mad_u32_u24, 0x3, "120", nullptr, true);
       add_opt(v_mul_i32_i24, v_mad_i32_i24, 0x3, "120", nullptr, true);
       add_opt(v_xor_b32, v_xad_u32, 0x3, "120", nullptr, true);
