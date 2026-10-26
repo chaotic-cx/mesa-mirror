@@ -3704,7 +3704,7 @@
         "description": "broadcom/compiler: align shared memory size to zero-initialization chunk",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ca33c319e5d2195ec8510cd8d0c29f3e0f01beba",
         "notes": null
