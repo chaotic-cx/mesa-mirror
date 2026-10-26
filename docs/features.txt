@@ -292,7 +292,7 @@ GLES3.2, GLSL ES 3.2 -- all DONE: freedreno/a6xx, radeonsi, virgl, llvmpipe, zin
   GL_OES_tessellation_shader                            DONE (freedreno/a6xx, all drivers that support GL_ARB_tessellation_shader)
   GL_OES_texture_border_clamp                           DONE (all drivers)
   GL_OES_texture_buffer                                 DONE (freedreno, nvc0, r600, softpipe, panfrost, crocus/gen6+)
-  GL_OES_texture_cube_map_array                         DONE (freedreno/a4xx+, nvc0, r600, softpipe)
+  GL_OES_texture_cube_map_array                         DONE (freedreno/a4xx+, nvc0, r600, softpipe, v3d)
   GL_OES_texture_stencil8                               DONE (all drivers that support GL_ARB_texture_stencil8)
   GL_OES_texture_storage_multisample_2d_array           DONE (all drivers that support GL_ARB_texture_multisample)
 
