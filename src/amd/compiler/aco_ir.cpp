@@ -435,6 +435,7 @@ opcode_supports_dpp(amd_gfx_level gfx_level, aco_opcode opcode, bool vop3p)
    case aco_opcode::v_lshlrev_b16_e64: return false;
    case aco_opcode::v_pk_fmac_f16: return gfx_level < GFX11;
    /* there are more cases but those all take 64-bit inputs */
+   case aco_opcode::p_v_mad_u32_u32_u16:
    case aco_opcode::v_madmk_f32:
    case aco_opcode::v_madak_f32:
    case aco_opcode::v_madmk_f16:
@@ -653,6 +654,7 @@ can_use_opsel(amd_gfx_level gfx_level, aco_opcode op, int idx)
    case aco_opcode::v_cvt_pk_bf8_f32: return idx == -1;
    case aco_opcode::v_alignbyte_b32:
    case aco_opcode::v_alignbit_b32: return idx == 2;
+   case aco_opcode::p_v_mad_u32_u32_u16: return idx == 1;
    default:
       return gfx_level >= GFX11 && (get_gfx11_true16_mask(op) & BITFIELD_BIT(idx == -1 ? 3 : idx));
    }

@@ -1366,6 +1366,7 @@ VOP3 = {
    ("v_cvt_pkaccum_u8_f32",    dst(U32), src(F32, U32, U32), op(0x12c, gfx8=0x1f0, gfx10=-1)),
    ("v_mad_u32_u16",           dst(U32), src(U16, U16, U32), op(gfx9=0x1f1, gfx10=0x373, gfx11=0x259)),
    ("v_mad_i32_i16",           dst(U32), src(U16, U16, U32), op(gfx9=0x1f2, gfx10=0x375, gfx11=0x25a)),
+   ("p_v_mad_u32_u32_u16",     dst(U32), src(U32, U16, U32), op(-1)),
    ("v_xad_u32",               dst(U32), src(U32, U32, U32), op(gfx9=0x1f3, gfx10=0x345, gfx11=0x245)),
    ("v_min3_f16",              dst(F16), src(F16, F16, F16), op(gfx9=0x1f4, gfx10=0x351, gfx11=0x249, gfx12=0x22b)), # called v_min3_num_f16 in GFX12
    ("v_min3_i16",              dst(U16), src(U16, U16, U16), op(gfx9=0x1f5, gfx10=0x352, gfx11=0x24a)),

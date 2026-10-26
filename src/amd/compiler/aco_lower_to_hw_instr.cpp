@@ -3012,6 +3012,24 @@ lower_to_hw_instr(Program* program)
                            Operand(rsrc_dword1, s1), Operand::c32(0), Operand(scc, s1));
                }
             }
+         } else if (instr->opcode == aco_opcode::p_v_mad_u32_u32_u16) {
+            /* Decompose dst = src0 * src1 + src2
+             * as            = (src0.lo * src1 + src2) + (src0.hi * src1) << 16
+             */
+            const Operand& op0 = instr->operands[0];
+            const Operand& op1 = instr->operands[1];
+            const Operand& op2 = instr->operands[2];
+            const Definition& def = instr->definitions[0];
+            Operand def_as_op = Operand(def.physReg(), v1);
+
+            Builder::Result mad_u32 = bld.vop3(aco_opcode::v_mad_u32_u16, def, op0, op1, op2);
+            mad_u32->valu().opsel[1] = instr->valu().opsel[1];
+
+            Builder::Result mad_u16 = bld.vop3(aco_opcode::v_mad_u16, def, op0, op1, def_as_op);
+            mad_u16->valu().opsel[0] = true;
+            mad_u16->valu().opsel[1] = instr->valu().opsel[1];
+            mad_u16->valu().opsel[2] = true;
+            mad_u16->valu().opsel[3] = true;
          } else {
             ctx.instructions.emplace_back(std::move(instr));
          }
