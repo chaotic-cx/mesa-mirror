@@ -3076,7 +3076,7 @@ radv_GetGeneratedCommandsMemoryRequirementsEXT(VkDevice _device,
 
    get_dgc_cmdbuf_layout(device, layout, ies, pInfo->pNext, pInfo->maxSequenceCount, true, &cmdbuf_layout);
 
-   pMemoryRequirements->memoryRequirements.memoryTypeBits = pdev->memory_types_32bit;
+   pMemoryRequirements->memoryRequirements.memoryTypeBits = device->memory_types_allowed & pdev->memory_types_32bit;
    pMemoryRequirements->memoryRequirements.alignment = radv_dgc_get_buffer_alignment(device);
    pMemoryRequirements->memoryRequirements.size =
       align(cmdbuf_layout.alloc_size, pMemoryRequirements->memoryRequirements.alignment);

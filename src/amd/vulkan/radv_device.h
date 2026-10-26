@@ -336,6 +336,8 @@ struct radv_device {
       bool shader_abort_reported;
       bool device_lost_reported;
    } fault;
+
+   uint32_t memory_types_allowed;
 };
 
 VK_DEFINE_HANDLE_CASTS(radv_device, vk.base, VkDevice, VK_OBJECT_TYPE_DEVICE)

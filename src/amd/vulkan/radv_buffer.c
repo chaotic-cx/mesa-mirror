@@ -185,8 +185,7 @@ radv_get_buffer_memory_requirements(struct radv_device *device, VkDeviceSize siz
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
 
-   pMemoryRequirements->memoryRequirements.memoryTypeBits =
-      ((1u << pdev->memory_properties.memoryTypeCount) - 1u) & ~pdev->memory_types_32bit;
+   pMemoryRequirements->memoryRequirements.memoryTypeBits = device->memory_types_allowed;
 
    /* Force 32-bit address-space for descriptor buffers usage because they are passed to shaders
     * through 32-bit pointers.
@@ -194,7 +193,9 @@ radv_get_buffer_memory_requirements(struct radv_device *device, VkDeviceSize siz
    if (usage &
        (VK_BUFFER_USAGE_2_RESOURCE_DESCRIPTOR_BUFFER_BIT_EXT | VK_BUFFER_USAGE_2_SAMPLER_DESCRIPTOR_BUFFER_BIT_EXT |
         VK_BUFFER_USAGE_2_PREPROCESS_BUFFER_BIT_EXT | VK_BUFFER_USAGE_2_DESCRIPTOR_HEAP_BIT_EXT))
-      pMemoryRequirements->memoryRequirements.memoryTypeBits = pdev->memory_types_32bit;
+      pMemoryRequirements->memoryRequirements.memoryTypeBits &= pdev->memory_types_32bit;
+   else
+      pMemoryRequirements->memoryRequirements.memoryTypeBits &= ~pdev->memory_types_32bit;
 
    if (flags & VK_BUFFER_CREATE_PROTECTED_BIT)
       pMemoryRequirements->memoryRequirements.memoryTypeBits &= pdev->memory_types_protected;
