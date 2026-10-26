@@ -74,6 +74,7 @@ typedef union {
       bool clear_sample0_only:1;
       uint8_t resolve_mode:3; /* AC_NIR_RESOLVE_* */
       /* Source coordinate modifiers. */
+      uint8_t num_scaled_coords:2;
       bool x_clamp_to_edge:1;
       bool y_clamp_to_edge:1;
       bool flip_x:1;

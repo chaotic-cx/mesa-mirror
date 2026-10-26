@@ -313,6 +313,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       PRINT(log_samples);
       PRINT(clear_sample0_only);
       PRINT(resolve_mode);
+      PRINT(num_scaled_coords);
       PRINT(x_clamp_to_edge);
       PRINT(y_clamp_to_edge);
       PRINT(flip_x);
@@ -556,34 +557,36 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
    nir_def *dst_xyz = dispatch_xyz;
    nir_def *src_xyz = dispatch_xyz;
 
-   /* Flip src coordinates. */
-   const bool flip[3] = {key->flip_x, key->flip_y, key->flip_z};
-   const unsigned lane_dim[3] = {lane_width, lane_height, lane_depth};
-
-   for (unsigned i = 0; i < 3; i++) {
-      if (flip[i]) {
-         /* A normal blit loads from (box.x + tid.x) where tid.x = 0..(width - 1).
-          *
-          * A flipped blit sets box.x = width, so we should make tid.x negative to load from
-          * (width - 1)..0.
-          *
-          * Therefore do: x = -x - 1, which becomes (width - 1) to 0 after we add box.x = width.
-          */
-         nir_def *comp = nir_channel(&b, src_xyz, i);
-         comp = nir_iadd_imm(&b, nir_ineg(&b, comp), -(int)lane_dim[i]);
-         src_xyz = nir_vector_insert_imm(&b, src_xyz, comp, i);
-      }
-   }
-
    /* Add dst box.xyz. */
    nir_def *base_coord_dst =
       nir_pad_vector(&b, nir_iadd(&b, nir_vec3(&b, dst_x, dst_y, dst_z), dst_xyz), 4);
    nir_def *base_coord_src = NULL;
 
-   /* Add src box.xyz. */
-   if (!key->is_clear) {
-      base_coord_src =
-         nir_pad_vector(&b, nir_iadd(&b, nir_vec3(&b, src_x, src_y, src_z), src_xyz), 4);
+   if (!key->num_scaled_coords) {
+      /* Flip src coordinates. */
+      const bool flip[3] = {key->flip_x, key->flip_y, key->flip_z};
+      const unsigned lane_dim[3] = {lane_width, lane_height, lane_depth};
+
+      for (unsigned i = 0; i < 3; i++) {
+         if (flip[i]) {
+            /* A normal blit loads from (box.x + tid.x) where tid.x = 0..(width - 1).
+             *
+             * A flipped blit sets box.x = width, so we should make tid.x negative to load from
+             * (width - 1)..0.
+             *
+             * Therefore do: x = -x - 1, which becomes (width - 1) to 0 after we add box.x = width.
+             */
+            nir_def *comp = nir_channel(&b, src_xyz, i);
+            comp = nir_iadd_imm(&b, nir_ineg(&b, comp), -(int)lane_dim[i]);
+            src_xyz = nir_vector_insert_imm(&b, src_xyz, comp, i);
+         }
+      }
+
+      /* Add src box.xyz. */
+      if (!key->is_clear) {
+         base_coord_src =
+            nir_pad_vector(&b, nir_iadd(&b, nir_vec3(&b, src_x, src_y, src_z), src_xyz), 4);
+      }
    }
 
 /* Iterate over all pixels in the lane. num_samples is the only input.
@@ -628,66 +631,71 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
       /* Initialize src coordinates, one vector per pixel. */
       foreach_pixel_in_lane(src_samples, sample, x, y, z, i) {
-         unsigned tmp_x = x;
-         unsigned tmp_y = y;
-         unsigned tmp_z = z;
+         if (key->num_scaled_coords) {
+            /* Calculate FP32 scaled src coordinates. */
+            /* TODO */
+         } else {
+            unsigned lane_x = x;
+            unsigned lane_y = y;
+            unsigned lane_z = z;
 
-         /* Change the order from 0..N to N..0 for flipped blits. */
-         if (key->flip_x)
-            tmp_x = lane_width - 1 - x;
-         if (key->flip_y)
-            tmp_y = lane_height - 1 - y;
-         if (key->flip_z)
-            tmp_z = lane_depth - 1 - z;
+            /* Change the order from 0..N to N..0 for flipped blits. */
+            if (key->flip_x)
+               lane_x = lane_width - 1 - x;
+            if (key->flip_y)
+               lane_y = lane_height - 1 - y;
+            if (key->flip_z)
+               lane_z = lane_depth - 1 - z;
 
-         coord_src[i] = nir_iadd(&b, base_coord_src,
-                                     nir_imm_ivec4_intN(&b, tmp_x, tmp_y, tmp_z, 0, coord_bit_size));
-         if (key->src_is_1d)
-            coord_src[i] = nir_swizzle(&b, coord_src[i], swizzle_xz, 4);
-         if (key->src_is_msaa) {
-            coord_src[i] = nir_vector_insert_imm(&b, coord_src[i],
-                                                 nir_imm_intN_t(&b, sample, coord_bit_size),
-                                                 num_src_coords - 1);
-         }
-
-         /* Clamp to edge for src, only X and Y because Z can't be out of bounds. */
-         for (unsigned chan = 0; chan < 2; chan++) {
-            if (chan ? key->y_clamp_to_edge : key->x_clamp_to_edge) {
-               assert(!key->src_is_1d || chan == 0);
-
-               if (!src_resinfo) {
-                  /* Always use the 32-bit return type because the image dimensions can be
-                   * > INT16_MAX even if the blit box fits within sint16. The txs builder
-                   * always sets the type to nir_type_int32.
-                   */
-                  if (has_src_sampler) {
-                     src_resinfo = nir_txs(&b, .texture_deref = img_src_deref,
-                                           .dim = img_src->type->sampler_dimensionality,
-                                           .is_array = img_src->type->sampler_array);
-                  } else {
-                     src_resinfo = nir_image_deref_size(&b, 4, 32, &img_src_deref->def,
-                                                        zero_coord);
-                  }
-
-                  if (coord_bit_size == 16) {
-                     src_resinfo = nir_umin_imm(&b, src_resinfo, INT16_MAX);
-                     src_resinfo = nir_i2i16(&b, src_resinfo);
-                  }
-               }
-
-               nir_def *tmp = nir_channel(&b, coord_src[i], chan);
-               tmp = nir_imax_imm(&b, tmp, 0);
-               tmp = nir_imin(&b, tmp, nir_iadd_imm(&b, nir_channel(&b, src_resinfo, chan), -1));
-               coord_src[i] = nir_vector_insert_imm(&b, coord_src[i], tmp, chan);
+            coord_src[i] = nir_iadd(&b, base_coord_src,
+                                        nir_imm_ivec4_intN(&b, lane_x, lane_y, lane_z, 0, coord_bit_size));
+            if (key->src_is_1d)
+               coord_src[i] = nir_swizzle(&b, coord_src[i], swizzle_xz, 4);
+            if (key->src_is_msaa) {
+               coord_src[i] = nir_vector_insert_imm(&b, coord_src[i],
+                                                    nir_imm_intN_t(&b, sample, coord_bit_size),
+                                                    num_src_coords - 1);
             }
-         }
 
-         /* Compute the src offset for global-addressed images. */
-         if (key->format_is_96bit) {
-            assert(src_samples == 1);
+            /* Clamp to edge for src, only X and Y because Z can't be out of bounds. */
+            for (unsigned chan = 0; chan < 2; chan++) {
+               if (chan ? key->y_clamp_to_edge : key->x_clamp_to_edge) {
+                  assert(!key->src_is_1d || chan == 0);
 
-            global_addr_src[i] = get_global_image2d_addr(&b, key, img_src_global_addr, coord_src[i],
-                                                         src_dword_stride);
+                  if (!src_resinfo) {
+                     /* Always use the 32-bit return type because the image dimensions can be
+                      * > INT16_MAX even if the blit box fits within sint16. The txs builder
+                      * always sets the type to nir_type_int32.
+                      */
+                     if (has_src_sampler) {
+                        src_resinfo = nir_txs(&b, .texture_deref = img_src_deref,
+                                              .dim = img_src->type->sampler_dimensionality,
+                                              .is_array = img_src->type->sampler_array);
+                     } else {
+                        src_resinfo = nir_image_deref_size(&b, 4, 32, &img_src_deref->def,
+                                                           zero_coord);
+                     }
+
+                     if (coord_bit_size == 16) {
+                        src_resinfo = nir_umin_imm(&b, src_resinfo, INT16_MAX);
+                        src_resinfo = nir_i2i16(&b, src_resinfo);
+                     }
+                  }
+
+                  nir_def *tmp = nir_channel(&b, coord_src[i], chan);
+                  tmp = nir_imax_imm(&b, tmp, 0);
+                  tmp = nir_imin(&b, tmp, nir_iadd_imm(&b, nir_channel(&b, src_resinfo, chan), -1));
+                  coord_src[i] = nir_vector_insert_imm(&b, coord_src[i], tmp, chan);
+               }
+            }
+
+            /* Compute the src offset for global-addressed images. */
+            if (key->format_is_96bit) {
+               assert(src_samples == 1);
+
+               global_addr_src[i] = get_global_image2d_addr(&b, key, img_src_global_addr, coord_src[i],
+                                                            src_dword_stride);
+            }
          }
       }
 
