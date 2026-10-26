@@ -171,8 +171,19 @@ ac_nir_cull_primitive(nir_builder *b,
 void
 ac_nir_sleep(nir_builder *b, unsigned num_cycles);
 
+typedef enum {
+   AC_NIR_RESOLVE_AVERAGE,
+   AC_NIR_RESOLVE_SAMPLE_ZERO,
+   AC_NIR_RESOLVE_FMIN,
+   AC_NIR_RESOLVE_FMAX,
+   AC_NIR_RESOLVE_SMIN,
+   AC_NIR_RESOLVE_SMAX,
+   AC_NIR_RESOLVE_UMIN,
+   AC_NIR_RESOLVE_UMAX,
+} ac_nir_resolve_mode;
+
 nir_def *
-ac_average_samples(nir_builder *b, nir_def **samples, unsigned num_samples);
+ac_resolve_samples(nir_builder *b, nir_def **samples, unsigned num_samples, ac_nir_resolve_mode mode);
 
 void
 ac_optimization_barrier_vgpr_array(const struct radeon_info *info, nir_builder *b,

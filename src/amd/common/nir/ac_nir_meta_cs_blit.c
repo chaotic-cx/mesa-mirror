@@ -815,7 +815,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
           * "lane_size" elements.
           */
          foreach_pixel_in_lane(1, sample, x, y, z, i) {
-            color[i] = ac_average_samples(&b, &color[i * src_samples], src_samples);
+            color[i] = ac_resolve_samples(&b, &color[i * src_samples], src_samples, AC_NIR_RESOLVE_AVERAGE);
          }
          src_samples = 1;
       }

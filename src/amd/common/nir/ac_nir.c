@@ -334,28 +334,58 @@ ac_nir_store_debug_log_amd(nir_builder *b, nir_def *uvec4)
 }
 
 nir_def *
-ac_average_samples(nir_builder *b, nir_def **samples, unsigned num_samples)
+ac_resolve_samples(nir_builder *b, nir_def **samples, unsigned num_samples, ac_nir_resolve_mode mode)
 {
-   /* This works like add-reduce by computing the sum of each pair independently, and then
-    * computing the sum of each pair of sums, and so on, to get better instruction-level
-    * parallelism.
+   nir_def *(*alu)(nir_builder *, nir_def *, nir_def *) = NULL;
+
+   switch (mode) {
+   case AC_NIR_RESOLVE_AVERAGE:
+      alu = nir_fadd;
+      break;
+   case AC_NIR_RESOLVE_SAMPLE_ZERO:
+      return samples[0];
+   case AC_NIR_RESOLVE_FMIN:
+      alu = nir_fmin;
+      break;
+   case AC_NIR_RESOLVE_FMAX:
+      alu = nir_fmax;
+      break;
+   case AC_NIR_RESOLVE_SMIN:
+      alu = nir_imin;
+      break;
+   case AC_NIR_RESOLVE_SMAX:
+      alu = nir_imax;
+      break;
+   case AC_NIR_RESOLVE_UMIN:
+      alu = nir_umin;
+      break;
+   case AC_NIR_RESOLVE_UMAX:
+      alu = nir_umax;
+      break;
+   }
+
+   /* This computes the sum/min/max of each pair independently, and then the sum/min/max of
+    * the resulting pairs, and so on, to get better instruction-level parallelism.
     */
    if (num_samples == 16) {
       for (unsigned i = 0; i < 8; i++)
-         samples[i] = nir_fadd(b, samples[i * 2], samples[i * 2 + 1]);
+         samples[i] = alu(b, samples[i * 2], samples[i * 2 + 1]);
    }
    if (num_samples >= 8) {
       for (unsigned i = 0; i < 4; i++)
-         samples[i] = nir_fadd(b, samples[i * 2], samples[i * 2 + 1]);
+         samples[i] = alu(b, samples[i * 2], samples[i * 2 + 1]);
    }
    if (num_samples >= 4) {
       for (unsigned i = 0; i < 2; i++)
-         samples[i] = nir_fadd(b, samples[i * 2], samples[i * 2 + 1]);
+         samples[i] = alu(b, samples[i * 2], samples[i * 2 + 1]);
    }
    if (num_samples >= 2)
-      samples[0] = nir_fadd(b, samples[0], samples[1]);
+      samples[0] = alu(b, samples[0], samples[1]);
 
-   return nir_fmul_imm(b, samples[0], 1.0 / num_samples); /* average the sum */
+   if (mode == AC_NIR_RESOLVE_AVERAGE)
+      return nir_fmul_imm(b, samples[0], 1.0 / num_samples); /* average the sum */
+   else
+      return samples[0];
 }
 
 void

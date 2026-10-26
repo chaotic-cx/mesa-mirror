@@ -128,7 +128,7 @@ ac_create_resolve_ps(const struct ac_ps_resolve_options *options,
                                      deref, nir_trim_vector(&b, coord_src[i], num_src_coords - 1),
                                      nir_channel(&b, coord_src[i], num_src_coords - 1));
    }
-   nir_def *result = ac_average_samples(&b, samples, num_samples);
+   nir_def *result = ac_resolve_samples(&b, samples, num_samples, AC_NIR_RESOLVE_AVERAGE);
 
    if (uses_samples_identical) {
       nir_pop_if(&b, if_identical);
