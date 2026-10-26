@@ -56,6 +56,10 @@
  * MSAA copies copy FMASK together with color samples and they copy only the color samples
  * referenced by FMASK.
  *
+ * Scaled blits are also supported. The caller is expected to bind the source image as a combined
+ * image+sampler with unnormalized coordinates and clamp-to-edge. Scaled MSAA copies and resolves
+ * are unsupported.
+ *
  * This also supports 96-bit (RGB32) formats as follows:
  * - Only 96-bit -> 96-bit clears and copies are supported.
  * - Only 2D non-layer non-mip, only linear layouts, max 64K x 64K.
@@ -70,6 +74,7 @@
  *   since that would use the memory system inefficiently.
  * - If clearing, each invocation shuffles dwords of the clear value to get the corresponding
  *   4-byte, 8-byte, or 16-byte clear value that the invocation needs.
+ * - Scaled blits are unsupported for 96-bit formats.
  */
 
 #include "ac_nir_meta.h"
@@ -186,7 +191,7 @@ get_num_user_data_terms(const ac_cs_blit_key *key)
          num++;
 
       if (!key->is_clear) {
-         num++;
+         num += 1 + key->num_scaled_coords;
       } else {
          if (key->d16)
             num += DIV_ROUND_UP(key->last_dst_channel + 1, 2);
@@ -203,13 +208,16 @@ tex(nir_builder *b, const ac_cs_blit_key *key, nir_deref_instr *deref, nir_texop
     nir_def *coord, unsigned num_coords)
 {
    bool fmask = op == nir_texop_fragment_mask_fetch_amd || op == nir_texop_samples_identical;
+   bool txl = op == nir_texop_txl;
 
    nir_def *result =
       nir_build_tex(b, op,
                     .coord = nir_trim_vector(b, coord, num_coords - key->src_is_msaa),
                     .ms_index = key->src_is_msaa && !fmask ?
                                    nir_channel(b, coord, num_coords - 1) : NULL,
+                    .lod = txl ? nir_imm_int(b, 0) : NULL,
                     .texture_deref = deref,
+                    .sampler_deref = txl ? deref : NULL,
                     .dim = deref->type->sampler_dimensionality,
                     .is_array = deref->type->sampler_array);
    return fmask ? result : nir_trim_vector(b, result, key->last_src_channel + 1);
@@ -347,6 +355,9 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
    assert(!key->is_clear || (!key->src_is_sampler && !key->src_is_1d && !key->src_is_msaa &&
                              !key->src_has_z && !key->src_has_non_identity_fmask));
+   assert(!key->num_scaled_coords || key->src_is_sampler);
+   assert(!key->num_scaled_coords || (!key->x_clamp_to_edge && !key->y_clamp_to_edge &&
+                                      !key->flip_x && !key->flip_y && !key->flip_z));
    const bool has_src_sampler = key->src_is_sampler;
    const bool has_src_image = !key->is_clear && !key->src_is_sampler;
    const bool has_dst_fmask = key->dst_store_fmask;
@@ -391,9 +402,10 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
 
       if (has_src_sampler) {
          const struct glsl_type *src_sampler_type =
-            glsl_sampler_type(key->src_is_1d ? GLSL_SAMPLER_DIM_1D :
+            glsl_sampler_type(key->num_scaled_coords == 3 ? GLSL_SAMPLER_DIM_3D :
+                              key->src_is_1d ? GLSL_SAMPLER_DIM_1D :
                               key->src_is_msaa ? GLSL_SAMPLER_DIM_MS : GLSL_SAMPLER_DIM_2D,
-                              false, key->src_has_z, img_data_type);
+                              false, key->src_has_z && key->num_scaled_coords <= 2, img_data_type);
 
          img_src = nir_variable_create(b.shader, nir_var_uniform, src_sampler_type, "src_sampler");
       }
@@ -449,6 +461,7 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
    nir_def *dst_x = NULL, *dst_y = NULL, *dst_z = NULL;
    nir_def *src_x = NULL, *src_y = NULL, *src_z = NULL;
    nir_def *dst_dword_stride = NULL, *src_dword_stride = NULL;
+   nir_def *scale[3] = {0};
    unsigned num = 0;
 
    if (key->format_is_96bit) {
@@ -509,6 +522,11 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
          src_y = nir_u2uN(&b, nir_unpack_32_2x16_split_y(&b, nir_channel(&b, user_data, num)),
                           coord_bit_size);
          num++;
+
+         for (unsigned i = 0; i < key->num_scaled_coords; i++) {
+            scale[i] = nir_channel(&b, user_data, num);
+            num++;
+         }
       } else {
          if (key->d16) {
             unsigned num_clear_dwords = DIV_ROUND_UP(key->last_dst_channel + 1, 2);
@@ -633,7 +651,35 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
       foreach_pixel_in_lane(src_samples, sample, x, y, z, i) {
          if (key->num_scaled_coords) {
             /* Calculate FP32 scaled src coordinates. */
-            /* TODO */
+            assert(!key->src_is_msaa);
+
+            /* dispatch_coord = (global_invocation_ids - start_xyz) * lane_size + lane_coord; */
+            nir_def *dispatch_coord =
+               nir_iadd(&b, dispatch_xyz, nir_imm_ivec3_intN(&b, x, y, z, coord_bit_size));
+            nir_def *src_offset[3] = {src_x, src_y, src_z};
+
+            coord_src[i] = nir_undef(&b, 3, 32);
+            unsigned c;
+
+            for (c = 0; c < key->num_scaled_coords; c++) {
+               /* comp = src_offset + scale * (dispatch_coord + 0.5); */
+               nir_def *comp = nir_ffma(&b, scale[c],
+                                        nir_fadd_imm(&b, nir_i2f32(&b, nir_channel(&b, dispatch_coord, c)), 0.5),
+                                        nir_i2f32(&b, src_offset[c]));
+               coord_src[i] = nir_vector_insert_imm(&b, coord_src[i], comp, c);
+            }
+
+            /* This should just be the array layer. */
+            if (key->num_scaled_coords < 3 && key->src_has_z) {
+               nir_def *layer = nir_iadd(&b, src_z, nir_channel(&b, dispatch_coord, 2));
+               coord_src[i] = nir_vector_insert_imm(&b, coord_src[i], nir_i2f32(&b, layer), 2);
+               c++;
+            }
+
+            if (key->src_is_1d)
+               coord_src[i] = nir_swizzle(&b, coord_src[i], swizzle_xz, 4);
+
+            assert(c == num_src_coords);
          } else {
             unsigned lane_x = x;
             unsigned lane_y = y;
@@ -807,7 +853,8 @@ ac_create_blit_cs(const ac_cs_blit_options *options, const ac_cs_blit_key *key)
                                 key->src_is_msaa ?
                                    (key->src_has_non_identity_fmask ? nir_texop_txf_ms :
                                                                       nir_texop_fragment_fetch_amd) :
-                                   nir_texop_txf, coord_src[i], num_src_coords);
+                                   key->num_scaled_coords ? nir_texop_txl : nir_texop_txf,
+                                coord_src[i], num_src_coords);
          }
       }
 
@@ -1064,6 +1111,7 @@ typedef struct {
    unsigned src_samples;
    bool is_resolve;
    bool is_upsampling;
+   bool is_scaled;
    bool clear_sample0_only;
    ac_nir_resolve_mode resolve_mode;
    unsigned max_dst_chan_size;
@@ -1090,6 +1138,9 @@ get_derived_info(const ac_cs_blit_description *blit, ac_cs_blit_derived_info *ou
    out->src_samples = out->is_clear ? 1 : MAX2(1, blit->src.num_samples);
    out->is_resolve = !out->is_clear && out->dst_samples == 1 && out->src_samples >= 2;
    out->is_upsampling = !out->is_clear && out->src_samples == 1 && out->dst_samples >= 2;
+   out->is_scaled = !out->is_clear && (blit->dst.box.width != abs(blit->src.box.width) ||
+                                       blit->dst.box.height != abs(blit->src.box.height) ||
+                                       blit->dst.box.depth != abs(blit->src.box.depth));
    out->clear_sample0_only = out->is_clear && out->dst_samples >= 2 && blit->sample0_only;
    out->resolve_mode = AC_NIR_RESOLVE_AVERAGE;
 
@@ -1141,8 +1192,8 @@ boxes_are_supported(const ac_cs_blit_description *blit)
    if (blit->src.box.x < 0 || blit->src.box.y < 0 || blit->src.box.z < 0)
       return false;
 
-   if (!is_clear &&
-       /* Scaling is not implemented by the compute shader. */
+   /* Scaled blits require a sampler and a non-MSAA source. */
+   if (!is_clear && (!blit->src_is_sampler || blit->src.num_samples >= 2) &&
        (blit->dst.box.width != abs(blit->src.box.width) ||
         blit->dst.box.height != abs(blit->src.box.height) ||
         blit->dst.box.depth != abs(blit->src.box.depth)))
@@ -1304,8 +1355,7 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       return;
 
    /* Skip zero-area blits. */
-   if (!blit->dst.box.width || !blit->dst.box.height || !blit->dst.box.depth ||
-       (!d.is_clear && (!blit->src.box.width || !blit->src.box.height || !blit->src.box.depth)))
+   if (!blit->dst.box.width || !blit->dst.box.height || !blit->dst.box.depth)
       return;
 
    assert(boxes_are_supported(blit));
@@ -1515,12 +1565,13 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
     * then blit the unaligned sides separately. This splits the blit into up to 7 blits for 3D,
     * and 5 blits for 2D.
     */
-   if (blit->dst.box.x % lane_tile.x ||
-       blit->dst.box.y % lane_tile.y ||
-       blit->dst.box.z % lane_tile.z ||
-       blit->dst.box.width % lane_tile.x ||
-       blit->dst.box.height % lane_tile.y ||
-       blit->dst.box.depth % lane_tile.z) {
+   if (!d.is_scaled &&
+       (blit->dst.box.x % lane_tile.x ||
+        blit->dst.box.y % lane_tile.y ||
+        blit->dst.box.z % lane_tile.z ||
+        blit->dst.box.width % lane_tile.x ||
+        blit->dst.box.height % lane_tile.y ||
+        blit->dst.box.depth % lane_tile.z)) {
       struct pipe_box middle;
 
       /* Cut off unaligned regions on the sides of the box. */
@@ -1824,11 +1875,13 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       unsigned num_samples = MAX2(d.src_samples, d.dst_samples);
       assert(num_samples <= 8);
       key.log_samples = d.resolve_mode == AC_NIR_RESOLVE_SAMPLE_ZERO ? 0 : util_logbase2(num_samples);
-      key.x_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(0));
-      key.y_clamp_to_edge = should_blit_clamp_to_edge(blit, BITFIELD_BIT(1));
-      key.flip_x = blit->src.box.width < 0;
-      key.flip_y = blit->src.box.height < 0;
-      key.flip_z = blit->src.box.depth < 0;
+      key.num_scaled_coords = d.is_scaled ? blit->src.dim : 0;
+      key.x_clamp_to_edge = !d.is_scaled && should_blit_clamp_to_edge(blit, BITFIELD_BIT(0));
+      key.y_clamp_to_edge = !d.is_scaled && should_blit_clamp_to_edge(blit, BITFIELD_BIT(1));
+      key.flip_x = !d.is_scaled && blit->src.box.width < 0;
+      key.flip_y = !d.is_scaled && blit->src.box.height < 0;
+      key.flip_z = !d.is_scaled && blit->src.box.depth < 0;
+      assert(blit->src.box.depth > 0 || key.flip_z || key.num_scaled_coords == 3);
       key.sint_to_uint = util_format_is_pure_sint(blit->src.format) &&
                          util_format_is_pure_uint(blit->dst.format);
       key.uint_to_sint = util_format_is_pure_uint(blit->src.format) &&
@@ -1840,6 +1893,10 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
       key.use_integer_one = util_format_is_pure_integer(blit->dst.format) &&
                             key.last_src_channel < key.last_dst_channel &&
                             key.last_dst_channel == 3;
+      /* a16 only applies to image loads/stores and texel fetches. For scaled blits (using txl),
+       * dst always obeys a16, but src only uses it for integer coordinate calculations before
+       * the conversion to FP32 coordinates.
+       */
       key.a16 = !key.format_is_96bit && info->gfx_level >= GFX9 &&
                 util_is_box_sint16(&blit->dst.box) && util_is_box_sint16(&blit->src.box);
       key.d16 = has_d16 &&
@@ -1904,6 +1961,15 @@ ac_prepare_compute_blit(const ac_cs_blit_options *options,
 
       if (!d.is_clear) {
          dispatch->user_data[num++] = (blit->src.box.x & 0xffff) | ((uint32_t)(blit->src.box.y & 0xffff) << 16);
+
+         if (key.num_scaled_coords) {
+            const float src_dim[3] = {blit->src.box.width, blit->src.box.height, blit->src.box.depth};
+            const float dst_dim[3] = {blit->dst.box.width, blit->dst.box.height, blit->dst.box.depth};
+
+            /* Set src coordinate scaling factors. */
+            for (unsigned i = 0; i < key.num_scaled_coords; i++)
+               dispatch->user_data[num++] = fui(src_dim[i] / dst_dim[i]);
+         }
       } else {
          union pipe_color_union final_value;
          memcpy(&final_value, &blit->clear_color, sizeof(final_value));
