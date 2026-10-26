@@ -3647,7 +3647,7 @@ radv_video_get_encode_session_memory_requirements(struct radv_device *device, st
                                                   VkVideoSessionMemoryRequirementsKHR *pMemoryRequirements)
 {
    struct radv_physical_device *pdev = radv_device_physical(device);
-   uint32_t memory_type_bits = (1u << pdev->memory_properties.memoryTypeCount) - 1;
+   uint32_t memory_type_bits = device->memory_types_allowed;
 
    VK_OUTARRAY_MAKE_TYPED(VkVideoSessionMemoryRequirementsKHR, out, pMemoryRequirements, pMemoryRequirementsCount);
 
@@ -3665,10 +3665,11 @@ radv_video_get_encode_session_memory_requirements(struct radv_device *device, st
          m->memoryBindIndex = RADV_BIND_ENCODE_AV1_CDF_STORE;
          m->memoryRequirements.size = VCN_ENC_AV1_DEFAULT_CDF_SIZE;
          m->memoryRequirements.alignment = 0;
-         m->memoryRequirements.memoryTypeBits = 0;
+         m->memoryRequirements.memoryTypeBits = memory_type_bits;
+
          for (unsigned i = 0; i < pdev->memory_properties.memoryTypeCount; i++)
-            if (pdev->memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)
-               m->memoryRequirements.memoryTypeBits |= (1 << i);
+            if (!(pdev->memory_properties.memoryTypes[i].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT))
+               m->memoryRequirements.memoryTypeBits &= ~(1u << i);
       }
    }
 

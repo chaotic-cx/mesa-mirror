@@ -448,8 +448,8 @@ radv_GetAndroidHardwareBufferPropertiesANDROID(VkDevice device_h, const struct A
    if (dma_buf < 0)
       return VK_ERROR_INVALID_EXTERNAL_HANDLE;
 
-   /* All memory types. */
-   uint32_t memory_types = (1u << pdev->memory_properties.memoryTypeCount) - 1;
+   /* All allowed memory types. */
+   uint32_t memory_types = dev->memory_types_allowed;
 
    pProperties->allocationSize = lseek(dma_buf, 0, SEEK_END);
    pProperties->memoryTypeBits = memory_types & ~pdev->memory_types_32bit;
