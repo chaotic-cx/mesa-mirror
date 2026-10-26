@@ -1,6 +1,4 @@
 # xfb
-dEQP-VK.transform_feedback.primitive_restart.dynamic_primitive_restart_dynamic_primitive_topology,Fail
-dEQP-VK.transform_feedback.primitive_restart.static_primitive_restart_dynamic_primitive_topology,Fail
 dEQP-VK.transform_feedback.simple.max_output_components_64,Crash
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev

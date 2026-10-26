@@ -39,10 +39,6 @@ dEQP-VK.memory_model.write_after_read.core11.u32.coherent.fence_fence.atomicwrit
 dEQP-VK.memory_model.write_after_read.core11.u32.coherent.fence_fence.atomicwrite.subgroup.payload_local.image.guard_local.image.comp,Crash
 dEQP-VK.memory_model.write_after_read.core11.u32.coherent.fence_fence.atomicwrite.device.payload_local.image.guard_local.image.comp,Crash
 
-# xfb
-dEQP-VK.transform_feedback.primitive_restart.dynamic_primitive_restart_dynamic_primitive_topology,Fail
-dEQP-VK.transform_feedback.primitive_restart.static_primitive_restart_dynamic_primitive_topology,Fail
-
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
 dEQP-VK.api.object_management.alloc_callback_fail.buffer_storage_large,Fail
 dEQP-VK.api.object_management.alloc_callback_fail.buffer_storage_small,Fail

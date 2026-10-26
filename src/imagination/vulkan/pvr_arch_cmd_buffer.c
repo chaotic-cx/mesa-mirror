@@ -8687,6 +8687,10 @@ static VkResult pvr_validate_draw_state(struct pvr_cmd_buffer *cmd_buffer)
 
    pvr_arch_cmd_buffer_start_sub_cmd(cmd_buffer, PVR_SUB_CMD_TYPE_GRAPHICS);
 
+   result = pvr_arch_validate_xfb_state(cmd_buffer);
+   if (result != VK_SUCCESS)
+      return result;
+
    sub_cmd = &state->current_sub_cmd->gfx;
    sub_cmd->empty_cmd = false;
 
