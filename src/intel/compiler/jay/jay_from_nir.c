@@ -1036,6 +1036,12 @@ jay_emit_derivative(jay_builder *b,
    assert(intr->def.bit_size == 32 && "todo");
    jay_def val = nj_src(intr->src[0]);
 
+   /* Keep x - x for NaNs and Infs. */
+   if (jay_is_uniform(val)) {
+      jay_ADD(b, JAY_TYPE_F32, dst, val, jay_negate(val));
+      return;
+   }
+
    /* dFdyfine gets split down to SIMD4 which requires UGPR vector temporaries
     * for correctness (to get NoMask in non-uniform control flow).
     */

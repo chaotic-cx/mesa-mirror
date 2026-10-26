@@ -764,7 +764,7 @@
         "description": "jay: Handle uniform derivatives without varying temporaries",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "b768fe8188bb95de7382c00d9cb7cc55e7bc6718",
         "notes": null
