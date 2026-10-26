@@ -270,7 +270,7 @@ lower_layer_writes(nir_shader *nir)
 }
 #endif
 
-#if PAN_ARCH >= 10
+#if PAN_ARCH >= 9
 static bool
 mark_all_access_non_uniform(nir_builder *b, nir_instr *instr, void *data)
 {
@@ -334,6 +334,80 @@ mark_all_access_non_uniform(nir_builder *b, nir_instr *instr, void *data)
    }
 }
 #endif
+
+static bool
+panvk_can_merge_workgroups(nir_shader *nir)
+{
+#if PAN_ARCH < 9
+   return false;
+#else
+   if (!mesa_shader_stage_uses_workgroup(nir->info.stage))
+      return false;
+
+   bool allow_merging_workgroups = valhall_can_merge_workgroups(nir);
+
+   /* With merged workgroups, we need to use different divergence analysis
+    * options to take into account that threads from different workgroups
+    * may be in the same subgroup */
+   if (allow_merging_workgroups) {
+      nir->options = pan_get_nir_shader_compiler_options(
+         PAN_ARCH, MESA_SHADER_COMPUTE, true);
+      /* Invalidate the old divergence analysis */
+      nir_foreach_function_impl(impl, nir)
+         nir_progress(true, impl, ~nir_metadata_divergence);
+
+   }
+
+   return allow_merging_workgroups;
+#endif
+}
+
+static void
+panvk_lower_non_uniform(nir_shader *nir, bool allow_merging_workgroups)
+{
+#if PAN_ARCH >= 10
+   /* Accesses that were uniform in the source shader may now be
+    * nonuniform. To handle this, we just flag everything as nonuniform and
+    * then let nir_opt_non_uniform_access figure out which ones can really be
+    * nonuniform based on divergence analysis
+    */
+   if (allow_merging_workgroups)
+      NIR_PASS(_, nir, nir_shader_instructions_pass,
+               mark_all_access_non_uniform,
+               nir_metadata_control_flow |
+                  nir_metadata_live_defs |
+                  nir_metadata_instr_index,
+               NULL);
+#endif
+
+   /* nir_lower_non_uniform_access needs to run after lowering UBO and SSBO
+    * IO. This means we run it after nir_lower_descriptors, which reads the
+    * array indices, but it's okay because lower_descriptors treats all
+    * dynamic indices the same. */
+   enum nir_lower_non_uniform_access_type lower_non_uniform_access_types =
+      nir_lower_non_uniform_ubo_access |
+      nir_lower_non_uniform_ssbo_access |
+      nir_lower_non_uniform_texture_access |
+      nir_lower_non_uniform_texture_query |
+      nir_lower_non_uniform_image_access |
+      nir_lower_non_uniform_image_query |
+      nir_lower_non_uniform_get_ssbo_size;
+#if PAN_ARCH < 9
+   lower_non_uniform_access_types |=
+      nir_lower_non_uniform_texture_offset_access;
+#endif
+
+   /* In practice, most shaders do not have non-uniform-qualified accesses
+    * thus a cheaper and likely to fail check is run first. */
+   if (allow_merging_workgroups ||
+       nir_has_non_uniform_access(nir, lower_non_uniform_access_types)) {
+      NIR_PASS(_, nir, nir_opt_non_uniform_access);
+      struct nir_lower_non_uniform_access_options opts = {
+         .types = lower_non_uniform_access_types,
+      };
+      NIR_PASS(_, nir, nir_lower_non_uniform_access, &opts);
+   }
+}
 
 static void
 shared_type_info(const struct glsl_type *type, unsigned *size, unsigned *align)
@@ -812,8 +886,7 @@ panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
                 struct vk_descriptor_set_layout *const *set_layouts,
                 const struct vk_pipeline_robustness_state *rs,
                 const struct vk_graphics_pipeline_state *state,
-                struct panvk_shader_desc_info *desc_info,
-                bool allow_merging_workgroups)
+                struct panvk_shader_desc_info *desc_info)
 {
    mesa_shader_stage stage = nir->info.stage;
 
@@ -867,49 +940,6 @@ panvk_lower_nir(struct panvk_device *dev, nir_shader *nir,
       NIR_PASS(_, nir, nir_lower_robust_access, is_robust_ssbo_intr, NULL);
       NIR_PASS(_, nir, nir_opt_constant_folding);
       NIR_PASS(_, nir, nir_opt_dce);
-   }
-
-#if PAN_ARCH >= 10
-   if (allow_merging_workgroups) {
-      /* Accesses that were uniform in the source shader may now be
-       * nonuniform. To handle this, we just flag everything as nonuniform and
-       * then let nir_opt_non_uniform_access figure out which ones can really
-       * be nonuniform based on divergence analysis */
-      NIR_PASS(_, nir, nir_shader_instructions_pass,
-               mark_all_access_non_uniform,
-               nir_metadata_control_flow |
-                  nir_metadata_live_defs |
-                  nir_metadata_instr_index,
-               NULL);
-   }
-#endif
-
-   /* nir_lower_non_uniform_access needs to run after lowering UBO and SSBO
-    * IO. This means we run it after nir_lower_descriptors, which reads the
-    * array indices, but it's okay because lower_descriptors treats all
-    * dynamic indices the same. */
-   enum nir_lower_non_uniform_access_type lower_non_uniform_access_types =
-      nir_lower_non_uniform_ubo_access |
-      nir_lower_non_uniform_ssbo_access |
-      nir_lower_non_uniform_texture_access |
-      nir_lower_non_uniform_texture_query |
-      nir_lower_non_uniform_image_access |
-      nir_lower_non_uniform_image_query |
-      nir_lower_non_uniform_get_ssbo_size;
-#if PAN_ARCH < 9
-   lower_non_uniform_access_types |=
-      nir_lower_non_uniform_texture_offset_access;
-#endif
-
-   /* In practice, most shaders do not have non-uniform-qualified accesses
-    * thus a cheaper and likely to fail check is run first. */
-   if (allow_merging_workgroups ||
-       nir_has_non_uniform_access(nir, lower_non_uniform_access_types)) {
-      NIR_PASS(_, nir, nir_opt_non_uniform_access);
-      struct nir_lower_non_uniform_access_options opts = {
-         .types = lower_non_uniform_access_types,
-      };
-      NIR_PASS(_, nir, nir_lower_non_uniform_access, &opts);
    }
 
 #if PAN_ARCH >= 9
@@ -986,6 +1016,9 @@ panvk_compile_nir(struct panvk_device *dev, nir_shader *nir,
 
    /* We're going to modify this so make our own copy to be nicer to callers */
    struct pan_compile_inputs input = *compile_input;
+
+   bool allow_merging_workgroups = panvk_can_merge_workgroups(nir);
+   panvk_lower_non_uniform(nir, allow_merging_workgroups);
 
    pan_postprocess_nir(nir, &input, &shader->info);
 
@@ -1128,6 +1161,7 @@ panvk_compile_nir(struct panvk_device *dev, nir_shader *nir,
       shader->cs.local_size.x = nir->info.workgroup_size[0];
       shader->cs.local_size.y = nir->info.workgroup_size[1];
       shader->cs.local_size.z = nir->info.workgroup_size[2];
+      shader->info.cs.allow_merging_workgroups = allow_merging_workgroups;
       break;
 
    case MESA_SHADER_FRAGMENT:
@@ -1431,7 +1465,7 @@ panvk_compile_shader(struct panvk_device *dev,
 
          panvk_lower_nir(dev, nir, info->set_layout_count,
                          info->set_layouts, info->robustness,
-                         state, &shader->desc_info, false);
+                         state, &shader->desc_info);
 
 #if PAN_ARCH >= 10 && PAN_ARCH < 14
          if (variant_inputs.view_mask) {
@@ -1525,7 +1559,7 @@ panvk_compile_shader(struct panvk_device *dev,
       inputs.varying_layout = vs_varying_layout;
 
       panvk_lower_nir(dev, nir, info->set_layout_count, info->set_layouts,
-                      info->robustness, state, &shader->desc_info, false);
+                      info->robustness, state, &shader->desc_info);
 
       nir_assign_io_var_locations(nir, nir_var_shader_out);
       panvk_lower_nir_io(nir);
@@ -1566,28 +1600,8 @@ panvk_compile_shader(struct panvk_device *dev,
 
       nir_shader *nir = info->nir;
 
-      bool allow_merging_workgroups = false;
-#if PAN_ARCH >= 9
-      nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
-      allow_merging_workgroups =
-         valhall_can_merge_workgroups(nir);
-
-      /* With merged workgroups, we need to use different divergence analysis
-       * options to take into account that threads from different workgroups
-       * may be in the same subgroup */
-      if (allow_merging_workgroups) {
-         nir->options = pan_get_nir_shader_compiler_options(
-            PAN_ARCH, MESA_SHADER_COMPUTE, true);
-         /* Invalidate the old divergence analysis */
-         nir_foreach_function_impl(impl, nir)
-            nir_progress(true, impl, ~nir_metadata_divergence);
-      }
-#endif
-
       panvk_lower_nir(dev, nir, info->set_layout_count, info->set_layouts,
-                      info->robustness, state, &shader->desc_info,
-                      allow_merging_workgroups);
-
+                      info->robustness, state, &shader->desc_info);
       variant->own_bin = true;
 
       result = panvk_compile_nir(dev, nir, info->flags, &inputs, state,
@@ -1597,7 +1611,6 @@ panvk_compile_shader(struct panvk_device *dev,
          panvk_shader_destroy(&dev->vk, &shader->vk, pAllocator);
          return result;
       }
-      variant->info.cs.allow_merging_workgroups = allow_merging_workgroups;
       break;
    }
 
