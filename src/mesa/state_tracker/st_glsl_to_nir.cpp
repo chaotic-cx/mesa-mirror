@@ -229,23 +229,17 @@ filter_double_subgroup(const nir_intrinsic_instr *intr, UNUSED const void *data)
    }
 }
 
-/* Second third of converting glsl_to_nir. This creates uniforms, gathers
- * info on varyings, etc after NIR link time opts have been applied.
+/* Make a pass over the IR to add state references for any built-in
+ * uniforms that are used.  This has to be done now (during linking).
+ * Code generation doesn't happen until the first time this shader is
+ * used for rendering.  Waiting until then to generate the parameters is
+ * too late.  At that point, the values for the built-in uniforms won't
+ * get sent to the shader.
  */
 static void
-st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
-                         struct gl_shader_program *shader_program)
+st_nir_add_builtin_state_references(struct st_context *st,
+                                    struct gl_program *prog, nir_shader *nir)
 {
-   nir_shader *nir = prog->nir;
-   struct pipe_screen *screen = st->screen;
-
-   /* Make a pass over the IR to add state references for any built-in
-    * uniforms that are used.  This has to be done now (during linking).
-    * Code generation doesn't happen until the first time this shader is
-    * used for rendering.  Waiting until then to generate the parameters is
-    * too late.  At that point, the values for the built-in uniforms won't
-    * get sent to the shader.
-    */
    nir_foreach_uniform_variable(var, nir) {
       const nir_state_slot *const slots = var->state_slots;
       if (slots != NULL) {
@@ -269,12 +263,14 @@ st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
          }
       }
    }
+}
 
-   /* Avoid reallocation of the program parameter list, because the uniform
-    * storage is only associated with the original parameter list.
-    * This should be enough for Bitmap and DrawPixels constants.
-    */
-   _mesa_ensure_and_associate_uniform_storage(st->ctx, shader_program, prog, 28);
+static void
+st_nir_lower_linked_program(struct st_context *st, struct gl_program *prog,
+                            struct gl_shader_program *shader_program,
+                            nir_shader *nir)
+{
+   struct pipe_screen *screen = st->screen;
 
    /* None of the builtins being lowered here can be produced by SPIR-V.  See
     * _mesa_builtin_uniform_desc. Also drivers that support packed uniform
@@ -364,6 +360,27 @@ st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
    }
 
    NIR_PASS(_, nir, nir_opt_intrinsics);
+}
+
+/* Second third of converting glsl_to_nir. This creates uniforms, gathers
+ * info on varyings, etc after NIR link time opts have been applied.
+ */
+static void
+st_glsl_to_nir_post_opts(struct st_context *st, struct gl_program *prog,
+                         struct gl_shader_program *shader_program)
+{
+   nir_shader *nir = prog->nir;
+   struct pipe_screen *screen = st->screen;
+
+   st_nir_add_builtin_state_references(st, prog, nir);
+
+   /* Avoid reallocation of the program parameter list, because the uniform
+    * storage is only associated with the original parameter list.
+    * This should be enough for Bitmap and DrawPixels constants.
+    */
+   _mesa_ensure_and_associate_uniform_storage(st->ctx, shader_program, prog, 28);
+
+   st_nir_lower_linked_program(st, prog, shader_program, nir);
 
    st_set_prog_affected_state_flags(st, prog);
    nir_shader_gather_info(nir, nir_shader_get_entrypoint(nir));
