@@ -317,15 +317,15 @@ loop_routing_start(struct routes *routing, nir_builder *b,
 {
    if (NIR_LOWER_GOTO_IFS_DEBUG) {
       printf("loop_routing_start:\n");
-      printf("    reach =                       ");
+      printf("    reach =           ");
       print_block_set(reach);
-      printf("    loop_path.reachable =         ");
+      printf("    loop_path =       ");
       print_block_set(loop_path.reachable);
-      printf("    routing->regular.reachable =  ");
+      printf("    routing.regular = ");
       print_block_set(routing->regular.reachable);
-      printf("    routing->brk.reachable =      ");
+      printf("    routing.brk =     ");
       print_block_set(routing->brk.reachable);
-      printf("    routing->cont.reachable =     ");
+      printf("    routing.cont =    ");
       print_block_set(routing->cont.reachable);
       printf("\n");
    }
@@ -459,13 +459,13 @@ inside_outside(nir_block *block, struct set *loop_heads, struct set *outside,
 
    if (NIR_LOWER_GOTO_IFS_DEBUG) {
       printf("inside_outside(%u):\n", block->index);
-      printf("    loop_heads = ");
+      printf("    loop_heads =      ");
       print_block_set(loop_heads);
-      printf("    reach =      ");
+      printf("    reach =           ");
       print_block_set(reach);
-      printf("    brk_reach =  ");
+      printf("    brk_reach =       ");
       print_block_set(brk_reachable);
-      printf("    remaining =  ");
+      printf("    remaining =       ");
       print_block_set(remaining);
       printf("\n");
    }
@@ -682,8 +682,16 @@ organize_levels(struct list_head *levels, struct set *remaining,
 {
    if (NIR_LOWER_GOTO_IFS_DEBUG) {
       printf("organize_levels:\n");
-      printf("    reach =     ");
+      printf("    reach =           ");
       print_block_set(reach);
+      printf("    remaining =       ");
+      print_block_set(remaining);
+      printf("    routing.regular = ");
+      print_block_set(routing->regular.reachable);
+      printf("    routing.brk =     ");
+      print_block_set(routing->brk.reachable);
+      printf("    routing.cont =    ");
+      print_block_set(routing->cont.reachable);
    }
 
    /* blocks that can be reached by the remaining blocks */
