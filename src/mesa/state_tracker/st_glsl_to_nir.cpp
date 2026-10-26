@@ -434,6 +434,50 @@ st_nir_lower_wpos_ytransform(struct nir_shader *nir,
    return progress;
 }
 
+static void
+st_nir_lower_linked_shader(struct st_context *st,
+                           struct gl_shader_program *shader_program,
+                           struct gl_program *prog, nir_shader *nir)
+{
+   struct pipe_screen *screen = st->screen;
+   mesa_shader_stage stage = nir->info.stage;
+
+   /* Since IO is lowered, we won't need the IO variables from now on.
+    * nir_build_program_resource_list was the last pass that needed them.
+    */
+   NIR_PASS(_, nir, nir_remove_dead_variables,
+            nir_var_shader_in | nir_var_shader_out, NULL);
+
+   /* If there are forms of indirect addressing that the driver
+    * cannot handle, perform the lowering pass.
+    */
+   if (!screen->shader_caps[stage].indirect_temp_addr ||
+       !screen->shader_caps[stage].indirect_const_addr) {
+      nir_variable_mode mode = (nir_variable_mode)0;
+
+      mode |= !screen->shader_caps[stage].indirect_temp_addr ?
+         nir_var_function_temp : (nir_variable_mode)0;
+      mode |= !screen->shader_caps[stage].indirect_const_addr ?
+         nir_var_uniform | nir_var_mem_ubo | nir_var_mem_ssbo :
+         (nir_variable_mode)0;
+
+      if (mode)
+         nir_lower_indirect_derefs_to_if_else_trees(nir, mode, UINT32_MAX);
+   }
+
+   /* This needs to run after the initial pass of nir_lower_vars_to_ssa, so
+    * that the buffer indices are constants in nir where they where
+    * constants in GLSL. */
+   NIR_PASS(_, nir, gl_nir_lower_buffers, shader_program);
+
+   NIR_PASS(_, nir, st_nir_lower_wpos_ytransform, prog, screen);
+
+   /* needed to lower base_workgroup_id and base_global_invocation_id */
+   struct nir_lower_compute_system_values_options cs_options = {};
+   NIR_PASS(_, nir, nir_lower_system_values);
+   NIR_PASS(_, nir, nir_lower_compute_system_values, &cs_options);
+}
+
 static bool
 st_link_glsl_to_nir(struct gl_context *ctx,
                     struct gl_shader_program *shader_program)
@@ -519,45 +563,9 @@ st_link_glsl_to_nir(struct gl_context *ctx,
                                    shader_program->data->spirv);
 
    for (unsigned i = 0; i < num_shaders; i++) {
-      struct gl_linked_shader *shader = linked_shader[i];
-      nir_shader *nir = shader->Program->nir;
-      mesa_shader_stage stage = shader->Stage;
+      struct gl_program *prog = linked_shader[i]->Program;
 
-      /* Since IO is lowered, we won't need the IO variables from now on.
-       * nir_build_program_resource_list was the last pass that needed them.
-       */
-      NIR_PASS(_, nir, nir_remove_dead_variables,
-               nir_var_shader_in | nir_var_shader_out, NULL);
-
-      /* If there are forms of indirect addressing that the driver
-       * cannot handle, perform the lowering pass.
-       */
-      if (!ctx->screen->shader_caps[stage].indirect_temp_addr ||
-          !ctx->screen->shader_caps[stage].indirect_const_addr) {
-         nir_variable_mode mode = (nir_variable_mode)0;
-
-         mode |= !ctx->screen->shader_caps[stage].indirect_temp_addr ?
-            nir_var_function_temp : (nir_variable_mode)0;
-         mode |= !ctx->screen->shader_caps[stage].indirect_const_addr ?
-            nir_var_uniform | nir_var_mem_ubo | nir_var_mem_ssbo :
-            (nir_variable_mode)0;
-
-         if (mode)
-            nir_lower_indirect_derefs_to_if_else_trees(nir, mode, UINT32_MAX);
-      }
-
-      /* This needs to run after the initial pass of nir_lower_vars_to_ssa, so
-       * that the buffer indices are constants in nir where they where
-       * constants in GLSL. */
-      NIR_PASS(_, nir, gl_nir_lower_buffers, shader_program);
-
-      NIR_PASS(_, nir, st_nir_lower_wpos_ytransform, shader->Program,
-               st->screen);
-
-      /* needed to lower base_workgroup_id and base_global_invocation_id */
-      struct nir_lower_compute_system_values_options cs_options = {};
-      NIR_PASS(_, nir, nir_lower_system_values);
-      NIR_PASS(_, nir, nir_lower_compute_system_values, &cs_options);
+      st_nir_lower_linked_shader(st, shader_program, prog, prog->nir);
    }
 
    struct shader_info *prev_info = NULL;
