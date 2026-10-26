@@ -4311,7 +4311,7 @@ neg_mul_to_i16_cb(opt_ctx& ctx, alu_opt_info& info)
       uint32_t multiplier = 0;
       for (unsigned comp = 0; comp < 2; comp++) {
          int32_t part = (constant >> (comp * 16)) & 0xffff;
-         multiplier |= (uint32_t)-part << (comp * 16);
+         multiplier |= ((uint32_t)-part & 0xffffu) << (comp * 16);
       }
 
       info.operands[i] = {Operand::c32(multiplier)};

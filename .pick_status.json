@@ -634,7 +634,7 @@
         "description": "aco: fix packing negated 16-bit constants in neg_mul_to_i16_cb",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "78162f38c44a6e3f10349f5bb7ef010803a6783b",
         "notes": null
