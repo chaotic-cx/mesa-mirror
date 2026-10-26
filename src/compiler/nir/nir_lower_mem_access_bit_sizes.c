@@ -232,7 +232,11 @@ lower_mem_load(nir_builder *b, nir_intrinsic_instr *intrin,
             nir_intrinsic_set_base(load, base_aligned);
          }
 
-         if (nir_intrinsic_has_range(load)) {
+         if (nir_intrinsic_has_range_base(load)) {
+            /* TODO: Calculate a smaller range if needed. */
+            nir_intrinsic_set_range_base(load, 0);
+            nir_intrinsic_set_range(load, ~0);
+         } else if (nir_intrinsic_has_range(load)) {
             assert(nir_intrinsic_has_base(load));
             const uint64_t orig_range = nir_intrinsic_range(load);
             const uint32_t requested_bytes_read =
