@@ -63,6 +63,7 @@ nvk_descriptor_set_addr(const struct nvk_descriptor_set *set)
 
 struct nvk_push_descriptor_set {
    uint8_t data[NVK_PUSH_DESCRIPTOR_SET_SIZE];
+   uint32_t max_buffer_size;
 };
 
 void
