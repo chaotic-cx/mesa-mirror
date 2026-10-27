@@ -564,7 +564,7 @@
         "description": "util/rbsp: check each byte once for emulation prevention",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c9b941ff1b9633d02c61ada969726a5c0a9944c6",
         "notes": null
