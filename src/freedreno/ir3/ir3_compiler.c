@@ -332,7 +332,14 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
       if (compiler->gen == 5) {
          compiler->max_const_geom = 448;
          compiler->max_const_frag = 448;
-         compiler->max_const_compute = 448;
+
+         /* While there are 512 consts in the file, on the CS side the UAV
+          * descriptors land at both 192 and 448, and uploads to the const file
+          * wrap back to 0 at DST_OFF=256 (even with XORing in unknown bits to
+          * various CS control regs).  QC blob 512.415 never uploads past 192 in
+          * a test with a load from an increasing sized UBO.
+          */
+         compiler->max_const_compute = 192;
       }
 
       /* Note: this will have to change if/when we support tess+GS on
