@@ -1897,7 +1897,8 @@ radv_cmd_clear_image(VkCommandBuffer commandBuffer, VkImage image_h, VkImageLayo
 
    if (vk_format_is_color(image->vk.format)) {
       cs = cmd_buffer->qf == RADV_QUEUE_COMPUTE || !radv_image_is_renderable(pdev, image) ||
-           pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE;
+           (pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE ||
+            pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_COMPUTE);
    }
 
    if (ranges->aspectMask & VK_IMAGE_ASPECT_COLOR_BIT) {

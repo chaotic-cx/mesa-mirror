@@ -30,7 +30,8 @@ radv_get_resolve_method(const struct radv_cmd_buffer *cmd_buffer, struct radv_im
    enum radv_resolve_method resolve_method = RESOLVE_FRAGMENT;
 
    if (dst_image->planes[0].surface.flags & RADEON_SURF_NO_RENDER_TARGET ||
-       pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE)
+       pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE ||
+       pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_COMPUTE)
       resolve_method = RESOLVE_COMPUTE;
 
    return resolve_method;

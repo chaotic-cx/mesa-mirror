@@ -60,16 +60,22 @@ enum radv_image_meta_path {
    /* Use the default path. */
    RADV_IMAGE_META_PATH_AUTO,
 
-   /* Use fragment shaders when possible. Don't use fast clear. */
+   /* Use fragment shaders when possible. Don't use fast clears. */
    RADV_IMAGE_META_PATH_FRAGMENT,
 
-   /* Use compute shaders when possible. Don't use fast clear. */
+   /* Use compute shaders when possible. Don't use fast clears. */
    RADV_IMAGE_META_PATH_COMPUTE,
 
-   /* Use fast clears for clears when possible. (fast clear might not always be used by default)
-    * Other ops use the default path.
+   /* Use fast clears for clears when possible (fast clear might not always be used by default),
+    * else use the default path.
     */
-   RADV_IMAGE_META_PATH_FAST_CLEAR,
+   RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_AUTO,
+
+   /* Use fast clears for clears when possible, else use fragment shaders. */
+   RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_FRAGMENT,
+
+   /* Use fast clears for clears when possible, else use compute shaders. */
+   RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_COMPUTE,
 };
 
 enum radv_meta_save_flags {

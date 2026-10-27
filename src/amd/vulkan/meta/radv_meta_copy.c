@@ -463,9 +463,11 @@ radv_CmdCopyBufferToImage2(VkCommandBuffer commandBuffer, const VkCopyBufferToIm
       if (cmd_buffer->qf == RADV_QUEUE_TRANSFER) {
          transfer_copy_memory_image(cmd_buffer, src_copy_flags, dst_image, &copy, true);
       } else {
-         const bool use_compute = cmd_buffer->qf == RADV_QUEUE_COMPUTE || !radv_image_is_renderable(pdev, dst_image) ||
-                                  (pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE &&
-                                   !vk_format_is_depth_or_stencil(dst_image->vk.format));
+         const bool use_compute =
+            cmd_buffer->qf == RADV_QUEUE_COMPUTE || !radv_image_is_renderable(pdev, dst_image) ||
+            ((pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE ||
+              pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_COMPUTE) &&
+             !vk_format_is_depth_or_stencil(dst_image->vk.format));
          gfx_or_compute_copy_memory_to_image(cmd_buffer, src_copy_flags, dst_image, &copy, use_compute);
       }
    }
@@ -523,8 +525,10 @@ radv_CmdCopyMemoryToImageKHR(VkCommandBuffer commandBuffer, const VkCopyDeviceMe
       if (cmd_buffer->qf == RADV_QUEUE_TRANSFER) {
          transfer_copy_memory_image(cmd_buffer, copy_flags, dst_image, region, true);
       } else {
-         const bool use_compute = cmd_buffer->qf == RADV_QUEUE_COMPUTE || !radv_image_is_renderable(pdev, dst_image) ||
-                                  pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE;
+         const bool use_compute =
+            cmd_buffer->qf == RADV_QUEUE_COMPUTE || !radv_image_is_renderable(pdev, dst_image) ||
+            pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE ||
+            pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_COMPUTE;
          gfx_or_compute_copy_memory_to_image(cmd_buffer, copy_flags, dst_image, region, use_compute);
       }
    }
@@ -1004,7 +1008,8 @@ radv_CmdCopyImage2(VkCommandBuffer commandBuffer, const VkCopyImageInfo2 *pCopyI
       } else {
          const bool use_compute =
             cmd_buffer->qf == RADV_QUEUE_COMPUTE || !radv_image_is_renderable(pdev, dst_image) ||
-            (pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE &&
+            ((pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE ||
+              pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_COMPUTE) &&
              !(dst_aspect_mask & (VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT)) &&
              radv_layout_fmask_compression(device, dst_image, pCopyImageInfo->dstImageLayout,
                                            radv_image_queue_family_mask(dst_image, cmd_buffer->qf)) ==
@@ -1095,9 +1100,11 @@ radv_CmdCopyMemoryToImageIndirectKHR(VkCommandBuffer commandBuffer,
 
    radv_meta_begin(cmd_buffer);
 
-   const bool use_compute = cmd_buffer->qf == RADV_QUEUE_COMPUTE || !radv_image_is_renderable(pdev, dst_image) ||
-                            (pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE &&
-                             !vk_format_is_depth_or_stencil(dst_image->vk.format));
+   const bool use_compute =
+      cmd_buffer->qf == RADV_QUEUE_COMPUTE || !radv_image_is_renderable(pdev, dst_image) ||
+      ((pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_COMPUTE ||
+        pdev->drirc.performance.image_meta_path == RADV_IMAGE_META_PATH_FAST_CLEAR_ELSE_COMPUTE) &&
+       !vk_format_is_depth_or_stencil(dst_image->vk.format));
    if (use_compute) {
       radv_compute_copy_memory_to_image_indirect(cmd_buffer, pCopyMemoryToImageIndirectInfo);
    } else {
