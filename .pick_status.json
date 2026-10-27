@@ -1214,7 +1214,7 @@
         "description": "radeonsi/mm: Set PIPE_BIND_SHARED also for video buffers with modifiers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "72b7fcb67c570c4600e20fa8fcceb66170a21bb2",
         "notes": null

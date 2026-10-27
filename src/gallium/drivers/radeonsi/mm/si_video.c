@@ -135,8 +135,13 @@ struct pipe_video_buffer *si_video_buffer_create_with_modifiers(struct pipe_cont
                                                                 unsigned int modifiers_count)
 {
    struct si_screen *sscreen = (struct si_screen *)pipe->screen;
+   struct pipe_video_buffer vidbuf = *tmpl;
    uint64_t *allowed_modifiers;
    unsigned int allowed_modifiers_count, i;
+
+   /* Avoid reallocation when exporting the surface, avoid suballocation and
+    * BO reuse to ensure new surface is always zeroed. */
+   vidbuf.bind |= PIPE_BIND_SHARED;
 
    allowed_modifiers = calloc(modifiers_count, sizeof(uint64_t));
    if (!allowed_modifiers)
@@ -161,7 +166,7 @@ struct pipe_video_buffer *si_video_buffer_create_with_modifiers(struct pipe_cont
    }
 
    struct pipe_video_buffer *buf =
-      vl_video_buffer_create_as_resource(pipe, tmpl, allowed_modifiers, allowed_modifiers_count);
+      vl_video_buffer_create_as_resource(pipe, &vidbuf, allowed_modifiers, allowed_modifiers_count);
    free(allowed_modifiers);
    return buf;
 }
