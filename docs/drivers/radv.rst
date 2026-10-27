@@ -51,6 +51,15 @@ Additionally, the RADV team agreed on the following workflow for contributions:
 In case your MR needs to be merged immediately (should be rarely needed), feel
 free to ping the developers to get more approvals.
 
+If you find a bug or shortcoming in RADV and cannot address it yourself, file
+an issue on the tracker. LLM-assisted MRs require a good understanding of the
+codebase, and reviewing them has a real cost. Reviewers/maintainers may close
+such MRs at their discretion.
+
+LLM-written issues are discouraged: they tend to be verbose and hard to read.
+Please describe the issue in your own words. LLM-generated reproducers are
+fine as long as you have reviewed them and they demonstrate the bug.
+
 Supported hardware
 ~~~~~~~~~~~~~~~~~~
 
