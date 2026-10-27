@@ -484,7 +484,7 @@
         "description": "freedreno/a5xx: the a509 and a512 register files hold 96 vec4 per wave",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c4874b4cee6925f3faa2d68e780c7ea0d16c7ba8",
         "notes": null
