@@ -42,10 +42,33 @@
 
 struct vl_rbsp {
    struct vl_vlc nal;
-   unsigned escaped;
+   unsigned zero_bytes;
    unsigned removed;
    bool emulation_bytes;
 };
+
+/**
+ * Remove the emulation prevention three bytes from the bytes that start at bit pos of the bit
+ * buffer, which have to be on a byte boundary and not checked yet
+ */
+static inline void vl_rbsp_unescape(struct vl_rbsp *rbsp, unsigned pos)
+{
+   unsigned bits = vl_vlc_valid_bits(&rbsp->nal);
+
+   while (pos + 8 <= bits) {
+      unsigned byte = vl_vlc_peekbits(&rbsp->nal, pos + 8) & 0xff;
+
+      if (rbsp->zero_bytes >= 2 && byte == 0x03) {
+         vl_vlc_removebits(&rbsp->nal, pos, 8);
+         rbsp->removed += 8;
+         rbsp->zero_bytes = 0;
+         bits -= 8;
+      } else {
+         rbsp->zero_bytes = byte == 0x00 ? rbsp->zero_bytes + 1 : 0;
+         pos += 8;
+      }
+   }
+}
 
 /**
  * Initialize the RBSP object
@@ -53,13 +76,12 @@ struct vl_rbsp {
 static inline void vl_rbsp_init(struct vl_rbsp *rbsp, struct vl_vlc *nal, unsigned num_bits,
                                 bool emulation_bytes)
 {
-   unsigned valid, bits_left = vl_vlc_bits_left(nal);
-   int i;
+   unsigned bits_left = vl_vlc_bits_left(nal);
 
    /* copy the position */
    rbsp->nal = *nal;
 
-   rbsp->escaped = 0;
+   rbsp->zero_bytes = 0;
    rbsp->removed = 0;
    rbsp->emulation_bytes = emulation_bytes;
 
@@ -76,18 +98,8 @@ static inline void vl_rbsp_init(struct vl_rbsp *rbsp, struct vl_vlc *nal, unsign
       vl_vlc_eatbits(nal, 8);
    }
 
-   valid = vl_vlc_valid_bits(&rbsp->nal);
    /* search for the emulation prevention three byte */
-   for (i = 24; i <= valid; i += 8) {
-      if ((vl_vlc_peekbits(&rbsp->nal, i) & 0xffffff) == 0x3) {
-         vl_vlc_removebits(&rbsp->nal, i - 8, 8);
-         i += 8;
-      }
-   }
-
-   valid = vl_vlc_valid_bits(&rbsp->nal);
-
-   rbsp->escaped = (valid >= 16) ? 16 : ((valid >= 8) ? 8 : 0);
+   vl_rbsp_unescape(rbsp, 0);
 }
 
 /**
@@ -96,7 +108,6 @@ static inline void vl_rbsp_init(struct vl_rbsp *rbsp, struct vl_vlc *nal, unsign
 static inline void vl_rbsp_fillbits(struct vl_rbsp *rbsp)
 {
    unsigned valid = vl_vlc_valid_bits(&rbsp->nal);
-   unsigned i, bits;
 
    /* abort if we still have enough bits */
    if (valid >= 32)
@@ -108,25 +119,8 @@ static inline void vl_rbsp_fillbits(struct vl_rbsp *rbsp)
    if (!rbsp->emulation_bytes)
       return;
 
-   /* abort if we have less than 24 bits left in this nal */
-   if (vl_vlc_bits_left(&rbsp->nal) < 24)
-      return;
-
-   /* handle the already escaped bits */
-   valid -= rbsp->escaped;
-
-   /* search for the emulation prevention three byte */
-   rbsp->escaped = 16;
-   bits = vl_vlc_valid_bits(&rbsp->nal);
-   for (i = valid + 24; i <= bits; i += 8) {
-      if ((vl_vlc_peekbits(&rbsp->nal, i) & 0xffffff) == 0x3) {
-         vl_vlc_removebits(&rbsp->nal, i - 8, 8);
-         rbsp->escaped = bits - i;
-         bits -= 8;
-         rbsp->removed += 8;
-         i += 8;
-      }
-   }
+   /* only the bytes just read in are new, the ones before were already checked */
+   vl_rbsp_unescape(rbsp, valid);
 }
 
 /**
