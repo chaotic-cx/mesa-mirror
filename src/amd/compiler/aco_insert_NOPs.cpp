@@ -83,7 +83,8 @@ struct NOP_ctx_gfx6 {
       if ((setreg_then_getsetreg -= amount) < 0)
          setreg_then_getsetreg = 0;
 
-      vmem_store_then_wr_data.reset();
+      if (amount > 0)
+         vmem_store_then_wr_data.reset();
    }
 
    /* setting MODE.vskip and then any vector op requires 2 wait states */
@@ -327,6 +328,8 @@ get_wait_states(aco_ptr<Instruction>& instr)
       return instr->salu().imm + 1;
    else if (instr->opcode == aco_opcode::p_constaddr)
       return 3; /* lowered to 3 instructions in the assembler */
+   else if (instr->isPseudo())
+      return 0;
    else
       return 1;
 }
@@ -627,7 +630,8 @@ handle_instruction_gfx6(State& state, NOP_ctx_gfx6& ctx, aco_ptr<Instruction>& i
    }
 
    /* update information to check for later hazards */
-   if ((ctx.smem_clause || ctx.smem_write) && (NOPs || instr->format != Format::SMEM)) {
+   if ((ctx.smem_clause || ctx.smem_write) &&
+       (NOPs || (!instr->isSMEM() && get_wait_states(instr) > 0))) {
       ctx.smem_clause = false;
       ctx.smem_write = false;
 
@@ -712,7 +716,7 @@ is_latest_instr_vintrp(bool& global_state, bool& block_state, aco_ptr<Instructio
 {
    if (pred->isVINTRP())
       global_state = true;
-   return true;
+   return get_wait_states(pred) > 0;
 }
 
 template <bool Salu, bool Sgpr>
@@ -1076,7 +1080,7 @@ handle_instruction_gfx10(State& state, NOP_ctx_gfx10& ctx, aco_ptr<Instruction>&
     */
    if (instr->opcode == aco_opcode::v_writelane_b32_e64) {
       ctx.has_writelane = true;
-   } else if (ctx.has_writelane) {
+   } else if (ctx.has_writelane && get_wait_states(instr) > 0) {
       ctx.has_writelane = false;
       if (instr->isMIMG() && get_mimg_nsa_dwords(instr.get()) > 0)
          bld.sopp(aco_opcode::s_nop, 0);
