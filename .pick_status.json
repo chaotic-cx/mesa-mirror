@@ -254,7 +254,7 @@
         "description": "egl/wsi/wayland: ignore default_dmabuf_feedback_done",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "342e7e402710898aa9d9f3669e8468c9b3c43ed1",
         "notes": null

@@ -2270,8 +2270,7 @@ static void
 default_dmabuf_feedback_done(
    void *data, struct zwp_linux_dmabuf_feedback_v1 *dmabuf_feedback)
 {
-   struct dri2_egl_display *dri2_dpy = data;
-   dmabuf_feedback_fini(&dri2_dpy->dmabuf_feedback);
+   /* Intentionally empty */
 }
 
 static const struct zwp_linux_dmabuf_feedback_v1_listener
