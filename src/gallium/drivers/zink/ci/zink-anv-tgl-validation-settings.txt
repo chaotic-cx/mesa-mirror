@@ -1,6 +1,6 @@
 # Please include a comment with the log message and a testcase triggering each
 # VUID at the bottom of the file.
-khronos_validation.message_id_filter = VUID-VkPhysicalDeviceProperties2-pNext-pNext,VUID-VkDeviceCreateInfo-pNext-pNext,VUID-RuntimeSpirv-Location-06272,07753,VUID-RuntimeSpirv-OpEntryPoint-08743,10909,VUID-vkDestroyDevice-device-05137,VUID-VkDeviceAddress-size-11364,VUID-VkStridedDeviceAddressRangeKHR-address-11365,VUID-StandaloneSpirv-OpEntryPoint-08721,VUID-VkImageDrmFormatModifierListCreateInfoEXT-pDrmFormatModifiers-02263,UNASSIGNED-VkMemoryAllocateInfo-pNext-dedicated-image-export,VUID-vkCmdBeginQuery-queryPool-01922,VUID-vkCmdDrawMultiEXT-format-07753,VUID-vkCmdDraw-None-02691,VUID-vkCmdDrawMultiEXT-imageLayout-00344,VUID-vkCmdDrawMultiEXT-viewType-07752,VUID-VkSparseMemoryBind-resourceOffset-09491,VUID-vkCmdDraw-imageLayout-00344,VUID-vkCmdDraw-viewType-07752
+khronos_validation.message_id_filter = VUID-VkPhysicalDeviceProperties2-pNext-pNext,VUID-VkDeviceCreateInfo-pNext-pNext,VUID-RuntimeSpirv-Location-06272,07753,VUID-RuntimeSpirv-OpEntryPoint-08743,10909,VUID-vkDestroyDevice-device-05137,VUID-VkDeviceAddress-size-11364,VUID-VkStridedDeviceAddressRangeKHR-address-11365,VUID-StandaloneSpirv-OpEntryPoint-08721,VUID-VkImageDrmFormatModifierListCreateInfoEXT-pDrmFormatModifiers-02263,VUID-VkMemoryAllocateInfo-pNext-12539,VUID-vkCmdBeginQuery-queryPool-01922,VUID-vkCmdDrawMultiEXT-format-07753,VUID-vkCmdDraw-None-02691,VUID-vkCmdDrawMultiEXT-imageLayout-00344,VUID-vkCmdDrawMultiEXT-viewType-07752,VUID-VkSparseMemoryBind-resourceOffset-09491,VUID-vkCmdDraw-imageLayout-00344,VUID-vkCmdDraw-viewType-07752
 khronos_validation.report_flags = error
 khronos_validation.debug_action = VK_DBG_LAYER_ACTION_LOG_MSG,VK_DBG_LAYER_ACTION_BREAK
 VK_LAYER_ENABLES=VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT
@@ -85,7 +85,7 @@ khronos_validation.log_filename = stdout
 
 # hiz@hiz-depth-read-window-stencil1
 #
-# Validation Error: [ UNASSIGNED-VkMemoryAllocateInfo-pNext-dedicated-image-export ] | MessageID = 0xf2edc553
+# Validation Error: [ VUID-VkMemoryAllocateInfo-pNext-12539 ] | MessageID = 0xf2edc553
 # vkAllocateMemory(): pAllocateInfo->pNext<VkExportMemoryAllocateInfo>.handleTypes (VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT|VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) includes VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT, which is not reported as exportable for the dedicated VkImage 0x1b000000001b.
 # Objects: 1
 #     [0] VkImage 0x1b000000001b

@@ -1,6 +1,6 @@
 # Please include a comment with the log message and a testcase triggering each
 # VUID at the bottom of the file.
-khronos_validation.message_id_filter = VUID-VkPhysicalDeviceProperties2-pNext-pNext,VUID-VkDeviceCreateInfo-pNext-pNext,VUID-VkRenderingAttachmentInfo-pNext-pNext,VUID-RuntimeSpirv-Location-06272,VUID-RuntimeSpirv-OpEntryPoint-08743,VUID-StandaloneSpirv-OpEntryPoint-08721,08911,08879,VUID-vkDestroyDevice-device-05137,VUID-vkQueueSubmit-pCommandBuffers-00065,VUID-VkShaderCreateInfoEXT-pCode-08737,10909,VUID-VkDeviceAddress-size-11364,VUID-VkStridedDeviceAddressRangeKHR-address-11365,VUID-vkDestroyShaderEXT-shader-08482,VUID-VkMemoryGetFdInfoKHR-handleType-00671,VUID-vkCmdBeginQuery-queryPool-01922,VUID-VkSparseMemoryBind-resourceOffset-09491,VUID-vkDestroyImage-image-01000,VUID-vkCmdDraw-None-09600
+khronos_validation.message_id_filter = VUID-VkPhysicalDeviceProperties2-pNext-pNext,VUID-VkDeviceCreateInfo-pNext-pNext,VUID-VkRenderingAttachmentInfo-pNext-pNext,VUID-RuntimeSpirv-Location-06272,VUID-RuntimeSpirv-OpEntryPoint-08743,VUID-StandaloneSpirv-OpEntryPoint-08721,08911,08879,VUID-vkDestroyDevice-device-05137,VUID-vkQueueSubmit-pCommandBuffers-00065,VUID-VkShaderCreateInfoEXT-pCode-08737,10909,VUID-VkDeviceAddress-size-11364,VUID-VkStridedDeviceAddressRangeKHR-address-11365,VUID-vkDestroyShaderEXT-shader-08482,VUID-VkMemoryGetFdInfoKHR-handleType-00671,VUID-vkCmdBeginQuery-queryPool-01922,VUID-VkSparseMemoryBind-resourceOffset-09491,VUID-vkDestroyImage-image-01000,VUID-vkCmdDraw-None-09600,VUID-vkCmdPipelineBarrier2-commandBuffer-recording
 khronos_validation.report_flags = error
 khronos_validation.debug_action = VK_DBG_LAYER_ACTION_LOG_MSG,VK_DBG_LAYER_ACTION_BREAK
 VK_LAYER_ENABLES=VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT
@@ -65,3 +65,12 @@ khronos_validation.log_filename = stdout
 # Objects: 2
 #     [0] VkCommandBuffer 0x7fdf40019830[zink barrier cmdbuf]
 #     [1] VkImage 0x4a000000004a
+
+# dEQP-GLES31.functional.copy_image.mixed.viewclass_128_bits_mixed.rgba32ui_rgba_astc_6x6_khr.texture2d_to_texture3d
+# flaky, happens intermittently
+#
+# Validation Error: [ VUID-vkCmdPipelineBarrier2-commandBuffer-recording ] | MessageID = 0xe51ba291
+# vkCmdPipelineBarrier2(): was called before vkBeginCommandBuffer().
+# The Vulkan spec states: commandBuffer must be in the recording state (https://docs.vulkan.org/spec/latest/chapters/synchronization.html#VUID-vkCmdPipelineBarrier2-commandBuffer-recording)
+# Objects: 1
+#     [0] VkCommandBuffer 0x55a3bc0f0180

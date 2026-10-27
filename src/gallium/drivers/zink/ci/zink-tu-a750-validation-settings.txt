@@ -1,6 +1,6 @@
 # Please include a comment with the log message and a testcase triggering each
 # VUID at the bottom of the file.
-khronos_validation.message_id_filter = VUID-VkPhysicalDeviceProperties2-pNext-pNext,VUID-VkDeviceCreateInfo-pNext-pNext,VUID-vkDestroyDevice-device-05137,VUID-VkRenderingAttachmentInfo-None-12256,VUID-VkDeviceAddress-size-11364,VUID-VkStridedDeviceAddressRangeKHR-address-11365,VUID-VkDescriptorGetInfoEXT-type-12493,VUID-RuntimeSpirv-OpEntryPoint-08743,VUID-vkDestroyImage-image-01000,VUID-VkPresentInfoKHR-pImageIndices-01430,VUID-StandaloneSpirv-OpEntryPoint-08721,VUID-vkCmdBeginQuery-queryPool-01922,VUID-vkDestroySemaphore-semaphore-05149,VUID-VkRenderingAttachmentInfo-imageView-06130,VUID-vkResetCommandPool-commandPool-00040,VUID-VkImageCreateInfo-pNext-00990,VUID-vkDestroySemaphore-semaphore-05149,VUID-vkResetCommandPool-commandPool-00040,VUID-VkImageCreateInfo-pNext-00990,UNASSIGNED-VkMemoryAllocateInfo-pNext-dedicated-image-export
+khronos_validation.message_id_filter = VUID-VkPhysicalDeviceProperties2-pNext-pNext,VUID-VkDeviceCreateInfo-pNext-pNext,VUID-vkDestroyDevice-device-05137,VUID-VkRenderingAttachmentInfo-None-12256,VUID-VkDeviceAddress-size-11364,VUID-VkStridedDeviceAddressRangeKHR-address-11365,VUID-VkDescriptorGetInfoEXT-type-12493,VUID-RuntimeSpirv-OpEntryPoint-08743,VUID-vkDestroyImage-image-01000,VUID-VkPresentInfoKHR-pImageIndices-01430,VUID-StandaloneSpirv-OpEntryPoint-08721,VUID-vkCmdBeginQuery-queryPool-01922,VUID-vkDestroySemaphore-semaphore-05149,VUID-VkRenderingAttachmentInfo-imageView-06130,VUID-vkResetCommandPool-commandPool-00040,VUID-VkImageCreateInfo-pNext-00990,VUID-vkDestroySemaphore-semaphore-05149,VUID-vkResetCommandPool-commandPool-00040,VUID-VkImageCreateInfo-pNext-00990,VUID-VkMemoryAllocateInfo-pNext-12539,VUID-vkDestroyImageView-imageView-01026
 khronos_validation.report_flags = error
 khronos_validation.debug_action = VK_DBG_LAYER_ACTION_LOG_MSG,VK_DBG_LAYER_ACTION_BREAK
 VK_LAYER_ENABLES=VK_VALIDATION_FEATURE_ENABLE_DEBUG_PRINTF_EXT
@@ -131,7 +131,13 @@ khronos_validation.log_filename = stdout
 
 # spec@egl 1.4@egl-ext_egl_image_storage
 #
-# Validation Error: [ UNASSIGNED-VkMemoryAllocateInfo-pNext-dedicated-image-export ] | MessageID = 0xf2edc553
+# Validation Error: [ VUID-VkMemoryAllocateInfo-pNext-12539 ] | MessageID = 0xf2edc553
 # vkAllocateMemory(): pAllocateInfo->pNext<VkExportMemoryAllocateInfo>.handleTypes (VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT) includes VK_EXTERNAL_MEMORY_HANDLE_TYPE_DMA_BUF_BIT_EXT, which is not reported as exportable for the dedicated VkImage 0x560000000056.
 # Objects: 1
 #     [0] VkImage 0x560000000056
+
+# spec@arb_direct_state_access@texture-storage-multisample
+#
+# Validation Error: [ VUID-vkDestroyImageView-imageView-01026 ] | MessageID = 0x63ac21f0
+# vkDestroyImageView(): can't be called on VkImageView 0x2f000000002f that is currently in use by VkCommandBuffer 0xaaaace2e2470[zink cmdbuf].
+# The Vulkan spec states: All submitted commands that refer to imageView must have completed execution (https://docs.vulkan.org/spec/latest/chapters/resources.html#VUID-vkDestroyImageView-imageView-01026)
