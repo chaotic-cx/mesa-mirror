@@ -834,7 +834,7 @@
         "description": "zink: unlock the copy context when timestamp query creation fails",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "0befc259a649acad02937276b1008383d2f84c62",
         "notes": null
