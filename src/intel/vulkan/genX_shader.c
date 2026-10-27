@@ -1148,6 +1148,9 @@ emit_cs_shader(struct anv_batch *batch,
       get_shader_cs_prog_data(shader);
    const struct intel_cs_dispatch_info dispatch =
       brw_cs_get_dispatch_info(devinfo, cs_prog_data, NULL);
+   UNUSED const enum intel_compute_walk_order walk_order =
+      anv_compute_walk_order(device->physical->drirc.perf.force_preferred_walk_order,
+                             cs_prog_data->walk_order);
 
    if (GFX_VERx10 >= 350 && device->physical->uses_efficient_64bit) {
 #if GFX_VERx10 >= 350
@@ -1173,8 +1176,8 @@ emit_cs_shader(struct anv_batch *batch,
          .GenerateLocalID        = cs_prog_data->generate_local_id != 0,
          .EmitLocal              = cs_prog_data->generate_local_id,
          .EmitInlineParameter    = true,
-         .WalkOrder              = cs_prog_data->walk_order,
-         .TileLayout             = cs_prog_data->walk_order == INTEL_WALK_ORDER_YXZ ?
+         .WalkOrder              = walk_order,
+         .TileLayout             = walk_order == INTEL_WALK_ORDER_YXZ ?
                                    TL_TileY32bpe : TL_Linear,
          .DispatchWalkOrder      = cs_prog_data->uses_sampler ? DWO_Morton2x2XYWalk : DWO_LinearWalk,
          .ThreadGroupBatchSize   = cs_prog_data->uses_sampler ? TGBS_TG_BATCH_4 : TGBS_TG_BATCH_1,
@@ -1225,8 +1228,8 @@ emit_cs_shader(struct anv_batch *batch,
          .MessageSIMD                    = dispatch.simd_size / 16,
          .GenerateLocalID                = cs_prog_data->generate_local_id != 0,
          .EmitLocal                      = cs_prog_data->generate_local_id,
-         .WalkOrder                      = cs_prog_data->walk_order,
-         .TileLayout                     = cs_prog_data->walk_order == INTEL_WALK_ORDER_YXZ ?
+         .WalkOrder                      = walk_order,
+         .TileLayout                     = walk_order == INTEL_WALK_ORDER_YXZ ?
          TileY32bpe : Linear,
          .LocalXMaximum                  = cs_prog_data->local_size[0] - 1,
          .LocalYMaximum                  = cs_prog_data->local_size[1] - 1,

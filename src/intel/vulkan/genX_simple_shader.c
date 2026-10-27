@@ -595,6 +595,10 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
                                                   &z_pass_async_compute_thread_limit,
                                                   &np_z_async_throttle_settings);
 
+         const enum intel_compute_walk_order walk_order =
+            anv_compute_walk_order(device->physical->drirc.perf.force_preferred_walk_order,
+                                   prog_data->walk_order);
+
          struct GENX(COMPUTE_WALKER_BODY_2) body = {
             .MaximumNumberofThreads    = device->info->max_cs_threads * device->info->subslice_total,
             .StackIDControl            = genX(compute_walker2_get_stack_id_control_value)(device),
@@ -603,8 +607,8 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             .GenerateLocalID           = prog_data->generate_local_id != 0,
             .EmitLocal                 = prog_data->generate_local_id,
             .EmitInlineParameter       = true,
-            .WalkOrder                 = prog_data->walk_order,
-            .TileLayout                = prog_data->walk_order == INTEL_WALK_ORDER_YXZ ?
+            .WalkOrder                 = walk_order,
+            .TileLayout                = walk_order == INTEL_WALK_ORDER_YXZ ?
                                          TileY32bpe : Linear,
             .StatCountDisable          = true,
             .DispatchWalkOrder         = prog_data->uses_sampler ? DWO_Morton2x2XYWalk : DWO_LinearWalk,
@@ -680,6 +684,10 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             }
          }
 
+         const enum intel_compute_walk_order walk_order =
+            anv_compute_walk_order(device->physical->drirc.perf.force_preferred_walk_order,
+                                   prog_data->walk_order);
+
          struct GENX(COMPUTE_WALKER_BODY) body = {
             .SIMDSize                       = dispatch.simd_size / 16,
             .MessageSIMD                    = dispatch.simd_size / 16,
@@ -694,9 +702,9 @@ genX(emit_simple_shader_dispatch)(struct anv_simple_shader *state,
             .PostSync.MOCS                  = anv_mocs(device, NULL, 0),
             .GenerateLocalID                = prog_data->generate_local_id != 0,
             .EmitLocal                      = prog_data->generate_local_id,
-            .WalkOrder                      = prog_data->walk_order,
-            .TileLayout = prog_data->walk_order == INTEL_WALK_ORDER_YXZ ?
-            TileY32bpe : Linear,
+            .WalkOrder                      = walk_order,
+            .TileLayout                     = walk_order == INTEL_WALK_ORDER_YXZ ?
+                                              TileY32bpe : Linear,
 
             .InterfaceDescriptor = (struct GENX(INTERFACE_DESCRIPTOR_DATA)) {
                .KernelStartPointer                = state->kernel->kernel.offset +

@@ -209,6 +209,23 @@ align_down_npot_u64(uint64_t v, uint64_t a)
    return v - (v % a);
 }
 
+/*
+ * The DRIRC value anv_force_preferred_walk_order is an
+ * enum intel_compute_walk_order value + 1, so that 0 can mean "not set,
+ * use the compiled walk order".
+ *
+ * Returns the default walk_order when the DRIRC value is 0 (not set).
+ */
+static inline enum intel_compute_walk_order
+anv_compute_walk_order(unsigned force_preferred_walk_order, enum intel_compute_walk_order walk_order)
+{
+   if (force_preferred_walk_order == 0)
+      return walk_order;
+
+   assert(force_preferred_walk_order <= INTEL_WALK_ORDER_ZYX + 1);
+   return (enum intel_compute_walk_order)(force_preferred_walk_order - 1);
+}
+
 static inline union isl_color_value
 vk_to_isl_color(VkClearColorValue color)
 {

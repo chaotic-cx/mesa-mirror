@@ -282,6 +282,17 @@ def declare_options(android_version):
         I("anv_rt_tile_y", 0, 0, 64,
           "Ray tracing dispatch tile height (0 for automatic)",
           c_name="rt_tile_y"),
+        E("anv_force_preferred_walk_order", 0, 0, 6,
+          [EV(0, "use the compiled default walk order"),
+           EV(1, "force XYZ (linear) walk order"),
+           EV(2, "force XZY walk order"),
+           EV(3, "force YXZ walk order"),
+           EV(4, "force YZX walk order"),
+           EV(5, "force ZXY walk order"),
+           EV(6, "force ZYX walk order")],
+          "Force preferred walk order for compute shader invocations "
+          "(enum intel_compute_walk_order value + 1, 0 = compiled default)",
+          c_name="force_preferred_walk_order"),
     ]
 
     feature_options = [
