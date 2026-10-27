@@ -394,7 +394,7 @@
         "description": "venus: terminate pNext properly in vn_fix_command_buffer_begin_info",
         "nominated": true,
         "nomination_type": 1,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": null,
         "notes": null
