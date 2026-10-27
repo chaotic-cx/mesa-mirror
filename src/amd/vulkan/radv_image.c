@@ -1226,6 +1226,23 @@ radv_image_create_layout(struct radv_device *device, struct radv_image_create_in
       info.width = vk_format_get_plane_width(image->vk.format, plane, info.width);
       info.height = vk_format_get_plane_height(image->vk.format, plane, info.height);
 
+      /* GFX9 has no NBC view. Pad mipmapped 2D ASTC so the pitch covers block_count << mip (6x6 mip7: 192 >> 7 = 1). */
+      if (pdev->info.gfx_level == GFX9 && plane == 0 && radv_is_format_emulated(pdev, image->vk.format) &&
+          vk_format_description(image->vk.format)->layout == UTIL_FORMAT_LAYOUT_ASTC &&
+          image->vk.image_type == VK_IMAGE_TYPE_2D && image->vk.mip_levels > 1) {
+         const unsigned bw = vk_format_get_blockwidth(image->vk.format);
+         const unsigned bh = vk_format_get_blockheight(image->vk.format);
+         const unsigned blocks_w = DIV_ROUND_UP(info.width, bw);
+         const unsigned blocks_h = DIV_ROUND_UP(info.height, bh);
+         const unsigned pad_blocks_w = util_next_power_of_two(blocks_w);
+         const unsigned pad_blocks_h = util_next_power_of_two(blocks_h);
+         if (pad_blocks_w != blocks_w || pad_blocks_h != blocks_h) {
+            info.width = pad_blocks_w * bw;
+            info.height = pad_blocks_h * bh;
+            image->planes[plane].gfx9_astc_padded = true;
+         }
+      }
+
       if (create_info.no_metadata_planes || (pdev->info.gfx_level < GFX12 && plane_count > 1)) {
          image->planes[plane].surface.flags |= RADEON_SURF_DISABLE_DCC | RADEON_SURF_NO_FMASK | RADEON_SURF_NO_HTILE;
       }

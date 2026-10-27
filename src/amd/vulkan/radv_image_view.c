@@ -610,7 +610,7 @@ radv_image_view_init(struct radv_image_view *iview, struct radv_device *device,
          /* If we have multiple levels in the view we should ideally take the last level,
           * but the mip calculation has a max(..., 1) so walking back to the base mip in an
           * useful way is hard. */
-         if (iview->vk.level_count > 1) {
+         if (iview->vk.level_count > 1 || plane->gfx9_astc_padded) {
             iview->extent.width = plane->surface.u.gfx9.base_mip_width;
             iview->extent.height = plane->surface.u.gfx9.base_mip_height;
          } else {

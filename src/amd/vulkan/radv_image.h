@@ -29,6 +29,8 @@ struct radv_image_plane {
    VkFormat format;
    struct radeon_surf surface;
    uint32_t first_mip_pipe_misaligned; /* GFX10-GFX11.5 */
+   /* Whether ASTC mipmapped images are padded on GFX9. */
+   bool gfx9_astc_padded;
 };
 
 struct radv_image_binding {
