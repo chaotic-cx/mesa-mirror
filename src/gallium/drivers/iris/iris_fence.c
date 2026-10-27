@@ -630,25 +630,74 @@ iris_fence_signal(struct pipe_context *ctx,
                   uint64_t value)
 {
    struct iris_context *ice = (struct iris_context *)ctx;
+   struct iris_screen *screen = (struct iris_screen *)ctx->screen;
+   struct iris_bufmgr *bufmgr = screen->bufmgr;
+   struct iris_syncobj *engine_completion[IRIS_BATCH_COUNT] = {};
+   struct iris_batch *join_batch = &ice->batches[IRIS_BATCH_RENDER];
    assert(!value);
 
    if (ctx == fence->unflushed_ctx)
       return;
 
-   iris_foreach_batch(ice, batch) {
-      for (unsigned i = 0; i < ARRAY_SIZE(fence->fine); i++) {
-         struct iris_fine_fence *fine = fence->fine[i];
-
-         /* already signaled fence skipped */
-         if (iris_fine_fence_signaled(fine))
-            continue;
-
-         batch->contains_fence_signal = true;
-         iris_batch_add_syncobj(batch, fine->syncobj, IRIS_BATCH_FENCE_SIGNAL);
+   bool needs_signal = false;
+   for (unsigned i = 0; i < ARRAY_SIZE(fence->fine); i++) {
+      if (!iris_fine_fence_signaled(fence->fine[i])) {
+         needs_signal = true;
+         break;
       }
-      if (batch->contains_fence_signal)
-         iris_batch_flush(batch);
    }
+   if (!needs_signal)
+      return;
+
+   /* Signalling the same binary syncobj from multiple engine submissions does
+    * not join them.  The syncobj becomes signalled as soon as any submission
+    * completes, allowing an external waiter to run while another engine still
+    * has pending work.
+    *
+    * Use the render batch as a join.  Flush queued work on other engines and
+    * wait on their completion points.  If an engine has no queued work but its
+    * last submission is still in flight, reuse that completion point rather
+    * than forcing an empty submission.  The render submission itself orders
+    * the external signal after all render work recorded before this call.
+    */
+   iris_foreach_batch(ice, batch) {
+      if (batch == join_batch)
+         continue;
+
+      if (iris_batch_bytes_used(batch) > 0) {
+         iris_batch_reference_signal_syncobj(
+            batch, &engine_completion[batch->name]);
+         iris_batch_flush(batch);
+      } else if (!iris_fine_fence_signaled(batch->last_fence)) {
+         iris_syncobj_reference(bufmgr,
+                                &engine_completion[batch->name],
+                                batch->last_fence->syncobj);
+      }
+   }
+
+   for (unsigned i = 0; i < ARRAY_SIZE(engine_completion); i++) {
+      if (!engine_completion[i])
+         continue;
+
+      iris_batch_add_syncobj(join_batch, engine_completion[i],
+                             IRIS_BATCH_FENCE_WAIT);
+      iris_syncobj_reference(bufmgr, &engine_completion[i], NULL);
+   }
+
+   for (unsigned i = 0; i < ARRAY_SIZE(fence->fine); i++) {
+      struct iris_fine_fence *fine = fence->fine[i];
+
+      /* already signaled fence skipped */
+      if (iris_fine_fence_signaled(fine))
+         continue;
+
+      join_batch->contains_fence_signal = true;
+      iris_batch_add_syncobj(join_batch, fine->syncobj,
+                             IRIS_BATCH_FENCE_SIGNAL);
+   }
+
+   if (join_batch->contains_fence_signal)
+      iris_batch_flush(join_batch);
 }
 
 void
