@@ -988,8 +988,7 @@ vn_fix_command_buffer_begin_info(struct vn_command_buffer *cmd,
     * VkCommandBufferBeginInfo::flags, parameters of this structure are
     * ignored.
     */
-   void *head = NULL;
-   void *tail = NULL;
+   void *cur = &local->inheritance;
    vk_foreach_struct_const(sType, src, local->inheritance.pNext) {
       void *pnext = NULL;
       switch (sType) {
@@ -1015,15 +1014,11 @@ vn_fix_command_buffer_begin_info(struct vn_command_buffer *cmd,
       }
 
       if (pnext) {
-         if (!head)
-            head = pnext;
-         else
-            vk_pnext_set_next(tail, pnext);
-
-         tail = pnext;
+         vk_pnext_set_next(cur, pnext);
+         cur = pnext;
       }
    }
-   local->inheritance.pNext = head;
+   vk_pnext_set_next(cur, NULL);
 
    return &local->begin;
 }
