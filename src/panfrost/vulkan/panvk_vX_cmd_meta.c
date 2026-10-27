@@ -84,6 +84,7 @@ meta_compute_start(struct panvk_cmd_buffer *cmdbuf,
       cmdbuf->state.compute.desc_state.push_sets[0];
 
    save_ctx->set0 = set0;
+   save_ctx->descriptor_model = cmdbuf->state.compute.desc_state.active_model;
    if (push_set0 && push_set0 == set0) {
       save_ctx->push_set0.desc_count = push_set0->desc_count;
       save_ctx->push_set0.descs_dev_addr = push_set0->descs.dev;
@@ -124,6 +125,7 @@ meta_compute_end(struct panvk_cmd_buffer *cmdbuf,
 #endif
 
    cmdbuf->state.compute.desc_state.sets[0] = save_ctx->set0;
+   cmdbuf->state.compute.desc_state.active_model = save_ctx->descriptor_model;
    if (save_ctx->push_set0.desc_count) {
       memcpy(push_set0->descs.host, save_ctx->push_set0.desc_storage,
              save_ctx->push_set0.desc_count * PANVK_DESCRIPTOR_SIZE);
@@ -159,6 +161,7 @@ meta_gfx_start(struct panvk_cmd_buffer *cmdbuf,
       cmdbuf->state.gfx.desc_state.push_sets[0];
 
    save_ctx->set0 = set0;
+   save_ctx->descriptor_model = cmdbuf->state.gfx.desc_state.active_model;
    if (push_set0 && push_set0 == set0) {
       save_ctx->push_set0.desc_count = push_set0->desc_count;
       save_ctx->push_set0.descs_dev_addr = push_set0->descs.dev;
@@ -225,6 +228,7 @@ meta_gfx_end(struct panvk_cmd_buffer *cmdbuf,
 #endif
 
    cmdbuf->state.gfx.desc_state.sets[0] = save_ctx->set0;
+   cmdbuf->state.gfx.desc_state.active_model = save_ctx->descriptor_model;
    if (save_ctx->push_set0.desc_count) {
       memcpy(push_set0->descs.host, save_ctx->push_set0.desc_storage,
              save_ctx->push_set0.desc_count * PANVK_DESCRIPTOR_SIZE);

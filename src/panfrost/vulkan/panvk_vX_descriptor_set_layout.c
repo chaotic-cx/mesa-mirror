@@ -280,6 +280,10 @@ panvk_per_arch(GetDescriptorSetLayoutSupport)(
    const VkMutableDescriptorTypeCreateInfoEXT *mut_info = vk_find_struct_const(
       pCreateInfo->pNext, MUTABLE_DESCRIPTOR_TYPE_CREATE_INFO_EXT);
 
+   const bool for_descriptor_buffers =
+      pCreateInfo->flags &
+      VK_DESCRIPTOR_SET_LAYOUT_CREATE_DESCRIPTOR_BUFFER_BIT_EXT;
+
    pSupport->supported = false;
 
    unsigned desc_count = 0, dyn_buf_count = 0, non_variable_count = 0,
@@ -319,8 +323,12 @@ panvk_per_arch(GetDescriptorSetLayoutSupport)(
             const unsigned yuv_tex_count = panvk_image_get_tex_count(
                PAN_ARCH, sampler->vk.ycbcr_conversion->state.format);
             textures_per_desc = MAX2(yuv_tex_count, textures_per_desc);
+            /* with descriptor buffers, samplers_per_desc == textures_per_desc
+             * because of striding rules. */
             samplers_per_desc =
-               MAX2(sampler->desc_count, samplers_per_desc);
+               for_descriptor_buffers
+                  ? textures_per_desc
+                  : MAX2(sampler->desc_count, samplers_per_desc);
          }
       }
 

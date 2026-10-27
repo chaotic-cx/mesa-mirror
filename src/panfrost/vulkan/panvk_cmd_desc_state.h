@@ -57,10 +57,22 @@ struct panvk_push_set {
    struct panvk_opaque_desc descs[MAX_PUSH_DESCS];
 };
 
+struct panvk_descriptor_buffer {
+   uint64_t dev_addr;
+   uint32_t desc_count;
+};
+
+enum panvk_descriptor_model {
+   PANVK_DESCRIPTOR_MODEL_SETS,
+   PANVK_DESCRIPTOR_MODEL_BUFFERS
+};
+
 struct panvk_descriptor_state {
    const struct panvk_descriptor_set *sets[MAX_SETS];
    struct panvk_descriptor_set *push_sets[MAX_SETS];
    BITSET_DECLARE(dirty_push_sets, MAX_SETS);
+   struct panvk_descriptor_buffer descriptor_buffers[MAX_SETS];
+   enum panvk_descriptor_model active_model;
 
    uint32_t dyn_buf_offsets[MAX_SETS][MAX_DYNAMIC_BUFFERS];
    uint32_t dyn_ssbos[MAX_SETS];

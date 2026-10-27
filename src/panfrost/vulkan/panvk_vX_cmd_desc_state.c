@@ -16,6 +16,7 @@
 #include "panvk_cmd_buffer.h"
 #include "panvk_cmd_desc_state.h"
 #include "panvk_entrypoints.h"
+#include "panvk_sampler.h"
 
 #include "pan_pool.h"
 
@@ -40,6 +41,7 @@ cmd_desc_state_bind_sets(struct panvk_descriptor_state *desc_state,
          desc_state->push_sets[set_idx]->descs.dev = 0;
 
       desc_state->sets[set_idx] = set;
+      desc_state->active_model = PANVK_DESCRIPTOR_MODEL_SETS;
 
       if (set) {
          for (unsigned b = 0; b < set->layout->dyn_buf_count; b++) {
@@ -284,12 +286,30 @@ panvk_per_arch(cmd_prepare_shader_res_table)(
 
       for (uint32_t i = 0; i < first_unused_set; i++) {
          const struct panvk_descriptor_set *set = desc_state->sets[i];
+         const struct panvk_descriptor_buffer *buffer =
+            &desc_state->descriptor_buffers[i];
 
          pan_pack(&res_table[i + 1], RESOURCE, cfg) {
             if (desc_info->used_set_mask & BITFIELD_BIT(i)) {
-               cfg.address = set->descs.dev;
                cfg.contains_descriptors = true;
-               cfg.size = set->desc_count * PANVK_DESCRIPTOR_SIZE;
+
+               /* with sets we always pick the sets. with buffers, sets are
+                * invalid.. except for push sets, which we treat as descriptor
+                * sets. hence this weird dance here by only using buffers if the
+                * descriptor set in the given index is NULL.
+                * TODO: fix this alongside the heap changes in panfrost/mesa#268
+                */
+               if (set != NULL) {
+                  cfg.address = set->descs.dev;
+                  cfg.size = set->desc_count * PANVK_DESCRIPTOR_SIZE;
+               } else if (desc_state->active_model ==
+                          PANVK_DESCRIPTOR_MODEL_BUFFERS) {
+                  cfg.address = buffer->dev_addr;
+                  cfg.size = buffer->desc_count * PANVK_DESCRIPTOR_SIZE;
+               } else {
+                  /* this is UB, do nothing? `\(-_-)/` */
+                  assert(false && "neither a descriptor set nor a descriptor buffer is bound here!");
+               }
             } else {
                cfg.address = 0;
                cfg.contains_descriptors = false;
@@ -446,4 +466,164 @@ panvk_per_arch(CmdPushDescriptorSetWithTemplate2KHR)(
       gfx_state_set_dirty(cmdbuf, DESC_STATE);
    else
       compute_state_set_dirty(cmdbuf, DESC_STATE);
+}
+
+static void
+panvk_set_descriptor_buffer_offset(
+   struct panvk_cmd_buffer *cmdbuf,
+   const VkSetDescriptorBufferOffsetsInfoEXT *info,
+   VkPipelineBindPoint bind_point)
+{
+   struct vk_pipeline_layout *vk_layout =
+      vk_pipeline_layout_from_handle(info->layout);
+   struct panvk_descriptor_state *desc_state;
+   if (bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
+      desc_state = &cmdbuf->state.gfx.desc_state;
+      gfx_state_set_dirty(cmdbuf, DESC_STATE);
+   } else if (bind_point == VK_PIPELINE_BIND_POINT_COMPUTE) {
+      desc_state = &cmdbuf->state.compute.desc_state;
+      compute_state_set_dirty(cmdbuf, DESC_STATE);
+   }
+
+   for (unsigned i = 0; i < info->setCount; ++i) {
+      unsigned set_idx = i + info->firstSet;
+      const struct panvk_descriptor_set_layout *layout =
+         to_panvk_descriptor_set_layout(vk_layout->set_layouts[set_idx]);
+      const uint32_t buffer_idx = info->pBufferIndices[i];
+      const uint64_t offset = info->pOffsets[i];
+
+      desc_state->descriptor_buffers[set_idx].dev_addr =
+         cmdbuf->state.descriptor_buffers[buffer_idx] + offset;
+      desc_state->descriptor_buffers[set_idx].desc_count = layout->desc_count;
+
+      /* DB binding overrides previously bound sets. */
+      if (desc_state->sets[set_idx] &&
+          desc_state->sets[set_idx] == desc_state->push_sets[set_idx])
+         desc_state->push_sets[set_idx]->descs.dev = 0;
+      desc_state->sets[set_idx] = NULL;
+   }
+
+   desc_state->active_model = PANVK_DESCRIPTOR_MODEL_BUFFERS;
+}
+
+VKAPI_ATTR void VKAPI_CALL
+panvk_per_arch(CmdSetDescriptorBufferOffsets2EXT)(
+   VkCommandBuffer commandBuffer,
+   const VkSetDescriptorBufferOffsetsInfoEXT *pSetDescriptorBufferOffsetsInfo)
+{
+   /* don't be fooled by the name of this function, this is where you're
+    * supposed to bind buffers as sets! */
+   VK_FROM_HANDLE(panvk_cmd_buffer, cmd_buffer, commandBuffer);
+
+   if (pSetDescriptorBufferOffsetsInfo->stageFlags &
+       VK_SHADER_STAGE_COMPUTE_BIT)
+      panvk_set_descriptor_buffer_offset(cmd_buffer,
+                                         pSetDescriptorBufferOffsetsInfo,
+                                         VK_PIPELINE_BIND_POINT_COMPUTE);
+
+   if (pSetDescriptorBufferOffsetsInfo->stageFlags &
+       VK_SHADER_STAGE_ALL_GRAPHICS)
+      panvk_set_descriptor_buffer_offset(cmd_buffer,
+                                         pSetDescriptorBufferOffsetsInfo,
+                                         VK_PIPELINE_BIND_POINT_GRAPHICS);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+panvk_per_arch(CmdBindDescriptorBuffersEXT)(
+   VkCommandBuffer commandBuffer, uint32_t bufferCount,
+   const VkDescriptorBufferBindingInfoEXT *pBindingInfos)
+{
+   VK_FROM_HANDLE(panvk_cmd_buffer, cmd_buffer, commandBuffer);
+
+   for (uint32_t i = 0; i < bufferCount; i++) {
+      cmd_buffer->state.descriptor_buffers[i] = pBindingInfos[i].address;
+   }
+}
+
+static VkResult
+write_embedded_samplers_as_db(struct panvk_cmd_buffer *cmdbuf,
+                              VkPipelineBindPoint bind_point,
+                              const struct panvk_descriptor_set_layout *layout,
+                              uint32_t set)
+{
+   /* TODO: heaps will require a different way of handling embedded samplers.
+    * avoid allocations here by piggybacking off of that. */
+
+   struct panvk_descriptor_state *desc_state;
+   if (bind_point == VK_PIPELINE_BIND_POINT_GRAPHICS) {
+      desc_state = &cmdbuf->state.gfx.desc_state;
+      gfx_state_set_dirty(cmdbuf, DESC_STATE);
+   } else if (bind_point == VK_PIPELINE_BIND_POINT_COMPUTE) {
+      desc_state = &cmdbuf->state.compute.desc_state;
+      compute_state_set_dirty(cmdbuf, DESC_STATE);
+   }
+
+   struct pan_ptr ptr = panvk_cmd_alloc_dev_mem(
+      cmdbuf, desc, layout->binding_count * PANVK_DESCRIPTOR_SIZE,
+      PANVK_DESCRIPTOR_SIZE);
+   if (!ptr.gpu)
+      return VK_ERROR_OUT_OF_DEVICE_MEMORY;
+
+   struct mali_sampler_packed *as_sampler = ptr.cpu;
+   for (uint32_t binding = 0; binding < layout->binding_count; binding++) {
+      const struct panvk_descriptor_set_binding_layout *binding_layout =
+         &layout->bindings[binding];
+
+      if (binding_layout->immutable_samplers == NULL)
+         continue;
+
+      /* separate-reconstruction ycbcr is not allowed with embedded samplers. */
+      assert(binding_layout->samplers_per_desc == 1);
+      /* spec disallows arrays of embedded immutable samplers with DB. */
+      assert(binding_layout->desc_count == 1);
+      as_sampler[binding_layout->desc_idx] =
+         binding_layout->immutable_samplers[0]->descs[0];
+   }
+
+   desc_state->descriptor_buffers[set].dev_addr = ptr.gpu;
+   desc_state->descriptor_buffers[set].desc_count = layout->desc_count;
+   desc_state->active_model = PANVK_DESCRIPTOR_MODEL_BUFFERS;
+
+   if (desc_state->sets[set] &&
+       desc_state->sets[set] == desc_state->push_sets[set])
+      desc_state->push_sets[set]->descs.dev = 0;
+   desc_state->sets[set] = NULL;
+
+   return VK_SUCCESS;
+}
+
+VKAPI_ATTR void VKAPI_CALL
+panvk_per_arch(CmdBindDescriptorBufferEmbeddedSamplers2EXT)(
+   VkCommandBuffer commandBuffer,
+   const VkBindDescriptorBufferEmbeddedSamplersInfoEXT
+      *pBindDescriptorBufferEmbeddedSamplersInfo)
+{
+   VK_FROM_HANDLE(panvk_cmd_buffer, cmdbuf, commandBuffer);
+   VK_FROM_HANDLE(vk_pipeline_layout, pipeline_layout,
+                  pBindDescriptorBufferEmbeddedSamplersInfo->layout);
+   const uint32_t set = pBindDescriptorBufferEmbeddedSamplersInfo->set;
+   const struct panvk_descriptor_set_layout *layout =
+      to_panvk_descriptor_set_layout(pipeline_layout->set_layouts[set]);
+
+   if (pBindDescriptorBufferEmbeddedSamplersInfo->stageFlags &
+       VK_SHADER_STAGE_COMPUTE_BIT) {
+      VkResult result = write_embedded_samplers_as_db(
+         cmdbuf, VK_PIPELINE_BIND_POINT_COMPUTE, layout,
+         pBindDescriptorBufferEmbeddedSamplersInfo->set);
+      if (result != VK_SUCCESS) {
+         vk_command_buffer_set_error(&cmdbuf->vk, result);
+         return;
+      }
+   }
+
+   if (pBindDescriptorBufferEmbeddedSamplersInfo->stageFlags &
+       VK_SHADER_STAGE_ALL_GRAPHICS) {
+      VkResult result = write_embedded_samplers_as_db(
+         cmdbuf, VK_PIPELINE_BIND_POINT_GRAPHICS, layout,
+         pBindDescriptorBufferEmbeddedSamplersInfo->set);
+      if (result != VK_SUCCESS) {
+         vk_command_buffer_set_error(&cmdbuf->vk, result);
+         return;
+      }
+   }
 }

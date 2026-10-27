@@ -580,6 +580,7 @@ struct panvk_cmd_buffer {
       struct panvk_cmd_graphics_state gfx;
       struct panvk_cmd_compute_state compute;
       struct panvk_push_constant_state push_constants;
+      uint64_t descriptor_buffers[MAX_SETS];
       struct panvk_cs_state cs[PANVK_SUBQUEUE_COUNT];
       struct panvk_tls_state tls;
       bool contains_timestamp_queries;
