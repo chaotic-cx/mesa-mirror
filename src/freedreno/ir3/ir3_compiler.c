@@ -356,7 +356,7 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
       compiler->flat_bypass = true;
       compiler->levels_add_one = false;
       compiler->unminify_coords = false;
-      compiler->txf_ms_with_isaml = false;
+      compiler->txf_ms_with_isam = false;
       compiler->array_index_add_half = true;
       compiler->instr_align = 16;
       compiler->const_upload_unit = 4;
@@ -365,7 +365,7 @@ ir3_compiler_create(struct fd_device *dev, const struct fd_dev_id *dev_id,
       compiler->flat_bypass = false;
       compiler->levels_add_one = true;
       compiler->unminify_coords = true;
-      compiler->txf_ms_with_isaml = true;
+      compiler->txf_ms_with_isam = true;
       compiler->array_index_add_half = false;
       compiler->instr_align = 4;
       compiler->const_upload_unit = 8;

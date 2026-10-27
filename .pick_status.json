@@ -1254,7 +1254,7 @@
         "description": "freedreno/ir3: use implicit LOD zero for a3xx multisample fetches",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "418b3fd184bbe741e17a9586d5336687dd004775",
         "notes": null
