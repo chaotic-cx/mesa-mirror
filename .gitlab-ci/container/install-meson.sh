@@ -8,5 +8,5 @@
 
 rm -f /usr/lib/python3.*/EXTERNALLY-MANAGED
 
-# We need at least 1.7.0 for proper rust binding generation
-pip3 install 'meson==1.7.0'
+# rusticl tests need 1.9+
+pip3 install 'meson==1.9.2'
