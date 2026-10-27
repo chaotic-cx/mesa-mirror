@@ -6,7 +6,7 @@ project(
   ['c', 'cpp'],
   version : files('VERSION'),
   license : 'MIT',
-  meson_version : '>= 1.5.0',
+  meson_version : '>= 1.7.0',
   default_options : [
     'buildtype=debugoptimized',
     'b_ndebug=if-release',
@@ -940,11 +940,6 @@ with_any_rust = [
 ].contains(true)
 
 if with_any_rust
-  # rust.bindgen() does not pass `--rust-target` to bindgen until 1.7.0.
-  if meson.version().version_compare('< 1.7.0')
-    error('Mesa Rust support requires Meson 1.7.0 or newer')
-  endif
-
   add_languages('rust', required: true)
   rustc = meson.get_compiler('rust')
   rust = import('rust')
