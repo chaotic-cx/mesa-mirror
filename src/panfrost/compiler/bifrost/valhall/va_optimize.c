@@ -296,6 +296,10 @@ va_propagate_replicate_wide(bi_context *ctx, bi_instr **lut, bi_instr *I)
    struct va_opcode_info info = valhall_opcodes[I->op];
    bool progress = false;
 
+   bool variable_srcs = info.nr_srcs == 0;
+   if (variable_srcs)
+      return false;
+
    bi_foreach_ssa_src(I, s) {
       if (!info.srcs[s].widen)
          continue;

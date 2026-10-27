@@ -3144,7 +3144,7 @@
         "description": "pan/va: fix out-of-bounds read propagating swizzles on pseudo instructions",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "67a662ed058a7ab95711f106d617de89c10cbdbd",
         "notes": null
