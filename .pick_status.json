@@ -644,7 +644,7 @@
         "description": "meson: bump required meson version to 1.5",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "a0543624c0d10526a80fde077db5701fcd432789",
         "notes": null
