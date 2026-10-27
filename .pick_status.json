@@ -314,7 +314,7 @@
         "description": "zink: create mesh full programs when replacing mesh separable programs",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "c39123c74d2fede7a38ed308edc0c444c142fdc1",
         "notes": null
