@@ -1741,9 +1741,10 @@ radv_layout_fmask_compression(const struct radv_device *device, const struct rad
       return RADV_FMASK_COMPRESSION_NONE;
 
    /* Don't compress compute transfer dst because image stores ignore FMASK and it needs to be
-    * expanded before.
+    * expanded before. (compute in the sdma+compute gang identifies as TRANSFER)
     */
-   if (layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && (queue_mask & (1u << RADV_QUEUE_COMPUTE)))
+   if (layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL &&
+       (queue_mask & (BITFIELD_BIT(RADV_QUEUE_COMPUTE) | BITFIELD_BIT(RADV_QUEUE_TRANSFER))))
       return RADV_FMASK_COMPRESSION_NONE;
 
    /* Compress images if TC-compat CMASK is enabled. */
