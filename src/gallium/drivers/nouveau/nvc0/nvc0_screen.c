@@ -204,6 +204,7 @@ nvc0_init_screen_caps(struct nvc0_screen *screen)
    caps->max_texel_buffer_elements = 128 * 1024 * 1024;
    caps->glsl_feature_level = 430;
    caps->glsl_feature_level_compatibility = 430;
+   caps->fs_sample_variables = true;
    caps->max_render_targets = 8;
    caps->max_dual_source_render_targets = 1;
    caps->viewport_subpixel_bits =

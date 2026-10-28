@@ -1402,14 +1402,18 @@ void st_init_extensions(struct pipe_screen *screen,
       extensions->ARB_draw_indirect = GL_TRUE;
    }
 
+   /* Every driver exposing ARB_gpu_shader5 must also report the sample
+    * variables that it includes.
+    */
+   assert(!extensions->ARB_gpu_shader5 || screen->caps.fs_sample_variables);
+
    /* OES_sample_shading, OES_sample_variables and
     * OES_shader_multisample_interpolation all share this flag in
-    * extensions_table.h. Needs sample shading, plus either the
-    * sample-related bits of ARB_gpu_shader5 or a driver that advertises
-    * fragment shader sample-variable support directly.
+    * extensions_table.h. Needs sample shading plus fragment shader
+    * sample variables, which every driver exposing ARB_gpu_shader5 reports.
     */
    extensions->OES_sample_variables = extensions->ARB_sample_shading &&
-      (extensions->ARB_gpu_shader5 || screen->caps.fs_sample_variables);
+      screen->caps.fs_sample_variables;
 
    /* Maximum sample count. */
    {

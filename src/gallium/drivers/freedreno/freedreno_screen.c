@@ -543,6 +543,13 @@ fd_init_screen_caps(struct fd_screen *screen)
 
    caps->glsl_feature_level_compatibility = caps->glsl_feature_level;
 
+   /* a702 could report this too, but exposing the OES sample extensions on
+    * it is left for a follow-up.
+    */
+   caps->fs_sample_variables =
+      is_a4xx(screen) || is_a5xx(screen) ||
+      (is_a6xx(screen) && !screen->info->props.is_a702);
+
    caps->shader_buffer_offset_alignment =
       is_a6xx(screen) ? 64 : (is_a5xx(screen) || is_a4xx(screen) ? 4 : 0);
 

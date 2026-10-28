@@ -426,6 +426,8 @@ svga_init_screen_caps(struct svga_screen *svgascreen)
    caps->glsl_feature_level_compatibility =
       sws->have_gl43 ? 430 : (sws->have_sm5 ? 410 : (sws->have_vgpu10 ? 330 : 120));
 
+   caps->fs_sample_variables = sws->have_gl43 || sws->have_sm5;
+
    caps->texture_transfer_modes = 0;
 
    caps->fragment_shader_texture_lod = true;

@@ -272,6 +272,7 @@ llvmpipe_init_screen_caps(struct pipe_screen *screen)
    caps->vertex_color_clamped = true;
    caps->glsl_feature_level_compatibility =
    caps->glsl_feature_level = 460;
+   caps->fs_sample_variables = true;
    caps->compute = true;
    caps->user_vertex_buffers = true;
    caps->tgsi_texcoord = true;

@@ -242,7 +242,9 @@ Capability about the features and limits of the driver/GPU.
   :ext:`GL_OES_shader_multisample_interpolation` (``gl_SampleID``,
   ``gl_SamplePosition``, ``gl_SampleMaskIn``, ``gl_SampleMask`` and
   ``interpolateAt*``) without requiring the rest of
-  :ext:`GL_ARB_gpu_shader5`. Requires ``pipe_caps.sample_shading``.
+  :ext:`GL_ARB_gpu_shader5`. Drivers that expose :ext:`GL_ARB_gpu_shader5`
+  (GLSL 4.00 or ESSL 3.20 and above) must also set this. The extensions
+  additionally require ``pipe_caps.sample_shading``.
 * ``pipe_caps.texture_gather_offsets``: Whether the ``TG4`` instruction can
   accept 4 offsets.
 * ``pipe_caps.vs_window_space_position``: Whether window-space position is

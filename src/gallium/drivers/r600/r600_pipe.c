@@ -496,6 +496,7 @@ static void r600_init_screen_caps(struct r600_screen *rscreen)
 	caps->texture_buffer_offset_alignment = 4;
 	caps->glsl_feature_level_compatibility =
 	caps->glsl_feature_level = family >= CHIP_CEDAR ? 460 : 330;
+	caps->fs_sample_variables = family >= CHIP_CEDAR;
 
 	/* Supported except the original R600. */
 	caps->indep_blend_enable =

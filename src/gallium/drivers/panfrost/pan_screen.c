@@ -780,6 +780,7 @@ panfrost_init_screen_caps(struct panfrost_screen *screen)
    caps->glsl_feature_level =
    caps->glsl_feature_level_compatibility = is_gl3 ? 330 : 140;
    caps->essl_feature_level = dev->arch >= 6 ? 320 : 310;
+   caps->fs_sample_variables = dev->arch >= 6;
 
    caps->constant_buffer_offset_alignment = 16;
 

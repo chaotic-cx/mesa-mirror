@@ -2102,6 +2102,7 @@ agx_init_screen_caps(struct pipe_screen *pscreen)
 
    caps->glsl_feature_level = caps->glsl_feature_level_compatibility = 460;
    caps->essl_feature_level = 320;
+   caps->fs_sample_variables = true;
 
    /* Settings from iris, may need tuning */
    caps->max_vertex_streams = 4;

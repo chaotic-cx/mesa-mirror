@@ -698,6 +698,7 @@ static void si_init_gfx_caps(struct si_screen *sscreen)
 
    caps->glsl_feature_level =
    caps->glsl_feature_level_compatibility = 460;
+   caps->fs_sample_variables = true;
 
    /* Optimal number for good TexSubImage performance on Polaris10. */
    caps->max_texture_upload_memory_budget = 64 * 1024 * 1024;

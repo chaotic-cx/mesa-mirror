@@ -355,6 +355,7 @@ crocus_init_screen_caps(struct crocus_screen *screen)
    caps->glsl_feature_level_compatibility =
    caps->glsl_feature_level = devinfo->verx10 >= 75 ? 460 :
       (devinfo->ver >= 7 ? 420 : (devinfo->ver >= 6 ? 330 : 140));
+   caps->fs_sample_variables = devinfo->ver >= 7;
    caps->clip_planes = devinfo->verx10 < 45 ? 6 : 1; // defaults to MAX (8)
    /* 3DSTATE_CONSTANT_XS requires the start of UBOs to be 32B aligned */
    caps->constant_buffer_offset_alignment = 32;

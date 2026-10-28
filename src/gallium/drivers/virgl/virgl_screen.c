@@ -349,6 +349,7 @@ virgl_init_screen_caps(struct virgl_screen *vscreen)
       MIN2(vscreen->caps.caps.v1.glsl_level, 140) :
       vscreen->caps.caps.v1.glsl_level;
    caps->glsl_feature_level = vscreen->caps.caps.v1.glsl_level;
+   caps->fs_sample_variables = caps->glsl_feature_level >= 400;
    caps->quads_follow_provoking_vertex_convention = true;
    caps->depth_clip_disable_separate = false;
    caps->compute = vscreen->caps.caps.v2.capability_bits & VIRGL_CAP_COMPUTE_SHADER;

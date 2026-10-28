@@ -1011,6 +1011,7 @@ zink_init_screen_caps(struct zink_screen *screen)
 
    caps->glsl_feature_level_compatibility =
    caps->glsl_feature_level = 460;
+   caps->fs_sample_variables = true;
 
    caps->compute = true;
 

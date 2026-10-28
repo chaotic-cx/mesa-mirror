@@ -305,6 +305,7 @@ softpipe_init_screen_caps(struct softpipe_screen *sp_screen)
    caps->vertex_color_clamped = true; /* draw module */
    caps->glsl_feature_level =
    caps->glsl_feature_level_compatibility = 400;
+   caps->fs_sample_variables = true;
    caps->compute = true;
    caps->user_vertex_buffers = true;
    caps->stream_output_pause_resume = true;
