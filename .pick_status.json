@@ -64,7 +64,7 @@
         "description": "lima: close the screen fd on destroy and on failed creation",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "759496cc455575f1a16bd5dcfdcdb339b2ff30fe",
         "notes": null
