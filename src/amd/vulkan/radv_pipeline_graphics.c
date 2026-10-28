@@ -2546,8 +2546,6 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       if ((gfx_state->lib_flags & VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT) &&
           !gfx_state->dynamic_rasterization_samples && gfx_state->ms.rasterization_samples == 0)
          NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_opt_fragdepth);
-
-      NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, radv_nir_opt_fs_builtins, gfx_state, num_raster_vertices_per_prim);
    }
 
    if (stages[MESA_SHADER_VERTEX].nir && !gfx_state->vs.has_prolog)

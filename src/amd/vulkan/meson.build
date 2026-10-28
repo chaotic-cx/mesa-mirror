@@ -112,7 +112,6 @@ libradv_files = files(
   'nir/radv_nir_lower_printf.c',
   'nir/radv_nir_lower_ray_queries.c',
   'nir/radv_nir_lower_vs_inputs.c',
-  'nir/radv_nir_opt_fs_builtins.c',
   'nir/radv_nir_opt_tid_function.c',
   'nir/radv_nir_remap_color_attachment.c',
   'nir/radv_nir_rt_common.c',
