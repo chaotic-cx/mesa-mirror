@@ -99,6 +99,11 @@ subpass_setup_tlb_input_attachments(struct v3dv_subpass *subpass)
          continue;
 
       has_input = true;
+      if (input >= MAX_INPUT_ATTACHMENTS) {
+         all_inputs_use_tlb = false;
+         continue;
+      }
+
       for (uint32_t rt = 0; rt < subpass->color_count; rt++) {
          if (subpass->color_attachments[rt].attachment != attachment)
             continue;

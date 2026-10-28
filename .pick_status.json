@@ -1124,7 +1124,7 @@
         "description": "v3dv: guard TLB input mappings for memory barriers",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "840f8108258d165a9307d1ab5db811cc3e53d278",
         "notes": null
