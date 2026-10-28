@@ -1144,7 +1144,7 @@
         "description": "panvk/utrace: Fix payload assert",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "6f5914ee075b5ad62669feafbdac5a25a4d14c08",
         "notes": null
