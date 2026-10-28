@@ -1758,6 +1758,9 @@ radv_generate_graphics_state_key(const struct radv_compiler_info *compiler_info,
    if (key.vrs_may_be_enabled && compiler_info->ac->has_vrs_frag_pos_z_bug)
       key.adjust_frag_coord_z = true;
 
+   key.custom_sample_locs_may_be_enabled = BITSET_TEST(state->dynamic, MESA_VK_DYNAMIC_MS_SAMPLE_LOCATIONS_ENABLE) ||
+                                           !state->ms || state->ms->sample_locations_enable;
+
    key.ps.color_outputs_need_epilog = color_outputs_need_ps_epilog(state, lib_flags);
    key.ps.epilog = radv_pipeline_generate_ps_epilog_key(compiler_info, state);
 
@@ -2596,6 +2599,19 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
           gfx_state->smooth_lines_may_be_enabled)
          NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_lower_poly_line_smooth, false, RADV_NUM_SMOOTH_AA_SAMPLES);
 
+      const bool vrs_may_be_enabled =
+         gfx_state->vrs_may_be_enabled &&
+         !radv_force_disable_vrs(compiler_info->ac->gfx_level, stages[MESA_SHADER_FRAGMENT].nir, gfx_state);
+
+      ac_nir_lower_ps_early_options opts = {0};
+      opts.msaa_disabled = !gfx_state->dynamic_rasterization_samples && !gfx_state->ms.rasterization_samples;
+      opts.vrs_disabled = !vrs_may_be_enabled;
+      opts.custom_sample_locations_disabled = !gfx_state->custom_sample_locs_may_be_enabled;
+      opts.dynamic_rasterization_samples = gfx_state->dynamic_rasterization_samples;
+      opts.alpha_func = COMPARE_FUNC_ALWAYS;
+      opts.color_mask = 0xffffffff;
+      NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, ac_nir_lower_ps_early, &opts);
+
       if (!gfx_state->ps.color_outputs_need_epilog) {
          NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, radv_nir_remap_color_attachment, gfx_state);
 
@@ -2612,10 +2628,6 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_opt_copy_prop);
       NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_opt_dce);
       NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_opt_cse);
-
-      const bool vrs_may_be_enabled =
-         gfx_state->vrs_may_be_enabled &&
-         !radv_force_disable_vrs(compiler_info->ac->gfx_level, stages[MESA_SHADER_FRAGMENT].nir, gfx_state);
 
       /* nir_opt_dce must be run before this pass. */
       NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, radv_nir_lower_opt_fs_frag_pos, vrs_may_be_enabled,

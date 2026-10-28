@@ -138,11 +138,12 @@ struct radv_graphics_state_key {
    uint32_t has_multiview_view_index : 1;
    uint32_t vrs_may_be_enabled : 1;
    uint32_t adjust_frag_coord_z : 1;
+   uint32_t custom_sample_locs_may_be_enabled : 1;
    uint32_t dynamic_rasterization_samples : 1;
    uint32_t dynamic_provoking_vtx_mode : 1;
    uint32_t smooth_lines_may_be_enabled : 1;
    uint32_t dcc_decompress_gfx11 : 1;
-   uint32_t reserved : 13;
+   uint32_t reserved : 12;
 
    struct {
       uint8_t topology;

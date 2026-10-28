@@ -540,6 +540,7 @@ BEGIN_TEST(d3d11_derivs.bc_optimize)
 
    PipelineBuilder pbld(get_vk_device(GFX10_3));
    pbld.add_vsfs(vs, fs);
+   pbld.samples = VK_SAMPLE_COUNT_8_BIT;
 
    //>> v1: %y_coord2 = v_cndmask_b32 (kill)%_, %_, (kill)%_
    //>> v1: %x = v_interp_p2_f32 (kill)%_, %_:m0, (kill)%_ attr0.x
