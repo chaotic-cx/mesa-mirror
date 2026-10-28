@@ -43,6 +43,7 @@
 #include "util/list.h"
 #include "util/log.h"
 #include "util/macros.h"
+#include "util/os_time.h"
 #include "util/simple_mtx.h"
 #include "util/timespec.h"
 #include "util/u_atomic.h"
@@ -214,6 +215,10 @@ extern int etna_mesa_debug;
 static inline void get_abs_timeout(struct drm_etnaviv_timespec *tv, uint64_t ns)
 {
 	struct timespec t;
+
+	if (ns == OS_TIMEOUT_INFINITE)
+		ns = 3600ULL * NSEC_PER_SEC; /* 1 hour timeout is almost infinite */
+
 	clock_gettime(ns > 200000000 ? CLOCK_MONOTONIC_COARSE : CLOCK_MONOTONIC, &t);
 	tv->tv_sec = t.tv_sec + ns / NSEC_PER_SEC;
 	tv->tv_nsec = t.tv_nsec + ns % NSEC_PER_SEC;
