@@ -1443,6 +1443,11 @@ genX(emit_sampler_state)(const struct anv_device *device,
             .BorderColorGreen = vk_state->border_color_value.float32[1],
             .BorderColorBlue = vk_state->border_color_value.float32[2],
             .BorderColorAlpha = vk_state->border_color_value.float32[3],
+            /* Bspec 57016 (r77793) HSD 22021085527. Also refer to the names of
+             * values and description in the dri option.
+             */
+            .sample_d_performance =
+               device->physical->drirc.perf.sample_d_performance,
          };
 
          assert(ANV_SAMPLER_STATE_DWORDS >= GENX(SAMPLER_STATE_EXTENDED_length));
@@ -1453,7 +1458,13 @@ genX(emit_sampler_state)(const struct anv_device *device,
          struct GENX(SAMPLER_STATE) sampler_state = {
             .SamplerDisable = false,
             .TextureBorderColorMode = DX10OGL,
-
+#if GFX_VER >= 35
+            /* Bspec 57016 (r77793) HSD 22021085527. Also refer to the names of
+             * values and description in the dri option.
+             */
+            .sample_d_performance =
+               device->physical->drirc.perf.sample_d_performance,
+#endif
 #if GFX_VER >= 11
             /* This field is marked as disabled on Gfx20+ */
             .CPSLODCompensationEnable = device->info->ver < 20,
