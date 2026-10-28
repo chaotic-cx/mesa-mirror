@@ -21,14 +21,17 @@ typedef struct {
 static nir_def *
 lower_interp_center_smooth(nir_builder *b, nir_def *offset)
 {
-   nir_def *pull_model = nir_load_barycentric_model(b, 32);
+   /* ddx/ddy must execute in quad-uniform control flow. */
+   nir_builder sb = nir_builder_at(nir_before_impl(b->impl));
+
+   nir_def *pull_model = nir_load_barycentric_model(&sb, 32);
 
    nir_def *deriv_x =
-      nir_vec3(b, nir_ddx_fine(b, nir_channel(b, pull_model, 0)), nir_ddx_fine(b, nir_channel(b, pull_model, 1)),
-               nir_ddx_fine(b, nir_channel(b, pull_model, 2)));
+      nir_vec3(&sb, nir_ddx_fine(&sb, nir_channel(&sb, pull_model, 0)),
+               nir_ddx_fine(&sb, nir_channel(&sb, pull_model, 1)), nir_ddx_fine(&sb, nir_channel(&sb, pull_model, 2)));
    nir_def *deriv_y =
-      nir_vec3(b, nir_ddy_fine(b, nir_channel(b, pull_model, 0)), nir_ddy_fine(b, nir_channel(b, pull_model, 1)),
-               nir_ddy_fine(b, nir_channel(b, pull_model, 2)));
+      nir_vec3(&sb, nir_ddy_fine(&sb, nir_channel(&sb, pull_model, 0)),
+               nir_ddy_fine(&sb, nir_channel(&sb, pull_model, 1)), nir_ddy_fine(&sb, nir_channel(&sb, pull_model, 2)));
 
    nir_def *offset_x = nir_channel(b, offset, 0);
    nir_def *offset_y = nir_channel(b, offset, 1);
