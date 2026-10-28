@@ -807,10 +807,10 @@ add_subdword_definition(Program* program, aco_ptr<Instruction>& instr, PhysReg r
 }
 
 void
-adjust_max_used_regs(ra_ctx& ctx, RegClass rc, PhysReg reg)
+adjust_max_used_regs(ra_ctx& ctx, RegClass rc, PhysReg reg, unsigned overestimated_count)
 {
    uint16_t max_addressible_sgpr = ctx.limit.sgpr;
-   unsigned num = DIV_ROUND_UP(reg.reg_b + rc.bytes(), 4);
+   unsigned num = DIV_ROUND_UP(reg.reg_b + rc.bytes(), 4) + overestimated_count;
    if (rc.type() == RegType::vgpr) {
       assert(reg >= 256);
       uint16_t hi = num - 256 - 1;
@@ -4327,18 +4327,21 @@ register_allocation(Program* program, ra_test_policy policy)
          for (unsigned i = 0; i < instr->operands.size(); i++) {
             if (!instr->operands[i].isTemp())
                continue;
-            adjust_max_used_regs(ctx, instr->operands[i].regClass(), instr->operands[i].physReg());
+            unsigned extra = get_overestimated_reg_count(ctx, instr.get(), i);
+            adjust_max_used_regs(ctx, instr->operands[i].regClass(), instr->operands[i].physReg(),
+                                 extra);
          }
 
          for (unsigned i = 0; i < instr->definitions.size(); i++) {
             if (!instr->definitions[i].isTemp())
                continue;
+            unsigned extra = i == 0 ? get_overestimated_reg_count(ctx, instr.get(), -1) : 0;
             adjust_max_used_regs(ctx, instr->definitions[i].regClass(),
-                                 instr->definitions[i].physReg());
+                                 instr->definitions[i].physReg(), extra);
          }
 
          if (instr->isPseudo() && instr->pseudo().needs_scratch_reg) {
-            adjust_max_used_regs(ctx, s1, instr->pseudo().scratch_sgpr);
+            adjust_max_used_regs(ctx, s1, instr->pseudo().scratch_sgpr, 0);
          }
       }
    }
