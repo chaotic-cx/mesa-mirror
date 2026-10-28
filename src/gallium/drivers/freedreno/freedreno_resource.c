@@ -1517,8 +1517,8 @@ fd_resource_create_with_modifiers(struct pipe_screen *pscreen,
         tmpl->format == PIPE_FORMAT_Y8_U8V8_420_UNORM)) {
       struct pipe_resource uv_tmpl = *tmpl;
       uv_tmpl.format = PIPE_FORMAT_R8G8_UNORM;
-      uv_tmpl.width0 = tmpl->width0 / 2;
-      uv_tmpl.height0 = tmpl->height0 / 2;
+      uv_tmpl.width0 = DIV_ROUND_UP(tmpl->width0, 2);
+      uv_tmpl.height0 = DIV_ROUND_UP(tmpl->height0, 2);
 
       uint32_t uv_size = 0;
       uv_prsc = fd_resource_allocate_and_resolve(pscreen, &uv_tmpl, modifiers, count, &uv_size);
