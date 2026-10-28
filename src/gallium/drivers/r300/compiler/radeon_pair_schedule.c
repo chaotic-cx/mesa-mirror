@@ -385,6 +385,7 @@ instruction_reads_presub_from_prev(struct rc_instruction *inst)
    if (inst->Type != RC_INSTRUCTION_PAIR || prev->Type != RC_INSTRUCTION_PAIR)
       return false;
 
+   /* -1 marks an unwritten bank and cannot match a valid temporary index. */
    if (prev->U.P.RGB.WriteMask)
       prev_rgb_index = prev->U.P.RGB.DestIndex;
    else
@@ -392,7 +393,7 @@ instruction_reads_presub_from_prev(struct rc_instruction *inst)
    if (prev->U.P.Alpha.WriteMask)
       prev_alpha_index = prev->U.P.Alpha.DestIndex;
    else
-      prev_alpha_index = 1;
+      prev_alpha_index = -1;
 
    /* Check the previous rgb instruction */
    if (sub_instruction_reads_presub_from_prev(&inst->U.P.RGB, prev_rgb_index,
