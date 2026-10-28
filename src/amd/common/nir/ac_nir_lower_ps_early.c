@@ -139,8 +139,19 @@ optimize_lower_ps_outputs(nir_builder *b, nir_intrinsic_instr *intrin, lower_ps_
       return true;
 
    case FRAG_RESULT_SAMPLE_MASK:
-      if (!s->options->kill_samplemask)
+      if (s->options->lower_1bit_sample_mask_to_discard) {
+         /* We expect the store to be in the last block, which means its srcs dominate
+          * the end of the function, so we can just use the srcs at the end.
+          */
+         assert(intrin->instr.block == nir_impl_last_block(b->impl));
+
+         /* At the end of the shader, demote if bit 0 of the sample mask is 0. */
+         b->cursor = nir_after_impl(b->impl);
+         nir_def *mask = nir_channel(b, intrin->src[0].ssa, 0);
+         nir_demote_if(b, nir_ieq_imm(b, nir_iand_imm(b, mask, 0x1), 0));
+      } else if (!s->options->kill_samplemask) {
          return false;
+      }
       nir_instr_remove(&intrin->instr);
       return true;
    }

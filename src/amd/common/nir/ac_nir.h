@@ -345,6 +345,7 @@ typedef struct {
    bool kill_z;
    bool kill_stencil;
    bool kill_samplemask;
+   bool lower_1bit_sample_mask_to_discard;
 } ac_nir_lower_ps_early_options;
 
 bool
