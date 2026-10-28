@@ -1754,7 +1754,7 @@
         "description": "panfrost/ci: fix hw_jobs filter",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "7b87f8ad226ecfa396fd336a1b0f96f7262e0da4",
         "notes": null

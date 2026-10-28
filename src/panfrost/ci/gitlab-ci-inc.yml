@@ -18,6 +18,11 @@
     - if: '$INPUT_HW_JOBS !~ /"(all|panvk|panthor.ko)"/i'
       when: never
 
+.enforce-hw-jobs-panfrost-panvk-panthor-rules:
+  rules:
+    - if: '$INPUT_HW_JOBS !~ /"(all|panfrost|panvk|panthor.ko)"/i'
+      when: never
+
 .panfrost-midgard-rules:
   stage: arm
   rules:
@@ -203,6 +208,7 @@
 .panfrost-panthor-gl-vk-rules:
   stage: arm
   rules:
+    - !reference [.enforce-hw-jobs-panfrost-panvk-panthor-rules, rules]
     - !reference [.test, rules]
     - !reference [.collabora-farm-rules, rules]
     - !reference [.gl-rules, rules]
@@ -224,6 +230,7 @@
   stage: arm-nightly
   extends: .no-auto-retry
   rules:
+    - !reference [.enforce-hw-jobs-panfrost-panvk-panthor-rules, rules]
     - !reference [.test, rules]
     - !reference [.collabora-farm-manual-rules, rules]
     - !reference [.gl-manual-rules, rules]
