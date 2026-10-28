@@ -347,7 +347,7 @@ static inline void
 vl_vlc_removebits(struct vl_vlc *vlc, unsigned pos, unsigned num_bits)
 {
    uint64_t lo = (vlc->buffer & (UINT64_MAX >> (pos + num_bits))) << num_bits;
-   uint64_t hi = (vlc->buffer & (UINT64_MAX << (64 - pos)));
+   uint64_t hi = vlc->buffer & ~(UINT64_MAX >> pos);
    vlc->buffer = lo | hi;
    vlc->invalid_bits += num_bits;
 }
