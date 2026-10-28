@@ -7,7 +7,6 @@ dEQP-VK.wsi.xcb.present_timing.query.parallel.parallel,Fail
 dEQP-VK.wsi.xlib.present_timing.basic.timing_queue,Fail
 
 dEQP-VK.api.driver_properties.conformance_version,Fail
-old-dEQP-VK.api.driver_properties.conformance_version,Fail
 
 # uprev ANGLE in Mesa
 angle-dEQP-GLES2.functional.negative_api.texture.compressedteximage2d_invalid_border_cube_neg_x,Fail
@@ -44,24 +43,12 @@ dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overesti
 dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_5,Fail
 dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_75,Fail
 dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_plain_conservative,Fail
+dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_mask_all_on,Fail
+dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_1_0,Fail
 dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_25,Fail
 dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_5,Fail
+dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_75,Fail
 dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_plain_conservative,Fail
-old-dEQP-VK.pipeline.fast_linked_library.multisample.conservative_with_full_coverage.overestimate.samples_16_mask_all_on,Fail
-old-dEQP-VK.pipeline.fast_linked_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_1_0,Fail
-old-dEQP-VK.pipeline.fast_linked_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_25,Fail
-old-dEQP-VK.pipeline.fast_linked_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_5,Fail
-old-dEQP-VK.pipeline.fast_linked_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_75,Fail
-old-dEQP-VK.pipeline.fast_linked_library.multisample.conservative_with_full_coverage.overestimate.samples_16_plain_conservative,Fail
-old-dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_mask_all_on,Fail
-old-dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_1_0,Fail
-old-dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_25,Fail
-old-dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_5,Fail
-old-dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_75,Fail
-old-dEQP-VK.pipeline.monolithic.multisample.conservative_with_full_coverage.overestimate.samples_16_plain_conservative,Fail
-old-dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_25,Fail
-old-dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_min_0_5,Fail
-old-dEQP-VK.pipeline.pipeline_library.multisample.conservative_with_full_coverage.overestimate.samples_16_plain_conservative,Fail
 
 # VKCTS 1.4.6.2 -> 1.4.7.0 uprev
 # Not entirely reliable, so clear the flakes entry when it's fixed.
