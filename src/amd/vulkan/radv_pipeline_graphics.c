@@ -2627,6 +2627,20 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
          opts.lower_1bit_sample_mask_to_discard = gfx_state->ps.epilog.lower_1bit_sample_mask_to_discard;
       }
 
+      switch (num_raster_vertices_per_prim) {
+      case 1:
+      case 2:
+         opts.force_front_face = 1;
+         break;
+      case 3:
+         if (gfx_state->rs.cull_mode == VK_CULL_MODE_FRONT_BIT)
+            opts.force_front_face = -1;
+         else if (gfx_state->rs.cull_mode == VK_CULL_MODE_BACK_BIT)
+            opts.force_front_face = 1;
+         break;
+      }
+      opts.has_front_face_select = true;
+
       NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, ac_nir_lower_ps_early, &opts);
 
       if (!gfx_state->ps.color_outputs_need_epilog) {
