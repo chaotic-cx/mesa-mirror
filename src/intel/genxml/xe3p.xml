@@ -273,6 +273,118 @@
     <field name="Post_sync_opn2" dword="52" bits="159:0" type="POSTSYNC_DATA_2" />
     <field name="Post_sync_opn3" dword="57" bits="159:0" type="POSTSYNC_DATA_2" />
   </struct>
+  <struct name="SAMPLER_STATE" length="4">
+    <field name="Anisotropic Algorithm" dword="0" bits="0:0" type="uint">
+      <value name="LEGACY" value="0" />
+      <value name="EWA Approximation" value="1" />
+    </field>
+    <field name="Texture LOD Bias" dword="0" bits="13:1" type="s4.8" />
+    <field name="Min Mode Filter" dword="0" bits="16:14" type="uint" prefix="MAPFILTER">
+      <value name="NEAREST" value="0" />
+      <value name="LINEAR" value="1" />
+      <value name="ANISOTROPIC" value="2" />
+      <value name="ANISOTROPIC_FAST" value="3" />
+      <value name="MONO" value="6" />
+    </field>
+    <field name="Mag Mode Filter" dword="0" bits="19:17" type="uint" prefix="MAPFILTER">
+      <value name="NEAREST" value="0" />
+      <value name="LINEAR" value="1" />
+      <value name="ANISOTROPIC" value="2" />
+      <value name="ANISOTROPIC_FAST" value="3" />
+      <value name="MONO" value="6" />
+    </field>
+    <field name="Mip Mode Filter" dword="0" bits="21:20" type="uint" prefix="MIPFILTER">
+      <value name="NONE" value="0" />
+      <value name="NEAREST" value="1" />
+      <value name="LINEAR" value="3" />
+    </field>
+    <field name="Coarse LOD Quality Mode" dword="0" bits="26:22" type="uint" />
+    <field name="LOD PreClamp Mode" dword="0" bits="28:27" type="uint" prefix="CLAMP_MODE">
+      <value name="NONE" value="0" />
+      <value name="OGL" value="2" />
+    </field>
+    <field name="Texture Border Color Mode" dword="0" bits="29:29" type="uint">
+      <value name="DX10/OGL" value="0" />
+      <value name="DX9" value="1" />
+    </field>
+    <field name="CPS LOD Compensation Enable" dword="0" bits="30:30" type="bool" />
+    <field name="Sampler Disable" dword="0" bits="31:31" type="bool" />
+    <field name="Cube Surface Control Mode" dword="1" bits="0:0" type="uint">
+      <value name="PROGRAMMED" value="0" />
+      <value name="OVERRIDE" value="1" />
+    </field>
+    <field name="Shadow Function" dword="1" bits="3:1" type="uint" prefix="PREFILTEROP">
+      <value name="ALWAYS" value="0" />
+      <value name="NEVER" value="1" />
+      <value name="LESS" value="2" />
+      <value name="EQUAL" value="3" />
+      <value name="LEQUAL" value="4" />
+      <value name="GREATER" value="5" />
+      <value name="NOTEQUAL" value="6" />
+      <value name="GEQUAL" value="7" />
+    </field>
+    <field name="ChromaKey Mode" dword="1" bits="4:4" type="uint">
+      <value name="KEYFILTER_KILL_ON_ANY_MATCH" value="0" />
+      <value name="KEYFILTER_REPLACE_BLACK" value="1" />
+    </field>
+    <field name="ChromaKey Index" dword="1" bits="6:5" type="uint" />
+    <field name="ChromaKey Enable" dword="1" bits="7:7" type="bool" />
+    <field name="Max LOD" dword="1" bits="19:8" type="u4.8" />
+    <field name="Min LOD" dword="1" bits="31:20" type="u4.8" />
+    <field name="LOD Clamp Magnification Mode" dword="2" bits="0:0" type="uint">
+      <value name="MIPNONE" value="0" />
+      <value name="MIPFILTER" value="1" />
+    </field>
+    <field name="SRGB DECODE" dword="2" bits="1:1" type="uint">
+      <value name="DECODE_EXT" value="0" />
+      <value name="SKIP_DECODE_EXT" value="1" />
+    </field>
+    <field name="Return Filter Weight for Null Texels" dword="2" bits="2:2" type="uint" />
+    <field name="Return Filter Weight for Border Texels" dword="2" bits="3:3" type="uint" />
+    <field name="Force gather4 Behavior" dword="2" bits="5:5" type="bool" />
+    <field name="Border Color Pointer" dword="2" bits="31:6" type="offset" />
+    <field name="TCZ Address Control Mode" dword="3" bits="2:0" type="Texture Coordinate Mode" />
+    <field name="TCY Address Control Mode" dword="3" bits="5:3" type="Texture Coordinate Mode" />
+    <field name="TCX Address Control Mode" dword="3" bits="8:6" type="Texture Coordinate Mode" />
+    <field name="Reduction Type Enable" dword="3" bits="9:9" type="bool" />
+    <field name="Non-normalized Coordinate Enable" dword="3" bits="10:10" type="bool" />
+    <field name="Trilinear Filter Quality" dword="3" bits="12:11" type="uint">
+      <value name="FULL" value="0" />
+      <value name="HIGH" value="1" />
+      <value name="MED" value="2" />
+      <value name="LOW" value="3" />
+    </field>
+    <field name="R Address Min Filter Rounding Enable" dword="3" bits="13:13" type="bool" />
+    <field name="R Address Mag Filter Rounding Enable" dword="3" bits="14:14" type="bool" />
+    <field name="V Address Min Filter Rounding Enable" dword="3" bits="15:15" type="bool" />
+    <field name="V Address Mag Filter Rounding Enable" dword="3" bits="16:16" type="bool" />
+    <field name="U Address Min Filter Rounding Enable" dword="3" bits="17:17" type="bool" />
+    <field name="U Address Mag Filter Rounding Enable" dword="3" bits="18:18" type="bool" />
+    <field name="Maximum Anisotropy" dword="3" bits="21:19" type="uint">
+      <value name="RATIO 2:1" value="0" />
+      <value name="RATIO 4:1" value="1" />
+      <value name="RATIO 6:1" value="2" />
+      <value name="RATIO 8:1" value="3" />
+      <value name="RATIO 10:1" value="4" />
+      <value name="RATIO 12:1" value="5" />
+      <value name="RATIO 14:1" value="6" />
+      <value name="RATIO 16:1" value="7" />
+    </field>
+    <field name="Reduction Type" dword="3" bits="23:22" type="uint">
+      <value name="STD_FILTER" value="0" />
+      <value name="COMPARISON" value="1" />
+      <value name="MINIMUM" value="2" />
+      <value name="MAXIMUM" value="3" />
+    </field>
+    <field name="Allow Low Quality LOD Calculation" dword="3" bits="24:24" type="bool" />
+    <field name="Low Quality Filter" dword="3" bits="26:26" type="bool" />
+    <field name="sample_d_performance" dword="3" bits="28:27" type="uint">
+      <value name="Disable_sample_d_optimization" value="0" />
+      <value name="sample_d_ignore12b" value="1" />
+      <value name="sample_d_ignore16b" value="2" />
+      <value name="sample_d_ignore20b" value="3" />
+    </field>
+  </struct>
   <struct name="SAMPLER_STATE_EXTENDED" length="8">
     <field name="LOD Algorithm" dword="0" bits="0:0" type="uint">
       <value name="LEGACY" value="0" />
@@ -378,6 +490,12 @@
     </field>
     <field name="Allow Low Quality LOD Calculation" dword="3" bits="24:24" type="bool" />
     <field name="Low Quality Filter" dword="3" bits="26:26" type="bool" />
+    <field name="sample_d_performance" dword="3" bits="28:27" type="uint">
+      <value name="Disable_sample_d_optimization" value="0" />
+      <value name="sample_d_ignore12b" value="1" />
+      <value name="sample_d_ignore16b" value="2" />
+      <value name="sample_d_ignore20b" value="3" />
+    </field>
     <field name="Border Color Red" dword="4" bits="31:0" type="float" />
     <field name="Chromakey Low" dword="4" bits="31:0" type="uint" />
     <field name="Border Color Green" dword="5" bits="31:0" type="float" />
