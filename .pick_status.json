@@ -5454,7 +5454,7 @@
         "description": "glsl: propagate invariance after lowering",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ecceb076e5c99cea94b853a9600947fe78b3ca74",
         "notes": null
