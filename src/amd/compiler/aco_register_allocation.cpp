@@ -268,6 +268,39 @@ get_reg_bounds(ra_ctx& ctx, RegClass rc)
    return get_reg_bounds(ctx, rc.type(), rc.is_linear_vgpr());
 }
 
+unsigned
+get_overestimated_reg_count(ra_ctx& ctx, Instruction* instr, int operand)
+{
+   if (ctx.program->gfx_level > GFX9)
+      return 0;
+
+   /* Workaround GFX9 hardware bug for D16 image instructions: FeatureImageGather4D16Bug
+    *
+    * The register use is not calculated correctly, and the hardware assumes a
+    * full dword per component. Don't use the last registers of the register file.
+    * Otherwise, the instruction will be skipped.
+    *
+    * https://reviews.llvm.org/D81172
+    */
+   if (!instr->isMIMG() || !instr->mimg().d16)
+      return 0;
+
+   assert(!instr->mimg().tfe && "D16 with TFE not supported.");
+   assert(ctx.program->gfx_level == GFX9 && "Image D16 on GFX8 not supported.");
+
+   /* Only gather instructions are affected on GFX9 */
+   if (operand != -1 || instr->definitions[0].bytes() != 8 || instr->mimg().dmask == 0xF)
+      return 0;
+
+   RegClass rc =
+      operand == -1 ? instr->definitions[0].regClass() : instr->operands[operand].regClass();
+
+   unsigned estimated_regs = DIV_ROUND_UP(rc.bytes(), 2);
+   unsigned used_regs = DIV_ROUND_UP(rc.bytes(), 4);
+
+   return estimated_regs - used_regs;
+}
+
 struct DefInfo {
    PhysRegInterval bounds;
    uint8_t size;
@@ -287,6 +320,12 @@ struct DefInfo {
 
       bounds = get_reg_bounds(ctx, rc);
 
+      unsigned over_estimated = get_overestimated_reg_count(ctx, instr.get(), operand);
+      if (over_estimated) {
+         assert(rc.type() == RegType::vgpr && !rc.is_linear());
+         bounds.size -= MAX2(over_estimated - ctx.num_linear_vgprs, 0);
+      }
+
       if (rc.is_subdword() && operand >= 0) {
          /* stride in bytes */
          stride = get_subdword_operand_stride(ctx.program, instr.get(), operand, rc);
@@ -295,20 +334,6 @@ struct DefInfo {
          stride = rc.bytes() == caps.overwrite_bytes ? caps.placement_stride : 4;
          rc = rc.resize(caps.overwrite_bytes);
          data_stride = caps.placement_stride;
-      } else if (instr->isMIMG() && instr->mimg().d16 && ctx.program->gfx_level <= GFX9) {
-         /* Workaround GFX9 hardware bug for D16 image instructions: FeatureImageGather4D16Bug
-          *
-          * The register use is not calculated correctly, and the hardware assumes a
-          * full dword per component. Don't use the last registers of the register file.
-          * Otherwise, the instruction will be skipped.
-          *
-          * https://reviews.llvm.org/D81172
-          */
-         bool imageGather4D16Bug = operand == -1 && rc == v2 && instr->mimg().dmask != 0xF;
-         assert(ctx.program->gfx_level == GFX9 && "Image D16 on GFX8 not supported.");
-
-         if (imageGather4D16Bug)
-            bounds.size -= MAX2(rc.bytes() / 4 - ctx.num_linear_vgprs, 0);
       } else if (instr_info.classes[(int)instr->opcode] == instr_class::valu_pseudo_scalar_trans) {
          /* RDNA4 ISA doc, 7.10. Pseudo-scalar Transcendental ALU ops:
           * - VCC may not be used as a destination
