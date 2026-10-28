@@ -2337,6 +2337,9 @@ opt_shader(const struct pipe_screen *screen,
 
    do_vec_index_to_cond_assign(shader->ir);
 
+   /* Lowering can introduce temporaries used by invariant or precise outputs. */
+   propagate_invariance(shader->ir);
+
    validate_ir_tree(shader->ir);
 }
 

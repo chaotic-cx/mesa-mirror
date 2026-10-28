@@ -4,6 +4,7 @@
 general_ir_test_files = files(
   'builtin_variable_test.cpp',
   'general_ir_test.cpp',
+  'invariance_test.cpp',
 )
 general_ir_test_files += ir_expression_operation_h
 
