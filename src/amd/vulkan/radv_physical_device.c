@@ -951,6 +951,7 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .EXT_texel_buffer_alignment = true,
       .EXT_tooling_info = true,
       .EXT_transform_feedback = true,
+      .EXT_vertex_address_binding_unrestricted = true,
       .EXT_vertex_attribute_divisor = true,
       .EXT_vertex_input_dynamic_state = !pdev->use_llvm,
       .EXT_ycbcr_2plane_444_formats = true,
@@ -1703,6 +1704,9 @@ radv_physical_device_get_features(const struct radv_physical_device *pdev, struc
 
       /* VK_KHR_maintenance12 */
       .maintenance12 = true,
+
+      /* VK_EXT_vertex_address_binding_unrestricted */
+      .vertexAddressBindingUnrestricted = true,
    };
 }
 
