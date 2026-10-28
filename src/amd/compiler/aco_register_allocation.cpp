@@ -274,22 +274,69 @@ get_overestimated_reg_count(ra_ctx& ctx, Instruction* instr, int operand)
    if (ctx.program->gfx_level > GFX9 || ctx.program->dev.has_unpacked_d16)
       return 0;
 
-   /* Work around GFX8-9 hardware bug for D16 image instructions: FeatureImageGather4D16Bug
+   /* Work around GFX8-9 hardware bugs for D16 instructions:
+    * - FeatureImageGather4D16Bug
+    * - FeatureImageStoreD16Bug
     *
     * The register use is not calculated correctly, and the hardware assumes a
     * full dword per component. Don't use the last registers of the register file.
     * Otherwise, the instruction will be skipped.
     *
     * https://reviews.llvm.org/D81172
+    *
+    * The GFX8.1 bug is even worse than what LLVM handles:
+    * All D16 MIMG/MUBUF/MTBUF instructions are affected.
     */
-   if (!instr->isMIMG() || !instr->mimg().d16)
-      return 0;
 
-   assert(!instr->mimg().tfe && "D16 with TFE not supported.");
+   switch (instr->opcode) {
+   case aco_opcode::buffer_load_format_d16_xy:
+   case aco_opcode::buffer_load_format_d16_xyz:
+   case aco_opcode::buffer_load_format_d16_xyzw:
+      if (ctx.program->gfx_level != GFX8 || operand != -1)
+         return 0;
+      assert(!instr->mubuf().tfe && "D16 with TFE not supported.");
+      break;
+   case aco_opcode::tbuffer_load_format_d16_xy:
+   case aco_opcode::tbuffer_load_format_d16_xyz:
+   case aco_opcode::tbuffer_load_format_d16_xyzw:
+      if (ctx.program->gfx_level != GFX8 || operand != -1)
+         return 0;
+      assert(!instr->mtbuf().tfe && "D16 with TFE not supported.");
+      break;
+   case aco_opcode::buffer_store_format_d16_xy:
+   case aco_opcode::buffer_store_format_d16_xyz:
+   case aco_opcode::buffer_store_format_d16_xyzw:
+      if (ctx.program->gfx_level != GFX8 || operand < 0 ||
+          instr->operands[3].tempId() != instr->operands[operand].tempId())
+         return 0;
+      assert(!instr->mubuf().tfe && "D16 with TFE not supported.");
+      break;
+   case aco_opcode::tbuffer_store_format_d16_xy:
+   case aco_opcode::tbuffer_store_format_d16_xyz:
+   case aco_opcode::tbuffer_store_format_d16_xyzw:
+      if (ctx.program->gfx_level != GFX8 || operand < 0 ||
+          instr->operands[3].tempId() != instr->operands[operand].tempId())
+         return 0;
+      assert(!instr->mtbuf().tfe && "D16 with TFE not supported.");
+      break;
+   case aco_opcode::image_store:
+   case aco_opcode::image_store_mip:
+      if (!instr->mimg().d16 || ctx.program->gfx_level != GFX8 || operand < 0 ||
+          instr->operands[2].tempId() != instr->operands[operand].tempId())
+         return 0;
+      assert(!instr->mimg().tfe && "D16 with TFE not supported.");
+      break;
+   default:
+      if (!instr->isMIMG() || !instr->mimg().d16 || operand != -1)
+         return 0;
+      assert(!instr->mimg().tfe && "D16 with TFE not supported.");
 
-   /* Only gather instructions are affected on GFX9 */
-   if (operand != -1 || instr->definitions[0].bytes() != 8 || instr->mimg().dmask == 0xF)
-      return 0;
+      /* Only gather instructions are affected on GFX9 */
+      if (ctx.program->gfx_level != GFX8 &&
+          (instr->definitions[0].bytes() != 8 || instr->mimg().dmask == 0xF))
+         return 0;
+      break;
+   }
 
    RegClass rc =
       operand == -1 ? instr->definitions[0].regClass() : instr->operands[operand].regClass();
