@@ -247,6 +247,12 @@ zink_render_fixup_swapchain(struct zink_context *ctx)
    if ((ctx->swapchain_size.width || ctx->swapchain_size.height)) {
       unsigned old_w = ctx->fb_state.width;
       unsigned old_h = ctx->fb_state.height;
+      /* another context may have replaced the shared swapchain since the size was recorded */
+      if (ctx->fb_state.nr_cbufs && ctx->fb_state.cbufs[0].texture &&
+          zink_is_swapchain(zink_resource(ctx->fb_state.cbufs[0].texture))) {
+         const struct kopper_displaytarget *cdt = zink_resource(ctx->fb_state.cbufs[0].texture)->obj->dt;
+         ctx->swapchain_size = cdt->swapchain->scci.imageExtent;
+      }
       ctx->fb_state.width = ctx->swapchain_size.width;
       ctx->fb_state.height = ctx->swapchain_size.height;
       ctx->dynamic_fb.info.renderArea.extent.width = MIN2(ctx->dynamic_fb.info.renderArea.extent.width, ctx->fb_state.width);
