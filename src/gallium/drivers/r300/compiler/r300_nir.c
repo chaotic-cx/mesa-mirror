@@ -263,6 +263,8 @@ r300_optimize_nir(struct nir_shader *s, struct r300_screen *screen)
    if (s->info.stage == MESA_SHADER_FRAGMENT && !is_r500)
       NIR_PASS(_, s, r300_nir_stub_deriv);
 
+   NIR_PASS(_, s, nir_opt_reassociate_matrix_mul);
+
    bool progress;
    do {
       progress = false;
