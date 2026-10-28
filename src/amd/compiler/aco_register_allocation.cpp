@@ -2220,14 +2220,9 @@ handle_pseudo(ra_ctx& ctx, const RegisterFile& reg_file, Instruction* instr)
       return;
    }
 
-   int reg = ctx.max_used_sgpr;
-   for (; reg >= 0 && reg_file[PhysReg{(unsigned)reg}]; reg--)
-      ;
-   if (reg < 0) {
-      reg = ctx.max_used_sgpr + 1;
-      for (; reg < ctx.program->max_reg_demand.sgpr && reg_file[PhysReg{(unsigned)reg}]; reg++)
-         ;
-   }
+   unsigned reg = ctx.sgpr_start;
+   while (reg < ctx.sgpr_bounds && reg_file[PhysReg(reg)])
+      reg++;
 
    instr->pseudo().scratch_sgpr = PhysReg{(unsigned)reg};
    adjust_max_used_regs(ctx, s1, instr->pseudo().scratch_sgpr);
