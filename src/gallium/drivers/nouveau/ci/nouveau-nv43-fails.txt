@@ -37,8 +37,6 @@ dEQP-GLES2.functional.fbo.render.recreate_depthbuffer.rebind_rbo_rgba4_depth_com
 dEQP-GLES2.functional.fbo.render.recreate_depthbuffer.rebind_tex2d_bgra_depth_component16,Fail
 dEQP-GLES2.functional.fbo.render.recreate_depthbuffer.rebind_tex2d_rgb_depth_component16,Fail
 dEQP-GLES2.functional.fbo.render.recreate_depthbuffer.rebind_tex2d_rgba_depth_component16,Fail
-dEQP-GLES2.functional.fbo.render.repeated_clear.tex2d_rgb,Fail
-dEQP-GLES2.functional.fbo.render.repeated_clear.tex2d_rgba,Fail
 dEQP-GLES2.functional.fbo.render.resize.rbo_bgra_depth_component16,Fail
 dEQP-GLES2.functional.fbo.render.resize.rbo_rgb565_stencil_index8,Fail
 dEQP-GLES2.functional.fbo.render.resize.rbo_rgb5_a1_depth_component16,Fail
