@@ -1035,7 +1035,6 @@ get_reg_simple(ra_ctx& ctx, const RegisterFile& reg_file, DefInfo info,
          if (new_rr_it < bounds.end())
             rr_it = new_rr_it;
       }
-      adjust_max_used_regs(ctx, rc, best->first);
       return best;
    }
 
@@ -1065,7 +1064,6 @@ get_reg_simple(ra_ctx& ctx, const RegisterFile& reg_file, DefInfo info,
             if (reg_found) {
                PhysReg res{entry.first};
                res.reg_b += i;
-               adjust_max_used_regs(ctx, rc, res);
                best.emplace(res, BITSET_TEST(ctx.preserved, entry.first));
                return best;
             }
@@ -1331,7 +1329,6 @@ get_regs_for_copies(ra_ctx& ctx, RegisterFile& reg_file, std::vector<parallelcop
 
       /* mark the area as blocked */
       reg_file.block(reg_win.lo(), var.rc);
-      adjust_max_used_regs(ctx, var.rc, reg_win.lo());
 
       if (!get_regs_for_copies(ctx, reg_file, parallelcopies, new_vars, instr, def_reg))
          return false;
@@ -1485,7 +1482,6 @@ get_reg_impl(ra_ctx& ctx, const RegisterFile& reg_file, std::vector<parallelcopy
 
    parallelcopies.insert(parallelcopies.end(), pc.begin(), pc.end());
 
-   adjust_max_used_regs(ctx, rc, best_win.lo());
    return best_win.lo();
 }
 
@@ -1535,7 +1531,6 @@ get_reg_specified(ra_ctx& ctx, const RegisterFile& reg_file, RegClass rc,
    if (check_preserved && BITSET_TEST_RANGE(ctx.preserved, reg.reg(), reg.reg() + reg_win.size - 1))
       return false;
 
-   adjust_max_used_regs(ctx, info.rc, reg_win.lo());
    return true;
 }
 
@@ -1657,8 +1652,6 @@ compact_relocate_vars(ra_ctx& ctx, const std::vector<IDAndRegClass>& vars,
       } else {
          space_reg = next_reg;
       }
-
-      adjust_max_used_regs(ctx, var.info.rc, next_reg);
 
       next_reg = next_reg.advance(var.info.rc.size() * 4);
    }
@@ -1798,7 +1791,6 @@ alloc_linear_vgpr(ra_ctx& ctx, const RegisterFile& reg_file, aco_ptr<Instruction
    for (unsigned i = rc.size(); i <= ctx.num_linear_vgprs; i++) {
       PhysReg reg(256 + ctx.vgpr_bounds - i);
       if (!reg_file.test(reg, rc.bytes())) {
-         adjust_max_used_regs(ctx, rc, reg);
          return reg;
       }
    }
@@ -1842,7 +1834,6 @@ alloc_linear_vgpr(ra_ctx& ctx, const RegisterFile& reg_file, aco_ptr<Instruction
    /* If this is updated earlier, a killed operand can't be placed inside the definition. */
    ctx.num_linear_vgprs += rc.size();
 
-   adjust_max_used_regs(ctx, rc, reg);
    return reg;
 }
 
@@ -2201,7 +2192,6 @@ get_reg_create_vector(ra_ctx& ctx, const RegisterFile& reg_file, Temp temp,
    }
 
    parallelcopies.insert(parallelcopies.end(), pc.begin(), pc.end());
-   adjust_max_used_regs(ctx, rc, best_pos);
 
    return best_pos;
 }
@@ -2250,7 +2240,6 @@ handle_pseudo(ra_ctx& ctx, const RegisterFile& reg_file, Instruction* instr)
       reg++;
 
    instr->pseudo().scratch_sgpr = PhysReg{(unsigned)reg};
-   adjust_max_used_regs(ctx, s1, instr->pseudo().scratch_sgpr);
 }
 
 bool
@@ -2386,8 +2375,6 @@ handle_fixed_operands(ra_ctx& ctx, RegisterFile& register_file,
             BITSET_SET(live_reg_assigned, j);
          }
       }
-
-      adjust_max_used_regs(ctx, op.regClass(), op.physReg());
 
       if (op.physReg() == src) {
          tmp_file.block(op.physReg(), op.regClass());
@@ -4055,7 +4042,6 @@ register_allocation(Program* program, ra_test_policy policy)
 
             assert(i >= tied_defs.size());
 
-            adjust_max_used_regs(ctx, definition.regClass(), definition.physReg());
             /* check if the target register is blocked */
             if (register_file.test(definition.physReg(), definition.bytes())) {
                const PhysRegInterval def_regs{definition.physReg(), definition.size()};
@@ -4335,6 +4321,27 @@ register_allocation(Program* program, ra_test_policy policy)
 
       block.instructions = std::move(instructions);
    } /* end for BB */
+
+   for (Block& block : program->blocks) {
+      for (auto& instr : block.instructions) {
+         for (unsigned i = 0; i < instr->operands.size(); i++) {
+            if (!instr->operands[i].isTemp())
+               continue;
+            adjust_max_used_regs(ctx, instr->operands[i].regClass(), instr->operands[i].physReg());
+         }
+
+         for (unsigned i = 0; i < instr->definitions.size(); i++) {
+            if (!instr->definitions[i].isTemp())
+               continue;
+            adjust_max_used_regs(ctx, instr->definitions[i].regClass(),
+                                 instr->definitions[i].physReg());
+         }
+
+         if (instr->isPseudo() && instr->pseudo().needs_scratch_reg) {
+            adjust_max_used_regs(ctx, s1, instr->pseudo().scratch_sgpr);
+         }
+      }
+   }
 
    /* num_gpr = rnd_up(max_used_gpr + 1) */
    program->config->num_vgprs =
