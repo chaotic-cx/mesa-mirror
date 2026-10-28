@@ -169,6 +169,19 @@ panfrost-g610-gl:arm64:
     DEQP_SUITE: panfrost-g610
     LAVA_TAGS: 4gb
 
+panfrost-g610-gl-old:arm64:
+  extends:
+    - .lava-arm64-test-gl
+    - .panfrost-panthor-gl-rules
+    - .panfrost-test
+    - .lava-rk3588-rock-5b:arm64
+  variables:
+    DRIVER_NAME: panfrost
+    DEQP_SUITE: panfrost-g610
+    LAVA_TAGS: 4gb
+    PAN_USE_KRAID: "0"
+    DEQP_FRACTION: 2
+
 panfrost-g610-piglit:arm64:
   parallel: 2
   extends:
