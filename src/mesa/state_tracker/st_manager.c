@@ -244,8 +244,18 @@ st_framebuffer_validate(struct gl_framebuffer *stfb,
       new_stamp = p_atomic_read(&stfb->drawable->stamp);
    } while(stfb->drawable_stamp != new_stamp);
 
-   width = stfb->Width;
-   height = stfb->Height;
+   /* the color buffer defines the size: after a resize through another context
+    * the depth buffer can still have the old size, and is reallocated to match
+    */
+   int size_idx = -1;
+   for (i = 0; i < stfb->num_statts; i++) {
+      if (!textures[i] || attachment_to_buffer_index(stfb->statts[i]) >= BUFFER_COUNT)
+         continue;
+      if (stfb->statts[i] != ST_ATTACHMENT_DEPTH_STENCIL)
+         size_idx = i;
+   }
+   width = size_idx < 0 ? stfb->Width : textures[size_idx]->width0;
+   height = size_idx < 0 ? stfb->Height : textures[size_idx]->height0;
 
    for (i = 0; i < stfb->num_statts; i++) {
       struct gl_renderbuffer *rb;
@@ -274,9 +284,6 @@ st_framebuffer_validate(struct gl_framebuffer *stfb,
       st_set_ws_renderbuffer_surface(rb, &surf_tmpl);
 
       changed = true;
-
-      width = rb->Width;
-      height = rb->Height;
 
       pipe_resource_reference(&textures[i], NULL);
    }
