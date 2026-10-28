@@ -242,7 +242,7 @@ panvk_utrace_perfetto_end_event(
       const void *flush_data, const struct trace_begin_##tp *payload,          \
       const void *indirect_data)                                               \
    {                                                                           \
-      assert(!payload);                                                        \
+      assert(!indirect_data);                                                  \
       /* Contains at most a dummy uint8_t. */                                  \
       static_assert(sizeof(struct trace_begin_##tp) == 1);                     \
       panvk_utrace_perfetto_begin_event(                                       \
