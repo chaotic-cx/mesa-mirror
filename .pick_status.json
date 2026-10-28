@@ -584,7 +584,7 @@
         "description": "compiler/nir: add missing intrinsic to avoid hitting assert",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "80e0ca8480e791d11c3fba53e8a268619034b4c8",
         "notes": null
