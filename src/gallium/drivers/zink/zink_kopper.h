@@ -92,6 +92,7 @@ struct kopper_displaytarget
    uint32_t present_modes; //VkPresentModeKHR bitmask
    struct kopper_swapchain *swapchain;
    struct kopper_swapchain *old_swapchain;
+   uint32_t swapchain_serial;
 
    struct kopper_loader_info info;
 
@@ -168,6 +169,10 @@ VkSemaphore
 zink_kopper_present(struct zink_screen *screen, struct zink_resource *res); 
 void
 zink_kopper_present_queue(struct zink_screen *screen, struct zink_resource *res, unsigned nrects, struct pipe_box *boxes);
+void
+zink_kopper_sync_idx(struct zink_resource *res);
+uint32_t
+zink_kopper_get_dt_idx(struct zink_resource *res);
 bool
 zink_kopper_acquire_readback(struct zink_context *ctx, struct zink_resource *res, struct zink_resource **readback);
 bool

@@ -434,6 +434,8 @@ template <barrier_type BARRIER_API, bool UNSYNCHRONIZED, bool GENERAL>
 void
 zink_resource_image_barrier(struct zink_context *ctx, struct zink_resource *res, VkImageLayout new_layout, VkAccessFlags flags, VkPipelineStageFlags pipeline)
 {
+   if (res->obj->dt)
+      zink_kopper_sync_idx(res);
    bool is_write = zink_resource_access_is_write(flags);
    if (is_write && zink_is_swapchain(res))
       zink_kopper_set_readback_needs_update(res);

@@ -4582,8 +4582,8 @@ zink_flush(struct pipe_context *pctx,
 #if HAVE_RENDERDOC_INTEGRATION
       p_atomic_inc(&screen->renderdoc_frame);
 #endif
-      if (ctx->needs_present && ctx->needs_present->obj->dt_idx != UINT32_MAX &&
-          zink_is_swapchain(ctx->needs_present)) {
+      if (ctx->needs_present && zink_is_swapchain(ctx->needs_present) &&
+          zink_kopper_get_dt_idx(ctx->needs_present) != UINT32_MAX) {
          zink_kopper_readback_update(ctx, ctx->needs_present);
          screen->image_barrier(ctx, ctx->needs_present, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);
       }
@@ -4894,7 +4894,7 @@ zink_flush_resource(struct pipe_context *pctx,
       res->unflushed_transient = false;
    }
    if (res->obj->dt) {
-      if (zink_kopper_acquired(res->obj->dt, res->obj->dt_idx) && (!ctx->clears_enabled || !res->fb_bind_count)) {
+      if (zink_kopper_acquired(res->obj->dt, zink_kopper_get_dt_idx(res)) && (!ctx->clears_enabled || !res->fb_bind_count)) {
          zink_batch_no_rp_safe(ctx);
          zink_kopper_readback_update(ctx, res);
          zink_screen(ctx->base.screen)->image_barrier(ctx, res, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, 0, VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT);

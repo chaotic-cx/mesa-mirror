@@ -909,7 +909,7 @@ zink_end_batch(struct zink_context *ctx)
 
    /* this is swapchain presentation semaphore handling */
    if (ctx->swapchain) {
-      if (zink_kopper_acquired(ctx->swapchain->obj->dt, ctx->swapchain->obj->dt_idx) && !ctx->swapchain->obj->present) {
+      if (zink_kopper_acquired(ctx->swapchain->obj->dt, zink_kopper_get_dt_idx(ctx->swapchain)) && !ctx->swapchain->obj->present) {
          bs->present = zink_kopper_present(screen, ctx->swapchain);
          bs->swapchain = ctx->swapchain;
       }

@@ -1300,6 +1300,7 @@ struct zink_resource_object {
    struct kopper_displaytarget *dt;
    uint32_t dt_idx;
    uint32_t last_dt_idx;
+   uint32_t dt_serial; //swapchain generation that dt_idx and last_dt_idx index into
    VkSemaphore present;
    bool new_dt;
    bool indefinite_acquire;

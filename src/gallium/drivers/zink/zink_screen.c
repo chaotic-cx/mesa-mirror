@@ -1990,7 +1990,7 @@ zink_flush_frontbuffer(struct pipe_screen *pscreen,
 
    ctx = zink_tc_context_unwrap(pctx);
 
-   if (!zink_kopper_acquired(res->obj->dt, res->obj->dt_idx)) {
+   if (!zink_kopper_acquired(res->obj->dt, zink_kopper_get_dt_idx(res))) {
       /* swapbuffers to an undefined surface: acquire and present garbage */
       if (!zink_kopper_acquire(ctx, res, UINT64_MAX))
          return;

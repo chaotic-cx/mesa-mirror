@@ -239,7 +239,7 @@ zink_get_surface(struct zink_context *ctx,
    struct zink_resource *res = zink_resource(templ->texture);
 
    /* not acquired */
-   if (res->obj->dt && res->obj->dt_idx == UINT32_MAX)
+   if (res->obj->dt && zink_kopper_get_dt_idx(res) == UINT32_MAX)
       return NULL;
    if (!res->obj->dt && zink_format_needs_mutable(res->base.b.format, templ->format, (res->obj->vkflags & VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT) > 0))
       /* mutable not set by default */

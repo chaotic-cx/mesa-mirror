@@ -1994,6 +1994,7 @@ resource_create(struct pipe_screen *pscreen,
          res->obj->dt = back->obj->dt;
       }
       struct kopper_displaytarget *cdt = res->obj->dt;
+      res->obj->dt_serial = cdt->swapchain_serial;
       if (zink_kopper_has_srgb(cdt))
          res->obj->vkflags |= VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT;
       if (cdt->swapchain->scci.flags == VK_SWAPCHAIN_CREATE_MUTABLE_FORMAT_BIT_KHR)
