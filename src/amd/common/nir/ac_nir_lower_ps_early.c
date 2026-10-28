@@ -17,6 +17,7 @@
 
 typedef struct {
    const ac_nir_lower_ps_early_options *options;
+   bool centroid_to_pixel;
 
    nir_variable *persp_center;
    nir_variable *persp_centroid;
@@ -59,11 +60,11 @@ get_baryc_var(nir_builder *b, nir_intrinsic_op baryc_op, enum glsl_interp_mode m
    case nir_intrinsic_load_barycentric_centroid:
       if (mode == INTERP_MODE_NOPERSPECTIVE) {
          return get_baryc_var_common(b, s->options->sample_shading ||
-                                     s->options->msaa_disabled, &s->linear_centroid,
+                                     s->centroid_to_pixel, &s->linear_centroid,
                                      "linear_centroid");
       } else {
          return get_baryc_var_common(b, s->options->sample_shading ||
-                                     s->options->msaa_disabled, &s->persp_centroid,
+                                     s->centroid_to_pixel, &s->persp_centroid,
                                      "persp_centroid");
       }
    case nir_intrinsic_load_barycentric_sample:
@@ -511,6 +512,7 @@ ac_nir_lower_ps_early(nir_shader *nir, const ac_nir_lower_ps_early_options *opti
 
    lower_ps_early_state state = {
       .options = options,
+      .centroid_to_pixel = options->msaa_disabled && options->vrs_disabled,
    };
 
    /* Don't gather shader_info. Just gather the single thing we want to know. */

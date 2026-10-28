@@ -312,6 +312,7 @@ ac_nir_lower_legacy_gs(nir_shader *nir, ac_nir_lower_legacy_gs_options *options,
 typedef struct {
    /* System values. */
    bool msaa_disabled; /* true if MSAA is disabled, false may mean that the state is unknown */
+   bool vrs_disabled; /* true if VRS is disabled, false may mean that the state is unknown */
    bool load_sample_positions_always_loads_current_ones; /* TODO: unify with RADV or remove */
    bool dynamic_rasterization_samples; /* TODO: unify with RADV or remove */
    int force_front_face; /* 0 -> keep, 1 -> set to true, -1 -> set to false */
