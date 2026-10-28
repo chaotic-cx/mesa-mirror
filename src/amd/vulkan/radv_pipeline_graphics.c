@@ -2644,9 +2644,7 @@ radv_graphics_shaders_compile(const struct radv_compiler_info *compiler_info, st
       NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, ac_nir_lower_ps_early, &opts);
 
       if (!gfx_state->ps.color_outputs_need_epilog) {
-         NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, radv_nir_trim_fs_exports, &gfx_state->ps.epilog,
-                  gfx_state->ps.mrt0_alpha_is_dead);
-
+         /* Cleanup after ac_nir_lower_ps_early might have removed outputs. */
          NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_opt_copy_prop);
          NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_opt_dce);
          NIR_PASS(_, stages[MESA_SHADER_FRAGMENT].nir, nir_opt_dead_cf);

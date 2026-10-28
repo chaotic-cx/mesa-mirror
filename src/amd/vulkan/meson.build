@@ -121,7 +121,6 @@ libradv_files = files(
   'nir/radv_nir_rt_stage_functions.c',
   'nir/radv_nir_rt_stage_monolithic.c',
   'nir/radv_nir_rt_traversal_shader.c',
-  'nir/radv_nir_trim_fs_exports.c',
   'tools/radv_debug_hang.c',
   'tools/radv_debug_hang.h',
   'tools/radv_debug_nir.c',
