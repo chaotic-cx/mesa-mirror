@@ -74,21 +74,22 @@ VKAPI_ATTR VkResult VKAPI_CALL lvp_GetPipelineCacheData(
         void*                                       pData)
 {
    VkResult result = VK_SUCCESS;
+   const size_t hdr_size = sizeof(VkPipelineCacheHeaderVersionOne);
    if (pData) {
-      if (*pDataSize < 32) {
+      if (*pDataSize < hdr_size) {
          *pDataSize = 0;
          result = VK_INCOMPLETE;
       } else {
-         uint32_t *hdr = (uint32_t *)pData;
-         hdr[0] = 32;
-         hdr[1] = 1;
-         hdr[2] = VK_VENDOR_ID_MESA;
-         hdr[3] = 0;
-         lvp_device_get_cache_uuid(&hdr[4]);
-         *pDataSize = 5 * sizeof(uint32_t);
+         VkPipelineCacheHeaderVersionOne *hdr = pData;
+         hdr->headerSize = hdr_size;
+         hdr->headerVersion = VK_PIPELINE_CACHE_HEADER_VERSION_ONE;
+         hdr->vendorID = VK_VENDOR_ID_MESA;
+         hdr->deviceID = 0;
+         lvp_device_get_cache_uuid(hdr->pipelineCacheUUID);
+         *pDataSize = hdr_size;
       }
    } else
-      *pDataSize = 32;
+      *pDataSize = hdr_size;
    return result;
 }
 

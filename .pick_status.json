@@ -24,7 +24,7 @@
         "description": "lavapipe: fix pipeline cache size return and checks",
         "nominated": true,
         "nomination_type": 2,
-        "resolution": 0,
+        "resolution": 1,
         "main_sha": null,
         "because_sha": "ec071eb25d7fd923e836569277da6c5e81030444",
         "notes": null
