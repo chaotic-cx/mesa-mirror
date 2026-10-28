@@ -392,11 +392,29 @@ lower_ps_intrinsic(nir_builder *b, nir_intrinsic_instr *intrin, void *state)
       if (s->options->force_front_face) {
          nir_def_replace(&intrin->def, nir_imm_bool(b, s->options->force_front_face == 1));
          return true;
+      } else if (s->options->has_front_face_select) {
+         /* 0=sysval, 1=front, -1=back */
+         b->cursor = nir_after_instr(&intrin->instr);
+         nir_def *select = nir_load_front_face_select_amd(b);
+         nir_def *use_sysval = nir_ieq_imm(b, select, 0);
+         nir_def *const_front_face = nir_ieq_imm(b, select, 1);
+         nir_def_rewrite_uses_after(&intrin->def,
+                                    nir_bcsel(b, use_sysval, &intrin->def, const_front_face));
+         return true;
       }
       break;
    case nir_intrinsic_load_front_face_fsign:
       if (s->options->force_front_face) {
          nir_def_replace(&intrin->def, nir_imm_float(b, s->options->force_front_face == 1 ? 1 : -1));
+         return true;
+      } else if (s->options->has_front_face_select) {
+         /* 0=sysval, 1=front, -1=back */
+         b->cursor = nir_after_instr(&intrin->instr);
+         nir_def *select = nir_load_front_face_select_amd(b);
+         nir_def *use_sysval = nir_ieq_imm(b, select, 0);
+         nir_def *const_front_face = nir_i2f32(b, select);
+         nir_def_rewrite_uses_after(&intrin->def,
+                                    nir_bcsel(b, use_sysval, &intrin->def, const_front_face));
          return true;
       }
       break;
