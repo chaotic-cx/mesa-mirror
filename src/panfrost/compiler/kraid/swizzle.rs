@@ -776,6 +776,17 @@ impl Swizzle {
         bytes
     }
 
+    pub fn bits_read(&self, src_bytes: u8) -> u64 {
+        let bytes_read = self.bytes_read(src_bytes);
+        let mut acc = 0;
+        for idx in 0..8 {
+            if (1 << idx) & bytes_read > 0 {
+                acc |= 0xff << (idx * 8);
+            }
+        }
+        acc
+    }
+
     /// Returns true if this swizzle replicates the same byte 4 times.
     pub fn replicates_byte(&self) -> bool {
         let b0 = self.byte(0);

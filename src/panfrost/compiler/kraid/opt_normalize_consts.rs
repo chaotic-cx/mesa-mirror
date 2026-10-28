@@ -93,22 +93,6 @@ fn supported_mods(
     }
 }
 
-fn get_imm_bits_read_mask(swz: &Swizzle, src_type: DataType) -> u32 {
-    let bytes_read = swz.bytes_read(src_type.total_bytes());
-
-    // Can't read any bytes from the upper word because we are reading from an imm32 here.
-    assert!((bytes_read & 0b1111_0000) == 0);
-
-    let mut mask = 0;
-    for i in 0..4 {
-        if (bytes_read & (1 << i)) != 0 {
-            mask |= 0xff << (i * 8);
-        }
-    }
-
-    mask
-}
-
 fn try_f32_as_f16(v: f32) -> Option<F16> {
     let half = F16::from_f32_rtne(v);
     let widened = Swizzle::HF0.fold_u32(half.to_bits() as u32).unwrap();
@@ -162,7 +146,7 @@ fn squeeze_imm(
                 continue;
             }
 
-            let read_mask = get_imm_bits_read_mask(swz, src_type) as u64;
+            let read_mask = swz.bits_read(src_type.total_bytes());
             let try_imm: u32 = (swizzled & read_mask).try_into().unwrap();
 
             let Some(resolved) =
@@ -240,8 +224,8 @@ fn normalize_neg(src: &mut Src, mods: &[SrcMod], src_type: DataType) {
         //     FADD.v2f16 _ 0x80003c00.h00.fneg   as the result but
         //     FADD.v2f16 _ 0x3c00.h00.fneg
         // so mask away the bits we don't read anyways.
-        let mask = get_imm_bits_read_mask(&src.swizzle, src_type);
-        let imm32_modified = imm32_modified & mask;
+        let imm32_modified = imm32_modified
+            & src.swizzle.bits_read(src_type.total_bytes()) as u32;
 
         src.src_ref = imm32_modified.into();
         src.src_mod = try_mod.modify(src.src_mod);

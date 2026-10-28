@@ -367,16 +367,6 @@ enum ConstEntry {
     I64(NonZeroU64),
 }
 
-fn bitmask32_from_byte(bytes_read: u8) -> u32 {
-    let mut acc = 0;
-    for idx in 0..8 {
-        if (1 << idx) & bytes_read > 0 {
-            acc |= 0xff << (idx * 8);
-        }
-    }
-    acc
-}
-
 impl ConstEntry {
     fn from_src_promotable(
         model: &dyn Model,
@@ -391,7 +381,8 @@ impl ConstEntry {
                 } else {
                     let t = op.src_type(src);
                     let read_mask = src.swizzle.bytes_read(t.total_bytes());
-                    let v = v.get() & bitmask32_from_byte(read_mask);
+                    let v =
+                        v.get() & src.swizzle.bits_read(t.total_bytes()) as u32;
                     match u8::BITS - read_mask.leading_zeros() {
                         1 => {
                             Some(ConstEntry::I8((v as u8).try_into().unwrap()))
